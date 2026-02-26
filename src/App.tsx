@@ -619,7 +619,6 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   const tokenDragOffsetRef = useRef<{ x: number; y: number } | null>(null)
   const tokenFogTrailPointRef = useRef<{ x: number; y: number } | null>(null)
   const tokenLongPressTimerRef = useRef<number | null>(null)
-  const tokenLongPressStartRef = useRef<{ x: number; y: number } | null>(null)
   const tokenTouchDraggingRef = useRef(false)
   const mobileTouchRef = useRef<{
     mode: 'none' | 'pan' | 'pinch'
@@ -1435,35 +1434,11 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     }
 
     tokenTouchDraggingRef.current = false
-    tokenLongPressStartRef.current = { x: touch.clientX, y: touch.clientY }
     tokenLongPressTimerRef.current = window.setTimeout(() => {
       startTokenDragAtPoint(tokenId, touch.clientX, touch.clientY)
       tokenTouchDraggingRef.current = true
       tokenLongPressTimerRef.current = null
-      tokenLongPressStartRef.current = null
-    }, 420)
-  }
-
-  const handleTokenTouchMove: TouchEventHandler<HTMLButtonElement> = (event) => {
-    if (role !== 'gm') return
-    if (event.touches.length !== 1) return
-    event.stopPropagation()
-
-    if (tokenTouchDraggingRef.current) {
-      event.preventDefault()
-      return
-    }
-
-    if (!tokenLongPressTimerRef.current || !tokenLongPressStartRef.current) return
-
-    const touch = event.touches[0]
-    const deltaX = touch.clientX - tokenLongPressStartRef.current.x
-    const deltaY = touch.clientY - tokenLongPressStartRef.current.y
-    if (Math.hypot(deltaX, deltaY) > 9) {
-      window.clearTimeout(tokenLongPressTimerRef.current)
-      tokenLongPressTimerRef.current = null
-      tokenLongPressStartRef.current = null
-    }
+    }, 240)
   }
 
   const handleTokenTouchEnd: TouchEventHandler<HTMLButtonElement> = () => {
@@ -1471,8 +1446,6 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       window.clearTimeout(tokenLongPressTimerRef.current)
       tokenLongPressTimerRef.current = null
     }
-    tokenLongPressStartRef.current = null
-    tokenTouchDraggingRef.current = false
   }
 
   const canvasPointFromTouch = (canvas: HTMLCanvasElement, touch: React.Touch) => {
@@ -1875,7 +1848,6 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                       }}
                       onMouseDown={(event) => startTokenDrag(token.id, event)}
                       onTouchStart={(event) => handleTokenTouchStart(token.id, event)}
-                      onTouchMove={handleTokenTouchMove}
                       onTouchEnd={handleTokenTouchEnd}
                       onTouchCancel={handleTokenTouchEnd}
                       aria-label="Map token"
