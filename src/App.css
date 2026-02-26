@@ -550,18 +550,43 @@ button:hover {
   grid-template-columns: 1fr;
 }
 
+.map-mobile-back {
+  display: none;
+}
+
 .map-stage {
   border: 1px solid #dcdcd5;
   min-height: 60vh;
   display: grid;
   place-items: center;
   overflow: hidden;
+  position: relative;
 }
 
 .map-image {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.map-fog-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.map-fullscreen-btn {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
 }
 
 .map-controls {
@@ -574,13 +599,307 @@ button:hover {
   padding-left: 1rem;
 }
 
+.map-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin: 0 0 0.55rem;
+}
+
+.map-icon-btn {
+  height: 2.1rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-icon-btn.active {
+  background: #c9d8c1;
+  border-color: #9eb592;
+}
+
+.map-controls-hint {
+  font-size: 0.82rem;
+  color: #616161;
+  margin: 0.15rem 0 0.55rem;
+}
+
+.map-controls-body.dark {
+  color: #f0f0f0;
+}
+
+.map-controls-body.dark h3,
+.map-controls-body.dark p {
+  color: #f0f0f0;
+}
+
+.map-controls-body.dark .map-controls-hint {
+  color: #c8c8c8;
+}
+
+.map-controls-body.dark .map-icon-btn.active {
+  background: #c9d8c1;
+  border-color: #c9d8c1;
+  color: #111;
+}
+
+.map-fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 10, 0.78);
+  z-index: 140;
+  padding: 1rem;
+}
+
+.map-fullscreen-shell {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 0.75rem;
+}
+
+.map-fullscreen-stage {
+  position: relative;
+  background: #111;
+  border: 1px solid #2a2a2a;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.map-fullscreen-stage.dragging {
+  cursor: grabbing;
+}
+
+.map-fullscreen-close {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  z-index: 10;
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #3a3a3a;
+  background: rgba(15, 15, 15, 0.85);
+  color: #f0f0f0;
+  padding: 0;
+}
+
+.map-fullscreen-controls {
+  background: #171717;
+  border: 1px solid #2f2f2f;
+  padding: 0.9rem;
+}
+
+.map-zoom-layer {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+  transform-origin: center center;
+}
+
+.map-image.zoomable {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  transform-origin: center center;
+  will-change: transform;
+  pointer-events: none;
+  user-select: none;
+}
+
+.map-fog-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.map-fog-canvas.brush {
+  cursor: crosshair;
+}
+
+.map-fog-canvas.read-only {
+  pointer-events: none;
+}
+
+.map-token-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.map-token-layer.gm {
+  z-index: 12;
+}
+
+.map-token,
+.map-token-static {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  line-height: 0;
+  overflow: visible;
+}
+
+.map-token {
+  pointer-events: auto;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: grab;
+}
+
+.map-token.dragging {
+  cursor: grabbing;
+}
+
+.map-token svg,
+.map-token-static svg {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.42));
+}
+
+.map-token-name {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  transform: translate(-50%, 10px);
+  font-size: 0.72rem;
+  background: #fff;
+  border: 1px solid #e2e2db;
+  padding: 0.08rem 0.3rem;
+  border-radius: 3px;
+  line-height: 1.1;
+  white-space: nowrap;
+  text-decoration: none !important;
+  text-decoration-line: none !important;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.map-token-config {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.25rem 0 0.55rem;
+}
+
+.map-token-config input[type='color'] {
+  width: 2.15rem;
+  height: 2.15rem;
+  border: 1px solid #d7d7cf;
+  background: transparent;
+  padding: 0;
+}
+
+.map-token-config label {
+  font-size: 0.82rem;
+}
+
+.token-trash-drop {
+  margin: 0 0 0.55rem;
+  min-height: 2rem;
+  border: 1px dashed #c5c5bc;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.45rem;
+  color: #5c5c54;
+  font-size: 0.78rem;
+}
+
+.token-trash-drop.active {
+  border-color: #a22417;
+  background: #f8ecea;
+  color: #7d1b12;
+}
+
+.token-list {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+}
+
+.token-row {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr auto;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.token-row-label-input {
+  min-width: 0;
+  font-size: 0.78rem;
+}
+
+.token-row input[type='color'] {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid #d7d7cf;
+  background: transparent;
+  padding: 0;
+}
+
+.token-row input[type='range'] {
+  width: 100%;
+}
+
+.token-row-delete {
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 0;
+  background: transparent;
+  color: #7d1b12;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.token-row-delete:hover {
+  background: #f3e9e7;
+}
+
+.token-party-toggle {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: #4b4b44;
+}
+
+.map-controls-body.dark .token-trash-drop {
+  border-color: #4a4a42;
+  color: #c8c8c0;
+}
+
+.map-controls-body.dark .token-trash-drop.active {
+  border-color: #e0968f;
+  background: rgba(162, 36, 23, 0.18);
+  color: #f2c5c1;
+}
+
+.map-controls-body.dark .token-row-label-input {
+  color: #cecec7;
+}
+
+
+.map-controls-body.dark .token-party-toggle {
+  color: #cecec7;
+}
+
 .confirm-overlay {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.3);
   display: grid;
   place-items: center;
-  z-index: 120;
+  z-index: 220;
 }
 
 .confirm-modal {
@@ -630,6 +949,26 @@ button:hover {
 
   .maps-main {
     grid-template-columns: 1fr;
+  }
+
+  .map-mobile-back {
+    display: inline-flex;
+    width: 1.75rem;
+    height: 1.75rem;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    margin-bottom: 0.35rem;
+  }
+
+  .map-mobile-back:hover,
+  .map-mobile-back:focus,
+  .map-mobile-back:focus-visible {
+    background: transparent;
+    outline: none;
+    box-shadow: none;
   }
 
   .map-stage {
