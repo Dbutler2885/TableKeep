@@ -8,12 +8,6 @@
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  background: #fff;
-  color: #111;
-}
-
 h1,
 h2,
 p {
@@ -22,12 +16,19 @@ p {
 
 .auth-shell,
 .shell-root {
+  width: 100%;
   max-width: 1200px;
   margin: 0 auto;
   padding: 1rem;
 }
 
 .shell-root {
+  max-width: none;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding-top: 3.8rem;
 }
 
@@ -102,6 +103,9 @@ button:hover {
   display: grid;
   grid-template-columns: 1fr;
   margin-top: 0.4rem;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .side-nav {
@@ -110,6 +114,7 @@ button:hover {
   left: 0;
   width: min(86vw, 320px);
   height: 100vh;
+  height: 100dvh;
   min-height: 100vh;
   border: 0;
   background: #fff;
@@ -196,7 +201,14 @@ button:hover {
   border: 0;
   background: #fff;
   padding: 1rem;
-  min-height: 75vh;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.maps-content-panel {
+  overflow: hidden;
 }
 
 .info-grid {
@@ -328,12 +340,16 @@ button:hover {
   display: grid;
   grid-template-columns: 290px 1fr;
   gap: 1rem;
+  height: 100%;
+  min-height: 0;
 }
 
 .maps-sidebar {
   border-right: 1px solid #dddcd6;
   padding-right: 0.75rem;
   min-width: 0;
+  min-height: 0;
+  overflow: auto;
 }
 
 .maps-sidebar-header {
@@ -542,8 +558,10 @@ button:hover {
 
 .maps-main {
   display: grid;
-  grid-template-columns: 1fr 250px;
+  grid-template-columns: minmax(0, 1fr) 250px;
   gap: 1rem;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .maps-main.player {
@@ -560,7 +578,7 @@ button:hover {
 
 .map-stage {
   border: 1px solid #dcdcd5;
-  min-height: 60vh;
+  min-height: 0;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -596,6 +614,8 @@ button:hover {
 .map-controls {
   border-left: 1px solid #dddcd6;
   padding-left: 0.75rem;
+  min-height: 0;
+  overflow: auto;
 }
 
 .map-controls ul {
@@ -935,44 +955,36 @@ button:hover {
 }
 
 @media (max-width: 900px) {
-  html,
-  body,
-  #root {
-    height: 100dvh;
-    overflow: hidden;
-  }
-
-  body {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-  }
-
   .shell-root,
   .auth-shell {
-    height: 100dvh;
+    height: 100%;
     max-width: none;
     overflow: hidden;
   }
 
   .shell-root {
-    padding-top: 0.5rem;
+    padding: 0.5rem 0.75rem 0.75rem;
   }
 
   .shell-layout {
     margin-top: 0;
     height: 100%;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .maps-content-panel {
     margin-top: 0;
     padding: 0;
+    display: flex;
+    min-height: 0;
   }
 
   .content-panel {
     min-height: 0;
     height: 100%;
     overflow: hidden;
+    padding: 0.75rem 0;
   }
 
   .info-grid {
@@ -982,6 +994,7 @@ button:hover {
   .maps-layout {
     grid-template-columns: 1fr;
     height: 100%;
+    min-height: 0;
     overflow: hidden;
   }
 
@@ -990,20 +1003,23 @@ button:hover {
     border-bottom: 1px solid #dddcd6;
     padding-right: 0;
     padding-bottom: 0.75rem;
+    min-height: 0;
     overflow: auto;
   }
 
   .maps-main {
     grid-template-columns: 1fr;
+    gap: 0.35rem;
+    min-height: 0;
+    height: 100%;
+    overflow: hidden;
   }
 
   .maps-main.mobile-gm {
-    min-height: calc(100dvh - 6rem);
-    grid-template-rows: auto 1fr auto;
+    grid-template-rows: minmax(0, 1fr) auto;
   }
 
   .maps-main.mobile-player {
-    min-height: calc(100dvh - 4.8rem);
     grid-template-rows: auto 1fr;
     overflow: hidden;
   }
@@ -1017,7 +1033,7 @@ button:hover {
     border: 0;
     background: transparent;
     padding: 0;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.15rem;
   }
 
   .map-mobile-back:hover,
@@ -1029,13 +1045,18 @@ button:hover {
   }
 
   .map-stage {
-    min-height: calc(100dvh - 14rem);
+    min-height: 0;
+    height: 100%;
   }
 
   .map-stage.mobile-player-stage {
-    min-height: calc(100dvh - 7rem);
+    min-height: 0;
+    height: 100%;
     width: 100%;
     overflow: hidden;
+    border-left: 0;
+    border-right: 0;
+    border-bottom: 0;
   }
 
   .map-zoom-layer.mobile-player-zoom {
@@ -1051,7 +1072,8 @@ button:hover {
     border-top: 0;
     padding-left: 0;
     padding-top: 0;
-    min-height: calc(100dvh - 14rem);
+    min-height: 0;
+    height: 100%;
     overflow: auto;
   }
 
@@ -1062,8 +1084,6 @@ button:hover {
     border-top: 1px solid #dddcd6;
     padding-top: 0.5rem;
     background: #fff;
-    position: sticky;
-    bottom: 0;
   }
 
   .map-mobile-panel-nav button {
