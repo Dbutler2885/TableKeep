@@ -576,6 +576,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   const [selectedMapId, setSelectedMapId] = useState('')
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= 900)
   const [mobileMapView, setMobileMapView] = useState<'list' | 'detail'>('list')
+  const [mobileGmPane, setMobileGmPane] = useState<'map' | 'controls'>('map')
   const [mapsLoading, setMapsLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [mapError, setMapError] = useState<string | null>(null)
@@ -665,7 +666,10 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     const updateMobileState = () => {
       const mobile = window.innerWidth <= 900
       setIsMobile(mobile)
-      if (!mobile) setMobileMapView('list')
+      if (!mobile) {
+        setMobileMapView('list')
+        setMobileGmPane('map')
+      }
     }
 
     updateMobileState()
@@ -695,31 +699,37 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     }
 
     const tokensQuery = query(collection(db, 'campaigns', campaignId, 'maps', selectedMapId, 'tokens'))
-    const unsub = onSnapshot(tokensQuery, (snap) => {
-      const next = snap.docs.map((docSnap) => {
-        const data = docSnap.data() as {
-          x?: number
-          y?: number
-          color?: string
-          size?: number
-          party?: boolean
-          name?: string
-          revealName?: boolean
-        }
+    const unsub = onSnapshot(
+      tokensQuery,
+      (snap) => {
+        const next = snap.docs.map((docSnap) => {
+          const data = docSnap.data() as {
+            x?: number
+            y?: number
+            color?: string
+            size?: number
+            party?: boolean
+            name?: string
+            revealName?: boolean
+          }
 
-        return {
-          id: docSnap.id,
-          x: typeof data.x === 'number' ? data.x : 0.5,
-          y: typeof data.y === 'number' ? data.y : 0.5,
-          color: typeof data.color === 'string' ? data.color : '#b45309',
-          size: typeof data.size === 'number' ? data.size : 28,
-          party: data.party === true,
-          name: typeof data.name === 'string' ? data.name : '',
-          revealName: data.revealName === true,
-        }
-      })
-      setTokens(next)
-    })
+          return {
+            id: docSnap.id,
+            x: typeof data.x === 'number' ? data.x : 0.5,
+            y: typeof data.y === 'number' ? data.y : 0.5,
+            color: typeof data.color === 'string' ? data.color : '#b45309',
+            size: typeof data.size === 'number' ? data.size : 28,
+            party: data.party === true,
+            name: typeof data.name === 'string' ? data.name : '',
+            revealName: data.revealName === true,
+          }
+        })
+        setTokens(next)
+      },
+      (err) => {
+        setMapError(err.message)
+      },
+    )
 
     return () => unsub()
   }, [campaignId, selectedMapId])
@@ -889,6 +899,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     setSelectedMapId(mapId)
     if (isMobile) {
       setMobileMapView('detail')
+      setMobileGmPane('map')
     }
   }
 
@@ -960,15 +971,17 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   const initializeFogCanvas = (canvas: HTMLCanvasElement, map: MapRecord, width: number, height: number) => {
     if (width <= 0 || height <= 0) return
 
-    canvas.width = width
-    canvas.height = height
+    const resized = canvas.width !== width || canvas.height !== height
+    if (resized) {
+      canvas.width = width
+      canvas.height = height
+    }
 
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    ctx.clearRect(0, 0, width, height)
-
     if (!map.fogDataUrl) {
+      ctx.clearRect(0, 0, width, height)
       ctx.fillStyle = 'rgba(0, 0, 0, 1)'
       ctx.fillRect(0, 0, width, height)
       bumpFogSampleTick()
@@ -1508,12 +1521,20 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       ) : null}
 
       {showMapPane ? (
-      <div className={role === 'gm' ? 'maps-main gm' : 'maps-main player'}>
+      <div
+        className={[
+          role === 'gm' ? 'maps-main gm' : 'maps-main player',
+          isMobile && role === 'gm' ? 'mobile-gm' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
         {isMobile ? (
           <button type="button" className="map-mobile-back" onClick={() => setMobileMapView('list')}>
             <ChevronLeft size={16} />
           </button>
         ) : null}
+        {!isMobile || role !== 'gm' || mobileGmPane === 'map' ? (
         <div className="map-stage">
           {!isMobile ? (
             <button type="button" className="map-fullscreen-btn" onClick={openFullScreen}>
@@ -1595,8 +1616,9 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
             <p>Select a map from the list.</p>
           )}
         </div>
+        ) : null}
 
-        {role === 'gm' ? (
+        {role === 'gm' && (!isMobile || mobileGmPane === 'controls') ? (
           <aside className="map-controls">
             <GmMapControls
               fogTool={fogTool}
@@ -1621,6 +1643,29 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
               onRequestDeleteToken={requestDeleteToken}
             />
           </aside>
+        ) : null}
+
+        {isMobile && role === 'gm' ? (
+          <div className="map-mobile-panel-nav">
+            <button
+              type="button"
+              className={mobileGmPane === 'map' ? 'active' : ''}
+              onClick={() => setMobileGmPane('map')}
+              disabled={mobileGmPane === 'map'}
+            >
+              <ChevronLeft size={16} />
+              Map
+            </button>
+            <button
+              type="button"
+              className={mobileGmPane === 'controls' ? 'active' : ''}
+              onClick={() => setMobileGmPane('controls')}
+              disabled={mobileGmPane === 'controls'}
+            >
+              Controls
+              <ChevronRight size={16} />
+            </button>
+          </div>
         ) : null}
       </div>
       ) : null}

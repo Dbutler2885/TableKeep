@@ -554,6 +554,10 @@ button:hover {
   display: none;
 }
 
+.map-mobile-panel-nav {
+  display: none;
+}
+
 .map-stage {
   border: 1px solid #dcdcd5;
   min-height: 60vh;
@@ -719,6 +723,7 @@ button:hover {
   inset: 0;
   width: 100%;
   height: 100%;
+  z-index: 11;
 }
 
 .map-fog-canvas.brush {
@@ -733,10 +738,11 @@ button:hover {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  z-index: 12;
 }
 
 .map-token-layer.gm {
-  z-index: 12;
+  z-index: 13;
 }
 
 .map-token,
@@ -951,6 +957,11 @@ button:hover {
     grid-template-columns: 1fr;
   }
 
+  .maps-main.mobile-gm {
+    min-height: calc(100dvh - 6rem);
+    grid-template-rows: auto 1fr auto;
+  }
+
   .map-mobile-back {
     display: inline-flex;
     width: 1.75rem;
@@ -972,13 +983,38 @@ button:hover {
   }
 
   .map-stage {
-    min-height: 40vh;
+    min-height: calc(100dvh - 14rem);
   }
 
   .map-controls {
     border-left: 0;
-    border-top: 1px solid #dddcd6;
+    border-top: 0;
     padding-left: 0;
-    padding-top: 0.75rem;
+    padding-top: 0;
+    min-height: calc(100dvh - 14rem);
+    overflow: auto;
+  }
+
+  .map-mobile-panel-nav {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    border-top: 1px solid #dddcd6;
+    padding-top: 0.5rem;
+    background: #fff;
+    position: sticky;
+    bottom: 0;
+  }
+
+  .map-mobile-panel-nav button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+  }
+
+  .map-mobile-panel-nav button.active {
+    background: #c9d8c1;
+    border-color: #9eb592;
   }
 }
