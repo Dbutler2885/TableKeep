@@ -549,7 +549,7 @@ function CampaignShell({ user }: { user: User }) {
 
           {drawerOpen ? <button className="drawer-backdrop" onClick={() => setDrawerOpen(false)} /> : null}
 
-          <section className="content-panel">
+          <section className={activeTab === 'maps' ? 'content-panel maps-content-panel' : 'content-panel'}>
             {activeTab === 'character' ? (
               <CharacterTab
                 role={role}

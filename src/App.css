@@ -955,6 +955,20 @@ button:hover {
     overflow: hidden;
   }
 
+  .shell-root {
+    padding-top: 0.5rem;
+  }
+
+  .shell-layout {
+    margin-top: 0;
+    height: 100%;
+  }
+
+  .maps-content-panel {
+    margin-top: 0;
+    padding: 0;
+  }
+
   .content-panel {
     min-height: 0;
     height: 100%;
@@ -989,7 +1003,7 @@ button:hover {
   }
 
   .maps-main.mobile-player {
-    min-height: calc(100dvh - 6rem);
+    min-height: calc(100dvh - 4.8rem);
     grid-template-rows: auto 1fr;
     overflow: hidden;
   }
@@ -1019,7 +1033,7 @@ button:hover {
   }
 
   .map-stage.mobile-player-stage {
-    min-height: calc(100dvh - 11rem);
+    min-height: calc(100dvh - 7rem);
     width: 100%;
     overflow: hidden;
   }
