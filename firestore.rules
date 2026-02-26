@@ -1,0 +1,141 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function campaignMemberPath(campaignId) {
+      return /databases/$(database)/documents/campaigns/$(campaignId)/members/$(request.auth.uid);
+    }
+
+    function isCampaignMember(campaignId) {
+      return isSignedIn()
+        && exists(campaignMemberPath(campaignId))
+        && get(campaignMemberPath(campaignId)).data.status == "active";
+    }
+
+    function isCampaignGM(campaignId) {
+      return isCampaignMember(campaignId)
+        && get(campaignMemberPath(campaignId)).data.role == "gm";
+    }
+
+    function isCharacterOwner() {
+      return isSignedIn() && request.auth.uid == resource.data.ownerUserId;
+    }
+
+      match /users/{userId} {
+      allow read, write: if isSelf(userId);
+
+      match /campaignMemberships/{campaignId} {
+        allow read: if isSelf(userId);
+
+        // Users can self-manage their own user-scoped membership index as player.
+        allow create, update: if (
+          isSelf(userId)
+          && request.resource.data.userId == userId
+          && request.resource.data.role == "player"
+        ) || (
+          isSelf(userId)
+          && request.resource.data.userId == userId
+          && request.resource.data.role == "gm"
+          && get(/databases/$(database)/documents/campaigns/$(campaignId)).data.createdBy == request.auth.uid
+        ) || isCampaignGM(campaignId);
+
+        allow delete: if isSelf(userId) || isCampaignGM(campaignId);
+      }
+    }
+
+    match /campaigns/{campaignId} {
+      allow read: if isCampaignMember(campaignId) || (
+        isSignedIn() && resource.data.status == "active"
+      );
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isCampaignGM(campaignId);
+
+      match /members/{userId} {
+        allow read: if isCampaignMember(campaignId) || isSelf(userId);
+
+        // Bootstrap: campaign creator can self-add as GM for a brand new campaign.
+        // Self-join path: any signed-in user can add self as player to active campaign.
+        allow create: if (
+          isCampaignGM(campaignId)
+          || (
+            isSelf(userId)
+            && request.resource.data.userId == request.auth.uid
+            && request.resource.data.status == "active"
+            && (
+              request.resource.data.role == "player"
+              || (
+                request.resource.data.role == "gm"
+                && get(/databases/$(database)/documents/campaigns/$(campaignId)).data.createdBy == request.auth.uid
+              )
+            )
+          )
+        );
+
+        allow update: if isCampaignGM(campaignId) || (
+          isSelf(userId)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.role == "player"
+          && request.resource.data.status == "active"
+        ) || (
+          isSelf(userId)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.role == "gm"
+          && request.resource.data.status == "active"
+          && get(/databases/$(database)/documents/campaigns/$(campaignId)).data.createdBy == request.auth.uid
+        );
+        allow delete: if isCampaignGM(campaignId);
+      }
+
+      match /characters/{characterId} {
+        allow read: if isCampaignMember(campaignId);
+        allow create: if isCampaignGM(campaignId) || (
+          isSignedIn() && request.resource.data.ownerUserId == request.auth.uid
+        );
+        allow update: if isCampaignGM(campaignId) || isCharacterOwner();
+        allow delete: if isCampaignGM(campaignId);
+      }
+
+      match /maps/{mapId} {
+        allow read: if isCampaignMember(campaignId);
+        allow write: if isCampaignGM(campaignId);
+
+        match /tokens/{tokenId} {
+          allow read: if isCampaignMember(campaignId);
+          allow write: if isCampaignGM(campaignId);
+        }
+
+        match /fogChunks/{chunkId} {
+          allow read: if isCampaignMember(campaignId);
+          allow write: if isCampaignGM(campaignId);
+        }
+      }
+
+      match /images/{imageId} {
+        allow read: if isCampaignGM(campaignId) || (isCampaignMember(campaignId) && resource.data.revealed == true);
+        allow write: if isCampaignGM(campaignId);
+      }
+
+      match /referenceDocs/{docId} {
+        allow read: if isCampaignGM(campaignId) || (isCampaignMember(campaignId) && resource.data.visibleToPlayers == true);
+        allow write: if isCampaignGM(campaignId);
+      }
+
+      match /sessionSummaries/{summaryId} {
+        allow read: if isCampaignMember(campaignId);
+        allow write: if isCampaignGM(campaignId);
+      }
+
+      match /sharedNotes/{noteId} {
+        allow read: if isCampaignMember(campaignId);
+        allow write: if isCampaignGM(campaignId);
+      }
+    }
+  }
+}
