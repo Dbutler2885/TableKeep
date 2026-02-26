@@ -113,15 +113,16 @@ button:hover {
   top: 0;
   left: 0;
   width: min(86vw, 320px);
-  height: 100vh;
   height: 100dvh;
-  min-height: 100vh;
+  max-height: 100dvh;
+  min-height: 0;
   border: 0;
   background: #fff;
   padding: 3.7rem 1rem 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
+  overflow: hidden;
   transform: translateX(-105%);
   transition: transform 180ms ease;
   z-index: 60;
@@ -955,6 +956,16 @@ button:hover {
 }
 
 @media (max-width: 900px) {
+  .side-nav {
+    padding-top: 3.35rem;
+    padding-bottom: calc(0.8rem + env(safe-area-inset-bottom, 0px));
+    gap: 0.6rem;
+  }
+
+  .side-title {
+    font-size: 1.8rem;
+  }
+
   .shell-root,
   .auth-shell {
     height: 100%;
@@ -963,7 +974,7 @@ button:hover {
   }
 
   .shell-root {
-    padding: 0.5rem 0.75rem 0.75rem;
+    padding: 3.1rem 0.75rem 0.75rem;
   }
 
   .shell-layout {
@@ -1034,6 +1045,7 @@ button:hover {
     background: transparent;
     padding: 0;
     margin-bottom: 0.15rem;
+    margin-left: 0;
   }
 
   .map-mobile-back:hover,
@@ -1079,7 +1091,7 @@ button:hover {
 
   .map-mobile-panel-nav {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 0.5rem;
     border-top: 1px solid #dddcd6;
     padding-top: 0.5rem;
@@ -1090,7 +1102,7 @@ button:hover {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.35rem;
+    padding: 0.4rem 0;
   }
 
   .map-mobile-panel-nav button.active {

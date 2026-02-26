@@ -42,9 +42,11 @@ import {
   Eraser,
   Eye,
   EyeOff,
+  Map,
   Maximize2,
   Menu,
   Pencil,
+  SlidersHorizontal,
   SprayCan,
   Trash2,
   TvMinimalPlay,
@@ -617,6 +619,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   const tokenDragOffsetRef = useRef<{ x: number; y: number } | null>(null)
   const tokenFogTrailPointRef = useRef<{ x: number; y: number } | null>(null)
   const tokenLongPressTimerRef = useRef<number | null>(null)
+  const tokenLongPressStartRef = useRef<{ x: number; y: number } | null>(null)
   const tokenTouchDraggingRef = useRef(false)
   const mobileTouchRef = useRef<{
     mode: 'none' | 'pan' | 'pinch'
@@ -789,7 +792,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   const shouldShowTokenNameForGM = (token: TokenRecord) =>
     !usingFullScreenCanvas || !streamingMode || token.revealName
 
-  const isMobilePlayerView = isMobile && role !== 'gm'
+  const isMobileZoomMapView = isMobile && (role !== 'gm' || mobileGmPane === 'map')
 
   const isTokenVisible = (token: TokenRecord) => {
     if (token.party) return true
@@ -1308,7 +1311,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   })
 
   const handleMobilePlayerTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
-    if (!isMobilePlayerView) return
+    if (!isMobileZoomMapView) return
 
     if (event.touches.length === 2) {
       const center = touchCenter(event.touches)
@@ -1321,6 +1324,8 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       }
       return
     }
+
+    if (role === 'gm' && fogTool) return
 
     if (event.touches.length === 1 && mobilePlayerZoom > 1) {
       const touch = event.touches[0]
@@ -1335,7 +1340,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   }
 
   const handleMobilePlayerTouchMove: TouchEventHandler<HTMLDivElement> = (event) => {
-    if (!isMobilePlayerView) return
+    if (!isMobileZoomMapView) return
     if (event.touches.length === 0) return
 
     if (mobileTouchRef.current.mode === 'pinch' && event.touches.length >= 2) {
@@ -1371,7 +1376,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   }
 
   const handleMobilePlayerTouchEnd: TouchEventHandler<HTMLDivElement> = (event) => {
-    if (!isMobilePlayerView) return
+    if (!isMobileZoomMapView) return
 
     if (event.touches.length === 0) {
       mobileTouchRef.current.mode = 'none'
@@ -1430,11 +1435,35 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     }
 
     tokenTouchDraggingRef.current = false
+    tokenLongPressStartRef.current = { x: touch.clientX, y: touch.clientY }
     tokenLongPressTimerRef.current = window.setTimeout(() => {
       startTokenDragAtPoint(tokenId, touch.clientX, touch.clientY)
       tokenTouchDraggingRef.current = true
       tokenLongPressTimerRef.current = null
-    }, 240)
+      tokenLongPressStartRef.current = null
+    }, 420)
+  }
+
+  const handleTokenTouchMove: TouchEventHandler<HTMLButtonElement> = (event) => {
+    if (role !== 'gm') return
+    if (event.touches.length !== 1) return
+    event.stopPropagation()
+
+    if (tokenTouchDraggingRef.current) {
+      event.preventDefault()
+      return
+    }
+
+    if (!tokenLongPressTimerRef.current || !tokenLongPressStartRef.current) return
+
+    const touch = event.touches[0]
+    const deltaX = touch.clientX - tokenLongPressStartRef.current.x
+    const deltaY = touch.clientY - tokenLongPressStartRef.current.y
+    if (Math.hypot(deltaX, deltaY) > 9) {
+      window.clearTimeout(tokenLongPressTimerRef.current)
+      tokenLongPressTimerRef.current = null
+      tokenLongPressStartRef.current = null
+    }
   }
 
   const handleTokenTouchEnd: TouchEventHandler<HTMLButtonElement> = () => {
@@ -1442,6 +1471,49 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       window.clearTimeout(tokenLongPressTimerRef.current)
       tokenLongPressTimerRef.current = null
     }
+    tokenLongPressStartRef.current = null
+    tokenTouchDraggingRef.current = false
+  }
+
+  const canvasPointFromTouch = (canvas: HTMLCanvasElement, touch: React.Touch) => {
+    const rect = canvas.getBoundingClientRect()
+    return {
+      x: touch.clientX - rect.left,
+      y: touch.clientY - rect.top,
+    }
+  }
+
+  const handleFogTouchStart: TouchEventHandler<HTMLCanvasElement> = (event) => {
+    if (tokenPlaceMode) return
+    if (!fogTool || role !== 'gm' || !activeFogCanvasRef.current) return
+    if (event.touches.length !== 1) return
+    event.preventDefault()
+    event.stopPropagation()
+    setFogDrawing(true)
+    const point = canvasPointFromTouch(activeFogCanvasRef.current, event.touches[0])
+    fogLastPointRef.current = point
+    stampFog(activeFogCanvasRef.current, point.x, point.y, fogTool)
+  }
+
+  const handleFogTouchMove: TouchEventHandler<HTMLCanvasElement> = (event) => {
+    if (tokenPlaceMode) return
+    if (!fogTool) return
+    if (!fogDrawing || role !== 'gm' || !activeFogCanvasRef.current) return
+    if (event.touches.length !== 1) return
+    event.preventDefault()
+    event.stopPropagation()
+    const point = canvasPointFromTouch(activeFogCanvasRef.current, event.touches[0])
+    const previousPoint = fogLastPointRef.current
+    if (previousPoint) {
+      drawFogStroke(activeFogCanvasRef.current, previousPoint, point, fogTool)
+    } else {
+      stampFog(activeFogCanvasRef.current, point.x, point.y, fogTool)
+    }
+    fogLastPointRef.current = point
+  }
+
+  const handleFogTouchEnd: TouchEventHandler<HTMLCanvasElement> = () => {
+    handleFogPointerUp()
   }
 
   useEffect(() => {
@@ -1730,13 +1802,13 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
           .filter(Boolean)
           .join(' ')}
       >
-        {isMobile ? (
+        {isMobile && role !== 'gm' ? (
           <button type="button" className="map-mobile-back" onClick={() => setMobileMapView('list')}>
             <ChevronLeft size={16} />
           </button>
         ) : null}
         {!isMobile || role !== 'gm' || mobileGmPane === 'map' ? (
-        <div className={isMobilePlayerView ? 'map-stage mobile-player-stage' : 'map-stage'}>
+        <div className={isMobileZoomMapView ? 'map-stage mobile-player-stage' : 'map-stage'}>
           {!isMobile ? (
             <button type="button" className="map-fullscreen-btn" onClick={openFullScreen}>
               <Maximize2 size={15} />
@@ -1746,14 +1818,14 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
           {selectedMap?.imageUrl ? (
             <div
               ref={inlineMapLayerRef}
-              className={isMobilePlayerView ? 'map-zoom-layer mobile-player-zoom' : 'map-zoom-layer'}
+              className={isMobileZoomMapView ? 'map-zoom-layer mobile-player-zoom' : 'map-zoom-layer'}
               onClick={handleMapLayerClick}
               onTouchStart={handleMobilePlayerTouchStart}
               onTouchMove={handleMobilePlayerTouchMove}
               onTouchEnd={handleMobilePlayerTouchEnd}
               onTouchCancel={handleMobilePlayerTouchEnd}
               style={
-                isMobilePlayerView
+                isMobileZoomMapView
                   ? {
                       transform: `translate(${mobilePlayerPan.x}px, ${mobilePlayerPan.y}px) scale(${mobilePlayerZoom})`,
                     }
@@ -1783,6 +1855,10 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                 onMouseMove={handleFogPointerMove}
                 onMouseUp={handleFogPointerUp}
                 onMouseLeave={handleFogPointerUp}
+                onTouchStart={handleFogTouchStart}
+                onTouchMove={handleFogTouchMove}
+                onTouchEnd={handleFogTouchEnd}
+                onTouchCancel={handleFogTouchEnd}
               />
               <div className={role === 'gm' ? 'map-token-layer gm' : 'map-token-layer'} aria-hidden={role !== 'gm'}>
                 {tokens.map((token, index) =>
@@ -1799,6 +1875,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                       }}
                       onMouseDown={(event) => startTokenDrag(token.id, event)}
                       onTouchStart={(event) => handleTokenTouchStart(token.id, event)}
+                      onTouchMove={handleTokenTouchMove}
                       onTouchEnd={handleTokenTouchEnd}
                       onTouchCancel={handleTokenTouchEnd}
                       aria-label="Map token"
@@ -1868,21 +1945,28 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
           <div className="map-mobile-panel-nav">
             <button
               type="button"
+              onClick={() => setMobileMapView('list')}
+              aria-label="Back to map list"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              type="button"
               className={mobileGmPane === 'map' ? 'active' : ''}
               onClick={() => setMobileGmPane('map')}
               disabled={mobileGmPane === 'map'}
+              aria-label="Map pane"
             >
-              <ChevronLeft size={16} />
-              Map
+              <Map size={16} />
             </button>
             <button
               type="button"
               className={mobileGmPane === 'controls' ? 'active' : ''}
               onClick={() => setMobileGmPane('controls')}
               disabled={mobileGmPane === 'controls'}
+              aria-label="Controls pane"
             >
-              Controls
-              <ChevronRight size={16} />
+              <SlidersHorizontal size={16} />
             </button>
           </div>
         ) : null}
