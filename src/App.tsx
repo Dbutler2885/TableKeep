@@ -2278,7 +2278,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
               <img
                 src={selectedMap.imageUrl}
                 alt={selectedMap.name}
-                className="map-image"
+                className="map-image inline-map-image"
                 onLoad={(event) => {
                   const target = event.currentTarget
                   setInlineBaseSize({

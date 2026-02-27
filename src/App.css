@@ -594,6 +594,10 @@ button:hover {
   object-fit: contain;
 }
 
+.inline-map-image {
+  max-height: min(72vh, calc(100dvh - 12rem));
+}
+
 .map-fog-image {
   position: absolute;
   inset: 0;
