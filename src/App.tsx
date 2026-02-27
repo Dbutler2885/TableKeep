@@ -84,6 +84,7 @@ type MapRecord = {
   imagePath: string
   imageUrl: string
   fogDataUrl: string
+  visionBlockDataUrl: string
   fullyHidden: boolean
   width: number
   height: number
@@ -98,12 +99,22 @@ type TokenRecord = {
   color: string
   size: number
   sizeScale: number | null
+  viewDistance: number | null
+  viewDistanceScale: number | null
   party: boolean
   name: string
   revealName: boolean
 }
 
 const TOKEN_REFERENCE_DIMENSION = 900
+const DEFAULT_TOKEN_VIEW_DISTANCE = 120
+const BRUSH_SIZE_MIN = 8
+const TOKEN_VIEW_DISTANCE_MAX = 600
+const LOS_SURFACE_REVEAL_MULTIPLIER = 2.4
+const LOS_BLOCKER_SAMPLE_RADIUS = 2
+const LIVE_DRAG_WRITE_INTERVAL_MS = 80
+const LIVE_DRAG_EPSILON = 0.0015
+const LIVE_FOG_WRITE_INTERVAL_MS = 900
 
 const tabs: Array<{ id: AppTab; label: string }> = [
   { id: 'character', label: 'Character' },
@@ -596,6 +607,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   const [fullPan, setFullPan] = useState({ x: 0, y: 0 })
   const [fullDragging, setFullDragging] = useState(false)
   const [fogTool, setFogTool] = useState<'reveal' | 'hide' | null>(null)
+  const [visionTool, setVisionTool] = useState<'draw' | 'erase' | null>(null)
   const [fogBrushSize, setFogBrushSize] = useState(120)
   const [fogBrushStrength, setFogBrushStrength] = useState(0.7)
   const [fogDrawing, setFogDrawing] = useState(false)
@@ -616,10 +628,13 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   const fullDragStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
   const inlineFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const fullFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const inlineVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const fullVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const inlineMapLayerRef = useRef<HTMLDivElement | null>(null)
   const fullMapLayerRef = useRef<HTMLDivElement | null>(null)
   const fogLastPointRef = useRef<{ x: number; y: number } | null>(null)
   const tokenDragOffsetRef = useRef<{ x: number; y: number } | null>(null)
+  const dragTokenPositionRef = useRef<{ x: number; y: number } | null>(null)
   const tokenFogTrailPointRef = useRef<{ x: number; y: number } | null>(null)
   const tokenLongPressTimerRef = useRef<number | null>(null)
   const tokenTouchDraggingRef = useRef(false)
@@ -638,7 +653,11 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   })
   const loadedInlineFogKeyRef = useRef('')
   const loadedInlineCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const loadedInlineVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const loadedFogKeyRef = useRef('')
+  const loadedInlineVisionKeyRef = useRef('')
+  const loadedVisionKeyRef = useRef('')
+  const revealMaskCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
     const mapsQuery = query(collection(db, 'campaigns', campaignId, 'maps'))
@@ -651,6 +670,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
             imagePath?: string
             imageUrl?: string
             fogDataUrl?: string
+            visionBlockDataUrl?: string
             fullyHidden?: boolean
             width?: number
             height?: number
@@ -664,6 +684,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
             imagePath: data.imagePath ?? '',
             imageUrl: data.imageUrl ?? '',
             fogDataUrl: data.fogDataUrl ?? '',
+            visionBlockDataUrl: data.visionBlockDataUrl ?? '',
             fullyHidden: data.fullyHidden === true,
             width: typeof data.width === 'number' ? data.width : 0,
             height: typeof data.height === 'number' ? data.height : 0,
@@ -742,6 +763,8 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
             color?: string
             size?: number
             sizeScale?: number
+            viewDistance?: number
+            viewDistanceScale?: number
             party?: boolean
             name?: string
             revealName?: boolean
@@ -754,6 +777,8 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
             color: typeof data.color === 'string' ? data.color : '#b45309',
             size: typeof data.size === 'number' ? data.size : 28,
             sizeScale: typeof data.sizeScale === 'number' ? data.sizeScale : null,
+            viewDistance: typeof data.viewDistance === 'number' ? data.viewDistance : null,
+            viewDistanceScale: typeof data.viewDistanceScale === 'number' ? data.viewDistanceScale : null,
             party: data.party === true,
             name: typeof data.name === 'string' ? data.name : '',
             revealName: data.revealName === true,
@@ -788,6 +813,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   const fogDisplayOpacity = role === 'gm' ? (streamingMode ? 1 : 0.45) : 1
   const usingFullScreenCanvas = fullScreenOpen && !isMobile
   const activeFogCanvasRef = usingFullScreenCanvas ? fullFogCanvasRef : inlineFogCanvasRef
+  const activeVisionCanvasRef = usingFullScreenCanvas ? fullVisionCanvasRef : inlineVisionCanvasRef
   const activeMapLayerRef = usingFullScreenCanvas ? fullMapLayerRef : inlineMapLayerRef
   const activeMapDimension = Math.max(
     1,
@@ -796,6 +822,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       usingFullScreenCanvas ? fullBaseSize.height : inlineBaseSize.height,
     ),
   )
+  const safeMapDimension = activeMapDimension > 1 ? activeMapDimension : TOKEN_REFERENCE_DIMENSION
   const bumpFogSampleTick = () => {
     setFogSampleTick((value) => value + 1)
   }
@@ -809,6 +836,15 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     const scale = token.sizeScale ?? token.size / TOKEN_REFERENCE_DIMENSION
     return Math.max(10, Math.min(120, Math.round(scale * activeMapDimension)))
   }
+  const renderTokenViewDistance = (token: TokenRecord) => {
+    const fallbackScale = DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION
+    const scale = token.viewDistanceScale ?? fallbackScale
+    return Math.max(BRUSH_SIZE_MIN, Math.min(TOKEN_VIEW_DISTANCE_MAX, Math.round(scale * activeMapDimension)))
+  }
+  const tokenViewDistanceSliderValue = (token: TokenRecord) => {
+    if (typeof token.viewDistance === 'number') return token.viewDistance
+    return DEFAULT_TOKEN_VIEW_DISTANCE
+  }
   const renderTokenNameStyle = (token: TokenRecord): React.CSSProperties => {
     const size = renderTokenSize(token)
     return {
@@ -818,7 +854,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     }
   }
   const effectiveFogBrushSize = Math.max(
-    12,
+    BRUSH_SIZE_MIN,
     Math.min(320, Math.round((fogBrushSize / TOKEN_REFERENCE_DIMENSION) * activeMapDimension)),
   )
 
@@ -866,6 +902,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
         imagePath: storagePath,
         imageUrl: '',
         fogDataUrl: '',
+        visionBlockDataUrl: '',
         fullyHidden: false,
         width: 0,
         height: 0,
@@ -1061,39 +1098,136 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     fogImage.src = map.fogDataUrl
   }
 
-  const stampFog = (canvas: HTMLCanvasElement, x: number, y: number, mode: 'reveal' | 'hide') => {
+  const initializeVisionCanvas = (canvas: HTMLCanvasElement, map: MapRecord, width: number, height: number) => {
+    if (width <= 0 || height <= 0) return
+
+    const resized = canvas.width !== width || canvas.height !== height
+    if (resized) {
+      canvas.width = width
+      canvas.height = height
+    }
+
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const radius = effectiveFogBrushSize / 2
+    if (!map.visionBlockDataUrl) {
+      ctx.clearRect(0, 0, width, height)
+      return
+    }
+
+    const blockImage = new Image()
+    blockImage.onload = () => {
+      ctx.clearRect(0, 0, width, height)
+      ctx.drawImage(blockImage, 0, 0, width, height)
+    }
+    blockImage.src = map.visionBlockDataUrl
+  }
+
+  const stampVisionBlock = (
+    canvas: HTMLCanvasElement,
+    x: number,
+    y: number,
+    mode: 'draw' | 'erase',
+    brushSize = effectiveFogBrushSize,
+  ) => {
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    const radius = brushSize / 2
 
     ctx.save()
-    ctx.globalCompositeOperation = mode === 'reveal' ? 'destination-out' : 'source-over'
-
-    const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius)
-    gradient.addColorStop(0, `rgba(0,0,0,${Math.min(1, fogBrushStrength * 0.65)})`)
-    gradient.addColorStop(0.65, `rgba(0,0,0,${Math.min(1, fogBrushStrength * 0.25)})`)
-    gradient.addColorStop(1, 'rgba(0,0,0,0)')
-    ctx.fillStyle = gradient
+    ctx.globalCompositeOperation = mode === 'erase' ? 'destination-out' : 'source-over'
+    ctx.fillStyle = 'rgba(176, 44, 44, 0.95)'
     ctx.beginPath()
     ctx.arc(x, y, radius, 0, Math.PI * 2)
     ctx.fill()
+    ctx.restore()
+  }
 
-    // Spray-like texture so fog edges feel diffuse rather than perfectly smooth.
-    const sprayCount = Math.max(18, Math.round((radius * radius) / 90))
-    for (let i = 0; i < sprayCount; i += 1) {
-      const angle = Math.random() * Math.PI * 2
-      const dist = Math.sqrt(Math.random()) * radius
-      const px = x + Math.cos(angle) * dist
-      const py = y + Math.sin(angle) * dist
-      const distanceRatio = 1 - dist / radius
-      const alpha = Math.min(1, fogBrushStrength * distanceRatio * 0.38)
-      const dotRadius = Math.max(1, radius * 0.035 * (0.6 + Math.random() * 0.8))
-      ctx.fillStyle = `rgba(0,0,0,${alpha})`
-      ctx.beginPath()
-      ctx.arc(px, py, dotRadius, 0, Math.PI * 2)
-      ctx.fill()
+  const drawVisionStroke = (
+    canvas: HTMLCanvasElement,
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    mode: 'draw' | 'erase',
+    brushSize = effectiveFogBrushSize,
+  ) => {
+    const deltaX = to.x - from.x
+    const deltaY = to.y - from.y
+    const distance = Math.hypot(deltaX, deltaY)
+    const step = Math.max(3, brushSize * 0.22)
+    const steps = Math.max(1, Math.ceil(distance / step))
+
+    for (let i = 1; i <= steps; i += 1) {
+      const t = i / steps
+      stampVisionBlock(canvas, from.x + deltaX * t, from.y + deltaY * t, mode, brushSize)
     }
+  }
+
+  const stampFog = (
+    canvas: HTMLCanvasElement,
+    x: number,
+    y: number,
+    mode: 'reveal' | 'hide',
+    brushSize = effectiveFogBrushSize,
+    visionCanvas?: HTMLCanvasElement | null,
+  ) => {
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const radius = brushSize / 2
+    const buildStampMask = (targetCtx: CanvasRenderingContext2D) => {
+      const gradient = targetCtx.createRadialGradient(x, y, 0, x, y, radius)
+      gradient.addColorStop(0, `rgba(0,0,0,${Math.min(1, fogBrushStrength * 0.65)})`)
+      gradient.addColorStop(0.65, `rgba(0,0,0,${Math.min(1, fogBrushStrength * 0.25)})`)
+      gradient.addColorStop(1, 'rgba(0,0,0,0)')
+      targetCtx.fillStyle = gradient
+      targetCtx.beginPath()
+      targetCtx.arc(x, y, radius, 0, Math.PI * 2)
+      targetCtx.fill()
+
+      const sprayCount = Math.max(18, Math.round((radius * radius) / 90))
+      for (let i = 0; i < sprayCount; i += 1) {
+        const angle = Math.random() * Math.PI * 2
+        const dist = Math.sqrt(Math.random()) * radius
+        const px = x + Math.cos(angle) * dist
+        const py = y + Math.sin(angle) * dist
+        const distanceRatio = 1 - dist / radius
+        const alpha = Math.min(1, fogBrushStrength * distanceRatio * 0.38)
+        const dotRadius = Math.max(1, radius * 0.035 * (0.6 + Math.random() * 0.8))
+        targetCtx.fillStyle = `rgba(0,0,0,${alpha})`
+        targetCtx.beginPath()
+        targetCtx.arc(px, py, dotRadius, 0, Math.PI * 2)
+        targetCtx.fill()
+      }
+    }
+
+    if (mode === 'reveal' && visionCanvas) {
+      let maskCanvas = revealMaskCanvasRef.current
+      if (!maskCanvas) {
+        maskCanvas = document.createElement('canvas')
+        revealMaskCanvasRef.current = maskCanvas
+      }
+      if (maskCanvas.width !== canvas.width || maskCanvas.height !== canvas.height) {
+        maskCanvas.width = canvas.width
+        maskCanvas.height = canvas.height
+      }
+      const maskCtx = maskCanvas.getContext('2d')
+      if (!maskCtx) return
+      maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height)
+      buildStampMask(maskCtx)
+      maskCtx.globalCompositeOperation = 'destination-out'
+      maskCtx.drawImage(visionCanvas, 0, 0, maskCanvas.width, maskCanvas.height)
+      maskCtx.globalCompositeOperation = 'source-over'
+
+      ctx.save()
+      ctx.globalCompositeOperation = 'destination-out'
+      ctx.drawImage(maskCanvas, 0, 0, canvas.width, canvas.height)
+      ctx.restore()
+      return
+    }
+
+    ctx.save()
+    ctx.globalCompositeOperation = mode === 'reveal' ? 'destination-out' : 'source-over'
+    buildStampMask(ctx)
 
     ctx.restore()
   }
@@ -1103,9 +1237,11 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     event: Parameters<MouseEventHandler<HTMLCanvasElement>>[0],
   ) => {
     const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / Math.max(1, rect.width)
+    const scaleY = canvas.height / Math.max(1, rect.height)
     return {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top,
+      x: (event.clientX - rect.left) * scaleX,
+      y: (event.clientY - rect.top) * scaleY,
     }
   }
 
@@ -1114,16 +1250,127 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     from: { x: number; y: number },
     to: { x: number; y: number },
     mode: 'reveal' | 'hide',
+    brushSize = effectiveFogBrushSize,
+    visionCanvas?: HTMLCanvasElement | null,
   ) => {
     const deltaX = to.x - from.x
     const deltaY = to.y - from.y
     const distance = Math.hypot(deltaX, deltaY)
-    const step = Math.max(3, effectiveFogBrushSize * 0.16)
+    const step = Math.max(3, brushSize * 0.16)
     const steps = Math.max(1, Math.ceil(distance / step))
 
     for (let i = 1; i <= steps; i += 1) {
       const t = i / steps
-      stampFog(canvas, from.x + deltaX * t, from.y + deltaY * t, mode)
+      stampFog(canvas, from.x + deltaX * t, from.y + deltaY * t, mode, brushSize, visionCanvas)
+    }
+  }
+
+  const revealFromTokenPoint = (
+    fogCanvas: HTMLCanvasElement,
+    visionCanvas: HTMLCanvasElement | null,
+    center: { x: number; y: number },
+    brushSize: number,
+  ) => {
+    if (!visionCanvas) {
+      stampFog(fogCanvas, center.x, center.y, 'reveal', brushSize)
+      return
+    }
+
+    const fogCtx = fogCanvas.getContext('2d')
+    const visionCtx = visionCanvas.getContext('2d')
+    if (!fogCtx || !visionCtx) return
+
+    const radius = Math.max(1, brushSize / 2)
+    const minX = Math.max(0, Math.floor(center.x - radius - 2))
+    const minY = Math.max(0, Math.floor(center.y - radius - 2))
+    const maxX = Math.min(fogCanvas.width - 1, Math.ceil(center.x + radius + 2))
+    const maxY = Math.min(fogCanvas.height - 1, Math.ceil(center.y + radius + 2))
+    const regionWidth = Math.max(1, maxX - minX + 1)
+    const regionHeight = Math.max(1, maxY - minY + 1)
+    const visionData = visionCtx.getImageData(minX, minY, regionWidth, regionHeight).data
+
+    let maskCanvas = revealMaskCanvasRef.current
+    if (!maskCanvas) {
+      maskCanvas = document.createElement('canvas')
+      revealMaskCanvasRef.current = maskCanvas
+    }
+    if (maskCanvas.width !== fogCanvas.width || maskCanvas.height !== fogCanvas.height) {
+      maskCanvas.width = fogCanvas.width
+      maskCanvas.height = fogCanvas.height
+    }
+    const maskCtx = maskCanvas.getContext('2d')
+    if (!maskCtx) return
+    maskCtx.clearRect(minX, minY, regionWidth, regionHeight)
+    maskCtx.fillStyle = 'rgba(0,0,0,1)'
+
+    const rays = Math.max(220, Math.min(1800, Math.round(radius * 5.4)))
+    const rayStep = (Math.PI * 2) / rays
+    const distStep = 1
+    const dot = Math.max(1, radius * 0.03)
+    const surfaceDot = Math.max(2, dot * LOS_SURFACE_REVEAL_MULTIPLIER)
+    const alphaAt = (x: number, y: number) => {
+      const lx = x - minX
+      const ly = y - minY
+      if (lx < 0 || ly < 0 || lx >= regionWidth || ly >= regionHeight) return 0
+      return visionData[(ly * regionWidth + lx) * 4 + 3]
+    }
+    const isBlockedAt = (x: number, y: number) => {
+      for (let oy = -LOS_BLOCKER_SAMPLE_RADIUS; oy <= LOS_BLOCKER_SAMPLE_RADIUS; oy += 1) {
+        for (let ox = -LOS_BLOCKER_SAMPLE_RADIUS; ox <= LOS_BLOCKER_SAMPLE_RADIUS; ox += 1) {
+          if (alphaAt(x + ox, y + oy) > 20) return true
+        }
+      }
+      return false
+    }
+
+    for (let i = 0; i < rays; i += 1) {
+      const angle = i * rayStep
+      const cos = Math.cos(angle)
+      const sin = Math.sin(angle)
+      for (let dist = 0; dist <= radius; dist += distStep) {
+        const x = Math.round(center.x + cos * dist)
+        const y = Math.round(center.y + sin * dist)
+        if (x < minX || x > maxX || y < minY || y > maxY) break
+        const blocked = isBlockedAt(x, y)
+        maskCtx.beginPath()
+        maskCtx.arc(x, y, dot, 0, Math.PI * 2)
+        maskCtx.fill()
+        if (blocked) {
+          // Reveal the blocking surface itself (wall/house edge), but not beyond it.
+          maskCtx.beginPath()
+          maskCtx.arc(x, y, surfaceDot, 0, Math.PI * 2)
+          maskCtx.fill()
+          break
+        }
+      }
+    }
+
+    fogCtx.save()
+    fogCtx.globalCompositeOperation = 'destination-out'
+    fogCtx.drawImage(maskCanvas, minX, minY, regionWidth, regionHeight, minX, minY, regionWidth, regionHeight)
+    fogCtx.restore()
+  }
+
+  const revealFromTokenStroke = (
+    fogCanvas: HTMLCanvasElement,
+    visionCanvas: HTMLCanvasElement | null,
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    brushSize: number,
+  ) => {
+    const deltaX = to.x - from.x
+    const deltaY = to.y - from.y
+    const distance = Math.hypot(deltaX, deltaY)
+    const step = Math.max(2, brushSize * 0.14)
+    const steps = Math.max(1, Math.ceil(distance / step))
+    for (let i = 1; i <= steps; i += 1) {
+      const t = i / steps
+      revealFromTokenPoint(
+        fogCanvas,
+        visionCanvas,
+        { x: from.x + deltaX * t, y: from.y + deltaY * t },
+        brushSize,
+      )
     }
   }
 
@@ -1138,25 +1385,49 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     bumpFogSampleTick()
   }
 
+  const persistVisionBlocks = async () => {
+    if (!selectedMap || !activeVisionCanvasRef.current || role !== 'gm') return
+    const visionBlockDataUrl = activeVisionCanvasRef.current.toDataURL('image/png')
+    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      visionBlockDataUrl,
+      updatedAt: serverTimestamp(),
+    })
+  }
+
   const handleFogPointerDown: MouseEventHandler<HTMLCanvasElement> = (event) => {
     if (event.button !== 0) return
     if (tokenPlaceMode) return
-    if (!fogTool) return
+    if (!fogTool && !visionTool) return
     if (role !== 'gm' || !activeFogCanvasRef.current) return
     event.preventDefault()
     setFogDrawing(true)
     const point = canvasPointFromMouse(activeFogCanvasRef.current, event)
     fogLastPointRef.current = point
+    if (visionTool && activeVisionCanvasRef.current) {
+      stampVisionBlock(activeVisionCanvasRef.current, point.x, point.y, visionTool)
+      return
+    }
+    if (!fogTool) return
     stampFog(activeFogCanvasRef.current, point.x, point.y, fogTool)
   }
 
   const handleFogPointerMove: MouseEventHandler<HTMLCanvasElement> = (event) => {
     if (tokenPlaceMode) return
-    if (!fogTool) return
+    if (!fogTool && !visionTool) return
     if (!fogDrawing || role !== 'gm' || !activeFogCanvasRef.current) return
     event.preventDefault()
     const point = canvasPointFromMouse(activeFogCanvasRef.current, event)
     const previousPoint = fogLastPointRef.current
+    if (visionTool && activeVisionCanvasRef.current) {
+      if (previousPoint) {
+        drawVisionStroke(activeVisionCanvasRef.current, previousPoint, point, visionTool)
+      } else {
+        stampVisionBlock(activeVisionCanvasRef.current, point.x, point.y, visionTool)
+      }
+      fogLastPointRef.current = point
+      return
+    }
+    if (!fogTool) return
     if (previousPoint) {
       drawFogStroke(activeFogCanvasRef.current, previousPoint, point, fogTool)
     } else {
@@ -1170,6 +1441,10 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     if (!fogDrawing) return
     setFogDrawing(false)
     fogLastPointRef.current = null
+    if (visionTool) {
+      void persistVisionBlocks()
+      return
+    }
     void persistFog()
   }
 
@@ -1241,11 +1516,25 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   }
 
   const getTokenDropPoint = (clientX: number, clientY: number) => {
+    const canvas = activeFogCanvasRef.current
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0 && canvas.width > 0 && canvas.height > 0) {
+        const scaleX = canvas.width / rect.width
+        const scaleY = canvas.height / rect.height
+        const canvasX = (clientX - rect.left) * scaleX
+        const canvasY = (clientY - rect.top) * scaleY
+        return {
+          x: Math.max(0, Math.min(1, canvasX / canvas.width)),
+          y: Math.max(0, Math.min(1, canvasY / canvas.height)),
+        }
+      }
+    }
+
     const layer = activeMapLayerRef.current
     if (!layer) return null
     const rect = layer.getBoundingClientRect()
     if (rect.width <= 0 || rect.height <= 0) return null
-
     const x = (clientX - rect.left) / rect.width
     const y = (clientY - rect.top) / rect.height
     return {
@@ -1265,11 +1554,20 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
 
   const updateToken = async (
     tokenId: string,
-    updates: Partial<Pick<TokenRecord, 'color' | 'size' | 'sizeScale' | 'party' | 'name' | 'revealName'>>,
+    updates: Partial<
+      Pick<
+        TokenRecord,
+        'color' | 'size' | 'sizeScale' | 'viewDistance' | 'viewDistanceScale' | 'party' | 'name' | 'revealName'
+      >
+    >,
   ) => {
     if (!selectedMap || role !== 'gm') return
+    const nextUpdates = { ...updates } as typeof updates
+    if (typeof nextUpdates.viewDistance === 'number' && typeof nextUpdates.viewDistanceScale !== 'number') {
+      nextUpdates.viewDistanceScale = nextUpdates.viewDistance / safeMapDimension
+    }
     await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId), {
-      ...updates,
+      ...nextUpdates,
       updatedAt: serverTimestamp(),
     })
   }
@@ -1305,7 +1603,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     if (!selectedMap || role !== 'gm') return
     const point = getTokenDropPoint(clientX, clientY)
     if (!point) return
-    const sizeScale = tokenSize / Math.max(1, activeMapDimension)
+    const sizeScale = tokenSize / safeMapDimension
 
     await addDoc(collection(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens'), {
       x: point.x,
@@ -1313,6 +1611,8 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       color: tokenColor,
       size: tokenSize,
       sizeScale,
+      viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
+      viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / safeMapDimension,
       party: false,
       name: '',
       revealName: false,
@@ -1355,7 +1655,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       return
     }
 
-    if (role === 'gm' && fogTool) return
+    if (role === 'gm' && (fogTool || visionTool)) return
 
     if (event.touches.length === 1 && mobilePlayerZoom > 1) {
       const touch = event.touches[0]
@@ -1440,7 +1740,9 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     }
     tokenFogTrailPointRef.current = token.party ? tokenPointToCanvasPoint({ x: token.x, y: token.y }) : null
     setDraggingTokenId(tokenId)
-    setDragTokenPosition({ x: token.x, y: token.y })
+    const startPosition = { x: token.x, y: token.y }
+    dragTokenPositionRef.current = startPosition
+    setDragTokenPosition(startPosition)
   }
 
   const startTokenDrag = (tokenId: string, event: Parameters<MouseEventHandler<HTMLButtonElement>>[0]) => {
@@ -1481,33 +1783,50 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
 
   const canvasPointFromTouch = (canvas: HTMLCanvasElement, touch: React.Touch) => {
     const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / Math.max(1, rect.width)
+    const scaleY = canvas.height / Math.max(1, rect.height)
     return {
-      x: touch.clientX - rect.left,
-      y: touch.clientY - rect.top,
+      x: (touch.clientX - rect.left) * scaleX,
+      y: (touch.clientY - rect.top) * scaleY,
     }
   }
 
   const handleFogTouchStart: TouchEventHandler<HTMLCanvasElement> = (event) => {
     if (tokenPlaceMode) return
-    if (!fogTool || role !== 'gm' || !activeFogCanvasRef.current) return
+    if ((!fogTool && !visionTool) || role !== 'gm' || !activeFogCanvasRef.current) return
     if (event.touches.length !== 1) return
     event.preventDefault()
     event.stopPropagation()
     setFogDrawing(true)
     const point = canvasPointFromTouch(activeFogCanvasRef.current, event.touches[0])
     fogLastPointRef.current = point
+    if (visionTool && activeVisionCanvasRef.current) {
+      stampVisionBlock(activeVisionCanvasRef.current, point.x, point.y, visionTool)
+      return
+    }
+    if (!fogTool) return
     stampFog(activeFogCanvasRef.current, point.x, point.y, fogTool)
   }
 
   const handleFogTouchMove: TouchEventHandler<HTMLCanvasElement> = (event) => {
     if (tokenPlaceMode) return
-    if (!fogTool) return
+    if (!fogTool && !visionTool) return
     if (!fogDrawing || role !== 'gm' || !activeFogCanvasRef.current) return
     if (event.touches.length !== 1) return
     event.preventDefault()
     event.stopPropagation()
     const point = canvasPointFromTouch(activeFogCanvasRef.current, event.touches[0])
     const previousPoint = fogLastPointRef.current
+    if (visionTool && activeVisionCanvasRef.current) {
+      if (previousPoint) {
+        drawVisionStroke(activeVisionCanvasRef.current, previousPoint, point, visionTool)
+      } else {
+        stampVisionBlock(activeVisionCanvasRef.current, point.x, point.y, visionTool)
+      }
+      fogLastPointRef.current = point
+      return
+    }
+    if (!fogTool) return
     if (previousPoint) {
       drawFogStroke(activeFogCanvasRef.current, previousPoint, point, fogTool)
     } else {
@@ -1523,6 +1842,71 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   useEffect(() => {
     if (!draggingTokenId || role !== 'gm' || !selectedMap) return
     const draggingToken = tokens.find((entry) => entry.id === draggingTokenId) ?? null
+    let lastLiveWriteAt = 0
+    let lastLiveWritePos: { x: number; y: number } | null = null
+    let pendingTokenWritePos: { x: number; y: number } | null = null
+    let tokenWriteInFlight = false
+    let tokenWriteTimer: number | null = null
+    let lastLiveFogWriteAt = 0
+    let liveFogWriteInFlight = false
+
+    const scheduleTokenWrite = () => {
+      if (tokenWriteInFlight || !pendingTokenWritePos || tokenWriteTimer !== null) return
+      const now = Date.now()
+      const wait = Math.max(0, LIVE_DRAG_WRITE_INTERVAL_MS - (now - lastLiveWriteAt))
+      tokenWriteTimer = window.setTimeout(() => {
+        tokenWriteTimer = null
+        if (tokenWriteInFlight || !pendingTokenWritePos) return
+        const position = pendingTokenWritePos
+        pendingTokenWritePos = null
+        tokenWriteInFlight = true
+        lastLiveWriteAt = Date.now()
+        lastLiveWritePos = position
+        void updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', draggingTokenId), {
+          x: position.x,
+          y: position.y,
+          updatedAt: serverTimestamp(),
+        }).finally(() => {
+          tokenWriteInFlight = false
+          if (pendingTokenWritePos) {
+            scheduleTokenWrite()
+          }
+        })
+      }, wait)
+    }
+
+    const pushLiveFogUpdate = () => {
+      if (!draggingToken?.party || !activeFogCanvasRef.current) return
+      const now = Date.now()
+      if (liveFogWriteInFlight || now - lastLiveFogWriteAt < LIVE_FOG_WRITE_INTERVAL_MS) return
+
+      liveFogWriteInFlight = true
+      lastLiveFogWriteAt = now
+      const fogDataUrl = activeFogCanvasRef.current.toDataURL('image/png')
+      void updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+        fogDataUrl,
+        fullyHidden: false,
+        updatedAt: serverTimestamp(),
+      })
+        .then(() => {
+          bumpFogSampleTick()
+        })
+        .finally(() => {
+          liveFogWriteInFlight = false
+        })
+    }
+
+    const pushLiveTokenPosition = (position: { x: number; y: number }) => {
+      if (
+        lastLiveWritePos &&
+        Math.abs(position.x - lastLiveWritePos.x) < LIVE_DRAG_EPSILON &&
+        Math.abs(position.y - lastLiveWritePos.y) < LIVE_DRAG_EPSILON
+      ) {
+        return
+      }
+      pendingTokenWritePos = position
+      scheduleTokenWrite()
+    }
 
     const handleMoveAt = (clientX: number, clientY: number) => {
       const point = getTokenDropPoint(clientX, clientY)
@@ -1532,18 +1916,33 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
         x: Math.max(0, Math.min(1, point.x - offset.x)),
         y: Math.max(0, Math.min(1, point.y - offset.y)),
       }
+      dragTokenPositionRef.current = nextPosition
       setDragTokenPosition(nextPosition)
+      pushLiveTokenPosition(nextPosition)
 
       if (draggingToken?.party && activeFogCanvasRef.current) {
+        const tokenBrushSize = renderTokenViewDistance(draggingToken)
         const nextCanvasPoint = tokenPointToCanvasPoint(nextPosition)
         if (!nextCanvasPoint) return
 
         const lastPoint = tokenFogTrailPointRef.current
         if (lastPoint) {
-          drawFogStroke(activeFogCanvasRef.current, lastPoint, nextCanvasPoint, 'reveal')
+          revealFromTokenStroke(
+            activeFogCanvasRef.current,
+            activeVisionCanvasRef.current,
+            lastPoint,
+            nextCanvasPoint,
+            tokenBrushSize,
+          )
         } else {
-          stampFog(activeFogCanvasRef.current, nextCanvasPoint.x, nextCanvasPoint.y, 'reveal')
+          revealFromTokenPoint(
+            activeFogCanvasRef.current,
+            activeVisionCanvasRef.current,
+            nextCanvasPoint,
+            tokenBrushSize,
+          )
         }
+        pushLiveFogUpdate()
         tokenFogTrailPointRef.current = nextCanvasPoint
       }
     }
@@ -1562,16 +1961,17 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     }
 
     const handleUp = async () => {
-      if (!dragTokenPosition) {
+      const finalPosition = dragTokenPositionRef.current
+      if (!finalPosition) {
         setDraggingTokenId('')
         tokenDragOffsetRef.current = null
         return
       }
 
       const tokenId = draggingTokenId
-      const finalPosition = dragTokenPosition
       setDraggingTokenId('')
       setDragTokenPosition(null)
+      dragTokenPositionRef.current = null
       tokenDragOffsetRef.current = null
       tokenFogTrailPointRef.current = null
 
@@ -1595,6 +1995,9 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     window.addEventListener('touchcancel', handleUp)
 
     return () => {
+      if (tokenWriteTimer !== null) {
+        window.clearTimeout(tokenWriteTimer)
+      }
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
       window.removeEventListener('touchmove', handleTouchMove)
@@ -1603,7 +2006,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     }
     // draw/stamp/persist come from the same component scope and are intentionally captured here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFogCanvasRef, campaignId, dragTokenPosition, draggingTokenId, role, selectedMap, tokens])
+  }, [activeFogCanvasRef, activeVisionCanvasRef, campaignId, draggingTokenId, role, selectedMap, tokens])
 
   useEffect(() => {
     if (fullScreenOpen || !selectedMap || !inlineFogCanvasRef.current) return
@@ -1631,6 +2034,31 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   ])
 
   useEffect(() => {
+    if (fullScreenOpen || !selectedMap || !inlineVisionCanvasRef.current) return
+    if (isMobile && role === 'gm' && mobileGmPane !== 'map') return
+    if (inlineBaseSize.width <= 0 || inlineBaseSize.height <= 0) return
+
+    if (loadedInlineVisionCanvasRef.current !== inlineVisionCanvasRef.current) {
+      loadedInlineVisionCanvasRef.current = inlineVisionCanvasRef.current
+      loadedInlineVisionKeyRef.current = ''
+    }
+
+    const key = `${selectedMap.id}:${selectedMap.visionBlockDataUrl}:${inlineBaseSize.width}x${inlineBaseSize.height}`
+    if (loadedInlineVisionKeyRef.current === key) return
+
+    loadedInlineVisionKeyRef.current = key
+    initializeVisionCanvas(inlineVisionCanvasRef.current, selectedMap, inlineBaseSize.width, inlineBaseSize.height)
+  }, [
+    fullScreenOpen,
+    inlineBaseSize.height,
+    inlineBaseSize.width,
+    isMobile,
+    mobileGmPane,
+    role,
+    selectedMap,
+  ])
+
+  useEffect(() => {
     if (!fullScreenOpen || !selectedMap || !fullFogCanvasRef.current) return
     if (fullBaseSize.width <= 0 || fullBaseSize.height <= 0) return
 
@@ -1639,6 +2067,17 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
 
     loadedFogKeyRef.current = key
     initializeFogCanvas(fullFogCanvasRef.current, selectedMap, fullBaseSize.width, fullBaseSize.height)
+  }, [fullBaseSize.height, fullBaseSize.width, fullScreenOpen, selectedMap])
+
+  useEffect(() => {
+    if (!fullScreenOpen || !selectedMap || !fullVisionCanvasRef.current) return
+    if (fullBaseSize.width <= 0 || fullBaseSize.height <= 0) return
+
+    const key = `${selectedMap.id}:${selectedMap.visionBlockDataUrl}:${fullBaseSize.width}x${fullBaseSize.height}`
+    if (loadedVisionKeyRef.current === key) return
+
+    loadedVisionKeyRef.current = key
+    initializeVisionCanvas(fullVisionCanvasRef.current, selectedMap, fullBaseSize.width, fullBaseSize.height)
   }, [fullBaseSize.height, fullBaseSize.width, fullScreenOpen, selectedMap])
 
   const handleDrop = async (targetMapId: string) => {
@@ -1847,11 +2286,12 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                     height: Math.max(1, Math.round(target.clientHeight)),
                   })
                   loadedInlineFogKeyRef.current = ''
+                  loadedInlineVisionKeyRef.current = ''
                 }}
               />
               <canvas
                 ref={inlineFogCanvasRef}
-                className={tokenPlaceMode || !fogTool ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
+                className={tokenPlaceMode || (!fogTool && !visionTool) ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
                 width={Math.max(1, inlineBaseSize.width)}
                 height={Math.max(1, inlineBaseSize.height)}
                 style={{ opacity: fogDisplayOpacity }}
@@ -1863,6 +2303,13 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                 onTouchMove={handleFogTouchMove}
                 onTouchEnd={handleFogTouchEnd}
                 onTouchCancel={handleFogTouchEnd}
+              />
+              <canvas
+                ref={inlineVisionCanvasRef}
+                className="map-vision-canvas"
+                width={Math.max(1, inlineBaseSize.width)}
+                height={Math.max(1, inlineBaseSize.height)}
+                style={{ opacity: role === 'gm' ? 0.8 : 0 }}
               />
               <div className={role === 'gm' ? 'map-token-layer gm' : 'map-token-layer'} aria-hidden={role !== 'gm'}>
                 {tokens.map((token, index) =>
@@ -1922,6 +2369,8 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
             <GmMapControls
               fogTool={fogTool}
               setFogTool={setFogTool}
+              visionTool={visionTool}
+              setVisionTool={setVisionTool}
               fogBrushSize={fogBrushSize}
               setFogBrushSize={setFogBrushSize}
               fogBrushStrength={fogBrushStrength}
@@ -1939,11 +2388,23 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
               fullyHidden={selectedMap?.fullyHidden === true}
               tokens={tokens}
               onUpdateToken={updateToken}
-              onUpdateTokenSize={(tokenId, size) =>
-                updateToken(tokenId, {
-                  size,
-                  sizeScale: size / Math.max(1, activeMapDimension),
-                })}
+              onUpdateTokenSize={async (tokenId, size) => {
+                const sizeScale = size / safeMapDimension
+                setTokens((prev) =>
+                  prev.map((token) => (token.id === tokenId ? { ...token, size, sizeScale } : token)),
+                )
+                await updateToken(tokenId, { size, sizeScale })
+              }}
+              onUpdateTokenViewDistance={async (tokenId, viewDistance) => {
+                const viewDistanceScale = viewDistance / safeMapDimension
+                setTokens((prev) =>
+                  prev.map((token) =>
+                    token.id === tokenId ? { ...token, viewDistance, viewDistanceScale } : token,
+                  ),
+                )
+                await updateToken(tokenId, { viewDistance, viewDistanceScale })
+              }}
+              tokenViewDistanceSliderValue={tokenViewDistanceSliderValue}
               onRequestDeleteToken={requestDeleteToken}
             />
           </aside>
@@ -2024,11 +2485,12 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                         width: Math.max(1, Math.round(target.clientWidth)),
                         height: Math.max(1, Math.round(target.clientHeight)),
                       })
+                      loadedVisionKeyRef.current = ''
                     }}
                   />
                   <canvas
                     ref={fullFogCanvasRef}
-                    className={tokenPlaceMode || !fogTool ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
+                    className={tokenPlaceMode || (!fogTool && !visionTool) ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
                     width={Math.max(1, fullBaseSize.width)}
                     height={Math.max(1, fullBaseSize.height)}
                     style={{ opacity: fogDisplayOpacity }}
@@ -2036,6 +2498,13 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                     onMouseMove={handleFogPointerMove}
                     onMouseUp={handleFogPointerUp}
                     onMouseLeave={handleFogPointerUp}
+                  />
+                  <canvas
+                    ref={fullVisionCanvasRef}
+                    className="map-vision-canvas"
+                    width={Math.max(1, fullBaseSize.width)}
+                    height={Math.max(1, fullBaseSize.height)}
+                    style={{ opacity: role === 'gm' ? 0.8 : 0 }}
                   />
                   <div className={role === 'gm' ? 'map-token-layer gm' : 'map-token-layer'} aria-label="Map tokens">
                     {tokens.map((token, index) => {
@@ -2103,6 +2572,8 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                   dark
                   fogTool={fogTool}
                   setFogTool={setFogTool}
+                  visionTool={visionTool}
+                  setVisionTool={setVisionTool}
                   fogBrushSize={fogBrushSize}
                   setFogBrushSize={setFogBrushSize}
                   fogBrushStrength={fogBrushStrength}
@@ -2120,11 +2591,23 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                   fullyHidden={selectedMap?.fullyHidden === true}
                   tokens={tokens}
                   onUpdateToken={updateToken}
-                  onUpdateTokenSize={(tokenId, size) =>
-                    updateToken(tokenId, {
-                      size,
-                      sizeScale: size / Math.max(1, activeMapDimension),
-                    })}
+                  onUpdateTokenSize={async (tokenId, size) => {
+                    const sizeScale = size / safeMapDimension
+                    setTokens((prev) =>
+                      prev.map((token) => (token.id === tokenId ? { ...token, size, sizeScale } : token)),
+                    )
+                    await updateToken(tokenId, { size, sizeScale })
+                  }}
+                  onUpdateTokenViewDistance={async (tokenId, viewDistance) => {
+                    const viewDistanceScale = viewDistance / safeMapDimension
+                    setTokens((prev) =>
+                      prev.map((token) =>
+                        token.id === tokenId ? { ...token, viewDistance, viewDistanceScale } : token,
+                      ),
+                    )
+                    await updateToken(tokenId, { viewDistance, viewDistanceScale })
+                  }}
+                  tokenViewDistanceSliderValue={tokenViewDistanceSliderValue}
                   onRequestDeleteToken={requestDeleteToken}
                 />
               </aside>
@@ -2159,6 +2642,8 @@ function GmMapControls({
   dark = false,
   fogTool,
   setFogTool,
+  visionTool,
+  setVisionTool,
   fogBrushSize,
   setFogBrushSize,
   fogBrushStrength,
@@ -2177,11 +2662,15 @@ function GmMapControls({
   tokens,
   onUpdateToken,
   onUpdateTokenSize,
+  onUpdateTokenViewDistance,
+  tokenViewDistanceSliderValue,
   onRequestDeleteToken,
 }: {
   dark?: boolean
   fogTool: 'reveal' | 'hide' | null
   setFogTool: (tool: 'reveal' | 'hide' | null) => void
+  visionTool: 'draw' | 'erase' | null
+  setVisionTool: (tool: 'draw' | 'erase' | null) => void
   fogBrushSize: number
   setFogBrushSize: (size: number) => void
   fogBrushStrength: number
@@ -2200,9 +2689,16 @@ function GmMapControls({
   tokens: TokenRecord[]
   onUpdateToken: (
     tokenId: string,
-    updates: Partial<Pick<TokenRecord, 'color' | 'size' | 'sizeScale' | 'party' | 'name' | 'revealName'>>,
+    updates: Partial<
+      Pick<
+        TokenRecord,
+        'color' | 'size' | 'sizeScale' | 'viewDistance' | 'viewDistanceScale' | 'party' | 'name' | 'revealName'
+      >
+    >,
   ) => Promise<void>
   onUpdateTokenSize: (tokenId: string, size: number) => Promise<void>
+  onUpdateTokenViewDistance: (tokenId: string, viewDistance: number) => Promise<void>
+  tokenViewDistanceSliderValue: (token: TokenRecord) => number
   onRequestDeleteToken: (tokenId: string) => void
 }) {
   const toggleHidden = () => {
@@ -2231,7 +2727,10 @@ function GmMapControls({
         <button
           type="button"
           className={fogTool === 'reveal' ? 'map-icon-btn active' : 'map-icon-btn'}
-          onClick={() => setFogTool(fogTool === 'reveal' ? null : 'reveal')}
+          onClick={() => {
+            setVisionTool(null)
+            setFogTool(fogTool === 'reveal' ? null : 'reveal')
+          }}
           aria-label="Eraser brush"
           title="Eraser brush"
         >
@@ -2240,11 +2739,38 @@ function GmMapControls({
         <button
           type="button"
           className={fogTool === 'hide' ? 'map-icon-btn active' : 'map-icon-btn'}
-          onClick={() => setFogTool(fogTool === 'hide' ? null : 'hide')}
+          onClick={() => {
+            setVisionTool(null)
+            setFogTool(fogTool === 'hide' ? null : 'hide')
+          }}
           aria-label="Spray fog brush"
           title="Spray fog brush"
         >
           <SprayCan size={16} />
+        </button>
+        <button
+          type="button"
+          className={visionTool === 'draw' ? 'map-icon-btn active' : 'map-icon-btn'}
+          onClick={() => {
+            setFogTool(null)
+            setVisionTool(visionTool === 'draw' ? null : 'draw')
+          }}
+          aria-label="Vision wall brush"
+          title="Vision wall brush"
+        >
+          <Pencil size={16} />
+        </button>
+        <button
+          type="button"
+          className={visionTool === 'erase' ? 'map-icon-btn active' : 'map-icon-btn'}
+          onClick={() => {
+            setFogTool(null)
+            setVisionTool(visionTool === 'erase' ? null : 'erase')
+          }}
+          aria-label="Erase vision wall brush"
+          title="Erase vision wall brush"
+        >
+          <X size={16} />
         </button>
         <button
           type="button"
@@ -2265,27 +2791,38 @@ function GmMapControls({
         >
           <ChessPawn size={16} />
         </button>
+        <button
+          type="button"
+          className={streamingMode ? 'map-icon-btn active' : 'map-icon-btn'}
+          onClick={() => setStreamingMode(!streamingMode)}
+          aria-label="Toggle streaming mode"
+          title="Toggle streaming mode"
+        >
+          <TvMinimalPlay size={16} />
+        </button>
       </div>
-      <div className="map-token-config">
-        <input
-          type="color"
-          value={tokenColor}
-          onChange={(event) => setTokenColor(event.target.value)}
-          aria-label="Token color"
-          title="Token color"
-        />
-        <label>
-          Token Size
+      {tokenPlaceMode ? (
+        <div className="map-token-config">
           <input
-            type="range"
-            min={16}
-            max={56}
-            step={1}
-            value={tokenSize}
-            onChange={(event) => setTokenSize(Number(event.target.value))}
+            type="color"
+            value={tokenColor}
+            onChange={(event) => setTokenColor(event.target.value)}
+            aria-label="Token color"
+            title="Token color"
           />
-        </label>
-      </div>
+          <label>
+            Token Size: {tokenSize}
+            <input
+              type="range"
+              min={16}
+              max={56}
+              step={1}
+              value={tokenSize}
+              onChange={(event) => setTokenSize(Number(event.target.value))}
+            />
+          </label>
+        </div>
+      ) : null}
       <div className="token-list">
         {tokens.map((token, index) => (
           <div key={token.id} className="token-row">
@@ -2323,15 +2860,6 @@ function GmMapControls({
               onChange={(event) => void onUpdateToken(token.id, { color: event.target.value })}
               aria-label={`Token ${index + 1} color`}
             />
-            <input
-              type="range"
-              min={16}
-              max={56}
-              step={1}
-              value={token.size}
-              onChange={(event) => void onUpdateTokenSize(token.id, Number(event.target.value))}
-              aria-label={`Token ${index + 1} size`}
-            />
             <button
               type="button"
               className="token-row-delete"
@@ -2341,14 +2869,49 @@ function GmMapControls({
             >
               <Trash2 size={14} />
             </button>
+            <input
+              type="range"
+              className="token-row-size-slider"
+              min={16}
+              max={56}
+              step={1}
+              value={token.size}
+              onChange={(event) => void onUpdateTokenSize(token.id, Number(event.target.value))}
+              aria-label={`Token ${index + 1} size`}
+            />
+            <span className="token-row-size-value">{token.size}</span>
             <label className="token-party-toggle">
               <input
                 type="checkbox"
                 checked={token.party}
-                onChange={(event) => void onUpdateToken(token.id, { party: event.target.checked })}
+                onChange={(event) => {
+                  const checked = event.target.checked
+                  if (checked) {
+                    const viewDistance = tokenViewDistanceSliderValue(token)
+                    void onUpdateToken(token.id, {
+                      party: checked,
+                      viewDistance,
+                    })
+                    return
+                  }
+                  void onUpdateToken(token.id, { party: checked })
+                }}
               />
               Party Token
             </label>
+            {token.party ? (
+              <label className="token-party-toggle token-view-distance">
+                View Distance: {tokenViewDistanceSliderValue(token)}
+                <input
+                  type="range"
+                  min={8}
+                  max={600}
+                  step={2}
+                  value={tokenViewDistanceSliderValue(token)}
+                  onChange={(event) => void onUpdateTokenViewDistance(token.id, Number(event.target.value))}
+                />
+              </label>
+            ) : null}
             <label className="token-party-toggle">
               <input
                 type="checkbox"
@@ -2361,24 +2924,11 @@ function GmMapControls({
         ))}
       </div>
 
-      <div className="map-icon-grid">
-        <button
-          type="button"
-          className={streamingMode ? 'map-icon-btn active' : 'map-icon-btn'}
-          onClick={() => setStreamingMode(!streamingMode)}
-          aria-label="Toggle streaming mode"
-          title="Toggle streaming mode"
-        >
-          <TvMinimalPlay size={16} />
-        </button>
-      </div>
-      <p className="map-controls-hint">Wheel-click + drag pans.</p>
-
       <label>
         Brush Size: {fogBrushSize}
         <input
           type="range"
-          min={24}
+          min={8}
           max={260}
           step={2}
           value={fogBrushSize}
