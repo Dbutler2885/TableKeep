@@ -55,6 +55,7 @@ import {
   Upload,
   X,
 } from 'lucide-react'
+import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import './App.css'
 import { auth, db, storage } from './firebase'
 import { firebaseConfig } from './firebase/config'
@@ -163,6 +164,19 @@ const tabs: Array<{ id: AppTab; label: string }> = [
   { id: 'notes', label: 'Notes' },
   { id: 'rules', label: 'Rules' },
 ]
+
+const tabPaths: Record<AppTab, string> = {
+  character: '/character',
+  maps: '/maps',
+  npcs: '/npcs',
+  notes: '/notes',
+  rules: '/rules',
+}
+
+const tabFromPathname = (pathname: string): AppTab => {
+  const matched = tabs.find((tab) => pathname === tabPaths[tab.id] || pathname.startsWith(`${tabPaths[tab.id]}/`))
+  return matched?.id ?? 'character'
+}
 
 const gmEmails = (import.meta.env.VITE_GM_EMAILS ?? '')
   .split(',')
@@ -368,7 +382,8 @@ function CampaignShell({ user }: { user: User }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [activeTab, setActiveTab] = useState<AppTab>('character')
+  const location = useLocation()
+  const activeTab = useMemo(() => tabFromPathname(location.pathname), [location.pathname])
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   const [characters, setCharacters] = useState<CharacterRecord[]>([])
@@ -539,10 +554,9 @@ function CampaignShell({ user }: { user: User }) {
     [characters, selectedCharacterId],
   )
 
-  const handleTabChange = (tab: AppTab) => {
-    setActiveTab(tab)
+  useEffect(() => {
     setDrawerOpen(false)
-  }
+  }, [location.pathname])
 
   const tabLabel = (tab: AppTab) => {
     if (tab === 'character' && role === 'gm') return 'Characters'
@@ -584,14 +598,14 @@ function CampaignShell({ user }: { user: User }) {
 
             <div className="nav-list">
               {tabs.map((tab) => (
-                <button
+                <NavLink
                   key={tab.id}
-                  type="button"
-                  className={tab.id === activeTab ? 'tab-button active' : 'tab-button'}
-                  onClick={() => handleTabChange(tab.id)}
+                  to={tabPaths[tab.id]}
+                  end
+                  className={({ isActive }) => (isActive ? 'tab-button active' : 'tab-button')}
                 >
                   {tabLabel(tab.id)}
-                </button>
+                </NavLink>
               ))}
             </div>
 
@@ -606,20 +620,27 @@ function CampaignShell({ user }: { user: User }) {
           {drawerOpen ? <button className="drawer-backdrop" onClick={() => setDrawerOpen(false)} /> : null}
 
           <section className={activeTab === 'maps' ? 'content-panel maps-content-panel' : 'content-panel'}>
-            {activeTab === 'character' ? (
-              <CharacterTab
-                role={role}
-                characters={characters}
-                charactersLoading={charactersLoading}
-                selectedCharacterId={selectedCharacterId}
-                setSelectedCharacterId={setSelectedCharacterId}
-                selectedCharacter={selectedCharacter}
+            <Routes>
+              <Route path="/" element={<Navigate to={tabPaths.character} replace />} />
+              <Route
+                path={tabPaths.character}
+                element={
+                  <CharacterTab
+                    role={role}
+                    characters={characters}
+                    charactersLoading={charactersLoading}
+                    selectedCharacterId={selectedCharacterId}
+                    setSelectedCharacterId={setSelectedCharacterId}
+                    selectedCharacter={selectedCharacter}
+                  />
+                }
               />
-            ) : activeTab === 'maps' ? (
-              <MapsTab campaignId={campaign.id} role={role} />
-            ) : (
-              <PlaceholderTab tab={activeTab} />
-            )}
+              <Route path={tabPaths.maps} element={<MapsTab campaignId={campaign.id} role={role} />} />
+              <Route path={tabPaths.npcs} element={<PlaceholderTab tab="npcs" />} />
+              <Route path={tabPaths.notes} element={<PlaceholderTab tab="notes" />} />
+              <Route path={tabPaths.rules} element={<PlaceholderTab tab="rules" />} />
+              <Route path="*" element={<Navigate to={tabPaths.character} replace />} />
+            </Routes>
           </section>
         </div>
       )}
@@ -1014,8 +1035,12 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     setFogSampleTick((value) => value + 1)
   }
 
-  const shouldShowTokenNameForGM = (token: TokenRecord) =>
-    !usingFullScreenCanvas || !streamingMode || token.revealName
+  const gmTokenNameClassName = (token: TokenRecord) => {
+    if (streamingMode) {
+      return token.revealName ? 'map-token-name gm-hover-only' : 'map-token-name gm-hidden'
+    }
+    return token.revealName ? 'map-token-name' : 'map-token-name gm-hover-only'
+  }
 
   const isMobileZoomMapView = isMobile && (role !== 'gm' || mobileGmPane === 'map')
 
@@ -2960,6 +2985,10 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                 tabIndex={0}
                 onClick={() => selectMap(map.id)}
                 onKeyDown={(event) => {
+                  const target = event.target as HTMLElement
+                  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                    return
+                  }
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault()
                     selectMap(map.id)
@@ -2968,7 +2997,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
               >
                 <div className="map-thumb-column">
                   <div className="map-thumb-wrap">
-                    {map.imageUrl ? <img src={map.imageUrl} alt={map.name} className="map-thumb" /> : null}
+                    {role === 'gm' && map.imageUrl ? <img src={map.imageUrl} alt={map.name} className="map-thumb" /> : null}
                   </div>
                   {role === 'gm' ? (
                     <button
@@ -3182,11 +3211,9 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                         <X size={10} />
                       </span>
                       {renderTokenGlyph(token)}
-                      {shouldShowTokenNameForGM(token) ? (
-                        <span className="map-token-name" style={renderTokenNameStyle(token)}>
-                          {tokenDisplayName(token, index)}
-                        </span>
-                      ) : null}
+                      <span className={gmTokenNameClassName(token)} style={renderTokenNameStyle(token)}>
+                        {tokenDisplayName(token, index)}
+                      </span>
                     </button>
                   )
                 })}
@@ -3488,11 +3515,9 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                             <X size={10} />
                           </span>
                           {renderTokenGlyph(token)}
-                          {shouldShowTokenNameForGM(token) ? (
-                            <span className="map-token-name" style={renderTokenNameStyle(token)}>
-                              {tokenDisplayName(token, index)}
-                            </span>
-                          ) : null}
+                          <span className={gmTokenNameClassName(token)} style={renderTokenNameStyle(token)}>
+                            {tokenDisplayName(token, index)}
+                          </span>
                         </button>
                       )
                     })}

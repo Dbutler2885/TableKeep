@@ -149,6 +149,8 @@ button:hover {
 }
 
 .tab-button {
+  display: block;
+  width: 100%;
   text-align: left;
   border: 0;
   background: transparent;
@@ -998,8 +1000,24 @@ button:hover {
   z-index: 2;
 }
 
+.map-token-name.gm-hover-only {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.map-token-name.gm-hidden {
+  display: none;
+}
+
+.map-token:hover .map-token-name.gm-hover-only,
+.map-token:focus-within .map-token-name.gm-hover-only {
+  opacity: 1;
+  visibility: visible;
+}
+
 .map-token-config {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.4rem;
   margin: 0.25rem 0 0.55rem;
 }
@@ -1014,6 +1032,13 @@ button:hover {
 
 .map-token-config label {
   font-size: 0.82rem;
+  min-width: 0;
+}
+
+.map-token-config select,
+.map-token-config input[type='text'] {
+  width: 100%;
+  min-width: 0;
 }
 
 .token-image-upload {
