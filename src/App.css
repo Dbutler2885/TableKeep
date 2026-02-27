@@ -888,14 +888,96 @@ button:hover {
   touch-action: none;
 }
 
+.map-token:hover {
+  transform: translate(-50%, -100%) scale(1.04);
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.map-token:focus,
+.map-token:focus-visible {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  outline: none;
+}
+
 .map-token.dragging {
   cursor: grabbing;
   transition: none;
 }
 
+.map-token-hide-btn {
+  position: absolute;
+  left: 90%;
+  top: 10%;
+  transform: translate(-50%, -50%);
+  width: 0.72rem;
+  height: 0.72rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #8a8a84;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  pointer-events: auto;
+  z-index: 4;
+  outline: none;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.map-token:hover .map-token-hide-btn,
+.map-token:focus-within .map-token-hide-btn {
+  display: inline-flex;
+}
+
+.map-token-hide-btn:hover {
+  background: rgba(255, 255, 255, 0.66);
+  color: #61615b;
+}
+
+.map-token-hide-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.66);
+  color: #61615b;
+}
+
+.map-token.selected svg {
+  filter:
+    drop-shadow(0 0 0.5px rgba(255, 255, 255, 0.95))
+    drop-shadow(0 0 3px rgba(72, 114, 250, 0.95))
+    drop-shadow(0 0 7px rgba(72, 114, 250, 0.55));
+}
+
+.map-token.selected .map-token-image {
+  filter:
+    drop-shadow(0 0 0.5px rgba(255, 255, 255, 0.95))
+    drop-shadow(0 0 3px rgba(72, 114, 250, 0.95))
+    drop-shadow(0 0 7px rgba(72, 114, 250, 0.55));
+}
+
 .map-token svg,
 .map-token-static svg {
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.42));
+}
+
+.map-token-image {
+  display: block;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.42));
+}
+
+.map-token-selection-box {
+  position: absolute;
+  border: 1px dashed #3b82f6;
+  background: rgba(59, 130, 246, 0.14);
+  pointer-events: none;
+  z-index: 16;
 }
 
 .map-token-name {
@@ -934,6 +1016,29 @@ button:hover {
   font-size: 0.82rem;
 }
 
+.token-image-upload {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.token-image-trigger {
+  width: fit-content;
+}
+
+.token-image-preview-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.token-image-preview {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+  border: 1px solid #d7d7cf;
+  background: #fff;
+}
+
 .token-trash-drop {
   margin: 0 0 0.55rem;
   min-height: 2rem;
@@ -967,6 +1072,18 @@ button:hover {
   border-radius: 8px;
   padding: 0.45rem 0.5rem;
   background: #fff;
+}
+
+.token-row.selected {
+  background: #c9d8c1;
+  border-color: #9eb592;
+}
+
+.token-row-image {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  display: block;
 }
 
 .token-row-label-input {
@@ -1013,7 +1130,6 @@ button:hover {
 }
 
 .token-party-toggle {
-  grid-column: 1 / -1;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -1021,7 +1137,16 @@ button:hover {
   color: #4b4b44;
 }
 
+.token-row-toggles {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+}
+
 .token-view-distance {
+  grid-column: 1 / -1;
   display: grid;
   gap: 0.25rem;
 }
@@ -1044,6 +1169,11 @@ button:hover {
 .map-controls-body.dark .token-row {
   background: #2b2b2b;
   border-color: #4f4f48;
+}
+
+.map-controls-body.dark .token-row.selected {
+  background: #3a4634;
+  border-color: #7f946f;
 }
 
 .map-controls-body.dark .token-row-size-value {
