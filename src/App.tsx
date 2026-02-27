@@ -809,6 +809,14 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     const scale = token.sizeScale ?? token.size / TOKEN_REFERENCE_DIMENSION
     return Math.max(10, Math.min(120, Math.round(scale * activeMapDimension)))
   }
+  const renderTokenNameStyle = (token: TokenRecord): React.CSSProperties => {
+    const size = renderTokenSize(token)
+    return {
+      color: token.color,
+      fontSize: `${Math.max(10, Math.min(20, Math.round(size * 0.34)))}px`,
+      transform: `translate(-50%, ${Math.max(6, Math.round(size * 0.24))}px)`,
+    }
+  }
   const effectiveFogBrushSize = Math.max(
     12,
     Math.min(320, Math.round((fogBrushSize / TOKEN_REFERENCE_DIMENSION) * activeMapDimension)),
@@ -1877,7 +1885,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                     >
                       <ChessPawn size={renderTokenSize(token)} />
                       {shouldShowTokenNameForGM(token) ? (
-                        <span className="map-token-name" style={{ color: token.color }}>
+                        <span className="map-token-name" style={renderTokenNameStyle(token)}>
                           {tokenDisplayName(token, index)}
                         </span>
                       ) : null}
@@ -1894,7 +1902,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                     >
                       <ChessPawn size={renderTokenSize(token)} />
                       {token.revealName ? (
-                        <span className="map-token-name" style={{ color: token.color }}>
+                        <span className="map-token-name" style={renderTokenNameStyle(token)}>
                           {tokenDisplayName(token, index)}
                         </span>
                       ) : null}
@@ -2049,7 +2057,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                           >
                             <ChessPawn size={renderTokenSize(token)} />
                             {token.revealName ? (
-                              <span className="map-token-name" style={{ color: token.color }}>
+                              <span className="map-token-name" style={renderTokenNameStyle(token)}>
                                 {tokenDisplayName(token, index)}
                               </span>
                             ) : null}
@@ -2075,7 +2083,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                         >
                           <ChessPawn size={renderTokenSize(token)} />
                           {shouldShowTokenNameForGM(token) ? (
-                            <span className="map-token-name" style={{ color: token.color }}>
+                            <span className="map-token-name" style={renderTokenNameStyle(token)}>
                               {tokenDisplayName(token, index)}
                             </span>
                           ) : null}
