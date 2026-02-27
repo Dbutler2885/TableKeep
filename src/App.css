@@ -621,8 +621,10 @@ button:hover {
 .map-controls {
   border-left: 1px solid #dddcd6;
   padding-left: 0.75rem;
+  height: 100%;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .map-controls ul {
@@ -725,6 +727,10 @@ button:hover {
   background: #171717;
   border: 1px solid #2f2f2f;
   padding: 0.9rem;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .map-zoom-layer {
@@ -781,12 +787,96 @@ button:hover {
   z-index: 14;
 }
 
+.map-annotation-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.map-annotation {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.map-annotation.active {
+  z-index: 30;
+}
+
+.map-annotation-btn {
+  pointer-events: auto;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #b42318;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-annotation-btn.active {
+  color: #7f1d1d;
+}
+
+.map-annotation-popover {
+  pointer-events: auto;
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 0.3rem);
+  transform: translateX(-50%);
+  z-index: 31;
+  width: max-content;
+  min-width: 0;
+  max-width: min(26rem, 72vw);
+  background: #fff;
+  border: 1px solid #d9d9d1;
+  border-radius: 8px;
+  padding: 0.4rem;
+  display: inline-grid;
+  gap: 0.35rem;
+  line-height: 1.2;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
+
+.map-annotation-popover textarea {
+  width: auto;
+  min-width: 10.5rem;
+  max-width: min(25rem, 68vw);
+  min-height: 3.5rem;
+  max-height: min(17.5rem, 55vh);
+  resize: none;
+  overflow-y: auto;
+  font-size: 0.78rem;
+}
+
+.map-annotation-delete {
+  justify-self: end;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 0;
+  background: transparent;
+  color: #7d1b12;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.map-annotation-delete:hover {
+  background: #f3e9e7;
+}
+
 .map-token,
 .map-token-static {
   position: absolute;
   transform: translate(-50%, -100%);
   line-height: 0;
   overflow: visible;
+  transition: left 90ms linear, top 90ms linear;
 }
 
 .map-token {
@@ -800,6 +890,7 @@ button:hover {
 
 .map-token.dragging {
   cursor: grabbing;
+  transition: none;
 }
 
 .map-token svg,

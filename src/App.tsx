@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   ChangeEventHandler,
   FormEvent,
@@ -684,8 +684,10 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   const loadedInlineCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const loadedInlineVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const loadedFogKeyRef = useRef('')
+  const loadedFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const loadedInlineVisionKeyRef = useRef('')
   const loadedVisionKeyRef = useRef('')
+  const loadedVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const revealMaskCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
@@ -955,6 +957,24 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     BRUSH_SIZE_MIN,
     Math.min(320, Math.round((fogBrushSize / TOKEN_REFERENCE_DIMENSION) * activeMapDimension)),
   )
+  const autosizeAnnotationTextarea = useCallback((textarea: HTMLTextAreaElement | null) => {
+    if (!textarea) return
+    textarea.style.width = 'auto'
+    textarea.style.height = 'auto'
+
+    const viewportWidth = Math.max(window.innerWidth, 320)
+    const viewportHeight = Math.max(window.innerHeight, 320)
+    const minWidth = 168
+    const maxWidth = Math.min(420, Math.floor(viewportWidth * 0.56))
+    const nextWidth = Math.min(maxWidth, Math.max(minWidth, Math.ceil(textarea.scrollWidth) + 2))
+    textarea.style.width = `${nextWidth}px`
+
+    const minHeight = 56
+    const maxHeight = Math.min(280, Math.floor(viewportHeight * 0.5))
+    const nextHeight = Math.min(maxHeight, Math.max(minHeight, Math.ceil(textarea.scrollHeight) + 2))
+    textarea.style.height = `${nextHeight}px`
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
+  }, [])
 
   const isTokenVisible = (token: TokenRecord) => {
     if (token.party) return true
@@ -1130,6 +1150,10 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   }
 
   const handleFullWheel: WheelEventHandler<HTMLDivElement> = (event) => {
+    const target = event.target as HTMLElement | null
+    if (target?.closest('.map-annotation-popover')) {
+      return
+    }
     event.preventDefault()
 
     const factor = Math.exp(-event.deltaY * 0.0015)
@@ -1224,19 +1248,30 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return
 
-    const visionSource = map.visionBlockImageUrl || map.visionBlockDataUrl
-    if (!visionSource) {
+    const sources = [map.visionBlockDataUrl, map.visionBlockImageUrl].filter(Boolean)
+    if (sources.length === 0) {
       ctx.clearRect(0, 0, width, height)
       return
     }
 
-    const blockImage = new Image()
-    blockImage.crossOrigin = 'anonymous'
-    blockImage.onload = () => {
-      ctx.clearRect(0, 0, width, height)
-      ctx.drawImage(blockImage, 0, 0, width, height)
+    const loadAt = (index: number) => {
+      const source = sources[index]
+      if (!source) {
+        ctx.clearRect(0, 0, width, height)
+        return
+      }
+      const blockImage = new Image()
+      blockImage.crossOrigin = 'anonymous'
+      blockImage.onload = () => {
+        ctx.clearRect(0, 0, width, height)
+        ctx.drawImage(blockImage, 0, 0, width, height)
+      }
+      blockImage.onerror = () => {
+        loadAt(index + 1)
+      }
+      blockImage.src = source
     }
-    blockImage.src = visionSource
+    loadAt(0)
   }
 
   const safeCanvasToDataUrl = (canvas: HTMLCanvasElement) => {
@@ -1621,14 +1656,16 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     }
   }
 
-  const persistVisionBlocks = async () => {
-    if (!selectedMap || !activeVisionCanvasRef.current || role !== 'gm') return
+  const persistVisionBlocks = async (sourceCanvas?: HTMLCanvasElement | null) => {
+    const canvas = sourceCanvas ?? activeVisionCanvasRef.current
+    if (!selectedMap || !canvas || role !== 'gm') return
     try {
-      const { path, url } = await uploadMapOverlayImage(selectedMap.id, activeVisionCanvasRef.current, 'vision')
+      const visionBlockDataUrl = safeCanvasToDataUrl(canvas)
+      const { path, url } = await uploadMapOverlayImage(selectedMap.id, canvas, 'vision')
       await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
         visionBlockImagePath: path,
         visionBlockImageUrl: url,
-        visionBlockDataUrl: '',
+        visionBlockDataUrl,
         updatedAt: serverTimestamp(),
       })
     } catch (error) {
@@ -1682,10 +1719,11 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   const handleFogPointerUp = () => {
     if (tokenPlaceMode) return
     if (!fogDrawing) return
+    const visionCanvas = activeVisionCanvasRef.current
     setFogDrawing(false)
     fogLastPointRef.current = null
     if (visionTool) {
-      void persistVisionBlocks()
+      void persistVisionBlocks(visionCanvas)
       return
     }
     void persistFog()
@@ -2482,6 +2520,11 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     if (!fullScreenOpen || !selectedMap || !fullFogCanvasRef.current) return
     if (fullBaseSize.width <= 0 || fullBaseSize.height <= 0) return
 
+    if (loadedFogCanvasRef.current !== fullFogCanvasRef.current) {
+      loadedFogCanvasRef.current = fullFogCanvasRef.current
+      loadedFogKeyRef.current = ''
+    }
+
     const key = getFogCacheKey(selectedMap, fullBaseSize.width, fullBaseSize.height)
     if (loadedFogKeyRef.current === key) return
 
@@ -2492,6 +2535,11 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   useEffect(() => {
     if (!fullScreenOpen || !selectedMap || !fullVisionCanvasRef.current) return
     if (fullBaseSize.width <= 0 || fullBaseSize.height <= 0) return
+
+    if (loadedVisionCanvasRef.current !== fullVisionCanvasRef.current) {
+      loadedVisionCanvasRef.current = fullVisionCanvasRef.current
+      loadedVisionKeyRef.current = ''
+    }
 
     const key = `${selectedMap.id}:${selectedMap.visionBlockImagePath || selectedMap.visionBlockImageUrl || selectedMap.visionBlockDataUrl}:${fullBaseSize.width}x${fullBaseSize.height}`
     if (loadedVisionKeyRef.current === key) return
@@ -2782,7 +2830,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                   {annotations.map((annotation) => (
                     <div
                       key={annotation.id}
-                      className="map-annotation"
+                      className={activeAnnotationId === annotation.id ? 'map-annotation active' : 'map-annotation'}
                       style={{ left: `${annotation.x * 100}%`, top: `${annotation.y * 100}%` }}
                     >
                       <button
@@ -2806,10 +2854,14 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                         <div className="map-annotation-popover" onClick={(event) => event.stopPropagation()}>
                           <textarea
                             value={activeAnnotationDraft}
-                            onChange={(event) => setActiveAnnotationDraft(event.target.value)}
+                            onChange={(event) => {
+                              setActiveAnnotationDraft(event.target.value)
+                              autosizeAnnotationTextarea(event.currentTarget)
+                            }}
                             onBlur={() => {
                               void commitActiveAnnotation()
                             }}
+                            ref={autosizeAnnotationTextarea}
                             placeholder="GM note"
                             rows={4}
                           />
@@ -3039,7 +3091,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                       {annotations.map((annotation) => (
                         <div
                           key={annotation.id}
-                          className="map-annotation"
+                          className={activeAnnotationId === annotation.id ? 'map-annotation active' : 'map-annotation'}
                           style={{ left: `${annotation.x * 100}%`, top: `${annotation.y * 100}%` }}
                         >
                           <button
@@ -3063,10 +3115,14 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                             <div className="map-annotation-popover" onClick={(event) => event.stopPropagation()}>
                               <textarea
                                 value={activeAnnotationDraft}
-                                onChange={(event) => setActiveAnnotationDraft(event.target.value)}
+                                onChange={(event) => {
+                                  setActiveAnnotationDraft(event.target.value)
+                                  autosizeAnnotationTextarea(event.currentTarget)
+                                }}
                                 onBlur={() => {
                                   void commitActiveAnnotation()
                                 }}
+                                ref={autosizeAnnotationTextarea}
                                 placeholder="GM note"
                                 rows={4}
                               />
