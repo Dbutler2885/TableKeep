@@ -84,12 +84,17 @@ type MapRecord = {
   imagePath: string
   imageUrl: string
   fogDataUrl: string
+  fogImagePath: string
+  fogImageUrl: string
   visionBlockDataUrl: string
+  visionBlockImagePath: string
+  visionBlockImageUrl: string
   fullyHidden: boolean
   width: number
   height: number
   sortOrder: number
   visibleToPlayers: boolean
+  updatedAtMs: number
 }
 
 type TokenRecord = {
@@ -112,9 +117,10 @@ const BRUSH_SIZE_MIN = 8
 const TOKEN_VIEW_DISTANCE_MAX = 600
 const LOS_SURFACE_REVEAL_MULTIPLIER = 2.4
 const LOS_BLOCKER_SAMPLE_RADIUS = 2
-const LIVE_DRAG_WRITE_INTERVAL_MS = 80
+const LIVE_DRAG_WRITE_INTERVAL_MS = 220
 const LIVE_DRAG_EPSILON = 0.0015
-const LIVE_FOG_WRITE_INTERVAL_MS = 900
+const LIVE_FOG_WRITE_INTERVAL_MS = 1400
+const ENABLE_LIVE_FOG_DURING_DRAG = true
 
 const tabs: Array<{ id: AppTab; label: string }> = [
   { id: 'character', label: 'Character' },
@@ -636,6 +642,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   const tokenDragOffsetRef = useRef<{ x: number; y: number } | null>(null)
   const dragTokenPositionRef = useRef<{ x: number; y: number } | null>(null)
   const tokenFogTrailPointRef = useRef<{ x: number; y: number } | null>(null)
+  const liveWritesBlockedUntilRef = useRef(0)
   const tokenLongPressTimerRef = useRef<number | null>(null)
   const tokenTouchDraggingRef = useRef(false)
   const mobileTouchRef = useRef<{
@@ -670,12 +677,17 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
             imagePath?: string
             imageUrl?: string
             fogDataUrl?: string
+            fogImagePath?: string
+            fogImageUrl?: string
             visionBlockDataUrl?: string
+            visionBlockImagePath?: string
+            visionBlockImageUrl?: string
             fullyHidden?: boolean
             width?: number
             height?: number
             sortOrder?: number
             visibleToPlayers?: boolean
+            updatedAt?: { toMillis?: () => number }
           }
 
           return {
@@ -684,12 +696,17 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
             imagePath: data.imagePath ?? '',
             imageUrl: data.imageUrl ?? '',
             fogDataUrl: data.fogDataUrl ?? '',
+            fogImagePath: data.fogImagePath ?? '',
+            fogImageUrl: data.fogImageUrl ?? '',
             visionBlockDataUrl: data.visionBlockDataUrl ?? '',
+            visionBlockImagePath: data.visionBlockImagePath ?? '',
+            visionBlockImageUrl: data.visionBlockImageUrl ?? '',
             fullyHidden: data.fullyHidden === true,
             width: typeof data.width === 'number' ? data.width : 0,
             height: typeof data.height === 'number' ? data.height : 0,
             sortOrder: typeof data.sortOrder === 'number' ? data.sortOrder : Number.MAX_SAFE_INTEGER,
             visibleToPlayers: data.visibleToPlayers === true,
+            updatedAtMs: typeof data.updatedAt?.toMillis === 'function' ? data.updatedAt.toMillis() : 0,
           }
         })
           .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
@@ -732,18 +749,36 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   )
 
   useEffect(() => {
-    const missingUrlMaps = maps.filter((map) => map.imagePath && !map.imageUrl)
-    if (missingUrlMaps.length === 0) return
+    const missingImageUrlMaps = maps.filter((map) => map.imagePath && !map.imageUrl)
+    const missingFogUrlMaps = maps.filter((map) => map.fogImagePath && !map.fogImageUrl)
+    const missingVisionUrlMaps = maps.filter((map) => map.visionBlockImagePath && !map.visionBlockImageUrl)
+    if (missingImageUrlMaps.length === 0 && missingFogUrlMaps.length === 0 && missingVisionUrlMaps.length === 0) {
+      return
+    }
 
-    void Promise.allSettled(
-      missingUrlMaps.map(async (map) => {
+    void Promise.allSettled([
+      ...missingImageUrlMaps.map(async (map) => {
         const url = await getDownloadURL(ref(storage, map.imagePath))
         await updateDoc(doc(db, 'campaigns', campaignId, 'maps', map.id), {
           imageUrl: url,
           updatedAt: serverTimestamp(),
         })
       }),
-    )
+      ...missingFogUrlMaps.map(async (map) => {
+        const url = await getDownloadURL(ref(storage, map.fogImagePath))
+        await updateDoc(doc(db, 'campaigns', campaignId, 'maps', map.id), {
+          fogImageUrl: url,
+          updatedAt: serverTimestamp(),
+        })
+      }),
+      ...missingVisionUrlMaps.map(async (map) => {
+        const url = await getDownloadURL(ref(storage, map.visionBlockImagePath))
+        await updateDoc(doc(db, 'campaigns', campaignId, 'maps', map.id), {
+          visionBlockImageUrl: url,
+          updatedAt: serverTimestamp(),
+        })
+      }),
+    ])
   }, [campaignId, maps])
 
   useEffect(() => {
@@ -864,7 +899,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     const canvas = activeFogCanvasRef.current
     if (!canvas) return selectedMap ? !selectedMap.fullyHidden : true
 
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return true
 
     const x = Math.max(0, Math.min(canvas.width - 1, Math.round(token.x * canvas.width)))
@@ -902,7 +937,11 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
         imagePath: storagePath,
         imageUrl: '',
         fogDataUrl: '',
+        fogImagePath: '',
+        fogImageUrl: '',
         visionBlockDataUrl: '',
+        visionBlockImagePath: '',
+        visionBlockImageUrl: '',
         fullyHidden: false,
         width: 0,
         height: 0,
@@ -958,6 +997,12 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     try {
       if (deleteCandidate.imagePath) {
         await deleteObject(ref(storage, deleteCandidate.imagePath))
+      }
+      if (deleteCandidate.fogImagePath) {
+        await deleteObject(ref(storage, deleteCandidate.fogImagePath))
+      }
+      if (deleteCandidate.visionBlockImagePath) {
+        await deleteObject(ref(storage, deleteCandidate.visionBlockImagePath))
       }
 
       await deleteDoc(doc(db, 'campaigns', campaignId, 'maps', deleteCandidate.id))
@@ -1078,10 +1123,11 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       canvas.height = height
     }
 
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return
 
-    if (!map.fogDataUrl) {
+    const fogSource = map.fogDataUrl || map.fogImageUrl
+    if (!fogSource) {
       ctx.clearRect(0, 0, width, height)
       ctx.fillStyle = 'rgba(0, 0, 0, 1)'
       ctx.fillRect(0, 0, width, height)
@@ -1090,12 +1136,17 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     }
 
     const fogImage = new Image()
+    fogImage.crossOrigin = 'anonymous'
     fogImage.onload = () => {
       ctx.clearRect(0, 0, width, height)
       ctx.drawImage(fogImage, 0, 0, width, height)
       bumpFogSampleTick()
     }
-    fogImage.src = map.fogDataUrl
+    fogImage.src = fogSource
+  }
+
+  const getFogCacheKey = (map: MapRecord, width: number, height: number) => {
+    return `${map.id}:${map.updatedAtMs}:${width}x${height}`
   }
 
   const initializeVisionCanvas = (canvas: HTMLCanvasElement, map: MapRecord, width: number, height: number) => {
@@ -1107,20 +1158,30 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       canvas.height = height
     }
 
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return
 
-    if (!map.visionBlockDataUrl) {
+    const visionSource = map.visionBlockImageUrl || map.visionBlockDataUrl
+    if (!visionSource) {
       ctx.clearRect(0, 0, width, height)
       return
     }
 
     const blockImage = new Image()
+    blockImage.crossOrigin = 'anonymous'
     blockImage.onload = () => {
       ctx.clearRect(0, 0, width, height)
       ctx.drawImage(blockImage, 0, 0, width, height)
     }
-    blockImage.src = map.visionBlockDataUrl
+    blockImage.src = visionSource
+  }
+
+  const safeCanvasToDataUrl = (canvas: HTMLCanvasElement) => {
+    try {
+      return canvas.toDataURL('image/png')
+    } catch {
+      return ''
+    }
   }
 
   const stampVisionBlock = (
@@ -1130,7 +1191,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     mode: 'draw' | 'erase',
     brushSize = effectiveFogBrushSize,
   ) => {
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return
     const radius = brushSize / 2
 
@@ -1170,7 +1231,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     brushSize = effectiveFogBrushSize,
     visionCanvas?: HTMLCanvasElement | null,
   ) => {
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return
 
     const radius = brushSize / 2
@@ -1210,7 +1271,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
         maskCanvas.width = canvas.width
         maskCanvas.height = canvas.height
       }
-      const maskCtx = maskCanvas.getContext('2d')
+      const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true })
       if (!maskCtx) return
       maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height)
       buildStampMask(maskCtx)
@@ -1276,8 +1337,8 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       return
     }
 
-    const fogCtx = fogCanvas.getContext('2d')
-    const visionCtx = visionCanvas.getContext('2d')
+    const fogCtx = fogCanvas.getContext('2d', { willReadFrequently: true })
+    const visionCtx = visionCanvas.getContext('2d', { willReadFrequently: true })
     if (!fogCtx || !visionCtx) return
 
     const radius = Math.max(1, brushSize / 2)
@@ -1298,7 +1359,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       maskCanvas.width = fogCanvas.width
       maskCanvas.height = fogCanvas.height
     }
-    const maskCtx = maskCanvas.getContext('2d')
+    const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true })
     if (!maskCtx) return
     maskCtx.clearRect(minX, minY, regionWidth, regionHeight)
     maskCtx.fillStyle = 'rgba(0,0,0,1)'
@@ -1374,24 +1435,70 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     }
   }
 
+  const canvasToPngBlob = (canvas: HTMLCanvasElement) =>
+    new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('Unable to encode canvas PNG.'))
+          return
+        }
+        resolve(blob)
+      }, 'image/png')
+    })
+
+  const uploadMapOverlayImage = async (
+    mapId: string,
+    canvas: HTMLCanvasElement,
+    overlay: 'fog' | 'vision',
+  ) => {
+    const blob = await canvasToPngBlob(canvas)
+    const path = `campaigns/${campaignId}/maps/${mapId}/${overlay}/${Date.now()}.png`
+    const overlayRef = ref(storage, path)
+    await uploadBytes(overlayRef, blob, {
+      contentType: 'image/png',
+      cacheControl: 'no-store',
+    })
+    const url = await getDownloadURL(overlayRef)
+    return { path, url }
+  }
+
   const persistFog = async () => {
     if (!selectedMap || !activeFogCanvasRef.current || role !== 'gm') return
-    const fogDataUrl = activeFogCanvasRef.current.toDataURL('image/png')
-    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
-      fogDataUrl,
-      fullyHidden: false,
-      updatedAt: serverTimestamp(),
-    })
-    bumpFogSampleTick()
+    try {
+      const fogDataUrl = safeCanvasToDataUrl(activeFogCanvasRef.current)
+      if (!fogDataUrl) {
+        setMapError('Fog update blocked by browser canvas security policy. Reload the map and try again.')
+        return
+      }
+      const { path, url } = await uploadMapOverlayImage(selectedMap.id, activeFogCanvasRef.current, 'fog')
+      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+        fogImagePath: path,
+        fogImageUrl: url,
+        fogDataUrl,
+        fullyHidden: false,
+        updatedAt: serverTimestamp(),
+      })
+      bumpFogSampleTick()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to persist fog'
+      setMapError(message)
+    }
   }
 
   const persistVisionBlocks = async () => {
     if (!selectedMap || !activeVisionCanvasRef.current || role !== 'gm') return
-    const visionBlockDataUrl = activeVisionCanvasRef.current.toDataURL('image/png')
-    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
-      visionBlockDataUrl,
-      updatedAt: serverTimestamp(),
-    })
+    try {
+      const { path, url } = await uploadMapOverlayImage(selectedMap.id, activeVisionCanvasRef.current, 'vision')
+      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+        visionBlockImagePath: path,
+        visionBlockImageUrl: url,
+        visionBlockDataUrl: '',
+        updatedAt: serverTimestamp(),
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to persist vision blocks'
+      setMapError(message)
+    }
   }
 
   const handleFogPointerDown: MouseEventHandler<HTMLCanvasElement> = (event) => {
@@ -1471,7 +1578,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       const activeSize = usingFullScreenCanvas ? fullBaseSize : inlineBaseSize
       if (activeFogCanvasRef.current && activeSize.width > 0 && activeSize.height > 0) {
         const canvas = activeFogCanvasRef.current
-        const ctx = canvas.getContext('2d')
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })
         if (!ctx) return
 
         ctx.clearRect(0, 0, canvas.width, canvas.height)
@@ -1480,8 +1587,12 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
           ctx.fillRect(0, 0, canvas.width, canvas.height)
         }
 
+        const { path, url } = await uploadMapOverlayImage(selectedMap.id, canvas, 'fog')
+        const fogDataUrl = safeCanvasToDataUrl(canvas)
         await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
-          fogDataUrl: canvas.toDataURL('image/png'),
+          fogImagePath: path,
+          fogImageUrl: url,
+          fogDataUrl,
           fullyHidden: preset === 'hide-all',
           updatedAt: serverTimestamp(),
         })
@@ -1494,7 +1605,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       canvas.width = width
       canvas.height = height
 
-      const ctx = canvas.getContext('2d')
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })
       if (!ctx) return
 
       ctx.clearRect(0, 0, width, height)
@@ -1503,8 +1614,12 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
         ctx.fillRect(0, 0, width, height)
       }
 
+      const { path, url } = await uploadMapOverlayImage(selectedMap.id, canvas, 'fog')
+      const fogDataUrl = safeCanvasToDataUrl(canvas)
       await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
-        fogDataUrl: canvas.toDataURL('image/png'),
+        fogImagePath: path,
+        fogImageUrl: url,
+        fogDataUrl,
         fullyHidden: preset === 'hide-all',
         updatedAt: serverTimestamp(),
       })
@@ -1848,15 +1963,26 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     let tokenWriteInFlight = false
     let tokenWriteTimer: number | null = null
     let lastLiveFogWriteAt = 0
+    let lastLiveFogWritePoint: { x: number; y: number } | null = null
     let liveFogWriteInFlight = false
+    const handleLiveWriteError = (error: unknown) => {
+      const code = typeof error === 'object' && error !== null && 'code' in error
+        ? String((error as { code?: string }).code)
+        : ''
+      if (code.includes('resource-exhausted')) {
+        liveWritesBlockedUntilRef.current = Date.now() + 5000
+      }
+    }
 
     const scheduleTokenWrite = () => {
       if (tokenWriteInFlight || !pendingTokenWritePos || tokenWriteTimer !== null) return
+      if (Date.now() < liveWritesBlockedUntilRef.current) return
       const now = Date.now()
       const wait = Math.max(0, LIVE_DRAG_WRITE_INTERVAL_MS - (now - lastLiveWriteAt))
       tokenWriteTimer = window.setTimeout(() => {
         tokenWriteTimer = null
         if (tokenWriteInFlight || !pendingTokenWritePos) return
+        if (Date.now() < liveWritesBlockedUntilRef.current) return
         const position = pendingTokenWritePos
         pendingTokenWritePos = null
         tokenWriteInFlight = true
@@ -1866,23 +1992,39 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
           x: position.x,
           y: position.y,
           updatedAt: serverTimestamp(),
-        }).finally(() => {
+        })
+          .catch((error) => {
+            handleLiveWriteError(error)
+          })
+          .finally(() => {
           tokenWriteInFlight = false
           if (pendingTokenWritePos) {
             scheduleTokenWrite()
           }
-        })
+          })
       }, wait)
     }
 
-    const pushLiveFogUpdate = () => {
+    const pushLiveFogUpdate = (canvasPoint: { x: number; y: number }, brushSize: number) => {
+      if (!ENABLE_LIVE_FOG_DURING_DRAG) return
       if (!draggingToken?.party || !activeFogCanvasRef.current) return
+      if (Date.now() < liveWritesBlockedUntilRef.current) return
       const now = Date.now()
       if (liveFogWriteInFlight || now - lastLiveFogWriteAt < LIVE_FOG_WRITE_INTERVAL_MS) return
+      if (lastLiveFogWritePoint) {
+        const dx = canvasPoint.x - lastLiveFogWritePoint.x
+        const dy = canvasPoint.y - lastLiveFogWritePoint.y
+        const distance = Math.hypot(dx, dy)
+        // Skip tiny movements to avoid saturating Firestore during drag.
+        if (distance < Math.max(10, brushSize * 0.35)) return
+      }
+
+      const fogDataUrl = safeCanvasToDataUrl(activeFogCanvasRef.current)
+      if (!fogDataUrl) return
 
       liveFogWriteInFlight = true
       lastLiveFogWriteAt = now
-      const fogDataUrl = activeFogCanvasRef.current.toDataURL('image/png')
+      lastLiveFogWritePoint = canvasPoint
       void updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
         fogDataUrl,
         fullyHidden: false,
@@ -1890,6 +2032,9 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       })
         .then(() => {
           bumpFogSampleTick()
+        })
+        .catch((error) => {
+          handleLiveWriteError(error)
         })
         .finally(() => {
           liveFogWriteInFlight = false
@@ -1942,7 +2087,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
             tokenBrushSize,
           )
         }
-        pushLiveFogUpdate()
+        pushLiveFogUpdate(nextCanvasPoint, tokenBrushSize)
         tokenFogTrailPointRef.current = nextCanvasPoint
       }
     }
@@ -1975,14 +2120,22 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       tokenDragOffsetRef.current = null
       tokenFogTrailPointRef.current = null
 
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId), {
-        x: finalPosition.x,
-        y: finalPosition.y,
-        updatedAt: serverTimestamp(),
-      })
+      try {
+        await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId), {
+          x: finalPosition.x,
+          y: finalPosition.y,
+          updatedAt: serverTimestamp(),
+        })
+      } catch (error) {
+        handleLiveWriteError(error)
+      }
 
       if (draggingToken?.party) {
-        await persistFog()
+        try {
+          await persistFog()
+        } catch (error) {
+          handleLiveWriteError(error)
+        }
       }
 
       tokenTouchDraggingRef.current = false
@@ -2018,7 +2171,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       loadedInlineFogKeyRef.current = ''
     }
 
-    const key = `${selectedMap.id}:${selectedMap.fogDataUrl}:${inlineBaseSize.width}x${inlineBaseSize.height}`
+    const key = getFogCacheKey(selectedMap, inlineBaseSize.width, inlineBaseSize.height)
     if (loadedInlineFogKeyRef.current === key) return
 
     loadedInlineFogKeyRef.current = key
@@ -2043,7 +2196,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       loadedInlineVisionKeyRef.current = ''
     }
 
-    const key = `${selectedMap.id}:${selectedMap.visionBlockDataUrl}:${inlineBaseSize.width}x${inlineBaseSize.height}`
+    const key = `${selectedMap.id}:${selectedMap.visionBlockImagePath || selectedMap.visionBlockImageUrl || selectedMap.visionBlockDataUrl}:${inlineBaseSize.width}x${inlineBaseSize.height}`
     if (loadedInlineVisionKeyRef.current === key) return
 
     loadedInlineVisionKeyRef.current = key
@@ -2062,7 +2215,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     if (!fullScreenOpen || !selectedMap || !fullFogCanvasRef.current) return
     if (fullBaseSize.width <= 0 || fullBaseSize.height <= 0) return
 
-    const key = `${selectedMap.id}:${selectedMap.fogDataUrl}:${fullBaseSize.width}x${fullBaseSize.height}`
+    const key = getFogCacheKey(selectedMap, fullBaseSize.width, fullBaseSize.height)
     if (loadedFogKeyRef.current === key) return
 
     loadedFogKeyRef.current = key
@@ -2073,7 +2226,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     if (!fullScreenOpen || !selectedMap || !fullVisionCanvasRef.current) return
     if (fullBaseSize.width <= 0 || fullBaseSize.height <= 0) return
 
-    const key = `${selectedMap.id}:${selectedMap.visionBlockDataUrl}:${fullBaseSize.width}x${fullBaseSize.height}`
+    const key = `${selectedMap.id}:${selectedMap.visionBlockImagePath || selectedMap.visionBlockImageUrl || selectedMap.visionBlockDataUrl}:${fullBaseSize.width}x${fullBaseSize.height}`
     if (loadedVisionKeyRef.current === key) return
 
     loadedVisionKeyRef.current = key
