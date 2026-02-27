@@ -42,6 +42,7 @@ import {
   Eraser,
   Eye,
   EyeOff,
+  Flag,
   Map,
   Maximize2,
   Menu,
@@ -111,6 +112,20 @@ type TokenRecord = {
   revealName: boolean
 }
 
+type AnnotationRecord = {
+  id: string
+  x: number
+  y: number
+  text: string
+}
+
+type CanvasClipRect = {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
 const TOKEN_REFERENCE_DIMENSION = 900
 const DEFAULT_TOKEN_VIEW_DISTANCE = 120
 const BRUSH_SIZE_MIN = 8
@@ -120,6 +135,8 @@ const LOS_BLOCKER_SAMPLE_RADIUS = 2
 const LIVE_DRAG_WRITE_INTERVAL_MS = 220
 const LIVE_DRAG_EPSILON = 0.0015
 const LIVE_FOG_WRITE_INTERVAL_MS = 1400
+const STREAMING_LOCAL_REVEAL_INTERVAL_MS = 40
+const STREAMING_LOCAL_REVEAL_MAX_INTERVAL_MS = 110
 const ENABLE_LIVE_FOG_DURING_DRAG = true
 
 const tabs: Array<{ id: AppTab; label: string }> = [
@@ -619,9 +636,13 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   const [fogDrawing, setFogDrawing] = useState(false)
   const [streamingMode, setStreamingMode] = useState(false)
   const [tokenPlaceMode, setTokenPlaceMode] = useState(false)
+  const [annotationPlaceMode, setAnnotationPlaceMode] = useState(false)
   const [tokenColor, setTokenColor] = useState('#b45309')
   const [tokenSize, setTokenSize] = useState(28)
   const [tokens, setTokens] = useState<TokenRecord[]>([])
+  const [annotations, setAnnotations] = useState<AnnotationRecord[]>([])
+  const [activeAnnotationId, setActiveAnnotationId] = useState('')
+  const [activeAnnotationDraft, setActiveAnnotationDraft] = useState('')
   const [, setFogSampleTick] = useState(0)
   const [draggingTokenId, setDraggingTokenId] = useState('')
   const [dragTokenPosition, setDragTokenPosition] = useState<{ x: number; y: number } | null>(null)
@@ -632,6 +653,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   const [mobilePlayerZoom, setMobilePlayerZoom] = useState(1)
   const [mobilePlayerPan, setMobilePlayerPan] = useState({ x: 0, y: 0 })
   const fullDragStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
+  const fullStageRef = useRef<HTMLDivElement | null>(null)
   const inlineFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const fullFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const inlineVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -829,6 +851,45 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     return () => unsub()
   }, [campaignId, selectedMapId])
 
+  useEffect(() => {
+    if (role !== 'gm') {
+      setAnnotations([])
+      return
+    }
+
+    if (!selectedMapId) {
+      setAnnotations([])
+      return
+    }
+
+    const annotationsQuery = query(collection(db, 'campaigns', campaignId, 'maps', selectedMapId, 'annotations'))
+    const unsub = onSnapshot(
+      annotationsQuery,
+      (snap) => {
+        const next = snap.docs.map((docSnap) => {
+          const data = docSnap.data() as {
+            x?: number
+            y?: number
+            text?: string
+          }
+
+          return {
+            id: docSnap.id,
+            x: typeof data.x === 'number' ? data.x : 0.5,
+            y: typeof data.y === 'number' ? data.y : 0.5,
+            text: typeof data.text === 'string' ? data.text : '',
+          }
+        })
+        setAnnotations(next)
+      },
+      (err) => {
+        setMapError(err.message)
+      },
+    )
+
+    return () => unsub()
+  }, [campaignId, role, selectedMapId])
+
   const visibleMaps = useMemo(
     () => (role === 'gm' ? maps : maps.filter((map) => map.visibleToPlayers)),
     [maps, role],
@@ -846,6 +907,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   const showListPane = !isMobile || mobileMapView === 'list'
   const showMapPane = !isMobile || mobileMapView === 'detail'
   const fogDisplayOpacity = role === 'gm' ? (streamingMode ? 1 : 0.45) : 1
+  const visionOverlayOpacity = role === 'gm' && !streamingMode ? 0.8 : 0
   const usingFullScreenCanvas = fullScreenOpen && !isMobile
   const activeFogCanvasRef = usingFullScreenCanvas ? fullFogCanvasRef : inlineFogCanvasRef
   const activeVisionCanvasRef = usingFullScreenCanvas ? fullVisionCanvasRef : inlineVisionCanvasRef
@@ -858,6 +920,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     ),
   )
   const safeMapDimension = activeMapDimension > 1 ? activeMapDimension : TOKEN_REFERENCE_DIMENSION
+  const activeAnnotation = annotations.find((annotation) => annotation.id === activeAnnotationId) ?? null
   const bumpFogSampleTick = () => {
     setFogSampleTick((value) => value + 1)
   }
@@ -1326,12 +1389,53 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     }
   }
 
+  const getFullscreenVisibleCanvasRect = (canvas: HTMLCanvasElement): CanvasClipRect | null => {
+    const stage = fullStageRef.current
+    if (!stage) return null
+
+    const stageRect = stage.getBoundingClientRect()
+    const canvasRect = canvas.getBoundingClientRect()
+    if (stageRect.width <= 0 || stageRect.height <= 0 || canvasRect.width <= 0 || canvasRect.height <= 0) {
+      return null
+    }
+
+    const intersectionLeft = Math.max(stageRect.left, canvasRect.left)
+    const intersectionTop = Math.max(stageRect.top, canvasRect.top)
+    const intersectionRight = Math.min(stageRect.right, canvasRect.right)
+    const intersectionBottom = Math.min(stageRect.bottom, canvasRect.bottom)
+    if (intersectionRight <= intersectionLeft || intersectionBottom <= intersectionTop) return null
+
+    const leftRatio = (intersectionLeft - canvasRect.left) / canvasRect.width
+    const topRatio = (intersectionTop - canvasRect.top) / canvasRect.height
+    const rightRatio = (intersectionRight - canvasRect.left) / canvasRect.width
+    const bottomRatio = (intersectionBottom - canvasRect.top) / canvasRect.height
+
+    return {
+      minX: Math.max(0, Math.floor(leftRatio * canvas.width)),
+      minY: Math.max(0, Math.floor(topRatio * canvas.height)),
+      maxX: Math.min(canvas.width - 1, Math.ceil(rightRatio * canvas.width)),
+      maxY: Math.min(canvas.height - 1, Math.ceil(bottomRatio * canvas.height)),
+    }
+  }
+
   const revealFromTokenPoint = (
     fogCanvas: HTMLCanvasElement,
     visionCanvas: HTMLCanvasElement | null,
     center: { x: number; y: number },
     brushSize: number,
+    clipRect?: CanvasClipRect | null,
   ) => {
+    const radius = Math.max(1, brushSize / 2)
+    if (
+      clipRect &&
+      (center.x < clipRect.minX - radius ||
+        center.x > clipRect.maxX + radius ||
+        center.y < clipRect.minY - radius ||
+        center.y > clipRect.maxY + radius)
+    ) {
+      return
+    }
+
     if (!visionCanvas) {
       stampFog(fogCanvas, center.x, center.y, 'reveal', brushSize)
       return
@@ -1341,14 +1445,18 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     const visionCtx = visionCanvas.getContext('2d', { willReadFrequently: true })
     if (!fogCtx || !visionCtx) return
 
-    const radius = Math.max(1, brushSize / 2)
     const minX = Math.max(0, Math.floor(center.x - radius - 2))
     const minY = Math.max(0, Math.floor(center.y - radius - 2))
     const maxX = Math.min(fogCanvas.width - 1, Math.ceil(center.x + radius + 2))
     const maxY = Math.min(fogCanvas.height - 1, Math.ceil(center.y + radius + 2))
-    const regionWidth = Math.max(1, maxX - minX + 1)
-    const regionHeight = Math.max(1, maxY - minY + 1)
-    const visionData = visionCtx.getImageData(minX, minY, regionWidth, regionHeight).data
+    const clippedMinX = clipRect ? Math.max(minX, clipRect.minX) : minX
+    const clippedMinY = clipRect ? Math.max(minY, clipRect.minY) : minY
+    const clippedMaxX = clipRect ? Math.min(maxX, clipRect.maxX) : maxX
+    const clippedMaxY = clipRect ? Math.min(maxY, clipRect.maxY) : maxY
+    if (clippedMaxX < clippedMinX || clippedMaxY < clippedMinY) return
+    const regionWidth = Math.max(1, clippedMaxX - clippedMinX + 1)
+    const regionHeight = Math.max(1, clippedMaxY - clippedMinY + 1)
+    const visionData = visionCtx.getImageData(clippedMinX, clippedMinY, regionWidth, regionHeight).data
 
     let maskCanvas = revealMaskCanvasRef.current
     if (!maskCanvas) {
@@ -1361,7 +1469,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     }
     const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true })
     if (!maskCtx) return
-    maskCtx.clearRect(minX, minY, regionWidth, regionHeight)
+    maskCtx.clearRect(clippedMinX, clippedMinY, regionWidth, regionHeight)
     maskCtx.fillStyle = 'rgba(0,0,0,1)'
 
     const rays = Math.max(220, Math.min(1800, Math.round(radius * 5.4)))
@@ -1370,8 +1478,8 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     const dot = Math.max(1, radius * 0.03)
     const surfaceDot = Math.max(2, dot * LOS_SURFACE_REVEAL_MULTIPLIER)
     const alphaAt = (x: number, y: number) => {
-      const lx = x - minX
-      const ly = y - minY
+      const lx = x - clippedMinX
+      const ly = y - clippedMinY
       if (lx < 0 || ly < 0 || lx >= regionWidth || ly >= regionHeight) return 0
       return visionData[(ly * regionWidth + lx) * 4 + 3]
     }
@@ -1391,7 +1499,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       for (let dist = 0; dist <= radius; dist += distStep) {
         const x = Math.round(center.x + cos * dist)
         const y = Math.round(center.y + sin * dist)
-        if (x < minX || x > maxX || y < minY || y > maxY) break
+        if (x < clippedMinX || x > clippedMaxX || y < clippedMinY || y > clippedMaxY) break
         const blocked = isBlockedAt(x, y)
         maskCtx.beginPath()
         maskCtx.arc(x, y, dot, 0, Math.PI * 2)
@@ -1408,7 +1516,17 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
 
     fogCtx.save()
     fogCtx.globalCompositeOperation = 'destination-out'
-    fogCtx.drawImage(maskCanvas, minX, minY, regionWidth, regionHeight, minX, minY, regionWidth, regionHeight)
+    fogCtx.drawImage(
+      maskCanvas,
+      clippedMinX,
+      clippedMinY,
+      regionWidth,
+      regionHeight,
+      clippedMinX,
+      clippedMinY,
+      regionWidth,
+      regionHeight,
+    )
     fogCtx.restore()
   }
 
@@ -1418,7 +1536,24 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     from: { x: number; y: number },
     to: { x: number; y: number },
     brushSize: number,
+    clipRect?: CanvasClipRect | null,
   ) => {
+    if (clipRect) {
+      const radius = Math.max(1, brushSize / 2)
+      const minX = Math.min(from.x, to.x) - radius
+      const minY = Math.min(from.y, to.y) - radius
+      const maxX = Math.max(from.x, to.x) + radius
+      const maxY = Math.max(from.y, to.y) + radius
+      if (
+        maxX < clipRect.minX ||
+        maxY < clipRect.minY ||
+        minX > clipRect.maxX ||
+        minY > clipRect.maxY
+      ) {
+        return
+      }
+    }
+
     const deltaX = to.x - from.x
     const deltaY = to.y - from.y
     const distance = Math.hypot(deltaX, deltaY)
@@ -1431,6 +1566,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
         visionCanvas,
         { x: from.x + deltaX * t, y: from.y + deltaY * t },
         brushSize,
+        clipRect,
       )
     }
   }
@@ -1658,12 +1794,13 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     }
   }
 
-  const tokenPointToCanvasPoint = (point: { x: number; y: number }) => {
+  const tokenPointToCanvasPoint = (point: { x: number; y: number }, tokenSizePx = 0) => {
     const canvas = activeFogCanvasRef.current
     if (!canvas) return null
+    const yOffset = Math.max(0, tokenSizePx * 0.5)
     return {
       x: point.x * canvas.width,
-      y: point.y * canvas.height,
+      y: Math.max(0, point.y * canvas.height - yOffset),
     }
   }
 
@@ -1736,12 +1873,72 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     })
   }
 
+  const placeAnnotation = async (clientX: number, clientY: number) => {
+    if (!selectedMap || role !== 'gm') return
+    const point = getTokenDropPoint(clientX, clientY)
+    if (!point) return
+    const annotationRef = await addDoc(collection(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'annotations'), {
+      x: point.x,
+      y: point.y,
+      text: '',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+    setActiveAnnotationId(annotationRef.id)
+    setActiveAnnotationDraft('')
+  }
+
+  const commitActiveAnnotation = async () => {
+    if (!selectedMap || role !== 'gm' || !activeAnnotation) return
+    const nextText = activeAnnotationDraft.trim()
+    if (nextText === activeAnnotation.text.trim()) return
+    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'annotations', activeAnnotation.id), {
+      text: nextText,
+      updatedAt: serverTimestamp(),
+    })
+  }
+
+  const deleteAnnotation = async (annotationId: string) => {
+    if (!selectedMap || role !== 'gm') return
+    await deleteDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'annotations', annotationId))
+  }
+
   const handleMapLayerClick: MouseEventHandler<HTMLDivElement> = (event) => {
-    if (!tokenPlaceMode || role !== 'gm') return
-    if ((event.target as HTMLElement).closest('.map-token')) return
+    if (role !== 'gm') return
+    if ((event.target as HTMLElement).closest('.map-token,.map-annotation-btn,.map-annotation-popover')) return
     event.preventDefault()
+    if (annotationPlaceMode) {
+      void placeAnnotation(event.clientX, event.clientY)
+      return
+    }
+    if (!tokenPlaceMode) return
     void placeToken(event.clientX, event.clientY)
   }
+
+  useEffect(() => {
+    if (!activeAnnotationId) return
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null
+      if (!target) return
+      if (target.closest('.map-annotation-popover,.map-annotation-btn')) return
+      void commitActiveAnnotation()
+      setActiveAnnotationId('')
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [activeAnnotationId, activeAnnotationDraft, activeAnnotation, selectedMap, role, campaignId])
+
+  useEffect(() => {
+    setActiveAnnotationId('')
+    setActiveAnnotationDraft('')
+  }, [selectedMapId])
+
+  useEffect(() => {
+    if (!streamingMode) return
+    setActiveAnnotationId('')
+  }, [streamingMode])
 
   const clampMobileZoom = (value: number) => Math.min(4, Math.max(1, value))
 
@@ -1853,7 +2050,10 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       x: point.x - token.x,
       y: point.y - token.y,
     }
-    tokenFogTrailPointRef.current = token.party ? tokenPointToCanvasPoint({ x: token.x, y: token.y }) : null
+    const tokenRenderSize = renderTokenSize(token)
+    tokenFogTrailPointRef.current = token.party
+      ? tokenPointToCanvasPoint({ x: token.x, y: token.y }, tokenRenderSize)
+      : null
     setDraggingTokenId(tokenId)
     const startPosition = { x: token.x, y: token.y }
     dragTokenPositionRef.current = startPosition
@@ -1965,6 +2165,11 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     let lastLiveFogWriteAt = 0
     let lastLiveFogWritePoint: { x: number; y: number } | null = null
     let liveFogWriteInFlight = false
+    let lastStreamingLocalRevealAt = 0
+    let revealFrameId: number | null = null
+    let pendingRevealPoint: { x: number; y: number } | null = null
+    let pendingRevealBrushSize = 0
+    let pendingRevealClipRect: CanvasClipRect | null = null
     const handleLiveWriteError = (error: unknown) => {
       const code = typeof error === 'object' && error !== null && 'code' in error
         ? String((error as { code?: string }).code)
@@ -2007,6 +2212,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
 
     const pushLiveFogUpdate = (canvasPoint: { x: number; y: number }, brushSize: number) => {
       if (!ENABLE_LIVE_FOG_DURING_DRAG) return
+      if (streamingMode) return
       if (!draggingToken?.party || !activeFogCanvasRef.current) return
       if (Date.now() < liveWritesBlockedUntilRef.current) return
       const now = Date.now()
@@ -2042,6 +2248,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     }
 
     const pushLiveTokenPosition = (position: { x: number; y: number }) => {
+      if (streamingMode) return
       if (
         lastLiveWritePos &&
         Math.abs(position.x - lastLiveWritePos.x) < LIVE_DRAG_EPSILON &&
@@ -2051,6 +2258,60 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       }
       pendingTokenWritePos = position
       scheduleTokenWrite()
+    }
+
+    const flushPendingReveal = () => {
+      revealFrameId = null
+      if (!draggingToken?.party || !activeFogCanvasRef.current || !pendingRevealPoint) return
+
+      const nextCanvasPoint = pendingRevealPoint
+      const tokenBrushSize = pendingRevealBrushSize
+      const clipRect = pendingRevealClipRect
+      pendingRevealPoint = null
+
+      if (streamingMode) {
+        const now = Date.now()
+        const canvasArea = Math.max(1, activeFogCanvasRef.current.width * activeFogCanvasRef.current.height)
+        const areaScale = Math.sqrt(canvasArea / (1280 * 720))
+        const streamingInterval = Math.min(
+          STREAMING_LOCAL_REVEAL_MAX_INTERVAL_MS,
+          Math.max(STREAMING_LOCAL_REVEAL_INTERVAL_MS, STREAMING_LOCAL_REVEAL_INTERVAL_MS * areaScale),
+        )
+        if (now - lastStreamingLocalRevealAt < streamingInterval) {
+          return
+        }
+        lastStreamingLocalRevealAt = now
+      }
+
+      const lastPoint = tokenFogTrailPointRef.current
+      if (lastPoint) {
+        revealFromTokenStroke(
+          activeFogCanvasRef.current,
+          activeVisionCanvasRef.current,
+          lastPoint,
+          nextCanvasPoint,
+          tokenBrushSize,
+          clipRect,
+        )
+      } else {
+        revealFromTokenPoint(
+          activeFogCanvasRef.current,
+          activeVisionCanvasRef.current,
+          nextCanvasPoint,
+          tokenBrushSize,
+          clipRect,
+        )
+      }
+      pushLiveFogUpdate(nextCanvasPoint, tokenBrushSize)
+      tokenFogTrailPointRef.current = nextCanvasPoint
+    }
+
+    const queueReveal = (nextCanvasPoint: { x: number; y: number }, tokenBrushSize: number, clipRect: CanvasClipRect | null) => {
+      pendingRevealPoint = nextCanvasPoint
+      pendingRevealBrushSize = tokenBrushSize
+      pendingRevealClipRect = clipRect
+      if (revealFrameId !== null) return
+      revealFrameId = window.requestAnimationFrame(flushPendingReveal)
     }
 
     const handleMoveAt = (clientX: number, clientY: number) => {
@@ -2067,28 +2328,14 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
 
       if (draggingToken?.party && activeFogCanvasRef.current) {
         const tokenBrushSize = renderTokenViewDistance(draggingToken)
-        const nextCanvasPoint = tokenPointToCanvasPoint(nextPosition)
+        const nextCanvasPoint = tokenPointToCanvasPoint(nextPosition, renderTokenSize(draggingToken))
         if (!nextCanvasPoint) return
+        const clipRect =
+          streamingMode && usingFullScreenCanvas
+            ? getFullscreenVisibleCanvasRect(activeFogCanvasRef.current)
+            : null
 
-        const lastPoint = tokenFogTrailPointRef.current
-        if (lastPoint) {
-          revealFromTokenStroke(
-            activeFogCanvasRef.current,
-            activeVisionCanvasRef.current,
-            lastPoint,
-            nextCanvasPoint,
-            tokenBrushSize,
-          )
-        } else {
-          revealFromTokenPoint(
-            activeFogCanvasRef.current,
-            activeVisionCanvasRef.current,
-            nextCanvasPoint,
-            tokenBrushSize,
-          )
-        }
-        pushLiveFogUpdate(nextCanvasPoint, tokenBrushSize)
-        tokenFogTrailPointRef.current = nextCanvasPoint
+        queueReveal(nextCanvasPoint, tokenBrushSize, clipRect)
       }
     }
 
@@ -2106,6 +2353,13 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     }
 
     const handleUp = async () => {
+      if (revealFrameId !== null) {
+        window.cancelAnimationFrame(revealFrameId)
+        revealFrameId = null
+      }
+      if (pendingRevealPoint) {
+        flushPendingReveal()
+      }
       const finalPosition = dragTokenPositionRef.current
       if (!finalPosition) {
         setDraggingTokenId('')
@@ -2151,6 +2405,9 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
       if (tokenWriteTimer !== null) {
         window.clearTimeout(tokenWriteTimer)
       }
+      if (revealFrameId !== null) {
+        window.cancelAnimationFrame(revealFrameId)
+      }
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
       window.removeEventListener('touchmove', handleTouchMove)
@@ -2159,7 +2416,17 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     }
     // draw/stamp/persist come from the same component scope and are intentionally captured here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeFogCanvasRef, activeVisionCanvasRef, campaignId, draggingTokenId, role, selectedMap, tokens])
+  }, [
+    activeFogCanvasRef,
+    activeVisionCanvasRef,
+    campaignId,
+    draggingTokenId,
+    role,
+    selectedMap,
+    streamingMode,
+    tokens,
+    usingFullScreenCanvas,
+  ])
 
   useEffect(() => {
     if (fullScreenOpen || !selectedMap || !inlineFogCanvasRef.current) return
@@ -2462,7 +2729,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                 className="map-vision-canvas"
                 width={Math.max(1, inlineBaseSize.width)}
                 height={Math.max(1, inlineBaseSize.height)}
-                style={{ opacity: role === 'gm' ? 0.8 : 0 }}
+                style={{ opacity: visionOverlayOpacity }}
               />
               <div className={role === 'gm' ? 'map-token-layer gm' : 'map-token-layer'} aria-hidden={role !== 'gm'}>
                 {tokens.map((token, index) =>
@@ -2510,6 +2777,57 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                   ),
                 )}
               </div>
+              {role === 'gm' && !streamingMode ? (
+                <div className="map-annotation-layer" aria-label="Map annotations">
+                  {annotations.map((annotation) => (
+                    <div
+                      key={annotation.id}
+                      className="map-annotation"
+                      style={{ left: `${annotation.x * 100}%`, top: `${annotation.y * 100}%` }}
+                    >
+                      <button
+                        type="button"
+                        className={activeAnnotationId === annotation.id ? 'map-annotation-btn active' : 'map-annotation-btn'}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          if (activeAnnotationId === annotation.id) {
+                            void commitActiveAnnotation()
+                            setActiveAnnotationId('')
+                            return
+                          }
+                          setActiveAnnotationId(annotation.id)
+                          setActiveAnnotationDraft(annotation.text)
+                        }}
+                        aria-label="Map annotation"
+                      >
+                        <Flag size={14} />
+                      </button>
+                      {activeAnnotationId === annotation.id ? (
+                        <div className="map-annotation-popover" onClick={(event) => event.stopPropagation()}>
+                          <textarea
+                            value={activeAnnotationDraft}
+                            onChange={(event) => setActiveAnnotationDraft(event.target.value)}
+                            onBlur={() => {
+                              void commitActiveAnnotation()
+                            }}
+                            placeholder="GM note"
+                            rows={4}
+                          />
+                          <button
+                            type="button"
+                            className="map-annotation-delete"
+                            onClick={() => void deleteAnnotation(annotation.id)}
+                            aria-label="Delete annotation"
+                            title="Delete annotation"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : (
             <p>Select a map from the list.</p>
@@ -2530,6 +2848,8 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
               setFogBrushStrength={setFogBrushStrength}
               tokenPlaceMode={tokenPlaceMode}
               setTokenPlaceMode={setTokenPlaceMode}
+              annotationPlaceMode={annotationPlaceMode}
+              setAnnotationPlaceMode={setAnnotationPlaceMode}
               tokenColor={tokenColor}
               setTokenColor={setTokenColor}
               tokenSize={tokenSize}
@@ -2599,6 +2919,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
         <div className="map-fullscreen-overlay" role="dialog" aria-modal="true">
           <div className="map-fullscreen-shell">
             <div
+              ref={fullStageRef}
               className={fullDragging ? 'map-fullscreen-stage dragging' : 'map-fullscreen-stage'}
               onWheel={handleFullWheel}
               onMouseDown={handleFullMouseDown}
@@ -2657,7 +2978,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                     className="map-vision-canvas"
                     width={Math.max(1, fullBaseSize.width)}
                     height={Math.max(1, fullBaseSize.height)}
-                    style={{ opacity: role === 'gm' ? 0.8 : 0 }}
+                    style={{ opacity: visionOverlayOpacity }}
                   />
                   <div className={role === 'gm' ? 'map-token-layer gm' : 'map-token-layer'} aria-label="Map tokens">
                     {tokens.map((token, index) => {
@@ -2713,6 +3034,57 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                       )
                     })}
                   </div>
+                  {role === 'gm' && !streamingMode ? (
+                    <div className="map-annotation-layer" aria-label="Map annotations">
+                      {annotations.map((annotation) => (
+                        <div
+                          key={annotation.id}
+                          className="map-annotation"
+                          style={{ left: `${annotation.x * 100}%`, top: `${annotation.y * 100}%` }}
+                        >
+                          <button
+                            type="button"
+                            className={activeAnnotationId === annotation.id ? 'map-annotation-btn active' : 'map-annotation-btn'}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              if (activeAnnotationId === annotation.id) {
+                                void commitActiveAnnotation()
+                                setActiveAnnotationId('')
+                                return
+                              }
+                              setActiveAnnotationId(annotation.id)
+                              setActiveAnnotationDraft(annotation.text)
+                            }}
+                            aria-label="Map annotation"
+                          >
+                            <Flag size={14} />
+                          </button>
+                          {activeAnnotationId === annotation.id ? (
+                            <div className="map-annotation-popover" onClick={(event) => event.stopPropagation()}>
+                              <textarea
+                                value={activeAnnotationDraft}
+                                onChange={(event) => setActiveAnnotationDraft(event.target.value)}
+                                onBlur={() => {
+                                  void commitActiveAnnotation()
+                                }}
+                                placeholder="GM note"
+                                rows={4}
+                              />
+                              <button
+                                type="button"
+                                className="map-annotation-delete"
+                                onClick={() => void deleteAnnotation(annotation.id)}
+                                aria-label="Delete annotation"
+                                title="Delete annotation"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <p>Select a map from the list.</p>
@@ -2733,6 +3105,8 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                   setFogBrushStrength={setFogBrushStrength}
                   tokenPlaceMode={tokenPlaceMode}
                   setTokenPlaceMode={setTokenPlaceMode}
+                  annotationPlaceMode={annotationPlaceMode}
+                  setAnnotationPlaceMode={setAnnotationPlaceMode}
                   tokenColor={tokenColor}
                   setTokenColor={setTokenColor}
                   tokenSize={tokenSize}
@@ -2803,6 +3177,8 @@ function GmMapControls({
   setFogBrushStrength,
   tokenPlaceMode,
   setTokenPlaceMode,
+  annotationPlaceMode,
+  setAnnotationPlaceMode,
   tokenColor,
   setTokenColor,
   tokenSize,
@@ -2830,6 +3206,8 @@ function GmMapControls({
   setFogBrushStrength: (strength: number) => void
   tokenPlaceMode: boolean
   setTokenPlaceMode: (value: boolean) => void
+  annotationPlaceMode: boolean
+  setAnnotationPlaceMode: (value: boolean) => void
   tokenColor: string
   setTokenColor: (value: string) => void
   tokenSize: number
@@ -2938,11 +3316,32 @@ function GmMapControls({
         <button
           type="button"
           className={tokenPlaceMode ? 'map-icon-btn active' : 'map-icon-btn'}
-          onClick={() => setTokenPlaceMode(!tokenPlaceMode)}
+          onClick={() => {
+            const next = !tokenPlaceMode
+            setTokenPlaceMode(next)
+            if (next) {
+              setAnnotationPlaceMode(false)
+            }
+          }}
           aria-label="Toggle token placement mode"
           title="Toggle token placement mode"
         >
           <ChessPawn size={16} />
+        </button>
+        <button
+          type="button"
+          className={annotationPlaceMode ? 'map-icon-btn active' : 'map-icon-btn'}
+          onClick={() => {
+            const next = !annotationPlaceMode
+            setAnnotationPlaceMode(next)
+            if (next) {
+              setTokenPlaceMode(false)
+            }
+          }}
+          aria-label="Toggle annotation placement mode"
+          title="Toggle annotation placement mode"
+        >
+          <Flag size={16} />
         </button>
         <button
           type="button"

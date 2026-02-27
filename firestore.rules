@@ -111,6 +111,11 @@ service cloud.firestore {
           allow write: if isCampaignGM(campaignId);
         }
 
+        match /annotations/{annotationId} {
+          allow read: if isCampaignGM(campaignId);
+          allow write: if isCampaignGM(campaignId);
+        }
+
         match /fogChunks/{chunkId} {
           allow read: if isCampaignMember(campaignId);
           allow write: if isCampaignGM(campaignId);
