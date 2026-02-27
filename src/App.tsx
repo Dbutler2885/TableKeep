@@ -97,10 +97,13 @@ type TokenRecord = {
   y: number
   color: string
   size: number
+  sizeScale: number | null
   party: boolean
   name: string
   revealName: boolean
 }
+
+const TOKEN_REFERENCE_DIMENSION = 900
 
 const tabs: Array<{ id: AppTab; label: string }> = [
   { id: 'character', label: 'Character' },
@@ -738,6 +741,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
             y?: number
             color?: string
             size?: number
+            sizeScale?: number
             party?: boolean
             name?: string
             revealName?: boolean
@@ -749,6 +753,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
             y: typeof data.y === 'number' ? data.y : 0.5,
             color: typeof data.color === 'string' ? data.color : '#b45309',
             size: typeof data.size === 'number' ? data.size : 28,
+            sizeScale: typeof data.sizeScale === 'number' ? data.sizeScale : null,
             party: data.party === true,
             name: typeof data.name === 'string' ? data.name : '',
             revealName: data.revealName === true,
@@ -784,6 +789,13 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
   const usingFullScreenCanvas = fullScreenOpen && !isMobile
   const activeFogCanvasRef = usingFullScreenCanvas ? fullFogCanvasRef : inlineFogCanvasRef
   const activeMapLayerRef = usingFullScreenCanvas ? fullMapLayerRef : inlineMapLayerRef
+  const activeMapDimension = Math.max(
+    1,
+    Math.min(
+      usingFullScreenCanvas ? fullBaseSize.width : inlineBaseSize.width,
+      usingFullScreenCanvas ? fullBaseSize.height : inlineBaseSize.height,
+    ),
+  )
   const bumpFogSampleTick = () => {
     setFogSampleTick((value) => value + 1)
   }
@@ -792,6 +804,15 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     !usingFullScreenCanvas || !streamingMode || token.revealName
 
   const isMobileZoomMapView = isMobile && (role !== 'gm' || mobileGmPane === 'map')
+
+  const renderTokenSize = (token: TokenRecord) => {
+    const scale = token.sizeScale ?? token.size / TOKEN_REFERENCE_DIMENSION
+    return Math.max(10, Math.min(120, Math.round(scale * activeMapDimension)))
+  }
+  const effectiveFogBrushSize = Math.max(
+    12,
+    Math.min(320, Math.round((fogBrushSize / TOKEN_REFERENCE_DIMENSION) * activeMapDimension)),
+  )
 
   const isTokenVisible = (token: TokenRecord) => {
     if (token.party) return true
@@ -1036,7 +1057,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const radius = fogBrushSize / 2
+    const radius = effectiveFogBrushSize / 2
 
     ctx.save()
     ctx.globalCompositeOperation = mode === 'reveal' ? 'destination-out' : 'source-over'
@@ -1089,7 +1110,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     const deltaX = to.x - from.x
     const deltaY = to.y - from.y
     const distance = Math.hypot(deltaX, deltaY)
-    const step = Math.max(3, fogBrushSize * 0.16)
+    const step = Math.max(3, effectiveFogBrushSize * 0.16)
     const steps = Math.max(1, Math.ceil(distance / step))
 
     for (let i = 1; i <= steps; i += 1) {
@@ -1236,7 +1257,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
 
   const updateToken = async (
     tokenId: string,
-    updates: Partial<Pick<TokenRecord, 'color' | 'size' | 'party' | 'name' | 'revealName'>>,
+    updates: Partial<Pick<TokenRecord, 'color' | 'size' | 'sizeScale' | 'party' | 'name' | 'revealName'>>,
   ) => {
     if (!selectedMap || role !== 'gm') return
     await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId), {
@@ -1276,12 +1297,14 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
     if (!selectedMap || role !== 'gm') return
     const point = getTokenDropPoint(clientX, clientY)
     if (!point) return
+    const sizeScale = tokenSize / Math.max(1, activeMapDimension)
 
     await addDoc(collection(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens'), {
       x: point.x,
       y: point.y,
       color: tokenColor,
       size: tokenSize,
+      sizeScale,
       party: false,
       name: '',
       revealName: false,
@@ -1852,7 +1875,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                       onTouchCancel={handleTokenTouchEnd}
                       aria-label="Map token"
                     >
-                      <ChessPawn size={token.size} />
+                      <ChessPawn size={renderTokenSize(token)} />
                       {shouldShowTokenNameForGM(token) ? (
                         <span className="map-token-name" style={{ color: token.color }}>
                           {tokenDisplayName(token, index)}
@@ -1869,7 +1892,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                         color: token.color,
                       }}
                     >
-                      <ChessPawn size={token.size} />
+                      <ChessPawn size={renderTokenSize(token)} />
                       {token.revealName ? (
                         <span className="map-token-name" style={{ color: token.color }}>
                           {tokenDisplayName(token, index)}
@@ -1908,6 +1931,11 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
               fullyHidden={selectedMap?.fullyHidden === true}
               tokens={tokens}
               onUpdateToken={updateToken}
+              onUpdateTokenSize={(tokenId, size) =>
+                updateToken(tokenId, {
+                  size,
+                  sizeScale: size / Math.max(1, activeMapDimension),
+                })}
               onRequestDeleteToken={requestDeleteToken}
             />
           </aside>
@@ -2019,7 +2047,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                               color: token.color,
                             }}
                           >
-                            <ChessPawn size={token.size} />
+                            <ChessPawn size={renderTokenSize(token)} />
                             {token.revealName ? (
                               <span className="map-token-name" style={{ color: token.color }}>
                                 {tokenDisplayName(token, index)}
@@ -2045,7 +2073,7 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                           onTouchCancel={handleTokenTouchEnd}
                           aria-label="Map token"
                         >
-                          <ChessPawn size={token.size} />
+                          <ChessPawn size={renderTokenSize(token)} />
                           {shouldShowTokenNameForGM(token) ? (
                             <span className="map-token-name" style={{ color: token.color }}>
                               {tokenDisplayName(token, index)}
@@ -2084,6 +2112,11 @@ function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }
                   fullyHidden={selectedMap?.fullyHidden === true}
                   tokens={tokens}
                   onUpdateToken={updateToken}
+                  onUpdateTokenSize={(tokenId, size) =>
+                    updateToken(tokenId, {
+                      size,
+                      sizeScale: size / Math.max(1, activeMapDimension),
+                    })}
                   onRequestDeleteToken={requestDeleteToken}
                 />
               </aside>
@@ -2135,6 +2168,7 @@ function GmMapControls({
   fullyHidden,
   tokens,
   onUpdateToken,
+  onUpdateTokenSize,
   onRequestDeleteToken,
 }: {
   dark?: boolean
@@ -2158,8 +2192,9 @@ function GmMapControls({
   tokens: TokenRecord[]
   onUpdateToken: (
     tokenId: string,
-    updates: Partial<Pick<TokenRecord, 'color' | 'size' | 'party' | 'name' | 'revealName'>>,
+    updates: Partial<Pick<TokenRecord, 'color' | 'size' | 'sizeScale' | 'party' | 'name' | 'revealName'>>,
   ) => Promise<void>
+  onUpdateTokenSize: (tokenId: string, size: number) => Promise<void>
   onRequestDeleteToken: (tokenId: string) => void
 }) {
   const toggleHidden = () => {
@@ -2286,7 +2321,7 @@ function GmMapControls({
               max={56}
               step={1}
               value={token.size}
-              onChange={(event) => void onUpdateToken(token.id, { size: Number(event.target.value) })}
+              onChange={(event) => void onUpdateTokenSize(token.id, Number(event.target.value))}
               aria-label={`Token ${index + 1} size`}
             />
             <button
