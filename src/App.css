@@ -305,6 +305,769 @@ button:hover {
   cursor: default;
 }
 
+.monsters-layout {
+  display: grid;
+  grid-template-columns: 290px 1fr;
+  gap: 1rem;
+  height: 100%;
+  min-height: 0;
+}
+
+.monsters-sidebar {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.monster-add-btn {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.monster-list-grid {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.monster-list-item {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #d9d9d3;
+  border-radius: 8px;
+  padding: 0.35rem;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  background: #fff;
+}
+
+.monster-list-item.active {
+  background: #c9d8c1;
+}
+
+.monster-list-item:hover,
+.monster-list-item.active:hover {
+  background: #e3e3dc;
+}
+
+.monster-card-portrait {
+  width: 56px;
+  height: 56px;
+  border: 1px solid #dddcd5;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fafaf8;
+}
+
+.monster-card-main {
+  min-width: 0;
+}
+
+.monster-card-main h4 {
+  margin: 0;
+  font-size: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monster-card-main p {
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  color: #4e4e47;
+}
+
+.monster-card-statline {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monster-card-token-row {
+  margin-top: 0.2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #45453e;
+}
+
+.monsters-detail {
+  border-left: 1px solid #dddcd6;
+  padding-left: 0.75rem;
+  min-height: 0;
+  overflow: auto;
+}
+
+.monsters-detail-inner {
+  width: 100%;
+  max-width: 920px;
+}
+
+.monster-mobile-back {
+  margin-bottom: 0.35rem;
+}
+
+.monster-editor-grid {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.monster-top-row {
+  display: grid;
+  grid-template-columns: minmax(260px, auto) minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: start;
+}
+
+.monster-media-column {
+  display: grid;
+  gap: 0.45rem;
+  align-content: start;
+}
+
+.monster-editor-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 0.45rem;
+}
+
+.monster-portrait-frame {
+  width: min(220px, 100%);
+  aspect-ratio: 3 / 4;
+  border: 1px solid #dddcd5;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fafaf8;
+}
+
+.monster-portrait-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.65rem;
+}
+
+.monster-token-thumb-frame {
+  width: 64px;
+  height: 64px;
+  border: 1px solid #dddcd5;
+  border-radius: 8px;
+  background: #fafaf8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.monster-portrait {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 50% 50%;
+}
+
+.monster-portrait-empty {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  gap: 0.25rem;
+  color: #696963;
+  font-size: 0.8rem;
+}
+
+.monster-portrait-empty.small {
+  font-size: 0;
+}
+
+.monster-editor-fields {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.monster-identity-column {
+  align-content: start;
+}
+
+.monster-identity-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.3fr) minmax(160px, 0.8fr);
+  gap: 0.45rem 0.6rem;
+  align-items: end;
+}
+
+.monster-identity-name,
+.monster-identity-alignment,
+.monster-identity-description {
+  min-width: 0;
+}
+
+.monster-identity-description {
+  grid-column: 1 / -1;
+}
+
+.monster-upload-trigger {
+  width: fit-content;
+}
+
+.monster-media-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.monster-portrait-upload {
+  justify-self: start;
+  margin-top: -0.15rem;
+}
+
+.monster-token-editor-toggle {
+  width: fit-content;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.monster-token-icon-editor {
+  width: min(100%, 320px);
+  justify-self: start;
+}
+
+.monster-portrait-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 12, 12, 0.58);
+  z-index: 180;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.monster-portrait-modal {
+  width: min(100%, 440px);
+  border: 1px solid #dddcd5;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.monster-portrait-modal h3 {
+  margin: 0;
+}
+
+.monster-portrait-modal-preview {
+  width: min(220px, 100%);
+  aspect-ratio: 3 / 4;
+  border: 1px solid #dddcd5;
+  border-radius: 8px;
+  overflow: hidden;
+  justify-self: center;
+  background: #fafaf8;
+}
+
+.monster-portrait-modal-controls {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.monster-portrait-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.token-icon-editor {
+  border: 1px solid #dddcd5;
+  border-radius: 8px;
+  padding: 0.55rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.token-icon-editor input[type='color'] {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+}
+
+.token-icon-preview-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.token-pawn-preview {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.token-icon-preview-image {
+  object-fit: contain;
+  display: block;
+}
+
+.monster-stats-grid {
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.monster-stats-grid.tight {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: flex-start;
+}
+
+.monster-stat-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: 0.45rem;
+  align-items: start;
+}
+
+.monster-stat-group {
+  border: 1px solid #dddcd5;
+  border-radius: 7px;
+  padding: 0.42rem;
+  background: #fcfcfa;
+}
+
+.monster-stat-group h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #4b4b43;
+}
+
+.monster-stats-grid-combat {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, auto));
+  gap: 0.35rem;
+  align-items: start;
+}
+
+.monster-stats-grid-saving {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, auto));
+  gap: 0.35rem;
+  align-items: start;
+}
+
+.monster-stats-grid-encounter {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, auto));
+  gap: 0.35rem;
+  align-items: start;
+}
+
+.monster-stat-field {
+  gap: 0.16rem;
+  font-size: 0.72rem;
+  width: 56px;
+  text-align: center;
+}
+
+.monster-stat-field.wide {
+  width: 88px;
+}
+
+.monster-stat-field input {
+  width: 100%;
+  padding: 0.3rem 0.38rem;
+  min-height: 1.75rem;
+  border-radius: 4px;
+  font-size: 0.77rem;
+}
+
+.monster-statline-preview {
+  border: 1px solid #dddcd5;
+  border-radius: 7px;
+  padding: 0.45rem 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  background: #fafaf8;
+}
+
+.monster-notes {
+  width: 100%;
+  min-height: 5rem;
+  border: 1px solid #c6c6bf;
+  border-radius: 6px;
+  background: #fff;
+  color: #111;
+  padding: 0.5rem 0.6rem;
+  resize: vertical;
+}
+
+.monster-abilities-builder {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.monster-section-block {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.monster-section-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.monster-attack-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.monster-attack-header > button,
+.monster-step-header > button {
+  width: 6.25rem;
+  justify-content: center;
+}
+
+.monster-on-hit-step-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.monster-on-hit-step-header > button {
+  margin-left: auto;
+}
+
+.monster-attack-grid {
+  --monster-field-gap: 0.2rem;
+  --monster-control-height: 1.95rem;
+  --attack-col-count: 30px;
+  --attack-col-class: 72px;
+  --attack-col-type: 86px;
+  --attack-col-custom: 78px;
+  --attack-col-damage: 120px;
+  --attack-col-bonus: 52px;
+  display: grid;
+  grid-template-columns:
+    var(--attack-col-count) var(--attack-col-class) var(--attack-col-type) var(--attack-col-damage) var(--attack-col-bonus);
+  gap: var(--monster-field-gap);
+  align-items: end;
+  width: 100%;
+}
+
+.monster-attack-grid.has-custom {
+  grid-template-columns:
+    var(--attack-col-count) var(--attack-col-class) var(--attack-col-type) var(--attack-col-custom) var(--attack-col-damage) var(--attack-col-bonus);
+}
+
+.monster-attack-field {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.monster-attack-field.type {
+  width: auto;
+}
+
+.monster-attack-field.class {
+  width: auto;
+}
+
+.monster-attack-field.type-custom {
+  width: 100%;
+}
+
+.monster-attack-field.damage {
+  width: auto;
+  grid-column: auto;
+}
+
+.monster-attack-field.attack-bonus {
+  width: auto;
+  grid-column: auto;
+}
+
+.monster-custom-type-input {
+  margin-top: 0;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.monster-attack-field.count {
+  width: 30px;
+  max-width: 30px;
+}
+
+.monster-attack-grid input,
+.monster-attack-grid select {
+  height: var(--monster-control-height);
+  min-height: var(--monster-control-height);
+  min-width: 0;
+  padding: 0.22rem 0.35rem;
+  font-size: 0.88rem;
+}
+
+.monster-attack-field.count input {
+  width: 30px;
+  min-width: 30px;
+  padding-left: 0.2rem;
+  padding-right: 0.2rem;
+  text-align: center;
+}
+
+.monster-attack-field.attack-bonus input {
+  width: 4.5ch;
+  min-width: 4.5ch;
+  justify-self: start;
+  padding-left: 0.15rem;
+  padding-right: 0.15rem;
+  text-align: center;
+}
+
+.monster-damage-row {
+  display: grid;
+  grid-template-columns: 49px 64px;
+  gap: var(--monster-field-gap);
+}
+
+.monster-damage-field {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.monster-damage-label {
+  font-size: 0.95rem;
+}
+
+.monster-damage-head {
+  display: grid;
+  grid-template-columns: 49px 60px;
+  gap: var(--monster-field-gap);
+  font-size: 0.66rem;
+  color: #5f5f57;
+}
+
+.monster-damage-count-select {
+  padding: 0.12rem 0.55rem 0.12rem 0.2rem;
+  font-size: 0.8rem;
+  line-height: 1.1;
+  text-align: left;
+}
+
+.monster-damage-count-select,
+.monster-damage-type-select {
+  height: var(--monster-control-height) !important;
+  min-height: var(--monster-control-height) !important;
+}
+
+.monster-on-hit-section {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.monster-on-hit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.monster-on-hit-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.monster-abilities-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.monster-ability-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.monster-attack-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.monster-attack-list .monster-ability-card {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.monster-ability-card>label>input,
+.monster-ability-card>label>select,
+.monster-ability-card>.monster-attack-grid input,
+.monster-ability-card>.monster-attack-grid select {
+  max-width: 100%;
+}
+
+.monster-weakspot-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px;
+  gap: 0.4rem;
+}
+
+.monster-weakspot-grid label {
+  min-width: 0;
+}
+
+.monster-weakspot-grid input {
+  width: 100%;
+  min-width: 0;
+}
+
+.monster-weakspot-grid input[type='number'] {
+  text-align: right;
+}
+
+@media (max-width: 1200px) {
+  .monster-trait-list-full {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.monster-unusual-traits-body {
+  margin-top: 0.5rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.monster-unusual-traits-widgets {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 1fr;
+}
+
+.monster-unusual-traits-widgets.split {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.monster-trait-widget {
+  min-width: 0;
+}
+
+.monster-trait-list-full {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.monster-trait-list-split {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.monster-unusual-traits-picker {
+  display: grid;
+  gap: 0.35rem;
+  align-items: start;
+}
+
+.monster-unusual-traits-picker select {
+  min-width: 180px;
+}
+
+.monster-ability-card {
+  border: 1px solid #dddcd5;
+  border-radius: 8px;
+  padding: 0.45rem;
+  display: grid;
+  gap: 0.4rem;
+  background: #fcfcfa;
+}
+
+.monster-ability-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.monster-ability-rules {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.monster-ability-steps {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.monster-step-card {
+  border: 1px solid #dddcd5;
+  border-radius: 6px;
+  padding: 0.35rem;
+  display: grid;
+  gap: 0.35rem;
+  background: #fff;
+}
+
+.monster-step-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.monster-step-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.35rem;
+}
+
+.monster-on-hit-fields {
+  grid-template-columns: 88px 228px;
+  column-gap: 0.4rem;
+  row-gap: 0.3rem;
+  justify-content: start;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.monster-on-hit-class-field {
+  max-width: 88px;
+}
+
+.monster-on-hit-type-field {
+  min-width: 0;
+  max-width: 228px;
+}
+
+.monster-on-hit-class-field select,
+.monster-on-hit-type-field select {
+  width: 100%;
+}
+
+.monster-on-hit-notes-field {
+  grid-column: 1 / -1;
+  max-width: 320px;
+}
+
+.monster-on-hit-custom-type-field {
+  grid-column: 1 / -1;
+  max-width: 320px;
+}
+
+.monster-on-hit-notes-field input,
+.monster-on-hit-custom-type-field input {
+  width: 100%;
+  max-width: 100%;
+}
+
 .menu-toggle {
   position: fixed;
   top: 0.8rem;
@@ -949,16 +1712,12 @@ button:hover {
 
 .map-token.selected svg {
   filter:
-    drop-shadow(0 0 0.5px rgba(255, 255, 255, 0.95))
-    drop-shadow(0 0 3px rgba(72, 114, 250, 0.95))
-    drop-shadow(0 0 7px rgba(72, 114, 250, 0.55));
+    drop-shadow(0 0 0.5px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 3px rgba(72, 114, 250, 0.95)) drop-shadow(0 0 7px rgba(72, 114, 250, 0.55));
 }
 
 .map-token.selected .map-token-image {
   filter:
-    drop-shadow(0 0 0.5px rgba(255, 255, 255, 0.95))
-    drop-shadow(0 0 3px rgba(72, 114, 250, 0.95))
-    drop-shadow(0 0 7px rgba(72, 114, 250, 0.55));
+    drop-shadow(0 0 0.5px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 3px rgba(72, 114, 250, 0.95)) drop-shadow(0 0 7px rgba(72, 114, 250, 0.55));
 }
 
 .map-token svg,
@@ -1022,14 +1781,6 @@ button:hover {
   margin: 0.25rem 0 0.55rem;
 }
 
-.map-token-config input[type='color'] {
-  width: 2.15rem;
-  height: 2.15rem;
-  border: 1px solid #d7d7cf;
-  background: transparent;
-  padding: 0;
-}
-
 .map-token-config label {
   font-size: 0.82rem;
   min-width: 0;
@@ -1039,6 +1790,20 @@ button:hover {
 .map-token-config input[type='text'] {
   width: 100%;
   min-width: 0;
+}
+
+.map-token-icon-editor {
+  width: 100%;
+}
+
+.map-controls-body.dark .map-token-icon-editor {
+  background: #2f2f2f;
+  border-color: #4a4a4a;
+}
+
+.map-controls-body.dark .map-token-icon-editor input[type='color'] {
+  border-color: #5a5a5a;
+  background: #2f2f2f;
 }
 
 .token-image-upload {
@@ -1245,6 +2010,16 @@ button:hover {
 }
 
 @media (max-width: 900px) {
+
+  .monster-trait-list-full,
+  .monster-trait-list-split {
+    grid-template-columns: 1fr;
+  }
+
+  .monster-unusual-traits-widgets.split {
+    grid-template-columns: 1fr;
+  }
+
   .side-nav {
     padding-top: 3.35rem;
     padding-bottom: calc(0.8rem + env(safe-area-inset-bottom, 0px));
@@ -1298,6 +2073,13 @@ button:hover {
     overflow: hidden;
   }
 
+  .monsters-layout {
+    grid-template-columns: 1fr;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   .maps-sidebar {
     border-right: 0;
     border-bottom: 1px solid #dddcd6;
@@ -1305,6 +2087,94 @@ button:hover {
     padding-bottom: 0.75rem;
     min-height: 0;
     overflow: auto;
+  }
+
+  .monsters-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid #dddcd6;
+    padding-right: 0;
+    padding-bottom: 0.75rem;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .monsters-detail {
+    border-left: 0;
+    padding-left: 0;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .monster-stat-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .monster-stats-grid-combat,
+  .monster-stats-grid-saving {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .monster-stats-grid-encounter {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .monster-stat-field,
+  .monster-stat-field.wide {
+    width: auto;
+  }
+
+  .monster-ability-header {
+    grid-template-columns: 1fr;
+  }
+
+  .monster-step-header {
+    grid-template-columns: 1fr;
+  }
+
+  .monster-on-hit-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .monster-identity-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .monster-top-row {
+    grid-template-columns: 1fr;
+  }
+
+  .monster-editor-header-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .monster-attack-grid {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .monster-attack-field.class,
+  .monster-attack-field.type,
+  .monster-attack-field.type-custom,
+  .monster-attack-field.damage,
+  .monster-attack-field.attack-bonus {
+    width: auto;
+  }
+
+  .monster-attack-field.type-custom,
+  .monster-attack-field.damage,
+  .monster-attack-field.attack-bonus {
+    grid-column: 1 / -1;
+  }
+
+  .monster-attack-list {
+    grid-template-columns: 1fr;
+  }
+
+  .monster-attack-header,
+  .monster-on-hit-header {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .maps-main {
