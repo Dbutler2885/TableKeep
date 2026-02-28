@@ -42,6 +42,7 @@ import { auth, db, storage } from '../../firebase'
 import { firebaseConfig } from '../../firebase/config'
 import type { Role } from '../../types/app'
 import { TokenIconEditor, type TokenIconConfig } from '../tokens/TokenIconEditor'
+import { ConfirmModal } from '../common/ConfirmModal'
 
 type MapRecord = {
   id: string
@@ -3117,7 +3118,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         </div>
       ) : null}
 
-      <ConfirmationModal
+      <ConfirmModal
         open={deleteCandidate !== null}
         title="Delete Map?"
         message={`Permanently remove "${deleteCandidate?.name ?? ''}" from this campaign?`}
@@ -3126,7 +3127,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         onCancel={() => setDeleteCandidate(null)}
         onConfirm={() => void deleteMap()}
       />
-      <ConfirmationModal
+      <ConfirmModal
         open={tokenDeleteCandidate !== null}
         title="Delete Token?"
         message="Permanently remove this token from the map?"
@@ -3534,44 +3535,3 @@ function GmMapControls({
   )
 }
 
-function ConfirmationModal({
-  open,
-  title,
-  message,
-  confirmLabel,
-  onConfirm,
-  onCancel,
-  confirmDisabled = false,
-}: {
-  open: boolean
-  title: string
-  message: string
-  confirmLabel: string
-  onConfirm: () => void
-  onCancel: () => void
-  confirmDisabled?: boolean
-}) {
-  if (!open) return null
-
-  return (
-    <div className="confirm-overlay" role="dialog" aria-modal="true">
-      <div className="confirm-modal">
-        <h3>{title}</h3>
-        <p>{message}</p>
-        <div className="confirm-actions">
-          <button type="button" onClick={onCancel}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="confirm-danger"
-            onClick={onConfirm}
-            disabled={confirmDisabled}
-          >
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}

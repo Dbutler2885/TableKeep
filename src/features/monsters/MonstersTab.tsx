@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown, ChevronLeft, ChevronUp, ImagePlus, Plus, Shield, UserRound } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Check, ChevronDown, ChevronLeft, ChevronUp, ImagePlus, Plus, Shield, Trash2, UserRound, X } from 'lucide-react'
 import type { Role } from '../../types/app'
 import { monsterRulesets, type MonsterRulesetId } from './rulesets'
-import { TokenIconEditor, TokenPawnPreview, type TokenIconConfig } from '../tokens/TokenIconEditor'
+import { TokenPawnPreview, type TokenIconConfig } from '../tokens/TokenIconEditor'
+import { TokenPickerModal } from '../tokens/TokenPickerModal'
+import { ConfirmModal } from '../common/ConfirmModal'
 
 type SaveType = 'death_poison' | 'wands' | 'paralysis_petrification' | 'breath' | 'spells' | 'custom'
 type OnHitEffectClass = 'save' | 'effect'
@@ -28,40 +30,12 @@ type AttackType =
   | 'custom'
 type DieType = 'd2' | 'd3' | 'd4' | 'd6' | 'd8' | 'd10' | 'd12' | 'd20' | 'd100'
 
-type AbilityMode = 'text' | 'rules'
-type AbilityTrigger = 'manual' | 'on_attack_hit' | 'on_turn_start' | 'on_exposed_to_gaze'
-type PrimitiveType =
-  | 'roll_attack'
-  | 'roll_damage'
-  | 'request_saving_throw'
-  | 'apply_condition'
-  | 'prompt_gm_choice'
-
-type PrimitiveStep = {
-  id: string
-  type: PrimitiveType
-  params: Record<string, string>
-}
-
-type MonsterAbility = {
+type MonsterTrait = {
   id: string
   name: string
-  mode: AbilityMode
-  text: string
-  trigger: AbilityTrigger
-  steps: PrimitiveStep[]
-}
-
-type PrimitiveFieldDef = {
-  key: string
-  label: string
-  placeholder?: string
-}
-
-type PrimitiveDef = {
-  type: PrimitiveType
-  label: string
-  fields: PrimitiveFieldDef[]
+  trigger: string
+  saveType: SaveType | ''
+  effect: string
 }
 
 type OnHitEffect = {
@@ -86,18 +60,16 @@ type MonsterAttack = {
   notes: string
 }
 
-type WeakSpot = {
+type MvOtherEntry = {
   id: string
-  label: string
-  toHitModifier: string
+  type: string
+  speed: string
 }
 
 type ImmunityEntry = {
   id: string
   text: string
 }
-
-type UnusualTraitKey = 'weak_spots' | 'immunities'
 
 type MonsterRecord = {
   id: string
@@ -107,13 +79,12 @@ type MonsterRecord = {
   portraitFocusX: number
   portraitFocusY: number
   shortDescription: string
-  unusualTraits: UnusualTraitKey[]
   immunities: ImmunityEntry[]
-  weakSpots: WeakSpot[]
   attacks: MonsterAttack[]
-  abilities: MonsterAbility[]
+  traits: MonsterTrait[]
   notes: string
   stats: Record<string, string>
+  mvOther: MvOtherEntry[]
   tokenIcon: TokenIconConfig
 }
 
@@ -201,70 +172,12 @@ const dieTypeOptions: Array<{ value: DieType; label: string }> = [
   { value: 'd100', label: 'd100' },
 ]
 
-const abilityTriggerOptions: Array<{ value: AbilityTrigger; label: string }> = [
-  { value: 'manual', label: 'Manual (GM click)' },
-  { value: 'on_attack_hit', label: 'On attack hit' },
-  { value: 'on_turn_start', label: 'On turn start' },
-  { value: 'on_exposed_to_gaze', label: 'On gaze exposure' },
-]
-
-const primitiveDefinitions: PrimitiveDef[] = [
-  {
-    type: 'roll_attack',
-    label: 'Roll Attack',
-    fields: [
-      { key: 'bonus', label: 'Attack Bonus', placeholder: '+0' },
-      { key: 'target', label: 'Target', placeholder: 'selected_target' },
-    ],
-  },
-  {
-    type: 'roll_damage',
-    label: 'Roll Damage',
-    fields: [
-      { key: 'dice', label: 'Damage Dice', placeholder: '1d6' },
-      { key: 'damageType', label: 'Type', placeholder: 'slashing' },
-    ],
-  },
-  {
-    type: 'request_saving_throw',
-    label: 'Request Saving Throw',
-    fields: [
-      { key: 'saveType', label: 'Save Type', placeholder: 'paralysis/petrification' },
-      { key: 'dcHint', label: 'DC Hint', placeholder: 'use monster HD' },
-      { key: 'onFail', label: 'On Fail', placeholder: 'apply_condition:petrified' },
-    ],
-  },
-  {
-    type: 'apply_condition',
-    label: 'Apply Condition',
-    fields: [
-      { key: 'condition', label: 'Condition', placeholder: 'petrified' },
-      { key: 'duration', label: 'Duration', placeholder: 'permanent' },
-      { key: 'target', label: 'Target', placeholder: 'last_failed_save_target' },
-    ],
-  },
-  {
-    type: 'prompt_gm_choice',
-    label: 'Prompt GM Choice',
-    fields: [
-      { key: 'prompt', label: 'Prompt', placeholder: 'Who is exposed to gaze?' },
-      { key: 'options', label: 'Options', placeholder: 'avert_eyes,mirror,direct_view' },
-    ],
-  },
-]
-
-const primitiveByType = Object.fromEntries(
-  primitiveDefinitions.map((entry) => [entry.type, entry]),
-) as Record<PrimitiveType, PrimitiveDef>
-
-
-const newAbility = (mode: AbilityMode): MonsterAbility => ({
+const newTrait = (): MonsterTrait => ({
   id: crypto.randomUUID(),
-  name: mode === 'text' ? 'Special Note' : 'New Ability',
-  mode,
-  text: '',
-  trigger: 'manual',
-  steps: [],
+  name: '',
+  trigger: '',
+  saveType: '',
+  effect: '',
 })
 
 const newOnHitEffect = (): OnHitEffect => ({
@@ -289,20 +202,6 @@ const newAttack = (): MonsterAttack => ({
   notes: '',
 })
 
-const newStep = (type: PrimitiveType = 'prompt_gm_choice'): PrimitiveStep => {
-  const def = primitiveByType[type]
-  return {
-    id: crypto.randomUUID(),
-    type,
-    params: Object.fromEntries(def.fields.map((field) => [field.key, ''])),
-  }
-}
-
-const newWeakSpot = (): WeakSpot => ({
-  id: crypto.randomUUID(),
-  label: '',
-  toHitModifier: '',
-})
 
 const immunityOptions = [
   'Non-magical weapons',
@@ -321,10 +220,14 @@ const newImmunity = (text = 'Non-magical weapons'): ImmunityEntry => ({
   text,
 })
 
-const unusualTraitOptions: Array<{ key: UnusualTraitKey; label: string }> = [
-  { key: 'weak_spots', label: 'Weak Spots' },
-  { key: 'immunities', label: 'Immunities' },
+const mvTypeOptions: Array<{ value: string; label: string }> = [
+  { value: 'fly', label: 'Fly' },
+  { value: 'swim', label: 'Swim' },
+  { value: 'burrow', label: 'Burrow' },
+  { value: 'climb', label: 'Climb' },
+  { value: 'web', label: 'Web' },
 ]
+
 
 const newMonsterTemplate = (rulesetId: MonsterRulesetId): MonsterRecord => {
   const ruleset = monsterRulesets[rulesetId]
@@ -338,13 +241,12 @@ const newMonsterTemplate = (rulesetId: MonsterRulesetId): MonsterRecord => {
     portraitFocusX: 50,
     portraitFocusY: 50,
     shortDescription: '',
-    unusualTraits: [],
     immunities: [],
-    weakSpots: [newWeakSpot()],
     attacks: [newAttack()],
-    abilities: [newAbility('text')],
+    traits: [],
     notes: '',
     stats,
+    mvOther: [],
     tokenIcon: defaultTokenIcon,
   }
 }
@@ -352,15 +254,17 @@ const newMonsterTemplate = (rulesetId: MonsterRulesetId): MonsterRecord => {
 export function MonstersTab({ role }: MonstersTabProps) {
   const [monsters, setMonsters] = useState<MonsterRecord[]>([])
   const [selectedMonsterId, setSelectedMonsterId] = useState<string | null>(null)
-  const [tokenEditorOpen, setTokenEditorOpen] = useState(false)
   const [portraitError, setPortraitError] = useState<string | null>(null)
   const [portraitDraft, setPortraitDraft] = useState<{
     imageUrl: string
     focusX: number
     focusY: number
   } | null>(null)
+  const [deletePortraitOpen, setDeletePortraitOpen] = useState(false)
+  const [tokenPickerOpen, setTokenPickerOpen] = useState(false)
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= 900)
   const [mobileMonsterView, setMobileMonsterView] = useState<'list' | 'detail'>('list')
+  const portraitDragOrigin = useRef<{ x: number; y: number; focusX: number; focusY: number } | null>(null)
 
   const canEdit = role === 'gm'
   const sortedMonsters = useMemo(() => [...monsters].sort((a, b) => a.name.localeCompare(b.name)), [monsters])
@@ -378,28 +282,196 @@ export function MonstersTab({ role }: MonstersTabProps) {
       : []
   const selectedMonsterTokenAssetId = selectedMonster?.tokenIcon.icon === 'custom' ? 'monster-custom' : ''
   const selectedMonsterTokenImageUrl = selectedMonster?.tokenIcon.customImageUrl ?? ''
-  const orderedUnusualTraits = selectedMonster ? [...selectedMonster.unusualTraits].reverse() : []
-  const splitUnusualTraits = orderedUnusualTraits.length > 1
   const selectedRuleset = selectedMonster ? monsterRulesets[selectedMonster.rulesetId] : monsterRulesets.ose
-  const wideFieldKeys = new Set(['att', 'dmg', 'na'])
-  const combatCoreKeys = ['ac', 'hd', 'thaco', 'mv', 'ml', 'xp']
   const savingThrowKeys = ['sv_d', 'sv_w', 'sv_p', 'sv_b', 'sv_s']
-  const encounterTreasureKeys = ['na', 'tt']
 
   const renderStatField = (key: string) => {
     const field = selectedRuleset.fields.find((entry) => entry.key === key)
     if (!field || !selectedMonster) return null
+    const isWide = key === 'mv_other'
     return (
-      <label key={field.key} className={wideFieldKeys.has(field.key) ? 'monster-stat-field wide' : 'monster-stat-field'}>
+      <label key={field.key} className={isWide ? 'monster-stat-field wide' : 'monster-stat-field'}>
         {field.shortLabel}
         <input
-          type="text"
+          type={field.inputType === 'number' ? 'number' : 'text'}
           value={selectedMonster.stats[field.key] ?? ''}
           placeholder={field.placeholder}
+          {...(field.inputType === 'number' ? { min: field.min, max: field.max } : {})}
           onChange={(event) => updateSelectedStat(field.key, event.target.value)}
           aria-label={field.label}
         />
       </label>
+    )
+  }
+
+  const renderHdField = () => {
+    if (!selectedMonster) return null
+    return (
+      <div className="monster-hd-field">
+        <div className="hd-inputs">
+          <div className="hd-col">
+            <span className="monster-stat-label">HD</span>
+            <input
+              type="number"
+              className="hd-dice"
+              value={selectedMonster.stats.hd_dice ?? ''}
+              min={0}
+              placeholder="6"
+              onChange={(e) => updateSelectedStat('hd_dice', e.target.value)}
+              aria-label="Hit Dice count"
+            />
+          </div>
+          <span className="hd-sep">d8</span>
+          <div className="hd-col">
+            <span className="hd-sublabel">bonus</span>
+            <input
+              type="number"
+              className="hd-mod"
+              value={selectedMonster.stats.hd_mod ?? ''}
+              placeholder="0"
+              onChange={(e) => updateSelectedStat('hd_mod', e.target.value)}
+              aria-label="Hit Dice modifier"
+            />
+          </div>
+          <select
+            className="hd-special"
+            value={selectedMonster.stats.hd_special ?? ''}
+            onChange={(e) => updateSelectedStat('hd_special', e.target.value)}
+            aria-label="Hit Dice special ability marker"
+          >
+            <option value="">—</option>
+            <option value="*">*</option>
+            <option value="**">**</option>
+          </select>
+        </div>
+      </div>
+    )
+  }
+
+  const renderNaField = () => {
+    if (!selectedMonster) return null
+    const naDieOptions = dieTypeOptions.filter((d) => ['d4', 'd6', 'd8', 'd10', 'd12', 'd20'].includes(d.value))
+    return (
+      <div className="monster-na-field">
+        <span className="monster-stat-label">Appearing</span>
+        <div className="na-inputs">
+          <div className="na-col">
+            <span className="na-sublabel">Lair</span>
+            <div className="na-dice-row">
+              <input
+                type="number"
+                className="na-count"
+                value={selectedMonster.stats.na_dungeon_count ?? ''}
+                min={0}
+                placeholder="1"
+                onChange={(e) => updateSelectedStat('na_dungeon_count', e.target.value)}
+                aria-label="Lair count"
+              />
+              <select
+                className="na-die"
+                value={selectedMonster.stats.na_dungeon_die ?? ''}
+                onChange={(e) => updateSelectedStat('na_dungeon_die', e.target.value)}
+                aria-label="Lair die"
+              >
+                <option value="">—</option>
+                {naDieOptions.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <span className="na-sep">/</span>
+          <div className="na-col">
+            <span className="na-sublabel">Wild</span>
+            <div className="na-dice-row">
+              <input
+                type="number"
+                className="na-count"
+                value={selectedMonster.stats.na_wilderness_count ?? ''}
+                min={0}
+                placeholder="1"
+                onChange={(e) => updateSelectedStat('na_wilderness_count', e.target.value)}
+                aria-label="Wilderness count"
+              />
+              <select
+                className="na-die"
+                value={selectedMonster.stats.na_wilderness_die ?? ''}
+                onChange={(e) => updateSelectedStat('na_wilderness_die', e.target.value)}
+                aria-label="Wilderness die"
+              >
+                <option value="">—</option>
+                {naDieOptions.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const ttOptions = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V']
+
+  const renderTtField = () => {
+    if (!selectedMonster) return null
+    return (
+      <label className="monster-tt-field">
+        <span className="monster-stat-label">Treasure</span>
+        <select
+          value={selectedMonster.stats.tt ?? ''}
+          onChange={(e) => updateSelectedStat('tt', e.target.value)}
+          aria-label="Treasure Type"
+        >
+          <option value="">—</option>
+          {ttOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </label>
+    )
+  }
+
+  const renderMvOtherField = () => {
+    if (!selectedMonster) return null
+    return (
+      <div className="monster-mvother-field">
+        <span className="monster-stat-label">MV+</span>
+        {selectedMonster.mvOther.length === 0 ? (
+          <button type="button" className="mv-other-add-empty" onClick={addMvOther} aria-label="Add movement">
+            <Plus size={10} />
+          </button>
+        ) : (
+          <div className="mv-other-entries">
+            {selectedMonster.mvOther.map((entry) => (
+              <div key={entry.id} className="mv-other-row">
+                <select
+                  className="mv-other-type"
+                  value={entry.type}
+                  onChange={(e) => updateMvOther(entry.id, { type: e.target.value })}
+                  aria-label="Movement type"
+                >
+                  {mvTypeOptions.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+                </select>
+                <input
+                  type="number"
+                  className="mv-other-speed"
+                  value={entry.speed}
+                  min={0}
+                  placeholder="120"
+                  onChange={(e) => updateMvOther(entry.id, { speed: e.target.value })}
+                  aria-label="Movement speed"
+                />
+                <button
+                  type="button"
+                  className="icon-btn mv-other-remove-btn"
+                  onClick={() => removeMvOther(entry.id)}
+                  aria-label="Remove movement"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+            ))}
+            <button type="button" className="mv-other-add" onClick={addMvOther} aria-label="Add movement">
+              <Plus size={9} />
+            </button>
+          </div>
+        )}
+      </div>
     )
   }
 
@@ -424,7 +496,6 @@ export function MonstersTab({ role }: MonstersTabProps) {
     const nextMonster = newMonsterTemplate('ose')
     setMonsters((current) => [nextMonster, ...current])
     setSelectedMonsterId(nextMonster.id)
-    setTokenEditorOpen(false)
     setPortraitError(null)
     if (isMobile) setMobileMonsterView('detail')
   }
@@ -446,6 +517,11 @@ export function MonstersTab({ role }: MonstersTabProps) {
     })
   }
 
+  const removePortrait = () => {
+    updateSelectedMonster({ portraitUrl: null, portraitFocusX: 50, portraitFocusY: 50 })
+    setDeletePortraitOpen(false)
+  }
+
   const addAttack = () => {
     if (!selectedMonster) return
     updateSelectedMonster({
@@ -453,42 +529,9 @@ export function MonstersTab({ role }: MonstersTabProps) {
     })
   }
 
-  const addWeakSpot = () => {
-    if (!selectedMonster) return
-    updateSelectedMonster({
-      weakSpots: [...selectedMonster.weakSpots, newWeakSpot()],
-    })
-  }
-
-  const removeWeakSpot = (weakSpotId: string) => {
-    if (!selectedMonster) return
-    const nextWeakSpots = selectedMonster.weakSpots.filter((entry) => entry.id !== weakSpotId)
-    updateSelectedMonster({
-      weakSpots: nextWeakSpots,
-      unusualTraits:
-        nextWeakSpots.length === 0
-          ? selectedMonster.unusualTraits.filter((entry) => entry !== 'weak_spots')
-          : selectedMonster.unusualTraits,
-    })
-  }
-
-  const updateWeakSpot = (weakSpotId: string, updates: Partial<WeakSpot>) => {
-    if (!selectedMonster) return
-    updateSelectedMonster({
-      weakSpots: selectedMonster.weakSpots.map((entry) =>
-        entry.id === weakSpotId ? { ...entry, ...updates } : entry,
-      ),
-    })
-  }
-
   const addImmunity = () => {
     if (!selectedMonster) return
-    updateSelectedMonster({
-      immunities: [...selectedMonster.immunities, newImmunity()],
-      unusualTraits: selectedMonster.unusualTraits.includes('immunities')
-        ? selectedMonster.unusualTraits
-        : [...selectedMonster.unusualTraits, 'immunities'],
-    })
+    updateSelectedMonster({ immunities: [...selectedMonster.immunities, newImmunity()] })
   }
 
   const updateImmunity = (immunityId: string, text: string) => {
@@ -500,24 +543,41 @@ export function MonstersTab({ role }: MonstersTabProps) {
 
   const removeImmunity = (immunityId: string) => {
     if (!selectedMonster) return
-    const next = selectedMonster.immunities.filter((entry) => entry.id !== immunityId)
+    updateSelectedMonster({ immunities: selectedMonster.immunities.filter((entry) => entry.id !== immunityId) })
+  }
+
+  const addMvOther = () => {
+    if (!selectedMonster) return
     updateSelectedMonster({
-      immunities: next,
-      unusualTraits:
-        next.length === 0
-          ? selectedMonster.unusualTraits.filter((entry) => entry !== 'immunities')
-          : selectedMonster.unusualTraits,
+      mvOther: [...selectedMonster.mvOther, { id: crypto.randomUUID(), type: 'fly', speed: '' }],
     })
   }
 
-  const addUnusualTrait = (trait: UnusualTraitKey) => {
+  const removeMvOther = (entryId: string) => {
     if (!selectedMonster) return
-    if (selectedMonster.unusualTraits.includes(trait)) return
+    updateSelectedMonster({ mvOther: selectedMonster.mvOther.filter((e) => e.id !== entryId) })
+  }
+
+  const updateMvOther = (entryId: string, updates: Partial<MvOtherEntry>) => {
+    if (!selectedMonster) return
     updateSelectedMonster({
-      unusualTraits: [...selectedMonster.unusualTraits, trait],
-      weakSpots: trait === 'weak_spots' && selectedMonster.weakSpots.length === 0 ? [newWeakSpot()] : selectedMonster.weakSpots,
-      immunities: trait === 'immunities' && selectedMonster.immunities.length === 0 ? [newImmunity()] : selectedMonster.immunities,
+      mvOther: selectedMonster.mvOther.map((e) => (e.id === entryId ? { ...e, ...updates } : e)),
     })
+  }
+
+  const addTrait = () => {
+    if (!selectedMonster) return
+    updateSelectedMonster({ traits: [...selectedMonster.traits, newTrait()] })
+  }
+
+  const removeTrait = (traitId: string) => {
+    if (!selectedMonster) return
+    updateSelectedMonster({ traits: selectedMonster.traits.filter((t) => t.id !== traitId) })
+  }
+
+  const updateTrait = (traitId: string, updates: Partial<MonsterTrait>) => {
+    if (!selectedMonster) return
+    updateSelectedMonster({ traits: selectedMonster.traits.map((t) => (t.id === traitId ? { ...t, ...updates } : t)) })
   }
 
   const removeAttack = (attackId: string) => {
@@ -589,192 +649,55 @@ export function MonstersTab({ role }: MonstersTabProps) {
     })
   }
 
-  const loadBasiliskExample = () => {
-    if (!selectedMonster) return
-    updateSelectedMonster({
-      name: 'Basilisk',
-      shortDescription:
-        "10' long, serpentine lizard. Unintelligent, but highly magical. Dwells in caverns and twisted brambles.",
-      unusualTraits: ['weak_spots', 'immunities'],
-      immunities: [newImmunity('Immune to normal weapons except where scales are absent.')],
-      weakSpots: [
-        { id: crypto.randomUUID(), label: 'Mouth', toHitModifier: '-4' },
-        { id: crypto.randomUUID(), label: 'Eyes', toHitModifier: '-6' },
-      ],
-      stats: {
-        ...selectedMonster.stats,
-        ac: '4 [15]',
-        hd: '6+1** (28hp)',
-        att: '1 x bite',
-        dmg: '1d10 + petrification',
-        thaco: '13 [+6]',
-        mv: "60' (20')",
-        sv_d: '10',
-        sv_w: '11',
-        sv_p: '12',
-        sv_b: '13',
-        sv_s: '14',
-        ml: '9',
-        al: 'Neutrality',
-        xp: '950',
-        na: '1d6 (1d6)',
-        tt: 'F',
-      },
-      attacks: [
-        {
-          id: crypto.randomUUID(),
-          count: '1',
-          attackClass: 'melee',
-          attackType: 'bite',
-          customAttackType: '',
-          damageDiceCount: '1',
-          damageDie: 'd10',
-          customDamageDie: '',
-          attackBonus: '+0',
-          onHitEffects: [
-            {
-              id: crypto.randomUUID(),
-              effectClass: 'save',
-              effectType: 'petrify',
-              customType: '',
-              notes: 'On hit, target saves or is turned to stone.',
-            },
-          ],
-          notes: 'Primary bite attack includes petrification rider.',
-        },
-      ],
-      abilities: [
-        {
-          id: crypto.randomUUID(),
-          name: 'Surprise',
-          mode: 'text',
-          text: 'Characters surprised by a basilisk meet its gaze.',
-          trigger: 'manual',
-          steps: [],
-        },
-        {
-          id: crypto.randomUUID(),
-          name: 'Petrifying Gaze',
-          mode: 'rules',
-          trigger: 'on_exposed_to_gaze',
-          text: '',
-          steps: [
-            {
-              id: crypto.randomUUID(),
-              type: 'prompt_gm_choice',
-              params: {
-                prompt: 'Who is exposed to gaze? Any avert eyes or mirror use?',
-                options: 'direct_view,avert_eyes,mirror',
-              },
-            },
-            {
-              id: crypto.randomUUID(),
-              type: 'request_saving_throw',
-              params: {
-                saveType: 'paralysis/petrification',
-                dcHint: 'use monster HD',
-                onFail: 'apply_condition:petrified',
-              },
-            },
-          ],
-        },
-        {
-          id: crypto.randomUUID(),
-          name: 'Mirrors',
-          mode: 'text',
-          text: 'Mirror fighting imposes -1 to attack; if it sees its own reflection (2-in-6), basilisk saves or is petrified.',
-          trigger: 'manual',
-          steps: [],
-        },
-      ],
-    })
-  }
-
-  const addAbility = (mode: AbilityMode) => {
-    if (!selectedMonster) return
-    updateSelectedMonster({
-      abilities: [...selectedMonster.abilities, newAbility(mode)],
-    })
-  }
-
-  const removeAbility = (abilityId: string) => {
-    if (!selectedMonster) return
-    updateSelectedMonster({
-      abilities: selectedMonster.abilities.filter((ability) => ability.id !== abilityId),
-    })
-  }
-
-  const updateAbility = (abilityId: string, updates: Partial<MonsterAbility>) => {
-    if (!selectedMonster) return
-    updateSelectedMonster({
-      abilities: selectedMonster.abilities.map((ability) =>
-        ability.id === abilityId ? { ...ability, ...updates } : ability,
-      ),
-    })
-  }
-
-  const addAbilityStep = (abilityId: string, type: PrimitiveType = 'prompt_gm_choice') => {
-    if (!selectedMonster) return
-    updateSelectedMonster({
-      abilities: selectedMonster.abilities.map((ability) =>
-        ability.id === abilityId ? { ...ability, steps: [...ability.steps, newStep(type)] } : ability,
-      ),
-    })
-  }
-
-  const removeAbilityStep = (abilityId: string, stepId: string) => {
-    if (!selectedMonster) return
-    updateSelectedMonster({
-      abilities: selectedMonster.abilities.map((ability) =>
-        ability.id === abilityId
-          ? { ...ability, steps: ability.steps.filter((step) => step.id !== stepId) }
-          : ability,
-      ),
-    })
-  }
-
-  const updateAbilityStepType = (abilityId: string, stepId: string, type: PrimitiveType) => {
-    if (!selectedMonster) return
-    updateSelectedMonster({
-      abilities: selectedMonster.abilities.map((ability) =>
-        ability.id === abilityId
-          ? {
-              ...ability,
-              steps: ability.steps.map((step) => (step.id === stepId ? newStep(type) : step)),
-            }
-          : ability,
-      ),
-    })
-  }
-
-  const updateAbilityStepParam = (abilityId: string, stepId: string, key: string, value: string) => {
-    if (!selectedMonster) return
-    updateSelectedMonster({
-      abilities: selectedMonster.abilities.map((ability) =>
-        ability.id === abilityId
-          ? {
-              ...ability,
-              steps: ability.steps.map((step) =>
-                step.id === stepId
-                  ? {
-                      ...step,
-                      params: {
-                        ...step.params,
-                        [key]: value,
-                      },
-                    }
-                  : step,
-              ),
-            }
-          : ability,
-      ),
-    })
-  }
-
   const monsterStatline = (monster: MonsterRecord) => {
     const ruleset = monsterRulesets[monster.rulesetId]
     return ruleset.statlineOrder
       .map((key) => {
+        if (key === 'hd') {
+          const dice = monster.stats.hd_dice?.trim()
+          if (!dice) return ''
+          const modRaw = monster.stats.hd_mod?.trim()
+          const special = monster.stats.hd_special?.trim() ?? ''
+          let display = dice
+          if (modRaw) {
+            const modNum = parseInt(modRaw, 10)
+            if (!isNaN(modNum) && modNum !== 0) {
+              display += modNum > 0 ? `+${modNum}` : `${modNum}`
+            }
+          }
+          return `HD ${display}${special}`
+        }
+        if (key === 'mv') {
+          const land = monster.stats.mv_land?.trim()
+          const otherParts = monster.mvOther
+            .filter((e) => e.speed)
+            .map((e) => {
+              const label = mvTypeOptions.find((o) => o.value === e.type)?.label ?? e.type
+              return `${label.toLowerCase()} ${e.speed}'`
+            })
+          const other = otherParts.join(', ')
+          if (!land && !other) return ''
+          if (land && other) return `MV ${land}' / ${other}`
+          return land ? `MV ${land}'` : `MV ${other}`
+        }
+        if (key === 'att') {
+          const parts = monster.attacks
+            .filter((attack) => attack.count)
+            .map((attack) => {
+              const typeLabel =
+                attack.attackType === 'custom'
+                  ? attack.customAttackType
+                  : (attackTypeOptions.find((opt) => opt.value === attack.attackType)?.label.toLowerCase() ?? attack.attackType)
+              return `${attack.count} × ${typeLabel}`
+            })
+          return parts.length ? `Att ${parts.join(' / ')}` : ''
+        }
+        if (key === 'dmg') {
+          const parts = monster.attacks
+            .filter((attack) => attack.damageDiceCount && attack.damageDie)
+            .map((attack) => `${attack.damageDiceCount}${attack.damageDie}`)
+          return parts.length ? `Dmg ${parts.join(' / ')}` : ''
+        }
         const field = ruleset.fields.find((entry) => entry.key === key)
         if (!field) return ''
         const value = monster.stats[key]?.trim()
@@ -809,6 +732,26 @@ export function MonstersTab({ role }: MonstersTabProps) {
       portraitFocusY: portraitDraft.focusY,
     })
     setPortraitDraft(null)
+  }
+
+  const handlePortraitDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!portraitDraft) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    portraitDragOrigin.current = { x: e.clientX, y: e.clientY, focusX: portraitDraft.focusX, focusY: portraitDraft.focusY }
+  }
+
+  const handlePortraitDragMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!portraitDragOrigin.current || !portraitDraft) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const dx = e.clientX - portraitDragOrigin.current.x
+    const dy = e.clientY - portraitDragOrigin.current.y
+    const newFocusX = Math.max(0, Math.min(100, portraitDragOrigin.current.focusX - (dx / rect.width) * 100))
+    const newFocusY = Math.max(0, Math.min(100, portraitDragOrigin.current.focusY - (dy / rect.height) * 100))
+    setPortraitDraft((current) => (current ? { ...current, focusX: newFocusX, focusY: newFocusY } : current))
+  }
+
+  const handlePortraitDragEnd = () => {
+    portraitDragOrigin.current = null
   }
 
   const portraitObjectPosition = (monster: MonsterRecord) =>
@@ -868,7 +811,6 @@ export function MonstersTab({ role }: MonstersTabProps) {
                   setSelectedMonsterId(monster.id)
                   if (isMobile) setMobileMonsterView('detail')
                   setPortraitError(null)
-                  setTokenEditorOpen(false)
                 }}
               >
                 <div className="monster-card-portrait">
@@ -922,82 +864,7 @@ export function MonstersTab({ role }: MonstersTabProps) {
               <p>Select a monster from the list or click + to create one.</p>
             ) : (
               <div className="monster-editor-grid">
-              <div className="monster-editor-header-row">
-                <label>
-                  Ruleset
-                  <select value={selectedMonster.rulesetId} disabled>
-                    <option value="ose">Old-School Essentials</option>
-                  </select>
-                </label>
-                <button type="button" onClick={loadBasiliskExample}>
-                  Load Basilisk Example
-                </button>
-              </div>
-
               <div className="monster-top-row">
-                <div className="monster-media-column">
-                  <div className="monster-portrait-row">
-                    <div className="monster-portrait-frame">
-                      {selectedMonster.portraitUrl ? (
-                        <img
-                          src={selectedMonster.portraitUrl}
-                          alt="Monster portrait"
-                          className="monster-portrait"
-                          style={{ objectPosition: portraitObjectPosition(selectedMonster) }}
-                        />
-                      ) : null}
-                      {!selectedMonster.portraitUrl ? (
-                        <div className="monster-portrait-empty">
-                          <ImagePlus size={18} />
-                          <span>No portrait</span>
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="monster-token-thumb-frame" aria-label="Selected token icon">
-                      <TokenPawnPreview
-                        color={selectedMonster.tokenIcon.color}
-                        size={40}
-                        imageUrl={selectedMonster.tokenIcon.icon === 'custom' ? selectedMonster.tokenIcon.customImageUrl : undefined}
-                      />
-                    </div>
-                  </div>
-                  <div className="monster-media-actions">
-                    <label className="upload-trigger monster-upload-trigger monster-portrait-upload">
-                      <ImagePlus size={16} />
-                      Upload picture
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(event) => handlePortraitFile(event.target.files?.[0] ?? null)}
-                      />
-                    </label>
-                    <button type="button" className="monster-token-editor-toggle" onClick={() => setTokenEditorOpen((current) => !current)}>
-                      Token icon
-                      {tokenEditorOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </button>
-                  </div>
-                  {tokenEditorOpen ? (
-                    <TokenIconEditor
-                      className="monster-token-icon-editor"
-                      value={selectedMonster.tokenIcon}
-                      disabled={!canEdit}
-                      onChange={(tokenIcon) => updateSelectedMonster({ tokenIcon })}
-                      tokenAssets={selectedMonsterTokenAssets}
-                      selectedTokenAssetId={selectedMonsterTokenAssetId}
-                      onSelectedTokenAssetIdChange={(assetId) =>
-                        updateSelectedMonster({
-                          tokenIcon: {
-                            ...selectedMonster.tokenIcon,
-                            icon: assetId ? 'custom' : 'pawn',
-                          },
-                        })
-                      }
-                      selectedTokenImageUrl={selectedMonsterTokenImageUrl}
-                      uploadLabel="Upload Token Image"
-                      onUploadTokenImage={handleMonsterTokenImageUpload}
-                    />
-                  ) : null}
-                </div>
                 <div className="monster-editor-fields monster-identity-column">
                   <h3 className="monster-section-title">Identity</h3>
                   <div className="monster-identity-grid">
@@ -1053,7 +920,53 @@ export function MonstersTab({ role }: MonstersTabProps) {
                         placeholder="10' long serpentine lizard. Highly magical."
                       />
                     </label>
+
+                    <button
+                      type="button"
+                      className="monster-token-thumb-frame monster-token-thumb-btn"
+                      onClick={() => setTokenPickerOpen(true)}
+                      aria-label="Edit token icon"
+                    >
+                      <TokenPawnPreview
+                        color={selectedMonster.tokenIcon.color}
+                        size={40}
+                        imageUrl={selectedMonster.tokenIcon.icon === 'custom' ? selectedMonster.tokenIcon.customImageUrl : undefined}
+                      />
+                    </button>
                   </div>
+                </div>
+                <div className="monster-media-column">
+                  {selectedMonster.portraitUrl ? (
+                    <div className="monster-portrait-frame monster-portrait-frame-filled">
+                      <img
+                        src={selectedMonster.portraitUrl}
+                        alt="Monster portrait"
+                        className="monster-portrait"
+                        style={{ objectPosition: portraitObjectPosition(selectedMonster) }}
+                      />
+                      <button
+                        type="button"
+                        className="portrait-delete-btn"
+                        onClick={() => setDeletePortraitOpen(true)}
+                        aria-label="Remove portrait"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="monster-portrait-frame monster-portrait-frame-empty">
+                      <div className="monster-portrait-empty">
+                        <ImagePlus size={18} />
+                        <span>Portrait</span>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        onChange={(event) => handlePortraitFile(event.target.files?.[0] ?? null)}
+                      />
+                    </label>
+                  )}
                 </div>
               </div>
 
@@ -1063,10 +976,18 @@ export function MonstersTab({ role }: MonstersTabProps) {
                 <div className="monster-statline-preview">{monsterStatline(selectedMonster)}</div>
               ) : null}
 
+              <h3 className="monster-section-title">Stats</h3>
               <div className="monster-stat-layout">
                 <section className="monster-stat-group monster-stat-group-combat">
                   <h4>Combat Core</h4>
-                  <div className="monster-stats-grid-combat">{combatCoreKeys.map(renderStatField)}</div>
+                  <div className="monster-stats-grid-combat">
+                    {renderStatField('ac')}
+                    {renderHdField()}
+                    {renderStatField('mv_land')}
+                    {renderMvOtherField()}
+                    {renderStatField('ml')}
+                    {renderStatField('xp')}
+                  </div>
                 </section>
                 <section className="monster-stat-group">
                   <h4>Saving Throws</h4>
@@ -1074,26 +995,28 @@ export function MonstersTab({ role }: MonstersTabProps) {
                 </section>
                 <section className="monster-stat-group">
                   <h4>Encounter & Treasure</h4>
-                  <div className="monster-stats-grid-encounter">{encounterTreasureKeys.map(renderStatField)}</div>
+                  <div className="monster-stats-grid-encounter">
+                    {renderNaField()}
+                    {renderTtField()}
+                  </div>
                 </section>
               </div>
 
               <section className="monster-section-block">
-                <h3 className="monster-section-title">Attacks</h3>
+                <div className="section-head">
+                  <h3 className="monster-section-title">Attacks</h3>
+                  <button type="button" className="icon-btn add-btn" onClick={addAttack} aria-label="Add attack">
+                    <Plus size={13} />
+                  </button>
+                </div>
                 <div className="monster-abilities-builder">
-                  <div className="monster-abilities-toolbar">
-                    <button type="button" onClick={addAttack}>
-                      + Add Attack
-                    </button>
-                  </div>
-
                   <div className="monster-ability-list monster-attack-list">
                     {selectedMonster.attacks.map((attack, attackIndex) => (
                       <article key={attack.id} className="monster-ability-card">
                         <div className="monster-attack-header">
                           <strong>Attack {attackIndex + 1}</strong>
-                          <button type="button" onClick={() => removeAttack(attack.id)}>
-                            Remove
+                          <button type="button" className="icon-btn remove-btn" onClick={() => removeAttack(attack.id)} aria-label="Remove attack">
+                            <X size={13} />
                           </button>
                         </div>
 
@@ -1213,7 +1136,7 @@ export function MonstersTab({ role }: MonstersTabProps) {
                         </div>
 
                         <label>
-                          Attack Notes
+                          Notes
                           <input
                             type="text"
                             value={attack.notes}
@@ -1225,21 +1148,19 @@ export function MonstersTab({ role }: MonstersTabProps) {
                         <div className="monster-on-hit-section">
                           <div className="monster-on-hit-header">
                             <strong>On-Hit Effects</strong>
-                            <button type="button" onClick={() => addOnHitEffect(attack.id)}>
-                              + Effect
+                            <button type="button" className="icon-btn add-btn" onClick={() => addOnHitEffect(attack.id)} aria-label="Add on-hit effect">
+                              <Plus size={13} />
                             </button>
                           </div>
 
-                          {attack.onHitEffects.length === 0 ? (
-                            <p>No on-hit saves/effects.</p>
-                          ) : (
+                          {attack.onHitEffects.length > 0 ? (
                             <div className="monster-on-hit-list">
                               {attack.onHitEffects.map((effect, effectIndex) => (
                                 <div key={effect.id} className="monster-step-card">
                                   <div className="monster-step-header monster-on-hit-step-header">
                                     <strong>Effect {effectIndex + 1}</strong>
-                                    <button type="button" onClick={() => removeOnHitEffect(attack.id, effect.id)}>
-                                      Remove
+                                    <button type="button" className="icon-btn remove-btn" onClick={() => removeOnHitEffect(attack.id, effect.id)} aria-label="Remove effect">
+                                      <X size={13} />
                                     </button>
                                   </div>
 
@@ -1309,7 +1230,7 @@ export function MonstersTab({ role }: MonstersTabProps) {
                                     ) : null}
 
                                     <label className="monster-on-hit-notes-field">
-                                      Effect Notes
+                                      Notes
                                       <input
                                         type="text"
                                         value={effect.notes}
@@ -1323,7 +1244,7 @@ export function MonstersTab({ role }: MonstersTabProps) {
                                 </div>
                               ))}
                             </div>
-                          )}
+                          ) : null}
                         </div>
                       </article>
                     ))}
@@ -1332,262 +1253,99 @@ export function MonstersTab({ role }: MonstersTabProps) {
               </section>
 
               <section className="monster-section-block">
-                <div className="monster-unusual-traits-body">
-                  <label className="monster-unusual-traits-picker">
-                    Unusual Traits
-                    <select
-                      value=""
-                      onChange={(event) => {
-                        const nextTrait = event.target.value as UnusualTraitKey | ''
-                        if (!nextTrait) return
-                        addUnusualTrait(nextTrait)
-                      }}
-                    >
-                      <option value="">Select trait...</option>
-                      {unusualTraitOptions
-                        .filter((option) => !selectedMonster.unusualTraits.includes(option.key))
-                        .map((option) => (
-                          <option key={option.key} value={option.key}>
-                            {option.label}
-                          </option>
-                        ))}
-                    </select>
-                  </label>
-
-                  <div className={splitUnusualTraits ? 'monster-unusual-traits-widgets split' : 'monster-unusual-traits-widgets'}>
-                    {orderedUnusualTraits.map((trait) =>
-                      trait === 'immunities' ? (
-                        <div key="immunities" className="monster-trait-widget">
-                          <div className="monster-abilities-builder">
-                            <div className="monster-abilities-toolbar">
-                              <button type="button" onClick={addImmunity}>
-                                + Add Immunity
-                              </button>
-                            </div>
-                            <div className={splitUnusualTraits ? 'monster-ability-list monster-trait-list-split' : 'monster-ability-list monster-trait-list-full'}>
-                              {selectedMonster.immunities.length === 0 ? <p>No immunities defined.</p> : null}
-                              {selectedMonster.immunities.map((immunity, index) => (
-                                <article key={immunity.id} className="monster-ability-card">
-                                  <div className="monster-attack-header">
-                                    <strong>Immunity {index + 1}</strong>
-                                    <button type="button" onClick={() => removeImmunity(immunity.id)}>
-                                      Remove
-                                    </button>
-                                  </div>
-                                  <label>
-                                    Rule
-                                    <select
-                                      value={immunityOptions.includes(immunity.text as (typeof immunityOptions)[number]) ? immunity.text : 'Custom'}
-                                      onChange={(event) =>
-                                        updateImmunity(
-                                          immunity.id,
-                                          event.target.value === 'Custom' ? '' : event.target.value,
-                                        )
-                                      }
-                                    >
-                                      {immunityOptions.map((option) => (
-                                        <option key={option} value={option}>
-                                          {option}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </label>
-                                  {immunityOptions.includes(immunity.text as (typeof immunityOptions)[number]) ? null : (
-                                    <label>
-                                      Custom Immunity
-                                      <input
-                                        type="text"
-                                        value={immunity.text}
-                                        onChange={(event) => updateImmunity(immunity.id, event.target.value)}
-                                        placeholder="Describe immunity..."
-                                      />
-                                    </label>
-                                  )}
-                                </article>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div key="weak_spots" className="monster-trait-widget">
-                          <div className="monster-abilities-builder">
-                            <div className="monster-abilities-toolbar">
-                              <button type="button" onClick={addWeakSpot}>
-                                + Add Weak Spot
-                              </button>
-                            </div>
-                            <div className={splitUnusualTraits ? 'monster-ability-list monster-trait-list-split' : 'monster-ability-list monster-trait-list-full'}>
-                              {selectedMonster.weakSpots.length === 0 ? <p>No weak spots defined.</p> : null}
-                              {selectedMonster.weakSpots.map((weakSpot, index) => (
-                                <article key={weakSpot.id} className="monster-ability-card">
-                                  <div className="monster-attack-header">
-                                    <strong>Weak Spot {index + 1}</strong>
-                                    <button type="button" onClick={() => removeWeakSpot(weakSpot.id)}>
-                                      Remove
-                                    </button>
-                                  </div>
-                                  <div className="monster-weakspot-grid">
-                                    <label>
-                                      Spot
-                                      <input
-                                        type="text"
-                                        value={weakSpot.label}
-                                        onChange={(event) => updateWeakSpot(weakSpot.id, { label: event.target.value })}
-                                        placeholder="Eyes"
-                                      />
-                                    </label>
-                                    <label>
-                                      To-Hit Mod
-                                      <input
-                                        type="number"
-                                        step={1}
-                                        value={weakSpot.toHitModifier}
-                                        onChange={(event) =>
-                                          updateWeakSpot(weakSpot.id, {
-                                            toHitModifier: event.target.value,
-                                          })
-                                        }
-                                        placeholder="-6"
-                                      />
-                                    </label>
-                                  </div>
-                                </article>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                      ),
-                    )}
-                  </div>
+                <div className="section-head">
+                  <h3 className="monster-section-title">Immunities</h3>
+                  <button type="button" className="icon-btn add-btn" onClick={addImmunity} aria-label="Add immunity">
+                    <Plus size={13} />
+                  </button>
                 </div>
+                {selectedMonster.immunities.length > 0 && (
+                  <div className="monster-immunity-list">
+                    {selectedMonster.immunities.map((immunity) => (
+                      <div key={immunity.id} className="immunity-row">
+                        <select
+                          value={immunityOptions.includes(immunity.text as (typeof immunityOptions)[number]) ? immunity.text : 'Custom'}
+                          onChange={(e) => updateImmunity(immunity.id, e.target.value === 'Custom' ? '' : e.target.value)}
+                        >
+                          {immunityOptions.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                        {!immunityOptions.includes(immunity.text as (typeof immunityOptions)[number]) && (
+                          <input
+                            type="text"
+                            value={immunity.text}
+                            onChange={(e) => updateImmunity(immunity.id, e.target.value)}
+                            placeholder="Describe immunity..."
+                          />
+                        )}
+                        <button type="button" className="icon-btn remove-btn" onClick={() => removeImmunity(immunity.id)} aria-label="Remove">
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </section>
 
               <section className="monster-section-block">
-                <h3 className="monster-section-title">Abilities</h3>
-                <div className="monster-abilities-builder">
-                  <div className="monster-abilities-toolbar">
-                    <button type="button" onClick={() => addAbility('text')}>
-                      + Text Ability
-                    </button>
-                    <button type="button" onClick={() => addAbility('rules')}>
-                      + Rules Ability
-                    </button>
-                  </div>
-
-                  {selectedMonster.abilities.length === 0 ? (
-                    <p>No abilities yet.</p>
-                  ) : (
-                    <div className="monster-ability-list">
-                      {selectedMonster.abilities.map((ability) => (
-                        <article key={ability.id} className="monster-ability-card">
-                          <div className="monster-ability-header">
+                <div className="section-head">
+                  <h3 className="monster-section-title">Traits</h3>
+                  <button type="button" className="icon-btn add-btn" onClick={addTrait} aria-label="Add trait">
+                    <Plus size={13} />
+                  </button>
+                </div>
+                <div className="monster-trait-list">
+                  {selectedMonster.traits.map((trait) => (
+                    <article key={trait.id} className="monster-trait-card">
+                      <div className="trait-header">
+                        <input
+                          className="trait-name-input"
+                          type="text"
+                          value={trait.name}
+                          onChange={(e) => updateTrait(trait.id, { name: e.target.value })}
+                          placeholder="Trait name"
+                        />
+                        {trait.saveType ? (
+                          <span className="trait-save-badge">
+                            Save vs {saveTypeOptions.find((o) => o.value === trait.saveType)?.label ?? trait.saveType}
+                          </span>
+                        ) : null}
+                        <button type="button" className="icon-btn remove-btn" onClick={() => removeTrait(trait.id)} aria-label="Remove trait">
+                          <X size={13} />
+                        </button>
+                      </div>
+                      <div className="trait-body">
+                        <div className="trait-meta">
+                          <div className="trait-field">
+                            <span className="trait-field-label">When</span>
                             <input
                               type="text"
-                              value={ability.name}
-                              onChange={(event) => updateAbility(ability.id, { name: event.target.value })}
-                              placeholder="Ability name"
+                              value={trait.trigger}
+                              onChange={(e) => updateTrait(trait.id, { trigger: e.target.value })}
+                              placeholder="each round in melee, on surprise, passive..."
                             />
-                            <select
-                              value={ability.mode}
-                              onChange={(event) =>
-                                updateAbility(ability.id, { mode: event.target.value as AbilityMode })
-                              }
-                            >
-                              <option value="text">Text</option>
-                              <option value="rules">Rules</option>
-                            </select>
-                            <button type="button" onClick={() => removeAbility(ability.id)}>
-                              Remove
-                            </button>
                           </div>
-
-                          {ability.mode === 'text' ? (
-                            <textarea
-                              className="monster-notes"
-                              value={ability.text}
-                              onChange={(event) => updateAbility(ability.id, { text: event.target.value })}
-                              placeholder="Trickery, leader, hoard, etc."
-                            />
-                          ) : (
-                            <div className="monster-ability-rules">
-                              <label>
-                                Trigger
-                                <select
-                                  value={ability.trigger}
-                                  onChange={(event) =>
-                                    updateAbility(ability.id, { trigger: event.target.value as AbilityTrigger })
-                                  }
-                                >
-                                  {abilityTriggerOptions.map((option) => (
-                                    <option key={option.value} value={option.value}>
-                                      {option.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-
-                              <div className="monster-ability-steps">
-                                {ability.steps.map((step, index) => {
-                                  const def = primitiveByType[step.type]
-                                  return (
-                                    <div key={step.id} className="monster-step-card">
-                                      <div className="monster-step-header">
-                                        <strong>Step {index + 1}</strong>
-                                        <select
-                                          value={step.type}
-                                          onChange={(event) =>
-                                            updateAbilityStepType(
-                                              ability.id,
-                                              step.id,
-                                              event.target.value as PrimitiveType,
-                                            )
-                                          }
-                                        >
-                                          {primitiveDefinitions.map((primitive) => (
-                                            <option key={primitive.type} value={primitive.type}>
-                                              {primitive.label}
-                                            </option>
-                                          ))}
-                                        </select>
-                                        <button type="button" onClick={() => removeAbilityStep(ability.id, step.id)}>
-                                          Remove
-                                        </button>
-                                      </div>
-
-                                      <div className="monster-step-fields">
-                                        {def.fields.map((field) => (
-                                          <label key={`${step.id}-${field.key}`}>
-                                            {field.label}
-                                            <input
-                                              type="text"
-                                              value={step.params[field.key] ?? ''}
-                                              placeholder={field.placeholder}
-                                              onChange={(event) =>
-                                                updateAbilityStepParam(
-                                                  ability.id,
-                                                  step.id,
-                                                  field.key,
-                                                  event.target.value,
-                                                )
-                                              }
-                                            />
-                                          </label>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )
-                                })}
-                              </div>
-
-                              <button type="button" onClick={() => addAbilityStep(ability.id)}>
-                                + Add Step
-                              </button>
-                            </div>
-                          )}
-                        </article>
-                      ))}
-                    </div>
-                  )}
+                          <div className="trait-field trait-save-field">
+                            <span className="trait-field-label">Save</span>
+                            <select
+                              value={trait.saveType}
+                              onChange={(e) => updateTrait(trait.id, { saveType: e.target.value as SaveType | '' })}
+                            >
+                              <option value="">—</option>
+                              {saveTypeOptions.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <textarea
+                          className="trait-effect"
+                          value={trait.effect}
+                          onChange={(e) => updateTrait(trait.id, { effect: e.target.value })}
+                          placeholder="What happens — what to call for, what to apply, player options..."
+                        />
+                      </div>
+                    </article>
+                  ))}
                 </div>
               </section>
 
@@ -1606,53 +1364,51 @@ export function MonstersTab({ role }: MonstersTabProps) {
           </div>
         </div>
       ) : null}
+      <TokenPickerModal
+        open={tokenPickerOpen && selectedMonster !== null}
+        value={selectedMonster?.tokenIcon ?? { icon: 'pawn', color: '#bf2f2a', size: 34 }}
+        onConfirm={(tokenIcon) => {
+          updateSelectedMonster({ tokenIcon })
+          setTokenPickerOpen(false)
+        }}
+        onCancel={() => setTokenPickerOpen(false)}
+      />
+      <ConfirmModal
+        open={deletePortraitOpen}
+        title="Remove portrait?"
+        message="Remove the portrait image from this monster?"
+        confirmLabel="Remove"
+        onConfirm={removePortrait}
+        onCancel={() => setDeletePortraitOpen(false)}
+      />
       {portraitDraft && selectedMonster ? (
-        <div className="monster-portrait-modal-overlay" role="dialog" aria-modal="true" aria-label="Adjust portrait fit">
+        <div className="monster-portrait-modal-overlay" role="dialog" aria-modal="true" aria-label="Adjust portrait">
           <div className="monster-portrait-modal">
-            <h3>Adjust portrait fit</h3>
-            <div className="monster-portrait-modal-preview">
+            <div className="monster-portrait-modal-header">
+              <span className="monster-portrait-modal-hint">Drag to reposition</span>
+              <div className="monster-portrait-modal-actions">
+                <button type="button" className="modal-icon-btn" onClick={() => setPortraitDraft(null)} aria-label="Cancel">
+                  <X size={16} />
+                </button>
+                <button type="button" className="modal-icon-btn confirm" onClick={applyPortraitDraft} aria-label="Save portrait">
+                  <Check size={16} />
+                </button>
+              </div>
+            </div>
+            <div
+              className="monster-portrait-modal-preview monster-portrait-drag-zone"
+              onPointerDown={handlePortraitDragStart}
+              onPointerMove={handlePortraitDragMove}
+              onPointerUp={handlePortraitDragEnd}
+              onPointerCancel={handlePortraitDragEnd}
+            >
               <img
                 src={portraitDraft.imageUrl}
                 alt=""
                 className="monster-portrait"
                 style={{ objectPosition: `${portraitDraft.focusX}% ${portraitDraft.focusY}%` }}
+                draggable={false}
               />
-            </div>
-            <div className="monster-portrait-modal-controls">
-              <label>
-                Horizontal
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={portraitDraft.focusX}
-                  onChange={(event) =>
-                    setPortraitDraft((current) => (current ? { ...current, focusX: Number(event.target.value) } : current))
-                  }
-                />
-              </label>
-              <label>
-                Vertical
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={portraitDraft.focusY}
-                  onChange={(event) =>
-                    setPortraitDraft((current) => (current ? { ...current, focusY: Number(event.target.value) } : current))
-                  }
-                />
-              </label>
-            </div>
-            <div className="monster-portrait-modal-actions">
-              <button type="button" onClick={() => setPortraitDraft(null)}>
-                Cancel
-              </button>
-              <button type="button" onClick={applyPortraitDraft}>
-                Save portrait
-              </button>
             </div>
           </div>
         </div>
