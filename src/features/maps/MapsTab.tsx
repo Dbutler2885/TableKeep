@@ -182,7 +182,7 @@ type TokenPathAnimation = {
   startTime: number
   duration: number
   brushSize: number
-  tokenHeight: number
+  tokenSizeScale: number
   party: boolean
   lastRevealTime: number
   lastRevealCanvasPos: { x: number; y: number } | null
@@ -1364,7 +1364,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         if (now - anim.lastRevealTime >= ANIM_REVEAL_INTERVAL_MS) {
           const canvasPoint = {
             x: pos.x * activeFogCanvasRef.current.width,
-            y: Math.max(0, pos.y * activeFogCanvasRef.current.height - anim.tokenHeight * 0.5),
+            y: Math.max(0, pos.y * activeFogCanvasRef.current.height - anim.tokenSizeScale * activeFogCanvasRef.current.height * 0.5),
           }
           if (anim.lastRevealCanvasPos) {
             revealFromTokenStroke(
@@ -1397,7 +1397,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         if (anim.party && activeFogCanvasRef.current && activeVisionCanvasRef.current) {
           const endPoint = {
             x: pos.x * activeFogCanvasRef.current.width,
-            y: Math.max(0, pos.y * activeFogCanvasRef.current.height - anim.tokenHeight * 0.5),
+            y: Math.max(0, pos.y * activeFogCanvasRef.current.height - anim.tokenSizeScale * activeFogCanvasRef.current.height * 0.5),
           }
           if (anim.lastRevealCanvasPos) {
             revealFromTokenStroke(
@@ -1439,7 +1439,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
   startTokenPathAnimationRef.current = (tokenId, fromPos, path, token) => {
     const brushSize = renderTokenViewDistance(token)
-    const { height: tokenHeight } = renderTokenDimensions(token)
+    const tokenSizeScale = token.sizeScale ?? token.size / TOKEN_REFERENCE_DIMENSION
     // Prepend the pre-drag position at t=0 so animation starts from where the
     // receiving client last saw the token.
     const firstT = (path[0] as Waypoint).t
@@ -1459,7 +1459,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       startTime: Date.now(),
       duration,
       brushSize,
-      tokenHeight,
+      tokenSizeScale,
       party: token.party,
       lastRevealTime: 0,
       lastRevealCanvasPos: null,
@@ -1698,7 +1698,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const tokenPointToCanvasPoint = (point: { x: number; y: number }, tokenSizePx = 0) => {
     const canvas = activeFogCanvasRef.current
     if (!canvas) return null
-    const yOffset = Math.max(0, tokenSizePx * 0.5)
+    const fogScale = canvas.height / Math.max(1, activeMapDimension)
+    const yOffset = Math.max(0, tokenSizePx * fogScale * 0.5)
     return {
       x: point.x * canvas.width,
       y: Math.max(0, point.y * canvas.height - yOffset),
@@ -2334,17 +2335,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
           return
         }
         lastStreamingLocalRevealAt = now
-      } else {
-        // Cap fog LOS recompute to ~12Hz unless the token has moved far enough.
-        const now = Date.now()
-        const dist = lastFogComputeCanvasPoint
-          ? Math.hypot(nextCanvasPoint.x - lastFogComputeCanvasPoint.x, nextCanvasPoint.y - lastFogComputeCanvasPoint.y)
-          : Infinity
-        if (now - lastFogComputeTime < FOG_COMPUTE_INTERVAL_MS && dist < FOG_COMPUTE_MIN_MOVE) {
-          return
-        }
-        lastFogComputeTime = now
-        lastFogComputeCanvasPoint = nextCanvasPoint
       }
 
       const lastPoint = tokenFogTrailPointRef.current
