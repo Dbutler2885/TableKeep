@@ -2447,7 +2447,7 @@ button:hover {
   transform: translate(-50%, -100%);
   line-height: 0;
   overflow: visible;
-  transition: left 90ms linear, top 90ms linear;
+  transition: left 400ms ease-out, top 400ms ease-out;
 }
 
 .map-token {
@@ -2476,6 +2476,11 @@ button:hover {
 
 .map-token.dragging {
   cursor: grabbing;
+  transition: none;
+}
+
+.map-token.animating,
+.map-token-static.animating {
   transition: none;
 }
 

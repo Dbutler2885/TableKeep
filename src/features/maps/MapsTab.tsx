@@ -114,12 +114,59 @@ const BRUSH_SIZE_MIN = 8
 const TOKEN_VIEW_DISTANCE_MAX = 600
 const LOS_SURFACE_REVEAL_MULTIPLIER = 2.4
 const LOS_BLOCKER_SAMPLE_RADIUS = 2
-const LIVE_DRAG_WRITE_INTERVAL_MS = 220
-const LIVE_DRAG_EPSILON = 0.0015
-const LIVE_FOG_WRITE_INTERVAL_MS = 1400
 const STREAMING_LOCAL_REVEAL_INTERVAL_MS = 40
 const STREAMING_LOCAL_REVEAL_MAX_INTERVAL_MS = 110
-const ENABLE_LIVE_FOG_DURING_DRAG = true
+const FOG_COMPUTE_INTERVAL_MS = 80  // cap fog LOS recompute to ~12Hz during drag
+const FOG_COMPUTE_MIN_MOVE = 4      // canvas pixels; skip recompute if token barely moved
+const DRAG_PATH_SAMPLE_DISTANCE = 0.015  // normalized units between sampled waypoints
+const ANIM_REVEAL_INTERVAL_MS = 66       // ~15Hz fog reveal during path animation
+
+function interpolateAlongPath(path: { x: number; y: number }[], t: number): { x: number; y: number } {
+  if (path.length === 0) return { x: 0.5, y: 0.5 }
+  if (path.length === 1 || t <= 0) return path[0]
+  if (t >= 1) return path[path.length - 1]
+  let totalLen = 0
+  const segLengths: number[] = []
+  for (let i = 1; i < path.length; i++) {
+    const len = Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y)
+    segLengths.push(len)
+    totalLen += len
+  }
+  if (totalLen === 0) return path[0]
+  const target = t * totalLen
+  let dist = 0
+  for (let i = 0; i < segLengths.length; i++) {
+    if (dist + segLengths[i] >= target) {
+      const segT = segLengths[i] === 0 ? 0 : (target - dist) / segLengths[i]
+      return {
+        x: path[i].x + (path[i + 1].x - path[i].x) * segT,
+        y: path[i].y + (path[i + 1].y - path[i].y) * segT,
+      }
+    }
+    dist += segLengths[i]
+  }
+  return path[path.length - 1]
+}
+
+function pathTotalLength(path: { x: number; y: number }[]): number {
+  let len = 0
+  for (let i = 1; i < path.length; i++) {
+    len += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y)
+  }
+  return len
+}
+
+type TokenPathAnimation = {
+  path: { x: number; y: number }[]
+  startTime: number
+  duration: number
+  brushSize: number
+  tokenHeight: number
+  party: boolean
+  lastRevealTime: number
+  lastRevealCanvasPos: { x: number; y: number } | null
+}
+
 export function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }) {
   const [maps, setMaps] = useState<MapRecord[]>([])
   const [selectedMapId, setSelectedMapId] = useState('')
@@ -167,6 +214,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [draggingTokenIds, setDraggingTokenIds] = useState<string[]>([])
   const [, setDragTokenPosition] = useState<{ x: number; y: number } | null>(null)
   const [dragTokenPositions, setDragTokenPositions] = useState<Record<string, { x: number; y: number }> | null>(null)
+  const [animatedTokenPositions, setAnimatedTokenPositions] = useState<Record<string, { x: number; y: number }>>({})
   const [tokenDeleteCandidate, setTokenDeleteCandidate] = useState<TokenRecord | null>(null)
   const [deletingTokenId, setDeletingTokenId] = useState('')
   const [inlineBaseSize, setInlineBaseSize] = useState({ width: 0, height: 0 })
@@ -188,7 +236,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const dragTokenPositionsRef = useRef<Record<string, { x: number; y: number }> | null>(null)
   const tokenFogTrailPointRef = useRef<{ x: number; y: number } | null>(null)
   const suppressNextMapClickRef = useRef(false)
-  const liveWritesBlockedUntilRef = useRef(0)
   const tokenLongPressTimerRef = useRef<number | null>(null)
   const tokenTouchDraggingRef = useRef(false)
   const mobileTouchRef = useRef<{
@@ -213,6 +260,17 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const loadedVisionKeyRef = useRef('')
   const loadedVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const revealMaskCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const tokenAnimationsRef = useRef<Record<string, TokenPathAnimation>>({})
+  const animRafRef = useRef<number | null>(null)
+  const animTickRef = useRef<() => void>(() => {})
+  const tokensRef = useRef<TokenRecord[]>([])
+  const recentlyDroppedRef = useRef(new Set<string>())
+  const startTokenPathAnimationRef = useRef<(
+    tokenId: string,
+    fromPos: { x: number; y: number },
+    path: { x: number; y: number }[],
+    token: TokenRecord,
+  ) => void>(() => {})
 
   useEffect(() => {
     const mapsQuery = query(collection(db, 'campaigns', campaignId, 'maps'))
@@ -411,6 +469,32 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
           }
         })
         setTokens(next)
+
+        // Trigger path animations for tokens moved by other clients.
+        // tokensRef.current still holds pre-update positions here since setTokens
+        // schedules a React update (doesn't flush synchronously).
+        snap.docChanges().forEach((change) => {
+          if (change.type !== 'modified') return
+          const tokenId = change.doc.id
+          // Skip tokens this client just dropped — optimistic update already placed them.
+          if (recentlyDroppedRef.current.has(tokenId)) return
+          const rawPath = (change.doc.data() as { path?: unknown }).path
+          if (!Array.isArray(rawPath) || rawPath.length < 2) return
+          const path = (rawPath as unknown[])
+            .filter((p): p is { x: number; y: number } =>
+              typeof p === 'object' &&
+              p !== null &&
+              typeof (p as Record<string, unknown>).x === 'number' &&
+              typeof (p as Record<string, unknown>).y === 'number',
+            )
+            .map((p) => ({ x: p.x, y: p.y }))
+          if (path.length < 2) return
+          const fromToken = tokensRef.current.find((t) => t.id === tokenId)
+          if (!fromToken) return
+          const updatedToken = next.find((t) => t.id === tokenId)
+          if (!updatedToken) return
+          startTokenPathAnimationRef.current(tokenId, { x: fromToken.x, y: fromToken.y }, path, updatedToken)
+        })
       },
       (err) => {
         setMapError(err.message)
@@ -1213,6 +1297,90 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     }
   }
 
+  // Keep tokensRef in sync with the latest tokens state so Firestore callbacks can
+  // read the pre-update positions without a stale closure.
+  tokensRef.current = tokens
+
+  // Reassigned each render so the rAF callbacks always hold fresh closures over
+  // revealFromTokenPoint / revealFromTokenStroke / renderToken* / activeFogCanvasRef.
+  animTickRef.current = () => {
+    const now = Date.now()
+    const nextPositions: Record<string, { x: number; y: number }> = {}
+    let hasActive = false
+
+    for (const [tokenId, anim] of Object.entries(tokenAnimationsRef.current)) {
+      const t = Math.min(1, (now - anim.startTime) / anim.duration)
+      const pos = interpolateAlongPath(anim.path, t)
+      nextPositions[tokenId] = pos
+
+      // Fog reveal at ~15Hz for party tokens on clients that have an active fog canvas.
+      if (anim.party && activeFogCanvasRef.current && activeVisionCanvasRef.current) {
+        if (now - anim.lastRevealTime >= ANIM_REVEAL_INTERVAL_MS) {
+          const canvasPoint = {
+            x: pos.x * activeFogCanvasRef.current.width,
+            y: Math.max(0, pos.y * activeFogCanvasRef.current.height - anim.tokenHeight * 0.5),
+          }
+          if (anim.lastRevealCanvasPos) {
+            revealFromTokenStroke(
+              activeFogCanvasRef.current,
+              activeVisionCanvasRef.current,
+              anim.lastRevealCanvasPos,
+              canvasPoint,
+              anim.brushSize,
+              null,
+            )
+          } else {
+            revealFromTokenPoint(
+              activeFogCanvasRef.current,
+              activeVisionCanvasRef.current,
+              canvasPoint,
+              anim.brushSize,
+              null,
+            )
+          }
+          anim.lastRevealCanvasPos = canvasPoint
+          anim.lastRevealTime = now
+        }
+      }
+
+      if (t < 1) {
+        hasActive = true
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+        delete tokenAnimationsRef.current[tokenId]
+      }
+    }
+
+    if (hasActive || Object.keys(tokenAnimationsRef.current).length > 0) {
+      setAnimatedTokenPositions({ ...nextPositions })
+      animRafRef.current = requestAnimationFrame(animTickRef.current)
+    } else {
+      setAnimatedTokenPositions({})
+      animRafRef.current = null
+    }
+  }
+
+  startTokenPathAnimationRef.current = (tokenId, fromPos, path, token) => {
+    const brushSize = renderTokenViewDistance(token)
+    const { height: tokenHeight } = renderTokenDimensions(token)
+    const fullPath = [fromPos, ...path]
+    const totalLen = pathTotalLength(fullPath)
+    const duration = Math.min(1500, Math.max(400, totalLen * 1200))
+    tokenAnimationsRef.current[tokenId] = {
+      path: fullPath,
+      startTime: Date.now(),
+      duration,
+      brushSize,
+      tokenHeight,
+      party: token.party,
+      lastRevealTime: 0,
+      lastRevealCanvasPos: null,
+    }
+    if (animRafRef.current === null) {
+      animRafRef.current = requestAnimationFrame(animTickRef.current)
+    }
+  }
+
   const canvasToPngBlob = (canvas: HTMLCanvasElement) =>
     new Promise<Blob>((resolve, reject) => {
       canvas.toBlob((blob) => {
@@ -1958,107 +2126,17 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   useEffect(() => {
     if (!draggingTokenId || role !== 'gm' || !selectedMap) return
     const draggingToken = tokens.find((entry) => entry.id === draggingTokenId) ?? null
-    let lastLiveWriteAt = 0
-    let lastLiveWritePos: { x: number; y: number } | null = null
-    let pendingTokenWritePos: { x: number; y: number } | null = null
-    let tokenWriteInFlight = false
-    let tokenWriteTimer: number | null = null
-    let lastLiveFogWriteAt = 0
-    let lastLiveFogWritePoint: { x: number; y: number } | null = null
-    let liveFogWriteInFlight = false
+    const dragPaths: Record<string, { x: number; y: number }[]> = {}
+    const lastSampledPositions: Record<string, { x: number; y: number }> = {}
     let lastStreamingLocalRevealAt = 0
+    let lastFogComputeTime = 0
+    let lastFogComputeCanvasPoint: { x: number; y: number } | null = null
     let revealFrameId: number | null = null
     let pendingRevealPoint: { x: number; y: number } | null = null
     let pendingRevealBrushSize = 0
     let pendingRevealClipRect: CanvasClipRect | null = null
     const handleLiveWriteError = (error: unknown) => {
-      const code = typeof error === 'object' && error !== null && 'code' in error
-        ? String((error as { code?: string }).code)
-        : ''
-      if (code.includes('resource-exhausted')) {
-        liveWritesBlockedUntilRef.current = Date.now() + 5000
-      }
-    }
-
-    const scheduleTokenWrite = () => {
-      if (tokenWriteInFlight || !pendingTokenWritePos || tokenWriteTimer !== null) return
-      if (Date.now() < liveWritesBlockedUntilRef.current) return
-      const now = Date.now()
-      const wait = Math.max(0, LIVE_DRAG_WRITE_INTERVAL_MS - (now - lastLiveWriteAt))
-      tokenWriteTimer = window.setTimeout(() => {
-        tokenWriteTimer = null
-        if (tokenWriteInFlight || !pendingTokenWritePos) return
-        if (Date.now() < liveWritesBlockedUntilRef.current) return
-        const position = pendingTokenWritePos
-        pendingTokenWritePos = null
-        tokenWriteInFlight = true
-        lastLiveWriteAt = Date.now()
-        lastLiveWritePos = position
-        void updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', draggingTokenId), {
-          x: position.x,
-          y: position.y,
-          updatedAt: serverTimestamp(),
-        })
-          .catch((error) => {
-            handleLiveWriteError(error)
-          })
-          .finally(() => {
-          tokenWriteInFlight = false
-          if (pendingTokenWritePos) {
-            scheduleTokenWrite()
-          }
-          })
-      }, wait)
-    }
-
-    const pushLiveFogUpdate = (canvasPoint: { x: number; y: number }, brushSize: number) => {
-      if (!ENABLE_LIVE_FOG_DURING_DRAG) return
-      if (streamingMode) return
-      if (!draggingToken?.party || !activeFogCanvasRef.current) return
-      if (Date.now() < liveWritesBlockedUntilRef.current) return
-      const now = Date.now()
-      if (liveFogWriteInFlight || now - lastLiveFogWriteAt < LIVE_FOG_WRITE_INTERVAL_MS) return
-      if (lastLiveFogWritePoint) {
-        const dx = canvasPoint.x - lastLiveFogWritePoint.x
-        const dy = canvasPoint.y - lastLiveFogWritePoint.y
-        const distance = Math.hypot(dx, dy)
-        // Skip tiny movements to avoid saturating Firestore during drag.
-        if (distance < Math.max(10, brushSize * 0.35)) return
-      }
-
-      const fogDataUrl = safeCanvasToDataUrl(activeFogCanvasRef.current)
-      if (!fogDataUrl) return
-
-      liveFogWriteInFlight = true
-      lastLiveFogWriteAt = now
-      lastLiveFogWritePoint = canvasPoint
-      void updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
-        fogDataUrl,
-        fullyHidden: false,
-        updatedAt: serverTimestamp(),
-      })
-        .then(() => {
-          bumpFogSampleTick()
-        })
-        .catch((error) => {
-          handleLiveWriteError(error)
-        })
-        .finally(() => {
-          liveFogWriteInFlight = false
-        })
-    }
-
-    const pushLiveTokenPosition = (position: { x: number; y: number }) => {
-      if (streamingMode) return
-      if (
-        lastLiveWritePos &&
-        Math.abs(position.x - lastLiveWritePos.x) < LIVE_DRAG_EPSILON &&
-        Math.abs(position.y - lastLiveWritePos.y) < LIVE_DRAG_EPSILON
-      ) {
-        return
-      }
-      pendingTokenWritePos = position
-      scheduleTokenWrite()
+      console.warn('Token write failed', error)
     }
 
     const flushPendingReveal = () => {
@@ -2082,6 +2160,17 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
           return
         }
         lastStreamingLocalRevealAt = now
+      } else {
+        // Cap fog LOS recompute to ~12Hz unless the token has moved far enough.
+        const now = Date.now()
+        const dist = lastFogComputeCanvasPoint
+          ? Math.hypot(nextCanvasPoint.x - lastFogComputeCanvasPoint.x, nextCanvasPoint.y - lastFogComputeCanvasPoint.y)
+          : Infinity
+        if (now - lastFogComputeTime < FOG_COMPUTE_INTERVAL_MS && dist < FOG_COMPUTE_MIN_MOVE) {
+          return
+        }
+        lastFogComputeTime = now
+        lastFogComputeCanvasPoint = nextCanvasPoint
       }
 
       const lastPoint = tokenFogTrailPointRef.current
@@ -2103,7 +2192,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
           clipRect,
         )
       }
-      pushLiveFogUpdate(nextCanvasPoint, tokenBrushSize)
       tokenFogTrailPointRef.current = nextCanvasPoint
     }
 
@@ -2155,7 +2243,19 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         setDragTokenPositions(nextPositions)
         dragTokenPositionRef.current = nextPosition
         setDragTokenPosition(nextPosition)
-        pushLiveTokenPosition(nextPosition)
+      }
+
+      // Sample path waypoints for drop-time write (replayed as animation on other clients).
+      const currentPositions = dragTokenPositionsRef.current
+      if (currentPositions) {
+        for (const [id, pos] of Object.entries(currentPositions)) {
+          const last = lastSampledPositions[id]
+          if (!last || Math.hypot(pos.x - last.x, pos.y - last.y) >= DRAG_PATH_SAMPLE_DISTANCE) {
+            if (!dragPaths[id]) dragPaths[id] = []
+            dragPaths[id].push({ x: pos.x, y: pos.y })
+            lastSampledPositions[id] = pos
+          }
+        }
       }
 
       if (draggingToken?.party && activeFogCanvasRef.current) {
@@ -2190,6 +2290,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         revealFrameId = null
       }
       if (pendingRevealPoint) {
+        // Bypass the Hz cap for the final drop flush so the endpoint is always revealed.
+        lastFogComputeTime = 0
         flushPendingReveal()
       }
       const finalPositions = dragTokenPositionsRef.current
@@ -2212,6 +2314,19 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       tokenDragOffsetRef.current = null
       tokenFogTrailPointRef.current = null
 
+      // Optimistically update local token positions so the dragger doesn't see the token
+      // snap back to the pre-drag Firestore position while the batch write is in flight.
+      setTokens((prev) => prev.map((t) => {
+        const pos = finalPositions[t.id]
+        return pos ? { ...t, x: pos.x, y: pos.y } : t
+      }))
+
+      // Mark as recently dropped so this client's listener skips the path animation.
+      finalTokenIds.forEach((tokenId) => {
+        recentlyDroppedRef.current.add(tokenId)
+        window.setTimeout(() => recentlyDroppedRef.current.delete(tokenId), 3000)
+      })
+
       try {
         const batch = writeBatch(db)
         finalTokenIds.forEach((tokenId) => {
@@ -2220,6 +2335,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
           batch.update(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId), {
             x: finalPosition.x,
             y: finalPosition.y,
+            path: dragPaths[tokenId] ?? [],
             updatedAt: serverTimestamp(),
           })
         })
@@ -2246,9 +2362,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     window.addEventListener('touchcancel', handleUp)
 
     return () => {
-      if (tokenWriteTimer !== null) {
-        window.clearTimeout(tokenWriteTimer)
-      }
       if (revealFrameId !== null) {
         window.cancelAnimationFrame(revealFrameId)
       }
@@ -2597,14 +2710,16 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 {tokens.map((token, index) => {
                   if (!isTokenVisible(token)) return null
                   const draggedPosition = dragTokenPositions?.[token.id]
-                  const tokenX = draggedPosition?.x ?? token.x
-                  const tokenY = draggedPosition?.y ?? token.y
+                  const animPos = animatedTokenPositions[token.id]
+                  const tokenX = draggedPosition?.x ?? animPos?.x ?? token.x
+                  const tokenY = draggedPosition?.y ?? animPos?.y ?? token.y
+                  const isAnimating = Boolean(animPos) && !draggedPosition
 
                   if (role !== 'gm') {
                     return (
                       <span
                         key={token.id}
-                        className="map-token-static"
+                        className={isAnimating ? 'map-token-static animating' : 'map-token-static'}
                         style={{
                           left: `${tokenX * 100}%`,
                           top: `${tokenY * 100}%`,
@@ -2630,6 +2745,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                       className={[
                         'map-token',
                         isDraggingToken ? 'dragging' : '',
+                        isAnimating ? 'animating' : '',
                         isSelected ? 'selected' : '',
                       ]
                         .filter(Boolean)
@@ -2901,16 +3017,18 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                     {tokens.map((token, index) => {
                       if (!isTokenVisible(token)) return null
                       const draggedPosition = dragTokenPositions?.[token.id]
+                      const animPos = animatedTokenPositions[token.id]
                       const isDragging = Boolean(draggedPosition)
-                      const x = draggedPosition?.x ?? token.x
-                      const y = draggedPosition?.y ?? token.y
+                      const isAnimating = Boolean(animPos) && !draggedPosition
+                      const x = draggedPosition?.x ?? animPos?.x ?? token.x
+                      const y = draggedPosition?.y ?? animPos?.y ?? token.y
                       const isSelected = selectedTokenIds.includes(token.id)
 
                       if (role !== 'gm') {
                         return (
                           <span
                             key={token.id}
-                            className="map-token-static"
+                            className={isAnimating ? 'map-token-static animating' : 'map-token-static'}
                             style={{
                               left: `${x * 100}%`,
                               top: `${y * 100}%`,
@@ -2934,6 +3052,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                           className={[
                             'map-token',
                             isDragging ? 'dragging' : '',
+                            isAnimating ? 'animating' : '',
                             isSelected ? 'selected' : '',
                           ]
                             .filter(Boolean)
