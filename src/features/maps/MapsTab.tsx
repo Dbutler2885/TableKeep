@@ -10,6 +10,7 @@ import {
   ChessPawn,
   ChevronLeft,
   Circle,
+  Crosshair,
   Eraser,
   Eye,
   EyeOff,
@@ -192,6 +193,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= 900)
   const [mobileMapView, setMobileMapView] = useState<'list' | 'detail'>('list')
   const [mobileGmPane, setMobileGmPane] = useState<'map' | 'controls'>('map')
+  const [mobilePlayerPane, setMobilePlayerPane] = useState<'map' | 'controls'>('map')
   const [mapsLoading, setMapsLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [mapError, setMapError] = useState<string | null>(null)
@@ -240,10 +242,15 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [fullBaseSize, setFullBaseSize] = useState({ width: 0, height: 0 })
   const [inlineFogSize, setInlineFogSize] = useState({ width: 0, height: 0 })
   const [fullFogSize, setFullFogSize] = useState({ width: 0, height: 0 })
-  const [mobilePlayerZoom, setMobilePlayerZoom] = useState(1)
-  const [mobilePlayerPan, setMobilePlayerPan] = useState({ x: 0, y: 0 })
+  const [playerZoom, setPlayerZoom] = useState(1)
+  const [playerPan, setPlayerPan] = useState({ x: 0, y: 0 })
+  const [cameraLock, setCameraLock] = useState(false)
+  const [playerDragging, setPlayerDragging] = useState(false)
   const fullDragStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
+  const playerDragStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
   const fullStageRef = useRef<HTMLDivElement | null>(null)
+  const fullZoomRef = useRef(1)
+  const fullPanRef = useRef({ x: 0, y: 0 })
   const inlineFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const fullFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const inlineVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -858,8 +865,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
   const selectMap = (mapId: string) => {
     setSelectedMapId(mapId)
-    setMobilePlayerZoom(1)
-    setMobilePlayerPan({ x: 0, y: 0 })
+    setPlayerZoom(1)
+    setPlayerPan({ x: 0, y: 0 })
     mobileTouchRef.current.mode = 'none'
     if (isMobile) {
       setMobileMapView('detail')
@@ -868,6 +875,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   }
 
   const openFullScreen = () => {
+    fullZoomRef.current = 1
+    fullPanRef.current = { x: 0, y: 0 }
     setFullZoom(1)
     setFullPan({ x: 0, y: 0 })
     setFullDragging(false)
@@ -892,25 +901,33 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     event.preventDefault()
 
     const factor = Math.exp(-event.deltaY * 0.0015)
-    const rect = event.currentTarget.getBoundingClientRect()
+    const rect = fullStageRef.current?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect()
     const localX = event.clientX - rect.left - rect.width / 2
     const localY = event.clientY - rect.top - rect.height / 2
-    setFullZoom((currentZoom) => {
-      const nextZoom = Math.min(5, Math.max(0.5, currentZoom * factor))
-      const zoomRatio = nextZoom / currentZoom
-
-      setFullPan((currentPan) => ({
-        x: currentPan.x - localX * (zoomRatio - 1),
-        y: currentPan.y - localY * (zoomRatio - 1),
-      }))
-
-      return nextZoom
-    })
+    const currentZoom = fullZoomRef.current
+    const currentPan = fullPanRef.current
+    const nextZoom = Math.min(5, Math.max(0.5, currentZoom * factor))
+    const zoomRatio = nextZoom / currentZoom
+    const nextPan = {
+      x: currentPan.x * zoomRatio - localX * (zoomRatio - 1),
+      y: currentPan.y * zoomRatio - localY * (zoomRatio - 1),
+    }
+    fullZoomRef.current = nextZoom
+    fullPanRef.current = nextPan
+    setFullZoom(nextZoom)
+    setFullPan(nextPan)
   }
 
   const handleFullMouseDown: MouseEventHandler<HTMLDivElement> = (event) => {
-    if (event.button !== 1) return
-    event.preventDefault()
+    // Middle mouse: always pan
+    // Left mouse: pan when shift held, or when no GM tool is active
+    if (event.button === 1) {
+      event.preventDefault()
+    } else if (event.button === 0 && (event.shiftKey || !(role === 'gm' && (fogTool || visionTool || tokenPlaceMode || annotationPlaceMode)))) {
+      event.preventDefault()
+    } else {
+      return
+    }
     setFullDragging(true)
     fullDragStartRef.current = {
       x: event.clientX,
@@ -925,10 +942,12 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
     const deltaX = event.clientX - fullDragStartRef.current.x
     const deltaY = event.clientY - fullDragStartRef.current.y
-    setFullPan({
+    const nextPan = {
       x: fullDragStartRef.current.panX + deltaX,
       y: fullDragStartRef.current.panY + deltaY,
-    })
+    }
+    fullPanRef.current = nextPan
+    setFullPan(nextPan)
   }
 
   const endFullDrag = () => {
@@ -1421,6 +1440,30 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       }
     }
 
+    // Camera follow: while party tokens are animating and camera lock is on,
+    // track the centroid using animated positions (falling back to static for non-moving tokens).
+    if (cameraLock && role !== 'gm') {
+      const partyTokens = tokensRef.current.filter((t) => t.party && !t.hidden)
+      const hasPartyAnim = partyTokens.some((t) => nextPositions[t.id] !== undefined)
+      if (hasPartyAnim && partyTokens.length > 0) {
+        const cx = partyTokens.reduce((sum, t) => sum + (nextPositions[t.id]?.x ?? t.x), 0) / partyTokens.length
+        const cy = partyTokens.reduce((sum, t) => sum + (nextPositions[t.id]?.y ?? t.y), 0) / partyTokens.length
+        if (fullScreenOpen) {
+          const nextPan = {
+            x: fullBaseSize.width * fullZoomRef.current * (0.5 - cx),
+            y: fullBaseSize.height * fullZoomRef.current * (0.5 - cy),
+          }
+          fullPanRef.current = nextPan
+          setFullPan(nextPan)
+        } else {
+          setPlayerPan({
+            x: inlineBaseSize.width * playerZoom * (0.5 - cx),
+            y: inlineBaseSize.height * playerZoom * (0.5 - cy),
+          })
+        }
+      }
+    }
+
     if (hasActive || Object.keys(tokenAnimationsRef.current).length > 0) {
       setAnimatedTokenPositions({ ...nextPositions })
       animRafRef.current = requestAnimationFrame(animTickRef.current)
@@ -1537,6 +1580,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
   const handleFogPointerDown: MouseEventHandler<HTMLCanvasElement> = (event) => {
     if (event.button !== 0) return
+    if (event.shiftKey) return
     if (tokenPlaceMode) return
     if (!fogTool && !visionTool) return
     if (role !== 'gm' || !activeFogCanvasRef.current) return
@@ -2080,9 +2124,9 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       const center = touchCenter(event.touches)
       mobileTouchRef.current = {
         mode: 'pinch',
-        startZoom: mobilePlayerZoom,
+        startZoom: playerZoom,
         startDistance: touchDistance(event.touches),
-        startPan: mobilePlayerPan,
+        startPan: playerPan,
         startCenter: center,
       }
       return
@@ -2090,13 +2134,13 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
     if (role === 'gm' && (fogTool || visionTool)) return
 
-    if (event.touches.length === 1 && mobilePlayerZoom > 1) {
+    if (event.touches.length === 1 && playerZoom > 1) {
       const touch = event.touches[0]
       mobileTouchRef.current = {
         mode: 'pan',
-        startZoom: mobilePlayerZoom,
+        startZoom: playerZoom,
         startDistance: 0,
-        startPan: mobilePlayerPan,
+        startPan: playerPan,
         startCenter: { x: touch.clientX, y: touch.clientY },
       }
     }
@@ -2116,8 +2160,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         x: center.x - mobileTouchRef.current.startCenter.x,
         y: center.y - mobileTouchRef.current.startCenter.y,
       }
-      setMobilePlayerZoom(nextZoom)
-      setMobilePlayerPan({
+      setPlayerZoom(nextZoom)
+      setPlayerPan({
         x: mobileTouchRef.current.startPan.x + deltaCenter.x,
         y: mobileTouchRef.current.startPan.y + deltaCenter.y,
       })
@@ -2131,7 +2175,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         x: touch.clientX - mobileTouchRef.current.startCenter.x,
         y: touch.clientY - mobileTouchRef.current.startCenter.y,
       }
-      setMobilePlayerPan({
+      setPlayerPan({
         x: mobileTouchRef.current.startPan.x + delta.x,
         y: mobileTouchRef.current.startPan.y + delta.y,
       })
@@ -2143,23 +2187,121 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
     if (event.touches.length === 0) {
       mobileTouchRef.current.mode = 'none'
-      if (mobilePlayerZoom <= 1) {
-        setMobilePlayerPan({ x: 0, y: 0 })
+      if (playerZoom <= 1) {
+        setPlayerPan({ x: 0, y: 0 })
       }
       return
     }
 
-    if (event.touches.length === 1 && mobilePlayerZoom > 1) {
+    if (event.touches.length === 1 && playerZoom > 1) {
       const touch = event.touches[0]
       mobileTouchRef.current = {
         mode: 'pan',
-        startZoom: mobilePlayerZoom,
+        startZoom: playerZoom,
         startDistance: 0,
-        startPan: mobilePlayerPan,
+        startPan: playerPan,
         startCenter: { x: touch.clientX, y: touch.clientY },
       }
     }
   }
+
+  const handlePlayerWheel: WheelEventHandler<HTMLDivElement> = (event) => {
+    event.preventDefault()
+    const factor = Math.exp(-event.deltaY * 0.0015)
+    const rect = event.currentTarget.getBoundingClientRect()
+    const localX = event.clientX - rect.left - rect.width / 2
+    const localY = event.clientY - rect.top - rect.height / 2
+    const nextZoom = Math.min(5, Math.max(1, playerZoom * factor))
+    const zoomRatio = nextZoom / playerZoom
+    setPlayerZoom(nextZoom)
+    setPlayerPan({
+      x: playerPan.x * zoomRatio - localX * (zoomRatio - 1),
+      y: playerPan.y * zoomRatio - localY * (zoomRatio - 1),
+    })
+  }
+
+  const handlePlayerMouseDown: MouseEventHandler<HTMLDivElement> = (event) => {
+    if (event.button !== 0) return
+    if (!event.shiftKey && playerZoom <= 1) return
+    event.preventDefault()
+    setPlayerDragging(true)
+    playerDragStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      panX: playerPan.x,
+      panY: playerPan.y,
+    }
+  }
+
+  const handlePlayerMouseMove: MouseEventHandler<HTMLDivElement> = (event) => {
+    if (!playerDragging || !playerDragStartRef.current) return
+    const deltaX = event.clientX - playerDragStartRef.current.x
+    const deltaY = event.clientY - playerDragStartRef.current.y
+    setPlayerPan({
+      x: playerDragStartRef.current.panX + deltaX,
+      y: playerDragStartRef.current.panY + deltaY,
+    })
+  }
+
+  const endPlayerDrag = () => {
+    setPlayerDragging(false)
+    playerDragStartRef.current = null
+  }
+
+  const toggleCameraLock = () => {
+    if (!cameraLock) {
+      const partyTokens = tokens.filter((t) => t.party && !t.hidden)
+      if (partyTokens.length > 0) {
+        const cx = partyTokens.reduce((sum, t) => sum + t.x, 0) / partyTokens.length
+        const cy = partyTokens.reduce((sum, t) => sum + t.y, 0) / partyTokens.length
+        const avgViewDist = partyTokens.reduce((sum, t) => sum + renderTokenViewDistance(t), 0) / partyTokens.length
+        const losZoom = activeFogDimension / (2 * Math.max(1, avgViewDist))
+        if (fullScreenOpen) {
+          const newZoom = fullZoom > losZoom ? losZoom : fullZoom
+          const newPan = {
+            x: fullBaseSize.width * newZoom * (0.5 - cx),
+            y: fullBaseSize.height * newZoom * (0.5 - cy),
+          }
+          fullZoomRef.current = newZoom
+          fullPanRef.current = newPan
+          setFullZoom(newZoom)
+          setFullPan(newPan)
+        } else {
+          const newZoom = playerZoom > losZoom ? losZoom : playerZoom
+          setPlayerZoom(newZoom)
+          setPlayerPan({
+            x: inlineBaseSize.width * newZoom * (0.5 - cx),
+            y: inlineBaseSize.height * newZoom * (0.5 - cy),
+          })
+        }
+      }
+      setCameraLock(true)
+    } else {
+      setCameraLock(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!cameraLock || role === 'gm') return
+    const partyTokens = tokens.filter((t) => t.party && !t.hidden)
+    if (partyTokens.length === 0) return
+    const cx = partyTokens.reduce((sum, t) => sum + t.x, 0) / partyTokens.length
+    const cy = partyTokens.reduce((sum, t) => sum + t.y, 0) / partyTokens.length
+    if (fullScreenOpen) {
+      const nextPan = {
+        x: fullBaseSize.width * fullZoomRef.current * (0.5 - cx),
+        y: fullBaseSize.height * fullZoomRef.current * (0.5 - cy),
+      }
+      fullPanRef.current = nextPan
+      setFullPan(nextPan)
+    } else {
+      setPlayerPan({
+        x: inlineBaseSize.width * playerZoom * (0.5 - cx),
+        y: inlineBaseSize.height * playerZoom * (0.5 - cy),
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokens, cameraLock, fullScreenOpen]) // omit zoom — only re-center on token move, not on user zoom changes
 
   const startTokenDragAtPoint = (tokenId: string, clientX: number, clientY: number) => {
     if (role !== 'gm') return
@@ -2201,6 +2343,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
   const startTokenDrag = (tokenId: string, event: Parameters<MouseEventHandler<HTMLButtonElement>>[0]) => {
     if (role !== 'gm') return
+    if (event.shiftKey) return
     event.preventDefault()
     event.stopPropagation()
     setSelectedTokenIds((current) => (current.includes(tokenId) ? current : [tokenId]))
@@ -2829,13 +2972,15 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
             .filter(Boolean)
             .join(' ')}
         >
-          {isMobile && role !== 'gm' ? (
-            <button type="button" className="map-mobile-back" onClick={() => setMobileMapView('list')}>
-              <ChevronLeft size={16} />
-            </button>
-          ) : null}
-          {!isMobile || role !== 'gm' || mobileGmPane === 'map' ? (
-            <div className={isMobileZoomMapView ? 'map-stage mobile-player-stage' : 'map-stage'}>
+          {!isMobile || (role === 'gm' ? mobileGmPane === 'map' : mobilePlayerPane === 'map') ? (
+            <div
+              className={isMobileZoomMapView ? 'map-stage mobile-player-stage' : 'map-stage'}
+              onWheel={role !== 'gm' ? handlePlayerWheel : undefined}
+              onMouseDown={role !== 'gm' ? handlePlayerMouseDown : undefined}
+              onMouseMove={role !== 'gm' ? handlePlayerMouseMove : undefined}
+              onMouseUp={role !== 'gm' ? endPlayerDrag : undefined}
+              onMouseLeave={role !== 'gm' ? endPlayerDrag : undefined}
+            >
               {!isMobile ? (
                 <button type="button" className="map-fullscreen-btn" onClick={openFullScreen}>
                   <Maximize2 size={15} />
@@ -2854,9 +2999,10 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                   onTouchEnd={handleMobilePlayerTouchEnd}
                   onTouchCancel={handleMobilePlayerTouchEnd}
                   style={
-                    isMobileZoomMapView
+                    role !== 'gm'
                       ? {
-                        transform: `translate(${mobilePlayerPan.x}px, ${mobilePlayerPan.y}px) scale(${mobilePlayerZoom})`,
+                        transform: `translate(${playerPan.x}px, ${playerPan.y}px) scale(${playerZoom})`,
+                        cursor: playerDragging ? 'grabbing' : playerZoom > 1 ? 'grab' : undefined,
                       }
                       : undefined
                   }
@@ -3025,6 +3171,48 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 onRequestDeleteToken={requestDeleteToken}
               />
             </aside>
+          ) : null}
+
+          {role !== 'gm' && !isMobile ? (
+            <aside className="map-controls">
+              <PlayerMapControls cameraLock={cameraLock} onToggleCameraLock={toggleCameraLock} />
+            </aside>
+          ) : null}
+
+          {role !== 'gm' && isMobile && mobilePlayerPane === 'controls' ? (
+            <aside className="map-controls">
+              <PlayerMapControls cameraLock={cameraLock} onToggleCameraLock={toggleCameraLock} />
+            </aside>
+          ) : null}
+
+          {isMobile && role !== 'gm' ? (
+            <div className="map-mobile-panel-nav">
+              <button
+                type="button"
+                onClick={() => setMobileMapView('list')}
+                aria-label="Back to map list"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                type="button"
+                className={mobilePlayerPane === 'map' ? 'active' : ''}
+                onClick={() => setMobilePlayerPane('map')}
+                disabled={mobilePlayerPane === 'map'}
+                aria-label="Map pane"
+              >
+                <Map size={16} />
+              </button>
+              <button
+                type="button"
+                className={mobilePlayerPane === 'controls' ? 'active' : ''}
+                onClick={() => setMobilePlayerPane('controls')}
+                disabled={mobilePlayerPane === 'controls'}
+                aria-label="Controls pane"
+              >
+                <SlidersHorizontal size={16} />
+              </button>
+            </div>
           ) : null}
 
           {isMobile && role === 'gm' ? (
@@ -3197,6 +3385,12 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
               )}
             </div>
 
+            {role === 'gm' ? null : (
+              <aside className="map-fullscreen-controls">
+                <PlayerMapControls dark cameraLock={cameraLock} onToggleCameraLock={toggleCameraLock} />
+              </aside>
+            )}
+
             {role === 'gm' ? (
               <aside className="map-fullscreen-controls">
                 <GmMapControls
@@ -3276,6 +3470,32 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         onCancel={() => setTokenDeleteCandidate(null)}
         onConfirm={() => void confirmDeleteToken()}
       />
+    </div>
+  )
+}
+
+function PlayerMapControls({
+  cameraLock,
+  onToggleCameraLock,
+  dark = false,
+}: {
+  cameraLock: boolean
+  onToggleCameraLock: () => void
+  dark?: boolean
+}) {
+  return (
+    <div className={dark ? 'map-controls-body dark' : 'map-controls-body'}>
+      <div className="map-icon-grid">
+        <button
+          type="button"
+          className={cameraLock ? 'map-icon-btn active' : 'map-icon-btn'}
+          onClick={onToggleCameraLock}
+          title="Camera lock"
+          aria-label="Toggle camera lock"
+        >
+          <Crosshair size={16} />
+        </button>
+      </div>
     </div>
   )
 }
