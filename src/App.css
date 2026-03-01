@@ -3093,6 +3093,7 @@ button:hover {
   .map-mobile-panel-nav {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
+    width: 100%;
     gap: 0.5rem;
     border-top: 1px solid #dddcd6;
     padding-top: 0.5rem;
