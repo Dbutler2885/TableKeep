@@ -1371,6 +1371,32 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       if (t < 1) {
         hasActive = true
       } else {
+        // Force a final fog reveal at the exact endpoint regardless of the Hz timer,
+        // so the animation always closes out fully before the persisted canvas arrives.
+        if (anim.party && activeFogCanvasRef.current && activeVisionCanvasRef.current) {
+          const endPoint = {
+            x: pos.x * activeFogCanvasRef.current.width,
+            y: Math.max(0, pos.y * activeFogCanvasRef.current.height - anim.tokenHeight * 0.5),
+          }
+          if (anim.lastRevealCanvasPos) {
+            revealFromTokenStroke(
+              activeFogCanvasRef.current,
+              activeVisionCanvasRef.current,
+              anim.lastRevealCanvasPos,
+              endPoint,
+              anim.brushSize,
+              null,
+            )
+          } else {
+            revealFromTokenPoint(
+              activeFogCanvasRef.current,
+              activeVisionCanvasRef.current,
+              endPoint,
+              anim.brushSize,
+              null,
+            )
+          }
+        }
         // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
         delete tokenAnimationsRef.current[tokenId]
       }
