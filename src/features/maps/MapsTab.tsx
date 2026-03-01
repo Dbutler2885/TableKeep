@@ -41,6 +41,7 @@ import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage
 import { auth, db, storage } from '../../firebase'
 import { firebaseConfig } from '../../firebase/config'
 import type { Role } from '../../types/app'
+import { normalizeImageForUpload } from '../common/imageNormalization'
 import { TokenIconEditor, type TokenIconConfig } from '../tokens/TokenIconEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
 
@@ -1501,50 +1502,37 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     await updateToken(tokenId, { hidden: true })
   }
 
-  const getFileImageNaturalSize = (file: File) =>
-    new Promise<{ width: number; height: number }>((resolve, reject) => {
-      const objectUrl = URL.createObjectURL(file)
-      const image = new Image()
-      image.onload = () => {
-        resolve({
-          width: Math.max(1, image.naturalWidth || 1),
-          height: Math.max(1, image.naturalHeight || 1),
-        })
-        URL.revokeObjectURL(objectUrl)
-      }
-      image.onerror = () => {
-        URL.revokeObjectURL(objectUrl)
-        reject(new Error('Failed to read token image size'))
-      }
-      image.src = objectUrl
-    })
-
   const uploadTokenImage = async (file: File, assetName?: string) => {
     if (role !== 'gm') return
     setUploadingTokenImage(true)
     setMapError(null)
     try {
       await auth.currentUser?.getIdToken(true)
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const normalized = await normalizeImageForUpload(file, {
+        maxWidth: 1024,
+        maxHeight: 1024,
+        preferType: 'image/webp',
+        quality: 0.9,
+      })
+      const safeName = normalized.file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
       const tokenAssetPath = `campaigns/${campaignId}/token-assets/${Date.now()}-${safeName}`
       const tokenAssetRef = ref(storage, tokenAssetPath)
-      await uploadBytes(tokenAssetRef, file)
+      await uploadBytes(tokenAssetRef, normalized.file, { contentType: normalized.file.type })
       const url = await getDownloadURL(tokenAssetRef)
-      const dimensions = await getFileImageNaturalSize(file)
       const name = (assetName?.trim() || file.name.replace(/\.[^/.]+$/, '')).slice(0, 80)
       const assetRef = await addDoc(collection(db, 'campaigns', campaignId, 'tokenAssets'), {
         name,
         imagePath: tokenAssetPath,
         imageUrl: url,
-        width: dimensions.width,
-        height: dimensions.height,
+        width: normalized.width,
+        height: normalized.height,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
       setTokenAssets((prev) =>
         [
           ...prev,
-          { id: assetRef.id, name, imagePath: tokenAssetPath, imageUrl: url, width: dimensions.width, height: dimensions.height },
+          { id: assetRef.id, name, imagePath: tokenAssetPath, imageUrl: url, width: normalized.width, height: normalized.height },
         ].sort((a, b) =>
           a.name.localeCompare(b.name),
         ),
@@ -3534,4 +3522,3 @@ function GmMapControls({
     </div>
   )
 }
-

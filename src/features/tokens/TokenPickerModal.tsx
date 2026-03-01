@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, Upload, X } from 'lucide-react'
 import { TokenPawnPreview, type TokenIconConfig } from './TokenIconEditor'
+import { normalizeImageForDataUrl } from '../common/imageNormalization'
 
 type TokenPickerModalProps = {
   open: boolean
@@ -20,17 +21,23 @@ export function TokenPickerModal({ open, value, onConfirm, onCancel }: TokenPick
 
   const handleImageUpload = (file: File) => {
     if (!file.type.startsWith('image/')) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (typeof reader.result !== 'string') return
-      setDraft((current) => ({
-        ...current,
-        icon: 'custom',
-        customImageUrl: reader.result as string,
-        customImageName: file.name.replace(/\.[^/.]+$/, ''),
-      }))
-    }
-    reader.readAsDataURL(file)
+    void normalizeImageForDataUrl(file, {
+      maxWidth: 1024,
+      maxHeight: 1024,
+      preferType: 'image/webp',
+      quality: 0.9,
+    })
+      .then(({ dataUrl }) => {
+        setDraft((current) => ({
+          ...current,
+          icon: 'custom',
+          customImageUrl: dataUrl,
+          customImageName: file.name.replace(/\.[^/.]+$/, ''),
+        }))
+      })
+      .catch(() => {
+        // Keep current draft if uploaded image cannot be processed.
+      })
   }
 
   const previewImageUrl = draft.icon === 'custom' ? draft.customImageUrl : undefined

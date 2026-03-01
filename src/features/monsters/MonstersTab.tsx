@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, ChevronDown, ChevronLeft, ChevronUp, ImagePlus, Plus, Shield, Trash2, UserRound, X } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ChevronLeft, Plus, Shield, UserRound, X } from 'lucide-react'
 import type { Role } from '../../types/app'
 import { monsterRulesets, type MonsterRulesetId } from './rulesets'
 import { TokenPawnPreview, type TokenIconConfig } from '../tokens/TokenIconEditor'
-import { TokenPickerModal } from '../tokens/TokenPickerModal'
-import { ConfirmModal } from '../common/ConfirmModal'
+import { EntityMediaEditor } from '../common/EntityMediaEditor'
 
 type SaveType = 'death_poison' | 'wands' | 'paralysis_petrification' | 'breath' | 'spells' | 'custom'
 type OnHitEffectClass = 'save' | 'effect'
@@ -254,34 +253,13 @@ const newMonsterTemplate = (rulesetId: MonsterRulesetId): MonsterRecord => {
 export function MonstersTab({ role }: MonstersTabProps) {
   const [monsters, setMonsters] = useState<MonsterRecord[]>([])
   const [selectedMonsterId, setSelectedMonsterId] = useState<string | null>(null)
-  const [portraitError, setPortraitError] = useState<string | null>(null)
-  const [portraitDraft, setPortraitDraft] = useState<{
-    imageUrl: string
-    focusX: number
-    focusY: number
-  } | null>(null)
-  const [deletePortraitOpen, setDeletePortraitOpen] = useState(false)
-  const [tokenPickerOpen, setTokenPickerOpen] = useState(false)
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= 900)
   const [mobileMonsterView, setMobileMonsterView] = useState<'list' | 'detail'>('list')
-  const portraitDragOrigin = useRef<{ x: number; y: number; focusX: number; focusY: number } | null>(null)
 
   const canEdit = role === 'gm'
   const sortedMonsters = useMemo(() => [...monsters].sort((a, b) => a.name.localeCompare(b.name)), [monsters])
 
   const selectedMonster = sortedMonsters.find((monster) => monster.id === selectedMonsterId) ?? null
-  const selectedMonsterTokenAssets =
-    selectedMonster?.tokenIcon.customImageUrl
-      ? [
-          {
-            id: 'monster-custom',
-            name: selectedMonster.name.trim() || selectedMonster.tokenIcon.customImageName || 'Custom Icon',
-            imageUrl: selectedMonster.tokenIcon.customImageUrl,
-          },
-        ]
-      : []
-  const selectedMonsterTokenAssetId = selectedMonster?.tokenIcon.icon === 'custom' ? 'monster-custom' : ''
-  const selectedMonsterTokenImageUrl = selectedMonster?.tokenIcon.customImageUrl ?? ''
   const selectedRuleset = selectedMonster ? monsterRulesets[selectedMonster.rulesetId] : monsterRulesets.ose
   const savingThrowKeys = ['sv_d', 'sv_w', 'sv_p', 'sv_b', 'sv_s']
 
@@ -496,7 +474,6 @@ export function MonstersTab({ role }: MonstersTabProps) {
     const nextMonster = newMonsterTemplate('ose')
     setMonsters((current) => [nextMonster, ...current])
     setSelectedMonsterId(nextMonster.id)
-    setPortraitError(null)
     if (isMobile) setMobileMonsterView('detail')
   }
 
@@ -515,11 +492,6 @@ export function MonstersTab({ role }: MonstersTabProps) {
         [key]: value,
       },
     })
-  }
-
-  const removePortrait = () => {
-    updateSelectedMonster({ portraitUrl: null, portraitFocusX: 50, portraitFocusY: 50 })
-    setDeletePortraitOpen(false)
   }
 
   const addAttack = () => {
@@ -707,77 +679,8 @@ export function MonstersTab({ role }: MonstersTabProps) {
       .join(', ')
   }
 
-  const handlePortraitFile = (file: File | null) => {
-    if (!file || !selectedMonster) return
-    if (!file.type.startsWith('image/')) {
-      setPortraitError('Please choose an image file.')
-      return
-    }
-
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setPortraitDraft({ imageUrl: reader.result, focusX: selectedMonster.portraitFocusX, focusY: selectedMonster.portraitFocusY })
-        setPortraitError(null)
-      }
-    }
-    reader.readAsDataURL(file)
-  }
-
-  const applyPortraitDraft = () => {
-    if (!portraitDraft) return
-    updateSelectedMonster({
-      portraitUrl: portraitDraft.imageUrl,
-      portraitFocusX: portraitDraft.focusX,
-      portraitFocusY: portraitDraft.focusY,
-    })
-    setPortraitDraft(null)
-  }
-
-  const handlePortraitDragStart = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!portraitDraft) return
-    e.currentTarget.setPointerCapture(e.pointerId)
-    portraitDragOrigin.current = { x: e.clientX, y: e.clientY, focusX: portraitDraft.focusX, focusY: portraitDraft.focusY }
-  }
-
-  const handlePortraitDragMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!portraitDragOrigin.current || !portraitDraft) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const dx = e.clientX - portraitDragOrigin.current.x
-    const dy = e.clientY - portraitDragOrigin.current.y
-    const newFocusX = Math.max(0, Math.min(100, portraitDragOrigin.current.focusX - (dx / rect.width) * 100))
-    const newFocusY = Math.max(0, Math.min(100, portraitDragOrigin.current.focusY - (dy / rect.height) * 100))
-    setPortraitDraft((current) => (current ? { ...current, focusX: newFocusX, focusY: newFocusY } : current))
-  }
-
-  const handlePortraitDragEnd = () => {
-    portraitDragOrigin.current = null
-  }
-
   const portraitObjectPosition = (monster: MonsterRecord) =>
     `${monster.portraitFocusX ?? 50}% ${monster.portraitFocusY ?? 50}%`
-
-  const handleMonsterTokenImageUpload = (file: File, assetName?: string) => {
-    if (!selectedMonster) return
-    if (!file.type.startsWith('image/')) {
-      setPortraitError('Please choose an image file.')
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (typeof reader.result !== 'string') return
-      updateSelectedMonster({
-        tokenIcon: {
-          ...selectedMonster.tokenIcon,
-          icon: 'custom',
-          customImageUrl: reader.result,
-          customImageName: assetName?.trim() || selectedMonster.name.trim() || file.name.replace(/\.[^/.]+$/, ''),
-        },
-      })
-      setPortraitError(null)
-    }
-    reader.readAsDataURL(file)
-  }
 
   if (!canEdit) {
     return (
@@ -810,7 +713,6 @@ export function MonstersTab({ role }: MonstersTabProps) {
                 onClick={() => {
                   setSelectedMonsterId(monster.id)
                   if (isMobile) setMobileMonsterView('detail')
-                  setPortraitError(null)
                 }}
               >
                 <div className="monster-card-portrait">
@@ -921,60 +823,23 @@ export function MonstersTab({ role }: MonstersTabProps) {
                       />
                     </label>
 
-                    <button
-                      type="button"
-                      className="monster-token-thumb-frame monster-token-thumb-btn"
-                      onClick={() => setTokenPickerOpen(true)}
-                      aria-label="Edit token icon"
-                    >
-                      <TokenPawnPreview
-                        color={selectedMonster.tokenIcon.color}
-                        size={40}
-                        imageUrl={selectedMonster.tokenIcon.icon === 'custom' ? selectedMonster.tokenIcon.customImageUrl : undefined}
-                      />
-                    </button>
                   </div>
+                  {monsterStatline(selectedMonster) ? (
+                    <div className="monster-statline-preview">{monsterStatline(selectedMonster)}</div>
+                  ) : null}
                 </div>
-                <div className="monster-media-column">
-                  {selectedMonster.portraitUrl ? (
-                    <div className="monster-portrait-frame monster-portrait-frame-filled">
-                      <img
-                        src={selectedMonster.portraitUrl}
-                        alt="Monster portrait"
-                        className="monster-portrait"
-                        style={{ objectPosition: portraitObjectPosition(selectedMonster) }}
-                      />
-                      <button
-                        type="button"
-                        className="portrait-delete-btn"
-                        onClick={() => setDeletePortraitOpen(true)}
-                        aria-label="Remove portrait"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="monster-portrait-frame monster-portrait-frame-empty">
-                      <div className="monster-portrait-empty">
-                        <ImagePlus size={18} />
-                        <span>Portrait</span>
-                      </div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="sr-only"
-                        onChange={(event) => handlePortraitFile(event.target.files?.[0] ?? null)}
-                      />
-                    </label>
-                  )}
-                </div>
+                <EntityMediaEditor
+                  entityName={selectedMonster.name || 'monster'}
+                  portraitUrl={selectedMonster.portraitUrl}
+                  portraitFocusX={selectedMonster.portraitFocusX}
+                  portraitFocusY={selectedMonster.portraitFocusY}
+                  tokenIcon={selectedMonster.tokenIcon}
+                  onChange={(updates) => updateSelectedMonster(updates)}
+                  portraitAltLabel="Monster portrait"
+                  tokenButtonAriaLabel="Edit monster token icon"
+                  removePortraitMessage="Remove the portrait image from this monster?"
+                />
               </div>
-
-              {portraitError ? <p className="error">{portraitError}</p> : null}
-
-              {monsterStatline(selectedMonster) ? (
-                <div className="monster-statline-preview">{monsterStatline(selectedMonster)}</div>
-              ) : null}
 
               <h3 className="monster-section-title">Stats</h3>
               <div className="monster-stat-layout">
@@ -1361,55 +1226,6 @@ export function MonstersTab({ role }: MonstersTabProps) {
 
             </div>
             )}
-          </div>
-        </div>
-      ) : null}
-      <TokenPickerModal
-        open={tokenPickerOpen && selectedMonster !== null}
-        value={selectedMonster?.tokenIcon ?? { icon: 'pawn', color: '#bf2f2a', size: 34 }}
-        onConfirm={(tokenIcon) => {
-          updateSelectedMonster({ tokenIcon })
-          setTokenPickerOpen(false)
-        }}
-        onCancel={() => setTokenPickerOpen(false)}
-      />
-      <ConfirmModal
-        open={deletePortraitOpen}
-        title="Remove portrait?"
-        message="Remove the portrait image from this monster?"
-        confirmLabel="Remove"
-        onConfirm={removePortrait}
-        onCancel={() => setDeletePortraitOpen(false)}
-      />
-      {portraitDraft && selectedMonster ? (
-        <div className="monster-portrait-modal-overlay" role="dialog" aria-modal="true" aria-label="Adjust portrait">
-          <div className="monster-portrait-modal">
-            <div className="monster-portrait-modal-header">
-              <span className="monster-portrait-modal-hint">Drag to reposition</span>
-              <div className="monster-portrait-modal-actions">
-                <button type="button" className="modal-icon-btn" onClick={() => setPortraitDraft(null)} aria-label="Cancel">
-                  <X size={16} />
-                </button>
-                <button type="button" className="modal-icon-btn confirm" onClick={applyPortraitDraft} aria-label="Save portrait">
-                  <Check size={16} />
-                </button>
-              </div>
-            </div>
-            <div
-              className="monster-portrait-modal-preview monster-portrait-drag-zone"
-              onPointerDown={handlePortraitDragStart}
-              onPointerMove={handlePortraitDragMove}
-              onPointerUp={handlePortraitDragEnd}
-              onPointerCancel={handlePortraitDragEnd}
-            >
-              <img
-                src={portraitDraft.imageUrl}
-                alt=""
-                className="monster-portrait"
-                style={{ objectPosition: `${portraitDraft.focusX}% ${portraitDraft.focusY}%` }}
-                draggable={false}
-              />
-            </div>
           </div>
         </div>
       ) : null}

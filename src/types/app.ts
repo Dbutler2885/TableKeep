@@ -1,6 +1,6 @@
 export type Role = 'gm' | 'player'
 
-export type AppTab = 'character' | 'maps' | 'monsters' | 'npcs' | 'notes' | 'rules'
+export type AppTab = 'character' | 'maps' | 'monsters' | 'items' | 'npcs' | 'notes' | 'rules'
 
 export type Campaign = {
   id: string

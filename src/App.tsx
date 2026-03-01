@@ -18,6 +18,7 @@ import { CharacterTab } from './features/character/CharacterTab'
 import { PlaceholderTab } from './features/common/PlaceholderTab'
 import { MapsTab } from './features/maps/MapsTab'
 import { MonstersTab } from './features/monsters/MonstersTab'
+import { ItemsTab } from './features/items/ItemsTab'
 import { tabFromPathname, tabPaths, tabs } from './features/navigation/tabs'
 import { useCampaignAccess } from './features/campaign/useCampaignAccess'
 import { useCharacters } from './features/character/useCharacters'
@@ -164,6 +165,7 @@ function CampaignShell({ user }: { user: User }) {
               />
               <Route path={tabPaths.maps} element={<MapsTab campaignId={campaign.id} role={role} />} />
               <Route path={tabPaths.monsters} element={<MonstersTab role={role} />} />
+              <Route path={tabPaths.items} element={<ItemsTab role={role} />} />
               <Route path={tabPaths.npcs} element={<PlaceholderTab tab="npcs" />} />
               <Route path={tabPaths.notes} element={<PlaceholderTab tab="notes" />} />
               <Route path={tabPaths.rules} element={<PlaceholderTab tab="rules" />} />
