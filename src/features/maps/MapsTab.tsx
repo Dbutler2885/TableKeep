@@ -1430,7 +1430,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     const recordedDuration = lastWaypoint.t
     // Use recorded duration when available; fall back to distance-based estimate.
     const duration = recordedDuration !== undefined
-      ? Math.min(3000, Math.max(200, recordedDuration))
+      ? Math.min(3000, Math.max(200, recordedDuration * 1.1))
       : Math.min(1500, Math.max(400, fullPath.reduce((acc, p, i) =>
           i === 0 ? 0 : acc + Math.hypot(p.x - fullPath[i - 1].x, p.y - fullPath[i - 1].y), 0) * 1200))
     tokenAnimationsRef.current[tokenId] = {
@@ -2397,13 +2397,17 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
       try {
         const batch = writeBatch(db)
+        const dropTime = Date.now() - dragStartTime
         finalTokenIds.forEach((tokenId) => {
           const finalPosition = finalPositions[tokenId]
           if (!finalPosition) return
+          // Append the drop point with the real elapsed time so the path covers the
+          // full drag duration, including any slow-down or pause just before release.
+          const path = [...(dragPaths[tokenId] ?? []), { x: finalPosition.x, y: finalPosition.y, t: dropTime }]
           batch.update(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId), {
             x: finalPosition.x,
             y: finalPosition.y,
-            path: dragPaths[tokenId] ?? [],
+            path,
             updatedAt: serverTimestamp(),
           })
         })
