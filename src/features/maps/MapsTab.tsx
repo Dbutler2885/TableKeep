@@ -120,6 +120,7 @@ const FOG_COMPUTE_INTERVAL_MS = 80  // cap fog LOS recompute to ~12Hz during dra
 const FOG_COMPUTE_MIN_MOVE = 4      // canvas pixels; skip recompute if token barely moved
 const DRAG_PATH_SAMPLE_DISTANCE = 0.015  // normalized units between sampled waypoints
 const ANIM_REVEAL_INTERVAL_MS = 66       // ~15Hz fog reveal during path animation
+const FOG_CANVAS_MAX_DIM = 384          // cap fog canvas to this dimension regardless of device screen size
 
 type Waypoint = { x: number; y: number; t?: number }
 
@@ -239,6 +240,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [deletingTokenId, setDeletingTokenId] = useState('')
   const [inlineBaseSize, setInlineBaseSize] = useState({ width: 0, height: 0 })
   const [fullBaseSize, setFullBaseSize] = useState({ width: 0, height: 0 })
+  const [inlineFogSize, setInlineFogSize] = useState({ width: 0, height: 0 })
+  const [fullFogSize, setFullFogSize] = useState({ width: 0, height: 0 })
   const [mobilePlayerZoom, setMobilePlayerZoom] = useState(1)
   const [mobilePlayerPan, setMobilePlayerPan] = useState({ x: 0, y: 0 })
   const fullDragStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
@@ -282,7 +285,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const revealMaskCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const tokenAnimationsRef = useRef<Record<string, TokenPathAnimation>>({})
   const animRafRef = useRef<number | null>(null)
-  const animTickRef = useRef<() => void>(() => {})
+  const animTickRef = useRef<() => void>(() => { })
   const tokensRef = useRef<TokenRecord[]>([])
   const recentlyDroppedRef = useRef(new Set<string>())
   const pendingFogReloadRef = useRef(false)
@@ -294,7 +297,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     fromPos: { x: number; y: number },
     path: Waypoint[],
     token: TokenRecord,
-  ) => void>(() => {})
+  ) => void>(() => { })
 
   useEffect(() => {
     const mapsQuery = query(collection(db, 'campaigns', campaignId, 'maps'))
@@ -608,6 +611,13 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       usingFullScreenCanvas ? fullBaseSize.height : inlineBaseSize.height,
     ),
   )
+  const activeFogDimension = Math.max(
+    1,
+    Math.min(
+      usingFullScreenCanvas ? fullFogSize.width : inlineFogSize.width,
+      usingFullScreenCanvas ? fullFogSize.height : inlineFogSize.height,
+    ),
+  )
   const activeAnnotation = annotations.find((annotation) => annotation.id === activeAnnotationId) ?? null
   const selectedTokenAsset = tokenAssets.find((asset) => asset.id === selectedTokenAssetId) ?? null
   const selectionRectStyle = useMemo<React.CSSProperties | null>(() => {
@@ -665,7 +675,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const renderTokenViewDistance = (token: TokenRecord) => {
     const fallbackScale = DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION
     const scale = token.viewDistanceScale ?? fallbackScale
-    return Math.max(BRUSH_SIZE_MIN, Math.min(TOKEN_VIEW_DISTANCE_MAX, Math.round(scale * activeMapDimension)))
+    return Math.max(BRUSH_SIZE_MIN, Math.min(TOKEN_VIEW_DISTANCE_MAX, Math.round(scale * activeFogDimension)))
   }
   const tokenViewDistanceSliderValue = (token: TokenRecord) => {
     if (typeof token.viewDistance === 'number') return token.viewDistance
@@ -680,7 +690,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   }
   const effectiveFogBrushSize = Math.max(
     BRUSH_SIZE_MIN,
-    Math.min(320, Math.round((fogBrushSize / TOKEN_REFERENCE_DIMENSION) * activeMapDimension)),
+    Math.min(320, Math.round((fogBrushSize / TOKEN_REFERENCE_DIMENSION) * activeFogDimension)),
   )
   const autosizeAnnotationTextarea = useCallback((textarea: HTMLTextAreaElement | null) => {
     if (!textarea) return
@@ -1443,7 +1453,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     const duration = recordedDuration !== undefined
       ? Math.min(3000, Math.max(200, recordedDuration * 1.2))
       : Math.min(1500, Math.max(400, fullPath.reduce((acc, p, i) =>
-          i === 0 ? 0 : acc + Math.hypot(p.x - fullPath[i - 1].x, p.y - fullPath[i - 1].y), 0) * 1200))
+        i === 0 ? 0 : acc + Math.hypot(p.x - fullPath[i - 1].x, p.y - fullPath[i - 1].y), 0) * 1200))
     tokenAnimationsRef.current[tokenId] = {
       path: fullPath,
       startTime: Date.now(),
@@ -1602,7 +1612,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     setMapError(null)
 
     try {
-      const activeSize = usingFullScreenCanvas ? fullBaseSize : inlineBaseSize
+      const activeSize = usingFullScreenCanvas ? fullFogSize : inlineFogSize
       if (activeFogCanvasRef.current && activeSize.width > 0 && activeSize.height > 0) {
         const canvas = activeFogCanvasRef.current
         const ctx = canvas.getContext('2d', { willReadFrequently: true })
@@ -2573,14 +2583,14 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   useEffect(() => {
     if (fullScreenOpen || !selectedMap || !inlineFogCanvasRef.current) return
     if (isMobile && role === 'gm' && mobileGmPane !== 'map') return
-    if (inlineBaseSize.width <= 0 || inlineBaseSize.height <= 0) return
+    if (inlineFogSize.width <= 0 || inlineFogSize.height <= 0) return
 
     if (loadedInlineCanvasRef.current !== inlineFogCanvasRef.current) {
       loadedInlineCanvasRef.current = inlineFogCanvasRef.current
       loadedInlineFogKeyRef.current = ''
     }
 
-    const key = getFogCacheKey(selectedMap, inlineBaseSize.width, inlineBaseSize.height)
+    const key = getFogCacheKey(selectedMap, inlineFogSize.width, inlineFogSize.height)
     if (loadedInlineFogKeyRef.current === key) return
 
     // Defer fog canvas update if a token path animation is in progress — avoids
@@ -2591,12 +2601,12 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     }
 
     loadedInlineFogKeyRef.current = key
-    initializeFogCanvas(inlineFogCanvasRef.current, selectedMap, inlineBaseSize.width, inlineBaseSize.height)
+    initializeFogCanvas(inlineFogCanvasRef.current, selectedMap, inlineFogSize.width, inlineFogSize.height)
   }, [
     fogSampleTick,
     fullScreenOpen,
-    inlineBaseSize.height,
-    inlineBaseSize.width,
+    inlineFogSize.height,
+    inlineFogSize.width,
     isMobile,
     mobileGmPane,
     role,
@@ -2606,22 +2616,22 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   useEffect(() => {
     if (fullScreenOpen || !selectedMap || !inlineVisionCanvasRef.current) return
     if (isMobile && role === 'gm' && mobileGmPane !== 'map') return
-    if (inlineBaseSize.width <= 0 || inlineBaseSize.height <= 0) return
+    if (inlineFogSize.width <= 0 || inlineFogSize.height <= 0) return
 
     if (loadedInlineVisionCanvasRef.current !== inlineVisionCanvasRef.current) {
       loadedInlineVisionCanvasRef.current = inlineVisionCanvasRef.current
       loadedInlineVisionKeyRef.current = ''
     }
 
-    const key = `${selectedMap.id}:${selectedMap.visionBlockImagePath || selectedMap.visionBlockImageUrl || selectedMap.visionBlockDataUrl}:${inlineBaseSize.width}x${inlineBaseSize.height}`
+    const key = `${selectedMap.id}:${selectedMap.visionBlockImagePath || selectedMap.visionBlockImageUrl || selectedMap.visionBlockDataUrl}:${inlineFogSize.width}x${inlineFogSize.height}`
     if (loadedInlineVisionKeyRef.current === key) return
 
     loadedInlineVisionKeyRef.current = key
-    initializeVisionCanvas(inlineVisionCanvasRef.current, selectedMap, inlineBaseSize.width, inlineBaseSize.height)
+    initializeVisionCanvas(inlineVisionCanvasRef.current, selectedMap, inlineFogSize.width, inlineFogSize.height)
   }, [
     fullScreenOpen,
-    inlineBaseSize.height,
-    inlineBaseSize.width,
+    inlineFogSize.height,
+    inlineFogSize.width,
     isMobile,
     mobileGmPane,
     role,
@@ -2630,14 +2640,14 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
   useEffect(() => {
     if (!fullScreenOpen || !selectedMap || !fullFogCanvasRef.current) return
-    if (fullBaseSize.width <= 0 || fullBaseSize.height <= 0) return
+    if (fullFogSize.width <= 0 || fullFogSize.height <= 0) return
 
     if (loadedFogCanvasRef.current !== fullFogCanvasRef.current) {
       loadedFogCanvasRef.current = fullFogCanvasRef.current
       loadedFogKeyRef.current = ''
     }
 
-    const key = getFogCacheKey(selectedMap, fullBaseSize.width, fullBaseSize.height)
+    const key = getFogCacheKey(selectedMap, fullFogSize.width, fullFogSize.height)
     if (loadedFogKeyRef.current === key) return
 
     // Defer fog canvas update if a token path animation is in progress.
@@ -2647,24 +2657,24 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     }
 
     loadedFogKeyRef.current = key
-    initializeFogCanvas(fullFogCanvasRef.current, selectedMap, fullBaseSize.width, fullBaseSize.height)
-  }, [fogSampleTick, fullBaseSize.height, fullBaseSize.width, fullScreenOpen, selectedMap])
+    initializeFogCanvas(fullFogCanvasRef.current, selectedMap, fullFogSize.width, fullFogSize.height)
+  }, [fogSampleTick, fullFogSize.height, fullFogSize.width, fullScreenOpen, selectedMap])
 
   useEffect(() => {
     if (!fullScreenOpen || !selectedMap || !fullVisionCanvasRef.current) return
-    if (fullBaseSize.width <= 0 || fullBaseSize.height <= 0) return
+    if (fullFogSize.width <= 0 || fullFogSize.height <= 0) return
 
     if (loadedVisionCanvasRef.current !== fullVisionCanvasRef.current) {
       loadedVisionCanvasRef.current = fullVisionCanvasRef.current
       loadedVisionKeyRef.current = ''
     }
 
-    const key = `${selectedMap.id}:${selectedMap.visionBlockImagePath || selectedMap.visionBlockImageUrl || selectedMap.visionBlockDataUrl}:${fullBaseSize.width}x${fullBaseSize.height}`
+    const key = `${selectedMap.id}:${selectedMap.visionBlockImagePath || selectedMap.visionBlockImageUrl || selectedMap.visionBlockDataUrl}:${fullFogSize.width}x${fullFogSize.height}`
     if (loadedVisionKeyRef.current === key) return
 
     loadedVisionKeyRef.current = key
-    initializeVisionCanvas(fullVisionCanvasRef.current, selectedMap, fullBaseSize.width, fullBaseSize.height)
-  }, [fullBaseSize.height, fullBaseSize.width, fullScreenOpen, selectedMap])
+    initializeVisionCanvas(fullVisionCanvasRef.current, selectedMap, fullFogSize.width, fullFogSize.height)
+  }, [fullFogSize.height, fullFogSize.width, fullScreenOpen, selectedMap])
 
   const handleDrop = async (targetMapId: string) => {
     if (!draggingMapId || draggingMapId === targetMapId) {
@@ -2699,365 +2709,370 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   return (
     <div className="maps-layout">
       {showListPane ? (
-      <aside className="maps-sidebar">
-        <div className="maps-sidebar-header">
-          <h2>Maps</h2>
-          {role === 'gm' ? (
-            <label className="upload-trigger">
-              <Upload size={16} />
-              {uploading ? 'Uploading...' : 'Upload'}
-              <input type="file" accept="image/*" onChange={handleMapUpload} disabled={uploading} />
-            </label>
+        <aside className="maps-sidebar">
+          <div className="maps-sidebar-header">
+            <h2>Maps</h2>
+            {role === 'gm' ? (
+              <label className="upload-trigger">
+                <Upload size={16} />
+                {uploading ? 'Uploading...' : 'Upload'}
+                <input type="file" accept="image/*" onChange={handleMapUpload} disabled={uploading} />
+              </label>
+            ) : null}
+          </div>
+          <p className="maps-role">Role: {role ?? 'unknown'}</p>
+
+          {mapsLoading ? <p>Loading maps...</p> : null}
+          {!mapsLoading && maps.length === 0 ? <p>No maps uploaded yet.</p> : null}
+          {!mapsLoading && maps.length > 0 && visibleMaps.length === 0 && role !== 'gm' ? (
+            <p>No maps revealed to players yet.</p>
           ) : null}
-        </div>
-        <p className="maps-role">Role: {role ?? 'unknown'}</p>
 
-        {mapsLoading ? <p>Loading maps...</p> : null}
-        {!mapsLoading && maps.length === 0 ? <p>No maps uploaded yet.</p> : null}
-        {!mapsLoading && maps.length > 0 && visibleMaps.length === 0 && role !== 'gm' ? (
-          <p>No maps revealed to players yet.</p>
-        ) : null}
-
-        <div className="maps-list">
-          {visibleMaps.map((map) => (
-            <div
-              key={map.id}
-              className={[
-                'map-row',
-                map.id === selectedMapId ? 'active' : '',
-                map.id === dragOverMapId ? 'drag-over' : '',
-                map.id === draggingMapId ? 'dragging' : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              draggable={role === 'gm'}
-              onDragStart={() => handleDragStart(map.id)}
-              onDragOver={(event) => {
-                event.preventDefault()
-                if (dragOverMapId !== map.id) setDragOverMapId(map.id)
-              }}
-              onDragLeave={() => {
-                if (dragOverMapId === map.id) setDragOverMapId('')
-              }}
-              onDrop={(event) => {
-                event.preventDefault()
-                void handleDrop(map.id)
-              }}
-              onDragEnd={() => {
-                setDraggingMapId('')
-                setDragOverMapId('')
-              }}
-            >
+          <div className="maps-list">
+            {visibleMaps.map((map) => (
               <div
-                className="map-select"
-                role="button"
-                tabIndex={0}
-                onClick={() => selectMap(map.id)}
-                onKeyDown={(event) => {
-                  const target = event.target as HTMLElement
-                  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-                    return
-                  }
-                  if (event.key === 'Enter' || event.key === ' ') {
-                    event.preventDefault()
-                    selectMap(map.id)
-                  }
+                key={map.id}
+                className={[
+                  'map-row',
+                  map.id === selectedMapId ? 'active' : '',
+                  map.id === dragOverMapId ? 'drag-over' : '',
+                  map.id === draggingMapId ? 'dragging' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                draggable={role === 'gm'}
+                onDragStart={() => handleDragStart(map.id)}
+                onDragOver={(event) => {
+                  event.preventDefault()
+                  if (dragOverMapId !== map.id) setDragOverMapId(map.id)
+                }}
+                onDragLeave={() => {
+                  if (dragOverMapId === map.id) setDragOverMapId('')
+                }}
+                onDrop={(event) => {
+                  event.preventDefault()
+                  void handleDrop(map.id)
+                }}
+                onDragEnd={() => {
+                  setDraggingMapId('')
+                  setDragOverMapId('')
                 }}
               >
-                <div className="map-thumb-column">
-                  <div className="map-thumb-wrap">
-                    {role === 'gm' && map.imageUrl ? <img src={map.imageUrl} alt={map.name} className="map-thumb" /> : null}
+                <div
+                  className="map-select"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => selectMap(map.id)}
+                  onKeyDown={(event) => {
+                    const target = event.target as HTMLElement
+                    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+                      return
+                    }
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      selectMap(map.id)
+                    }
+                  }}
+                >
+                  <div className="map-thumb-column">
+                    <div className="map-thumb-wrap">
+                      {role === 'gm' && map.imageUrl ? <img src={map.imageUrl} alt={map.name} className="map-thumb" /> : null}
+                    </div>
+                    {role === 'gm' ? (
+                      <button
+                        type="button"
+                        className={map.visibleToPlayers ? 'map-visibility-btn on' : 'map-visibility-btn'}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          void togglePlayerVisibility(map, !map.visibleToPlayers)
+                        }}
+                        aria-label={map.visibleToPlayers ? 'Visible to players' : 'Hidden from players'}
+                      >
+                        {map.visibleToPlayers ? <Check size={14} /> : <Circle size={14} />}
+                      </button>
+                    ) : null}
                   </div>
-                  {role === 'gm' ? (
+                  <div className="map-meta">
+                    {editingMapId === map.id ? (
+                      <input
+                        value={editName}
+                        onChange={(event) => setEditName(event.target.value)}
+                        aria-label="Edit map name"
+                      />
+                    ) : (
+                      <strong>{map.name}</strong>
+                    )}
+                  </div>
+                </div>
+
+                {role === 'gm' ? (
+                  <div className="map-actions">
+                    {editingMapId === map.id ? (
+                      <button type="button" className="map-edit-btn" onClick={() => void saveRename(map.id)}>
+                        <Check size={14} />
+                      </button>
+                    ) : (
+                      <button type="button" className="map-edit-btn" onClick={() => startRename(map)}>
+                        <Pencil size={14} />
+                      </button>
+                    )}
                     <button
                       type="button"
-                      className={map.visibleToPlayers ? 'map-visibility-btn on' : 'map-visibility-btn'}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        void togglePlayerVisibility(map, !map.visibleToPlayers)
-                      }}
-                      aria-label={map.visibleToPlayers ? 'Visible to players' : 'Hidden from players'}
+                      className="map-delete-btn"
+                      onClick={() => setDeleteCandidate(map)}
+                      disabled={deletingMapId === map.id}
+                      aria-label={`Delete ${map.name}`}
                     >
-                      {map.visibleToPlayers ? <Check size={14} /> : <Circle size={14} />}
+                      <Trash2 size={14} />
                     </button>
-                  ) : null}
-                </div>
-                <div className="map-meta">
-                  {editingMapId === map.id ? (
-                    <input
-                      value={editName}
-                      onChange={(event) => setEditName(event.target.value)}
-                      aria-label="Edit map name"
-                    />
-                  ) : (
-                    <strong>{map.name}</strong>
-                  )}
-                </div>
+                  </div>
+                ) : null}
               </div>
+            ))}
+          </div>
 
-              {role === 'gm' ? (
-                <div className="map-actions">
-                  {editingMapId === map.id ? (
-                    <button type="button" className="map-edit-btn" onClick={() => void saveRename(map.id)}>
-                      <Check size={14} />
-                    </button>
-                  ) : (
-                    <button type="button" className="map-edit-btn" onClick={() => startRename(map)}>
-                      <Pencil size={14} />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="map-delete-btn"
-                    onClick={() => setDeleteCandidate(map)}
-                    disabled={deletingMapId === map.id}
-                    aria-label={`Delete ${map.name}`}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-
-        {mapError ? <p className="error">{mapError}</p> : null}
-      </aside>
+          {mapError ? <p className="error">{mapError}</p> : null}
+        </aside>
       ) : null}
 
       {showMapPane ? (
-      <div
-        className={[
-          role === 'gm' ? 'maps-main gm' : 'maps-main player',
-          isMobile && role === 'gm' ? 'mobile-gm' : '',
-          isMobile && role !== 'gm' ? 'mobile-player' : '',
-        ]
-          .filter(Boolean)
-          .join(' ')}
-      >
-        {isMobile && role !== 'gm' ? (
-          <button type="button" className="map-mobile-back" onClick={() => setMobileMapView('list')}>
-            <ChevronLeft size={16} />
-          </button>
-        ) : null}
-        {!isMobile || role !== 'gm' || mobileGmPane === 'map' ? (
-        <div className={isMobileZoomMapView ? 'map-stage mobile-player-stage' : 'map-stage'}>
-          {!isMobile ? (
-            <button type="button" className="map-fullscreen-btn" onClick={openFullScreen}>
-              <Maximize2 size={15} />
-              Full Screen
-            </button>
-          ) : null}
-          {selectedMap?.imageUrl ? (
-            <div
-              ref={inlineMapLayerRef}
-              className={isMobileZoomMapView ? 'map-zoom-layer mobile-player-zoom' : 'map-zoom-layer'}
-              onContextMenu={(event) => event.preventDefault()}
-              onMouseDown={handleMapLayerMouseDown}
-              onClick={handleMapLayerClick}
-              onTouchStart={handleMobilePlayerTouchStart}
-              onTouchMove={handleMobilePlayerTouchMove}
-              onTouchEnd={handleMobilePlayerTouchEnd}
-              onTouchCancel={handleMobilePlayerTouchEnd}
-              style={
-                isMobileZoomMapView
-                  ? {
-                      transform: `translate(${mobilePlayerPan.x}px, ${mobilePlayerPan.y}px) scale(${mobilePlayerZoom})`,
-                    }
-                  : undefined
-              }
-            >
-              <img
-                src={selectedMap.imageUrl}
-                alt={selectedMap.name}
-                className="map-image inline-map-image"
-                onLoad={(event) => {
-                  const target = event.currentTarget
-                  setInlineBaseSize({
-                    width: Math.max(1, Math.round(target.clientWidth)),
-                    height: Math.max(1, Math.round(target.clientHeight)),
-                  })
-                  loadedInlineFogKeyRef.current = ''
-                  loadedInlineVisionKeyRef.current = ''
-                }}
-              />
-              <canvas
-                ref={inlineFogCanvasRef}
-                className={tokenPlaceMode || (!fogTool && !visionTool) ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
-                width={Math.max(1, inlineBaseSize.width)}
-                height={Math.max(1, inlineBaseSize.height)}
-                style={{ opacity: fogDisplayOpacity }}
-                onMouseDown={handleFogPointerDown}
-                onMouseMove={handleFogPointerMove}
-                onMouseUp={handleFogPointerUp}
-                onMouseLeave={handleFogPointerUp}
-                onTouchStart={handleFogTouchStart}
-                onTouchMove={handleFogTouchMove}
-                onTouchEnd={handleFogTouchEnd}
-                onTouchCancel={handleFogTouchEnd}
-              />
-              <canvas
-                ref={inlineVisionCanvasRef}
-                className="map-vision-canvas"
-                width={Math.max(1, inlineBaseSize.width)}
-                height={Math.max(1, inlineBaseSize.height)}
-                style={{ opacity: visionOverlayOpacity }}
-              />
-              <div className={role === 'gm' ? 'map-token-layer gm' : 'map-token-layer'} aria-hidden={role !== 'gm'}>
-                {tokens.map(renderTokenItem)}
-              </div>
-              {role === 'gm' && tokenSelectionBox && selectionRectStyle ? (
-                <div className="map-token-selection-box" style={selectionRectStyle} />
-              ) : null}
-              {role === 'gm' && !streamingMode ? (
-                <div className="map-annotation-layer" aria-label="Map annotations">
-                  {annotations.map((annotation) => (
-                    <div
-                      key={annotation.id}
-                      className={activeAnnotationId === annotation.id ? 'map-annotation active' : 'map-annotation'}
-                      style={{ left: `${annotation.x * 100}%`, top: `${annotation.y * 100}%` }}
-                    >
-                      <button
-                        type="button"
-                        className={activeAnnotationId === annotation.id ? 'map-annotation-btn active' : 'map-annotation-btn'}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          if (activeAnnotationId === annotation.id) {
-                            void commitActiveAnnotation()
-                            setActiveAnnotationId('')
-                            return
-                          }
-                          setActiveAnnotationId(annotation.id)
-                          setActiveAnnotationDraft(annotation.text)
-                        }}
-                        aria-label="Map annotation"
-                      >
-                        <Flag size={14} />
-                      </button>
-                      {activeAnnotationId === annotation.id ? (
-                        <div className="map-annotation-popover" onClick={(event) => event.stopPropagation()}>
-                          <textarea
-                            value={activeAnnotationDraft}
-                            onChange={(event) => {
-                              setActiveAnnotationDraft(event.target.value)
-                              autosizeAnnotationTextarea(event.currentTarget)
-                            }}
-                            onBlur={() => {
-                              void commitActiveAnnotation()
-                            }}
-                            ref={autosizeAnnotationTextarea}
-                            placeholder="GM note"
-                            rows={4}
-                          />
-                          <button
-                            type="button"
-                            className="map-annotation-delete"
-                            onClick={() => void deleteAnnotation(annotation.id)}
-                            aria-label="Delete annotation"
-                            title="Delete annotation"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <p>Select a map from the list.</p>
-          )}
-        </div>
-        ) : null}
-
-        {role === 'gm' && (!isMobile || mobileGmPane === 'controls') ? (
-          <aside className="map-controls">
-            <GmMapControls
-              fogTool={fogTool}
-              setFogTool={setFogTool}
-              visionTool={visionTool}
-              setVisionTool={setVisionTool}
-              fogBrushSize={fogBrushSize}
-              setFogBrushSize={setFogBrushSize}
-              fogBrushStrength={fogBrushStrength}
-              setFogBrushStrength={setFogBrushStrength}
-              tokenPlaceMode={tokenPlaceMode}
-              setTokenPlaceMode={setTokenPlaceMode}
-              tokenSelectMode={tokenSelectMode}
-              setTokenSelectMode={setTokenSelectMode}
-              annotationPlaceMode={annotationPlaceMode}
-              setAnnotationPlaceMode={setAnnotationPlaceMode}
-              tokenColor={tokenColor}
-              setTokenColor={setTokenColor}
-              tokenSize={tokenSize}
-              setTokenSize={setTokenSize}
-              tokenAssets={tokenAssets}
-              selectedTokenAssetId={selectedTokenAssetId}
-              setSelectedTokenAssetId={setSelectedTokenAssetId}
-              selectedTokenImageUrl={selectedTokenAsset?.imageUrl ?? ''}
-              uploadingTokenImage={uploadingTokenImage}
-              onUploadTokenImage={uploadTokenImage}
-              streamingMode={streamingMode}
-              setStreamingMode={setStreamingMode}
-              applyFogPreset={applyFogPreset}
-              canApplyPreset={Boolean(selectedMap)}
-              fullyHidden={selectedMap?.fullyHidden === true}
-              tokens={tokens}
-              selectedTokenIds={selectedTokenIds}
-              onUpdateToken={updateToken}
-              onUpdateTokenSize={async (tokenId, size) => {
-                const sizeScale = size / TOKEN_REFERENCE_DIMENSION
-                setTokens((prev) =>
-                  prev.map((token) => (token.id === tokenId ? { ...token, size, sizeScale } : token)),
-                )
-                await updateToken(tokenId, { size, sizeScale })
-              }}
-              onUpdateTokenViewDistance={async (tokenId, viewDistance) => {
-                const viewDistanceScale = viewDistance / TOKEN_REFERENCE_DIMENSION
-                setTokens((prev) =>
-                  prev.map((token) =>
-                    token.id === tokenId ? { ...token, viewDistance, viewDistanceScale } : token,
-                  ),
-                )
-                await updateToken(tokenId, { viewDistance, viewDistanceScale })
-              }}
-              tokenViewDistanceSliderValue={tokenViewDistanceSliderValue}
-              onRequestDeleteToken={requestDeleteToken}
-            />
-          </aside>
-        ) : null}
-
-        {isMobile && role === 'gm' ? (
-          <div className="map-mobile-panel-nav">
-            <button
-              type="button"
-              onClick={() => setMobileMapView('list')}
-              aria-label="Back to map list"
-            >
+        <div
+          className={[
+            role === 'gm' ? 'maps-main gm' : 'maps-main player',
+            isMobile && role === 'gm' ? 'mobile-gm' : '',
+            isMobile && role !== 'gm' ? 'mobile-player' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
+          {isMobile && role !== 'gm' ? (
+            <button type="button" className="map-mobile-back" onClick={() => setMobileMapView('list')}>
               <ChevronLeft size={16} />
             </button>
-            <button
-              type="button"
-              className={mobileGmPane === 'map' ? 'active' : ''}
-              onClick={() => setMobileGmPane('map')}
-              disabled={mobileGmPane === 'map'}
-              aria-label="Map pane"
-            >
-              <Map size={16} />
-            </button>
-            <button
-              type="button"
-              className={mobileGmPane === 'controls' ? 'active' : ''}
-              onClick={() => setMobileGmPane('controls')}
-              disabled={mobileGmPane === 'controls'}
-              aria-label="Controls pane"
-            >
-              <SlidersHorizontal size={16} />
-            </button>
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+          {!isMobile || role !== 'gm' || mobileGmPane === 'map' ? (
+            <div className={isMobileZoomMapView ? 'map-stage mobile-player-stage' : 'map-stage'}>
+              {!isMobile ? (
+                <button type="button" className="map-fullscreen-btn" onClick={openFullScreen}>
+                  <Maximize2 size={15} />
+                  Full Screen
+                </button>
+              ) : null}
+              {selectedMap?.imageUrl ? (
+                <div
+                  ref={inlineMapLayerRef}
+                  className={isMobileZoomMapView ? 'map-zoom-layer mobile-player-zoom' : 'map-zoom-layer'}
+                  onContextMenu={(event) => event.preventDefault()}
+                  onMouseDown={handleMapLayerMouseDown}
+                  onClick={handleMapLayerClick}
+                  onTouchStart={handleMobilePlayerTouchStart}
+                  onTouchMove={handleMobilePlayerTouchMove}
+                  onTouchEnd={handleMobilePlayerTouchEnd}
+                  onTouchCancel={handleMobilePlayerTouchEnd}
+                  style={
+                    isMobileZoomMapView
+                      ? {
+                        transform: `translate(${mobilePlayerPan.x}px, ${mobilePlayerPan.y}px) scale(${mobilePlayerZoom})`,
+                      }
+                      : undefined
+                  }
+                >
+                  <img
+                    src={selectedMap.imageUrl}
+                    alt={selectedMap.name}
+                    className="map-image inline-map-image"
+                    onLoad={(event) => {
+                      const target = event.currentTarget
+                      setInlineBaseSize({
+                        width: Math.max(1, Math.round(target.clientWidth)),
+                        height: Math.max(1, Math.round(target.clientHeight)),
+                      })
+                      const fogScale = Math.min(1, FOG_CANVAS_MAX_DIM / Math.max(target.naturalWidth, target.naturalHeight, 1))
+                      setInlineFogSize({
+                        width: Math.max(1, Math.round(target.naturalWidth * fogScale)),
+                        height: Math.max(1, Math.round(target.naturalHeight * fogScale)),
+                      })
+                      loadedInlineFogKeyRef.current = ''
+                      loadedInlineVisionKeyRef.current = ''
+                    }}
+                  />
+                  <canvas
+                    ref={inlineFogCanvasRef}
+                    className={tokenPlaceMode || (!fogTool && !visionTool) ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
+                    width={Math.max(1, inlineFogSize.width)}
+                    height={Math.max(1, inlineFogSize.height)}
+                    style={{ opacity: fogDisplayOpacity }}
+                    onMouseDown={handleFogPointerDown}
+                    onMouseMove={handleFogPointerMove}
+                    onMouseUp={handleFogPointerUp}
+                    onMouseLeave={handleFogPointerUp}
+                    onTouchStart={handleFogTouchStart}
+                    onTouchMove={handleFogTouchMove}
+                    onTouchEnd={handleFogTouchEnd}
+                    onTouchCancel={handleFogTouchEnd}
+                  />
+                  <canvas
+                    ref={inlineVisionCanvasRef}
+                    className="map-vision-canvas"
+                    width={Math.max(1, inlineFogSize.width)}
+                    height={Math.max(1, inlineFogSize.height)}
+                    style={{ opacity: visionOverlayOpacity }}
+                  />
+                  <div className={role === 'gm' ? 'map-token-layer gm' : 'map-token-layer'} aria-hidden={role !== 'gm'}>
+                    {tokens.map(renderTokenItem)}
+                  </div>
+                  {role === 'gm' && tokenSelectionBox && selectionRectStyle ? (
+                    <div className="map-token-selection-box" style={selectionRectStyle} />
+                  ) : null}
+                  {role === 'gm' && !streamingMode ? (
+                    <div className="map-annotation-layer" aria-label="Map annotations">
+                      {annotations.map((annotation) => (
+                        <div
+                          key={annotation.id}
+                          className={activeAnnotationId === annotation.id ? 'map-annotation active' : 'map-annotation'}
+                          style={{ left: `${annotation.x * 100}%`, top: `${annotation.y * 100}%` }}
+                        >
+                          <button
+                            type="button"
+                            className={activeAnnotationId === annotation.id ? 'map-annotation-btn active' : 'map-annotation-btn'}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              if (activeAnnotationId === annotation.id) {
+                                void commitActiveAnnotation()
+                                setActiveAnnotationId('')
+                                return
+                              }
+                              setActiveAnnotationId(annotation.id)
+                              setActiveAnnotationDraft(annotation.text)
+                            }}
+                            aria-label="Map annotation"
+                          >
+                            <Flag size={14} />
+                          </button>
+                          {activeAnnotationId === annotation.id ? (
+                            <div className="map-annotation-popover" onClick={(event) => event.stopPropagation()}>
+                              <textarea
+                                value={activeAnnotationDraft}
+                                onChange={(event) => {
+                                  setActiveAnnotationDraft(event.target.value)
+                                  autosizeAnnotationTextarea(event.currentTarget)
+                                }}
+                                onBlur={() => {
+                                  void commitActiveAnnotation()
+                                }}
+                                ref={autosizeAnnotationTextarea}
+                                placeholder="GM note"
+                                rows={4}
+                              />
+                              <button
+                                type="button"
+                                className="map-annotation-delete"
+                                onClick={() => void deleteAnnotation(annotation.id)}
+                                aria-label="Delete annotation"
+                                title="Delete annotation"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <p>Select a map from the list.</p>
+              )}
+            </div>
+          ) : null}
+
+          {role === 'gm' && (!isMobile || mobileGmPane === 'controls') ? (
+            <aside className="map-controls">
+              <GmMapControls
+                fogTool={fogTool}
+                setFogTool={setFogTool}
+                visionTool={visionTool}
+                setVisionTool={setVisionTool}
+                fogBrushSize={fogBrushSize}
+                setFogBrushSize={setFogBrushSize}
+                fogBrushStrength={fogBrushStrength}
+                setFogBrushStrength={setFogBrushStrength}
+                tokenPlaceMode={tokenPlaceMode}
+                setTokenPlaceMode={setTokenPlaceMode}
+                tokenSelectMode={tokenSelectMode}
+                setTokenSelectMode={setTokenSelectMode}
+                annotationPlaceMode={annotationPlaceMode}
+                setAnnotationPlaceMode={setAnnotationPlaceMode}
+                tokenColor={tokenColor}
+                setTokenColor={setTokenColor}
+                tokenSize={tokenSize}
+                setTokenSize={setTokenSize}
+                tokenAssets={tokenAssets}
+                selectedTokenAssetId={selectedTokenAssetId}
+                setSelectedTokenAssetId={setSelectedTokenAssetId}
+                selectedTokenImageUrl={selectedTokenAsset?.imageUrl ?? ''}
+                uploadingTokenImage={uploadingTokenImage}
+                onUploadTokenImage={uploadTokenImage}
+                streamingMode={streamingMode}
+                setStreamingMode={setStreamingMode}
+                applyFogPreset={applyFogPreset}
+                canApplyPreset={Boolean(selectedMap)}
+                fullyHidden={selectedMap?.fullyHidden === true}
+                tokens={tokens}
+                selectedTokenIds={selectedTokenIds}
+                onUpdateToken={updateToken}
+                onUpdateTokenSize={async (tokenId, size) => {
+                  const sizeScale = size / TOKEN_REFERENCE_DIMENSION
+                  setTokens((prev) =>
+                    prev.map((token) => (token.id === tokenId ? { ...token, size, sizeScale } : token)),
+                  )
+                  await updateToken(tokenId, { size, sizeScale })
+                }}
+                onUpdateTokenViewDistance={async (tokenId, viewDistance) => {
+                  const viewDistanceScale = viewDistance / TOKEN_REFERENCE_DIMENSION
+                  setTokens((prev) =>
+                    prev.map((token) =>
+                      token.id === tokenId ? { ...token, viewDistance, viewDistanceScale } : token,
+                    ),
+                  )
+                  await updateToken(tokenId, { viewDistance, viewDistanceScale })
+                }}
+                tokenViewDistanceSliderValue={tokenViewDistanceSliderValue}
+                onRequestDeleteToken={requestDeleteToken}
+              />
+            </aside>
+          ) : null}
+
+          {isMobile && role === 'gm' ? (
+            <div className="map-mobile-panel-nav">
+              <button
+                type="button"
+                onClick={() => setMobileMapView('list')}
+                aria-label="Back to map list"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <button
+                type="button"
+                className={mobileGmPane === 'map' ? 'active' : ''}
+                onClick={() => setMobileGmPane('map')}
+                disabled={mobileGmPane === 'map'}
+                aria-label="Map pane"
+              >
+                <Map size={16} />
+              </button>
+              <button
+                type="button"
+                className={mobileGmPane === 'controls' ? 'active' : ''}
+                onClick={() => setMobileGmPane('controls')}
+                disabled={mobileGmPane === 'controls'}
+                aria-label="Controls pane"
+              >
+                <SlidersHorizontal size={16} />
+              </button>
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
       {fullScreenOpen && !isMobile ? (
@@ -3085,14 +3100,14 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
               </button>
 
               {selectedMap?.imageUrl ? (
-            <div
-              className="map-zoom-layer"
-              ref={fullMapLayerRef}
-              onMouseDown={handleMapLayerMouseDown}
-              onClick={handleMapLayerClick}
-              style={{
-                transform: `translate(${fullPan.x}px, ${fullPan.y}px) scale(${fullZoom})`,
-              }}
+                <div
+                  className="map-zoom-layer"
+                  ref={fullMapLayerRef}
+                  onMouseDown={handleMapLayerMouseDown}
+                  onClick={handleMapLayerClick}
+                  style={{
+                    transform: `translate(${fullPan.x}px, ${fullPan.y}px) scale(${fullZoom})`,
+                  }}
                 >
                   <img
                     src={selectedMap.imageUrl}
@@ -3105,14 +3120,19 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                         width: Math.max(1, Math.round(target.clientWidth)),
                         height: Math.max(1, Math.round(target.clientHeight)),
                       })
+                      const fogScale = Math.min(1, FOG_CANVAS_MAX_DIM / Math.max(target.naturalWidth, target.naturalHeight, 1))
+                      setFullFogSize({
+                        width: Math.max(1, Math.round(target.naturalWidth * fogScale)),
+                        height: Math.max(1, Math.round(target.naturalHeight * fogScale)),
+                      })
                       loadedVisionKeyRef.current = ''
                     }}
                   />
                   <canvas
                     ref={fullFogCanvasRef}
                     className={tokenPlaceMode || (!fogTool && !visionTool) ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
-                    width={Math.max(1, fullBaseSize.width)}
-                    height={Math.max(1, fullBaseSize.height)}
+                    width={Math.max(1, fullFogSize.width)}
+                    height={Math.max(1, fullFogSize.height)}
                     style={{ opacity: fogDisplayOpacity }}
                     onMouseDown={handleFogPointerDown}
                     onMouseMove={handleFogPointerMove}
@@ -3122,8 +3142,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                   <canvas
                     ref={fullVisionCanvasRef}
                     className="map-vision-canvas"
-                    width={Math.max(1, fullBaseSize.width)}
-                    height={Math.max(1, fullBaseSize.height)}
+                    width={Math.max(1, fullFogSize.width)}
+                    height={Math.max(1, fullFogSize.height)}
                     style={{ opacity: visionOverlayOpacity }}
                   />
                   <div className={role === 'gm' ? 'map-token-layer gm' : 'map-token-layer'} aria-label="Map tokens">
@@ -3528,120 +3548,120 @@ function GmMapControls({
         </div>
       ) : null}
       {!streamingMode ? (
-      <div className="token-list">
-        {tokens.map((token, index) => (
-          <div key={token.id} className={selectedTokenIds.includes(token.id) ? 'token-row selected' : 'token-row'}>
-            <span className="token-row-icon" style={{ color: token.color }} aria-hidden>
-              {token.tokenImageUrl ? (
-                <img src={token.tokenImageUrl} alt="" className="token-row-image" />
-              ) : (
-                <ChessPawn size={14} />
-              )}
-            </span>
-            <input
-              type="text"
-              className="token-row-label-input"
-              value={tokenNameDrafts[token.id] ?? token.name}
-              onFocus={() =>
-                setTokenNameDrafts((prev) => ({
-                  ...prev,
-                  [token.id]: token.name,
-                }))
-              }
-              onChange={(event) =>
-                setTokenNameDrafts((prev) => ({
-                  ...prev,
-                  [token.id]: event.target.value,
-                }))
-              }
-              onBlur={(event) => void commitTokenLabelEdit(token, event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.currentTarget.blur()
+        <div className="token-list">
+          {tokens.map((token, index) => (
+            <div key={token.id} className={selectedTokenIds.includes(token.id) ? 'token-row selected' : 'token-row'}>
+              <span className="token-row-icon" style={{ color: token.color }} aria-hidden>
+                {token.tokenImageUrl ? (
+                  <img src={token.tokenImageUrl} alt="" className="token-row-image" />
+                ) : (
+                  <ChessPawn size={14} />
+                )}
+              </span>
+              <input
+                type="text"
+                className="token-row-label-input"
+                value={tokenNameDrafts[token.id] ?? token.name}
+                onFocus={() =>
+                  setTokenNameDrafts((prev) => ({
+                    ...prev,
+                    [token.id]: token.name,
+                  }))
                 }
-              }}
-              aria-label={`Token ${index + 1} name`}
-              placeholder={`Token ${index + 1}`}
-            />
-            <input
-              type="color"
-              value={token.color}
-              onChange={(event) => void onUpdateToken(token.id, { color: event.target.value })}
-              aria-label={`Token ${index + 1} color`}
-            />
-            <button
-              type="button"
-              className="token-row-delete"
-              onClick={() => onRequestDeleteToken(token.id)}
-              aria-label={`Delete token ${index + 1}`}
-              title="Delete token"
-            >
-              <Trash2 size={14} />
-            </button>
-            <input
-              type="range"
-              className="token-row-size-slider"
-              min={16}
-              max={TOKEN_SIZE_MAX}
-              step={1}
-              value={token.size}
-              onChange={(event) => void onUpdateTokenSize(token.id, Number(event.target.value))}
-              aria-label={`Token ${index + 1} size`}
-            />
-            <span className="token-row-size-value">{token.size}</span>
-            <div className="token-row-toggles">
-              <label className="token-party-toggle">
-                <input
-                  type="checkbox"
-                  checked={token.party}
-                  onChange={(event) => {
-                    const checked = event.target.checked
-                    if (checked) {
-                      const viewDistance = tokenViewDistanceSliderValue(token)
-                      void onUpdateToken(token.id, {
-                        party: checked,
-                        viewDistance,
-                      })
-                      return
-                    }
-                    void onUpdateToken(token.id, { party: checked })
-                  }}
-                />
-                Party Token
-              </label>
-              <label className="token-party-toggle">
-                <input
-                  type="checkbox"
-                  checked={token.revealName}
-                  onChange={(event) => void onUpdateToken(token.id, { revealName: event.target.checked })}
-                />
-                Reveal Name
-              </label>
-              <label className="token-party-toggle">
-                <input
-                  type="checkbox"
-                  checked={token.hidden}
-                  onChange={(event) => void onUpdateToken(token.id, { hidden: event.target.checked })}
-                />
-                Hide
-              </label>
+                onChange={(event) =>
+                  setTokenNameDrafts((prev) => ({
+                    ...prev,
+                    [token.id]: event.target.value,
+                  }))
+                }
+                onBlur={(event) => void commitTokenLabelEdit(token, event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.currentTarget.blur()
+                  }
+                }}
+                aria-label={`Token ${index + 1} name`}
+                placeholder={`Token ${index + 1}`}
+              />
+              <input
+                type="color"
+                value={token.color}
+                onChange={(event) => void onUpdateToken(token.id, { color: event.target.value })}
+                aria-label={`Token ${index + 1} color`}
+              />
+              <button
+                type="button"
+                className="token-row-delete"
+                onClick={() => onRequestDeleteToken(token.id)}
+                aria-label={`Delete token ${index + 1}`}
+                title="Delete token"
+              >
+                <Trash2 size={14} />
+              </button>
+              <input
+                type="range"
+                className="token-row-size-slider"
+                min={16}
+                max={TOKEN_SIZE_MAX}
+                step={1}
+                value={token.size}
+                onChange={(event) => void onUpdateTokenSize(token.id, Number(event.target.value))}
+                aria-label={`Token ${index + 1} size`}
+              />
+              <span className="token-row-size-value">{token.size}</span>
+              <div className="token-row-toggles">
+                <label className="token-party-toggle">
+                  <input
+                    type="checkbox"
+                    checked={token.party}
+                    onChange={(event) => {
+                      const checked = event.target.checked
+                      if (checked) {
+                        const viewDistance = tokenViewDistanceSliderValue(token)
+                        void onUpdateToken(token.id, {
+                          party: checked,
+                          viewDistance,
+                        })
+                        return
+                      }
+                      void onUpdateToken(token.id, { party: checked })
+                    }}
+                  />
+                  Party Token
+                </label>
+                <label className="token-party-toggle">
+                  <input
+                    type="checkbox"
+                    checked={token.revealName}
+                    onChange={(event) => void onUpdateToken(token.id, { revealName: event.target.checked })}
+                  />
+                  Reveal Name
+                </label>
+                <label className="token-party-toggle">
+                  <input
+                    type="checkbox"
+                    checked={token.hidden}
+                    onChange={(event) => void onUpdateToken(token.id, { hidden: event.target.checked })}
+                  />
+                  Hide
+                </label>
+              </div>
+              {token.party ? (
+                <label className="token-party-toggle token-view-distance">
+                  View Distance: {tokenViewDistanceSliderValue(token)}
+                  <input
+                    type="range"
+                    min={8}
+                    max={600}
+                    step={2}
+                    value={tokenViewDistanceSliderValue(token)}
+                    onChange={(event) => void onUpdateTokenViewDistance(token.id, Number(event.target.value))}
+                  />
+                </label>
+              ) : null}
             </div>
-            {token.party ? (
-              <label className="token-party-toggle token-view-distance">
-                View Distance: {tokenViewDistanceSliderValue(token)}
-                <input
-                  type="range"
-                  min={8}
-                  max={600}
-                  step={2}
-                  value={tokenViewDistanceSliderValue(token)}
-                  onChange={(event) => void onUpdateTokenViewDistance(token.id, Number(event.target.value))}
-                />
-              </label>
-            ) : null}
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
       ) : null}
 
       <label>
