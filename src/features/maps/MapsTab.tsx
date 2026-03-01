@@ -229,7 +229,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [annotations, setAnnotations] = useState<AnnotationRecord[]>([])
   const [activeAnnotationId, setActiveAnnotationId] = useState('')
   const [activeAnnotationDraft, setActiveAnnotationDraft] = useState('')
-  const [, setFogSampleTick] = useState(0)
+  const [fogSampleTick, setFogSampleTick] = useState(0)
   const [draggingTokenId, setDraggingTokenId] = useState('')
   const [draggingTokenIds, setDraggingTokenIds] = useState<string[]>([])
   const [, setDragTokenPosition] = useState<{ x: number; y: number } | null>(null)
@@ -285,6 +285,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const animTickRef = useRef<() => void>(() => {})
   const tokensRef = useRef<TokenRecord[]>([])
   const recentlyDroppedRef = useRef(new Set<string>())
+  const pendingFogReloadRef = useRef(false)
   const startTokenPathAnimationRef = useRef<(
     tokenId: string,
     fromPos: { x: number; y: number },
@@ -1337,7 +1338,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       const pos = interpolateAlongPath(anim.path, t)
       nextPositions[tokenId] = pos
 
-      // Fog reveal at ~15Hz for party tokens on clients that have an active fog canvas.
+      // Reveal fog at ~15Hz along the animated path on clients with an active fog canvas.
       if (anim.party && activeFogCanvasRef.current && activeVisionCanvasRef.current) {
         if (now - anim.lastRevealTime >= ANIM_REVEAL_INTERVAL_MS) {
           const canvasPoint = {
@@ -1381,6 +1382,11 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     } else {
       setAnimatedTokenPositions({})
       animRafRef.current = null
+      // Apply any fog canvas update that arrived mid-animation.
+      if (pendingFogReloadRef.current) {
+        pendingFogReloadRef.current = false
+        bumpFogSampleTick()
+      }
     }
   }
 
@@ -2436,9 +2442,17 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     const key = getFogCacheKey(selectedMap, inlineBaseSize.width, inlineBaseSize.height)
     if (loadedInlineFogKeyRef.current === key) return
 
+    // Defer fog canvas update if a token path animation is in progress — avoids
+    // a mid-animation jump when the persisted canvas arrives from Firestore.
+    if (Object.keys(tokenAnimationsRef.current).length > 0) {
+      pendingFogReloadRef.current = true
+      return
+    }
+
     loadedInlineFogKeyRef.current = key
     initializeFogCanvas(inlineFogCanvasRef.current, selectedMap, inlineBaseSize.width, inlineBaseSize.height)
   }, [
+    fogSampleTick,
     fullScreenOpen,
     inlineBaseSize.height,
     inlineBaseSize.width,
@@ -2485,9 +2499,15 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     const key = getFogCacheKey(selectedMap, fullBaseSize.width, fullBaseSize.height)
     if (loadedFogKeyRef.current === key) return
 
+    // Defer fog canvas update if a token path animation is in progress.
+    if (Object.keys(tokenAnimationsRef.current).length > 0) {
+      pendingFogReloadRef.current = true
+      return
+    }
+
     loadedFogKeyRef.current = key
     initializeFogCanvas(fullFogCanvasRef.current, selectedMap, fullBaseSize.width, fullBaseSize.height)
-  }, [fullBaseSize.height, fullBaseSize.width, fullScreenOpen, selectedMap])
+  }, [fogSampleTick, fullBaseSize.height, fullBaseSize.width, fullScreenOpen, selectedMap])
 
   useEffect(() => {
     if (!fullScreenOpen || !selectedMap || !fullVisionCanvasRef.current) return
