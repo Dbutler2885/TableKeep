@@ -116,8 +116,6 @@ const LOS_SURFACE_REVEAL_MULTIPLIER = 2.4
 const LOS_BLOCKER_SAMPLE_RADIUS = 2
 const STREAMING_LOCAL_REVEAL_INTERVAL_MS = 40
 const STREAMING_LOCAL_REVEAL_MAX_INTERVAL_MS = 110
-const FOG_COMPUTE_INTERVAL_MS = 80  // cap fog LOS recompute to ~12Hz during drag
-const FOG_COMPUTE_MIN_MOVE = 4      // canvas pixels; skip recompute if token barely moved
 const DRAG_PATH_SAMPLE_DISTANCE = 0.015  // normalized units between sampled waypoints
 const ANIM_REVEAL_INTERVAL_MS = 66       // ~15Hz fog reveal during path animation
 const FOG_CANVAS_MAX_DIM = 384          // cap fog canvas to this dimension regardless of device screen size
@@ -2304,8 +2302,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     const lastSampledPositions: Record<string, { x: number; y: number }> = {}
     const dragStartTime = Date.now()
     let lastStreamingLocalRevealAt = 0
-    let lastFogComputeTime = 0
-    let lastFogComputeCanvasPoint: { x: number; y: number } | null = null
     let revealFrameId: number | null = null
     let pendingRevealPoint: { x: number; y: number } | null = null
     let pendingRevealBrushSize = 0
