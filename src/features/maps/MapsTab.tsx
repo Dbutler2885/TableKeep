@@ -2450,8 +2450,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         revealFrameId = null
       }
       if (pendingRevealPoint) {
-        // Bypass the Hz cap for the final drop flush so the endpoint is always revealed.
-        lastFogComputeTime = 0
         flushPendingReveal()
       }
       const finalPositions = dragTokenPositionsRef.current
