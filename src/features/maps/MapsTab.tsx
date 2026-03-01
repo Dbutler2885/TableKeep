@@ -121,10 +121,38 @@ const FOG_COMPUTE_MIN_MOVE = 4      // canvas pixels; skip recompute if token ba
 const DRAG_PATH_SAMPLE_DISTANCE = 0.015  // normalized units between sampled waypoints
 const ANIM_REVEAL_INTERVAL_MS = 66       // ~15Hz fog reveal during path animation
 
-function interpolateAlongPath(path: { x: number; y: number }[], t: number): { x: number; y: number } {
+type Waypoint = { x: number; y: number; t?: number }
+
+// Interpolates position along a path at animation progress `animT` (0–1).
+// When waypoints carry timestamps, interpolation follows the recorded pace exactly.
+// Falls back to uniform distance-based interpolation when timestamps are absent.
+function interpolateAlongPath(path: Waypoint[], animT: number): { x: number; y: number } {
   if (path.length === 0) return { x: 0.5, y: 0.5 }
-  if (path.length === 1 || t <= 0) return path[0]
-  if (t >= 1) return path[path.length - 1]
+  if (path.length === 1 || animT <= 0) return { x: path[0].x, y: path[0].y }
+  if (animT >= 1) return { x: path[path.length - 1].x, y: path[path.length - 1].y }
+
+  const firstT = path[0].t
+  const lastT = path[path.length - 1].t
+  if (firstT !== undefined && lastT !== undefined && lastT > firstT) {
+    // Time-based: replay at recorded pace
+    const targetTime = firstT + animT * (lastT - firstT)
+    for (let i = 1; i < path.length; i++) {
+      const pt = path[i].t ?? lastT
+      if (pt >= targetTime) {
+        const prev = path[i - 1]
+        const prevT = prev.t ?? firstT
+        const segDur = pt - prevT
+        const segFrac = segDur === 0 ? 0 : (targetTime - prevT) / segDur
+        return {
+          x: prev.x + (path[i].x - prev.x) * segFrac,
+          y: prev.y + (path[i].y - prev.y) * segFrac,
+        }
+      }
+    }
+    return { x: path[path.length - 1].x, y: path[path.length - 1].y }
+  }
+
+  // Distance-based fallback
   let totalLen = 0
   const segLengths: number[] = []
   for (let i = 1; i < path.length; i++) {
@@ -132,32 +160,24 @@ function interpolateAlongPath(path: { x: number; y: number }[], t: number): { x:
     segLengths.push(len)
     totalLen += len
   }
-  if (totalLen === 0) return path[0]
-  const target = t * totalLen
+  if (totalLen === 0) return { x: path[0].x, y: path[0].y }
+  const target = animT * totalLen
   let dist = 0
   for (let i = 0; i < segLengths.length; i++) {
     if (dist + segLengths[i] >= target) {
-      const segT = segLengths[i] === 0 ? 0 : (target - dist) / segLengths[i]
+      const segFrac = segLengths[i] === 0 ? 0 : (target - dist) / segLengths[i]
       return {
-        x: path[i].x + (path[i + 1].x - path[i].x) * segT,
-        y: path[i].y + (path[i + 1].y - path[i].y) * segT,
+        x: path[i].x + (path[i + 1].x - path[i].x) * segFrac,
+        y: path[i].y + (path[i + 1].y - path[i].y) * segFrac,
       }
     }
     dist += segLengths[i]
   }
-  return path[path.length - 1]
-}
-
-function pathTotalLength(path: { x: number; y: number }[]): number {
-  let len = 0
-  for (let i = 1; i < path.length; i++) {
-    len += Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y)
-  }
-  return len
+  return { x: path[path.length - 1].x, y: path[path.length - 1].y }
 }
 
 type TokenPathAnimation = {
-  path: { x: number; y: number }[]
+  path: Waypoint[]
   startTime: number
   duration: number
   brushSize: number
@@ -268,7 +288,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const startTokenPathAnimationRef = useRef<(
     tokenId: string,
     fromPos: { x: number; y: number },
-    path: { x: number; y: number }[],
+    path: Waypoint[],
     token: TokenRecord,
   ) => void>(() => {})
 
@@ -481,13 +501,17 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
           const rawPath = (change.doc.data() as { path?: unknown }).path
           if (!Array.isArray(rawPath) || rawPath.length < 2) return
           const path = (rawPath as unknown[])
-            .filter((p): p is { x: number; y: number } =>
+            .filter((p): p is Record<string, unknown> =>
               typeof p === 'object' &&
               p !== null &&
               typeof (p as Record<string, unknown>).x === 'number' &&
               typeof (p as Record<string, unknown>).y === 'number',
             )
-            .map((p) => ({ x: p.x, y: p.y }))
+            .map((p): Waypoint => ({
+              x: p.x as number,
+              y: p.y as number,
+              ...(typeof p.t === 'number' ? { t: p.t } : {}),
+            }))
           if (path.length < 2) return
           const fromToken = tokensRef.current.find((t) => t.id === tokenId)
           if (!fromToken) return
@@ -1363,9 +1387,20 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   startTokenPathAnimationRef.current = (tokenId, fromPos, path, token) => {
     const brushSize = renderTokenViewDistance(token)
     const { height: tokenHeight } = renderTokenDimensions(token)
-    const fullPath = [fromPos, ...path]
-    const totalLen = pathTotalLength(fullPath)
-    const duration = Math.min(1500, Math.max(400, totalLen * 1200))
+    // Prepend the pre-drag position at t=0 so animation starts from where the
+    // receiving client last saw the token.
+    const firstT = (path[0] as Waypoint).t
+    const fullPath: Waypoint[] = [
+      { x: fromPos.x, y: fromPos.y, t: firstT !== undefined ? 0 : undefined },
+      ...path,
+    ]
+    const lastWaypoint = fullPath[fullPath.length - 1]
+    const recordedDuration = lastWaypoint.t
+    // Use recorded duration when available; fall back to distance-based estimate.
+    const duration = recordedDuration !== undefined
+      ? Math.min(3000, Math.max(200, recordedDuration))
+      : Math.min(1500, Math.max(400, fullPath.reduce((acc, p, i) =>
+          i === 0 ? 0 : acc + Math.hypot(p.x - fullPath[i - 1].x, p.y - fullPath[i - 1].y), 0) * 1200))
     tokenAnimationsRef.current[tokenId] = {
       path: fullPath,
       startTime: Date.now(),
@@ -2126,8 +2161,9 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   useEffect(() => {
     if (!draggingTokenId || role !== 'gm' || !selectedMap) return
     const draggingToken = tokens.find((entry) => entry.id === draggingTokenId) ?? null
-    const dragPaths: Record<string, { x: number; y: number }[]> = {}
+    const dragPaths: Record<string, Waypoint[]> = {}
     const lastSampledPositions: Record<string, { x: number; y: number }> = {}
+    const dragStartTime = Date.now()
     let lastStreamingLocalRevealAt = 0
     let lastFogComputeTime = 0
     let lastFogComputeCanvasPoint: { x: number; y: number } | null = null
@@ -2252,7 +2288,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
           const last = lastSampledPositions[id]
           if (!last || Math.hypot(pos.x - last.x, pos.y - last.y) >= DRAG_PATH_SAMPLE_DISTANCE) {
             if (!dragPaths[id]) dragPaths[id] = []
-            dragPaths[id].push({ x: pos.x, y: pos.y })
+            dragPaths[id].push({ x: pos.x, y: pos.y, t: Date.now() - dragStartTime })
             lastSampledPositions[id] = pos
           }
         }
