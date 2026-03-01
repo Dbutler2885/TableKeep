@@ -1430,7 +1430,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     const recordedDuration = lastWaypoint.t
     // Use recorded duration when available; fall back to distance-based estimate.
     const duration = recordedDuration !== undefined
-      ? Math.min(3000, Math.max(200, recordedDuration * 1.1))
+      ? Math.min(3000, Math.max(200, recordedDuration * 1.2))
       : Math.min(1500, Math.max(400, fullPath.reduce((acc, p, i) =>
           i === 0 ? 0 : acc + Math.hypot(p.x - fullPath[i - 1].x, p.y - fullPath[i - 1].y), 0) * 1200))
     tokenAnimationsRef.current[tokenId] = {
