@@ -193,7 +193,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= 900)
   const [mobileMapView, setMobileMapView] = useState<'list' | 'detail'>('list')
   const [mobileGmPane, setMobileGmPane] = useState<'map' | 'controls'>('map')
-  const [mobilePlayerPane, setMobilePlayerPane] = useState<'map' | 'controls'>('map')
   const [mapsLoading, setMapsLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [mapError, setMapError] = useState<string | null>(null)
@@ -2972,7 +2971,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
             .filter(Boolean)
             .join(' ')}
         >
-          {!isMobile || (role === 'gm' ? mobileGmPane === 'map' : mobilePlayerPane === 'map') ? (
+          {!isMobile || role !== 'gm' || mobileGmPane === 'map' ? (
             <div
               className={isMobileZoomMapView ? 'map-stage mobile-player-stage' : 'map-stage'}
               onWheel={role !== 'gm' ? handlePlayerWheel : undefined}
@@ -3179,12 +3178,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
             </aside>
           ) : null}
 
-          {role !== 'gm' && isMobile && mobilePlayerPane === 'controls' ? (
-            <aside className="map-controls">
-              <PlayerMapControls cameraLock={cameraLock} onToggleCameraLock={toggleCameraLock} />
-            </aside>
-          ) : null}
-
           {isMobile && role !== 'gm' ? (
             <div className="map-mobile-panel-nav">
               <button
@@ -3194,23 +3187,14 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
               >
                 <ChevronLeft size={16} />
               </button>
+              <div />
               <button
                 type="button"
-                className={mobilePlayerPane === 'map' ? 'active' : ''}
-                onClick={() => setMobilePlayerPane('map')}
-                disabled={mobilePlayerPane === 'map'}
-                aria-label="Map pane"
+                className={cameraLock ? 'active' : ''}
+                onClick={toggleCameraLock}
+                aria-label="Toggle camera lock"
               >
-                <Map size={16} />
-              </button>
-              <button
-                type="button"
-                className={mobilePlayerPane === 'controls' ? 'active' : ''}
-                onClick={() => setMobilePlayerPane('controls')}
-                disabled={mobilePlayerPane === 'controls'}
-                aria-label="Controls pane"
-              >
-                <SlidersHorizontal size={16} />
+                <Crosshair size={16} />
               </button>
             </div>
           ) : null}
