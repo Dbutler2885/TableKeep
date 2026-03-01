@@ -2521,6 +2521,24 @@ button:hover {
   color: #61615b;
 }
 
+.map-token-hidden-badge {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translate(-50%, -6px);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #fff;
+  background: #555;
+  border: 1px solid #e2e2db;
+  border-radius: 3px;
+  padding: 0.08rem 0.3rem;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+}
+
 .map-token.selected svg {
   filter:
     drop-shadow(0 0 0.5px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 3px rgba(72, 114, 250, 0.95)) drop-shadow(0 0 7px rgba(72, 114, 250, 0.55));

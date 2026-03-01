@@ -286,6 +286,9 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const tokensRef = useRef<TokenRecord[]>([])
   const recentlyDroppedRef = useRef(new Set<string>())
   const pendingFogReloadRef = useRef(false)
+  // Tracks the pathId of the most recently animated (or skipped-as-own) path per token.
+  // Prevents replaying the same path on metadata updates like hide/unhide.
+  const lastAnimatedPathIdRef = useRef<Record<string, string>>({})
   const startTokenPathAnimationRef = useRef<(
     tokenId: string,
     fromPos: { x: number; y: number },
@@ -499,7 +502,11 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
           const tokenId = change.doc.id
           // Skip tokens this client just dropped — optimistic update already placed them.
           if (recentlyDroppedRef.current.has(tokenId)) return
-          const rawPath = (change.doc.data() as { path?: unknown }).path
+          const data = change.doc.data() as { path?: unknown; pathId?: unknown }
+          const incomingPathId = typeof data.pathId === 'string' ? data.pathId : null
+          // Skip if this is the same path we already animated (e.g. hide/unhide on an old drop).
+          if (incomingPathId && lastAnimatedPathIdRef.current[tokenId] === incomingPathId) return
+          const rawPath = data.path
           if (!Array.isArray(rawPath) || rawPath.length < 2) return
           const path = (rawPath as unknown[])
             .filter((p): p is Record<string, unknown> =>
@@ -518,6 +525,10 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
           if (!fromToken) return
           const updatedToken = next.find((t) => t.id === tokenId)
           if (!updatedToken) return
+          // If the token was hidden when it moved, just let it appear at the new
+          // position — no animation replay.
+          if (fromToken.hidden) return
+          if (incomingPathId) lastAnimatedPathIdRef.current[tokenId] = incomingPathId
           startTokenPathAnimationRef.current(tokenId, { x: fromToken.x, y: fromToken.y }, path, updatedToken)
         })
       },
@@ -691,7 +702,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   }, [])
 
   const isTokenVisible = (token: TokenRecord) => {
-    if (token.hidden) return false
+    if (token.hidden && (role !== 'gm' || streamingMode)) return false
     if (role === 'gm' && !streamingMode) return true
     if (token.party) return true
 
@@ -1731,10 +1742,13 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     return name || `Token ${index + 1}`
   }
 
-  const hideTokenOnMap = async (tokenId: string) => {
+  const toggleTokenHidden = async (tokenId: string) => {
     if (role !== 'gm') return
-    setTokens((prev) => prev.map((token) => (token.id === tokenId ? { ...token, hidden: true } : token)))
-    await updateToken(tokenId, { hidden: true })
+    const token = tokens.find((t) => t.id === tokenId)
+    if (!token) return
+    const next = !token.hidden
+    setTokens((prev) => prev.map((t) => (t.id === tokenId ? { ...t, hidden: next } : t)))
+    await updateToken(tokenId, { hidden: next })
   }
 
   const uploadTokenImage = async (file: File, assetName?: string) => {
@@ -1795,6 +1809,88 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       )
     }
     return <ChessPawn size={dimensions.baseSize} />
+  }
+
+  const renderTokenItem = (token: TokenRecord, index: number) => {
+    if (!isTokenVisible(token)) return null
+    const draggedPosition = dragTokenPositions?.[token.id]
+    const animPos = animatedTokenPositions[token.id]
+    const x = draggedPosition?.x ?? animPos?.x ?? token.x
+    const y = draggedPosition?.y ?? animPos?.y ?? token.y
+    const isAnimating = Boolean(animPos) && !draggedPosition
+
+    if (role !== 'gm') {
+      return (
+        <span
+          key={token.id}
+          className={isAnimating ? 'map-token-static animating' : 'map-token-static'}
+          style={{ left: `${x * 100}%`, top: `${y * 100}%`, color: token.color }}
+        >
+          {renderTokenGlyph(token)}
+          {token.revealName ? (
+            <span className="map-token-name" style={renderTokenNameStyle(token)}>
+              {tokenDisplayName(token, index)}
+            </span>
+          ) : null}
+        </span>
+      )
+    }
+
+    const isDragging = Boolean(draggedPosition)
+    const isSelected = selectedTokenIds.includes(token.id)
+    return (
+      <button
+        key={token.id}
+        type="button"
+        className={[
+          'map-token',
+          isDragging ? 'dragging' : '',
+          isAnimating ? 'animating' : '',
+          isSelected ? 'selected' : '',
+          token.hidden ? 'gm-hidden-token' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        style={{ left: `${x * 100}%`, top: `${y * 100}%`, color: token.color }}
+        onMouseDown={(event) => startTokenDrag(token.id, event)}
+        onTouchStart={(event) => handleTokenTouchStart(token.id, event)}
+        onTouchEnd={handleTokenTouchEnd}
+        onTouchCancel={handleTokenTouchEnd}
+        aria-label="Map token"
+      >
+        <span
+          role="button"
+          tabIndex={0}
+          className="map-token-hide-btn"
+          onMouseDown={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+          }}
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            void toggleTokenHidden(token.id)
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return
+            event.preventDefault()
+            event.stopPropagation()
+            void toggleTokenHidden(token.id)
+          }}
+          aria-label={token.hidden ? 'Show token' : 'Hide token'}
+          title={token.hidden ? 'Show token' : 'Hide token'}
+        >
+          <X size={10} />
+        </span>
+        {renderTokenGlyph(token)}
+        {token.hidden && (
+          <span className="map-token-hidden-badge" aria-hidden="true">H</span>
+        )}
+        <span className={gmTokenNameClassName(token)} style={renderTokenNameStyle(token)}>
+          {tokenDisplayName(token, index)}
+        </span>
+      </button>
+    )
   }
 
   const placeToken = async (clientX: number, clientY: number) => {
@@ -2209,7 +2305,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
     const flushPendingReveal = () => {
       revealFrameId = null
-      if (!draggingToken?.party || !activeFogCanvasRef.current || !pendingRevealPoint) return
+      if (!draggingToken?.party || draggingToken.hidden || !activeFogCanvasRef.current || !pendingRevealPoint) return
 
       const nextCanvasPoint = pendingRevealPoint
       const tokenBrushSize = pendingRevealBrushSize
@@ -2326,7 +2422,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         }
       }
 
-      if (draggingToken?.party && activeFogCanvasRef.current) {
+      if (draggingToken?.party && !draggingToken.hidden && activeFogCanvasRef.current) {
         const tokenBrushSize = renderTokenViewDistance(draggingToken)
         const nextCanvasPoint = tokenPointToCanvasPoint(nextPosition, renderTokenDimensions(draggingToken).height)
         if (!nextCanvasPoint) return
@@ -2390,8 +2486,12 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       }))
 
       // Mark as recently dropped so this client's listener skips the path animation.
+      // Also record the pathId so any future metadata updates (hide/unhide, etc.)
+      // can't re-trigger the same path.
+      const pathId = Date.now().toString()
       finalTokenIds.forEach((tokenId) => {
         recentlyDroppedRef.current.add(tokenId)
+        lastAnimatedPathIdRef.current[tokenId] = pathId
         window.setTimeout(() => recentlyDroppedRef.current.delete(tokenId), 3000)
       })
 
@@ -2401,6 +2501,16 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         finalTokenIds.forEach((tokenId) => {
           const finalPosition = finalPositions[tokenId]
           if (!finalPosition) return
+          const token = tokens.find((t) => t.id === tokenId)
+          // Don't record path for hidden tokens — other clients should not animate the move.
+          if (token?.hidden) {
+            batch.update(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId), {
+              x: finalPosition.x,
+              y: finalPosition.y,
+              updatedAt: serverTimestamp(),
+            })
+            return
+          }
           // Append the drop point with the real elapsed time so the path covers the
           // full drag duration, including any slow-down or pause just before release.
           const path = [...(dragPaths[tokenId] ?? []), { x: finalPosition.x, y: finalPosition.y, t: dropTime }]
@@ -2408,6 +2518,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
             x: finalPosition.x,
             y: finalPosition.y,
             path,
+            pathId,
             updatedAt: serverTimestamp(),
           })
         })
@@ -2416,7 +2527,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         handleLiveWriteError(error)
       }
 
-      if (draggingToken?.party) {
+      if (draggingToken?.party && !draggingToken.hidden) {
         try {
           await persistFog()
         } catch (error) {
@@ -2793,91 +2904,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 style={{ opacity: visionOverlayOpacity }}
               />
               <div className={role === 'gm' ? 'map-token-layer gm' : 'map-token-layer'} aria-hidden={role !== 'gm'}>
-                {tokens.map((token, index) => {
-                  if (!isTokenVisible(token)) return null
-                  const draggedPosition = dragTokenPositions?.[token.id]
-                  const animPos = animatedTokenPositions[token.id]
-                  const tokenX = draggedPosition?.x ?? animPos?.x ?? token.x
-                  const tokenY = draggedPosition?.y ?? animPos?.y ?? token.y
-                  const isAnimating = Boolean(animPos) && !draggedPosition
-
-                  if (role !== 'gm') {
-                    return (
-                      <span
-                        key={token.id}
-                        className={isAnimating ? 'map-token-static animating' : 'map-token-static'}
-                        style={{
-                          left: `${tokenX * 100}%`,
-                          top: `${tokenY * 100}%`,
-                          color: token.color,
-                        }}
-                      >
-                        {renderTokenGlyph(token)}
-                        {token.revealName ? (
-                          <span className="map-token-name" style={renderTokenNameStyle(token)}>
-                            {tokenDisplayName(token, index)}
-                          </span>
-                        ) : null}
-                      </span>
-                    )
-                  }
-
-                  const isDraggingToken = Boolean(draggedPosition)
-                  const isSelected = selectedTokenIds.includes(token.id)
-                  return (
-                    <button
-                      key={token.id}
-                      type="button"
-                      className={[
-                        'map-token',
-                        isDraggingToken ? 'dragging' : '',
-                        isAnimating ? 'animating' : '',
-                        isSelected ? 'selected' : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      style={{
-                        left: `${tokenX * 100}%`,
-                        top: `${tokenY * 100}%`,
-                        color: token.color,
-                      }}
-                      onMouseDown={(event) => startTokenDrag(token.id, event)}
-                      onTouchStart={(event) => handleTokenTouchStart(token.id, event)}
-                      onTouchEnd={handleTokenTouchEnd}
-                      onTouchCancel={handleTokenTouchEnd}
-                      aria-label="Map token"
-                    >
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        className="map-token-hide-btn"
-                        onMouseDown={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                        }}
-                        onClick={(event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          void hideTokenOnMap(token.id)
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key !== 'Enter' && event.key !== ' ') return
-                          event.preventDefault()
-                          event.stopPropagation()
-                          void hideTokenOnMap(token.id)
-                        }}
-                        aria-label="Hide token"
-                        title="Hide token"
-                      >
-                        <X size={10} />
-                      </span>
-                      {renderTokenGlyph(token)}
-                      <span className={gmTokenNameClassName(token)} style={renderTokenNameStyle(token)}>
-                        {tokenDisplayName(token, index)}
-                      </span>
-                    </button>
-                  )
-                })}
+                {tokens.map(renderTokenItem)}
               </div>
               {role === 'gm' && tokenSelectionBox && selectionRectStyle ? (
                 <div className="map-token-selection-box" style={selectionRectStyle} />
@@ -3100,91 +3127,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                     style={{ opacity: visionOverlayOpacity }}
                   />
                   <div className={role === 'gm' ? 'map-token-layer gm' : 'map-token-layer'} aria-label="Map tokens">
-                    {tokens.map((token, index) => {
-                      if (!isTokenVisible(token)) return null
-                      const draggedPosition = dragTokenPositions?.[token.id]
-                      const animPos = animatedTokenPositions[token.id]
-                      const isDragging = Boolean(draggedPosition)
-                      const isAnimating = Boolean(animPos) && !draggedPosition
-                      const x = draggedPosition?.x ?? animPos?.x ?? token.x
-                      const y = draggedPosition?.y ?? animPos?.y ?? token.y
-                      const isSelected = selectedTokenIds.includes(token.id)
-
-                      if (role !== 'gm') {
-                        return (
-                          <span
-                            key={token.id}
-                            className={isAnimating ? 'map-token-static animating' : 'map-token-static'}
-                            style={{
-                              left: `${x * 100}%`,
-                              top: `${y * 100}%`,
-                              color: token.color,
-                            }}
-                          >
-                            {renderTokenGlyph(token)}
-                            {token.revealName ? (
-                              <span className="map-token-name" style={renderTokenNameStyle(token)}>
-                                {tokenDisplayName(token, index)}
-                              </span>
-                            ) : null}
-                          </span>
-                        )
-                      }
-
-                      return (
-                        <button
-                          key={token.id}
-                          type="button"
-                          className={[
-                            'map-token',
-                            isDragging ? 'dragging' : '',
-                            isAnimating ? 'animating' : '',
-                            isSelected ? 'selected' : '',
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
-                          style={{
-                            left: `${x * 100}%`,
-                            top: `${y * 100}%`,
-                            color: token.color,
-                          }}
-                          onMouseDown={(event) => startTokenDrag(token.id, event)}
-                          onTouchStart={(event) => handleTokenTouchStart(token.id, event)}
-                          onTouchEnd={handleTokenTouchEnd}
-                          onTouchCancel={handleTokenTouchEnd}
-                          aria-label="Map token"
-                        >
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            className="map-token-hide-btn"
-                            onMouseDown={(event) => {
-                              event.preventDefault()
-                              event.stopPropagation()
-                            }}
-                            onClick={(event) => {
-                              event.preventDefault()
-                              event.stopPropagation()
-                              void hideTokenOnMap(token.id)
-                            }}
-                            onKeyDown={(event) => {
-                              if (event.key !== 'Enter' && event.key !== ' ') return
-                              event.preventDefault()
-                              event.stopPropagation()
-                              void hideTokenOnMap(token.id)
-                            }}
-                            aria-label="Hide token"
-                            title="Hide token"
-                          >
-                            <X size={10} />
-                          </span>
-                          {renderTokenGlyph(token)}
-                          <span className={gmTokenNameClassName(token)} style={renderTokenNameStyle(token)}>
-                            {tokenDisplayName(token, index)}
-                          </span>
-                        </button>
-                      )
-                    })}
+                    {tokens.map(renderTokenItem)}
                   </div>
                   {role === 'gm' && tokenSelectionBox && selectionRectStyle ? (
                     <div className="map-token-selection-box" style={selectionRectStyle} />
