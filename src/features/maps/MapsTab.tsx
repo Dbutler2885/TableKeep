@@ -6,7 +6,9 @@ import type {
   WheelEventHandler,
 } from 'react'
 import {
+  ALargeSmall,
   Check,
+  Binoculars,
   ChessPawn,
   ChevronLeft,
   Circle,
@@ -17,18 +19,23 @@ import {
   Flag,
   Map,
   Maximize2,
+  Minus,
   Pencil,
-  Square,
+  Plus,
+  SquareDashedMousePointer,
   SlidersHorizontal,
   SprayCan,
+  Tag,
   Trash2,
   TvMinimalPlay,
   Upload,
+  User,
   X,
 } from 'lucide-react'
 import {
   addDoc,
   collection,
+  deleteField,
   deleteDoc,
   doc,
   onSnapshot,
@@ -42,9 +49,10 @@ import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage
 import { auth, db, storage } from '../../firebase'
 import { firebaseConfig } from '../../firebase/config'
 import type { Role } from '../../types/app'
-import { normalizeImageForUpload } from '../common/imageNormalization'
+import { normalizeImageForDataUrl, normalizeImageForUpload } from '../common/imageNormalization'
 import { TokenIconEditor, type TokenIconConfig } from '../tokens/TokenIconEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
+import { IconValueSlider } from '../common/IconValueSlider'
 
 type MapRecord = {
   id: string
@@ -98,6 +106,7 @@ type TokenAssetRecord = {
   imageUrl: string
   width: number
   height: number
+  archived: boolean
 }
 
 type CanvasClipRect = {
@@ -111,7 +120,8 @@ const TOKEN_REFERENCE_DIMENSION = 900
 const DEFAULT_TOKEN_VIEW_DISTANCE = 120
 const TOKEN_SIZE_MAX = 220
 const TOKEN_RENDER_SIZE_MAX = 720
-const BRUSH_SIZE_MIN = 8
+const FOG_BRUSH_SIZE_MIN = 1
+const TOKEN_VIEW_DISTANCE_MIN = 8
 const TOKEN_VIEW_DISTANCE_MAX = 600
 const LOS_SURFACE_REVEAL_MULTIPLIER = 2.4
 const LOS_BLOCKER_SAMPLE_RADIUS = 2
@@ -187,6 +197,15 @@ type TokenPathAnimation = {
   lastRevealCanvasPos: { x: number; y: number } | null
 }
 
+type TokenImageDraft = {
+  imageUrl: string
+  focusX: number
+  focusY: number
+  zoom: number
+  assetName?: string
+  fileBaseName: string
+}
+
 export function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }) {
   const [maps, setMaps] = useState<MapRecord[]>([])
   const [selectedMapId, setSelectedMapId] = useState('')
@@ -210,7 +229,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [fogTool, setFogTool] = useState<'reveal' | 'hide' | null>(null)
   const [visionTool, setVisionTool] = useState<'draw' | 'erase' | null>(null)
   const [fogBrushSize, setFogBrushSize] = useState(120)
-  const [fogBrushStrength, setFogBrushStrength] = useState(0.7)
+  const fogBrushStrength = 0.7
   const [fogDrawing, setFogDrawing] = useState(false)
   const [streamingMode, setStreamingMode] = useState(false)
   const [tokenPlaceMode, setTokenPlaceMode] = useState(false)
@@ -221,6 +240,9 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [tokenAssets, setTokenAssets] = useState<TokenAssetRecord[]>([])
   const [selectedTokenAssetId, setSelectedTokenAssetId] = useState('')
   const [uploadingTokenImage, setUploadingTokenImage] = useState(false)
+  const [tokenImageDraft, setTokenImageDraft] = useState<TokenImageDraft | null>(null)
+  const [tokenAssetDeleteCandidate, setTokenAssetDeleteCandidate] = useState<TokenAssetRecord | null>(null)
+  const [deletingTokenAssetId, setDeletingTokenAssetId] = useState('')
   const [tokens, setTokens] = useState<TokenRecord[]>([])
   const [selectedTokenIds, setSelectedTokenIds] = useState<string[]>([])
   const [tokenSelectionBox, setTokenSelectionBox] = useState<{
@@ -251,6 +273,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const fullStageRef = useRef<HTMLDivElement | null>(null)
   const fullZoomRef = useRef(1)
   const fullPanRef = useRef({ x: 0, y: 0 })
+  const playerZoomRef = useRef(1)
+  const playerPanRef = useRef({ x: 0, y: 0 })
   const inlineFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const fullFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const inlineVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -266,6 +290,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const suppressNextMapClickRef = useRef(false)
   const tokenLongPressTimerRef = useRef<number | null>(null)
   const tokenTouchDraggingRef = useRef(false)
+  const tokenImageDragOriginRef = useRef<{ x: number; y: number; focusX: number; focusY: number } | null>(null)
   const mobileTouchRef = useRef<{
     mode: 'none' | 'pan' | 'pinch'
     startZoom: number
@@ -303,6 +328,14 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     path: Waypoint[],
     token: TokenRecord,
   ) => void>(() => { })
+
+  useEffect(() => {
+    playerZoomRef.current = playerZoom
+  }, [playerZoom])
+
+  useEffect(() => {
+    playerPanRef.current = playerPan
+  }, [playerPan])
 
   useEffect(() => {
     const mapsQuery = query(collection(db, 'campaigns', campaignId, 'maps'))
@@ -432,6 +465,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
               imageUrl?: string
               width?: number
               height?: number
+              archived?: boolean
             }
             return {
               id: docSnap.id,
@@ -440,6 +474,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
               imageUrl: typeof data.imageUrl === 'string' ? data.imageUrl : '',
               width: typeof data.width === 'number' ? data.width : 0,
               height: typeof data.height === 'number' ? data.height : 0,
+              archived: data.archived === true,
             }
           })
           .sort((a, b) => a.name.localeCompare(b.name))
@@ -506,6 +541,14 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         // tokensRef.current still holds pre-update positions here since setTokens
         // schedules a React update (doesn't flush synchronously).
         snap.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            // Seed lastAnimatedPathIdRef on initial load so that subsequent
+            // metadata-only updates (hide/unhide) don't replay stale paths.
+            const data = change.doc.data() as { pathId?: unknown }
+            const pathId = typeof data.pathId === 'string' ? data.pathId : null
+            if (pathId) lastAnimatedPathIdRef.current[change.doc.id] = pathId
+            return
+          }
           if (change.type !== 'modified') return
           const tokenId = change.doc.id
           // Skip tokens this client just dropped — optimistic update already placed them.
@@ -533,10 +576,10 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
           if (!fromToken) return
           const updatedToken = next.find((t) => t.id === tokenId)
           if (!updatedToken) return
-          // If the token was hidden when it moved, just let it appear at the new
-          // position — no animation replay.
-          if (fromToken.hidden) return
           if (incomingPathId) lastAnimatedPathIdRef.current[tokenId] = incomingPathId
+          // Hidden tokens must never replay path animation. This covers:
+          // 1) moved-while-hidden updates and 2) hide/unhide metadata updates.
+          if (fromToken.hidden || updatedToken.hidden) return
           startTokenPathAnimationRef.current(tokenId, { x: fromToken.x, y: fromToken.y }, path, updatedToken)
         })
       },
@@ -680,7 +723,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const renderTokenViewDistance = (token: TokenRecord) => {
     const fallbackScale = DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION
     const scale = token.viewDistanceScale ?? fallbackScale
-    return Math.max(BRUSH_SIZE_MIN, Math.min(TOKEN_VIEW_DISTANCE_MAX, Math.round(scale * activeFogDimension)))
+    return Math.max(TOKEN_VIEW_DISTANCE_MIN, Math.min(TOKEN_VIEW_DISTANCE_MAX, Math.round(scale * activeFogDimension)))
   }
   const tokenViewDistanceSliderValue = (token: TokenRecord) => {
     if (typeof token.viewDistance === 'number') return token.viewDistance
@@ -694,7 +737,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     }
   }
   const effectiveFogBrushSize = Math.max(
-    BRUSH_SIZE_MIN,
+    FOG_BRUSH_SIZE_MIN,
     Math.min(320, Math.round((fogBrushSize / TOKEN_REFERENCE_DIMENSION) * activeFogDimension)),
   )
   const autosizeAnnotationTextarea = useCallback((textarea: HTMLTextAreaElement | null) => {
@@ -865,12 +908,18 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
   const selectMap = (mapId: string) => {
     setSelectedMapId(mapId)
+    playerZoomRef.current = 1
+    playerPanRef.current = { x: 0, y: 0 }
     setPlayerZoom(1)
     setPlayerPan({ x: 0, y: 0 })
     mobileTouchRef.current.mode = 'none'
     if (isMobile) {
       setMobileMapView('detail')
-      setMobileGmPane('map')
+      if (role === 'gm') {
+        setMobileGmPane('map')
+      } else {
+        setMobilePlayerPane('map')
+      }
     }
   }
 
@@ -902,15 +951,16 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
     const factor = Math.exp(-event.deltaY * 0.0015)
     const rect = fullStageRef.current?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect()
-    const localX = event.clientX - rect.left - rect.width / 2
-    const localY = event.clientY - rect.top - rect.height / 2
+    const pointerX = event.clientX - rect.left - rect.width / 2
+    const pointerY = event.clientY - rect.top - rect.height / 2
     const currentZoom = fullZoomRef.current
     const currentPan = fullPanRef.current
     const nextZoom = Math.min(5, Math.max(0.5, currentZoom * factor))
-    const zoomRatio = nextZoom / currentZoom
+    const mapLocalX = (pointerX - currentPan.x) / currentZoom
+    const mapLocalY = (pointerY - currentPan.y) / currentZoom
     const nextPan = {
-      x: currentPan.x * zoomRatio - localX * (zoomRatio - 1),
-      y: currentPan.y * zoomRatio - localY * (zoomRatio - 1),
+      x: pointerX - mapLocalX * nextZoom,
+      y: pointerY - mapLocalY * nextZoom,
     }
     fullZoomRef.current = nextZoom
     fullPanRef.current = nextPan
@@ -1804,42 +1854,201 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     await updateToken(tokenId, { hidden: next })
   }
 
-  const uploadTokenImage = async (file: File, assetName?: string) => {
+  const saveTokenAssetFile = async (nextFile: File, width: number, height: number, assetName?: string) => {
+    const safeName = nextFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const tokenAssetPath = `campaigns/${campaignId}/token-assets/${Date.now()}-${safeName}`
+    const tokenAssetRef = ref(storage, tokenAssetPath)
+    await uploadBytes(tokenAssetRef, nextFile, { contentType: nextFile.type })
+    const url = await getDownloadURL(tokenAssetRef)
+    const fallbackName = nextFile.name.replace(/\.[^/.]+$/, '')
+    const name = (assetName?.trim() || fallbackName).slice(0, 80)
+    const assetRef = await addDoc(collection(db, 'campaigns', campaignId, 'tokenAssets'), {
+      name,
+      imagePath: tokenAssetPath,
+      imageUrl: url,
+      width,
+      height,
+      archived: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+    setTokenAssets((prev) =>
+      [
+        ...prev,
+        { id: assetRef.id, name, imagePath: tokenAssetPath, imageUrl: url, width, height, archived: false },
+      ].sort((a, b) =>
+        a.name.localeCompare(b.name),
+      ),
+    )
+    setSelectedTokenAssetId(assetRef.id)
+  }
+
+  const buildSquareTokenImageFile = async (draft: TokenImageDraft) => {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const nextImage = new Image()
+      nextImage.onload = () => resolve(nextImage)
+      nextImage.onerror = () => reject(new Error('Unable to decode token image'))
+      nextImage.src = draft.imageUrl
+    })
+    const sourceWidth = Math.max(1, image.naturalWidth || 1)
+    const sourceHeight = Math.max(1, image.naturalHeight || 1)
+    const maxSide = Math.max(sourceWidth, sourceHeight)
+    const targetSize = Math.min(1024, Math.max(1, Math.round(maxSide)))
+    const canvas = document.createElement('canvas')
+    canvas.width = targetSize
+    canvas.height = targetSize
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Unable to create image canvas')
+    ctx.imageSmoothingEnabled = true
+    ctx.imageSmoothingQuality = 'high'
+
+    const baseScale = targetSize / maxSide
+    const scale = baseScale * Math.max(0.2, draft.zoom)
+    const drawWidth = sourceWidth * scale
+    const drawHeight = sourceHeight * scale
+    const focusX = (draft.focusX / 100) * drawWidth
+    const focusY = (draft.focusY / 100) * drawHeight
+    const drawX = targetSize / 2 - focusX
+    const drawY = targetSize / 2 - focusY
+
+    ctx.clearRect(0, 0, targetSize, targetSize)
+    ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight)
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((nextBlob) => {
+        if (!nextBlob) {
+          reject(new Error('Unable to encode token image'))
+          return
+        }
+        resolve(nextBlob)
+      }, 'image/webp', 0.9)
+    })
+    const file = new File([blob], `${draft.fileBaseName}.webp`, {
+      type: 'image/webp',
+      lastModified: Date.now(),
+    })
+    return { file, width: targetSize, height: targetSize }
+  }
+
+  const applyTokenImageDraft = async () => {
+    if (!tokenImageDraft) return
     if (role !== 'gm') return
     setUploadingTokenImage(true)
     setMapError(null)
     try {
       await auth.currentUser?.getIdToken(true)
+      const squared = await buildSquareTokenImageFile(tokenImageDraft)
+      await saveTokenAssetFile(squared.file, squared.width, squared.height, tokenImageDraft.assetName)
+      setTokenImageDraft(null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to process token image'
+      setMapError(`Token upload failed: ${message}`)
+    } finally {
+      setUploadingTokenImage(false)
+    }
+  }
+
+  const handleTokenImageDraftDragStart = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!tokenImageDraft) return
+    event.currentTarget.setPointerCapture(event.pointerId)
+    tokenImageDragOriginRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      focusX: tokenImageDraft.focusX,
+      focusY: tokenImageDraft.focusY,
+    }
+  }
+
+  const handleTokenImageDraftDragMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!tokenImageDraft || !tokenImageDragOriginRef.current) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    const dx = event.clientX - tokenImageDragOriginRef.current.x
+    const dy = event.clientY - tokenImageDragOriginRef.current.y
+    const nextFocusX = Math.max(0, Math.min(100, tokenImageDragOriginRef.current.focusX - (dx / rect.width) * 100))
+    const nextFocusY = Math.max(0, Math.min(100, tokenImageDragOriginRef.current.focusY - (dy / rect.height) * 100))
+    setTokenImageDraft((current) => (current ? { ...current, focusX: nextFocusX, focusY: nextFocusY } : current))
+  }
+
+  const clearTokenImageDraftDrag = () => {
+    tokenImageDragOriginRef.current = null
+  }
+
+  const archiveTokenAsset = async (assetId: string, archived: boolean) => {
+    await updateDoc(doc(db, 'campaigns', campaignId, 'tokenAssets', assetId), {
+      archived,
+      updatedAt: serverTimestamp(),
+    })
+    if (archived && selectedTokenAssetId === assetId) {
+      setSelectedTokenAssetId('')
+    }
+  }
+
+  const requestDeleteTokenAsset = (assetId: string) => {
+    const asset = tokenAssets.find((entry) => entry.id === assetId)
+    if (!asset) return
+    setTokenAssetDeleteCandidate(asset)
+  }
+
+  const confirmDeleteTokenAsset = async () => {
+    if (!tokenAssetDeleteCandidate) return
+    setDeletingTokenAssetId(tokenAssetDeleteCandidate.id)
+    try {
+      if (tokenAssetDeleteCandidate.imagePath) {
+        await deleteObject(ref(storage, tokenAssetDeleteCandidate.imagePath))
+      }
+      await deleteDoc(doc(db, 'campaigns', campaignId, 'tokenAssets', tokenAssetDeleteCandidate.id))
+      if (selectedTokenAssetId === tokenAssetDeleteCandidate.id) {
+        setSelectedTokenAssetId('')
+      }
+      setTokenAssetDeleteCandidate(null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete token icon'
+      setMapError(message)
+    } finally {
+      setDeletingTokenAssetId('')
+    }
+  }
+
+  const adjustTokenImageDraftZoom = (delta: number) => {
+    setTokenImageDraft((current) => {
+      if (!current) return current
+      const nextZoom = Math.max(0.2, Math.min(6, Number((current.zoom + delta).toFixed(2))))
+      return { ...current, zoom: nextZoom }
+    })
+  }
+
+  const uploadTokenImage = async (file: File, assetName?: string) => {
+    if (role !== 'gm') return
+    if (!file.type.startsWith('image/')) return
+    setUploadingTokenImage(true)
+    setMapError(null)
+    try {
+      await auth.currentUser?.getIdToken(true)
+      const normalizedPreview = await normalizeImageForDataUrl(file, {
+        maxWidth: 1024,
+        maxHeight: 1024,
+        preferType: 'image/webp',
+        quality: 0.9,
+      })
+      if (normalizedPreview.width !== normalizedPreview.height) {
+        setTokenImageDraft({
+          imageUrl: normalizedPreview.dataUrl,
+          focusX: 50,
+          focusY: 50,
+          zoom: 1,
+          assetName,
+          fileBaseName: file.name.replace(/\.[^/.]+$/, ''),
+        })
+        return
+      }
+
       const normalized = await normalizeImageForUpload(file, {
         maxWidth: 1024,
         maxHeight: 1024,
         preferType: 'image/webp',
         quality: 0.9,
       })
-      const safeName = normalized.file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-      const tokenAssetPath = `campaigns/${campaignId}/token-assets/${Date.now()}-${safeName}`
-      const tokenAssetRef = ref(storage, tokenAssetPath)
-      await uploadBytes(tokenAssetRef, normalized.file, { contentType: normalized.file.type })
-      const url = await getDownloadURL(tokenAssetRef)
-      const name = (assetName?.trim() || file.name.replace(/\.[^/.]+$/, '')).slice(0, 80)
-      const assetRef = await addDoc(collection(db, 'campaigns', campaignId, 'tokenAssets'), {
-        name,
-        imagePath: tokenAssetPath,
-        imageUrl: url,
-        width: normalized.width,
-        height: normalized.height,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
-      setTokenAssets((prev) =>
-        [
-          ...prev,
-          { id: assetRef.id, name, imagePath: tokenAssetPath, imageUrl: url, width: normalized.width, height: normalized.height },
-        ].sort((a, b) =>
-          a.name.localeCompare(b.name),
-        ),
-      )
-      setSelectedTokenAssetId(assetRef.id)
+      await saveTokenAssetFile(normalized.file, normalized.width, normalized.height, assetName)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to upload token image'
       setMapError(`Token upload failed: ${message}`)
@@ -2101,6 +2310,12 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   }, [tokens])
 
   useEffect(() => {
+    if (!selectedTokenAssetId) return
+    const exists = tokenAssets.some((asset) => asset.id === selectedTokenAssetId)
+    if (!exists) setSelectedTokenAssetId('')
+  }, [selectedTokenAssetId, tokenAssets])
+
+  useEffect(() => {
     if (!streamingMode) return
     setActiveAnnotationId('')
   }, [streamingMode])
@@ -2124,9 +2339,9 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       const center = touchCenter(event.touches)
       mobileTouchRef.current = {
         mode: 'pinch',
-        startZoom: playerZoom,
+        startZoom: playerZoomRef.current,
         startDistance: touchDistance(event.touches),
-        startPan: playerPan,
+        startPan: playerPanRef.current,
         startCenter: center,
       }
       return
@@ -2138,9 +2353,9 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       const touch = event.touches[0]
       mobileTouchRef.current = {
         mode: 'pan',
-        startZoom: playerZoom,
+        startZoom: playerZoomRef.current,
         startDistance: 0,
-        startPan: playerPan,
+        startPan: playerPanRef.current,
         startCenter: { x: touch.clientX, y: touch.clientY },
       }
     }
@@ -2160,11 +2375,14 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         x: center.x - mobileTouchRef.current.startCenter.x,
         y: center.y - mobileTouchRef.current.startCenter.y,
       }
-      setPlayerZoom(nextZoom)
-      setPlayerPan({
+      const nextPan = {
         x: mobileTouchRef.current.startPan.x + deltaCenter.x,
         y: mobileTouchRef.current.startPan.y + deltaCenter.y,
-      })
+      }
+      playerZoomRef.current = nextZoom
+      playerPanRef.current = nextPan
+      setPlayerZoom(nextZoom)
+      setPlayerPan(nextPan)
       return
     }
 
@@ -2175,10 +2393,12 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         x: touch.clientX - mobileTouchRef.current.startCenter.x,
         y: touch.clientY - mobileTouchRef.current.startCenter.y,
       }
-      setPlayerPan({
+      const nextPan = {
         x: mobileTouchRef.current.startPan.x + delta.x,
         y: mobileTouchRef.current.startPan.y + delta.y,
-      })
+      }
+      playerPanRef.current = nextPan
+      setPlayerPan(nextPan)
     }
   }
 
@@ -2187,41 +2407,53 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
     if (event.touches.length === 0) {
       mobileTouchRef.current.mode = 'none'
-      if (playerZoom <= 1) {
+      if (playerZoomRef.current <= 1) {
+        playerPanRef.current = { x: 0, y: 0 }
         setPlayerPan({ x: 0, y: 0 })
       }
       return
     }
 
-    if (event.touches.length === 1 && playerZoom > 1) {
+    if (event.touches.length === 1 && playerZoomRef.current > 1) {
       const touch = event.touches[0]
       mobileTouchRef.current = {
         mode: 'pan',
-        startZoom: playerZoom,
+        startZoom: playerZoomRef.current,
         startDistance: 0,
-        startPan: playerPan,
+        startPan: playerPanRef.current,
         startCenter: { x: touch.clientX, y: touch.clientY },
       }
     }
   }
 
   const handlePlayerWheel: WheelEventHandler<HTMLDivElement> = (event) => {
+    const target = event.target as HTMLElement | null
+    if (target?.closest('.map-annotation-popover')) {
+      return
+    }
     event.preventDefault()
     const factor = Math.exp(-event.deltaY * 0.0015)
     const rect = event.currentTarget.getBoundingClientRect()
-    const localX = event.clientX - rect.left - rect.width / 2
-    const localY = event.clientY - rect.top - rect.height / 2
-    const nextZoom = Math.min(5, Math.max(1, playerZoom * factor))
-    const zoomRatio = nextZoom / playerZoom
+    const pointerX = event.clientX - rect.left - rect.width / 2
+    const pointerY = event.clientY - rect.top - rect.height / 2
+    const currentZoom = playerZoomRef.current
+    const currentPan = playerPanRef.current
+    const nextZoom = Math.min(5, Math.max(1, currentZoom * factor))
+    const mapLocalX = (pointerX - currentPan.x) / currentZoom
+    const mapLocalY = (pointerY - currentPan.y) / currentZoom
+    const nextPan = {
+      x: pointerX - mapLocalX * nextZoom,
+      y: pointerY - mapLocalY * nextZoom,
+    }
+    playerZoomRef.current = nextZoom
+    playerPanRef.current = nextPan
     setPlayerZoom(nextZoom)
-    setPlayerPan({
-      x: playerPan.x * zoomRatio - localX * (zoomRatio - 1),
-      y: playerPan.y * zoomRatio - localY * (zoomRatio - 1),
-    })
+    setPlayerPan(nextPan)
   }
 
   const handlePlayerMouseDown: MouseEventHandler<HTMLDivElement> = (event) => {
     if (event.button !== 0) return
+    if (role === 'gm' && !event.shiftKey) return
     if (!event.shiftKey && playerZoom <= 1) return
     event.preventDefault()
     setPlayerDragging(true)
@@ -2237,10 +2469,12 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     if (!playerDragging || !playerDragStartRef.current) return
     const deltaX = event.clientX - playerDragStartRef.current.x
     const deltaY = event.clientY - playerDragStartRef.current.y
-    setPlayerPan({
+    const nextPan = {
       x: playerDragStartRef.current.panX + deltaX,
       y: playerDragStartRef.current.panY + deltaY,
-    })
+    }
+    playerPanRef.current = nextPan
+    setPlayerPan(nextPan)
   }
 
   const endPlayerDrag = () => {
@@ -2267,12 +2501,16 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
           setFullZoom(newZoom)
           setFullPan(newPan)
         } else {
-          const newZoom = playerZoom > losZoom ? losZoom : playerZoom
-          setPlayerZoom(newZoom)
-          setPlayerPan({
+          const currentPlayerZoom = playerZoomRef.current
+          const newZoom = currentPlayerZoom > losZoom ? losZoom : currentPlayerZoom
+          const newPan = {
             x: inlineBaseSize.width * newZoom * (0.5 - cx),
             y: inlineBaseSize.height * newZoom * (0.5 - cy),
-          })
+          }
+          playerZoomRef.current = newZoom
+          playerPanRef.current = newPan
+          setPlayerZoom(newZoom)
+          setPlayerPan(newPan)
         }
       }
       setCameraLock(true)
@@ -2295,10 +2533,12 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       fullPanRef.current = nextPan
       setFullPan(nextPan)
     } else {
-      setPlayerPan({
-        x: inlineBaseSize.width * playerZoom * (0.5 - cx),
-        y: inlineBaseSize.height * playerZoom * (0.5 - cy),
-      })
+      const nextPan = {
+        x: inlineBaseSize.width * playerZoomRef.current * (0.5 - cx),
+        y: inlineBaseSize.height * playerZoomRef.current * (0.5 - cy),
+      }
+      playerPanRef.current = nextPan
+      setPlayerPan(nextPan)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tokens, cameraLock, fullScreenOpen]) // omit zoom — only re-center on token move, not on user zoom changes
@@ -2622,13 +2862,11 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         return pos ? { ...t, x: pos.x, y: pos.y } : t
       }))
 
-      // Mark as recently dropped so this client's listener skips the path animation.
-      // Also record the pathId so any future metadata updates (hide/unhide, etc.)
-      // can't re-trigger the same path.
+      // Mark as recently dropped so this client's listener skips immediate
+      // modified events while our batch write is in flight.
       const pathId = Date.now().toString()
       finalTokenIds.forEach((tokenId) => {
         recentlyDroppedRef.current.add(tokenId)
-        lastAnimatedPathIdRef.current[tokenId] = pathId
         window.setTimeout(() => recentlyDroppedRef.current.delete(tokenId), 3000)
       })
 
@@ -2644,6 +2882,9 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
             batch.update(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId), {
               x: finalPosition.x,
               y: finalPosition.y,
+              // Clear stale path metadata so unhide cannot replay an old move.
+              path: deleteField(),
+              pathId: deleteField(),
               updatedAt: serverTimestamp(),
             })
             return
@@ -2658,6 +2899,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
             pathId,
             updatedAt: serverTimestamp(),
           })
+          lastAnimatedPathIdRef.current[tokenId] = pathId
         })
         await batch.commit()
       } catch (error) {
@@ -2709,7 +2951,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
   useEffect(() => {
     if (fullScreenOpen || !selectedMap || !inlineFogCanvasRef.current) return
-    if (isMobile && role === 'gm' && mobileGmPane !== 'map') return
+    if (isMobile && (role === 'gm' ? mobileGmPane !== 'map' : mobilePlayerPane !== 'map')) return
     if (inlineFogSize.width <= 0 || inlineFogSize.height <= 0) return
 
     if (loadedInlineCanvasRef.current !== inlineFogCanvasRef.current) {
@@ -2736,13 +2978,14 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     inlineFogSize.width,
     isMobile,
     mobileGmPane,
+    mobilePlayerPane,
     role,
     selectedMap,
   ])
 
   useEffect(() => {
     if (fullScreenOpen || !selectedMap || !inlineVisionCanvasRef.current) return
-    if (isMobile && role === 'gm' && mobileGmPane !== 'map') return
+    if (isMobile && (role === 'gm' ? mobileGmPane !== 'map' : mobilePlayerPane !== 'map')) return
     if (inlineFogSize.width <= 0 || inlineFogSize.height <= 0) return
 
     if (loadedInlineVisionCanvasRef.current !== inlineVisionCanvasRef.current) {
@@ -2761,6 +3004,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     inlineFogSize.width,
     isMobile,
     mobileGmPane,
+    mobilePlayerPane,
     role,
     selectedMap,
   ])
@@ -2975,11 +3219,11 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
           {!isMobile || (role === 'gm' ? mobileGmPane === 'map' : mobilePlayerPane === 'map') ? (
             <div
               className={isMobileZoomMapView ? 'map-stage mobile-player-stage' : 'map-stage'}
-              onWheel={role !== 'gm' ? handlePlayerWheel : undefined}
-              onMouseDown={role !== 'gm' ? handlePlayerMouseDown : undefined}
-              onMouseMove={role !== 'gm' ? handlePlayerMouseMove : undefined}
-              onMouseUp={role !== 'gm' ? endPlayerDrag : undefined}
-              onMouseLeave={role !== 'gm' ? endPlayerDrag : undefined}
+              onWheel={isMobileZoomMapView ? handlePlayerWheel : undefined}
+              onMouseDown={isMobileZoomMapView ? handlePlayerMouseDown : undefined}
+              onMouseMove={isMobileZoomMapView ? handlePlayerMouseMove : undefined}
+              onMouseUp={isMobileZoomMapView ? endPlayerDrag : undefined}
+              onMouseLeave={isMobileZoomMapView ? endPlayerDrag : undefined}
             >
               {!isMobile ? (
                 <button type="button" className="map-fullscreen-btn" onClick={openFullScreen}>
@@ -2999,7 +3243,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                   onTouchEnd={handleMobilePlayerTouchEnd}
                   onTouchCancel={handleMobilePlayerTouchEnd}
                   style={
-                    role !== 'gm'
+                    isMobileZoomMapView
                       ? {
                         transform: `translate(${playerPan.x}px, ${playerPan.y}px) scale(${playerZoom})`,
                         cursor: playerDragging ? 'grabbing' : playerZoom > 1 ? 'grab' : undefined,
@@ -3125,8 +3369,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 setVisionTool={setVisionTool}
                 fogBrushSize={fogBrushSize}
                 setFogBrushSize={setFogBrushSize}
-                fogBrushStrength={fogBrushStrength}
-                setFogBrushStrength={setFogBrushStrength}
                 tokenPlaceMode={tokenPlaceMode}
                 setTokenPlaceMode={setTokenPlaceMode}
                 tokenSelectMode={tokenSelectMode}
@@ -3143,6 +3385,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 selectedTokenImageUrl={selectedTokenAsset?.imageUrl ?? ''}
                 uploadingTokenImage={uploadingTokenImage}
                 onUploadTokenImage={uploadTokenImage}
+                onArchiveTokenAsset={archiveTokenAsset}
+                onRequestDeleteTokenAsset={requestDeleteTokenAsset}
                 streamingMode={streamingMode}
                 setStreamingMode={setStreamingMode}
                 applyFogPreset={applyFogPreset}
@@ -3150,6 +3394,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 fullyHidden={selectedMap?.fullyHidden === true}
                 tokens={tokens}
                 selectedTokenIds={selectedTokenIds}
+                onSelectTokenCard={(tokenId) => setSelectedTokenIds([tokenId])}
                 onUpdateToken={updateToken}
                 onUpdateTokenSize={async (tokenId, size) => {
                   const sizeScale = size / TOKEN_REFERENCE_DIMENSION
@@ -3401,8 +3646,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                   setVisionTool={setVisionTool}
                   fogBrushSize={fogBrushSize}
                   setFogBrushSize={setFogBrushSize}
-                  fogBrushStrength={fogBrushStrength}
-                  setFogBrushStrength={setFogBrushStrength}
                   tokenPlaceMode={tokenPlaceMode}
                   setTokenPlaceMode={setTokenPlaceMode}
                   tokenSelectMode={tokenSelectMode}
@@ -3419,6 +3662,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                   selectedTokenImageUrl={selectedTokenAsset?.imageUrl ?? ''}
                   uploadingTokenImage={uploadingTokenImage}
                   onUploadTokenImage={uploadTokenImage}
+                  onArchiveTokenAsset={archiveTokenAsset}
+                  onRequestDeleteTokenAsset={requestDeleteTokenAsset}
                   streamingMode={streamingMode}
                   setStreamingMode={setStreamingMode}
                   applyFogPreset={applyFogPreset}
@@ -3426,6 +3671,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                   fullyHidden={selectedMap?.fullyHidden === true}
                   tokens={tokens}
                   selectedTokenIds={selectedTokenIds}
+                  onSelectTokenCard={(tokenId) => setSelectedTokenIds([tokenId])}
                   onUpdateToken={updateToken}
                   onUpdateTokenSize={async (tokenId, size) => {
                     const sizeScale = size / TOKEN_REFERENCE_DIMENSION
@@ -3452,6 +3698,72 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         </div>
       ) : null}
 
+      {tokenImageDraft ? (
+        <div className="monster-portrait-modal-overlay" role="dialog" aria-modal="true" aria-label="Adjust token image">
+          <div className="monster-portrait-modal">
+            <div className="monster-portrait-modal-header">
+              <span className="monster-portrait-modal-hint">Drag to center crop</span>
+              <div className="monster-portrait-modal-actions">
+                <button
+                  type="button"
+                  className="modal-icon-btn"
+                  onClick={() => adjustTokenImageDraftZoom(-0.2)}
+                  aria-label="Zoom out token crop"
+                >
+                  <Minus size={16} />
+                </button>
+                <button
+                  type="button"
+                  className="modal-icon-btn"
+                  onClick={() => adjustTokenImageDraftZoom(0.2)}
+                  aria-label="Zoom in token crop"
+                >
+                  <Plus size={16} />
+                </button>
+                <button
+                  type="button"
+                  className="modal-icon-btn"
+                  onClick={() => setTokenImageDraft(null)}
+                  aria-label="Cancel token image crop"
+                >
+                  <X size={16} />
+                </button>
+                <button
+                  type="button"
+                  className="modal-icon-btn confirm"
+                  onClick={() => void applyTokenImageDraft()}
+                  aria-label="Apply token image crop"
+                >
+                  <Check size={16} />
+                </button>
+              </div>
+            </div>
+            <div
+              className="monster-portrait-modal-preview monster-portrait-drag-zone"
+              style={{ aspectRatio: '1 / 1' }}
+              onPointerDown={handleTokenImageDraftDragStart}
+              onPointerMove={handleTokenImageDraftDragMove}
+              onPointerUp={clearTokenImageDraftDrag}
+              onPointerCancel={clearTokenImageDraftDrag}
+            >
+              <img
+                src={tokenImageDraft.imageUrl}
+                alt=""
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                  objectPosition: `${tokenImageDraft.focusX}% ${tokenImageDraft.focusY}%`,
+                  transform: `scale(${tokenImageDraft.zoom})`,
+                  transformOrigin: 'center center',
+                }}
+                draggable={false}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <ConfirmModal
         open={deleteCandidate !== null}
         title="Delete Map?"
@@ -3469,6 +3781,15 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         confirmDisabled={Boolean(deletingTokenId)}
         onCancel={() => setTokenDeleteCandidate(null)}
         onConfirm={() => void confirmDeleteToken()}
+      />
+      <ConfirmModal
+        open={tokenAssetDeleteCandidate !== null}
+        title="Delete Token Icon?"
+        message={`Permanently remove "${tokenAssetDeleteCandidate?.name ?? ''}" from token icons?`}
+        confirmLabel={deletingTokenAssetId ? 'Deleting...' : 'Delete'}
+        confirmDisabled={Boolean(deletingTokenAssetId)}
+        onCancel={() => setTokenAssetDeleteCandidate(null)}
+        onConfirm={() => void confirmDeleteTokenAsset()}
       />
     </div>
   )
@@ -3488,9 +3809,9 @@ function PlayerMapControls({
       <div className="map-icon-grid">
         <button
           type="button"
-          className={cameraLock ? 'map-icon-btn active' : 'map-icon-btn'}
+          className={cameraLock ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
           onClick={onToggleCameraLock}
-          title="Camera lock"
+          data-tooltip="Camera lock"
           aria-label="Toggle camera lock"
         >
           <Crosshair size={16} />
@@ -3508,8 +3829,6 @@ function GmMapControls({
   setVisionTool,
   fogBrushSize,
   setFogBrushSize,
-  fogBrushStrength,
-  setFogBrushStrength,
   tokenPlaceMode,
   setTokenPlaceMode,
   tokenSelectMode,
@@ -3526,6 +3845,8 @@ function GmMapControls({
   selectedTokenImageUrl,
   uploadingTokenImage,
   onUploadTokenImage,
+  onArchiveTokenAsset,
+  onRequestDeleteTokenAsset,
   streamingMode,
   setStreamingMode,
   applyFogPreset,
@@ -3533,6 +3854,7 @@ function GmMapControls({
   fullyHidden,
   tokens,
   selectedTokenIds,
+  onSelectTokenCard,
   onUpdateToken,
   onUpdateTokenSize,
   onUpdateTokenViewDistance,
@@ -3546,8 +3868,6 @@ function GmMapControls({
   setVisionTool: (tool: 'draw' | 'erase' | null) => void
   fogBrushSize: number
   setFogBrushSize: (size: number) => void
-  fogBrushStrength: number
-  setFogBrushStrength: (strength: number) => void
   tokenPlaceMode: boolean
   setTokenPlaceMode: (value: boolean) => void
   tokenSelectMode: boolean
@@ -3564,6 +3884,8 @@ function GmMapControls({
   selectedTokenImageUrl: string
   uploadingTokenImage: boolean
   onUploadTokenImage: (file: File, assetName?: string) => Promise<void>
+  onArchiveTokenAsset: (assetId: string, archived: boolean) => Promise<void>
+  onRequestDeleteTokenAsset: (assetId: string) => void
   streamingMode: boolean
   setStreamingMode: (value: boolean) => void
   applyFogPreset: (preset: 'hide-all' | 'unhide-all') => Promise<void>
@@ -3571,6 +3893,7 @@ function GmMapControls({
   fullyHidden: boolean
   tokens: TokenRecord[]
   selectedTokenIds: string[]
+  onSelectTokenCard: (tokenId: string) => void
   onUpdateToken: (
     tokenId: string,
     updates: Partial<
@@ -3590,6 +3913,7 @@ function GmMapControls({
   }
 
   const [tokenNameDrafts, setTokenNameDrafts] = useState<Record<string, string>>({})
+  const [tokensCollapsed, setTokensCollapsed] = useState(false)
 
   const commitTokenLabelEdit = async (token: TokenRecord, labelValue: string) => {
     const current = token.name.trim()
@@ -3610,85 +3934,82 @@ function GmMapControls({
       <div className="map-icon-grid">
         <button
           type="button"
-          className={fogTool === 'reveal' ? 'map-icon-btn active' : 'map-icon-btn'}
-          onClick={() => {
-            setTokenSelectMode(false)
-            setVisionTool(null)
-            setFogTool(fogTool === 'reveal' ? null : 'reveal')
-          }}
-          aria-label="Eraser brush"
-          title="Eraser brush"
-        >
-          <Eraser size={16} />
-        </button>
-        <button
-          type="button"
-          className={fogTool === 'hide' ? 'map-icon-btn active' : 'map-icon-btn'}
+          className={fogTool === 'hide' ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
           onClick={() => {
             setTokenSelectMode(false)
             setVisionTool(null)
             setFogTool(fogTool === 'hide' ? null : 'hide')
           }}
           aria-label="Spray fog brush"
-          title="Spray fog brush"
+          data-tooltip="Spray fog brush"
         >
           <SprayCan size={16} />
         </button>
         <button
           type="button"
-          className={visionTool === 'draw' ? 'map-icon-btn active' : 'map-icon-btn'}
+          className={fogTool === 'reveal' ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
+          onClick={() => {
+            setTokenSelectMode(false)
+            setVisionTool(null)
+            setFogTool(fogTool === 'reveal' ? null : 'reveal')
+          }}
+          aria-label="Eraser brush"
+          data-tooltip="Eraser brush"
+        >
+          <Eraser size={16} />
+        </button>
+        <button
+          type="button"
+          className={visionTool === 'draw' ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
           onClick={() => {
             setTokenSelectMode(false)
             setFogTool(null)
             setVisionTool(visionTool === 'draw' ? null : 'draw')
           }}
           aria-label="Vision wall brush"
-          title="Vision wall brush"
+          data-tooltip="Vision wall brush"
         >
           <Pencil size={16} />
         </button>
         <button
           type="button"
-          className={visionTool === 'erase' ? 'map-icon-btn active' : 'map-icon-btn'}
+          className={visionTool === 'erase' ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
           onClick={() => {
             setTokenSelectMode(false)
             setFogTool(null)
             setVisionTool(visionTool === 'erase' ? null : 'erase')
           }}
           aria-label="Erase vision wall brush"
-          title="Erase vision wall brush"
+          data-tooltip="Erase vision wall brush"
         >
           <X size={16} />
         </button>
+        <div className="map-brush-control-inline" aria-label="Brush size">
+          <input
+            className="map-brush-control-slider"
+            type="range"
+            min={1}
+            max={260}
+            step={1}
+            value={fogBrushSize}
+            onChange={(event) => setFogBrushSize(Number(event.target.value))}
+            aria-label="Brush size"
+          />
+          <span className="map-brush-control-value">{fogBrushSize}</span>
+        </div>
         <button
           type="button"
-          className={fullyHidden ? 'map-icon-btn active' : 'map-icon-btn'}
+          className={fullyHidden ? 'map-icon-btn map-hide-all-btn fast-tooltip active' : 'map-icon-btn map-hide-all-btn fast-tooltip'}
           onClick={toggleHidden}
           disabled={!canApplyPreset}
           aria-label={fullyHidden ? 'Unhide all' : 'Hide all'}
-          title={fullyHidden ? 'Unhide all' : 'Hide all'}
+          data-tooltip={fullyHidden ? 'Unhide all' : 'Hide all'}
         >
           {fullyHidden ? <Eye size={16} /> : <EyeOff size={16} />}
         </button>
         <button
           type="button"
-          className={tokenPlaceMode ? 'map-icon-btn active' : 'map-icon-btn'}
-          onClick={() => {
-            const next = !tokenPlaceMode
-            setTokenPlaceMode(next)
-            if (next) {
-              setTokenSelectMode(false)
-              setAnnotationPlaceMode(false)
-            }
-          }}
-          aria-label="Toggle token placement mode"
-          title="Toggle token placement mode"
-        >
-          <ChessPawn size={16} />
-        </button>
-        <button
-          type="button"
-          className={tokenSelectMode ? 'map-icon-btn active' : 'map-icon-btn'}
+          className={tokenSelectMode ? 'map-icon-btn map-token-select-btn fast-tooltip active' : 'map-icon-btn map-token-select-btn fast-tooltip'}
           onClick={() => {
             const next = !tokenSelectMode
             setTokenSelectMode(next)
@@ -3700,13 +4021,13 @@ function GmMapControls({
             }
           }}
           aria-label="Toggle token drag-select mode"
-          title="Toggle token drag-select mode"
+          data-tooltip="Token drag-select mode"
         >
-          <Square size={16} />
+          <SquareDashedMousePointer size={16} />
         </button>
         <button
           type="button"
-          className={annotationPlaceMode ? 'map-icon-btn active' : 'map-icon-btn'}
+          className={annotationPlaceMode ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
           onClick={() => {
             const next = !annotationPlaceMode
             setAnnotationPlaceMode(next)
@@ -3716,16 +4037,32 @@ function GmMapControls({
             }
           }}
           aria-label="Toggle annotation placement mode"
-          title="Toggle annotation placement mode"
+          data-tooltip="Annotation placement mode"
         >
           <Flag size={16} />
         </button>
         <button
           type="button"
-          className={streamingMode ? 'map-icon-btn active' : 'map-icon-btn'}
+          className={tokenPlaceMode ? 'map-icon-btn map-token-place-btn fast-tooltip active' : 'map-icon-btn map-token-place-btn fast-tooltip'}
+          onClick={() => {
+            const next = !tokenPlaceMode
+            setTokenPlaceMode(next)
+            if (next) {
+              setTokenSelectMode(false)
+              setAnnotationPlaceMode(false)
+            }
+          }}
+          aria-label="Toggle token placement mode"
+          data-tooltip="Token placement mode"
+        >
+          <ChessPawn size={16} />
+        </button>
+        <button
+          type="button"
+          className={streamingMode ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
           onClick={() => setStreamingMode(!streamingMode)}
           aria-label="Toggle streaming mode"
-          title="Toggle streaming mode"
+          data-tooltip="Streaming mode"
         >
           <TvMinimalPlay size={16} />
         </button>
@@ -3742,9 +4079,11 @@ function GmMapControls({
               setTokenSize(next.size)
               if (next.icon === 'pawn' && selectedTokenAssetId) setSelectedTokenAssetId('')
             }}
-            tokenAssets={tokenAssets.map((asset) => ({ id: asset.id, name: asset.name, imageUrl: asset.imageUrl }))}
+            tokenAssets={tokenAssets.map((asset) => ({ id: asset.id, name: asset.name, imageUrl: asset.imageUrl, archived: asset.archived }))}
             selectedTokenAssetId={selectedTokenAssetId}
             onSelectedTokenAssetIdChange={setSelectedTokenAssetId}
+            onArchiveTokenAsset={onArchiveTokenAsset}
+            onRequestDeleteTokenAsset={onRequestDeleteTokenAsset}
             selectedTokenImageUrl={selectedTokenImageUrl}
             uploadingTokenImage={uploadingTokenImage}
             onUploadTokenImage={onUploadTokenImage}
@@ -3752,9 +4091,27 @@ function GmMapControls({
         </div>
       ) : null}
       {!streamingMode ? (
-        <div className="token-list">
-          {tokens.map((token, index) => (
-            <div key={token.id} className={selectedTokenIds.includes(token.id) ? 'token-row selected' : 'token-row'}>
+        <section className="token-cards-panel" aria-label="Token cards">
+          <div className="token-cards-header">
+            <h4 className="token-cards-title">Tokens</h4>
+            <button
+              type="button"
+              className="token-cards-toggle fast-tooltip"
+              onClick={() => setTokensCollapsed((current) => !current)}
+              aria-label={tokensCollapsed ? 'Expand tokens' : 'Collapse tokens'}
+              data-tooltip={tokensCollapsed ? 'Expand tokens' : 'Collapse tokens'}
+            >
+              {tokensCollapsed ? '+' : '-'}
+            </button>
+          </div>
+          {!tokensCollapsed ? (
+            <div className="token-list">
+            {tokens.map((token, index) => (
+              <div
+                key={token.id}
+                className={selectedTokenIds.includes(token.id) ? 'token-row selected' : 'token-row'}
+                onClick={() => onSelectTokenCard(token.id)}
+              >
               <span className="token-row-icon" style={{ color: token.color }} aria-hidden>
                 {token.tokenImageUrl ? (
                   <img src={token.tokenImageUrl} alt="" className="token-row-image" />
@@ -3787,12 +4144,14 @@ function GmMapControls({
                 aria-label={`Token ${index + 1} name`}
                 placeholder={`Token ${index + 1}`}
               />
-              <input
-                type="color"
-                value={token.color}
-                onChange={(event) => void onUpdateToken(token.id, { color: event.target.value })}
-                aria-label={`Token ${index + 1} color`}
-              />
+              {!token.tokenImageUrl ? (
+                <input
+                  type="color"
+                  value={token.color}
+                  onChange={(event) => void onUpdateToken(token.id, { color: event.target.value })}
+                  aria-label={`Token ${index + 1} color`}
+                />
+              ) : null}
               <button
                 type="button"
                 className="token-row-delete"
@@ -3802,58 +4161,64 @@ function GmMapControls({
               >
                 <Trash2 size={14} />
               </button>
-              <input
-                type="range"
-                className="token-row-size-slider"
+              <IconValueSlider
+                className="token-row-size-row"
+                icon={<ALargeSmall size={14} />}
+                tooltip="Token Size"
+                value={token.size}
                 min={16}
                 max={TOKEN_SIZE_MAX}
                 step={1}
-                value={token.size}
-                onChange={(event) => void onUpdateTokenSize(token.id, Number(event.target.value))}
-                aria-label={`Token ${index + 1} size`}
+                ariaLabel={`Token ${index + 1} size`}
+                onChange={(nextSize) => void onUpdateTokenSize(token.id, nextSize)}
               />
-              <span className="token-row-size-value">{token.size}</span>
               <div className="token-row-toggles">
-                <label className="token-party-toggle">
-                  <input
-                    type="checkbox"
-                    checked={token.party}
-                    onChange={(event) => {
-                      const checked = event.target.checked
-                      if (checked) {
-                        const viewDistance = tokenViewDistanceSliderValue(token)
-                        void onUpdateToken(token.id, {
-                          party: checked,
-                          viewDistance,
-                        })
-                        return
-                      }
-                      void onUpdateToken(token.id, { party: checked })
-                    }}
-                  />
-                  Party Token
-                </label>
-                <label className="token-party-toggle">
-                  <input
-                    type="checkbox"
-                    checked={token.revealName}
-                    onChange={(event) => void onUpdateToken(token.id, { revealName: event.target.checked })}
-                  />
-                  Reveal Name
-                </label>
-                <label className="token-party-toggle">
-                  <input
-                    type="checkbox"
-                    checked={token.hidden}
-                    onChange={(event) => void onUpdateToken(token.id, { hidden: event.target.checked })}
-                  />
-                  Hide
-                </label>
+                <button
+                  type="button"
+                  className={token.party ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
+                  onClick={() => {
+                    const next = !token.party
+                    if (next) {
+                      const viewDistance = tokenViewDistanceSliderValue(token)
+                      void onUpdateToken(token.id, {
+                        party: next,
+                        viewDistance,
+                      })
+                      return
+                    }
+                    void onUpdateToken(token.id, { party: next })
+                  }}
+                  aria-label="Toggle party token"
+                  data-tooltip="Party token"
+                >
+                  <User size={14} />
+                </button>
+                <button
+                  type="button"
+                  className={token.revealName ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
+                  onClick={() => void onUpdateToken(token.id, { revealName: !token.revealName })}
+                  aria-label="Toggle reveal name"
+                  data-tooltip="Reveal name"
+                >
+                  <Tag size={14} />
+                </button>
+                <button
+                  type="button"
+                  className={token.hidden ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
+                  onClick={() => void onUpdateToken(token.id, { hidden: !token.hidden })}
+                  aria-label="Toggle hide token"
+                  data-tooltip="Hide token"
+                >
+                  <EyeOff size={14} />
+                </button>
               </div>
               {token.party ? (
-                <label className="token-party-toggle token-view-distance">
-                  View Distance: {tokenViewDistanceSliderValue(token)}
+                <div className="token-view-distance" aria-label="Token view distance">
+                  <span className="token-view-distance-icon fast-tooltip" data-tooltip="View Distance" aria-hidden>
+                    <Binoculars size={14} />
+                  </span>
                   <input
+                    className="token-view-distance-slider"
                     type="range"
                     min={8}
                     max={600}
@@ -3861,36 +4226,15 @@ function GmMapControls({
                     value={tokenViewDistanceSliderValue(token)}
                     onChange={(event) => void onUpdateTokenViewDistance(token.id, Number(event.target.value))}
                   />
-                </label>
+                  <span className="token-view-distance-value">{tokenViewDistanceSliderValue(token)}</span>
+                </div>
               ) : null}
             </div>
           ))}
-        </div>
+            </div>
+          ) : null}
+        </section>
       ) : null}
-
-      <label>
-        Brush Size: {fogBrushSize}
-        <input
-          type="range"
-          min={8}
-          max={260}
-          step={2}
-          value={fogBrushSize}
-          onChange={(event) => setFogBrushSize(Number(event.target.value))}
-        />
-      </label>
-
-      <label>
-        Brush Strength: {fogBrushStrength.toFixed(2)}
-        <input
-          type="range"
-          min={0.1}
-          max={1}
-          step={0.05}
-          value={fogBrushStrength}
-          onChange={(event) => setFogBrushStrength(Number(event.target.value))}
-        />
-      </label>
     </div>
   )
 }

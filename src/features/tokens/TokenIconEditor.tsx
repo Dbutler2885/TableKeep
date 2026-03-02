@@ -1,4 +1,6 @@
-import { ChessPawn, Upload } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ALargeSmall, Archive, Check, ChessPawn, ChevronDown, Upload, X } from 'lucide-react'
+import { IconValueSlider } from '../common/IconValueSlider'
 
 export type TokenIconConfig = {
   icon: 'pawn' | 'custom'
@@ -12,6 +14,7 @@ export type TokenAssetOption = {
   id: string
   name: string
   imageUrl: string
+  archived?: boolean
 }
 
 type TokenIconEditorProps = {
@@ -24,9 +27,10 @@ type TokenIconEditorProps = {
   tokenAssets?: TokenAssetOption[]
   selectedTokenAssetId?: string
   onSelectedTokenAssetIdChange?: (id: string) => void
+  onArchiveTokenAsset?: (id: string, archived: boolean) => Promise<void> | void
+  onRequestDeleteTokenAsset?: (id: string) => void
   selectedTokenImageUrl?: string
   uploadingTokenImage?: boolean
-  uploadLabel?: string
   onUploadTokenImage?: (file: File, assetName?: string) => Promise<void> | void
 }
 
@@ -60,35 +64,134 @@ export function TokenIconEditor({
   tokenAssets = [],
   selectedTokenAssetId = '',
   onSelectedTokenAssetIdChange,
+  onArchiveTokenAsset,
+  onRequestDeleteTokenAsset,
   selectedTokenImageUrl = '',
   uploadingTokenImage = false,
-  uploadLabel = 'Upload Token Image',
   onUploadTokenImage,
 }: TokenIconEditorProps) {
   const wrapperClass = ['token-icon-editor', className].filter(Boolean).join(' ')
   const hasTokenSourceControls = Boolean(onSelectedTokenAssetIdChange || onUploadTokenImage)
+  const [assetMenuOpen, setAssetMenuOpen] = useState(false)
+  const [showArchivedAssets, setShowArchivedAssets] = useState(false)
+  const assetMenuRef = useRef<HTMLDivElement | null>(null)
+  const isSvgTokenImage =
+    selectedTokenImageUrl.toLowerCase().includes('.svg') || selectedTokenImageUrl.startsWith('data:image/svg+xml')
+  const showColorPicker = !selectedTokenImageUrl || isSvgTokenImage
+  const selectedAsset = tokenAssets.find((asset) => asset.id === selectedTokenAssetId) ?? null
+  const visibleAssets = tokenAssets.filter((asset) => (showArchivedAssets ? asset.archived === true : asset.archived !== true))
+
+  useEffect(() => {
+    if (!assetMenuOpen) return
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (!target) return
+      if (assetMenuRef.current?.contains(target)) return
+      setAssetMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [assetMenuOpen])
 
   return (
     <div className={wrapperClass}>
       {hasTokenSourceControls ? (
         <label>
           Token Type
-          <select
-            value={selectedTokenAssetId}
-            disabled={disabled}
-            onChange={(event) => {
-              const nextId = event.target.value
-              onSelectedTokenAssetIdChange?.(nextId)
-              onChange({ ...value, icon: nextId ? 'custom' : 'pawn' })
-            }}
-          >
-            <option value="">Default Pawn</option>
-            {tokenAssets.map((asset) => (
-              <option key={asset.id} value={asset.id}>
-                {asset.name}
-              </option>
-            ))}
-          </select>
+          <div className="token-asset-picker-row" ref={assetMenuRef}>
+            <div className={assetMenuOpen ? 'token-asset-picker-shell open' : 'token-asset-picker-shell'}>
+              <button
+                type="button"
+                className="token-asset-picker-trigger"
+                disabled={disabled}
+                onClick={() => setAssetMenuOpen((current) => !current)}
+                aria-haspopup="listbox"
+                aria-expanded={assetMenuOpen}
+              >
+                <span className="token-asset-picker-label">
+                  {selectedAsset ? selectedAsset.name : 'Default Pawn'}
+                </span>
+                <ChevronDown size={14} />
+              </button>
+              <button
+                type="button"
+                className={showArchivedAssets ? 'token-asset-picker-archive fast-tooltip active' : 'token-asset-picker-archive fast-tooltip'}
+                onClick={() => setShowArchivedAssets((current) => !current)}
+                aria-label={showArchivedAssets ? 'Show active token icons' : 'Show archived token icons'}
+                data-tooltip={showArchivedAssets ? 'Show active icons' : 'Show archived icons'}
+              >
+                <Archive size={14} />
+              </button>
+            </div>
+            {assetMenuOpen ? (
+              <div className="token-asset-picker-menu" role="listbox" aria-label="Token icon options">
+                <div className={selectedTokenAssetId ? 'token-asset-option' : 'token-asset-option selected'}>
+                  <button
+                    type="button"
+                    className="token-asset-option-main"
+                    onClick={() => {
+                      onSelectedTokenAssetIdChange?.('')
+                      onChange({ ...value, icon: 'pawn' })
+                      setAssetMenuOpen(false)
+                    }}
+                  >
+                    <span className="token-asset-option-name">Default Pawn</span>
+                    {!selectedTokenAssetId ? <Check size={13} /> : null}
+                  </button>
+                  <div className="token-asset-option-actions" aria-hidden />
+                </div>
+                {visibleAssets.map((asset) => {
+                  const isSelected = selectedTokenAssetId === asset.id
+                  const archived = asset.archived === true
+                  return (
+                    <div key={asset.id} className={isSelected ? 'token-asset-option selected' : 'token-asset-option'}>
+                      <button
+                        type="button"
+                        className="token-asset-option-main"
+                        onClick={() => {
+                          onSelectedTokenAssetIdChange?.(asset.id)
+                          onChange({ ...value, icon: 'custom' })
+                          setAssetMenuOpen(false)
+                        }}
+                      >
+                        <span className="token-asset-option-name">{asset.name}</span>
+                        {isSelected ? <Check size={13} /> : null}
+                      </button>
+                      <div className="token-asset-option-actions">
+                        <button
+                          type="button"
+                          className="map-icon-btn fast-tooltip"
+                          data-tooltip={archived ? 'Unarchive icon' : 'Archive icon'}
+                          aria-label={archived ? `Unarchive ${asset.name}` : `Archive ${asset.name}`}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            void onArchiveTokenAsset?.(asset.id, !archived)
+                          }}
+                        >
+                          <Archive size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          className="map-icon-btn fast-tooltip"
+                          data-tooltip="Delete icon"
+                          aria-label={`Delete ${asset.name}`}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            onRequestDeleteTokenAsset?.(asset.id)
+                            setAssetMenuOpen(false)
+                          }}
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : null}
+          </div>
         </label>
       ) : (
         <label>
@@ -106,21 +209,16 @@ export function TokenIconEditor({
         </label>
       )}
 
-      <div className="token-icon-preview-row">
-        <TokenPawnPreview
-          color={value.color}
-          size={Math.max(18, Math.min(36, Math.round(value.size * 0.6)))}
-          imageUrl={selectedTokenImageUrl || undefined}
-        />
-        <span>{selectedTokenImageUrl ? 'Custom token image' : 'Default pawn token'}</span>
-      </div>
-
       {onUploadTokenImage ? (
         <div className="token-image-upload">
-          <label className="upload-trigger token-image-trigger">
+          <label
+            className="map-icon-btn token-image-trigger fast-tooltip fast-tooltip-left"
+            data-tooltip={uploadingTokenImage ? 'Uploading...' : 'Upload token image'}
+            aria-label={uploadingTokenImage ? 'Uploading token image' : 'Upload token image'}
+          >
             <Upload size={14} />
-            {uploadingTokenImage ? 'Uploading...' : uploadLabel}
             <input
+              className="sr-only"
               type="file"
               accept="image/png,image/webp,image/jpeg,image/gif,image/svg+xml"
               disabled={disabled || uploadingTokenImage}
@@ -139,28 +237,36 @@ export function TokenIconEditor({
         </div>
       ) : null}
 
-      <label>
-        Token Color
-        <input
-          type="color"
-          disabled={disabled}
-          value={value.color}
-          onChange={(event) => onChange({ ...value, color: event.target.value })}
-        />
-      </label>
+      <IconValueSlider
+        icon={<ALargeSmall size={14} />}
+        tooltip="Token Size"
+        value={value.size}
+        min={minSize}
+        max={maxSize}
+        step={1}
+        disabled={disabled}
+        ariaLabel="Token size"
+        onChange={(nextSize) => onChange({ ...value, size: nextSize })}
+      />
 
-      <label>
-        Token Size: {value.size}
-        <input
-          type="range"
-          min={minSize}
-          max={maxSize}
-          step={1}
-          disabled={disabled}
-          value={value.size}
-          onChange={(event) => onChange({ ...value, size: Number(event.target.value) })}
+      <div className="token-icon-preview-row">
+        {showColorPicker ? (
+          <input
+            type="color"
+            className="token-icon-preview-color"
+            disabled={disabled}
+            value={value.color}
+            aria-label="Token color"
+            onChange={(event) => onChange({ ...value, color: event.target.value })}
+          />
+        ) : null}
+        <TokenPawnPreview
+          color={value.color}
+          size={Math.max(minSize, Math.min(maxSize, value.size))}
+          imageUrl={selectedTokenImageUrl || undefined}
         />
-      </label>
+      </div>
+      <span className="token-icon-preview-label">{selectedTokenImageUrl ? 'Custom token image' : 'Default pawn token'}</span>
     </div>
   )
 }
