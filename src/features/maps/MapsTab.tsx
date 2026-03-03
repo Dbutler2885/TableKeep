@@ -282,6 +282,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [deletingTokenAssetId, setDeletingTokenAssetId] = useState('')
   const [tokens, setTokens] = useState<TokenRecord[]>([])
   const [selectedTokenIds, setSelectedTokenIds] = useState<string[]>([])
+  const [playerSelectedTokenIds, setPlayerSelectedTokenIds] = useState<string[]>([])
   const [tokenSelectionBox, setTokenSelectionBox] = useState<{
     start: { x: number; y: number }
     end: { x: number; y: number }
@@ -414,6 +415,14 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   useEffect(() => {
     distanceTrackerRollRef.current = distanceTrackerRoll
   }, [distanceTrackerRoll])
+
+  useEffect(() => {
+    setPlayerSelectedTokenIds((current) => current.filter((id) => tokens.some((token) => token.id === id)))
+  }, [tokens])
+
+  useEffect(() => {
+    setPlayerSelectedTokenIds([])
+  }, [selectedMapId])
 
   useEffect(() => {
     const mapsQuery = query(collection(db, 'campaigns', campaignId, 'maps'))
@@ -910,6 +919,54 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const tokenViewDistanceSliderValue = (token: TokenRecord) => {
     if (typeof token.viewDistance === 'number') return token.viewDistance
     return DEFAULT_TOKEN_VIEW_DISTANCE
+  }
+  const isTokenPartiallyVisibleForPlayer = (
+    token: TokenRecord,
+    position: { x: number; y: number },
+    fogCanvas: HTMLCanvasElement | null,
+  ) => {
+    if (token.hidden) return false
+    if (token.party) return true
+    if (!fogCanvas) return selectedMap ? !selectedMap.fullyHidden : true
+    const fogCtx = fogCanvas.getContext('2d', { willReadFrequently: true })
+    if (!fogCtx) return true
+
+    const fogScale = fogCanvas.height / Math.max(1, activeMapDimension)
+    const dimensions = renderTokenDimensions(token)
+    const width = Math.max(2, Math.round(dimensions.width * fogScale))
+    const height = Math.max(2, Math.round(dimensions.height * fogScale))
+    const anchorX = Math.round(position.x * fogCanvas.width)
+    const anchorY = Math.round(position.y * fogCanvas.height)
+    const left = anchorX - Math.round(width / 2)
+    const top = anchorY - height
+
+    const samplePoints = [
+      [0.5, 0.08],
+      [0.25, 0.08],
+      [0.75, 0.08],
+      [0.5, 0.35],
+      [0.25, 0.35],
+      [0.75, 0.35],
+      [0.5, 0.65],
+      [0.25, 0.65],
+      [0.75, 0.65],
+      [0.5, 0.9],
+      [0.25, 0.9],
+      [0.75, 0.9],
+    ] as const
+
+    try {
+      for (const [sx, sy] of samplePoints) {
+        const x = Math.max(0, Math.min(fogCanvas.width - 1, left + Math.round(width * sx)))
+        const y = Math.max(0, Math.min(fogCanvas.height - 1, top + Math.round(height * sy)))
+        const alpha = fogCtx.getImageData(x, y, 1, 1).data[3]
+        if (alpha < 16) return true
+      }
+    } catch {
+      return true
+    }
+
+    return false
   }
   const renderTokenNameStyle = (token: TokenRecord): React.CSSProperties => {
     return {
@@ -2371,6 +2428,11 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     return <ChessPawn size={dimensions.baseSize} />
   }
 
+  const togglePlayerTokenSelection = (tokenId: string) => {
+    if (role === 'gm') return
+    setPlayerSelectedTokenIds((current) => (current.includes(tokenId) ? current.filter((id) => id !== tokenId) : [tokenId]))
+  }
+
   const renderTokenItem = (token: TokenRecord, index: number) => {
     if (!isTokenVisible(token)) return null
     const draggedPosition = dragTokenPositions?.[token.id]
@@ -2378,23 +2440,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     const x = draggedPosition?.x ?? animPos?.x ?? token.x
     const y = draggedPosition?.y ?? animPos?.y ?? token.y
     const isAnimating = Boolean(animPos) && !draggedPosition
-
-    if (role !== 'gm') {
-      return (
-        <span
-          key={token.id}
-          className={isAnimating ? 'map-token-static animating' : 'map-token-static'}
-          style={{ left: `${x * 100}%`, top: `${y * 100}%`, color: token.color }}
-        >
-          {renderTokenGlyph(token)}
-          {token.revealName ? (
-            <span className="map-token-name" style={renderTokenNameStyle(token)}>
-              {tokenDisplayName(token, index)}
-            </span>
-          ) : null}
-        </span>
-      )
-    }
 
     const isDragging = Boolean(draggedPosition)
     const isSelected = selectedTokenIds.includes(token.id)
@@ -2449,6 +2494,56 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         <span className={gmTokenNameClassName(token)} style={renderTokenNameStyle(token)}>
           {tokenDisplayName(token, index)}
         </span>
+      </button>
+    )
+  }
+
+  const renderPlayerTokenItem = (token: TokenRecord, index: number, layer: 'under-fog' | 'over-fog') => {
+    if (role === 'gm' || token.hidden) return null
+    if (layer === 'under-fog' && token.party) return null
+    if (layer === 'over-fog' && !token.party) return null
+
+    const draggedPosition = dragTokenPositions?.[token.id]
+    const animPos = animatedTokenPositions[token.id]
+    const x = draggedPosition?.x ?? animPos?.x ?? token.x
+    const y = draggedPosition?.y ?? animPos?.y ?? token.y
+    const isAnimating = Boolean(animPos) && !draggedPosition
+
+    if (layer === 'under-fog' && !isTokenPartiallyVisibleForPlayer(token, { x, y }, activeFogCanvasRef.current)) {
+      return null
+    }
+
+    const selected = playerSelectedTokenIds.includes(token.id)
+    return (
+      <button
+        key={`${layer}-${token.id}`}
+        type="button"
+        className={[
+          'map-token',
+          'player',
+          isAnimating ? 'animating' : '',
+          selected ? 'selected' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        style={{ left: `${x * 100}%`, top: `${y * 100}%`, color: token.color }}
+        onMouseDown={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+        }}
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          togglePlayerTokenSelection(token.id)
+        }}
+        aria-label={tokenDisplayName(token, index)}
+      >
+        {renderTokenGlyph(token)}
+        {token.revealName ? (
+          <span className="map-token-name" style={renderTokenNameStyle(token)}>
+            {tokenDisplayName(token, index)}
+          </span>
+        ) : null}
       </button>
     )
   }
@@ -3995,6 +4090,11 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                       />
                     </div>
                   ) : null}
+                  {role !== 'gm' ? (
+                    <div className="map-token-layer under-fog" aria-label="Map tokens under fog">
+                      {tokens.map((token, index) => renderPlayerTokenItem(token, index, 'under-fog'))}
+                    </div>
+                  ) : null}
                   <canvas
                     ref={inlineFogCanvasRef}
                     className={tokenPlaceMode || (!fogTool && !visionTool) ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
@@ -4018,8 +4118,13 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                     style={{ opacity: visionOverlayOpacity }}
                   />
                   <div className={role === 'gm' ? 'map-token-layer gm' : 'map-token-layer'} aria-hidden={role !== 'gm'}>
-                    {tokens.map(renderTokenItem)}
+                    {role === 'gm' ? tokens.map(renderTokenItem) : null}
                   </div>
+                  {role !== 'gm' ? (
+                    <div className="map-token-layer player-over-fog" aria-label="Map party tokens">
+                      {tokens.map((token, index) => renderPlayerTokenItem(token, index, 'over-fog'))}
+                    </div>
+                  ) : null}
                   {role === 'gm' && tokenSelectionBox && selectionRectStyle ? (
                     <div className="map-token-selection-box" style={selectionRectStyle} />
                   ) : null}
@@ -4331,6 +4436,11 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                       />
                     </div>
                   ) : null}
+                  {role !== 'gm' ? (
+                    <div className="map-token-layer under-fog" aria-label="Map tokens under fog">
+                      {tokens.map((token, index) => renderPlayerTokenItem(token, index, 'under-fog'))}
+                    </div>
+                  ) : null}
                   <canvas
                     ref={fullFogCanvasRef}
                     className={tokenPlaceMode || (!fogTool && !visionTool) ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
@@ -4350,8 +4460,13 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                     style={{ opacity: visionOverlayOpacity }}
                   />
                   <div className={role === 'gm' ? 'map-token-layer gm' : 'map-token-layer'} aria-label="Map tokens">
-                    {tokens.map(renderTokenItem)}
+                    {role === 'gm' ? tokens.map(renderTokenItem) : null}
                   </div>
+                  {role !== 'gm' ? (
+                    <div className="map-token-layer player-over-fog" aria-label="Map party tokens">
+                      {tokens.map((token, index) => renderPlayerTokenItem(token, index, 'over-fog'))}
+                    </div>
+                  ) : null}
                   {role === 'gm' && tokenSelectionBox && selectionRectStyle ? (
                     <div className="map-token-selection-box" style={selectionRectStyle} />
                   ) : null}

@@ -2962,6 +2962,18 @@ button:hover {
   z-index: 14;
 }
 
+.map-token-layer.under-fog {
+  z-index: 10;
+}
+
+.map-token-layer.player-over-fog {
+  z-index: 13;
+}
+
+.map-token.player {
+  cursor: pointer;
+}
+
 .map-annotation-layer {
   position: absolute;
   inset: 0;
