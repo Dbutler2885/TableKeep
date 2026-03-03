@@ -127,6 +127,11 @@ service cloud.firestore {
         allow write: if isCampaignGM(campaignId);
       }
 
+      match /monsters/{monsterId} {
+        allow read: if isCampaignMember(campaignId);
+        allow write: if isCampaignGM(campaignId);
+      }
+
       match /images/{imageId} {
         allow read: if isCampaignGM(campaignId) || (isCampaignMember(campaignId) && resource.data.revealed == true);
         allow write: if isCampaignGM(campaignId);

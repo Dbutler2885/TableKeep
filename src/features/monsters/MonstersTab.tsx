@@ -1,5 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, Plus, Shield, UserRound, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronLeft, Plus, Shield, Trash2, UserRound, X } from 'lucide-react'
+import {
+  collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc,
+} from 'firebase/firestore'
+import { db } from '../../firebase'
 import type { Role } from '../../types/app'
 import { monsterRulesets, type MonsterRulesetId } from './rulesets'
 import { TokenPawnPreview, type TokenIconConfig } from '../tokens/TokenIconEditor'
@@ -70,6 +74,14 @@ type ImmunityEntry = {
   text: string
 }
 
+type SpellcastingEntry = {
+  id: string
+  source: string
+  casterLevel: string
+  spells: string
+  notes: string
+}
+
 type MonsterRecord = {
   id: string
   rulesetId: MonsterRulesetId
@@ -88,6 +100,7 @@ type MonsterRecord = {
 }
 
 type MonstersTabProps = {
+  campaignId: string
   role: Role | null
 }
 
@@ -219,6 +232,14 @@ const newImmunity = (text = 'Non-magical weapons'): ImmunityEntry => ({
   text,
 })
 
+const newSpellcastingEntry = (): SpellcastingEntry => ({
+  id: crypto.randomUUID(),
+  source: '',
+  casterLevel: '',
+  spells: '',
+  notes: '',
+})
+
 const mvTypeOptions: Array<{ value: string; label: string }> = [
   { value: 'fly', label: 'Fly' },
   { value: 'swim', label: 'Swim' },
@@ -250,9 +271,12 @@ const newMonsterTemplate = (rulesetId: MonsterRulesetId): MonsterRecord => {
   }
 }
 
-export function MonstersTab({ role }: MonstersTabProps) {
+export function MonstersTab({ campaignId, role }: MonstersTabProps) {
   const [monsters, setMonsters] = useState<MonsterRecord[]>([])
+  const [spellcastingDraftByMonsterId, setSpellcastingDraftByMonsterId] = useState<Record<string, SpellcastingEntry[]>>({})
   const [selectedMonsterId, setSelectedMonsterId] = useState<string | null>(null)
+  const monstersRef = useRef<MonsterRecord[]>([])
+  const pendingWritesRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= 900)
   const [mobileMonsterView, setMobileMonsterView] = useState<'list' | 'detail'>('list')
 
@@ -260,6 +284,7 @@ export function MonstersTab({ role }: MonstersTabProps) {
   const sortedMonsters = useMemo(() => [...monsters].sort((a, b) => a.name.localeCompare(b.name)), [monsters])
 
   const selectedMonster = sortedMonsters.find((monster) => monster.id === selectedMonsterId) ?? null
+  const selectedSpellcastingDrafts = selectedMonster ? (spellcastingDraftByMonsterId[selectedMonster.id] ?? []) : []
   const selectedRuleset = selectedMonster ? monsterRulesets[selectedMonster.rulesetId] : monsterRulesets.ose
   const savingThrowKeys = ['sv_d', 'sv_w', 'sv_p', 'sv_b', 'sv_s']
 
@@ -467,14 +492,65 @@ export function MonstersTab({ role }: MonstersTabProps) {
     return () => window.removeEventListener('resize', updateMobileState)
   }, [])
 
+  // Keep monstersRef in sync so debounced writes always use the latest state.
+  useEffect(() => {
+    monstersRef.current = monsters
+  }, [monsters])
+
+  // Firestore subscription — loads monsters for this campaign.
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'monsters'), (snap) => {
+      setMonsters(
+        snap.docs.map((d) => {
+          const data = d.data()
+          return {
+            id: d.id,
+            rulesetId: data.rulesetId ?? 'ose',
+            name: typeof data.name === 'string' ? data.name : '',
+            portraitUrl: typeof data.portraitUrl === 'string' ? data.portraitUrl : null,
+            portraitFocusX: typeof data.portraitFocusX === 'number' ? data.portraitFocusX : 50,
+            portraitFocusY: typeof data.portraitFocusY === 'number' ? data.portraitFocusY : 50,
+            shortDescription: typeof data.shortDescription === 'string' ? data.shortDescription : '',
+            immunities: Array.isArray(data.immunities) ? data.immunities : [],
+            attacks: Array.isArray(data.attacks) ? data.attacks : [newAttack()],
+            traits: Array.isArray(data.traits) ? data.traits : [],
+            notes: typeof data.notes === 'string' ? data.notes : '',
+            stats: typeof data.stats === 'object' && data.stats !== null ? data.stats as Record<string, string> : {},
+            mvOther: Array.isArray(data.mvOther) ? data.mvOther : [],
+            tokenIcon: data.tokenIcon ?? defaultTokenIcon,
+          } as MonsterRecord
+        })
+      )
+    })
+    return () => unsub()
+  }, [campaignId])
+
+  const scheduleMonsterWrite = (monsterId: string) => {
+    if (pendingWritesRef.current[monsterId]) clearTimeout(pendingWritesRef.current[monsterId])
+    pendingWritesRef.current[monsterId] = setTimeout(() => {
+      delete pendingWritesRef.current[monsterId]
+      const monster = monstersRef.current.find((m) => m.id === monsterId)
+      if (!monster) return
+      const { id, ...data } = monster
+      void setDoc(doc(db, 'campaigns', campaignId, 'monsters', id), { ...data, updatedAt: serverTimestamp() })
+    }, 500)
+  }
+
   const showListPane = !isMobile || mobileMonsterView === 'list'
   const showDetailPane = !isMobile || mobileMonsterView === 'detail'
 
   const addMonster = () => {
     const nextMonster = newMonsterTemplate('ose')
+    // Optimistic add to local state for instant UI.
     setMonsters((current) => [nextMonster, ...current])
     setSelectedMonsterId(nextMonster.id)
     if (isMobile) setMobileMonsterView('detail')
+    const { id, ...data } = nextMonster
+    void setDoc(doc(db, 'campaigns', campaignId, 'monsters', id), {
+      ...data,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
   }
 
   const updateSelectedMonster = (updates: Partial<MonsterRecord>) => {
@@ -482,6 +558,26 @@ export function MonstersTab({ role }: MonstersTabProps) {
     setMonsters((current) =>
       current.map((monster) => (monster.id === selectedMonsterId ? { ...monster, ...updates } : monster)),
     )
+    scheduleMonsterWrite(selectedMonsterId)
+  }
+
+  const deleteMonster = (monsterId: string) => {
+    // Cancel any pending write before deleting.
+    if (pendingWritesRef.current[monsterId]) {
+      clearTimeout(pendingWritesRef.current[monsterId])
+      delete pendingWritesRef.current[monsterId]
+    }
+    setMonsters((current) => current.filter((m) => m.id !== monsterId))
+    setSpellcastingDraftByMonsterId((current) => {
+      const next = { ...current }
+      delete next[monsterId]
+      return next
+    })
+    if (selectedMonsterId === monsterId) {
+      setSelectedMonsterId(null)
+      if (isMobile) setMobileMonsterView('list')
+    }
+    void deleteDoc(doc(db, 'campaigns', campaignId, 'monsters', monsterId))
   }
 
   const updateSelectedStat = (key: string, value: string) => {
@@ -540,6 +636,32 @@ export function MonstersTab({ role }: MonstersTabProps) {
   const addTrait = () => {
     if (!selectedMonster) return
     updateSelectedMonster({ traits: [...selectedMonster.traits, newTrait()] })
+  }
+
+  const addSpellcasting = () => {
+    if (!selectedMonster) return
+    setSpellcastingDraftByMonsterId((current) => ({
+      ...current,
+      [selectedMonster.id]: [...(current[selectedMonster.id] ?? []), newSpellcastingEntry()],
+    }))
+  }
+
+  const removeSpellcasting = (entryId: string) => {
+    if (!selectedMonster) return
+    setSpellcastingDraftByMonsterId((current) => ({
+      ...current,
+      [selectedMonster.id]: (current[selectedMonster.id] ?? []).filter((entry) => entry.id !== entryId),
+    }))
+  }
+
+  const updateSpellcasting = (entryId: string, updates: Partial<SpellcastingEntry>) => {
+    if (!selectedMonster) return
+    setSpellcastingDraftByMonsterId((current) => ({
+      ...current,
+      [selectedMonster.id]: (current[selectedMonster.id] ?? []).map((entry) =>
+        entry.id === entryId ? { ...entry, ...updates } : entry,
+      ),
+    }))
   }
 
   const removeTrait = (traitId: string) => {
@@ -751,16 +873,29 @@ export function MonstersTab({ role }: MonstersTabProps) {
       {showDetailPane ? (
         <div className="monsters-detail">
           <div className="monsters-detail-inner">
-            {isMobile && selectedMonster ? (
-              <button
-                type="button"
-                className="back-link monster-mobile-back"
-                onClick={() => setMobileMonsterView('list')}
-                aria-label="Back to monster list"
-              >
-                <ChevronLeft size={16} />
-              </button>
-            ) : null}
+            <div className="monster-detail-header-row">
+              {isMobile && selectedMonster ? (
+                <button
+                  type="button"
+                  className="back-link monster-mobile-back"
+                  onClick={() => setMobileMonsterView('list')}
+                  aria-label="Back to monster list"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+              ) : <span />}
+              {selectedMonster ? (
+                <button
+                  type="button"
+                  className="icon-btn remove-btn"
+                  onClick={() => deleteMonster(selectedMonster.id)}
+                  aria-label="Delete monster"
+                  title="Delete monster"
+                >
+                  <Trash2 size={14} />
+                </button>
+              ) : null}
+            </div>
 
             {!selectedMonster ? (
               <p>Select a monster from the list or click + to create one.</p>
@@ -847,6 +982,7 @@ export function MonstersTab({ role }: MonstersTabProps) {
                   <h4>Combat Core</h4>
                   <div className="monster-stats-grid-combat">
                     {renderStatField('ac')}
+                    {renderStatField('thac0')}
                     {renderHdField()}
                     {renderStatField('mv_land')}
                     {renderMvOtherField()}
@@ -866,6 +1002,66 @@ export function MonstersTab({ role }: MonstersTabProps) {
                   </div>
                 </section>
               </div>
+
+              <section className="monster-section-block">
+                <div className="section-head">
+                  <h3 className="monster-section-title">
+                    Spellcasting <span className="monster-ruleset-badge">UNFINISHED</span>
+                  </h3>
+                  <button type="button" className="icon-btn add-btn" onClick={addSpellcasting} aria-label="Add spellcasting profile">
+                    <Plus size={13} />
+                  </button>
+                </div>
+                {selectedSpellcastingDrafts.length === 0 ? <p>No spellcasting profiles yet.</p> : null}
+                <div className="monster-trait-list">
+                  {selectedSpellcastingDrafts.map((entry) => (
+                    <article key={entry.id} className="monster-trait-card">
+                      <div className="monster-step-header">
+                        <strong>Spellcasting Profile</strong>
+                        <button type="button" className="icon-btn remove-btn" onClick={() => removeSpellcasting(entry.id)} aria-label="Remove spellcasting profile">
+                          <X size={13} />
+                        </button>
+                      </div>
+                      <label>
+                        Source
+                        <input
+                          type="text"
+                          value={entry.source}
+                          onChange={(event) => updateSpellcasting(entry.id, { source: event.target.value })}
+                          placeholder="Cleric 1"
+                        />
+                      </label>
+                      <label>
+                        Caster Level
+                        <input
+                          type="text"
+                          value={entry.casterLevel}
+                          onChange={(event) => updateSpellcasting(entry.id, { casterLevel: event.target.value })}
+                          placeholder="1"
+                        />
+                      </label>
+                      <label>
+                        Spells
+                        <input
+                          type="text"
+                          value={entry.spells}
+                          onChange={(event) => updateSpellcasting(entry.id, { spells: event.target.value })}
+                          placeholder="Choose or roll from cleric list"
+                        />
+                      </label>
+                      <label>
+                        Notes
+                        <input
+                          type="text"
+                          value={entry.notes}
+                          onChange={(event) => updateSpellcasting(entry.id, { notes: event.target.value })}
+                          placeholder="Any special casting rules"
+                        />
+                      </label>
+                    </article>
+                  ))}
+                </div>
+              </section>
 
               <section className="monster-section-block">
                 <div className="section-head">

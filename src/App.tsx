@@ -164,7 +164,7 @@ function CampaignShell({ user }: { user: User }) {
                 }
               />
               <Route path={tabPaths.maps} element={<MapsTab campaignId={campaign.id} role={role} />} />
-              <Route path={tabPaths.monsters} element={<MonstersTab role={role} />} />
+              <Route path={tabPaths.monsters} element={<MonstersTab campaignId={campaign.id} role={role} />} />
               <Route path={tabPaths.items} element={<ItemsTab role={role} />} />
               <Route path={tabPaths.npcs} element={<PlaceholderTab tab="npcs" />} />
               <Route path={tabPaths.notes} element={<PlaceholderTab tab="notes" />} />

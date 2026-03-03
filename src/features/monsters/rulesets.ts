@@ -22,6 +22,7 @@ export const oseMonsterRuleset: MonsterRulesetDef = {
   name: 'Old-School Essentials',
   fields: [
     { key: 'ac', label: 'Armor Class (AC)', shortLabel: 'AC', placeholder: '4', inputType: 'number' },
+    { key: 'thac0', label: 'THAC0', shortLabel: 'THAC0', placeholder: '19', inputType: 'number' },
     { key: 'hd_dice', label: 'HD Dice Count', shortLabel: 'HD dice', placeholder: '6', inputType: 'number', min: 0 },
     { key: 'hd_mod', label: 'HD Modifier', shortLabel: 'HD mod', placeholder: '' },
     { key: 'hd_special', label: 'HD Special', shortLabel: 'HD *', placeholder: '' },
@@ -40,7 +41,7 @@ export const oseMonsterRuleset: MonsterRulesetDef = {
     { key: 'na_wilderness_die', label: 'NA Wilderness Die', shortLabel: 'NA-wd', placeholder: 'd6' },
     { key: 'tt', label: 'Treasure Type (TT)', shortLabel: 'TT', placeholder: 'F' },
   ],
-  statlineOrder: ['ac', 'hd', 'att', 'dmg', 'mv', 'ml', 'xp'],
+  statlineOrder: ['ac', 'thac0', 'hd', 'att', 'dmg', 'mv', 'ml', 'xp'],
 }
 
 export const monsterRulesets: Record<MonsterRulesetId, MonsterRulesetDef> = {

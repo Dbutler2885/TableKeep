@@ -13,15 +13,23 @@ import {
   ChevronLeft,
   Circle,
   Crosshair,
+  Dice1,
+  Dice2,
+  Dice3,
+  Dice4,
+  Dice5,
+  Dice6,
   Eraser,
   Eye,
   EyeOff,
   Flag,
+  Grid3X3,
   Map,
   Maximize2,
   Minus,
   Pencil,
   Plus,
+  Ruler,
   SquareDashedMousePointer,
   SlidersHorizontal,
   SprayCan,
@@ -70,6 +78,13 @@ type MapRecord = {
   height: number
   sortOrder: number
   visibleToPlayers: boolean
+  gridEnabled: boolean
+  gridVisible: boolean
+  gridCellScale: number
+  gridOffsetX: number
+  gridOffsetY: number
+  gridUnitsPerCell: number
+  gridCalibrated: boolean
   updatedAtMs: number
 }
 
@@ -90,6 +105,7 @@ type TokenRecord = {
   tokenImageUrl: string
   tokenImageWidth: number
   tokenImageHeight: number
+  monsterId: string
 }
 
 type AnnotationRecord = {
@@ -109,11 +125,26 @@ type TokenAssetRecord = {
   archived: boolean
 }
 
+// Minimal monster data loaded in MapsTab for the token spawn picker.
+type MonsterSummary = {
+  id: string
+  name: string
+  tokenIcon: TokenIconConfig
+}
+
 type CanvasClipRect = {
   minX: number
   minY: number
   maxX: number
   maxY: number
+}
+
+type GridAdjustDraft = {
+  gridEnabled: boolean
+  gridVisible: boolean
+  gridCellScale: number
+  gridOffsetX: number
+  gridOffsetY: number
 }
 
 const TOKEN_REFERENCE_DIMENSION = 900
@@ -130,6 +161,11 @@ const STREAMING_LOCAL_REVEAL_MAX_INTERVAL_MS = 110
 const DRAG_PATH_SAMPLE_DISTANCE = 0.015  // normalized units between sampled waypoints
 const ANIM_REVEAL_INTERVAL_MS = 66       // ~15Hz fog reveal during path animation
 const FOG_CANVAS_MAX_DIM = 384          // cap fog canvas to this dimension regardless of device screen size
+const DEFAULT_GRID_CELL_SCALE = 0.05
+const ENCOUNTER_CHECK_DISTANCE_FEET = 120
+const ENCOUNTER_TRIGGER_ROLL_MAX = 1
+const DISTANCE_ROLL_HOLD_MS = 950
+const DISTANCE_POST_ROLL_MIN_FEET_TO_SHOW = 10
 
 type Waypoint = { x: number; y: number; t?: number }
 
@@ -235,6 +271,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [tokenPlaceMode, setTokenPlaceMode] = useState(false)
   const [tokenSelectMode, setTokenSelectMode] = useState(false)
   const [annotationPlaceMode, setAnnotationPlaceMode] = useState(false)
+  const [mapMonsters, setMapMonsters] = useState<MonsterSummary[]>([])
   const [tokenColor, setTokenColor] = useState('#b45309')
   const [tokenSize, setTokenSize] = useState(28)
   const [tokenAssets, setTokenAssets] = useState<TokenAssetRecord[]>([])
@@ -260,6 +297,14 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [animatedTokenPositions, setAnimatedTokenPositions] = useState<Record<string, { x: number; y: number }>>({})
   const [tokenDeleteCandidate, setTokenDeleteCandidate] = useState<TokenRecord | null>(null)
   const [deletingTokenId, setDeletingTokenId] = useState('')
+  const [distanceTrackerFeet, setDistanceTrackerFeet] = useState(0)
+  const [distanceTrackerMode, setDistanceTrackerMode] = useState<'count' | 'roll'>('count')
+  const [distanceTrackerRoll, setDistanceTrackerRoll] = useState<number | null>(null)
+  const [encounterNotice, setEncounterNotice] = useState<{
+    checks: number
+    hits: number
+    rolls: number[]
+  } | null>(null)
   const [inlineBaseSize, setInlineBaseSize] = useState({ width: 0, height: 0 })
   const [fullBaseSize, setFullBaseSize] = useState({ width: 0, height: 0 })
   const [inlineFogSize, setInlineFogSize] = useState({ width: 0, height: 0 })
@@ -267,6 +312,23 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [playerZoom, setPlayerZoom] = useState(1)
   const [playerPan, setPlayerPan] = useState({ x: 0, y: 0 })
   const [cameraLock, setCameraLock] = useState(false)
+  const [gridCalibrateMode, setGridCalibrateMode] = useState(false)
+  const [gridAdjustMode, setGridAdjustMode] = useState(false)
+  const [gridCalibrateStart, setGridCalibrateStart] = useState<{ x: number; y: number } | null>(null)
+  const [gridCalibrateEnd, setGridCalibrateEnd] = useState<{ x: number; y: number } | null>(null)
+  const [gridCalibratePreview, setGridCalibratePreview] = useState<{ x: number; y: number } | null>(null)
+  const [gridCalibrateDraggingHandle, setGridCalibrateDraggingHandle] = useState<'start' | 'end' | null>(null)
+  const [gridCalibrateSavedAt, setGridCalibrateSavedAt] = useState(0)
+  const [gridAdjustSavedAt, setGridAdjustSavedAt] = useState(0)
+  const [gridAdjustDraft, setGridAdjustDraft] = useState<GridAdjustDraft | null>(null)
+  const [gridCalibratePulse, setGridCalibratePulse] = useState(false)
+  const [gridAlignDrag, setGridAlignDrag] = useState<{
+    usingFull: boolean
+    startClientX: number
+    startClientY: number
+    startOffsetX: number
+    startOffsetY: number
+  } | null>(null)
   const [playerDragging, setPlayerDragging] = useState(false)
   const fullDragStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
   const playerDragStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
@@ -312,6 +374,10 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const loadedInlineVisionKeyRef = useRef('')
   const loadedVisionKeyRef = useRef('')
   const loadedVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const distanceTrackerFeetRef = useRef(0)
+  const distanceTrackerModeRef = useRef<'count' | 'roll'>('count')
+  const distanceTrackerRollRef = useRef<number | null>(null)
+  const distanceTrackerLastRollAtRef = useRef(0)
   const revealMaskCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const tokenAnimationsRef = useRef<Record<string, TokenPathAnimation>>({})
   const animRafRef = useRef<number | null>(null)
@@ -338,6 +404,18 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   }, [playerPan])
 
   useEffect(() => {
+    distanceTrackerFeetRef.current = distanceTrackerFeet
+  }, [distanceTrackerFeet])
+
+  useEffect(() => {
+    distanceTrackerModeRef.current = distanceTrackerMode
+  }, [distanceTrackerMode])
+
+  useEffect(() => {
+    distanceTrackerRollRef.current = distanceTrackerRoll
+  }, [distanceTrackerRoll])
+
+  useEffect(() => {
     const mapsQuery = query(collection(db, 'campaigns', campaignId, 'maps'))
     const unsub = onSnapshot(
       mapsQuery,
@@ -358,6 +436,13 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
             height?: number
             sortOrder?: number
             visibleToPlayers?: boolean
+            gridEnabled?: boolean
+            gridVisible?: boolean
+            gridCellScale?: number
+            gridOffsetX?: number
+            gridOffsetY?: number
+            gridUnitsPerCell?: number
+            gridCalibrated?: boolean
             updatedAt?: { toMillis?: () => number }
           }
 
@@ -377,6 +462,25 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
             height: typeof data.height === 'number' ? data.height : 0,
             sortOrder: typeof data.sortOrder === 'number' ? data.sortOrder : Number.MAX_SAFE_INTEGER,
             visibleToPlayers: data.visibleToPlayers === true,
+            gridEnabled: data.gridEnabled === true,
+            gridVisible: data.gridVisible === false ? false : true,
+            gridCellScale:
+              typeof data.gridCellScale === 'number' && Number.isFinite(data.gridCellScale)
+                ? data.gridCellScale
+                : DEFAULT_GRID_CELL_SCALE,
+            gridOffsetX:
+              typeof data.gridOffsetX === 'number' && Number.isFinite(data.gridOffsetX)
+                ? data.gridOffsetX
+                : 0,
+            gridOffsetY:
+              typeof data.gridOffsetY === 'number' && Number.isFinite(data.gridOffsetY)
+                ? data.gridOffsetY
+                : 0,
+            gridUnitsPerCell:
+              typeof data.gridUnitsPerCell === 'number' && Number.isFinite(data.gridUnitsPerCell)
+                ? data.gridUnitsPerCell
+                : 10,
+            gridCalibrated: data.gridCalibrated === false ? false : true,
             updatedAtMs: typeof data.updatedAt?.toMillis === 'function' ? data.updatedAt.toMillis() : 0,
           }
         })
@@ -514,6 +618,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
             tokenImageUrl?: string
             tokenImageWidth?: number
             tokenImageHeight?: number
+            monsterId?: string
           }
 
           return {
@@ -533,6 +638,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
             tokenImageUrl: typeof data.tokenImageUrl === 'string' ? data.tokenImageUrl : '',
             tokenImageWidth: typeof data.tokenImageWidth === 'number' ? data.tokenImageWidth : 0,
             tokenImageHeight: typeof data.tokenImageHeight === 'number' ? data.tokenImageHeight : 0,
+            monsterId: typeof data.monsterId === 'string' ? data.monsterId : '',
           }
         })
         setTokens(next)
@@ -630,6 +736,29 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     return () => unsub()
   }, [campaignId, role, selectedMapId])
 
+  // Load monsters for the token spawn picker.
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'monsters'), (snap) => {
+      setMapMonsters(
+        snap.docs
+          .map((d) => {
+            const data = d.data()
+            return {
+              id: d.id,
+              name: typeof data.name === 'string' ? data.name : '',
+              tokenIcon: data.tokenIcon
+                ? (data.tokenIcon as TokenIconConfig)
+                : { icon: 'pawn' as const, color: '#bf2f2a', size: 34 },
+            }
+          })
+          // Only surface monsters that have a custom token image configured.
+          .filter((m) => m.tokenIcon.icon === 'custom' && !!m.tokenIcon.customImageUrl)
+          .sort((a, b) => a.name.localeCompare(b.name))
+      )
+    })
+    return () => unsub()
+  }, [campaignId])
+
   const visibleMaps = useMemo(
     () => (role === 'gm' ? maps : maps.filter((map) => map.visibleToPlayers)),
     [maps, role],
@@ -659,6 +788,31 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       usingFullScreenCanvas ? fullBaseSize.height : inlineBaseSize.height,
     ),
   )
+  const activeMapWidth = usingFullScreenCanvas ? fullBaseSize.width : inlineBaseSize.width
+  const activeMapHeight = usingFullScreenCanvas ? fullBaseSize.height : inlineBaseSize.height
+  const effectiveGridEnabled = gridAdjustMode
+    ? (gridAdjustDraft?.gridEnabled ?? selectedMap?.gridEnabled === true)
+    : selectedMap?.gridEnabled === true
+  const effectiveGridVisible = gridAdjustMode
+    ? (gridAdjustDraft?.gridVisible ?? selectedMap?.gridVisible !== false)
+    : (selectedMap?.gridVisible !== false)
+  const effectiveGridCellScale = gridAdjustMode
+    ? (gridAdjustDraft?.gridCellScale ?? selectedMap?.gridCellScale ?? DEFAULT_GRID_CELL_SCALE)
+    : (selectedMap?.gridCellScale ?? DEFAULT_GRID_CELL_SCALE)
+  const effectiveGridOffsetX = gridAdjustMode
+    ? (gridAdjustDraft?.gridOffsetX ?? selectedMap?.gridOffsetX ?? 0)
+    : (selectedMap?.gridOffsetX ?? 0)
+  const effectiveGridOffsetY = gridAdjustMode
+    ? (gridAdjustDraft?.gridOffsetY ?? selectedMap?.gridOffsetY ?? 0)
+    : (selectedMap?.gridOffsetY ?? 0)
+  const activeGridCellPx = Math.max(
+    8,
+    Math.min(520, Math.round(effectiveGridCellScale * activeMapDimension)),
+  )
+  const activeGridOffsetPx = {
+    x: effectiveGridOffsetX * Math.max(1, activeMapWidth),
+    y: effectiveGridOffsetY * Math.max(1, activeMapHeight),
+  }
   const activeFogDimension = Math.max(
     1,
     Math.min(
@@ -667,6 +821,17 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     ),
   )
   const activeAnnotation = annotations.find((annotation) => annotation.id === activeAnnotationId) ?? null
+  const gridAdjustReady = Boolean(
+    selectedMap &&
+    gridAdjustDraft &&
+    (
+      selectedMap.gridEnabled !== gridAdjustDraft.gridEnabled ||
+      selectedMap.gridVisible !== gridAdjustDraft.gridVisible ||
+      Math.abs(selectedMap.gridCellScale - gridAdjustDraft.gridCellScale) > 0.000001 ||
+      Math.abs(selectedMap.gridOffsetX - gridAdjustDraft.gridOffsetX) > 0.000001 ||
+      Math.abs(selectedMap.gridOffsetY - gridAdjustDraft.gridOffsetY) > 0.000001
+    ),
+  )
   const selectedTokenAsset = tokenAssets.find((asset) => asset.id === selectedTokenAssetId) ?? null
   const selectionRectStyle = useMemo<React.CSSProperties | null>(() => {
     if (!tokenSelectionBox) return null
@@ -681,8 +846,25 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       height: `${(maxY - minY) * 100}%`,
     }
   }, [tokenSelectionBox])
+  const gridCalibrationLine = useMemo(() => {
+    if (!gridCalibrateMode || !gridCalibrateStart) return null
+    const end = gridCalibrateEnd ?? gridCalibratePreview
+    if (!end) return null
+    return { start: gridCalibrateStart, end }
+  }, [gridCalibrateEnd, gridCalibrateMode, gridCalibratePreview, gridCalibrateStart])
   const bumpFogSampleTick = () => {
     setFogSampleTick((value) => value + 1)
+  }
+
+  const resetDistanceTracker = () => {
+    distanceTrackerFeetRef.current = 0
+    distanceTrackerModeRef.current = 'count'
+    distanceTrackerRollRef.current = null
+    distanceTrackerLastRollAtRef.current = 0
+    setDistanceTrackerFeet(0)
+    setDistanceTrackerMode('count')
+    setDistanceTrackerRoll(null)
+    setEncounterNotice(null)
   }
 
   const gmTokenNameClassName = (token: TokenRecord) => {
@@ -815,6 +997,13 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         height: 0,
         sortOrder: maps.length,
         visibleToPlayers: false,
+        gridEnabled: false,
+        gridVisible: true,
+        gridCellScale: DEFAULT_GRID_CELL_SCALE,
+        gridOffsetX: 0,
+        gridOffsetY: 0,
+        gridUnitsPerCell: 10,
+        gridCalibrated: true,
         fogEnabled: true,
         fogGridSize: 128,
         createdAt: serverTimestamp(),
@@ -1854,6 +2043,115 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     await updateToken(tokenId, { hidden: next })
   }
 
+  const toggleGridAdjustMode = () => {
+    if (role !== 'gm' || !selectedMap) return
+    if (gridCalibrateMode) {
+      setGridCalibrateMode(false)
+      setGridCalibrateStart(null)
+      setGridCalibrateEnd(null)
+      setGridCalibratePreview(null)
+      setGridCalibrateDraggingHandle(null)
+      setGridCalibrateSavedAt(0)
+      setGridCalibratePulse(false)
+    }
+    if (gridAdjustMode) {
+      setGridAdjustMode(false)
+      setGridAdjustDraft(null)
+      setGridAdjustSavedAt(0)
+      setGridAlignDrag(null)
+      setMaps((prev) =>
+        prev.map((map) =>
+          map.id === selectedMap.id
+            ? {
+                ...map,
+                gridEnabled: false,
+                gridVisible: true,
+                gridCellScale: DEFAULT_GRID_CELL_SCALE,
+                gridOffsetX: 0,
+                gridOffsetY: 0,
+              }
+            : map,
+        ),
+      )
+      void updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+        gridEnabled: false,
+        gridVisible: true,
+        gridCellScale: DEFAULT_GRID_CELL_SCALE,
+        gridOffsetX: 0,
+        gridOffsetY: 0,
+        updatedAt: serverTimestamp(),
+      }).catch((error) => {
+        const message = error instanceof Error ? error.message : 'Failed to clear grid state'
+        setMapError(message)
+      })
+      return
+    }
+    setGridAdjustSavedAt(0)
+    setGridAdjustDraft({
+      gridEnabled: true,
+      gridVisible: true,
+      gridCellScale: DEFAULT_GRID_CELL_SCALE,
+      gridOffsetX: 0,
+      gridOffsetY: 0,
+    })
+    setGridAdjustMode(true)
+  }
+
+  const toggleGridVisibility = async () => {
+    if (!selectedMap || role !== 'gm') return
+    if (gridAdjustMode) {
+      setGridAdjustDraft((current) =>
+        current
+          ? {
+              ...current,
+              gridVisible: !current.gridVisible,
+            }
+          : {
+              gridEnabled: true,
+              gridVisible: !(selectedMap.gridVisible !== false),
+              gridCellScale: selectedMap.gridCellScale,
+              gridOffsetX: selectedMap.gridOffsetX,
+              gridOffsetY: selectedMap.gridOffsetY,
+            },
+      )
+      return
+    }
+    const nextVisible = selectedMap.gridVisible === false
+    setMaps((prev) => prev.map((map) => (map.id === selectedMap.id ? { ...map, gridVisible: nextVisible } : map)))
+    try {
+      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+        gridVisible: nextVisible,
+        updatedAt: serverTimestamp(),
+      })
+    } catch (error) {
+      setMaps((prev) => prev.map((map) => (map.id === selectedMap.id ? { ...map, gridVisible: !nextVisible } : map)))
+      const message = error instanceof Error ? error.message : 'Failed to update grid visibility'
+      setMapError(message)
+    }
+  }
+
+  const applyGridAdjust = async () => {
+    if (!selectedMap || !gridAdjustDraft) return
+    const next = {
+      gridEnabled: gridAdjustDraft.gridEnabled,
+      gridVisible: gridAdjustDraft.gridVisible,
+      gridCellScale: gridAdjustDraft.gridCellScale,
+      gridOffsetX: gridAdjustDraft.gridOffsetX,
+      gridOffsetY: gridAdjustDraft.gridOffsetY,
+    }
+    setMaps((prev) => prev.map((map) => (map.id === selectedMap.id ? { ...map, ...next } : map)))
+    try {
+      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+        ...next,
+        updatedAt: serverTimestamp(),
+      })
+      setGridAdjustSavedAt(Date.now())
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to apply grid settings'
+      setMapError(message)
+    }
+  }
+
   const saveTokenAssetFile = async (nextFile: File, width: number, height: number, assetName?: string) => {
     const safeName = nextFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
     const tokenAssetPath = `campaigns/${campaignId}/token-assets/${Date.now()}-${safeName}`
@@ -2159,27 +2457,56 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     if (!selectedMap || role !== 'gm') return
     const point = getTokenDropPoint(clientX, clientY)
     if (!point) return
-    const sizeScale = tokenSize / TOKEN_REFERENCE_DIMENSION
 
-    await addDoc(collection(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens'), {
-      x: point.x,
-      y: point.y,
-      color: tokenColor,
-      size: tokenSize,
-      sizeScale,
-      viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
-      viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
-      party: false,
-      name: selectedTokenAsset?.name ?? '',
-      revealName: false,
-      hidden: false,
-      tokenImagePath: selectedTokenAsset?.imagePath ?? '',
-      tokenImageUrl: selectedTokenAsset?.imageUrl ?? '',
-      tokenImageWidth: selectedTokenAsset?.width ?? 0,
-      tokenImageHeight: selectedTokenAsset?.height ?? 0,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    })
+    const spawnMonster = mapMonsters.find((m) => m.id === selectedTokenAssetId) ?? null
+
+    if (spawnMonster) {
+      const { tokenIcon } = spawnMonster
+      const size = tokenIcon.size
+      const sizeScale = size / TOKEN_REFERENCE_DIMENSION
+      await addDoc(collection(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens'), {
+        x: point.x,
+        y: point.y,
+        color: tokenIcon.color,
+        size,
+        sizeScale,
+        viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
+        viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
+        party: false,
+        name: spawnMonster.name,
+        revealName: false,
+        hidden: false,
+        tokenImagePath: '',
+        tokenImageUrl: tokenIcon.icon === 'custom' && tokenIcon.customImageUrl ? tokenIcon.customImageUrl : '',
+        tokenImageWidth: 0,
+        tokenImageHeight: 0,
+        monsterId: spawnMonster.id,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    } else {
+      const sizeScale = tokenSize / TOKEN_REFERENCE_DIMENSION
+      await addDoc(collection(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens'), {
+        x: point.x,
+        y: point.y,
+        color: tokenColor,
+        size: tokenSize,
+        sizeScale,
+        viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
+        viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
+        party: false,
+        name: selectedTokenAsset?.name ?? '',
+        revealName: false,
+        hidden: false,
+        tokenImagePath: selectedTokenAsset?.imagePath ?? '',
+        tokenImageUrl: selectedTokenAsset?.imageUrl ?? '',
+        tokenImageWidth: selectedTokenAsset?.width ?? 0,
+        tokenImageHeight: selectedTokenAsset?.height ?? 0,
+        monsterId: '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    }
   }
 
   const placeAnnotation = async (clientX: number, clientY: number) => {
@@ -2214,6 +2541,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
   const handleMapLayerMouseDown: MouseEventHandler<HTMLDivElement> = (event) => {
     if (role !== 'gm') return
+    if (gridCalibrateMode) return
     if (!tokenSelectMode || event.button !== 0) return
     const target = event.target as HTMLElement
     if (target.closest('.map-token,.map-annotation-btn,.map-annotation-popover')) return
@@ -2224,6 +2552,174 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     setTokenSelectionBox({ start: point, end: point })
   }
 
+  const handleGridLayerWheel = (event: React.WheelEvent<HTMLDivElement>, usingFull: boolean) => {
+    if (role !== 'gm' || !selectedMap || !gridAdjustMode || !effectiveGridEnabled) return
+    const mapWidth = Math.max(1, usingFull ? fullBaseSize.width : inlineBaseSize.width)
+    const mapHeight = Math.max(1, usingFull ? fullBaseSize.height : inlineBaseSize.height)
+    const mapDimension = Math.max(1, Math.min(mapWidth, mapHeight))
+    if (mapDimension <= 0) return
+
+    const currentCellPx = Math.max(8, Math.round(effectiveGridCellScale * mapDimension))
+    const scaleFactor = Math.exp(-event.deltaY * 0.0025)
+    const nextCellPx = Math.max(8, Math.min(520, currentCellPx * scaleFactor))
+    if (!Number.isFinite(nextCellPx) || nextCellPx === currentCellPx) return
+
+    const layerRect = event.currentTarget.getBoundingClientRect()
+    const cursorX = event.clientX - layerRect.left
+    const cursorY = event.clientY - layerRect.top
+    const currentOffsetX = effectiveGridOffsetX * mapWidth
+    const currentOffsetY = effectiveGridOffsetY * mapHeight
+    const nextOffsetX = cursorX - ((cursorX - currentOffsetX) / currentCellPx) * nextCellPx
+    const nextOffsetY = cursorY - ((cursorY - currentOffsetY) / currentCellPx) * nextCellPx
+
+    event.preventDefault()
+    event.stopPropagation()
+
+    setGridAdjustDraft((current) =>
+      current
+        ? {
+            ...current,
+            gridCellScale: nextCellPx / mapDimension,
+            gridOffsetX: nextOffsetX / mapWidth,
+            gridOffsetY: nextOffsetY / mapHeight,
+          }
+        : current,
+    )
+  }
+
+  const handleGridLayerMouseDown = (event: React.MouseEvent<HTMLDivElement>, usingFull: boolean): boolean => {
+    if (role !== 'gm' || !selectedMap || !gridAdjustMode || !effectiveGridEnabled) return false
+    if (gridCalibrateMode) return false
+    if (event.button !== 0) return false
+    event.preventDefault()
+    event.stopPropagation()
+    setGridAlignDrag({
+      usingFull,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startOffsetX: effectiveGridOffsetX,
+      startOffsetY: effectiveGridOffsetY,
+    })
+    return true
+  }
+
+  const handleGridCalibrateMouseMove = (clientX: number, clientY: number) => {
+    if (!gridCalibrateMode || !gridCalibrateStart || gridCalibrateEnd) return
+    const point = getTokenDropPoint(clientX, clientY)
+    if (!point) return
+    setGridCalibratePreview(point)
+  }
+
+  const handleGridCalibrateHandleMouseDown = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    handle: 'start' | 'end',
+  ) => {
+    if (!gridCalibrateMode) return
+    event.preventDefault()
+    event.stopPropagation()
+    setGridCalibrateDraggingHandle(handle)
+  }
+
+  const handleGridCalibrateClick = (clientX: number, clientY: number): boolean => {
+    if (role !== 'gm' || !selectedMap) return false
+    const point = getTokenDropPoint(clientX, clientY)
+    if (!point) return true
+
+    if (!gridCalibrateStart) {
+      setGridCalibrateStart(point)
+      setGridCalibrateEnd(null)
+      setGridCalibratePreview(null)
+      setGridCalibrateSavedAt(0)
+      return true
+    }
+
+    if (!gridCalibrateEnd) {
+      setGridCalibrateEnd(point)
+      setGridCalibratePreview(null)
+      setGridCalibrateSavedAt(0)
+      return true
+    }
+    return true
+  }
+
+  const applyGridCalibration = async () => {
+    if (!selectedMap || !gridCalibrateStart || !gridCalibrateEnd) return
+    const mapWidth = Math.max(1, activeMapWidth)
+    const mapHeight = Math.max(1, activeMapHeight)
+    const mapDimension = Math.max(1, activeMapDimension)
+    const dxPx = (gridCalibrateEnd.x - gridCalibrateStart.x) * mapWidth
+    const dyPx = (gridCalibrateEnd.y - gridCalibrateStart.y) * mapHeight
+    const distancePx = Math.hypot(dxPx, dyPx)
+    if (distancePx < 6) {
+      setMapError('Calibration points are too close together')
+      return
+    }
+
+    const nextCellPx = Math.max(8, Math.min(520, distancePx))
+    const nextCellScale = nextCellPx / mapDimension
+    const startPxX = gridCalibrateStart.x * mapWidth
+    const startPxY = gridCalibrateStart.y * mapHeight
+    const nextOffsetX = ((startPxX % nextCellPx) + nextCellPx) % nextCellPx
+    const nextOffsetY = ((startPxY % nextCellPx) + nextCellPx) % nextCellPx
+
+    setMaps((prev) =>
+      prev.map((map) =>
+        map.id === selectedMap.id
+          ? {
+              ...map,
+              gridCellScale: nextCellScale,
+              gridOffsetX: nextOffsetX / mapWidth,
+              gridOffsetY: nextOffsetY / mapHeight,
+              gridUnitsPerCell: 10,
+              gridCalibrated: true,
+            }
+          : map,
+      ),
+    )
+    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      gridCellScale: nextCellScale,
+      gridOffsetX: nextOffsetX / mapWidth,
+      gridOffsetY: nextOffsetY / mapHeight,
+      gridUnitsPerCell: 10,
+      gridCalibrated: true,
+      updatedAt: serverTimestamp(),
+    })
+    setGridCalibratePreview(null)
+    setGridCalibrateSavedAt(Date.now())
+    setGridCalibratePulse(true)
+  }
+
+  const resetGridCalibrationDraft = () => {
+    setGridCalibrateStart(null)
+    setGridCalibrateEnd(null)
+    setGridCalibratePreview(null)
+    setGridCalibrateDraggingHandle(null)
+    setGridCalibrateSavedAt(0)
+    setGridCalibratePulse(false)
+  }
+
+  const toggleGridCalibrateMode = () => {
+    if (gridCalibrateMode) {
+      resetGridCalibrationDraft()
+      setGridCalibrateMode(false)
+      resetDistanceTracker()
+      if (selectedMap?.gridCalibrated) {
+        setMaps((prev) => prev.map((map) => (map.id === selectedMap.id ? { ...map, gridCalibrated: false } : map)))
+        void updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+          gridCalibrated: false,
+          updatedAt: serverTimestamp(),
+        }).catch((error) => {
+          const message = error instanceof Error ? error.message : 'Failed to clear grid calibration'
+          setMapError(message)
+        })
+      }
+      return
+    }
+    setGridAdjustMode(false)
+    resetGridCalibrationDraft()
+    setGridCalibrateMode(true)
+  }
+
   const handleMapLayerClick: MouseEventHandler<HTMLDivElement> = (event) => {
     if (role !== 'gm') return
     if (suppressNextMapClickRef.current) {
@@ -2232,6 +2728,10 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     }
     if ((event.target as HTMLElement).closest('.map-token,.map-annotation-btn,.map-annotation-popover')) return
     event.preventDefault()
+    if (gridCalibrateMode) {
+      handleGridCalibrateClick(event.clientX, event.clientY)
+      return
+    }
     if (selectedTokenIds.length > 0) {
       setSelectedTokenIds([])
       return
@@ -2244,6 +2744,60 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     if (!tokenPlaceMode) return
     void placeToken(event.clientX, event.clientY)
   }
+
+  useEffect(() => {
+    if (!gridAlignDrag || !selectedMap || role !== 'gm' || !gridAdjustMode) return
+
+    const handleMove = (event: MouseEvent) => {
+      const mapWidth = Math.max(1, gridAlignDrag.usingFull ? fullBaseSize.width : inlineBaseSize.width)
+      const mapHeight = Math.max(1, gridAlignDrag.usingFull ? fullBaseSize.height : inlineBaseSize.height)
+      const nextOffsetX = gridAlignDrag.startOffsetX + (event.clientX - gridAlignDrag.startClientX) / mapWidth
+      const nextOffsetY = gridAlignDrag.startOffsetY + (event.clientY - gridAlignDrag.startClientY) / mapHeight
+      setGridAdjustDraft((current) =>
+        current
+          ? {
+              ...current,
+              gridOffsetX: nextOffsetX,
+              gridOffsetY: nextOffsetY,
+            }
+          : current,
+      )
+    }
+
+    const handleUp = () => {
+      setGridAlignDrag(null)
+    }
+
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+  }, [fullBaseSize.height, fullBaseSize.width, gridAdjustMode, gridAlignDrag, inlineBaseSize.height, inlineBaseSize.width, role, selectedMap])
+
+  useEffect(() => {
+    if (!gridCalibrateDraggingHandle || !gridCalibrateMode) return
+    const handleMove = (event: MouseEvent) => {
+      const point = getTokenDropPoint(event.clientX, event.clientY)
+      if (!point) return
+      if (gridCalibrateDraggingHandle === 'start') {
+        setGridCalibrateStart(point)
+      } else {
+        setGridCalibrateEnd(point)
+      }
+      setGridCalibrateSavedAt(0)
+    }
+    const handleUp = () => {
+      setGridCalibrateDraggingHandle(null)
+    }
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+  }, [gridCalibrateDraggingHandle, gridCalibrateMode])
 
   useEffect(() => {
     if (role !== 'gm' || !tokenSelectionBox) return
@@ -2303,7 +2857,74 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     setActiveAnnotationDraft('')
     setSelectedTokenIds([])
     setTokenSelectionBox(null)
+    resetDistanceTracker()
+    setGridAdjustMode(false)
+    setGridAdjustDraft(null)
+    setGridAdjustSavedAt(0)
+    setGridCalibrateMode(false)
+    setGridCalibrateStart(null)
+    setGridCalibrateEnd(null)
+    setGridCalibratePreview(null)
+    setGridCalibrateDraggingHandle(null)
+    setGridCalibrateSavedAt(0)
+    setGridCalibratePulse(false)
   }, [selectedMapId])
+
+  useEffect(() => {
+    if (!gridAdjustMode || gridAdjustDraft || !selectedMap) return
+    setGridAdjustDraft({
+      gridEnabled: true,
+      gridVisible: true,
+      gridCellScale: DEFAULT_GRID_CELL_SCALE,
+      gridOffsetX: 0,
+      gridOffsetY: 0,
+    })
+  }, [gridAdjustDraft, gridAdjustMode, selectedMap])
+
+  useEffect(() => {
+    if (!gridCalibrateMode) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setGridCalibrateMode(false)
+      setGridCalibrateStart(null)
+      setGridCalibrateEnd(null)
+      setGridCalibratePreview(null)
+      setGridCalibrateDraggingHandle(null)
+      setGridCalibrateSavedAt(0)
+      setGridCalibratePulse(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [gridCalibrateMode])
+
+  useEffect(() => {
+    if (!gridCalibrateSavedAt) return
+    const timer = window.setTimeout(() => {
+      setGridCalibrateSavedAt(0)
+      setGridCalibrateMode(false)
+      setGridCalibrateStart(null)
+      setGridCalibrateEnd(null)
+      setGridCalibratePreview(null)
+      setGridCalibrateDraggingHandle(null)
+    }, 1600)
+    return () => window.clearTimeout(timer)
+  }, [gridCalibrateSavedAt])
+
+  useEffect(() => {
+    if (!gridAdjustSavedAt) return
+    const timer = window.setTimeout(() => {
+      setGridAdjustSavedAt(0)
+      setGridAdjustMode(false)
+      setGridAdjustDraft(null)
+    }, 900)
+    return () => window.clearTimeout(timer)
+  }, [gridAdjustSavedAt])
+
+  useEffect(() => {
+    if (!gridCalibratePulse) return
+    const timer = window.setTimeout(() => setGridCalibratePulse(false), 650)
+    return () => window.clearTimeout(timer)
+  }, [gridCalibratePulse])
 
   useEffect(() => {
     setSelectedTokenIds((current) => current.filter((tokenId) => tokens.some((token) => token.id === tokenId)))
@@ -2311,9 +2932,10 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
   useEffect(() => {
     if (!selectedTokenAssetId) return
-    const exists = tokenAssets.some((asset) => asset.id === selectedTokenAssetId)
-    if (!exists) setSelectedTokenAssetId('')
-  }, [selectedTokenAssetId, tokenAssets])
+    const existsAsAsset = tokenAssets.some((asset) => asset.id === selectedTokenAssetId)
+    const existsAsMonster = mapMonsters.some((monster) => monster.id === selectedTokenAssetId)
+    if (!existsAsAsset && !existsAsMonster) setSelectedTokenAssetId('')
+  }, [selectedTokenAssetId, tokenAssets, mapMonsters])
 
   useEffect(() => {
     if (!streamingMode) return
@@ -2681,6 +3303,16 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   useEffect(() => {
     if (!draggingTokenId || role !== 'gm' || !selectedMap) return
     const draggingToken = tokens.find((entry) => entry.id === draggingTokenId) ?? null
+    const dragGroupIds = draggingTokenIds.length > 1 ? draggingTokenIds : [draggingTokenId]
+    const movementTokenId =
+      dragGroupIds.find((id) => {
+        const token = tokens.find((entry) => entry.id === id)
+        return token?.party === true && token.hidden !== true
+      }) ?? ''
+    let movementLastPosition =
+      movementTokenId && dragTokenStartPositionsRef.current
+        ? dragTokenStartPositionsRef.current[movementTokenId] ?? null
+        : null
     const dragPaths: Record<string, Waypoint[]> = {}
     const lastSampledPositions: Record<string, { x: number; y: number }> = {}
     const dragStartTime = Date.now()
@@ -2798,6 +3430,58 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
             dragPaths[id].push({ x: pos.x, y: pos.y, t: Date.now() - dragStartTime })
             lastSampledPositions[id] = pos
           }
+        }
+      }
+
+      if (movementTokenId && selectedMap.gridCalibrated && movementLastPosition && currentPositions?.[movementTokenId]) {
+        const movementCurrent = currentPositions[movementTokenId]
+        const dxPx = (movementCurrent.x - movementLastPosition.x) * Math.max(1, activeMapWidth)
+        const dyPx = (movementCurrent.y - movementLastPosition.y) * Math.max(1, activeMapHeight)
+        const movedPx = Math.hypot(dxPx, dyPx)
+        const cellPx = Math.max(1, activeGridCellPx)
+        const unitsPerCell = Math.max(1, selectedMap.gridUnitsPerCell || 10)
+        const movedFeet = (movedPx / cellPx) * unitsPerCell
+        if (movedFeet > 0.0001) {
+          let cycleFeet = distanceTrackerFeetRef.current
+          cycleFeet += movedFeet
+          const rolls: number[] = []
+          while (cycleFeet >= ENCOUNTER_CHECK_DISTANCE_FEET) {
+            cycleFeet -= ENCOUNTER_CHECK_DISTANCE_FEET
+            rolls.push(1 + Math.floor(Math.random() * 6))
+          }
+
+          distanceTrackerFeetRef.current = cycleFeet
+          if (rolls.length > 0) {
+            const latestRoll = rolls[rolls.length - 1]
+            distanceTrackerModeRef.current = 'roll'
+            distanceTrackerRollRef.current = latestRoll
+            distanceTrackerLastRollAtRef.current = Date.now()
+            setDistanceTrackerMode('roll')
+            setDistanceTrackerRoll(latestRoll)
+            setDistanceTrackerFeet(ENCOUNTER_CHECK_DISTANCE_FEET)
+            const hits = rolls.filter((roll) => roll <= ENCOUNTER_TRIGGER_ROLL_MAX).length
+            if (hits > 0) {
+              setEncounterNotice({ checks: rolls.length, hits, rolls })
+            }
+          } else {
+            const stillHoldingRoll =
+              distanceTrackerModeRef.current === 'roll' &&
+              Date.now() - distanceTrackerLastRollAtRef.current < DISTANCE_ROLL_HOLD_MS
+            const belowPostRollDisplayThreshold =
+              distanceTrackerModeRef.current === 'roll' && cycleFeet < DISTANCE_POST_ROLL_MIN_FEET_TO_SHOW
+            if (stillHoldingRoll || belowPostRollDisplayThreshold) {
+              setDistanceTrackerFeet(ENCOUNTER_CHECK_DISTANCE_FEET)
+            } else {
+              if (distanceTrackerModeRef.current === 'roll') {
+                distanceTrackerModeRef.current = 'count'
+                distanceTrackerRollRef.current = null
+                setDistanceTrackerMode('count')
+                setDistanceTrackerRoll(null)
+              }
+              setDistanceTrackerFeet(cycleFeet)
+            }
+          }
+          movementLastPosition = movementCurrent
         }
       }
 
@@ -3236,7 +3920,12 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                   ref={inlineMapLayerRef}
                   className={isMobileZoomMapView ? 'map-zoom-layer mobile-player-zoom' : 'map-zoom-layer'}
                   onContextMenu={(event) => event.preventDefault()}
-                  onMouseDown={handleMapLayerMouseDown}
+                  onWheel={(event) => handleGridLayerWheel(event, false)}
+                  onMouseDown={(event) => {
+                    if (handleGridLayerMouseDown(event, false)) return
+                    handleMapLayerMouseDown(event)
+                  }}
+                  onMouseMove={(event) => handleGridCalibrateMouseMove(event.clientX, event.clientY)}
                   onClick={handleMapLayerClick}
                   onTouchStart={handleMobilePlayerTouchStart}
                   onTouchMove={handleMobilePlayerTouchMove}
@@ -3270,6 +3959,42 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                       loadedInlineVisionKeyRef.current = ''
                     }}
                   />
+                  {effectiveGridEnabled && effectiveGridVisible ? (
+                    <div
+                      className="map-grid-overlay"
+                      style={{
+                        backgroundSize: `${activeGridCellPx}px ${activeGridCellPx}px`,
+                        backgroundPosition: `${activeGridOffsetPx.x}px ${activeGridOffsetPx.y}px`,
+                      }}
+                    />
+                  ) : null}
+                  {gridAdjustMode && effectiveGridEnabled && effectiveGridVisible ? <div className="map-grid-adjust-overlay" /> : null}
+                  {gridCalibrationLine ? (
+                    <div className={gridCalibratePulse ? 'map-grid-calibration-overlay pulse' : 'map-grid-calibration-overlay'} aria-hidden>
+                      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <line
+                          x1={gridCalibrationLine.start.x * 100}
+                          y1={gridCalibrationLine.start.y * 100}
+                          x2={gridCalibrationLine.end.x * 100}
+                          y2={gridCalibrationLine.end.y * 100}
+                        />
+                      </svg>
+                      <button
+                        type="button"
+                        className="map-grid-calibration-handle"
+                        style={{ left: `${gridCalibrationLine.start.x * 100}%`, top: `${gridCalibrationLine.start.y * 100}%` }}
+                        onMouseDown={(event) => handleGridCalibrateHandleMouseDown(event, 'start')}
+                        aria-label="Move calibration start point"
+                      />
+                      <button
+                        type="button"
+                        className="map-grid-calibration-handle"
+                        style={{ left: `${gridCalibrationLine.end.x * 100}%`, top: `${gridCalibrationLine.end.y * 100}%` }}
+                        onMouseDown={(event) => handleGridCalibrateHandleMouseDown(event, 'end')}
+                        aria-label="Move calibration end point"
+                      />
+                    </div>
+                  ) : null}
                   <canvas
                     ref={inlineFogCanvasRef}
                     className={tokenPlaceMode || (!fogTool && !visionTool) ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
@@ -3389,6 +4114,25 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 onRequestDeleteTokenAsset={requestDeleteTokenAsset}
                 streamingMode={streamingMode}
                 setStreamingMode={setStreamingMode}
+                gridVisible={effectiveGridVisible}
+                gridAdjustMode={gridAdjustMode}
+                onToggleGrid={toggleGridAdjustMode}
+                onToggleGridVisible={() => void toggleGridVisibility()}
+                onApplyGrid={applyGridAdjust}
+                gridAdjustReady={gridAdjustReady}
+                gridAdjustSaved={Boolean(gridAdjustSavedAt)}
+                gridCalibrateMode={gridCalibrateMode}
+                onToggleGridCalibrate={toggleGridCalibrateMode}
+                gridCalibrateReady={Boolean(gridCalibrateStart && gridCalibrateEnd)}
+                gridCalibrateSaved={Boolean(gridCalibrateSavedAt)}
+                onApplyGridCalibration={() => void applyGridCalibration().catch((error) => {
+                  const message = error instanceof Error ? error.message : 'Failed to save grid calibration'
+                  setMapError(message)
+                })}
+                distanceTrackerFeet={distanceTrackerFeet}
+                distanceTrackerMode={distanceTrackerMode}
+                distanceTrackerRoll={distanceTrackerRoll}
+                onResetDistanceTracker={resetDistanceTracker}
                 applyFogPreset={applyFogPreset}
                 canApplyPreset={Boolean(selectedMap)}
                 fullyHidden={selectedMap?.fullyHidden === true}
@@ -3414,6 +4158,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 }}
                 tokenViewDistanceSliderValue={tokenViewDistanceSliderValue}
                 onRequestDeleteToken={requestDeleteToken}
+                mapMonsters={mapMonsters}
               />
             </aside>
           ) : null}
@@ -3520,7 +4265,12 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 <div
                   className="map-zoom-layer"
                   ref={fullMapLayerRef}
-                  onMouseDown={handleMapLayerMouseDown}
+                  onWheel={(event) => handleGridLayerWheel(event, true)}
+                  onMouseDown={(event) => {
+                    if (handleGridLayerMouseDown(event, true)) return
+                    handleMapLayerMouseDown(event)
+                  }}
+                  onMouseMove={(event) => handleGridCalibrateMouseMove(event.clientX, event.clientY)}
                   onClick={handleMapLayerClick}
                   style={{
                     transform: `translate(${fullPan.x}px, ${fullPan.y}px) scale(${fullZoom})`,
@@ -3545,6 +4295,42 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                       loadedVisionKeyRef.current = ''
                     }}
                   />
+                  {effectiveGridEnabled && effectiveGridVisible ? (
+                    <div
+                      className="map-grid-overlay"
+                      style={{
+                        backgroundSize: `${activeGridCellPx}px ${activeGridCellPx}px`,
+                        backgroundPosition: `${activeGridOffsetPx.x}px ${activeGridOffsetPx.y}px`,
+                      }}
+                    />
+                  ) : null}
+                  {gridAdjustMode && effectiveGridEnabled && effectiveGridVisible ? <div className="map-grid-adjust-overlay" /> : null}
+                  {gridCalibrationLine ? (
+                    <div className={gridCalibratePulse ? 'map-grid-calibration-overlay pulse' : 'map-grid-calibration-overlay'} aria-hidden>
+                      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+                        <line
+                          x1={gridCalibrationLine.start.x * 100}
+                          y1={gridCalibrationLine.start.y * 100}
+                          x2={gridCalibrationLine.end.x * 100}
+                          y2={gridCalibrationLine.end.y * 100}
+                        />
+                      </svg>
+                      <button
+                        type="button"
+                        className="map-grid-calibration-handle"
+                        style={{ left: `${gridCalibrationLine.start.x * 100}%`, top: `${gridCalibrationLine.start.y * 100}%` }}
+                        onMouseDown={(event) => handleGridCalibrateHandleMouseDown(event, 'start')}
+                        aria-label="Move calibration start point"
+                      />
+                      <button
+                        type="button"
+                        className="map-grid-calibration-handle"
+                        style={{ left: `${gridCalibrationLine.end.x * 100}%`, top: `${gridCalibrationLine.end.y * 100}%` }}
+                        onMouseDown={(event) => handleGridCalibrateHandleMouseDown(event, 'end')}
+                        aria-label="Move calibration end point"
+                      />
+                    </div>
+                  ) : null}
                   <canvas
                     ref={fullFogCanvasRef}
                     className={tokenPlaceMode || (!fogTool && !visionTool) ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
@@ -3666,6 +4452,25 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                   onRequestDeleteTokenAsset={requestDeleteTokenAsset}
                   streamingMode={streamingMode}
                   setStreamingMode={setStreamingMode}
+                  gridVisible={effectiveGridVisible}
+                  gridAdjustMode={gridAdjustMode}
+                  onToggleGrid={toggleGridAdjustMode}
+                  onToggleGridVisible={() => void toggleGridVisibility()}
+                  onApplyGrid={applyGridAdjust}
+                  gridAdjustReady={gridAdjustReady}
+                  gridAdjustSaved={Boolean(gridAdjustSavedAt)}
+                  gridCalibrateMode={gridCalibrateMode}
+                  onToggleGridCalibrate={toggleGridCalibrateMode}
+                  gridCalibrateReady={Boolean(gridCalibrateStart && gridCalibrateEnd)}
+                  gridCalibrateSaved={Boolean(gridCalibrateSavedAt)}
+                  onApplyGridCalibration={() => void applyGridCalibration().catch((error) => {
+                    const message = error instanceof Error ? error.message : 'Failed to save grid calibration'
+                    setMapError(message)
+                  })}
+                  distanceTrackerFeet={distanceTrackerFeet}
+                  distanceTrackerMode={distanceTrackerMode}
+                  distanceTrackerRoll={distanceTrackerRoll}
+                  onResetDistanceTracker={resetDistanceTracker}
                   applyFogPreset={applyFogPreset}
                   canApplyPreset={Boolean(selectedMap)}
                   fullyHidden={selectedMap?.fullyHidden === true}
@@ -3691,6 +4496,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                   }}
                   tokenViewDistanceSliderValue={tokenViewDistanceSliderValue}
                   onRequestDeleteToken={requestDeleteToken}
+                  mapMonsters={mapMonsters}
                 />
               </aside>
             ) : null}
@@ -3791,6 +4597,20 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         onCancel={() => setTokenAssetDeleteCandidate(null)}
         onConfirm={() => void confirmDeleteTokenAsset()}
       />
+      {encounterNotice ? (
+        <div className="encounter-modal-overlay" role="dialog" aria-modal="true" aria-label="Encounter alert">
+          <div className="encounter-modal">
+            <h3>You encounter a monster!</h3>
+            <p>Encounter checks: {encounterNotice.checks} at every {ENCOUNTER_CHECK_DISTANCE_FEET}&apos;.</p>
+            <p>Test chance: 1 in 6. Rolls: {encounterNotice.rolls.join(', ')}.</p>
+            <div className="encounter-modal-actions">
+              <button type="button" onClick={() => setEncounterNotice(null)}>
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -3817,6 +4637,43 @@ function PlayerMapControls({
           <Crosshair size={16} />
         </button>
       </div>
+    </div>
+  )
+}
+
+function ModeConfirmAction({
+  saved,
+  label,
+  onApply,
+  ariaLabel,
+  disabled = false,
+}: {
+  saved: boolean
+  label: string
+  onApply: () => void
+  ariaLabel: string
+  disabled?: boolean
+}) {
+  return (
+    <div className="map-grid-calibration-actions">
+      {saved ? (
+        <span className="map-grid-calibration-saved" aria-live="polite">
+          Success!
+        </span>
+      ) : (
+        <>
+          <span className="map-grid-calibration-apply-label">{label}</span>
+          <button
+            type="button"
+            className="map-grid-calibration-action-btn"
+            disabled={disabled}
+            onClick={onApply}
+            aria-label={ariaLabel}
+          >
+            <Check size={14} />
+          </button>
+        </>
+      )}
     </div>
   )
 }
@@ -3849,6 +4706,22 @@ function GmMapControls({
   onRequestDeleteTokenAsset,
   streamingMode,
   setStreamingMode,
+  gridVisible,
+  gridAdjustMode,
+  onToggleGrid,
+  onToggleGridVisible,
+  onApplyGrid,
+  gridAdjustReady,
+  gridAdjustSaved,
+  gridCalibrateMode,
+  onToggleGridCalibrate,
+  gridCalibrateReady,
+  gridCalibrateSaved,
+  onApplyGridCalibration,
+  distanceTrackerFeet,
+  distanceTrackerMode,
+  distanceTrackerRoll,
+  onResetDistanceTracker,
   applyFogPreset,
   canApplyPreset,
   fullyHidden,
@@ -3860,6 +4733,7 @@ function GmMapControls({
   onUpdateTokenViewDistance,
   tokenViewDistanceSliderValue,
   onRequestDeleteToken,
+  mapMonsters,
 }: {
   dark?: boolean
   fogTool: 'reveal' | 'hide' | null
@@ -3888,6 +4762,22 @@ function GmMapControls({
   onRequestDeleteTokenAsset: (assetId: string) => void
   streamingMode: boolean
   setStreamingMode: (value: boolean) => void
+  gridVisible: boolean
+  gridAdjustMode: boolean
+  onToggleGrid: () => void
+  onToggleGridVisible: () => void
+  onApplyGrid: () => void
+  gridAdjustReady: boolean
+  gridAdjustSaved: boolean
+  gridCalibrateMode: boolean
+  onToggleGridCalibrate: () => void
+  gridCalibrateReady: boolean
+  gridCalibrateSaved: boolean
+  onApplyGridCalibration: () => void
+  distanceTrackerFeet: number
+  distanceTrackerMode: 'count' | 'roll'
+  distanceTrackerRoll: number | null
+  onResetDistanceTracker: () => void
   applyFogPreset: (preset: 'hide-all' | 'unhide-all') => Promise<void>
   canApplyPreset: boolean
   fullyHidden: boolean
@@ -3907,6 +4797,7 @@ function GmMapControls({
   onUpdateTokenViewDistance: (tokenId: string, viewDistance: number) => Promise<void>
   tokenViewDistanceSliderValue: (token: TokenRecord) => number
   onRequestDeleteToken: (tokenId: string) => void
+  mapMonsters: MonsterSummary[]
 }) {
   const toggleHidden = () => {
     void applyFogPreset(fullyHidden ? 'unhide-all' : 'hide-all')
@@ -3914,6 +4805,21 @@ function GmMapControls({
 
   const [tokenNameDrafts, setTokenNameDrafts] = useState<Record<string, string>>({})
   const [tokensCollapsed, setTokensCollapsed] = useState(false)
+  const DistanceRollIcon =
+    distanceTrackerMode === 'roll' && distanceTrackerRoll === 1
+      ? Dice1
+      : distanceTrackerMode === 'roll' && distanceTrackerRoll === 2
+        ? Dice2
+        : distanceTrackerMode === 'roll' && distanceTrackerRoll === 3
+          ? Dice3
+          : distanceTrackerMode === 'roll' && distanceTrackerRoll === 4
+            ? Dice4
+            : distanceTrackerMode === 'roll' && distanceTrackerRoll === 5
+              ? Dice5
+              : distanceTrackerMode === 'roll' && distanceTrackerRoll === 6
+                ? Dice6
+                : null
+  const distanceFeetLabel = `${Math.max(0, Math.round(distanceTrackerFeet))}'`
 
   const commitTokenLabelEdit = async (token: TokenRecord, labelValue: string) => {
     const current = token.name.trim()
@@ -4066,28 +4972,117 @@ function GmMapControls({
         >
           <TvMinimalPlay size={16} />
         </button>
+        <button
+          type="button"
+          className={gridAdjustMode ? 'map-icon-btn map-grid-btn fast-tooltip fast-tooltip-right active' : 'map-icon-btn map-grid-btn fast-tooltip fast-tooltip-right'}
+          onClick={onToggleGrid}
+          aria-label="Toggle grid adjustment mode"
+          data-tooltip={gridAdjustMode ? 'Cancel grid' : 'Grid overlay'}
+        >
+          <Grid3X3 size={16} />
+        </button>
+        <button
+          type="button"
+          className={gridVisible ? 'map-icon-btn map-grid-visibility-btn fast-tooltip fast-tooltip-right' : 'map-icon-btn map-grid-visibility-btn fast-tooltip fast-tooltip-right active'}
+          onClick={onToggleGridVisible}
+          aria-label="Toggle grid visibility"
+          data-tooltip={gridVisible ? 'Hide grid' : 'Show grid'}
+        >
+          <EyeOff size={16} />
+        </button>
+        <button
+          type="button"
+          className={gridCalibrateMode ? 'map-icon-btn map-ruler-btn fast-tooltip fast-tooltip-right active' : 'map-icon-btn map-ruler-btn fast-tooltip fast-tooltip-right'}
+          onClick={onToggleGridCalibrate}
+          aria-label="Calibrate grid scale"
+          data-tooltip={gridCalibrateMode ? 'Measuring' : "Calibrate 10'"}
+        >
+          <Ruler size={16} />
+        </button>
+        <button
+          type="button"
+          className={
+            distanceTrackerMode === 'roll'
+              ? 'map-icon-btn map-distance-tracker-btn fast-tooltip fast-tooltip-right active'
+              : 'map-icon-btn map-distance-tracker-btn fast-tooltip fast-tooltip-right'
+          }
+          onClick={onResetDistanceTracker}
+          aria-label="Reset movement distance tracker"
+          data-tooltip={
+            distanceTrackerMode === 'roll'
+              ? `d6: ${distanceTrackerRoll ?? '-'}`
+              : `${distanceFeetLabel}/${ENCOUNTER_CHECK_DISTANCE_FEET}'`
+          }
+        >
+          {DistanceRollIcon ? (
+            <DistanceRollIcon size={16} />
+          ) : (
+            <span className="map-distance-tracker-value">{distanceFeetLabel}</span>
+          )}
+        </button>
       </div>
+      {gridAdjustMode ? (
+        <div className="map-grid-adjust-panel">
+          <p className="map-grid-adjust-hint">Adjusting grid: mouse wheel scales, drag pans alignment.</p>
+          <ModeConfirmAction
+            saved={gridAdjustSaved}
+            label="Apply grid"
+            onApply={onApplyGrid}
+            ariaLabel="Apply grid"
+            disabled={!gridAdjustReady}
+          />
+        </div>
+      ) : null}
+      {gridCalibrateMode ? (
+        <div className="map-grid-calibration-panel">
+          <p className="map-grid-calibration-hint">Click two points across one square side, then drag dots to refine.</p>
+          <ModeConfirmAction
+            saved={gridCalibrateSaved}
+            label="Apply calibration"
+            onApply={onApplyGridCalibration}
+            ariaLabel="Apply calibration"
+            disabled={!gridCalibrateReady}
+          />
+        </div>
+      ) : null}
       {tokenPlaceMode ? (
         <div className="map-token-config">
-          <TokenIconEditor
-            className="map-token-icon-editor"
-            minSize={16}
-            maxSize={TOKEN_SIZE_MAX}
-            value={{ icon: selectedTokenAssetId ? 'custom' : 'pawn', color: tokenColor, size: tokenSize } satisfies TokenIconConfig}
-            onChange={(next) => {
-              setTokenColor(next.color)
-              setTokenSize(next.size)
-              if (next.icon === 'pawn' && selectedTokenAssetId) setSelectedTokenAssetId('')
-            }}
-            tokenAssets={tokenAssets.map((asset) => ({ id: asset.id, name: asset.name, imageUrl: asset.imageUrl, archived: asset.archived }))}
-            selectedTokenAssetId={selectedTokenAssetId}
-            onSelectedTokenAssetIdChange={setSelectedTokenAssetId}
-            onArchiveTokenAsset={onArchiveTokenAsset}
-            onRequestDeleteTokenAsset={onRequestDeleteTokenAsset}
-            selectedTokenImageUrl={selectedTokenImageUrl}
-            uploadingTokenImage={uploadingTokenImage}
-            onUploadTokenImage={onUploadTokenImage}
-          />
+          {(() => {
+            const spawnMonster = mapMonsters.find((m) => m.id === selectedTokenAssetId) ?? null
+            const combinedAssets = [
+              ...tokenAssets.map((a) => ({ id: a.id, name: a.name, imageUrl: a.imageUrl, archived: a.archived })),
+              ...mapMonsters.map((m) => ({
+                id: m.id,
+                name: m.name,
+                imageUrl: m.tokenIcon.icon === 'custom' ? (m.tokenIcon.customImageUrl ?? '') : '',
+                archived: false as const,
+                monsterId: m.id,
+              })),
+            ]
+            const effectiveImageUrl = spawnMonster
+              ? (spawnMonster.tokenIcon.icon === 'custom' ? spawnMonster.tokenIcon.customImageUrl ?? '' : '')
+              : selectedTokenImageUrl
+            return (
+              <TokenIconEditor
+                className="map-token-icon-editor"
+                minSize={16}
+                maxSize={TOKEN_SIZE_MAX}
+                value={{ icon: selectedTokenAssetId ? 'custom' : 'pawn', color: tokenColor, size: tokenSize } satisfies TokenIconConfig}
+                onChange={(next) => {
+                  setTokenColor(next.color)
+                  setTokenSize(next.size)
+                }}
+                tokenAssets={combinedAssets}
+                selectedTokenAssetId={selectedTokenAssetId}
+                onSelectedTokenAssetIdChange={setSelectedTokenAssetId}
+                onArchiveTokenAsset={onArchiveTokenAsset}
+                onRequestDeleteTokenAsset={onRequestDeleteTokenAsset}
+                selectedTokenImageUrl={effectiveImageUrl}
+                uploadingTokenImage={uploadingTokenImage}
+                onUploadTokenImage={onUploadTokenImage}
+              />
+            )
+          })()}
         </div>
       ) : null}
       {!streamingMode ? (

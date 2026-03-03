@@ -15,6 +15,10 @@ export type TokenAssetOption = {
   name: string
   imageUrl: string
   archived?: boolean
+  /** Present when this option represents a monster rather than a standalone asset.
+   *  Extraction point: to split monsters into a separate picker, move all monsterId
+   *  options out of the tokenAssets list and handle them in a dedicated UI. */
+  monsterId?: string
 }
 
 type TokenIconEditorProps = {
@@ -79,7 +83,10 @@ export function TokenIconEditor({
     selectedTokenImageUrl.toLowerCase().includes('.svg') || selectedTokenImageUrl.startsWith('data:image/svg+xml')
   const showColorPicker = !selectedTokenImageUrl || isSvgTokenImage
   const selectedAsset = tokenAssets.find((asset) => asset.id === selectedTokenAssetId) ?? null
-  const visibleAssets = tokenAssets.filter((asset) => (showArchivedAssets ? asset.archived === true : asset.archived !== true))
+  const regularAssets = tokenAssets.filter((a) => !a.monsterId)
+  const monsterAssets = tokenAssets.filter((a) => !!a.monsterId)
+  const visibleRegularAssets = regularAssets.filter((a) => (showArchivedAssets ? a.archived === true : a.archived !== true))
+  // Monster options are never archived — always visible regardless of the archive toggle.
 
   useEffect(() => {
     if (!assetMenuOpen) return
@@ -142,7 +149,7 @@ export function TokenIconEditor({
                   </button>
                   <div className="token-asset-option-actions" aria-hidden />
                 </div>
-                {visibleAssets.map((asset) => {
+                {visibleRegularAssets.map((asset) => {
                   const isSelected = selectedTokenAssetId === asset.id
                   const archived = asset.archived === true
                   return (
@@ -186,6 +193,28 @@ export function TokenIconEditor({
                           <X size={12} />
                         </button>
                       </div>
+                    </div>
+                  )
+                })}
+                {monsterAssets.length > 0 ? (
+                  <div className="token-asset-section-divider" role="separator" aria-label="Monsters" />
+                ) : null}
+                {monsterAssets.map((asset) => {
+                  const isSelected = selectedTokenAssetId === asset.id
+                  return (
+                    <div key={asset.id} className={isSelected ? 'token-asset-option selected' : 'token-asset-option'}>
+                      <button
+                        type="button"
+                        className="token-asset-option-main"
+                        onClick={() => {
+                          onSelectedTokenAssetIdChange?.(asset.id)
+                          setAssetMenuOpen(false)
+                        }}
+                      >
+                        <span className="token-asset-option-name">{asset.name}</span>
+                        {isSelected ? <Check size={13} /> : null}
+                      </button>
+                      <div className="token-asset-option-actions" aria-hidden />
                     </div>
                   )
                 })}
