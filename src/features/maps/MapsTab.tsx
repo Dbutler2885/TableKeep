@@ -163,9 +163,11 @@ const ANIM_REVEAL_INTERVAL_MS = 66       // ~15Hz fog reveal during path animati
 const FOG_CANVAS_MAX_DIM = 384          // cap fog canvas to this dimension regardless of device screen size
 const DEFAULT_GRID_CELL_SCALE = 0.05
 const ENCOUNTER_CHECK_DISTANCE_FEET = 120
+const ENCOUNTER_CHECK_TURNS = 2
 const ENCOUNTER_TRIGGER_ROLL_MAX = 1
-const DISTANCE_ROLL_HOLD_MS = 950
 const DISTANCE_POST_ROLL_MIN_FEET_TO_SHOW = 10
+const MIN_MAP_ZOOM = 0.5
+const MAX_MAP_ZOOM = 5
 
 type Waypoint = { x: number; y: number; t?: number }
 
@@ -242,6 +244,11 @@ type TokenImageDraft = {
   fileBaseName: string
 }
 
+type WheelRectSnapshot = {
+  centerX: number
+  centerY: number
+}
+
 export function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }) {
   const [maps, setMaps] = useState<MapRecord[]>([])
   const [selectedMapId, setSelectedMapId] = useState('')
@@ -299,7 +306,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [tokenDeleteCandidate, setTokenDeleteCandidate] = useState<TokenRecord | null>(null)
   const [deletingTokenId, setDeletingTokenId] = useState('')
   const [distanceTrackerFeet, setDistanceTrackerFeet] = useState(0)
-  const [distanceTrackerMode, setDistanceTrackerMode] = useState<'count' | 'roll'>('count')
+  const [distanceTrackerMode, setDistanceTrackerMode] = useState<'count' | 'first' | 'roll'>('count')
   const [distanceTrackerRoll, setDistanceTrackerRoll] = useState<number | null>(null)
   const [encounterNotice, setEncounterNotice] = useState<{
     checks: number
@@ -343,6 +350,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const inlineVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const fullVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const inlineMapLayerRef = useRef<HTMLDivElement | null>(null)
+  const inlineStageRef = useRef<HTMLDivElement | null>(null)
   const fullMapLayerRef = useRef<HTMLDivElement | null>(null)
   const fogLastPointRef = useRef<{ x: number; y: number } | null>(null)
   const tokenDragOffsetRef = useRef<{ x: number; y: number } | null>(null)
@@ -376,12 +384,20 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const loadedVisionKeyRef = useRef('')
   const loadedVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const distanceTrackerFeetRef = useRef(0)
-  const distanceTrackerModeRef = useRef<'count' | 'roll'>('count')
+  const distanceTrackerModeRef = useRef<'count' | 'first' | 'roll'>('count')
   const distanceTrackerRollRef = useRef<number | null>(null)
-  const distanceTrackerLastRollAtRef = useRef(0)
+  const distanceTrackerTurnStageRef = useRef<0 | 1>(0)
   const revealMaskCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const tokenAnimationsRef = useRef<Record<string, TokenPathAnimation>>({})
   const animRafRef = useRef<number | null>(null)
+  const fullWheelAnchorRef = useRef<{ expiresAt: number; anchor: WheelRectSnapshot | null }>({
+    expiresAt: 0,
+    anchor: null,
+  })
+  const playerWheelAnchorRef = useRef<{ expiresAt: number; anchor: WheelRectSnapshot | null }>({
+    expiresAt: 0,
+    anchor: null,
+  })
   const animTickRef = useRef<() => void>(() => { })
   const tokensRef = useRef<TokenRecord[]>([])
   const recentlyDroppedRef = useRef(new Set<string>())
@@ -403,10 +419,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   useEffect(() => {
     playerPanRef.current = playerPan
   }, [playerPan])
-
-  useEffect(() => {
-    distanceTrackerFeetRef.current = distanceTrackerFeet
-  }, [distanceTrackerFeet])
 
   useEffect(() => {
     distanceTrackerModeRef.current = distanceTrackerMode
@@ -869,7 +881,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     distanceTrackerFeetRef.current = 0
     distanceTrackerModeRef.current = 'count'
     distanceTrackerRollRef.current = null
-    distanceTrackerLastRollAtRef.current = 0
+    distanceTrackerTurnStageRef.current = 0
     setDistanceTrackerFeet(0)
     setDistanceTrackerMode('count')
     setDistanceTrackerRoll(null)
@@ -919,6 +931,40 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const tokenViewDistanceSliderValue = (token: TokenRecord) => {
     if (typeof token.viewDistance === 'number') return token.viewDistance
     return DEFAULT_TOKEN_VIEW_DISTANCE
+  }
+  const computeWheelZoom = (
+    event: React.WheelEvent<HTMLDivElement>,
+    currentZoom: number,
+    currentPan: { x: number; y: number },
+    mapLayer: HTMLDivElement | null,
+    anchorRef: React.MutableRefObject<{ expiresAt: number; anchor: WheelRectSnapshot | null }>,
+  ) => {
+    const factor = Math.exp(-event.deltaY * 0.0015)
+    const now = performance.now()
+    const shouldRefreshAnchor = now > anchorRef.current.expiresAt || !anchorRef.current.anchor
+    if (shouldRefreshAnchor) {
+      const liveRect = mapLayer?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect()
+      // Anchor wheel math to the actual transformed map layer, not the outer stage.
+      // This keeps cursor-centered zoom stable across desktop/mobile layouts.
+      anchorRef.current.anchor = {
+        centerX: liveRect.left + liveRect.width * 0.5 - currentPan.x,
+        centerY: liveRect.top + liveRect.height * 0.5 - currentPan.y,
+      }
+    }
+    anchorRef.current.expiresAt = now + 120
+    const anchor = anchorRef.current.anchor!
+    const pointerX = event.clientX - anchor.centerX
+    const pointerY = event.clientY - anchor.centerY
+    const nextZoom = Math.min(MAX_MAP_ZOOM, Math.max(MIN_MAP_ZOOM, currentZoom * factor))
+    const mapLocalX = (pointerX - currentPan.x) / currentZoom
+    const mapLocalY = (pointerY - currentPan.y) / currentZoom
+    return {
+      nextZoom,
+      nextPan: {
+        x: pointerX - mapLocalX * nextZoom,
+        y: pointerY - mapLocalY * nextZoom,
+      },
+    }
   }
   const isTokenPartiallyVisibleForPlayer = (
     token: TokenRecord,
@@ -1194,20 +1240,13 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       return
     }
     event.preventDefault()
-
-    const factor = Math.exp(-event.deltaY * 0.0015)
-    const rect = fullStageRef.current?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect()
-    const pointerX = event.clientX - rect.left - rect.width / 2
-    const pointerY = event.clientY - rect.top - rect.height / 2
-    const currentZoom = fullZoomRef.current
-    const currentPan = fullPanRef.current
-    const nextZoom = Math.min(5, Math.max(0.5, currentZoom * factor))
-    const mapLocalX = (pointerX - currentPan.x) / currentZoom
-    const mapLocalY = (pointerY - currentPan.y) / currentZoom
-    const nextPan = {
-      x: pointerX - mapLocalX * nextZoom,
-      y: pointerY - mapLocalY * nextZoom,
-    }
+    const { nextZoom, nextPan } = computeWheelZoom(
+      event,
+      fullZoomRef.current,
+      fullPanRef.current,
+      fullMapLayerRef.current,
+      fullWheelAnchorRef,
+    )
     fullZoomRef.current = nextZoom
     fullPanRef.current = nextPan
     setFullZoom(nextZoom)
@@ -1752,10 +1791,12 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
           fullPanRef.current = nextPan
           setFullPan(nextPan)
         } else {
-          setPlayerPan({
+          const nextPan = {
             x: inlineBaseSize.width * playerZoom * (0.5 - cx),
             y: inlineBaseSize.height * playerZoom * (0.5 - cy),
-          })
+          }
+          playerPanRef.current = nextPan
+          setPlayerPan(nextPan)
         }
       }
     }
@@ -2316,7 +2357,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
   const handleTokenImageDraftDragMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (!tokenImageDraft || !tokenImageDragOriginRef.current) return
-    const rect = event.currentTarget.getBoundingClientRect()
+    const rect = inlineStageRef.current?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect()
     const dx = event.clientX - tokenImageDragOriginRef.current.x
     const dy = event.clientY - tokenImageDragOriginRef.current.y
     const nextFocusX = Math.max(0, Math.min(100, tokenImageDragOriginRef.current.focusX - (dx / rect.width) * 100))
@@ -3037,7 +3078,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     setActiveAnnotationId('')
   }, [streamingMode])
 
-  const clampMobileZoom = (value: number) => Math.min(4, Math.max(1, value))
+  const clampMobileZoom = (value: number) => Math.min(4, Math.max(MIN_MAP_ZOOM, value))
 
   const touchDistance = (touches: React.TouchList) => {
     const [a, b] = [touches[0], touches[1]]
@@ -3124,7 +3165,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
     if (event.touches.length === 0) {
       mobileTouchRef.current.mode = 'none'
-      if (playerZoomRef.current <= 1) {
+      if (playerZoomRef.current <= MIN_MAP_ZOOM) {
         playerPanRef.current = { x: 0, y: 0 }
         setPlayerPan({ x: 0, y: 0 })
       }
@@ -3149,19 +3190,13 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       return
     }
     event.preventDefault()
-    const factor = Math.exp(-event.deltaY * 0.0015)
-    const rect = event.currentTarget.getBoundingClientRect()
-    const pointerX = event.clientX - rect.left - rect.width / 2
-    const pointerY = event.clientY - rect.top - rect.height / 2
-    const currentZoom = playerZoomRef.current
-    const currentPan = playerPanRef.current
-    const nextZoom = Math.min(5, Math.max(1, currentZoom * factor))
-    const mapLocalX = (pointerX - currentPan.x) / currentZoom
-    const mapLocalY = (pointerY - currentPan.y) / currentZoom
-    const nextPan = {
-      x: pointerX - mapLocalX * nextZoom,
-      y: pointerY - mapLocalY * nextZoom,
-    }
+    const { nextZoom, nextPan } = computeWheelZoom(
+      event,
+      playerZoomRef.current,
+      playerPanRef.current,
+      inlineMapLayerRef.current,
+      playerWheelAnchorRef,
+    )
     playerZoomRef.current = nextZoom
     playerPanRef.current = nextPan
     setPlayerZoom(nextZoom)
@@ -3539,18 +3574,29 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         if (movedFeet > 0.0001) {
           let cycleFeet = distanceTrackerFeetRef.current
           cycleFeet += movedFeet
+          let turnStage = distanceTrackerTurnStageRef.current
           const rolls: number[] = []
+          let latestRoll: number | null = null
+          let lastEvent: 'first' | 'roll' | null = null
           while (cycleFeet >= ENCOUNTER_CHECK_DISTANCE_FEET) {
             cycleFeet -= ENCOUNTER_CHECK_DISTANCE_FEET
-            rolls.push(1 + Math.floor(Math.random() * 6))
+            if (turnStage === 0) {
+              turnStage = 1
+              lastEvent = 'first'
+            } else {
+              turnStage = 0
+              const roll = 1 + Math.floor(Math.random() * 6)
+              rolls.push(roll)
+              latestRoll = roll
+              lastEvent = 'roll'
+            }
           }
 
           distanceTrackerFeetRef.current = cycleFeet
-          if (rolls.length > 0) {
-            const latestRoll = rolls[rolls.length - 1]
+          distanceTrackerTurnStageRef.current = turnStage
+          if (lastEvent === 'roll' && latestRoll !== null) {
             distanceTrackerModeRef.current = 'roll'
             distanceTrackerRollRef.current = latestRoll
-            distanceTrackerLastRollAtRef.current = Date.now()
             setDistanceTrackerMode('roll')
             setDistanceTrackerRoll(latestRoll)
             setDistanceTrackerFeet(ENCOUNTER_CHECK_DISTANCE_FEET)
@@ -3558,16 +3604,20 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
             if (hits > 0) {
               setEncounterNotice({ checks: rolls.length, hits, rolls })
             }
+          } else if (lastEvent === 'first') {
+            distanceTrackerModeRef.current = 'first'
+            distanceTrackerRollRef.current = null
+            setDistanceTrackerMode('first')
+            setDistanceTrackerRoll(null)
+            setDistanceTrackerFeet(ENCOUNTER_CHECK_DISTANCE_FEET)
           } else {
-            const stillHoldingRoll =
-              distanceTrackerModeRef.current === 'roll' &&
-              Date.now() - distanceTrackerLastRollAtRef.current < DISTANCE_ROLL_HOLD_MS
             const belowPostRollDisplayThreshold =
-              distanceTrackerModeRef.current === 'roll' && cycleFeet < DISTANCE_POST_ROLL_MIN_FEET_TO_SHOW
-            if (stillHoldingRoll || belowPostRollDisplayThreshold) {
+              (distanceTrackerModeRef.current === 'roll' || distanceTrackerModeRef.current === 'first') &&
+              cycleFeet < DISTANCE_POST_ROLL_MIN_FEET_TO_SHOW
+            if (belowPostRollDisplayThreshold) {
               setDistanceTrackerFeet(ENCOUNTER_CHECK_DISTANCE_FEET)
             } else {
-              if (distanceTrackerModeRef.current === 'roll') {
+              if (distanceTrackerModeRef.current !== 'count') {
                 distanceTrackerModeRef.current = 'count'
                 distanceTrackerRollRef.current = null
                 setDistanceTrackerMode('count')
@@ -3997,6 +4047,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         >
           {!isMobile || (role === 'gm' ? mobileGmPane === 'map' : mobilePlayerPane === 'map') ? (
             <div
+              ref={inlineStageRef}
               className={isMobileZoomMapView ? 'map-stage mobile-player-stage' : 'map-stage'}
               onWheel={isMobileZoomMapView ? handlePlayerWheel : undefined}
               onMouseDown={isMobileZoomMapView ? handlePlayerMouseDown : undefined}
@@ -4716,7 +4767,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         <div className="encounter-modal-overlay" role="dialog" aria-modal="true" aria-label="Encounter alert">
           <div className="encounter-modal">
             <h3>You encounter a monster!</h3>
-            <p>Encounter checks: {encounterNotice.checks} at every {ENCOUNTER_CHECK_DISTANCE_FEET}&apos;.</p>
+            <p>Encounter checks: {encounterNotice.checks} at every {ENCOUNTER_CHECK_DISTANCE_FEET * ENCOUNTER_CHECK_TURNS}&apos;.</p>
             <p>Test chance: 1 in 6. Rolls: {encounterNotice.rolls.join(', ')}.</p>
             <div className="encounter-modal-actions">
               <button type="button" onClick={() => setEncounterNotice(null)}>
@@ -4890,7 +4941,7 @@ function GmMapControls({
   gridCalibrateSaved: boolean
   onApplyGridCalibration: () => void
   distanceTrackerFeet: number
-  distanceTrackerMode: 'count' | 'roll'
+  distanceTrackerMode: 'count' | 'first' | 'roll'
   distanceTrackerRoll: number | null
   onResetDistanceTracker: () => void
   applyFogPreset: (preset: 'hide-all' | 'unhide-all') => Promise<void>
@@ -4935,6 +4986,7 @@ function GmMapControls({
                 ? Dice6
                 : null
   const distanceFeetLabel = `${Math.max(0, Math.round(distanceTrackerFeet))}'`
+  const distanceTrackerLabel = distanceTrackerMode === 'first' ? '1st' : distanceFeetLabel
 
   const commitTokenLabelEdit = async (token: TokenRecord, labelValue: string) => {
     const current = token.name.trim()
@@ -5117,7 +5169,7 @@ function GmMapControls({
         <button
           type="button"
           className={
-            distanceTrackerMode === 'roll'
+            distanceTrackerMode === 'roll' || distanceTrackerMode === 'first'
               ? 'map-icon-btn map-distance-tracker-btn fast-tooltip fast-tooltip-right active'
               : 'map-icon-btn map-distance-tracker-btn fast-tooltip fast-tooltip-right'
           }
@@ -5126,13 +5178,15 @@ function GmMapControls({
           data-tooltip={
             distanceTrackerMode === 'roll'
               ? `d6: ${distanceTrackerRoll ?? '-'}`
+              : distanceTrackerMode === 'first'
+                ? `1st turn/${ENCOUNTER_CHECK_DISTANCE_FEET}'`
               : `${distanceFeetLabel}/${ENCOUNTER_CHECK_DISTANCE_FEET}'`
           }
         >
           {DistanceRollIcon ? (
             <DistanceRollIcon size={16} />
           ) : (
-            <span className="map-distance-tracker-value">{distanceFeetLabel}</span>
+            <span className="map-distance-tracker-value">{distanceTrackerLabel}</span>
           )}
         </button>
       </div>
