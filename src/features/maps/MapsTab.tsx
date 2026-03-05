@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   ChangeEventHandler,
   MouseEventHandler,
-  TouchEventHandler,
-  WheelEventHandler,
+  SyntheticEvent,
 } from 'react'
 import {
   ALargeSmall,
@@ -12,7 +11,6 @@ import {
   ChessPawn,
   ChevronLeft,
   Circle,
-  Crosshair,
   Dice1,
   Dice2,
   Dice3,
@@ -24,8 +22,9 @@ import {
   EyeOff,
   Flag,
   Grid3X3,
+  Hexagon,
+  LoaderCircle,
   Map,
-  Maximize2,
   Minus,
   Pencil,
   Plus,
@@ -40,370 +39,86 @@ import {
   User,
   X,
 } from 'lucide-react'
-import {
-  addDoc,
-  collection,
-  deleteField,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  query,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-  writeBatch,
-} from 'firebase/firestore'
-import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
-import { auth, db, storage } from '../../firebase'
-import { firebaseConfig } from '../../firebase/config'
 import type { Role } from '../../types/app'
-import { normalizeImageForDataUrl, normalizeImageForUpload } from '../common/imageNormalization'
 import { TokenIconEditor, type TokenIconConfig } from '../tokens/TokenIconEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { IconValueSlider } from '../common/IconValueSlider'
-
-type MapRecord = {
-  id: string
-  name: string
-  imagePath: string
-  imageUrl: string
-  fogDataUrl: string
-  fogImagePath: string
-  fogImageUrl: string
-  visionBlockDataUrl: string
-  visionBlockImagePath: string
-  visionBlockImageUrl: string
-  fullyHidden: boolean
-  width: number
-  height: number
-  sortOrder: number
-  visibleToPlayers: boolean
-  gridEnabled: boolean
-  gridVisible: boolean
-  gridCellScale: number
-  gridOffsetX: number
-  gridOffsetY: number
-  gridUnitsPerCell: number
-  gridCalibrated: boolean
-  updatedAtMs: number
-}
-
-type TokenRecord = {
-  id: string
-  x: number
-  y: number
-  color: string
-  size: number
-  sizeScale: number | null
-  viewDistance: number | null
-  viewDistanceScale: number | null
-  party: boolean
-  name: string
-  revealName: boolean
-  hidden: boolean
-  tokenImagePath: string
-  tokenImageUrl: string
-  tokenImageWidth: number
-  tokenImageHeight: number
-  monsterId: string
-}
-
-type AnnotationRecord = {
-  id: string
-  x: number
-  y: number
-  text: string
-}
-
-type TokenAssetRecord = {
-  id: string
-  name: string
-  imagePath: string
-  imageUrl: string
-  width: number
-  height: number
-  archived: boolean
-}
-
-// Minimal monster data loaded in MapsTab for the token spawn picker.
-type MonsterSummary = {
-  id: string
-  name: string
-  tokenIcon: TokenIconConfig
-}
-
-type CanvasClipRect = {
-  minX: number
-  minY: number
-  maxX: number
-  maxY: number
-}
-
-type GridAdjustDraft = {
-  gridEnabled: boolean
-  gridVisible: boolean
-  gridCellScale: number
-  gridOffsetX: number
-  gridOffsetY: number
-}
-
-const TOKEN_REFERENCE_DIMENSION = 900
-const DEFAULT_TOKEN_VIEW_DISTANCE = 120
-const TOKEN_SIZE_MAX = 220
-const TOKEN_RENDER_SIZE_MAX = 720
-const FOG_BRUSH_SIZE_MIN = 1
-const TOKEN_VIEW_DISTANCE_MIN = 8
-const TOKEN_VIEW_DISTANCE_MAX = 600
-const LOS_SURFACE_REVEAL_MULTIPLIER = 2.4
-const LOS_BLOCKER_SAMPLE_RADIUS = 2
-const STREAMING_LOCAL_REVEAL_INTERVAL_MS = 40
-const STREAMING_LOCAL_REVEAL_MAX_INTERVAL_MS = 110
-const DRAG_PATH_SAMPLE_DISTANCE = 0.015  // normalized units between sampled waypoints
-const ANIM_REVEAL_INTERVAL_MS = 66       // ~15Hz fog reveal during path animation
-const FOG_CANVAS_MAX_DIM = 384          // cap fog canvas to this dimension regardless of device screen size
-const DEFAULT_GRID_CELL_SCALE = 0.05
-const ENCOUNTER_CHECK_DISTANCE_FEET = 120
-const ENCOUNTER_CHECK_TURNS = 2
-const ENCOUNTER_TRIGGER_ROLL_MAX = 1
-const DISTANCE_POST_ROLL_MIN_FEET_TO_SHOW = 10
-const MIN_MAP_ZOOM = 0.5
-const MAX_MAP_ZOOM = 5
-
-type Waypoint = { x: number; y: number; t?: number }
-
-// Interpolates position along a path at animation progress `animT` (0–1).
-// When waypoints carry timestamps, interpolation follows the recorded pace exactly.
-// Falls back to uniform distance-based interpolation when timestamps are absent.
-function interpolateAlongPath(path: Waypoint[], animT: number): { x: number; y: number } {
-  if (path.length === 0) return { x: 0.5, y: 0.5 }
-  if (path.length === 1 || animT <= 0) return { x: path[0].x, y: path[0].y }
-  if (animT >= 1) return { x: path[path.length - 1].x, y: path[path.length - 1].y }
-
-  const firstT = path[0].t
-  const lastT = path[path.length - 1].t
-  if (firstT !== undefined && lastT !== undefined && lastT > firstT) {
-    // Time-based: replay at recorded pace
-    const targetTime = firstT + animT * (lastT - firstT)
-    for (let i = 1; i < path.length; i++) {
-      const pt = path[i].t ?? lastT
-      if (pt >= targetTime) {
-        const prev = path[i - 1]
-        const prevT = prev.t ?? firstT
-        const segDur = pt - prevT
-        const segFrac = segDur === 0 ? 0 : (targetTime - prevT) / segDur
-        return {
-          x: prev.x + (path[i].x - prev.x) * segFrac,
-          y: prev.y + (path[i].y - prev.y) * segFrac,
-        }
-      }
-    }
-    return { x: path[path.length - 1].x, y: path[path.length - 1].y }
-  }
-
-  // Distance-based fallback
-  let totalLen = 0
-  const segLengths: number[] = []
-  for (let i = 1; i < path.length; i++) {
-    const len = Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y)
-    segLengths.push(len)
-    totalLen += len
-  }
-  if (totalLen === 0) return { x: path[0].x, y: path[0].y }
-  const target = animT * totalLen
-  let dist = 0
-  for (let i = 0; i < segLengths.length; i++) {
-    if (dist + segLengths[i] >= target) {
-      const segFrac = segLengths[i] === 0 ? 0 : (target - dist) / segLengths[i]
-      return {
-        x: path[i].x + (path[i + 1].x - path[i].x) * segFrac,
-        y: path[i].y + (path[i + 1].y - path[i].y) * segFrac,
-      }
-    }
-    dist += segLengths[i]
-  }
-  return { x: path[path.length - 1].x, y: path[path.length - 1].y }
-}
-
-type TokenPathAnimation = {
-  path: Waypoint[]
-  startTime: number
-  duration: number
-  brushSize: number
-  tokenSizeScale: number
-  party: boolean
-  lastRevealTime: number
-  lastRevealCanvasPos: { x: number; y: number } | null
-}
-
-type TokenImageDraft = {
-  imageUrl: string
-  focusX: number
-  focusY: number
-  zoom: number
-  assetName?: string
-  fileBaseName: string
-}
-
-type WheelRectSnapshot = {
-  centerX: number
-  centerY: number
-}
+import type {
+  CanvasClipRect,
+  MonsterSummary,
+  TokenAssetRecord,
+  TokenPathAnimation,
+  TokenRecord,
+  Waypoint,
+} from './lib/types'
+import {
+  DEFAULT_TOKEN_VIEW_DISTANCE,
+  ENCOUNTER_CHECK_DISTANCE_FEET,
+  ENCOUNTER_CHECK_TURNS,
+  FOG_CANVAS_MAX_DIM,
+  LOS_BLOCKER_SAMPLE_RADIUS,
+  LOS_SURFACE_REVEAL_MULTIPLIER,
+  TOKEN_REFERENCE_DIMENSION,
+  TOKEN_RENDER_SIZE_MAX,
+  TOKEN_SIZE_MAX,
+  TOKEN_VIEW_DISTANCE_MAX,
+  TOKEN_VIEW_DISTANCE_MIN,
+} from './lib/constants'
+import { isTokenVisibleOnFog, isTokenPartiallyVisibleOnFog } from './lib/tokenVisibility'
+import { GridOverlay } from './components/GridOverlay'
+import { ModeConfirmAction } from './components/ModeConfirmAction'
+import { PlayerMapControls } from './components/PlayerMapControls'
+import { TokenLayer } from './components/TokenLayer'
+import { AnnotationLayer } from './components/AnnotationLayer'
+import { InlineMapStage } from './components/InlineMapStage'
+import { FullscreenMapStage } from './components/FullscreenMapStage'
+import { useGridTools } from './hooks/useGridTools'
+import { useMapData } from './hooks/useMapData'
+import { useMapViewport } from './hooks/useMapViewport'
+import { useFogTools } from './hooks/useFogTools'
+import { useTokenSelection } from './hooks/useTokenSelection'
+import { useTokenAnimation } from './hooks/useTokenAnimation'
+import { useTokenDrag } from './hooks/useTokenDrag'
+import { useEncounterTracking } from './hooks/useEncounterTracking'
+import { useTokenAssets } from './hooks/useTokenAssets'
 
 export function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }) {
-  const [maps, setMaps] = useState<MapRecord[]>([])
   const [selectedMapId, setSelectedMapId] = useState('')
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= 900)
   const [mobileMapView, setMobileMapView] = useState<'list' | 'detail'>('list')
   const [mobileGmPane, setMobileGmPane] = useState<'map' | 'controls'>('map')
   const [mobilePlayerPane, setMobilePlayerPane] = useState<'map' | 'controls'>('map')
-  const [mapsLoading, setMapsLoading] = useState(true)
-  const [uploading, setUploading] = useState(false)
-  const [mapError, setMapError] = useState<string | null>(null)
-  const [editingMapId, setEditingMapId] = useState('')
-  const [editName, setEditName] = useState('')
-  const [deleteCandidate, setDeleteCandidate] = useState<MapRecord | null>(null)
-  const [deletingMapId, setDeletingMapId] = useState('')
-  const [draggingMapId, setDraggingMapId] = useState('')
-  const [dragOverMapId, setDragOverMapId] = useState('')
   const [fullScreenOpen, setFullScreenOpen] = useState(false)
-  const [fullZoom, setFullZoom] = useState(1)
-  const [fullPan, setFullPan] = useState({ x: 0, y: 0 })
-  const [fullDragging, setFullDragging] = useState(false)
   const [fogTool, setFogTool] = useState<'reveal' | 'hide' | null>(null)
   const [visionTool, setVisionTool] = useState<'draw' | 'erase' | null>(null)
   const [fogBrushSize, setFogBrushSize] = useState(120)
   const fogBrushStrength = 0.7
-  const [fogDrawing, setFogDrawing] = useState(false)
   const [streamingMode, setStreamingMode] = useState(false)
   const [tokenPlaceMode, setTokenPlaceMode] = useState(false)
   const [tokenSelectMode, setTokenSelectMode] = useState(false)
   const [annotationPlaceMode, setAnnotationPlaceMode] = useState(false)
-  const [mapMonsters, setMapMonsters] = useState<MonsterSummary[]>([])
   const [tokenColor, setTokenColor] = useState('#b45309')
   const [tokenSize, setTokenSize] = useState(28)
-  const [tokenAssets, setTokenAssets] = useState<TokenAssetRecord[]>([])
-  const [selectedTokenAssetId, setSelectedTokenAssetId] = useState('')
-  const [uploadingTokenImage, setUploadingTokenImage] = useState(false)
-  const [tokenImageDraft, setTokenImageDraft] = useState<TokenImageDraft | null>(null)
-  const [tokenAssetDeleteCandidate, setTokenAssetDeleteCandidate] = useState<TokenAssetRecord | null>(null)
-  const [deletingTokenAssetId, setDeletingTokenAssetId] = useState('')
-  const [tokens, setTokens] = useState<TokenRecord[]>([])
-  const [selectedTokenIds, setSelectedTokenIds] = useState<string[]>([])
-  const [playerSelectedTokenIds, setPlayerSelectedTokenIds] = useState<string[]>([])
-  const [tokenSelectionBox, setTokenSelectionBox] = useState<{
-    start: { x: number; y: number }
-    end: { x: number; y: number }
-  } | null>(null)
-  const [annotations, setAnnotations] = useState<AnnotationRecord[]>([])
-  const [activeAnnotationId, setActiveAnnotationId] = useState('')
-  const [activeAnnotationDraft, setActiveAnnotationDraft] = useState('')
-  const [fogSampleTick, setFogSampleTick] = useState(0)
-  const [draggingTokenId, setDraggingTokenId] = useState('')
-  const [draggingTokenIds, setDraggingTokenIds] = useState<string[]>([])
-  const [, setDragTokenPosition] = useState<{ x: number; y: number } | null>(null)
-  const [dragTokenPositions, setDragTokenPositions] = useState<Record<string, { x: number; y: number }> | null>(null)
-  const [animatedTokenPositions, setAnimatedTokenPositions] = useState<Record<string, { x: number; y: number }>>({})
-  const [tokenDeleteCandidate, setTokenDeleteCandidate] = useState<TokenRecord | null>(null)
-  const [deletingTokenId, setDeletingTokenId] = useState('')
-  const [distanceTrackerFeet, setDistanceTrackerFeet] = useState(0)
-  const [distanceTrackerMode, setDistanceTrackerMode] = useState<'count' | 'first' | 'roll'>('count')
-  const [distanceTrackerRoll, setDistanceTrackerRoll] = useState<number | null>(null)
-  const [encounterNotice, setEncounterNotice] = useState<{
-    checks: number
-    hits: number
-    rolls: number[]
-  } | null>(null)
   const [inlineBaseSize, setInlineBaseSize] = useState({ width: 0, height: 0 })
   const [fullBaseSize, setFullBaseSize] = useState({ width: 0, height: 0 })
   const [inlineFogSize, setInlineFogSize] = useState({ width: 0, height: 0 })
   const [fullFogSize, setFullFogSize] = useState({ width: 0, height: 0 })
-  const [playerZoom, setPlayerZoom] = useState(1)
-  const [playerPan, setPlayerPan] = useState({ x: 0, y: 0 })
-  const [cameraLock, setCameraLock] = useState(false)
-  const [gridCalibrateMode, setGridCalibrateMode] = useState(false)
-  const [gridAdjustMode, setGridAdjustMode] = useState(false)
-  const [gridCalibrateStart, setGridCalibrateStart] = useState<{ x: number; y: number } | null>(null)
-  const [gridCalibrateEnd, setGridCalibrateEnd] = useState<{ x: number; y: number } | null>(null)
-  const [gridCalibratePreview, setGridCalibratePreview] = useState<{ x: number; y: number } | null>(null)
-  const [gridCalibrateDraggingHandle, setGridCalibrateDraggingHandle] = useState<'start' | 'end' | null>(null)
-  const [gridCalibrateSavedAt, setGridCalibrateSavedAt] = useState(0)
-  const [gridAdjustSavedAt, setGridAdjustSavedAt] = useState(0)
-  const [gridAdjustDraft, setGridAdjustDraft] = useState<GridAdjustDraft | null>(null)
-  const [gridCalibratePulse, setGridCalibratePulse] = useState(false)
-  const [gridAlignDrag, setGridAlignDrag] = useState<{
-    usingFull: boolean
-    startClientX: number
-    startClientY: number
-    startOffsetX: number
-    startOffsetY: number
-  } | null>(null)
-  const [playerDragging, setPlayerDragging] = useState(false)
-  const fullDragStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
-  const playerDragStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
   const fullStageRef = useRef<HTMLDivElement | null>(null)
-  const fullZoomRef = useRef(1)
-  const fullPanRef = useRef({ x: 0, y: 0 })
-  const playerZoomRef = useRef(1)
-  const playerPanRef = useRef({ x: 0, y: 0 })
-  const inlineFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const fullFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const inlineVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const fullVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const inlineMapLayerRef = useRef<HTMLDivElement | null>(null)
   const inlineStageRef = useRef<HTMLDivElement | null>(null)
   const fullMapLayerRef = useRef<HTMLDivElement | null>(null)
-  const fogLastPointRef = useRef<{ x: number; y: number } | null>(null)
-  const tokenDragOffsetRef = useRef<{ x: number; y: number } | null>(null)
-  const dragTokenPositionRef = useRef<{ x: number; y: number } | null>(null)
-  const dragTokenStartPositionsRef = useRef<Record<string, { x: number; y: number }> | null>(null)
-  const dragTokenPositionsRef = useRef<Record<string, { x: number; y: number }> | null>(null)
-  const tokenFogTrailPointRef = useRef<{ x: number; y: number } | null>(null)
   const suppressNextMapClickRef = useRef(false)
-  const tokenLongPressTimerRef = useRef<number | null>(null)
-  const tokenTouchDraggingRef = useRef(false)
-  const tokenImageDragOriginRef = useRef<{ x: number; y: number; focusX: number; focusY: number } | null>(null)
-  const mobileTouchRef = useRef<{
-    mode: 'none' | 'pan' | 'pinch'
-    startZoom: number
-    startDistance: number
-    startPan: { x: number; y: number }
-    startCenter: { x: number; y: number }
-  }>({
-    mode: 'none',
-    startZoom: 1,
-    startDistance: 0,
-    startPan: { x: 0, y: 0 },
-    startCenter: { x: 0, y: 0 },
-  })
-  const loadedInlineFogKeyRef = useRef('')
-  const loadedInlineCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const loadedInlineVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const loadedFogKeyRef = useRef('')
-  const loadedFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const loadedInlineVisionKeyRef = useRef('')
-  const loadedVisionKeyRef = useRef('')
-  const loadedVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const distanceTrackerFeetRef = useRef(0)
-  const distanceTrackerModeRef = useRef<'count' | 'first' | 'roll'>('count')
-  const distanceTrackerRollRef = useRef<number | null>(null)
-  const distanceTrackerTurnStageRef = useRef<0 | 1>(0)
   const revealMaskCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const tokenAnimationsRef = useRef<Record<string, TokenPathAnimation>>({})
-  const animRafRef = useRef<number | null>(null)
-  const fullWheelAnchorRef = useRef<{ expiresAt: number; anchor: WheelRectSnapshot | null }>({
-    expiresAt: 0,
-    anchor: null,
-  })
-  const playerWheelAnchorRef = useRef<{ expiresAt: number; anchor: WheelRectSnapshot | null }>({
-    expiresAt: 0,
-    anchor: null,
-  })
-  const animTickRef = useRef<() => void>(() => { })
+  const pendingFogReloadRef = useRef(false)
+  // Stable refs used to break circular deps. These are kept in sync with the
+  // values produced by useFogTools / useTokenAnimation each render, allowing
+  // useMapData (called later in the same render) to receive the same objects
+  // that those hooks write into — so async subscription callbacks in useMapData
+  // always call the current implementations.
+  const getDropPointRef = useRef<((clientX: number, clientY: number) => { x: number; y: number } | null)>(() => null)
   const tokensRef = useRef<TokenRecord[]>([])
   const recentlyDroppedRef = useRef(new Set<string>())
-  const pendingFogReloadRef = useRef(false)
-  // Tracks the pathId of the most recently animated (or skipped-as-own) path per token.
-  // Prevents replaying the same path on metadata updates like hide/unhide.
   const lastAnimatedPathIdRef = useRef<Record<string, string>>({})
   const startTokenPathAnimationRef = useRef<(
     tokenId: string,
@@ -411,113 +126,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     path: Waypoint[],
     token: TokenRecord,
   ) => void>(() => { })
-
-  useEffect(() => {
-    playerZoomRef.current = playerZoom
-  }, [playerZoom])
-
-  useEffect(() => {
-    playerPanRef.current = playerPan
-  }, [playerPan])
-
-  useEffect(() => {
-    distanceTrackerModeRef.current = distanceTrackerMode
-  }, [distanceTrackerMode])
-
-  useEffect(() => {
-    distanceTrackerRollRef.current = distanceTrackerRoll
-  }, [distanceTrackerRoll])
-
-  useEffect(() => {
-    setPlayerSelectedTokenIds((current) => current.filter((id) => tokens.some((token) => token.id === id)))
-  }, [tokens])
-
-  useEffect(() => {
-    setPlayerSelectedTokenIds([])
-  }, [selectedMapId])
-
-  useEffect(() => {
-    const mapsQuery = query(collection(db, 'campaigns', campaignId, 'maps'))
-    const unsub = onSnapshot(
-      mapsQuery,
-      (snap) => {
-        const next = snap.docs.map((docSnap) => {
-          const data = docSnap.data() as {
-            name?: string
-            imagePath?: string
-            imageUrl?: string
-            fogDataUrl?: string
-            fogImagePath?: string
-            fogImageUrl?: string
-            visionBlockDataUrl?: string
-            visionBlockImagePath?: string
-            visionBlockImageUrl?: string
-            fullyHidden?: boolean
-            width?: number
-            height?: number
-            sortOrder?: number
-            visibleToPlayers?: boolean
-            gridEnabled?: boolean
-            gridVisible?: boolean
-            gridCellScale?: number
-            gridOffsetX?: number
-            gridOffsetY?: number
-            gridUnitsPerCell?: number
-            gridCalibrated?: boolean
-            updatedAt?: { toMillis?: () => number }
-          }
-
-          return {
-            id: docSnap.id,
-            name: data.name ?? `Map ${docSnap.id}`,
-            imagePath: data.imagePath ?? '',
-            imageUrl: data.imageUrl ?? '',
-            fogDataUrl: data.fogDataUrl ?? '',
-            fogImagePath: data.fogImagePath ?? '',
-            fogImageUrl: data.fogImageUrl ?? '',
-            visionBlockDataUrl: data.visionBlockDataUrl ?? '',
-            visionBlockImagePath: data.visionBlockImagePath ?? '',
-            visionBlockImageUrl: data.visionBlockImageUrl ?? '',
-            fullyHidden: data.fullyHidden === true,
-            width: typeof data.width === 'number' ? data.width : 0,
-            height: typeof data.height === 'number' ? data.height : 0,
-            sortOrder: typeof data.sortOrder === 'number' ? data.sortOrder : Number.MAX_SAFE_INTEGER,
-            visibleToPlayers: data.visibleToPlayers === true,
-            gridEnabled: data.gridEnabled === true,
-            gridVisible: data.gridVisible === false ? false : true,
-            gridCellScale:
-              typeof data.gridCellScale === 'number' && Number.isFinite(data.gridCellScale)
-                ? data.gridCellScale
-                : DEFAULT_GRID_CELL_SCALE,
-            gridOffsetX:
-              typeof data.gridOffsetX === 'number' && Number.isFinite(data.gridOffsetX)
-                ? data.gridOffsetX
-                : 0,
-            gridOffsetY:
-              typeof data.gridOffsetY === 'number' && Number.isFinite(data.gridOffsetY)
-                ? data.gridOffsetY
-                : 0,
-            gridUnitsPerCell:
-              typeof data.gridUnitsPerCell === 'number' && Number.isFinite(data.gridUnitsPerCell)
-                ? data.gridUnitsPerCell
-                : 10,
-            gridCalibrated: data.gridCalibrated === false ? false : true,
-            updatedAtMs: typeof data.updatedAt?.toMillis === 'function' ? data.updatedAt.toMillis() : 0,
-          }
-        })
-          .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
-
-        setMaps(next)
-        setMapsLoading(false)
-      },
-      (err) => {
-        setMapError(err.message)
-        setMapsLoading(false)
-      },
-    )
-
-    return () => unsub()
-  }, [campaignId])
 
   useEffect(() => {
     const updateMobileState = () => {
@@ -534,273 +142,11 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     return () => window.removeEventListener('resize', updateMobileState)
   }, [])
 
-  useEffect(
-    () => () => {
-      if (tokenLongPressTimerRef.current) {
-        window.clearTimeout(tokenLongPressTimerRef.current)
-        tokenLongPressTimerRef.current = null
-      }
-    },
-    [],
-  )
-
-  useEffect(() => {
-    const missingImageUrlMaps = maps.filter((map) => map.imagePath && !map.imageUrl)
-    const missingFogUrlMaps = maps.filter((map) => map.fogImagePath && !map.fogImageUrl)
-    const missingVisionUrlMaps = maps.filter((map) => map.visionBlockImagePath && !map.visionBlockImageUrl)
-    if (missingImageUrlMaps.length === 0 && missingFogUrlMaps.length === 0 && missingVisionUrlMaps.length === 0) {
-      return
-    }
-
-    void Promise.allSettled([
-      ...missingImageUrlMaps.map(async (map) => {
-        const url = await getDownloadURL(ref(storage, map.imagePath))
-        await updateDoc(doc(db, 'campaigns', campaignId, 'maps', map.id), {
-          imageUrl: url,
-          updatedAt: serverTimestamp(),
-        })
-      }),
-      ...missingFogUrlMaps.map(async (map) => {
-        const url = await getDownloadURL(ref(storage, map.fogImagePath))
-        await updateDoc(doc(db, 'campaigns', campaignId, 'maps', map.id), {
-          fogImageUrl: url,
-          updatedAt: serverTimestamp(),
-        })
-      }),
-      ...missingVisionUrlMaps.map(async (map) => {
-        const url = await getDownloadURL(ref(storage, map.visionBlockImagePath))
-        await updateDoc(doc(db, 'campaigns', campaignId, 'maps', map.id), {
-          visionBlockImageUrl: url,
-          updatedAt: serverTimestamp(),
-        })
-      }),
-    ])
-  }, [campaignId, maps])
-
-  useEffect(() => {
-    const assetsQuery = query(collection(db, 'campaigns', campaignId, 'tokenAssets'))
-    const unsub = onSnapshot(
-      assetsQuery,
-      (snap) => {
-        const next = snap.docs
-          .map((docSnap) => {
-            const data = docSnap.data() as {
-              name?: string
-              imagePath?: string
-              imageUrl?: string
-              width?: number
-              height?: number
-              archived?: boolean
-            }
-            return {
-              id: docSnap.id,
-              name: typeof data.name === 'string' ? data.name : `Asset ${docSnap.id}`,
-              imagePath: typeof data.imagePath === 'string' ? data.imagePath : '',
-              imageUrl: typeof data.imageUrl === 'string' ? data.imageUrl : '',
-              width: typeof data.width === 'number' ? data.width : 0,
-              height: typeof data.height === 'number' ? data.height : 0,
-              archived: data.archived === true,
-            }
-          })
-          .sort((a, b) => a.name.localeCompare(b.name))
-        setTokenAssets(next)
-      },
-      (err) => {
-        setMapError(err.message)
-      },
-    )
-    return () => unsub()
-  }, [campaignId])
-
-  useEffect(() => {
-    if (!selectedMapId) {
-      setTokens([])
-      return
-    }
-
-    const tokensQuery = query(collection(db, 'campaigns', campaignId, 'maps', selectedMapId, 'tokens'))
-    const unsub = onSnapshot(
-      tokensQuery,
-      (snap) => {
-        const next = snap.docs.map((docSnap) => {
-          const data = docSnap.data() as {
-            x?: number
-            y?: number
-            color?: string
-            size?: number
-            sizeScale?: number
-            viewDistance?: number
-            viewDistanceScale?: number
-            party?: boolean
-            name?: string
-            revealName?: boolean
-            hidden?: boolean
-            tokenImagePath?: string
-            tokenImageUrl?: string
-            tokenImageWidth?: number
-            tokenImageHeight?: number
-            monsterId?: string
-          }
-
-          return {
-            id: docSnap.id,
-            x: typeof data.x === 'number' ? data.x : 0.5,
-            y: typeof data.y === 'number' ? data.y : 0.5,
-            color: typeof data.color === 'string' ? data.color : '#b45309',
-            size: typeof data.size === 'number' ? data.size : 28,
-            sizeScale: typeof data.sizeScale === 'number' ? data.sizeScale : null,
-            viewDistance: typeof data.viewDistance === 'number' ? data.viewDistance : null,
-            viewDistanceScale: typeof data.viewDistanceScale === 'number' ? data.viewDistanceScale : null,
-            party: data.party === true,
-            name: typeof data.name === 'string' ? data.name : '',
-            revealName: data.revealName === true,
-            hidden: data.hidden === true,
-            tokenImagePath: typeof data.tokenImagePath === 'string' ? data.tokenImagePath : '',
-            tokenImageUrl: typeof data.tokenImageUrl === 'string' ? data.tokenImageUrl : '',
-            tokenImageWidth: typeof data.tokenImageWidth === 'number' ? data.tokenImageWidth : 0,
-            tokenImageHeight: typeof data.tokenImageHeight === 'number' ? data.tokenImageHeight : 0,
-            monsterId: typeof data.monsterId === 'string' ? data.monsterId : '',
-          }
-        })
-        setTokens(next)
-
-        // Trigger path animations for tokens moved by other clients.
-        // tokensRef.current still holds pre-update positions here since setTokens
-        // schedules a React update (doesn't flush synchronously).
-        snap.docChanges().forEach((change) => {
-          if (change.type === 'added') {
-            // Seed lastAnimatedPathIdRef on initial load so that subsequent
-            // metadata-only updates (hide/unhide) don't replay stale paths.
-            const data = change.doc.data() as { pathId?: unknown }
-            const pathId = typeof data.pathId === 'string' ? data.pathId : null
-            if (pathId) lastAnimatedPathIdRef.current[change.doc.id] = pathId
-            return
-          }
-          if (change.type !== 'modified') return
-          const tokenId = change.doc.id
-          // Skip tokens this client just dropped — optimistic update already placed them.
-          if (recentlyDroppedRef.current.has(tokenId)) return
-          const data = change.doc.data() as { path?: unknown; pathId?: unknown }
-          const incomingPathId = typeof data.pathId === 'string' ? data.pathId : null
-          // Skip if this is the same path we already animated (e.g. hide/unhide on an old drop).
-          if (incomingPathId && lastAnimatedPathIdRef.current[tokenId] === incomingPathId) return
-          const rawPath = data.path
-          if (!Array.isArray(rawPath) || rawPath.length < 2) return
-          const path = (rawPath as unknown[])
-            .filter((p): p is Record<string, unknown> =>
-              typeof p === 'object' &&
-              p !== null &&
-              typeof (p as Record<string, unknown>).x === 'number' &&
-              typeof (p as Record<string, unknown>).y === 'number',
-            )
-            .map((p): Waypoint => ({
-              x: p.x as number,
-              y: p.y as number,
-              ...(typeof p.t === 'number' ? { t: p.t } : {}),
-            }))
-          if (path.length < 2) return
-          const fromToken = tokensRef.current.find((t) => t.id === tokenId)
-          if (!fromToken) return
-          const updatedToken = next.find((t) => t.id === tokenId)
-          if (!updatedToken) return
-          if (incomingPathId) lastAnimatedPathIdRef.current[tokenId] = incomingPathId
-          // Hidden tokens must never replay path animation. This covers:
-          // 1) moved-while-hidden updates and 2) hide/unhide metadata updates.
-          if (fromToken.hidden || updatedToken.hidden) return
-          startTokenPathAnimationRef.current(tokenId, { x: fromToken.x, y: fromToken.y }, path, updatedToken)
-        })
-      },
-      (err) => {
-        setMapError(err.message)
-      },
-    )
-
-    return () => unsub()
-  }, [campaignId, selectedMapId])
-
-  useEffect(() => {
-    if (role !== 'gm') {
-      setAnnotations([])
-      return
-    }
-
-    if (!selectedMapId) {
-      setAnnotations([])
-      return
-    }
-
-    const annotationsQuery = query(collection(db, 'campaigns', campaignId, 'maps', selectedMapId, 'annotations'))
-    const unsub = onSnapshot(
-      annotationsQuery,
-      (snap) => {
-        const next = snap.docs.map((docSnap) => {
-          const data = docSnap.data() as {
-            x?: number
-            y?: number
-            text?: string
-          }
-
-          return {
-            id: docSnap.id,
-            x: typeof data.x === 'number' ? data.x : 0.5,
-            y: typeof data.y === 'number' ? data.y : 0.5,
-            text: typeof data.text === 'string' ? data.text : '',
-          }
-        })
-        setAnnotations(next)
-      },
-      (err) => {
-        setMapError(err.message)
-      },
-    )
-
-    return () => unsub()
-  }, [campaignId, role, selectedMapId])
-
-  // Load monsters for the token spawn picker.
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'monsters'), (snap) => {
-      setMapMonsters(
-        snap.docs
-          .map((d) => {
-            const data = d.data()
-            return {
-              id: d.id,
-              name: typeof data.name === 'string' ? data.name : '',
-              tokenIcon: data.tokenIcon
-                ? (data.tokenIcon as TokenIconConfig)
-                : { icon: 'pawn' as const, color: '#bf2f2a', size: 34 },
-            }
-          })
-          // Only surface monsters that have a custom token image configured.
-          .filter((m) => m.tokenIcon.icon === 'custom' && !!m.tokenIcon.customImageUrl)
-          .sort((a, b) => a.name.localeCompare(b.name))
-      )
-    })
-    return () => unsub()
-  }, [campaignId])
-
-  const visibleMaps = useMemo(
-    () => (role === 'gm' ? maps : maps.filter((map) => map.visibleToPlayers)),
-    [maps, role],
-  )
-
-  useEffect(() => {
-    setSelectedMapId((current) => {
-      if (visibleMaps.length === 0) return ''
-      const stillExists = visibleMaps.find((map) => map.id === current)
-      return stillExists ? stillExists.id : visibleMaps[0].id
-    })
-  }, [visibleMaps])
-
-  const selectedMap = visibleMaps.find((map) => map.id === selectedMapId) ?? null
   const showListPane = !isMobile || mobileMapView === 'list'
   const showMapPane = !isMobile || mobileMapView === 'detail'
   const fogDisplayOpacity = role === 'gm' ? (streamingMode ? 1 : 0.45) : 1
   const visionOverlayOpacity = role === 'gm' && !streamingMode ? 0.8 : 0
   const usingFullScreenCanvas = fullScreenOpen && !isMobile
-  const activeFogCanvasRef = usingFullScreenCanvas ? fullFogCanvasRef : inlineFogCanvasRef
-  const activeVisionCanvasRef = usingFullScreenCanvas ? fullVisionCanvasRef : inlineVisionCanvasRef
   const activeMapLayerRef = usingFullScreenCanvas ? fullMapLayerRef : inlineMapLayerRef
   const activeMapDimension = Math.max(
     1,
@@ -811,35 +157,248 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   )
   const activeMapWidth = usingFullScreenCanvas ? fullBaseSize.width : inlineBaseSize.width
   const activeMapHeight = usingFullScreenCanvas ? fullBaseSize.height : inlineBaseSize.height
-  const effectiveGridEnabled = gridAdjustMode
-    ? (gridAdjustDraft?.gridEnabled ?? selectedMap?.gridEnabled === true)
-    : selectedMap?.gridEnabled === true
-  const effectiveGridVisible = gridAdjustMode
-    ? (gridAdjustDraft?.gridVisible ?? selectedMap?.gridVisible !== false)
-    : (selectedMap?.gridVisible !== false)
-  const effectiveGridCellScale = gridAdjustMode
-    ? (gridAdjustDraft?.gridCellScale ?? selectedMap?.gridCellScale ?? DEFAULT_GRID_CELL_SCALE)
-    : (selectedMap?.gridCellScale ?? DEFAULT_GRID_CELL_SCALE)
-  const effectiveGridOffsetX = gridAdjustMode
-    ? (gridAdjustDraft?.gridOffsetX ?? selectedMap?.gridOffsetX ?? 0)
-    : (selectedMap?.gridOffsetX ?? 0)
-  const effectiveGridOffsetY = gridAdjustMode
-    ? (gridAdjustDraft?.gridOffsetY ?? selectedMap?.gridOffsetY ?? 0)
-    : (selectedMap?.gridOffsetY ?? 0)
-  const activeGridCellPx = Math.max(
-    8,
-    Math.min(520, Math.round(effectiveGridCellScale * activeMapDimension)),
-  )
-  const activeGridOffsetPx = {
-    x: effectiveGridOffsetX * Math.max(1, activeMapWidth),
-    y: effectiveGridOffsetY * Math.max(1, activeMapHeight),
-  }
   const activeFogDimension = Math.max(
     1,
     Math.min(
       usingFullScreenCanvas ? fullFogSize.width : inlineFogSize.width,
       usingFullScreenCanvas ? fullFogSize.height : inlineFogSize.height,
     ),
+  )
+  const {
+    maps,
+    setMaps,
+    mapsLoading,
+    mapError,
+    setMapError,
+    uploading,
+    editingMapId,
+    editName,
+    setEditName,
+    deleteCandidate,
+    setDeleteCandidate,
+    deletingMapId,
+    draggingMapId,
+    setDraggingMapId,
+    dragOverMapId,
+    setDragOverMapId,
+    tokens,
+    setTokens,
+    annotations,
+    activeAnnotationId,
+    setActiveAnnotationId,
+    activeAnnotationDraft,
+    setActiveAnnotationDraft,
+    tokenDeleteCandidate,
+    setTokenDeleteCandidate,
+    deletingTokenId,
+    mapMonsters,
+    tokenAssets,
+    selectedTokenAssetId,
+    setSelectedTokenAssetId,
+    selectedTokenAsset,
+    tokenAssetDeleteCandidate,
+    setTokenAssetDeleteCandidate,
+    deletingTokenAssetId,
+    visibleMaps,
+    selectedMap,
+    handleMapUpload: mapDataUpload,
+    startRename,
+    saveRename,
+    deleteMap,
+    togglePlayerVisibility,
+    handleDragStart,
+    handleDrop,
+    updateToken,
+    requestDeleteToken,
+    confirmDeleteToken,
+    toggleTokenHidden,
+    placeToken,
+    placeAnnotation,
+    commitActiveAnnotation,
+    deleteAnnotation,
+    saveTokenAssetFile,
+    archiveTokenAsset,
+    requestDeleteTokenAsset,
+    confirmDeleteTokenAsset,
+  } = useMapData({
+    campaignId,
+    role,
+    selectedMapId,
+    setSelectedMapId,
+    getDropPoint: (clientX, clientY) => getDropPointRef.current(clientX, clientY),
+    tokenColor,
+    tokenSize,
+    tokensRef,
+    recentlyDroppedRef,
+    lastAnimatedPathIdRef,
+    startTokenPathAnimationRef,
+  })
+
+  const handleMapUpload: ChangeEventHandler<HTMLInputElement> = (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    event.target.value = ''
+    void mapDataUpload(file)
+  }
+
+  const tokenSelection = useTokenSelection({ role, tokens, selectedMapId })
+  const {
+    selectedTokenIds,
+    setSelectedTokenIds,
+    playerSelectedTokenIds,
+    tokenSelectionBox,
+    setTokenSelectionBox,
+    togglePlayerTokenSelection,
+  } = tokenSelection
+
+  const fog = useFogTools({
+    campaignId,
+    role,
+    selectedMap,
+    setMapError,
+    usingFullScreenCanvas,
+    fullScreenOpen,
+    isMobile,
+    mobileGmPane,
+    mobilePlayerPane,
+    inlineFogSize,
+    fullFogSize,
+    fogTool,
+    visionTool,
+    tokenPlaceMode,
+    fogBrushSize,
+    activeFogDimension,
+    fogBrushStrength,
+    tokenAnimationsRef,
+    pendingFogReloadRef,
+  })
+  const {
+    setFogDrawing,
+    inlineFogCanvasRef,
+    fullFogCanvasRef,
+    inlineVisionCanvasRef,
+    fullVisionCanvasRef,
+    activeFogCanvasRef,
+    activeVisionCanvasRef,
+    persistFog,
+    applyFogPreset,
+    bumpFogSampleTick,
+    stampFog,
+    handleFogPointerDown,
+    handleFogPointerMove,
+    handleFogPointerUp,
+    handleFogTouchStart,
+    handleFogTouchMove,
+    handleFogTouchEnd,
+    invalidateInlineOverlayCache,
+    invalidateFullFogCache,
+    invalidateFullVisionCache,
+  } = fog
+
+  const {
+    distanceTrackerFeet,
+    distanceTrackerMode,
+    distanceTrackerRoll,
+    encounterNotice,
+    dismissEncounterNotice,
+    onMovementFeet,
+    resetDistanceTracker,
+  } = useEncounterTracking()
+
+  const getTokenDropPoint = (clientX: number, clientY: number) => {
+    const canvas = activeFogCanvasRef.current
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0 && canvas.width > 0 && canvas.height > 0) {
+        const scaleX = canvas.width / rect.width
+        const scaleY = canvas.height / rect.height
+        const canvasX = (clientX - rect.left) * scaleX
+        const canvasY = (clientY - rect.top) * scaleY
+        return {
+          x: Math.max(0, Math.min(1, canvasX / canvas.width)),
+          y: Math.max(0, Math.min(1, canvasY / canvas.height)),
+        }
+      }
+    }
+
+    const layer = activeMapLayerRef.current
+    if (!layer) return null
+    const rect = layer.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return null
+    const x = (clientX - rect.left) / rect.width
+    const y = (clientY - rect.top) / rect.height
+    return {
+      x: Math.max(0, Math.min(1, x)),
+      y: Math.max(0, Math.min(1, y)),
+    }
+  }
+
+  // Keep getDropPointRef in sync so useMapData (called below) can use it.
+  getDropPointRef.current = getTokenDropPoint
+
+  const grid = useGridTools({
+    selectedMap,
+    role,
+    campaignId,
+    activeMapWidth,
+    activeMapHeight,
+    activeMapDimension,
+    fullBaseSize,
+    inlineBaseSize,
+    setMaps,
+    setMapError,
+    getTokenDropPoint,
+    resetDistanceTracker,
+  })
+
+  const {
+    gridCalibrateMode,
+    gridAdjustMode,
+    gridAdjustDraft,
+    gridCalibrateStart,
+    gridCalibrateEnd,
+    gridCalibratePreview,
+    gridCalibrateSavedAt,
+    gridAdjustSavedAt,
+    gridCalibratePulse,
+    hexDetecting,
+    hexDetectConfidence,
+    effectiveGridEnabled,
+    effectiveGridVisible,
+    effectiveGridCellScale,
+    effectiveGridOffsetX,
+    effectiveGridOffsetY,
+    effectiveGridType,
+    toggleGridCalibrateMode,
+    toggleGridVisibility,
+    setGridType,
+    applyGridAdjust,
+    applyGridCalibration,
+    resetGrid,
+    handleGridLayerWheel,
+    handleGridLayerMouseDown,
+    handleGridCalibrateClick,
+    handleGridCalibrateMouseMove,
+    handleGridCalibrateHandleMouseDown,
+  } = grid
+
+  const activeGridCellPx = Math.max(
+    8,
+    Math.min(520, Math.round(effectiveGridCellScale * activeMapDimension)),
+  )
+
+  const renderMapGridOverlay = (usingFull: boolean) => (
+    <GridOverlay
+      enabled={effectiveGridEnabled}
+      visible={effectiveGridVisible}
+      type={effectiveGridType}
+      pending={gridAdjustMode}
+      cellScale={effectiveGridCellScale}
+      offsetX={effectiveGridOffsetX}
+      offsetY={effectiveGridOffsetY}
+      mapWidth={Math.max(1, usingFull ? fullBaseSize.width : inlineBaseSize.width)}
+      mapHeight={Math.max(1, usingFull ? fullBaseSize.height : inlineBaseSize.height)}
+    />
   )
   const activeAnnotation = annotations.find((annotation) => annotation.id === activeAnnotationId) ?? null
   const gridAdjustReady = Boolean(
@@ -850,10 +409,10 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       selectedMap.gridVisible !== gridAdjustDraft.gridVisible ||
       Math.abs(selectedMap.gridCellScale - gridAdjustDraft.gridCellScale) > 0.000001 ||
       Math.abs(selectedMap.gridOffsetX - gridAdjustDraft.gridOffsetX) > 0.000001 ||
-      Math.abs(selectedMap.gridOffsetY - gridAdjustDraft.gridOffsetY) > 0.000001
+      Math.abs(selectedMap.gridOffsetY - gridAdjustDraft.gridOffsetY) > 0.000001 ||
+      selectedMap.gridType !== gridAdjustDraft.gridType
     ),
   )
-  const selectedTokenAsset = tokenAssets.find((asset) => asset.id === selectedTokenAssetId) ?? null
   const selectionRectStyle = useMemo<React.CSSProperties | null>(() => {
     if (!tokenSelectionBox) return null
     const minX = Math.min(tokenSelectionBox.start.x, tokenSelectionBox.end.x)
@@ -873,20 +432,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     if (!end) return null
     return { start: gridCalibrateStart, end }
   }, [gridCalibrateEnd, gridCalibrateMode, gridCalibratePreview, gridCalibrateStart])
-  const bumpFogSampleTick = () => {
-    setFogSampleTick((value) => value + 1)
-  }
-
-  const resetDistanceTracker = () => {
-    distanceTrackerFeetRef.current = 0
-    distanceTrackerModeRef.current = 'count'
-    distanceTrackerRollRef.current = null
-    distanceTrackerTurnStageRef.current = 0
-    setDistanceTrackerFeet(0)
-    setDistanceTrackerMode('count')
-    setDistanceTrackerRoll(null)
-    setEncounterNotice(null)
-  }
 
   const gmTokenNameClassName = (token: TokenRecord) => {
     if (streamingMode) {
@@ -932,87 +477,71 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     if (typeof token.viewDistance === 'number') return token.viewDistance
     return DEFAULT_TOKEN_VIEW_DISTANCE
   }
-  const computeWheelZoom = (
-    event: React.WheelEvent<HTMLDivElement>,
-    currentZoom: number,
-    currentPan: { x: number; y: number },
-    mapLayer: HTMLDivElement | null,
-    anchorRef: React.MutableRefObject<{ expiresAt: number; anchor: WheelRectSnapshot | null }>,
-  ) => {
-    const factor = Math.exp(-event.deltaY * 0.0015)
-    const now = performance.now()
-    const shouldRefreshAnchor = now > anchorRef.current.expiresAt || !anchorRef.current.anchor
-    if (shouldRefreshAnchor) {
-      const liveRect = mapLayer?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect()
-      // Anchor wheel math to the actual transformed map layer, not the outer stage.
-      // This keeps cursor-centered zoom stable across desktop/mobile layouts.
-      anchorRef.current.anchor = {
-        centerX: liveRect.left + liveRect.width * 0.5 - currentPan.x,
-        centerY: liveRect.top + liveRect.height * 0.5 - currentPan.y,
-      }
-    }
-    anchorRef.current.expiresAt = now + 120
-    const anchor = anchorRef.current.anchor!
-    const pointerX = event.clientX - anchor.centerX
-    const pointerY = event.clientY - anchor.centerY
-    const nextZoom = Math.min(MAX_MAP_ZOOM, Math.max(MIN_MAP_ZOOM, currentZoom * factor))
-    const mapLocalX = (pointerX - currentPan.x) / currentZoom
-    const mapLocalY = (pointerY - currentPan.y) / currentZoom
-    return {
-      nextZoom,
-      nextPan: {
-        x: pointerX - mapLocalX * nextZoom,
-        y: pointerY - mapLocalY * nextZoom,
-      },
-    }
-  }
+
+  const viewport = useMapViewport({
+    role,
+    tokens,
+    fullBaseSize,
+    inlineBaseSize,
+    activeFogDimension,
+    fullScreenOpen,
+    fullMapLayerRef,
+    inlineMapLayerRef,
+    fogTool,
+    visionTool,
+    tokenPlaceMode,
+    annotationPlaceMode,
+    isMobileZoomMapView,
+    renderTokenViewDistance,
+  })
+
+  const {
+    fullZoom,
+    fullPan,
+    fullDragging,
+    playerZoom,
+    playerPan,
+    playerDragging,
+    cameraLock,
+    fullZoomRef,
+    fullPanRef,
+    playerZoomRef,
+    playerPanRef,
+    toggleCameraLock,
+    resetFullViewport,
+    resetPlayerViewport,
+    setFullPan,
+    setPlayerPan,
+    handleFullWheel,
+    handleFullMouseDown,
+    handleFullMouseMove,
+    endFullDrag,
+    handlePlayerWheel,
+    handlePlayerMouseDown,
+    handlePlayerMouseMove,
+    endPlayerDrag,
+    handleMobilePlayerTouchStart,
+    handleMobilePlayerTouchMove,
+    handleMobilePlayerTouchEnd,
+  } = viewport
   const isTokenPartiallyVisibleForPlayer = (
     token: TokenRecord,
     position: { x: number; y: number },
     fogCanvas: HTMLCanvasElement | null,
   ) => {
-    if (token.hidden) return false
-    if (token.party) return true
-    if (!fogCanvas) return selectedMap ? !selectedMap.fullyHidden : true
-    const fogCtx = fogCanvas.getContext('2d', { willReadFrequently: true })
-    if (!fogCtx) return true
-
-    const fogScale = fogCanvas.height / Math.max(1, activeMapDimension)
     const dimensions = renderTokenDimensions(token)
-    const width = Math.max(2, Math.round(dimensions.width * fogScale))
-    const height = Math.max(2, Math.round(dimensions.height * fogScale))
-    const anchorX = Math.round(position.x * fogCanvas.width)
-    const anchorY = Math.round(position.y * fogCanvas.height)
-    const left = anchorX - Math.round(width / 2)
-    const top = anchorY - height
-
-    const samplePoints = [
-      [0.5, 0.08],
-      [0.25, 0.08],
-      [0.75, 0.08],
-      [0.5, 0.35],
-      [0.25, 0.35],
-      [0.75, 0.35],
-      [0.5, 0.65],
-      [0.25, 0.65],
-      [0.75, 0.65],
-      [0.5, 0.9],
-      [0.25, 0.9],
-      [0.75, 0.9],
-    ] as const
-
-    try {
-      for (const [sx, sy] of samplePoints) {
-        const x = Math.max(0, Math.min(fogCanvas.width - 1, left + Math.round(width * sx)))
-        const y = Math.max(0, Math.min(fogCanvas.height - 1, top + Math.round(height * sy)))
-        const alpha = fogCtx.getImageData(x, y, 1, 1).data[3]
-        if (alpha < 16) return true
-      }
-    } catch {
-      return true
+    const fogScale = fogCanvas ? fogCanvas.height / Math.max(1, activeMapDimension) : 1
+    const scaledDimensions = {
+      width: Math.max(2, Math.round(dimensions.width * fogScale)),
+      height: Math.max(2, Math.round(dimensions.height * fogScale)),
     }
-
-    return false
+    return isTokenPartiallyVisibleOnFog(
+      token,
+      position,
+      scaledDimensions,
+      fogCanvas,
+      selectedMap?.fullyHidden ?? true,
+    )
   }
   const renderTokenNameStyle = (token: TokenRecord): React.CSSProperties => {
     return {
@@ -1021,10 +550,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       transform: 'translate(-50%, 8px)',
     }
   }
-  const effectiveFogBrushSize = Math.max(
-    FOG_BRUSH_SIZE_MIN,
-    Math.min(320, Math.round((fogBrushSize / TOKEN_REFERENCE_DIMENSION) * activeFogDimension)),
-  )
   const autosizeAnnotationTextarea = useCallback((textarea: HTMLTextAreaElement | null) => {
     if (!textarea) return
     textarea.style.width = 'auto'
@@ -1044,167 +569,18 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden'
   }, [])
 
-  const isTokenVisible = (token: TokenRecord) => {
-    if (token.hidden && (role !== 'gm' || streamingMode)) return false
-    if (role === 'gm' && !streamingMode) return true
-    if (token.party) return true
-
-    const canvas = activeFogCanvasRef.current
-    if (!canvas) return selectedMap ? !selectedMap.fullyHidden : true
-
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    if (!ctx) return true
-
-    const x = Math.max(0, Math.min(canvas.width - 1, Math.round(token.x * canvas.width)))
-    const y = Math.max(0, Math.min(canvas.height - 1, Math.round(token.y * canvas.height)))
-
-    try {
-      const alpha = ctx.getImageData(x, y, 1, 1).data[3]
-      return alpha < 16
-    } catch {
-      return true
-    }
-  }
-
-  const handleMapUpload: ChangeEventHandler<HTMLInputElement> = async (event) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-    event.target.value = ''
-
-    setMapError(null)
-    setUploading(true)
-
-    try {
-      const mapRef = doc(collection(db, 'campaigns', campaignId, 'maps'))
-      const storagePath = `campaigns/${campaignId}/maps/${mapRef.id}`
-      const primaryStorageRef = ref(storage, storagePath)
-      let imageUrl = ''
-
-      // Ensure auth token is fresh before Storage writes.
-      await auth.currentUser?.getIdToken(true)
-
-      await uploadBytes(primaryStorageRef, file)
-
-      await setDoc(mapRef, {
-        name: file.name.replace(/\.[^/.]+$/, ''),
-        imagePath: storagePath,
-        imageUrl: '',
-        fogDataUrl: '',
-        fogImagePath: '',
-        fogImageUrl: '',
-        visionBlockDataUrl: '',
-        visionBlockImagePath: '',
-        visionBlockImageUrl: '',
-        fullyHidden: false,
-        width: 0,
-        height: 0,
-        sortOrder: maps.length,
-        visibleToPlayers: false,
-        gridEnabled: false,
-        gridVisible: true,
-        gridCellScale: DEFAULT_GRID_CELL_SCALE,
-        gridOffsetX: 0,
-        gridOffsetY: 0,
-        gridUnitsPerCell: 10,
-        gridCalibrated: true,
-        fogEnabled: true,
-        fogGridSize: 128,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
-
-      try {
-        imageUrl = await getDownloadURL(primaryStorageRef)
-        await updateDoc(mapRef, {
-          imageUrl,
-          updatedAt: serverTimestamp(),
-        })
-      } catch {
-        // URL resolution can fail transiently; a background resolver effect retries.
-      }
-
-      setSelectedMapId(mapRef.id)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Upload failed'
-      setMapError(`Upload failed: ${message}. Bucket=${firebaseConfig.storageBucket}`)
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  const startRename = (map: MapRecord) => {
-    setEditingMapId(map.id)
-    setEditName(map.name)
-  }
-
-  const saveRename = async (mapId: string) => {
-    const name = editName.trim()
-    if (!name) return
-    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', mapId), {
-      name,
-      updatedAt: serverTimestamp(),
-    })
-    setEditingMapId('')
-    setEditName('')
-  }
-
-  const deleteMap = async () => {
-    if (!deleteCandidate) return
-
-    setDeletingMapId(deleteCandidate.id)
-    setMapError(null)
-
-    try {
-      if (deleteCandidate.imagePath) {
-        await deleteObject(ref(storage, deleteCandidate.imagePath))
-      }
-      if (deleteCandidate.fogImagePath) {
-        await deleteObject(ref(storage, deleteCandidate.fogImagePath))
-      }
-      if (deleteCandidate.visionBlockImagePath) {
-        await deleteObject(ref(storage, deleteCandidate.visionBlockImagePath))
-      }
-
-      await deleteDoc(doc(db, 'campaigns', campaignId, 'maps', deleteCandidate.id))
-      setDeleteCandidate(null)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Delete failed'
-      setMapError(`Delete failed: ${message}`)
-    } finally {
-      setDeletingMapId('')
-    }
-  }
-
-  const togglePlayerVisibility = async (map: MapRecord, checked: boolean) => {
-    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', map.id), {
-      visibleToPlayers: checked,
-      updatedAt: serverTimestamp(),
-    })
-  }
-
-  const persistMapOrder = async (ordered: MapRecord[]) => {
-    const batch = writeBatch(db)
-    ordered.forEach((map, index) => {
-      batch.update(doc(db, 'campaigns', campaignId, 'maps', map.id), {
-        sortOrder: index,
-        updatedAt: serverTimestamp(),
-      })
-    })
-    await batch.commit()
-  }
-
-  const handleDragStart = (mapId: string) => {
-    setDraggingMapId(mapId)
-    setDragOverMapId('')
-  }
+  const isTokenVisible = (token: TokenRecord) =>
+    isTokenVisibleOnFog(
+      token,
+      role,
+      streamingMode,
+      selectedMap?.fullyHidden ?? true,
+      activeFogCanvasRef.current,
+    )
 
   const selectMap = (mapId: string) => {
     setSelectedMapId(mapId)
-    playerZoomRef.current = 1
-    playerPanRef.current = { x: 0, y: 0 }
-    setPlayerZoom(1)
-    setPlayerPan({ x: 0, y: 0 })
-    mobileTouchRef.current.mode = 'none'
+    resetPlayerViewport()
     if (isMobile) {
       setMobileMapView('detail')
       if (role === 'gm') {
@@ -1216,301 +592,16 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   }
 
   const openFullScreen = () => {
-    fullZoomRef.current = 1
-    fullPanRef.current = { x: 0, y: 0 }
-    setFullZoom(1)
-    setFullPan({ x: 0, y: 0 })
-    setFullDragging(false)
+    resetFullViewport()
     setFogDrawing(false)
-    fullDragStartRef.current = null
-    loadedFogKeyRef.current = ''
+    invalidateFullFogCache()
     setFullScreenOpen(true)
   }
 
   const closeFullScreen = () => {
-    setFullDragging(false)
+    viewport.setFullDragging(false)
     setFogDrawing(false)
-    fullDragStartRef.current = null
     setFullScreenOpen(false)
-  }
-
-  const handleFullWheel: WheelEventHandler<HTMLDivElement> = (event) => {
-    const target = event.target as HTMLElement | null
-    if (target?.closest('.map-annotation-popover')) {
-      return
-    }
-    event.preventDefault()
-    const { nextZoom, nextPan } = computeWheelZoom(
-      event,
-      fullZoomRef.current,
-      fullPanRef.current,
-      fullMapLayerRef.current,
-      fullWheelAnchorRef,
-    )
-    fullZoomRef.current = nextZoom
-    fullPanRef.current = nextPan
-    setFullZoom(nextZoom)
-    setFullPan(nextPan)
-  }
-
-  const handleFullMouseDown: MouseEventHandler<HTMLDivElement> = (event) => {
-    // Middle mouse: always pan
-    // Left mouse: pan when shift held, or when no GM tool is active
-    if (event.button === 1) {
-      event.preventDefault()
-    } else if (event.button === 0 && (event.shiftKey || !(role === 'gm' && (fogTool || visionTool || tokenPlaceMode || annotationPlaceMode)))) {
-      event.preventDefault()
-    } else {
-      return
-    }
-    setFullDragging(true)
-    fullDragStartRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-      panX: fullPan.x,
-      panY: fullPan.y,
-    }
-  }
-
-  const handleFullMouseMove: MouseEventHandler<HTMLDivElement> = (event) => {
-    if (!fullDragging || !fullDragStartRef.current) return
-
-    const deltaX = event.clientX - fullDragStartRef.current.x
-    const deltaY = event.clientY - fullDragStartRef.current.y
-    const nextPan = {
-      x: fullDragStartRef.current.panX + deltaX,
-      y: fullDragStartRef.current.panY + deltaY,
-    }
-    fullPanRef.current = nextPan
-    setFullPan(nextPan)
-  }
-
-  const endFullDrag = () => {
-    setFullDragging(false)
-    fullDragStartRef.current = null
-  }
-
-  const initializeFogCanvas = (canvas: HTMLCanvasElement, map: MapRecord, width: number, height: number) => {
-    if (width <= 0 || height <= 0) return
-
-    const resized = canvas.width !== width || canvas.height !== height
-    if (resized) {
-      canvas.width = width
-      canvas.height = height
-    }
-
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    if (!ctx) return
-
-    const fogSource = map.fogDataUrl || map.fogImageUrl
-    if (!fogSource) {
-      ctx.clearRect(0, 0, width, height)
-      ctx.fillStyle = 'rgba(0, 0, 0, 1)'
-      ctx.fillRect(0, 0, width, height)
-      bumpFogSampleTick()
-      return
-    }
-
-    const fogImage = new Image()
-    fogImage.crossOrigin = 'anonymous'
-    fogImage.onload = () => {
-      ctx.clearRect(0, 0, width, height)
-      ctx.drawImage(fogImage, 0, 0, width, height)
-      bumpFogSampleTick()
-    }
-    fogImage.src = fogSource
-  }
-
-  const getFogCacheKey = (map: MapRecord, width: number, height: number) => {
-    return `${map.id}:${map.updatedAtMs}:${width}x${height}`
-  }
-
-  const initializeVisionCanvas = (canvas: HTMLCanvasElement, map: MapRecord, width: number, height: number) => {
-    if (width <= 0 || height <= 0) return
-
-    const resized = canvas.width !== width || canvas.height !== height
-    if (resized) {
-      canvas.width = width
-      canvas.height = height
-    }
-
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    if (!ctx) return
-
-    const sources = [map.visionBlockDataUrl, map.visionBlockImageUrl].filter(Boolean)
-    if (sources.length === 0) {
-      ctx.clearRect(0, 0, width, height)
-      return
-    }
-
-    const loadAt = (index: number) => {
-      const source = sources[index]
-      if (!source) {
-        ctx.clearRect(0, 0, width, height)
-        return
-      }
-      const blockImage = new Image()
-      blockImage.crossOrigin = 'anonymous'
-      blockImage.onload = () => {
-        ctx.clearRect(0, 0, width, height)
-        ctx.drawImage(blockImage, 0, 0, width, height)
-      }
-      blockImage.onerror = () => {
-        loadAt(index + 1)
-      }
-      blockImage.src = source
-    }
-    loadAt(0)
-  }
-
-  const safeCanvasToDataUrl = (canvas: HTMLCanvasElement) => {
-    try {
-      return canvas.toDataURL('image/png')
-    } catch {
-      return ''
-    }
-  }
-
-  const stampVisionBlock = (
-    canvas: HTMLCanvasElement,
-    x: number,
-    y: number,
-    mode: 'draw' | 'erase',
-    brushSize = effectiveFogBrushSize,
-  ) => {
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    if (!ctx) return
-    const radius = brushSize / 2
-
-    ctx.save()
-    ctx.globalCompositeOperation = mode === 'erase' ? 'destination-out' : 'source-over'
-    ctx.fillStyle = 'rgba(176, 44, 44, 0.95)'
-    ctx.beginPath()
-    ctx.arc(x, y, radius, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.restore()
-  }
-
-  const drawVisionStroke = (
-    canvas: HTMLCanvasElement,
-    from: { x: number; y: number },
-    to: { x: number; y: number },
-    mode: 'draw' | 'erase',
-    brushSize = effectiveFogBrushSize,
-  ) => {
-    const deltaX = to.x - from.x
-    const deltaY = to.y - from.y
-    const distance = Math.hypot(deltaX, deltaY)
-    const step = Math.max(3, brushSize * 0.22)
-    const steps = Math.max(1, Math.ceil(distance / step))
-
-    for (let i = 1; i <= steps; i += 1) {
-      const t = i / steps
-      stampVisionBlock(canvas, from.x + deltaX * t, from.y + deltaY * t, mode, brushSize)
-    }
-  }
-
-  const stampFog = (
-    canvas: HTMLCanvasElement,
-    x: number,
-    y: number,
-    mode: 'reveal' | 'hide',
-    brushSize = effectiveFogBrushSize,
-    visionCanvas?: HTMLCanvasElement | null,
-  ) => {
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    if (!ctx) return
-
-    const radius = brushSize / 2
-    const buildStampMask = (targetCtx: CanvasRenderingContext2D) => {
-      const gradient = targetCtx.createRadialGradient(x, y, 0, x, y, radius)
-      gradient.addColorStop(0, `rgba(0,0,0,${Math.min(1, fogBrushStrength * 0.65)})`)
-      gradient.addColorStop(0.65, `rgba(0,0,0,${Math.min(1, fogBrushStrength * 0.25)})`)
-      gradient.addColorStop(1, 'rgba(0,0,0,0)')
-      targetCtx.fillStyle = gradient
-      targetCtx.beginPath()
-      targetCtx.arc(x, y, radius, 0, Math.PI * 2)
-      targetCtx.fill()
-
-      const sprayCount = Math.max(18, Math.round((radius * radius) / 90))
-      for (let i = 0; i < sprayCount; i += 1) {
-        const angle = Math.random() * Math.PI * 2
-        const dist = Math.sqrt(Math.random()) * radius
-        const px = x + Math.cos(angle) * dist
-        const py = y + Math.sin(angle) * dist
-        const distanceRatio = 1 - dist / radius
-        const alpha = Math.min(1, fogBrushStrength * distanceRatio * 0.38)
-        const dotRadius = Math.max(1, radius * 0.035 * (0.6 + Math.random() * 0.8))
-        targetCtx.fillStyle = `rgba(0,0,0,${alpha})`
-        targetCtx.beginPath()
-        targetCtx.arc(px, py, dotRadius, 0, Math.PI * 2)
-        targetCtx.fill()
-      }
-    }
-
-    if (mode === 'reveal' && visionCanvas) {
-      let maskCanvas = revealMaskCanvasRef.current
-      if (!maskCanvas) {
-        maskCanvas = document.createElement('canvas')
-        revealMaskCanvasRef.current = maskCanvas
-      }
-      if (maskCanvas.width !== canvas.width || maskCanvas.height !== canvas.height) {
-        maskCanvas.width = canvas.width
-        maskCanvas.height = canvas.height
-      }
-      const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true })
-      if (!maskCtx) return
-      maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height)
-      buildStampMask(maskCtx)
-      maskCtx.globalCompositeOperation = 'destination-out'
-      maskCtx.drawImage(visionCanvas, 0, 0, maskCanvas.width, maskCanvas.height)
-      maskCtx.globalCompositeOperation = 'source-over'
-
-      ctx.save()
-      ctx.globalCompositeOperation = 'destination-out'
-      ctx.drawImage(maskCanvas, 0, 0, canvas.width, canvas.height)
-      ctx.restore()
-      return
-    }
-
-    ctx.save()
-    ctx.globalCompositeOperation = mode === 'reveal' ? 'destination-out' : 'source-over'
-    buildStampMask(ctx)
-
-    ctx.restore()
-  }
-
-  const canvasPointFromMouse = (
-    canvas: HTMLCanvasElement,
-    event: Parameters<MouseEventHandler<HTMLCanvasElement>>[0],
-  ) => {
-    const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / Math.max(1, rect.width)
-    const scaleY = canvas.height / Math.max(1, rect.height)
-    return {
-      x: (event.clientX - rect.left) * scaleX,
-      y: (event.clientY - rect.top) * scaleY,
-    }
-  }
-
-  const drawFogStroke = (
-    canvas: HTMLCanvasElement,
-    from: { x: number; y: number },
-    to: { x: number; y: number },
-    mode: 'reveal' | 'hide',
-    brushSize = effectiveFogBrushSize,
-    visionCanvas?: HTMLCanvasElement | null,
-  ) => {
-    const deltaX = to.x - from.x
-    const deltaY = to.y - from.y
-    const distance = Math.hypot(deltaX, deltaY)
-    const step = Math.max(3, brushSize * 0.16)
-    const steps = Math.max(1, Math.ceil(distance / step))
-
-    for (let i = 1; i <= steps; i += 1) {
-      const t = i / steps
-      stampFog(canvas, from.x + deltaX * t, from.y + deltaY * t, mode, brushSize, visionCanvas)
-    }
   }
 
   const getFullscreenVisibleCanvasRect = (canvas: HTMLCanvasElement): CanvasClipRect | null => {
@@ -1695,384 +786,43 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     }
   }
 
-  // Keep tokensRef in sync with the latest tokens state so Firestore callbacks can
-  // read the pre-update positions without a stale closure.
-  tokensRef.current = tokens
+  const tokenAnimation = useTokenAnimation({
+    tokens,
+    tokenAnimationsRef,
+    role,
+    cameraLock,
+    fullScreenOpen,
+    fullBaseSize,
+    inlineBaseSize,
+    fullZoomRef,
+    playerZoomRef,
+    setFullPan,
+    setPlayerPan,
+    fullPanRef,
+    playerPanRef,
+    activeFogCanvasRef,
+    activeVisionCanvasRef,
+    renderTokenViewDistance,
+    revealFromTokenPoint,
+    revealFromTokenStroke,
+    bumpFogSampleTick,
+    pendingFogReloadRef,
+  })
+  const {
+    animatedTokenPositions,
+    tokensRef: animTokensRef,
+    recentlyDroppedRef: animRecentlyDroppedRef,
+    lastAnimatedPathIdRef: animLastAnimatedPathIdRef,
+    startTokenPathAnimationRef: animStartTokenPathAnimationRef,
+  } = tokenAnimation
 
-  // Reassigned each render so the rAF callbacks always hold fresh closures over
-  // revealFromTokenPoint / revealFromTokenStroke / renderToken* / activeFogCanvasRef.
-  animTickRef.current = () => {
-    const now = Date.now()
-    const nextPositions: Record<string, { x: number; y: number }> = {}
-    let hasActive = false
-
-    for (const [tokenId, anim] of Object.entries(tokenAnimationsRef.current)) {
-      const t = Math.min(1, (now - anim.startTime) / anim.duration)
-      const pos = interpolateAlongPath(anim.path, t)
-      nextPositions[tokenId] = pos
-
-      // Reveal fog at ~15Hz along the animated path on clients with an active fog canvas.
-      if (anim.party && activeFogCanvasRef.current && activeVisionCanvasRef.current) {
-        if (now - anim.lastRevealTime >= ANIM_REVEAL_INTERVAL_MS) {
-          const canvasPoint = {
-            x: pos.x * activeFogCanvasRef.current.width,
-            y: Math.max(0, pos.y * activeFogCanvasRef.current.height - anim.tokenSizeScale * activeFogCanvasRef.current.height * 0.5),
-          }
-          if (anim.lastRevealCanvasPos) {
-            revealFromTokenStroke(
-              activeFogCanvasRef.current,
-              activeVisionCanvasRef.current,
-              anim.lastRevealCanvasPos,
-              canvasPoint,
-              anim.brushSize,
-              null,
-            )
-          } else {
-            revealFromTokenPoint(
-              activeFogCanvasRef.current,
-              activeVisionCanvasRef.current,
-              canvasPoint,
-              anim.brushSize,
-              null,
-            )
-          }
-          anim.lastRevealCanvasPos = canvasPoint
-          anim.lastRevealTime = now
-        }
-      }
-
-      if (t < 1) {
-        hasActive = true
-      } else {
-        // Force a final fog reveal at the exact endpoint regardless of the Hz timer,
-        // so the animation always closes out fully before the persisted canvas arrives.
-        if (anim.party && activeFogCanvasRef.current && activeVisionCanvasRef.current) {
-          const endPoint = {
-            x: pos.x * activeFogCanvasRef.current.width,
-            y: Math.max(0, pos.y * activeFogCanvasRef.current.height - anim.tokenSizeScale * activeFogCanvasRef.current.height * 0.5),
-          }
-          if (anim.lastRevealCanvasPos) {
-            revealFromTokenStroke(
-              activeFogCanvasRef.current,
-              activeVisionCanvasRef.current,
-              anim.lastRevealCanvasPos,
-              endPoint,
-              anim.brushSize,
-              null,
-            )
-          } else {
-            revealFromTokenPoint(
-              activeFogCanvasRef.current,
-              activeVisionCanvasRef.current,
-              endPoint,
-              anim.brushSize,
-              null,
-            )
-          }
-        }
-        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
-        delete tokenAnimationsRef.current[tokenId]
-      }
-    }
-
-    // Camera follow: while party tokens are animating and camera lock is on,
-    // track the centroid using animated positions (falling back to static for non-moving tokens).
-    if (cameraLock && role !== 'gm') {
-      const partyTokens = tokensRef.current.filter((t) => t.party && !t.hidden)
-      const hasPartyAnim = partyTokens.some((t) => nextPositions[t.id] !== undefined)
-      if (hasPartyAnim && partyTokens.length > 0) {
-        const cx = partyTokens.reduce((sum, t) => sum + (nextPositions[t.id]?.x ?? t.x), 0) / partyTokens.length
-        const cy = partyTokens.reduce((sum, t) => sum + (nextPositions[t.id]?.y ?? t.y), 0) / partyTokens.length
-        if (fullScreenOpen) {
-          const nextPan = {
-            x: fullBaseSize.width * fullZoomRef.current * (0.5 - cx),
-            y: fullBaseSize.height * fullZoomRef.current * (0.5 - cy),
-          }
-          fullPanRef.current = nextPan
-          setFullPan(nextPan)
-        } else {
-          const nextPan = {
-            x: inlineBaseSize.width * playerZoom * (0.5 - cx),
-            y: inlineBaseSize.height * playerZoom * (0.5 - cy),
-          }
-          playerPanRef.current = nextPan
-          setPlayerPan(nextPan)
-        }
-      }
-    }
-
-    if (hasActive || Object.keys(tokenAnimationsRef.current).length > 0) {
-      setAnimatedTokenPositions({ ...nextPositions })
-      animRafRef.current = requestAnimationFrame(animTickRef.current)
-    } else {
-      setAnimatedTokenPositions({})
-      animRafRef.current = null
-      // Apply any fog canvas update that arrived mid-animation.
-      if (pendingFogReloadRef.current) {
-        pendingFogReloadRef.current = false
-        bumpFogSampleTick()
-      }
-    }
-  }
-
-  startTokenPathAnimationRef.current = (tokenId, fromPos, path, token) => {
-    const brushSize = renderTokenViewDistance(token)
-    const tokenSizeScale = token.sizeScale ?? token.size / TOKEN_REFERENCE_DIMENSION
-    // Prepend the pre-drag position at t=0 so animation starts from where the
-    // receiving client last saw the token.
-    const firstT = (path[0] as Waypoint).t
-    const fullPath: Waypoint[] = [
-      { x: fromPos.x, y: fromPos.y, t: firstT !== undefined ? 0 : undefined },
-      ...path,
-    ]
-    const lastWaypoint = fullPath[fullPath.length - 1]
-    const recordedDuration = lastWaypoint.t
-    // Use recorded duration when available; fall back to distance-based estimate.
-    const duration = recordedDuration !== undefined
-      ? Math.min(3000, Math.max(200, recordedDuration * 1.2))
-      : Math.min(1500, Math.max(400, fullPath.reduce((acc, p, i) =>
-        i === 0 ? 0 : acc + Math.hypot(p.x - fullPath[i - 1].x, p.y - fullPath[i - 1].y), 0) * 1200))
-    tokenAnimationsRef.current[tokenId] = {
-      path: fullPath,
-      startTime: Date.now(),
-      duration,
-      brushSize,
-      tokenSizeScale,
-      party: token.party,
-      lastRevealTime: 0,
-      lastRevealCanvasPos: null,
-    }
-    if (animRafRef.current === null) {
-      animRafRef.current = requestAnimationFrame(animTickRef.current)
-    }
-  }
-
-  const canvasToPngBlob = (canvas: HTMLCanvasElement) =>
-    new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error('Unable to encode canvas PNG.'))
-          return
-        }
-        resolve(blob)
-      }, 'image/png')
-    })
-
-  const uploadMapOverlayImage = async (
-    mapId: string,
-    canvas: HTMLCanvasElement,
-    overlay: 'fog' | 'vision',
-  ) => {
-    const blob = await canvasToPngBlob(canvas)
-    const path = `campaigns/${campaignId}/maps/${mapId}/${overlay}/${Date.now()}.png`
-    const overlayRef = ref(storage, path)
-    await uploadBytes(overlayRef, blob, {
-      contentType: 'image/png',
-      cacheControl: 'no-store',
-    })
-    const url = await getDownloadURL(overlayRef)
-    return { path, url }
-  }
-
-  const persistFog = async () => {
-    if (!selectedMap || !activeFogCanvasRef.current || role !== 'gm') return
-    try {
-      const fogDataUrl = safeCanvasToDataUrl(activeFogCanvasRef.current)
-      if (!fogDataUrl) {
-        setMapError('Fog update blocked by browser canvas security policy. Reload the map and try again.')
-        return
-      }
-      const { path, url } = await uploadMapOverlayImage(selectedMap.id, activeFogCanvasRef.current, 'fog')
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
-        fogImagePath: path,
-        fogImageUrl: url,
-        fogDataUrl,
-        fullyHidden: false,
-        updatedAt: serverTimestamp(),
-      })
-      bumpFogSampleTick()
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to persist fog'
-      setMapError(message)
-    }
-  }
-
-  const persistVisionBlocks = async (sourceCanvas?: HTMLCanvasElement | null) => {
-    const canvas = sourceCanvas ?? activeVisionCanvasRef.current
-    if (!selectedMap || !canvas || role !== 'gm') return
-    try {
-      const visionBlockDataUrl = safeCanvasToDataUrl(canvas)
-      const { path, url } = await uploadMapOverlayImage(selectedMap.id, canvas, 'vision')
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
-        visionBlockImagePath: path,
-        visionBlockImageUrl: url,
-        visionBlockDataUrl,
-        updatedAt: serverTimestamp(),
-      })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to persist vision blocks'
-      setMapError(message)
-    }
-  }
-
-  const handleFogPointerDown: MouseEventHandler<HTMLCanvasElement> = (event) => {
-    if (event.button !== 0) return
-    if (event.shiftKey) return
-    if (tokenPlaceMode) return
-    if (!fogTool && !visionTool) return
-    if (role !== 'gm' || !activeFogCanvasRef.current) return
-    event.preventDefault()
-    setFogDrawing(true)
-    const point = canvasPointFromMouse(activeFogCanvasRef.current, event)
-    fogLastPointRef.current = point
-    if (visionTool && activeVisionCanvasRef.current) {
-      stampVisionBlock(activeVisionCanvasRef.current, point.x, point.y, visionTool)
-      return
-    }
-    if (!fogTool) return
-    stampFog(activeFogCanvasRef.current, point.x, point.y, fogTool)
-  }
-
-  const handleFogPointerMove: MouseEventHandler<HTMLCanvasElement> = (event) => {
-    if (tokenPlaceMode) return
-    if (!fogTool && !visionTool) return
-    if (!fogDrawing || role !== 'gm' || !activeFogCanvasRef.current) return
-    event.preventDefault()
-    const point = canvasPointFromMouse(activeFogCanvasRef.current, event)
-    const previousPoint = fogLastPointRef.current
-    if (visionTool && activeVisionCanvasRef.current) {
-      if (previousPoint) {
-        drawVisionStroke(activeVisionCanvasRef.current, previousPoint, point, visionTool)
-      } else {
-        stampVisionBlock(activeVisionCanvasRef.current, point.x, point.y, visionTool)
-      }
-      fogLastPointRef.current = point
-      return
-    }
-    if (!fogTool) return
-    if (previousPoint) {
-      drawFogStroke(activeFogCanvasRef.current, previousPoint, point, fogTool)
-    } else {
-      stampFog(activeFogCanvasRef.current, point.x, point.y, fogTool)
-    }
-    fogLastPointRef.current = point
-  }
-
-  const handleFogPointerUp = () => {
-    if (tokenPlaceMode) return
-    if (!fogDrawing) return
-    const visionCanvas = activeVisionCanvasRef.current
-    setFogDrawing(false)
-    fogLastPointRef.current = null
-    if (visionTool) {
-      void persistVisionBlocks(visionCanvas)
-      return
-    }
-    void persistFog()
-  }
-
-  const getImageNaturalSize = async (imageUrl: string) => {
-    const image = new Image()
-    await new Promise<void>((resolve, reject) => {
-      image.onload = () => resolve()
-      image.onerror = () => reject(new Error('Failed to load map image dimensions.'))
-      image.src = imageUrl
-    })
-
-    return {
-      width: Math.max(1, image.naturalWidth || 1),
-      height: Math.max(1, image.naturalHeight || 1),
-    }
-  }
-
-  const applyFogPreset = async (preset: 'hide-all' | 'unhide-all') => {
-    if (role !== 'gm' || !selectedMap) return
-
-    setMapError(null)
-
-    try {
-      const activeSize = usingFullScreenCanvas ? fullFogSize : inlineFogSize
-      if (activeFogCanvasRef.current && activeSize.width > 0 && activeSize.height > 0) {
-        const canvas = activeFogCanvasRef.current
-        const ctx = canvas.getContext('2d', { willReadFrequently: true })
-        if (!ctx) return
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height)
-        if (preset === 'hide-all') {
-          ctx.fillStyle = 'rgba(0, 0, 0, 1)'
-          ctx.fillRect(0, 0, canvas.width, canvas.height)
-        }
-
-        const { path, url } = await uploadMapOverlayImage(selectedMap.id, canvas, 'fog')
-        const fogDataUrl = safeCanvasToDataUrl(canvas)
-        await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
-          fogImagePath: path,
-          fogImageUrl: url,
-          fogDataUrl,
-          fullyHidden: preset === 'hide-all',
-          updatedAt: serverTimestamp(),
-        })
-        bumpFogSampleTick()
-        return
-      }
-
-      const { width, height } = await getImageNaturalSize(selectedMap.imageUrl)
-      const canvas = document.createElement('canvas')
-      canvas.width = width
-      canvas.height = height
-
-      const ctx = canvas.getContext('2d', { willReadFrequently: true })
-      if (!ctx) return
-
-      ctx.clearRect(0, 0, width, height)
-      if (preset === 'hide-all') {
-        ctx.fillStyle = 'rgba(0, 0, 0, 1)'
-        ctx.fillRect(0, 0, width, height)
-      }
-
-      const { path, url } = await uploadMapOverlayImage(selectedMap.id, canvas, 'fog')
-      const fogDataUrl = safeCanvasToDataUrl(canvas)
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
-        fogImagePath: path,
-        fogImageUrl: url,
-        fogDataUrl,
-        fullyHidden: preset === 'hide-all',
-        updatedAt: serverTimestamp(),
-      })
-      bumpFogSampleTick()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to apply fog preset'
-      setMapError(message)
-    }
-  }
-
-  const getTokenDropPoint = (clientX: number, clientY: number) => {
-    const canvas = activeFogCanvasRef.current
-    if (canvas) {
-      const rect = canvas.getBoundingClientRect()
-      if (rect.width > 0 && rect.height > 0 && canvas.width > 0 && canvas.height > 0) {
-        const scaleX = canvas.width / rect.width
-        const scaleY = canvas.height / rect.height
-        const canvasX = (clientX - rect.left) * scaleX
-        const canvasY = (clientY - rect.top) * scaleY
-        return {
-          x: Math.max(0, Math.min(1, canvasX / canvas.width)),
-          y: Math.max(0, Math.min(1, canvasY / canvas.height)),
-        }
-      }
-    }
-
-    const layer = activeMapLayerRef.current
-    if (!layer) return null
-    const rect = layer.getBoundingClientRect()
-    if (rect.width <= 0 || rect.height <= 0) return null
-    const x = (clientX - rect.left) / rect.width
-    const y = (clientY - rect.top) / rect.height
-    return {
-      x: Math.max(0, Math.min(1, x)),
-      y: Math.max(0, Math.min(1, y)),
-    }
-  }
+  // Sync MapsTab-owned refs (passed to useMapData) with useTokenAnimation's
+  // internal refs each render, so useMapData's async subscription callbacks
+  // always call the current implementations.
+  tokensRef.current = animTokensRef.current
+  recentlyDroppedRef.current = animRecentlyDroppedRef.current
+  lastAnimatedPathIdRef.current = animLastAnimatedPathIdRef.current
+  startTokenPathAnimationRef.current = animStartTokenPathAnimationRef.current
 
   const tokenPointToCanvasPoint = (point: { x: number; y: number }, tokenSizePx = 0) => {
     const canvas = activeFogCanvasRef.current
@@ -2085,373 +835,56 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     }
   }
 
-  const updateToken = async (
-    tokenId: string,
-    updates: Partial<
-      Pick<
-        TokenRecord,
-        'color' | 'size' | 'sizeScale' | 'viewDistance' | 'viewDistanceScale' | 'party' | 'name' | 'revealName' | 'hidden'
-      >
-    >,
-  ) => {
-    if (!selectedMap || role !== 'gm') return
-    const nextUpdates = { ...updates } as typeof updates
-    if (typeof nextUpdates.viewDistance === 'number' && typeof nextUpdates.viewDistanceScale !== 'number') {
-      nextUpdates.viewDistanceScale = nextUpdates.viewDistance / TOKEN_REFERENCE_DIMENSION
-    }
-    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId), {
-      ...nextUpdates,
-      updatedAt: serverTimestamp(),
-    })
-  }
-
-  const deleteToken = async (tokenId: string) => {
-    if (!selectedMap || role !== 'gm') return
-    await deleteDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId))
-  }
-
-  const requestDeleteToken = (tokenId: string) => {
-    const token = tokens.find((entry) => entry.id === tokenId)
-    if (!token) return
-    setTokenDeleteCandidate(token)
-  }
-
-  const confirmDeleteToken = async () => {
-    if (!tokenDeleteCandidate) return
-    setDeletingTokenId(tokenDeleteCandidate.id)
-    try {
-      await deleteToken(tokenDeleteCandidate.id)
-      setTokenDeleteCandidate(null)
-    } finally {
-      setDeletingTokenId('')
-    }
-  }
+  const tokenDrag = useTokenDrag({
+    campaignId,
+    role,
+    selectedMap,
+    tokens,
+    selectedTokenIds,
+    getTokenDropPoint,
+    renderTokenDimensions,
+    tokenPointToCanvasPoint,
+    activeFogCanvasRef,
+    activeVisionCanvasRef,
+    streamingMode,
+    usingFullScreenCanvas,
+    renderTokenViewDistance,
+    revealFromTokenPoint,
+    revealFromTokenStroke,
+    getFullscreenVisibleCanvasRect,
+    activeMapWidth,
+    activeMapHeight,
+    activeGridCellPx,
+    onMovementFeet,
+    setTokens,
+    persistFog,
+    recentlyDroppedRef,
+    lastAnimatedPathIdRef,
+    setSelectedTokenIds,
+  })
+  const {
+    dragTokenPositions,
+    startTokenDrag,
+    handleTokenTouchStart,
+    handleTokenTouchEnd,
+  } = tokenDrag
 
   const tokenDisplayName = (token: TokenRecord, index: number) => {
     const name = token.name.trim()
     return name || `Token ${index + 1}`
   }
 
-  const toggleTokenHidden = async (tokenId: string) => {
-    if (role !== 'gm') return
-    const token = tokens.find((t) => t.id === tokenId)
-    if (!token) return
-    const next = !token.hidden
-    setTokens((prev) => prev.map((t) => (t.id === tokenId ? { ...t, hidden: next } : t)))
-    await updateToken(tokenId, { hidden: next })
-  }
-
-  const toggleGridAdjustMode = () => {
-    if (role !== 'gm' || !selectedMap) return
-    if (gridCalibrateMode) {
-      setGridCalibrateMode(false)
-      setGridCalibrateStart(null)
-      setGridCalibrateEnd(null)
-      setGridCalibratePreview(null)
-      setGridCalibrateDraggingHandle(null)
-      setGridCalibrateSavedAt(0)
-      setGridCalibratePulse(false)
-    }
-    if (gridAdjustMode) {
-      setGridAdjustMode(false)
-      setGridAdjustDraft(null)
-      setGridAdjustSavedAt(0)
-      setGridAlignDrag(null)
-      setMaps((prev) =>
-        prev.map((map) =>
-          map.id === selectedMap.id
-            ? {
-                ...map,
-                gridEnabled: false,
-                gridVisible: true,
-                gridCellScale: DEFAULT_GRID_CELL_SCALE,
-                gridOffsetX: 0,
-                gridOffsetY: 0,
-              }
-            : map,
-        ),
-      )
-      void updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
-        gridEnabled: false,
-        gridVisible: true,
-        gridCellScale: DEFAULT_GRID_CELL_SCALE,
-        gridOffsetX: 0,
-        gridOffsetY: 0,
-        updatedAt: serverTimestamp(),
-      }).catch((error) => {
-        const message = error instanceof Error ? error.message : 'Failed to clear grid state'
-        setMapError(message)
-      })
-      return
-    }
-    setGridAdjustSavedAt(0)
-    setGridAdjustDraft({
-      gridEnabled: true,
-      gridVisible: true,
-      gridCellScale: DEFAULT_GRID_CELL_SCALE,
-      gridOffsetX: 0,
-      gridOffsetY: 0,
-    })
-    setGridAdjustMode(true)
-  }
-
-  const toggleGridVisibility = async () => {
-    if (!selectedMap || role !== 'gm') return
-    if (gridAdjustMode) {
-      setGridAdjustDraft((current) =>
-        current
-          ? {
-              ...current,
-              gridVisible: !current.gridVisible,
-            }
-          : {
-              gridEnabled: true,
-              gridVisible: !(selectedMap.gridVisible !== false),
-              gridCellScale: selectedMap.gridCellScale,
-              gridOffsetX: selectedMap.gridOffsetX,
-              gridOffsetY: selectedMap.gridOffsetY,
-            },
-      )
-      return
-    }
-    const nextVisible = selectedMap.gridVisible === false
-    setMaps((prev) => prev.map((map) => (map.id === selectedMap.id ? { ...map, gridVisible: nextVisible } : map)))
-    try {
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
-        gridVisible: nextVisible,
-        updatedAt: serverTimestamp(),
-      })
-    } catch (error) {
-      setMaps((prev) => prev.map((map) => (map.id === selectedMap.id ? { ...map, gridVisible: !nextVisible } : map)))
-      const message = error instanceof Error ? error.message : 'Failed to update grid visibility'
-      setMapError(message)
-    }
-  }
-
-  const applyGridAdjust = async () => {
-    if (!selectedMap || !gridAdjustDraft) return
-    const next = {
-      gridEnabled: gridAdjustDraft.gridEnabled,
-      gridVisible: gridAdjustDraft.gridVisible,
-      gridCellScale: gridAdjustDraft.gridCellScale,
-      gridOffsetX: gridAdjustDraft.gridOffsetX,
-      gridOffsetY: gridAdjustDraft.gridOffsetY,
-    }
-    setMaps((prev) => prev.map((map) => (map.id === selectedMap.id ? { ...map, ...next } : map)))
-    try {
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
-        ...next,
-        updatedAt: serverTimestamp(),
-      })
-      setGridAdjustSavedAt(Date.now())
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to apply grid settings'
-      setMapError(message)
-    }
-  }
-
-  const saveTokenAssetFile = async (nextFile: File, width: number, height: number, assetName?: string) => {
-    const safeName = nextFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const tokenAssetPath = `campaigns/${campaignId}/token-assets/${Date.now()}-${safeName}`
-    const tokenAssetRef = ref(storage, tokenAssetPath)
-    await uploadBytes(tokenAssetRef, nextFile, { contentType: nextFile.type })
-    const url = await getDownloadURL(tokenAssetRef)
-    const fallbackName = nextFile.name.replace(/\.[^/.]+$/, '')
-    const name = (assetName?.trim() || fallbackName).slice(0, 80)
-    const assetRef = await addDoc(collection(db, 'campaigns', campaignId, 'tokenAssets'), {
-      name,
-      imagePath: tokenAssetPath,
-      imageUrl: url,
-      width,
-      height,
-      archived: false,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    })
-    setTokenAssets((prev) =>
-      [
-        ...prev,
-        { id: assetRef.id, name, imagePath: tokenAssetPath, imageUrl: url, width, height, archived: false },
-      ].sort((a, b) =>
-        a.name.localeCompare(b.name),
-      ),
-    )
-    setSelectedTokenAssetId(assetRef.id)
-  }
-
-  const buildSquareTokenImageFile = async (draft: TokenImageDraft) => {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const nextImage = new Image()
-      nextImage.onload = () => resolve(nextImage)
-      nextImage.onerror = () => reject(new Error('Unable to decode token image'))
-      nextImage.src = draft.imageUrl
-    })
-    const sourceWidth = Math.max(1, image.naturalWidth || 1)
-    const sourceHeight = Math.max(1, image.naturalHeight || 1)
-    const maxSide = Math.max(sourceWidth, sourceHeight)
-    const targetSize = Math.min(1024, Math.max(1, Math.round(maxSide)))
-    const canvas = document.createElement('canvas')
-    canvas.width = targetSize
-    canvas.height = targetSize
-    const ctx = canvas.getContext('2d')
-    if (!ctx) throw new Error('Unable to create image canvas')
-    ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'high'
-
-    const baseScale = targetSize / maxSide
-    const scale = baseScale * Math.max(0.2, draft.zoom)
-    const drawWidth = sourceWidth * scale
-    const drawHeight = sourceHeight * scale
-    const focusX = (draft.focusX / 100) * drawWidth
-    const focusY = (draft.focusY / 100) * drawHeight
-    const drawX = targetSize / 2 - focusX
-    const drawY = targetSize / 2 - focusY
-
-    ctx.clearRect(0, 0, targetSize, targetSize)
-    ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight)
-
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((nextBlob) => {
-        if (!nextBlob) {
-          reject(new Error('Unable to encode token image'))
-          return
-        }
-        resolve(nextBlob)
-      }, 'image/webp', 0.9)
-    })
-    const file = new File([blob], `${draft.fileBaseName}.webp`, {
-      type: 'image/webp',
-      lastModified: Date.now(),
-    })
-    return { file, width: targetSize, height: targetSize }
-  }
-
-  const applyTokenImageDraft = async () => {
-    if (!tokenImageDraft) return
-    if (role !== 'gm') return
-    setUploadingTokenImage(true)
-    setMapError(null)
-    try {
-      await auth.currentUser?.getIdToken(true)
-      const squared = await buildSquareTokenImageFile(tokenImageDraft)
-      await saveTokenAssetFile(squared.file, squared.width, squared.height, tokenImageDraft.assetName)
-      setTokenImageDraft(null)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to process token image'
-      setMapError(`Token upload failed: ${message}`)
-    } finally {
-      setUploadingTokenImage(false)
-    }
-  }
-
-  const handleTokenImageDraftDragStart = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!tokenImageDraft) return
-    event.currentTarget.setPointerCapture(event.pointerId)
-    tokenImageDragOriginRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-      focusX: tokenImageDraft.focusX,
-      focusY: tokenImageDraft.focusY,
-    }
-  }
-
-  const handleTokenImageDraftDragMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!tokenImageDraft || !tokenImageDragOriginRef.current) return
-    const rect = inlineStageRef.current?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect()
-    const dx = event.clientX - tokenImageDragOriginRef.current.x
-    const dy = event.clientY - tokenImageDragOriginRef.current.y
-    const nextFocusX = Math.max(0, Math.min(100, tokenImageDragOriginRef.current.focusX - (dx / rect.width) * 100))
-    const nextFocusY = Math.max(0, Math.min(100, tokenImageDragOriginRef.current.focusY - (dy / rect.height) * 100))
-    setTokenImageDraft((current) => (current ? { ...current, focusX: nextFocusX, focusY: nextFocusY } : current))
-  }
-
-  const clearTokenImageDraftDrag = () => {
-    tokenImageDragOriginRef.current = null
-  }
-
-  const archiveTokenAsset = async (assetId: string, archived: boolean) => {
-    await updateDoc(doc(db, 'campaigns', campaignId, 'tokenAssets', assetId), {
-      archived,
-      updatedAt: serverTimestamp(),
-    })
-    if (archived && selectedTokenAssetId === assetId) {
-      setSelectedTokenAssetId('')
-    }
-  }
-
-  const requestDeleteTokenAsset = (assetId: string) => {
-    const asset = tokenAssets.find((entry) => entry.id === assetId)
-    if (!asset) return
-    setTokenAssetDeleteCandidate(asset)
-  }
-
-  const confirmDeleteTokenAsset = async () => {
-    if (!tokenAssetDeleteCandidate) return
-    setDeletingTokenAssetId(tokenAssetDeleteCandidate.id)
-    try {
-      if (tokenAssetDeleteCandidate.imagePath) {
-        await deleteObject(ref(storage, tokenAssetDeleteCandidate.imagePath))
-      }
-      await deleteDoc(doc(db, 'campaigns', campaignId, 'tokenAssets', tokenAssetDeleteCandidate.id))
-      if (selectedTokenAssetId === tokenAssetDeleteCandidate.id) {
-        setSelectedTokenAssetId('')
-      }
-      setTokenAssetDeleteCandidate(null)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete token icon'
-      setMapError(message)
-    } finally {
-      setDeletingTokenAssetId('')
-    }
-  }
-
-  const adjustTokenImageDraftZoom = (delta: number) => {
-    setTokenImageDraft((current) => {
-      if (!current) return current
-      const nextZoom = Math.max(0.2, Math.min(6, Number((current.zoom + delta).toFixed(2))))
-      return { ...current, zoom: nextZoom }
-    })
-  }
-
-  const uploadTokenImage = async (file: File, assetName?: string) => {
-    if (role !== 'gm') return
-    if (!file.type.startsWith('image/')) return
-    setUploadingTokenImage(true)
-    setMapError(null)
-    try {
-      await auth.currentUser?.getIdToken(true)
-      const normalizedPreview = await normalizeImageForDataUrl(file, {
-        maxWidth: 1024,
-        maxHeight: 1024,
-        preferType: 'image/webp',
-        quality: 0.9,
-      })
-      if (normalizedPreview.width !== normalizedPreview.height) {
-        setTokenImageDraft({
-          imageUrl: normalizedPreview.dataUrl,
-          focusX: 50,
-          focusY: 50,
-          zoom: 1,
-          assetName,
-          fileBaseName: file.name.replace(/\.[^/.]+$/, ''),
-        })
-        return
-      }
-
-      const normalized = await normalizeImageForUpload(file, {
-        maxWidth: 1024,
-        maxHeight: 1024,
-        preferType: 'image/webp',
-        quality: 0.9,
-      })
-      await saveTokenAssetFile(normalized.file, normalized.width, normalized.height, assetName)
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to upload token image'
-      setMapError(`Token upload failed: ${message}`)
-    } finally {
-      setUploadingTokenImage(false)
-    }
-  }
+  const {
+    uploadingTokenImage,
+    tokenImageDraft,
+    setTokenImageDraft,
+    uploadTokenImage,
+    applyTokenImageDraft,
+    adjustTokenImageDraftZoom,
+    handleTokenImageDraftDragStart,
+    handleTokenImageDraftDragMove,
+    clearTokenImageDraftDrag,
+  } = useTokenAssets({ role, setMapError, saveTokenAssetFile, inlineStageRef })
 
   const renderTokenGlyph = (token: TokenRecord) => {
     const dimensions = renderTokenDimensions(token)
@@ -2467,11 +900,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       )
     }
     return <ChessPawn size={dimensions.baseSize} />
-  }
-
-  const togglePlayerTokenSelection = (tokenId: string) => {
-    if (role === 'gm') return
-    setPlayerSelectedTokenIds((current) => (current.includes(tokenId) ? current.filter((id) => id !== tokenId) : [tokenId]))
   }
 
   const renderTokenItem = (token: TokenRecord, index: number) => {
@@ -2589,92 +1017,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     )
   }
 
-  const placeToken = async (clientX: number, clientY: number) => {
-    if (!selectedMap || role !== 'gm') return
-    const point = getTokenDropPoint(clientX, clientY)
-    if (!point) return
-
-    const spawnMonster = mapMonsters.find((m) => m.id === selectedTokenAssetId) ?? null
-
-    if (spawnMonster) {
-      const { tokenIcon } = spawnMonster
-      const size = tokenIcon.size
-      const sizeScale = size / TOKEN_REFERENCE_DIMENSION
-      await addDoc(collection(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens'), {
-        x: point.x,
-        y: point.y,
-        color: tokenIcon.color,
-        size,
-        sizeScale,
-        viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
-        viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
-        party: false,
-        name: spawnMonster.name,
-        revealName: false,
-        hidden: false,
-        tokenImagePath: '',
-        tokenImageUrl: tokenIcon.icon === 'custom' && tokenIcon.customImageUrl ? tokenIcon.customImageUrl : '',
-        tokenImageWidth: 0,
-        tokenImageHeight: 0,
-        monsterId: spawnMonster.id,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
-    } else {
-      const sizeScale = tokenSize / TOKEN_REFERENCE_DIMENSION
-      await addDoc(collection(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens'), {
-        x: point.x,
-        y: point.y,
-        color: tokenColor,
-        size: tokenSize,
-        sizeScale,
-        viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
-        viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
-        party: false,
-        name: selectedTokenAsset?.name ?? '',
-        revealName: false,
-        hidden: false,
-        tokenImagePath: selectedTokenAsset?.imagePath ?? '',
-        tokenImageUrl: selectedTokenAsset?.imageUrl ?? '',
-        tokenImageWidth: selectedTokenAsset?.width ?? 0,
-        tokenImageHeight: selectedTokenAsset?.height ?? 0,
-        monsterId: '',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
-    }
-  }
-
-  const placeAnnotation = async (clientX: number, clientY: number) => {
-    if (!selectedMap || role !== 'gm') return
-    const point = getTokenDropPoint(clientX, clientY)
-    if (!point) return
-    const annotationRef = await addDoc(collection(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'annotations'), {
-      x: point.x,
-      y: point.y,
-      text: '',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    })
-    setActiveAnnotationId(annotationRef.id)
-    setActiveAnnotationDraft('')
-  }
-
-  const commitActiveAnnotation = async () => {
-    if (!selectedMap || role !== 'gm' || !activeAnnotation) return
-    const nextText = activeAnnotationDraft.trim()
-    if (nextText === activeAnnotation.text.trim()) return
-    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'annotations', activeAnnotation.id), {
-      text: nextText,
-      updatedAt: serverTimestamp(),
-    })
-  }
-
-  const deleteAnnotation = async (annotationId: string) => {
-    if (!selectedMap || role !== 'gm') return
-    await deleteDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'annotations', annotationId))
-  }
-
   const handleMapLayerMouseDown: MouseEventHandler<HTMLDivElement> = (event) => {
     if (role !== 'gm') return
     if (gridCalibrateMode) return
@@ -2686,174 +1028,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     event.preventDefault()
     event.stopPropagation()
     setTokenSelectionBox({ start: point, end: point })
-  }
-
-  const handleGridLayerWheel = (event: React.WheelEvent<HTMLDivElement>, usingFull: boolean) => {
-    if (role !== 'gm' || !selectedMap || !gridAdjustMode || !effectiveGridEnabled) return
-    const mapWidth = Math.max(1, usingFull ? fullBaseSize.width : inlineBaseSize.width)
-    const mapHeight = Math.max(1, usingFull ? fullBaseSize.height : inlineBaseSize.height)
-    const mapDimension = Math.max(1, Math.min(mapWidth, mapHeight))
-    if (mapDimension <= 0) return
-
-    const currentCellPx = Math.max(8, Math.round(effectiveGridCellScale * mapDimension))
-    const scaleFactor = Math.exp(-event.deltaY * 0.0025)
-    const nextCellPx = Math.max(8, Math.min(520, currentCellPx * scaleFactor))
-    if (!Number.isFinite(nextCellPx) || nextCellPx === currentCellPx) return
-
-    const layerRect = event.currentTarget.getBoundingClientRect()
-    const cursorX = event.clientX - layerRect.left
-    const cursorY = event.clientY - layerRect.top
-    const currentOffsetX = effectiveGridOffsetX * mapWidth
-    const currentOffsetY = effectiveGridOffsetY * mapHeight
-    const nextOffsetX = cursorX - ((cursorX - currentOffsetX) / currentCellPx) * nextCellPx
-    const nextOffsetY = cursorY - ((cursorY - currentOffsetY) / currentCellPx) * nextCellPx
-
-    event.preventDefault()
-    event.stopPropagation()
-
-    setGridAdjustDraft((current) =>
-      current
-        ? {
-            ...current,
-            gridCellScale: nextCellPx / mapDimension,
-            gridOffsetX: nextOffsetX / mapWidth,
-            gridOffsetY: nextOffsetY / mapHeight,
-          }
-        : current,
-    )
-  }
-
-  const handleGridLayerMouseDown = (event: React.MouseEvent<HTMLDivElement>, usingFull: boolean): boolean => {
-    if (role !== 'gm' || !selectedMap || !gridAdjustMode || !effectiveGridEnabled) return false
-    if (gridCalibrateMode) return false
-    if (event.button !== 0) return false
-    event.preventDefault()
-    event.stopPropagation()
-    setGridAlignDrag({
-      usingFull,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startOffsetX: effectiveGridOffsetX,
-      startOffsetY: effectiveGridOffsetY,
-    })
-    return true
-  }
-
-  const handleGridCalibrateMouseMove = (clientX: number, clientY: number) => {
-    if (!gridCalibrateMode || !gridCalibrateStart || gridCalibrateEnd) return
-    const point = getTokenDropPoint(clientX, clientY)
-    if (!point) return
-    setGridCalibratePreview(point)
-  }
-
-  const handleGridCalibrateHandleMouseDown = (
-    event: React.MouseEvent<HTMLButtonElement>,
-    handle: 'start' | 'end',
-  ) => {
-    if (!gridCalibrateMode) return
-    event.preventDefault()
-    event.stopPropagation()
-    setGridCalibrateDraggingHandle(handle)
-  }
-
-  const handleGridCalibrateClick = (clientX: number, clientY: number): boolean => {
-    if (role !== 'gm' || !selectedMap) return false
-    const point = getTokenDropPoint(clientX, clientY)
-    if (!point) return true
-
-    if (!gridCalibrateStart) {
-      setGridCalibrateStart(point)
-      setGridCalibrateEnd(null)
-      setGridCalibratePreview(null)
-      setGridCalibrateSavedAt(0)
-      return true
-    }
-
-    if (!gridCalibrateEnd) {
-      setGridCalibrateEnd(point)
-      setGridCalibratePreview(null)
-      setGridCalibrateSavedAt(0)
-      return true
-    }
-    return true
-  }
-
-  const applyGridCalibration = async () => {
-    if (!selectedMap || !gridCalibrateStart || !gridCalibrateEnd) return
-    const mapWidth = Math.max(1, activeMapWidth)
-    const mapHeight = Math.max(1, activeMapHeight)
-    const mapDimension = Math.max(1, activeMapDimension)
-    const dxPx = (gridCalibrateEnd.x - gridCalibrateStart.x) * mapWidth
-    const dyPx = (gridCalibrateEnd.y - gridCalibrateStart.y) * mapHeight
-    const distancePx = Math.hypot(dxPx, dyPx)
-    if (distancePx < 6) {
-      setMapError('Calibration points are too close together')
-      return
-    }
-
-    const nextCellPx = Math.max(8, Math.min(520, distancePx))
-    const nextCellScale = nextCellPx / mapDimension
-    const startPxX = gridCalibrateStart.x * mapWidth
-    const startPxY = gridCalibrateStart.y * mapHeight
-    const nextOffsetX = ((startPxX % nextCellPx) + nextCellPx) % nextCellPx
-    const nextOffsetY = ((startPxY % nextCellPx) + nextCellPx) % nextCellPx
-
-    setMaps((prev) =>
-      prev.map((map) =>
-        map.id === selectedMap.id
-          ? {
-              ...map,
-              gridCellScale: nextCellScale,
-              gridOffsetX: nextOffsetX / mapWidth,
-              gridOffsetY: nextOffsetY / mapHeight,
-              gridUnitsPerCell: 10,
-              gridCalibrated: true,
-            }
-          : map,
-      ),
-    )
-    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
-      gridCellScale: nextCellScale,
-      gridOffsetX: nextOffsetX / mapWidth,
-      gridOffsetY: nextOffsetY / mapHeight,
-      gridUnitsPerCell: 10,
-      gridCalibrated: true,
-      updatedAt: serverTimestamp(),
-    })
-    setGridCalibratePreview(null)
-    setGridCalibrateSavedAt(Date.now())
-    setGridCalibratePulse(true)
-  }
-
-  const resetGridCalibrationDraft = () => {
-    setGridCalibrateStart(null)
-    setGridCalibrateEnd(null)
-    setGridCalibratePreview(null)
-    setGridCalibrateDraggingHandle(null)
-    setGridCalibrateSavedAt(0)
-    setGridCalibratePulse(false)
-  }
-
-  const toggleGridCalibrateMode = () => {
-    if (gridCalibrateMode) {
-      resetGridCalibrationDraft()
-      setGridCalibrateMode(false)
-      resetDistanceTracker()
-      if (selectedMap?.gridCalibrated) {
-        setMaps((prev) => prev.map((map) => (map.id === selectedMap.id ? { ...map, gridCalibrated: false } : map)))
-        void updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
-          gridCalibrated: false,
-          updatedAt: serverTimestamp(),
-        }).catch((error) => {
-          const message = error instanceof Error ? error.message : 'Failed to clear grid calibration'
-          setMapError(message)
-        })
-      }
-      return
-    }
-    setGridAdjustMode(false)
-    resetGridCalibrationDraft()
-    setGridCalibrateMode(true)
   }
 
   const handleMapLayerClick: MouseEventHandler<HTMLDivElement> = (event) => {
@@ -2881,59 +1055,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     void placeToken(event.clientX, event.clientY)
   }
 
-  useEffect(() => {
-    if (!gridAlignDrag || !selectedMap || role !== 'gm' || !gridAdjustMode) return
-
-    const handleMove = (event: MouseEvent) => {
-      const mapWidth = Math.max(1, gridAlignDrag.usingFull ? fullBaseSize.width : inlineBaseSize.width)
-      const mapHeight = Math.max(1, gridAlignDrag.usingFull ? fullBaseSize.height : inlineBaseSize.height)
-      const nextOffsetX = gridAlignDrag.startOffsetX + (event.clientX - gridAlignDrag.startClientX) / mapWidth
-      const nextOffsetY = gridAlignDrag.startOffsetY + (event.clientY - gridAlignDrag.startClientY) / mapHeight
-      setGridAdjustDraft((current) =>
-        current
-          ? {
-              ...current,
-              gridOffsetX: nextOffsetX,
-              gridOffsetY: nextOffsetY,
-            }
-          : current,
-      )
-    }
-
-    const handleUp = () => {
-      setGridAlignDrag(null)
-    }
-
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', handleUp)
-    return () => {
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', handleUp)
-    }
-  }, [fullBaseSize.height, fullBaseSize.width, gridAdjustMode, gridAlignDrag, inlineBaseSize.height, inlineBaseSize.width, role, selectedMap])
-
-  useEffect(() => {
-    if (!gridCalibrateDraggingHandle || !gridCalibrateMode) return
-    const handleMove = (event: MouseEvent) => {
-      const point = getTokenDropPoint(event.clientX, event.clientY)
-      if (!point) return
-      if (gridCalibrateDraggingHandle === 'start') {
-        setGridCalibrateStart(point)
-      } else {
-        setGridCalibrateEnd(point)
-      }
-      setGridCalibrateSavedAt(0)
-    }
-    const handleUp = () => {
-      setGridCalibrateDraggingHandle(null)
-    }
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', handleUp)
-    return () => {
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', handleUp)
-    }
-  }, [gridCalibrateDraggingHandle, gridCalibrateMode])
 
   useEffect(() => {
     if (role !== 'gm' || !tokenSelectionBox) return
@@ -2994,77 +1115,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     setSelectedTokenIds([])
     setTokenSelectionBox(null)
     resetDistanceTracker()
-    setGridAdjustMode(false)
-    setGridAdjustDraft(null)
-    setGridAdjustSavedAt(0)
-    setGridCalibrateMode(false)
-    setGridCalibrateStart(null)
-    setGridCalibrateEnd(null)
-    setGridCalibratePreview(null)
-    setGridCalibrateDraggingHandle(null)
-    setGridCalibrateSavedAt(0)
-    setGridCalibratePulse(false)
-  }, [selectedMapId])
-
-  useEffect(() => {
-    if (!gridAdjustMode || gridAdjustDraft || !selectedMap) return
-    setGridAdjustDraft({
-      gridEnabled: true,
-      gridVisible: true,
-      gridCellScale: DEFAULT_GRID_CELL_SCALE,
-      gridOffsetX: 0,
-      gridOffsetY: 0,
-    })
-  }, [gridAdjustDraft, gridAdjustMode, selectedMap])
-
-  useEffect(() => {
-    if (!gridCalibrateMode) return
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      setGridCalibrateMode(false)
-      setGridCalibrateStart(null)
-      setGridCalibrateEnd(null)
-      setGridCalibratePreview(null)
-      setGridCalibrateDraggingHandle(null)
-      setGridCalibrateSavedAt(0)
-      setGridCalibratePulse(false)
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [gridCalibrateMode])
-
-  useEffect(() => {
-    if (!gridCalibrateSavedAt) return
-    const timer = window.setTimeout(() => {
-      setGridCalibrateSavedAt(0)
-      setGridCalibrateMode(false)
-      setGridCalibrateStart(null)
-      setGridCalibrateEnd(null)
-      setGridCalibratePreview(null)
-      setGridCalibrateDraggingHandle(null)
-    }, 1600)
-    return () => window.clearTimeout(timer)
-  }, [gridCalibrateSavedAt])
-
-  useEffect(() => {
-    if (!gridAdjustSavedAt) return
-    const timer = window.setTimeout(() => {
-      setGridAdjustSavedAt(0)
-      setGridAdjustMode(false)
-      setGridAdjustDraft(null)
-    }, 900)
-    return () => window.clearTimeout(timer)
-  }, [gridAdjustSavedAt])
-
-  useEffect(() => {
-    if (!gridCalibratePulse) return
-    const timer = window.setTimeout(() => setGridCalibratePulse(false), 650)
-    return () => window.clearTimeout(timer)
-  }, [gridCalibratePulse])
-
-  useEffect(() => {
-    setSelectedTokenIds((current) => current.filter((tokenId) => tokens.some((token) => token.id === tokenId)))
-  }, [tokens])
+    resetGrid()
+  }, [selectedMapId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!selectedTokenAssetId) return
@@ -3078,833 +1130,160 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     setActiveAnnotationId('')
   }, [streamingMode])
 
-  const clampMobileZoom = (value: number) => Math.min(4, Math.max(MIN_MAP_ZOOM, value))
-
-  const touchDistance = (touches: React.TouchList) => {
-    const [a, b] = [touches[0], touches[1]]
-    return Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY)
+  const handleInlineImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
+    const target = event.currentTarget
+    setInlineBaseSize({
+      width: Math.max(1, Math.round(target.clientWidth)),
+      height: Math.max(1, Math.round(target.clientHeight)),
+    })
+    const fogScale = Math.min(1, FOG_CANVAS_MAX_DIM / Math.max(target.naturalWidth, target.naturalHeight, 1))
+    setInlineFogSize({
+      width: Math.max(1, Math.round(target.naturalWidth * fogScale)),
+      height: Math.max(1, Math.round(target.naturalHeight * fogScale)),
+    })
+    invalidateInlineOverlayCache()
   }
 
-  const touchCenter = (touches: React.TouchList) => ({
-    x: (touches[0].clientX + touches[1].clientX) / 2,
-    y: (touches[0].clientY + touches[1].clientY) / 2,
-  })
-
-  const handleMobilePlayerTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
-    if (!isMobileZoomMapView) return
-
-    if (event.touches.length === 2) {
-      const center = touchCenter(event.touches)
-      mobileTouchRef.current = {
-        mode: 'pinch',
-        startZoom: playerZoomRef.current,
-        startDistance: touchDistance(event.touches),
-        startPan: playerPanRef.current,
-        startCenter: center,
-      }
-      return
-    }
-
-    if (role === 'gm' && (fogTool || visionTool)) return
-
-    if (event.touches.length === 1 && playerZoom > 1) {
-      const touch = event.touches[0]
-      mobileTouchRef.current = {
-        mode: 'pan',
-        startZoom: playerZoomRef.current,
-        startDistance: 0,
-        startPan: playerPanRef.current,
-        startCenter: { x: touch.clientX, y: touch.clientY },
-      }
-    }
+  const handleFullImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
+    const target = event.currentTarget
+    setFullBaseSize({
+      width: Math.max(1, Math.round(target.clientWidth)),
+      height: Math.max(1, Math.round(target.clientHeight)),
+    })
+    const fogScale = Math.min(1, FOG_CANVAS_MAX_DIM / Math.max(target.naturalWidth, target.naturalHeight, 1))
+    setFullFogSize({
+      width: Math.max(1, Math.round(target.naturalWidth * fogScale)),
+      height: Math.max(1, Math.round(target.naturalHeight * fogScale)),
+    })
+    invalidateFullVisionCache()
   }
 
-  const handleMobilePlayerTouchMove: TouchEventHandler<HTMLDivElement> = (event) => {
-    if (!isMobileZoomMapView) return
-    if (event.touches.length === 0) return
+  const calibrationOverlayNode = gridCalibrationLine ? (
+    <div className={gridCalibratePulse ? 'map-grid-calibration-overlay pulse' : 'map-grid-calibration-overlay'} aria-hidden>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <line
+          x1={gridCalibrationLine.start.x * 100}
+          y1={gridCalibrationLine.start.y * 100}
+          x2={gridCalibrationLine.end.x * 100}
+          y2={gridCalibrationLine.end.y * 100}
+        />
+      </svg>
+      <button
+        type="button"
+        className="map-grid-calibration-handle"
+        style={{ left: `${gridCalibrationLine.start.x * 100}%`, top: `${gridCalibrationLine.start.y * 100}%` }}
+        onMouseDown={(event) => handleGridCalibrateHandleMouseDown(event, 'start')}
+        aria-label="Move calibration start point"
+      />
+      <button
+        type="button"
+        className="map-grid-calibration-handle"
+        style={{ left: `${gridCalibrationLine.end.x * 100}%`, top: `${gridCalibrationLine.end.y * 100}%` }}
+        onMouseDown={(event) => handleGridCalibrateHandleMouseDown(event, 'end')}
+        aria-label="Move calibration end point"
+      />
+    </div>
+  ) : null
+
+  const annotationLayerNode = role === 'gm' && !streamingMode ? (
+    <AnnotationLayer
+      annotations={annotations}
+      activeAnnotationId={activeAnnotationId}
+      activeAnnotationDraft={activeAnnotationDraft}
+      setActiveAnnotationId={setActiveAnnotationId}
+      setActiveAnnotationDraft={setActiveAnnotationDraft}
+      onCommitActiveAnnotation={commitActiveAnnotation}
+      onDeleteAnnotation={deleteAnnotation}
+      autosizeAnnotationTextarea={autosizeAnnotationTextarea}
+    />
+  ) : null
+
+  const fullscreenControlsNode = role === 'gm' ? (
+    <aside className="map-fullscreen-controls">
+      <GmMapControls
+        dark
+        fogTool={fogTool}
+        setFogTool={setFogTool}
+        visionTool={visionTool}
+        setVisionTool={setVisionTool}
+        fogBrushSize={fogBrushSize}
+        setFogBrushSize={setFogBrushSize}
+        tokenPlaceMode={tokenPlaceMode}
+        setTokenPlaceMode={setTokenPlaceMode}
+        tokenSelectMode={tokenSelectMode}
+        setTokenSelectMode={setTokenSelectMode}
+        annotationPlaceMode={annotationPlaceMode}
+        setAnnotationPlaceMode={setAnnotationPlaceMode}
+        tokenColor={tokenColor}
+        setTokenColor={setTokenColor}
+        tokenSize={tokenSize}
+        setTokenSize={setTokenSize}
+        tokenAssets={tokenAssets}
+        selectedTokenAssetId={selectedTokenAssetId}
+        setSelectedTokenAssetId={setSelectedTokenAssetId}
+        selectedTokenImageUrl={selectedTokenAsset?.imageUrl ?? ''}
+        uploadingTokenImage={uploadingTokenImage}
+        onUploadTokenImage={uploadTokenImage}
+        onArchiveTokenAsset={archiveTokenAsset}
+        onRequestDeleteTokenAsset={requestDeleteTokenAsset}
+        streamingMode={streamingMode}
+        setStreamingMode={setStreamingMode}
+        gridVisible={effectiveGridVisible}
+        gridType={effectiveGridType}
+        gridAdjustMode={gridAdjustMode}
+        onToggleGridVisible={() => void toggleGridVisibility()}
+        onSetGridType={setGridType}
+        onApplyGrid={applyGridAdjust}
+        hexDetecting={hexDetecting}
+        hexDetectConfidence={hexDetectConfidence}
+        gridAdjustReady={gridAdjustReady}
+        gridAdjustSaved={Boolean(gridAdjustSavedAt)}
+        gridCalibrateMode={gridCalibrateMode}
+        onToggleGridCalibrate={toggleGridCalibrateMode}
+        gridCalibrateReady={Boolean(gridCalibrateStart && gridCalibrateEnd)}
+        gridCalibrateSaved={Boolean(gridCalibrateSavedAt)}
+        onApplyGridCalibration={() => void applyGridCalibration().catch((error) => {
+          const message = error instanceof Error ? error.message : 'Failed to save grid calibration'
+          setMapError(message)
+        })}
+        distanceTrackerFeet={distanceTrackerFeet}
+        distanceTrackerMode={distanceTrackerMode}
+        distanceTrackerRoll={distanceTrackerRoll}
+        onResetDistanceTracker={resetDistanceTracker}
+        applyFogPreset={applyFogPreset}
+        canApplyPreset={Boolean(selectedMap)}
+        fullyHidden={selectedMap?.fullyHidden === true}
+        tokens={tokens}
+        selectedTokenIds={selectedTokenIds}
+        onSelectTokenCard={(tokenId) => setSelectedTokenIds([tokenId])}
+        onUpdateToken={updateToken}
+        onUpdateTokenSize={async (tokenId, size) => {
+          const sizeScale = size / TOKEN_REFERENCE_DIMENSION
+          setTokens((prev) =>
+            prev.map((token) => (token.id === tokenId ? { ...token, size, sizeScale } : token)),
+          )
+          await updateToken(tokenId, { size, sizeScale })
+        }}
+        onUpdateTokenViewDistance={async (tokenId, viewDistance) => {
+          const viewDistanceScale = viewDistance / TOKEN_REFERENCE_DIMENSION
+          setTokens((prev) =>
+            prev.map((token) =>
+              token.id === tokenId ? { ...token, viewDistance, viewDistanceScale } : token,
+            ),
+          )
+          await updateToken(tokenId, { viewDistance, viewDistanceScale })
+        }}
+        tokenViewDistanceSliderValue={tokenViewDistanceSliderValue}
+        onRequestDeleteToken={requestDeleteToken}
+        mapMonsters={mapMonsters}
+      />
+    </aside>
+  ) : (
+    <aside className="map-fullscreen-controls">
+      <PlayerMapControls dark cameraLock={cameraLock} onToggleCameraLock={toggleCameraLock} />
+    </aside>
+  )
 
-    if (mobileTouchRef.current.mode === 'pinch' && event.touches.length >= 2) {
-      event.preventDefault()
-      const currentDistance = touchDistance(event.touches)
-      const scale = currentDistance / Math.max(1, mobileTouchRef.current.startDistance)
-      const nextZoom = clampMobileZoom(mobileTouchRef.current.startZoom * scale)
-      const center = touchCenter(event.touches)
-      const deltaCenter = {
-        x: center.x - mobileTouchRef.current.startCenter.x,
-        y: center.y - mobileTouchRef.current.startCenter.y,
-      }
-      const nextPan = {
-        x: mobileTouchRef.current.startPan.x + deltaCenter.x,
-        y: mobileTouchRef.current.startPan.y + deltaCenter.y,
-      }
-      playerZoomRef.current = nextZoom
-      playerPanRef.current = nextPan
-      setPlayerZoom(nextZoom)
-      setPlayerPan(nextPan)
-      return
-    }
-
-    if (mobileTouchRef.current.mode === 'pan' && event.touches.length === 1) {
-      event.preventDefault()
-      const touch = event.touches[0]
-      const delta = {
-        x: touch.clientX - mobileTouchRef.current.startCenter.x,
-        y: touch.clientY - mobileTouchRef.current.startCenter.y,
-      }
-      const nextPan = {
-        x: mobileTouchRef.current.startPan.x + delta.x,
-        y: mobileTouchRef.current.startPan.y + delta.y,
-      }
-      playerPanRef.current = nextPan
-      setPlayerPan(nextPan)
-    }
-  }
-
-  const handleMobilePlayerTouchEnd: TouchEventHandler<HTMLDivElement> = (event) => {
-    if (!isMobileZoomMapView) return
-
-    if (event.touches.length === 0) {
-      mobileTouchRef.current.mode = 'none'
-      if (playerZoomRef.current <= MIN_MAP_ZOOM) {
-        playerPanRef.current = { x: 0, y: 0 }
-        setPlayerPan({ x: 0, y: 0 })
-      }
-      return
-    }
-
-    if (event.touches.length === 1 && playerZoomRef.current > 1) {
-      const touch = event.touches[0]
-      mobileTouchRef.current = {
-        mode: 'pan',
-        startZoom: playerZoomRef.current,
-        startDistance: 0,
-        startPan: playerPanRef.current,
-        startCenter: { x: touch.clientX, y: touch.clientY },
-      }
-    }
-  }
-
-  const handlePlayerWheel: WheelEventHandler<HTMLDivElement> = (event) => {
-    const target = event.target as HTMLElement | null
-    if (target?.closest('.map-annotation-popover')) {
-      return
-    }
-    event.preventDefault()
-    const { nextZoom, nextPan } = computeWheelZoom(
-      event,
-      playerZoomRef.current,
-      playerPanRef.current,
-      inlineMapLayerRef.current,
-      playerWheelAnchorRef,
-    )
-    playerZoomRef.current = nextZoom
-    playerPanRef.current = nextPan
-    setPlayerZoom(nextZoom)
-    setPlayerPan(nextPan)
-  }
-
-  const handlePlayerMouseDown: MouseEventHandler<HTMLDivElement> = (event) => {
-    if (event.button !== 0) return
-    if (role === 'gm' && !event.shiftKey) return
-    if (!event.shiftKey && playerZoom <= 1) return
-    event.preventDefault()
-    setPlayerDragging(true)
-    playerDragStartRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-      panX: playerPan.x,
-      panY: playerPan.y,
-    }
-  }
-
-  const handlePlayerMouseMove: MouseEventHandler<HTMLDivElement> = (event) => {
-    if (!playerDragging || !playerDragStartRef.current) return
-    const deltaX = event.clientX - playerDragStartRef.current.x
-    const deltaY = event.clientY - playerDragStartRef.current.y
-    const nextPan = {
-      x: playerDragStartRef.current.panX + deltaX,
-      y: playerDragStartRef.current.panY + deltaY,
-    }
-    playerPanRef.current = nextPan
-    setPlayerPan(nextPan)
-  }
-
-  const endPlayerDrag = () => {
-    setPlayerDragging(false)
-    playerDragStartRef.current = null
-  }
-
-  const toggleCameraLock = () => {
-    if (!cameraLock) {
-      const partyTokens = tokens.filter((t) => t.party && !t.hidden)
-      if (partyTokens.length > 0) {
-        const cx = partyTokens.reduce((sum, t) => sum + t.x, 0) / partyTokens.length
-        const cy = partyTokens.reduce((sum, t) => sum + t.y, 0) / partyTokens.length
-        const avgViewDist = partyTokens.reduce((sum, t) => sum + renderTokenViewDistance(t), 0) / partyTokens.length
-        const losZoom = activeFogDimension / (2 * Math.max(1, avgViewDist))
-        if (fullScreenOpen) {
-          const newZoom = fullZoom > losZoom ? losZoom : fullZoom
-          const newPan = {
-            x: fullBaseSize.width * newZoom * (0.5 - cx),
-            y: fullBaseSize.height * newZoom * (0.5 - cy),
-          }
-          fullZoomRef.current = newZoom
-          fullPanRef.current = newPan
-          setFullZoom(newZoom)
-          setFullPan(newPan)
-        } else {
-          const currentPlayerZoom = playerZoomRef.current
-          const newZoom = currentPlayerZoom > losZoom ? losZoom : currentPlayerZoom
-          const newPan = {
-            x: inlineBaseSize.width * newZoom * (0.5 - cx),
-            y: inlineBaseSize.height * newZoom * (0.5 - cy),
-          }
-          playerZoomRef.current = newZoom
-          playerPanRef.current = newPan
-          setPlayerZoom(newZoom)
-          setPlayerPan(newPan)
-        }
-      }
-      setCameraLock(true)
-    } else {
-      setCameraLock(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!cameraLock || role === 'gm') return
-    const partyTokens = tokens.filter((t) => t.party && !t.hidden)
-    if (partyTokens.length === 0) return
-    const cx = partyTokens.reduce((sum, t) => sum + t.x, 0) / partyTokens.length
-    const cy = partyTokens.reduce((sum, t) => sum + t.y, 0) / partyTokens.length
-    if (fullScreenOpen) {
-      const nextPan = {
-        x: fullBaseSize.width * fullZoomRef.current * (0.5 - cx),
-        y: fullBaseSize.height * fullZoomRef.current * (0.5 - cy),
-      }
-      fullPanRef.current = nextPan
-      setFullPan(nextPan)
-    } else {
-      const nextPan = {
-        x: inlineBaseSize.width * playerZoomRef.current * (0.5 - cx),
-        y: inlineBaseSize.height * playerZoomRef.current * (0.5 - cy),
-      }
-      playerPanRef.current = nextPan
-      setPlayerPan(nextPan)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tokens, cameraLock, fullScreenOpen]) // omit zoom — only re-center on token move, not on user zoom changes
-
-  const startTokenDragAtPoint = (tokenId: string, clientX: number, clientY: number) => {
-    if (role !== 'gm') return
-    const point = getTokenDropPoint(clientX, clientY)
-    const token = tokens.find((entry) => entry.id === tokenId)
-    if (!point || !token) return
-    const groupIds =
-      selectedTokenIds.length > 1 && selectedTokenIds.includes(tokenId)
-        ? selectedTokenIds
-        : [tokenId]
-    const startPositions = Object.fromEntries(
-      groupIds
-        .map((id) => {
-          const entry = tokens.find((item) => item.id === id)
-          if (!entry) return null
-          return [id, { x: entry.x, y: entry.y }] as const
-        })
-        .filter((entry): entry is readonly [string, { x: number; y: number }] => entry !== null),
-    )
-    if (!startPositions[tokenId]) return
-
-    tokenDragOffsetRef.current = {
-      x: point.x - token.x,
-      y: point.y - token.y,
-    }
-    const tokenRenderSize = renderTokenDimensions(token).height
-    tokenFogTrailPointRef.current = token.party
-      ? tokenPointToCanvasPoint({ x: token.x, y: token.y }, tokenRenderSize)
-      : null
-    setDraggingTokenId(tokenId)
-    setDraggingTokenIds(Object.keys(startPositions))
-    dragTokenStartPositionsRef.current = startPositions
-    dragTokenPositionsRef.current = startPositions
-    setDragTokenPositions(startPositions)
-    const startPosition = startPositions[tokenId]
-    dragTokenPositionRef.current = startPosition
-    setDragTokenPosition(startPosition)
-  }
-
-  const startTokenDrag = (tokenId: string, event: Parameters<MouseEventHandler<HTMLButtonElement>>[0]) => {
-    if (role !== 'gm') return
-    if (event.shiftKey) return
-    event.preventDefault()
-    event.stopPropagation()
-    setSelectedTokenIds((current) => (current.includes(tokenId) ? current : [tokenId]))
-    startTokenDragAtPoint(tokenId, event.clientX, event.clientY)
-  }
-
-  const handleTokenTouchStart = (
-    tokenId: string,
-    event: Parameters<TouchEventHandler<HTMLButtonElement>>[0],
-  ) => {
-    if (role !== 'gm') return
-    if (event.touches.length !== 1) return
-    event.stopPropagation()
-    setSelectedTokenIds((current) => (current.includes(tokenId) ? current : [tokenId]))
-
-    const touch = event.touches[0]
-    if (tokenLongPressTimerRef.current) {
-      window.clearTimeout(tokenLongPressTimerRef.current)
-      tokenLongPressTimerRef.current = null
-    }
-
-    tokenTouchDraggingRef.current = false
-    tokenLongPressTimerRef.current = window.setTimeout(() => {
-      startTokenDragAtPoint(tokenId, touch.clientX, touch.clientY)
-      tokenTouchDraggingRef.current = true
-      tokenLongPressTimerRef.current = null
-    }, 240)
-  }
-
-  const handleTokenTouchEnd: TouchEventHandler<HTMLButtonElement> = () => {
-    if (tokenLongPressTimerRef.current) {
-      window.clearTimeout(tokenLongPressTimerRef.current)
-      tokenLongPressTimerRef.current = null
-    }
-  }
-
-  const canvasPointFromTouch = (canvas: HTMLCanvasElement, touch: React.Touch) => {
-    const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / Math.max(1, rect.width)
-    const scaleY = canvas.height / Math.max(1, rect.height)
-    return {
-      x: (touch.clientX - rect.left) * scaleX,
-      y: (touch.clientY - rect.top) * scaleY,
-    }
-  }
-
-  const handleFogTouchStart: TouchEventHandler<HTMLCanvasElement> = (event) => {
-    if (tokenPlaceMode) return
-    if ((!fogTool && !visionTool) || role !== 'gm' || !activeFogCanvasRef.current) return
-    if (event.touches.length !== 1) return
-    event.preventDefault()
-    event.stopPropagation()
-    setFogDrawing(true)
-    const point = canvasPointFromTouch(activeFogCanvasRef.current, event.touches[0])
-    fogLastPointRef.current = point
-    if (visionTool && activeVisionCanvasRef.current) {
-      stampVisionBlock(activeVisionCanvasRef.current, point.x, point.y, visionTool)
-      return
-    }
-    if (!fogTool) return
-    stampFog(activeFogCanvasRef.current, point.x, point.y, fogTool)
-  }
-
-  const handleFogTouchMove: TouchEventHandler<HTMLCanvasElement> = (event) => {
-    if (tokenPlaceMode) return
-    if (!fogTool && !visionTool) return
-    if (!fogDrawing || role !== 'gm' || !activeFogCanvasRef.current) return
-    if (event.touches.length !== 1) return
-    event.preventDefault()
-    event.stopPropagation()
-    const point = canvasPointFromTouch(activeFogCanvasRef.current, event.touches[0])
-    const previousPoint = fogLastPointRef.current
-    if (visionTool && activeVisionCanvasRef.current) {
-      if (previousPoint) {
-        drawVisionStroke(activeVisionCanvasRef.current, previousPoint, point, visionTool)
-      } else {
-        stampVisionBlock(activeVisionCanvasRef.current, point.x, point.y, visionTool)
-      }
-      fogLastPointRef.current = point
-      return
-    }
-    if (!fogTool) return
-    if (previousPoint) {
-      drawFogStroke(activeFogCanvasRef.current, previousPoint, point, fogTool)
-    } else {
-      stampFog(activeFogCanvasRef.current, point.x, point.y, fogTool)
-    }
-    fogLastPointRef.current = point
-  }
-
-  const handleFogTouchEnd: TouchEventHandler<HTMLCanvasElement> = () => {
-    handleFogPointerUp()
-  }
-
-  useEffect(() => {
-    if (!draggingTokenId || role !== 'gm' || !selectedMap) return
-    const draggingToken = tokens.find((entry) => entry.id === draggingTokenId) ?? null
-    const dragGroupIds = draggingTokenIds.length > 1 ? draggingTokenIds : [draggingTokenId]
-    const movementTokenId =
-      dragGroupIds.find((id) => {
-        const token = tokens.find((entry) => entry.id === id)
-        return token?.party === true && token.hidden !== true
-      }) ?? ''
-    let movementLastPosition =
-      movementTokenId && dragTokenStartPositionsRef.current
-        ? dragTokenStartPositionsRef.current[movementTokenId] ?? null
-        : null
-    const dragPaths: Record<string, Waypoint[]> = {}
-    const lastSampledPositions: Record<string, { x: number; y: number }> = {}
-    const dragStartTime = Date.now()
-    let lastStreamingLocalRevealAt = 0
-    let revealFrameId: number | null = null
-    let pendingRevealPoint: { x: number; y: number } | null = null
-    let pendingRevealBrushSize = 0
-    let pendingRevealClipRect: CanvasClipRect | null = null
-    const handleLiveWriteError = (error: unknown) => {
-      console.warn('Token write failed', error)
-    }
-
-    const flushPendingReveal = () => {
-      revealFrameId = null
-      if (!draggingToken?.party || draggingToken.hidden || !activeFogCanvasRef.current || !pendingRevealPoint) return
-
-      const nextCanvasPoint = pendingRevealPoint
-      const tokenBrushSize = pendingRevealBrushSize
-      const clipRect = pendingRevealClipRect
-      pendingRevealPoint = null
-
-      if (streamingMode) {
-        const now = Date.now()
-        const canvasArea = Math.max(1, activeFogCanvasRef.current.width * activeFogCanvasRef.current.height)
-        const areaScale = Math.sqrt(canvasArea / (1280 * 720))
-        const streamingInterval = Math.min(
-          STREAMING_LOCAL_REVEAL_MAX_INTERVAL_MS,
-          Math.max(STREAMING_LOCAL_REVEAL_INTERVAL_MS, STREAMING_LOCAL_REVEAL_INTERVAL_MS * areaScale),
-        )
-        if (now - lastStreamingLocalRevealAt < streamingInterval) {
-          return
-        }
-        lastStreamingLocalRevealAt = now
-      }
-
-      const lastPoint = tokenFogTrailPointRef.current
-      if (lastPoint) {
-        revealFromTokenStroke(
-          activeFogCanvasRef.current,
-          activeVisionCanvasRef.current,
-          lastPoint,
-          nextCanvasPoint,
-          tokenBrushSize,
-          clipRect,
-        )
-      } else {
-        revealFromTokenPoint(
-          activeFogCanvasRef.current,
-          activeVisionCanvasRef.current,
-          nextCanvasPoint,
-          tokenBrushSize,
-          clipRect,
-        )
-      }
-      tokenFogTrailPointRef.current = nextCanvasPoint
-    }
-
-    const queueReveal = (nextCanvasPoint: { x: number; y: number }, tokenBrushSize: number, clipRect: CanvasClipRect | null) => {
-      pendingRevealPoint = nextCanvasPoint
-      pendingRevealBrushSize = tokenBrushSize
-      pendingRevealClipRect = clipRect
-      if (revealFrameId !== null) return
-      revealFrameId = window.requestAnimationFrame(flushPendingReveal)
-    }
-
-    const handleMoveAt = (clientX: number, clientY: number) => {
-      const point = getTokenDropPoint(clientX, clientY)
-      if (!point) return
-      const offset = tokenDragOffsetRef.current ?? { x: 0, y: 0 }
-      const nextPosition = {
-        x: Math.max(0, Math.min(1, point.x - offset.x)),
-        y: Math.max(0, Math.min(1, point.y - offset.y)),
-      }
-      const startPositions = dragTokenStartPositionsRef.current
-      const groupIds = draggingTokenIds.length > 1 ? draggingTokenIds : [draggingTokenId]
-
-      if (startPositions && groupIds.length > 1 && startPositions[draggingTokenId]) {
-        const anchorStart = startPositions[draggingTokenId]
-        const rawDx = nextPosition.x - anchorStart.x
-        const rawDy = nextPosition.y - anchorStart.y
-        const maxNegDx = Math.max(...groupIds.map((id) => -startPositions[id].x))
-        const maxPosDx = Math.min(...groupIds.map((id) => 1 - startPositions[id].x))
-        const maxNegDy = Math.max(...groupIds.map((id) => -startPositions[id].y))
-        const maxPosDy = Math.min(...groupIds.map((id) => 1 - startPositions[id].y))
-        const clampedDx = Math.max(maxNegDx, Math.min(maxPosDx, rawDx))
-        const clampedDy = Math.max(maxNegDy, Math.min(maxPosDy, rawDy))
-        const nextPositions = Object.fromEntries(
-          groupIds.map((id) => [
-            id,
-            {
-              x: startPositions[id].x + clampedDx,
-              y: startPositions[id].y + clampedDy,
-            },
-          ]),
-        )
-        dragTokenPositionsRef.current = nextPositions
-        setDragTokenPositions(nextPositions)
-        dragTokenPositionRef.current = nextPositions[draggingTokenId]
-        setDragTokenPosition(nextPositions[draggingTokenId])
-      } else {
-        const nextPositions = { [draggingTokenId]: nextPosition }
-        dragTokenPositionsRef.current = nextPositions
-        setDragTokenPositions(nextPositions)
-        dragTokenPositionRef.current = nextPosition
-        setDragTokenPosition(nextPosition)
-      }
-
-      // Sample path waypoints for drop-time write (replayed as animation on other clients).
-      const currentPositions = dragTokenPositionsRef.current
-      if (currentPositions) {
-        for (const [id, pos] of Object.entries(currentPositions)) {
-          const last = lastSampledPositions[id]
-          if (!last || Math.hypot(pos.x - last.x, pos.y - last.y) >= DRAG_PATH_SAMPLE_DISTANCE) {
-            if (!dragPaths[id]) dragPaths[id] = []
-            dragPaths[id].push({ x: pos.x, y: pos.y, t: Date.now() - dragStartTime })
-            lastSampledPositions[id] = pos
-          }
-        }
-      }
-
-      if (movementTokenId && selectedMap.gridCalibrated && movementLastPosition && currentPositions?.[movementTokenId]) {
-        const movementCurrent = currentPositions[movementTokenId]
-        const dxPx = (movementCurrent.x - movementLastPosition.x) * Math.max(1, activeMapWidth)
-        const dyPx = (movementCurrent.y - movementLastPosition.y) * Math.max(1, activeMapHeight)
-        const movedPx = Math.hypot(dxPx, dyPx)
-        const cellPx = Math.max(1, activeGridCellPx)
-        const unitsPerCell = Math.max(1, selectedMap.gridUnitsPerCell || 10)
-        const movedFeet = (movedPx / cellPx) * unitsPerCell
-        if (movedFeet > 0.0001) {
-          let cycleFeet = distanceTrackerFeetRef.current
-          cycleFeet += movedFeet
-          let turnStage = distanceTrackerTurnStageRef.current
-          const rolls: number[] = []
-          let latestRoll: number | null = null
-          let lastEvent: 'first' | 'roll' | null = null
-          while (cycleFeet >= ENCOUNTER_CHECK_DISTANCE_FEET) {
-            cycleFeet -= ENCOUNTER_CHECK_DISTANCE_FEET
-            if (turnStage === 0) {
-              turnStage = 1
-              lastEvent = 'first'
-            } else {
-              turnStage = 0
-              const roll = 1 + Math.floor(Math.random() * 6)
-              rolls.push(roll)
-              latestRoll = roll
-              lastEvent = 'roll'
-            }
-          }
-
-          distanceTrackerFeetRef.current = cycleFeet
-          distanceTrackerTurnStageRef.current = turnStage
-          if (lastEvent === 'roll' && latestRoll !== null) {
-            distanceTrackerModeRef.current = 'roll'
-            distanceTrackerRollRef.current = latestRoll
-            setDistanceTrackerMode('roll')
-            setDistanceTrackerRoll(latestRoll)
-            setDistanceTrackerFeet(ENCOUNTER_CHECK_DISTANCE_FEET)
-            const hits = rolls.filter((roll) => roll <= ENCOUNTER_TRIGGER_ROLL_MAX).length
-            if (hits > 0) {
-              setEncounterNotice({ checks: rolls.length, hits, rolls })
-            }
-          } else if (lastEvent === 'first') {
-            distanceTrackerModeRef.current = 'first'
-            distanceTrackerRollRef.current = null
-            setDistanceTrackerMode('first')
-            setDistanceTrackerRoll(null)
-            setDistanceTrackerFeet(ENCOUNTER_CHECK_DISTANCE_FEET)
-          } else {
-            const belowPostRollDisplayThreshold =
-              (distanceTrackerModeRef.current === 'roll' || distanceTrackerModeRef.current === 'first') &&
-              cycleFeet < DISTANCE_POST_ROLL_MIN_FEET_TO_SHOW
-            if (belowPostRollDisplayThreshold) {
-              setDistanceTrackerFeet(ENCOUNTER_CHECK_DISTANCE_FEET)
-            } else {
-              if (distanceTrackerModeRef.current !== 'count') {
-                distanceTrackerModeRef.current = 'count'
-                distanceTrackerRollRef.current = null
-                setDistanceTrackerMode('count')
-                setDistanceTrackerRoll(null)
-              }
-              setDistanceTrackerFeet(cycleFeet)
-            }
-          }
-          movementLastPosition = movementCurrent
-        }
-      }
-
-      if (draggingToken?.party && !draggingToken.hidden && activeFogCanvasRef.current) {
-        const tokenBrushSize = renderTokenViewDistance(draggingToken)
-        const nextCanvasPoint = tokenPointToCanvasPoint(nextPosition, renderTokenDimensions(draggingToken).height)
-        if (!nextCanvasPoint) return
-        const clipRect =
-          streamingMode && usingFullScreenCanvas
-            ? getFullscreenVisibleCanvasRect(activeFogCanvasRef.current)
-            : null
-
-        queueReveal(nextCanvasPoint, tokenBrushSize, clipRect)
-      }
-    }
-
-    const handleMove = (event: MouseEvent) => {
-      handleMoveAt(event.clientX, event.clientY)
-    }
-
-    const handleTouchMove = (event: globalThis.TouchEvent) => {
-      if (event.touches.length !== 1) return
-      if (tokenTouchDraggingRef.current) {
-        event.preventDefault()
-      }
-      const touch = event.touches[0]
-      handleMoveAt(touch.clientX, touch.clientY)
-    }
-
-    const handleUp = async () => {
-      if (revealFrameId !== null) {
-        window.cancelAnimationFrame(revealFrameId)
-        revealFrameId = null
-      }
-      if (pendingRevealPoint) {
-        flushPendingReveal()
-      }
-      const finalPositions = dragTokenPositionsRef.current
-      if (!finalPositions) {
-        setDraggingTokenId('')
-        setDraggingTokenIds([])
-        setDragTokenPositions(null)
-        tokenDragOffsetRef.current = null
-        return
-      }
-
-      const finalTokenIds = draggingTokenIds.length > 0 ? draggingTokenIds : [draggingTokenId]
-      setDraggingTokenId('')
-      setDraggingTokenIds([])
-      setDragTokenPosition(null)
-      setDragTokenPositions(null)
-      dragTokenPositionRef.current = null
-      dragTokenPositionsRef.current = null
-      dragTokenStartPositionsRef.current = null
-      tokenDragOffsetRef.current = null
-      tokenFogTrailPointRef.current = null
-
-      // Optimistically update local token positions so the dragger doesn't see the token
-      // snap back to the pre-drag Firestore position while the batch write is in flight.
-      setTokens((prev) => prev.map((t) => {
-        const pos = finalPositions[t.id]
-        return pos ? { ...t, x: pos.x, y: pos.y } : t
-      }))
-
-      // Mark as recently dropped so this client's listener skips immediate
-      // modified events while our batch write is in flight.
-      const pathId = Date.now().toString()
-      finalTokenIds.forEach((tokenId) => {
-        recentlyDroppedRef.current.add(tokenId)
-        window.setTimeout(() => recentlyDroppedRef.current.delete(tokenId), 3000)
-      })
-
-      try {
-        const batch = writeBatch(db)
-        const dropTime = Date.now() - dragStartTime
-        finalTokenIds.forEach((tokenId) => {
-          const finalPosition = finalPositions[tokenId]
-          if (!finalPosition) return
-          const token = tokens.find((t) => t.id === tokenId)
-          // Don't record path for hidden tokens — other clients should not animate the move.
-          if (token?.hidden) {
-            batch.update(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId), {
-              x: finalPosition.x,
-              y: finalPosition.y,
-              // Clear stale path metadata so unhide cannot replay an old move.
-              path: deleteField(),
-              pathId: deleteField(),
-              updatedAt: serverTimestamp(),
-            })
-            return
-          }
-          // Append the drop point with the real elapsed time so the path covers the
-          // full drag duration, including any slow-down or pause just before release.
-          const path = [...(dragPaths[tokenId] ?? []), { x: finalPosition.x, y: finalPosition.y, t: dropTime }]
-          batch.update(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId), {
-            x: finalPosition.x,
-            y: finalPosition.y,
-            path,
-            pathId,
-            updatedAt: serverTimestamp(),
-          })
-          lastAnimatedPathIdRef.current[tokenId] = pathId
-        })
-        await batch.commit()
-      } catch (error) {
-        handleLiveWriteError(error)
-      }
-
-      if (draggingToken?.party && !draggingToken.hidden) {
-        try {
-          await persistFog()
-        } catch (error) {
-          handleLiveWriteError(error)
-        }
-      }
-
-      tokenTouchDraggingRef.current = false
-    }
-
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', handleUp)
-    window.addEventListener('touchmove', handleTouchMove, { passive: false })
-    window.addEventListener('touchend', handleUp)
-    window.addEventListener('touchcancel', handleUp)
-
-    return () => {
-      if (revealFrameId !== null) {
-        window.cancelAnimationFrame(revealFrameId)
-      }
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', handleUp)
-      window.removeEventListener('touchmove', handleTouchMove)
-      window.removeEventListener('touchend', handleUp)
-      window.removeEventListener('touchcancel', handleUp)
-    }
-    // draw/stamp/persist come from the same component scope and are intentionally captured here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    activeFogCanvasRef,
-    activeVisionCanvasRef,
-    campaignId,
-    draggingTokenId,
-    draggingTokenIds,
-    role,
-    selectedMap,
-    selectedTokenIds,
-    streamingMode,
-    tokens,
-    usingFullScreenCanvas,
-  ])
-
-  useEffect(() => {
-    if (fullScreenOpen || !selectedMap || !inlineFogCanvasRef.current) return
-    if (isMobile && (role === 'gm' ? mobileGmPane !== 'map' : mobilePlayerPane !== 'map')) return
-    if (inlineFogSize.width <= 0 || inlineFogSize.height <= 0) return
-
-    if (loadedInlineCanvasRef.current !== inlineFogCanvasRef.current) {
-      loadedInlineCanvasRef.current = inlineFogCanvasRef.current
-      loadedInlineFogKeyRef.current = ''
-    }
-
-    const key = getFogCacheKey(selectedMap, inlineFogSize.width, inlineFogSize.height)
-    if (loadedInlineFogKeyRef.current === key) return
-
-    // Defer fog canvas update if a token path animation is in progress — avoids
-    // a mid-animation jump when the persisted canvas arrives from Firestore.
-    if (Object.keys(tokenAnimationsRef.current).length > 0) {
-      pendingFogReloadRef.current = true
-      return
-    }
-
-    loadedInlineFogKeyRef.current = key
-    initializeFogCanvas(inlineFogCanvasRef.current, selectedMap, inlineFogSize.width, inlineFogSize.height)
-  }, [
-    fogSampleTick,
-    fullScreenOpen,
-    inlineFogSize.height,
-    inlineFogSize.width,
-    isMobile,
-    mobileGmPane,
-    mobilePlayerPane,
-    role,
-    selectedMap,
-  ])
-
-  useEffect(() => {
-    if (fullScreenOpen || !selectedMap || !inlineVisionCanvasRef.current) return
-    if (isMobile && (role === 'gm' ? mobileGmPane !== 'map' : mobilePlayerPane !== 'map')) return
-    if (inlineFogSize.width <= 0 || inlineFogSize.height <= 0) return
-
-    if (loadedInlineVisionCanvasRef.current !== inlineVisionCanvasRef.current) {
-      loadedInlineVisionCanvasRef.current = inlineVisionCanvasRef.current
-      loadedInlineVisionKeyRef.current = ''
-    }
-
-    const key = `${selectedMap.id}:${selectedMap.visionBlockImagePath || selectedMap.visionBlockImageUrl || selectedMap.visionBlockDataUrl}:${inlineFogSize.width}x${inlineFogSize.height}`
-    if (loadedInlineVisionKeyRef.current === key) return
-
-    loadedInlineVisionKeyRef.current = key
-    initializeVisionCanvas(inlineVisionCanvasRef.current, selectedMap, inlineFogSize.width, inlineFogSize.height)
-  }, [
-    fullScreenOpen,
-    inlineFogSize.height,
-    inlineFogSize.width,
-    isMobile,
-    mobileGmPane,
-    mobilePlayerPane,
-    role,
-    selectedMap,
-  ])
-
-  useEffect(() => {
-    if (!fullScreenOpen || !selectedMap || !fullFogCanvasRef.current) return
-    if (fullFogSize.width <= 0 || fullFogSize.height <= 0) return
-
-    if (loadedFogCanvasRef.current !== fullFogCanvasRef.current) {
-      loadedFogCanvasRef.current = fullFogCanvasRef.current
-      loadedFogKeyRef.current = ''
-    }
-
-    const key = getFogCacheKey(selectedMap, fullFogSize.width, fullFogSize.height)
-    if (loadedFogKeyRef.current === key) return
-
-    // Defer fog canvas update if a token path animation is in progress.
-    if (Object.keys(tokenAnimationsRef.current).length > 0) {
-      pendingFogReloadRef.current = true
-      return
-    }
-
-    loadedFogKeyRef.current = key
-    initializeFogCanvas(fullFogCanvasRef.current, selectedMap, fullFogSize.width, fullFogSize.height)
-  }, [fogSampleTick, fullFogSize.height, fullFogSize.width, fullScreenOpen, selectedMap])
-
-  useEffect(() => {
-    if (!fullScreenOpen || !selectedMap || !fullVisionCanvasRef.current) return
-    if (fullFogSize.width <= 0 || fullFogSize.height <= 0) return
-
-    if (loadedVisionCanvasRef.current !== fullVisionCanvasRef.current) {
-      loadedVisionCanvasRef.current = fullVisionCanvasRef.current
-      loadedVisionKeyRef.current = ''
-    }
-
-    const key = `${selectedMap.id}:${selectedMap.visionBlockImagePath || selectedMap.visionBlockImageUrl || selectedMap.visionBlockDataUrl}:${fullFogSize.width}x${fullFogSize.height}`
-    if (loadedVisionKeyRef.current === key) return
-
-    loadedVisionKeyRef.current = key
-    initializeVisionCanvas(fullVisionCanvasRef.current, selectedMap, fullFogSize.width, fullFogSize.height)
-  }, [fullFogSize.height, fullFogSize.width, fullScreenOpen, selectedMap])
-
-  const handleDrop = async (targetMapId: string) => {
-    if (!draggingMapId || draggingMapId === targetMapId) {
-      setDraggingMapId('')
-      setDragOverMapId('')
-      return
-    }
-
-    const fromIndex = maps.findIndex((map) => map.id === draggingMapId)
-    const toIndex = maps.findIndex((map) => map.id === targetMapId)
-    if (fromIndex < 0 || toIndex < 0) {
-      setDraggingMapId('')
-      setDragOverMapId('')
-      return
-    }
-
-    const ordered = [...maps]
-    const [moved] = ordered.splice(fromIndex, 1)
-    ordered.splice(toIndex, 0, moved)
-
-    try {
-      await persistMapOrder(ordered)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to reorder maps'
-      setMapError(message)
-    } finally {
-      setDraggingMapId('')
-      setDragOverMapId('')
-    }
-  }
 
   return (
     <div className="maps-layout">
@@ -4046,199 +1425,94 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
             .join(' ')}
         >
           {!isMobile || (role === 'gm' ? mobileGmPane === 'map' : mobilePlayerPane === 'map') ? (
-            <div
-              ref={inlineStageRef}
-              className={isMobileZoomMapView ? 'map-stage mobile-player-stage' : 'map-stage'}
-              onWheel={isMobileZoomMapView ? handlePlayerWheel : undefined}
-              onMouseDown={isMobileZoomMapView ? handlePlayerMouseDown : undefined}
-              onMouseMove={isMobileZoomMapView ? handlePlayerMouseMove : undefined}
-              onMouseUp={isMobileZoomMapView ? endPlayerDrag : undefined}
-              onMouseLeave={isMobileZoomMapView ? endPlayerDrag : undefined}
-            >
-              {!isMobile ? (
-                <button type="button" className="map-fullscreen-btn" onClick={openFullScreen}>
-                  <Maximize2 size={15} />
-                  Full Screen
-                </button>
-              ) : null}
-              {selectedMap?.imageUrl ? (
-                <div
-                  ref={inlineMapLayerRef}
-                  className={isMobileZoomMapView ? 'map-zoom-layer mobile-player-zoom' : 'map-zoom-layer'}
-                  onContextMenu={(event) => event.preventDefault()}
-                  onWheel={(event) => handleGridLayerWheel(event, false)}
-                  onMouseDown={(event) => {
-                    if (handleGridLayerMouseDown(event, false)) return
-                    handleMapLayerMouseDown(event)
-                  }}
-                  onMouseMove={(event) => handleGridCalibrateMouseMove(event.clientX, event.clientY)}
-                  onClick={handleMapLayerClick}
-                  onTouchStart={handleMobilePlayerTouchStart}
-                  onTouchMove={handleMobilePlayerTouchMove}
-                  onTouchEnd={handleMobilePlayerTouchEnd}
-                  onTouchCancel={handleMobilePlayerTouchEnd}
-                  style={
-                    isMobileZoomMapView
-                      ? {
-                        transform: `translate(${playerPan.x}px, ${playerPan.y}px) scale(${playerZoom})`,
-                        cursor: playerDragging ? 'grabbing' : playerZoom > 1 ? 'grab' : undefined,
-                      }
-                      : undefined
+            <InlineMapStage
+              stageRef={inlineStageRef}
+              mapLayerRef={inlineMapLayerRef}
+              isMobile={isMobile}
+              stageClassName={isMobileZoomMapView ? 'map-stage mobile-player-stage' : 'map-stage'}
+              selectedMap={selectedMap}
+              mapLayerClassName={isMobileZoomMapView ? 'map-zoom-layer mobile-player-zoom' : 'map-zoom-layer'}
+              mapLayerStyle={
+                isMobileZoomMapView
+                  ? {
+                    transform: `translate(${playerPan.x}px, ${playerPan.y}px) scale(${playerZoom})`,
+                    cursor: playerDragging ? 'grabbing' : playerZoom > 1 ? 'grab' : undefined,
                   }
-                >
-                  <img
-                    src={selectedMap.imageUrl}
-                    alt={selectedMap.name}
-                    className="map-image inline-map-image"
-                    onLoad={(event) => {
-                      const target = event.currentTarget
-                      setInlineBaseSize({
-                        width: Math.max(1, Math.round(target.clientWidth)),
-                        height: Math.max(1, Math.round(target.clientHeight)),
-                      })
-                      const fogScale = Math.min(1, FOG_CANVAS_MAX_DIM / Math.max(target.naturalWidth, target.naturalHeight, 1))
-                      setInlineFogSize({
-                        width: Math.max(1, Math.round(target.naturalWidth * fogScale)),
-                        height: Math.max(1, Math.round(target.naturalHeight * fogScale)),
-                      })
-                      loadedInlineFogKeyRef.current = ''
-                      loadedInlineVisionKeyRef.current = ''
-                    }}
-                  />
-                  {effectiveGridEnabled && effectiveGridVisible ? (
-                    <div
-                      className="map-grid-overlay"
-                      style={{
-                        backgroundSize: `${activeGridCellPx}px ${activeGridCellPx}px`,
-                        backgroundPosition: `${activeGridOffsetPx.x}px ${activeGridOffsetPx.y}px`,
-                      }}
-                    />
-                  ) : null}
-                  {gridAdjustMode && effectiveGridEnabled && effectiveGridVisible ? <div className="map-grid-adjust-overlay" /> : null}
-                  {gridCalibrationLine ? (
-                    <div className={gridCalibratePulse ? 'map-grid-calibration-overlay pulse' : 'map-grid-calibration-overlay'} aria-hidden>
-                      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
-                        <line
-                          x1={gridCalibrationLine.start.x * 100}
-                          y1={gridCalibrationLine.start.y * 100}
-                          x2={gridCalibrationLine.end.x * 100}
-                          y2={gridCalibrationLine.end.y * 100}
-                        />
-                      </svg>
-                      <button
-                        type="button"
-                        className="map-grid-calibration-handle"
-                        style={{ left: `${gridCalibrationLine.start.x * 100}%`, top: `${gridCalibrationLine.start.y * 100}%` }}
-                        onMouseDown={(event) => handleGridCalibrateHandleMouseDown(event, 'start')}
-                        aria-label="Move calibration start point"
-                      />
-                      <button
-                        type="button"
-                        className="map-grid-calibration-handle"
-                        style={{ left: `${gridCalibrationLine.end.x * 100}%`, top: `${gridCalibrationLine.end.y * 100}%` }}
-                        onMouseDown={(event) => handleGridCalibrateHandleMouseDown(event, 'end')}
-                        aria-label="Move calibration end point"
-                      />
-                    </div>
-                  ) : null}
-                  {role !== 'gm' ? (
-                    <div className="map-token-layer under-fog" aria-label="Map tokens under fog">
-                      {tokens.map((token, index) => renderPlayerTokenItem(token, index, 'under-fog'))}
-                    </div>
-                  ) : null}
-                  <canvas
-                    ref={inlineFogCanvasRef}
-                    className={tokenPlaceMode || (!fogTool && !visionTool) ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
-                    width={Math.max(1, inlineFogSize.width)}
-                    height={Math.max(1, inlineFogSize.height)}
-                    style={{ opacity: fogDisplayOpacity }}
-                    onMouseDown={handleFogPointerDown}
-                    onMouseMove={handleFogPointerMove}
-                    onMouseUp={handleFogPointerUp}
-                    onMouseLeave={handleFogPointerUp}
-                    onTouchStart={handleFogTouchStart}
-                    onTouchMove={handleFogTouchMove}
-                    onTouchEnd={handleFogTouchEnd}
-                    onTouchCancel={handleFogTouchEnd}
-                  />
-                  <canvas
-                    ref={inlineVisionCanvasRef}
-                    className="map-vision-canvas"
-                    width={Math.max(1, inlineFogSize.width)}
-                    height={Math.max(1, inlineFogSize.height)}
-                    style={{ opacity: visionOverlayOpacity }}
-                  />
-                  <div className={role === 'gm' ? 'map-token-layer gm' : 'map-token-layer'} aria-hidden={role !== 'gm'}>
-                    {role === 'gm' ? tokens.map(renderTokenItem) : null}
-                  </div>
-                  {role !== 'gm' ? (
-                    <div className="map-token-layer player-over-fog" aria-label="Map party tokens">
-                      {tokens.map((token, index) => renderPlayerTokenItem(token, index, 'over-fog'))}
-                    </div>
-                  ) : null}
-                  {role === 'gm' && tokenSelectionBox && selectionRectStyle ? (
-                    <div className="map-token-selection-box" style={selectionRectStyle} />
-                  ) : null}
-                  {role === 'gm' && !streamingMode ? (
-                    <div className="map-annotation-layer" aria-label="Map annotations">
-                      {annotations.map((annotation) => (
-                        <div
-                          key={annotation.id}
-                          className={activeAnnotationId === annotation.id ? 'map-annotation active' : 'map-annotation'}
-                          style={{ left: `${annotation.x * 100}%`, top: `${annotation.y * 100}%` }}
-                        >
-                          <button
-                            type="button"
-                            className={activeAnnotationId === annotation.id ? 'map-annotation-btn active' : 'map-annotation-btn'}
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              if (activeAnnotationId === annotation.id) {
-                                void commitActiveAnnotation()
-                                setActiveAnnotationId('')
-                                return
-                              }
-                              setActiveAnnotationId(annotation.id)
-                              setActiveAnnotationDraft(annotation.text)
-                            }}
-                            aria-label="Map annotation"
-                          >
-                            <Flag size={14} />
-                          </button>
-                          {activeAnnotationId === annotation.id ? (
-                            <div className="map-annotation-popover" onClick={(event) => event.stopPropagation()}>
-                              <textarea
-                                value={activeAnnotationDraft}
-                                onChange={(event) => {
-                                  setActiveAnnotationDraft(event.target.value)
-                                  autosizeAnnotationTextarea(event.currentTarget)
-                                }}
-                                onBlur={() => {
-                                  void commitActiveAnnotation()
-                                }}
-                                ref={autosizeAnnotationTextarea}
-                                placeholder="GM note"
-                                rows={4}
-                              />
-                              <button
-                                type="button"
-                                className="map-annotation-delete"
-                                onClick={() => void deleteAnnotation(annotation.id)}
-                                aria-label="Delete annotation"
-                                title="Delete annotation"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <p>Select a map from the list.</p>
-              )}
-            </div>
+                  : undefined
+              }
+              onOpenFullscreen={openFullScreen}
+              onImageLoad={handleInlineImageLoad}
+              onStageWheel={isMobileZoomMapView ? handlePlayerWheel : undefined}
+              onStageMouseDown={isMobileZoomMapView ? handlePlayerMouseDown : undefined}
+              onStageMouseMove={isMobileZoomMapView ? handlePlayerMouseMove : undefined}
+              onStageMouseUp={isMobileZoomMapView ? endPlayerDrag : undefined}
+              onStageMouseLeave={isMobileZoomMapView ? endPlayerDrag : undefined}
+              onMapLayerContextMenu={(event) => event.preventDefault()}
+              onMapLayerWheel={(event) => handleGridLayerWheel(event, false)}
+              onMapLayerMouseDown={(event) => {
+                if (handleGridLayerMouseDown(event, false)) return
+                handleMapLayerMouseDown(event)
+              }}
+              onMapLayerMouseMove={(event) => handleGridCalibrateMouseMove(event.clientX, event.clientY)}
+              onMapLayerClick={handleMapLayerClick}
+              onMapLayerTouchStart={handleMobilePlayerTouchStart}
+              onMapLayerTouchMove={handleMobilePlayerTouchMove}
+              onMapLayerTouchEnd={handleMobilePlayerTouchEnd}
+              onMapLayerTouchCancel={handleMobilePlayerTouchEnd}
+            >
+              {renderMapGridOverlay(false)}
+              {gridAdjustMode && effectiveGridEnabled && effectiveGridVisible ? <div className="map-grid-adjust-overlay" /> : null}
+              {calibrationOverlayNode}
+              {role !== 'gm' ? (
+                <TokenLayer
+                  className="map-token-layer under-fog"
+                  ariaLabel="Map tokens under fog"
+                  tokens={tokens}
+                  renderToken={(token, index) => renderPlayerTokenItem(token, index, 'under-fog')}
+                />
+              ) : null}
+              <canvas
+                ref={inlineFogCanvasRef}
+                className={tokenPlaceMode || (!fogTool && !visionTool) ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
+                width={Math.max(1, inlineFogSize.width)}
+                height={Math.max(1, inlineFogSize.height)}
+                style={{ opacity: fogDisplayOpacity }}
+                onMouseDown={handleFogPointerDown}
+                onMouseMove={handleFogPointerMove}
+                onMouseUp={handleFogPointerUp}
+                onMouseLeave={handleFogPointerUp}
+                onTouchStart={handleFogTouchStart}
+                onTouchMove={handleFogTouchMove}
+                onTouchEnd={handleFogTouchEnd}
+                onTouchCancel={handleFogTouchEnd}
+              />
+              <canvas
+                ref={inlineVisionCanvasRef}
+                className="map-vision-canvas"
+                width={Math.max(1, inlineFogSize.width)}
+                height={Math.max(1, inlineFogSize.height)}
+                style={{ opacity: visionOverlayOpacity }}
+              />
+              {role === 'gm' ? (
+                <TokenLayer
+                  className="map-token-layer gm"
+                  tokens={tokens}
+                  renderToken={renderTokenItem}
+                />
+              ) : null}
+              {role !== 'gm' ? (
+                <TokenLayer
+                  className="map-token-layer player-over-fog"
+                  ariaLabel="Map party tokens"
+                  tokens={tokens}
+                  renderToken={(token, index) => renderPlayerTokenItem(token, index, 'over-fog')}
+                />
+              ) : null}
+              {role === 'gm' && tokenSelectionBox && selectionRectStyle ? (
+                <div className="map-token-selection-box" style={selectionRectStyle} />
+              ) : null}
+              {annotationLayerNode}
+            </InlineMapStage>
           ) : null}
 
           {role === 'gm' && (!isMobile || mobileGmPane === 'controls') ? (
@@ -4271,10 +1545,13 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 streamingMode={streamingMode}
                 setStreamingMode={setStreamingMode}
                 gridVisible={effectiveGridVisible}
+                gridType={effectiveGridType}
                 gridAdjustMode={gridAdjustMode}
-                onToggleGrid={toggleGridAdjustMode}
                 onToggleGridVisible={() => void toggleGridVisibility()}
+                onSetGridType={setGridType}
                 onApplyGrid={applyGridAdjust}
+                hexDetecting={hexDetecting}
+                hexDetectConfidence={hexDetectConfidence}
                 gridAdjustReady={gridAdjustReady}
                 gridAdjustSaved={Boolean(gridAdjustSavedAt)}
                 gridCalibrateMode={gridCalibrateMode}
@@ -4394,280 +1671,81 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       ) : null}
 
       {fullScreenOpen && !isMobile ? (
-        <div className="map-fullscreen-overlay" role="dialog" aria-modal="true">
-          <div className="map-fullscreen-shell">
-            <div
-              ref={fullStageRef}
-              className={fullDragging ? 'map-fullscreen-stage dragging' : 'map-fullscreen-stage'}
-              onWheel={handleFullWheel}
-              onMouseDown={handleFullMouseDown}
-              onAuxClick={(event) => {
-                if (event.button === 1) event.preventDefault()
-              }}
-              onMouseMove={handleFullMouseMove}
-              onMouseUp={endFullDrag}
-              onMouseLeave={endFullDrag}
-            >
-              <button
-                type="button"
-                className="map-fullscreen-close"
-                onClick={closeFullScreen}
-                aria-label="Close full screen map"
-              >
-                <X size={16} />
-              </button>
-
-              {selectedMap?.imageUrl ? (
-                <div
-                  className="map-zoom-layer"
-                  ref={fullMapLayerRef}
-                  onWheel={(event) => handleGridLayerWheel(event, true)}
-                  onMouseDown={(event) => {
-                    if (handleGridLayerMouseDown(event, true)) return
-                    handleMapLayerMouseDown(event)
-                  }}
-                  onMouseMove={(event) => handleGridCalibrateMouseMove(event.clientX, event.clientY)}
-                  onClick={handleMapLayerClick}
-                  style={{
-                    transform: `translate(${fullPan.x}px, ${fullPan.y}px) scale(${fullZoom})`,
-                  }}
-                >
-                  <img
-                    src={selectedMap.imageUrl}
-                    alt={selectedMap.name}
-                    className="map-image zoomable"
-                    draggable={false}
-                    onLoad={(event) => {
-                      const target = event.currentTarget
-                      setFullBaseSize({
-                        width: Math.max(1, Math.round(target.clientWidth)),
-                        height: Math.max(1, Math.round(target.clientHeight)),
-                      })
-                      const fogScale = Math.min(1, FOG_CANVAS_MAX_DIM / Math.max(target.naturalWidth, target.naturalHeight, 1))
-                      setFullFogSize({
-                        width: Math.max(1, Math.round(target.naturalWidth * fogScale)),
-                        height: Math.max(1, Math.round(target.naturalHeight * fogScale)),
-                      })
-                      loadedVisionKeyRef.current = ''
-                    }}
-                  />
-                  {effectiveGridEnabled && effectiveGridVisible ? (
-                    <div
-                      className="map-grid-overlay"
-                      style={{
-                        backgroundSize: `${activeGridCellPx}px ${activeGridCellPx}px`,
-                        backgroundPosition: `${activeGridOffsetPx.x}px ${activeGridOffsetPx.y}px`,
-                      }}
-                    />
-                  ) : null}
-                  {gridAdjustMode && effectiveGridEnabled && effectiveGridVisible ? <div className="map-grid-adjust-overlay" /> : null}
-                  {gridCalibrationLine ? (
-                    <div className={gridCalibratePulse ? 'map-grid-calibration-overlay pulse' : 'map-grid-calibration-overlay'} aria-hidden>
-                      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
-                        <line
-                          x1={gridCalibrationLine.start.x * 100}
-                          y1={gridCalibrationLine.start.y * 100}
-                          x2={gridCalibrationLine.end.x * 100}
-                          y2={gridCalibrationLine.end.y * 100}
-                        />
-                      </svg>
-                      <button
-                        type="button"
-                        className="map-grid-calibration-handle"
-                        style={{ left: `${gridCalibrationLine.start.x * 100}%`, top: `${gridCalibrationLine.start.y * 100}%` }}
-                        onMouseDown={(event) => handleGridCalibrateHandleMouseDown(event, 'start')}
-                        aria-label="Move calibration start point"
-                      />
-                      <button
-                        type="button"
-                        className="map-grid-calibration-handle"
-                        style={{ left: `${gridCalibrationLine.end.x * 100}%`, top: `${gridCalibrationLine.end.y * 100}%` }}
-                        onMouseDown={(event) => handleGridCalibrateHandleMouseDown(event, 'end')}
-                        aria-label="Move calibration end point"
-                      />
-                    </div>
-                  ) : null}
-                  {role !== 'gm' ? (
-                    <div className="map-token-layer under-fog" aria-label="Map tokens under fog">
-                      {tokens.map((token, index) => renderPlayerTokenItem(token, index, 'under-fog'))}
-                    </div>
-                  ) : null}
-                  <canvas
-                    ref={fullFogCanvasRef}
-                    className={tokenPlaceMode || (!fogTool && !visionTool) ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
-                    width={Math.max(1, fullFogSize.width)}
-                    height={Math.max(1, fullFogSize.height)}
-                    style={{ opacity: fogDisplayOpacity }}
-                    onMouseDown={handleFogPointerDown}
-                    onMouseMove={handleFogPointerMove}
-                    onMouseUp={handleFogPointerUp}
-                    onMouseLeave={handleFogPointerUp}
-                  />
-                  <canvas
-                    ref={fullVisionCanvasRef}
-                    className="map-vision-canvas"
-                    width={Math.max(1, fullFogSize.width)}
-                    height={Math.max(1, fullFogSize.height)}
-                    style={{ opacity: visionOverlayOpacity }}
-                  />
-                  <div className={role === 'gm' ? 'map-token-layer gm' : 'map-token-layer'} aria-label="Map tokens">
-                    {role === 'gm' ? tokens.map(renderTokenItem) : null}
-                  </div>
-                  {role !== 'gm' ? (
-                    <div className="map-token-layer player-over-fog" aria-label="Map party tokens">
-                      {tokens.map((token, index) => renderPlayerTokenItem(token, index, 'over-fog'))}
-                    </div>
-                  ) : null}
-                  {role === 'gm' && tokenSelectionBox && selectionRectStyle ? (
-                    <div className="map-token-selection-box" style={selectionRectStyle} />
-                  ) : null}
-                  {role === 'gm' && !streamingMode ? (
-                    <div className="map-annotation-layer" aria-label="Map annotations">
-                      {annotations.map((annotation) => (
-                        <div
-                          key={annotation.id}
-                          className={activeAnnotationId === annotation.id ? 'map-annotation active' : 'map-annotation'}
-                          style={{ left: `${annotation.x * 100}%`, top: `${annotation.y * 100}%` }}
-                        >
-                          <button
-                            type="button"
-                            className={activeAnnotationId === annotation.id ? 'map-annotation-btn active' : 'map-annotation-btn'}
-                            onClick={(event) => {
-                              event.stopPropagation()
-                              if (activeAnnotationId === annotation.id) {
-                                void commitActiveAnnotation()
-                                setActiveAnnotationId('')
-                                return
-                              }
-                              setActiveAnnotationId(annotation.id)
-                              setActiveAnnotationDraft(annotation.text)
-                            }}
-                            aria-label="Map annotation"
-                          >
-                            <Flag size={14} />
-                          </button>
-                          {activeAnnotationId === annotation.id ? (
-                            <div className="map-annotation-popover" onClick={(event) => event.stopPropagation()}>
-                              <textarea
-                                value={activeAnnotationDraft}
-                                onChange={(event) => {
-                                  setActiveAnnotationDraft(event.target.value)
-                                  autosizeAnnotationTextarea(event.currentTarget)
-                                }}
-                                onBlur={() => {
-                                  void commitActiveAnnotation()
-                                }}
-                                ref={autosizeAnnotationTextarea}
-                                placeholder="GM note"
-                                rows={4}
-                              />
-                              <button
-                                type="button"
-                                className="map-annotation-delete"
-                                onClick={() => void deleteAnnotation(annotation.id)}
-                                aria-label="Delete annotation"
-                                title="Delete annotation"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ) : (
-                <p>Select a map from the list.</p>
-              )}
-            </div>
-
-            {role === 'gm' ? null : (
-              <aside className="map-fullscreen-controls">
-                <PlayerMapControls dark cameraLock={cameraLock} onToggleCameraLock={toggleCameraLock} />
-              </aside>
-            )}
-
-            {role === 'gm' ? (
-              <aside className="map-fullscreen-controls">
-                <GmMapControls
-                  dark
-                  fogTool={fogTool}
-                  setFogTool={setFogTool}
-                  visionTool={visionTool}
-                  setVisionTool={setVisionTool}
-                  fogBrushSize={fogBrushSize}
-                  setFogBrushSize={setFogBrushSize}
-                  tokenPlaceMode={tokenPlaceMode}
-                  setTokenPlaceMode={setTokenPlaceMode}
-                  tokenSelectMode={tokenSelectMode}
-                  setTokenSelectMode={setTokenSelectMode}
-                  annotationPlaceMode={annotationPlaceMode}
-                  setAnnotationPlaceMode={setAnnotationPlaceMode}
-                  tokenColor={tokenColor}
-                  setTokenColor={setTokenColor}
-                  tokenSize={tokenSize}
-                  setTokenSize={setTokenSize}
-                  tokenAssets={tokenAssets}
-                  selectedTokenAssetId={selectedTokenAssetId}
-                  setSelectedTokenAssetId={setSelectedTokenAssetId}
-                  selectedTokenImageUrl={selectedTokenAsset?.imageUrl ?? ''}
-                  uploadingTokenImage={uploadingTokenImage}
-                  onUploadTokenImage={uploadTokenImage}
-                  onArchiveTokenAsset={archiveTokenAsset}
-                  onRequestDeleteTokenAsset={requestDeleteTokenAsset}
-                  streamingMode={streamingMode}
-                  setStreamingMode={setStreamingMode}
-                  gridVisible={effectiveGridVisible}
-                  gridAdjustMode={gridAdjustMode}
-                  onToggleGrid={toggleGridAdjustMode}
-                  onToggleGridVisible={() => void toggleGridVisibility()}
-                  onApplyGrid={applyGridAdjust}
-                  gridAdjustReady={gridAdjustReady}
-                  gridAdjustSaved={Boolean(gridAdjustSavedAt)}
-                  gridCalibrateMode={gridCalibrateMode}
-                  onToggleGridCalibrate={toggleGridCalibrateMode}
-                  gridCalibrateReady={Boolean(gridCalibrateStart && gridCalibrateEnd)}
-                  gridCalibrateSaved={Boolean(gridCalibrateSavedAt)}
-                  onApplyGridCalibration={() => void applyGridCalibration().catch((error) => {
-                    const message = error instanceof Error ? error.message : 'Failed to save grid calibration'
-                    setMapError(message)
-                  })}
-                  distanceTrackerFeet={distanceTrackerFeet}
-                  distanceTrackerMode={distanceTrackerMode}
-                  distanceTrackerRoll={distanceTrackerRoll}
-                  onResetDistanceTracker={resetDistanceTracker}
-                  applyFogPreset={applyFogPreset}
-                  canApplyPreset={Boolean(selectedMap)}
-                  fullyHidden={selectedMap?.fullyHidden === true}
-                  tokens={tokens}
-                  selectedTokenIds={selectedTokenIds}
-                  onSelectTokenCard={(tokenId) => setSelectedTokenIds([tokenId])}
-                  onUpdateToken={updateToken}
-                  onUpdateTokenSize={async (tokenId, size) => {
-                    const sizeScale = size / TOKEN_REFERENCE_DIMENSION
-                    setTokens((prev) =>
-                      prev.map((token) => (token.id === tokenId ? { ...token, size, sizeScale } : token)),
-                    )
-                    await updateToken(tokenId, { size, sizeScale })
-                  }}
-                  onUpdateTokenViewDistance={async (tokenId, viewDistance) => {
-                    const viewDistanceScale = viewDistance / TOKEN_REFERENCE_DIMENSION
-                    setTokens((prev) =>
-                      prev.map((token) =>
-                        token.id === tokenId ? { ...token, viewDistance, viewDistanceScale } : token,
-                      ),
-                    )
-                    await updateToken(tokenId, { viewDistance, viewDistanceScale })
-                  }}
-                  tokenViewDistanceSliderValue={tokenViewDistanceSliderValue}
-                  onRequestDeleteToken={requestDeleteToken}
-                  mapMonsters={mapMonsters}
-                />
-              </aside>
-            ) : null}
-          </div>
-        </div>
+        <FullscreenMapStage
+          stageRef={fullStageRef}
+          mapLayerRef={fullMapLayerRef}
+          selectedMap={selectedMap}
+          fullDragging={fullDragging}
+          mapLayerStyle={{ transform: `translate(${fullPan.x}px, ${fullPan.y}px) scale(${fullZoom})` }}
+          onClose={closeFullScreen}
+          onImageLoad={handleFullImageLoad}
+          onStageWheel={handleFullWheel}
+          onStageMouseDown={handleFullMouseDown}
+          onStageAuxClick={(event) => {
+            if (event.button === 1) event.preventDefault()
+          }}
+          onStageMouseMove={handleFullMouseMove}
+          onStageMouseUp={endFullDrag}
+          onStageMouseLeave={endFullDrag}
+          onMapLayerWheel={(event) => handleGridLayerWheel(event, true)}
+          onMapLayerMouseDown={(event) => {
+            if (handleGridLayerMouseDown(event, true)) return
+            handleMapLayerMouseDown(event)
+          }}
+          onMapLayerMouseMove={(event) => handleGridCalibrateMouseMove(event.clientX, event.clientY)}
+          onMapLayerClick={handleMapLayerClick}
+          controlsNode={fullscreenControlsNode}
+        >
+          {renderMapGridOverlay(true)}
+          {gridAdjustMode && effectiveGridEnabled && effectiveGridVisible ? <div className="map-grid-adjust-overlay" /> : null}
+          {calibrationOverlayNode}
+          {role !== 'gm' ? (
+            <TokenLayer
+              className="map-token-layer under-fog"
+              ariaLabel="Map tokens under fog"
+              tokens={tokens}
+              renderToken={(token, index) => renderPlayerTokenItem(token, index, 'under-fog')}
+            />
+          ) : null}
+          <canvas
+            ref={fullFogCanvasRef}
+            className={tokenPlaceMode || (!fogTool && !visionTool) ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
+            width={Math.max(1, fullFogSize.width)}
+            height={Math.max(1, fullFogSize.height)}
+            style={{ opacity: fogDisplayOpacity }}
+            onMouseDown={handleFogPointerDown}
+            onMouseMove={handleFogPointerMove}
+            onMouseUp={handleFogPointerUp}
+            onMouseLeave={handleFogPointerUp}
+          />
+          <canvas
+            ref={fullVisionCanvasRef}
+            className="map-vision-canvas"
+            width={Math.max(1, fullFogSize.width)}
+            height={Math.max(1, fullFogSize.height)}
+            style={{ opacity: visionOverlayOpacity }}
+          />
+          {role === 'gm' ? (
+            <TokenLayer
+              className="map-token-layer gm"
+              ariaLabel="Map tokens"
+              tokens={tokens}
+              renderToken={renderTokenItem}
+            />
+          ) : null}
+          {role !== 'gm' ? (
+            <TokenLayer
+              className="map-token-layer player-over-fog"
+              ariaLabel="Map party tokens"
+              tokens={tokens}
+              renderToken={(token, index) => renderPlayerTokenItem(token, index, 'over-fog')}
+            />
+          ) : null}
+          {role === 'gm' && tokenSelectionBox && selectionRectStyle ? (
+            <div className="map-token-selection-box" style={selectionRectStyle} />
+          ) : null}
+          {annotationLayerNode}
+        </FullscreenMapStage>
       ) : null}
 
       {tokenImageDraft ? (
@@ -4770,76 +1848,13 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
             <p>Encounter checks: {encounterNotice.checks} at every {ENCOUNTER_CHECK_DISTANCE_FEET * ENCOUNTER_CHECK_TURNS}&apos;.</p>
             <p>Test chance: 1 in 6. Rolls: {encounterNotice.rolls.join(', ')}.</p>
             <div className="encounter-modal-actions">
-              <button type="button" onClick={() => setEncounterNotice(null)}>
+              <button type="button" onClick={dismissEncounterNotice}>
                 Continue
               </button>
             </div>
           </div>
         </div>
       ) : null}
-    </div>
-  )
-}
-
-function PlayerMapControls({
-  cameraLock,
-  onToggleCameraLock,
-  dark = false,
-}: {
-  cameraLock: boolean
-  onToggleCameraLock: () => void
-  dark?: boolean
-}) {
-  return (
-    <div className={dark ? 'map-controls-body dark' : 'map-controls-body'}>
-      <div className="map-icon-grid">
-        <button
-          type="button"
-          className={cameraLock ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
-          onClick={onToggleCameraLock}
-          data-tooltip="Camera lock"
-          aria-label="Toggle camera lock"
-        >
-          <Crosshair size={16} />
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function ModeConfirmAction({
-  saved,
-  label,
-  onApply,
-  ariaLabel,
-  disabled = false,
-}: {
-  saved: boolean
-  label: string
-  onApply: () => void
-  ariaLabel: string
-  disabled?: boolean
-}) {
-  return (
-    <div className="map-grid-calibration-actions">
-      {saved ? (
-        <span className="map-grid-calibration-saved" aria-live="polite">
-          Success!
-        </span>
-      ) : (
-        <>
-          <span className="map-grid-calibration-apply-label">{label}</span>
-          <button
-            type="button"
-            className="map-grid-calibration-action-btn"
-            disabled={disabled}
-            onClick={onApply}
-            aria-label={ariaLabel}
-          >
-            <Check size={14} />
-          </button>
-        </>
-      )}
     </div>
   )
 }
@@ -4873,10 +1888,13 @@ function GmMapControls({
   streamingMode,
   setStreamingMode,
   gridVisible,
+  gridType,
   gridAdjustMode,
-  onToggleGrid,
   onToggleGridVisible,
+  onSetGridType,
   onApplyGrid,
+  hexDetecting,
+  hexDetectConfidence,
   gridAdjustReady,
   gridAdjustSaved,
   gridCalibrateMode,
@@ -4929,10 +1947,13 @@ function GmMapControls({
   streamingMode: boolean
   setStreamingMode: (value: boolean) => void
   gridVisible: boolean
+  gridType: 'square' | 'hex-pointy' | 'hex-flat'
   gridAdjustMode: boolean
-  onToggleGrid: () => void
   onToggleGridVisible: () => void
+  onSetGridType: (gridType: 'square' | 'hex-pointy' | 'hex-flat') => void
   onApplyGrid: () => void
+  hexDetecting: boolean
+  hexDetectConfidence: number | null
   gridAdjustReady: boolean
   gridAdjustSaved: boolean
   gridCalibrateMode: boolean
@@ -5141,12 +2162,40 @@ function GmMapControls({
         </button>
         <button
           type="button"
-          className={gridAdjustMode ? 'map-icon-btn map-grid-btn fast-tooltip fast-tooltip-right active' : 'map-icon-btn map-grid-btn fast-tooltip fast-tooltip-right'}
-          onClick={onToggleGrid}
-          aria-label="Toggle grid adjustment mode"
-          data-tooltip={gridAdjustMode ? 'Cancel grid' : 'Grid overlay'}
+          className={
+            gridAdjustMode && gridType === 'square'
+              ? 'map-icon-btn map-grid-btn fast-tooltip fast-tooltip-right active'
+              : 'map-icon-btn map-grid-btn fast-tooltip fast-tooltip-right'
+          }
+          onClick={() => onSetGridType('square')}
+          aria-label="Square grid overlay"
+          data-tooltip={gridAdjustMode && gridType === 'square' ? 'Cancel square grid' : 'Square grid'}
         >
           <Grid3X3 size={16} />
+        </button>
+        <button
+          type="button"
+          className={gridType === 'hex-pointy'
+            ? 'map-icon-btn map-hex-pointy-btn fast-tooltip fast-tooltip-right active'
+            : 'map-icon-btn map-hex-pointy-btn fast-tooltip fast-tooltip-right'}
+          onClick={() => onSetGridType('hex-pointy')}
+          disabled={hexDetecting}
+          aria-label="Hex grid pointy-top orientation"
+          data-tooltip={hexDetecting ? 'Detecting hex...' : 'Hex grid: pointy-top'}
+        >
+          {hexDetecting ? <LoaderCircle size={16} className="map-icon-spin" /> : <Hexagon size={16} />}
+        </button>
+        <button
+          type="button"
+          className={gridType === 'hex-flat'
+            ? 'map-icon-btn map-hex-flat-btn fast-tooltip fast-tooltip-right active'
+            : 'map-icon-btn map-hex-flat-btn fast-tooltip fast-tooltip-right'}
+          onClick={() => onSetGridType('hex-flat')}
+          disabled={hexDetecting}
+          aria-label="Hex grid flat-top orientation"
+          data-tooltip={hexDetecting ? 'Detecting hex...' : 'Hex grid: flat-top'}
+        >
+          {hexDetecting ? <LoaderCircle size={16} className="map-icon-spin" /> : <Hexagon size={16} className="map-hex-flat-icon" />}
         </button>
         <button
           type="button"
@@ -5193,6 +2242,11 @@ function GmMapControls({
       {gridAdjustMode ? (
         <div className="map-grid-adjust-panel">
           <p className="map-grid-adjust-hint">Adjusting grid: mouse wheel scales, drag pans alignment.</p>
+          {hexDetectConfidence !== null ? (
+            <p className="map-grid-adjust-hint">
+              Hex detect confidence: {Math.round(hexDetectConfidence * 100)}%.
+            </p>
+          ) : null}
           <ModeConfirmAction
             saved={gridAdjustSaved}
             label="Apply grid"

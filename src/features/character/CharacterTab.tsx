@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import type { TouchEventHandler } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ChevronLeft, UserRound } from 'lucide-react'
 import type { CharacterRecord, Role } from '../../types/app'
 
 type CharacterTabProps = {
@@ -59,6 +58,17 @@ const mockCharacters: CharacterRecord[] = [
   },
 ]
 
+const sheetSectionPlaceholders = [
+  'Identity',
+  'Ability Scores',
+  'Combat',
+  'Saving Throws',
+  'Equipment',
+  'Spells',
+  'Thief Skills',
+  'Notes',
+]
+
 export function CharacterTab({
   role,
   characters,
@@ -67,161 +77,140 @@ export function CharacterTab({
   setSelectedCharacterId,
   selectedCharacter,
 }: CharacterTabProps) {
-  const [view, setView] = useState<'list' | 'sheet'>('list')
-  const [pageStart, setPageStart] = useState(0)
-  const [pagesPerView, setPagesPerView] = useState(1)
-  const touchStartX = useRef<number | null>(null)
-  const touchStartY = useRef<number | null>(null)
+  const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= 900)
+  const [mobileCharacterView, setMobileCharacterView] = useState<'list' | 'detail'>('list')
+
   const displayCharacters = characters.length > 0 ? characters : mockCharacters
+  const sortedCharacters = useMemo(
+    () => [...displayCharacters].sort((a, b) => a.name.localeCompare(b.name)),
+    [displayCharacters],
+  )
+
   const effectiveSelected =
-    selectedCharacter ?? displayCharacters.find((character) => character.id === selectedCharacterId) ?? null
-  const sheetPages = ['Core', 'Combat', 'Inventory', 'Spells & Notes']
-  const maxStart = Math.max(0, sheetPages.length - pagesPerView)
-  const clampedPageStart = Math.min(pageStart, maxStart)
-  const visiblePages = sheetPages.slice(clampedPageStart, clampedPageStart + pagesPerView)
+    selectedCharacter ?? sortedCharacters.find((character) => character.id === selectedCharacterId) ?? null
 
   useEffect(() => {
-    const setResponsivePages = () => {
-      if (window.innerWidth >= 1100) {
-        setPagesPerView(2)
-      } else {
-        setPagesPerView(1)
-      }
+    const updateMobileState = () => {
+      const mobile = window.innerWidth <= 900
+      setIsMobile(mobile)
+      if (!mobile) setMobileCharacterView('list')
     }
 
-    setResponsivePages()
-    window.addEventListener('resize', setResponsivePages)
-    return () => window.removeEventListener('resize', setResponsivePages)
+    updateMobileState()
+    window.addEventListener('resize', updateMobileState)
+    return () => window.removeEventListener('resize', updateMobileState)
   }, [])
 
-  const openCharacterSheet = (character: CharacterRecord) => {
-    setSelectedCharacterId(character.id)
-    setPageStart(0)
-    setView('sheet')
-  }
-
-  const goPrevPages = () => {
-    setPageStart((current) => Math.max(0, Math.min(current, maxStart) - pagesPerView))
-  }
-
-  const goNextPages = () => {
-    setPageStart((current) => Math.min(maxStart, Math.min(current, maxStart) + pagesPerView))
-  }
-
-  const handleTouchStart: TouchEventHandler<HTMLDivElement> = (event) => {
-    const touch = event.changedTouches[0]
-    touchStartX.current = touch.clientX
-    touchStartY.current = touch.clientY
-  }
-
-  const handleTouchEnd: TouchEventHandler<HTMLDivElement> = (event) => {
-    if (touchStartX.current === null || touchStartY.current === null) return
-
-    const touch = event.changedTouches[0]
-    const dx = touch.clientX - touchStartX.current
-    const dy = touch.clientY - touchStartY.current
-
-    touchStartX.current = null
-    touchStartY.current = null
-
-    if (Math.abs(dx) < 44 || Math.abs(dx) <= Math.abs(dy)) return
-
-    if (dx < 0 && clampedPageStart < maxStart) {
-      goNextPages()
-    } else if (dx > 0 && clampedPageStart > 0) {
-      goPrevPages()
+  useEffect(() => {
+    if (sortedCharacters.length === 0) return
+    if (!effectiveSelected) {
+      setSelectedCharacterId(sortedCharacters[0].id)
     }
-  }
+  }, [effectiveSelected, setSelectedCharacterId, sortedCharacters])
+
+  const showListPane = !isMobile || mobileCharacterView === 'list'
+  const showDetailPane = !isMobile || mobileCharacterView === 'detail'
 
   return (
-    <div className="stack-tight">
-      <h2>Character</h2>
-
-      {charactersLoading ? <p>Loading characters...</p> : null}
-
-      {!charactersLoading && characters.length === 0 ? (
-        <p>Using temporary mock character cards for flow testing.</p>
-      ) : null}
-
-      {view === 'list' ? (
-        <div className="character-card-grid">
-          {displayCharacters.map((character) => (
-            <button
-              key={character.id}
-              type="button"
-              className="character-card"
-              onClick={() => openCharacterSheet(character)}
-            >
-              <h3>{character.name}</h3>
-              <p>
-                {character.className} • Level {character.level}
-              </p>
-              <p>
-                HP {character.hpCurrent}/{character.hpMax} • AC {character.ac}
-              </p>
-              <p>XP {character.xp.toLocaleString()}</p>
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      {view === 'sheet' && effectiveSelected ? (
-        <div className="stack-tight">
-          <button type="button" className="back-link" onClick={() => setView('list')}>
-            <ChevronLeft size={16} />
-          </button>
-
-          <h3>{effectiveSelected.name}</h3>
-          <div className="info-grid">
-            <p>
-              <strong>Class:</strong> {effectiveSelected.className}
-            </p>
-            <p>
-              <strong>Level:</strong> {effectiveSelected.level}
-            </p>
-            <p>
-              <strong>HP:</strong> {effectiveSelected.hpCurrent}/{effectiveSelected.hpMax}
-            </p>
-            <p>
-              <strong>AC:</strong> {effectiveSelected.ac}
-            </p>
-            <p>
-              <strong>XP:</strong> {effectiveSelected.xp.toLocaleString()}
-            </p>
-            <p>
-              <strong>View Mode:</strong> {role === 'gm' ? 'GM' : 'Player'}
-            </p>
+    <div className="maps-layout monsters-layout characters-layout">
+      {showListPane ? (
+        <aside className="maps-sidebar monsters-sidebar characters-sidebar">
+          <div className="maps-sidebar-header">
+            <h2>{role === 'gm' ? 'Characters' : 'Character'}</h2>
           </div>
 
-          <div className="sheet-pages" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-            {visiblePages.map((pageName, index) => (
-              <article key={`${pageName}-${index}`} className="sheet-page">
-                <h4>Sheet Page {clampedPageStart + index + 1}</h4>
-                <p>{pageName}</p>
-                <p>Placeholder layout block for full sheet page flow.</p>
-              </article>
+          {charactersLoading ? <p>Loading characters...</p> : null}
+
+          {!charactersLoading && characters.length === 0 ? (
+            <p>Using temporary mock character cards for flow testing.</p>
+          ) : null}
+
+          {sortedCharacters.length === 0 ? <p>No characters available.</p> : null}
+
+          <div className="monster-list-grid character-list-grid">
+            {sortedCharacters.map((character) => (
+              <button
+                key={character.id}
+                type="button"
+                className={character.id === effectiveSelected?.id ? 'monster-list-item active' : 'monster-list-item'}
+                onClick={() => {
+                  setSelectedCharacterId(character.id)
+                  if (isMobile) setMobileCharacterView('detail')
+                }}
+              >
+                <div className="monster-card-portrait">
+                  <div className="monster-portrait-empty small">
+                    <UserRound size={14} />
+                  </div>
+                </div>
+
+                <div className="monster-card-main">
+                  <h4>{character.name || 'Unnamed Character'}</h4>
+                  <p className="monster-card-statline">
+                    {character.className} • Level {character.level} • HP {character.hpCurrent}/{character.hpMax}
+                  </p>
+                  <p>AC {character.ac} • XP {character.xp.toLocaleString()}</p>
+                </div>
+              </button>
             ))}
           </div>
+        </aside>
+      ) : null}
 
-          <div className="sheet-nav">
-            <button
-              type="button"
-              className="sheet-nav-btn"
-              onClick={goPrevPages}
-              disabled={clampedPageStart === 0}
-              aria-label="Previous sheet pages"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              type="button"
-              className="sheet-nav-btn"
-              onClick={goNextPages}
-              disabled={clampedPageStart >= maxStart}
-              aria-label="Next sheet pages"
-            >
-              <ChevronRight size={16} />
-            </button>
+      {showDetailPane ? (
+        <div className="monsters-detail characters-detail">
+          <div className="monsters-detail-inner characters-detail-inner">
+            <div className="monster-detail-header-row">
+              {isMobile && effectiveSelected ? (
+                <button
+                  type="button"
+                  className="back-link monster-mobile-back"
+                  onClick={() => setMobileCharacterView('list')}
+                  aria-label="Back to character list"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+              ) : <span />}
+            </div>
+
+            {!effectiveSelected ? (
+              <p>Select a character from the list.</p>
+            ) : (
+              <div className="monster-editor-grid character-editor-grid">
+                <section className="character-top-summary">
+                  <h3 className="monster-section-title">Identity</h3>
+                  <div className="character-summary-grid">
+                    <p>
+                      <strong>Name:</strong> {effectiveSelected.name || 'Unnamed Character'}
+                    </p>
+                    <p>
+                      <strong>Class:</strong> {effectiveSelected.className}
+                    </p>
+                    <p>
+                      <strong>Level:</strong> {effectiveSelected.level}
+                    </p>
+                    <p>
+                      <strong>HP:</strong> {effectiveSelected.hpCurrent}/{effectiveSelected.hpMax}
+                    </p>
+                    <p>
+                      <strong>AC:</strong> {effectiveSelected.ac}
+                    </p>
+                    <p>
+                      <strong>XP:</strong> {effectiveSelected.xp.toLocaleString()}
+                    </p>
+                  </div>
+                </section>
+
+                {sheetSectionPlaceholders.map((section) => (
+                  <section key={section} className="monster-section-block">
+                    <h3 className="monster-section-title">{section}</h3>
+                    <div className="character-placeholder-block">
+                      <p>{section} fields will be implemented in the next pass.</p>
+                    </div>
+                  </section>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : null}

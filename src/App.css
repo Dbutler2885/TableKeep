@@ -2463,6 +2463,18 @@ button:hover {
   justify-self: center;
 }
 
+.map-icon-grid > .map-icon-btn.map-hex-pointy-btn {
+  grid-column: 5;
+  grid-row: 3;
+  justify-self: center;
+}
+
+.map-icon-grid > .map-icon-btn.map-hex-flat-btn {
+  grid-column: 6;
+  grid-row: 3;
+  justify-self: center;
+}
+
 .map-icon-grid > .map-icon-btn.map-grid-visibility-btn {
   grid-column: 6;
   grid-row: 1;
@@ -2496,6 +2508,23 @@ button:hover {
   align-items: center;
   justify-content: center;
   min-width: 2ch;
+}
+
+.map-hex-flat-icon {
+  transform: rotate(30deg);
+}
+
+.map-icon-spin {
+  animation: map-icon-spin 0.9s linear infinite;
+}
+
+@keyframes map-icon-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .map-brush-control-inline {
@@ -2844,6 +2873,21 @@ button:hover {
     linear-gradient(to right, rgba(84, 84, 78, 0.45) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(84, 84, 78, 0.45) 1px, transparent 1px);
   background-repeat: repeat;
+}
+
+.map-grid-overlay.map-grid-overlay-hex {
+  background-image: none;
+}
+
+.map-grid-overlay-path {
+  fill: none;
+  stroke: rgba(84, 84, 78, 0.45);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.map-grid-overlay.map-grid-overlay-hex.pending .map-grid-overlay-path {
+  stroke: rgba(220, 38, 38, 0.78);
 }
 
 .map-grid-adjust-overlay {
