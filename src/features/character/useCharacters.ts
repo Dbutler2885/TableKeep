@@ -206,7 +206,7 @@ export function useCharacters(
     if (!campaignId) return
     const target = charactersRef.current.find((character) => character.id === characterId)
     if (!target) return
-    const canDelete = role === 'gm'
+    const canDelete = role === 'gm' || target.ownerUserId === userId
     if (!canDelete) return
 
     const pending = pendingWritesRef.current[characterId]

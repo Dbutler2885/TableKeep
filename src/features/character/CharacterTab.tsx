@@ -236,6 +236,7 @@ export function CharacterTab({
   const [acManualOverrideByCharacterId, setAcManualOverrideByCharacterId] = useState<Record<string, boolean>>({})
   const [rerollHpConfirmOpen, setRerollHpConfirmOpen] = useState(false)
   const [hpClassRequiredOpen, setHpClassRequiredOpen] = useState(false)
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{ id: string, name: string } | null>(null)
 
   const sortedCharacters = useMemo(
     () => [...characters].sort((a, b) => a.name.localeCompare(b.name)),
@@ -267,11 +268,11 @@ export function CharacterTab({
   const showListPane = !isMobile || mobileCharacterView === 'list'
   const showDetailPane = !isMobile || mobileCharacterView === 'detail'
   const canCreateCharacter = role === 'gm' || role === 'player'
-  const canDeleteCharacter = role === 'gm'
   const canEditSelected = !!effectiveSelected
   const canSetCurrentCharacter = role === 'player'
     && !!effectiveSelected
     && effectiveSelected.ownerUserId === currentUserId
+  const canDeleteCharacter = (character: CharacterRecord) => role === 'gm' || character.ownerUserId === currentUserId
 
   const updateSelectedCharacter = (updates: Partial<CharacterRecord>) => {
     if (!effectiveSelected) return
@@ -770,11 +771,11 @@ export function CharacterTab({
                     </p>
                   </div>
                 </button>
-                {canDeleteCharacter ? (
+                {canDeleteCharacter(character) ? (
                   <button
                     type="button"
                     className="map-delete-btn character-card-delete-btn"
-                    onClick={() => deleteCharacter(character.id)}
+                    onClick={() => setDeleteConfirmTarget({ id: character.id, name: character.name || 'character' })}
                     aria-label={`Delete ${character.name || 'character'}`}
                   >
                     <Trash2 size={14} />
@@ -1653,6 +1654,18 @@ export function CharacterTab({
         confirmLabel="OK"
         onConfirm={() => setHpClassRequiredOpen(false)}
         onCancel={() => setHpClassRequiredOpen(false)}
+      />
+      <ConfirmModal
+        open={deleteConfirmTarget !== null}
+        title="Delete character?"
+        message={`Are you sure you want to delete ${deleteConfirmTarget?.name ?? 'this character'}? This cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={() => {
+          if (!deleteConfirmTarget) return
+          deleteCharacter(deleteConfirmTarget.id)
+          setDeleteConfirmTarget(null)
+        }}
+        onCancel={() => setDeleteConfirmTarget(null)}
       />
     </div>
   )

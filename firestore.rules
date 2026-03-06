@@ -124,7 +124,7 @@ service cloud.firestore {
           isSignedIn() && request.resource.data.ownerUserId == request.auth.uid
         );
         allow update: if isCampaignGM(campaignId) || isCharacterOwner();
-        allow delete: if isCampaignGM(campaignId);
+        allow delete: if isCampaignGM(campaignId) || isCharacterOwner();
       }
 
       match /maps/{mapId} {
