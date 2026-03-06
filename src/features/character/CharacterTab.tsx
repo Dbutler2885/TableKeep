@@ -260,14 +260,12 @@ export function CharacterTab({
   }
 
   const selectedAbilityScores = effectiveSelected
-    ? (abilityScoresByCharacterId[effectiveSelected.id] ?? effectiveSelected.abilityScores ?? emptyAbilityScores())
+    ? (abilityScoresByCharacterId[effectiveSelected.id] ?? emptyAbilityScores())
     : emptyAbilityScores()
   const selectedRolledAbilityScores = effectiveSelected
-    ? rolledAbilityScoresByCharacterId[effectiveSelected.id] ?? effectiveSelected.rolledAbilityScores ?? null
+    ? rolledAbilityScoresByCharacterId[effectiveSelected.id] ?? null
     : null
-  const hasRolledAbilityScores = !!(
-    effectiveSelected && (abilityScoresRolledByCharacterId[effectiveSelected.id] ?? effectiveSelected.abilityScoresRolled)
-  )
+  const hasRolledAbilityScores = !!(effectiveSelected && abilityScoresRolledByCharacterId[effectiveSelected.id])
   const primeRequisiteCodes: AbilityCode[] = (() => {
     const className = effectiveSelected?.className ?? ''
     if (className === 'Cleric') return ['WIS']
@@ -289,22 +287,19 @@ export function CharacterTab({
   const selectedCha = Number.parseInt(selectedChaRaw, 10)
   const selectedCon = Number.parseInt(selectedConRaw, 10)
   const selectedPackedItems = effectiveSelected
-    ? (packedItemsByCharacterId[effectiveSelected.id] ?? effectiveSelected.packedItems ?? [])
+    ? (packedItemsByCharacterId[effectiveSelected.id] ?? [])
     : []
-  const selectedEquippedItems = effectiveSelected ? (effectiveSelected.equippedItems ?? []) : []
-  const selectedWeapons = effectiveSelected
-    ? (weaponsByCharacterId[effectiveSelected.id] ?? (effectiveSelected.weapons as WeaponRow[] | undefined) ?? [])
-    : []
-  const selectedThacoRaw = effectiveSelected ? (thacoByCharacterId[effectiveSelected.id] ?? effectiveSelected.thaco ?? '') : ''
+  const selectedWeapons = effectiveSelected ? (weaponsByCharacterId[effectiveSelected.id] ?? []) : []
+  const selectedThacoRaw = effectiveSelected ? (thacoByCharacterId[effectiveSelected.id] ?? '') : ''
   const selectedThaco = Number.parseInt(selectedThacoRaw, 10)
   const selectedSaveScores = effectiveSelected
-    ? (saveScoresByCharacterId[effectiveSelected.id] ?? effectiveSelected.saveScores ?? { D: '', W: '', P: '', B: '', S: '' })
+    ? (saveScoresByCharacterId[effectiveSelected.id] ?? { D: '', W: '', P: '', B: '', S: '' })
     : { D: '', W: '', P: '', B: '', S: '' }
   const selectedAdventureScores = effectiveSelected
-    ? (adventureScoresByCharacterId[effectiveSelected.id] ?? effectiveSelected.adventureScores ?? adventureDefaultsByClass(effectiveSelected.className))
+    ? (adventureScoresByCharacterId[effectiveSelected.id] ?? adventureDefaultsByClass(effectiveSelected.className))
     : adventureDefaultsByClass('-')
   const selectedThiefSkills = effectiveSelected
-    ? (thiefSkillsByCharacterId[effectiveSelected.id] ?? effectiveSelected.thiefSkills ?? defaultThiefSkills())
+    ? (thiefSkillsByCharacterId[effectiveSelected.id] ?? defaultThiefSkills())
     : defaultThiefSkills()
   const isHalfling = effectiveSelected?.className === 'Halfling'
   const thiefLevel = Math.max(1, effectiveSelected?.level ?? 1)
@@ -454,34 +449,13 @@ export function CharacterTab({
     const nextCharacter: CharacterRecord = {
       id: crypto.randomUUID(),
       name: 'New Character',
-      title: '',
       ownerUserId: '',
       className: '-',
-      alignment: 'Neutrality',
       level: 1,
       hpCurrent: 0,
       hpMax: 0,
-      hpBaseRoll: 0,
       ac: 10,
-      acManualOverride: false,
       xp: 0,
-      xpNext: '',
-      xpPrimeModifier: '',
-      thaco: '',
-      abilityScores: emptyAbilityScores(),
-      rolledAbilityScores: emptyAbilityScores(),
-      abilityScoresRolled: false,
-      saveScores: { D: '', W: '', P: '', B: '', S: '' },
-      adventureScores: adventureDefaultsByClass('-'),
-      adventureSeedClass: '-',
-      thiefSkills: defaultThiefSkills(),
-      aswNotes: '',
-      languages: '',
-      unencumberingItems: '',
-      equippedItems: [],
-      packedItems: [],
-      otherNotes: '',
-      weapons: [],
       portraitUrl: null,
       portraitFocusX: 50,
       portraitFocusY: 50,
@@ -493,32 +467,11 @@ export function CharacterTab({
       name: nextCharacter.name,
       ownerUserId: nextCharacter.ownerUserId,
       class: nextCharacter.className,
-      title: nextCharacter.title,
-      alignment: nextCharacter.alignment,
       level: nextCharacter.level,
       hpCurrent: nextCharacter.hpCurrent,
       hpMax: nextCharacter.hpMax,
-      hpBaseRoll: nextCharacter.hpBaseRoll,
       ac: nextCharacter.ac,
-      acManualOverride: nextCharacter.acManualOverride,
       xp: nextCharacter.xp,
-      xpNext: nextCharacter.xpNext,
-      xpPrimeModifier: nextCharacter.xpPrimeModifier,
-      thaco: nextCharacter.thaco,
-      abilityScores: nextCharacter.abilityScores,
-      rolledAbilityScores: nextCharacter.rolledAbilityScores,
-      abilityScoresRolled: nextCharacter.abilityScoresRolled,
-      saveScores: nextCharacter.saveScores,
-      adventureScores: nextCharacter.adventureScores,
-      adventureSeedClass: nextCharacter.adventureSeedClass,
-      thiefSkills: nextCharacter.thiefSkills,
-      aswNotes: nextCharacter.aswNotes,
-      languages: nextCharacter.languages,
-      unencumberingItems: nextCharacter.unencumberingItems,
-      equippedItems: nextCharacter.equippedItems,
-      packedItems: nextCharacter.packedItems,
-      otherNotes: nextCharacter.otherNotes,
-      weapons: nextCharacter.weapons,
       portraitUrl: nextCharacter.portraitUrl,
       portraitFocusX: nextCharacter.portraitFocusX,
       portraitFocusY: nextCharacter.portraitFocusY,
@@ -618,9 +571,7 @@ export function CharacterTab({
 
   const classHitDie = classHitDieByClass[effectiveSelected?.className ?? ''] ?? null
   const canRollHitPoints = !!(canEditSelected && classHitDie)
-  const selectedBaseHpRoll = effectiveSelected
-    ? (hpBaseRollByCharacterId[effectiveSelected.id] ?? effectiveSelected.hpBaseRoll)
-    : undefined
+  const selectedBaseHpRoll = effectiveSelected ? hpBaseRollByCharacterId[effectiveSelected.id] : undefined
   const hasRolledHp = typeof selectedBaseHpRoll === 'number'
   const canFreeRerollHp = hasRolledHp && selectedBaseHpRoll <= 2
 
@@ -732,107 +683,11 @@ export function CharacterTab({
   useEffect(() => {
     if (!effectiveSelected) return
     if (derivedDexAcModifierNumber === null) return
-    if (acManualOverrideByCharacterId[effectiveSelected.id] ?? effectiveSelected.acManualOverride) return
+    if (acManualOverrideByCharacterId[effectiveSelected.id]) return
     const autoAc = 9 - derivedDexAcModifierNumber
     if (effectiveSelected.ac === autoAc) return
     updateSelectedCharacter({ ac: autoAc })
   }, [effectiveSelected, derivedDexAcModifierNumber, acManualOverrideByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    const local = abilityScoresByCharacterId[effectiveSelected.id]
-    if (!local) return
-    if (JSON.stringify(local) === JSON.stringify(effectiveSelected.abilityScores ?? emptyAbilityScores())) return
-    updateSelectedCharacter({ abilityScores: local })
-  }, [effectiveSelected, abilityScoresByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    const local = rolledAbilityScoresByCharacterId[effectiveSelected.id]
-    if (!local) return
-    if (JSON.stringify(local) === JSON.stringify(effectiveSelected.rolledAbilityScores ?? emptyAbilityScores())) return
-    updateSelectedCharacter({ rolledAbilityScores: local })
-  }, [effectiveSelected, rolledAbilityScoresByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    const local = abilityScoresRolledByCharacterId[effectiveSelected.id]
-    if (typeof local !== 'boolean') return
-    if (local === !!effectiveSelected.abilityScoresRolled) return
-    updateSelectedCharacter({ abilityScoresRolled: local })
-  }, [effectiveSelected, abilityScoresRolledByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    const local = hpBaseRollByCharacterId[effectiveSelected.id]
-    if (typeof local !== 'number') return
-    if (local === (effectiveSelected.hpBaseRoll ?? 0)) return
-    updateSelectedCharacter({ hpBaseRoll: local })
-  }, [effectiveSelected, hpBaseRollByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    const local = thacoByCharacterId[effectiveSelected.id]
-    if (typeof local !== 'string') return
-    if (local === (effectiveSelected.thaco ?? '')) return
-    updateSelectedCharacter({ thaco: local })
-  }, [effectiveSelected, thacoByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    const local = saveScoresByCharacterId[effectiveSelected.id]
-    if (!local) return
-    if (JSON.stringify(local) === JSON.stringify(effectiveSelected.saveScores ?? { D: '', W: '', P: '', B: '', S: '' })) return
-    updateSelectedCharacter({ saveScores: local })
-  }, [effectiveSelected, saveScoresByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    const local = adventureScoresByCharacterId[effectiveSelected.id]
-    if (!local) return
-    if (JSON.stringify(local) === JSON.stringify(effectiveSelected.adventureScores ?? adventureDefaultsByClass(effectiveSelected.className))) return
-    updateSelectedCharacter({ adventureScores: local })
-  }, [effectiveSelected, adventureScoresByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    const local = adventureSeedClassByCharacterId[effectiveSelected.id]
-    if (typeof local !== 'string') return
-    if (local === (effectiveSelected.adventureSeedClass ?? '')) return
-    updateSelectedCharacter({ adventureSeedClass: local })
-  }, [effectiveSelected, adventureSeedClassByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    const local = thiefSkillsByCharacterId[effectiveSelected.id]
-    if (!local) return
-    if (JSON.stringify(local) === JSON.stringify(effectiveSelected.thiefSkills ?? defaultThiefSkills())) return
-    updateSelectedCharacter({ thiefSkills: local })
-  }, [effectiveSelected, thiefSkillsByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    const local = packedItemsByCharacterId[effectiveSelected.id]
-    if (!local) return
-    if (JSON.stringify(local) === JSON.stringify(effectiveSelected.packedItems ?? [])) return
-    updateSelectedCharacter({ packedItems: local })
-  }, [effectiveSelected, packedItemsByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    const local = weaponsByCharacterId[effectiveSelected.id]
-    if (!local) return
-    if (JSON.stringify(local) === JSON.stringify(effectiveSelected.weapons ?? [])) return
-    updateSelectedCharacter({ weapons: local })
-  }, [effectiveSelected, weaponsByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    const local = acManualOverrideByCharacterId[effectiveSelected.id]
-    if (typeof local !== 'boolean') return
-    if (local === !!effectiveSelected.acManualOverride) return
-    updateSelectedCharacter({ acManualOverride: local })
-  }, [effectiveSelected, acManualOverrideByCharacterId])
 
   return (
     <div className="maps-layout monsters-layout characters-layout">
@@ -952,12 +807,7 @@ export function CharacterTab({
                     </label>
                     <label>
                       Title
-                      <input
-                        type="text"
-                        value={effectiveSelected.title ?? ''}
-                        onChange={(event) => updateSelectedCharacter({ title: event.target.value })}
-                        disabled={!canEditSelected}
-                      />
+                      <input type="text" defaultValue="" disabled={!canEditSelected} />
                     </label>
                     <label>
                       Level
@@ -996,11 +846,7 @@ export function CharacterTab({
                     </label>
                     <label>
                       Align
-                      <select
-                        value={effectiveSelected.alignment ?? 'Neutrality'}
-                        onChange={(event) => updateSelectedCharacter({ alignment: event.target.value })}
-                        disabled={!canEditSelected}
-                      >
+                      <select defaultValue="Neutrality" disabled={!canEditSelected}>
                         {alignmentOptions.map((option) => (
                           <option key={option} value={option}>
                             {option}
@@ -1345,8 +1191,7 @@ export function CharacterTab({
                         <h3 className="monster-section-title">Languages</h3>
                         <textarea
                           className="character-sheet-textarea short"
-                          value={effectiveSelected.languages ?? ''}
-                          onChange={(event) => updateSelectedCharacter({ languages: event.target.value })}
+                          defaultValue=""
                           disabled={!canEditSelected}
                         />
                       </section>
@@ -1362,12 +1207,7 @@ export function CharacterTab({
                     <div className="character-enc-items-grid">
                       <section className="monster-section-block">
                         <h3 className="monster-section-title">Unencumbering Items</h3>
-                        <textarea
-                          className="character-sheet-textarea short"
-                          value={effectiveSelected.unencumberingItems ?? ''}
-                          onChange={(event) => updateSelectedCharacter({ unencumberingItems: event.target.value })}
-                          disabled={!canEditSelected}
-                        />
+                        <textarea className="character-sheet-textarea short" defaultValue="" disabled={!canEditSelected} />
                         <p className="character-enc-help">
                           Clothing, necklaces, rings, etc. Not encumbering unless carried in large numbers (referee&apos;s
                           judgement).
@@ -1381,13 +1221,7 @@ export function CharacterTab({
                             <label key={`equipped-slot-${index + 1}`} className="character-item-row">
                               <input
                                 type="text"
-                                value={selectedEquippedItems[index] ?? ''}
-                                onChange={(event) => {
-                                  const nextRows = [...selectedEquippedItems]
-                                  while (nextRows.length < equippedRowCount) nextRows.push('')
-                                  nextRows[index] = event.target.value
-                                  updateSelectedCharacter({ equippedItems: nextRows })
-                                }}
+                                defaultValue=""
                                 disabled={!canEditSelected}
                                 aria-label={`Equipped item slot ${index + 1}`}
                               />
@@ -1489,12 +1323,7 @@ export function CharacterTab({
                     <section className="monster-section-block">
                       <h3 className="monster-section-title">Other Notes</h3>
                       <p className="character-enc-help centered">Spells, mounts, retainers, areas explored, clues.</p>
-                      <textarea
-                        className="character-sheet-textarea"
-                        value={effectiveSelected.otherNotes ?? ''}
-                        onChange={(event) => updateSelectedCharacter({ otherNotes: event.target.value })}
-                        disabled={!canEditSelected}
-                      />
+                      <textarea className="character-sheet-textarea" defaultValue="" disabled={!canEditSelected} />
                     </section>
 
                     <section className="character-enc-xp-strip">
@@ -1515,24 +1344,12 @@ export function CharacterTab({
                       <div className="character-enc-xp-side">
                         <div className="character-enc-xp-side-row">
                           <span className="character-enc-xp-tag">Next</span>
-                          <input
-                            type="number"
-                            step={1}
-                            value={effectiveSelected.xpNext ?? ''}
-                            onChange={(event) => updateSelectedCharacter({ xpNext: event.target.value })}
-                            disabled={!canEditSelected}
-                          />
+                          <input type="number" step={1} defaultValue="" disabled={!canEditSelected} />
                           <small>Experience points for next level</small>
                         </div>
                         <div className="character-enc-xp-side-row">
                           <span className="character-enc-xp-tag">%</span>
-                          <input
-                            type="number"
-                            step={1}
-                            value={effectiveSelected.xpPrimeModifier ?? ''}
-                            onChange={(event) => updateSelectedCharacter({ xpPrimeModifier: event.target.value })}
-                            disabled={!canEditSelected}
-                          />
+                          <input type="number" step={1} defaultValue="" disabled={!canEditSelected} />
                           <small>Prime requisite modifier to XP</small>
                         </div>
                       </div>
@@ -1545,12 +1362,7 @@ export function CharacterTab({
                         <h3 className="monster-section-title">Abilities, Skills, Weapons</h3>
                         <p>Including weapon proficiencies and secondary skills, if used.</p>
                       </div>
-                      <textarea
-                        className="character-sheet-textarea short"
-                        value={effectiveSelected.aswNotes ?? ''}
-                        onChange={(event) => updateSelectedCharacter({ aswNotes: event.target.value })}
-                        disabled={!canEditSelected}
-                      />
+                      <textarea className="character-sheet-textarea short" defaultValue="" disabled={!canEditSelected} />
                     </section>
 
                     <section className="monster-section-block character-weapons-block">

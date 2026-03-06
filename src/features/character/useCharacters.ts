@@ -1,58 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
-import type {
-  CharacterAbilityScores,
-  CharacterAdventureScores,
-  CharacterRecord,
-  CharacterSaveScores,
-  CharacterThiefSkills,
-  CharacterWeaponRow,
-  Role,
-  TokenIconConfig,
-} from '../../types/app'
+import type { CharacterRecord, Role, TokenIconConfig } from '../../types/app'
 
 const defaultTokenIcon: TokenIconConfig = {
   icon: 'pawn',
   color: '#bf2f2a',
   size: 34,
 }
-
-const emptyAbilityScores = (): CharacterAbilityScores => ({
-  STR: '',
-  INT: '',
-  WIS: '',
-  DEX: '',
-  CON: '',
-  CHA: '',
-})
-
-const emptySaveScores = (): CharacterSaveScores => ({
-  D: '',
-  W: '',
-  P: '',
-  B: '',
-  S: '',
-})
-
-const emptyAdventureScores = (): CharacterAdventureScores => ({
-  FG: '1',
-  FT: '1',
-  HT: '1',
-  LD: '1',
-  SD: '1',
-})
-
-const emptyThiefSkills = (): CharacterThiefSkills => ({
-  CS: '1',
-  TR: '1',
-  HN: '1',
-  HS: '1',
-  MS: '1',
-  OL: '1',
-  PP: '1',
-  RL: '1',
-})
 
 export function useCharacters(
   campaignId: string | null,
@@ -65,7 +20,6 @@ export function useCharacters(
   const [selectedCharacterId, setSelectedCharacterId] = useState('')
   const charactersRef = useRef<CharacterRecord[]>([])
   const pendingWritesRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
-  const creatingStarterRef = useRef(false)
 
   useEffect(() => {
     charactersRef.current = characters
@@ -89,12 +43,8 @@ export function useCharacters(
           return {
             id: docSnap.id,
             name: data.name ?? docSnap.id,
-            title: typeof (data as { title?: string }).title === 'string' ? (data as { title: string }).title : '',
             ownerUserId: data.ownerUserId ?? '',
             className: data.class ?? '-',
-            alignment: typeof (data as { alignment?: string }).alignment === 'string'
-              ? (data as { alignment: string }).alignment
-              : 'Neutrality',
             level: typeof data.level === 'number' ? data.level : 1,
             hpCurrent:
               typeof (data as { hpCurrent?: number }).hpCurrent === 'number'
@@ -104,54 +54,8 @@ export function useCharacters(
               typeof (data as { hpMax?: number }).hpMax === 'number'
                 ? (data as { hpMax: number }).hpMax
                 : 0,
-            hpBaseRoll: typeof (data as { hpBaseRoll?: number }).hpBaseRoll === 'number'
-              ? (data as { hpBaseRoll: number }).hpBaseRoll
-              : undefined,
             ac: typeof (data as { ac?: number }).ac === 'number' ? (data as { ac: number }).ac : 10,
-            acManualOverride: typeof (data as { acManualOverride?: boolean }).acManualOverride === 'boolean'
-              ? (data as { acManualOverride: boolean }).acManualOverride
-              : false,
             xp: typeof (data as { xp?: number }).xp === 'number' ? (data as { xp: number }).xp : 0,
-            xpNext: typeof (data as { xpNext?: string }).xpNext === 'string' ? (data as { xpNext: string }).xpNext : '',
-            xpPrimeModifier: typeof (data as { xpPrimeModifier?: string }).xpPrimeModifier === 'string'
-              ? (data as { xpPrimeModifier: string }).xpPrimeModifier
-              : '',
-            thaco: typeof (data as { thaco?: string }).thaco === 'string' ? (data as { thaco: string }).thaco : '',
-            abilityScores: (data as { abilityScores?: CharacterAbilityScores }).abilityScores ?? emptyAbilityScores(),
-            rolledAbilityScores:
-              (data as { rolledAbilityScores?: CharacterAbilityScores }).rolledAbilityScores ?? emptyAbilityScores(),
-            abilityScoresRolled: typeof (data as { abilityScoresRolled?: boolean }).abilityScoresRolled === 'boolean'
-              ? (data as { abilityScoresRolled: boolean }).abilityScoresRolled
-              : false,
-            saveScores: (data as { saveScores?: CharacterSaveScores }).saveScores ?? emptySaveScores(),
-            adventureScores:
-              (data as { adventureScores?: CharacterAdventureScores }).adventureScores ?? emptyAdventureScores(),
-            adventureSeedClass:
-              typeof (data as { adventureSeedClass?: string }).adventureSeedClass === 'string'
-                ? (data as { adventureSeedClass: string }).adventureSeedClass
-                : '',
-            thiefSkills: (data as { thiefSkills?: CharacterThiefSkills }).thiefSkills ?? emptyThiefSkills(),
-            aswNotes: typeof (data as { aswNotes?: string }).aswNotes === 'string' ? (data as { aswNotes: string }).aswNotes : '',
-            languages:
-              typeof (data as { languages?: string }).languages === 'string' ? (data as { languages: string }).languages : '',
-            unencumberingItems:
-              typeof (data as { unencumberingItems?: string }).unencumberingItems === 'string'
-                ? (data as { unencumberingItems: string }).unencumberingItems
-                : '',
-            equippedItems:
-              Array.isArray((data as { equippedItems?: string[] }).equippedItems)
-                ? (data as { equippedItems: string[] }).equippedItems
-                : [],
-            packedItems:
-              Array.isArray((data as { packedItems?: string[] }).packedItems)
-                ? (data as { packedItems: string[] }).packedItems
-                : [],
-            otherNotes:
-              typeof (data as { otherNotes?: string }).otherNotes === 'string' ? (data as { otherNotes: string }).otherNotes : '',
-            weapons:
-              Array.isArray((data as { weapons?: CharacterWeaponRow[] }).weapons)
-                ? (data as { weapons: CharacterWeaponRow[] }).weapons
-                : [],
             portraitUrl: typeof (data as { portraitUrl?: string | null }).portraitUrl === 'string'
               ? (data as { portraitUrl: string }).portraitUrl
               : null,
@@ -170,56 +74,9 @@ export function useCharacters(
         setCharactersLoading(false)
 
         if (next.length === 0) {
-          if (role !== 'gm' && !creatingStarterRef.current) {
-            creatingStarterRef.current = true
-            const starterId = crypto.randomUUID()
-            void setDoc(doc(db, 'campaigns', campaignId, 'characters', starterId), {
-              name: 'New Character',
-              ownerUserId: userId,
-              class: '-',
-              level: 1,
-              title: '',
-              alignment: 'Neutrality',
-              hpCurrent: 0,
-              hpMax: 0,
-              hpBaseRoll: 0,
-              ac: 10,
-              acManualOverride: false,
-              xp: 0,
-              xpNext: '',
-              xpPrimeModifier: '',
-              thaco: '',
-              abilityScores: emptyAbilityScores(),
-              rolledAbilityScores: emptyAbilityScores(),
-              abilityScoresRolled: false,
-              saveScores: emptySaveScores(),
-              adventureScores: emptyAdventureScores(),
-              adventureSeedClass: '-',
-              thiefSkills: emptyThiefSkills(),
-              aswNotes: '',
-              languages: '',
-              unencumberingItems: '',
-              equippedItems: [],
-              packedItems: [],
-              otherNotes: '',
-              weapons: [],
-              portraitUrl: null,
-              portraitFocusX: 50,
-              portraitFocusY: 50,
-              tokenIcon: defaultTokenIcon,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            }).catch((err: unknown) => {
-              const message = err instanceof Error ? err.message : 'Unable to create starter character'
-              setError(message)
-              creatingStarterRef.current = false
-            })
-          }
           setSelectedCharacterId('')
           return
         }
-
-        creatingStarterRef.current = false
 
         setSelectedCharacterId((current) => {
           const existing = next.find((character) => character.id === current)
@@ -264,31 +121,10 @@ export function useCharacters(
           ownerUserId: character.ownerUserId,
           class: character.className,
           level: character.level,
-          title: character.title ?? '',
-          alignment: character.alignment ?? 'Neutrality',
           hpCurrent: character.hpCurrent,
           hpMax: character.hpMax,
-          hpBaseRoll: character.hpBaseRoll ?? 0,
           ac: character.ac,
-          acManualOverride: character.acManualOverride ?? false,
           xp: character.xp,
-          xpNext: character.xpNext ?? '',
-          xpPrimeModifier: character.xpPrimeModifier ?? '',
-          thaco: character.thaco ?? '',
-          abilityScores: character.abilityScores ?? emptyAbilityScores(),
-          rolledAbilityScores: character.rolledAbilityScores ?? emptyAbilityScores(),
-          abilityScoresRolled: character.abilityScoresRolled ?? false,
-          saveScores: character.saveScores ?? emptySaveScores(),
-          adventureScores: character.adventureScores ?? emptyAdventureScores(),
-          adventureSeedClass: character.adventureSeedClass ?? character.className,
-          thiefSkills: character.thiefSkills ?? emptyThiefSkills(),
-          aswNotes: character.aswNotes ?? '',
-          languages: character.languages ?? '',
-          unencumberingItems: character.unencumberingItems ?? '',
-          equippedItems: character.equippedItems ?? [],
-          packedItems: character.packedItems ?? [],
-          otherNotes: character.otherNotes ?? '',
-          weapons: character.weapons ?? [],
           portraitUrl: character.portraitUrl,
           portraitFocusX: character.portraitFocusX,
           portraitFocusY: character.portraitFocusY,
