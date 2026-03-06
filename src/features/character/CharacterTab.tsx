@@ -174,6 +174,13 @@ const defaultTokenIcon = {
   size: 34,
 }
 
+const makeId = () => {
+  if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID()
+  }
+  return `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
 const adventureDefaultsByClass = (className: string): AdventureScores => {
   const defaults: AdventureScores = { FG: '1', FT: '1', HT: '1', LD: '1', SD: '1' }
   if (className === 'Dwarf') return { ...defaults, FT: '2', LD: '2' }
@@ -220,6 +227,7 @@ export function CharacterTab({
   const [thiefSkillsByCharacterId, setThiefSkillsByCharacterId] = useState<Record<string, ThiefSkillScores>>({})
   const [acManualOverrideByCharacterId, setAcManualOverrideByCharacterId] = useState<Record<string, boolean>>({})
   const [rerollHpConfirmOpen, setRerollHpConfirmOpen] = useState(false)
+  const [hpClassRequiredOpen, setHpClassRequiredOpen] = useState(false)
 
   const sortedCharacters = useMemo(
     () => [...characters].sort((a, b) => a.name.localeCompare(b.name)),
@@ -447,7 +455,7 @@ export function CharacterTab({
   const addCharacter = () => {
     if (!canCreateCharacter) return
     const nextCharacter: CharacterRecord = {
-      id: crypto.randomUUID(),
+      id: makeId(),
       name: 'New Character',
       ownerUserId: '',
       className: '-',
@@ -570,7 +578,6 @@ export function CharacterTab({
   }
 
   const classHitDie = classHitDieByClass[effectiveSelected?.className ?? ''] ?? null
-  const canRollHitPoints = !!(canEditSelected && classHitDie)
   const selectedBaseHpRoll = effectiveSelected ? hpBaseRollByCharacterId[effectiveSelected.id] : undefined
   const hasRolledHp = typeof selectedBaseHpRoll === 'number'
   const canFreeRerollHp = hasRolledHp && selectedBaseHpRoll <= 2
@@ -611,7 +618,11 @@ export function CharacterTab({
   }
 
   const requestRollHitPoints = () => {
-    if (!canRollHitPoints) return
+    if (!canEditSelected) return
+    if (!classHitDie) {
+      setHpClassRequiredOpen(true)
+      return
+    }
     if (!hasRolledHp || canFreeRerollHp) {
       rollHitPoints()
       return
@@ -829,7 +840,19 @@ export function CharacterTab({
                         value={effectiveSelected.className}
                         onChange={(event) => {
                           const nextClass = event.target.value
-                          updateSelectedCharacter({ className: nextClass })
+                          const classChanged = nextClass !== effectiveSelected.className
+                          const hasRolledForSelected = typeof hpBaseRollByCharacterId[effectiveSelected.id] === 'number'
+                          if (classChanged && hasRolledForSelected) {
+                            setHpBaseRollByCharacterId((current) => {
+                              const next = { ...current }
+                              delete next[effectiveSelected.id]
+                              return next
+                            })
+                            setRerollHpConfirmOpen(false)
+                            updateSelectedCharacter({ className: nextClass, hpCurrent: 0, hpMax: 0 })
+                          } else {
+                            updateSelectedCharacter({ className: nextClass })
+                          }
                           if (effectiveSelected) applyClassDerivedData(effectiveSelected.id, nextClass)
                         }}
                         disabled={!canEditSelected}
@@ -917,7 +940,7 @@ export function CharacterTab({
                             type="button"
                             className="monster-example-btn"
                             onClick={requestRollHitPoints}
-                            disabled={!canRollHitPoints}
+                            disabled={!canEditSelected}
                           >
                             {hasRolledHp ? 'Re-roll HP' : 'Roll HP'}
                           </button>
@@ -1381,7 +1404,7 @@ export function CharacterTab({
                           <tbody>
                             {Array.from({ length: 6 }, (_, rowIndex) => {
                               const row = selectedWeapons[rowIndex] ?? {
-                                id: crypto.randomUUID(),
+                                id: makeId(),
                                 name: '',
                                 damage: '',
                                 bonus: '',
@@ -1400,7 +1423,7 @@ export function CharacterTab({
                                           const nextRows = [...(current[effectiveSelected.id] ?? Array.from(
                                             { length: 6 },
                                             () => ({
-                                              id: crypto.randomUUID(),
+                                              id: makeId(),
                                               name: '',
                                               damage: '',
                                               bonus: '',
@@ -1429,7 +1452,7 @@ export function CharacterTab({
                                           const nextRows = [...(current[effectiveSelected.id] ?? Array.from(
                                             { length: 6 },
                                             () => ({
-                                              id: crypto.randomUUID(),
+                                              id: makeId(),
                                               name: '',
                                               damage: '',
                                               bonus: '',
@@ -1459,7 +1482,7 @@ export function CharacterTab({
                                           const nextRows = [...(current[effectiveSelected.id] ?? Array.from(
                                             { length: 6 },
                                             () => ({
-                                              id: crypto.randomUUID(),
+                                              id: makeId(),
                                               name: '',
                                               damage: '',
                                               bonus: '',
@@ -1488,7 +1511,7 @@ export function CharacterTab({
                                           const nextRows = [...(current[effectiveSelected.id] ?? Array.from(
                                             { length: 6 },
                                             () => ({
-                                              id: crypto.randomUUID(),
+                                              id: makeId(),
                                               name: '',
                                               damage: '',
                                               bonus: '',
@@ -1517,7 +1540,7 @@ export function CharacterTab({
                                           const nextRows = [...(current[effectiveSelected.id] ?? Array.from(
                                             { length: 6 },
                                             () => ({
-                                              id: crypto.randomUUID(),
+                                              id: makeId(),
                                               name: '',
                                               damage: '',
                                               bonus: '',
@@ -1583,6 +1606,14 @@ export function CharacterTab({
         confirmLabel="Re-roll"
         onConfirm={rollHitPoints}
         onCancel={() => setRerollHpConfirmOpen(false)}
+      />
+      <ConfirmModal
+        open={hpClassRequiredOpen}
+        title="Class Required"
+        message="To Roll for HP, set class to determine Hit Dice"
+        confirmLabel="OK"
+        onConfirm={() => setHpClassRequiredOpen(false)}
+        onCancel={() => setHpClassRequiredOpen(false)}
       />
     </div>
   )
