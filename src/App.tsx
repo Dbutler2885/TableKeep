@@ -83,7 +83,9 @@ function CampaignShell({ user }: { user: User }) {
     selectedCharacterId,
     setSelectedCharacterId,
     selectedCharacter,
-  } = useCharacters(campaign?.id ?? null, user.uid, setError)
+    updateCharacter,
+    deleteCharacter,
+  } = useCharacters(campaign?.id ?? null, user.uid, role, setError)
 
   const tabLabel = (tab: (typeof tabs)[number]['id']) => {
     if (tab === 'character' && role === 'gm') return 'Characters'
@@ -154,12 +156,15 @@ function CampaignShell({ user }: { user: User }) {
                 path={tabPaths.character}
                 element={
                   <CharacterTab
+                    campaignId={campaign.id}
                     role={role}
                     characters={characters}
                     charactersLoading={charactersLoading}
                     selectedCharacterId={selectedCharacterId}
                     setSelectedCharacterId={setSelectedCharacterId}
                     selectedCharacter={selectedCharacter}
+                    updateCharacter={updateCharacter}
+                    deleteCharacter={deleteCharacter}
                   />
                 }
               />
