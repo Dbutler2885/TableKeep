@@ -28,8 +28,33 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == resource.data.ownerUserId;
     }
 
-      match /users/{userId} {
-      allow read, write: if isSelf(userId);
+    function isValidUsername(username) {
+      return username is string && username.matches('^[A-Za-z0-9_!@#$%^&*()]{7}$');
+    }
+
+    function hasUsername(data) {
+      return data.keys().hasAny(['username']);
+    }
+
+    match /usernames/{username} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && isValidUsername(username)
+        && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid;
+
+      allow update, delete: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if isSelf(userId);
+      allow create: if isSelf(userId)
+        && (!hasUsername(request.resource.data) || isValidUsername(request.resource.data.username));
+      allow update: if isSelf(userId)
+        && (!hasUsername(request.resource.data) || isValidUsername(request.resource.data.username))
+        && (!hasUsername(resource.data) || request.resource.data.username == resource.data.username);
+      allow delete: if isSelf(userId);
 
       match /campaignMemberships/{campaignId} {
         allow read: if isSelf(userId);

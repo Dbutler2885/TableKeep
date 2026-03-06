@@ -12,6 +12,7 @@ const defaultTokenIcon: TokenIconConfig = {
 export function useCharacters(
   campaignId: string | null,
   userId: string,
+  currentUsername: string,
   role: Role | null,
   setError: (message: string) => void,
 ) {
@@ -36,6 +37,7 @@ export function useCharacters(
           const data = docSnap.data() as {
             name?: string
             ownerUserId?: string
+            ownerUsername?: string
             class?: string
             level?: number
           }
@@ -44,6 +46,10 @@ export function useCharacters(
             id: docSnap.id,
             name: data.name ?? docSnap.id,
             ownerUserId: data.ownerUserId ?? '',
+            ownerUsername:
+              typeof data.ownerUsername === 'string'
+                ? data.ownerUsername
+                : ((data.ownerUserId ?? '') === userId ? currentUsername : null),
             className: data.class ?? '-',
             level: typeof data.level === 'number' ? data.level : 1,
             hpCurrent:
@@ -95,7 +101,7 @@ export function useCharacters(
     return () => {
       unsub()
     }
-  }, [campaignId, role, userId, setError])
+  }, [campaignId, currentUsername, role, userId, setError])
 
   useEffect(() => {
     return () => {
@@ -119,6 +125,7 @@ export function useCharacters(
         {
           name: character.name,
           ownerUserId: character.ownerUserId,
+          ownerUsername: character.ownerUsername ?? null,
           class: character.className,
           level: character.level,
           hpCurrent: character.hpCurrent,

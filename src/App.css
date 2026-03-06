@@ -200,6 +200,11 @@ button:hover {
   word-break: break-all;
 }
 
+.account-username {
+  font-weight: 700;
+  color: #5f8a56;
+}
+
 .content-panel {
   border: 0;
   background: #fff;
@@ -1140,6 +1145,7 @@ button:hover {
 
 .monster-card-main {
   min-width: 0;
+  display: grid;
 }
 
 .monster-card-main h4 {
@@ -1151,6 +1157,14 @@ button:hover {
   margin-top: 0.2rem;
   font-size: 0.75rem;
   color: #4e4e47;
+}
+
+.character-card-owner {
+  margin-top: 0.35rem;
+  text-align: right;
+  font-size: 0.72rem;
+  color: #3f4f3a;
+  font-weight: 700;
 }
 
 .character-card-delete-btn {
@@ -2496,6 +2510,27 @@ button:hover {
 .success {
   margin-top: 0.7rem;
   color: #111;
+}
+
+.username-helper {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #4f4f47;
+}
+
+.username-count-met {
+  color: #1e6b30;
+  font-weight: 700;
+}
+
+.username-count-unmet {
+  color: #8e1f16;
+  font-weight: 700;
+}
+
+button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 /* ── Compact icon buttons ─────────────────────────────────── */

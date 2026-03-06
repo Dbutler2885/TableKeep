@@ -7,6 +7,7 @@ import {
 import type { User } from 'firebase/auth'
 import {
   doc,
+  onSnapshot,
   serverTimestamp,
   setDoc,
 } from 'firebase/firestore'
@@ -14,6 +15,7 @@ import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import './App.css'
 import { auth, db } from './firebase'
 import { AuthPanel } from './features/auth/AuthPanel'
+import { UsernameSetup } from './features/auth/UsernameSetup'
 import { CharacterTab } from './features/character/CharacterTab'
 import { PlaceholderTab } from './features/common/PlaceholderTab'
 import { MapsTab } from './features/maps/MapsTab'
@@ -26,6 +28,8 @@ import { useCharacters } from './features/character/useCharacters'
 function App() {
   const [user, setUser] = useState<User | null>(null)
   const [authReady, setAuthReady] = useState(false)
+  const [username, setUsername] = useState<string | null>(null)
+  const [profileReady, setProfileReady] = useState(false)
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (nextUser) => {
@@ -50,6 +54,30 @@ function App() {
     return () => unsub()
   }, [])
 
+  useEffect(() => {
+    if (!user) {
+      setUsername(null)
+      setProfileReady(false)
+      return
+    }
+
+    const unsub = onSnapshot(
+      doc(db, 'users', user.uid),
+      (snapshot) => {
+        const data = snapshot.data()
+        const nextUsername = typeof data?.username === 'string' ? data.username : null
+        setUsername(nextUsername)
+        setProfileReady(true)
+      },
+      () => {
+        setUsername(null)
+        setProfileReady(true)
+      },
+    )
+
+    return () => unsub()
+  }, [user])
+
   if (!authReady) {
     return (
       <main className="auth-shell">
@@ -68,10 +96,28 @@ function App() {
     )
   }
 
-  return <CampaignShell user={user} />
+  if (!profileReady) {
+    return (
+      <main className="auth-shell">
+        <p>Loading profile...</p>
+      </main>
+    )
+  }
+
+  if (!username) {
+    return (
+      <main className="auth-shell">
+        <h1>Home Boys House</h1>
+        <p>Choose your username to continue.</p>
+        <UsernameSetup user={user} onComplete={setUsername} />
+      </main>
+    )
+  }
+
+  return <CampaignShell user={user} username={username} />
 }
 
-function CampaignShell({ user }: { user: User }) {
+function CampaignShell({ user, username }: { user: User, username: string }) {
   const location = useLocation()
   const activeTab = useMemo(() => tabFromPathname(location.pathname), [location.pathname])
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -85,7 +131,7 @@ function CampaignShell({ user }: { user: User }) {
     selectedCharacter,
     updateCharacter,
     deleteCharacter,
-  } = useCharacters(campaign?.id ?? null, user.uid, role, setError)
+  } = useCharacters(campaign?.id ?? null, user.uid, username, role, setError)
 
   const tabLabel = (tab: (typeof tabs)[number]['id']) => {
     if (tab === 'character' && role === 'gm') return 'Characters'
@@ -123,7 +169,6 @@ function CampaignShell({ user }: { user: User }) {
           <nav className={`side-nav ${drawerOpen ? 'open' : ''}`}>
             <h1 className="side-title">Home Boys House</h1>
             <p className="side-meta">{campaign.name}</p>
-            <p className="side-meta">Role: {role}</p>
 
             <div className="nav-list">
               {tabs.map((tab) => (
@@ -140,7 +185,8 @@ function CampaignShell({ user }: { user: User }) {
             </div>
 
             <div className="account-panel">
-              <p className="account-email">{user.email ?? user.uid}</p>
+              <p className="account-email account-username">Username: {username}</p>
+              <p className="account-email">Role: {role}</p>
               <button type="button" onClick={() => signOut(auth)}>
                 Sign Out
               </button>
@@ -157,6 +203,8 @@ function CampaignShell({ user }: { user: User }) {
                 element={
                   <CharacterTab
                     campaignId={campaign.id}
+                    currentUserId={user.uid}
+                    currentUsername={username}
                     role={role}
                     characters={characters}
                     charactersLoading={charactersLoading}

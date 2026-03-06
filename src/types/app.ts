@@ -20,6 +20,7 @@ export type CharacterRecord = {
   id: string
   name: string
   ownerUserId: string
+  ownerUsername?: string | null
   className: string
   level: number
   hpCurrent: number

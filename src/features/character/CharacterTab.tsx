@@ -8,6 +8,8 @@ import { ConfirmModal } from '../common/ConfirmModal'
 
 type CharacterTabProps = {
   campaignId: string
+  currentUserId: string
+  currentUsername: string
   role: Role | null
   characters: CharacterRecord[]
   charactersLoading: boolean
@@ -202,6 +204,8 @@ const defaultThiefSkills = (): ThiefSkillScores => ({
 
 export function CharacterTab({
   campaignId,
+  currentUserId,
+  currentUsername,
   role,
   characters,
   charactersLoading,
@@ -457,7 +461,8 @@ export function CharacterTab({
     const nextCharacter: CharacterRecord = {
       id: makeId(),
       name: 'New Character',
-      ownerUserId: '',
+      ownerUserId: currentUserId,
+      ownerUsername: currentUsername,
       className: '-',
       level: 1,
       hpCurrent: 0,
@@ -474,6 +479,7 @@ export function CharacterTab({
     void setDoc(doc(db, 'campaigns', campaignId, 'characters', nextCharacter.id), {
       name: nextCharacter.name,
       ownerUserId: nextCharacter.ownerUserId,
+      ownerUsername: nextCharacter.ownerUsername ?? null,
       class: nextCharacter.className,
       level: nextCharacter.level,
       hpCurrent: nextCharacter.hpCurrent,
@@ -740,6 +746,9 @@ export function CharacterTab({
                       {character.className} • Level {character.level} • HP {character.hpCurrent}/{character.hpMax}
                     </p>
                     <p>AC {character.ac} • XP {character.xp.toLocaleString()}</p>
+                    <p className="character-card-owner">
+                      {character.ownerUsername || 'Unassigned'}
+                    </p>
                   </div>
                 </button>
                 {canDeleteCharacter ? (
