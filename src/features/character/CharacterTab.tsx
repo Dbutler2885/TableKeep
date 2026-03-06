@@ -7,6 +7,7 @@ import type { CharacterRecord, Role } from '../../types/app'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { OSE_WEAPON_CATALOG, weaponCatalogById } from './weaponCatalog'
+import { OSE_ARMOUR_CATALOG, armourCatalogById } from './armourCatalog'
 
 type CharacterTabProps = {
   campaignId: string
@@ -33,6 +34,17 @@ type WeaponRow = {
   bonus: string
   range: string
   twoHanded: boolean
+  equipped: boolean
+  notes: string
+}
+
+type ArmourRow = {
+  id: string
+  armourId: string
+  isMagic: boolean
+  name: string
+  ac: string
+  bonus: string
   equipped: boolean
   notes: string
 }
@@ -204,6 +216,17 @@ const makeWeaponRow = (): WeaponRow => ({
   notes: '',
 })
 
+const makeArmourRow = (): ArmourRow => ({
+  id: makeId(),
+  armourId: 'custom',
+  isMagic: false,
+  name: '',
+  ac: '',
+  bonus: '',
+  equipped: false,
+  notes: '',
+})
+
 const adventureDefaultsByClass = (className: string): AdventureScores => {
   const defaults: AdventureScores = { FG: '1', FT: '1', HT: '1', LD: '1', SD: '1' }
   if (className === 'Dwarf') return { ...defaults, FT: '2', LD: '2' }
@@ -248,6 +271,7 @@ export function CharacterTab({
   const [equippedItemsByCharacterId, setEquippedItemsByCharacterId] = useState<Record<string, string[]>>({})
   const [packedItemsByCharacterId, setPackedItemsByCharacterId] = useState<Record<string, string[]>>({})
   const [weaponsByCharacterId, setWeaponsByCharacterId] = useState<Record<string, WeaponRow[]>>({})
+  const [armourByCharacterId, setArmourByCharacterId] = useState<Record<string, ArmourRow[]>>({})
   const [thacoByCharacterId, setThacoByCharacterId] = useState<Record<string, string>>({})
   const [saveScoresByCharacterId, setSaveScoresByCharacterId] = useState<Record<string, SaveScores>>({})
   const [adventureScoresByCharacterId, setAdventureScoresByCharacterId] = useState<Record<string, AdventureScores>>({})
@@ -333,7 +357,9 @@ export function CharacterTab({
     ? (packedItemsByCharacterId[effectiveSelected.id] ?? [])
     : []
   const selectedWeapons = effectiveSelected ? (weaponsByCharacterId[effectiveSelected.id] ?? []) : []
+  const selectedArmour = effectiveSelected ? (armourByCharacterId[effectiveSelected.id] ?? []) : []
   const weaponRowCount = selectedWeapons.length
+  const armourRowCount = selectedArmour.length
   const weaponTypeLabel = (weapon: WeaponRow) => {
     const template = weapon.weaponId !== 'custom' ? weaponCatalogById[weapon.weaponId] : null
     return template?.name ?? 'Custom weapon'
@@ -365,24 +391,84 @@ export function CharacterTab({
       </span>
     )
   }
-  const equippedWeaponItems = selectedWeapons.filter((weapon) => weapon.equipped)
-  const packedWeaponItems = selectedWeapons.filter((weapon) => !weapon.equipped)
+  const armourTypeLabel = (armour: ArmourRow) => {
+    const template = armour.armourId !== 'custom' ? armourCatalogById[armour.armourId] : null
+    return template?.name ?? 'Custom armour'
+  }
+  const armourStatsLabel = (armour: ArmourRow) => {
+    const stats: string[] = []
+    const ac = armour.ac.trim()
+    if (ac) stats.push(`AC ${ac}`)
+    const template = armour.armourId !== 'custom' ? armourCatalogById[armour.armourId] : null
+    if (template) stats.push(`${template.costGp}gp/${template.weightCoins}c`)
+    const bonus = armour.bonus.trim()
+    if (bonus) stats.push(`+${bonus.replace(/^\+/, '')}`)
+    return stats.join(' | ')
+  }
+  const renderArmourSlotLabel = (armour: ArmourRow): ReactNode => {
+    const name = armour.name.trim() || 'Unnamed'
+    const stats = armourStatsLabel(armour)
+    return (
+      <span className="weapon-slot-label">
+        <strong>{armourTypeLabel(armour)}</strong>{' '}
+        <em>{name}</em>
+        {armour.isMagic ? <span className="weapon-slot-magic">(M)</span> : null}
+        {stats ? <span> - {stats}</span> : null}
+      </span>
+    )
+  }
+  const equippedWeaponItems = selectedWeapons
+    .map((weapon, index) => ({ weapon, index }))
+    .filter((entry) => entry.weapon.equipped)
+  const equippedArmourItems = selectedArmour
+    .map((armour, index) => ({ armour, index }))
+    .filter((entry) => entry.armour.equipped)
+  const equippedAutoItems = [
+    ...equippedArmourItems.map((entry) => ({
+      id: entry.armour.id,
+      label: renderArmourSlotLabel(entry.armour),
+      onToggle: (checked: boolean) => updateArmourRow(entry.index, { equipped: checked }),
+    })),
+    ...equippedWeaponItems.map((entry) => ({
+      id: entry.weapon.id,
+      label: renderWeaponSlotLabel(entry.weapon),
+      onToggle: (checked: boolean) => updateWeaponRow(entry.index, { equipped: checked }),
+    })),
+  ]
+  const packedWeaponItems = selectedWeapons
+    .map((weapon, index) => ({ weapon, index }))
+    .filter((entry) => !entry.weapon.equipped)
+  const packedArmourItems = selectedArmour
+    .map((armour, index) => ({ armour, index }))
+    .filter((entry) => !entry.armour.equipped)
+  const packedAutoItems = [
+    ...packedArmourItems.map((entry) => ({
+      id: entry.armour.id,
+      label: renderArmourSlotLabel(entry.armour),
+      onToggle: (checked: boolean) => updateArmourRow(entry.index, { equipped: checked }),
+    })),
+    ...packedWeaponItems.map((entry) => ({
+      id: entry.weapon.id,
+      label: renderWeaponSlotLabel(entry.weapon),
+      onToggle: (checked: boolean) => updateWeaponRow(entry.index, { equipped: checked }),
+    })),
+  ]
   const packedSlotUnlockedByIndex = Array.from({ length: packedRowCount }, (_, index) =>
     index < packedStrengthSlotCount ? (!Number.isNaN(selectedStr) && selectedStr >= packedSlotThresholds[index]) : true,
   )
   const availablePackedSlotIndices = packedSlotUnlockedByIndex
     .map((unlocked, index) => (unlocked ? index : -1))
     .filter((index) => index >= 0)
-  const packedWeaponSlotByIndex = new Map<number, WeaponRow>()
-  packedWeaponItems.forEach((weapon, weaponIndex) => {
-    const slotIndex = availablePackedSlotIndices[weaponIndex]
+  const packedAutoSlotByIndex = new Map<number, { label: ReactNode, onToggle: (checked: boolean) => void }>()
+  packedAutoItems.forEach((item, itemIndex) => {
+    const slotIndex = availablePackedSlotIndices[itemIndex]
     if (typeof slotIndex === 'number') {
-      packedWeaponSlotByIndex.set(slotIndex, weapon)
+      packedAutoSlotByIndex.set(slotIndex, { label: item.label, onToggle: item.onToggle })
     }
   })
   const displayedPackedItems = Array.from(
     { length: packedRowCount },
-    (_, index) => (packedWeaponSlotByIndex.get(index)?.name ?? selectedPackedItems[index] ?? ''),
+    (_, index) => (packedAutoSlotByIndex.has(index) ? '__AUTO__' : selectedPackedItems[index] ?? ''),
   )
   const selectedThacoRaw = effectiveSelected ? (thacoByCharacterId[effectiveSelected.id] ?? '') : ''
   const selectedThaco = Number.parseInt(selectedThacoRaw, 10)
@@ -794,6 +880,12 @@ export function CharacterTab({
     return [...existing, ...Array.from({ length: minCount - existing.length }, () => makeWeaponRow())]
   }
 
+  const getArmourRows = (current: Record<string, ArmourRow[]>, characterId: string, minCount = 1) => {
+    const existing = current[characterId] ?? []
+    if (existing.length >= minCount) return existing
+    return [...existing, ...Array.from({ length: minCount - existing.length }, () => makeArmourRow())]
+  }
+
   const applyWeaponTemplate = (row: WeaponRow, weaponId: string): WeaponRow => {
     if (weaponId === 'custom') {
       return { ...row, weaponId, twoHanded: row.twoHanded }
@@ -858,6 +950,56 @@ export function CharacterTab({
       return {
         ...current,
         [effectiveSelected.id]: nextRows,
+      }
+    })
+  }
+
+  const applyArmourTemplate = (row: ArmourRow, armourId: string): ArmourRow => {
+    if (armourId === 'custom') {
+      return { ...row, armourId }
+    }
+    const template = armourCatalogById[armourId]
+    if (!template) return row
+    return {
+      ...row,
+      armourId: template.id,
+      name: template.name,
+      ac: template.ac,
+    }
+  }
+
+  const updateArmourRow = (rowIndex: number, updates: Partial<ArmourRow>) => {
+    if (!effectiveSelected) return
+    setArmourByCharacterId((current) => {
+      const nextRows = [...getArmourRows(current, effectiveSelected.id, rowIndex + 1)]
+      const existing = nextRows[rowIndex] ?? makeArmourRow()
+      const merged = { ...nextRows[rowIndex], ...existing, ...updates }
+      nextRows[rowIndex] = updates.armourId
+        ? applyArmourTemplate(merged, updates.armourId)
+        : merged
+      return {
+        ...current,
+        [effectiveSelected.id]: nextRows,
+      }
+    })
+  }
+
+  const addArmourRow = () => {
+    if (!effectiveSelected || !canEditSelected) return
+    setArmourByCharacterId((current) => ({
+      ...current,
+      [effectiveSelected.id]: [...(current[effectiveSelected.id] ?? []), makeArmourRow()],
+    }))
+  }
+
+  const removeArmourRow = (rowIndex: number) => {
+    if (!effectiveSelected || !canEditSelected) return
+    setArmourByCharacterId((current) => {
+      const existing = current[effectiveSelected.id] ?? []
+      if (existing.length === 0) return current
+      return {
+        ...current,
+        [effectiveSelected.id]: existing.filter((_, index) => index !== rowIndex),
       }
     })
   }
@@ -1430,35 +1572,90 @@ export function CharacterTab({
                         <div className="character-item-rows equipped">
                           {Array.from({ length: equippedRowCount }, (_, index) => (
                             <label key={`equipped-slot-${index + 1}`} className="character-item-row">
-                              {index < equippedWeaponItems.length ? (
-                                <span className="character-item-auto-slot">
-                                  {renderWeaponSlotLabel(equippedWeaponItems[index])}
-                                </span>
+                              {index < equippedAutoItems.length ? (
+                                <div className="character-item-row-inner">
+                                  <input
+                                    type="checkbox"
+                                    className="character-item-slot-check"
+                                    checked
+                                    onChange={(event) => equippedAutoItems[index]?.onToggle(event.target.checked)}
+                                    disabled={!canEditSelected}
+                                    aria-label={`Equipped toggle slot ${index + 1}`}
+                                  />
+                                  <span className="character-item-auto-slot">
+                                    {equippedAutoItems[index]?.label}
+                                  </span>
+                                </div>
                               ) : (
-                                <input
-                                  type="text"
-                                  value={selectedEquippedItems[index - equippedWeaponItems.length] ?? ''}
-                                  onChange={(event) => {
-                                    if (!effectiveSelected) return
-                                    const manualIndex = index - equippedWeaponItems.length
-                                    setEquippedItemsByCharacterId((current) => {
-                                      const nextRows = [...(current[effectiveSelected.id] ?? [])]
-                                      nextRows[manualIndex] = event.target.value
-                                      return {
-                                        ...current,
-                                        [effectiveSelected.id]: nextRows,
-                                      }
-                                    })
-                                  }}
-                                  disabled={!canEditSelected}
-                                  aria-label={`Equipped item slot ${index + 1}`}
-                                />
+                                <div className="character-item-row-inner">
+                                  {(() => {
+                                    const manualIndex = index - equippedAutoItems.length
+                                    const value = selectedEquippedItems[manualIndex] ?? ''
+                                    const isFilled = value.trim().length > 0
+                                    return (
+                                      <>
+                                        {isFilled ? (
+                                          <input
+                                            type="checkbox"
+                                            className="character-item-slot-check"
+                                            checked
+                                            onChange={(event) => {
+                                              if (!effectiveSelected || event.target.checked) return
+                                              const firstOpenPackedIndex = availablePackedSlotIndices.find(
+                                                (slotIndex) => (selectedPackedItems[slotIndex] ?? '').trim().length === 0,
+                                              )
+                                              if (typeof firstOpenPackedIndex !== 'number') return
+                                              setPackedItemsByCharacterId((current) => {
+                                                const nextRows = [
+                                                  ...(current[effectiveSelected.id] ?? Array(packedRowCount).fill('')),
+                                                ]
+                                                nextRows[firstOpenPackedIndex] = value
+                                                return {
+                                                  ...current,
+                                                  [effectiveSelected.id]: nextRows,
+                                                }
+                                              })
+                                              setEquippedItemsByCharacterId((current) => {
+                                                const nextRows = [...(current[effectiveSelected.id] ?? [])]
+                                                nextRows[manualIndex] = ''
+                                                return {
+                                                  ...current,
+                                                  [effectiveSelected.id]: nextRows,
+                                                }
+                                              })
+                                            }}
+                                            disabled={!canEditSelected}
+                                            aria-label={`Equipped toggle slot ${index + 1}`}
+                                          />
+                                        ) : null}
+                                        <input
+                                          type="text"
+                                          className="character-item-input"
+                                          value={value}
+                                          onChange={(event) => {
+                                            if (!effectiveSelected) return
+                                            setEquippedItemsByCharacterId((current) => {
+                                              const nextRows = [...(current[effectiveSelected.id] ?? [])]
+                                              nextRows[manualIndex] = event.target.value
+                                              return {
+                                                ...current,
+                                                [effectiveSelected.id]: nextRows,
+                                              }
+                                            })
+                                          }}
+                                          disabled={!canEditSelected}
+                                          aria-label={`Equipped item slot ${index + 1}`}
+                                        />
+                                      </>
+                                    )
+                                  })()}
+                                </div>
                               )}
                             </label>
                           ))}
                         </div>
-                        {equippedWeaponItems.length > equippedRowCount ? (
-                          <p className="error">Too many equipped weapons for available equipped slots.</p>
+                        {equippedAutoItems.length > equippedRowCount ? (
+                          <p className="error">Too many equipped weapons/armour items for available equipped slots.</p>
                         ) : null}
                         <p className="character-enc-help">
                           Anything held, actively in use, or ready to use at short notice: armour worn, shields or
@@ -1478,28 +1675,77 @@ export function CharacterTab({
                                 key={`packed-strength-slot-${index + 1}`}
                                 className={`character-item-row${unlocked ? '' : ' locked'}`}
                               >
-                                {packedWeaponSlotByIndex.has(index) ? (
-                                  <span className="character-item-auto-slot">
-                                    {renderWeaponSlotLabel(packedWeaponSlotByIndex.get(index) as WeaponRow)}
-                                  </span>
+                                {packedAutoSlotByIndex.has(index) ? (
+                                  <div className="character-item-row-inner">
+                                    <input
+                                      type="checkbox"
+                                      className="character-item-slot-check"
+                                      checked={false}
+                                      onChange={(event) => packedAutoSlotByIndex.get(index)?.onToggle(event.target.checked)}
+                                      disabled={!canEditSelected}
+                                      aria-label={`Equipped toggle slot ${index + 1}`}
+                                    />
+                                    <span className="character-item-auto-slot">
+                                      {packedAutoSlotByIndex.get(index)?.label}
+                                    </span>
+                                  </div>
                                 ) : (
-                                  <input
-                                    type="text"
-                                    value={displayedPackedItems[index] ?? ''}
-                                    onChange={(event) => {
-                                      if (!effectiveSelected) return
-                                      setPackedItemsByCharacterId((current) => {
-                                        const nextRows = [...(current[effectiveSelected.id] ?? Array(packedRowCount).fill(''))]
-                                        nextRows[index] = event.target.value
-                                        return {
-                                          ...current,
-                                          [effectiveSelected.id]: nextRows,
-                                        }
-                                      })
-                                    }}
-                                    disabled={!canEditSelected || !unlocked}
-                                    aria-label={`Packed strength slot ${index + 1}`}
-                                  />
+                                  <div className="character-item-row-inner">
+                                    {(displayedPackedItems[index] ?? '').trim().length > 0 ? (
+                                      <input
+                                        type="checkbox"
+                                        className="character-item-slot-check"
+                                        checked={false}
+                                        onChange={(event) => {
+                                          if (!effectiveSelected || !event.target.checked) return
+                                          const manualEquippedSlots = equippedRowCount - equippedAutoItems.length
+                                          if (manualEquippedSlots <= 0) return
+                                          const firstOpenManualIndex = Array.from(
+                                            { length: manualEquippedSlots },
+                                            (_, manualIndex) => manualIndex,
+                                          ).find((manualIndex) => (selectedEquippedItems[manualIndex] ?? '').trim().length === 0)
+                                          if (typeof firstOpenManualIndex !== 'number') return
+                                          const value = displayedPackedItems[index] ?? ''
+                                          setEquippedItemsByCharacterId((current) => {
+                                            const nextRows = [...(current[effectiveSelected.id] ?? [])]
+                                            nextRows[firstOpenManualIndex] = value
+                                            return {
+                                              ...current,
+                                              [effectiveSelected.id]: nextRows,
+                                            }
+                                          })
+                                          setPackedItemsByCharacterId((current) => {
+                                            const nextRows = [...(current[effectiveSelected.id] ?? Array(packedRowCount).fill(''))]
+                                            nextRows[index] = ''
+                                            return {
+                                              ...current,
+                                              [effectiveSelected.id]: nextRows,
+                                            }
+                                          })
+                                        }}
+                                        disabled={!canEditSelected || !unlocked}
+                                        aria-label={`Equipped toggle slot ${index + 1}`}
+                                      />
+                                    ) : null}
+                                    <input
+                                      type="text"
+                                      className="character-item-input"
+                                      value={displayedPackedItems[index] ?? ''}
+                                      onChange={(event) => {
+                                        if (!effectiveSelected) return
+                                        setPackedItemsByCharacterId((current) => {
+                                          const nextRows = [...(current[effectiveSelected.id] ?? Array(packedRowCount).fill(''))]
+                                          nextRows[index] = event.target.value
+                                          return {
+                                            ...current,
+                                            [effectiveSelected.id]: nextRows,
+                                          }
+                                        })
+                                      }}
+                                      disabled={!canEditSelected || !unlocked}
+                                      aria-label={`Packed strength slot ${index + 1}`}
+                                    />
+                                  </div>
                                 )}
                                 {label ? <span className="character-item-slot-label">{label}</span> : null}
                               </label>
@@ -1520,30 +1766,79 @@ export function CharacterTab({
                                   const index = bandStartIndex + rowOffset
                                   return (
                                     <label key={`packed-slot-${index + 1}`} className="character-item-row">
-                                      {packedWeaponSlotByIndex.has(index) ? (
-                                        <span className="character-item-auto-slot">
-                                          {renderWeaponSlotLabel(packedWeaponSlotByIndex.get(index) as WeaponRow)}
-                                        </span>
+                                      {packedAutoSlotByIndex.has(index) ? (
+                                        <div className="character-item-row-inner">
+                                          <input
+                                            type="checkbox"
+                                            className="character-item-slot-check"
+                                            checked={false}
+                                            onChange={(event) => packedAutoSlotByIndex.get(index)?.onToggle(event.target.checked)}
+                                            disabled={!canEditSelected}
+                                            aria-label={`Equipped toggle slot ${index + 1}`}
+                                          />
+                                          <span className="character-item-auto-slot">
+                                            {packedAutoSlotByIndex.get(index)?.label}
+                                          </span>
+                                        </div>
                                       ) : (
-                                        <input
-                                          type="text"
-                                          value={displayedPackedItems[index] ?? ''}
-                                          onChange={(event) => {
-                                            if (!effectiveSelected) return
-                                            setPackedItemsByCharacterId((current) => {
-                                              const nextRows = [
-                                                ...(current[effectiveSelected.id] ?? Array(packedRowCount).fill('')),
-                                              ]
-                                              nextRows[index] = event.target.value
-                                              return {
-                                                ...current,
-                                                [effectiveSelected.id]: nextRows,
-                                              }
-                                            })
-                                          }}
-                                          disabled={!canEditSelected}
-                                          aria-label={`Packed item slot ${index + 1}`}
-                                        />
+                                        <div className="character-item-row-inner">
+                                          {(displayedPackedItems[index] ?? '').trim().length > 0 ? (
+                                            <input
+                                              type="checkbox"
+                                              className="character-item-slot-check"
+                                              checked={false}
+                                              onChange={(event) => {
+                                                if (!effectiveSelected || !event.target.checked) return
+                                                const manualEquippedSlots = equippedRowCount - equippedAutoItems.length
+                                                if (manualEquippedSlots <= 0) return
+                                                const firstOpenManualIndex = Array.from(
+                                                  { length: manualEquippedSlots },
+                                                  (_, manualIndex) => manualIndex,
+                                                ).find((manualIndex) => (selectedEquippedItems[manualIndex] ?? '').trim().length === 0)
+                                                if (typeof firstOpenManualIndex !== 'number') return
+                                                const value = displayedPackedItems[index] ?? ''
+                                                setEquippedItemsByCharacterId((current) => {
+                                                  const nextRows = [...(current[effectiveSelected.id] ?? [])]
+                                                  nextRows[firstOpenManualIndex] = value
+                                                  return {
+                                                    ...current,
+                                                    [effectiveSelected.id]: nextRows,
+                                                  }
+                                                })
+                                                setPackedItemsByCharacterId((current) => {
+                                                  const nextRows = [...(current[effectiveSelected.id] ?? Array(packedRowCount).fill(''))]
+                                                  nextRows[index] = ''
+                                                  return {
+                                                    ...current,
+                                                    [effectiveSelected.id]: nextRows,
+                                                  }
+                                                })
+                                              }}
+                                              disabled={!canEditSelected}
+                                              aria-label={`Equipped toggle slot ${index + 1}`}
+                                            />
+                                          ) : null}
+                                          <input
+                                            type="text"
+                                            className="character-item-input"
+                                            value={displayedPackedItems[index] ?? ''}
+                                            onChange={(event) => {
+                                              if (!effectiveSelected) return
+                                              setPackedItemsByCharacterId((current) => {
+                                                const nextRows = [
+                                                  ...(current[effectiveSelected.id] ?? Array(packedRowCount).fill('')),
+                                                ]
+                                                nextRows[index] = event.target.value
+                                                return {
+                                                  ...current,
+                                                  [effectiveSelected.id]: nextRows,
+                                                }
+                                              })
+                                            }}
+                                            disabled={!canEditSelected}
+                                            aria-label={`Packed item slot ${index + 1}`}
+                                          />
+                                        </div>
                                       )}
                                     </label>
                                   )
@@ -1552,8 +1847,8 @@ export function CharacterTab({
                             )
                           })}
                         </div>
-                        {packedWeaponItems.length > availablePackedSlotIndices.length ? (
-                          <p className="error">Too many unequipped weapons for available packed slots.</p>
+                        {packedAutoItems.length > availablePackedSlotIndices.length ? (
+                          <p className="error">Too many unequipped weapons/armour items for available packed slots.</p>
                         ) : null}
                         <p className="character-enc-help">
                           <strong>Current movement:</strong> {currentPackedMovement}
@@ -1606,8 +1901,8 @@ export function CharacterTab({
                   <section className="character-sheet character-asw-page">
                     <section className="monster-section-block">
                       <div className="character-asw-head-row">
-                        <h3 className="monster-section-title">Abilities, Skills, Weapons</h3>
-                        <p>Including weapon proficiencies and secondary skills, if used.</p>
+                        <h3 className="monster-section-title">Abilities and Skills</h3>
+                        <p>Including secondary skills, if used.</p>
                       </div>
                       <textarea className="character-sheet-textarea short" defaultValue="" disabled={!canEditSelected} />
                     </section>
@@ -1754,6 +2049,126 @@ export function CharacterTab({
                         })}
                       </div>
                     </section>
+
+                    <section className="monster-section-block character-weapons-block">
+                      <div className="section-head">
+                        <h3 className="monster-section-title">Armour</h3>
+                        <button
+                          type="button"
+                          className="icon-btn add-btn"
+                          onClick={addArmourRow}
+                          disabled={!canEditSelected}
+                          aria-label="Add armour"
+                        >
+                          <Plus size={13} />
+                        </button>
+                      </div>
+                      <div className="character-weapons-mobile-list">
+                        {armourRowCount === 0 ? <p className="character-enc-help">No armour added yet.</p> : null}
+                        {Array.from({ length: armourRowCount }, (_, rowIndex) => {
+                          const row = selectedArmour[rowIndex] ?? { ...makeArmourRow(), id: `armour-${rowIndex}` }
+                          const template = row.armourId !== 'custom' ? armourCatalogById[row.armourId] : null
+                          return (
+                            <article key={row.id} className="character-weapon-card">
+                              <div className="character-weapon-card-head">
+                                <strong>Armour {rowIndex + 1}</strong>
+                                <button
+                                  type="button"
+                                  className="icon-btn add-btn"
+                                  onClick={() => removeArmourRow(rowIndex)}
+                                  disabled={!canEditSelected}
+                                  aria-label={`Remove armour ${rowIndex + 1}`}
+                                >
+                                  <Minus size={13} />
+                                </button>
+                              </div>
+                              <label className="character-weapon-equipped-toggle">
+                                <input
+                                  type="checkbox"
+                                  checked={row.equipped}
+                                  onChange={(event) => updateArmourRow(rowIndex, { equipped: event.target.checked })}
+                                  disabled={!canEditSelected}
+                                />
+                                Equipped
+                              </label>
+                              <label>
+                                Template
+                                <select
+                                  value={row.armourId}
+                                  onChange={(event) => updateArmourRow(rowIndex, { armourId: event.target.value })}
+                                  disabled={!canEditSelected}
+                                >
+                                  <option value="custom">Custom</option>
+                                  {OSE_ARMOUR_CATALOG.map((armour) => (
+                                    <option key={armour.id} value={armour.id}>
+                                      {armour.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label>
+                                Name
+                                <input
+                                  type="text"
+                                  value={row.name}
+                                  onChange={(event) => updateArmourRow(rowIndex, { name: event.target.value })}
+                                  disabled={!canEditSelected}
+                                />
+                              </label>
+                              <div className="character-weapon-mobile-grid">
+                                <label>
+                                  AC
+                                  <input
+                                    type="text"
+                                    value={row.ac}
+                                    onChange={(event) => updateArmourRow(rowIndex, { ac: event.target.value })}
+                                    disabled={!canEditSelected}
+                                  />
+                                </label>
+                                {template ? (
+                                  <label>
+                                    Cost / Weight
+                                    <input
+                                      type="text"
+                                      value={`${template.costGp} gp / ${template.weightCoins} coins`}
+                                      readOnly
+                                      disabled
+                                    />
+                                  </label>
+                                ) : null}
+                              </div>
+                              <label className="character-weapon-card-check">
+                                <input
+                                  type="checkbox"
+                                  checked={row.isMagic}
+                                  onChange={(event) => updateArmourRow(rowIndex, { isMagic: event.target.checked })}
+                                  disabled={!canEditSelected}
+                                />
+                                Magic
+                              </label>
+                              <label>
+                                {row.isMagic ? 'Magic Bonus' : 'Bonus'}
+                                <input
+                                  type="number"
+                                  step={1}
+                                  value={row.bonus}
+                                  onChange={(event) => updateArmourRow(rowIndex, { bonus: event.target.value })}
+                                  disabled={!canEditSelected}
+                                />
+                              </label>
+                              <label>
+                                Notes
+                                <textarea
+                                  value={row.notes}
+                                  onChange={(event) => updateArmourRow(rowIndex, { notes: event.target.value })}
+                                  disabled={!canEditSelected}
+                                />
+                              </label>
+                            </article>
+                          )
+                        })}
+                      </div>
+                    </section>
                   </section>
                 )}
 
@@ -1771,7 +2186,7 @@ export function CharacterTab({
                       className={activePage === 'asw' ? 'character-sheet-tab active' : 'character-sheet-tab'}
                       onClick={() => setActivePage('asw')}
                     >
-                      ASW
+                      ASW+A
                     </button>
                     <button
                       type="button"
