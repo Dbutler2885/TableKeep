@@ -358,8 +358,39 @@ export function CharacterTab({
     : []
   const selectedWeapons = effectiveSelected ? (weaponsByCharacterId[effectiveSelected.id] ?? []) : []
   const selectedArmour = effectiveSelected ? (armourByCharacterId[effectiveSelected.id] ?? []) : []
+  const selectedClassName = effectiveSelected?.className ?? '-'
   const weaponRowCount = selectedWeapons.length
   const armourRowCount = selectedArmour.length
+  const isWeaponTemplateAllowedForClass = (weaponId: string, className: string) => {
+    if (weaponId === 'custom') return true
+    const template = weaponCatalogById[weaponId]
+    if (!template) return true
+    if (className === 'Dwarf') {
+      const dwarfDisallowedLargeWeapons = new Set(['long-bow', 'pole-arm', 'two-handed-sword'])
+      return !dwarfDisallowedLargeWeapons.has(template.id)
+    }
+    if (className === 'Cleric') return template.qualities.includes('Blunt')
+    if (className === 'Magic-User') return template.id === 'dagger'
+    if (className === 'Halfling') return !template.twoHanded
+    return true
+  }
+  const isArmourTemplateAllowedForClass = (armourId: string, className: string) => {
+    if (className === 'Magic-User') return false
+    if (armourId === 'custom') return true
+    return !!armourCatalogById[armourId]
+  }
+  const canClassEquipArmour = selectedClassName !== 'Magic-User'
+  const weaponRestrictionNote =
+    selectedClassName === 'Cleric'
+      ? 'Clerics may only use blunt weapons.'
+      : selectedClassName === 'Magic-User'
+        ? 'Magic-Users may only use daggers.'
+        : selectedClassName === 'Dwarf'
+          ? 'Dwarves may only use small or normal-sized weapons.'
+        : selectedClassName === 'Halfling'
+          ? 'Halflings may only use one-handed weapons.'
+          : null
+  const armourRestrictionNote = selectedClassName === 'Magic-User' ? 'Magic-Users cannot equip armour.' : null
   const weaponTypeLabel = (weapon: WeaponRow) => {
     const template = weapon.weaponId !== 'custom' ? weaponCatalogById[weapon.weaponId] : null
     return template?.name ?? 'Custom weapon'
@@ -874,6 +905,26 @@ export function CharacterTab({
     updateSelectedCharacter({ ac: autoAc })
   }, [effectiveSelected, derivedDexAcModifierNumber, acManualOverrideByCharacterId])
 
+  useEffect(() => {
+    if (!effectiveSelected || selectedClassName !== 'Halfling') return
+    const rows = weaponsByCharacterId[effectiveSelected.id] ?? []
+    if (!rows.some((row) => row.twoHanded)) return
+    setWeaponsByCharacterId((current) => ({
+      ...current,
+      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).map((row) => ({ ...row, twoHanded: false })),
+    }))
+  }, [effectiveSelected, selectedClassName, weaponsByCharacterId])
+
+  useEffect(() => {
+    if (!effectiveSelected || canClassEquipArmour) return
+    const rows = armourByCharacterId[effectiveSelected.id] ?? []
+    if (!rows.some((row) => row.equipped)) return
+    setArmourByCharacterId((current) => ({
+      ...current,
+      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).map((row) => ({ ...row, equipped: false })),
+    }))
+  }, [effectiveSelected, canClassEquipArmour, armourByCharacterId])
+
   const getWeaponRows = (current: Record<string, WeaponRow[]>, characterId: string, minCount = 1) => {
     const existing = current[characterId] ?? []
     if (existing.length >= minCount) return existing
@@ -920,6 +971,12 @@ export function CharacterTab({
       nextRows[rowIndex] = updates.weaponId
         ? applyWeaponTemplate(merged, updates.weaponId)
         : merged
+      if (selectedClassName === 'Halfling' && nextRows[rowIndex].twoHanded) {
+        nextRows[rowIndex] = { ...nextRows[rowIndex], twoHanded: false, equipped: false }
+      }
+      if (!isWeaponTemplateAllowedForClass(nextRows[rowIndex].weaponId, selectedClassName)) {
+        nextRows[rowIndex] = { ...nextRows[rowIndex], equipped: false }
+      }
       return {
         ...current,
         [effectiveSelected.id]: nextRows,
@@ -977,6 +1034,12 @@ export function CharacterTab({
       nextRows[rowIndex] = updates.armourId
         ? applyArmourTemplate(merged, updates.armourId)
         : merged
+      if (!canClassEquipArmour) {
+        nextRows[rowIndex] = { ...nextRows[rowIndex], equipped: false }
+      }
+      if (!isArmourTemplateAllowedForClass(nextRows[rowIndex].armourId, selectedClassName)) {
+        nextRows[rowIndex] = { ...nextRows[rowIndex], equipped: false }
+      }
       return {
         ...current,
         [effectiveSelected.id]: nextRows,
@@ -1957,7 +2020,11 @@ export function CharacterTab({
                                 >
                                   <option value="custom">Custom</option>
                                   {OSE_WEAPON_CATALOG.map((weapon) => (
-                                    <option key={weapon.id} value={weapon.id}>
+                                    <option
+                                      key={weapon.id}
+                                      value={weapon.id}
+                                      disabled={!isWeaponTemplateAllowedForClass(weapon.id, selectedClassName)}
+                                    >
                                       {weapon.name}
                                     </option>
                                   ))}
@@ -2013,7 +2080,7 @@ export function CharacterTab({
                                   type="checkbox"
                                   checked={row.twoHanded}
                                   onChange={(event) => updateWeaponRow(rowIndex, { twoHanded: event.target.checked })}
-                                  disabled={!canEditSelected || row.weaponId !== 'custom'}
+                                  disabled={!canEditSelected || row.weaponId !== 'custom' || selectedClassName === 'Halfling'}
                                 />
                                 Two-handed
                               </label>
@@ -2048,6 +2115,7 @@ export function CharacterTab({
                           )
                         })}
                       </div>
+                      {weaponRestrictionNote ? <p className="character-enc-help">{weaponRestrictionNote}</p> : null}
                     </section>
 
                     <section className="monster-section-block character-weapons-block">
@@ -2057,7 +2125,7 @@ export function CharacterTab({
                           type="button"
                           className="icon-btn add-btn"
                           onClick={addArmourRow}
-                          disabled={!canEditSelected}
+                          disabled={!canEditSelected || !canClassEquipArmour}
                           aria-label="Add armour"
                         >
                           <Plus size={13} />
@@ -2087,7 +2155,7 @@ export function CharacterTab({
                                   type="checkbox"
                                   checked={row.equipped}
                                   onChange={(event) => updateArmourRow(rowIndex, { equipped: event.target.checked })}
-                                  disabled={!canEditSelected}
+                                  disabled={!canEditSelected || !canClassEquipArmour}
                                 />
                                 Equipped
                               </label>
@@ -2096,11 +2164,15 @@ export function CharacterTab({
                                 <select
                                   value={row.armourId}
                                   onChange={(event) => updateArmourRow(rowIndex, { armourId: event.target.value })}
-                                  disabled={!canEditSelected}
+                                  disabled={!canEditSelected || !canClassEquipArmour}
                                 >
                                   <option value="custom">Custom</option>
                                   {OSE_ARMOUR_CATALOG.map((armour) => (
-                                    <option key={armour.id} value={armour.id}>
+                                    <option
+                                      key={armour.id}
+                                      value={armour.id}
+                                      disabled={!isArmourTemplateAllowedForClass(armour.id, selectedClassName)}
+                                    >
                                       {armour.name}
                                     </option>
                                   ))}
@@ -2168,6 +2240,7 @@ export function CharacterTab({
                           )
                         })}
                       </div>
+                      {armourRestrictionNote ? <p className="character-enc-help">{armourRestrictionNote}</p> : null}
                     </section>
                   </section>
                 )}
