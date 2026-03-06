@@ -1153,6 +1153,27 @@ button:hover {
   font-size: 1rem;
 }
 
+.character-card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.character-current-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.66rem;
+  letter-spacing: 0.02em;
+  color: #2f5a2b;
+  background: #d9e8d2;
+  border: 1px solid #c0d6b8;
+  border-radius: 999px;
+  padding: 0.1rem 0.35rem;
+  flex-shrink: 0;
+}
+
 .monster-card-main p {
   margin-top: 0.2rem;
   font-size: 0.75rem;
@@ -1207,6 +1228,25 @@ button:hover {
 
 .monster-mobile-back {
   margin-bottom: 0;
+}
+
+.character-current-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  color: #44443d;
+  background: #fff;
+  border: 1px solid #d0d0c8;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+}
+
+.character-current-action.active {
+  color: #2f5a2b;
+  background: #d9e8d2;
+  border-color: #c0d6b8;
+  font-weight: 700;
 }
 
 .monster-editor-grid {

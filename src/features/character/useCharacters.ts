@@ -19,12 +19,35 @@ export function useCharacters(
   const [characters, setCharacters] = useState<CharacterRecord[]>([])
   const [charactersLoading, setCharactersLoading] = useState(false)
   const [selectedCharacterId, setSelectedCharacterId] = useState('')
+  const [currentCharacterId, setCurrentCharacterId] = useState<string | null>(null)
   const charactersRef = useRef<CharacterRecord[]>([])
   const pendingWritesRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   useEffect(() => {
     charactersRef.current = characters
   }, [characters])
+
+  useEffect(() => {
+    if (!campaignId) {
+      setCurrentCharacterId(null)
+      return
+    }
+
+    const membershipRef = doc(db, 'users', userId, 'campaignMemberships', campaignId)
+    const unsub = onSnapshot(
+      membershipRef,
+      (snap) => {
+        const value = snap.data()?.currentCharacterId
+        setCurrentCharacterId(typeof value === 'string' ? value : null)
+      },
+      (err) => {
+        const message = err instanceof Error ? err.message : 'Unable to load current character'
+        setError(message)
+      },
+    )
+
+    return () => unsub()
+  }, [campaignId, setError, userId])
 
   useEffect(() => {
     if (!campaignId || !role) return
@@ -87,6 +110,10 @@ export function useCharacters(
         setSelectedCharacterId((current) => {
           const existing = next.find((character) => character.id === current)
           if (existing) return existing.id
+          const currentCharacter = currentCharacterId
+            ? next.find((character) => character.id === currentCharacterId)
+            : null
+          if (currentCharacter) return currentCharacter.id
           const owned = next.find((character) => character.ownerUserId === userId)
           return (owned ?? next[0]).id
         })
@@ -101,7 +128,20 @@ export function useCharacters(
     return () => {
       unsub()
     }
-  }, [campaignId, currentUsername, role, userId, setError])
+  }, [campaignId, currentCharacterId, currentUsername, role, userId, setError])
+
+  useEffect(() => {
+    if (!campaignId || role !== 'player') return
+
+    const ownedCharacters = characters.filter((character) => character.ownerUserId === userId)
+    if (ownedCharacters.length === 0) return
+
+    const hasValidCurrent = !!currentCharacterId && ownedCharacters.some((character) => character.id === currentCharacterId)
+    if (hasValidCurrent) return
+
+    const fallbackCharacterId = ownedCharacters[0].id
+    void setCurrentCharacter(fallbackCharacterId)
+  }, [campaignId, characters, currentCharacterId, role, userId])
 
   useEffect(() => {
     return () => {
@@ -193,9 +233,46 @@ export function useCharacters(
     [characters, selectedCharacterId],
   )
 
+  const setCurrentCharacter = async (characterId: string) => {
+    if (!campaignId || !role) return
+    const target = charactersRef.current.find((character) => character.id === characterId)
+    if (!target) return
+    if (role === 'player' && target.ownerUserId !== userId) return
+
+    setCurrentCharacterId(characterId)
+
+    await Promise.all([
+      setDoc(
+        doc(db, 'users', userId, 'campaignMemberships', campaignId),
+        {
+          campaignId,
+          userId,
+          role,
+          status: 'active',
+          currentCharacterId: characterId,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      ),
+      setDoc(
+        doc(db, 'campaigns', campaignId, 'members', userId),
+        {
+          userId,
+          role,
+          status: 'active',
+          currentCharacterId: characterId,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      ),
+    ])
+  }
+
   return {
     characters,
     charactersLoading,
+    currentCharacterId,
+    setCurrentCharacter,
     selectedCharacterId,
     setSelectedCharacterId,
     selectedCharacter,

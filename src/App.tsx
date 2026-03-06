@@ -126,6 +126,8 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
   const {
     characters,
     charactersLoading,
+    currentCharacterId,
+    setCurrentCharacter,
     selectedCharacterId,
     setSelectedCharacterId,
     selectedCharacter,
@@ -208,6 +210,8 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
                     role={role}
                     characters={characters}
                     charactersLoading={charactersLoading}
+                    currentCharacterId={currentCharacterId}
+                    setCurrentCharacter={setCurrentCharacter}
                     selectedCharacterId={selectedCharacterId}
                     setSelectedCharacterId={setSelectedCharacterId}
                     selectedCharacter={selectedCharacter}

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, Plus, Trash2, UserRound } from 'lucide-react'
+import { ChevronLeft, Plus, Star, Trash2, UserRound } from 'lucide-react'
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { CharacterRecord, Role } from '../../types/app'
@@ -13,6 +13,8 @@ type CharacterTabProps = {
   role: Role | null
   characters: CharacterRecord[]
   charactersLoading: boolean
+  currentCharacterId: string | null
+  setCurrentCharacter: (characterId: string) => Promise<void>
   selectedCharacterId: string
   setSelectedCharacterId: (id: string) => void
   selectedCharacter: CharacterRecord | null
@@ -209,6 +211,8 @@ export function CharacterTab({
   role,
   characters,
   charactersLoading,
+  currentCharacterId,
+  setCurrentCharacter,
   selectedCharacterId,
   setSelectedCharacterId,
   selectedCharacter,
@@ -262,9 +266,12 @@ export function CharacterTab({
 
   const showListPane = !isMobile || mobileCharacterView === 'list'
   const showDetailPane = !isMobile || mobileCharacterView === 'detail'
-  const canCreateCharacter = role === 'gm'
+  const canCreateCharacter = role === 'gm' || role === 'player'
   const canDeleteCharacter = role === 'gm'
   const canEditSelected = !!effectiveSelected
+  const canSetCurrentCharacter = role === 'player'
+    && !!effectiveSelected
+    && effectiveSelected.ownerUserId === currentUserId
 
   const updateSelectedCharacter = (updates: Partial<CharacterRecord>) => {
     if (!effectiveSelected) return
@@ -728,7 +735,11 @@ export function CharacterTab({
               <div key={character.id} className="character-list-item-wrap">
                 <button
                   type="button"
-                  className={character.id === effectiveSelected?.id ? 'monster-list-item active' : 'monster-list-item'}
+                  className={
+                    character.id === effectiveSelected?.id
+                      ? 'monster-list-item active'
+                      : 'monster-list-item'
+                  }
                   onClick={() => {
                     setSelectedCharacterId(character.id)
                     if (isMobile) setMobileCharacterView('detail')
@@ -741,7 +752,15 @@ export function CharacterTab({
                   </div>
 
                   <div className="monster-card-main">
-                    <h4>{character.name || 'Unnamed Character'}</h4>
+                    <div className="character-card-title-row">
+                      <h4>{character.name || 'Unnamed Character'}</h4>
+                      {currentCharacterId === character.id ? (
+                        <span className="character-current-badge">
+                          <Star size={12} />
+                          Current
+                        </span>
+                      ) : null}
+                    </div>
                     <p className="monster-card-statline">
                       {character.className} • Level {character.level} • HP {character.hpCurrent}/{character.hpMax}
                     </p>
@@ -779,6 +798,17 @@ export function CharacterTab({
                   aria-label="Back to character list"
                 >
                   <ChevronLeft size={16} />
+                </button>
+              ) : <span />}
+              {canSetCurrentCharacter ? (
+                <button
+                  type="button"
+                  className={currentCharacterId === effectiveSelected.id ? 'character-current-action active' : 'character-current-action'}
+                  onClick={() => void setCurrentCharacter(effectiveSelected.id)}
+                  aria-label="Set as current character"
+                >
+                  <Star size={14} />
+                  <span>Current Character</span>
                 </button>
               ) : <span />}
             </div>
