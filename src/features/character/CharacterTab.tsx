@@ -1,10 +1,12 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, Plus, Star, Trash2, UserRound } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { ChevronLeft, Minus, Plus, Star, Trash2, UserRound } from 'lucide-react'
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { CharacterRecord, Role } from '../../types/app'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
+import { OSE_WEAPON_CATALOG, weaponCatalogById } from './weaponCatalog'
 
 type CharacterTabProps = {
   campaignId: string
@@ -24,10 +26,14 @@ type CharacterTabProps = {
 
 type WeaponRow = {
   id: string
+  weaponId: string
+  isMagic: boolean
   name: string
   damage: string
   bonus: string
   range: string
+  twoHanded: boolean
+  equipped: boolean
   notes: string
 }
 
@@ -185,6 +191,19 @@ const makeId = () => {
   return `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
+const makeWeaponRow = (): WeaponRow => ({
+  id: makeId(),
+  weaponId: 'custom',
+  isMagic: false,
+  name: '',
+  damage: '',
+  bonus: '',
+  range: '',
+  twoHanded: false,
+  equipped: false,
+  notes: '',
+})
+
 const adventureDefaultsByClass = (className: string): AdventureScores => {
   const defaults: AdventureScores = { FG: '1', FT: '1', HT: '1', LD: '1', SD: '1' }
   if (className === 'Dwarf') return { ...defaults, FT: '2', LD: '2' }
@@ -226,6 +245,7 @@ export function CharacterTab({
   const [rolledAbilityScoresByCharacterId, setRolledAbilityScoresByCharacterId] = useState<Record<string, AbilityScores>>({})
   const [abilityScoresRolledByCharacterId, setAbilityScoresRolledByCharacterId] = useState<Record<string, boolean>>({})
   const [hpBaseRollByCharacterId, setHpBaseRollByCharacterId] = useState<Record<string, number>>({})
+  const [equippedItemsByCharacterId, setEquippedItemsByCharacterId] = useState<Record<string, string[]>>({})
   const [packedItemsByCharacterId, setPackedItemsByCharacterId] = useState<Record<string, string[]>>({})
   const [weaponsByCharacterId, setWeaponsByCharacterId] = useState<Record<string, WeaponRow[]>>({})
   const [thacoByCharacterId, setThacoByCharacterId] = useState<Record<string, string>>({})
@@ -306,10 +326,64 @@ export function CharacterTab({
   const selectedDex = Number.parseInt(selectedDexRaw, 10)
   const selectedCha = Number.parseInt(selectedChaRaw, 10)
   const selectedCon = Number.parseInt(selectedConRaw, 10)
+  const selectedEquippedItems = effectiveSelected
+    ? (equippedItemsByCharacterId[effectiveSelected.id] ?? [])
+    : []
   const selectedPackedItems = effectiveSelected
     ? (packedItemsByCharacterId[effectiveSelected.id] ?? [])
     : []
   const selectedWeapons = effectiveSelected ? (weaponsByCharacterId[effectiveSelected.id] ?? []) : []
+  const weaponRowCount = selectedWeapons.length
+  const weaponTypeLabel = (weapon: WeaponRow) => {
+    const template = weapon.weaponId !== 'custom' ? weaponCatalogById[weapon.weaponId] : null
+    return template?.name ?? 'Custom weapon'
+  }
+  const weaponCoreStatsLabel = (weapon: WeaponRow) => {
+    const dmg = weapon.damage.trim() || '?'
+    const range = weapon.range.trim() || 'melee'
+    return `${dmg} @ ${range}`
+  }
+  const weaponStatsLabel = (weapon: WeaponRow) => {
+    const stats: string[] = []
+    stats.push(weaponCoreStatsLabel(weapon))
+    const template = weapon.weaponId !== 'custom' ? weaponCatalogById[weapon.weaponId] : null
+    if (template) stats.push(`${template.costGp}gp/${template.weightCoins}c`)
+    const bonus = weapon.bonus.trim()
+    if (bonus) stats.push(`+${bonus.replace(/^\+/, '')}`)
+    if (weapon.twoHanded) stats.push('2H')
+    return stats.join(' | ')
+  }
+  const renderWeaponSlotLabel = (weapon: WeaponRow): ReactNode => {
+    const name = weapon.name.trim() || 'Unnamed'
+    const stats = weaponStatsLabel(weapon)
+    return (
+      <span className="weapon-slot-label">
+        <strong>{weaponTypeLabel(weapon)}</strong>{' '}
+        <em>{name}</em>
+        {weapon.isMagic ? <span className="weapon-slot-magic">(M)</span> : null}
+        {stats ? <span> - {stats}</span> : null}
+      </span>
+    )
+  }
+  const equippedWeaponItems = selectedWeapons.filter((weapon) => weapon.equipped)
+  const packedWeaponItems = selectedWeapons.filter((weapon) => !weapon.equipped)
+  const packedSlotUnlockedByIndex = Array.from({ length: packedRowCount }, (_, index) =>
+    index < packedStrengthSlotCount ? (!Number.isNaN(selectedStr) && selectedStr >= packedSlotThresholds[index]) : true,
+  )
+  const availablePackedSlotIndices = packedSlotUnlockedByIndex
+    .map((unlocked, index) => (unlocked ? index : -1))
+    .filter((index) => index >= 0)
+  const packedWeaponSlotByIndex = new Map<number, WeaponRow>()
+  packedWeaponItems.forEach((weapon, weaponIndex) => {
+    const slotIndex = availablePackedSlotIndices[weaponIndex]
+    if (typeof slotIndex === 'number') {
+      packedWeaponSlotByIndex.set(slotIndex, weapon)
+    }
+  })
+  const displayedPackedItems = Array.from(
+    { length: packedRowCount },
+    (_, index) => (packedWeaponSlotByIndex.get(index)?.name ?? selectedPackedItems[index] ?? ''),
+  )
   const selectedThacoRaw = effectiveSelected ? (thacoByCharacterId[effectiveSelected.id] ?? '') : ''
   const selectedThaco = Number.parseInt(selectedThacoRaw, 10)
   const selectedSaveScores = effectiveSelected
@@ -449,7 +523,7 @@ export function CharacterTab({
       }, 0)
     : 0
   const availableAbilityTradePoints = Math.max(0, abilityTradePointsGained - abilityTradePointsSpent)
-  const filledPackedItemCount = selectedPackedItems
+  const filledPackedItemCount = displayedPackedItems
     .slice(packedStrengthSlotCount)
     .filter((entry) => entry.trim().length > 0).length
   let runningSlots = 0
@@ -713,6 +787,80 @@ export function CharacterTab({
     if (effectiveSelected.ac === autoAc) return
     updateSelectedCharacter({ ac: autoAc })
   }, [effectiveSelected, derivedDexAcModifierNumber, acManualOverrideByCharacterId])
+
+  const getWeaponRows = (current: Record<string, WeaponRow[]>, characterId: string, minCount = 1) => {
+    const existing = current[characterId] ?? []
+    if (existing.length >= minCount) return existing
+    return [...existing, ...Array.from({ length: minCount - existing.length }, () => makeWeaponRow())]
+  }
+
+  const applyWeaponTemplate = (row: WeaponRow, weaponId: string): WeaponRow => {
+    if (weaponId === 'custom') {
+      return { ...row, weaponId, twoHanded: row.twoHanded }
+    }
+    const template = weaponCatalogById[weaponId]
+    if (!template) return row
+    return {
+      ...row,
+      weaponId: template.id,
+      name: template.name,
+      damage: template.damage,
+      range: template.range,
+      twoHanded: template.twoHanded,
+    }
+  }
+
+  const updateWeaponRow = (rowIndex: number, updates: Partial<WeaponRow>) => {
+    if (!effectiveSelected) return
+    setWeaponsByCharacterId((current) => {
+      const nextRows = [...getWeaponRows(current, effectiveSelected.id, rowIndex + 1)]
+      const existing = nextRows[rowIndex] ?? makeWeaponRow()
+      const shouldEquipExclusively = updates.equipped === true
+
+      if (shouldEquipExclusively) {
+        for (let index = 0; index < nextRows.length; index += 1) {
+          const entry = nextRows[index] ?? makeWeaponRow()
+          nextRows[index] = { ...entry, equipped: index === rowIndex }
+        }
+      }
+
+      const merged = { ...nextRows[rowIndex], ...existing, ...updates }
+      nextRows[rowIndex] = updates.weaponId
+        ? applyWeaponTemplate(merged, updates.weaponId)
+        : merged
+      return {
+        ...current,
+        [effectiveSelected.id]: nextRows,
+      }
+    })
+  }
+
+  const addWeaponRow = () => {
+    if (!effectiveSelected || !canEditSelected) return
+    setWeaponsByCharacterId((current) => ({
+      ...current,
+      [effectiveSelected.id]: [...(current[effectiveSelected.id] ?? []), makeWeaponRow()],
+    }))
+  }
+
+  const removeWeaponRow = (rowIndex: number) => {
+    if (!effectiveSelected || !canEditSelected) return
+    setWeaponsByCharacterId((current) => {
+      const existing = current[effectiveSelected.id] ?? []
+      if (existing.length === 0) return current
+
+      const nextRows = existing.filter((_, index) => index !== rowIndex)
+      const hasEquipped = nextRows.some((row) => row.equipped)
+      if (!hasEquipped && nextRows.length > 0) {
+        nextRows[0] = { ...nextRows[0], equipped: true }
+      }
+
+      return {
+        ...current,
+        [effectiveSelected.id]: nextRows,
+      }
+    })
+  }
 
   return (
     <div className="maps-layout monsters-layout characters-layout">
@@ -1282,15 +1430,36 @@ export function CharacterTab({
                         <div className="character-item-rows equipped">
                           {Array.from({ length: equippedRowCount }, (_, index) => (
                             <label key={`equipped-slot-${index + 1}`} className="character-item-row">
-                              <input
-                                type="text"
-                                defaultValue=""
-                                disabled={!canEditSelected}
-                                aria-label={`Equipped item slot ${index + 1}`}
-                              />
+                              {index < equippedWeaponItems.length ? (
+                                <span className="character-item-auto-slot">
+                                  {renderWeaponSlotLabel(equippedWeaponItems[index])}
+                                </span>
+                              ) : (
+                                <input
+                                  type="text"
+                                  value={selectedEquippedItems[index - equippedWeaponItems.length] ?? ''}
+                                  onChange={(event) => {
+                                    if (!effectiveSelected) return
+                                    const manualIndex = index - equippedWeaponItems.length
+                                    setEquippedItemsByCharacterId((current) => {
+                                      const nextRows = [...(current[effectiveSelected.id] ?? [])]
+                                      nextRows[manualIndex] = event.target.value
+                                      return {
+                                        ...current,
+                                        [effectiveSelected.id]: nextRows,
+                                      }
+                                    })
+                                  }}
+                                  disabled={!canEditSelected}
+                                  aria-label={`Equipped item slot ${index + 1}`}
+                                />
+                              )}
                             </label>
                           ))}
                         </div>
+                        {equippedWeaponItems.length > equippedRowCount ? (
+                          <p className="error">Too many equipped weapons for available equipped slots.</p>
+                        ) : null}
                         <p className="character-enc-help">
                           Anything held, actively in use, or ready to use at short notice: armour worn, shields or
                           weapons held, sheathed weapons, items worn on the belt.
@@ -1309,23 +1478,29 @@ export function CharacterTab({
                                 key={`packed-strength-slot-${index + 1}`}
                                 className={`character-item-row${unlocked ? '' : ' locked'}`}
                               >
-                                <input
-                                  type="text"
-                                  value={selectedPackedItems[index] ?? ''}
-                                  onChange={(event) => {
-                                    if (!effectiveSelected) return
-                                    setPackedItemsByCharacterId((current) => {
-                                      const nextRows = [...(current[effectiveSelected.id] ?? Array(packedRowCount).fill(''))]
-                                      nextRows[index] = event.target.value
-                                      return {
-                                        ...current,
-                                        [effectiveSelected.id]: nextRows,
-                                      }
-                                    })
-                                  }}
-                                  disabled={!canEditSelected || !unlocked}
-                                  aria-label={`Packed strength slot ${index + 1}`}
-                                />
+                                {packedWeaponSlotByIndex.has(index) ? (
+                                  <span className="character-item-auto-slot">
+                                    {renderWeaponSlotLabel(packedWeaponSlotByIndex.get(index) as WeaponRow)}
+                                  </span>
+                                ) : (
+                                  <input
+                                    type="text"
+                                    value={displayedPackedItems[index] ?? ''}
+                                    onChange={(event) => {
+                                      if (!effectiveSelected) return
+                                      setPackedItemsByCharacterId((current) => {
+                                        const nextRows = [...(current[effectiveSelected.id] ?? Array(packedRowCount).fill(''))]
+                                        nextRows[index] = event.target.value
+                                        return {
+                                          ...current,
+                                          [effectiveSelected.id]: nextRows,
+                                        }
+                                      })
+                                    }}
+                                    disabled={!canEditSelected || !unlocked}
+                                    aria-label={`Packed strength slot ${index + 1}`}
+                                  />
+                                )}
                                 {label ? <span className="character-item-slot-label">{label}</span> : null}
                               </label>
                             )
@@ -1345,25 +1520,31 @@ export function CharacterTab({
                                   const index = bandStartIndex + rowOffset
                                   return (
                                     <label key={`packed-slot-${index + 1}`} className="character-item-row">
-                                      <input
-                                        type="text"
-                                        value={selectedPackedItems[index] ?? ''}
-                                        onChange={(event) => {
-                                          if (!effectiveSelected) return
-                                          setPackedItemsByCharacterId((current) => {
-                                            const nextRows = [
-                                              ...(current[effectiveSelected.id] ?? Array(packedRowCount).fill('')),
-                                            ]
-                                            nextRows[index] = event.target.value
-                                            return {
-                                              ...current,
-                                              [effectiveSelected.id]: nextRows,
-                                            }
-                                          })
-                                        }}
-                                        disabled={!canEditSelected}
-                                        aria-label={`Packed item slot ${index + 1}`}
-                                      />
+                                      {packedWeaponSlotByIndex.has(index) ? (
+                                        <span className="character-item-auto-slot">
+                                          {renderWeaponSlotLabel(packedWeaponSlotByIndex.get(index) as WeaponRow)}
+                                        </span>
+                                      ) : (
+                                        <input
+                                          type="text"
+                                          value={displayedPackedItems[index] ?? ''}
+                                          onChange={(event) => {
+                                            if (!effectiveSelected) return
+                                            setPackedItemsByCharacterId((current) => {
+                                              const nextRows = [
+                                                ...(current[effectiveSelected.id] ?? Array(packedRowCount).fill('')),
+                                              ]
+                                              nextRows[index] = event.target.value
+                                              return {
+                                                ...current,
+                                                [effectiveSelected.id]: nextRows,
+                                              }
+                                            })
+                                          }}
+                                          disabled={!canEditSelected}
+                                          aria-label={`Packed item slot ${index + 1}`}
+                                        />
+                                      )}
                                     </label>
                                   )
                                 })}
@@ -1371,6 +1552,9 @@ export function CharacterTab({
                             )
                           })}
                         </div>
+                        {packedWeaponItems.length > availablePackedSlotIndices.length ? (
+                          <p className="error">Too many unequipped weapons for available packed slots.</p>
+                        ) : null}
                         <p className="character-enc-help">
                           <strong>Current movement:</strong> {currentPackedMovement}
                         </p>
@@ -1429,181 +1613,145 @@ export function CharacterTab({
                     </section>
 
                     <section className="monster-section-block character-weapons-block">
-                      <h3 className="monster-section-title">Weapons</h3>
-                      <div className="character-weapons-table-wrap">
-                        <table className="character-weapons-table">
-                          <thead>
-                            <tr>
-                              <th>Name</th>
-                              <th>Damage</th>
-                              <th>Bonus</th>
-                              <th>Range</th>
-                              <th>Notes</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {Array.from({ length: 6 }, (_, rowIndex) => {
-                              const row = selectedWeapons[rowIndex] ?? {
-                                id: makeId(),
-                                name: '',
-                                damage: '',
-                                bonus: '',
-                                range: '',
-                                notes: '',
-                              }
-                              return (
-                                <tr key={row.id}>
-                                  <td>
+                      <div className="section-head">
+                        <h3 className="monster-section-title">Weapons</h3>
+                        <button
+                          type="button"
+                          className="icon-btn add-btn"
+                          onClick={addWeaponRow}
+                          disabled={!canEditSelected}
+                          aria-label="Add weapon"
+                        >
+                          <Plus size={13} />
+                        </button>
+                      </div>
+                      <div className="character-weapons-mobile-list">
+                        {weaponRowCount === 0 ? <p className="character-enc-help">No weapons added yet.</p> : null}
+                        {Array.from({ length: weaponRowCount }, (_, rowIndex) => {
+                          const row = selectedWeapons[rowIndex] ?? { ...makeWeaponRow(), id: `weapon-${rowIndex}` }
+                          const template = row.weaponId !== 'custom' ? weaponCatalogById[row.weaponId] : null
+                          return (
+                            <article key={row.id} className="character-weapon-card">
+                              <div className="character-weapon-card-head">
+                                <strong>Weapon {rowIndex + 1}</strong>
+                                <button
+                                  type="button"
+                                  className="icon-btn add-btn"
+                                  onClick={() => removeWeaponRow(rowIndex)}
+                                  disabled={!canEditSelected}
+                                  aria-label={`Remove weapon ${rowIndex + 1}`}
+                                >
+                                  <Minus size={13} />
+                                </button>
+                              </div>
+                              <label className="character-weapon-equipped-toggle">
+                                <input
+                                  type="checkbox"
+                                  checked={row.equipped}
+                                  onChange={(event) => updateWeaponRow(rowIndex, { equipped: event.target.checked })}
+                                  disabled={!canEditSelected}
+                                />
+                                Equipped
+                              </label>
+                              <label>
+                                Template
+                                <select
+                                  value={row.weaponId}
+                                  onChange={(event) => updateWeaponRow(rowIndex, { weaponId: event.target.value })}
+                                  disabled={!canEditSelected}
+                                >
+                                  <option value="custom">Custom</option>
+                                  {OSE_WEAPON_CATALOG.map((weapon) => (
+                                    <option key={weapon.id} value={weapon.id}>
+                                      {weapon.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <label>
+                                Name
+                                <input
+                                  type="text"
+                                  value={row.name}
+                                  onChange={(event) => updateWeaponRow(rowIndex, { name: event.target.value })}
+                                  disabled={!canEditSelected}
+                                />
+                              </label>
+                              <div className="character-weapon-mobile-grid">
+                                <label>
+                                  Dmg
+                                  <input
+                                    type="text"
+                                    value={row.damage}
+                                    onChange={(event) => updateWeaponRow(rowIndex, { damage: event.target.value })}
+                                    disabled={!canEditSelected}
+                                  />
+                                </label>
+                                <label>
+                                  Range
+                                  <input
+                                    type="text"
+                                    value={row.range}
+                                    onChange={(event) => updateWeaponRow(rowIndex, { range: event.target.value })}
+                                    disabled={!canEditSelected}
+                                  />
+                                </label>
+                                {template ? (
+                                  <label>
+                                    Cost / Weight
                                     <input
                                       type="text"
-                                      value={row.name}
-                                      onChange={(event) => {
-                                        if (!effectiveSelected) return
-                                        setWeaponsByCharacterId((current) => {
-                                          const nextRows = [...(current[effectiveSelected.id] ?? Array.from(
-                                            { length: 6 },
-                                            () => ({
-                                              id: makeId(),
-                                              name: '',
-                                              damage: '',
-                                              bonus: '',
-                                              range: '',
-                                              notes: '',
-                                            }),
-                                          ))]
-                                          nextRows[rowIndex] = { ...row, name: event.target.value }
-                                          return {
-                                            ...current,
-                                            [effectiveSelected.id]: nextRows,
-                                          }
-                                        })
-                                      }}
-                                      disabled={!canEditSelected}
-                                      aria-label={`Weapon ${rowIndex + 1} name`}
+                                      value={`${template.costGp} gp / ${template.weightCoins} coins`}
+                                      readOnly
+                                      disabled
                                     />
-                                  </td>
-                                  <td>
-                                    <input
-                                      type="text"
-                                      value={row.damage}
-                                      onChange={(event) => {
-                                        if (!effectiveSelected) return
-                                        setWeaponsByCharacterId((current) => {
-                                          const nextRows = [...(current[effectiveSelected.id] ?? Array.from(
-                                            { length: 6 },
-                                            () => ({
-                                              id: makeId(),
-                                              name: '',
-                                              damage: '',
-                                              bonus: '',
-                                              range: '',
-                                              notes: '',
-                                            }),
-                                          ))]
-                                          nextRows[rowIndex] = { ...row, damage: event.target.value }
-                                          return {
-                                            ...current,
-                                            [effectiveSelected.id]: nextRows,
-                                          }
-                                        })
-                                      }}
-                                      disabled={!canEditSelected}
-                                      aria-label={`Weapon ${rowIndex + 1} damage`}
-                                    />
-                                  </td>
-                                  <td>
-                                    <input
-                                      type="number"
-                                      step={1}
-                                      value={row.bonus}
-                                      onChange={(event) => {
-                                        if (!effectiveSelected) return
-                                        setWeaponsByCharacterId((current) => {
-                                          const nextRows = [...(current[effectiveSelected.id] ?? Array.from(
-                                            { length: 6 },
-                                            () => ({
-                                              id: makeId(),
-                                              name: '',
-                                              damage: '',
-                                              bonus: '',
-                                              range: '',
-                                              notes: '',
-                                            }),
-                                          ))]
-                                          nextRows[rowIndex] = { ...row, bonus: event.target.value }
-                                          return {
-                                            ...current,
-                                            [effectiveSelected.id]: nextRows,
-                                          }
-                                        })
-                                      }}
-                                      disabled={!canEditSelected}
-                                      aria-label={`Weapon ${rowIndex + 1} bonus`}
-                                    />
-                                  </td>
-                                  <td>
-                                    <input
-                                      type="text"
-                                      value={row.range}
-                                      onChange={(event) => {
-                                        if (!effectiveSelected) return
-                                        setWeaponsByCharacterId((current) => {
-                                          const nextRows = [...(current[effectiveSelected.id] ?? Array.from(
-                                            { length: 6 },
-                                            () => ({
-                                              id: makeId(),
-                                              name: '',
-                                              damage: '',
-                                              bonus: '',
-                                              range: '',
-                                              notes: '',
-                                            }),
-                                          ))]
-                                          nextRows[rowIndex] = { ...row, range: event.target.value }
-                                          return {
-                                            ...current,
-                                            [effectiveSelected.id]: nextRows,
-                                          }
-                                        })
-                                      }}
-                                      disabled={!canEditSelected}
-                                      aria-label={`Weapon ${rowIndex + 1} range`}
-                                    />
-                                  </td>
-                                  <td>
-                                    <input
-                                      type="text"
-                                      value={row.notes}
-                                      onChange={(event) => {
-                                        if (!effectiveSelected) return
-                                        setWeaponsByCharacterId((current) => {
-                                          const nextRows = [...(current[effectiveSelected.id] ?? Array.from(
-                                            { length: 6 },
-                                            () => ({
-                                              id: makeId(),
-                                              name: '',
-                                              damage: '',
-                                              bonus: '',
-                                              range: '',
-                                              notes: '',
-                                            }),
-                                          ))]
-                                          nextRows[rowIndex] = { ...row, notes: event.target.value }
-                                          return {
-                                            ...current,
-                                            [effectiveSelected.id]: nextRows,
-                                          }
-                                        })
-                                      }}
-                                      disabled={!canEditSelected}
-                                      aria-label={`Weapon ${rowIndex + 1} notes`}
-                                    />
-                                  </td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
+                                  </label>
+                                ) : null}
+                              </div>
+                              {template ? (
+                                <p className="character-weapon-qualities">
+                                  {`${template.qualities.join(', ')}${template.range ? ` (${template.range})` : ''}`}
+                                </p>
+                              ) : null}
+                              <label className="character-weapon-card-check">
+                                <input
+                                  type="checkbox"
+                                  checked={row.twoHanded}
+                                  onChange={(event) => updateWeaponRow(rowIndex, { twoHanded: event.target.checked })}
+                                  disabled={!canEditSelected || row.weaponId !== 'custom'}
+                                />
+                                Two-handed
+                              </label>
+                              <label className="character-weapon-card-check">
+                                <input
+                                  type="checkbox"
+                                  checked={row.isMagic}
+                                  onChange={(event) => updateWeaponRow(rowIndex, { isMagic: event.target.checked })}
+                                  disabled={!canEditSelected}
+                                />
+                                Magic
+                              </label>
+                              <label>
+                                {row.isMagic ? 'Magic Bonus' : 'Bonus'}
+                                <input
+                                  type="number"
+                                  step={1}
+                                  value={row.bonus}
+                                  onChange={(event) => updateWeaponRow(rowIndex, { bonus: event.target.value })}
+                                  disabled={!canEditSelected}
+                                />
+                              </label>
+                              <label>
+                                Notes
+                                <textarea
+                                  value={row.notes}
+                                  onChange={(event) => updateWeaponRow(rowIndex, { notes: event.target.value })}
+                                  disabled={!canEditSelected}
+                                />
+                              </label>
+                            </article>
+                          )
+                        })}
                       </div>
                     </section>
                   </section>
