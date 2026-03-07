@@ -21,6 +21,9 @@ export type CharacterRecord = {
   name: string
   ownerUserId: string
   ownerUsername?: string | null
+  creationMode: 'new' | 'established'
+  creationModeExplicit: boolean
+  creationStatus: 'draft' | 'active'
   className: string
   level: number
   hpCurrent: number

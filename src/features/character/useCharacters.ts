@@ -61,9 +61,23 @@ export function useCharacters(
             name?: string
             ownerUserId?: string
             ownerUsername?: string
+            creationMode?: 'new' | 'established'
+            creationModeExplicit?: boolean
+            creationStatus?: 'draft' | 'active'
             class?: string
             level?: number
           }
+
+          const creationModeExplicit = data.creationModeExplicit === true
+          const creationMode: CharacterRecord['creationMode'] =
+            creationModeExplicit && data.creationMode === 'established' ? 'established' : 'new'
+          const creationStatus: CharacterRecord['creationStatus'] = data.creationStatus === 'draft'
+            ? 'draft'
+            : data.creationStatus === 'active'
+              ? 'active'
+              : creationModeExplicit && creationMode === 'new'
+                ? 'draft'
+                : 'active'
 
           return {
             id: docSnap.id,
@@ -73,6 +87,9 @@ export function useCharacters(
               typeof data.ownerUsername === 'string'
                 ? data.ownerUsername
                 : ((data.ownerUserId ?? '') === userId ? currentUsername : null),
+            creationMode,
+            creationModeExplicit,
+            creationStatus,
             className: data.class ?? '-',
             level: typeof data.level === 'number' ? data.level : 1,
             hpCurrent:
@@ -166,6 +183,9 @@ export function useCharacters(
           name: character.name,
           ownerUserId: character.ownerUserId,
           ownerUsername: character.ownerUsername ?? null,
+          creationMode: character.creationMode,
+          creationModeExplicit: character.creationModeExplicit,
+          creationStatus: character.creationStatus,
           class: character.className,
           level: character.level,
           hpCurrent: character.hpCurrent,
