@@ -267,6 +267,12 @@ button:hover {
 
 .character-sheet-page-tabs.top {
   margin-bottom: 0.2rem;
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  background: #fff;
+  padding: 0.2rem 0 0.3rem;
+  border-bottom: 1px solid #ecebe5;
 }
 
 .character-sheet-page-tabs.bottom {
@@ -570,6 +576,29 @@ button:hover {
 
 .character-sheet-row.in-six {
   grid-template-columns: 28px max-content minmax(0, 1fr);
+}
+
+.character-class-feature-row {
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+}
+
+.character-class-feature-name {
+  min-height: 1.75rem;
+  display: flex;
+  align-items: center;
+  font-size: 0.86rem;
+  line-height: 1.25;
+}
+
+.character-class-feature-link {
+  color: #1f2f49;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.character-class-feature-row small {
+  grid-column: 2;
 }
 
 .character-in-six-field {

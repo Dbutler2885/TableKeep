@@ -57,6 +57,16 @@ type AdventureEditableCode = 'FG' | 'FT' | 'HT' | 'LD' | 'SD'
 type AdventureScores = Record<AdventureEditableCode, string>
 type ThiefSkillCode = 'CS' | 'TR' | 'HN' | 'HS' | 'MS' | 'OL' | 'PP' | 'RL'
 type ThiefSkillScores = Record<ThiefSkillCode, string>
+type ClassFeature = {
+  id: string
+  name: string
+  unlockedAt: number
+  summary: string
+  summaryLinks?: Array<{
+    word: string
+    url: string
+  }>
+}
 
 const emptyAbilityScores = (): AbilityScores => ({
   STR: '',
@@ -117,6 +127,199 @@ const classOptions = [
   'Magic-User',
   'Thief',
 ]
+const classFeaturesByClass: Record<string, ClassFeature[]> = {
+  Cleric: [
+    { id: 'turn-undead', name: 'Turn Undead', unlockedAt: 1, summary: 'Attempt to repel or destroy undead (2d6 turn roll; may turn or destroy).' },
+    { id: 'use-divine-items', name: 'Use Divine Magic Items', unlockedAt: 2, summary: 'Can use cleric scrolls and items restricted to divine spellcasters.' },
+    {
+      id: 'magical-research',
+      name: 'Magical Research',
+      unlockedAt: 1,
+      summary: 'May research new divine spells or deity-related magical effects.',
+      summaryLinks: [
+        {
+          word: 'research',
+          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Magical_Research',
+        },
+      ],
+    },
+    { id: 'religious-obligation', name: 'Religious Obligation', unlockedAt: 1, summary: 'Must remain faithful to deity/alignment tenets to avoid penalties.' },
+    {
+      id: 'divine-spellcasting',
+      name: 'Divine Spellcasting',
+      unlockedAt: 2,
+      summary: 'Begins at level 2; memorizes cleric spells. Requires a holy symbol to use divine powers.',
+      summaryLinks: [
+        {
+          word: 'cleric spells',
+          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Cleric_Spells',
+        },
+        {
+          word: 'holy symbol',
+          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Adventuring_Gear',
+        },
+      ],
+    },
+    { id: 'create-magic-items', name: 'Create Magic Items', unlockedAt: 9, summary: 'Can create magic items starting at level 9.' },
+    { id: 'establish-stronghold', name: 'Establish Stronghold', unlockedAt: 9, summary: 'May build a temple/stronghold; favored deity may reduce costs and grant followers.' },
+  ],
+  Dwarf: [
+    {
+      id: 'infravision',
+      name: 'Infravision',
+      unlockedAt: 1,
+      summary: 'Can see in darkness up to 60 feet.',
+    },
+  ],
+  Elf: [
+    {
+      id: 'arcane-spellcasting',
+      name: 'Arcane Spellcasting',
+      unlockedAt: 1,
+      summary: 'Casts arcane spells from the magic-user spell list. Uses a spell book to memorize spells.',
+      summaryLinks: [
+        {
+          word: 'magic-user spell list',
+          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Magic-User_Spells',
+        },
+        {
+          word: 'spells',
+          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Spells',
+        },
+      ],
+    },
+    {
+      id: 'magical-research',
+      name: 'Magical Research',
+      unlockedAt: 1,
+      summary: 'May perform arcane magical research at any level.',
+      summaryLinks: [
+        {
+          word: 'research',
+          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Magical_Research',
+        },
+      ],
+    },
+    {
+      id: 'use-arcane-items',
+      name: 'Use Arcane Magic Items',
+      unlockedAt: 1,
+      summary: 'May use arcane scrolls and magic wands.',
+    },
+    {
+      id: 'infravision',
+      name: 'Infravision',
+      unlockedAt: 1,
+      summary: 'Can see in darkness up to 60 feet.',
+    },
+    {
+      id: 'ghoul-paralysis-immunity',
+      name: 'Immunity to Ghoul Paralysis',
+      unlockedAt: 1,
+      summary: 'Completely immune to the paralysis caused by ghouls.',
+    },
+  ],
+  Fighter: [
+    {
+      id: 'stronghold',
+      name: 'Stronghold',
+      unlockedAt: 1,
+      summary: 'Any time a fighter wishes (and has sufficient money), they can build a castle or stronghold and control the surrounding lands.',
+      summaryLinks: [
+        {
+          word: 'build',
+          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Construction',
+        },
+        {
+          word: 'castle or stronghold',
+          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Structures',
+        },
+        {
+          word: 'control the surrounding lands',
+          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Domain_Management',
+        },
+      ],
+    },
+  ],
+  Halfling: [
+    {
+      id: 'defensive-bonus',
+      name: 'Defensive Bonus',
+      unlockedAt: 1,
+      summary: '+2 AC vs large opponents (creatures larger than human-sized).',
+    },
+    {
+      id: 'hiding',
+      name: 'Hiding',
+      unlockedAt: 1,
+      summary: '90% chance to hide in woods or undergrowth. 2-in-6 chance to hide in dungeons with cover if motionless and silent.',
+    },
+    {
+      id: 'missile-attack-bonus',
+      name: 'Missile Attack Bonus',
+      unlockedAt: 1,
+      summary: '+1 to attack rolls with all missile weapons.',
+    },
+    {
+      id: 'stronghold',
+      name: 'Stronghold',
+      unlockedAt: 1,
+      summary: 'May build a halfling community (shire) when they have sufficient money. The leader of the community is called the Sheriff.',
+    },
+  ],
+  'Magic-User': [
+    {
+      id: 'arcane-spellcasting',
+      name: 'Arcane Spellcasting',
+      unlockedAt: 1,
+      summary: 'Casts arcane spells from the magic-user spell list. Uses a spell book to memorize spells. Begins play with one spell in the spell book.',
+    },
+    {
+      id: 'magical-research',
+      name: 'Magical Research',
+      unlockedAt: 1,
+      summary: 'May conduct magical research at any level to invent spells or magical effects.',
+    },
+    {
+      id: 'use-arcane-items',
+      name: 'Use Arcane Magic Items',
+      unlockedAt: 1,
+      summary: 'May use scrolls of spells on the magic-user spell list. May use items restricted to arcane spellcasters (e.g., wands).',
+    },
+    {
+      id: 'weapon-armour-restriction',
+      name: 'Weapon and Armour Restriction',
+      unlockedAt: 1,
+      summary: 'May use daggers only. Cannot wear armour or use shields.',
+    },
+  ],
+  Thief: [
+    {
+      id: 'back-stab',
+      name: 'Back-stab',
+      unlockedAt: 1,
+      summary: 'When attacking an unaware opponent from behind, a thief receives a +4 bonus to hit and doubles any damage dealt.',
+    },
+    {
+      id: 'combat',
+      name: 'Combat',
+      unlockedAt: 1,
+      summary: 'Valuing stealth above all, thieves can only wear leather armour and cannot use shields. They can use any weapon.',
+    },
+    {
+      id: 'read-languages',
+      name: 'Read Languages',
+      unlockedAt: 4,
+      summary: 'A thief of 4th level or higher can read non-magical text in any language (including dead languages and basic codes) with 80% probability. If the roll fails, the thief may not try to read the same text again before gaining an experience level.',
+    },
+    {
+      id: 'thief-skills',
+      name: 'Thief Skills',
+      unlockedAt: 1,
+      summary: 'See the Thief Skills section for the skill breakdown and apply points.',
+    },
+  ],
+}
 const classHitDieByClass: Record<string, number> = {
   Cleric: 6,
   Dwarf: 8,
@@ -359,6 +562,10 @@ export function CharacterTab({
   const selectedWeapons = effectiveSelected ? (weaponsByCharacterId[effectiveSelected.id] ?? []) : []
   const selectedArmour = effectiveSelected ? (armourByCharacterId[effectiveSelected.id] ?? []) : []
   const selectedClassName = effectiveSelected?.className ?? '-'
+  const selectedLevel = effectiveSelected?.level ?? 1
+  const unlockedClassFeatures = (classFeaturesByClass[selectedClassName] ?? [])
+    .filter((feature) => selectedLevel >= feature.unlockedAt)
+    .sort((a, b) => a.unlockedAt - b.unlockedAt)
   const weaponRowCount = selectedWeapons.length
   const armourRowCount = selectedArmour.length
   const isWeaponTemplateAllowedForClass = (weaponId: string, className: string) => {
@@ -375,6 +582,7 @@ export function CharacterTab({
     return true
   }
   const isArmourTemplateAllowedForClass = (armourId: string, className: string) => {
+    if (className === 'Thief') return armourId === 'leather'
     if (className === 'Magic-User') return false
     if (armourId === 'custom') return true
     return !!armourCatalogById[armourId]
@@ -391,6 +599,44 @@ export function CharacterTab({
           ? 'Halflings may only use one-handed weapons.'
           : null
   const armourRestrictionNote = selectedClassName === 'Magic-User' ? 'Magic-Users cannot equip armour.' : null
+  const renderFeatureSummary = (feature: ClassFeature): ReactNode => {
+    const links = feature.summaryLinks ?? []
+    if (links.length === 0) return feature.summary
+
+    let parts: ReactNode[] = [feature.summary]
+    links.forEach((link, linkIndex) => {
+      const targetWord = link.word.trim()
+      if (!targetWord) return
+      let replaced = false
+      parts = parts.flatMap((part, partIndex) => {
+        if (typeof part !== 'string' || replaced) return [part]
+        const lowerPart = part.toLowerCase()
+        const lowerWord = targetWord.toLowerCase()
+        const matchIndex = lowerPart.indexOf(lowerWord)
+        if (matchIndex < 0) return [part]
+        replaced = true
+        const before = part.slice(0, matchIndex)
+        const match = part.slice(matchIndex, matchIndex + targetWord.length)
+        const after = part.slice(matchIndex + targetWord.length)
+        const mapped: ReactNode[] = []
+        if (before) mapped.push(before)
+        mapped.push(
+          <a
+            key={`feature-link-${feature.id}-${linkIndex}-${partIndex}`}
+            className="character-class-feature-link"
+            href={link.url}
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            {match}
+          </a>,
+        )
+        if (after) mapped.push(after)
+        return mapped
+      })
+    })
+    return <>{parts}</>
+  }
   const weaponTypeLabel = (weapon: WeaponRow) => {
     const template = weapon.weaponId !== 'custom' ? weaponCatalogById[weapon.weaponId] : null
     return template?.name ?? 'Custom weapon'
@@ -1185,7 +1431,7 @@ export function CharacterTab({
                       className={activePage === 'asw' ? 'character-sheet-tab active' : 'character-sheet-tab'}
                       onClick={() => setActivePage('asw')}
                     >
-                      Abilities, Skills & Weapons
+                      Weapons, Armour & Spells
                     </button>
                     <button
                       type="button"
@@ -1496,6 +1742,26 @@ export function CharacterTab({
                             </div>
                           </section>
                         </div>
+                      </section>
+
+                      <section className="monster-section-block">
+                        <div className="character-asw-head-row">
+                          <h3 className="monster-section-title">Class Features</h3>
+                          <p>Auto-filled from class and level.</p>
+                        </div>
+                        {unlockedClassFeatures.length === 0 ? (
+                          <p className="character-enc-help">No class features configured for this class yet.</p>
+                        ) : (
+                          <div className="character-sheet-rows">
+                            {unlockedClassFeatures.map((feature) => (
+                              <div key={feature.id} className="character-sheet-row character-class-feature-row">
+                                <span className="character-sheet-code">L{feature.unlockedAt}</span>
+                                <strong className="character-class-feature-name">{feature.name}</strong>
+                                <small>{renderFeatureSummary(feature)}</small>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </section>
 
                     </div>
@@ -1962,14 +2228,6 @@ export function CharacterTab({
                   </section>
                 ) : (
                   <section className="character-sheet character-asw-page">
-                    <section className="monster-section-block">
-                      <div className="character-asw-head-row">
-                        <h3 className="monster-section-title">Abilities and Skills</h3>
-                        <p>Including secondary skills, if used.</p>
-                      </div>
-                      <textarea className="character-sheet-textarea short" defaultValue="" disabled={!canEditSelected} />
-                    </section>
-
                     <section className="monster-section-block character-weapons-block">
                       <div className="section-head">
                         <h3 className="monster-section-title">Weapons</h3>
@@ -2166,7 +2424,9 @@ export function CharacterTab({
                                   onChange={(event) => updateArmourRow(rowIndex, { armourId: event.target.value })}
                                   disabled={!canEditSelected || !canClassEquipArmour}
                                 >
-                                  <option value="custom">Custom</option>
+                                  <option value="custom" disabled={!isArmourTemplateAllowedForClass('custom', selectedClassName)}>
+                                    Custom
+                                  </option>
                                   {OSE_ARMOUR_CATALOG.map((armour) => (
                                     <option
                                       key={armour.id}
@@ -2259,7 +2519,7 @@ export function CharacterTab({
                       className={activePage === 'asw' ? 'character-sheet-tab active' : 'character-sheet-tab'}
                       onClick={() => setActivePage('asw')}
                     >
-                      ASW+A
+                      Weapons, Armour & Spells
                     </button>
                     <button
                       type="button"
