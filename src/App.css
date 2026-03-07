@@ -715,6 +715,16 @@ button:hover {
   gap: 0.55rem;
 }
 
+.character-combat-attack-wrap > .monster-section-block + .monster-section-block {
+  border-top: 1px solid #dddcd6;
+  padding-top: 0.5rem;
+}
+
+.character-combat-attack-wrap.character-mobile-intermediate-pair > .monster-section-block + .monster-section-block {
+  border-top: 0;
+  padding-top: 0;
+}
+
 .character-sheet-rows {
   display: grid;
   gap: 0.25rem;
@@ -5162,15 +5172,36 @@ button:disabled {
     display: none;
   }
 
+  .monsters-detail.characters-detail {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .monsters-detail-inner.characters-detail-inner {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
   .character-sheet-page-tabs.bottom {
     display: flex;
-    position: sticky;
+    position: fixed;
+    left: 0;
+    right: 0;
     bottom: 0;
+    margin-top: 0;
+    z-index: 80;
     background: #fff;
-    padding-top: 0.35rem;
-    width: 100%;
+    padding: 0.35rem 0.75rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+    width: auto;
     border-top: 1px solid #dddcd6;
     gap: 0.2rem;
+  }
+
+  .monsters-detail-inner.characters-detail-inner {
+    padding-bottom: 4.2rem;
   }
 
   .character-sheet-page-tabs.bottom .character-sheet-tab {

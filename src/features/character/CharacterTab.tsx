@@ -1798,7 +1798,7 @@ export function CharacterTab({
                           </section>
                         </div>
 
-                        <div className={isIntermediateMobileLayout ? 'character-mobile-intermediate-pair' : ''}>
+                        <div className={isIntermediateMobileLayout ? 'character-combat-attack-wrap character-mobile-intermediate-pair' : 'character-combat-attack-wrap'}>
                           <section className="monster-section-block">
                             <div className="section-head">
                               <h3 className="monster-section-title">Combat</h3>
