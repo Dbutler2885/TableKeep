@@ -415,10 +415,12 @@ button:hover {
 }
 
 .character-weapons-mobile-list {
+  --character-weapon-card-width: 17rem;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(var(--character-weapon-card-width), var(--character-weapon-card-width)));
   gap: 0.65rem;
   align-items: start;
+  justify-content: start;
 }
 
 .character-weapon-card {
@@ -455,6 +457,26 @@ button:hover {
   font-size: 0.74rem;
 }
 
+.character-weapon-magic-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.character-weapon-magic-bonus {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.74rem;
+}
+
+.character-weapon-magic-bonus input {
+  width: 4.2ch;
+  min-width: 4.2ch;
+  text-align: center;
+  padding: 0.18rem 0.22rem;
+}
+
 .character-weapon-mobile-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -467,6 +489,50 @@ button:hover {
 
 .character-weapon-mobile-grid input {
   width: 100%;
+}
+
+.character-inline-unit-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.character-inline-unit-field input {
+  width: 100%;
+}
+
+.character-inline-unit-field span {
+  font-size: 0.76rem;
+  color: #3f3f39;
+  white-space: nowrap;
+}
+
+.character-weapon-damage-inputs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.character-weapon-damage-inputs span {
+  font-weight: 700;
+  color: #2f2f2a;
+}
+
+.character-weapon-triplet-inputs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.character-weapon-triplet-inputs span {
+  font-weight: 700;
+  color: #2f2f2a;
+}
+
+.character-weapon-range-field {
+  grid-column: 1 / -1;
 }
 
 .character-weapon-card textarea {
@@ -5150,7 +5216,7 @@ button:disabled {
   }
 
   .character-weapons-mobile-list {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .character-weapon-mobile-grid {
@@ -5376,4 +5442,10 @@ button:disabled {
     border-color: #9eb592;
   }
 
+}
+
+@media (max-width: 720px) {
+  .character-weapons-mobile-list {
+    grid-template-columns: 1fr;
+  }
 }

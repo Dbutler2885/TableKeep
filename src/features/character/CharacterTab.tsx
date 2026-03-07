@@ -36,9 +36,12 @@ type WeaponRow = {
   weaponId: string
   isMagic: boolean
   name: string
-  damage: string
+  damageDiceCount: string
+  damageDiceSides: string
   bonus: string
-  range: string
+  rangeShort: string
+  rangeMedium: string
+  rangeLong: string
   twoHanded: boolean
   equipped: boolean
   notes: string
@@ -417,9 +420,12 @@ const makeWeaponRow = (): WeaponRow => ({
   weaponId: 'custom',
   isMagic: false,
   name: '',
-  damage: '',
+  damageDiceCount: '',
+  damageDiceSides: '',
   bonus: '',
-  range: '',
+  rangeShort: '',
+  rangeMedium: '',
+  rangeLong: '',
   twoHanded: false,
   equipped: false,
   notes: '',
@@ -454,6 +460,49 @@ const defaultThiefSkills = (): ThiefSkillScores => ({
   PP: '1',
   RL: '1',
 })
+
+const parseDamageDice = (value: string): { damageDiceCount: string; damageDiceSides: string } => {
+  const match = value.trim().match(/^(\d+)\s*d\s*(\d+)$/i)
+  if (!match) return { damageDiceCount: '', damageDiceSides: '' }
+  return {
+    damageDiceCount: match[1],
+    damageDiceSides: match[2],
+  }
+}
+
+const parseRangeBands = (value: string): { rangeShort: string; rangeMedium: string; rangeLong: string } => {
+  const parts = value
+    .split('/')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+  if (parts.length !== 3) return { rangeShort: '', rangeMedium: '', rangeLong: '' }
+  const parsed = parts.map((part) => {
+    const match = part.match(/(\d+)(?!.*\d)/)
+    return match?.[1] ?? ''
+  })
+  if (parsed.some((part) => part.length === 0)) return { rangeShort: '', rangeMedium: '', rangeLong: '' }
+  return {
+    rangeShort: parsed[0],
+    rangeMedium: parsed[1],
+    rangeLong: parsed[2],
+  }
+}
+
+const parseArmourTemplateValues = (acValue: string): { ac: string; bonus: string } => {
+  const trimmed = acValue.trim()
+  const numeric = trimmed.match(/^-?\d+$/)
+  if (numeric) return { ac: trimmed, bonus: '' }
+
+  const bonus = trimmed.match(/^([+-]?\d+)\s*bonus$/i)
+  if (bonus) {
+    return {
+      ac: '',
+      bonus: bonus[1].replace(/^\+/, ''),
+    }
+  }
+
+  return { ac: '', bonus: '' }
+}
 
 export function CharacterTab({
   campaignId,
@@ -655,15 +704,20 @@ export function CharacterTab({
     return template?.name ?? 'Custom weapon'
   }
   const weaponCoreStatsLabel = (weapon: WeaponRow) => {
-    const dmg = weapon.damage.trim() || '?'
-    const range = weapon.range.trim() || 'melee'
+    const count = weapon.damageDiceCount.trim()
+    const sides = weapon.damageDiceSides.trim()
+    const dmg = count && sides ? `${count}d${sides}` : '?'
+    const short = weapon.rangeShort.trim()
+    const medium = weapon.rangeMedium.trim()
+    const long = weapon.rangeLong.trim()
+    const range = short && medium && long ? `${short}/${medium}/${long}` : 'melee'
     return `${dmg} @ ${range}`
   }
   const weaponStatsLabel = (weapon: WeaponRow) => {
     const stats: string[] = []
     stats.push(weaponCoreStatsLabel(weapon))
     const template = weapon.weaponId !== 'custom' ? weaponCatalogById[weapon.weaponId] : null
-    if (template) stats.push(`${template.costGp}gp/${template.weightCoins}c`)
+    if (template) stats.push(`${template.costGp}gp`)
     const bonus = weapon.bonus.trim()
     if (bonus) stats.push(`+${bonus.replace(/^\+/, '')}`)
     if (weapon.twoHanded) stats.push('2H')
@@ -690,7 +744,7 @@ export function CharacterTab({
     const ac = armour.ac.trim()
     if (ac) stats.push(`AC ${ac}`)
     const template = armour.armourId !== 'custom' ? armourCatalogById[armour.armourId] : null
-    if (template) stats.push(`${template.costGp}gp/${template.weightCoins}c`)
+    if (template) stats.push(`${template.costGp}gp`)
     const bonus = armour.bonus.trim()
     if (bonus) stats.push(`+${bonus.replace(/^\+/, '')}`)
     return stats.join(' | ')
@@ -1202,12 +1256,13 @@ export function CharacterTab({
     }
     const template = weaponCatalogById[weaponId]
     if (!template) return row
+    const parsedDamage = parseDamageDice(template.damage)
     return {
       ...row,
       weaponId: template.id,
       name: template.name,
-      damage: template.damage,
-      range: template.range,
+      ...parsedDamage,
+      ...parseRangeBands(template.range),
       twoHanded: template.twoHanded,
     }
   }
@@ -1276,11 +1331,12 @@ export function CharacterTab({
     }
     const template = armourCatalogById[armourId]
     if (!template) return row
+    const parsedArmour = parseArmourTemplateValues(template.ac)
     return {
       ...row,
       armourId: template.id,
       name: template.name,
-      ac: template.ac,
+      ...parsedArmour,
     }
   }
 
@@ -2386,31 +2442,74 @@ export function CharacterTab({
                               <div className="character-weapon-mobile-grid">
                                 <label>
                                   Dmg
-                                  <input
-                                    type="text"
-                                    value={row.damage}
-                                    onChange={(event) => updateWeaponRow(rowIndex, { damage: event.target.value })}
-                                    disabled={!canEditSelected}
-                                  />
+                                  <div className="character-weapon-damage-inputs">
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      step={1}
+                                      value={row.damageDiceCount}
+                                      onChange={(event) => updateWeaponRow(rowIndex, { damageDiceCount: event.target.value })}
+                                      disabled={!canEditSelected}
+                                      aria-label={`Weapon ${rowIndex + 1} damage dice count`}
+                                    />
+                                    <span>d</span>
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      step={1}
+                                      value={row.damageDiceSides}
+                                      onChange={(event) => updateWeaponRow(rowIndex, { damageDiceSides: event.target.value })}
+                                      disabled={!canEditSelected}
+                                      aria-label={`Weapon ${rowIndex + 1} damage dice sides`}
+                                    />
+                                  </div>
                                 </label>
-                                <label>
+                                <label className="character-weapon-range-field">
                                   Range
-                                  <input
-                                    type="text"
-                                    value={row.range}
-                                    onChange={(event) => updateWeaponRow(rowIndex, { range: event.target.value })}
-                                    disabled={!canEditSelected}
-                                  />
+                                  <div className="character-weapon-triplet-inputs">
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step={1}
+                                      value={row.rangeShort}
+                                      onChange={(event) => updateWeaponRow(rowIndex, { rangeShort: event.target.value })}
+                                      disabled={!canEditSelected}
+                                      aria-label={`Weapon ${rowIndex + 1} short range`}
+                                    />
+                                    <span>/</span>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step={1}
+                                      value={row.rangeMedium}
+                                      onChange={(event) => updateWeaponRow(rowIndex, { rangeMedium: event.target.value })}
+                                      disabled={!canEditSelected}
+                                      aria-label={`Weapon ${rowIndex + 1} medium range`}
+                                    />
+                                    <span>/</span>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step={1}
+                                      value={row.rangeLong}
+                                      onChange={(event) => updateWeaponRow(rowIndex, { rangeLong: event.target.value })}
+                                      disabled={!canEditSelected}
+                                      aria-label={`Weapon ${rowIndex + 1} long range`}
+                                    />
+                                  </div>
                                 </label>
                                 {template ? (
                                   <label>
-                                    Cost / Weight
-                                    <input
-                                      type="text"
-                                      value={`${template.costGp} gp / ${template.weightCoins} coins`}
-                                      readOnly
-                                      disabled
-                                    />
+                                    Cost
+                                    <div className="character-inline-unit-field">
+                                      <input
+                                        type="text"
+                                        value={template.costGp}
+                                        readOnly
+                                        disabled
+                                      />
+                                      <span>gp</span>
+                                    </div>
                                   </label>
                                 ) : null}
                               </div>
@@ -2428,25 +2527,29 @@ export function CharacterTab({
                                 />
                                 Two-handed
                               </label>
-                              <label className="character-weapon-card-check">
-                                <input
-                                  type="checkbox"
-                                  checked={row.isMagic}
-                                  onChange={(event) => updateWeaponRow(rowIndex, { isMagic: event.target.checked })}
-                                  disabled={!canEditSelected}
-                                />
-                                Magic
-                              </label>
-                              <label>
-                                {row.isMagic ? 'Magic Bonus' : 'Bonus'}
-                                <input
-                                  type="number"
-                                  step={1}
-                                  value={row.bonus}
-                                  onChange={(event) => updateWeaponRow(rowIndex, { bonus: event.target.value })}
-                                  disabled={!canEditSelected}
-                                />
-                              </label>
+                              <div className="character-weapon-magic-row">
+                                <label className="character-weapon-card-check">
+                                  <input
+                                    type="checkbox"
+                                    checked={row.isMagic}
+                                    onChange={(event) => updateWeaponRow(rowIndex, { isMagic: event.target.checked })}
+                                    disabled={!canEditSelected}
+                                  />
+                                  Magic
+                                </label>
+                                {row.isMagic ? (
+                                  <label className="character-weapon-magic-bonus">
+                                    Bonus
+                                    <input
+                                      type="number"
+                                      step={1}
+                                      value={row.bonus}
+                                      onChange={(event) => updateWeaponRow(rowIndex, { bonus: event.target.value })}
+                                      disabled={!canEditSelected}
+                                    />
+                                  </label>
+                                ) : null}
+                              </div>
                               <label>
                                 Notes
                                 <textarea
@@ -2537,7 +2640,8 @@ export function CharacterTab({
                                 <label>
                                   AC
                                   <input
-                                    type="text"
+                                    type="number"
+                                    step={1}
                                     value={row.ac}
                                     onChange={(event) => updateArmourRow(rowIndex, { ac: event.target.value })}
                                     disabled={!canEditSelected}
@@ -2545,35 +2649,42 @@ export function CharacterTab({
                                 </label>
                                 {template ? (
                                   <label>
-                                    Cost / Weight
+                                    Cost
+                                    <div className="character-inline-unit-field">
+                                      <input
+                                        type="text"
+                                        value={template.costGp}
+                                        readOnly
+                                        disabled
+                                      />
+                                      <span>gp</span>
+                                    </div>
+                                  </label>
+                                ) : null}
+                              </div>
+                              <div className="character-weapon-magic-row">
+                                <label className="character-weapon-card-check">
+                                  <input
+                                    type="checkbox"
+                                    checked={row.isMagic}
+                                    onChange={(event) => updateArmourRow(rowIndex, { isMagic: event.target.checked })}
+                                    disabled={!canEditSelected}
+                                  />
+                                  Magic
+                                </label>
+                                {row.isMagic ? (
+                                  <label className="character-weapon-magic-bonus">
+                                    Bonus
                                     <input
-                                      type="text"
-                                      value={`${template.costGp} gp / ${template.weightCoins} coins`}
-                                      readOnly
-                                      disabled
+                                      type="number"
+                                      step={1}
+                                      value={row.bonus}
+                                      onChange={(event) => updateArmourRow(rowIndex, { bonus: event.target.value })}
+                                      disabled={!canEditSelected}
                                     />
                                   </label>
                                 ) : null}
                               </div>
-                              <label className="character-weapon-card-check">
-                                <input
-                                  type="checkbox"
-                                  checked={row.isMagic}
-                                  onChange={(event) => updateArmourRow(rowIndex, { isMagic: event.target.checked })}
-                                  disabled={!canEditSelected}
-                                />
-                                Magic
-                              </label>
-                              <label>
-                                {row.isMagic ? 'Magic Bonus' : 'Bonus'}
-                                <input
-                                  type="number"
-                                  step={1}
-                                  value={row.bonus}
-                                  onChange={(event) => updateArmourRow(rowIndex, { bonus: event.target.value })}
-                                  disabled={!canEditSelected}
-                                />
-                              </label>
                               <label>
                                 Notes
                                 <textarea
