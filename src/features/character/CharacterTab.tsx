@@ -555,6 +555,7 @@ export function CharacterTab({
   const [createCharacterModalOpen, setCreateCharacterModalOpen] = useState(false)
   const [finalizeConfirmOpen, setFinalizeConfirmOpen] = useState(false)
   const [finalizeError, setFinalizeError] = useState<string | null>(null)
+  const [holySymbolRequiredOpen, setHolySymbolRequiredOpen] = useState(false)
   const [storeOpen, setStoreOpen] = useState(false)
   const [storeCloseConfirmOpen, setStoreCloseConfirmOpen] = useState(false)
   const [storeCategory, setStoreCategory] = useState<StoreCategoryId>('adventuring')
@@ -568,7 +569,6 @@ export function CharacterTab({
   const [customStoreDescription, setCustomStoreDescription] = useState('')
   const [storeClassRequiredOpen, setStoreClassRequiredOpen] = useState(false)
   const [reallocationClassRequiredOpen, setReallocationClassRequiredOpen] = useState(false)
-  const [rerollHpConfirmOpen, setRerollHpConfirmOpen] = useState(false)
   const [hpClassRequiredOpen, setHpClassRequiredOpen] = useState(false)
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{ id: string, name: string } | null>(null)
 
@@ -1065,6 +1065,12 @@ export function CharacterTab({
     if (!hasRolledAbilityScores) return 'Roll ability scores before finalizing.'
     if (!hasRolledHp) return 'Roll hit points before finalizing.'
     if (effectiveSelected.hpMax <= 0) return 'Set maximum hit points before finalizing.'
+    if (effectiveSelected.className === 'Cleric') {
+      const hasHolySymbol = [...selectedPackedItems, ...selectedEquippedItems].some((item) =>
+        item.toLowerCase().includes('holy symbol'),
+      )
+      if (!hasHolySymbol) return 'HOLY_SYMBOL_REQUIRED'
+    }
     return null
   }
 
@@ -1072,7 +1078,11 @@ export function CharacterTab({
     if (!effectiveSelected || !canEditSelected || !isGuidedCreation) return
     const validationError = validateDraftCharacter()
     if (validationError) {
-      setFinalizeError(validationError)
+      if (validationError === 'HOLY_SYMBOL_REQUIRED') {
+        setHolySymbolRequiredOpen(true)
+      } else {
+        setFinalizeError(validationError)
+      }
       return
     }
     setFinalizeError(null)
@@ -1180,6 +1190,7 @@ export function CharacterTab({
 
   const rollAbilityScores = () => {
     if (!effectiveSelected || !canEditSelected) return
+    if (hasRolledAbilityScores) return
     const roll3d6 = () =>
       Array.from({ length: 3 }, () => Math.floor(Math.random() * 6) + 1).reduce((sum, value) => sum + value, 0)
     const nextScores: AbilityScores = {
@@ -1225,7 +1236,6 @@ export function CharacterTab({
       hpCurrent: hpTotal,
       hpMax: hpTotal,
     })
-    setRerollHpConfirmOpen(false)
   }
 
   const applyClassDerivedData = (characterId: string, className: string) => {
@@ -1251,11 +1261,8 @@ export function CharacterTab({
       setHpClassRequiredOpen(true)
       return
     }
-    if (!hasRolledHp || canFreeRerollHp) {
-      rollHitPoints()
-      return
-    }
-    setRerollHpConfirmOpen(true)
+    if (hasRolledHp && !canFreeRerollHp) return
+    rollHitPoints()
   }
 
   useEffect(() => {
@@ -2213,7 +2220,6 @@ export function CharacterTab({
                                       delete next[effectiveSelected.id]
                                       return next
                                     })
-                                    setRerollHpConfirmOpen(false)
                                     updateSelectedCharacter({ className: nextClass, hpCurrent: 0, hpMax: 0 })
                                   } else {
                                     updateSelectedCharacter({ className: nextClass })
@@ -2267,8 +2273,13 @@ export function CharacterTab({
                             <div className="section-head">
                               <h3 className="monster-section-title">Ability Scores</h3>
                               {isGuidedCreation ? (
-                                <button type="button" className="monster-example-btn" onClick={rollAbilityScores} disabled={!canEditSelected}>
-                                  Roll
+                                <button
+                                  type="button"
+                                  className="monster-example-btn"
+                                  onClick={rollAbilityScores}
+                                  disabled={!canEditSelected || hasRolledAbilityScores}
+                                >
+                                  {hasRolledAbilityScores ? 'Rolled' : 'Roll'}
                                 </button>
                               ) : null}
                               {hasRolledAbilityScores ? (
@@ -2398,9 +2409,9 @@ export function CharacterTab({
                                   type="button"
                                   className="monster-example-btn"
                                   onClick={requestRollHitPoints}
-                                  disabled={!canEditSelected}
+                                  disabled={!canEditSelected || (hasRolledHp && !canFreeRerollHp)}
                                 >
-                                  {hasRolledHp ? 'Re-roll HP' : 'Roll HP'}
+                                  {!hasRolledHp ? 'Roll HP' : canFreeRerollHp ? 'Re-roll HP' : 'HP Rolled'}
                                 </button>
                               ) : null}
                             </div>
@@ -3575,7 +3586,7 @@ export function CharacterTab({
                   setCreateCharacterModalOpen(false)
                 }}
               >
-                new
+                New
               </button>
               <button
                 type="button"
@@ -3584,7 +3595,7 @@ export function CharacterTab({
                   setCreateCharacterModalOpen(false)
                 }}
               >
-                established
+                Established
               </button>
             </div>
             <div className="confirm-actions">
@@ -3616,6 +3627,14 @@ export function CharacterTab({
         onCancel={() => setFinalizeConfirmOpen(false)}
       />
       <ConfirmModal
+        open={holySymbolRequiredOpen}
+        title="Holy Symbol Required"
+        message="You need to purchase a Holy Symbol to finalize your character."
+        confirmLabel="OK"
+        onConfirm={() => setHolySymbolRequiredOpen(false)}
+        onCancel={() => setHolySymbolRequiredOpen(false)}
+      />
+      <ConfirmModal
         open={reallocationClassRequiredOpen}
         title="Class Required"
         message="Please choose class before reallocation."
@@ -3630,14 +3649,6 @@ export function CharacterTab({
         confirmLabel="OK"
         onConfirm={() => setStoreClassRequiredOpen(false)}
         onCancel={() => setStoreClassRequiredOpen(false)}
-      />
-      <ConfirmModal
-        open={rerollHpConfirmOpen}
-        title="Re-roll hit points?"
-        message="Are you sure you want to reroll HP? Re-roll without confirmation is only allowed when the previous base HP roll was 1 or 2 (before CON modifier)."
-        confirmLabel="Re-roll"
-        onConfirm={rollHitPoints}
-        onCancel={() => setRerollHpConfirmOpen(false)}
       />
       <ConfirmModal
         open={hpClassRequiredOpen}
