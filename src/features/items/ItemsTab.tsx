@@ -4,6 +4,7 @@ import type { Role } from '../../types/app'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import type { TokenIconConfig } from '../tokens/TokenIconEditor'
+import { MOBILE_BREAKPOINT } from '../../constants/layout'
 
 type ItemType = 'weapon' | 'armor' | 'consumable' | 'misc'
 type ItemTypeFilter = ItemType | 'all'
@@ -81,13 +82,13 @@ export function ItemsTab({ role }: ItemsTabProps) {
   const [deleteCandidate, setDeleteCandidate] = useState<ItemRecord | null>(null)
   const [typeFilter, setTypeFilter] = useState<ItemTypeFilter>('all')
   const [worldNotesOpenByItemId, setWorldNotesOpenByItemId] = useState<Record<string, boolean>>({})
-  const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= 900)
+  const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list')
   const canEdit = role === 'gm'
 
   useEffect(() => {
     const updateMobileState = () => {
-      const mobile = window.innerWidth <= 900
+      const mobile = window.innerWidth <= MOBILE_BREAKPOINT
       setIsMobile(mobile)
       if (!mobile) setMobileView('list')
     }

@@ -197,7 +197,13 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
 
           {drawerOpen ? <button className="drawer-backdrop" onClick={() => setDrawerOpen(false)} /> : null}
 
-          <section className={activeTab === 'maps' ? 'content-panel maps-content-panel' : 'content-panel'}>
+          <section
+            className={
+              ['character', 'maps', 'monsters', 'items'].includes(activeTab)
+                ? 'content-panel sidebar-panel'
+                : 'content-panel'
+            }
+          >
             <Routes>
               <Route path="/" element={<Navigate to={tabPaths.character} replace />} />
               <Route

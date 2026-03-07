@@ -72,6 +72,7 @@ import { TokenLayer } from './components/TokenLayer'
 import { AnnotationLayer } from './components/AnnotationLayer'
 import { InlineMapStage } from './components/InlineMapStage'
 import { FullscreenMapStage } from './components/FullscreenMapStage'
+import { MOBILE_BREAKPOINT } from '../../constants/layout'
 import { useGridTools } from './hooks/useGridTools'
 import { useMapData } from './hooks/useMapData'
 import { useMapViewport } from './hooks/useMapViewport'
@@ -84,7 +85,7 @@ import { useTokenAssets } from './hooks/useTokenAssets'
 
 export function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }) {
   const [selectedMapId, setSelectedMapId] = useState('')
-  const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= 900)
+  const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileMapView, setMobileMapView] = useState<'list' | 'detail'>('list')
   const [mobileGmPane, setMobileGmPane] = useState<'map' | 'controls'>('map')
   const [mobilePlayerPane, setMobilePlayerPane] = useState<'map' | 'controls'>('map')
@@ -129,7 +130,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
   useEffect(() => {
     const updateMobileState = () => {
-      const mobile = window.innerWidth <= 900
+      const mobile = window.innerWidth <= MOBILE_BREAKPOINT
       setIsMobile(mobile)
       if (!mobile) {
         setMobileMapView('list')

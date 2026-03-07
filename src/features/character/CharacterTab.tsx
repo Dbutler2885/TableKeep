@@ -4,6 +4,12 @@ import { ChevronLeft, Minus, Plus, Star, Trash2, UserRound } from 'lucide-react'
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { CharacterRecord, Role } from '../../types/app'
+import {
+  CHARACTER_INTERMEDIATE_MAX_WIDTH,
+  CHARACTER_MOBILE_INTERMEDIATE_MIN_WIDTH,
+  CHARACTER_MOBILE_PORTRAIT_INTERMEDIATE_MIN_WIDTH,
+  MOBILE_BREAKPOINT,
+} from '../../constants/layout'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { OSE_WEAPON_CATALOG, weaponCatalogById } from './weaponCatalog'
@@ -464,7 +470,8 @@ export function CharacterTab({
   updateCharacter,
   deleteCharacter,
 }: CharacterTabProps) {
-  const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= 900)
+  const [viewportWidth, setViewportWidth] = useState<number>(() => window.innerWidth)
+  const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileCharacterView, setMobileCharacterView] = useState<'list' | 'detail'>('list')
   const [activePage, setActivePage] = useState<'core' | 'encumbrance' | 'asw'>('core')
   const [abilityScoresByCharacterId, setAbilityScoresByCharacterId] = useState<Record<string, AbilityScores>>({})
@@ -495,7 +502,9 @@ export function CharacterTab({
 
   useEffect(() => {
     const updateMobileState = () => {
-      const mobile = window.innerWidth <= 900
+      const width = window.innerWidth
+      setViewportWidth(width)
+      const mobile = width <= MOBILE_BREAKPOINT
       setIsMobile(mobile)
       if (!mobile) setMobileCharacterView('list')
     }
@@ -514,6 +523,10 @@ export function CharacterTab({
 
   const showListPane = !isMobile || mobileCharacterView === 'list'
   const showDetailPane = !isMobile || mobileCharacterView === 'detail'
+  const isIntermediateLayout = !isMobile && viewportWidth <= CHARACTER_INTERMEDIATE_MAX_WIDTH
+  const isPortraitMobileLayout = isMobile && viewportWidth >= CHARACTER_MOBILE_PORTRAIT_INTERMEDIATE_MIN_WIDTH
+  const isIntermediateMobileLayout = isMobile && viewportWidth >= CHARACTER_MOBILE_INTERMEDIATE_MIN_WIDTH
+  const useIntermediateLayout = isIntermediateLayout || isPortraitMobileLayout
   const canCreateCharacter = role === 'gm' || role === 'player'
   const canEditSelected = !!effectiveSelected
   const canSetCurrentCharacter = role === 'player'
@@ -595,9 +608,9 @@ export function CharacterTab({
         ? 'Magic-Users may only use daggers.'
         : selectedClassName === 'Dwarf'
           ? 'Dwarves may only use small or normal-sized weapons.'
-        : selectedClassName === 'Halfling'
-          ? 'Halflings may only use one-handed weapons.'
-          : null
+          : selectedClassName === 'Halfling'
+            ? 'Halflings may only use one-handed weapons.'
+            : null
   const armourRestrictionNote = selectedClassName === 'Magic-User' ? 'Magic-Users cannot equip armour.' : null
   const renderFeatureSummary = (feature: ClassFeature): ReactNode => {
     const links = feature.summaryLinks ?? []
@@ -869,21 +882,21 @@ export function CharacterTab({
   }
   const abilityTradePointsGained = selectedRolledAbilityScores
     ? Math.floor(
-        loweringCodes.reduce((sum, code) => {
-          const base = Number.parseInt(selectedRolledAbilityScores[code], 10)
-          const current = Number.parseInt(selectedAbilityScores[code], 10)
-          if (Number.isNaN(base) || Number.isNaN(current)) return sum
-          return sum + Math.max(0, base - current)
-        }, 0) / 2,
-      )
-    : 0
-  const abilityTradePointsSpent = selectedRolledAbilityScores
-    ? primeRequisiteCodes.reduce((sum, code) => {
+      loweringCodes.reduce((sum, code) => {
         const base = Number.parseInt(selectedRolledAbilityScores[code], 10)
         const current = Number.parseInt(selectedAbilityScores[code], 10)
         if (Number.isNaN(base) || Number.isNaN(current)) return sum
-        return sum + Math.max(0, current - base)
-      }, 0)
+        return sum + Math.max(0, base - current)
+      }, 0) / 2,
+    )
+    : 0
+  const abilityTradePointsSpent = selectedRolledAbilityScores
+    ? primeRequisiteCodes.reduce((sum, code) => {
+      const base = Number.parseInt(selectedRolledAbilityScores[code], 10)
+      const current = Number.parseInt(selectedAbilityScores[code], 10)
+      if (Number.isNaN(base) || Number.isNaN(current)) return sum
+      return sum + Math.max(0, current - base)
+    }, 0)
     : 0
   const availableAbilityTradePoints = Math.max(0, abilityTradePointsGained - abilityTradePointsSpent)
   const filledPackedItemCount = displayedPackedItems
@@ -1313,6 +1326,126 @@ export function CharacterTab({
     })
   }
 
+  const renderAdventuringSkillsSection = () => (
+    <section className="monster-section-block">
+      <h3 className="monster-section-title">Adventuring Skills</h3>
+      <div className="character-sheet-rows">
+        {adventureRows.map((row) => (
+          <div key={row.code} className="character-sheet-row in-six">
+            <span className="character-sheet-code">{row.code}</span>
+            <div className="character-in-six-field">
+              {row.code === 'OD' ? (
+                <input type="text" value={derivedOpenStuckDoor} readOnly />
+              ) : (
+                <input
+                  type="number"
+                  step={1}
+                  min={1}
+                  max={6}
+                  value={selectedAdventureScores[row.code as AdventureEditableCode]}
+                  onChange={(event) => {
+                    if (!effectiveSelected) return
+                    const nextValue = clampInSix(event.target.value)
+                    setAdventureScoresByCharacterId((current) => ({
+                      ...current,
+                      [effectiveSelected.id]: {
+                        ...(current[effectiveSelected.id] ?? adventureDefaultsByClass(effectiveSelected.className)),
+                        [row.code]: nextValue,
+                      },
+                    }))
+                  }}
+                  disabled={!canEditSelected}
+                />
+              )}
+              <span className="character-in-six-suffix">-in-6</span>
+            </div>
+            <small>{row.note}</small>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+
+  const renderThiefSkillsSection = () => (effectiveSelected?.className === 'Thief' ? (
+    <section className="monster-section-block">
+      <div className="section-head">
+        <h3 className="monster-section-title">Thief Skills</h3>
+        <span className="character-roll-points">{thiefRemainingExpertisePoints} points</span>
+      </div>
+      <div className="character-sheet-rows">
+        {thiefSkillRows.map((row) => (
+          <div key={row.code} className="character-sheet-row in-six">
+            <span className="character-sheet-code">{row.code}</span>
+            <div className="character-in-six-field">
+              <input
+                type="number"
+                step={1}
+                min={1}
+                max={5}
+                value={selectedThiefSkills[row.code]}
+                onChange={(event) => {
+                  if (!effectiveSelected) return
+                  const raw = event.target.value
+                  if (raw.trim().length === 0) return
+                  const parsed = Number.parseInt(raw, 10)
+                  if (Number.isNaN(parsed)) return
+                  const nextScore = Math.min(5, Math.max(1, parsed))
+                  const currentScoreRaw = Number.parseInt(selectedThiefSkills[row.code], 10)
+                  const currentScore = Number.isNaN(currentScoreRaw) ? 1 : Math.min(5, Math.max(1, currentScoreRaw))
+                  const delta = nextScore - currentScore
+                  if (delta > thiefRemainingExpertisePoints) return
+                  setThiefSkillsByCharacterId((current) => ({
+                    ...current,
+                    [effectiveSelected.id]: {
+                      ...(current[effectiveSelected.id] ?? defaultThiefSkills()),
+                      [row.code]: String(nextScore),
+                    },
+                  }))
+                }}
+                disabled={!canEditSelected}
+              />
+              <span className="character-in-six-suffix">-in-6</span>
+            </div>
+            <small>{row.note}</small>
+          </div>
+        ))}
+      </div>
+    </section>
+  ) : null)
+
+  const renderLanguagesSection = () => (
+    <section className="monster-section-block">
+      <h3 className="monster-section-title">Languages</h3>
+      <textarea
+        className="character-sheet-textarea short"
+        defaultValue=""
+        disabled={!canEditSelected}
+      />
+    </section>
+  )
+
+  const renderClassFeaturesSection = () => (
+    <section className="monster-section-block">
+      <div className="character-asw-head-row">
+        <h3 className="monster-section-title">Class Features</h3>
+        <p>Auto-filled from class and level.</p>
+      </div>
+      {unlockedClassFeatures.length === 0 ? (
+        <p className="character-enc-help">No class features configured for this class yet.</p>
+      ) : (
+        <div className="character-sheet-rows">
+          {unlockedClassFeatures.map((feature) => (
+            <div key={feature.id} className="character-sheet-row character-class-feature-row">
+              <span className="character-sheet-code">L{feature.unlockedAt}</span>
+              <strong className="character-class-feature-name">{feature.name}</strong>
+              <small>{renderFeatureSummary(feature)}</small>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+
   return (
     <div className="maps-layout monsters-layout characters-layout">
       {showListPane ? (
@@ -1389,497 +1522,450 @@ export function CharacterTab({
       {showDetailPane ? (
         <div className="monsters-detail characters-detail">
           <div className="monsters-detail-inner characters-detail-inner">
-            <div className="monster-detail-header-row">
-              {isMobile && effectiveSelected ? (
+            {!isMobile && effectiveSelected ? (
+              <div className="character-sheet-page-tabs top">
                 <button
                   type="button"
-                  className="back-link monster-mobile-back"
-                  onClick={() => setMobileCharacterView('list')}
-                  aria-label="Back to character list"
+                  className={activePage === 'core' ? 'character-sheet-tab active' : 'character-sheet-tab'}
+                  onClick={() => setActivePage('core')}
                 >
-                  <ChevronLeft size={16} />
+                  Core Sheet
                 </button>
-              ) : <span />}
-              {canSetCurrentCharacter ? (
                 <button
                   type="button"
-                  className={currentCharacterId === effectiveSelected.id ? 'character-current-action active' : 'character-current-action'}
-                  onClick={() => void setCurrentCharacter(effectiveSelected.id)}
-                  aria-label="Set as current character"
+                  className={activePage === 'asw' ? 'character-sheet-tab active' : 'character-sheet-tab'}
+                  onClick={() => setActivePage('asw')}
                 >
-                  <Star size={14} />
-                  <span>Current Character</span>
+                  Weapons, Armour & Spells
                 </button>
-              ) : <span />}
-            </div>
+                <button
+                  type="button"
+                  className={activePage === 'encumbrance' ? 'character-sheet-tab active' : 'character-sheet-tab'}
+                  onClick={() => setActivePage('encumbrance')}
+                >
+                  Item Encumbrance
+                </button>
+                {canSetCurrentCharacter ? (
+                  <button
+                    type="button"
+                    className={currentCharacterId === effectiveSelected.id ? 'character-current-action active' : 'character-current-action'}
+                    onClick={() => void setCurrentCharacter(effectiveSelected.id)}
+                    aria-label="Set as current character"
+                  >
+                    <Star size={14} />
+                    <span>Current Character</span>
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+            {isMobile ? (
+              <div className="monster-detail-header-row">
+                {effectiveSelected ? (
+                  <button
+                    type="button"
+                    className="back-link monster-mobile-back"
+                    onClick={() => setMobileCharacterView('list')}
+                    aria-label="Back to character list"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+                ) : <span />}
+                {canSetCurrentCharacter ? (
+                  <button
+                    type="button"
+                    className={currentCharacterId === effectiveSelected.id ? 'character-current-action active' : 'character-current-action'}
+                    onClick={() => void setCurrentCharacter(effectiveSelected.id)}
+                    aria-label="Set as current character"
+                  >
+                    <Star size={14} />
+                    <span>Current Character</span>
+                  </button>
+                ) : <span />}
+              </div>
+            ) : null}
 
             {!effectiveSelected ? (
               <p>Select a character from the list.</p>
             ) : (
               <div className="monster-editor-grid character-editor-grid">
-                {!isMobile ? (
-                  <div className="character-sheet-page-tabs top">
-                    <button
-                      type="button"
-                      className={activePage === 'core' ? 'character-sheet-tab active' : 'character-sheet-tab'}
-                      onClick={() => setActivePage('core')}
-                    >
-                      Core Sheet
-                    </button>
-                    <button
-                      type="button"
-                      className={activePage === 'asw' ? 'character-sheet-tab active' : 'character-sheet-tab'}
-                      onClick={() => setActivePage('asw')}
-                    >
-                      Weapons, Armour & Spells
-                    </button>
-                    <button
-                      type="button"
-                      className={activePage === 'encumbrance' ? 'character-sheet-tab active' : 'character-sheet-tab'}
-                      onClick={() => setActivePage('encumbrance')}
-                    >
-                      Item Encumbrance
-                    </button>
-                  </div>
-                ) : null}
-
                 {activePage === 'core' ? (
-                <section className="character-sheet">
-                  <div className="character-sheet-header-grid">
-                    <label>
-                      Name
-                      <input
-                        type="text"
-                        value={effectiveSelected.name}
-                        onChange={(event) => updateSelectedCharacter({ name: event.target.value })}
-                        disabled={!canEditSelected}
-                      />
-                    </label>
-                    <label>
-                      Title
-                      <input type="text" defaultValue="" disabled={!canEditSelected} />
-                    </label>
-                    <label>
-                      Level
-                      <input
-                        type="number"
-                        min={1}
-                        max={3}
-                        value={String(effectiveSelected.level)}
-                        onChange={(event) => {
-                          const parsed = Number(event.target.value || 1)
-                          updateSelectedCharacter({ level: Math.min(3, Math.max(1, parsed)) })
-                        }}
-                        disabled={!canEditSelected}
-                      />
-                    </label>
-                    <label>
-                      Class
-                      <select
-                        value={effectiveSelected.className}
-                        onChange={(event) => {
-                          const nextClass = event.target.value
-                          const classChanged = nextClass !== effectiveSelected.className
-                          const hasRolledForSelected = typeof hpBaseRollByCharacterId[effectiveSelected.id] === 'number'
-                          if (classChanged && hasRolledForSelected) {
-                            setHpBaseRollByCharacterId((current) => {
-                              const next = { ...current }
-                              delete next[effectiveSelected.id]
-                              return next
-                            })
-                            setRerollHpConfirmOpen(false)
-                            updateSelectedCharacter({ className: nextClass, hpCurrent: 0, hpMax: 0 })
-                          } else {
-                            updateSelectedCharacter({ className: nextClass })
-                          }
-                          if (effectiveSelected) applyClassDerivedData(effectiveSelected.id, nextClass)
-                        }}
-                        disabled={!canEditSelected}
-                      >
-                        {classOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                        {!classOptions.includes(effectiveSelected.className) ? (
-                          <option value={effectiveSelected.className}>{effectiveSelected.className}</option>
-                        ) : null}
-                      </select>
-                    </label>
-                    <label>
-                      Align
-                      <select defaultValue="Neutrality" disabled={!canEditSelected}>
-                        {alignmentOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-
-                  <div className="character-sheet-main-grid">
-                    <div className="character-sheet-left">
-                      <div className="character-sheet-two-col">
-                        <section className="monster-section-block">
-                          <div className="section-head">
-                            <h3 className="monster-section-title">Ability Scores</h3>
-                            <button type="button" className="monster-example-btn" onClick={rollAbilityScores} disabled={!canEditSelected}>
-                              Roll
-                            </button>
-                            {hasRolledAbilityScores ? (
-                              <span className="character-roll-points">Points: {availableAbilityTradePoints}</span>
-                            ) : null}
-                          </div>
-                          <div className="character-sheet-rows">
-                            {abilityRows.map((row) => (
-                              <div key={row.code} className="character-sheet-row">
-                                <span className="character-sheet-code">{row.code}</span>
-                                <input
-                                  type="number"
-                                  step={1}
-                                  min={1}
-                                  max={18}
-                                  value={selectedAbilityScores[row.code as AbilityCode]}
-                                  onChange={(event) => updateAbilityScore(row.code as AbilityCode, event.target.value)}
-                                  disabled={!canEditSelected || !hasRolledAbilityScores}
-                                />
-                                <small>{row.note}</small>
-                              </div>
-                            ))}
-                          </div>
-                        </section>
-
-                        <section className="monster-section-block">
-                          <h3 className="monster-section-title">Saving Throws</h3>
-                          <div className="character-sheet-rows">
-                            {saveRows.map((row) => (
-                              <div key={row.code} className="character-sheet-row">
-                                <span className="character-sheet-code">{row.code}</span>
-                                <input
-                                  type="text"
-                                  value={
-                                    row.code === 'D' || row.code === 'W' || row.code === 'P' || row.code === 'B' || row.code === 'S'
-                                      ? displayedSaveScores[row.code]
-                                      : derivedWisMagicSaveModifier
-                                  }
-                                  readOnly
-                                />
-                                <small>{row.note}</small>
-                              </div>
-                            ))}
-                          </div>
-                        </section>
-                      </div>
-
-                      <section className="monster-section-block">
-                        <div className="section-head">
-                          <h3 className="monster-section-title">Combat</h3>
-                          <button
-                            type="button"
-                            className="monster-example-btn"
-                            onClick={requestRollHitPoints}
-                            disabled={!canEditSelected}
-                          >
-                            {hasRolledHp ? 'Re-roll HP' : 'Roll HP'}
-                          </button>
-                        </div>
-                        <div className="character-combat-layout">
-                          <div className="character-combat-column">
-                            <div className="character-combat-major-row">
-                              <span className="character-combat-tag">HP</span>
+                  <section className="character-sheet">
+                    <div
+                      className={
+                        useIntermediateLayout
+                          ? `character-sheet-main-grid intermediate${isIntermediateMobileLayout ? ' mobile-intermediate' : ''}`
+                          : 'character-sheet-main-grid'
+                      }
+                    >
+                      <div className="character-sheet-left">
+                        <div className="character-sheet-header-grid">
+                          <label className="character-header-field character-header-field-name">
+                            <span className="character-header-tag">Name</span>
+                            <input
+                              type="text"
+                              value={effectiveSelected.name}
+                              onChange={(event) => updateSelectedCharacter({ name: event.target.value })}
+                              disabled={!canEditSelected}
+                            />
+                          </label>
+                          <label className="character-header-field character-header-field-title">
+                            <span className="character-header-tag">Title</span>
+                            <input type="text" defaultValue="" disabled={!canEditSelected} />
+                          </label>
+                          <div className="character-header-compact-row">
+                            <label className="character-header-field character-header-field-level">
+                              <span className="character-header-tag">Level</span>
                               <input
                                 type="number"
-                                value={String(effectiveSelected.hpCurrent)}
-                                onChange={(event) =>
-                                  updateSelectedCharacter({ hpCurrent: Number(event.target.value || 0) })
-                                }
-                                disabled={!canEditSelected}
-                              />
-                              <small>Hit points</small>
-                            </div>
-                            <div className="character-combat-side-row">
-                              <span className="character-combat-tag">Max</span>
-                              <input
-                                type="number"
-                                value={String(effectiveSelected.hpMax)}
-                                onChange={(event) => updateSelectedCharacter({ hpMax: Number(event.target.value || 0) })}
-                                disabled={!canEditSelected}
-                              />
-                              <small>Maximum hit points</small>
-                            </div>
-                            <div className="character-combat-side-row">
-                              <span className="character-combat-tag">±</span>
-                              <input type="text" value={derivedConModifier} readOnly />
-                              <small>CON modifier to hit points</small>
-                            </div>
-                          </div>
-
-                          <div className="character-combat-column">
-                            <div className="character-combat-major-row">
-                              <span className="character-combat-tag">AC</span>
-                              <input
-                                type="number"
-                                value={String(effectiveSelected.ac)}
+                                min={1}
+                                max={3}
+                                value={String(effectiveSelected.level)}
                                 onChange={(event) => {
-                                  if (!effectiveSelected) return
-                                  setAcManualOverrideByCharacterId((current) => ({
-                                    ...current,
-                                    [effectiveSelected.id]: true,
-                                  }))
-                                  updateSelectedCharacter({ ac: Number(event.target.value || 0) })
+                                  const parsed = Number(event.target.value || 1)
+                                  updateSelectedCharacter({ level: Math.min(3, Math.max(1, parsed)) })
                                 }}
                                 disabled={!canEditSelected}
                               />
-                              <small>Armour Class</small>
-                            </div>
-                            <div className="character-combat-side-row">
-                              <span className="character-combat-tag">Un</span>
-                              <input type="text" value={derivedUnarmouredAc} readOnly />
-                              <small>Unarmoured AC: 9 [10] + DEX mod</small>
-                            </div>
-                            <div className="character-combat-side-row">
-                              <span className="character-combat-tag">±</span>
-                              <input type="text" value={derivedDexAcModifier} readOnly />
-                              <small>DEX modifier to Armour Class</small>
-                            </div>
+                            </label>
+                            <label className="character-header-field character-header-field-class">
+                              <span className="character-header-tag">Class</span>
+                              <select
+                                value={effectiveSelected.className}
+                                onChange={(event) => {
+                                  const nextClass = event.target.value
+                                  const classChanged = nextClass !== effectiveSelected.className
+                                  const hasRolledForSelected = typeof hpBaseRollByCharacterId[effectiveSelected.id] === 'number'
+                                  if (classChanged && hasRolledForSelected) {
+                                    setHpBaseRollByCharacterId((current) => {
+                                      const next = { ...current }
+                                      delete next[effectiveSelected.id]
+                                      return next
+                                    })
+                                    setRerollHpConfirmOpen(false)
+                                    updateSelectedCharacter({ className: nextClass, hpCurrent: 0, hpMax: 0 })
+                                  } else {
+                                    updateSelectedCharacter({ className: nextClass })
+                                  }
+                                  if (effectiveSelected) applyClassDerivedData(effectiveSelected.id, nextClass)
+                                }}
+                                disabled={!canEditSelected}
+                              >
+                                {classOptions.map((option) => (
+                                  <option key={option} value={option}>
+                                    {option}
+                                  </option>
+                                ))}
+                                {!classOptions.includes(effectiveSelected.className) ? (
+                                  <option value={effectiveSelected.className}>{effectiveSelected.className}</option>
+                                ) : null}
+                              </select>
+                            </label>
                           </div>
+                          <label className="character-header-field character-header-field-align">
+                            <span className="character-header-tag">Align</span>
+                            <select defaultValue="Neutrality" disabled={!canEditSelected}>
+                              {alignmentOptions.map((option) => (
+                                <option key={option} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
                         </div>
-                      </section>
-
-                      <section className="monster-section-block">
-                        <h3 className="monster-section-title">Attack Rolls</h3>
-                        <div className="character-attack-mod-list">
-                          <div className="character-attack-mod-row">
-                            <div className="character-attack-mod-cell">
-                              <span className="character-combat-tag">Mel</span>
-                              <input type="text" value={derivedMeleeModifier} readOnly />
-                            </div>
-                            <small>STR mod to melee att./dmg.</small>
-                          </div>
-                          <div className="character-attack-mod-row">
-                            <div className="character-attack-mod-cell">
-                              <span className="character-combat-tag">Mis</span>
-                              <input type="text" value={derivedMissileModifier} readOnly />
-                            </div>
-                            <small>DEX mod to missile attacks (+1 halfling bonus)</small>
-                          </div>
-                        </div>
-                        <div className="character-attack-thaco-row">
-                          <div className="character-attack-mod-cell character-thaco-cell">
-                            <span className="character-combat-tag">THAC0</span>
-                            <input
-                              type="number"
-                              step={1}
-                              value={selectedThacoRaw}
-                              onChange={(event) => {
-                                if (!effectiveSelected) return
-                                setThacoByCharacterId((current) => ({
-                                  ...current,
-                                  [effectiveSelected.id]: event.target.value,
-                                }))
-                              }}
-                              disabled={!canEditSelected}
-                            />
-                          </div>
-                          <p>Descending AC matrix (DAC)</p>
-                        </div>
-                        <div className="character-attack-matrix-grid">
-                          {Array.from({ length: 10 }, (_, idx) => 9 - idx).map((armorClass) => {
-                            const requiredRoll = Number.isNaN(selectedThaco) ? '' : String(selectedThaco - armorClass)
-                            return (
-                              <Fragment key={`dac-${armorClass}`}>
-                                <span className="character-attack-ac-label">{armorClass}</span>
-                                <span className="character-attack-roll-value">{requiredRoll}</span>
-                              </Fragment>
-                            )
-                          })}
-                        </div>
-                        <p className="character-attack-help">
-                          Descending AC: Look up attack roll in matrix to determine hit Armour Class.
-                        </p>
-                      </section>
-
-                      <section className="monster-section-block">
-                        <div className="character-encounter-movement-grid">
+                        {isMobile && !useIntermediateLayout ? (
                           <section className="monster-section-block">
-                            <h3 className="monster-section-title">Encounters</h3>
-                            <div className="character-encounter-grid">
-                              <div className="character-encounter-row">
-                                <span className="character-combat-tag">Init</span>
-                                <input type="text" value={derivedInitModifier} readOnly />
-                                <small>DEX modifier to initiative (+1 halfling bonus, optional)</small>
-                              </div>
-                              <div className="character-encounter-row">
-                                <span className="character-combat-tag">±</span>
-                                <input type="text" value={derivedReactionModifier} readOnly />
-                                <small>CHA modifier to reaction rolls</small>
-                              </div>
+                            <h3 className="monster-section-title">Portrait</h3>
+                            <div className="character-media-wrap">
+                              <EntityMediaEditor
+                                entityName={effectiveSelected.name || 'character'}
+                                portraitUrl={effectiveSelected.portraitUrl}
+                                portraitFocusX={effectiveSelected.portraitFocusX}
+                                portraitFocusY={effectiveSelected.portraitFocusY}
+                                tokenIcon={effectiveSelected.tokenIcon}
+                                onChange={(updates) => updateSelectedCharacter(updates)}
+                                portraitAltLabel="Character portrait"
+                                tokenButtonAriaLabel="Edit character token icon"
+                                removePortraitMessage="Remove the portrait image from this character?"
+                              />
                             </div>
                           </section>
-
+                        ) : null}
+                        <div className="character-sheet-two-col">
                           <section className="monster-section-block">
-                            <div className="character-section-head-with-note">
-                              <h3 className="monster-section-title">Movement</h3>
-                              <p>Base mv. rate = 120, unless encumbered</p>
+                            <div className="section-head">
+                              <h3 className="monster-section-title">Ability Scores</h3>
+                              <button type="button" className="monster-example-btn" onClick={rollAbilityScores} disabled={!canEditSelected}>
+                                Roll
+                              </button>
+                              {hasRolledAbilityScores ? (
+                                <span className="character-roll-points">Points: {availableAbilityTradePoints}</span>
+                              ) : null}
                             </div>
-                            <div className="character-encounter-grid">
-                              <div className="character-encounter-row">
-                                <span className="character-combat-tag">Ov</span>
-                                <input type="number" step={1} value={String(derivedOverlandMove)} readOnly />
-                                <small>Overland: ⅕ base mv. rate (miles/day)</small>
-                              </div>
-                              <div className="character-encounter-row">
-                                <span className="character-combat-tag">Ex</span>
-                                <input type="number" step={1} value={String(derivedExplorationMove)} readOnly />
-                                <small>Exploration: base mv. rate (feet/turn)</small>
-                              </div>
-                              <div className="character-encounter-row">
-                                <span className="character-combat-tag">En</span>
-                                <input type="number" step={1} value={String(derivedEncounterMove)} readOnly />
-                                <small>Encounter: ⅓ base mv. rate (feet/round)</small>
-                              </div>
-                            </div>
-                          </section>
-                        </div>
-                      </section>
-
-                      <section className="monster-section-block">
-                        <div className="character-asw-head-row">
-                          <h3 className="monster-section-title">Class Features</h3>
-                          <p>Auto-filled from class and level.</p>
-                        </div>
-                        {unlockedClassFeatures.length === 0 ? (
-                          <p className="character-enc-help">No class features configured for this class yet.</p>
-                        ) : (
-                          <div className="character-sheet-rows">
-                            {unlockedClassFeatures.map((feature) => (
-                              <div key={feature.id} className="character-sheet-row character-class-feature-row">
-                                <span className="character-sheet-code">L{feature.unlockedAt}</span>
-                                <strong className="character-class-feature-name">{feature.name}</strong>
-                                <small>{renderFeatureSummary(feature)}</small>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </section>
-
-                    </div>
-
-                    <div className="character-sheet-right">
-                      <section className="monster-section-block">
-                        <h3 className="monster-section-title">Portrait</h3>
-                        <div className="character-media-wrap">
-                          <EntityMediaEditor
-                            entityName={effectiveSelected.name || 'character'}
-                            portraitUrl={effectiveSelected.portraitUrl}
-                            portraitFocusX={effectiveSelected.portraitFocusX}
-                            portraitFocusY={effectiveSelected.portraitFocusY}
-                            tokenIcon={effectiveSelected.tokenIcon}
-                            onChange={(updates) => updateSelectedCharacter(updates)}
-                            portraitAltLabel="Character portrait"
-                            tokenButtonAriaLabel="Edit character token icon"
-                            removePortraitMessage="Remove the portrait image from this character?"
-                          />
-                        </div>
-                      </section>
-
-                      <section className="monster-section-block">
-                        <h3 className="monster-section-title">Adventuring Skills</h3>
-                        <div className="character-sheet-rows">
-                          {adventureRows.map((row) => (
-                            <div key={row.code} className="character-sheet-row in-six">
-                              <span className="character-sheet-code">{row.code}</span>
-                              <div className="character-in-six-field">
-                                {row.code === 'OD' ? (
-                                  <input type="text" value={derivedOpenStuckDoor} readOnly />
-                                ) : (
+                            <div className="character-sheet-rows">
+                              {abilityRows.map((row) => (
+                                <div key={row.code} className="character-sheet-row">
+                                  <span className="character-sheet-code">{row.code}</span>
                                   <input
                                     type="number"
                                     step={1}
                                     min={1}
-                                    max={6}
-                                    value={selectedAdventureScores[row.code as AdventureEditableCode]}
-                                    onChange={(event) => {
-                                      if (!effectiveSelected) return
-                                      const nextValue = clampInSix(event.target.value)
-                                      setAdventureScoresByCharacterId((current) => ({
-                                        ...current,
-                                        [effectiveSelected.id]: {
-                                          ...(current[effectiveSelected.id] ?? adventureDefaultsByClass(effectiveSelected.className)),
-                                          [row.code]: nextValue,
-                                        },
-                                      }))
-                                    }}
-                                    disabled={!canEditSelected}
+                                    max={18}
+                                    value={selectedAbilityScores[row.code as AbilityCode]}
+                                    onChange={(event) => updateAbilityScore(row.code as AbilityCode, event.target.value)}
+                                    disabled={!canEditSelected || !hasRolledAbilityScores}
                                   />
-                                )}
-                                <span className="character-in-six-suffix">-in-6</span>
-                              </div>
-                              <small>{row.note}</small>
-                            </div>
-                          ))}
-                        </div>
-                      </section>
-
-                      {effectiveSelected.className === 'Thief' ? (
-                        <section className="monster-section-block">
-                          <div className="section-head">
-                            <h3 className="monster-section-title">Thief Skills</h3>
-                            <span className="character-roll-points">{thiefRemainingExpertisePoints} points</span>
-                          </div>
-                          <div className="character-sheet-rows">
-                            {thiefSkillRows.map((row) => (
-                              <div key={row.code} className="character-sheet-row in-six">
-                                <span className="character-sheet-code">{row.code}</span>
-                                <div className="character-in-six-field">
-                                  <input
-                                    type="number"
-                                    step={1}
-                                    min={1}
-                                    max={5}
-                                    value={selectedThiefSkills[row.code]}
-                                    onChange={(event) => {
-                                      if (!effectiveSelected) return
-                                      const raw = event.target.value
-                                      if (raw.trim().length === 0) return
-                                      const parsed = Number.parseInt(raw, 10)
-                                      if (Number.isNaN(parsed)) return
-                                      const nextScore = Math.min(5, Math.max(1, parsed))
-                                      const currentScoreRaw = Number.parseInt(selectedThiefSkills[row.code], 10)
-                                      const currentScore = Number.isNaN(currentScoreRaw) ? 1 : Math.min(5, Math.max(1, currentScoreRaw))
-                                      const delta = nextScore - currentScore
-                                      if (delta > thiefRemainingExpertisePoints) return
-                                      setThiefSkillsByCharacterId((current) => ({
-                                        ...current,
-                                        [effectiveSelected.id]: {
-                                          ...(current[effectiveSelected.id] ?? defaultThiefSkills()),
-                                          [row.code]: String(nextScore),
-                                        },
-                                      }))
-                                    }}
-                                    disabled={!canEditSelected}
-                                  />
-                                  <span className="character-in-six-suffix">-in-6</span>
+                                  <small>{row.note}</small>
                                 </div>
-                                <small>{row.note}</small>
+                              ))}
+                            </div>
+                          </section>
+
+                          <section className="monster-section-block">
+                            <h3 className="monster-section-title">Saving Throws</h3>
+                            <div className="character-sheet-rows">
+                              {saveRows.map((row) => (
+                                <div key={row.code} className="character-sheet-row">
+                                  <span className="character-sheet-code">{row.code}</span>
+                                  <input
+                                    type="text"
+                                    value={
+                                      row.code === 'D' || row.code === 'W' || row.code === 'P' || row.code === 'B' || row.code === 'S'
+                                        ? displayedSaveScores[row.code]
+                                        : derivedWisMagicSaveModifier
+                                    }
+                                    readOnly
+                                  />
+                                  <small>{row.note}</small>
+                                </div>
+                              ))}
+                            </div>
+                          </section>
+                        </div>
+
+                        <div className={isIntermediateMobileLayout ? 'character-mobile-intermediate-pair' : ''}>
+                          <section className="monster-section-block">
+                            <div className="section-head">
+                              <h3 className="monster-section-title">Combat</h3>
+                              <button
+                                type="button"
+                                className="monster-example-btn"
+                                onClick={requestRollHitPoints}
+                                disabled={!canEditSelected}
+                              >
+                                {hasRolledHp ? 'Re-roll HP' : 'Roll HP'}
+                              </button>
+                            </div>
+                            <div className="character-combat-layout">
+                              <div className="character-combat-column">
+                                <div className="character-combat-major-row">
+                                  <span className="character-combat-tag">HP</span>
+                                  <input
+                                    type="number"
+                                    value={String(effectiveSelected.hpCurrent)}
+                                    onChange={(event) =>
+                                      updateSelectedCharacter({ hpCurrent: Number(event.target.value || 0) })
+                                    }
+                                    disabled={!canEditSelected}
+                                  />
+                                  <small>Hit points</small>
+                                </div>
+                                <div className="character-combat-side-row">
+                                  <span className="character-combat-tag">Max</span>
+                                  <input
+                                    type="number"
+                                    value={String(effectiveSelected.hpMax)}
+                                    onChange={(event) => updateSelectedCharacter({ hpMax: Number(event.target.value || 0) })}
+                                    disabled={!canEditSelected}
+                                  />
+                                  <small>Maximum hit points</small>
+                                </div>
+                                <div className="character-combat-side-row">
+                                  <span className="character-combat-tag">±</span>
+                                  <input type="text" value={derivedConModifier} readOnly />
+                                  <small>CON modifier to hit points</small>
+                                </div>
                               </div>
-                            ))}
+
+                              <div className="character-combat-column">
+                                <div className="character-combat-major-row">
+                                  <span className="character-combat-tag">AC</span>
+                                  <input
+                                    type="number"
+                                    value={String(effectiveSelected.ac)}
+                                    onChange={(event) => {
+                                      if (!effectiveSelected) return
+                                      setAcManualOverrideByCharacterId((current) => ({
+                                        ...current,
+                                        [effectiveSelected.id]: true,
+                                      }))
+                                      updateSelectedCharacter({ ac: Number(event.target.value || 0) })
+                                    }}
+                                    disabled={!canEditSelected}
+                                  />
+                                  <small>Armour Class</small>
+                                </div>
+                                <div className="character-combat-side-row">
+                                  <span className="character-combat-tag">Un</span>
+                                  <input type="text" value={derivedUnarmouredAc} readOnly />
+                                  <small>Unarmoured AC: 9 [10] + DEX mod</small>
+                                </div>
+                                <div className="character-combat-side-row">
+                                  <span className="character-combat-tag">±</span>
+                                  <input type="text" value={derivedDexAcModifier} readOnly />
+                                  <small>DEX modifier to Armour Class</small>
+                                </div>
+                              </div>
+                            </div>
+                          </section>
+
+                          <section className="monster-section-block">
+                            <h3 className="monster-section-title">Attack Rolls</h3>
+                            <div className="character-attack-mod-list">
+                              <div className="character-attack-mod-row">
+                                <div className="character-attack-mod-cell">
+                                  <span className="character-combat-tag">Mel</span>
+                                  <input type="text" value={derivedMeleeModifier} readOnly />
+                                </div>
+                                <small>STR mod to melee att./dmg.</small>
+                              </div>
+                              <div className="character-attack-mod-row">
+                                <div className="character-attack-mod-cell">
+                                  <span className="character-combat-tag">Mis</span>
+                                  <input type="text" value={derivedMissileModifier} readOnly />
+                                </div>
+                                <small>DEX mod to missile attacks (+1 halfling bonus)</small>
+                              </div>
+                            </div>
+                            <div className="character-attack-thaco-row">
+                              <div className="character-attack-mod-cell character-thaco-cell">
+                                <span className="character-combat-tag">THAC0</span>
+                                <input
+                                  type="number"
+                                  step={1}
+                                  value={selectedThacoRaw}
+                                  onChange={(event) => {
+                                    if (!effectiveSelected) return
+                                    setThacoByCharacterId((current) => ({
+                                      ...current,
+                                      [effectiveSelected.id]: event.target.value,
+                                    }))
+                                  }}
+                                  disabled={!canEditSelected}
+                                />
+                              </div>
+                              <p>Descending AC matrix (DAC)</p>
+                            </div>
+                            <div className="character-attack-matrix-grid">
+                              {Array.from({ length: 10 }, (_, idx) => 9 - idx).map((armorClass) => {
+                                const requiredRoll = Number.isNaN(selectedThaco) ? '' : String(selectedThaco - armorClass)
+                                return (
+                                  <Fragment key={`dac-${armorClass}`}>
+                                    <span className="character-attack-ac-label">{armorClass}</span>
+                                    <span className="character-attack-roll-value">{requiredRoll}</span>
+                                  </Fragment>
+                                )
+                              })}
+                            </div>
+                            <p className="character-attack-help">
+                              Descending AC: Look up attack roll in matrix to determine hit Armour Class.
+                            </p>
+                          </section>
+                        </div>
+
+                        <section className="monster-section-block">
+                          <div className="character-encounter-movement-grid">
+                            <section className="monster-section-block">
+                              <h3 className="monster-section-title">Encounters</h3>
+                              <div className="character-encounter-grid">
+                                <div className="character-encounter-row">
+                                  <span className="character-combat-tag">Init</span>
+                                  <input type="text" value={derivedInitModifier} readOnly />
+                                  <small>DEX modifier to initiative (+1 halfling bonus, optional)</small>
+                                </div>
+                                <div className="character-encounter-row">
+                                  <span className="character-combat-tag">±</span>
+                                  <input type="text" value={derivedReactionModifier} readOnly />
+                                  <small>CHA modifier to reaction rolls</small>
+                                </div>
+                              </div>
+                            </section>
+
+                            <section className="monster-section-block">
+                              <div className="character-section-head-with-note">
+                                <h3 className="monster-section-title">Movement</h3>
+                                <p>Base mv. rate = 120, unless encumbered</p>
+                              </div>
+                              <div className="character-encounter-grid">
+                                <div className="character-encounter-row">
+                                  <span className="character-combat-tag">Ov</span>
+                                  <input type="number" step={1} value={String(derivedOverlandMove)} readOnly />
+                                  <small>Overland: ⅕ base mv. rate (miles/day)</small>
+                                </div>
+                                <div className="character-encounter-row">
+                                  <span className="character-combat-tag">Ex</span>
+                                  <input type="number" step={1} value={String(derivedExplorationMove)} readOnly />
+                                  <small>Exploration: base mv. rate (feet/turn)</small>
+                                </div>
+                                <div className="character-encounter-row">
+                                  <span className="character-combat-tag">En</span>
+                                  <input type="number" step={1} value={String(derivedEncounterMove)} readOnly />
+                                  <small>Encounter: ⅓ base mv. rate (feet/round)</small>
+                                </div>
+                              </div>
+                            </section>
                           </div>
                         </section>
-                      ) : null}
 
-                      <section className="monster-section-block">
-                        <h3 className="monster-section-title">Languages</h3>
-                        <textarea
-                          className="character-sheet-textarea short"
-                          defaultValue=""
-                          disabled={!canEditSelected}
-                        />
-                      </section>
+                        {useIntermediateLayout && !isIntermediateMobileLayout ? (
+                          <div className="character-sheet-two-col">
+                            {renderAdventuringSkillsSection()}
+                            {renderThiefSkillsSection()}
+                          </div>
+                        ) : null}
+
+                        {isIntermediateMobileLayout ? (
+                          <div className="character-mobile-intermediate-pair">
+                            {renderAdventuringSkillsSection()}
+                            {renderClassFeaturesSection()}
+                          </div>
+                        ) : (
+                          renderClassFeaturesSection()
+                        )}
+
+                        {isIntermediateMobileLayout ? renderThiefSkillsSection() : null}
+
+                        {useIntermediateLayout ? renderLanguagesSection() : null}
+
+                      </div>
+
+                      <div className="character-sheet-right">
+                        {!isMobile || useIntermediateLayout ? (
+                          <section className="monster-section-block">
+                            <h3 className="monster-section-title">Portrait</h3>
+                            <div className="character-media-wrap">
+                              <EntityMediaEditor
+                                entityName={effectiveSelected.name || 'character'}
+                                portraitUrl={effectiveSelected.portraitUrl}
+                                portraitFocusX={effectiveSelected.portraitFocusX}
+                                portraitFocusY={effectiveSelected.portraitFocusY}
+                                tokenIcon={effectiveSelected.tokenIcon}
+                                onChange={(updates) => updateSelectedCharacter(updates)}
+                                portraitAltLabel="Character portrait"
+                                tokenButtonAriaLabel="Edit character token icon"
+                                removePortraitMessage="Remove the portrait image from this character?"
+                              />
+                            </div>
+                          </section>
+                        ) : null}
+
+                        {!useIntermediateLayout ? renderAdventuringSkillsSection() : null}
+
+                        {!useIntermediateLayout ? renderThiefSkillsSection() : null}
+
+                        {!useIntermediateLayout ? renderLanguagesSection() : null}
+                      </div>
                     </div>
-                  </div>
-                </section>
+                  </section>
                 ) : activePage === 'encumbrance' ? (
                   <section className="character-sheet character-enc-page">
                     <p className="character-enc-note">

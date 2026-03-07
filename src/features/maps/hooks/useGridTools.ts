@@ -124,14 +124,14 @@ export function useGridTools({
         prev.map((map) =>
           map.id === selectedMap.id
             ? {
-                ...map,
-                gridEnabled: false,
-                gridVisible: true,
-                gridCellScale: DEFAULT_GRID_CELL_SCALE,
-                gridOffsetX: 0,
-                gridOffsetY: 0,
-                gridType: 'square',
-              }
+              ...map,
+              gridEnabled: false,
+              gridVisible: true,
+              gridCellScale: DEFAULT_GRID_CELL_SCALE,
+              gridOffsetX: 0,
+              gridOffsetY: 0,
+              gridType: 'square',
+            }
             : map,
         ),
       )
@@ -176,13 +176,13 @@ export function useGridTools({
           current
             ? { ...current, gridType }
             : {
-                gridEnabled: true,
-                gridVisible: true,
-                gridCellScale: selectedMap.gridCellScale,
-                gridOffsetX: selectedMap.gridOffsetX,
-                gridOffsetY: selectedMap.gridOffsetY,
-                gridType,
-              },
+              gridEnabled: true,
+              gridVisible: true,
+              gridCellScale: selectedMap.gridCellScale,
+              gridOffsetX: selectedMap.gridOffsetX,
+              gridOffsetY: selectedMap.gridOffsetY,
+              gridType,
+            },
         )
         return
       }
@@ -249,13 +249,13 @@ export function useGridTools({
       prev.map((map) =>
         map.id === selectedMap.id
           ? {
-              ...map,
-              gridCellScale: nextCellScale,
-              gridOffsetX: nextOffsetX / mapWidth,
-              gridOffsetY: nextOffsetY / mapHeight,
-              gridUnitsPerCell: 10,
-              gridCalibrated: true,
-            }
+            ...map,
+            gridCellScale: nextCellScale,
+            gridOffsetX: nextOffsetX / mapWidth,
+            gridOffsetY: nextOffsetY / mapHeight,
+            gridUnitsPerCell: 10,
+            gridCalibrated: true,
+          }
           : map,
       ),
     )
@@ -359,13 +359,13 @@ export function useGridTools({
         current
           ? { ...current, gridVisible: !current.gridVisible }
           : {
-              gridEnabled: true,
-              gridVisible: !(selectedMap.gridVisible !== false),
-              gridCellScale: selectedMap.gridCellScale,
-              gridOffsetX: selectedMap.gridOffsetX,
-              gridOffsetY: selectedMap.gridOffsetY,
-              gridType: selectedMap.gridType ?? 'square',
-            },
+            gridEnabled: true,
+            gridVisible: !(selectedMap.gridVisible !== false),
+            gridCellScale: selectedMap.gridCellScale,
+            gridOffsetX: selectedMap.gridOffsetX,
+            gridOffsetY: selectedMap.gridOffsetY,
+            gridType: selectedMap.gridType ?? 'square',
+          },
       )
       return
     }
@@ -409,11 +409,11 @@ export function useGridTools({
     setGridAdjustDraft((current) =>
       current
         ? {
-            ...current,
-            gridCellScale: nextCellPx / mapDimension,
-            gridOffsetX: nextOffsetX / mapWidth,
-            gridOffsetY: nextOffsetY / mapHeight,
-          }
+          ...current,
+          gridCellScale: nextCellPx / mapDimension,
+          gridOffsetX: nextOffsetX / mapWidth,
+          gridOffsetY: nextOffsetY / mapHeight,
+        }
         : current,
     )
   }

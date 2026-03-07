@@ -8,6 +8,7 @@ import type { Role } from '../../types/app'
 import { monsterRulesets, type MonsterRulesetId } from './rulesets'
 import { TokenPawnPreview, type TokenIconConfig } from '../tokens/TokenIconEditor'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
+import { MOBILE_BREAKPOINT } from '../../constants/layout'
 
 type SaveType = 'death_poison' | 'wands' | 'paralysis_petrification' | 'breath' | 'spells' | 'custom'
 type OnHitEffectClass = 'save' | 'effect'
@@ -277,7 +278,7 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
   const [selectedMonsterId, setSelectedMonsterId] = useState<string | null>(null)
   const monstersRef = useRef<MonsterRecord[]>([])
   const pendingWritesRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
-  const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= 900)
+  const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileMonsterView, setMobileMonsterView] = useState<'list' | 'detail'>('list')
 
   const canEdit = role === 'gm'
@@ -480,7 +481,7 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
 
   useEffect(() => {
     const updateMobileState = () => {
-      const mobile = window.innerWidth <= 900
+      const mobile = window.innerWidth <= MOBILE_BREAKPOINT
       setIsMobile(mobile)
       if (!mobile) {
         setMobileMonsterView('list')
