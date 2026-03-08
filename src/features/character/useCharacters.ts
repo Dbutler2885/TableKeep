@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
-import type { CharacterRecord, Role, TokenIconConfig } from '../../types/app'
+import type { CharacterRecord, CharacterSheetDetails, Role, TokenIconConfig } from '../../types/app'
 
 const defaultTokenIcon: TokenIconConfig = {
   icon: 'pawn',
@@ -57,6 +57,12 @@ export function useCharacters(
       collection(db, 'campaigns', campaignId, 'characters'),
       (snap) => {
         const all = snap.docs.map((docSnap) => {
+          // Clobbering guard: keep local version if a write is pending
+          if (pendingWritesRef.current[docSnap.id]) {
+            const local = charactersRef.current.find((c) => c.id === docSnap.id)
+            if (local) return local
+          }
+
           const data = docSnap.data() as {
             name?: string
             ownerUserId?: string
@@ -78,6 +84,12 @@ export function useCharacters(
               : creationModeExplicit && creationMode === 'new'
                 ? 'draft'
                 : 'active'
+
+          const rawDetails = (data as { details?: unknown }).details
+          const details: CharacterSheetDetails | null =
+            typeof rawDetails === 'object' && rawDetails !== null
+              ? (rawDetails as CharacterSheetDetails)
+              : null
 
           return {
             id: docSnap.id,
@@ -112,6 +124,7 @@ export function useCharacters(
               ? (data as { portraitFocusY: number }).portraitFocusY
               : 50,
             tokenIcon: (data as { tokenIcon?: TokenIconConfig }).tokenIcon ?? defaultTokenIcon,
+            details,
           }
         })
 
@@ -196,6 +209,7 @@ export function useCharacters(
           portraitFocusX: character.portraitFocusX,
           portraitFocusY: character.portraitFocusY,
           tokenIcon: character.tokenIcon,
+          details: character.details ? JSON.parse(JSON.stringify(character.details)) : null,
           updatedAt: serverTimestamp(),
         },
         { merge: true },
@@ -288,6 +302,8 @@ export function useCharacters(
     ])
   }
 
+  const hasPendingWrite = (id: string) => !!pendingWritesRef.current[id]
+
   return {
     characters,
     charactersLoading,
@@ -298,5 +314,6 @@ export function useCharacters(
     selectedCharacter,
     updateCharacter,
     deleteCharacter,
+    hasPendingWrite,
   }
 }

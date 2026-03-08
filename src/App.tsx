@@ -133,6 +133,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
     selectedCharacter,
     updateCharacter,
     deleteCharacter,
+    hasPendingWrite,
   } = useCharacters(campaign?.id ?? null, user.uid, username, role, setError)
 
   const tabLabel = (tab: (typeof tabs)[number]['id']) => {
@@ -223,6 +224,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
                     selectedCharacter={selectedCharacter}
                     updateCharacter={updateCharacter}
                     deleteCharacter={deleteCharacter}
+                    hasPendingWrite={hasPendingWrite}
                   />
                 }
               />
