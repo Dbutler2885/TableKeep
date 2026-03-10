@@ -4,10 +4,12 @@ import type {
   CharacterArmourItem,
   CharacterConsumableItem,
   CharacterGeneralItem,
+  CharacterGoldItem,
   CharacterInventoryItem,
   CharacterWeaponItem,
 } from '../../types/app'
 import { DEFAULT_STACK_POLICY } from './itemDefaults'
+import { goldChunksForAmount, makeGoldItem } from '../character/inventoryOverflow'
 
 const defaultWeaponStats: CampaignItem['weaponStats'] = {
   damageDiceCount: '', damageDiceSides: '', attackBonus: '',
@@ -89,7 +91,14 @@ export function campaignItemToInventoryItem(item: CampaignItem): CharacterInvent
         qty: 1,
         stack: DEFAULT_STACK_POLICY.general,
       } satisfies CharacterGeneralItem
+
+    case 'gold':
+      throw new Error('Gold campaign items must use campaignGoldToInventoryChunks() instead of campaignItemToInventoryItem()')
   }
+}
+
+export function campaignGoldToInventoryChunks(goldAmount: number): CharacterGoldItem[] {
+  return goldChunksForAmount(goldAmount).map((chunk) => makeGoldItem(chunk))
 }
 
 export function inventoryItemToCampaignItem(
@@ -182,6 +191,14 @@ export function inventoryItemToCampaignItem(
         consumableStats: defaultConsumableStats,
       }
     case 'gold':
-      throw new Error('Gold items cannot be converted to campaign items')
+      return {
+        ...base,
+        type: 'gold',
+        isMagic: false,
+        weaponStats: defaultWeaponStats,
+        armourStats: defaultArmourStats,
+        consumableStats: defaultConsumableStats,
+        goldAmount: item.qty ?? 0,
+      }
   }
 }

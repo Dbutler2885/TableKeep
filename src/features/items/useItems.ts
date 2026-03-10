@@ -61,7 +61,7 @@ const normalizeConsumableStats = (value: unknown): CampaignItem['consumableStats
 }
 
 const normalizeCampaignItem = (id: string, data: Record<string, unknown>): CampaignItem => {
-  const type = data.type === 'weapon' || data.type === 'armour' || data.type === 'ammunition' || data.type === 'consumable' || data.type === 'general'
+  const type = data.type === 'weapon' || data.type === 'armour' || data.type === 'ammunition' || data.type === 'consumable' || data.type === 'general' || data.type === 'gold'
     ? data.type
     : 'general'
   return {
@@ -88,6 +88,7 @@ const normalizeCampaignItem = (id: string, data: Record<string, unknown>): Campa
     consumableStats: normalizeConsumableStats(data.consumableStats),
     specialRule: typeof data.specialRule === 'string' ? data.specialRule : '',
     notes: typeof data.notes === 'string' ? data.notes : '',
+    ...(typeof data.goldAmount === 'number' ? { goldAmount: data.goldAmount } : {}),
   }
 }
 
@@ -115,6 +116,7 @@ export const toFirestoreItem = (item: CampaignItem): Record<string, unknown> => 
 
   if (item.droppedByCharacterId) payload.droppedByCharacterId = item.droppedByCharacterId
   if (item.droppedByCharacterName) payload.droppedByCharacterName = item.droppedByCharacterName
+  if (typeof item.goldAmount === 'number') payload.goldAmount = item.goldAmount
 
   return payload
 }

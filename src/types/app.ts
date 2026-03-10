@@ -65,7 +65,7 @@ export type StackPolicy =
 
 // --- Campaign item (GM-authored template) ---
 
-export type CampaignItemType = 'weapon' | 'armour' | 'ammunition' | 'consumable' | 'general'
+export type CampaignItemType = 'weapon' | 'armour' | 'ammunition' | 'consumable' | 'general' | 'gold'
 
 export type CampaignItem = {
   id: string
@@ -98,6 +98,7 @@ export type CampaignItem = {
   consumableStats: { useMode: ConsumableUseMode; effectText: string }
   specialRule: string
   notes: string
+  goldAmount?: number
 }
 
 // --- Character inventory item (live instance) ---
@@ -191,6 +192,19 @@ export type CharacterSheetDetails = {
   storeCart: CharacterStoreCartEntry[]
   alignment: string
   title: string
+}
+
+export type ItemApprovalRequest = {
+  id: string
+  campaignId: string
+  characterId: string
+  characterName: string
+  requestedByUserId: string
+  requestedByUsername: string
+  item: CharacterInventoryItem
+  status: 'pending' | 'approved' | 'rejected'
+  createdAt: unknown
+  resolvedAt?: unknown
 }
 
 export type CharacterRecord = {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Menu } from 'lucide-react'
 import {
   onAuthStateChanged,
@@ -24,6 +24,8 @@ import { ItemsTab } from './features/items/ItemsTab'
 import { tabFromPathname, tabPaths, tabs } from './features/navigation/tabs'
 import { useCampaignAccess } from './features/campaign/useCampaignAccess'
 import { useCharacters } from './features/character/useCharacters'
+import { useItemApprovals } from './features/character/useItemApprovals'
+import type { ItemApprovalRequest } from './types/app'
 
 function App() {
   const [user, setUser] = useState<User | null>(null)
@@ -136,6 +138,25 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
     hasPendingWrite,
   } = useCharacters(campaign?.id ?? null, user.uid, username, role, setError)
 
+  const { pendingRequests, approveRequest, rejectRequest } = useItemApprovals(
+    campaign?.id ?? null,
+    role,
+    user.uid,
+  )
+  const [approvalBusy, setApprovalBusy] = useState(false)
+
+  const handleApprove = useCallback(async (request: ItemApprovalRequest) => {
+    setApprovalBusy(true)
+    try { await approveRequest(request) } catch (e) { console.error('Approve failed', e) }
+    setApprovalBusy(false)
+  }, [approveRequest])
+
+  const handleReject = useCallback(async (request: ItemApprovalRequest) => {
+    setApprovalBusy(true)
+    try { await rejectRequest(request) } catch (e) { console.error('Reject failed', e) }
+    setApprovalBusy(false)
+  }, [rejectRequest])
+
   const tabLabel = (tab: (typeof tabs)[number]['id']) => {
     if (tab === 'character' && role === 'gm') return 'Characters'
     return tabs.find((item) => item.id === tab)?.label ?? tab
@@ -239,6 +260,75 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
           </section>
         </div>
       )}
+      {role === 'gm' && pendingRequests.length > 0 ? (
+        <div className="confirm-overlay" role="dialog" aria-modal="true">
+          <div className="confirm-modal">
+            <h3>Item Approval Request</h3>
+            {(() => {
+              const req = pendingRequests[0]
+              const item = req.item
+              const displayName = item.name
+                ? `${item.typeName} "${item.name}"`
+                : item.typeName
+              return (
+                <>
+                  <p>
+                    <strong>{req.requestedByUsername}</strong> wants to add
+                    a <strong>{item.kind}</strong> to <strong>{req.characterName}</strong>:
+                  </p>
+                  <p style={{ margin: '8px 0', fontWeight: 600 }}>{displayName}</p>
+                  {item.costGp > 0 ? <p>Cost: {item.costGp} gp</p> : null}
+                  {item.kind === 'weapon' && 'damageDiceCount' in item ? (
+                    <p style={{ fontSize: '0.9em' }}>
+                      Damage: {item.damageDiceCount}d{item.damageDiceSides}
+                      {Number(item.attackBonus) ? ` | Atk +${item.attackBonus}` : ''}
+                      {Number(item.damageBonus) ? ` | Dmg +${item.damageBonus}` : ''}
+                      {Number(item.rangeShort) ? ` | Range ${item.rangeShort}/${item.rangeMedium}/${item.rangeLong}` : ''}
+                      {item.twoHanded ? ' | Two-handed' : ''}
+                      {item.isMagic ? ' | Magic' : ''}
+                    </p>
+                  ) : null}
+                  {item.kind === 'armour' && 'armourClass' in item ? (
+                    <p style={{ fontSize: '0.9em' }}>
+                      AC: {item.armourClass}
+                      {item.armourType === 'shield' ? ' (Shield)' : ' (Body)'}
+                      {Number(item.magicMod) ? ` | Magic +${item.magicMod}` : ''}
+                      {item.isMagic ? ' | Magic' : ''}
+                    </p>
+                  ) : null}
+                  {item.kind === 'ammunition' || item.kind === 'consumable' ? (
+                    <p style={{ fontSize: '0.9em' }}>Qty: {item.qty}</p>
+                  ) : null}
+                  {item.description ? <p style={{ fontSize: '0.9em', opacity: 0.8 }}>{item.description}</p> : null}
+                  {item.notes ? <p style={{ fontSize: '0.9em', opacity: 0.8 }}>{item.notes}</p> : null}
+                  <div className="confirm-actions">
+                    <button
+                      type="button"
+                      className="confirm-danger"
+                      disabled={approvalBusy}
+                      onClick={() => void handleReject(req)}
+                    >
+                      Reject
+                    </button>
+                    <button
+                      type="button"
+                      disabled={approvalBusy}
+                      onClick={() => void handleApprove(req)}
+                    >
+                      Approve
+                    </button>
+                  </div>
+                  {pendingRequests.length > 1 ? (
+                    <p style={{ marginTop: 8, fontSize: '0.85em', opacity: 0.7 }}>
+                      +{pendingRequests.length - 1} more pending
+                    </p>
+                  ) : null}
+                </>
+              )
+            })()}
+          </div>
+        </div>
+      ) : null}
     </main>
   )
 }

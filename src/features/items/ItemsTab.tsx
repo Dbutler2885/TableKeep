@@ -1,14 +1,15 @@
 import { ChevronLeft, Gift, Minus, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { doc, runTransaction } from 'firebase/firestore'
+import { doc, runTransaction, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase'
-import type { CampaignItem, CampaignItemType, CharacterRecord, CharacterSheetDetails, Role } from '../../types/app'
+import type { CampaignItem, CampaignItemType, CharacterInventoryItem, CharacterGoldItem, CharacterRecord, CharacterSheetDetails, Role } from '../../types/app'
 import type { TokenIconConfig } from '../tokens/TokenIconEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
-import { useItems } from './useItems'
-import { campaignItemToInventoryItem } from './itemConversion'
+import { useItems, toFirestoreItem } from './useItems'
+import { campaignItemToInventoryItem, campaignGoldToInventoryChunks } from './itemConversion'
+import { computeAvailablePackedSlots, computeOverflow, makeDroppedGoldCampaignItem } from '../character/inventoryOverflow'
 import { OSE_WEAPON_CATALOG } from '../character/weaponCatalog'
 import { OSE_ARMOUR_CATALOG } from '../character/armourCatalog'
 import { OSE_STORE_ITEMS } from '../character/storeCatalog'
@@ -161,8 +162,15 @@ export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
     setGrantBusy(true)
     setGrantFeedback(null)
     try {
-      const inventoryItem = campaignItemToInventoryItem(selectedItem)
+      const isGoldGrant = selectedItem.type === 'gold'
       const charRef = doc(db, 'campaigns', campaignId, 'characters', grantTargetId)
+      const targetName = characters.find((c) => c.id === grantTargetId)?.name ?? 'character'
+
+      // Pre-generate deterministic ID for overflow gold doc (safe for transaction retry)
+      const overflowGoldDocId = crypto.randomUUID()
+
+      let overflowFeedback: string | null = null
+
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(charRef)
         if (!snap.exists()) throw new Error('Target character not found')
@@ -170,19 +178,89 @@ export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
         const existingDetails = (data?.details && typeof data.details === 'object')
           ? data.details as Record<string, unknown>
           : {}
-        const currentInventory = Array.isArray(existingDetails.inventory)
+        const currentInventory: CharacterInventoryItem[] = Array.isArray(existingDetails.inventory)
           ? existingDetails.inventory
           : []
+
+        // Compute available packed slots from STR
+        const abilityScores = (existingDetails.abilityScores && typeof existingDetails.abilityScores === 'object')
+          ? existingDetails.abilityScores as Record<string, string>
+          : {}
+        const strScore = Number.parseInt(abilityScores.STR ?? '', 10)
+        const availableSlots = computeAvailablePackedSlots(strScore)
+
+        // Build candidate inventory
+        let candidateInventory: CharacterInventoryItem[]
+        let grantAmount = 0
+        let existingGoldBeforeGrant = 0
+        if (isGoldGrant) {
+          grantAmount = selectedItem.goldAmount ?? 0
+          existingGoldBeforeGrant = currentInventory
+            .filter((i): i is CharacterGoldItem => i.kind === 'gold')
+            .reduce((sum, g) => sum + (g.qty ?? 0), 0)
+          const nonGold = currentInventory.filter((i) => i.kind !== 'gold')
+          const equipped = nonGold.filter((i) => i.equipped)
+          const packedNonGold = nonGold.filter((i) => !i.equipped)
+          const totalGold = existingGoldBeforeGrant + grantAmount
+          const goldChunks = campaignGoldToInventoryChunks(totalGold)
+          candidateInventory = [...equipped, ...packedNonGold, ...goldChunks]
+        } else {
+          const inventoryItem = campaignItemToInventoryItem(selectedItem)
+          candidateInventory = [...currentInventory, inventoryItem]
+        }
+
+        const overflow = computeOverflow(candidateInventory, availableSlots, grantTargetId, targetName)
+        overflowFeedback = overflow.feedbackMessage
+
+        // Write kept inventory to character doc
         tx.set(charRef, {
           details: {
             ...existingDetails,
-            inventory: [...currentInventory, inventoryItem],
+            inventory: overflow.keptInventory,
           },
         }, { merge: true })
+
+        // Write non-gold overflow items in same transaction
+        for (const droppedItem of overflow.droppedItems) {
+          const itemRef = doc(db, 'campaigns', campaignId, 'items', droppedItem.id)
+          tx.set(itemRef, { ...toFirestoreItem(droppedItem), createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
+        }
+
+        // Write gold overflow in same transaction.
+        // If source is dropped gold, remainder stays on source doc (below), so skip creating a new dropped gold doc.
+        const sourceIsDroppedGold = isGoldGrant && selectedItem.status === 'dropped'
+        if (overflow.droppedGoldAmount > 0 && !sourceIsDroppedGold) {
+          const goldDoc = makeDroppedGoldCampaignItem(overflow.droppedGoldAmount, grantTargetId, targetName, overflowGoldDocId)
+          const goldRef = doc(db, 'campaigns', campaignId, 'items', overflowGoldDocId)
+          tx.set(goldRef, { ...toFirestoreItem(goldDoc), createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
+        }
+
+        // Handle dropped gold source doc: decrement remainder on same doc, or delete if fully picked up.
+        if (sourceIsDroppedGold) {
+          const sourceRef = doc(db, 'campaigns', campaignId, 'items', selectedItem.id)
+          const keptGoldTotal = overflow.keptInventory
+            .filter((i): i is CharacterGoldItem => i.kind === 'gold')
+            .reduce((sum, g) => sum + (g.qty ?? 0), 0)
+          const acceptedFromSource = Math.max(0, Math.min(grantAmount, keptGoldTotal - existingGoldBeforeGrant))
+          const sourceRemainder = Math.max(0, grantAmount - acceptedFromSource)
+
+          if (sourceRemainder <= 0) {
+            tx.delete(sourceRef)
+          } else {
+            tx.set(
+              sourceRef,
+              { goldAmount: sourceRemainder, updatedAt: serverTimestamp() },
+              { merge: true },
+            )
+          }
+        }
       })
-      const targetName = characters.find((c) => c.id === grantTargetId)?.name ?? 'character'
-      setGrantFeedback(`Granted "${selectedItem.typeName || selectedItem.name}" to ${targetName}`)
-      setTimeout(() => setGrantFeedback(null), 3000)
+
+      const label = isGoldGrant ? `${selectedItem.goldAmount ?? 0} gp` : `"${selectedItem.typeName || selectedItem.name}"`
+      const feedbackParts = [`Granted ${label} to ${targetName}`]
+      if (overflowFeedback) feedbackParts.push(overflowFeedback)
+      setGrantFeedback(feedbackParts.join('. '))
+      setTimeout(() => setGrantFeedback(null), 5000)
     } catch (error) {
       console.error('Grant item failed', error)
       const message = error instanceof Error ? error.message : 'Unknown error'
@@ -394,12 +472,13 @@ export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
                   }}
                 >
                   <div className="item-card-head">
-                    <h4>{item.typeName.trim() || item.name.trim() || 'Unnamed Item'}</h4>
+                    <h4>{item.type === 'gold' ? `Gold: ${item.goldAmount ?? 0} gp` : (item.typeName.trim() || item.name.trim() || 'Unnamed Item')}</h4>
                     <span className="item-card-type">{item.status === 'dropped' ? 'dropped' : item.type}</span>
                   </div>
                   <p>
                     {item.status === 'dropped' && item.droppedByCharacterName
                       ? `Dropped by ${item.droppedByCharacterName}`
+                      : item.type === 'gold' ? `${item.goldAmount ?? 0} gp`
                       : item.name.trim() || item.description.trim() || 'No details yet'}
                   </p>
                 </div>

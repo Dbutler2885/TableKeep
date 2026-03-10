@@ -4,6 +4,13 @@ import { Check, ChevronLeft, Plus, ShoppingBag, Star, Trash2, UserRound, X } fro
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { inventoryItemToCampaignItem } from '../items/itemConversion'
 import { toFirestoreItem } from '../items/useItems'
+import {
+  normalizeGoldAmount,
+  goldChunksForAmount,
+  makeGoldItem,
+  computeOverflow,
+  writeDroppedOverflow,
+} from './inventoryOverflow'
 import { db } from '../../firebase'
 import type {
   CharacterRecord,
@@ -19,6 +26,7 @@ import type {
   Role,
 } from '../../types/app'
 import { DEFAULT_STACK_POLICY } from '../items/itemDefaults'
+import { useItemApprovals } from './useItemApprovals'
 import {
   CHARACTER_INTERMEDIATE_MAX_WIDTH,
   CHARACTER_MOBILE_INTERMEDIATE_MIN_WIDTH,
@@ -459,29 +467,7 @@ const makeArmourItem = (overrides?: Partial<CharacterArmourItem>): CharacterArmo
   ...overrides,
 })
 
-const makeGoldItem = (amount: number): CharacterGoldItem => ({
-  id: makeId(),
-  kind: 'gold',
-  typeId: 'gold',
-  typeName: 'Gold',
-  costGp: 0,
-  equipped: false,
-  notes: '',
-  qty: amount,
-  stack: DEFAULT_STACK_POLICY.gold,
-})
-
-const goldChunksForAmount = (amount: number): number[] => {
-  if (amount <= 0) return []
-  const chunks: number[] = []
-  let remaining = amount
-  while (remaining > 0) {
-    const chunk = Math.min(100, remaining)
-    chunks.push(chunk)
-    remaining -= chunk
-  }
-  return chunks
-}
+// Gold utilities (makeGoldItem, normalizeGoldAmount, goldChunksForAmount) imported from inventoryOverflow.ts
 
 const migrateToInventory = (details: CharacterSheetDetails): CharacterInventoryItem[] => {
   const items: CharacterInventoryItem[] = []
@@ -738,14 +724,33 @@ export function CharacterTab({
   const [sellConfirmItemId, setSellConfirmItemId] = useState<string | null>(null)
   const [goldSpendAmount, setGoldSpendAmount] = useState<string>('')
   const [goldSpendConfirmAmount, setGoldSpendConfirmAmount] = useState<number | null>(null)
+  const [overflowFeedback, setOverflowFeedback] = useState<string | null>(null)
+  const [overflowWriting, setOverflowWriting] = useState(false)
   const [alignmentByCharacterId, setAlignmentByCharacterId] = useState<Record<string, string>>({})
   const [titleByCharacterId, setTitleByCharacterId] = useState<Record<string, string>>({})
+
+  const { rejections, submitRequest, dismissRejection } = useItemApprovals(campaignId, role, currentUserId)
+  const [approvalPendingFeedback, setApprovalPendingFeedback] = useState<string | null>(null)
+
+  // Auto-clear approval pending feedback after 5 seconds
+  useEffect(() => {
+    if (!approvalPendingFeedback) return
+    const timer = setTimeout(() => setApprovalPendingFeedback(null), 5000)
+    return () => clearTimeout(timer)
+  }, [approvalPendingFeedback])
 
   const seededCharacterIdsRef = useRef<Set<string>>(new Set())
   const justSeededRef = useRef<Set<string>>(new Set())
   const lastPersistedDetailsJsonRef = useRef<Record<string, string>>({})
   const updateCharacterRef = useRef(updateCharacter)
   useEffect(() => { updateCharacterRef.current = updateCharacter })
+
+  // Auto-clear overflow feedback after 5 seconds
+  useEffect(() => {
+    if (!overflowFeedback) return
+    const timer = setTimeout(() => setOverflowFeedback(null), 5000)
+    return () => clearTimeout(timer)
+  }, [overflowFeedback])
 
   // Seed local state from Firestore details when characters load
   useEffect(() => {
@@ -956,6 +961,9 @@ export function CharacterTab({
     .filter((feature) => selectedLevel >= feature.unlockedAt)
     .sort((a, b) => a.unlockedAt - b.unlockedAt)
   const isGuidedCreation = effectiveSelected?.creationStatus === 'draft'
+  const canEditAbilityScores = !!effectiveSelected
+    && canEditSelected
+    && (isGuidedCreation || effectiveSelected.creationMode === 'established')
   const selectedStartingGold = effectiveSelected ? (startingGoldByCharacterId[effectiveSelected.id] ?? null) : null
   const hasRolledStartingGold = typeof selectedStartingGold === 'number'
   const selectedStoreCart = effectiveSelected ? (storeCartByCharacterId[effectiveSelected.id] ?? []) : []
@@ -1124,6 +1132,9 @@ export function CharacterTab({
   const availablePackedSlotIndices = packedSlotUnlockedByIndex
     .map((unlocked, index) => (unlocked ? index : -1))
     .filter((index) => index >= 0)
+  const selectedStoreRequiredPacked = selectedStoreCart.reduce((sum, entry) => sum + entry.qty, 0)
+  const selectedStoreOpenPackedSlots = Math.max(0, availablePackedSlotIndices.length - packedItems.length)
+  const storeCartExceedsPackedSlots = selectedStoreRequiredPacked > selectedStoreOpenPackedSlots
   const selectedThacoRaw = effectiveSelected ? (thacoByCharacterId[effectiveSelected.id] ?? '') : ''
   const selectedThaco = Number.parseInt(selectedThacoRaw, 10)
   const selectedSaveScores = effectiveSelected
@@ -1377,6 +1388,7 @@ export function CharacterTab({
 
   const updateAbilityScore = (code: AbilityCode, value: string) => {
     if (!effectiveSelected) return
+    if (!canEditAbilityScores) return
     if (!isGuidedCreation) {
       if (value.trim().length === 0) {
         setAbilityScoresByCharacterId((current) => ({
@@ -1668,17 +1680,29 @@ export function CharacterTab({
     })
   }
 
-  const setInventoryGold = (amount: number) => {
-    if (!effectiveSelected) return
+  const setInventoryGold = async (amount: number) => {
+    if (!effectiveSelected || overflowWriting) return
+    const nonGold = selectedInventory.filter((i) => i.kind !== 'gold')
     const chunks = goldChunksForAmount(Math.max(0, amount))
-    setInventoryByCharacterId((current) => {
-      const items = (current[effectiveSelected.id] ?? []).filter((i) => i.kind !== 'gold')
-      const goldItems = chunks.map((chunk) => makeGoldItem(chunk))
-      return {
-        ...current,
-        [effectiveSelected.id]: [...items, ...goldItems],
+    const goldItems = chunks.map((chunk) => makeGoldItem(chunk))
+    const candidateInventory = [...nonGold, ...goldItems]
+
+    const overflow = computeOverflow(candidateInventory, availablePackedSlotIndices.length, effectiveSelected.id, effectiveSelected.name)
+
+    if (overflow.droppedItems.length > 0 || overflow.droppedGoldAmount > 0) {
+      setOverflowWriting(true)
+      try {
+        await writeDroppedOverflow(db, campaignId, overflow.droppedItems, overflow.droppedGoldAmount, effectiveSelected.id, effectiveSelected.name)
+      } catch {
+        setOverflowFeedback('Failed to write overflow items. Gold change cancelled.')
+        setOverflowWriting(false)
+        return
       }
-    })
+      setOverflowWriting(false)
+    }
+
+    setInventoryByCharacterId((current) => ({ ...current, [effectiveSelected.id]: overflow.keptInventory }))
+    if (overflow.feedbackMessage) setOverflowFeedback(overflow.feedbackMessage)
   }
 
   const applyWeaponTemplateToItem = (item: CharacterWeaponItem, templateId: string): CharacterWeaponItem => {
@@ -2005,15 +2029,17 @@ export function CharacterTab({
     }
 
     const cartTotal = selectedStoreCartTotal
-    // Check slot capacity for non-weapon/armour items
+    // Check packed-slot capacity for all cart items.
+    // Store purchases are created as packed inventory objects.
     const requiredPacked = selectedStoreCart.reduce(
-      (sum, entry) => sum + ((entry.kind === 'weapon' || entry.kind === 'armour') ? 0 : entry.qty),
+      (sum, entry) => sum + entry.qty,
       0,
     )
     const currentPackedCount = packedItems.length
     const totalPackedSlots = availablePackedSlotIndices.length
     if (currentPackedCount + requiredPacked > totalPackedSlots) {
-      setStoreError('Not enough open packed slots to apply cart purchases.')
+      const openSlots = Math.max(0, totalPackedSlots - currentPackedCount)
+      setStoreError(`Not enough open packed slots (${openSlots} open, ${requiredPacked} needed). Reorganize inventory to purchase these goods.`)
       return
     }
 
@@ -2189,6 +2215,14 @@ export function CharacterTab({
           qty: 1, stack: DEFAULT_STACK_POLICY.general,
         }
     }
+    if (role !== 'gm') {
+      // Players need GM approval
+      void submitRequest(effectiveSelected.id, effectiveSelected.name, currentUsername, newItem)
+      setAddItemModal(null)
+      setApprovalPendingFeedback('Item sent to GM for approval.')
+      return
+    }
+
     setInventoryByCharacterId((current) => ({
       ...current,
       [effectiveSelected.id]: [...(current[effectiveSelected.id] ?? []), newItem],
@@ -2221,24 +2255,45 @@ export function CharacterTab({
     setDropConfirmItemId(null)
   }
 
-  const sellItem = (itemId: string) => {
-    if (!effectiveSelected || !canEditSelected) return
+  const sellItem = async (itemId: string) => {
+    if (!effectiveSelected || !canEditSelected || overflowWriting) return
     const item = selectedInventory.find((i) => i.id === itemId)
     if (!item || item.kind === 'gold') return
-    const sellAmount = item.costGp
+    const sellAmount = normalizeGoldAmount(item.costGp)
 
-    setInventoryByCharacterId((current) => {
-      const currentItems = (current[effectiveSelected.id] ?? []).filter((i) => i.id !== itemId)
-      if (sellAmount <= 0) return { ...current, [effectiveSelected.id]: currentItems }
-      const existingGold = currentItems
-        .filter((i): i is CharacterGoldItem => i.kind === 'gold')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- old gold data may have `amount`
-        .reduce((sum, g) => sum + (g.qty ?? (g as any).amount ?? 0), 0)
-      const nonGold = currentItems.filter((i) => i.kind !== 'gold')
-      const chunks = goldChunksForAmount(existingGold + sellAmount)
-      const golds = chunks.map((chunk) => makeGoldItem(chunk))
-      return { ...current, [effectiveSelected.id]: [...nonGold, ...golds] }
-    })
+    // Build candidate inventory: remove sold item, add gold proceeds
+    const currentItems = selectedInventory.filter((i) => i.id !== itemId)
+    if (sellAmount <= 0) {
+      setInventoryByCharacterId((current) => ({ ...current, [effectiveSelected.id]: currentItems }))
+      setItemDetailId(null)
+      setSellConfirmItemId(null)
+      return
+    }
+    const existingGold = currentItems
+      .filter((i): i is CharacterGoldItem => i.kind === 'gold')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- old gold data may have `amount`
+      .reduce((sum, g) => sum + (g.qty ?? (g as any).amount ?? 0), 0)
+    const nonGold = currentItems.filter((i) => i.kind !== 'gold')
+    const chunks = goldChunksForAmount(existingGold + sellAmount)
+    const golds = chunks.map((chunk) => makeGoldItem(chunk))
+    const candidateInventory = [...nonGold, ...golds]
+
+    const overflow = computeOverflow(candidateInventory, availablePackedSlotIndices.length, effectiveSelected.id, effectiveSelected.name)
+
+    if (overflow.droppedItems.length > 0 || overflow.droppedGoldAmount > 0) {
+      setOverflowWriting(true)
+      try {
+        await writeDroppedOverflow(db, campaignId, overflow.droppedItems, overflow.droppedGoldAmount, effectiveSelected.id, effectiveSelected.name)
+      } catch {
+        setOverflowFeedback('Failed to write overflow items. Sale cancelled.')
+        setOverflowWriting(false)
+        return
+      }
+      setOverflowWriting(false)
+    }
+
+    setInventoryByCharacterId((current) => ({ ...current, [effectiveSelected.id]: overflow.keptInventory }))
+    if (overflow.feedbackMessage) setOverflowFeedback(overflow.feedbackMessage)
     setItemDetailId(null)
     setSellConfirmItemId(null)
   }
@@ -2696,7 +2751,7 @@ export function CharacterTab({
                                   {hasRolledAbilityScores ? 'Rolled' : 'Roll'}
                                 </button>
                               ) : null}
-                              {hasRolledAbilityScores ? (
+                              {isGuidedCreation && hasRolledAbilityScores ? (
                                 <span className="character-roll-points">Points: {availableAbilityTradePoints}</span>
                               ) : null}
                             </div>
@@ -2782,7 +2837,7 @@ export function CharacterTab({
                                       className="character-ability-score-input"
                                       value={selectedAbilityScores[row.code as AbilityCode]}
                                       onChange={(event) => updateAbilityScore(row.code as AbilityCode, event.target.value)}
-                                      disabled={!canEditSelected}
+                                      disabled={!canEditAbilityScores}
                                       placeholder="-"
                                     />
                                   )}
@@ -3224,6 +3279,28 @@ export function CharacterTab({
                         {packedItems.length > availablePackedSlotIndices.length ? (
                           <p className="error">Too many packed items for available packed slots.</p>
                         ) : null}
+                        {overflowFeedback ? (
+                          <p className="character-overflow-feedback">{overflowFeedback}</p>
+                        ) : null}
+                        {approvalPendingFeedback ? (
+                          <p className="character-overflow-feedback">{approvalPendingFeedback}</p>
+                        ) : null}
+                        {rejections
+                          .filter((r) => r.characterId === effectiveSelected?.id)
+                          .map((r) => (
+                            <p key={r.id} className="error character-approval-rejection">
+                              GM did not approve your item creation
+                              {r.item?.typeName ? ` (${r.item.typeName})` : ''}
+                              <button
+                                type="button"
+                                className="monster-example-btn"
+                                style={{ marginLeft: 8 }}
+                                onClick={() => void dismissRejection(r.id)}
+                              >
+                                Dismiss
+                              </button>
+                            </p>
+                          ))}
                         <p className="character-enc-help">
                           <strong>Current movement:</strong> {currentPackedMovement}
                         </p>
@@ -3448,13 +3525,24 @@ export function CharacterTab({
                   </div>
                 )}
                 <div className="store-cart-actions">
-                  <button type="button" className="store-buy-btn" onClick={applyStorePurchases} disabled={!canEditSelected}>
+                  <button
+                    type="button"
+                    className="store-buy-btn"
+                    onClick={applyStorePurchases}
+                    disabled={!canEditSelected || storeCartExceedsPackedSlots}
+                  >
                     Apply Purchases
                   </button>
                   <button type="button" className="store-buy-btn" onClick={clearCart} disabled={!canEditSelected || selectedStoreCart.length === 0}>
                     Clear Cart
                   </button>
                 </div>
+                <p className={storeCartExceedsPackedSlots ? 'error' : 'store-item-note'}>
+                  Packed slots: {selectedStoreOpenPackedSlots} open / {selectedStoreRequiredPacked} needed
+                </p>
+                {storeCartExceedsPackedSlots ? (
+                  <p className="error">Not enough packed slots. Reorganize inventory to purchase these goods.</p>
+                ) : null}
               </aside>
             </div>
 
@@ -4327,7 +4415,7 @@ export function CharacterTab({
             )}
             <div className="confirm-actions">
               <button type="button" onClick={() => setAddItemModal(null)}>Cancel</button>
-              <button type="button" onClick={saveAddItem}>Add</button>
+              <button type="button" onClick={saveAddItem}>{role === 'gm' ? 'Add' : 'Request'}</button>
             </div>
           </div>
         </div>
