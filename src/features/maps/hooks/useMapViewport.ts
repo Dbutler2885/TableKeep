@@ -33,7 +33,7 @@ type UseMapViewportOptions = {
   inlineMapLayerRef: React.RefObject<HTMLDivElement | null>
   // Used in fullscreen pan guard: don't hijack left-click when GM tools are active
   fogTool: 'reveal' | 'hide' | null
-  visionTool: 'draw' | 'erase' | null
+  visionTool: 'draw' | 'drawFull' | 'erase' | null
   tokenPlaceMode: boolean
   annotationPlaceMode: boolean
   // Mobile: should touch events drive pan/pinch?

@@ -20,7 +20,7 @@ type UseFogToolsOptions = {
   inlineFogSize: { width: number; height: number }
   fullFogSize: { width: number; height: number }
   fogTool: 'reveal' | 'hide' | null
-  visionTool: 'draw' | 'erase' | null
+  visionTool: 'draw' | 'drawFull' | 'erase' | null
   tokenPlaceMode: boolean
   fogBrushSize: number
   activeFogDimension: number
@@ -177,7 +177,7 @@ export function useFogTools({
     canvas: HTMLCanvasElement,
     x: number,
     y: number,
-    mode: 'draw' | 'erase',
+    mode: 'draw' | 'drawFull' | 'erase',
     brushSize = effectiveFogBrushSize,
   ) => {
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
@@ -186,7 +186,9 @@ export function useFogTools({
 
     ctx.save()
     ctx.globalCompositeOperation = mode === 'erase' ? 'destination-out' : 'source-over'
-    ctx.fillStyle = 'rgba(176, 44, 44, 0.95)'
+    // draw      = surface blocker (reveals blocker-painted region on LOS touch)
+    // drawFull  = hard blocker (never auto-reveals itself)
+    ctx.fillStyle = mode === 'drawFull' ? 'rgba(42, 72, 176, 0.95)' : 'rgba(176, 44, 44, 0.95)'
     ctx.beginPath()
     ctx.arc(x, y, radius, 0, Math.PI * 2)
     ctx.fill()
@@ -197,7 +199,7 @@ export function useFogTools({
     canvas: HTMLCanvasElement,
     from: { x: number; y: number },
     to: { x: number; y: number },
-    mode: 'draw' | 'erase',
+    mode: 'draw' | 'drawFull' | 'erase',
     brushSize = effectiveFogBrushSize,
   ) => {
     const deltaX = to.x - from.x

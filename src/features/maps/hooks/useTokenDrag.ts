@@ -22,7 +22,6 @@ type UseTokenDragOptions = {
   activeFogCanvasRef: React.RefObject<HTMLCanvasElement | null>
   activeVisionCanvasRef: React.RefObject<HTMLCanvasElement | null>
   streamingMode: boolean
-  usingFullScreenCanvas: boolean
   renderTokenViewDistance: (token: TokenRecord) => number
   revealFromTokenPoint: (
     fogCanvas: HTMLCanvasElement,
@@ -39,7 +38,6 @@ type UseTokenDragOptions = {
     brushSize: number,
     clipRect?: CanvasClipRect | null,
   ) => void
-  getFullscreenVisibleCanvasRect: (canvas: HTMLCanvasElement) => CanvasClipRect | null
   activeMapWidth: number
   activeMapHeight: number
   activeGridCellPx: number
@@ -63,11 +61,9 @@ export function useTokenDrag({
   activeFogCanvasRef,
   activeVisionCanvasRef,
   streamingMode,
-  usingFullScreenCanvas,
   renderTokenViewDistance,
   revealFromTokenPoint,
   revealFromTokenStroke,
-  getFullscreenVisibleCanvasRect,
   activeMapWidth,
   activeMapHeight,
   activeGridCellPx,
@@ -325,10 +321,7 @@ export function useTokenDrag({
         const tokenBrushSize = renderTokenViewDistance(draggingToken)
         const nextCanvasPoint = tokenPointToCanvasPoint(nextPosition, renderTokenDimensions(draggingToken).height)
         if (!nextCanvasPoint) return
-        const clipRect =
-          streamingMode && usingFullScreenCanvas
-            ? getFullscreenVisibleCanvasRect(activeFogCanvasRef.current)
-            : null
+        const clipRect = null
 
         queueReveal(nextCanvasPoint, tokenBrushSize, clipRect)
       }
@@ -457,7 +450,6 @@ export function useTokenDrag({
     selectedTokenIds,
     streamingMode,
     tokens,
-    usingFullScreenCanvas,
   ])
 
   return {

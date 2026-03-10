@@ -27,6 +27,7 @@ import {
   Map,
   Minus,
   Pencil,
+  PenTool,
   Plus,
   Ruler,
   SquareDashedMousePointer,
@@ -56,7 +57,6 @@ import {
   ENCOUNTER_CHECK_DISTANCE_FEET,
   ENCOUNTER_CHECK_TURNS,
   FOG_CANVAS_MAX_DIM,
-  LOS_BLOCKER_SAMPLE_RADIUS,
   LOS_SURFACE_REVEAL_MULTIPLIER,
   TOKEN_REFERENCE_DIMENSION,
   TOKEN_RENDER_SIZE_MAX,
@@ -91,7 +91,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [mobilePlayerPane, setMobilePlayerPane] = useState<'map' | 'controls'>('map')
   const [fullScreenOpen, setFullScreenOpen] = useState(false)
   const [fogTool, setFogTool] = useState<'reveal' | 'hide' | null>(null)
-  const [visionTool, setVisionTool] = useState<'draw' | 'erase' | null>(null)
+  const [visionTool, setVisionTool] = useState<'draw' | 'drawFull' | 'erase' | null>(null)
   const [fogBrushSize, setFogBrushSize] = useState(120)
   const fogBrushStrength = 0.7
   const [streamingMode, setStreamingMode] = useState(false)
@@ -110,6 +110,10 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const fullMapLayerRef = useRef<HTMLDivElement | null>(null)
   const suppressNextMapClickRef = useRef(false)
   const revealMaskCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const blockerHitMaskCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const blockerCompositeCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const inlineLosSeenCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const fullLosSeenCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const tokenAnimationsRef = useRef<Record<string, TokenPathAnimation>>({})
   const pendingFogReloadRef = useRef(false)
   // Stable refs used to break circular deps. These are kept in sync with the
@@ -147,8 +151,10 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const showMapPane = !isMobile || mobileMapView === 'detail'
   const fogDisplayOpacity = role === 'gm' ? (streamingMode ? 1 : 0.45) : 1
   const visionOverlayOpacity = role === 'gm' && !streamingMode ? 0.8 : 0
+  const losSeenOverlayOpacity = role === 'gm' && !streamingMode ? 0.75 : 0
   const usingFullScreenCanvas = fullScreenOpen && !isMobile
   const activeMapLayerRef = usingFullScreenCanvas ? fullMapLayerRef : inlineMapLayerRef
+  const activeLosSeenCanvasRef = usingFullScreenCanvas ? fullLosSeenCanvasRef : inlineLosSeenCanvasRef
   const activeMapDimension = Math.max(
     1,
     Math.min(
@@ -605,33 +611,15 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     setFullScreenOpen(false)
   }
 
-  const getFullscreenVisibleCanvasRect = (canvas: HTMLCanvasElement): CanvasClipRect | null => {
-    const stage = fullStageRef.current
-    if (!stage) return null
-
-    const stageRect = stage.getBoundingClientRect()
-    const canvasRect = canvas.getBoundingClientRect()
-    if (stageRect.width <= 0 || stageRect.height <= 0 || canvasRect.width <= 0 || canvasRect.height <= 0) {
-      return null
+  const clearLosSeenCanvas = (canvas: HTMLCanvasElement | null, width: number, height: number) => {
+    if (!canvas || width <= 0 || height <= 0) return
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width
+      canvas.height = height
     }
-
-    const intersectionLeft = Math.max(stageRect.left, canvasRect.left)
-    const intersectionTop = Math.max(stageRect.top, canvasRect.top)
-    const intersectionRight = Math.min(stageRect.right, canvasRect.right)
-    const intersectionBottom = Math.min(stageRect.bottom, canvasRect.bottom)
-    if (intersectionRight <= intersectionLeft || intersectionBottom <= intersectionTop) return null
-
-    const leftRatio = (intersectionLeft - canvasRect.left) / canvasRect.width
-    const topRatio = (intersectionTop - canvasRect.top) / canvasRect.height
-    const rightRatio = (intersectionRight - canvasRect.left) / canvasRect.width
-    const bottomRatio = (intersectionBottom - canvasRect.top) / canvasRect.height
-
-    return {
-      minX: Math.max(0, Math.floor(leftRatio * canvas.width)),
-      minY: Math.max(0, Math.floor(topRatio * canvas.height)),
-      maxX: Math.min(canvas.width - 1, Math.ceil(rightRatio * canvas.width)),
-      maxY: Math.min(canvas.height - 1, Math.ceil(bottomRatio * canvas.height)),
-    }
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx) return
+    ctx.clearRect(0, 0, width, height)
   }
 
   const revealFromTokenPoint = (
@@ -688,24 +676,45 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     maskCtx.clearRect(clippedMinX, clippedMinY, regionWidth, regionHeight)
     maskCtx.fillStyle = 'rgba(0,0,0,1)'
 
+    let blockerMaskCanvas = blockerHitMaskCanvasRef.current
+    if (!blockerMaskCanvas) {
+      blockerMaskCanvas = document.createElement('canvas')
+      blockerHitMaskCanvasRef.current = blockerMaskCanvas
+    }
+    if (blockerMaskCanvas.width !== fogCanvas.width || blockerMaskCanvas.height !== fogCanvas.height) {
+      blockerMaskCanvas.width = fogCanvas.width
+      blockerMaskCanvas.height = fogCanvas.height
+    }
+    const blockerMaskCtx = blockerMaskCanvas.getContext('2d', { willReadFrequently: true })
+    if (!blockerMaskCtx) return
+    blockerMaskCtx.clearRect(clippedMinX, clippedMinY, regionWidth, regionHeight)
+    blockerMaskCtx.fillStyle = 'rgba(0,0,0,1)'
+
     const rays = Math.max(220, Math.min(1800, Math.round(radius * 5.4)))
     const rayStep = (Math.PI * 2) / rays
     const distStep = 1
     const dot = Math.max(1, radius * 0.03)
     const surfaceDot = Math.max(2, dot * LOS_SURFACE_REVEAL_MULTIPLIER)
-    const alphaAt = (x: number, y: number) => {
+    let hitSurfaceBlocker = false
+    const pixelAt = (x: number, y: number) => {
       const lx = x - clippedMinX
       const ly = y - clippedMinY
-      if (lx < 0 || ly < 0 || lx >= regionWidth || ly >= regionHeight) return 0
-      return visionData[(ly * regionWidth + lx) * 4 + 3]
-    }
-    const isBlockedAt = (x: number, y: number) => {
-      for (let oy = -LOS_BLOCKER_SAMPLE_RADIUS; oy <= LOS_BLOCKER_SAMPLE_RADIUS; oy += 1) {
-        for (let ox = -LOS_BLOCKER_SAMPLE_RADIUS; ox <= LOS_BLOCKER_SAMPLE_RADIUS; ox += 1) {
-          if (alphaAt(x + ox, y + oy) > 20) return true
-        }
+      if (lx < 0 || ly < 0 || lx >= regionWidth || ly >= regionHeight) {
+        return { r: 0, g: 0, b: 0, a: 0 }
       }
-      return false
+      const idx = (ly * regionWidth + lx) * 4
+      return {
+        r: visionData[idx] ?? 0,
+        g: visionData[idx + 1] ?? 0,
+        b: visionData[idx + 2] ?? 0,
+        a: visionData[idx + 3] ?? 0,
+      }
+    }
+    const blockerKindAt = (x: number, y: number): 'none' | 'surface' | 'full' => {
+      const px = pixelAt(x, y)
+      if (px.a <= 20) return 'none'
+      if (px.b >= px.r + 20 && px.b >= px.g + 10) return 'full'
+      return 'surface'
     }
 
     for (let i = 0; i < rays; i += 1) {
@@ -716,17 +725,17 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         const x = Math.round(center.x + cos * dist)
         const y = Math.round(center.y + sin * dist)
         if (x < clippedMinX || x > clippedMaxX || y < clippedMinY || y > clippedMaxY) break
-        const blocked = isBlockedAt(x, y)
+        const blockerKind = blockerKindAt(x, y)
+        if (blockerKind !== 'none') {
+          if (blockerKind === 'surface') hitSurfaceBlocker = true
+          blockerMaskCtx.beginPath()
+          blockerMaskCtx.arc(x, y, surfaceDot, 0, Math.PI * 2)
+          blockerMaskCtx.fill()
+          break
+        }
         maskCtx.beginPath()
         maskCtx.arc(x, y, dot, 0, Math.PI * 2)
         maskCtx.fill()
-        if (blocked) {
-          // Reveal the blocking surface itself (wall/house edge), but not beyond it.
-          maskCtx.beginPath()
-          maskCtx.arc(x, y, surfaceDot, 0, Math.PI * 2)
-          maskCtx.fill()
-          break
-        }
       }
     }
 
@@ -744,6 +753,78 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       regionHeight,
     )
     fogCtx.restore()
+
+    // If LOS touches blocker paint, reveal all blocker-painted pixels in this
+    // sampled region so walls/buildings remain visible while still blocking
+    // reveal through them.
+    if (hitSurfaceBlocker) {
+      let surfaceMaskCanvas = blockerCompositeCanvasRef.current
+      if (!surfaceMaskCanvas) {
+        surfaceMaskCanvas = document.createElement('canvas')
+        blockerCompositeCanvasRef.current = surfaceMaskCanvas
+      }
+      if (surfaceMaskCanvas.width !== fogCanvas.width || surfaceMaskCanvas.height !== fogCanvas.height) {
+        surfaceMaskCanvas.width = fogCanvas.width
+        surfaceMaskCanvas.height = fogCanvas.height
+      }
+      const compositeCtx = surfaceMaskCanvas.getContext('2d', { willReadFrequently: true })
+      if (compositeCtx) {
+        const surfaceMask = compositeCtx.createImageData(regionWidth, regionHeight)
+        for (let i = 0; i < visionData.length; i += 4) {
+          const r = visionData[i] ?? 0
+          const g = visionData[i + 1] ?? 0
+          const b = visionData[i + 2] ?? 0
+          const a = visionData[i + 3] ?? 0
+          const isFull = b >= r + 20 && b >= g + 10
+          const isSurface = a > 20 && !isFull
+          if (!isSurface) continue
+          surfaceMask.data[i] = 255
+          surfaceMask.data[i + 1] = 255
+          surfaceMask.data[i + 2] = 255
+          surfaceMask.data[i + 3] = 255
+        }
+        compositeCtx.clearRect(clippedMinX, clippedMinY, regionWidth, regionHeight)
+        compositeCtx.putImageData(surfaceMask, clippedMinX, clippedMinY)
+        fogCtx.save()
+        fogCtx.globalCompositeOperation = 'destination-out'
+        fogCtx.drawImage(
+          surfaceMaskCanvas,
+          clippedMinX,
+          clippedMinY,
+          regionWidth,
+          regionHeight,
+          clippedMinX,
+          clippedMinY,
+          regionWidth,
+          regionHeight,
+        )
+        fogCtx.restore()
+      }
+    }
+
+    const losSeenCanvas = activeLosSeenCanvasRef.current
+    if (!losSeenCanvas) return
+    if (losSeenCanvas.width !== fogCanvas.width || losSeenCanvas.height !== fogCanvas.height) {
+      losSeenCanvas.width = fogCanvas.width
+      losSeenCanvas.height = fogCanvas.height
+    }
+
+    let blockerCompositeCanvas = blockerCompositeCanvasRef.current
+    if (!blockerCompositeCanvas) {
+      blockerCompositeCanvas = document.createElement('canvas')
+      blockerCompositeCanvasRef.current = blockerCompositeCanvas
+    }
+    if (blockerCompositeCanvas.width !== fogCanvas.width || blockerCompositeCanvas.height !== fogCanvas.height) {
+      blockerCompositeCanvas.width = fogCanvas.width
+      blockerCompositeCanvas.height = fogCanvas.height
+    }
+
+    const compositeCtx = blockerCompositeCanvas.getContext('2d', { willReadFrequently: true })
+    const losSeenCtx = losSeenCanvas.getContext('2d', { willReadFrequently: true })
+    if (!compositeCtx || !losSeenCtx) return
+
+    compositeCtx.clearRect(clippedMinX, clippedMinY, regionWidth, regionHeight)
+    losSeenCtx.clearRect(clippedMinX, clippedMinY, regionWidth, regionHeight)
   }
 
   const revealFromTokenStroke = (
@@ -848,11 +929,9 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     activeFogCanvasRef,
     activeVisionCanvasRef,
     streamingMode,
-    usingFullScreenCanvas,
     renderTokenViewDistance,
     revealFromTokenPoint,
     revealFromTokenStroke,
-    getFullscreenVisibleCanvasRect,
     activeMapWidth,
     activeMapHeight,
     activeGridCellPx,
@@ -969,7 +1048,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   }
 
   const renderPlayerTokenItem = (token: TokenRecord, index: number, layer: 'under-fog' | 'over-fog') => {
-    if (role === 'gm' || token.hidden) return null
+    if ((role === 'gm' && !streamingMode) || token.hidden) return null
     if (layer === 'under-fog' && token.party) return null
     if (layer === 'over-fog' && !token.party) return null
 
@@ -978,6 +1057,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     const x = draggedPosition?.x ?? animPos?.x ?? token.x
     const y = draggedPosition?.y ?? animPos?.y ?? token.y
     const isAnimating = Boolean(animPos) && !draggedPosition
+    const isGmStreaming = role === 'gm' && streamingMode
 
     if (layer === 'under-fog' && !isTokenPartiallyVisibleForPlayer(token, { x, y }, activeFogCanvasRef.current)) {
       return null
@@ -1000,12 +1080,19 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         onMouseDown={(event) => {
           event.preventDefault()
           event.stopPropagation()
+          if (isGmStreaming) startTokenDrag(token.id, event)
         }}
         onClick={(event) => {
           event.preventDefault()
           event.stopPropagation()
-          togglePlayerTokenSelection(token.id)
+          if (!isGmStreaming) togglePlayerTokenSelection(token.id)
         }}
+        onTouchStart={(event) => {
+          if (!isGmStreaming) return
+          handleTokenTouchStart(token.id, event)
+        }}
+        onTouchEnd={isGmStreaming ? handleTokenTouchEnd : undefined}
+        onTouchCancel={isGmStreaming ? handleTokenTouchEnd : undefined}
         aria-label={tokenDisplayName(token, index)}
       >
         {renderTokenGlyph(token)}
@@ -1143,6 +1230,11 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       height: Math.max(1, Math.round(target.naturalHeight * fogScale)),
     })
     invalidateInlineOverlayCache()
+    clearLosSeenCanvas(
+      inlineLosSeenCanvasRef.current,
+      Math.max(1, Math.round(target.naturalWidth * fogScale)),
+      Math.max(1, Math.round(target.naturalHeight * fogScale)),
+    )
   }
 
   const handleFullImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
@@ -1157,7 +1249,20 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       height: Math.max(1, Math.round(target.naturalHeight * fogScale)),
     })
     invalidateFullVisionCache()
+    clearLosSeenCanvas(
+      fullLosSeenCanvasRef.current,
+      Math.max(1, Math.round(target.naturalWidth * fogScale)),
+      Math.max(1, Math.round(target.naturalHeight * fogScale)),
+    )
   }
+
+  useEffect(() => {
+    clearLosSeenCanvas(inlineLosSeenCanvasRef.current, Math.max(1, inlineFogSize.width), Math.max(1, inlineFogSize.height))
+  }, [selectedMap?.id, inlineFogSize.width, inlineFogSize.height])
+
+  useEffect(() => {
+    clearLosSeenCanvas(fullLosSeenCanvasRef.current, Math.max(1, fullFogSize.width), Math.max(1, fullFogSize.height))
+  }, [selectedMap?.id, fullFogSize.width, fullFogSize.height])
 
   const calibrationOverlayNode = gridCalibrationLine ? (
     <div className={gridCalibratePulse ? 'map-grid-calibration-overlay pulse' : 'map-grid-calibration-overlay'} aria-hidden>
@@ -1464,7 +1569,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
               {renderMapGridOverlay(false)}
               {gridAdjustMode && effectiveGridEnabled && effectiveGridVisible ? <div className="map-grid-adjust-overlay" /> : null}
               {calibrationOverlayNode}
-              {role !== 'gm' ? (
+              {role !== 'gm' || streamingMode ? (
                 <TokenLayer
                   className="map-token-layer under-fog"
                   ariaLabel="Map tokens under fog"
@@ -1494,14 +1599,21 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 height={Math.max(1, inlineFogSize.height)}
                 style={{ opacity: visionOverlayOpacity }}
               />
-              {role === 'gm' ? (
+              <canvas
+                ref={inlineLosSeenCanvasRef}
+                className="map-los-seen-canvas"
+                width={Math.max(1, inlineFogSize.width)}
+                height={Math.max(1, inlineFogSize.height)}
+                style={{ opacity: losSeenOverlayOpacity }}
+              />
+              {role === 'gm' && !streamingMode ? (
                 <TokenLayer
                   className="map-token-layer gm"
                   tokens={tokens}
                   renderToken={renderTokenItem}
                 />
               ) : null}
-              {role !== 'gm' ? (
+              {role !== 'gm' || streamingMode ? (
                 <TokenLayer
                   className="map-token-layer player-over-fog"
                   ariaLabel="Map party tokens"
@@ -1700,7 +1812,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
           {renderMapGridOverlay(true)}
           {gridAdjustMode && effectiveGridEnabled && effectiveGridVisible ? <div className="map-grid-adjust-overlay" /> : null}
           {calibrationOverlayNode}
-          {role !== 'gm' ? (
+          {role !== 'gm' || streamingMode ? (
             <TokenLayer
               className="map-token-layer under-fog"
               ariaLabel="Map tokens under fog"
@@ -1726,7 +1838,14 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
             height={Math.max(1, fullFogSize.height)}
             style={{ opacity: visionOverlayOpacity }}
           />
-          {role === 'gm' ? (
+          <canvas
+            ref={fullLosSeenCanvasRef}
+            className="map-los-seen-canvas"
+            width={Math.max(1, fullFogSize.width)}
+            height={Math.max(1, fullFogSize.height)}
+            style={{ opacity: losSeenOverlayOpacity }}
+          />
+          {role === 'gm' && !streamingMode ? (
             <TokenLayer
               className="map-token-layer gm"
               ariaLabel="Map tokens"
@@ -1734,7 +1853,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
               renderToken={renderTokenItem}
             />
           ) : null}
-          {role !== 'gm' ? (
+          {role !== 'gm' || streamingMode ? (
             <TokenLayer
               className="map-token-layer player-over-fog"
               ariaLabel="Map party tokens"
@@ -1923,8 +2042,8 @@ function GmMapControls({
   dark?: boolean
   fogTool: 'reveal' | 'hide' | null
   setFogTool: (tool: 'reveal' | 'hide' | null) => void
-  visionTool: 'draw' | 'erase' | null
-  setVisionTool: (tool: 'draw' | 'erase' | null) => void
+  visionTool: 'draw' | 'drawFull' | 'erase' | null
+  setVisionTool: (tool: 'draw' | 'drawFull' | 'erase' | null) => void
   fogBrushSize: number
   setFogBrushSize: (size: number) => void
   tokenPlaceMode: boolean
@@ -2068,7 +2187,20 @@ function GmMapControls({
         </button>
         <button
           type="button"
-          className={visionTool === 'erase' ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
+          className={visionTool === 'drawFull' ? 'map-icon-btn map-vision-full-btn fast-tooltip active' : 'map-icon-btn map-vision-full-btn fast-tooltip'}
+          onClick={() => {
+            setTokenSelectMode(false)
+            setFogTool(null)
+            setVisionTool(visionTool === 'drawFull' ? null : 'drawFull')
+          }}
+          aria-label="Full vision wall brush"
+          data-tooltip="Full vision wall brush"
+        >
+          <PenTool size={16} />
+        </button>
+        <button
+          type="button"
+          className={visionTool === 'erase' ? 'map-icon-btn map-vision-erase-btn fast-tooltip active' : 'map-icon-btn map-vision-erase-btn fast-tooltip'}
           onClick={() => {
             setTokenSelectMode(false)
             setFogTool(null)
