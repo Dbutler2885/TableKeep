@@ -263,7 +263,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
       {role === 'gm' && pendingRequests.length > 0 ? (
         <div className="confirm-overlay" role="dialog" aria-modal="true">
           <div className="confirm-modal">
-            <h3>Item Approval Request</h3>
+            <h3>{pendingRequests[0]?.action === 'sell' ? 'Sell Approval Request' : 'Item Approval Request'}</h3>
             {(() => {
               const req = pendingRequests[0]
               const item = req.item
@@ -273,11 +273,13 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
               return (
                 <>
                   <p>
-                    <strong>{req.requestedByUsername}</strong> wants to add
-                    a <strong>{item.kind}</strong> to <strong>{req.characterName}</strong>:
+                    <strong>{req.requestedByUsername}</strong> wants to {req.action === 'sell' ? 'sell' : 'add'}
+                    {' '}a <strong>{item.kind}</strong> {req.action === 'sell' ? 'from' : 'to'} <strong>{req.characterName}</strong>:
                   </p>
                   <p style={{ margin: '8px 0', fontWeight: 600 }}>{displayName}</p>
-                  {item.costGp > 0 ? <p>Cost: {item.costGp} gp</p> : null}
+                  {item.costGp > 0 ? (
+                    <p>{req.action === 'sell' ? `Sell for: ${item.costGp} gp` : `Cost: ${item.costGp} gp`}</p>
+                  ) : null}
                   {item.kind === 'weapon' && 'damageDiceCount' in item ? (
                     <p style={{ fontSize: '0.9em' }}>
                       Damage: {item.damageDiceCount}d{item.damageDiceSides}

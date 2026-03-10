@@ -194,8 +194,11 @@ export type CharacterSheetDetails = {
   title: string
 }
 
+export type ItemApprovalAction = 'create' | 'sell'
+
 export type ItemApprovalRequest = {
   id: string
+  action: ItemApprovalAction
   campaignId: string
   characterId: string
   characterName: string

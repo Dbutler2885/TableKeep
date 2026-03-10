@@ -181,7 +181,9 @@ export function useItems(campaignId: string) {
         doc(db, 'campaigns', campaignId, 'items', id),
         { ...toFirestoreItem(item), updatedAt: serverTimestamp() },
         { merge: true },
-      )
+      ).catch((error) => {
+        console.error('Failed to update campaign item', { itemId: id, error })
+      })
     }, 500)
   }
 
@@ -192,7 +194,9 @@ export function useItems(campaignId: string) {
     void setDoc(
       doc(db, 'campaigns', campaignId, 'items', id),
       { ...toFirestoreItem(item), createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
-    )
+    ).catch((error) => {
+      console.error('Failed to create campaign item', { itemId: id, error })
+    })
   }
 
   const updateItem = (itemId: string, patch: Partial<CampaignItem>) => {
@@ -210,7 +214,9 @@ export function useItems(campaignId: string) {
       delete pendingWritesRef.current[itemId]
     }
     setItems((current) => current.filter((item) => item.id !== itemId))
-    void deleteDoc(doc(db, 'campaigns', campaignId, 'items', itemId))
+    void deleteDoc(doc(db, 'campaigns', campaignId, 'items', itemId)).catch((error) => {
+      console.error('Failed to delete campaign item', { itemId, error })
+    })
   }
 
   return { items, itemsLoading, addItem, updateItem, deleteItem }

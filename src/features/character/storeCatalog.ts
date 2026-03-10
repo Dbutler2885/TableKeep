@@ -1,4 +1,4 @@
-export type StoreCategoryId = 'adventuring' | 'weapons' | 'ammunition' | 'armour' | 'other'
+export type StoreCategoryId = 'adventuring' | 'consumables' | 'weapons' | 'ammunition' | 'armour' | 'other'
 
 export type StoreItem = {
   id: string
@@ -14,6 +14,7 @@ export type StoreItem = {
 
 export const STORE_CATEGORY_LABELS: Record<StoreCategoryId, string> = {
   adventuring: 'Adventuring Gear',
+  consumables: 'Consumables',
   weapons: 'Weapons',
   ammunition: 'Ammunition',
   armour: 'Armour',
@@ -22,26 +23,26 @@ export const STORE_CATEGORY_LABELS: Record<StoreCategoryId, string> = {
 
 export const OSE_STORE_ITEMS: StoreItem[] = [
   { id: 'gear-crowbar', category: 'adventuring', name: 'Crowbar', costGp: 10, description: '2-3 ft iron bar for prying doors/chests.', kind: 'general' },
-  { id: 'gear-garlic', category: 'adventuring', name: 'Garlic', costGp: 5, description: 'A bunch of garlic.', kind: 'general' },
+  { id: 'gear-garlic', category: 'consumables', name: 'Garlic', costGp: 5, description: 'A bunch of garlic.', kind: 'consumable' },
   { id: 'gear-grappling-hook', category: 'adventuring', name: 'Grappling hook', costGp: 25, description: 'Iron 3-4 hook anchor ring for rope.', kind: 'general' },
   { id: 'gear-hammer', category: 'adventuring', name: 'Hammer (small)', costGp: 2, description: 'Useful for spikes and tapping stonework.', kind: 'general' },
   { id: 'gear-holy-symbol', category: 'adventuring', name: 'Holy symbol', costGp: 25, description: 'Required for divine powers and rituals.', kind: 'general' },
-  { id: 'gear-holy-water', category: 'adventuring', name: 'Holy water (vial)', costGp: 25, description: 'Blessed vial; harms undead.', kind: 'general' },
+  { id: 'gear-holy-water', category: 'consumables', name: 'Holy water (vial)', costGp: 25, description: 'Blessed vial; harms undead.', kind: 'consumable' },
   { id: 'gear-iron-spikes', category: 'adventuring', name: 'Iron spikes (12)', costGp: 1, description: 'Wedge doors, anchor ropes, etc.', kind: 'general' },
   { id: 'gear-lantern', category: 'adventuring', name: 'Lantern', costGp: 10, description: '30 ft light radius. Burns 1 oil flask / 4 hours.', kind: 'general' },
   { id: 'gear-mirror', category: 'adventuring', name: 'Mirror (steel)', costGp: 5, description: 'Hand-sized steel mirror for peeking and gaze attacks.', kind: 'general' },
-  { id: 'gear-oil', category: 'adventuring', name: 'Oil (1 flask)', costGp: 2, description: 'Lantern fuel; also throwable burning oil weapon.', kind: 'general' },
+  { id: 'gear-oil', category: 'consumables', name: 'Oil (1 flask)', costGp: 2, description: 'Lantern fuel; also throwable burning oil weapon.', kind: 'consumable' },
   { id: 'gear-pole', category: 'adventuring', name: 'Pole (10 ft)', costGp: 1, description: '2-inch wooden pole for poking/prodding.', kind: 'general' },
-  { id: 'gear-rations-iron', category: 'adventuring', name: 'Rations (iron, 7 days)', costGp: 15, description: 'Preserved travel food.', kind: 'general' },
-  { id: 'gear-rations-standard', category: 'adventuring', name: 'Rations (standard, 7 days)', costGp: 5, description: 'Fresh, unpreserved food.', kind: 'general' },
+  { id: 'gear-rations-iron', category: 'consumables', name: 'Rations (iron, 7 days)', costGp: 15, description: 'Preserved travel food.', kind: 'consumable' },
+  { id: 'gear-rations-standard', category: 'consumables', name: 'Rations (standard, 7 days)', costGp: 5, description: 'Fresh, unpreserved food.', kind: 'consumable' },
   { id: 'gear-rope', category: 'adventuring', name: 'Rope (50 ft)', costGp: 1, description: 'Holds up to three people + equipment.', kind: 'general' },
   { id: 'gear-stakes-mallet', category: 'adventuring', name: 'Stakes (3) + mallet', costGp: 3, description: 'Useful against vampires.', kind: 'general' },
   { id: 'gear-thieves-tools', category: 'adventuring', name: "Thieves' tools", costGp: 25, description: 'Lockpicking kit in compact case.', kind: 'general' },
   { id: 'gear-tinderbox', category: 'adventuring', name: 'Tinder box', costGp: 3, description: 'Flint/steel/tinder; 2-in-6 chance per round to light.', kind: 'general' },
-  { id: 'gear-torches', category: 'adventuring', name: 'Torches (6)', costGp: 1, description: '30 ft light radius; 1 hour burn each.', kind: 'general' },
+  { id: 'gear-torches', category: 'consumables', name: 'Torches (6)', costGp: 1, description: '30 ft light radius; 1 hour burn each.', kind: 'consumable' },
   { id: 'gear-waterskin', category: 'adventuring', name: 'Waterskin', costGp: 1, description: 'Holds 2 pints (1 quart).', kind: 'general' },
-  { id: 'gear-wine', category: 'adventuring', name: 'Wine (2 pints)', costGp: 1, description: 'Two pints of wine.', kind: 'general' },
-  { id: 'gear-wolfsbane', category: 'adventuring', name: 'Wolfsbane', costGp: 10, description: 'Herb used to repel lycanthropes.', kind: 'general' },
+  { id: 'gear-wine', category: 'consumables', name: 'Wine (2 pints)', costGp: 1, description: 'Two pints of wine.', kind: 'consumable' },
+  { id: 'gear-wolfsbane', category: 'consumables', name: 'Wolfsbane', costGp: 10, description: 'Herb used to repel lycanthropes.', kind: 'consumable' },
 
   { id: 'wpn-battle-axe', category: 'weapons', name: 'Battle axe', costGp: 7, description: '1d8. Melee, Slow, Two-handed.', kind: 'weapon', weaponId: 'battle-axe' },
   { id: 'wpn-club', category: 'weapons', name: 'Club', costGp: 3, description: '1d4. Blunt, Melee.', kind: 'weapon', weaponId: 'club' },

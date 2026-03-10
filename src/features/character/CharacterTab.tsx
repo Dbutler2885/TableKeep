@@ -37,6 +37,9 @@ import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { OSE_WEAPON_CATALOG, weaponCatalogById } from './weaponCatalog'
 import { OSE_ARMOUR_CATALOG, armourCatalogById } from './armourCatalog'
+import { OSE_GENERAL_CATALOG, generalCatalogById } from './generalCatalog'
+import { OSE_AMMO_CATALOG, ammoCatalogById } from './ammoCatalog'
+import { OSE_CONSUMABLE_CATALOG, consumableCatalogById } from './consumableCatalog'
 import { OSE_STORE_ITEMS, STORE_CATEGORY_LABELS } from './storeCatalog'
 import type { StoreCategoryId, StoreItem } from './storeCatalog'
 
@@ -2060,28 +2063,53 @@ export function CharacterTab({
           }
           newItems.push(applyArmourTemplateToItem(makeArmourItem(), entry.armourId))
         } else if (entry.kind === 'ammunition') {
+          // Look up ammo catalog by matching store item key to ammo catalog id
+          const storeItem = OSE_STORE_ITEMS.find((s) => s.id === entry.key || s.name === entry.name)
+          const ammoTemplate = storeItem ? ammoCatalogById[storeItem.id] ?? ammoCatalogById[storeItem.id.replace('ammo-', '')] : null
           newItems.push({
             id: makeId(),
             kind: 'ammunition',
-            typeId: 'custom',
-            typeName: entry.packedLabel ?? entry.name,
-            name: entry.packedLabel ?? entry.name,
+            typeId: ammoTemplate?.id ?? 'custom',
+            typeName: ammoTemplate?.name ?? (entry.packedLabel ?? entry.name),
+            name: entry.name,
             costGp: entry.costGp,
             equipped: false,
             notes: '',
-            qty: 1,
+            description: ammoTemplate?.description ?? '',
+            qty: ammoTemplate?.qty ?? 1,
             stack: DEFAULT_STACK_POLICY.ammunition,
           } as CharacterAmmunitionItem)
-        } else {
+        } else if (entry.kind === 'consumable') {
+          const storeItem = OSE_STORE_ITEMS.find((s) => s.id === entry.key || s.name === entry.name)
+          const conTemplate = storeItem ? consumableCatalogById[storeItem.id.replace('gear-', 'con-')] : null
           newItems.push({
             id: makeId(),
-            kind: 'general',
-            typeId: 'custom',
-            typeName: entry.name,
+            kind: 'consumable',
+            typeId: conTemplate?.id ?? 'custom',
+            typeName: conTemplate?.name ?? entry.name,
             name: entry.name,
             costGp: entry.costGp,
             equipped: false,
             notes: entry.packedLabel ?? '',
+            description: conTemplate?.description ?? '',
+            qty: conTemplate?.qty ?? 1,
+            stack: DEFAULT_STACK_POLICY.consumable,
+            useMode: conTemplate?.useMode ?? 'consume',
+            effectText: conTemplate?.effectText ?? undefined,
+          } as CharacterConsumableItem)
+        } else {
+          const storeItem = OSE_STORE_ITEMS.find((s) => s.id === entry.key || s.name === entry.name)
+          const genTemplate = storeItem ? generalCatalogById[storeItem.id] : null
+          newItems.push({
+            id: makeId(),
+            kind: 'general',
+            typeId: genTemplate?.id ?? 'custom',
+            typeName: genTemplate?.name ?? entry.name,
+            name: entry.name,
+            costGp: entry.costGp,
+            equipped: false,
+            notes: entry.packedLabel ?? '',
+            description: genTemplate?.description ?? '',
             qty: 1,
             stack: DEFAULT_STACK_POLICY.general,
           } as CharacterGeneralItem)
@@ -2188,36 +2216,55 @@ export function CharacterTab({
         newItem = item
         break
       }
-      case 'ammunition':
+      case 'ammunition': {
+        const ammoTemplate = m.typeId && m.typeId !== 'custom' ? ammoCatalogById[m.typeId] : null
         newItem = {
-          id: makeId(), kind: 'ammunition', typeId: 'custom', typeName: fallbackTypeName,
-          name: m.name || undefined, costGp,
-          equipped: m.equipped, notes: m.notes, description: m.description,
-          qty: Number.parseInt(m.qty, 10) || 1,
+          id: makeId(), kind: 'ammunition',
+          typeId: ammoTemplate ? ammoTemplate.id : 'custom',
+          typeName: ammoTemplate ? ammoTemplate.name : fallbackTypeName,
+          name: m.name || undefined,
+          costGp: ammoTemplate ? ammoTemplate.costGp : costGp,
+          equipped: m.equipped, notes: m.notes,
+          description: ammoTemplate ? ammoTemplate.description : m.description,
+          qty: ammoTemplate ? ammoTemplate.qty : (Number.parseInt(m.qty, 10) || 1),
           stack: DEFAULT_STACK_POLICY.ammunition,
         }
         break
-      case 'consumable':
+      }
+      case 'consumable': {
+        const conTemplate = m.typeId && m.typeId !== 'custom' ? consumableCatalogById[m.typeId] : null
         newItem = {
-          id: makeId(), kind: 'consumable', typeId: 'custom', typeName: fallbackTypeName,
-          name: m.name || undefined, costGp,
-          equipped: m.equipped, notes: m.notes, description: m.description,
-          qty: Number.parseInt(m.qty, 10) || 1,
+          id: makeId(), kind: 'consumable',
+          typeId: conTemplate ? conTemplate.id : 'custom',
+          typeName: conTemplate ? conTemplate.name : fallbackTypeName,
+          name: m.name || undefined,
+          costGp: conTemplate ? conTemplate.costGp : costGp,
+          equipped: m.equipped, notes: m.notes,
+          description: conTemplate ? conTemplate.description : m.description,
+          qty: conTemplate ? conTemplate.qty : (Number.parseInt(m.qty, 10) || 1),
           stack: DEFAULT_STACK_POLICY.consumable,
-          useMode: m.useMode, effectText: m.effectText || undefined,
+          useMode: conTemplate ? conTemplate.useMode : m.useMode,
+          effectText: (conTemplate ? conTemplate.effectText : m.effectText) || undefined,
         }
         break
-      default:
+      }
+      default: {
+        const genTemplate = m.typeId && m.typeId !== 'custom' ? generalCatalogById[m.typeId] : null
         newItem = {
-          id: makeId(), kind: 'general', typeId: 'custom', typeName: fallbackTypeName,
-          name: m.name || undefined, costGp,
-          equipped: m.equipped, notes: m.notes, description: m.description,
+          id: makeId(), kind: 'general',
+          typeId: genTemplate ? genTemplate.id : 'custom',
+          typeName: genTemplate ? genTemplate.name : fallbackTypeName,
+          name: m.name || undefined,
+          costGp: genTemplate ? genTemplate.costGp : costGp,
+          equipped: m.equipped, notes: m.notes,
+          description: genTemplate ? genTemplate.description : m.description,
           qty: 1, stack: DEFAULT_STACK_POLICY.general,
         }
+      }
     }
     if (role !== 'gm') {
       // Players need GM approval
-      void submitRequest(effectiveSelected.id, effectiveSelected.name, currentUsername, newItem)
+      void submitRequest('create', effectiveSelected.id, effectiveSelected.name, currentUsername, newItem)
       setAddItemModal(null)
       setApprovalPendingFeedback('Item sent to GM for approval.')
       return
@@ -2259,6 +2306,15 @@ export function CharacterTab({
     if (!effectiveSelected || !canEditSelected || overflowWriting) return
     const item = selectedInventory.find((i) => i.id === itemId)
     if (!item || item.kind === 'gold') return
+
+    if (role !== 'gm') {
+      void submitRequest('sell', effectiveSelected.id, effectiveSelected.name, currentUsername, item)
+      setItemDetailId(null)
+      setSellConfirmItemId(null)
+      setApprovalPendingFeedback('Sale sent to GM for approval.')
+      return
+    }
+
     const sellAmount = normalizeGoldAmount(item.costGp)
 
     // Build candidate inventory: remove sold item, add gold proceeds
@@ -3289,8 +3345,9 @@ export function CharacterTab({
                           .filter((r) => r.characterId === effectiveSelected?.id)
                           .map((r) => (
                             <p key={r.id} className="error character-approval-rejection">
-                              GM did not approve your item creation
-                              {r.item?.typeName ? ` (${r.item.typeName})` : ''}
+                              {r.action === 'sell'
+                                ? `GM did not approve selling ${r.item?.typeName ?? 'item'}`
+                                : `GM did not approve your item creation${r.item?.typeName ? ` (${r.item.typeName})` : ''}`}
                               <button
                                 type="button"
                                 className="monster-example-btn"
@@ -4332,14 +4389,82 @@ export function CharacterTab({
               </div>
             ) : (
               <>
-                <label className="item-detail-field">
-                  <span className="item-detail-field-label">Type</span>
-                  <input
-                    type="text"
-                    value={addItemModal.typeName}
-                    onChange={(e) => setAddItemModal({ ...addItemModal, typeName: e.target.value })}
-                  />
-                </label>
+                {addItemModal.kind === 'general' ? (
+                  <label className="item-detail-field">
+                    <span className="item-detail-field-label">Template</span>
+                    <select
+                      value={addItemModal.typeId || 'custom'}
+                      onChange={(e) => {
+                        const gId = e.target.value
+                        if (gId === 'custom') {
+                          setAddItemModal({ ...addItemModal, typeId: 'custom', typeName: '', costGp: '', description: '' })
+                        } else {
+                          const t = generalCatalogById[gId]
+                          if (t) setAddItemModal({ ...addItemModal, typeId: gId, typeName: t.name, costGp: String(t.costGp), description: t.description })
+                        }
+                      }}
+                    >
+                      <option value="custom">Custom</option>
+                      {OSE_GENERAL_CATALOG.map((g) => (
+                        <option key={g.id} value={g.id}>{`${g.name} (${g.costGp} gp)`}</option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                {addItemModal.kind === 'ammunition' ? (
+                  <label className="item-detail-field">
+                    <span className="item-detail-field-label">Template</span>
+                    <select
+                      value={addItemModal.typeId || 'custom'}
+                      onChange={(e) => {
+                        const aId = e.target.value
+                        if (aId === 'custom') {
+                          setAddItemModal({ ...addItemModal, typeId: 'custom', typeName: '', costGp: '', description: '', qty: '1' })
+                        } else {
+                          const t = ammoCatalogById[aId]
+                          if (t) setAddItemModal({ ...addItemModal, typeId: aId, typeName: t.name, costGp: String(t.costGp), description: t.description, qty: String(t.qty) })
+                        }
+                      }}
+                    >
+                      <option value="custom">Custom</option>
+                      {OSE_AMMO_CATALOG.map((a) => (
+                        <option key={a.id} value={a.id}>{`${a.name} (${a.costGp} gp)`}</option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                {addItemModal.kind === 'consumable' ? (
+                  <label className="item-detail-field">
+                    <span className="item-detail-field-label">Template</span>
+                    <select
+                      value={addItemModal.typeId || 'custom'}
+                      onChange={(e) => {
+                        const cId = e.target.value
+                        if (cId === 'custom') {
+                          setAddItemModal({ ...addItemModal, typeId: 'custom', typeName: '', costGp: '', description: '', qty: '1', useMode: 'consume', effectText: '' })
+                        } else {
+                          const t = consumableCatalogById[cId]
+                          if (t) setAddItemModal({ ...addItemModal, typeId: cId, typeName: t.name, costGp: String(t.costGp), description: t.description, qty: String(t.qty), useMode: t.useMode, effectText: t.effectText })
+                        }
+                      }}
+                    >
+                      <option value="custom">Custom</option>
+                      {OSE_CONSUMABLE_CATALOG.map((c) => (
+                        <option key={c.id} value={c.id}>{`${c.name} (${c.costGp} gp)`}</option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                {addItemModal.typeId === 'custom' ? (
+                  <label className="item-detail-field">
+                    <span className="item-detail-field-label">Type</span>
+                    <input
+                      type="text"
+                      value={addItemModal.typeName}
+                      onChange={(e) => setAddItemModal({ ...addItemModal, typeName: e.target.value })}
+                    />
+                  </label>
+                ) : null}
                 <label className="item-detail-field">
                   <span className="item-detail-field-label">Name (Optional)</span>
                   <input

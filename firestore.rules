@@ -157,9 +157,19 @@ service cloud.firestore {
         allow write: if isCampaignGM(campaignId);
       }
 
+      match /itemApprovals/{approvalId} {
+        allow read: if isCampaignMember(campaignId);
+        allow create: if isCampaignMember(campaignId)
+          && request.resource.data.requestedByUserId == request.auth.uid
+          && request.resource.data.status == 'pending';
+        allow update: if isCampaignGM(campaignId);
+        allow delete: if isCampaignMember(campaignId);
+      }
+
       match /items/{itemId} {
         allow read: if isCampaignMember(campaignId);
-        allow create: if isCampaignMember(campaignId) && request.resource.data.status == 'dropped';
+        allow create: if isCampaignGM(campaignId)
+          || (isCampaignMember(campaignId) && request.resource.data.status == 'dropped');
         allow update, delete: if isCampaignGM(campaignId);
       }
 
