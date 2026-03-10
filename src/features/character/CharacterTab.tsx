@@ -1,7 +1,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Check, ChevronLeft, Minus, Pencil, Plus, ShoppingBag, Star, Trash2, UserRound, X } from 'lucide-react'
+import { Check, ChevronLeft, Plus, ShoppingBag, Star, Trash2, UserRound, X } from 'lucide-react'
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { inventoryItemToCampaignItem } from '../items/itemConversion'
+import { toFirestoreItem } from '../items/useItems'
 import { db } from '../../firebase'
 import type {
   CharacterRecord,
@@ -12,10 +14,11 @@ import type {
   CharacterArmourItem,
   CharacterGoldItem,
   CharacterGeneralItem,
-  CharacterCustomItem,
+  CharacterConsumableItem,
   CharacterAmmunitionItem,
   Role,
 } from '../../types/app'
+import { DEFAULT_STACK_POLICY } from '../items/itemDefaults'
 import {
   CHARACTER_INTERMEDIATE_MAX_WIDTH,
   CHARACTER_MOBILE_INTERMEDIATE_MIN_WIDTH,
@@ -419,15 +422,18 @@ const stableStringify = (value: unknown): string =>
 const makeWeaponItem = (overrides?: Partial<CharacterWeaponItem>): CharacterWeaponItem => ({
   id: makeId(),
   kind: 'weapon',
-  name: '',
   costGp: 0,
   equipped: false,
   notes: '',
-  weaponId: '',
+  typeId: 'custom',
+  typeName: '',
+  qty: 1,
+  stack: DEFAULT_STACK_POLICY.weapon,
   isMagic: false,
   damageDiceCount: '',
   damageDiceSides: '',
-  bonus: '',
+  attackBonus: '',
+  damageBonus: '',
   rangeShort: '',
   rangeMedium: '',
   rangeLong: '',
@@ -438,25 +444,31 @@ const makeWeaponItem = (overrides?: Partial<CharacterWeaponItem>): CharacterWeap
 const makeArmourItem = (overrides?: Partial<CharacterArmourItem>): CharacterArmourItem => ({
   id: makeId(),
   kind: 'armour',
-  name: '',
   costGp: 0,
   equipped: false,
   notes: '',
-  armourId: '',
+  typeId: 'custom',
+  typeName: '',
+  qty: 1,
+  stack: DEFAULT_STACK_POLICY.armour,
   isMagic: false,
-  ac: '',
-  bonus: '',
+  armourClass: '',
+  shieldMod: '',
+  magicMod: '',
+  armourType: 'body',
   ...overrides,
 })
 
 const makeGoldItem = (amount: number): CharacterGoldItem => ({
   id: makeId(),
   kind: 'gold',
-  name: `Gold: ${amount} gp`,
+  typeId: 'gold',
+  typeName: 'Gold',
   costGp: 0,
   equipped: false,
   notes: '',
-  amount,
+  qty: amount,
+  stack: DEFAULT_STACK_POLICY.gold,
 })
 
 const goldChunksForAmount = (amount: number): number[] => {
@@ -480,11 +492,13 @@ const migrateToInventory = (details: CharacterSheetDetails): CharacterInventoryI
       items.push(makeWeaponItem({
         id: w.id || makeId(),
         name: w.name,
-        weaponId: w.weaponId,
+        typeId: w.weaponId || 'custom',
+        typeName: '',
         isMagic: w.isMagic,
         damageDiceCount: w.damageDiceCount,
         damageDiceSides: w.damageDiceSides,
-        bonus: w.bonus,
+        attackBonus: w.bonus,
+        damageBonus: '',
         rangeShort: w.rangeShort,
         rangeMedium: w.rangeMedium,
         rangeLong: w.rangeLong,
@@ -501,10 +515,12 @@ const migrateToInventory = (details: CharacterSheetDetails): CharacterInventoryI
       items.push(makeArmourItem({
         id: a.id || makeId(),
         name: a.name,
-        armourId: a.armourId,
+        typeId: a.armourId || 'custom',
+        typeName: '',
         isMagic: a.isMagic,
-        ac: a.ac,
-        bonus: a.bonus,
+        armourClass: a.ac,
+        shieldMod: a.armourId === 'shield' ? '-1' : '',
+        magicMod: a.bonus,
         equipped: a.equipped,
         notes: a.notes,
       }))
@@ -525,10 +541,14 @@ const migrateToInventory = (details: CharacterSheetDetails): CharacterInventoryI
         items.push({
           id: makeId(),
           kind: 'general',
+          typeId: 'custom',
+          typeName: text,
           name: text,
           costGp: 0,
           equipped: false,
           notes: '',
+          qty: 1,
+          stack: DEFAULT_STACK_POLICY.general,
         })
       }
     }
@@ -543,10 +563,14 @@ const migrateToInventory = (details: CharacterSheetDetails): CharacterInventoryI
       items.push({
         id: makeId(),
         kind: 'general',
+        typeId: 'custom',
+        typeName: trimmed,
         name: trimmed,
         costGp: 0,
         equipped: true,
         notes: '',
+        qty: 1,
+        stack: DEFAULT_STACK_POLICY.general,
       })
     }
   }
@@ -600,20 +624,38 @@ const parseRangeBands = (value: string): { rangeShort: string; rangeMedium: stri
   }
 }
 
-const parseArmourTemplateValues = (acValue: string): { ac: string; bonus: string } => {
+const parseArmourTemplateValues = (acValue: string): { armourClass: string; shieldMod: string; magicMod: string } => {
   const trimmed = acValue.trim()
   const numeric = trimmed.match(/^-?\d+$/)
-  if (numeric) return { ac: trimmed, bonus: '' }
+  if (numeric) return { armourClass: trimmed, shieldMod: '', magicMod: '' }
 
   const bonus = trimmed.match(/^([+-]?\d+)\s*bonus$/i)
   if (bonus) {
+    const parsed = Number.parseInt(bonus[1], 10)
     return {
-      ac: '',
-      bonus: bonus[1].replace(/^\+/, ''),
+      armourClass: '',
+      shieldMod: Number.isNaN(parsed) ? '' : String(-parsed),
+      magicMod: '',
     }
   }
 
-  return { ac: '', bonus: '' }
+  return { armourClass: '', shieldMod: '', magicMod: '' }
+}
+
+const armourTypeFromTemplateId = (templateId: string): 'body' | 'shield' =>
+  armourCatalogById[templateId]?.armourType ?? 'body'
+
+const resolveArmourType = (item: CharacterArmourItem): 'body' | 'shield' =>
+  item.armourType === 'shield' ? 'shield' : armourTypeFromTemplateId(item.typeId)
+
+const normalizeTemplateArmourValues = (
+  values: { armourClass: string; shieldMod: string; magicMod: string },
+  armourType: 'body' | 'shield',
+): { armourClass: string; shieldMod: string; magicMod: string } => {
+  if (armourType === 'shield') {
+    return { armourClass: '', shieldMod: values.shieldMod, magicMod: '' }
+  }
+  return { armourClass: values.armourClass, shieldMod: '', magicMod: values.magicMod }
 }
 
 export function CharacterTab({
@@ -635,7 +677,7 @@ export function CharacterTab({
   const [viewportWidth, setViewportWidth] = useState<number>(() => window.innerWidth)
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileCharacterView, setMobileCharacterView] = useState<'list' | 'detail'>('list')
-  const [activePage, setActivePage] = useState<'core' | 'encumbrance' | 'asw'>('core')
+  const [activePage, setActivePage] = useState<'core' | 'encumbrance'>('core')
   const [abilityScoresByCharacterId, setAbilityScoresByCharacterId] = useState<Record<string, AbilityScores>>({})
   const [rolledAbilityScoresByCharacterId, setRolledAbilityScoresByCharacterId] = useState<Record<string, AbilityScores>>({})
   const [abilityScoresRolledByCharacterId, setAbilityScoresRolledByCharacterId] = useState<Record<string, boolean>>({})
@@ -647,8 +689,6 @@ export function CharacterTab({
   const [adventureSeedClassByCharacterId, setAdventureSeedClassByCharacterId] = useState<Record<string, string>>({})
   const [thiefSkillsByCharacterId, setThiefSkillsByCharacterId] = useState<Record<string, ThiefSkillScores>>({})
   const [acManualOverrideByCharacterId, setAcManualOverrideByCharacterId] = useState<Record<string, boolean>>({})
-  const [expandedWeaponCards, setExpandedWeaponCards] = useState<Record<string, boolean>>({})
-  const [expandedArmourCards, setExpandedArmourCards] = useState<Record<string, boolean>>({})
   const [createCharacterModalOpen, setCreateCharacterModalOpen] = useState(false)
   const [finalizeConfirmOpen, setFinalizeConfirmOpen] = useState(false)
   const [finalizeError, setFinalizeError] = useState<string | null>(null)
@@ -668,7 +708,38 @@ export function CharacterTab({
   const [hpClassRequiredOpen, setHpClassRequiredOpen] = useState(false)
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{ id: string, name: string } | null>(null)
   const [itemDetailId, setItemDetailId] = useState<string | null>(null)
+  const [addItemModal, setAddItemModal] = useState<{
+    equipped: boolean
+    kind: 'general' | 'weapon' | 'armour' | 'ammunition' | 'consumable'
+    typeName: string
+    name: string
+    costGp: string
+    notes: string
+    description: string
+    typeId: string
+    damageDiceCount: string
+    damageDiceSides: string
+    rangeShort: string
+    rangeMedium: string
+    rangeLong: string
+    twoHanded: boolean
+    isMagic: boolean
+    attackBonus: string
+    damageBonus: string
+    armourClass: string
+    shieldMod: string
+    magicMod: string
+    armourType: 'body' | 'shield'
+    qty: string
+    useMode: 'consume' | 'use'
+    effectText: string
+  } | null>(null)
+  const [dropConfirmItemId, setDropConfirmItemId] = useState<string | null>(null)
+  const [sellConfirmItemId, setSellConfirmItemId] = useState<string | null>(null)
+  const [goldSpendAmount, setGoldSpendAmount] = useState<string>('')
+  const [goldSpendConfirmAmount, setGoldSpendConfirmAmount] = useState<number | null>(null)
   const [alignmentByCharacterId, setAlignmentByCharacterId] = useState<Record<string, string>>({})
+  const [titleByCharacterId, setTitleByCharacterId] = useState<Record<string, string>>({})
 
   const seededCharacterIdsRef = useRef<Set<string>>(new Set())
   const justSeededRef = useRef<Set<string>>(new Set())
@@ -706,6 +777,7 @@ export function CharacterTab({
           if (typeof details.storeSpent === 'number') setStoreSpentByCharacterId((prev) => ({ ...prev, [id]: details.storeSpent as number }))
           if (details.storeCart) setStoreCartByCharacterId((prev) => ({ ...prev, [id]: details.storeCart as StoreCartEntry[] }))
           if (details.alignment) setAlignmentByCharacterId((prev) => ({ ...prev, [id]: details.alignment as string }))
+          if (details.title) setTitleByCharacterId((prev) => ({ ...prev, [id]: details.title as string }))
         }
         lastPersistedDetailsJsonRef.current[id] = stableStringify(details ?? null)
         continue
@@ -731,6 +803,7 @@ export function CharacterTab({
           setStoreSpentByCharacterId((prev) => typeof details.storeSpent === 'number' ? { ...prev, [id]: details.storeSpent } : prev)
           setStoreCartByCharacterId((prev) => details.storeCart ? { ...prev, [id]: details.storeCart as StoreCartEntry[] } : prev)
           setAlignmentByCharacterId((prev) => details.alignment ? { ...prev, [id]: details.alignment } : prev)
+          setTitleByCharacterId((prev) => details.title ? { ...prev, [id]: details.title } : prev)
         }
       }
     }
@@ -762,6 +835,7 @@ export function CharacterTab({
       storeSpent: storeSpentByCharacterId[selectedCharacterId] ?? 0,
       storeCart: storeCartByCharacterId[selectedCharacterId] ?? [],
       alignment: alignmentByCharacterId[selectedCharacterId] ?? 'Neutrality',
+      title: titleByCharacterId[selectedCharacterId] ?? '',
     }
 
     const json = stableStringify(details)
@@ -785,6 +859,7 @@ export function CharacterTab({
     storeSpentByCharacterId,
     storeCartByCharacterId,
     alignmentByCharacterId,
+    titleByCharacterId,
   ])
 
   const sortedCharacters = useMemo(
@@ -864,8 +939,15 @@ export function CharacterTab({
   const selectedInventory = effectiveSelected
     ? (inventoryByCharacterId[effectiveSelected.id] ?? [])
     : []
+  const selectedGoldTotal = selectedInventory
+    .filter((i): i is CharacterGoldItem => i.kind === 'gold')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy data may still have `amount`
+    .reduce((sum, g) => sum + (g.qty ?? (g as any).amount ?? 0), 0)
+  const parsedGoldSpendAmount = Number.parseInt(goldSpendAmount, 10) || 0
   const selectedWeapons = selectedInventory.filter((i): i is CharacterWeaponItem => i.kind === 'weapon')
   const selectedArmour = selectedInventory.filter((i): i is CharacterArmourItem => i.kind === 'armour')
+  const equippedBodyArmour = selectedArmour.find((a) => a.equipped && resolveArmourType(a) === 'body') ?? null
+  const equippedShield = selectedArmour.find((a) => a.equipped && resolveArmourType(a) === 'shield') ?? null
   const equippedItems = selectedInventory.filter((i) => i.equipped)
   const packedItems = selectedInventory.filter((i) => !i.equipped)
   const selectedClassName = effectiveSelected?.className ?? '-'
@@ -873,8 +955,6 @@ export function CharacterTab({
   const unlockedClassFeatures = (classFeaturesByClass[selectedClassName] ?? [])
     .filter((feature) => selectedLevel >= feature.unlockedAt)
     .sort((a, b) => a.unlockedAt - b.unlockedAt)
-  const weaponRowCount = selectedWeapons.length
-  const armourRowCount = selectedArmour.length
   const isGuidedCreation = effectiveSelected?.creationStatus === 'draft'
   const selectedStartingGold = effectiveSelected ? (startingGoldByCharacterId[effectiveSelected.id] ?? null) : null
   const hasRolledStartingGold = typeof selectedStartingGold === 'number'
@@ -882,7 +962,7 @@ export function CharacterTab({
   const selectedCommittedStoreSpent = effectiveSelected ? (storeSpentByCharacterId[effectiveSelected.id] ?? 0) : 0
   const selectedStoreCartTotal = selectedStoreCart.reduce((sum, entry) => sum + entry.costGp * entry.qty, 0)
   const selectedStoreRemaining = (selectedStartingGold ?? 0) - selectedCommittedStoreSpent - selectedStoreCartTotal
-  const visibleStoreItems = OSE_STORE_ITEMS.filter((item) => item.category === storeCategory && item.kind !== 'custom')
+  const visibleStoreItems = OSE_STORE_ITEMS.filter((item) => item.category === storeCategory)
   const isWeaponTemplateAllowedForClass = (weaponId: string, className: string) => {
     if (!weaponId || weaponId === 'custom') return true
     const template = weaponCatalogById[weaponId]
@@ -903,17 +983,6 @@ export function CharacterTab({
     return !!armourCatalogById[armourId]
   }
   const canClassEquipArmour = selectedClassName !== 'Magic-User'
-  const weaponRestrictionNote =
-    selectedClassName === 'Cleric'
-      ? 'Clerics may only use blunt weapons.'
-      : selectedClassName === 'Magic-User'
-        ? 'Magic-Users may only use daggers.'
-        : selectedClassName === 'Dwarf'
-          ? 'Dwarves may only use small or normal-sized weapons.'
-          : selectedClassName === 'Halfling'
-            ? 'Halflings may only use one-handed weapons.'
-            : null
-  const armourRestrictionNote = selectedClassName === 'Magic-User' ? 'Magic-Users cannot equip armour.' : null
   const renderFeatureSummary = (feature: ClassFeature): ReactNode => {
     const links = feature.summaryLinks ?? []
     if (links.length === 0) return feature.summary
@@ -953,15 +1022,14 @@ export function CharacterTab({
     return <>{parts}</>
   }
   const weaponTypeLabel = (weapon: CharacterWeaponItem) => {
-    const template = weapon.weaponId && weapon.weaponId !== 'custom' ? weaponCatalogById[weapon.weaponId] : null
-    return template?.name ?? 'Custom weapon'
+    return weapon.typeName || 'Weapon'
   }
   const weaponCoreStatsLabel = (weapon: CharacterWeaponItem) => {
-    const count = weapon.damageDiceCount.trim()
-    const sides = weapon.damageDiceSides.trim()
-    const short = weapon.rangeShort.trim()
-    const medium = weapon.rangeMedium.trim()
-    const long = weapon.rangeLong.trim()
+    const count = (weapon.damageDiceCount ?? '').trim()
+    const sides = (weapon.damageDiceSides ?? '').trim()
+    const short = (weapon.rangeShort ?? '').trim()
+    const medium = (weapon.rangeMedium ?? '').trim()
+    const long = (weapon.rangeLong ?? '').trim()
     const hasDamage = count.length > 0 && sides.length > 0
     const hasRange = short.length > 0 && medium.length > 0 && long.length > 0
     if (!hasDamage && !hasRange) return ''
@@ -972,15 +1040,15 @@ export function CharacterTab({
   const weaponStatsLabel = (weapon: CharacterWeaponItem) => {
     const stats: string[] = []
     stats.push(weaponCoreStatsLabel(weapon))
-    const template = weapon.weaponId && weapon.weaponId !== 'custom' ? weaponCatalogById[weapon.weaponId] : null
+    const template = weapon.typeId && weapon.typeId !== 'custom' ? weaponCatalogById[weapon.typeId] : null
     if (template) stats.push(`${template.costGp}gp`)
-    const bonus = weapon.bonus.trim()
+    const bonus = (weapon.attackBonus ?? '').trim()
     if (bonus) stats.push(`+${bonus.replace(/^\+/, '')}`)
     if (weapon.twoHanded) stats.push('2H')
     return stats.join(' | ')
   }
   const renderWeaponSlotLabel = (weapon: CharacterWeaponItem): ReactNode => {
-    const name = weapon.name.trim()
+    const name = (weapon.name ?? '').trim()
     const stats = weaponStatsLabel(weapon)
     return (
       <span className="weapon-slot-label">
@@ -991,22 +1059,24 @@ export function CharacterTab({
       </span>
     )
   }
-  const armourTypeLabel = (armour: CharacterArmourItem) => {
-    const template = armour.armourId && armour.armourId !== 'custom' ? armourCatalogById[armour.armourId] : null
-    return template?.name ?? 'Custom armour'
-  }
+  const armourTypeLabel = (armour: CharacterArmourItem) => armour.typeName || 'Armour'
   const armourStatsLabel = (armour: CharacterArmourItem) => {
     const stats: string[] = []
-    const ac = armour.ac.trim()
-    if (ac) stats.push(`AC ${ac}`)
-    const template = armour.armourId && armour.armourId !== 'custom' ? armourCatalogById[armour.armourId] : null
+    const armourClass = (armour.armourClass ?? '').trim()
+    const shieldMod = (armour.shieldMod ?? '').trim()
+    if (armour.armourType === 'shield') {
+      if (shieldMod) stats.push(`AC ${shieldMod}`)
+    } else if (armourClass) {
+      stats.push(`AC ${armourClass}`)
+    }
+    const template = armour.typeId && armour.typeId !== 'custom' ? armourCatalogById[armour.typeId] : null
     if (template) stats.push(`${template.costGp}gp`)
-    const bonus = armour.bonus.trim()
-    if (bonus) stats.push(`+${bonus.replace(/^\+/, '')}`)
+    const magic = (armour.magicMod ?? '').trim()
+    if (magic) stats.push(`Magic ${magic}`)
     return stats.join(' | ')
   }
   const renderArmourSlotLabel = (armour: CharacterArmourItem): ReactNode => {
-    const name = armour.name.trim()
+    const name = (armour.name ?? '').trim()
     const stats = armourStatsLabel(armour)
     return (
       <span className="weapon-slot-label">
@@ -1027,25 +1097,24 @@ export function CharacterTab({
       updateInventoryItem(item.id, { equipped: checked })
     }
   }
+  const itemSlotLabel = (item: CharacterInventoryItem): ReactNode => {
+    if (item.kind === 'weapon') return renderWeaponSlotLabel(item as CharacterWeaponItem)
+    if (item.kind === 'armour') return renderArmourSlotLabel(item as CharacterArmourItem)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- old gold data may still have `amount` instead of `qty`
+    if (item.kind === 'gold') return `Gold: ${item.qty ?? (item as any).amount ?? 0} gp`
+    const label = item.typeName || item.name || 'Item'
+    const qty = item.qty ?? 1
+    return qty > 1 ? `${label} (${qty})` : label
+  }
   const equippedSlotItems = equippedItems.map((item) => ({
     item,
-    label: item.kind === 'weapon'
-      ? renderWeaponSlotLabel(item as CharacterWeaponItem)
-      : item.kind === 'armour'
-        ? renderArmourSlotLabel(item as CharacterArmourItem)
-        : item.name,
+    label: itemSlotLabel(item),
     onToggle: (checked: boolean) => toggleItemEquip(item, checked),
     isGold: item.kind === 'gold',
   }))
   const packedSlotItems = packedItems.map((item) => ({
     item,
-    label: item.kind === 'weapon'
-      ? renderWeaponSlotLabel(item as CharacterWeaponItem)
-      : item.kind === 'armour'
-        ? renderArmourSlotLabel(item as CharacterArmourItem)
-        : item.kind === 'gold'
-          ? `Gold: ${(item as CharacterGoldItem).amount} gp`
-          : item.name,
+    label: itemSlotLabel(item),
     onToggle: (checked: boolean) => toggleItemEquip(item, checked),
     isGold: item.kind === 'gold',
   }))
@@ -1125,7 +1194,7 @@ export function CharacterTab({
     return 3
   }
 
-  const missileModifierByDex = (score: number) => {
+  const dexCombatModByDex = (score: number) => {
     if (score <= 3) return -3
     if (score <= 5) return -2
     if (score <= 8) return -1
@@ -1134,6 +1203,9 @@ export function CharacterTab({
     if (score <= 17) return 2
     return 3
   }
+
+  const dexAcModByDex = (score: number) => dexCombatModByDex(score)
+  const dexMissileModByDex = (score: number) => dexCombatModByDex(score)
 
   const wisMagicSaveModifierByScore = (score: number) => {
     if (score <= 3) return -3
@@ -1146,17 +1218,28 @@ export function CharacterTab({
   }
 
   const derivedDexInitModifier = Number.isNaN(selectedDex) ? 0 : abilityModifier(selectedDex)
+  const derivedDexAcModifierNumber = Number.isNaN(selectedDex) ? null : dexAcModByDex(selectedDex)
+  const derivedDexAcAdjustment = derivedDexAcModifierNumber === null ? 0 : -derivedDexAcModifierNumber
+  const derivedDexAcModifier = derivedDexAcModifierNumber === null ? '' : formatModifier(derivedDexAcAdjustment)
+  const derivedUnarmouredAc = derivedDexAcModifierNumber === null ? '' : String(9 + derivedDexAcAdjustment)
+  const bodyArmourClass = Number.parseInt(equippedBodyArmour?.armourClass ?? '', 10)
+  const shieldAcMod = Number.parseInt(equippedShield?.shieldMod ?? '', 10)
+  const bodyMagicMod = Number.parseInt(equippedBodyArmour?.magicMod ?? '', 10)
+  const shieldMagicMod = Number.parseInt(equippedShield?.magicMod ?? '', 10)
+  const computedAc =
+    (Number.isNaN(bodyArmourClass) ? 9 : bodyArmourClass)
+    + derivedDexAcAdjustment
+    + (Number.isNaN(shieldAcMod) ? 0 : shieldAcMod)
+    + (Number.isNaN(bodyMagicMod) ? 0 : bodyMagicMod)
+    + (Number.isNaN(shieldMagicMod) ? 0 : shieldMagicMod)
   const derivedInitModifierNumber = Number.isNaN(selectedDex) ? null : derivedDexInitModifier + (isHalfling ? 1 : 0)
   const derivedInitModifier = derivedInitModifierNumber === null ? '' : formatModifier(derivedInitModifierNumber)
   const derivedReactionModifier = Number.isNaN(selectedCha) ? '' : formatModifier(abilityModifier(selectedCha))
   const derivedOpenStuckDoor = Number.isNaN(selectedStr) ? '' : String(openStuckDoorByStr(selectedStr))
   const derivedMeleeModifier = Number.isNaN(selectedStr) ? '' : formatTableModifier(meleeModifierByStr(selectedStr))
-  const derivedDexMissileModifier = Number.isNaN(selectedDex) ? 0 : missileModifierByDex(selectedDex)
+  const derivedDexMissileModifier = Number.isNaN(selectedDex) ? 0 : dexMissileModByDex(selectedDex)
   const derivedMissileModifierNumber = Number.isNaN(selectedDex) ? null : derivedDexMissileModifier + (isHalfling ? 1 : 0)
   const derivedMissileModifier = derivedMissileModifierNumber === null ? '' : formatTableModifier(derivedMissileModifierNumber)
-  const derivedDexAcModifierNumber = Number.isNaN(selectedDex) ? null : missileModifierByDex(selectedDex)
-  const derivedDexAcModifier = derivedDexAcModifierNumber === null ? '' : formatTableModifier(derivedDexAcModifierNumber)
-  const derivedUnarmouredAc = derivedDexAcModifierNumber === null ? '' : String(9 - derivedDexAcModifierNumber)
   const derivedConModifierNumber = Number.isNaN(selectedCon) ? 0 : conModifierByScore(selectedCon)
   const derivedConModifier = Number.isNaN(selectedCon) ? '' : formatTableModifier(derivedConModifierNumber)
   const derivedWisMagicSaveModifierNumber = Number.isNaN(Number.parseInt(selectedAbilityScores.WIS, 10))
@@ -1263,7 +1346,7 @@ export function CharacterTab({
     if (effectiveSelected.hpMax <= 0) return 'Set maximum hit points before finalizing.'
     if (effectiveSelected.className === 'Cleric') {
       const hasHolySymbol = selectedInventory.some((item) =>
-        item.name.toLowerCase().includes('holy symbol'),
+        (item.name ?? '').toLowerCase().includes('holy symbol'),
       )
       if (!hasHolySymbol) return 'HOLY_SYMBOL_REQUIRED'
     }
@@ -1528,12 +1611,11 @@ export function CharacterTab({
 
   useEffect(() => {
     if (!effectiveSelected) return
-    if (derivedDexAcModifierNumber === null) return
     if (acManualOverrideByCharacterId[effectiveSelected.id]) return
-    const autoAc = 9 - derivedDexAcModifierNumber
+    const autoAc = computedAc
     if (effectiveSelected.ac === autoAc) return
     updateSelectedCharacter({ ac: autoAc })
-  }, [effectiveSelected, derivedDexAcModifierNumber, acManualOverrideByCharacterId])
+  }, [effectiveSelected, computedAc, acManualOverrideByCharacterId])
 
   useEffect(() => {
     if (!effectiveSelected || selectedClassName !== 'Halfling') return
@@ -1565,12 +1647,6 @@ export function CharacterTab({
     setFinalizeError(null)
     setFinalizeConfirmOpen(false)
   }, [effectiveSelected?.id, effectiveSelected?.creationStatus])
-
-  useEffect(() => {
-    if (isGuidedCreation && activePage === 'asw') {
-      setActivePage('encumbrance')
-    }
-  }, [activePage, isGuidedCreation])
 
   useEffect(() => {
     if (!isGuidedCreation && storeOpen) {
@@ -1605,11 +1681,12 @@ export function CharacterTab({
     })
   }
 
-  const applyWeaponTemplateToItem = (item: CharacterWeaponItem, weaponId: string): CharacterWeaponItem => {
-    if (!weaponId || weaponId === 'custom') {
+  const applyWeaponTemplateToItem = (item: CharacterWeaponItem, templateId: string): CharacterWeaponItem => {
+    if (!templateId || templateId === 'custom') {
       return {
         ...item,
-        weaponId,
+        typeId: 'custom',
+        typeName: item.typeName,
         damageDiceCount: '',
         damageDiceSides: '',
         rangeShort: '',
@@ -1618,12 +1695,13 @@ export function CharacterTab({
         twoHanded: false,
       }
     }
-    const template = weaponCatalogById[weaponId]
+    const template = weaponCatalogById[templateId]
     if (!template) return item
     const parsedDamage = parseDamageDice(template.damage)
     return {
       ...item,
-      weaponId: template.id,
+      typeId: template.id,
+      typeName: template.name,
       costGp: Number.parseInt(template.costGp, 10) || 0,
       ...parsedDamage,
       ...parseRangeBands(template.range),
@@ -1631,22 +1709,26 @@ export function CharacterTab({
     }
   }
 
-  const applyArmourTemplateToItem = (item: CharacterArmourItem, armourId: string): CharacterArmourItem => {
-    if (!armourId || armourId === 'custom') {
-      return { ...item, armourId }
+  const applyArmourTemplateToItem = (item: CharacterArmourItem, templateId: string): CharacterArmourItem => {
+    if (!templateId || templateId === 'custom') {
+      return { ...item, typeId: 'custom', typeName: item.typeName }
     }
-    const template = armourCatalogById[armourId]
+    const template = armourCatalogById[templateId]
     if (!template) return item
     const parsedArmour = parseArmourTemplateValues(template.ac)
+    const templateArmourType = armourTypeFromTemplateId(template.id)
+    const normalized = normalizeTemplateArmourValues(parsedArmour, templateArmourType)
     return {
       ...item,
-      armourId: template.id,
+      typeId: template.id,
+      typeName: template.name,
       costGp: template.costGp,
-      ...parsedArmour,
+      armourType: templateArmourType,
+      ...normalized,
     }
   }
 
-  const updateWeaponRow = (weaponId: string, updates: Partial<CharacterWeaponItem>) => {
+  const updateWeaponRow = (itemId: string, updates: Partial<CharacterWeaponItem>) => {
     if (!effectiveSelected) return
     setInventoryByCharacterId((current) => {
       const items = current[effectiveSelected.id] ?? []
@@ -1656,55 +1738,22 @@ export function CharacterTab({
         ...current,
         [effectiveSelected.id]: items.map((item) => {
           if (item.kind !== 'weapon') return item
-          if (item.id !== weaponId) {
+          if (item.id !== itemId) {
             if (shouldEquipExclusively) return { ...item, equipped: false }
             return item
           }
           let merged = { ...item, ...updates } as CharacterWeaponItem
-          if (Object.prototype.hasOwnProperty.call(updates, 'weaponId')) {
-            merged = applyWeaponTemplateToItem(merged, updates.weaponId ?? '')
+          if (Object.prototype.hasOwnProperty.call(updates, 'typeId')) {
+            merged = applyWeaponTemplateToItem(merged, updates.typeId ?? '')
           }
           if (selectedClassName === 'Halfling' && merged.twoHanded) {
             merged = { ...merged, twoHanded: false, equipped: false }
           }
-          if (!isWeaponTemplateAllowedForClass(merged.weaponId, selectedClassName)) {
+          if (!isWeaponTemplateAllowedForClass(merged.typeId, selectedClassName)) {
             merged = { ...merged, equipped: false }
           }
           return merged
         }),
-      }
-    })
-  }
-
-  const addWeaponRow = () => {
-    if (!effectiveSelected || !canEditSelected) return
-    const nextItem = makeWeaponItem()
-    setInventoryByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: [...(current[effectiveSelected.id] ?? []), nextItem],
-    }))
-    setExpandedWeaponCards((current) => ({ ...current, [`${effectiveSelected.id}:${nextItem.id}`]: false }))
-  }
-
-  const removeWeaponRow = (weaponId: string) => {
-    if (!effectiveSelected || !canEditSelected) return
-    setInventoryByCharacterId((current) => {
-      const items = current[effectiveSelected.id] ?? []
-      const nextItems = items.filter((item) => item.id !== weaponId)
-      // If no weapon is equipped, equip the first one
-      const weapons = nextItems.filter((i) => i.kind === 'weapon')
-      if (weapons.length > 0 && !weapons.some((w) => w.equipped)) {
-        const firstWeaponId = weapons[0].id
-        return {
-          ...current,
-          [effectiveSelected.id]: nextItems.map((item) =>
-            item.id === firstWeaponId ? { ...item, equipped: true } : item,
-          ),
-        }
-      }
-      return {
-        ...current,
-        [effectiveSelected.id]: nextItems,
       }
     })
   }
@@ -1714,38 +1763,33 @@ export function CharacterTab({
     setInventoryByCharacterId((current) => {
       const items = current[effectiveSelected.id] ?? []
       const shouldEquipExclusively = updates.equipped === true
+      const currentTarget = items.find((item): item is CharacterArmourItem => item.kind === 'armour' && item.id === armourItemId) ?? null
+      const targetArmourType = updates.armourType ?? (currentTarget ? resolveArmourType(currentTarget) : 'body')
       return {
         ...current,
         [effectiveSelected.id]: items.map((item) => {
           if (item.kind !== 'armour') return item
+          const normalizedItem = { ...item, armourType: resolveArmourType(item) } as CharacterArmourItem
           if (item.id !== armourItemId) {
-            if (shouldEquipExclusively) return { ...item, equipped: false }
-            return item
+            if (shouldEquipExclusively && resolveArmourType(item) === targetArmourType) {
+              return { ...normalizedItem, equipped: false }
+            }
+            return normalizedItem
           }
-          let merged = { ...item, ...updates } as CharacterArmourItem
-          if (updates.armourId) {
-            merged = applyArmourTemplateToItem(merged, updates.armourId)
+          let merged = { ...normalizedItem, ...updates } as CharacterArmourItem
+          if (updates.typeId) {
+            merged = applyArmourTemplateToItem(merged, updates.typeId)
           }
           if (!canClassEquipArmour) {
             merged = { ...merged, equipped: false }
           }
-          if (!isArmourTemplateAllowedForClass(merged.armourId, selectedClassName)) {
+          if (!isArmourTemplateAllowedForClass(merged.typeId, selectedClassName)) {
             merged = { ...merged, equipped: false }
           }
           return merged
         }),
       }
     })
-  }
-
-  const addArmourRow = () => {
-    if (!effectiveSelected || !canEditSelected) return
-    const nextItem = makeArmourItem()
-    setInventoryByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: [...(current[effectiveSelected.id] ?? []), nextItem],
-    }))
-    setExpandedArmourCards((current) => ({ ...current, [`${effectiveSelected.id}:${nextItem.id}`]: false }))
   }
 
   const upsertCartEntry = (nextEntry: Omit<StoreCartEntry, 'qty'>) => {
@@ -1932,7 +1976,7 @@ export function CharacterTab({
       key: `custom:${trimmedName}:${parsedCost}:${customStoreDescription.trim()}`,
       name: trimmedName,
       costGp: parsedCost,
-      kind: 'custom',
+      kind: 'general',
       packedLabel: customStoreDescription.trim(),
     })
     setStoreError(null)
@@ -1993,21 +2037,28 @@ export function CharacterTab({
           newItems.push({
             id: makeId(),
             kind: 'ammunition',
+            typeId: 'custom',
+            typeName: entry.packedLabel ?? entry.name,
             name: entry.packedLabel ?? entry.name,
             costGp: entry.costGp,
             equipped: false,
             notes: '',
             qty: 1,
+            stack: DEFAULT_STACK_POLICY.ammunition,
           } as CharacterAmmunitionItem)
         } else {
           newItems.push({
             id: makeId(),
-            kind: entry.kind === 'custom' ? 'custom' : 'general',
+            kind: 'general',
+            typeId: 'custom',
+            typeName: entry.name,
             name: entry.name,
             costGp: entry.costGp,
             equipped: false,
-            notes: entry.kind === 'custom' ? (entry.packedLabel ?? '') : '',
-          } as CharacterGeneralItem | CharacterCustomItem)
+            notes: entry.packedLabel ?? '',
+            qty: 1,
+            stack: DEFAULT_STACK_POLICY.general,
+          } as CharacterGeneralItem)
         }
       }
     }
@@ -2069,15 +2120,149 @@ export function CharacterTab({
     }
   }
 
-  const removeArmourRow = (armourItemId: string) => {
-    if (!effectiveSelected || !canEditSelected) return
-    setInventoryByCharacterId((current) => {
-      const items = current[effectiveSelected.id] ?? []
-      return {
-        ...current,
-        [effectiveSelected.id]: items.filter((item) => item.id !== armourItemId),
-      }
+  const openAddItemModal = (equipped: boolean) => {
+    if (isGuidedCreation) return
+    setAddItemModal({
+      equipped, kind: 'general', typeName: '', name: '', costGp: '', notes: '', description: '',
+      typeId: 'custom', damageDiceCount: '', damageDiceSides: '', rangeShort: '',
+      rangeMedium: '', rangeLong: '', twoHanded: false, isMagic: false, attackBonus: '',
+      damageBonus: '', armourClass: '', shieldMod: '', magicMod: '', armourType: 'body', qty: '1', useMode: 'consume', effectText: '',
     })
+  }
+
+  const saveAddItem = () => {
+    if (!addItemModal || !effectiveSelected || !canEditSelected) return
+    const m = addItemModal
+    const costGp = Number.parseFloat(m.costGp) || 0
+    const fallbackTypeName = (m.typeName || m.name || 'Item').trim()
+
+    let newItem: CharacterInventoryItem
+    switch (m.kind) {
+      case 'weapon': {
+        let item = makeWeaponItem({
+          typeName: fallbackTypeName,
+          name: m.name || undefined, costGp, equipped: m.equipped, notes: m.notes,
+          description: m.description, isMagic: m.isMagic, attackBonus: m.attackBonus,
+          damageBonus: m.damageBonus,
+          damageDiceCount: m.damageDiceCount, damageDiceSides: m.damageDiceSides,
+          rangeShort: m.rangeShort, rangeMedium: m.rangeMedium, rangeLong: m.rangeLong,
+          twoHanded: m.twoHanded,
+        })
+        if (m.typeId && m.typeId !== 'custom') item = applyWeaponTemplateToItem(item, m.typeId)
+        newItem = item
+        break
+      }
+      case 'armour': {
+        let item = makeArmourItem({
+          typeName: fallbackTypeName,
+          name: m.name || undefined, costGp, equipped: m.equipped, notes: m.notes,
+          description: m.description, isMagic: m.isMagic, magicMod: m.magicMod, armourClass: m.armourClass, shieldMod: m.shieldMod, armourType: m.armourType,
+        })
+        if (m.typeId && m.typeId !== 'custom') item = applyArmourTemplateToItem(item, m.typeId)
+        newItem = item
+        break
+      }
+      case 'ammunition':
+        newItem = {
+          id: makeId(), kind: 'ammunition', typeId: 'custom', typeName: fallbackTypeName,
+          name: m.name || undefined, costGp,
+          equipped: m.equipped, notes: m.notes, description: m.description,
+          qty: Number.parseInt(m.qty, 10) || 1,
+          stack: DEFAULT_STACK_POLICY.ammunition,
+        }
+        break
+      case 'consumable':
+        newItem = {
+          id: makeId(), kind: 'consumable', typeId: 'custom', typeName: fallbackTypeName,
+          name: m.name || undefined, costGp,
+          equipped: m.equipped, notes: m.notes, description: m.description,
+          qty: Number.parseInt(m.qty, 10) || 1,
+          stack: DEFAULT_STACK_POLICY.consumable,
+          useMode: m.useMode, effectText: m.effectText || undefined,
+        }
+        break
+      default:
+        newItem = {
+          id: makeId(), kind: 'general', typeId: 'custom', typeName: fallbackTypeName,
+          name: m.name || undefined, costGp,
+          equipped: m.equipped, notes: m.notes, description: m.description,
+          qty: 1, stack: DEFAULT_STACK_POLICY.general,
+        }
+    }
+    setInventoryByCharacterId((current) => ({
+      ...current,
+      [effectiveSelected.id]: [...(current[effectiveSelected.id] ?? []), newItem],
+    }))
+    setAddItemModal(null)
+  }
+
+  const dropItem = async (itemId: string) => {
+    if (!effectiveSelected || !canEditSelected) return
+    const item = selectedInventory.find((i) => i.id === itemId)
+    if (!item || item.kind === 'gold') return
+
+    const campaignItem = inventoryItemToCampaignItem(item, {
+      status: 'dropped',
+      droppedByCharacterId: effectiveSelected.id,
+      droppedByCharacterName: effectiveSelected.name,
+    })
+
+    const { id, ...rest } = campaignItem
+    await setDoc(
+      doc(db, 'campaigns', campaignId, 'items', id),
+      { ...toFirestoreItem({ ...rest, id } as typeof campaignItem), createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
+    )
+
+    setInventoryByCharacterId((current) => ({
+      ...current,
+      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).filter((i) => i.id !== itemId),
+    }))
+    setItemDetailId(null)
+    setDropConfirmItemId(null)
+  }
+
+  const sellItem = (itemId: string) => {
+    if (!effectiveSelected || !canEditSelected) return
+    const item = selectedInventory.find((i) => i.id === itemId)
+    if (!item || item.kind === 'gold') return
+    const sellAmount = item.costGp
+
+    setInventoryByCharacterId((current) => {
+      const currentItems = (current[effectiveSelected.id] ?? []).filter((i) => i.id !== itemId)
+      if (sellAmount <= 0) return { ...current, [effectiveSelected.id]: currentItems }
+      const existingGold = currentItems
+        .filter((i): i is CharacterGoldItem => i.kind === 'gold')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- old gold data may have `amount`
+        .reduce((sum, g) => sum + (g.qty ?? (g as any).amount ?? 0), 0)
+      const nonGold = currentItems.filter((i) => i.kind !== 'gold')
+      const chunks = goldChunksForAmount(existingGold + sellAmount)
+      const golds = chunks.map((chunk) => makeGoldItem(chunk))
+      return { ...current, [effectiveSelected.id]: [...nonGold, ...golds] }
+    })
+    setItemDetailId(null)
+    setSellConfirmItemId(null)
+  }
+
+  const spendGold = (amount: number) => {
+    if (!effectiveSelected || !canEditSelected) return
+    const spend = Math.max(0, Math.floor(amount))
+    if (spend <= 0) return
+
+    setInventoryByCharacterId((current) => {
+      const currentItems = current[effectiveSelected.id] ?? []
+      const existingGold = currentItems
+        .filter((i): i is CharacterGoldItem => i.kind === 'gold')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy data may still have `amount`
+        .reduce((sum, g) => sum + (g.qty ?? (g as any).amount ?? 0), 0)
+      const nonGold = currentItems.filter((i) => i.kind !== 'gold')
+      const nextTotal = Math.max(0, existingGold - spend)
+      const chunks = goldChunksForAmount(nextTotal)
+      const golds = chunks.map((chunk) => makeGoldItem(chunk))
+      return { ...current, [effectiveSelected.id]: [...nonGold, ...golds] }
+    })
+
+    setGoldSpendAmount('')
+    setItemDetailId(null)
   }
 
   const renderAdventuringSkillsSection = () => (
@@ -2292,51 +2477,46 @@ export function CharacterTab({
           <div className="monsters-detail-inner characters-detail-inner">
             {!isMobile && effectiveSelected ? (
               <div className="character-sheet-page-tabs top">
-                <button
-                  type="button"
-                  className={activePage === 'core' ? 'character-sheet-tab active' : 'character-sheet-tab'}
-                  onClick={() => setActivePage('core')}
-                >
-                  Core Sheet
-                </button>
-                {!isGuidedCreation ? (
+                <div className="character-sheet-tab-bar">
                   <button
                     type="button"
-                    className={activePage === 'asw' ? 'character-sheet-tab active' : 'character-sheet-tab'}
-                    onClick={() => setActivePage('asw')}
+                    className={activePage === 'core' ? 'character-sheet-tab active' : 'character-sheet-tab'}
+                    onClick={() => setActivePage('core')}
                   >
-                    Weapons, Armour & Spells
+                    Core Sheet
                   </button>
-                ) : null}
-                <button
-                  type="button"
-                  className={activePage === 'encumbrance' ? 'character-sheet-tab active' : 'character-sheet-tab'}
-                  onClick={() => setActivePage('encumbrance')}
-                >
-                  Items
-                </button>
-                {canSetCurrentCharacter ? (
                   <button
                     type="button"
-                    className={currentCharacterId === effectiveSelected.id ? 'character-current-action active' : 'character-current-action'}
-                    onClick={() => void setCurrentCharacter(effectiveSelected.id)}
-                    aria-label="Set as current character"
+                    className={activePage === 'encumbrance' ? 'character-sheet-tab active' : 'character-sheet-tab'}
+                    onClick={() => setActivePage('encumbrance')}
                   >
-                    <Star size={14} />
-                    <span>Current Character</span>
+                    Items
                   </button>
-                ) : null}
-                {isGuidedCreation && canEditSelected ? (
-                  <button
-                    type="button"
-                    className="character-current-action"
-                    onClick={requestFinalizeCharacter}
-                    aria-label="Finalize character"
-                  >
-                    <Check size={14} />
-                    <span>Finalize Character</span>
-                  </button>
-                ) : null}
+                </div>
+                <div className="character-sheet-tab-actions">
+                  {canSetCurrentCharacter ? (
+                    <button
+                      type="button"
+                      className={currentCharacterId === effectiveSelected.id ? 'character-current-action active' : 'character-current-action'}
+                      onClick={() => void setCurrentCharacter(effectiveSelected.id)}
+                      aria-label="Set as current character"
+                    >
+                      <Star size={14} />
+                      <span>Current Character</span>
+                    </button>
+                  ) : null}
+                  {isGuidedCreation && canEditSelected ? (
+                    <button
+                      type="button"
+                      className="character-current-action"
+                      onClick={requestFinalizeCharacter}
+                      aria-label="Finalize character"
+                    >
+                      <Check size={14} />
+                      <span>Finalize Character</span>
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ) : null}
             {isMobile ? (
@@ -2404,7 +2584,17 @@ export function CharacterTab({
                           </label>
                           <label className="character-header-field character-header-field-title">
                             <span className="character-header-tag">Title</span>
-                            <input type="text" defaultValue="" disabled={!canEditSelected} />
+                            <input
+                              type="text"
+                              value={titleByCharacterId[effectiveSelected.id] ?? ''}
+                              onChange={(event) => {
+                                setTitleByCharacterId((current) => ({
+                                  ...current,
+                                  [effectiveSelected.id]: event.target.value,
+                                }))
+                              }}
+                              disabled={!canEditSelected}
+                            />
                           </label>
                           <div className="character-header-compact-row">
                             <label className="character-header-field character-header-field-level">
@@ -2691,12 +2881,12 @@ export function CharacterTab({
                                 <div className="character-combat-side-row">
                                   <span className="character-combat-tag">Un</span>
                                   <input type="text" value={derivedUnarmouredAc} readOnly />
-                                  <small>Unarmoured AC: 9 [10] + DEX mod</small>
+                                  <small>Unarmoured AC: 9 [10] + DEX AC adjustment</small>
                                 </div>
                                 <div className="character-combat-side-row">
                                   <span className="character-combat-tag">±</span>
                                   <input type="text" value={derivedDexAcModifier} readOnly />
-                                  <small>DEX modifier to Armour Class</small>
+                                  <small>DEX adjustment to Armour Class (descending)</small>
                                 </div>
                               </div>
                             </div>
@@ -2850,7 +3040,7 @@ export function CharacterTab({
                       </div>
                     </div>
                   </section>
-                ) : activePage === 'encumbrance' || isGuidedCreation ? (
+                ) : (
                   <section className="character-sheet character-enc-page">
                     <div className="character-store-head">
                       <p className="character-enc-note">
@@ -2919,48 +3109,11 @@ export function CharacterTab({
                             </div>
                           ))}
                           {Array.from({ length: Math.max(0, equippedRowCount - equippedSlotItems.length) }, (_, emptyIndex) => (
-                            <label key={`equipped-empty-${emptyIndex}`} className="character-item-row">
+                            <div key={`equipped-empty-${emptyIndex}`} className="character-item-row">
                               <div className="character-item-row-inner">
-                                <input
-                                  type="text"
-                                  className="character-item-input"
-                                  value=""
-                                  onChange={isGuidedCreation ? undefined : (event) => {
-                                    if (!effectiveSelected || !event.target.value.trim()) return
-                                    const newItem: CharacterGeneralItem = {
-                                      id: makeId(),
-                                      kind: 'general',
-                                      name: event.target.value,
-                                      costGp: 0,
-                                      equipped: true,
-                                      notes: '',
-                                    }
-                                    setInventoryByCharacterId((current) => ({
-                                      ...current,
-                                      [effectiveSelected.id]: [...(current[effectiveSelected.id] ?? []), newItem],
-                                    }))
-                                  }}
-                                  onBlur={isGuidedCreation ? undefined : (event) => {
-                                    if (!effectiveSelected || !event.target.value.trim()) return
-                                    const newItem: CharacterGeneralItem = {
-                                      id: makeId(),
-                                      kind: 'general',
-                                      name: event.target.value.trim(),
-                                      costGp: 0,
-                                      equipped: true,
-                                      notes: '',
-                                    }
-                                    setInventoryByCharacterId((current) => ({
-                                      ...current,
-                                      [effectiveSelected.id]: [...(current[effectiveSelected.id] ?? []), newItem],
-                                    }))
-                                    event.target.value = ''
-                                  }}
-                                  disabled={!canEditSelected || isGuidedCreation}
-                                  aria-label={`Equipped item slot ${equippedSlotItems.length + emptyIndex + 1}`}
-                                />
+                                <span className="character-item-input" />
                               </div>
-                            </label>
+                            </div>
                           ))}
                         </div>
                         {equippedSlotItems.length > equippedRowCount ? (
@@ -3021,29 +3174,19 @@ export function CharacterTab({
                                     </div>
                                   ) : (
                                     <div className="character-item-row-inner">
-                                      <input
-                                        type="text"
-                                        className="character-item-input"
-                                        value=""
-                                        onBlur={isGuidedCreation ? undefined : (event) => {
-                                          if (!effectiveSelected || !event.target.value.trim()) return
-                                          const newItem: CharacterGeneralItem = {
-                                            id: makeId(),
-                                            kind: 'general',
-                                            name: event.target.value.trim(),
-                                            costGp: 0,
-                                            equipped: false,
-                                            notes: '',
-                                          }
-                                          setInventoryByCharacterId((current) => ({
-                                            ...current,
-                                            [effectiveSelected.id]: [...(current[effectiveSelected.id] ?? []), newItem],
-                                          }))
-                                          event.target.value = ''
-                                        }}
-                                        disabled={!canEditSelected || !unlocked || isGuidedCreation}
-                                        aria-label={`Packed item slot ${slotIndex + 1}`}
-                                      />
+                                      {isGuidedCreation ? (
+                                        <span className="character-item-input" />
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          className="character-item-add-btn"
+                                          onClick={() => openAddItemModal(false)}
+                                          disabled={!canEditSelected || !unlocked}
+                                          aria-label={`Add packed item to slot ${slotIndex + 1}`}
+                                        >
+                                          <Plus size={14} />
+                                        </button>
+                                      )}
                                     </div>
                                   )}
                                   {slotLabel && !unlocked ? <span className="character-item-slot-label">{slotLabel}</span> : null}
@@ -3128,385 +3271,6 @@ export function CharacterTab({
                       </div>
                     </section>
                   </section>
-                ) : (
-                  <section className="character-sheet character-asw-page">
-                    <section className="monster-section-block character-weapons-block">
-                      <div className="section-head">
-                        <h3 className="monster-section-title">Weapons</h3>
-                        <button
-                          type="button"
-                          className="icon-btn add-btn"
-                          onClick={addWeaponRow}
-                          disabled={!canEditSelected}
-                          aria-label="Add weapon"
-                        >
-                          <Plus size={13} />
-                        </button>
-                      </div>
-                      <div className="character-weapons-mobile-list">
-                        {weaponRowCount === 0 ? <p className="character-enc-help">No weapons added yet.</p> : null}
-                        {Array.from({ length: weaponRowCount }, (_, rowIndex) => {
-                          const row = selectedWeapons[rowIndex] ?? makeWeaponItem({ id: `weapon-${rowIndex}` })
-                          const template = row.weaponId && row.weaponId !== 'custom' ? weaponCatalogById[row.weaponId] : null
-                          const rowKey = effectiveSelected ? `${effectiveSelected.id}:${row.id}` : row.id
-                          const isExpanded = !!expandedWeaponCards[rowKey]
-                          return (
-                            <article key={row.id} className="character-weapon-card">
-                              <div className="character-weapon-card-head">
-                                <strong>Weapon {rowIndex + 1}</strong>
-                                <div className="character-weapon-card-actions">
-                                  <label className="character-weapon-equipped-toggle">
-                                    <input
-                                      type="checkbox"
-                                      checked={row.equipped}
-                                      onChange={(event) => updateWeaponRow(row.id, { equipped: event.target.checked })}
-                                      disabled={!canEditSelected}
-                                    />
-                                    Equipped
-                                  </label>
-                                  <button
-                                    type="button"
-                                    className="icon-btn"
-                                    onClick={() => setExpandedWeaponCards((current) => ({ ...current, [rowKey]: !current[rowKey] }))}
-                                    disabled={!canEditSelected}
-                                    aria-label={`${isExpanded ? 'Collapse' : 'Edit'} weapon ${rowIndex + 1}`}
-                                  >
-                                    {isExpanded ? <Check size={13} /> : <Pencil size={13} />}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="icon-btn add-btn"
-                                    onClick={() => removeWeaponRow(row.id)}
-                                    disabled={!canEditSelected}
-                                    aria-label={`Remove weapon ${rowIndex + 1}`}
-                                  >
-                                    <Minus size={13} />
-                                  </button>
-                                </div>
-                              </div>
-                              <label className="character-weapon-primary-field">
-                                Template
-                                <select
-                                  value={row.weaponId}
-                                  onChange={(event) => updateWeaponRow(row.id, { weaponId: event.target.value })}
-                                  disabled={!canEditSelected}
-                                >
-                                  <option value="">-</option>
-                                  {OSE_WEAPON_CATALOG.map((weapon) => (
-                                    <option
-                                      key={weapon.id}
-                                      value={weapon.id}
-                                      disabled={!isWeaponTemplateAllowedForClass(weapon.id, selectedClassName)}
-                                    >
-                                      {`${weapon.name} (${weapon.costGp} gp)`}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                              <label className="character-weapon-primary-field">
-                                Name
-                                <input
-                                  type="text"
-                                  value={row.name}
-                                  onChange={(event) => updateWeaponRow(row.id, { name: event.target.value })}
-                                  disabled={!canEditSelected}
-                                  placeholder="Optional"
-                                />
-                              </label>
-                              {template && !isExpanded ? (
-                                <div className="character-weapon-template-stats-wrap">
-                                  <h4 className="character-weapon-template-stats-heading">Stats</h4>
-                                  <p className="character-weapon-template-stats">
-                                    {`Damage ${template.damage}${template.range ? ` • Range ${template.range}` : ''} • Cost ${template.costGp} gp${template.qualities.length > 0 ? ` • ${template.qualities.join(', ')}` : ''}`}
-                                  </p>
-                                </div>
-                              ) : null}
-                              {isExpanded ? (
-                                <>
-                                  <div className="character-weapon-mobile-grid">
-                                    <label className="character-weapon-edit-field">
-                                      Dmg
-                                      <div className="character-weapon-damage-inputs">
-                                        <input
-                                          type="number"
-                                          min={1}
-                                          step={1}
-                                          value={row.damageDiceCount}
-                                          onChange={(event) => updateWeaponRow(row.id, { damageDiceCount: event.target.value })}
-                                          disabled={!canEditSelected}
-                                          aria-label={`Weapon ${rowIndex + 1} damage dice count`}
-                                        />
-                                        <span>d</span>
-                                        <input
-                                          type="number"
-                                          min={1}
-                                          step={1}
-                                          value={row.damageDiceSides}
-                                          onChange={(event) => updateWeaponRow(row.id, { damageDiceSides: event.target.value })}
-                                          disabled={!canEditSelected}
-                                          aria-label={`Weapon ${rowIndex + 1} damage dice sides`}
-                                        />
-                                      </div>
-                                    </label>
-                                    <label className="character-weapon-edit-field character-weapon-range-field">
-                                      Range
-                                      <div className="character-weapon-triplet-inputs">
-                                        <input
-                                          type="number"
-                                          min={0}
-                                          step={1}
-                                          value={row.rangeShort}
-                                          onChange={(event) => updateWeaponRow(row.id, { rangeShort: event.target.value })}
-                                          disabled={!canEditSelected}
-                                          aria-label={`Weapon ${rowIndex + 1} short range`}
-                                        />
-                                        <span>/</span>
-                                        <input
-                                          type="number"
-                                          min={0}
-                                          step={1}
-                                          value={row.rangeMedium}
-                                          onChange={(event) => updateWeaponRow(row.id, { rangeMedium: event.target.value })}
-                                          disabled={!canEditSelected}
-                                          aria-label={`Weapon ${rowIndex + 1} medium range`}
-                                        />
-                                        <span>/</span>
-                                        <input
-                                          type="number"
-                                          min={0}
-                                          step={1}
-                                          value={row.rangeLong}
-                                          onChange={(event) => updateWeaponRow(row.id, { rangeLong: event.target.value })}
-                                          disabled={!canEditSelected}
-                                          aria-label={`Weapon ${rowIndex + 1} long range`}
-                                        />
-                                      </div>
-                                    </label>
-                                    {template ? (
-                                      <label className="character-weapon-edit-field">
-                                        Cost
-                                        <div className="character-inline-unit-field">
-                                          <input
-                                            type="text"
-                                            value={template.costGp}
-                                            readOnly
-                                            disabled
-                                          />
-                                          <span>gp</span>
-                                        </div>
-                                      </label>
-                                    ) : null}
-                                  </div>
-                                  <label className="character-weapon-card-check">
-                                    <input
-                                      type="checkbox"
-                                      checked={row.twoHanded}
-                                      onChange={(event) => updateWeaponRow(row.id, { twoHanded: event.target.checked })}
-                                      disabled={!canEditSelected || (!!row.weaponId && row.weaponId !== 'custom') || selectedClassName === 'Halfling'}
-                                    />
-                                    Two-handed
-                                  </label>
-                                  <div className="character-weapon-magic-row">
-                                    <label className="character-weapon-card-check">
-                                      <input
-                                        type="checkbox"
-                                        checked={row.isMagic}
-                                        onChange={(event) => updateWeaponRow(row.id, { isMagic: event.target.checked })}
-                                        disabled={!canEditSelected}
-                                      />
-                                      Magic
-                                    </label>
-                                    {row.isMagic ? (
-                                      <label className="character-weapon-magic-bonus character-weapon-edit-field">
-                                        Bonus
-                                        <input
-                                          type="number"
-                                          step={1}
-                                          value={row.bonus}
-                                          onChange={(event) => updateWeaponRow(row.id, { bonus: event.target.value })}
-                                          disabled={!canEditSelected}
-                                        />
-                                      </label>
-                                    ) : null}
-                                  </div>
-                                  <label className="character-weapon-edit-field">
-                                    Notes
-                                    <textarea
-                                      value={row.notes}
-                                      onChange={(event) => updateWeaponRow(row.id, { notes: event.target.value })}
-                                      disabled={!canEditSelected}
-                                    />
-                                  </label>
-                                </>
-                              ) : null}
-                            </article>
-                          )
-                        })}
-                      </div>
-                      {weaponRestrictionNote ? <p className="character-enc-help">{weaponRestrictionNote}</p> : null}
-                    </section>
-
-                    <section className="monster-section-block character-weapons-block">
-                      <div className="section-head">
-                        <h3 className="monster-section-title">Armour</h3>
-                        <button
-                          type="button"
-                          className="icon-btn add-btn"
-                          onClick={addArmourRow}
-                          disabled={!canEditSelected || !canClassEquipArmour}
-                          aria-label="Add armour"
-                        >
-                          <Plus size={13} />
-                        </button>
-                      </div>
-                      <div className="character-weapons-mobile-list">
-                        {armourRowCount === 0 ? <p className="character-enc-help">No armour added yet.</p> : null}
-                        {Array.from({ length: armourRowCount }, (_, rowIndex) => {
-                          const row = selectedArmour[rowIndex] ?? makeArmourItem({ id: `armour-${rowIndex}` })
-                          const template = row.armourId && row.armourId !== 'custom' ? armourCatalogById[row.armourId] : null
-                          const rowKey = effectiveSelected ? `${effectiveSelected.id}:${row.id}` : row.id
-                          const isExpanded = !!expandedArmourCards[rowKey]
-                          return (
-                            <article key={row.id} className="character-weapon-card">
-                              <div className="character-weapon-card-head">
-                                <strong>Armour {rowIndex + 1}</strong>
-                                <div className="character-weapon-card-actions">
-                                  <label className="character-weapon-equipped-toggle">
-                                    <input
-                                      type="checkbox"
-                                      checked={row.equipped}
-                                      onChange={(event) => updateArmourRow(row.id, { equipped: event.target.checked })}
-                                      disabled={!canEditSelected || !canClassEquipArmour}
-                                    />
-                                    Equipped
-                                  </label>
-                                  <button
-                                    type="button"
-                                    className="icon-btn"
-                                    onClick={() => setExpandedArmourCards((current) => ({ ...current, [rowKey]: !current[rowKey] }))}
-                                    disabled={!canEditSelected}
-                                    aria-label={`${isExpanded ? 'Collapse' : 'Edit'} armour ${rowIndex + 1}`}
-                                  >
-                                    {isExpanded ? <Check size={13} /> : <Pencil size={13} />}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="icon-btn add-btn"
-                                    onClick={() => removeArmourRow(row.id)}
-                                    disabled={!canEditSelected}
-                                    aria-label={`Remove armour ${rowIndex + 1}`}
-                                  >
-                                    <Minus size={13} />
-                                  </button>
-                                </div>
-                              </div>
-                              <label className="character-weapon-primary-field">
-                                Template
-                                <select
-                                  value={row.armourId}
-                                  onChange={(event) => updateArmourRow(row.id, { armourId: event.target.value })}
-                                  disabled={!canEditSelected || !canClassEquipArmour}
-                                >
-                                  <option value="" disabled={!isArmourTemplateAllowedForClass('', selectedClassName)}>
-                                    -
-                                  </option>
-                                  {OSE_ARMOUR_CATALOG.map((armour) => (
-                                    <option
-                                      key={armour.id}
-                                      value={armour.id}
-                                      disabled={!isArmourTemplateAllowedForClass(armour.id, selectedClassName)}
-                                    >
-                                      {`${armour.name} (${armour.costGp} gp)`}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                              <label className="character-weapon-primary-field">
-                                Name
-                                <input
-                                  type="text"
-                                  value={row.name}
-                                  onChange={(event) => updateArmourRow(row.id, { name: event.target.value })}
-                                  disabled={!canEditSelected}
-                                  placeholder="Optional"
-                                />
-                              </label>
-                              {template && !isExpanded ? (
-                                <div className="character-weapon-template-stats-wrap">
-                                  <h4 className="character-weapon-template-stats-heading">Stats</h4>
-                                  <p className="character-weapon-template-stats">
-                                    {`AC ${template.ac} • Cost ${template.costGp} gp`}
-                                  </p>
-                                </div>
-                              ) : null}
-                              {isExpanded ? (
-                                <>
-                                  <div className="character-weapon-mobile-grid">
-                                    <label className="character-weapon-edit-field">
-                                      AC
-                                      <input
-                                        type="number"
-                                        step={1}
-                                        value={row.ac}
-                                        onChange={(event) => updateArmourRow(row.id, { ac: event.target.value })}
-                                        disabled={!canEditSelected}
-                                      />
-                                    </label>
-                                    {template ? (
-                                      <label className="character-weapon-edit-field">
-                                        Cost
-                                        <div className="character-inline-unit-field">
-                                          <input
-                                            type="text"
-                                            value={template.costGp}
-                                            readOnly
-                                            disabled
-                                          />
-                                          <span>gp</span>
-                                        </div>
-                                      </label>
-                                    ) : null}
-                                  </div>
-                                  <div className="character-weapon-magic-row">
-                                    <label className="character-weapon-card-check">
-                                      <input
-                                        type="checkbox"
-                                        checked={row.isMagic}
-                                        onChange={(event) => updateArmourRow(row.id, { isMagic: event.target.checked })}
-                                        disabled={!canEditSelected}
-                                      />
-                                      Magic
-                                    </label>
-                                    {row.isMagic ? (
-                                      <label className="character-weapon-magic-bonus character-weapon-edit-field">
-                                        Bonus
-                                        <input
-                                          type="number"
-                                          step={1}
-                                          value={row.bonus}
-                                          onChange={(event) => updateArmourRow(row.id, { bonus: event.target.value })}
-                                          disabled={!canEditSelected}
-                                        />
-                                      </label>
-                                    ) : null}
-                                  </div>
-                                  <label className="character-weapon-edit-field">
-                                    Notes
-                                    <textarea
-                                      value={row.notes}
-                                      onChange={(event) => updateArmourRow(row.id, { notes: event.target.value })}
-                                      disabled={!canEditSelected}
-                                    />
-                                  </label>
-                                </>
-                              ) : null}
-                            </article>
-                          )
-                        })}
-                      </div>
-                      {armourRestrictionNote ? <p className="character-enc-help">{armourRestrictionNote}</p> : null}
-                    </section>
-                  </section>
                 )}
 
                 {isMobile ? (
@@ -3518,15 +3282,6 @@ export function CharacterTab({
                     >
                       Core
                     </button>
-                    {!isGuidedCreation ? (
-                      <button
-                        type="button"
-                        className={activePage === 'asw' ? 'character-sheet-tab active' : 'character-sheet-tab'}
-                        onClick={() => setActivePage('asw')}
-                      >
-                        Weapons, Armour & Spells
-                      </button>
-                    ) : null}
                     <button
                       type="button"
                       className={activePage === 'encumbrance' ? 'character-sheet-tab active' : 'character-sheet-tab'}
@@ -3759,7 +3514,7 @@ export function CharacterTab({
           : detailItem.kind === 'armour' ? 'Armour'
           : detailItem.kind === 'ammunition' ? 'Ammunition'
           : detailItem.kind === 'gold' ? 'Gold'
-          : detailItem.kind === 'custom' ? 'Custom'
+          : detailItem.kind === 'consumable' ? 'Consumable'
           : 'General'
         return (
           <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={() => setItemDetailId(null)}>
@@ -3770,20 +3525,38 @@ export function CharacterTab({
                 <span>{detailItem.equipped ? 'Equipped' : 'Packed'}</span>
               </div>
               {detailItem.kind === 'gold' ? (
-                <h3>Gold: {(detailItem as CharacterGoldItem).amount} gp</h3>
+                <div className="item-detail-weapon-form">
+                  <h3>Gold: {selectedGoldTotal} gp</h3>
+                  {canEditSelected ? (
+                    <label className="item-detail-field">
+                      <span className="item-detail-field-label">Spend Amount</span>
+                      <div className="character-inline-unit-field">
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={goldSpendAmount}
+                          onChange={(e) => setGoldSpendAmount(e.target.value)}
+                          placeholder="0"
+                        />
+                        <span>gp</span>
+                      </div>
+                    </label>
+                  ) : null}
+                </div>
               ) : detailItem.kind === 'weapon' ? (() => {
                 const w = detailItem as CharacterWeaponItem
-                const template = w.weaponId && w.weaponId !== 'custom' ? weaponCatalogById[w.weaponId] : null
+                const template = w.typeId && w.typeId !== 'custom' ? weaponCatalogById[w.typeId] : null
                 return (
                   <div className="item-detail-weapon-form">
                     <label className="character-weapon-primary-field">
                       Template
                       <select
-                        value={w.weaponId}
-                        onChange={(e) => updateWeaponRow(w.id, { weaponId: e.target.value })}
+                        value={w.typeId || 'custom'}
+                        onChange={(e) => updateWeaponRow(w.id, { typeId: e.target.value })}
                         disabled={!canEditSelected}
                       >
-                        <option value="">-</option>
+                        <option value="custom">Custom</option>
                         {OSE_WEAPON_CATALOG.map((weapon) => (
                           <option
                             key={weapon.id}
@@ -3799,12 +3572,24 @@ export function CharacterTab({
                       Name
                       <input
                         type="text"
-                        value={w.name}
+                        value={w.name ?? ''}
                         onChange={(e) => updateWeaponRow(w.id, { name: e.target.value })}
                         disabled={!canEditSelected}
                         placeholder="Optional"
                       />
                     </label>
+                    {w.typeId === 'custom' ? (
+                      <label className="character-weapon-primary-field">
+                        Type
+                        <input
+                          type="text"
+                          value={w.typeName ?? ''}
+                          onChange={(e) => updateWeaponRow(w.id, { typeName: e.target.value })}
+                          disabled={!canEditSelected}
+                          placeholder="e.g. Bec de corbin"
+                        />
+                      </label>
+                    ) : null}
                     <div className="character-weapon-mobile-grid">
                       <label className="character-weapon-edit-field">
                         Dmg
@@ -3813,19 +3598,23 @@ export function CharacterTab({
                             type="number"
                             min={1}
                             step={1}
-                            value={w.damageDiceCount}
+                            value={w.damageDiceCount ?? ''}
                             onChange={(e) => updateWeaponRow(w.id, { damageDiceCount: e.target.value })}
                             disabled={!canEditSelected}
                           />
-                          <span>d</span>
-                          <input
-                            type="number"
-                            min={1}
-                            step={1}
-                            value={w.damageDiceSides}
+                          <select
+                            value={w.damageDiceSides ?? ''}
                             onChange={(e) => updateWeaponRow(w.id, { damageDiceSides: e.target.value })}
                             disabled={!canEditSelected}
-                          />
+                          >
+                            <option value="">-</option>
+                            <option value="4">d4</option>
+                            <option value="6">d6</option>
+                            <option value="8">d8</option>
+                            <option value="10">d10</option>
+                            <option value="12">d12</option>
+                            <option value="20">d20</option>
+                          </select>
                         </div>
                       </label>
                       <label className="character-weapon-edit-field character-weapon-range-field">
@@ -3835,7 +3624,7 @@ export function CharacterTab({
                             type="number"
                             min={0}
                             step={1}
-                            value={w.rangeShort}
+                            value={w.rangeShort ?? ''}
                             onChange={(e) => updateWeaponRow(w.id, { rangeShort: e.target.value })}
                             disabled={!canEditSelected}
                           />
@@ -3844,7 +3633,7 @@ export function CharacterTab({
                             type="number"
                             min={0}
                             step={1}
-                            value={w.rangeMedium}
+                            value={w.rangeMedium ?? ''}
                             onChange={(e) => updateWeaponRow(w.id, { rangeMedium: e.target.value })}
                             disabled={!canEditSelected}
                           />
@@ -3853,7 +3642,7 @@ export function CharacterTab({
                             type="number"
                             min={0}
                             step={1}
-                            value={w.rangeLong}
+                            value={w.rangeLong ?? ''}
                             onChange={(e) => updateWeaponRow(w.id, { rangeLong: e.target.value })}
                             disabled={!canEditSelected}
                           />
@@ -3874,7 +3663,7 @@ export function CharacterTab({
                         type="checkbox"
                         checked={w.twoHanded}
                         onChange={(e) => updateWeaponRow(w.id, { twoHanded: e.target.checked })}
-                        disabled={!canEditSelected || (!!w.weaponId && w.weaponId !== 'custom') || selectedClassName === 'Halfling'}
+                        disabled={!canEditSelected || (!!w.typeId && w.typeId !== 'custom') || selectedClassName === 'Halfling'}
                       />
                       Two-handed
                     </label>
@@ -3894,8 +3683,8 @@ export function CharacterTab({
                           <input
                             type="number"
                             step={1}
-                            value={w.bonus}
-                            onChange={(e) => updateWeaponRow(w.id, { bonus: e.target.value })}
+                            value={w.attackBonus ?? ''}
+                            onChange={(e) => updateWeaponRow(w.id, { attackBonus: e.target.value })}
                             disabled={!canEditSelected}
                           />
                         </label>
@@ -3914,17 +3703,17 @@ export function CharacterTab({
                 )
               })() : detailItem.kind === 'armour' ? (() => {
                 const a = detailItem as CharacterArmourItem
-                const template = a.armourId && a.armourId !== 'custom' ? armourCatalogById[a.armourId] : null
+                const template = a.typeId && a.typeId !== 'custom' ? armourCatalogById[a.typeId] : null
                 return (
                   <div className="item-detail-weapon-form">
                     <label className="character-weapon-primary-field">
                       Template
                       <select
-                        value={a.armourId}
-                        onChange={(e) => updateArmourRow(a.id, { armourId: e.target.value })}
+                        value={a.typeId || 'custom'}
+                        onChange={(e) => updateArmourRow(a.id, { typeId: e.target.value })}
                         disabled={!canEditSelected || !canClassEquipArmour}
                       >
-                        <option value="">-</option>
+                        <option value="custom">Custom</option>
                         {OSE_ARMOUR_CATALOG.map((armour) => (
                           <option
                             key={armour.id}
@@ -3940,22 +3729,51 @@ export function CharacterTab({
                       Name
                       <input
                         type="text"
-                        value={a.name}
+                        value={a.name ?? ''}
                         onChange={(e) => updateArmourRow(a.id, { name: e.target.value })}
                         disabled={!canEditSelected}
                         placeholder="Optional"
                       />
                     </label>
+                    {a.typeId === 'custom' ? (
+                      <label className="character-weapon-primary-field">
+                        Type
+                        <input
+                          type="text"
+                          value={a.typeName ?? ''}
+                          onChange={(e) => updateArmourRow(a.id, { typeName: e.target.value })}
+                          disabled={!canEditSelected}
+                          placeholder="e.g. Brigandine"
+                        />
+                      </label>
+                    ) : null}
                     <div className="character-weapon-mobile-grid">
                       <label className="character-weapon-edit-field">
-                        AC
+                        {a.armourType === 'shield' ? 'Shield Mod' : 'Armour Class'}
                         <input
                           type="number"
                           step={1}
-                          value={a.ac}
-                          onChange={(e) => updateArmourRow(a.id, { ac: e.target.value })}
+                          value={a.armourType === 'shield' ? (a.shieldMod ?? '') : (a.armourClass ?? '')}
+                          onChange={(e) =>
+                            updateArmourRow(
+                              a.id,
+                              a.armourType === 'shield'
+                                ? { shieldMod: e.target.value }
+                                : { armourClass: e.target.value },
+                            )}
                           disabled={!canEditSelected}
                         />
+                      </label>
+                      <label className="character-weapon-edit-field">
+                        Type
+                        <select
+                          value={a.armourType}
+                          onChange={(e) => updateArmourRow(a.id, { armourType: e.target.value as 'body' | 'shield' })}
+                          disabled={!canEditSelected}
+                        >
+                          <option value="body">Body Armour</option>
+                          <option value="shield">Shield</option>
+                        </select>
                       </label>
                       {template ? (
                         <label className="character-weapon-edit-field">
@@ -3979,12 +3797,12 @@ export function CharacterTab({
                       </label>
                       {a.isMagic ? (
                         <label className="character-weapon-magic-bonus character-weapon-edit-field">
-                          Bonus
+                          Mod
                           <input
                             type="number"
                             step={1}
-                            value={a.bonus}
-                            onChange={(e) => updateArmourRow(a.id, { bonus: e.target.value })}
+                            value={a.magicMod ?? ''}
+                            onChange={(e) => updateArmourRow(a.id, { magicMod: e.target.value })}
                             disabled={!canEditSelected}
                           />
                         </label>
@@ -4004,26 +3822,61 @@ export function CharacterTab({
               })() : (
                 <>
                   <label className="item-detail-field">
-                    <span className="item-detail-field-label">Name</span>
+                    <span className="item-detail-field-label">Type</span>
                     <input
                       type="text"
-                      value={detailItem.name}
+                      value={detailItem.typeName ?? ''}
+                      onChange={(e) => updateInventoryItem(detailItem.id, { typeName: e.target.value })}
+                      disabled={!canEditSelected}
+                    />
+                  </label>
+                  <label className="item-detail-field">
+                    <span className="item-detail-field-label">Name (Optional)</span>
+                    <input
+                      type="text"
+                      value={detailItem.name ?? ''}
                       onChange={(e) => updateInventoryItem(detailItem.id, { name: e.target.value })}
                       disabled={!canEditSelected}
                     />
                   </label>
-                  {detailItem.kind === 'ammunition' ? (
+                  {(detailItem.kind === 'ammunition' || detailItem.kind === 'consumable') ? (
                     <label className="item-detail-field">
                       <span className="item-detail-field-label">Qty</span>
                       <input
                         type="number"
                         min={0}
                         step={1}
-                        value={(detailItem as CharacterAmmunitionItem).qty}
-                        onChange={(e) => updateInventoryItem(detailItem.id, { qty: Number(e.target.value) || 0 } as Partial<CharacterAmmunitionItem>)}
+                        value={detailItem.qty}
+                        onChange={(e) => updateInventoryItem(detailItem.id, { qty: Number(e.target.value) || 0 })}
                         disabled={!canEditSelected}
                       />
                     </label>
+                  ) : null}
+                  {detailItem.kind === 'consumable' ? (
+                    <>
+                      <label className="item-detail-field">
+                        <span className="item-detail-field-label">Use Mode</span>
+                        <select
+                          value={(detailItem as CharacterConsumableItem).useMode}
+                          onChange={(e) => updateInventoryItem(detailItem.id, { useMode: e.target.value as 'consume' | 'use' })}
+                          disabled={!canEditSelected}
+                        >
+                          <option value="consume">Consume (drink, eat, apply)</option>
+                          <option value="use">Use (light, activate, burn)</option>
+                        </select>
+                      </label>
+                      <label className="item-detail-field">
+                        <span className="item-detail-field-label">Effect</span>
+                        <textarea
+                          className="item-detail-notes"
+                          value={(detailItem as CharacterConsumableItem).effectText ?? ''}
+                          onChange={(e) => updateInventoryItem(detailItem.id, { effectText: e.target.value })}
+                          disabled={!canEditSelected}
+                          placeholder="Optional effect description"
+                          rows={2}
+                        />
+                      </label>
+                    </>
                   ) : null}
                   <label className="item-detail-field">
                     <span className="item-detail-field-label">Notes</span>
@@ -4039,6 +3892,19 @@ export function CharacterTab({
                 </>
               )}
               <div className="confirm-actions">
+                {canEditSelected && detailItem.kind === 'gold' ? (
+                  <button
+                    type="button"
+                    className="confirm-danger"
+                    onClick={() => setGoldSpendConfirmAmount(parsedGoldSpendAmount)}
+                    disabled={
+                      parsedGoldSpendAmount <= 0
+                      || parsedGoldSpendAmount > selectedGoldTotal
+                    }
+                  >
+                    Spend
+                  </button>
+                ) : null}
                 {detailItem.kind !== 'gold' ? (
                   <button
                     type="button"
@@ -4051,13 +3917,26 @@ export function CharacterTab({
                     {detailItem.equipped ? 'Unequip' : 'Equip'}
                   </button>
                 ) : null}
-                {isGuidedCreation && canEditSelected && detailItem.kind !== 'gold' ? (
+                {canEditSelected && detailItem.kind !== 'gold' ? (
+                  <button
+                    type="button"
+                    className="confirm-danger"
+                    onClick={() => setDropConfirmItemId(detailItem.id)}
+                  >
+                    Drop
+                  </button>
+                ) : null}
+                {canEditSelected && detailItem.kind !== 'gold' ? (
                   <button
                     type="button"
                     className="confirm-danger"
                     onClick={() => {
-                      refundItem(detailItem.id)
-                      setItemDetailId(null)
+                      if (isGuidedCreation) {
+                        refundItem(detailItem.id)
+                        setItemDetailId(null)
+                      } else {
+                        setSellConfirmItemId(detailItem.id)
+                      }
                     }}
                   >
                     {detailItem.costGp > 0 ? `Sell (${detailItem.costGp} gp)` : 'Remove'}
@@ -4071,6 +3950,415 @@ export function CharacterTab({
           </div>
         )
       })()}
+      {addItemModal ? (
+        <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={() => setAddItemModal(null)}>
+          <div className="confirm-modal item-detail-modal add-item-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Add Item</h3>
+            <div className="add-item-kind-picker">
+              {(['general', 'weapon', 'armour', 'ammunition', 'consumable'] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  className={addItemModal.kind === k ? 'active' : ''}
+                  onClick={() =>
+                    setAddItemModal({
+                      ...addItemModal,
+                      kind: k,
+                      typeId: 'custom',
+                      typeName: addItemModal.kind === k ? addItemModal.typeName : '',
+                      name: addItemModal.kind === k ? addItemModal.name : '',
+                    })
+                  }
+                >
+                  {k === 'ammunition' ? 'Ammo' : k.charAt(0).toUpperCase() + k.slice(1)}
+                </button>
+              ))}
+            </div>
+            {addItemModal.kind === 'weapon' ? (
+              <div className="item-detail-weapon-form">
+                <label className="character-weapon-primary-field">
+                  Template
+                  <select
+                    value={addItemModal.typeId || 'custom'}
+                    onChange={(e) => {
+                      const wId = e.target.value
+                      if (wId === 'custom') {
+                        setAddItemModal({ ...addItemModal, typeId: 'custom', typeName: '' })
+                      } else {
+                        const t = weaponCatalogById[wId]
+                        if (t) {
+                          const parsed = parseDamageDice(t.damage)
+                          const range = parseRangeBands(t.range)
+                          setAddItemModal({
+                            ...addItemModal,
+                            typeId: wId,
+                            typeName: t.name,
+                            costGp: String(t.costGp),
+                            damageDiceCount: parsed.damageDiceCount,
+                            damageDiceSides: parsed.damageDiceSides,
+                            rangeShort: range.rangeShort,
+                            rangeMedium: range.rangeMedium,
+                            rangeLong: range.rangeLong,
+                            twoHanded: t.twoHanded,
+                          })
+                        }
+                      }
+                    }}
+                  >
+                    <option value="custom">Custom</option>
+                    {OSE_WEAPON_CATALOG.map((weapon) => (
+                      <option
+                        key={weapon.id}
+                        value={weapon.id}
+                        disabled={!isWeaponTemplateAllowedForClass(weapon.id, selectedClassName)}
+                      >
+                        {`${weapon.name} (${weapon.costGp} gp)`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {addItemModal.typeId === 'custom' ? (
+                  <label className="character-weapon-primary-field">
+                    Type
+                    <input
+                      type="text"
+                      value={addItemModal.typeName}
+                      onChange={(e) => setAddItemModal({ ...addItemModal, typeName: e.target.value })}
+                      placeholder="e.g. Bec de corbin"
+                    />
+                  </label>
+                ) : null}
+                <label className="character-weapon-primary-field">
+                  Name
+                  <input
+                    type="text"
+                    value={addItemModal.name}
+                    onChange={(e) => setAddItemModal({ ...addItemModal, name: e.target.value })}
+                    placeholder="Optional"
+                  />
+                </label>
+                <div className="character-weapon-mobile-grid">
+                  <label className="character-weapon-edit-field">
+                    Dmg
+                    <div className="character-weapon-damage-inputs">
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={addItemModal.damageDiceCount}
+                        onChange={(e) => setAddItemModal({ ...addItemModal, damageDiceCount: e.target.value })}
+                      />
+                      <select
+                        value={addItemModal.damageDiceSides}
+                        onChange={(e) => setAddItemModal({ ...addItemModal, damageDiceSides: e.target.value })}
+                      >
+                        <option value="">-</option>
+                        <option value="4">d4</option>
+                        <option value="6">d6</option>
+                        <option value="8">d8</option>
+                        <option value="10">d10</option>
+                        <option value="12">d12</option>
+                        <option value="20">d20</option>
+                      </select>
+                    </div>
+                  </label>
+                  <label className="character-weapon-edit-field character-weapon-range-field">
+                    Range
+                    <div className="character-weapon-triplet-inputs">
+                      <input type="number" min={0} step={1} value={addItemModal.rangeShort} onChange={(e) => setAddItemModal({ ...addItemModal, rangeShort: e.target.value })} />
+                      <span>/</span>
+                      <input type="number" min={0} step={1} value={addItemModal.rangeMedium} onChange={(e) => setAddItemModal({ ...addItemModal, rangeMedium: e.target.value })} />
+                      <span>/</span>
+                      <input type="number" min={0} step={1} value={addItemModal.rangeLong} onChange={(e) => setAddItemModal({ ...addItemModal, rangeLong: e.target.value })} />
+                    </div>
+                  </label>
+                  <label className="character-weapon-edit-field">
+                    Cost
+                    <div className="character-inline-unit-field">
+                      <input type="text" value={addItemModal.costGp} onChange={(e) => setAddItemModal({ ...addItemModal, costGp: e.target.value })} />
+                      <span>gp</span>
+                    </div>
+                  </label>
+                </div>
+                <label className="character-weapon-card-check">
+                  <input
+                    type="checkbox"
+                    checked={addItemModal.twoHanded}
+                    onChange={(e) => setAddItemModal({ ...addItemModal, twoHanded: e.target.checked })}
+                  />
+                  Two-handed
+                </label>
+                <div className="character-weapon-magic-row">
+                  <label className="character-weapon-card-check">
+                    <input
+                      type="checkbox"
+                      checked={addItemModal.isMagic}
+                      onChange={(e) => setAddItemModal({ ...addItemModal, isMagic: e.target.checked })}
+                    />
+                    Magic
+                  </label>
+                  {addItemModal.isMagic ? (
+                    <label className="character-weapon-magic-bonus character-weapon-edit-field">
+                      Bonus
+                      <input
+                        type="number"
+                        step={1}
+                        value={addItemModal.attackBonus}
+                        onChange={(e) => setAddItemModal({ ...addItemModal, attackBonus: e.target.value })}
+                      />
+                    </label>
+                  ) : null}
+                </div>
+                <label className="character-weapon-edit-field">
+                  Notes
+                  <textarea
+                    value={addItemModal.notes}
+                    onChange={(e) => setAddItemModal({ ...addItemModal, notes: e.target.value })}
+                    placeholder="Description, magic properties, etc."
+                  />
+                </label>
+              </div>
+            ) : addItemModal.kind === 'armour' ? (
+              <div className="item-detail-weapon-form">
+                <label className="character-weapon-primary-field">
+                  Template
+                  <select
+                    value={addItemModal.typeId || 'custom'}
+                    onChange={(e) => {
+                      const aId = e.target.value
+                      if (aId === 'custom') {
+                        setAddItemModal({ ...addItemModal, typeId: 'custom', typeName: '' })
+                      } else {
+                        const t = armourCatalogById[aId]
+                        if (t) {
+                          const parsed = parseArmourTemplateValues(t.ac)
+                          setAddItemModal({
+                            ...addItemModal,
+                            typeId: aId,
+                            typeName: t.name,
+                            costGp: String(t.costGp),
+                            armourClass: parsed.armourClass,
+                            shieldMod: parsed.shieldMod,
+                            armourType: armourTypeFromTemplateId(t.id),
+                          })
+                        }
+                      }
+                    }}
+                    disabled={!canClassEquipArmour}
+                  >
+                    <option value="custom">Custom</option>
+                    {OSE_ARMOUR_CATALOG.map((armour) => (
+                      <option
+                        key={armour.id}
+                        value={armour.id}
+                        disabled={!isArmourTemplateAllowedForClass(armour.id, selectedClassName)}
+                      >
+                        {`${armour.name} (${armour.costGp} gp)`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {addItemModal.typeId === 'custom' ? (
+                  <label className="character-weapon-primary-field">
+                    Type
+                    <input
+                      type="text"
+                      value={addItemModal.typeName}
+                      onChange={(e) => setAddItemModal({ ...addItemModal, typeName: e.target.value })}
+                      placeholder="e.g. Brigandine"
+                    />
+                  </label>
+                ) : null}
+                <label className="character-weapon-primary-field">
+                  Name
+                  <input
+                    type="text"
+                    value={addItemModal.name}
+                    onChange={(e) => setAddItemModal({ ...addItemModal, name: e.target.value })}
+                    placeholder="Optional"
+                  />
+                </label>
+                <div className="character-weapon-mobile-grid">
+                  <label className="character-weapon-edit-field">
+                    {addItemModal.armourType === 'shield' ? 'Shield Mod' : 'Armour Class'}
+                    <input
+                      type="number"
+                      step={1}
+                      value={addItemModal.armourType === 'shield' ? addItemModal.shieldMod : addItemModal.armourClass}
+                      onChange={(e) =>
+                        setAddItemModal({
+                          ...addItemModal,
+                          ...(addItemModal.armourType === 'shield'
+                            ? { shieldMod: e.target.value }
+                            : { armourClass: e.target.value }),
+                        })}
+                    />
+                  </label>
+                  <label className="character-weapon-edit-field">
+                    Type
+                    <select
+                      value={addItemModal.armourType ?? 'body'}
+                      onChange={(e) => setAddItemModal({ ...addItemModal, armourType: e.target.value as 'body' | 'shield' })}
+                    >
+                      <option value="body">Body Armour</option>
+                      <option value="shield">Shield</option>
+                    </select>
+                  </label>
+                  <label className="character-weapon-edit-field">
+                    Cost
+                    <div className="character-inline-unit-field">
+                      <input type="text" value={addItemModal.costGp} onChange={(e) => setAddItemModal({ ...addItemModal, costGp: e.target.value })} />
+                      <span>gp</span>
+                    </div>
+                  </label>
+                </div>
+                <div className="character-weapon-magic-row">
+                  <label className="character-weapon-card-check">
+                    <input
+                      type="checkbox"
+                      checked={addItemModal.isMagic}
+                      onChange={(e) => setAddItemModal({ ...addItemModal, isMagic: e.target.checked })}
+                    />
+                    Magic
+                  </label>
+                  {addItemModal.isMagic ? (
+                    <label className="character-weapon-magic-bonus character-weapon-edit-field">
+                      Mod
+                      <input
+                        type="number"
+                        step={1}
+                        value={addItemModal.magicMod}
+                        onChange={(e) => setAddItemModal({ ...addItemModal, magicMod: e.target.value })}
+                      />
+                    </label>
+                  ) : null}
+                </div>
+                <label className="character-weapon-edit-field">
+                  Notes
+                  <textarea
+                    value={addItemModal.notes}
+                    onChange={(e) => setAddItemModal({ ...addItemModal, notes: e.target.value })}
+                    placeholder="Description, magic properties, etc."
+                  />
+                </label>
+              </div>
+            ) : (
+              <>
+                <label className="item-detail-field">
+                  <span className="item-detail-field-label">Type</span>
+                  <input
+                    type="text"
+                    value={addItemModal.typeName}
+                    onChange={(e) => setAddItemModal({ ...addItemModal, typeName: e.target.value })}
+                  />
+                </label>
+                <label className="item-detail-field">
+                  <span className="item-detail-field-label">Name (Optional)</span>
+                  <input
+                    type="text"
+                    value={addItemModal.name}
+                    onChange={(e) => setAddItemModal({ ...addItemModal, name: e.target.value })}
+                  />
+                </label>
+                <label className="item-detail-field">
+                  <span className="item-detail-field-label">Cost</span>
+                  <div className="character-inline-unit-field">
+                    <input type="text" value={addItemModal.costGp} onChange={(e) => setAddItemModal({ ...addItemModal, costGp: e.target.value })} />
+                    <span>gp</span>
+                  </div>
+                </label>
+                {(addItemModal.kind === 'ammunition' || addItemModal.kind === 'consumable') ? (
+                  <label className="item-detail-field">
+                    <span className="item-detail-field-label">Qty</span>
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={addItemModal.qty}
+                      onChange={(e) => setAddItemModal({ ...addItemModal, qty: e.target.value })}
+                    />
+                  </label>
+                ) : null}
+                {addItemModal.kind === 'consumable' ? (
+                  <>
+                    <label className="item-detail-field">
+                      <span className="item-detail-field-label">Use Mode</span>
+                      <select
+                        value={addItemModal.useMode}
+                        onChange={(e) => setAddItemModal({ ...addItemModal, useMode: e.target.value as 'consume' | 'use' })}
+                      >
+                        <option value="consume">Consume (destroyed on use)</option>
+                        <option value="use">Use (reusable)</option>
+                      </select>
+                    </label>
+                    <label className="item-detail-field">
+                      <span className="item-detail-field-label">Effect</span>
+                      <textarea
+                        className="item-detail-notes"
+                        value={addItemModal.effectText}
+                        onChange={(e) => setAddItemModal({ ...addItemModal, effectText: e.target.value })}
+                        placeholder="Optional effect description"
+                        rows={2}
+                      />
+                    </label>
+                  </>
+                ) : null}
+                <label className="item-detail-field">
+                  <span className="item-detail-field-label">Description</span>
+                  <textarea
+                    className="item-detail-notes"
+                    value={addItemModal.description}
+                    onChange={(e) => setAddItemModal({ ...addItemModal, description: e.target.value })}
+                    placeholder="Optional item description"
+                    rows={2}
+                  />
+                </label>
+                <label className="item-detail-field">
+                  <span className="item-detail-field-label">Notes</span>
+                  <textarea
+                    className="item-detail-notes"
+                    value={addItemModal.notes}
+                    onChange={(e) => setAddItemModal({ ...addItemModal, notes: e.target.value })}
+                    placeholder="Optional notes"
+                    rows={2}
+                  />
+                </label>
+              </>
+            )}
+            <div className="confirm-actions">
+              <button type="button" onClick={() => setAddItemModal(null)}>Cancel</button>
+              <button type="button" onClick={saveAddItem}>Add</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <ConfirmModal
+        open={goldSpendConfirmAmount !== null}
+        title="Spend gold?"
+        message={`Spend ${goldSpendConfirmAmount ?? 0} gp? You will have ${Math.max(0, selectedGoldTotal - (goldSpendConfirmAmount ?? 0))} gp remaining.`}
+        confirmLabel="Spend"
+        onConfirm={() => {
+          if (goldSpendConfirmAmount !== null) spendGold(goldSpendConfirmAmount)
+          setGoldSpendConfirmAmount(null)
+        }}
+        onCancel={() => setGoldSpendConfirmAmount(null)}
+      />
+      <ConfirmModal
+        open={dropConfirmItemId !== null}
+        title="Drop item?"
+        message={`Drop ${selectedInventory.find((i) => i.id === dropConfirmItemId)?.name ?? 'this item'}? It will be moved to the campaign items list.`}
+        confirmLabel="Drop"
+        onConfirm={() => { if (dropConfirmItemId) void dropItem(dropConfirmItemId) }}
+        onCancel={() => setDropConfirmItemId(null)}
+      />
+      <ConfirmModal
+        open={sellConfirmItemId !== null}
+        title="Sell item?"
+        message={`Sell ${selectedInventory.find((i) => i.id === sellConfirmItemId)?.name ?? 'this item'} for ${selectedInventory.find((i) => i.id === sellConfirmItemId)?.costGp ?? 0} gp?`}
+        confirmLabel="Sell"
+        onConfirm={() => { if (sellConfirmItemId) sellItem(sellConfirmItemId) }}
+        onCancel={() => setSellConfirmItemId(null)}
+      />
       <ConfirmModal
         open={finalizeConfirmOpen}
         title="Finalize character?"

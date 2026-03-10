@@ -48,28 +48,84 @@ export type CharacterStoreCartEntry = {
   name: string
   costGp: number
   qty: number
-  kind: 'general' | 'weapon' | 'ammunition' | 'armour' | 'custom'
+  kind: 'general' | 'weapon' | 'ammunition' | 'armour' | 'consumable'
   weaponId?: string
   armourId?: string
   packedLabel?: string
 }
 
-type CharacterInventoryItemBase = {
+// --- Item system core types ---
+
+export type ItemKind = 'weapon' | 'armour' | 'ammunition' | 'consumable' | 'general' | 'gold'
+export type GlobalItemAction = 'equip' | 'unequip' | 'drop' | 'give' | 'sell'
+export type ConsumableUseMode = 'consume' | 'use'
+export type StackPolicy =
+  | { stackable: false }
+  | { stackable: true; maxStack: number }
+
+// --- Campaign item (GM-authored template) ---
+
+export type CampaignItemType = 'weapon' | 'armour' | 'ammunition' | 'consumable' | 'general'
+
+export type CampaignItem = {
   id: string
   name: string
-  kind: 'weapon' | 'armour' | 'ammunition' | 'general' | 'gold' | 'custom'
+  type: CampaignItemType
+  typeId: string
+  typeName: string
+  status: 'authored' | 'dropped'
+  droppedByCharacterId?: string
+  droppedByCharacterName?: string
+  portraitUrl: string | null
+  portraitFocusX: number
+  portraitFocusY: number
+  tokenIcon: TokenIconConfig
+  description: string
+  gpValue: string
+  qty: string
+  isMagic: boolean
+  weaponStats: {
+    damageDiceCount: string
+    damageDiceSides: string
+    attackBonus: string
+    damageBonus: string
+    rangeShort: string
+    rangeMedium: string
+    rangeLong: string
+    twoHanded: boolean
+  }
+  armourStats: { armourClass: string; shieldMod: string; magicMod: string; armourType: 'body' | 'shield' }
+  consumableStats: { useMode: ConsumableUseMode; effectText: string }
+  specialRule: string
+  notes: string
+}
+
+// --- Character inventory item (live instance) ---
+
+type CharacterInventoryItemBase = {
+  id: string
+  kind: ItemKind
+  typeId: string
+  typeName: string
+  name?: string
   costGp: number
   equipped: boolean
   notes: string
+  sourceItemId?: string
+  description?: string
+  specialRule?: string
+  portraitUrl?: string | null
+  qty: number
+  stack: StackPolicy
 }
 
 export type CharacterWeaponItem = CharacterInventoryItemBase & {
   kind: 'weapon'
-  weaponId: string
   isMagic: boolean
   damageDiceCount: string
   damageDiceSides: string
-  bonus: string
+  attackBonus: string
+  damageBonus: string
   rangeShort: string
   rangeMedium: string
   rangeLong: string
@@ -78,32 +134,39 @@ export type CharacterWeaponItem = CharacterInventoryItemBase & {
 
 export type CharacterArmourItem = CharacterInventoryItemBase & {
   kind: 'armour'
-  armourId: string
   isMagic: boolean
-  ac: string
-  bonus: string
+  armourClass: string
+  shieldMod: string
+  magicMod: string
+  armourType: 'body' | 'shield'
 }
 
 export type CharacterGoldItem = CharacterInventoryItemBase & {
   kind: 'gold'
-  amount: number
 }
 
 export type CharacterAmmunitionItem = CharacterInventoryItemBase & {
   kind: 'ammunition'
-  qty: number
+  ammoFamily?: string
+  compatibleWeaponTypeIds?: string[]
+  consumePerUse?: number
+}
+
+export type CharacterConsumableItem = CharacterInventoryItemBase & {
+  kind: 'consumable'
+  useMode: ConsumableUseMode
+  effectText?: string
 }
 
 export type CharacterGeneralItem = CharacterInventoryItemBase & { kind: 'general' }
-export type CharacterCustomItem = CharacterInventoryItemBase & { kind: 'custom' }
 
 export type CharacterInventoryItem =
   | CharacterWeaponItem
   | CharacterArmourItem
   | CharacterGoldItem
   | CharacterAmmunitionItem
+  | CharacterConsumableItem
   | CharacterGeneralItem
-  | CharacterCustomItem
 
 export type CharacterSheetDetails = {
   abilityScores: Record<string, string>
@@ -111,7 +174,7 @@ export type CharacterSheetDetails = {
   abilityScoresRolled: boolean
   hpBaseRoll: number | null
   inventory: CharacterInventoryItem[]
-  // Legacy fields (optional for migration)
+  // Legacy fields (optional, used by migrateToInventory on first load)
   equippedItems?: string[]
   packedItems?: string[]
   weapons?: CharacterWeaponRow[]
@@ -127,6 +190,7 @@ export type CharacterSheetDetails = {
   storeSpent: number
   storeCart: CharacterStoreCartEntry[]
   alignment: string
+  title: string
 }
 
 export type CharacterRecord = {

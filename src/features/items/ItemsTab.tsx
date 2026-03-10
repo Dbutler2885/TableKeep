@@ -1,38 +1,19 @@
-import { ChevronLeft, Minus, Plus, Trash2 } from 'lucide-react'
+import { ChevronLeft, Gift, Minus, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import type { Role } from '../../types/app'
+import { doc, runTransaction } from 'firebase/firestore'
+import { db } from '../../firebase'
+import type { CampaignItem, CampaignItemType, CharacterRecord, CharacterSheetDetails, Role } from '../../types/app'
+import type { TokenIconConfig } from '../tokens/TokenIconEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
-import type { TokenIconConfig } from '../tokens/TokenIconEditor'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
+import { useItems } from './useItems'
+import { campaignItemToInventoryItem } from './itemConversion'
+import { OSE_WEAPON_CATALOG } from '../character/weaponCatalog'
+import { OSE_ARMOUR_CATALOG } from '../character/armourCatalog'
+import { OSE_STORE_ITEMS } from '../character/storeCatalog'
 
-type ItemType = 'weapon' | 'armor' | 'consumable' | 'misc'
-type ItemTypeFilter = ItemType | 'all'
-
-type ItemRecord = {
-  id: string
-  name: string
-  type: ItemType
-  portraitUrl: string | null
-  portraitFocusX: number
-  portraitFocusY: number
-  tokenIcon: TokenIconConfig
-  subtype: string
-  description: string
-  gpValue: string
-  weight: string
-  quantity: string
-  weaponStats: {
-    damage: string
-    attackBonus: string
-    damageBonus: string
-  }
-  armorStats: {
-    acBonus: string
-  }
-  specialRule: string
-  notes: string
-}
+type ItemTypeFilter = CampaignItemType | 'all' | 'dropped'
 
 const defaultTokenIcon: TokenIconConfig = {
   icon: 'pawn',
@@ -41,45 +22,68 @@ const defaultTokenIcon: TokenIconConfig = {
 }
 
 type ItemsTabProps = {
+  campaignId: string
   role: Role | null
+  characters: CharacterRecord[]
 }
 
-const itemTypeOptions: Array<{ value: ItemType; label: string }> = [
+const itemTypeOptions: Array<{ value: CampaignItemType; label: string }> = [
   { value: 'weapon', label: 'Weapons' },
-  { value: 'armor', label: 'Armor' },
-  { value: 'consumable', label: 'Consumables' },
-  { value: 'misc', label: 'Misc' },
+  { value: 'armour', label: 'Armour' },
+  { value: 'ammunition', label: 'Ammo' },
+  { value: 'consumable', label: 'Consumable' },
+  { value: 'general', label: 'General' },
 ]
 
-const newItemTemplate = (type: ItemType): ItemRecord => ({
+const generalCatalog = OSE_STORE_ITEMS.filter((i) => i.kind === 'general')
+const ammoCatalog = OSE_STORE_ITEMS.filter((i) => i.kind === 'ammunition')
+
+const newItemTemplate = (type: CampaignItemType): CampaignItem => ({
   id: crypto.randomUUID(),
-  name: 'New Item',
+  name: '',
   type,
+  typeId: 'custom',
+  typeName: '',
+  status: 'authored',
   portraitUrl: null,
   portraitFocusX: 50,
   portraitFocusY: 50,
   tokenIcon: defaultTokenIcon,
-  subtype: '',
   description: '',
   gpValue: '',
-  weight: '',
-  quantity: '1',
+  qty: '1',
+  isMagic: false,
   weaponStats: {
-    damage: '',
+    damageDiceCount: '',
+    damageDiceSides: '',
     attackBonus: '',
     damageBonus: '',
+    rangeShort: '',
+    rangeMedium: '',
+    rangeLong: '',
+    twoHanded: false,
   },
-  armorStats: {
-    acBonus: '',
+  armourStats: {
+    armourClass: '',
+    shieldMod: '',
+    magicMod: '',
+    armourType: 'body',
+  },
+  consumableStats: {
+    useMode: 'consume',
+    effectText: '',
   },
   specialRule: '',
   notes: '',
 })
 
-export function ItemsTab({ role }: ItemsTabProps) {
-  const [items, setItems] = useState<ItemRecord[]>([])
+export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
+  const { items, addItem: hookAddItem, updateItem, deleteItem: hookDeleteItem } = useItems(campaignId)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
-  const [deleteCandidate, setDeleteCandidate] = useState<ItemRecord | null>(null)
+  const [deleteCandidate, setDeleteCandidate] = useState<CampaignItem | null>(null)
+  const [grantTargetId, setGrantTargetId] = useState<string>('')
+  const [grantBusy, setGrantBusy] = useState(false)
+  const [grantFeedback, setGrantFeedback] = useState<string | null>(null)
   const [typeFilter, setTypeFilter] = useState<ItemTypeFilter>('all')
   const [worldNotesOpenByItemId, setWorldNotesOpenByItemId] = useState<Record<string, boolean>>({})
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
@@ -98,9 +102,10 @@ export function ItemsTab({ role }: ItemsTabProps) {
   }, [])
 
   const filteredItems = useMemo(() => {
-    const sorted = [...items].sort((a, b) => a.name.localeCompare(b.name))
-    if (typeFilter === 'all') return sorted
-    return sorted.filter((item) => item.type === typeFilter)
+    const sorted = [...items].sort((a, b) => (a.typeName || a.name).localeCompare(b.typeName || b.name))
+    if (typeFilter === 'all') return sorted.filter((item) => item.status !== 'dropped')
+    if (typeFilter === 'dropped') return sorted.filter((item) => item.status === 'dropped')
+    return sorted.filter((item) => item.type === typeFilter && item.status !== 'dropped')
   }, [items, typeFilter])
 
   const selectedItem = filteredItems.find((item) => item.id === selectedItemId) ?? items.find((item) => item.id === selectedItemId) ?? null
@@ -108,55 +113,83 @@ export function ItemsTab({ role }: ItemsTabProps) {
   const showDetailPane = !isMobile || mobileView === 'detail'
 
   const addItem = () => {
-    const defaultType = typeFilter === 'all' ? 'misc' : typeFilter
+    const defaultType: CampaignItemType = typeFilter === 'all' || typeFilter === 'dropped' ? 'general' : typeFilter
     const nextItem = newItemTemplate(defaultType)
-    setItems((current) => [nextItem, ...current])
+    hookAddItem(nextItem)
     setSelectedItemId(nextItem.id)
     if (isMobile) setMobileView('detail')
   }
 
-  const updateSelectedItem = (updates: Partial<ItemRecord>) => {
+  const updateSelectedItem = (updates: Partial<CampaignItem>) => {
     if (!selectedItemId) return
-    setItems((current) => current.map((item) => (item.id === selectedItemId ? { ...item, ...updates } : item)))
+    updateItem(selectedItemId, updates)
   }
 
-  const updateType = (nextType: ItemType) => {
+  const updateType = (nextType: CampaignItemType) => {
     if (!selectedItem) return
-    const next: Partial<ItemRecord> = { type: nextType }
+    const next: Partial<CampaignItem> = { type: nextType, typeId: 'custom', typeName: '' }
     if (nextType !== 'weapon') {
-      next.weaponStats = { damage: '', attackBonus: '', damageBonus: '' }
+      next.weaponStats = { damageDiceCount: '', damageDiceSides: '', attackBonus: '', damageBonus: '', rangeShort: '', rangeMedium: '', rangeLong: '', twoHanded: false }
     }
-    if (nextType !== 'armor') {
-      next.armorStats = { acBonus: '' }
+    if (nextType !== 'armour') {
+      next.armourStats = { armourClass: '', shieldMod: '', magicMod: '', armourType: 'body' }
+    }
+    if (nextType !== 'consumable') {
+      next.consumableStats = { useMode: 'consume', effectText: '' }
     }
     updateSelectedItem(next)
   }
 
-  const deleteItem = () => {
+  const confirmDeleteItem = () => {
     if (!deleteCandidate) return
     const deleteId = deleteCandidate.id
-    setItems((current) => {
-      const next = current.filter((item) => item.id !== deleteId)
-      if (selectedItemId === deleteId) {
-        setSelectedItemId(next[0]?.id ?? null)
-      }
-      return next
-    })
+    if (selectedItemId === deleteId) {
+      const remaining = items.filter((item) => item.id !== deleteId)
+      setSelectedItemId(remaining[0]?.id ?? null)
+    }
     setWorldNotesOpenByItemId((current) => {
       const next = { ...current }
       delete next[deleteId]
       return next
     })
+    hookDeleteItem(deleteId)
     setDeleteCandidate(null)
   }
 
-  if (!canEdit) {
-    return (
-      <div className="stack-tight">
-        <h2>Items</h2>
-        <p>Only the GM can create and edit items.</p>
-      </div>
-    )
+  const grantItemToCharacter = async () => {
+    if (!selectedItem || !grantTargetId || grantBusy) return
+    setGrantBusy(true)
+    setGrantFeedback(null)
+    try {
+      const inventoryItem = campaignItemToInventoryItem(selectedItem)
+      const charRef = doc(db, 'campaigns', campaignId, 'characters', grantTargetId)
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(charRef)
+        if (!snap.exists()) throw new Error('Target character not found')
+        const data = snap.data() as { details?: CharacterSheetDetails | null } | undefined
+        const existingDetails = (data?.details && typeof data.details === 'object')
+          ? data.details as Record<string, unknown>
+          : {}
+        const currentInventory = Array.isArray(existingDetails.inventory)
+          ? existingDetails.inventory
+          : []
+        tx.set(charRef, {
+          details: {
+            ...existingDetails,
+            inventory: [...currentInventory, inventoryItem],
+          },
+        }, { merge: true })
+      })
+      const targetName = characters.find((c) => c.id === grantTargetId)?.name ?? 'character'
+      setGrantFeedback(`Granted "${selectedItem.typeName || selectedItem.name}" to ${targetName}`)
+      setTimeout(() => setGrantFeedback(null), 3000)
+    } catch (error) {
+      console.error('Grant item failed', error)
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      setGrantFeedback(`Grant failed: ${message}`)
+    } finally {
+      setGrantBusy(false)
+    }
   }
 
   const worldNotesHasContent =
@@ -166,15 +199,141 @@ export function ItemsTab({ role }: ItemsTabProps) {
     ? (worldNotesOpenByItemId[selectedItem.id] ?? worldNotesHasContent)
     : false
 
+  const droppedCount = items.filter((item) => item.status === 'dropped').length
+  const authoredItems = items.filter((item) => item.status !== 'dropped')
+
+  const typeDropdown = (item: CampaignItem) => {
+    if (item.type === 'weapon') {
+      return (
+        <label>
+          Type
+          <select
+            value={item.typeId}
+            disabled={!canEdit}
+            onChange={(event) => {
+              const id = event.target.value
+              if (id === 'custom') {
+                updateSelectedItem({ typeId: 'custom', typeName: '' })
+              } else {
+                const t = OSE_WEAPON_CATALOG.find((w) => w.id === id)
+                if (t) updateSelectedItem({ typeId: id, typeName: t.name })
+              }
+            }}
+          >
+            <option value="custom">Custom</option>
+            {OSE_WEAPON_CATALOG.map((w) => (
+              <option key={w.id} value={w.id}>{w.name}</option>
+            ))}
+          </select>
+        </label>
+      )
+    }
+    if (item.type === 'armour') {
+      return (
+        <label>
+          Type
+          <select
+            value={item.typeId}
+            disabled={!canEdit}
+            onChange={(event) => {
+              const id = event.target.value
+              if (id === 'custom') {
+                updateSelectedItem({ typeId: 'custom', typeName: '' })
+              } else {
+                const t = OSE_ARMOUR_CATALOG.find((a) => a.id === id)
+                if (t) updateSelectedItem({ typeId: id, typeName: t.name })
+              }
+            }}
+          >
+            <option value="custom">Custom</option>
+            {OSE_ARMOUR_CATALOG.map((a) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+        </label>
+      )
+    }
+    if (item.type === 'ammunition') {
+      return (
+        <label>
+          Type
+          <select
+            value={item.typeId}
+            disabled={!canEdit}
+            onChange={(event) => {
+              const id = event.target.value
+              if (id === 'custom') {
+                updateSelectedItem({ typeId: 'custom', typeName: '' })
+              } else {
+                const t = ammoCatalog.find((a) => a.id === id)
+                if (t) updateSelectedItem({ typeId: id, typeName: t.name, gpValue: String(t.costGp), description: t.description })
+              }
+            }}
+          >
+            <option value="custom">Custom</option>
+            {ammoCatalog.map((a) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+        </label>
+      )
+    }
+    if (item.type === 'consumable') {
+      return (
+        <label>
+          Type
+          <select
+            value={item.typeId}
+            disabled={!canEdit}
+            onChange={(event) => {
+              const id = event.target.value
+              if (id === 'custom') {
+                updateSelectedItem({ typeId: 'custom', typeName: '' })
+              }
+            }}
+          >
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+      )
+    }
+    // general
+    return (
+      <label>
+        Type
+        <select
+          value={item.typeId}
+          disabled={!canEdit}
+          onChange={(event) => {
+            const id = event.target.value
+            if (id === 'custom') {
+              updateSelectedItem({ typeId: 'custom', typeName: '' })
+            } else {
+              const t = generalCatalog.find((g) => g.id === id)
+              if (t) updateSelectedItem({ typeId: id, typeName: t.name, gpValue: String(t.costGp), description: t.description })
+            }
+          }}
+        >
+          <option value="custom">Custom</option>
+          {generalCatalog.map((g) => (
+            <option key={g.id} value={g.id}>{g.name}</option>
+          ))}
+        </select>
+      </label>
+    )
+  }
+
   return (
     <div className="maps-layout monsters-layout items-layout">
       {showListPane ? (
         <aside className="maps-sidebar monsters-sidebar items-sidebar">
           <div className="maps-sidebar-header">
             <h2>Items</h2>
-            <button type="button" className="monster-add-btn" onClick={addItem} aria-label="Add item">
-              <Plus size={16} />
-            </button>
+            {canEdit ? (
+              <button type="button" className="monster-add-btn" onClick={addItem} aria-label="Add item">
+                <Plus size={16} />
+              </button>
+            ) : null}
           </div>
 
           <div className="item-type-filter-grid">
@@ -184,10 +343,10 @@ export function ItemsTab({ role }: ItemsTabProps) {
               onClick={() => setTypeFilter('all')}
             >
               <span>All</span>
-              <small>{items.length}</small>
+              <small>{authoredItems.length}</small>
             </button>
             {itemTypeOptions.map((option) => {
-              const count = items.filter((item) => item.type === option.value).length
+              const count = authoredItems.filter((item) => item.type === option.value).length
               return (
                 <button
                   key={option.value}
@@ -200,9 +359,17 @@ export function ItemsTab({ role }: ItemsTabProps) {
                 </button>
               )
             })}
+            <button
+              type="button"
+              className={typeFilter === 'dropped' ? 'item-type-filter active' : 'item-type-filter'}
+              onClick={() => setTypeFilter('dropped')}
+            >
+              <span>Dropped</span>
+              <small>{droppedCount}</small>
+            </button>
           </div>
 
-          {filteredItems.length === 0 ? <p>No items yet. Click + to create one.</p> : null}
+          {filteredItems.length === 0 ? <p>{canEdit ? 'No items yet. Click + to create one.' : 'No items yet.'}</p> : null}
 
           <div className="item-list-grid">
             {filteredItems.map((item) => (
@@ -227,21 +394,27 @@ export function ItemsTab({ role }: ItemsTabProps) {
                   }}
                 >
                   <div className="item-card-head">
-                    <h4>{item.name.trim() || 'Unnamed Item'}</h4>
-                    <span className="item-card-type">{item.type}</span>
+                    <h4>{item.typeName.trim() || item.name.trim() || 'Unnamed Item'}</h4>
+                    <span className="item-card-type">{item.status === 'dropped' ? 'dropped' : item.type}</span>
                   </div>
-                  <p>{item.subtype.trim() || item.description.trim() || 'No details yet'}</p>
+                  <p>
+                    {item.status === 'dropped' && item.droppedByCharacterName
+                      ? `Dropped by ${item.droppedByCharacterName}`
+                      : item.name.trim() || item.description.trim() || 'No details yet'}
+                  </p>
                 </div>
-                <div className="item-actions">
-                  <button
-                    type="button"
-                    className="map-delete-btn"
-                    onClick={() => setDeleteCandidate(item)}
-                    aria-label={`Delete ${item.name || 'item'}`}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
+                {canEdit ? (
+                  <div className="item-actions">
+                    <button
+                      type="button"
+                      className="map-delete-btn"
+                      onClick={() => setDeleteCandidate(item)}
+                      aria-label={`Delete ${item.typeName || item.name || 'item'}`}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
@@ -266,34 +439,27 @@ export function ItemsTab({ role }: ItemsTabProps) {
               <p>Select an item from the list or click + to create one.</p>
             ) : (
               <div className="item-editor-grid">
-                <div className="item-media-rail">
-                  <EntityMediaEditor
-                    entityName={selectedItem.name || 'item'}
-                    portraitUrl={selectedItem.portraitUrl}
-                    portraitFocusX={selectedItem.portraitFocusX}
-                    portraitFocusY={selectedItem.portraitFocusY}
-                    tokenIcon={selectedItem.tokenIcon}
-                    onChange={(updates) => updateSelectedItem(updates)}
-                    portraitAltLabel="Item portrait"
-                    tokenButtonAriaLabel="Edit item token icon"
-                    removePortraitMessage="Remove the portrait image from this item?"
-                  />
-                </div>
+                {canEdit ? (
+                  <div className="item-media-rail">
+                    <EntityMediaEditor
+                      entityName={selectedItem.typeName || selectedItem.name || 'item'}
+                      portraitUrl={selectedItem.portraitUrl}
+                      portraitFocusX={selectedItem.portraitFocusX}
+                      portraitFocusY={selectedItem.portraitFocusY}
+                      tokenIcon={selectedItem.tokenIcon}
+                      onChange={(updates) => updateSelectedItem(updates)}
+                      portraitAltLabel="Item portrait"
+                      tokenButtonAriaLabel="Edit item token icon"
+                      removePortraitMessage="Remove the portrait image from this item?"
+                    />
+                  </div>
+                ) : null}
                 <section className="item-section">
                   <h3 className="monster-section-title">Identity</h3>
                   <div className="item-identity-grid">
-                    <label className="item-field-name">
-                      Name
-                      <input
-                        type="text"
-                        value={selectedItem.name}
-                        onChange={(event) => updateSelectedItem({ name: event.target.value })}
-                        placeholder="Holy Sword of Sir Brandon"
-                      />
-                    </label>
                     <label>
-                      Type
-                      <select value={selectedItem.type} onChange={(event) => updateType(event.target.value as ItemType)}>
+                      Kind
+                      <select value={selectedItem.type} disabled={!canEdit} onChange={(event) => updateType(event.target.value as CampaignItemType)}>
                         {itemTypeOptions.map((option) => (
                           <option key={option.value} value={option.value}>
                             {option.label}
@@ -301,13 +467,27 @@ export function ItemsTab({ role }: ItemsTabProps) {
                         ))}
                       </select>
                     </label>
-                    <label>
-                      Subtype
+                    {typeDropdown(selectedItem)}
+                    {selectedItem.typeId === 'custom' ? (
+                      <label className="item-field-name">
+                        Type Name
+                        <input
+                          type="text"
+                          value={selectedItem.typeName}
+                          readOnly={!canEdit}
+                          onChange={(event) => updateSelectedItem({ typeName: event.target.value })}
+                          placeholder="e.g. Bec de corbin"
+                        />
+                      </label>
+                    ) : null}
+                    <label className="item-field-name">
+                      Name
                       <input
                         type="text"
-                        value={selectedItem.subtype}
-                        onChange={(event) => updateSelectedItem({ subtype: event.target.value })}
-                        placeholder="longsword, ring, relic..."
+                        value={selectedItem.name}
+                        readOnly={!canEdit}
+                        onChange={(event) => updateSelectedItem({ name: event.target.value })}
+                        placeholder="Optional proper name"
                       />
                     </label>
                     <label className="item-field-description">
@@ -315,6 +495,7 @@ export function ItemsTab({ role }: ItemsTabProps) {
                       <input
                         type="text"
                         value={selectedItem.description}
+                        readOnly={!canEdit}
                         onChange={(event) => updateSelectedItem({ description: event.target.value })}
                         placeholder="Core table-facing item description."
                       />
@@ -323,7 +504,7 @@ export function ItemsTab({ role }: ItemsTabProps) {
                 </section>
 
                 <section className="item-section">
-                  <h3 className="monster-section-title">Value & Carry</h3>
+                  <h3 className="monster-section-title">Value</h3>
                   <div className="item-numeric-grid">
                     <label>
                       GP
@@ -331,28 +512,32 @@ export function ItemsTab({ role }: ItemsTabProps) {
                         type="number"
                         min={0}
                         value={selectedItem.gpValue}
+                        readOnly={!canEdit}
                         onChange={(event) => updateSelectedItem({ gpValue: event.target.value })}
                         placeholder="300"
                       />
                     </label>
-                    <label>
-                      Weight
+                    {(selectedItem.type === 'ammunition' || selectedItem.type === 'consumable') ? (
+                      <label>
+                        Qty
+                        <input
+                          type="number"
+                          min={0}
+                          value={selectedItem.qty}
+                          readOnly={!canEdit}
+                          onChange={(event) => updateSelectedItem({ qty: event.target.value })}
+                          placeholder="20"
+                        />
+                      </label>
+                    ) : null}
+                    <label className="item-checkbox-label">
                       <input
-                        type="number"
-                        min={0}
-                        value={selectedItem.weight}
-                        onChange={(event) => updateSelectedItem({ weight: event.target.value })}
-                        placeholder="10"
+                        type="checkbox"
+                        checked={selectedItem.isMagic}
+                        disabled={!canEdit}
+                        onChange={(event) => updateSelectedItem({ isMagic: event.target.checked })}
                       />
-                    </label>
-                    <label>
-                      Qty
-                      <input
-                        type="number"
-                        min={0}
-                        value={selectedItem.quantity}
-                        onChange={(event) => updateSelectedItem({ quantity: event.target.value })}
-                      />
+                      Magic
                     </label>
                   </div>
                 </section>
@@ -360,31 +545,58 @@ export function ItemsTab({ role }: ItemsTabProps) {
                 {selectedItem.type === 'weapon' ? (
                   <section className="item-section">
                     <h3 className="monster-section-title">Weapon Stats</h3>
-                    <div className="item-numeric-grid">
+                    <div className="item-numeric-grid item-template-grid">
                       <label>
-                        Damage
+                        Dice #
                         <input
-                          type="text"
-                          value={selectedItem.weaponStats.damage}
+                          type="number"
+                          min={0}
+                          value={selectedItem.weaponStats.damageDiceCount}
+                          readOnly={!canEdit}
                           onChange={(event) =>
                             updateSelectedItem({
-                              weaponStats: { ...selectedItem.weaponStats, damage: event.target.value },
+                              weaponStats: { ...selectedItem.weaponStats, damageDiceCount: event.target.value },
                             })
                           }
-                          placeholder="1d8"
+                          placeholder="1"
                         />
+                      </label>
+                      <label>
+                        Die
+                        <select
+                          value={selectedItem.weaponStats.damageDiceSides}
+                          disabled={!canEdit}
+                          onChange={(event) =>
+                            updateSelectedItem({
+                              weaponStats: {
+                                ...selectedItem.weaponStats,
+                                damageDiceSides: event.target.value,
+                                damageDiceCount: selectedItem.weaponStats.damageDiceCount || (event.target.value ? '1' : ''),
+                              },
+                            })
+                          }
+                        >
+                          <option value="">—</option>
+                          <option value="4">d4</option>
+                          <option value="6">d6</option>
+                          <option value="8">d8</option>
+                          <option value="10">d10</option>
+                          <option value="12">d12</option>
+                          <option value="20">d20</option>
+                        </select>
                       </label>
                       <label>
                         Atk +
                         <input
                           type="number"
                           value={selectedItem.weaponStats.attackBonus}
+                          readOnly={!canEdit}
                           onChange={(event) =>
                             updateSelectedItem({
                               weaponStats: { ...selectedItem.weaponStats, attackBonus: event.target.value },
                             })
                           }
-                          placeholder="1"
+                          placeholder="0"
                         />
                       </label>
                       <label>
@@ -392,33 +604,160 @@ export function ItemsTab({ role }: ItemsTabProps) {
                         <input
                           type="number"
                           value={selectedItem.weaponStats.damageBonus}
+                          readOnly={!canEdit}
                           onChange={(event) =>
                             updateSelectedItem({
                               weaponStats: { ...selectedItem.weaponStats, damageBonus: event.target.value },
                             })
                           }
-                          placeholder="1"
+                          placeholder="0"
                         />
+                      </label>
+                    </div>
+                    <div className="item-numeric-grid">
+                      <label>
+                        Range S
+                        <input
+                          type="text"
+                          value={selectedItem.weaponStats.rangeShort}
+                          readOnly={!canEdit}
+                          onChange={(event) =>
+                            updateSelectedItem({
+                              weaponStats: { ...selectedItem.weaponStats, rangeShort: event.target.value },
+                            })
+                          }
+                          placeholder="—"
+                        />
+                      </label>
+                      <label>
+                        Range M
+                        <input
+                          type="text"
+                          value={selectedItem.weaponStats.rangeMedium}
+                          readOnly={!canEdit}
+                          onChange={(event) =>
+                            updateSelectedItem({
+                              weaponStats: { ...selectedItem.weaponStats, rangeMedium: event.target.value },
+                            })
+                          }
+                          placeholder="—"
+                        />
+                      </label>
+                      <label>
+                        Range L
+                        <input
+                          type="text"
+                          value={selectedItem.weaponStats.rangeLong}
+                          readOnly={!canEdit}
+                          onChange={(event) =>
+                            updateSelectedItem({
+                              weaponStats: { ...selectedItem.weaponStats, rangeLong: event.target.value },
+                            })
+                          }
+                          placeholder="—"
+                        />
+                      </label>
+                      <label className="item-checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={selectedItem.weaponStats.twoHanded}
+                          disabled={!canEdit}
+                          onChange={(event) =>
+                            updateSelectedItem({
+                              weaponStats: { ...selectedItem.weaponStats, twoHanded: event.target.checked },
+                            })
+                          }
+                        />
+                        Two-handed
                       </label>
                     </div>
                   </section>
                 ) : null}
 
-                {selectedItem.type === 'armor' ? (
+                {selectedItem.type === 'armour' ? (
                   <section className="item-section">
-                    <h3 className="monster-section-title">Armor Stats</h3>
+                    <h3 className="monster-section-title">Armour Stats</h3>
                     <div className="item-numeric-grid">
                       <label>
-                        AC Bonus
+                        {selectedItem.armourStats.armourType === 'shield' ? 'Shield Mod' : 'Armour Class'}
                         <input
                           type="number"
-                          value={selectedItem.armorStats.acBonus}
+                          value={selectedItem.armourStats.armourType === 'shield' ? selectedItem.armourStats.shieldMod : selectedItem.armourStats.armourClass}
+                          readOnly={!canEdit}
                           onChange={(event) =>
                             updateSelectedItem({
-                              armorStats: { ...selectedItem.armorStats, acBonus: event.target.value },
+                              armourStats: selectedItem.armourStats.armourType === 'shield'
+                                ? { ...selectedItem.armourStats, shieldMod: event.target.value }
+                                : { ...selectedItem.armourStats, armourClass: event.target.value },
                             })
                           }
-                          placeholder="1"
+                          placeholder={selectedItem.armourStats.armourType === 'shield' ? '-1' : '7'}
+                        />
+                      </label>
+                      <label>
+                        Magic Mod
+                        <input
+                          type="number"
+                          value={selectedItem.armourStats.magicMod}
+                          readOnly={!canEdit}
+                          onChange={(event) =>
+                            updateSelectedItem({
+                              armourStats: { ...selectedItem.armourStats, magicMod: event.target.value },
+                            })
+                          }
+                          placeholder="0"
+                        />
+                      </label>
+                      <label>
+                        Type
+                        <select
+                          value={selectedItem.armourStats.armourType}
+                          disabled={!canEdit}
+                          onChange={(event) =>
+                            updateSelectedItem({
+                              armourStats: { ...selectedItem.armourStats, armourType: event.target.value as 'body' | 'shield' },
+                            })
+                          }
+                        >
+                          <option value="body">Body Armour</option>
+                          <option value="shield">Shield</option>
+                        </select>
+                      </label>
+                    </div>
+                  </section>
+                ) : null}
+
+                {selectedItem.type === 'consumable' ? (
+                  <section className="item-section">
+                    <h3 className="monster-section-title">Consumable Stats</h3>
+                    <div className="item-numeric-grid">
+                      <label>
+                        Use Mode
+                        <select
+                          value={selectedItem.consumableStats.useMode}
+                          disabled={!canEdit}
+                          onChange={(event) =>
+                            updateSelectedItem({
+                              consumableStats: { ...selectedItem.consumableStats, useMode: event.target.value as 'consume' | 'use' },
+                            })
+                          }
+                        >
+                          <option value="consume">Consume (drink, eat, apply)</option>
+                          <option value="use">Use (light, activate, burn)</option>
+                        </select>
+                      </label>
+                      <label className="item-field-description">
+                        Effect
+                        <input
+                          type="text"
+                          value={selectedItem.consumableStats.effectText}
+                          readOnly={!canEdit}
+                          onChange={(event) =>
+                            updateSelectedItem({
+                              consumableStats: { ...selectedItem.consumableStats, effectText: event.target.value },
+                            })
+                          }
+                          placeholder="Effect description"
                         />
                       </label>
                     </div>
@@ -459,6 +798,7 @@ export function ItemsTab({ role }: ItemsTabProps) {
                         <input
                           type="text"
                           value={selectedItem.specialRule}
+                          readOnly={!canEdit}
                           onChange={(event) => updateSelectedItem({ specialRule: event.target.value })}
                           placeholder="Any non-standard ruling text."
                         />
@@ -467,6 +807,7 @@ export function ItemsTab({ role }: ItemsTabProps) {
                         Notes
                         <textarea
                           value={selectedItem.notes}
+                          readOnly={!canEdit}
                           onChange={(event) => updateSelectedItem({ notes: event.target.value })}
                           placeholder="Story-facing effects and GM reminders."
                         />
@@ -474,6 +815,36 @@ export function ItemsTab({ role }: ItemsTabProps) {
                     </div>
                   ) : null}
                 </section>
+
+                {canEdit && characters.length > 0 ? (
+                  <section className="item-section">
+                    <h3 className="monster-section-title">Grant to Character</h3>
+                    <div className="item-grant-row">
+                      <select
+                        value={grantTargetId}
+                        onChange={(event) => setGrantTargetId(event.target.value)}
+                      >
+                        <option value="">Select character…</option>
+                        {characters.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name || 'Unnamed'} ({c.className} {c.level})
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="icon-btn add-btn"
+                        disabled={!grantTargetId || grantBusy}
+                        onClick={grantItemToCharacter}
+                        aria-label="Grant item to selected character"
+                      >
+                        <Gift size={14} />
+                        {grantBusy ? ' …' : ' Grant'}
+                      </button>
+                    </div>
+                    {grantFeedback ? <p className="item-grant-feedback">{grantFeedback}</p> : null}
+                  </section>
+                ) : null}
               </div>
             )}
           </div>
@@ -482,9 +853,9 @@ export function ItemsTab({ role }: ItemsTabProps) {
       <ConfirmModal
         open={deleteCandidate !== null}
         title="Delete Item?"
-        message={`Permanently remove "${deleteCandidate?.name ?? ''}"?`}
+        message={`Permanently remove "${deleteCandidate?.typeName || deleteCandidate?.name || ''}"?`}
         confirmLabel="Delete"
-        onConfirm={deleteItem}
+        onConfirm={confirmDeleteItem}
         onCancel={() => setDeleteCandidate(null)}
       />
     </div>

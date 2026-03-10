@@ -157,6 +157,12 @@ service cloud.firestore {
         allow write: if isCampaignGM(campaignId);
       }
 
+      match /items/{itemId} {
+        allow read: if isCampaignMember(campaignId);
+        allow create: if isCampaignMember(campaignId) && request.resource.data.status == 'dropped';
+        allow update, delete: if isCampaignGM(campaignId);
+      }
+
       match /images/{imageId} {
         allow read: if isCampaignGM(campaignId) || (isCampaignMember(campaignId) && resource.data.revealed == true);
         allow write: if isCampaignGM(campaignId);

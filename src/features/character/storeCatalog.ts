@@ -6,9 +6,10 @@ export type StoreItem = {
   name: string
   costGp: number
   description: string
-  kind: 'general' | 'weapon' | 'ammunition' | 'armour' | 'custom'
+  kind: 'general' | 'weapon' | 'ammunition' | 'armour' | 'consumable'
   weaponId?: string
   armourId?: string
+  armourType?: 'body' | 'shield'
 }
 
 export const STORE_CATEGORY_LABELS: Record<StoreCategoryId, string> = {
@@ -70,10 +71,10 @@ export const OSE_STORE_ITEMS: StoreItem[] = [
   { id: 'ammo-silver-arrow', category: 'ammunition', name: 'Silver tipped arrow (1)', costGp: 5, description: 'Single silver-tipped arrow.', kind: 'ammunition' },
   { id: 'ammo-sling-stones', category: 'ammunition', name: 'Sling stones', costGp: 0, description: 'Common stones, free.', kind: 'ammunition' },
 
-  { id: 'arm-leather', category: 'armour', name: 'Leather', costGp: 20, description: 'AC 7 [12].', kind: 'armour', armourId: 'leather' },
-  { id: 'arm-chainmail', category: 'armour', name: 'Chainmail', costGp: 40, description: 'AC 5 [14].', kind: 'armour', armourId: 'chainmail' },
-  { id: 'arm-plate', category: 'armour', name: 'Plate mail', costGp: 60, description: 'AC 3 [16].', kind: 'armour', armourId: 'plate-mail' },
-  { id: 'arm-shield', category: 'armour', name: 'Shield', costGp: 10, description: '+1 AC bonus.', kind: 'armour', armourId: 'shield' },
+  { id: 'arm-leather', category: 'armour', name: 'Leather', costGp: 20, description: 'AC 7 [12].', kind: 'armour', armourId: 'leather', armourType: 'body' },
+  { id: 'arm-chainmail', category: 'armour', name: 'Chainmail', costGp: 40, description: 'AC 5 [14].', kind: 'armour', armourId: 'chainmail', armourType: 'body' },
+  { id: 'arm-plate', category: 'armour', name: 'Plate mail', costGp: 60, description: 'AC 3 [16].', kind: 'armour', armourId: 'plate-mail', armourType: 'body' },
+  { id: 'arm-shield', category: 'armour', name: 'Shield', costGp: 10, description: '+1 AC bonus.', kind: 'armour', armourId: 'shield', armourType: 'shield' },
 
   {
     id: 'other-custom',
@@ -81,6 +82,6 @@ export const OSE_STORE_ITEMS: StoreItem[] = [
     name: 'Custom equipment',
     costGp: 0,
     description: 'For items not listed. Referee sets final price/characteristics.',
-    kind: 'custom',
+    kind: 'general',
   },
 ]
