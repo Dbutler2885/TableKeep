@@ -46,8 +46,8 @@ import {
   ARCANE_SPELL_CATALOG,
   SPELL_BOOK_ITEM_NAME,
   SPELL_BOOK_TYPE_ID,
-  accessibleArcaneSpellLevelsByCharacterLevel,
   arcaneSpellById,
+  getAccessibleArcaneSpellLevels,
   spellBookSlotsPerSpellLevel,
 } from './spellCatalog'
 import type { StoreCategoryId, StoreItem } from './storeCatalog'
@@ -1068,7 +1068,7 @@ export function CharacterTab({
   const selectedMemorizedSpells = selectedMemorizedSpellIds
     .map((id) => arcaneSpellById[id])
     .filter((spell): spell is CharacterSpell => !!spell)
-  const accessibleSpellLevels = accessibleArcaneSpellLevelsByCharacterLevel[Math.min(3, Math.max(1, selectedLevel))] ?? [1]
+  const accessibleSpellLevels = getAccessibleArcaneSpellLevels(selectedLevel)
   const unlockedClassFeatures = (classFeaturesByClass[selectedClassName] ?? [])
     .filter((feature) => selectedLevel >= feature.unlockedAt)
     .sort((a, b) => a.unlockedAt - b.unlockedAt)
@@ -3010,11 +3010,11 @@ export function CharacterTab({
                               <input
                                 type="number"
                                 min={1}
-                                max={3}
+                                max={14}
                                 value={String(effectiveSelected.level)}
                                 onChange={(event) => {
                                   const parsed = Number(event.target.value || 1)
-                                  updateSelectedCharacter({ level: Math.min(3, Math.max(1, parsed)) })
+                                  updateSelectedCharacter({ level: Math.min(14, Math.max(1, parsed)) })
                                 }}
                                 disabled={!canEditSelected}
                               />
