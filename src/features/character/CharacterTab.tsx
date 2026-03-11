@@ -822,10 +822,7 @@ export function CharacterTab({
     if (!selectedCharacterId) return
     if (!seededCharacterIdsRef.current.has(selectedCharacterId)) return
     // Skip the render immediately after seeding — state updates haven't been processed yet
-    if (justSeededRef.current.has(selectedCharacterId)) {
-      justSeededRef.current.delete(selectedCharacterId)
-      return
-    }
+    if (justSeededRef.current.has(selectedCharacterId)) return
 
     const details: CharacterSheetDetails = {
       abilityScores: abilityScoresByCharacterId[selectedCharacterId] ?? emptyAbilityScores(),
@@ -1581,6 +1578,7 @@ export function CharacterTab({
   useEffect(() => {
     if (!effectiveSelected) return
     if (!seededCharacterIdsRef.current.has(effectiveSelected.id)) return
+    if (justSeededRef.current.has(effectiveSelected.id)) return
     if (saveScoresByCharacterId[effectiveSelected.id]) return
     applyClassDerivedData(effectiveSelected.id, effectiveSelected.className)
   }, [effectiveSelected, saveScoresByCharacterId])
@@ -1588,6 +1586,7 @@ export function CharacterTab({
   useEffect(() => {
     if (!effectiveSelected) return
     if (!seededCharacterIdsRef.current.has(effectiveSelected.id)) return
+    if (justSeededRef.current.has(effectiveSelected.id)) return
     if (effectiveSelected.level < 1 || effectiveSelected.level > 3) return
     if ((thacoByCharacterId[effectiveSelected.id] ?? '').trim().length > 0) return
     setThacoByCharacterId((current) => ({
@@ -1599,6 +1598,7 @@ export function CharacterTab({
   useEffect(() => {
     if (!effectiveSelected) return
     if (!seededCharacterIdsRef.current.has(effectiveSelected.id)) return
+    if (justSeededRef.current.has(effectiveSelected.id)) return
     const characterId = effectiveSelected.id
     const className = effectiveSelected.className
     const seededClass = adventureSeedClassByCharacterId[characterId]
@@ -1616,6 +1616,7 @@ export function CharacterTab({
   useEffect(() => {
     if (!effectiveSelected) return
     if (!seededCharacterIdsRef.current.has(effectiveSelected.id)) return
+    if (justSeededRef.current.has(effectiveSelected.id)) return
     if (effectiveSelected.className !== 'Thief') return
     if (thiefSkillsByCharacterId[effectiveSelected.id]) return
     setThiefSkillsByCharacterId((current) => ({
@@ -1669,6 +1670,13 @@ export function CharacterTab({
       setStoreError(null)
     }
   }, [isGuidedCreation, storeOpen])
+
+  // Clear justSeeded AFTER all init effects have run (effect order matters —
+  // this must be defined after the init effects so they can see justSeeded as true)
+  useEffect(() => {
+    if (!selectedCharacterId) return
+    justSeededRef.current.delete(selectedCharacterId)
+  })
 
   const updateInventoryItem = (itemId: string, updates: Partial<CharacterInventoryItem>) => {
     if (!effectiveSelected) return

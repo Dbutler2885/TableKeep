@@ -57,7 +57,6 @@ import {
   ENCOUNTER_CHECK_DISTANCE_FEET,
   ENCOUNTER_CHECK_TURNS,
   FOG_CANVAS_MAX_DIM,
-  LOS_SURFACE_REVEAL_MULTIPLIER,
   TOKEN_REFERENCE_DIMENSION,
   TOKEN_RENDER_SIZE_MAX,
   TOKEN_SIZE_MAX,
@@ -82,6 +81,8 @@ import { useTokenAnimation } from './hooks/useTokenAnimation'
 import { useTokenDrag } from './hooks/useTokenDrag'
 import { useEncounterTracking } from './hooks/useEncounterTracking'
 import { useTokenAssets } from './hooks/useTokenAssets'
+
+const SURFACE_REVEAL_INTERVAL_MS = 150
 
 export function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }) {
   const [selectedMapId, setSelectedMapId] = useState('')
@@ -110,8 +111,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const fullMapLayerRef = useRef<HTMLDivElement | null>(null)
   const suppressNextMapClickRef = useRef(false)
   const revealMaskCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const blockerHitMaskCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const blockerCompositeCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const lastSurfaceRevealAtRef = useRef(0)
   const inlineLosSeenCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const fullLosSeenCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const tokenAnimationsRef = useRef<Record<string, TokenPathAnimation>>({})
@@ -154,7 +155,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const losSeenOverlayOpacity = role === 'gm' && !streamingMode ? 0.75 : 0
   const usingFullScreenCanvas = fullScreenOpen && !isMobile
   const activeMapLayerRef = usingFullScreenCanvas ? fullMapLayerRef : inlineMapLayerRef
-  const activeLosSeenCanvasRef = usingFullScreenCanvas ? fullLosSeenCanvasRef : inlineLosSeenCanvasRef
   const activeMapDimension = Math.max(
     1,
     Math.min(
@@ -676,26 +676,12 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     maskCtx.clearRect(clippedMinX, clippedMinY, regionWidth, regionHeight)
     maskCtx.fillStyle = 'rgba(0,0,0,1)'
 
-    let blockerMaskCanvas = blockerHitMaskCanvasRef.current
-    if (!blockerMaskCanvas) {
-      blockerMaskCanvas = document.createElement('canvas')
-      blockerHitMaskCanvasRef.current = blockerMaskCanvas
-    }
-    if (blockerMaskCanvas.width !== fogCanvas.width || blockerMaskCanvas.height !== fogCanvas.height) {
-      blockerMaskCanvas.width = fogCanvas.width
-      blockerMaskCanvas.height = fogCanvas.height
-    }
-    const blockerMaskCtx = blockerMaskCanvas.getContext('2d', { willReadFrequently: true })
-    if (!blockerMaskCtx) return
-    blockerMaskCtx.clearRect(clippedMinX, clippedMinY, regionWidth, regionHeight)
-    blockerMaskCtx.fillStyle = 'rgba(0,0,0,1)'
-
     const rays = Math.max(220, Math.min(1800, Math.round(radius * 5.4)))
     const rayStep = (Math.PI * 2) / rays
     const distStep = 1
     const dot = Math.max(1, radius * 0.03)
-    const surfaceDot = Math.max(2, dot * LOS_SURFACE_REVEAL_MULTIPLIER)
     let hitSurfaceBlocker = false
+    const surfaceHitPoints: Array<{ x: number; y: number }> = []
     const pixelAt = (x: number, y: number) => {
       const lx = x - clippedMinX
       const ly = y - clippedMinY
@@ -727,10 +713,10 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         if (x < clippedMinX || x > clippedMaxX || y < clippedMinY || y > clippedMaxY) break
         const blockerKind = blockerKindAt(x, y)
         if (blockerKind !== 'none') {
-          if (blockerKind === 'surface') hitSurfaceBlocker = true
-          blockerMaskCtx.beginPath()
-          blockerMaskCtx.arc(x, y, surfaceDot, 0, Math.PI * 2)
-          blockerMaskCtx.fill()
+          if (blockerKind === 'surface') {
+            hitSurfaceBlocker = true
+            surfaceHitPoints.push({ x, y })
+          }
           break
         }
         maskCtx.beginPath()
@@ -754,10 +740,17 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     )
     fogCtx.restore()
 
-    // If LOS touches blocker paint, reveal all blocker-painted pixels in this
-    // sampled region so walls/buildings remain visible while still blocking
-    // reveal through them.
-    if (hitSurfaceBlocker) {
+    // If LOS touches a surface blocker, reveal only connected surface-blocker
+    // paint components that were actually touched by rays. This keeps
+    // background blockers hidden behind foreground blockers.
+    const now = Date.now()
+    const shouldProcessSurfaceReveal =
+      hitSurfaceBlocker &&
+      surfaceHitPoints.length > 0 &&
+      now - lastSurfaceRevealAtRef.current >= SURFACE_REVEAL_INTERVAL_MS
+
+    if (shouldProcessSurfaceReveal) {
+      lastSurfaceRevealAtRef.current = now
       let surfaceMaskCanvas = blockerCompositeCanvasRef.current
       if (!surfaceMaskCanvas) {
         surfaceMaskCanvas = document.createElement('canvas')
@@ -770,19 +763,52 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       const compositeCtx = surfaceMaskCanvas.getContext('2d', { willReadFrequently: true })
       if (compositeCtx) {
         const surfaceMask = compositeCtx.createImageData(regionWidth, regionHeight)
-        for (let i = 0; i < visionData.length; i += 4) {
-          const r = visionData[i] ?? 0
-          const g = visionData[i + 1] ?? 0
-          const b = visionData[i + 2] ?? 0
-          const a = visionData[i + 3] ?? 0
+        const visited = new Uint8Array(regionWidth * regionHeight)
+        const queue: number[] = []
+        const isSurfaceLocal = (lx: number, ly: number) => {
+          if (lx < 0 || ly < 0 || lx >= regionWidth || ly >= regionHeight) return false
+          const dataIndex = (ly * regionWidth + lx) * 4
+          const r = visionData[dataIndex] ?? 0
+          const g = visionData[dataIndex + 1] ?? 0
+          const b = visionData[dataIndex + 2] ?? 0
+          const a = visionData[dataIndex + 3] ?? 0
+          if (a <= 20) return false
           const isFull = b >= r + 20 && b >= g + 10
-          const isSurface = a > 20 && !isFull
-          if (!isSurface) continue
-          surfaceMask.data[i] = 255
-          surfaceMask.data[i + 1] = 255
-          surfaceMask.data[i + 2] = 255
-          surfaceMask.data[i + 3] = 255
+          return !isFull
         }
+        const enqueueLocal = (lx: number, ly: number) => {
+          if (lx < 0 || ly < 0 || lx >= regionWidth || ly >= regionHeight) return
+          const flat = ly * regionWidth + lx
+          if (visited[flat]) return
+          visited[flat] = 1
+          if (!isSurfaceLocal(lx, ly)) return
+          queue.push(flat)
+        }
+
+        for (const hit of surfaceHitPoints) {
+          enqueueLocal(hit.x - clippedMinX, hit.y - clippedMinY)
+        }
+
+        for (let head = 0; head < queue.length; head += 1) {
+          const flat = queue[head]
+          const lx = flat % regionWidth
+          const ly = Math.floor(flat / regionWidth)
+          const dataIndex = flat * 4
+          surfaceMask.data[dataIndex] = 255
+          surfaceMask.data[dataIndex + 1] = 255
+          surfaceMask.data[dataIndex + 2] = 255
+          surfaceMask.data[dataIndex + 3] = 255
+
+          enqueueLocal(lx - 1, ly)
+          enqueueLocal(lx + 1, ly)
+          enqueueLocal(lx, ly - 1)
+          enqueueLocal(lx, ly + 1)
+          enqueueLocal(lx - 1, ly - 1)
+          enqueueLocal(lx + 1, ly - 1)
+          enqueueLocal(lx - 1, ly + 1)
+          enqueueLocal(lx + 1, ly + 1)
+        }
+
         compositeCtx.clearRect(clippedMinX, clippedMinY, regionWidth, regionHeight)
         compositeCtx.putImageData(surfaceMask, clippedMinX, clippedMinY)
         fogCtx.save()
@@ -801,30 +827,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         fogCtx.restore()
       }
     }
-
-    const losSeenCanvas = activeLosSeenCanvasRef.current
-    if (!losSeenCanvas) return
-    if (losSeenCanvas.width !== fogCanvas.width || losSeenCanvas.height !== fogCanvas.height) {
-      losSeenCanvas.width = fogCanvas.width
-      losSeenCanvas.height = fogCanvas.height
-    }
-
-    let blockerCompositeCanvas = blockerCompositeCanvasRef.current
-    if (!blockerCompositeCanvas) {
-      blockerCompositeCanvas = document.createElement('canvas')
-      blockerCompositeCanvasRef.current = blockerCompositeCanvas
-    }
-    if (blockerCompositeCanvas.width !== fogCanvas.width || blockerCompositeCanvas.height !== fogCanvas.height) {
-      blockerCompositeCanvas.width = fogCanvas.width
-      blockerCompositeCanvas.height = fogCanvas.height
-    }
-
-    const compositeCtx = blockerCompositeCanvas.getContext('2d', { willReadFrequently: true })
-    const losSeenCtx = losSeenCanvas.getContext('2d', { willReadFrequently: true })
-    if (!compositeCtx || !losSeenCtx) return
-
-    compositeCtx.clearRect(clippedMinX, clippedMinY, regionWidth, regionHeight)
-    losSeenCtx.clearRect(clippedMinX, clippedMinY, regionWidth, regionHeight)
   }
 
   const revealFromTokenStroke = (
