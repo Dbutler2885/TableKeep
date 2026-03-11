@@ -51,6 +51,42 @@ import {
   spellBookSlotsPerSpellLevel,
 } from './spellCatalog'
 import type { StoreCategoryId, StoreItem } from './storeCatalog'
+import {
+  type AbilityCode,
+  type AbilityScores,
+  type SaveScores,
+  type AdventureScores,
+  type ThiefSkillScores,
+  emptyAbilityScores,
+  abilityCodes,
+  loweringCandidateCodes,
+  classLevel1Saves,
+  classHitDieByClass,
+  adventureDefaultsByClass,
+  defaultThiefSkills,
+  abilityModifier,
+  formatModifier,
+  conModifierByScore,
+  formatTableModifier,
+  openStuckDoorByStr,
+  meleeModifierByStr,
+  dexCombatModByDex,
+  dexAcModByDex,
+  dexMissileModByDex,
+  wisMagicSaveModifierByScore,
+  primeRequisiteCodesForClass,
+  buildGuidedAbilityScores,
+  clampInSix,
+} from './characterRules'
+import {
+  resolveArmourType,
+  applyWeaponTemplateToItem,
+  applyArmourTemplateToItem,
+  isWeaponTemplateAllowedForClass,
+  isArmourTemplateAllowedForClass,
+} from './inventoryRules'
+import { makeId, stableStringify, makeSpellBookItem, makeWeaponItem, makeArmourItem } from './characterFactories'
+import { materializeCartEntries, validateStorePurchase } from './storeRules'
 
 type CharacterTabProps = {
   campaignId: string
@@ -69,14 +105,9 @@ type CharacterTabProps = {
   hasPendingWrite: (id: string) => boolean
 }
 
-type AbilityCode = 'STR' | 'INT' | 'WIS' | 'DEX' | 'CON' | 'CHA'
-type AbilityScores = Record<AbilityCode, string>
 type SaveCode = 'D' | 'W' | 'P' | 'B' | 'S'
-type SaveScores = Record<SaveCode, string>
 type AdventureEditableCode = 'FG' | 'FT' | 'HT' | 'LD' | 'SD'
-type AdventureScores = Record<AdventureEditableCode, string>
 type ThiefSkillCode = 'CS' | 'TR' | 'HN' | 'HS' | 'MS' | 'OL' | 'PP' | 'RL'
-type ThiefSkillScores = Record<ThiefSkillCode, string>
 type ClassFeature = {
   id: string
   name: string
@@ -88,17 +119,6 @@ type ClassFeature = {
   }>
 }
 
-const emptyAbilityScores = (): AbilityScores => ({
-  STR: '',
-  INT: '',
-  WIS: '',
-  DEX: '',
-  CON: '',
-  CHA: '',
-})
-
-const abilityCodes: AbilityCode[] = ['STR', 'INT', 'WIS', 'DEX', 'CON', 'CHA']
-const loweringCandidateCodes: AbilityCode[] = ['STR', 'INT', 'WIS']
 
 const abilityRows = [
   { code: 'STR', note: 'Melee atk./dmg., open doors' },
@@ -340,66 +360,6 @@ const classFeaturesByClass: Record<string, ClassFeature[]> = {
     },
   ],
 }
-const classHitDieByClass: Record<string, number> = {
-  Cleric: 6,
-  Dwarf: 8,
-  Elf: 6,
-  Fighter: 8,
-  Halfling: 6,
-  'Magic-User': 4,
-  Thief: 4,
-}
-const classLevel1Saves: Record<string, SaveScores> = {
-  Cleric: {
-    D: '11',
-    W: '12',
-    P: '14',
-    B: '16',
-    S: '15',
-  },
-  Dwarf: {
-    D: '8',
-    W: '9',
-    P: '10',
-    B: '13',
-    S: '12',
-  },
-  Elf: {
-    D: '12',
-    W: '13',
-    P: '13',
-    B: '15',
-    S: '15',
-  },
-  Fighter: {
-    D: '12',
-    W: '13',
-    P: '14',
-    B: '15',
-    S: '16',
-  },
-  Halfling: {
-    D: '8',
-    W: '9',
-    P: '10',
-    B: '13',
-    S: '12',
-  },
-  'Magic-User': {
-    D: '13',
-    W: '14',
-    P: '13',
-    B: '16',
-    S: '15',
-  },
-  Thief: {
-    D: '13',
-    W: '14',
-    P: '13',
-    B: '16',
-    S: '15',
-  },
-}
 
 const alignmentOptions = ['Law', 'Neutrality', 'Chaos']
 const packedSlotThresholds = [18, 16, 13, 9, 6, 4]
@@ -418,24 +378,6 @@ const defaultTokenIcon = {
   color: '#bf2f2a',
   size: 34,
 }
-const makeId = () => {
-  if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID()
-  }
-  return `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-}
-
-// Key-order-independent JSON for comparing Firestore round-tripped objects
-const stableStringify = (value: unknown): string =>
-  JSON.stringify(value, (_, v) => {
-    if (v && typeof v === 'object' && !Array.isArray(v)) {
-      return Object.keys(v as Record<string, unknown>).sort().reduce<Record<string, unknown>>((acc, k) => {
-        acc[k] = (v as Record<string, unknown>)[k]
-        return acc
-      }, {})
-    }
-    return v
-  })
 
 const renderSpellDescriptionBody = (spell: CharacterSpell): ReactNode[] => {
   const lines = spell.description
@@ -475,61 +417,6 @@ const renderSpellDescriptionBody = (spell: CharacterSpell): ReactNode[] => {
   return blocks
 }
 
-const makeSpellBookItem = (): CharacterGeneralItem => ({
-  id: makeId(),
-  kind: 'general',
-  typeId: SPELL_BOOK_TYPE_ID,
-  typeName: SPELL_BOOK_ITEM_NAME,
-  name: SPELL_BOOK_ITEM_NAME,
-  costGp: 0,
-  equipped: false,
-  notes: '',
-  qty: 1,
-  stack: DEFAULT_STACK_POLICY.general,
-})
-
-
-const makeWeaponItem = (overrides?: Partial<CharacterWeaponItem>): CharacterWeaponItem => ({
-  id: makeId(),
-  kind: 'weapon',
-  costGp: 0,
-  equipped: false,
-  notes: '',
-  typeId: 'custom',
-  typeName: '',
-  qty: 1,
-  stack: DEFAULT_STACK_POLICY.weapon,
-  isMagic: false,
-  damageDiceCount: '',
-  damageDiceSides: '',
-  attackBonus: '',
-  damageBonus: '',
-  rangeShort: '',
-  rangeMedium: '',
-  rangeLong: '',
-  twoHanded: false,
-  ...overrides,
-})
-
-const makeArmourItem = (overrides?: Partial<CharacterArmourItem>): CharacterArmourItem => ({
-  id: makeId(),
-  kind: 'armour',
-  costGp: 0,
-  equipped: false,
-  notes: '',
-  typeId: 'custom',
-  typeName: '',
-  qty: 1,
-  stack: DEFAULT_STACK_POLICY.armour,
-  isMagic: false,
-  armourClass: '',
-  shieldMod: '',
-  magicMod: '',
-  armourType: 'body',
-  ...overrides,
-})
-
-// Gold utilities (makeGoldItem, normalizeGoldAmount, goldChunksForAmount) imported from inventoryOverflow.ts
 
 const migrateToInventory = (details: CharacterSheetDetails): CharacterInventoryItem[] => {
   const items: CharacterInventoryItem[] = []
@@ -626,85 +513,7 @@ const migrateToInventory = (details: CharacterSheetDetails): CharacterInventoryI
   return items
 }
 
-const adventureDefaultsByClass = (className: string): AdventureScores => {
-  const defaults: AdventureScores = { FG: '1', FT: '1', HT: '1', LD: '1', SD: '1' }
-  if (className === 'Dwarf') return { ...defaults, FT: '2', LD: '2' }
-  if (className === 'Elf') return { ...defaults, LD: '2', SD: '2' }
-  if (className === 'Halfling') return { ...defaults, LD: '2' }
-  return defaults
-}
 
-const defaultThiefSkills = (): ThiefSkillScores => ({
-  CS: '1',
-  TR: '1',
-  HN: '1',
-  HS: '1',
-  MS: '1',
-  OL: '1',
-  PP: '1',
-  RL: '1',
-})
-
-const parseDamageDice = (value: string): { damageDiceCount: string; damageDiceSides: string } => {
-  const match = value.trim().match(/^(\d+)\s*d\s*(\d+)$/i)
-  if (!match) return { damageDiceCount: '', damageDiceSides: '' }
-  return {
-    damageDiceCount: match[1],
-    damageDiceSides: match[2],
-  }
-}
-
-const parseRangeBands = (value: string): { rangeShort: string; rangeMedium: string; rangeLong: string } => {
-  const parts = value
-    .split('/')
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0)
-  if (parts.length !== 3) return { rangeShort: '', rangeMedium: '', rangeLong: '' }
-  const parsed = parts.map((part) => {
-    const match = part.match(/(\d+)(?!.*\d)/)
-    return match?.[1] ?? ''
-  })
-  if (parsed.some((part) => part.length === 0)) return { rangeShort: '', rangeMedium: '', rangeLong: '' }
-  return {
-    rangeShort: parsed[0],
-    rangeMedium: parsed[1],
-    rangeLong: parsed[2],
-  }
-}
-
-const parseArmourTemplateValues = (acValue: string): { armourClass: string; shieldMod: string; magicMod: string } => {
-  const trimmed = acValue.trim()
-  const numeric = trimmed.match(/^-?\d+$/)
-  if (numeric) return { armourClass: trimmed, shieldMod: '', magicMod: '' }
-
-  const bonus = trimmed.match(/^([+-]?\d+)\s*bonus$/i)
-  if (bonus) {
-    const parsed = Number.parseInt(bonus[1], 10)
-    return {
-      armourClass: '',
-      shieldMod: Number.isNaN(parsed) ? '' : String(-parsed),
-      magicMod: '',
-    }
-  }
-
-  return { armourClass: '', shieldMod: '', magicMod: '' }
-}
-
-const armourTypeFromTemplateId = (templateId: string): 'body' | 'shield' =>
-  armourCatalogById[templateId]?.armourType ?? 'body'
-
-const resolveArmourType = (item: CharacterArmourItem): 'body' | 'shield' =>
-  item.armourType === 'shield' ? 'shield' : armourTypeFromTemplateId(item.typeId)
-
-const normalizeTemplateArmourValues = (
-  values: { armourClass: string; shieldMod: string; magicMod: string },
-  armourType: 'body' | 'shield',
-): { armourClass: string; shieldMod: string; magicMod: string } => {
-  if (armourType === 'shield') {
-    return { armourClass: '', shieldMod: values.shieldMod, magicMod: '' }
-  }
-  return { armourClass: values.armourClass, shieldMod: '', magicMod: values.magicMod }
-}
 
 export function CharacterTab({
   campaignId,
@@ -1015,17 +824,7 @@ export function CharacterTab({
     ? rolledAbilityScoresByCharacterId[effectiveSelected.id] ?? null
     : null
   const hasRolledAbilityScores = !!(effectiveSelected && abilityScoresRolledByCharacterId[effectiveSelected.id])
-  const primeRequisiteCodes: AbilityCode[] = (() => {
-    const className = effectiveSelected?.className ?? ''
-    if (className === 'Cleric') return ['WIS']
-    if (className === 'Fighter') return ['STR']
-    if (className === 'Magic-User') return ['INT']
-    if (className === 'Thief') return ['DEX']
-    if (className === 'Dwarf') return ['STR']
-    if (className === 'Elf') return ['INT', 'STR']
-    if (className === 'Halfling') return ['DEX', 'STR']
-    return []
-  })()
+  const primeRequisiteCodes = primeRequisiteCodesForClass(effectiveSelected?.className ?? '')
   const loweringCodes = loweringCandidateCodes.filter((code) => !primeRequisiteCodes.includes(code))
   const selectedStrRaw = selectedAbilityScores.STR
   const selectedDexRaw = selectedAbilityScores.DEX
@@ -1104,25 +903,6 @@ export function CharacterTab({
   const selectedStoreCartTotal = selectedStoreCart.reduce((sum, entry) => sum + entry.costGp * entry.qty, 0)
   const selectedStoreRemaining = (selectedStartingGold ?? 0) - selectedCommittedStoreSpent - selectedStoreCartTotal
   const visibleStoreItems = OSE_STORE_ITEMS.filter((item) => item.category === storeCategory)
-  const isWeaponTemplateAllowedForClass = (weaponId: string, className: string) => {
-    if (!weaponId || weaponId === 'custom') return true
-    const template = weaponCatalogById[weaponId]
-    if (!template) return true
-    if (className === 'Dwarf') {
-      const dwarfDisallowedLargeWeapons = new Set(['long-bow', 'pole-arm', 'two-handed-sword'])
-      return !dwarfDisallowedLargeWeapons.has(template.id)
-    }
-    if (className === 'Cleric') return template.qualities.includes('Blunt')
-    if (className === 'Magic-User') return template.id === 'dagger'
-    if (className === 'Halfling') return !template.twoHanded
-    return true
-  }
-  const isArmourTemplateAllowedForClass = (armourId: string, className: string) => {
-    if (className === 'Thief') return armourId === 'leather'
-    if (className === 'Magic-User') return false
-    if (!armourId || armourId === 'custom') return true
-    return !!armourCatalogById[armourId]
-  }
   const canClassEquipArmour = selectedClassName !== 'Magic-User'
   const renderFeatureSummary = (feature: ClassFeature): ReactNode => {
     const links = feature.summaryLinks ?? []
@@ -1288,78 +1068,6 @@ export function CharacterTab({
     return sum + Math.max(0, score - 1)
   }, 0)
   const thiefRemainingExpertisePoints = Math.max(0, thiefTotalExpertisePoints - thiefSpentExpertisePoints)
-
-  const abilityModifier = (score: number) => {
-    if (score <= 3) return -2
-    if (score <= 5) return -1
-    if (score <= 8) return -1
-    if (score <= 12) return 0
-    if (score <= 15) return 1
-    if (score <= 17) return 1
-    return 2
-  }
-
-  const formatModifier = (value: number) => {
-    if (value > 0) return `+${value}`
-    return String(value)
-  }
-
-  const conModifierByScore = (score: number) => {
-    if (score <= 3) return -3
-    if (score <= 5) return -2
-    if (score <= 8) return -1
-    if (score <= 12) return 0
-    if (score <= 15) return 1
-    if (score <= 17) return 2
-    return 3
-  }
-
-  const formatTableModifier = (value: number) => {
-    if (value === 0) return 'None'
-    if (value > 0) return `+${value}`
-    return String(value)
-  }
-
-  const openStuckDoorByStr = (score: number) => {
-    if (score <= 8) return 1
-    if (score <= 12) return 2
-    if (score <= 15) return 3
-    if (score <= 17) return 4
-    return 5
-  }
-
-  const meleeModifierByStr = (score: number) => {
-    if (score <= 3) return -3
-    if (score <= 5) return -2
-    if (score <= 8) return -1
-    if (score <= 12) return 0
-    if (score <= 15) return 1
-    if (score <= 17) return 2
-    return 3
-  }
-
-  const dexCombatModByDex = (score: number) => {
-    if (score <= 3) return -3
-    if (score <= 5) return -2
-    if (score <= 8) return -1
-    if (score <= 12) return 0
-    if (score <= 15) return 1
-    if (score <= 17) return 2
-    return 3
-  }
-
-  const dexAcModByDex = (score: number) => dexCombatModByDex(score)
-  const dexMissileModByDex = (score: number) => dexCombatModByDex(score)
-
-  const wisMagicSaveModifierByScore = (score: number) => {
-    if (score <= 3) return -3
-    if (score <= 5) return -2
-    if (score <= 8) return -1
-    if (score <= 12) return 0
-    if (score <= 15) return 1
-    if (score <= 17) return 2
-    return 3
-  }
 
   const derivedDexInitModifier = Number.isNaN(selectedDex) ? 0 : abilityModifier(selectedDex)
   const derivedDexAcModifierNumber = Number.isNaN(selectedDex) ? null : dexAcModByDex(selectedDex)
@@ -1551,7 +1259,7 @@ export function CharacterTab({
       return
     }
     const nextValue = Number.parseInt(value, 10)
-    const nextGuidedScores = buildGuidedAbilityScores(code, nextValue)
+    const nextGuidedScores = tryBuildGuidedScores(code, nextValue)
     if (!nextGuidedScores) return
     setAbilityScoresByCharacterId((current) => ({
       ...current,
@@ -1559,59 +1267,9 @@ export function CharacterTab({
     }))
   }
 
-  const buildGuidedAbilityScores = (code: AbilityCode, nextValue: number): AbilityScores | null => {
-    if (!selectedRolledAbilityScores || !Number.isFinite(nextValue)) return null
-    const baseScores = selectedRolledAbilityScores
-    const currentScores = selectedAbilityScores
-    const nextScores: Record<AbilityCode, number> = {
-      STR: Number.parseInt(currentScores.STR || baseScores.STR, 10),
-      INT: Number.parseInt(currentScores.INT || baseScores.INT, 10),
-      WIS: Number.parseInt(currentScores.WIS || baseScores.WIS, 10),
-      DEX: Number.parseInt(currentScores.DEX || baseScores.DEX, 10),
-      CON: Number.parseInt(currentScores.CON || baseScores.CON, 10),
-      CHA: Number.parseInt(currentScores.CHA || baseScores.CHA, 10),
-    }
-    nextScores[code] = nextValue
-
-    for (const abilityCode of abilityCodes) {
-      const base = Number.parseInt(baseScores[abilityCode], 10)
-      const current = nextScores[abilityCode]
-      if (Number.isNaN(base) || Number.isNaN(current)) return null
-
-      const isPrime = primeRequisiteCodes.includes(abilityCode)
-      const canLowerForPoints = loweringCodes.includes(abilityCode)
-
-      if (canLowerForPoints) {
-        if (current > base) return null
-        if (current < 9) return null
-      } else if (!isPrime) {
-        if (current !== base) return null
-      }
-
-      if (isPrime && current < base) return null
-      if (current < 3 || current > 18) return null
-    }
-
-    const gained = Math.floor(
-      loweringCodes.reduce((sum, abilityCode) => {
-        const base = Number.parseInt(baseScores[abilityCode], 10)
-        return sum + Math.max(0, base - nextScores[abilityCode])
-      }, 0) / 2,
-    )
-    const spent = primeRequisiteCodes.reduce((sum, abilityCode) => {
-      const base = Number.parseInt(baseScores[abilityCode], 10)
-      return sum + Math.max(0, nextScores[abilityCode] - base)
-    }, 0)
-    if (spent > gained) return null
-
-    return {
-      STR: String(nextScores.STR),
-      INT: String(nextScores.INT),
-      WIS: String(nextScores.WIS),
-      DEX: String(nextScores.DEX),
-      CON: String(nextScores.CON),
-      CHA: String(nextScores.CHA),
-    }
+  const tryBuildGuidedScores = (code: AbilityCode, nextValue: number): AbilityScores | null => {
+    if (!selectedRolledAbilityScores) return null
+    return buildGuidedAbilityScores(code, nextValue, selectedAbilityScores, selectedRolledAbilityScores, primeRequisiteCodes, loweringCodes)
   }
 
   const rollAbilityScores = () => {
@@ -1673,12 +1331,6 @@ export function CharacterTab({
     }))
   }
 
-  const clampInSix = (value: string) => {
-    if (value.trim().length === 0) return ''
-    const parsed = Number.parseInt(value, 10)
-    if (Number.isNaN(parsed)) return ''
-    return String(Math.min(6, Math.max(1, parsed)))
-  }
 
   const requestRollHitPoints = () => {
     if (!canEditSelected) return
@@ -1935,53 +1587,6 @@ export function CharacterTab({
 
     setInventoryByCharacterId((current) => ({ ...current, [effectiveSelected.id]: overflow.keptInventory }))
     if (overflow.feedbackMessage) setOverflowFeedback(overflow.feedbackMessage)
-  }
-
-  const applyWeaponTemplateToItem = (item: CharacterWeaponItem, templateId: string): CharacterWeaponItem => {
-    if (!templateId || templateId === 'custom') {
-      return {
-        ...item,
-        typeId: 'custom',
-        typeName: item.typeName,
-        damageDiceCount: '',
-        damageDiceSides: '',
-        rangeShort: '',
-        rangeMedium: '',
-        rangeLong: '',
-        twoHanded: false,
-      }
-    }
-    const template = weaponCatalogById[templateId]
-    if (!template) return item
-    const parsedDamage = parseDamageDice(template.damage)
-    return {
-      ...item,
-      typeId: template.id,
-      typeName: template.name,
-      costGp: Number.parseInt(template.costGp, 10) || 0,
-      ...parsedDamage,
-      ...parseRangeBands(template.range),
-      twoHanded: template.twoHanded,
-    }
-  }
-
-  const applyArmourTemplateToItem = (item: CharacterArmourItem, templateId: string): CharacterArmourItem => {
-    if (!templateId || templateId === 'custom') {
-      return { ...item, typeId: 'custom', typeName: item.typeName }
-    }
-    const template = armourCatalogById[templateId]
-    if (!template) return item
-    const parsedArmour = parseArmourTemplateValues(template.ac)
-    const templateArmourType = armourTypeFromTemplateId(template.id)
-    const normalized = normalizeTemplateArmourValues(parsedArmour, templateArmourType)
-    return {
-      ...item,
-      typeId: template.id,
-      typeName: template.name,
-      costGp: template.costGp,
-      armourType: templateArmourType,
-      ...normalized,
-    }
   }
 
   const updateWeaponRow = (itemId: string, updates: Partial<CharacterWeaponItem>) => {
@@ -2247,104 +1852,17 @@ export function CharacterTab({
       setStoreClassRequiredOpen(true)
       return
     }
-    if (!hasRolledStartingGold) {
-      setStoreError('Roll starting gold before buying equipment.')
-      return
-    }
-    if (selectedStoreCart.length === 0) {
-      setStoreError('Your cart is empty.')
-      return
-    }
-    if (selectedStoreRemaining < 0) {
-      setStoreError('Cart total exceeds remaining gold.')
-      return
-    }
+    const validationError = validateStorePurchase(
+      selectedStoreCart, selectedStartingGold, selectedCommittedStoreSpent,
+      selectedClassName, packedItems.length, availablePackedSlotIndices.length,
+    )
+    if (validationError === 'CLASS_REQUIRED') { setStoreClassRequiredOpen(true); return }
+    if (validationError) { setStoreError(validationError); return }
 
     const cartTotal = selectedStoreCartTotal
-    // Check packed-slot capacity for all cart items.
-    // Store purchases are created as packed inventory objects.
-    const requiredPacked = selectedStoreCart.reduce(
-      (sum, entry) => sum + entry.qty,
-      0,
-    )
-    const currentPackedCount = packedItems.length
-    const totalPackedSlots = availablePackedSlotIndices.length
-    if (currentPackedCount + requiredPacked > totalPackedSlots) {
-      const openSlots = Math.max(0, totalPackedSlots - currentPackedCount)
-      setStoreError(`Not enough open packed slots (${openSlots} open, ${requiredPacked} needed). Reorganize inventory to purchase these goods.`)
-      return
-    }
-
-    const newItems: CharacterInventoryItem[] = []
-
-    for (const entry of selectedStoreCart) {
-      for (let count = 0; count < entry.qty; count += 1) {
-        if (entry.kind === 'weapon' && entry.weaponId) {
-          if (!isWeaponTemplateAllowedForClass(entry.weaponId, selectedClassName)) {
-            setStoreError(`Class restriction prevents ${entry.name}.`)
-            return
-          }
-          newItems.push(applyWeaponTemplateToItem(makeWeaponItem(), entry.weaponId))
-        } else if (entry.kind === 'armour' && entry.armourId) {
-          if (!isArmourTemplateAllowedForClass(entry.armourId, selectedClassName)) {
-            setStoreError(`Class restriction prevents ${entry.name}.`)
-            return
-          }
-          newItems.push(applyArmourTemplateToItem(makeArmourItem(), entry.armourId))
-        } else if (entry.kind === 'ammunition') {
-          // Look up ammo catalog by matching store item key to ammo catalog id
-          const storeItem = OSE_STORE_ITEMS.find((s) => s.id === entry.key || s.name === entry.name)
-          const ammoTemplate = storeItem ? ammoCatalogById[storeItem.id] ?? ammoCatalogById[storeItem.id.replace('ammo-', '')] : null
-          newItems.push({
-            id: makeId(),
-            kind: 'ammunition',
-            typeId: ammoTemplate?.id ?? 'custom',
-            typeName: ammoTemplate?.name ?? (entry.packedLabel ?? entry.name),
-            name: entry.name,
-            costGp: entry.costGp,
-            equipped: false,
-            notes: '',
-            description: ammoTemplate?.description ?? '',
-            qty: ammoTemplate?.qty ?? 1,
-            stack: DEFAULT_STACK_POLICY.ammunition,
-          } as CharacterAmmunitionItem)
-        } else if (entry.kind === 'consumable') {
-          const storeItem = OSE_STORE_ITEMS.find((s) => s.id === entry.key || s.name === entry.name)
-          const conTemplate = storeItem ? consumableCatalogById[storeItem.id.replace('gear-', 'con-')] : null
-          newItems.push({
-            id: makeId(),
-            kind: 'consumable',
-            typeId: conTemplate?.id ?? 'custom',
-            typeName: conTemplate?.name ?? entry.name,
-            name: entry.name,
-            costGp: entry.costGp,
-            equipped: false,
-            notes: entry.packedLabel ?? '',
-            description: conTemplate?.description ?? '',
-            qty: conTemplate?.qty ?? 1,
-            stack: DEFAULT_STACK_POLICY.consumable,
-            useMode: conTemplate?.useMode ?? 'consume',
-            effectText: conTemplate?.effectText ?? undefined,
-          } as CharacterConsumableItem)
-        } else {
-          const storeItem = OSE_STORE_ITEMS.find((s) => s.id === entry.key || s.name === entry.name)
-          const genTemplate = storeItem ? generalCatalogById[storeItem.id] : null
-          newItems.push({
-            id: makeId(),
-            kind: 'general',
-            typeId: genTemplate?.id ?? 'custom',
-            typeName: genTemplate?.name ?? entry.name,
-            name: entry.name,
-            costGp: entry.costGp,
-            equipped: false,
-            notes: entry.packedLabel ?? '',
-            description: genTemplate?.description ?? '',
-            qty: 1,
-            stack: DEFAULT_STACK_POLICY.general,
-          } as CharacterGeneralItem)
-        }
-      }
-    }
+    const result = materializeCartEntries(selectedStoreCart, selectedClassName)
+    if (!result.ok) { setStoreError(result.error); return }
+    const newItems = result.items
 
     setInventoryByCharacterId((current) => {
       const existing = current[effectiveSelected.id] ?? []
@@ -3121,12 +2639,12 @@ export function CharacterTab({
                                         && hasRolledAbilityScores
                                         && classChosen
                                         && Number.isFinite(currentValue)
-                                        && buildGuidedAbilityScores(abilityCode, currentValue - 1) !== null
+                                        && tryBuildGuidedScores(abilityCode, currentValue - 1) !== null
                                       const canIncrease = canEditSelected
                                         && hasRolledAbilityScores
                                         && classChosen
                                         && Number.isFinite(currentValue)
-                                        && buildGuidedAbilityScores(abilityCode, currentValue + 1) !== null
+                                        && tryBuildGuidedScores(abilityCode, currentValue + 1) !== null
                                       return (
                                         <div className="character-ability-adjust">
                                           {canEditSelected && hasRolledAbilityScores && !classChosen ? (
