@@ -36,4 +36,28 @@ export const getAccessibleArcaneSpellLevels = (characterLevel: number): number[]
   return [1]
 }
 
-export const spellBookSlotsPerSpellLevel = 1
+export const arcaneSpellsPerDayByCharacterLevel: Record<number, [number, number, number, number, number, number]> = {
+  1: [1, 0, 0, 0, 0, 0],
+  2: [2, 0, 0, 0, 0, 0],
+  3: [2, 1, 0, 0, 0, 0],
+  4: [2, 2, 0, 0, 0, 0],
+  5: [2, 2, 1, 0, 0, 0],
+  6: [2, 2, 2, 0, 0, 0],
+  7: [3, 2, 2, 1, 0, 0],
+  8: [3, 3, 2, 2, 0, 0],
+  9: [3, 3, 3, 2, 1, 0],
+  10: [3, 3, 3, 3, 2, 0],
+  11: [4, 3, 3, 3, 2, 1],
+  12: [4, 4, 3, 3, 3, 2],
+  13: [4, 4, 4, 3, 3, 3],
+  14: [4, 4, 4, 4, 3, 3],
+}
+
+export const getArcaneSpellsPerDay = (characterLevel: number): [number, number, number, number, number, number] => {
+  const normalizedLevel = Math.max(1, Math.floor(characterLevel || 1))
+  if (arcaneSpellsPerDayByCharacterLevel[normalizedLevel]) {
+    return arcaneSpellsPerDayByCharacterLevel[normalizedLevel]
+  }
+  if (normalizedLevel >= 14) return arcaneSpellsPerDayByCharacterLevel[14]
+  return arcaneSpellsPerDayByCharacterLevel[1]
+}

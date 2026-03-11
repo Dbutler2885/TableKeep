@@ -13,7 +13,7 @@ import {
   SPELL_BOOK_TYPE_ID,
   arcaneSpellById,
   getAccessibleArcaneSpellLevels,
-  spellBookSlotsPerSpellLevel,
+  getArcaneSpellsPerDay,
 } from './spellCatalog'
 import { makeSpellBookItem } from './characterFactories'
 
@@ -103,20 +103,14 @@ export function useSpellbookDomain({
     .map((id) => arcaneSpellById[id])
     .filter((spell): spell is CharacterSpell => !!spell)
   const accessibleSpellLevels = getAccessibleArcaneSpellLevels(selectedLevel)
+  const arcaneSpellsPerDay = getArcaneSpellsPerDay(selectedLevel)
 
   const canOpenSpellBookAddModal = !!effectiveSelected && canEditSelected && selectedClassName === 'Magic-User'
 
-  const spellLevelCountsInBook = selectedSpellBookSpells.reduce<Record<number, number>>((acc, spell) => {
+  const memorizedCountsByLevel = selectedMemorizedSpells.reduce<Record<number, number>>((acc, spell) => {
     acc[spell.level] = (acc[spell.level] ?? 0) + 1
     return acc
   }, {})
-  const spellLevelCountsInPending = spellBookPendingAddIds
-    .map((id) => arcaneSpellById[id])
-    .filter((spell): spell is CharacterSpell => !!spell)
-    .reduce<Record<number, number>>((acc, spell) => {
-      acc[spell.level] = (acc[spell.level] ?? 0) + 1
-      return acc
-    }, {})
   const pendingSpellObjects = spellBookPendingAddIds
     .map((id) => arcaneSpellById[id])
     .filter((spell): spell is CharacterSpell => !!spell)
@@ -195,13 +189,19 @@ export function useSpellbookDomain({
       return
     }
     if (!selectedSpellBookSpellIds.includes(spellId)) return
-    if (selectedMemorizedSpellIds.includes(spellId)) {
-      setSpellBookFeedback(`${spell.name} is already memorized.`)
+    const spellLevelIndex = Math.max(0, spell.level - 1)
+    const slotsAtLevel = arcaneSpellsPerDay[spellLevelIndex] ?? 0
+    if (slotsAtLevel <= 0) {
+      setSpellBookFeedback(`No level ${spell.level} spell slots available.`)
+      return
+    }
+    const usedSlotsAtLevel = memorizedCountsByLevel[spell.level] ?? 0
+    if (usedSlotsAtLevel >= slotsAtLevel) {
+      setSpellBookFeedback(`Level ${spell.level} spell slots are full (${usedSlotsAtLevel}/${slotsAtLevel}).`)
       return
     }
     setMemorizedSpellIdsByCharacterId((current) => {
       const existing = current[effectiveSelected.id] ?? []
-      if (existing.includes(spellId)) return current
       return {
         ...current,
         [effectiveSelected.id]: [...existing, spellId],
@@ -226,10 +226,17 @@ export function useSpellbookDomain({
   const consumeMemorizedSpell = (spellId: string) => {
     if (!effectiveSelected) return
     const spellName = arcaneSpellById[spellId]?.name ?? 'Spell'
-    setMemorizedSpellIdsByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).filter((id) => id !== spellId),
-    }))
+    setMemorizedSpellIdsByCharacterId((current) => {
+      const existing = current[effectiveSelected.id] ?? []
+      const removeIndex = existing.indexOf(spellId)
+      if (removeIndex < 0) return current
+      const next = [...existing]
+      next.splice(removeIndex, 1)
+      return {
+        ...current,
+        [effectiveSelected.id]: next,
+      }
+    })
     setSpellBookFeedback(`${spellName} cast and removed from memorized spells.`)
   }
 
@@ -247,11 +254,6 @@ export function useSpellbookDomain({
     if (!accessibleSpellLevels.includes(spell.level)) return
     if (selectedSpellBookSpellIds.includes(spell.id)) return
     if (spellBookPendingAddIds.includes(spell.id)) return
-    const usedSlots = (spellLevelCountsInBook[spell.level] ?? 0) + (spellLevelCountsInPending[spell.level] ?? 0)
-    if (usedSlots >= spellBookSlotsPerSpellLevel) {
-      setSpellBookFeedback(`Level ${spell.level} already has its spell slot filled.`)
-      return
-    }
     setSpellBookPendingAddIds((current) => [...current, spell.id])
   }
 
@@ -326,8 +328,8 @@ export function useSpellbookDomain({
     selectedMemorizedSpells,
     accessibleSpellLevels,
     canOpenSpellBookAddModal,
-    spellLevelCountsInBook,
-    spellLevelCountsInPending,
+    arcaneSpellsPerDay,
+    memorizedCountsByLevel,
     pendingSpellObjects,
     memorizedSpellDetail,
 

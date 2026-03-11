@@ -10,12 +10,13 @@ import type {
 } from '../../types/app'
 import type { AbilityScores, SaveScores, AdventureScores, ThiefSkillScores } from './characterRules'
 import {
-  classLevel1Saves,
   classHitDieByClass,
   adventureDefaultsByClass,
   defaultThiefSkills,
   buildGuidedAbilityScores,
   loweringCandidateCodes,
+  saveScoresForClassLevel,
+  thacoForClassLevel,
 } from './characterRules'
 
 type Params = {
@@ -180,6 +181,7 @@ export function useCharacterCreationFlow({
 
   // HP recalculation when CON or base roll changes
   useEffect(() => {
+    if (!isGuidedCreation) return
     if (!effectiveSelected) return
     const baseRoll = hpBaseRollByCharacterId[effectiveSelected.id]
     if (typeof baseRoll !== 'number') return
@@ -193,6 +195,7 @@ export function useCharacterCreationFlow({
       hpMax: nextMax,
     })
   }, [
+    isGuidedCreation,
     effectiveSelected,
     hpBaseRollByCharacterId,
     derivedConModifierNumber,
@@ -204,7 +207,7 @@ export function useCharacterCreationFlow({
     if (!seededCharacterIdsRef.current.has(effectiveSelected.id)) return
     if (justSeededRef.current.has(effectiveSelected.id)) return
     if (saveScoresByCharacterId[effectiveSelected.id]) return
-    const saveProfile = classLevel1Saves[effectiveSelected.className]
+    const saveProfile = saveScoresForClassLevel(effectiveSelected.className, effectiveSelected.level)
     if (!saveProfile) return
     setSaveScoresByCharacterId((current) => ({
       ...current,
@@ -212,16 +215,17 @@ export function useCharacterCreationFlow({
     }))
   }, [effectiveSelected, saveScoresByCharacterId])
 
-  // Auto-seed THAC0 for levels 1-3
+  // Auto-seed THAC0 when a class progression table is available
   useEffect(() => {
     if (!effectiveSelected) return
     if (!seededCharacterIdsRef.current.has(effectiveSelected.id)) return
     if (justSeededRef.current.has(effectiveSelected.id)) return
-    if (effectiveSelected.level < 1 || effectiveSelected.level > 3) return
     if ((thacoByCharacterId[effectiveSelected.id] ?? '').trim().length > 0) return
+    const thaco = thacoForClassLevel(effectiveSelected.className, effectiveSelected.level)
+    if (thaco === null) return
     setThacoByCharacterId((current) => ({
       ...current,
-      [effectiveSelected.id]: '19',
+      [effectiveSelected.id]: String(thaco),
     }))
   }, [effectiveSelected, thacoByCharacterId])
 

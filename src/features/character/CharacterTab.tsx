@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Check, ChevronLeft, Plus, ShoppingBag, Star, X } from 'lucide-react'
+import { Check, ChevronLeft, Plus, ShoppingBag, Sparkles, Star, X } from 'lucide-react'
 import { doc, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type {
@@ -32,7 +32,6 @@ import {
   ARCANE_SPELL_CATALOG,
   SPELL_BOOK_TYPE_ID,
   arcaneSpellById,
-  spellBookSlotsPerSpellLevel,
 } from './spellCatalog'
 import type { StoreCategoryId } from './storeCatalog'
 import {
@@ -56,7 +55,9 @@ import {
   wisMagicSaveModifierByScore,
   primeRequisiteCodesForClass,
   clampInSix,
-  classLevel1Saves,
+  saveScoresForClassLevel,
+  thacoForClassLevel,
+  classHitDieByClass,
 } from './characterRules'
 import {
   resolveArmourType,
@@ -78,7 +79,7 @@ import { useSpellbookDomain } from './useSpellbookDomain'
 import { useInventoryDomain } from './useInventoryDomain'
 import { useStoreDomain } from './useStoreDomain'
 import { CharacterListPane } from './CharacterListPane'
-import { computeGrantedXp, levelForXp, projectCharacterProgress } from './xpProgression'
+import { computeGrantedXp, nextLevelXpFor, primeRequisiteXpBonusPercent, projectCharacterProgress } from './xpProgression'
 
 type CharacterTabProps = {
   campaignId: string
@@ -362,6 +363,42 @@ const classFeaturesByClass: Record<string, ClassFeature[]> = {
   ],
 }
 
+const levelUpFlavorByClass: Record<string, string> = {
+  Cleric: 'Your faith deepens, and divine authority grows with your experience.',
+  Dwarf: 'Your hard-earned craft and battle discipline make you even tougher underground.',
+  Elf: 'Your ancient training sharpens both steel and spell.',
+  Fighter: 'Your battlefield instincts sharpen, and your martial edge grows deadlier.',
+  Halfling: 'Your luck and precision carry you safely through impossible danger.',
+  'Magic-User': 'Arcane patterns become clearer as your command of magic expands.',
+  Thief: 'Your timing, nerve, and finesse improve with every risky score.',
+}
+
+const levelUpChecklistForClass = (className: string, hitDie: number | null): string[] => {
+  const steps = [`Roll 1d${hitDie ?? '?'} for hit points and add that to your HP total.`]
+  if (className === 'Cleric') {
+    steps.push('Review your cleric spell access and update what is memorized for the day.')
+    return steps
+  }
+  if (className === 'Magic-User') {
+    steps.push('Review spell slots and adjust memorized spells for your new level.')
+    steps.push('Check your spell book for what can now be prepared or transcribed.')
+    return steps
+  }
+  if (className === 'Thief') {
+    steps.push('Review thief skills and assign any newly available progression points.')
+    return steps
+  }
+  if (className === 'Fighter') {
+    steps.push('Review attack profile and class combat benefits unlocked at this level.')
+    return steps
+  }
+  if (className === 'Dwarf' || className === 'Elf' || className === 'Halfling') {
+    steps.push('Review race-class abilities that scale with level and update sheet details.')
+    return steps
+  }
+  return steps
+}
+
 const alignmentOptions = ['Law', 'Neutrality', 'Chaos']
 const packedSlotThresholds = [18, 16, 13, 9, 6, 4]
 const packedSlotLabels = ['STR 18+', 'STR 16+', 'STR 13+', 'STR 9+', 'STR 6+', 'STR 4+']
@@ -607,7 +644,9 @@ export function CharacterTab({
   const [grantMode, setGrantMode] = useState(false)
   const [grantTargetIds, setGrantTargetIds] = useState<Record<string, boolean>>({})
   const [grantXpBase, setGrantXpBase] = useState('')
+  const [grantXpSplitBetweenTargets, setGrantXpSplitBetweenTargets] = useState(false)
   const [grantGoldGp, setGrantGoldGp] = useState('')
+  const [grantGoldSplitBetweenTargets, setGrantGoldSplitBetweenTargets] = useState(false)
   const [grantNote, setGrantNote] = useState('')
   const [grantCampaignItemId, setGrantCampaignItemId] = useState('')
   const [grantCampaignEntries, setGrantCampaignEntries] = useState<Array<{ itemId: string; name: string; qty: number }>>([])
@@ -615,6 +654,10 @@ export function CharacterTab({
   const [grantTemplateEntries, setGrantTemplateEntries] = useState<GrantTemplateEntry[]>([])
   const [grantBusy, setGrantBusy] = useState(false)
   const [grantFeedback, setGrantFeedback] = useState<string | null>(null)
+  const [levelUpModalOpen, setLevelUpModalOpen] = useState(false)
+  const [levelUpHpRoll, setLevelUpHpRoll] = useState<number | null>(null)
+  const [levelUpApplying, setLevelUpApplying] = useState(false)
+  const [levelUpError, setLevelUpError] = useState<string | null>(null)
 
   const { rejections, submitRequest, submitSpellLearnRequest, dismissRejection } = useItemApprovals(campaignId, role, currentUserId)
   const { items: campaignItems } = useItems(campaignId)
@@ -682,7 +725,6 @@ export function CharacterTab({
     return () => clearTimeout(timer)
   }, [overflowFeedback])
 
-
   const sortedCharacters = useMemo(
     () => [...characters].sort((a, b) => a.name.localeCompare(b.name)),
     [characters],
@@ -706,6 +748,12 @@ export function CharacterTab({
 
   const effectiveSelected =
     selectedCharacter ?? sortedCharacters.find((character) => character.id === selectedCharacterId) ?? null
+
+  useEffect(() => {
+    setLevelUpModalOpen(false)
+    setLevelUpHpRoll(null)
+    setLevelUpError(null)
+  }, [effectiveSelected?.id])
 
   useEffect(() => {
     if (sortedCharacters.length === 0) return
@@ -735,7 +783,9 @@ export function CharacterTab({
 
   const clearGrantDraft = () => {
     setGrantXpBase('')
+    setGrantXpSplitBetweenTargets(false)
     setGrantGoldGp('')
+    setGrantGoldSplitBetweenTargets(false)
     setGrantNote('')
     setGrantCampaignEntries([])
     setGrantTemplateEntries([])
@@ -793,6 +843,18 @@ export function CharacterTab({
   const hasRolledAbilityScores = !!(effectiveSelected && abilityScoresRolledByCharacterId[effectiveSelected.id])
   const primeRequisiteCodes = primeRequisiteCodesForClass(effectiveSelected?.className ?? '')
   const loweringCodes = loweringCandidateCodes.filter((code) => !primeRequisiteCodes.includes(code))
+  const selectedPrimeXpModifierPercent = effectiveSelected
+    ? primeRequisiteXpBonusPercent(effectiveSelected.className, selectedAbilityScores)
+    : 0
+  const selectedNextLevelXp = effectiveSelected
+    ? nextLevelXpFor(effectiveSelected.className, effectiveSelected.level)
+    : null
+  const selectedXpToNextLevel = effectiveSelected && selectedNextLevelXp !== null
+    ? Math.max(0, selectedNextLevelXp - effectiveSelected.xp)
+    : null
+  const primeRequisiteLabel = primeRequisiteCodes.length > 0
+    ? primeRequisiteCodes.join('/')
+    : '-'
   const selectedStrRaw = selectedAbilityScores.STR
   const selectedDexRaw = selectedAbilityScores.DEX
   const selectedChaRaw = selectedAbilityScores.CHA
@@ -1027,6 +1089,21 @@ export function CharacterTab({
   const derivedMissileModifier = derivedMissileModifierNumber === null ? '' : formatTableModifier(derivedMissileModifierNumber)
   const derivedConModifierNumber = Number.isNaN(selectedCon) ? 0 : conModifierByScore(selectedCon)
   const derivedConModifier = Number.isNaN(selectedCon) ? '' : formatTableModifier(derivedConModifierNumber)
+  const canSelectedLevelUp = !!effectiveSelected
+    && !isInFinalizationFlow
+    && selectedNextLevelXp !== null
+    && effectiveSelected.xp >= selectedNextLevelXp
+  const selectedHitDie = classHitDieByClass[selectedClassName] ?? null
+  const levelUpHpGain = levelUpHpRoll === null
+    ? null
+    : Math.max(1, levelUpHpRoll)
+  const levelUpTargetLevel = effectiveSelected ? effectiveSelected.level + 1 : null
+  const selectedHasPendingWrite = effectiveSelected ? hasPendingWrite(effectiveSelected.id) : false
+  const levelUpNewFeatures = levelUpTargetLevel === null
+    ? []
+    : (classFeaturesByClass[selectedClassName] ?? []).filter((feature) => feature.unlockedAt === levelUpTargetLevel)
+  const levelUpFlavor = levelUpFlavorByClass[selectedClassName] ?? 'Your experience pays off as your capabilities expand.'
+  const levelUpChecklist = levelUpChecklistForClass(selectedClassName, selectedHitDie)
   const derivedWisMagicSaveModifierNumber = Number.isNaN(Number.parseInt(selectedAbilityScores.WIS, 10))
     ? null
     : wisMagicSaveModifierByScore(Number.parseInt(selectedAbilityScores.WIS, 10))
@@ -1162,6 +1239,60 @@ export function CharacterTab({
     setFinalizeError(null)
   }
 
+  const openLevelUpModal = () => {
+    if (!canSelectedLevelUp || !canEditSelected || selectedHasPendingWrite) return
+    setLevelUpHpRoll(null)
+    setLevelUpError(null)
+    setLevelUpModalOpen(true)
+  }
+
+  const closeLevelUpModal = () => {
+    if (levelUpApplying) return
+    setLevelUpModalOpen(false)
+    setLevelUpHpRoll(null)
+    setLevelUpError(null)
+  }
+
+  const rollLevelUpHitPoints = () => {
+    if (!selectedHitDie || selectedHitDie <= 0) {
+      setLevelUpError('No valid class hit die available for this character.')
+      return
+    }
+    setLevelUpError(null)
+    setLevelUpHpRoll(1 + Math.floor(Math.random() * selectedHitDie))
+  }
+
+  const applyLevelUp = () => {
+    if (!effectiveSelected || !canSelectedLevelUp) return
+    if (levelUpHpGain === null) {
+      setLevelUpError('Roll hit points before applying level up.')
+      return
+    }
+    const nextLevel = effectiveSelected.level + 1
+    const nextSaveScores = saveScoresForClassLevel(effectiveSelected.className, nextLevel)
+    const nextThaco = thacoForClassLevel(effectiveSelected.className, nextLevel)
+    setLevelUpApplying(true)
+    if (nextSaveScores) {
+      setSaveScoresByCharacterId((current) => ({
+        ...current,
+        [effectiveSelected.id]: nextSaveScores,
+      }))
+    }
+    if (nextThaco !== null) {
+      setThacoByCharacterId((current) => ({
+        ...current,
+        [effectiveSelected.id]: String(nextThaco),
+      }))
+    }
+    updateSelectedCharacter({
+      level: nextLevel,
+      hpMax: Math.max(0, effectiveSelected.hpMax) + levelUpHpGain,
+      hpCurrent: Math.max(0, effectiveSelected.hpCurrent) + levelUpHpGain,
+    })
+    setLevelUpApplying(false)
+    closeLevelUpModal()
+  }
+
   const updateAbilityScore = (code: AbilityCode, value: string) => {
     if (!effectiveSelected) return
     if (!canEditAbilityScores) return
@@ -1201,12 +1332,21 @@ export function CharacterTab({
   }
 
   const applyClassDerivedData = (characterId: string, className: string) => {
-    const saveProfile = classLevel1Saves[className]
-    if (!saveProfile) return
-    setSaveScoresByCharacterId((current) => ({
-      ...current,
-      [characterId]: saveProfile,
-    }))
+    const classLevel = characterId === effectiveSelected?.id ? (effectiveSelected.level ?? 1) : 1
+    const saveProfile = saveScoresForClassLevel(className, classLevel)
+    if (saveProfile) {
+      setSaveScoresByCharacterId((current) => ({
+        ...current,
+        [characterId]: saveProfile,
+      }))
+    }
+    const nextThaco = thacoForClassLevel(className, classLevel)
+    if (nextThaco !== null) {
+      setThacoByCharacterId((current) => ({
+        ...current,
+        [characterId]: String(nextThaco),
+      }))
+    }
   }
 
   const {
@@ -1266,7 +1406,7 @@ export function CharacterTab({
     selectedSpellBookSpellIds,
     selectedSpellBookSpells, selectedMemorizedSpells,
     accessibleSpellLevels, canOpenSpellBookAddModal,
-    spellLevelCountsInBook, spellLevelCountsInPending,
+    arcaneSpellsPerDay, memorizedCountsByLevel,
     pendingSpellObjects, memorizedSpellDetail,
     memorizeSpell, removeSpellFromBook, consumeMemorizedSpell,
     openSpellBookAddModal, queueSpellForBook, removePendingSpell, commitPendingSpellsToBook,
@@ -1455,15 +1595,25 @@ export function CharacterTab({
     }
   }
 
+  const amountForTarget = (total: number, split: boolean, targetCount: number, targetIndex: number): number => {
+    if (!split || targetCount <= 0) return total
+    const normalizedTotal = Math.max(0, Math.floor(total))
+    const base = Math.floor(normalizedTotal / targetCount)
+    const remainder = normalizedTotal % targetCount
+    return base + (targetIndex < remainder ? 1 : 0)
+  }
+
   const grantPreviewByCharacterId = useMemo(() => {
     const preview = new Map<string, ReturnType<typeof projectCharacterProgress>>()
-    for (const character of sortedCharacters) {
-      if (!grantTargetIds[character.id]) continue
+    const targets = sortedCharacters.filter((character) => grantTargetIds[character.id])
+    for (let index = 0; index < targets.length; index += 1) {
+      const character = targets[index]
       const scores = abilityScoresByCharacterId[character.id] ?? emptyAbilityScores()
-      preview.set(character.id, projectCharacterProgress(character, scores, parsedGrantBaseXp))
+      const xpForTarget = amountForTarget(parsedGrantBaseXp, grantXpSplitBetweenTargets, targets.length, index)
+      preview.set(character.id, projectCharacterProgress(character, scores, xpForTarget))
     }
     return preview
-  }, [sortedCharacters, grantTargetIds, abilityScoresByCharacterId, parsedGrantBaseXp])
+  }, [sortedCharacters, grantTargetIds, abilityScoresByCharacterId, parsedGrantBaseXp, grantXpSplitBetweenTargets])
 
   const applyGrantToSelectedTargets = async () => {
     if (!canGrant || grantBusy) return
@@ -1485,11 +1635,14 @@ export function CharacterTab({
     setGrantFeedback(null)
     try {
       const overflowMessages: string[] = []
-      for (const targetId of targetIds) {
+      for (let targetIndex = 0; targetIndex < targetIds.length; targetIndex += 1) {
+        const targetId = targetIds[targetIndex]
         const target = sortedCharacters.find((character) => character.id === targetId)
         if (!target) continue
         const charRef = doc(db, 'campaigns', campaignId, 'characters', targetId)
         const overflowGoldDocId = crypto.randomUUID()
+        const xpForTarget = amountForTarget(parsedGrantBaseXp, grantXpSplitBetweenTargets, targetIds.length, targetIndex)
+        const goldForTarget = amountForTarget(parsedGrantGoldGp, grantGoldSplitBetweenTargets, targetIds.length, targetIndex)
 
         await runTransaction(db, async (tx) => {
           const snap = await tx.get(charRef)
@@ -1522,7 +1675,7 @@ export function CharacterTab({
             }
           }
 
-          const goldGrantTotal = parsedGrantGoldGp + campaignGoldGrant
+          const goldGrantTotal = goldForTarget + campaignGoldGrant
           const existingGold = currentInventory
             .filter((item): item is CharacterGoldItem => item.kind === 'gold')
             .reduce((sum, item) => sum + (item.qty ?? 0), 0)
@@ -1574,15 +1727,11 @@ export function CharacterTab({
             })
           }
 
-          const bonusPercent = projectCharacterProgress(target, abilityScores, parsedGrantBaseXp).bonusPercent
-          const grantedXp = computeGrantedXp(parsedGrantBaseXp, bonusPercent)
+          const bonusPercent = projectCharacterProgress(target, abilityScores, xpForTarget).bonusPercent
+          const grantedXp = computeGrantedXp(xpForTarget, bonusPercent)
           const nextXp = Math.max(0, (data.xp ?? target.xp ?? 0) + grantedXp.awardedXp)
-          const leveled = levelForXp(data.className ?? target.className, nextXp)
-          const nextLevel = Math.max(data.level ?? target.level ?? 1, leveled)
-
           tx.set(charRef, {
             xp: nextXp,
-            level: nextLevel,
             details: {
               ...(existingDetails ?? {}),
               inventory: overflow.keptInventory,
@@ -1597,6 +1746,8 @@ export function CharacterTab({
       ]
       if (parsedGrantBaseXp > 0) parts.push(`${parsedGrantBaseXp} base XP`)
       if (parsedGrantGoldGp > 0) parts.push(`${parsedGrantGoldGp} gp`)
+      if (grantXpSplitBetweenTargets && parsedGrantBaseXp > 0) parts.push('XP split')
+      if (grantGoldSplitBetweenTargets && parsedGrantGoldGp > 0) parts.push('gp split')
       if (grantCampaignEntries.length > 0 || grantTemplateEntries.length > 0) parts.push('items')
       const overflowSummary = overflowMessages.length > 0 ? ` | Overflow: ${overflowMessages.join(' / ')}` : ''
       setGrantFeedback(`${parts.join(' • ')}${overflowSummary}`)
@@ -1808,6 +1959,18 @@ export function CharacterTab({
                       <span>Finalize Character</span>
                     </button>
                   ) : null}
+                  {canSelectedLevelUp && !grantMode ? (
+                    <button
+                      type="button"
+                      className="character-current-action character-levelup-action"
+                      onClick={openLevelUpModal}
+                      disabled={!canEditSelected || selectedHasPendingWrite}
+                      aria-label="Level up character"
+                    >
+                      <Sparkles size={14} />
+                      <span>Level Up</span>
+                    </button>
+                  ) : null}
                   {grantMode ? (
                     <button
                       type="button"
@@ -1862,6 +2025,18 @@ export function CharacterTab({
                     <span>Finalize</span>
                   </button>
                 ) : null}
+                {canSelectedLevelUp && !grantMode ? (
+                  <button
+                    type="button"
+                    className="character-current-action character-levelup-action"
+                    onClick={openLevelUpModal}
+                    disabled={!canEditSelected || selectedHasPendingWrite}
+                    aria-label="Level up character"
+                  >
+                    <Sparkles size={14} />
+                    <span>Level Up</span>
+                  </button>
+                ) : null}
               </div>
             ) : null}
 
@@ -1889,6 +2064,15 @@ export function CharacterTab({
                               onChange={(event) => setGrantXpBase(event.target.value)}
                               disabled={grantBusy}
                             />
+                            <span className="character-inline-checkbox">
+                              <input
+                                type="checkbox"
+                                checked={grantXpSplitBetweenTargets}
+                                onChange={(event) => setGrantXpSplitBetweenTargets(event.target.checked)}
+                                disabled={grantBusy}
+                              />
+                              <small>Split between targets</small>
+                            </span>
                           </label>
                           <label className="character-header-field">
                             <span className="character-header-tag">Gold (gp)</span>
@@ -1899,6 +2083,15 @@ export function CharacterTab({
                               onChange={(event) => setGrantGoldGp(event.target.value)}
                               disabled={grantBusy}
                             />
+                            <span className="character-inline-checkbox">
+                              <input
+                                type="checkbox"
+                                checked={grantGoldSplitBetweenTargets}
+                                onChange={(event) => setGrantGoldSplitBetweenTargets(event.target.checked)}
+                                disabled={grantBusy}
+                              />
+                              <small>Split between targets</small>
+                            </span>
                           </label>
                         </div>
                         <label className="character-header-field">
@@ -2060,27 +2253,48 @@ export function CharacterTab({
                         </div>
                         {selectedGrantTargetIds.length === 0 ? <p className="character-enc-help">Choose targets from sidebar checkboxes.</p> : (
                           <div className="character-sheet-rows">
-                            {selectedGrantTargetIds.map((id) => {
+                            {selectedGrantTargetIds.map((id, targetIndex) => {
                               const character = sortedCharacters.find((entry) => entry.id === id)
                               if (!character) return null
                               const preview = grantPreviewByCharacterId.get(id)
+                              const targetGold = amountForTarget(
+                                parsedGrantGoldGp,
+                                grantGoldSplitBetweenTargets,
+                                selectedGrantTargetIds.length,
+                                targetIndex,
+                              )
                               return (
-                                <div key={id} className="character-sheet-row">
+                                <div key={id} className="character-sheet-row character-grant-target-row">
                                   <strong>{character.name}</strong>
-                                  <small>
-                                    XP {character.xp.toLocaleString()}
-                                    {preview ? ` + ${preview.awardedXp.toLocaleString()} (${preview.bonusPercent}% bonus)` : ''}
-                                  </small>
-                                  <small>
-                                    L{character.level}
-                                    {preview ? ` -> L${Math.max(character.level, preview.projectedLevel)}` : ''}
-                                  </small>
+                                  {parsedGrantBaseXp > 0 ? (
+                                    <>
+                                      <small>
+                                        XP {character.xp.toLocaleString()}
+                                        {preview
+                                          ? ` + ${preview.awardedXp.toLocaleString()} (${preview.bonusPercent > 0 ? '+' : ''}${preview.bonusPercent}% XP modifier)`
+                                          : ''}
+                                      </small>
+                                      <small>
+                                        L{character.level}
+                                        {preview ? ` -> L${Math.max(character.level, preview.projectedLevel)}` : ''}
+                                      </small>
+                                    </>
+                                  ) : null}
+                                  {parsedGrantGoldGp > 0 ? (
+                                    <small>
+                                      Gold +{targetGold.toLocaleString()} gp
+                                      {grantGoldSplitBetweenTargets ? ' (split)' : ''}
+                                    </small>
+                                  ) : null}
+                                  {parsedGrantBaseXp <= 0 && parsedGrantGoldGp <= 0 ? (
+                                    <small>Items only grant</small>
+                                  ) : null}
                                 </div>
                               )
                             })}
                           </div>
                         )}
-                        <div className="character-sheet-tab-actions">
+                        <div className="character-sheet-tab-actions character-grant-actions">
                           <button
                             type="button"
                             className="character-current-action"
@@ -2154,11 +2368,8 @@ export function CharacterTab({
                                 min={1}
                                 max={14}
                                 value={String(effectiveSelected.level)}
-                                onChange={(event) => {
-                                  const parsed = Number(event.target.value || 1)
-                                  updateSelectedCharacter({ level: Math.min(14, Math.max(1, parsed)) })
-                                }}
-                                disabled={!canEditSelected}
+                                readOnly
+                                disabled
                               />
                             </label>
                             <label className="character-header-field character-header-field-class">
@@ -2210,10 +2421,10 @@ export function CharacterTab({
                                 <option key={option} value={option}>
                                   {option}
                                 </option>
-                              ))}
-                            </select>
-                          </label>
-                        </div>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
                         {isMobile && !useIntermediateLayout ? (
                           <section className="monster-section-block">
                             <h3 className="monster-section-title">Portrait</h3>
@@ -2683,8 +2894,8 @@ export function CharacterTab({
                               <p className="character-enc-help">No memorized spells.</p>
                             ) : (
                               <div className="character-memorized-spells-list">
-                                {selectedMemorizedSpells.map((spell) => (
-                                  <div key={spell.id} className="character-memorized-spell-row">
+                                {selectedMemorizedSpells.map((spell, index) => (
+                                  <div key={`${spell.id}-${index}`} className="character-memorized-spell-row">
                                     <button
                                       type="button"
                                       className="character-memorized-spell-open"
@@ -2705,6 +2916,14 @@ export function CharacterTab({
                                 ))}
                               </div>
                             )}
+                            <p className="character-enc-help">
+                              Slots:
+                              {arcaneSpellsPerDay.map((limit, levelIndex) => (
+                                <Fragment key={`slot-cap-${levelIndex}`}>
+                                  {' '}L{levelIndex + 1} {memorizedCountsByLevel[levelIndex + 1] ?? 0}/{limit}
+                                </Fragment>
+                              ))}
+                            </p>
                           </section>
                         ) : null}
                       </div>
@@ -2869,13 +3088,27 @@ export function CharacterTab({
                       <div className="character-enc-xp-side">
                         <div className="character-enc-xp-side-row">
                           <span className="character-enc-xp-tag">Next</span>
-                          <input type="number" step={1} defaultValue="" disabled={!canEditSelected} />
-                          <small>Experience points for next level</small>
+                          <input
+                            type="text"
+                            value={selectedNextLevelXp === null ? 'Max' : selectedNextLevelXp.toLocaleString()}
+                            readOnly
+                            disabled
+                          />
+                          <small>
+                            {selectedXpToNextLevel === null
+                              ? 'Class level cap reached'
+                              : `${selectedXpToNextLevel.toLocaleString()} XP remaining`}
+                          </small>
                         </div>
                         <div className="character-enc-xp-side-row">
                           <span className="character-enc-xp-tag">%</span>
-                          <input type="number" step={1} defaultValue="" disabled={!canEditSelected} />
-                          <small>Prime requisite modifier to XP</small>
+                          <input
+                            type="text"
+                            value={`${selectedPrimeXpModifierPercent > 0 ? '+' : ''}${selectedPrimeXpModifierPercent}%`}
+                            readOnly
+                            disabled
+                          />
+                          <small>Prime requisite modifier ({primeRequisiteLabel})</small>
                         </div>
                       </div>
                     </section>
@@ -3697,8 +3930,6 @@ export function CharacterTab({
                         const alreadyInBook = selectedSpellBookSpellIds.includes(spell.id)
                         const pending = spellBookPendingAddIds.includes(spell.id)
                         const expanded = spellBookExpandedSpellId === spell.id
-                        const slotsUsed = (spellLevelCountsInBook[spell.level] ?? 0) + (spellLevelCountsInPending[spell.level] ?? 0)
-                        const hasLevelSlot = slotsUsed < spellBookSlotsPerSpellLevel || pending
                         return (
                           <article
                             key={spell.id}
@@ -3730,7 +3961,7 @@ export function CharacterTab({
                                   queueSpellForBook(spell.id)
                                 }
                               }}
-                              disabled={alreadyInBook || (!pending && !hasLevelSlot)}
+                              disabled={alreadyInBook}
                             >
                               {alreadyInBook ? 'In Spell Book' : pending ? 'Remove' : 'Add Spell'}
                             </button>
@@ -4279,6 +4510,91 @@ export function CharacterTab({
             <div className="confirm-actions">
               <button type="button" onClick={() => setAddItemModal(null)}>Cancel</button>
               <button type="button" onClick={saveAddItem}>{requiresApprovalNow ? 'Request' : 'Add'}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {levelUpModalOpen && effectiveSelected ? (
+        <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={closeLevelUpModal}>
+          <div className="confirm-modal character-levelup-modal" onClick={(event) => event.stopPropagation()}>
+            <header className="character-levelup-hero">
+              <div className="character-levelup-kicker">
+                <Star size={14} />
+                <span>Level Up</span>
+              </div>
+              <h3 className="character-levelup-title">{effectiveSelected.name} Advances</h3>
+              <p className="character-levelup-story">
+                As a level {levelUpTargetLevel} {selectedClassName}, you should roll new hit points and review your
+                updated class options.
+              </p>
+              <p className="character-levelup-flavor">{levelUpFlavor}</p>
+              <div className="character-levelup-meta">
+                <span className="character-levelup-pill">Level {effectiveSelected.level} to {levelUpTargetLevel}</span>
+                <span className="character-levelup-pill">
+                  XP {effectiveSelected.xp.toLocaleString()}
+                  {selectedNextLevelXp !== null ? ` / ${selectedNextLevelXp.toLocaleString()}` : ''}
+                </span>
+              </div>
+            </header>
+
+            <div className="character-levelup-panes">
+              <section className="character-levelup-panel">
+                <h4 className="character-levelup-subhead">Checklist</h4>
+                <ul className="character-levelup-list">
+                  {levelUpChecklist.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ul>
+              </section>
+
+              <section className="character-levelup-panel">
+                <h4 className="character-levelup-subhead">Hit Point Roll</h4>
+                <div className="character-levelup-grid">
+                  <div className="character-levelup-row">
+                    <span>Class HD</span>
+                    <strong>{selectedHitDie ? `d${selectedHitDie}` : '-'}</strong>
+                  </div>
+                  <div className="character-levelup-row">
+                    <span>HP gained this level</span>
+                    <strong>{levelUpHpGain ?? '-'}</strong>
+                  </div>
+                </div>
+                <div className="character-levelup-actions">
+                  <button type="button" className="character-levelup-roll-btn" onClick={rollLevelUpHitPoints} disabled={levelUpApplying}>
+                    Roll Hit Points
+                  </button>
+                </div>
+                <p className="character-enc-help">This increase uses the hit die roll.</p>
+              </section>
+            </div>
+
+            <section className="character-levelup-panel">
+              <h4 className="character-levelup-subhead">New At This Level</h4>
+              {levelUpNewFeatures.length > 0 ? (
+                <ul className="character-levelup-list">
+                  {levelUpNewFeatures.map((feature) => (
+                    <li key={feature.id}>
+                      <strong>{feature.name}.</strong> {feature.summary}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="character-enc-help">No new named feature unlocks at this exact level.</p>
+              )}
+            </section>
+            {levelUpError ? <p className="error">{levelUpError}</p> : null}
+            <div className="confirm-actions">
+              <button type="button" onClick={closeLevelUpModal} disabled={levelUpApplying}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="confirm-danger"
+                onClick={applyLevelUp}
+                disabled={levelUpApplying || levelUpHpGain === null}
+              >
+                Apply Level Up
+              </button>
             </div>
           </div>
         </div>

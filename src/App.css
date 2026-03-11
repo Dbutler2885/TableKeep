@@ -906,6 +906,37 @@ button:hover {
   grid-template-columns: 28px max-content minmax(0, 1fr);
 }
 
+.character-grant-target-row {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 0.12rem;
+  padding: 0.1rem 0;
+}
+
+.character-grant-target-row strong {
+  font-size: 0.95rem;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.character-grant-target-row small {
+  font-size: 0.74rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.character-grant-actions {
+  width: 100%;
+  justify-content: stretch;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.character-grant-actions .character-current-action {
+  flex: 1 1 12rem;
+  justify-content: center;
+}
+
 .character-class-feature-row {
   grid-template-columns: 28px minmax(0, 1fr);
   align-items: start;
@@ -1899,6 +1930,23 @@ button.character-item-add-btn:disabled {
   accent-color: #5f8a56;
 }
 
+.character-inline-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.character-inline-checkbox input[type='checkbox'] {
+  width: 0.9rem;
+  height: 0.9rem;
+  margin: 0;
+}
+
+.character-inline-checkbox small {
+  color: #4f4f48;
+}
+
 .monster-card-statline {
   line-height: 1.4;
 }
@@ -1953,6 +2001,19 @@ button.character-item-add-btn:disabled {
   background: #d9e8d2;
   border-color: #c0d6b8;
   font-weight: 700;
+}
+
+.character-levelup-action {
+  color: #1e5e2b;
+  background: #edf8ee;
+  border-color: #73af7e;
+  box-shadow: inset 0 0 0 1px #c5e3ca;
+}
+
+.character-levelup-action:hover {
+  color: #174b22;
+  background: #e1f3e4;
+  border-color: #5f9a6b;
 }
 
 .monster-editor-grid {
@@ -5368,6 +5429,162 @@ button:disabled {
 
 .character-create-modal-actions button {
   width: 100%;
+}
+
+.character-levelup-modal {
+  width: min(94vw, 760px);
+  border: 1px solid #c8d5c1;
+  background:
+    linear-gradient(180deg, #f7fbf3 0%, #fdfdfb 38%);
+  box-shadow: 0 20px 42px rgba(24, 34, 24, 0.18);
+}
+
+.character-levelup-grid {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.character-levelup-hero {
+  border: 1px solid #cddbc8;
+  background: linear-gradient(120deg, #e9f2df 0%, #f8fcf2 58%, #f3f8ec 100%);
+  border-radius: 10px;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.42rem;
+}
+
+.character-levelup-kicker {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  gap: 0.32rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #2f4c2f;
+  border: 1px solid #b8cdb3;
+  border-radius: 999px;
+  background: #f7fbf2;
+  padding: 0.16rem 0.5rem;
+}
+
+.character-levelup-title {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.8vw, 1.75rem);
+  line-height: 1.1;
+}
+
+.character-levelup-story {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.character-levelup-flavor {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #465545;
+  font-style: italic;
+}
+
+.character-levelup-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.character-levelup-pill {
+  border: 1px solid #bed0b8;
+  background: #f5faef;
+  border-radius: 999px;
+  padding: 0.22rem 0.55rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #2f4330;
+}
+
+.character-levelup-panes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.character-levelup-panel {
+  border: 1px solid #e0e6d8;
+  border-radius: 9px;
+  background: #fdfefa;
+  padding: 0.62rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.character-levelup-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.34rem 0.48rem;
+  border: 1px solid #e6ebdd;
+  border-radius: 6px;
+  background: #f4f8ef;
+}
+
+.character-levelup-subhead {
+  margin: 0;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #4a5946;
+}
+
+.character-levelup-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.28rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.character-levelup-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.character-levelup-roll-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.05rem;
+  padding: 0.36rem 0.9rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border-radius: 10px;
+  border: 1px solid #9db693;
+  background: linear-gradient(180deg, #edf8e6 0%, #d7eccc 100%);
+  color: #223321;
+}
+
+.character-levelup-roll-btn:hover {
+  border-color: #7f9f74;
+  background: linear-gradient(180deg, #f4fbef 0%, #deefcf 100%);
+}
+
+@media (max-width: 760px) {
+  .character-levelup-modal {
+    width: min(96vw, 620px);
+    padding: 0.82rem;
+  }
+
+  .character-levelup-panes {
+    grid-template-columns: 1fr;
+  }
+
+  .character-levelup-title {
+    font-size: 1.28rem;
+  }
 }
 
 .character-store-head {
