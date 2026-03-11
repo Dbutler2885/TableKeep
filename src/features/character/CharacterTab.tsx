@@ -28,12 +28,6 @@ import type {
 } from '../../types/app'
 import { DEFAULT_STACK_POLICY } from '../items/itemDefaults'
 import { useItemApprovals } from './useItemApprovals'
-import {
-  CHARACTER_INTERMEDIATE_MAX_WIDTH,
-  CHARACTER_MOBILE_INTERMEDIATE_MIN_WIDTH,
-  CHARACTER_MOBILE_PORTRAIT_INTERMEDIATE_MIN_WIDTH,
-  MOBILE_BREAKPOINT,
-} from '../../constants/layout'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { OSE_WEAPON_CATALOG, weaponCatalogById } from './weaponCatalog'
@@ -87,6 +81,7 @@ import {
 } from './inventoryRules'
 import { makeId, stableStringify, makeSpellBookItem, makeWeaponItem, makeArmourItem } from './characterFactories'
 import { materializeCartEntries, validateStorePurchase } from './storeRules'
+import { useResponsiveCharacterLayout } from './useResponsiveCharacterLayout'
 
 type CharacterTabProps = {
   campaignId: string
@@ -531,10 +526,12 @@ export function CharacterTab({
   deleteCharacter,
   hasPendingWrite,
 }: CharacterTabProps) {
-  const [viewportWidth, setViewportWidth] = useState<number>(() => window.innerWidth)
-  const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
-  const [mobileCharacterView, setMobileCharacterView] = useState<'list' | 'detail'>('list')
-  const [activePage, setActivePage] = useState<'core' | 'encumbrance'>('core')
+  const {
+    isMobile, mobileCharacterView, setMobileCharacterView,
+    activePage, setActivePage,
+    showListPane, showDetailPane,
+    isIntermediateMobileLayout, useIntermediateLayout,
+  } = useResponsiveCharacterLayout()
   const [abilityScoresByCharacterId, setAbilityScoresByCharacterId] = useState<Record<string, AbilityScores>>({})
   const [rolledAbilityScoresByCharacterId, setRolledAbilityScoresByCharacterId] = useState<Record<string, AbilityScores>>({})
   const [abilityScoresRolledByCharacterId, setAbilityScoresRolledByCharacterId] = useState<Record<string, boolean>>({})
@@ -767,32 +764,11 @@ export function CharacterTab({
     selectedCharacter ?? sortedCharacters.find((character) => character.id === selectedCharacterId) ?? null
 
   useEffect(() => {
-    const updateMobileState = () => {
-      const width = window.innerWidth
-      setViewportWidth(width)
-      const mobile = width <= MOBILE_BREAKPOINT
-      setIsMobile(mobile)
-      if (!mobile) setMobileCharacterView('list')
-    }
-
-    updateMobileState()
-    window.addEventListener('resize', updateMobileState)
-    return () => window.removeEventListener('resize', updateMobileState)
-  }, [])
-
-  useEffect(() => {
     if (sortedCharacters.length === 0) return
     if (!effectiveSelected) {
       setSelectedCharacterId(sortedCharacters[0].id)
     }
   }, [effectiveSelected, setSelectedCharacterId, sortedCharacters])
-
-  const showListPane = !isMobile || mobileCharacterView === 'list'
-  const showDetailPane = !isMobile || mobileCharacterView === 'detail'
-  const isIntermediateLayout = !isMobile && viewportWidth <= CHARACTER_INTERMEDIATE_MAX_WIDTH
-  const isPortraitMobileLayout = isMobile && viewportWidth >= CHARACTER_MOBILE_PORTRAIT_INTERMEDIATE_MIN_WIDTH
-  const isIntermediateMobileLayout = isMobile && viewportWidth >= CHARACTER_MOBILE_INTERMEDIATE_MIN_WIDTH
-  const useIntermediateLayout = isIntermediateLayout || isPortraitMobileLayout
   const canCreateCharacter = role === 'gm' || role === 'player'
   const canEditSelected = !!effectiveSelected
   const canSetCurrentCharacter = role === 'player'
