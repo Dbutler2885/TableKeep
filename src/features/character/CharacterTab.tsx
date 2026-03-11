@@ -437,6 +437,44 @@ const stableStringify = (value: unknown): string =>
     return v
   })
 
+const renderSpellDescriptionBody = (spell: CharacterSpell): ReactNode[] => {
+  const lines = spell.description
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+  const blocks: ReactNode[] = []
+  let bulletBuffer: string[] = []
+  let key = 0
+
+  const flushBullets = () => {
+    if (bulletBuffer.length === 0) return
+    const bullets = bulletBuffer
+    bulletBuffer = []
+    blocks.push(
+      <ul key={`spell-detail-bullets-${key++}`} className="character-spell-detail-list">
+        {bullets.map((bullet, index) => (
+          <li key={`spell-detail-bullet-${index}`}>{bullet}</li>
+        ))}
+      </ul>,
+    )
+  }
+
+  for (const line of lines) {
+    if (line.startsWith('- ')) {
+      bulletBuffer.push(line.slice(2).trim())
+      continue
+    }
+    flushBullets()
+    blocks.push(
+      <p key={`spell-detail-paragraph-${key++}`} className="character-spell-detail-paragraph">
+        {line}
+      </p>,
+    )
+  }
+  flushBullets()
+  return blocks
+}
+
 const makeSpellBookItem = (): CharacterGeneralItem => ({
   id: makeId(),
   kind: 'general',
@@ -725,6 +763,7 @@ export function CharacterTab({
   const [spellBookAddTabLevel, setSpellBookAddTabLevel] = useState<number>(1)
   const [spellBookPendingAddIds, setSpellBookPendingAddIds] = useState<string[]>([])
   const [spellBookExpandedSpellId, setSpellBookExpandedSpellId] = useState<string | null>(null)
+  const [memorizedSpellDetailId, setMemorizedSpellDetailId] = useState<string | null>(null)
   const [spellBookFeedback, setSpellBookFeedback] = useState<string | null>(null)
   const [addItemModal, setAddItemModal] = useState<{
     equipped: boolean
@@ -957,6 +996,18 @@ export function CharacterTab({
     updateCharacter(effectiveSelected.id, updates)
   }
 
+  function ensureSpellBookItemForCharacter(characterId: string) {
+    setInventoryByCharacterId((current) => {
+      const items = current[characterId] ?? []
+      const hasSpellBook = items.some((item) => item.kind === 'general' && item.typeId === SPELL_BOOK_TYPE_ID)
+      if (hasSpellBook) return current
+      return {
+        ...current,
+        [characterId]: [...items, makeSpellBookItem()],
+      }
+    })
+  }
+
   const selectedAbilityScores = effectiveSelected
     ? (abilityScoresByCharacterId[effectiveSelected.id] ?? emptyAbilityScores())
     : emptyAbilityScores()
@@ -1003,8 +1054,14 @@ export function CharacterTab({
   const selectedSpellBookItem = selectedInventory.find((item) =>
     item.kind === 'general' && item.typeId === SPELL_BOOK_TYPE_ID,
   ) as CharacterGeneralItem | undefined
-  const selectedSpellBookSpellIds = effectiveSelected ? (spellBookSpellIdsByCharacterId[effectiveSelected.id] ?? []) : []
-  const selectedMemorizedSpellIds = effectiveSelected ? (memorizedSpellIdsByCharacterId[effectiveSelected.id] ?? []) : []
+  const selectedSpellBookSpellIds = useMemo(
+    () => (effectiveSelected ? (spellBookSpellIdsByCharacterId[effectiveSelected.id] ?? []) : []),
+    [effectiveSelected, spellBookSpellIdsByCharacterId],
+  )
+  const selectedMemorizedSpellIds = useMemo(
+    () => (effectiveSelected ? (memorizedSpellIdsByCharacterId[effectiveSelected.id] ?? []) : []),
+    [effectiveSelected, memorizedSpellIdsByCharacterId],
+  )
   const selectedSpellBookSpells = selectedSpellBookSpellIds
     .map((id) => arcaneSpellById[id])
     .filter((spell): spell is CharacterSpell => !!spell)
@@ -1036,6 +1093,7 @@ export function CharacterTab({
   const pendingSpellObjects = spellBookPendingAddIds
     .map((id) => arcaneSpellById[id])
     .filter((spell): spell is CharacterSpell => !!spell)
+  const memorizedSpellDetail = memorizedSpellDetailId ? arcaneSpellById[memorizedSpellDetailId] ?? null : null
   const canEditAbilityScores = !!effectiveSelected
     && canEditSelected
     && (isGuidedCreation || effectiveSelected.creationMode === 'established')
@@ -1780,6 +1838,13 @@ export function CharacterTab({
     }
   }, [itemDetailId, selectedSpellBookItem?.id])
 
+  useEffect(() => {
+    if (!memorizedSpellDetailId) return
+    if (!selectedMemorizedSpellIds.includes(memorizedSpellDetailId)) {
+      setMemorizedSpellDetailId(null)
+    }
+  }, [memorizedSpellDetailId, selectedMemorizedSpellIds])
+
   // Clear justSeeded AFTER all init effects have run (effect order matters —
   // this must be defined after the init effects so they can see justSeeded as true)
   useEffect(() => {
@@ -1796,18 +1861,6 @@ export function CharacterTab({
         [effectiveSelected.id]: items.map((item) =>
           item.id === itemId ? { ...item, ...updates } as CharacterInventoryItem : item,
         ),
-      }
-    })
-  }
-
-  const ensureSpellBookItemForCharacter = (characterId: string) => {
-    setInventoryByCharacterId((current) => {
-      const items = current[characterId] ?? []
-      const hasSpellBook = items.some((item) => item.kind === 'general' && item.typeId === SPELL_BOOK_TYPE_ID)
-      if (hasSpellBook) return current
-      return {
-        ...current,
-        [characterId]: [...items, makeSpellBookItem()],
       }
     })
   }
@@ -1849,7 +1902,7 @@ export function CharacterTab({
     if (spellBookSelectedSpellId === spellId) setSpellBookSelectedSpellId(null)
   }
 
-  const useMemorizedSpell = (spellId: string) => {
+  const consumeMemorizedSpell = (spellId: string) => {
     if (!effectiveSelected) return
     const spellName = arcaneSpellById[spellId]?.name ?? 'Spell'
     setMemorizedSpellIdsByCharacterId((current) => ({
@@ -3490,14 +3543,18 @@ export function CharacterTab({
                               <div className="character-memorized-spells-list">
                                 {selectedMemorizedSpells.map((spell) => (
                                   <div key={spell.id} className="character-memorized-spell-row">
-                                    <div>
+                                    <button
+                                      type="button"
+                                      className="character-memorized-spell-open"
+                                      onClick={() => setMemorizedSpellDetailId(spell.id)}
+                                    >
                                       <strong>{spell.name}</strong>
                                       <small>Level {spell.level}</small>
-                                    </div>
+                                    </button>
                                     <button
                                       type="button"
                                       className="monster-example-btn"
-                                      onClick={() => useMemorizedSpell(spell.id)}
+                                      onClick={() => consumeMemorizedSpell(spell.id)}
                                       disabled={!canEditSelected}
                                     >
                                       Use
@@ -4269,7 +4326,13 @@ export function CharacterTab({
                               ) : null}
                             </div>
                             <small>Level {spell.level}</small>
-                            <p>{spell.description}</p>
+                            {spell.rangeText || spell.durationText ? (
+                              <small className="character-spellbook-meta">
+                                {spell.rangeText ? `Range: ${spell.rangeText}` : null}
+                                {spell.rangeText && spell.durationText ? ' | ' : null}
+                                {spell.durationText ? `Duration: ${spell.durationText}` : null}
+                              </small>
+                            ) : null}
                           </button>
                           {isInFinalizationFlow && canEditSelected ? (
                             <button
@@ -4570,6 +4633,60 @@ export function CharacterTab({
                   </button>
                 </div>
               </aside>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {memorizedSpellDetail ? (
+        <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={() => setMemorizedSpellDetailId(null)}>
+          <div className="confirm-modal character-spell-detail-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="character-spell-detail-head">
+              <h3>{memorizedSpellDetail.name}</h3>
+              <p>Memorized spell details</p>
+            </div>
+            <div className="character-spell-detail-stat-grid">
+              <div className="character-spell-detail-stat">
+                <span>Level</span>
+                <strong>{memorizedSpellDetail.level}</strong>
+              </div>
+              {memorizedSpellDetail.rangeText ? (
+                <div className="character-spell-detail-stat">
+                  <span>Range</span>
+                  <strong>{memorizedSpellDetail.rangeText}</strong>
+                </div>
+              ) : null}
+              {memorizedSpellDetail.durationText ? (
+                <div className="character-spell-detail-stat">
+                  <span>Duration</span>
+                  <strong>{memorizedSpellDetail.durationText}</strong>
+                </div>
+              ) : null}
+              {memorizedSpellDetail.targetText ? (
+                <div className="character-spell-detail-stat">
+                  <span>Target</span>
+                  <strong>{memorizedSpellDetail.targetText}</strong>
+                </div>
+              ) : null}
+              {memorizedSpellDetail.areaText ? (
+                <div className="character-spell-detail-stat">
+                  <span>Area</span>
+                  <strong>{memorizedSpellDetail.areaText}</strong>
+                </div>
+              ) : null}
+              {memorizedSpellDetail.savingThrowText ? (
+                <div className="character-spell-detail-stat">
+                  <span>Save</span>
+                  <strong>{memorizedSpellDetail.savingThrowText}</strong>
+                </div>
+              ) : null}
+            </div>
+            <div className="character-spell-detail-body">
+              {renderSpellDescriptionBody(memorizedSpellDetail)}
+            </div>
+            <div className="confirm-actions">
+              <button type="button" onClick={() => setMemorizedSpellDetailId(null)}>
+                Close
+              </button>
             </div>
           </div>
         </div>

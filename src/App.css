@@ -6243,6 +6243,21 @@ button:disabled {
   background: #fff;
 }
 
+.character-memorized-spell-open {
+  border: 0;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+  padding: 0;
+  display: grid;
+  gap: 0.1rem;
+  cursor: pointer;
+}
+
+.character-memorized-spell-open:hover strong {
+  text-decoration: underline;
+}
+
 .character-memorized-spell-row small {
   display: block;
   color: #666;
@@ -6316,10 +6331,10 @@ button:disabled {
   color: #666;
 }
 
-.character-spellbook-select p {
-  margin: 0.35rem 0 0;
-  color: #333;
-  font-size: 0.93rem;
+.character-spellbook-meta {
+  margin-top: 0.2rem;
+  color: #40563a !important;
+  font-weight: 700;
 }
 
 .character-spellbook-actions {
@@ -6362,4 +6377,71 @@ button:disabled {
   .character-spell-add-modal .store-modal-body {
     grid-template-columns: 1fr;
   }
+}
+
+.character-spell-detail-modal {
+  width: min(92vw, 720px);
+  max-height: 86vh;
+  overflow: auto;
+}
+
+.character-spell-detail-head h3 {
+  margin: 0;
+}
+
+.character-spell-detail-head p {
+  margin: 0.2rem 0 0;
+  color: #666;
+}
+
+.character-spell-detail-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.45rem;
+}
+
+.character-spell-detail-stat {
+  border: 1px solid #dddcd6;
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.45rem 0.55rem;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.character-spell-detail-stat span {
+  font-size: 0.7rem;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.character-spell-detail-stat strong {
+  font-size: 0.88rem;
+}
+
+.character-spell-detail-body {
+  border: 1px solid #dddcd6;
+  border-radius: 8px;
+  background: #fcfcfb;
+  padding: 0.65rem 0.75rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.character-spell-detail-paragraph {
+  margin: 0;
+  line-height: 1.4;
+  white-space: pre-line;
+}
+
+.character-spell-detail-list {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.character-spell-detail-list li {
+  line-height: 1.35;
 }
