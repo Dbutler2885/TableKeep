@@ -1877,6 +1877,28 @@ button.character-item-add-btn:disabled {
   right: 0.18rem;
 }
 
+.character-card-grant-target {
+  position: absolute;
+  top: 0.18rem;
+  right: 0.18rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #cfd5ca;
+  z-index: 2;
+}
+
+.character-card-grant-target input[type='checkbox'] {
+  width: 0.9rem;
+  height: 0.9rem;
+  margin: 0;
+  accent-color: #5f8a56;
+}
+
 .monster-card-statline {
   line-height: 1.4;
 }

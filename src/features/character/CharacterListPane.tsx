@@ -1,4 +1,4 @@
-import { Plus, Star, Trash2, UserRound } from 'lucide-react'
+import { Gift, Plus, Star, Trash2, UserRound } from 'lucide-react'
 import type { CharacterRecord, Role } from '../../types/app'
 
 type Props = {
@@ -12,6 +12,11 @@ type Props = {
   onCreateCharacter: () => void
   onSelectCharacter: (characterId: string) => void
   onDeleteCharacter: (character: CharacterRecord) => void
+  showGrantCard: boolean
+  isGrantMode: boolean
+  selectedGrantTargetIds: string[]
+  onEnterGrantMode: () => void
+  onToggleGrantTarget: (characterId: string, checked: boolean) => void
 }
 
 export function CharacterListPane({
@@ -25,7 +30,14 @@ export function CharacterListPane({
   onCreateCharacter,
   onSelectCharacter,
   onDeleteCharacter,
+  showGrantCard,
+  isGrantMode,
+  selectedGrantTargetIds,
+  onEnterGrantMode,
+  onToggleGrantTarget,
 }: Props) {
+  const selectedTargetSet = new Set(selectedGrantTargetIds)
+
   return (
     <aside className="maps-sidebar monsters-sidebar characters-sidebar">
       <div className="maps-sidebar-header">
@@ -47,6 +59,26 @@ export function CharacterListPane({
       {sortedCharacters.length === 0 ? <p>No characters available.</p> : null}
 
       <div className="monster-list-grid character-list-grid">
+        {showGrantCard ? (
+          <button
+            type="button"
+            className={isGrantMode ? 'monster-list-item active' : 'monster-list-item'}
+            onClick={onEnterGrantMode}
+          >
+            <div className="monster-card-portrait">
+              <div className="monster-portrait-empty small">
+                <Gift size={14} />
+              </div>
+            </div>
+            <div className="monster-card-main">
+              <div className="character-card-title-row">
+                <h4>Grant</h4>
+              </div>
+              <p className="monster-card-statline">Grant XP, gp, and items</p>
+              <p>{isGrantMode ? 'Grant mode active' : 'Open grant mode'}</p>
+            </div>
+          </button>
+        ) : null}
         {sortedCharacters.map((character) => (
           <div key={character.id} className="character-list-item-wrap">
             <button
@@ -92,7 +124,17 @@ export function CharacterListPane({
                 </p>
               </div>
             </button>
-            {canDeleteCharacter(character) ? (
+            {isGrantMode ? (
+              <label className="character-card-grant-target" onClick={(event) => event.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={selectedTargetSet.has(character.id)}
+                  onChange={(event) => onToggleGrantTarget(character.id, event.target.checked)}
+                  aria-label={`Select ${character.name || 'character'} as grant target`}
+                />
+              </label>
+            ) : null}
+            {canDeleteCharacter(character) && !isGrantMode ? (
               <button
                 type="button"
                 className="map-delete-btn character-card-delete-btn"

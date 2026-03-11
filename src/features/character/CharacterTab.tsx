@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Check, ChevronLeft, Plus, ShoppingBag, Star, X } from 'lucide-react'
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { doc, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type {
+  CampaignItem,
   CharacterRecord,
   CharacterSpell,
   CharacterSheetDetails,
@@ -16,6 +17,8 @@ import type {
   Role,
 } from '../../types/app'
 import { DEFAULT_STACK_POLICY } from '../items/itemDefaults'
+import { campaignItemToInventoryItem } from '../items/itemConversion'
+import { useItems } from '../items/useItems'
 import { useItemApprovals } from './useItemApprovals'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
@@ -57,6 +60,8 @@ import {
 } from './characterRules'
 import {
   resolveArmourType,
+  applyWeaponTemplateToItem,
+  applyArmourTemplateToItem,
   isWeaponTemplateAllowedForClass,
   isArmourTemplateAllowedForClass,
   parseDamageDice,
@@ -65,7 +70,7 @@ import {
   armourTypeFromTemplateId,
 } from './inventoryRules'
 import { makeId, makeWeaponItem, makeArmourItem } from './characterFactories'
-import { makeGoldItem } from './inventoryOverflow'
+import { computeAvailablePackedSlots, computeOverflow, goldChunksForAmount, makeGoldItem } from './inventoryOverflow'
 import { useResponsiveCharacterLayout } from './useResponsiveCharacterLayout'
 import { useCharacterPersistenceSync } from './useCharacterPersistenceSync'
 import { useCharacterCreationFlow } from './useCharacterCreationFlow'
@@ -73,6 +78,7 @@ import { useSpellbookDomain } from './useSpellbookDomain'
 import { useInventoryDomain } from './useInventoryDomain'
 import { useStoreDomain } from './useStoreDomain'
 import { CharacterListPane } from './CharacterListPane'
+import { computeGrantedXp, levelForXp, projectCharacterProgress } from './xpProgression'
 
 type CharacterTabProps = {
   campaignId: string
@@ -93,6 +99,16 @@ type CharacterTabProps = {
 
 type AdventureEditableCode = 'FG' | 'FT' | 'HT' | 'LD' | 'SD'
 type ThiefSkillCode = 'CS' | 'TR' | 'HN' | 'HS' | 'MS' | 'OL' | 'PP' | 'RL'
+type GrantTemplateEntry = {
+  key: string
+  name: string
+  costGp: number
+  qty: number
+  kind: 'general' | 'weapon' | 'ammunition' | 'armour' | 'consumable'
+  weaponId?: string
+  armourId?: string
+  packedLabel?: string
+}
 type ClassFeature = {
   id: string
   name: string
@@ -588,8 +604,20 @@ export function CharacterTab({
   const [overflowWriting, setOverflowWriting] = useState(false)
   const [alignmentByCharacterId, setAlignmentByCharacterId] = useState<Record<string, string>>({})
   const [titleByCharacterId, setTitleByCharacterId] = useState<Record<string, string>>({})
+  const [grantMode, setGrantMode] = useState(false)
+  const [grantTargetIds, setGrantTargetIds] = useState<Record<string, boolean>>({})
+  const [grantXpBase, setGrantXpBase] = useState('')
+  const [grantGoldGp, setGrantGoldGp] = useState('')
+  const [grantNote, setGrantNote] = useState('')
+  const [grantCampaignItemId, setGrantCampaignItemId] = useState('')
+  const [grantCampaignEntries, setGrantCampaignEntries] = useState<Array<{ itemId: string; name: string; qty: number }>>([])
+  const [grantTemplateItemId, setGrantTemplateItemId] = useState('')
+  const [grantTemplateEntries, setGrantTemplateEntries] = useState<GrantTemplateEntry[]>([])
+  const [grantBusy, setGrantBusy] = useState(false)
+  const [grantFeedback, setGrantFeedback] = useState<string | null>(null)
 
   const { rejections, submitRequest, submitSpellLearnRequest, dismissRejection } = useItemApprovals(campaignId, role, currentUserId)
+  const { items: campaignItems } = useItems(campaignId)
   const [approvalPendingFeedback, setApprovalPendingFeedback] = useState<string | null>(null)
 
   // Auto-clear approval pending feedback after 5 seconds
@@ -659,6 +687,22 @@ export function CharacterTab({
     () => [...characters].sort((a, b) => a.name.localeCompare(b.name)),
     [characters],
   )
+  const authoredCampaignItems = useMemo(
+    () => campaignItems.filter((item) => item.status === 'authored'),
+    [campaignItems],
+  )
+  const grantTemplateSelectable = useMemo(
+    () => OSE_STORE_ITEMS.filter((item) =>
+      item.kind === 'general' || item.kind === 'weapon' || item.kind === 'armour' || item.kind === 'ammunition' || item.kind === 'consumable',
+    ),
+    [],
+  )
+  const selectedGrantTargetIds = useMemo(
+    () => sortedCharacters.filter((c) => grantTargetIds[c.id]).map((c) => c.id),
+    [sortedCharacters, grantTargetIds],
+  )
+  const parsedGrantBaseXp = Math.max(0, Number.parseInt(grantXpBase, 10) || 0)
+  const parsedGrantGoldGp = Math.max(0, Number.parseInt(grantGoldGp, 10) || 0)
 
   const effectiveSelected =
     selectedCharacter ?? sortedCharacters.find((character) => character.id === selectedCharacterId) ?? null
@@ -671,10 +715,69 @@ export function CharacterTab({
   }, [effectiveSelected, setSelectedCharacterId, sortedCharacters])
   const canCreateCharacter = role === 'gm' || role === 'player'
   const canEditSelected = !!effectiveSelected
+  const canGrant = role === 'gm'
   const canSetCurrentCharacter = role === 'player'
     && !!effectiveSelected
     && effectiveSelected.ownerUserId === currentUserId
   const canDeleteCharacter = (character: CharacterRecord) => role === 'gm' || character.ownerUserId === currentUserId
+
+  const exitGrantMode = () => {
+    setGrantMode(false)
+    setGrantTargetIds({})
+  }
+
+  const toggleGrantTarget = (characterId: string, checked: boolean) => {
+    setGrantTargetIds((current) => ({
+      ...current,
+      [characterId]: checked,
+    }))
+  }
+
+  const clearGrantDraft = () => {
+    setGrantXpBase('')
+    setGrantGoldGp('')
+    setGrantNote('')
+    setGrantCampaignEntries([])
+    setGrantTemplateEntries([])
+    setGrantCampaignItemId('')
+    setGrantTemplateItemId('')
+  }
+
+  const upsertGrantCampaignEntry = (item: CampaignItem) => {
+    setGrantCampaignEntries((current) => {
+      const idx = current.findIndex((entry) => entry.itemId === item.id)
+      if (idx < 0) return [...current, { itemId: item.id, name: item.typeName || item.name, qty: 1 }]
+      const next = [...current]
+      next[idx] = { ...next[idx], qty: next[idx].qty + 1 }
+      return next
+    })
+  }
+
+  const upsertGrantTemplateEntry = (itemId: string) => {
+    const source = OSE_STORE_ITEMS.find((item) => item.id === itemId)
+    if (!source) return
+    const kind = source.kind
+    if (!(kind === 'general' || kind === 'weapon' || kind === 'armour' || kind === 'ammunition' || kind === 'consumable')) return
+    setGrantTemplateEntries((current) => {
+      const key = source.id
+      const idx = current.findIndex((entry) => entry.key === key)
+      if (idx < 0) {
+        return [...current, {
+          key,
+          name: source.name,
+          costGp: source.costGp,
+          qty: 1,
+          kind,
+          weaponId: source.weaponId,
+          armourId: source.armourId,
+          packedLabel: source.name,
+        }]
+      }
+      const next = [...current]
+      next[idx] = { ...next[idx], qty: next[idx].qty + 1 }
+      return next
+    })
+  }
 
   const updateSelectedCharacter = (updates: Partial<CharacterRecord>) => {
     if (!effectiveSelected) return
@@ -1198,6 +1301,13 @@ export function CharacterTab({
     }
   }, [isGuidedCreation, storeOpen])
 
+  useEffect(() => {
+    if (canGrant) return
+    if (!grantMode) return
+    setGrantMode(false)
+    setGrantTargetIds({})
+  }, [canGrant, grantMode])
+
   // Clear justSeeded AFTER all init effects have run (effect order matters —
   // this must be defined after the init effects so they can see justSeeded as true)
   useEffect(() => {
@@ -1284,6 +1394,221 @@ export function CharacterTab({
     addItemsToInventory,
     setInventoryGoldForCharacter,
   })
+
+  const makeInventoryItemFromTemplateEntry = (entry: GrantTemplateEntry): CharacterInventoryItem => {
+    if (entry.kind === 'weapon' && entry.weaponId) {
+      return applyWeaponTemplateToItem(makeWeaponItem(), entry.weaponId)
+    }
+    if (entry.kind === 'armour' && entry.armourId) {
+      return applyArmourTemplateToItem(makeArmourItem(), entry.armourId)
+    }
+    if (entry.kind === 'ammunition') {
+      const storeItem = OSE_STORE_ITEMS.find((item) => item.id === entry.key)
+      const ammoTemplate = storeItem ? ammoCatalogById[storeItem.id] ?? ammoCatalogById[storeItem.id.replace('ammo-', '')] : null
+      return {
+        id: makeId(),
+        kind: 'ammunition',
+        typeId: ammoTemplate?.id ?? 'custom',
+        typeName: ammoTemplate?.name ?? entry.name,
+        name: entry.name,
+        costGp: entry.costGp,
+        equipped: false,
+        notes: '',
+        description: ammoTemplate?.description ?? '',
+        qty: ammoTemplate?.qty ?? 1,
+        stack: DEFAULT_STACK_POLICY.ammunition,
+      }
+    }
+    if (entry.kind === 'consumable') {
+      const storeItem = OSE_STORE_ITEMS.find((item) => item.id === entry.key)
+      const conTemplate = storeItem ? consumableCatalogById[storeItem.id.replace('gear-', 'con-')] : null
+      return {
+        id: makeId(),
+        kind: 'consumable',
+        typeId: conTemplate?.id ?? 'custom',
+        typeName: conTemplate?.name ?? entry.name,
+        name: entry.name,
+        costGp: entry.costGp,
+        equipped: false,
+        notes: '',
+        description: conTemplate?.description ?? '',
+        qty: conTemplate?.qty ?? 1,
+        stack: DEFAULT_STACK_POLICY.consumable,
+        useMode: conTemplate?.useMode ?? 'consume',
+        effectText: conTemplate?.effectText ?? undefined,
+      }
+    }
+    const storeItem = OSE_STORE_ITEMS.find((item) => item.id === entry.key)
+    const genTemplate = storeItem ? generalCatalogById[storeItem.id] : null
+    return {
+      id: makeId(),
+      kind: 'general',
+      typeId: genTemplate?.id ?? 'custom',
+      typeName: genTemplate?.name ?? entry.name,
+      name: entry.name,
+      costGp: genTemplate?.costGp ?? entry.costGp,
+      equipped: false,
+      notes: '',
+      description: genTemplate?.description ?? '',
+      qty: 1,
+      stack: DEFAULT_STACK_POLICY.general,
+    }
+  }
+
+  const grantPreviewByCharacterId = useMemo(() => {
+    const preview = new Map<string, ReturnType<typeof projectCharacterProgress>>()
+    for (const character of sortedCharacters) {
+      if (!grantTargetIds[character.id]) continue
+      const scores = abilityScoresByCharacterId[character.id] ?? emptyAbilityScores()
+      preview.set(character.id, projectCharacterProgress(character, scores, parsedGrantBaseXp))
+    }
+    return preview
+  }, [sortedCharacters, grantTargetIds, abilityScoresByCharacterId, parsedGrantBaseXp])
+
+  const applyGrantToSelectedTargets = async () => {
+    if (!canGrant || grantBusy) return
+    const targetIds = selectedGrantTargetIds
+    if (targetIds.length === 0) {
+      setGrantFeedback('Select at least one target.')
+      return
+    }
+    if (parsedGrantBaseXp <= 0 && parsedGrantGoldGp <= 0 && grantCampaignEntries.length === 0 && grantTemplateEntries.length === 0) {
+      setGrantFeedback('Add XP, gp, or items before granting.')
+      return
+    }
+
+    const campaignEntriesResolved = grantCampaignEntries
+      .map((entry) => ({ entry, item: authoredCampaignItems.find((item) => item.id === entry.itemId) ?? null }))
+      .filter((row): row is { entry: { itemId: string; name: string; qty: number }; item: CampaignItem } => row.item !== null)
+
+    setGrantBusy(true)
+    setGrantFeedback(null)
+    try {
+      const overflowMessages: string[] = []
+      for (const targetId of targetIds) {
+        const target = sortedCharacters.find((character) => character.id === targetId)
+        if (!target) continue
+        const charRef = doc(db, 'campaigns', campaignId, 'characters', targetId)
+        const overflowGoldDocId = crypto.randomUUID()
+
+        await runTransaction(db, async (tx) => {
+          const snap = await tx.get(charRef)
+          if (!snap.exists()) throw new Error(`Target not found: ${target.name}`)
+
+          const data = snap.data() as CharacterRecord
+          const existingDetails = (data.details && typeof data.details === 'object')
+            ? data.details as CharacterSheetDetails
+            : null
+          const currentInventory = existingDetails?.inventory ?? []
+          const abilityScores = (existingDetails?.abilityScores as AbilityScores | undefined) ?? emptyAbilityScores()
+
+          let campaignGoldGrant = 0
+          const itemsToAdd: CharacterInventoryItem[] = []
+          for (const row of campaignEntriesResolved) {
+            for (let i = 0; i < row.entry.qty; i += 1) {
+              if (row.item.type === 'gold') {
+                const sourceGold = typeof row.item.goldAmount === 'number'
+                  ? row.item.goldAmount
+                  : (Number.parseInt(row.item.gpValue, 10) || 0)
+                campaignGoldGrant += sourceGold
+              } else {
+                itemsToAdd.push(campaignItemToInventoryItem(row.item))
+              }
+            }
+          }
+          for (const entry of grantTemplateEntries) {
+            for (let i = 0; i < entry.qty; i += 1) {
+              itemsToAdd.push(makeInventoryItemFromTemplateEntry(entry))
+            }
+          }
+
+          const goldGrantTotal = parsedGrantGoldGp + campaignGoldGrant
+          const existingGold = currentInventory
+            .filter((item): item is CharacterGoldItem => item.kind === 'gold')
+            .reduce((sum, item) => sum + (item.qty ?? 0), 0)
+
+          const nonGoldCurrent = currentInventory.filter((item) => item.kind !== 'gold')
+          const nonGoldIncoming = itemsToAdd.filter((item) => item.kind !== 'gold')
+          const nextGoldChunks = goldChunksForAmount(Math.max(0, existingGold + goldGrantTotal))
+          const nextGoldItems = nextGoldChunks.map((chunk) => makeGoldItem(chunk))
+          const candidateInventory = [...nonGoldCurrent, ...nonGoldIncoming, ...nextGoldItems]
+
+          const strScore = Number.parseInt(abilityScores.STR ?? '', 10)
+          const availableSlots = computeAvailablePackedSlots(strScore)
+          const overflow = computeOverflow(candidateInventory, availableSlots, targetId, target.name)
+          if (overflow.feedbackMessage) {
+            overflowMessages.push(`${target.name}: ${overflow.feedbackMessage}`)
+          }
+
+          for (const droppedItem of overflow.droppedItems) {
+            const droppedRef = doc(db, 'campaigns', campaignId, 'items', droppedItem.id)
+            tx.set(droppedRef, { ...droppedItem, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
+          }
+          if (overflow.droppedGoldAmount > 0) {
+            const overflowGoldRef = doc(db, 'campaigns', campaignId, 'items', overflowGoldDocId)
+            tx.set(overflowGoldRef, {
+              id: overflowGoldRef.id,
+              name: `Dropped Gold (${overflow.droppedGoldAmount} gp)`,
+              type: 'gold',
+              typeId: 'gold',
+              typeName: 'Gold',
+              status: 'dropped',
+              droppedByCharacterId: targetId,
+              droppedByCharacterName: target.name,
+              portraitUrl: null,
+              portraitFocusX: 50,
+              portraitFocusY: 50,
+              tokenIcon: { icon: 'pawn', color: '#bf2f2a', size: 34 },
+              description: '',
+              gpValue: '0',
+              qty: '1',
+              isMagic: false,
+              weaponStats: { damageDiceCount: '', damageDiceSides: '', attackBonus: '', damageBonus: '', rangeShort: '', rangeMedium: '', rangeLong: '', twoHanded: false },
+              armourStats: { armourClass: '', shieldMod: '', magicMod: '', armourType: 'body' },
+              consumableStats: { useMode: 'consume', effectText: '' },
+              specialRule: '',
+              notes: '',
+              goldAmount: overflow.droppedGoldAmount,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            })
+          }
+
+          const bonusPercent = projectCharacterProgress(target, abilityScores, parsedGrantBaseXp).bonusPercent
+          const grantedXp = computeGrantedXp(parsedGrantBaseXp, bonusPercent)
+          const nextXp = Math.max(0, (data.xp ?? target.xp ?? 0) + grantedXp.awardedXp)
+          const leveled = levelForXp(data.className ?? target.className, nextXp)
+          const nextLevel = Math.max(data.level ?? target.level ?? 1, leveled)
+
+          tx.set(charRef, {
+            xp: nextXp,
+            level: nextLevel,
+            details: {
+              ...(existingDetails ?? {}),
+              inventory: overflow.keptInventory,
+            },
+            updatedAt: serverTimestamp(),
+          }, { merge: true })
+        })
+      }
+
+      const parts = [
+        `Granted to ${targetIds.length} character${targetIds.length === 1 ? '' : 's'}`,
+      ]
+      if (parsedGrantBaseXp > 0) parts.push(`${parsedGrantBaseXp} base XP`)
+      if (parsedGrantGoldGp > 0) parts.push(`${parsedGrantGoldGp} gp`)
+      if (grantCampaignEntries.length > 0 || grantTemplateEntries.length > 0) parts.push('items')
+      const overflowSummary = overflowMessages.length > 0 ? ` | Overflow: ${overflowMessages.join(' / ')}` : ''
+      setGrantFeedback(`${parts.join(' • ')}${overflowSummary}`)
+      clearGrantDraft()
+      setGrantTargetIds({})
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error'
+      setGrantFeedback(`Grant failed: ${message}`)
+    } finally {
+      setGrantBusy(false)
+    }
+  }
 
   const renderAdventuringSkillsSection = () => (
     <section className="monster-section-block">
@@ -1418,19 +1743,31 @@ export function CharacterTab({
           canDeleteCharacter={canDeleteCharacter}
           onCreateCharacter={() => setCreateCharacterModalOpen(true)}
           onSelectCharacter={(characterId) => {
+            if (grantMode) {
+              setGrantMode(false)
+            }
             setSelectedCharacterId(characterId)
             if (isMobile) setMobileCharacterView('detail')
           }}
           onDeleteCharacter={(character) => {
             setDeleteConfirmTarget({ id: character.id, name: character.name || 'character' })
           }}
+          showGrantCard={canGrant}
+          isGrantMode={grantMode}
+          selectedGrantTargetIds={selectedGrantTargetIds}
+          onEnterGrantMode={() => {
+            setGrantMode(true)
+            setActivePage('core')
+            if (isMobile) setMobileCharacterView('detail')
+          }}
+          onToggleGrantTarget={toggleGrantTarget}
         />
       ) : null}
 
       {showDetailPane ? (
         <div className="monsters-detail characters-detail">
           <div className="monsters-detail-inner characters-detail-inner">
-            {!isMobile && effectiveSelected ? (
+            {!isMobile && (effectiveSelected || grantMode) ? (
               <div className="character-sheet-page-tabs top">
                 <div className="character-sheet-tab-bar">
                   <button
@@ -1449,7 +1786,7 @@ export function CharacterTab({
                   </button>
                 </div>
                 <div className="character-sheet-tab-actions">
-                  {canSetCurrentCharacter ? (
+                  {canSetCurrentCharacter && effectiveSelected && !grantMode ? (
                     <button
                       type="button"
                       className={currentCharacterId === effectiveSelected.id ? 'character-current-action active' : 'character-current-action'}
@@ -1460,7 +1797,7 @@ export function CharacterTab({
                       <span>Current Character</span>
                     </button>
                   ) : null}
-                  {isInFinalizationFlow && canEditSelected ? (
+                  {isInFinalizationFlow && canEditSelected && !grantMode ? (
                     <button
                       type="button"
                       className="character-current-action"
@@ -1471,22 +1808,39 @@ export function CharacterTab({
                       <span>Finalize Character</span>
                     </button>
                   ) : null}
+                  {grantMode ? (
+                    <button
+                      type="button"
+                      className="character-current-action"
+                      onClick={exitGrantMode}
+                      aria-label="Exit grant mode"
+                    >
+                      <ChevronLeft size={14} />
+                      <span>Exit Grant</span>
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : null}
             {isMobile ? (
               <div className="monster-detail-header-row">
-                {effectiveSelected ? (
+                {effectiveSelected || grantMode ? (
                   <button
                     type="button"
                     className="back-link monster-mobile-back"
-                    onClick={() => setMobileCharacterView('list')}
+                    onClick={() => {
+                      if (grantMode) {
+                        exitGrantMode()
+                      } else {
+                        setMobileCharacterView('list')
+                      }
+                    }}
                     aria-label="Back to character list"
                   >
                     <ChevronLeft size={16} />
                   </button>
                 ) : <span />}
-                {canSetCurrentCharacter ? (
+                {canSetCurrentCharacter && effectiveSelected && !grantMode ? (
                   <button
                     type="button"
                     className={currentCharacterId === effectiveSelected.id ? 'character-current-action active' : 'character-current-action'}
@@ -1497,7 +1851,7 @@ export function CharacterTab({
                     <span>Current Character</span>
                   </button>
                 ) : <span />}
-                {isInFinalizationFlow && canEditSelected ? (
+                {isInFinalizationFlow && canEditSelected && !grantMode ? (
                   <button
                     type="button"
                     className="character-current-action"
@@ -1513,7 +1867,248 @@ export function CharacterTab({
 
             {finalizeError ? <p className="error">{finalizeError}</p> : null}
 
-            {!effectiveSelected ? (
+            {grantMode ? (
+              <div className="monster-editor-grid character-editor-grid">
+                <section className="character-sheet">
+                  <div className="character-sheet-main-grid">
+                    <div className="character-sheet-left">
+                      <section className="monster-section-block">
+                        <div className="section-head">
+                          <h3 className="monster-section-title">Grant Builder</h3>
+                          <span className="character-roll-points">{selectedGrantTargetIds.length} selected</span>
+                        </div>
+                        <p className="character-enc-help">Build a grant package, then check target characters in the sidebar.</p>
+                        {grantFeedback ? <p className="error">{grantFeedback}</p> : null}
+                        <div className="character-sheet-two-col">
+                          <label className="character-header-field">
+                            <span className="character-header-tag">Base XP</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={grantXpBase}
+                              onChange={(event) => setGrantXpBase(event.target.value)}
+                              disabled={grantBusy}
+                            />
+                          </label>
+                          <label className="character-header-field">
+                            <span className="character-header-tag">Gold (gp)</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={grantGoldGp}
+                              onChange={(event) => setGrantGoldGp(event.target.value)}
+                              disabled={grantBusy}
+                            />
+                          </label>
+                        </div>
+                        <label className="character-header-field">
+                          <span className="character-header-tag">Note</span>
+                          <input
+                            type="text"
+                            value={grantNote}
+                            onChange={(event) => setGrantNote(event.target.value)}
+                            placeholder="Optional reason/context"
+                            disabled={grantBusy}
+                          />
+                        </label>
+                      </section>
+
+                      <section className="monster-section-block">
+                        <h3 className="monster-section-title">Grant Items</h3>
+                        <div className="character-sheet-two-col">
+                          <label className="character-header-field">
+                            <span className="character-header-tag">Campaign Items</span>
+                            <select value={grantCampaignItemId} onChange={(event) => setGrantCampaignItemId(event.target.value)} disabled={grantBusy}>
+                              <option value="">Select item...</option>
+                              {authoredCampaignItems.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.typeName || item.name} ({item.type})
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            className="monster-example-btn"
+                            disabled={!grantCampaignItemId || grantBusy}
+                            onClick={() => {
+                              const item = authoredCampaignItems.find((entry) => entry.id === grantCampaignItemId)
+                              if (!item) return
+                              upsertGrantCampaignEntry(item)
+                            }}
+                          >
+                            Add Campaign Item
+                          </button>
+                        </div>
+
+                        <div className="character-sheet-two-col">
+                          <label className="character-header-field">
+                            <span className="character-header-tag">OSE Templates</span>
+                            <select value={grantTemplateItemId} onChange={(event) => setGrantTemplateItemId(event.target.value)} disabled={grantBusy}>
+                              <option value="">Select template...</option>
+                              {grantTemplateSelectable.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.name} ({item.kind})
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                          <button
+                            type="button"
+                            className="monster-example-btn"
+                            disabled={!grantTemplateItemId || grantBusy}
+                            onClick={() => upsertGrantTemplateEntry(grantTemplateItemId)}
+                          >
+                            Add Template
+                          </button>
+                        </div>
+
+                        {(grantCampaignEntries.length > 0 || grantTemplateEntries.length > 0) ? (
+                          <div className="character-sheet-rows">
+                            {grantCampaignEntries.map((entry) => (
+                              <div key={`campaign-${entry.itemId}`} className="character-sheet-row">
+                                <strong>{entry.name}</strong>
+                                <div className="character-ability-adjust">
+                                  <button
+                                    type="button"
+                                    className="character-ability-adjust-btn"
+                                    onClick={() => setGrantCampaignEntries((current) => current.map((row) =>
+                                      row.itemId === entry.itemId ? { ...row, qty: Math.max(1, row.qty - 1) } : row,
+                                    ))}
+                                  >
+                                    -
+                                  </button>
+                                  <input type="text" value={String(entry.qty)} readOnly />
+                                  <button
+                                    type="button"
+                                    className="character-ability-adjust-btn"
+                                    onClick={() => setGrantCampaignEntries((current) => current.map((row) =>
+                                      row.itemId === entry.itemId ? { ...row, qty: row.qty + 1 } : row,
+                                    ))}
+                                  >
+                                    +
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="monster-example-btn"
+                                    onClick={() => setGrantCampaignEntries((current) => current.filter((row) => row.itemId !== entry.itemId))}
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                            {grantTemplateEntries.map((entry) => (
+                              <div key={`template-${entry.key}`} className="character-sheet-row">
+                                <strong>{entry.name}</strong>
+                                <small>{entry.kind}</small>
+                                <div className="character-ability-adjust">
+                                  <button
+                                    type="button"
+                                    className="character-ability-adjust-btn"
+                                    onClick={() => setGrantTemplateEntries((current) => current.map((row) =>
+                                      row.key === entry.key ? { ...row, qty: Math.max(1, row.qty - 1) } : row,
+                                    ))}
+                                  >
+                                    -
+                                  </button>
+                                  <input type="text" value={String(entry.qty)} readOnly />
+                                  <button
+                                    type="button"
+                                    className="character-ability-adjust-btn"
+                                    onClick={() => setGrantTemplateEntries((current) => current.map((row) =>
+                                      row.key === entry.key ? { ...row, qty: row.qty + 1 } : row,
+                                    ))}
+                                  >
+                                    +
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="monster-example-btn"
+                                    onClick={() => setGrantTemplateEntries((current) => current.filter((row) => row.key !== entry.key))}
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : <p className="character-enc-help">No grant items selected yet.</p>}
+                      </section>
+                    </div>
+
+                    <div className="character-sheet-right">
+                      <section className="monster-section-block">
+                        <div className="section-head">
+                          <h3 className="monster-section-title">Targets</h3>
+                          <button
+                            type="button"
+                            className="monster-example-btn"
+                            onClick={() => setGrantTargetIds(Object.fromEntries(sortedCharacters.map((character) => [character.id, true])))}
+                            disabled={grantBusy || sortedCharacters.length === 0}
+                          >
+                            Select All
+                          </button>
+                          <button
+                            type="button"
+                            className="monster-example-btn"
+                            onClick={() => setGrantTargetIds({})}
+                            disabled={grantBusy || selectedGrantTargetIds.length === 0}
+                          >
+                            Clear
+                          </button>
+                        </div>
+                        {selectedGrantTargetIds.length === 0 ? <p className="character-enc-help">Choose targets from sidebar checkboxes.</p> : (
+                          <div className="character-sheet-rows">
+                            {selectedGrantTargetIds.map((id) => {
+                              const character = sortedCharacters.find((entry) => entry.id === id)
+                              if (!character) return null
+                              const preview = grantPreviewByCharacterId.get(id)
+                              return (
+                                <div key={id} className="character-sheet-row">
+                                  <strong>{character.name}</strong>
+                                  <small>
+                                    XP {character.xp.toLocaleString()}
+                                    {preview ? ` + ${preview.awardedXp.toLocaleString()} (${preview.bonusPercent}% bonus)` : ''}
+                                  </small>
+                                  <small>
+                                    L{character.level}
+                                    {preview ? ` -> L${Math.max(character.level, preview.projectedLevel)}` : ''}
+                                  </small>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                        <div className="character-sheet-tab-actions">
+                          <button
+                            type="button"
+                            className="character-current-action"
+                            onClick={applyGrantToSelectedTargets}
+                            disabled={grantBusy || selectedGrantTargetIds.length === 0}
+                          >
+                            <ShoppingBag size={14} />
+                            <span>{grantBusy ? 'Granting...' : 'Grant to Selected'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="character-current-action"
+                            onClick={() => {
+                              clearGrantDraft()
+                              setGrantTargetIds({})
+                            }}
+                            disabled={grantBusy}
+                          >
+                            <X size={14} />
+                            <span>Clear Draft</span>
+                          </button>
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            ) : !effectiveSelected ? (
               <p>Select a character from the list.</p>
             ) : (
               <div className="monster-editor-grid character-editor-grid">
