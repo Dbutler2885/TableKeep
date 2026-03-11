@@ -38,10 +38,8 @@ import { OSE_CONSUMABLE_CATALOG, consumableCatalogById } from './consumableCatal
 import { OSE_STORE_ITEMS, STORE_CATEGORY_LABELS } from './storeCatalog'
 import {
   ARCANE_SPELL_CATALOG,
-  SPELL_BOOK_ITEM_NAME,
   SPELL_BOOK_TYPE_ID,
   arcaneSpellById,
-  getAccessibleArcaneSpellLevels,
   spellBookSlotsPerSpellLevel,
 } from './spellCatalog'
 import type { StoreCategoryId, StoreItem } from './storeCatalog'
@@ -76,11 +74,12 @@ import {
   isWeaponTemplateAllowedForClass,
   isArmourTemplateAllowedForClass,
 } from './inventoryRules'
-import { makeId, makeSpellBookItem, makeWeaponItem, makeArmourItem } from './characterFactories'
+import { makeId, makeWeaponItem, makeArmourItem } from './characterFactories'
 import { materializeCartEntries, validateStorePurchase } from './storeRules'
 import { useResponsiveCharacterLayout } from './useResponsiveCharacterLayout'
 import { useCharacterPersistenceSync } from './useCharacterPersistenceSync'
 import { useCharacterCreationFlow } from './useCharacterCreationFlow'
+import { useSpellbookDomain } from './useSpellbookDomain'
 
 type CharacterTabProps = {
   campaignId: string
@@ -563,13 +562,6 @@ export function CharacterTab({
   const [hpClassRequiredOpen, setHpClassRequiredOpen] = useState(false)
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{ id: string, name: string } | null>(null)
   const [itemDetailId, setItemDetailId] = useState<string | null>(null)
-  const [spellBookSelectedSpellId, setSpellBookSelectedSpellId] = useState<string | null>(null)
-  const [spellBookAddModalOpen, setSpellBookAddModalOpen] = useState(false)
-  const [spellBookAddTabLevel, setSpellBookAddTabLevel] = useState<number>(1)
-  const [spellBookPendingAddIds, setSpellBookPendingAddIds] = useState<string[]>([])
-  const [spellBookExpandedSpellId, setSpellBookExpandedSpellId] = useState<string | null>(null)
-  const [memorizedSpellDetailId, setMemorizedSpellDetailId] = useState<string | null>(null)
-  const [spellBookFeedback, setSpellBookFeedback] = useState<string | null>(null)
   const [addItemModal, setAddItemModal] = useState<{
     equipped: boolean
     kind: 'general' | 'weapon' | 'armour' | 'ammunition' | 'consumable'
@@ -670,11 +662,6 @@ export function CharacterTab({
     return () => clearTimeout(timer)
   }, [overflowFeedback])
 
-  useEffect(() => {
-    if (!spellBookFeedback) return
-    const timer = setTimeout(() => setSpellBookFeedback(null), 5000)
-    return () => clearTimeout(timer)
-  }, [spellBookFeedback])
 
   const sortedCharacters = useMemo(
     () => [...characters].sort((a, b) => a.name.localeCompare(b.name)),
@@ -700,18 +687,6 @@ export function CharacterTab({
   const updateSelectedCharacter = (updates: Partial<CharacterRecord>) => {
     if (!effectiveSelected) return
     updateCharacter(effectiveSelected.id, updates)
-  }
-
-  function ensureSpellBookItemForCharacter(characterId: string) {
-    setInventoryByCharacterId((current) => {
-      const items = current[characterId] ?? []
-      const hasSpellBook = items.some((item) => item.kind === 'general' && item.typeId === SPELL_BOOK_TYPE_ID)
-      if (hasSpellBook) return current
-      return {
-        ...current,
-        [characterId]: [...items, makeSpellBookItem()],
-      }
-    })
   }
 
   const selectedAbilityScores = effectiveSelected
@@ -747,24 +722,6 @@ export function CharacterTab({
   const packedItems = selectedInventory.filter((i) => !i.equipped)
   const selectedClassName = effectiveSelected?.className ?? '-'
   const selectedLevel = effectiveSelected?.level ?? 1
-  const selectedSpellBookItem = selectedInventory.find((item) =>
-    item.kind === 'general' && item.typeId === SPELL_BOOK_TYPE_ID,
-  ) as CharacterGeneralItem | undefined
-  const selectedSpellBookSpellIds = useMemo(
-    () => (effectiveSelected ? (spellBookSpellIdsByCharacterId[effectiveSelected.id] ?? []) : []),
-    [effectiveSelected, spellBookSpellIdsByCharacterId],
-  )
-  const selectedMemorizedSpellIds = useMemo(
-    () => (effectiveSelected ? (memorizedSpellIdsByCharacterId[effectiveSelected.id] ?? []) : []),
-    [effectiveSelected, memorizedSpellIdsByCharacterId],
-  )
-  const selectedSpellBookSpells = selectedSpellBookSpellIds
-    .map((id) => arcaneSpellById[id])
-    .filter((spell): spell is CharacterSpell => !!spell)
-  const selectedMemorizedSpells = selectedMemorizedSpellIds
-    .map((id) => arcaneSpellById[id])
-    .filter((spell): spell is CharacterSpell => !!spell)
-  const accessibleSpellLevels = getAccessibleArcaneSpellLevels(selectedLevel)
   const unlockedClassFeatures = (classFeaturesByClass[selectedClassName] ?? [])
     .filter((feature) => selectedLevel >= feature.unlockedAt)
     .sort((a, b) => a.unlockedAt - b.unlockedAt)
@@ -772,24 +729,8 @@ export function CharacterTab({
   const isEstablishedDraft = effectiveSelected?.creationStatus === 'established_draft'
   const isInFinalizationFlow = isGuidedCreation || isEstablishedDraft
   const canMemorizeSpell = !!effectiveSelected && !isInFinalizationFlow
-  const canOpenSpellBookAddModal = !!effectiveSelected && canEditSelected && selectedClassName === 'Magic-User'
   const requiresSpellLearnApproval = role !== 'gm' && !isInFinalizationFlow
   const requiresApprovalNow = role !== 'gm' && !isEstablishedDraft
-  const spellLevelCountsInBook = selectedSpellBookSpells.reduce<Record<number, number>>((acc, spell) => {
-    acc[spell.level] = (acc[spell.level] ?? 0) + 1
-    return acc
-  }, {})
-  const spellLevelCountsInPending = spellBookPendingAddIds
-    .map((id) => arcaneSpellById[id])
-    .filter((spell): spell is CharacterSpell => !!spell)
-    .reduce<Record<number, number>>((acc, spell) => {
-      acc[spell.level] = (acc[spell.level] ?? 0) + 1
-      return acc
-    }, {})
-  const pendingSpellObjects = spellBookPendingAddIds
-    .map((id) => arcaneSpellById[id])
-    .filter((spell): spell is CharacterSpell => !!spell)
-  const memorizedSpellDetail = memorizedSpellDetailId ? arcaneSpellById[memorizedSpellDetailId] ?? null : null
   const canEditAbilityScores = !!effectiveSelected
     && canEditSelected
     && (isGuidedCreation || effectiveSelected.creationMode === 'established')
@@ -1212,6 +1153,41 @@ export function CharacterTab({
 
   const requestRollHitPoints = () => _requestRollHitPoints(setHpClassRequiredOpen)
 
+  const {
+    spellBookSelectedSpellId, setSpellBookSelectedSpellId,
+    spellBookAddModalOpen, setSpellBookAddModalOpen,
+    spellBookAddTabLevel, setSpellBookAddTabLevel,
+    spellBookPendingAddIds,
+    spellBookExpandedSpellId, setSpellBookExpandedSpellId,
+    memorizedSpellDetailId, setMemorizedSpellDetailId,
+    spellBookFeedback,
+    selectedSpellBookItem,
+    selectedSpellBookSpellIds, selectedMemorizedSpellIds,
+    selectedSpellBookSpells, selectedMemorizedSpells,
+    accessibleSpellLevels, canOpenSpellBookAddModal,
+    spellLevelCountsInBook, spellLevelCountsInPending,
+    pendingSpellObjects, memorizedSpellDetail,
+    memorizeSpell, removeSpellFromBook, consumeMemorizedSpell,
+    openSpellBookAddModal, queueSpellForBook, removePendingSpell, commitPendingSpellsToBook,
+  } = useSpellbookDomain({
+    effectiveSelected,
+    selectedClassName,
+    selectedLevel,
+    selectedInventory,
+    isInFinalizationFlow,
+    canEditSelected,
+    canMemorizeSpell,
+    requiresSpellLearnApproval,
+    currentUsername,
+    itemDetailId,
+    spellBookSpellIdsByCharacterId,
+    memorizedSpellIdsByCharacterId,
+    setSpellBookSpellIdsByCharacterId,
+    setMemorizedSpellIdsByCharacterId,
+    setInventoryByCharacterId,
+    submitSpellLearnRequest,
+  })
+
   useEffect(() => {
     setFinalizeError(null)
     setFinalizeConfirmOpen(false)
@@ -1223,45 +1199,6 @@ export function CharacterTab({
       setStoreError(null)
     }
   }, [isGuidedCreation, storeOpen])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    if (!isInFinalizationFlow) return
-    if (effectiveSelected.className !== 'Magic-User') return
-    ensureSpellBookItemForCharacter(effectiveSelected.id)
-  }, [effectiveSelected?.id, effectiveSelected?.className, isInFinalizationFlow])
-
-  useEffect(() => {
-    if (!effectiveSelected) {
-      setSpellBookSelectedSpellId(null)
-      return
-    }
-    const book = spellBookSpellIdsByCharacterId[effectiveSelected.id] ?? []
-    if (!spellBookSelectedSpellId || book.includes(spellBookSelectedSpellId)) return
-    setSpellBookSelectedSpellId(null)
-  }, [effectiveSelected?.id, spellBookSpellIdsByCharacterId, spellBookSelectedSpellId])
-
-  useEffect(() => {
-    if (!selectedSpellBookItem || itemDetailId !== selectedSpellBookItem.id) return
-    if (spellBookSelectedSpellId) return
-    const firstSpellId = selectedSpellBookSpellIds[0]
-    if (!firstSpellId) return
-    setSpellBookSelectedSpellId(firstSpellId)
-  }, [itemDetailId, selectedSpellBookItem?.id, selectedSpellBookSpellIds, spellBookSelectedSpellId])
-
-  useEffect(() => {
-    if (itemDetailId !== selectedSpellBookItem?.id) {
-      setSpellBookAddModalOpen(false)
-      setSpellBookPendingAddIds([])
-    }
-  }, [itemDetailId, selectedSpellBookItem?.id])
-
-  useEffect(() => {
-    if (!memorizedSpellDetailId) return
-    if (!selectedMemorizedSpellIds.includes(memorizedSpellDetailId)) {
-      setMemorizedSpellDetailId(null)
-    }
-  }, [memorizedSpellDetailId, selectedMemorizedSpellIds])
 
   // Clear justSeeded AFTER all init effects have run (effect order matters —
   // this must be defined after the init effects so they can see justSeeded as true)
@@ -1281,53 +1218,6 @@ export function CharacterTab({
         ),
       }
     })
-  }
-
-  const memorizeSpell = (spellId: string) => {
-    if (!effectiveSelected) return
-    const spell = arcaneSpellById[spellId]
-    if (!spell) return
-    if (!canMemorizeSpell) {
-      setSpellBookFeedback('Finalize character before memorizing spells.')
-      return
-    }
-    if (!selectedSpellBookSpellIds.includes(spellId)) return
-    if (selectedMemorizedSpellIds.includes(spellId)) {
-      setSpellBookFeedback(`${spell.name} is already memorized.`)
-      return
-    }
-    setMemorizedSpellIdsByCharacterId((current) => {
-      const existing = current[effectiveSelected.id] ?? []
-      if (existing.includes(spellId)) return current
-      return {
-        ...current,
-        [effectiveSelected.id]: [...existing, spellId],
-      }
-    })
-    setSpellBookFeedback(`${spell.name} memorized.`)
-  }
-
-  const removeSpellFromBook = (spellId: string) => {
-    if (!effectiveSelected || !isInFinalizationFlow) return
-    setSpellBookSpellIdsByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).filter((id) => id !== spellId),
-    }))
-    setMemorizedSpellIdsByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).filter((id) => id !== spellId),
-    }))
-    if (spellBookSelectedSpellId === spellId) setSpellBookSelectedSpellId(null)
-  }
-
-  const consumeMemorizedSpell = (spellId: string) => {
-    if (!effectiveSelected) return
-    const spellName = arcaneSpellById[spellId]?.name ?? 'Spell'
-    setMemorizedSpellIdsByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).filter((id) => id !== spellId),
-    }))
-    setSpellBookFeedback(`${spellName} cast and removed from memorized spells.`)
   }
 
   const setInventoryGold = async (amount: number) => {
@@ -1685,75 +1575,6 @@ export function CharacterTab({
         }
       })
     }
-  }
-
-  const openSpellBookAddModal = () => {
-    if (!canOpenSpellBookAddModal) return
-    setSpellBookPendingAddIds([])
-    setSpellBookExpandedSpellId(null)
-    setSpellBookAddTabLevel(accessibleSpellLevels[0] ?? 1)
-    setSpellBookAddModalOpen(true)
-  }
-
-  const queueSpellForBook = (spellId: string) => {
-    const spell = arcaneSpellById[spellId]
-    if (!spell) return
-    if (!accessibleSpellLevels.includes(spell.level)) return
-    if (selectedSpellBookSpellIds.includes(spell.id)) return
-    if (spellBookPendingAddIds.includes(spell.id)) return
-    const usedSlots = (spellLevelCountsInBook[spell.level] ?? 0) + (spellLevelCountsInPending[spell.level] ?? 0)
-    if (usedSlots >= spellBookSlotsPerSpellLevel) {
-      setSpellBookFeedback(`Level ${spell.level} already has its spell slot filled.`)
-      return
-    }
-    setSpellBookPendingAddIds((current) => [...current, spell.id])
-  }
-
-  const removePendingSpell = (spellId: string) => {
-    setSpellBookPendingAddIds((current) => current.filter((id) => id !== spellId))
-  }
-
-  const commitPendingSpellsToBook = () => {
-    if (!effectiveSelected || spellBookPendingAddIds.length === 0) {
-      setSpellBookAddModalOpen(false)
-      return
-    }
-    const addedSpellNames = spellBookPendingAddIds
-      .map((id) => arcaneSpellById[id]?.name)
-      .filter((name): name is string => !!name)
-
-    if (requiresSpellLearnApproval) {
-      void submitSpellLearnRequest(
-        effectiveSelected.id,
-        effectiveSelected.name,
-        currentUsername,
-        spellBookPendingAddIds,
-        addedSpellNames,
-      )
-      setSpellBookPendingAddIds([])
-      setSpellBookAddModalOpen(false)
-      setSpellBookFeedback('Spell transcription request sent to GM for approval.')
-      return
-    }
-
-    setSpellBookSpellIdsByCharacterId((current) => {
-      const existing = current[effectiveSelected.id] ?? []
-      const merged = [...existing]
-      for (const spellId of spellBookPendingAddIds) {
-        if (!merged.includes(spellId)) merged.push(spellId)
-      }
-      return {
-        ...current,
-        [effectiveSelected.id]: merged,
-      }
-    })
-    setSpellBookPendingAddIds([])
-    setSpellBookAddModalOpen(false)
-    setSpellBookFeedback(
-      addedSpellNames.length === 1
-        ? `${addedSpellNames[0]} added to spell book.`
-        : `${addedSpellNames.length} spells added to spell book.`,
-    )
   }
 
   const openAddItemModal = (equipped: boolean) => {
