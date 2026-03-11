@@ -961,6 +961,9 @@ export function CharacterTab({
     .filter((feature) => selectedLevel >= feature.unlockedAt)
     .sort((a, b) => a.unlockedAt - b.unlockedAt)
   const isGuidedCreation = effectiveSelected?.creationStatus === 'draft'
+  const isEstablishedDraft = effectiveSelected?.creationStatus === 'established_draft'
+  const isInFinalizationFlow = isGuidedCreation || isEstablishedDraft
+  const requiresApprovalNow = role !== 'gm' && !isEstablishedDraft
   const canEditAbilityScores = !!effectiveSelected
     && canEditSelected
     && (isGuidedCreation || effectiveSelected.creationMode === 'established')
@@ -1313,7 +1316,7 @@ export function CharacterTab({
       ownerUsername: currentUsername,
       creationMode,
       creationModeExplicit: true,
-      creationStatus: creationMode === 'new' ? 'draft' : 'active',
+      creationStatus: creationMode === 'new' ? 'draft' : 'established_draft',
       className: '-',
       level: 1,
       hpCurrent: 0,
@@ -1365,22 +1368,24 @@ export function CharacterTab({
   }
 
   const requestFinalizeCharacter = () => {
-    if (!effectiveSelected || !canEditSelected || !isGuidedCreation) return
-    const validationError = validateDraftCharacter()
-    if (validationError) {
-      if (validationError === 'HOLY_SYMBOL_REQUIRED') {
-        setHolySymbolRequiredOpen(true)
-      } else {
-        setFinalizeError(validationError)
+    if (!effectiveSelected || !canEditSelected || !isInFinalizationFlow) return
+    if (isGuidedCreation) {
+      const validationError = validateDraftCharacter()
+      if (validationError) {
+        if (validationError === 'HOLY_SYMBOL_REQUIRED') {
+          setHolySymbolRequiredOpen(true)
+        } else {
+          setFinalizeError(validationError)
+        }
+        return
       }
-      return
     }
     setFinalizeError(null)
     setFinalizeConfirmOpen(true)
   }
 
   const finalizeCharacter = () => {
-    if (!effectiveSelected || !canEditSelected || !isGuidedCreation) return
+    if (!effectiveSelected || !canEditSelected || !isInFinalizationFlow) return
     updateSelectedCharacter({ creationStatus: 'active' })
     setFinalizeConfirmOpen(false)
     setFinalizeError(null)
@@ -2270,8 +2275,7 @@ export function CharacterTab({
         }
       }
     }
-    if (role !== 'gm') {
-      // Players need GM approval
+    if (requiresApprovalNow) {
       void submitRequest('create', effectiveSelected.id, effectiveSelected.name, currentUsername, newItem)
       setAddItemModal(null)
       setApprovalPendingFeedback('Item sent to GM for approval.')
@@ -2315,7 +2319,7 @@ export function CharacterTab({
     const item = selectedInventory.find((i) => i.id === itemId)
     if (!item || item.kind === 'gold') return
 
-    if (role !== 'gm') {
+    if (requiresApprovalNow) {
       void submitRequest('sell', effectiveSelected.id, effectiveSelected.name, currentUsername, item)
       setItemDetailId(null)
       setSellConfirmItemId(null)
@@ -2624,7 +2628,7 @@ export function CharacterTab({
                       <span>Current Character</span>
                     </button>
                   ) : null}
-                  {isGuidedCreation && canEditSelected ? (
+                  {isInFinalizationFlow && canEditSelected ? (
                     <button
                       type="button"
                       className="character-current-action"
@@ -2661,7 +2665,7 @@ export function CharacterTab({
                     <span>Current Character</span>
                   </button>
                 ) : <span />}
-                {isGuidedCreation && canEditSelected ? (
+                {isInFinalizationFlow && canEditSelected ? (
                   <button
                     type="button"
                     className="character-current-action"
@@ -4548,7 +4552,7 @@ export function CharacterTab({
             )}
             <div className="confirm-actions">
               <button type="button" onClick={() => setAddItemModal(null)}>Cancel</button>
-              <button type="button" onClick={saveAddItem}>{role === 'gm' ? 'Add' : 'Request'}</button>
+              <button type="button" onClick={saveAddItem}>{requiresApprovalNow ? 'Request' : 'Add'}</button>
             </div>
           </div>
         </div>
@@ -4583,7 +4587,9 @@ export function CharacterTab({
       <ConfirmModal
         open={finalizeConfirmOpen}
         title="Finalize character?"
-        message="This character will leave guided creation mode and use the normal sheet."
+        message={isGuidedCreation
+          ? 'This character will leave guided creation mode and use the normal sheet.'
+          : 'This will finalize the imported established character. Item changes will require GM approval after this.'}
         confirmLabel="Finalize"
         onConfirm={finalizeCharacter}
         onCancel={() => setFinalizeConfirmOpen(false)}

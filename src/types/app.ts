@@ -217,7 +217,7 @@ export type CharacterRecord = {
   ownerUsername?: string | null
   creationMode: 'new' | 'established'
   creationModeExplicit: boolean
-  creationStatus: 'draft' | 'active'
+  creationStatus: 'draft' | 'established_draft' | 'active'
   className: string
   level: number
   hpCurrent: number

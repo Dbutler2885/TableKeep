@@ -69,7 +69,7 @@ export function useCharacters(
             ownerUsername?: string
             creationMode?: 'new' | 'established'
             creationModeExplicit?: boolean
-            creationStatus?: 'draft' | 'active'
+            creationStatus?: 'draft' | 'established_draft' | 'active'
             class?: string
             level?: number
           }
@@ -79,11 +79,13 @@ export function useCharacters(
             creationModeExplicit && data.creationMode === 'established' ? 'established' : 'new'
           const creationStatus: CharacterRecord['creationStatus'] = data.creationStatus === 'draft'
             ? 'draft'
-            : data.creationStatus === 'active'
-              ? 'active'
-              : creationModeExplicit && creationMode === 'new'
-                ? 'draft'
-                : 'active'
+            : data.creationStatus === 'established_draft'
+              ? 'established_draft'
+              : data.creationStatus === 'active'
+                ? 'active'
+                : creationModeExplicit && creationMode === 'new'
+                  ? 'draft'
+                  : 'active'
 
           const rawDetails = (data as { details?: unknown }).details
           const details: CharacterSheetDetails | null =
