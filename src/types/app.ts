@@ -161,6 +161,13 @@ export type CharacterConsumableItem = CharacterInventoryItemBase & {
 
 export type CharacterGeneralItem = CharacterInventoryItemBase & { kind: 'general' }
 
+export type CharacterSpell = {
+  id: string
+  name: string
+  level: number
+  description: string
+}
+
 export type CharacterInventoryItem =
   | CharacterWeaponItem
   | CharacterArmourItem
@@ -190,11 +197,13 @@ export type CharacterSheetDetails = {
   startingGold: number | null
   storeSpent: number
   storeCart: CharacterStoreCartEntry[]
+  spellBookSpellIds?: string[]
+  memorizedSpellIds?: string[]
   alignment: string
   title: string
 }
 
-export type ItemApprovalAction = 'create' | 'sell'
+export type ItemApprovalAction = 'create' | 'sell' | 'learn_spell'
 
 export type ItemApprovalRequest = {
   id: string
@@ -204,7 +213,9 @@ export type ItemApprovalRequest = {
   characterName: string
   requestedByUserId: string
   requestedByUsername: string
-  item: CharacterInventoryItem
+  item?: CharacterInventoryItem
+  spellIds?: string[]
+  spellNames?: string[]
   status: 'pending' | 'approved' | 'rejected'
   createdAt: unknown
   resolvedAt?: unknown

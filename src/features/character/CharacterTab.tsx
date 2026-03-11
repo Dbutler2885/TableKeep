@@ -14,6 +14,7 @@ import {
 import { db } from '../../firebase'
 import type {
   CharacterRecord,
+  CharacterSpell,
   CharacterSheetDetails,
   CharacterStoreCartEntry as StoreCartEntry,
   CharacterInventoryItem,
@@ -409,6 +410,62 @@ const defaultTokenIcon = {
   color: '#bf2f2a',
   size: 34,
 }
+const SPELL_BOOK_TYPE_ID = 'spell-book'
+const SPELL_BOOK_ITEM_NAME = 'Spell Book'
+const ARCANE_SPELL_CATALOG: CharacterSpell[] = [
+  {
+    id: 'arcane-magic-missile',
+    name: 'Magic Missile',
+    level: 1,
+    description: 'Placeholder: force bolt that strikes a visible target.',
+  },
+  {
+    id: 'arcane-sleep',
+    name: 'Sleep',
+    level: 1,
+    description: 'Placeholder: puts weak creatures into magical slumber.',
+  },
+  {
+    id: 'arcane-shield',
+    name: 'Shield',
+    level: 1,
+    description: 'Placeholder: protective ward that improves defense.',
+  },
+  {
+    id: 'arcane-detect-magic',
+    name: 'Detect Magic',
+    level: 1,
+    description: 'Placeholder: reveals magical auras nearby.',
+  },
+  {
+    id: 'arcane-invisibility',
+    name: 'Invisibility',
+    level: 2,
+    description: 'Placeholder: target becomes unseen until effect ends.',
+  },
+  {
+    id: 'arcane-knock',
+    name: 'Knock',
+    level: 2,
+    description: 'Placeholder: opens locked or barred entry points.',
+  },
+  {
+    id: 'arcane-web',
+    name: 'Web',
+    level: 2,
+    description: 'Placeholder: fills area with restraining magical webs.',
+  },
+]
+const arcaneSpellById = ARCANE_SPELL_CATALOG.reduce<Record<string, CharacterSpell>>((acc, spell) => {
+  acc[spell.id] = spell
+  return acc
+}, {})
+const accessibleArcaneSpellLevelsByCharacterLevel: Record<number, number[]> = {
+  1: [1],
+  2: [1],
+  3: [1, 2],
+}
+const spellBookSlotsPerSpellLevel = 1
 
 const makeId = () => {
   if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
@@ -428,6 +485,19 @@ const stableStringify = (value: unknown): string =>
     }
     return v
   })
+
+const makeSpellBookItem = (): CharacterGeneralItem => ({
+  id: makeId(),
+  kind: 'general',
+  typeId: SPELL_BOOK_TYPE_ID,
+  typeName: SPELL_BOOK_ITEM_NAME,
+  name: SPELL_BOOK_ITEM_NAME,
+  costGp: 0,
+  equipped: false,
+  notes: '',
+  qty: 1,
+  stack: DEFAULT_STACK_POLICY.general,
+})
 
 
 const makeWeaponItem = (overrides?: Partial<CharacterWeaponItem>): CharacterWeaponItem => ({
@@ -672,6 +742,8 @@ export function CharacterTab({
   const [abilityScoresRolledByCharacterId, setAbilityScoresRolledByCharacterId] = useState<Record<string, boolean>>({})
   const [hpBaseRollByCharacterId, setHpBaseRollByCharacterId] = useState<Record<string, number>>({})
   const [inventoryByCharacterId, setInventoryByCharacterId] = useState<Record<string, CharacterInventoryItem[]>>({})
+  const [spellBookSpellIdsByCharacterId, setSpellBookSpellIdsByCharacterId] = useState<Record<string, string[]>>({})
+  const [memorizedSpellIdsByCharacterId, setMemorizedSpellIdsByCharacterId] = useState<Record<string, string[]>>({})
   const [thacoByCharacterId, setThacoByCharacterId] = useState<Record<string, string>>({})
   const [saveScoresByCharacterId, setSaveScoresByCharacterId] = useState<Record<string, SaveScores>>({})
   const [adventureScoresByCharacterId, setAdventureScoresByCharacterId] = useState<Record<string, AdventureScores>>({})
@@ -697,6 +769,11 @@ export function CharacterTab({
   const [hpClassRequiredOpen, setHpClassRequiredOpen] = useState(false)
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{ id: string, name: string } | null>(null)
   const [itemDetailId, setItemDetailId] = useState<string | null>(null)
+  const [spellBookSelectedSpellId, setSpellBookSelectedSpellId] = useState<string | null>(null)
+  const [spellBookAddModalOpen, setSpellBookAddModalOpen] = useState(false)
+  const [spellBookAddTabLevel, setSpellBookAddTabLevel] = useState<number>(1)
+  const [spellBookPendingAddIds, setSpellBookPendingAddIds] = useState<string[]>([])
+  const [spellBookFeedback, setSpellBookFeedback] = useState<string | null>(null)
   const [addItemModal, setAddItemModal] = useState<{
     equipped: boolean
     kind: 'general' | 'weapon' | 'armour' | 'ammunition' | 'consumable'
@@ -732,7 +809,7 @@ export function CharacterTab({
   const [alignmentByCharacterId, setAlignmentByCharacterId] = useState<Record<string, string>>({})
   const [titleByCharacterId, setTitleByCharacterId] = useState<Record<string, string>>({})
 
-  const { rejections, submitRequest, dismissRejection } = useItemApprovals(campaignId, role, currentUserId)
+  const { rejections, submitRequest, submitSpellLearnRequest, dismissRejection } = useItemApprovals(campaignId, role, currentUserId)
   const [approvalPendingFeedback, setApprovalPendingFeedback] = useState<string | null>(null)
 
   // Auto-clear approval pending feedback after 5 seconds
@@ -754,6 +831,12 @@ export function CharacterTab({
     const timer = setTimeout(() => setOverflowFeedback(null), 5000)
     return () => clearTimeout(timer)
   }, [overflowFeedback])
+
+  useEffect(() => {
+    if (!spellBookFeedback) return
+    const timer = setTimeout(() => setSpellBookFeedback(null), 5000)
+    return () => clearTimeout(timer)
+  }, [spellBookFeedback])
 
   // Seed local state from Firestore details when characters load
   useEffect(() => {
@@ -784,6 +867,8 @@ export function CharacterTab({
           if (typeof details.startingGold === 'number') setStartingGoldByCharacterId((prev) => ({ ...prev, [id]: details.startingGold as number }))
           if (typeof details.storeSpent === 'number') setStoreSpentByCharacterId((prev) => ({ ...prev, [id]: details.storeSpent as number }))
           if (details.storeCart) setStoreCartByCharacterId((prev) => ({ ...prev, [id]: details.storeCart as StoreCartEntry[] }))
+          if (details.spellBookSpellIds) setSpellBookSpellIdsByCharacterId((prev) => ({ ...prev, [id]: details.spellBookSpellIds as string[] }))
+          if (details.memorizedSpellIds) setMemorizedSpellIdsByCharacterId((prev) => ({ ...prev, [id]: details.memorizedSpellIds as string[] }))
           if (details.alignment) setAlignmentByCharacterId((prev) => ({ ...prev, [id]: details.alignment as string }))
           if (details.title) setTitleByCharacterId((prev) => ({ ...prev, [id]: details.title as string }))
         }
@@ -810,6 +895,8 @@ export function CharacterTab({
           setStartingGoldByCharacterId((prev) => typeof details.startingGold === 'number' ? { ...prev, [id]: details.startingGold } : prev)
           setStoreSpentByCharacterId((prev) => typeof details.storeSpent === 'number' ? { ...prev, [id]: details.storeSpent } : prev)
           setStoreCartByCharacterId((prev) => details.storeCart ? { ...prev, [id]: details.storeCart as StoreCartEntry[] } : prev)
+          setSpellBookSpellIdsByCharacterId((prev) => ({ ...prev, [id]: (details.spellBookSpellIds as string[]) ?? [] }))
+          setMemorizedSpellIdsByCharacterId((prev) => ({ ...prev, [id]: (details.memorizedSpellIds as string[]) ?? [] }))
           setAlignmentByCharacterId((prev) => details.alignment ? { ...prev, [id]: details.alignment } : prev)
           setTitleByCharacterId((prev) => details.title ? { ...prev, [id]: details.title } : prev)
         }
@@ -839,6 +926,8 @@ export function CharacterTab({
       startingGold: startingGoldByCharacterId[selectedCharacterId] ?? null,
       storeSpent: storeSpentByCharacterId[selectedCharacterId] ?? 0,
       storeCart: storeCartByCharacterId[selectedCharacterId] ?? [],
+      spellBookSpellIds: spellBookSpellIdsByCharacterId[selectedCharacterId] ?? [],
+      memorizedSpellIds: memorizedSpellIdsByCharacterId[selectedCharacterId] ?? [],
       alignment: alignmentByCharacterId[selectedCharacterId] ?? 'Neutrality',
       title: titleByCharacterId[selectedCharacterId] ?? '',
     }
@@ -863,6 +952,8 @@ export function CharacterTab({
     startingGoldByCharacterId,
     storeSpentByCharacterId,
     storeCartByCharacterId,
+    spellBookSpellIdsByCharacterId,
+    memorizedSpellIdsByCharacterId,
     alignmentByCharacterId,
     titleByCharacterId,
   ])
@@ -957,13 +1048,42 @@ export function CharacterTab({
   const packedItems = selectedInventory.filter((i) => !i.equipped)
   const selectedClassName = effectiveSelected?.className ?? '-'
   const selectedLevel = effectiveSelected?.level ?? 1
+  const selectedSpellBookItem = selectedInventory.find((item) =>
+    item.kind === 'general' && item.typeId === SPELL_BOOK_TYPE_ID,
+  ) as CharacterGeneralItem | undefined
+  const selectedSpellBookSpellIds = effectiveSelected ? (spellBookSpellIdsByCharacterId[effectiveSelected.id] ?? []) : []
+  const selectedMemorizedSpellIds = effectiveSelected ? (memorizedSpellIdsByCharacterId[effectiveSelected.id] ?? []) : []
+  const selectedSpellBookSpells = selectedSpellBookSpellIds
+    .map((id) => arcaneSpellById[id])
+    .filter((spell): spell is CharacterSpell => !!spell)
+  const selectedMemorizedSpells = selectedMemorizedSpellIds
+    .map((id) => arcaneSpellById[id])
+    .filter((spell): spell is CharacterSpell => !!spell)
+  const accessibleSpellLevels = accessibleArcaneSpellLevelsByCharacterLevel[Math.min(3, Math.max(1, selectedLevel))] ?? [1]
   const unlockedClassFeatures = (classFeaturesByClass[selectedClassName] ?? [])
     .filter((feature) => selectedLevel >= feature.unlockedAt)
     .sort((a, b) => a.unlockedAt - b.unlockedAt)
   const isGuidedCreation = effectiveSelected?.creationStatus === 'draft'
   const isEstablishedDraft = effectiveSelected?.creationStatus === 'established_draft'
   const isInFinalizationFlow = isGuidedCreation || isEstablishedDraft
+  const canMemorizeSpell = !!effectiveSelected && !isInFinalizationFlow
+  const canOpenSpellBookAddModal = !!effectiveSelected && canEditSelected && selectedClassName === 'Magic-User'
+  const requiresSpellLearnApproval = role !== 'gm' && !isInFinalizationFlow
   const requiresApprovalNow = role !== 'gm' && !isEstablishedDraft
+  const spellLevelCountsInBook = selectedSpellBookSpells.reduce<Record<number, number>>((acc, spell) => {
+    acc[spell.level] = (acc[spell.level] ?? 0) + 1
+    return acc
+  }, {})
+  const spellLevelCountsInPending = spellBookPendingAddIds
+    .map((id) => arcaneSpellById[id])
+    .filter((spell): spell is CharacterSpell => !!spell)
+    .reduce<Record<number, number>>((acc, spell) => {
+      acc[spell.level] = (acc[spell.level] ?? 0) + 1
+      return acc
+    }, {})
+  const pendingSpellObjects = spellBookPendingAddIds
+    .map((id) => arcaneSpellById[id])
+    .filter((spell): spell is CharacterSpell => !!spell)
   const canEditAbilityScores = !!effectiveSelected
     && canEditSelected
     && (isGuidedCreation || effectiveSelected.creationMode === 'established')
@@ -1676,6 +1796,38 @@ export function CharacterTab({
     }
   }, [isGuidedCreation, storeOpen])
 
+  useEffect(() => {
+    if (!effectiveSelected) return
+    if (!isInFinalizationFlow) return
+    if (effectiveSelected.className !== 'Magic-User') return
+    ensureSpellBookItemForCharacter(effectiveSelected.id)
+  }, [effectiveSelected?.id, effectiveSelected?.className, isInFinalizationFlow])
+
+  useEffect(() => {
+    if (!effectiveSelected) {
+      setSpellBookSelectedSpellId(null)
+      return
+    }
+    const book = spellBookSpellIdsByCharacterId[effectiveSelected.id] ?? []
+    if (!spellBookSelectedSpellId || book.includes(spellBookSelectedSpellId)) return
+    setSpellBookSelectedSpellId(null)
+  }, [effectiveSelected?.id, spellBookSpellIdsByCharacterId, spellBookSelectedSpellId])
+
+  useEffect(() => {
+    if (!selectedSpellBookItem || itemDetailId !== selectedSpellBookItem.id) return
+    if (spellBookSelectedSpellId) return
+    const firstSpellId = selectedSpellBookSpellIds[0]
+    if (!firstSpellId) return
+    setSpellBookSelectedSpellId(firstSpellId)
+  }, [itemDetailId, selectedSpellBookItem?.id, selectedSpellBookSpellIds, spellBookSelectedSpellId])
+
+  useEffect(() => {
+    if (itemDetailId !== selectedSpellBookItem?.id) {
+      setSpellBookAddModalOpen(false)
+      setSpellBookPendingAddIds([])
+    }
+  }, [itemDetailId, selectedSpellBookItem?.id])
+
   // Clear justSeeded AFTER all init effects have run (effect order matters —
   // this must be defined after the init effects so they can see justSeeded as true)
   useEffect(() => {
@@ -1694,6 +1846,65 @@ export function CharacterTab({
         ),
       }
     })
+  }
+
+  const ensureSpellBookItemForCharacter = (characterId: string) => {
+    setInventoryByCharacterId((current) => {
+      const items = current[characterId] ?? []
+      const hasSpellBook = items.some((item) => item.kind === 'general' && item.typeId === SPELL_BOOK_TYPE_ID)
+      if (hasSpellBook) return current
+      return {
+        ...current,
+        [characterId]: [...items, makeSpellBookItem()],
+      }
+    })
+  }
+
+  const memorizeSpell = (spellId: string) => {
+    if (!effectiveSelected) return
+    const spell = arcaneSpellById[spellId]
+    if (!spell) return
+    if (!canMemorizeSpell) {
+      setSpellBookFeedback('Finalize character before memorizing spells.')
+      return
+    }
+    if (!selectedSpellBookSpellIds.includes(spellId)) return
+    if (selectedMemorizedSpellIds.includes(spellId)) {
+      setSpellBookFeedback(`${spell.name} is already memorized.`)
+      return
+    }
+    setMemorizedSpellIdsByCharacterId((current) => {
+      const existing = current[effectiveSelected.id] ?? []
+      if (existing.includes(spellId)) return current
+      return {
+        ...current,
+        [effectiveSelected.id]: [...existing, spellId],
+      }
+    })
+    setSpellBookFeedback(`${spell.name} memorized.`)
+  }
+
+  const removeSpellFromBook = (spellId: string) => {
+    if (!effectiveSelected || !isInFinalizationFlow) return
+    setSpellBookSpellIdsByCharacterId((current) => ({
+      ...current,
+      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).filter((id) => id !== spellId),
+    }))
+    setMemorizedSpellIdsByCharacterId((current) => ({
+      ...current,
+      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).filter((id) => id !== spellId),
+    }))
+    if (spellBookSelectedSpellId === spellId) setSpellBookSelectedSpellId(null)
+  }
+
+  const useMemorizedSpell = (spellId: string) => {
+    if (!effectiveSelected) return
+    const spellName = arcaneSpellById[spellId]?.name ?? 'Spell'
+    setMemorizedSpellIdsByCharacterId((current) => ({
+      ...current,
+      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).filter((id) => id !== spellId),
+    }))
+    setSpellBookFeedback(`${spellName} cast and removed from memorized spells.`)
   }
 
   const setInventoryGold = async (amount: number) => {
@@ -2185,6 +2396,74 @@ export function CharacterTab({
         }
       })
     }
+  }
+
+  const openSpellBookAddModal = () => {
+    if (!canOpenSpellBookAddModal) return
+    setSpellBookPendingAddIds([])
+    setSpellBookAddTabLevel(accessibleSpellLevels[0] ?? 1)
+    setSpellBookAddModalOpen(true)
+  }
+
+  const queueSpellForBook = (spellId: string) => {
+    const spell = arcaneSpellById[spellId]
+    if (!spell) return
+    if (!accessibleSpellLevels.includes(spell.level)) return
+    if (selectedSpellBookSpellIds.includes(spell.id)) return
+    if (spellBookPendingAddIds.includes(spell.id)) return
+    const usedSlots = (spellLevelCountsInBook[spell.level] ?? 0) + (spellLevelCountsInPending[spell.level] ?? 0)
+    if (usedSlots >= spellBookSlotsPerSpellLevel) {
+      setSpellBookFeedback(`Level ${spell.level} already has its spell slot filled.`)
+      return
+    }
+    setSpellBookPendingAddIds((current) => [...current, spell.id])
+  }
+
+  const removePendingSpell = (spellId: string) => {
+    setSpellBookPendingAddIds((current) => current.filter((id) => id !== spellId))
+  }
+
+  const commitPendingSpellsToBook = () => {
+    if (!effectiveSelected || spellBookPendingAddIds.length === 0) {
+      setSpellBookAddModalOpen(false)
+      return
+    }
+    const addedSpellNames = spellBookPendingAddIds
+      .map((id) => arcaneSpellById[id]?.name)
+      .filter((name): name is string => !!name)
+
+    if (requiresSpellLearnApproval) {
+      void submitSpellLearnRequest(
+        effectiveSelected.id,
+        effectiveSelected.name,
+        currentUsername,
+        spellBookPendingAddIds,
+        addedSpellNames,
+      )
+      setSpellBookPendingAddIds([])
+      setSpellBookAddModalOpen(false)
+      setSpellBookFeedback('Spell transcription request sent to GM for approval.')
+      return
+    }
+
+    setSpellBookSpellIdsByCharacterId((current) => {
+      const existing = current[effectiveSelected.id] ?? []
+      const merged = [...existing]
+      for (const spellId of spellBookPendingAddIds) {
+        if (!merged.includes(spellId)) merged.push(spellId)
+      }
+      return {
+        ...current,
+        [effectiveSelected.id]: merged,
+      }
+    })
+    setSpellBookPendingAddIds([])
+    setSpellBookAddModalOpen(false)
+    setSpellBookFeedback(
+      addedSpellNames.length === 1
+        ? `${addedSpellNames[0]} added to spell book.`
+        : `${addedSpellNames.length} spells added to spell book.`,
+    )
   }
 
   const openAddItemModal = (equipped: boolean) => {
@@ -3189,16 +3468,17 @@ export function CharacterTab({
                     </div>
 
                     <div className="character-enc-items-grid">
-                      <section className="monster-section-block">
+                      <div className="character-enc-left-col">
+                        <section className="monster-section-block character-enc-unencumbering">
                         <h3 className="monster-section-title">Unencumbering Items</h3>
                         <textarea className="character-sheet-textarea short" defaultValue="" disabled={!canEditSelected} />
                         <p className="character-enc-help">
                           Clothing, necklaces, rings, etc. Not encumbering unless carried in large numbers (referee&apos;s
                           judgement).
                         </p>
-                      </section>
+                        </section>
 
-                      <section className="monster-section-block character-enc-equipped">
+                        <section className="monster-section-block character-enc-equipped">
                         <h3 className="monster-section-title">Equipped Items</h3>
                         <div className="character-item-rows equipped">
                           {equippedSlotItems.map((entry, index) => (
@@ -3246,7 +3526,36 @@ export function CharacterTab({
                           Anything held, actively in use, or ready to use at short notice: armour worn, shields or
                           weapons held, sheathed weapons, items worn on the belt.
                         </p>
-                      </section>
+                        </section>
+
+                        {selectedClassName === 'Magic-User' || selectedMemorizedSpells.length > 0 ? (
+                          <section className="monster-section-block character-enc-memorized">
+                            <h3 className="monster-section-title">Memorized Spells</h3>
+                            {selectedMemorizedSpells.length === 0 ? (
+                              <p className="character-enc-help">No memorized spells.</p>
+                            ) : (
+                              <div className="character-memorized-spells-list">
+                                {selectedMemorizedSpells.map((spell) => (
+                                  <div key={spell.id} className="character-memorized-spell-row">
+                                    <div>
+                                      <strong>{spell.name}</strong>
+                                      <small>Level {spell.level}</small>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="monster-example-btn"
+                                      onClick={() => useMemorizedSpell(spell.id)}
+                                      disabled={!canEditSelected}
+                                    >
+                                      Use
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </section>
+                        ) : null}
+                      </div>
 
                       <section className="monster-section-block character-enc-packed">
                         <h3 className="monster-section-title">Packed Items</h3>
@@ -3359,7 +3668,9 @@ export function CharacterTab({
                             <p key={r.id} className="error character-approval-rejection">
                               {r.action === 'sell'
                                 ? `GM did not approve selling ${r.item?.typeName ?? 'item'}`
-                                : `GM did not approve your item creation${r.item?.typeName ? ` (${r.item.typeName})` : ''}`}
+                                : r.action === 'learn_spell'
+                                  ? `GM did not approve spell transcription${r.spellNames?.length ? ` (${r.spellNames.join(', ')})` : ''}`
+                                  : `GM did not approve your item creation${r.item?.typeName ? ` (${r.item.typeName})` : ''}`}
                               <button
                                 type="button"
                                 className="monster-example-btn"
@@ -3667,6 +3978,8 @@ export function CharacterTab({
       {(() => {
         const detailItem = itemDetailId ? selectedInventory.find((i) => i.id === itemDetailId) ?? null : null
         if (!detailItem) return null
+        const isSpellBookDetailItem = detailItem.kind === 'general' && detailItem.typeId === SPELL_BOOK_TYPE_ID
+        const selectedSpellBookSpell = spellBookSelectedSpellId ? arcaneSpellById[spellBookSelectedSpellId] : null
         const itemKindLabel = detailItem.kind === 'weapon' ? 'Weapon'
           : detailItem.kind === 'armour' ? 'Armour'
           : detailItem.kind === 'ammunition' ? 'Ammunition'
@@ -3976,7 +4289,69 @@ export function CharacterTab({
                     </label>
                   </div>
                 )
-              })() : (
+              })() : isSpellBookDetailItem ? (
+                <div className="character-spellbook-panel">
+                  <div className="character-spellbook-head">
+                    <h3>Spell Book</h3>
+                    <p>Spells currently written in this book.</p>
+                  </div>
+                  {selectedSpellBookSpells.length === 0 ? (
+                    <p className="character-enc-help">No spells in this spell book yet.</p>
+                  ) : (
+                    <div className="character-spellbook-list">
+                      {selectedSpellBookSpells.map((spell) => (
+                        <article
+                          key={spell.id}
+                          className={spellBookSelectedSpellId === spell.id ? 'character-spellbook-row active' : 'character-spellbook-row'}
+                        >
+                          <button
+                            type="button"
+                            className="character-spellbook-select"
+                            onClick={() => setSpellBookSelectedSpellId(spell.id)}
+                          >
+                            <div className="character-spellbook-select-head">
+                              <strong>{spell.name}</strong>
+                              {spellBookSelectedSpellId === spell.id ? (
+                                <span className="character-spellbook-selected-tag">Selected</span>
+                              ) : null}
+                            </div>
+                            <small>Level {spell.level}</small>
+                            <p>{spell.description}</p>
+                          </button>
+                          {isInFinalizationFlow && canEditSelected ? (
+                            <button
+                              type="button"
+                              className="monster-example-btn"
+                              onClick={() => removeSpellFromBook(spell.id)}
+                            >
+                              Remove
+                            </button>
+                          ) : null}
+                        </article>
+                      ))}
+                    </div>
+                  )}
+                  {spellBookFeedback ? <p className="character-overflow-feedback">{spellBookFeedback}</p> : null}
+                  {selectedSpellBookSpell ? (
+                    <p className="character-enc-help">Selected for memorization: <strong>{selectedSpellBookSpell.name}</strong></p>
+                  ) : (
+                    <p className="character-enc-help">Select a spell from the list, then click Memorize.</p>
+                  )}
+                  <div className="character-spellbook-actions">
+                    <button
+                      type="button"
+                      className="store-buy-btn"
+                      onClick={openSpellBookAddModal}
+                      disabled={!canOpenSpellBookAddModal}
+                    >
+                      Add Spells
+                    </button>
+                  </div>
+                  {isInFinalizationFlow ? (
+                    <p className="character-enc-help">Finalize character to enable memorization.</p>
+                  ) : null}
+                </div>
+              ) : (
                 <>
                   <label className="item-detail-field">
                     <span className="item-detail-field-label">Type</span>
@@ -4062,7 +4437,7 @@ export function CharacterTab({
                     Spend
                   </button>
                 ) : null}
-                {detailItem.kind !== 'gold' ? (
+                {detailItem.kind !== 'gold' && !isSpellBookDetailItem ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -4074,7 +4449,7 @@ export function CharacterTab({
                     {detailItem.equipped ? 'Unequip' : 'Equip'}
                   </button>
                 ) : null}
-                {canEditSelected && detailItem.kind !== 'gold' ? (
+                {canEditSelected && detailItem.kind !== 'gold' && !isSpellBookDetailItem ? (
                   <button
                     type="button"
                     className="confirm-danger"
@@ -4083,7 +4458,7 @@ export function CharacterTab({
                     Drop
                   </button>
                 ) : null}
-                {canEditSelected && detailItem.kind !== 'gold' ? (
+                {canEditSelected && detailItem.kind !== 'gold' && !isSpellBookDetailItem ? (
                   <button
                     type="button"
                     className="confirm-danger"
@@ -4099,6 +4474,18 @@ export function CharacterTab({
                     {detailItem.costGp > 0 ? `Sell (${detailItem.costGp} gp)` : 'Remove'}
                   </button>
                 ) : null}
+                {isSpellBookDetailItem ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!selectedSpellBookSpell?.id) return
+                      memorizeSpell(selectedSpellBookSpell.id)
+                    }}
+                    disabled={!selectedSpellBookSpell?.id || !canEditSelected || !canMemorizeSpell}
+                  >
+                    Memorize
+                  </button>
+                ) : null}
                 <button type="button" onClick={() => setItemDetailId(null)}>
                   Close
                 </button>
@@ -4107,6 +4494,111 @@ export function CharacterTab({
           </div>
         )
       })()}
+      {spellBookAddModalOpen && selectedClassName === 'Magic-User' ? (
+        <div className="store-modal-overlay spellbook-add-overlay" role="dialog" aria-modal="true">
+          <div className="store-modal character-spell-add-modal">
+            <div className="store-modal-head">
+              <div>
+                <h3>Add Spells</h3>
+                <p>Select spells to write into the spell book.</p>
+              </div>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => {
+                  setSpellBookAddModalOpen(false)
+                  setSpellBookPendingAddIds([])
+                }}
+                aria-label="Close add spells"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="store-modal-body">
+              <div className="character-spell-add-main">
+                <div className="store-category-tabs">
+                  {accessibleSpellLevels.map((level) => (
+                    <button
+                      key={`spell-level-tab-${level}`}
+                      type="button"
+                      className={spellBookAddTabLevel === level ? 'store-category-btn active' : 'store-category-btn'}
+                      onClick={() => setSpellBookAddTabLevel(level)}
+                    >
+                      Level {level}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="store-grid-wrap">
+                  <div className="store-item-grid">
+                    {ARCANE_SPELL_CATALOG
+                      .filter((spell) => spell.level === spellBookAddTabLevel)
+                      .map((spell) => {
+                        const alreadyInBook = selectedSpellBookSpellIds.includes(spell.id)
+                        const pending = spellBookPendingAddIds.includes(spell.id)
+                        const slotsUsed = (spellLevelCountsInBook[spell.level] ?? 0) + (spellLevelCountsInPending[spell.level] ?? 0)
+                        const hasLevelSlot = slotsUsed < spellBookSlotsPerSpellLevel || pending
+                        return (
+                          <article key={spell.id} className="store-item-card">
+                            <header>
+                              <h4>{spell.name}</h4>
+                              <span>Level {spell.level}</span>
+                            </header>
+                            <p>{spell.description}</p>
+                            <button
+                              type="button"
+                              className="store-buy-btn"
+                              onClick={() => (pending ? removePendingSpell(spell.id) : queueSpellForBook(spell.id))}
+                              disabled={alreadyInBook || (!pending && !hasLevelSlot)}
+                            >
+                              {alreadyInBook ? 'In Spell Book' : pending ? 'Remove' : 'Add Spell'}
+                            </button>
+                          </article>
+                        )
+                      })}
+                  </div>
+                </div>
+              </div>
+
+              <aside className="store-tally store-cart">
+                <div className="store-tally-head">
+                  <h4>Selected Spells</h4>
+                  <span>{spellBookPendingAddIds.length} selected</span>
+                </div>
+                {pendingSpellObjects.length === 0 ? (
+                  <p className="store-tally-empty">No spells selected yet.</p>
+                ) : (
+                  <div className="store-tally-list">
+                    {pendingSpellObjects.map((spell) => (
+                      <div key={`pending-${spell.id}`} className="store-tally-row">
+                        <span>{spell.name}</span>
+                        <strong>Lvl {spell.level}</strong>
+                        <button
+                          type="button"
+                          className="store-remove-btn"
+                          onClick={() => removePendingSpell(spell.id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="store-cart-actions">
+                  <button
+                    type="button"
+                    className="store-buy-btn"
+                    onClick={commitPendingSpellsToBook}
+                  >
+                    Add Spells
+                  </button>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {addItemModal ? (
         <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={() => setAddItemModal(null)}>
           <div className="confirm-modal item-detail-modal add-item-modal" onClick={(e) => e.stopPropagation()}>

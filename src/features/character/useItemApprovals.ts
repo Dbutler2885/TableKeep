@@ -86,8 +86,35 @@ export function useItemApprovals(
     })
   }
 
+  const submitSpellLearnRequest = async (
+    characterId: string,
+    characterName: string,
+    username: string,
+    spellIds: string[],
+    spellNames: string[],
+  ) => {
+    if (!campaignId) return
+    if (spellIds.length === 0) return
+    const id = crypto.randomUUID()
+    const ref = doc(db, 'campaigns', campaignId, 'itemApprovals', id)
+    await setDoc(ref, {
+      id,
+      action: 'learn_spell',
+      campaignId,
+      characterId,
+      characterName,
+      requestedByUserId: currentUserId,
+      requestedByUsername: username,
+      spellIds,
+      spellNames,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+    })
+  }
+
   const approveCreate = async (request: ItemApprovalRequest) => {
     if (!campaignId) return
+    if (!request.item) return
     const charRef = doc(db, 'campaigns', campaignId, 'characters', request.characterId)
     const approvalRef = doc(db, 'campaigns', campaignId, 'itemApprovals', request.id)
 
@@ -115,6 +142,7 @@ export function useItemApprovals(
 
   const approveSell = async (request: ItemApprovalRequest) => {
     if (!campaignId) return
+    if (!request.item) return
     const charRef = doc(db, 'campaigns', campaignId, 'characters', request.characterId)
     const approvalRef = doc(db, 'campaigns', campaignId, 'itemApprovals', request.id)
     const sellItem = request.item
@@ -174,9 +202,47 @@ export function useItemApprovals(
     })
   }
 
+  const approveLearnSpell = async (request: ItemApprovalRequest) => {
+    if (!campaignId) return
+    const spellIds = Array.isArray(request.spellIds) ? request.spellIds.filter((id) => typeof id === 'string') : []
+    const approvalRef = doc(db, 'campaigns', campaignId, 'itemApprovals', request.id)
+    if (spellIds.length === 0) {
+      await updateDoc(approvalRef, { status: 'approved', resolvedAt: serverTimestamp() })
+      return
+    }
+
+    const charRef = doc(db, 'campaigns', campaignId, 'characters', request.characterId)
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(charRef)
+      if (!snap.exists()) throw new Error('Character not found')
+      const data = snap.data() as { details?: CharacterSheetDetails | null }
+      const existingDetails = (data?.details && typeof data.details === 'object')
+        ? data.details as Record<string, unknown>
+        : {}
+      const existingSpellIds = Array.isArray(existingDetails.spellBookSpellIds)
+        ? (existingDetails.spellBookSpellIds as string[]).filter((id) => typeof id === 'string')
+        : []
+      const merged = [...existingSpellIds]
+      for (const spellId of spellIds) {
+        if (!merged.includes(spellId)) merged.push(spellId)
+      }
+
+      tx.set(charRef, {
+        details: {
+          ...existingDetails,
+          spellBookSpellIds: merged,
+        },
+      }, { merge: true })
+
+      tx.update(approvalRef, { status: 'approved', resolvedAt: serverTimestamp() })
+    })
+  }
+
   const approveRequest = async (request: ItemApprovalRequest) => {
     if (request.action === 'sell') {
       await approveSell(request)
+    } else if (request.action === 'learn_spell') {
+      await approveLearnSpell(request)
     } else {
       await approveCreate(request)
     }
@@ -194,6 +260,13 @@ export function useItemApprovals(
     await deleteDoc(ref)
   }
 
-  return { pendingRequests, rejections, submitRequest, approveRequest, rejectRequest, dismissRejection }
+  return {
+    pendingRequests,
+    rejections,
+    submitRequest,
+    submitSpellLearnRequest,
+    approveRequest,
+    rejectRequest,
+    dismissRejection,
+  }
 }
-

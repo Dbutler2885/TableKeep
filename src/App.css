@@ -1269,19 +1269,15 @@ button:hover {
   align-items: start;
 }
 
-.character-enc-unencumbering {
+.character-enc-left-col {
+  display: grid;
+  gap: 0.55rem;
   grid-column: 1;
-  grid-row: 1;
-}
-
-.character-enc-equipped {
-  grid-column: 1;
-  grid-row: 2;
+  min-width: 0;
 }
 
 .character-enc-packed {
   grid-column: 2;
-  grid-row: 1 / span 2;
 }
 
 .character-enc-help {
@@ -5389,6 +5385,10 @@ button:disabled {
   padding: 0.75rem 0.75rem 1rem;
 }
 
+.store-modal-overlay.spellbook-add-overlay {
+  z-index: 340;
+}
+
 .store-modal {
   width: min(96vw, 980px);
   height: min(88vh, 860px);
@@ -5928,9 +5928,11 @@ button:disabled {
     font-size: 0.84rem;
   }
 
+  .character-enc-left-col,
   .character-enc-unencumbering,
   .character-enc-equipped,
-  .character-enc-packed {
+  .character-enc-packed,
+  .character-enc-memorized {
     grid-column: auto;
     grid-row: auto;
   }
@@ -6194,6 +6196,143 @@ button:disabled {
 
 @media (max-width: 720px) {
   .character-weapons-mobile-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+.character-memorized-spells-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.character-memorized-spell-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #dddcd6;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.character-memorized-spell-row small {
+  display: block;
+  color: #666;
+}
+
+.character-spellbook-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.character-spellbook-head h3 {
+  margin: 0;
+}
+
+.character-spellbook-head p {
+  margin: 0.2rem 0 0;
+  color: #666;
+}
+
+.character-spellbook-list {
+  display: grid;
+  gap: 0.5rem;
+  max-height: min(52vh, 420px);
+  overflow: auto;
+}
+
+.character-spellbook-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 1px solid #dddcd6;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.character-spellbook-row.active {
+  border-color: #9eb592;
+  box-shadow: 0 0 0 1px #9eb592 inset;
+}
+
+.character-spellbook-select {
+  flex: 1;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 0.6rem 0.65rem;
+}
+
+.character-spellbook-select-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.character-spellbook-selected-tag {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #9fb196;
+  background: #e7efe2;
+  color: #2c4f25;
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.character-spellbook-select small {
+  display: block;
+  color: #666;
+}
+
+.character-spellbook-select p {
+  margin: 0.35rem 0 0;
+  color: #333;
+  font-size: 0.93rem;
+}
+
+.character-spellbook-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.character-spell-add-modal .store-modal-body {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr);
+  gap: 1rem;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.character-spell-add-main {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.6rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+.character-spell-add-main .store-grid-wrap {
+  min-height: 0;
+  overflow: auto;
+}
+
+.character-spell-add-modal .store-cart {
+  min-height: 0;
+  overflow: visible;
+}
+
+.character-spell-add-modal .store-cart .store-tally-list {
+  max-height: none;
+  overflow: visible;
+}
+
+@media (max-width: 980px) {
+  .character-spell-add-modal .store-modal-body {
     grid-template-columns: 1fr;
   }
 }

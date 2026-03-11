@@ -263,10 +263,55 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
       {role === 'gm' && pendingRequests.length > 0 ? (
         <div className="confirm-overlay" role="dialog" aria-modal="true">
           <div className="confirm-modal">
-            <h3>{pendingRequests[0]?.action === 'sell' ? 'Sell Approval Request' : 'Item Approval Request'}</h3>
+            <h3>
+              {pendingRequests[0]?.action === 'sell'
+                ? 'Sell Approval Request'
+                : pendingRequests[0]?.action === 'learn_spell'
+                  ? 'Spell Transcription Request'
+                  : 'Item Approval Request'}
+            </h3>
             {(() => {
               const req = pendingRequests[0]
               const item = req.item
+              if (req.action === 'learn_spell') {
+                const spellNames = req.spellNames ?? []
+                return (
+                  <>
+                    <p>
+                      <strong>{req.requestedByUsername}</strong> wants to transcribe spell
+                      {spellNames.length === 1 ? '' : 's'} into <strong>{req.characterName}</strong>&apos;s spell book:
+                    </p>
+                    {spellNames.length > 0 ? (
+                      <p style={{ margin: '8px 0', fontWeight: 600 }}>{spellNames.join(', ')}</p>
+                    ) : (
+                      <p style={{ margin: '8px 0', fontWeight: 600 }}>(No spell names provided)</p>
+                    )}
+                    <div className="confirm-actions">
+                      <button
+                        type="button"
+                        className="confirm-danger"
+                        disabled={approvalBusy}
+                        onClick={() => void handleReject(req)}
+                      >
+                        Reject
+                      </button>
+                      <button
+                        type="button"
+                        disabled={approvalBusy}
+                        onClick={() => void handleApprove(req)}
+                      >
+                        Approve
+                      </button>
+                    </div>
+                    {pendingRequests.length > 1 ? (
+                      <p style={{ marginTop: 8, fontSize: '0.85em', opacity: 0.7 }}>
+                        +{pendingRequests.length - 1} more pending
+                      </p>
+                    ) : null}
+                  </>
+                )
+              }
+              if (!item) return null
               const displayName = item.name
                 ? `${item.typeName} "${item.name}"`
                 : item.typeName
