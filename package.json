@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "ose:magic-user:fetch": "node scripts/fetch-ose-magic-user-spells.mjs",
+    "ose:magic-user:import": "node scripts/import-ose-magic-user-spells.mjs",
     "firebase:login": "firebase login",
     "emulators": "firebase emulators:start",
     "emulators:import": "firebase emulators:start --import ./emulator-data --export-on-exit",

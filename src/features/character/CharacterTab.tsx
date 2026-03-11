@@ -42,6 +42,14 @@ import { OSE_GENERAL_CATALOG, generalCatalogById } from './generalCatalog'
 import { OSE_AMMO_CATALOG, ammoCatalogById } from './ammoCatalog'
 import { OSE_CONSUMABLE_CATALOG, consumableCatalogById } from './consumableCatalog'
 import { OSE_STORE_ITEMS, STORE_CATEGORY_LABELS } from './storeCatalog'
+import {
+  ARCANE_SPELL_CATALOG,
+  SPELL_BOOK_ITEM_NAME,
+  SPELL_BOOK_TYPE_ID,
+  accessibleArcaneSpellLevelsByCharacterLevel,
+  arcaneSpellById,
+  spellBookSlotsPerSpellLevel,
+} from './spellCatalog'
 import type { StoreCategoryId, StoreItem } from './storeCatalog'
 
 type CharacterTabProps = {
@@ -410,63 +418,6 @@ const defaultTokenIcon = {
   color: '#bf2f2a',
   size: 34,
 }
-const SPELL_BOOK_TYPE_ID = 'spell-book'
-const SPELL_BOOK_ITEM_NAME = 'Spell Book'
-const ARCANE_SPELL_CATALOG: CharacterSpell[] = [
-  {
-    id: 'arcane-magic-missile',
-    name: 'Magic Missile',
-    level: 1,
-    description: 'Placeholder: force bolt that strikes a visible target.',
-  },
-  {
-    id: 'arcane-sleep',
-    name: 'Sleep',
-    level: 1,
-    description: 'Placeholder: puts weak creatures into magical slumber.',
-  },
-  {
-    id: 'arcane-shield',
-    name: 'Shield',
-    level: 1,
-    description: 'Placeholder: protective ward that improves defense.',
-  },
-  {
-    id: 'arcane-detect-magic',
-    name: 'Detect Magic',
-    level: 1,
-    description: 'Placeholder: reveals magical auras nearby.',
-  },
-  {
-    id: 'arcane-invisibility',
-    name: 'Invisibility',
-    level: 2,
-    description: 'Placeholder: target becomes unseen until effect ends.',
-  },
-  {
-    id: 'arcane-knock',
-    name: 'Knock',
-    level: 2,
-    description: 'Placeholder: opens locked or barred entry points.',
-  },
-  {
-    id: 'arcane-web',
-    name: 'Web',
-    level: 2,
-    description: 'Placeholder: fills area with restraining magical webs.',
-  },
-]
-const arcaneSpellById = ARCANE_SPELL_CATALOG.reduce<Record<string, CharacterSpell>>((acc, spell) => {
-  acc[spell.id] = spell
-  return acc
-}, {})
-const accessibleArcaneSpellLevelsByCharacterLevel: Record<number, number[]> = {
-  1: [1],
-  2: [1],
-  3: [1, 2],
-}
-const spellBookSlotsPerSpellLevel = 1
-
 const makeId = () => {
   if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
     return globalThis.crypto.randomUUID()
@@ -773,6 +724,7 @@ export function CharacterTab({
   const [spellBookAddModalOpen, setSpellBookAddModalOpen] = useState(false)
   const [spellBookAddTabLevel, setSpellBookAddTabLevel] = useState<number>(1)
   const [spellBookPendingAddIds, setSpellBookPendingAddIds] = useState<string[]>([])
+  const [spellBookExpandedSpellId, setSpellBookExpandedSpellId] = useState<string | null>(null)
   const [spellBookFeedback, setSpellBookFeedback] = useState<string | null>(null)
   const [addItemModal, setAddItemModal] = useState<{
     equipped: boolean
@@ -2401,6 +2353,7 @@ export function CharacterTab({
   const openSpellBookAddModal = () => {
     if (!canOpenSpellBookAddModal) return
     setSpellBookPendingAddIds([])
+    setSpellBookExpandedSpellId(null)
     setSpellBookAddTabLevel(accessibleSpellLevels[0] ?? 1)
     setSpellBookAddModalOpen(true)
   }
@@ -4508,6 +4461,7 @@ export function CharacterTab({
                 onClick={() => {
                   setSpellBookAddModalOpen(false)
                   setSpellBookPendingAddIds([])
+                  setSpellBookExpandedSpellId(null)
                 }}
                 aria-label="Close add spells"
               >
@@ -4537,19 +4491,40 @@ export function CharacterTab({
                       .map((spell) => {
                         const alreadyInBook = selectedSpellBookSpellIds.includes(spell.id)
                         const pending = spellBookPendingAddIds.includes(spell.id)
+                        const expanded = spellBookExpandedSpellId === spell.id
                         const slotsUsed = (spellLevelCountsInBook[spell.level] ?? 0) + (spellLevelCountsInPending[spell.level] ?? 0)
                         const hasLevelSlot = slotsUsed < spellBookSlotsPerSpellLevel || pending
                         return (
-                          <article key={spell.id} className="store-item-card">
+                          <article
+                            key={spell.id}
+                            className={expanded ? 'store-item-card spell-card-expanded' : 'store-item-card'}
+                            onClick={() => setSpellBookExpandedSpellId(expanded ? null : spell.id)}
+                          >
                             <header>
                               <h4>{spell.name}</h4>
                               <span>Level {spell.level}</span>
                             </header>
-                            <p>{spell.description}</p>
+                            {spell.rangeText || spell.durationText ? (
+                              <p className="spell-card-meta">
+                                {spell.rangeText ? `Range: ${spell.rangeText}` : null}
+                                {spell.rangeText && spell.durationText ? ' | ' : null}
+                                {spell.durationText ? `Duration: ${spell.durationText}` : null}
+                              </p>
+                            ) : null}
+                            <p className={expanded ? 'spell-card-description expanded' : 'spell-card-description'}>
+                              {spell.description}
+                            </p>
                             <button
                               type="button"
                               className="store-buy-btn"
-                              onClick={() => (pending ? removePendingSpell(spell.id) : queueSpellForBook(spell.id))}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                if (pending) {
+                                  removePendingSpell(spell.id)
+                                } else {
+                                  queueSpellForBook(spell.id)
+                                }
+                              }}
                               disabled={alreadyInBook || (!pending && !hasLevelSlot)}
                             >
                               {alreadyInBook ? 'In Spell Book' : pending ? 'Remove' : 'Add Spell'}

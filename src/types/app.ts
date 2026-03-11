@@ -166,6 +166,19 @@ export type CharacterSpell = {
   name: string
   level: number
   description: string
+  rangeText?: string
+  durationText?: string
+  targetText?: string
+  areaText?: string
+  savingThrowText?: string
+  reversible?: boolean
+  tags?: string[]
+  mechanics?: {
+    durationRounds?: number
+    durationTurns?: number
+    durationText?: string
+    saveType?: string
+  }
 }
 
 export type CharacterInventoryItem =

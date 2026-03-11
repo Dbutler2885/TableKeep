@@ -5621,6 +5621,13 @@ button:disabled {
   padding: 0.55rem;
   display: grid;
   gap: 0.38rem;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+  cursor: pointer;
+}
+
+.store-item-card.spell-card-expanded {
+  border-color: #9fb196;
+  box-shadow: 0 0 0 1px #9fb196 inset;
 }
 
 .store-item-head {
@@ -5642,6 +5649,26 @@ button:disabled {
   color: #4b4a43;
   line-height: 1.35;
   font-size: 0.78rem;
+}
+
+.spell-card-description {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.spell-card-meta {
+  margin: 0;
+  color: #40563a;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.spell-card-description.expanded {
+  display: block;
+  overflow: visible;
+  white-space: pre-line;
 }
 
 .store-item-note {
