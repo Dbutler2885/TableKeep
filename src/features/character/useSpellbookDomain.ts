@@ -311,6 +311,7 @@ export function useSpellbookDomain({
     spellBookAddTabLevel,
     setSpellBookAddTabLevel,
     spellBookPendingAddIds,
+    setSpellBookPendingAddIds,
     spellBookExpandedSpellId,
     setSpellBookExpandedSpellId,
     memorizedSpellDetailId,

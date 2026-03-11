@@ -1,16 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Check, ChevronLeft, Plus, ShoppingBag, Star, Trash2, UserRound, X } from 'lucide-react'
+import { Check, ChevronLeft, Plus, ShoppingBag, Star, X } from 'lucide-react'
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
-import { inventoryItemToCampaignItem } from '../items/itemConversion'
-import { toFirestoreItem } from '../items/useItems'
-import {
-  normalizeGoldAmount,
-  goldChunksForAmount,
-  makeGoldItem,
-  computeOverflow,
-  writeDroppedOverflow,
-} from './inventoryOverflow'
 import { db } from '../../firebase'
 import type {
   CharacterRecord,
@@ -21,9 +12,7 @@ import type {
   CharacterWeaponItem,
   CharacterArmourItem,
   CharacterGoldItem,
-  CharacterGeneralItem,
   CharacterConsumableItem,
-  CharacterAmmunitionItem,
   Role,
 } from '../../types/app'
 import { DEFAULT_STACK_POLICY } from '../items/itemDefaults'
@@ -42,7 +31,7 @@ import {
   arcaneSpellById,
   spellBookSlotsPerSpellLevel,
 } from './spellCatalog'
-import type { StoreCategoryId, StoreItem } from './storeCatalog'
+import type { StoreCategoryId } from './storeCatalog'
 import {
   type AbilityCode,
   type AbilityScores,
@@ -50,7 +39,6 @@ import {
   type AdventureScores,
   type ThiefSkillScores,
   emptyAbilityScores,
-  abilityCodes,
   loweringCandidateCodes,
   adventureDefaultsByClass,
   defaultThiefSkills,
@@ -60,26 +48,31 @@ import {
   formatTableModifier,
   openStuckDoorByStr,
   meleeModifierByStr,
-  dexCombatModByDex,
   dexAcModByDex,
   dexMissileModByDex,
   wisMagicSaveModifierByScore,
   primeRequisiteCodesForClass,
   clampInSix,
+  classLevel1Saves,
 } from './characterRules'
 import {
   resolveArmourType,
-  applyWeaponTemplateToItem,
-  applyArmourTemplateToItem,
   isWeaponTemplateAllowedForClass,
   isArmourTemplateAllowedForClass,
+  parseDamageDice,
+  parseRangeBands,
+  parseArmourTemplateValues,
+  armourTypeFromTemplateId,
 } from './inventoryRules'
 import { makeId, makeWeaponItem, makeArmourItem } from './characterFactories'
-import { materializeCartEntries, validateStorePurchase } from './storeRules'
+import { makeGoldItem } from './inventoryOverflow'
 import { useResponsiveCharacterLayout } from './useResponsiveCharacterLayout'
 import { useCharacterPersistenceSync } from './useCharacterPersistenceSync'
 import { useCharacterCreationFlow } from './useCharacterCreationFlow'
 import { useSpellbookDomain } from './useSpellbookDomain'
+import { useInventoryDomain } from './useInventoryDomain'
+import { useStoreDomain } from './useStoreDomain'
+import { CharacterListPane } from './CharacterListPane'
 
 type CharacterTabProps = {
   campaignId: string
@@ -98,7 +91,6 @@ type CharacterTabProps = {
   hasPendingWrite: (id: string) => boolean
 }
 
-type SaveCode = 'D' | 'W' | 'P' | 'B' | 'S'
 type AdventureEditableCode = 'FG' | 'FT' | 'HT' | 'LD' | 'SD'
 type ThiefSkillCode = 'CS' | 'TR' | 'HN' | 'HS' | 'MS' | 'OL' | 'PP' | 'RL'
 type ClassFeature = {
@@ -525,7 +517,7 @@ export function CharacterTab({
   hasPendingWrite,
 }: CharacterTabProps) {
   const {
-    isMobile, mobileCharacterView, setMobileCharacterView,
+    isMobile, setMobileCharacterView,
     activePage, setActivePage,
     showListPane, showDetailPane,
     isIntermediateMobileLayout, useIntermediateLayout,
@@ -607,7 +599,7 @@ export function CharacterTab({
     return () => clearTimeout(timer)
   }, [approvalPendingFeedback])
 
-  const { seededCharacterIdsRef, justSeededRef } = useCharacterPersistenceSync({
+  const { seededCharacterIdsRef, justSeededRef, lastPersistedDetailsJsonRef } = useCharacterPersistenceSync({
     selectedCharacterId,
     characters,
     hasPendingWrite,
@@ -1105,13 +1097,20 @@ export function CharacterTab({
     }))
   }
 
+  const applyClassDerivedData = (characterId: string, className: string) => {
+    const saveProfile = classLevel1Saves[className]
+    if (!saveProfile) return
+    setSaveScoresByCharacterId((current) => ({
+      ...current,
+      [characterId]: saveProfile,
+    }))
+  }
+
   const {
     tryBuildGuidedScores,
     rollAbilityScores,
-    classHitDie,
     hasRolledHp,
     canFreeRerollHp,
-    rollHitPoints,
     requestRollHitPoints: _requestRollHitPoints,
   } = useCharacterCreationFlow({
     effectiveSelected,
@@ -1157,12 +1156,11 @@ export function CharacterTab({
     spellBookSelectedSpellId, setSpellBookSelectedSpellId,
     spellBookAddModalOpen, setSpellBookAddModalOpen,
     spellBookAddTabLevel, setSpellBookAddTabLevel,
-    spellBookPendingAddIds,
+    spellBookPendingAddIds, setSpellBookPendingAddIds,
     spellBookExpandedSpellId, setSpellBookExpandedSpellId,
-    memorizedSpellDetailId, setMemorizedSpellDetailId,
+    setMemorizedSpellDetailId,
     spellBookFeedback,
-    selectedSpellBookItem,
-    selectedSpellBookSpellIds, selectedMemorizedSpellIds,
+    selectedSpellBookSpellIds,
     selectedSpellBookSpells, selectedMemorizedSpells,
     accessibleSpellLevels, canOpenSpellBookAddModal,
     spellLevelCountsInBook, spellLevelCountsInPending,
@@ -1207,576 +1205,85 @@ export function CharacterTab({
     justSeededRef.current.delete(selectedCharacterId)
   })
 
-  const updateInventoryItem = (itemId: string, updates: Partial<CharacterInventoryItem>) => {
-    if (!effectiveSelected) return
-    setInventoryByCharacterId((current) => {
-      const items = current[effectiveSelected.id] ?? []
-      return {
-        ...current,
-        [effectiveSelected.id]: items.map((item) =>
-          item.id === itemId ? { ...item, ...updates } as CharacterInventoryItem : item,
-        ),
-      }
-    })
-  }
+  const {
+    updateInventoryItem,
+    updateWeaponRow,
+    updateArmourRow,
+    openAddItemModal,
+    saveAddItem,
+    dropItem,
+    sellItem,
+    spendGold,
+    setInventoryGold,
+    addItemsToInventory,
+    setInventoryGoldForCharacter,
+  } = useInventoryDomain({
+    campaignId,
+    currentUsername,
+    effectiveSelected,
+    canEditSelected,
+    selectedClassName,
+    canClassEquipArmour,
+    selectedInventory,
+    availablePackedSlotCount: availablePackedSlotIndices.length,
+    requiresApprovalNow,
+    isGuidedCreation,
+    overflowWriting,
+    addItemModal,
+    setInventoryByCharacterId,
+    setAddItemModal,
+    setOverflowWriting,
+    setOverflowFeedback,
+    setItemDetailId,
+    setDropConfirmItemId,
+    setSellConfirmItemId,
+    setGoldSpendAmount,
+    setApprovalPendingFeedback,
+    submitRequest,
+  })
 
-  const setInventoryGold = async (amount: number) => {
-    if (!effectiveSelected || overflowWriting) return
-    const nonGold = selectedInventory.filter((i) => i.kind !== 'gold')
-    const chunks = goldChunksForAmount(Math.max(0, amount))
-    const goldItems = chunks.map((chunk) => makeGoldItem(chunk))
-    const candidateInventory = [...nonGold, ...goldItems]
-
-    const overflow = computeOverflow(candidateInventory, availablePackedSlotIndices.length, effectiveSelected.id, effectiveSelected.name)
-
-    if (overflow.droppedItems.length > 0 || overflow.droppedGoldAmount > 0) {
-      setOverflowWriting(true)
-      try {
-        await writeDroppedOverflow(db, campaignId, overflow.droppedItems, overflow.droppedGoldAmount, effectiveSelected.id, effectiveSelected.name)
-      } catch {
-        setOverflowFeedback('Failed to write overflow items. Gold change cancelled.')
-        setOverflowWriting(false)
-        return
-      }
-      setOverflowWriting(false)
-    }
-
-    setInventoryByCharacterId((current) => ({ ...current, [effectiveSelected.id]: overflow.keptInventory }))
-    if (overflow.feedbackMessage) setOverflowFeedback(overflow.feedbackMessage)
-  }
-
-  const updateWeaponRow = (itemId: string, updates: Partial<CharacterWeaponItem>) => {
-    if (!effectiveSelected) return
-    setInventoryByCharacterId((current) => {
-      const items = current[effectiveSelected.id] ?? []
-      const shouldEquipExclusively = updates.equipped === true
-
-      return {
-        ...current,
-        [effectiveSelected.id]: items.map((item) => {
-          if (item.kind !== 'weapon') return item
-          if (item.id !== itemId) {
-            if (shouldEquipExclusively) return { ...item, equipped: false }
-            return item
-          }
-          let merged = { ...item, ...updates } as CharacterWeaponItem
-          if (Object.prototype.hasOwnProperty.call(updates, 'typeId')) {
-            merged = applyWeaponTemplateToItem(merged, updates.typeId ?? '')
-          }
-          if (selectedClassName === 'Halfling' && merged.twoHanded) {
-            merged = { ...merged, twoHanded: false, equipped: false }
-          }
-          if (!isWeaponTemplateAllowedForClass(merged.typeId, selectedClassName)) {
-            merged = { ...merged, equipped: false }
-          }
-          return merged
-        }),
-      }
-    })
-  }
-
-  const updateArmourRow = (armourItemId: string, updates: Partial<CharacterArmourItem>) => {
-    if (!effectiveSelected) return
-    setInventoryByCharacterId((current) => {
-      const items = current[effectiveSelected.id] ?? []
-      const shouldEquipExclusively = updates.equipped === true
-      const currentTarget = items.find((item): item is CharacterArmourItem => item.kind === 'armour' && item.id === armourItemId) ?? null
-      const targetArmourType = updates.armourType ?? (currentTarget ? resolveArmourType(currentTarget) : 'body')
-      return {
-        ...current,
-        [effectiveSelected.id]: items.map((item) => {
-          if (item.kind !== 'armour') return item
-          const normalizedItem = { ...item, armourType: resolveArmourType(item) } as CharacterArmourItem
-          if (item.id !== armourItemId) {
-            if (shouldEquipExclusively && resolveArmourType(item) === targetArmourType) {
-              return { ...normalizedItem, equipped: false }
-            }
-            return normalizedItem
-          }
-          let merged = { ...normalizedItem, ...updates } as CharacterArmourItem
-          if (updates.typeId) {
-            merged = applyArmourTemplateToItem(merged, updates.typeId)
-          }
-          if (!canClassEquipArmour) {
-            merged = { ...merged, equipped: false }
-          }
-          if (!isArmourTemplateAllowedForClass(merged.typeId, selectedClassName)) {
-            merged = { ...merged, equipped: false }
-          }
-          return merged
-        }),
-      }
-    })
-  }
-
-  const upsertCartEntry = (nextEntry: Omit<StoreCartEntry, 'qty'>) => {
-    if (!effectiveSelected) return
-    setStoreCartByCharacterId((current) => {
-      const existing = current[effectiveSelected.id] ?? []
-      const index = existing.findIndex((entry) => entry.key === nextEntry.key)
-      if (index < 0) {
-        return {
-          ...current,
-          [effectiveSelected.id]: [...existing, { ...nextEntry, qty: 1 }],
-        }
-      }
-      const next = [...existing]
-      next[index] = { ...next[index], qty: next[index].qty + 1 }
-      return {
-        ...current,
-        [effectiveSelected.id]: next,
-      }
-    })
-  }
-
-  const decrementCartEntry = (entryKey: string) => {
-    if (!effectiveSelected) return
-    setStoreCartByCharacterId((current) => {
-      const existing = current[effectiveSelected.id] ?? []
-      const index = existing.findIndex((entry) => entry.key === entryKey)
-      if (index < 0) return current
-      const next = [...existing]
-      const target = next[index]
-      if (target.qty <= 1) {
-        return {
-          ...current,
-          [effectiveSelected.id]: next.filter((entry) => entry.key !== entryKey),
-        }
-      }
-      next[index] = { ...target, qty: target.qty - 1 }
-      return {
-        ...current,
-        [effectiveSelected.id]: next,
-      }
-    })
-  }
-
-  const incrementCartEntry = (entryKey: string) => {
-    if (!effectiveSelected) return
-    setStoreCartByCharacterId((current) => {
-      const existing = current[effectiveSelected.id] ?? []
-      const index = existing.findIndex((entry) => entry.key === entryKey)
-      if (index < 0) return current
-      const target = existing[index]
-      if (selectedStoreRemaining < target.costGp) {
-        setStoreError('Not enough gp remaining for this purchase.')
-        return current
-      }
-      const next = [...existing]
-      next[index] = { ...target, qty: target.qty + 1 }
-      return {
-        ...current,
-        [effectiveSelected.id]: next,
-      }
-    })
-  }
-
-  const removeCartEntry = (entryKey: string) => {
-    if (!effectiveSelected) return
-    setStoreCartByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).filter((entry) => entry.key !== entryKey),
-    }))
-  }
-
-  const clearCart = () => {
-    if (!effectiveSelected) return
-    setStoreCartByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: [],
-    }))
-  }
-
-  const rollStartingGold = () => {
-    if (!effectiveSelected || !canEditSelected) return
-    const roll = () => Math.floor(Math.random() * 6) + 1
-    const total = (roll() + roll() + roll()) * 10
-    setInventoryGold(total)
-    setStartingGoldByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: total,
-    }))
-    setStoreSpentByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: 0,
-    }))
-    clearCart()
-    setStoreError(null)
-  }
-
-  const handleStoreBuy = (item: StoreItem) => {
-    if (!effectiveSelected || !canEditSelected) return
-    if (selectedClassName === '-') {
-      setStoreClassRequiredOpen(true)
-      return
-    }
-    if (!hasRolledStartingGold) {
-      setStoreError('Roll starting gold before buying equipment.')
-      return
-    }
-    if (selectedStoreRemaining < item.costGp) {
-      setStoreError('Not enough gp remaining for this purchase.')
-      return
-    }
-
-    if (item.kind === 'weapon' && item.weaponId) {
-      if (!isWeaponTemplateAllowedForClass(item.weaponId, selectedClassName)) {
-        setStoreError('This class cannot use that weapon.')
-        return
-      }
-      upsertCartEntry({
-        key: item.id,
-        name: item.name,
-        costGp: item.costGp,
-        kind: item.kind,
-        weaponId: item.weaponId,
-        armourId: item.armourId,
-        packedLabel: item.name,
-      })
-      setStoreError(null)
-      return
-    }
-
-    if (item.kind === 'armour' && item.armourId) {
-      if (!isArmourTemplateAllowedForClass(item.armourId, selectedClassName)) {
-        setStoreError('This class cannot use that armour.')
-        return
-      }
-      upsertCartEntry({
-        key: item.id,
-        name: item.name,
-        costGp: item.costGp,
-        kind: item.kind,
-        weaponId: item.weaponId,
-        armourId: item.armourId,
-        packedLabel: item.name,
-      })
-      setStoreError(null)
-      return
-    }
-
-    upsertCartEntry({
-      key: item.id,
-      name: item.name,
-      costGp: item.costGp,
-      kind: item.kind,
-      packedLabel: item.name,
-    })
-    setStoreError(null)
-  }
-
-  const handleBuyCustomStoreItem = () => {
-    if (!effectiveSelected || !canEditSelected) return
-    if (selectedClassName === '-') {
-      setStoreClassRequiredOpen(true)
-      return
-    }
-    if (!hasRolledStartingGold) {
-      setStoreError('Roll starting gold before buying equipment.')
-      return
-    }
-    const trimmedName = customStoreName.trim()
-    if (!trimmedName) {
-      setStoreError('Enter a name for custom equipment.')
-      return
-    }
-    const parsedCost = Number.parseInt(customStoreCost || '0', 10)
-    if (!Number.isFinite(parsedCost) || parsedCost < 0) {
-      setStoreError('Custom equipment cost must be 0 gp or greater.')
-      return
-    }
-    if (selectedStoreRemaining < parsedCost) {
-      setStoreError('Not enough gp remaining for this purchase.')
-      return
-    }
-    upsertCartEntry({
-      key: `custom:${trimmedName}:${parsedCost}:${customStoreDescription.trim()}`,
-      name: trimmedName,
-      costGp: parsedCost,
-      kind: 'general',
-      packedLabel: customStoreDescription.trim(),
-    })
-    setStoreError(null)
-    setCustomStoreName('')
-    setCustomStoreCost('')
-    setCustomStoreDescription('')
-  }
-
-  const applyStorePurchases = () => {
-    if (!effectiveSelected || !canEditSelected) return
-    if (selectedClassName === '-') {
-      setStoreClassRequiredOpen(true)
-      return
-    }
-    const validationError = validateStorePurchase(
-      selectedStoreCart, selectedStartingGold, selectedCommittedStoreSpent,
-      selectedClassName, packedItems.length, availablePackedSlotIndices.length,
-    )
-    if (validationError === 'CLASS_REQUIRED') { setStoreClassRequiredOpen(true); return }
-    if (validationError) { setStoreError(validationError); return }
-
-    const cartTotal = selectedStoreCartTotal
-    const result = materializeCartEntries(selectedStoreCart, selectedClassName)
-    if (!result.ok) { setStoreError(result.error); return }
-    const newItems = result.items
-
-    setInventoryByCharacterId((current) => {
-      const existing = current[effectiveSelected.id] ?? []
-      return {
-        ...current,
-        [effectiveSelected.id]: [...existing, ...newItems],
-      }
-    })
-    setStoreSpentByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: (current[effectiveSelected.id] ?? 0) + cartTotal,
-    }))
-    // Update gold items to reflect remaining amount
-    const remainingAfter = (selectedStartingGold ?? 0) - ((storeSpentByCharacterId[effectiveSelected.id] ?? 0) + cartTotal)
-    // We need to set gold after the inventory update, so use a timeout-free approach
-    setInventoryByCharacterId((current) => {
-      const items = (current[effectiveSelected.id] ?? []).filter((i) => i.kind !== 'gold')
-      const chunks = goldChunksForAmount(Math.max(0, remainingAfter))
-      const golds = chunks.map((chunk) => makeGoldItem(chunk))
-      return {
-        ...current,
-        [effectiveSelected.id]: [...items, ...golds],
-      }
-    })
-    clearCart()
-    setStoreError(null)
-    setStoreOpen(false)
-  }
-
-  const refundItem = (itemId: string) => {
-    if (!effectiveSelected || !canEditSelected || !isGuidedCreation) return
-    const item = selectedInventory.find((i) => i.id === itemId)
-    if (!item || item.kind === 'gold') return
-    const refundAmount = item.costGp
-    // Remove the item
-    setInventoryByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).filter((i) => i.id !== itemId),
-    }))
-    // Credit back gold
-    if (refundAmount > 0) {
-      setStoreSpentByCharacterId((current) => ({
-        ...current,
-        [effectiveSelected.id]: Math.max(0, (current[effectiveSelected.id] ?? 0) - refundAmount),
-      }))
-      const newRemaining = (selectedStartingGold ?? 0) - Math.max(0, selectedCommittedStoreSpent - refundAmount)
-      setInventoryByCharacterId((current) => {
-        const items = (current[effectiveSelected.id] ?? []).filter((i) => i.kind !== 'gold')
-        const chunks = goldChunksForAmount(Math.max(0, newRemaining))
-        const golds = chunks.map((chunk) => makeGoldItem(chunk))
-        return {
-          ...current,
-          [effectiveSelected.id]: [...items, ...golds],
-        }
-      })
-    }
-  }
-
-  const openAddItemModal = (equipped: boolean) => {
-    if (isGuidedCreation) return
-    setAddItemModal({
-      equipped, kind: 'general', typeName: '', name: '', costGp: '', notes: '', description: '',
-      typeId: 'custom', damageDiceCount: '', damageDiceSides: '', rangeShort: '',
-      rangeMedium: '', rangeLong: '', twoHanded: false, isMagic: false, attackBonus: '',
-      damageBonus: '', armourClass: '', shieldMod: '', magicMod: '', armourType: 'body', qty: '1', useMode: 'consume', effectText: '',
-    })
-  }
-
-  const saveAddItem = () => {
-    if (!addItemModal || !effectiveSelected || !canEditSelected) return
-    const m = addItemModal
-    const costGp = Number.parseFloat(m.costGp) || 0
-    const fallbackTypeName = (m.typeName || m.name || 'Item').trim()
-
-    let newItem: CharacterInventoryItem
-    switch (m.kind) {
-      case 'weapon': {
-        let item = makeWeaponItem({
-          typeName: fallbackTypeName,
-          name: m.name || undefined, costGp, equipped: m.equipped, notes: m.notes,
-          description: m.description, isMagic: m.isMagic, attackBonus: m.attackBonus,
-          damageBonus: m.damageBonus,
-          damageDiceCount: m.damageDiceCount, damageDiceSides: m.damageDiceSides,
-          rangeShort: m.rangeShort, rangeMedium: m.rangeMedium, rangeLong: m.rangeLong,
-          twoHanded: m.twoHanded,
-        })
-        if (m.typeId && m.typeId !== 'custom') item = applyWeaponTemplateToItem(item, m.typeId)
-        newItem = item
-        break
-      }
-      case 'armour': {
-        let item = makeArmourItem({
-          typeName: fallbackTypeName,
-          name: m.name || undefined, costGp, equipped: m.equipped, notes: m.notes,
-          description: m.description, isMagic: m.isMagic, magicMod: m.magicMod, armourClass: m.armourClass, shieldMod: m.shieldMod, armourType: m.armourType,
-        })
-        if (m.typeId && m.typeId !== 'custom') item = applyArmourTemplateToItem(item, m.typeId)
-        newItem = item
-        break
-      }
-      case 'ammunition': {
-        const ammoTemplate = m.typeId && m.typeId !== 'custom' ? ammoCatalogById[m.typeId] : null
-        newItem = {
-          id: makeId(), kind: 'ammunition',
-          typeId: ammoTemplate ? ammoTemplate.id : 'custom',
-          typeName: ammoTemplate ? ammoTemplate.name : fallbackTypeName,
-          name: m.name || undefined,
-          costGp: ammoTemplate ? ammoTemplate.costGp : costGp,
-          equipped: m.equipped, notes: m.notes,
-          description: ammoTemplate ? ammoTemplate.description : m.description,
-          qty: ammoTemplate ? ammoTemplate.qty : (Number.parseInt(m.qty, 10) || 1),
-          stack: DEFAULT_STACK_POLICY.ammunition,
-        }
-        break
-      }
-      case 'consumable': {
-        const conTemplate = m.typeId && m.typeId !== 'custom' ? consumableCatalogById[m.typeId] : null
-        newItem = {
-          id: makeId(), kind: 'consumable',
-          typeId: conTemplate ? conTemplate.id : 'custom',
-          typeName: conTemplate ? conTemplate.name : fallbackTypeName,
-          name: m.name || undefined,
-          costGp: conTemplate ? conTemplate.costGp : costGp,
-          equipped: m.equipped, notes: m.notes,
-          description: conTemplate ? conTemplate.description : m.description,
-          qty: conTemplate ? conTemplate.qty : (Number.parseInt(m.qty, 10) || 1),
-          stack: DEFAULT_STACK_POLICY.consumable,
-          useMode: conTemplate ? conTemplate.useMode : m.useMode,
-          effectText: (conTemplate ? conTemplate.effectText : m.effectText) || undefined,
-        }
-        break
-      }
-      default: {
-        const genTemplate = m.typeId && m.typeId !== 'custom' ? generalCatalogById[m.typeId] : null
-        newItem = {
-          id: makeId(), kind: 'general',
-          typeId: genTemplate ? genTemplate.id : 'custom',
-          typeName: genTemplate ? genTemplate.name : fallbackTypeName,
-          name: m.name || undefined,
-          costGp: genTemplate ? genTemplate.costGp : costGp,
-          equipped: m.equipped, notes: m.notes,
-          description: genTemplate ? genTemplate.description : m.description,
-          qty: 1, stack: DEFAULT_STACK_POLICY.general,
-        }
-      }
-    }
-    if (requiresApprovalNow) {
-      void submitRequest('create', effectiveSelected.id, effectiveSelected.name, currentUsername, newItem)
-      setAddItemModal(null)
-      setApprovalPendingFeedback('Item sent to GM for approval.')
-      return
-    }
-
-    setInventoryByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: [...(current[effectiveSelected.id] ?? []), newItem],
-    }))
-    setAddItemModal(null)
-  }
-
-  const dropItem = async (itemId: string) => {
-    if (!effectiveSelected || !canEditSelected) return
-    const item = selectedInventory.find((i) => i.id === itemId)
-    if (!item || item.kind === 'gold') return
-
-    const campaignItem = inventoryItemToCampaignItem(item, {
-      status: 'dropped',
-      droppedByCharacterId: effectiveSelected.id,
-      droppedByCharacterName: effectiveSelected.name,
-    })
-
-    const { id, ...rest } = campaignItem
-    await setDoc(
-      doc(db, 'campaigns', campaignId, 'items', id),
-      { ...toFirestoreItem({ ...rest, id } as typeof campaignItem), createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
-    )
-
-    setInventoryByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).filter((i) => i.id !== itemId),
-    }))
-    setItemDetailId(null)
-    setDropConfirmItemId(null)
-  }
-
-  const sellItem = async (itemId: string) => {
-    if (!effectiveSelected || !canEditSelected || overflowWriting) return
-    const item = selectedInventory.find((i) => i.id === itemId)
-    if (!item || item.kind === 'gold') return
-
-    if (requiresApprovalNow) {
-      void submitRequest('sell', effectiveSelected.id, effectiveSelected.name, currentUsername, item)
-      setItemDetailId(null)
-      setSellConfirmItemId(null)
-      setApprovalPendingFeedback('Sale sent to GM for approval.')
-      return
-    }
-
-    const sellAmount = normalizeGoldAmount(item.costGp)
-
-    // Build candidate inventory: remove sold item, add gold proceeds
-    const currentItems = selectedInventory.filter((i) => i.id !== itemId)
-    if (sellAmount <= 0) {
-      setInventoryByCharacterId((current) => ({ ...current, [effectiveSelected.id]: currentItems }))
-      setItemDetailId(null)
-      setSellConfirmItemId(null)
-      return
-    }
-    const existingGold = currentItems
-      .filter((i): i is CharacterGoldItem => i.kind === 'gold')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- old gold data may have `amount`
-      .reduce((sum, g) => sum + (g.qty ?? (g as any).amount ?? 0), 0)
-    const nonGold = currentItems.filter((i) => i.kind !== 'gold')
-    const chunks = goldChunksForAmount(existingGold + sellAmount)
-    const golds = chunks.map((chunk) => makeGoldItem(chunk))
-    const candidateInventory = [...nonGold, ...golds]
-
-    const overflow = computeOverflow(candidateInventory, availablePackedSlotIndices.length, effectiveSelected.id, effectiveSelected.name)
-
-    if (overflow.droppedItems.length > 0 || overflow.droppedGoldAmount > 0) {
-      setOverflowWriting(true)
-      try {
-        await writeDroppedOverflow(db, campaignId, overflow.droppedItems, overflow.droppedGoldAmount, effectiveSelected.id, effectiveSelected.name)
-      } catch {
-        setOverflowFeedback('Failed to write overflow items. Sale cancelled.')
-        setOverflowWriting(false)
-        return
-      }
-      setOverflowWriting(false)
-    }
-
-    setInventoryByCharacterId((current) => ({ ...current, [effectiveSelected.id]: overflow.keptInventory }))
-    if (overflow.feedbackMessage) setOverflowFeedback(overflow.feedbackMessage)
-    setItemDetailId(null)
-    setSellConfirmItemId(null)
-  }
-
-  const spendGold = (amount: number) => {
-    if (!effectiveSelected || !canEditSelected) return
-    const spend = Math.max(0, Math.floor(amount))
-    if (spend <= 0) return
-
-    setInventoryByCharacterId((current) => {
-      const currentItems = current[effectiveSelected.id] ?? []
-      const existingGold = currentItems
-        .filter((i): i is CharacterGoldItem => i.kind === 'gold')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy data may still have `amount`
-        .reduce((sum, g) => sum + (g.qty ?? (g as any).amount ?? 0), 0)
-      const nonGold = currentItems.filter((i) => i.kind !== 'gold')
-      const nextTotal = Math.max(0, existingGold - spend)
-      const chunks = goldChunksForAmount(nextTotal)
-      const golds = chunks.map((chunk) => makeGoldItem(chunk))
-      return { ...current, [effectiveSelected.id]: [...nonGold, ...golds] }
-    })
-
-    setGoldSpendAmount('')
-    setItemDetailId(null)
-  }
+  const {
+    decrementCartEntry,
+    incrementCartEntry,
+    removeCartEntry,
+    clearCart,
+    rollStartingGold,
+    handleStoreBuy,
+    handleBuyCustomStoreItem,
+    applyStorePurchases,
+    refundItem,
+  } = useStoreDomain({
+    effectiveSelected,
+    canEditSelected,
+    selectedClassName,
+    hasRolledStartingGold,
+    selectedStoreRemaining,
+    selectedStoreCart,
+    selectedStoreCartTotal,
+    selectedStartingGold,
+    selectedCommittedStoreSpent,
+    packedItemsCount: packedItems.length,
+    availablePackedSlotCount: availablePackedSlotIndices.length,
+    isGuidedCreation,
+    selectedInventory,
+    customStoreName,
+    customStoreCost,
+    customStoreDescription,
+    storeSpentByCharacterId,
+    setStoreCartByCharacterId,
+    setStoreError,
+    setStoreClassRequiredOpen,
+    setCustomStoreName,
+    setCustomStoreCost,
+    setCustomStoreDescription,
+    setStoreSpentByCharacterId,
+    setStartingGoldByCharacterId,
+    setStoreOpen,
+    setInventoryByCharacterId,
+    setInventoryGold,
+    addItemsToInventory,
+    setInventoryGoldForCharacter,
+  })
 
   const renderAdventuringSkillsSection = () => (
     <section className="monster-section-block">
@@ -1901,88 +1408,23 @@ export function CharacterTab({
   return (
     <div className="maps-layout monsters-layout characters-layout">
       {showListPane ? (
-        <aside className="maps-sidebar monsters-sidebar characters-sidebar">
-          <div className="maps-sidebar-header">
-            <h2>{role === 'gm' ? 'Characters' : 'Character'}</h2>
-            {canCreateCharacter ? (
-              <button
-                type="button"
-                className="monster-add-btn"
-                onClick={() => setCreateCharacterModalOpen(true)}
-                aria-label="Add character"
-              >
-                <Plus size={16} />
-              </button>
-            ) : null}
-          </div>
-
-          {charactersLoading ? <p>Loading characters...</p> : null}
-
-          {sortedCharacters.length === 0 ? <p>No characters available.</p> : null}
-
-          <div className="monster-list-grid character-list-grid">
-            {sortedCharacters.map((character) => (
-              <div key={character.id} className="character-list-item-wrap">
-                <button
-                  type="button"
-                  className={
-                    character.id === effectiveSelected?.id
-                      ? 'monster-list-item active'
-                      : 'monster-list-item'
-                  }
-                  onClick={() => {
-                    setSelectedCharacterId(character.id)
-                    if (isMobile) setMobileCharacterView('detail')
-                  }}
-                >
-                  <div className="monster-card-portrait">
-                    {character.portraitUrl ? (
-                      <img
-                        src={character.portraitUrl}
-                        alt={`${character.name} portrait`}
-                        className="monster-portrait"
-                        style={{ objectPosition: `${character.portraitFocusX}% ${character.portraitFocusY}%` }}
-                      />
-                    ) : (
-                      <div className="monster-portrait-empty small">
-                        <UserRound size={14} />
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="monster-card-main">
-                    <div className="character-card-title-row">
-                      <h4>{character.name || 'Unnamed Character'}</h4>
-                      {currentCharacterId === character.id ? (
-                        <span className="character-current-badge">
-                          <Star size={12} />
-                          Current
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="monster-card-statline">
-                      {character.className} • Level {character.level} • HP {character.hpCurrent}/{character.hpMax}
-                    </p>
-                    <p>AC {character.ac} • XP {character.xp.toLocaleString()}</p>
-                    <p className="character-card-owner">
-                      {character.ownerUsername || 'Unassigned'}
-                    </p>
-                  </div>
-                </button>
-                {canDeleteCharacter(character) ? (
-                  <button
-                    type="button"
-                    className="map-delete-btn character-card-delete-btn"
-                    onClick={() => setDeleteConfirmTarget({ id: character.id, name: character.name || 'character' })}
-                    aria-label={`Delete ${character.name || 'character'}`}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </aside>
+        <CharacterListPane
+          role={role}
+          canCreateCharacter={canCreateCharacter}
+          charactersLoading={charactersLoading}
+          sortedCharacters={sortedCharacters}
+          effectiveSelectedId={effectiveSelected?.id ?? null}
+          currentCharacterId={currentCharacterId}
+          canDeleteCharacter={canDeleteCharacter}
+          onCreateCharacter={() => setCreateCharacterModalOpen(true)}
+          onSelectCharacter={(characterId) => {
+            setSelectedCharacterId(characterId)
+            if (isMobile) setMobileCharacterView('detail')
+          }}
+          onDeleteCharacter={(character) => {
+            setDeleteConfirmTarget({ id: character.id, name: character.name || 'character' })
+          }}
+        />
       ) : null}
 
       {showDetailPane ? (

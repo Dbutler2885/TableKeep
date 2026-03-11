@@ -226,5 +226,6 @@ export function useCharacterPersistenceSync({
   return {
     seededCharacterIdsRef,
     justSeededRef,
+    lastPersistedDetailsJsonRef,
   }
 }
