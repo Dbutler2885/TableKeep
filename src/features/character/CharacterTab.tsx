@@ -54,8 +54,6 @@ import {
   emptyAbilityScores,
   abilityCodes,
   loweringCandidateCodes,
-  classLevel1Saves,
-  classHitDieByClass,
   adventureDefaultsByClass,
   defaultThiefSkills,
   abilityModifier,
@@ -69,7 +67,6 @@ import {
   dexMissileModByDex,
   wisMagicSaveModifierByScore,
   primeRequisiteCodesForClass,
-  buildGuidedAbilityScores,
   clampInSix,
 } from './characterRules'
 import {
@@ -83,6 +80,7 @@ import { makeId, makeSpellBookItem, makeWeaponItem, makeArmourItem } from './cha
 import { materializeCartEntries, validateStorePurchase } from './storeRules'
 import { useResponsiveCharacterLayout } from './useResponsiveCharacterLayout'
 import { useCharacterPersistenceSync } from './useCharacterPersistenceSync'
+import { useCharacterCreationFlow } from './useCharacterCreationFlow'
 
 type CharacterTabProps = {
   campaignId: string
@@ -1166,184 +1164,53 @@ export function CharacterTab({
     }))
   }
 
-  const tryBuildGuidedScores = (code: AbilityCode, nextValue: number): AbilityScores | null => {
-    if (!selectedRolledAbilityScores) return null
-    return buildGuidedAbilityScores(code, nextValue, selectedAbilityScores, selectedRolledAbilityScores, primeRequisiteCodes, loweringCodes)
-  }
-
-  const rollAbilityScores = () => {
-    if (!effectiveSelected || !canEditSelected) return
-    if (hasRolledAbilityScores) return
-    const roll3d6 = () =>
-      Array.from({ length: 3 }, () => Math.floor(Math.random() * 6) + 1).reduce((sum, value) => sum + value, 0)
-    const nextScores: AbilityScores = {
-      STR: String(roll3d6()),
-      INT: String(roll3d6()),
-      WIS: String(roll3d6()),
-      DEX: String(roll3d6()),
-      CON: String(roll3d6()),
-      CHA: String(roll3d6()),
-    }
-    setAbilityScoresByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: nextScores,
-    }))
-    setRolledAbilityScoresByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: nextScores,
-    }))
-    setAbilityScoresRolledByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: true,
-    }))
-  }
-
-  const classHitDie = classHitDieByClass[effectiveSelected?.className ?? ''] ?? null
-  const selectedBaseHpRoll = effectiveSelected ? hpBaseRollByCharacterId[effectiveSelected.id] : undefined
-  const hasRolledHp = typeof selectedBaseHpRoll === 'number'
-  const canFreeRerollHp = hasRolledHp && selectedBaseHpRoll <= 2
-
-  const rollHitPoints = () => {
-    if (!effectiveSelected || !classHitDie) return
-    const levelForHd = Math.min(3, Math.max(1, effectiveSelected.level))
-    const baseRoll = Array.from({ length: levelForHd }, () => Math.floor(Math.random() * classHitDie) + 1).reduce(
-      (sum, value) => sum + value,
-      0,
-    )
-    const hpTotal = Math.max(1, baseRoll + derivedConModifierNumber * levelForHd)
-    setHpBaseRollByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: baseRoll,
-    }))
-    updateSelectedCharacter({
-      hpCurrent: hpTotal,
-      hpMax: hpTotal,
-    })
-  }
-
-  const applyClassDerivedData = (characterId: string, className: string) => {
-    const saveProfile = classLevel1Saves[className]
-    if (!saveProfile) return
-    setSaveScoresByCharacterId((current) => ({
-      ...current,
-      [characterId]: saveProfile,
-    }))
-  }
-
-
-  const requestRollHitPoints = () => {
-    if (!canEditSelected) return
-    if (!isGuidedCreation) return
-    if (!classHitDie) {
-      setHpClassRequiredOpen(true)
-      return
-    }
-    if (hasRolledHp && !canFreeRerollHp) return
-    rollHitPoints()
-  }
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    const baseRoll = hpBaseRollByCharacterId[effectiveSelected.id]
-    if (typeof baseRoll !== 'number') return
-    const levelForHd = Math.min(3, Math.max(1, effectiveSelected.level))
-    const nextMax = Math.max(1, baseRoll + derivedConModifierNumber * levelForHd)
-    const wasFullHp = effectiveSelected.hpCurrent >= effectiveSelected.hpMax
-    const nextCurrent = wasFullHp ? nextMax : Math.min(effectiveSelected.hpCurrent, nextMax)
-    if (effectiveSelected.hpCurrent === nextCurrent && effectiveSelected.hpMax === nextMax) return
-    updateSelectedCharacter({
-      hpCurrent: nextCurrent,
-      hpMax: nextMax,
-    })
-  }, [
+  const {
+    tryBuildGuidedScores,
+    rollAbilityScores,
+    classHitDie,
+    hasRolledHp,
+    canFreeRerollHp,
+    rollHitPoints,
+    requestRollHitPoints: _requestRollHitPoints,
+  } = useCharacterCreationFlow({
     effectiveSelected,
-    hpBaseRollByCharacterId,
+    selectedCharacterId,
+    selectedClassName,
+    selectedAbilityScores,
+    selectedRolledAbilityScores,
+    primeRequisiteCodes,
+    hasRolledAbilityScores,
+    canEditSelected,
+    isGuidedCreation,
+    isInFinalizationFlow,
+    computedAc,
     derivedConModifierNumber,
-  ])
+    selectedWeapons,
+    selectedArmour,
+    canClassEquipArmour,
+    seededCharacterIdsRef,
+    justSeededRef,
+    hpBaseRollByCharacterId,
+    saveScoresByCharacterId,
+    thacoByCharacterId,
+    adventureScoresByCharacterId,
+    adventureSeedClassByCharacterId,
+    thiefSkillsByCharacterId,
+    acManualOverrideByCharacterId,
+    setAbilityScoresByCharacterId,
+    setRolledAbilityScoresByCharacterId,
+    setAbilityScoresRolledByCharacterId,
+    setHpBaseRollByCharacterId,
+    setSaveScoresByCharacterId,
+    setThacoByCharacterId,
+    setAdventureScoresByCharacterId,
+    setAdventureSeedClassByCharacterId,
+    setThiefSkillsByCharacterId,
+    setInventoryByCharacterId,
+    updateSelectedCharacter,
+  })
 
-  useEffect(() => {
-    if (!effectiveSelected) return
-    if (!seededCharacterIdsRef.current.has(effectiveSelected.id)) return
-    if (justSeededRef.current.has(effectiveSelected.id)) return
-    if (saveScoresByCharacterId[effectiveSelected.id]) return
-    applyClassDerivedData(effectiveSelected.id, effectiveSelected.className)
-  }, [effectiveSelected, saveScoresByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    if (!seededCharacterIdsRef.current.has(effectiveSelected.id)) return
-    if (justSeededRef.current.has(effectiveSelected.id)) return
-    if (effectiveSelected.level < 1 || effectiveSelected.level > 3) return
-    if ((thacoByCharacterId[effectiveSelected.id] ?? '').trim().length > 0) return
-    setThacoByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: '19',
-    }))
-  }, [effectiveSelected, thacoByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    if (!seededCharacterIdsRef.current.has(effectiveSelected.id)) return
-    if (justSeededRef.current.has(effectiveSelected.id)) return
-    const characterId = effectiveSelected.id
-    const className = effectiveSelected.className
-    const seededClass = adventureSeedClassByCharacterId[characterId]
-    if (seededClass === className && adventureScoresByCharacterId[characterId]) return
-    setAdventureScoresByCharacterId((current) => ({
-      ...current,
-      [characterId]: adventureDefaultsByClass(className),
-    }))
-    setAdventureSeedClassByCharacterId((current) => ({
-      ...current,
-      [characterId]: className,
-    }))
-  }, [effectiveSelected, adventureSeedClassByCharacterId, adventureScoresByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    if (!seededCharacterIdsRef.current.has(effectiveSelected.id)) return
-    if (justSeededRef.current.has(effectiveSelected.id)) return
-    if (effectiveSelected.className !== 'Thief') return
-    if (thiefSkillsByCharacterId[effectiveSelected.id]) return
-    setThiefSkillsByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: defaultThiefSkills(),
-    }))
-  }, [effectiveSelected, thiefSkillsByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected) return
-    if (acManualOverrideByCharacterId[effectiveSelected.id]) return
-    const autoAc = computedAc
-    if (effectiveSelected.ac === autoAc) return
-    updateSelectedCharacter({ ac: autoAc })
-  }, [effectiveSelected, computedAc, acManualOverrideByCharacterId])
-
-  useEffect(() => {
-    if (!effectiveSelected || selectedClassName !== 'Halfling') return
-    const weapons = selectedWeapons
-    if (!weapons.some((w) => w.twoHanded)) return
-    setInventoryByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).map((item) =>
-        item.kind === 'weapon' && (item as CharacterWeaponItem).twoHanded
-          ? { ...item, twoHanded: false } as CharacterWeaponItem
-          : item,
-      ),
-    }))
-  }, [effectiveSelected, selectedClassName, selectedWeapons])
-
-  useEffect(() => {
-    if (!effectiveSelected || canClassEquipArmour) return
-    const armours = selectedArmour
-    if (!armours.some((a) => a.equipped)) return
-    setInventoryByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).map((item) =>
-        item.kind === 'armour' && item.equipped ? { ...item, equipped: false } : item,
-      ),
-    }))
-  }, [effectiveSelected, canClassEquipArmour, selectedArmour])
+  const requestRollHitPoints = () => _requestRollHitPoints(setHpClassRequiredOpen)
 
   useEffect(() => {
     setFinalizeError(null)
