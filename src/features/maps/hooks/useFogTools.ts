@@ -66,6 +66,8 @@ export function useFogTools({
   const loadedInlineVisionKeyRef = useRef('')
   const loadedVisionKeyRef = useRef('')
   const loadedVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const fogLoadNonceRef = useRef(0)
+  const visionLoadNonceRef = useRef(0)
 
   const fogLastPointRef = useRef<{ x: number; y: number } | null>(null)
   const revealMaskCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -106,20 +108,34 @@ export function useFogTools({
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return
 
+    const fogLoadToken = String(++fogLoadNonceRef.current)
+    canvas.dataset.fogLoadToken = fogLoadToken
+
+    // Reset immediately on map switch to prevent previous-map reveal bleed-through
+    // while async fog image loading is in flight.
+    ctx.clearRect(0, 0, width, height)
+    ctx.fillStyle = 'rgba(0, 0, 0, 1)'
+    ctx.fillRect(0, 0, width, height)
+    bumpFogSampleTick()
+
     const fogSource = map.fogDataUrl || map.fogImageUrl
     if (!fogSource) {
-      ctx.clearRect(0, 0, width, height)
-      ctx.fillStyle = 'rgba(0, 0, 0, 1)'
-      ctx.fillRect(0, 0, width, height)
-      bumpFogSampleTick()
       return
     }
 
     const fogImage = new Image()
     fogImage.crossOrigin = 'anonymous'
     fogImage.onload = () => {
+      if (canvas.dataset.fogLoadToken !== fogLoadToken) return
       ctx.clearRect(0, 0, width, height)
       ctx.drawImage(fogImage, 0, 0, width, height)
+      bumpFogSampleTick()
+    }
+    fogImage.onerror = () => {
+      if (canvas.dataset.fogLoadToken !== fogLoadToken) return
+      ctx.clearRect(0, 0, width, height)
+      ctx.fillStyle = 'rgba(0, 0, 0, 1)'
+      ctx.fillRect(0, 0, width, height)
       bumpFogSampleTick()
     }
     fogImage.src = fogSource
@@ -137,9 +153,12 @@ export function useFogTools({
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return
 
+    const visionLoadToken = String(++visionLoadNonceRef.current)
+    canvas.dataset.visionLoadToken = visionLoadToken
+    ctx.clearRect(0, 0, width, height)
+
     const sources = [map.visionBlockDataUrl, map.visionBlockImageUrl].filter(Boolean)
     if (sources.length === 0) {
-      ctx.clearRect(0, 0, width, height)
       return
     }
 
@@ -152,10 +171,12 @@ export function useFogTools({
       const blockImage = new Image()
       blockImage.crossOrigin = 'anonymous'
       blockImage.onload = () => {
+        if (canvas.dataset.visionLoadToken !== visionLoadToken) return
         ctx.clearRect(0, 0, width, height)
         ctx.drawImage(blockImage, 0, 0, width, height)
       }
       blockImage.onerror = () => {
+        if (canvas.dataset.visionLoadToken !== visionLoadToken) return
         loadAt(index + 1)
       }
       blockImage.src = source

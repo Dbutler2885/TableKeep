@@ -886,6 +886,7 @@ export function CharacterTab({
   const isGuidedCreation = effectiveSelected?.creationStatus === 'draft'
   const isEstablishedDraft = effectiveSelected?.creationStatus === 'established_draft'
   const isInFinalizationFlow = isGuidedCreation || isEstablishedDraft
+  const canEditClassAndAlignment = !!effectiveSelected && canEditSelected && isInFinalizationFlow
   const canMemorizeSpell = !!effectiveSelected && !isInFinalizationFlow
   const requiresSpellLearnApproval = role !== 'gm' && !isInFinalizationFlow
   const requiresApprovalNow = role !== 'gm' && !isEstablishedDraft
@@ -2382,6 +2383,7 @@ export function CharacterTab({
                               <select
                                 value={effectiveSelected.className}
                                 onChange={(event) => {
+                                  if (!canEditClassAndAlignment) return
                                   const nextClass = event.target.value
                                   const classChanged = nextClass !== effectiveSelected.className
                                   const hasRolledForSelected = typeof hpBaseRollByCharacterId[effectiveSelected.id] === 'number'
@@ -2397,7 +2399,7 @@ export function CharacterTab({
                                   }
                                   if (effectiveSelected) applyClassDerivedData(effectiveSelected.id, nextClass)
                                 }}
-                                disabled={!canEditSelected}
+                                disabled={!canEditClassAndAlignment}
                               >
                                 {classOptions.map((option) => (
                                   <option key={option} value={option}>
@@ -2414,8 +2416,9 @@ export function CharacterTab({
                             <span className="character-header-tag">Align</span>
                             <select
                               value={alignmentByCharacterId[effectiveSelected.id] ?? 'Neutrality'}
-                              disabled={!canEditSelected}
+                              disabled={!canEditClassAndAlignment}
                               onChange={(event) => {
+                                if (!canEditClassAndAlignment) return
                                 setAlignmentByCharacterId((current) => ({
                                   ...current,
                                   [effectiveSelected.id]: event.target.value,
