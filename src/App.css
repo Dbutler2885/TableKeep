@@ -937,6 +937,47 @@ button:hover {
   justify-content: center;
 }
 
+.character-grant-mobile-targets {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.character-grant-mobile-target {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #d2d8cd;
+  border-radius: 8px;
+  background: #f7f7f3;
+}
+
+.character-grant-mobile-target:hover {
+  background: #eef2eb;
+}
+
+.character-grant-mobile-target.selected {
+  background: #dce9d8;
+  border-color: #8faf81;
+}
+
+.character-grant-mobile-target strong,
+.character-grant-mobile-target small {
+  margin: 0;
+}
+
+.character-grant-mobile-target strong {
+  overflow-wrap: anywhere;
+}
+
+.character-grant-mobile-target small {
+  font-size: 0.72rem;
+  color: #3d4d37;
+}
+
 .character-class-feature-row {
   grid-template-columns: 28px minmax(0, 1fr);
   align-items: start;

@@ -2058,7 +2058,7 @@ export function CharacterTab({
                           <h3 className="monster-section-title">Grant Builder</h3>
                           <span className="character-roll-points">{selectedGrantTargetIds.length} selected</span>
                         </div>
-                        <p className="character-enc-help">Build a grant package, then check target characters in the sidebar.</p>
+                        <p className="character-enc-help">Build a grant package, then choose target characters.</p>
                         {grantFeedback ? <p className="error">{grantFeedback}</p> : null}
                         <div className="character-sheet-two-col">
                           <label className="character-header-field">
@@ -2234,6 +2234,48 @@ export function CharacterTab({
                           </div>
                         ) : <p className="character-enc-help">No grant items selected yet.</p>}
                       </section>
+
+                      {isMobile ? (
+                        <section className="monster-section-block">
+                          <div className="section-head">
+                            <h3 className="monster-section-title">Select Targets</h3>
+                            <button
+                              type="button"
+                              className="monster-example-btn"
+                              onClick={() => setGrantTargetIds(Object.fromEntries(sortedCharacters.map((character) => [character.id, true])))}
+                              disabled={grantBusy || sortedCharacters.length === 0}
+                            >
+                              Select All
+                            </button>
+                            <button
+                              type="button"
+                              className="monster-example-btn"
+                              onClick={() => setGrantTargetIds({})}
+                              disabled={grantBusy || selectedGrantTargetIds.length === 0}
+                            >
+                              Clear
+                            </button>
+                          </div>
+                          <div className="character-grant-mobile-targets">
+                            {sortedCharacters.map((character) => {
+                              const selected = !!grantTargetIds[character.id]
+                              return (
+                                <button
+                                  key={`mobile-target-${character.id}`}
+                                  type="button"
+                                  className={selected ? 'character-grant-mobile-target selected' : 'character-grant-mobile-target'}
+                                  onClick={() => toggleGrantTarget(character.id, !selected)}
+                                  disabled={grantBusy}
+                                  aria-pressed={selected}
+                                >
+                                  <strong>{character.name}</strong>
+                                  <small>L{character.level} {character.className}</small>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </section>
+                      ) : null}
                     </div>
 
                     <div className="character-sheet-right">
@@ -2257,7 +2299,7 @@ export function CharacterTab({
                             Clear
                           </button>
                         </div>
-                        {selectedGrantTargetIds.length === 0 ? <p className="character-enc-help">Choose targets from sidebar checkboxes.</p> : (
+                        {selectedGrantTargetIds.length === 0 ? <p className="character-enc-help">Choose one or more targets to preview and grant.</p> : (
                           <div className="character-sheet-rows">
                             {selectedGrantTargetIds.map((id, targetIndex) => {
                               const character = sortedCharacters.find((entry) => entry.id === id)
