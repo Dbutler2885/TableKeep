@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react'
-import type { Dispatch, SetStateAction } from 'react'
 import type { Role } from '../../../types/app'
 import { ANIM_REVEAL_INTERVAL_MS, TOKEN_REFERENCE_DIMENSION } from '../lib/constants'
 import { interpolateAlongPath } from '../lib/pathAnimation'
@@ -11,12 +10,8 @@ type UseTokenAnimationOptions = {
   role: Role | null
   cameraLock: boolean
   fullScreenOpen: boolean
-  fullBaseSize: { width: number; height: number }
-  inlineBaseSize: { width: number; height: number }
-  fullZoomRef: React.MutableRefObject<number>
-  playerZoomRef: React.MutableRefObject<number>
-  setFullPan: Dispatch<SetStateAction<{ x: number; y: number }>>
-  setPlayerPan: Dispatch<SetStateAction<{ x: number; y: number }>>
+  setFullPan: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>
+  setPlayerPan: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>
   fullPanRef: React.MutableRefObject<{ x: number; y: number }>
   playerPanRef: React.MutableRefObject<{ x: number; y: number }>
   activeFogCanvasRef: React.RefObject<HTMLCanvasElement | null>
@@ -48,10 +43,6 @@ export function useTokenAnimation({
   role,
   cameraLock,
   fullScreenOpen,
-  fullBaseSize,
-  inlineBaseSize,
-  fullZoomRef,
-  playerZoomRef,
   setFullPan,
   setPlayerPan,
   fullPanRef,
@@ -84,15 +75,13 @@ export function useTokenAnimation({
   const averagePartyCenter = (
     partyTokens: TokenRecord[],
     nextPositions: Record<string, { x: number; y: number }>,
-    mapHeightPx: number,
+    mapRect: DOMRect,
   ) => {
-    const safeMapHeight = Math.max(1, mapHeightPx)
-    const cx = partyTokens.reduce((sum, t) => sum + (nextPositions[t.id]?.x ?? t.x), 0) / partyTokens.length
+    const cx = partyTokens.reduce((sum, t) => sum + (mapRect.left + (nextPositions[t.id]?.x ?? t.x) * mapRect.width), 0) / partyTokens.length
     const cy = partyTokens.reduce((sum, t) => {
       const dims = renderTokenDimensions(t)
       const y = nextPositions[t.id]?.y ?? t.y
-      const visualCenterY = y - dims.height / (2 * safeMapHeight)
-      return sum + Math.max(0, Math.min(1, visualCenterY))
+      return sum + (mapRect.top + y * mapRect.height - dims.height / 2)
     }, 0) / partyTokens.length
     return { cx, cy }
   }
@@ -172,18 +161,36 @@ export function useTokenAnimation({
       const hasPartyAnim = partyTokens.some((t) => nextPositions[t.id] !== undefined)
       if (hasPartyAnim && partyTokens.length > 0) {
         if (fullScreenOpen) {
-          const { cx, cy } = averagePartyCenter(partyTokens, nextPositions, fullBaseSize.height)
+          const stage = activeFogCanvasRef.current?.parentElement?.parentElement as HTMLDivElement | null
+          const mapLayer = stage?.querySelector('.map-zoom-layer') as HTMLDivElement | null
+          if (!stage || !mapLayer) {
+            setAnimatedTokenPositions({ ...nextPositions })
+            animRafRef.current = requestAnimationFrame(animTickRef.current)
+            return
+          }
+          const stageRect = stage.getBoundingClientRect()
+          const mapRect = mapLayer.getBoundingClientRect()
+          const { cx, cy } = averagePartyCenter(partyTokens, nextPositions, mapRect)
           const nextPan = {
-            x: fullBaseSize.width * fullZoomRef.current * (0.5 - cx),
-            y: fullBaseSize.height * fullZoomRef.current * (0.5 - cy),
+            x: fullPanRef.current.x + (stageRect.left + stageRect.width / 2 - cx),
+            y: fullPanRef.current.y + (stageRect.top + stageRect.height / 2 - cy),
           }
           fullPanRef.current = nextPan
           setFullPan(nextPan)
         } else {
-          const { cx, cy } = averagePartyCenter(partyTokens, nextPositions, inlineBaseSize.height)
+          const stage = activeFogCanvasRef.current?.parentElement?.parentElement as HTMLDivElement | null
+          const mapLayer = stage?.querySelector('.map-zoom-layer') as HTMLDivElement | null
+          if (!stage || !mapLayer) {
+            setAnimatedTokenPositions({ ...nextPositions })
+            animRafRef.current = requestAnimationFrame(animTickRef.current)
+            return
+          }
+          const stageRect = stage.getBoundingClientRect()
+          const mapRect = mapLayer.getBoundingClientRect()
+          const { cx, cy } = averagePartyCenter(partyTokens, nextPositions, mapRect)
           const nextPan = {
-            x: inlineBaseSize.width * playerZoomRef.current * (0.5 - cx),
-            y: inlineBaseSize.height * playerZoomRef.current * (0.5 - cy),
+            x: playerPanRef.current.x + (stageRect.left + stageRect.width / 2 - cx),
+            y: playerPanRef.current.y + (stageRect.top + stageRect.height / 2 - cy),
           }
           playerPanRef.current = nextPan
           setPlayerPan(nextPan)

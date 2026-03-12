@@ -40,7 +40,6 @@ type UseMapViewportOptions = {
   isMobileZoomMapView: boolean
   // View distance scale for camera lock zoom (fog-relative)
   renderTokenViewDistance: (token: TokenRecord) => number
-  // Rendered token dimensions (in current map pixels) for camera centering alignment.
   renderTokenDimensions: (token: TokenRecord) => { width: number; height: number; baseSize: number }
 }
 
@@ -111,18 +110,31 @@ export function useMapViewport({
   const renderTokenDimensionsRef = useRef(renderTokenDimensions)
   renderTokenDimensionsRef.current = renderTokenDimensions
 
-  const averagePartyCenter = (partyTokens: TokenRecord[], mapHeightPx: number) => {
-    const safeMapHeight = Math.max(1, mapHeightPx)
-    const cx = partyTokens.reduce((sum, t) => sum + t.x, 0) / partyTokens.length
-    const cy = partyTokens.reduce((sum, t) => {
+  const getPartyAnchorDelta = (
+    partyTokens: TokenRecord[],
+    stage: HTMLDivElement | null,
+    mapLayer: HTMLDivElement | null,
+  ) => {
+    if (!stage || !mapLayer) return null
+    const stageRect = stage.getBoundingClientRect()
+    const mapRect = mapLayer.getBoundingClientRect()
+    if (stageRect.width <= 0 || stageRect.height <= 0 || mapRect.width <= 0 || mapRect.height <= 0) return null
+    const safeMapHeight = Math.max(1, mapRect.height)
+    const centerX = partyTokens.reduce((sum, t) => sum + (mapRect.left + t.x * mapRect.width), 0) / partyTokens.length
+    const centerY = partyTokens.reduce((sum, t) => {
       const dims = renderTokenDimensionsRef.current(t)
-      const visualCenterY = t.y - dims.height / (2 * safeMapHeight)
-      return sum + Math.max(0, Math.min(1, visualCenterY))
+      const visualCenterY = mapRect.top + t.y * mapRect.height - dims.height / 2
+      return sum + visualCenterY
     }, 0) / partyTokens.length
-    return { cx, cy }
+    return {
+      x: stageRect.left + stageRect.width / 2 - centerX,
+      y: stageRect.top + stageRect.height / 2 - Math.max(mapRect.top, Math.min(mapRect.top + safeMapHeight, centerY)),
+    }
   }
 
   // Sync state → refs (used by wheel/touch handlers that need latest value without re-render)
+  useEffect(() => { fullZoomRef.current = fullZoom }, [fullZoom])
+  useEffect(() => { fullPanRef.current = fullPan }, [fullPan])
   useEffect(() => { playerZoomRef.current = playerZoom }, [playerZoom])
   useEffect(() => { playerPanRef.current = playerPan }, [playerPan])
 
@@ -132,24 +144,26 @@ export function useMapViewport({
     const partyTokens = tokens.filter((t) => t.party && !t.hidden)
     if (partyTokens.length === 0) return
     if (fullScreenOpen) {
-      const { cx, cy } = averagePartyCenter(partyTokens, fullBaseSizeRef.current.height)
+      const delta = getPartyAnchorDelta(partyTokens, fullMapLayerRef.current?.parentElement as HTMLDivElement | null, fullMapLayerRef.current)
+      if (!delta) return
       const nextPan = {
-        x: fullBaseSizeRef.current.width * fullZoomRef.current * (0.5 - cx),
-        y: fullBaseSizeRef.current.height * fullZoomRef.current * (0.5 - cy),
+        x: fullPanRef.current.x + delta.x,
+        y: fullPanRef.current.y + delta.y,
       }
       fullPanRef.current = nextPan
       setFullPan(nextPan)
     } else {
-      const { cx, cy } = averagePartyCenter(partyTokens, inlineBaseSizeRef.current.height)
+      const delta = getPartyAnchorDelta(partyTokens, inlineMapLayerRef.current?.parentElement as HTMLDivElement | null, inlineMapLayerRef.current)
+      if (!delta) return
       const nextPan = {
-        x: inlineBaseSizeRef.current.width * playerZoomRef.current * (0.5 - cx),
-        y: inlineBaseSizeRef.current.height * playerZoomRef.current * (0.5 - cy),
+        x: playerPanRef.current.x + delta.x,
+        y: playerPanRef.current.y + delta.y,
       }
       playerPanRef.current = nextPan
       setPlayerPan(nextPan)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tokens, cameraLock, fullScreenOpen]) // omit zoom — only re-center on token move, not on user zoom changes
+  }, [tokens, cameraLock, fullScreenOpen])
 
   // --- Handlers ---
 
@@ -180,28 +194,42 @@ export function useMapViewport({
           partyTokens.reduce((sum, t) => sum + renderTokenViewDistanceRef.current(t), 0) / partyTokens.length
         const losZoom = activeFogDimension / (2 * Math.max(1, avgViewDist))
         if (fullScreenOpen) {
-          const { cx, cy } = averagePartyCenter(partyTokens, fullBaseSizeRef.current.height)
           const newZoom = fullZoom > losZoom ? losZoom : fullZoom
-          const newPan = {
-            x: fullBaseSizeRef.current.width * newZoom * (0.5 - cx),
-            y: fullBaseSizeRef.current.height * newZoom * (0.5 - cy),
-          }
           fullZoomRef.current = newZoom
-          fullPanRef.current = newPan
           setFullZoom(newZoom)
-          setFullPan(newPan)
+          requestAnimationFrame(() => {
+            const delta = getPartyAnchorDelta(
+              partyTokens,
+              fullMapLayerRef.current?.parentElement as HTMLDivElement | null,
+              fullMapLayerRef.current,
+            )
+            if (!delta) return
+            const nextPan = {
+              x: fullPanRef.current.x + delta.x,
+              y: fullPanRef.current.y + delta.y,
+            }
+            fullPanRef.current = nextPan
+            setFullPan(nextPan)
+          })
         } else {
-          const { cx, cy } = averagePartyCenter(partyTokens, inlineBaseSizeRef.current.height)
           const currentPlayerZoom = playerZoomRef.current
           const newZoom = currentPlayerZoom > losZoom ? losZoom : currentPlayerZoom
-          const newPan = {
-            x: inlineBaseSizeRef.current.width * newZoom * (0.5 - cx),
-            y: inlineBaseSizeRef.current.height * newZoom * (0.5 - cy),
-          }
           playerZoomRef.current = newZoom
-          playerPanRef.current = newPan
           setPlayerZoom(newZoom)
-          setPlayerPan(newPan)
+          requestAnimationFrame(() => {
+            const delta = getPartyAnchorDelta(
+              partyTokens,
+              inlineMapLayerRef.current?.parentElement as HTMLDivElement | null,
+              inlineMapLayerRef.current,
+            )
+            if (!delta) return
+            const nextPan = {
+              x: playerPanRef.current.x + delta.x,
+              y: playerPanRef.current.y + delta.y,
+            }
+            playerPanRef.current = nextPan
+            setPlayerPan(nextPan)
+          })
         }
       }
       setCameraLock(true)

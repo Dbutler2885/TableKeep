@@ -243,6 +243,45 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     startTokenPathAnimationRef,
   })
 
+  useEffect(() => {
+    const syncLayerSize = (
+      layer: HTMLDivElement | null,
+      setSize: React.Dispatch<React.SetStateAction<{ width: number; height: number }>>,
+    ) => {
+      if (!layer) return () => {}
+      const updateSize = () => {
+        const width = Math.max(1, Math.round(layer.clientWidth))
+        const height = Math.max(1, Math.round(layer.clientHeight))
+        setSize((current) => (
+          current.width === width && current.height === height
+            ? current
+            : { width, height }
+        ))
+      }
+
+      updateSize()
+      const observer = new ResizeObserver(() => updateSize())
+      observer.observe(layer)
+      const image = layer.querySelector('img')
+      if (image) observer.observe(image)
+      return () => observer.disconnect()
+    }
+
+    const cleanupInline = syncLayerSize(inlineMapLayerRef.current, setInlineBaseSize)
+    const cleanupFull = syncLayerSize(fullMapLayerRef.current, setFullBaseSize)
+    return () => {
+      cleanupInline()
+      cleanupFull()
+    }
+  }, [
+    selectedMap?.id,
+    fullScreenOpen,
+    isMobile,
+    mobileMapView,
+    mobileGmPane,
+    mobilePlayerPane,
+  ])
+
   const handleMapUpload: ChangeEventHandler<HTMLInputElement> = (event) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -452,6 +491,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   }
 
   const isMobileZoomMapView = isMobile && (role !== 'gm' || mobileGmPane === 'map')
+  const isPlayerMapView = role !== 'gm'
 
   const renderTokenSize = (token: TokenRecord) => {
     const scale = token.sizeScale ?? token.size / TOKEN_REFERENCE_DIMENSION
@@ -515,9 +555,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     playerPan,
     playerDragging,
     cameraLock,
-    fullZoomRef,
     fullPanRef,
-    playerZoomRef,
     playerPanRef,
     toggleCameraLock,
     resetFullViewport,
@@ -885,10 +923,6 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     role,
     cameraLock,
     fullScreenOpen,
-    fullBaseSize,
-    inlineBaseSize,
-    fullZoomRef,
-    playerZoomRef,
     setFullPan,
     setPlayerPan,
     fullPanRef,
@@ -1559,7 +1593,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
               selectedMap={selectedMap}
               mapLayerClassName={isMobileZoomMapView ? 'map-zoom-layer mobile-player-zoom' : 'map-zoom-layer'}
               mapLayerStyle={
-                isMobileZoomMapView
+                isPlayerMapView
                   ? {
                     transform: `translate(${playerPan.x}px, ${playerPan.y}px) scale(${playerZoom})`,
                     cursor: playerDragging ? 'grabbing' : playerZoom > 1 ? 'grab' : undefined,
@@ -1568,11 +1602,11 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
               }
               onOpenFullscreen={openFullScreen}
               onImageLoad={handleInlineImageLoad}
-              onStageWheel={isMobileZoomMapView ? handlePlayerWheel : undefined}
-              onStageMouseDown={isMobileZoomMapView ? handlePlayerMouseDown : undefined}
-              onStageMouseMove={isMobileZoomMapView ? handlePlayerMouseMove : undefined}
-              onStageMouseUp={isMobileZoomMapView ? endPlayerDrag : undefined}
-              onStageMouseLeave={isMobileZoomMapView ? endPlayerDrag : undefined}
+              onStageWheel={isPlayerMapView ? handlePlayerWheel : undefined}
+              onStageMouseDown={isPlayerMapView ? handlePlayerMouseDown : undefined}
+              onStageMouseMove={isPlayerMapView ? handlePlayerMouseMove : undefined}
+              onStageMouseUp={isPlayerMapView ? endPlayerDrag : undefined}
+              onStageMouseLeave={isPlayerMapView ? endPlayerDrag : undefined}
               onMapLayerContextMenu={(event) => event.preventDefault()}
               onMapLayerWheel={(event) => handleGridLayerWheel(event, false)}
               onMapLayerMouseDown={(event) => {
