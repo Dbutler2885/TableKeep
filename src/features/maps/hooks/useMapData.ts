@@ -373,9 +373,9 @@ export function useMapData({
     return () => unsub()
   }, [campaignId, selectedMapId, tokensRef, recentlyDroppedRef, lastAnimatedPathIdRef, startTokenPathAnimationRef])
 
-  // ── Annotations subscription (per map, GM only) ─────────────────────────────
+  // ── Annotations subscription (per map) ──────────────────────────────────────
   useEffect(() => {
-    if (role !== 'gm' || !selectedMapId) {
+    if (!selectedMapId) {
       setAnnotations([])
       return
     }
@@ -385,12 +385,22 @@ export function useMapData({
       annotationsQuery,
       (snap) => {
         const next = snap.docs.map((docSnap) => {
-          const data = docSnap.data() as { x?: number; y?: number; text?: string }
+          const data = docSnap.data() as {
+            x?: number
+            y?: number
+            text?: string
+            kind?: string
+            hidden?: boolean
+            pointerDirection?: string
+          }
           return {
             id: docSnap.id,
             x: typeof data.x === 'number' ? data.x : 0.5,
             y: typeof data.y === 'number' ? data.y : 0.5,
             text: typeof data.text === 'string' ? data.text : '',
+            kind: data.kind === 'player' ? ('player' as const) : ('gm' as const),
+            hidden: data.hidden === true,
+            pointerDirection: data.pointerDirection === 'down' ? ('down' as const) : ('up' as const),
           }
         })
         setAnnotations(next)
@@ -401,7 +411,7 @@ export function useMapData({
     )
 
     return () => unsub()
-  }, [campaignId, role, selectedMapId])
+  }, [campaignId, selectedMapId])
 
   // ── Monsters subscription (for token spawn picker) ──────────────────────────
   useEffect(() => {
@@ -826,7 +836,7 @@ export function useMapData({
   }
 
   // ── Annotation CRUD ─────────────────────────────────────────────────────────
-  const placeAnnotation = async (clientX: number, clientY: number) => {
+  const placeAnnotation = async (clientX: number, clientY: number, kind: 'gm' | 'player' = 'gm') => {
     if (!selectedMap || role !== 'gm') return
     const point = getDropPoint(clientX, clientY)
     if (!point) return
@@ -836,6 +846,9 @@ export function useMapData({
         x: point.x,
         y: point.y,
         text: '',
+        kind,
+        hidden: false,
+        pointerDirection: 'up',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       },
@@ -859,6 +872,60 @@ export function useMapData({
   const deleteAnnotation = async (annotationId: string) => {
     if (!selectedMap || role !== 'gm') return
     await deleteDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'annotations', annotationId))
+  }
+
+  const toggleAnnotationHidden = async (annotationId: string) => {
+    if (!selectedMap || role !== 'gm') return
+    const annotation = annotations.find((entry) => entry.id === annotationId)
+    if (!annotation) return
+    const nextHidden = !annotation.hidden
+    setAnnotations((current) =>
+      current.map((entry) => (entry.id === annotationId ? { ...entry, hidden: nextHidden } : entry)),
+    )
+    await updateDoc(
+      doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'annotations', annotationId),
+      { hidden: nextHidden, updatedAt: serverTimestamp() },
+    )
+  }
+
+  const toggleAnnotationPointerDirection = async (annotationId: string) => {
+    if (!selectedMap || role !== 'gm') return
+    const annotation = annotations.find((entry) => entry.id === annotationId)
+    if (!annotation) return
+    const nextDirection = annotation.pointerDirection === 'down' ? 'up' : 'down'
+    setAnnotations((current) =>
+      current.map((entry) => (
+        entry.id === annotationId
+          ? { ...entry, pointerDirection: nextDirection }
+          : entry
+      )),
+    )
+    await updateDoc(
+      doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'annotations', annotationId),
+      { pointerDirection: nextDirection, updatedAt: serverTimestamp() },
+    )
+  }
+
+  const moveAnnotationPosition = (annotationId: string, x: number, y: number) => {
+    const clampedX = Math.max(0, Math.min(1, x))
+    const clampedY = Math.max(0, Math.min(1, y))
+    setAnnotations((current) =>
+      current.map((annotation) =>
+        annotation.id === annotationId
+          ? { ...annotation, x: clampedX, y: clampedY }
+          : annotation,
+        ),
+    )
+  }
+
+  const persistAnnotationPosition = async (annotationId: string, x: number, y: number) => {
+    if (!selectedMap || role !== 'gm') return
+    const clampedX = Math.max(0, Math.min(1, x))
+    const clampedY = Math.max(0, Math.min(1, y))
+    await updateDoc(
+      doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'annotations', annotationId),
+      { x: clampedX, y: clampedY, updatedAt: serverTimestamp() },
+    )
   }
 
   // ── Token asset CRUD ────────────────────────────────────────────────────────
@@ -986,6 +1053,10 @@ export function useMapData({
     placeAnnotation,
     commitActiveAnnotation,
     deleteAnnotation,
+    toggleAnnotationHidden,
+    toggleAnnotationPointerDirection,
+    moveAnnotationPosition,
+    persistAnnotationPosition,
     // Token asset CRUD
     saveTokenAssetFile,
     archiveTokenAsset,

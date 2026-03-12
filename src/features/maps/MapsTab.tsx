@@ -103,6 +103,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [tokenPlaceMode, setTokenPlaceMode] = useState(false)
   const [tokenSelectMode, setTokenSelectMode] = useState(false)
   const [annotationPlaceMode, setAnnotationPlaceMode] = useState(false)
+  const [playerLabelPlaceMode, setPlayerLabelPlaceMode] = useState(false)
+  const [gmHideLabels, setGmHideLabels] = useState(false)
   const [tokenColor, setTokenColor] = useState('#b45309')
   const [tokenSize, setTokenSize] = useState(28)
   const [inlineBaseSize, setInlineBaseSize] = useState({ width: 0, height: 0 })
@@ -233,6 +235,10 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     placeAnnotation,
     commitActiveAnnotation,
     deleteAnnotation,
+    toggleAnnotationHidden,
+    toggleAnnotationPointerDirection,
+    moveAnnotationPosition,
+    persistAnnotationPosition,
     saveTokenAssetFile,
     archiveTokenAsset,
     requestDeleteTokenAsset,
@@ -559,6 +565,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     visionTool,
     tokenPlaceMode,
     annotationPlaceMode,
+    playerLabelPlaceMode,
     isMobileZoomMapView,
     renderTokenViewDistance,
     renderTokenDimensions,
@@ -1173,7 +1180,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     if (gridCalibrateMode) return
     if (!tokenSelectMode || event.button !== 0) return
     const target = event.target as HTMLElement
-    if (target.closest('.map-token,.map-annotation-btn,.map-annotation-popover')) return
+    if (target.closest('.map-token,.map-annotation-btn,.map-player-label-btn,.map-player-label-static,.map-annotation-popover')) return
     const point = getTokenDropPoint(event.clientX, event.clientY)
     if (!point) return
     event.preventDefault()
@@ -1187,7 +1194,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       suppressNextMapClickRef.current = false
       return
     }
-    if ((event.target as HTMLElement).closest('.map-token,.map-annotation-btn,.map-annotation-popover')) return
+    if ((event.target as HTMLElement).closest('.map-token,.map-annotation-btn,.map-player-label-btn,.map-player-label-static,.map-annotation-popover')) return
     event.preventDefault()
     if (gridCalibrateMode) {
       handleGridCalibrateClick(event.clientX, event.clientY)
@@ -1199,7 +1206,11 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     }
     if (tokenSelectMode) return
     if (annotationPlaceMode) {
-      void placeAnnotation(event.clientX, event.clientY)
+      void placeAnnotation(event.clientX, event.clientY, 'gm')
+      return
+    }
+    if (playerLabelPlaceMode) {
+      void placeAnnotation(event.clientX, event.clientY, 'player')
       return
     }
     if (!tokenPlaceMode) return
@@ -1250,7 +1261,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as HTMLElement | null
       if (!target) return
-      if (target.closest('.map-annotation-popover,.map-annotation-btn')) return
+      if (target.closest('.map-annotation-popover,.map-annotation-btn,.map-player-label-btn')) return
       void commitActiveAnnotation()
       setActiveAnnotationId('')
     }
@@ -1364,16 +1375,27 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     </div>
   ) : null
 
-  const annotationLayerNode = role === 'gm' && !streamingMode ? (
+  const displayAnnotations = role === 'gm'
+    ? (streamingMode
+      ? annotations.filter((annotation) => annotation.kind === 'player' && !annotation.hidden)
+      : (gmHideLabels ? [] : annotations))
+    : annotations.filter((annotation) => annotation.kind === 'player' && !annotation.hidden)
+
+  const annotationLayerNode = displayAnnotations.length > 0 || (role === 'gm' && !streamingMode) ? (
     <AnnotationLayer
-      annotations={annotations}
+      annotations={displayAnnotations}
       activeAnnotationId={activeAnnotationId}
       activeAnnotationDraft={activeAnnotationDraft}
       setActiveAnnotationId={setActiveAnnotationId}
       setActiveAnnotationDraft={setActiveAnnotationDraft}
       onCommitActiveAnnotation={commitActiveAnnotation}
       onDeleteAnnotation={deleteAnnotation}
+      onToggleAnnotationHidden={toggleAnnotationHidden}
+      onToggleAnnotationPointerDirection={toggleAnnotationPointerDirection}
+      onMoveAnnotation={moveAnnotationPosition}
+      onPersistAnnotationPosition={persistAnnotationPosition}
       autosizeAnnotationTextarea={autosizeAnnotationTextarea}
+      editable={role === 'gm' && !streamingMode}
     />
   ) : null
 
@@ -1393,6 +1415,10 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         setTokenSelectMode={setTokenSelectMode}
         annotationPlaceMode={annotationPlaceMode}
         setAnnotationPlaceMode={setAnnotationPlaceMode}
+        playerLabelPlaceMode={playerLabelPlaceMode}
+        setPlayerLabelPlaceMode={setPlayerLabelPlaceMode}
+        gmHideLabels={gmHideLabels}
+        setGmHideLabels={setGmHideLabels}
         tokenColor={tokenColor}
         setTokenColor={setTokenColor}
         tokenSize={tokenSize}
@@ -1738,6 +1764,10 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 setTokenSelectMode={setTokenSelectMode}
                 annotationPlaceMode={annotationPlaceMode}
                 setAnnotationPlaceMode={setAnnotationPlaceMode}
+                playerLabelPlaceMode={playerLabelPlaceMode}
+                setPlayerLabelPlaceMode={setPlayerLabelPlaceMode}
+                gmHideLabels={gmHideLabels}
+                setGmHideLabels={setGmHideLabels}
                 tokenColor={tokenColor}
                 setTokenColor={setTokenColor}
                 tokenSize={tokenSize}
@@ -2113,6 +2143,10 @@ function GmMapControls({
   setTokenSelectMode,
   annotationPlaceMode,
   setAnnotationPlaceMode,
+  playerLabelPlaceMode,
+  setPlayerLabelPlaceMode,
+  gmHideLabels,
+  setGmHideLabels,
   tokenColor,
   setTokenColor,
   tokenSize,
@@ -2182,6 +2216,10 @@ function GmMapControls({
   setTokenSelectMode: (value: boolean) => void
   annotationPlaceMode: boolean
   setAnnotationPlaceMode: (value: boolean) => void
+  playerLabelPlaceMode: boolean
+  setPlayerLabelPlaceMode: (value: boolean) => void
+  gmHideLabels: boolean
+  setGmHideLabels: (value: boolean) => void
   tokenColor: string
   setTokenColor: (value: string) => void
   tokenSize: number
@@ -2398,6 +2436,7 @@ function GmMapControls({
               setVisionTool(null)
               setTokenPlaceMode(false)
               setAnnotationPlaceMode(false)
+              setPlayerLabelPlaceMode(false)
             }
           }}
           aria-label="Toggle token drag-select mode"
@@ -2414,12 +2453,39 @@ function GmMapControls({
             if (next) {
               setTokenSelectMode(false)
               setTokenPlaceMode(false)
+              setPlayerLabelPlaceMode(false)
             }
           }}
           aria-label="Toggle annotation placement mode"
           data-tooltip="Annotation placement mode"
         >
           <Flag size={16} />
+        </button>
+        <button
+          type="button"
+          className={playerLabelPlaceMode ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
+          onClick={() => {
+            const next = !playerLabelPlaceMode
+            setPlayerLabelPlaceMode(next)
+            if (next) {
+              setTokenSelectMode(false)
+              setTokenPlaceMode(false)
+              setAnnotationPlaceMode(false)
+            }
+          }}
+          aria-label="Toggle player label placement mode"
+          data-tooltip="Player label placement mode"
+        >
+          <Tag size={16} />
+        </button>
+        <button
+          type="button"
+          className={gmHideLabels ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
+          onClick={() => setGmHideLabels(!gmHideLabels)}
+          aria-label={gmHideLabels ? 'Show labels in GM view' : 'Hide labels in GM view'}
+          data-tooltip={gmHideLabels ? 'Show labels in GM view' : 'Hide labels in GM view'}
+        >
+          <EyeOff size={16} />
         </button>
         <button
           type="button"
@@ -2430,6 +2496,7 @@ function GmMapControls({
             if (next) {
               setTokenSelectMode(false)
               setAnnotationPlaceMode(false)
+              setPlayerLabelPlaceMode(false)
             }
           }}
           aria-label="Toggle token placement mode"

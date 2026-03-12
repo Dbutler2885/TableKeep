@@ -182,6 +182,35 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
     [role],
   )
 
+  useEffect(() => {
+    if (!campaign || !role) return
+    void Promise.all([
+      setDoc(
+        doc(db, 'campaigns', campaign.id, 'members', user.uid),
+        {
+          userId: user.uid,
+          role,
+          status: 'active',
+          username,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      ),
+      setDoc(
+        doc(db, 'users', user.uid, 'campaignMemberships', campaign.id),
+        {
+          campaignId: campaign.id,
+          userId: user.uid,
+          role,
+          status: 'active',
+          username,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      ),
+    ])
+  }, [campaign, role, user.uid, username])
+
   return (
     <main className="shell-root">
       <button

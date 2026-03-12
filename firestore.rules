@@ -137,7 +137,11 @@ service cloud.firestore {
         }
 
         match /annotations/{annotationId} {
-          allow read: if isCampaignGM(campaignId);
+          allow read: if isCampaignGM(campaignId) || (
+            isCampaignMember(campaignId)
+            && resource.data.kind == "player"
+            && resource.data.hidden != true
+          );
           allow write: if isCampaignGM(campaignId);
         }
 

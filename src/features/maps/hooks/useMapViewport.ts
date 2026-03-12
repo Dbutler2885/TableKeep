@@ -36,6 +36,7 @@ type UseMapViewportOptions = {
   visionTool: 'draw' | 'drawFull' | 'erase' | null
   tokenPlaceMode: boolean
   annotationPlaceMode: boolean
+  playerLabelPlaceMode: boolean
   // Mobile: should touch events drive pan/pinch?
   isMobileZoomMapView: boolean
   // View distance scale for camera lock zoom (fog-relative)
@@ -52,10 +53,11 @@ export function useMapViewport({
   fullScreenOpen,
   fullMapLayerRef,
   inlineMapLayerRef,
-  fogTool,
-  visionTool,
-  tokenPlaceMode,
-  annotationPlaceMode,
+  fogTool: _fogTool,
+  visionTool: _visionTool,
+  tokenPlaceMode: _tokenPlaceMode,
+  annotationPlaceMode: _annotationPlaceMode,
+  playerLabelPlaceMode: _playerLabelPlaceMode,
   isMobileZoomMapView,
   renderTokenViewDistance,
   renderTokenDimensions,
@@ -256,14 +258,20 @@ export function useMapViewport({
     setFullPan(nextPan)
   }
 
-  // Fullscreen pan: middle mouse always pans; left mouse pans when shift held or no GM tool active
+  // GM fullscreen pan: middle mouse always pans; left mouse only pans with shift held.
+  // Non-GM keeps the prior left-drag behavior.
   const handleFullMouseDown: MouseEventHandler<HTMLDivElement> = (event) => {
-    if (event.button === 1) {
+    if (role === 'gm') {
+      if (event.button === 1) {
+        event.preventDefault()
+      } else if (event.button === 0 && event.shiftKey) {
+        event.preventDefault()
+      } else {
+        return
+      }
+    } else if (event.button === 1) {
       event.preventDefault()
-    } else if (
-      event.button === 0 &&
-      (event.shiftKey || !(role === 'gm' && (fogTool || visionTool || tokenPlaceMode || annotationPlaceMode)))
-    ) {
+    } else if (event.button === 0) {
       event.preventDefault()
     } else {
       return
@@ -359,7 +367,7 @@ export function useMapViewport({
       return
     }
 
-    if (role === 'gm' && (fogTool || visionTool)) return
+    if (role === 'gm' && (_fogTool || _visionTool)) return
 
     if (event.touches.length === 1 && playerZoom > 1) {
       const touch = event.touches[0]

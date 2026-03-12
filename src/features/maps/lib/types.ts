@@ -57,6 +57,9 @@ export type AnnotationRecord = {
   x: number
   y: number
   text: string
+  kind: 'gm' | 'player'
+  hidden: boolean
+  pointerDirection: 'up' | 'down'
 }
 
 export type TokenAssetRecord = {

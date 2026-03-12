@@ -114,6 +114,10 @@ type GrantTemplateEntry = {
   packedLabel?: string
 }
 type TransferTargetCharacter = Pick<CharacterRecord, 'id' | 'name' | 'ownerUserId' | 'ownerUsername' | 'details'>
+type CampaignPlayerOption = {
+  userId: string
+  username: string | null
+}
 type ClassFeature = {
   id: string
   name: string
@@ -667,6 +671,10 @@ export function CharacterTab({
   const [transferBusy, setTransferBusy] = useState(false)
   const [transferError, setTransferError] = useState<string | null>(null)
   const [allCampaignCharacters, setAllCampaignCharacters] = useState<TransferTargetCharacter[]>([])
+  const [playerAssignmentOpen, setPlayerAssignmentOpen] = useState(false)
+  const [assignmentTargetUserId, setAssignmentTargetUserId] = useState('')
+  const [assignmentBusy, setAssignmentBusy] = useState(false)
+  const [campaignPlayers, setCampaignPlayers] = useState<CampaignPlayerOption[]>([])
 
   const { ownPendingRequests, rejections, submitRequest, submitSpellLearnRequest, submitAbilityRerollRequest, dismissRejection } = useItemApprovals(campaignId, role, currentUserId)
   const { items: campaignItems } = useItems(campaignId)
@@ -707,6 +715,39 @@ export function CharacterTab({
         setAllCampaignCharacters(next)
       },
       () => setAllCampaignCharacters([]),
+    )
+
+    return () => unsub()
+  }, [campaignId])
+
+  useEffect(() => {
+    if (!campaignId) {
+      setCampaignPlayers([])
+      return
+    }
+
+    const unsub = onSnapshot(
+      collection(db, 'campaigns', campaignId, 'members'),
+      (snapshot) => {
+        const next = snapshot.docs
+          .map((docSnap) => {
+            const data = docSnap.data() as {
+              userId?: string
+              username?: string | null
+              role?: Role
+              status?: string
+            }
+            if (data.role !== 'player' || data.status !== 'active' || typeof data.userId !== 'string') return null
+            return {
+              userId: data.userId,
+              username: typeof data.username === 'string' ? data.username : null,
+            } satisfies CampaignPlayerOption
+          })
+          .filter((entry): entry is CampaignPlayerOption => entry !== null)
+          .sort((a, b) => (a.username ?? a.userId).localeCompare(b.username ?? b.userId))
+        setCampaignPlayers(next)
+      },
+      () => setCampaignPlayers([]),
     )
 
     return () => unsub()
@@ -815,10 +856,50 @@ export function CharacterTab({
     && !!effectiveSelected
     && effectiveSelected.ownerUserId === currentUserId
   const canDeleteCharacter = (character: CharacterRecord) => role === 'gm' || character.ownerUserId === currentUserId
+  const canAssignCharacter = role === 'gm' && !!effectiveSelected && !grantMode
+  const assignmentOptions = useMemo(
+    () => campaignPlayers.filter((player) => player.userId !== effectiveSelected?.ownerUserId),
+    [campaignPlayers, effectiveSelected?.ownerUserId],
+  )
+
+  useEffect(() => {
+    if (!playerAssignmentOpen) return
+    setAssignmentTargetUserId((current) => {
+      if (assignmentOptions.length === 0) return ''
+      return assignmentOptions.some((player) => player.userId === current) ? current : assignmentOptions[0].userId
+    })
+  }, [assignmentOptions, playerAssignmentOpen])
 
   const exitGrantMode = () => {
     setGrantMode(false)
     setGrantTargetIds({})
+  }
+
+  const openPlayerAssignment = () => {
+    setPlayerAssignmentOpen(true)
+  }
+
+  const closePlayerAssignment = () => {
+    if (assignmentBusy) return
+    setPlayerAssignmentOpen(false)
+    setAssignmentTargetUserId('')
+  }
+
+  const submitPlayerAssignment = async () => {
+    if (!effectiveSelected || !assignmentTargetUserId) return
+    const target = campaignPlayers.find((player) => player.userId === assignmentTargetUserId)
+    if (!target) return
+    setAssignmentBusy(true)
+    try {
+      updateCharacter(effectiveSelected.id, {
+        ownerUserId: target.userId,
+        ownerUsername: target.username ?? target.userId,
+      })
+      setPlayerAssignmentOpen(false)
+      setAssignmentTargetUserId('')
+    } finally {
+      setAssignmentBusy(false)
+    }
   }
 
   const toggleGrantTarget = (characterId: string, checked: boolean) => {
@@ -2088,6 +2169,16 @@ export function CharacterTab({
                     >
                       <Sparkles size={14} />
                       <span>Level Up</span>
+                    </button>
+                  ) : null}
+                  {canAssignCharacter ? (
+                    <button
+                      type="button"
+                      className="character-current-action"
+                      onClick={openPlayerAssignment}
+                      aria-label="Give character to player"
+                    >
+                      <span>Give to Player</span>
                     </button>
                   ) : null}
                   {grantMode ? (
@@ -4936,6 +5027,48 @@ export function CharacterTab({
                 disabled={transferBusy || transferTargets.length === 0 || !transferTargetCharacterId}
               >
                 {transferBusy ? 'Sending...' : 'Send'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {playerAssignmentOpen && effectiveSelected ? (
+        <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={closePlayerAssignment}>
+          <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
+            <h3>Give to Player</h3>
+            <p>Assign <strong>{effectiveSelected.name}</strong> to a player so it appears in their character list.</p>
+            {assignmentOptions.length === 0 ? (
+              <p className="character-enc-help">No other active players are available.</p>
+            ) : (
+              <div className="character-grant-mobile-targets">
+                {assignmentOptions.map((player) => (
+                  <label key={player.userId} className="character-grant-mobile-target">
+                    <span>
+                      <strong>{player.username ?? player.userId}</strong>
+                    </span>
+                    <input
+                      type="radio"
+                      name="player-assignment-target"
+                      value={player.userId}
+                      checked={assignmentTargetUserId === player.userId}
+                      onChange={() => setAssignmentTargetUserId(player.userId)}
+                      disabled={assignmentBusy}
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
+            <div className="confirm-actions">
+              <button type="button" onClick={closePlayerAssignment} disabled={assignmentBusy}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="confirm-danger"
+                onClick={() => void submitPlayerAssignment()}
+                disabled={assignmentBusy || !assignmentTargetUserId}
+              >
+                Give to Player
               </button>
             </div>
           </div>

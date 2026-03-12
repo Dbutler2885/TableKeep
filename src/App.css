@@ -5036,6 +5036,14 @@ button:disabled {
   z-index: 30;
 }
 
+.map-annotation.player-label {
+  transform: translate(-50%, 0);
+}
+
+.map-annotation.player-label.pointer-down {
+  transform: translate(-50%, -100%);
+}
+
 .map-annotation-btn {
   pointer-events: auto;
   width: 1.35rem;
@@ -5051,6 +5059,123 @@ button:disabled {
 
 .map-annotation-btn.active {
   color: #7f1d1d;
+}
+
+.map-player-label-btn,
+.map-player-label-static {
+  pointer-events: auto;
+  position: relative;
+  min-width: 48px;
+  max-width: 220px;
+  border: 0;
+  padding: 3px 10px;
+  background: #f7efc5;
+  color: #3d3320;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.14);
+}
+
+.map-player-label-btn > span:not(.map-label-pointer-btn):not(.map-label-hide-btn):not(.map-label-hidden-badge),
+.map-player-label-static > span:not(.map-label-pointer-static) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-label-pointer-btn,
+.map-label-pointer-static {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 0.38rem solid transparent;
+  border-right: 0.38rem solid transparent;
+}
+
+.map-label-pointer-btn {
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.map-label-pointer-btn.up,
+.map-label-pointer-static.up {
+  bottom: 100%;
+  border-bottom: 0.45rem solid #f7efc5;
+}
+
+.map-label-pointer-btn.down,
+.map-label-pointer-static.down {
+  top: 100%;
+  border-top: 0.45rem solid #f7efc5;
+}
+
+.map-player-label-btn.active {
+  background: #efe1a0;
+}
+
+.map-player-label-btn.active .map-label-pointer-btn.up {
+  border-bottom-color: #efe1a0;
+}
+
+.map-player-label-btn.active .map-label-pointer-btn.down {
+  border-top-color: #efe1a0;
+}
+
+.map-label-hide-btn {
+  position: absolute;
+  left: calc(100% - 0.1rem);
+  top: 0.15rem;
+  transform: translate(-50%, -50%);
+  width: 0.72rem;
+  height: 0.72rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #8a8a84;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  pointer-events: auto;
+  z-index: 4;
+  cursor: pointer;
+}
+
+.map-player-label-btn:hover .map-label-hide-btn,
+.map-player-label-btn:focus-within .map-label-hide-btn {
+  display: inline-flex;
+}
+
+.map-label-hide-btn:hover,
+.map-label-hide-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.66);
+  color: #61615b;
+}
+
+.map-label-hidden-badge {
+  position: absolute;
+  right: -0.15rem;
+  top: -0.2rem;
+  width: 0.8rem;
+  height: 0.8rem;
+  border-radius: 999px;
+  background: rgba(34, 34, 34, 0.88);
+  color: #fff;
+  font-size: 0.52rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .map-annotation-popover {
