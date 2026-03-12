@@ -1,4 +1,5 @@
 import type { TokenIconConfig } from '../../tokens/TokenIconEditor'
+import type { CharacterRecord } from '../../../types/app'
 
 export type MapRecord = {
   id: string
@@ -45,6 +46,7 @@ export type TokenRecord = {
   tokenImageWidth: number
   tokenImageHeight: number
   monsterId: string
+  characterId?: string
 }
 
 export type AnnotationRecord = {
@@ -70,6 +72,8 @@ export type MonsterSummary = {
   name: string
   tokenIcon: TokenIconConfig
 }
+
+export type CharacterTokenSummary = Pick<CharacterRecord, 'id' | 'name' | 'tokenIcon'>
 
 export type CanvasClipRect = {
   minX: number

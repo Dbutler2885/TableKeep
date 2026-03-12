@@ -173,6 +173,22 @@ service cloud.firestore {
         allow update, delete: if isCampaignGM(campaignId);
       }
 
+      match /pendingTransfers/{transferId} {
+        allow read: if isCampaignMember(campaignId);
+        allow create: if isCampaignMember(campaignId)
+          && request.resource.data.fromUserId == request.auth.uid
+          && request.resource.data.itemKind != 'gold'
+          && request.resource.data.keys().hasAll([
+            'id', 'itemSnapshot', 'itemId', 'itemKind', 'itemName',
+            'fromCharacterId', 'fromCharacterName', 'fromUserId',
+            'toCharacterId', 'toCharacterName', 'toUserId', 'createdAt'
+          ]);
+        allow update: if false;
+        allow delete: if request.auth.uid == resource.data.fromUserId
+          || request.auth.uid == resource.data.toUserId
+          || isCampaignGM(campaignId);
+      }
+
       match /images/{imageId} {
         allow read: if isCampaignGM(campaignId) || (isCampaignMember(campaignId) && resource.data.revealed == true);
         allow write: if isCampaignGM(campaignId);

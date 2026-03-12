@@ -25,6 +25,7 @@ import { tabFromPathname, tabPaths, tabs } from './features/navigation/tabs'
 import { useCampaignAccess } from './features/campaign/useCampaignAccess'
 import { useCharacters } from './features/character/useCharacters'
 import { useItemApprovals } from './features/character/useItemApprovals'
+import { TransferNotification } from './features/transfers/TransferNotification'
 import type { ItemApprovalRequest } from './types/app'
 
 function App() {
@@ -403,6 +404,14 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
             })()}
           </div>
         </div>
+      ) : null}
+      {campaign ? (
+        <TransferNotification
+          campaignId={campaign.id}
+          currentUserId={user.uid}
+          role={role}
+          characters={characters}
+        />
       ) : null}
     </main>
   )

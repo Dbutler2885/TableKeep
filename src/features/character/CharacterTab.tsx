@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Check, ChevronLeft, Plus, ShoppingBag, Sparkles, Star, X } from 'lucide-react'
-import { doc, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore'
+import { collection, doc, onSnapshot, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type {
   CampaignItem,
@@ -15,6 +15,7 @@ import type {
   CharacterGoldItem,
   CharacterConsumableItem,
   Role,
+  TransferableInventoryItem,
 } from '../../types/app'
 import { DEFAULT_STACK_POLICY } from '../items/itemDefaults'
 import { campaignItemToInventoryItem } from '../items/itemConversion'
@@ -73,6 +74,7 @@ import {
 } from './inventoryRules'
 import { makeId, makeWeaponItem, makeArmourItem } from './characterFactories'
 import { computeAvailablePackedSlots, computeOverflow, goldChunksForAmount, makeGoldItem } from './inventoryOverflow'
+import { usePendingTransfers } from '../transfers/usePendingTransfers'
 import { useResponsiveCharacterLayout } from './useResponsiveCharacterLayout'
 import { useCharacterPersistenceSync } from './useCharacterPersistenceSync'
 import { useCharacterCreationFlow } from './useCharacterCreationFlow'
@@ -111,6 +113,7 @@ type GrantTemplateEntry = {
   armourId?: string
   packedLabel?: string
 }
+type TransferTargetCharacter = Pick<CharacterRecord, 'id' | 'name' | 'ownerUserId' | 'ownerUsername' | 'details'>
 type ClassFeature = {
   id: string
   name: string
@@ -659,9 +662,15 @@ export function CharacterTab({
   const [levelUpHpRoll, setLevelUpHpRoll] = useState<number | null>(null)
   const [levelUpApplying, setLevelUpApplying] = useState(false)
   const [levelUpError, setLevelUpError] = useState<string | null>(null)
+  const [transferPickerOpen, setTransferPickerOpen] = useState(false)
+  const [transferTargetCharacterId, setTransferTargetCharacterId] = useState('')
+  const [transferBusy, setTransferBusy] = useState(false)
+  const [transferError, setTransferError] = useState<string | null>(null)
+  const [allCampaignCharacters, setAllCampaignCharacters] = useState<TransferTargetCharacter[]>([])
 
   const { rejections, submitRequest, submitSpellLearnRequest, dismissRejection } = useItemApprovals(campaignId, role, currentUserId)
   const { items: campaignItems } = useItems(campaignId)
+  const { outgoingTransfers, createTransfer, cancelTransfer } = usePendingTransfers(campaignId, role, currentUserId)
   const [approvalPendingFeedback, setApprovalPendingFeedback] = useState<string | null>(null)
 
   // Auto-clear approval pending feedback after 5 seconds
@@ -670,6 +679,38 @@ export function CharacterTab({
     const timer = setTimeout(() => setApprovalPendingFeedback(null), 5000)
     return () => clearTimeout(timer)
   }, [approvalPendingFeedback])
+
+  useEffect(() => {
+    if (!campaignId) {
+      setAllCampaignCharacters([])
+      return
+    }
+
+    const unsub = onSnapshot(
+      collection(db, 'campaigns', campaignId, 'characters'),
+      (snapshot) => {
+        const next = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data() as {
+            name?: string
+            ownerUserId?: string
+            ownerUsername?: string | null
+            details?: CharacterRecord['details']
+          }
+          return {
+            id: docSnap.id,
+            name: data.name ?? docSnap.id,
+            ownerUserId: data.ownerUserId ?? '',
+            ownerUsername: typeof data.ownerUsername === 'string' ? data.ownerUsername : null,
+            details: data.details ?? null,
+          } satisfies TransferTargetCharacter
+        })
+        setAllCampaignCharacters(next)
+      },
+      () => setAllCampaignCharacters([]),
+    )
+
+    return () => unsub()
+  }, [campaignId])
 
   const { seededCharacterIdsRef, justSeededRef, lastPersistedDetailsJsonRef } = useCharacterPersistenceSync({
     selectedCharacterId,
@@ -755,6 +796,11 @@ export function CharacterTab({
     setLevelUpHpRoll(null)
     setLevelUpError(null)
   }, [effectiveSelected?.id])
+
+  useEffect(() => {
+    if (!transferPickerOpen) return
+    setTransferError(null)
+  }, [transferPickerOpen])
 
   useEffect(() => {
     if (sortedCharacters.length === 0) return
@@ -878,11 +924,57 @@ export function CharacterTab({
   const equippedShield = selectedArmour.find((a) => a.equipped && resolveArmourType(a) === 'shield') ?? null
   const equippedItems = selectedInventory.filter((i) => i.equipped)
   const packedItems = selectedInventory.filter((i) => !i.equipped)
+  const outgoingTransferByItemKey = useMemo(
+    () => new Map(outgoingTransfers.map((transfer) => [`${transfer.fromCharacterId}:${transfer.itemId}`, transfer])),
+    [outgoingTransfers],
+  )
+  const transferTargets = useMemo(
+    () => allCampaignCharacters
+      .filter((character) => character.id !== effectiveSelected?.id)
+      .filter((character) => character.ownerUserId !== currentUserId),
+    [allCampaignCharacters, currentUserId, effectiveSelected?.id],
+  )
   const selectedClassName = effectiveSelected?.className ?? '-'
   const selectedLevel = effectiveSelected?.level ?? 1
   const unlockedClassFeatures = (classFeaturesByClass[selectedClassName] ?? [])
     .filter((feature) => selectedLevel >= feature.unlockedAt)
     .sort((a, b) => a.unlockedAt - b.unlockedAt)
+
+  const openTransferPickerForItem = (item: TransferableInventoryItem) => {
+    void item
+    setTransferError(null)
+    setTransferTargetCharacterId(transferTargets[0]?.id ?? '')
+    setTransferPickerOpen(true)
+  }
+
+  const closeTransferPicker = () => {
+    setTransferPickerOpen(false)
+    setTransferTargetCharacterId('')
+    setTransferBusy(false)
+    setTransferError(null)
+  }
+
+  const submitTransfer = async (item: TransferableInventoryItem) => {
+    if (!effectiveSelected) return
+    const target = transferTargets.find((character) => character.id === transferTargetCharacterId) ?? null
+    if (!target) {
+      setTransferError('Choose a target character.')
+      return
+    }
+
+    setTransferBusy(true)
+    setTransferError(null)
+    try {
+      await createTransfer(item, effectiveSelected, target)
+      setTransferPickerOpen(false)
+      setTransferTargetCharacterId('')
+      setItemDetailId(null)
+    } catch (error) {
+      setTransferError(error instanceof Error ? error.message : 'Failed to create transfer.')
+    } finally {
+      setTransferBusy(false)
+    }
+  }
   const isGuidedCreation = effectiveSelected?.creationStatus === 'draft'
   const isEstablishedDraft = effectiveSelected?.creationStatus === 'established_draft'
   const isInFinalizationFlow = isGuidedCreation || isEstablishedDraft
@@ -3427,6 +3519,10 @@ export function CharacterTab({
         const detailItem = itemDetailId ? selectedInventory.find((i) => i.id === itemDetailId) ?? null : null
         if (!detailItem) return null
         const isSpellBookDetailItem = detailItem.kind === 'general' && detailItem.typeId === SPELL_BOOK_TYPE_ID
+        const isTransferableDetailItem = detailItem.kind !== 'gold' && !isSpellBookDetailItem
+        const pendingOutgoingTransfer = effectiveSelected && isTransferableDetailItem
+          ? outgoingTransferByItemKey.get(`${effectiveSelected.id}:${detailItem.id}`) ?? null
+          : null
         const selectedSpellBookSpell = spellBookSelectedSpellId ? arcaneSpellById[spellBookSelectedSpellId] : null
         const itemKindLabel = detailItem.kind === 'weapon' ? 'Weapon'
           : detailItem.kind === 'armour' ? 'Armour'
@@ -3913,6 +4009,34 @@ export function CharacterTab({
                   </button>
                 ) : null}
                 {canEditSelected && detailItem.kind !== 'gold' && !isSpellBookDetailItem ? (
+                  pendingOutgoingTransfer ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTransferBusy(true)
+                        setTransferError(null)
+                        void cancelTransfer(pendingOutgoingTransfer.id)
+                          .catch((error) => {
+                            setTransferError(error instanceof Error ? error.message : 'Failed to cancel transfer.')
+                          })
+                          .finally(() => setTransferBusy(false))
+                      }}
+                      disabled={transferBusy}
+                    >
+                      Cancel Offer to {pendingOutgoingTransfer.toCharacterName}
+                    </button>
+                  ) : null
+                ) : null}
+                {canEditSelected && detailItem.kind !== 'gold' && !isSpellBookDetailItem ? (
+                  <button
+                    type="button"
+                    onClick={() => openTransferPickerForItem(detailItem as TransferableInventoryItem)}
+                    disabled={transferBusy || transferTargets.length === 0 || !!pendingOutgoingTransfer}
+                  >
+                    Give to...
+                  </button>
+                ) : null}
+                {canEditSelected && detailItem.kind !== 'gold' && !isSpellBookDetailItem ? (
                   <button
                     type="button"
                     className="confirm-danger"
@@ -3944,6 +4068,10 @@ export function CharacterTab({
                   Close
                 </button>
               </div>
+              {pendingOutgoingTransfer ? (
+                <p className="character-enc-help">Offered to {pendingOutgoingTransfer.toCharacterName}.</p>
+              ) : null}
+              {transferError && transferPickerOpen ? <p className="error">{transferError}</p> : null}
             </div>
           </div>
         )
@@ -4729,6 +4857,62 @@ export function CharacterTab({
             <div className="confirm-actions">
               <button type="button" onClick={() => setAddItemModal(null)}>Cancel</button>
               <button type="button" onClick={saveAddItem}>{requiresApprovalNow ? 'Request' : 'Add'}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {transferPickerOpen ? (
+        <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={closeTransferPicker}>
+          <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
+            <h3>Give Item To...</h3>
+            {transferTargets.length === 0 ? (
+              <p>No other player-owned characters are available.</p>
+            ) : (
+              <div style={{ display: 'grid', gap: 10 }}>
+                {transferTargets.map((character) => {
+                  const details = character.details
+                  const inventory = Array.isArray(details?.inventory) ? details.inventory : []
+                  const packedUsed = inventory.filter((item) => !item.equipped).length
+                  const strScore = Number.parseInt(details?.abilityScores?.STR ?? '', 10)
+                  const packedAvailable = computeAvailablePackedSlots(strScore)
+                  return (
+                    <label key={character.id} className="character-sheet-row">
+                      <input
+                        type="radio"
+                        name="transfer-target"
+                        value={character.id}
+                        checked={transferTargetCharacterId === character.id}
+                        onChange={() => setTransferTargetCharacterId(character.id)}
+                        disabled={transferBusy}
+                      />
+                      <span>
+                        <strong>{character.name}</strong>
+                        {character.ownerUsername ? ` (${character.ownerUsername})` : ''}
+                        <br />
+                        <small>Packed slots: {packedUsed}/{packedAvailable}</small>
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+            {transferError ? <p className="error">{transferError}</p> : null}
+            <div className="confirm-actions">
+              <button type="button" onClick={closeTransferPicker} disabled={transferBusy}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="confirm-danger"
+                onClick={() => {
+                  const detailItem = itemDetailId ? selectedInventory.find((item) => item.id === itemDetailId) ?? null : null
+                  if (!detailItem || detailItem.kind === 'gold') return
+                  void submitTransfer(detailItem)
+                }}
+                disabled={transferBusy || transferTargets.length === 0 || !transferTargetCharacterId}
+              >
+                {transferBusy ? 'Sending...' : 'Send'}
+              </button>
             </div>
           </div>
         </div>

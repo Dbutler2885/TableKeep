@@ -19,6 +19,7 @@ import type { Role } from '../../../types/app'
 import type { TokenIconConfig } from '../../tokens/TokenIconEditor'
 import type {
   AnnotationRecord,
+  CharacterTokenSummary,
   MapRecord,
   MonsterSummary,
   TokenAssetRecord,
@@ -86,6 +87,7 @@ export function useMapData({
   const [tokenDeleteCandidate, setTokenDeleteCandidate] = useState<TokenRecord | null>(null)
   const [deletingTokenId, setDeletingTokenId] = useState('')
   const [mapMonsters, setMapMonsters] = useState<MonsterSummary[]>([])
+  const [mapCharacters, setMapCharacters] = useState<CharacterTokenSummary[]>([])
 
   // ── Token asset state ───────────────────────────────────────────────────────
   const [tokenAssets, setTokenAssets] = useState<TokenAssetRecord[]>([])
@@ -412,6 +414,27 @@ export function useMapData({
     return () => unsub()
   }, [campaignId])
 
+  // ── Characters subscription (for token spawn picker) ───────────────────────
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'characters'), (snap) => {
+      setMapCharacters(
+        snap.docs
+          .map((d) => {
+            const data = d.data()
+            return {
+              id: d.id,
+              name: typeof data.name === 'string' ? data.name : '',
+              tokenIcon: data.tokenIcon
+                ? (data.tokenIcon as TokenIconConfig)
+                : { icon: 'pawn' as const, color: '#bf2f2a', size: 34 },
+            } satisfies CharacterTokenSummary
+          })
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      )
+    })
+    return () => unsub()
+  }, [campaignId])
+
   // ── Derived state ───────────────────────────────────────────────────────────
   const visibleMaps = useMemo(
     () => (role === 'gm' ? maps : maps.filter((map) => map.visibleToPlayers)),
@@ -634,6 +657,7 @@ export function useMapData({
     if (!point) return
 
     const spawnMonster = mapMonsters.find((m) => m.id === selectedTokenAssetId) ?? null
+    const spawnCharacter = mapCharacters.find((c) => c.id === selectedTokenAssetId) ?? null
 
     if (spawnMonster) {
       const { tokenIcon } = spawnMonster
@@ -656,6 +680,31 @@ export function useMapData({
         tokenImageWidth: 0,
         tokenImageHeight: 0,
         monsterId: spawnMonster.id,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    } else if (spawnCharacter) {
+      const { tokenIcon } = spawnCharacter
+      const size = tokenIcon.size
+      const sizeScale = size / TOKEN_REFERENCE_DIMENSION
+      await addDoc(collection(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens'), {
+        x: point.x,
+        y: point.y,
+        color: tokenIcon.color,
+        size,
+        sizeScale,
+        viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
+        viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
+        party: true,
+        name: spawnCharacter.name,
+        revealName: true,
+        hidden: false,
+        tokenImagePath: '',
+        tokenImageUrl: tokenIcon.icon === 'custom' && tokenIcon.customImageUrl ? tokenIcon.customImageUrl : '',
+        tokenImageWidth: 0,
+        tokenImageHeight: 0,
+        monsterId: '',
+        characterId: spawnCharacter.id,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
@@ -810,6 +859,7 @@ export function useMapData({
     setTokenDeleteCandidate,
     deletingTokenId,
     mapMonsters,
+    mapCharacters,
     // Token assets
     tokenAssets,
     selectedTokenAssetId,

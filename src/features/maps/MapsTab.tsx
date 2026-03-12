@@ -47,6 +47,7 @@ import { IconValueSlider } from '../common/IconValueSlider'
 import type {
   CanvasClipRect,
   MonsterSummary,
+  CharacterTokenSummary,
   TokenAssetRecord,
   TokenPathAnimation,
   TokenRecord,
@@ -201,6 +202,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     setTokenDeleteCandidate,
     deletingTokenId,
     mapMonsters,
+    mapCharacters,
     tokenAssets,
     selectedTokenAssetId,
     setSelectedTokenAssetId,
@@ -1260,8 +1262,9 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     if (!selectedTokenAssetId) return
     const existsAsAsset = tokenAssets.some((asset) => asset.id === selectedTokenAssetId)
     const existsAsMonster = mapMonsters.some((monster) => monster.id === selectedTokenAssetId)
-    if (!existsAsAsset && !existsAsMonster) setSelectedTokenAssetId('')
-  }, [selectedTokenAssetId, tokenAssets, mapMonsters])
+    const existsAsCharacter = mapCharacters.some((character) => character.id === selectedTokenAssetId)
+    if (!existsAsAsset && !existsAsMonster && !existsAsCharacter) setSelectedTokenAssetId('')
+  }, [selectedTokenAssetId, tokenAssets, mapMonsters, mapCharacters])
 
   useEffect(() => {
     if (!streamingMode) return
@@ -1436,6 +1439,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         tokenViewDistanceSliderValue={tokenViewDistanceSliderValue}
         onRequestDeleteToken={requestDeleteToken}
         mapMonsters={mapMonsters}
+        mapCharacters={mapCharacters}
       />
     </aside>
   ) : (
@@ -1760,6 +1764,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 tokenViewDistanceSliderValue={tokenViewDistanceSliderValue}
                 onRequestDeleteToken={requestDeleteToken}
                 mapMonsters={mapMonsters}
+                mapCharacters={mapCharacters}
               />
             </aside>
           ) : null}
@@ -2094,6 +2099,7 @@ function GmMapControls({
   tokenViewDistanceSliderValue,
   onRequestDeleteToken,
   mapMonsters,
+  mapCharacters,
 }: {
   dark?: boolean
   fogTool: 'reveal' | 'hide' | null
@@ -2161,6 +2167,7 @@ function GmMapControls({
   tokenViewDistanceSliderValue: (token: TokenRecord) => number
   onRequestDeleteToken: (tokenId: string) => void
   mapMonsters: MonsterSummary[]
+  mapCharacters: CharacterTokenSummary[]
 }) {
   const toggleHidden = () => {
     void applyFogPreset(fullyHidden ? 'unhide-all' : 'hide-all')
@@ -2461,8 +2468,16 @@ function GmMapControls({
         <div className="map-token-config">
           {(() => {
             const spawnMonster = mapMonsters.find((m) => m.id === selectedTokenAssetId) ?? null
+            const spawnCharacter = mapCharacters.find((c) => c.id === selectedTokenAssetId) ?? null
             const combinedAssets = [
               ...tokenAssets.map((a) => ({ id: a.id, name: a.name, imageUrl: a.imageUrl, archived: a.archived })),
+              ...mapCharacters.map((c) => ({
+                id: c.id,
+                name: `${c.name} (Player)`,
+                imageUrl: c.tokenIcon.icon === 'custom' ? (c.tokenIcon.customImageUrl ?? '') : '',
+                archived: false as const,
+                characterId: c.id,
+              })),
               ...mapMonsters.map((m) => ({
                 id: m.id,
                 name: m.name,
@@ -2471,8 +2486,10 @@ function GmMapControls({
                 monsterId: m.id,
               })),
             ]
-            const effectiveImageUrl = spawnMonster
-              ? (spawnMonster.tokenIcon.icon === 'custom' ? spawnMonster.tokenIcon.customImageUrl ?? '' : '')
+            const effectiveImageUrl = spawnCharacter
+              ? (spawnCharacter.tokenIcon.icon === 'custom' ? spawnCharacter.tokenIcon.customImageUrl ?? '' : '')
+              : spawnMonster
+                ? (spawnMonster.tokenIcon.icon === 'custom' ? spawnMonster.tokenIcon.customImageUrl ?? '' : '')
               : selectedTokenImageUrl
             return (
               <TokenIconEditor

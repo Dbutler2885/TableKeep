@@ -189,6 +189,23 @@ export type CharacterInventoryItem =
   | CharacterConsumableItem
   | CharacterGeneralItem
 
+export type TransferableInventoryItem = Exclude<CharacterInventoryItem, CharacterGoldItem>
+
+export type PendingTransfer = {
+  id: string
+  itemSnapshot: TransferableInventoryItem
+  itemId: string
+  itemKind: Exclude<ItemKind, 'gold'>
+  itemName: string
+  fromCharacterId: string
+  fromCharacterName: string
+  fromUserId: string
+  toCharacterId: string
+  toCharacterName: string
+  toUserId: string
+  createdAt: unknown
+}
+
 export type CharacterSheetDetails = {
   abilityScores: Record<string, string>
   rolledAbilityScores: Record<string, string> | null
