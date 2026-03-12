@@ -175,6 +175,10 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
     if (tab === 'character' && role === 'gm') return 'Characters'
     return tabs.find((item) => item.id === tab)?.label ?? tab
   }
+  const visibleTabs = useMemo(
+    () => (role === 'player' ? tabs.filter((tab) => tab.id !== 'items' && tab.id !== 'monsters') : tabs),
+    [role],
+  )
 
   return (
     <main className="shell-root">
@@ -209,7 +213,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
             <p className="side-meta">{campaign.name}</p>
 
             <div className="nav-list">
-              {tabs.map((tab) => (
+              {visibleTabs.map((tab) => (
                 <NavLink
                   key={tab.id}
                   to={tabPaths[tab.id]}
@@ -264,8 +268,18 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
                 }
               />
               <Route path={tabPaths.maps} element={<MapsTab campaignId={campaign.id} role={role} />} />
-              <Route path={tabPaths.monsters} element={<MonstersTab campaignId={campaign.id} role={role} />} />
-              <Route path={tabPaths.items} element={<ItemsTab campaignId={campaign.id} role={role} characters={characters} />} />
+              <Route
+                path={tabPaths.monsters}
+                element={role === 'gm'
+                  ? <MonstersTab campaignId={campaign.id} role={role} />
+                  : <Navigate to={tabPaths.character} replace />}
+              />
+              <Route
+                path={tabPaths.items}
+                element={role === 'gm'
+                  ? <ItemsTab campaignId={campaign.id} role={role} characters={characters} />
+                  : <Navigate to={tabPaths.character} replace />}
+              />
               <Route path={tabPaths.npcs} element={<PlaceholderTab tab="npcs" />} />
               <Route path={tabPaths.notes} element={<PlaceholderTab tab="notes" />} />
               <Route path={tabPaths.rules} element={<PlaceholderTab tab="rules" />} />

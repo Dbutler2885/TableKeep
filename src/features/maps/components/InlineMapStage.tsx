@@ -95,6 +95,7 @@ export function InlineMapStage({
           style={mapLayerStyle}
         >
           <img
+            key={selectedMap.id}
             src={selectedMap.imageUrl}
             alt={selectedMap.name}
             className="map-image inline-map-image"

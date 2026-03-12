@@ -52,6 +52,8 @@ export function useFogTools({
 }: UseFogToolsOptions) {
   const [fogDrawing, setFogDrawing] = useState(false)
   const [fogSampleTick, setFogSampleTick] = useState(0)
+  const [inlineFogReady, setInlineFogReady] = useState(false)
+  const [fullFogReady, setFullFogReady] = useState(false)
 
   const inlineFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const fullFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -83,6 +85,11 @@ export function useFogTools({
     setFogSampleTick((value) => value + 1)
   }
 
+  const setFogReadyForCanvas = (canvas: HTMLCanvasElement, ready: boolean) => {
+    if (canvas === inlineFogCanvasRef.current) setInlineFogReady(ready)
+    if (canvas === fullFogCanvasRef.current) setFullFogReady(ready)
+  }
+
   const invalidateInlineOverlayCache = () => {
     loadedInlineFogKeyRef.current = ''
     loadedInlineVisionKeyRef.current = ''
@@ -107,6 +114,7 @@ export function useFogTools({
 
     const ctx = canvas.getContext('2d', { willReadFrequently: true })
     if (!ctx) return
+    setFogReadyForCanvas(canvas, false)
 
     const fogLoadToken = String(++fogLoadNonceRef.current)
     canvas.dataset.fogLoadToken = fogLoadToken
@@ -120,6 +128,7 @@ export function useFogTools({
 
     const fogSource = map.fogDataUrl || map.fogImageUrl
     if (!fogSource) {
+      setFogReadyForCanvas(canvas, true)
       return
     }
 
@@ -130,6 +139,7 @@ export function useFogTools({
       ctx.clearRect(0, 0, width, height)
       ctx.drawImage(fogImage, 0, 0, width, height)
       bumpFogSampleTick()
+      setFogReadyForCanvas(canvas, true)
     }
     fogImage.onerror = () => {
       if (canvas.dataset.fogLoadToken !== fogLoadToken) return
@@ -137,6 +147,7 @@ export function useFogTools({
       ctx.fillStyle = 'rgba(0, 0, 0, 1)'
       ctx.fillRect(0, 0, width, height)
       bumpFogSampleTick()
+      setFogReadyForCanvas(canvas, true)
     }
     fogImage.src = fogSource
   }
@@ -596,6 +607,11 @@ export function useFogTools({
   }
 
   useEffect(() => {
+    setInlineFogReady(false)
+    setFullFogReady(false)
+  }, [selectedMap?.id])
+
+  useEffect(() => {
     if (!fullScreenOpen || !selectedMap || !fullFogCanvasRef.current) return
     if (fullFogSize.width <= 0 || fullFogSize.height <= 0) return
 
@@ -695,6 +711,8 @@ export function useFogTools({
   return {
     fogDrawing,
     setFogDrawing,
+    inlineFogReady,
+    fullFogReady,
     inlineFogCanvasRef,
     fullFogCanvasRef,
     inlineVisionCanvasRef,

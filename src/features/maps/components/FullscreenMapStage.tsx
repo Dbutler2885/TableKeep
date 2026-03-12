@@ -85,6 +85,7 @@ export function FullscreenMapStage({
               style={mapLayerStyle}
             >
               <img
+                key={selectedMap.id}
                 src={selectedMap.imageUrl}
                 alt={selectedMap.name}
                 className="map-image zoomable"

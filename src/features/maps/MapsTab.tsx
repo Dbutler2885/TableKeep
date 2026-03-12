@@ -105,6 +105,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [fullBaseSize, setFullBaseSize] = useState({ width: 0, height: 0 })
   const [inlineFogSize, setInlineFogSize] = useState({ width: 0, height: 0 })
   const [fullFogSize, setFullFogSize] = useState({ width: 0, height: 0 })
+  const [inlineImageReady, setInlineImageReady] = useState(false)
+  const [fullImageReady, setFullImageReady] = useState(false)
   const fullStageRef = useRef<HTMLDivElement | null>(null)
   const inlineMapLayerRef = useRef<HTMLDivElement | null>(null)
   const inlineStageRef = useRef<HTMLDivElement | null>(null)
@@ -281,6 +283,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   })
   const {
     setFogDrawing,
+    inlineFogReady,
+    fullFogReady,
     inlineFogCanvasRef,
     fullFogCanvasRef,
     inlineVisionCanvasRef,
@@ -586,6 +590,10 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     )
 
   const selectMap = (mapId: string) => {
+    setInlineImageReady(false)
+    setFullImageReady(false)
+    setInlineFogSize({ width: 0, height: 0 })
+    setFullFogSize({ width: 0, height: 0 })
     setSelectedMapId(mapId)
     resetPlayerViewport()
     if (isMobile) {
@@ -1206,6 +1214,10 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     setTokenSelectionBox(null)
     resetDistanceTracker()
     resetGrid()
+    setInlineImageReady(false)
+    setFullImageReady(false)
+    setInlineFogSize({ width: 0, height: 0 })
+    setFullFogSize({ width: 0, height: 0 })
   }, [selectedMapId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -1221,6 +1233,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   }, [streamingMode])
 
   const handleInlineImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
+    if (event.currentTarget.src !== selectedMap?.imageUrl) return
     const target = event.currentTarget
     setInlineBaseSize({
       width: Math.max(1, Math.round(target.clientWidth)),
@@ -1237,9 +1250,11 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       Math.max(1, Math.round(target.naturalWidth * fogScale)),
       Math.max(1, Math.round(target.naturalHeight * fogScale)),
     )
+    setInlineImageReady(true)
   }
 
   const handleFullImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
+    if (event.currentTarget.src !== selectedMap?.imageUrl) return
     const target = event.currentTarget
     setFullBaseSize({
       width: Math.max(1, Math.round(target.clientWidth)),
@@ -1256,6 +1271,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       Math.max(1, Math.round(target.naturalWidth * fogScale)),
       Math.max(1, Math.round(target.naturalHeight * fogScale)),
     )
+    setFullImageReady(true)
   }
 
   useEffect(() => {
@@ -1627,6 +1643,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 <div className="map-token-selection-box" style={selectionRectStyle} />
               ) : null}
               {annotationLayerNode}
+              {(!inlineImageReady || !inlineFogReady) ? <div className="map-fog-loading-mask" aria-hidden /> : null}
             </InlineMapStage>
           ) : null}
 
@@ -1867,6 +1884,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
             <div className="map-token-selection-box" style={selectionRectStyle} />
           ) : null}
           {annotationLayerNode}
+          {(!fullImageReady || !fullFogReady) ? <div className="map-fog-loading-mask" aria-hidden /> : null}
         </FullscreenMapStage>
       ) : null}
 

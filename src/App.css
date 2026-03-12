@@ -4734,6 +4734,14 @@ button:disabled {
   pointer-events: none;
 }
 
+.map-fog-loading-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: #000;
+  pointer-events: none;
+}
+
 .map-token-layer {
   position: absolute;
   inset: 0;
