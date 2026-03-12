@@ -13,7 +13,10 @@ import {
   SPELL_BOOK_TYPE_ID,
   arcaneSpellById,
   getAccessibleArcaneSpellLevels,
+  getAccessibleDivineSpellLevels,
   getArcaneSpellsPerDay,
+  getDivineSpellsPerDay,
+  divineSpellById,
 } from './spellCatalog'
 import { makeSpellBookItem } from './characterFactories'
 
@@ -72,6 +75,10 @@ export function useSpellbookDomain({
   const [spellBookAddTabLevel, setSpellBookAddTabLevel] = useState<number>(1)
   const [spellBookPendingAddIds, setSpellBookPendingAddIds] = useState<string[]>([])
   const [spellBookExpandedSpellId, setSpellBookExpandedSpellId] = useState<string | null>(null)
+  const [divinePrepareModalOpen, setDivinePrepareModalOpen] = useState(false)
+  const [divinePrepareTabLevel, setDivinePrepareTabLevel] = useState<number>(1)
+  const [divinePrepareExpandedSpellId, setDivinePrepareExpandedSpellId] = useState<string | null>(null)
+  const [divinePreparedDraftIds, setDivinePreparedDraftIds] = useState<string[]>([])
   const [memorizedSpellDetailId, setMemorizedSpellDetailId] = useState<string | null>(null)
   const [spellBookFeedback, setSpellBookFeedback] = useState<string | null>(null)
 
@@ -99,13 +106,19 @@ export function useSpellbookDomain({
   const selectedSpellBookSpells = selectedSpellBookSpellIds
     .map((id) => arcaneSpellById[id])
     .filter((spell): spell is CharacterSpell => !!spell)
+  const classSpellById = selectedClassName === 'Cleric' ? divineSpellById : arcaneSpellById
   const selectedMemorizedSpells = selectedMemorizedSpellIds
-    .map((id) => arcaneSpellById[id])
+    .map((id) => classSpellById[id])
     .filter((spell): spell is CharacterSpell => !!spell)
-  const accessibleSpellLevels = getAccessibleArcaneSpellLevels(selectedLevel)
+  const accessibleArcaneSpellLevels = getAccessibleArcaneSpellLevels(selectedLevel)
+  const accessibleDivineSpellLevels = getAccessibleDivineSpellLevels(selectedLevel)
   const arcaneSpellsPerDay = getArcaneSpellsPerDay(selectedLevel)
+  const divineSpellsPerDay = getDivineSpellsPerDay(selectedLevel)
+  const preparedSpellLevels = selectedClassName === 'Cleric' ? accessibleDivineSpellLevels : accessibleArcaneSpellLevels
+  const preparedSlotsPerDay = selectedClassName === 'Cleric' ? divineSpellsPerDay : arcaneSpellsPerDay
 
   const canOpenSpellBookAddModal = !!effectiveSelected && canEditSelected && selectedClassName === 'Magic-User'
+  const canOpenDivinePrepareModal = !!effectiveSelected && canEditSelected && canMemorizeSpell && selectedClassName === 'Cleric'
 
   const memorizedCountsByLevel = selectedMemorizedSpells.reduce<Record<number, number>>((acc, spell) => {
     acc[spell.level] = (acc[spell.level] ?? 0) + 1
@@ -114,7 +127,22 @@ export function useSpellbookDomain({
   const pendingSpellObjects = spellBookPendingAddIds
     .map((id) => arcaneSpellById[id])
     .filter((spell): spell is CharacterSpell => !!spell)
-  const memorizedSpellDetail = memorizedSpellDetailId ? arcaneSpellById[memorizedSpellDetailId] ?? null : null
+  const memorizedSpellDetail = memorizedSpellDetailId ? classSpellById[memorizedSpellDetailId] ?? null : null
+  const preparedCountsBySpellId = selectedMemorizedSpellIds.reduce<Record<string, number>>((acc, spellId) => {
+    acc[spellId] = (acc[spellId] ?? 0) + 1
+    return acc
+  }, {})
+  const divinePreparedDraftSpells = divinePreparedDraftIds
+    .map((id) => divineSpellById[id])
+    .filter((spell): spell is CharacterSpell => !!spell)
+  const divineDraftCountsByLevel = divinePreparedDraftSpells.reduce<Record<number, number>>((acc, spell) => {
+    acc[spell.level] = (acc[spell.level] ?? 0) + 1
+    return acc
+  }, {})
+  const divineDraftCountsBySpellId = divinePreparedDraftIds.reduce<Record<string, number>>((acc, spellId) => {
+    acc[spellId] = (acc[spellId] ?? 0) + 1
+    return acc
+  }, {})
 
   // ---------------------------------------------------------------------------
   // Sync effects
@@ -167,6 +195,12 @@ export function useSpellbookDomain({
       setSpellBookPendingAddIds([])
     }
   }, [itemDetailId, selectedSpellBookItem?.id])
+
+  useEffect(() => {
+    if (selectedClassName !== 'Cleric' || !canMemorizeSpell) {
+      setDivinePrepareModalOpen(false)
+    }
+  }, [selectedClassName, canMemorizeSpell])
 
   // Clear memorized spell detail if spell no longer memorized
   useEffect(() => {
@@ -225,7 +259,7 @@ export function useSpellbookDomain({
 
   const consumeMemorizedSpell = (spellId: string) => {
     if (!effectiveSelected) return
-    const spellName = arcaneSpellById[spellId]?.name ?? 'Spell'
+    const spellName = classSpellById[spellId]?.name ?? 'Spell'
     setMemorizedSpellIdsByCharacterId((current) => {
       const existing = current[effectiveSelected.id] ?? []
       const removeIndex = existing.indexOf(spellId)
@@ -240,18 +274,75 @@ export function useSpellbookDomain({
     setSpellBookFeedback(`${spellName} cast and removed from memorized spells.`)
   }
 
+  const openDivinePrepareModal = () => {
+    if (!canOpenDivinePrepareModal) return
+    setDivinePrepareExpandedSpellId(null)
+    setDivinePrepareTabLevel(accessibleDivineSpellLevels[0] ?? 1)
+    setDivinePreparedDraftIds(selectedMemorizedSpellIds)
+    setDivinePrepareModalOpen(true)
+  }
+
+  const prepareDivineSpell = (spellId: string) => {
+    if (!effectiveSelected || selectedClassName !== 'Cleric') return
+    const spell = divineSpellById[spellId]
+    if (!spell) return
+    if (!canMemorizeSpell) {
+      setSpellBookFeedback('Finalize character before preparing spells.')
+      return
+    }
+    const levelIndex = Math.max(0, spell.level - 1)
+    const slotsAtLevel = divineSpellsPerDay[levelIndex] ?? 0
+    if (slotsAtLevel <= 0) {
+      setSpellBookFeedback(`No level ${spell.level} spell slots available.`)
+      return
+    }
+    const usedSlotsAtLevel = divineDraftCountsByLevel[spell.level] ?? 0
+    if (usedSlotsAtLevel >= slotsAtLevel) {
+      setSpellBookFeedback(`Level ${spell.level} spell slots are full (${usedSlotsAtLevel}/${slotsAtLevel}).`)
+      return
+    }
+    setDivinePreparedDraftIds((current) => [...current, spell.id])
+  }
+
+  const removePreparedDivineSpell = (spellId: string) => {
+    if (!effectiveSelected || selectedClassName !== 'Cleric') return
+    setDivinePreparedDraftIds((current) => {
+      const removeIndex = current.indexOf(spellId)
+      if (removeIndex < 0) return current
+      const next = [...current]
+      next.splice(removeIndex, 1)
+      return next
+    })
+  }
+
+  const clearPreparedDivineSpells = () => {
+    if (selectedClassName !== 'Cleric') return
+    setDivinePreparedDraftIds([])
+  }
+
+  const commitPreparedDivineSpells = () => {
+    if (!effectiveSelected || selectedClassName !== 'Cleric') return
+    setMemorizedSpellIdsByCharacterId((current) => ({
+      ...current,
+      [effectiveSelected.id]: divinePreparedDraftIds,
+    }))
+    setDivinePrepareModalOpen(false)
+    setDivinePrepareExpandedSpellId(null)
+    setSpellBookFeedback('Prepared spells updated.')
+  }
+
   const openSpellBookAddModal = () => {
     if (!canOpenSpellBookAddModal) return
     setSpellBookPendingAddIds([])
     setSpellBookExpandedSpellId(null)
-    setSpellBookAddTabLevel(accessibleSpellLevels[0] ?? 1)
+    setSpellBookAddTabLevel(accessibleArcaneSpellLevels[0] ?? 1)
     setSpellBookAddModalOpen(true)
   }
 
   const queueSpellForBook = (spellId: string) => {
     const spell = arcaneSpellById[spellId]
     if (!spell) return
-    if (!accessibleSpellLevels.includes(spell.level)) return
+    if (!accessibleArcaneSpellLevels.includes(spell.level)) return
     if (selectedSpellBookSpellIds.includes(spell.id)) return
     if (spellBookPendingAddIds.includes(spell.id)) return
     setSpellBookPendingAddIds((current) => [...current, spell.id])
@@ -316,6 +407,14 @@ export function useSpellbookDomain({
     setSpellBookPendingAddIds,
     spellBookExpandedSpellId,
     setSpellBookExpandedSpellId,
+    divinePrepareModalOpen,
+    setDivinePrepareModalOpen,
+    divinePrepareTabLevel,
+    setDivinePrepareTabLevel,
+    divinePrepareExpandedSpellId,
+    setDivinePrepareExpandedSpellId,
+    divinePreparedDraftIds,
+    setDivinePreparedDraftIds,
     memorizedSpellDetailId,
     setMemorizedSpellDetailId,
     spellBookFeedback,
@@ -326,10 +425,18 @@ export function useSpellbookDomain({
     selectedMemorizedSpellIds,
     selectedSpellBookSpells,
     selectedMemorizedSpells,
-    accessibleSpellLevels,
+    accessibleSpellLevels: accessibleArcaneSpellLevels,
     canOpenSpellBookAddModal,
+    canOpenDivinePrepareModal,
     arcaneSpellsPerDay,
+    divineSpellsPerDay,
+    preparedSpellLevels,
+    preparedSlotsPerDay,
     memorizedCountsByLevel,
+    preparedCountsBySpellId,
+    divinePreparedDraftSpells,
+    divineDraftCountsByLevel,
+    divineDraftCountsBySpellId,
     pendingSpellObjects,
     memorizedSpellDetail,
 
@@ -338,6 +445,11 @@ export function useSpellbookDomain({
     removeSpellFromBook,
     consumeMemorizedSpell,
     openSpellBookAddModal,
+    openDivinePrepareModal,
+    prepareDivineSpell,
+    removePreparedDivineSpell,
+    clearPreparedDivineSpells,
+    commitPreparedDivineSpells,
     queueSpellForBook,
     removePendingSpell,
     commitPendingSpellsToBook,

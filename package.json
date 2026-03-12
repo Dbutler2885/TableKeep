@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "ose:cleric:fetch": "node scripts/fetch-ose-cleric-spells.mjs",
     "ose:magic-user:fetch": "node scripts/fetch-ose-magic-user-spells.mjs",
     "ose:magic-user:import": "node scripts/import-ose-magic-user-spells.mjs",
     "firebase:login": "firebase login",

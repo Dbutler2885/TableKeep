@@ -63,13 +63,27 @@ function App() {
       return
     }
 
+    const userRef = doc(db, 'users', user.uid)
+    setProfileReady(false)
+
     const unsub = onSnapshot(
-      doc(db, 'users', user.uid),
+      userRef,
+      { includeMetadataChanges: true },
       (snapshot) => {
         const data = snapshot.data()
         const nextUsername = typeof data?.username === 'string' ? data.username : null
-        setUsername(nextUsername)
-        setProfileReady(true)
+        const canTrustMissingUsername = !snapshot.metadata.fromCache && !snapshot.metadata.hasPendingWrites
+
+        setUsername((current) => {
+          if (nextUsername) return nextUsername
+          return canTrustMissingUsername ? null : current
+        })
+
+        // Do not treat a cached "missing username" snapshot as authoritative:
+        // that causes existing users to briefly see UsernameSetup on refresh.
+        if (nextUsername || canTrustMissingUsername) {
+          setProfileReady(true)
+        }
       },
       () => {
         setUsername(null)

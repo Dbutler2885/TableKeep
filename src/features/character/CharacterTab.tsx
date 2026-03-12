@@ -30,6 +30,7 @@ import { OSE_CONSUMABLE_CATALOG, consumableCatalogById } from './consumableCatal
 import { OSE_STORE_ITEMS, STORE_CATEGORY_LABELS } from './storeCatalog'
 import {
   ARCANE_SPELL_CATALOG,
+  DIVINE_SPELL_CATALOG,
   SPELL_BOOK_TYPE_ID,
   arcaneSpellById,
 } from './spellCatalog'
@@ -1401,14 +1402,18 @@ export function CharacterTab({
     spellBookAddTabLevel, setSpellBookAddTabLevel,
     spellBookPendingAddIds, setSpellBookPendingAddIds,
     spellBookExpandedSpellId, setSpellBookExpandedSpellId,
+    divinePrepareModalOpen, setDivinePrepareModalOpen,
+    divinePrepareTabLevel, setDivinePrepareTabLevel,
+    divinePrepareExpandedSpellId, setDivinePrepareExpandedSpellId,
+    divinePreparedDraftIds,
     setMemorizedSpellDetailId,
     spellBookFeedback,
     selectedSpellBookSpellIds,
     selectedSpellBookSpells, selectedMemorizedSpells,
-    accessibleSpellLevels, canOpenSpellBookAddModal,
-    arcaneSpellsPerDay, memorizedCountsByLevel,
+    accessibleSpellLevels, canOpenSpellBookAddModal, canOpenDivinePrepareModal,
+    preparedSpellLevels, preparedSlotsPerDay, memorizedCountsByLevel, divinePreparedDraftSpells, divineDraftCountsByLevel, divineDraftCountsBySpellId,
     pendingSpellObjects, memorizedSpellDetail,
-    memorizeSpell, removeSpellFromBook, consumeMemorizedSpell,
+    memorizeSpell, removeSpellFromBook, consumeMemorizedSpell, openDivinePrepareModal, prepareDivineSpell, removePreparedDivineSpell, clearPreparedDivineSpells, commitPreparedDivineSpells,
     openSpellBookAddModal, queueSpellForBook, removePendingSpell, commitPendingSpellsToBook,
   } = useSpellbookDomain({
     effectiveSelected,
@@ -2887,11 +2892,23 @@ export function CharacterTab({
                         </p>
                         </section>
 
-                        {selectedClassName === 'Magic-User' || selectedMemorizedSpells.length > 0 ? (
+                        {selectedClassName === 'Magic-User' || selectedClassName === 'Cleric' || selectedMemorizedSpells.length > 0 ? (
                           <section className="monster-section-block character-enc-memorized">
-                            <h3 className="monster-section-title">Memorized Spells</h3>
+                            <div className="section-head">
+                              <h3 className="monster-section-title">Prepared Spells</h3>
+                              {selectedClassName === 'Cleric' ? (
+                                <button
+                                  type="button"
+                                  className="monster-example-btn"
+                                  onClick={openDivinePrepareModal}
+                                  disabled={!canOpenDivinePrepareModal}
+                                >
+                                  Pray to Prepare
+                                </button>
+                              ) : null}
+                            </div>
                             {selectedMemorizedSpells.length === 0 ? (
-                              <p className="character-enc-help">No memorized spells.</p>
+                              <p className="character-enc-help">No prepared spells.</p>
                             ) : (
                               <div className="character-memorized-spells-list">
                                 {selectedMemorizedSpells.map((spell, index) => (
@@ -2918,7 +2935,7 @@ export function CharacterTab({
                             )}
                             <p className="character-enc-help">
                               Slots:
-                              {arcaneSpellsPerDay.map((limit, levelIndex) => (
+                              {preparedSlotsPerDay.map((limit, levelIndex) => (
                                 <Fragment key={`slot-cap-${levelIndex}`}>
                                   {' '}L{levelIndex + 1} {memorizedCountsByLevel[levelIndex + 1] ?? 0}/{limit}
                                 </Fragment>
@@ -4010,12 +4027,168 @@ export function CharacterTab({
           </div>
         </div>
       ) : null}
+      {divinePrepareModalOpen && selectedClassName === 'Cleric' ? (
+        <div className="store-modal-overlay spellbook-add-overlay" role="dialog" aria-modal="true">
+          <div className="store-modal character-spell-add-modal">
+            <div className="store-modal-head">
+              <div>
+                <h3>Pray to Prepare</h3>
+                <p>Select divine spells to prepare for the day.</p>
+              </div>
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => {
+                  setDivinePrepareModalOpen(false)
+                  setDivinePrepareExpandedSpellId(null)
+                }}
+                aria-label="Close prepare spells"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="store-modal-body">
+              <div className="character-spell-add-main">
+                <div className="store-category-tabs">
+                  {preparedSpellLevels.map((level) => (
+                    <button
+                      key={`divine-level-tab-${level}`}
+                      type="button"
+                      className={divinePrepareTabLevel === level ? 'store-category-btn active' : 'store-category-btn'}
+                      onClick={() => setDivinePrepareTabLevel(level)}
+                    >
+                      Level {level}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="store-grid-wrap">
+                  <div className="store-item-grid">
+                    {DIVINE_SPELL_CATALOG
+                      .filter((spell) => spell.level === divinePrepareTabLevel)
+                      .map((spell) => {
+                        const expanded = divinePrepareExpandedSpellId === spell.id
+                        const preparedCount = divineDraftCountsBySpellId[spell.id] ?? 0
+                        const slotsAtLevel = preparedSlotsPerDay[Math.max(0, spell.level - 1)] ?? 0
+                        const usedAtLevel = divineDraftCountsByLevel[spell.level] ?? 0
+                        const canPrepare = usedAtLevel < slotsAtLevel
+                        return (
+                          <article
+                            key={spell.id}
+                            className={expanded ? 'store-item-card spell-card-expanded' : 'store-item-card'}
+                            onClick={() => setDivinePrepareExpandedSpellId(expanded ? null : spell.id)}
+                          >
+                            <header>
+                              <h4>{spell.name}</h4>
+                              <span>Level {spell.level}</span>
+                            </header>
+                            {spell.rangeText || spell.durationText ? (
+                              <p className="spell-card-meta">
+                                {spell.rangeText ? `Range: ${spell.rangeText}` : null}
+                                {spell.rangeText && spell.durationText ? ' | ' : null}
+                                {spell.durationText ? `Duration: ${spell.durationText}` : null}
+                              </p>
+                            ) : null}
+                            <p className={expanded ? 'spell-card-description expanded' : 'spell-card-description'}>
+                              {spell.description}
+                            </p>
+                            <div className="section-head-actions">
+                              <button
+                                type="button"
+                                className="store-buy-btn"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  prepareDivineSpell(spell.id)
+                                }}
+                                disabled={!canPrepare}
+                              >
+                                Prepare
+                              </button>
+                              {preparedCount > 0 ? (
+                                <button
+                                  type="button"
+                                  className="monster-example-btn"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    removePreparedDivineSpell(spell.id)
+                                  }}
+                                >
+                                  Remove 1
+                                </button>
+                              ) : null}
+                            </div>
+                            <p className="store-item-note">
+                              Prepared: {preparedCount} | Slots L{spell.level}: {usedAtLevel}/{slotsAtLevel}
+                            </p>
+                          </article>
+                        )
+                      })}
+                    {DIVINE_SPELL_CATALOG.filter((spell) => spell.level === divinePrepareTabLevel).length === 0 ? (
+                      <p className="store-tally-empty">No cleric spells loaded for this level yet.</p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+              <aside className="store-tally store-cart">
+                <div className="store-tally-head">
+                  <h4>Prepared Spells</h4>
+                  <span>{divinePreparedDraftIds.length} prepared</span>
+                </div>
+                {Object.keys(divineDraftCountsBySpellId).length === 0 ? (
+                  <p className="store-tally-empty">No spells prepared yet.</p>
+                ) : (
+                  <div className="store-tally-list">
+                    {Object.entries(divineDraftCountsBySpellId)
+                      .map(([spellId, count]) => ({
+                        spell: divinePreparedDraftSpells.find((entry) => entry.id === spellId) ?? null,
+                        count,
+                      }))
+                      .filter((row): row is { spell: (typeof DIVINE_SPELL_CATALOG)[number]; count: number } => !!row.spell)
+                      .sort((a, b) => a.spell.level - b.spell.level || a.spell.name.localeCompare(b.spell.name))
+                      .map((row) => (
+                        <div key={`prepared-${row.spell.id}`} className="store-tally-row">
+                          <span>{row.spell.name}</span>
+                          <strong>Lvl {row.spell.level} x{row.count}</strong>
+                          <button
+                            type="button"
+                            className="store-remove-btn"
+                            onClick={() => removePreparedDivineSpell(row.spell.id)}
+                          >
+                            Remove 1
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+                <div className="store-cart-actions">
+                  <button
+                    type="button"
+                    className="store-buy-btn"
+                    onClick={commitPreparedDivineSpells}
+                  >
+                    Prepare
+                  </button>
+                  <button
+                    type="button"
+                    className="store-buy-btn"
+                    onClick={clearPreparedDivineSpells}
+                    disabled={divinePreparedDraftIds.length === 0}
+                  >
+                    Clear All Prepared
+                  </button>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {memorizedSpellDetail ? (
         <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={() => setMemorizedSpellDetailId(null)}>
           <div className="confirm-modal character-spell-detail-modal" onClick={(event) => event.stopPropagation()}>
             <div className="character-spell-detail-head">
               <h3>{memorizedSpellDetail.name}</h3>
-              <p>Memorized spell details</p>
+              <p>Prepared spell details</p>
             </div>
             <div className="character-spell-detail-stat-grid">
               <div className="character-spell-detail-stat">

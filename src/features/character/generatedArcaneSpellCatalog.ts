@@ -236,7 +236,7 @@ export const ARCANE_SPELL_CATALOG: CharacterSpell[] = [
   },
   {
     id: "arcane-hold-person",
-    name: "Hold Person (MU)",
+    name: "Hold Person",
     level: 3,
     durationText: "1 turn per level",
     rangeText: "120'",

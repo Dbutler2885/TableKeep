@@ -124,7 +124,7 @@ button:hover {
   gap: 0.8rem;
   overflow: hidden;
   transform: translateX(-105%);
-  transition: transform 180ms ease;
+  transition: transform 180ms ease, filter 140ms ease, opacity 140ms ease;
   z-index: 60;
 }
 
@@ -3315,9 +3315,20 @@ button.character-item-add-btn:disabled {
   position: fixed;
   inset: 0;
   border: 0;
-  background: rgba(0, 0, 0, 0.38);
+  background: transparent;
   z-index: 50;
   padding: 0;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.drawer-backdrop:hover,
+.drawer-backdrop:active,
+.drawer-backdrop:focus,
+.drawer-backdrop:focus-visible {
+  background: rgba(98, 115, 96, 0.16);
+  box-shadow: none;
+  outline: none;
 }
 
 .success {
