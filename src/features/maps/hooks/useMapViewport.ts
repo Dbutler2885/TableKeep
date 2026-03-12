@@ -119,15 +119,15 @@ export function useMapViewport({
     const cy = partyTokens.reduce((sum, t) => sum + t.y, 0) / partyTokens.length
     if (fullScreenOpen) {
       const nextPan = {
-        x: fullBaseSizeRef.current.width * fullZoomRef.current * (0.5 - cx),
-        y: fullBaseSizeRef.current.height * fullZoomRef.current * (0.5 - cy),
+        x: fullBaseSizeRef.current.width * 0.5 - fullBaseSizeRef.current.width * cx * fullZoomRef.current,
+        y: fullBaseSizeRef.current.height * 0.5 - fullBaseSizeRef.current.height * cy * fullZoomRef.current,
       }
       fullPanRef.current = nextPan
       setFullPan(nextPan)
     } else {
       const nextPan = {
-        x: inlineBaseSizeRef.current.width * playerZoomRef.current * (0.5 - cx),
-        y: inlineBaseSizeRef.current.height * playerZoomRef.current * (0.5 - cy),
+        x: inlineBaseSizeRef.current.width * 0.5 - inlineBaseSizeRef.current.width * cx * playerZoomRef.current,
+        y: inlineBaseSizeRef.current.height * 0.5 - inlineBaseSizeRef.current.height * cy * playerZoomRef.current,
       }
       playerPanRef.current = nextPan
       setPlayerPan(nextPan)
@@ -168,8 +168,8 @@ export function useMapViewport({
         if (fullScreenOpen) {
           const newZoom = fullZoom > losZoom ? losZoom : fullZoom
           const newPan = {
-            x: fullBaseSizeRef.current.width * newZoom * (0.5 - cx),
-            y: fullBaseSizeRef.current.height * newZoom * (0.5 - cy),
+            x: fullBaseSizeRef.current.width * 0.5 - fullBaseSizeRef.current.width * cx * newZoom,
+            y: fullBaseSizeRef.current.height * 0.5 - fullBaseSizeRef.current.height * cy * newZoom,
           }
           fullZoomRef.current = newZoom
           fullPanRef.current = newPan
@@ -179,8 +179,8 @@ export function useMapViewport({
           const currentPlayerZoom = playerZoomRef.current
           const newZoom = currentPlayerZoom > losZoom ? losZoom : currentPlayerZoom
           const newPan = {
-            x: inlineBaseSizeRef.current.width * newZoom * (0.5 - cx),
-            y: inlineBaseSizeRef.current.height * newZoom * (0.5 - cy),
+            x: inlineBaseSizeRef.current.width * 0.5 - inlineBaseSizeRef.current.width * cx * newZoom,
+            y: inlineBaseSizeRef.current.height * 0.5 - inlineBaseSizeRef.current.height * cy * newZoom,
           }
           playerZoomRef.current = newZoom
           playerPanRef.current = newPan

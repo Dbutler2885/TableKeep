@@ -157,15 +157,15 @@ export function useTokenAnimation({
         const cy = partyTokens.reduce((sum, t) => sum + (nextPositions[t.id]?.y ?? t.y), 0) / partyTokens.length
         if (fullScreenOpen) {
           const nextPan = {
-            x: fullBaseSize.width * fullZoomRef.current * (0.5 - cx),
-            y: fullBaseSize.height * fullZoomRef.current * (0.5 - cy),
+            x: fullBaseSize.width * 0.5 - fullBaseSize.width * cx * fullZoomRef.current,
+            y: fullBaseSize.height * 0.5 - fullBaseSize.height * cy * fullZoomRef.current,
           }
           fullPanRef.current = nextPan
           setFullPan(nextPan)
         } else {
           const nextPan = {
-            x: inlineBaseSize.width * playerZoomRef.current * (0.5 - cx),
-            y: inlineBaseSize.height * playerZoomRef.current * (0.5 - cy),
+            x: inlineBaseSize.width * 0.5 - inlineBaseSize.width * cx * playerZoomRef.current,
+            y: inlineBaseSize.height * 0.5 - inlineBaseSize.height * cy * playerZoomRef.current,
           }
           playerPanRef.current = nextPan
           setPlayerPan(nextPan)
