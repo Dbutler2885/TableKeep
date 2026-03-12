@@ -21,6 +21,7 @@ import { PlaceholderTab } from './features/common/PlaceholderTab'
 import { MapsTab } from './features/maps/MapsTab'
 import { MonstersTab } from './features/monsters/MonstersTab'
 import { ItemsTab } from './features/items/ItemsTab'
+import { NpcsTab } from './features/npcs/NpcsTab'
 import { tabFromPathname, tabPaths, tabs } from './features/navigation/tabs'
 import { useCampaignAccess } from './features/campaign/useCampaignAccess'
 import { useCharacters } from './features/character/useCharacters'
@@ -177,7 +178,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
     return tabs.find((item) => item.id === tab)?.label ?? tab
   }
   const visibleTabs = useMemo(
-    () => (role === 'player' ? tabs.filter((tab) => tab.id !== 'items' && tab.id !== 'monsters') : tabs),
+    () => (role === 'player' ? tabs.filter((tab) => !['items', 'monsters'].includes(tab.id)) : tabs),
     [role],
   )
 
@@ -240,7 +241,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
 
           <section
             className={
-              ['character', 'maps', 'monsters', 'items'].includes(activeTab)
+              ['character', 'maps', 'monsters', 'items', 'npcs'].includes(activeTab)
                 ? 'content-panel sidebar-panel'
                 : 'content-panel'
             }
@@ -281,7 +282,10 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
                   ? <ItemsTab campaignId={campaign.id} role={role} characters={characters} />
                   : <Navigate to={tabPaths.character} replace />}
               />
-              <Route path={tabPaths.npcs} element={<PlaceholderTab tab="npcs" />} />
+              <Route
+                path={tabPaths.npcs}
+                element={<NpcsTab campaignId={campaign.id} role={role} />}
+              />
               <Route path={tabPaths.notes} element={<PlaceholderTab tab="notes" />} />
               <Route path={tabPaths.rules} element={<PlaceholderTab tab="rules" />} />
               <Route path="*" element={<Navigate to={tabPaths.character} replace />} />
@@ -297,11 +301,44 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
                 ? 'Sell Approval Request'
                 : pendingRequests[0]?.action === 'learn_spell'
                   ? 'Spell Transcription Request'
+                  : pendingRequests[0]?.action === 'ability_reroll'
+                    ? 'Ability Re-roll Request'
                   : 'Item Approval Request'}
             </h3>
             {(() => {
               const req = pendingRequests[0]
               const item = req.item
+              if (req.action === 'ability_reroll') {
+                return (
+                  <>
+                    <p>
+                      <strong>{req.requestedByUsername}</strong> wants to re-roll ability scores for <strong>{req.characterName}</strong>.
+                    </p>
+                    <div className="confirm-actions">
+                      <button
+                        type="button"
+                        className="confirm-danger"
+                        disabled={approvalBusy}
+                        onClick={() => void handleReject(req)}
+                      >
+                        Reject
+                      </button>
+                      <button
+                        type="button"
+                        disabled={approvalBusy}
+                        onClick={() => void handleApprove(req)}
+                      >
+                        Approve
+                      </button>
+                    </div>
+                    {pendingRequests.length > 1 ? (
+                      <p style={{ marginTop: 8, fontSize: '0.85em', opacity: 0.7 }}>
+                        +{pendingRequests.length - 1} more pending
+                      </p>
+                    ) : null}
+                  </>
+                )
+              }
               if (req.action === 'learn_spell') {
                 const spellNames = req.spellNames ?? []
                 return (

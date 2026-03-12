@@ -206,6 +206,25 @@ export type PendingTransfer = {
   createdAt: unknown
 }
 
+export type NpcRecord = {
+  id: string
+  name: string
+  title: string
+  visibleToPlayers: boolean
+  tags: string[]
+  portraitUrl: string | null
+  portraitFocusX: number
+  portraitFocusY: number
+  tokenIcon: TokenIconConfig
+  playerDescription: string
+  playerNotes: string
+}
+
+export type NpcPrivateRecord = {
+  id: string
+  gmNotes: string
+}
+
 export type CharacterSheetDetails = {
   abilityScores: Record<string, string>
   rolledAbilityScores: Record<string, string> | null
@@ -233,7 +252,7 @@ export type CharacterSheetDetails = {
   title: string
 }
 
-export type ItemApprovalAction = 'create' | 'sell' | 'learn_spell'
+export type ItemApprovalAction = 'create' | 'sell' | 'learn_spell' | 'ability_reroll'
 
 export type ItemApprovalRequest = {
   id: string

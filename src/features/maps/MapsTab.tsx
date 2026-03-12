@@ -38,6 +38,7 @@ import {
   TvMinimalPlay,
   Upload,
   User,
+  UserRoundPen,
   X,
 } from 'lucide-react'
 import type { Role } from '../../types/app'
@@ -48,6 +49,7 @@ import type {
   CanvasClipRect,
   MonsterSummary,
   CharacterTokenSummary,
+  NpcSummary,
   TokenAssetRecord,
   TokenPathAnimation,
   TokenRecord,
@@ -97,6 +99,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
   const [fogBrushSize, setFogBrushSize] = useState(120)
   const fogBrushStrength = 0.7
   const [streamingMode, setStreamingMode] = useState(false)
+  const [npcSceneMode, setNpcSceneMode] = useState(false)
   const [tokenPlaceMode, setTokenPlaceMode] = useState(false)
   const [tokenSelectMode, setTokenSelectMode] = useState(false)
   const [annotationPlaceMode, setAnnotationPlaceMode] = useState(false)
@@ -203,6 +206,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     deletingTokenId,
     mapMonsters,
     mapCharacters,
+    mapNpcs,
     tokenAssets,
     selectedTokenAssetId,
     setSelectedTokenAssetId,
@@ -224,6 +228,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     confirmDeleteToken,
     toggleTokenHidden,
     placeToken,
+    updateSceneNpcIds,
+    setPresentedNpcId,
     placeAnnotation,
     commitActiveAnnotation,
     deleteAnnotation,
@@ -244,6 +250,15 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     lastAnimatedPathIdRef,
     startTokenPathAnimationRef,
   })
+
+  const sceneNpcs = useMemo(
+    () => mapNpcs.filter((npc) => selectedMap?.sceneNpcIds.includes(npc.id)),
+    [mapNpcs, selectedMap?.sceneNpcIds],
+  )
+  const presentedNpc = useMemo(
+    () => mapNpcs.find((npc) => npc.id === selectedMap?.presentedNpcId) ?? null,
+    [mapNpcs, selectedMap?.presentedNpcId],
+  )
 
   useEffect(() => {
     const syncLayerSize = (
@@ -1263,8 +1278,9 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     const existsAsAsset = tokenAssets.some((asset) => asset.id === selectedTokenAssetId)
     const existsAsMonster = mapMonsters.some((monster) => monster.id === selectedTokenAssetId)
     const existsAsCharacter = mapCharacters.some((character) => character.id === selectedTokenAssetId)
-    if (!existsAsAsset && !existsAsMonster && !existsAsCharacter) setSelectedTokenAssetId('')
-  }, [selectedTokenAssetId, tokenAssets, mapMonsters, mapCharacters])
+    const existsAsNpc = mapNpcs.some((npc) => npc.id === selectedTokenAssetId)
+    if (!existsAsAsset && !existsAsMonster && !existsAsCharacter && !existsAsNpc) setSelectedTokenAssetId('')
+  }, [selectedTokenAssetId, tokenAssets, mapMonsters, mapCharacters, mapNpcs])
 
   useEffect(() => {
     if (!streamingMode) return
@@ -1391,6 +1407,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         onRequestDeleteTokenAsset={requestDeleteTokenAsset}
         streamingMode={streamingMode}
         setStreamingMode={setStreamingMode}
+        npcSceneMode={npcSceneMode}
+        setNpcSceneMode={setNpcSceneMode}
         gridVisible={effectiveGridVisible}
         gridType={effectiveGridType}
         gridAdjustMode={gridAdjustMode}
@@ -1440,11 +1458,29 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         onRequestDeleteToken={requestDeleteToken}
         mapMonsters={mapMonsters}
         mapCharacters={mapCharacters}
+        mapNpcs={mapNpcs}
+        sceneNpcs={sceneNpcs}
+        presentedNpc={presentedNpc}
+        selectedMapSceneNpcIds={selectedMap?.sceneNpcIds ?? []}
+        onToggleSceneNpc={(npcId, enabled) => {
+          const currentIds = selectedMap?.sceneNpcIds ?? []
+          const nextIds = enabled
+            ? currentIds.includes(npcId) ? currentIds : [...currentIds, npcId]
+            : currentIds.filter((id) => id !== npcId)
+          void updateSceneNpcIds(nextIds)
+        }}
+        onPresentNpc={(npcId) => void setPresentedNpcId(npcId)}
+        onClearPresentedNpc={() => void setPresentedNpcId('')}
       />
     </aside>
   ) : (
     <aside className="map-fullscreen-controls">
-      <PlayerMapControls dark cameraLock={cameraLock} onToggleCameraLock={toggleCameraLock} />
+      <PlayerMapControls
+        dark
+        cameraLock={cameraLock}
+        onToggleCameraLock={toggleCameraLock}
+        presentedNpc={presentedNpc}
+      />
     </aside>
   )
 
@@ -1716,6 +1752,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 onRequestDeleteTokenAsset={requestDeleteTokenAsset}
                 streamingMode={streamingMode}
                 setStreamingMode={setStreamingMode}
+                npcSceneMode={npcSceneMode}
+                setNpcSceneMode={setNpcSceneMode}
                 gridVisible={effectiveGridVisible}
                 gridType={effectiveGridType}
                 gridAdjustMode={gridAdjustMode}
@@ -1765,19 +1803,40 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 onRequestDeleteToken={requestDeleteToken}
                 mapMonsters={mapMonsters}
                 mapCharacters={mapCharacters}
+                mapNpcs={mapNpcs}
+                sceneNpcs={sceneNpcs}
+                presentedNpc={presentedNpc}
+                selectedMapSceneNpcIds={selectedMap?.sceneNpcIds ?? []}
+                onToggleSceneNpc={(npcId, enabled) => {
+                  const currentIds = selectedMap?.sceneNpcIds ?? []
+                  const nextIds = enabled
+                    ? currentIds.includes(npcId) ? currentIds : [...currentIds, npcId]
+                    : currentIds.filter((id) => id !== npcId)
+                  void updateSceneNpcIds(nextIds)
+                }}
+                onPresentNpc={(npcId) => void setPresentedNpcId(npcId)}
+                onClearPresentedNpc={() => void setPresentedNpcId('')}
               />
             </aside>
           ) : null}
 
           {role !== 'gm' && !isMobile ? (
             <aside className="map-controls">
-              <PlayerMapControls cameraLock={cameraLock} onToggleCameraLock={toggleCameraLock} />
+              <PlayerMapControls
+                cameraLock={cameraLock}
+                onToggleCameraLock={toggleCameraLock}
+                presentedNpc={presentedNpc}
+              />
             </aside>
           ) : null}
 
           {role !== 'gm' && isMobile && mobilePlayerPane === 'controls' ? (
             <aside className="map-controls">
-              <PlayerMapControls cameraLock={cameraLock} onToggleCameraLock={toggleCameraLock} />
+              <PlayerMapControls
+                cameraLock={cameraLock}
+                onToggleCameraLock={toggleCameraLock}
+                presentedNpc={presentedNpc}
+              />
             </aside>
           ) : null}
 
@@ -2068,6 +2127,8 @@ function GmMapControls({
   onRequestDeleteTokenAsset,
   streamingMode,
   setStreamingMode,
+  npcSceneMode,
+  setNpcSceneMode,
   gridVisible,
   gridType,
   gridAdjustMode,
@@ -2100,6 +2161,13 @@ function GmMapControls({
   onRequestDeleteToken,
   mapMonsters,
   mapCharacters,
+  mapNpcs,
+  sceneNpcs,
+  presentedNpc,
+  selectedMapSceneNpcIds,
+  onToggleSceneNpc,
+  onPresentNpc,
+  onClearPresentedNpc,
 }: {
   dark?: boolean
   fogTool: 'reveal' | 'hide' | null
@@ -2128,6 +2196,8 @@ function GmMapControls({
   onRequestDeleteTokenAsset: (assetId: string) => void
   streamingMode: boolean
   setStreamingMode: (value: boolean) => void
+  npcSceneMode: boolean
+  setNpcSceneMode: (value: boolean) => void
   gridVisible: boolean
   gridType: 'square' | 'hex-pointy' | 'hex-flat'
   gridAdjustMode: boolean
@@ -2168,6 +2238,13 @@ function GmMapControls({
   onRequestDeleteToken: (tokenId: string) => void
   mapMonsters: MonsterSummary[]
   mapCharacters: CharacterTokenSummary[]
+  mapNpcs: NpcSummary[]
+  sceneNpcs: NpcSummary[]
+  presentedNpc: NpcSummary | null
+  selectedMapSceneNpcIds: string[]
+  onToggleSceneNpc: (npcId: string, enabled: boolean) => void
+  onPresentNpc: (npcId: string) => void
+  onClearPresentedNpc: () => void
 }) {
   const toggleHidden = () => {
     void applyFogPreset(fullyHidden ? 'unhide-all' : 'hide-all')
@@ -2175,6 +2252,19 @@ function GmMapControls({
 
   const [tokenNameDrafts, setTokenNameDrafts] = useState<Record<string, string>>({})
   const [tokensCollapsed, setTokensCollapsed] = useState(false)
+  const [sceneNpcPickerId, setSceneNpcPickerId] = useState('')
+  const availableSceneNpcs = useMemo(
+    () => mapNpcs.filter((npc) => !selectedMapSceneNpcIds.includes(npc.id)),
+    [mapNpcs, selectedMapSceneNpcIds],
+  )
+
+  useEffect(() => {
+    setSceneNpcPickerId((current) => {
+      if (availableSceneNpcs.length === 0) return ''
+      return availableSceneNpcs.some((npc) => npc.id === current) ? current : availableSceneNpcs[0].id
+    })
+  }, [availableSceneNpcs])
+
   const DistanceRollIcon =
     distanceTrackerMode === 'roll' && distanceTrackerRoll === 1
       ? Dice1
@@ -2358,6 +2448,15 @@ function GmMapControls({
         </button>
         <button
           type="button"
+          className={npcSceneMode ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
+          onClick={() => setNpcSceneMode(!npcSceneMode)}
+          aria-label="Toggle scene NPC panel"
+          data-tooltip="Scene NPCs"
+        >
+          <UserRoundPen size={16} />
+        </button>
+        <button
+          type="button"
           className={
             gridAdjustMode && gridType === 'square'
               ? 'map-icon-btn map-grid-btn fast-tooltip fast-tooltip-right active'
@@ -2469,6 +2568,7 @@ function GmMapControls({
           {(() => {
             const spawnMonster = mapMonsters.find((m) => m.id === selectedTokenAssetId) ?? null
             const spawnCharacter = mapCharacters.find((c) => c.id === selectedTokenAssetId) ?? null
+            const spawnNpc = mapNpcs.find((n) => n.id === selectedTokenAssetId) ?? null
             const combinedAssets = [
               ...tokenAssets.map((a) => ({ id: a.id, name: a.name, imageUrl: a.imageUrl, archived: a.archived })),
               ...mapCharacters.map((c) => ({
@@ -2485,12 +2585,21 @@ function GmMapControls({
                 archived: false as const,
                 monsterId: m.id,
               })),
+              ...mapNpcs.map((n) => ({
+                id: n.id,
+                name: `${n.name} (NPC)`,
+                imageUrl: n.tokenIcon.icon === 'custom' ? (n.tokenIcon.customImageUrl ?? '') : '',
+                archived: false as const,
+                npcId: n.id,
+              })),
             ]
-            const effectiveImageUrl = spawnCharacter
+            const effectiveImageUrl = spawnNpc
+              ? (spawnNpc.tokenIcon.icon === 'custom' ? spawnNpc.tokenIcon.customImageUrl ?? '' : '')
+              : spawnCharacter
               ? (spawnCharacter.tokenIcon.icon === 'custom' ? spawnCharacter.tokenIcon.customImageUrl ?? '' : '')
               : spawnMonster
                 ? (spawnMonster.tokenIcon.icon === 'custom' ? spawnMonster.tokenIcon.customImageUrl ?? '' : '')
-              : selectedTokenImageUrl
+                : selectedTokenImageUrl
             return (
               <TokenIconEditor
                 className="map-token-icon-editor"
@@ -2513,6 +2622,92 @@ function GmMapControls({
             )
           })()}
         </div>
+      ) : null}
+      {npcSceneMode ? (
+        <section className="token-cards-panel" aria-label="Scene NPCs">
+          <div className="token-cards-header">
+            <h4 className="token-cards-title">Scene NPCs</h4>
+            {presentedNpc ? (
+            <button
+              type="button"
+              className="token-cards-toggle fast-tooltip"
+              onClick={onClearPresentedNpc}
+              aria-label="Clear presented NPC"
+              data-tooltip="Clear presented NPC"
+            >
+              <X size={14} />
+            </button>
+          ) : null}
+        </div>
+        <div className="scene-npc-picker-row">
+          <select
+            value={sceneNpcPickerId}
+            onChange={(event) => setSceneNpcPickerId(event.target.value)}
+            disabled={availableSceneNpcs.length === 0}
+            aria-label="Select NPC to preload"
+          >
+            {availableSceneNpcs.length === 0 ? (
+              <option value="">All NPCs already preloaded</option>
+            ) : null}
+            {availableSceneNpcs.map((npc) => (
+              <option key={npc.id} value={npc.id}>
+                {npc.title ? `${npc.name} — ${npc.title}` : npc.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="monster-example-btn"
+            onClick={() => {
+              if (!sceneNpcPickerId) return
+              onToggleSceneNpc(sceneNpcPickerId, true)
+            }}
+            disabled={!sceneNpcPickerId}
+          >
+            Preload
+          </button>
+        </div>
+        <div className="token-list">
+          {sceneNpcs.map((npc) => (
+            <div key={npc.id} className={presentedNpc?.id === npc.id ? 'token-row selected scene-npc-row' : 'token-row scene-npc-row'}>
+              <span className="token-row-icon" aria-hidden>
+                {npc.portraitUrl ? <img src={npc.portraitUrl} alt="" className="token-row-image" /> : <User size={14} />}
+              </span>
+              <div className="token-row-fields">
+                <strong>{npc.name}</strong>
+                {npc.title ? <small>{npc.title}</small> : null}
+              </div>
+              <div className="npc-scene-actions">
+                <button
+                  type="button"
+                  className={presentedNpc?.id === npc.id ? 'token-row-delete scene-npc-action active' : 'token-row-delete scene-npc-action'}
+                  onClick={() => {
+                    if (presentedNpc?.id === npc.id) {
+                      onClearPresentedNpc()
+                      return
+                    }
+                    onPresentNpc(npc.id)
+                  }}
+                  aria-label={presentedNpc?.id === npc.id ? 'Hide presented NPC' : 'Present NPC'}
+                  title={presentedNpc?.id === npc.id ? 'Hide presented NPC' : 'Present NPC'}
+                >
+                  <Eye size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="token-row-delete scene-npc-action"
+                  onClick={() => onToggleSceneNpc(npc.id, false)}
+                  aria-label="Remove from scene NPCs"
+                  title="Remove from scene NPCs"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+          {sceneNpcs.length === 0 ? <p className="map-npc-scene-empty">No NPCs preloaded for this map.</p> : null}
+        </div>
+      </section>
       ) : null}
       {!streamingMode ? (
         <section className="token-cards-panel" aria-label="Token cards">

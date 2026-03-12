@@ -25,6 +25,8 @@ export type MapRecord = {
   gridType: 'square' | 'hex-pointy' | 'hex-flat'
   gridUnitsPerCell: number
   gridCalibrated: boolean
+  sceneNpcIds: string[]
+  presentedNpcId: string
   updatedAtMs: number
 }
 
@@ -47,6 +49,7 @@ export type TokenRecord = {
   tokenImageHeight: number
   monsterId: string
   characterId?: string
+  npcId?: string
 }
 
 export type AnnotationRecord = {
@@ -74,6 +77,18 @@ export type MonsterSummary = {
 }
 
 export type CharacterTokenSummary = Pick<CharacterRecord, 'id' | 'name' | 'tokenIcon'>
+
+export type NpcSummary = {
+  id: string
+  name: string
+  title: string
+  portraitUrl: string | null
+  portraitFocusX: number
+  portraitFocusY: number
+  tokenIcon: TokenIconConfig
+  playerDescription: string
+  playerNotes: string
+}
 
 export type CanvasClipRect = {
   minX: number

@@ -34,6 +34,7 @@ export function useItemApprovals(
   currentUserId: string,
 ) {
   const [pendingRequests, setPendingRequests] = useState<ItemApprovalRequest[]>([])
+  const [ownPendingRequests, setOwnPendingRequests] = useState<ItemApprovalRequest[]>([])
   const [rejections, setRejections] = useState<ItemApprovalRequest[]>([])
 
   useEffect(() => {
@@ -50,16 +51,32 @@ export function useItemApprovals(
       }, (err) => console.error('Item approval listener (gm) failed:', err))
     }
 
-    const q = query(
+    const pendingQuery = query(
+      col,
+      where('requestedByUserId', '==', currentUserId),
+      where('status', '==', 'pending'),
+    )
+    const unsubPending = onSnapshot(pendingQuery, (snap) => {
+      setOwnPendingRequests(
+        snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ItemApprovalRequest),
+      )
+    }, (err) => console.error('Item approval pending listener (player) failed:', err))
+
+    const rejectedQuery = query(
       col,
       where('requestedByUserId', '==', currentUserId),
       where('status', '==', 'rejected'),
     )
-    return onSnapshot(q, (snap) => {
+    const unsubRejected = onSnapshot(rejectedQuery, (snap) => {
       setRejections(
         snap.docs.map((d) => ({ id: d.id, ...d.data() }) as ItemApprovalRequest),
       )
     }, (err) => console.error('Item approval listener (player) failed:', err))
+
+    return () => {
+      unsubPending()
+      unsubRejected()
+    }
   }, [campaignId, role, currentUserId])
 
   const submitRequest = async (
@@ -110,6 +127,40 @@ export function useItemApprovals(
       status: 'pending',
       createdAt: serverTimestamp(),
     })
+  }
+
+  const submitAbilityRerollRequest = async (
+    characterId: string,
+    characterName: string,
+    username: string,
+  ) => {
+    if (!campaignId) return
+    const id = crypto.randomUUID()
+    const ref = doc(db, 'campaigns', campaignId, 'itemApprovals', id)
+    await setDoc(ref, {
+      id,
+      action: 'ability_reroll',
+      campaignId,
+      characterId,
+      characterName,
+      requestedByUserId: currentUserId,
+      requestedByUsername: username,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+    })
+  }
+
+  const rollAbilityScores = () => {
+    const roll3d6 = () =>
+      Array.from({ length: 3 }, () => Math.floor(Math.random() * 6) + 1).reduce((sum, value) => sum + value, 0)
+    return {
+      STR: String(roll3d6()),
+      INT: String(roll3d6()),
+      WIS: String(roll3d6()),
+      DEX: String(roll3d6()),
+      CON: String(roll3d6()),
+      CHA: String(roll3d6()),
+    }
   }
 
   const approveCreate = async (request: ItemApprovalRequest) => {
@@ -238,11 +289,45 @@ export function useItemApprovals(
     })
   }
 
+  const approveAbilityReroll = async (request: ItemApprovalRequest) => {
+    if (!campaignId) return
+    const charRef = doc(db, 'campaigns', campaignId, 'characters', request.characterId)
+    const approvalRef = doc(db, 'campaigns', campaignId, 'itemApprovals', request.id)
+
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(charRef)
+      if (!snap.exists()) throw new Error('Character not found')
+      const data = snap.data() as { details?: CharacterSheetDetails | null, creationStatus?: string }
+      if (data.creationStatus !== 'draft') {
+        tx.update(approvalRef, { status: 'approved', resolvedAt: serverTimestamp() })
+        return
+      }
+
+      const existingDetails = (data?.details && typeof data.details === 'object')
+        ? data.details as Record<string, unknown>
+        : {}
+      const nextScores = rollAbilityScores()
+
+      tx.set(charRef, {
+        details: {
+          ...existingDetails,
+          abilityScores: nextScores,
+          rolledAbilityScores: nextScores,
+          abilityScoresRolled: true,
+        },
+      }, { merge: true })
+
+      tx.update(approvalRef, { status: 'approved', resolvedAt: serverTimestamp() })
+    })
+  }
+
   const approveRequest = async (request: ItemApprovalRequest) => {
     if (request.action === 'sell') {
       await approveSell(request)
     } else if (request.action === 'learn_spell') {
       await approveLearnSpell(request)
+    } else if (request.action === 'ability_reroll') {
+      await approveAbilityReroll(request)
     } else {
       await approveCreate(request)
     }
@@ -262,9 +347,11 @@ export function useItemApprovals(
 
   return {
     pendingRequests,
+    ownPendingRequests,
     rejections,
     submitRequest,
     submitSpellLearnRequest,
+    submitAbilityRerollRequest,
     approveRequest,
     rejectRequest,
     dismissRejection,

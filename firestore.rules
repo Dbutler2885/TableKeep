@@ -157,6 +157,16 @@ service cloud.firestore {
         allow write: if isCampaignGM(campaignId);
       }
 
+      match /npcs/{npcId} {
+        allow read: if isCampaignGM(campaignId)
+          || (isCampaignMember(campaignId) && resource.data.visibleToPlayers == true);
+        allow write: if isCampaignGM(campaignId);
+      }
+
+      match /npcPrivate/{npcId} {
+        allow read, write: if isCampaignGM(campaignId);
+      }
+
       match /itemApprovals/{approvalId} {
         allow read: if isCampaignMember(campaignId);
         allow create: if isCampaignMember(campaignId)

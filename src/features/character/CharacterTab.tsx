@@ -668,7 +668,7 @@ export function CharacterTab({
   const [transferError, setTransferError] = useState<string | null>(null)
   const [allCampaignCharacters, setAllCampaignCharacters] = useState<TransferTargetCharacter[]>([])
 
-  const { rejections, submitRequest, submitSpellLearnRequest, dismissRejection } = useItemApprovals(campaignId, role, currentUserId)
+  const { ownPendingRequests, rejections, submitRequest, submitSpellLearnRequest, submitAbilityRerollRequest, dismissRejection } = useItemApprovals(campaignId, role, currentUserId)
   const { items: campaignItems } = useItems(campaignId)
   const { outgoingTransfers, createTransfer, cancelTransfer } = usePendingTransfers(campaignId, role, currentUserId)
   const [approvalPendingFeedback, setApprovalPendingFeedback] = useState<string | null>(null)
@@ -1489,6 +1489,26 @@ export function CharacterTab({
   })
 
   const requestRollHitPoints = () => _requestRollHitPoints(setHpClassRequiredOpen)
+  const hasPendingAbilityReroll = ownPendingRequests.some((request) =>
+    request.action === 'ability_reroll'
+    && request.characterId === effectiveSelected?.id
+    && request.status === 'pending',
+  )
+
+  const requestAbilityScoreRoll = () => {
+    if (!effectiveSelected || !canEditSelected || !isGuidedCreation) return
+    if (!hasRolledAbilityScores || role === 'gm') {
+      rollAbilityScores()
+      return
+    }
+    if (hasPendingAbilityReroll) return
+    void submitAbilityRerollRequest(
+      effectiveSelected.id,
+      effectiveSelected.name,
+      currentUsername,
+    )
+    setApprovalPendingFeedback('Ability score re-roll sent to GM for approval.')
+  }
 
   const {
     spellBookSelectedSpellId, setSpellBookSelectedSpellId,
@@ -2594,10 +2614,12 @@ export function CharacterTab({
                                 <button
                                   type="button"
                                   className="monster-example-btn"
-                                  onClick={rollAbilityScores}
-                                  disabled={!canEditSelected || hasRolledAbilityScores}
+                                  onClick={requestAbilityScoreRoll}
+                                  disabled={!canEditSelected || hasPendingAbilityReroll}
                                 >
-                                  {hasRolledAbilityScores ? 'Rolled' : 'Roll'}
+                                  {hasRolledAbilityScores && role !== 'gm'
+                                    ? hasPendingAbilityReroll ? 'Re-roll Pending' : 'Request Re-roll'
+                                    : hasRolledAbilityScores ? 'Re-roll' : 'Roll'}
                                 </button>
                               ) : null}
                               {isGuidedCreation && hasRolledAbilityScores ? (
@@ -3188,7 +3210,7 @@ export function CharacterTab({
                         {approvalPendingFeedback ? (
                           <p className="character-overflow-feedback">{approvalPendingFeedback}</p>
                         ) : null}
-                        {rejections
+                              {rejections
                           .filter((r) => r.characterId === effectiveSelected?.id)
                           .map((r) => (
                             <p key={r.id} className="error character-approval-rejection">
@@ -3196,6 +3218,8 @@ export function CharacterTab({
                                 ? `GM did not approve selling ${r.item?.typeName ?? 'item'}`
                                 : r.action === 'learn_spell'
                                   ? `GM did not approve spell transcription${r.spellNames?.length ? ` (${r.spellNames.join(', ')})` : ''}`
+                                  : r.action === 'ability_reroll'
+                                    ? 'GM did not approve your ability score re-roll'
                                   : `GM did not approve your item creation${r.item?.typeName ? ` (${r.item.typeName})` : ''}`}
                               <button
                                 type="button"

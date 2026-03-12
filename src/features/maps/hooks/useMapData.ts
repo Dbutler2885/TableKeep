@@ -22,6 +22,7 @@ import type {
   CharacterTokenSummary,
   MapRecord,
   MonsterSummary,
+  NpcSummary,
   TokenAssetRecord,
   TokenRecord,
   Waypoint,
@@ -88,6 +89,7 @@ export function useMapData({
   const [deletingTokenId, setDeletingTokenId] = useState('')
   const [mapMonsters, setMapMonsters] = useState<MonsterSummary[]>([])
   const [mapCharacters, setMapCharacters] = useState<CharacterTokenSummary[]>([])
+  const [mapNpcs, setMapNpcs] = useState<NpcSummary[]>([])
 
   // ── Token asset state ───────────────────────────────────────────────────────
   const [tokenAssets, setTokenAssets] = useState<TokenAssetRecord[]>([])
@@ -125,6 +127,8 @@ export function useMapData({
             gridType?: unknown
             gridUnitsPerCell?: number
             gridCalibrated?: boolean
+            sceneNpcIds?: string[]
+            presentedNpcId?: string
             updatedAt?: { toMillis?: () => number }
           }
           const gridType: MapRecord['gridType'] =
@@ -168,6 +172,10 @@ export function useMapData({
                 ? data.gridUnitsPerCell
                 : 10,
             gridCalibrated: data.gridCalibrated === false ? false : true,
+            sceneNpcIds: Array.isArray(data.sceneNpcIds)
+              ? data.sceneNpcIds.filter((id): id is string => typeof id === 'string')
+              : [],
+            presentedNpcId: typeof data.presentedNpcId === 'string' ? data.presentedNpcId : '',
             updatedAtMs: typeof data.updatedAt?.toMillis === 'function' ? data.updatedAt.toMillis() : 0,
           }
         })
@@ -283,6 +291,8 @@ export function useMapData({
             tokenImageWidth?: number
             tokenImageHeight?: number
             monsterId?: string
+            characterId?: string
+            npcId?: string
           }
 
           return {
@@ -303,6 +313,8 @@ export function useMapData({
             tokenImageWidth: typeof data.tokenImageWidth === 'number' ? data.tokenImageWidth : 0,
             tokenImageHeight: typeof data.tokenImageHeight === 'number' ? data.tokenImageHeight : 0,
             monsterId: typeof data.monsterId === 'string' ? data.monsterId : '',
+            characterId: typeof data.characterId === 'string' ? data.characterId : undefined,
+            npcId: typeof data.npcId === 'string' ? data.npcId : undefined,
           }
         })
         setTokens(next)
@@ -435,6 +447,33 @@ export function useMapData({
     return () => unsub()
   }, [campaignId])
 
+  // ── NPCs subscription (for token spawn picker + scene presentation) ───────
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'npcs'), (snap) => {
+      setMapNpcs(
+        snap.docs
+          .map((d) => {
+            const data = d.data()
+            return {
+              id: d.id,
+              name: typeof data.name === 'string' ? data.name : '',
+              title: typeof data.title === 'string' ? data.title : '',
+              portraitUrl: typeof data.portraitUrl === 'string' ? data.portraitUrl : null,
+              portraitFocusX: typeof data.portraitFocusX === 'number' ? data.portraitFocusX : 50,
+              portraitFocusY: typeof data.portraitFocusY === 'number' ? data.portraitFocusY : 50,
+              tokenIcon: data.tokenIcon
+                ? (data.tokenIcon as TokenIconConfig)
+                : { icon: 'pawn' as const, color: '#2f5bbf', size: 34 },
+              playerDescription: typeof data.playerDescription === 'string' ? data.playerDescription : '',
+              playerNotes: typeof data.playerNotes === 'string' ? data.playerNotes : '',
+            } satisfies NpcSummary
+          })
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      )
+    })
+    return () => unsub()
+  }, [campaignId])
+
   // ── Derived state ───────────────────────────────────────────────────────────
   const visibleMaps = useMemo(
     () => (role === 'gm' ? maps : maps.filter((map) => map.visibleToPlayers)),
@@ -489,6 +528,8 @@ export function useMapData({
         gridType: 'square',
         gridUnitsPerCell: 10,
         gridCalibrated: true,
+        sceneNpcIds: [],
+        presentedNpcId: '',
         fogEnabled: true,
         fogGridSize: 128,
         createdAt: serverTimestamp(),
@@ -658,6 +699,7 @@ export function useMapData({
 
     const spawnMonster = mapMonsters.find((m) => m.id === selectedTokenAssetId) ?? null
     const spawnCharacter = mapCharacters.find((c) => c.id === selectedTokenAssetId) ?? null
+    const spawnNpc = mapNpcs.find((n) => n.id === selectedTokenAssetId) ?? null
 
     if (spawnMonster) {
       const { tokenIcon } = spawnMonster
@@ -680,6 +722,8 @@ export function useMapData({
         tokenImageWidth: 0,
         tokenImageHeight: 0,
         monsterId: spawnMonster.id,
+        characterId: '',
+        npcId: '',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
@@ -705,6 +749,33 @@ export function useMapData({
         tokenImageHeight: 0,
         monsterId: '',
         characterId: spawnCharacter.id,
+        npcId: '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    } else if (spawnNpc) {
+      const { tokenIcon } = spawnNpc
+      const size = tokenIcon.size
+      const sizeScale = size / TOKEN_REFERENCE_DIMENSION
+      await addDoc(collection(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens'), {
+        x: point.x,
+        y: point.y,
+        color: tokenIcon.color,
+        size,
+        sizeScale,
+        viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
+        viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
+        party: false,
+        name: spawnNpc.name,
+        revealName: true,
+        hidden: false,
+        tokenImagePath: '',
+        tokenImageUrl: tokenIcon.icon === 'custom' && tokenIcon.customImageUrl ? tokenIcon.customImageUrl : '',
+        tokenImageWidth: 0,
+        tokenImageHeight: 0,
+        monsterId: '',
+        characterId: '',
+        npcId: spawnNpc.id,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
@@ -727,10 +798,31 @@ export function useMapData({
         tokenImageWidth: selectedTokenAsset?.width ?? 0,
         tokenImageHeight: selectedTokenAsset?.height ?? 0,
         monsterId: '',
+        characterId: '',
+        npcId: '',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       })
     }
+  }
+
+  const updateSceneNpcIds = async (sceneNpcIds: string[]) => {
+    if (!selectedMap || role !== 'gm') return
+    const validIds = sceneNpcIds.filter((id, index) => !!id && sceneNpcIds.indexOf(id) === index)
+    const presentedNpcId = validIds.includes(selectedMap.presentedNpcId) ? selectedMap.presentedNpcId : ''
+    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      sceneNpcIds: validIds,
+      presentedNpcId,
+      updatedAt: serverTimestamp(),
+    })
+  }
+
+  const setPresentedNpcId = async (npcId: string) => {
+    if (!selectedMap || role !== 'gm') return
+    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      presentedNpcId: npcId,
+      updatedAt: serverTimestamp(),
+    })
   }
 
   // ── Annotation CRUD ─────────────────────────────────────────────────────────
@@ -860,6 +952,7 @@ export function useMapData({
     deletingTokenId,
     mapMonsters,
     mapCharacters,
+    mapNpcs,
     // Token assets
     tokenAssets,
     selectedTokenAssetId,
@@ -887,6 +980,8 @@ export function useMapData({
     confirmDeleteToken,
     toggleTokenHidden,
     placeToken,
+    updateSceneNpcIds,
+    setPresentedNpcId,
     // Annotation CRUD
     placeAnnotation,
     commitActiveAnnotation,
