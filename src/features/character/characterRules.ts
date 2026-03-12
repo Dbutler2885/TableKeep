@@ -321,7 +321,9 @@ export const buildGuidedAbilityScores = (
 
     if (canLowerForPoints) {
       if (current > base) return null
-      if (current < 9) return null
+      // Scores rolled below 9 are allowed to remain as-is; they just can't be
+      // lowered further for point trading.
+      if (current < 9 && current !== base) return null
     } else if (!isPrime) {
       if (current !== base) return null
     }

@@ -504,6 +504,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     annotationPlaceMode,
     isMobileZoomMapView,
     renderTokenViewDistance,
+    renderTokenDimensions,
   })
 
   const {
@@ -895,6 +896,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
     activeFogCanvasRef,
     activeVisionCanvasRef,
     renderTokenViewDistance,
+    renderTokenDimensions,
     revealFromTokenPoint,
     revealFromTokenStroke,
     bumpFogSampleTick,

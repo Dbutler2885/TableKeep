@@ -1256,6 +1256,7 @@ export function CharacterTab({
   }
 
   const rollLevelUpHitPoints = () => {
+    if (levelUpHpRoll !== null) return
     if (!selectedHitDie || selectedHitDie <= 0) {
       setLevelUpError('No valid class hit die available for this character.')
       return
@@ -4778,7 +4779,12 @@ export function CharacterTab({
                   </div>
                 </div>
                 <div className="character-levelup-actions">
-                  <button type="button" className="character-levelup-roll-btn" onClick={rollLevelUpHitPoints} disabled={levelUpApplying}>
+                  <button
+                    type="button"
+                    className="character-levelup-roll-btn"
+                    onClick={rollLevelUpHitPoints}
+                    disabled={levelUpApplying || levelUpHpRoll !== null}
+                  >
                     Roll Hit Points
                   </button>
                 </div>

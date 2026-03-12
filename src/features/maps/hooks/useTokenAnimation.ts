@@ -22,6 +22,7 @@ type UseTokenAnimationOptions = {
   activeFogCanvasRef: React.RefObject<HTMLCanvasElement | null>
   activeVisionCanvasRef: React.RefObject<HTMLCanvasElement | null>
   renderTokenViewDistance: (token: TokenRecord) => number
+  renderTokenDimensions: (token: TokenRecord) => { width: number; height: number; baseSize: number }
   revealFromTokenPoint: (
     fogCanvas: HTMLCanvasElement,
     visionCanvas: HTMLCanvasElement | null,
@@ -58,6 +59,7 @@ export function useTokenAnimation({
   activeFogCanvasRef,
   activeVisionCanvasRef,
   renderTokenViewDistance,
+  renderTokenDimensions,
   revealFromTokenPoint,
   revealFromTokenStroke,
   bumpFogSampleTick,
@@ -78,6 +80,22 @@ export function useTokenAnimation({
   ) => void>(() => { })
 
   tokensRef.current = tokens
+
+  const averagePartyCenter = (
+    partyTokens: TokenRecord[],
+    nextPositions: Record<string, { x: number; y: number }>,
+    mapHeightPx: number,
+  ) => {
+    const safeMapHeight = Math.max(1, mapHeightPx)
+    const cx = partyTokens.reduce((sum, t) => sum + (nextPositions[t.id]?.x ?? t.x), 0) / partyTokens.length
+    const cy = partyTokens.reduce((sum, t) => {
+      const dims = renderTokenDimensions(t)
+      const y = nextPositions[t.id]?.y ?? t.y
+      const visualCenterY = y - dims.height / (2 * safeMapHeight)
+      return sum + Math.max(0, Math.min(1, visualCenterY))
+    }, 0) / partyTokens.length
+    return { cx, cy }
+  }
 
   animTickRef.current = () => {
     const now = Date.now()
@@ -153,19 +171,19 @@ export function useTokenAnimation({
       const partyTokens = tokensRef.current.filter((t) => t.party && !t.hidden)
       const hasPartyAnim = partyTokens.some((t) => nextPositions[t.id] !== undefined)
       if (hasPartyAnim && partyTokens.length > 0) {
-        const cx = partyTokens.reduce((sum, t) => sum + (nextPositions[t.id]?.x ?? t.x), 0) / partyTokens.length
-        const cy = partyTokens.reduce((sum, t) => sum + (nextPositions[t.id]?.y ?? t.y), 0) / partyTokens.length
         if (fullScreenOpen) {
+          const { cx, cy } = averagePartyCenter(partyTokens, nextPositions, fullBaseSize.height)
           const nextPan = {
-            x: fullBaseSize.width * 0.5 - fullBaseSize.width * cx * fullZoomRef.current,
-            y: fullBaseSize.height * 0.5 - fullBaseSize.height * cy * fullZoomRef.current,
+            x: fullBaseSize.width * fullZoomRef.current * (0.5 - cx),
+            y: fullBaseSize.height * fullZoomRef.current * (0.5 - cy),
           }
           fullPanRef.current = nextPan
           setFullPan(nextPan)
         } else {
+          const { cx, cy } = averagePartyCenter(partyTokens, nextPositions, inlineBaseSize.height)
           const nextPan = {
-            x: inlineBaseSize.width * 0.5 - inlineBaseSize.width * cx * playerZoomRef.current,
-            y: inlineBaseSize.height * 0.5 - inlineBaseSize.height * cy * playerZoomRef.current,
+            x: inlineBaseSize.width * playerZoomRef.current * (0.5 - cx),
+            y: inlineBaseSize.height * playerZoomRef.current * (0.5 - cy),
           }
           playerPanRef.current = nextPan
           setPlayerPan(nextPan)
