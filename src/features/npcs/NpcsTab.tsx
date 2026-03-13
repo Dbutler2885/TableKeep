@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronLeft, Circle, Plus, Search, Tag, Trash2, UserRound, X } from 'lucide-react'
-import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
+import { collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { NpcPrivateRecord, NpcRecord, Role } from '../../types/app'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
@@ -41,6 +41,7 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
   const privateNotesRef = useRef<Record<string, string>>({})
   const pendingNpcWritesRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const pendingPrivateWritesRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const pendingPlayerNotesWritesRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const [selectedNpcId, setSelectedNpcId] = useState('')
   const [deleteCandidate, setDeleteCandidate] = useState<NpcRecord | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -76,16 +77,22 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
     return () => {
       Object.values(pendingNpcWritesRef.current).forEach((timer) => clearTimeout(timer))
       Object.values(pendingPrivateWritesRef.current).forEach((timer) => clearTimeout(timer))
+      Object.values(pendingPlayerNotesWritesRef.current).forEach((timer) => clearTimeout(timer))
       pendingNpcWritesRef.current = {}
       pendingPrivateWritesRef.current = {}
+      pendingPlayerNotesWritesRef.current = {}
     }
   }, [])
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'npcs'), (snap) => {
+    const npcsCollection = collection(db, 'campaigns', campaignId, 'npcs')
+    const npcsQuery = role === 'gm'
+      ? query(npcsCollection)
+      : query(npcsCollection, where('visibleToPlayers', '==', true))
+    const unsub = onSnapshot(npcsQuery, (snap) => {
       const next = snap.docs
         .map((docSnap) => {
-          if (pendingNpcWritesRef.current[docSnap.id]) {
+          if (pendingNpcWritesRef.current[docSnap.id] || pendingPlayerNotesWritesRef.current[docSnap.id]) {
             const local = npcsRef.current.find((npc) => npc.id === docSnap.id)
             if (local) return local
           }
@@ -108,7 +115,7 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
       setNpcs(next)
     })
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, role])
 
   useEffect(() => {
     if (role !== 'gm') {
@@ -178,6 +185,20 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
     }, 500)
   }
 
+  const schedulePlayerNotesWrite = (npcId: string) => {
+    const existing = pendingPlayerNotesWritesRef.current[npcId]
+    if (existing) clearTimeout(existing)
+    pendingPlayerNotesWritesRef.current[npcId] = setTimeout(() => {
+      delete pendingPlayerNotesWritesRef.current[npcId]
+      const npc = npcsRef.current.find((entry) => entry.id === npcId)
+      if (!npc) return
+      void setDoc(doc(db, 'campaigns', campaignId, 'npcs', npcId), {
+        playerNotes: npc.playerNotes,
+        updatedAt: serverTimestamp(),
+      }, { merge: true })
+    }, 500)
+  }
+
   const updateNpc = (npcId: string, updates: Partial<Omit<NpcRecord, 'id'>>) => {
     if (role !== 'gm') return
     setNpcs((current) => current.map((npc) => (npc.id === npcId ? { ...npc, ...updates } : npc)))
@@ -187,6 +208,12 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
   const updateSelectedNpc = (updates: Partial<Omit<NpcRecord, 'id'>>) => {
     if (!selectedNpc) return
     updateNpc(selectedNpc.id, updates)
+  }
+
+  const updatePlayerNotes = (npcId: string, value: string) => {
+    if (role !== 'player') return
+    setNpcs((current) => current.map((npc) => (npc.id === npcId ? { ...npc, playerNotes: value } : npc)))
+    schedulePlayerNotesWrite(npcId)
   }
 
   const updateGmNotes = (npcId: string, value: string) => {
@@ -563,9 +590,15 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
                   <h3 className="monster-section-title">Player Notes</h3>
                   <RichTextEditor
                     value={selectedNpc.playerNotes}
-                    onChange={(value) => updateSelectedNpc({ playerNotes: value })}
+                    onChange={(value) => {
+                      if (role === 'gm') {
+                        updateSelectedNpc({ playerNotes: value })
+                        return
+                      }
+                      updatePlayerNotes(selectedNpc.id, value)
+                    }}
                     placeholder="Player-facing notes"
-                    editable={role === 'gm'}
+                    editable={role === 'gm' || role === 'player'}
                   />
                 </section>
 

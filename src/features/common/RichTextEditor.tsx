@@ -22,6 +22,7 @@ export function RichTextEditor({
   useEffect(() => {
     const element = editorRef.current
     if (!element) return
+    if (document.activeElement === element) return
     const sanitized = sanitizeRichText(value)
     if (element.innerHTML !== sanitized) {
       element.innerHTML = sanitized

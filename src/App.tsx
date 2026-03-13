@@ -154,6 +154,23 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
     hasPendingWrite,
   } = useCharacters(campaign?.id ?? null, user.uid, username, role, setError)
 
+  const characterTabProps = campaign ? {
+    campaignId: campaign.id,
+    currentUserId: user.uid,
+    currentUsername: username,
+    role,
+    characters,
+    charactersLoading,
+    currentCharacterId,
+    setCurrentCharacter,
+    selectedCharacterId,
+    setSelectedCharacterId,
+    selectedCharacter,
+    updateCharacter,
+    deleteCharacter,
+    hasPendingWrite,
+  } : null
+
   const { pendingRequests, approveRequest, rejectRequest } = useItemApprovals(
     campaign?.id ?? null,
     role,
@@ -280,25 +297,13 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
               <Route
                 path={tabPaths.character}
                 element={
-                  <CharacterTab
-                    campaignId={campaign.id}
-                    currentUserId={user.uid}
-                    currentUsername={username}
-                    role={role}
-                    characters={characters}
-                    charactersLoading={charactersLoading}
-                    currentCharacterId={currentCharacterId}
-                    setCurrentCharacter={setCurrentCharacter}
-                    selectedCharacterId={selectedCharacterId}
-                    setSelectedCharacterId={setSelectedCharacterId}
-                    selectedCharacter={selectedCharacter}
-                    updateCharacter={updateCharacter}
-                    deleteCharacter={deleteCharacter}
-                    hasPendingWrite={hasPendingWrite}
-                  />
+                  characterTabProps ? <CharacterTab {...characterTabProps} /> : null
                 }
               />
-              <Route path={tabPaths.maps} element={<MapsTab campaignId={campaign.id} role={role} />} />
+              <Route
+                path={tabPaths.maps}
+                element={<MapsTab campaignId={campaign.id} role={role} characterTabProps={characterTabProps ?? undefined} />}
+              />
               <Route
                 path={tabPaths.monsters}
                 element={role === 'gm'

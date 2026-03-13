@@ -1,8 +1,72 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function campaignMemberDoc(campaignId) {
+      return firestore.get(
+        /databases/(default)/documents/campaigns/$(campaignId)/members/$(request.auth.uid)
+      );
+    }
+
+    function isCampaignMember(campaignId) {
+      return isSignedIn()
+        && campaignMemberDoc(campaignId).data.status == 'active';
+    }
+
+    function isCampaignGM(campaignId) {
+      return isCampaignMember(campaignId)
+        && campaignMemberDoc(campaignId).data.role == 'gm';
+    }
+
+    function mapDoc(campaignId, mapId) {
+      return firestore.get(
+        /databases/(default)/documents/campaigns/$(campaignId)/maps/$(mapId)
+      );
+    }
+
+    function characterDoc(campaignId, characterId) {
+      return firestore.get(
+        /databases/(default)/documents/campaigns/$(campaignId)/characters/$(characterId)
+      );
+    }
+
+    function canReadMapAsset(campaignId, mapId) {
+      return isCampaignGM(campaignId)
+        || (
+          isCampaignMember(campaignId)
+          && mapDoc(campaignId, mapId).data.visibleToPlayers == true
+        );
+    }
+
+    match /campaigns/{campaignId}/maps/{mapId} {
+      allow read: if canReadMapAsset(campaignId, mapId);
+      allow write: if isCampaignGM(campaignId);
+    }
+
+    match /campaigns/{campaignId}/maps/{mapId}/{allPaths=**} {
+      allow read: if canReadMapAsset(campaignId, mapId);
+      allow write: if isCampaignGM(campaignId);
+    }
+
+    match /campaigns/{campaignId}/token-assets/{assetName} {
+      allow read: if isCampaignMember(campaignId);
+      allow write: if isCampaignGM(campaignId);
+    }
+
+    match /campaigns/{campaignId}/characters/{characterId}/token-icons/{assetName} {
+      allow read: if isCampaignMember(campaignId);
+      allow write: if isCampaignGM(campaignId)
+        || (
+          isCampaignMember(campaignId)
+          && characterDoc(campaignId, characterId).data.ownerUserId == request.auth.uid
+        );
+    }
+
     match /{allPaths=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

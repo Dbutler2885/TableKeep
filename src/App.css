@@ -4301,6 +4301,66 @@ button:disabled {
   grid-template-columns: minmax(0, 1fr) 275px;
 }
 
+.maps-content-shell {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+.maps-main-hidden {
+  display: none;
+}
+
+.map-player-top-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.map-player-top-nav button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid #d7d7cf;
+  background: #f5f4ee;
+  border-radius: 999px;
+  padding: 0.45rem 0.8rem;
+  color: #3f3f39;
+}
+
+.map-player-top-nav button.active {
+  background: #dfe8d8;
+  border-color: #9eb592;
+  color: #22301f;
+}
+
+.map-embedded-character.hidden {
+  display: none;
+}
+
+.map-embedded-character {
+  min-height: 0;
+  height: min(78vh, calc(100dvh - 11rem));
+  overflow-y: auto;
+  overflow-x: hidden;
+  border: 1px solid #dcdcd5;
+  border-radius: 10px;
+  background: #f8f7f2;
+}
+
+.map-embedded-character .maps-layout {
+  display: block;
+  min-height: 100%;
+}
+
+.map-embedded-character .monsters-detail,
+.map-embedded-character .characters-detail,
+.map-embedded-character .monsters-detail-inner,
+.map-embedded-character .characters-detail-inner {
+  min-height: 100%;
+}
+
 .map-mobile-panel-nav {
   display: none;
 }
@@ -5557,6 +5617,44 @@ button:disabled {
   gap: 0.35rem;
 }
 
+.token-group-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.token-group-block {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.token-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.token-group-title {
+  margin: 0;
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #66665f;
+}
+
+.token-group-count {
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #ecece6;
+  color: #55554e;
+  font-size: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .token-cards-panel {
   border: 1px solid #dcdcd5;
   border-radius: 8px;
@@ -5595,13 +5693,18 @@ button:disabled {
 
 .token-row {
   display: grid;
-  grid-template-columns: auto auto auto 1fr auto;
-  align-items: center;
-  gap: 0.35rem;
+  gap: 0.45rem;
   border: 1px solid #5e5e57;
   border-radius: 8px;
   padding: 0.45rem 0.5rem;
   background: #fff;
+}
+
+.token-row-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
 }
 
 .token-row.selected {
@@ -5619,6 +5722,18 @@ button:disabled {
 .token-row-label-input {
   min-width: 0;
   font-size: 0.78rem;
+  color: #111;
+}
+
+.token-row-expand {
+  width: 1.55rem;
+  height: 1.55rem;
+  border: 1px solid #d7d7cf;
+  border-radius: 6px;
+  background: #f5f4ee;
+  color: #4f4f48;
+  padding: 0;
+  line-height: 1;
 }
 
 .token-row input[type='color'] {
@@ -5633,8 +5748,20 @@ button:disabled {
   width: 100%;
 }
 
+.token-row-details {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.token-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
 .token-row-size-row {
-  grid-column: 1 / -1;
+  grid-column: auto;
 }
 
 .token-row-size-row .icon-value-slider-input {
@@ -5720,7 +5847,6 @@ button:disabled {
 }
 
 .token-row-toggles {
-  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -5790,11 +5916,26 @@ button:disabled {
   background: #232323;
 }
 
+.map-controls-body.dark .token-group-title {
+  color: #d0d0c8;
+}
+
+.map-controls-body.dark .token-group-count {
+  background: #34342f;
+  color: #dbdbd3;
+}
+
 .map-controls-body.dark .token-cards-title {
   color: #cecec7;
 }
 
 .map-controls-body.dark .token-cards-toggle {
+  background: #2f2f2f;
+  border-color: #4a4a4a;
+  color: #d8d8d1;
+}
+
+.map-controls-body.dark .token-row-expand {
   background: #2f2f2f;
   border-color: #4a4a4a;
   color: #d8d8d1;
@@ -5818,6 +5959,23 @@ button:disabled {
   border-color: #4a4a4a;
   color: #d8d8d1;
 }
+
+.map-controls-body.dark .map-player-top-nav button {
+  background: #2f2f2f;
+  border-color: #4a4a4a;
+  color: #d8d8d1;
+}
+
+.map-controls-body.dark .map-player-top-nav button.active {
+  background: #3a4634;
+  border-color: #7f946f;
+  color: #eef3ea;
+}
+
+.maps-layout .map-embedded-character {
+  background: #f8f7f2;
+}
+
 
 .map-controls-body.dark .token-image-trigger.map-icon-btn {
   background: #2f2f2f;
@@ -5886,8 +6044,8 @@ button:disabled {
 
 .map-npc-presented-card {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 0.65rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.8rem;
   border: 1px solid #dcdcd5;
   border-radius: 10px;
   padding: 0.6rem;
@@ -5895,8 +6053,9 @@ button:disabled {
 }
 
 .map-npc-presented-portrait {
-  width: 96px;
-  height: 120px;
+  width: 100%;
+  min-height: 240px;
+  max-height: 360px;
   border-radius: 8px;
   overflow: hidden;
   background: #ecece6;

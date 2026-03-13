@@ -20,6 +20,7 @@ export function useCharacters(
   const [charactersLoading, setCharactersLoading] = useState(false)
   const [selectedCharacterId, setSelectedCharacterId] = useState('')
   const [currentCharacterId, setCurrentCharacterId] = useState<string | null>(null)
+  const [activePlayerIds, setActivePlayerIds] = useState<string[]>([])
   const charactersRef = useRef<CharacterRecord[]>([])
   const pendingWritesRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
@@ -48,6 +49,37 @@ export function useCharacters(
 
     return () => unsub()
   }, [campaignId, setError, userId])
+
+  useEffect(() => {
+    if (!campaignId) {
+      setActivePlayerIds([])
+      return
+    }
+
+    const unsub = onSnapshot(
+      collection(db, 'campaigns', campaignId, 'members'),
+      (snap) => {
+        const next = snap.docs
+          .map((docSnap) => {
+            const data = docSnap.data() as {
+              userId?: string
+              role?: Role
+              status?: string
+            }
+            if (data.role !== 'player' || data.status !== 'active' || typeof data.userId !== 'string') return null
+            return data.userId
+          })
+          .filter((entry): entry is string => entry !== null)
+        setActivePlayerIds(next)
+      },
+      (err) => {
+        const message = err instanceof Error ? err.message : 'Unable to load campaign members'
+        setError(message)
+      },
+    )
+
+    return () => unsub()
+  }, [campaignId, setError])
 
   useEffect(() => {
     if (!campaignId || !role) return
@@ -130,7 +162,9 @@ export function useCharacters(
           }
         })
 
-        const next = role === 'gm' ? all : all.filter((character) => character.ownerUserId === userId)
+        const next = role === 'gm'
+          ? all
+          : all.filter((character) => activePlayerIds.includes(character.ownerUserId))
         setCharacters(next)
         setCharactersLoading(false)
 
@@ -160,7 +194,7 @@ export function useCharacters(
     return () => {
       unsub()
     }
-  }, [campaignId, currentCharacterId, currentUsername, role, userId, setError])
+  }, [activePlayerIds, campaignId, currentCharacterId, currentUsername, role, userId, setError])
 
   useEffect(() => {
     if (!campaignId || role !== 'player') return
@@ -220,11 +254,12 @@ export function useCharacters(
   }
 
   const updateCharacter = (characterId: string, updates: Partial<CharacterRecord>) => {
+    const target = charactersRef.current.find((character) => character.id === characterId)
+    if (!target) return
+    const canEdit = role === 'gm' || target.ownerUserId === userId
+    if (!canEdit) return
+
     setCharacters((current) => {
-      const target = current.find((character) => character.id === characterId)
-      if (!target) return current
-      const canEdit = role === 'gm' || target.ownerUserId === userId
-      if (!canEdit) return current
       return current.map((character) =>
         character.id === characterId
           ? {

@@ -20,6 +20,10 @@ type EntityMediaEditorProps = {
   portraitAltLabel: string
   tokenButtonAriaLabel?: string
   removePortraitMessage?: string
+  onUploadTokenImage?: (file: File) => Promise<{
+    customImageUrl?: string
+    customImageName?: string
+  }>
 }
 
 export function EntityMediaEditor({
@@ -32,6 +36,7 @@ export function EntityMediaEditor({
   portraitAltLabel,
   tokenButtonAriaLabel = 'Edit token icon',
   removePortraitMessage = 'Remove portrait image?',
+  onUploadTokenImage,
 }: EntityMediaEditorProps) {
   const [portraitError, setPortraitError] = useState<string | null>(null)
   const [portraitDraft, setPortraitDraft] = useState<{
@@ -149,6 +154,7 @@ export function EntityMediaEditor({
       <TokenPickerModal
         open={tokenPickerOpen}
         value={tokenIcon}
+        onUploadImage={onUploadTokenImage}
         onConfirm={(nextTokenIcon) => {
           onChange({ tokenIcon: nextTokenIcon })
           setTokenPickerOpen(false)

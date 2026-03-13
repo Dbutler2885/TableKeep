@@ -8,9 +8,10 @@ type TokenPickerModalProps = {
   value: TokenIconConfig
   onConfirm: (value: TokenIconConfig) => void
   onCancel: () => void
+  onUploadImage?: (file: File) => Promise<Pick<TokenIconConfig, 'customImageUrl' | 'customImageName'>>
 }
 
-export function TokenPickerModal({ open, value, onConfirm, onCancel }: TokenPickerModalProps) {
+export function TokenPickerModal({ open, value, onConfirm, onCancel, onUploadImage }: TokenPickerModalProps) {
   const [draft, setDraft] = useState<TokenIconConfig>(value)
 
   useEffect(() => {
@@ -21,18 +22,25 @@ export function TokenPickerModal({ open, value, onConfirm, onCancel }: TokenPick
 
   const handleImageUpload = (file: File) => {
     if (!file.type.startsWith('image/')) return
-    void normalizeImageForDataUrl(file, {
-      maxWidth: 1024,
-      maxHeight: 1024,
-      preferType: 'image/webp',
-      quality: 0.9,
-    })
-      .then(({ dataUrl }) => {
+    const persistUpload = onUploadImage
+      ? onUploadImage(file)
+      : normalizeImageForDataUrl(file, {
+        maxWidth: 1024,
+        maxHeight: 1024,
+        preferType: 'image/webp',
+        quality: 0.9,
+      }).then(({ dataUrl }) => ({
+        customImageUrl: dataUrl,
+        customImageName: file.name.replace(/\.[^/.]+$/, ''),
+      }))
+
+    void persistUpload
+      .then(({ customImageUrl, customImageName }) => {
         setDraft((current) => ({
           ...current,
           icon: 'custom',
-          customImageUrl: dataUrl,
-          customImageName: file.name.replace(/\.[^/.]+$/, ''),
+          customImageUrl,
+          customImageName,
         }))
       })
       .catch(() => {

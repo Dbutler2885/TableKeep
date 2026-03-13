@@ -9,6 +9,7 @@ import {
   Check,
   Binoculars,
   ChessPawn,
+  ScrollText,
   ChevronLeft,
   Circle,
   Dice1,
@@ -42,6 +43,7 @@ import {
   X,
 } from 'lucide-react'
 import type { Role } from '../../types/app'
+import { CharacterTab } from '../character/CharacterTab'
 import { TokenIconEditor, type TokenIconConfig } from '../tokens/TokenIconEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { IconValueSlider } from '../common/IconValueSlider'
@@ -87,12 +89,21 @@ import { useTokenAssets } from './hooks/useTokenAssets'
 
 const SURFACE_REVEAL_INTERVAL_MS = 150
 
-export function MapsTab({ campaignId, role }: { campaignId: string; role: Role | null }) {
+export function MapsTab({
+  campaignId,
+  role,
+  characterTabProps,
+}: {
+  campaignId: string
+  role: Role | null
+  characterTabProps?: React.ComponentProps<typeof CharacterTab>
+}) {
   const [selectedMapId, setSelectedMapId] = useState('')
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileMapView, setMobileMapView] = useState<'list' | 'detail'>('list')
   const [mobileGmPane, setMobileGmPane] = useState<'map' | 'controls'>('map')
-  const [mobilePlayerPane, setMobilePlayerPane] = useState<'map' | 'controls'>('map')
+  const [mobilePlayerPane, setMobilePlayerPane] = useState<'map' | 'controls' | 'character'>('map')
+  const [playerEmbeddedPane, setPlayerEmbeddedPane] = useState<'map' | 'character'>('map')
   const [fullScreenOpen, setFullScreenOpen] = useState(false)
   const [fogTool, setFogTool] = useState<'reveal' | 'hide' | null>(null)
   const [visionTool, setVisionTool] = useState<'draw' | 'drawFull' | 'erase' | null>(null)
@@ -148,6 +159,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       if (!mobile) {
         setMobileMapView('list')
         setMobileGmPane('map')
+        setMobilePlayerPane('map')
       }
     }
 
@@ -158,6 +170,8 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
 
   const showListPane = !isMobile || mobileMapView === 'list'
   const showMapPane = !isMobile || mobileMapView === 'detail'
+  const showEmbeddedCharacter = role !== 'gm' && !!characterTabProps && (isMobile ? mobilePlayerPane === 'character' : playerEmbeddedPane === 'character')
+  const showEmbeddedMap = role === 'gm' || !characterTabProps || (isMobile ? mobilePlayerPane !== 'character' : playerEmbeddedPane === 'map')
   const fogDisplayOpacity = role === 'gm' ? (streamingMode ? 1 : 0.45) : 1
   const visionOverlayOpacity = role === 'gm' && !streamingMode ? 0.8 : 0
   const losSeenOverlayOpacity = role === 'gm' && !streamingMode ? 0.75 : 0
@@ -665,6 +679,7 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
         setMobileGmPane('map')
       } else {
         setMobilePlayerPane('map')
+        setPlayerEmbeddedPane('map')
       }
     }
   }
@@ -1641,17 +1656,42 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
       ) : null}
 
       {showMapPane ? (
-        <div
-          className={[
-            role === 'gm' ? 'maps-main gm' : 'maps-main player',
-            isMobile && role === 'gm' ? 'mobile-gm' : '',
-            isMobile && role !== 'gm' ? 'mobile-player' : '',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-        >
-          {!isMobile || (role === 'gm' ? mobileGmPane === 'map' : mobilePlayerPane === 'map') ? (
-            <InlineMapStage
+        <div className="maps-content-shell">
+          {role !== 'gm' && characterTabProps ? (
+            <div className="map-player-top-nav" role="tablist" aria-label="Player map views">
+              <button
+                type="button"
+                className={playerEmbeddedPane === 'map' ? 'active' : ''}
+                onClick={() => setPlayerEmbeddedPane('map')}
+                aria-label="Show map"
+              >
+                <Map size={16} />
+                <span>Map</span>
+              </button>
+              <button
+                type="button"
+                className={playerEmbeddedPane === 'character' ? 'active' : ''}
+                onClick={() => setPlayerEmbeddedPane('character')}
+                aria-label="Show character sheet"
+              >
+                <ScrollText size={16} />
+                <span>Character</span>
+              </button>
+            </div>
+          ) : null}
+
+          <div
+            className={[
+              role === 'gm' ? 'maps-main gm' : 'maps-main player',
+              isMobile && role === 'gm' ? 'mobile-gm' : '',
+              isMobile && role !== 'gm' ? 'mobile-player' : '',
+              !showEmbeddedMap ? 'maps-main-hidden' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          >
+            {!isMobile || (role === 'gm' ? mobileGmPane === 'map' : mobilePlayerPane === 'map') ? (
+              <InlineMapStage
               stageRef={inlineStageRef}
               mapLayerRef={inlineMapLayerRef}
               isMobile={isMobile}
@@ -1747,11 +1787,11 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
               {annotationLayerNode}
               {(!inlineImageReady || !inlineFogReady) ? <div className="map-fog-loading-mask" aria-hidden /> : null}
             </InlineMapStage>
-          ) : null}
+            ) : null}
 
-          {role === 'gm' && (!isMobile || mobileGmPane === 'controls') ? (
-            <aside className="map-controls">
-              <GmMapControls
+            {role === 'gm' && (!isMobile || mobileGmPane === 'controls') ? (
+              <aside className="map-controls">
+                <GmMapControls
                 fogTool={fogTool}
                 setFogTool={setFogTool}
                 visionTool={visionTool}
@@ -1847,27 +1887,34 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
                 onPresentNpc={(npcId) => void setPresentedNpcId(npcId)}
                 onClearPresentedNpc={() => void setPresentedNpcId('')}
               />
-            </aside>
-          ) : null}
+              </aside>
+            ) : null}
 
-          {role !== 'gm' && !isMobile ? (
-            <aside className="map-controls">
-              <PlayerMapControls
-                cameraLock={cameraLock}
-                onToggleCameraLock={toggleCameraLock}
-                presentedNpc={presentedNpc}
-              />
-            </aside>
-          ) : null}
+            {role !== 'gm' && !isMobile ? (
+              <aside className="map-controls">
+                <PlayerMapControls
+                  cameraLock={cameraLock}
+                  onToggleCameraLock={toggleCameraLock}
+                  presentedNpc={presentedNpc}
+                />
+              </aside>
+            ) : null}
 
-          {role !== 'gm' && isMobile && mobilePlayerPane === 'controls' ? (
-            <aside className="map-controls">
-              <PlayerMapControls
-                cameraLock={cameraLock}
-                onToggleCameraLock={toggleCameraLock}
-                presentedNpc={presentedNpc}
-              />
-            </aside>
+            {role !== 'gm' && isMobile && mobilePlayerPane === 'controls' ? (
+              <aside className="map-controls">
+                <PlayerMapControls
+                  cameraLock={cameraLock}
+                  onToggleCameraLock={toggleCameraLock}
+                  presentedNpc={presentedNpc}
+                />
+              </aside>
+            ) : null}
+          </div>
+
+          {role !== 'gm' && characterTabProps && showEmbeddedCharacter ? (
+            <div className="map-embedded-character">
+              <CharacterTab {...characterTabProps} embeddedMode />
+            </div>
           ) : null}
 
           {isMobile && role !== 'gm' ? (
@@ -1897,6 +1944,17 @@ export function MapsTab({ campaignId, role }: { campaignId: string; role: Role |
               >
                 <SlidersHorizontal size={16} />
               </button>
+              {characterTabProps ? (
+                <button
+                  type="button"
+                  className={mobilePlayerPane === 'character' ? 'active' : ''}
+                  onClick={() => setMobilePlayerPane('character')}
+                  disabled={mobilePlayerPane === 'character'}
+                  aria-label="Character pane"
+                >
+                  <ScrollText size={16} />
+                </button>
+              ) : null}
             </div>
           ) : null}
 
@@ -2290,6 +2348,7 @@ function GmMapControls({
 
   const [tokenNameDrafts, setTokenNameDrafts] = useState<Record<string, string>>({})
   const [tokensCollapsed, setTokensCollapsed] = useState(false)
+  const [expandedTokenIds, setExpandedTokenIds] = useState<string[]>([])
   const [sceneNpcPickerId, setSceneNpcPickerId] = useState('')
   const availableSceneNpcs = useMemo(
     () => mapNpcs.filter((npc) => !selectedMapSceneNpcIds.includes(npc.id)),
@@ -2332,6 +2391,32 @@ function GmMapControls({
       delete next[token.id]
       return next
     })
+  }
+
+  const tokenGroups = useMemo(() => {
+    const groups = [
+      { key: 'party', label: 'Party', tokens: tokens.filter((token) => token.party) },
+      { key: 'characters', label: 'Characters', tokens: tokens.filter((token) => !token.party && !!token.characterId) },
+      { key: 'monsters', label: 'Monsters', tokens: tokens.filter((token) => !!token.monsterId) },
+      { key: 'npcs', label: 'NPCs', tokens: tokens.filter((token) => !!token.npcId) },
+      {
+        key: 'other',
+        label: 'Other',
+        tokens: tokens.filter((token) => !token.party && !token.characterId && !token.monsterId && !token.npcId),
+      },
+    ]
+
+    return groups.filter((group) => group.tokens.length > 0)
+  }, [tokens])
+
+  useEffect(() => {
+    setExpandedTokenIds((current) => current.filter((tokenId) => tokens.some((token) => token.id === tokenId)))
+  }, [tokens])
+
+  const toggleTokenExpanded = (tokenId: string) => {
+    setExpandedTokenIds((current) =>
+      current.includes(tokenId) ? current.filter((id) => id !== tokenId) : [...current, tokenId],
+    )
   }
 
   return (
@@ -2791,132 +2876,161 @@ function GmMapControls({
             </button>
           </div>
           {!tokensCollapsed ? (
-            <div className="token-list">
-            {tokens.map((token, index) => (
-              <div
-                key={token.id}
-                className={selectedTokenIds.includes(token.id) ? 'token-row selected' : 'token-row'}
-                onClick={() => onSelectTokenCard(token.id)}
-              >
-              <span className="token-row-icon" style={{ color: token.color }} aria-hidden>
-                {token.tokenImageUrl ? (
-                  <img src={token.tokenImageUrl} alt="" className="token-row-image" />
-                ) : (
-                  <ChessPawn size={14} />
-                )}
-              </span>
-              <input
-                type="text"
-                className="token-row-label-input"
-                value={tokenNameDrafts[token.id] ?? token.name}
-                onFocus={() =>
-                  setTokenNameDrafts((prev) => ({
-                    ...prev,
-                    [token.id]: token.name,
-                  }))
-                }
-                onChange={(event) =>
-                  setTokenNameDrafts((prev) => ({
-                    ...prev,
-                    [token.id]: event.target.value,
-                  }))
-                }
-                onBlur={(event) => void commitTokenLabelEdit(token, event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.currentTarget.blur()
-                  }
-                }}
-                aria-label={`Token ${index + 1} name`}
-                placeholder={`Token ${index + 1}`}
-              />
-              {!token.tokenImageUrl ? (
-                <input
-                  type="color"
-                  value={token.color}
-                  onChange={(event) => void onUpdateToken(token.id, { color: event.target.value })}
-                  aria-label={`Token ${index + 1} color`}
-                />
-              ) : null}
-              <button
-                type="button"
-                className="token-row-delete"
-                onClick={() => onRequestDeleteToken(token.id)}
-                aria-label={`Delete token ${index + 1}`}
-                title="Delete token"
-              >
-                <Trash2 size={14} />
-              </button>
-              <IconValueSlider
-                className="token-row-size-row"
-                icon={<ALargeSmall size={14} />}
-                tooltip="Token Size"
-                value={token.size}
-                min={16}
-                max={TOKEN_SIZE_MAX}
-                step={1}
-                ariaLabel={`Token ${index + 1} size`}
-                onChange={(nextSize) => void onUpdateTokenSize(token.id, nextSize)}
-              />
-              <div className="token-row-toggles">
-                <button
-                  type="button"
-                  className={token.party ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
-                  onClick={() => {
-                    const next = !token.party
-                    if (next) {
-                      const viewDistance = tokenViewDistanceSliderValue(token)
-                      void onUpdateToken(token.id, {
-                        party: next,
-                        viewDistance,
-                      })
-                      return
-                    }
-                    void onUpdateToken(token.id, { party: next })
-                  }}
-                  aria-label="Toggle party token"
-                  data-tooltip="Party token"
-                >
-                  <User size={14} />
-                </button>
-                <button
-                  type="button"
-                  className={token.revealName ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
-                  onClick={() => void onUpdateToken(token.id, { revealName: !token.revealName })}
-                  aria-label="Toggle reveal name"
-                  data-tooltip="Reveal name"
-                >
-                  <Tag size={14} />
-                </button>
-                <button
-                  type="button"
-                  className={token.hidden ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
-                  onClick={() => void onUpdateToken(token.id, { hidden: !token.hidden })}
-                  aria-label="Toggle hide token"
-                  data-tooltip="Hide token"
-                >
-                  <EyeOff size={14} />
-                </button>
-              </div>
-              {token.party ? (
-                <div className="token-view-distance" aria-label="Token view distance">
-                  <span className="token-view-distance-icon fast-tooltip" data-tooltip="View Distance" aria-hidden>
-                    <Binoculars size={14} />
-                  </span>
-                  <input
-                    className="token-view-distance-slider"
-                    type="range"
-                    min={8}
-                    max={600}
-                    step={2}
-                    value={tokenViewDistanceSliderValue(token)}
-                    onChange={(event) => void onUpdateTokenViewDistance(token.id, Number(event.target.value))}
-                  />
-                  <span className="token-view-distance-value">{tokenViewDistanceSliderValue(token)}</span>
-                </div>
-              ) : null}
-            </div>
-          ))}
+            <div className="token-group-list">
+              {tokenGroups.map((group) => (
+                <section key={group.key} className="token-group-block" aria-label={group.label}>
+                  <div className="token-group-header">
+                    <h5 className="token-group-title">{group.label}</h5>
+                    <span className="token-group-count">{group.tokens.length}</span>
+                  </div>
+                  <div className="token-list">
+                    {group.tokens.map((token, index) => (
+                      <div
+                        key={token.id}
+                        className={selectedTokenIds.includes(token.id) ? 'token-row selected' : 'token-row'}
+                      >
+                        <div className="token-row-summary" onClick={() => onSelectTokenCard(token.id)}>
+                          <span className="token-row-icon" style={{ color: token.color }} aria-hidden>
+                            {token.tokenImageUrl ? (
+                              <img src={token.tokenImageUrl} alt="" className="token-row-image" />
+                            ) : (
+                              <ChessPawn size={14} />
+                            )}
+                          </span>
+                          <input
+                            type="text"
+                            className="token-row-label-input"
+                            value={tokenNameDrafts[token.id] ?? token.name}
+                            onFocus={() =>
+                              setTokenNameDrafts((prev) => ({
+                                ...prev,
+                                [token.id]: token.name,
+                              }))
+                            }
+                            onChange={(event) =>
+                              setTokenNameDrafts((prev) => ({
+                                ...prev,
+                                [token.id]: event.target.value,
+                              }))
+                            }
+                            onBlur={(event) => void commitTokenLabelEdit(token, event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.currentTarget.blur()
+                              }
+                            }}
+                            aria-label={`${group.label} token ${index + 1} name`}
+                            placeholder={`${group.label} ${index + 1}`}
+                          />
+                          <button
+                            type="button"
+                            className="token-row-expand"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              toggleTokenExpanded(token.id)
+                            }}
+                            aria-label={expandedTokenIds.includes(token.id) ? 'Collapse token controls' : 'Expand token controls'}
+                            title={expandedTokenIds.includes(token.id) ? 'Collapse' : 'Expand'}
+                          >
+                            {expandedTokenIds.includes(token.id) ? '-' : '+'}
+                          </button>
+                        </div>
+                        {expandedTokenIds.includes(token.id) ? (
+                          <div className="token-row-details">
+                            <div className="token-row-actions">
+                              {!token.tokenImageUrl ? (
+                                <input
+                                  type="color"
+                                  value={token.color}
+                                  onChange={(event) => void onUpdateToken(token.id, { color: event.target.value })}
+                                  aria-label={`${group.label} token ${index + 1} color`}
+                                />
+                              ) : null}
+                              <button
+                                type="button"
+                                className="token-row-delete"
+                                onClick={() => onRequestDeleteToken(token.id)}
+                                aria-label={`Delete ${group.label} token ${index + 1}`}
+                                title="Delete token"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                            <IconValueSlider
+                              className="token-row-size-row"
+                              icon={<ALargeSmall size={14} />}
+                              tooltip="Token Size"
+                              value={token.size}
+                              min={16}
+                              max={TOKEN_SIZE_MAX}
+                              step={1}
+                              ariaLabel={`${group.label} token ${index + 1} size`}
+                              onChange={(nextSize) => void onUpdateTokenSize(token.id, nextSize)}
+                            />
+                            <div className="token-row-toggles">
+                              <button
+                                type="button"
+                                className={token.party ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
+                                onClick={() => {
+                                  const next = !token.party
+                                  if (next) {
+                                    const viewDistance = tokenViewDistanceSliderValue(token)
+                                    void onUpdateToken(token.id, {
+                                      party: next,
+                                      viewDistance,
+                                    })
+                                    return
+                                  }
+                                  void onUpdateToken(token.id, { party: next })
+                                }}
+                                aria-label="Toggle party token"
+                                data-tooltip="Party token"
+                              >
+                                <User size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                className={token.revealName ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
+                                onClick={() => void onUpdateToken(token.id, { revealName: !token.revealName })}
+                                aria-label="Toggle reveal name"
+                                data-tooltip="Reveal name"
+                              >
+                                <Tag size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                className={token.hidden ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
+                                onClick={() => void onUpdateToken(token.id, { hidden: !token.hidden })}
+                                aria-label="Toggle hide token"
+                                data-tooltip="Hide token"
+                              >
+                                <EyeOff size={14} />
+                              </button>
+                            </div>
+                            {token.party ? (
+                              <div className="token-view-distance" aria-label="Token view distance">
+                                <span className="token-view-distance-icon fast-tooltip" data-tooltip="View Distance" aria-hidden>
+                                  <Binoculars size={14} />
+                                </span>
+                                <input
+                                  className="token-view-distance-slider"
+                                  type="range"
+                                  min={8}
+                                  max={600}
+                                  step={2}
+                                  value={tokenViewDistanceSliderValue(token)}
+                                  onChange={(event) => void onUpdateTokenViewDistance(token.id, Number(event.target.value))}
+                                />
+                                <span className="token-view-distance-value">{tokenViewDistanceSliderValue(token)}</span>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ))}
             </div>
           ) : null}
         </section>

@@ -2,7 +2,8 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Check, ChevronLeft, Plus, ShoppingBag, Sparkles, Star, X } from 'lucide-react'
 import { collection, doc, onSnapshot, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore'
-import { db } from '../../firebase'
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
+import { auth, db, storage } from '../../firebase'
 import type {
   CampaignItem,
   CharacterRecord,
@@ -23,6 +24,7 @@ import { useItems } from '../items/useItems'
 import { useItemApprovals } from './useItemApprovals'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
+import { normalizeImageForUpload } from '../common/imageNormalization'
 import { OSE_WEAPON_CATALOG, weaponCatalogById } from './weaponCatalog'
 import { OSE_ARMOUR_CATALOG, armourCatalogById } from './armourCatalog'
 import { OSE_GENERAL_CATALOG, generalCatalogById } from './generalCatalog'
@@ -99,6 +101,7 @@ type CharacterTabProps = {
   updateCharacter: (characterId: string, updates: Partial<CharacterRecord>) => void
   deleteCharacter: (characterId: string) => void
   hasPendingWrite: (id: string) => boolean
+  embeddedMode?: boolean
 }
 
 type AdventureEditableCode = 'FG' | 'FT' | 'HT' | 'LD' | 'SD'
@@ -576,6 +579,7 @@ export function CharacterTab({
   updateCharacter,
   deleteCharacter,
   hasPendingWrite,
+  embeddedMode = false,
 }: CharacterTabProps) {
   const {
     isMobile, setMobileCharacterView,
@@ -697,28 +701,30 @@ export function CharacterTab({
     const unsub = onSnapshot(
       collection(db, 'campaigns', campaignId, 'characters'),
       (snapshot) => {
-        const next = snapshot.docs.map((docSnap) => {
-          const data = docSnap.data() as {
-            name?: string
-            ownerUserId?: string
-            ownerUsername?: string | null
-            details?: CharacterRecord['details']
-          }
-          return {
-            id: docSnap.id,
-            name: data.name ?? docSnap.id,
-            ownerUserId: data.ownerUserId ?? '',
-            ownerUsername: typeof data.ownerUsername === 'string' ? data.ownerUsername : null,
-            details: data.details ?? null,
-          } satisfies TransferTargetCharacter
-        })
+        const next = snapshot.docs
+          .map((docSnap) => {
+            const data = docSnap.data() as {
+              name?: string
+              ownerUserId?: string
+              ownerUsername?: string | null
+              details?: CharacterRecord['details']
+            }
+            return {
+              id: docSnap.id,
+              name: data.name ?? docSnap.id,
+              ownerUserId: data.ownerUserId ?? '',
+              ownerUsername: typeof data.ownerUsername === 'string' ? data.ownerUsername : null,
+              details: data.details ?? null,
+            } satisfies TransferTargetCharacter
+          })
+          .filter((character) => role === 'gm' || campaignPlayers.some((player) => player.userId === character.ownerUserId))
         setAllCampaignCharacters(next)
       },
       () => setAllCampaignCharacters([]),
     )
 
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, campaignPlayers, role])
 
   useEffect(() => {
     if (!campaignId) {
@@ -808,9 +814,17 @@ export function CharacterTab({
     return () => clearTimeout(timer)
   }, [overflowFeedback])
 
+  const visibleCharacters = useMemo(
+    () => (
+      embeddedMode && role === 'player'
+        ? characters.filter((character) => character.id === currentCharacterId && character.ownerUserId === currentUserId)
+        : characters
+    ),
+    [characters, currentCharacterId, currentUserId, embeddedMode, role],
+  )
   const sortedCharacters = useMemo(
-    () => [...characters].sort((a, b) => a.name.localeCompare(b.name)),
-    [characters],
+    () => [...visibleCharacters].sort((a, b) => a.name.localeCompare(b.name)),
+    [visibleCharacters],
   )
   const authoredCampaignItems = useMemo(
     () => campaignItems.filter((item) => item.status === 'authored'),
@@ -829,8 +843,9 @@ export function CharacterTab({
   const parsedGrantBaseXp = Math.max(0, Number.parseInt(grantXpBase, 10) || 0)
   const parsedGrantGoldGp = Math.max(0, Number.parseInt(grantGoldGp, 10) || 0)
 
-  const effectiveSelected =
-    selectedCharacter ?? sortedCharacters.find((character) => character.id === selectedCharacterId) ?? null
+  const effectiveSelected = embeddedMode
+    ? (sortedCharacters[0] ?? null)
+    : selectedCharacter ?? sortedCharacters.find((character) => character.id === selectedCharacterId) ?? null
 
   useEffect(() => {
     setLevelUpModalOpen(false)
@@ -844,19 +859,22 @@ export function CharacterTab({
   }, [transferPickerOpen])
 
   useEffect(() => {
-    if (sortedCharacters.length === 0) return
+    if (embeddedMode || sortedCharacters.length === 0) return
     if (!effectiveSelected) {
       setSelectedCharacterId(sortedCharacters[0].id)
     }
-  }, [effectiveSelected, setSelectedCharacterId, sortedCharacters])
+  }, [effectiveSelected, embeddedMode, setSelectedCharacterId, sortedCharacters])
   const canCreateCharacter = role === 'gm' || role === 'player'
   const canEditSelected = !!effectiveSelected
+    && (role === 'gm' || effectiveSelected.ownerUserId === currentUserId)
   const canGrant = role === 'gm'
   const canSetCurrentCharacter = role === 'player'
     && !!effectiveSelected
     && effectiveSelected.ownerUserId === currentUserId
   const canDeleteCharacter = (character: CharacterRecord) => role === 'gm' || character.ownerUserId === currentUserId
   const canAssignCharacter = role === 'gm' && !!effectiveSelected && !grantMode
+  const effectiveShowListPane = embeddedMode ? false : showListPane
+  const effectiveShowDetailPane = embeddedMode ? true : showDetailPane
   const assignmentOptions = useMemo(
     () => campaignPlayers.filter((player) => player.userId !== effectiveSelected?.ownerUserId),
     [campaignPlayers, effectiveSelected?.ownerUserId],
@@ -1329,6 +1347,26 @@ export function CharacterTab({
   const derivedOverlandMove = currentBaseMove / 5
   const derivedExplorationMove = currentBaseMove
   const derivedEncounterMove = currentBaseMove / 3
+
+  const uploadCharacterTokenImage = async (file: File) => {
+    if (!effectiveSelected) throw new Error('No character selected.')
+    const normalized = await normalizeImageForUpload(file, {
+      maxWidth: 1024,
+      maxHeight: 1024,
+      preferType: 'image/webp',
+      quality: 0.9,
+    })
+    const safeName = normalized.file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const storagePath = `campaigns/${campaignId}/characters/${effectiveSelected.id}/token-icons/${Date.now()}-${safeName}`
+    const tokenImageRef = ref(storage, storagePath)
+    await auth.currentUser?.getIdToken(true)
+    await uploadBytes(tokenImageRef, normalized.file, { contentType: normalized.file.type })
+    const customImageUrl = await getDownloadURL(tokenImageRef)
+    return {
+      customImageUrl,
+      customImageName: file.name.replace(/\.[^/.]+$/, ''),
+    }
+  }
 
   const addCharacter = (creationMode: 'new' | 'established') => {
     if (!canCreateCharacter) return
@@ -2083,7 +2121,7 @@ export function CharacterTab({
 
   return (
     <div className="maps-layout monsters-layout characters-layout">
-      {showListPane ? (
+      {effectiveShowListPane ? (
         <CharacterListPane
           role={role}
           canCreateCharacter={canCreateCharacter}
@@ -2115,7 +2153,7 @@ export function CharacterTab({
         />
       ) : null}
 
-      {showDetailPane ? (
+      {effectiveShowDetailPane ? (
         <div className="monsters-detail characters-detail">
           <div className="monsters-detail-inner characters-detail-inner">
             {!isMobile && (effectiveSelected || grantMode) ? (
@@ -2195,7 +2233,7 @@ export function CharacterTab({
                 </div>
               </div>
             ) : null}
-            {isMobile ? (
+            {isMobile && !embeddedMode ? (
               <div className="monster-detail-header-row">
                 {effectiveSelected || grantMode ? (
                   <button
@@ -2575,7 +2613,7 @@ export function CharacterTab({
                 </section>
               </div>
             ) : !effectiveSelected ? (
-              <p>Select a character from the list.</p>
+              <p>{embeddedMode ? "You don't have a character, yet." : 'Select a character from the list.'}</p>
             ) : (
               <div className="monster-editor-grid character-editor-grid">
                 {activePage === 'core' ? (
@@ -2690,6 +2728,7 @@ export function CharacterTab({
                                 portraitFocusY={effectiveSelected.portraitFocusY}
                                 tokenIcon={effectiveSelected.tokenIcon}
                                 onChange={(updates) => updateSelectedCharacter(updates)}
+                                onUploadTokenImage={uploadCharacterTokenImage}
                                 portraitAltLabel="Character portrait"
                                 tokenButtonAriaLabel="Edit character token icon"
                                 removePortraitMessage="Remove the portrait image from this character?"
@@ -3041,6 +3080,7 @@ export function CharacterTab({
                                 portraitFocusY={effectiveSelected.portraitFocusY}
                                 tokenIcon={effectiveSelected.tokenIcon}
                                 onChange={(updates) => updateSelectedCharacter(updates)}
+                                onUploadTokenImage={uploadCharacterTokenImage}
                                 portraitAltLabel="Character portrait"
                                 tokenButtonAriaLabel="Edit character token icon"
                                 removePortraitMessage="Remove the portrait image from this character?"

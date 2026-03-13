@@ -16,7 +16,7 @@ type UseFogToolsOptions = {
   fullScreenOpen: boolean
   isMobile: boolean
   mobileGmPane: 'map' | 'controls'
-  mobilePlayerPane: 'map' | 'controls'
+  mobilePlayerPane: 'map' | 'controls' | 'character'
   inlineFogSize: { width: number; height: number }
   fullFogSize: { width: number; height: number }
   fogTool: 'reveal' | 'hide' | null

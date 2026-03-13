@@ -10,6 +10,7 @@ import {
   serverTimestamp,
   setDoc,
   updateDoc,
+  where,
   writeBatch,
 } from 'firebase/firestore'
 import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage'
@@ -380,7 +381,14 @@ export function useMapData({
       return
     }
 
-    const annotationsQuery = query(collection(db, 'campaigns', campaignId, 'maps', selectedMapId, 'annotations'))
+    const annotationsCollection = collection(db, 'campaigns', campaignId, 'maps', selectedMapId, 'annotations')
+    const annotationsQuery = role === 'gm'
+      ? query(annotationsCollection)
+      : query(
+        annotationsCollection,
+        where('kind', '==', 'player'),
+        where('hidden', '==', false),
+      )
     const unsub = onSnapshot(
       annotationsQuery,
       (snap) => {
@@ -411,7 +419,7 @@ export function useMapData({
     )
 
     return () => unsub()
-  }, [campaignId, selectedMapId])
+  }, [campaignId, role, selectedMapId])
 
   // ── Monsters subscription (for token spawn picker) ──────────────────────────
   useEffect(() => {
@@ -459,7 +467,11 @@ export function useMapData({
 
   // ── NPCs subscription (for token spawn picker + scene presentation) ───────
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'npcs'), (snap) => {
+    const npcsCollection = collection(db, 'campaigns', campaignId, 'npcs')
+    const npcsQuery = role === 'gm'
+      ? query(npcsCollection)
+      : query(npcsCollection, where('visibleToPlayers', '==', true))
+    const unsub = onSnapshot(npcsQuery, (snap) => {
       setMapNpcs(
         snap.docs
           .map((d) => {
@@ -482,7 +494,7 @@ export function useMapData({
       )
     })
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, role])
 
   // ── Derived state ───────────────────────────────────────────────────────────
   const visibleMaps = useMemo(

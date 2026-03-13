@@ -28,6 +28,10 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == resource.data.ownerUserId;
     }
 
+    function onlyChanges(allowedKeys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys);
+    }
+
     function isValidUsername(username) {
       return username is string && username.matches('^[A-Za-z0-9_!@#$%^&*()]{7}$');
     }
@@ -164,7 +168,21 @@ service cloud.firestore {
       match /npcs/{npcId} {
         allow read: if isCampaignGM(campaignId)
           || (isCampaignMember(campaignId) && resource.data.visibleToPlayers == true);
-        allow write: if isCampaignGM(campaignId);
+        allow create, delete: if isCampaignGM(campaignId);
+        allow update: if isCampaignGM(campaignId) || (
+          isCampaignMember(campaignId)
+          && resource.data.visibleToPlayers == true
+          && request.resource.data.visibleToPlayers == true
+          && request.resource.data.name == resource.data.name
+          && request.resource.data.title == resource.data.title
+          && request.resource.data.tags == resource.data.tags
+          && request.resource.data.portraitUrl == resource.data.portraitUrl
+          && request.resource.data.portraitFocusX == resource.data.portraitFocusX
+          && request.resource.data.portraitFocusY == resource.data.portraitFocusY
+          && request.resource.data.tokenIcon == resource.data.tokenIcon
+          && request.resource.data.playerDescription == resource.data.playerDescription
+          && onlyChanges(['playerNotes', 'updatedAt'])
+        );
       }
 
       match /npcPrivate/{npcId} {
