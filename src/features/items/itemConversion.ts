@@ -32,6 +32,7 @@ export function campaignItemToInventoryItem(item: CampaignItem): CharacterInvent
     sourceItemId: item.id,
     description: item.description,
     specialRule: item.specialRule,
+    portraitPath: item.portraitPath,
     portraitUrl: item.portraitUrl,
   }
 
@@ -117,6 +118,7 @@ export function inventoryItemToCampaignItem(
     status: overrides.status,
     droppedByCharacterId: overrides.droppedByCharacterId,
     droppedByCharacterName: overrides.droppedByCharacterName,
+    portraitPath: item.portraitPath,
     portraitUrl: item.portraitUrl ?? null,
     portraitFocusX: 50,
     portraitFocusY: 50,

@@ -1,6 +1,6 @@
 import { Check, ImagePlus, Trash2, X } from 'lucide-react'
-import { useRef, useState } from 'react'
-import { normalizeImageForDataUrl } from './imageNormalization'
+import { useEffect, useRef, useState } from 'react'
+import { normalizeImageForUpload } from './imageNormalization'
 import { TokenPawnPreview, type TokenIconConfig } from '../tokens/TokenIconEditor'
 import { TokenPickerModal } from '../tokens/TokenPickerModal'
 import { ConfirmModal } from './ConfirmModal'
@@ -12,6 +12,7 @@ type EntityMediaEditorProps = {
   portraitFocusY: number
   tokenIcon: TokenIconConfig
   onChange: (updates: Partial<{
+    portraitPath?: string
     portraitUrl: string | null
     portraitFocusX: number
     portraitFocusY: number
@@ -21,8 +22,13 @@ type EntityMediaEditorProps = {
   tokenButtonAriaLabel?: string
   removePortraitMessage?: string
   onUploadTokenImage?: (file: File) => Promise<{
+    customImagePath?: string
     customImageUrl?: string
     customImageName?: string
+  }>
+  onUploadPortraitImage?: (file: File) => Promise<{
+    portraitPath?: string
+    portraitUrl?: string | null
   }>
 }
 
@@ -37,9 +43,11 @@ export function EntityMediaEditor({
   tokenButtonAriaLabel = 'Edit token icon',
   removePortraitMessage = 'Remove portrait image?',
   onUploadTokenImage,
+  onUploadPortraitImage,
 }: EntityMediaEditorProps) {
   const [portraitError, setPortraitError] = useState<string | null>(null)
   const [portraitDraft, setPortraitDraft] = useState<{
+    file: File
     imageUrl: string
     focusX: number
     focusY: number
@@ -50,20 +58,37 @@ export function EntityMediaEditor({
 
   const portraitObjectPosition = `${portraitFocusX ?? 50}% ${portraitFocusY ?? 50}%`
 
+  useEffect(() => {
+    return () => {
+      if (portraitDraft?.imageUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(portraitDraft.imageUrl)
+      }
+    }
+  }, [portraitDraft])
+
   const handlePortraitFile = (file: File | null) => {
     if (!file) return
     if (!file.type.startsWith('image/')) {
       setPortraitError('Please choose an image file.')
       return
     }
-    void normalizeImageForDataUrl(file, {
+    void normalizeImageForUpload(file, {
       maxWidth: 600,
       maxHeight: 800,
       preferType: 'image/webp',
       quality: 0.9,
     })
-      .then(({ dataUrl }) => {
-        setPortraitDraft({ imageUrl: dataUrl, focusX: portraitFocusX, focusY: portraitFocusY })
+      .then(({ file: normalizedFile }) => {
+        const nextPreviewUrl = URL.createObjectURL(normalizedFile)
+        setPortraitDraft((current) => {
+          if (current?.imageUrl.startsWith('blob:')) URL.revokeObjectURL(current.imageUrl)
+          return {
+            file: normalizedFile,
+            imageUrl: nextPreviewUrl,
+            focusX: portraitFocusX,
+            focusY: portraitFocusY,
+          }
+        })
         setPortraitError(null)
       })
       .catch(() => {
@@ -73,11 +98,29 @@ export function EntityMediaEditor({
 
   const applyPortraitDraft = () => {
     if (!portraitDraft) return
+    if (onUploadPortraitImage) {
+      void onUploadPortraitImage(portraitDraft.file)
+        .then(({ portraitPath, portraitUrl: nextPortraitUrl }) => {
+          onChange({
+            portraitPath,
+            portraitUrl: nextPortraitUrl ?? null,
+            portraitFocusX: portraitDraft.focusX,
+            portraitFocusY: portraitDraft.focusY,
+          })
+          if (portraitDraft.imageUrl.startsWith('blob:')) URL.revokeObjectURL(portraitDraft.imageUrl)
+          setPortraitDraft(null)
+        })
+        .catch(() => {
+          setPortraitError('Unable to upload that image. Please try again.')
+        })
+      return
+    }
     onChange({
       portraitUrl: portraitDraft.imageUrl,
       portraitFocusX: portraitDraft.focusX,
       portraitFocusY: portraitDraft.focusY,
     })
+    if (portraitDraft.imageUrl.startsWith('blob:')) URL.revokeObjectURL(portraitDraft.imageUrl)
     setPortraitDraft(null)
   }
 
@@ -167,7 +210,7 @@ export function EntityMediaEditor({
         message={removePortraitMessage}
         confirmLabel="Remove"
         onConfirm={() => {
-          onChange({ portraitUrl: null, portraitFocusX: 50, portraitFocusY: 50 })
+          onChange({ portraitPath: '', portraitUrl: null, portraitFocusX: 50, portraitFocusY: 50 })
           setDeletePortraitOpen(false)
         }}
         onCancel={() => setDeletePortraitOpen(false)}

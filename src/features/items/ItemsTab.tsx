@@ -6,6 +6,7 @@ import type { CampaignItem, CampaignItemType, CharacterInventoryItem, CharacterG
 import type { TokenIconConfig } from '../tokens/TokenIconEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
+import { uploadEntityImage } from '../common/mediaStorage'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
 import { useItems, toFirestoreItem } from './useItems'
 import { campaignItemToInventoryItem, campaignGoldToInventoryChunks } from './itemConversion'
@@ -46,6 +47,7 @@ const newItemTemplate = (type: CampaignItemType): CampaignItem => ({
   typeId: 'custom',
   typeName: '',
   status: 'authored',
+  portraitPath: '',
   portraitUrl: null,
   portraitFocusX: 50,
   portraitFocusY: 50,
@@ -124,6 +126,41 @@ export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
   const updateSelectedItem = (updates: Partial<CampaignItem>) => {
     if (!selectedItemId) return
     updateItem(selectedItemId, updates)
+  }
+
+  const uploadItemTokenImage = async (file: File) => {
+    if (!selectedItem) throw new Error('No item selected.')
+    const { path, url, name } = await uploadEntityImage({
+      campaignId,
+      collectionName: 'items',
+      entityId: selectedItem.id,
+      mediaKind: 'token-icons',
+      file,
+      maxWidth: 1024,
+      maxHeight: 1024,
+    })
+    return {
+      customImagePath: path,
+      customImageUrl: url,
+      customImageName: name,
+    }
+  }
+
+  const uploadItemPortraitImage = async (file: File) => {
+    if (!selectedItem) throw new Error('No item selected.')
+    const { path, url } = await uploadEntityImage({
+      campaignId,
+      collectionName: 'items',
+      entityId: selectedItem.id,
+      mediaKind: 'portraits',
+      file,
+      maxWidth: 600,
+      maxHeight: 800,
+    })
+    return {
+      portraitPath: path,
+      portraitUrl: url,
+    }
   }
 
   const updateType = (nextType: CampaignItemType) => {
@@ -527,6 +564,8 @@ export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
                       portraitFocusY={selectedItem.portraitFocusY}
                       tokenIcon={selectedItem.tokenIcon}
                       onChange={(updates) => updateSelectedItem(updates)}
+                      onUploadPortraitImage={uploadItemPortraitImage}
+                      onUploadTokenImage={uploadItemTokenImage}
                       portraitAltLabel="Item portrait"
                       tokenButtonAriaLabel="Edit item token icon"
                       removePortraitMessage="Remove the portrait image from this item?"

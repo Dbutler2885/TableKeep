@@ -4,6 +4,7 @@ import { collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, setDoc,
 import { db } from '../../firebase'
 import type { NpcPrivateRecord, NpcRecord, Role } from '../../types/app'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
+import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence, uploadEntityImage } from '../common/mediaStorage'
 import { RichTextEditor } from '../common/RichTextEditor'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
 
@@ -24,6 +25,7 @@ const makeNpc = (): NpcRecord => ({
   title: '',
   visibleToPlayers: false,
   tags: [],
+  portraitPath: '',
   portraitUrl: null,
   portraitFocusX: 50,
   portraitFocusY: 50,
@@ -103,6 +105,7 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
             title: typeof data.title === 'string' ? data.title : '',
             visibleToPlayers: data.visibleToPlayers === true,
             tags: Array.isArray(data.tags) ? data.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+            portraitPath: typeof data.portraitPath === 'string' ? data.portraitPath : '',
             portraitUrl: typeof data.portraitUrl === 'string' ? data.portraitUrl : null,
             portraitFocusX: typeof data.portraitFocusX === 'number' ? data.portraitFocusX : 50,
             portraitFocusY: typeof data.portraitFocusY === 'number' ? data.portraitFocusY : 50,
@@ -116,6 +119,41 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
     })
     return () => unsub()
   }, [campaignId, role])
+
+  useEffect(() => {
+    const npcsNeedingMedia = npcs.filter((npc) =>
+      (npc.portraitPath && !isRenderableImageUrl(npc.portraitUrl))
+      || (npc.tokenIcon.customImagePath && !isRenderableImageUrl(npc.tokenIcon.customImageUrl)),
+    )
+    if (npcsNeedingMedia.length === 0) return
+
+    void Promise.allSettled(
+      npcsNeedingMedia.map(async (npc) => {
+        const [portraitUrl, customImageUrl] = await Promise.all([
+          npc.portraitPath ? resolveStoragePathUrl(npc.portraitPath) : Promise.resolve<string | null>(null),
+          npc.tokenIcon.customImagePath ? resolveStoragePathUrl(npc.tokenIcon.customImagePath) : Promise.resolve<string | null>(null),
+        ])
+        setNpcs((current) =>
+          current.map((entry) =>
+            entry.id === npc.id
+              ? {
+                  ...entry,
+                  ...(portraitUrl ? { portraitUrl } : {}),
+                  ...(customImageUrl
+                    ? {
+                        tokenIcon: {
+                          ...entry.tokenIcon,
+                          customImageUrl,
+                        },
+                      }
+                    : {}),
+                }
+              : entry,
+          ),
+        )
+      }),
+    )
+  }, [npcs])
 
   useEffect(() => {
     if (role !== 'gm') {
@@ -164,9 +202,10 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
       delete pendingNpcWritesRef.current[npcId]
       const npc = npcsRef.current.find((entry) => entry.id === npcId)
       if (!npc) return
-      const { id, ...data } = npc
+      const { id, tokenIcon, portraitUrl: _portraitUrl, ...data } = npc
       void setDoc(doc(db, 'campaigns', campaignId, 'npcs', id), {
         ...data,
+        tokenIcon: sanitizeTokenIconForPersistence(tokenIcon),
         updatedAt: serverTimestamp(),
       }, { merge: true })
     }, 500)
@@ -208,6 +247,41 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
   const updateSelectedNpc = (updates: Partial<Omit<NpcRecord, 'id'>>) => {
     if (!selectedNpc) return
     updateNpc(selectedNpc.id, updates)
+  }
+
+  const uploadNpcTokenImage = async (file: File) => {
+    if (!selectedNpc) throw new Error('No NPC selected.')
+    const { path, url, name } = await uploadEntityImage({
+      campaignId,
+      collectionName: 'npcs',
+      entityId: selectedNpc.id,
+      mediaKind: 'token-icons',
+      file,
+      maxWidth: 1024,
+      maxHeight: 1024,
+    })
+    return {
+      customImagePath: path,
+      customImageUrl: url,
+      customImageName: name,
+    }
+  }
+
+  const uploadNpcPortraitImage = async (file: File) => {
+    if (!selectedNpc) throw new Error('No NPC selected.')
+    const { path, url } = await uploadEntityImage({
+      campaignId,
+      collectionName: 'npcs',
+      entityId: selectedNpc.id,
+      mediaKind: 'portraits',
+      file,
+      maxWidth: 600,
+      maxHeight: 800,
+    })
+    return {
+      portraitPath: path,
+      portraitUrl: url,
+    }
   }
 
   const updatePlayerNotes = (npcId: string, value: string) => {
@@ -568,6 +642,8 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
                       portraitFocusY={selectedNpc.portraitFocusY}
                       tokenIcon={selectedNpc.tokenIcon}
                       onChange={(updates) => void updateSelectedNpc(updates)}
+                      onUploadPortraitImage={uploadNpcPortraitImage}
+                      onUploadTokenImage={uploadNpcTokenImage}
                       portraitAltLabel="NPC portrait"
                       tokenButtonAriaLabel="Edit NPC token icon"
                       removePortraitMessage="Remove the portrait image from this NPC?"

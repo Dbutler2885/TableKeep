@@ -6,6 +6,7 @@ export type TokenIconConfig = {
   icon: 'pawn' | 'custom'
   color: string
   size: number
+  customImagePath?: string
   customImageUrl?: string
   customImageName?: string
 }

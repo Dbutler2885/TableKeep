@@ -2,8 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Check, ChevronLeft, Plus, ShoppingBag, Sparkles, Star, X } from 'lucide-react'
 import { collection, doc, onSnapshot, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore'
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
-import { auth, db, storage } from '../../firebase'
+import { db } from '../../firebase'
 import type {
   CampaignItem,
   CharacterRecord,
@@ -24,7 +23,7 @@ import { useItems } from '../items/useItems'
 import { useItemApprovals } from './useItemApprovals'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
-import { normalizeImageForUpload } from '../common/imageNormalization'
+import { sanitizeTokenIconForPersistence, uploadEntityImage } from '../common/mediaStorage'
 import { OSE_WEAPON_CATALOG, weaponCatalogById } from './weaponCatalog'
 import { OSE_ARMOUR_CATALOG, armourCatalogById } from './armourCatalog'
 import { OSE_GENERAL_CATALOG, generalCatalogById } from './generalCatalog'
@@ -58,7 +57,6 @@ import {
   dexMissileModByDex,
   wisMagicSaveModifierByScore,
   primeRequisiteCodesForClass,
-  clampInSix,
   saveScoresForClassLevel,
   thacoForClassLevel,
   classHitDieByClass,
@@ -977,6 +975,13 @@ export function CharacterTab({
 
   const updateSelectedCharacter = (updates: Partial<CharacterRecord>) => {
     if (!effectiveSelected) return
+    const nextUpdates = { ...updates }
+    delete nextUpdates.hpMax
+    updateCharacter(effectiveSelected.id, nextUpdates)
+  }
+
+  const updateSelectedCharacterSystem = (updates: Partial<CharacterRecord>) => {
+    if (!effectiveSelected) return
     updateCharacter(effectiveSelected.id, updates)
   }
 
@@ -1350,21 +1355,36 @@ export function CharacterTab({
 
   const uploadCharacterTokenImage = async (file: File) => {
     if (!effectiveSelected) throw new Error('No character selected.')
-    const normalized = await normalizeImageForUpload(file, {
+    const { path, url, name } = await uploadEntityImage({
+      campaignId,
+      collectionName: 'characters',
+      entityId: effectiveSelected.id,
+      mediaKind: 'token-icons',
+      file,
       maxWidth: 1024,
       maxHeight: 1024,
-      preferType: 'image/webp',
-      quality: 0.9,
     })
-    const safeName = normalized.file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const storagePath = `campaigns/${campaignId}/characters/${effectiveSelected.id}/token-icons/${Date.now()}-${safeName}`
-    const tokenImageRef = ref(storage, storagePath)
-    await auth.currentUser?.getIdToken(true)
-    await uploadBytes(tokenImageRef, normalized.file, { contentType: normalized.file.type })
-    const customImageUrl = await getDownloadURL(tokenImageRef)
     return {
-      customImageUrl,
-      customImageName: file.name.replace(/\.[^/.]+$/, ''),
+      customImagePath: path,
+      customImageUrl: url,
+      customImageName: name,
+    }
+  }
+
+  const uploadCharacterPortraitImage = async (file: File) => {
+    if (!effectiveSelected) throw new Error('No character selected.')
+    const { path, url } = await uploadEntityImage({
+      campaignId,
+      collectionName: 'characters',
+      entityId: effectiveSelected.id,
+      mediaKind: 'portraits',
+      file,
+      maxWidth: 600,
+      maxHeight: 800,
+    })
+    return {
+      portraitPath: path,
+      portraitUrl: url,
     }
   }
 
@@ -1384,6 +1404,7 @@ export function CharacterTab({
       hpMax: 0,
       ac: 10,
       xp: 0,
+      portraitPath: '',
       portraitUrl: null,
       portraitFocusX: 50,
       portraitFocusY: 50,
@@ -1404,10 +1425,10 @@ export function CharacterTab({
       hpMax: nextCharacter.hpMax,
       ac: nextCharacter.ac,
       xp: nextCharacter.xp,
-      portraitUrl: nextCharacter.portraitUrl,
+      portraitPath: nextCharacter.portraitPath ?? '',
       portraitFocusX: nextCharacter.portraitFocusX,
       portraitFocusY: nextCharacter.portraitFocusY,
-      tokenIcon: nextCharacter.tokenIcon,
+      tokenIcon: sanitizeTokenIconForPersistence(nextCharacter.tokenIcon),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
@@ -1498,7 +1519,7 @@ export function CharacterTab({
         [effectiveSelected.id]: String(nextThaco),
       }))
     }
-    updateSelectedCharacter({
+    updateSelectedCharacterSystem({
       level: nextLevel,
       hpMax: Math.max(0, effectiveSelected.hpMax) + levelUpHpGain,
       hpCurrent: Math.max(0, effectiveSelected.hpCurrent) + levelUpHpGain,
@@ -2016,18 +2037,7 @@ export function CharacterTab({
                   min={1}
                   max={6}
                   value={selectedAdventureScores[row.code as AdventureEditableCode]}
-                  onChange={(event) => {
-                    if (!effectiveSelected) return
-                    const nextValue = clampInSix(event.target.value)
-                    setAdventureScoresByCharacterId((current) => ({
-                      ...current,
-                      [effectiveSelected.id]: {
-                        ...(current[effectiveSelected.id] ?? adventureDefaultsByClass(effectiveSelected.className)),
-                        [row.code]: nextValue,
-                      },
-                    }))
-                  }}
-                  disabled={!canEditSelected}
+                  readOnly
                 />
               )}
               <span className="character-in-six-suffix">-in-6</span>
@@ -2677,7 +2687,7 @@ export function CharacterTab({
                                       delete next[effectiveSelected.id]
                                       return next
                                     })
-                                    updateSelectedCharacter({ className: nextClass, hpCurrent: 0, hpMax: 0 })
+                                    updateSelectedCharacterSystem({ className: nextClass, hpCurrent: 0, hpMax: 0 })
                                   } else {
                                     updateSelectedCharacter({ className: nextClass })
                                   }
@@ -2728,6 +2738,7 @@ export function CharacterTab({
                                 portraitFocusY={effectiveSelected.portraitFocusY}
                                 tokenIcon={effectiveSelected.tokenIcon}
                                 onChange={(updates) => updateSelectedCharacter(updates)}
+                                onUploadPortraitImage={uploadCharacterPortraitImage}
                                 onUploadTokenImage={uploadCharacterTokenImage}
                                 portraitAltLabel="Character portrait"
                                 tokenButtonAriaLabel="Edit character token icon"
@@ -2904,8 +2915,8 @@ export function CharacterTab({
                                   <input
                                     type="number"
                                     value={String(effectiveSelected.hpMax)}
-                                    onChange={(event) => updateSelectedCharacter({ hpMax: Number(event.target.value || 0) })}
-                                    disabled={!canEditSelected || isGuidedCreation}
+                                    readOnly
+                                    disabled
                                   />
                                   <small>Maximum hit points</small>
                                 </div>
@@ -3080,6 +3091,7 @@ export function CharacterTab({
                                 portraitFocusY={effectiveSelected.portraitFocusY}
                                 tokenIcon={effectiveSelected.tokenIcon}
                                 onChange={(updates) => updateSelectedCharacter(updates)}
+                                onUploadPortraitImage={uploadCharacterPortraitImage}
                                 onUploadTokenImage={uploadCharacterTokenImage}
                                 portraitAltLabel="Character portrait"
                                 tokenButtonAriaLabel="Edit character token icon"

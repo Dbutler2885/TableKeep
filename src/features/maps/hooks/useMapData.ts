@@ -18,6 +18,7 @@ import { auth, db, storage } from '../../../firebase'
 import { firebaseConfig } from '../../../firebase/config'
 import type { Role } from '../../../types/app'
 import type { TokenIconConfig } from '../../tokens/TokenIconEditor'
+import { isRenderableImageUrl, resolveStoragePathUrl } from '../../common/mediaStorage'
 import type {
   AnnotationRecord,
   CharacterTokenSummary,
@@ -437,7 +438,7 @@ export function useMapData({
             }
           })
           // Only surface monsters that have a custom token image configured.
-          .filter((m) => m.tokenIcon.icon === 'custom' && !!m.tokenIcon.customImageUrl)
+          .filter((m) => m.tokenIcon.icon === 'custom' && !!(m.tokenIcon.customImagePath || m.tokenIcon.customImageUrl))
           .sort((a, b) => a.name.localeCompare(b.name))
       )
     })
@@ -480,6 +481,7 @@ export function useMapData({
               id: d.id,
               name: typeof data.name === 'string' ? data.name : '',
               title: typeof data.title === 'string' ? data.title : '',
+              portraitPath: typeof data.portraitPath === 'string' ? data.portraitPath : '',
               portraitUrl: typeof data.portraitUrl === 'string' ? data.portraitUrl : null,
               portraitFocusX: typeof data.portraitFocusX === 'number' ? data.portraitFocusX : 50,
               portraitFocusY: typeof data.portraitFocusY === 'number' ? data.portraitFocusY : 50,
@@ -495,6 +497,93 @@ export function useMapData({
     })
     return () => unsub()
   }, [campaignId, role])
+
+  useEffect(() => {
+    const monstersNeedingMedia = mapMonsters.filter(
+      (monster) => monster.tokenIcon.customImagePath && !isRenderableImageUrl(monster.tokenIcon.customImageUrl),
+    )
+    if (monstersNeedingMedia.length === 0) return
+
+    void Promise.allSettled(
+      monstersNeedingMedia.map(async (monster) => {
+        const customImageUrl = await resolveStoragePathUrl(monster.tokenIcon.customImagePath as string)
+        setMapMonsters((current) =>
+          current.map((entry) =>
+            entry.id === monster.id
+              ? {
+                  ...entry,
+                  tokenIcon: {
+                    ...entry.tokenIcon,
+                    customImageUrl,
+                  },
+                }
+              : entry,
+          ),
+        )
+      }),
+    )
+  }, [mapMonsters])
+
+  useEffect(() => {
+    const charactersNeedingMedia = mapCharacters.filter(
+      (character) => character.tokenIcon.customImagePath && !isRenderableImageUrl(character.tokenIcon.customImageUrl),
+    )
+    if (charactersNeedingMedia.length === 0) return
+
+    void Promise.allSettled(
+      charactersNeedingMedia.map(async (character) => {
+        const customImageUrl = await resolveStoragePathUrl(character.tokenIcon.customImagePath as string)
+        setMapCharacters((current) =>
+          current.map((entry) =>
+            entry.id === character.id
+              ? {
+                  ...entry,
+                  tokenIcon: {
+                    ...entry.tokenIcon,
+                    customImageUrl,
+                  },
+                }
+              : entry,
+          ),
+        )
+      }),
+    )
+  }, [mapCharacters])
+
+  useEffect(() => {
+    const npcsNeedingMedia = mapNpcs.filter((npc) =>
+      (npc.portraitPath && !isRenderableImageUrl(npc.portraitUrl))
+      || (npc.tokenIcon.customImagePath && !isRenderableImageUrl(npc.tokenIcon.customImageUrl)),
+    )
+    if (npcsNeedingMedia.length === 0) return
+
+    void Promise.allSettled(
+      npcsNeedingMedia.map(async (npc) => {
+        const [portraitUrl, customImageUrl] = await Promise.all([
+          npc.portraitPath ? resolveStoragePathUrl(npc.portraitPath) : Promise.resolve<string | null>(null),
+          npc.tokenIcon.customImagePath ? resolveStoragePathUrl(npc.tokenIcon.customImagePath) : Promise.resolve<string | null>(null),
+        ])
+        setMapNpcs((current) =>
+          current.map((entry) =>
+            entry.id === npc.id
+              ? {
+                  ...entry,
+                  ...(portraitUrl ? { portraitUrl } : {}),
+                  ...(customImageUrl
+                    ? {
+                        tokenIcon: {
+                          ...entry.tokenIcon,
+                          customImageUrl,
+                        },
+                      }
+                    : {}),
+                }
+              : entry,
+          ),
+        )
+      }),
+    )
+  }, [mapNpcs])
 
   // ── Derived state ───────────────────────────────────────────────────────────
   const visibleMaps = useMemo(
@@ -739,7 +828,7 @@ export function useMapData({
         name: spawnMonster.name,
         revealName: false,
         hidden: false,
-        tokenImagePath: '',
+        tokenImagePath: tokenIcon.customImagePath ?? '',
         tokenImageUrl: tokenIcon.icon === 'custom' && tokenIcon.customImageUrl ? tokenIcon.customImageUrl : '',
         tokenImageWidth: 0,
         tokenImageHeight: 0,
@@ -765,7 +854,7 @@ export function useMapData({
         name: spawnCharacter.name,
         revealName: true,
         hidden: false,
-        tokenImagePath: '',
+        tokenImagePath: tokenIcon.customImagePath ?? '',
         tokenImageUrl: tokenIcon.icon === 'custom' && tokenIcon.customImageUrl ? tokenIcon.customImageUrl : '',
         tokenImageWidth: 0,
         tokenImageHeight: 0,
@@ -791,7 +880,7 @@ export function useMapData({
         name: spawnNpc.name,
         revealName: true,
         hidden: false,
-        tokenImagePath: '',
+        tokenImagePath: tokenIcon.customImagePath ?? '',
         tokenImageUrl: tokenIcon.icon === 'custom' && tokenIcon.customImageUrl ? tokenIcon.customImageUrl : '',
         tokenImageWidth: 0,
         tokenImageHeight: 0,

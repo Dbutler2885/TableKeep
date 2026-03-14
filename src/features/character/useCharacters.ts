@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { CharacterRecord, CharacterSheetDetails, Role, TokenIconConfig } from '../../types/app'
+import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence } from '../common/mediaStorage'
 
 const defaultTokenIcon: TokenIconConfig = {
   icon: 'pawn',
@@ -125,6 +126,17 @@ export function useCharacters(
               ? (rawDetails as CharacterSheetDetails)
               : null
 
+          const rawHpCurrent =
+            typeof (data as { hpCurrent?: number }).hpCurrent === 'number'
+              ? (data as { hpCurrent: number }).hpCurrent
+              : 0
+          const rawHpMax =
+            typeof (data as { hpMax?: number }).hpMax === 'number'
+              ? (data as { hpMax: number }).hpMax
+              : 0
+          const hpMax = Math.max(0, rawHpMax)
+          const hpCurrent = Math.max(0, Math.min(rawHpCurrent, hpMax))
+
           return {
             id: docSnap.id,
             name: data.name ?? docSnap.id,
@@ -138,16 +150,13 @@ export function useCharacters(
             creationStatus,
             className: data.class ?? '-',
             level: typeof data.level === 'number' ? data.level : 1,
-            hpCurrent:
-              typeof (data as { hpCurrent?: number }).hpCurrent === 'number'
-                ? (data as { hpCurrent: number }).hpCurrent
-                : 0,
-            hpMax:
-              typeof (data as { hpMax?: number }).hpMax === 'number'
-                ? (data as { hpMax: number }).hpMax
-                : 0,
+            hpCurrent,
+            hpMax,
             ac: typeof (data as { ac?: number }).ac === 'number' ? (data as { ac: number }).ac : 10,
             xp: typeof (data as { xp?: number }).xp === 'number' ? (data as { xp: number }).xp : 0,
+            portraitPath: typeof (data as { portraitPath?: string }).portraitPath === 'string'
+              ? (data as { portraitPath: string }).portraitPath
+              : '',
             portraitUrl: typeof (data as { portraitUrl?: string | null }).portraitUrl === 'string'
               ? (data as { portraitUrl: string }).portraitUrl
               : null,
@@ -197,6 +206,42 @@ export function useCharacters(
   }, [activePlayerIds, campaignId, currentCharacterId, currentUsername, role, userId, setError])
 
   useEffect(() => {
+    const charactersNeedingMedia = characters.filter((character) =>
+      (character.portraitPath && !isRenderableImageUrl(character.portraitUrl))
+      || (character.tokenIcon.customImagePath && !isRenderableImageUrl(character.tokenIcon.customImageUrl)),
+    )
+    if (charactersNeedingMedia.length === 0) return
+
+    void Promise.allSettled(
+      charactersNeedingMedia.map(async (character) => {
+        const [portraitUrl, customImageUrl] = await Promise.all([
+          character.portraitPath ? resolveStoragePathUrl(character.portraitPath) : Promise.resolve<string | null>(null),
+          character.tokenIcon.customImagePath ? resolveStoragePathUrl(character.tokenIcon.customImagePath) : Promise.resolve<string | null>(null),
+        ])
+
+        setCharacters((current) =>
+          current.map((entry) =>
+            entry.id === character.id
+              ? {
+                  ...entry,
+                  ...(portraitUrl ? { portraitUrl } : {}),
+                  ...(customImageUrl
+                    ? {
+                        tokenIcon: {
+                          ...entry.tokenIcon,
+                          customImageUrl,
+                        },
+                      }
+                    : {}),
+                }
+              : entry,
+          ),
+        )
+      }),
+    )
+  }, [characters])
+
+  useEffect(() => {
     if (!campaignId || role !== 'player') return
 
     const ownedCharacters = characters.filter((character) => character.ownerUserId === userId)
@@ -241,10 +286,10 @@ export function useCharacters(
           hpMax: character.hpMax,
           ac: character.ac,
           xp: character.xp,
-          portraitUrl: character.portraitUrl,
+          portraitPath: character.portraitPath ?? '',
           portraitFocusX: character.portraitFocusX,
           portraitFocusY: character.portraitFocusY,
-          tokenIcon: character.tokenIcon,
+          tokenIcon: sanitizeTokenIconForPersistence(character.tokenIcon),
           details: character.details ? JSON.parse(JSON.stringify(character.details)) : null,
           updatedAt: serverTimestamp(),
         },
@@ -258,13 +303,23 @@ export function useCharacters(
     if (!target) return
     const canEdit = role === 'gm' || target.ownerUserId === userId
     if (!canEdit) return
+    const nextUpdates = { ...updates }
+    const nextHpMax = typeof nextUpdates.hpMax === 'number'
+      ? Math.max(0, nextUpdates.hpMax)
+      : Math.max(0, target.hpMax)
+    if (typeof nextUpdates.hpMax === 'number') {
+      nextUpdates.hpMax = nextHpMax
+    }
+    if (typeof nextUpdates.hpCurrent === 'number') {
+      nextUpdates.hpCurrent = Math.max(0, Math.min(nextUpdates.hpCurrent, nextHpMax))
+    }
 
     setCharacters((current) => {
       return current.map((character) =>
         character.id === characterId
           ? {
               ...character,
-              ...updates,
+              ...nextUpdates,
             }
           : character,
       )

@@ -528,7 +528,7 @@ export function MapsTab({
   }
 
   const isMobileZoomMapView = isMobile && (role !== 'gm' || mobileGmPane === 'map')
-  const isPlayerMapView = role !== 'gm'
+  const isInlineZoomMapView = true
 
   const renderTokenSize = (token: TokenRecord) => {
     const scale = token.sizeScale ?? token.size / TOKEN_REFERENCE_DIMENSION
@@ -1699,7 +1699,7 @@ export function MapsTab({
               selectedMap={selectedMap}
               mapLayerClassName={isMobileZoomMapView ? 'map-zoom-layer mobile-player-zoom' : 'map-zoom-layer'}
               mapLayerStyle={
-                isPlayerMapView
+                isInlineZoomMapView
                   ? {
                     transform: `translate(${playerPan.x}px, ${playerPan.y}px) scale(${playerZoom})`,
                     cursor: playerDragging ? 'grabbing' : playerZoom > 1 ? 'grab' : undefined,
@@ -1708,11 +1708,11 @@ export function MapsTab({
               }
               onOpenFullscreen={openFullScreen}
               onImageLoad={handleInlineImageLoad}
-              onStageWheel={isPlayerMapView ? handlePlayerWheel : undefined}
-              onStageMouseDown={isPlayerMapView ? handlePlayerMouseDown : undefined}
-              onStageMouseMove={isPlayerMapView ? handlePlayerMouseMove : undefined}
-              onStageMouseUp={isPlayerMapView ? endPlayerDrag : undefined}
-              onStageMouseLeave={isPlayerMapView ? endPlayerDrag : undefined}
+              onStageWheel={isInlineZoomMapView ? handlePlayerWheel : undefined}
+              onStageMouseDown={isInlineZoomMapView ? handlePlayerMouseDown : undefined}
+              onStageMouseMove={isInlineZoomMapView ? handlePlayerMouseMove : undefined}
+              onStageMouseUp={isInlineZoomMapView ? endPlayerDrag : undefined}
+              onStageMouseLeave={isInlineZoomMapView ? endPlayerDrag : undefined}
               onMapLayerContextMenu={(event) => event.preventDefault()}
               onMapLayerWheel={(event) => handleGridLayerWheel(event, false)}
               onMapLayerMouseDown={(event) => {

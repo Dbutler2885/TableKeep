@@ -5,6 +5,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { Role } from '../../types/app'
+import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence, uploadEntityImage } from '../common/mediaStorage'
 import { monsterRulesets, type MonsterRulesetId } from './rulesets'
 import { TokenPawnPreview, type TokenIconConfig } from '../tokens/TokenIconEditor'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
@@ -87,6 +88,7 @@ type MonsterRecord = {
   id: string
   rulesetId: MonsterRulesetId
   name: string
+  portraitPath?: string
   portraitUrl: string | null
   portraitFocusX: number
   portraitFocusY: number
@@ -258,6 +260,7 @@ const newMonsterTemplate = (rulesetId: MonsterRulesetId): MonsterRecord => {
     id: crypto.randomUUID(),
     rulesetId,
     name: 'New Monster',
+    portraitPath: '',
     portraitUrl: null,
     portraitFocusX: 50,
     portraitFocusY: 50,
@@ -508,6 +511,7 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
             id: d.id,
             rulesetId: data.rulesetId ?? 'ose',
             name: typeof data.name === 'string' ? data.name : '',
+            portraitPath: typeof data.portraitPath === 'string' ? data.portraitPath : '',
             portraitUrl: typeof data.portraitUrl === 'string' ? data.portraitUrl : null,
             portraitFocusX: typeof data.portraitFocusX === 'number' ? data.portraitFocusX : 50,
             portraitFocusY: typeof data.portraitFocusY === 'number' ? data.portraitFocusY : 50,
@@ -526,14 +530,53 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
     return () => unsub()
   }, [campaignId])
 
+  useEffect(() => {
+    const monstersNeedingMedia = monsters.filter((monster) =>
+      (monster.portraitPath && !isRenderableImageUrl(monster.portraitUrl))
+      || (monster.tokenIcon.customImagePath && !isRenderableImageUrl(monster.tokenIcon.customImageUrl)),
+    )
+    if (monstersNeedingMedia.length === 0) return
+
+    void Promise.allSettled(
+      monstersNeedingMedia.map(async (monster) => {
+        const [portraitUrl, customImageUrl] = await Promise.all([
+          monster.portraitPath ? resolveStoragePathUrl(monster.portraitPath) : Promise.resolve<string | null>(null),
+          monster.tokenIcon.customImagePath ? resolveStoragePathUrl(monster.tokenIcon.customImagePath) : Promise.resolve<string | null>(null),
+        ])
+        setMonsters((current) =>
+          current.map((entry) =>
+            entry.id === monster.id
+              ? {
+                  ...entry,
+                  ...(portraitUrl ? { portraitUrl } : {}),
+                  ...(customImageUrl
+                    ? {
+                        tokenIcon: {
+                          ...entry.tokenIcon,
+                          customImageUrl,
+                        },
+                      }
+                    : {}),
+                }
+              : entry,
+          ),
+        )
+      }),
+    )
+  }, [monsters])
+
   const scheduleMonsterWrite = (monsterId: string) => {
     if (pendingWritesRef.current[monsterId]) clearTimeout(pendingWritesRef.current[monsterId])
     pendingWritesRef.current[monsterId] = setTimeout(() => {
       delete pendingWritesRef.current[monsterId]
       const monster = monstersRef.current.find((m) => m.id === monsterId)
       if (!monster) return
-      const { id, ...data } = monster
-      void setDoc(doc(db, 'campaigns', campaignId, 'monsters', id), { ...data, updatedAt: serverTimestamp() })
+      const { id, tokenIcon, portraitUrl: _portraitUrl, ...data } = monster
+      void setDoc(doc(db, 'campaigns', campaignId, 'monsters', id), {
+        ...data,
+        tokenIcon: sanitizeTokenIconForPersistence(tokenIcon),
+        updatedAt: serverTimestamp(),
+      })
     }, 500)
   }
 
@@ -546,12 +589,48 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
     setMonsters((current) => [nextMonster, ...current])
     setSelectedMonsterId(nextMonster.id)
     if (isMobile) setMobileMonsterView('detail')
-    const { id, ...data } = nextMonster
+    const { id, tokenIcon, portraitUrl: _portraitUrl, ...data } = nextMonster
     void setDoc(doc(db, 'campaigns', campaignId, 'monsters', id), {
       ...data,
+      tokenIcon: sanitizeTokenIconForPersistence(tokenIcon),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
+  }
+
+  const uploadMonsterTokenImage = async (file: File) => {
+    if (!selectedMonster) throw new Error('No monster selected.')
+    const { path, url, name } = await uploadEntityImage({
+      campaignId,
+      collectionName: 'monsters',
+      entityId: selectedMonster.id,
+      mediaKind: 'token-icons',
+      file,
+      maxWidth: 1024,
+      maxHeight: 1024,
+    })
+    return {
+      customImagePath: path,
+      customImageUrl: url,
+      customImageName: name,
+    }
+  }
+
+  const uploadMonsterPortraitImage = async (file: File) => {
+    if (!selectedMonster) throw new Error('No monster selected.')
+    const { path, url } = await uploadEntityImage({
+      campaignId,
+      collectionName: 'monsters',
+      entityId: selectedMonster.id,
+      mediaKind: 'portraits',
+      file,
+      maxWidth: 600,
+      maxHeight: 800,
+    })
+    return {
+      portraitPath: path,
+      portraitUrl: url,
+    }
   }
 
   const updateSelectedMonster = (updates: Partial<MonsterRecord>) => {
@@ -971,6 +1050,8 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
                   portraitFocusY={selectedMonster.portraitFocusY}
                   tokenIcon={selectedMonster.tokenIcon}
                   onChange={(updates) => updateSelectedMonster(updates)}
+                  onUploadPortraitImage={uploadMonsterPortraitImage}
+                  onUploadTokenImage={uploadMonsterTokenImage}
                   portraitAltLabel="Monster portrait"
                   tokenButtonAriaLabel="Edit monster token icon"
                   removePortraitMessage="Remove the portrait image from this monster?"

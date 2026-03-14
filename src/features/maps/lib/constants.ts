@@ -18,4 +18,4 @@ export const ENCOUNTER_CHECK_TURNS = 2
 export const ENCOUNTER_TRIGGER_ROLL_MAX = 1
 export const DISTANCE_POST_ROLL_MIN_FEET_TO_SHOW = 10
 export const MIN_MAP_ZOOM = 0.5
-export const MAX_MAP_ZOOM = 5
+export const MAX_MAP_ZOOM = 30

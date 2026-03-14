@@ -12,6 +12,7 @@ export type TokenIconConfig = {
   icon: 'pawn' | 'custom'
   color: string
   size: number
+  customImagePath?: string
   customImageUrl?: string
   customImageName?: string
 }
@@ -76,6 +77,7 @@ export type CampaignItem = {
   status: 'authored' | 'dropped'
   droppedByCharacterId?: string
   droppedByCharacterName?: string
+  portraitPath?: string
   portraitUrl: string | null
   portraitFocusX: number
   portraitFocusY: number
@@ -115,6 +117,7 @@ type CharacterInventoryItemBase = {
   sourceItemId?: string
   description?: string
   specialRule?: string
+  portraitPath?: string
   portraitUrl?: string | null
   qty: number
   stack: StackPolicy
@@ -212,6 +215,7 @@ export type NpcRecord = {
   title: string
   visibleToPlayers: boolean
   tags: string[]
+  portraitPath?: string
   portraitUrl: string | null
   portraitFocusX: number
   portraitFocusY: number
@@ -284,6 +288,7 @@ export type CharacterRecord = {
   hpMax: number
   ac: number
   xp: number
+  portraitPath?: string
   portraitUrl: string | null
   portraitFocusX: number
   portraitFocusY: number

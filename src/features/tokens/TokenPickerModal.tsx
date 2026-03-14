@@ -8,7 +8,7 @@ type TokenPickerModalProps = {
   value: TokenIconConfig
   onConfirm: (value: TokenIconConfig) => void
   onCancel: () => void
-  onUploadImage?: (file: File) => Promise<Pick<TokenIconConfig, 'customImageUrl' | 'customImageName'>>
+  onUploadImage?: (file: File) => Promise<Pick<TokenIconConfig, 'customImagePath' | 'customImageUrl' | 'customImageName'>>
 }
 
 export function TokenPickerModal({ open, value, onConfirm, onCancel, onUploadImage }: TokenPickerModalProps) {

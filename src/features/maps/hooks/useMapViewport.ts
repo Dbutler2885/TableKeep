@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { MouseEventHandler, TouchEventHandler, WheelEventHandler } from 'react'
 import type { Role } from '../../../types/app'
 import type { TokenRecord, WheelRectSnapshot } from '../lib/types'
-import { MIN_MAP_ZOOM } from '../lib/constants'
+import { MAX_MAP_ZOOM, MIN_MAP_ZOOM } from '../lib/constants'
 import { computeWheelZoom } from '../lib/zoomMath'
 
 // Private touch geometry helpers
@@ -19,7 +19,7 @@ function touchCenter(touches: React.TouchList): { x: number; y: number } {
 }
 
 function clampMobileZoom(value: number): number {
-  return Math.min(4, Math.max(MIN_MAP_ZOOM, value))
+  return Math.min(MAX_MAP_ZOOM, Math.max(MIN_MAP_ZOOM, value))
 }
 
 type UseMapViewportOptions = {

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { CampaignItem } from '../../types/app'
+import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence } from '../common/mediaStorage'
 
 const defaultWeaponStats: CampaignItem['weaponStats'] = {
   damageDiceCount: '',
@@ -73,6 +74,7 @@ const normalizeCampaignItem = (id: string, data: Record<string, unknown>): Campa
     status: data.status === 'dropped' ? 'dropped' : 'authored',
     droppedByCharacterId: typeof data.droppedByCharacterId === 'string' ? data.droppedByCharacterId : undefined,
     droppedByCharacterName: typeof data.droppedByCharacterName === 'string' ? data.droppedByCharacterName : undefined,
+    portraitPath: typeof data.portraitPath === 'string' ? data.portraitPath : '',
     portraitUrl: typeof data.portraitUrl === 'string' ? data.portraitUrl : null,
     portraitFocusX: typeof data.portraitFocusX === 'number' ? data.portraitFocusX : 50,
     portraitFocusY: typeof data.portraitFocusY === 'number' ? data.portraitFocusY : 50,
@@ -99,10 +101,10 @@ export const toFirestoreItem = (item: CampaignItem): Record<string, unknown> => 
     typeId: item.typeId,
     typeName: item.typeName,
     status: item.status,
-    portraitUrl: item.portraitUrl,
+    portraitPath: item.portraitPath ?? '',
     portraitFocusX: item.portraitFocusX,
     portraitFocusY: item.portraitFocusY,
-    tokenIcon: item.tokenIcon,
+    tokenIcon: sanitizeTokenIconForPersistence(item.tokenIcon),
     description: item.description,
     gpValue: item.gpValue,
     qty: item.qty,
@@ -158,6 +160,42 @@ export function useItems(campaignId: string) {
 
     return () => unsub()
   }, [campaignId])
+
+  useEffect(() => {
+    const itemsNeedingMedia = items.filter((item) =>
+      (item.portraitPath && !isRenderableImageUrl(item.portraitUrl))
+      || (item.tokenIcon.customImagePath && !isRenderableImageUrl(item.tokenIcon.customImageUrl)),
+    )
+    if (itemsNeedingMedia.length === 0) return
+
+    void Promise.allSettled(
+      itemsNeedingMedia.map(async (item) => {
+        const [portraitUrl, customImageUrl] = await Promise.all([
+          item.portraitPath ? resolveStoragePathUrl(item.portraitPath) : Promise.resolve<string | null>(null),
+          item.tokenIcon.customImagePath ? resolveStoragePathUrl(item.tokenIcon.customImagePath) : Promise.resolve<string | null>(null),
+        ])
+
+        setItems((current) =>
+          current.map((entry) =>
+            entry.id === item.id
+              ? {
+                  ...entry,
+                  ...(portraitUrl ? { portraitUrl } : {}),
+                  ...(customImageUrl
+                    ? {
+                        tokenIcon: {
+                          ...entry.tokenIcon,
+                          customImageUrl,
+                        },
+                      }
+                    : {}),
+                }
+              : entry,
+          ),
+        )
+      }),
+    )
+  }, [items])
 
   useEffect(() => {
     return () => {

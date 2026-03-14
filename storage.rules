@@ -65,6 +65,33 @@ service firebase.storage {
         );
     }
 
+    match /campaigns/{campaignId}/characters/{characterId}/portraits/{assetName} {
+      allow read: if isCampaignMember(campaignId);
+      allow write: if isCampaignGM(campaignId)
+        || (
+          isCampaignMember(campaignId)
+          && characterDoc(campaignId, characterId).data.ownerUserId == request.auth.uid
+        );
+    }
+
+    match /campaigns/{campaignId}/npcs/{npcId}/{mediaKind}/{assetName} {
+      allow read: if isCampaignMember(campaignId);
+      allow write: if isCampaignGM(campaignId)
+        && (mediaKind == 'portraits' || mediaKind == 'token-icons');
+    }
+
+    match /campaigns/{campaignId}/monsters/{monsterId}/{mediaKind}/{assetName} {
+      allow read: if isCampaignMember(campaignId);
+      allow write: if isCampaignGM(campaignId)
+        && (mediaKind == 'portraits' || mediaKind == 'token-icons');
+    }
+
+    match /campaigns/{campaignId}/items/{itemId}/{mediaKind}/{assetName} {
+      allow read: if isCampaignMember(campaignId);
+      allow write: if isCampaignGM(campaignId)
+        && (mediaKind == 'portraits' || mediaKind == 'token-icons');
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }
