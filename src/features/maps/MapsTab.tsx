@@ -4,6 +4,7 @@ import type {
   MouseEventHandler,
   SyntheticEvent,
 } from 'react'
+import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import {
   ALargeSmall,
   Check,
@@ -27,10 +28,13 @@ import {
   LoaderCircle,
   Map,
   Minus,
+  Paintbrush,
   Pencil,
   PenTool,
   Plus,
   Ruler,
+  RulerDimensionLine,
+  Search,
   SquareDashedMousePointer,
   SlidersHorizontal,
   SprayCan,
@@ -42,11 +46,15 @@ import {
   UserRoundPen,
   X,
 } from 'lucide-react'
-import type { Role } from '../../types/app'
+import { db } from '../../firebase'
+import type { NpcPrivateRecord, NpcRecord, Role } from '../../types/app'
 import { CharacterTab } from '../character/CharacterTab'
 import { TokenIconEditor, type TokenIconConfig } from '../tokens/TokenIconEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { IconValueSlider } from '../common/IconValueSlider'
+import { sanitizeRichText } from '../common/richText'
+import { uploadEntityImage } from '../common/mediaStorage'
+import { NpcDetailEditor } from '../npcs/NpcDetailEditor'
 import type {
   CanvasClipRect,
   MonsterSummary,
@@ -88,6 +96,247 @@ import { useEncounterTracking } from './hooks/useEncounterTracking'
 import { useTokenAssets } from './hooks/useTokenAssets'
 
 const SURFACE_REVEAL_INTERVAL_MS = 150
+
+function SceneNpcEditorModal({
+  campaignId,
+  npcId,
+  allTags,
+  onClose,
+}: {
+  campaignId: string
+  npcId: string
+  allTags: string[]
+  onClose: () => void
+}) {
+  const [npc, setNpc] = useState<NpcRecord | null>(null)
+  const [gmNotes, setGmNotes] = useState('')
+  const [tagsModalOpen, setTagsModalOpen] = useState(false)
+  const [tagSelection, setTagSelection] = useState<string[]>([])
+  const [newTagInput, setNewTagInput] = useState('')
+  const [tagSearch, setTagSearch] = useState('')
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'campaigns', campaignId, 'npcs', npcId), (snap) => {
+      if (!snap.exists()) {
+        setNpc(null)
+        return
+      }
+      const data = snap.data() as Partial<NpcRecord>
+      setNpc({
+        id: snap.id,
+        name: typeof data.name === 'string' ? data.name : 'Unnamed NPC',
+        title: typeof data.title === 'string' ? data.title : '',
+        visibleToPlayers: data.visibleToPlayers === true,
+        tags: Array.isArray(data.tags) ? data.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+        portraitPath: typeof data.portraitPath === 'string' ? data.portraitPath : '',
+        portraitUrl: typeof data.portraitUrl === 'string' ? data.portraitUrl : null,
+        portraitFocusX: typeof data.portraitFocusX === 'number' ? data.portraitFocusX : 50,
+        portraitFocusY: typeof data.portraitFocusY === 'number' ? data.portraitFocusY : 50,
+        tokenIcon: data.tokenIcon ?? { icon: 'pawn', color: '#2f5bbf', size: 34 },
+        playerDescription: typeof data.playerDescription === 'string' ? data.playerDescription : '',
+        playerNotes: typeof data.playerNotes === 'string' ? data.playerNotes : '',
+      })
+    })
+    return () => unsub()
+  }, [campaignId, npcId])
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'campaigns', campaignId, 'npcPrivate', npcId), (snap) => {
+      const data = snap.data() as Partial<NpcPrivateRecord> | undefined
+      setGmNotes(typeof data?.gmNotes === 'string' ? data.gmNotes : '')
+    })
+    return () => unsub()
+  }, [campaignId, npcId])
+
+  useEffect(() => {
+    if (!tagsModalOpen || !npc) return
+    setTagSelection(npc.tags)
+    setNewTagInput('')
+    setTagSearch('')
+  }, [npc, tagsModalOpen])
+
+  const persistNpc = async (updates: Partial<Omit<NpcRecord, 'id'>>) => {
+    if (!npc) return
+    const nextNpc = { ...npc, ...updates }
+    setNpc(nextNpc)
+    const { id, ...data } = nextNpc
+    await setDoc(doc(db, 'campaigns', campaignId, 'npcs', id), {
+      ...data,
+      updatedAt: serverTimestamp(),
+    }, { merge: true })
+  }
+
+  const persistGmNotes = async (value: string) => {
+    setGmNotes(value)
+    await setDoc(doc(db, 'campaigns', campaignId, 'npcPrivate', npcId), {
+      id: npcId,
+      gmNotes: value,
+      updatedAt: serverTimestamp(),
+    }, { merge: true })
+  }
+
+  const uploadNpcTokenImage = async (file: File) => {
+    const { path, url, name } = await uploadEntityImage({
+      campaignId,
+      collectionName: 'npcs',
+      entityId: npcId,
+      mediaKind: 'token-icons',
+      file,
+      maxWidth: 1024,
+      maxHeight: 1024,
+    })
+    return { customImagePath: path, customImageUrl: url, customImageName: name }
+  }
+
+  const uploadNpcPortraitImage = async (file: File) => {
+    const { path, url } = await uploadEntityImage({
+      campaignId,
+      collectionName: 'npcs',
+      entityId: npcId,
+      mediaKind: 'portraits',
+      file,
+      maxWidth: 600,
+      maxHeight: 800,
+    })
+    return { portraitPath: path, portraitUrl: url }
+  }
+
+  const addTagToSelection = (tag: string) => {
+    const trimmed = tag.trim().toLowerCase()
+    if (!trimmed || tagSelection.includes(trimmed)) return
+    setTagSelection((current) => [...current, trimmed])
+  }
+
+  const removeTagFromSelection = (tag: string) => {
+    setTagSelection((current) => current.filter((entry) => entry !== tag))
+  }
+
+  const saveTags = async () => {
+    if (!npc) return
+    const nextTags = Array.from(new Set(tagSelection.map((tag) => tag.trim().toLowerCase()).filter(Boolean)))
+    await persistNpc({ tags: nextTags })
+    setTagsModalOpen(false)
+  }
+
+  return (
+    <>
+      <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={onClose}>
+        <div className="confirm-modal map-npc-editor-modal" onClick={(event) => event.stopPropagation()}>
+          <div className="map-npc-editor-modal-header">
+            <h3>Scene NPC</h3>
+            <button type="button" className="map-edit-btn" onClick={onClose} aria-label="Close NPC editor">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="map-npc-editor-modal-body">
+            {npc ? (
+              <NpcDetailEditor
+                npc={npc}
+                role="gm"
+                gmNotes={gmNotes}
+                onChange={(updates) => void persistNpc(updates)}
+                onChangePlayerNotes={(value) => void persistNpc({ playerNotes: value })}
+                onChangeGmNotes={(value) => void persistGmNotes(value)}
+                onOpenTags={() => setTagsModalOpen(true)}
+                onUploadPortraitImage={uploadNpcPortraitImage}
+                onUploadTokenImage={uploadNpcTokenImage}
+              />
+            ) : (
+              <p>Loading NPC...</p>
+            )}
+          </div>
+        </div>
+      </div>
+      {tagsModalOpen && npc ? (
+        <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={() => void saveTags()}>
+          <div className="confirm-modal npc-tag-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="npc-tag-modal-header">
+              <div className="npc-tag-modal-title">
+                <Tag size={18} />
+                <h3>Manage Tags</h3>
+              </div>
+              <button type="button" className="map-edit-btn" onClick={() => setTagsModalOpen(false)} aria-label="Close tags">
+                <X size={16} />
+              </button>
+            </div>
+            <p className="npc-tag-modal-subtitle">{npc.name || 'NPC'}</p>
+            <section className="npc-tag-modal-section">
+              <h4>Current Tags</h4>
+              <div className="item-faction-tag-list">
+                {tagSelection.length > 0 ? tagSelection.map((tag) => (
+                  <button key={tag} type="button" className="npc-tag-chip selected" onClick={() => removeTagFromSelection(tag)}>
+                    <span>{tag}</span>
+                    <X size={12} />
+                  </button>
+                )) : <p className="map-npc-scene-empty">No tags selected.</p>}
+              </div>
+            </section>
+            <section className="npc-tag-modal-section">
+              <h4>Create Tag</h4>
+              <div className="npc-tag-input-row">
+                <input
+                  type="text"
+                  value={newTagInput}
+                  onChange={(event) => setNewTagInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      addTagToSelection(newTagInput)
+                      setNewTagInput('')
+                    }
+                  }}
+                  placeholder="merchant"
+                />
+                <button
+                  type="button"
+                  className="monster-example-btn"
+                  onClick={() => {
+                    addTagToSelection(newTagInput)
+                    setNewTagInput('')
+                  }}
+                  disabled={!newTagInput.trim()}
+                >
+                  <Plus size={14} />
+                </button>
+              </div>
+            </section>
+            {allTags.length > 0 ? (
+              <section className="npc-tag-modal-section">
+                <h4>Available Tags</h4>
+                <div className="npc-tag-search-row">
+                  <Search size={14} />
+                  <input
+                    type="text"
+                    value={tagSearch}
+                    onChange={(event) => setTagSearch(event.target.value)}
+                    placeholder="Search tags"
+                  />
+                </div>
+                <div className="item-faction-tag-list">
+                  {allTags
+                    .filter((tag) => !tagSelection.includes(tag))
+                    .filter((tag) => !tagSearch.trim() || tag.includes(tagSearch.trim().toLowerCase()))
+                    .map((tag) => (
+                      <button key={tag} type="button" className="npc-tag-chip" onClick={() => addTagToSelection(tag)}>
+                        <span>{tag}</span>
+                        <Plus size={12} />
+                      </button>
+                    ))}
+                </div>
+              </section>
+            ) : null}
+            <div className="confirm-actions">
+              <button type="button" onClick={() => setTagsModalOpen(false)}>Cancel</button>
+              <button type="button" onClick={() => void saveTags()}>
+                <Check size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  )
+}
 
 export function MapsTab({
   campaignId,
@@ -440,11 +689,15 @@ export function MapsTab({
 
   const {
     gridCalibrateMode,
+    gridMeasureMode,
     gridAdjustMode,
     gridAdjustDraft,
     gridCalibrateStart,
     gridCalibrateEnd,
     gridCalibratePreview,
+    gridMeasureStart,
+    gridMeasureEnd,
+    gridMeasurePreview,
     gridCalibrateSavedAt,
     gridAdjustSavedAt,
     gridCalibratePulse,
@@ -457,6 +710,7 @@ export function MapsTab({
     effectiveGridOffsetY,
     effectiveGridType,
     toggleGridCalibrateMode,
+    toggleGridMeasureMode,
     toggleGridVisibility,
     setGridType,
     applyGridAdjust,
@@ -465,7 +719,10 @@ export function MapsTab({
     handleGridLayerWheel,
     handleGridLayerMouseDown,
     handleGridCalibrateClick,
+    handleGridMeasureClick,
     handleGridCalibrateMouseMove,
+    handleGridMeasureMouseMove,
+    handleGridMeasureHandleMouseDown,
     handleGridCalibrateHandleMouseDown,
   } = grid
 
@@ -519,6 +776,26 @@ export function MapsTab({
     if (!end) return null
     return { start: gridCalibrateStart, end }
   }, [gridCalibrateEnd, gridCalibrateMode, gridCalibratePreview, gridCalibrateStart])
+  const gridMeasurementLine = useMemo(() => {
+    if (!gridMeasureMode || !gridMeasureStart) return null
+    const end = gridMeasureEnd ?? gridMeasurePreview
+    if (!end) return null
+    return { start: gridMeasureStart, end }
+  }, [gridMeasureEnd, gridMeasureMode, gridMeasurePreview, gridMeasureStart])
+  const measurementFeet = useMemo(() => {
+    if (!gridMeasurementLine) return null
+    const cellPx = Math.max(1, effectiveGridCellScale * Math.max(1, activeMapDimension))
+    const dxPx = (gridMeasurementLine.end.x - gridMeasurementLine.start.x) * Math.max(1, activeMapWidth)
+    const dyPx = (gridMeasurementLine.end.y - gridMeasurementLine.start.y) * Math.max(1, activeMapHeight)
+    const distanceFeet = (Math.hypot(dxPx, dyPx) / cellPx) * 10
+    return Number.isFinite(distanceFeet) ? distanceFeet : null
+  }, [activeMapDimension, activeMapHeight, activeMapWidth, effectiveGridCellScale, gridMeasurementLine])
+  const measurementFeetLabel = useMemo(() => {
+    if (measurementFeet === null) return '--'
+    const rounded = Math.round(measurementFeet * 10) / 10
+    return Number.isInteger(rounded) ? `${rounded.toFixed(0)}'` : `${rounded.toFixed(1)}'`
+  }, [measurementFeet])
+  const measurementToolEnabled = effectiveGridEnabled || gridAdjustMode || Boolean(selectedMap?.gridCalibrated)
 
   const gmTokenNameClassName = (token: TokenRecord) => {
     if (streamingMode) {
@@ -1192,7 +1469,7 @@ export function MapsTab({
 
   const handleMapLayerMouseDown: MouseEventHandler<HTMLDivElement> = (event) => {
     if (role !== 'gm') return
-    if (gridCalibrateMode) return
+    if (gridCalibrateMode || gridMeasureMode) return
     if (!tokenSelectMode || event.button !== 0) return
     const target = event.target as HTMLElement
     if (target.closest('.map-token,.map-annotation-btn,.map-player-label-btn,.map-player-label-static,.map-annotation-popover')) return
@@ -1213,6 +1490,10 @@ export function MapsTab({
     event.preventDefault()
     if (gridCalibrateMode) {
       handleGridCalibrateClick(event.clientX, event.clientY)
+      return
+    }
+    if (gridMeasureMode) {
+      handleGridMeasureClick(event.clientX, event.clientY)
       return
     }
     if (selectedTokenIds.length > 0) {
@@ -1389,6 +1670,41 @@ export function MapsTab({
       />
     </div>
   ) : null
+  const measurementOverlayNode = gridMeasurementLine ? (
+    <div className="map-grid-calibration-overlay map-grid-measurement-overlay" aria-hidden>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <line
+          x1={gridMeasurementLine.start.x * 100}
+          y1={gridMeasurementLine.start.y * 100}
+          x2={gridMeasurementLine.end.x * 100}
+          y2={gridMeasurementLine.end.y * 100}
+        />
+      </svg>
+      <button
+        type="button"
+        className="map-grid-calibration-handle"
+        style={{ left: `${gridMeasurementLine.start.x * 100}%`, top: `${gridMeasurementLine.start.y * 100}%` }}
+        onMouseDown={(event) => handleGridMeasureHandleMouseDown(event, 'start')}
+        aria-label="Move measurement start"
+      />
+      <button
+        type="button"
+        className="map-grid-calibration-handle"
+        style={{ left: `${gridMeasurementLine.end.x * 100}%`, top: `${gridMeasurementLine.end.y * 100}%` }}
+        onMouseDown={(event) => handleGridMeasureHandleMouseDown(event, 'end')}
+        aria-label="Move measurement end"
+      />
+      <div
+        className="map-grid-measurement-label"
+        style={{
+          left: `${((gridMeasurementLine.start.x + gridMeasurementLine.end.x) / 2) * 100}%`,
+          top: `${((gridMeasurementLine.start.y + gridMeasurementLine.end.y) / 2) * 100}%`,
+        }}
+      >
+        {measurementFeetLabel}
+      </div>
+    </div>
+  ) : null
 
   const displayAnnotations = role === 'gm'
     ? (streamingMode
@@ -1417,6 +1733,7 @@ export function MapsTab({
   const fullscreenControlsNode = role === 'gm' ? (
     <aside className="map-fullscreen-controls">
       <GmMapControls
+        campaignId={campaignId}
         dark
         fogTool={fogTool}
         setFogTool={setFogTool}
@@ -1468,6 +1785,10 @@ export function MapsTab({
           const message = error instanceof Error ? error.message : 'Failed to save grid calibration'
           setMapError(message)
         })}
+        measurementToolEnabled={measurementToolEnabled}
+        gridMeasureMode={gridMeasureMode}
+        onToggleGridMeasure={toggleGridMeasureMode}
+        measurementFeetLabel={measurementFeetLabel}
         distanceTrackerFeet={distanceTrackerFeet}
         distanceTrackerMode={distanceTrackerMode}
         distanceTrackerRoll={distanceTrackerRoll}
@@ -1719,7 +2040,10 @@ export function MapsTab({
                 if (handleGridLayerMouseDown(event, false)) return
                 handleMapLayerMouseDown(event)
               }}
-              onMapLayerMouseMove={(event) => handleGridCalibrateMouseMove(event.clientX, event.clientY)}
+              onMapLayerMouseMove={(event) => {
+                handleGridCalibrateMouseMove(event.clientX, event.clientY)
+                handleGridMeasureMouseMove(event.clientX, event.clientY)
+              }}
               onMapLayerClick={handleMapLayerClick}
               onMapLayerTouchStart={handleMobilePlayerTouchStart}
               onMapLayerTouchMove={handleMobilePlayerTouchMove}
@@ -1729,6 +2053,7 @@ export function MapsTab({
               {renderMapGridOverlay(false)}
               {gridAdjustMode && effectiveGridEnabled && effectiveGridVisible ? <div className="map-grid-adjust-overlay" /> : null}
               {calibrationOverlayNode}
+              {measurementOverlayNode}
               {role !== 'gm' || streamingMode ? (
                 <TokenLayer
                   className="map-token-layer under-fog"
@@ -1792,6 +2117,7 @@ export function MapsTab({
             {role === 'gm' && (!isMobile || mobileGmPane === 'controls') ? (
               <aside className="map-controls">
                 <GmMapControls
+                campaignId={campaignId}
                 fogTool={fogTool}
                 setFogTool={setFogTool}
                 visionTool={visionTool}
@@ -1842,6 +2168,10 @@ export function MapsTab({
                   const message = error instanceof Error ? error.message : 'Failed to save grid calibration'
                   setMapError(message)
                 })}
+                measurementToolEnabled={measurementToolEnabled}
+                gridMeasureMode={gridMeasureMode}
+                onToggleGridMeasure={toggleGridMeasureMode}
+                measurementFeetLabel={measurementFeetLabel}
                 distanceTrackerFeet={distanceTrackerFeet}
                 distanceTrackerMode={distanceTrackerMode}
                 distanceTrackerRoll={distanceTrackerRoll}
@@ -2012,13 +2342,17 @@ export function MapsTab({
             if (handleGridLayerMouseDown(event, true)) return
             handleMapLayerMouseDown(event)
           }}
-          onMapLayerMouseMove={(event) => handleGridCalibrateMouseMove(event.clientX, event.clientY)}
+          onMapLayerMouseMove={(event) => {
+            handleGridCalibrateMouseMove(event.clientX, event.clientY)
+            handleGridMeasureMouseMove(event.clientX, event.clientY)
+          }}
           onMapLayerClick={handleMapLayerClick}
           controlsNode={fullscreenControlsNode}
         >
           {renderMapGridOverlay(true)}
           {gridAdjustMode && effectiveGridEnabled && effectiveGridVisible ? <div className="map-grid-adjust-overlay" /> : null}
           {calibrationOverlayNode}
+          {measurementOverlayNode}
           {role !== 'gm' || streamingMode ? (
             <TokenLayer
               className="map-token-layer under-fog"
@@ -2188,6 +2522,7 @@ export function MapsTab({
 }
 
 function GmMapControls({
+  campaignId,
   dark = false,
   fogTool,
   setFogTool,
@@ -2236,6 +2571,10 @@ function GmMapControls({
   gridCalibrateReady,
   gridCalibrateSaved,
   onApplyGridCalibration,
+  measurementToolEnabled,
+  gridMeasureMode,
+  onToggleGridMeasure,
+  measurementFeetLabel,
   distanceTrackerFeet,
   distanceTrackerMode,
   distanceTrackerRoll,
@@ -2261,6 +2600,7 @@ function GmMapControls({
   onPresentNpc,
   onClearPresentedNpc,
 }: {
+  campaignId: string
   dark?: boolean
   fogTool: 'reveal' | 'hide' | null
   setFogTool: (tool: 'reveal' | 'hide' | null) => void
@@ -2309,6 +2649,10 @@ function GmMapControls({
   gridCalibrateReady: boolean
   gridCalibrateSaved: boolean
   onApplyGridCalibration: () => void
+  measurementToolEnabled: boolean
+  gridMeasureMode: boolean
+  onToggleGridMeasure: () => void
+  measurementFeetLabel: string
   distanceTrackerFeet: number
   distanceTrackerMode: 'count' | 'first' | 'roll'
   distanceTrackerRoll: number | null
@@ -2350,9 +2694,16 @@ function GmMapControls({
   const [tokensCollapsed, setTokensCollapsed] = useState(false)
   const [expandedTokenIds, setExpandedTokenIds] = useState<string[]>([])
   const [sceneNpcPickerId, setSceneNpcPickerId] = useState('')
+  const [sceneNpcModalId, setSceneNpcModalId] = useState('')
+  const [presentedNpcGmNotes, setPresentedNpcGmNotes] = useState('')
+  const [brushSizeDraft, setBrushSizeDraft] = useState(String(fogBrushSize))
   const availableSceneNpcs = useMemo(
     () => mapNpcs.filter((npc) => !selectedMapSceneNpcIds.includes(npc.id)),
     [mapNpcs, selectedMapSceneNpcIds],
+  )
+  const allNpcTags = useMemo(
+    () => Array.from(new Set(mapNpcs.flatMap((npc) => npc.tags))).sort((a, b) => a.localeCompare(b)),
+    [mapNpcs],
   )
 
   useEffect(() => {
@@ -2361,6 +2712,22 @@ function GmMapControls({
       return availableSceneNpcs.some((npc) => npc.id === current) ? current : availableSceneNpcs[0].id
     })
   }, [availableSceneNpcs])
+
+  useEffect(() => {
+    if (!presentedNpc?.id) {
+      setPresentedNpcGmNotes('')
+      return
+    }
+    const unsub = onSnapshot(doc(db, 'campaigns', campaignId, 'npcPrivate', presentedNpc.id), (snap) => {
+      const data = snap.data() as Partial<NpcPrivateRecord> | undefined
+      setPresentedNpcGmNotes(typeof data?.gmNotes === 'string' ? data.gmNotes : '')
+    })
+    return () => unsub()
+  }, [campaignId, presentedNpc?.id])
+
+  useEffect(() => {
+    setBrushSizeDraft(String(fogBrushSize))
+  }, [fogBrushSize])
 
   const DistanceRollIcon =
     distanceTrackerMode === 'roll' && distanceTrackerRoll === 1
@@ -2378,6 +2745,17 @@ function GmMapControls({
                 : null
   const distanceFeetLabel = `${Math.max(0, Math.round(distanceTrackerFeet))}'`
   const distanceTrackerLabel = distanceTrackerMode === 'first' ? '1st' : distanceFeetLabel
+
+  const commitBrushSizeDraft = () => {
+    const parsed = Number.parseInt(brushSizeDraft, 10)
+    if (!Number.isFinite(parsed)) {
+      setBrushSizeDraft(String(fogBrushSize))
+      return
+    }
+    const next = Math.max(1, Math.min(260, parsed))
+    setFogBrushSize(next)
+    setBrushSizeDraft(String(next))
+  }
 
   const commitTokenLabelEdit = async (token: TokenRecord, labelValue: string) => {
     const current = token.name.trim()
@@ -2424,7 +2802,7 @@ function GmMapControls({
       <div className="map-icon-grid">
         <button
           type="button"
-          className={fogTool === 'hide' ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
+          className={fogTool === 'hide' ? 'map-icon-btn map-fog-hide-btn fast-tooltip active' : 'map-icon-btn map-fog-hide-btn fast-tooltip'}
           onClick={() => {
             setTokenSelectMode(false)
             setVisionTool(null)
@@ -2437,7 +2815,7 @@ function GmMapControls({
         </button>
         <button
           type="button"
-          className={fogTool === 'reveal' ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
+          className={fogTool === 'reveal' ? 'map-icon-btn map-fog-reveal-btn fast-tooltip active' : 'map-icon-btn map-fog-reveal-btn fast-tooltip'}
           onClick={() => {
             setTokenSelectMode(false)
             setVisionTool(null)
@@ -2450,7 +2828,7 @@ function GmMapControls({
         </button>
         <button
           type="button"
-          className={visionTool === 'draw' ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
+          className={visionTool === 'draw' ? 'map-icon-btn map-vision-draw-btn fast-tooltip active' : 'map-icon-btn map-vision-draw-btn fast-tooltip'}
           onClick={() => {
             setTokenSelectMode(false)
             setFogTool(null)
@@ -2488,17 +2866,36 @@ function GmMapControls({
           <X size={16} />
         </button>
         <div className="map-brush-control-inline" aria-label="Brush size">
+          <span className="map-brush-control-icon" aria-hidden>
+            <Paintbrush size={14} />
+          </span>
           <input
-            className="map-brush-control-slider"
-            type="range"
+            className="map-brush-control-number"
+            type="number"
             min={1}
             max={260}
             step={1}
-            value={fogBrushSize}
-            onChange={(event) => setFogBrushSize(Number(event.target.value))}
-            aria-label="Brush size"
+            inputMode="numeric"
+            value={brushSizeDraft}
+            onChange={(event) => {
+              const nextValue = event.target.value
+              if (/^\d*$/.test(nextValue)) {
+                setBrushSizeDraft(nextValue)
+              }
+            }}
+            onBlur={commitBrushSizeDraft}
+            onKeyDown={(event) => {
+              if (event.key === 'e' || event.key === 'E' || event.key === '+' || event.key === '-' || event.key === '.') {
+                event.preventDefault()
+                return
+              }
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                commitBrushSizeDraft()
+              }
+            }}
+            aria-label="Brush size number"
           />
-          <span className="map-brush-control-value">{fogBrushSize}</span>
         </div>
         <button
           type="button"
@@ -2531,7 +2928,7 @@ function GmMapControls({
         </button>
         <button
           type="button"
-          className={annotationPlaceMode ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
+          className={annotationPlaceMode ? 'map-icon-btn map-annotation-place-btn fast-tooltip active' : 'map-icon-btn map-annotation-place-btn fast-tooltip'}
           onClick={() => {
             const next = !annotationPlaceMode
             setAnnotationPlaceMode(next)
@@ -2548,7 +2945,7 @@ function GmMapControls({
         </button>
         <button
           type="button"
-          className={playerLabelPlaceMode ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
+          className={playerLabelPlaceMode ? 'map-icon-btn map-player-label-mode-btn fast-tooltip active' : 'map-icon-btn map-player-label-mode-btn fast-tooltip'}
           onClick={() => {
             const next = !playerLabelPlaceMode
             setPlayerLabelPlaceMode(next)
@@ -2565,7 +2962,7 @@ function GmMapControls({
         </button>
         <button
           type="button"
-          className={gmHideLabels ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
+          className={gmHideLabels ? 'map-icon-btn map-hide-labels-btn fast-tooltip active' : 'map-icon-btn map-hide-labels-btn fast-tooltip'}
           onClick={() => setGmHideLabels(!gmHideLabels)}
           aria-label={gmHideLabels ? 'Show labels in GM view' : 'Hide labels in GM view'}
           data-tooltip={gmHideLabels ? 'Show labels in GM view' : 'Hide labels in GM view'}
@@ -2591,7 +2988,7 @@ function GmMapControls({
         </button>
         <button
           type="button"
-          className={streamingMode ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
+          className={streamingMode ? 'map-icon-btn map-streaming-btn fast-tooltip active' : 'map-icon-btn map-streaming-btn fast-tooltip'}
           onClick={() => setStreamingMode(!streamingMode)}
           aria-label="Toggle streaming mode"
           data-tooltip="Streaming mode"
@@ -2600,7 +2997,7 @@ function GmMapControls({
         </button>
         <button
           type="button"
-          className={npcSceneMode ? 'map-icon-btn fast-tooltip active' : 'map-icon-btn fast-tooltip'}
+          className={npcSceneMode ? 'map-icon-btn map-scene-npc-btn fast-tooltip active' : 'map-icon-btn map-scene-npc-btn fast-tooltip'}
           onClick={() => setNpcSceneMode(!npcSceneMode)}
           aria-label="Toggle scene NPC panel"
           data-tooltip="Scene NPCs"
@@ -2660,6 +3057,16 @@ function GmMapControls({
           aria-label="Calibrate grid scale"
           data-tooltip={gridCalibrateMode ? 'Measuring' : "Calibrate 10'"}
         >
+          <RulerDimensionLine size={16} />
+        </button>
+        <button
+          type="button"
+          className={gridMeasureMode ? 'map-icon-btn map-measure-btn fast-tooltip fast-tooltip-right active' : 'map-icon-btn map-measure-btn fast-tooltip fast-tooltip-right'}
+          onClick={onToggleGridMeasure}
+          disabled={!measurementToolEnabled}
+          aria-label="Measure map distance"
+          data-tooltip={!measurementToolEnabled ? 'Lay or calibrate grid first' : gridMeasureMode ? 'Clear measurement' : 'Measure distance'}
+        >
           <Ruler size={16} />
         </button>
         <button
@@ -2713,6 +3120,12 @@ function GmMapControls({
             ariaLabel="Apply calibration"
             disabled={!gridCalibrateReady}
           />
+        </div>
+      ) : null}
+      {gridMeasureMode ? (
+        <div className="map-grid-calibration-panel">
+          <p className="map-grid-calibration-hint">Click two points to measure, then drag dots to refine.</p>
+          <p className="map-grid-measurement-readout">Distance: {measurementFeetLabel}</p>
         </div>
       ) : null}
       {tokenPlaceMode ? (
@@ -2821,7 +3234,11 @@ function GmMapControls({
         </div>
         <div className="token-list">
           {sceneNpcs.map((npc) => (
-            <div key={npc.id} className={presentedNpc?.id === npc.id ? 'token-row selected scene-npc-row' : 'token-row scene-npc-row'}>
+            <div
+              key={npc.id}
+              className={presentedNpc?.id === npc.id ? 'token-row selected scene-npc-row' : 'token-row scene-npc-row'}
+              onClick={() => setSceneNpcModalId(npc.id)}
+            >
               <span className="token-row-icon" aria-hidden>
                 {npc.portraitUrl ? <img src={npc.portraitUrl} alt="" className="token-row-image" /> : <User size={14} />}
               </span>
@@ -2833,12 +3250,14 @@ function GmMapControls({
                 <button
                   type="button"
                   className={presentedNpc?.id === npc.id ? 'token-row-delete scene-npc-action active' : 'token-row-delete scene-npc-action'}
-                  onClick={() => {
+                  onClick={(event) => {
+                    event.stopPropagation()
                     if (presentedNpc?.id === npc.id) {
                       onClearPresentedNpc()
                       return
                     }
                     onPresentNpc(npc.id)
+                    setNpcSceneMode(false)
                   }}
                   aria-label={presentedNpc?.id === npc.id ? 'Hide presented NPC' : 'Present NPC'}
                   title={presentedNpc?.id === npc.id ? 'Hide presented NPC' : 'Present NPC'}
@@ -2848,7 +3267,10 @@ function GmMapControls({
                 <button
                   type="button"
                   className="token-row-delete scene-npc-action"
-                  onClick={() => onToggleSceneNpc(npc.id, false)}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onToggleSceneNpc(npc.id, false)
+                  }}
                   aria-label="Remove from scene NPCs"
                   title="Remove from scene NPCs"
                 >
@@ -2860,6 +3282,42 @@ function GmMapControls({
           {sceneNpcs.length === 0 ? <p className="map-npc-scene-empty">No NPCs preloaded for this map.</p> : null}
         </div>
       </section>
+      ) : null}
+      {presentedNpc ? (
+        <section className="map-npc-presented-panel map-npc-presented-panel-gm">
+          <div className="map-npc-presented-card map-npc-presented-card-gm">
+            <div className="map-npc-presented-portrait map-npc-presented-portrait-gm">
+              {presentedNpc.portraitUrl ? (
+                <img
+                  src={presentedNpc.portraitUrl}
+                  alt={`${presentedNpc.name} portrait`}
+                  className="map-npc-presented-image"
+                  style={{ objectPosition: `${presentedNpc.portraitFocusX}% ${presentedNpc.portraitFocusY}%` }}
+                />
+              ) : null}
+            </div>
+            <div className="map-npc-presented-copy">
+              <h4>{presentedNpc.name}</h4>
+              {presentedNpc.title ? <p className="map-npc-presented-title">{presentedNpc.title}</p> : null}
+              {presentedNpcGmNotes ? (
+                <div
+                  className="map-npc-presented-notes npc-richtext-preview"
+                  dangerouslySetInnerHTML={{ __html: sanitizeRichText(presentedNpcGmNotes) }}
+                />
+              ) : (
+                <p className="map-npc-presented-title">No GM notes.</p>
+              )}
+            </div>
+          </div>
+        </section>
+      ) : null}
+      {sceneNpcModalId ? (
+        <SceneNpcEditorModal
+          campaignId={campaignId}
+          npcId={sceneNpcModalId}
+          allTags={allNpcTags}
+          onClose={() => setSceneNpcModalId('')}
+        />
       ) : null}
       {!streamingMode ? (
         <section className="token-cards-panel" aria-label="Token cards">

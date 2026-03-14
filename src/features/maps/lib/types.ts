@@ -85,6 +85,7 @@ export type NpcSummary = {
   id: string
   name: string
   title: string
+  tags: string[]
   portraitPath?: string
   portraitUrl: string | null
   portraitFocusX: number

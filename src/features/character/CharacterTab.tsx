@@ -80,6 +80,7 @@ import { useCharacterPersistenceSync } from './useCharacterPersistenceSync'
 import { useCharacterCreationFlow } from './useCharacterCreationFlow'
 import { useSpellbookDomain } from './useSpellbookDomain'
 import { useInventoryDomain } from './useInventoryDomain'
+import type { AddItemModalState } from './useInventoryDomain'
 import { useStoreDomain } from './useStoreDomain'
 import { CharacterListPane } from './CharacterListPane'
 import { computeGrantedXp, nextLevelXpFor, primeRequisiteXpBonusPercent, projectCharacterProgress } from './xpProgression'
@@ -617,32 +618,7 @@ export function CharacterTab({
   const [hpClassRequiredOpen, setHpClassRequiredOpen] = useState(false)
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{ id: string, name: string } | null>(null)
   const [itemDetailId, setItemDetailId] = useState<string | null>(null)
-  const [addItemModal, setAddItemModal] = useState<{
-    equipped: boolean
-    kind: 'general' | 'weapon' | 'armour' | 'ammunition' | 'consumable'
-    typeName: string
-    name: string
-    costGp: string
-    notes: string
-    description: string
-    typeId: string
-    damageDiceCount: string
-    damageDiceSides: string
-    rangeShort: string
-    rangeMedium: string
-    rangeLong: string
-    twoHanded: boolean
-    isMagic: boolean
-    attackBonus: string
-    damageBonus: string
-    armourClass: string
-    shieldMod: string
-    magicMod: string
-    armourType: 'body' | 'shield'
-    qty: string
-    useMode: 'consume' | 'use'
-    effectText: string
-  } | null>(null)
+  const [addItemModal, setAddItemModal] = useState<AddItemModalState | null>(null)
   const [dropConfirmItemId, setDropConfirmItemId] = useState<string | null>(null)
   const [sellConfirmItemId, setSellConfirmItemId] = useState<string | null>(null)
   const [goldSpendAmount, setGoldSpendAmount] = useState<string>('')
@@ -865,6 +841,7 @@ export function CharacterTab({
   const canCreateCharacter = role === 'gm' || role === 'player'
   const canEditSelected = !!effectiveSelected
     && (role === 'gm' || effectiveSelected.ownerUserId === currentUserId)
+  const canEditInventoryDetails = role === 'gm' && canEditSelected
   const canGrant = role === 'gm'
   const canSetCurrentCharacter = role === 'player'
     && !!effectiveSelected
@@ -1158,6 +1135,7 @@ export function CharacterTab({
     if (template) stats.push(`${template.costGp}gp`)
     const bonus = (weapon.attackBonus ?? '').trim()
     if (bonus) stats.push(`+${bonus.replace(/^\+/, '')}`)
+    if (weapon.slow) stats.push('Slow')
     if (weapon.twoHanded) stats.push('2H')
     return stats.join(' | ')
   }
@@ -1626,6 +1604,7 @@ export function CharacterTab({
     setThiefSkillsByCharacterId,
     setInventoryByCharacterId,
     updateSelectedCharacter,
+    updateSelectedCharacterSystem,
   })
 
   const requestRollHitPoints = () => _requestRollHitPoints(setHpClassRequiredOpen)
@@ -1731,6 +1710,7 @@ export function CharacterTab({
     currentUsername,
     effectiveSelected,
     canEditSelected,
+    canEditInventoryDetails,
     selectedClassName,
     canClassEquipArmour,
     selectedInventory,
@@ -1975,7 +1955,7 @@ export function CharacterTab({
               gpValue: '0',
               qty: '1',
               isMagic: false,
-              weaponStats: { damageDiceCount: '', damageDiceSides: '', attackBonus: '', damageBonus: '', rangeShort: '', rangeMedium: '', rangeLong: '', twoHanded: false },
+              weaponStats: { damageDiceCount: '', damageDiceSides: '', attackBonus: '', damageBonus: '', rangeShort: '', rangeMedium: '', rangeLong: '', slow: false, twoHanded: false },
               armourStats: { armourClass: '', shieldMod: '', magicMod: '', armourType: 'body' },
               consumableStats: { useMode: 'consume', effectText: '' },
               specialRule: '',
@@ -2915,8 +2895,11 @@ export function CharacterTab({
                                   <input
                                     type="number"
                                     value={String(effectiveSelected.hpMax)}
-                                    readOnly
-                                    disabled
+                                    onChange={(event) =>
+                                      updateSelectedCharacterSystem({ hpMax: Number(event.target.value || 0) })
+                                    }
+                                    readOnly={isGuidedCreation || !canEditSelected}
+                                    disabled={isGuidedCreation || !canEditSelected}
                                   />
                                   <small>Maximum hit points</small>
                                 </div>
@@ -3687,6 +3670,8 @@ export function CharacterTab({
         if (!detailItem) return null
         const isSpellBookDetailItem = detailItem.kind === 'general' && detailItem.typeId === SPELL_BOOK_TYPE_ID
         const isTransferableDetailItem = detailItem.kind !== 'gold' && !isSpellBookDetailItem
+        const canEditDetailItemFields = canEditInventoryDetails
+        const canEditDetailItemName = canEditSelected
         const pendingOutgoingTransfer = effectiveSelected && isTransferableDetailItem
           ? outgoingTransferByItemKey.get(`${effectiveSelected.id}:${detailItem.id}`) ?? null
           : null
@@ -3735,7 +3720,7 @@ export function CharacterTab({
                       <select
                         value={w.typeId || 'custom'}
                         onChange={(e) => updateWeaponRow(w.id, { typeId: e.target.value })}
-                        disabled={!canEditSelected}
+                        disabled={!canEditDetailItemFields}
                       >
                         <option value="custom">Custom</option>
                         {OSE_WEAPON_CATALOG.map((weapon) => (
@@ -3755,7 +3740,7 @@ export function CharacterTab({
                         type="text"
                         value={w.name ?? ''}
                         onChange={(e) => updateWeaponRow(w.id, { name: e.target.value })}
-                        disabled={!canEditSelected}
+                        disabled={!canEditDetailItemName}
                         placeholder="Optional"
                       />
                     </label>
@@ -3766,7 +3751,7 @@ export function CharacterTab({
                           type="text"
                           value={w.typeName ?? ''}
                           onChange={(e) => updateWeaponRow(w.id, { typeName: e.target.value })}
-                          disabled={!canEditSelected}
+                          disabled={!canEditDetailItemFields}
                           placeholder="e.g. Bec de corbin"
                         />
                       </label>
@@ -3781,12 +3766,12 @@ export function CharacterTab({
                             step={1}
                             value={w.damageDiceCount ?? ''}
                             onChange={(e) => updateWeaponRow(w.id, { damageDiceCount: e.target.value })}
-                            disabled={!canEditSelected}
+                            disabled={!canEditDetailItemFields}
                           />
                           <select
                             value={w.damageDiceSides ?? ''}
                             onChange={(e) => updateWeaponRow(w.id, { damageDiceSides: e.target.value })}
-                            disabled={!canEditSelected}
+                            disabled={!canEditDetailItemFields}
                           >
                             <option value="">-</option>
                             <option value="4">d4</option>
@@ -3807,7 +3792,7 @@ export function CharacterTab({
                             step={1}
                             value={w.rangeShort ?? ''}
                             onChange={(e) => updateWeaponRow(w.id, { rangeShort: e.target.value })}
-                            disabled={!canEditSelected}
+                            disabled={!canEditDetailItemFields}
                           />
                           <span>/</span>
                           <input
@@ -3816,7 +3801,7 @@ export function CharacterTab({
                             step={1}
                             value={w.rangeMedium ?? ''}
                             onChange={(e) => updateWeaponRow(w.id, { rangeMedium: e.target.value })}
-                            disabled={!canEditSelected}
+                            disabled={!canEditDetailItemFields}
                           />
                           <span>/</span>
                           <input
@@ -3825,7 +3810,7 @@ export function CharacterTab({
                             step={1}
                             value={w.rangeLong ?? ''}
                             onChange={(e) => updateWeaponRow(w.id, { rangeLong: e.target.value })}
-                            disabled={!canEditSelected}
+                            disabled={!canEditDetailItemFields}
                           />
                         </div>
                       </label>
@@ -3840,11 +3825,20 @@ export function CharacterTab({
                       ) : null}
                     </div>
                     <label className="character-weapon-card-check">
-                      <input
-                        type="checkbox"
-                        checked={w.twoHanded}
-                        onChange={(e) => updateWeaponRow(w.id, { twoHanded: e.target.checked })}
-                        disabled={!canEditSelected || (!!w.typeId && w.typeId !== 'custom') || selectedClassName === 'Halfling'}
+                        <input
+                          type="checkbox"
+                          checked={w.slow}
+                          onChange={(e) => updateWeaponRow(w.id, { slow: e.target.checked })}
+                          disabled={!canEditDetailItemFields || (!!w.typeId && w.typeId !== 'custom')}
+                      />
+                      Slow
+                    </label>
+                    <label className="character-weapon-card-check">
+                        <input
+                          type="checkbox"
+                          checked={w.twoHanded}
+                          onChange={(e) => updateWeaponRow(w.id, { twoHanded: e.target.checked })}
+                          disabled={!canEditDetailItemFields || (!!w.typeId && w.typeId !== 'custom') || selectedClassName === 'Halfling'}
                       />
                       Two-handed
                     </label>
@@ -3854,7 +3848,7 @@ export function CharacterTab({
                           type="checkbox"
                           checked={w.isMagic}
                           onChange={(e) => updateWeaponRow(w.id, { isMagic: e.target.checked })}
-                          disabled={!canEditSelected}
+                          disabled={!canEditDetailItemFields}
                         />
                         Magic
                       </label>
@@ -3866,7 +3860,7 @@ export function CharacterTab({
                             step={1}
                             value={w.attackBonus ?? ''}
                             onChange={(e) => updateWeaponRow(w.id, { attackBonus: e.target.value })}
-                            disabled={!canEditSelected}
+                            disabled={!canEditDetailItemFields}
                           />
                         </label>
                       ) : null}
@@ -3876,7 +3870,7 @@ export function CharacterTab({
                       <textarea
                         value={w.notes}
                         onChange={(e) => updateWeaponRow(w.id, { notes: e.target.value })}
-                        disabled={!canEditSelected}
+                        disabled={!canEditDetailItemFields}
                         placeholder="Description, magic properties, etc."
                       />
                     </label>
@@ -3892,7 +3886,7 @@ export function CharacterTab({
                       <select
                         value={a.typeId || 'custom'}
                         onChange={(e) => updateArmourRow(a.id, { typeId: e.target.value })}
-                        disabled={!canEditSelected || !canClassEquipArmour}
+                        disabled={!canEditDetailItemFields || !canClassEquipArmour}
                       >
                         <option value="custom">Custom</option>
                         {OSE_ARMOUR_CATALOG.map((armour) => (
@@ -3912,7 +3906,7 @@ export function CharacterTab({
                         type="text"
                         value={a.name ?? ''}
                         onChange={(e) => updateArmourRow(a.id, { name: e.target.value })}
-                        disabled={!canEditSelected}
+                        disabled={!canEditDetailItemName}
                         placeholder="Optional"
                       />
                     </label>
@@ -3923,7 +3917,7 @@ export function CharacterTab({
                           type="text"
                           value={a.typeName ?? ''}
                           onChange={(e) => updateArmourRow(a.id, { typeName: e.target.value })}
-                          disabled={!canEditSelected}
+                          disabled={!canEditDetailItemFields}
                           placeholder="e.g. Brigandine"
                         />
                       </label>
@@ -3942,7 +3936,7 @@ export function CharacterTab({
                                 ? { shieldMod: e.target.value }
                                 : { armourClass: e.target.value },
                             )}
-                          disabled={!canEditSelected}
+                          disabled={!canEditDetailItemFields}
                         />
                       </label>
                       <label className="character-weapon-edit-field">
@@ -3950,7 +3944,7 @@ export function CharacterTab({
                         <select
                           value={a.armourType}
                           onChange={(e) => updateArmourRow(a.id, { armourType: e.target.value as 'body' | 'shield' })}
-                          disabled={!canEditSelected}
+                          disabled={!canEditDetailItemFields}
                         >
                           <option value="body">Body Armour</option>
                           <option value="shield">Shield</option>
@@ -3972,7 +3966,7 @@ export function CharacterTab({
                           type="checkbox"
                           checked={a.isMagic}
                           onChange={(e) => updateArmourRow(a.id, { isMagic: e.target.checked })}
-                          disabled={!canEditSelected}
+                          disabled={!canEditDetailItemFields}
                         />
                         Magic
                       </label>
@@ -3984,7 +3978,7 @@ export function CharacterTab({
                             step={1}
                             value={a.magicMod ?? ''}
                             onChange={(e) => updateArmourRow(a.id, { magicMod: e.target.value })}
-                            disabled={!canEditSelected}
+                            disabled={!canEditDetailItemFields}
                           />
                         </label>
                       ) : null}
@@ -3994,7 +3988,7 @@ export function CharacterTab({
                       <textarea
                         value={a.notes}
                         onChange={(e) => updateArmourRow(a.id, { notes: e.target.value })}
-                        disabled={!canEditSelected}
+                        disabled={!canEditDetailItemFields}
                         placeholder="Description, magic properties, etc."
                       />
                     </label>
@@ -4076,7 +4070,7 @@ export function CharacterTab({
                       type="text"
                       value={detailItem.typeName ?? ''}
                       onChange={(e) => updateInventoryItem(detailItem.id, { typeName: e.target.value })}
-                      disabled={!canEditSelected}
+                      disabled={!canEditDetailItemFields}
                     />
                   </label>
                   <label className="item-detail-field">
@@ -4085,7 +4079,7 @@ export function CharacterTab({
                       type="text"
                       value={detailItem.name ?? ''}
                       onChange={(e) => updateInventoryItem(detailItem.id, { name: e.target.value })}
-                      disabled={!canEditSelected}
+                      disabled={!canEditDetailItemName}
                     />
                   </label>
                   {(detailItem.kind === 'ammunition' || detailItem.kind === 'consumable') ? (
@@ -4097,7 +4091,7 @@ export function CharacterTab({
                         step={1}
                         value={detailItem.qty}
                         onChange={(e) => updateInventoryItem(detailItem.id, { qty: Number(e.target.value) || 0 })}
-                        disabled={!canEditSelected}
+                        disabled={!canEditDetailItemFields}
                       />
                     </label>
                   ) : null}
@@ -4108,7 +4102,7 @@ export function CharacterTab({
                         <select
                           value={(detailItem as CharacterConsumableItem).useMode}
                           onChange={(e) => updateInventoryItem(detailItem.id, { useMode: e.target.value as 'consume' | 'use' })}
-                          disabled={!canEditSelected}
+                          disabled={!canEditDetailItemFields}
                         >
                           <option value="consume">Consume (drink, eat, apply)</option>
                           <option value="use">Use (light, activate, burn)</option>
@@ -4120,7 +4114,7 @@ export function CharacterTab({
                           className="item-detail-notes"
                           value={(detailItem as CharacterConsumableItem).effectText ?? ''}
                           onChange={(e) => updateInventoryItem(detailItem.id, { effectText: e.target.value })}
-                          disabled={!canEditSelected}
+                          disabled={!canEditDetailItemFields}
                           placeholder="Optional effect description"
                           rows={2}
                         />
@@ -4133,7 +4127,7 @@ export function CharacterTab({
                       className="item-detail-notes"
                       value={detailItem.notes}
                       onChange={(e) => updateInventoryItem(detailItem.id, { notes: e.target.value })}
-                      disabled={!canEditSelected}
+                      disabled={!canEditDetailItemFields}
                       placeholder="Description, magic properties, etc."
                       rows={3}
                     />
@@ -4627,6 +4621,7 @@ export function CharacterTab({
                             rangeShort: range.rangeShort,
                             rangeMedium: range.rangeMedium,
                             rangeLong: range.rangeLong,
+                            slow: t.qualities.includes('Slow'),
                             twoHanded: t.twoHanded,
                           })
                         }
@@ -4708,6 +4703,15 @@ export function CharacterTab({
                     </div>
                   </label>
                 </div>
+                <label className="character-weapon-card-check">
+                  <input
+                    type="checkbox"
+                    checked={addItemModal.slow}
+                    onChange={(e) => setAddItemModal({ ...addItemModal, slow: e.target.checked })}
+                    disabled={!!addItemModal.typeId && addItemModal.typeId !== 'custom'}
+                  />
+                  Slow
+                </label>
                 <label className="character-weapon-card-check">
                   <input
                     type="checkbox"

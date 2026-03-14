@@ -59,6 +59,7 @@ type Params = {
   setThiefSkillsByCharacterId: Dispatch<SetStateAction<Record<string, ThiefSkillScores>>>
   setInventoryByCharacterId: Dispatch<SetStateAction<Record<string, CharacterInventoryItem[]>>>
   updateSelectedCharacter: (updates: Partial<CharacterRecord>) => void
+  updateSelectedCharacterSystem: (updates: Partial<CharacterRecord>) => void
 }
 
 export function useCharacterCreationFlow({
@@ -95,6 +96,7 @@ export function useCharacterCreationFlow({
   setThiefSkillsByCharacterId,
   setInventoryByCharacterId,
   updateSelectedCharacter,
+  updateSelectedCharacterSystem,
 }: Params) {
   const loweringCodes = loweringCandidateCodes.filter((code) => !primeRequisiteCodes.includes(code))
 
@@ -158,7 +160,7 @@ export function useCharacterCreationFlow({
       ...current,
       [effectiveSelected.id]: baseRoll,
     }))
-    updateSelectedCharacter({
+    updateSelectedCharacterSystem({
       hpCurrent: hpTotal,
       hpMax: hpTotal,
     })
@@ -190,7 +192,7 @@ export function useCharacterCreationFlow({
     const wasFullHp = effectiveSelected.hpCurrent >= effectiveSelected.hpMax
     const nextCurrent = wasFullHp ? nextMax : Math.min(effectiveSelected.hpCurrent, nextMax)
     if (effectiveSelected.hpCurrent === nextCurrent && effectiveSelected.hpMax === nextMax) return
-    updateSelectedCharacter({
+    updateSelectedCharacterSystem({
       hpCurrent: nextCurrent,
       hpMax: nextMax,
     })

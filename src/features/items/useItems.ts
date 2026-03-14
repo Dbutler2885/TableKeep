@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
-import type { CampaignItem } from '../../types/app'
+import type { CampaignItem, WeaponEffect, WeaponRollTable, WeaponRollTableEntry } from '../../types/app'
 import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence } from '../common/mediaStorage'
 
 const defaultWeaponStats: CampaignItem['weaponStats'] = {
@@ -12,6 +12,7 @@ const defaultWeaponStats: CampaignItem['weaponStats'] = {
   rangeShort: '',
   rangeMedium: '',
   rangeLong: '',
+  slow: false,
   twoHanded: false,
 }
 
@@ -27,6 +28,65 @@ const defaultConsumableStats: CampaignItem['consumableStats'] = {
   effectText: '',
 }
 
+const normalizeWeaponRollTableEntries = (value: unknown): WeaponRollTableEntry[] => {
+  if (!Array.isArray(value)) return []
+  return value.map((entry, index) => {
+    const source = (entry && typeof entry === 'object') ? entry as Record<string, unknown> : {}
+    return {
+      id: typeof source.id === 'string' ? source.id : `entry-${index + 1}`,
+      roll: typeof source.roll === 'string' ? source.roll : '',
+      text: typeof source.text === 'string' ? source.text : '',
+    }
+  })
+}
+
+const normalizeWeaponEffects = (value: unknown): WeaponEffect[] => {
+  if (!Array.isArray(value)) return []
+  return value.map((effect, index) => {
+    const source = (effect && typeof effect === 'object') ? effect as Record<string, unknown> : {}
+    const conditionValues = Array.isArray(source.conditionValues)
+      ? source.conditionValues.filter((entry): entry is string => typeof entry === 'string')
+      : typeof source.conditionValue === 'string' && source.conditionValue.trim()
+        ? source.conditionValue.split(',').map((entry) => entry.trim()).filter((entry) => entry.length > 0)
+        : []
+    return {
+      id: typeof source.id === 'string' ? source.id : `effect-${index + 1}`,
+      trigger: source.trigger === 'passive' || source.trigger === 'on_hit' || source.trigger === 'on_crit' || source.trigger === 'versus_target'
+        ? source.trigger
+        : 'passive',
+      conditionType: source.conditionType === 'alignment' || source.conditionType === 'armour_state' || source.conditionType === 'creature_type' || source.conditionType === 'custom'
+        ? source.conditionType
+        : 'none',
+      conditionValues,
+      outcomeType:
+        source.outcomeType === 'attack_bonus'
+        || source.outcomeType === 'damage_bonus'
+        || source.outcomeType === 'replace_damage'
+        || source.outcomeType === 'extra_damage'
+        || source.outcomeType === 'roll_table'
+        || source.outcomeType === 'grant_trait'
+        || source.outcomeType === 'show_text'
+          ? source.outcomeType
+          : 'show_text',
+      outcomeValue: typeof source.outcomeValue === 'string' ? source.outcomeValue : '',
+      notes: typeof source.notes === 'string' ? source.notes : '',
+    }
+  })
+}
+
+const normalizeWeaponRollTables = (value: unknown): WeaponRollTable[] => {
+  if (!Array.isArray(value)) return []
+  return value.map((table, index) => {
+    const source = (table && typeof table === 'object') ? table as Record<string, unknown> : {}
+    return {
+      id: typeof source.id === 'string' ? source.id : `table-${index + 1}`,
+      name: typeof source.name === 'string' ? source.name : '',
+      dieSides: typeof source.dieSides === 'string' ? source.dieSides : '',
+      entries: normalizeWeaponRollTableEntries(source.entries),
+    }
+  })
+}
+
 const normalizeWeaponStats = (value: unknown): CampaignItem['weaponStats'] => {
   const source = (value && typeof value === 'object') ? value as Record<string, unknown> : {}
   const toText = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '')
@@ -38,6 +98,7 @@ const normalizeWeaponStats = (value: unknown): CampaignItem['weaponStats'] => {
     rangeShort: toText(source.rangeShort),
     rangeMedium: toText(source.rangeMedium),
     rangeLong: toText(source.rangeLong),
+    slow: source.slow === true,
     twoHanded: source.twoHanded === true,
   }
 }
@@ -86,6 +147,8 @@ const normalizeCampaignItem = (id: string, data: Record<string, unknown>): Campa
     qty: typeof data.qty === 'string' ? data.qty : typeof data.qty === 'number' ? String(data.qty) : '1',
     isMagic: data.isMagic === true,
     weaponStats: normalizeWeaponStats(data.weaponStats),
+    weaponEffects: normalizeWeaponEffects(data.weaponEffects),
+    weaponRollTables: normalizeWeaponRollTables(data.weaponRollTables),
     armourStats: normalizeArmourStats(data.armourStats),
     consumableStats: normalizeConsumableStats(data.consumableStats),
     specialRule: typeof data.specialRule === 'string' ? data.specialRule : '',
@@ -110,6 +173,8 @@ export const toFirestoreItem = (item: CampaignItem): Record<string, unknown> => 
     qty: item.qty,
     isMagic: item.isMagic,
     weaponStats: { ...defaultWeaponStats, ...item.weaponStats },
+    weaponEffects: item.weaponEffects,
+    weaponRollTables: item.weaponRollTables,
     armourStats: { ...defaultArmourStats, ...item.armourStats },
     consumableStats: { ...defaultConsumableStats, ...item.consumableStats },
     specialRule: item.specialRule,

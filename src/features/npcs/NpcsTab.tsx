@@ -3,10 +3,9 @@ import { Check, ChevronLeft, Circle, Plus, Search, Tag, Trash2, UserRound, X } f
 import { collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { NpcPrivateRecord, NpcRecord, Role } from '../../types/app'
-import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence, uploadEntityImage } from '../common/mediaStorage'
-import { RichTextEditor } from '../common/RichTextEditor'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
+import { NpcDetailEditor } from './NpcDetailEditor'
 
 type NpcsTabProps = {
   campaignId: string
@@ -569,127 +568,23 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
             {!selectedNpc ? (
               <p>Select an NPC from the list.</p>
             ) : (
-              <div className="monster-editor-grid character-editor-grid">
-                <section className="monster-section-block">
-                  <div className="character-sheet-header-grid">
-                    <label className="character-header-field character-header-field-name">
-                      <span className="character-header-tag">Name</span>
-                      <input
-                        type="text"
-                        value={selectedNpc.name}
-                        onChange={(event) => updateSelectedNpc({ name: event.target.value })}
-                        disabled={role !== 'gm'}
-                      />
-                    </label>
-                    <label className="character-header-field character-header-field-title">
-                      <span className="character-header-tag">Title</span>
-                      <input
-                        type="text"
-                        value={selectedNpc.title}
-                        onChange={(event) => updateSelectedNpc({ title: event.target.value })}
-                        disabled={role !== 'gm'}
-                      />
-                    </label>
-                  {role === 'gm' ? (
-                    <label className="character-header-field character-header-field-align">
-                      <span className="character-header-tag">Players</span>
-                      <select
-                        value={selectedNpc.visibleToPlayers ? 'shown' : 'hidden'}
-                        onChange={(event) => updateSelectedNpc({ visibleToPlayers: event.target.value === 'shown' })}
-                      >
-                        <option value="hidden">Hidden</option>
-                        <option value="shown">Shown</option>
-                      </select>
-                    </label>
-                  ) : null}
-                  {role === 'gm' ? (
-                    <div className="character-header-field character-header-field-title">
-                      <div className="npc-tag-summary-row">
-                        <button type="button" className="map-edit-btn" onClick={() => setTagsModalOpen(true)} aria-label="Manage tags">
-                          <Tag size={16} />
-                        </button>
-                        {selectedNpc.tags.length > 0 ? (
-                          <div className="item-faction-tag-list">
-                            {selectedNpc.tags.map((tag) => (
-                              <span key={tag} className="item-tag">{tag}</span>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="map-npc-scene-empty">No tags yet.</p>
-                        )}
-                      </div>
-                    </div>
-                  ) : selectedNpc.tags.length > 0 ? (
-                    <div className="character-header-field character-header-field-title">
-                      <span className="character-header-tag">Tags</span>
-                      <div className="item-faction-tag-list">
-                        {selectedNpc.tags.map((tag) => (
-                          <span key={tag} className="item-tag">{tag}</span>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              </section>
-
-                <section className="monster-section-block">
-                  <h3 className="monster-section-title">Portrait</h3>
-                  <div className="character-media-wrap">
-                    <EntityMediaEditor
-                      entityName={selectedNpc.name || 'npc'}
-                      portraitUrl={selectedNpc.portraitUrl}
-                      portraitFocusX={selectedNpc.portraitFocusX}
-                      portraitFocusY={selectedNpc.portraitFocusY}
-                      tokenIcon={selectedNpc.tokenIcon}
-                      onChange={(updates) => void updateSelectedNpc(updates)}
-                      onUploadPortraitImage={uploadNpcPortraitImage}
-                      onUploadTokenImage={uploadNpcTokenImage}
-                      portraitAltLabel="NPC portrait"
-                      tokenButtonAriaLabel="Edit NPC token icon"
-                      removePortraitMessage="Remove the portrait image from this NPC?"
-                    />
-                  </div>
-                </section>
-
-                <section className="monster-section-block">
-                  <h3 className="monster-section-title">Player Description</h3>
-                  <textarea
-                    className="monster-notes"
-                    value={selectedNpc.playerDescription}
-                    onChange={(event) => updateSelectedNpc({ playerDescription: event.target.value })}
-                    placeholder="Short player-facing description"
-                    disabled={role !== 'gm'}
-                  />
-                </section>
-
-                <section className="monster-section-block">
-                  <h3 className="monster-section-title">Player Notes</h3>
-                  <RichTextEditor
-                    value={selectedNpc.playerNotes}
-                    onChange={(value) => {
-                      if (role === 'gm') {
-                        updateSelectedNpc({ playerNotes: value })
-                        return
-                      }
-                      updatePlayerNotes(selectedNpc.id, value)
-                    }}
-                    placeholder="Player-facing notes"
-                    editable={role === 'gm' || role === 'player'}
-                  />
-                </section>
-
-                {role === 'gm' ? (
-                  <section className="monster-section-block">
-                    <h3 className="monster-section-title">GM Notes</h3>
-                    <RichTextEditor
-                      value={gmNotes}
-                      onChange={(value) => updateGmNotes(selectedNpc.id, value)}
-                      placeholder="Private GM notes"
-                      editable
-                    />
-                  </section>
-                ) : null}
-              </div>
+              <NpcDetailEditor
+                npc={selectedNpc}
+                role={role}
+                gmNotes={gmNotes}
+                onChange={(updates) => void updateSelectedNpc(updates)}
+                onChangePlayerNotes={(value) => {
+                  if (role === 'gm') {
+                    updateSelectedNpc({ playerNotes: value })
+                    return
+                  }
+                  updatePlayerNotes(selectedNpc.id, value)
+                }}
+                onChangeGmNotes={(value) => updateGmNotes(selectedNpc.id, value)}
+                onOpenTags={() => setTagsModalOpen(true)}
+                onUploadPortraitImage={uploadNpcPortraitImage}
+                onUploadTokenImage={uploadNpcTokenImage}
+              />
             )}
           </div>
         </div>

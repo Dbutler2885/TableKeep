@@ -41,6 +41,7 @@ export type AddItemModalState = {
   rangeShort: string
   rangeMedium: string
   rangeLong: string
+  slow: boolean
   twoHanded: boolean
   isMagic: boolean
   attackBonus: string
@@ -59,6 +60,7 @@ type Params = {
   currentUsername: string
   effectiveSelected: CharacterRecord | null
   canEditSelected: boolean
+  canEditInventoryDetails: boolean
   selectedClassName: string
   canClassEquipArmour: boolean
   selectedInventory: CharacterInventoryItem[]
@@ -92,6 +94,7 @@ export function useInventoryDomain({
   currentUsername,
   effectiveSelected,
   canEditSelected,
+  canEditInventoryDetails,
   selectedClassName,
   canClassEquipArmour,
   selectedInventory,
@@ -111,14 +114,28 @@ export function useInventoryDomain({
   setApprovalPendingFeedback,
   submitRequest,
 }: Params) {
+  const filterInventoryUpdatesForPlayer = <T extends Partial<CharacterInventoryItem>>(updates: T) => {
+    if (canEditInventoryDetails) return updates
+    const allowed: Partial<CharacterInventoryItem> = {}
+    if (Object.prototype.hasOwnProperty.call(updates, 'equipped')) {
+      allowed.equipped = updates.equipped
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'name')) {
+      allowed.name = updates.name
+    }
+    return allowed as T
+  }
+
   const updateInventoryItem = (itemId: string, updates: Partial<CharacterInventoryItem>) => {
     if (!effectiveSelected) return
+    const nextUpdates = filterInventoryUpdatesForPlayer(updates)
+    if (Object.keys(nextUpdates).length === 0) return
     setInventoryByCharacterId((current) => {
       const items = current[effectiveSelected.id] ?? []
       return {
         ...current,
         [effectiveSelected.id]: items.map((item) =>
-          item.id === itemId ? { ...item, ...updates } as CharacterInventoryItem : item,
+          item.id === itemId ? { ...item, ...nextUpdates } as CharacterInventoryItem : item,
         ),
       }
     })
@@ -151,9 +168,11 @@ export function useInventoryDomain({
 
   const updateWeaponRow = (itemId: string, updates: Partial<CharacterWeaponItem>) => {
     if (!effectiveSelected) return
+    const nextUpdates = filterInventoryUpdatesForPlayer(updates)
+    if (Object.keys(nextUpdates).length === 0) return
     setInventoryByCharacterId((current) => {
       const items = current[effectiveSelected.id] ?? []
-      const shouldEquipExclusively = updates.equipped === true
+      const shouldEquipExclusively = nextUpdates.equipped === true
 
       return {
         ...current,
@@ -163,9 +182,9 @@ export function useInventoryDomain({
             if (shouldEquipExclusively) return { ...item, equipped: false }
             return item
           }
-          let merged = { ...item, ...updates } as CharacterWeaponItem
-          if (Object.prototype.hasOwnProperty.call(updates, 'typeId')) {
-            merged = applyWeaponTemplateToItem(merged, updates.typeId ?? '')
+          let merged = { ...item, ...nextUpdates } as CharacterWeaponItem
+          if (Object.prototype.hasOwnProperty.call(nextUpdates, 'typeId')) {
+            merged = applyWeaponTemplateToItem(merged, nextUpdates.typeId ?? '')
           }
           if (selectedClassName === 'Halfling' && merged.twoHanded) {
             merged = { ...merged, twoHanded: false, equipped: false }
@@ -181,11 +200,13 @@ export function useInventoryDomain({
 
   const updateArmourRow = (armourItemId: string, updates: Partial<CharacterArmourItem>) => {
     if (!effectiveSelected) return
+    const nextUpdates = filterInventoryUpdatesForPlayer(updates)
+    if (Object.keys(nextUpdates).length === 0) return
     setInventoryByCharacterId((current) => {
       const items = current[effectiveSelected.id] ?? []
-      const shouldEquipExclusively = updates.equipped === true
+      const shouldEquipExclusively = nextUpdates.equipped === true
       const currentTarget = items.find((item): item is CharacterArmourItem => item.kind === 'armour' && item.id === armourItemId) ?? null
-      const targetArmourType = updates.armourType ?? (currentTarget ? resolveArmourType(currentTarget) : 'body')
+      const targetArmourType = nextUpdates.armourType ?? (currentTarget ? resolveArmourType(currentTarget) : 'body')
       return {
         ...current,
         [effectiveSelected.id]: items.map((item) => {
@@ -197,9 +218,9 @@ export function useInventoryDomain({
             }
             return normalizedItem
           }
-          let merged = { ...normalizedItem, ...updates } as CharacterArmourItem
-          if (updates.typeId) {
-            merged = applyArmourTemplateToItem(merged, updates.typeId)
+          let merged = { ...normalizedItem, ...nextUpdates } as CharacterArmourItem
+          if (nextUpdates.typeId) {
+            merged = applyArmourTemplateToItem(merged, nextUpdates.typeId)
           }
           if (!canClassEquipArmour) {
             merged = { ...merged, equipped: false }
@@ -218,7 +239,7 @@ export function useInventoryDomain({
     setAddItemModal({
       equipped, kind: 'general', typeName: '', name: '', costGp: '', notes: '', description: '',
       typeId: 'custom', damageDiceCount: '', damageDiceSides: '', rangeShort: '',
-      rangeMedium: '', rangeLong: '', twoHanded: false, isMagic: false, attackBonus: '',
+      rangeMedium: '', rangeLong: '', slow: false, twoHanded: false, isMagic: false, attackBonus: '',
       damageBonus: '', armourClass: '', shieldMod: '', magicMod: '', armourType: 'body', qty: '1', useMode: 'consume', effectText: '',
     })
   }
@@ -239,6 +260,7 @@ export function useInventoryDomain({
           damageBonus: m.damageBonus,
           damageDiceCount: m.damageDiceCount, damageDiceSides: m.damageDiceSides,
           rangeShort: m.rangeShort, rangeMedium: m.rangeMedium, rangeLong: m.rangeLong,
+          slow: m.slow,
           twoHanded: m.twoHanded,
         })
         if (m.typeId && m.typeId !== 'custom') item = applyWeaponTemplateToItem(item, m.typeId)

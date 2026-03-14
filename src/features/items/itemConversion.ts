@@ -13,7 +13,7 @@ import { goldChunksForAmount, makeGoldItem } from '../character/inventoryOverflo
 
 const defaultWeaponStats: CampaignItem['weaponStats'] = {
   damageDiceCount: '', damageDiceSides: '', attackBonus: '',
-  damageBonus: '', rangeShort: '', rangeMedium: '', rangeLong: '', twoHanded: false,
+  damageBonus: '', rangeShort: '', rangeMedium: '', rangeLong: '', slow: false, twoHanded: false,
 }
 
 const defaultArmourStats: CampaignItem['armourStats'] = { armourClass: '', shieldMod: '', magicMod: '', armourType: 'body' }
@@ -51,7 +51,10 @@ export function campaignItemToInventoryItem(item: CampaignItem): CharacterInvent
         rangeShort: item.weaponStats.rangeShort,
         rangeMedium: item.weaponStats.rangeMedium,
         rangeLong: item.weaponStats.rangeLong,
+        slow: item.weaponStats.slow,
         twoHanded: item.weaponStats.twoHanded,
+        weaponEffects: item.weaponEffects,
+        weaponRollTables: item.weaponRollTables,
       } satisfies CharacterWeaponItem
 
     case 'armour':
@@ -110,7 +113,7 @@ export function inventoryItemToCampaignItem(
     droppedByCharacterName?: string
   },
 ): CampaignItem {
-  const base: Omit<CampaignItem, 'type' | 'isMagic' | 'weaponStats' | 'armourStats' | 'consumableStats'> = {
+  const base: Omit<CampaignItem, 'type' | 'isMagic' | 'weaponStats' | 'weaponEffects' | 'weaponRollTables' | 'armourStats' | 'consumableStats'> = {
     id: crypto.randomUUID(),
     typeId: item.typeId,
     typeName: item.typeName,
@@ -145,8 +148,11 @@ export function inventoryItemToCampaignItem(
           rangeShort: w.rangeShort,
           rangeMedium: w.rangeMedium,
           rangeLong: w.rangeLong,
+          slow: w.slow,
           twoHanded: w.twoHanded,
         },
+        weaponEffects: w.weaponEffects ?? [],
+        weaponRollTables: w.weaponRollTables ?? [],
         armourStats: defaultArmourStats,
         consumableStats: defaultConsumableStats,
       }
@@ -158,6 +164,8 @@ export function inventoryItemToCampaignItem(
         type: 'armour',
         isMagic: a.isMagic,
         weaponStats: defaultWeaponStats,
+        weaponEffects: [],
+        weaponRollTables: [],
         armourStats: { armourClass: a.armourClass, shieldMod: a.shieldMod, magicMod: a.magicMod, armourType: a.armourType },
         consumableStats: defaultConsumableStats,
       }
@@ -168,6 +176,8 @@ export function inventoryItemToCampaignItem(
         type: 'ammunition',
         isMagic: false,
         weaponStats: defaultWeaponStats,
+        weaponEffects: [],
+        weaponRollTables: [],
         armourStats: defaultArmourStats,
         consumableStats: defaultConsumableStats,
       }
@@ -179,6 +189,8 @@ export function inventoryItemToCampaignItem(
         type: 'consumable',
         isMagic: false,
         weaponStats: defaultWeaponStats,
+        weaponEffects: [],
+        weaponRollTables: [],
         armourStats: defaultArmourStats,
         consumableStats: { useMode: c.useMode, effectText: c.effectText ?? '' },
       }
@@ -189,6 +201,8 @@ export function inventoryItemToCampaignItem(
         type: 'general',
         isMagic: false,
         weaponStats: defaultWeaponStats,
+        weaponEffects: [],
+        weaponRollTables: [],
         armourStats: defaultArmourStats,
         consumableStats: defaultConsumableStats,
       }
@@ -198,6 +212,8 @@ export function inventoryItemToCampaignItem(
         type: 'gold',
         isMagic: false,
         weaponStats: defaultWeaponStats,
+        weaponEffects: [],
+        weaponRollTables: [],
         armourStats: defaultArmourStats,
         consumableStats: defaultConsumableStats,
         goldAmount: item.qty ?? 0,

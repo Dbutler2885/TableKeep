@@ -481,6 +481,7 @@ export function useMapData({
               id: d.id,
               name: typeof data.name === 'string' ? data.name : '',
               title: typeof data.title === 'string' ? data.title : '',
+              tags: Array.isArray(data.tags) ? data.tags.filter((tag): tag is string => typeof tag === 'string') : [],
               portraitPath: typeof data.portraitPath === 'string' ? data.portraitPath : '',
               portraitUrl: typeof data.portraitUrl === 'string' ? data.portraitUrl : null,
               portraitFocusX: typeof data.portraitFocusX === 'number' ? data.portraitFocusX : 50,

@@ -64,6 +64,40 @@ export type StackPolicy =
   | { stackable: false }
   | { stackable: true; maxStack: number }
 
+export type WeaponEffectTrigger = 'passive' | 'on_hit' | 'on_crit' | 'versus_target'
+export type WeaponEffectConditionType = 'none' | 'alignment' | 'armour_state' | 'creature_type' | 'custom'
+export type WeaponEffectOutcomeType =
+  | 'attack_bonus'
+  | 'damage_bonus'
+  | 'replace_damage'
+  | 'extra_damage'
+  | 'roll_table'
+  | 'grant_trait'
+  | 'show_text'
+
+export type WeaponEffect = {
+  id: string
+  trigger: WeaponEffectTrigger
+  conditionType: WeaponEffectConditionType
+  conditionValues: string[]
+  outcomeType: WeaponEffectOutcomeType
+  outcomeValue: string
+  notes: string
+}
+
+export type WeaponRollTableEntry = {
+  id: string
+  roll: string
+  text: string
+}
+
+export type WeaponRollTable = {
+  id: string
+  name: string
+  dieSides: string
+  entries: WeaponRollTableEntry[]
+}
+
 // --- Campaign item (GM-authored template) ---
 
 export type CampaignItemType = 'weapon' | 'armour' | 'ammunition' | 'consumable' | 'general' | 'gold'
@@ -94,8 +128,11 @@ export type CampaignItem = {
     rangeShort: string
     rangeMedium: string
     rangeLong: string
+    slow: boolean
     twoHanded: boolean
   }
+  weaponEffects: WeaponEffect[]
+  weaponRollTables: WeaponRollTable[]
   armourStats: { armourClass: string; shieldMod: string; magicMod: string; armourType: 'body' | 'shield' }
   consumableStats: { useMode: ConsumableUseMode; effectText: string }
   specialRule: string
@@ -133,7 +170,10 @@ export type CharacterWeaponItem = CharacterInventoryItemBase & {
   rangeShort: string
   rangeMedium: string
   rangeLong: string
+  slow: boolean
   twoHanded: boolean
+  weaponEffects?: WeaponEffect[]
+  weaponRollTables?: WeaponRollTable[]
 }
 
 export type CharacterArmourItem = CharacterInventoryItemBase & {

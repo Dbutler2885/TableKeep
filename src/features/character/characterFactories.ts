@@ -59,7 +59,10 @@ export const makeWeaponItem = (overrides?: Partial<CharacterWeaponItem>): Charac
   rangeShort: '',
   rangeMedium: '',
   rangeLong: '',
+  slow: false,
   twoHanded: false,
+  weaponEffects: [],
+  weaponRollTables: [],
   ...overrides,
 })
 

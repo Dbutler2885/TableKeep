@@ -42,6 +42,11 @@ export function useGridTools({
   const [gridCalibrateEnd, setGridCalibrateEnd] = useState<{ x: number; y: number } | null>(null)
   const [gridCalibratePreview, setGridCalibratePreview] = useState<{ x: number; y: number } | null>(null)
   const [gridCalibrateDraggingHandle, setGridCalibrateDraggingHandle] = useState<'start' | 'end' | null>(null)
+  const [gridMeasureMode, setGridMeasureMode] = useState(false)
+  const [gridMeasureStart, setGridMeasureStart] = useState<{ x: number; y: number } | null>(null)
+  const [gridMeasureEnd, setGridMeasureEnd] = useState<{ x: number; y: number } | null>(null)
+  const [gridMeasurePreview, setGridMeasurePreview] = useState<{ x: number; y: number } | null>(null)
+  const [gridMeasureDraggingHandle, setGridMeasureDraggingHandle] = useState<'start' | 'end' | null>(null)
   const [gridCalibrateSavedAt, setGridCalibrateSavedAt] = useState(0)
   const [gridAdjustSavedAt, setGridAdjustSavedAt] = useState(0)
   const [gridAdjustDraft, setGridAdjustDraft] = useState<GridAdjustDraft | null>(null)
@@ -103,16 +108,22 @@ export function useGridTools({
     setGridCalibratePulse(false)
   }
 
+  const resetGridMeasurementDraft = () => {
+    setGridMeasureStart(null)
+    setGridMeasureEnd(null)
+    setGridMeasurePreview(null)
+    setGridMeasureDraggingHandle(null)
+  }
+
   const toggleGridAdjustMode = () => {
     if (role !== 'gm' || !selectedMap) return
     if (gridCalibrateMode) {
       setGridCalibrateMode(false)
-      setGridCalibrateStart(null)
-      setGridCalibrateEnd(null)
-      setGridCalibratePreview(null)
-      setGridCalibrateDraggingHandle(null)
-      setGridCalibrateSavedAt(0)
-      setGridCalibratePulse(false)
+      resetGridCalibrationDraft()
+    }
+    if (gridMeasureMode) {
+      setGridMeasureMode(false)
+      resetGridMeasurementDraft()
     }
     if (gridAdjustMode) {
       setGridAdjustMode(false)
@@ -348,8 +359,27 @@ export function useGridTools({
       return
     }
     setGridAdjustMode(false)
+    if (gridMeasureMode) {
+      setGridMeasureMode(false)
+      resetGridMeasurementDraft()
+    }
     resetGridCalibrationDraft()
     setGridCalibrateMode(true)
+  }
+
+  const toggleGridMeasureMode = () => {
+    if (gridMeasureMode) {
+      resetGridMeasurementDraft()
+      setGridMeasureMode(false)
+      return
+    }
+    if (gridCalibrateMode) {
+      setGridCalibrateMode(false)
+      resetGridCalibrationDraft()
+    }
+    setGridAdjustMode(false)
+    resetGridMeasurementDraft()
+    setGridMeasureMode(true)
   }
 
   const toggleGridVisibility = async () => {
@@ -441,6 +471,13 @@ export function useGridTools({
     setGridCalibratePreview(point)
   }
 
+  const handleGridMeasureMouseMove = (clientX: number, clientY: number) => {
+    if (!gridMeasureMode || !gridMeasureStart || gridMeasureEnd) return
+    const point = getTokenDropPointRef.current(clientX, clientY)
+    if (!point) return
+    setGridMeasurePreview(point)
+  }
+
   const handleGridCalibrateHandleMouseDown = (
     event: React.MouseEvent<HTMLButtonElement>,
     handle: 'start' | 'end',
@@ -449,6 +486,16 @@ export function useGridTools({
     event.preventDefault()
     event.stopPropagation()
     setGridCalibrateDraggingHandle(handle)
+  }
+
+  const handleGridMeasureHandleMouseDown = (
+    event: React.MouseEvent<HTMLButtonElement>,
+    handle: 'start' | 'end',
+  ) => {
+    if (!gridMeasureMode) return
+    event.preventDefault()
+    event.stopPropagation()
+    setGridMeasureDraggingHandle(handle)
   }
 
   const handleGridCalibrateClick = (clientX: number, clientY: number): boolean => {
@@ -470,6 +517,23 @@ export function useGridTools({
       setGridCalibrateSavedAt(0)
       return true
     }
+    return true
+  }
+
+  const handleGridMeasureClick = (clientX: number, clientY: number): boolean => {
+    if (role !== 'gm' || !selectedMap) return false
+    const point = getTokenDropPointRef.current(clientX, clientY)
+    if (!point) return true
+
+    if (!gridMeasureStart || (gridMeasureStart && gridMeasureEnd)) {
+      setGridMeasureStart(point)
+      setGridMeasureEnd(null)
+      setGridMeasurePreview(null)
+      return true
+    }
+
+    setGridMeasureEnd(point)
+    setGridMeasurePreview(null)
     return true
   }
 
@@ -523,6 +587,27 @@ export function useGridTools({
     }
   }, [gridCalibrateDraggingHandle, gridCalibrateMode])
 
+  useEffect(() => {
+    if (!gridMeasureDraggingHandle || !gridMeasureMode) return
+    const handleMove = (event: MouseEvent) => {
+      const point = getTokenDropPointRef.current(event.clientX, event.clientY)
+      if (!point) return
+      if (gridMeasureDraggingHandle === 'start') {
+        setGridMeasureStart(point)
+        if (!gridMeasureEnd) setGridMeasurePreview(point)
+      } else {
+        setGridMeasureEnd(point)
+      }
+    }
+    const handleUp = () => setGridMeasureDraggingHandle(null)
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+  }, [gridMeasureDraggingHandle, gridMeasureEnd, gridMeasureMode])
+
   // Initialize adjust draft when entering adjust mode without a draft
   useEffect(() => {
     if (!gridAdjustMode || gridAdjustDraft || !selectedMap) return
@@ -536,22 +621,23 @@ export function useGridTools({
     })
   }, [gridAdjustDraft, gridAdjustMode, selectedMap])
 
-  // Escape key exits calibrate mode
+  // Escape key exits calibrate or measure mode
   useEffect(() => {
-    if (!gridCalibrateMode) return
+    if (!gridCalibrateMode && !gridMeasureMode) return
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
-      setGridCalibrateMode(false)
-      setGridCalibrateStart(null)
-      setGridCalibrateEnd(null)
-      setGridCalibratePreview(null)
-      setGridCalibrateDraggingHandle(null)
-      setGridCalibrateSavedAt(0)
-      setGridCalibratePulse(false)
+      if (gridCalibrateMode) {
+        setGridCalibrateMode(false)
+        resetGridCalibrationDraft()
+      }
+      if (gridMeasureMode) {
+        setGridMeasureMode(false)
+        resetGridMeasurementDraft()
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [gridCalibrateMode])
+  }, [gridCalibrateMode, gridMeasureMode])
 
   // Auto-dismiss calibrate mode after save
   useEffect(() => {
@@ -592,12 +678,9 @@ export function useGridTools({
     setGridAdjustSavedAt(0)
     setGridAlignDrag(null)
     setGridCalibrateMode(false)
-    setGridCalibrateStart(null)
-    setGridCalibrateEnd(null)
-    setGridCalibratePreview(null)
-    setGridCalibrateDraggingHandle(null)
-    setGridCalibrateSavedAt(0)
-    setGridCalibratePulse(false)
+    resetGridCalibrationDraft()
+    setGridMeasureMode(false)
+    resetGridMeasurementDraft()
     setHexDetecting(false)
     setHexDetectConfidence(null)
   }
@@ -605,12 +688,17 @@ export function useGridTools({
   return {
     // State
     gridCalibrateMode,
+    gridMeasureMode,
     gridAdjustMode,
     gridAdjustDraft,
     gridCalibrateStart,
     gridCalibrateEnd,
     gridCalibratePreview,
+    gridMeasureStart,
+    gridMeasureEnd,
+    gridMeasurePreview,
     gridCalibrateDraggingHandle,
+    gridMeasureDraggingHandle,
     gridCalibrateSavedAt,
     gridAdjustSavedAt,
     gridCalibratePulse,
@@ -628,6 +716,7 @@ export function useGridTools({
     // Handlers
     toggleGridAdjustMode,
     toggleGridCalibrateMode,
+    toggleGridMeasureMode,
     toggleGridVisibility,
     setGridType,
     applyGridAdjust,
@@ -638,7 +727,10 @@ export function useGridTools({
     handleGridLayerWheel,
     handleGridLayerMouseDown,
     handleGridCalibrateClick,
+    handleGridMeasureClick,
     handleGridCalibrateMouseMove,
+    handleGridMeasureMouseMove,
     handleGridCalibrateHandleMouseDown,
+    handleGridMeasureHandleMouseDown,
   }
 }

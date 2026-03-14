@@ -145,7 +145,7 @@ export function computeOverflow(
 // Default stat sub-objects for canonical CampaignItem shape
 const defaultWeaponStats: CampaignItem['weaponStats'] = {
   damageDiceCount: '', damageDiceSides: '', attackBonus: '',
-  damageBonus: '', rangeShort: '', rangeMedium: '', rangeLong: '', twoHanded: false,
+  damageBonus: '', rangeShort: '', rangeMedium: '', rangeLong: '', slow: false, twoHanded: false,
 }
 const defaultArmourStats: CampaignItem['armourStats'] = { armourClass: '', shieldMod: '', magicMod: '', armourType: 'body' }
 const defaultConsumableStats: CampaignItem['consumableStats'] = { useMode: 'consume', effectText: '' }
@@ -174,6 +174,8 @@ export function makeDroppedGoldCampaignItem(
     qty: '1',
     isMagic: false,
     weaponStats: defaultWeaponStats,
+    weaponEffects: [],
+    weaponRollTables: [],
     armourStats: defaultArmourStats,
     consumableStats: defaultConsumableStats,
     specialRule: '',

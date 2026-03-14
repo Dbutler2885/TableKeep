@@ -88,6 +88,7 @@ export const applyWeaponTemplateToItem = (item: CharacterWeaponItem, templateId:
       rangeShort: '',
       rangeMedium: '',
       rangeLong: '',
+      slow: false,
       twoHanded: false,
     }
   }
@@ -101,6 +102,7 @@ export const applyWeaponTemplateToItem = (item: CharacterWeaponItem, templateId:
     costGp: Number.parseInt(template.costGp, 10) || 0,
     ...parsedDamage,
     ...parseRangeBands(template.range),
+    slow: template.qualities.includes('Slow'),
     twoHanded: template.twoHanded,
   }
 }
