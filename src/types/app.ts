@@ -1,6 +1,46 @@
 export type Role = 'gm' | 'player'
 
-export type AppTab = 'character' | 'maps' | 'monsters' | 'items' | 'npcs' | 'notes' | 'rules'
+// --- Session notes types ---
+
+export type SessionScene = {
+  name: string
+  summary: string
+  details: string[]
+}
+
+export type SessionNpcMention = {
+  npcKey: string
+  name: string
+  title: string
+  action: 'new' | 'update'
+  facts: string[]
+  linkedNpcId: string | null
+}
+
+export type SessionCalendarEntry = {
+  key: string
+  action: 'new' | 'update'
+  label: string
+  dayComplete: boolean
+  entries: string[]
+}
+
+export type SessionNote = {
+  id: string
+  title: string
+  sessionNumber: number | null
+  sourceType: 'api' | 'manual'
+  createdAt: unknown
+  updatedAt: unknown
+  summaryMarkdown: string
+  overallSummary: string
+  scenes: SessionScene[]
+  npcMentions: SessionNpcMention[]
+  cliffhangers: string[]
+  calendar: SessionCalendarEntry[]
+}
+
+export type AppTab = 'character' | 'maps' | 'monsters' | 'items' | 'npcs' | 'notes' | 'calendar' | 'rules'
 
 export type Campaign = {
   id: string

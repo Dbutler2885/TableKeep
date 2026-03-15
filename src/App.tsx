@@ -17,12 +17,14 @@ import { auth, db } from './firebase'
 import { AuthPanel } from './features/auth/AuthPanel'
 import { UsernameSetup } from './features/auth/UsernameSetup'
 import { CharacterTab } from './features/character/CharacterTab'
-import { PlaceholderTab } from './features/common/PlaceholderTab'
 import { RulesTab } from './features/common/RulesTab'
 import { MapsTab } from './features/maps/MapsTab'
 import { MonstersTab } from './features/monsters/MonstersTab'
 import { ItemsTab } from './features/items/ItemsTab'
 import { NpcsTab } from './features/npcs/NpcsTab'
+import { NotesTab } from './features/notes/NotesTab'
+import { CalendarTab } from './features/notes/CalendarTab'
+import { CliffhangerModal } from './features/notes/CliffhangerModal'
 import { tabFromPathname, tabPaths, tabs } from './features/navigation/tabs'
 import { useCampaignAccess } from './features/campaign/useCampaignAccess'
 import { useCharacters } from './features/character/useCharacters'
@@ -305,7 +307,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
 
           <section
             className={
-              ['character', 'maps', 'monsters', 'items', 'npcs'].includes(activeTab)
+              ['character', 'maps', 'monsters', 'items', 'npcs', 'notes'].includes(activeTab)
                 ? 'content-panel sidebar-panel'
                 : 'content-panel'
             }
@@ -338,7 +340,8 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
                 path={tabPaths.npcs}
                 element={<NpcsTab campaignId={campaign.id} role={role} />}
               />
-              <Route path={tabPaths.notes} element={<PlaceholderTab tab="notes" />} />
+              <Route path={tabPaths.notes} element={<NotesTab campaignId={campaign.id} role={role} />} />
+              <Route path={tabPaths.calendar} element={<CalendarTab campaignId={campaign.id} role={role} />} />
               <Route path={tabPaths.rules} element={<RulesTab />} />
               <Route path="*" element={<Navigate to={tabPaths.character} replace />} />
             </Routes>
@@ -501,6 +504,9 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
           role={role}
           characters={characters}
         />
+      ) : null}
+      {campaign ? (
+        <CliffhangerModal campaignId={campaign.id} userId={user.uid} />
       ) : null}
     </main>
   )

@@ -1,12 +1,22 @@
-import { Tag } from 'lucide-react'
-import type { NpcRecord, Role } from '../../types/app'
+import { Bot, Tag } from 'lucide-react'
+import type { NpcRecord, Role, SessionNote } from '../../types/app'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { RichTextEditor } from '../common/RichTextEditor'
+
+export type NpcAutoNote = {
+  sessionTitle: string
+  sessionNumber: number | null
+  npcName: string
+  title: string
+  action: 'new' | 'update'
+  facts: string[]
+}
 
 type NpcDetailEditorProps = {
   npc: NpcRecord
   role: Role | null
   gmNotes: string
+  autoNotes: NpcAutoNote[]
   onChange: (updates: Partial<Omit<NpcRecord, 'id'>>) => void
   onChangePlayerNotes: (value: string) => void
   onChangeGmNotes: (value: string) => void
@@ -22,10 +32,30 @@ type NpcDetailEditorProps = {
   }>
 }
 
+export function buildAutoNotesForNpc(npcId: string, notes: SessionNote[]): NpcAutoNote[] {
+  const result: NpcAutoNote[] = []
+  for (const note of notes) {
+    for (const mention of note.npcMentions) {
+      if (mention.linkedNpcId === npcId && mention.facts.length > 0) {
+        result.push({
+          sessionTitle: note.title,
+          sessionNumber: note.sessionNumber,
+          npcName: mention.name,
+          title: mention.title,
+          action: mention.action,
+          facts: mention.facts,
+        })
+      }
+    }
+  }
+  return result
+}
+
 export function NpcDetailEditor({
   npc,
   role,
   gmNotes,
+  autoNotes,
   onChange,
   onChangePlayerNotes,
   onChangeGmNotes,
@@ -136,6 +166,30 @@ export function NpcDetailEditor({
           editable={role === 'gm' || role === 'player'}
         />
       </section>
+
+      {autoNotes.length > 0 ? (
+        <section className="monster-section-block">
+          <h3 className="monster-section-title"><Bot size={16} /> Auto-Notes</h3>
+          <div className="npc-auto-notes">
+            {autoNotes.map((entry, i) => (
+              <div key={i} className="npc-auto-note-entry">
+                <p className="npc-auto-note-session">
+                  {entry.sessionNumber != null ? `Session ${entry.sessionNumber}: ` : ''}
+                  {entry.sessionTitle}
+                  <span className={`session-badge ${entry.action === 'new' ? 'session-badge-new' : 'session-badge-update'}`}>
+                    {entry.action}
+                  </span>
+                </p>
+                <ul className="npc-auto-note-facts">
+                  {entry.facts.map((fact, fi) => (
+                    <li key={fi}>{fact}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {role === 'gm' ? (
         <section className="monster-section-block">

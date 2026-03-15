@@ -234,6 +234,7 @@ function SceneNpcEditorModal({
                 npc={npc}
                 role="gm"
                 gmNotes={gmNotes}
+                autoNotes={[]}
                 onChange={(updates) => void persistNpc(updates)}
                 onChangePlayerNotes={(value) => void persistNpc({ playerNotes: value })}
                 onChangeGmNotes={(value) => void persistGmNotes(value)}

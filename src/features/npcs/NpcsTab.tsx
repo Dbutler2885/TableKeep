@@ -5,7 +5,8 @@ import { db } from '../../firebase'
 import type { NpcPrivateRecord, NpcRecord, Role, TokenIconConfig } from '../../types/app'
 import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence, uploadEntityImage } from '../common/mediaStorage'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
-import { NpcDetailEditor } from './NpcDetailEditor'
+import { useSessionNotes } from '../notes/useSessionNotes'
+import { NpcDetailEditor, buildAutoNotesForNpc } from './NpcDetailEditor'
 
 type NpcsTabProps = {
   campaignId: string
@@ -53,6 +54,8 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
   const [tagSearch, setTagSearch] = useState('')
   const [tagFilterOpen, setTagFilterOpen] = useState(false)
   const [tagFilterSearch, setTagFilterSearch] = useState('')
+
+  const { notes: sessionNotes } = useSessionNotes(campaignId)
 
   useEffect(() => {
     const updateMobileState = () => {
@@ -353,6 +356,10 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
   const showListPane = !isMobile || mobileView === 'list'
   const showDetailPane = !isMobile || mobileView === 'detail'
   const gmNotes = selectedNpc ? (privateNotesById[selectedNpc.id] ?? '') : ''
+  const autoNotes = useMemo(
+    () => selectedNpc ? buildAutoNotesForNpc(selectedNpc.id, sessionNotes) : [],
+    [selectedNpc, sessionNotes],
+  )
   const allTags = useMemo(
     () => Array.from(new Set(npcs.flatMap((npc) => npc.tags))).sort((a, b) => a.localeCompare(b)),
     [npcs],
@@ -591,6 +598,7 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
                 npc={selectedNpc}
                 role={role}
                 gmNotes={gmNotes}
+                autoNotes={autoNotes}
                 onChange={(updates) => void updateSelectedNpc(updates)}
                 onChangePlayerNotes={(value) => {
                   if (role === 'gm') {
