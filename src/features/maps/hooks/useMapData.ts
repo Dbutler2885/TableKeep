@@ -507,7 +507,7 @@ export function useMapData({
 
     void Promise.allSettled(
       monstersNeedingMedia.map(async (monster) => {
-        const customImageUrl = await resolveStoragePathUrl(monster.tokenIcon.customImagePath as string)
+        const customImageUrl = (await resolveStoragePathUrl(monster.tokenIcon.customImagePath as string)) ?? undefined
         setMapMonsters((current) =>
           current.map((entry) =>
             entry.id === monster.id
@@ -533,7 +533,7 @@ export function useMapData({
 
     void Promise.allSettled(
       charactersNeedingMedia.map(async (character) => {
-        const customImageUrl = await resolveStoragePathUrl(character.tokenIcon.customImagePath as string)
+        const customImageUrl = (await resolveStoragePathUrl(character.tokenIcon.customImagePath as string)) ?? undefined
         setMapCharacters((current) =>
           current.map((entry) =>
             entry.id === character.id

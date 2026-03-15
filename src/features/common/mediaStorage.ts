@@ -1,3 +1,4 @@
+import { onAuthStateChanged } from 'firebase/auth'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { auth, storage } from '../../firebase'
 import { normalizeImageForUpload } from './imageNormalization'
@@ -16,7 +17,32 @@ type UploadEntityImageParams = {
 export const isRenderableImageUrl = (value: string | null | undefined) =>
   typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:'))
 
-export const resolveStoragePathUrl = async (path: string) => getDownloadURL(ref(storage, path))
+let authReadyPromise: Promise<void> | null = null
+
+const waitForAuthReady = async () => {
+  if (typeof auth.authStateReady === 'function') {
+    await auth.authStateReady()
+    return
+  }
+
+  if (!authReadyPromise) {
+    authReadyPromise = new Promise<void>((resolve) => {
+      const unsub = onAuthStateChanged(auth, () => {
+        unsub()
+        resolve()
+      })
+    })
+  }
+
+  await authReadyPromise
+}
+
+export const resolveStoragePathUrl = async (path: string) => {
+  await waitForAuthReady()
+  if (!auth.currentUser) return null
+  await auth.currentUser.getIdToken()
+  return getDownloadURL(ref(storage, path))
+}
 
 export const uploadEntityImage = async ({
   campaignId,

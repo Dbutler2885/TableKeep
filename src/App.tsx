@@ -18,6 +18,7 @@ import { AuthPanel } from './features/auth/AuthPanel'
 import { UsernameSetup } from './features/auth/UsernameSetup'
 import { CharacterTab } from './features/character/CharacterTab'
 import { PlaceholderTab } from './features/common/PlaceholderTab'
+import { RulesTab } from './features/common/RulesTab'
 import { MapsTab } from './features/maps/MapsTab'
 import { MonstersTab } from './features/monsters/MonstersTab'
 import { ItemsTab } from './features/items/ItemsTab'
@@ -28,6 +29,8 @@ import { useCharacters } from './features/character/useCharacters'
 import { useItemApprovals } from './features/character/useItemApprovals'
 import { TransferNotification } from './features/transfers/TransferNotification'
 import type { ItemApprovalRequest } from './types/app'
+
+const OSE_SRD_URL = 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Main_Page'
 
 function App() {
   const [user, setUser] = useState<User | null>(null)
@@ -264,15 +267,28 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
 
             <div className="nav-list">
               {visibleTabs.map((tab) => (
-                <NavLink
-                  key={tab.id}
-                  to={tabPaths[tab.id]}
-                  end
-                  onClick={() => setDrawerOpen(false)}
-                  className={({ isActive }) => (isActive ? 'tab-button active' : 'tab-button')}
-                >
-                  {tabLabel(tab.id)}
-                </NavLink>
+                tab.id === 'rules' ? (
+                  <a
+                    key={tab.id}
+                    href={OSE_SRD_URL}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    onClick={() => setDrawerOpen(false)}
+                    className="tab-button"
+                  >
+                    {tabLabel(tab.id)}
+                  </a>
+                ) : (
+                  <NavLink
+                    key={tab.id}
+                    to={tabPaths[tab.id]}
+                    end
+                    onClick={() => setDrawerOpen(false)}
+                    className={({ isActive }) => (isActive ? 'tab-button active' : 'tab-button')}
+                  >
+                    {tabLabel(tab.id)}
+                  </NavLink>
+                )
               ))}
             </div>
 
@@ -323,7 +339,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
                 element={<NpcsTab campaignId={campaign.id} role={role} />}
               />
               <Route path={tabPaths.notes} element={<PlaceholderTab tab="notes" />} />
-              <Route path={tabPaths.rules} element={<PlaceholderTab tab="rules" />} />
+              <Route path={tabPaths.rules} element={<RulesTab />} />
               <Route path="*" element={<Navigate to={tabPaths.character} replace />} />
             </Routes>
           </section>
