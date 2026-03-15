@@ -286,7 +286,6 @@ export type CharacterSheetDetails = {
   adventureScores: Record<string, string> | null
   adventureSeedClass: string
   thiefSkills: Record<string, string> | null
-  acManualOverride: boolean
   startingGold: number | null
   storeSpent: number
   storeCart: CharacterStoreCartEntry[]
@@ -294,6 +293,9 @@ export type CharacterSheetDetails = {
   memorizedSpellIds?: string[]
   alignment: string
   title: string
+  languagesText?: string
+  unencumberingItemsText?: string
+  otherNotesText?: string
 }
 
 export type ItemApprovalAction = 'create' | 'sell' | 'learn_spell' | 'ability_reroll'

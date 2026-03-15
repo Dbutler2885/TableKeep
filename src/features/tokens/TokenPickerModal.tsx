@@ -30,15 +30,17 @@ export function TokenPickerModal({ open, value, onConfirm, onCancel, onUploadIma
         preferType: 'image/webp',
         quality: 0.9,
       }).then(({ dataUrl }) => ({
+        customImagePath: undefined,
         customImageUrl: dataUrl,
         customImageName: file.name.replace(/\.[^/.]+$/, ''),
       }))
 
     void persistUpload
-      .then(({ customImageUrl, customImageName }) => {
+      .then(({ customImagePath, customImageUrl, customImageName }) => {
         setDraft((current) => ({
           ...current,
           icon: 'custom',
+          customImagePath,
           customImageUrl,
           customImageName,
         }))
@@ -87,7 +89,13 @@ export function TokenPickerModal({ open, value, onConfirm, onCancel, onUploadIma
               className="icon-btn remove-btn"
               title="Remove image"
               aria-label="Remove image"
-              onClick={() => setDraft((current) => ({ ...current, icon: 'pawn', customImageUrl: undefined, customImageName: undefined }))}
+              onClick={() => setDraft((current) => ({
+                ...current,
+                icon: 'pawn',
+                customImagePath: undefined,
+                customImageUrl: undefined,
+                customImageName: undefined,
+              }))}
             >
               <X size={13} />
             </button>

@@ -1572,11 +1572,101 @@ button.character-item-add-btn:disabled {
   font-family: inherit;
 }
 
+.item-detail-display {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.item-detail-display h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.item-detail-display p {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.item-detail-display-subtitle {
+  font-size: 0.9rem;
+  color: #5b5b54;
+}
+
+.item-detail-display-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 0.75rem;
+}
+
+.item-detail-display-section {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.item-detail-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.item-detail-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.5rem;
+  border-radius: 999px;
+  background: #eef1e5;
+  color: #384132;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.item-detail-list {
+  margin: 0;
+  padding-left: 1.05rem;
+  display: grid;
+  gap: 0.22rem;
+}
+
+.item-detail-roll-tables {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.item-detail-roll-table {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid #d7d7cf;
+  border-radius: 8px;
+  background: #fafaf8;
+}
+
 .weapon-slot-label {
   display: inline-flex;
   align-items: baseline;
   gap: 0.28rem;
   min-width: 0;
+}
+
+.weapon-slot-label-multiline {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+}
+
+.weapon-slot-mainline {
+  display: inline-flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.weapon-slot-subline {
+  font-size: 0.68rem;
+  color: #4f4f47;
+  line-height: 1.25;
 }
 
 .weapon-slot-core {

@@ -45,8 +45,6 @@ type Params = {
   adventureScoresByCharacterId: Record<string, AdventureScores>
   adventureSeedClassByCharacterId: Record<string, string>
   thiefSkillsByCharacterId: Record<string, ThiefSkillScores>
-  acManualOverrideByCharacterId: Record<string, boolean>
-
   // Setters
   setAbilityScoresByCharacterId: Dispatch<SetStateAction<Record<string, AbilityScores>>>
   setRolledAbilityScoresByCharacterId: Dispatch<SetStateAction<Record<string, AbilityScores>>>
@@ -84,7 +82,6 @@ export function useCharacterCreationFlow({
   adventureScoresByCharacterId,
   adventureSeedClassByCharacterId,
   thiefSkillsByCharacterId,
-  acManualOverrideByCharacterId,
   setAbilityScoresByCharacterId,
   setRolledAbilityScoresByCharacterId,
   setAbilityScoresRolledByCharacterId,
@@ -266,11 +263,10 @@ export function useCharacterCreationFlow({
   // Auto-compute AC from equipped armour
   useEffect(() => {
     if (!effectiveSelected) return
-    if (acManualOverrideByCharacterId[effectiveSelected.id]) return
     const autoAc = computedAc
     if (effectiveSelected.ac === autoAc) return
     updateSelectedCharacter({ ac: autoAc })
-  }, [effectiveSelected, computedAc, acManualOverrideByCharacterId])
+  }, [effectiveSelected, computedAc])
 
   // Halfling two-handed weapon restriction
   useEffect(() => {

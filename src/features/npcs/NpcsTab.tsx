@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronLeft, Circle, Plus, Search, Tag, Trash2, UserRound, X } from 'lucide-react'
 import { collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore'
 import { db } from '../../firebase'
-import type { NpcPrivateRecord, NpcRecord, Role } from '../../types/app'
+import type { NpcPrivateRecord, NpcRecord, Role, TokenIconConfig } from '../../types/app'
 import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence, uploadEntityImage } from '../common/mediaStorage'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
 import { NpcDetailEditor } from './NpcDetailEditor'
@@ -12,7 +12,7 @@ type NpcsTabProps = {
   role: Role | null
 }
 
-const defaultTokenIcon = {
+const defaultTokenIcon: TokenIconConfig = {
   icon: 'pawn' as const,
   color: '#2f5bbf',
   size: 34,
@@ -98,17 +98,36 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
             if (local) return local
           }
           const data = docSnap.data() as Partial<NpcRecord>
+          const local = npcsRef.current.find((npc) => npc.id === docSnap.id)
+          const portraitPath = typeof data.portraitPath === 'string' ? data.portraitPath : ''
+          const persistedPortraitUrl = typeof data.portraitUrl === 'string' ? data.portraitUrl : null
+          const tokenIcon = (data.tokenIcon ?? defaultTokenIcon) as TokenIconConfig
+          const portraitUrl = persistedPortraitUrl
+            ?? (local?.portraitPath === portraitPath && isRenderableImageUrl(local.portraitUrl) ? local.portraitUrl : null)
+          const customImageUrl = tokenIcon.customImageUrl
+            ?? (
+              tokenIcon.customImagePath
+              && local?.tokenIcon.customImagePath === tokenIcon.customImagePath
+              && isRenderableImageUrl(local?.tokenIcon.customImageUrl)
+                ? local.tokenIcon.customImageUrl
+                : undefined
+            )
           return {
             id: docSnap.id,
             name: typeof data.name === 'string' ? data.name : 'Unnamed NPC',
             title: typeof data.title === 'string' ? data.title : '',
             visibleToPlayers: data.visibleToPlayers === true,
             tags: Array.isArray(data.tags) ? data.tags.filter((tag): tag is string => typeof tag === 'string') : [],
-            portraitPath: typeof data.portraitPath === 'string' ? data.portraitPath : '',
-            portraitUrl: typeof data.portraitUrl === 'string' ? data.portraitUrl : null,
+            portraitPath,
+            portraitUrl,
             portraitFocusX: typeof data.portraitFocusX === 'number' ? data.portraitFocusX : 50,
             portraitFocusY: typeof data.portraitFocusY === 'number' ? data.portraitFocusY : 50,
-            tokenIcon: data.tokenIcon ?? defaultTokenIcon,
+            tokenIcon: customImageUrl
+              ? {
+                  ...tokenIcon,
+                  customImageUrl,
+                }
+              : tokenIcon,
             playerDescription: typeof data.playerDescription === 'string' ? data.playerDescription : '',
             playerNotes: typeof data.playerNotes === 'string' ? data.playerNotes : '',
           } satisfies NpcRecord

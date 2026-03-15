@@ -150,6 +150,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
     setSelectedCharacterId,
     selectedCharacter,
     updateCharacter,
+    syncCharacterLocal,
     deleteCharacter,
     hasPendingWrite,
   } = useCharacters(campaign?.id ?? null, user.uid, username, role, setError)
@@ -167,6 +168,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
     setSelectedCharacterId,
     selectedCharacter,
     updateCharacter,
+    syncCharacterLocal,
     deleteCharacter,
     hasPendingWrite,
   } : null

@@ -1448,8 +1448,8 @@ export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
                             })
                           }
                         >
-                          <option value="consume">Consume (drink, eat, apply)</option>
-                          <option value="use">Use (light, activate, burn)</option>
+                          <option value="consume">Consume (drink, eat, ingest)</option>
+                          <option value="use">Use (light, pour, activate)</option>
                         </select>
                       </label>
                       <label className="item-field-description">

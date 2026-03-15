@@ -507,12 +507,27 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
       setMonsters(
         snap.docs.map((d) => {
           const data = d.data()
+          const local = monstersRef.current.find((monster) => monster.id === d.id)
+          const portraitPath = typeof data.portraitPath === 'string' ? data.portraitPath : ''
+          const persistedPortraitUrl = typeof data.portraitUrl === 'string' ? data.portraitUrl : null
+          const tokenIcon = data.tokenIcon ?? defaultTokenIcon
+          const portraitUrl = persistedPortraitUrl
+            ?? (local?.portraitPath === portraitPath && isRenderableImageUrl(local.portraitUrl) ? local.portraitUrl : null)
+          const customImageUrl = tokenIcon.customImageUrl
+            ?? (
+              tokenIcon.customImagePath
+              && local
+              && local.tokenIcon.customImagePath === tokenIcon.customImagePath
+              && isRenderableImageUrl(local.tokenIcon.customImageUrl)
+                ? local.tokenIcon.customImageUrl
+                : undefined
+            )
           return {
             id: d.id,
             rulesetId: data.rulesetId ?? 'ose',
             name: typeof data.name === 'string' ? data.name : '',
-            portraitPath: typeof data.portraitPath === 'string' ? data.portraitPath : '',
-            portraitUrl: typeof data.portraitUrl === 'string' ? data.portraitUrl : null,
+            portraitPath,
+            portraitUrl,
             portraitFocusX: typeof data.portraitFocusX === 'number' ? data.portraitFocusX : 50,
             portraitFocusY: typeof data.portraitFocusY === 'number' ? data.portraitFocusY : 50,
             shortDescription: typeof data.shortDescription === 'string' ? data.shortDescription : '',
@@ -522,7 +537,12 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
             notes: typeof data.notes === 'string' ? data.notes : '',
             stats: typeof data.stats === 'object' && data.stats !== null ? data.stats as Record<string, string> : {},
             mvOther: Array.isArray(data.mvOther) ? data.mvOther : [],
-            tokenIcon: data.tokenIcon ?? defaultTokenIcon,
+            tokenIcon: customImageUrl
+              ? {
+                  ...tokenIcon,
+                  customImageUrl,
+                }
+              : tokenIcon,
           } as MonsterRecord
         })
       )

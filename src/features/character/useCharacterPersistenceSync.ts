@@ -28,12 +28,14 @@ type StateMaps = {
   adventureScoresByCharacterId: Record<string, AdventureScores>
   adventureSeedClassByCharacterId: Record<string, string>
   thiefSkillsByCharacterId: Record<string, ThiefSkillScores>
-  acManualOverrideByCharacterId: Record<string, boolean>
   startingGoldByCharacterId: Record<string, number>
   storeSpentByCharacterId: Record<string, number>
   storeCartByCharacterId: Record<string, StoreCartEntry[]>
   alignmentByCharacterId: Record<string, string>
   titleByCharacterId: Record<string, string>
+  languagesTextByCharacterId: Record<string, string>
+  unencumberingItemsTextByCharacterId: Record<string, string>
+  otherNotesTextByCharacterId: Record<string, string>
 }
 
 type StateSetters = {
@@ -49,12 +51,14 @@ type StateSetters = {
   setAdventureScoresByCharacterId: Setter<Record<string, AdventureScores>>
   setAdventureSeedClassByCharacterId: Setter<Record<string, string>>
   setThiefSkillsByCharacterId: Setter<Record<string, ThiefSkillScores>>
-  setAcManualOverrideByCharacterId: Setter<Record<string, boolean>>
   setStartingGoldByCharacterId: Setter<Record<string, number>>
   setStoreSpentByCharacterId: Setter<Record<string, number>>
   setStoreCartByCharacterId: Setter<Record<string, StoreCartEntry[]>>
   setAlignmentByCharacterId: Setter<Record<string, string>>
   setTitleByCharacterId: Setter<Record<string, string>>
+  setLanguagesTextByCharacterId: Setter<Record<string, string>>
+  setUnencumberingItemsTextByCharacterId: Setter<Record<string, string>>
+  setOtherNotesTextByCharacterId: Setter<Record<string, string>>
 }
 
 type Params = {
@@ -95,12 +99,14 @@ export function useCharacterPersistenceSync({
     setAdventureScoresByCharacterId,
     setAdventureSeedClassByCharacterId,
     setThiefSkillsByCharacterId,
-    setAcManualOverrideByCharacterId,
     setStartingGoldByCharacterId,
     setStoreSpentByCharacterId,
     setStoreCartByCharacterId,
     setAlignmentByCharacterId,
     setTitleByCharacterId,
+    setLanguagesTextByCharacterId,
+    setUnencumberingItemsTextByCharacterId,
+    setOtherNotesTextByCharacterId,
   } = stateSetters
 
   // Seed local state from Firestore details when characters load
@@ -128,7 +134,6 @@ export function useCharacterPersistenceSync({
           if (details.adventureScores) setAdventureScoresByCharacterId((prev) => ({ ...prev, [id]: details.adventureScores as AdventureScores }))
           if (details.adventureSeedClass) setAdventureSeedClassByCharacterId((prev) => ({ ...prev, [id]: details.adventureSeedClass as string }))
           if (details.thiefSkills) setThiefSkillsByCharacterId((prev) => ({ ...prev, [id]: details.thiefSkills as ThiefSkillScores }))
-          if (details.acManualOverride) setAcManualOverrideByCharacterId((prev) => ({ ...prev, [id]: true }))
           if (typeof details.startingGold === 'number') setStartingGoldByCharacterId((prev) => ({ ...prev, [id]: details.startingGold as number }))
           if (typeof details.storeSpent === 'number') setStoreSpentByCharacterId((prev) => ({ ...prev, [id]: details.storeSpent as number }))
           if (details.storeCart) setStoreCartByCharacterId((prev) => ({ ...prev, [id]: details.storeCart as StoreCartEntry[] }))
@@ -136,6 +141,9 @@ export function useCharacterPersistenceSync({
           if (details.memorizedSpellIds) setMemorizedSpellIdsByCharacterId((prev) => ({ ...prev, [id]: details.memorizedSpellIds as string[] }))
           if (details.alignment) setAlignmentByCharacterId((prev) => ({ ...prev, [id]: details.alignment as string }))
           if (details.title) setTitleByCharacterId((prev) => ({ ...prev, [id]: details.title as string }))
+          if (typeof details.languagesText === 'string') setLanguagesTextByCharacterId((prev) => ({ ...prev, [id]: details.languagesText as string }))
+          if (typeof details.unencumberingItemsText === 'string') setUnencumberingItemsTextByCharacterId((prev) => ({ ...prev, [id]: details.unencumberingItemsText as string }))
+          if (typeof details.otherNotesText === 'string') setOtherNotesTextByCharacterId((prev) => ({ ...prev, [id]: details.otherNotesText as string }))
         }
         lastPersistedDetailsJsonRef.current[id] = stableStringify(details ?? null)
         continue
@@ -156,7 +164,6 @@ export function useCharacterPersistenceSync({
           setAdventureScoresByCharacterId((prev) => details.adventureScores ? { ...prev, [id]: details.adventureScores as AdventureScores } : prev)
           setAdventureSeedClassByCharacterId((prev) => details.adventureSeedClass ? { ...prev, [id]: details.adventureSeedClass } : prev)
           setThiefSkillsByCharacterId((prev) => details.thiefSkills ? { ...prev, [id]: details.thiefSkills as ThiefSkillScores } : prev)
-          setAcManualOverrideByCharacterId((prev) => ({ ...prev, [id]: !!details.acManualOverride }))
           setStartingGoldByCharacterId((prev) => typeof details.startingGold === 'number' ? { ...prev, [id]: details.startingGold } : prev)
           setStoreSpentByCharacterId((prev) => typeof details.storeSpent === 'number' ? { ...prev, [id]: details.storeSpent } : prev)
           setStoreCartByCharacterId((prev) => details.storeCart ? { ...prev, [id]: details.storeCart as StoreCartEntry[] } : prev)
@@ -164,6 +171,9 @@ export function useCharacterPersistenceSync({
           setMemorizedSpellIdsByCharacterId((prev) => ({ ...prev, [id]: (details.memorizedSpellIds as string[]) ?? [] }))
           setAlignmentByCharacterId((prev) => details.alignment ? { ...prev, [id]: details.alignment } : prev)
           setTitleByCharacterId((prev) => details.title ? { ...prev, [id]: details.title } : prev)
+          setLanguagesTextByCharacterId((prev) => ({ ...prev, [id]: typeof details.languagesText === 'string' ? details.languagesText : '' }))
+          setUnencumberingItemsTextByCharacterId((prev) => ({ ...prev, [id]: typeof details.unencumberingItemsText === 'string' ? details.unencumberingItemsText : '' }))
+          setOtherNotesTextByCharacterId((prev) => ({ ...prev, [id]: typeof details.otherNotesText === 'string' ? details.otherNotesText : '' }))
         }
       }
     }
@@ -187,7 +197,6 @@ export function useCharacterPersistenceSync({
       adventureScores: stateMaps.adventureScoresByCharacterId[selectedCharacterId] ?? null,
       adventureSeedClass: stateMaps.adventureSeedClassByCharacterId[selectedCharacterId] ?? '',
       thiefSkills: stateMaps.thiefSkillsByCharacterId[selectedCharacterId] ?? null,
-      acManualOverride: !!stateMaps.acManualOverrideByCharacterId[selectedCharacterId],
       startingGold: stateMaps.startingGoldByCharacterId[selectedCharacterId] ?? null,
       storeSpent: stateMaps.storeSpentByCharacterId[selectedCharacterId] ?? 0,
       storeCart: stateMaps.storeCartByCharacterId[selectedCharacterId] ?? [],
@@ -195,6 +204,9 @@ export function useCharacterPersistenceSync({
       memorizedSpellIds: stateMaps.memorizedSpellIdsByCharacterId[selectedCharacterId] ?? [],
       alignment: stateMaps.alignmentByCharacterId[selectedCharacterId] ?? 'Neutrality',
       title: stateMaps.titleByCharacterId[selectedCharacterId] ?? '',
+      languagesText: stateMaps.languagesTextByCharacterId[selectedCharacterId] ?? '',
+      unencumberingItemsText: stateMaps.unencumberingItemsTextByCharacterId[selectedCharacterId] ?? '',
+      otherNotesText: stateMaps.otherNotesTextByCharacterId[selectedCharacterId] ?? '',
     }
 
     const json = stableStringify(details)
@@ -213,7 +225,6 @@ export function useCharacterPersistenceSync({
     stateMaps.adventureScoresByCharacterId,
     stateMaps.adventureSeedClassByCharacterId,
     stateMaps.thiefSkillsByCharacterId,
-    stateMaps.acManualOverrideByCharacterId,
     stateMaps.startingGoldByCharacterId,
     stateMaps.storeSpentByCharacterId,
     stateMaps.storeCartByCharacterId,
@@ -221,6 +232,9 @@ export function useCharacterPersistenceSync({
     stateMaps.memorizedSpellIdsByCharacterId,
     stateMaps.alignmentByCharacterId,
     stateMaps.titleByCharacterId,
+    stateMaps.languagesTextByCharacterId,
+    stateMaps.unencumberingItemsTextByCharacterId,
+    stateMaps.otherNotesTextByCharacterId,
   ])
 
   return {

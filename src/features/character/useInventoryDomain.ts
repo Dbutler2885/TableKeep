@@ -25,7 +25,7 @@ import { applyWeaponTemplateToItem, applyArmourTemplateToItem, resolveArmourType
 import { makeArmourItem, makeId, makeWeaponItem } from './characterFactories'
 import { ammoCatalogById } from './ammoCatalog'
 import { consumableCatalogById } from './consumableCatalog'
-import { generalCatalogById } from './generalCatalog'
+import { OSE_GENERAL_CATALOG, generalCatalogById } from './generalCatalog'
 
 export type AddItemModalState = {
   equipped: boolean
@@ -236,9 +236,10 @@ export function useInventoryDomain({
 
   const openAddItemModal = (equipped: boolean) => {
     if (isGuidedCreation) return
+    const firstGeneral = OSE_GENERAL_CATALOG[0] ?? null
     setAddItemModal({
-      equipped, kind: 'general', typeName: '', name: '', costGp: '', notes: '', description: '',
-      typeId: 'custom', damageDiceCount: '', damageDiceSides: '', rangeShort: '',
+      equipped, kind: 'general', typeName: firstGeneral?.name ?? '', name: '', costGp: firstGeneral ? String(firstGeneral.costGp) : '', notes: '', description: firstGeneral?.description ?? '',
+      typeId: firstGeneral?.id ?? 'custom', damageDiceCount: '', damageDiceSides: '', rangeShort: '',
       rangeMedium: '', rangeLong: '', slow: false, twoHanded: false, isMagic: false, attackBonus: '',
       damageBonus: '', armourClass: '', shieldMod: '', magicMod: '', armourType: 'body', qty: '1', useMode: 'consume', effectText: '',
     })

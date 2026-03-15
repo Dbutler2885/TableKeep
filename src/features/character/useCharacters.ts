@@ -106,6 +106,7 @@ export function useCharacters(
             class?: string
             level?: number
           }
+          const local = charactersRef.current.find((character) => character.id === docSnap.id)
 
           const creationModeExplicit = data.creationModeExplicit === true
           const creationMode: CharacterRecord['creationMode'] =
@@ -136,6 +137,23 @@ export function useCharacters(
               : 0
           const hpMax = Math.max(0, rawHpMax)
           const hpCurrent = Math.max(0, Math.min(rawHpCurrent, hpMax))
+          const portraitPath = typeof (data as { portraitPath?: string }).portraitPath === 'string'
+            ? (data as { portraitPath: string }).portraitPath
+            : ''
+          const persistedPortraitUrl = typeof (data as { portraitUrl?: string | null }).portraitUrl === 'string'
+            ? (data as { portraitUrl: string }).portraitUrl
+            : null
+          const tokenIcon = (data as { tokenIcon?: TokenIconConfig }).tokenIcon ?? defaultTokenIcon
+          const portraitUrl = persistedPortraitUrl
+            ?? (local?.portraitPath === portraitPath && isRenderableImageUrl(local.portraitUrl) ? local.portraitUrl : null)
+          const customImageUrl = tokenIcon.customImageUrl
+            ?? (
+              local?.tokenIcon.customImagePath
+              && local.tokenIcon.customImagePath === tokenIcon.customImagePath
+              && isRenderableImageUrl(local.tokenIcon.customImageUrl)
+                ? local.tokenIcon.customImageUrl
+                : undefined
+            )
 
           return {
             id: docSnap.id,
@@ -154,19 +172,20 @@ export function useCharacters(
             hpMax,
             ac: typeof (data as { ac?: number }).ac === 'number' ? (data as { ac: number }).ac : 10,
             xp: typeof (data as { xp?: number }).xp === 'number' ? (data as { xp: number }).xp : 0,
-            portraitPath: typeof (data as { portraitPath?: string }).portraitPath === 'string'
-              ? (data as { portraitPath: string }).portraitPath
-              : '',
-            portraitUrl: typeof (data as { portraitUrl?: string | null }).portraitUrl === 'string'
-              ? (data as { portraitUrl: string }).portraitUrl
-              : null,
+            portraitPath,
+            portraitUrl,
             portraitFocusX: typeof (data as { portraitFocusX?: number }).portraitFocusX === 'number'
               ? (data as { portraitFocusX: number }).portraitFocusX
               : 50,
             portraitFocusY: typeof (data as { portraitFocusY?: number }).portraitFocusY === 'number'
               ? (data as { portraitFocusY: number }).portraitFocusY
               : 50,
-            tokenIcon: (data as { tokenIcon?: TokenIconConfig }).tokenIcon ?? defaultTokenIcon,
+            tokenIcon: customImageUrl
+              ? {
+                  ...tokenIcon,
+                  customImageUrl,
+                }
+              : tokenIcon,
             details,
           }
         })
@@ -328,6 +347,19 @@ export function useCharacters(
     scheduleCharacterWrite(characterId)
   }
 
+  const syncCharacterLocal = (characterId: string, updates: Partial<CharacterRecord>) => {
+    setCharacters((current) =>
+      current.map((character) =>
+        character.id === characterId
+          ? {
+              ...character,
+              ...updates,
+            }
+          : character,
+      ),
+    )
+  }
+
   const deleteCharacter = (characterId: string) => {
     if (!campaignId) return
     const target = charactersRef.current.find((character) => character.id === characterId)
@@ -405,6 +437,7 @@ export function useCharacters(
     setSelectedCharacterId,
     selectedCharacter,
     updateCharacter,
+    syncCharacterLocal,
     deleteCharacter,
     hasPendingWrite,
   }

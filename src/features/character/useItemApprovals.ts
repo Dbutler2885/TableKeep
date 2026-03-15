@@ -28,6 +28,20 @@ import {
   computeAvailablePackedSlots,
 } from './inventoryOverflow'
 
+const stripUndefinedDeep = <T,>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value.map((entry) => stripUndefinedDeep(entry)) as T
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, entry]) => entry !== undefined)
+        .map(([key, entry]) => [key, stripUndefinedDeep(entry)]),
+    ) as T
+  }
+  return value
+}
+
 export function useItemApprovals(
   campaignId: string | null,
   role: Role | null,
@@ -89,6 +103,7 @@ export function useItemApprovals(
     if (!campaignId) return
     const id = crypto.randomUUID()
     const ref = doc(db, 'campaigns', campaignId, 'itemApprovals', id)
+    const sanitizedItem = stripUndefinedDeep(item)
     await setDoc(ref, {
       id,
       action,
@@ -97,7 +112,7 @@ export function useItemApprovals(
       characterName,
       requestedByUserId: currentUserId,
       requestedByUsername: username,
-      item,
+      item: sanitizedItem,
       status: 'pending',
       createdAt: serverTimestamp(),
     })

@@ -212,7 +212,23 @@ export function useItems(campaignId: string) {
           }
 
           const data = docSnap.data() as Record<string, unknown>
-          return normalizeCampaignItem(docSnap.id, data)
+          const local = itemsRef.current.find((item) => item.id === docSnap.id)
+          const normalized = normalizeCampaignItem(docSnap.id, data)
+          return {
+            ...normalized,
+            portraitUrl: normalized.portraitUrl
+              ?? (local && local.portraitPath === normalized.portraitPath && isRenderableImageUrl(local.portraitUrl) ? local.portraitUrl : null),
+            tokenIcon: !normalized.tokenIcon.customImageUrl
+              && normalized.tokenIcon.customImagePath
+              && local
+              && local.tokenIcon.customImagePath === normalized.tokenIcon.customImagePath
+              && isRenderableImageUrl(local.tokenIcon.customImageUrl)
+              ? {
+                  ...normalized.tokenIcon,
+                  customImageUrl: local.tokenIcon.customImageUrl,
+                }
+              : normalized.tokenIcon,
+          }
         })
 
         setItems(all)
