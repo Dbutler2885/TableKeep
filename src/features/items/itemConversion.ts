@@ -78,15 +78,17 @@ export function campaignItemToInventoryItem(item: CampaignItem): CharacterInvent
         stack: DEFAULT_STACK_POLICY.ammunition,
       } satisfies CharacterAmmunitionItem
 
-    case 'consumable':
+    case 'consumable': {
+      const isOil = item.typeId === 'con-oil'
       return {
         ...base,
         kind: 'consumable',
         qty: Number.parseInt(item.qty, 10) || 1,
-        stack: DEFAULT_STACK_POLICY.consumable,
-        useMode: item.consumableStats.useMode,
+        stack: isOil ? { stackable: false } as const : DEFAULT_STACK_POLICY.consumable,
         effectText: item.consumableStats.effectText || undefined,
+        ...(isOil ? { amountRemaining: 24 } : {}),
       } satisfies CharacterConsumableItem
+    }
 
     case 'general':
       return {
@@ -192,7 +194,7 @@ export function inventoryItemToCampaignItem(
         weaponEffects: [],
         weaponRollTables: [],
         armourStats: defaultArmourStats,
-        consumableStats: { useMode: c.useMode, effectText: c.effectText ?? '' },
+        consumableStats: { useMode: c.useMode ?? 'consume', effectText: c.effectText ?? '' },
       }
     }
     case 'general':

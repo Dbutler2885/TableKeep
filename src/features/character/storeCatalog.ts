@@ -28,7 +28,7 @@ export const OSE_STORE_ITEMS: StoreItem[] = [
   { id: 'gear-hammer', category: 'adventuring', name: 'Hammer (small)', costGp: 2, description: 'Useful for spikes and tapping stonework.', kind: 'general' },
   { id: 'gear-holy-symbol', category: 'adventuring', name: 'Holy symbol', costGp: 25, description: 'Required for divine powers and rituals.', kind: 'general' },
   { id: 'gear-holy-water', category: 'consumables', name: 'Holy water (vial)', costGp: 25, description: 'Blessed vial; harms undead.', kind: 'consumable' },
-  { id: 'gear-iron-spikes', category: 'adventuring', name: 'Iron spikes (12)', costGp: 1, description: 'Wedge doors, anchor ropes, etc.', kind: 'general' },
+  { id: 'gear-iron-spikes', category: 'adventuring', name: 'Iron spikes (12)', costGp: 1, description: 'Wedge doors, anchor ropes, etc.', kind: 'consumable' },
   { id: 'gear-lantern', category: 'adventuring', name: 'Lantern', costGp: 10, description: '30 ft light radius. Burns 1 oil flask / 4 hours.', kind: 'general' },
   { id: 'gear-mirror', category: 'adventuring', name: 'Mirror (steel)', costGp: 5, description: 'Hand-sized steel mirror for peeking and gaze attacks.', kind: 'general' },
   { id: 'gear-oil', category: 'consumables', name: 'Oil (1 flask)', costGp: 2, description: 'Lantern fuel; also throwable burning oil weapon.', kind: 'consumable' },

@@ -10,7 +10,6 @@ export const OSE_GENERAL_CATALOG: GeneralCatalogEntry[] = [
   { id: 'gear-grappling-hook', name: 'Grappling hook', costGp: 25, description: 'Iron 3-4 hook anchor ring for rope.' },
   { id: 'gear-hammer', name: 'Hammer (small)', costGp: 2, description: 'Useful for spikes and tapping stonework.' },
   { id: 'gear-holy-symbol', name: 'Holy symbol', costGp: 25, description: 'Required for divine powers and rituals.' },
-  { id: 'gear-iron-spikes', name: 'Iron spikes (12)', costGp: 1, description: 'Wedge doors, anchor ropes, etc.' },
   { id: 'gear-lantern', name: 'Lantern', costGp: 10, description: '30 ft light radius. Burns 1 oil flask / 4 hours.' },
   { id: 'gear-mirror', name: 'Mirror (steel)', costGp: 5, description: 'Hand-sized steel mirror for peeking and gaze attacks.' },
   { id: 'gear-pole', name: 'Pole (10 ft)', costGp: 1, description: '2-inch wooden pole for poking/prodding.' },

@@ -51,7 +51,6 @@ export type AddItemModalState = {
   magicMod: string
   armourType: 'body' | 'shield'
   qty: string
-  useMode: 'consume' | 'use'
   effectText: string
 }
 
@@ -64,6 +63,7 @@ type Params = {
   selectedClassName: string
   canClassEquipArmour: boolean
   selectedInventory: CharacterInventoryItem[]
+  allInventories: Record<string, CharacterInventoryItem[]>
   availablePackedSlotCount: number
   requiresApprovalNow: boolean
   isGuidedCreation: boolean
@@ -98,6 +98,7 @@ export function useInventoryDomain({
   selectedClassName,
   canClassEquipArmour,
   selectedInventory,
+  allInventories,
   availablePackedSlotCount,
   requiresApprovalNow,
   isGuidedCreation,
@@ -117,11 +118,14 @@ export function useInventoryDomain({
   const filterInventoryUpdatesForPlayer = <T extends Partial<CharacterInventoryItem>>(updates: T) => {
     if (canEditInventoryDetails) return updates
     const allowed: Partial<CharacterInventoryItem> = {}
-    if (Object.prototype.hasOwnProperty.call(updates, 'equipped')) {
-      allowed.equipped = updates.equipped
-    }
-    if (Object.prototype.hasOwnProperty.call(updates, 'name')) {
-      allowed.name = updates.name
+    const playerAllowedKeys: (keyof CharacterInventoryItem)[] = [
+      'equipped', 'name', 'qty', 'lit', 'turnsRemaining', 'amountRemaining', 'spent', 'stack',
+    ] as (keyof CharacterInventoryItem)[]
+    for (const key of playerAllowedKeys) {
+      if (Object.prototype.hasOwnProperty.call(updates, key)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(allowed as any)[key] = (updates as any)[key]
+      }
     }
     return allowed as T
   }
@@ -241,7 +245,7 @@ export function useInventoryDomain({
       equipped, kind: 'general', typeName: firstGeneral?.name ?? '', name: '', costGp: firstGeneral ? String(firstGeneral.costGp) : '', notes: '', description: firstGeneral?.description ?? '',
       typeId: firstGeneral?.id ?? 'custom', damageDiceCount: '', damageDiceSides: '', rangeShort: '',
       rangeMedium: '', rangeLong: '', slow: false, twoHanded: false, isMagic: false, attackBonus: '',
-      damageBonus: '', armourClass: '', shieldMod: '', magicMod: '', armourType: 'body', qty: '1', useMode: 'consume', effectText: '',
+      damageBonus: '', armourClass: '', shieldMod: '', magicMod: '', armourType: 'body', qty: '1', effectText: '',
     })
   }
 
@@ -295,6 +299,7 @@ export function useInventoryDomain({
       }
       case 'consumable': {
         const conTemplate = m.typeId && m.typeId !== 'custom' ? consumableCatalogById[m.typeId] : null
+        const isOil = conTemplate?.id === 'con-oil'
         newItem = {
           id: makeId(), kind: 'consumable',
           typeId: conTemplate ? conTemplate.id : 'custom',
@@ -304,13 +309,33 @@ export function useInventoryDomain({
           equipped: m.equipped, notes: m.notes,
           description: conTemplate ? conTemplate.description : m.description,
           qty: conTemplate ? conTemplate.qty : (Number.parseInt(m.qty, 10) || 1),
-          stack: DEFAULT_STACK_POLICY.consumable,
-          useMode: conTemplate ? conTemplate.useMode : m.useMode,
+          stack: isOil ? { stackable: false } as const : DEFAULT_STACK_POLICY.consumable,
           effectText: (conTemplate ? conTemplate.effectText : m.effectText) || undefined,
+          ...(isOil ? { amountRemaining: conTemplate?.fuelCapacity ?? 24 } : {}),
         } as CharacterConsumableItem
         break
       }
       default: {
+        const conTemplate = m.typeId && m.typeId !== 'custom' ? consumableCatalogById[m.typeId] : null
+        if (conTemplate) {
+          const isOil = conTemplate.id === 'con-oil'
+          newItem = {
+            id: makeId(),
+            kind: 'consumable',
+            typeId: conTemplate.id,
+            typeName: conTemplate.name,
+            name: m.name || undefined,
+            costGp: conTemplate.costGp,
+            equipped: m.equipped,
+            notes: m.notes,
+            description: conTemplate.description,
+            qty: conTemplate.qty,
+            stack: isOil ? { stackable: false } as const : DEFAULT_STACK_POLICY.consumable,
+            effectText: conTemplate.effectText || undefined,
+            ...(isOil ? { amountRemaining: conTemplate.fuelCapacity ?? 24 } : {}),
+          } as CharacterConsumableItem
+          break
+        }
         const genTemplate = m.typeId && m.typeId !== 'custom' ? generalCatalogById[m.typeId] : null
         newItem = {
           id: makeId(), kind: 'general',
@@ -338,12 +363,15 @@ export function useInventoryDomain({
     setAddItemModal(null)
   }
 
-  const dropItem = async (itemId: string) => {
+  const dropItem = async (itemId: string, qty?: number) => {
     if (!effectiveSelected || !canEditSelected) return
     const item = selectedInventory.find((i) => i.id === itemId)
     if (!item || item.kind === 'gold') return
 
-    const campaignItem = inventoryItemToCampaignItem(item, {
+    const dropAll = qty === undefined || qty >= item.qty
+    const dropSnapshot = dropAll ? item : { ...item, qty } as typeof item
+
+    const campaignItem = inventoryItemToCampaignItem(dropSnapshot, {
       status: 'dropped',
       droppedByCharacterId: effectiveSelected.id,
       droppedByCharacterName: effectiveSelected.name,
@@ -355,30 +383,45 @@ export function useInventoryDomain({
       { ...toFirestoreItem({ ...rest, id } as typeof campaignItem), createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
     )
 
-    setInventoryByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).filter((i) => i.id !== itemId),
-    }))
+    if (dropAll) {
+      setInventoryByCharacterId((current) => ({
+        ...current,
+        [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).filter((i) => i.id !== itemId),
+      }))
+    } else {
+      setInventoryByCharacterId((current) => ({
+        ...current,
+        [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).map((i) =>
+          i.id === itemId ? { ...i, qty: i.qty - (qty ?? 0) } as CharacterInventoryItem : i,
+        ),
+      }))
+    }
     setItemDetailId(null)
     setDropConfirmItemId(null)
   }
 
-  const sellItem = async (itemId: string) => {
+  const sellItem = async (itemId: string, qty?: number) => {
     if (!effectiveSelected || !canEditSelected || overflowWriting) return
     const item = selectedInventory.find((i) => i.id === itemId)
     if (!item || item.kind === 'gold') return
 
+    const sellAll = qty === undefined || qty >= item.qty
+    const sellQty = sellAll ? item.qty : qty
+
     if (requiresApprovalNow) {
-      void submitRequest('sell', effectiveSelected.id, effectiveSelected.name, currentUsername, item)
+      const snapshot = sellAll ? item : { ...item, qty: sellQty } as typeof item
+      void submitRequest('sell', effectiveSelected.id, effectiveSelected.name, currentUsername, snapshot)
       setItemDetailId(null)
       setSellConfirmItemId(null)
       setApprovalPendingFeedback('Sale sent to GM for approval.')
       return
     }
 
-    const sellAmount = normalizeGoldAmount(item.costGp)
+    const sellAmount = normalizeGoldAmount(item.costGp * sellQty)
 
-    const currentItems = selectedInventory.filter((i) => i.id !== itemId)
+    const currentItems = sellAll
+      ? selectedInventory.filter((i) => i.id !== itemId)
+      : selectedInventory.map((i) => i.id === itemId ? { ...i, qty: i.qty - sellQty } as CharacterInventoryItem : i)
     if (sellAmount <= 0) {
       setInventoryByCharacterId((current) => ({ ...current, [effectiveSelected.id]: currentItems }))
       setItemDetailId(null)
@@ -436,6 +479,200 @@ export function useInventoryDomain({
     setItemDetailId(null)
   }
 
+  // Items that leave a recoverable object behind when used
+  const dropsOnUse = new Set(['con-iron-spikes'])
+
+  const consumeOne = async (itemId: string) => {
+    if (!effectiveSelected || !canEditSelected) return
+    const item = selectedInventory.find((i) => i.id === itemId)
+    if (!item || item.kind !== 'consumable') return
+    const consumable = item as CharacterConsumableItem
+    const nextQty = Math.max(0, (consumable.qty ?? 1) - 1)
+
+    updateInventoryItem(itemId, { qty: nextQty })
+
+    // Create a dropped campaign item for recoverable gear
+    if (dropsOnUse.has(item.typeId)) {
+      const dropSnapshot = { ...item, qty: 1 } as typeof item
+      const campaignItem = inventoryItemToCampaignItem(dropSnapshot, {
+        status: 'dropped',
+        droppedByCharacterId: effectiveSelected.id,
+        droppedByCharacterName: effectiveSelected.name,
+      })
+      const { id, ...rest } = campaignItem
+      await setDoc(
+        doc(db, 'campaigns', campaignId, 'items', id),
+        { ...toFirestoreItem({ ...rest, id } as typeof campaignItem), createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
+      )
+    }
+
+    const label = consumable.name?.trim() || consumable.typeName || 'Consumable'
+    const effectSuffix = consumable.effectText?.trim() ? ` — ${consumable.effectText.trim()}` : ''
+    const qtySuffix = nextQty <= 0 ? ' (none left)' : ` (${nextQty} left)`
+    setOverflowFeedback(`Used ${label}${effectSuffix}${qtySuffix}`)
+    setItemDetailId(null)
+  }
+
+  const hasIgnitionSource = () => {
+    // Own equipped tinderbox counts
+    if (selectedInventory.some((i) => i.equipped && i.kind === 'general' && i.typeId === 'gear-tinderbox')) return true
+    // Any party member's equipped lit torch or lantern counts
+    const allItems = Object.values(allInventories).flat()
+    return allItems.some((i) =>
+      i.equipped && (
+        (i.kind === 'consumable' && (i as CharacterConsumableItem).lit)
+        || (i.kind === 'general' && (i as CharacterGeneralItem).lit)
+      ),
+    )
+  }
+
+  const lightTorch = (itemId: string) => {
+    if (!effectiveSelected || !canEditSelected) return
+    const item = selectedInventory.find((i) => i.id === itemId)
+    if (!item || item.kind !== 'consumable' || item.typeId !== 'con-torches') return
+    const torch = item as CharacterConsumableItem
+    if ((torch.qty ?? 0) <= 0) return
+    if (!item.equipped || !hasIgnitionSource()) return
+
+    if ((torch.qty ?? 0) > 1) {
+      // Split: decrement stack, create new lit torch
+      const litTorch: CharacterConsumableItem = {
+        ...torch,
+        id: makeId(),
+        qty: 0,
+        lit: true,
+        turnsRemaining: 6,
+        equipped: true,
+        stack: { stackable: false },
+      }
+      setInventoryByCharacterId((current) => ({
+        ...current,
+        [effectiveSelected.id]: [
+          ...(current[effectiveSelected.id] ?? []).map((i) =>
+            i.id === itemId ? { ...i, qty: (i.qty ?? 1) - 1 } as CharacterInventoryItem : i,
+          ),
+          litTorch,
+        ],
+      }))
+    } else {
+      // Last torch: convert in place
+      updateInventoryItem(itemId, { qty: 0, lit: true, turnsRemaining: 6, equipped: true, stack: { stackable: false } })
+    }
+
+    setOverflowFeedback('Lit a torch (6 turns)')
+    setItemDetailId(null)
+  }
+
+  const tickDown = (itemId: string) => {
+    if (!effectiveSelected || !canEditSelected) return
+    const item = selectedInventory.find((i) => i.id === itemId)
+    if (!item) return
+
+    // Works for both consumable (torch) and general (lantern)
+    const current = (item as CharacterConsumableItem | CharacterGeneralItem)
+    if (!current.lit || (current.turnsRemaining ?? 0) <= 0) return
+
+    const nextTurns = (current.turnsRemaining ?? 0) - 1
+    if (nextTurns <= 0) {
+      updateInventoryItem(itemId, { turnsRemaining: 0, lit: false })
+      const label = item.name?.trim() || item.typeName || 'Item'
+      setOverflowFeedback(`${label} burned out`)
+    } else {
+      updateInventoryItem(itemId, { turnsRemaining: nextTurns })
+    }
+  }
+
+  const fireAmmo = (itemId: string) => {
+    if (!effectiveSelected || !canEditSelected) return
+    const item = selectedInventory.find((i) => i.id === itemId)
+    if (!item || item.kind !== 'ammunition') return
+    const ammo = item as CharacterAmmunitionItem
+    if ((ammo.qty ?? 0) <= 0) return
+
+    updateInventoryItem(itemId, { qty: ammo.qty - 1, spent: (ammo.spent ?? 0) + 1 })
+    const label = ammo.name?.trim() || ammo.typeName || 'Ammo'
+    setOverflowFeedback(`Fired ${label} (${ammo.qty - 1} left, ${(ammo.spent ?? 0) + 1} spent)`)
+  }
+
+  const retrieveAmmo = (itemId: string) => {
+    if (!effectiveSelected || !canEditSelected) return
+    const item = selectedInventory.find((i) => i.id === itemId)
+    if (!item || item.kind !== 'ammunition') return
+    const ammo = item as CharacterAmmunitionItem
+    const spent = ammo.spent ?? 0
+    if (spent <= 0) return
+
+    let recovered = 0
+    for (let i = 0; i < spent; i++) {
+      if (Math.random() < 0.75) recovered++
+    }
+
+    updateInventoryItem(itemId, { qty: ammo.qty + recovered, spent: 0 })
+    const label = ammo.name?.trim() || ammo.typeName || 'ammo'
+    setOverflowFeedback(`Retrieved ${recovered} of ${spent} ${label}`)
+    setItemDetailId(null)
+  }
+
+  const throwOil = (itemId: string) => {
+    if (!effectiveSelected || !canEditSelected) return
+    const item = selectedInventory.find((i) => i.id === itemId)
+    if (!item || item.kind !== 'consumable' || item.typeId !== 'con-oil') return
+
+    setInventoryByCharacterId((current) => ({
+      ...current,
+      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).filter((i) => i.id !== itemId),
+    }))
+    setOverflowFeedback('Threw oil flask!')
+    setItemDetailId(null)
+  }
+
+  const pourOil = (flaskId: string, lanternId: string) => {
+    if (!effectiveSelected || !canEditSelected) return
+    const flask = selectedInventory.find((i) => i.id === flaskId) as CharacterConsumableItem | undefined
+    const lantern = selectedInventory.find((i) => i.id === lanternId) as CharacterGeneralItem | undefined
+    if (!flask || !lantern) return
+    if (flask.typeId !== 'con-oil' || lantern.typeId !== 'gear-lantern') return
+
+    const flaskFuel = flask.amountRemaining ?? 24
+    const lanternFuel = lantern.turnsRemaining ?? 0
+    const lanternNeed = 24 - lanternFuel
+    const transfer = Math.min(lanternNeed, flaskFuel)
+
+    setInventoryByCharacterId((current) => ({
+      ...current,
+      [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).map((i) => {
+        if (i.id === flaskId) return { ...i, amountRemaining: flaskFuel - transfer } as CharacterInventoryItem
+        if (i.id === lanternId) return { ...i, turnsRemaining: lanternFuel + transfer } as CharacterInventoryItem
+        return i
+      }),
+    }))
+    setOverflowFeedback(`Poured ${transfer} fuel into lantern (${lanternFuel + transfer}/24)`)
+    setItemDetailId(null)
+  }
+
+  const lightLantern = (itemId: string) => {
+    if (!effectiveSelected || !canEditSelected) return
+    const item = selectedInventory.find((i) => i.id === itemId)
+    if (!item || item.kind !== 'general' || item.typeId !== 'gear-lantern') return
+    const lantern = item as CharacterGeneralItem
+    if ((lantern.turnsRemaining ?? 0) <= 0) return
+    if (!item.equipped || !hasIgnitionSource()) return
+
+    updateInventoryItem(itemId, { lit: true, equipped: true })
+    setOverflowFeedback('Lantern lit')
+    setItemDetailId(null)
+  }
+
+  const extinguishLantern = (itemId: string) => {
+    if (!effectiveSelected || !canEditSelected) return
+    const item = selectedInventory.find((i) => i.id === itemId)
+    if (!item || item.kind !== 'general' || item.typeId !== 'gear-lantern') return
+
+    updateInventoryItem(itemId, { lit: false })
+    setOverflowFeedback('Lantern extinguished')
+    setItemDetailId(null)
+  }
+
   const addItemsToInventory = (characterId: string, items: CharacterInventoryItem[]) => {
     setInventoryByCharacterId((current) => ({
       ...current,
@@ -459,12 +696,22 @@ export function useInventoryDomain({
     updateInventoryItem,
     updateWeaponRow,
     updateArmourRow,
+    hasIgnitionSource,
     openAddItemModal,
     saveAddItem,
     dropItem,
     sellItem,
     spendGold,
     setInventoryGold,
+    consumeOne,
+    lightTorch,
+    tickDown,
+    fireAmmo,
+    retrieveAmmo,
+    throwOil,
+    pourOil,
+    lightLantern,
+    extinguishLantern,
     addItemsToInventory,
     setInventoryGoldForCharacter,
   }

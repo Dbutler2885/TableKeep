@@ -170,7 +170,7 @@ const applyConsumableTemplate = (storeId: string): Partial<CampaignItem> => {
     description: template.description,
     qty: String(template.qty),
     consumableStats: {
-      useMode: template.useMode,
+      useMode: 'consume',
       effectText: template.effectText,
     },
   }
@@ -275,6 +275,7 @@ export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
   const [worldNotesOpenByItemId, setWorldNotesOpenByItemId] = useState<Record<string, boolean>>({})
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list')
+  const [clearDroppedConfirm, setClearDroppedConfirm] = useState(false)
   const canEdit = role === 'gm'
 
   useEffect(() => {
@@ -484,6 +485,15 @@ export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
     })
     hookDeleteItem(deleteId)
     setDeleteCandidate(null)
+  }
+
+  const confirmClearDropped = () => {
+    const droppedItems = items.filter((item) => item.status === 'dropped')
+    for (const item of droppedItems) {
+      if (selectedItemId === item.id) setSelectedItemId(null)
+      hookDeleteItem(item.id)
+    }
+    setClearDroppedConfirm(false)
   }
 
   const grantItemToCharacter = async () => {
@@ -775,6 +785,16 @@ export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
               <span>Dropped</span>
               <small>{droppedCount}</small>
             </button>
+            {canEdit && typeFilter === 'dropped' && droppedCount > 0 ? (
+              <button
+                type="button"
+                className="item-type-filter clear-dropped-btn"
+                onClick={() => setClearDroppedConfirm(true)}
+              >
+                <Trash2 size={12} />
+                <span>Clear All</span>
+              </button>
+            ) : null}
           </div>
 
           {filteredItems.length === 0 ? <p>{canEdit ? 'No items yet. Click + to create one.' : 'No items yet.'}</p> : null}
@@ -1560,6 +1580,14 @@ export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
         confirmLabel="Delete"
         onConfirm={confirmDeleteItem}
         onCancel={() => setDeleteCandidate(null)}
+      />
+      <ConfirmModal
+        open={clearDroppedConfirm}
+        title="Clear Dropped Items?"
+        message={`Permanently remove all ${droppedCount} dropped item${droppedCount === 1 ? '' : 's'}?`}
+        confirmLabel="Clear All"
+        onConfirm={confirmClearDropped}
+        onCancel={() => setClearDroppedConfirm(false)}
       />
     </div>
   )

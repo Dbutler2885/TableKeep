@@ -14,6 +14,8 @@ import type {
   CharacterArmourItem,
   CharacterGoldItem,
   CharacterConsumableItem,
+  CharacterAmmunitionItem,
+  CharacterGeneralItem,
   Role,
   TransferableInventoryItem,
 } from '../../types/app'
@@ -171,6 +173,11 @@ const thiefSkillRows: { code: ThiefSkillCode; note: string }[] = [
   { code: 'OL', note: 'Open locks' },
   { code: 'PP', note: 'Pick pockets' },
   { code: 'RL', note: 'Read languages' },
+]
+
+const playerAddGearTemplates = [
+  ...OSE_GENERAL_CATALOG.map((entry) => ({ ...entry, itemKind: 'general' as const })),
+  ...OSE_CONSUMABLE_CATALOG.map((entry) => ({ ...entry, itemKind: 'consumable' as const })),
 ]
 
 const classOptions = [
@@ -628,8 +635,10 @@ export function CharacterTab({
   const [addItemModal, setAddItemModal] = useState<AddItemModalState | null>(null)
   const [dropConfirmItemId, setDropConfirmItemId] = useState<string | null>(null)
   const [sellConfirmItemId, setSellConfirmItemId] = useState<string | null>(null)
+  const [stackActionQty, setStackActionQty] = useState<string>('')
   const [goldSpendAmount, setGoldSpendAmount] = useState<string>('')
   const [goldSpendConfirmAmount, setGoldSpendConfirmAmount] = useState<number | null>(null)
+  const [cantLightOpen, setCantLightOpen] = useState(false)
   const [overflowFeedback, setOverflowFeedback] = useState<string | null>(null)
   const [overflowWriting, setOverflowWriting] = useState(false)
   const [alignmentByCharacterId, setAlignmentByCharacterId] = useState<Record<string, string>>({})
@@ -655,6 +664,7 @@ export function CharacterTab({
   const [transferTargetCharacterId, setTransferTargetCharacterId] = useState('')
   const [transferBusy, setTransferBusy] = useState(false)
   const [transferError, setTransferError] = useState<string | null>(null)
+  const [transferQty, setTransferQty] = useState<string>('')
   const [allCampaignCharacters, setAllCampaignCharacters] = useState<TransferTargetCharacter[]>([])
   const [playerAssignmentOpen, setPlayerAssignmentOpen] = useState(false)
   const [assignmentTargetUserId, setAssignmentTargetUserId] = useState('')
@@ -1036,6 +1046,7 @@ export function CharacterTab({
     void item
     setTransferError(null)
     setTransferTargetCharacterId(transferTargets[0]?.id ?? '')
+    setTransferQty(item.stack.stackable && item.qty > 1 ? '1' : '')
     setTransferPickerOpen(true)
   }
 
@@ -1044,6 +1055,7 @@ export function CharacterTab({
     setTransferTargetCharacterId('')
     setTransferBusy(false)
     setTransferError(null)
+    setTransferQty('')
   }
 
   const submitTransfer = async (item: TransferableInventoryItem) => {
@@ -1054,12 +1066,33 @@ export function CharacterTab({
       return
     }
 
+    // For stackable items with qty > 1, split the stack
+    const isStackSplit = item.stack.stackable && item.qty > 1
+    const giveQty = isStackSplit ? Math.max(1, Math.min(item.qty, Number.parseInt(transferQty, 10) || 1)) : item.qty
+    const giveAll = giveQty >= item.qty
+
+    const snapshotItem: TransferableInventoryItem = giveAll
+      ? item
+      : { ...item, id: makeId(), qty: giveQty } as TransferableInventoryItem
+
     setTransferBusy(true)
     setTransferError(null)
     try {
-      await createTransfer(item, effectiveSelected, target)
+      await createTransfer(snapshotItem, effectiveSelected, target)
+
+      // Reduce source qty (or remove if giving all)
+      if (!giveAll) {
+        setInventoryByCharacterId((current) => ({
+          ...current,
+          [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).map((i) =>
+            i.id === item.id ? { ...i, qty: item.qty - giveQty } as CharacterInventoryItem : i,
+          ),
+        }))
+      }
+
       setTransferPickerOpen(false)
       setTransferTargetCharacterId('')
+      setTransferQty('')
       setItemDetailId(null)
     } catch (error) {
       setTransferError(error instanceof Error ? error.message : 'Failed to create transfer.')
@@ -1372,25 +1405,41 @@ export function CharacterTab({
     }
     if (detailItem.kind === 'consumable') {
       const consumable = detailItem as CharacterConsumableItem
+      const isTorch = detailItem.typeId === 'con-torches'
+      const isOil = detailItem.typeId === 'con-oil'
+      const isLitTorch = isTorch && consumable.lit
+      const consumableTitle = isLitTorch
+        ? (detailItem.name?.trim() || 'Torch')
+        : (detailItem.name?.trim() || detailItem.typeName || 'Consumable')
       return (
         <div className="item-detail-display">
-          <h3>{detailItem.name?.trim() || detailItem.typeName || 'Consumable'}</h3>
-          {detailItem.name?.trim() && detailItem.typeName ? <p className="item-detail-display-subtitle">{detailItem.typeName}</p> : null}
+          <h3>{consumableTitle}</h3>
+          {!isLitTorch && detailItem.name?.trim() && detailItem.typeName ? <p className="item-detail-display-subtitle">{detailItem.typeName}</p> : null}
           <div className="item-detail-display-grid">
-            <div>
-              <span className="item-detail-field-label">Qty</span>
-              <p>{detailItem.qty}</p>
-            </div>
+            {!isLitTorch ? (
+              <div>
+                <span className="item-detail-field-label">Qty</span>
+                <p>{detailItem.qty}</p>
+              </div>
+            ) : null}
             {detailItem.costGp > 0 ? (
               <div>
                 <span className="item-detail-field-label">Cost</span>
                 <p>{detailItem.costGp} gp</p>
               </div>
             ) : null}
-            <div>
-              <span className="item-detail-field-label">Use Mode</span>
-              <p>{consumable.useMode === 'consume' ? 'Consume' : 'Use'}</p>
-            </div>
+            {isLitTorch ? (
+              <div>
+                <span className="item-detail-field-label">Burns</span>
+                <p>{consumable.turnsRemaining ?? 0}/6 turns</p>
+              </div>
+            ) : null}
+            {isOil ? (
+              <div>
+                <span className="item-detail-field-label">Fuel</span>
+                <p>{consumable.amountRemaining ?? 24}/24</p>
+              </div>
+            ) : null}
           </div>
           {detailItem.description?.trim() ? (
             <div className="item-detail-display-section">
@@ -1413,15 +1462,31 @@ export function CharacterTab({
         </div>
       )
     }
+    const isLantern = detailItem.kind === 'general' && detailItem.typeId === 'gear-lantern'
+    const lantern = isLantern ? detailItem as CharacterGeneralItem : null
     return (
       <div className="item-detail-display">
         <h3>{detailItem.name?.trim() || detailItem.typeName || 'Item'}</h3>
         {detailItem.name?.trim() && detailItem.typeName ? <p className="item-detail-display-subtitle">{detailItem.typeName}</p> : null}
         <div className="item-detail-display-grid">
           {detailItem.kind === 'ammunition' ? (
+            <>
+              <div>
+                <span className="item-detail-field-label">Qty</span>
+                <p>{detailItem.qty}</p>
+              </div>
+              {(detailItem as CharacterAmmunitionItem).spent ? (
+                <div>
+                  <span className="item-detail-field-label">Spent</span>
+                  <p>{(detailItem as CharacterAmmunitionItem).spent}</p>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+          {isLantern ? (
             <div>
-              <span className="item-detail-field-label">Qty</span>
-              <p>{detailItem.qty}</p>
+              <span className="item-detail-field-label">Fuel</span>
+              <p>{lantern!.turnsRemaining ?? 0}/24{lantern!.lit ? ' (lit)' : ''}</p>
             </div>
           ) : null}
           {detailItem.costGp > 0 ? (
@@ -1431,6 +1496,9 @@ export function CharacterTab({
             </div>
           ) : null}
         </div>
+        {isLantern && (lantern!.turnsRemaining ?? 0) <= 0 ? (
+          <p className="character-enc-help">Empty — needs oil</p>
+        ) : null}
         {detailItem.description?.trim() ? (
           <div className="item-detail-display-section">
             <span className="item-detail-field-label">Description</span>
@@ -1498,7 +1566,9 @@ export function CharacterTab({
           notes: '',
         }
       }
-      const template = generalCatalogById[templateId]
+      const generalTemplate = generalCatalogById[templateId]
+      const consumableTemplate = consumableCatalogById[templateId]
+      const template = generalTemplate ?? consumableTemplate
       if (!template) return current
       return {
         ...current,
@@ -1508,7 +1578,8 @@ export function CharacterTab({
         name: '',
         costGp: String(template.costGp),
         description: template.description,
-        qty: '1',
+        qty: consumableTemplate ? String(consumableTemplate.qty) : '1',
+        effectText: consumableTemplate?.effectText ?? '',
         notes: '',
       }
     })
@@ -1542,6 +1613,24 @@ export function CharacterTab({
         armourType: modal.armourType,
       })
     }
+    const consumableTemplate = consumableCatalogById[modal.typeId]
+    if (consumableTemplate) {
+      const isOil = consumableTemplate.id === 'con-oil'
+      return {
+        id: makeId(),
+        kind: 'consumable',
+        typeId: modal.typeId,
+        typeName: modal.typeName,
+        costGp: Number.parseFloat(modal.costGp) || 0,
+        equipped: false,
+        notes: '',
+        qty: consumableTemplate.qty,
+        stack: isOil ? { stackable: false } as const : DEFAULT_STACK_POLICY.consumable,
+        description: modal.description,
+        effectText: consumableTemplate.effectText || undefined,
+        ...(isOil ? { amountRemaining: consumableTemplate.fuelCapacity ?? 24 } : {}),
+      }
+    }
     return {
       id: makeId(),
       kind: 'general',
@@ -1557,10 +1646,15 @@ export function CharacterTab({
   }
   // Build slot rendering arrays from unified inventory
   const toggleItemEquip = (item: CharacterInventoryItem, checked: boolean) => {
+    // Block packing lit torches
+    if (!checked && item.kind === 'consumable' && (item as CharacterConsumableItem).lit) return
     if (item.kind === 'weapon') {
       updateWeaponRow(item.id, { equipped: checked })
     } else if (item.kind === 'armour') {
       updateArmourRow(item.id, { equipped: checked })
+    } else if (!checked && item.kind === 'general' && (item as CharacterGeneralItem).lit) {
+      // Auto-extinguish lit lantern when packing
+      updateInventoryItem(item.id, { equipped: false, lit: false })
     } else {
       updateInventoryItem(item.id, { equipped: checked })
     }
@@ -1570,8 +1664,70 @@ export function CharacterTab({
     if (item.kind === 'armour') return renderArmourSlotLabel(item as CharacterArmourItem)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- old gold data may still have `amount` instead of `qty`
     if (item.kind === 'gold') return `Gold: ${item.qty ?? (item as any).amount ?? 0} gp`
+
     const label = item.typeName || item.name || 'Item'
     const qty = item.qty ?? 1
+
+    // Oil flask — show (empty) when drained
+    if (item.kind === 'consumable' && item.typeId === 'con-oil') {
+      const fuel = (item as CharacterConsumableItem).amountRemaining ?? 24
+      if (fuel <= 0) return `${label} (empty)`
+      return fuel < 24 ? `${label} (${fuel}/24)` : label
+    }
+
+    // Lantern — always show fuel status
+    if (item.kind === 'general' && item.typeId === 'gear-lantern') {
+      const g = item as CharacterGeneralItem
+      const fuel = g.turnsRemaining ?? 0
+      if (g.lit) {
+        return (
+          <span className="item-slot-lit">
+            {label} (lit) ●{fuel}/24{' '}
+            <button
+              type="button"
+              className="item-tick-btn"
+              onClick={(e) => { e.stopPropagation(); tickDown(item.id) }}
+              disabled={!canEditSelected}
+              aria-label="Tick down turn"
+            >
+              −
+            </button>
+          </span>
+        )
+      }
+      if (fuel <= 0) return `${label} (empty)`
+      if (fuel >= 24) return `${label} (full)`
+      return `${label} (${fuel}/24)`
+    }
+
+    // Torch — use clean label since catalog name includes "(6)"
+    if (item.kind === 'consumable' && item.typeId === 'con-torches') {
+      const t = item as CharacterConsumableItem
+      const torchLabel = item.name?.trim() || 'Torches'
+      if (t.lit) {
+        return (
+          <span className="item-slot-lit">
+            Torch (lit) ●{t.turnsRemaining ?? 0}/6{' '}
+            <button
+              type="button"
+              className="item-tick-btn"
+              onClick={(e) => { e.stopPropagation(); tickDown(item.id) }}
+              disabled={!canEditSelected}
+              aria-label="Tick down turn"
+            >
+              −
+            </button>
+          </span>
+        )
+      }
+      return qty > 1 ? `${torchLabel} (${qty})` : qty === 1 ? `${torchLabel} (1)` : `${torchLabel} (spent)`
+    }
+
+    // Ammo with spent
+    if (item.kind === 'ammunition' && (item as CharacterAmmunitionItem).spent) {
+      return `${label} (${qty}) [${(item as CharacterAmmunitionItem).spent} spent]`
+    }
+
     return qty > 1 ? `${label} (${qty})` : label
   }
   const equippedSlotItems = equippedItems.map((item) => ({
@@ -2101,6 +2257,16 @@ export function CharacterTab({
     sellItem,
     spendGold,
     setInventoryGold,
+    hasIgnitionSource,
+    consumeOne,
+    lightTorch,
+    tickDown,
+    fireAmmo,
+    retrieveAmmo,
+    throwOil,
+    pourOil,
+    lightLantern,
+    extinguishLantern,
     addItemsToInventory,
     setInventoryGoldForCharacter,
   } = useInventoryDomain({
@@ -2112,6 +2278,7 @@ export function CharacterTab({
     selectedClassName,
     canClassEquipArmour,
     selectedInventory,
+    allInventories: inventoryByCharacterId,
     availablePackedSlotCount: availablePackedSlotIndices.length,
     requiresApprovalNow,
     isGuidedCreation,
@@ -2199,20 +2366,20 @@ export function CharacterTab({
     if (entry.kind === 'consumable') {
       const storeItem = OSE_STORE_ITEMS.find((item) => item.id === entry.key)
       const conTemplate = storeItem ? consumableCatalogById[storeItem.id.replace('gear-', 'con-')] : null
+      const isOil = conTemplate?.id === 'con-oil'
       return {
         id: makeId(),
         kind: 'consumable',
         typeId: conTemplate?.id ?? 'custom',
         typeName: conTemplate?.name ?? entry.name,
-        name: entry.name,
         costGp: entry.costGp,
         equipped: false,
         notes: '',
         description: conTemplate?.description ?? '',
         qty: conTemplate?.qty ?? 1,
-        stack: DEFAULT_STACK_POLICY.consumable,
-        useMode: conTemplate?.useMode ?? 'consume',
+        stack: isOil ? { stackable: false } as const : DEFAULT_STACK_POLICY.consumable,
         effectText: conTemplate?.effectText ?? undefined,
+        ...(isOil ? { amountRemaining: conTemplate?.fuelCapacity ?? 24 } : {}),
       }
     }
     const storeItem = OSE_STORE_ITEMS.find((item) => item.id === entry.key)
@@ -3953,6 +4120,7 @@ export function CharacterTab({
         const isTransferableDetailItem = detailItem.kind !== 'gold' && !isSpellBookDetailItem
         const canEditDetailItemFields = canEditInventoryDetails
         const canEditDetailItemName = canEditSelected
+        const isActiveCharacter = effectiveSelected?.creationStatus === 'active'
         const pendingOutgoingTransfer = effectiveSelected && isTransferableDetailItem
           ? outgoingTransferByItemKey.get(`${effectiveSelected.id}:${detailItem.id}`) ?? null
           : null
@@ -4385,17 +4553,6 @@ export function CharacterTab({
                   {detailItem.kind === 'consumable' ? (
                     <>
                       <label className="item-detail-field">
-                        <span className="item-detail-field-label">Use Mode</span>
-                        <select
-                          value={(detailItem as CharacterConsumableItem).useMode}
-                          onChange={(e) => updateInventoryItem(detailItem.id, { useMode: e.target.value as 'consume' | 'use' })}
-                          disabled={!canEditDetailItemFields}
-                        >
-                          <option value="consume">Consume (drink, eat, ingest)</option>
-                          <option value="use">Use (light, pour, activate)</option>
-                        </select>
-                      </label>
-                      <label className="item-detail-field">
                         <span className="item-detail-field-label">Effect</span>
                         <textarea
                           className="item-detail-notes"
@@ -4435,6 +4592,62 @@ export function CharacterTab({
                     Spend
                   </button>
                 ) : null}
+                {canEditSelected && isActiveCharacter ? (
+                  <>
+                    {detailItem.kind === 'consumable' && detailItem.typeId === 'con-torches' && !((detailItem as CharacterConsumableItem).lit) && (detailItem.qty > 0) ? (
+                      <button type="button" onClick={() => {
+                        if (!detailItem.equipped || !hasIgnitionSource()) { setCantLightOpen(true); return }
+                        lightTorch(detailItem.id)
+                      }}>Light 1</button>
+                    ) : null}
+                    {detailItem.kind === 'consumable' && (detailItem as CharacterConsumableItem).lit ? (
+                      <button type="button" onClick={() => tickDown(detailItem.id)}>Tick Down</button>
+                    ) : null}
+                    {detailItem.kind === 'consumable' && detailItem.typeId === 'con-oil' ? (
+                      <>
+                        <button type="button" className="confirm-danger" onClick={() => throwOil(detailItem.id)}>Throw</button>
+                        {(() => {
+                          const lanterns = selectedInventory.filter((i): i is CharacterGeneralItem => i.kind === 'general' && i.typeId === 'gear-lantern')
+                          if (lanterns.length === 0) return null
+                          if (lanterns.length === 1) {
+                            return <button type="button" onClick={() => pourOil(detailItem.id, lanterns[0].id)}>Pour into Lantern</button>
+                          }
+                          return lanterns.map((l) => (
+                            <button key={l.id} type="button" onClick={() => pourOil(detailItem.id, l.id)}>
+                              Pour into {l.name?.trim() || 'Lantern'}
+                            </button>
+                          ))
+                        })()}
+                      </>
+                    ) : null}
+                    {detailItem.kind === 'consumable' && detailItem.typeId !== 'con-torches' && detailItem.typeId !== 'con-oil' && !((detailItem as CharacterConsumableItem).lit) && (detailItem.qty > 0) ? (
+                      <button type="button" onClick={() => consumeOne(detailItem.id)}>Use 1</button>
+                    ) : null}
+                    {detailItem.kind === 'ammunition' ? (
+                      <>
+                        <button type="button" onClick={() => fireAmmo(detailItem.id)} disabled={detailItem.qty <= 0}>Fire 1</button>
+                        {((detailItem as CharacterAmmunitionItem).spent ?? 0) > 0 ? (
+                          <button type="button" onClick={() => retrieveAmmo(detailItem.id)}>Retrieve</button>
+                        ) : null}
+                      </>
+                    ) : null}
+                    {detailItem.kind === 'general' && detailItem.typeId === 'gear-lantern' ? (
+                      <>
+                        {(detailItem as CharacterGeneralItem).lit ? (
+                          <>
+                            <button type="button" onClick={() => tickDown(detailItem.id)}>Tick Down</button>
+                            <button type="button" onClick={() => extinguishLantern(detailItem.id)}>Extinguish</button>
+                          </>
+                        ) : (detailItem as CharacterGeneralItem).turnsRemaining && (detailItem as CharacterGeneralItem).turnsRemaining! > 0 ? (
+                          <button type="button" onClick={() => {
+                            if (!detailItem.equipped || !hasIgnitionSource()) { setCantLightOpen(true); return }
+                            lightLantern(detailItem.id)
+                          }}>Light</button>
+                        ) : null}
+                      </>
+                    ) : null}
+                  </>
+                ) : null}
                 {detailItem.kind !== 'gold' && !isSpellBookDetailItem ? (
                   <button
                     type="button"
@@ -4442,7 +4655,7 @@ export function CharacterTab({
                       toggleItemEquip(detailItem, !detailItem.equipped)
                       setItemDetailId(null)
                     }}
-                    disabled={!canEditSelected}
+                    disabled={!canEditSelected || (detailItem.kind === 'consumable' && !!(detailItem as CharacterConsumableItem).lit)}
                   >
                     {detailItem.equipped ? 'Unequip' : 'Equip'}
                   </button>
@@ -4451,7 +4664,7 @@ export function CharacterTab({
                   <button
                     type="button"
                     className="confirm-danger"
-                    onClick={() => setDropConfirmItemId(detailItem.id)}
+                    onClick={() => { setStackActionQty(detailItem.stack.stackable && detailItem.qty > 1 ? String(detailItem.qty) : ''); setDropConfirmItemId(detailItem.id) }}
                   >
                     Drop
                   </button>
@@ -4493,6 +4706,7 @@ export function CharacterTab({
                         refundItem(detailItem.id)
                         setItemDetailId(null)
                       } else {
+                        setStackActionQty(detailItem.stack.stackable && detailItem.qty > 1 ? String(detailItem.qty) : '')
                         setSellConfirmItemId(detailItem.id)
                       }
                     }}
@@ -4893,7 +5107,7 @@ export function CharacterTab({
                   >
                     {(addItemModal.kind === 'weapon' ? OSE_WEAPON_CATALOG
                       : addItemModal.kind === 'armour' ? OSE_ARMOUR_CATALOG
-                        : OSE_GENERAL_CATALOG).map((entry) => (
+                        : playerAddGearTemplates).map((entry) => (
                           <option key={entry.id} value={entry.id}>
                             {entry.name}
                           </option>
@@ -4905,7 +5119,7 @@ export function CharacterTab({
             ) : (
               <>
             <div className="add-item-kind-picker">
-              {(['general', 'weapon', 'armour', 'ammunition', 'consumable'] as const).map((k) => (
+              {(['general', 'weapon', 'armour', 'ammunition'] as const).map((k) => (
                 <button
                   key={k}
                   type="button"
@@ -5210,18 +5424,30 @@ export function CharacterTab({
                     <select
                       value={addItemModal.typeId || 'custom'}
                       onChange={(e) => {
-                        const gId = e.target.value
-                        if (gId === 'custom') {
-                          setAddItemModal({ ...addItemModal, typeId: 'custom', typeName: '', costGp: '', description: '' })
+                        const templateId = e.target.value
+                        if (templateId === 'custom') {
+                          setAddItemModal({ ...addItemModal, typeId: 'custom', typeName: '', costGp: '', description: '', qty: '1', effectText: '' })
                         } else {
-                          const t = generalCatalogById[gId]
-                          if (t) setAddItemModal({ ...addItemModal, typeId: gId, typeName: t.name, costGp: String(t.costGp), description: t.description })
+                          const generalTemplate = generalCatalogById[templateId]
+                          const consumableTemplate = consumableCatalogById[templateId]
+                          const template = generalTemplate ?? consumableTemplate
+                          if (template) {
+                            setAddItemModal({
+                              ...addItemModal,
+                              typeId: templateId,
+                              typeName: template.name,
+                              costGp: String(template.costGp),
+                              description: template.description,
+                              qty: consumableTemplate ? String(consumableTemplate.qty) : '1',
+                              effectText: consumableTemplate?.effectText ?? '',
+                            })
+                          }
                         }
                       }}
                     >
                       <option value="custom">Custom</option>
-                      {OSE_GENERAL_CATALOG.map((g) => (
-                        <option key={g.id} value={g.id}>{`${g.name} (${g.costGp} gp)`}</option>
+                      {playerAddGearTemplates.map((entry) => (
+                        <option key={entry.id} value={entry.id}>{`${entry.name} (${entry.costGp} gp)`}</option>
                       ))}
                     </select>
                   </label>
@@ -5244,28 +5470,6 @@ export function CharacterTab({
                       <option value="custom">Custom</option>
                       {OSE_AMMO_CATALOG.map((a) => (
                         <option key={a.id} value={a.id}>{`${a.name} (${a.costGp} gp)`}</option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-                {addItemModal.kind === 'consumable' ? (
-                  <label className="item-detail-field">
-                    <span className="item-detail-field-label">Template</span>
-                    <select
-                      value={addItemModal.typeId || 'custom'}
-                      onChange={(e) => {
-                        const cId = e.target.value
-                        if (cId === 'custom') {
-                          setAddItemModal({ ...addItemModal, typeId: 'custom', typeName: '', costGp: '', description: '', qty: '1', useMode: 'consume', effectText: '' })
-                        } else {
-                          const t = consumableCatalogById[cId]
-                          if (t) setAddItemModal({ ...addItemModal, typeId: cId, typeName: t.name, costGp: String(t.costGp), description: t.description, qty: String(t.qty), useMode: t.useMode, effectText: t.effectText })
-                        }
-                      }}
-                    >
-                      <option value="custom">Custom</option>
-                      {OSE_CONSUMABLE_CATALOG.map((c) => (
-                        <option key={c.id} value={c.id}>{`${c.name} (${c.costGp} gp)`}</option>
                       ))}
                     </select>
                   </label>
@@ -5295,7 +5499,7 @@ export function CharacterTab({
                     <span>gp</span>
                   </div>
                 </label>
-                {(addItemModal.kind === 'ammunition' || addItemModal.kind === 'consumable') ? (
+                {(addItemModal.kind === 'ammunition' || !!consumableCatalogById[addItemModal.typeId]) ? (
                   <label className="item-detail-field">
                     <span className="item-detail-field-label">Qty</span>
                     <input
@@ -5307,29 +5511,17 @@ export function CharacterTab({
                     />
                   </label>
                 ) : null}
-                {addItemModal.kind === 'consumable' ? (
-                  <>
-                    <label className="item-detail-field">
-                      <span className="item-detail-field-label">Use Mode</span>
-                      <select
-                        value={addItemModal.useMode}
-                        onChange={(e) => setAddItemModal({ ...addItemModal, useMode: e.target.value as 'consume' | 'use' })}
-                      >
-                        <option value="consume">Consume (drink, eat, ingest)</option>
-                        <option value="use">Use (light, pour, activate)</option>
-                      </select>
-                    </label>
-                    <label className="item-detail-field">
-                      <span className="item-detail-field-label">Effect</span>
-                      <textarea
-                        className="item-detail-notes"
-                        value={addItemModal.effectText}
-                        onChange={(e) => setAddItemModal({ ...addItemModal, effectText: e.target.value })}
-                        placeholder="Optional effect description"
-                        rows={2}
-                      />
-                    </label>
-                  </>
+                {((addItemModal.kind === 'general' && !!consumableCatalogById[addItemModal.typeId]) || addItemModal.kind === 'consumable') ? (
+                  <label className="item-detail-field">
+                    <span className="item-detail-field-label">Effect</span>
+                    <textarea
+                      className="item-detail-notes"
+                      value={addItemModal.effectText}
+                      onChange={(e) => setAddItemModal({ ...addItemModal, effectText: e.target.value })}
+                      placeholder="Optional effect description"
+                      rows={2}
+                    />
+                  </label>
                 ) : null}
                 <label className="item-detail-field">
                   <span className="item-detail-field-label">Description</span>
@@ -5397,6 +5589,25 @@ export function CharacterTab({
                 })}
               </div>
             )}
+            {(() => {
+              const transferItem = itemDetailId ? selectedInventory.find((i) => i.id === itemDetailId) ?? null : null
+              const showQtyPicker = transferItem && transferItem.stack.stackable && transferItem.qty > 1
+              if (!showQtyPicker) return null
+              return (
+                <label className="item-detail-field" style={{ marginTop: 8 }}>
+                  <span className="item-detail-field-label">Quantity (of {transferItem.qty})</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={transferItem.qty}
+                    step={1}
+                    value={transferQty}
+                    onChange={(e) => setTransferQty(e.target.value)}
+                    disabled={transferBusy}
+                  />
+                </label>
+              )
+            })()}
             {transferError ? <p className="error">{transferError}</p> : null}
             <div className="confirm-actions">
               <button type="button" onClick={closeTransferPicker} disabled={transferBusy}>
@@ -5561,22 +5772,60 @@ export function CharacterTab({
         }}
         onCancel={() => setGoldSpendConfirmAmount(null)}
       />
-      <ConfirmModal
-        open={dropConfirmItemId !== null}
-        title="Drop item?"
-        message={`Drop ${selectedInventory.find((i) => i.id === dropConfirmItemId)?.name ?? 'this item'}? It will be moved to the campaign items list.`}
-        confirmLabel="Drop"
-        onConfirm={() => { if (dropConfirmItemId) void dropItem(dropConfirmItemId) }}
-        onCancel={() => setDropConfirmItemId(null)}
-      />
-      <ConfirmModal
-        open={sellConfirmItemId !== null}
-        title="Sell item?"
-        message={`Sell ${selectedInventory.find((i) => i.id === sellConfirmItemId)?.name ?? 'this item'} for ${selectedInventory.find((i) => i.id === sellConfirmItemId)?.costGp ?? 0} gp?`}
-        confirmLabel="Sell"
-        onConfirm={() => { if (sellConfirmItemId) sellItem(sellConfirmItemId) }}
-        onCancel={() => setSellConfirmItemId(null)}
-      />
+      {dropConfirmItemId !== null ? (() => {
+        const dropTarget = selectedInventory.find((i) => i.id === dropConfirmItemId)
+        if (!dropTarget) return null
+        const isStack = dropTarget.stack.stackable && dropTarget.qty > 1
+        const parsedDropQty = isStack ? Math.max(1, Math.min(dropTarget.qty, Number.parseInt(stackActionQty, 10) || dropTarget.qty)) : undefined
+        return (
+          <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={() => setDropConfirmItemId(null)}>
+            <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>Drop item?</h3>
+              <p>Drop {dropTarget.name?.trim() || dropTarget.typeName || 'this item'}? It will be moved to the campaign items list.</p>
+              {isStack ? (
+                <label className="item-detail-field">
+                  <span className="item-detail-field-label">Quantity (of {dropTarget.qty})</span>
+                  <input type="number" min={1} max={dropTarget.qty} step={1} value={stackActionQty} onChange={(e) => setStackActionQty(e.target.value)} />
+                </label>
+              ) : null}
+              <div className="confirm-actions">
+                <button type="button" onClick={() => setDropConfirmItemId(null)}>Cancel</button>
+                <button type="button" className="confirm-danger" onClick={() => void dropItem(dropConfirmItemId, parsedDropQty)}>
+                  {isStack ? `Drop ${parsedDropQty}` : 'Drop'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })() : null}
+      {sellConfirmItemId !== null ? (() => {
+        const sellTarget = selectedInventory.find((i) => i.id === sellConfirmItemId)
+        if (!sellTarget) return null
+        const isStack = sellTarget.stack.stackable && sellTarget.qty > 1
+        const parsedSellQty = isStack ? Math.max(1, Math.min(sellTarget.qty, Number.parseInt(stackActionQty, 10) || sellTarget.qty)) : undefined
+        const unitCost = sellTarget.costGp
+        const totalCost = unitCost * (parsedSellQty ?? 1)
+        return (
+          <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={() => setSellConfirmItemId(null)}>
+            <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>Sell item?</h3>
+              <p>Sell {sellTarget.name?.trim() || sellTarget.typeName || 'this item'} for {totalCost} gp?</p>
+              {isStack ? (
+                <label className="item-detail-field">
+                  <span className="item-detail-field-label">Quantity (of {sellTarget.qty})</span>
+                  <input type="number" min={1} max={sellTarget.qty} step={1} value={stackActionQty} onChange={(e) => setStackActionQty(e.target.value)} />
+                </label>
+              ) : null}
+              <div className="confirm-actions">
+                <button type="button" onClick={() => setSellConfirmItemId(null)}>Cancel</button>
+                <button type="button" className="confirm-danger" onClick={() => void sellItem(sellConfirmItemId, parsedSellQty)}>
+                  {isStack ? `Sell ${parsedSellQty}` : 'Sell'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })() : null}
       <ConfirmModal
         open={finalizeConfirmOpen}
         title="Finalize character?"
@@ -5618,6 +5867,14 @@ export function CharacterTab({
         confirmLabel="OK"
         onConfirm={() => setHpClassRequiredOpen(false)}
         onCancel={() => setHpClassRequiredOpen(false)}
+      />
+      <ConfirmModal
+        open={cantLightOpen}
+        title="Can't Light"
+        message="To light this, you need it equipped and a fire source — an equipped tinderbox, or a lit torch or lantern (yours or another party member's)."
+        confirmLabel="OK"
+        onConfirm={() => setCantLightOpen(false)}
+        onCancel={() => setCantLightOpen(false)}
       />
       <ConfirmModal
         open={deleteConfirmTarget !== null}

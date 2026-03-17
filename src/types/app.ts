@@ -234,15 +234,23 @@ export type CharacterAmmunitionItem = CharacterInventoryItemBase & {
   ammoFamily?: string
   compatibleWeaponTypeIds?: string[]
   consumePerUse?: number
+  spent?: number
 }
 
 export type CharacterConsumableItem = CharacterInventoryItemBase & {
   kind: 'consumable'
-  useMode: ConsumableUseMode
+  useMode?: ConsumableUseMode
   effectText?: string
+  lit?: boolean
+  turnsRemaining?: number
+  amountRemaining?: number
 }
 
-export type CharacterGeneralItem = CharacterInventoryItemBase & { kind: 'general' }
+export type CharacterGeneralItem = CharacterInventoryItemBase & {
+  kind: 'general'
+  lit?: boolean
+  turnsRemaining?: number
+}
 
 export type CharacterSpell = {
   id: string

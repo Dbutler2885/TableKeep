@@ -66,20 +66,20 @@ export const materializeCartEntries = (
       } else if (entry.kind === 'consumable') {
         const storeItem = OSE_STORE_ITEMS.find((s) => s.id === entry.key || s.name === entry.name)
         const conTemplate = storeItem ? consumableCatalogById[storeItem.id.replace('gear-', 'con-')] : null
+        const isOil = conTemplate?.id === 'con-oil'
         newItems.push({
           id: makeId(),
           kind: 'consumable',
           typeId: conTemplate?.id ?? 'custom',
           typeName: conTemplate?.name ?? entry.name,
-          name: entry.name,
           costGp: entry.costGp,
           equipped: false,
           notes: entry.packedLabel ?? '',
           description: conTemplate?.description ?? '',
           qty: conTemplate?.qty ?? 1,
-          stack: DEFAULT_STACK_POLICY.consumable,
-          useMode: conTemplate?.useMode ?? 'consume',
+          stack: isOil ? { stackable: false } as const : DEFAULT_STACK_POLICY.consumable,
           effectText: conTemplate?.effectText ?? undefined,
+          ...(isOil ? { amountRemaining: conTemplate?.fuelCapacity ?? 24 } : {}),
         } as CharacterConsumableItem)
       } else {
         const storeItem = OSE_STORE_ITEMS.find((s) => s.id === entry.key || s.name === entry.name)
