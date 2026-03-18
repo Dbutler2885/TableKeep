@@ -20,12 +20,21 @@ const defaultArmourStats: CampaignItem['armourStats'] = { armourClass: '', shiel
 
 const defaultConsumableStats: CampaignItem['consumableStats'] = { useMode: 'consume', effectText: '' }
 
+/** Strip keys whose value is `undefined` so Firestore never sees them. */
+function stripUndefined<T extends Record<string, unknown>>(obj: T): T {
+  const out = {} as Record<string, unknown>
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) out[k] = v
+  }
+  return out as T
+}
+
 export function campaignItemToInventoryItem(item: CampaignItem): CharacterInventoryItem {
   const base = {
     id: crypto.randomUUID(),
     typeId: item.typeId,
     typeName: item.typeName,
-    name: item.name || undefined,
+    ...(item.name ? { name: item.name } : {}),
     costGp: Number.parseFloat(item.gpValue) || 0,
     equipped: false,
     notes: item.notes,
@@ -38,7 +47,7 @@ export function campaignItemToInventoryItem(item: CampaignItem): CharacterInvent
 
   switch (item.type) {
     case 'weapon':
-      return {
+      return stripUndefined({
         ...base,
         kind: 'weapon',
         qty: 1,
@@ -55,10 +64,10 @@ export function campaignItemToInventoryItem(item: CampaignItem): CharacterInvent
         twoHanded: item.weaponStats.twoHanded,
         weaponEffects: item.weaponEffects,
         weaponRollTables: item.weaponRollTables,
-      } satisfies CharacterWeaponItem
+      }) satisfies CharacterWeaponItem
 
     case 'armour':
-      return {
+      return stripUndefined({
         ...base,
         kind: 'armour',
         qty: 1,
@@ -68,35 +77,35 @@ export function campaignItemToInventoryItem(item: CampaignItem): CharacterInvent
         shieldMod: item.armourStats.shieldMod,
         magicMod: item.armourStats.magicMod,
         armourType: item.armourStats.armourType,
-      } satisfies CharacterArmourItem
+      }) satisfies CharacterArmourItem
 
     case 'ammunition':
-      return {
+      return stripUndefined({
         ...base,
         kind: 'ammunition',
         qty: Number.parseInt(item.qty, 10) || 1,
         stack: DEFAULT_STACK_POLICY.ammunition,
-      } satisfies CharacterAmmunitionItem
+      }) satisfies CharacterAmmunitionItem
 
     case 'consumable': {
       const isOil = item.typeId === 'con-oil'
-      return {
+      return stripUndefined({
         ...base,
         kind: 'consumable',
         qty: Number.parseInt(item.qty, 10) || 1,
         stack: isOil ? { stackable: false } as const : DEFAULT_STACK_POLICY.consumable,
-        effectText: item.consumableStats.effectText || undefined,
+        ...(item.consumableStats.effectText ? { effectText: item.consumableStats.effectText } : {}),
         ...(isOil ? { amountRemaining: 24 } : {}),
-      } satisfies CharacterConsumableItem
+      }) satisfies CharacterConsumableItem
     }
 
     case 'general':
-      return {
+      return stripUndefined({
         ...base,
         kind: 'general',
         qty: 1,
         stack: DEFAULT_STACK_POLICY.general,
-      } satisfies CharacterGeneralItem
+      }) satisfies CharacterGeneralItem
 
     case 'gold':
       throw new Error('Gold campaign items must use campaignGoldToInventoryChunks() instead of campaignItemToInventoryItem()')

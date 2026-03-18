@@ -44,6 +44,9 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
   const pendingNpcWritesRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const pendingPrivateWritesRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const pendingPlayerNotesWritesRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const inFlightNpcWritesRef = useRef<Record<string, boolean>>({})
+  const inFlightPrivateWritesRef = useRef<Record<string, boolean>>({})
+  const inFlightPlayerNotesWritesRef = useRef<Record<string, boolean>>({})
   const [selectedNpcId, setSelectedNpcId] = useState('')
   const [deleteCandidate, setDeleteCandidate] = useState<NpcRecord | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -85,6 +88,9 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
       pendingNpcWritesRef.current = {}
       pendingPrivateWritesRef.current = {}
       pendingPlayerNotesWritesRef.current = {}
+      inFlightNpcWritesRef.current = {}
+      inFlightPrivateWritesRef.current = {}
+      inFlightPlayerNotesWritesRef.current = {}
     }
   }, [])
 
@@ -96,7 +102,12 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
     const unsub = onSnapshot(npcsQuery, (snap) => {
       const next = snap.docs
         .map((docSnap) => {
-          if (pendingNpcWritesRef.current[docSnap.id] || pendingPlayerNotesWritesRef.current[docSnap.id]) {
+          if (
+            pendingNpcWritesRef.current[docSnap.id]
+            || pendingPlayerNotesWritesRef.current[docSnap.id]
+            || inFlightNpcWritesRef.current[docSnap.id]
+            || inFlightPlayerNotesWritesRef.current[docSnap.id]
+          ) {
             const local = npcsRef.current.find((npc) => npc.id === docSnap.id)
             if (local) return local
           }
@@ -184,7 +195,7 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
     const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'npcPrivate'), (snap) => {
       setPrivateNotesById(
         snap.docs.reduce<Record<string, string>>((acc, docSnap) => {
-          if (pendingPrivateWritesRef.current[docSnap.id]) {
+          if (pendingPrivateWritesRef.current[docSnap.id] || inFlightPrivateWritesRef.current[docSnap.id]) {
             acc[docSnap.id] = privateNotesRef.current[docSnap.id] ?? ''
             return acc
           }
@@ -221,14 +232,20 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
     if (existing) clearTimeout(existing)
     pendingNpcWritesRef.current[npcId] = setTimeout(() => {
       delete pendingNpcWritesRef.current[npcId]
+      inFlightNpcWritesRef.current[npcId] = true
       const npc = npcsRef.current.find((entry) => entry.id === npcId)
-      if (!npc) return
+      if (!npc) {
+        delete inFlightNpcWritesRef.current[npcId]
+        return
+      }
       const { id, tokenIcon, portraitUrl: _portraitUrl, ...data } = npc
       void setDoc(doc(db, 'campaigns', campaignId, 'npcs', id), {
         ...data,
         tokenIcon: sanitizeTokenIconForPersistence(tokenIcon),
         updatedAt: serverTimestamp(),
-      }, { merge: true })
+      }, { merge: true }).finally(() => {
+        delete inFlightNpcWritesRef.current[npcId]
+      })
     }, 500)
   }
 
@@ -237,11 +254,14 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
     if (existing) clearTimeout(existing)
     pendingPrivateWritesRef.current[npcId] = setTimeout(() => {
       delete pendingPrivateWritesRef.current[npcId]
+      inFlightPrivateWritesRef.current[npcId] = true
       void setDoc(doc(db, 'campaigns', campaignId, 'npcPrivate', npcId), {
         id: npcId,
         gmNotes: privateNotesRef.current[npcId] ?? '',
         updatedAt: serverTimestamp(),
-      }, { merge: true })
+      }, { merge: true }).finally(() => {
+        delete inFlightPrivateWritesRef.current[npcId]
+      })
     }, 500)
   }
 
@@ -250,12 +270,18 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
     if (existing) clearTimeout(existing)
     pendingPlayerNotesWritesRef.current[npcId] = setTimeout(() => {
       delete pendingPlayerNotesWritesRef.current[npcId]
+      inFlightPlayerNotesWritesRef.current[npcId] = true
       const npc = npcsRef.current.find((entry) => entry.id === npcId)
-      if (!npc) return
+      if (!npc) {
+        delete inFlightPlayerNotesWritesRef.current[npcId]
+        return
+      }
       void setDoc(doc(db, 'campaigns', campaignId, 'npcs', npcId), {
         playerNotes: npc.playerNotes,
         updatedAt: serverTimestamp(),
-      }, { merge: true })
+      }, { merge: true }).finally(() => {
+        delete inFlightPlayerNotesWritesRef.current[npcId]
+      })
     }, 500)
   }
 
@@ -343,11 +369,19 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
       clearTimeout(publicPending)
       delete pendingNpcWritesRef.current[npcId]
     }
+    delete inFlightNpcWritesRef.current[npcId]
+    delete inFlightPlayerNotesWritesRef.current[npcId]
     const privatePending = pendingPrivateWritesRef.current[npcId]
     if (privatePending) {
       clearTimeout(privatePending)
       delete pendingPrivateWritesRef.current[npcId]
     }
+    const playerPending = pendingPlayerNotesWritesRef.current[npcId]
+    if (playerPending) {
+      clearTimeout(playerPending)
+      delete pendingPlayerNotesWritesRef.current[npcId]
+    }
+    delete inFlightPrivateWritesRef.current[npcId]
     await deleteDoc(doc(db, 'campaigns', campaignId, 'npcs', npcId))
     await deleteDoc(doc(db, 'campaigns', campaignId, 'npcPrivate', npcId))
     setDeleteCandidate(null)

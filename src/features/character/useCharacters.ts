@@ -24,6 +24,7 @@ export function useCharacters(
   const [activePlayerIds, setActivePlayerIds] = useState<string[]>([])
   const charactersRef = useRef<CharacterRecord[]>([])
   const pendingWritesRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const inFlightWritesRef = useRef<Record<string, boolean>>({})
 
   useEffect(() => {
     charactersRef.current = characters
@@ -91,7 +92,7 @@ export function useCharacters(
       (snap) => {
         const all = snap.docs.map((docSnap) => {
           // Clobbering guard: keep local version if a write is pending
-          if (pendingWritesRef.current[docSnap.id]) {
+          if (pendingWritesRef.current[docSnap.id] || inFlightWritesRef.current[docSnap.id]) {
             const local = charactersRef.current.find((c) => c.id === docSnap.id)
             if (local) return local
           }
@@ -277,6 +278,7 @@ export function useCharacters(
     return () => {
       Object.values(pendingWritesRef.current).forEach((timer) => clearTimeout(timer))
       pendingWritesRef.current = {}
+      inFlightWritesRef.current = {}
     }
   }, [])
 
@@ -287,8 +289,12 @@ export function useCharacters(
 
     pendingWritesRef.current[characterId] = setTimeout(() => {
       delete pendingWritesRef.current[characterId]
+      inFlightWritesRef.current[characterId] = true
       const character = charactersRef.current.find((entry) => entry.id === characterId)
-      if (!character) return
+      if (!character) {
+        delete inFlightWritesRef.current[characterId]
+        return
+      }
 
       void setDoc(
         doc(db, 'campaigns', campaignId, 'characters', characterId),
@@ -313,7 +319,9 @@ export function useCharacters(
           updatedAt: serverTimestamp(),
         },
         { merge: true },
-      )
+      ).finally(() => {
+        delete inFlightWritesRef.current[characterId]
+      })
     }, 500)
   }
 
@@ -333,16 +341,16 @@ export function useCharacters(
       nextUpdates.hpCurrent = Math.max(0, Math.min(nextUpdates.hpCurrent, nextHpMax))
     }
 
-    setCharacters((current) => {
-      return current.map((character) =>
-        character.id === characterId
-          ? {
-              ...character,
-              ...nextUpdates,
-            }
-          : character,
-      )
-    })
+    const nextCharacters = charactersRef.current.map((character) =>
+      character.id === characterId
+        ? {
+            ...character,
+            ...nextUpdates,
+          }
+        : character,
+    )
+    charactersRef.current = nextCharacters
+    setCharacters(nextCharacters)
 
     scheduleCharacterWrite(characterId)
   }
@@ -372,6 +380,7 @@ export function useCharacters(
       clearTimeout(pending)
       delete pendingWritesRef.current[characterId]
     }
+    delete inFlightWritesRef.current[characterId]
 
     setCharacters((current) => {
       const next = current.filter((character) => character.id !== characterId)
@@ -426,7 +435,7 @@ export function useCharacters(
     ])
   }
 
-  const hasPendingWrite = (id: string) => !!pendingWritesRef.current[id]
+  const hasPendingWrite = (id: string) => !!pendingWritesRef.current[id] || !!inFlightWritesRef.current[id]
 
   return {
     characters,

@@ -34,6 +34,7 @@ type CharacterPackedItemsSectionProps = {
   onOpenItemDetail: (itemId: string) => void
   onRefundItem: (itemId: string) => void
   onOpenAddItemModal: () => void
+  renderInlineAction: (item: CharacterInventoryItem) => ReactNode
 }
 
 export const CharacterPackedItemsSection = memo(function CharacterPackedItemsSection({
@@ -56,6 +57,7 @@ export const CharacterPackedItemsSection = memo(function CharacterPackedItemsSec
   onOpenItemDetail,
   onRefundItem,
   onOpenAddItemModal,
+  renderInlineAction,
 }: CharacterPackedItemsSectionProps) {
   let packedCursor = 0
 
@@ -101,6 +103,7 @@ export const CharacterPackedItemsSection = memo(function CharacterPackedItemsSec
                 Sell
               </button>
             ) : null}
+            {!isGuidedCreation ? renderInlineAction(slotItem.item) : null}
           </div>
         ) : (
           <div className="character-item-row-inner">

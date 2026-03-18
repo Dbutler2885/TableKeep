@@ -1466,7 +1466,7 @@ button.item-tick-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
+  min-width: 20px;
   height: 20px;
   border: 1px solid #d4a574;
   border-radius: 3px;
@@ -1475,12 +1475,29 @@ button.item-tick-btn {
   font-size: 14px;
   font-weight: bold;
   color: #92400e;
-  padding: 0;
+  padding: 0 4px;
   line-height: 1;
 }
 
 button.item-tick-btn:hover {
   background: #fde68a;
+}
+
+button.item-fire-pill {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.55rem;
+  border: 1px solid #ddd;
+  border-radius: 999px;
+  background: #f0f0ea;
+  color: #555;
+  cursor: pointer;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
+button.item-fire-pill:hover {
+  background: #e4e4dc;
+  color: #111;
 }
 
 button.character-item-add-btn {

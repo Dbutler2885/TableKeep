@@ -639,6 +639,7 @@ export function CharacterTab({
   const [goldSpendAmount, setGoldSpendAmount] = useState<string>('')
   const [goldSpendConfirmAmount, setGoldSpendConfirmAmount] = useState<number | null>(null)
   const [cantLightOpen, setCantLightOpen] = useState(false)
+  const [cantFireMessage, setCantFireMessage] = useState<string | null>(null)
   const [overflowFeedback, setOverflowFeedback] = useState<string | null>(null)
   const [overflowWriting, setOverflowWriting] = useState(false)
   const [alignmentByCharacterId, setAlignmentByCharacterId] = useState<Record<string, string>>({})
@@ -1515,7 +1516,7 @@ export function CharacterTab({
     )
   }
   const applyPlayerAddTemplate = (
-    kind: 'general' | 'weapon' | 'armour',
+    kind: 'general' | 'weapon' | 'armour' | 'ammunition',
     templateId: string,
   ) => {
     setAddItemModal((current) => {
@@ -1566,6 +1567,21 @@ export function CharacterTab({
           notes: '',
         }
       }
+      if (kind === 'ammunition') {
+        const template = ammoCatalogById[templateId]
+        if (!template) return current
+        return {
+          ...current,
+          kind: 'ammunition',
+          typeId: templateId,
+          typeName: template.name,
+          name: '',
+          costGp: String(template.costGp),
+          description: template.description,
+          qty: String(template.qty),
+          notes: '',
+        }
+      }
       const generalTemplate = generalCatalogById[templateId]
       const consumableTemplate = consumableCatalogById[templateId]
       const template = generalTemplate ?? consumableTemplate
@@ -1612,6 +1628,21 @@ export function CharacterTab({
         magicMod: modal.magicMod,
         armourType: modal.armourType,
       })
+    }
+    if (modal.kind === 'ammunition') {
+      const template = ammoCatalogById[modal.typeId]
+      return {
+        id: makeId(),
+        kind: 'ammunition',
+        typeId: modal.typeId,
+        typeName: modal.typeName,
+        costGp: Number.parseFloat(modal.costGp) || 0,
+        equipped: false,
+        notes: '',
+        qty: template ? template.qty : (Number.parseInt(modal.qty, 10) || 1),
+        stack: DEFAULT_STACK_POLICY.ammunition,
+        description: modal.description,
+      }
     }
     const consumableTemplate = consumableCatalogById[modal.typeId]
     if (consumableTemplate) {
@@ -1742,6 +1773,95 @@ export function CharacterTab({
     onToggle: (checked: boolean) => toggleItemEquip(item, checked),
     isGold: item.kind === 'gold',
   }))
+  const renderInlineInventoryAction = (item: CharacterInventoryItem) => {
+    if (isGuidedCreation) return null
+
+    if (item.kind === 'ammunition' && canFireAmmo(item.id).ok) {
+      return (
+        <button
+          type="button"
+          className="item-fire-pill"
+          onClick={() => fireAmmo(item.id)}
+          disabled={!canEditSelected}
+        >
+          Fire
+        </button>
+      )
+    }
+
+    if (item.kind === 'consumable' && (item.qty ?? 0) > 0) {
+      if (item.typeId === 'con-rations-iron' || item.typeId === 'con-rations-standard') {
+        return (
+          <button
+            type="button"
+            className="item-fire-pill"
+            onClick={() => consumeOne(item.id)}
+            disabled={!canEditSelected}
+          >
+            Eat
+          </button>
+        )
+      }
+      if (item.typeId === 'con-wine') {
+        return (
+          <button
+            type="button"
+            className="item-fire-pill"
+            onClick={() => consumeOne(item.id)}
+            disabled={!canEditSelected}
+          >
+            Drink
+          </button>
+        )
+      }
+      if (item.typeId === 'con-iron-spikes') {
+        return (
+          <button
+            type="button"
+            className="item-fire-pill"
+            onClick={() => consumeOne(item.id)}
+            disabled={!canEditSelected}
+          >
+            Use
+          </button>
+        )
+      }
+      if (item.typeId === 'con-torches' && !item.lit && item.equipped && hasIgnitionSource()) {
+        return (
+          <button
+            type="button"
+            className="item-fire-pill"
+            onClick={() => lightTorch(item.id)}
+            disabled={!canEditSelected}
+          >
+            Light
+          </button>
+        )
+      }
+    }
+
+    if (
+      item.kind === 'general'
+      && item.typeId === 'gear-lantern'
+      && !item.lit
+      && (item.turnsRemaining ?? 0) > 0
+      && item.equipped
+      && hasIgnitionSource()
+    ) {
+      return (
+        <button
+          type="button"
+          className="item-fire-pill"
+          onClick={() => lightLantern(item.id)}
+          disabled={!canEditSelected}
+        >
+          Light
+        </button>
+      )
+    }
+
+    return null
+  }
   const packedSlotUnlockedByIndex = Array.from({ length: packedRowCount }, (_, index) =>
     index < packedStrengthSlotCount ? (!Number.isNaN(selectedStr) && selectedStr >= packedSlotThresholds[index]) : true,
   )
@@ -2261,6 +2381,7 @@ export function CharacterTab({
     consumeOne,
     lightTorch,
     tickDown,
+    canFireAmmo,
     fireAmmo,
     retrieveAmmo,
     throwOil,
@@ -3701,6 +3822,7 @@ export function CharacterTab({
                                     Sell
                                   </button>
                                 ) : null}
+                                {!isGuidedCreation ? renderInlineInventoryAction(entry.item) : null}
                               </div>
                             </div>
                           ))}
@@ -3794,6 +3916,7 @@ export function CharacterTab({
                         onOpenItemDetail={setItemDetailId}
                         onRefundItem={refundItem}
                         onOpenAddItemModal={() => openAddItemModal(false)}
+                        renderInlineAction={renderInlineInventoryAction}
                       />
                       <p className="character-enc-help">
                           <strong>Current movement:</strong> {currentPackedMovement}
@@ -4320,11 +4443,12 @@ export function CharacterTab({
                     </div>
                     <label className="character-weapon-edit-field">
                       Notes
-                      <textarea
+                      <BlurSyncedTextarea
                         value={w.notes}
-                        onChange={(e) => updateWeaponRow(w.id, { notes: e.target.value })}
+                        onCommit={(value) => updateWeaponRow(w.id, { notes: value })}
                         disabled={!canEditDetailItemFields}
                         placeholder="Description, magic properties, etc."
+                        rows={3}
                       />
                     </label>
                   </div>
@@ -4440,11 +4564,12 @@ export function CharacterTab({
                     </div>
                     <label className="character-weapon-edit-field">
                       Notes
-                      <textarea
+                      <BlurSyncedTextarea
                         value={a.notes}
-                        onChange={(e) => updateArmourRow(a.id, { notes: e.target.value })}
+                        onCommit={(value) => updateArmourRow(a.id, { notes: value })}
                         disabled={!canEditDetailItemFields}
                         placeholder="Description, magic properties, etc."
+                        rows={3}
                       />
                     </label>
                   </div>
@@ -4554,10 +4679,10 @@ export function CharacterTab({
                     <>
                       <label className="item-detail-field">
                         <span className="item-detail-field-label">Effect</span>
-                        <textarea
+                        <BlurSyncedTextarea
                           className="item-detail-notes"
                           value={(detailItem as CharacterConsumableItem).effectText ?? ''}
-                          onChange={(e) => updateInventoryItem(detailItem.id, { effectText: e.target.value })}
+                          onCommit={(value) => updateInventoryItem(detailItem.id, { effectText: value })}
                           disabled={!canEditDetailItemFields}
                           placeholder="Optional effect description"
                           rows={2}
@@ -4567,10 +4692,10 @@ export function CharacterTab({
                   ) : null}
                   <label className="item-detail-field">
                     <span className="item-detail-field-label">Notes</span>
-                    <textarea
+                    <BlurSyncedTextarea
                       className="item-detail-notes"
                       value={detailItem.notes}
-                      onChange={(e) => updateInventoryItem(detailItem.id, { notes: e.target.value })}
+                      onCommit={(value) => updateInventoryItem(detailItem.id, { notes: value })}
                       disabled={!canEditDetailItemFields}
                       placeholder="Description, magic properties, etc."
                       rows={3}
@@ -4598,7 +4723,7 @@ export function CharacterTab({
                       <button type="button" onClick={() => {
                         if (!detailItem.equipped || !hasIgnitionSource()) { setCantLightOpen(true); return }
                         lightTorch(detailItem.id)
-                      }}>Light 1</button>
+                      }}>Light</button>
                     ) : null}
                     {detailItem.kind === 'consumable' && (detailItem as CharacterConsumableItem).lit ? (
                       <button type="button" onClick={() => tickDown(detailItem.id)}>Tick Down</button>
@@ -4621,11 +4746,21 @@ export function CharacterTab({
                       </>
                     ) : null}
                     {detailItem.kind === 'consumable' && detailItem.typeId !== 'con-torches' && detailItem.typeId !== 'con-oil' && !((detailItem as CharacterConsumableItem).lit) && (detailItem.qty > 0) ? (
-                      <button type="button" onClick={() => consumeOne(detailItem.id)}>Use 1</button>
+                      <button type="button" onClick={() => consumeOne(detailItem.id)}>
+                        {detailItem.typeId === 'con-rations-iron' || detailItem.typeId === 'con-rations-standard'
+                          ? 'Eat'
+                          : detailItem.typeId === 'con-wine'
+                            ? 'Drink'
+                            : 'Use'}
+                      </button>
                     ) : null}
                     {detailItem.kind === 'ammunition' ? (
                       <>
-                        <button type="button" onClick={() => fireAmmo(detailItem.id)} disabled={detailItem.qty <= 0}>Fire 1</button>
+                        <button type="button" onClick={() => {
+                          const check = canFireAmmo(detailItem.id)
+                          if (!check.ok) { setCantFireMessage(check.reason ?? "Can't fire."); return }
+                          fireAmmo(detailItem.id)
+                        }}>Fire</button>
                         {((detailItem as CharacterAmmunitionItem).spent ?? 0) > 0 ? (
                           <button type="button" onClick={() => retrieveAmmo(detailItem.id)}>Retrieve</button>
                         ) : null}
@@ -5080,7 +5215,7 @@ export function CharacterTab({
             {requiresApprovalNow ? (
               <>
                 <div className="add-item-kind-picker">
-                  {(['general', 'weapon', 'armour'] as const).map((k) => (
+                  {(['general', 'weapon', 'armour', 'ammunition'] as const).map((k) => (
                     <button
                       key={k}
                       type="button"
@@ -5090,28 +5225,31 @@ export function CharacterTab({
                           ? OSE_WEAPON_CATALOG[0]?.id
                           : k === 'armour'
                             ? OSE_ARMOUR_CATALOG[0]?.id
-                            : OSE_GENERAL_CATALOG[0]?.id
+                            : k === 'ammunition'
+                              ? OSE_AMMO_CATALOG[0]?.id
+                              : OSE_GENERAL_CATALOG[0]?.id
                         if (!nextId) return
                         applyPlayerAddTemplate(k, nextId)
                       }}
                     >
-                      {k === 'general' ? 'Gear' : k.charAt(0).toUpperCase() + k.slice(1)}
+                      {k === 'general' ? 'Gear' : k === 'ammunition' ? 'Ammo' : k.charAt(0).toUpperCase() + k.slice(1)}
                     </button>
                   ))}
                 </div>
                 <label className="character-weapon-primary-field">
-                  {addItemModal.kind === 'weapon' ? 'Weapon' : addItemModal.kind === 'armour' ? 'Armour' : 'Gear'}
+                  {addItemModal.kind === 'weapon' ? 'Weapon' : addItemModal.kind === 'armour' ? 'Armour' : addItemModal.kind === 'ammunition' ? 'Ammo' : 'Gear'}
                   <select
                     value={addItemModal.typeId || ''}
-                    onChange={(e) => applyPlayerAddTemplate(addItemModal.kind as 'general' | 'weapon' | 'armour', e.target.value)}
+                    onChange={(e) => applyPlayerAddTemplate(addItemModal.kind as 'general' | 'weapon' | 'armour' | 'ammunition', e.target.value)}
                   >
                     {(addItemModal.kind === 'weapon' ? OSE_WEAPON_CATALOG
                       : addItemModal.kind === 'armour' ? OSE_ARMOUR_CATALOG
-                        : playerAddGearTemplates).map((entry) => (
-                          <option key={entry.id} value={entry.id}>
-                            {entry.name}
-                          </option>
-                        ))}
+                        : addItemModal.kind === 'ammunition' ? OSE_AMMO_CATALOG
+                          : playerAddGearTemplates).map((entry) => (
+                            <option key={entry.id} value={entry.id}>
+                              {entry.name}
+                            </option>
+                          ))}
                   </select>
                 </label>
                 {playerAddPreviewItem(addItemModal) ? renderReadOnlyItemDetail(playerAddPreviewItem(addItemModal) as CharacterInventoryItem) : null}
@@ -5867,6 +6005,14 @@ export function CharacterTab({
         confirmLabel="OK"
         onConfirm={() => setHpClassRequiredOpen(false)}
         onCancel={() => setHpClassRequiredOpen(false)}
+      />
+      <ConfirmModal
+        open={cantFireMessage !== null}
+        title="Can't Fire"
+        message={cantFireMessage ?? ''}
+        confirmLabel="OK"
+        onConfirm={() => setCantFireMessage(null)}
+        onCancel={() => setCantFireMessage(null)}
       />
       <ConfirmModal
         open={cantLightOpen}

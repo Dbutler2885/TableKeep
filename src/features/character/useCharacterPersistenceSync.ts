@@ -83,6 +83,7 @@ export function useCharacterPersistenceSync({
   const seededCharacterIdsRef = useRef<Set<string>>(new Set())
   const justSeededRef = useRef<Set<string>>(new Set())
   const lastPersistedDetailsJsonRef = useRef<Record<string, string>>({})
+  const locallyDirtyCharacterIdsRef = useRef<Set<string>>(new Set())
   const updateCharacterRef = useRef(updateCharacter)
   useEffect(() => { updateCharacterRef.current = updateCharacter })
 
@@ -108,6 +109,64 @@ export function useCharacterPersistenceSync({
     setUnencumberingItemsTextByCharacterId,
     setOtherNotesTextByCharacterId,
   } = stateSetters
+
+  const buildDetailsFromState = (characterId: string): CharacterSheetDetails => ({
+    abilityScores: stateMaps.abilityScoresByCharacterId[characterId] ?? emptyAbilityScores(),
+    rolledAbilityScores: stateMaps.rolledAbilityScoresByCharacterId[characterId] ?? null,
+    abilityScoresRolled: !!stateMaps.abilityScoresRolledByCharacterId[characterId],
+    hpBaseRoll: stateMaps.hpBaseRollByCharacterId[characterId] ?? null,
+    inventory: stateMaps.inventoryByCharacterId[characterId] ?? [],
+    thaco: stateMaps.thacoByCharacterId[characterId] ?? '',
+    saveScores: stateMaps.saveScoresByCharacterId[characterId] ?? null,
+    adventureScores: stateMaps.adventureScoresByCharacterId[characterId] ?? null,
+    adventureSeedClass: stateMaps.adventureSeedClassByCharacterId[characterId] ?? '',
+    thiefSkills: stateMaps.thiefSkillsByCharacterId[characterId] ?? null,
+    startingGold: stateMaps.startingGoldByCharacterId[characterId] ?? null,
+    storeSpent: stateMaps.storeSpentByCharacterId[characterId] ?? 0,
+    storeCart: stateMaps.storeCartByCharacterId[characterId] ?? [],
+    spellBookSpellIds: stateMaps.spellBookSpellIdsByCharacterId[characterId] ?? [],
+    memorizedSpellIds: stateMaps.memorizedSpellIdsByCharacterId[characterId] ?? [],
+    alignment: stateMaps.alignmentByCharacterId[characterId] ?? 'Neutrality',
+    title: stateMaps.titleByCharacterId[characterId] ?? '',
+    languagesText: stateMaps.languagesTextByCharacterId[characterId] ?? '',
+    unencumberingItemsText: stateMaps.unencumberingItemsTextByCharacterId[characterId] ?? '',
+    otherNotesText: stateMaps.otherNotesTextByCharacterId[characterId] ?? '',
+  })
+
+  useEffect(() => {
+    if (!selectedCharacterId) return
+    if (!seededCharacterIdsRef.current.has(selectedCharacterId)) return
+    if (justSeededRef.current.has(selectedCharacterId)) return
+
+    const localJson = stableStringify(buildDetailsFromState(selectedCharacterId))
+    if (localJson !== lastPersistedDetailsJsonRef.current[selectedCharacterId]) {
+      locallyDirtyCharacterIdsRef.current.add(selectedCharacterId)
+    } else {
+      locallyDirtyCharacterIdsRef.current.delete(selectedCharacterId)
+    }
+  }, [
+    selectedCharacterId,
+    stateMaps.abilityScoresByCharacterId,
+    stateMaps.rolledAbilityScoresByCharacterId,
+    stateMaps.abilityScoresRolledByCharacterId,
+    stateMaps.hpBaseRollByCharacterId,
+    stateMaps.inventoryByCharacterId,
+    stateMaps.thacoByCharacterId,
+    stateMaps.saveScoresByCharacterId,
+    stateMaps.adventureScoresByCharacterId,
+    stateMaps.adventureSeedClassByCharacterId,
+    stateMaps.thiefSkillsByCharacterId,
+    stateMaps.startingGoldByCharacterId,
+    stateMaps.storeSpentByCharacterId,
+    stateMaps.storeCartByCharacterId,
+    stateMaps.spellBookSpellIdsByCharacterId,
+    stateMaps.memorizedSpellIdsByCharacterId,
+    stateMaps.alignmentByCharacterId,
+    stateMaps.titleByCharacterId,
+    stateMaps.languagesTextByCharacterId,
+    stateMaps.unencumberingItemsTextByCharacterId,
+    stateMaps.otherNotesTextByCharacterId,
+  ])
 
   // Seed local state from Firestore details when characters load
   useEffect(() => {
@@ -150,7 +209,7 @@ export function useCharacterPersistenceSync({
       }
 
       // Re-seed from Firestore if another user edited (no pending local write)
-      if (!hasPendingWrite(id) && details) {
+      if (!hasPendingWrite(id) && !locallyDirtyCharacterIdsRef.current.has(id) && details) {
         const incomingJson = stableStringify(details)
         if (incomingJson !== lastPersistedDetailsJsonRef.current[id]) {
           lastPersistedDetailsJsonRef.current[id] = incomingJson
@@ -186,32 +245,12 @@ export function useCharacterPersistenceSync({
     // Skip the render immediately after seeding — state updates haven't been processed yet
     if (justSeededRef.current.has(selectedCharacterId)) return
 
-    const details: CharacterSheetDetails = {
-      abilityScores: stateMaps.abilityScoresByCharacterId[selectedCharacterId] ?? emptyAbilityScores(),
-      rolledAbilityScores: stateMaps.rolledAbilityScoresByCharacterId[selectedCharacterId] ?? null,
-      abilityScoresRolled: !!stateMaps.abilityScoresRolledByCharacterId[selectedCharacterId],
-      hpBaseRoll: stateMaps.hpBaseRollByCharacterId[selectedCharacterId] ?? null,
-      inventory: stateMaps.inventoryByCharacterId[selectedCharacterId] ?? [],
-      thaco: stateMaps.thacoByCharacterId[selectedCharacterId] ?? '',
-      saveScores: stateMaps.saveScoresByCharacterId[selectedCharacterId] ?? null,
-      adventureScores: stateMaps.adventureScoresByCharacterId[selectedCharacterId] ?? null,
-      adventureSeedClass: stateMaps.adventureSeedClassByCharacterId[selectedCharacterId] ?? '',
-      thiefSkills: stateMaps.thiefSkillsByCharacterId[selectedCharacterId] ?? null,
-      startingGold: stateMaps.startingGoldByCharacterId[selectedCharacterId] ?? null,
-      storeSpent: stateMaps.storeSpentByCharacterId[selectedCharacterId] ?? 0,
-      storeCart: stateMaps.storeCartByCharacterId[selectedCharacterId] ?? [],
-      spellBookSpellIds: stateMaps.spellBookSpellIdsByCharacterId[selectedCharacterId] ?? [],
-      memorizedSpellIds: stateMaps.memorizedSpellIdsByCharacterId[selectedCharacterId] ?? [],
-      alignment: stateMaps.alignmentByCharacterId[selectedCharacterId] ?? 'Neutrality',
-      title: stateMaps.titleByCharacterId[selectedCharacterId] ?? '',
-      languagesText: stateMaps.languagesTextByCharacterId[selectedCharacterId] ?? '',
-      unencumberingItemsText: stateMaps.unencumberingItemsTextByCharacterId[selectedCharacterId] ?? '',
-      otherNotesText: stateMaps.otherNotesTextByCharacterId[selectedCharacterId] ?? '',
-    }
+    const details = buildDetailsFromState(selectedCharacterId)
 
     const json = stableStringify(details)
     if (json === lastPersistedDetailsJsonRef.current[selectedCharacterId]) return
     lastPersistedDetailsJsonRef.current[selectedCharacterId] = json
+    locallyDirtyCharacterIdsRef.current.delete(selectedCharacterId)
     updateCharacterRef.current(selectedCharacterId, { details })
   }, [
     selectedCharacterId,

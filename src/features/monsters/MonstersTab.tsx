@@ -10,6 +10,7 @@ import { monsterRulesets, type MonsterRulesetId } from './rulesets'
 import { TokenPawnPreview, type TokenIconConfig } from '../tokens/TokenIconEditor'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
+import { BlurSyncedTextarea } from '../character/BlurSyncedTextarea'
 
 type SaveType = 'death_poison' | 'wands' | 'paralysis_petrification' | 'breath' | 'spells' | 'custom'
 type OnHitEffectClass = 'save' | 'effect'
@@ -1500,11 +1501,12 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
                             </select>
                           </div>
                         </div>
-                        <textarea
+                        <BlurSyncedTextarea
                           className="trait-effect"
                           value={trait.effect}
-                          onChange={(e) => updateTrait(trait.id, { effect: e.target.value })}
+                          onCommit={(value) => updateTrait(trait.id, { effect: value })}
                           placeholder="What happens — what to call for, what to apply, player options..."
+                          rows={4}
                         />
                       </div>
                     </article>
@@ -1514,11 +1516,12 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
 
               <label>
                 Notes
-                <textarea
+                <BlurSyncedTextarea
                   className="monster-notes"
                   value={selectedMonster.notes}
-                  onChange={(event) => updateSelectedMonster({ notes: event.target.value })}
+                  onCommit={(value) => updateSelectedMonster({ notes: value })}
                   placeholder="Encounter notes, lair details, encounter script..."
+                  rows={5}
                 />
               </label>
 

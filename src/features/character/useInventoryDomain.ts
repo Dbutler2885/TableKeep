@@ -24,6 +24,14 @@ import {
 import { applyWeaponTemplateToItem, applyArmourTemplateToItem, resolveArmourType, isArmourTemplateAllowedForClass, isWeaponTemplateAllowedForClass } from './inventoryRules'
 import { makeArmourItem, makeId, makeWeaponItem } from './characterFactories'
 import { ammoCatalogById } from './ammoCatalog'
+
+// Which weapon typeIds can fire which ammo typeIds
+export const AMMO_WEAPON_MAP: Record<string, string[]> = {
+  'ammo-arrows': ['long-bow', 'short-bow'],
+  'ammo-silver-arrow': ['long-bow', 'short-bow'],
+  'ammo-bolts': ['crossbow'],
+  'ammo-sling-stones': ['sling'],
+}
 import { consumableCatalogById } from './consumableCatalog'
 import { OSE_GENERAL_CATALOG, generalCatalogById } from './generalCatalog'
 
@@ -481,6 +489,7 @@ export function useInventoryDomain({
 
   // Items that leave a recoverable object behind when used
   const dropsOnUse = new Set(['con-iron-spikes'])
+  const removeOnZeroUse = new Set(['con-rations-iron', 'con-rations-standard', 'con-wine', 'con-iron-spikes'])
 
   const consumeOne = async (itemId: string) => {
     if (!effectiveSelected || !canEditSelected) return
@@ -489,7 +498,14 @@ export function useInventoryDomain({
     const consumable = item as CharacterConsumableItem
     const nextQty = Math.max(0, (consumable.qty ?? 1) - 1)
 
-    updateInventoryItem(itemId, { qty: nextQty })
+    if (nextQty <= 0 && removeOnZeroUse.has(item.typeId)) {
+      setInventoryByCharacterId((current) => ({
+        ...current,
+        [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).filter((i) => i.id !== itemId),
+      }))
+    } else {
+      updateInventoryItem(itemId, { qty: nextQty })
+    }
 
     // Create a dropped campaign item for recoverable gear
     if (dropsOnUse.has(item.typeId)) {
@@ -582,16 +598,40 @@ export function useInventoryDomain({
     }
   }
 
+  const canFireAmmo = (itemId: string): { ok: boolean; reason?: string } => {
+    const item = selectedInventory.find((i) => i.id === itemId)
+    if (!item || item.kind !== 'ammunition') return { ok: false }
+    if (!item.equipped) return { ok: false, reason: 'Ammo must be equipped to fire.' }
+    if ((item.qty ?? 0) <= 0) return { ok: false, reason: 'No ammo left.' }
+    const requiredWeapons = AMMO_WEAPON_MAP[item.typeId]
+    if (requiredWeapons) {
+      const hasWeapon = selectedInventory.some(
+        (i) => i.kind === 'weapon' && i.equipped && requiredWeapons.includes(i.typeId),
+      )
+      if (!hasWeapon) {
+        const weaponNames = requiredWeapons.map((id) => id.replace(/-/g, ' ')).join(' or ')
+        return { ok: false, reason: `Requires an equipped ${weaponNames}.` }
+      }
+    }
+    return { ok: true }
+  }
+
   const fireAmmo = (itemId: string) => {
     if (!effectiveSelected || !canEditSelected) return
-    const item = selectedInventory.find((i) => i.id === itemId)
-    if (!item || item.kind !== 'ammunition') return
-    const ammo = item as CharacterAmmunitionItem
-    if ((ammo.qty ?? 0) <= 0) return
+    const check = canFireAmmo(itemId)
+    if (!check.ok) return
+    const ammo = selectedInventory.find((i) => i.id === itemId) as CharacterAmmunitionItem
 
-    updateInventoryItem(itemId, { qty: ammo.qty - 1, spent: (ammo.spent ?? 0) + 1 })
+    const newQty = ammo.qty - 1
+    const nextSpent = (ammo.spent ?? 0) + 1
     const label = ammo.name?.trim() || ammo.typeName || 'Ammo'
-    setOverflowFeedback(`Fired ${label} (${ammo.qty - 1} left, ${(ammo.spent ?? 0) + 1} spent)`)
+    if (newQty <= 0) {
+      updateInventoryItem(itemId, { qty: 0, spent: nextSpent })
+      setOverflowFeedback(`Fired last ${label} (0 left, ${nextSpent} spent)`)
+    } else {
+      updateInventoryItem(itemId, { qty: newQty, spent: nextSpent })
+      setOverflowFeedback(`Fired ${label} (${newQty} left, ${nextSpent} spent)`)
+    }
   }
 
   const retrieveAmmo = (itemId: string) => {
@@ -602,13 +642,24 @@ export function useInventoryDomain({
     const spent = ammo.spent ?? 0
     if (spent <= 0) return
 
+    const recoverChance = ammo.typeId === 'ammo-sling-stones' ? 0.1 : 0.75
     let recovered = 0
     for (let i = 0; i < spent; i++) {
-      if (Math.random() < 0.75) recovered++
+      if (Math.random() < recoverChance) recovered++
+    }
+
+    const label = ammo.name?.trim() || ammo.typeName || 'ammo'
+    if ((ammo.qty + recovered) <= 0) {
+      setInventoryByCharacterId((current) => ({
+        ...current,
+        [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).filter((i) => i.id !== itemId),
+      }))
+      setOverflowFeedback(`Retrieved 0 of ${spent} ${label}; all were lost`)
+      setItemDetailId(null)
+      return
     }
 
     updateInventoryItem(itemId, { qty: ammo.qty + recovered, spent: 0 })
-    const label = ammo.name?.trim() || ammo.typeName || 'ammo'
     setOverflowFeedback(`Retrieved ${recovered} of ${spent} ${label}`)
     setItemDetailId(null)
   }
@@ -706,6 +757,7 @@ export function useInventoryDomain({
     consumeOne,
     lightTorch,
     tickDown,
+    canFireAmmo,
     fireAmmo,
     retrieveAmmo,
     throwOil,
