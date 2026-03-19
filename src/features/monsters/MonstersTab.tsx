@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronLeft, Plus, Shield, Trash2, UserRound, X } from 'lucide-react'
+import { ChevronLeft, Package, Plus, Shield, Trash2, UserRound, X } from 'lucide-react'
 import {
   collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc,
 } from 'firebase/firestore'
@@ -11,6 +11,8 @@ import { TokenPawnPreview, type TokenIconConfig } from '../tokens/TokenIconEdito
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
 import { BlurSyncedTextarea } from '../character/BlurSyncedTextarea'
+import { OSE_WEAPON_CATALOG } from '../character/weaponCatalog'
+import { OSE_ARMOUR_CATALOG } from '../character/armourCatalog'
 
 type SaveType = 'death_poison' | 'wands' | 'paralysis_petrification' | 'breath' | 'spells' | 'custom'
 type OnHitEffectClass = 'save' | 'effect'
@@ -52,6 +54,10 @@ type OnHitEffect = {
   notes: string
 }
 
+type WeaponSource =
+  | { type: 'generic' }
+  | { type: 'item'; itemId: string }
+
 type MonsterAttack = {
   id: string
   count: string
@@ -64,7 +70,13 @@ type MonsterAttack = {
   attackBonus: string
   onHitEffects: OnHitEffect[]
   notes: string
+  weaponSource?: WeaponSource
 }
+
+type ArmourSource =
+  | { type: 'natural' }
+  | { type: 'worn' }
+  | { type: 'item'; itemId: string }
 
 type MvOtherEntry = {
   id: string
@@ -85,6 +97,20 @@ type SpellcastingEntry = {
   notes: string
 }
 
+type CampaignItemSummary = {
+  id: string
+  name: string
+  type: 'weapon' | 'armour' | 'ammunition' | 'consumable' | 'general' | 'gold'
+  weaponDamageDiceCount?: string
+  weaponDamageDiceSides?: string
+  weaponAttackBonus?: string
+  weaponDamageBonus?: string
+  armourClass?: string
+  armourShieldMod?: string
+  armourMagicMod?: string
+  armourType?: 'body' | 'shield'
+}
+
 type MonsterRecord = {
   id: string
   rulesetId: MonsterRulesetId
@@ -101,6 +127,9 @@ type MonsterRecord = {
   stats: Record<string, string>
   mvOther: MvOtherEntry[]
   tokenIcon: TokenIconConfig
+  armourSource: ArmourSource
+  inventoryItemIds: string[]
+  treasureType: string
 }
 
 type MonstersTabProps = {
@@ -253,6 +282,31 @@ const mvTypeOptions: Array<{ value: string; label: string }> = [
 ]
 
 
+/** Derive probable armour pieces from AC value. Returns body armour + optional shield. */
+const deriveArmourFromAC = (ac: number): string[] => {
+  // OSE base AC is 9 (unarmoured). Shield gives −1.
+  // Body armour: leather=7, chainmail=5, plate=3
+  const hasShield = ac % 2 === 0 && ac < 9
+  const bodyAC = hasShield ? ac + 1 : ac
+
+  const pieces: string[] = []
+  const body = OSE_ARMOUR_CATALOG.find((a) => a.armourType === 'body' && a.ac === String(bodyAC))
+  if (body) pieces.push(body.name)
+  if (hasShield) pieces.push('Shield')
+  // AC 8 with no body match = shield only
+  if (pieces.length === 0 && ac === 8) pieces.push('Shield')
+  return pieces
+}
+
+/** Derive candidate weapons from damage dice and attack class. */
+const deriveWeaponsFromAttack = (damageDice: string, attackClass: AttackClass): string[] => {
+  // Filter catalog by matching damage and melee/missile quality
+  const qualityFilter = attackClass === 'missile' ? 'Missile' : 'Melee'
+  return OSE_WEAPON_CATALOG
+    .filter((w) => w.damage === damageDice && w.qualities.includes(qualityFilter))
+    .map((w) => w.name)
+}
+
 const newMonsterTemplate = (rulesetId: MonsterRulesetId): MonsterRecord => {
   const ruleset = monsterRulesets[rulesetId]
   const stats = Object.fromEntries(ruleset.fields.map((field) => [field.key, '']))
@@ -273,15 +327,20 @@ const newMonsterTemplate = (rulesetId: MonsterRulesetId): MonsterRecord => {
     stats,
     mvOther: [],
     tokenIcon: defaultTokenIcon,
+    armourSource: { type: 'natural' },
+    inventoryItemIds: [],
+    treasureType: '',
   }
 }
 
 export function MonstersTab({ campaignId, role }: MonstersTabProps) {
   const [monsters, setMonsters] = useState<MonsterRecord[]>([])
+  const [campaignItems, setCampaignItems] = useState<CampaignItemSummary[]>([])
   const [spellcastingDraftByMonsterId, setSpellcastingDraftByMonsterId] = useState<Record<string, SpellcastingEntry[]>>({})
   const [selectedMonsterId, setSelectedMonsterId] = useState<string | null>(null)
   const monstersRef = useRef<MonsterRecord[]>([])
   const pendingWritesRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const inFlightWritesRef = useRef<Record<string, boolean>>({})
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileMonsterView, setMobileMonsterView] = useState<'list' | 'detail'>('list')
 
@@ -292,6 +351,15 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
   const selectedSpellcastingDrafts = selectedMonster ? (spellcastingDraftByMonsterId[selectedMonster.id] ?? []) : []
   const selectedRuleset = selectedMonster ? monsterRulesets[selectedMonster.rulesetId] : monsterRulesets.ose
   const savingThrowKeys = ['sv_d', 'sv_w', 'sv_p', 'sv_b', 'sv_s']
+
+  const weaponItems = useMemo(() => campaignItems.filter((item) => item.type === 'weapon'), [campaignItems])
+  const armourItems = useMemo(() => campaignItems.filter((item) => item.type === 'armour'), [campaignItems])
+
+  const campaignItemById = useMemo(() => {
+    const map = new Map<string, CampaignItemSummary>()
+    for (const item of campaignItems) map.set(item.id, item)
+    return map
+  }, [campaignItems])
 
   const renderStatField = (key: string) => {
     const field = selectedRuleset.fields.find((entry) => entry.key === key)
@@ -417,23 +485,6 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
 
   const ttOptions = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V']
 
-  const renderTtField = () => {
-    if (!selectedMonster) return null
-    return (
-      <label className="monster-tt-field">
-        <span className="monster-stat-label">Treasure</span>
-        <select
-          value={selectedMonster.stats.tt ?? ''}
-          onChange={(e) => updateSelectedStat('tt', e.target.value)}
-          aria-label="Treasure Type"
-        >
-          <option value="">—</option>
-          {ttOptions.map((t) => <option key={t} value={t}>{t}</option>)}
-        </select>
-      </label>
-    )
-  }
-
   const renderMvOtherField = () => {
     if (!selectedMonster) return null
     return (
@@ -502,13 +553,23 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
     monstersRef.current = monsters
   }, [monsters])
 
+  useEffect(() => {
+    return () => {
+      Object.values(pendingWritesRef.current).forEach((timer) => clearTimeout(timer))
+      pendingWritesRef.current = {}
+      inFlightWritesRef.current = {}
+    }
+  }, [])
+
   // Firestore subscription — loads monsters for this campaign.
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'monsters'), (snap) => {
-      setMonsters(
-        snap.docs.map((d) => {
+      const next = snap.docs.map((d) => {
           const data = d.data()
           const local = monstersRef.current.find((monster) => monster.id === d.id)
+          if ((pendingWritesRef.current[d.id] || inFlightWritesRef.current[d.id]) && local) {
+            return local
+          }
           const portraitPath = typeof data.portraitPath === 'string' ? data.portraitPath : ''
           const persistedPortraitUrl = typeof data.portraitUrl === 'string' ? data.portraitUrl : null
           const tokenIcon = data.tokenIcon ?? defaultTokenIcon
@@ -544,9 +605,50 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
                   customImageUrl,
                 }
               : tokenIcon,
+            armourSource: data.armourSource ?? { type: 'natural' },
+            inventoryItemIds: Array.isArray(data.inventoryItemIds) ? data.inventoryItemIds : [],
+            treasureType: typeof data.treasureType === 'string'
+              ? data.treasureType
+              : (typeof data.stats === 'object' && data.stats !== null && typeof (data.stats as Record<string, string>).tt === 'string'
+                ? (data.stats as Record<string, string>).tt
+                : ''),
           } as MonsterRecord
         })
+
+      const snapshotIds = new Set(next.map((monster) => monster.id))
+      const optimisticLocals = monstersRef.current.filter(
+        (monster) =>
+          !snapshotIds.has(monster.id)
+          && (pendingWritesRef.current[monster.id] || inFlightWritesRef.current[monster.id]),
       )
+
+      setMonsters([...next, ...optimisticLocals])
+    })
+    return () => unsub()
+  }, [campaignId])
+
+  // Firestore subscription — loads campaign items for pickers.
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'items'), (snap) => {
+      const items: CampaignItemSummary[] = snap.docs.map((d) => {
+        const data = d.data()
+        const weaponStats = data.weaponStats as Record<string, unknown> | undefined
+        const armourStats = data.armourStats as Record<string, unknown> | undefined
+        return {
+          id: d.id,
+          name: typeof data.name === 'string' ? data.name : 'Unnamed',
+          type: data.type ?? 'general',
+          weaponDamageDiceCount: typeof weaponStats?.damageDiceCount === 'string' ? weaponStats.damageDiceCount : undefined,
+          weaponDamageDiceSides: typeof weaponStats?.damageDiceSides === 'string' ? weaponStats.damageDiceSides : undefined,
+          weaponAttackBonus: typeof weaponStats?.attackBonus === 'string' ? weaponStats.attackBonus : undefined,
+          weaponDamageBonus: typeof weaponStats?.damageBonus === 'string' ? weaponStats.damageBonus : undefined,
+          armourClass: typeof armourStats?.armourClass === 'string' ? armourStats.armourClass : undefined,
+          armourShieldMod: typeof armourStats?.shieldMod === 'string' ? armourStats.shieldMod : undefined,
+          armourMagicMod: typeof armourStats?.magicMod === 'string' ? armourStats.magicMod : undefined,
+          armourType: armourStats?.armourType === 'body' || armourStats?.armourType === 'shield' ? armourStats.armourType : undefined,
+        }
+      }).sort((a, b) => a.name.localeCompare(b.name))
+      setCampaignItems(items)
     })
     return () => unsub()
   }, [campaignId])
@@ -590,13 +692,19 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
     if (pendingWritesRef.current[monsterId]) clearTimeout(pendingWritesRef.current[monsterId])
     pendingWritesRef.current[monsterId] = setTimeout(() => {
       delete pendingWritesRef.current[monsterId]
+      inFlightWritesRef.current[monsterId] = true
       const monster = monstersRef.current.find((m) => m.id === monsterId)
-      if (!monster) return
+      if (!monster) {
+        delete inFlightWritesRef.current[monsterId]
+        return
+      }
       const { id, tokenIcon, portraitUrl: _portraitUrl, ...data } = monster
       void setDoc(doc(db, 'campaigns', campaignId, 'monsters', id), {
         ...data,
         tokenIcon: sanitizeTokenIconForPersistence(tokenIcon),
         updatedAt: serverTimestamp(),
+      }, { merge: true }).finally(() => {
+        delete inFlightWritesRef.current[monsterId]
       })
     }, 500)
   }
@@ -611,11 +719,14 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
     setSelectedMonsterId(nextMonster.id)
     if (isMobile) setMobileMonsterView('detail')
     const { id, tokenIcon, portraitUrl: _portraitUrl, ...data } = nextMonster
+    inFlightWritesRef.current[id] = true
     void setDoc(doc(db, 'campaigns', campaignId, 'monsters', id), {
       ...data,
       tokenIcon: sanitizeTokenIconForPersistence(tokenIcon),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
+    }).finally(() => {
+      delete inFlightWritesRef.current[id]
     })
   }
 
@@ -668,6 +779,7 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
       clearTimeout(pendingWritesRef.current[monsterId])
       delete pendingWritesRef.current[monsterId]
     }
+    delete inFlightWritesRef.current[monsterId]
     setMonsters((current) => current.filter((m) => m.id !== monsterId))
     setSpellcastingDraftByMonsterId((current) => {
       const next = { ...current }
@@ -1084,7 +1196,53 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
                 <section className="monster-stat-group monster-stat-group-combat">
                   <h4>Combat Core</h4>
                   <div className="monster-stats-grid-combat">
-                    {renderStatField('ac')}
+                    <div className="monster-stat-field monster-ac-field">
+                      <div className="monster-ac-row">
+                        {(() => {
+                          const armourItem = selectedMonster.armourSource.type === 'item'
+                            ? campaignItemById.get(selectedMonster.armourSource.itemId)
+                            : null
+                          if (armourItem) {
+                            const ac = armourItem.armourType === 'shield'
+                              ? `Shield ${armourItem.armourShieldMod || '−1'}`
+                              : `AC ${armourItem.armourClass || '?'}${armourItem.armourMagicMod ? ` (${armourItem.armourMagicMod > '0' ? '+' : ''}${armourItem.armourMagicMod})` : ''}`
+                            return (
+                              <label className="monster-stat-field">
+                                AC
+                                <span className="monster-item-stat-display">{ac}</span>
+                              </label>
+                            )
+                          }
+                          return renderStatField('ac')
+                        })()}
+                        <label className="monster-armour-source-field">
+                          Armour
+                          <select
+                            value={
+                              selectedMonster.armourSource.type === 'item'
+                                ? selectedMonster.armourSource.itemId
+                                : selectedMonster.armourSource.type
+                            }
+                            onChange={(event) => {
+                              const val = event.target.value
+                              if (val === 'natural') {
+                                updateSelectedMonster({ armourSource: { type: 'natural' } })
+                              } else if (val === 'worn') {
+                                updateSelectedMonster({ armourSource: { type: 'worn' } })
+                              } else {
+                                updateSelectedMonster({ armourSource: { type: 'item', itemId: val } })
+                              }
+                            }}
+                          >
+                            <option value="natural">Natural</option>
+                            <option value="worn">Generic Worn</option>
+                            {armourItems.map((item) => (
+                              <option key={item.id} value={item.id}>{item.name}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    </div>
                     {renderStatField('thac0')}
                     {renderHdField()}
                     {renderStatField('mv_land')}
@@ -1098,10 +1256,9 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
                   <div className="monster-stats-grid-saving">{savingThrowKeys.map(renderStatField)}</div>
                 </section>
                 <section className="monster-stat-group">
-                  <h4>Encounter & Treasure</h4>
+                  <h4>Encounter</h4>
                   <div className="monster-stats-grid-encounter">
                     {renderNaField()}
-                    {renderTtField()}
                   </div>
                 </section>
               </div>
@@ -1242,61 +1399,108 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
                               />
                             </label>
                           ) : null}
-                          <div className="monster-attack-field damage monster-damage-field">
-                            <span className="monster-damage-label">Damage</span>
-                            <div className="monster-damage-head">
-                              <span>Die Count</span>
-                              <span>Die Type</span>
-                            </div>
-                            <div className="monster-damage-row">
+                          {attack.attackType === 'weapon' ? (
+                            <label className="monster-attack-field weapon-source">
+                              Weapon
                               <select
-                                className="monster-damage-count-select"
-                                value={attack.damageDiceCount}
+                                value={attack.weaponSource?.type === 'item' ? attack.weaponSource.itemId : 'generic'}
                                 onChange={(event) => {
-                                  const nextCount = event.target.value
-                                  updateAttack(attack.id, {
-                                    damageDiceCount: nextCount,
-                                    damageDie: nextCount ? attack.damageDie || 'd6' : '',
-                                    customDamageDie: nextCount ? attack.customDamageDie : '',
-                                  })
+                                  const val = event.target.value
+                                  if (val === 'generic') {
+                                    updateAttack(attack.id, { weaponSource: { type: 'generic' } })
+                                  } else {
+                                    updateAttack(attack.id, { weaponSource: { type: 'item', itemId: val } })
+                                  }
                                 }}
-                                aria-label="Number of damage dice"
                               >
-                                <option value="">⊘</option>
-                                {Array.from({ length: 12 }, (_, index) => String(index + 1)).map((count) => (
-                                  <option key={count} value={count}>
-                                    {count}
-                                  </option>
+                                <option value="generic">Generic</option>
+                                {weaponItems.map((item) => (
+                                  <option key={item.id} value={item.id}>{item.name}</option>
                                 ))}
                               </select>
-                              <select
-                                className="monster-damage-type-select"
-                                value={attack.damageDie}
-                                onChange={(event) =>
-                                  updateAttack(attack.id, { damageDie: event.target.value as DieType | '' })
-                                }
-                                aria-label="Damage die type"
-                                disabled={!attack.damageDiceCount}
-                              >
-                                <option value="">⊘</option>
-                                {dieTypeOptions.map((option) => (
-                                  <option key={option.value} value={option.value}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-                          <label className="monster-attack-field attack-bonus">
-                            Atk +
-                            <input
-                              type="number"
-                              step={1}
-                              value={attack.attackBonus}
-                              onChange={(event) => updateAttack(attack.id, { attackBonus: event.target.value })}
-                              placeholder="0"
-                            />
-                          </label>
+                            </label>
+                          ) : null}
+                          {(() => {
+                            const weaponItem = attack.attackType === 'weapon' && attack.weaponSource?.type === 'item'
+                              ? campaignItemById.get(attack.weaponSource.itemId)
+                              : null
+                            if (weaponItem) {
+                              const bonus = weaponItem.weaponAttackBonus ? `+${weaponItem.weaponAttackBonus}` : ''
+                              const dmgBonus = weaponItem.weaponDamageBonus ? `+${weaponItem.weaponDamageBonus}` : ''
+                              return (
+                                <div className="monster-weapon-damage-row">
+                                  <div className="monster-attack-field damage monster-damage-field">
+                                    <span className="monster-damage-label">Damage (from item)</span>
+                                    <div className="monster-weapon-item-stats">
+                                      {weaponItem.weaponDamageDiceCount && weaponItem.weaponDamageDiceSides
+                                        ? `${weaponItem.weaponDamageDiceCount}d${weaponItem.weaponDamageDiceSides}${dmgBonus}`
+                                        : '—'}
+                                      {bonus ? ` / Atk ${bonus}` : null}
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            }
+                            return (
+                              <div className="monster-weapon-damage-row">
+                                <div className="monster-attack-field damage monster-damage-field">
+                                  <span className="monster-damage-label">Damage</span>
+                                  <div className="monster-damage-head">
+                                    <span>Die Count</span>
+                                    <span>Die Type</span>
+                                  </div>
+                                  <div className="monster-damage-row">
+                                    <select
+                                      className="monster-damage-count-select"
+                                      value={attack.damageDiceCount}
+                                      onChange={(event) => {
+                                        const nextCount = event.target.value
+                                        updateAttack(attack.id, {
+                                          damageDiceCount: nextCount,
+                                          damageDie: nextCount ? attack.damageDie || 'd6' : '',
+                                          customDamageDie: nextCount ? attack.customDamageDie : '',
+                                        })
+                                      }}
+                                      aria-label="Number of damage dice"
+                                    >
+                                      <option value="">⊘</option>
+                                      {Array.from({ length: 12 }, (_, index) => String(index + 1)).map((count) => (
+                                        <option key={count} value={count}>
+                                          {count}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <select
+                                      className="monster-damage-type-select"
+                                      value={attack.damageDie}
+                                      onChange={(event) =>
+                                        updateAttack(attack.id, { damageDie: event.target.value as DieType | '' })
+                                      }
+                                      aria-label="Damage die type"
+                                      disabled={!attack.damageDiceCount}
+                                    >
+                                      <option value="">⊘</option>
+                                      {dieTypeOptions.map((option) => (
+                                        <option key={option.value} value={option.value}>
+                                          {option.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                                <label className="monster-attack-field attack-bonus">
+                                  Atk +
+                                  <input
+                                    type="number"
+                                    step={1}
+                                    value={attack.attackBonus}
+                                    onChange={(event) => updateAttack(attack.id, { attackBonus: event.target.value })}
+                                    placeholder="0"
+                                  />
+                                </label>
+                              </div>
+                            )
+                          })()}
                         </div>
 
                         <label>
@@ -1512,6 +1716,132 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
                     </article>
                   ))}
                 </div>
+              </section>
+
+              <section className="monster-section-block">
+                <div className="section-head">
+                  <h3 className="monster-section-title">Inventory</h3>
+                </div>
+
+                {/* Equipment from attacks/AC (read-only) */}
+                {(() => {
+                  const lines: Array<{ key: string; name: string; source: string; derived: boolean }> = []
+
+                  // Armour
+                  if (selectedMonster.armourSource.type === 'item') {
+                    const item = campaignItemById.get(selectedMonster.armourSource.itemId)
+                    if (item) lines.push({ key: `armour-${item.id}`, name: item.name, source: 'Armour', derived: false })
+                  } else if (selectedMonster.armourSource.type === 'worn') {
+                    const ac = parseInt(selectedMonster.stats.ac ?? '', 10)
+                    if (!isNaN(ac)) {
+                      const pieces = deriveArmourFromAC(ac)
+                      pieces.forEach((piece) => {
+                        lines.push({ key: `armour-derived-${piece}`, name: piece, source: 'Derived from AC', derived: true })
+                      })
+                    }
+                  }
+
+                  // Weapons
+                  selectedMonster.attacks.forEach((attack, i) => {
+                    if (attack.attackType !== 'weapon') return
+                    if (attack.weaponSource?.type === 'item') {
+                      const item = campaignItemById.get(attack.weaponSource.itemId)
+                      if (item) lines.push({ key: `weapon-${i}-${item.id}`, name: item.name, source: `Weapon (Attack ${i + 1})`, derived: false })
+                    } else {
+                      // Generic weapon — derive from damage dice
+                      const damageDice = attack.damageDiceCount && attack.damageDie
+                        ? `${attack.damageDiceCount}${attack.damageDie}`
+                        : ''
+                      if (damageDice) {
+                        const candidates = deriveWeaponsFromAttack(damageDice, attack.attackClass)
+                        const bonus = parseInt(attack.attackBonus || '0', 10)
+                        const magicSuffix = bonus > 0 ? ` +${bonus}` : ''
+                        const label = candidates.length > 0
+                          ? candidates.join(' / ') + magicSuffix
+                          : `Unknown (${damageDice})${magicSuffix}`
+                        lines.push({ key: `weapon-derived-${i}`, name: label, source: `Attack ${i + 1}`, derived: true })
+                      }
+                    }
+                  })
+
+                  if (lines.length === 0) return null
+                  return (
+                    <div className="monster-inventory-equipment">
+                      <h4>Equipment</h4>
+                      {lines.map(({ key, name, source, derived }) => (
+                        <div key={key} className={`monster-inventory-row readonly${derived ? ' derived' : ''}`}>
+                          <Package size={14} />
+                          <span className="monster-inventory-item-name">{name}</span>
+                          <span className="monster-inventory-item-source">{source}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
+
+                {/* Manually added items */}
+                <div className="monster-inventory-items">
+                  <div className="monster-inventory-header">
+                    <h4>Items</h4>
+                    <select
+                      className="monster-inventory-add-select"
+                      value=""
+                      onChange={(event) => {
+                        const itemId = event.target.value
+                        if (!itemId) return
+                        updateSelectedMonster({
+                          inventoryItemIds: [...selectedMonster.inventoryItemIds, itemId],
+                        })
+                      }}
+                    >
+                      <option value="">+ Add item...</option>
+                      {campaignItems
+                        .filter((item) => !selectedMonster.inventoryItemIds.includes(item.id))
+                        .map((item) => (
+                          <option key={item.id} value={item.id}>{item.name}</option>
+                        ))}
+                    </select>
+                  </div>
+                  {selectedMonster.inventoryItemIds.length === 0 ? (
+                    <p className="monster-inventory-empty">No items.</p>
+                  ) : (
+                    selectedMonster.inventoryItemIds.map((itemId) => {
+                      const item = campaignItemById.get(itemId)
+                      return (
+                        <div key={itemId} className="monster-inventory-row">
+                          <Package size={14} />
+                          <span className="monster-inventory-item-name">{item?.name ?? 'Unknown item'}</span>
+                          <span className="monster-inventory-item-type">{item?.type ?? ''}</span>
+                          <button
+                            type="button"
+                            className="icon-btn remove-btn"
+                            onClick={() => {
+                              updateSelectedMonster({
+                                inventoryItemIds: selectedMonster.inventoryItemIds.filter((id) => id !== itemId),
+                              })
+                            }}
+                            aria-label="Remove item"
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+
+                {/* Treasure Type */}
+                <label className="monster-tt-field">
+                  <span className="monster-stat-label">Treasure Type</span>
+                  <select
+                    value={selectedMonster.treasureType}
+                    onChange={(e) => updateSelectedMonster({ treasureType: e.target.value })}
+                    aria-label="Treasure Type"
+                  >
+                    <option value="">—</option>
+                    {ttOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </label>
               </section>
 
               <label>

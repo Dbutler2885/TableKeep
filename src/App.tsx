@@ -22,6 +22,7 @@ import { MapsTab } from './features/maps/MapsTab'
 import { MonstersTab } from './features/monsters/MonstersTab'
 import { ItemsTab } from './features/items/ItemsTab'
 import { NpcsTab } from './features/npcs/NpcsTab'
+import { TablesTab } from './features/tables/TablesTab'
 import { NotesTab } from './features/notes/NotesTab'
 import { CalendarTab } from './features/notes/CalendarTab'
 import { CliffhangerModal } from './features/notes/CliffhangerModal'
@@ -202,7 +203,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
     return tabs.find((item) => item.id === tab)?.label ?? tab
   }
   const visibleTabs = useMemo(
-    () => (role === 'player' ? tabs.filter((tab) => !['items', 'monsters'].includes(tab.id)) : tabs),
+    () => (role === 'player' ? tabs.filter((tab) => !['items', 'monsters', 'tables'].includes(tab.id)) : tabs),
     [role],
   )
 
@@ -307,7 +308,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
 
           <section
             className={
-              ['character', 'maps', 'monsters', 'items', 'npcs', 'notes'].includes(activeTab)
+              ['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes'].includes(activeTab)
                 ? 'content-panel sidebar-panel'
                 : 'content-panel'
             }
@@ -339,6 +340,12 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
               <Route
                 path={tabPaths.npcs}
                 element={<NpcsTab campaignId={campaign.id} role={role} />}
+              />
+              <Route
+                path={tabPaths.tables}
+                element={role === 'gm'
+                  ? <TablesTab campaignId={campaign.id} />
+                  : <Navigate to={tabPaths.character} replace />}
               />
               <Route path={tabPaths.notes} element={<NotesTab campaignId={campaign.id} role={role} />} />
               <Route path={tabPaths.calendar} element={<CalendarTab campaignId={campaign.id} role={role} />} />

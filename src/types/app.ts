@@ -40,7 +40,55 @@ export type SessionNote = {
   calendar: SessionCalendarEntry[]
 }
 
-export type AppTab = 'character' | 'maps' | 'monsters' | 'items' | 'npcs' | 'notes' | 'calendar' | 'rules'
+export type AppTab = 'character' | 'maps' | 'monsters' | 'items' | 'npcs' | 'tables' | 'notes' | 'calendar' | 'rules'
+
+// --- Tables system types ---
+
+export type TableQty =
+  | { fixed: number }
+  | { count: number; sides: number; modifier?: number }
+
+export type TableBlock =
+  | { type: 'monster'; monsterId: string; qty?: TableQty }
+  | { type: 'npc'; npcId: string; qty?: TableQty }
+  | { type: 'item'; itemId: string; qty?: TableQty }
+  | { type: 'table'; tableId: string }
+  | { type: 'text'; content: string }
+
+export type TableRow = {
+  blocks: TableBlock[]
+}
+
+export type TableRecord = {
+  id: string
+  name: string
+  tags: string[]
+  dice: { count: number; sides: number }
+  rows: TableRow[]
+  createdAt: unknown
+  updatedAt: unknown
+}
+
+export type ResolvedBlock =
+  | { type: 'monster'; monsterId: string; resolvedQty: number }
+  | { type: 'npc'; npcId: string; resolvedQty: number }
+  | { type: 'item'; itemId: string; resolvedQty: number }
+  | { type: 'table'; tableId: string }
+  | { type: 'text'; content: string }
+
+export type RollStep = {
+  tableId: string
+  tableName: string
+  rollValue: number
+  resolvedBlocks: ResolvedBlock[]
+}
+
+export type RollHistoryEntry = {
+  id: string
+  timestamp: unknown
+  steps: RollStep[]
+  complete: boolean
+}
 
 export type Campaign = {
   id: string

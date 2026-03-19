@@ -205,6 +205,14 @@ service cloud.firestore {
         allow update, delete: if isCampaignGM(campaignId);
       }
 
+      match /tables/{tableId} {
+        allow read, write: if isCampaignGM(campaignId);
+
+        match /history/{entryId} {
+          allow read, write: if isCampaignGM(campaignId);
+        }
+      }
+
       match /pendingTransfers/{transferId} {
         allow read: if isCampaignMember(campaignId);
         allow create: if isCampaignMember(campaignId)
