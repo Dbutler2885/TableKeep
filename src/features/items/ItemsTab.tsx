@@ -46,6 +46,7 @@ const itemTypeOptions: Array<{ value: CampaignItemType; label: string }> = [
   { value: 'ammunition', label: 'Ammo' },
   { value: 'consumable', label: 'Consumable' },
   { value: 'general', label: 'General' },
+  { value: 'treasure', label: 'Treasure' },
 ]
 
 const weaponEffectTriggerOptions: Array<{ value: WeaponEffectTrigger; label: string }> = [

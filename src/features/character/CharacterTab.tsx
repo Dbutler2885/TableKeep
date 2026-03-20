@@ -4253,6 +4253,7 @@ export function CharacterTab({
           : detailItem.kind === 'ammunition' ? 'Ammunition'
           : detailItem.kind === 'gold' ? 'Gold'
           : detailItem.kind === 'consumable' ? 'Consumable'
+          : detailItem.kind === 'treasure' ? 'Treasure'
           : 'General'
         return (
           <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={() => setItemDetailId(null)}>

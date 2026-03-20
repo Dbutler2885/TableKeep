@@ -6,6 +6,7 @@ import type {
   CharacterGeneralItem,
   CharacterGoldItem,
   CharacterInventoryItem,
+  CharacterTreasureItem,
   CharacterWeaponItem,
 } from '../../types/app'
 import { DEFAULT_STACK_POLICY } from './itemDefaults'
@@ -109,6 +110,14 @@ export function campaignItemToInventoryItem(item: CampaignItem): CharacterInvent
 
     case 'gold':
       throw new Error('Gold campaign items must use campaignGoldToInventoryChunks() instead of campaignItemToInventoryItem()')
+
+    case 'treasure':
+      return stripUndefined({
+        ...base,
+        kind: 'treasure',
+        qty: Number.parseInt(item.qty, 10) || 1,
+        stack: DEFAULT_STACK_POLICY.treasure,
+      }) satisfies CharacterTreasureItem
   }
 }
 
@@ -228,6 +237,17 @@ export function inventoryItemToCampaignItem(
         armourStats: defaultArmourStats,
         consumableStats: defaultConsumableStats,
         goldAmount: item.qty ?? 0,
+      }
+    case 'treasure':
+      return {
+        ...base,
+        type: 'treasure',
+        isMagic: false,
+        weaponStats: defaultWeaponStats,
+        weaponEffects: [],
+        weaponRollTables: [],
+        armourStats: defaultArmourStats,
+        consumableStats: defaultConsumableStats,
       }
   }
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  BookOpen,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -26,6 +27,9 @@ import type {
   RollStep,
   ResolvedBlock,
 } from '../../types/app'
+import { OSE_TREASURE_TYPES } from '../treasure'
+import type { OseTreasureTypeRecord } from '../treasure'
+import { rollTreasureType, summarizeTreasureBlocks, coinsToGp } from '../treasure/rollEngine'
 
 type TablesTabProps = {
   campaignId: string
@@ -91,14 +95,42 @@ const blockTypeLabel = (type: TableBlock['type']) => {
   }
 }
 
+type SidebarMode = 'campaign' | 'reference'
+
+type ReferenceTableEntry = {
+  id: string
+  name: string
+  subtitle: string
+  record: OseTreasureTypeRecord
+}
+
+const REFERENCE_TABLES: ReferenceTableEntry[] = OSE_TREASURE_TYPES.map((r) => ({
+  id: r.id,
+  name: `TT ${r.code}: ${r.name}`,
+  subtitle: `${r.group} · ~${r.averageValueGp.toLocaleString()} gp`,
+  record: r,
+}))
+
+const REFERENCE_TABLE_MAP = new Map(REFERENCE_TABLES.map((t) => [t.id, t]))
+
+const denomLabel = (d: string) => d.toUpperCase()
+
+const formatNumber = (n: number) => n.toLocaleString()
+
+/** Firestore doc ID for reference table history */
+const refTableFirestoreId = (tableId: string) => `_ose_${tableId}`
+
 export function TablesTab({ campaignId }: TablesTabProps) {
   const { tables, tablesLoading, addTable, updateTable, deleteTable } = useTables(campaignId)
   const { monsters: monsterList, npcs: npcList, items: itemList } = useEntityPickers(campaignId)
 
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list')
+  const [sidebarMode, setSidebarMode] = useState<SidebarMode>('campaign')
   const [selectedTableId, setSelectedTableId] = useState('')
+  const [selectedRefTableId, setSelectedRefTableId] = useState('')
   const [panelMode, setPanelMode] = useState<'editor' | 'results'>('editor')
+  const [refSearchQuery, setRefSearchQuery] = useState('')
   const [editingRowIdx, setEditingRowIdx] = useState<number | null>(null)
   const [diceSidesCustomMode, setDiceSidesCustomMode] = useState(false)
   const previousSelectedTableIdRef = useRef('')
@@ -135,13 +167,18 @@ export function TablesTab({ campaignId }: TablesTabProps) {
     [tables, selectedTableId],
   )
 
-  // Load roll history when a table is selected in results mode
+  // The active table ID for history loading (campaign or reference)
+  const activeHistoryId = sidebarMode === 'reference'
+    ? (selectedRefTableId ? refTableFirestoreId(selectedRefTableId) : '')
+    : selectedTableId
+
+  // Load roll history when a table is selected
   useEffect(() => {
-    if (!selectedTableId || !campaignId) {
+    if (!activeHistoryId || !campaignId) {
       setRollHistory([])
       return
     }
-    const historyRef = collection(db, 'campaigns', campaignId, 'tables', selectedTableId, 'history')
+    const historyRef = collection(db, 'campaigns', campaignId, 'tables', activeHistoryId, 'history')
     const q = query(historyRef, orderBy('timestamp', 'desc'), firestoreLimit(50))
     const unsub = onSnapshot(q, (snap) => {
       const entries = snap.docs.map((d) => {
@@ -156,7 +193,7 @@ export function TablesTab({ campaignId }: TablesTabProps) {
       setRollHistory(entries)
     })
     return () => unsub()
-  }, [campaignId, selectedTableId])
+  }, [campaignId, activeHistoryId])
 
   // Derived data
   const allTags = useMemo(
@@ -181,6 +218,17 @@ export function TablesTab({ campaignId }: TablesTabProps) {
     visibleTables.forEach((t) => t.tags.forEach((tag) => used.add(tag)))
     return allTags.filter((tag) => used.has(tag))
   }, [allTags, visibleTables])
+
+  const visibleRefTables = useMemo(() => {
+    const q = refSearchQuery.trim().toLowerCase()
+    if (!q) return REFERENCE_TABLES
+    return REFERENCE_TABLES.filter((t) => t.name.toLowerCase().includes(q) || t.subtitle.toLowerCase().includes(q))
+  }, [refSearchQuery])
+
+  const selectedRefTable = useMemo(
+    () => REFERENCE_TABLE_MAP.get(selectedRefTableId) ?? null,
+    [selectedRefTableId],
+  )
 
   // Keep selection valid
   useEffect(() => {
@@ -235,6 +283,36 @@ export function TablesTab({ campaignId }: TablesTabProps) {
     performRoll(table)
   }
 
+  const handleSelectRefTable = (id: string) => {
+    setSelectedRefTableId(id)
+    setRollHistoryIdx(0)
+    if (isMobile) setMobileView('detail')
+  }
+
+  const handleRollRefTable = (refEntry: ReferenceTableEntry) => {
+    const resolvedBlocks = rollTreasureType(refEntry.record)
+
+    const step: RollStep = {
+      tableId: refEntry.id,
+      tableName: refEntry.name,
+      rollValue: 0,
+      resolvedBlocks,
+    }
+
+    const entry: Omit<RollHistoryEntry, 'id'> = {
+      timestamp: serverTimestamp(),
+      steps: [step],
+      complete: true,
+    }
+
+    void addDoc(
+      collection(db, 'campaigns', campaignId, 'tables', refTableFirestoreId(refEntry.id), 'history'),
+      entry,
+    ).then(() => {
+      setRollHistoryIdx(0)
+    })
+  }
+
   const performRoll = (table: TableRecord) => {
     const roll = rollDice(table.dice.count, table.dice.sides)
     const rowIdx = roll - minResult(table.dice)
@@ -281,34 +359,52 @@ export function TablesTab({ campaignId }: TablesTabProps) {
   }
 
   const handleRollNested = async (historyEntry: RollHistoryEntry, nestedTableId: string) => {
-    const nestedTable = tables.find((t) => t.id === nestedTableId)
-    if (!nestedTable || !selectedTable) return
+    if (!selectedTable) return
 
-    const roll = rollDice(nestedTable.dice.count, nestedTable.dice.sides)
-    const rowIdx = roll - minResult(nestedTable.dice)
-    const row = nestedTable.rows[rowIdx]
-    if (!row) return
+    // Check if it's a reference table
+    const refEntry = REFERENCE_TABLE_MAP.get(nestedTableId)
+    let newStep: RollStep
 
-    const resolvedBlocks: ResolvedBlock[] = row.blocks.map((block) => {
-      switch (block.type) {
-        case 'monster':
-          return { type: 'monster', monsterId: block.monsterId, resolvedQty: resolveQty(block.qty) }
-        case 'npc':
-          return { type: 'npc', npcId: block.npcId, resolvedQty: resolveQty(block.qty) }
-        case 'item':
-          return { type: 'item', itemId: block.itemId, resolvedQty: resolveQty(block.qty) }
-        case 'table':
-          return { type: 'table', tableId: block.tableId }
-        case 'text':
-          return { type: 'text', content: block.content }
+    if (refEntry) {
+      // Roll using treasure engine
+      const resolvedBlocks = rollTreasureType(refEntry.record)
+      newStep = {
+        tableId: refEntry.id,
+        tableName: refEntry.name,
+        rollValue: 0,
+        resolvedBlocks,
       }
-    })
+    } else {
+      // Roll using campaign table engine
+      const nestedTable = tables.find((t) => t.id === nestedTableId)
+      if (!nestedTable) return
 
-    const newStep: RollStep = {
-      tableId: nestedTable.id,
-      tableName: nestedTable.name,
-      rollValue: roll,
-      resolvedBlocks,
+      const roll = rollDice(nestedTable.dice.count, nestedTable.dice.sides)
+      const rowIdx = roll - minResult(nestedTable.dice)
+      const row = nestedTable.rows[rowIdx]
+      if (!row) return
+
+      const resolvedBlocks: ResolvedBlock[] = row.blocks.map((block) => {
+        switch (block.type) {
+          case 'monster':
+            return { type: 'monster', monsterId: block.monsterId, resolvedQty: resolveQty(block.qty) }
+          case 'npc':
+            return { type: 'npc', npcId: block.npcId, resolvedQty: resolveQty(block.qty) }
+          case 'item':
+            return { type: 'item', itemId: block.itemId, resolvedQty: resolveQty(block.qty) }
+          case 'table':
+            return { type: 'table', tableId: block.tableId }
+          case 'text':
+            return { type: 'text', content: block.content }
+        }
+      })
+
+      newStep = {
+        tableId: nestedTable.id,
+        tableName: nestedTable.name,
+        rollValue: roll,
+        resolvedBlocks,
+      }
     }
 
     const updatedSteps = [...historyEntry.steps, newStep]
@@ -472,7 +568,8 @@ export function TablesTab({ campaignId }: TablesTabProps) {
       }
       case 'table': {
         const ref = tables.find((t) => t.id === block.tableId)
-        return { text: ref?.name || '(pick table)', bold: false }
+        const refTable = REFERENCE_TABLE_MAP.get(block.tableId)
+        return { text: ref?.name || refTable?.name || '(pick table)', bold: false }
       }
       case 'text':
         return { text: block.content || '(empty text)', bold: false }
@@ -509,11 +606,18 @@ export function TablesTab({ campaignId }: TablesTabProps) {
               onChange={(e) => update({ ...block, tableId: e.target.value })}
             >
               <option value="">-- Select table --</option>
-              {tables
-                .filter((t) => t.id !== selectedTable?.id)
-                .map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
+              <optgroup label="Campaign Tables">
+                {tables
+                  .filter((t) => t.id !== selectedTable?.id)
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+              </optgroup>
+              <optgroup label="OSE Reference">
+                {REFERENCE_TABLES.map((rt) => (
+                  <option key={rt.id} value={rt.id}>{rt.name}</option>
                 ))}
+              </optgroup>
             </select>
           ) : (
             <>
@@ -648,11 +752,12 @@ export function TablesTab({ campaignId }: TablesTabProps) {
         )
       case 'table': {
         const ref = tables.find((t) => t.id === block.tableId)
+        const refTable = REFERENCE_TABLE_MAP.get(block.tableId)
         const alreadyRolled = historyEntry.steps.some((s) => s.tableId === block.tableId)
         return (
           <div className="table-result-block table-ref">
             <span className="table-result-type">Table</span>
-            <span className="table-result-name">{ref?.name ?? block.tableId}</span>
+            <span className="table-result-name">{ref?.name ?? refTable?.name ?? block.tableId}</span>
             {!alreadyRolled ? (
               <button
                 type="button"
@@ -673,7 +778,99 @@ export function TablesTab({ campaignId }: TablesTabProps) {
             <span className="table-result-content">{block.content}</span>
           </div>
         )
+      case 'coins':
+        return (
+          <div className="table-result-block treasure-coins">
+            <span className="table-result-type">{denomLabel(block.denomination)}</span>
+            <span className="table-result-name">{formatNumber(block.amount)}</span>
+          </div>
+        )
+      case 'treasure':
+        return (
+          <div className="table-result-block treasure-item">
+            <span className="table-result-type">{block.subtype === 'gem' ? 'Gem' : 'Jewellery'}</span>
+            <span className="table-result-name">{formatNumber(block.gpValue)} gp</span>
+            {block.description ? <span className="table-result-content">{block.description}</span> : null}
+          </div>
+        )
+      case 'magicItem':
+        return (
+          <div className="table-result-block magic-item">
+            <span className="table-result-type">{block.category}</span>
+            <span className="table-result-name">{block.name}</span>
+          </div>
+        )
     }
+  }
+
+  const renderTreasureResult = (blocks: ResolvedBlock[]) => {
+    const summary = summarizeTreasureBlocks(blocks)
+    const coinsGpTotal = summary.coins.reduce((sum, c) => sum + coinsToGp(c.denomination, c.amount), 0)
+    const gemTotal = summary.gems.reduce((sum, g) => sum + g.gpValue * g.count, 0)
+    const gemCount = summary.gems.reduce((sum, g) => sum + g.count, 0)
+    const jewelleryTotal = summary.jewellery.reduce((sum, j) => sum + j.gpValue * j.count, 0)
+    const jewelleryCount = summary.jewellery.reduce((sum, j) => sum + j.count, 0)
+    return (
+      <div className="treasure-result-summary">
+        {summary.coins.length > 0 ? (
+          <div className="treasure-result-section">
+            <h4>Coins <span className="treasure-section-total">{formatNumber(coinsGpTotal)} gp total</span></h4>
+            {summary.coins.map((c, i) => (
+              <div key={i} className="table-result-block treasure-coins">
+                <span className="table-result-type">{denomLabel(c.denomination)}</span>
+                <span className="table-result-name">{formatNumber(c.amount)}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {summary.gems.length > 0 ? (
+          <div className="treasure-result-section">
+            <h4>Gems <span className="treasure-section-total">{gemCount} piece{gemCount !== 1 ? 's' : ''} — {formatNumber(gemTotal)} gp total</span></h4>
+            {summary.gems.map((g, i) => (
+              <div key={i} className="table-result-block treasure-item">
+                <span className="table-result-type">Gem</span>
+                <span className="table-result-name">
+                  {g.count > 1 ? `${g.count}x ` : ''}{formatNumber(g.gpValue)} gp{g.count > 1 ? ` each` : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {summary.jewellery.length > 0 ? (
+          <div className="treasure-result-section">
+            <h4>Jewellery <span className="treasure-section-total">{jewelleryCount} piece{jewelleryCount !== 1 ? 's' : ''} — {formatNumber(jewelleryTotal)} gp total</span></h4>
+            {summary.jewellery.map((j, i) => (
+              <div key={i} className="table-result-block treasure-item">
+                <span className="table-result-type">Jewellery</span>
+                <span className="table-result-name">
+                  {j.count > 1 ? `${j.count}x ` : ''}{formatNumber(j.gpValue)} gp{j.count > 1 ? ` each` : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {summary.magicItems.length > 0 ? (
+          <div className="treasure-result-section">
+            <h4>Magic Items <span className="treasure-section-total">{summary.magicItems.length} item{summary.magicItems.length !== 1 ? 's' : ''}</span></h4>
+            {summary.magicItems.map((m, i) => (
+              <div key={i} className="table-result-block magic-item">
+                <span className="table-result-type">{m.category}</span>
+                <span className="table-result-name">{m.name}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {summary.other.length > 0 ? (
+          <div className="treasure-result-section">
+            {summary.other.map((b, i) => (
+              <div key={i} className="table-result-block text">
+                <span className="table-result-content">{'content' in b ? b.content : ''}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    )
   }
 
   // --- Main render ---
@@ -685,132 +882,208 @@ export function TablesTab({ campaignId }: TablesTabProps) {
         <aside className="maps-sidebar monsters-sidebar characters-sidebar">
           <div className="maps-sidebar-header">
             <h2>Tables</h2>
+            {sidebarMode === 'campaign' ? (
+              <button
+                type="button"
+                className="monster-add-btn"
+                onClick={handleAddTable}
+                aria-label="Add table"
+              >
+                <Plus size={16} />
+              </button>
+            ) : null}
+          </div>
+
+          {/* Campaign / Reference toggle */}
+          <div className="table-mode-toggle">
             <button
               type="button"
-              className="monster-add-btn"
-              onClick={handleAddTable}
-              aria-label="Add table"
+              className={sidebarMode === 'campaign' ? 'table-mode-btn active' : 'table-mode-btn'}
+              onClick={() => setSidebarMode('campaign')}
             >
-              <Plus size={16} />
+              Campaign
+            </button>
+            <button
+              type="button"
+              className={sidebarMode === 'reference' ? 'table-mode-btn active' : 'table-mode-btn'}
+              onClick={() => setSidebarMode('reference')}
+            >
+              <BookOpen size={13} /> Reference
             </button>
           </div>
 
-          <div className="npc-filter-bar">
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search tables"
-              aria-label="Search tables"
-            />
-            <div className="npc-tag-filter-wrapper">
-              <Tag size={16} className="npc-tag-filter-icon" />
-              <button
-                type="button"
-                className="npc-tag-filter-trigger"
-                onClick={() => {
-                  setTagFilterOpen((o) => !o)
-                  setTagFilterSearch('')
-                }}
-              >
-                {tagFilter === 'all' ? 'All tags' : tagFilter}
-              </button>
-              {tagFilterOpen ? (
-                <>
-                  <div className="npc-tag-filter-menu">
-                    <div className="npc-tag-filter-search">
-                      <Search size={14} />
-                      <input
-                        type="text"
-                        value={tagFilterSearch}
-                        onChange={(e) => setTagFilterSearch(e.target.value)}
-                        placeholder="Search tags"
-                      />
-                    </div>
-                    <div className="npc-tag-filter-options">
-                      {!tagFilterSearch.trim() ? (
-                        <button
-                          type="button"
-                          className={tagFilter === 'all' ? 'npc-tag-filter-option active' : 'npc-tag-filter-option'}
-                          onClick={() => { setTagFilter('all'); setTagFilterOpen(false) }}
-                        >
-                          All tags
-                        </button>
-                      ) : null}
-                      {tagsInUse
-                        .filter((tag) => !tagFilterSearch.trim() || tag.includes(tagFilterSearch.trim().toLowerCase()))
-                        .map((tag) => (
-                          <button
-                            key={tag}
-                            type="button"
-                            className={tagFilter === tag ? 'npc-tag-filter-option active' : 'npc-tag-filter-option'}
-                            onClick={() => { setTagFilter(tag); setTagFilterOpen(false) }}
-                          >
-                            {tag}
-                          </button>
-                        ))}
-                      {tagFilterSearch.trim() && tagsInUse.filter((tag) => tag.includes(tagFilterSearch.trim().toLowerCase())).length === 0 ? (
-                        <div className="npc-tag-filter-empty">No matching tags</div>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="npc-tag-filter-backdrop" onClick={() => setTagFilterOpen(false)} />
-                </>
-              ) : null}
-            </div>
-          </div>
-
-          {tablesLoading ? <p className="tables-loading">Loading tables...</p> : null}
-          {!tablesLoading && visibleTables.length === 0 ? <p className="tables-empty">No tables yet.</p> : null}
-
-          <div className="monster-list-grid character-list-grid">
-            {visibleTables.map((table) => (
-              <div key={table.id} className={table.id === selectedTableId ? 'map-row active' : 'map-row'}>
-                <div
-                  className="map-select"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => handleSelectTable(table.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      handleSelectTable(table.id)
-                    }
-                  }}
-                >
-                  <div className="map-meta">
-                    <strong>{table.name || 'Unnamed Table'}</strong>
-                    <p className="monster-card-statline">{diceLabel(table.dice)}</p>
-                    {table.tags.length > 0 ? (
-                      <div className="item-faction-tag-list">
-                        {table.tags.slice(0, 3).map((tag) => (
-                          <span key={tag} className="item-tag">{tag}</span>
-                        ))}
+          {sidebarMode === 'campaign' ? (
+            <>
+              <div className="npc-filter-bar">
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search tables"
+                  aria-label="Search tables"
+                />
+                <div className="npc-tag-filter-wrapper">
+                  <Tag size={16} className="npc-tag-filter-icon" />
+                  <button
+                    type="button"
+                    className="npc-tag-filter-trigger"
+                    onClick={() => {
+                      setTagFilterOpen((o) => !o)
+                      setTagFilterSearch('')
+                    }}
+                  >
+                    {tagFilter === 'all' ? 'All tags' : tagFilter}
+                  </button>
+                  {tagFilterOpen ? (
+                    <>
+                      <div className="npc-tag-filter-menu">
+                        <div className="npc-tag-filter-search">
+                          <Search size={14} />
+                          <input
+                            type="text"
+                            value={tagFilterSearch}
+                            onChange={(e) => setTagFilterSearch(e.target.value)}
+                            placeholder="Search tags"
+                          />
+                        </div>
+                        <div className="npc-tag-filter-options">
+                          {!tagFilterSearch.trim() ? (
+                            <button
+                              type="button"
+                              className={tagFilter === 'all' ? 'npc-tag-filter-option active' : 'npc-tag-filter-option'}
+                              onClick={() => { setTagFilter('all'); setTagFilterOpen(false) }}
+                            >
+                              All tags
+                            </button>
+                          ) : null}
+                          {tagsInUse
+                            .filter((tag) => !tagFilterSearch.trim() || tag.includes(tagFilterSearch.trim().toLowerCase()))
+                            .map((tag) => (
+                              <button
+                                key={tag}
+                                type="button"
+                                className={tagFilter === tag ? 'npc-tag-filter-option active' : 'npc-tag-filter-option'}
+                                onClick={() => { setTagFilter(tag); setTagFilterOpen(false) }}
+                              >
+                                {tag}
+                              </button>
+                            ))}
+                          {tagFilterSearch.trim() && tagsInUse.filter((tag) => tag.includes(tagFilterSearch.trim().toLowerCase())).length === 0 ? (
+                            <div className="npc-tag-filter-empty">No matching tags</div>
+                          ) : null}
+                        </div>
                       </div>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="table-sidebar-actions">
-                  <button
-                    type="button"
-                    className="table-roll-sidebar-btn"
-                    onClick={(e) => { e.stopPropagation(); handleRollTable(table.id) }}
-                    aria-label={`Roll ${table.name || 'table'}`}
-                  >
-                    <Dices size={14} />
-                  </button>
-                  <button
-                    type="button"
-                    className="map-delete-btn character-card-delete-btn"
-                    onClick={() => setDeleteCandidate(table)}
-                    aria-label={`Delete ${table.name || 'table'}`}
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                      <div className="npc-tag-filter-backdrop" onClick={() => setTagFilterOpen(false)} />
+                    </>
+                  ) : null}
                 </div>
               </div>
-            ))}
-          </div>
+
+              {tablesLoading ? <p className="tables-loading">Loading tables...</p> : null}
+              {!tablesLoading && visibleTables.length === 0 ? <p className="tables-empty">No tables yet.</p> : null}
+
+              <div className="monster-list-grid character-list-grid">
+                {visibleTables.map((table) => (
+                  <div key={table.id} className={table.id === selectedTableId ? 'map-row active' : 'map-row'}>
+                    <div
+                      className="map-select"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleSelectTable(table.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handleSelectTable(table.id)
+                        }
+                      }}
+                    >
+                      <div className="map-meta">
+                        <strong>{table.name || 'Unnamed Table'}</strong>
+                        <p className="monster-card-statline">{diceLabel(table.dice)}</p>
+                        {table.tags.length > 0 ? (
+                          <div className="item-faction-tag-list">
+                            {table.tags.slice(0, 3).map((tag) => (
+                              <span key={tag} className="item-tag">{tag}</span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="table-sidebar-actions">
+                      <button
+                        type="button"
+                        className="table-roll-sidebar-btn"
+                        onClick={(e) => { e.stopPropagation(); handleRollTable(table.id) }}
+                        aria-label={`Roll ${table.name || 'table'}`}
+                      >
+                        <Dices size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        className="map-delete-btn character-card-delete-btn"
+                        onClick={() => setDeleteCandidate(table)}
+                        aria-label={`Delete ${table.name || 'table'}`}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            /* ===== REFERENCE MODE SIDEBAR ===== */
+            <>
+              <div className="npc-filter-bar">
+                <input
+                  type="search"
+                  value={refSearchQuery}
+                  onChange={(e) => setRefSearchQuery(e.target.value)}
+                  placeholder="Search reference tables"
+                  aria-label="Search reference tables"
+                />
+              </div>
+
+              <div className="monster-list-grid character-list-grid">
+                {visibleRefTables.map((refTable) => (
+                  <div key={refTable.id} className={refTable.id === selectedRefTableId ? 'map-row active' : 'map-row'}>
+                    <div
+                      className="map-select"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleSelectRefTable(refTable.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          handleSelectRefTable(refTable.id)
+                        }
+                      }}
+                    >
+                      <div className="map-meta">
+                        <strong>{refTable.name}</strong>
+                        <p className="monster-card-statline">{refTable.subtitle}</p>
+                      </div>
+                    </div>
+                    <div className="table-sidebar-actions">
+                      <button
+                        type="button"
+                        className="table-roll-sidebar-btn"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedRefTableId(refTable.id)
+                          handleRollRefTable(refTable)
+                          if (isMobile) setMobileView('detail')
+                        }}
+                        aria-label={`Roll ${refTable.name}`}
+                      >
+                        <Dices size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </aside>
       ) : null}
 
@@ -826,7 +1099,112 @@ export function TablesTab({ campaignId }: TablesTabProps) {
               </div>
             ) : null}
 
-            {!selectedTable ? (
+            {sidebarMode === 'reference' ? (
+              /* ===== REFERENCE TABLE DETAIL ===== */
+              !selectedRefTable ? (
+                <p>Select a reference table from the list.</p>
+              ) : (
+                <div className="table-results">
+                  <div className="table-results-header">
+                    <h3>{selectedRefTable.name}</h3>
+                    <div className="table-results-header-actions">
+                      <button
+                        type="button"
+                        className="table-roll-sidebar-btn"
+                        onClick={() => handleRollRefTable(selectedRefTable)}
+                        aria-label="Roll treasure"
+                      >
+                        <Dices size={16} /> Roll
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Read-only table contents */}
+                  <details className="table-ref-contents">
+                    <summary>Table contents</summary>
+                    <div className="table-ref-entries">
+                      {selectedRefTable.record.entries.map((entry, i) => (
+                        <div key={i} className="table-ref-entry-row">
+                          {entry.chance !== null ? (
+                            <span className="table-ref-chance">{entry.chance}%</span>
+                          ) : (
+                            <span className="table-ref-chance">Auto</span>
+                          )}
+                          <span className="table-ref-text">{entry.rawText}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+
+                  {/* Roll history */}
+                  {rollHistory.length === 0 ? (
+                    <p>No rolls yet. Click Roll to get started.</p>
+                  ) : (
+                    <>
+                      <div className="table-results-carousel">
+                        <button
+                          type="button"
+                          disabled={rollHistoryIdx >= rollHistory.length - 1}
+                          onClick={() => setRollHistoryIdx((i) => Math.min(i + 1, rollHistory.length - 1))}
+                          aria-label="Older result"
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <span className="table-results-page">
+                          {rollHistoryIdx + 1} / {rollHistory.length}
+                        </span>
+                        <button
+                          type="button"
+                          disabled={rollHistoryIdx <= 0}
+                          onClick={() => setRollHistoryIdx((i) => Math.max(i - 1, 0))}
+                          aria-label="Newer result"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+
+                      {(() => {
+                        const entry = rollHistory[rollHistoryIdx]
+                        if (!entry) return null
+                        const allBlocks = entry.steps.flatMap((s) => s.resolvedBlocks)
+                        return (
+                          <div className="table-result-entry">
+                            {renderTreasureResult(allBlocks)}
+                          </div>
+                        )
+                      })()}
+
+                      <details className="table-results-log">
+                        <summary>Recent rolls</summary>
+                        <div className="table-results-log-list">
+                          {rollHistory.slice(0, 20).map((entry, i) => {
+                            const blocks = entry.steps.flatMap((s) => s.resolvedBlocks)
+                            const coinCount = blocks.filter((b) => b.type === 'coins').length
+                            const itemCount = blocks.filter((b) => b.type === 'magicItem').length
+                            const gemCount = blocks.filter((b) => b.type === 'treasure').length
+                            const label = [
+                              coinCount > 0 ? `${coinCount} coin type${coinCount > 1 ? 's' : ''}` : '',
+                              gemCount > 0 ? `${gemCount} gem/jewellery` : '',
+                              itemCount > 0 ? `${itemCount} magic item${itemCount > 1 ? 's' : ''}` : '',
+                            ].filter(Boolean).join(', ') || 'No treasure'
+                            return (
+                              <button
+                                key={entry.id}
+                                type="button"
+                                className={i === rollHistoryIdx ? 'table-log-entry active' : 'table-log-entry'}
+                                onClick={() => setRollHistoryIdx(i)}
+                              >
+                                {label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </details>
+                    </>
+                  )}
+                </div>
+              )
+            ) : !selectedTable ? (
               <p>Select a table from the list, or create a new one.</p>
             ) : panelMode === 'editor' ? (
               /* ===== EDITOR MODE ===== */

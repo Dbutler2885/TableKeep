@@ -123,7 +123,7 @@ const normalizeConsumableStats = (value: unknown): CampaignItem['consumableStats
 }
 
 const normalizeCampaignItem = (id: string, data: Record<string, unknown>): CampaignItem => {
-  const type = data.type === 'weapon' || data.type === 'armour' || data.type === 'ammunition' || data.type === 'consumable' || data.type === 'general' || data.type === 'gold'
+  const type = data.type === 'weapon' || data.type === 'armour' || data.type === 'ammunition' || data.type === 'consumable' || data.type === 'general' || data.type === 'gold' || data.type === 'treasure'
     ? data.type
     : 'general'
   return {

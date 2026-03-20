@@ -1,0 +1,38 @@
+import type { OseMagicCategoryTable } from './types'
+
+export const OSE_MAGIC_WEAPONS_TABLE: OseMagicCategoryTable = {
+  id: 'ose-magic-weapons',
+  name: 'Magic Weapons',
+  sourceUrl: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Weapons',
+  usage: 'Per normal class restrictions.',
+  notes: [
+    'Cursed weapons apply their penalty to both attack and damage rolls.',
+    'Once used in combat, a cursed weapon cannot be discarded until the curse is removed by magic.',
+    'Enchanted weapon bonuses apply to both attack and damage rolls.',
+    'Some weapons grant a special bonus against specific creature types.',
+    "War Hammer +3, Dwarven Thrower: In the hands of a dwarf, it may be used as a thrown missile weapon with range 60', and returns to the wielder after being thrown.",
+  ],
+  rows: [
+    { basicRoll: null, expertRoll: { min: 1, max: 2 }, name: 'Arrows +1', rawText: 'Arrows +1 (3d10 arrows)', bonus: 1, quantityText: '3d10 arrows' },
+    { basicRoll: 1, expertRoll: { min: 3, max: 12 }, name: 'Arrows +1', rawText: 'Arrows +1 (Basic: 10; Expert: 2d6 arrows)', bonus: 1, quantityText: 'Basic: 10 arrows; Expert: 2d6 arrows' },
+    { basicRoll: null, expertRoll: { min: 13, max: 18 }, name: 'Arrows +2', rawText: 'Arrows +2 (1d6 arrows)', bonus: 2, quantityText: '1d6 arrows' },
+    { basicRoll: 2, expertRoll: { min: 19, max: 27 }, name: 'Axe +1', rawText: 'Axe +1', bonus: 1 },
+    { basicRoll: null, expertRoll: { min: 28, max: 30 }, name: 'Axe +2', rawText: 'Axe +2', bonus: 2 },
+    { basicRoll: null, expertRoll: { min: 31, max: 33 }, name: 'Bow +1', rawText: 'Bow +1', bonus: 1 },
+    { basicRoll: null, expertRoll: { min: 34, max: 43 }, name: 'Crossbow Bolts +1', rawText: 'Crossbow Bolts +1 (2d6 bolts)', bonus: 1, quantityText: '2d6 bolts' },
+    { basicRoll: null, expertRoll: { min: 44, max: 45 }, name: 'Crossbow Bolts +1', rawText: 'Crossbow Bolts +1 (3d10 bolts)', bonus: 1, quantityText: '3d10 bolts' },
+    { basicRoll: null, expertRoll: { min: 46, max: 52 }, name: 'Crossbow Bolts +2', rawText: 'Crossbow Bolts +2 (1d6 bolts)', bonus: 2, quantityText: '1d6 bolts' },
+    { basicRoll: 3, expertRoll: { min: 53, max: 55 }, name: 'Dagger +1', rawText: 'Dagger +1', bonus: 1 },
+    { basicRoll: null, expertRoll: { min: 56, max: 56 }, name: 'Dagger +2, +3 vs orcs, goblins, and kobolds', rawText: 'Dagger +2, +3 vs orcs, goblins, and kobolds', bonus: 2, specialVs: '+3 vs orcs, goblins, and kobolds' },
+    { basicRoll: 4, expertRoll: { min: 57, max: 64 }, name: 'Mace +1', rawText: 'Mace +1', bonus: 1 },
+    { basicRoll: null, expertRoll: { min: 65, max: 67 }, name: 'Mace +2', rawText: 'Mace +2', bonus: 2 },
+    { basicRoll: null, expertRoll: { min: 68, max: 68 }, name: 'Mace +3', rawText: 'Mace +3', bonus: 3 },
+    { basicRoll: null, expertRoll: { min: 69, max: 74 }, name: 'Sling +1', rawText: 'Sling +1', bonus: 1 },
+    { basicRoll: null, expertRoll: { min: 75, max: 82 }, name: 'Spear +1', rawText: 'Spear +1', bonus: 1 },
+    { basicRoll: null, expertRoll: { min: 83, max: 86 }, name: 'Spear +2', rawText: 'Spear +2', bonus: 2 },
+    { basicRoll: null, expertRoll: { min: 87, max: 87 }, name: 'Spear +3', rawText: 'Spear +3', bonus: 3 },
+    { basicRoll: null, expertRoll: { min: 88, max: 94 }, name: 'War Hammer +1', rawText: 'War Hammer +1', bonus: 1 },
+    { basicRoll: null, expertRoll: { min: 95, max: 99 }, name: 'War Hammer +2', rawText: 'War Hammer +2', bonus: 2 },
+    { basicRoll: null, expertRoll: { min: 100, max: 100 }, name: 'War Hammer +3, Dwarven Thrower', rawText: 'War Hammer +3, Dwarven Thrower', bonus: 3, variant: 'Dwarven Thrower', rangeText: "60'" },
+  ],
+}

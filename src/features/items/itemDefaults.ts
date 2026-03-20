@@ -7,4 +7,5 @@ export const DEFAULT_STACK_POLICY: Record<ItemKind, StackPolicy> = {
   consumable: { stackable: true, maxStack: 20 },
   general: { stackable: false },
   gold: { stackable: true, maxStack: 100 },
+  treasure: { stackable: false },
 }

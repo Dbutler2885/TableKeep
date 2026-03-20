@@ -69,12 +69,17 @@ export type TableRecord = {
   updatedAt: unknown
 }
 
+export type CoinDenomination = 'cp' | 'sp' | 'ep' | 'gp' | 'pp'
+
 export type ResolvedBlock =
   | { type: 'monster'; monsterId: string; resolvedQty: number }
   | { type: 'npc'; npcId: string; resolvedQty: number }
   | { type: 'item'; itemId: string; resolvedQty: number }
   | { type: 'table'; tableId: string }
   | { type: 'text'; content: string }
+  | { type: 'coins'; denomination: CoinDenomination; amount: number }
+  | { type: 'treasure'; subtype: 'gem' | 'jewellery'; gpValue: number; description?: string }
+  | { type: 'magicItem'; category: string; name: string; catalogRef?: string }
 
 export type RollStep = {
   tableId: string
@@ -145,7 +150,7 @@ export type CharacterStoreCartEntry = {
 
 // --- Item system core types ---
 
-export type ItemKind = 'weapon' | 'armour' | 'ammunition' | 'consumable' | 'general' | 'gold'
+export type ItemKind = 'weapon' | 'armour' | 'ammunition' | 'consumable' | 'general' | 'gold' | 'treasure'
 export type GlobalItemAction = 'equip' | 'unequip' | 'drop' | 'give' | 'sell'
 export type ConsumableUseMode = 'consume' | 'use'
 export type StackPolicy =
@@ -188,7 +193,7 @@ export type WeaponRollTable = {
 
 // --- Campaign item (GM-authored template) ---
 
-export type CampaignItemType = 'weapon' | 'armour' | 'ammunition' | 'consumable' | 'general' | 'gold'
+export type CampaignItemType = 'weapon' | 'armour' | 'ammunition' | 'consumable' | 'general' | 'gold' | 'treasure'
 
 export type CampaignItem = {
   id: string
@@ -300,6 +305,10 @@ export type CharacterGeneralItem = CharacterInventoryItemBase & {
   turnsRemaining?: number
 }
 
+export type CharacterTreasureItem = CharacterInventoryItemBase & {
+  kind: 'treasure'
+}
+
 export type CharacterSpell = {
   id: string
   name: string
@@ -327,6 +336,7 @@ export type CharacterInventoryItem =
   | CharacterAmmunitionItem
   | CharacterConsumableItem
   | CharacterGeneralItem
+  | CharacterTreasureItem
 
 export type TransferableInventoryItem = Exclude<CharacterInventoryItem, CharacterGoldItem>
 
