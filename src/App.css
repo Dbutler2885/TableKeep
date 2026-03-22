@@ -2006,10 +2006,28 @@ button.character-item-add-btn:disabled {
   border-radius: 8px;
   padding: 0.35rem;
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  background: #fff;
+}
+
+.monster-card-select {
+  display: grid;
   grid-template-columns: 56px minmax(0, 1fr);
   align-items: start;
   gap: 0.5rem;
-  background: #fff;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.monster-card-select:focus,
+.monster-card-select:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .character-list-item-wrap .monster-list-item {
@@ -3058,6 +3076,15 @@ button.character-item-add-btn:disabled {
 .mv-other-remove-btn {
   color: #ccc;
   flex-shrink: 0;
+}
+
+.tt-notes {
+  flex: 1;
+  min-width: 0;
+  padding: 0.3rem 0.3rem;
+  min-height: 1.75rem;
+  border-radius: 4px;
+  font-size: 0.77rem;
 }
 
 .monster-statline-preview {
@@ -8853,6 +8880,33 @@ button:disabled {
   color: var(--accent, #4a90d9);
   font-weight: 700;
   flex-shrink: 0;
+}
+
+/* Range inputs on table entries */
+.table-row-range {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 0 6px;
+}
+.table-range-input {
+  width: 40px;
+  padding: 2px 4px;
+  border: 1px solid #c6c6bf;
+  border-radius: 3px;
+  font-size: 0.8rem;
+  text-align: center;
+  background: var(--bg);
+  color: var(--text);
+}
+.table-range-input:focus {
+  outline: 1px solid var(--accent, #4a90d9);
+  border-color: var(--accent, #4a90d9);
+}
+.table-range-sep {
+  font-size: 0.8rem;
+  color: var(--text-muted, #888);
 }
 
 /* Copy apply bar */

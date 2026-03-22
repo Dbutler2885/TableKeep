@@ -25,7 +25,6 @@ export const oseMonsterRuleset: MonsterRulesetDef = {
     { key: 'thac0', label: 'THAC0', shortLabel: 'THAC0', placeholder: '19', inputType: 'number' },
     { key: 'hd_dice', label: 'HD Dice Count', shortLabel: 'HD dice', placeholder: '6', inputType: 'number', min: 0 },
     { key: 'hd_mod', label: 'HD Modifier', shortLabel: 'HD mod', placeholder: '' },
-    { key: 'hd_special', label: 'HD Special', shortLabel: 'HD *', placeholder: '' },
     { key: 'mv_land', label: 'Land Movement (ft/turn)', shortLabel: 'MV', placeholder: '60', inputType: 'number', min: 0 },
     { key: 'sv_d', label: 'Save vs Death/Poison (D)', shortLabel: 'D', placeholder: '10', inputType: 'number' },
     { key: 'sv_w', label: 'Save vs Wands (W)', shortLabel: 'W', placeholder: '11', inputType: 'number' },

@@ -13,6 +13,8 @@ import { MOBILE_BREAKPOINT } from '../../constants/layout'
 import { BlurSyncedTextarea } from '../character/BlurSyncedTextarea'
 import { OSE_WEAPON_CATALOG } from '../character/weaponCatalog'
 import { OSE_ARMOUR_CATALOG } from '../character/armourCatalog'
+import { OSE_TREASURE_TYPES, oseTreasureTypeByCode } from '../treasure'
+import { OSE_MONSTER_CATALOG, applyMonsterTemplate } from './oseMonsterCatalog'
 
 type SaveType = 'death_poison' | 'wands' | 'paralysis_petrification' | 'breath' | 'spells' | 'custom'
 type OnHitEffectClass = 'save' | 'effect'
@@ -89,6 +91,13 @@ type ImmunityEntry = {
   text: string
 }
 
+type TreasureTypeEntry = {
+  id: string
+  code: string
+  treasureTableId: string | null
+  notes: string
+}
+
 type SpellcastingEntry = {
   id: string
   source: string
@@ -114,6 +123,8 @@ type CampaignItemSummary = {
 type MonsterRecord = {
   id: string
   rulesetId: MonsterRulesetId
+  typeId: string
+  typeName: string
   name: string
   portraitPath?: string
   portraitUrl: string | null
@@ -129,7 +140,7 @@ type MonsterRecord = {
   tokenIcon: TokenIconConfig
   armourSource: ArmourSource
   inventoryItemIds: string[]
-  treasureType: string
+  treasureTypes: TreasureTypeEntry[]
 }
 
 type MonstersTabProps = {
@@ -273,6 +284,13 @@ const newSpellcastingEntry = (): SpellcastingEntry => ({
   notes: '',
 })
 
+const newTreasureTypeEntry = (code = ''): TreasureTypeEntry => ({
+  id: crypto.randomUUID(),
+  code,
+  treasureTableId: code && code !== 'None' ? (oseTreasureTypeByCode[code]?.id ?? null) : null,
+  notes: '',
+})
+
 const mvTypeOptions: Array<{ value: string; label: string }> = [
   { value: 'fly', label: 'Fly' },
   { value: 'swim', label: 'Swim' },
@@ -314,7 +332,9 @@ const newMonsterTemplate = (rulesetId: MonsterRulesetId): MonsterRecord => {
   return {
     id: crypto.randomUUID(),
     rulesetId,
-    name: 'New Monster',
+    typeId: 'custom',
+    typeName: '',
+    name: '',
     portraitPath: '',
     portraitUrl: null,
     portraitFocusX: 50,
@@ -329,7 +349,7 @@ const newMonsterTemplate = (rulesetId: MonsterRulesetId): MonsterRecord => {
     tokenIcon: defaultTokenIcon,
     armourSource: { type: 'natural' },
     inventoryItemIds: [],
-    treasureType: '',
+    treasureTypes: [],
   }
 }
 
@@ -345,7 +365,8 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
   const [mobileMonsterView, setMobileMonsterView] = useState<'list' | 'detail'>('list')
 
   const canEdit = role === 'gm'
-  const sortedMonsters = useMemo(() => [...monsters].sort((a, b) => a.name.localeCompare(b.name)), [monsters])
+  const monsterDisplayName = (m: MonsterRecord) => m.name || m.typeName || 'Unnamed Monster'
+  const sortedMonsters = useMemo(() => [...monsters].sort((a, b) => monsterDisplayName(a).localeCompare(monsterDisplayName(b))), [monsters])
 
   const selectedMonster = sortedMonsters.find((monster) => monster.id === selectedMonsterId) ?? null
   const selectedSpellcastingDrafts = selectedMonster ? (spellcastingDraftByMonsterId[selectedMonster.id] ?? []) : []
@@ -387,15 +408,19 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
         <div className="hd-inputs">
           <div className="hd-col">
             <span className="monster-stat-label">HD</span>
-            <input
-              type="number"
+            <select
               className="hd-dice"
               value={selectedMonster.stats.hd_dice ?? ''}
-              min={0}
-              placeholder="6"
               onChange={(e) => updateSelectedStat('hd_dice', e.target.value)}
               aria-label="Hit Dice count"
-            />
+            >
+              <option value="">—</option>
+              <option value="0.5">½</option>
+              <option value="1hp">1hp</option>
+              {Array.from({ length: 36 }, (_, i) => i + 1).map((n) => (
+                <option key={n} value={String(n)}>{n}</option>
+              ))}
+            </select>
           </div>
           <span className="hd-sep">d8</span>
           <div className="hd-col">
@@ -409,16 +434,6 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
               aria-label="Hit Dice modifier"
             />
           </div>
-          <select
-            className="hd-special"
-            value={selectedMonster.stats.hd_special ?? ''}
-            onChange={(e) => updateSelectedStat('hd_special', e.target.value)}
-            aria-label="Hit Dice special ability marker"
-          >
-            <option value="">—</option>
-            <option value="*">*</option>
-            <option value="**">**</option>
-          </select>
         </div>
       </div>
     )
@@ -483,7 +498,7 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
     )
   }
 
-  const ttOptions = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V']
+  const ttOptions = ['None', ...OSE_TREASURE_TYPES.map((entry) => entry.code)]
 
   const renderMvOtherField = () => {
     if (!selectedMonster) return null
@@ -584,10 +599,17 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
                 ? local.tokenIcon.customImageUrl
                 : undefined
             )
+          const rawName = typeof data.name === 'string' ? data.name : ''
+          // Migration: old docs have no typeId/typeName — treat as custom with name → typeName.
+          const typeId = typeof data.typeId === 'string' ? data.typeId : 'custom'
+          const typeName = typeof data.typeName === 'string' ? data.typeName : (typeId === 'custom' ? rawName : '')
+          const name = typeof data.typeName === 'string' ? rawName : ''
           return {
             id: d.id,
             rulesetId: data.rulesetId ?? 'ose',
-            name: typeof data.name === 'string' ? data.name : '',
+            typeId,
+            typeName,
+            name,
             portraitPath,
             portraitUrl,
             portraitFocusX: typeof data.portraitFocusX === 'number' ? data.portraitFocusX : 50,
@@ -607,11 +629,25 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
               : tokenIcon,
             armourSource: data.armourSource ?? { type: 'natural' },
             inventoryItemIds: Array.isArray(data.inventoryItemIds) ? data.inventoryItemIds : [],
-            treasureType: typeof data.treasureType === 'string'
-              ? data.treasureType
-              : (typeof data.stats === 'object' && data.stats !== null && typeof (data.stats as Record<string, string>).tt === 'string'
-                ? (data.stats as Record<string, string>).tt
-                : ''),
+            treasureTypes: Array.isArray(data.treasureTypes)
+              ? data.treasureTypes.map((entry) => {
+                  const code = typeof entry?.code === 'string'
+                    ? entry.code
+                    : (typeof entry?.type === 'string' ? entry.type : '')
+                  return {
+                    id: typeof entry?.id === 'string' ? entry.id : crypto.randomUUID(),
+                    code,
+                    treasureTableId: typeof entry?.treasureTableId === 'string'
+                      ? entry.treasureTableId
+                      : (code && code !== 'None' ? (oseTreasureTypeByCode[code]?.id ?? null) : null),
+                    notes: typeof entry?.notes === 'string' ? entry.notes : '',
+                  }
+                })
+              : (typeof data.treasureType === 'string' && data.treasureType
+                ? [newTreasureTypeEntry(data.treasureType)]
+                : (typeof data.stats === 'object' && data.stats !== null && typeof (data.stats as Record<string, string>).tt === 'string' && (data.stats as Record<string, string>).tt
+                  ? [newTreasureTypeEntry((data.stats as Record<string, string>).tt)]
+                  : [])),
           } as MonsterRecord
         })
 
@@ -834,6 +870,41 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
     })
   }
 
+  const addTreasureType = () => {
+    if (!selectedMonster) return
+    updateSelectedMonster({
+      treasureTypes: [...selectedMonster.treasureTypes, newTreasureTypeEntry()],
+    })
+  }
+
+  const removeTreasureType = (entryId: string) => {
+    if (!selectedMonster) return
+    updateSelectedMonster({
+      treasureTypes: selectedMonster.treasureTypes.filter((entry) => entry.id !== entryId),
+    })
+  }
+
+  const updateTreasureType = (entryId: string, updates: Partial<TreasureTypeEntry>) => {
+    if (!selectedMonster) return
+    updateSelectedMonster({
+      treasureTypes: selectedMonster.treasureTypes.map((entry) =>
+        entry.id === entryId
+          ? {
+              ...entry,
+              ...updates,
+              ...(typeof updates.code === 'string'
+                ? {
+                    treasureTableId: updates.code && updates.code !== 'None'
+                      ? (oseTreasureTypeByCode[updates.code]?.id ?? null)
+                      : null,
+                  }
+                : {}),
+            }
+          : entry,
+      ),
+    })
+  }
+
   const removeMvOther = (entryId: string) => {
     if (!selectedMonster) return
     updateSelectedMonster({ mvOther: selectedMonster.mvOther.filter((e) => e.id !== entryId) })
@@ -963,16 +1034,16 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
         if (key === 'hd') {
           const dice = monster.stats.hd_dice?.trim()
           if (!dice) return ''
+          if (dice === '1hp') return 'HD 1hp'
           const modRaw = monster.stats.hd_mod?.trim()
-          const special = monster.stats.hd_special?.trim() ?? ''
-          let display = dice
+          let display = dice === '0.5' ? '½' : dice
           if (modRaw) {
             const modNum = parseInt(modRaw, 10)
             if (!isNaN(modNum) && modNum !== 0) {
               display += modNum > 0 ? `+${modNum}` : `${modNum}`
             }
           }
-          return `HD ${display}${special}`
+          return `HD ${display}`
         }
         if (key === 'mv') {
           const land = monster.stats.mv_land?.trim()
@@ -1041,43 +1112,55 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
 
           <div className="monster-list-grid">
             {sortedMonsters.map((monster) => (
-              <button
+              <div
                 key={monster.id}
-                type="button"
                 className={monster.id === selectedMonsterId ? 'monster-list-item active' : 'monster-list-item'}
-                onClick={() => {
-                  setSelectedMonsterId(monster.id)
-                  if (isMobile) setMobileMonsterView('detail')
-                }}
               >
-                <div className="monster-card-portrait">
-                  {monster.portraitUrl ? (
-                    <img
-                      src={monster.portraitUrl}
-                      alt={`${monster.name} portrait`}
-                      className="monster-portrait"
-                      style={{ objectPosition: portraitObjectPosition(monster) }}
-                    />
-                  ) : (
-                    <div className="monster-portrait-empty small">
-                      <UserRound size={14} />
-                    </div>
-                  )}
-                </div>
-
-                <div className="monster-card-main">
-                  <h4>{monster.name || 'Unnamed Monster'}</h4>
-                  <p className="monster-card-statline">{monsterStatline(monster) || 'No stats yet'}</p>
-                  <div className="monster-card-token-row">
-                    <Shield size={14} />
-                    <TokenPawnPreview
-                      color={monster.tokenIcon.color}
-                      size={18}
-                      imageUrl={monster.tokenIcon.icon === 'custom' ? monster.tokenIcon.customImageUrl : undefined}
-                    />
+                <button
+                  type="button"
+                  className="monster-card-select"
+                  onClick={() => {
+                    setSelectedMonsterId(monster.id)
+                    if (isMobile) setMobileMonsterView('detail')
+                  }}
+                >
+                  <div className="monster-card-portrait">
+                    {monster.portraitUrl ? (
+                      <img
+                        src={monster.portraitUrl}
+                        alt={`${monsterDisplayName(monster)} portrait`}
+                        className="monster-portrait"
+                        style={{ objectPosition: portraitObjectPosition(monster) }}
+                      />
+                    ) : (
+                      <div className="monster-portrait-empty small">
+                        <UserRound size={14} />
+                      </div>
+                    )}
                   </div>
-                </div>
-              </button>
+
+                  <div className="monster-card-main">
+                    <h4>{monsterDisplayName(monster)}</h4>
+                    <p className="monster-card-statline">{monsterStatline(monster) || 'No stats yet'}</p>
+                    <div className="monster-card-token-row">
+                      <Shield size={14} />
+                      <TokenPawnPreview
+                        color={monster.tokenIcon.color}
+                        size={18}
+                        imageUrl={monster.tokenIcon.icon === 'custom' ? monster.tokenIcon.customImageUrl : undefined}
+                      />
+                    </div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  className="map-delete-btn"
+                  onClick={() => deleteMonster(monster.id)}
+                  aria-label={`Delete ${monsterDisplayName(monster)}`}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
             ))}
           </div>
         </aside>
@@ -1118,30 +1201,74 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
                 <div className="monster-editor-fields monster-identity-column">
                   <h3 className="monster-section-title">Identity</h3>
                   <div className="monster-identity-grid">
+                    <label className="monster-identity-type">
+                      Type
+                      <select
+                        value={selectedMonster.typeId}
+                        onChange={(event) => {
+                          const id = event.target.value
+                          if (id === 'custom') {
+                            updateSelectedMonster({ typeId: 'custom', typeName: '' })
+                          } else {
+                            const patch = applyMonsterTemplate(id)
+                            if (patch) updateSelectedMonster(patch)
+                          }
+                        }}
+                      >
+                        <option value="custom">Custom</option>
+                        {OSE_MONSTER_CATALOG.map((m) => (
+                          <option key={m.id} value={m.id}>{m.name}</option>
+                        ))}
+                      </select>
+                    </label>
+
+                    {selectedMonster.typeId === 'custom' ? (
+                      <label className="monster-identity-name">
+                        Type Name
+                        <input
+                          type="text"
+                          value={selectedMonster.typeName}
+                          onChange={(event) => {
+                            const nextTypeName = event.target.value
+                            const oldDisplayName = monsterDisplayName(selectedMonster)
+                            const tokenIcon = selectedMonster.tokenIcon
+                            const shouldSyncIconName =
+                              tokenIcon.icon === 'custom' &&
+                              (!!tokenIcon.customImageUrl &&
+                                (!tokenIcon.customImageName || tokenIcon.customImageName === oldDisplayName))
+                            updateSelectedMonster({
+                              typeName: nextTypeName,
+                              tokenIcon: shouldSyncIconName
+                                ? { ...tokenIcon, customImageName: nextTypeName.trim() }
+                                : tokenIcon,
+                            })
+                          }}
+                          placeholder="Mushroom Golem"
+                        />
+                      </label>
+                    ) : null}
+
                     <label className="monster-identity-name">
-                      Monster Name
+                      Name
                       <input
                         type="text"
                         value={selectedMonster.name}
                         onChange={(event) => {
                           const nextName = event.target.value
-                          const oldName = selectedMonster.name
+                          const oldDisplayName = monsterDisplayName(selectedMonster)
                           const tokenIcon = selectedMonster.tokenIcon
                           const shouldSyncIconName =
                             tokenIcon.icon === 'custom' &&
                             (!!tokenIcon.customImageUrl &&
-                              (!tokenIcon.customImageName || tokenIcon.customImageName === oldName))
+                              (!tokenIcon.customImageName || tokenIcon.customImageName === oldDisplayName))
                           updateSelectedMonster({
                             name: nextName,
                             tokenIcon: shouldSyncIconName
-                              ? {
-                                  ...tokenIcon,
-                                  customImageName: nextName.trim(),
-                                }
+                              ? { ...tokenIcon, customImageName: nextName.trim() }
                               : tokenIcon,
                           })
                         }}
-                        placeholder="Basilisk"
+                        placeholder={selectedMonster.typeName ? `e.g. Griknak the Foul` : 'Basilisk'}
                       />
                     </label>
 
@@ -1177,7 +1304,7 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
                   ) : null}
                 </div>
                 <EntityMediaEditor
-                  entityName={selectedMonster.name || 'monster'}
+                  entityName={monsterDisplayName(selectedMonster)}
                   portraitUrl={selectedMonster.portraitUrl}
                   portraitFocusX={selectedMonster.portraitFocusX}
                   portraitFocusY={selectedMonster.portraitFocusY}
@@ -1831,17 +1958,49 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
                 </div>
 
                 {/* Treasure Type */}
-                <label className="monster-tt-field">
-                  <span className="monster-stat-label">Treasure Type</span>
-                  <select
-                    value={selectedMonster.treasureType}
-                    onChange={(e) => updateSelectedMonster({ treasureType: e.target.value })}
-                    aria-label="Treasure Type"
-                  >
-                    <option value="">—</option>
-                    {ttOptions.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </label>
+                <div className="monster-tt-field">
+                  <div className="monster-inventory-header">
+                    <span className="monster-stat-label">Treasure Types</span>
+                    <button type="button" className="icon-btn add-btn" onClick={addTreasureType} aria-label="Add treasure type">
+                      <Plus size={12} />
+                    </button>
+                  </div>
+                  {selectedMonster.treasureTypes.length === 0 ? (
+                    <p className="monster-inventory-empty">No treasure types.</p>
+                  ) : (
+                    selectedMonster.treasureTypes.map((entry) => (
+                      <div key={entry.id} className="mv-other-row">
+                        <select
+                          className="mv-other-type"
+                          value={entry.code}
+                          onChange={(e) => updateTreasureType(entry.id, { code: e.target.value })}
+                          aria-label="Treasure Type"
+                        >
+                          <option value="">—</option>
+                          {ttOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                        {selectedMonster.treasureTypes.length > 1 && (
+                          <input
+                            type="text"
+                            className="tt-notes"
+                            value={entry.notes}
+                            placeholder="Conditions..."
+                            onChange={(e) => updateTreasureType(entry.id, { notes: e.target.value })}
+                            aria-label="Treasure Type notes"
+                          />
+                        )}
+                        <button
+                          type="button"
+                          className="icon-btn mv-other-remove-btn"
+                          onClick={() => removeTreasureType(entry.id)}
+                          aria-label="Remove treasure type"
+                        >
+                          <X size={10} />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
               </section>
 
               <label>

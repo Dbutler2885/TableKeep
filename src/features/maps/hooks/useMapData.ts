@@ -429,16 +429,17 @@ export function useMapData({
         snap.docs
           .map((d) => {
             const data = d.data()
+            const name = (typeof data.name === 'string' && data.name)
+              || (typeof data.typeName === 'string' && data.typeName)
+              || ''
             return {
               id: d.id,
-              name: typeof data.name === 'string' ? data.name : '',
+              name,
               tokenIcon: data.tokenIcon
                 ? (data.tokenIcon as TokenIconConfig)
                 : { icon: 'pawn' as const, color: '#bf2f2a', size: 34 },
             }
           })
-          // Only surface monsters that have a custom token image configured.
-          .filter((m) => m.tokenIcon.icon === 'custom' && !!(m.tokenIcon.customImagePath || m.tokenIcon.customImageUrl))
           .sort((a, b) => a.name.localeCompare(b.name))
       )
     })

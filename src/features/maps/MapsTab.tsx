@@ -72,6 +72,7 @@ import {
   FOG_CANVAS_MAX_DIM,
   TOKEN_REFERENCE_DIMENSION,
   TOKEN_RENDER_SIZE_MAX,
+  TOKEN_SIZE_MIN,
   TOKEN_SIZE_MAX,
   TOKEN_VIEW_DISTANCE_MAX,
   TOKEN_VIEW_DISTANCE_MIN,
@@ -3169,7 +3170,7 @@ function GmMapControls({
             return (
               <TokenIconEditor
                 className="map-token-icon-editor"
-                minSize={16}
+                minSize={TOKEN_SIZE_MIN}
                 maxSize={TOKEN_SIZE_MAX}
                 value={{ icon: selectedTokenAssetId ? 'custom' : 'pawn', color: tokenColor, size: tokenSize } satisfies TokenIconConfig}
                 onChange={(next) => {
@@ -3420,7 +3421,7 @@ function GmMapControls({
                               icon={<ALargeSmall size={14} />}
                               tooltip="Token Size"
                               value={token.size}
-                              min={16}
+                              min={TOKEN_SIZE_MIN}
                               max={TOKEN_SIZE_MAX}
                               step={1}
                               ariaLabel={`${group.label} token ${index + 1} size`}

@@ -74,12 +74,17 @@ const resolveQty = (qty?: TableQty): number => {
 
 const makeTable = (): TableRecord => {
   const dice = { count: 1, sides: 6 }
+  const min = dice.count
   return {
     id: crypto.randomUUID(),
     name: 'New Table',
     tags: [],
     dice,
-    rows: Array.from({ length: rowCount(dice) }, () => ({ blocks: [] })),
+    rows: Array.from({ length: rowCount(dice) }, (_, i) => ({
+      rangeMin: min + i,
+      rangeMax: min + i,
+      blocks: [],
+    })),
     createdAt: null,
     updatedAt: null,
   }
@@ -134,6 +139,8 @@ export function TablesTab({ campaignId }: TablesTabProps) {
   const [editingRowIdx, setEditingRowIdx] = useState<number | null>(null)
   const [diceSidesCustomMode, setDiceSidesCustomMode] = useState(false)
   const previousSelectedTableIdRef = useRef('')
+  // Range input draft text (allows intermediate states like empty string while typing)
+  const [rangeDrafts, setRangeDrafts] = useState<Record<string, string>>({})
   // Copy-to-rows mode: source row index + set of target row indices
   const [copySourceIdx, setCopySourceIdx] = useState<number | null>(null)
   const [copyTargets, setCopyTargets] = useState<Set<number>>(new Set())
@@ -315,8 +322,7 @@ export function TablesTab({ campaignId }: TablesTabProps) {
 
   const performRoll = (table: TableRecord) => {
     const roll = rollDice(table.dice.count, table.dice.sides)
-    const rowIdx = roll - minResult(table.dice)
-    const row = table.rows[rowIdx]
+    const row = table.rows.find((r) => roll >= r.rangeMin && roll <= r.rangeMax)
     if (!row) return
 
     const resolvedBlocks: ResolvedBlock[] = row.blocks.map((block) => {
@@ -380,8 +386,7 @@ export function TablesTab({ campaignId }: TablesTabProps) {
       if (!nestedTable) return
 
       const roll = rollDice(nestedTable.dice.count, nestedTable.dice.sides)
-      const rowIdx = roll - minResult(nestedTable.dice)
-      const row = nestedTable.rows[rowIdx]
+      const row = nestedTable.rows.find((r) => roll >= r.rangeMin && roll <= r.rangeMax)
       if (!row) return
 
       const resolvedBlocks: ResolvedBlock[] = row.blocks.map((block) => {
@@ -442,13 +447,33 @@ export function TablesTab({ campaignId }: TablesTabProps) {
   const handleDiceChange = (field: 'count' | 'sides', value: number) => {
     if (!selectedTable) return
     const newDice = { ...selectedTable.dice, [field]: value }
-    const newRowCount = rowCount(newDice)
-    const currentRows = selectedTable.rows
-    const newRows = Array.from({ length: newRowCount }, (_, i) =>
-      currentRows[i] ?? { blocks: [] },
-    )
+    const newMin = newDice.count
+    const newMax = newDice.count * newDice.sides
+    // Rebuild entries: keep entries whose ranges still fit, drop those out of range
+    const kept = selectedTable.rows.filter((r) => r.rangeMin <= newMax && r.rangeMax >= newMin)
+    // Clamp kept entries to new bounds
+    const clamped = kept.map((r) => ({
+      ...r,
+      rangeMin: Math.max(r.rangeMin, newMin),
+      rangeMax: Math.min(r.rangeMax, newMax),
+    }))
+    // Fill gaps with empty single-number entries
+    const newRows: typeof clamped = []
+    let cursor = newMin
+    for (const entry of clamped.sort((a, b) => a.rangeMin - b.rangeMin)) {
+      // Fill gap before this entry
+      for (let n = cursor; n < entry.rangeMin; n++) {
+        newRows.push({ rangeMin: n, rangeMax: n, blocks: [] })
+      }
+      newRows.push(entry)
+      cursor = entry.rangeMax + 1
+    }
+    // Fill gap after last entry
+    for (let n = cursor; n <= newMax; n++) {
+      newRows.push({ rangeMin: n, rangeMax: n, blocks: [] })
+    }
     updateTable(selectedTable.id, { dice: newDice, rows: newRows })
-    if (editingRowIdx !== null && editingRowIdx >= newRowCount) {
+    if (editingRowIdx !== null && editingRowIdx >= newRows.length) {
       setEditingRowIdx(null)
     }
   }
@@ -465,7 +490,7 @@ export function TablesTab({ campaignId }: TablesTabProps) {
     }
     const row = selectedTable.rows[rowIdx]
     const newRows = [...selectedTable.rows]
-    newRows[rowIdx] = { blocks: [...row.blocks, newBlock] }
+    newRows[rowIdx] = { ...row, blocks: [...row.blocks, newBlock] }
     updateTable(selectedTable.id, { rows: newRows })
   }
 
@@ -475,7 +500,7 @@ export function TablesTab({ campaignId }: TablesTabProps) {
     const newBlocks = [...row.blocks]
     newBlocks[blockIdx] = block
     const newRows = [...selectedTable.rows]
-    newRows[rowIdx] = { blocks: newBlocks }
+    newRows[rowIdx] = { ...row, blocks: newBlocks }
     updateTable(selectedTable.id, { rows: newRows })
   }
 
@@ -483,7 +508,7 @@ export function TablesTab({ campaignId }: TablesTabProps) {
     if (!selectedTable) return
     const row = selectedTable.rows[rowIdx]
     const newRows = [...selectedTable.rows]
-    newRows[rowIdx] = { blocks: row.blocks.filter((_, i) => i !== blockIdx) }
+    newRows[rowIdx] = { ...row, blocks: row.blocks.filter((_, i) => i !== blockIdx) }
     updateTable(selectedTable.id, { rows: newRows })
   }
 
@@ -495,7 +520,7 @@ export function TablesTab({ campaignId }: TablesTabProps) {
     const newBlocks = [...row.blocks]
     ;[newBlocks[blockIdx], newBlocks[newIdx]] = [newBlocks[newIdx], newBlocks[blockIdx]]
     const newRows = [...selectedTable.rows]
-    newRows[rowIdx] = { blocks: newBlocks }
+    newRows[rowIdx] = { ...row, blocks: newBlocks }
     updateTable(selectedTable.id, { rows: newRows })
   }
 
@@ -523,10 +548,99 @@ export function TablesTab({ campaignId }: TablesTabProps) {
     const sourceBlocks = selectedTable.rows[copySourceIdx].blocks
     const newRows = [...selectedTable.rows]
     for (const idx of copyTargets) {
-      newRows[idx] = { blocks: sourceBlocks.map((b) => ({ ...b })) }
+      newRows[idx] = { ...newRows[idx], blocks: sourceBlocks.map((b) => ({ ...b })) }
     }
     updateTable(selectedTable.id, { rows: newRows })
     cancelCopyMode()
+  }
+
+  // Range editing
+  const handleRangeChange = (entryIdx: number, newMin: number, newMax: number) => {
+    if (!selectedTable) return
+    const diceMin = minResult(selectedTable.dice)
+    const diceMax = diceMin + rowCount(selectedTable.dice) - 1
+    // Clamp to dice bounds
+    newMin = Math.max(diceMin, Math.min(newMin, diceMax))
+    newMax = Math.max(newMin, Math.min(newMax, diceMax))
+
+    const entry = selectedTable.rows[entryIdx]
+    const oldMin = entry.rangeMin
+    const oldMax = entry.rangeMax
+
+    if (newMin === oldMin && newMax === oldMax) return
+
+    // --- Expansion: absorb entries that fall within the new range ---
+    const absorbed = selectedTable.rows
+      .map((r, i) => ({ r, i }))
+      .filter(({ r, i }) => i !== entryIdx && r.rangeMin >= newMin && r.rangeMax <= newMax)
+
+    const absorbedWithContent = absorbed.filter(({ r }) => r.blocks.length > 0)
+
+    if (absorbedWithContent.length > 0) {
+      const count = absorbedWithContent.length
+      if (!window.confirm(`This will delete content from ${count} ${count === 1 ? 'entry' : 'entries'} absorbed into this range. Continue?`)) {
+        return
+      }
+    }
+
+    const absorbedIndices = new Set(absorbed.map(({ i }) => i))
+    const updatedRows = selectedTable.rows
+      .filter((_, i) => !absorbedIndices.has(i))
+      .map((r) => {
+        if (r === entry) return { ...r, rangeMin: newMin, rangeMax: newMax }
+        return r
+      })
+
+    // --- Contraction: re-create entries for numbers that are no longer covered ---
+    const newEntries: typeof updatedRows = []
+    // If rangeMin increased, add back entries for oldMin..newMin-1
+    if (newMin > oldMin) {
+      for (let n = oldMin; n < newMin; n++) {
+        newEntries.push({ rangeMin: n, rangeMax: n, blocks: [] })
+      }
+    }
+    // If rangeMax decreased, add back entries for newMax+1..oldMax
+    if (newMax < oldMax) {
+      for (let n = newMax + 1; n <= oldMax; n++) {
+        newEntries.push({ rangeMin: n, rangeMax: n, blocks: [] })
+      }
+    }
+
+    const newRows = [...updatedRows, ...newEntries].sort((a, b) => a.rangeMin - b.rangeMin)
+
+    updateTable(selectedTable.id, { rows: newRows })
+    // Adjust editingRowIdx if needed
+    if (editingRowIdx !== null) {
+      const editedEntry = selectedTable.rows[editingRowIdx]
+      const found = newRows.findIndex((r) => r === editedEntry || (r === entry && editingRowIdx === entryIdx))
+      if (absorbedIndices.has(editingRowIdx)) {
+        setEditingRowIdx(null)
+      } else if (found !== -1) {
+        setEditingRowIdx(found)
+      } else {
+        // Row may have shifted position due to new entries
+        const updatedEntry = entryIdx === editingRowIdx
+          ? newRows.find((r) => r.rangeMin === newMin && r.rangeMax === newMax)
+          : newRows.find((r) => r === editedEntry)
+        setEditingRowIdx(updatedEntry ? newRows.indexOf(updatedEntry) : null)
+      }
+    }
+  }
+
+  // Arrow keys on range inputs: down=increase (toward higher row numbers in table)
+  const handleRangeMinKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, rowIdx: number, row: { rangeMin: number; rangeMax: number }) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      const step = e.key === 'ArrowDown' ? 1 : -1
+      handleRangeChange(rowIdx, row.rangeMin + step, row.rangeMax)
+    }
+  }
+  const handleRangeMaxKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, rowIdx: number, row: { rangeMin: number; rangeMax: number }) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      const step = e.key === 'ArrowDown' ? 1 : -1
+      handleRangeChange(rowIdx, row.rangeMin, row.rangeMax + step)
+    }
   }
 
   // Tag management
@@ -1296,18 +1410,22 @@ export function TablesTab({ campaignId }: TablesTabProps) {
                     </>
                   )}
                   <span className="table-dice-info">
-                    = {rowCount(selectedTable.dice)} rows ({minResult(selectedTable.dice)}-{minResult(selectedTable.dice) + rowCount(selectedTable.dice) - 1})
+                    = {selectedTable.rows.length} {selectedTable.rows.length === 1 ? 'entry' : 'entries'} ({minResult(selectedTable.dice)}-{minResult(selectedTable.dice) + rowCount(selectedTable.dice) - 1})
                   </span>
                 </div>
 
-                {/* Row grid — every row listed individually */}
+                {/* Row grid — entries with range labels */}
                 <div className="table-row-grid">
                   {selectedTable.rows.map((row, rowIdx) => {
-                    const resultNum = rowIdx + minResult(selectedTable.dice)
+                    const rangeLabel = row.rangeMin === row.rangeMax
+                      ? String(row.rangeMin)
+                      : `${row.rangeMin}-${row.rangeMax}`
                     const hasBlocks = row.blocks.length > 0
                     const isCopySource = copySourceIdx === rowIdx
                     const isCopyTarget = copyTargets.has(rowIdx)
                     const inCopyMode = copySourceIdx !== null
+                    const diceMin = minResult(selectedTable.dice)
+                    const diceMax = diceMin + rowCount(selectedTable.dice) - 1
 
                     return (
                       <div
@@ -1327,7 +1445,7 @@ export function TablesTab({ campaignId }: TablesTabProps) {
                               disabled={isCopySource}
                               onChange={() => toggleCopyTarget(rowIdx)}
                             />
-                            <span className="table-row-number">{resultNum}</span>
+                            <span className="table-row-number">{rangeLabel}</span>
                             <div className="table-row-blocks-preview">
                               {hasBlocks
                                 ? row.blocks.map((block, bi) => {
@@ -1350,7 +1468,7 @@ export function TablesTab({ campaignId }: TablesTabProps) {
                             className="table-row-label"
                             onClick={() => setEditingRowIdx(rowIdx)}
                           >
-                            <span className="table-row-number">{resultNum}</span>
+                            <span className="table-row-number">{rangeLabel}</span>
                             <div className="table-row-blocks-preview">
                               {hasBlocks
                                 ? row.blocks.map((block, bi) => {
@@ -1383,7 +1501,7 @@ export function TablesTab({ campaignId }: TablesTabProps) {
                               onClick={(e) => {
                                 e.stopPropagation()
                                 const newRows = [...selectedTable.rows]
-                                newRows[rowIdx] = { blocks: [] }
+                                newRows[rowIdx] = { ...selectedTable.rows[rowIdx], blocks: [] }
                                 updateTable(selectedTable.id, { rows: newRows })
                               }}
                               aria-label="Clear row"
@@ -1392,6 +1510,42 @@ export function TablesTab({ campaignId }: TablesTabProps) {
                             </button>
                           </div>
                         ) : null}
+                        {/* Editable range — after the row content */}
+                        <div className="table-row-range" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            className="table-range-input"
+                            value={rangeDrafts[`${rowIdx}-min`] ?? row.rangeMin}
+                            onChange={(e) => {
+                              const text = e.target.value
+                              setRangeDrafts((d) => ({ ...d, [`${rowIdx}-min`]: text }))
+                              const val = parseInt(text, 10)
+                              if (!isNaN(val)) handleRangeChange(rowIdx, val, row.rangeMax)
+                            }}
+                            onFocus={() => setRangeDrafts((d) => ({ ...d, [`${rowIdx}-min`]: String(row.rangeMin) }))}
+                            onBlur={() => setRangeDrafts((d) => { const next = { ...d }; delete next[`${rowIdx}-min`]; return next })}
+                            onKeyDown={(e) => handleRangeMinKeyDown(e, rowIdx, row)}
+                            aria-label="Range min"
+                          />
+                          <span className="table-range-sep">-</span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            className="table-range-input"
+                            value={rangeDrafts[`${rowIdx}-max`] ?? row.rangeMax}
+                            onChange={(e) => {
+                              const text = e.target.value
+                              setRangeDrafts((d) => ({ ...d, [`${rowIdx}-max`]: text }))
+                              const val = parseInt(text, 10)
+                              if (!isNaN(val)) handleRangeChange(rowIdx, row.rangeMin, val)
+                            }}
+                            onFocus={() => setRangeDrafts((d) => ({ ...d, [`${rowIdx}-max`]: String(row.rangeMax) }))}
+                            onBlur={() => setRangeDrafts((d) => { const next = { ...d }; delete next[`${rowIdx}-max`]; return next })}
+                            onKeyDown={(e) => handleRangeMaxKeyDown(e, rowIdx, row)}
+                            aria-label="Range max"
+                          />
+                        </div>
                       </div>
                     )
                   })}
@@ -1401,7 +1555,7 @@ export function TablesTab({ campaignId }: TablesTabProps) {
                 {copySourceIdx !== null ? (
                   <div className="table-copy-bar">
                     <span>
-                      Copy row {copySourceIdx + minResult(selectedTable.dice)} to {copyTargets.size} row{copyTargets.size !== 1 ? 's' : ''}
+                      Copy entry {copySourceIdx !== null && selectedTable.rows[copySourceIdx] ? (() => { const r = selectedTable.rows[copySourceIdx]; return r.rangeMin === r.rangeMax ? r.rangeMin : `${r.rangeMin}-${r.rangeMax}` })() : ''} to {copyTargets.size} {copyTargets.size !== 1 ? 'entries' : 'entry'}
                     </span>
                     <div className="table-copy-bar-actions">
                       <button type="button" onClick={cancelCopyMode}>Cancel</button>
@@ -1522,13 +1676,13 @@ export function TablesTab({ campaignId }: TablesTabProps) {
       {/* Row edit modal */}
       {editingRowIdx !== null && selectedTable ? (() => {
         const row = selectedTable.rows[editingRowIdx]
-        const resultNum = editingRowIdx + minResult(selectedTable.dice)
+        const rangeLabel = row.rangeMin === row.rangeMax ? String(row.rangeMin) : `${row.rangeMin}-${row.rangeMax}`
         if (!row) { setEditingRowIdx(null); return null }
         return (
           <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={() => setEditingRowIdx(null)}>
             <div className="confirm-modal table-row-modal" onClick={(e) => e.stopPropagation()}>
               <div className="table-row-modal-header">
-                <h3>Row {resultNum}</h3>
+                <h3>Entry {rangeLabel}</h3>
                 <button type="button" className="map-edit-btn" onClick={() => setEditingRowIdx(null)} aria-label="Close">
                   <X size={16} />
                 </button>

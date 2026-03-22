@@ -56,6 +56,8 @@ export type TableBlock =
   | { type: 'text'; content: string }
 
 export type TableRow = {
+  rangeMin: number
+  rangeMax: number
   blocks: TableBlock[]
 }
 

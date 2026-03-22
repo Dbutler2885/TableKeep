@@ -1,5 +1,6 @@
 export const TOKEN_REFERENCE_DIMENSION = 900
 export const DEFAULT_TOKEN_VIEW_DISTANCE = 120
+export const TOKEN_SIZE_MIN = 8
 export const TOKEN_SIZE_MAX = 220
 export const TOKEN_RENDER_SIZE_MAX = 720
 export const FOG_BRUSH_SIZE_MIN = 1

@@ -40,16 +40,20 @@ const normalizeBlock = (value: unknown): TableBlock | null => {
   }
 }
 
-const normalizeRows = (value: unknown): TableRow[] => {
+const normalizeRows = (value: unknown, diceCount: number, diceSides: number): TableRow[] => {
   if (!Array.isArray(value)) return []
-  return value.map((row) => {
-    if (!row || typeof row !== 'object') return { blocks: [] }
+  const minResult = diceCount
+  const rows = value.map((row, i) => {
+    if (!row || typeof row !== 'object') return { rangeMin: minResult + i, rangeMax: minResult + i, blocks: [] }
     const src = row as Record<string, unknown>
     const blocks = Array.isArray(src.blocks)
       ? src.blocks.map(normalizeBlock).filter((b): b is TableBlock => b !== null)
       : []
-    return { blocks }
+    const rangeMin = typeof src.rangeMin === 'number' ? src.rangeMin : minResult + i
+    const rangeMax = typeof src.rangeMax === 'number' ? src.rangeMax : rangeMin
+    return { rangeMin, rangeMax, blocks }
   })
+  return rows
 }
 
 const normalizeTableRecord = (id: string, data: Record<string, unknown>): TableRecord => {
@@ -59,12 +63,17 @@ const normalizeTableRecord = (id: string, data: Record<string, unknown>): TableR
   const diceCount = typeof dice.count === 'number' ? dice.count : 1
   const diceSides = typeof dice.sides === 'number' ? dice.sides : 6
   const expectedRows = diceSides * diceCount - diceCount + 1
+  const minResult = diceCount
 
-  const rawRows = normalizeRows(data.rows)
-  // Pad or truncate rows to match dice formula
-  const rows: TableRow[] = Array.from({ length: expectedRows }, (_, i) =>
-    rawRows[i] ?? { blocks: [] },
-  )
+  let rows = normalizeRows(data.rows, diceCount, diceSides)
+  // If no rows exist (new table) or rows lack range fields (legacy), generate defaults
+  if (rows.length === 0) {
+    rows = Array.from({ length: expectedRows }, (_, i) => ({
+      rangeMin: minResult + i,
+      rangeMax: minResult + i,
+      blocks: [],
+    }))
+  }
 
   return {
     id,

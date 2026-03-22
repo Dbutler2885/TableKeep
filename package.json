@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "ose:monsters:fetch-raw": "node scripts/fetch-ose-monsters-raw.mjs",
     "ose:treasure:fetch": "node scripts/fetch-ose-treasure-types.mjs",
     "ose:cleric:fetch": "node scripts/fetch-ose-cleric-spells.mjs",
     "ose:magic-user:fetch": "node scripts/fetch-ose-magic-user-spells.mjs",
