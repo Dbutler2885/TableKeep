@@ -7956,6 +7956,69 @@ button:disabled {
   color: var(--text-muted);
 }
 
+.session-text-edit-btn {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--panel-elevated, var(--bg));
+  color: var(--text-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.03);
+}
+
+.session-text-edit-btn:hover {
+  border-color: var(--text-color);
+}
+
+.session-inline-editor {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.session-inline-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--panel-elevated, var(--bg));
+  color: var(--text-color);
+  font: inherit;
+}
+
+.session-inline-textarea {
+  resize: vertical;
+}
+
+.session-inline-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.session-heading-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.session-editable-inline-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.session-note-title-input {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
 .session-note-summary p {
   margin: 0 0 0.5rem;
   line-height: 1.5;
@@ -7974,6 +8037,13 @@ button:disabled {
   border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 0.5rem 0.75rem;
+}
+
+.session-scene-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .session-scene-header {

@@ -16,7 +16,7 @@ type NotesTabProps = {
 export function NotesTab({ campaignId, role }: NotesTabProps) {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list')
-  const { notes, notesLoading, addNote, deleteNote } = useSessionNotes(campaignId)
+  const { notes, notesLoading, addNote, updateNote, deleteNote } = useSessionNotes(campaignId)
   const [selectedNoteId, setSelectedNoteId] = useState('')
   const [importerOpen, setImporterOpen] = useState(false)
   const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null)
@@ -173,7 +173,7 @@ export function NotesTab({ campaignId, role }: NotesTabProps) {
             {!selectedNote ? (
               <p className="map-npc-scene-empty">Select a session from the list.</p>
             ) : (
-              <SessionNoteDetail note={selectedNote} />
+              <SessionNoteDetail note={selectedNote} role={role} onUpdate={updateNote} />
             )}
           </div>
         </div>

@@ -25,6 +25,16 @@ export type SessionCalendarEntry = {
   entries: string[]
 }
 
+export type SessionNoteGeneratedSnapshot = {
+  title: string
+  summaryMarkdown: string
+  overallSummary: string
+  scenes: SessionScene[]
+  npcMentions: SessionNpcMention[]
+  cliffhangers: string[]
+  calendar: SessionCalendarEntry[]
+}
+
 export type SessionNote = {
   id: string
   title: string
@@ -38,6 +48,10 @@ export type SessionNote = {
   npcMentions: SessionNpcMention[]
   cliffhangers: string[]
   calendar: SessionCalendarEntry[]
+  generatedSnapshot: SessionNoteGeneratedSnapshot | null
+  hasHumanEdits: boolean
+  editedAt: unknown
+  editedBy: string | null
 }
 
 export type AppTab = 'character' | 'maps' | 'monsters' | 'items' | 'npcs' | 'tables' | 'notes' | 'calendar' | 'rules'

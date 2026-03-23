@@ -125,6 +125,18 @@ export const postSessionSummary = onRequest(
       npcMentions,
       cliffhangers,
       calendar,
+      generatedSnapshot: {
+        title: title.trim(),
+        summaryMarkdown: typeof summaryMarkdown === 'string' ? summaryMarkdown : '',
+        overallSummary,
+        scenes,
+        npcMentions,
+        cliffhangers,
+        calendar,
+      },
+      hasHumanEdits: false,
+      editedAt: null,
+      editedBy: null,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     })

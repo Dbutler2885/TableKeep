@@ -1,7 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
-import type { SessionCalendarEntry, SessionNote, SessionNpcMention, SessionScene } from '../../types/app'
+import type {
+  SessionCalendarEntry,
+  SessionNote,
+  SessionNoteGeneratedSnapshot,
+  SessionNpcMention,
+  SessionScene,
+} from '../../types/app'
 
 const normalizeScenes = (value: unknown): SessionScene[] => {
   if (!Array.isArray(value)) return []
@@ -51,6 +57,26 @@ const normalizeCalendar = (value: unknown): SessionCalendarEntry[] => {
 }
 
 const normalizeSessionNote = (id: string, data: Record<string, unknown>): SessionNote => ({
+  generatedSnapshot: (() => {
+    const raw = data.generatedSnapshot
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+    const snapshot = raw as Record<string, unknown>
+    const normalized: SessionNoteGeneratedSnapshot = {
+      title: typeof snapshot.title === 'string' ? snapshot.title : '',
+      summaryMarkdown: typeof snapshot.summaryMarkdown === 'string' ? snapshot.summaryMarkdown : '',
+      overallSummary: typeof snapshot.overallSummary === 'string' ? snapshot.overallSummary : '',
+      scenes: normalizeScenes(snapshot.scenes),
+      npcMentions: normalizeNpcMentions(snapshot.npcMentions),
+      cliffhangers: Array.isArray(snapshot.cliffhangers)
+        ? snapshot.cliffhangers.filter((c): c is string => typeof c === 'string')
+        : [],
+      calendar: normalizeCalendar(snapshot.calendar),
+    }
+    return normalized
+  })(),
+  hasHumanEdits: data.hasHumanEdits === true,
+  editedAt: data.editedAt ?? null,
+  editedBy: typeof data.editedBy === 'string' ? data.editedBy : null,
   id,
   title: typeof data.title === 'string' ? data.title : '',
   sessionNumber: typeof data.sessionNumber === 'number' ? data.sessionNumber : null,

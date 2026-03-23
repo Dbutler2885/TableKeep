@@ -113,6 +113,18 @@ function parseAndNormalize(raw: string, npcs: NpcRecord[]): ParseResult {
     npcMentions,
     cliffhangers,
     calendar,
+    generatedSnapshot: {
+      title,
+      summaryMarkdown,
+      overallSummary,
+      scenes,
+      npcMentions,
+      cliffhangers,
+      calendar,
+    },
+    hasHumanEdits: false,
+    editedAt: null,
+    editedBy: null,
   }
 
   return { ok: true, note }

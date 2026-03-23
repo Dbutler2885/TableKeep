@@ -109,6 +109,18 @@ export const postSessionSummary = onRequest({ region: 'us-central1', secrets: [s
         npcMentions,
         cliffhangers,
         calendar,
+        generatedSnapshot: {
+            title: title.trim(),
+            summaryMarkdown: typeof summaryMarkdown === 'string' ? summaryMarkdown : '',
+            overallSummary,
+            scenes,
+            npcMentions,
+            cliffhangers,
+            calendar,
+        },
+        hasHumanEdits: false,
+        editedAt: null,
+        editedBy: null,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
     });
