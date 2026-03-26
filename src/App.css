@@ -2006,8 +2006,9 @@ button.character-item-add-btn:disabled {
   border-radius: 8px;
   padding: 0.35rem;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 56px minmax(0, 1fr);
   align-items: start;
+  gap: 0.5rem;
   background: #fff;
 }
 
@@ -2060,6 +2061,8 @@ button.character-item-add-btn:disabled {
 .monster-card-main h4 {
   margin: 0;
   font-size: 1rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .character-card-title-row {
@@ -2067,6 +2070,11 @@ button.character-item-add-btn:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 0.35rem;
+}
+
+.character-card-title-row h4 {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .character-current-badge {
