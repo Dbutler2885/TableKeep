@@ -681,7 +681,7 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
           armourClass: typeof armourStats?.armourClass === 'string' ? armourStats.armourClass : undefined,
           armourShieldMod: typeof armourStats?.shieldMod === 'string' ? armourStats.shieldMod : undefined,
           armourMagicMod: typeof armourStats?.magicMod === 'string' ? armourStats.magicMod : undefined,
-          armourType: armourStats?.armourType === 'body' || armourStats?.armourType === 'shield' ? armourStats.armourType : undefined,
+          armourType: armourStats?.armourType === 'body' || armourStats?.armourType === 'shield' ? armourStats.armourType as 'body' | 'shield' : undefined,
         }
       }).sort((a, b) => a.name.localeCompare(b.name))
       setCampaignItems(items)

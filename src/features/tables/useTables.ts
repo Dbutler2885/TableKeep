@@ -40,7 +40,7 @@ const normalizeBlock = (value: unknown): TableBlock | null => {
   }
 }
 
-const normalizeRows = (value: unknown, diceCount: number, diceSides: number): TableRow[] => {
+const normalizeRows = (value: unknown, diceCount: number): TableRow[] => {
   if (!Array.isArray(value)) return []
   const minResult = diceCount
   const rows = value.map((row, i) => {
@@ -65,7 +65,7 @@ const normalizeTableRecord = (id: string, data: Record<string, unknown>): TableR
   const expectedRows = diceSides * diceCount - diceCount + 1
   const minResult = diceCount
 
-  let rows = normalizeRows(data.rows, diceCount, diceSides)
+  let rows = normalizeRows(data.rows, diceCount)
   // If no rows exist (new table) or rows lack range fields (legacy), generate defaults
   if (rows.length === 0) {
     rows = Array.from({ length: expectedRows }, (_, i) => ({

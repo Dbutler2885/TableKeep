@@ -1424,9 +1424,6 @@ export function TablesTab({ campaignId }: TablesTabProps) {
                     const isCopySource = copySourceIdx === rowIdx
                     const isCopyTarget = copyTargets.has(rowIdx)
                     const inCopyMode = copySourceIdx !== null
-                    const diceMin = minResult(selectedTable.dice)
-                    const diceMax = diceMin + rowCount(selectedTable.dice) - 1
-
                     return (
                       <div
                         key={rowIdx}
