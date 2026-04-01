@@ -16,6 +16,7 @@ export function useCharacters(
   currentUsername: string,
   role: Role | null,
   setError: (message: string) => void,
+  enabled = true,
 ) {
   const [characters, setCharacters] = useState<CharacterRecord[]>([])
   const [charactersLoading, setCharactersLoading] = useState(false)
@@ -31,7 +32,7 @@ export function useCharacters(
   }, [characters])
 
   useEffect(() => {
-    if (!campaignId) {
+    if (!campaignId || !enabled) {
       setCurrentCharacterId(null)
       return
     }
@@ -50,10 +51,10 @@ export function useCharacters(
     )
 
     return () => unsub()
-  }, [campaignId, setError, userId])
+  }, [campaignId, enabled, setError, userId])
 
   useEffect(() => {
-    if (!campaignId) {
+    if (!campaignId || !enabled) {
       setActivePlayerIds([])
       return
     }
@@ -81,10 +82,14 @@ export function useCharacters(
     )
 
     return () => unsub()
-  }, [campaignId, setError])
+  }, [campaignId, enabled, setError])
 
   useEffect(() => {
-    if (!campaignId || !role) return
+    if (!campaignId || !role || !enabled) {
+      setCharacters([])
+      setCharactersLoading(false)
+      return
+    }
     setCharactersLoading(true)
 
     const unsub = onSnapshot(
@@ -223,7 +228,7 @@ export function useCharacters(
     return () => {
       unsub()
     }
-  }, [activePlayerIds, campaignId, currentCharacterId, currentUsername, role, userId, setError])
+  }, [activePlayerIds, campaignId, currentCharacterId, currentUsername, enabled, role, userId, setError])
 
   useEffect(() => {
     const charactersNeedingMedia = characters.filter((character) =>

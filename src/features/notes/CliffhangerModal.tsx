@@ -6,6 +6,7 @@ import { useSessionNotes } from './useSessionNotes'
 type CliffhangerModalProps = {
   campaignId: string
   userId: string
+  enabled?: boolean
 }
 
 const CLIFFHANGER_DELAY_DAYS = 3.5
@@ -18,13 +19,19 @@ function daysSince(timestamp: unknown): number {
   return (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24)
 }
 
-export function CliffhangerModal({ campaignId, userId }: CliffhangerModalProps) {
-  const { notes } = useSessionNotes(campaignId)
+export function CliffhangerModal({ campaignId, userId, enabled = true }: CliffhangerModalProps) {
+  const { notes } = useSessionNotes(campaignId, enabled)
   const [lastSeenId, setLastSeenId] = useState<string | null>(null)
   const [membershipLoaded, setMembershipLoaded] = useState(false)
   const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
+    if (!enabled) {
+      setLastSeenId(null)
+      setMembershipLoaded(false)
+      return
+    }
+
     const unsub = onSnapshot(
       doc(db, 'users', userId, 'campaignMemberships', campaignId),
       (snap) => {
@@ -37,7 +44,7 @@ export function CliffhangerModal({ campaignId, userId }: CliffhangerModalProps) 
       },
     )
     return () => unsub()
-  }, [campaignId, userId])
+  }, [campaignId, enabled, userId])
 
   // Find the latest note that has cliffhangers
   const latestWithCliffhangers = notes.find((note) => note.cliffhangers.length > 0) ?? null

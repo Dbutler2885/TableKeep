@@ -46,13 +46,19 @@ export function useItemApprovals(
   campaignId: string | null,
   role: Role | null,
   currentUserId: string,
+  enabled = true,
 ) {
   const [pendingRequests, setPendingRequests] = useState<ItemApprovalRequest[]>([])
   const [ownPendingRequests, setOwnPendingRequests] = useState<ItemApprovalRequest[]>([])
   const [rejections, setRejections] = useState<ItemApprovalRequest[]>([])
 
   useEffect(() => {
-    if (!campaignId) return
+    if (!campaignId || !enabled) {
+      setPendingRequests([])
+      setOwnPendingRequests([])
+      setRejections([])
+      return
+    }
 
     const col = collection(db, 'campaigns', campaignId, 'itemApprovals')
 
@@ -91,7 +97,7 @@ export function useItemApprovals(
       unsubPending()
       unsubRejected()
     }
-  }, [campaignId, role, currentUserId])
+  }, [campaignId, currentUserId, enabled, role])
 
   const submitRequest = async (
     action: ItemApprovalAction,

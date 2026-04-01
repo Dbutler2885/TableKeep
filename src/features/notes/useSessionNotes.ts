@@ -165,7 +165,7 @@ const backfillMissingSessionNumbers = (notes: SessionNote[]) => {
   return notes.map((note) => updates.get(note.id) ?? note)
 }
 
-export function useSessionNotes(campaignId: string) {
+export function useSessionNotes(campaignId: string, enabled = true) {
   const [notes, setNotes] = useState<SessionNote[]>([])
   const [notesLoading, setNotesLoading] = useState(false)
   const notesRef = useRef<SessionNote[]>([])
@@ -176,7 +176,11 @@ export function useSessionNotes(campaignId: string) {
   }, [notes])
 
   useEffect(() => {
-    if (!campaignId) return
+    if (!campaignId || !enabled) {
+      setNotes([])
+      setNotesLoading(false)
+      return
+    }
     setNotesLoading(true)
 
     const unsub = onSnapshot(
@@ -213,7 +217,7 @@ export function useSessionNotes(campaignId: string) {
     )
 
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, enabled])
 
   useEffect(() => {
     return () => {

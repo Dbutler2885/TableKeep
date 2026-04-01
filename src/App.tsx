@@ -18,6 +18,7 @@ import { AuthPanel } from './features/auth/AuthPanel'
 import { UsernameSetup } from './features/auth/UsernameSetup'
 import { CharacterTab } from './features/character/CharacterTab'
 import { RulesTab } from './features/common/RulesTab'
+import { useDocumentVisibility } from './features/common/useDocumentVisibility'
 import { MapsTab } from './features/maps/MapsTab'
 import { MonstersTab } from './features/monsters/MonstersTab'
 import { ItemsTab } from './features/items/ItemsTab'
@@ -144,9 +145,14 @@ function App() {
 function CampaignShell({ user, username }: { user: User, username: string }) {
   const location = useLocation()
   const activeTab = useMemo(() => tabFromPathname(location.pathname), [location.pathname])
+  const documentVisible = useDocumentVisibility()
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   const { campaign, role, loading, error, setError } = useCampaignAccess(user)
+  const shouldListenForCharacters = documentVisible && ['character', 'maps', 'items'].includes(activeTab)
+  const shouldListenForApprovals = documentVisible && (role === 'gm' || activeTab === 'character')
+  const shouldShowTransferNotification = documentVisible && ['character', 'maps'].includes(activeTab)
+  const shouldShowCliffhangerModal = documentVisible && activeTab !== 'notes'
   const {
     characters,
     charactersLoading,
@@ -159,7 +165,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
     syncCharacterLocal,
     deleteCharacter,
     hasPendingWrite,
-  } = useCharacters(campaign?.id ?? null, user.uid, username, role, setError)
+  } = useCharacters(campaign?.id ?? null, user.uid, username, role, setError, shouldListenForCharacters)
 
   const characterTabProps = campaign ? {
     campaignId: campaign.id,
@@ -183,6 +189,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
     campaign?.id ?? null,
     role,
     user.uid,
+    shouldListenForApprovals,
   )
   const [approvalBusy, setApprovalBusy] = useState(false)
 
@@ -504,7 +511,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
           </div>
         </div>
       ) : null}
-      {campaign ? (
+      {campaign && shouldShowTransferNotification ? (
         <TransferNotification
           campaignId={campaign.id}
           currentUserId={user.uid}
@@ -513,7 +520,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
         />
       ) : null}
       {campaign ? (
-        <CliffhangerModal campaignId={campaign.id} userId={user.uid} />
+        <CliffhangerModal campaignId={campaign.id} userId={user.uid} enabled={shouldShowCliffhangerModal} />
       ) : null}
     </main>
   )
