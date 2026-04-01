@@ -4665,6 +4665,10 @@ button:disabled {
   min-width: 0;
 }
 
+.notes-card-meta {
+  padding: 0.2rem 0;
+}
+
 .map-edit-btn {
   width: 2rem;
   height: 2rem;

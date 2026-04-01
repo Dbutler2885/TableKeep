@@ -12,6 +12,7 @@ import type {
 import type { AbilityScores, SaveScores, AdventureScores, ThiefSkillScores } from './characterRules'
 import { emptyAbilityScores } from './characterRules'
 import { stableStringify } from './characterFactories'
+import { inventoryFromDetails, shouldAdoptIncomingInventory } from './inventorySync'
 
 type Setter<T> = Dispatch<SetStateAction<T>>
 
@@ -83,7 +84,9 @@ export function useCharacterPersistenceSync({
   const seededCharacterIdsRef = useRef<Set<string>>(new Set())
   const justSeededRef = useRef<Set<string>>(new Set())
   const lastPersistedDetailsJsonRef = useRef<Record<string, string>>({})
+  const lastPersistedInventoryJsonRef = useRef<Record<string, string>>({})
   const locallyDirtyCharacterIdsRef = useRef<Set<string>>(new Set())
+  const locallyDirtyInventoryCharacterIdsRef = useRef<Set<string>>(new Set())
   const updateCharacterRef = useRef(updateCharacter)
   useEffect(() => { updateCharacterRef.current = updateCharacter })
 
@@ -168,6 +171,19 @@ export function useCharacterPersistenceSync({
     stateMaps.otherNotesTextByCharacterId,
   ])
 
+  useEffect(() => {
+    for (const character of characters) {
+      const id = character.id
+      if (!seededCharacterIdsRef.current.has(id)) continue
+      const localInventoryJson = stableStringify(stateMaps.inventoryByCharacterId[id] ?? [])
+      if (localInventoryJson !== lastPersistedInventoryJsonRef.current[id]) {
+        locallyDirtyInventoryCharacterIdsRef.current.add(id)
+      } else {
+        locallyDirtyInventoryCharacterIdsRef.current.delete(id)
+      }
+    }
+  }, [characters, stateMaps.inventoryByCharacterId])
+
   // Seed local state from Firestore details when characters load
   useEffect(() => {
     for (const character of characters) {
@@ -175,7 +191,9 @@ export function useCharacterPersistenceSync({
       const details = character.details
 
       const seedInventory = (d: CharacterSheetDetails) => {
-        const inv = d.inventory ? (d.inventory as CharacterInventoryItem[]) : migrateToInventory(d)
+        const inv = inventoryFromDetails(d, migrateToInventory)
+        lastPersistedInventoryJsonRef.current[id] = stableStringify(inv)
+        locallyDirtyInventoryCharacterIdsRef.current.delete(id)
         setInventoryByCharacterId((prev) => ({ ...prev, [id]: inv }))
       }
 
@@ -204,8 +222,26 @@ export function useCharacterPersistenceSync({
           if (typeof details.unencumberingItemsText === 'string') setUnencumberingItemsTextByCharacterId((prev) => ({ ...prev, [id]: details.unencumberingItemsText as string }))
           if (typeof details.otherNotesText === 'string') setOtherNotesTextByCharacterId((prev) => ({ ...prev, [id]: details.otherNotesText as string }))
         }
+        if (!details) {
+          lastPersistedInventoryJsonRef.current[id] = stableStringify([])
+          locallyDirtyInventoryCharacterIdsRef.current.delete(id)
+        }
         lastPersistedDetailsJsonRef.current[id] = stableStringify(details ?? null)
         continue
+      }
+
+      if (!hasPendingWrite(id) && details) {
+        const incomingInventory = inventoryFromDetails(details, migrateToInventory)
+        const inventoryDecision = shouldAdoptIncomingInventory({
+          hasPendingWrite: hasPendingWrite(id),
+          isLocallyDirtyInventory: locallyDirtyInventoryCharacterIdsRef.current.has(id),
+          incomingInventory,
+          lastPersistedInventoryJson: lastPersistedInventoryJsonRef.current[id],
+        })
+        if (inventoryDecision.shouldAdopt) {
+          lastPersistedInventoryJsonRef.current[id] = inventoryDecision.incomingInventoryJson
+          setInventoryByCharacterId((prev) => ({ ...prev, [id]: incomingInventory }))
+        }
       }
 
       // Re-seed from Firestore if another user edited (no pending local write)
@@ -217,7 +253,6 @@ export function useCharacterPersistenceSync({
           setRolledAbilityScoresByCharacterId((prev) => details.rolledAbilityScores ? { ...prev, [id]: details.rolledAbilityScores as AbilityScores } : prev)
           setAbilityScoresRolledByCharacterId((prev) => ({ ...prev, [id]: !!details.abilityScoresRolled }))
           setHpBaseRollByCharacterId((prev) => typeof details.hpBaseRoll === 'number' ? { ...prev, [id]: details.hpBaseRoll } : prev)
-          seedInventory(details)
           setThacoByCharacterId((prev) => ({ ...prev, [id]: (details.thaco as string) ?? '' }))
           setSaveScoresByCharacterId((prev) => details.saveScores ? { ...prev, [id]: details.saveScores as SaveScores } : prev)
           setAdventureScoresByCharacterId((prev) => details.adventureScores ? { ...prev, [id]: details.adventureScores as AdventureScores } : prev)

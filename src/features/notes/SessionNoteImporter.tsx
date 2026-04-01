@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { NpcRecord, SessionCalendarEntry, SessionNote, SessionNpcMention, SessionScene } from '../../types/app'
+import { getResolvedSessionNumber, sanitizeSessionTitle } from './sessionNoteUtils'
 
 type SessionNoteImporterProps = {
   npcs: NpcRecord[]
@@ -100,10 +101,11 @@ function parseAndNormalize(raw: string, npcs: NpcRecord[]): ParseResult {
     ? parsed.cliffhangers.filter((c): c is string => typeof c === 'string')
     : []
 
+  const resolvedSessionNumber = getResolvedSessionNumber({ title, sessionNumber })
   const note: SessionNote = {
     id: crypto.randomUUID(),
-    title,
-    sessionNumber,
+    title: sanitizeSessionTitle(title, resolvedSessionNumber),
+    sessionNumber: resolvedSessionNumber,
     sourceType: 'api',
     createdAt: null,
     updatedAt: null,

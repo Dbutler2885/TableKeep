@@ -146,6 +146,41 @@ function availablePackedSlots(details) {
     }
     return unlocked + packedMovementSlotCount;
 }
+function applyAcceptedTransfer(senderInventory, receiverInventory, transfer, packedAllowed) {
+    const movedSnapshot = transfer.itemSnapshot;
+    if (!movedSnapshot || movedSnapshot.kind === 'gold') {
+        return { ok: false, reason: 'missing_item' };
+    }
+    const senderItem = senderInventory.find((item) => item.id === transfer.itemId);
+    if (!senderItem || senderItem.kind === 'gold') {
+        return { ok: false, reason: 'missing_item' };
+    }
+    if (senderItem.kind !== movedSnapshot.kind) {
+        return { ok: false, reason: 'kind_mismatch' };
+    }
+    const senderQty = Math.max(1, senderItem.qty ?? 1);
+    const movedQty = Math.max(1, movedSnapshot.qty ?? 1);
+    if (senderQty < movedQty) {
+        return { ok: false, reason: 'qty_changed' };
+    }
+    const nextReceiverInventory = [...receiverInventory, { ...movedSnapshot, equipped: false }];
+    const packedUsed = nextReceiverInventory.filter((item) => !item.equipped).length;
+    if (packedUsed > packedAllowed) {
+        return { ok: false, reason: 'packed_slots' };
+    }
+    const nextSenderInventory = senderInventory.flatMap((item) => {
+        if (item.id !== transfer.itemId)
+            return [item];
+        if (senderQty <= movedQty)
+            return [];
+        return [{ ...item, qty: senderQty - movedQty }];
+    });
+    return {
+        ok: true,
+        senderInventory: nextSenderInventory,
+        receiverInventory: nextReceiverInventory,
+    };
+}
 export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (request) => {
     const uid = request.auth?.uid ?? '';
     if (!uid)
@@ -183,28 +218,28 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
         const receiverDetails = (receiverData?.details && typeof receiverData.details === 'object') ? receiverData.details : {};
         const senderInventory = asInventory(senderDetails);
         const receiverInventory = asInventory(receiverDetails);
-        const senderItem = senderInventory.find((item) => item.id === transfer.itemId);
-        if (!senderItem || senderItem.kind === 'gold') {
+        const transferResult = applyAcceptedTransfer(senderInventory, receiverInventory, transfer, availablePackedSlots(receiverDetails));
+        if (!transferResult.ok && (transferResult.reason === 'missing_item' || transferResult.reason === 'kind_mismatch')) {
             tx.delete(transferRef);
             throw new HttpsError('not-found', 'Item no longer available.');
         }
-        const movedItem = { ...senderItem, equipped: false };
-        const candidateInventory = [...receiverInventory, movedItem];
-        const packedUsed = candidateInventory.filter((item) => !item.equipped).length;
-        const packedAllowed = availablePackedSlots(receiverDetails);
-        if (packedUsed > packedAllowed) {
+        if (!transferResult.ok && transferResult.reason === 'qty_changed') {
+            tx.delete(transferRef);
+            throw new HttpsError('failed-precondition', 'Item quantity changed before transfer could be accepted.');
+        }
+        if (!transferResult.ok) {
             throw new HttpsError('failed-precondition', 'Not enough packed slots to accept this item.');
         }
         tx.set(senderRef, {
             details: {
                 ...senderDetails,
-                inventory: senderInventory.filter((item) => item.id !== transfer.itemId),
+                inventory: transferResult.senderInventory,
             },
         }, { merge: true });
         tx.set(receiverRef, {
             details: {
                 ...receiverDetails,
-                inventory: candidateInventory,
+                inventory: transferResult.receiverInventory,
             },
         }, { merge: true });
         tx.delete(transferRef);

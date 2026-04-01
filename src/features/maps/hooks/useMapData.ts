@@ -932,10 +932,28 @@ export function useMapData({
 
   const setPresentedNpcId = async (npcId: string) => {
     if (!selectedMap || role !== 'gm') return
-    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+    if (!npcId) {
+      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+        presentedNpcId: '',
+        updatedAt: serverTimestamp(),
+      })
+      return
+    }
+
+    const batch = writeBatch(db)
+    batch.update(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
       presentedNpcId: npcId,
       updatedAt: serverTimestamp(),
     })
+    batch.set(
+      doc(db, 'campaigns', campaignId, 'npcs', npcId),
+      {
+        visibleToPlayers: true,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    )
+    await batch.commit()
   }
 
   // ── Annotation CRUD ─────────────────────────────────────────────────────────

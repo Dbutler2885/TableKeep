@@ -8,6 +8,21 @@ import type {
   SessionNpcMention,
   SessionScene,
 } from '../../types/app'
+import { sortSessionNotes } from './sessionNoteSort'
+import { getResolvedSessionNumber, sanitizeSessionTitle } from './sessionNoteUtils'
+
+function timestampToMillis(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (value instanceof Date) return value.getTime()
+
+  if (value && typeof value === 'object') {
+    const maybeTimestamp = value as { toMillis?: () => number; seconds?: number }
+    if (typeof maybeTimestamp.toMillis === 'function') return maybeTimestamp.toMillis()
+    if (typeof maybeTimestamp.seconds === 'number') return maybeTimestamp.seconds * 1000
+  }
+
+  return 0
+}
 
 const normalizeScenes = (value: unknown): SessionScene[] => {
   if (!Array.isArray(value)) return []
@@ -56,7 +71,14 @@ const normalizeCalendar = (value: unknown): SessionCalendarEntry[] => {
   })
 }
 
-const normalizeSessionNote = (id: string, data: Record<string, unknown>): SessionNote => ({
+const normalizeSessionNote = (id: string, data: Record<string, unknown>): SessionNote => {
+  const rawTitle = typeof data.title === 'string' ? data.title : ''
+  const sessionNumber = getResolvedSessionNumber({
+    title: rawTitle,
+    sessionNumber: typeof data.sessionNumber === 'number' ? data.sessionNumber : null,
+  })
+
+  return ({
   generatedSnapshot: (() => {
     const raw = data.generatedSnapshot
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
@@ -78,8 +100,8 @@ const normalizeSessionNote = (id: string, data: Record<string, unknown>): Sessio
   editedAt: data.editedAt ?? null,
   editedBy: typeof data.editedBy === 'string' ? data.editedBy : null,
   id,
-  title: typeof data.title === 'string' ? data.title : '',
-  sessionNumber: typeof data.sessionNumber === 'number' ? data.sessionNumber : null,
+  title: sanitizeSessionTitle(rawTitle, sessionNumber),
+  sessionNumber,
   sourceType: data.sourceType === 'api' || data.sourceType === 'manual' ? data.sourceType : 'manual',
   createdAt: data.createdAt ?? null,
   updatedAt: data.updatedAt ?? null,
@@ -91,7 +113,57 @@ const normalizeSessionNote = (id: string, data: Record<string, unknown>): Sessio
     ? data.cliffhangers.filter((c): c is string => typeof c === 'string')
     : [],
   calendar: normalizeCalendar(data.calendar),
-})
+  })
+}
+
+const getNextSessionNumber = (notes: SessionNote[]): number => {
+  const maxSessionNumber = notes.reduce((max, note) => {
+    const sessionNumber = getResolvedSessionNumber(note)
+    return sessionNumber != null && sessionNumber > max ? sessionNumber : max
+  }, 0)
+
+  return maxSessionNumber + 1
+}
+
+const backfillMissingSessionNumbers = (notes: SessionNote[]) => {
+  const chronological = [...notes].sort((a, b) => {
+    const createdDelta = timestampToMillis(a.createdAt) - timestampToMillis(b.createdAt)
+    if (createdDelta !== 0) return createdDelta
+
+    const updatedDelta = timestampToMillis(a.updatedAt) - timestampToMillis(b.updatedAt)
+    if (updatedDelta !== 0) return updatedDelta
+
+    return a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' })
+  })
+
+  const assigned = new Set<number>()
+  chronological.forEach((note) => {
+    const sessionNumber = getResolvedSessionNumber(note)
+    if (sessionNumber != null) assigned.add(sessionNumber)
+  })
+
+  let nextSessionNumber = 1
+  const updates = new Map<string, SessionNote>()
+
+  chronological.forEach((note) => {
+    if (getResolvedSessionNumber(note) != null) {
+      updates.set(note.id, note)
+      return
+    }
+
+    while (assigned.has(nextSessionNumber)) nextSessionNumber += 1
+    assigned.add(nextSessionNumber)
+
+    updates.set(note.id, {
+      ...note,
+      sessionNumber: nextSessionNumber,
+      title: sanitizeSessionTitle(note.title, nextSessionNumber),
+    })
+    nextSessionNumber += 1
+  })
+
+  return notes.map((note) => updates.get(note.id) ?? note)
+}
 
 export function useSessionNotes(campaignId: string) {
   const [notes, setNotes] = useState<SessionNote[]>([])
@@ -118,8 +190,20 @@ export function useSessionNotes(campaignId: string) {
           const data = docSnap.data() as Record<string, unknown>
           return normalizeSessionNote(docSnap.id, data)
         })
-        all.sort((a, b) => (b.sessionNumber ?? -1) - (a.sessionNumber ?? -1))
-        setNotes(all)
+        const normalizedNotes = backfillMissingSessionNumbers(all)
+        setNotes(sortSessionNotes(normalizedNotes))
+        normalizedNotes.forEach((note) => {
+          const original = all.find((entry) => entry.id === note.id)
+          if (!original || original.sessionNumber != null || note.sessionNumber == null) return
+
+          void setDoc(
+            doc(db, 'campaigns', campaignId, 'sessionSummaries', note.id),
+            { sessionNumber: note.sessionNumber, title: note.title },
+            { merge: true },
+          ).catch((error) => {
+            console.error('Failed to backfill session number', { noteId: note.id, error })
+          })
+        })
         setNotesLoading(false)
       },
       (error) => {
@@ -160,9 +244,15 @@ export function useSessionNotes(campaignId: string) {
   }
 
   const addNote = (note: SessionNote) => {
-    setNotes((current) => [note, ...current])
+    const normalizedNote = {
+      ...note,
+      sessionNumber: note.sessionNumber ?? getNextSessionNumber(notesRef.current),
+      title: sanitizeSessionTitle(note.title, note.sessionNumber ?? getNextSessionNumber(notesRef.current)),
+    }
+
+    setNotes((current) => sortSessionNotes([normalizedNote, ...current]))
     if (!campaignId) return
-    const { id, ...data } = note
+    const { id, ...data } = normalizedNote
     void setDoc(
       doc(db, 'campaigns', campaignId, 'sessionSummaries', id),
       { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
@@ -172,9 +262,20 @@ export function useSessionNotes(campaignId: string) {
   }
 
   const updateNote = (noteId: string, patch: Partial<SessionNote>) => {
-    setNotes((current) =>
-      current.map((note) => (note.id === noteId ? { ...note, ...patch } : note)),
-    )
+    setNotes((current) => {
+      const currentNote = current.find((note) => note.id === noteId)
+      const nextSessionNumber = patch.sessionNumber
+        ?? currentNote?.sessionNumber
+        ?? getResolvedSessionNumber({ title: patch.title ?? currentNote?.title ?? '', sessionNumber: null })
+        ?? null
+      const normalizedPatch = {
+        ...patch,
+        title: patch.title == null ? currentNote?.title ?? '' : sanitizeSessionTitle(patch.title, nextSessionNumber),
+        sessionNumber: nextSessionNumber,
+      }
+
+      return sortSessionNotes(current.map((note) => (note.id === noteId ? { ...note, ...normalizedPatch } : note)))
+    })
     scheduleWrite(noteId)
   }
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, FileText, Plus, Trash2 } from 'lucide-react'
+import { ChevronLeft, Plus, Trash2 } from 'lucide-react'
 import { collection, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { NpcRecord, Role } from '../../types/app'
@@ -7,6 +7,7 @@ import { MOBILE_BREAKPOINT } from '../../constants/layout'
 import { useSessionNotes } from './useSessionNotes'
 import { SessionNoteDetail } from './SessionNoteDetail'
 import { SessionNoteImporter } from './SessionNoteImporter'
+import { getSessionCardSubtitle, getSessionDisplayTitle } from './sessionNoteUtils'
 
 type NotesTabProps = {
   campaignId: string
@@ -129,18 +130,11 @@ export function NotesTab({ campaignId, role }: NotesTabProps) {
                       }
                     }}
                   >
-                    <div className="map-thumb-column">
-                      <div className="map-thumb-wrap">
-                        <div className="monster-portrait-empty small">
-                          <FileText size={14} />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="map-meta">
-                      <strong>{note.title || 'Untitled'}</strong>
-                      <p className="monster-card-statline">
-                        {note.sessionNumber != null ? `Session ${note.sessionNumber}` : 'No session number'}
-                      </p>
+                    <div className="map-meta notes-card-meta">
+                      <strong>{getSessionDisplayTitle(note)}</strong>
+                      {getSessionCardSubtitle(note) ? (
+                        <p className="monster-card-statline">{getSessionCardSubtitle(note)}</p>
+                      ) : null}
                     </div>
                   </div>
                   {role === 'gm' ? (
@@ -148,7 +142,7 @@ export function NotesTab({ campaignId, role }: NotesTabProps) {
                       type="button"
                       className="map-delete-btn character-card-delete-btn"
                       onClick={() => setDeleteCandidate(note.id)}
-                      aria-label={`Delete ${note.title || 'session note'}`}
+                      aria-label={`Delete ${getSessionDisplayTitle(note)}`}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -196,7 +190,7 @@ export function NotesTab({ campaignId, role }: NotesTabProps) {
         <div className="confirm-overlay" role="dialog" aria-modal="true">
           <div className="confirm-modal">
             <h3>Delete Session Notes</h3>
-            <p>Delete <strong>{notes.find((n) => n.id === deleteCandidate)?.title || 'this session'}</strong>?</p>
+            <p>Delete <strong>{getSessionDisplayTitle(notes.find((n) => n.id === deleteCandidate) ?? { title: '', sessionNumber: null })}</strong>?</p>
             <div className="confirm-actions">
               <button type="button" className="confirm-danger" onClick={() => setDeleteCandidate(null)}>Cancel</button>
               <button type="button" onClick={handleDelete}>Delete</button>

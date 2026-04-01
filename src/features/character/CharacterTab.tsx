@@ -1079,17 +1079,7 @@ export function CharacterTab({
     setTransferBusy(true)
     setTransferError(null)
     try {
-      await createTransfer(snapshotItem, effectiveSelected, target)
-
-      // Reduce source qty (or remove if giving all)
-      if (!giveAll) {
-        setInventoryByCharacterId((current) => ({
-          ...current,
-          [effectiveSelected.id]: (current[effectiveSelected.id] ?? []).map((i) =>
-            i.id === item.id ? { ...i, qty: item.qty - giveQty } as CharacterInventoryItem : i,
-          ),
-        }))
-      }
+      await createTransfer(snapshotItem, item.id, effectiveSelected, target)
 
       setTransferPickerOpen(false)
       setTransferTargetCharacterId('')

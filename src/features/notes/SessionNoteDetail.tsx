@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, ChevronDown, ChevronRight, Pencil, X } from 'lucide-react'
 import type { Role, SessionNote, SessionNoteGeneratedSnapshot } from '../../types/app'
+import { getSessionDisplayTitle, sanitizeSessionTitle } from './sessionNoteUtils'
 
 type SessionNoteDetailProps = {
   note: SessionNote
@@ -119,13 +120,14 @@ export function SessionNoteDetail({ note, role, onUpdate }: SessionNoteDetailPro
             className="session-inline-input session-note-title-input"
             value={titleDraft}
             onChange={(event) => setTitleDraft(event.target.value)}
+            placeholder="Optional custom session title"
             autoFocus
           />
-          {renderActionButtons(() => commitPatch({ title: titleDraft }))}
+          {renderActionButtons(() => commitPatch({ title: sanitizeSessionTitle(titleDraft, note.sessionNumber) }))}
         </div>
       ) : (
         <div className="session-heading-row">
-          <h2 className="session-note-title">{note.title || 'Untitled Session'}</h2>
+          <h2 className="session-note-title">{getSessionDisplayTitle(note)}</h2>
           {renderEditButton(() => {
             setTitleDraft(note.title)
             setEditingSection({ key: 'title' })

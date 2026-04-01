@@ -87,6 +87,7 @@ export function usePendingTransfers(
 
   const createTransfer = async (
     item: TransferableInventoryItem,
+    sourceItemId: string,
     fromCharacter: Pick<CharacterRecord, 'id' | 'name' | 'ownerUserId'>,
     toCharacter: Pick<CharacterRecord, 'id' | 'name' | 'ownerUserId'>,
   ) => {
@@ -94,7 +95,7 @@ export function usePendingTransfers(
     if (fromCharacter.id === toCharacter.id) throw new Error('Choose a different character.')
     if (!toCharacter.ownerUserId) throw new Error('Target character has no owner.')
     const duplicate = transfers.find((transfer) =>
-      transfer.fromCharacterId === fromCharacter.id && transfer.itemId === item.id,
+      transfer.fromCharacterId === fromCharacter.id && transfer.itemId === sourceItemId,
     )
     if (duplicate) throw new Error(`This item is already offered to ${duplicate.toCharacterName}.`)
 
@@ -102,7 +103,7 @@ export function usePendingTransfers(
     const payload: Omit<PendingTransfer, 'createdAt'> & { createdAt: unknown } = {
       id: transferId,
       itemSnapshot: item,
-      itemId: item.id,
+      itemId: sourceItemId,
       itemKind: item.kind,
       itemName: item.name ?? item.typeName,
       fromCharacterId: fromCharacter.id,
