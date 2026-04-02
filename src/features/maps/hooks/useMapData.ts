@@ -429,22 +429,33 @@ export function useMapData({
         snap.docs
           .map((d) => {
             const data = d.data()
+            const local = mapMonsters.find((monster) => monster.id === d.id)
             const name = (typeof data.name === 'string' && data.name)
               || (typeof data.typeName === 'string' && data.typeName)
               || ''
+            const tokenIcon = data.tokenIcon
+              ? (data.tokenIcon as TokenIconConfig)
+              : { icon: 'pawn' as const, color: '#bf2f2a', size: 34 }
+            const customImageUrl = tokenIcon.customImageUrl
+              ?? (
+                tokenIcon.customImagePath
+                && local
+                && local.tokenIcon.customImagePath === tokenIcon.customImagePath
+                && isRenderableImageUrl(local.tokenIcon.customImageUrl)
+                  ? local.tokenIcon.customImageUrl
+                  : undefined
+              )
             return {
               id: d.id,
               name,
-              tokenIcon: data.tokenIcon
-                ? (data.tokenIcon as TokenIconConfig)
-                : { icon: 'pawn' as const, color: '#bf2f2a', size: 34 },
+              tokenIcon: customImageUrl ? { ...tokenIcon, customImageUrl } : tokenIcon,
             }
           })
           .sort((a, b) => a.name.localeCompare(b.name))
       )
     })
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, mapMonsters])
 
   // ── Characters subscription (for token spawn picker) ───────────────────────
   useEffect(() => {
@@ -453,19 +464,30 @@ export function useMapData({
         snap.docs
           .map((d) => {
             const data = d.data()
+            const local = mapCharacters.find((character) => character.id === d.id)
+            const tokenIcon = data.tokenIcon
+              ? (data.tokenIcon as TokenIconConfig)
+              : { icon: 'pawn' as const, color: '#bf2f2a', size: 34 }
+            const customImageUrl = tokenIcon.customImageUrl
+              ?? (
+                tokenIcon.customImagePath
+                && local
+                && local.tokenIcon.customImagePath === tokenIcon.customImagePath
+                && isRenderableImageUrl(local.tokenIcon.customImageUrl)
+                  ? local.tokenIcon.customImageUrl
+                  : undefined
+              )
             return {
               id: d.id,
               name: typeof data.name === 'string' ? data.name : '',
-              tokenIcon: data.tokenIcon
-                ? (data.tokenIcon as TokenIconConfig)
-                : { icon: 'pawn' as const, color: '#bf2f2a', size: 34 },
+              tokenIcon: customImageUrl ? { ...tokenIcon, customImageUrl } : tokenIcon,
             } satisfies CharacterTokenSummary
           })
           .sort((a, b) => a.name.localeCompare(b.name)),
       )
     })
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, mapCharacters])
 
   // ── NPCs subscription (for token spawn picker + scene presentation) ───────
   useEffect(() => {
@@ -478,18 +500,33 @@ export function useMapData({
         snap.docs
           .map((d) => {
             const data = d.data()
+            const local = mapNpcs.find((npc) => npc.id === d.id)
+            const portraitPath = typeof data.portraitPath === 'string' ? data.portraitPath : ''
+            const persistedPortraitUrl = typeof data.portraitUrl === 'string' ? data.portraitUrl : null
+            const tokenIcon = data.tokenIcon
+              ? (data.tokenIcon as TokenIconConfig)
+              : { icon: 'pawn' as const, color: '#2f5bbf', size: 34 }
+            const portraitUrl = persistedPortraitUrl
+              ?? (local?.portraitPath === portraitPath && isRenderableImageUrl(local.portraitUrl) ? local.portraitUrl : null)
+            const customImageUrl = tokenIcon.customImageUrl
+              ?? (
+                tokenIcon.customImagePath
+                && local
+                && local.tokenIcon.customImagePath === tokenIcon.customImagePath
+                && isRenderableImageUrl(local.tokenIcon.customImageUrl)
+                  ? local.tokenIcon.customImageUrl
+                  : undefined
+              )
             return {
               id: d.id,
               name: typeof data.name === 'string' ? data.name : '',
               title: typeof data.title === 'string' ? data.title : '',
               tags: Array.isArray(data.tags) ? data.tags.filter((tag): tag is string => typeof tag === 'string') : [],
-              portraitPath: typeof data.portraitPath === 'string' ? data.portraitPath : '',
-              portraitUrl: typeof data.portraitUrl === 'string' ? data.portraitUrl : null,
+              portraitPath,
+              portraitUrl,
               portraitFocusX: typeof data.portraitFocusX === 'number' ? data.portraitFocusX : 50,
               portraitFocusY: typeof data.portraitFocusY === 'number' ? data.portraitFocusY : 50,
-              tokenIcon: data.tokenIcon
-                ? (data.tokenIcon as TokenIconConfig)
-                : { icon: 'pawn' as const, color: '#2f5bbf', size: 34 },
+              tokenIcon: customImageUrl ? { ...tokenIcon, customImageUrl } : tokenIcon,
               playerDescription: typeof data.playerDescription === 'string' ? data.playerDescription : '',
               playerNotes: typeof data.playerNotes === 'string' ? data.playerNotes : '',
             } satisfies NpcSummary
@@ -498,7 +535,7 @@ export function useMapData({
       )
     })
     return () => unsub()
-  }, [campaignId, role])
+  }, [campaignId, mapNpcs, role])
 
   useEffect(() => {
     const monstersNeedingMedia = mapMonsters.filter(

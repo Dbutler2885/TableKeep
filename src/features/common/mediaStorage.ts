@@ -18,6 +18,7 @@ export const isRenderableImageUrl = (value: string | null | undefined) =>
   typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:'))
 
 let authReadyPromise: Promise<void> | null = null
+const storageUrlCache = new Map<string, Promise<string | null>>()
 
 const waitForAuthReady = async () => {
   if (typeof auth.authStateReady === 'function') {
@@ -38,10 +39,19 @@ const waitForAuthReady = async () => {
 }
 
 export const resolveStoragePathUrl = async (path: string) => {
+  if (!path) return null
+  const cached = storageUrlCache.get(path)
+  if (cached) return cached
+
+  const pending = (async () => {
   await waitForAuthReady()
-  if (!auth.currentUser) return null
-  await auth.currentUser.getIdToken()
-  return getDownloadURL(ref(storage, path))
+    if (!auth.currentUser) return null
+    await auth.currentUser.getIdToken()
+    return getDownloadURL(ref(storage, path))
+  })()
+
+  storageUrlCache.set(path, pending)
+  return pending
 }
 
 export const uploadEntityImage = async ({
