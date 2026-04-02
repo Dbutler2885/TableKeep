@@ -3833,7 +3833,7 @@ export function CharacterTab({
                         </p>
                         </section>
 
-                        {selectedClassName === 'Magic-User' || selectedClassName === 'Cleric' || selectedMemorizedSpells.length > 0 ? (
+                        {selectedClassName === 'Magic-User' || selectedClassName === 'Elf' || selectedClassName === 'Cleric' || selectedMemorizedSpells.length > 0 ? (
                           <section className="monster-section-block character-enc-memorized">
                             <div className="section-head">
                               <h3 className="monster-section-title">Prepared Spells</h3>
@@ -4864,7 +4864,7 @@ export function CharacterTab({
           </div>
         )
       })()}
-      {spellBookAddModalOpen && selectedClassName === 'Magic-User' ? (
+      {spellBookAddModalOpen && (selectedClassName === 'Magic-User' || selectedClassName === 'Elf') ? (
         <div className="store-modal-overlay spellbook-add-overlay" role="dialog" aria-modal="true">
           <div className="store-modal character-spell-add-modal">
             <div className="store-modal-head">

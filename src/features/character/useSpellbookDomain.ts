@@ -81,6 +81,7 @@ export function useSpellbookDomain({
   const [divinePreparedDraftIds, setDivinePreparedDraftIds] = useState<string[]>([])
   const [memorizedSpellDetailId, setMemorizedSpellDetailId] = useState<string | null>(null)
   const [spellBookFeedback, setSpellBookFeedback] = useState<string | null>(null)
+  const hasArcaneSpellbook = selectedClassName === 'Magic-User' || selectedClassName === 'Elf'
 
   // Auto-clear feedback
   useEffect(() => {
@@ -117,7 +118,7 @@ export function useSpellbookDomain({
   const preparedSpellLevels = selectedClassName === 'Cleric' ? accessibleDivineSpellLevels : accessibleArcaneSpellLevels
   const preparedSlotsPerDay = selectedClassName === 'Cleric' ? divineSpellsPerDay : arcaneSpellsPerDay
 
-  const canOpenSpellBookAddModal = !!effectiveSelected && canEditSelected && selectedClassName === 'Magic-User'
+  const canOpenSpellBookAddModal = !!effectiveSelected && canEditSelected && hasArcaneSpellbook
   const canOpenDivinePrepareModal = !!effectiveSelected && canEditSelected && canMemorizeSpell && selectedClassName === 'Cleric'
 
   const memorizedCountsByLevel = selectedMemorizedSpells.reduce<Record<number, number>>((acc, spell) => {
@@ -148,7 +149,7 @@ export function useSpellbookDomain({
   // Sync effects
   // ---------------------------------------------------------------------------
 
-  // Ensure Magic-User gets a spell book item in inventory during creation
+  // Ensure arcane spellcasters get a spell book item in inventory during creation
   function ensureSpellBookItemForCharacter(characterId: string) {
     setInventoryByCharacterId((current) => {
       const items = current[characterId] ?? []
@@ -164,7 +165,7 @@ export function useSpellbookDomain({
   useEffect(() => {
     if (!effectiveSelected) return
     if (!isInFinalizationFlow) return
-    if (effectiveSelected.className !== 'Magic-User') return
+    if (effectiveSelected.className !== 'Magic-User' && effectiveSelected.className !== 'Elf') return
     ensureSpellBookItemForCharacter(effectiveSelected.id)
   }, [effectiveSelected?.id, effectiveSelected?.className, isInFinalizationFlow])
 
