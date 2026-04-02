@@ -425,11 +425,11 @@ export function useMapData({
   // ── Monsters subscription (for token spawn picker) ──────────────────────────
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'monsters'), (snap) => {
-      setMapMonsters(
+      setMapMonsters((current) =>
         snap.docs
           .map((d) => {
             const data = d.data()
-            const local = mapMonsters.find((monster) => monster.id === d.id)
+            const local = current.find((monster) => monster.id === d.id)
             const name = (typeof data.name === 'string' && data.name)
               || (typeof data.typeName === 'string' && data.typeName)
               || ''
@@ -451,20 +451,20 @@ export function useMapData({
               tokenIcon: customImageUrl ? { ...tokenIcon, customImageUrl } : tokenIcon,
             }
           })
-          .sort((a, b) => a.name.localeCompare(b.name))
+          .sort((a, b) => a.name.localeCompare(b.name)),
       )
     })
     return () => unsub()
-  }, [campaignId, mapMonsters])
+  }, [campaignId])
 
   // ── Characters subscription (for token spawn picker) ───────────────────────
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'characters'), (snap) => {
-      setMapCharacters(
+      setMapCharacters((current) =>
         snap.docs
           .map((d) => {
             const data = d.data()
-            const local = mapCharacters.find((character) => character.id === d.id)
+            const local = current.find((character) => character.id === d.id)
             const tokenIcon = data.tokenIcon
               ? (data.tokenIcon as TokenIconConfig)
               : { icon: 'pawn' as const, color: '#bf2f2a', size: 34 }
@@ -487,7 +487,7 @@ export function useMapData({
       )
     })
     return () => unsub()
-  }, [campaignId, mapCharacters])
+  }, [campaignId])
 
   // ── NPCs subscription (for token spawn picker + scene presentation) ───────
   useEffect(() => {
@@ -496,11 +496,11 @@ export function useMapData({
       ? query(npcsCollection)
       : query(npcsCollection, where('visibleToPlayers', '==', true))
     const unsub = onSnapshot(npcsQuery, (snap) => {
-      setMapNpcs(
+      setMapNpcs((current) =>
         snap.docs
           .map((d) => {
             const data = d.data()
-            const local = mapNpcs.find((npc) => npc.id === d.id)
+            const local = current.find((npc) => npc.id === d.id)
             const portraitPath = typeof data.portraitPath === 'string' ? data.portraitPath : ''
             const persistedPortraitUrl = typeof data.portraitUrl === 'string' ? data.portraitUrl : null
             const tokenIcon = data.tokenIcon
@@ -535,7 +535,7 @@ export function useMapData({
       )
     })
     return () => unsub()
-  }, [campaignId, mapNpcs, role])
+  }, [campaignId, role])
 
   useEffect(() => {
     const monstersNeedingMedia = mapMonsters.filter(
