@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
+import { collection, deleteDoc, deleteField, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { CharacterRecord, CharacterSheetDetails, Role, TokenIconConfig } from '../../types/app'
 import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence } from '../common/mediaStorage'
@@ -130,7 +130,11 @@ export function useCharacters(
           const rawDetails = (data as { details?: unknown }).details
           const details: CharacterSheetDetails | null =
             typeof rawDetails === 'object' && rawDetails !== null
-              ? (rawDetails as CharacterSheetDetails)
+              ? (() => {
+                  const normalized = { ...(rawDetails as Record<string, unknown>) }
+                  delete normalized.acManualOverride
+                  return normalized as CharacterSheetDetails
+                })()
               : null
 
           const rawHpCurrent =
@@ -301,28 +305,31 @@ export function useCharacters(
         return
       }
 
+      const payload: Record<string, unknown> = {
+        name: character.name,
+        ownerUserId: character.ownerUserId,
+        ownerUsername: character.ownerUsername ?? null,
+        creationMode: character.creationMode,
+        creationModeExplicit: character.creationModeExplicit,
+        creationStatus: character.creationStatus,
+        class: character.className,
+        level: character.level,
+        hpCurrent: character.hpCurrent,
+        hpMax: character.hpMax,
+        ac: character.ac,
+        xp: character.xp,
+        portraitPath: character.portraitPath ?? '',
+        portraitFocusX: character.portraitFocusX,
+        portraitFocusY: character.portraitFocusY,
+        tokenIcon: sanitizeTokenIconForPersistence(character.tokenIcon),
+        details: character.details ? JSON.parse(JSON.stringify(character.details)) : null,
+        'details.acManualOverride': deleteField(),
+        updatedAt: serverTimestamp(),
+      }
+
       void setDoc(
         doc(db, 'campaigns', campaignId, 'characters', characterId),
-        {
-          name: character.name,
-          ownerUserId: character.ownerUserId,
-          ownerUsername: character.ownerUsername ?? null,
-          creationMode: character.creationMode,
-          creationModeExplicit: character.creationModeExplicit,
-          creationStatus: character.creationStatus,
-          class: character.className,
-          level: character.level,
-          hpCurrent: character.hpCurrent,
-          hpMax: character.hpMax,
-          ac: character.ac,
-          xp: character.xp,
-          portraitPath: character.portraitPath ?? '',
-          portraitFocusX: character.portraitFocusX,
-          portraitFocusY: character.portraitFocusY,
-          tokenIcon: sanitizeTokenIconForPersistence(character.tokenIcon),
-          details: character.details ? JSON.parse(JSON.stringify(character.details)) : null,
-          updatedAt: serverTimestamp(),
-        },
+        payload,
         { merge: true },
       ).finally(() => {
         delete inFlightWritesRef.current[characterId]
