@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
+import { deleteDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { TableRecord, TableRow, TableBlock, TableQty } from '../../types/app'
+import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
 
 const normalizeQty = (value: unknown): TableQty | undefined => {
   if (!value || typeof value !== 'object') return undefined
@@ -95,7 +96,7 @@ const toFirestoreTable = (table: TableRecord): Record<string, unknown> => ({
   rows: table.rows,
 })
 
-export function useTables(campaignId: string) {
+export function useTables(campaignId: string, groupId: string | null = null) {
   const [tables, setTables] = useState<TableRecord[]>([])
   const [tablesLoading, setTablesLoading] = useState(false)
   const tablesRef = useRef<TableRecord[]>([])
@@ -110,7 +111,7 @@ export function useTables(campaignId: string) {
     setTablesLoading(true)
 
     const unsub = onSnapshot(
-      collection(db, 'campaigns', campaignId, 'tables'),
+      campaignCollectionRef(db, { campaignId, groupId }, 'tables'),
       (snap) => {
         const all = snap.docs.map((docSnap) => {
           if (pendingWritesRef.current[docSnap.id]) {
@@ -129,7 +130,7 @@ export function useTables(campaignId: string) {
     )
 
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, groupId])
 
   useEffect(() => {
     return () => {
@@ -149,7 +150,7 @@ export function useTables(campaignId: string) {
       if (!table) return
 
       void setDoc(
-        doc(db, 'campaigns', campaignId, 'tables', table.id),
+        campaignDocRef(db, { campaignId, groupId }, 'tables', table.id),
         { ...toFirestoreTable(table), updatedAt: serverTimestamp() },
         { merge: true },
       ).catch((error) => {
@@ -162,7 +163,7 @@ export function useTables(campaignId: string) {
     setTables((current) => [table, ...current])
     if (!campaignId) return
     void setDoc(
-      doc(db, 'campaigns', campaignId, 'tables', table.id),
+      campaignDocRef(db, { campaignId, groupId }, 'tables', table.id),
       { ...toFirestoreTable(table), createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
     ).catch((error) => {
       console.error('Failed to create table', { tableId: table.id, error })
@@ -184,7 +185,7 @@ export function useTables(campaignId: string) {
       delete pendingWritesRef.current[tableId]
     }
     setTables((current) => current.filter((t) => t.id !== tableId))
-    void deleteDoc(doc(db, 'campaigns', campaignId, 'tables', tableId)).catch((error) => {
+    void deleteDoc(campaignDocRef(db, { campaignId, groupId }, 'tables', tableId)).catch((error) => {
       console.error('Failed to delete table', { tableId, error })
     })
   }

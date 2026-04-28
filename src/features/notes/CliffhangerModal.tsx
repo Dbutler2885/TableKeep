@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
+import { campaignDocRef } from '../campaign/firestorePaths'
 import { useSessionNotes } from './useSessionNotes'
 
 type CliffhangerModalProps = {
   campaignId: string
+  groupId?: string | null
   userId: string
   enabled?: boolean
 }
@@ -19,8 +21,8 @@ function daysSince(timestamp: unknown): number {
   return (Date.now() - date.getTime()) / (1000 * 60 * 60 * 24)
 }
 
-export function CliffhangerModal({ campaignId, userId, enabled = true }: CliffhangerModalProps) {
-  const { notes } = useSessionNotes(campaignId, enabled)
+export function CliffhangerModal({ campaignId, groupId, userId, enabled = true }: CliffhangerModalProps) {
+  const { notes } = useSessionNotes(campaignId, enabled, groupId)
   const [lastSeenId, setLastSeenId] = useState<string | null>(null)
   const [membershipLoaded, setMembershipLoaded] = useState(false)
   const [dismissed, setDismissed] = useState(false)
@@ -32,8 +34,12 @@ export function CliffhangerModal({ campaignId, userId, enabled = true }: Cliffha
       return
     }
 
+    const membershipRef = groupId
+      ? campaignDocRef(db, { campaignId, groupId }, 'members', userId)
+      : doc(db, 'users', userId, 'campaignMemberships', campaignId)
+
     const unsub = onSnapshot(
-      doc(db, 'users', userId, 'campaignMemberships', campaignId),
+      membershipRef,
       (snap) => {
         const data = snap.data()
         setLastSeenId(typeof data?.lastSeenCliffhangerNoteId === 'string' ? data.lastSeenCliffhangerNoteId : null)
@@ -44,7 +50,7 @@ export function CliffhangerModal({ campaignId, userId, enabled = true }: Cliffha
       },
     )
     return () => unsub()
-  }, [campaignId, enabled, userId])
+  }, [campaignId, enabled, groupId, userId])
 
   // Find the latest note that has cliffhangers
   const latestWithCliffhangers = notes.find((note) => note.cliffhangers.length > 0) ?? null
@@ -62,7 +68,9 @@ export function CliffhangerModal({ campaignId, userId, enabled = true }: Cliffha
   const handleDismiss = () => {
     setDismissed(true)
     void setDoc(
-      doc(db, 'users', userId, 'campaignMemberships', campaignId),
+      groupId
+        ? campaignDocRef(db, { campaignId, groupId }, 'members', userId)
+        : doc(db, 'users', userId, 'campaignMemberships', campaignId),
       { lastSeenCliffhangerNoteId: latestWithCliffhangers.id, updatedAt: serverTimestamp() },
       { merge: true },
     ).catch((error) => {

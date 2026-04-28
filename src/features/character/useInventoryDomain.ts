@@ -1,9 +1,10 @@
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { serverTimestamp, setDoc } from 'firebase/firestore'
 import type { Dispatch, SetStateAction } from 'react'
 import { inventoryItemToCampaignItem } from '../items/itemConversion'
 import { toFirestoreItem } from '../items/useItems'
 import { DEFAULT_STACK_POLICY } from '../items/itemDefaults'
 import { db } from '../../firebase'
+import { campaignDocRef } from '../campaign/firestorePaths'
 import type {
   CharacterRecord,
   CharacterInventoryItem,
@@ -64,6 +65,7 @@ export type AddItemModalState = {
 
 type Params = {
   campaignId: string
+  groupId?: string | null
   currentUsername: string
   effectiveSelected: CharacterRecord | null
   canEditSelected: boolean
@@ -99,6 +101,7 @@ type Params = {
 
 export function useInventoryDomain({
   campaignId,
+  groupId = null,
   currentUsername,
   effectiveSelected,
   canEditSelected,
@@ -165,7 +168,7 @@ export function useInventoryDomain({
     if (overflow.droppedItems.length > 0 || overflow.droppedGoldAmount > 0) {
       setOverflowWriting(true)
       try {
-        await writeDroppedOverflow(db, campaignId, overflow.droppedItems, overflow.droppedGoldAmount, effectiveSelected.id, effectiveSelected.name)
+        await writeDroppedOverflow(db, campaignId, groupId, overflow.droppedItems, overflow.droppedGoldAmount, effectiveSelected.id, effectiveSelected.name)
       } catch {
         setOverflowFeedback('Failed to write overflow items. Gold change cancelled.')
         setOverflowWriting(false)
@@ -387,7 +390,7 @@ export function useInventoryDomain({
 
     const { id, ...rest } = campaignItem
     await setDoc(
-      doc(db, 'campaigns', campaignId, 'items', id),
+      campaignDocRef(db, { campaignId, groupId }, 'items', id),
       { ...toFirestoreItem({ ...rest, id } as typeof campaignItem), createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
     )
 
@@ -450,7 +453,7 @@ export function useInventoryDomain({
     if (overflow.droppedItems.length > 0 || overflow.droppedGoldAmount > 0) {
       setOverflowWriting(true)
       try {
-        await writeDroppedOverflow(db, campaignId, overflow.droppedItems, overflow.droppedGoldAmount, effectiveSelected.id, effectiveSelected.name)
+        await writeDroppedOverflow(db, campaignId, groupId, overflow.droppedItems, overflow.droppedGoldAmount, effectiveSelected.id, effectiveSelected.name)
       } catch {
         setOverflowFeedback('Failed to write overflow items. Sale cancelled.')
         setOverflowWriting(false)
@@ -517,7 +520,7 @@ export function useInventoryDomain({
       })
       const { id, ...rest } = campaignItem
       await setDoc(
-        doc(db, 'campaigns', campaignId, 'items', id),
+        campaignDocRef(db, { campaignId, groupId }, 'items', id),
         { ...toFirestoreItem({ ...rest, id } as typeof campaignItem), createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
       )
     }

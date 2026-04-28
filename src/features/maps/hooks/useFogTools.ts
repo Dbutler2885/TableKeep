@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MouseEventHandler, TouchEventHandler } from 'react'
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { serverTimestamp, updateDoc } from 'firebase/firestore'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { db, storage } from '../../../firebase'
 import type { Role } from '../../../types/app'
+import { campaignDocRef } from '../../campaign/firestorePaths'
 import type { MapRecord } from '../lib/types'
 import { FOG_BRUSH_SIZE_MIN, TOKEN_REFERENCE_DIMENSION } from '../lib/constants'
 
 type UseFogToolsOptions = {
   campaignId: string
+  groupId?: string | null
   role: Role | null
   selectedMap: MapRecord | null
   setMapError: (message: string | null) => void
@@ -31,6 +33,7 @@ type UseFogToolsOptions = {
 
 export function useFogTools({
   campaignId,
+  groupId = null,
   role,
   selectedMap,
   setMapError,
@@ -376,7 +379,9 @@ export function useFogTools({
     overlay: 'fog' | 'vision',
   ) => {
     const blob = await canvasToPngBlob(canvas)
-    const path = `campaigns/${campaignId}/maps/${mapId}/${overlay}/${Date.now()}.png`
+    const path = groupId
+      ? `groups/${groupId}/campaigns/${campaignId}/maps/${mapId}/${overlay}/${Date.now()}.png`
+      : `campaigns/${campaignId}/maps/${mapId}/${overlay}/${Date.now()}.png`
     const overlayRef = ref(storage, path)
     await uploadBytes(overlayRef, blob, {
       contentType: 'image/png',
@@ -395,7 +400,7 @@ export function useFogTools({
         return
       }
       const { path, url } = await uploadMapOverlayImage(selectedMap.id, activeFogCanvasRef.current, 'fog')
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      await updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
         fogImagePath: path,
         fogImageUrl: url,
         fogDataUrl,
@@ -415,7 +420,7 @@ export function useFogTools({
     try {
       const visionBlockDataUrl = safeCanvasToDataUrl(canvas)
       const { path, url } = await uploadMapOverlayImage(selectedMap.id, canvas, 'vision')
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      await updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
         visionBlockImagePath: path,
         visionBlockImageUrl: url,
         visionBlockDataUrl,
@@ -565,7 +570,7 @@ export function useFogTools({
 
         const { path, url } = await uploadMapOverlayImage(selectedMap.id, canvas, 'fog')
         const fogDataUrl = safeCanvasToDataUrl(canvas)
-        await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+        await updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
           fogImagePath: path,
           fogImageUrl: url,
           fogDataUrl,
@@ -592,7 +597,7 @@ export function useFogTools({
 
       const { path, url } = await uploadMapOverlayImage(selectedMap.id, canvas, 'fog')
       const fogDataUrl = safeCanvasToDataUrl(canvas)
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      await updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
         fogImagePath: path,
         fogImageUrl: url,
         fogDataUrl,

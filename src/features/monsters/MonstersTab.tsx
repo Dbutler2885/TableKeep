@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, Package, Plus, Shield, Trash2, UserRound, X } from 'lucide-react'
 import {
-  collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc,
+  deleteDoc, onSnapshot, serverTimestamp, setDoc,
 } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { Role } from '../../types/app'
+import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
 import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence, uploadEntityImage } from '../common/mediaStorage'
 import { monsterRulesets, type MonsterRulesetId } from './rulesets'
 import { TokenPawnPreview, type TokenIconConfig } from '../tokens/TokenIconEditor'
@@ -145,6 +146,7 @@ type MonsterRecord = {
 
 type MonstersTabProps = {
   campaignId: string
+  groupId?: string | null
   role: Role | null
 }
 
@@ -353,7 +355,7 @@ const newMonsterTemplate = (rulesetId: MonsterRulesetId): MonsterRecord => {
   }
 }
 
-export function MonstersTab({ campaignId, role }: MonstersTabProps) {
+export function MonstersTab({ campaignId, groupId = null, role }: MonstersTabProps) {
   const [monsters, setMonsters] = useState<MonsterRecord[]>([])
   const [campaignItems, setCampaignItems] = useState<CampaignItemSummary[]>([])
   const [spellcastingDraftByMonsterId, setSpellcastingDraftByMonsterId] = useState<Record<string, SpellcastingEntry[]>>({})
@@ -578,7 +580,7 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
 
   // Firestore subscription — loads monsters for this campaign.
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'monsters'), (snap) => {
+    const unsub = onSnapshot(campaignCollectionRef(db, { campaignId, groupId }, 'monsters'), (snap) => {
       const next = snap.docs.map((d) => {
           const data = d.data()
           const local = monstersRef.current.find((monster) => monster.id === d.id)
@@ -661,11 +663,11 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
       setMonsters([...next, ...optimisticLocals])
     })
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, groupId])
 
   // Firestore subscription — loads campaign items for pickers.
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'items'), (snap) => {
+    const unsub = onSnapshot(campaignCollectionRef(db, { campaignId, groupId }, 'items'), (snap) => {
       const items: CampaignItemSummary[] = snap.docs.map((d) => {
         const data = d.data()
         const weaponStats = data.weaponStats as Record<string, unknown> | undefined
@@ -687,7 +689,7 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
       setCampaignItems(items)
     })
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, groupId])
 
   useEffect(() => {
     const monstersNeedingMedia = monsters.filter((monster) =>
@@ -735,7 +737,7 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
         return
       }
       const { id, tokenIcon, portraitUrl: _portraitUrl, ...data } = monster
-      void setDoc(doc(db, 'campaigns', campaignId, 'monsters', id), {
+      void setDoc(campaignDocRef(db, { campaignId, groupId }, 'monsters', id), {
         ...data,
         tokenIcon: sanitizeTokenIconForPersistence(tokenIcon),
         updatedAt: serverTimestamp(),
@@ -756,7 +758,7 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
     if (isMobile) setMobileMonsterView('detail')
     const { id, tokenIcon, portraitUrl: _portraitUrl, ...data } = nextMonster
     inFlightWritesRef.current[id] = true
-    void setDoc(doc(db, 'campaigns', campaignId, 'monsters', id), {
+    void setDoc(campaignDocRef(db, { campaignId, groupId }, 'monsters', id), {
       ...data,
       tokenIcon: sanitizeTokenIconForPersistence(tokenIcon),
       createdAt: serverTimestamp(),
@@ -770,6 +772,7 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
     if (!selectedMonster) throw new Error('No monster selected.')
     const { path, url, name } = await uploadEntityImage({
       campaignId,
+      groupId,
       collectionName: 'monsters',
       entityId: selectedMonster.id,
       mediaKind: 'token-icons',
@@ -788,6 +791,7 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
     if (!selectedMonster) throw new Error('No monster selected.')
     const { path, url } = await uploadEntityImage({
       campaignId,
+      groupId,
       collectionName: 'monsters',
       entityId: selectedMonster.id,
       mediaKind: 'portraits',
@@ -826,7 +830,7 @@ export function MonstersTab({ campaignId, role }: MonstersTabProps) {
       setSelectedMonsterId(null)
       if (isMobile) setMobileMonsterView('list')
     }
-    void deleteDoc(doc(db, 'campaigns', campaignId, 'monsters', monsterId))
+    void deleteDoc(campaignDocRef(db, { campaignId, groupId }, 'monsters', monsterId))
   }
 
   const updateSelectedStat = (key: string, value: string) => {

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Check, ChevronLeft, ShoppingBag, Sparkles, Star, X } from 'lucide-react'
-import { collection, doc, onSnapshot, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore'
+import { onSnapshot, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type {
   CampaignItem,
@@ -23,6 +23,7 @@ import { DEFAULT_STACK_POLICY } from '../items/itemDefaults'
 import { campaignItemToInventoryItem } from '../items/itemConversion'
 import { toFirestoreItem, useItems } from '../items/useItems'
 import { useItemApprovals } from './useItemApprovals'
+import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { sanitizeTokenIconForPersistence, uploadEntityImage } from '../common/mediaStorage'
@@ -92,6 +93,7 @@ import { CharacterThiefSkillsSection } from './CharacterThiefSkillsSection'
 
 type CharacterTabProps = {
   campaignId: string
+  groupId?: string | null
   currentUserId: string
   currentUsername: string
   role: Role | null
@@ -576,6 +578,7 @@ const migrateToInventory = (details: CharacterSheetDetails): CharacterInventoryI
 
 export function CharacterTab({
   campaignId,
+  groupId = null,
   currentUserId,
   currentUsername,
   role,
@@ -672,9 +675,9 @@ export function CharacterTab({
   const [assignmentBusy, setAssignmentBusy] = useState(false)
   const [campaignPlayers, setCampaignPlayers] = useState<CampaignPlayerOption[]>([])
 
-  const { ownPendingRequests, rejections, submitRequest, submitSpellLearnRequest, submitAbilityRerollRequest, dismissRejection } = useItemApprovals(campaignId, role, currentUserId)
-  const { items: campaignItems } = useItems(campaignId)
-  const { outgoingTransfers, createTransfer, cancelTransfer } = usePendingTransfers(campaignId, role, currentUserId)
+  const { ownPendingRequests, rejections, submitRequest, submitSpellLearnRequest, submitAbilityRerollRequest, dismissRejection } = useItemApprovals(campaignId, groupId, role, currentUserId)
+  const { items: campaignItems } = useItems(campaignId, groupId)
+  const { outgoingTransfers, createTransfer, cancelTransfer } = usePendingTransfers(campaignId, groupId, role, currentUserId)
   const [approvalPendingFeedback, setApprovalPendingFeedback] = useState<string | null>(null)
 
   // Auto-clear approval pending feedback after 5 seconds
@@ -691,7 +694,7 @@ export function CharacterTab({
     }
 
     const unsub = onSnapshot(
-      collection(db, 'campaigns', campaignId, 'characters'),
+      campaignCollectionRef(db, { campaignId, groupId }, 'characters'),
       (snapshot) => {
         const next = snapshot.docs
           .map((docSnap) => {
@@ -716,7 +719,7 @@ export function CharacterTab({
     )
 
     return () => unsub()
-  }, [campaignId, campaignPlayers, role])
+  }, [campaignId, campaignPlayers, groupId, role])
 
   useEffect(() => {
     if (!campaignId) {
@@ -725,7 +728,7 @@ export function CharacterTab({
     }
 
     const unsub = onSnapshot(
-      collection(db, 'campaigns', campaignId, 'members'),
+      campaignCollectionRef(db, { campaignId, groupId }, 'members'),
       (snapshot) => {
         const next = snapshot.docs
           .map((docSnap) => {
@@ -749,7 +752,7 @@ export function CharacterTab({
     )
 
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, groupId])
 
   const { seededCharacterIdsRef, justSeededRef, lastPersistedDetailsJsonRef } = useCharacterPersistenceSync({
     selectedCharacterId,
@@ -2000,6 +2003,7 @@ export function CharacterTab({
     if (!effectiveSelected) throw new Error('No character selected.')
     const { path, url, name } = await uploadEntityImage({
       campaignId,
+      groupId,
       collectionName: 'characters',
       entityId: effectiveSelected.id,
       mediaKind: 'token-icons',
@@ -2018,6 +2022,7 @@ export function CharacterTab({
     if (!effectiveSelected) throw new Error('No character selected.')
     const { path, url } = await uploadEntityImage({
       campaignId,
+      groupId,
       collectionName: 'characters',
       entityId: effectiveSelected.id,
       mediaKind: 'portraits',
@@ -2055,7 +2060,7 @@ export function CharacterTab({
     }
     setSelectedCharacterId(nextCharacter.id)
     if (isMobile) setMobileCharacterView('detail')
-    void setDoc(doc(db, 'campaigns', campaignId, 'characters', nextCharacter.id), {
+    void setDoc(campaignDocRef(db, { campaignId, groupId }, 'characters', nextCharacter.id), {
       name: nextCharacter.name,
       ownerUserId: nextCharacter.ownerUserId,
       ownerUsername: nextCharacter.ownerUsername ?? null,
@@ -2382,6 +2387,7 @@ export function CharacterTab({
     setInventoryGoldForCharacter,
   } = useInventoryDomain({
     campaignId,
+    groupId,
     currentUsername,
     effectiveSelected,
     canEditSelected,
@@ -2554,7 +2560,7 @@ export function CharacterTab({
         const targetId = targetIds[targetIndex]
         const target = sortedCharacters.find((character) => character.id === targetId)
         if (!target) continue
-        const charRef = doc(db, 'campaigns', campaignId, 'characters', targetId)
+        const charRef = campaignDocRef(db, { campaignId, groupId }, 'characters', targetId)
         const overflowGoldDocId = crypto.randomUUID()
         const xpForTarget = amountForTarget(parsedGrantBaseXp, grantXpSplitBetweenTargets, targetIds.length, targetIndex)
         const goldForTarget = amountForTarget(parsedGrantGoldGp, grantGoldSplitBetweenTargets, targetIds.length, targetIndex)
@@ -2611,7 +2617,7 @@ export function CharacterTab({
           }
 
           for (const droppedItem of overflow.droppedItems) {
-            const droppedRef = doc(db, 'campaigns', campaignId, 'items', droppedItem.id)
+            const droppedRef = campaignDocRef(db, { campaignId, groupId }, 'items', droppedItem.id)
             tx.set(droppedRef, {
               ...toFirestoreItem(droppedItem),
               createdAt: serverTimestamp(),
@@ -2619,7 +2625,7 @@ export function CharacterTab({
             })
           }
           if (overflow.droppedGoldAmount > 0) {
-            const overflowGoldRef = doc(db, 'campaigns', campaignId, 'items', overflowGoldDocId)
+            const overflowGoldRef = campaignDocRef(db, { campaignId, groupId }, 'items', overflowGoldDocId)
             tx.set(overflowGoldRef, {
               ...toFirestoreItem(makeDroppedGoldCampaignItem(
                 overflow.droppedGoldAmount,

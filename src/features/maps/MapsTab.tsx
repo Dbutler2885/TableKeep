@@ -4,7 +4,7 @@ import type {
   MouseEventHandler,
   SyntheticEvent,
 } from 'react'
-import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
+import { onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import {
   ALargeSmall,
   Check,
@@ -48,6 +48,7 @@ import {
 } from 'lucide-react'
 import { db } from '../../firebase'
 import type { NpcPrivateRecord, NpcRecord, Role } from '../../types/app'
+import { campaignDocRef } from '../campaign/firestorePaths'
 import { CharacterTab } from '../character/CharacterTab'
 import { TokenIconEditor, type TokenIconConfig } from '../tokens/TokenIconEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
@@ -100,11 +101,13 @@ const SURFACE_REVEAL_INTERVAL_MS = 150
 
 function SceneNpcEditorModal({
   campaignId,
+  groupId,
   npcId,
   allTags,
   onClose,
 }: {
   campaignId: string
+  groupId?: string | null
   npcId: string
   allTags: string[]
   onClose: () => void
@@ -117,7 +120,7 @@ function SceneNpcEditorModal({
   const [tagSearch, setTagSearch] = useState('')
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'campaigns', campaignId, 'npcs', npcId), (snap) => {
+    const unsub = onSnapshot(campaignDocRef(db, { campaignId, groupId }, 'npcs', npcId), (snap) => {
       if (!snap.exists()) {
         setNpc(null)
         return
@@ -139,15 +142,15 @@ function SceneNpcEditorModal({
       })
     })
     return () => unsub()
-  }, [campaignId, npcId])
+  }, [campaignId, groupId, npcId])
 
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'campaigns', campaignId, 'npcPrivate', npcId), (snap) => {
+    const unsub = onSnapshot(campaignDocRef(db, { campaignId, groupId }, 'npcPrivate', npcId), (snap) => {
       const data = snap.data() as Partial<NpcPrivateRecord> | undefined
       setGmNotes(typeof data?.gmNotes === 'string' ? data.gmNotes : '')
     })
     return () => unsub()
-  }, [campaignId, npcId])
+  }, [campaignId, groupId, npcId])
 
   useEffect(() => {
     if (!tagsModalOpen || !npc) return
@@ -161,7 +164,7 @@ function SceneNpcEditorModal({
     const nextNpc = { ...npc, ...updates }
     setNpc(nextNpc)
     const { id, ...data } = nextNpc
-    await setDoc(doc(db, 'campaigns', campaignId, 'npcs', id), {
+    await setDoc(campaignDocRef(db, { campaignId, groupId }, 'npcs', id), {
       ...data,
       updatedAt: serverTimestamp(),
     }, { merge: true })
@@ -169,7 +172,7 @@ function SceneNpcEditorModal({
 
   const persistGmNotes = async (value: string) => {
     setGmNotes(value)
-    await setDoc(doc(db, 'campaigns', campaignId, 'npcPrivate', npcId), {
+    await setDoc(campaignDocRef(db, { campaignId, groupId }, 'npcPrivate', npcId), {
       id: npcId,
       gmNotes: value,
       updatedAt: serverTimestamp(),
@@ -179,6 +182,7 @@ function SceneNpcEditorModal({
   const uploadNpcTokenImage = async (file: File) => {
     const { path, url, name } = await uploadEntityImage({
       campaignId,
+      groupId,
       collectionName: 'npcs',
       entityId: npcId,
       mediaKind: 'token-icons',
@@ -192,6 +196,7 @@ function SceneNpcEditorModal({
   const uploadNpcPortraitImage = async (file: File) => {
     const { path, url } = await uploadEntityImage({
       campaignId,
+      groupId,
       collectionName: 'npcs',
       entityId: npcId,
       mediaKind: 'portraits',
@@ -342,13 +347,16 @@ function SceneNpcEditorModal({
 
 export function MapsTab({
   campaignId,
+  groupId,
   role,
   characterTabProps,
 }: {
   campaignId: string
+  groupId?: string | null
   role: Role | null
   characterTabProps?: React.ComponentProps<typeof CharacterTab>
 }) {
+  const workspaceGroupId = groupId ?? null
   const [selectedMapId, setSelectedMapId] = useState('')
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileMapView, setMobileMapView] = useState<'list' | 'detail'>('list')
@@ -510,6 +518,7 @@ export function MapsTab({
     confirmDeleteTokenAsset,
   } = useMapData({
     campaignId,
+    groupId: workspaceGroupId,
     role,
     selectedMapId,
     setSelectedMapId,
@@ -589,6 +598,7 @@ export function MapsTab({
 
   const fog = useFogTools({
     campaignId,
+    groupId: workspaceGroupId,
     role,
     selectedMap,
     setMapError,
@@ -678,6 +688,7 @@ export function MapsTab({
     selectedMap,
     role,
     campaignId,
+    groupId: workspaceGroupId,
     activeMapWidth,
     activeMapHeight,
     activeMapDimension,
@@ -1283,6 +1294,7 @@ export function MapsTab({
 
   const tokenDrag = useTokenDrag({
     campaignId,
+    groupId: workspaceGroupId,
     role,
     selectedMap,
     tokens,
@@ -1736,6 +1748,7 @@ export function MapsTab({
     <aside className="map-fullscreen-controls">
       <GmMapControls
         campaignId={campaignId}
+        groupId={workspaceGroupId}
         dark
         fogTool={fogTool}
         setFogTool={setFogTool}
@@ -2119,21 +2132,22 @@ export function MapsTab({
             {role === 'gm' && (!isMobile || mobileGmPane === 'controls') ? (
               <aside className="map-controls">
                 <GmMapControls
-                campaignId={campaignId}
-                fogTool={fogTool}
-                setFogTool={setFogTool}
-                visionTool={visionTool}
-                setVisionTool={setVisionTool}
-                fogBrushSize={fogBrushSize}
-                setFogBrushSize={setFogBrushSize}
-                tokenPlaceMode={tokenPlaceMode}
-                setTokenPlaceMode={setTokenPlaceMode}
-                tokenSelectMode={tokenSelectMode}
-                setTokenSelectMode={setTokenSelectMode}
-                annotationPlaceMode={annotationPlaceMode}
-                setAnnotationPlaceMode={setAnnotationPlaceMode}
-                playerLabelPlaceMode={playerLabelPlaceMode}
-                setPlayerLabelPlaceMode={setPlayerLabelPlaceMode}
+                  campaignId={campaignId}
+                  groupId={workspaceGroupId}
+                  fogTool={fogTool}
+                  setFogTool={setFogTool}
+                  visionTool={visionTool}
+                  setVisionTool={setVisionTool}
+                  fogBrushSize={fogBrushSize}
+                  setFogBrushSize={setFogBrushSize}
+                  tokenPlaceMode={tokenPlaceMode}
+                  setTokenPlaceMode={setTokenPlaceMode}
+                  tokenSelectMode={tokenSelectMode}
+                  setTokenSelectMode={setTokenSelectMode}
+                  annotationPlaceMode={annotationPlaceMode}
+                  setAnnotationPlaceMode={setAnnotationPlaceMode}
+                  playerLabelPlaceMode={playerLabelPlaceMode}
+                  setPlayerLabelPlaceMode={setPlayerLabelPlaceMode}
                 gmHideLabels={gmHideLabels}
                 setGmHideLabels={setGmHideLabels}
                 tokenColor={tokenColor}
@@ -2525,6 +2539,7 @@ export function MapsTab({
 
 function GmMapControls({
   campaignId,
+  groupId = null,
   dark = false,
   fogTool,
   setFogTool,
@@ -2603,6 +2618,7 @@ function GmMapControls({
   onClearPresentedNpc,
 }: {
   campaignId: string
+  groupId?: string | null
   dark?: boolean
   fogTool: 'reveal' | 'hide' | null
   setFogTool: (tool: 'reveal' | 'hide' | null) => void
@@ -2720,12 +2736,12 @@ function GmMapControls({
       setPresentedNpcGmNotes('')
       return
     }
-    const unsub = onSnapshot(doc(db, 'campaigns', campaignId, 'npcPrivate', presentedNpc.id), (snap) => {
+    const unsub = onSnapshot(campaignDocRef(db, { campaignId, groupId }, 'npcPrivate', presentedNpc.id), (snap) => {
       const data = snap.data() as Partial<NpcPrivateRecord> | undefined
       setPresentedNpcGmNotes(typeof data?.gmNotes === 'string' ? data.gmNotes : '')
     })
     return () => unsub()
-  }, [campaignId, presentedNpc?.id])
+  }, [campaignId, groupId, presentedNpc?.id])
 
   useEffect(() => {
     setBrushSizeDraft(String(fogBrushSize))
@@ -3314,12 +3330,13 @@ function GmMapControls({
         </section>
       ) : null}
       {sceneNpcModalId ? (
-        <SceneNpcEditorModal
-          campaignId={campaignId}
-          npcId={sceneNpcModalId}
-          allTags={allNpcTags}
-          onClose={() => setSceneNpcModalId('')}
-        />
+            <SceneNpcEditorModal
+              campaignId={campaignId}
+              groupId={groupId}
+              npcId={sceneNpcModalId}
+            allTags={allNpcTags}
+            onClose={() => setSceneNpcModalId('')}
+          />
       ) : null}
       {!streamingMode ? (
         <section className="token-cards-panel" aria-label="Token cards">

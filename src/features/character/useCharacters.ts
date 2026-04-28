@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { collection, deleteDoc, deleteField, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
+import { deleteDoc, deleteField, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { CharacterRecord, CharacterSheetDetails, Role, TokenIconConfig } from '../../types/app'
+import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
 import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence } from '../common/mediaStorage'
 
 const defaultTokenIcon: TokenIconConfig = {
@@ -12,6 +13,7 @@ const defaultTokenIcon: TokenIconConfig = {
 
 export function useCharacters(
   campaignId: string | null,
+  groupId: string | null,
   userId: string,
   currentUsername: string,
   role: Role | null,
@@ -37,7 +39,9 @@ export function useCharacters(
       return
     }
 
-    const membershipRef = doc(db, 'users', userId, 'campaignMemberships', campaignId)
+    const membershipRef = groupId
+      ? campaignDocRef(db, { campaignId, groupId }, 'members', userId)
+      : doc(db, 'users', userId, 'campaignMemberships', campaignId)
     const unsub = onSnapshot(
       membershipRef,
       (snap) => {
@@ -51,7 +55,7 @@ export function useCharacters(
     )
 
     return () => unsub()
-  }, [campaignId, enabled, setError, userId])
+  }, [campaignId, enabled, groupId, setError, userId])
 
   useEffect(() => {
     if (!campaignId || !enabled) {
@@ -60,7 +64,7 @@ export function useCharacters(
     }
 
     const unsub = onSnapshot(
-      collection(db, 'campaigns', campaignId, 'members'),
+      campaignCollectionRef(db, { campaignId, groupId }, 'members'),
       (snap) => {
         const next = snap.docs
           .map((docSnap) => {
@@ -93,7 +97,7 @@ export function useCharacters(
     setCharactersLoading(true)
 
     const unsub = onSnapshot(
-      collection(db, 'campaigns', campaignId, 'characters'),
+      campaignCollectionRef(db, { campaignId, groupId }, 'characters'),
       (snap) => {
         const all = snap.docs.map((docSnap) => {
           // Clobbering guard: keep local version if a write is pending
@@ -232,7 +236,7 @@ export function useCharacters(
     return () => {
       unsub()
     }
-  }, [activePlayerIds, campaignId, currentCharacterId, currentUsername, enabled, role, userId, setError])
+  }, [activePlayerIds, campaignId, currentCharacterId, currentUsername, enabled, groupId, role, userId, setError])
 
   useEffect(() => {
     const charactersNeedingMedia = characters.filter((character) =>
@@ -328,7 +332,7 @@ export function useCharacters(
       }
 
       void setDoc(
-        doc(db, 'campaigns', campaignId, 'characters', characterId),
+        campaignDocRef(db, { campaignId, groupId }, 'characters', characterId),
         payload,
         { merge: true },
       ).finally(() => {
@@ -404,7 +408,7 @@ export function useCharacters(
       return next
     })
 
-    void deleteDoc(doc(db, 'campaigns', campaignId, 'characters', characterId))
+    void deleteDoc(campaignDocRef(db, { campaignId, groupId }, 'characters', characterId))
   }
 
   const selectedCharacter = useMemo(
@@ -420,31 +424,18 @@ export function useCharacters(
 
     setCurrentCharacterId(characterId)
 
-    await Promise.all([
-      setDoc(
-        doc(db, 'users', userId, 'campaignMemberships', campaignId),
-        {
-          campaignId,
-          userId,
-          role,
-          status: 'active',
-          currentCharacterId: characterId,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      ),
-      setDoc(
-        doc(db, 'campaigns', campaignId, 'members', userId),
-        {
-          userId,
-          role,
-          status: 'active',
-          currentCharacterId: characterId,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      ),
-    ])
+    await setDoc(
+      campaignDocRef(db, { campaignId, groupId }, 'members', userId),
+      {
+        ...(groupId ? {} : { campaignId }),
+        userId,
+        role,
+        status: 'active',
+        currentCharacterId: characterId,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    )
   }
 
   const hasPendingWrite = (id: string) => !!pendingWritesRef.current[id] || !!inFlightWritesRef.current[id]

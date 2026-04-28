@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MouseEventHandler, TouchEventHandler } from 'react'
-import { deleteField, doc, serverTimestamp, writeBatch } from 'firebase/firestore'
+import { deleteField, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { db } from '../../../firebase'
 import type { Role } from '../../../types/app'
+import { campaignDocRef } from '../../campaign/firestorePaths'
 import {
   DRAG_PATH_SAMPLE_DISTANCE,
   STREAMING_LOCAL_REVEAL_INTERVAL_MS,
@@ -12,6 +13,7 @@ import type { CanvasClipRect, MapRecord, TokenRecord, Waypoint } from '../lib/ty
 
 type UseTokenDragOptions = {
   campaignId: string
+  groupId?: string | null
   role: Role | null
   selectedMap: MapRecord | null
   tokens: TokenRecord[]
@@ -51,6 +53,7 @@ type UseTokenDragOptions = {
 
 export function useTokenDrag({
   campaignId,
+  groupId = null,
   role,
   selectedMap,
   tokens,
@@ -387,7 +390,7 @@ export function useTokenDrag({
           if (!finalPosition) return
           const token = tokens.find((t) => t.id === tokenId)
           if (token?.hidden) {
-            batch.update(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId), {
+            batch.update(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id, 'tokens', tokenId), {
               x: finalPosition.x,
               y: finalPosition.y,
               path: deleteField(),
@@ -397,7 +400,7 @@ export function useTokenDrag({
             return
           }
           const path = [...(dragPaths[tokenId] ?? []), { x: finalPosition.x, y: finalPosition.y, t: dropTime }]
-          batch.update(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId), {
+          batch.update(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id, 'tokens', tokenId), {
             x: finalPosition.x,
             y: finalPosition.y,
             path,

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
+import { deleteDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
+import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
 import type {
   SessionCalendarEntry,
   SessionNote,
@@ -165,7 +166,7 @@ const backfillMissingSessionNumbers = (notes: SessionNote[]) => {
   return notes.map((note) => updates.get(note.id) ?? note)
 }
 
-export function useSessionNotes(campaignId: string, enabled = true) {
+export function useSessionNotes(campaignId: string, enabled = true, groupId?: string | null) {
   const [notes, setNotes] = useState<SessionNote[]>([])
   const [notesLoading, setNotesLoading] = useState(false)
   const notesRef = useRef<SessionNote[]>([])
@@ -184,7 +185,7 @@ export function useSessionNotes(campaignId: string, enabled = true) {
     setNotesLoading(true)
 
     const unsub = onSnapshot(
-      collection(db, 'campaigns', campaignId, 'sessionSummaries'),
+      campaignCollectionRef(db, { campaignId, groupId }, 'sessionSummaries'),
       (snap) => {
         const all = snap.docs.map((docSnap) => {
           if (pendingWritesRef.current[docSnap.id]) {
@@ -201,7 +202,7 @@ export function useSessionNotes(campaignId: string, enabled = true) {
           if (!original || original.sessionNumber != null || note.sessionNumber == null) return
 
           void setDoc(
-            doc(db, 'campaigns', campaignId, 'sessionSummaries', note.id),
+            campaignDocRef(db, { campaignId, groupId }, 'sessionSummaries', note.id),
             { sessionNumber: note.sessionNumber, title: note.title },
             { merge: true },
           ).catch((error) => {
@@ -217,7 +218,7 @@ export function useSessionNotes(campaignId: string, enabled = true) {
     )
 
     return () => unsub()
-  }, [campaignId, enabled])
+  }, [campaignId, enabled, groupId])
 
   useEffect(() => {
     return () => {
@@ -238,7 +239,7 @@ export function useSessionNotes(campaignId: string, enabled = true) {
 
       const { id, ...data } = note
       void setDoc(
-        doc(db, 'campaigns', campaignId, 'sessionSummaries', id),
+        campaignDocRef(db, { campaignId, groupId }, 'sessionSummaries', id),
         { ...data, updatedAt: serverTimestamp() },
         { merge: true },
       ).catch((error) => {
@@ -258,7 +259,7 @@ export function useSessionNotes(campaignId: string, enabled = true) {
     if (!campaignId) return
     const { id, ...data } = normalizedNote
     void setDoc(
-      doc(db, 'campaigns', campaignId, 'sessionSummaries', id),
+      campaignDocRef(db, { campaignId, groupId }, 'sessionSummaries', id),
       { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
     ).catch((error) => {
       console.error('Failed to create session note', { noteId: id, error })
@@ -291,7 +292,7 @@ export function useSessionNotes(campaignId: string, enabled = true) {
       delete pendingWritesRef.current[noteId]
     }
     setNotes((current) => current.filter((note) => note.id !== noteId))
-    void deleteDoc(doc(db, 'campaigns', campaignId, 'sessionSummaries', noteId)).catch((error) => {
+    void deleteDoc(campaignDocRef(db, { campaignId, groupId }, 'sessionSummaries', noteId)).catch((error) => {
       console.error('Failed to delete session note', { noteId, error })
     })
   }

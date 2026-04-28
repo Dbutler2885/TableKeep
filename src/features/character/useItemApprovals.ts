@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  collection,
   deleteDoc,
-  doc,
   onSnapshot,
   query,
   runTransaction,
@@ -12,6 +10,7 @@ import {
   where,
 } from 'firebase/firestore'
 import { db } from '../../firebase'
+import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
 import type {
   CharacterGoldItem,
   CharacterInventoryItem,
@@ -44,6 +43,7 @@ const stripUndefinedDeep = <T,>(value: T): T => {
 
 export function useItemApprovals(
   campaignId: string | null,
+  groupId: string | null,
   role: Role | null,
   currentUserId: string,
   enabled = true,
@@ -60,7 +60,7 @@ export function useItemApprovals(
       return
     }
 
-    const col = collection(db, 'campaigns', campaignId, 'itemApprovals')
+    const col = campaignCollectionRef(db, { campaignId, groupId }, 'itemApprovals')
 
     if (role === 'gm') {
       const q = query(col, where('status', '==', 'pending'))
@@ -97,7 +97,7 @@ export function useItemApprovals(
       unsubPending()
       unsubRejected()
     }
-  }, [campaignId, currentUserId, enabled, role])
+  }, [campaignId, currentUserId, enabled, groupId, role])
 
   const submitRequest = async (
     action: ItemApprovalAction,
@@ -108,7 +108,7 @@ export function useItemApprovals(
   ) => {
     if (!campaignId) return
     const id = crypto.randomUUID()
-    const ref = doc(db, 'campaigns', campaignId, 'itemApprovals', id)
+    const ref = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', id)
     const sanitizedItem = stripUndefinedDeep(item)
     await setDoc(ref, {
       id,
@@ -134,7 +134,7 @@ export function useItemApprovals(
     if (!campaignId) return
     if (spellIds.length === 0) return
     const id = crypto.randomUUID()
-    const ref = doc(db, 'campaigns', campaignId, 'itemApprovals', id)
+    const ref = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', id)
     await setDoc(ref, {
       id,
       action: 'learn_spell',
@@ -157,7 +157,7 @@ export function useItemApprovals(
   ) => {
     if (!campaignId) return
     const id = crypto.randomUUID()
-    const ref = doc(db, 'campaigns', campaignId, 'itemApprovals', id)
+    const ref = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', id)
     await setDoc(ref, {
       id,
       action: 'ability_reroll',
@@ -187,8 +187,8 @@ export function useItemApprovals(
   const approveCreate = async (request: ItemApprovalRequest) => {
     if (!campaignId) return
     if (!request.item) return
-    const charRef = doc(db, 'campaigns', campaignId, 'characters', request.characterId)
-    const approvalRef = doc(db, 'campaigns', campaignId, 'itemApprovals', request.id)
+    const charRef = campaignDocRef(db, { campaignId, groupId }, 'characters', request.characterId)
+    const approvalRef = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', request.id)
 
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(charRef)
@@ -215,8 +215,8 @@ export function useItemApprovals(
   const approveSell = async (request: ItemApprovalRequest) => {
     if (!campaignId) return
     if (!request.item) return
-    const charRef = doc(db, 'campaigns', campaignId, 'characters', request.characterId)
-    const approvalRef = doc(db, 'campaigns', campaignId, 'itemApprovals', request.id)
+    const charRef = campaignDocRef(db, { campaignId, groupId }, 'characters', request.characterId)
+    const approvalRef = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', request.id)
     const sellItem = request.item
     const sellAmount = normalizeGoldAmount(sellItem.costGp)
 
@@ -277,13 +277,13 @@ export function useItemApprovals(
   const approveLearnSpell = async (request: ItemApprovalRequest) => {
     if (!campaignId) return
     const spellIds = Array.isArray(request.spellIds) ? request.spellIds.filter((id) => typeof id === 'string') : []
-    const approvalRef = doc(db, 'campaigns', campaignId, 'itemApprovals', request.id)
+    const approvalRef = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', request.id)
     if (spellIds.length === 0) {
       await updateDoc(approvalRef, { status: 'approved', resolvedAt: serverTimestamp() })
       return
     }
 
-    const charRef = doc(db, 'campaigns', campaignId, 'characters', request.characterId)
+    const charRef = campaignDocRef(db, { campaignId, groupId }, 'characters', request.characterId)
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(charRef)
       if (!snap.exists()) throw new Error('Character not found')
@@ -312,8 +312,8 @@ export function useItemApprovals(
 
   const approveAbilityReroll = async (request: ItemApprovalRequest) => {
     if (!campaignId) return
-    const charRef = doc(db, 'campaigns', campaignId, 'characters', request.characterId)
-    const approvalRef = doc(db, 'campaigns', campaignId, 'itemApprovals', request.id)
+    const charRef = campaignDocRef(db, { campaignId, groupId }, 'characters', request.characterId)
+    const approvalRef = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', request.id)
 
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(charRef)
@@ -356,13 +356,13 @@ export function useItemApprovals(
 
   const rejectRequest = async (request: ItemApprovalRequest) => {
     if (!campaignId) return
-    const ref = doc(db, 'campaigns', campaignId, 'itemApprovals', request.id)
+    const ref = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', request.id)
     await updateDoc(ref, { status: 'rejected', resolvedAt: serverTimestamp() })
   }
 
   const dismissRejection = async (requestId: string) => {
     if (!campaignId) return
-    const ref = doc(db, 'campaigns', campaignId, 'itemApprovals', requestId)
+    const ref = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', requestId)
     await deleteDoc(ref)
   }
 

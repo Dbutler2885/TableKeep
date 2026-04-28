@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
-import { collection, onSnapshot } from 'firebase/firestore'
+import { onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase'
+import { campaignCollectionRef } from '../campaign/firestorePaths'
 
 export type EntitySummary = {
   id: string
   name: string
 }
 
-export function useEntityPickers(campaignId: string) {
+export function useEntityPickers(campaignId: string, groupId: string | null = null) {
   const [monsters, setMonsters] = useState<EntitySummary[]>([])
   const [npcs, setNpcs] = useState<EntitySummary[]>([])
   const [items, setItems] = useState<EntitySummary[]>([])
@@ -15,7 +16,7 @@ export function useEntityPickers(campaignId: string) {
   useEffect(() => {
     if (!campaignId) return
     const unsub = onSnapshot(
-      collection(db, 'campaigns', campaignId, 'monsters'),
+      campaignCollectionRef(db, { campaignId, groupId }, 'monsters'),
       (snap) => {
         setMonsters(
           snap.docs
@@ -28,12 +29,12 @@ export function useEntityPickers(campaignId: string) {
       },
     )
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, groupId])
 
   useEffect(() => {
     if (!campaignId) return
     const unsub = onSnapshot(
-      collection(db, 'campaigns', campaignId, 'npcs'),
+      campaignCollectionRef(db, { campaignId, groupId }, 'npcs'),
       (snap) => {
         setNpcs(
           snap.docs
@@ -46,12 +47,12 @@ export function useEntityPickers(campaignId: string) {
       },
     )
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, groupId])
 
   useEffect(() => {
     if (!campaignId) return
     const unsub = onSnapshot(
-      collection(db, 'campaigns', campaignId, 'items'),
+      campaignCollectionRef(db, { campaignId, groupId }, 'items'),
       (snap) => {
         setItems(
           snap.docs
@@ -64,7 +65,7 @@ export function useEntityPickers(campaignId: string) {
       },
     )
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, groupId])
 
   return { monsters, npcs, items }
 }

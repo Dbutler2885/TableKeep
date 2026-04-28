@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronLeft, Plus, Trash2 } from 'lucide-react'
-import { collection, onSnapshot } from 'firebase/firestore'
+import { onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { NpcRecord, Role } from '../../types/app'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
+import { campaignCollectionRef } from '../campaign/firestorePaths'
 import { useSessionNotes } from './useSessionNotes'
 import { SessionNoteDetail } from './SessionNoteDetail'
 import { SessionNoteImporter } from './SessionNoteImporter'
@@ -11,13 +12,14 @@ import { getSessionCardSubtitle, getSessionDisplayTitle } from './sessionNoteUti
 
 type NotesTabProps = {
   campaignId: string
+  groupId?: string | null
   role: Role | null
 }
 
-export function NotesTab({ campaignId, role }: NotesTabProps) {
+export function NotesTab({ campaignId, groupId, role }: NotesTabProps) {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list')
-  const { notes, notesLoading, addNote, updateNote, deleteNote } = useSessionNotes(campaignId)
+  const { notes, notesLoading, addNote, updateNote, deleteNote } = useSessionNotes(campaignId, true, groupId)
   const [selectedNoteId, setSelectedNoteId] = useState('')
   const [importerOpen, setImporterOpen] = useState(false)
   const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null)
@@ -38,7 +40,7 @@ export function NotesTab({ campaignId, role }: NotesTabProps) {
   useEffect(() => {
     if (!importerOpen) return
     const unsub = onSnapshot(
-      collection(db, 'campaigns', campaignId, 'npcs'),
+      campaignCollectionRef(db, { campaignId, groupId }, 'npcs'),
       (snap) => {
         setNpcs(
           snap.docs.map((docSnap) => {

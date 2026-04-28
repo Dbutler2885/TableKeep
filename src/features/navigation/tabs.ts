@@ -25,6 +25,13 @@ export const tabPaths: Record<AppTab, string> = {
 }
 
 export const tabFromPathname = (pathname: string): AppTab => {
-  const matched = tabs.find((tab) => pathname === tabPaths[tab.id] || pathname.startsWith(`${tabPaths[tab.id]}/`))
+  const matched = tabs.find((tab) => pathname.endsWith(tabPaths[tab.id]) || pathname.includes(`${tabPaths[tab.id]}/`))
   return matched?.id ?? 'character'
 }
+
+export const groupPickerPath = '/groups'
+
+export const groupHomePath = (groupId: string) => `/groups/${groupId}`
+
+export const campaignTabPath = (groupId: string, campaignId: string, tab: AppTab) =>
+  `/groups/${groupId}/campaigns/${campaignId}${tabPaths[tab]}`

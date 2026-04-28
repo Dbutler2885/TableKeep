@@ -9,6 +9,21 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function groupMemberPath(groupId) {
+      return /databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid);
+    }
+
+    function isGroupMember(groupId) {
+      return isSignedIn()
+        && exists(groupMemberPath(groupId))
+        && get(groupMemberPath(groupId)).data.status == "active";
+    }
+
+    function isGroupAdmin(groupId) {
+      return isGroupMember(groupId)
+        && get(groupMemberPath(groupId)).data.role == "admin";
+    }
+
     function campaignMemberPath(campaignId) {
       return /databases/$(database)/documents/campaigns/$(campaignId)/members/$(request.auth.uid);
     }
@@ -76,6 +91,84 @@ service cloud.firestore {
         ) || isCampaignGM(campaignId);
 
         allow delete: if isSelf(userId) || isCampaignGM(campaignId);
+      }
+    }
+
+    match /groups/{groupId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isGroupAdmin(groupId);
+
+      match /members/{userId} {
+        allow read: if isGroupMember(groupId) || isSelf(userId);
+        allow create: if isGroupAdmin(groupId) || (
+          isSelf(userId)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.status == "active"
+          && request.resource.data.role == "admin"
+          && get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid
+        ) || (
+          isSelf(userId)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.status == "active"
+          && request.resource.data.role == "member"
+          && request.resource.data.invitedVia is string
+          && get(/databases/$(database)/documents/inviteCodes/$(request.resource.data.invitedVia)).data.groupId == groupId
+          && get(/databases/$(database)/documents/inviteCodes/$(request.resource.data.invitedVia)).data.revoked == false
+          && get(/databases/$(database)/documents/inviteCodes/$(request.resource.data.invitedVia)).data.expiresAt > request.time
+          && get(/databases/$(database)/documents/inviteCodes/$(request.resource.data.invitedVia)).data.redeemedBy == null
+        );
+        allow update: if isGroupAdmin(groupId) || (
+          isSelf(userId)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.status == "active"
+          && request.resource.data.role == resource.data.role
+        );
+        allow delete: if isGroupAdmin(groupId) || isSelf(userId);
+      }
+
+      match /invites/{inviteId} {
+        allow read: if isGroupMember(groupId);
+        allow create, update, delete: if isGroupMember(groupId);
+      }
+
+      match /campaigns/{campaignId} {
+        allow read: if isGroupMember(groupId);
+        allow create: if isGroupMember(groupId)
+          && request.resource.data.createdBy == request.auth.uid;
+        allow update, delete: if isGroupAdmin(groupId)
+          || (isGroupMember(groupId) && resource.data.gmUserId == request.auth.uid);
+
+        match /members/{userId} {
+          allow read: if isGroupMember(groupId) || isSelf(userId);
+          allow create, update, delete: if isGroupAdmin(groupId)
+            || (isGroupMember(groupId) && get(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)).data.gmUserId == request.auth.uid);
+        }
+
+        match /characters/{characterId} {
+          allow read: if isGroupMember(groupId);
+          allow create: if isGroupMember(groupId)
+            && request.resource.data.ownerUserId == request.auth.uid;
+          allow update: if isGroupAdmin(groupId)
+            || get(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)).data.gmUserId == request.auth.uid
+            || isCharacterOwner();
+          allow delete: if isGroupAdmin(groupId)
+            || get(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)).data.gmUserId == request.auth.uid
+            || isCharacterOwner();
+        }
+
+        match /sessionSummaries/{summaryId} {
+          allow read: if isGroupMember(groupId);
+          allow write: if isGroupAdmin(groupId)
+            || get(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)).data.gmUserId == request.auth.uid;
+        }
+
+        match /{document=**} {
+          allow read, write: if isGroupAdmin(groupId)
+            || get(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)).data.gmUserId == request.auth.uid
+            || isGroupMember(groupId);
+        }
       }
     }
 
@@ -248,6 +341,36 @@ service cloud.firestore {
         allow read: if isCampaignMember(campaignId);
         allow write: if isCampaignGM(campaignId);
       }
+    }
+
+    // Top-level invite codes. Read is open to any signed-in user (security
+    // depends on token entropy — invitees fetch by token to see the accept
+    // screen). Create/delete restricted to group admins; updates allow either
+    // an admin (revoke) or the redeeming user (mark redeemed once).
+    match /inviteCodes/{token} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && isGroupAdmin(request.resource.data.groupId)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.redeemedBy == null
+        && request.resource.data.revoked == false;
+
+      allow update: if isSignedIn() && (
+        // Admin can revoke or otherwise edit
+        isGroupAdmin(resource.data.groupId)
+        // Or the redeemer can mark it redeemed exactly once
+        || (
+          resource.data.redeemedBy == null
+          && resource.data.revoked == false
+          && resource.data.expiresAt > request.time
+          && request.resource.data.redeemedBy == request.auth.uid
+          && request.resource.data.groupId == resource.data.groupId
+          && request.resource.data.revoked == resource.data.revoked
+        )
+      );
+
+      allow delete: if isSignedIn() && isGroupAdmin(resource.data.groupId);
     }
   }
 }

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { serverTimestamp, updateDoc } from 'firebase/firestore'
 import { db } from '../../../firebase'
 import type { Role } from '../../../types/app'
+import { campaignDocRef } from '../../campaign/firestorePaths'
 import type { GridAdjustDraft, MapRecord } from '../lib/types'
 import { DEFAULT_GRID_CELL_SCALE } from '../lib/constants'
 import { detectHexGridFromImageWithDebug, shouldAutoApplyHex } from '../lib/hexDetection'
@@ -11,6 +12,7 @@ type UseGridToolsOptions = {
   selectedMap: MapRecord | undefined | null
   role: Role | null
   campaignId: string
+  groupId?: string | null
   activeMapWidth: number
   activeMapHeight: number
   activeMapDimension: number
@@ -26,6 +28,7 @@ export function useGridTools({
   selectedMap,
   role,
   campaignId,
+  groupId = null,
   activeMapWidth,
   activeMapHeight,
   activeMapDimension,
@@ -146,7 +149,7 @@ export function useGridTools({
             : map,
         ),
       )
-      void updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      void updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
         gridEnabled: false,
         gridVisible: true,
         gridCellScale: DEFAULT_GRID_CELL_SCALE,
@@ -225,7 +228,7 @@ export function useGridTools({
     }
     setMaps((prev) => prev.map((map) => (map.id === selectedMap.id ? { ...map, ...next } : map)))
     try {
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      await updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
         ...next,
         updatedAt: serverTimestamp(),
       })
@@ -270,7 +273,7 @@ export function useGridTools({
           : map,
       ),
     )
-    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+    await updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
       gridCellScale: nextCellScale,
       gridOffsetX: nextOffsetX / mapWidth,
       gridOffsetY: nextOffsetY / mapHeight,
@@ -348,7 +351,7 @@ export function useGridTools({
       resetDistanceTracker()
       if (selectedMap?.gridCalibrated) {
         setMaps((prev) => prev.map((map) => (map.id === selectedMap.id ? { ...map, gridCalibrated: false } : map)))
-        void updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+        void updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
           gridCalibrated: false,
           updatedAt: serverTimestamp(),
         }).catch((error) => {
@@ -402,7 +405,7 @@ export function useGridTools({
     const nextVisible = selectedMap.gridVisible === false
     setMaps((prev) => prev.map((map) => (map.id === selectedMap.id ? { ...map, gridVisible: nextVisible } : map)))
     try {
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      await updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
         gridVisible: nextVisible,
         updatedAt: serverTimestamp(),
       })
