@@ -119,6 +119,8 @@ export type Campaign = {
   slug?: string
   system?: string
   gmUserId?: string | null
+  enabledTabs?: AppTab[]
+  theme?: string
 }
 
 export type GroupMemberRole = 'member' | 'admin'

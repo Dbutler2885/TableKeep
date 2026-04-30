@@ -14,9 +14,15 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { db } from '../../firebase'
-import type { Campaign, GroupRecord, GroupMemberRole } from '../../types/app'
+import type { AppTab, Campaign, GroupRecord, GroupMemberRole } from '../../types/app'
+
+const KNOWN_TABS: AppTab[] = ['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'calendar', 'rules']
 
 function normalizeCampaign(id: string, groupId: string, data: Record<string, unknown>): Campaign {
+  const enabledTabsRaw = Array.isArray(data.enabledTabs) ? data.enabledTabs : null
+  const enabledTabs = enabledTabsRaw
+    ? (enabledTabsRaw.filter((t) => typeof t === 'string' && (KNOWN_TABS as string[]).includes(t)) as AppTab[])
+    : undefined
   return {
     id,
     groupId,
@@ -25,6 +31,8 @@ function normalizeCampaign(id: string, groupId: string, data: Record<string, unk
     status: typeof data.status === 'string' ? data.status : 'inactive',
     system: typeof data.system === 'string' ? data.system : undefined,
     gmUserId: typeof data.gmUserId === 'string' ? data.gmUserId : null,
+    enabledTabs,
+    theme: typeof data.theme === 'string' ? data.theme : undefined,
   }
 }
 

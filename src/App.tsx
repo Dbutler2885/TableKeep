@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, Menu } from 'lucide-react'
+import { ChevronLeft, Menu, Settings } from 'lucide-react'
 import {
   onAuthStateChanged,
   signOut,
@@ -36,6 +36,7 @@ import { GroupPicker } from './features/groups/GroupPicker'
 import { GroupHome } from './features/groups/GroupHome'
 import { useGroupAccess } from './features/groups/useGroupAccess'
 import { AcceptInvite } from './features/invites/AcceptInvite'
+import { CampaignSettingsModal } from './features/campaign/CampaignSettingsModal'
 import type { GroupRecord, ItemApprovalRequest, Role } from './types/app'
 
 const OSE_SRD_URL = 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Main_Page'
@@ -167,6 +168,7 @@ function GroupShell({ user, username }: { user: User, username: string }) {
   const activeTab = useMemo(() => tabFromPathname(location.pathname), [location.pathname])
   const documentVisible = useDocumentVisibility()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const { groups, loading, error, createCampaign, createGroup, setActiveCampaign, deactivateCampaign, deleteInactiveCampaign, deleteDraftCampaign, deleteGroup, setError } = useGroupAccess(user)
   const selectedGroupId = params.groupId ?? null
@@ -314,10 +316,14 @@ function GroupShell({ user, username }: { user: User, username: string }) {
     if (tab === 'character' && role === 'gm') return 'Characters'
     return tabs.find((item) => item.id === tab)?.label ?? tab
   }
-  const visibleTabs = useMemo(
-    () => (role === 'player' ? tabs.filter((tab) => !['items', 'monsters', 'tables'].includes(tab.id)) : tabs),
-    [role],
-  )
+  const visibleTabs = useMemo(() => {
+    const enabled = campaign?.enabledTabs
+    const enabledSet = enabled ? new Set(enabled) : null
+    const enabledFiltered = enabledSet ? tabs.filter((t) => enabledSet.has(t.id)) : tabs
+    return role === 'player'
+      ? enabledFiltered.filter((tab) => !['items', 'monsters', 'tables'].includes(tab.id))
+      : enabledFiltered
+  }, [role, campaign?.enabledTabs])
 
   useEffect(() => {
     if (!campaign || !role) return
@@ -364,7 +370,10 @@ function GroupShell({ user, username }: { user: User, username: string }) {
       ) : (
         <div className="shell-layout">
           <nav className={`side-nav ${drawerOpen ? 'open' : ''}`}>
-            <h1 className="side-title">Home Boys House</h1>
+            <h1 className="side-title">
+              <span className="vtm-fang-anchor">Home</span> Boys{' '}
+              <span className="vtm-fang-anchor">House</span>
+            </h1>
             <p className="side-meta">{group.name}</p>
             <button
               type="button"
@@ -408,6 +417,19 @@ function GroupShell({ user, username }: { user: User, username: string }) {
             <div className="account-panel">
               <p className="account-email account-username">Username: {username}</p>
               <p className="account-email">Role: {role}</p>
+              {role === 'gm' ? (
+                <button
+                  type="button"
+                  className="side-settings-button"
+                  onClick={() => {
+                    setSettingsOpen(true)
+                    setDrawerOpen(false)
+                  }}
+                >
+                  <Settings size={14} />
+                  <span>Campaign settings</span>
+                </button>
+              ) : null}
               <button type="button" onClick={() => signOut(auth)}>
                 Sign Out
               </button>
@@ -606,11 +628,22 @@ function GroupShell({ user, username }: { user: User, username: string }) {
       {campaign ? (
         <CliffhangerModal campaignId={campaign.id} groupId={workspaceGroupId} userId={user.uid} enabled={shouldShowCliffhangerModal} />
       ) : null}
+      {settingsOpen && campaign && workspaceGroupId ? (
+        <CampaignSettingsModal
+          groupId={workspaceGroupId}
+          campaign={campaign}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
     </>
   )
 
+  const shellTheme = campaign && selectedCampaignId
+    ? (campaign.system === 'vtm' ? 'vtm' : 'default')
+    : 'default'
+
   return (
-    <main className="shell-root">
+    <main className="shell-root" data-theme={shellTheme}>
       {location.pathname === groupPickerPath || !selectedGroup ? (
         <GroupPicker
           username={username}
