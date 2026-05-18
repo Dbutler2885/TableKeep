@@ -5,7 +5,7 @@ import { computeAvailablePackedSlots } from '../character/inventoryOverflow'
 
 type TransferNotificationProps = {
   campaignId: string
-  groupId?: string | null
+  groupId: string
   currentUserId: string
   role: Role | null
   characters: CharacterRecord[]
@@ -13,7 +13,7 @@ type TransferNotificationProps = {
 
 export function TransferNotification({
   campaignId,
-  groupId = null,
+  groupId,
   currentUserId,
   role,
   characters,

@@ -34,7 +34,7 @@ import { rollTreasureType, summarizeTreasureBlocks, coinsToGp } from '../treasur
 
 type TablesTabProps = {
   campaignId: string
-  groupId?: string | null
+  groupId: string
 }
 
 const entityName = (list: EntitySummary[], id: string): string =>
@@ -127,7 +127,7 @@ const formatNumber = (n: number) => n.toLocaleString()
 /** Firestore doc ID for reference table history */
 const refTableFirestoreId = (tableId: string) => `_ose_${tableId}`
 
-export function TablesTab({ campaignId, groupId = null }: TablesTabProps) {
+export function TablesTab({ campaignId, groupId }: TablesTabProps) {
   const { tables, tablesLoading, addTable, updateTable, deleteTable } = useTables(campaignId, groupId)
   const { monsters: monsterList, npcs: npcList, items: itemList } = useEntityPickers(campaignId, groupId)
 

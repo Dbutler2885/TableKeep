@@ -12,7 +12,7 @@ import { getSessionCardSubtitle, getSessionDisplayTitle } from './sessionNoteUti
 
 type NotesTabProps = {
   campaignId: string
-  groupId?: string | null
+  groupId: string
   role: Role | null
 }
 

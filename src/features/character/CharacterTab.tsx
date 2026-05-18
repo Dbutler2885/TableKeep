@@ -93,7 +93,7 @@ import { CharacterThiefSkillsSection } from './CharacterThiefSkillsSection'
 
 type CharacterTabProps = {
   campaignId: string
-  groupId?: string | null
+  groupId: string
   currentUserId: string
   currentUsername: string
   role: Role | null
@@ -578,7 +578,7 @@ const migrateToInventory = (details: CharacterSheetDetails): CharacterInventoryI
 
 export function CharacterTab({
   campaignId,
-  groupId = null,
+  groupId,
   currentUserId,
   currentUsername,
   role,

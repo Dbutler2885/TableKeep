@@ -10,7 +10,7 @@ import { FOG_BRUSH_SIZE_MIN, TOKEN_REFERENCE_DIMENSION } from '../lib/constants'
 
 type UseFogToolsOptions = {
   campaignId: string
-  groupId?: string | null
+  groupId: string
   role: Role | null
   selectedMap: MapRecord | null
   setMapError: (message: string | null) => void
@@ -33,7 +33,7 @@ type UseFogToolsOptions = {
 
 export function useFogTools({
   campaignId,
-  groupId = null,
+  groupId,
   role,
   selectedMap,
   setMapError,

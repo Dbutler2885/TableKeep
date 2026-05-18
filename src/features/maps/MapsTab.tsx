@@ -107,7 +107,7 @@ function SceneNpcEditorModal({
   onClose,
 }: {
   campaignId: string
-  groupId?: string | null
+  groupId: string
   npcId: string
   allTags: string[]
   onClose: () => void
@@ -352,11 +352,11 @@ export function MapsTab({
   characterTabProps,
 }: {
   campaignId: string
-  groupId?: string | null
+  groupId: string
   role: Role | null
   characterTabProps?: React.ComponentProps<typeof CharacterTab>
 }) {
-  const workspaceGroupId = groupId ?? null
+  const workspaceGroupId = groupId
   const [selectedMapId, setSelectedMapId] = useState('')
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileMapView, setMobileMapView] = useState<'list' | 'detail'>('list')
@@ -2539,7 +2539,7 @@ export function MapsTab({
 
 function GmMapControls({
   campaignId,
-  groupId = null,
+  groupId,
   dark = false,
   fogTool,
   setFogTool,
@@ -2618,7 +2618,7 @@ function GmMapControls({
   onClearPresentedNpc,
 }: {
   campaignId: string
-  groupId?: string | null
+  groupId: string
   dark?: boolean
   fogTool: 'reveal' | 'hide' | null
   setFogTool: (tool: 'reveal' | 'hide' | null) => void

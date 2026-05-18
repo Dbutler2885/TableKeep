@@ -13,7 +13,7 @@ import type { CanvasClipRect, MapRecord, TokenRecord, Waypoint } from '../lib/ty
 
 type UseTokenDragOptions = {
   campaignId: string
-  groupId?: string | null
+  groupId: string
   role: Role | null
   selectedMap: MapRecord | null
   tokens: TokenRecord[]
@@ -53,7 +53,7 @@ type UseTokenDragOptions = {
 
 export function useTokenDrag({
   campaignId,
-  groupId = null,
+  groupId,
   role,
   selectedMap,
   tokens,

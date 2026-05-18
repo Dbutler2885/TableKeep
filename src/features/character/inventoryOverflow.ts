@@ -188,7 +188,7 @@ export function makeDroppedGoldCampaignItem(
 export async function writeDroppedOverflow(
   db: Firestore,
   campaignId: string,
-  groupId: string | null = null,
+  groupId: string,
   droppedItems: CampaignItem[],
   droppedGoldAmount: number,
   characterId: string,

@@ -115,7 +115,7 @@ export type Campaign = {
   id: string
   name: string
   status: string
-  groupId?: string | null
+  groupId: string
   slug?: string
   system?: string
   gmUserId?: string | null
@@ -147,7 +147,6 @@ export type GroupRecord = {
   drafts: Campaign[]
   inactiveCampaigns: Campaign[]
   memberRole: GroupMemberRole
-  source: 'legacy' | 'group'
 }
 
 export type TokenIconConfig = {

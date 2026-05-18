@@ -5,7 +5,7 @@ import { useSessionNotes } from './useSessionNotes'
 
 type CalendarTabProps = {
   campaignId: string
-  groupId?: string | null
+  groupId: string
   role: Role | null
 }
 

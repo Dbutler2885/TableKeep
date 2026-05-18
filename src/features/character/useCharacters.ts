@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { deleteDoc, deleteField, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
+import { deleteDoc, deleteField, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { CharacterRecord, CharacterSheetDetails, Role, TokenIconConfig } from '../../types/app'
 import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
@@ -34,14 +34,12 @@ export function useCharacters(
   }, [characters])
 
   useEffect(() => {
-    if (!campaignId || !enabled) {
+    if (!campaignId || !groupId || !enabled) {
       setCurrentCharacterId(null)
       return
     }
 
-    const membershipRef = groupId
-      ? campaignDocRef(db, { campaignId, groupId }, 'members', userId)
-      : doc(db, 'users', userId, 'campaignMemberships', campaignId)
+    const membershipRef = campaignDocRef(db, { campaignId, groupId }, 'members', userId)
     const unsub = onSnapshot(
       membershipRef,
       (snap) => {
@@ -58,7 +56,7 @@ export function useCharacters(
   }, [campaignId, enabled, groupId, setError, userId])
 
   useEffect(() => {
-    if (!campaignId || !enabled) {
+    if (!campaignId || !groupId || !enabled) {
       setActivePlayerIds([])
       return
     }
@@ -89,7 +87,7 @@ export function useCharacters(
   }, [campaignId, enabled, setError])
 
   useEffect(() => {
-    if (!campaignId || !role || !enabled) {
+    if (!campaignId || !groupId || !role || !enabled) {
       setCharacters([])
       setCharactersLoading(false)
       return
@@ -296,7 +294,7 @@ export function useCharacters(
   }, [])
 
   const scheduleCharacterWrite = (characterId: string) => {
-    if (!campaignId) return
+    if (!campaignId || !groupId) return
     const existing = pendingWritesRef.current[characterId]
     if (existing) clearTimeout(existing)
 
@@ -385,7 +383,7 @@ export function useCharacters(
   }
 
   const deleteCharacter = (characterId: string) => {
-    if (!campaignId) return
+    if (!campaignId || !groupId) return
     const target = charactersRef.current.find((character) => character.id === characterId)
     if (!target) return
     const canDelete = role === 'gm' || target.ownerUserId === userId
@@ -417,7 +415,7 @@ export function useCharacters(
   )
 
   const setCurrentCharacter = async (characterId: string) => {
-    if (!campaignId || !role) return
+    if (!campaignId || !groupId || !role) return
     const target = charactersRef.current.find((character) => character.id === characterId)
     if (!target) return
     if (role === 'player' && target.ownerUserId !== userId) return
@@ -427,7 +425,6 @@ export function useCharacters(
     await setDoc(
       campaignDocRef(db, { campaignId, groupId }, 'members', userId),
       {
-        ...(groupId ? {} : { campaignId }),
         userId,
         role,
         status: 'active',

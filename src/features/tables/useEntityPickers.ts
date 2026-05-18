@@ -8,7 +8,7 @@ export type EntitySummary = {
   name: string
 }
 
-export function useEntityPickers(campaignId: string, groupId: string | null = null) {
+export function useEntityPickers(campaignId: string, groupId: string) {
   const [monsters, setMonsters] = useState<EntitySummary[]>([])
   const [npcs, setNpcs] = useState<EntitySummary[]>([])
   const [items, setItems] = useState<EntitySummary[]>([])

@@ -10,7 +10,6 @@ import {
   onSnapshot,
   serverTimestamp,
   setDoc,
-  updateDoc,
   writeBatch,
 } from 'firebase/firestore'
 import { db } from '../../firebase'
@@ -84,7 +83,6 @@ export function useGroupAccess(user: User) {
                   drafts,
                   inactiveCampaigns,
                   memberRole: (memberData.role === 'admin' ? 'admin' : 'member') as GroupMemberRole,
-                  source: 'group' as const,
                 }
               }),
             )
@@ -160,7 +158,6 @@ export function useGroupAccess(user: User) {
           drafts: [],
           inactiveCampaigns: [],
           memberRole: 'admin',
-          source: 'group',
         },
       ]
     })

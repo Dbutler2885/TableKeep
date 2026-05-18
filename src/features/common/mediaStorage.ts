@@ -6,7 +6,7 @@ import type { TokenIconConfig } from '../tokens/TokenIconEditor'
 
 type UploadEntityImageParams = {
   campaignId: string
-  groupId?: string | null
+  groupId: string
   collectionName: 'characters' | 'npcs' | 'monsters' | 'items'
   entityId: string
   mediaKind: 'portraits' | 'token-icons'
@@ -57,7 +57,7 @@ export const resolveStoragePathUrl = async (path: string) => {
 
 export const uploadEntityImage = async ({
   campaignId,
-  groupId = null,
+  groupId,
   collectionName,
   entityId,
   mediaKind,

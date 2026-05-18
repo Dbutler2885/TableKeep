@@ -12,7 +12,7 @@ type UseGridToolsOptions = {
   selectedMap: MapRecord | undefined | null
   role: Role | null
   campaignId: string
-  groupId?: string | null
+  groupId: string
   activeMapWidth: number
   activeMapHeight: number
   activeMapDimension: number
@@ -28,7 +28,7 @@ export function useGridTools({
   selectedMap,
   role,
   campaignId,
-  groupId = null,
+  groupId,
   activeMapWidth,
   activeMapHeight,
   activeMapDimension,

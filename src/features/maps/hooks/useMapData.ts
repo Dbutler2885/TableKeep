@@ -40,7 +40,7 @@ const MAP_UPLOAD_MAX_DIMENSION = 2048
 
 type UseMapDataParams = {
   campaignId: string
-  groupId?: string | null
+  groupId: string
   role: Role | null
   selectedMapId: string
   setSelectedMapId: (id: string | ((prev: string) => string)) => void
@@ -63,7 +63,7 @@ type UseMapDataParams = {
 
 export function useMapData({
   campaignId,
-  groupId = null,
+  groupId,
   role,
   selectedMapId,
   setSelectedMapId,

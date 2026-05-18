@@ -273,14 +273,20 @@ Important simplification:
 - there is currently one real group using the app
 - that live group is the only production group that needs to be wrapped into the new model initially
 
-That means the initial migration can treat the existing app data as belonging to one implicit group and wrap that data in the new structure.
+That means the initial migration can treat the existing app data as belonging to one implicit group and reshape it into the new structure.
+
+Decided approach:
+
+- The application code speaks only the nested structure. It does not read or write top-level `campaigns/{campaignId}` data, and it carries no dual-path / legacy-read compatibility.
+- Migration is a one-time, offline data transform, not a code compatibility concern. The migration script reshapes the old data so it already looks like new-structure data before the app ever points at it.
+- The cutover is a deliberate, supervised, planned-downtime event run between sessions, with a full backup taken first. Rollback is "restore the backup," not "fall back to legacy reads."
 
 High-level migration shape:
 
 - create one group
-- move or copy the current live campaign into `groups/{groupId}/campaigns/{campaignId}`
+- copy the live campaign's data into `groups/{groupId}/campaigns/{campaignId}/...` in the new structure
 - derive group members from the existing campaign membership data
-- update the app to navigate through `group -> current campaign`
+- repoint the app at the migrated group; the old top-level data becomes inert and is deleted once the migration is trusted
 
 This document does not define the cutover sequence. That should be handled in a separate migration plan.
 

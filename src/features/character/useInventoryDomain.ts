@@ -65,7 +65,7 @@ export type AddItemModalState = {
 
 type Params = {
   campaignId: string
-  groupId?: string | null
+  groupId: string
   currentUsername: string
   effectiveSelected: CharacterRecord | null
   canEditSelected: boolean
@@ -101,7 +101,7 @@ type Params = {
 
 export function useInventoryDomain({
   campaignId,
-  groupId = null,
+  groupId,
   currentUsername,
   effectiveSelected,
   canEditSelected,

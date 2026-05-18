@@ -3,13 +3,11 @@ import type { Firestore } from 'firebase/firestore'
 
 export type CampaignScope = {
   campaignId: string
-  groupId?: string | null
+  groupId: string
 }
 
 function campaignBaseSegments(scope: CampaignScope): string[] {
-  return scope.groupId
-    ? ['groups', scope.groupId, 'campaigns', scope.campaignId]
-    : ['campaigns', scope.campaignId]
+  return ['groups', scope.groupId, 'campaigns', scope.campaignId]
 }
 
 export function campaignCollectionRef(db: Firestore, scope: CampaignScope, ...segments: string[]) {

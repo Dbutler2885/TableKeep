@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
+import { onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { campaignDocRef } from '../campaign/firestorePaths'
 import { useSessionNotes } from './useSessionNotes'
 
 type CliffhangerModalProps = {
   campaignId: string
-  groupId?: string | null
+  groupId: string
   userId: string
   enabled?: boolean
 }
@@ -34,9 +34,7 @@ export function CliffhangerModal({ campaignId, groupId, userId, enabled = true }
       return
     }
 
-    const membershipRef = groupId
-      ? campaignDocRef(db, { campaignId, groupId }, 'members', userId)
-      : doc(db, 'users', userId, 'campaignMemberships', campaignId)
+    const membershipRef = campaignDocRef(db, { campaignId, groupId }, 'members', userId)
 
     const unsub = onSnapshot(
       membershipRef,
@@ -68,9 +66,7 @@ export function CliffhangerModal({ campaignId, groupId, userId, enabled = true }
   const handleDismiss = () => {
     setDismissed(true)
     void setDoc(
-      groupId
-        ? campaignDocRef(db, { campaignId, groupId }, 'members', userId)
-        : doc(db, 'users', userId, 'campaignMemberships', campaignId),
+      campaignDocRef(db, { campaignId, groupId }, 'members', userId),
       { lastSeenCliffhangerNoteId: latestWithCliffhangers.id, updatedAt: serverTimestamp() },
       { merge: true },
     ).catch((error) => {

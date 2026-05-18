@@ -146,7 +146,7 @@ type MonsterRecord = {
 
 type MonstersTabProps = {
   campaignId: string
-  groupId?: string | null
+  groupId: string
   role: Role | null
 }
 
@@ -355,7 +355,7 @@ const newMonsterTemplate = (rulesetId: MonsterRulesetId): MonsterRecord => {
   }
 }
 
-export function MonstersTab({ campaignId, groupId = null, role }: MonstersTabProps) {
+export function MonstersTab({ campaignId, groupId, role }: MonstersTabProps) {
   const [monsters, setMonsters] = useState<MonsterRecord[]>([])
   const [campaignItems, setCampaignItems] = useState<CampaignItemSummary[]>([])
   const [spellcastingDraftByMonsterId, setSpellcastingDraftByMonsterId] = useState<Record<string, SpellcastingEntry[]>>({})

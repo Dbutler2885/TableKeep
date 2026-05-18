@@ -37,7 +37,7 @@ const defaultTokenIcon: TokenIconConfig = {
 
 type ItemsTabProps = {
   campaignId: string
-  groupId?: string | null
+  groupId: string
   role: Role | null
   characters: CharacterRecord[]
 }
@@ -267,7 +267,7 @@ const newItemTemplate = (type: CampaignItemType): CampaignItem => ({
   notes: '',
 })
 
-export function ItemsTab({ campaignId, groupId = null, role, characters }: ItemsTabProps) {
+export function ItemsTab({ campaignId, groupId, role, characters }: ItemsTabProps) {
   const { items, addItem: hookAddItem, updateItem, deleteItem: hookDeleteItem } = useItems(campaignId, groupId)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [deleteCandidate, setDeleteCandidate] = useState<CampaignItem | null>(null)

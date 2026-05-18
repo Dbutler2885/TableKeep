@@ -166,7 +166,7 @@ const backfillMissingSessionNumbers = (notes: SessionNote[]) => {
   return notes.map((note) => updates.get(note.id) ?? note)
 }
 
-export function useSessionNotes(campaignId: string, enabled = true, groupId?: string | null) {
+export function useSessionNotes(campaignId: string, enabled = true, groupId: string) {
   const [notes, setNotes] = useState<SessionNote[]>([])
   const [notesLoading, setNotesLoading] = useState(false)
   const notesRef = useRef<SessionNote[]>([])

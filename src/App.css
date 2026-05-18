@@ -1286,10 +1286,12 @@ button:hover {
   font-size: 2rem;
   line-height: 0.95;
   margin-bottom: 0.2rem;
+  text-align: center;
 }
 
 .side-meta {
   font-size: 0.9rem;
+  text-align: center;
 }
 
 .side-campaign-back {
@@ -10410,6 +10412,10 @@ button:disabled {
 .vtm-fang-anchor {
   position: relative;
   display: inline-block;
+}
+
+.side-title-spacer {
+  visibility: hidden;
 }
 
 .shell-root[data-theme="vtm"] .vtm-fang-anchor::after {

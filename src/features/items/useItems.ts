@@ -189,7 +189,7 @@ export const toFirestoreItem = (item: CampaignItem): Record<string, unknown> => 
   return payload
 }
 
-export function useItems(campaignId: string, groupId: string | null = null) {
+export function useItems(campaignId: string, groupId: string) {
   const [items, setItems] = useState<CampaignItem[]>([])
   const [itemsLoading, setItemsLoading] = useState(false)
   const itemsRef = useRef<CampaignItem[]>([])

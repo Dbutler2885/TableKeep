@@ -11,7 +11,7 @@ import { NpcDetailEditor, buildAutoNotesForNpc } from './NpcDetailEditor'
 
 type NpcsTabProps = {
   campaignId: string
-  groupId?: string | null
+  groupId: string
   role: Role | null
 }
 
@@ -36,7 +36,7 @@ const makeNpc = (): NpcRecord => ({
   playerNotes: '',
 })
 
-export function NpcsTab({ campaignId, groupId = null, role }: NpcsTabProps) {
+export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list')
   const [npcs, setNpcs] = useState<NpcRecord[]>([])

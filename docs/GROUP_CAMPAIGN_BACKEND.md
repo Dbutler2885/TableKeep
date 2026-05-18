@@ -219,18 +219,21 @@ That simplifies the first migration significantly:
 - existing live campaign data can be treated as belonging to one implicit group
 - the initial migration wraps that world in one explicit `group`
 
+The application code speaks only the nested structure. It does not retain a legacy read path for top-level `campaigns/{campaignId}` data. Migration is a one-time offline data transform that reshapes the old data into the new structure before the app is repointed at it — it is not a runtime compatibility concern.
+
 High-level migration direction:
 
-1. create one group
-2. move or copy current live campaign into nested group campaign path
-3. derive group memberships from current campaign membership data
-4. update the app to resolve group first, then current campaign
+1. take a full backup of the live data
+2. create one group
+3. copy the live campaign's data into the nested group campaign path, reshaped to the new structure
+4. derive group memberships from current campaign membership data
+5. repoint the app at the migrated group; delete the inert top-level data once the migration is trusted
 
-This document does not specify the cutover sequence.
+This document does not specify the cutover sequence, only that it is a deliberate, supervised, planned-downtime event run between sessions.
 
 ## Main Backend Risks
 
-- migrating live campaign data without breaking current reads
+- correctness of the one-time migration data transform (mitigated by a pre-migration backup and a supervised between-sessions cutover)
 - deciding where per-user campaign UI state belongs
 - updating security rules from campaign-scoped membership to group-scoped membership plus campaign ownership
 - preventing external API writes from targeting the wrong campaign

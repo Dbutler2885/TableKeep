@@ -115,7 +115,6 @@ function InviteDetails({ invite, error, busy, onAccept, onDecline }: InviteDetai
       redeemed: 'This invite has already been used.',
       revoked: 'This invite was revoked.',
       expired: 'This invite has expired.',
-      active: '',
     }
     return (
       <>

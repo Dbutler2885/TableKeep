@@ -120,7 +120,7 @@ function App() {
     const isJoinFlow = window.location.pathname.startsWith('/join/')
     return (
       <main className="auth-shell">
-        <h1>Home Boys House</h1>
+        <h1>Table Keep</h1>
         <p>
           {isJoinFlow
             ? 'You\'ve been invited. Sign in or create an account to accept.'
@@ -142,7 +142,7 @@ function App() {
   if (!username) {
     return (
       <main className="auth-shell">
-        <h1>Home Boys House</h1>
+        <h1>Table Keep</h1>
         <p>Choose your username to continue.</p>
         <UsernameSetup user={user} onComplete={setUsername} />
       </main>
@@ -177,7 +177,6 @@ function GroupShell({ user, username }: { user: User, username: string }) {
     () => groups.find((group) => group.id === selectedGroupId) ?? null,
     [groups, selectedGroupId],
   )
-  const workspaceGroupId = selectedGroup?.source === 'group' ? selectedGroup.id : null
   const selectedCampaign = useMemo(() => {
     if (!selectedGroup) return null
     const campaigns = [
@@ -191,6 +190,7 @@ function GroupShell({ user, username }: { user: User, username: string }) {
     return selectedGroup.activeCampaign ?? null
   }, [selectedCampaignId, selectedGroup])
   const campaign = selectedCampaign
+  const workspaceGroupId = campaign?.groupId ?? null
   const role: Role | null = campaign ? (campaign.gmUserId === user.uid ? 'gm' : 'player') : null
 
   useEffect(() => {
@@ -274,7 +274,7 @@ function GroupShell({ user, username }: { user: User, username: string }) {
 
   const characterTabProps = campaign ? {
     campaignId: campaign.id,
-    groupId: workspaceGroupId,
+    groupId: campaign.groupId,
     currentUserId: user.uid,
     currentUsername: username,
     role,
@@ -328,9 +328,8 @@ function GroupShell({ user, username }: { user: User, username: string }) {
   useEffect(() => {
     if (!campaign || !role) return
     void setDoc(
-      campaignDocRef(db, { campaignId: campaign.id, groupId: workspaceGroupId }, 'members', user.uid),
+      campaignDocRef(db, { campaignId: campaign.id, groupId: campaign.groupId }, 'members', user.uid),
       {
-        ...(workspaceGroupId ? {} : { campaignId: campaign.id }),
         userId: user.uid,
         role,
         status: 'active',
@@ -371,8 +370,9 @@ function GroupShell({ user, username }: { user: User, username: string }) {
         <div className="shell-layout">
           <nav className={`side-nav ${drawerOpen ? 'open' : ''}`}>
             <h1 className="side-title">
-              <span className="vtm-fang-anchor">Home</span> Boys{' '}
-              <span className="vtm-fang-anchor">House</span>
+              <span className="vtm-fang-anchor">Table</span>{' '}
+              <span aria-hidden="true" className="side-title-spacer">Boys</span>{' '}
+              <span className="vtm-fang-anchor">Keep</span>
             </h1>
             <p className="side-meta">{group.name}</p>
             <button
@@ -448,19 +448,19 @@ function GroupShell({ user, username }: { user: User, username: string }) {
             {activeTab === 'character' ? (
               characterTabProps ? <CharacterTab {...characterTabProps} /> : null
             ) : activeTab === 'maps' ? (
-              <MapsTab campaignId={campaign.id} groupId={workspaceGroupId} role={role} characterTabProps={characterTabProps ?? undefined} />
+              <MapsTab campaignId={campaign.id} groupId={campaign.groupId} role={role} characterTabProps={characterTabProps ?? undefined} />
             ) : activeTab === 'monsters' ? (
-              role === 'gm' ? <MonstersTab campaignId={campaign.id} groupId={workspaceGroupId} role={role} /> : null
+              role === 'gm' ? <MonstersTab campaignId={campaign.id} groupId={campaign.groupId} role={role} /> : null
             ) : activeTab === 'items' ? (
-              role === 'gm' ? <ItemsTab campaignId={campaign.id} groupId={workspaceGroupId} role={role} characters={characters} /> : null
+              role === 'gm' ? <ItemsTab campaignId={campaign.id} groupId={campaign.groupId} role={role} characters={characters} /> : null
             ) : activeTab === 'npcs' ? (
-              <NpcsTab campaignId={campaign.id} groupId={workspaceGroupId} role={role} />
+              <NpcsTab campaignId={campaign.id} groupId={campaign.groupId} role={role} />
             ) : activeTab === 'tables' ? (
-              role === 'gm' ? <TablesTab campaignId={campaign.id} groupId={workspaceGroupId} /> : null
+              role === 'gm' ? <TablesTab campaignId={campaign.id} groupId={campaign.groupId} /> : null
             ) : activeTab === 'notes' ? (
-              <NotesTab campaignId={campaign.id} groupId={workspaceGroupId} role={role} />
+              <NotesTab campaignId={campaign.id} groupId={campaign.groupId} role={role} />
             ) : activeTab === 'calendar' ? (
-              <CalendarTab campaignId={campaign.id} groupId={workspaceGroupId} role={role} />
+              <CalendarTab campaignId={campaign.id} groupId={campaign.groupId} role={role} />
             ) : (
               <RulesTab />
             )}
@@ -619,18 +619,18 @@ function GroupShell({ user, username }: { user: User, username: string }) {
       {campaign && shouldShowTransferNotification ? (
         <TransferNotification
           campaignId={campaign.id}
-          groupId={workspaceGroupId}
+          groupId={campaign.groupId}
           currentUserId={user.uid}
           role={role}
           characters={characters}
         />
       ) : null}
       {campaign ? (
-        <CliffhangerModal campaignId={campaign.id} groupId={workspaceGroupId} userId={user.uid} enabled={shouldShowCliffhangerModal} />
+        <CliffhangerModal campaignId={campaign.id} groupId={campaign.groupId} userId={user.uid} enabled={shouldShowCliffhangerModal} />
       ) : null}
-      {settingsOpen && campaign && workspaceGroupId ? (
+      {settingsOpen && campaign ? (
         <CampaignSettingsModal
-          groupId={workspaceGroupId}
+          groupId={campaign.groupId}
           campaign={campaign}
           onClose={() => setSettingsOpen(false)}
         />

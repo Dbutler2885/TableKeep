@@ -53,7 +53,7 @@ export function useItemApprovals(
   const [rejections, setRejections] = useState<ItemApprovalRequest[]>([])
 
   useEffect(() => {
-    if (!campaignId || !enabled) {
+    if (!campaignId || !groupId || !enabled) {
       setPendingRequests([])
       setOwnPendingRequests([])
       setRejections([])
@@ -106,7 +106,7 @@ export function useItemApprovals(
     username: string,
     item: CharacterInventoryItem,
   ) => {
-    if (!campaignId) return
+    if (!campaignId || !groupId) return
     const id = crypto.randomUUID()
     const ref = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', id)
     const sanitizedItem = stripUndefinedDeep(item)
@@ -131,7 +131,7 @@ export function useItemApprovals(
     spellIds: string[],
     spellNames: string[],
   ) => {
-    if (!campaignId) return
+    if (!campaignId || !groupId) return
     if (spellIds.length === 0) return
     const id = crypto.randomUUID()
     const ref = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', id)
@@ -155,7 +155,7 @@ export function useItemApprovals(
     characterName: string,
     username: string,
   ) => {
-    if (!campaignId) return
+    if (!campaignId || !groupId) return
     const id = crypto.randomUUID()
     const ref = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', id)
     await setDoc(ref, {
@@ -185,7 +185,7 @@ export function useItemApprovals(
   }
 
   const approveCreate = async (request: ItemApprovalRequest) => {
-    if (!campaignId) return
+    if (!campaignId || !groupId) return
     if (!request.item) return
     const charRef = campaignDocRef(db, { campaignId, groupId }, 'characters', request.characterId)
     const approvalRef = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', request.id)
@@ -213,7 +213,7 @@ export function useItemApprovals(
   }
 
   const approveSell = async (request: ItemApprovalRequest) => {
-    if (!campaignId) return
+    if (!campaignId || !groupId) return
     if (!request.item) return
     const charRef = campaignDocRef(db, { campaignId, groupId }, 'characters', request.characterId)
     const approvalRef = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', request.id)
@@ -275,7 +275,7 @@ export function useItemApprovals(
   }
 
   const approveLearnSpell = async (request: ItemApprovalRequest) => {
-    if (!campaignId) return
+    if (!campaignId || !groupId) return
     const spellIds = Array.isArray(request.spellIds) ? request.spellIds.filter((id) => typeof id === 'string') : []
     const approvalRef = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', request.id)
     if (spellIds.length === 0) {
@@ -311,7 +311,7 @@ export function useItemApprovals(
   }
 
   const approveAbilityReroll = async (request: ItemApprovalRequest) => {
-    if (!campaignId) return
+    if (!campaignId || !groupId) return
     const charRef = campaignDocRef(db, { campaignId, groupId }, 'characters', request.characterId)
     const approvalRef = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', request.id)
 
@@ -355,13 +355,13 @@ export function useItemApprovals(
   }
 
   const rejectRequest = async (request: ItemApprovalRequest) => {
-    if (!campaignId) return
+    if (!campaignId || !groupId) return
     const ref = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', request.id)
     await updateDoc(ref, { status: 'rejected', resolvedAt: serverTimestamp() })
   }
 
   const dismissRejection = async (requestId: string) => {
-    if (!campaignId) return
+    if (!campaignId || !groupId) return
     const ref = campaignDocRef(db, { campaignId, groupId }, 'itemApprovals', requestId)
     await deleteDoc(ref)
   }

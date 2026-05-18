@@ -38,7 +38,7 @@ export function GroupPicker({ username, groups, onCreateGroup, onSelectGroup }: 
     <section className="group-screen">
       <div className="group-panel">
         <p className="group-eyebrow">Group Picker</p>
-        <h1>Home Boys House</h1>
+        <h1>Table Keep</h1>
         <p className="group-subtitle">Signed in as <strong>{username}</strong></p>
 
         {groups.length === 0 ? (

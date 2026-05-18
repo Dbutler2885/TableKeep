@@ -44,7 +44,7 @@ export function usePendingTransfers(
   const [transfers, setTransfers] = useState<PendingTransfer[]>([])
 
   useEffect(() => {
-    if (!campaignId) {
+    if (!campaignId || !groupId) {
       setTransfers([])
       return
     }
@@ -91,7 +91,7 @@ export function usePendingTransfers(
     fromCharacter: Pick<CharacterRecord, 'id' | 'name' | 'ownerUserId'>,
     toCharacter: Pick<CharacterRecord, 'id' | 'name' | 'ownerUserId'>,
   ) => {
-    if (!campaignId) throw new Error('Campaign not ready')
+    if (!campaignId || !groupId) throw new Error('Campaign not ready')
     if (fromCharacter.id === toCharacter.id) throw new Error('Choose a different character.')
     if (!toCharacter.ownerUserId) throw new Error('Target character has no owner.')
     const duplicate = transfers.find((transfer) =>
@@ -133,12 +133,12 @@ export function usePendingTransfers(
   }
 
   const declineTransfer = async (transferId: string) => {
-    if (!campaignId) return
+    if (!campaignId || !groupId) return
     await deleteDoc(campaignDocRef(db, { campaignId, groupId }, 'pendingTransfers', transferId))
   }
 
   const cancelTransfer = async (transferId: string) => {
-    if (!campaignId) return
+    if (!campaignId || !groupId) return
     await deleteDoc(campaignDocRef(db, { campaignId, groupId }, 'pendingTransfers', transferId))
   }
 

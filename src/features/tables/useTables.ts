@@ -96,7 +96,7 @@ const toFirestoreTable = (table: TableRecord): Record<string, unknown> => ({
   rows: table.rows,
 })
 
-export function useTables(campaignId: string, groupId: string | null = null) {
+export function useTables(campaignId: string, groupId: string) {
   const [tables, setTables] = useState<TableRecord[]>([])
   const [tablesLoading, setTablesLoading] = useState(false)
   const tablesRef = useRef<TableRecord[]>([])
