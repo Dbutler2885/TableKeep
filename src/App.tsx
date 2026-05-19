@@ -200,6 +200,10 @@ function GroupShell({ user, username }: { user: User, username: string }) {
     }
   }, [groups, loading, location.pathname, navigate])
 
+  const handleSignOut = useCallback(() => {
+    void signOut(auth)
+  }, [])
+
   const handleSelectGroup = useCallback((groupId: string) => {
     const nextGroup = groups.find((group) => group.id === groupId) ?? null
     void navigate(
@@ -415,7 +419,7 @@ function GroupShell({ user, username }: { user: User, username: string }) {
                   <span>Campaign settings</span>
                 </button>
               ) : null}
-              <button type="button" onClick={() => signOut(auth)}>
+              <button type="button" onClick={handleSignOut}>
                 Sign Out
               </button>
             </div>
@@ -635,6 +639,7 @@ function GroupShell({ user, username }: { user: User, username: string }) {
           groups={groups}
           onCreateGroup={handleCreateGroup}
           onSelectGroup={handleSelectGroup}
+          onSignOut={handleSignOut}
         />
       ) : !selectedCampaignId ? (
         <GroupHome
@@ -649,6 +654,7 @@ function GroupShell({ user, username }: { user: User, username: string }) {
           onDeleteGroup={handleDeleteGroup}
           onBackToGroups={() => { void navigate(groupPickerPath, { replace: true }) }}
           onOpenCampaign={handleOpenCampaign}
+          onSignOut={handleSignOut}
           onOpenActiveCampaign={() => {
             if (selectedGroup.activeCampaign) {
               void navigate(campaignTabPath(selectedGroup.id, selectedGroup.activeCampaign.id, 'character'), { replace: true })

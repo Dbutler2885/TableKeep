@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronLeft, Copy, Plus, Trash2, UserPlus } from 'lucide-react'
+import { ChevronLeft, Copy, LogOut, Plus, Trash2, UserPlus } from 'lucide-react'
 import type { User } from 'firebase/auth'
 import type { Campaign, GroupRecord, InviteCode } from '../../types/app'
 import { inviteState, useGroupInvites } from '../invites/useInvites'
@@ -17,6 +17,7 @@ type GroupHomeProps = {
   onBackToGroups: () => void
   onOpenCampaign: (campaignId: string) => void
   onOpenActiveCampaign: () => void
+  onSignOut: () => void
 }
 
 export function GroupHome({
@@ -32,6 +33,7 @@ export function GroupHome({
   onBackToGroups,
   onOpenCampaign,
   onOpenActiveCampaign,
+  onSignOut,
 }: GroupHomeProps) {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -182,7 +184,7 @@ export function GroupHome({
     <section className="group-screen">
       <div className="group-panel group-panel-wide">
         <div className="group-home-header">
-          <button type="button" className="group-icon-button" onClick={onBackToGroups} aria-label="Back to groups">
+          <button type="button" className="group-icon-button" onClick={onBackToGroups} aria-label="Back to groups" title="Back to groups">
             <ChevronLeft size={16} />
           </button>
           <div className="group-home-title">
@@ -200,15 +202,19 @@ export function GroupHome({
                   setInviteOpen(true)
                 }}
                 aria-label="Invite to group"
+                title="Invite to group"
               >
                 <UserPlus size={16} />
               </button>
             ) : null}
             {canDelete ? (
-              <button type="button" className="group-icon-button" onClick={() => setDeleteOpen(true)} aria-label="Delete group">
+              <button type="button" className="group-icon-button" onClick={() => setDeleteOpen(true)} aria-label="Delete group" title="Delete group">
                 <Trash2 size={16} />
               </button>
             ) : null}
+            <button type="button" className="group-icon-button" onClick={onSignOut} aria-label="Sign out" title="Sign out">
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
 
@@ -257,6 +263,7 @@ export function GroupHome({
                 type="button"
                 className="group-icon-button"
                 aria-label="Create new draft"
+                title="Create new draft"
                 onClick={() => setCreateOpen(true)}
               >
                 <Plus size={18} />
@@ -293,6 +300,7 @@ export function GroupHome({
                         type="button"
                         className="group-icon-button"
                         aria-label={`Delete draft ${campaign.name}`}
+                        title={`Delete draft ${campaign.name}`}
                         onClick={(event) => {
                           event.stopPropagation()
                           setError(null)
@@ -347,6 +355,7 @@ export function GroupHome({
                         type="button"
                         className="group-icon-button"
                         aria-label={`Delete ${campaign.name}`}
+                        title={`Delete ${campaign.name}`}
                         onClick={(event) => {
                           event.stopPropagation()
                           setError(null)
@@ -643,11 +652,11 @@ function InviteRow({ invite, inviteUrl, copied, onCopy, onRevoke }: InviteRowPro
       <div className="invite-row-actions">
         {state === 'active' ? (
           <>
-            <button type="button" className="invite-row-copy" onClick={onCopy} aria-label="Copy invite link">
+            <button type="button" className="invite-row-copy" onClick={onCopy} aria-label="Copy invite link" title="Copy invite link">
               <Copy size={14} />
               <span>{copied ? 'Copied' : 'Copy link'}</span>
             </button>
-            <button type="button" className="invite-row-revoke" onClick={onRevoke} aria-label="Revoke invite">
+            <button type="button" className="invite-row-revoke" onClick={onRevoke} aria-label="Revoke invite" title="Revoke invite">
               Revoke
             </button>
           </>

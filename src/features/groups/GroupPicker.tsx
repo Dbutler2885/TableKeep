@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { LogOut, Plus } from 'lucide-react'
 import type { GroupRecord } from '../../types/app'
 
 type GroupPickerProps = {
@@ -7,9 +7,10 @@ type GroupPickerProps = {
   groups: GroupRecord[]
   onCreateGroup: (name: string) => Promise<void>
   onSelectGroup: (groupId: string) => void
+  onSignOut: () => void
 }
 
-export function GroupPicker({ username, groups, onCreateGroup, onSelectGroup }: GroupPickerProps) {
+export function GroupPicker({ username, groups, onCreateGroup, onSelectGroup, onSignOut }: GroupPickerProps) {
   const [createOpen, setCreateOpen] = useState(false)
   const [groupName, setGroupName] = useState('')
   const [busy, setBusy] = useState(false)
@@ -39,7 +40,18 @@ export function GroupPicker({ username, groups, onCreateGroup, onSelectGroup }: 
       <div className="group-panel">
         <p className="group-eyebrow">Group Picker</p>
         <h1>Table Keep</h1>
-        <p className="group-subtitle">Signed in as <strong>{username}</strong></p>
+        <p className="group-subtitle">
+          Signed in as <strong>{username}</strong>
+          {' · '}
+          <button
+            type="button"
+            className="group-link-button"
+            onClick={onSignOut}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' }}
+          >
+            <LogOut size={13} /> Sign out
+          </button>
+        </p>
 
         {groups.length === 0 ? (
           <div className="group-empty-state">
@@ -61,6 +73,7 @@ export function GroupPicker({ username, groups, onCreateGroup, onSelectGroup }: 
                 type="button"
                 className="group-icon-button"
                 aria-label="Create a group"
+                title="Create a group"
                 onClick={() => setCreateOpen(true)}
               >
                 <Plus size={18} />
