@@ -123,7 +123,7 @@ A campaign owns:
 - its system
 - its game data
 - its lifecycle state
-- its current GM/prep owner in the first version
+- its single GM/prep owner (`gmUserId`, exactly one user — never an array)
 
 Essential fields:
 
@@ -208,25 +208,31 @@ Operational rule for v1:
 - current campaign switching is not treated as an adversarial permission problem
 - the product should focus on making the effect of switching clear before the action is confirmed
 
-The design does not currently require campaign-specific membership documents.
+The design has no campaign-specific membership documents (settled — see
+"Membership, Participation, and Per-User State").
 
-## Why Campaign Membership Is Not Included Yet
+## Membership, Participation, and Per-User State (Resolved)
 
-`campaignMembership` is intentionally excluded from the first target model.
+There is no `campaignMembership` concept, and there is no campaign-level `members`
+collection. This is a settled decision, not a deferral.
 
-Reason:
+Three distinct facts, three distinct homes — each with exactly one source of truth:
 
-- all group members participate in the group's active campaign
-- draft campaigns are private to their creator/GM before they go live
-- the current requirement does not need per-campaign player rosters or collaborative private prep
-- leaving the group is the way a user opts out entirely
-- private prep is modeled by campaign lifecycle state, not by separate campaign membership records
+- **Access** is `groups/{groupId}/members/{userId}`. Being in this collection grants
+  access to the group and every campaign in it. Security rules consult only this for
+  group/campaign access.
+- **GM** is `campaigns/{campaignId}.gmUserId` — a single user id, never an array.
+  This is the only signal of GM-ness.
+- **Participation** is implicit: a player is participating in a campaign if and only
+  if they own a character in it. There is no roster, flag, or join record. Sitting a
+  campaign out means simply not having a character; the user stays a group member.
 
-This may need to change later if the app needs:
+`role`, `status`, and `username` are never duplicated onto a campaign-level doc.
+Role-in-group lives in group members; GM lives on the campaign doc; username lives
+in `users/{userId}`.
 
-- multiple private co-GMs on a draft
-- per-campaign player lists
-- campaign-specific visibility rules
+Any "who is actively playing" logic derives from character ownership in the
+campaign, never from a membership-style collection.
 
 ## Target Firestore Shape
 
@@ -255,6 +261,10 @@ Store:
 - `maps`
 - `items`
 - `tables`
+- `userState/{userId}` — private per-user UI scratch only: `currentCharacterId`,
+  `lastSeenCliffhangerNoteId`. Owner-read/write only. There is deliberately no
+  campaign-level `members` collection; `userState` is named to make clear it is
+  scratch, not membership or access.
 
 Map-owned subcollections can stay nested under maps:
 
@@ -290,15 +300,20 @@ High-level migration shape:
 
 This document does not define the cutover sequence. That should be handled in a separate migration plan.
 
-## Open Questions
+## Resolved Decisions
 
-- Should campaign ownership remain `gmUserId`, or should it become `gmUserIds` sooner?
-- Should inactive campaigns be visible to all group members by default, or only when explicitly browsed?
-- Should the app keep a user-scoped membership index for convenience, even if group membership is the source of truth?
-- Where should per-user campaign UI state live in the new model:
-  - current character
-  - last seen cliffhanger
-  - future campaign-local preferences
+- Campaign ownership stays `gmUserId` — exactly one GM, never `gmUserIds`.
+- Per-user campaign UI state lives in `groups/{groupId}/campaigns/{campaignId}/userState/{userId}`
+  (current character, last seen cliffhanger). No user-scoped membership index is kept;
+  group membership is the only access source of truth.
+- There is no campaign-level `members` collection and no `campaignMembership` concept;
+  participation is character ownership.
+
+Still treated as separate work (not open design questions):
+
+- inactive-campaign default visibility is a UI/UX detail, resolved in the UI flow doc
+- security rules, the migration script, and invite-flow verification follow from the
+  decisions above
 
 ## Out of Scope For This Document
 

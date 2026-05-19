@@ -94,6 +94,7 @@ import { CharacterThiefSkillsSection } from './CharacterThiefSkillsSection'
 type CharacterTabProps = {
   campaignId: string
   groupId: string
+  gmUserId: string | null
   currentUserId: string
   currentUsername: string
   role: Role | null
@@ -579,6 +580,7 @@ const migrateToInventory = (details: CharacterSheetDetails): CharacterInventoryI
 export function CharacterTab({
   campaignId,
   groupId,
+  gmUserId,
   currentUserId,
   currentUsername,
   role,
@@ -673,7 +675,6 @@ export function CharacterTab({
   const [playerAssignmentOpen, setPlayerAssignmentOpen] = useState(false)
   const [assignmentTargetUserId, setAssignmentTargetUserId] = useState('')
   const [assignmentBusy, setAssignmentBusy] = useState(false)
-  const [campaignPlayers, setCampaignPlayers] = useState<CampaignPlayerOption[]>([])
 
   const { ownPendingRequests, rejections, submitRequest, submitSpellLearnRequest, submitAbilityRerollRequest, dismissRejection } = useItemApprovals(campaignId, groupId, role, currentUserId)
   const { items: campaignItems } = useItems(campaignId, groupId)
@@ -712,47 +713,32 @@ export function CharacterTab({
               details: data.details ?? null,
             } satisfies TransferTargetCharacter
           })
-          .filter((character) => role === 'gm' || campaignPlayers.some((player) => player.userId === character.ownerUserId))
+          .filter((character) => role === 'gm' || character.ownerUserId !== gmUserId)
         setAllCampaignCharacters(next)
       },
       () => setAllCampaignCharacters([]),
     )
 
     return () => unsub()
-  }, [campaignId, campaignPlayers, groupId, role])
+  }, [campaignId, gmUserId, groupId, role])
 
-  useEffect(() => {
-    if (!campaignId) {
-      setCampaignPlayers([])
-      return
+  // Players are derived from character ownership (non-GM owners), replacing the
+  // old campaign-level `members` roster.
+  const campaignPlayers = useMemo<CampaignPlayerOption[]>(() => {
+    const byUser = new Map<string, CampaignPlayerOption>()
+    for (const character of allCampaignCharacters) {
+      if (!character.ownerUserId || character.ownerUserId === gmUserId) continue
+      if (!byUser.has(character.ownerUserId)) {
+        byUser.set(character.ownerUserId, {
+          userId: character.ownerUserId,
+          username: character.ownerUsername ?? null,
+        })
+      }
     }
-
-    const unsub = onSnapshot(
-      campaignCollectionRef(db, { campaignId, groupId }, 'members'),
-      (snapshot) => {
-        const next = snapshot.docs
-          .map((docSnap) => {
-            const data = docSnap.data() as {
-              userId?: string
-              username?: string | null
-              role?: Role
-              status?: string
-            }
-            if (data.role !== 'player' || data.status !== 'active' || typeof data.userId !== 'string') return null
-            return {
-              userId: data.userId,
-              username: typeof data.username === 'string' ? data.username : null,
-            } satisfies CampaignPlayerOption
-          })
-          .filter((entry): entry is CampaignPlayerOption => entry !== null)
-          .sort((a, b) => (a.username ?? a.userId).localeCompare(b.username ?? b.userId))
-        setCampaignPlayers(next)
-      },
-      () => setCampaignPlayers([]),
+    return [...byUser.values()].sort((a, b) =>
+      (a.username ?? a.userId).localeCompare(b.username ?? b.userId),
     )
-
-    return () => unsub()
-  }, [campaignId, groupId])
+  }, [allCampaignCharacters, gmUserId])
 
   const { seededCharacterIdsRef, justSeededRef, lastPersistedDetailsJsonRef } = useCharacterPersistenceSync({
     selectedCharacterId,

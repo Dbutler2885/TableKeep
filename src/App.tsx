@@ -28,7 +28,6 @@ import { NotesTab } from './features/notes/NotesTab'
 import { CalendarTab } from './features/notes/CalendarTab'
 import { CliffhangerModal } from './features/notes/CliffhangerModal'
 import { campaignTabPath, groupHomePath, groupPickerPath, tabFromPathname, tabs } from './features/navigation/tabs'
-import { campaignDocRef } from './features/campaign/firestorePaths'
 import { useCharacters } from './features/character/useCharacters'
 import { useItemApprovals } from './features/character/useItemApprovals'
 import { TransferNotification } from './features/transfers/TransferNotification'
@@ -270,11 +269,12 @@ function GroupShell({ user, username }: { user: User, username: string }) {
     syncCharacterLocal,
     deleteCharacter,
     hasPendingWrite,
-  } = useCharacters(campaign?.id ?? null, workspaceGroupId, user.uid, username, role, setError, shouldListenForCharacters)
+  } = useCharacters(campaign?.id ?? null, workspaceGroupId, user.uid, username, role, campaign?.gmUserId ?? null, setError, shouldListenForCharacters)
 
   const characterTabProps = campaign ? {
     campaignId: campaign.id,
     groupId: campaign.groupId,
+    gmUserId: campaign.gmUserId ?? null,
     currentUserId: user.uid,
     currentUsername: username,
     role,
@@ -324,21 +324,6 @@ function GroupShell({ user, username }: { user: User, username: string }) {
       ? enabledFiltered.filter((tab) => !['items', 'monsters', 'tables'].includes(tab.id))
       : enabledFiltered
   }, [role, campaign?.enabledTabs])
-
-  useEffect(() => {
-    if (!campaign || !role) return
-    void setDoc(
-      campaignDocRef(db, { campaignId: campaign.id, groupId: campaign.groupId }, 'members', user.uid),
-      {
-        userId: user.uid,
-        role,
-        status: 'active',
-        username,
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    )
-  }, [campaign, role, user.uid, username, workspaceGroupId])
 
   const renderCampaignWorkspace = (group: GroupRecord) => (
     <>

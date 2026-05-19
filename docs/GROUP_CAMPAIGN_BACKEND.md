@@ -155,47 +155,37 @@ Working rules:
 - any campaign GM can make that campaign current
 - invites can be sent by group members
 
-The current design intentionally does not introduce `campaignMembership`.
+The design has no `campaignMembership` (settled — see "No Campaign Membership").
 
-## Why Campaign Membership Is Deferred
+## No Campaign Membership (Resolved)
 
-It is not needed for the current operating model because:
+There is no `campaignMembership` and no campaign-level `members` collection. This is
+settled, not deferred. The three facts and their single sources of truth:
 
-- active/current campaigns are group-shared
-- draft campaigns are private to their GM
-- inactive campaigns are shared history
-- opting out of a group's campaigns is handled by leaving the group
+- **Access**: `groups/{groupId}/members/{userId}`. Grants the group and all its
+  campaigns. Security rules read only this for group/campaign access.
+- **GM**: `campaigns/{campaignId}.gmUserId` — exactly one user id, never an array.
+- **Participation**: implicit — a player participates iff they own a character in the
+  campaign. No roster. Sitting out = no character, while staying a group member.
 
-This may need to change later if the product needs:
+`role`/`status`/`username` are never copied onto a campaign-level doc. "Who is
+actively playing" is derived from character ownership, never a membership collection.
 
-- co-GM private draft collaboration
-- per-campaign player rosters
-- campaign-specific access control
+## User-Scoped Campaign UI State (Resolved)
 
-## User-Scoped Campaign UI State
+Per-user campaign UI state lives in:
 
-The current app stores campaign-local user state in:
+- `groups/{groupId}/campaigns/{campaignId}/userState/{userId}`
 
-- `users/{userId}/campaignMemberships/{campaignId}`
-
-Examples already in use:
+Fields (private scratch only):
 
 - `currentCharacterId`
 - `lastSeenCliffhangerNoteId`
 
-This no longer fits the new model cleanly as-is.
-
-Open design question:
-
-Where should per-user campaign UI state live in the new model?
-
-Candidate directions:
-
-- `users/{userId}/groups/{groupId}/campaignState/{campaignId}` style index
-- `groups/{groupId}/members/{userId}` for group-level defaults plus a nested campaign state area
-- a new dedicated per-user per-campaign state collection
-
-This should be resolved before implementation work begins on migrated reads.
+Rules: owner-only read/write (`request.auth.uid == userId`). The collection is named
+`userState`, not `members`, specifically so it is never mistaken for membership or
+access. The legacy `users/{userId}/campaignMemberships/{campaignId}` location is
+removed; the migration maps it directly to `userState/{userId}` (UI fields only).
 
 ## API Implications
 
@@ -234,13 +224,15 @@ This document does not specify the cutover sequence, only that it is a deliberat
 ## Main Backend Risks
 
 - correctness of the one-time migration data transform (mitigated by a pre-migration backup and a supervised between-sessions cutover)
-- deciding where per-user campaign UI state belongs
-- updating security rules from campaign-scoped membership to group-scoped membership plus campaign ownership
+- updating security rules to group-scoped membership plus single-GM campaign ownership
 - preventing external API writes from targeting the wrong campaign
 
-## Next Backend Decisions
+## Next Backend Work
 
-- resolve `gmUserId` vs `gmUserIds`
-- resolve per-user campaign UI state location
-- define exact old-to-new collection mapping
-- define security rule model for groups, drafts, and inactive campaigns
+The data model is frozen (see resolved sections above). Remaining items are
+implementation following from it, not open design:
+
+- define exact old-to-new collection mapping and write the migration script
+- define the security rule model: group access via `groups/{groupId}/members/{userId}`,
+  GM-only writes via `campaigns/{campaignId}.gmUserId`, `userState/{userId}` owner-only
+- verify the invite flow end to end

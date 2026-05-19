@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { deleteDoc, deleteField, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { CharacterRecord, CharacterSheetDetails, Role, TokenIconConfig } from '../../types/app'
-import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
+import { campaignCollectionRef, campaignDocRef, campaignUserStateRef } from '../campaign/firestorePaths'
 import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence } from '../common/mediaStorage'
 
 const defaultTokenIcon: TokenIconConfig = {
@@ -17,6 +17,7 @@ export function useCharacters(
   userId: string,
   currentUsername: string,
   role: Role | null,
+  gmUserId: string | null,
   setError: (message: string) => void,
   enabled = true,
 ) {
@@ -24,7 +25,6 @@ export function useCharacters(
   const [charactersLoading, setCharactersLoading] = useState(false)
   const [selectedCharacterId, setSelectedCharacterId] = useState('')
   const [currentCharacterId, setCurrentCharacterId] = useState<string | null>(null)
-  const [activePlayerIds, setActivePlayerIds] = useState<string[]>([])
   const charactersRef = useRef<CharacterRecord[]>([])
   const pendingWritesRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const inFlightWritesRef = useRef<Record<string, boolean>>({})
@@ -39,9 +39,9 @@ export function useCharacters(
       return
     }
 
-    const membershipRef = campaignDocRef(db, { campaignId, groupId }, 'members', userId)
+    const userStateRef = campaignUserStateRef(db, { campaignId, groupId }, userId)
     const unsub = onSnapshot(
-      membershipRef,
+      userStateRef,
       (snap) => {
         const value = snap.data()?.currentCharacterId
         setCurrentCharacterId(typeof value === 'string' ? value : null)
@@ -54,37 +54,6 @@ export function useCharacters(
 
     return () => unsub()
   }, [campaignId, enabled, groupId, setError, userId])
-
-  useEffect(() => {
-    if (!campaignId || !groupId || !enabled) {
-      setActivePlayerIds([])
-      return
-    }
-
-    const unsub = onSnapshot(
-      campaignCollectionRef(db, { campaignId, groupId }, 'members'),
-      (snap) => {
-        const next = snap.docs
-          .map((docSnap) => {
-            const data = docSnap.data() as {
-              userId?: string
-              role?: Role
-              status?: string
-            }
-            if (data.role !== 'player' || data.status !== 'active' || typeof data.userId !== 'string') return null
-            return data.userId
-          })
-          .filter((entry): entry is string => entry !== null)
-        setActivePlayerIds(next)
-      },
-      (err) => {
-        const message = err instanceof Error ? err.message : 'Unable to load campaign members'
-        setError(message)
-      },
-    )
-
-    return () => unsub()
-  }, [campaignId, enabled, setError])
 
   useEffect(() => {
     if (!campaignId || !groupId || !role || !enabled) {
@@ -204,7 +173,7 @@ export function useCharacters(
 
         const next = role === 'gm'
           ? all
-          : all.filter((character) => activePlayerIds.includes(character.ownerUserId))
+          : all.filter((character) => character.ownerUserId !== gmUserId)
         setCharacters(next)
         setCharactersLoading(false)
 
@@ -234,7 +203,7 @@ export function useCharacters(
     return () => {
       unsub()
     }
-  }, [activePlayerIds, campaignId, currentCharacterId, currentUsername, enabled, groupId, role, userId, setError])
+  }, [gmUserId, campaignId, currentCharacterId, currentUsername, enabled, groupId, role, userId, setError])
 
   useEffect(() => {
     const charactersNeedingMedia = characters.filter((character) =>
@@ -423,11 +392,8 @@ export function useCharacters(
     setCurrentCharacterId(characterId)
 
     await setDoc(
-      campaignDocRef(db, { campaignId, groupId }, 'members', userId),
+      campaignUserStateRef(db, { campaignId, groupId }, userId),
       {
-        userId,
-        role,
-        status: 'active',
         currentCharacterId: characterId,
         updatedAt: serverTimestamp(),
       },

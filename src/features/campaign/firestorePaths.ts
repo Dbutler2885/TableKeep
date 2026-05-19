@@ -17,3 +17,9 @@ export function campaignCollectionRef(db: Firestore, scope: CampaignScope, ...se
 export function campaignDocRef(db: Firestore, scope: CampaignScope, ...segments: string[]) {
   return doc(db, [...campaignBaseSegments(scope), ...segments].join('/'))
 }
+
+// Per-user campaign UI state (currentCharacterId, lastSeenCliffhangerNoteId).
+// Replaces the old campaign-level `members` collection.
+export function campaignUserStateRef(db: Firestore, scope: CampaignScope, userId: string) {
+  return campaignDocRef(db, scope, 'userState', userId)
+}
