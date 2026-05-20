@@ -11556,8 +11556,102 @@ button:disabled {
 }
 
 .shell-root[data-theme="vtm"] input[type="checkbox"],
-.shell-root[data-theme="vtm"] input[type="radio"] {
+.shell-root[data-theme="vtm"] input[type="radio"],
+.shell-root[data-theme="vtm"] input[type="range"],
+.shell-root[data-theme="vtm"] progress,
+.shell-root[data-theme="vtm"] meter {
   accent-color: var(--vtm-oxblood-bright);
+}
+
+/* Native range slider (font size, view distance, etc.) — accent-color
+   colours the track and thumb on modern browsers; fall back to vendor
+   pseudo-elements so the WebKit blue never shows. */
+.shell-root[data-theme="vtm"] input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: linear-gradient(90deg, var(--vtm-oxblood) 0%, var(--vtm-oxblood-deep) 100%);
+  border-radius: 2px;
+  outline: none;
+}
+.shell-root[data-theme="vtm"] input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: linear-gradient(90deg, var(--vtm-oxblood) 0%, var(--vtm-oxblood-deep) 100%);
+  border-radius: 2px;
+}
+.shell-root[data-theme="vtm"] input[type="range"]::-moz-range-track {
+  height: 4px;
+  background: linear-gradient(90deg, var(--vtm-oxblood) 0%, var(--vtm-oxblood-deep) 100%);
+  border-radius: 2px;
+}
+.shell-root[data-theme="vtm"] input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 999px;
+  background: var(--vtm-bone);
+  border: 1px solid var(--vtm-oxblood-bright);
+  box-shadow: 0 0 8px rgba(163, 34, 38, 0.55);
+  cursor: pointer;
+}
+.shell-root[data-theme="vtm"] input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--vtm-bone);
+  border: 1px solid var(--vtm-oxblood-bright);
+  box-shadow: 0 0 8px rgba(163, 34, 38, 0.55);
+  cursor: pointer;
+}
+
+/* Group-count circle ("PARTY  ●") — was #ecece6 on dark. Make it a
+   small parchment-on-velvet wax-seal disc. */
+.shell-root[data-theme="vtm"] .token-group-count {
+  background: rgba(122, 26, 31, 0.32);
+  color: var(--vtm-bone);
+  border: 1px solid var(--vtm-oxblood-bright);
+  box-shadow: 0 0 8px rgba(163, 34, 38, 0.25);
+  font-family: 'Special Elite', monospace;
+  letter-spacing: 0.04em;
+}
+
+/* Token toggle buttons (person / tag / hidden eye row). The "active"
+   state was a mint pastel; recolor to oxblood. */
+.shell-root[data-theme="vtm"] .token-toggle-btn.map-icon-btn {
+  background: rgba(26, 15, 18, 0.6);
+  border-color: var(--vtm-rule-strong);
+  color: var(--vtm-parchment);
+}
+.shell-root[data-theme="vtm"] .token-toggle-btn.map-icon-btn:hover {
+  background: rgba(46, 28, 32, 0.85);
+  border-color: var(--vtm-gold-faint);
+  color: var(--vtm-bone);
+}
+.shell-root[data-theme="vtm"] .token-toggle-btn.map-icon-btn.active {
+  background: linear-gradient(180deg, rgba(163, 34, 38, 0.32) 0%, rgba(122, 26, 31, 0.12) 100%);
+  border-color: var(--vtm-oxblood-bright);
+  color: var(--vtm-bone);
+  box-shadow: inset 0 0 10px rgba(163, 34, 38, 0.25), 0 0 6px rgba(163, 34, 38, 0.25);
+}
+
+/* Token-row selected state (dark map controls already had a dark theme;
+   bring it into VtM palette explicitly). */
+.shell-root[data-theme="vtm"] .token-row {
+  background: rgba(26, 15, 18, 0.55);
+  border-color: var(--vtm-rule);
+}
+.shell-root[data-theme="vtm"] .token-row.selected,
+.shell-root[data-theme="vtm"] .map-controls-body.dark .token-row.selected {
+  background: linear-gradient(180deg, rgba(122,26,31,0.28), rgba(122,26,31,0.10));
+  border-color: var(--vtm-oxblood-bright);
+}
+
+/* View-distance icon and value were a dim grey from the light theme. */
+.shell-root[data-theme="vtm"] .token-view-distance-icon,
+.shell-root[data-theme="vtm"] .token-view-distance-value {
+  color: var(--vtm-parchment-soft);
 }
 
 /* Selection highlight (text-select). */
