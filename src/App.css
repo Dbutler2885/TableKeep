@@ -11654,6 +11654,46 @@ button:disabled {
   color: var(--vtm-parchment-soft);
 }
 
+/* --- Rich-text editor (NPC player/GM notes) -------------------------- */
+/* The contenteditable was a #fff plate with bone-on-white placeholder
+   text — the cause of the "silver bar" look in the NPC editor.          */
+.shell-root[data-theme="vtm"] .npc-richtext-editor,
+.shell-root[data-theme="vtm"] .npc-richtext-preview {
+  background: rgba(10, 7, 8, 0.7);
+  border: 1px solid var(--vtm-rule);
+  color: var(--vtm-bone);
+  border-radius: 2px;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.shell-root[data-theme="vtm"] .npc-richtext-editor:empty::before {
+  color: var(--vtm-mute);
+  font-style: italic;
+}
+
+.shell-root[data-theme="vtm"] .npc-richtext-editor:focus {
+  outline: none;
+  border-color: var(--vtm-gold-soft);
+  box-shadow:
+    0 0 0 1px rgba(196, 162, 90, 0.2),
+    0 0 22px rgba(122, 26, 31, 0.22);
+}
+
+/* Editor toolbar (B / I / list) — match the rest of the chrome. */
+.shell-root[data-theme="vtm"] .npc-notes-toolbar .map-edit-btn {
+  background: rgba(26, 15, 18, 0.7);
+  border: 1px solid var(--vtm-rule-strong);
+  color: var(--vtm-parchment);
+  border-radius: 2px;
+}
+.shell-root[data-theme="vtm"] .npc-notes-toolbar .map-edit-btn:hover {
+  background: rgba(46, 28, 32, 0.9);
+  border-color: var(--vtm-gold-faint);
+  color: var(--vtm-bone);
+}
+
 /* Selection highlight (text-select). */
 .shell-root[data-theme="vtm"] ::selection {
   background: rgba(163, 34, 38, 0.55);
