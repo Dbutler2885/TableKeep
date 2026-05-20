@@ -11486,6 +11486,86 @@ button:disabled {
   text-shadow: 0 0 8px rgba(163, 34, 38, 0.5);
 }
 
+/* --- Cool-palette leaks (teal, sky blue, slate, mint) ----------------
+   The base theme keeps blues for accent (--accent #4a90d9), maps grid
+   readouts (#2e5875 / #93c7ef), scene NPC action highlights (#2f5bbf on
+   #e8eefb), token selection box (#3b82f6), and session importer counts
+   (#4a9 teal). All of those break the dark-cathedral palette. Override
+   the variables and the explicit colors with gold / oxblood.            */
+
+.shell-root[data-theme="vtm"] {
+  --accent: var(--vtm-gold);
+  --accent-color: var(--vtm-gold);
+  --hover: rgba(122, 26, 31, 0.18);
+}
+
+.shell-root[data-theme="vtm"] .map-grid-measurement-readout {
+  color: var(--vtm-gold);
+}
+
+.shell-root[data-theme="vtm"] .map-grid-measurement-overlay line {
+  stroke: var(--vtm-gold);
+}
+
+.shell-root[data-theme="vtm"] .map-controls-body.dark .map-grid-measurement-readout {
+  color: var(--vtm-gold);
+}
+
+.shell-root[data-theme="vtm"] .map-token-selection-box {
+  border-color: var(--vtm-oxblood-bright);
+  background: rgba(163, 34, 38, 0.14);
+}
+
+.shell-root[data-theme="vtm"] .scene-npc-action.active {
+  color: var(--vtm-bone);
+  background: rgba(122, 26, 31, 0.28);
+  border-color: var(--vtm-oxblood-bright);
+}
+
+.shell-root[data-theme="vtm"] .session-importer-match-count,
+.shell-root[data-theme="vtm"] [class*="session-importer"] {
+  color: var(--vtm-gold);
+}
+
+.shell-root[data-theme="vtm"] .table-roll-next-btn,
+.shell-root[data-theme="vtm"] [class*="table-roll"] {
+  border-color: var(--vtm-gold-faint);
+  color: var(--vtm-gold);
+}
+
+/* --- Pastel/mint backgrounds and OK/active green leaks ---------------
+   Anything that read as "saved / current / available" via mint pastels
+   (e.g. #d9e8d2, #c9d8c1, #e8f3eb, #eef5ec) was carried by class names
+   like *-active, *-current, *-saved, *-online, *-available. Repaint to
+   a translucent oxblood plate so the meaning persists in-theme.          */
+.shell-root[data-theme="vtm"] section [class*="-saved"],
+.shell-root[data-theme="vtm"] section [class*="-current"],
+.shell-root[data-theme="vtm"] section [class*="-online"],
+.shell-root[data-theme="vtm"] section [class*="-available"] {
+  background-color: rgba(122, 26, 31, 0.22);
+  border-color: var(--vtm-oxblood-bright);
+  color: var(--vtm-bone);
+}
+
+/* Generic "leafy green" accent (#5f8a56, #2f5a2b, #2f6a30 etc.) used
+   for headings, points, accent-color radios → gold. */
+.shell-root[data-theme="vtm"] .account-username,
+.shell-root[data-theme="vtm"] section [style*="color: #5f8a56"],
+.shell-root[data-theme="vtm"] section [style*="color: rgb(95, 138, 86)"] {
+  color: var(--vtm-gold);
+}
+
+.shell-root[data-theme="vtm"] input[type="checkbox"],
+.shell-root[data-theme="vtm"] input[type="radio"] {
+  accent-color: var(--vtm-oxblood-bright);
+}
+
+/* Selection highlight (text-select). */
+.shell-root[data-theme="vtm"] ::selection {
+  background: rgba(163, 34, 38, 0.55);
+  color: var(--vtm-bone);
+}
+
 .shell-root[data-theme="vtm"] .character-weapons-table-wrap,
 .shell-root[data-theme="vtm"] .character-summary-grid,
 .shell-root[data-theme="vtm"] .character-placeholder-block,
