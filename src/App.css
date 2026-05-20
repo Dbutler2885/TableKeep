@@ -11414,6 +11414,78 @@ button:disabled {
 /* Solid white surfaces still sneak in via inline `background: #fff` in a
    handful of components (e.g. content-panel sub-children). Catch the
    most common explicit-white surface classes by name.                    */
+/* --- Sidebar portrait tiles (Grant, character avatars) ---------------
+   The placeholder tile used `#fafaf8` with a `#696963` glyph — that's a
+   bright cream square stamped onto the velvet card, with a low-contrast
+   glyph on top. Repaint as a recessed crypt panel with a parchment glyph
+   so it reads as "frame waiting for a portrait" instead of a UI bug.    */
+.shell-root[data-theme="vtm"] .monster-card-portrait {
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(196, 162, 90, 0.06), transparent 70%),
+    linear-gradient(180deg, var(--vtm-crypt) 0%, var(--vtm-velvet) 100%);
+  border: 1px solid var(--vtm-rule-strong);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 245, 220, 0.04),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 1px 0 rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+
+/* Tiny gold corner ticks so the tile feels intentional, not flat. */
+.shell-root[data-theme="vtm"] .monster-card-portrait::before,
+.shell-root[data-theme="vtm"] .monster-card-portrait::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--vtm-gold-faint);
+  opacity: 0.7;
+  pointer-events: none;
+}
+.shell-root[data-theme="vtm"] .monster-card-portrait::before {
+  top: 2px;
+  left: 2px;
+  border-right: 0;
+  border-bottom: 0;
+}
+.shell-root[data-theme="vtm"] .monster-card-portrait::after {
+  bottom: 2px;
+  right: 2px;
+  border-left: 0;
+  border-top: 0;
+}
+
+.shell-root[data-theme="vtm"] .monster-portrait-empty {
+  color: var(--vtm-parchment-soft);
+}
+.shell-root[data-theme="vtm"] .monster-portrait-empty svg {
+  color: var(--vtm-gold-soft);
+  opacity: 0.85;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.6));
+}
+
+/* Grant tile (active variant of the list item) gets a warmer gold glow
+   on the portrait so the gift icon reads as the inviting "GM action". */
+.shell-root[data-theme="vtm"] .monster-list-item.active .monster-card-portrait {
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(196, 162, 90, 0.18), transparent 75%),
+    linear-gradient(180deg, var(--vtm-crypt) 0%, var(--vtm-velvet) 100%);
+  border-color: var(--vtm-gold-faint);
+}
+.shell-root[data-theme="vtm"] .monster-list-item.active .monster-portrait-empty svg {
+  color: var(--vtm-gold);
+  opacity: 1;
+}
+
+/* "current" badge was mint pastel — recolor to oxblood pill. */
+.shell-root[data-theme="vtm"] .character-current-badge {
+  background: rgba(122, 26, 31, 0.28);
+  border-color: var(--vtm-oxblood-bright);
+  color: var(--vtm-bone);
+  text-shadow: 0 0 8px rgba(163, 34, 38, 0.5);
+}
+
 .shell-root[data-theme="vtm"] .character-weapons-table-wrap,
 .shell-root[data-theme="vtm"] .character-summary-grid,
 .shell-root[data-theme="vtm"] .character-placeholder-block,
