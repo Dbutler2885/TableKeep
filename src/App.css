@@ -1289,6 +1289,76 @@ button:hover {
   text-align: center;
 }
 
+.brand-wordmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.18em;
+  white-space: nowrap;
+}
+
+.brand-wordmark-logo {
+  width: 0.92em;
+  height: 0.92em;
+  object-fit: contain;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 0.04em 0.04em rgba(0, 0, 0, 0.18));
+}
+
+.brand-wordmark-sidebar {
+  gap: 0.14em;
+}
+
+.brand-wordmark-sidebar .brand-wordmark-logo {
+  width: 1.05em;
+  height: 1.05em;
+}
+
+.side-title-logo {
+  display: inline-block;
+  width: 1.05em;
+  height: 1.05em;
+  margin: 0 0.12em;
+  object-fit: contain;
+  vertical-align: -0.2em;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45)) drop-shadow(0 0 8px rgba(214, 166, 47, 0.2));
+}
+
+/* VtM theme: the sidebar is near-black, so invert the B&W mark from
+   black-on-transparent to white-on-transparent and re-apply the
+   gothic glow shadows after the invert. */
+.shell-root[data-theme="vtm"] .side-title-logo {
+  filter:
+    invert(1)
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 8px rgba(214, 166, 47, 0.2));
+}
+
+.brand-wordmark-foot {
+  gap: 0.12em;
+  vertical-align: middle;
+}
+
+.brand-wordmark-foot .brand-wordmark-logo {
+  width: 1.2em;
+  height: 1.2em;
+}
+
+.brand-wordmark-group-picker {
+  gap: 0.28em;
+}
+
+.brand-wordmark-group-picker .brand-wordmark-logo {
+  width: 1.08em;
+  height: 1.08em;
+}
+
+.tk-auth-title .brand-wordmark,
+.group-panel h1 .brand-wordmark,
+.auth-shell h1 .brand-wordmark {
+  width: 100%;
+}
+
 .side-meta {
   font-size: 0.9rem;
   text-align: center;
@@ -10996,3 +11066,202 @@ button:disabled {
   color: var(--vtm-bone);
 }
 
+/* === [data-theme="vtm"] — Contrast pass ============================== */
+/* The base VtM block above paints chrome (nav, modals, headings) but the
+   campaign workspace tabs inherit hundreds of legacy light-theme rules
+   from App.css. The result was two flavors of unreadable text:
+     (a) bone/parchment text laid over surfaces that kept their white
+         backgrounds (e.g. .content-panel #fff, table headers #f5f5f1,
+         tab bars #edf1e9)
+     (b) dark hardcoded text colors (#5c5c55, #4b4b44, #3f3f38, #515761)
+         left visible after we remapped their surface to velvet.
+   This block resolves both, plus nudges the muted tokens up a notch so
+   meta text passes WCAG AA on the void background.                       */
+/* ====================================================================== */
+
+.shell-root[data-theme="vtm"] {
+  /* Was #806a64 (~3.9:1 on void) → bumped for meta text legibility. */
+  --vtm-faint: #9a857d;
+  /* Was #5a4d4a (~2.5:1 on void) → bumped to clear AA for small text. */
+  --vtm-mute:  #7a6864;
+}
+
+/* --- Main content shell ---------------------------------------------- */
+/* The tab content panel was painted #fff in the base theme, which left
+   bone-on-white in every campaign tab. Repaint and force inherited ink. */
+.shell-root[data-theme="vtm"] .content-panel,
+.shell-root[data-theme="vtm"] .sidebar-panel,
+.shell-root[data-theme="vtm"] .info-grid {
+  background: var(--vtm-void);
+  color: var(--vtm-bone);
+  border-color: var(--vtm-rule);
+}
+
+/* --- Character sheet / page-tab chrome -------------------------------- */
+.shell-root[data-theme="vtm"] .character-sheet-page-tabs.top,
+.shell-root[data-theme="vtm"] .character-sheet-tab-bar,
+.shell-root[data-theme="vtm"] .character-sheet-tab {
+  background: var(--vtm-velvet);
+  border-color: var(--vtm-rule);
+  color: var(--vtm-parchment);
+}
+
+.shell-root[data-theme="vtm"] .character-sheet-page-tabs.top .character-sheet-tab,
+.shell-root[data-theme="vtm"] .character-sheet-page-tabs.top .character-sheet-tab.active {
+  background: transparent;
+  color: var(--vtm-parchment-soft);
+}
+
+.shell-root[data-theme="vtm"] .character-sheet-tab.active,
+.shell-root[data-theme="vtm"] .character-sheet-page-tabs.top .character-sheet-tab.active {
+  background: linear-gradient(180deg, rgba(122,26,31,0.32), rgba(122,26,31,0.10));
+  color: var(--vtm-bone);
+  border-color: var(--vtm-oxblood-bright);
+  box-shadow: inset 0 0 12px rgba(163, 34, 38, 0.18);
+}
+
+.shell-root[data-theme="vtm"] .character-sheet .monster-section-title {
+  background: linear-gradient(90deg, rgba(122,26,31,0.28), rgba(122,26,31,0.05) 80%);
+  color: var(--vtm-bone);
+}
+
+/* --- Tables: headers, cells, wraps ----------------------------------- */
+.shell-root[data-theme="vtm"] table,
+.shell-root[data-theme="vtm"] .character-weapons-table-wrap,
+.shell-root[data-theme="vtm"] .character-weapons-table {
+  background: var(--vtm-velvet);
+  color: var(--vtm-bone);
+  border-color: var(--vtm-rule);
+}
+
+.shell-root[data-theme="vtm"] th,
+.shell-root[data-theme="vtm"] .character-weapons-table th {
+  background: var(--vtm-crypt);
+  color: var(--vtm-bone);
+  border-color: var(--vtm-rule);
+  font-family: 'Special Elite', 'Cormorant Garamond', monospace;
+  letter-spacing: 0.06em;
+}
+
+.shell-root[data-theme="vtm"] td,
+.shell-root[data-theme="vtm"] .character-weapons-table td {
+  border-color: var(--vtm-rule);
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] tr:nth-child(even) td {
+  background: rgba(26, 15, 18, 0.35);
+}
+
+/* --- Universal text-color rescue inside the workspace section --------
+   Many inline rules set dark text (`color: #4b4b44` etc.) on what is
+   now a dark surface. We can't enumerate every selector, so anything
+   inside the workspace section that doesn't override gets bone text,
+   and the small/italic meta variants drop to parchment-soft.            */
+.shell-root[data-theme="vtm"] section {
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] section p,
+.shell-root[data-theme="vtm"] section li,
+.shell-root[data-theme="vtm"] section label,
+.shell-root[data-theme="vtm"] section span,
+.shell-root[data-theme="vtm"] section td,
+.shell-root[data-theme="vtm"] section th,
+.shell-root[data-theme="vtm"] section dt,
+.shell-root[data-theme="vtm"] section dd {
+  color: inherit;
+}
+
+/* Italic / fine-print meta gets the warm muted tone, not a near-black. */
+.shell-root[data-theme="vtm"] section p[class*="meta"],
+.shell-root[data-theme="vtm"] section [class*="-meta"],
+.shell-root[data-theme="vtm"] section [class*="-hint"],
+.shell-root[data-theme="vtm"] section [class*="-help"],
+.shell-root[data-theme="vtm"] section [class*="-eyebrow"],
+.shell-root[data-theme="vtm"] section [class*="-label"],
+.shell-root[data-theme="vtm"] section [class*="-subtle"] {
+  color: var(--vtm-parchment-soft);
+}
+
+/* Stat-block / small green/grey accents in the OSE sheet ("Roll points",
+   asw head-row p, placeholder-block p) all used near-black greys that
+   vanish on velvet. Force them up to parchment. */
+.shell-root[data-theme="vtm"] .character-asw-head-row p,
+.shell-root[data-theme="vtm"] .character-placeholder-block p,
+.shell-root[data-theme="vtm"] .character-roll-points {
+  color: var(--vtm-parchment-soft);
+}
+
+.shell-root[data-theme="vtm"] .character-roll-points {
+  /* Was a leafy green that read as "ok" — swap for VtM gold to match
+     the rest of the accent system. */
+  color: var(--vtm-gold);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+/* --- Surface remap, second sweep ------------------------------------- */
+/* The base block remapped some -block / -panel / -card / -row classes,
+   but only by border-color. Extend that to backgrounds for the most
+   common opaque-light surfaces so bone text actually has a dark plate
+   to sit on.                                                            */
+.shell-root[data-theme="vtm"] section [class$="-block"],
+.shell-root[data-theme="vtm"] section [class$="-panel"],
+.shell-root[data-theme="vtm"] section [class$="-card"],
+.shell-root[data-theme="vtm"] section [class$="-wrap"],
+.shell-root[data-theme="vtm"] section [class$="-grid"] {
+  background-color: var(--vtm-velvet);
+  color: var(--vtm-bone);
+}
+
+/* Header strips inside the above containers (often #f5f5f1 / #edf1e9). */
+.shell-root[data-theme="vtm"] section [class$="-header"],
+.shell-root[data-theme="vtm"] section [class$="-toolbar"],
+.shell-root[data-theme="vtm"] section [class$="-titlebar"] {
+  background-color: var(--vtm-crypt);
+  color: var(--vtm-bone);
+  border-color: var(--vtm-rule);
+}
+
+/* Buttons inside the workspace that hardcoded dark text on light bg
+   need their dark text overridden too. */
+.shell-root[data-theme="vtm"] section button {
+  color: var(--vtm-parchment);
+}
+
+.shell-root[data-theme="vtm"] section button.active,
+.shell-root[data-theme="vtm"] section button[aria-pressed="true"],
+.shell-root[data-theme="vtm"] section button[data-active="true"] {
+  color: var(--vtm-bone);
+}
+
+/* Links: were inheriting blue from defaults in places. */
+.shell-root[data-theme="vtm"] section a {
+  color: var(--vtm-gold);
+  text-decoration-color: var(--vtm-gold-faint);
+}
+
+.shell-root[data-theme="vtm"] section a:hover {
+  color: var(--vtm-bone);
+  text-decoration-color: var(--vtm-oxblood-bright);
+}
+
+/* The invite/state pills used pastel paper bgs with dark text — invert
+   so the pill reads as oxblood/gold on velvet rather than mint on white. */
+.shell-root[data-theme="vtm"] .invite-state-active {
+  background: rgba(47, 90, 59, 0.18);
+  color: #b3d7bd;
+}
+.shell-root[data-theme="vtm"] .invite-state-redeemed {
+  background: rgba(91, 82, 73, 0.22);
+  color: var(--vtm-parchment-soft);
+}
+.shell-root[data-theme="vtm"] .invite-state-revoked {
+  background: rgba(163, 34, 38, 0.18);
+  color: #e8b7ba;
+}
+.shell-root[data-theme="vtm"] .invite-state-expired {
+  background: rgba(196, 162, 90, 0.16);
+  color: var(--vtm-gold);
+}
