@@ -1,48 +1,71 @@
 import { useState } from 'react'
-import type { FormEvent } from 'react'
 import {
   GoogleAuthProvider,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
 } from 'firebase/auth'
-import { auth } from '../../firebase'
+import { auth, db } from '../../firebase'
+import { SignInView } from './SignInView'
+import { SignUpView } from './SignUpView'
+import { ForgotPasswordView } from './ForgotPasswordView'
+import { getAuthErrorMessage } from './authErrorMessages'
+import { claimUsername, isClaimUsernameError } from './claimUsername'
+import { BrandWordmark } from '../common/BrandWordmark'
+import './AuthPanel.css'
 
-export function AuthPanel() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+type Mode = 'signIn' | 'signUp' | 'forgotPassword'
+
+type AuthPanelProps = {
+  /** Optional contextual note shown above the card (e.g. invite copy). */
+  context?: string | null
+}
+
+export function AuthPanel({ context }: AuthPanelProps) {
+  const [mode, setMode] = useState<Mode>('signIn')
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const runAction = async (fn: () => Promise<unknown>) => {
+  const run = async (fn: () => Promise<unknown>) => {
     setError(null)
     setStatus(null)
     try {
       await fn()
+      return true
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error'
-      setError(message)
+      setError(getAuthErrorMessage(err))
+      return false
     }
   }
 
-  const handlePasswordSignIn = async (event: FormEvent) => {
-    event.preventDefault()
-    await runAction(async () => {
+  const handlePasswordSignIn = (email: string, password: string) =>
+    run(async () => {
       await signInWithEmailAndPassword(auth, email, password)
       setStatus('Signed in.')
     })
-  }
 
-  const handlePasswordSignUp = async () => {
-    await runAction(async () => {
-      await createUserWithEmailAndPassword(auth, email, password)
+  const handlePasswordSignUp = (email: string, password: string, username: string) =>
+    run(async () => {
+      const credential = await createUserWithEmailAndPassword(auth, email, password)
+      try {
+        await claimUsername(credential.user.uid, username, db)
+      } catch (err) {
+        if (!isClaimUsernameError(err, 'username-taken')) {
+          throw err
+        }
+      }
       setStatus('Account created.')
     })
-  }
 
-  const handleGoogleSignIn = async () => {
-    await runAction(async () => {
+  const handleForgotPassword = (email: string) =>
+    run(async () => {
+      await sendPasswordResetEmail(auth, email)
+    })
+
+  const handleGoogle = () =>
+    run(async () => {
       const provider = new GoogleAuthProvider()
       try {
         await signInWithPopup(auth, provider)
@@ -51,58 +74,58 @@ export function AuthPanel() {
         const code = typeof err === 'object' && err !== null && 'code' in err
           ? String((err as { code?: string }).code)
           : ''
-
         if (code.includes('popup-blocked') || code.includes('popup-closed-by-user')) {
           await signInWithRedirect(auth, provider)
-          setStatus('Redirecting to Google sign-in...')
+          setStatus('Redirecting to Google sign-in…')
           return
         }
-
         throw err
       }
     })
+
+  // Reset transient state when swapping modes so a stale error from one view
+  // doesn't bleed into the next.
+  const switchMode = (next: Mode) => {
+    setError(null)
+    setStatus(null)
+    setMode(next)
   }
 
   return (
-    <section className="panel">
-      <h2>Sign In</h2>
-
-      <form onSubmit={handlePasswordSignIn} className="stack">
-        <label>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
+    <div className="tk-auth-page">
+      <div className="tk-auth-card" role="region" aria-label="Authentication">
+        {mode === 'signIn' ? (
+          <SignInView
+            onPasswordSubmit={handlePasswordSignIn}
+            onGoogle={handleGoogle}
+            onSwitchToSignUp={() => switchMode('signUp')}
+            onSwitchToForgot={() => switchMode('forgotPassword')}
           />
-        </label>
+        ) : null}
 
-        <label>
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-            minLength={8}
+        {mode === 'signUp' ? (
+          <SignUpView
+            onPasswordSubmit={handlePasswordSignUp}
+            onGoogle={handleGoogle}
+            onSwitchToSignIn={() => switchMode('signIn')}
           />
-        </label>
+        ) : null}
 
-        <button type="submit">Sign In with Email</button>
-      </form>
+        {mode === 'forgotPassword' ? (
+          <ForgotPasswordView
+            onSubmit={handleForgotPassword}
+            onSwitchToSignIn={() => switchMode('signIn')}
+          />
+        ) : null}
 
-      <div className="row">
-        <button type="button" onClick={handlePasswordSignUp}>
-          Create Account
-        </button>
-        <button type="button" onClick={handleGoogleSignIn}>
-          Sign In with Google
-        </button>
+        {context ? <div className="tk-auth-status">{context}</div> : null}
+        {status ? <div className="tk-auth-status">{status}</div> : null}
+        {error ? <div className="tk-auth-error">{error}</div> : null}
       </div>
 
-      {status ? <p className="success">{status}</p> : null}
-      {error ? <p className="error">{error}</p> : null}
-    </section>
+      <p className="tk-auth-foot">
+        <BrandWordmark className="brand-wordmark-foot" /> · est. {new Date().getFullYear()}
+      </p>
+    </div>
   )
 }

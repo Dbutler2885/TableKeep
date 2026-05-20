@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { LogOut, Plus } from 'lucide-react'
 import type { GroupRecord } from '../../types/app'
+import { BrandWordmark } from '../common/BrandWordmark'
+import './GroupScreens.css'
 
 type GroupPickerProps = {
   username: string
@@ -39,7 +41,7 @@ export function GroupPicker({ username, groups, onCreateGroup, onSelectGroup, on
     <section className="group-screen">
       <div className="group-panel">
         <p className="group-eyebrow">Group Picker</p>
-        <h1>Table Keep</h1>
+        <h1><BrandWordmark className="brand-wordmark-group-picker" logoPosition="after" /></h1>
         <p className="group-subtitle">
           Signed in as <strong>{username}</strong>
           {' · '}
@@ -56,7 +58,7 @@ export function GroupPicker({ username, groups, onCreateGroup, onSelectGroup, on
         {groups.length === 0 ? (
           <div className="group-empty-state">
             <h2>No groups yet</h2>
-            <p>Your account is ready. Create a group or wait for an invite to arrive here.</p>
+            <p>You don&rsquo;t belong to any groups yet. Create one, or ask a friend to send you an invite link.</p>
             <button
               type="button"
               className="group-empty-action"

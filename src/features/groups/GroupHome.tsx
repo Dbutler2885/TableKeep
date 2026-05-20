@@ -3,6 +3,7 @@ import { ChevronLeft, Copy, LogOut, Plus, Trash2, UserPlus } from 'lucide-react'
 import type { User } from 'firebase/auth'
 import type { Campaign, GroupRecord, InviteCode } from '../../types/app'
 import { inviteState, useGroupInvites } from '../invites/useInvites'
+import './GroupScreens.css'
 
 type GroupHomeProps = {
   user: User
@@ -190,6 +191,18 @@ export function GroupHome({
           <div className="group-home-title">
             <p className="group-eyebrow">Group</p>
             <h1>{group.name}</h1>
+            <p className="group-subtitle">
+              Signed in as <strong>{username}</strong>
+              {' · '}
+              <button
+                type="button"
+                className="group-link-button"
+                onClick={onSignOut}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' }}
+              >
+                <LogOut size={13} /> Sign out
+              </button>
+            </p>
           </div>
           <div className="group-home-header-actions">
             {canInvite ? (
@@ -212,9 +225,6 @@ export function GroupHome({
                 <Trash2 size={16} />
               </button>
             ) : null}
-            <button type="button" className="group-icon-button" onClick={onSignOut} aria-label="Sign out" title="Sign out">
-              <LogOut size={16} />
-            </button>
           </div>
         </div>
 

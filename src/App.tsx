@@ -12,10 +12,14 @@ import {
   setDoc,
 } from 'firebase/firestore'
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
+// Sidebar uses the dedicated B&W "Tower Keep" mark; the color "Tablekeep"
+// stays on the lobby/picker/auth surfaces via BrandWordmark.
+import tablekeepLogo from '../logo/Tower Keep.svg'
 import './App.css'
 import { auth, db } from './firebase'
 import { AuthPanel } from './features/auth/AuthPanel'
 import { UsernameSetup } from './features/auth/UsernameSetup'
+import { VerifyEmailGate } from './features/auth/VerifyEmailGate'
 import { CharacterTab } from './features/character/CharacterTab'
 import { RulesTab } from './features/common/RulesTab'
 import { useDocumentVisibility } from './features/common/useDocumentVisibility'
@@ -45,6 +49,8 @@ function App() {
   const [authReady, setAuthReady] = useState(false)
   const [username, setUsername] = useState<string | null>(null)
   const [profileReady, setProfileReady] = useState(false)
+  const [profileUid, setProfileUid] = useState<string | null>(null)
+  const [, setAuthRefreshVersion] = useState(0)
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (nextUser) => {
@@ -71,13 +77,10 @@ function App() {
 
   useEffect(() => {
     if (!user) {
-      setUsername(null)
-      setProfileReady(false)
       return
     }
 
     const userRef = doc(db, 'users', user.uid)
-    setProfileReady(false)
 
     const unsub = onSnapshot(
       userRef,
@@ -95,11 +98,13 @@ function App() {
         // Do not treat a cached "missing username" snapshot as authoritative:
         // that causes existing users to briefly see UsernameSetup on refresh.
         if (nextUsername || canTrustMissingUsername) {
+          setProfileUid(user.uid)
           setProfileReady(true)
         }
       },
       () => {
         setUsername(null)
+        setProfileUid(user.uid)
         setProfileReady(true)
       },
     )
@@ -117,20 +122,26 @@ function App() {
 
   if (!user) {
     const isJoinFlow = window.location.pathname.startsWith('/join/')
+    const context = isJoinFlow
+      ? "You've been invited. Sign in or create an account to accept."
+      : null
+    // AuthPanel owns its own full-screen layout and masthead now;
+    // the old <main className="auth-shell"> wrapper is no longer needed.
+    return <AuthPanel context={context} />
+  }
+
+  if (!user.emailVerified) {
     return (
-      <main className="auth-shell">
-        <h1>Table Keep</h1>
-        <p>
-          {isJoinFlow
-            ? 'You\'ve been invited. Sign in or create an account to accept.'
-            : 'Sign in to access your OSE campaign sidecar.'}
-        </p>
-        <AuthPanel />
-      </main>
+      <VerifyEmailGate
+        user={user}
+        onVerified={() => setAuthRefreshVersion((current) => current + 1)}
+      />
     )
   }
 
-  if (!profileReady) {
+  const currentProfileReady = profileReady && profileUid === user.uid
+
+  if (!currentProfileReady) {
     return (
       <main className="auth-shell">
         <p>Loading profile...</p>
@@ -139,13 +150,9 @@ function App() {
   }
 
   if (!username) {
-    return (
-      <main className="auth-shell">
-        <h1>Table Keep</h1>
-        <p>Choose your username to continue.</p>
-        <UsernameSetup user={user} onComplete={setUsername} />
-      </main>
-    )
+    // UsernameSetup owns its own full-screen layout (same editorial card as
+    // AuthPanel), so no auth-shell wrapper / extra masthead is needed here.
+    return <UsernameSetup user={user} onComplete={setUsername} />
   }
 
   return (
@@ -359,8 +366,8 @@ function GroupShell({ user, username }: { user: User, username: string }) {
         <div className="shell-layout">
           <nav className={`side-nav ${drawerOpen ? 'open' : ''}`}>
             <h1 className="side-title">
-              <span className="vtm-fang-anchor">Table</span>{' '}
-              <span aria-hidden="true" className="side-title-spacer">Boys</span>{' '}
+              <span className="vtm-fang-anchor">Table</span>
+              <img className="side-title-logo" src={tablekeepLogo} alt="" aria-hidden="true" />
               <span className="vtm-fang-anchor">Keep</span>
             </h1>
             <p className="side-meta">{group.name}</p>
