@@ -11265,3 +11265,169 @@ button:disabled {
   background: rgba(196, 162, 90, 0.16);
   color: var(--vtm-gold);
 }
+
+/* === [data-theme="vtm"] — Contrast pass II ============================ */
+/* The first pass used `color: inherit` on common element types, but App.css
+   has hundreds of class-scoped color rules (e.g. `.invite-row-meta
+   { color: #515761 }`) with specificity (0,1,0) — they outrank
+   (0,1,1) descendant rules. This pass uses (0,2,1) selectors to win
+   broadly, then restores semantic accents (errors, success, links).      */
+/* ====================================================================== */
+
+/* --- Hard sweep: every descendant of the workspace section gets light
+       ink, unless it's a known accent class restored below.              */
+.shell-root[data-theme="vtm"] section *,
+.shell-root[data-theme="vtm"] section *::before,
+.shell-root[data-theme="vtm"] section *::after {
+  color: var(--vtm-bone);
+}
+
+/* Quieter ink for any element that signals "secondary" / "meta" / "hint"
+   by class name, so the hierarchy doesn't flatten into one shade.        */
+.shell-root[data-theme="vtm"] section [class*="-meta"],
+.shell-root[data-theme="vtm"] section [class*="-hint"],
+.shell-root[data-theme="vtm"] section [class*="-help"],
+.shell-root[data-theme="vtm"] section [class*="-eyebrow"],
+.shell-root[data-theme="vtm"] section [class*="-label"],
+.shell-root[data-theme="vtm"] section [class*="-subtle"],
+.shell-root[data-theme="vtm"] section [class*="-caption"],
+.shell-root[data-theme="vtm"] section [class*="-muted"],
+.shell-root[data-theme="vtm"] section [class*="-note"],
+.shell-root[data-theme="vtm"] section [class*="-aside"] {
+  color: var(--vtm-parchment-soft);
+}
+
+/* --- Semantic accent restoration ------------------------------------- */
+.shell-root[data-theme="vtm"] section .error,
+.shell-root[data-theme="vtm"] section [class*="-error"],
+.shell-root[data-theme="vtm"] section [class*="-danger"],
+.shell-root[data-theme="vtm"] section [class*="-revoked"] {
+  color: #e8b7ba;
+}
+
+.shell-root[data-theme="vtm"] section .success,
+.shell-root[data-theme="vtm"] section [class*="-success"],
+.shell-root[data-theme="vtm"] section [class*="-active-state"],
+.shell-root[data-theme="vtm"] section [class*="-ok"] {
+  color: #b3d7bd;
+}
+
+.shell-root[data-theme="vtm"] section [class*="-warning"],
+.shell-root[data-theme="vtm"] section [class*="-pending"],
+.shell-root[data-theme="vtm"] section [class*="-expired"] {
+  color: var(--vtm-gold);
+}
+
+/* Links stay gold so they read as touchable on velvet. */
+.shell-root[data-theme="vtm"] section a,
+.shell-root[data-theme="vtm"] section a * {
+  color: var(--vtm-gold);
+}
+.shell-root[data-theme="vtm"] section a:hover,
+.shell-root[data-theme="vtm"] section a:hover * {
+  color: var(--vtm-bone);
+}
+
+/* Form controls already had bg/border treatment in the base block; make
+   sure their internal text doesn't get hammered to bone for placeholders. */
+.shell-root[data-theme="vtm"] section input::placeholder,
+.shell-root[data-theme="vtm"] section textarea::placeholder {
+  color: var(--vtm-mute);
+}
+
+/* --- Background sweep ------------------------------------------------- */
+/* Far more class-suffix patterns now get a velvet plate. Anything that
+   carries opaque light bg from App.css and didn't match the earlier
+   `-block / -panel / -card / -wrap / -grid` set is mopped up here.       */
+.shell-root[data-theme="vtm"] section [class*="-list"],
+.shell-root[data-theme="vtm"] section [class*="-row"],
+.shell-root[data-theme="vtm"] section [class*="-item"],
+.shell-root[data-theme="vtm"] section [class*="-cell"],
+.shell-root[data-theme="vtm"] section [class*="-sheet"],
+.shell-root[data-theme="vtm"] section [class*="-content"],
+.shell-root[data-theme="vtm"] section [class*="-body"],
+.shell-root[data-theme="vtm"] section [class*="-summary"],
+.shell-root[data-theme="vtm"] section [class*="-section"],
+.shell-root[data-theme="vtm"] section [class*="-frame"],
+.shell-root[data-theme="vtm"] section [class*="-box"],
+.shell-root[data-theme="vtm"] section [class*="-tile"],
+.shell-root[data-theme="vtm"] section [class*="-tray"],
+.shell-root[data-theme="vtm"] section [class*="-strip"],
+.shell-root[data-theme="vtm"] section [class*="-bar"],
+.shell-root[data-theme="vtm"] section [class*="-pane"],
+.shell-root[data-theme="vtm"] section [class*="-well"] {
+  background-color: var(--vtm-velvet);
+  border-color: var(--vtm-rule);
+}
+
+/* Headers inside the above shouldn't all be the same velvet — give them a
+   one-step-darker plate so they read as section titles. */
+.shell-root[data-theme="vtm"] section [class*="-header"],
+.shell-root[data-theme="vtm"] section [class*="-toolbar"],
+.shell-root[data-theme="vtm"] section [class*="-titlebar"],
+.shell-root[data-theme="vtm"] section thead,
+.shell-root[data-theme="vtm"] section thead * {
+  background-color: var(--vtm-crypt);
+  border-color: var(--vtm-rule);
+}
+
+/* Pills / chips / badges with light pastel backgrounds become translucent
+   oxblood/gold tints so their meaning carries. The earlier invite-state
+   rules cover invites; this generalises.                                 */
+.shell-root[data-theme="vtm"] section [class*="-pill"],
+.shell-root[data-theme="vtm"] section [class*="-chip"],
+.shell-root[data-theme="vtm"] section [class*="-tag"],
+.shell-root[data-theme="vtm"] section [class*="-badge"] {
+  background-color: rgba(122, 26, 31, 0.22);
+  border-color: var(--vtm-rule-strong);
+  color: var(--vtm-bone);
+}
+
+/* Active/selected variants keep the existing oxblood-glow treatment. */
+.shell-root[data-theme="vtm"] section [class*="-item"].active,
+.shell-root[data-theme="vtm"] section [class*="-row"].active,
+.shell-root[data-theme="vtm"] section [class*="-tab"].active,
+.shell-root[data-theme="vtm"] section [class*="-cell"].active {
+  background-color: rgba(122, 26, 31, 0.28);
+  border-color: var(--vtm-oxblood-bright);
+  color: var(--vtm-bone);
+}
+
+/* SVG icons inherited `color` from the hard sweep, so existing icon
+   accents (red poison droplets, green ok ticks) flattened to bone.
+   Re-allow `currentColor` on SVG fills/strokes that opted in via CSS
+   custom properties or attributes — and explicitly keep a few well-known
+   semantic icon classes coloured.                                        */
+.shell-root[data-theme="vtm"] section svg[data-accent="danger"] *,
+.shell-root[data-theme="vtm"] section svg.icon-danger *,
+.shell-root[data-theme="vtm"] section .icon-danger {
+  color: #e8b7ba;
+  stroke: #e8b7ba;
+}
+.shell-root[data-theme="vtm"] section svg[data-accent="success"] *,
+.shell-root[data-theme="vtm"] section svg.icon-success *,
+.shell-root[data-theme="vtm"] section .icon-success {
+  color: #b3d7bd;
+  stroke: #b3d7bd;
+}
+
+/* Solid white surfaces still sneak in via inline `background: #fff` in a
+   handful of components (e.g. content-panel sub-children). Catch the
+   most common explicit-white surface classes by name.                    */
+.shell-root[data-theme="vtm"] .character-weapons-table-wrap,
+.shell-root[data-theme="vtm"] .character-summary-grid,
+.shell-root[data-theme="vtm"] .character-placeholder-block,
+.shell-root[data-theme="vtm"] .npc-block,
+.shell-root[data-theme="vtm"] .table-block,
+.shell-root[data-theme="vtm"] .notes-block,
+.shell-root[data-theme="vtm"] .calendar-block,
+.shell-root[data-theme="vtm"] .session-block,
+.shell-root[data-theme="vtm"] .map-toolbar,
+.shell-root[data-theme="vtm"] .map-controls-body,
+.shell-root[data-theme="vtm"] .monster-list-item,
+.shell-root[data-theme="vtm"] .character-list-item-wrap,
+.shell-root[data-theme="vtm"] .item-card,
+.shell-root[data-theme="vtm"] .sidebar-panel {
+  background-color: var(--vtm-velvet);
+  color: var(--vtm-bone);
+}
