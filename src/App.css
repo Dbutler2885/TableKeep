@@ -6125,6 +6125,72 @@ button:disabled {
   padding-left: 1rem;
 }
 
+.map-tools-panel {
+  --icon-gap: 0.4rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: start;
+  column-gap: 0.45rem;
+  margin: 0 0 0.55rem;
+  padding: calc(var(--icon-gap) / 2) 0.45rem;
+  border: 1px solid #dddcd6;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.map-tools-brush,
+.map-tools-left,
+.map-tools-right {
+  min-width: 0;
+}
+
+.map-tools-brush {
+  grid-column: 1 / -1;
+}
+
+.map-section-label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #8a8a82;
+}
+
+/* Section labels after the first get extra top spacing to separate groups. */
+.map-section-label:not(:first-child) {
+  margin-top: 0.5rem;
+}
+
+.map-section-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 2.1rem);
+  column-gap: var(--icon-gap);
+  row-gap: var(--icon-gap);
+  justify-content: start;
+}
+
+.map-section-grid>.map-icon-btn {
+  justify-self: center;
+}
+
+.map-tools-right .map-section-grid {
+  justify-content: end;
+}
+
+.map-section-grid-single>.map-icon-btn {
+  grid-column: 1;
+}
+
+.map-controls-body.dark .map-tools-panel {
+  border-color: rgb(255 255 255 / 18%);
+}
+
+.map-controls-body.dark .map-section-label {
+  color: #c8c8c8;
+}
+
 .map-icon-grid {
   --icon-gap: 0.4rem;
   display: grid;
@@ -6132,95 +6198,68 @@ button:disabled {
   grid-template-rows: repeat(5, auto);
   row-gap: var(--icon-gap);
   column-gap: var(--icon-gap);
-  margin: 0 0 0.55rem;
-  padding-top: calc(var(--icon-gap) / 2);
-  padding-bottom: calc(var(--icon-gap) / 2);
-  border: 1px solid #dddcd6;
-  border-radius: 8px;
+  margin: 0;
+  padding-top: var(--icon-gap);
   box-sizing: border-box;
-}
-
-.map-icon-grid>.map-icon-btn.map-fog-hide-btn {
-  grid-column: 1;
-  grid-row: 1;
-  justify-self: center;
-}
-
-.map-icon-grid>.map-icon-btn.map-fog-reveal-btn {
-  grid-column: 2;
-  grid-row: 1;
-  justify-self: center;
-}
-
-.map-icon-grid>.map-icon-btn.map-hide-all-btn {
-  grid-column: 3;
-  grid-row: 1;
-  justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-vision-draw-btn {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 1;
   justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-vision-erase-btn {
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 1;
   justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-annotation-place-btn {
   grid-column: 1;
-  grid-row: 5;
+  grid-row: 3;
   justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-vision-full-btn {
   grid-column: 1;
-  grid-row: 3;
+  grid-row: 2;
   justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-token-place-btn {
   grid-column: 1;
-  grid-row: 6;
+  grid-row: 4;
   justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-token-select-btn {
   grid-column: 2;
-  grid-row: 6;
-  justify-self: center;
-}
-
-.map-brush-control-inline {
-  grid-column: 1 / span 2;
   grid-row: 4;
-  align-self: center;
+  justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-player-label-mode-btn {
   grid-column: 2;
-  grid-row: 5;
+  grid-row: 3;
   justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-hide-labels-btn {
   grid-column: 3;
-  grid-row: 5;
+  grid-row: 3;
   justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-streaming-btn {
   grid-column: 5;
-  grid-row: 5;
+  grid-row: 4;
   justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-scene-npc-btn {
   grid-column: 3;
-  grid-row: 6;
+  grid-row: 4;
   justify-self: center;
 }
 
@@ -6266,7 +6305,8 @@ button:disabled {
   justify-self: center;
 }
 
-.map-icon-grid .map-icon-btn {
+.map-icon-grid .map-icon-btn,
+.map-section-grid .map-icon-btn {
   width: 2.1rem;
   min-width: 2.1rem;
 }
@@ -6301,9 +6341,137 @@ button:disabled {
   }
 }
 
+.map-brush-size-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.map-tools-left .map-brush-size-control {
+  gap: 0.35rem;
+}
+
+/* Fixed box sized for the largest brush; the dot scales down from here. */
+.map-brush-size-preview {
+  flex: 0 0 auto;
+  width: 4.5rem;
+  height: 4.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dddcd6;
+  border-radius: 6px;
+  background: #fbfbf9;
+  box-sizing: border-box;
+}
+
+.map-brush-size-dot {
+  display: block;
+  flex: 0 0 auto;
+  min-width: 3px;
+  min-height: 3px;
+  border-radius: 50%;
+  background: #6f6f68;
+}
+
+/* Custom vertical slider. Native input[type=range] in vertical mode has two
+   problems we hit: the accent-color "fill" portion doesn't repaint reliably
+   on Chromium, and the thumb can't sit flush at min/max so a sliver of the
+   track shows past it. Building this from a div lets the fill and thumb
+   bind directly to React state and snap to the rail's exact endpoints. */
+.map-brush-size-slider {
+  --thumb-size: 1.4rem;
+  position: relative;
+  flex: 0 0 auto;
+  width: 1.6rem;
+  height: 6.5rem;
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+}
+
+.map-tools-left .map-brush-size-slider {
+  height: 5rem;
+}
+
+.map-brush-size-slider:focus-visible {
+  outline: 2px solid #9eb592;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.map-brush-size-rail {
+  position: absolute;
+  inset: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0.45rem;
+  border-radius: 999px;
+  background: #dddcd6;
+  overflow: hidden;
+}
+
+.map-brush-size-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #9eb592;
+}
+
+.map-brush-size-thumb {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--thumb-size);
+  height: var(--thumb-size);
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid #b0b0a8;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 18%);
+  pointer-events: none;
+}
+
+.map-controls-body.dark .map-brush-size-rail {
+  background: rgb(255 255 255 / 16%);
+}
+
+.map-controls-body.dark .map-brush-size-thumb {
+  background: #ecebe5;
+  border-color: #888;
+}
+
+.shell-root[data-theme="vtm"] .map-brush-size-rail {
+  background: rgb(255 255 255 / 12%);
+}
+
+.shell-root[data-theme="vtm"] .map-brush-size-fill {
+  background: var(--vtm-oxblood-bright);
+}
+
+.shell-root[data-theme="vtm"] .map-brush-size-thumb {
+  background: var(--vtm-bone);
+  border-color: var(--vtm-oxblood-bright);
+  box-shadow: 0 0 8px rgb(163 34 38 / 55%);
+}
+
+.shell-root[data-theme="vtm"] .map-brush-size-slider:focus-visible {
+  outline-color: var(--vtm-oxblood-bright);
+}
+
+.map-controls-body.dark .map-brush-size-preview {
+  border-color: rgb(255 255 255 / 18%);
+  background: rgb(255 255 255 / 6%);
+}
+
+.map-controls-body.dark .map-brush-size-dot {
+  background: #d8d8d2;
+}
+
 .map-brush-control-inline {
   display: grid;
-  grid-template-columns: auto 2.7rem;
+  grid-template-columns: auto 3.35rem;
   align-items: center;
   gap: 0.28rem;
   padding-inline: calc(var(--icon-gap) / 2);
@@ -6319,14 +6487,14 @@ button:disabled {
 }
 
 .map-brush-control-number {
-  width: 2.7rem;
+  width: 3.35rem;
   min-width: 0;
-  padding: 0.18rem 0.24rem;
+  padding: 0.26rem 0.34rem;
   border: 1px solid #c8c8c0;
   border-radius: 6px;
   background: #fff;
   color: #3f3f38;
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   line-height: 1.2;
   text-align: right;
   appearance: textfield;
@@ -6434,7 +6602,11 @@ button:disabled {
   transform: translate(-50%, -0.22rem);
   opacity: 0;
   pointer-events: none;
-  white-space: nowrap;
+  width: max-content;
+  max-width: min(13rem, calc(100vw - 2rem));
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-align: left;
   background: #1b1b1b;
   color: #f3f3f3;
   font-size: 0.72rem;
@@ -6497,6 +6669,21 @@ button:disabled {
 
 .fast-tooltip.fast-tooltip-right[data-tooltip]:hover::after,
 .fast-tooltip.fast-tooltip-right[data-tooltip]:focus-visible::after {
+  transform: translate(0, 0);
+}
+
+.map-section-grid .map-icon-btn.fast-tooltip[data-tooltip]::after {
+  left: 0;
+  transform: translate(0, -0.22rem);
+}
+
+.map-section-grid .map-icon-btn.fast-tooltip[data-tooltip]::before {
+  left: 0.58rem;
+  transform: translateX(0);
+}
+
+.map-section-grid .map-icon-btn.fast-tooltip[data-tooltip]:hover::after,
+.map-section-grid .map-icon-btn.fast-tooltip[data-tooltip]:focus-visible::after {
   transform: translate(0, 0);
 }
 
@@ -6755,11 +6942,56 @@ button:disabled {
 }
 
 .map-fog-canvas.brush {
-  cursor: crosshair;
+  cursor: none;
 }
 
 .map-fog-canvas.read-only {
   pointer-events: none;
+}
+
+.map-brush-cursor {
+  position: absolute;
+  left: var(--brush-cursor-x, 0);
+  top: var(--brush-cursor-y, 0);
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 70%),
+    inset 0 0 0 1px rgb(0 0 0 / 45%),
+    0 0 12px rgb(0 0 0 / 35%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 32;
+}
+
+.map-brush-cursor[data-visible="true"] {
+  opacity: 1;
+}
+
+.map-brush-cursor.fog-hide {
+  border-color: rgba(18, 18, 18, 0.9);
+  background: rgba(0, 0, 0, 0.12);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 82%),
+    inset 0 0 0 1px rgb(255 255 255 / 42%),
+    0 0 14px rgb(0 0 0 / 42%);
+}
+
+.map-brush-cursor.vision-draw {
+  border-color: rgba(176, 44, 44, 0.95);
+  background: rgba(176, 44, 44, 0.12);
+}
+
+.map-brush-cursor.vision-draw-full {
+  border-color: rgba(42, 72, 176, 0.95);
+  background: rgba(42, 72, 176, 0.12);
+}
+
+.map-brush-cursor.vision-erase {
+  border-color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .map-vision-canvas {
@@ -6786,6 +7018,10 @@ button:disabled {
   z-index: 20;
   background: #000;
   pointer-events: none;
+}
+
+.map-fog-loading-mask.gm {
+  background: rgba(0, 0, 0, 0.18);
 }
 
 .map-token-layer {
@@ -7377,6 +7613,12 @@ button:disabled {
   gap: 0.35rem;
 }
 
+.token-group-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+}
+
 .token-group-title {
   margin: 0;
   font-size: 0.76rem;
@@ -7396,6 +7638,86 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.token-group-check-label {
+  width: 1.35rem;
+  height: 1.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.token-group-check-label input,
+.token-row-check {
+  margin: 0;
+}
+
+.token-group-delete {
+  width: 1.45rem;
+  height: 1.45rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #7d1b12;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.token-group-delete:hover:not(:disabled) {
+  background: #f3e9e7;
+}
+
+.token-group-delete:disabled {
+  color: #a8a8a0;
+  cursor: default;
+  opacity: 0.6;
+}
+
+.token-group-bulk-controls {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.45rem;
+  border: 1px solid #d8d8d0;
+  border-radius: 8px;
+  background: #f7f6f0;
+}
+
+.token-group-bulk-title {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #66665f;
+}
+
+.token-group-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.token-group-bulk-controls input[type='color'] {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid #d7d7cf;
+  background: transparent;
+  padding: 0;
+}
+
+.token-group-size-row .icon-value-slider-input {
+  width: min(180px, 100%);
+}
+
+.token-group-bulk-toggles {
+  justify-content: flex-start;
+}
+
+.token-group-view-distance {
+  margin-top: 0;
 }
 
 .token-cards-panel {
@@ -7445,7 +7767,7 @@ button:disabled {
 
 .token-row-summary {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.45rem;
 }
@@ -7666,6 +7988,31 @@ button:disabled {
 .map-controls-body.dark .token-group-count {
   background: #34342f;
   color: #dbdbd3;
+}
+
+.map-controls-body.dark .token-group-delete {
+  color: #f0b7b2;
+}
+
+.map-controls-body.dark .token-group-delete:hover:not(:disabled) {
+  background: rgba(162, 36, 23, 0.18);
+}
+
+.map-controls-body.dark .token-group-delete:disabled {
+  color: #77776f;
+}
+
+.map-controls-body.dark .token-group-bulk-controls {
+  border-color: rgb(255 255 255 / 14%);
+  background: rgb(255 255 255 / 5%);
+}
+
+.map-controls-body.dark .token-group-bulk-controls input[type='color'] {
+  border-color: rgb(255 255 255 / 18%);
+}
+
+.map-controls-body.dark .token-group-bulk-title {
+  color: #cecec7;
 }
 
 .map-controls-body.dark .token-cards-title {
@@ -10407,11 +10754,11 @@ button:disabled {
   --vtm-ash: #2e1c20;
   --vtm-rule: #3a2128;
   --vtm-rule-strong: #5a3036;
-  --vtm-bone: #ebd9c4;
-  --vtm-parchment: #d4bf9f;
-  --vtm-parchment-soft: #b8a78a;
-  --vtm-faint: #806a64;
-  --vtm-mute: #5a4d4a;
+  --vtm-bone: #fff6e8;
+  --vtm-parchment: #f1dfc2;
+  --vtm-parchment-soft: #dec9a8;
+  --vtm-faint: #ad958c;
+  --vtm-mute: #83706c;
   --vtm-oxblood: #7a1a1f;
   --vtm-oxblood-deep: #4d0e10;
   --vtm-oxblood-bright: #a32226;
@@ -10579,7 +10926,7 @@ button:disabled {
   font-size: 1.05rem;
   font-weight: 400;
   font-style: italic;
-  color: var(--vtm-parchment-soft);
+  color: var(--vtm-parchment);
   background: transparent;
   border: 0;
   border-radius: 0;
@@ -11081,9 +11428,9 @@ button:disabled {
 
 .shell-root[data-theme="vtm"] {
   /* Was #806a64 (~3.9:1 on void) → bumped for meta text legibility. */
-  --vtm-faint: #9a857d;
+  --vtm-faint: #ad958c;
   /* Was #5a4d4a (~2.5:1 on void) → bumped to clear AA for small text. */
-  --vtm-mute:  #7a6864;
+  --vtm-mute:  #83706c;
 }
 
 /* --- Main content shell ---------------------------------------------- */
@@ -11511,6 +11858,87 @@ button:disabled {
   color: var(--vtm-gold);
 }
 
+.shell-root[data-theme="vtm"] .map-stage {
+  z-index: 101;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-token,
+.shell-root[data-theme="vtm"] .map-stage .map-token:hover,
+.shell-root[data-theme="vtm"] .map-stage .map-token:focus,
+.shell-root[data-theme="vtm"] .map-stage .map-token:focus-visible {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-token svg,
+.shell-root[data-theme="vtm"] .map-stage .map-token svg * {
+  color: currentColor;
+  stroke: currentColor;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-token-name {
+  background: #fff;
+  border-color: #e2e2db;
+  color: #181012;
+  font-size: 0.86rem;
+  line-height: 1.15;
+  padding: 0.1rem 0.34rem;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-player-label-btn,
+.shell-root[data-theme="vtm"] .map-stage .map-player-label-static {
+  background: #f7efc5;
+  color: #3d3320;
+  border: 0;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.14);
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-player-label-btn > span:not(.map-label-pointer-btn):not(.map-label-hide-btn):not(.map-label-hidden-badge),
+.shell-root[data-theme="vtm"] .map-stage .map-player-label-static > span:not(.map-label-pointer-static) {
+  color: #3d3320;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-player-label-btn.active {
+  background: #efe1a0;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-label-pointer-btn,
+.shell-root[data-theme="vtm"] .map-stage .map-label-pointer-btn:hover,
+.shell-root[data-theme="vtm"] .map-stage .map-label-pointer-btn:focus,
+.shell-root[data-theme="vtm"] .map-stage .map-label-pointer-btn:focus-visible {
+  background: transparent;
+  border-top-color: transparent;
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+  box-shadow: none;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-label-pointer-btn.up,
+.shell-root[data-theme="vtm"] .map-stage .map-label-pointer-static.up {
+  border-bottom-color: #f7efc5;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-label-pointer-btn.down,
+.shell-root[data-theme="vtm"] .map-stage .map-label-pointer-static.down {
+  border-top-color: #f7efc5;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-player-label-btn.active .map-label-pointer-btn.up {
+  border-bottom-color: #efe1a0;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-player-label-btn.active .map-label-pointer-btn.down {
+  border-top-color: #efe1a0;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-label-hidden-badge {
+  background: rgba(34, 34, 34, 0.88);
+  border-color: transparent;
+  color: #fff;
+}
+
 .shell-root[data-theme="vtm"] .map-token-selection-box {
   border-color: var(--vtm-oxblood-bright);
   background: rgba(163, 34, 38, 0.14);
@@ -11520,6 +11948,21 @@ button:disabled {
   color: var(--vtm-bone);
   background: rgba(122, 26, 31, 0.28);
   border-color: var(--vtm-oxblood-bright);
+}
+
+.shell-root[data-theme="vtm"] .map-controls-body .map-icon-btn.active {
+  background: linear-gradient(180deg, rgba(163, 34, 38, 0.58), rgba(122, 26, 31, 0.24));
+  border-color: var(--vtm-oxblood-bright);
+  color: var(--vtm-bone);
+  box-shadow:
+    inset 0 0 10px rgba(163, 34, 38, 0.35),
+    0 0 0 1px rgba(196, 162, 90, 0.18),
+    0 0 12px rgba(163, 34, 38, 0.32);
+}
+
+.shell-root[data-theme="vtm"] .map-controls-body .map-icon-btn.active:hover {
+  background: linear-gradient(180deg, rgba(191, 47, 52, 0.68), rgba(122, 26, 31, 0.32));
+  border-color: var(--vtm-gold);
 }
 
 .shell-root[data-theme="vtm"] .session-importer-match-count,
@@ -11617,6 +12060,43 @@ button:disabled {
   letter-spacing: 0.04em;
 }
 
+.shell-root[data-theme="vtm"] .token-group-delete {
+  background: transparent;
+  border: 0;
+  color: #e8b7ba;
+}
+
+.shell-root[data-theme="vtm"] .token-group-delete:hover:not(:disabled) {
+  background: rgba(163, 34, 38, 0.18);
+}
+
+.shell-root[data-theme="vtm"] .token-group-delete:disabled {
+  color: var(--vtm-mute);
+}
+
+.shell-root[data-theme="vtm"] .token-group-bulk-controls {
+  border-color: var(--vtm-rule-strong);
+  background: rgba(10, 7, 8, 0.35);
+}
+
+.shell-root[data-theme="vtm"] .token-group-bulk-controls input[type='color'] {
+  border-color: var(--vtm-rule-strong);
+}
+
+.shell-root[data-theme="vtm"] .token-group-bulk-title {
+  color: var(--vtm-gold);
+}
+
+.shell-root[data-theme="vtm"] .token-cards-title {
+  font-size: 0.94rem;
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .token-group-title {
+  font-size: 0.86rem;
+  color: var(--vtm-parchment);
+}
+
 /* Token toggle buttons (person / tag / hidden eye row). The "active"
    state was a mint pastel; recolor to oxblood. */
 .shell-root[data-theme="vtm"] .token-toggle-btn.map-icon-btn {
@@ -11642,6 +12122,17 @@ button:disabled {
   background: rgba(26, 15, 18, 0.55);
   border-color: var(--vtm-rule);
 }
+
+.shell-root[data-theme="vtm"] .token-row-label-input {
+  font-size: 0.94rem;
+  line-height: 1.25;
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .token-row-label-input::placeholder {
+  color: var(--vtm-mute);
+}
+
 .shell-root[data-theme="vtm"] .token-row.selected,
 .shell-root[data-theme="vtm"] .map-controls-body.dark .token-row.selected {
   background: linear-gradient(180deg, rgba(122,26,31,0.28), rgba(122,26,31,0.10));
@@ -11651,7 +12142,11 @@ button:disabled {
 /* View-distance icon and value were a dim grey from the light theme. */
 .shell-root[data-theme="vtm"] .token-view-distance-icon,
 .shell-root[data-theme="vtm"] .token-view-distance-value {
-  color: var(--vtm-parchment-soft);
+  color: var(--vtm-parchment);
+}
+
+.shell-root[data-theme="vtm"] .token-view-distance-value {
+  font-size: 0.86rem;
 }
 
 /* --- Rich-text editor (NPC player/GM notes) -------------------------- */
@@ -11716,4 +12211,713 @@ button:disabled {
 .shell-root[data-theme="vtm"] .sidebar-panel {
   background-color: var(--vtm-velvet);
   color: var(--vtm-bone);
+}
+
+/* ====================================================================== */
+/* === VtM character sheet — Slice 13 polish pass ======================= */
+/* Scoped to the VtM theme + the .vtm-sheet/.vtm-character-tab surfaces so  */
+/* it never touches the OSE sheet. Builds on the "Final Nights" language.   */
+/* ====================================================================== */
+
+/* The VtM tab reuses OSE's proven two-pane layout (maps-layout /
+   monsters-layout / characters-layout) for the sidebar + detail shell, so no
+   layout rules belong here — only the VtM create-controls cluster + the
+   inline "Grant XP" shortcut on the experience panel. */
+.shell-root[data-theme="vtm"] .vtm-create-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.shell-root[data-theme="vtm"] .vtm-create-controls select {
+  font-size: 0.74rem;
+  padding: 0.2rem 0.35rem;
+}
+.shell-root[data-theme="vtm"] .vtm-xp-summary .vtm-grant-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  padding: 0.45rem 0.8rem;
+  background: linear-gradient(180deg, rgba(122, 26, 31, 0.22), rgba(122, 26, 31, 0.06));
+  border: 1px solid var(--vtm-gold-faint);
+  color: var(--vtm-parchment);
+}
+
+/* --- The sheet surface: framed parchment-on-velvet ------------------- */
+.shell-root[data-theme="vtm"] .vtm-sheet {
+  min-width: 0;
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(36, 20, 25, 0.55), rgba(17, 11, 13, 0.35)),
+    var(--vtm-pitch);
+  border: 1px solid var(--vtm-rule-strong);
+  padding: 1.6rem 1.75rem 2rem;
+  box-shadow: inset 0 0 0 1px rgba(196, 162, 90, 0.05), 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+/* inner hairline frame echoing the modal treatment */
+.shell-root[data-theme="vtm"] .vtm-sheet::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1px solid var(--vtm-rule);
+  pointer-events: none;
+}
+
+.shell-root[data-theme="vtm"] .vtm-sheet .character-sheet-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .character-sheet-header h2 {
+  font-family: 'UnifrakturCook', 'IM Fell English', Georgia, serif;
+  font-style: normal;
+  font-size: 2.1rem;
+  line-height: 1;
+  border-bottom: none !important;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8), 0 0 24px rgba(122, 26, 31, 0.35);
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .character-sheet-header h2::after { display: none; }
+
+/* --- Section titles as centered ornamental rules --------------------- */
+.shell-root[data-theme="vtm"] .vtm-rule-title {
+  text-align: center;
+  font-family: 'Cormorant Garamond', 'IM Fell English', Georgia, serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 1.45rem;
+  letter-spacing: 0.06em;
+  color: var(--vtm-bone);
+  margin: 1.9rem 0 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  white-space: nowrap;
+}
+.shell-root[data-theme="vtm"] .vtm-rule-title::before,
+.shell-root[data-theme="vtm"] .vtm-rule-title::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--vtm-rule-strong) 30%, var(--vtm-gold-faint));
+}
+.shell-root[data-theme="vtm"] .vtm-rule-title::after {
+  background: linear-gradient(270deg, transparent, var(--vtm-rule-strong) 30%, var(--vtm-gold-faint));
+}
+
+/* --- The signature dot widget ---------------------------------------- */
+.shell-root[data-theme="vtm"] .dot-rating {
+  display: inline-flex;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+.shell-root[data-theme="vtm"] .dot-rating-dot {
+  width: 14px;
+  height: 14px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--vtm-gold-soft);
+  background:
+    radial-gradient(circle at 34% 30%, rgba(255, 245, 220, 0.14), transparent 55%),
+    radial-gradient(circle at 50% 50%, #140b0d, #0a0708);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.shell-root[data-theme="vtm"] .dot-rating-dot.active {
+  border-color: var(--vtm-gold);
+  background:
+    radial-gradient(circle at 35% 28%, #e58a4a 0%, var(--vtm-oxblood-bright) 42%, var(--vtm-oxblood-deep) 100%);
+  box-shadow: 0 0 7px rgba(163, 34, 38, 0.55), inset 0 1px 1px rgba(255, 220, 180, 0.4);
+}
+.shell-root[data-theme="vtm"] .dot-rating-dot:not(:disabled):hover {
+  transform: scale(1.18);
+  border-color: var(--vtm-gold);
+  box-shadow: 0 0 8px rgba(196, 162, 90, 0.5);
+}
+.shell-root[data-theme="vtm"] .dot-rating-dot:disabled { cursor: default; }
+/* locked sheet (active, not spending): dim the whole widget so it reads as read-only */
+.shell-root[data-theme="vtm"] .dot-rating-dot:disabled:not(.active) { opacity: 0.55; }
+
+/* --- Trait columns + dotted-leader rows ------------------------------ */
+.shell-root[data-theme="vtm"] .vtm-trait-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem 1.75rem;
+  margin-bottom: 0.5rem;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-col {
+  background: transparent !important;
+  border: none !important;
+  padding: 0;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-col-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+  border-bottom: 1px solid var(--vtm-rule-strong);
+  padding-bottom: 0.3rem;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-col-head h4 {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-variant: small-caps;
+  letter-spacing: 0.12em;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--vtm-gold);
+  margin: 0;
+  flex: 1 1 auto;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-col-head select {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.3rem;
+  opacity: 0.75;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-col .character-ability-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  background: transparent !important;
+  border: none !important;
+  padding: 0.16rem 0;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-name {
+  flex: 1 1 auto;
+  font-size: 0.98rem;
+  color: var(--vtm-parchment);
+  border-bottom: 1px dotted var(--vtm-mute);
+  padding-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- Pool / freebie chips -------------------------------------------- */
+.shell-root[data-theme="vtm"] .vtm-pool-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--vtm-gold-faint);
+  background: rgba(196, 162, 90, 0.08);
+  color: var(--vtm-gold);
+  font-family: 'Special Elite', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+}
+.shell-root[data-theme="vtm"] .vtm-pool-chip.wide { min-width: auto; }
+.shell-root[data-theme="vtm"] .vtm-pool-chip.over {
+  border-color: var(--vtm-oxblood-bright);
+  background: rgba(163, 34, 38, 0.18);
+  color: #e8908f;
+}
+
+/* --- Creation / chronicle bar ---------------------------------------- */
+.shell-root[data-theme="vtm"] .vtm-creation .vtm-creation-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+.shell-root[data-theme="vtm"] .vtm-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  color: var(--vtm-parchment);
+}
+.shell-root[data-theme="vtm"] .vtm-toggle-xp {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--vtm-gold-faint);
+  background: rgba(196, 162, 90, 0.06);
+  color: var(--vtm-gold);
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+}
+.shell-root[data-theme="vtm"] .vtm-finalize {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.74rem;
+  padding: 0.5rem 1.1rem;
+  background: linear-gradient(180deg, rgba(163, 34, 38, 0.4), rgba(122, 26, 31, 0.18)) !important;
+  border: 1px solid var(--vtm-oxblood-bright) !important;
+  color: var(--vtm-bone) !important;
+}
+.shell-root[data-theme="vtm"] .vtm-finalize:hover { box-shadow: 0 0 16px rgba(163, 34, 38, 0.4); }
+.shell-root[data-theme="vtm"] .vtm-feedback {
+  font-style: italic;
+  color: var(--vtm-gold) !important;
+  margin-top: 0.5rem;
+}
+
+/* --- Virtues + derived ribbon ---------------------------------------- */
+.shell-root[data-theme="vtm"] .vtm-virtues {
+  max-width: 22rem;
+  background: transparent !important;
+  border: none !important;
+}
+.shell-root[data-theme="vtm"] .vtm-derived {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-top: 0.9rem;
+  padding: 0.7rem 1rem;
+  border-top: 1px solid var(--vtm-rule);
+  border-bottom: 1px solid var(--vtm-rule);
+}
+.shell-root[data-theme="vtm"] .vtm-derived span {
+  font-family: 'Special Elite', monospace;
+  font-size: 1.05rem;
+  color: var(--vtm-bone);
+}
+.shell-root[data-theme="vtm"] .vtm-derived em {
+  display: block;
+  font-style: normal;
+  font-family: 'Cormorant Garamond', serif;
+  font-variant: small-caps;
+  letter-spacing: 0.1em;
+  font-size: 0.72rem;
+  color: var(--vtm-gold-soft);
+}
+
+/* --- Trackers --------------------------------------------------------- */
+.shell-root[data-theme="vtm"] .vtm-trackers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.25rem;
+  background: transparent !important;
+  border: none !important;
+}
+.shell-root[data-theme="vtm"] .vtm-trackers > div { min-width: 0; }
+.shell-root[data-theme="vtm"] .vtm-trackers h4 {
+  font-variant: small-caps;
+  letter-spacing: 0.12em;
+  color: var(--vtm-gold);
+  border-bottom: 1px solid var(--vtm-rule-strong);
+  padding-bottom: 0.3rem;
+  margin: 0 0 0.6rem;
+}
+.shell-root[data-theme="vtm"] .vtm-health-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.12rem 0;
+  border: none !important;
+  background: transparent !important;
+}
+.shell-root[data-theme="vtm"] .vtm-health-level { flex: 1 1 auto; color: var(--vtm-parchment); }
+.shell-root[data-theme="vtm"] .vtm-health-penalty {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.8rem;
+  color: var(--vtm-oxblood-bright);
+  min-width: 2rem;
+  text-align: right;
+}
+
+/* --- Grant builder ---------------------------------------------------- */
+.shell-root[data-theme="vtm"] .vtm-grant-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.shell-root[data-theme="vtm"] .vtm-grant-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.shell-root[data-theme="vtm"] .vtm-grant-field span {
+  font-variant: small-caps;
+  letter-spacing: 0.1em;
+  font-size: 0.72rem;
+  color: var(--vtm-gold-soft);
+}
+.shell-root[data-theme="vtm"] .vtm-grant-field input { width: 7rem; }
+.shell-root[data-theme="vtm"] .vtm-grant-note input { width: 14rem; max-width: 100%; }
+.shell-root[data-theme="vtm"] .vtm-grant-targets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+.shell-root[data-theme="vtm"] .vtm-grant-target {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--vtm-rule);
+  background: rgba(10, 7, 8, 0.4);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.shell-root[data-theme="vtm"] .vtm-grant-target:hover { border-color: var(--vtm-gold-faint); }
+.shell-root[data-theme="vtm"] .vtm-grant-target.checked {
+  border-color: var(--vtm-oxblood-bright);
+  background: linear-gradient(180deg, rgba(122, 26, 31, 0.22), rgba(122, 26, 31, 0.06));
+}
+.shell-root[data-theme="vtm"] .vtm-grant-target-name { color: var(--vtm-bone); font-size: 1.02rem; }
+.shell-root[data-theme="vtm"] .vtm-grant-target-clan { color: var(--vtm-faint); font-style: italic; font-size: 0.85rem; }
+.shell-root[data-theme="vtm"] .vtm-grant-target-xp {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.82rem;
+  color: var(--vtm-gold);
+}
+.shell-root[data-theme="vtm"] .vtm-grant-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* --- Experience summary + ledger ------------------------------------- */
+.shell-root[data-theme="vtm"] .vtm-xp-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.shell-root[data-theme="vtm"] .vtm-xp-balance {
+  font-family: 'UnifrakturCook', Georgia, serif;
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--vtm-gold);
+  text-shadow: 0 0 18px rgba(196, 162, 90, 0.3);
+}
+.shell-root[data-theme="vtm"] .vtm-xp-balance-label {
+  font-variant: small-caps;
+  letter-spacing: 0.12em;
+  color: var(--vtm-faint);
+  flex: 1 1 auto;
+}
+.shell-root[data-theme="vtm"] .vtm-ledger { display: flex; flex-direction: column; gap: 0.25rem; }
+.shell-root[data-theme="vtm"] .vtm-ledger-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  padding: 0.35rem 0.7rem;
+  border-left: 2px solid var(--vtm-rule-strong);
+  background: rgba(10, 7, 8, 0.35);
+}
+.shell-root[data-theme="vtm"] .vtm-ledger-row.award { border-left-color: var(--vtm-gold-soft); }
+.shell-root[data-theme="vtm"] .vtm-ledger-row.spend { border-left-color: var(--vtm-oxblood-bright); }
+.shell-root[data-theme="vtm"] .vtm-ledger-amount {
+  font-family: 'Special Elite', monospace;
+  min-width: 2.5rem;
+  color: var(--vtm-bone);
+}
+.shell-root[data-theme="vtm"] .vtm-ledger-row.spend .vtm-ledger-amount { color: #e8908f; }
+.shell-root[data-theme="vtm"] .vtm-ledger-row.award .vtm-ledger-amount { color: var(--vtm-gold); }
+.shell-root[data-theme="vtm"] .vtm-ledger-note { color: var(--vtm-parchment); font-style: italic; }
+
+/* --- Identity summary grid tidy -------------------------------------- */
+.shell-root[data-theme="vtm"] .vtm-sheet .character-summary-grid {
+  background: transparent !important;
+  border: none !important;
+  padding: 0;
+  align-items: start; /* stop fields stretching to the tall portrait row */
+}
+/* portrait/token editor: own row at top-left, constrained to a sane width
+   (the portrait frame is width:100% × 3:4, so an unbounded column made it huge) */
+.shell-root[data-theme="vtm"] .vtm-sheet .character-summary-grid > .monster-media-column {
+  grid-column: 1 / -1;
+  width: 170px;
+  justify-self: start;
+}
+/* each field: small-caps label stacked above a normal-height control */
+.shell-root[data-theme="vtm"] .vtm-sheet .character-summary-grid > label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  color: var(--vtm-gold-soft);
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .character-summary-grid > label input,
+.shell-root[data-theme="vtm"] .vtm-sheet .character-summary-grid > label select {
+  width: 100%;
+  height: auto;
+  font-variant: normal;
+  letter-spacing: normal;
+  font-size: 1rem;
+  color: var(--vtm-bone);
+  padding: 0.4rem 0.55rem;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .character-summary-grid > label textarea {
+  width: 100%;
+  min-height: 3.5rem;
+  resize: vertical;
+  font-variant: normal;
+  letter-spacing: normal;
+  font-size: 0.95rem;
+  color: var(--vtm-bone);
+  padding: 0.4rem 0.55rem;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .character-wide-field {
+  grid-column: 1 / -1;
+}
+
+/* --- Rated rows (Disciplines / Backgrounds / Other Traits) ----------- */
+.shell-root[data-theme="vtm"] .vtm-rated {
+  background: transparent !important;
+  border: none !important;
+  padding: 0;
+  margin-bottom: 1.1rem;
+}
+.shell-root[data-theme="vtm"] .vtm-rated-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--vtm-rule-strong);
+  padding-bottom: 0.3rem;
+}
+.shell-root[data-theme="vtm"] .vtm-rated-head h4 {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-variant: small-caps;
+  letter-spacing: 0.12em;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--vtm-gold);
+  margin: 0;
+}
+.shell-root[data-theme="vtm"] .vtm-rated-add {
+  margin-left: auto;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.6rem;
+}
+.shell-root[data-theme="vtm"] .vtm-rated-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  background: transparent !important;
+  border: none !important;
+}
+.shell-root[data-theme="vtm"] .vtm-rated-row select { flex: 0 0 11rem; }
+.shell-root[data-theme="vtm"] .vtm-rated-row input { flex: 1 1 auto; min-width: 0; }
+.shell-root[data-theme="vtm"] .vtm-rated-row .dot-rating { margin-left: auto; }
+.shell-root[data-theme="vtm"] .vtm-rated-delete {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.4rem;
+  min-width: 0;
+}
+
+/* --- Segmented Primary/Secondary/Tertiary priority picker ------------- */
+.shell-root[data-theme="vtm"] .vtm-priority {
+  display: inline-flex;
+  border: 1px solid var(--vtm-rule-strong);
+  border-radius: 2px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.shell-root[data-theme="vtm"] .vtm-priority button {
+  min-width: 0;
+  padding: 0.1rem 0.45rem;
+  font-family: 'Special Elite', monospace;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  background: rgba(10, 7, 8, 0.5) !important;
+  color: var(--vtm-faint) !important;
+  border: none !important;
+  border-right: 1px solid var(--vtm-rule) !important;
+  border-radius: 0 !important;
+}
+.shell-root[data-theme="vtm"] .vtm-priority button:last-child { border-right: none !important; }
+.shell-root[data-theme="vtm"] .vtm-priority button:hover:not(:disabled) {
+  color: var(--vtm-bone) !important;
+  background: rgba(46, 28, 32, 0.7) !important;
+}
+.shell-root[data-theme="vtm"] .vtm-priority button.active {
+  background: linear-gradient(180deg, rgba(163, 34, 38, 0.55), rgba(122, 26, 31, 0.3)) !important;
+  color: var(--vtm-bone) !important;
+  box-shadow: inset 0 0 8px rgba(163, 34, 38, 0.4);
+}
+
+/* --- Identity: portrait beside a two-column field grid --------------- */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity {
+  display: flex !important;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity > .monster-media-column {
+  flex: 0 0 170px;
+  width: 170px;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity-fields {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem 0.9rem;
+  align-items: start;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity-fields > label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  color: var(--vtm-gold-soft);
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity-fields > label input,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity-fields > label select {
+  width: 100%;
+  font-variant: normal;
+  letter-spacing: normal;
+  font-size: 1rem;
+  color: var(--vtm-bone);
+  padding: 0.4rem 0.55rem;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity-fields > label textarea {
+  width: 100%;
+  min-height: 3.5rem;
+  resize: vertical;
+  font-variant: normal;
+  letter-spacing: normal;
+  font-size: 0.95rem;
+  color: var(--vtm-bone);
+  padding: 0.4rem 0.55rem;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity-fields .character-wide-field {
+  grid-column: 1 / -1;
+}
+
+/* --- Clan weakness: slim auto-filled strip below the identity row ----- */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-weakness {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.9rem;
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  font-size: 0.74rem;
+  color: var(--vtm-gold-soft);
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-weakness textarea {
+  width: 100%;
+  min-height: 2.6rem;
+  resize: vertical;
+  font-variant: normal;
+  letter-spacing: normal;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: var(--vtm-parchment);
+  padding: 0.4rem 0.55rem;
+}
+
+/* --- Readability pass: larger text, brighter labels, no body italics -- */
+/* Field labels: bigger + brighter than the dim gold-soft */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity-fields > label,
+.shell-root[data-theme="vtm"] .vtm-sheet .character-summary-grid > label,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-weakness > span {
+  font-size: 0.9rem;
+  color: var(--vtm-gold);
+}
+/* Weakness: auto-grows to content, not user-resizable, readable upright text */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-weakness textarea {
+  font-size: 1rem;
+  font-style: normal;
+  resize: none;
+  field-sizing: content;
+  min-height: 2.6rem;
+  color: var(--vtm-bone);
+}
+/* De-italicize body copy that was hard to read */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-ledger-note,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-grant-target-clan {
+  font-style: normal;
+}
+/* Bump the small accent text up to legible sizes */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-trait-name { font-size: 1.04rem; color: var(--vtm-bone); }
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-derived em { font-size: 0.84rem; }
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-pool-chip,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-priority button { font-size: 0.84rem; }
+.shell-root[data-theme="vtm"] .vtm-sheet .settings-help { font-size: 0.92rem; }
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-health-level,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-health-penalty,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-grant-target-clan,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-ledger-note { font-size: 0.95rem; }
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-trait-col-head h4,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-rated-head h4,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-trackers h4 { font-size: 1.12rem; }
+
+/* --- Advantages: Disciplines + Backgrounds side by side -------------- */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-advantage-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem 1.75rem;
+  align-items: start;
+}
+/* tighten the rated rows now that they live in half-width columns */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-advantage-cols .vtm-rated-row select { flex: 0 0 8.5rem; }
+
+/* --- Freebie cost labels + gate modal -------------------------------- */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-cost-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  border: 1px dashed var(--vtm-gold-soft);
+  background: rgba(196, 162, 90, 0.05);
+  color: var(--vtm-gold);
+  font-family: 'Special Elite', monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-freebie-hint {
+  font-style: italic;
+  font-size: 0.86rem;
+  color: var(--vtm-faint);
+}
+.shell-root[data-theme="vtm"] .vtm-gate-modal .vtm-gate-list {
+  margin: 0.5rem 0 1rem;
+  padding-left: 1.2rem;
+  list-style: none;
+}
+.shell-root[data-theme="vtm"] .vtm-gate-modal .vtm-gate-list li {
+  position: relative;
+  padding: 0.18rem 0;
+  color: var(--vtm-parchment);
+  font-size: 0.98rem;
+}
+.shell-root[data-theme="vtm"] .vtm-gate-modal .vtm-gate-list li::before {
+  content: '◆';
+  position: absolute;
+  left: -1.2rem;
+  color: var(--vtm-oxblood-bright);
+  font-size: 0.7rem;
+  top: 0.4rem;
+}
+
+/* --- Create-character modal: new vs established ---------------------- */
+.shell-root[data-theme="vtm"] .vtm-create-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 1rem 0;
+}
+.shell-root[data-theme="vtm"] .vtm-create-modal-actions button {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  text-align: left;
+  font-size: 0.95rem;
 }

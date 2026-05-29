@@ -6,7 +6,7 @@ import type { Role } from '../../../types/app'
 import { campaignDocRef } from '../../campaign/firestorePaths'
 import type { GridAdjustDraft, MapRecord } from '../lib/types'
 import { DEFAULT_GRID_CELL_SCALE } from '../lib/constants'
-import { detectHexGridFromImageWithDebug, shouldAutoApplyHex } from '../lib/hexDetection'
+import { detectHexGridFromImageWithDebug } from '../lib/hexDetection'
 
 type UseGridToolsOptions = {
   selectedMap: MapRecord | undefined | null
@@ -322,19 +322,7 @@ export function useGridTools({
         gridOffsetY: detected.gridOffsetY,
         gridType: detected.gridType,
       })
-      const confidencePct = Math.round(detected.confidence * 100)
-      const cellPct = Math.round(detected.gridCellScale * 1000) / 10
-      if (!shouldAutoApplyHex(detected.confidence)) {
-        setMapError(
-          `Low-confidence hex detection (${confidencePct}%). ` +
-          `Detected ${detected.gridType}, cell=${cellPct}% of map min-dimension. Fine-tune with wheel/drag.`,
-        )
-      } else {
-        setMapError(
-          `Hex detected (${confidencePct}%): ${detected.gridType}, cell=${cellPct}% of map min-dimension. ` +
-          'Adjust with wheel/drag if needed, then Apply grid.',
-        )
-      }
+      setMapError(null)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Hex detection failed'
       setMapError(message)

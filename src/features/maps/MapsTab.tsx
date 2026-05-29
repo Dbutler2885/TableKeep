@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import type {
   ChangeEventHandler,
   MouseEventHandler,
-  SyntheticEvent,
+  TouchEventHandler,
 } from 'react'
 import { onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import {
@@ -58,6 +58,7 @@ import { uploadEntityImage } from '../common/mediaStorage'
 import { NpcDetailEditor } from '../npcs/NpcDetailEditor'
 import type {
   CanvasClipRect,
+  MapRecord,
   MonsterSummary,
   CharacterTokenSummary,
   NpcSummary,
@@ -70,6 +71,7 @@ import {
   DEFAULT_TOKEN_VIEW_DISTANCE,
   ENCOUNTER_CHECK_DISTANCE_FEET,
   ENCOUNTER_CHECK_TURNS,
+  FOG_BRUSH_SIZE_MIN,
   FOG_CANVAS_MAX_DIM,
   TOKEN_REFERENCE_DIMENSION,
   TOKEN_RENDER_SIZE_MAX,
@@ -98,6 +100,9 @@ import { useEncounterTracking } from './hooks/useEncounterTracking'
 import { useTokenAssets } from './hooks/useTokenAssets'
 
 const SURFACE_REVEAL_INTERVAL_MS = 150
+
+const BRUSH_SIZE_MIN = 1
+const BRUSH_SIZE_MAX = 260
 
 function SceneNpcEditorModal({
   campaignId,
@@ -387,6 +392,14 @@ export function MapsTab({
   const inlineMapLayerRef = useRef<HTMLDivElement | null>(null)
   const inlineStageRef = useRef<HTMLDivElement | null>(null)
   const fullMapLayerRef = useRef<HTMLDivElement | null>(null)
+  const selectedMapRef = useRef<MapRecord | null>(null)
+  const brushCursorRef = useRef<HTMLDivElement | null>(null)
+  const brushCursorClientRef = useRef<{ x: number; y: number } | null>(null)
+  const visionBlockerCacheRef = useRef<{
+    canvas: HTMLCanvasElement | null
+    key: string
+    hasBlockers: boolean
+  } | null>(null)
   const suppressNextMapClickRef = useRef(false)
   const revealMaskCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const blockerCompositeCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -432,7 +445,7 @@ export function MapsTab({
   const showEmbeddedCharacter = role !== 'gm' && !!characterTabProps && (isMobile ? mobilePlayerPane === 'character' : playerEmbeddedPane === 'character')
   const showEmbeddedMap = role === 'gm' || !characterTabProps || (isMobile ? mobilePlayerPane !== 'character' : playerEmbeddedPane === 'map')
   const fogDisplayOpacity = role === 'gm' ? (streamingMode ? 1 : 0.45) : 1
-  const visionOverlayOpacity = role === 'gm' && !streamingMode ? 0.8 : 0
+  const visionOverlayOpacity = role === 'gm' && !streamingMode && visionTool ? 0.38 : 0
   const losSeenOverlayOpacity = role === 'gm' && !streamingMode ? 0.75 : 0
   const usingFullScreenCanvas = fullScreenOpen && !isMobile
   const activeMapLayerRef = usingFullScreenCanvas ? fullMapLayerRef : inlineMapLayerRef
@@ -499,7 +512,7 @@ export function MapsTab({
     handleDragStart,
     handleDrop,
     updateToken,
-    requestDeleteToken,
+    requestDeleteTokens,
     confirmDeleteToken,
     toggleTokenHidden,
     placeToken,
@@ -530,6 +543,10 @@ export function MapsTab({
     lastAnimatedPathIdRef,
     startTokenPathAnimationRef,
   })
+
+  useEffect(() => {
+    selectedMapRef.current = selectedMap
+  }, [selectedMap])
 
   const sceneNpcs = useMemo(
     () => mapNpcs.filter((npc) => selectedMap?.sceneNpcIds.includes(npc.id)),
@@ -619,9 +636,12 @@ export function MapsTab({
     pendingFogReloadRef,
   })
   const {
+    fogDrawing,
     setFogDrawing,
+    pauseFogStroke,
     inlineFogReady,
     fullFogReady,
+    effectiveFogBrushSize,
     inlineFogCanvasRef,
     fullFogCanvasRef,
     inlineVisionCanvasRef,
@@ -629,6 +649,9 @@ export function MapsTab({
     activeFogCanvasRef,
     activeVisionCanvasRef,
     persistFog,
+    markFogLocalEdit,
+    beginFogLocalEdit,
+    endFogLocalEdit,
     applyFogPreset,
     bumpFogSampleTick,
     stampFog,
@@ -642,6 +665,117 @@ export function MapsTab({
     invalidateFullFogCache,
     invalidateFullVisionCache,
   } = fog
+
+  const activeBrushTool = role === 'gm' && !tokenPlaceMode && Boolean(fogTool || visionTool)
+  const brushCursorMode = fogTool
+    ? `fog-${fogTool}`
+    : visionTool === 'drawFull'
+      ? 'vision-draw-full'
+      : visionTool
+        ? `vision-${visionTool}`
+        : ''
+
+  const hideBrushCursor = useCallback(() => {
+    const cursor = brushCursorRef.current
+    brushCursorClientRef.current = null
+    if (!cursor) return
+    cursor.dataset.visible = 'false'
+  }, [])
+
+  const updateBrushCursorFromClient = useCallback((clientX: number, clientY: number) => {
+    if (!activeBrushTool) {
+      hideBrushCursor()
+      return
+    }
+    const canvas = activeFogCanvasRef.current
+    const cursor = brushCursorRef.current
+    if (!canvas || !cursor) return
+    const rect = canvas.getBoundingClientRect()
+    const layoutWidth = canvas.offsetWidth
+    const layoutHeight = canvas.offsetHeight
+    if (
+      rect.width <= 0 ||
+      rect.height <= 0 ||
+      layoutWidth <= 0 ||
+      layoutHeight <= 0 ||
+      canvas.width <= 0 ||
+      canvas.height <= 0
+    ) return
+    const x = Math.max(0, Math.min(layoutWidth, ((clientX - rect.left) / rect.width) * layoutWidth))
+    const y = Math.max(0, Math.min(layoutHeight, ((clientY - rect.top) / rect.height) * layoutHeight))
+    const width = Math.max(1, (effectiveFogBrushSize / canvas.width) * layoutWidth)
+    const height = Math.max(1, (effectiveFogBrushSize / canvas.height) * layoutHeight)
+    cursor.style.setProperty('--brush-cursor-x', `${x}px`)
+    cursor.style.setProperty('--brush-cursor-y', `${y}px`)
+    cursor.style.width = `${width}px`
+    cursor.style.height = `${height}px`
+    brushCursorClientRef.current = { x: clientX, y: clientY }
+    cursor.dataset.visible = 'true'
+  }, [activeBrushTool, activeFogCanvasRef, effectiveFogBrushSize, hideBrushCursor])
+
+  useEffect(() => {
+    hideBrushCursor()
+  }, [brushCursorMode, hideBrushCursor, selectedMap?.id, usingFullScreenCanvas])
+
+  useEffect(() => {
+    const point = brushCursorClientRef.current
+    if (!point) return
+    updateBrushCursorFromClient(point.x, point.y)
+  }, [effectiveFogBrushSize, updateBrushCursorFromClient])
+
+  const handleBrushCanvasMouseDown: MouseEventHandler<HTMLCanvasElement> = (event) => {
+    updateBrushCursorFromClient(event.clientX, event.clientY)
+    handleFogPointerDown(event)
+  }
+
+  const handleBrushCanvasMouseMove: MouseEventHandler<HTMLCanvasElement> = (event) => {
+    updateBrushCursorFromClient(event.clientX, event.clientY)
+    if (fogDrawing && (event.buttons & 1) !== 1) {
+      handleFogPointerUp()
+      return
+    }
+    handleFogPointerMove(event)
+  }
+
+  const handleBrushCanvasMouseEnter: MouseEventHandler<HTMLCanvasElement> = (event) => {
+    updateBrushCursorFromClient(event.clientX, event.clientY)
+    if (!fogDrawing) return
+    if ((event.buttons & 1) !== 1) {
+      handleFogPointerUp()
+      return
+    }
+    handleFogPointerMove(event)
+  }
+
+  const handleBrushCanvasMouseUp: MouseEventHandler<HTMLCanvasElement> = (event) => {
+    updateBrushCursorFromClient(event.clientX, event.clientY)
+    handleFogPointerUp()
+  }
+
+  const handleBrushCanvasMouseLeave: MouseEventHandler<HTMLCanvasElement> = (event) => {
+    hideBrushCursor()
+    pauseFogStroke()
+    if (fogDrawing && (event.buttons & 1) !== 1) {
+      handleFogPointerUp()
+    }
+  }
+
+  const handleBrushCanvasTouchStart: TouchEventHandler<HTMLCanvasElement> = (event) => {
+    const touch = event.touches[0]
+    if (touch) updateBrushCursorFromClient(touch.clientX, touch.clientY)
+    handleFogTouchStart(event)
+  }
+
+  const handleBrushCanvasTouchMove: TouchEventHandler<HTMLCanvasElement> = (event) => {
+    const touch = event.touches[0]
+    if (touch) updateBrushCursorFromClient(touch.clientX, touch.clientY)
+    handleFogTouchMove(event)
+  }
+
+  const handleBrushCanvasTouchEnd: TouchEventHandler<HTMLCanvasElement> = (event) => {
+    hideBrushCursor()
+    handleFogTouchEnd(event)
+  }
 
   const {
     distanceTrackerFeet,
@@ -855,6 +989,16 @@ export function MapsTab({
     if (typeof token.viewDistance === 'number') return token.viewDistance
     return DEFAULT_TOKEN_VIEW_DISTANCE
   }
+  const renderBrushCursor = (usingFull: boolean) => {
+    if (!activeBrushTool || usingFull !== usingFullScreenCanvas) return null
+    return (
+      <div
+        ref={brushCursorRef}
+        className={['map-brush-cursor', brushCursorMode].filter(Boolean).join(' ')}
+        aria-hidden
+      />
+    )
+  }
 
   const viewport = useMapViewport({
     role,
@@ -902,6 +1046,20 @@ export function MapsTab({
     handleMobilePlayerTouchMove,
     handleMobilePlayerTouchEnd,
   } = viewport
+
+  const brushPreviewDiameter = Math.max(
+    3,
+    Math.round((effectiveFogBrushSize / Math.max(1, activeFogDimension)) * activeMapDimension),
+  )
+  const maxEffectiveBrushSize = Math.max(
+    FOG_BRUSH_SIZE_MIN,
+    Math.min(320, Math.round((BRUSH_SIZE_MAX / TOKEN_REFERENCE_DIMENSION) * activeFogDimension)),
+  )
+  const maxBrushPreviewDiameter = Math.max(
+    3,
+    Math.round((maxEffectiveBrushSize / Math.max(1, activeFogDimension)) * activeMapDimension),
+  )
+
   const isTokenPartiallyVisibleForPlayer = (
     token: TokenRecord,
     position: { x: number; y: number },
@@ -998,6 +1156,41 @@ export function MapsTab({
     ctx.clearRect(0, 0, width, height)
   }
 
+  const visionSourceSignature = () => {
+    const dataUrl = selectedMap?.visionBlockDataUrl ?? ''
+    return [
+      selectedMap?.id ?? '',
+      selectedMap?.visionBlockImagePath ?? '',
+      selectedMap?.visionBlockImageUrl ?? '',
+      dataUrl.length,
+      dataUrl.slice(0, 32),
+      dataUrl.slice(-32),
+    ].join(':')
+  }
+
+  const visionCanvasHasBlockers = (canvas: HTMLCanvasElement) => {
+    const key = `${visionSourceSignature()}:${canvas.width}x${canvas.height}`
+    const cached = visionBlockerCacheRef.current
+    if (cached?.canvas === canvas && cached.key === key) return cached.hasBlockers
+
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    if (!ctx || canvas.width <= 0 || canvas.height <= 0) {
+      visionBlockerCacheRef.current = { canvas, key, hasBlockers: false }
+      return false
+    }
+
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data
+    let hasBlockers = false
+    for (let index = 3; index < data.length; index += 4) {
+      if ((data[index] ?? 0) > 20) {
+        hasBlockers = true
+        break
+      }
+    }
+    visionBlockerCacheRef.current = { canvas, key, hasBlockers }
+    return hasBlockers
+  }
+
   const revealFromTokenPoint = (
     fogCanvas: HTMLCanvasElement,
     visionCanvas: HTMLCanvasElement | null,
@@ -1016,7 +1209,9 @@ export function MapsTab({
       return
     }
 
-    if (!visionCanvas) {
+    markFogLocalEdit()
+
+    if (!visionCanvas || !visionCanvasHasBlockers(visionCanvas)) {
       stampFog(fogCanvas, center.x, center.y, 'reveal', brushSize)
       return
     }
@@ -1037,19 +1232,32 @@ export function MapsTab({
     const regionWidth = Math.max(1, clippedMaxX - clippedMinX + 1)
     const regionHeight = Math.max(1, clippedMaxY - clippedMinY + 1)
     const visionData = visionCtx.getImageData(clippedMinX, clippedMinY, regionWidth, regionHeight).data
+    let hasVisionBlocker = false
+    for (let index = 3; index < visionData.length; index += 4) {
+      if ((visionData[index] ?? 0) > 20) {
+        hasVisionBlocker = true
+        break
+      }
+    }
+    if (!hasVisionBlocker) {
+      stampFog(fogCanvas, center.x, center.y, 'reveal', brushSize)
+      return
+    }
 
     let maskCanvas = revealMaskCanvasRef.current
     if (!maskCanvas) {
       maskCanvas = document.createElement('canvas')
       revealMaskCanvasRef.current = maskCanvas
     }
-    if (maskCanvas.width !== fogCanvas.width || maskCanvas.height !== fogCanvas.height) {
-      maskCanvas.width = fogCanvas.width
-      maskCanvas.height = fogCanvas.height
+    if (maskCanvas.width !== regionWidth || maskCanvas.height !== regionHeight) {
+      maskCanvas.width = regionWidth
+      maskCanvas.height = regionHeight
     }
     const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true })
     if (!maskCtx) return
-    maskCtx.clearRect(clippedMinX, clippedMinY, regionWidth, regionHeight)
+    maskCtx.globalCompositeOperation = 'source-over'
+    maskCtx.globalAlpha = 1
+    maskCtx.clearRect(0, 0, regionWidth, regionHeight)
     maskCtx.fillStyle = 'rgba(0,0,0,1)'
 
     const rays = Math.max(220, Math.min(1800, Math.round(radius * 5.4)))
@@ -1096,24 +1304,17 @@ export function MapsTab({
           break
         }
         maskCtx.beginPath()
-        maskCtx.arc(x, y, dot, 0, Math.PI * 2)
+        maskCtx.arc(x - clippedMinX, y - clippedMinY, dot, 0, Math.PI * 2)
         maskCtx.fill()
       }
     }
 
     fogCtx.save()
     fogCtx.globalCompositeOperation = 'destination-out'
-    fogCtx.drawImage(
-      maskCanvas,
-      clippedMinX,
-      clippedMinY,
-      regionWidth,
-      regionHeight,
-      clippedMinX,
-      clippedMinY,
-      regionWidth,
-      regionHeight,
-    )
+    fogCtx.beginPath()
+    fogCtx.arc(center.x, center.y, radius, 0, Math.PI * 2)
+    fogCtx.clip()
+    fogCtx.drawImage(maskCanvas, clippedMinX, clippedMinY)
     fogCtx.restore()
 
     // If LOS touches a surface blocker, reveal only connected surface-blocker
@@ -1132,9 +1333,9 @@ export function MapsTab({
         surfaceMaskCanvas = document.createElement('canvas')
         blockerCompositeCanvasRef.current = surfaceMaskCanvas
       }
-      if (surfaceMaskCanvas.width !== fogCanvas.width || surfaceMaskCanvas.height !== fogCanvas.height) {
-        surfaceMaskCanvas.width = fogCanvas.width
-        surfaceMaskCanvas.height = fogCanvas.height
+      if (surfaceMaskCanvas.width !== regionWidth || surfaceMaskCanvas.height !== regionHeight) {
+        surfaceMaskCanvas.width = regionWidth
+        surfaceMaskCanvas.height = regionHeight
       }
       const compositeCtx = surfaceMaskCanvas.getContext('2d', { willReadFrequently: true })
       if (compositeCtx) {
@@ -1185,21 +1386,14 @@ export function MapsTab({
           enqueueLocal(lx + 1, ly + 1)
         }
 
-        compositeCtx.clearRect(clippedMinX, clippedMinY, regionWidth, regionHeight)
-        compositeCtx.putImageData(surfaceMask, clippedMinX, clippedMinY)
+        compositeCtx.clearRect(0, 0, regionWidth, regionHeight)
+        compositeCtx.putImageData(surfaceMask, 0, 0)
         fogCtx.save()
         fogCtx.globalCompositeOperation = 'destination-out'
-        fogCtx.drawImage(
-          surfaceMaskCanvas,
-          clippedMinX,
-          clippedMinY,
-          regionWidth,
-          regionHeight,
-          clippedMinX,
-          clippedMinY,
-          regionWidth,
-          regionHeight,
-        )
+        fogCtx.beginPath()
+        fogCtx.arc(center.x, center.y, radius, 0, Math.PI * 2)
+        fogCtx.clip()
+        fogCtx.drawImage(surfaceMaskCanvas, clippedMinX, clippedMinY)
         fogCtx.restore()
       }
     }
@@ -1314,6 +1508,8 @@ export function MapsTab({
     onMovementFeet,
     setTokens,
     persistFog,
+    beginFogLocalEdit,
+    endFogLocalEdit,
     recentlyDroppedRef,
     lastAnimatedPathIdRef,
     setSelectedTokenIds,
@@ -1608,12 +1804,20 @@ export function MapsTab({
     setActiveAnnotationId('')
   }, [streamingMode])
 
-  const handleInlineImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
-    if (event.currentTarget.src !== selectedMap?.imageUrl) return
-    const target = event.currentTarget
+  const handleInlineImageReady = useCallback((target: HTMLImageElement, attempt = 0) => {
+    const currentMap = selectedMapRef.current
+    if (!currentMap || target.dataset.mapId !== currentMap.id) return
+    const measuredWidth = Math.round(target.clientWidth || target.getBoundingClientRect().width)
+    const measuredHeight = Math.round(target.clientHeight || target.getBoundingClientRect().height)
+    if ((measuredWidth <= 0 || measuredHeight <= 0) && attempt < 8) {
+      window.requestAnimationFrame(() => handleInlineImageReady(target, attempt + 1))
+      return
+    }
+    const displayWidth = Math.max(1, measuredWidth || target.naturalWidth)
+    const displayHeight = Math.max(1, measuredHeight || target.naturalHeight)
     setInlineBaseSize({
-      width: Math.max(1, Math.round(target.clientWidth)),
-      height: Math.max(1, Math.round(target.clientHeight)),
+      width: displayWidth,
+      height: displayHeight,
     })
     const fogScale = Math.min(1, FOG_CANVAS_MAX_DIM / Math.max(target.naturalWidth, target.naturalHeight, 1))
     setInlineFogSize({
@@ -1627,14 +1831,22 @@ export function MapsTab({
       Math.max(1, Math.round(target.naturalHeight * fogScale)),
     )
     setInlineImageReady(true)
-  }
+  }, [invalidateInlineOverlayCache])
 
-  const handleFullImageLoad = (event: SyntheticEvent<HTMLImageElement>) => {
-    if (event.currentTarget.src !== selectedMap?.imageUrl) return
-    const target = event.currentTarget
+  const handleFullImageReady = useCallback((target: HTMLImageElement, attempt = 0) => {
+    const currentMap = selectedMapRef.current
+    if (!currentMap || target.dataset.mapId !== currentMap.id) return
+    const measuredWidth = Math.round(target.clientWidth || target.getBoundingClientRect().width)
+    const measuredHeight = Math.round(target.clientHeight || target.getBoundingClientRect().height)
+    if ((measuredWidth <= 0 || measuredHeight <= 0) && attempt < 8) {
+      window.requestAnimationFrame(() => handleFullImageReady(target, attempt + 1))
+      return
+    }
+    const displayWidth = Math.max(1, measuredWidth || target.naturalWidth)
+    const displayHeight = Math.max(1, measuredHeight || target.naturalHeight)
     setFullBaseSize({
-      width: Math.max(1, Math.round(target.clientWidth)),
-      height: Math.max(1, Math.round(target.clientHeight)),
+      width: displayWidth,
+      height: displayHeight,
     })
     const fogScale = Math.min(1, FOG_CANVAS_MAX_DIM / Math.max(target.naturalWidth, target.naturalHeight, 1))
     setFullFogSize({
@@ -1648,7 +1860,11 @@ export function MapsTab({
       Math.max(1, Math.round(target.naturalHeight * fogScale)),
     )
     setFullImageReady(true)
-  }
+  }, [invalidateFullVisionCache])
+
+  const loadingMaskClassName = role === 'gm' && !streamingMode
+    ? 'map-fog-loading-mask gm'
+    : 'map-fog-loading-mask'
 
   useEffect(() => {
     clearLosSeenCanvas(inlineLosSeenCanvasRef.current, Math.max(1, inlineFogSize.width), Math.max(1, inlineFogSize.height))
@@ -1756,6 +1972,8 @@ export function MapsTab({
         setVisionTool={setVisionTool}
         fogBrushSize={fogBrushSize}
         setFogBrushSize={setFogBrushSize}
+        brushPreviewDiameter={brushPreviewDiameter}
+        maxBrushPreviewDiameter={maxBrushPreviewDiameter}
         tokenPlaceMode={tokenPlaceMode}
         setTokenPlaceMode={setTokenPlaceMode}
         tokenSelectMode={tokenSelectMode}
@@ -1832,7 +2050,7 @@ export function MapsTab({
           await updateToken(tokenId, { viewDistance, viewDistanceScale })
         }}
         tokenViewDistanceSliderValue={tokenViewDistanceSliderValue}
-        onRequestDeleteToken={requestDeleteToken}
+        onRequestDeleteTokens={requestDeleteTokens}
         mapMonsters={mapMonsters}
         mapCharacters={mapCharacters}
         mapNpcs={mapNpcs}
@@ -2043,7 +2261,7 @@ export function MapsTab({
                   : undefined
               }
               onOpenFullscreen={openFullScreen}
-              onImageLoad={handleInlineImageLoad}
+              onImageReady={handleInlineImageReady}
               onStageWheel={isInlineZoomMapView ? handlePlayerWheel : undefined}
               onStageMouseDown={isInlineZoomMapView ? handlePlayerMouseDown : undefined}
               onStageMouseMove={isInlineZoomMapView ? handlePlayerMouseMove : undefined}
@@ -2083,14 +2301,15 @@ export function MapsTab({
                 width={Math.max(1, inlineFogSize.width)}
                 height={Math.max(1, inlineFogSize.height)}
                 style={{ opacity: fogDisplayOpacity }}
-                onMouseDown={handleFogPointerDown}
-                onMouseMove={handleFogPointerMove}
-                onMouseUp={handleFogPointerUp}
-                onMouseLeave={handleFogPointerUp}
-                onTouchStart={handleFogTouchStart}
-                onTouchMove={handleFogTouchMove}
-                onTouchEnd={handleFogTouchEnd}
-                onTouchCancel={handleFogTouchEnd}
+                onMouseDown={handleBrushCanvasMouseDown}
+                onMouseEnter={handleBrushCanvasMouseEnter}
+                onMouseMove={handleBrushCanvasMouseMove}
+                onMouseUp={handleBrushCanvasMouseUp}
+                onMouseLeave={handleBrushCanvasMouseLeave}
+                onTouchStart={handleBrushCanvasTouchStart}
+                onTouchMove={handleBrushCanvasTouchMove}
+                onTouchEnd={handleBrushCanvasTouchEnd}
+                onTouchCancel={handleBrushCanvasTouchEnd}
               />
               <canvas
                 ref={inlineVisionCanvasRef}
@@ -2125,7 +2344,8 @@ export function MapsTab({
                 <div className="map-token-selection-box" style={selectionRectStyle} />
               ) : null}
               {annotationLayerNode}
-              {(!inlineImageReady || !inlineFogReady) ? <div className="map-fog-loading-mask" aria-hidden /> : null}
+              {renderBrushCursor(false)}
+              {(!inlineImageReady || !inlineFogReady) ? <div className={loadingMaskClassName} aria-hidden /> : null}
             </InlineMapStage>
             ) : null}
 
@@ -2136,12 +2356,14 @@ export function MapsTab({
                   groupId={workspaceGroupId}
                   fogTool={fogTool}
                   setFogTool={setFogTool}
-                  visionTool={visionTool}
-                  setVisionTool={setVisionTool}
-                  fogBrushSize={fogBrushSize}
-                  setFogBrushSize={setFogBrushSize}
-                  tokenPlaceMode={tokenPlaceMode}
-                  setTokenPlaceMode={setTokenPlaceMode}
+                visionTool={visionTool}
+                setVisionTool={setVisionTool}
+                fogBrushSize={fogBrushSize}
+                setFogBrushSize={setFogBrushSize}
+                brushPreviewDiameter={brushPreviewDiameter}
+                maxBrushPreviewDiameter={maxBrushPreviewDiameter}
+                tokenPlaceMode={tokenPlaceMode}
+                setTokenPlaceMode={setTokenPlaceMode}
                   tokenSelectMode={tokenSelectMode}
                   setTokenSelectMode={setTokenSelectMode}
                   annotationPlaceMode={annotationPlaceMode}
@@ -2216,7 +2438,7 @@ export function MapsTab({
                   await updateToken(tokenId, { viewDistance, viewDistanceScale })
                 }}
                 tokenViewDistanceSliderValue={tokenViewDistanceSliderValue}
-                onRequestDeleteToken={requestDeleteToken}
+                onRequestDeleteTokens={requestDeleteTokens}
                 mapMonsters={mapMonsters}
                 mapCharacters={mapCharacters}
                 mapNpcs={mapNpcs}
@@ -2344,7 +2566,7 @@ export function MapsTab({
           fullDragging={fullDragging}
           mapLayerStyle={{ transform: `translate(${fullPan.x}px, ${fullPan.y}px) scale(${fullZoom})` }}
           onClose={closeFullScreen}
-          onImageLoad={handleFullImageLoad}
+          onImageReady={handleFullImageReady}
           onStageWheel={handleFullWheel}
           onStageMouseDown={handleFullMouseDown}
           onStageAuxClick={(event) => {
@@ -2383,10 +2605,11 @@ export function MapsTab({
             width={Math.max(1, fullFogSize.width)}
             height={Math.max(1, fullFogSize.height)}
             style={{ opacity: fogDisplayOpacity }}
-            onMouseDown={handleFogPointerDown}
-            onMouseMove={handleFogPointerMove}
-            onMouseUp={handleFogPointerUp}
-            onMouseLeave={handleFogPointerUp}
+            onMouseDown={handleBrushCanvasMouseDown}
+            onMouseEnter={handleBrushCanvasMouseEnter}
+            onMouseMove={handleBrushCanvasMouseMove}
+            onMouseUp={handleBrushCanvasMouseUp}
+            onMouseLeave={handleBrushCanvasMouseLeave}
           />
           <canvas
             ref={fullVisionCanvasRef}
@@ -2422,7 +2645,8 @@ export function MapsTab({
             <div className="map-token-selection-box" style={selectionRectStyle} />
           ) : null}
           {annotationLayerNode}
-          {(!fullImageReady || !fullFogReady) ? <div className="map-fog-loading-mask" aria-hidden /> : null}
+          {renderBrushCursor(true)}
+          {(!fullImageReady || !fullFogReady) ? <div className={loadingMaskClassName} aria-hidden /> : null}
         </FullscreenMapStage>
       ) : null}
 
@@ -2503,8 +2727,16 @@ export function MapsTab({
       />
       <ConfirmModal
         open={tokenDeleteCandidate !== null}
-        title="Delete Token?"
-        message="Permanently remove this token from the map?"
+        title={(tokenDeleteCandidate?.length ?? 0) > 1 ? 'Delete Tokens?' : 'Delete Token?'}
+        message={
+          tokenDeleteCandidate && tokenDeleteCandidate.length > 0
+            ? `Permanently remove ${
+              tokenDeleteCandidate.length === 1
+                ? `"${tokenDeleteCandidate[0].name || 'Token'}"`
+                : `${tokenDeleteCandidate.length} tokens: ${tokenDeleteCandidate.map((token) => `"${token.name || 'Token'}"`).join(', ')}`
+            } from the map?`
+            : 'Permanently remove this token from the map?'
+        }
         confirmLabel={deletingTokenId ? 'Deleting...' : 'Delete'}
         confirmDisabled={Boolean(deletingTokenId)}
         onCancel={() => setTokenDeleteCandidate(null)}
@@ -2547,6 +2779,8 @@ function GmMapControls({
   setVisionTool,
   fogBrushSize,
   setFogBrushSize,
+  brushPreviewDiameter,
+  maxBrushPreviewDiameter,
   tokenPlaceMode,
   setTokenPlaceMode,
   tokenSelectMode,
@@ -2606,7 +2840,7 @@ function GmMapControls({
   onUpdateTokenSize,
   onUpdateTokenViewDistance,
   tokenViewDistanceSliderValue,
-  onRequestDeleteToken,
+  onRequestDeleteTokens,
   mapMonsters,
   mapCharacters,
   mapNpcs,
@@ -2626,6 +2860,8 @@ function GmMapControls({
   setVisionTool: (tool: 'draw' | 'drawFull' | 'erase' | null) => void
   fogBrushSize: number
   setFogBrushSize: (size: number) => void
+  brushPreviewDiameter: number
+  maxBrushPreviewDiameter: number
   tokenPlaceMode: boolean
   setTokenPlaceMode: (value: boolean) => void
   tokenSelectMode: boolean
@@ -2693,7 +2929,7 @@ function GmMapControls({
   onUpdateTokenSize: (tokenId: string, size: number) => Promise<void>
   onUpdateTokenViewDistance: (tokenId: string, viewDistance: number) => Promise<void>
   tokenViewDistanceSliderValue: (token: TokenRecord) => number
-  onRequestDeleteToken: (tokenId: string) => void
+  onRequestDeleteTokens: (tokenIds: string[]) => void
   mapMonsters: MonsterSummary[]
   mapCharacters: CharacterTokenSummary[]
   mapNpcs: NpcSummary[]
@@ -2709,12 +2945,14 @@ function GmMapControls({
   }
 
   const [tokenNameDrafts, setTokenNameDrafts] = useState<Record<string, string>>({})
+  const [checkedTokenIds, setCheckedTokenIds] = useState<string[]>([])
   const [tokensCollapsed, setTokensCollapsed] = useState(false)
   const [expandedTokenIds, setExpandedTokenIds] = useState<string[]>([])
   const [sceneNpcPickerId, setSceneNpcPickerId] = useState('')
   const [sceneNpcModalId, setSceneNpcModalId] = useState('')
   const [presentedNpcGmNotes, setPresentedNpcGmNotes] = useState('')
   const [brushSizeDraft, setBrushSizeDraft] = useState(String(fogBrushSize))
+  const [brushSizeEditing, setBrushSizeEditing] = useState(false)
   const availableSceneNpcs = useMemo(
     () => mapNpcs.filter((npc) => !selectedMapSceneNpcIds.includes(npc.id)),
     [mapNpcs, selectedMapSceneNpcIds],
@@ -2723,6 +2961,32 @@ function GmMapControls({
     () => Array.from(new Set(mapNpcs.flatMap((npc) => npc.tags))).sort((a, b) => a.localeCompare(b)),
     [mapNpcs],
   )
+
+  const checkedTokenIdSet = useMemo(() => new Set(checkedTokenIds), [checkedTokenIds])
+
+  useEffect(() => {
+    setCheckedTokenIds((current) => current.filter((tokenId) => tokens.some((token) => token.id === tokenId)))
+  }, [tokens])
+
+  const setTokenChecked = (tokenId: string, checked: boolean) => {
+    setCheckedTokenIds((current) => {
+      if (checked) return current.includes(tokenId) ? current : [...current, tokenId]
+      return current.filter((id) => id !== tokenId)
+    })
+  }
+
+  const toggleGroupChecked = (groupTokens: TokenRecord[], checked: boolean) => {
+    const groupTokenIds = groupTokens.map((token) => token.id)
+    const groupTokenIdSet = new Set(groupTokenIds)
+    setCheckedTokenIds((current) => {
+      if (!checked) return current.filter((tokenId) => !groupTokenIdSet.has(tokenId))
+      const next = [...current]
+      groupTokenIds.forEach((tokenId) => {
+        if (!next.includes(tokenId)) next.push(tokenId)
+      })
+      return next
+    })
+  }
 
   useEffect(() => {
     setSceneNpcPickerId((current) => {
@@ -2744,8 +3008,9 @@ function GmMapControls({
   }, [campaignId, groupId, presentedNpc?.id])
 
   useEffect(() => {
+    if (brushSizeEditing) return
     setBrushSizeDraft(String(fogBrushSize))
-  }, [fogBrushSize])
+  }, [brushSizeEditing, fogBrushSize])
 
   const DistanceRollIcon =
     distanceTrackerMode === 'roll' && distanceTrackerRoll === 1
@@ -2764,15 +3029,63 @@ function GmMapControls({
   const distanceFeetLabel = `${Math.max(0, Math.round(distanceTrackerFeet))}'`
   const distanceTrackerLabel = distanceTrackerMode === 'first' ? '1st' : distanceFeetLabel
 
+  const brushPreviewDotDiameter = Math.min(maxBrushPreviewDiameter, brushPreviewDiameter)
+  const brushPreviewBoxSize = Math.max(48, maxBrushPreviewDiameter + 12)
+  const brushPct = (fogBrushSize - BRUSH_SIZE_MIN) / (BRUSH_SIZE_MAX - BRUSH_SIZE_MIN)
+
+  const setBrushFromPointer = (rail: DOMRect, clientY: number) => {
+    const pct = Math.max(0, Math.min(1, (rail.bottom - clientY) / rail.height))
+    setFogBrushSize(Math.round(BRUSH_SIZE_MIN + pct * (BRUSH_SIZE_MAX - BRUSH_SIZE_MIN)))
+  }
+
+  const handleBrushSliderPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const target = event.currentTarget
+    const rail = target.getBoundingClientRect()
+    target.setPointerCapture(event.pointerId)
+    setBrushFromPointer(rail, event.clientY)
+    const move = (ev: PointerEvent) => setBrushFromPointer(rail, ev.clientY)
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
+  const handleBrushSliderKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const step = event.shiftKey ? 10 : 1
+    if (event.key === 'ArrowUp' || event.key === 'ArrowRight') {
+      event.preventDefault()
+      setFogBrushSize(Math.min(BRUSH_SIZE_MAX, fogBrushSize + step))
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') {
+      event.preventDefault()
+      setFogBrushSize(Math.max(BRUSH_SIZE_MIN, fogBrushSize - step))
+    } else if (event.key === 'Home') {
+      event.preventDefault()
+      setFogBrushSize(BRUSH_SIZE_MIN)
+    } else if (event.key === 'End') {
+      event.preventDefault()
+      setFogBrushSize(BRUSH_SIZE_MAX)
+    }
+  }
+
   const commitBrushSizeDraft = () => {
+    setBrushSizeEditing(false)
     const parsed = Number.parseInt(brushSizeDraft, 10)
     if (!Number.isFinite(parsed)) {
       setBrushSizeDraft(String(fogBrushSize))
       return
     }
-    const next = Math.max(1, Math.min(260, parsed))
+    const next = Math.max(BRUSH_SIZE_MIN, Math.min(BRUSH_SIZE_MAX, parsed))
     setFogBrushSize(next)
     setBrushSizeDraft(String(next))
+  }
+
+  const handleBrushSizeInputChange: ChangeEventHandler<HTMLInputElement> = (event) => {
+    const nextValue = event.target.value
+    if (!/^\d*$/.test(nextValue)) return
+    setBrushSizeDraft(nextValue)
   }
 
   const commitTokenLabelEdit = async (token: TokenRecord, labelValue: string) => {
@@ -2817,299 +3130,370 @@ function GmMapControls({
 
   return (
     <div className={dark ? 'map-controls-body dark' : 'map-controls-body'}>
-      <div className="map-icon-grid">
-        <button
-          type="button"
-          className={fogTool === 'hide' ? 'map-icon-btn map-fog-hide-btn fast-tooltip active' : 'map-icon-btn map-fog-hide-btn fast-tooltip'}
-          onClick={() => {
-            setTokenSelectMode(false)
-            setVisionTool(null)
-            setFogTool(fogTool === 'hide' ? null : 'hide')
-          }}
-          aria-label="Spray fog brush"
-          data-tooltip="Spray fog brush"
-        >
-          <SprayCan size={16} />
-        </button>
-        <button
-          type="button"
-          className={fogTool === 'reveal' ? 'map-icon-btn map-fog-reveal-btn fast-tooltip active' : 'map-icon-btn map-fog-reveal-btn fast-tooltip'}
-          onClick={() => {
-            setTokenSelectMode(false)
-            setVisionTool(null)
-            setFogTool(fogTool === 'reveal' ? null : 'reveal')
-          }}
-          aria-label="Eraser brush"
-          data-tooltip="Eraser brush"
-        >
-          <Eraser size={16} />
-        </button>
-        <button
-          type="button"
-          className={visionTool === 'draw' ? 'map-icon-btn map-vision-draw-btn fast-tooltip active' : 'map-icon-btn map-vision-draw-btn fast-tooltip'}
-          onClick={() => {
-            setTokenSelectMode(false)
-            setFogTool(null)
-            setVisionTool(visionTool === 'draw' ? null : 'draw')
-          }}
-          aria-label="Vision wall brush"
-          data-tooltip="Vision wall brush"
-        >
-          <Pencil size={16} />
-        </button>
-        <button
-          type="button"
-          className={visionTool === 'drawFull' ? 'map-icon-btn map-vision-full-btn fast-tooltip active' : 'map-icon-btn map-vision-full-btn fast-tooltip'}
-          onClick={() => {
-            setTokenSelectMode(false)
-            setFogTool(null)
-            setVisionTool(visionTool === 'drawFull' ? null : 'drawFull')
-          }}
-          aria-label="Full vision wall brush"
-          data-tooltip="Full vision wall brush"
-        >
-          <PenTool size={16} />
-        </button>
-        <button
-          type="button"
-          className={visionTool === 'erase' ? 'map-icon-btn map-vision-erase-btn fast-tooltip active' : 'map-icon-btn map-vision-erase-btn fast-tooltip'}
-          onClick={() => {
-            setTokenSelectMode(false)
-            setFogTool(null)
-            setVisionTool(visionTool === 'erase' ? null : 'erase')
-          }}
-          aria-label="Erase vision wall brush"
-          data-tooltip="Erase vision wall brush"
-        >
-          <X size={16} />
-        </button>
-        <div className="map-brush-control-inline" aria-label="Brush size">
-          <span className="map-brush-control-icon" aria-hidden>
-            <Paintbrush size={14} />
-          </span>
-          <input
-            className="map-brush-control-number"
-            type="number"
-            min={1}
-            max={260}
-            step={1}
-            inputMode="numeric"
-            value={brushSizeDraft}
-            onChange={(event) => {
-              const nextValue = event.target.value
-              if (/^\d*$/.test(nextValue)) {
-                setBrushSizeDraft(nextValue)
-              }
-            }}
-            onBlur={commitBrushSizeDraft}
-            onKeyDown={(event) => {
-              if (event.key === 'e' || event.key === 'E' || event.key === '+' || event.key === '-' || event.key === '.') {
-                event.preventDefault()
-                return
-              }
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                commitBrushSizeDraft()
-              }
-            }}
-            aria-label="Brush size number"
-          />
+      <div className="map-tools-panel">
+        <div className="map-tools-brush">
+          <span className="map-section-label">Brush size</span>
+          <div className="map-brush-size-control">
+            <div
+              className="map-brush-size-preview"
+              style={{
+                width: `${brushPreviewBoxSize}px`,
+                height: `${brushPreviewBoxSize}px`,
+              }}
+              aria-hidden
+            >
+              <span
+                className="map-brush-size-dot"
+                style={{
+                  width: `${brushPreviewDotDiameter}px`,
+                  height: `${brushPreviewDotDiameter}px`,
+                }}
+              />
+            </div>
+            <div
+              className="map-brush-size-slider"
+              role="slider"
+              tabIndex={0}
+              aria-label="Brush size"
+              aria-valuemin={BRUSH_SIZE_MIN}
+              aria-valuemax={BRUSH_SIZE_MAX}
+              aria-valuenow={fogBrushSize}
+              onPointerDown={handleBrushSliderPointerDown}
+              onKeyDown={handleBrushSliderKeyDown}
+            >
+              <div className="map-brush-size-rail">
+                <div className="map-brush-size-fill" style={{ height: `${brushPct * 100}%` }} />
+              </div>
+              <div
+                className="map-brush-size-thumb"
+                style={{ bottom: `calc((100% - var(--thumb-size)) * ${brushPct})` }}
+              />
+            </div>
+            <div
+              className="map-brush-control-inline"
+              aria-label="Brush size value"
+              onPointerDownCapture={(event) => event.stopPropagation()}
+              onMouseDownCapture={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <span className="map-brush-control-icon" aria-hidden>
+                <Paintbrush size={14} />
+              </span>
+              <input
+                className="map-brush-control-number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={brushSizeDraft}
+                onChange={handleBrushSizeInputChange}
+                onFocus={() => setBrushSizeEditing(true)}
+                onBlur={commitBrushSizeDraft}
+                onKeyDown={(event) => {
+                  event.stopPropagation()
+                  if (event.key === 'e' || event.key === 'E' || event.key === '+' || event.key === '-' || event.key === '.') {
+                    event.preventDefault()
+                    return
+                  }
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    event.currentTarget.blur()
+                  }
+                }}
+                aria-label="Brush size number"
+              />
+            </div>
+          </div>
         </div>
-        <button
-          type="button"
-          className={fullyHidden ? 'map-icon-btn map-hide-all-btn fast-tooltip active' : 'map-icon-btn map-hide-all-btn fast-tooltip'}
-          onClick={toggleHidden}
-          disabled={!canApplyPreset}
-          aria-label={fullyHidden ? 'Unhide all' : 'Hide all'}
-          data-tooltip={fullyHidden ? 'Unhide all' : 'Hide all'}
-        >
-          {fullyHidden ? <Eye size={16} /> : <EyeOff size={16} />}
-        </button>
-        <button
-          type="button"
-          className={tokenSelectMode ? 'map-icon-btn map-token-select-btn fast-tooltip active' : 'map-icon-btn map-token-select-btn fast-tooltip'}
-          onClick={() => {
-            const next = !tokenSelectMode
-            setTokenSelectMode(next)
-            if (next) {
-              setFogTool(null)
+        <div className="map-tools-left">
+        <span className="map-section-label">Fog</span>
+        <div className="map-section-grid">
+          <button
+            type="button"
+            className={fogTool === 'hide' ? 'map-icon-btn map-fog-hide-btn fast-tooltip fast-tooltip-left active' : 'map-icon-btn map-fog-hide-btn fast-tooltip fast-tooltip-left'}
+            onClick={() => {
+              setTokenSelectMode(false)
               setVisionTool(null)
-              setTokenPlaceMode(false)
-              setAnnotationPlaceMode(false)
-              setPlayerLabelPlaceMode(false)
-            }
-          }}
-          aria-label="Toggle token drag-select mode"
-          data-tooltip="Token drag-select mode"
-        >
-          <SquareDashedMousePointer size={16} />
-        </button>
-        <button
-          type="button"
-          className={annotationPlaceMode ? 'map-icon-btn map-annotation-place-btn fast-tooltip active' : 'map-icon-btn map-annotation-place-btn fast-tooltip'}
-          onClick={() => {
-            const next = !annotationPlaceMode
-            setAnnotationPlaceMode(next)
-            if (next) {
+              setFogTool(fogTool === 'hide' ? null : 'hide')
+            }}
+            aria-label="Add fog"
+            data-tooltip="Add fog"
+          >
+            <SprayCan size={16} />
+          </button>
+          <button
+            type="button"
+            className={fogTool === 'reveal' ? 'map-icon-btn map-fog-reveal-btn fast-tooltip active' : 'map-icon-btn map-fog-reveal-btn fast-tooltip'}
+            onClick={() => {
               setTokenSelectMode(false)
-              setTokenPlaceMode(false)
-              setPlayerLabelPlaceMode(false)
-            }
-          }}
-          aria-label="Toggle annotation placement mode"
-          data-tooltip="Annotation placement mode"
-        >
-          <Flag size={16} />
-        </button>
-        <button
-          type="button"
-          className={playerLabelPlaceMode ? 'map-icon-btn map-player-label-mode-btn fast-tooltip active' : 'map-icon-btn map-player-label-mode-btn fast-tooltip'}
-          onClick={() => {
-            const next = !playerLabelPlaceMode
-            setPlayerLabelPlaceMode(next)
-            if (next) {
+              setVisionTool(null)
+              setFogTool(fogTool === 'reveal' ? null : 'reveal')
+            }}
+            aria-label="Remove fog"
+            data-tooltip="Remove fog"
+          >
+            <Eraser size={16} />
+          </button>
+          <button
+            type="button"
+            className={fullyHidden ? 'map-icon-btn map-hide-all-btn fast-tooltip active' : 'map-icon-btn map-hide-all-btn fast-tooltip'}
+            onClick={toggleHidden}
+            disabled={!canApplyPreset}
+            aria-label={fullyHidden ? 'Unhide all' : 'Hide all'}
+            data-tooltip={fullyHidden ? 'Unhide all' : 'Hide all'}
+          >
+            {fullyHidden ? <Eye size={16} /> : <EyeOff size={16} />}
+          </button>
+        </div>
+        <span className="map-section-label">Vision Block</span>
+        <div className="map-section-grid">
+          <button
+            type="button"
+            className={visionTool === 'drawFull' ? 'map-icon-btn map-vision-full-btn fast-tooltip fast-tooltip-left active' : 'map-icon-btn map-vision-full-btn fast-tooltip fast-tooltip-left'}
+            onClick={() => {
               setTokenSelectMode(false)
-              setTokenPlaceMode(false)
-              setAnnotationPlaceMode(false)
-            }
-          }}
-          aria-label="Toggle player label placement mode"
-          data-tooltip="Player label placement mode"
-        >
-          <Tag size={16} />
-        </button>
-        <button
-          type="button"
-          className={gmHideLabels ? 'map-icon-btn map-hide-labels-btn fast-tooltip active' : 'map-icon-btn map-hide-labels-btn fast-tooltip'}
-          onClick={() => setGmHideLabels(!gmHideLabels)}
-          aria-label={gmHideLabels ? 'Show labels in GM view' : 'Hide labels in GM view'}
-          data-tooltip={gmHideLabels ? 'Show labels in GM view' : 'Hide labels in GM view'}
-        >
-          <EyeOff size={16} />
-        </button>
-        <button
-          type="button"
-          className={tokenPlaceMode ? 'map-icon-btn map-token-place-btn fast-tooltip active' : 'map-icon-btn map-token-place-btn fast-tooltip'}
-          onClick={() => {
-            const next = !tokenPlaceMode
-            setTokenPlaceMode(next)
-            if (next) {
+              setFogTool(null)
+              setVisionTool(visionTool === 'drawFull' ? null : 'drawFull')
+            }}
+            aria-label="Hard vision block"
+            data-tooltip="Hard block: blocks sight into painted area and beyond"
+          >
+            <PenTool size={16} />
+          </button>
+          <button
+            type="button"
+            className={visionTool === 'draw' ? 'map-icon-btn map-vision-draw-btn fast-tooltip active' : 'map-icon-btn map-vision-draw-btn fast-tooltip'}
+            onClick={() => {
               setTokenSelectMode(false)
-              setAnnotationPlaceMode(false)
-              setPlayerLabelPlaceMode(false)
-            }
-          }}
-          aria-label="Toggle token placement mode"
-          data-tooltip="Token placement mode"
-        >
-          <ChessPawn size={16} />
-        </button>
-        <button
-          type="button"
-          className={streamingMode ? 'map-icon-btn map-streaming-btn fast-tooltip active' : 'map-icon-btn map-streaming-btn fast-tooltip'}
-          onClick={() => setStreamingMode(!streamingMode)}
-          aria-label="Toggle streaming mode"
-          data-tooltip="Streaming mode"
-        >
-          <TvMinimalPlay size={16} />
-        </button>
-        <button
-          type="button"
-          className={npcSceneMode ? 'map-icon-btn map-scene-npc-btn fast-tooltip active' : 'map-icon-btn map-scene-npc-btn fast-tooltip'}
-          onClick={() => setNpcSceneMode(!npcSceneMode)}
-          aria-label="Toggle scene NPC panel"
-          data-tooltip="Scene NPCs"
-        >
-          <UserRoundPen size={16} />
-        </button>
-        <button
-          type="button"
-          className={
-            gridAdjustMode && gridType === 'square'
-              ? 'map-icon-btn map-grid-btn fast-tooltip fast-tooltip-right active'
-              : 'map-icon-btn map-grid-btn fast-tooltip fast-tooltip-right'
-          }
-          onClick={() => onSetGridType('square')}
-          aria-label="Square grid overlay"
-          data-tooltip={gridAdjustMode && gridType === 'square' ? 'Cancel square grid' : 'Square grid'}
-        >
-          <Grid3X3 size={16} />
-        </button>
-        <button
-          type="button"
-          className={gridType === 'hex-pointy'
-            ? 'map-icon-btn map-hex-pointy-btn fast-tooltip fast-tooltip-right active'
-            : 'map-icon-btn map-hex-pointy-btn fast-tooltip fast-tooltip-right'}
-          onClick={() => onSetGridType('hex-pointy')}
-          disabled={hexDetecting}
-          aria-label="Hex grid pointy-top orientation"
-          data-tooltip={hexDetecting ? 'Detecting hex...' : 'Hex grid: pointy-top'}
-        >
-          {hexDetecting ? <LoaderCircle size={16} className="map-icon-spin" /> : <Hexagon size={16} />}
-        </button>
-        <button
-          type="button"
-          className={gridType === 'hex-flat'
-            ? 'map-icon-btn map-hex-flat-btn fast-tooltip fast-tooltip-right active'
-            : 'map-icon-btn map-hex-flat-btn fast-tooltip fast-tooltip-right'}
-          onClick={() => onSetGridType('hex-flat')}
-          disabled={hexDetecting}
-          aria-label="Hex grid flat-top orientation"
-          data-tooltip={hexDetecting ? 'Detecting hex...' : 'Hex grid: flat-top'}
-        >
-          {hexDetecting ? <LoaderCircle size={16} className="map-icon-spin" /> : <Hexagon size={16} className="map-hex-flat-icon" />}
-        </button>
-        <button
-          type="button"
-          className={gridVisible ? 'map-icon-btn map-grid-visibility-btn fast-tooltip fast-tooltip-right' : 'map-icon-btn map-grid-visibility-btn fast-tooltip fast-tooltip-right active'}
-          onClick={onToggleGridVisible}
-          aria-label="Toggle grid visibility"
-          data-tooltip={gridVisible ? 'Hide grid' : 'Show grid'}
-        >
-          <EyeOff size={16} />
-        </button>
-        <button
-          type="button"
-          className={gridCalibrateMode ? 'map-icon-btn map-ruler-btn fast-tooltip fast-tooltip-right active' : 'map-icon-btn map-ruler-btn fast-tooltip fast-tooltip-right'}
-          onClick={onToggleGridCalibrate}
-          aria-label="Calibrate grid scale"
-          data-tooltip={gridCalibrateMode ? 'Measuring' : "Calibrate 10'"}
-        >
-          <RulerDimensionLine size={16} />
-        </button>
-        <button
-          type="button"
-          className={gridMeasureMode ? 'map-icon-btn map-measure-btn fast-tooltip fast-tooltip-right active' : 'map-icon-btn map-measure-btn fast-tooltip fast-tooltip-right'}
-          onClick={onToggleGridMeasure}
-          disabled={!measurementToolEnabled}
-          aria-label="Measure map distance"
-          data-tooltip={!measurementToolEnabled ? 'Lay or calibrate grid first' : gridMeasureMode ? 'Clear measurement' : 'Measure distance'}
-        >
-          <Ruler size={16} />
-        </button>
-        <button
-          type="button"
-          className={
-            distanceTrackerMode === 'roll' || distanceTrackerMode === 'first'
-              ? 'map-icon-btn map-distance-tracker-btn fast-tooltip fast-tooltip-right active'
-              : 'map-icon-btn map-distance-tracker-btn fast-tooltip fast-tooltip-right'
-          }
-          onClick={onResetDistanceTracker}
-          aria-label="Reset movement distance tracker"
-          data-tooltip={
-            distanceTrackerMode === 'roll'
-              ? `d6: ${distanceTrackerRoll ?? '-'}`
-              : distanceTrackerMode === 'first'
-                ? `1st turn/${ENCOUNTER_CHECK_DISTANCE_FEET}'`
-              : `${distanceFeetLabel}/${ENCOUNTER_CHECK_DISTANCE_FEET}'`
-          }
-        >
-          {DistanceRollIcon ? (
-            <DistanceRollIcon size={16} />
-          ) : (
-            <span className="map-distance-tracker-value">{distanceTrackerLabel}</span>
-          )}
-        </button>
+              setFogTool(null)
+              setVisionTool(visionTool === 'draw' ? null : 'draw')
+            }}
+            aria-label="Soft vision block"
+            data-tooltip="Soft block: reveals painted area, blocks sight beyond"
+          >
+            <Pencil size={16} />
+          </button>
+          <button
+            type="button"
+            className={visionTool === 'erase' ? 'map-icon-btn map-vision-erase-btn fast-tooltip active' : 'map-icon-btn map-vision-erase-btn fast-tooltip'}
+            onClick={() => {
+              setTokenSelectMode(false)
+              setFogTool(null)
+              setVisionTool(visionTool === 'erase' ? null : 'erase')
+            }}
+            aria-label="Erase vision blocks"
+            data-tooltip="Erase vision blocks"
+          >
+            <X size={16} />
+          </button>
+        </div>
+        <span className="map-section-label">Annotation</span>
+        <div className="map-section-grid">
+          <button
+            type="button"
+            className={annotationPlaceMode ? 'map-icon-btn map-annotation-place-btn fast-tooltip fast-tooltip-left active' : 'map-icon-btn map-annotation-place-btn fast-tooltip fast-tooltip-left'}
+            onClick={() => {
+              const next = !annotationPlaceMode
+              setAnnotationPlaceMode(next)
+              if (next) {
+                setTokenSelectMode(false)
+                setTokenPlaceMode(false)
+                setPlayerLabelPlaceMode(false)
+              }
+            }}
+            aria-label="Toggle annotation placement mode"
+            data-tooltip="Annotation placement mode"
+          >
+            <Flag size={16} />
+          </button>
+          <button
+            type="button"
+            className={playerLabelPlaceMode ? 'map-icon-btn map-player-label-mode-btn fast-tooltip active' : 'map-icon-btn map-player-label-mode-btn fast-tooltip'}
+            onClick={() => {
+              const next = !playerLabelPlaceMode
+              setPlayerLabelPlaceMode(next)
+              if (next) {
+                setTokenSelectMode(false)
+                setTokenPlaceMode(false)
+                setAnnotationPlaceMode(false)
+              }
+            }}
+            aria-label="Toggle player label placement mode"
+            data-tooltip="Player label placement mode"
+          >
+            <Tag size={16} />
+          </button>
+          <button
+            type="button"
+            className={gmHideLabels ? 'map-icon-btn map-hide-labels-btn fast-tooltip active' : 'map-icon-btn map-hide-labels-btn fast-tooltip'}
+            onClick={() => setGmHideLabels(!gmHideLabels)}
+            aria-label={gmHideLabels ? 'Show labels in GM view' : 'Hide labels in GM view'}
+            data-tooltip={gmHideLabels ? 'Show labels in GM view' : 'Hide labels in GM view'}
+          >
+            <EyeOff size={16} />
+          </button>
+        </div>
+        <span className="map-section-label">Token</span>
+        <div className="map-section-grid">
+          <button
+            type="button"
+            className={tokenSelectMode ? 'map-icon-btn map-token-select-btn fast-tooltip fast-tooltip-left active' : 'map-icon-btn map-token-select-btn fast-tooltip fast-tooltip-left'}
+            onClick={() => {
+              const next = !tokenSelectMode
+              setTokenSelectMode(next)
+              if (next) {
+                setFogTool(null)
+                setVisionTool(null)
+                setTokenPlaceMode(false)
+                setAnnotationPlaceMode(false)
+                setPlayerLabelPlaceMode(false)
+              }
+            }}
+            aria-label="Toggle token drag-select mode"
+            data-tooltip="Token drag-select mode"
+          >
+            <SquareDashedMousePointer size={16} />
+          </button>
+          <button
+            type="button"
+            className={tokenPlaceMode ? 'map-icon-btn map-token-place-btn fast-tooltip active' : 'map-icon-btn map-token-place-btn fast-tooltip'}
+            onClick={() => {
+              const next = !tokenPlaceMode
+              setTokenPlaceMode(next)
+              if (next) {
+                setTokenSelectMode(false)
+                setAnnotationPlaceMode(false)
+                setPlayerLabelPlaceMode(false)
+              }
+            }}
+            aria-label="Toggle token placement mode"
+            data-tooltip="Token placement mode"
+          >
+            <ChessPawn size={16} />
+          </button>
+        </div>
+        <span className="map-section-label">Scene NPC</span>
+        <div className="map-section-grid">
+          <button
+            type="button"
+            className={npcSceneMode ? 'map-icon-btn map-scene-npc-btn fast-tooltip fast-tooltip-left active' : 'map-icon-btn map-scene-npc-btn fast-tooltip fast-tooltip-left'}
+            onClick={() => setNpcSceneMode(!npcSceneMode)}
+            aria-label="Toggle scene NPC panel"
+            data-tooltip="Scene NPCs"
+          >
+            <UserRoundPen size={16} />
+          </button>
+        </div>
+        <span className="map-section-label">Stream Mode</span>
+        <div className="map-section-grid">
+          <button
+            type="button"
+            className={streamingMode ? 'map-icon-btn map-streaming-btn fast-tooltip fast-tooltip-left active' : 'map-icon-btn map-streaming-btn fast-tooltip fast-tooltip-left'}
+            onClick={() => setStreamingMode(!streamingMode)}
+            aria-label="Toggle streaming mode"
+            data-tooltip="Streaming mode"
+          >
+            <TvMinimalPlay size={16} />
+          </button>
+        </div>
+        </div>
+        <div className="map-tools-right">
+          <span className="map-section-label">Grid Controls</span>
+          <div className="map-section-grid">
+            <button
+              type="button"
+              className={
+                gridAdjustMode && gridType === 'square'
+                  ? 'map-icon-btn map-grid-btn fast-tooltip fast-tooltip-right active'
+                  : 'map-icon-btn map-grid-btn fast-tooltip fast-tooltip-right'
+              }
+              onClick={() => onSetGridType('square')}
+              aria-label="Square grid overlay"
+              data-tooltip={gridAdjustMode && gridType === 'square' ? 'Cancel square grid' : 'Square grid'}
+            >
+              <Grid3X3 size={16} />
+            </button>
+            <button
+              type="button"
+              className={gridType === 'hex-pointy'
+                ? 'map-icon-btn map-hex-pointy-btn fast-tooltip fast-tooltip-right active'
+                : 'map-icon-btn map-hex-pointy-btn fast-tooltip fast-tooltip-right'}
+              onClick={() => onSetGridType('hex-pointy')}
+              disabled={hexDetecting}
+              aria-label="Hex grid pointy-top orientation"
+              data-tooltip={hexDetecting ? 'Detecting hex...' : 'Hex grid: pointy-top'}
+            >
+              {hexDetecting ? <LoaderCircle size={16} className="map-icon-spin" /> : <Hexagon size={16} />}
+            </button>
+            <button
+              type="button"
+              className={gridType === 'hex-flat'
+                ? 'map-icon-btn map-hex-flat-btn fast-tooltip fast-tooltip-right active'
+                : 'map-icon-btn map-hex-flat-btn fast-tooltip fast-tooltip-right'}
+              onClick={() => onSetGridType('hex-flat')}
+              disabled={hexDetecting}
+              aria-label="Hex grid flat-top orientation"
+              data-tooltip={hexDetecting ? 'Detecting hex...' : 'Hex grid: flat-top'}
+            >
+              {hexDetecting ? <LoaderCircle size={16} className="map-icon-spin" /> : <Hexagon size={16} className="map-hex-flat-icon" />}
+            </button>
+          </div>
+          <div className="map-section-grid map-section-grid-single">
+            <button
+              type="button"
+              className={gridVisible ? 'map-icon-btn map-grid-visibility-btn fast-tooltip fast-tooltip-right' : 'map-icon-btn map-grid-visibility-btn fast-tooltip fast-tooltip-right active'}
+              onClick={onToggleGridVisible}
+              aria-label="Toggle grid visibility"
+              data-tooltip={gridVisible ? 'Hide grid' : 'Show grid'}
+            >
+              <EyeOff size={16} />
+            </button>
+          </div>
+          <span className="map-section-label">Measurement</span>
+          <div className="map-section-grid">
+            <button
+              type="button"
+              className={gridCalibrateMode ? 'map-icon-btn map-ruler-btn fast-tooltip fast-tooltip-right active' : 'map-icon-btn map-ruler-btn fast-tooltip fast-tooltip-right'}
+              onClick={onToggleGridCalibrate}
+              aria-label="Calibrate grid scale"
+              data-tooltip={gridCalibrateMode ? 'Measuring' : "Calibrate 10'"}
+            >
+              <RulerDimensionLine size={16} />
+            </button>
+            <button
+              type="button"
+              className={gridMeasureMode ? 'map-icon-btn map-measure-btn fast-tooltip fast-tooltip-right active' : 'map-icon-btn map-measure-btn fast-tooltip fast-tooltip-right'}
+              onClick={onToggleGridMeasure}
+              disabled={!measurementToolEnabled}
+              aria-label="Measure map distance"
+              data-tooltip={!measurementToolEnabled ? 'Lay or calibrate grid first' : gridMeasureMode ? 'Clear measurement' : 'Measure distance'}
+            >
+              <Ruler size={16} />
+            </button>
+            <button
+              type="button"
+              className={
+                distanceTrackerMode === 'roll' || distanceTrackerMode === 'first'
+                  ? 'map-icon-btn map-distance-tracker-btn fast-tooltip fast-tooltip-right active'
+                  : 'map-icon-btn map-distance-tracker-btn fast-tooltip fast-tooltip-right'
+              }
+              onClick={onResetDistanceTracker}
+              aria-label="Reset movement distance tracker"
+              data-tooltip={
+                distanceTrackerMode === 'roll'
+                  ? `d6: ${distanceTrackerRoll ?? '-'}`
+                  : distanceTrackerMode === 'first'
+                    ? `1st turn/${ENCOUNTER_CHECK_DISTANCE_FEET}'`
+                  : `${distanceFeetLabel}/${ENCOUNTER_CHECK_DISTANCE_FEET}'`
+              }
+            >
+              {DistanceRollIcon ? (
+                <DistanceRollIcon size={16} />
+              ) : (
+                <span className="map-distance-tracker-value">{distanceTrackerLabel}</span>
+              )}
+            </button>
+          </div>
+        </div>
       </div>
       {gridAdjustMode ? (
         <div className="map-grid-adjust-panel">
@@ -3354,20 +3738,153 @@ function GmMapControls({
           </div>
           {!tokensCollapsed ? (
             <div className="token-group-list">
-              {tokenGroups.map((group) => (
-                <section key={group.key} className="token-group-block" aria-label={group.label}>
-                  <div className="token-group-header">
-                    <h5 className="token-group-title">{group.label}</h5>
-                    <span className="token-group-count">{group.tokens.length}</span>
-                  </div>
-                  <div className="token-list">
-                    {group.tokens.map((token, index) => (
-                      <div
-                        key={token.id}
-                        className={selectedTokenIds.includes(token.id) ? 'token-row selected' : 'token-row'}
-                      >
-                        <div className="token-row-summary" onClick={() => onSelectTokenCard(token.id)}>
-                          <span className="token-row-icon" style={{ color: token.color }} aria-hidden>
+              {tokenGroups.map((group) => {
+                const groupCheckedTokens = group.tokens.filter((token) => checkedTokenIdSet.has(token.id))
+                const groupCheckedTokenIds = groupCheckedTokens.map((token) => token.id)
+                const groupHasCheckedTokens = groupCheckedTokenIds.length > 0
+                const bulkSizeValue = groupCheckedTokens[0]?.size ?? TOKEN_SIZE_MIN
+                const bulkColorValue = groupCheckedTokens[0]?.color ?? tokenColor
+                const bulkPartyTokens = groupCheckedTokens.filter((token) => token.party)
+                const bulkViewDistanceValue = bulkPartyTokens[0]
+                  ? tokenViewDistanceSliderValue(bulkPartyTokens[0])
+                  : DEFAULT_TOKEN_VIEW_DISTANCE
+                const groupAllParty = groupHasCheckedTokens && groupCheckedTokens.every((token) => token.party)
+                const groupAllRevealName = groupHasCheckedTokens && groupCheckedTokens.every((token) => token.revealName)
+                const groupAllHidden = groupHasCheckedTokens && groupCheckedTokens.every((token) => token.hidden)
+                return (
+                  <section key={group.key} className="token-group-block" aria-label={group.label}>
+                    <div className="token-group-header">
+                      <h5 className="token-group-title">{group.label}</h5>
+                      <div className="token-group-actions">
+                        <span className="token-group-count">{group.tokens.length}</span>
+                        <label className="token-group-check-label">
+                          <input
+                            type="checkbox"
+                            checked={groupHasCheckedTokens}
+                            onChange={() => toggleGroupChecked(group.tokens, !groupHasCheckedTokens)}
+                            aria-label={groupHasCheckedTokens ? `Uncheck all ${group.label} tokens` : `Check all ${group.label} tokens`}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                    {groupHasCheckedTokens ? (
+                      <div className="token-group-bulk-controls" aria-label={`Checked ${group.label} token controls`}>
+                        <h6 className="token-group-bulk-title">Selected Group Controls</h6>
+                        <div className="token-group-bulk-actions">
+                          <button
+                            type="button"
+                            className="token-group-delete fast-tooltip"
+                            onClick={() => onRequestDeleteTokens(groupCheckedTokenIds)}
+                            aria-label={`Delete checked ${group.label} tokens`}
+                            data-tooltip="Delete checked tokens"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                          <input
+                            type="color"
+                            value={bulkColorValue}
+                            onChange={(event) => {
+                              const color = event.target.value
+                              void Promise.all(groupCheckedTokens.map((token) => onUpdateToken(token.id, { color })))
+                            }}
+                            aria-label={`Checked ${group.label} token color`}
+                          />
+                        </div>
+                        <IconValueSlider
+                          className="token-row-size-row token-group-size-row"
+                          icon={<ALargeSmall size={14} />}
+                          tooltip="Token Size"
+                          value={bulkSizeValue}
+                          min={TOKEN_SIZE_MIN}
+                          max={TOKEN_SIZE_MAX}
+                          step={1}
+                          ariaLabel={`Checked ${group.label} token size`}
+                          onChange={(nextSize) => {
+                            void Promise.all(groupCheckedTokens.map((token) => onUpdateTokenSize(token.id, nextSize)))
+                          }}
+                        />
+                        <div className="token-row-toggles token-group-bulk-toggles">
+                          <button
+                            type="button"
+                            className={groupAllParty ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
+                            onClick={() => {
+                              const next = !groupAllParty
+                              void Promise.all(groupCheckedTokens.map((token) => {
+                                if (!next) return onUpdateToken(token.id, { party: false })
+                                return onUpdateToken(token.id, {
+                                  party: true,
+                                  viewDistance: tokenViewDistanceSliderValue(token),
+                                })
+                              }))
+                            }}
+                            aria-label={`Toggle checked ${group.label} party tokens`}
+                            data-tooltip="Party token"
+                          >
+                            <User size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className={groupAllRevealName ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
+                            onClick={() => {
+                              const revealName = !groupAllRevealName
+                              void Promise.all(groupCheckedTokens.map((token) => onUpdateToken(token.id, { revealName })))
+                            }}
+                            aria-label={`Toggle checked ${group.label} reveal names`}
+                            data-tooltip="Reveal name"
+                          >
+                            <Tag size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className={groupAllHidden ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
+                            onClick={() => {
+                              const hidden = !groupAllHidden
+                              void Promise.all(groupCheckedTokens.map((token) => onUpdateToken(token.id, { hidden })))
+                            }}
+                            aria-label={`Toggle checked ${group.label} hidden tokens`}
+                            data-tooltip="Hide token"
+                          >
+                            <EyeOff size={14} />
+                          </button>
+                        </div>
+                        {bulkPartyTokens.length > 0 ? (
+                          <div className="token-view-distance token-group-view-distance" aria-label={`Checked ${group.label} view distance`}>
+                            <span className="token-view-distance-icon fast-tooltip" data-tooltip="View Distance" aria-hidden>
+                              <Binoculars size={14} />
+                            </span>
+                            <input
+                              className="token-view-distance-slider"
+                              type="range"
+                              min={8}
+                              max={600}
+                              step={2}
+                              value={bulkViewDistanceValue}
+                              onChange={(event) => {
+                                const viewDistance = Number(event.target.value)
+                                void Promise.all(bulkPartyTokens.map((token) => onUpdateTokenViewDistance(token.id, viewDistance)))
+                              }}
+                            />
+                            <span className="token-view-distance-value">{bulkViewDistanceValue}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    <div className="token-list">
+                      {group.tokens.map((token, index) => (
+                        <div
+                          key={token.id}
+                          className={selectedTokenIds.includes(token.id) ? 'token-row selected' : 'token-row'}
+                        >
+                          <div className="token-row-summary" onClick={() => onSelectTokenCard(token.id)}>
+                            <input
+                              type="checkbox"
+                              className="token-row-check"
+                              checked={checkedTokenIdSet.has(token.id)}
+                              onClick={(event) => event.stopPropagation()}
+                              onChange={(event) => setTokenChecked(token.id, event.target.checked)}
+                              aria-label={`Check ${group.label} token ${index + 1}`}
+                            />
+                            <span className="token-row-icon" style={{ color: token.color }} aria-hidden>
                             {token.tokenImageUrl ? (
                               <img src={token.tokenImageUrl} alt="" className="token-row-image" />
                             ) : (
@@ -3414,25 +3931,14 @@ function GmMapControls({
                         </div>
                         {expandedTokenIds.includes(token.id) ? (
                           <div className="token-row-details">
-                            <div className="token-row-actions">
-                              {!token.tokenImageUrl ? (
-                                <input
-                                  type="color"
-                                  value={token.color}
-                                  onChange={(event) => void onUpdateToken(token.id, { color: event.target.value })}
-                                  aria-label={`${group.label} token ${index + 1} color`}
-                                />
-                              ) : null}
-                              <button
-                                type="button"
-                                className="token-row-delete"
-                                onClick={() => onRequestDeleteToken(token.id)}
-                                aria-label={`Delete ${group.label} token ${index + 1}`}
-                                title="Delete token"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
+                            {!token.tokenImageUrl ? (
+                              <input
+                                type="color"
+                                value={token.color}
+                                onChange={(event) => void onUpdateToken(token.id, { color: event.target.value })}
+                                aria-label={`${group.label} token ${index + 1} color`}
+                              />
+                            ) : null}
                             <IconValueSlider
                               className="token-row-size-row"
                               icon={<ALargeSmall size={14} />}
@@ -3507,7 +4013,8 @@ function GmMapControls({
                     ))}
                   </div>
                 </section>
-              ))}
+                )
+              })}
             </div>
           ) : null}
         </section>

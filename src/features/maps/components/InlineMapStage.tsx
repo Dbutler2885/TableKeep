@@ -1,10 +1,10 @@
 import { Maximize2 } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import type {
   CSSProperties,
   MouseEventHandler,
   ReactNode,
   RefObject,
-  SyntheticEvent,
   TouchEventHandler,
   WheelEventHandler,
 } from 'react'
@@ -19,7 +19,7 @@ type InlineMapStageProps = {
   mapLayerClassName: string
   mapLayerStyle?: CSSProperties
   onOpenFullscreen: () => void
-  onImageLoad: (event: SyntheticEvent<HTMLImageElement>) => void
+  onImageReady: (image: HTMLImageElement) => void
   onStageWheel?: WheelEventHandler<HTMLDivElement>
   onStageMouseDown?: MouseEventHandler<HTMLDivElement>
   onStageMouseMove?: MouseEventHandler<HTMLDivElement>
@@ -46,7 +46,7 @@ export function InlineMapStage({
   mapLayerClassName,
   mapLayerStyle,
   onOpenFullscreen,
-  onImageLoad,
+  onImageReady,
   onStageWheel,
   onStageMouseDown,
   onStageMouseMove,
@@ -63,6 +63,19 @@ export function InlineMapStage({
   onMapLayerTouchCancel,
   children,
 }: InlineMapStageProps) {
+  const imageRef = useRef<HTMLImageElement | null>(null)
+  const onImageReadyRef = useRef(onImageReady)
+
+  useEffect(() => {
+    onImageReadyRef.current = onImageReady
+  }, [onImageReady])
+
+  useEffect(() => {
+    const image = imageRef.current
+    if (!image || !selectedMap?.imageUrl) return
+    if (image.complete && image.naturalWidth > 0) onImageReadyRef.current(image)
+  }, [selectedMap?.id, selectedMap?.imageUrl])
+
   return (
     <div
       ref={stageRef}
@@ -95,11 +108,13 @@ export function InlineMapStage({
           style={mapLayerStyle}
         >
           <img
+            ref={imageRef}
             key={selectedMap.id}
+            data-map-id={selectedMap.id}
             src={selectedMap.imageUrl}
             alt={selectedMap.name}
             className="map-image inline-map-image"
-            onLoad={onImageLoad}
+            onLoad={(event) => onImageReadyRef.current(event.currentTarget)}
           />
           {children}
         </div>

@@ -21,6 +21,7 @@ import { AuthPanel } from './features/auth/AuthPanel'
 import { UsernameSetup } from './features/auth/UsernameSetup'
 import { VerifyEmailGate } from './features/auth/VerifyEmailGate'
 import { CharacterTab } from './features/character/CharacterTab'
+import { VtmCharacterTab } from './features/character/VtmCharacterTab'
 import { RulesTab } from './features/common/RulesTab'
 import { useDocumentVisibility } from './features/common/useDocumentVisibility'
 import { MapsTab } from './features/maps/MapsTab'
@@ -31,7 +32,7 @@ import { TablesTab } from './features/tables/TablesTab'
 import { NotesTab } from './features/notes/NotesTab'
 import { CalendarTab } from './features/notes/CalendarTab'
 import { CliffhangerModal } from './features/notes/CliffhangerModal'
-import { campaignTabPath, groupHomePath, groupPickerPath, tabFromPathname, tabs } from './features/navigation/tabs'
+import { campaignTabPath, groupHomePath, groupPickerPath, resolveSystem, tabFromPathname, tabs, tabsForSystem } from './features/navigation/tabs'
 import { useCharacters } from './features/character/useCharacters'
 import { useItemApprovals } from './features/character/useItemApprovals'
 import { TransferNotification } from './features/transfers/TransferNotification'
@@ -198,6 +199,7 @@ function GroupShell({ user, username }: { user: User, username: string }) {
   const campaign = selectedCampaign
   const workspaceGroupId = campaign?.groupId ?? null
   const role: Role | null = campaign ? (campaign.gmUserId === user.uid ? 'gm' : 'player') : null
+  const gameSystem = resolveSystem(campaign?.system)
 
   useEffect(() => {
     if (loading) return
@@ -264,7 +266,7 @@ function GroupShell({ user, username }: { user: User, username: string }) {
     void navigate(campaignTabPath(selectedGroupId, campaignId, 'character'), { replace: true })
   }, [navigate, selectedGroupId])
 
-  const shouldListenForCharacters = documentVisible && ['character', 'maps', 'items'].includes(activeTab)
+  const shouldListenForCharacters = gameSystem === 'ose' && documentVisible && ['character', 'maps', 'items'].includes(activeTab)
   const shouldListenForApprovals = documentVisible && (role === 'gm' || activeTab === 'character')
   const shouldShowTransferNotification = documentVisible && ['character', 'maps'].includes(activeTab)
   const shouldShowCliffhangerModal = documentVisible && activeTab !== 'notes'
@@ -328,13 +330,24 @@ function GroupShell({ user, username }: { user: User, username: string }) {
     return tabs.find((item) => item.id === tab)?.label ?? tab
   }
   const visibleTabs = useMemo(() => {
+    const systemTabs = tabsForSystem(gameSystem)
     const enabled = campaign?.enabledTabs
     const enabledSet = enabled ? new Set(enabled) : null
-    const enabledFiltered = enabledSet ? tabs.filter((t) => enabledSet.has(t.id)) : tabs
-    return role === 'player'
+    const enabledFiltered = enabledSet ? systemTabs.filter((t) => enabledSet.has(t.id)) : systemTabs
+    return role === 'player' && gameSystem === 'ose'
       ? enabledFiltered.filter((tab) => !['items', 'monsters', 'tables'].includes(tab.id))
       : enabledFiltered
-  }, [role, campaign?.enabledTabs])
+  }, [role, campaign?.enabledTabs, gameSystem])
+
+  // Hard-gate routes by system: a VtM campaign has no items/tables/rules routes,
+  // so redirect direct navigation there back to the character tab.
+  useEffect(() => {
+    if (!campaign) return
+    const allowed = new Set(tabsForSystem(gameSystem).map((tab) => tab.id))
+    if (!allowed.has(activeTab)) {
+      void navigate(campaignTabPath(campaign.groupId, campaign.id, 'character'), { replace: true })
+    }
+  }, [activeTab, campaign, gameSystem, navigate])
 
   const renderCampaignWorkspace = (group: GroupRecord) => (
     <>
@@ -442,11 +455,28 @@ function GroupShell({ user, username }: { user: User, username: string }) {
             }
           >
             {activeTab === 'character' ? (
-              characterTabProps ? <CharacterTab {...characterTabProps} /> : null
+              gameSystem === 'vtm' ? (
+                <VtmCharacterTab
+                  campaignId={campaign.id}
+                  groupId={campaign.groupId}
+                  role={role}
+                  currentUserId={user.uid}
+                  currentUsername={username}
+                  gmUserId={campaign.gmUserId ?? null}
+                  setError={setError}
+                />
+              ) : characterTabProps ? <CharacterTab {...characterTabProps} /> : null
             ) : activeTab === 'maps' ? (
-              <MapsTab campaignId={campaign.id} groupId={campaign.groupId} role={role} characterTabProps={characterTabProps ?? undefined} />
+              <MapsTab
+                campaignId={campaign.id}
+                groupId={campaign.groupId}
+                role={role}
+                characterTabProps={gameSystem === 'ose' ? characterTabProps ?? undefined : undefined}
+              />
             ) : activeTab === 'monsters' ? (
-              role === 'gm' ? <MonstersTab campaignId={campaign.id} groupId={campaign.groupId} role={role} /> : null
+              role === 'gm' || gameSystem === 'vtm'
+                ? <MonstersTab campaignId={campaign.id} groupId={campaign.groupId} role={role} />
+                : null
             ) : activeTab === 'items' ? (
               role === 'gm' ? <ItemsTab campaignId={campaign.id} groupId={campaign.groupId} role={role} characters={characters} /> : null
             ) : activeTab === 'npcs' ? (
@@ -635,7 +665,7 @@ function GroupShell({ user, username }: { user: User, username: string }) {
   )
 
   const shellTheme = campaign && selectedCampaignId
-    ? (campaign.system === 'vtm' ? 'vtm' : 'default')
+    ? (gameSystem === 'vtm' ? 'vtm' : 'default')
     : 'default'
 
   return (

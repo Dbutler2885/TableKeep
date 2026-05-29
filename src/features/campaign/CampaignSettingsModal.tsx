@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
-import { tabs } from '../navigation/tabs'
+import { resolveSystem, tabsForSystem } from '../navigation/tabs'
 import type { AppTab, Campaign } from '../../types/app'
 
 type CampaignSettingsModalProps = {
@@ -10,17 +10,21 @@ type CampaignSettingsModalProps = {
   onClose: () => void
 }
 
-const SETTINGS_TABS: Array<{ id: AppTab; label: string; locked?: boolean }> = tabs
-  .filter((t) => t.id !== 'rules')
-  .map((t) => ({ id: t.id, label: t.label, locked: t.id === 'character' }))
-
 export function CampaignSettingsModal({ groupId, campaign, onClose }: CampaignSettingsModalProps) {
+  // Only offer tabs this campaign's system actually exposes, so a GM can't enable
+  // a tab that the system later hides (which would leave confusing stored state).
+  const systemTabs = useMemo(() => tabsForSystem(resolveSystem(campaign.system)), [campaign.system])
+  const settingsTabs = useMemo(
+    () => systemTabs.filter((t) => t.id !== 'rules').map((t) => ({ id: t.id, label: t.label, locked: t.id === 'character' })),
+    [systemTabs],
+  )
+
   const initialEnabled = useMemo<Set<AppTab>>(() => {
     if (campaign.enabledTabs && campaign.enabledTabs.length > 0) {
       return new Set(campaign.enabledTabs)
     }
-    return new Set(tabs.map((t) => t.id))
-  }, [campaign.enabledTabs])
+    return new Set(systemTabs.map((t) => t.id))
+  }, [campaign.enabledTabs, systemTabs])
 
   const [enabled, setEnabled] = useState<Set<AppTab>>(initialEnabled)
   const [busy, setBusy] = useState(false)
@@ -40,7 +44,7 @@ export function CampaignSettingsModal({ groupId, campaign, onClose }: CampaignSe
     setBusy(true)
     setError(null)
     try {
-      const enabledTabs = tabs.map((t) => t.id).filter((id) => enabled.has(id))
+      const enabledTabs = systemTabs.map((t) => t.id).filter((id) => enabled.has(id))
       await updateDoc(doc(db, 'groups', groupId, 'campaigns', campaign.id), {
         enabledTabs,
         updatedAt: serverTimestamp(),
@@ -62,7 +66,7 @@ export function CampaignSettingsModal({ groupId, campaign, onClose }: CampaignSe
           <h4>Visible tabs</h4>
           <p className="settings-help">Choose which tabs your group sees in this campaign.</p>
           <div className="settings-tabs">
-            {SETTINGS_TABS.map((tab) => (
+            {settingsTabs.map((tab) => (
               <label key={tab.id} className="settings-tab-option">
                 <input
                   type="checkbox"

@@ -1,10 +1,10 @@
 import { X } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import type {
   CSSProperties,
   MouseEventHandler,
   ReactNode,
   RefObject,
-  SyntheticEvent,
   WheelEventHandler,
 } from 'react'
 import type { MapRecord } from '../lib/types'
@@ -16,7 +16,7 @@ type FullscreenMapStageProps = {
   fullDragging: boolean
   mapLayerStyle: CSSProperties
   onClose: () => void
-  onImageLoad: (event: SyntheticEvent<HTMLImageElement>) => void
+  onImageReady: (image: HTMLImageElement) => void
   onStageWheel: WheelEventHandler<HTMLDivElement>
   onStageMouseDown: MouseEventHandler<HTMLDivElement>
   onStageAuxClick: MouseEventHandler<HTMLDivElement>
@@ -38,7 +38,7 @@ export function FullscreenMapStage({
   fullDragging,
   mapLayerStyle,
   onClose,
-  onImageLoad,
+  onImageReady,
   onStageWheel,
   onStageMouseDown,
   onStageAuxClick,
@@ -52,6 +52,19 @@ export function FullscreenMapStage({
   children,
   controlsNode,
 }: FullscreenMapStageProps) {
+  const imageRef = useRef<HTMLImageElement | null>(null)
+  const onImageReadyRef = useRef(onImageReady)
+
+  useEffect(() => {
+    onImageReadyRef.current = onImageReady
+  }, [onImageReady])
+
+  useEffect(() => {
+    const image = imageRef.current
+    if (!image || !selectedMap?.imageUrl) return
+    if (image.complete && image.naturalWidth > 0) onImageReadyRef.current(image)
+  }, [selectedMap?.id, selectedMap?.imageUrl])
+
   return (
     <div className="map-fullscreen-overlay" role="dialog" aria-modal="true">
       <div className="map-fullscreen-shell">
@@ -85,12 +98,14 @@ export function FullscreenMapStage({
               style={mapLayerStyle}
             >
               <img
+                ref={imageRef}
                 key={selectedMap.id}
+                data-map-id={selectedMap.id}
                 src={selectedMap.imageUrl}
                 alt={selectedMap.name}
                 className="map-image zoomable"
                 draggable={false}
-                onLoad={onImageLoad}
+                onLoad={(event) => onImageReadyRef.current(event.currentTarget)}
               />
               {children}
             </div>

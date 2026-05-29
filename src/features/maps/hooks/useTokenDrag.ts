@@ -46,6 +46,8 @@ type UseTokenDragOptions = {
   onMovementFeet: (movedFeet: number) => void
   setTokens: React.Dispatch<React.SetStateAction<TokenRecord[]>>
   persistFog: () => Promise<void>
+  beginFogLocalEdit: () => void
+  endFogLocalEdit: () => void
   recentlyDroppedRef: React.MutableRefObject<Set<string>>
   lastAnimatedPathIdRef: React.MutableRefObject<Record<string, string>>
   setSelectedTokenIds: React.Dispatch<React.SetStateAction<string[]>>
@@ -73,6 +75,8 @@ export function useTokenDrag({
   onMovementFeet,
   setTokens,
   persistFog,
+  beginFogLocalEdit,
+  endFogLocalEdit,
   recentlyDroppedRef,
   lastAnimatedPathIdRef,
   setSelectedTokenIds,
@@ -179,8 +183,11 @@ export function useTokenDrag({
 
   useEffect(() => {
     if (!draggingTokenId || role !== 'gm' || !selectedMap) return
-    const draggingToken = tokens.find((entry) => entry.id === draggingTokenId) ?? null
     const dragGroupIds = draggingTokenIds.length > 1 ? draggingTokenIds : [draggingTokenId]
+    const revealToken =
+      dragGroupIds
+        .map((id) => tokens.find((entry) => entry.id === id) ?? null)
+        .find((token): token is TokenRecord => token?.party === true && token.hidden !== true) ?? null
     const movementTokenId =
       dragGroupIds.find((id) => {
         const token = tokens.find((entry) => entry.id === id)
@@ -198,10 +205,21 @@ export function useTokenDrag({
     let pendingRevealPoint: { x: number; y: number } | null = null
     let pendingRevealBrushSize = 0
     let pendingRevealClipRect: CanvasClipRect | null = null
+    let fogLocalEditOpen = false
+    let dragFinalizing = false
+    let releaseInProgress = false
+
+    if (revealToken) {
+      beginFogLocalEdit()
+      fogLocalEditOpen = true
+      const tokenRenderSize = renderTokenDimensions(revealToken).height
+      const startPosition = dragTokenStartPositionsRef.current?.[revealToken.id] ?? revealToken
+      tokenFogTrailPointRef.current = tokenPointToCanvasPoint(startPosition, tokenRenderSize)
+    }
 
     const flushPendingReveal = () => {
       revealFrameId = null
-      if (!draggingToken?.party || draggingToken.hidden || !activeFogCanvasRef.current || !pendingRevealPoint) return
+      if (!revealToken || !activeFogCanvasRef.current || !pendingRevealPoint) return
 
       const nextCanvasPoint = pendingRevealPoint
       const tokenBrushSize = pendingRevealBrushSize
@@ -320,9 +338,10 @@ export function useTokenDrag({
         }
       }
 
-      if (draggingToken?.party && !draggingToken.hidden && activeFogCanvasRef.current) {
-        const tokenBrushSize = renderTokenViewDistance(draggingToken)
-        const nextCanvasPoint = tokenPointToCanvasPoint(nextPosition, renderTokenDimensions(draggingToken).height)
+      if (revealToken && activeFogCanvasRef.current) {
+        const revealPosition = dragTokenPositionsRef.current?.[revealToken.id] ?? nextPosition
+        const tokenBrushSize = renderTokenViewDistance(revealToken)
+        const nextCanvasPoint = tokenPointToCanvasPoint(revealPosition, renderTokenDimensions(revealToken).height)
         if (!nextCanvasPoint) return
         const clipRect = null
 
@@ -344,6 +363,9 @@ export function useTokenDrag({
     }
 
     const handleUp = async () => {
+      if (dragFinalizing) return
+      dragFinalizing = true
+      releaseInProgress = true
       if (revealFrameId !== null) {
         window.cancelAnimationFrame(revealFrameId)
         revealFrameId = null
@@ -357,6 +379,10 @@ export function useTokenDrag({
         setDraggingTokenIds([])
         setDragTokenPositions(null)
         tokenDragOffsetRef.current = null
+        if (fogLocalEditOpen) {
+          endFogLocalEdit()
+          fogLocalEditOpen = false
+        }
         return
       }
 
@@ -414,14 +440,23 @@ export function useTokenDrag({
         console.warn('Token write failed', error)
       }
 
-      if (draggingToken?.party && !draggingToken.hidden) {
+      if (revealToken) {
         try {
           await persistFog()
         } catch (error) {
           console.warn('Token write failed', error)
+        } finally {
+          if (fogLocalEditOpen) {
+            endFogLocalEdit()
+            fogLocalEditOpen = false
+          }
         }
       }
 
+      if (fogLocalEditOpen && !releaseInProgress) {
+        endFogLocalEdit()
+        fogLocalEditOpen = false
+      }
       tokenTouchDraggingRef.current = false
     }
 
@@ -434,6 +469,10 @@ export function useTokenDrag({
     return () => {
       if (revealFrameId !== null) {
         window.cancelAnimationFrame(revealFrameId)
+      }
+      if (fogLocalEditOpen && !releaseInProgress) {
+        endFogLocalEdit()
+        fogLocalEditOpen = false
       }
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
