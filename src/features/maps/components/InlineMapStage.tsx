@@ -1,4 +1,3 @@
-import { Maximize2 } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import type {
   CSSProperties,
@@ -13,12 +12,10 @@ import type { MapRecord } from '../lib/types'
 type InlineMapStageProps = {
   stageRef: RefObject<HTMLDivElement | null>
   mapLayerRef: RefObject<HTMLDivElement | null>
-  isMobile: boolean
   stageClassName: string
   selectedMap: MapRecord | null
   mapLayerClassName: string
   mapLayerStyle?: CSSProperties
-  onOpenFullscreen: () => void
   onImageReady: (image: HTMLImageElement) => void
   onStageWheel?: WheelEventHandler<HTMLDivElement>
   onStageMouseDown?: MouseEventHandler<HTMLDivElement>
@@ -40,12 +37,10 @@ type InlineMapStageProps = {
 export function InlineMapStage({
   stageRef,
   mapLayerRef,
-  isMobile,
   stageClassName,
   selectedMap,
   mapLayerClassName,
   mapLayerStyle,
-  onOpenFullscreen,
   onImageReady,
   onStageWheel,
   onStageMouseDown,
@@ -86,12 +81,6 @@ export function InlineMapStage({
       onMouseUp={onStageMouseUp}
       onMouseLeave={onStageMouseLeave}
     >
-      {!isMobile ? (
-        <button type="button" className="map-fullscreen-btn" onClick={onOpenFullscreen}>
-          <Maximize2 size={15} />
-          Full Screen
-        </button>
-      ) : null}
       {selectedMap?.imageUrl ? (
         <div
           ref={mapLayerRef}

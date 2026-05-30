@@ -71,7 +71,6 @@ import {
   DEFAULT_TOKEN_VIEW_DISTANCE,
   ENCOUNTER_CHECK_DISTANCE_FEET,
   ENCOUNTER_CHECK_TURNS,
-  FOG_BRUSH_SIZE_MIN,
   FOG_CANVAS_MAX_DIM,
   TOKEN_REFERENCE_DIMENSION,
   TOKEN_RENDER_SIZE_MAX,
@@ -87,9 +86,9 @@ import { PlayerMapControls } from './components/PlayerMapControls'
 import { TokenLayer } from './components/TokenLayer'
 import { AnnotationLayer } from './components/AnnotationLayer'
 import { InlineMapStage } from './components/InlineMapStage'
-import { FullscreenMapStage } from './components/FullscreenMapStage'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
 import { useGridTools } from './hooks/useGridTools'
+import { useMapWorkspace } from './hooks/useMapWorkspace'
 import { useMapData } from './hooks/useMapData'
 import { useMapViewport } from './hooks/useMapViewport'
 import { useFogTools } from './hooks/useFogTools'
@@ -103,6 +102,9 @@ const SURFACE_REVEAL_INTERVAL_MS = 150
 
 const BRUSH_SIZE_MIN = 1
 const BRUSH_SIZE_MAX = 260
+const BRUSH_PREVIEW_BOX_SIZE = 96
+const BRUSH_PREVIEW_DOT_MIN = 4
+const BRUSH_PREVIEW_DOT_MAX = 84
 
 function SceneNpcEditorModal({
   campaignId,
@@ -363,12 +365,12 @@ export function MapsTab({
 }) {
   const workspaceGroupId = groupId
   const [selectedMapId, setSelectedMapId] = useState('')
+  const { phase, runSession, enterRun, exitRun, resetToPreview } = useMapWorkspace()
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileMapView, setMobileMapView] = useState<'list' | 'detail'>('list')
   const [mobileGmPane, setMobileGmPane] = useState<'map' | 'controls'>('map')
   const [mobilePlayerPane, setMobilePlayerPane] = useState<'map' | 'controls' | 'character'>('map')
   const [playerEmbeddedPane, setPlayerEmbeddedPane] = useState<'map' | 'character'>('map')
-  const [fullScreenOpen, setFullScreenOpen] = useState(false)
   const [fogTool, setFogTool] = useState<'reveal' | 'hide' | null>(null)
   const [visionTool, setVisionTool] = useState<'draw' | 'drawFull' | 'erase' | null>(null)
   const [fogBrushSize, setFogBrushSize] = useState(120)
@@ -383,15 +385,10 @@ export function MapsTab({
   const [tokenColor, setTokenColor] = useState('#b45309')
   const [tokenSize, setTokenSize] = useState(28)
   const [inlineBaseSize, setInlineBaseSize] = useState({ width: 0, height: 0 })
-  const [fullBaseSize, setFullBaseSize] = useState({ width: 0, height: 0 })
   const [inlineFogSize, setInlineFogSize] = useState({ width: 0, height: 0 })
-  const [fullFogSize, setFullFogSize] = useState({ width: 0, height: 0 })
   const [inlineImageReady, setInlineImageReady] = useState(false)
-  const [fullImageReady, setFullImageReady] = useState(false)
-  const fullStageRef = useRef<HTMLDivElement | null>(null)
   const inlineMapLayerRef = useRef<HTMLDivElement | null>(null)
   const inlineStageRef = useRef<HTMLDivElement | null>(null)
-  const fullMapLayerRef = useRef<HTMLDivElement | null>(null)
   const selectedMapRef = useRef<MapRecord | null>(null)
   const brushCursorRef = useRef<HTMLDivElement | null>(null)
   const brushCursorClientRef = useRef<{ x: number; y: number } | null>(null)
@@ -405,7 +402,6 @@ export function MapsTab({
   const blockerCompositeCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const lastSurfaceRevealAtRef = useRef(0)
   const inlineLosSeenCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const fullLosSeenCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const tokenAnimationsRef = useRef<Record<string, TokenPathAnimation>>({})
   const pendingFogReloadRef = useRef(false)
   // Stable refs used to break circular deps. These are kept in sync with the
@@ -440,30 +436,32 @@ export function MapsTab({
     return () => window.removeEventListener('resize', updateMobileState)
   }, [])
 
-  const showListPane = !isMobile || mobileMapView === 'list'
+  // --- GM map workspace phase (desktop only; mobile keeps its pane navigation) ---
+  const desktopGm = role === 'gm' && !isMobile
+  const desktopGmRun = desktopGm && phase === 'run'
+  const previewMode = desktopGm && phase === 'preview'
+  // Whether the GM stage renders the player-facing map state (Map Preview) or
+  // the existing Player View Preview / Stream toggle. Editing/drag logic stays
+  // keyed on the real `streamingMode`, so Preview is read-only.
+  const viewAsPlayer = streamingMode || previewMode
+
+  const showListPane = isMobile ? mobileMapView === 'list' : !desktopGmRun
   const showMapPane = !isMobile || mobileMapView === 'detail'
   const showEmbeddedCharacter = role !== 'gm' && !!characterTabProps && (isMobile ? mobilePlayerPane === 'character' : playerEmbeddedPane === 'character')
   const showEmbeddedMap = role === 'gm' || !characterTabProps || (isMobile ? mobilePlayerPane !== 'character' : playerEmbeddedPane === 'map')
-  const fogDisplayOpacity = role === 'gm' ? (streamingMode ? 1 : 0.45) : 1
-  const visionOverlayOpacity = role === 'gm' && !streamingMode && visionTool ? 0.38 : 0
-  const losSeenOverlayOpacity = role === 'gm' && !streamingMode ? 0.75 : 0
-  const usingFullScreenCanvas = fullScreenOpen && !isMobile
-  const activeMapLayerRef = usingFullScreenCanvas ? fullMapLayerRef : inlineMapLayerRef
+  const fogDisplayOpacity = role === 'gm' ? (viewAsPlayer ? 1 : 0.45) : 1
+  const visionOverlayOpacity = role === 'gm' && !viewAsPlayer && visionTool ? 0.38 : 0
+  const losSeenOverlayOpacity = role === 'gm' && !viewAsPlayer ? 0.75 : 0
+  const activeMapLayerRef = inlineMapLayerRef
   const activeMapDimension = Math.max(
     1,
-    Math.min(
-      usingFullScreenCanvas ? fullBaseSize.width : inlineBaseSize.width,
-      usingFullScreenCanvas ? fullBaseSize.height : inlineBaseSize.height,
-    ),
+    Math.min(inlineBaseSize.width, inlineBaseSize.height),
   )
-  const activeMapWidth = usingFullScreenCanvas ? fullBaseSize.width : inlineBaseSize.width
-  const activeMapHeight = usingFullScreenCanvas ? fullBaseSize.height : inlineBaseSize.height
+  const activeMapWidth = inlineBaseSize.width
+  const activeMapHeight = inlineBaseSize.height
   const activeFogDimension = Math.max(
     1,
-    Math.min(
-      usingFullScreenCanvas ? fullFogSize.width : inlineFogSize.width,
-      usingFullScreenCanvas ? fullFogSize.height : inlineFogSize.height,
-    ),
+    Math.min(inlineFogSize.width, inlineFogSize.height),
   )
   const {
     maps,
@@ -582,14 +580,11 @@ export function MapsTab({
     }
 
     const cleanupInline = syncLayerSize(inlineMapLayerRef.current, setInlineBaseSize)
-    const cleanupFull = syncLayerSize(fullMapLayerRef.current, setFullBaseSize)
     return () => {
       cleanupInline()
-      cleanupFull()
     }
   }, [
     selectedMap?.id,
-    fullScreenOpen,
     isMobile,
     mobileMapView,
     mobileGmPane,
@@ -619,13 +614,10 @@ export function MapsTab({
     role,
     selectedMap,
     setMapError,
-    usingFullScreenCanvas,
-    fullScreenOpen,
     isMobile,
     mobileGmPane,
     mobilePlayerPane,
     inlineFogSize,
-    fullFogSize,
     fogTool,
     visionTool,
     tokenPlaceMode,
@@ -637,15 +629,11 @@ export function MapsTab({
   })
   const {
     fogDrawing,
-    setFogDrawing,
     pauseFogStroke,
     inlineFogReady,
-    fullFogReady,
     effectiveFogBrushSize,
     inlineFogCanvasRef,
-    fullFogCanvasRef,
     inlineVisionCanvasRef,
-    fullVisionCanvasRef,
     activeFogCanvasRef,
     activeVisionCanvasRef,
     persistFog,
@@ -662,8 +650,6 @@ export function MapsTab({
     handleFogTouchMove,
     handleFogTouchEnd,
     invalidateInlineOverlayCache,
-    invalidateFullFogCache,
-    invalidateFullVisionCache,
   } = fog
 
   const activeBrushTool = role === 'gm' && !tokenPlaceMode && Boolean(fogTool || visionTool)
@@ -715,7 +701,7 @@ export function MapsTab({
 
   useEffect(() => {
     hideBrushCursor()
-  }, [brushCursorMode, hideBrushCursor, selectedMap?.id, usingFullScreenCanvas])
+  }, [brushCursorMode, hideBrushCursor, selectedMap?.id])
 
   useEffect(() => {
     const point = brushCursorClientRef.current
@@ -826,7 +812,6 @@ export function MapsTab({
     activeMapWidth,
     activeMapHeight,
     activeMapDimension,
-    fullBaseSize,
     inlineBaseSize,
     setMaps,
     setMapError,
@@ -878,7 +863,7 @@ export function MapsTab({
     Math.min(520, Math.round(effectiveGridCellScale * activeMapDimension)),
   )
 
-  const renderMapGridOverlay = (usingFull: boolean) => (
+  const renderMapGridOverlay = () => (
     <GridOverlay
       enabled={effectiveGridEnabled}
       visible={effectiveGridVisible}
@@ -887,8 +872,8 @@ export function MapsTab({
       cellScale={effectiveGridCellScale}
       offsetX={effectiveGridOffsetX}
       offsetY={effectiveGridOffsetY}
-      mapWidth={Math.max(1, usingFull ? fullBaseSize.width : inlineBaseSize.width)}
-      mapHeight={Math.max(1, usingFull ? fullBaseSize.height : inlineBaseSize.height)}
+      mapWidth={Math.max(1, inlineBaseSize.width)}
+      mapHeight={Math.max(1, inlineBaseSize.height)}
     />
   )
   const activeAnnotation = annotations.find((annotation) => annotation.id === activeAnnotationId) ?? null
@@ -989,8 +974,8 @@ export function MapsTab({
     if (typeof token.viewDistance === 'number') return token.viewDistance
     return DEFAULT_TOKEN_VIEW_DISTANCE
   }
-  const renderBrushCursor = (usingFull: boolean) => {
-    if (!activeBrushTool || usingFull !== usingFullScreenCanvas) return null
+  const renderBrushCursor = () => {
+    if (!activeBrushTool) return null
     return (
       <div
         ref={brushCursorRef}
@@ -1003,41 +988,29 @@ export function MapsTab({
   const viewport = useMapViewport({
     role,
     tokens,
-    fullBaseSize,
     inlineBaseSize,
     activeFogDimension,
-    fullScreenOpen,
-    fullMapLayerRef,
     inlineMapLayerRef,
     fogTool,
     visionTool,
     tokenPlaceMode,
     annotationPlaceMode,
     playerLabelPlaceMode,
+    allowGmInlinePan: previewMode,
     isMobileZoomMapView,
     renderTokenViewDistance,
     renderTokenDimensions,
   })
 
   const {
-    fullZoom,
-    fullPan,
-    fullDragging,
     playerZoom,
     playerPan,
     playerDragging,
     cameraLock,
-    fullPanRef,
     playerPanRef,
     toggleCameraLock,
-    resetFullViewport,
     resetPlayerViewport,
-    setFullPan,
     setPlayerPan,
-    handleFullWheel,
-    handleFullMouseDown,
-    handleFullMouseMove,
-    endFullDrag,
     handlePlayerWheel,
     handlePlayerMouseDown,
     handlePlayerMouseMove,
@@ -1046,19 +1019,6 @@ export function MapsTab({
     handleMobilePlayerTouchMove,
     handleMobilePlayerTouchEnd,
   } = viewport
-
-  const brushPreviewDiameter = Math.max(
-    3,
-    Math.round((effectiveFogBrushSize / Math.max(1, activeFogDimension)) * activeMapDimension),
-  )
-  const maxEffectiveBrushSize = Math.max(
-    FOG_BRUSH_SIZE_MIN,
-    Math.min(320, Math.round((BRUSH_SIZE_MAX / TOKEN_REFERENCE_DIMENSION) * activeFogDimension)),
-  )
-  const maxBrushPreviewDiameter = Math.max(
-    3,
-    Math.round((maxEffectiveBrushSize / Math.max(1, activeFogDimension)) * activeMapDimension),
-  )
 
   const isTokenPartiallyVisibleForPlayer = (
     token: TokenRecord,
@@ -1116,11 +1076,11 @@ export function MapsTab({
 
   const selectMap = (mapId: string) => {
     setInlineImageReady(false)
-    setFullImageReady(false)
     setInlineFogSize({ width: 0, height: 0 })
-    setFullFogSize({ width: 0, height: 0 })
     setSelectedMapId(mapId)
     resetPlayerViewport()
+    // Desktop GM always lands in Map Preview when (re-)selecting a map.
+    resetToPreview()
     if (isMobile) {
       setMobileMapView('detail')
       if (role === 'gm') {
@@ -1130,19 +1090,6 @@ export function MapsTab({
         setPlayerEmbeddedPane('map')
       }
     }
-  }
-
-  const openFullScreen = () => {
-    resetFullViewport()
-    setFogDrawing(false)
-    invalidateFullFogCache()
-    setFullScreenOpen(true)
-  }
-
-  const closeFullScreen = () => {
-    viewport.setFullDragging(false)
-    setFogDrawing(false)
-    setFullScreenOpen(false)
   }
 
   const clearLosSeenCanvas = (canvas: HTMLCanvasElement | null, width: number, height: number) => {
@@ -1445,10 +1392,7 @@ export function MapsTab({
     tokenAnimationsRef,
     role,
     cameraLock,
-    fullScreenOpen,
-    setFullPan,
     setPlayerPan,
-    fullPanRef,
     playerPanRef,
     activeFogCanvasRef,
     activeVisionCanvasRef,
@@ -1620,7 +1564,7 @@ export function MapsTab({
   }
 
   const renderPlayerTokenItem = (token: TokenRecord, index: number, layer: 'under-fog' | 'over-fog') => {
-    if ((role === 'gm' && !streamingMode) || token.hidden) return null
+    if ((role === 'gm' && !viewAsPlayer) || token.hidden) return null
     if (layer === 'under-fog' && token.party) return null
     if (layer === 'over-fog' && !token.party) return null
 
@@ -1785,9 +1729,7 @@ export function MapsTab({
     resetDistanceTracker()
     resetGrid()
     setInlineImageReady(false)
-    setFullImageReady(false)
     setInlineFogSize({ width: 0, height: 0 })
-    setFullFogSize({ width: 0, height: 0 })
   }, [selectedMapId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -1800,9 +1742,9 @@ export function MapsTab({
   }, [selectedTokenAssetId, tokenAssets, mapMonsters, mapCharacters, mapNpcs])
 
   useEffect(() => {
-    if (!streamingMode) return
+    if (!viewAsPlayer) return
     setActiveAnnotationId('')
-  }, [streamingMode])
+  }, [viewAsPlayer])
 
   const handleInlineImageReady = useCallback((target: HTMLImageElement, attempt = 0) => {
     const currentMap = selectedMapRef.current
@@ -1833,36 +1775,7 @@ export function MapsTab({
     setInlineImageReady(true)
   }, [invalidateInlineOverlayCache])
 
-  const handleFullImageReady = useCallback((target: HTMLImageElement, attempt = 0) => {
-    const currentMap = selectedMapRef.current
-    if (!currentMap || target.dataset.mapId !== currentMap.id) return
-    const measuredWidth = Math.round(target.clientWidth || target.getBoundingClientRect().width)
-    const measuredHeight = Math.round(target.clientHeight || target.getBoundingClientRect().height)
-    if ((measuredWidth <= 0 || measuredHeight <= 0) && attempt < 8) {
-      window.requestAnimationFrame(() => handleFullImageReady(target, attempt + 1))
-      return
-    }
-    const displayWidth = Math.max(1, measuredWidth || target.naturalWidth)
-    const displayHeight = Math.max(1, measuredHeight || target.naturalHeight)
-    setFullBaseSize({
-      width: displayWidth,
-      height: displayHeight,
-    })
-    const fogScale = Math.min(1, FOG_CANVAS_MAX_DIM / Math.max(target.naturalWidth, target.naturalHeight, 1))
-    setFullFogSize({
-      width: Math.max(1, Math.round(target.naturalWidth * fogScale)),
-      height: Math.max(1, Math.round(target.naturalHeight * fogScale)),
-    })
-    invalidateFullVisionCache()
-    clearLosSeenCanvas(
-      fullLosSeenCanvasRef.current,
-      Math.max(1, Math.round(target.naturalWidth * fogScale)),
-      Math.max(1, Math.round(target.naturalHeight * fogScale)),
-    )
-    setFullImageReady(true)
-  }, [invalidateFullVisionCache])
-
-  const loadingMaskClassName = role === 'gm' && !streamingMode
+  const loadingMaskClassName = role === 'gm' && !viewAsPlayer
     ? 'map-fog-loading-mask gm'
     : 'map-fog-loading-mask'
 
@@ -1870,9 +1783,42 @@ export function MapsTab({
     clearLosSeenCanvas(inlineLosSeenCanvasRef.current, Math.max(1, inlineFogSize.width), Math.max(1, inlineFogSize.height))
   }, [selectedMap?.id, inlineFogSize.width, inlineFogSize.height])
 
+  // Reset transient view/tool/layout state on every (re-)entry into Map Run.
+  // Keyed on runSession so leaving and re-entering Run resets again. Persistent
+  // map/token/fog/annotation data is untouched (no Firestore writes here).
   useEffect(() => {
-    clearLosSeenCanvas(fullLosSeenCanvasRef.current, Math.max(1, fullFogSize.width), Math.max(1, fullFogSize.height))
-  }, [selectedMap?.id, fullFogSize.width, fullFogSize.height])
+    if (!desktopGm || phase !== 'run') return
+    setFogTool(null)
+    setVisionTool(null)
+    setTokenPlaceMode(false)
+    setTokenSelectMode(false)
+    setAnnotationPlaceMode(false)
+    setPlayerLabelPlaceMode(false)
+    setStreamingMode(false)
+    setNpcSceneMode(false)
+    setSelectedTokenIds([])
+    setTokenSelectionBox(null)
+    setActiveAnnotationId('')
+    setActiveAnnotationDraft('')
+    resetDistanceTracker()
+    resetGrid()
+    resetPlayerViewport()
+  }, [runSession]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const enterMapRun = () => {
+    enterRun()
+  }
+
+  const handleBackToPreview = () => {
+    exitRun()
+    resetPlayerViewport()
+    setFogTool(null)
+    setVisionTool(null)
+    setTokenPlaceMode(false)
+    setTokenSelectMode(false)
+    setAnnotationPlaceMode(false)
+    setPlayerLabelPlaceMode(false)
+  }
 
   const calibrationOverlayNode = gridCalibrationLine ? (
     <div className={gridCalibratePulse ? 'map-grid-calibration-overlay pulse' : 'map-grid-calibration-overlay'} aria-hidden>
@@ -1937,12 +1883,12 @@ export function MapsTab({
   ) : null
 
   const displayAnnotations = role === 'gm'
-    ? (streamingMode
+    ? (viewAsPlayer
       ? annotations.filter((annotation) => annotation.kind === 'player' && !annotation.hidden)
       : (gmHideLabels ? [] : annotations))
     : annotations.filter((annotation) => annotation.kind === 'player' && !annotation.hidden)
 
-  const annotationLayerNode = displayAnnotations.length > 0 || (role === 'gm' && !streamingMode) ? (
+  const annotationLayerNode = displayAnnotations.length > 0 || (role === 'gm' && !viewAsPlayer) ? (
     <AnnotationLayer
       annotations={displayAnnotations}
       activeAnnotationId={activeAnnotationId}
@@ -1956,128 +1902,10 @@ export function MapsTab({
       onMoveAnnotation={moveAnnotationPosition}
       onPersistAnnotationPosition={persistAnnotationPosition}
       autosizeAnnotationTextarea={autosizeAnnotationTextarea}
-      editable={role === 'gm' && !streamingMode}
+      editable={role === 'gm' && !viewAsPlayer}
     />
   ) : null
 
-  const fullscreenControlsNode = role === 'gm' ? (
-    <aside className="map-fullscreen-controls">
-      <GmMapControls
-        campaignId={campaignId}
-        groupId={workspaceGroupId}
-        dark
-        fogTool={fogTool}
-        setFogTool={setFogTool}
-        visionTool={visionTool}
-        setVisionTool={setVisionTool}
-        fogBrushSize={fogBrushSize}
-        setFogBrushSize={setFogBrushSize}
-        brushPreviewDiameter={brushPreviewDiameter}
-        maxBrushPreviewDiameter={maxBrushPreviewDiameter}
-        tokenPlaceMode={tokenPlaceMode}
-        setTokenPlaceMode={setTokenPlaceMode}
-        tokenSelectMode={tokenSelectMode}
-        setTokenSelectMode={setTokenSelectMode}
-        annotationPlaceMode={annotationPlaceMode}
-        setAnnotationPlaceMode={setAnnotationPlaceMode}
-        playerLabelPlaceMode={playerLabelPlaceMode}
-        setPlayerLabelPlaceMode={setPlayerLabelPlaceMode}
-        gmHideLabels={gmHideLabels}
-        setGmHideLabels={setGmHideLabels}
-        tokenColor={tokenColor}
-        setTokenColor={setTokenColor}
-        tokenSize={tokenSize}
-        setTokenSize={setTokenSize}
-        tokenAssets={tokenAssets}
-        selectedTokenAssetId={selectedTokenAssetId}
-        setSelectedTokenAssetId={setSelectedTokenAssetId}
-        selectedTokenImageUrl={selectedTokenAsset?.imageUrl ?? ''}
-        uploadingTokenImage={uploadingTokenImage}
-        onUploadTokenImage={uploadTokenImage}
-        onArchiveTokenAsset={archiveTokenAsset}
-        onRequestDeleteTokenAsset={requestDeleteTokenAsset}
-        streamingMode={streamingMode}
-        setStreamingMode={setStreamingMode}
-        npcSceneMode={npcSceneMode}
-        setNpcSceneMode={setNpcSceneMode}
-        gridVisible={effectiveGridVisible}
-        gridType={effectiveGridType}
-        gridAdjustMode={gridAdjustMode}
-        onToggleGridVisible={() => void toggleGridVisibility()}
-        onSetGridType={setGridType}
-        onApplyGrid={applyGridAdjust}
-        hexDetecting={hexDetecting}
-        hexDetectConfidence={hexDetectConfidence}
-        gridAdjustReady={gridAdjustReady}
-        gridAdjustSaved={Boolean(gridAdjustSavedAt)}
-        gridCalibrateMode={gridCalibrateMode}
-        onToggleGridCalibrate={toggleGridCalibrateMode}
-        gridCalibrateReady={Boolean(gridCalibrateStart && gridCalibrateEnd)}
-        gridCalibrateSaved={Boolean(gridCalibrateSavedAt)}
-        onApplyGridCalibration={() => void applyGridCalibration().catch((error) => {
-          const message = error instanceof Error ? error.message : 'Failed to save grid calibration'
-          setMapError(message)
-        })}
-        measurementToolEnabled={measurementToolEnabled}
-        gridMeasureMode={gridMeasureMode}
-        onToggleGridMeasure={toggleGridMeasureMode}
-        measurementFeetLabel={measurementFeetLabel}
-        distanceTrackerFeet={distanceTrackerFeet}
-        distanceTrackerMode={distanceTrackerMode}
-        distanceTrackerRoll={distanceTrackerRoll}
-        onResetDistanceTracker={resetDistanceTracker}
-        applyFogPreset={applyFogPreset}
-        canApplyPreset={Boolean(selectedMap)}
-        fullyHidden={selectedMap?.fullyHidden === true}
-        tokens={tokens}
-        selectedTokenIds={selectedTokenIds}
-        onSelectTokenCard={(tokenId) => setSelectedTokenIds([tokenId])}
-        onUpdateToken={updateToken}
-        onUpdateTokenSize={async (tokenId, size) => {
-          const sizeScale = size / TOKEN_REFERENCE_DIMENSION
-          setTokens((prev) =>
-            prev.map((token) => (token.id === tokenId ? { ...token, size, sizeScale } : token)),
-          )
-          await updateToken(tokenId, { size, sizeScale })
-        }}
-        onUpdateTokenViewDistance={async (tokenId, viewDistance) => {
-          const viewDistanceScale = viewDistance / TOKEN_REFERENCE_DIMENSION
-          setTokens((prev) =>
-            prev.map((token) =>
-              token.id === tokenId ? { ...token, viewDistance, viewDistanceScale } : token,
-            ),
-          )
-          await updateToken(tokenId, { viewDistance, viewDistanceScale })
-        }}
-        tokenViewDistanceSliderValue={tokenViewDistanceSliderValue}
-        onRequestDeleteTokens={requestDeleteTokens}
-        mapMonsters={mapMonsters}
-        mapCharacters={mapCharacters}
-        mapNpcs={mapNpcs}
-        sceneNpcs={sceneNpcs}
-        presentedNpc={presentedNpc}
-        selectedMapSceneNpcIds={selectedMap?.sceneNpcIds ?? []}
-        onToggleSceneNpc={(npcId, enabled) => {
-          const currentIds = selectedMap?.sceneNpcIds ?? []
-          const nextIds = enabled
-            ? currentIds.includes(npcId) ? currentIds : [...currentIds, npcId]
-            : currentIds.filter((id) => id !== npcId)
-          void updateSceneNpcIds(nextIds)
-        }}
-        onPresentNpc={(npcId) => void setPresentedNpcId(npcId)}
-        onClearPresentedNpc={() => void setPresentedNpcId('')}
-      />
-    </aside>
-  ) : (
-    <aside className="map-fullscreen-controls">
-      <PlayerMapControls
-        dark
-        cameraLock={cameraLock}
-        onToggleCameraLock={toggleCameraLock}
-        presentedNpc={presentedNpc}
-      />
-    </aside>
-  )
 
 
   return (
@@ -2239,16 +2067,38 @@ export function MapsTab({
               role === 'gm' ? 'maps-main gm' : 'maps-main player',
               isMobile && role === 'gm' ? 'mobile-gm' : '',
               isMobile && role !== 'gm' ? 'mobile-player' : '',
+              desktopGmRun ? 'run' : '',
               !showEmbeddedMap ? 'maps-main-hidden' : '',
             ]
               .filter(Boolean)
               .join(' ')}
           >
+            {previewMode && selectedMap ? (
+              <button
+                type="button"
+                className="map-run-btn"
+                onClick={enterMapRun}
+                aria-label="Run this map"
+              >
+                <TvMinimalPlay size={15} />
+                Run
+              </button>
+            ) : null}
+            {desktopGmRun ? (
+              <button
+                type="button"
+                className="map-preview-back-btn"
+                onClick={handleBackToPreview}
+                aria-label="Back to map preview"
+              >
+                <ChevronLeft size={16} />
+                Back
+              </button>
+            ) : null}
             {!isMobile || (role === 'gm' ? mobileGmPane === 'map' : mobilePlayerPane === 'map') ? (
               <InlineMapStage
               stageRef={inlineStageRef}
               mapLayerRef={inlineMapLayerRef}
-              isMobile={isMobile}
               stageClassName={isMobileZoomMapView ? 'map-stage mobile-player-stage' : 'map-stage'}
               selectedMap={selectedMap}
               mapLayerClassName={isMobileZoomMapView ? 'map-zoom-layer mobile-player-zoom' : 'map-zoom-layer'}
@@ -2260,7 +2110,6 @@ export function MapsTab({
                   }
                   : undefined
               }
-              onOpenFullscreen={openFullScreen}
               onImageReady={handleInlineImageReady}
               onStageWheel={isInlineZoomMapView ? handlePlayerWheel : undefined}
               onStageMouseDown={isInlineZoomMapView ? handlePlayerMouseDown : undefined}
@@ -2268,9 +2117,9 @@ export function MapsTab({
               onStageMouseUp={isInlineZoomMapView ? endPlayerDrag : undefined}
               onStageMouseLeave={isInlineZoomMapView ? endPlayerDrag : undefined}
               onMapLayerContextMenu={(event) => event.preventDefault()}
-              onMapLayerWheel={(event) => handleGridLayerWheel(event, false)}
+              onMapLayerWheel={(event) => handleGridLayerWheel(event)}
               onMapLayerMouseDown={(event) => {
-                if (handleGridLayerMouseDown(event, false)) return
+                if (handleGridLayerMouseDown(event)) return
                 handleMapLayerMouseDown(event)
               }}
               onMapLayerMouseMove={(event) => {
@@ -2283,11 +2132,11 @@ export function MapsTab({
               onMapLayerTouchEnd={handleMobilePlayerTouchEnd}
               onMapLayerTouchCancel={handleMobilePlayerTouchEnd}
             >
-              {renderMapGridOverlay(false)}
+              {renderMapGridOverlay()}
               {gridAdjustMode && effectiveGridEnabled && effectiveGridVisible ? <div className="map-grid-adjust-overlay" /> : null}
               {calibrationOverlayNode}
               {measurementOverlayNode}
-              {role !== 'gm' || streamingMode ? (
+              {role !== 'gm' || viewAsPlayer ? (
                 <TokenLayer
                   className="map-token-layer under-fog"
                   ariaLabel="Map tokens under fog"
@@ -2325,14 +2174,14 @@ export function MapsTab({
                 height={Math.max(1, inlineFogSize.height)}
                 style={{ opacity: losSeenOverlayOpacity }}
               />
-              {role === 'gm' && !streamingMode ? (
+              {role === 'gm' && !viewAsPlayer ? (
                 <TokenLayer
                   className="map-token-layer gm"
                   tokens={tokens}
                   renderToken={renderTokenItem}
                 />
               ) : null}
-              {role !== 'gm' || streamingMode ? (
+              {role !== 'gm' || viewAsPlayer ? (
                 <TokenLayer
                   className="map-token-layer player-over-fog"
                   ariaLabel="Map party tokens"
@@ -2344,12 +2193,12 @@ export function MapsTab({
                 <div className="map-token-selection-box" style={selectionRectStyle} />
               ) : null}
               {annotationLayerNode}
-              {renderBrushCursor(false)}
+              {renderBrushCursor()}
               {(!inlineImageReady || !inlineFogReady) ? <div className={loadingMaskClassName} aria-hidden /> : null}
             </InlineMapStage>
             ) : null}
 
-            {role === 'gm' && (!isMobile || mobileGmPane === 'controls') ? (
+            {role === 'gm' && (isMobile ? mobileGmPane === 'controls' : phase === 'run') ? (
               <aside className="map-controls">
                 <GmMapControls
                   campaignId={campaignId}
@@ -2360,8 +2209,6 @@ export function MapsTab({
                 setVisionTool={setVisionTool}
                 fogBrushSize={fogBrushSize}
                 setFogBrushSize={setFogBrushSize}
-                brushPreviewDiameter={brushPreviewDiameter}
-                maxBrushPreviewDiameter={maxBrushPreviewDiameter}
                 tokenPlaceMode={tokenPlaceMode}
                 setTokenPlaceMode={setTokenPlaceMode}
                   tokenSelectMode={tokenSelectMode}
@@ -2558,98 +2405,6 @@ export function MapsTab({
         </div>
       ) : null}
 
-      {fullScreenOpen && !isMobile ? (
-        <FullscreenMapStage
-          stageRef={fullStageRef}
-          mapLayerRef={fullMapLayerRef}
-          selectedMap={selectedMap}
-          fullDragging={fullDragging}
-          mapLayerStyle={{ transform: `translate(${fullPan.x}px, ${fullPan.y}px) scale(${fullZoom})` }}
-          onClose={closeFullScreen}
-          onImageReady={handleFullImageReady}
-          onStageWheel={handleFullWheel}
-          onStageMouseDown={handleFullMouseDown}
-          onStageAuxClick={(event) => {
-            if (event.button === 1) event.preventDefault()
-          }}
-          onStageMouseMove={handleFullMouseMove}
-          onStageMouseUp={endFullDrag}
-          onStageMouseLeave={endFullDrag}
-          onMapLayerWheel={(event) => handleGridLayerWheel(event, true)}
-          onMapLayerMouseDown={(event) => {
-            if (handleGridLayerMouseDown(event, true)) return
-            handleMapLayerMouseDown(event)
-          }}
-          onMapLayerMouseMove={(event) => {
-            handleGridCalibrateMouseMove(event.clientX, event.clientY)
-            handleGridMeasureMouseMove(event.clientX, event.clientY)
-          }}
-          onMapLayerClick={handleMapLayerClick}
-          controlsNode={fullscreenControlsNode}
-        >
-          {renderMapGridOverlay(true)}
-          {gridAdjustMode && effectiveGridEnabled && effectiveGridVisible ? <div className="map-grid-adjust-overlay" /> : null}
-          {calibrationOverlayNode}
-          {measurementOverlayNode}
-          {role !== 'gm' || streamingMode ? (
-            <TokenLayer
-              className="map-token-layer under-fog"
-              ariaLabel="Map tokens under fog"
-              tokens={tokens}
-              renderToken={(token, index) => renderPlayerTokenItem(token, index, 'under-fog')}
-            />
-          ) : null}
-          <canvas
-            ref={fullFogCanvasRef}
-            className={tokenPlaceMode || (!fogTool && !visionTool) ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
-            width={Math.max(1, fullFogSize.width)}
-            height={Math.max(1, fullFogSize.height)}
-            style={{ opacity: fogDisplayOpacity }}
-            onMouseDown={handleBrushCanvasMouseDown}
-            onMouseEnter={handleBrushCanvasMouseEnter}
-            onMouseMove={handleBrushCanvasMouseMove}
-            onMouseUp={handleBrushCanvasMouseUp}
-            onMouseLeave={handleBrushCanvasMouseLeave}
-          />
-          <canvas
-            ref={fullVisionCanvasRef}
-            className="map-vision-canvas"
-            width={Math.max(1, fullFogSize.width)}
-            height={Math.max(1, fullFogSize.height)}
-            style={{ opacity: visionOverlayOpacity }}
-          />
-          <canvas
-            ref={fullLosSeenCanvasRef}
-            className="map-los-seen-canvas"
-            width={Math.max(1, fullFogSize.width)}
-            height={Math.max(1, fullFogSize.height)}
-            style={{ opacity: losSeenOverlayOpacity }}
-          />
-          {role === 'gm' && !streamingMode ? (
-            <TokenLayer
-              className="map-token-layer gm"
-              ariaLabel="Map tokens"
-              tokens={tokens}
-              renderToken={renderTokenItem}
-            />
-          ) : null}
-          {role !== 'gm' || streamingMode ? (
-            <TokenLayer
-              className="map-token-layer player-over-fog"
-              ariaLabel="Map party tokens"
-              tokens={tokens}
-              renderToken={(token, index) => renderPlayerTokenItem(token, index, 'over-fog')}
-            />
-          ) : null}
-          {role === 'gm' && tokenSelectionBox && selectionRectStyle ? (
-            <div className="map-token-selection-box" style={selectionRectStyle} />
-          ) : null}
-          {annotationLayerNode}
-          {renderBrushCursor(true)}
-          {(!fullImageReady || !fullFogReady) ? <div className={loadingMaskClassName} aria-hidden /> : null}
-        </FullscreenMapStage>
-      ) : null}
-
       {tokenImageDraft ? (
         <div className="monster-portrait-modal-overlay" role="dialog" aria-modal="true" aria-label="Adjust token image">
           <div className="monster-portrait-modal">
@@ -2779,8 +2534,6 @@ function GmMapControls({
   setVisionTool,
   fogBrushSize,
   setFogBrushSize,
-  brushPreviewDiameter,
-  maxBrushPreviewDiameter,
   tokenPlaceMode,
   setTokenPlaceMode,
   tokenSelectMode,
@@ -2860,8 +2613,6 @@ function GmMapControls({
   setVisionTool: (tool: 'draw' | 'drawFull' | 'erase' | null) => void
   fogBrushSize: number
   setFogBrushSize: (size: number) => void
-  brushPreviewDiameter: number
-  maxBrushPreviewDiameter: number
   tokenPlaceMode: boolean
   setTokenPlaceMode: (value: boolean) => void
   tokenSelectMode: boolean
@@ -2947,6 +2698,7 @@ function GmMapControls({
   const [tokenNameDrafts, setTokenNameDrafts] = useState<Record<string, string>>({})
   const [checkedTokenIds, setCheckedTokenIds] = useState<string[]>([])
   const [tokensCollapsed, setTokensCollapsed] = useState(false)
+  const [collapsedTokenGroupKeys, setCollapsedTokenGroupKeys] = useState<string[]>([])
   const [expandedTokenIds, setExpandedTokenIds] = useState<string[]>([])
   const [sceneNpcPickerId, setSceneNpcPickerId] = useState('')
   const [sceneNpcModalId, setSceneNpcModalId] = useState('')
@@ -3029,9 +2781,10 @@ function GmMapControls({
   const distanceFeetLabel = `${Math.max(0, Math.round(distanceTrackerFeet))}'`
   const distanceTrackerLabel = distanceTrackerMode === 'first' ? '1st' : distanceFeetLabel
 
-  const brushPreviewDotDiameter = Math.min(maxBrushPreviewDiameter, brushPreviewDiameter)
-  const brushPreviewBoxSize = Math.max(48, maxBrushPreviewDiameter + 12)
   const brushPct = (fogBrushSize - BRUSH_SIZE_MIN) / (BRUSH_SIZE_MAX - BRUSH_SIZE_MIN)
+  const brushPreviewDotDiameter = Math.round(
+    BRUSH_PREVIEW_DOT_MIN + brushPct * (BRUSH_PREVIEW_DOT_MAX - BRUSH_PREVIEW_DOT_MIN),
+  )
 
   const setBrushFromPointer = (rail: DOMRect, clientY: number) => {
     const pct = Math.max(0, Math.min(1, (rail.bottom - clientY) / rail.height))
@@ -3106,8 +2859,8 @@ function GmMapControls({
     const groups = [
       { key: 'party', label: 'Party', tokens: tokens.filter((token) => token.party) },
       { key: 'characters', label: 'Characters', tokens: tokens.filter((token) => !token.party && !!token.characterId) },
-      { key: 'monsters', label: 'Monsters', tokens: tokens.filter((token) => !!token.monsterId) },
-      { key: 'npcs', label: 'NPCs', tokens: tokens.filter((token) => !!token.npcId) },
+      { key: 'monsters', label: 'Monsters', tokens: tokens.filter((token) => !token.party && !!token.monsterId) },
+      { key: 'npcs', label: 'NPCs', tokens: tokens.filter((token) => !token.party && !!token.npcId) },
       {
         key: 'other',
         label: 'Other',
@@ -3119,8 +2872,23 @@ function GmMapControls({
   }, [tokens])
 
   useEffect(() => {
+    const visibleGroupKeys = new Set(tokenGroups.map((group) => group.key))
+    setCollapsedTokenGroupKeys((current) => current.filter((key) => visibleGroupKeys.has(key)))
+  }, [tokenGroups])
+
+  useEffect(() => {
     setExpandedTokenIds((current) => current.filter((tokenId) => tokens.some((token) => token.id === tokenId)))
   }, [tokens])
+
+  const toggleTokenGroupCollapsed = (groupKey: string, groupTokens: TokenRecord[]) => {
+    const groupTokenIdSet = new Set(groupTokens.map((token) => token.id))
+    setExpandedTokenIds((current) => current.filter((tokenId) => !groupTokenIdSet.has(tokenId)))
+    setCollapsedTokenGroupKeys((current) =>
+      current.includes(groupKey)
+        ? current.filter((key) => key !== groupKey)
+        : [...current, groupKey],
+    )
+  }
 
   const toggleTokenExpanded = (tokenId: string) => {
     setExpandedTokenIds((current) =>
@@ -3137,8 +2905,8 @@ function GmMapControls({
             <div
               className="map-brush-size-preview"
               style={{
-                width: `${brushPreviewBoxSize}px`,
-                height: `${brushPreviewBoxSize}px`,
+                width: `${BRUSH_PREVIEW_BOX_SIZE}px`,
+                height: `${BRUSH_PREVIEW_BOX_SIZE}px`,
               }}
               aria-hidden
             >
@@ -3739,6 +3507,7 @@ function GmMapControls({
           {!tokensCollapsed ? (
             <div className="token-group-list">
               {tokenGroups.map((group) => {
+                const groupCollapsed = collapsedTokenGroupKeys.includes(group.key)
                 const groupCheckedTokens = group.tokens.filter((token) => checkedTokenIdSet.has(token.id))
                 const groupCheckedTokenIds = groupCheckedTokens.map((token) => token.id)
                 const groupHasCheckedTokens = groupCheckedTokenIds.length > 0
@@ -3757,6 +3526,15 @@ function GmMapControls({
                       <h5 className="token-group-title">{group.label}</h5>
                       <div className="token-group-actions">
                         <span className="token-group-count">{group.tokens.length}</span>
+                        <button
+                          type="button"
+                          className="token-group-collapse-btn fast-tooltip"
+                          onClick={() => toggleTokenGroupCollapsed(group.key, group.tokens)}
+                          aria-label={groupCollapsed ? `Expand ${group.label} tokens` : `Minimize ${group.label} tokens`}
+                          data-tooltip={groupCollapsed ? 'Expand group' : 'Minimize group'}
+                        >
+                          {groupCollapsed ? <Plus size={13} /> : <Minus size={13} />}
+                        </button>
                         <label className="token-group-check-label">
                           <input
                             type="checkbox"
@@ -3869,6 +3647,7 @@ function GmMapControls({
                         ) : null}
                       </div>
                     ) : null}
+                    {!groupCollapsed ? (
                     <div className="token-list">
                       {group.tokens.map((token, index) => (
                         <div
@@ -4010,9 +3789,10 @@ function GmMapControls({
                           </div>
                         ) : null}
                       </div>
-                    ))}
-                  </div>
-                </section>
+                      ))}
+                    </div>
+                    ) : null}
+                  </section>
                 )
               })}
             </div>

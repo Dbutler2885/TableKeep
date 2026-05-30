@@ -14,13 +14,10 @@ type UseFogToolsOptions = {
   role: Role | null
   selectedMap: MapRecord | null
   setMapError: (message: string | null) => void
-  usingFullScreenCanvas: boolean
-  fullScreenOpen: boolean
   isMobile: boolean
   mobileGmPane: 'map' | 'controls'
   mobilePlayerPane: 'map' | 'controls' | 'character'
   inlineFogSize: { width: number; height: number }
-  fullFogSize: { width: number; height: number }
   fogTool: 'reveal' | 'hide' | null
   visionTool: 'draw' | 'drawFull' | 'erase' | null
   tokenPlaceMode: boolean
@@ -37,13 +34,10 @@ export function useFogTools({
   role,
   selectedMap,
   setMapError,
-  usingFullScreenCanvas,
-  fullScreenOpen,
   isMobile,
   mobileGmPane,
   mobilePlayerPane,
   inlineFogSize,
-  fullFogSize,
   fogTool,
   visionTool,
   tokenPlaceMode,
@@ -63,21 +57,14 @@ export function useFogTools({
   const [fogSampleTick, setFogSampleTick] = useState(0)
   const [fogReloadGateTick, setFogReloadGateTick] = useState(0)
   const [inlineFogReady, setInlineFogReady] = useState(false)
-  const [fullFogReady, setFullFogReady] = useState(false)
 
   const inlineFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const fullFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const inlineVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const fullVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
   const loadedInlineFogKeyRef = useRef('')
   const loadedInlineCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const loadedInlineVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const loadedFogKeyRef = useRef('')
-  const loadedFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const loadedInlineVisionKeyRef = useRef('')
-  const loadedVisionKeyRef = useRef('')
-  const loadedVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const fogLoadNonceRef = useRef(0)
   const visionLoadNonceRef = useRef(0)
 
@@ -88,8 +75,8 @@ export function useFogTools({
     fogDrawingRef.current = fogDrawing
   }, [fogDrawing])
 
-  const activeFogCanvasRef = usingFullScreenCanvas ? fullFogCanvasRef : inlineFogCanvasRef
-  const activeVisionCanvasRef = usingFullScreenCanvas ? fullVisionCanvasRef : inlineVisionCanvasRef
+  const activeFogCanvasRef = inlineFogCanvasRef
+  const activeVisionCanvasRef = inlineVisionCanvasRef
   const effectiveFogBrushSize = Math.max(
     FOG_BRUSH_SIZE_MIN,
     Math.min(320, Math.round((fogBrushSize / TOKEN_REFERENCE_DIMENSION) * activeFogDimension)),
@@ -153,20 +140,11 @@ export function useFogTools({
 
   const setFogReadyForCanvas = (canvas: HTMLCanvasElement, ready: boolean) => {
     if (canvas === inlineFogCanvasRef.current) setInlineFogReady(ready)
-    if (canvas === fullFogCanvasRef.current) setFullFogReady(ready)
   }
 
   const invalidateInlineOverlayCache = () => {
     loadedInlineFogKeyRef.current = ''
     loadedInlineVisionKeyRef.current = ''
-  }
-
-  const invalidateFullFogCache = () => {
-    loadedFogKeyRef.current = ''
-  }
-
-  const invalidateFullVisionCache = () => {
-    loadedVisionKeyRef.current = ''
   }
 
   const initializeFogCanvas = (canvas: HTMLCanvasElement, map: MapRecord, width: number, height: number) => {
@@ -696,7 +674,7 @@ export function useFogTools({
     fogPersistingRef.current += 1
 
     try {
-      const activeSize = usingFullScreenCanvas ? fullFogSize : inlineFogSize
+      const activeSize = inlineFogSize
       if (activeFogCanvasRef.current && activeSize.width > 0 && activeSize.height > 0) {
         const canvas = activeFogCanvasRef.current
         const ctx = canvas.getContext('2d', { willReadFrequently: true })
@@ -756,52 +734,10 @@ export function useFogTools({
 
   useEffect(() => {
     setInlineFogReady(false)
-    setFullFogReady(false)
   }, [selectedMap?.id])
 
   useEffect(() => {
-    if (!fullScreenOpen || !selectedMap || !fullFogCanvasRef.current) return
-    if (fullFogSize.width <= 0 || fullFogSize.height <= 0) return
-
-    if (loadedFogCanvasRef.current !== fullFogCanvasRef.current) {
-      loadedFogCanvasRef.current = fullFogCanvasRef.current
-      loadedFogKeyRef.current = ''
-    }
-
-    if (isFogReloadBlocked()) return
-
-    const key = getFogCacheKey(selectedMap, fullFogSize.width, fullFogSize.height)
-    if (loadedFogKeyRef.current === key) return
-
-    if (Object.keys(tokenAnimationsRef.current).length > 0) {
-      pendingFogReloadRef.current = true
-      return
-    }
-
-    loadedFogKeyRef.current = key
-    initializeFogCanvas(fullFogCanvasRef.current, selectedMap, fullFogSize.width, fullFogSize.height)
-  }, [fogDrawing, fogReloadGateTick, fogSampleTick, fullFogSize.height, fullFogSize.width, fullScreenOpen, selectedMap, tokenAnimationsRef, pendingFogReloadRef])
-
-  useEffect(() => {
-    if (!fullScreenOpen || !selectedMap || !fullVisionCanvasRef.current) return
-    if (fullFogSize.width <= 0 || fullFogSize.height <= 0) return
-
-    if (loadedVisionCanvasRef.current !== fullVisionCanvasRef.current) {
-      loadedVisionCanvasRef.current = fullVisionCanvasRef.current
-      loadedVisionKeyRef.current = ''
-    }
-
-    if (fogDrawingRef.current || visionPersistingRef.current > 0) return
-
-    const key = getVisionCacheKey(selectedMap, fullFogSize.width, fullFogSize.height)
-    if (loadedVisionKeyRef.current === key) return
-
-    loadedVisionKeyRef.current = key
-    initializeVisionCanvas(fullVisionCanvasRef.current, selectedMap, fullFogSize.width, fullFogSize.height)
-  }, [fogDrawing, fullFogSize.height, fullFogSize.width, fullScreenOpen, selectedMap])
-
-  useEffect(() => {
-    if (fullScreenOpen || !selectedMap || !inlineFogCanvasRef.current) return
+    if (!selectedMap || !inlineFogCanvasRef.current) return
     if (isMobile && (role === 'gm' ? mobileGmPane !== 'map' : mobilePlayerPane !== 'map')) return
     if (inlineFogSize.width <= 0 || inlineFogSize.height <= 0) return
 
@@ -826,7 +762,6 @@ export function useFogTools({
     fogSampleTick,
     fogReloadGateTick,
     fogDrawing,
-    fullScreenOpen,
     inlineFogSize.height,
     inlineFogSize.width,
     isMobile,
@@ -839,7 +774,7 @@ export function useFogTools({
   ])
 
   useEffect(() => {
-    if (fullScreenOpen || !selectedMap || !inlineVisionCanvasRef.current) return
+    if (!selectedMap || !inlineVisionCanvasRef.current) return
     if (isMobile && (role === 'gm' ? mobileGmPane !== 'map' : mobilePlayerPane !== 'map')) return
     if (inlineFogSize.width <= 0 || inlineFogSize.height <= 0) return
 
@@ -857,7 +792,6 @@ export function useFogTools({
     initializeVisionCanvas(inlineVisionCanvasRef.current, selectedMap, inlineFogSize.width, inlineFogSize.height)
   }, [
     fogDrawing,
-    fullScreenOpen,
     inlineFogSize.height,
     inlineFogSize.width,
     isMobile,
@@ -873,11 +807,8 @@ export function useFogTools({
     pauseFogStroke,
     effectiveFogBrushSize,
     inlineFogReady,
-    fullFogReady,
     inlineFogCanvasRef,
-    fullFogCanvasRef,
     inlineVisionCanvasRef,
-    fullVisionCanvasRef,
     activeFogCanvasRef,
     activeVisionCanvasRef,
     persistFog,
@@ -895,7 +826,5 @@ export function useFogTools({
     handleFogTouchMove,
     handleFogTouchEnd,
     invalidateInlineOverlayCache,
-    invalidateFullFogCache,
-    invalidateFullVisionCache,
   }
 }

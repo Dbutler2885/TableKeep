@@ -16,7 +16,6 @@ type UseGridToolsOptions = {
   activeMapWidth: number
   activeMapHeight: number
   activeMapDimension: number
-  fullBaseSize: { width: number; height: number }
   inlineBaseSize: { width: number; height: number }
   setMaps: Dispatch<SetStateAction<MapRecord[]>>
   setMapError: (msg: string | null) => void
@@ -32,7 +31,6 @@ export function useGridTools({
   activeMapWidth,
   activeMapHeight,
   activeMapDimension,
-  fullBaseSize,
   inlineBaseSize,
   setMaps,
   setMapError,
@@ -58,7 +56,6 @@ export function useGridTools({
   const [hexDetecting, setHexDetecting] = useState(false)
   const [hexDetectConfidence, setHexDetectConfidence] = useState<number | null>(null)
   const [gridAlignDrag, setGridAlignDrag] = useState<{
-    usingFull: boolean
     startClientX: number
     startClientY: number
     startOffsetX: number
@@ -404,10 +401,10 @@ export function useGridTools({
     }
   }
 
-  const handleGridLayerWheel = (event: React.WheelEvent<HTMLDivElement>, usingFull: boolean) => {
+  const handleGridLayerWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     if (role !== 'gm' || !selectedMap || !gridAdjustMode || !effectiveGridEnabled) return
-    const mapWidth = Math.max(1, usingFull ? fullBaseSize.width : inlineBaseSize.width)
-    const mapHeight = Math.max(1, usingFull ? fullBaseSize.height : inlineBaseSize.height)
+    const mapWidth = Math.max(1, inlineBaseSize.width)
+    const mapHeight = Math.max(1, inlineBaseSize.height)
     const mapDimension = Math.max(1, Math.min(mapWidth, mapHeight))
     if (mapDimension <= 0) return
 
@@ -439,14 +436,13 @@ export function useGridTools({
     )
   }
 
-  const handleGridLayerMouseDown = (event: React.MouseEvent<HTMLDivElement>, usingFull: boolean): boolean => {
+  const handleGridLayerMouseDown = (event: React.MouseEvent<HTMLDivElement>): boolean => {
     if (role !== 'gm' || !selectedMap || !gridAdjustMode || !effectiveGridEnabled) return false
     if (gridCalibrateMode) return false
     if (event.button !== 0) return false
     event.preventDefault()
     event.stopPropagation()
     setGridAlignDrag({
-      usingFull,
       startClientX: event.clientX,
       startClientY: event.clientY,
       startOffsetX: effectiveGridOffsetX,
@@ -535,8 +531,8 @@ export function useGridTools({
     if (!gridAlignDrag || !selectedMap || role !== 'gm' || !gridAdjustMode) return
 
     const handleMove = (event: MouseEvent) => {
-      const mapWidth = Math.max(1, gridAlignDrag.usingFull ? fullBaseSize.width : inlineBaseSize.width)
-      const mapHeight = Math.max(1, gridAlignDrag.usingFull ? fullBaseSize.height : inlineBaseSize.height)
+      const mapWidth = Math.max(1, inlineBaseSize.width)
+      const mapHeight = Math.max(1, inlineBaseSize.height)
       const nextOffsetX = gridAlignDrag.startOffsetX + (event.clientX - gridAlignDrag.startClientX) / mapWidth
       const nextOffsetY = gridAlignDrag.startOffsetY + (event.clientY - gridAlignDrag.startClientY) / mapHeight
       setGridAdjustDraft((current) =>
@@ -554,7 +550,7 @@ export function useGridTools({
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
     }
-  }, [fullBaseSize.height, fullBaseSize.width, gridAdjustMode, gridAlignDrag, inlineBaseSize.height, inlineBaseSize.width, role, selectedMap])
+  }, [gridAdjustMode, gridAlignDrag, inlineBaseSize.height, inlineBaseSize.width, role, selectedMap])
 
   // Calibration handle drag
   useEffect(() => {

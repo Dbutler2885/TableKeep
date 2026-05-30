@@ -5995,6 +5995,7 @@ button:disabled {
 }
 
 .maps-main {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 275px;
   gap: 1rem;
@@ -6004,6 +6005,11 @@ button:disabled {
 
 .maps-main.player {
   grid-template-columns: minmax(0, 1fr) 275px;
+}
+
+/* Map Preview (desktop GM): no tool sidebar, so the stage takes the full width. */
+.maps-main.gm:not(.run) {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .maps-content-shell {
@@ -6100,15 +6106,24 @@ button:disabled {
   pointer-events: none;
 }
 
-.map-fullscreen-btn {
+/* Map Preview "Run" entry + Map Run "Back" chevron (desktop GM workspace). */
+.map-run-btn,
+.map-preview-back-btn {
   position: absolute;
   top: 0.55rem;
-  right: 0.55rem;
-  z-index: 10;
+  z-index: 12;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   font-size: 0.82rem;
+}
+
+.map-run-btn {
+  right: 0.55rem;
+}
+
+.map-preview-back-btn {
+  left: 0.55rem;
 }
 
 .map-controls {
@@ -6730,62 +6745,6 @@ button:disabled {
   background: #c9d8c1;
   border-color: #c9d8c1;
   color: #111;
-}
-
-.map-fullscreen-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(10, 10, 10, 0.78);
-  z-index: 140;
-  padding: 1rem;
-}
-
-.map-fullscreen-shell {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 0.75rem;
-}
-
-.map-fullscreen-stage {
-  position: relative;
-  background: #111;
-  border: 1px solid #2a2a2a;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  cursor: grab;
-}
-
-.map-fullscreen-stage.dragging {
-  cursor: grabbing;
-}
-
-.map-fullscreen-close {
-  position: absolute;
-  top: 0.65rem;
-  right: 0.65rem;
-  z-index: 10;
-  width: 2rem;
-  height: 2rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #3a3a3a;
-  background: rgba(15, 15, 15, 0.85);
-  color: #f0f0f0;
-  padding: 0;
-}
-
-.map-fullscreen-controls {
-  background: #171717;
-  border: 1px solid #2f2f2f;
-  padding: 0.9rem;
-  height: 100%;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
 }
 
 .map-zoom-layer {
@@ -7648,6 +7607,24 @@ button:disabled {
   justify-content: center;
 }
 
+.token-group-collapse-btn {
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid #5e5e57;
+  border-radius: 6px;
+  background: #fff;
+  color: #55554e;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.token-group-collapse-btn:hover:not(:disabled) {
+  border-color: #7d1b12;
+  color: #7d1b12;
+}
+
 .token-group-check-label input,
 .token-row-check {
   margin: 0;
@@ -7988,6 +7965,17 @@ button:disabled {
 .map-controls-body.dark .token-group-count {
   background: #34342f;
   color: #dbdbd3;
+}
+
+.map-controls-body.dark .token-group-collapse-btn {
+  background: #2b2b2b;
+  border-color: #4f4f48;
+  color: #dbdbd3;
+}
+
+.map-controls-body.dark .token-group-collapse-btn:hover:not(:disabled) {
+  border-color: #f0b7b2;
+  color: #f0b7b2;
 }
 
 .map-controls-body.dark .token-group-delete {
@@ -12072,6 +12060,17 @@ button:disabled {
 
 .shell-root[data-theme="vtm"] .token-group-delete:disabled {
   color: var(--vtm-mute);
+}
+
+.shell-root[data-theme="vtm"] .token-group-collapse-btn {
+  background: rgba(26, 15, 18, 0.55);
+  border-color: var(--vtm-rule-strong);
+  color: var(--vtm-parchment);
+}
+
+.shell-root[data-theme="vtm"] .token-group-collapse-btn:hover:not(:disabled) {
+  border-color: var(--vtm-oxblood-bright);
+  color: var(--vtm-bone);
 }
 
 .shell-root[data-theme="vtm"] .token-group-bulk-controls {
