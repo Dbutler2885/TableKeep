@@ -948,7 +948,7 @@ export function useMapData({
     if (!selectedMap || role !== 'gm') return
     const point = getDropPoint(clientX, clientY)
     if (!point) return
-    const annotationRef = await addDoc(
+    await addDoc(
       mapAnnotationsCollectionRef(selectedMap.id),
       {
         x: point.x,
@@ -961,8 +961,6 @@ export function useMapData({
         updatedAt: serverTimestamp(),
       },
     )
-    setActiveAnnotationId(annotationRef.id)
-    setActiveAnnotationDraft('')
   }
 
   const commitActiveAnnotation = async () => {

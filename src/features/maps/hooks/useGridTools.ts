@@ -174,6 +174,14 @@ export function useGridTools({
 
   const setGridType = (gridType: 'square' | 'hex-pointy' | 'hex-flat') => {
     if (!selectedMap || role !== 'gm') return
+    if (gridCalibrateMode) {
+      setGridCalibrateMode(false)
+      resetGridCalibrationDraft()
+    }
+    if (gridMeasureMode) {
+      setGridMeasureMode(false)
+      resetGridMeasurementDraft()
+    }
     // Each grid type button acts as its own toggle/cancel while adjusting.
     if (gridAdjustMode && effectiveGridType === gridType) {
       toggleGridAdjustMode()

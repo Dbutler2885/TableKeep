@@ -197,6 +197,34 @@ describe('resolveMapInteractionIntent', () => {
     ).toEqual({ type: 'edit-annotation', target: 'label' })
   })
 
+  it('does not place annotations on existing map items while annotation placement is active', () => {
+    const state = withState({ activeTool: { type: 'annotation', tool: 'marker' } })
+
+    expect(
+      resolveMapInteractionIntent(state, {
+        phase: 'click',
+        button: 'left',
+        target: 'annotation',
+      }),
+    ).toEqual({ type: 'edit-annotation', target: 'annotation' })
+
+    expect(
+      resolveMapInteractionIntent(state, {
+        phase: 'click',
+        button: 'left',
+        target: 'label',
+      }),
+    ).toEqual({ type: 'edit-annotation', target: 'label' })
+
+    expect(
+      resolveMapInteractionIntent(state, {
+        phase: 'click',
+        button: 'left',
+        target: 'token',
+      }),
+    ).toEqual({ type: 'select-token' })
+  })
+
   it('resolves context-menu events to suppression intent', () => {
     expect(
       resolveMapInteractionIntent(initialActiveToolState, {

@@ -5,7 +5,7 @@ import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { db, storage } from '../../../firebase'
 import type { Role } from '../../../types/app'
 import { campaignDocRef } from '../../campaign/firestorePaths'
-import type { MapRecord } from '../lib/types'
+import type { MapRecord, TokenPathAnimation } from '../lib/types'
 import { FOG_BRUSH_SIZE_MIN, TOKEN_REFERENCE_DIMENSION } from '../lib/constants'
 
 type UseFogToolsOptions = {
@@ -15,7 +15,7 @@ type UseFogToolsOptions = {
   selectedMap: MapRecord | null
   setMapError: (message: string | null) => void
   isMobile: boolean
-  mobileGmPane: 'map' | 'controls'
+  mobileGmPane: 'map' | 'tokens' | 'characters'
   mobilePlayerPane: 'map' | 'controls' | 'character'
   inlineFogSize: { width: number; height: number }
   fogTool: 'reveal' | 'hide' | null
@@ -24,7 +24,7 @@ type UseFogToolsOptions = {
   fogBrushSize: number
   activeFogDimension: number
   fogBrushStrength: number
-  tokenAnimationsRef: React.MutableRefObject<Record<string, any>>
+  tokenAnimationsRef: React.MutableRefObject<Record<string, TokenPathAnimation>>
   pendingFogReloadRef: React.MutableRefObject<boolean>
 }
 
@@ -180,16 +180,14 @@ export function useFogTools({
 
     const fogSource = getFogSource(map)
     if (!fogSource) {
-      if (!mapChanged && !resized && wasInitialized) {
-        ctx.clearRect(0, 0, width, height)
-        if (map.fullyHidden) {
-          ctx.fillStyle = 'rgba(0, 0, 0, 1)'
-          ctx.fillRect(0, 0, width, height)
-        }
-        bumpFogSampleTick()
+      ctx.clearRect(0, 0, width, height)
+      if (map.fullyHidden) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 1)'
+        ctx.fillRect(0, 0, width, height)
       }
       canvas.dataset.fogMapId = map.id
       canvas.dataset.fogInitialized = 'true'
+      bumpFogSampleTick()
       setFogReadyForCanvas(canvas, true)
       return
     }

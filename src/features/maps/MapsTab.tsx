@@ -14,6 +14,7 @@ import {
   ChessPawn,
   ScrollText,
   ChevronLeft,
+  ChevronRight,
   Circle,
   Dice1,
   Dice2,
@@ -28,8 +29,9 @@ import {
   Grid3X3,
   Hand,
   Hexagon,
+  Info,
   LoaderCircle,
-  Map,
+  Map as MapIcon,
   Minus,
   Paintbrush,
   Pencil,
@@ -84,6 +86,7 @@ import {
 import { isTokenVisibleOnFog, isTokenPartiallyVisibleOnFog } from './lib/tokenVisibility'
 import { activeToolReducer, initialActiveToolState, type ActiveMapTool } from './lib/activeToolState'
 import { resolveMapInteractionIntent, type MapInteractionButton } from './lib/mapInteractionResolution'
+import { getMapToolGuidance, MAP_INTERACTION_HELP_SECTIONS } from './lib/toolGuidance'
 import {
   dropTokenPlacement,
   getTokenPlacementDisplay,
@@ -388,9 +391,12 @@ export function MapsTab({
   const { phase, runSession, enterRun, exitRun, resetToPreview } = useMapWorkspace()
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileMapView, setMobileMapView] = useState<'list' | 'detail'>('list')
-  const [mobileGmPane, setMobileGmPane] = useState<'map' | 'controls'>('map')
+  const [mobileGmPane, setMobileGmPane] = useState<'map' | 'tokens' | 'characters'>('map')
   const [mobilePlayerPane, setMobilePlayerPane] = useState<'map' | 'controls' | 'character'>('map')
   const [playerEmbeddedPane, setPlayerEmbeddedPane] = useState<'map' | 'character'>('map')
+  const [desktopGmPane, setDesktopGmPane] = useState<'map' | 'character'>('map')
+  const [selectedGmCharacterId, setSelectedGmCharacterId] = useState('')
+  const [interactionHelpOpen, setInteractionHelpOpen] = useState(false)
   const [activeToolState, dispatchActiveTool] = useReducer(activeToolReducer, initialActiveToolState)
   const [placementQueue, setPlacementQueue] = useState<TokenPlacementQueueState | null>(null)
   const [fogBrushSize, setFogBrushSize] = useState(120)
@@ -606,6 +612,51 @@ export function MapsTab({
     () => getTokenPlacementDisplay(placementQueue),
     [placementQueue],
   )
+  const gmCharacterOrderIds = useMemo(
+    () => partyPlacementSources.map((source) => source.id),
+    [partyPlacementSources],
+  )
+  const gmWorkspaceCharacters = useMemo(() => {
+    if (!characterTabProps) return []
+    const byId = new Map<string, (typeof characterTabProps.characters)[number]>(
+      characterTabProps.characters.map((character) => [character.id, character]),
+    )
+    const ordered = gmCharacterOrderIds
+      .map((id) => byId.get(id))
+      .filter((character): character is NonNullable<typeof character> => Boolean(character))
+    const orderedIds = new Set(ordered.map((character) => character.id))
+    const extras = characterTabProps.characters
+      .filter((character) => !orderedIds.has(character.id))
+      .sort((a, b) => a.name.localeCompare(b.name))
+    return [...ordered, ...extras]
+  }, [characterTabProps, gmCharacterOrderIds])
+  const selectedGmCharacter = useMemo(
+    () => gmWorkspaceCharacters.find((character) => character.id === selectedGmCharacterId) ?? gmWorkspaceCharacters[0] ?? null,
+    [gmWorkspaceCharacters, selectedGmCharacterId],
+  )
+  const selectedGmCharacterIndex = selectedGmCharacter
+    ? Math.max(0, gmWorkspaceCharacters.findIndex((character) => character.id === selectedGmCharacter.id))
+    : -1
+  const selectedGmCharacterTabProps = selectedGmCharacter && characterTabProps
+    ? {
+      ...characterTabProps,
+      characters: [selectedGmCharacter],
+      selectedCharacterId: selectedGmCharacter.id,
+      selectedCharacter: selectedGmCharacter,
+    }
+    : null
+
+  useEffect(() => {
+    if (gmWorkspaceCharacters.length === 0) {
+      setSelectedGmCharacterId('')
+      if (desktopGmPane === 'character') setDesktopGmPane('map')
+      if (mobileGmPane === 'characters') setMobileGmPane('map')
+      return
+    }
+    if (!gmWorkspaceCharacters.some((character) => character.id === selectedGmCharacterId)) {
+      setSelectedGmCharacterId(gmWorkspaceCharacters[0].id)
+    }
+  }, [desktopGmPane, gmWorkspaceCharacters, mobileGmPane, selectedGmCharacterId])
 
   useEffect(() => {
     const syncLayerSize = (
@@ -920,6 +971,10 @@ export function MapsTab({
     8,
     Math.min(520, Math.round(effectiveGridCellScale * activeMapDimension)),
   )
+  const toolGuidance = useMemo(
+    () => getMapToolGuidance(activeToolState, placementDisplay, { gridAdjustMode }),
+    [activeToolState, gridAdjustMode, placementDisplay],
+  )
 
   const renderMapGridOverlay = () => (
     <GridOverlay
@@ -1090,6 +1145,14 @@ export function MapsTab({
     toggleGridMeasureMode()
   }, [toggleGridMeasureMode])
 
+  const setGridTypeTool = useCallback((gridType: 'square' | 'hex-pointy' | 'hex-flat') => {
+    if (activeToolState.activeTool?.type === 'measurement') {
+      dispatchActiveTool({ type: 'clearActiveTool' })
+    }
+    setPlacementQueue(null)
+    setGridType(gridType)
+  }, [activeToolState.activeTool?.type, setGridType])
+
   const startSinglePlacement = useCallback((
     source: Exclude<TokenPlacementSource, MonsterTokenPlacementSource>,
   ) => {
@@ -1125,6 +1188,29 @@ export function MapsTab({
     setPlacementQueue(null)
     dispatchActiveTool({ type: 'cancelTokenPlacement' })
   }, [])
+
+  const clearAnnotationPlacementTool = useCallback(() => {
+    if (activeToolState.activeTool?.type === 'annotation') {
+      dispatchActiveTool({ type: 'clearActiveTool' })
+    }
+  }, [activeToolState.activeTool])
+
+  const openGmCharacterSheet = useCallback((characterId: string) => {
+    setSelectedGmCharacterId(characterId)
+    characterTabProps?.setSelectedCharacterId(characterId)
+    if (isMobile) {
+      setMobileGmPane('characters')
+    } else {
+      setDesktopGmPane('character')
+    }
+  }, [characterTabProps, isMobile])
+
+  const pageGmCharacter = useCallback((direction: -1 | 1) => {
+    if (gmWorkspaceCharacters.length === 0) return
+    const currentIndex = selectedGmCharacterIndex >= 0 ? selectedGmCharacterIndex : 0
+    const nextIndex = (currentIndex + direction + gmWorkspaceCharacters.length) % gmWorkspaceCharacters.length
+    openGmCharacterSheet(gmWorkspaceCharacters[nextIndex].id)
+  }, [gmWorkspaceCharacters, openGmCharacterSheet, selectedGmCharacterIndex])
 
   const runPlacementDrop = useCallback((point: { x: number; y: number }) => {
     const result = dropTokenPlacement(placementQueue, point, [
@@ -1306,8 +1392,11 @@ export function MapsTab({
     )
 
   const selectMap = (mapId: string) => {
-    setInlineImageReady(false)
-    setInlineFogSize({ width: 0, height: 0 })
+    const mapChanged = mapId !== selectedMapId
+    if (mapChanged) {
+      setInlineImageReady(false)
+      setInlineFogSize({ width: 0, height: 0 })
+    }
     setSelectedMapId(mapId)
     resetPlayerViewport()
     // Desktop GM always lands in Map Preview when (re-)selecting a map.
@@ -1755,10 +1844,12 @@ export function MapsTab({
         style={{ left: `${x * 100}%`, top: `${y * 100}%`, color: token.color }}
         onMouseDown={(event) => {
           if (placementQueue) return
+          clearAnnotationPlacementTool()
           startTokenDrag(token.id, event)
         }}
         onTouchStart={(event) => {
           if (placementQueue) return
+          clearAnnotationPlacementTool()
           handleTokenTouchStart(token.id, event)
         }}
         onTouchEnd={handleTokenTouchEnd}
@@ -1834,16 +1925,19 @@ export function MapsTab({
           event.preventDefault()
           event.stopPropagation()
           if (placementQueue) return
+          clearAnnotationPlacementTool()
           if (isGmStreaming) startTokenDrag(token.id, event)
         }}
         onClick={(event) => {
           event.preventDefault()
           event.stopPropagation()
+          clearAnnotationPlacementTool()
           if (!isGmStreaming) togglePlayerTokenSelection(token.id)
         }}
         onTouchStart={(event) => {
           if (placementQueue) return
           if (!isGmStreaming) return
+          clearAnnotationPlacementTool()
           handleTokenTouchStart(token.id, event)
         }}
         onTouchEnd={isGmStreaming ? handleTokenTouchEnd : undefined}
@@ -2174,6 +2268,7 @@ export function MapsTab({
       onMoveAnnotation={moveAnnotationPosition}
       onPersistAnnotationPosition={persistAnnotationPosition}
       autosizeAnnotationTextarea={autosizeAnnotationTextarea}
+      onBeginEditAnnotation={clearAnnotationPlacementTool}
       editable={role === 'gm' && !viewAsPlayer && !placementQueue}
       className={placementQueue ? 'placing' : ''}
     />
@@ -2229,7 +2324,7 @@ export function MapsTab({
       gridType={effectiveGridType}
       gridAdjustMode={gridAdjustMode}
       onToggleGridVisible={() => void toggleGridVisibility()}
-      onSetGridType={setGridType}
+      onSetGridType={setGridTypeTool}
       onApplyGrid={applyGridAdjust}
       hexDetecting={hexDetecting}
       hexDetectConfidence={hexDetectConfidence}
@@ -2287,6 +2382,78 @@ export function MapsTab({
       onPresentNpc={(npcId) => void setPresentedNpcId(npcId)}
       onClearPresentedNpc={() => void setPresentedNpcId('')}
     />
+  )
+
+  const renderGmCharacterTabs = () => {
+    if (role !== 'gm' || gmWorkspaceCharacters.length === 0) return null
+    return (
+      <div className="map-gm-character-tabs" role="tablist" aria-label="GM map workspace views">
+        <button
+          type="button"
+          className={desktopGmPane === 'map' ? 'map-gm-character-tab active' : 'map-gm-character-tab'}
+          onClick={() => setDesktopGmPane('map')}
+          aria-selected={desktopGmPane === 'map'}
+          role="tab"
+        >
+          <MapIcon size={15} />
+          <span>Map</span>
+        </button>
+        {gmWorkspaceCharacters.map((character) => {
+          const source = partyPlacementSources.find((entry) => entry.id === character.id)
+          const imageUrl = source?.tokenIcon?.icon === 'custom' ? source.tokenIcon.customImageUrl ?? '' : ''
+          const color = source?.tokenIcon?.color ?? '#b45309'
+          const active = desktopGmPane === 'character' && selectedGmCharacter?.id === character.id
+          return (
+            <button
+              key={character.id}
+              type="button"
+              className={active ? 'map-gm-character-tab active' : 'map-gm-character-tab'}
+              onClick={() => openGmCharacterSheet(character.id)}
+              aria-selected={active}
+              role="tab"
+            >
+              <span className="map-gm-character-tab-icon" style={{ color }}>
+                {imageUrl ? <img src={imageUrl} alt="" /> : <ChessPawn size={14} />}
+              </span>
+              <span>{character.name || 'Unnamed'}</span>
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
+
+  const renderMobileGmCharacterPane = () => (
+    <div className="map-mobile-character-pane">
+      <div className="map-mobile-character-pager">
+        <button
+          type="button"
+          onClick={() => pageGmCharacter(-1)}
+          disabled={gmWorkspaceCharacters.length <= 1}
+          aria-label="Previous character sheet"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <span>{selectedGmCharacter?.name || 'Character Sheets'}</span>
+        <button
+          type="button"
+          onClick={() => pageGmCharacter(1)}
+          disabled={gmWorkspaceCharacters.length <= 1}
+          aria-label="Next character sheet"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+      {selectedGmCharacterTabProps ? (
+        <div className="map-embedded-character">
+          <CharacterTab {...selectedGmCharacterTabProps} embeddedMode />
+        </div>
+      ) : (
+        <div className="map-embedded-character map-empty-character-pane">
+          <p>No character sheets available.</p>
+        </div>
+      )}
+    </div>
   )
 
 
@@ -2430,7 +2597,7 @@ export function MapsTab({
                 onClick={() => setPlayerEmbeddedPane('map')}
                 aria-label="Show map"
               >
-                <Map size={16} />
+                <MapIcon size={16} />
                 <span>Map</span>
               </button>
               <button
@@ -2445,7 +2612,9 @@ export function MapsTab({
             </div>
           ) : null}
 
-          {desktopGmRun ? (
+          {desktopGmRun ? renderGmCharacterTabs() : null}
+
+          {(desktopGmRun || (isMobile && role === 'gm' && mobileMapView === 'detail' && mobileGmPane === 'map')) ? (
             <GmMapTopToolPanel
               fogTool={fogTool}
               setFogTool={setFogTool}
@@ -2471,7 +2640,7 @@ export function MapsTab({
               gridType={effectiveGridType}
               gridAdjustMode={gridAdjustMode}
               onToggleGridVisible={() => void toggleGridVisibility()}
-              onSetGridType={setGridType}
+              onSetGridType={setGridTypeTool}
               hexDetecting={hexDetecting}
               gridCalibrateMode={gridCalibrateMode}
               onToggleGridCalibrate={toggleGridCalibrateTool}
@@ -2488,6 +2657,8 @@ export function MapsTab({
               applyFogPreset={applyFogPreset}
               canApplyPreset={Boolean(selectedMap)}
               fullyHidden={selectedMap?.fullyHidden === true}
+              guidance={toolGuidance}
+              onOpenHelp={() => setInteractionHelpOpen(true)}
             />
           ) : null}
 
@@ -2503,7 +2674,7 @@ export function MapsTab({
               isMobile && role === 'gm' ? 'mobile-gm' : '',
               isMobile && role !== 'gm' ? 'mobile-player' : '',
               desktopGmRun ? 'run' : '',
-              !showEmbeddedMap ? 'maps-main-hidden' : '',
+              (!showEmbeddedMap || (desktopGmRun && desktopGmPane !== 'map')) ? 'maps-main-hidden' : '',
             ]
               .filter(Boolean)
               .join(' ')}
@@ -2633,9 +2804,9 @@ export function MapsTab({
             </InlineMapStage>
             ) : null}
 
-            {role === 'gm' && (isMobile ? mobileGmPane === 'controls' : phase === 'run' && !desktopGmRun) ? (
+            {role === 'gm' && (isMobile ? mobileGmPane === 'tokens' : phase === 'run' && !desktopGmRun) ? (
               <aside className="map-controls">
-                {renderGmMapControls(isMobile)}
+                {renderGmMapControls(!isMobile)}
               </aside>
             ) : null}
 
@@ -2666,6 +2837,14 @@ export function MapsTab({
             </div>
           ) : null}
 
+          {desktopGmRun && desktopGmPane === 'character' ? (
+            <div className="map-embedded-character map-gm-embedded-character">
+              {selectedGmCharacterTabProps ? <CharacterTab {...selectedGmCharacterTabProps} embeddedMode /> : <p>No character selected.</p>}
+            </div>
+          ) : null}
+
+          {isMobile && role === 'gm' && mobileGmPane === 'characters' ? renderMobileGmCharacterPane() : null}
+
           {isMobile && role !== 'gm' ? (
             <div className="map-mobile-panel-nav">
               <button
@@ -2682,7 +2861,7 @@ export function MapsTab({
                 disabled={mobilePlayerPane === 'map'}
                 aria-label="Map pane"
               >
-                <Map size={16} />
+                <MapIcon size={16} />
               </button>
               <button
                 type="button"
@@ -2723,17 +2902,34 @@ export function MapsTab({
                 disabled={mobileGmPane === 'map'}
                 aria-label="Map pane"
               >
-                <Map size={16} />
+                <MapIcon size={16} />
               </button>
               <button
                 type="button"
-                className={mobileGmPane === 'controls' ? 'active' : ''}
-                onClick={() => setMobileGmPane('controls')}
-                disabled={mobileGmPane === 'controls'}
-                aria-label="Controls pane"
+                className={mobileGmPane === 'tokens' ? 'active' : ''}
+                onClick={() => setMobileGmPane('tokens')}
+                disabled={mobileGmPane === 'tokens'}
+                aria-label="Token panel"
               >
-                <SlidersHorizontal size={16} />
+                <ChessPawn size={16} />
               </button>
+              {characterTabProps ? (
+                <button
+                  type="button"
+                  className={mobileGmPane === 'characters' ? 'active' : ''}
+                  onClick={() => {
+                    if (!selectedGmCharacter && gmWorkspaceCharacters[0]) {
+                      openGmCharacterSheet(gmWorkspaceCharacters[0].id)
+                      return
+                    }
+                    setMobileGmPane('characters')
+                  }}
+                  disabled={mobileGmPane === 'characters'}
+                  aria-label="Character sheets"
+                >
+                  <ScrollText size={16} />
+                </button>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -2840,6 +3036,24 @@ export function MapsTab({
         onCancel={() => setTokenAssetDeleteCandidate(null)}
         onConfirm={() => void confirmDeleteTokenAsset()}
       />
+      {interactionHelpOpen ? (
+        <div className="confirm-overlay" role="dialog" aria-modal="true" aria-label="Map interaction help">
+          <div className="confirm-modal map-help-modal">
+            <h3>Map Controls</h3>
+            <div className="map-help-sections">
+              {MAP_INTERACTION_HELP_SECTIONS.map((section) => (
+                <section key={section.title} className="map-help-section">
+                  <h4>{section.title}</h4>
+                  <p>{section.body}</p>
+                </section>
+              ))}
+            </div>
+            <div className="confirm-actions">
+              <button type="button" onClick={() => setInteractionHelpOpen(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {encounterNotice ? (
         <div className="encounter-modal-overlay" role="dialog" aria-modal="true" aria-label="Encounter alert">
           <div className="encounter-modal">
@@ -2900,6 +3114,8 @@ function GmMapTopToolPanel({
   applyFogPreset,
   canApplyPreset,
   fullyHidden,
+  guidance,
+  onOpenHelp,
 }: {
   fogTool: 'reveal' | 'hide' | null
   setFogTool: (tool: 'reveal' | 'hide' | null) => void
@@ -2942,6 +3158,8 @@ function GmMapTopToolPanel({
   applyFogPreset: (preset: 'hide-all' | 'unhide-all') => Promise<void>
   canApplyPreset: boolean
   fullyHidden: boolean
+  guidance: ReturnType<typeof getMapToolGuidance>
+  onOpenHelp: () => void
 }) {
   const [brushSizeDraft, setBrushSizeDraft] = useState(String(fogBrushSize))
   const [brushSizeEditing, setBrushSizeEditing] = useState(false)
@@ -3243,7 +3461,7 @@ function GmMapTopToolPanel({
           </button>
           <button
             type="button"
-            className={gridType === 'hex-pointy'
+            className={gridAdjustMode && gridType === 'hex-pointy'
               ? 'map-icon-btn map-hex-pointy-btn fast-tooltip fast-tooltip-right active'
               : 'map-icon-btn map-hex-pointy-btn fast-tooltip fast-tooltip-right'}
             onClick={() => onSetGridType('hex-pointy')}
@@ -3255,7 +3473,7 @@ function GmMapTopToolPanel({
           </button>
           <button
             type="button"
-            className={gridType === 'hex-flat'
+            className={gridAdjustMode && gridType === 'hex-flat'
               ? 'map-icon-btn map-hex-flat-btn fast-tooltip fast-tooltip-right active'
               : 'map-icon-btn map-hex-flat-btn fast-tooltip fast-tooltip-right'}
             onClick={() => onSetGridType('hex-flat')}
@@ -3366,6 +3584,27 @@ function GmMapTopToolPanel({
             <TvMinimalPlay size={16} />
           </button>
         </div>
+      </div>
+      <div className={guidance ? 'map-tool-guidance active' : 'map-tool-guidance'} aria-live="polite">
+        <div className="map-tool-guidance-copy">
+          {guidance ? (
+            <>
+              <strong>{guidance.title}</strong>
+              <span>{guidance.body}</span>
+            </>
+          ) : (
+            <span>No active map tool.</span>
+          )}
+        </div>
+        <button
+          type="button"
+          className="map-icon-btn map-tool-info-btn fast-tooltip fast-tooltip-left"
+          onClick={onOpenHelp}
+          aria-label="Open map interaction help"
+          data-tooltip="Map controls help"
+        >
+          <Info size={16} />
+        </button>
       </div>
     </div>
   )
@@ -4208,7 +4447,7 @@ function GmMapControls({
             </button>
             <button
               type="button"
-              className={gridType === 'hex-pointy'
+              className={gridAdjustMode && gridType === 'hex-pointy'
                 ? 'map-icon-btn map-hex-pointy-btn fast-tooltip fast-tooltip-right active'
                 : 'map-icon-btn map-hex-pointy-btn fast-tooltip fast-tooltip-right'}
               onClick={() => onSetGridType('hex-pointy')}
@@ -4220,7 +4459,7 @@ function GmMapControls({
             </button>
             <button
               type="button"
-              className={gridType === 'hex-flat'
+              className={gridAdjustMode && gridType === 'hex-flat'
                 ? 'map-icon-btn map-hex-flat-btn fast-tooltip fast-tooltip-right active'
                 : 'map-icon-btn map-hex-flat-btn fast-tooltip fast-tooltip-right'}
               onClick={() => onSetGridType('hex-flat')}

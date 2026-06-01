@@ -15,6 +15,7 @@ type AnnotationLayerProps = {
   onMoveAnnotation: (annotationId: string, x: number, y: number) => void
   onPersistAnnotationPosition: (annotationId: string, x: number, y: number) => Promise<void>
   autosizeAnnotationTextarea: (textarea: HTMLTextAreaElement | null) => void
+  onBeginEditAnnotation?: (annotationId: string) => void
   editable?: boolean
   className?: string
 }
@@ -32,6 +33,7 @@ export function AnnotationLayer({
   onMoveAnnotation,
   onPersistAnnotationPosition,
   autosizeAnnotationTextarea,
+  onBeginEditAnnotation,
   editable = true,
   className = '',
 }: AnnotationLayerProps) {
@@ -84,11 +86,13 @@ export function AnnotationLayer({
       {annotations.map((annotation) => (
         <div
           key={annotation.id}
-          className={
-            activeAnnotationId === annotation.id
-              ? `map-annotation ${annotation.kind === 'player' ? 'player-label' : 'gm-annotation'} pointer-${annotation.pointerDirection} active`
-              : `map-annotation ${annotation.kind === 'player' ? 'player-label' : 'gm-annotation'} pointer-${annotation.pointerDirection}`
-          }
+          className={[
+            'map-annotation',
+            annotation.kind === 'player' ? 'player-label' : 'gm-annotation',
+            `pointer-${annotation.pointerDirection}`,
+            activeAnnotationId === annotation.id ? 'active' : '',
+            annotation.text.trim() ? '' : 'unannotated',
+          ].filter(Boolean).join(' ')}
           style={{ left: `${annotation.x * 100}%`, top: `${annotation.y * 100}%` }}
         >
           {annotation.kind === 'player' ? (
@@ -104,6 +108,7 @@ export function AnnotationLayer({
                     setActiveAnnotationId('')
                     return
                   }
+                  onBeginEditAnnotation?.(annotation.id)
                   setActiveAnnotationId(annotation.id)
                   setActiveAnnotationDraft(annotation.text)
                 }}
@@ -178,6 +183,7 @@ export function AnnotationLayer({
                     setActiveAnnotationId('')
                     return
                   }
+                  onBeginEditAnnotation?.(annotation.id)
                   setActiveAnnotationId(annotation.id)
                   setActiveAnnotationDraft(annotation.text)
                 }}
