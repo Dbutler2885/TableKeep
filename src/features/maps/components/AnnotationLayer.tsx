@@ -16,6 +16,7 @@ type AnnotationLayerProps = {
   onPersistAnnotationPosition: (annotationId: string, x: number, y: number) => Promise<void>
   autosizeAnnotationTextarea: (textarea: HTMLTextAreaElement | null) => void
   editable?: boolean
+  className?: string
 }
 
 export function AnnotationLayer({
@@ -32,6 +33,7 @@ export function AnnotationLayer({
   onPersistAnnotationPosition,
   autosizeAnnotationTextarea,
   editable = true,
+  className = '',
 }: AnnotationLayerProps) {
   const layerRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<{ id: string; moved: boolean; x: number; y: number } | null>(null)
@@ -78,7 +80,7 @@ export function AnnotationLayer({
   }
 
   return (
-    <div ref={layerRef} className="map-annotation-layer" aria-label="Map annotations">
+    <div ref={layerRef} className={['map-annotation-layer', className].filter(Boolean).join(' ')} aria-label="Map annotations">
       {annotations.map((annotation) => (
         <div
           key={annotation.id}

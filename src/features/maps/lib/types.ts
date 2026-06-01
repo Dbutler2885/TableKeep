@@ -50,6 +50,8 @@ export type TokenRecord = {
   monsterId: string
   characterId?: string
   npcId?: string
+  // Optional named sub-group within a token's category (e.g. "Goblin Patrol" under Monsters).
+  group?: string
 }
 
 export type AnnotationRecord = {

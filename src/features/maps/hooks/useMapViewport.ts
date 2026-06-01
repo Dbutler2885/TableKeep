@@ -4,6 +4,7 @@ import type { Role } from '../../../types/app'
 import type { TokenRecord, WheelRectSnapshot } from '../lib/types'
 import { MAX_MAP_ZOOM, MIN_MAP_ZOOM } from '../lib/constants'
 import { computeWheelZoom } from '../lib/zoomMath'
+import { shouldBeginViewportPan } from '../lib/viewportPan'
 
 // Private touch geometry helpers
 function touchDistance(touches: React.TouchList): number {
@@ -36,6 +37,8 @@ type UseMapViewportOptions = {
   playerLabelPlaceMode: boolean
   // Allow the GM to pan the inline stage with a plain left-drag (Map Preview).
   allowGmInlinePan: boolean
+  // GM hand tool active — left-drag pans while it is selected.
+  handToolActive: boolean
   // Mobile: should touch events drive pan/pinch?
   isMobileZoomMapView: boolean
   // View distance scale for camera lock zoom (fog-relative)
@@ -55,6 +58,7 @@ export function useMapViewport({
   annotationPlaceMode: _annotationPlaceMode,
   playerLabelPlaceMode: _playerLabelPlaceMode,
   allowGmInlinePan,
+  handToolActive,
   isMobileZoomMapView,
   renderTokenViewDistance,
   renderTokenDimensions,
@@ -199,9 +203,18 @@ export function useMapViewport({
   }
 
   const handlePlayerMouseDown: MouseEventHandler<HTMLDivElement> = (event) => {
-    if (event.button !== 0) return
-    if (role === 'gm' && !event.shiftKey && !allowGmInlinePan) return
-    if (!event.shiftKey && playerZoom <= 1) return
+    if (
+      !shouldBeginViewportPan({
+        role,
+        button: event.button,
+        shiftKey: event.shiftKey,
+        handToolActive,
+        allowGmInlinePan,
+        zoom: playerZoom,
+      })
+    ) {
+      return
+    }
     event.preventDefault()
     setPlayerDragging(true)
     playerDragStartRef.current = {

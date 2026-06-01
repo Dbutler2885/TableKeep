@@ -23,7 +23,7 @@ type UseTokenDragOptions = {
   tokenPointToCanvasPoint: (point: { x: number; y: number }, tokenSizePx?: number) => { x: number; y: number } | null
   activeFogCanvasRef: React.RefObject<HTMLCanvasElement | null>
   activeVisionCanvasRef: React.RefObject<HTMLCanvasElement | null>
-  streamingMode: boolean
+  playerViewPreview: boolean
   renderTokenViewDistance: (token: TokenRecord) => number
   revealFromTokenPoint: (
     fogCanvas: HTMLCanvasElement,
@@ -65,7 +65,7 @@ export function useTokenDrag({
   tokenPointToCanvasPoint,
   activeFogCanvasRef,
   activeVisionCanvasRef,
-  streamingMode,
+  playerViewPreview,
   renderTokenViewDistance,
   revealFromTokenPoint,
   revealFromTokenStroke,
@@ -226,7 +226,7 @@ export function useTokenDrag({
       const clipRect = pendingRevealClipRect
       pendingRevealPoint = null
 
-      if (streamingMode) {
+      if (playerViewPreview) {
         const now = Date.now()
         const canvasArea = Math.max(1, activeFogCanvasRef.current.width * activeFogCanvasRef.current.height)
         const areaScale = Math.sqrt(canvasArea / (1280 * 720))
@@ -490,7 +490,7 @@ export function useTokenDrag({
     role,
     selectedMap,
     selectedTokenIds,
-    streamingMode,
+    playerViewPreview,
     tokens,
   ])
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { ALargeSmall, Archive, Check, ChessPawn, ChevronDown, Upload, X } from 'lucide-react'
 import { IconValueSlider } from '../common/IconValueSlider'
 
@@ -36,6 +36,9 @@ type TokenIconEditorProps = {
   onRequestDeleteTokenAsset?: (id: string) => void
   selectedTokenImageUrl?: string
   uploadingTokenImage?: boolean
+  uploadAssetName?: string
+  uploadAssetNameLabel?: string
+  onUploadAssetNameChange?: (value: string) => void
   onUploadTokenImage?: (file: File, assetName?: string) => Promise<void> | void
 }
 
@@ -73,13 +76,18 @@ export function TokenIconEditor({
   onRequestDeleteTokenAsset,
   selectedTokenImageUrl = '',
   uploadingTokenImage = false,
+  uploadAssetName = '',
+  uploadAssetNameLabel = 'Token image name',
+  onUploadAssetNameChange,
   onUploadTokenImage,
 }: TokenIconEditorProps) {
   const wrapperClass = ['token-icon-editor', className].filter(Boolean).join(' ')
   const hasTokenSourceControls = Boolean(onSelectedTokenAssetIdChange || onUploadTokenImage)
   const [assetMenuOpen, setAssetMenuOpen] = useState(false)
   const [showArchivedAssets, setShowArchivedAssets] = useState(false)
+  const [localUploadAssetName, setLocalUploadAssetName] = useState(uploadAssetName)
   const assetMenuRef = useRef<HTMLDivElement | null>(null)
+  const uploadNameInputId = useId()
   const isSvgTokenImage =
     selectedTokenImageUrl.toLowerCase().includes('.svg') || selectedTokenImageUrl.startsWith('data:image/svg+xml')
   const showColorPicker = !selectedTokenImageUrl || isSvgTokenImage
@@ -88,6 +96,12 @@ export function TokenIconEditor({
   const monsterAssets = tokenAssets.filter((a) => !!a.monsterId)
   const visibleRegularAssets = regularAssets.filter((a) => (showArchivedAssets ? a.archived === true : a.archived !== true))
   // Monster options are never archived — always visible regardless of the archive toggle.
+  const uploadAssetNameValue = onUploadAssetNameChange ? uploadAssetName : localUploadAssetName
+
+  useEffect(() => {
+    if (onUploadAssetNameChange) return
+    setLocalUploadAssetName(uploadAssetName)
+  }, [onUploadAssetNameChange, uploadAssetName])
 
   useEffect(() => {
     if (!assetMenuOpen) return
@@ -241,29 +255,45 @@ export function TokenIconEditor({
 
       {onUploadTokenImage ? (
         <div className="token-image-upload">
-          <label
-            className="map-icon-btn token-image-trigger fast-tooltip fast-tooltip-left"
-            data-tooltip={uploadingTokenImage ? 'Uploading...' : 'Upload token image'}
-            aria-label={uploadingTokenImage ? 'Uploading token image' : 'Upload token image'}
-          >
-            <Upload size={14} />
+          <label htmlFor={uploadNameInputId}>{uploadAssetNameLabel}</label>
+          <div className="token-image-upload-row">
             <input
-              className="sr-only"
-              type="file"
-              accept="image/png,image/webp,image/jpeg,image/gif,image/svg+xml"
+              id={uploadNameInputId}
+              type="text"
+              value={uploadAssetNameValue}
               disabled={disabled || uploadingTokenImage}
+              placeholder="Name"
               onChange={(event) => {
-                const file = event.target.files?.[0]
-                event.currentTarget.value = ''
-                if (!file) return
-                const entered = window.prompt('Name this token icon:', file.name.replace(/\.[^/.]+$/, ''))
-                if (entered === null) return
-                const name = entered.trim()
-                if (!name) return
-                void onUploadTokenImage(file, name)
+                const nextName = event.target.value
+                if (onUploadAssetNameChange) {
+                  onUploadAssetNameChange(nextName)
+                  return
+                }
+                setLocalUploadAssetName(nextName)
               }}
             />
-          </label>
+            <label
+              className="map-icon-btn token-image-trigger fast-tooltip fast-tooltip-left"
+              data-tooltip={uploadingTokenImage ? 'Uploading...' : 'Upload token image'}
+              aria-label={uploadingTokenImage ? 'Uploading token image' : 'Upload token image'}
+            >
+              <Upload size={14} />
+              <input
+                className="sr-only"
+                type="file"
+                accept="image/png,image/webp,image/jpeg,image/gif,image/svg+xml"
+                disabled={disabled || uploadingTokenImage}
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  event.currentTarget.value = ''
+                  if (!file) return
+                  const fallbackName = file.name.replace(/\.[^/.]+$/, '').trim()
+                  const name = uploadAssetNameValue.trim() || fallbackName
+                  void onUploadTokenImage(file, name)
+                }}
+              />
+            </label>
+          </div>
         </div>
       ) : null}
 

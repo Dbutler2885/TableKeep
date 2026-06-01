@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { MutableRefObject } from 'react'
 import {
   addDoc,
@@ -35,21 +35,9 @@ import {
   DEFAULT_TOKEN_VIEW_DISTANCE,
   TOKEN_REFERENCE_DIMENSION,
 } from '../lib/constants'
+import type { TokenPlacementCommand } from '../lib/tokenPlacementQueue'
 
 const MAP_UPLOAD_MAX_DIMENSION = 2048
-
-const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-
-type EntityTokenKind = 'monster' | 'npc'
-
-type PendingEntityTokenNameReservation = {
-  tempId: string
-  docId?: string
-  mapId: string
-  kind: EntityTokenKind
-  entityId: string
-  name: string
-}
 
 type UseMapDataParams = {
   campaignId: string
@@ -59,9 +47,6 @@ type UseMapDataParams = {
   setSelectedMapId: (id: string | ((prev: string) => string)) => void
   // Coord resolver: converts screen coords to normalized map coords (owned by fog/viewport)
   getDropPoint: (clientX: number, clientY: number) => { x: number; y: number } | null
-  // Token placement UI state (owned by MapsTab tool controls)
-  tokenColor: string
-  tokenSize: number
   // Refs for triggering path animations on remote token moves (owned by useTokenAnimation)
   tokensRef: MutableRefObject<TokenRecord[]>
   recentlyDroppedRef: MutableRefObject<Set<string>>
@@ -81,8 +66,6 @@ export function useMapData({
   selectedMapId,
   setSelectedMapId,
   getDropPoint,
-  tokenColor,
-  tokenSize,
   tokensRef,
   recentlyDroppedRef,
   lastAnimatedPathIdRef,
@@ -110,8 +93,6 @@ export function useMapData({
   const [mapMonsters, setMapMonsters] = useState<MonsterSummary[]>([])
   const [mapCharacters, setMapCharacters] = useState<CharacterTokenSummary[]>([])
   const [mapNpcs, setMapNpcs] = useState<NpcSummary[]>([])
-  const latestTokensRef = useRef<TokenRecord[]>([])
-  const pendingEntityTokenNameReservationsRef = useRef<PendingEntityTokenNameReservation[]>([])
 
   // ── Token asset state ───────────────────────────────────────────────────────
   const [tokenAssets, setTokenAssets] = useState<TokenAssetRecord[]>([])
@@ -131,14 +112,6 @@ export function useMapData({
   const tokenAssetDocRef = (assetId: string) => campaignDocRef(db, scope, 'tokenAssets', assetId)
   const npcsCollectionRef = campaignCollectionRef(db, scope, 'npcs')
   const npcDocRef = (npcId: string) => campaignDocRef(db, scope, 'npcs', npcId)
-
-  useEffect(() => {
-    latestTokensRef.current = tokens
-  }, [tokens])
-
-  useEffect(() => {
-    pendingEntityTokenNameReservationsRef.current = []
-  }, [selectedMapId])
 
   // ── Maps subscription ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -308,7 +281,6 @@ export function useMapData({
   // ── Tokens subscription (per map) ───────────────────────────────────────────
   useEffect(() => {
     if (!selectedMapId) {
-      latestTokensRef.current = []
       setTokens([])
       return
     }
@@ -337,6 +309,7 @@ export function useMapData({
             monsterId?: string
             characterId?: string
             npcId?: string
+            group?: string
           }
 
           return {
@@ -359,12 +332,8 @@ export function useMapData({
             monsterId: typeof data.monsterId === 'string' ? data.monsterId : '',
             characterId: typeof data.characterId === 'string' ? data.characterId : undefined,
             npcId: typeof data.npcId === 'string' ? data.npcId : undefined,
+            group: typeof data.group === 'string' && data.group ? data.group : undefined,
           }
-        })
-        latestTokensRef.current = next
-        pendingEntityTokenNameReservationsRef.current = pendingEntityTokenNameReservationsRef.current.filter((reservation) => {
-          if (reservation.mapId !== selectedMapId || !reservation.docId) return true
-          return !next.some((token) => token.id === reservation.docId)
         })
         setTokens(next)
 
@@ -851,7 +820,7 @@ export function useMapData({
     updates: Partial<
       Pick<
         TokenRecord,
-        'color' | 'size' | 'sizeScale' | 'viewDistance' | 'viewDistanceScale' | 'party' | 'name' | 'revealName' | 'hidden'
+        'color' | 'size' | 'sizeScale' | 'viewDistance' | 'viewDistanceScale' | 'party' | 'name' | 'revealName' | 'hidden' | 'group'
       >
     >,
   ) => {
@@ -908,188 +877,33 @@ export function useMapData({
     await updateToken(tokenId, { hidden: next })
   }
 
-  const reserveEntityTokenName = (kind: EntityTokenKind, entityId: string, baseName: string) => {
-    const mapId = selectedMap?.id ?? selectedMapId
-    const normalizedBaseName = baseName.trim() || 'Token'
-    const reservations = pendingEntityTokenNameReservationsRef.current
-    const matchingReservations = reservations.filter(
-      (reservation) => reservation.mapId === mapId && reservation.kind === kind && reservation.entityId === entityId,
-    )
-    const matchingTokens = latestTokensRef.current.filter((token) =>
-      kind === 'monster' ? token.monsterId === entityId : token.npcId === entityId,
-    )
-    const existingAndReservedCount = matchingTokens.length + matchingReservations.length
-    let highestOrdinal = existingAndReservedCount
-    const suffixPattern = new RegExp(`^${escapeRegExp(normalizedBaseName)} \\((\\d+)\\)$`)
-    const readOrdinal = (name: string) => {
-      const trimmed = name.trim()
-      if (trimmed === normalizedBaseName) {
-        highestOrdinal = Math.max(highestOrdinal, 1)
-        return
-      }
-      const match = suffixPattern.exec(trimmed)
-      if (!match) return
-      const ordinal = Number.parseInt(match[1], 10)
-      if (Number.isFinite(ordinal)) highestOrdinal = Math.max(highestOrdinal, ordinal)
-    }
-
-    matchingTokens.forEach((token) => readOrdinal(token.name))
-    matchingReservations.forEach((reservation) => readOrdinal(reservation.name))
-
-    const name = existingAndReservedCount === 0
-      ? normalizedBaseName
-      : `${normalizedBaseName} (${Math.max(2, highestOrdinal + 1)})`
-    const reservation: PendingEntityTokenNameReservation = {
-      tempId: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      mapId,
-      kind,
-      entityId,
-      name,
-    }
-    reservations.push(reservation)
-
-    const release = () => {
-      pendingEntityTokenNameReservationsRef.current = pendingEntityTokenNameReservationsRef.current.filter(
-        (entry) => entry.tempId !== reservation.tempId,
-      )
-    }
-
-    return {
-      name,
-      release,
-      resolve: (docId: string) => {
-        reservation.docId = docId
-        if (latestTokensRef.current.some((token) => token.id === docId)) release()
-      },
-    }
-  }
-
-  const placeToken = async (clientX: number, clientY: number) => {
+  const placeQueuedToken = async (command: TokenPlacementCommand) => {
     if (!selectedMap || role !== 'gm') return
-    const point = getDropPoint(clientX, clientY)
-    if (!point) return
-
-    const spawnMonster = mapMonsters.find((m) => m.id === selectedTokenAssetId) ?? null
-    const spawnCharacter = mapCharacters.find((c) => c.id === selectedTokenAssetId) ?? null
-    const spawnNpc = mapNpcs.find((n) => n.id === selectedTokenAssetId) ?? null
-
-    if (spawnMonster) {
-      const { tokenIcon } = spawnMonster
-      const size = tokenIcon.size
-      const sizeScale = size / TOKEN_REFERENCE_DIMENSION
-      const nameReservation = reserveEntityTokenName('monster', spawnMonster.id, spawnMonster.name)
-      try {
-        const tokenDoc = await addDoc(mapTokensCollectionRef(selectedMap.id), {
-          x: point.x,
-          y: point.y,
-          color: tokenIcon.color,
-          size,
-          sizeScale,
-          viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
-          viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
-          party: false,
-          name: nameReservation.name,
-          revealName: false,
-          hidden: false,
-          tokenImagePath: tokenIcon.customImagePath ?? '',
-          tokenImageUrl: tokenIcon.icon === 'custom' && tokenIcon.customImageUrl ? tokenIcon.customImageUrl : '',
-          tokenImageWidth: 0,
-          tokenImageHeight: 0,
-          monsterId: spawnMonster.id,
-          characterId: '',
-          npcId: '',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        })
-        nameReservation.resolve(tokenDoc.id)
-      } catch (error) {
-        nameReservation.release()
-        throw error
-      }
-    } else if (spawnCharacter) {
-      const { tokenIcon } = spawnCharacter
-      const size = tokenIcon.size
-      const sizeScale = size / TOKEN_REFERENCE_DIMENSION
-      await addDoc(mapTokensCollectionRef(selectedMap.id), {
-        x: point.x,
-        y: point.y,
-        color: tokenIcon.color,
-        size,
-        sizeScale,
-        viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
-        viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
-        party: true,
-        name: spawnCharacter.name,
-        revealName: true,
-        hidden: false,
-        tokenImagePath: tokenIcon.customImagePath ?? '',
-        tokenImageUrl: tokenIcon.icon === 'custom' && tokenIcon.customImageUrl ? tokenIcon.customImageUrl : '',
-        tokenImageWidth: 0,
-        tokenImageHeight: 0,
-        monsterId: '',
-        characterId: spawnCharacter.id,
-        npcId: '',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
-    } else if (spawnNpc) {
-      const { tokenIcon } = spawnNpc
-      const size = tokenIcon.size
-      const sizeScale = size / TOKEN_REFERENCE_DIMENSION
-      const nameReservation = reserveEntityTokenName('npc', spawnNpc.id, spawnNpc.name)
-      try {
-        const tokenDoc = await addDoc(mapTokensCollectionRef(selectedMap.id), {
-          x: point.x,
-          y: point.y,
-          color: tokenIcon.color,
-          size,
-          sizeScale,
-          viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
-          viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
-          party: false,
-          name: nameReservation.name,
-          revealName: true,
-          hidden: false,
-          tokenImagePath: tokenIcon.customImagePath ?? '',
-          tokenImageUrl: tokenIcon.icon === 'custom' && tokenIcon.customImageUrl ? tokenIcon.customImageUrl : '',
-          tokenImageWidth: 0,
-          tokenImageHeight: 0,
-          monsterId: '',
-          characterId: '',
-          npcId: spawnNpc.id,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        })
-        nameReservation.resolve(tokenDoc.id)
-      } catch (error) {
-        nameReservation.release()
-        throw error
-      }
-    } else {
-      const sizeScale = tokenSize / TOKEN_REFERENCE_DIMENSION
-      await addDoc(mapTokensCollectionRef(selectedMap.id), {
-        x: point.x,
-        y: point.y,
-        color: tokenColor,
-        size: tokenSize,
-        sizeScale,
-        viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
-        viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
-        party: false,
-        name: selectedTokenAsset?.name ?? '',
-        revealName: false,
-        hidden: false,
-        tokenImagePath: selectedTokenAsset?.imagePath ?? '',
-        tokenImageUrl: selectedTokenAsset?.imageUrl ?? '',
-        tokenImageWidth: selectedTokenAsset?.width ?? 0,
-        tokenImageHeight: selectedTokenAsset?.height ?? 0,
-        monsterId: '',
-        characterId: '',
-        npcId: '',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
-    }
+    const size = command.tokenIcon.size
+    const sizeScale = size / TOKEN_REFERENCE_DIMENSION
+    await addDoc(mapTokensCollectionRef(selectedMap.id), {
+      x: command.point.x,
+      y: command.point.y,
+      color: command.tokenIcon.color,
+      size,
+      sizeScale,
+      viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
+      viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
+      party: command.party,
+      name: command.name,
+      revealName: command.revealName,
+      hidden: false,
+      tokenImagePath: command.tokenImagePath,
+      tokenImageUrl: command.tokenImageUrl,
+      tokenImageWidth: command.tokenImageWidth,
+      tokenImageHeight: command.tokenImageHeight,
+      monsterId: command.monsterId,
+      characterId: command.characterId,
+      npcId: command.npcId,
+      tokenAssetId: command.tokenAssetId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
   }
 
   const updateSceneNpcIds = async (sceneNpcIds: string[]) => {
@@ -1343,7 +1157,7 @@ export function useMapData({
     requestDeleteTokens,
     confirmDeleteToken,
     toggleTokenHidden,
-    placeToken,
+    placeQueuedToken,
     updateSceneNpcIds,
     setPresentedNpcId,
     // Annotation CRUD

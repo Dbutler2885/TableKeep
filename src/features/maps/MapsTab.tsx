@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import type {
   ChangeEventHandler,
+  Dispatch,
   MouseEventHandler,
+  SetStateAction,
   TouchEventHandler,
 } from 'react'
 import { onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
@@ -24,6 +26,7 @@ import {
   EyeOff,
   Flag,
   Grid3X3,
+  Hand,
   Hexagon,
   LoaderCircle,
   Map,
@@ -44,6 +47,7 @@ import {
   Upload,
   User,
   UserRoundPen,
+  Users,
   X,
 } from 'lucide-react'
 import { db } from '../../firebase'
@@ -59,8 +63,6 @@ import { NpcDetailEditor } from '../npcs/NpcDetailEditor'
 import type {
   CanvasClipRect,
   MapRecord,
-  MonsterSummary,
-  CharacterTokenSummary,
   NpcSummary,
   TokenAssetRecord,
   TokenPathAnimation,
@@ -80,6 +82,24 @@ import {
   TOKEN_VIEW_DISTANCE_MIN,
 } from './lib/constants'
 import { isTokenVisibleOnFog, isTokenPartiallyVisibleOnFog } from './lib/tokenVisibility'
+import { activeToolReducer, initialActiveToolState, type ActiveMapTool } from './lib/activeToolState'
+import { resolveMapInteractionIntent, type MapInteractionButton } from './lib/mapInteractionResolution'
+import {
+  dropTokenPlacement,
+  getTokenPlacementDisplay,
+  startMonsterTokenPlacement,
+  startOneAtATimeTokenPlacement,
+  startWholePartyTokenPlacement,
+  type MonsterTokenPlacementSource,
+  type TokenPlacementQueueState,
+  type TokenPlacementSource,
+} from './lib/tokenPlacementQueue'
+import {
+  buildWholePartyTokenPlacementSources,
+  toGenericTokenPlacementSource,
+  toMonsterTokenPlacementSource,
+  toNpcTokenPlacementSource,
+} from './lib/tokenPlacementSources'
 import { GridOverlay } from './components/GridOverlay'
 import { ModeConfirmAction } from './components/ModeConfirmAction'
 import { PlayerMapControls } from './components/PlayerMapControls'
@@ -371,17 +391,11 @@ export function MapsTab({
   const [mobileGmPane, setMobileGmPane] = useState<'map' | 'controls'>('map')
   const [mobilePlayerPane, setMobilePlayerPane] = useState<'map' | 'controls' | 'character'>('map')
   const [playerEmbeddedPane, setPlayerEmbeddedPane] = useState<'map' | 'character'>('map')
-  const [fogTool, setFogTool] = useState<'reveal' | 'hide' | null>(null)
-  const [visionTool, setVisionTool] = useState<'draw' | 'drawFull' | 'erase' | null>(null)
+  const [activeToolState, dispatchActiveTool] = useReducer(activeToolReducer, initialActiveToolState)
+  const [placementQueue, setPlacementQueue] = useState<TokenPlacementQueueState | null>(null)
   const [fogBrushSize, setFogBrushSize] = useState(120)
   const fogBrushStrength = 0.7
-  const [streamingMode, setStreamingMode] = useState(false)
   const [npcSceneMode, setNpcSceneMode] = useState(false)
-  const [tokenPlaceMode, setTokenPlaceMode] = useState(false)
-  const [tokenSelectMode, setTokenSelectMode] = useState(false)
-  const [annotationPlaceMode, setAnnotationPlaceMode] = useState(false)
-  const [playerLabelPlaceMode, setPlayerLabelPlaceMode] = useState(false)
-  const [gmHideLabels, setGmHideLabels] = useState(false)
   const [tokenColor, setTokenColor] = useState('#b45309')
   const [tokenSize, setTokenSize] = useState(28)
   const [inlineBaseSize, setInlineBaseSize] = useState({ width: 0, height: 0 })
@@ -419,6 +433,7 @@ export function MapsTab({
     path: Waypoint[],
     token: TokenRecord,
   ) => void>(() => { })
+  const pendingPlacedTokenNamesRef = useRef<string[]>([])
 
   useEffect(() => {
     const updateMobileState = () => {
@@ -440,10 +455,29 @@ export function MapsTab({
   const desktopGm = role === 'gm' && !isMobile
   const desktopGmRun = desktopGm && phase === 'run'
   const previewMode = desktopGm && phase === 'preview'
-  // Whether the GM stage renders the player-facing map state (Map Preview) or
-  // the existing Player View Preview / Stream toggle. Editing/drag logic stays
-  // keyed on the real `streamingMode`, so Preview is read-only.
-  const viewAsPlayer = streamingMode || previewMode
+  const fogTool = activeToolState.activeTool?.type === 'fog' ? activeToolState.activeTool.tool : null
+  const visionTool = activeToolState.activeTool?.type === 'vision'
+    ? activeToolState.activeTool.tool === 'hardBlock'
+      ? 'drawFull'
+      : activeToolState.activeTool.tool === 'softBlock'
+        ? 'draw'
+        : 'erase'
+    : null
+  const tokenSelectMode = activeToolState.activeTool?.type === 'boxSelect'
+  const annotationPlaceMode =
+    activeToolState.activeTool?.type === 'annotation' && activeToolState.activeTool.tool === 'marker'
+  const playerLabelPlaceMode =
+    activeToolState.activeTool?.type === 'annotation' && activeToolState.activeTool.tool === 'playerLabel'
+  const handToolActive = activeToolState.activeTool?.type === 'hand'
+  const gmHideLabels = activeToolState.toggles.gmHideLabels
+  // Player View Preview: an independent visibility toggle (slice 02 reducer) that lets
+  // the GM see the player-facing map layer state while keeping GM controls visible. It
+  // is NOT a screen-share mode. It coexists with active tools (toggling it never changes
+  // the active tool).
+  const playerViewPreview = activeToolState.toggles.playerViewPreview
+  // Whether the GM stage renders the player-facing map state. Map Preview is always
+  // player-facing (read-only); in Map Run the Player View Preview toggle drives it.
+  const viewAsPlayer = playerViewPreview || previewMode
 
   const showListPane = isMobile ? mobileMapView === 'list' : !desktopGmRun
   const showMapPane = !isMobile || mobileMapView === 'detail'
@@ -513,7 +547,7 @@ export function MapsTab({
     requestDeleteTokens,
     confirmDeleteToken,
     toggleTokenHidden,
-    placeToken,
+    placeQueuedToken,
     updateSceneNpcIds,
     setPresentedNpcId,
     placeAnnotation,
@@ -534,8 +568,6 @@ export function MapsTab({
     selectedMapId,
     setSelectedMapId,
     getDropPoint: (clientX, clientY) => getDropPointRef.current(clientX, clientY),
-    tokenColor,
-    tokenSize,
     tokensRef,
     recentlyDroppedRef,
     lastAnimatedPathIdRef,
@@ -553,6 +585,26 @@ export function MapsTab({
   const presentedNpc = useMemo(
     () => mapNpcs.find((npc) => npc.id === selectedMap?.presentedNpcId) ?? null,
     [mapNpcs, selectedMap?.presentedNpcId],
+  )
+  const partyPlacementSources = useMemo(
+    () => buildWholePartyTokenPlacementSources(mapCharacters),
+    [mapCharacters],
+  )
+  const monsterPlacementSources = useMemo(
+    () => mapMonsters.map(toMonsterTokenPlacementSource),
+    [mapMonsters],
+  )
+  const npcPlacementSources = useMemo(
+    () => mapNpcs.map(toNpcTokenPlacementSource),
+    [mapNpcs],
+  )
+  const genericPlacementSources = useMemo(
+    () => tokenAssets.filter((asset) => !asset.archived).map(toGenericTokenPlacementSource),
+    [tokenAssets],
+  )
+  const placementDisplay = useMemo(
+    () => getTokenPlacementDisplay(placementQueue),
+    [placementQueue],
   )
 
   useEffect(() => {
@@ -620,7 +672,7 @@ export function MapsTab({
     inlineFogSize,
     fogTool,
     visionTool,
-    tokenPlaceMode,
+    tokenPlaceMode: placementQueue !== null,
     fogBrushSize,
     activeFogDimension,
     fogBrushStrength,
@@ -652,7 +704,7 @@ export function MapsTab({
     invalidateInlineOverlayCache,
   } = fog
 
-  const activeBrushTool = role === 'gm' && !tokenPlaceMode && Boolean(fogTool || visionTool)
+  const activeBrushTool = role === 'gm' && placementQueue === null && Boolean(fogTool || visionTool)
   const brushCursorMode = fogTool
     ? `fog-${fogTool}`
     : visionTool === 'drawFull'
@@ -679,14 +731,20 @@ export function MapsTab({
     const rect = canvas.getBoundingClientRect()
     const layoutWidth = canvas.offsetWidth
     const layoutHeight = canvas.offsetHeight
+    // canvas.width/height of 1 is the un-sized placeholder (Math.max(1, inlineFogSize.*))
+    // before fog dimensions are measured. Dividing the brush size by it inflates the
+    // cursor to ~full-map size (the stray giant oval), so treat it as not-ready.
     if (
       rect.width <= 0 ||
       rect.height <= 0 ||
       layoutWidth <= 0 ||
       layoutHeight <= 0 ||
-      canvas.width <= 0 ||
-      canvas.height <= 0
-    ) return
+      canvas.width <= 1 ||
+      canvas.height <= 1
+    ) {
+      hideBrushCursor()
+      return
+    }
     const x = Math.max(0, Math.min(layoutWidth, ((clientX - rect.left) / rect.width) * layoutWidth))
     const y = Math.max(0, Math.min(layoutHeight, ((clientY - rect.top) / rect.height) * layoutHeight))
     const width = Math.max(1, (effectiveFogBrushSize / canvas.width) * layoutWidth)
@@ -889,6 +947,12 @@ export function MapsTab({
       selectedMap.gridType !== gridAdjustDraft.gridType
     ),
   )
+  const handleApplyGridCalibration = useCallback(() => {
+    void applyGridCalibration().catch((error) => {
+      const message = error instanceof Error ? error.message : 'Failed to save grid calibration'
+      setMapError(message)
+    })
+  }, [applyGridCalibration, setMapError])
   const selectionRectStyle = useMemo<React.CSSProperties | null>(() => {
     if (!tokenSelectionBox) return null
     const minX = Math.min(tokenSelectionBox.start.x, tokenSelectionBox.end.x)
@@ -929,8 +993,174 @@ export function MapsTab({
   }, [measurementFeet])
   const measurementToolEnabled = effectiveGridEnabled || gridAdjustMode || Boolean(selectedMap?.gridCalibrated)
 
+  const closeActiveMeasurementMode = useCallback(() => {
+    if (gridCalibrateMode) toggleGridCalibrateMode()
+    if (gridMeasureMode) toggleGridMeasureMode()
+  }, [gridCalibrateMode, gridMeasureMode, toggleGridCalibrateMode, toggleGridMeasureMode])
+
+  const clearActiveToolIfCurrent = useCallback((matches: (tool: ActiveMapTool) => boolean) => {
+    const current = activeToolState.activeTool
+    if (current && matches(current)) dispatchActiveTool({ type: 'clearActiveTool' })
+  }, [activeToolState.activeTool])
+
+  const setFogTool = useCallback((tool: 'reveal' | 'hide' | null) => {
+    if (activeToolState.activeTool?.type === 'measurement') closeActiveMeasurementMode()
+    if (!tool) {
+      clearActiveToolIfCurrent((current) => current.type === 'fog')
+      return
+    }
+    setPlacementQueue(null)
+    dispatchActiveTool({ type: 'selectTool', tool: { type: 'fog', tool } })
+  }, [activeToolState.activeTool?.type, clearActiveToolIfCurrent, closeActiveMeasurementMode])
+
+  const setVisionTool = useCallback((tool: 'draw' | 'drawFull' | 'erase' | null) => {
+    if (activeToolState.activeTool?.type === 'measurement') closeActiveMeasurementMode()
+    if (!tool) {
+      clearActiveToolIfCurrent((current) => current.type === 'vision')
+      return
+    }
+    const visionBlockTool = tool === 'drawFull' ? 'hardBlock' : tool === 'draw' ? 'softBlock' : 'erase'
+    setPlacementQueue(null)
+    dispatchActiveTool({ type: 'selectTool', tool: { type: 'vision', tool: visionBlockTool } })
+  }, [activeToolState.activeTool?.type, clearActiveToolIfCurrent, closeActiveMeasurementMode])
+
+  const setTokenSelectMode = useCallback((value: boolean) => {
+    if (activeToolState.activeTool?.type === 'measurement') closeActiveMeasurementMode()
+    if (!value) {
+      clearActiveToolIfCurrent((current) => current.type === 'boxSelect')
+      return
+    }
+    setPlacementQueue(null)
+    dispatchActiveTool({ type: 'selectTool', tool: { type: 'boxSelect' } })
+  }, [activeToolState.activeTool?.type, clearActiveToolIfCurrent, closeActiveMeasurementMode])
+
+  const setAnnotationPlaceMode = useCallback((value: boolean) => {
+    if (activeToolState.activeTool?.type === 'measurement') closeActiveMeasurementMode()
+    if (!value) {
+      clearActiveToolIfCurrent((current) => current.type === 'annotation' && current.tool === 'marker')
+      return
+    }
+    setPlacementQueue(null)
+    dispatchActiveTool({ type: 'selectTool', tool: { type: 'annotation', tool: 'marker' } })
+  }, [activeToolState.activeTool?.type, clearActiveToolIfCurrent, closeActiveMeasurementMode])
+
+  const setPlayerLabelPlaceMode = useCallback((value: boolean) => {
+    if (activeToolState.activeTool?.type === 'measurement') closeActiveMeasurementMode()
+    if (!value) {
+      clearActiveToolIfCurrent((current) => current.type === 'annotation' && current.tool === 'playerLabel')
+      return
+    }
+    setPlacementQueue(null)
+    dispatchActiveTool({ type: 'selectTool', tool: { type: 'annotation', tool: 'playerLabel' } })
+  }, [activeToolState.activeTool?.type, clearActiveToolIfCurrent, closeActiveMeasurementMode])
+
+  const setHandToolActive = useCallback((value: boolean) => {
+    if (activeToolState.activeTool?.type === 'measurement') closeActiveMeasurementMode()
+    if (!value) {
+      clearActiveToolIfCurrent((current) => current.type === 'hand')
+      return
+    }
+    setPlacementQueue(null)
+    dispatchActiveTool({ type: 'selectTool', tool: { type: 'hand' } })
+  }, [activeToolState.activeTool?.type, clearActiveToolIfCurrent, closeActiveMeasurementMode])
+
+  const setGmHideLabels = useCallback((value: boolean) => {
+    dispatchActiveTool({ type: 'setGmHideLabels', hidden: value })
+  }, [])
+
+  // Independent toggle: never touches the active tool.
+  const setPlayerViewPreview = useCallback((value: boolean) => {
+    dispatchActiveTool({ type: 'setPlayerViewPreview', enabled: value })
+  }, [])
+
+  const resetActiveMapTools = useCallback(() => {
+    dispatchActiveTool({ type: 'reset' })
+    setPlacementQueue(null)
+  }, [])
+
+  const toggleGridCalibrateTool = useCallback(() => {
+    setPlacementQueue(null)
+    dispatchActiveTool({ type: 'toggleTool', tool: { type: 'measurement', tool: 'calibrateGrid' } })
+    toggleGridCalibrateMode()
+  }, [toggleGridCalibrateMode])
+
+  const toggleGridMeasureTool = useCallback(() => {
+    setPlacementQueue(null)
+    dispatchActiveTool({ type: 'toggleTool', tool: { type: 'measurement', tool: 'measureDistance' } })
+    toggleGridMeasureMode()
+  }, [toggleGridMeasureMode])
+
+  const startSinglePlacement = useCallback((
+    source: Exclude<TokenPlacementSource, MonsterTokenPlacementSource>,
+  ) => {
+    const queue = startOneAtATimeTokenPlacement(source)
+    setPlacementQueue(queue)
+    dispatchActiveTool({
+      type: 'startTokenPlacement',
+      placement: { kind: source.kind, queueId: `${source.kind}-${source.id}` },
+    })
+  }, [])
+
+  const startWholePartyPlacement = useCallback(() => {
+    const queue = startWholePartyTokenPlacement(partyPlacementSources)
+    if (!queue) return
+    setPlacementQueue(queue)
+    dispatchActiveTool({
+      type: 'startTokenPlacement',
+      placement: { kind: 'wholeParty', queueId: 'whole-party' },
+    })
+  }, [partyPlacementSources])
+
+  const startMonsterPlacement = useCallback((source: MonsterTokenPlacementSource, count: number) => {
+    const queue = startMonsterTokenPlacement(source, count)
+    if (!queue) return
+    setPlacementQueue(queue)
+    dispatchActiveTool({
+      type: 'startTokenPlacement',
+      placement: { kind: 'monster', queueId: `${source.kind}-${source.id}` },
+    })
+  }, [])
+
+  const cancelPlacement = useCallback(() => {
+    setPlacementQueue(null)
+    dispatchActiveTool({ type: 'cancelTokenPlacement' })
+  }, [])
+
+  const runPlacementDrop = useCallback((point: { x: number; y: number }) => {
+    const result = dropTokenPlacement(placementQueue, point, [
+      ...tokens,
+      ...pendingPlacedTokenNamesRef.current,
+    ])
+    if (result.command) {
+      const { command } = result
+      pendingPlacedTokenNamesRef.current = [...pendingPlacedTokenNamesRef.current, command.name]
+      void placeQueuedToken(command).catch(() => {
+        pendingPlacedTokenNamesRef.current = pendingPlacedTokenNamesRef.current.filter((name) => name !== command.name)
+      })
+    }
+    setPlacementQueue(result.nextQueue)
+    if (result.completed) dispatchActiveTool({ type: 'cancelTokenPlacement' })
+  }, [placeQueuedToken, placementQueue, tokens])
+
+  useEffect(() => {
+    if (activeToolState.activeTool?.type !== 'measurement') return
+    if (gridCalibrateMode || gridMeasureMode) return
+    dispatchActiveTool({ type: 'clearActiveTool' })
+  }, [activeToolState.activeTool, gridCalibrateMode, gridMeasureMode])
+
+  useEffect(() => {
+    if (activeToolState.tokenPlacement) return
+    setPlacementQueue(null)
+  }, [activeToolState.tokenPlacement])
+
+  useEffect(() => {
+    pendingPlacedTokenNamesRef.current = pendingPlacedTokenNamesRef.current.filter(
+      (pendingName) => !tokens.some((token) => token.name === pendingName),
+    )
+  }, [tokens])
+
   const gmTokenNameClassName = (token: TokenRecord) => {
-    if (streamingMode) {
+    if (playerViewPreview) {
       return token.revealName ? 'map-token-name gm-hover-only' : 'map-token-name gm-hidden'
     }
     return token.revealName ? 'map-token-name' : 'map-token-name gm-hover-only'
@@ -993,10 +1223,11 @@ export function MapsTab({
     inlineMapLayerRef,
     fogTool,
     visionTool,
-    tokenPlaceMode,
+    tokenPlaceMode: placementQueue !== null,
     annotationPlaceMode,
     playerLabelPlaceMode,
     allowGmInlinePan: previewMode,
+    handToolActive,
     isMobileZoomMapView,
     renderTokenViewDistance,
     renderTokenDimensions,
@@ -1069,7 +1300,7 @@ export function MapsTab({
     isTokenVisibleOnFog(
       token,
       role,
-      streamingMode,
+      playerViewPreview,
       selectedMap?.fullyHidden ?? true,
       activeFogCanvasRef.current,
     )
@@ -1442,7 +1673,7 @@ export function MapsTab({
     tokenPointToCanvasPoint,
     activeFogCanvasRef,
     activeVisionCanvasRef,
-    streamingMode,
+    playerViewPreview,
     renderTokenViewDistance,
     revealFromTokenPoint,
     revealFromTokenStroke,
@@ -1522,8 +1753,14 @@ export function MapsTab({
           .filter(Boolean)
           .join(' ')}
         style={{ left: `${x * 100}%`, top: `${y * 100}%`, color: token.color }}
-        onMouseDown={(event) => startTokenDrag(token.id, event)}
-        onTouchStart={(event) => handleTokenTouchStart(token.id, event)}
+        onMouseDown={(event) => {
+          if (placementQueue) return
+          startTokenDrag(token.id, event)
+        }}
+        onTouchStart={(event) => {
+          if (placementQueue) return
+          handleTokenTouchStart(token.id, event)
+        }}
         onTouchEnd={handleTokenTouchEnd}
         onTouchCancel={handleTokenTouchEnd}
         aria-label="Map token"
@@ -1573,7 +1810,7 @@ export function MapsTab({
     const x = draggedPosition?.x ?? animPos?.x ?? token.x
     const y = draggedPosition?.y ?? animPos?.y ?? token.y
     const isAnimating = Boolean(animPos) && !draggedPosition
-    const isGmStreaming = role === 'gm' && streamingMode
+    const isGmStreaming = role === 'gm' && playerViewPreview
 
     if (layer === 'under-fog' && !isTokenPartiallyVisibleForPlayer(token, { x, y }, activeFogCanvasRef.current)) {
       return null
@@ -1596,6 +1833,7 @@ export function MapsTab({
         onMouseDown={(event) => {
           event.preventDefault()
           event.stopPropagation()
+          if (placementQueue) return
           if (isGmStreaming) startTokenDrag(token.id, event)
         }}
         onClick={(event) => {
@@ -1604,6 +1842,7 @@ export function MapsTab({
           if (!isGmStreaming) togglePlayerTokenSelection(token.id)
         }}
         onTouchStart={(event) => {
+          if (placementQueue) return
           if (!isGmStreaming) return
           handleTokenTouchStart(token.id, event)
         }}
@@ -1621,12 +1860,25 @@ export function MapsTab({
     )
   }
 
+  // Bare-map interactions (token/annotation/label have their own element handlers and
+  // are early-returned below) are routed through the pure interaction grammar so the
+  // active tool state decides the intent rather than ad-hoc conditionals.
+  const interactionButton = (button: number): MapInteractionButton =>
+    button === 0 ? 'left' : button === 1 ? 'middle' : button === 2 ? 'right' : 'none'
+
   const handleMapLayerMouseDown: MouseEventHandler<HTMLDivElement> = (event) => {
     if (role !== 'gm') return
     if (gridCalibrateMode || gridMeasureMode) return
-    if (!tokenSelectMode || event.button !== 0) return
     const target = event.target as HTMLElement
-    if (target.closest('.map-token,.map-annotation-btn,.map-player-label-btn,.map-player-label-static,.map-annotation-popover')) return
+    if (!placementQueue && target.closest('.map-token,.map-annotation-btn,.map-player-label-btn,.map-player-label-static,.map-annotation-popover')) return
+    const intent = resolveMapInteractionIntent(activeToolState, {
+      phase: 'drag',
+      button: interactionButton(event.button),
+      shiftKey: event.shiftKey,
+      target: 'bareMap',
+    })
+    // Box-select owns left-drag; pan (shift/middle/hand) is handled at the stage level.
+    if (intent.type !== 'box-select') return
     const point = getTokenDropPoint(event.clientX, event.clientY)
     if (!point) return
     event.preventDefault()
@@ -1640,31 +1892,45 @@ export function MapsTab({
       suppressNextMapClickRef.current = false
       return
     }
-    if ((event.target as HTMLElement).closest('.map-token,.map-annotation-btn,.map-player-label-btn,.map-player-label-static,.map-annotation-popover')) return
-    event.preventDefault()
+    if (!placementQueue && (event.target as HTMLElement).closest('.map-token,.map-annotation-btn,.map-player-label-btn,.map-player-label-static,.map-annotation-popover')) return
+    // Measurement tools consume bare-map clicks before the grammar (which treats the
+    // measurement tool as a no-op for clicks).
     if (gridCalibrateMode) {
+      event.preventDefault()
       handleGridCalibrateClick(event.clientX, event.clientY)
       return
     }
     if (gridMeasureMode) {
+      event.preventDefault()
       handleGridMeasureClick(event.clientX, event.clientY)
       return
     }
-    if (selectedTokenIds.length > 0) {
-      setSelectedTokenIds([])
+    const intent = resolveMapInteractionIntent(activeToolState, {
+      phase: 'click',
+      button: interactionButton(event.button),
+      shiftKey: event.shiftKey,
+      target: 'bareMap',
+    })
+    // With no placement tool active, a bare-map click is "click outside": it deselects
+    // the current token selection. It does not disturb editing context (an open
+    // annotation editor commits via its own outside-pointerdown handler).
+    if (intent.type !== 'place') {
+      if (selectedTokenIds.length > 0) setSelectedTokenIds([])
       return
     }
-    if (tokenSelectMode) return
-    if (annotationPlaceMode) {
+    event.preventDefault()
+    if (intent.tool === 'token') {
+      const point = getTokenDropPoint(event.clientX, event.clientY)
+      if (point) runPlacementDrop(point)
+      return
+    }
+    if (intent.tool === 'marker') {
       void placeAnnotation(event.clientX, event.clientY, 'gm')
       return
     }
-    if (playerLabelPlaceMode) {
+    if (intent.tool === 'playerLabel') {
       void placeAnnotation(event.clientX, event.clientY, 'player')
-      return
     }
-    if (!tokenPlaceMode) return
-    void placeToken(event.clientX, event.clientY)
   }
 
 
@@ -1726,6 +1992,7 @@ export function MapsTab({
     setActiveAnnotationDraft('')
     setSelectedTokenIds([])
     setTokenSelectionBox(null)
+    pendingPlacedTokenNamesRef.current = []
     resetDistanceTracker()
     resetGrid()
     setInlineImageReady(false)
@@ -1735,11 +2002,8 @@ export function MapsTab({
   useEffect(() => {
     if (!selectedTokenAssetId) return
     const existsAsAsset = tokenAssets.some((asset) => asset.id === selectedTokenAssetId)
-    const existsAsMonster = mapMonsters.some((monster) => monster.id === selectedTokenAssetId)
-    const existsAsCharacter = mapCharacters.some((character) => character.id === selectedTokenAssetId)
-    const existsAsNpc = mapNpcs.some((npc) => npc.id === selectedTokenAssetId)
-    if (!existsAsAsset && !existsAsMonster && !existsAsCharacter && !existsAsNpc) setSelectedTokenAssetId('')
-  }, [selectedTokenAssetId, tokenAssets, mapMonsters, mapCharacters, mapNpcs])
+    if (!existsAsAsset) setSelectedTokenAssetId('')
+  }, [selectedTokenAssetId, tokenAssets, setSelectedTokenAssetId])
 
   useEffect(() => {
     if (!viewAsPlayer) return
@@ -1788,13 +2052,7 @@ export function MapsTab({
   // map/token/fog/annotation data is untouched (no Firestore writes here).
   useEffect(() => {
     if (!desktopGm || phase !== 'run') return
-    setFogTool(null)
-    setVisionTool(null)
-    setTokenPlaceMode(false)
-    setTokenSelectMode(false)
-    setAnnotationPlaceMode(false)
-    setPlayerLabelPlaceMode(false)
-    setStreamingMode(false)
+    resetActiveMapTools()
     setNpcSceneMode(false)
     setSelectedTokenIds([])
     setTokenSelectionBox(null)
@@ -1805,6 +2063,25 @@ export function MapsTab({
     resetPlayerViewport()
   }, [runSession]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Escape is a universal transient-state cancel for the GM map workspace: it clears the
+  // active tool, any token-placement queue, and an in-progress box-select. It never
+  // undoes applied changes (placed tokens / painted fog) and never leaves Map Run.
+  // Typing Escape inside a text field (e.g. an annotation editor) is left to that field.
+  useEffect(() => {
+    if (role !== 'gm') return
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      const target = event.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+      dispatchActiveTool({ type: 'escape' })
+      closeActiveMeasurementMode()
+      setPlacementQueue(null)
+      setTokenSelectionBox(null)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [role, closeActiveMeasurementMode, setTokenSelectionBox])
+
   const enterMapRun = () => {
     enterRun()
   }
@@ -1812,12 +2089,7 @@ export function MapsTab({
   const handleBackToPreview = () => {
     exitRun()
     resetPlayerViewport()
-    setFogTool(null)
-    setVisionTool(null)
-    setTokenPlaceMode(false)
-    setTokenSelectMode(false)
-    setAnnotationPlaceMode(false)
-    setPlayerLabelPlaceMode(false)
+    resetActiveMapTools()
   }
 
   const calibrationOverlayNode = gridCalibrationLine ? (
@@ -1902,14 +2174,125 @@ export function MapsTab({
       onMoveAnnotation={moveAnnotationPosition}
       onPersistAnnotationPosition={persistAnnotationPosition}
       autosizeAnnotationTextarea={autosizeAnnotationTextarea}
-      editable={role === 'gm' && !viewAsPlayer}
+      editable={role === 'gm' && !viewAsPlayer && !placementQueue}
+      className={placementQueue ? 'placing' : ''}
     />
   ) : null
+
+  const renderGmMapControls = (showTopTools: boolean) => (
+    <GmMapControls
+      campaignId={campaignId}
+      groupId={workspaceGroupId}
+      showTopTools={showTopTools}
+      fogTool={fogTool}
+      setFogTool={setFogTool}
+      visionTool={visionTool}
+      setVisionTool={setVisionTool}
+      fogBrushSize={fogBrushSize}
+      setFogBrushSize={setFogBrushSize}
+      tokenSelectMode={tokenSelectMode}
+      setTokenSelectMode={setTokenSelectMode}
+      annotationPlaceMode={annotationPlaceMode}
+      setAnnotationPlaceMode={setAnnotationPlaceMode}
+      playerLabelPlaceMode={playerLabelPlaceMode}
+      setPlayerLabelPlaceMode={setPlayerLabelPlaceMode}
+      gmHideLabels={gmHideLabels}
+      setGmHideLabels={setGmHideLabels}
+      handToolActive={handToolActive}
+      setHandToolActive={setHandToolActive}
+      tokenColor={tokenColor}
+      setTokenColor={setTokenColor}
+      tokenSize={tokenSize}
+      setTokenSize={setTokenSize}
+      tokenAssets={tokenAssets}
+      selectedTokenAssetId={selectedTokenAssetId}
+      setSelectedTokenAssetId={setSelectedTokenAssetId}
+      selectedTokenImageUrl={selectedTokenAsset?.imageUrl ?? ''}
+      uploadingTokenImage={uploadingTokenImage}
+      onUploadTokenImage={uploadTokenImage}
+      onArchiveTokenAsset={archiveTokenAsset}
+      onRequestDeleteTokenAsset={requestDeleteTokenAsset}
+      placementDisplay={placementDisplay}
+      partyPlacementSources={partyPlacementSources}
+      monsterPlacementSources={monsterPlacementSources}
+      npcPlacementSources={npcPlacementSources}
+      genericPlacementSources={genericPlacementSources}
+      onStartSinglePlacement={startSinglePlacement}
+      onStartWholePartyPlacement={startWholePartyPlacement}
+      onStartMonsterPlacement={startMonsterPlacement}
+      onCancelPlacement={cancelPlacement}
+      playerViewPreview={playerViewPreview}
+      setPlayerViewPreview={setPlayerViewPreview}
+      npcSceneMode={npcSceneMode}
+      setNpcSceneMode={setNpcSceneMode}
+      gridVisible={effectiveGridVisible}
+      gridType={effectiveGridType}
+      gridAdjustMode={gridAdjustMode}
+      onToggleGridVisible={() => void toggleGridVisibility()}
+      onSetGridType={setGridType}
+      onApplyGrid={applyGridAdjust}
+      hexDetecting={hexDetecting}
+      hexDetectConfidence={hexDetectConfidence}
+      gridAdjustReady={gridAdjustReady}
+      gridAdjustSaved={Boolean(gridAdjustSavedAt)}
+      gridCalibrateMode={gridCalibrateMode}
+      onToggleGridCalibrate={toggleGridCalibrateTool}
+      gridCalibrateReady={Boolean(gridCalibrateStart && gridCalibrateEnd)}
+      gridCalibrateSaved={Boolean(gridCalibrateSavedAt)}
+      onApplyGridCalibration={handleApplyGridCalibration}
+      measurementToolEnabled={measurementToolEnabled}
+      gridMeasureMode={gridMeasureMode}
+      onToggleGridMeasure={toggleGridMeasureTool}
+      measurementFeetLabel={measurementFeetLabel}
+      distanceTrackerFeet={distanceTrackerFeet}
+      distanceTrackerMode={distanceTrackerMode}
+      distanceTrackerRoll={distanceTrackerRoll}
+      onResetDistanceTracker={resetDistanceTracker}
+      applyFogPreset={applyFogPreset}
+      canApplyPreset={Boolean(selectedMap)}
+      fullyHidden={selectedMap?.fullyHidden === true}
+      tokens={tokens}
+      selectedTokenIds={selectedTokenIds}
+      onSelectedTokenIdsChange={setSelectedTokenIds}
+      onUpdateToken={updateToken}
+      onUpdateTokenSize={async (tokenId, size) => {
+        const sizeScale = size / TOKEN_REFERENCE_DIMENSION
+        setTokens((prev) =>
+          prev.map((token) => (token.id === tokenId ? { ...token, size, sizeScale } : token)),
+        )
+        await updateToken(tokenId, { size, sizeScale })
+      }}
+      onUpdateTokenViewDistance={async (tokenId, viewDistance) => {
+        const viewDistanceScale = viewDistance / TOKEN_REFERENCE_DIMENSION
+        setTokens((prev) =>
+          prev.map((token) =>
+            token.id === tokenId ? { ...token, viewDistance, viewDistanceScale } : token,
+          ),
+        )
+        await updateToken(tokenId, { viewDistance, viewDistanceScale })
+      }}
+      tokenViewDistanceSliderValue={tokenViewDistanceSliderValue}
+      onRequestDeleteTokens={requestDeleteTokens}
+      mapNpcs={mapNpcs}
+      sceneNpcs={sceneNpcs}
+      presentedNpc={presentedNpc}
+      selectedMapSceneNpcIds={selectedMap?.sceneNpcIds ?? []}
+      onToggleSceneNpc={(npcId, enabled) => {
+        const currentIds = selectedMap?.sceneNpcIds ?? []
+        const nextIds = enabled
+          ? currentIds.includes(npcId) ? currentIds : [...currentIds, npcId]
+          : currentIds.filter((id) => id !== npcId)
+        void updateSceneNpcIds(nextIds)
+      }}
+      onPresentNpc={(npcId) => void setPresentedNpcId(npcId)}
+      onClearPresentedNpc={() => void setPresentedNpcId('')}
+    />
+  )
 
 
 
   return (
-    <div className="maps-layout">
+    <div className={desktopGmRun ? 'maps-layout map-run-layout' : 'maps-layout'}>
       {showListPane ? (
         <aside className="maps-sidebar">
           <div className="maps-sidebar-header">
@@ -2038,7 +2421,7 @@ export function MapsTab({
       ) : null}
 
       {showMapPane ? (
-        <div className="maps-content-shell">
+        <div className={desktopGmRun ? 'maps-content-shell map-run-shell' : 'maps-content-shell'}>
           {role !== 'gm' && characterTabProps ? (
             <div className="map-player-top-nav" role="tablist" aria-label="Player map views">
               <button
@@ -2060,6 +2443,58 @@ export function MapsTab({
                 <span>Character</span>
               </button>
             </div>
+          ) : null}
+
+          {desktopGmRun ? (
+            <GmMapTopToolPanel
+              fogTool={fogTool}
+              setFogTool={setFogTool}
+              visionTool={visionTool}
+              setVisionTool={setVisionTool}
+              fogBrushSize={fogBrushSize}
+              setFogBrushSize={setFogBrushSize}
+              tokenSelectMode={tokenSelectMode}
+              setTokenSelectMode={setTokenSelectMode}
+              annotationPlaceMode={annotationPlaceMode}
+              setAnnotationPlaceMode={setAnnotationPlaceMode}
+              playerLabelPlaceMode={playerLabelPlaceMode}
+              setPlayerLabelPlaceMode={setPlayerLabelPlaceMode}
+              gmHideLabels={gmHideLabels}
+              setGmHideLabels={setGmHideLabels}
+              handToolActive={handToolActive}
+              setHandToolActive={setHandToolActive}
+              npcSceneMode={npcSceneMode}
+              setNpcSceneMode={setNpcSceneMode}
+              playerViewPreview={playerViewPreview}
+              setPlayerViewPreview={setPlayerViewPreview}
+              gridVisible={effectiveGridVisible}
+              gridType={effectiveGridType}
+              gridAdjustMode={gridAdjustMode}
+              onToggleGridVisible={() => void toggleGridVisibility()}
+              onSetGridType={setGridType}
+              hexDetecting={hexDetecting}
+              gridCalibrateMode={gridCalibrateMode}
+              onToggleGridCalibrate={toggleGridCalibrateTool}
+              gridCalibrateReady={Boolean(gridCalibrateStart && gridCalibrateEnd)}
+              gridCalibrateSaved={Boolean(gridCalibrateSavedAt)}
+              onApplyGridCalibration={handleApplyGridCalibration}
+              measurementToolEnabled={measurementToolEnabled}
+              gridMeasureMode={gridMeasureMode}
+              onToggleGridMeasure={toggleGridMeasureTool}
+              distanceTrackerFeet={distanceTrackerFeet}
+              distanceTrackerMode={distanceTrackerMode}
+              distanceTrackerRoll={distanceTrackerRoll}
+              onResetDistanceTracker={resetDistanceTracker}
+              applyFogPreset={applyFogPreset}
+              canApplyPreset={Boolean(selectedMap)}
+              fullyHidden={selectedMap?.fullyHidden === true}
+            />
+          ) : null}
+
+          {desktopGmRun ? (
+            <aside className="map-controls map-run-token-controls">
+              {renderGmMapControls(false)}
+            </aside>
           ) : null}
 
           <div
@@ -2138,7 +2573,7 @@ export function MapsTab({
               {measurementOverlayNode}
               {role !== 'gm' || viewAsPlayer ? (
                 <TokenLayer
-                  className="map-token-layer under-fog"
+                  className={placementQueue ? 'map-token-layer under-fog placing' : 'map-token-layer under-fog'}
                   ariaLabel="Map tokens under fog"
                   tokens={tokens}
                   renderToken={(token, index) => renderPlayerTokenItem(token, index, 'under-fog')}
@@ -2146,7 +2581,7 @@ export function MapsTab({
               ) : null}
               <canvas
                 ref={inlineFogCanvasRef}
-                className={tokenPlaceMode || (!fogTool && !visionTool) ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
+                className={placementQueue || (!fogTool && !visionTool) ? 'map-fog-canvas read-only' : 'map-fog-canvas brush'}
                 width={Math.max(1, inlineFogSize.width)}
                 height={Math.max(1, inlineFogSize.height)}
                 style={{ opacity: fogDisplayOpacity }}
@@ -2176,14 +2611,14 @@ export function MapsTab({
               />
               {role === 'gm' && !viewAsPlayer ? (
                 <TokenLayer
-                  className="map-token-layer gm"
+                  className={placementQueue ? 'map-token-layer gm placing' : 'map-token-layer gm'}
                   tokens={tokens}
                   renderToken={renderTokenItem}
                 />
               ) : null}
               {role !== 'gm' || viewAsPlayer ? (
                 <TokenLayer
-                  className="map-token-layer player-over-fog"
+                  className={placementQueue ? 'map-token-layer player-over-fog placing' : 'map-token-layer player-over-fog'}
                   ariaLabel="Map party tokens"
                   tokens={tokens}
                   renderToken={(token, index) => renderPlayerTokenItem(token, index, 'over-fog')}
@@ -2198,110 +2633,9 @@ export function MapsTab({
             </InlineMapStage>
             ) : null}
 
-            {role === 'gm' && (isMobile ? mobileGmPane === 'controls' : phase === 'run') ? (
+            {role === 'gm' && (isMobile ? mobileGmPane === 'controls' : phase === 'run' && !desktopGmRun) ? (
               <aside className="map-controls">
-                <GmMapControls
-                  campaignId={campaignId}
-                  groupId={workspaceGroupId}
-                  fogTool={fogTool}
-                  setFogTool={setFogTool}
-                visionTool={visionTool}
-                setVisionTool={setVisionTool}
-                fogBrushSize={fogBrushSize}
-                setFogBrushSize={setFogBrushSize}
-                tokenPlaceMode={tokenPlaceMode}
-                setTokenPlaceMode={setTokenPlaceMode}
-                  tokenSelectMode={tokenSelectMode}
-                  setTokenSelectMode={setTokenSelectMode}
-                  annotationPlaceMode={annotationPlaceMode}
-                  setAnnotationPlaceMode={setAnnotationPlaceMode}
-                  playerLabelPlaceMode={playerLabelPlaceMode}
-                  setPlayerLabelPlaceMode={setPlayerLabelPlaceMode}
-                gmHideLabels={gmHideLabels}
-                setGmHideLabels={setGmHideLabels}
-                tokenColor={tokenColor}
-                setTokenColor={setTokenColor}
-                tokenSize={tokenSize}
-                setTokenSize={setTokenSize}
-                tokenAssets={tokenAssets}
-                selectedTokenAssetId={selectedTokenAssetId}
-                setSelectedTokenAssetId={setSelectedTokenAssetId}
-                selectedTokenImageUrl={selectedTokenAsset?.imageUrl ?? ''}
-                uploadingTokenImage={uploadingTokenImage}
-                onUploadTokenImage={uploadTokenImage}
-                onArchiveTokenAsset={archiveTokenAsset}
-                onRequestDeleteTokenAsset={requestDeleteTokenAsset}
-                streamingMode={streamingMode}
-                setStreamingMode={setStreamingMode}
-                npcSceneMode={npcSceneMode}
-                setNpcSceneMode={setNpcSceneMode}
-                gridVisible={effectiveGridVisible}
-                gridType={effectiveGridType}
-                gridAdjustMode={gridAdjustMode}
-                onToggleGridVisible={() => void toggleGridVisibility()}
-                onSetGridType={setGridType}
-                onApplyGrid={applyGridAdjust}
-                hexDetecting={hexDetecting}
-                hexDetectConfidence={hexDetectConfidence}
-                gridAdjustReady={gridAdjustReady}
-                gridAdjustSaved={Boolean(gridAdjustSavedAt)}
-                gridCalibrateMode={gridCalibrateMode}
-                onToggleGridCalibrate={toggleGridCalibrateMode}
-                gridCalibrateReady={Boolean(gridCalibrateStart && gridCalibrateEnd)}
-                gridCalibrateSaved={Boolean(gridCalibrateSavedAt)}
-                onApplyGridCalibration={() => void applyGridCalibration().catch((error) => {
-                  const message = error instanceof Error ? error.message : 'Failed to save grid calibration'
-                  setMapError(message)
-                })}
-                measurementToolEnabled={measurementToolEnabled}
-                gridMeasureMode={gridMeasureMode}
-                onToggleGridMeasure={toggleGridMeasureMode}
-                measurementFeetLabel={measurementFeetLabel}
-                distanceTrackerFeet={distanceTrackerFeet}
-                distanceTrackerMode={distanceTrackerMode}
-                distanceTrackerRoll={distanceTrackerRoll}
-                onResetDistanceTracker={resetDistanceTracker}
-                applyFogPreset={applyFogPreset}
-                canApplyPreset={Boolean(selectedMap)}
-                fullyHidden={selectedMap?.fullyHidden === true}
-                tokens={tokens}
-                selectedTokenIds={selectedTokenIds}
-                onSelectTokenCard={(tokenId) => setSelectedTokenIds([tokenId])}
-                onUpdateToken={updateToken}
-                onUpdateTokenSize={async (tokenId, size) => {
-                  const sizeScale = size / TOKEN_REFERENCE_DIMENSION
-                  setTokens((prev) =>
-                    prev.map((token) => (token.id === tokenId ? { ...token, size, sizeScale } : token)),
-                  )
-                  await updateToken(tokenId, { size, sizeScale })
-                }}
-                onUpdateTokenViewDistance={async (tokenId, viewDistance) => {
-                  const viewDistanceScale = viewDistance / TOKEN_REFERENCE_DIMENSION
-                  setTokens((prev) =>
-                    prev.map((token) =>
-                      token.id === tokenId ? { ...token, viewDistance, viewDistanceScale } : token,
-                    ),
-                  )
-                  await updateToken(tokenId, { viewDistance, viewDistanceScale })
-                }}
-                tokenViewDistanceSliderValue={tokenViewDistanceSliderValue}
-                onRequestDeleteTokens={requestDeleteTokens}
-                mapMonsters={mapMonsters}
-                mapCharacters={mapCharacters}
-                mapNpcs={mapNpcs}
-                sceneNpcs={sceneNpcs}
-                presentedNpc={presentedNpc}
-                selectedMapSceneNpcIds={selectedMap?.sceneNpcIds ?? []}
-                onToggleSceneNpc={(npcId, enabled) => {
-                  const currentIds = selectedMap?.sceneNpcIds ?? []
-                  const nextIds = enabled
-                    ? currentIds.includes(npcId) ? currentIds : [...currentIds, npcId]
-                    : currentIds.filter((id) => id !== npcId)
-                  void updateSceneNpcIds(nextIds)
-                }}
-                onPresentNpc={(npcId) => void setPresentedNpcId(npcId)}
-                onClearPresentedNpc={() => void setPresentedNpcId('')}
-              />
+                {renderGmMapControls(isMobile)}
               </aside>
             ) : null}
 
@@ -2524,18 +2858,13 @@ export function MapsTab({
   )
 }
 
-function GmMapControls({
-  campaignId,
-  groupId,
-  dark = false,
+function GmMapTopToolPanel({
   fogTool,
   setFogTool,
   visionTool,
   setVisionTool,
   fogBrushSize,
   setFogBrushSize,
-  tokenPlaceMode,
-  setTokenPlaceMode,
   tokenSelectMode,
   setTokenSelectMode,
   annotationPlaceMode,
@@ -2544,6 +2873,525 @@ function GmMapControls({
   setPlayerLabelPlaceMode,
   gmHideLabels,
   setGmHideLabels,
+  handToolActive,
+  setHandToolActive,
+  npcSceneMode,
+  setNpcSceneMode,
+  playerViewPreview,
+  setPlayerViewPreview,
+  gridVisible,
+  gridType,
+  gridAdjustMode,
+  onToggleGridVisible,
+  onSetGridType,
+  hexDetecting,
+  gridCalibrateMode,
+  onToggleGridCalibrate,
+  gridCalibrateReady,
+  gridCalibrateSaved,
+  onApplyGridCalibration,
+  measurementToolEnabled,
+  gridMeasureMode,
+  onToggleGridMeasure,
+  distanceTrackerFeet,
+  distanceTrackerMode,
+  distanceTrackerRoll,
+  onResetDistanceTracker,
+  applyFogPreset,
+  canApplyPreset,
+  fullyHidden,
+}: {
+  fogTool: 'reveal' | 'hide' | null
+  setFogTool: (tool: 'reveal' | 'hide' | null) => void
+  visionTool: 'draw' | 'drawFull' | 'erase' | null
+  setVisionTool: (tool: 'draw' | 'drawFull' | 'erase' | null) => void
+  fogBrushSize: number
+  setFogBrushSize: (size: number) => void
+  tokenSelectMode: boolean
+  setTokenSelectMode: (value: boolean) => void
+  annotationPlaceMode: boolean
+  setAnnotationPlaceMode: (value: boolean) => void
+  playerLabelPlaceMode: boolean
+  setPlayerLabelPlaceMode: (value: boolean) => void
+  gmHideLabels: boolean
+  setGmHideLabels: (value: boolean) => void
+  handToolActive: boolean
+  setHandToolActive: (value: boolean) => void
+  npcSceneMode: boolean
+  setNpcSceneMode: (value: boolean) => void
+  playerViewPreview: boolean
+  setPlayerViewPreview: (value: boolean) => void
+  gridVisible: boolean
+  gridType: 'square' | 'hex-pointy' | 'hex-flat'
+  gridAdjustMode: boolean
+  onToggleGridVisible: () => void
+  onSetGridType: (gridType: 'square' | 'hex-pointy' | 'hex-flat') => void
+  hexDetecting: boolean
+  gridCalibrateMode: boolean
+  onToggleGridCalibrate: () => void
+  gridCalibrateReady: boolean
+  gridCalibrateSaved: boolean
+  onApplyGridCalibration: () => void
+  measurementToolEnabled: boolean
+  gridMeasureMode: boolean
+  onToggleGridMeasure: () => void
+  distanceTrackerFeet: number
+  distanceTrackerMode: 'count' | 'first' | 'roll'
+  distanceTrackerRoll: number | null
+  onResetDistanceTracker: () => void
+  applyFogPreset: (preset: 'hide-all' | 'unhide-all') => Promise<void>
+  canApplyPreset: boolean
+  fullyHidden: boolean
+}) {
+  const [brushSizeDraft, setBrushSizeDraft] = useState(String(fogBrushSize))
+  const [brushSizeEditing, setBrushSizeEditing] = useState(false)
+  const brushSizeInputValue = brushSizeEditing ? brushSizeDraft : String(fogBrushSize)
+
+  const DistanceRollIcon =
+    distanceTrackerMode === 'roll' && distanceTrackerRoll === 1
+      ? Dice1
+      : distanceTrackerMode === 'roll' && distanceTrackerRoll === 2
+        ? Dice2
+        : distanceTrackerMode === 'roll' && distanceTrackerRoll === 3
+          ? Dice3
+          : distanceTrackerMode === 'roll' && distanceTrackerRoll === 4
+            ? Dice4
+            : distanceTrackerMode === 'roll' && distanceTrackerRoll === 5
+              ? Dice5
+              : distanceTrackerMode === 'roll' && distanceTrackerRoll === 6
+                ? Dice6
+                : null
+  const distanceFeetLabel = `${Math.max(0, Math.round(distanceTrackerFeet))}'`
+  const distanceTrackerLabel = distanceTrackerMode === 'first' ? '1st' : distanceFeetLabel
+  const brushPct = (fogBrushSize - BRUSH_SIZE_MIN) / (BRUSH_SIZE_MAX - BRUSH_SIZE_MIN)
+  const brushPreviewDotDiameter = Math.round(
+    BRUSH_PREVIEW_DOT_MIN + brushPct * (BRUSH_PREVIEW_DOT_MAX - BRUSH_PREVIEW_DOT_MIN),
+  )
+
+  const setBrushFromPointer = (rail: DOMRect, clientY: number) => {
+    const pct = Math.max(0, Math.min(1, (rail.bottom - clientY) / rail.height))
+    setFogBrushSize(Math.round(BRUSH_SIZE_MIN + pct * (BRUSH_SIZE_MAX - BRUSH_SIZE_MIN)))
+  }
+
+  const handleBrushSliderPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    const target = event.currentTarget
+    const rail = target.getBoundingClientRect()
+    target.setPointerCapture(event.pointerId)
+    setBrushFromPointer(rail, event.clientY)
+    const move = (ev: PointerEvent) => setBrushFromPointer(rail, ev.clientY)
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
+  const handleBrushSliderKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const step = event.shiftKey ? 10 : 1
+    if (event.key === 'ArrowUp' || event.key === 'ArrowRight') {
+      event.preventDefault()
+      setFogBrushSize(Math.min(BRUSH_SIZE_MAX, fogBrushSize + step))
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') {
+      event.preventDefault()
+      setFogBrushSize(Math.max(BRUSH_SIZE_MIN, fogBrushSize - step))
+    } else if (event.key === 'Home') {
+      event.preventDefault()
+      setFogBrushSize(BRUSH_SIZE_MIN)
+    } else if (event.key === 'End') {
+      event.preventDefault()
+      setFogBrushSize(BRUSH_SIZE_MAX)
+    }
+  }
+
+  const commitBrushSizeDraft = () => {
+    setBrushSizeEditing(false)
+    const parsed = Number.parseInt(brushSizeDraft, 10)
+    if (!Number.isFinite(parsed)) {
+      setBrushSizeDraft(String(fogBrushSize))
+      return
+    }
+    const next = Math.max(BRUSH_SIZE_MIN, Math.min(BRUSH_SIZE_MAX, parsed))
+    setFogBrushSize(next)
+    setBrushSizeDraft(String(next))
+  }
+
+  const handleBrushSizeInputChange: ChangeEventHandler<HTMLInputElement> = (event) => {
+    const nextValue = event.target.value
+    if (!/^\d*$/.test(nextValue)) return
+    setBrushSizeDraft(nextValue)
+  }
+
+  const handleToggleFogPreset = () => {
+    void applyFogPreset(fullyHidden ? 'unhide-all' : 'hide-all')
+  }
+
+  return (
+    <div className="map-tools-panel">
+      <div className="map-tools-brush">
+        <span className="map-section-label">Brush size</span>
+        <div className="map-brush-size-control">
+          <div
+            className="map-brush-size-preview"
+            style={{
+              width: `${BRUSH_PREVIEW_BOX_SIZE}px`,
+              height: `${BRUSH_PREVIEW_BOX_SIZE}px`,
+            }}
+            aria-hidden
+          >
+            <span
+              className="map-brush-size-dot"
+              style={{
+                width: `${brushPreviewDotDiameter}px`,
+                height: `${brushPreviewDotDiameter}px`,
+              }}
+            />
+          </div>
+          <div
+            className="map-brush-size-slider"
+            role="slider"
+            tabIndex={0}
+            aria-label="Brush size"
+            aria-valuemin={BRUSH_SIZE_MIN}
+            aria-valuemax={BRUSH_SIZE_MAX}
+            aria-valuenow={fogBrushSize}
+            onPointerDown={handleBrushSliderPointerDown}
+            onKeyDown={handleBrushSliderKeyDown}
+          >
+            <div className="map-brush-size-rail">
+              <div className="map-brush-size-fill" style={{ height: `${brushPct * 100}%` }} />
+            </div>
+            <div
+              className="map-brush-size-thumb"
+              style={{ bottom: `calc((100% - var(--thumb-size)) * ${brushPct})` }}
+            />
+          </div>
+          <div
+            className="map-brush-control-inline"
+            aria-label="Brush size value"
+            onPointerDownCapture={(event) => event.stopPropagation()}
+            onMouseDownCapture={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <span className="map-brush-control-icon" aria-hidden>
+              <Paintbrush size={14} />
+            </span>
+            <input
+              className="map-brush-control-number"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={brushSizeInputValue}
+              onChange={handleBrushSizeInputChange}
+              onFocus={() => {
+                setBrushSizeDraft(String(fogBrushSize))
+                setBrushSizeEditing(true)
+              }}
+              onBlur={commitBrushSizeDraft}
+              onKeyDown={(event) => {
+                event.stopPropagation()
+                if (event.key === 'e' || event.key === 'E' || event.key === '+' || event.key === '-' || event.key === '.') {
+                  event.preventDefault()
+                  return
+                }
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  event.currentTarget.blur()
+                }
+              }}
+              aria-label="Brush size number"
+            />
+          </div>
+        </div>
+      </div>
+      <div className="map-tool-group">
+        <span className="map-section-label">Fog</span>
+        <div className="map-section-grid">
+          <button
+            type="button"
+            className={fogTool === 'hide' ? 'map-icon-btn map-fog-hide-btn fast-tooltip fast-tooltip-left active' : 'map-icon-btn map-fog-hide-btn fast-tooltip fast-tooltip-left'}
+            onClick={() => setFogTool(fogTool === 'hide' ? null : 'hide')}
+            aria-label="Add fog"
+            data-tooltip="Add fog"
+          >
+            <SprayCan size={16} />
+          </button>
+          <button
+            type="button"
+            className={fogTool === 'reveal' ? 'map-icon-btn map-fog-reveal-btn fast-tooltip active' : 'map-icon-btn map-fog-reveal-btn fast-tooltip'}
+            onClick={() => setFogTool(fogTool === 'reveal' ? null : 'reveal')}
+            aria-label="Remove fog"
+            data-tooltip="Remove fog"
+          >
+            <Eraser size={16} />
+          </button>
+          <button
+            type="button"
+            className={fullyHidden ? 'map-icon-btn map-hide-all-btn fast-tooltip active' : 'map-icon-btn map-hide-all-btn fast-tooltip'}
+            onClick={handleToggleFogPreset}
+            disabled={!canApplyPreset}
+            aria-label={fullyHidden ? 'Unhide all' : 'Hide all'}
+            data-tooltip={fullyHidden ? 'Unhide all' : 'Hide all'}
+          >
+            {fullyHidden ? <Eye size={16} /> : <EyeOff size={16} />}
+          </button>
+        </div>
+      </div>
+      <div className="map-tool-group">
+        <span className="map-section-label">Vision Block</span>
+        <div className="map-section-grid">
+          <button
+            type="button"
+            className={visionTool === 'drawFull' ? 'map-icon-btn map-vision-full-btn fast-tooltip fast-tooltip-left active' : 'map-icon-btn map-vision-full-btn fast-tooltip fast-tooltip-left'}
+            onClick={() => setVisionTool(visionTool === 'drawFull' ? null : 'drawFull')}
+            aria-label="Hard vision block"
+            data-tooltip="Hard block: blocks sight into painted area and beyond"
+          >
+            <PenTool size={16} />
+          </button>
+          <button
+            type="button"
+            className={visionTool === 'draw' ? 'map-icon-btn map-vision-draw-btn fast-tooltip active' : 'map-icon-btn map-vision-draw-btn fast-tooltip'}
+            onClick={() => setVisionTool(visionTool === 'draw' ? null : 'draw')}
+            aria-label="Soft vision block"
+            data-tooltip="Soft block: reveals painted area, blocks sight beyond"
+          >
+            <Pencil size={16} />
+          </button>
+          <button
+            type="button"
+            className={visionTool === 'erase' ? 'map-icon-btn map-vision-erase-btn fast-tooltip active' : 'map-icon-btn map-vision-erase-btn fast-tooltip'}
+            onClick={() => setVisionTool(visionTool === 'erase' ? null : 'erase')}
+            aria-label="Erase vision blocks"
+            data-tooltip="Erase vision blocks"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      </div>
+      <div className="map-tool-group">
+        <span className="map-section-label">Annotation</span>
+        <div className="map-section-grid">
+          <button
+            type="button"
+            className={annotationPlaceMode ? 'map-icon-btn map-annotation-place-btn fast-tooltip fast-tooltip-left active' : 'map-icon-btn map-annotation-place-btn fast-tooltip fast-tooltip-left'}
+            onClick={() => setAnnotationPlaceMode(!annotationPlaceMode)}
+            aria-label="Toggle annotation placement mode"
+            data-tooltip="Annotation placement mode"
+          >
+            <Flag size={16} />
+          </button>
+          <button
+            type="button"
+            className={playerLabelPlaceMode ? 'map-icon-btn map-player-label-mode-btn fast-tooltip active' : 'map-icon-btn map-player-label-mode-btn fast-tooltip'}
+            onClick={() => setPlayerLabelPlaceMode(!playerLabelPlaceMode)}
+            aria-label="Toggle player label placement mode"
+            data-tooltip="Player label placement mode"
+          >
+            <Tag size={16} />
+          </button>
+          <button
+            type="button"
+            className={gmHideLabels ? 'map-icon-btn map-hide-labels-btn fast-tooltip active' : 'map-icon-btn map-hide-labels-btn fast-tooltip'}
+            onClick={() => setGmHideLabels(!gmHideLabels)}
+            aria-label={gmHideLabels ? 'Show labels in GM view' : 'Hide labels in GM view'}
+            data-tooltip={gmHideLabels ? 'Show labels in GM view' : 'Hide labels in GM view'}
+          >
+            <EyeOff size={16} />
+          </button>
+        </div>
+      </div>
+      <div className="map-tool-group">
+        <span className="map-section-label">Selection / Pan</span>
+        <div className="map-section-grid">
+          <button
+            type="button"
+            className={tokenSelectMode ? 'map-icon-btn map-token-select-btn fast-tooltip fast-tooltip-left active' : 'map-icon-btn map-token-select-btn fast-tooltip fast-tooltip-left'}
+            onClick={() => setTokenSelectMode(!tokenSelectMode)}
+            aria-label="Toggle token drag-select mode"
+            data-tooltip="Token drag-select mode"
+          >
+            <SquareDashedMousePointer size={16} />
+          </button>
+          <button
+            type="button"
+            className={handToolActive ? 'map-icon-btn map-hand-tool-btn fast-tooltip active' : 'map-icon-btn map-hand-tool-btn fast-tooltip'}
+            onClick={() => setHandToolActive(!handToolActive)}
+            aria-label="Toggle hand pan tool"
+            data-tooltip="Hand pan tool"
+          >
+            <Hand size={16} />
+          </button>
+        </div>
+      </div>
+      <div className="map-tool-group">
+        <span className="map-section-label">Grid</span>
+        <div className="map-section-grid">
+          <button
+            type="button"
+            className={
+              gridAdjustMode && gridType === 'square'
+                ? 'map-icon-btn map-grid-btn fast-tooltip fast-tooltip-right active'
+                : 'map-icon-btn map-grid-btn fast-tooltip fast-tooltip-right'
+            }
+            onClick={() => onSetGridType('square')}
+            aria-label="Square grid overlay"
+            data-tooltip={gridAdjustMode && gridType === 'square' ? 'Cancel square grid' : 'Square grid'}
+          >
+            <Grid3X3 size={16} />
+          </button>
+          <button
+            type="button"
+            className={gridType === 'hex-pointy'
+              ? 'map-icon-btn map-hex-pointy-btn fast-tooltip fast-tooltip-right active'
+              : 'map-icon-btn map-hex-pointy-btn fast-tooltip fast-tooltip-right'}
+            onClick={() => onSetGridType('hex-pointy')}
+            disabled={hexDetecting}
+            aria-label="Hex grid pointy-top orientation"
+            data-tooltip={hexDetecting ? 'Detecting hex...' : 'Hex grid: pointy-top'}
+          >
+            {hexDetecting ? <LoaderCircle size={16} className="map-icon-spin" /> : <Hexagon size={16} />}
+          </button>
+          <button
+            type="button"
+            className={gridType === 'hex-flat'
+              ? 'map-icon-btn map-hex-flat-btn fast-tooltip fast-tooltip-right active'
+              : 'map-icon-btn map-hex-flat-btn fast-tooltip fast-tooltip-right'}
+            onClick={() => onSetGridType('hex-flat')}
+            disabled={hexDetecting}
+            aria-label="Hex grid flat-top orientation"
+            data-tooltip={hexDetecting ? 'Detecting hex...' : 'Hex grid: flat-top'}
+          >
+            {hexDetecting ? <LoaderCircle size={16} className="map-icon-spin" /> : <Hexagon size={16} className="map-hex-flat-icon" />}
+          </button>
+          <button
+            type="button"
+            className={gridVisible ? 'map-icon-btn map-grid-visibility-btn fast-tooltip fast-tooltip-right' : 'map-icon-btn map-grid-visibility-btn fast-tooltip fast-tooltip-right active'}
+            onClick={onToggleGridVisible}
+            aria-label="Toggle grid visibility"
+            data-tooltip={gridVisible ? 'Hide grid' : 'Show grid'}
+          >
+            <EyeOff size={16} />
+          </button>
+        </div>
+      </div>
+      <div className="map-tool-group">
+        <span className="map-section-label">Measurement</span>
+        <div className="map-section-grid">
+          <button
+            type="button"
+            className={gridCalibrateMode ? 'map-icon-btn map-ruler-btn fast-tooltip fast-tooltip-right active' : 'map-icon-btn map-ruler-btn fast-tooltip fast-tooltip-right'}
+            onClick={onToggleGridCalibrate}
+            aria-label="Calibrate grid scale"
+            data-tooltip={gridCalibrateMode ? 'Measuring' : "Calibrate 10'"}
+          >
+            <RulerDimensionLine size={16} />
+          </button>
+          <button
+            type="button"
+            className={gridCalibrateSaved ? 'map-icon-btn map-calibration-apply-btn fast-tooltip fast-tooltip-right active' : 'map-icon-btn map-calibration-apply-btn fast-tooltip fast-tooltip-right'}
+            onClick={onApplyGridCalibration}
+            disabled={!gridCalibrateMode || !gridCalibrateReady}
+            aria-label="Apply calibration"
+            data-tooltip={
+              !gridCalibrateMode
+                ? 'Start calibration first'
+                : gridCalibrateReady
+                  ? 'Apply calibration'
+                  : 'Set two calibration points'
+            }
+          >
+            <Check size={16} />
+          </button>
+          <button
+            type="button"
+            className={gridMeasureMode ? 'map-icon-btn map-measure-btn fast-tooltip fast-tooltip-right active' : 'map-icon-btn map-measure-btn fast-tooltip fast-tooltip-right'}
+            onClick={onToggleGridMeasure}
+            disabled={!measurementToolEnabled}
+            aria-label="Measure map distance"
+            data-tooltip={!measurementToolEnabled ? 'Lay or calibrate grid first' : gridMeasureMode ? 'Clear measurement' : 'Measure distance'}
+          >
+            <Ruler size={16} />
+          </button>
+          <button
+            type="button"
+            className={
+              distanceTrackerMode === 'roll' || distanceTrackerMode === 'first'
+                ? 'map-icon-btn map-distance-tracker-btn fast-tooltip fast-tooltip-right active'
+                : 'map-icon-btn map-distance-tracker-btn fast-tooltip fast-tooltip-right'
+            }
+            onClick={onResetDistanceTracker}
+            aria-label="Reset movement distance tracker"
+            data-tooltip={
+              distanceTrackerMode === 'roll'
+                ? `d6: ${distanceTrackerRoll ?? '-'}`
+                : distanceTrackerMode === 'first'
+                  ? `1st turn/${ENCOUNTER_CHECK_DISTANCE_FEET}'`
+                : `${distanceFeetLabel}/${ENCOUNTER_CHECK_DISTANCE_FEET}'`
+            }
+          >
+            {DistanceRollIcon ? (
+              <DistanceRollIcon size={16} />
+            ) : (
+              <span className="map-distance-tracker-value">{distanceTrackerLabel}</span>
+            )}
+          </button>
+        </div>
+      </div>
+      <div className="map-tool-group">
+        <span className="map-section-label">Scene NPC</span>
+        <div className="map-section-grid">
+          <button
+            type="button"
+            className={npcSceneMode ? 'map-icon-btn map-scene-npc-btn fast-tooltip fast-tooltip-left active' : 'map-icon-btn map-scene-npc-btn fast-tooltip fast-tooltip-left'}
+            onClick={() => setNpcSceneMode(!npcSceneMode)}
+            aria-label="Toggle scene NPC panel"
+            data-tooltip="Scene NPCs"
+          >
+            <UserRoundPen size={16} />
+          </button>
+        </div>
+      </div>
+      <div className="map-tool-group">
+        <span className="map-section-label">Player View</span>
+        <div className="map-section-grid">
+          <button
+            type="button"
+            className={playerViewPreview ? 'map-icon-btn map-streaming-btn fast-tooltip fast-tooltip-left active' : 'map-icon-btn map-streaming-btn fast-tooltip fast-tooltip-left'}
+            onClick={() => setPlayerViewPreview(!playerViewPreview)}
+            aria-label="Toggle player view preview"
+            data-tooltip="Player view preview"
+          >
+            <TvMinimalPlay size={16} />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function GmMapControls({
+  campaignId,
+  groupId,
+  dark = false,
+  showTopTools = true,
+  fogTool,
+  setFogTool,
+  visionTool,
+  setVisionTool,
+  fogBrushSize,
+  setFogBrushSize,
+  tokenSelectMode,
+  setTokenSelectMode,
+  annotationPlaceMode,
+  setAnnotationPlaceMode,
+  playerLabelPlaceMode,
+  setPlayerLabelPlaceMode,
+  gmHideLabels,
+  setGmHideLabels,
+  handToolActive,
+  setHandToolActive,
   tokenColor,
   setTokenColor,
   tokenSize,
@@ -2556,8 +3404,17 @@ function GmMapControls({
   onUploadTokenImage,
   onArchiveTokenAsset,
   onRequestDeleteTokenAsset,
-  streamingMode,
-  setStreamingMode,
+  placementDisplay,
+  partyPlacementSources,
+  monsterPlacementSources,
+  npcPlacementSources,
+  genericPlacementSources,
+  onStartSinglePlacement,
+  onStartWholePartyPlacement,
+  onStartMonsterPlacement,
+  onCancelPlacement,
+  playerViewPreview,
+  setPlayerViewPreview,
   npcSceneMode,
   setNpcSceneMode,
   gridVisible,
@@ -2588,14 +3445,12 @@ function GmMapControls({
   fullyHidden,
   tokens,
   selectedTokenIds,
-  onSelectTokenCard,
+  onSelectedTokenIdsChange,
   onUpdateToken,
   onUpdateTokenSize,
   onUpdateTokenViewDistance,
   tokenViewDistanceSliderValue,
   onRequestDeleteTokens,
-  mapMonsters,
-  mapCharacters,
   mapNpcs,
   sceneNpcs,
   presentedNpc,
@@ -2607,14 +3462,13 @@ function GmMapControls({
   campaignId: string
   groupId: string
   dark?: boolean
+  showTopTools?: boolean
   fogTool: 'reveal' | 'hide' | null
   setFogTool: (tool: 'reveal' | 'hide' | null) => void
   visionTool: 'draw' | 'drawFull' | 'erase' | null
   setVisionTool: (tool: 'draw' | 'drawFull' | 'erase' | null) => void
   fogBrushSize: number
   setFogBrushSize: (size: number) => void
-  tokenPlaceMode: boolean
-  setTokenPlaceMode: (value: boolean) => void
   tokenSelectMode: boolean
   setTokenSelectMode: (value: boolean) => void
   annotationPlaceMode: boolean
@@ -2623,6 +3477,8 @@ function GmMapControls({
   setPlayerLabelPlaceMode: (value: boolean) => void
   gmHideLabels: boolean
   setGmHideLabels: (value: boolean) => void
+  handToolActive: boolean
+  setHandToolActive: (value: boolean) => void
   tokenColor: string
   setTokenColor: (value: string) => void
   tokenSize: number
@@ -2635,8 +3491,17 @@ function GmMapControls({
   onUploadTokenImage: (file: File, assetName?: string) => Promise<void>
   onArchiveTokenAsset: (assetId: string, archived: boolean) => Promise<void>
   onRequestDeleteTokenAsset: (assetId: string) => void
-  streamingMode: boolean
-  setStreamingMode: (value: boolean) => void
+  placementDisplay: ReturnType<typeof getTokenPlacementDisplay>
+  partyPlacementSources: ReturnType<typeof buildWholePartyTokenPlacementSources>
+  monsterPlacementSources: MonsterTokenPlacementSource[]
+  npcPlacementSources: ReturnType<typeof toNpcTokenPlacementSource>[]
+  genericPlacementSources: ReturnType<typeof toGenericTokenPlacementSource>[]
+  onStartSinglePlacement: (source: Exclude<TokenPlacementSource, MonsterTokenPlacementSource>) => void
+  onStartWholePartyPlacement: () => void
+  onStartMonsterPlacement: (source: MonsterTokenPlacementSource, count: number) => void
+  onCancelPlacement: () => void
+  playerViewPreview: boolean
+  setPlayerViewPreview: (value: boolean) => void
   npcSceneMode: boolean
   setNpcSceneMode: (value: boolean) => void
   gridVisible: boolean
@@ -2667,13 +3532,13 @@ function GmMapControls({
   fullyHidden: boolean
   tokens: TokenRecord[]
   selectedTokenIds: string[]
-  onSelectTokenCard: (tokenId: string) => void
+  onSelectedTokenIdsChange: Dispatch<SetStateAction<string[]>>
   onUpdateToken: (
     tokenId: string,
     updates: Partial<
       Pick<
         TokenRecord,
-        'color' | 'size' | 'sizeScale' | 'viewDistance' | 'viewDistanceScale' | 'party' | 'name' | 'revealName' | 'hidden'
+        'color' | 'size' | 'sizeScale' | 'viewDistance' | 'viewDistanceScale' | 'party' | 'name' | 'revealName' | 'hidden' | 'group'
       >
     >,
   ) => Promise<void>
@@ -2681,8 +3546,6 @@ function GmMapControls({
   onUpdateTokenViewDistance: (tokenId: string, viewDistance: number) => Promise<void>
   tokenViewDistanceSliderValue: (token: TokenRecord) => number
   onRequestDeleteTokens: (tokenIds: string[]) => void
-  mapMonsters: MonsterSummary[]
-  mapCharacters: CharacterTokenSummary[]
   mapNpcs: NpcSummary[]
   sceneNpcs: NpcSummary[]
   presentedNpc: NpcSummary | null
@@ -2696,15 +3559,26 @@ function GmMapControls({
   }
 
   const [tokenNameDrafts, setTokenNameDrafts] = useState<Record<string, string>>({})
-  const [checkedTokenIds, setCheckedTokenIds] = useState<string[]>([])
   const [tokensCollapsed, setTokensCollapsed] = useState(false)
+  const [partyPlacementCollapsed, setPartyPlacementCollapsed] = useState(true)
+  const [nonPartyPlacementCollapsed, setNonPartyPlacementCollapsed] = useState(true)
   const [collapsedTokenGroupKeys, setCollapsedTokenGroupKeys] = useState<string[]>([])
-  const [expandedTokenIds, setExpandedTokenIds] = useState<string[]>([])
+  const [collapsedSubgroupKeys, setCollapsedSubgroupKeys] = useState<string[]>([])
+  const [makeGroupModalOpen, setMakeGroupModalOpen] = useState(false)
+  const [makeGroupNameDraft, setMakeGroupNameDraft] = useState('')
+  const [disbandCandidate, setDisbandCandidate] = useState<{ name: string; tokenIds: string[] } | null>(null)
   const [sceneNpcPickerId, setSceneNpcPickerId] = useState('')
   const [sceneNpcModalId, setSceneNpcModalId] = useState('')
   const [presentedNpcGmNotes, setPresentedNpcGmNotes] = useState('')
   const [brushSizeDraft, setBrushSizeDraft] = useState(String(fogBrushSize))
   const [brushSizeEditing, setBrushSizeEditing] = useState(false)
+  const [monsterPlacementCounts, setMonsterPlacementCounts] = useState<Record<string, number>>({})
+  const [nonPartySourceKey, setNonPartySourceKey] = useState('')
+  const [nonPartySearch, setNonPartySearch] = useState('')
+  const [genericTokenName, setGenericTokenName] = useState('Token')
+  const [lastTokenListSelectionId, setLastTokenListSelectionId] = useState('')
+  const genericCreatorKey = 'generic:create'
+  const brushSizeInputValue = brushSizeEditing ? brushSizeDraft : String(fogBrushSize)
   const availableSceneNpcs = useMemo(
     () => mapNpcs.filter((npc) => !selectedMapSceneNpcIds.includes(npc.id)),
     [mapNpcs, selectedMapSceneNpcIds],
@@ -2714,24 +3588,68 @@ function GmMapControls({
     [mapNpcs],
   )
 
-  const checkedTokenIdSet = useMemo(() => new Set(checkedTokenIds), [checkedTokenIds])
-
-  useEffect(() => {
-    setCheckedTokenIds((current) => current.filter((tokenId) => tokens.some((token) => token.id === tokenId)))
-  }, [tokens])
-
-  const setTokenChecked = (tokenId: string, checked: boolean) => {
-    setCheckedTokenIds((current) => {
-      if (checked) return current.includes(tokenId) ? current : [...current, tokenId]
-      return current.filter((id) => id !== tokenId)
-    })
+  const selectedTokenIdSet = useMemo(() => new Set(selectedTokenIds), [selectedTokenIds])
+  const nonPartySources = useMemo(
+    () => [
+      ...monsterPlacementSources,
+      ...npcPlacementSources,
+      ...genericPlacementSources,
+    ],
+    [genericPlacementSources, monsterPlacementSources, npcPlacementSources],
+  )
+  const sourceKey = useCallback((source: TokenPlacementSource) => `${source.kind}:${source.id}`, [])
+  const selectedNonPartySource = nonPartySources.find((source) => sourceKey(source) === nonPartySourceKey) ?? null
+  const normalizedNonPartySearch = nonPartySearch.trim().toLowerCase()
+  const matchesNonPartySearch = (source: TokenPlacementSource) => {
+    if (!normalizedNonPartySearch) return true
+    const kindLabel = source.kind === 'genericToken' ? 'generic asset' : source.kind
+    return `${source.name} ${kindLabel}`.toLowerCase().includes(normalizedNonPartySearch)
   }
+  const visibleMonsterSources = monsterPlacementSources.filter(matchesNonPartySearch)
+  const visibleNpcSources = npcPlacementSources.filter(matchesNonPartySearch)
+  const visibleGenericSources = genericPlacementSources.filter(matchesNonPartySearch)
+  const selectedGenericSource =
+    genericPlacementSources.find((source) => source.id === selectedTokenAssetId) ?? null
+  const genericCreatorSelected = nonPartySourceKey === genericCreatorKey
+  const stagedGenericSource = genericCreatorSelected
+    ? selectedGenericSource
+      ? {
+        ...selectedGenericSource,
+        name: genericTokenName.trim() || selectedGenericSource.name,
+        tokenIcon: {
+          icon: 'custom' as const,
+          color: tokenColor,
+          size: tokenSize,
+          customImagePath: selectedGenericSource.imagePath,
+          customImageUrl: selectedGenericSource.imageUrl,
+          customImageName: selectedGenericSource.name,
+        },
+      }
+      : {
+        kind: 'genericToken' as const,
+        id: '',
+        name: genericTokenName.trim() || 'Token',
+        tokenIcon: { icon: 'pawn' as const, color: tokenColor, size: tokenSize },
+      }
+    : null
+  const genericCreatorVisible =
+    !normalizedNonPartySearch ||
+    'generic asset assets token custom upload'.includes(normalizedNonPartySearch)
+  const selectedNonPartyKeyVisible =
+    selectedNonPartySource &&
+    [...visibleMonsterSources, ...visibleNpcSources, ...visibleGenericSources].some(
+      (source) => sourceKey(source) === sourceKey(selectedNonPartySource),
+    )
+  const currentPlacementName = placementDisplay.current?.name ?? ''
+  const placementRemainingLabel = placementDisplay.active && placementDisplay.remaining > 1
+    ? `${placementDisplay.remaining} left`
+    : ''
 
-  const toggleGroupChecked = (groupTokens: TokenRecord[], checked: boolean) => {
+  const toggleGroupSelected = (groupTokens: TokenRecord[], selected: boolean) => {
     const groupTokenIds = groupTokens.map((token) => token.id)
     const groupTokenIdSet = new Set(groupTokenIds)
-    setCheckedTokenIds((current) => {
-      if (!checked) return current.filter((tokenId) => !groupTokenIdSet.has(tokenId))
+    onSelectedTokenIdsChange((current) => {
+      if (!selected) return current.filter((tokenId) => !groupTokenIdSet.has(tokenId))
       const next = [...current]
       groupTokenIds.forEach((tokenId) => {
         if (!next.includes(tokenId)) next.push(tokenId)
@@ -2758,11 +3676,6 @@ function GmMapControls({
     })
     return () => unsub()
   }, [campaignId, groupId, presentedNpc?.id])
-
-  useEffect(() => {
-    if (brushSizeEditing) return
-    setBrushSizeDraft(String(fogBrushSize))
-  }, [brushSizeEditing, fogBrushSize])
 
   const DistanceRollIcon =
     distanceTrackerMode === 'roll' && distanceTrackerRoll === 1
@@ -2870,19 +3783,90 @@ function GmMapControls({
 
     return groups.filter((group) => group.tokens.length > 0)
   }, [tokens])
+  const selectedTokens = useMemo(
+    () => tokens.filter((token) => selectedTokenIdSet.has(token.id)),
+    [selectedTokenIdSet, tokens],
+  )
+  const selectedEditableTokenIds = selectedTokens.map((token) => token.id)
+  const selectedTokenCount = selectedTokens.length
+  const selectedBulkSizeValue = selectedTokens[0]?.size ?? TOKEN_SIZE_MIN
+  const selectedBulkColorValue = selectedTokens[0]?.color ?? tokenColor
+  const selectedPartyTokens = selectedTokens.filter((token) => token.party)
+  const selectedBulkViewDistanceValue = selectedPartyTokens[0]
+    ? tokenViewDistanceSliderValue(selectedPartyTokens[0])
+    : DEFAULT_TOKEN_VIEW_DISTANCE
+  const selectedAllParty = selectedTokenCount > 0 && selectedTokens.every((token) => token.party)
+  const selectedAllRevealName = selectedTokenCount > 0 && selectedTokens.every((token) => token.revealName)
+  const selectedAllHidden = selectedTokenCount > 0 && selectedTokens.every((token) => token.hidden)
+  // Top-level category a token falls under (mirrors the tokenGroups partition above).
+  const tokenCategoryKey = (token: TokenRecord) =>
+    token.party
+      ? 'party'
+      : token.characterId
+        ? 'characters'
+        : token.monsterId
+          ? 'monsters'
+          : token.npcId
+            ? 'npcs'
+            : 'other'
+  // "Make group" only applies when every selected token shares one category, so the
+  // new group can nest cleanly under that category's block.
+  const selectedSameCategory =
+    selectedTokenCount > 0 && new Set(selectedTokens.map(tokenCategoryKey)).size === 1
+  const selectedCategoryLabel = selectedSameCategory
+    ? tokenGroups.find((group) => group.tokens.some((token) => selectedTokenIdSet.has(token.id)))?.label ??
+      'this category'
+    : 'this category'
+  const handleConfirmMakeGroup = () => {
+    const name = makeGroupNameDraft.trim()
+    if (!name || selectedTokens.length === 0) return
+    void Promise.all(selectedTokens.map((token) => onUpdateToken(token.id, { group: name })))
+    setMakeGroupModalOpen(false)
+    setMakeGroupNameDraft('')
+  }
+  const handleConfirmDisbandGroup = () => {
+    if (!disbandCandidate) return
+    void Promise.all(disbandCandidate.tokenIds.map((tokenId) => onUpdateToken(tokenId, { group: '' })))
+    setDisbandCandidate(null)
+  }
+  const visibleTokenListIds = useMemo(
+    () => tokenGroups.flatMap((group) => group.tokens.map((token) => token.id)),
+    [tokenGroups],
+  )
+
+  const toggleTokenListSelection = (tokenId: string, shiftKey: boolean) => {
+    if (shiftKey && lastTokenListSelectionId) {
+      const startIndex = visibleTokenListIds.indexOf(lastTokenListSelectionId)
+      const endIndex = visibleTokenListIds.indexOf(tokenId)
+      if (startIndex >= 0 && endIndex >= 0) {
+        const [from, to] = startIndex < endIndex ? [startIndex, endIndex] : [endIndex, startIndex]
+        const rangeIds = visibleTokenListIds.slice(from, to + 1)
+        onSelectedTokenIdsChange((current) => {
+          const next = [...current]
+          rangeIds.forEach((id) => {
+            if (!next.includes(id)) next.push(id)
+          })
+          return next
+        })
+        setLastTokenListSelectionId(tokenId)
+        return
+      }
+    }
+
+    onSelectedTokenIdsChange((current) =>
+      current.includes(tokenId)
+        ? current.filter((id) => id !== tokenId)
+        : [...current, tokenId],
+    )
+    setLastTokenListSelectionId(tokenId)
+  }
 
   useEffect(() => {
     const visibleGroupKeys = new Set(tokenGroups.map((group) => group.key))
     setCollapsedTokenGroupKeys((current) => current.filter((key) => visibleGroupKeys.has(key)))
   }, [tokenGroups])
 
-  useEffect(() => {
-    setExpandedTokenIds((current) => current.filter((tokenId) => tokens.some((token) => token.id === tokenId)))
-  }, [tokens])
-
-  const toggleTokenGroupCollapsed = (groupKey: string, groupTokens: TokenRecord[]) => {
-    const groupTokenIdSet = new Set(groupTokens.map((token) => token.id))
-    setExpandedTokenIds((current) => current.filter((tokenId) => !groupTokenIdSet.has(tokenId)))
+  const toggleTokenGroupCollapsed = (groupKey: string) => {
     setCollapsedTokenGroupKeys((current) =>
       current.includes(groupKey)
         ? current.filter((key) => key !== groupKey)
@@ -2890,14 +3874,64 @@ function GmMapControls({
     )
   }
 
-  const toggleTokenExpanded = (tokenId: string) => {
-    setExpandedTokenIds((current) =>
-      current.includes(tokenId) ? current.filter((id) => id !== tokenId) : [...current, tokenId],
+  const toggleSubgroupCollapsed = (subgroupKey: string) => {
+    setCollapsedSubgroupKeys((current) =>
+      current.includes(subgroupKey)
+        ? current.filter((key) => key !== subgroupKey)
+        : [...current, subgroupKey],
     )
   }
 
+  const renderPlacementSourceIcon = (source: TokenPlacementSource) => {
+    const imageUrl = source.kind === 'genericToken'
+      ? source.imageUrl
+      : source.tokenIcon?.icon === 'custom'
+        ? source.tokenIcon.customImageUrl ?? ''
+        : ''
+    const color = source.tokenIcon?.color ?? tokenColor
+    return (
+      <span className="token-row-icon" style={{ color }} aria-hidden>
+        {imageUrl ? <img src={imageUrl} alt="" className="token-row-image" /> : <ChessPawn size={14} />}
+      </span>
+    )
+  }
+
+  const monsterCountFor = (monsterId: string) => monsterPlacementCounts[monsterId] ?? 1
+  const setMonsterCount = (monsterId: string, count: number) => {
+    const nextCount = Math.max(1, Math.min(99, Math.floor(count) || 1))
+    setMonsterPlacementCounts((current) => ({ ...current, [monsterId]: nextCount }))
+  }
+  const handleNonPartySourceChange = (key: string) => {
+    setNonPartySourceKey(key)
+    if (key === genericCreatorKey) return
+    const source = nonPartySources.find((entry) => sourceKey(entry) === key) ?? null
+    if (source?.kind === 'genericToken') setSelectedTokenAssetId(source.id)
+  }
+  const clearNonPartySource = () => {
+    setNonPartySourceKey('')
+  }
+  const requestDeleteSelectedGenericSource = () => {
+    if (selectedNonPartySource?.kind !== 'genericToken') return
+    onRequestDeleteTokenAsset(selectedNonPartySource.id)
+  }
+  const placeSelectedNonPartySource = () => {
+    if (!selectedNonPartySource) return
+    if (selectedNonPartySource.kind === 'monster') {
+      onStartMonsterPlacement(selectedNonPartySource, monsterCountFor(selectedNonPartySource.id))
+      return
+    }
+    onStartSinglePlacement(selectedNonPartySource)
+  }
+
+  useEffect(() => {
+    if (!nonPartySourceKey || nonPartySourceKey === genericCreatorKey) return
+    if (nonPartySources.some((source) => sourceKey(source) === nonPartySourceKey)) return
+    setNonPartySourceKey('')
+  }, [genericCreatorKey, nonPartySourceKey, nonPartySources, sourceKey])
+
   return (
     <div className={dark ? 'map-controls-body dark' : 'map-controls-body'}>
+      {showTopTools ? (
       <div className="map-tools-panel">
         <div className="map-tools-brush">
           <span className="map-section-label">Brush size</span>
@@ -2952,9 +3986,12 @@ function GmMapControls({
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
-                value={brushSizeDraft}
+                value={brushSizeInputValue}
                 onChange={handleBrushSizeInputChange}
-                onFocus={() => setBrushSizeEditing(true)}
+                onFocus={() => {
+                  setBrushSizeDraft(String(fogBrushSize))
+                  setBrushSizeEditing(true)
+                }}
                 onBlur={commitBrushSizeDraft}
                 onKeyDown={(event) => {
                   event.stopPropagation()
@@ -3064,7 +4101,6 @@ function GmMapControls({
               setAnnotationPlaceMode(next)
               if (next) {
                 setTokenSelectMode(false)
-                setTokenPlaceMode(false)
                 setPlayerLabelPlaceMode(false)
               }
             }}
@@ -3081,7 +4117,6 @@ function GmMapControls({
               setPlayerLabelPlaceMode(next)
               if (next) {
                 setTokenSelectMode(false)
-                setTokenPlaceMode(false)
                 setAnnotationPlaceMode(false)
               }
             }}
@@ -3111,7 +4146,6 @@ function GmMapControls({
               if (next) {
                 setFogTool(null)
                 setVisionTool(null)
-                setTokenPlaceMode(false)
                 setAnnotationPlaceMode(false)
                 setPlayerLabelPlaceMode(false)
               }
@@ -3123,20 +4157,12 @@ function GmMapControls({
           </button>
           <button
             type="button"
-            className={tokenPlaceMode ? 'map-icon-btn map-token-place-btn fast-tooltip active' : 'map-icon-btn map-token-place-btn fast-tooltip'}
-            onClick={() => {
-              const next = !tokenPlaceMode
-              setTokenPlaceMode(next)
-              if (next) {
-                setTokenSelectMode(false)
-                setAnnotationPlaceMode(false)
-                setPlayerLabelPlaceMode(false)
-              }
-            }}
-            aria-label="Toggle token placement mode"
-            data-tooltip="Token placement mode"
+            className={handToolActive ? 'map-icon-btn map-hand-tool-btn fast-tooltip active' : 'map-icon-btn map-hand-tool-btn fast-tooltip'}
+            onClick={() => setHandToolActive(!handToolActive)}
+            aria-label="Toggle hand pan tool"
+            data-tooltip="Hand pan tool"
           >
-            <ChessPawn size={16} />
+            <Hand size={16} />
           </button>
         </div>
         <span className="map-section-label">Scene NPC</span>
@@ -3151,14 +4177,14 @@ function GmMapControls({
             <UserRoundPen size={16} />
           </button>
         </div>
-        <span className="map-section-label">Stream Mode</span>
+        <span className="map-section-label">Player View Preview</span>
         <div className="map-section-grid">
           <button
             type="button"
-            className={streamingMode ? 'map-icon-btn map-streaming-btn fast-tooltip fast-tooltip-left active' : 'map-icon-btn map-streaming-btn fast-tooltip fast-tooltip-left'}
-            onClick={() => setStreamingMode(!streamingMode)}
-            aria-label="Toggle streaming mode"
-            data-tooltip="Streaming mode"
+            className={playerViewPreview ? 'map-icon-btn map-streaming-btn fast-tooltip fast-tooltip-left active' : 'map-icon-btn map-streaming-btn fast-tooltip fast-tooltip-left'}
+            onClick={() => setPlayerViewPreview(!playerViewPreview)}
+            aria-label="Toggle player view preview"
+            data-tooltip="Player view preview"
           >
             <TvMinimalPlay size={16} />
           </button>
@@ -3263,6 +4289,7 @@ function GmMapControls({
           </div>
         </div>
       </div>
+      ) : null}
       {gridAdjustMode ? (
         <div className="map-grid-adjust-panel">
           <p className="map-grid-adjust-hint">Adjusting grid: mouse wheel scales, drag pans alignment.</p>
@@ -3298,66 +4325,244 @@ function GmMapControls({
           <p className="map-grid-measurement-readout">Distance: {measurementFeetLabel}</p>
         </div>
       ) : null}
-      {tokenPlaceMode ? (
-        <div className="map-token-config">
-          {(() => {
-            const spawnMonster = mapMonsters.find((m) => m.id === selectedTokenAssetId) ?? null
-            const spawnCharacter = mapCharacters.find((c) => c.id === selectedTokenAssetId) ?? null
-            const spawnNpc = mapNpcs.find((n) => n.id === selectedTokenAssetId) ?? null
-            const combinedAssets = [
-              ...tokenAssets.map((a) => ({ id: a.id, name: a.name, imageUrl: a.imageUrl, archived: a.archived })),
-              ...mapCharacters.map((c) => ({
-                id: c.id,
-                name: `${c.name} (Player)`,
-                imageUrl: c.tokenIcon.icon === 'custom' ? (c.tokenIcon.customImageUrl ?? '') : '',
-                archived: false as const,
-                characterId: c.id,
-              })),
-              ...mapMonsters.map((m) => ({
-                id: m.id,
-                name: m.name,
-                imageUrl: m.tokenIcon.icon === 'custom' ? (m.tokenIcon.customImageUrl ?? '') : '',
-                archived: false as const,
-                monsterId: m.id,
-              })),
-              ...mapNpcs.map((n) => ({
-                id: n.id,
-                name: `${n.name} (NPC)`,
-                imageUrl: n.tokenIcon.icon === 'custom' ? (n.tokenIcon.customImageUrl ?? '') : '',
-                archived: false as const,
-                npcId: n.id,
-              })),
-            ]
-            const effectiveImageUrl = spawnNpc
-              ? (spawnNpc.tokenIcon.icon === 'custom' ? spawnNpc.tokenIcon.customImageUrl ?? '' : '')
-              : spawnCharacter
-              ? (spawnCharacter.tokenIcon.icon === 'custom' ? spawnCharacter.tokenIcon.customImageUrl ?? '' : '')
-              : spawnMonster
-                ? (spawnMonster.tokenIcon.icon === 'custom' ? spawnMonster.tokenIcon.customImageUrl ?? '' : '')
-                : selectedTokenImageUrl
-            return (
-              <TokenIconEditor
-                className="map-token-icon-editor"
-                minSize={TOKEN_SIZE_MIN}
-                maxSize={TOKEN_SIZE_MAX}
-                value={{ icon: selectedTokenAssetId ? 'custom' : 'pawn', color: tokenColor, size: tokenSize } satisfies TokenIconConfig}
-                onChange={(next) => {
-                  setTokenColor(next.color)
-                  setTokenSize(next.size)
-                }}
-                tokenAssets={combinedAssets}
-                selectedTokenAssetId={selectedTokenAssetId}
-                onSelectedTokenAssetIdChange={setSelectedTokenAssetId}
-                onArchiveTokenAsset={onArchiveTokenAsset}
-                onRequestDeleteTokenAsset={onRequestDeleteTokenAsset}
-                selectedTokenImageUrl={effectiveImageUrl}
-                uploadingTokenImage={uploadingTokenImage}
-                onUploadTokenImage={onUploadTokenImage}
-              />
-            )
-          })()}
+      <section className="map-token-placement-panel" aria-label="Place tokens">
+        <div className="token-cards-header">
+          <h4 className="token-cards-title">Place tokens</h4>
         </div>
-      ) : null}
+        {placementDisplay.active ? (
+          <div className="map-placement-active-block">
+            <span className="map-section-label">Placing:</span>
+            <div className="map-placement-active">
+              {placementDisplay.current ? renderPlacementSourceIcon(placementDisplay.current) : (
+                <span className="token-row-icon" aria-hidden>
+                  <ChessPawn size={14} />
+                </span>
+              )}
+              <div className="map-placement-active-main">
+                <span className="map-placement-active-name">{currentPlacementName || 'Token'}</span>
+                {placementRemainingLabel ? <span className="map-placement-active-meta">{placementRemainingLabel}</span> : null}
+              </div>
+              <button type="button" className="monster-example-btn" onClick={onCancelPlacement}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : null}
+        <div className="map-placement-group">
+          <div className="map-placement-group-header">
+            <span className="map-section-label">Party</span>
+            <div className="map-placement-group-actions">
+              <button
+                type="button"
+                className="monster-example-btn"
+                onClick={onStartWholePartyPlacement}
+                disabled={partyPlacementSources.length === 0}
+              >
+                Whole Party
+              </button>
+              <button
+                type="button"
+                className="map-icon-btn map-placement-collapse-btn fast-tooltip fast-tooltip-left"
+                onClick={() => setPartyPlacementCollapsed((current) => !current)}
+                aria-label={partyPlacementCollapsed ? 'Show party token sources' : 'Hide party token sources'}
+                data-tooltip={partyPlacementCollapsed ? 'Show party' : 'Hide party'}
+              >
+                {partyPlacementCollapsed ? <Plus size={13} /> : <Minus size={13} />}
+              </button>
+            </div>
+          </div>
+          {!partyPlacementCollapsed ? (
+            <div className="token-list">
+              {partyPlacementSources.map((source) => (
+                <div key={source.id} className="token-row map-placement-row">
+                  {renderPlacementSourceIcon(source)}
+                  <span className="map-placement-source-name">{source.name}</span>
+                  <button type="button" className="monster-example-btn" onClick={() => onStartSinglePlacement(source)}>
+                    Place
+                  </button>
+                </div>
+              ))}
+              {partyPlacementSources.length === 0 ? <p className="map-npc-scene-empty">No party characters.</p> : null}
+            </div>
+          ) : null}
+        </div>
+        <div className="map-placement-group">
+          <div className="map-placement-group-header">
+            <span className="map-section-label">Non-party</span>
+            <button
+              type="button"
+              className="map-icon-btn map-placement-collapse-btn fast-tooltip fast-tooltip-left"
+              onClick={() => setNonPartyPlacementCollapsed((current) => !current)}
+              aria-label={nonPartyPlacementCollapsed ? 'Show non-party token sources' : 'Hide non-party token sources'}
+              data-tooltip={nonPartyPlacementCollapsed ? 'Show non-party' : 'Hide non-party'}
+            >
+              {nonPartyPlacementCollapsed ? <Plus size={13} /> : <Minus size={13} />}
+            </button>
+          </div>
+          {!nonPartyPlacementCollapsed ? (
+            <>
+              <div className="map-nonparty-picker">
+                <input
+                  type="search"
+                  value={nonPartySearch}
+                  onChange={(event) => setNonPartySearch(event.target.value)}
+                  placeholder="Search monsters, NPCs, assets"
+                  aria-label="Search non-party token sources"
+                />
+                <div className="map-nonparty-source-row">
+                  <select
+                    value={genericCreatorSelected ? genericCreatorKey : selectedNonPartySource ? sourceKey(selectedNonPartySource) : ''}
+                    onChange={(event) => handleNonPartySourceChange(event.target.value)}
+                    aria-label="Select non-party token source"
+                  >
+                    <option value="">Choose a source</option>
+                    {selectedNonPartySource && !selectedNonPartyKeyVisible ? (
+                      <option value={sourceKey(selectedNonPartySource)}>{selectedNonPartySource.name}</option>
+                    ) : null}
+                    {visibleMonsterSources.length > 0 ? (
+                      <optgroup label="Monsters">
+                        {visibleMonsterSources.map((source) => (
+                          <option key={sourceKey(source)} value={sourceKey(source)}>{source.name}</option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                    {visibleNpcSources.length > 0 ? (
+                      <optgroup label="NPCs">
+                        {visibleNpcSources.map((source) => (
+                          <option key={sourceKey(source)} value={sourceKey(source)}>{source.name}</option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                    {visibleGenericSources.length > 0 ? (
+                      <optgroup label="Generic assets">
+                        {genericCreatorVisible ? <option value={genericCreatorKey}>Generic asset...</option> : null}
+                        {visibleGenericSources.map((source) => (
+                          <option key={sourceKey(source)} value={sourceKey(source)}>{source.name}</option>
+                        ))}
+                      </optgroup>
+                    ) : genericCreatorVisible ? (
+                      <optgroup label="Generic assets">
+                        <option value={genericCreatorKey}>Generic asset...</option>
+                      </optgroup>
+                    ) : null}
+                  </select>
+                  {selectedNonPartySource || genericCreatorSelected ? (
+                    <button
+                      type="button"
+                      className="map-icon-btn map-nonparty-clear-btn fast-tooltip fast-tooltip-left"
+                      onClick={clearNonPartySource}
+                      aria-label="Clear non-party token source"
+                      data-tooltip="Clear source"
+                    >
+                      <X size={14} />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+              <div className="map-placement-stage">
+                {selectedNonPartySource ? (
+                  <div
+                    className={
+                      selectedNonPartySource.kind === 'monster'
+                        ? 'token-row map-placement-row'
+                        : selectedNonPartySource.kind === 'genericToken'
+                          ? 'token-row map-placement-row map-placement-row-manage'
+                          : 'token-row map-placement-row map-placement-row-simple'
+                    }
+                  >
+                    {renderPlacementSourceIcon(selectedNonPartySource)}
+                    <span className="map-placement-source-name">{selectedNonPartySource.name}</span>
+                    {selectedNonPartySource.kind === 'monster' ? (
+                      <div className="map-placement-stepper" aria-label={`${selectedNonPartySource.name} count`}>
+                        <button
+                          type="button"
+                          onClick={() => setMonsterCount(selectedNonPartySource.id, monsterCountFor(selectedNonPartySource.id) - 1)}
+                          aria-label="Decrease count"
+                        >
+                          <Minus size={12} />
+                        </button>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={monsterCountFor(selectedNonPartySource.id)}
+                          onChange={(event) => setMonsterCount(selectedNonPartySource.id, Number.parseInt(event.target.value, 10))}
+                          aria-label={`${selectedNonPartySource.name} placement count`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setMonsterCount(selectedNonPartySource.id, monsterCountFor(selectedNonPartySource.id) + 1)}
+                          aria-label="Increase count"
+                        >
+                          <Plus size={12} />
+                        </button>
+                      </div>
+                    ) : null}
+                    {selectedNonPartySource.kind === 'genericToken' ? (
+                      <button
+                        type="button"
+                        className="map-icon-btn map-placement-delete-source-btn fast-tooltip fast-tooltip-left"
+                        onClick={requestDeleteSelectedGenericSource}
+                        aria-label={`Delete ${selectedNonPartySource.name}`}
+                        data-tooltip="Delete generic source"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    ) : null}
+                    <button type="button" className="monster-example-btn" onClick={placeSelectedNonPartySource}>
+                      Place
+                    </button>
+                  </div>
+                ) : genericCreatorSelected ? (
+                  <div className="map-generic-asset-stage">
+                    <TokenIconEditor
+                      className="map-token-icon-editor"
+                      minSize={TOKEN_SIZE_MIN}
+                      maxSize={TOKEN_SIZE_MAX}
+                      value={{ icon: selectedTokenAssetId ? 'custom' : 'pawn', color: tokenColor, size: tokenSize } satisfies TokenIconConfig}
+                      onChange={(next) => {
+                        setTokenColor(next.color)
+                        setTokenSize(next.size)
+                      }}
+                      tokenAssets={tokenAssets.map((asset) => ({
+                        id: asset.id,
+                        name: asset.name,
+                        imageUrl: asset.imageUrl,
+                        archived: asset.archived,
+                      }))}
+                      selectedTokenAssetId={selectedTokenAssetId}
+                      onSelectedTokenAssetIdChange={setSelectedTokenAssetId}
+                      onArchiveTokenAsset={onArchiveTokenAsset}
+                      onRequestDeleteTokenAsset={onRequestDeleteTokenAsset}
+                      selectedTokenImageUrl={selectedTokenImageUrl}
+                      uploadingTokenImage={uploadingTokenImage}
+                      uploadAssetName={genericTokenName}
+                      uploadAssetNameLabel="Token name"
+                      onUploadAssetNameChange={setGenericTokenName}
+                      onUploadTokenImage={onUploadTokenImage}
+                    />
+                    {stagedGenericSource ? (
+                      <div className="token-row map-placement-row map-placement-row-simple">
+                        {renderPlacementSourceIcon(stagedGenericSource)}
+                        <span className="map-placement-source-name">{stagedGenericSource.name}</span>
+                        <button
+                          type="button"
+                          className="monster-example-btn"
+                          onClick={() => onStartSinglePlacement(stagedGenericSource)}
+                        >
+                          Place
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="map-npc-scene-empty">Choose a monster, NPC, or generic asset.</p>
+                )}
+              </div>
+            </>
+          ) : null}
+        </div>
+      </section>
       {npcSceneMode ? (
         <section className="token-cards-panel" aria-label="Scene NPCs">
           <div className="token-cards-header">
@@ -3490,7 +4695,62 @@ function GmMapControls({
             onClose={() => setSceneNpcModalId('')}
           />
       ) : null}
-      {!streamingMode ? (
+      <ConfirmModal
+        open={disbandCandidate !== null}
+        title="Disband Group?"
+        message={`Ungroup the ${disbandCandidate?.tokenIds.length ?? 0} token${
+          (disbandCandidate?.tokenIds.length ?? 0) === 1 ? '' : 's'
+        } in "${disbandCandidate?.name ?? ''}"? The tokens stay on the map; only the group is removed.`}
+        confirmLabel="Disband"
+        onCancel={() => setDisbandCandidate(null)}
+        onConfirm={handleConfirmDisbandGroup}
+      />
+      {makeGroupModalOpen ? (
+        <div
+          className="confirm-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Name token group"
+          onClick={() => setMakeGroupModalOpen(false)}
+        >
+          <div className="confirm-modal token-make-group-modal" onClick={(event) => event.stopPropagation()}>
+            <h4 className="token-make-group-title">
+              Group {selectedTokenCount} token{selectedTokenCount === 1 ? '' : 's'}
+            </h4>
+            <p className="token-make-group-subtitle">Nested under {selectedCategoryLabel}.</p>
+            <input
+              type="text"
+              className="token-make-group-input"
+              autoFocus
+              value={makeGroupNameDraft}
+              placeholder="Group name (e.g. Goblin Patrol)"
+              onChange={(event) => setMakeGroupNameDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') handleConfirmMakeGroup()
+                if (event.key === 'Escape') setMakeGroupModalOpen(false)
+              }}
+            />
+            <div className="token-make-group-actions">
+              <button
+                type="button"
+                className="token-make-group-cancel"
+                onClick={() => setMakeGroupModalOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="token-make-group-confirm"
+                onClick={handleConfirmMakeGroup}
+                disabled={!makeGroupNameDraft.trim()}
+              >
+                Create group
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {!playerViewPreview ? (
         <section className="token-cards-panel" aria-label="Token cards">
           <div className="token-cards-header">
             <h4 className="token-cards-title">Tokens</h4>
@@ -3506,20 +4766,135 @@ function GmMapControls({
           </div>
           {!tokensCollapsed ? (
             <div className="token-group-list">
+              <div className="token-global-controls" aria-label="Selected token controls">
+                <div className="token-global-controls-header">
+                  <h5 className="token-global-controls-title">Selected Tokens</h5>
+                  <span className="token-global-count">{selectedTokenCount}</span>
+                </div>
+                <div className="token-group-bulk-actions">
+                  <button
+                    type="button"
+                    className="token-group-delete fast-tooltip"
+                    onClick={() => onRequestDeleteTokens(selectedEditableTokenIds)}
+                    disabled={selectedTokenCount === 0}
+                    aria-label="Delete selected tokens"
+                    data-tooltip="Delete selected tokens"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                  <input
+                    type="color"
+                    value={selectedBulkColorValue}
+                    disabled={selectedTokenCount === 0}
+                    onChange={(event) => {
+                      const color = event.target.value
+                      void Promise.all(selectedTokens.map((token) => onUpdateToken(token.id, { color })))
+                    }}
+                    aria-label="Selected token color"
+                  />
+                  {selectedSameCategory ? (
+                    <button
+                      type="button"
+                      className="token-group-make-group fast-tooltip"
+                      onClick={() => {
+                        setMakeGroupNameDraft('')
+                        setMakeGroupModalOpen(true)
+                      }}
+                      aria-label="Group selected tokens"
+                      data-tooltip="Make group"
+                    >
+                      <Users size={14} />
+                    </button>
+                  ) : null}
+                </div>
+                <IconValueSlider
+                  className="token-row-size-row token-group-size-row"
+                  icon={<ALargeSmall size={14} />}
+                  tooltip="Token Size"
+                  value={selectedBulkSizeValue}
+                  min={TOKEN_SIZE_MIN}
+                  max={TOKEN_SIZE_MAX}
+                  step={1}
+                  disabled={selectedTokenCount === 0}
+                  ariaLabel="Selected token size"
+                  onChange={(nextSize) => {
+                    void Promise.all(selectedTokens.map((token) => onUpdateTokenSize(token.id, nextSize)))
+                  }}
+                />
+                <div className="token-row-toggles token-group-bulk-toggles">
+                  <button
+                    type="button"
+                    className={selectedAllParty ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
+                    onClick={() => {
+                      const next = !selectedAllParty
+                      void Promise.all(selectedTokens.map((token) => {
+                        if (!next) return onUpdateToken(token.id, { party: false })
+                        return onUpdateToken(token.id, {
+                          party: true,
+                          viewDistance: tokenViewDistanceSliderValue(token),
+                        })
+                      }))
+                    }}
+                    disabled={selectedTokenCount === 0}
+                    aria-label="Toggle selected party tokens"
+                    data-tooltip="Party token"
+                  >
+                    <User size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className={selectedAllRevealName ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
+                    onClick={() => {
+                      const revealName = !selectedAllRevealName
+                      void Promise.all(selectedTokens.map((token) => onUpdateToken(token.id, { revealName })))
+                    }}
+                    disabled={selectedTokenCount === 0}
+                    aria-label="Toggle selected reveal names"
+                    data-tooltip="Reveal name"
+                  >
+                    <Tag size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className={selectedAllHidden ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
+                    onClick={() => {
+                      const hidden = !selectedAllHidden
+                      void Promise.all(selectedTokens.map((token) => onUpdateToken(token.id, { hidden })))
+                    }}
+                    disabled={selectedTokenCount === 0}
+                    aria-label="Toggle selected hidden tokens"
+                    data-tooltip="Hide token"
+                  >
+                    <EyeOff size={14} />
+                  </button>
+                </div>
+                {selectedPartyTokens.length > 0 ? (
+                  <div className="token-view-distance token-group-view-distance" aria-label="Selected token view distance">
+                    <span className="token-view-distance-icon fast-tooltip" data-tooltip="View Distance" aria-hidden>
+                      <Binoculars size={14} />
+                    </span>
+                    <input
+                      className="token-view-distance-slider"
+                      type="range"
+                      min={8}
+                      max={600}
+                      step={2}
+                      value={selectedBulkViewDistanceValue}
+                      onChange={(event) => {
+                        const viewDistance = Number(event.target.value)
+                        void Promise.all(selectedPartyTokens.map((token) => onUpdateTokenViewDistance(token.id, viewDistance)))
+                      }}
+                    />
+                    <span className="token-view-distance-value">{selectedBulkViewDistanceValue}</span>
+                  </div>
+                ) : null}
+              </div>
               {tokenGroups.map((group) => {
                 const groupCollapsed = collapsedTokenGroupKeys.includes(group.key)
-                const groupCheckedTokens = group.tokens.filter((token) => checkedTokenIdSet.has(token.id))
-                const groupCheckedTokenIds = groupCheckedTokens.map((token) => token.id)
-                const groupHasCheckedTokens = groupCheckedTokenIds.length > 0
-                const bulkSizeValue = groupCheckedTokens[0]?.size ?? TOKEN_SIZE_MIN
-                const bulkColorValue = groupCheckedTokens[0]?.color ?? tokenColor
-                const bulkPartyTokens = groupCheckedTokens.filter((token) => token.party)
-                const bulkViewDistanceValue = bulkPartyTokens[0]
-                  ? tokenViewDistanceSliderValue(bulkPartyTokens[0])
-                  : DEFAULT_TOKEN_VIEW_DISTANCE
-                const groupAllParty = groupHasCheckedTokens && groupCheckedTokens.every((token) => token.party)
-                const groupAllRevealName = groupHasCheckedTokens && groupCheckedTokens.every((token) => token.revealName)
-                const groupAllHidden = groupHasCheckedTokens && groupCheckedTokens.every((token) => token.hidden)
+                const groupSelectedTokens = group.tokens.filter((token) => selectedTokenIdSet.has(token.id))
+                const groupSelectedTokenIds = groupSelectedTokens.map((token) => token.id)
+                const groupHasSelectedTokens = groupSelectedTokenIds.length > 0
+                const groupAllSelected = groupHasSelectedTokens && groupSelectedTokenIds.length === group.tokens.length
                 return (
                   <section key={group.key} className="token-group-block" aria-label={group.label}>
                     <div className="token-group-header">
@@ -3529,267 +4904,141 @@ function GmMapControls({
                         <button
                           type="button"
                           className="token-group-collapse-btn fast-tooltip"
-                          onClick={() => toggleTokenGroupCollapsed(group.key, group.tokens)}
+                          onClick={() => toggleTokenGroupCollapsed(group.key)}
                           aria-label={groupCollapsed ? `Expand ${group.label} tokens` : `Minimize ${group.label} tokens`}
-                          data-tooltip={groupCollapsed ? 'Expand group' : 'Minimize group'}
+                          data-tooltip={groupCollapsed ? 'Expand category' : 'Minimize category'}
                         >
                           {groupCollapsed ? <Plus size={13} /> : <Minus size={13} />}
                         </button>
                         <label className="token-group-check-label">
                           <input
                             type="checkbox"
-                            checked={groupHasCheckedTokens}
-                            onChange={() => toggleGroupChecked(group.tokens, !groupHasCheckedTokens)}
-                            aria-label={groupHasCheckedTokens ? `Uncheck all ${group.label} tokens` : `Check all ${group.label} tokens`}
+                            checked={groupAllSelected}
+                            onChange={() => toggleGroupSelected(group.tokens, !groupAllSelected)}
+                            aria-label={groupAllSelected ? `Deselect all ${group.label} tokens` : `Select all ${group.label} tokens`}
                           />
                         </label>
                       </div>
                     </div>
-                    {groupHasCheckedTokens ? (
-                      <div className="token-group-bulk-controls" aria-label={`Checked ${group.label} token controls`}>
-                        <h6 className="token-group-bulk-title">Selected Group Controls</h6>
-                        <div className="token-group-bulk-actions">
-                          <button
-                            type="button"
-                            className="token-group-delete fast-tooltip"
-                            onClick={() => onRequestDeleteTokens(groupCheckedTokenIds)}
-                            aria-label={`Delete checked ${group.label} tokens`}
-                            data-tooltip="Delete checked tokens"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                          <input
-                            type="color"
-                            value={bulkColorValue}
-                            onChange={(event) => {
-                              const color = event.target.value
-                              void Promise.all(groupCheckedTokens.map((token) => onUpdateToken(token.id, { color })))
-                            }}
-                            aria-label={`Checked ${group.label} token color`}
-                          />
-                        </div>
-                        <IconValueSlider
-                          className="token-row-size-row token-group-size-row"
-                          icon={<ALargeSmall size={14} />}
-                          tooltip="Token Size"
-                          value={bulkSizeValue}
-                          min={TOKEN_SIZE_MIN}
-                          max={TOKEN_SIZE_MAX}
-                          step={1}
-                          ariaLabel={`Checked ${group.label} token size`}
-                          onChange={(nextSize) => {
-                            void Promise.all(groupCheckedTokens.map((token) => onUpdateTokenSize(token.id, nextSize)))
-                          }}
-                        />
-                        <div className="token-row-toggles token-group-bulk-toggles">
-                          <button
-                            type="button"
-                            className={groupAllParty ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
-                            onClick={() => {
-                              const next = !groupAllParty
-                              void Promise.all(groupCheckedTokens.map((token) => {
-                                if (!next) return onUpdateToken(token.id, { party: false })
-                                return onUpdateToken(token.id, {
-                                  party: true,
-                                  viewDistance: tokenViewDistanceSliderValue(token),
-                                })
-                              }))
-                            }}
-                            aria-label={`Toggle checked ${group.label} party tokens`}
-                            data-tooltip="Party token"
-                          >
-                            <User size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            className={groupAllRevealName ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
-                            onClick={() => {
-                              const revealName = !groupAllRevealName
-                              void Promise.all(groupCheckedTokens.map((token) => onUpdateToken(token.id, { revealName })))
-                            }}
-                            aria-label={`Toggle checked ${group.label} reveal names`}
-                            data-tooltip="Reveal name"
-                          >
-                            <Tag size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            className={groupAllHidden ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
-                            onClick={() => {
-                              const hidden = !groupAllHidden
-                              void Promise.all(groupCheckedTokens.map((token) => onUpdateToken(token.id, { hidden })))
-                            }}
-                            aria-label={`Toggle checked ${group.label} hidden tokens`}
-                            data-tooltip="Hide token"
-                          >
-                            <EyeOff size={14} />
-                          </button>
-                        </div>
-                        {bulkPartyTokens.length > 0 ? (
-                          <div className="token-view-distance token-group-view-distance" aria-label={`Checked ${group.label} view distance`}>
-                            <span className="token-view-distance-icon fast-tooltip" data-tooltip="View Distance" aria-hidden>
-                              <Binoculars size={14} />
-                            </span>
-                            <input
-                              className="token-view-distance-slider"
-                              type="range"
-                              min={8}
-                              max={600}
-                              step={2}
-                              value={bulkViewDistanceValue}
-                              onChange={(event) => {
-                                const viewDistance = Number(event.target.value)
-                                void Promise.all(bulkPartyTokens.map((token) => onUpdateTokenViewDistance(token.id, viewDistance)))
-                              }}
-                            />
-                            <span className="token-view-distance-value">{bulkViewDistanceValue}</span>
-                          </div>
-                        ) : null}
-                      </div>
-                    ) : null}
                     {!groupCollapsed ? (
                     <div className="token-list">
-                      {group.tokens.map((token, index) => (
-                        <div
-                          key={token.id}
-                          className={selectedTokenIds.includes(token.id) ? 'token-row selected' : 'token-row'}
-                        >
-                          <div className="token-row-summary" onClick={() => onSelectTokenCard(token.id)}>
-                            <input
-                              type="checkbox"
-                              className="token-row-check"
-                              checked={checkedTokenIdSet.has(token.id)}
-                              onClick={(event) => event.stopPropagation()}
-                              onChange={(event) => setTokenChecked(token.id, event.target.checked)}
-                              aria-label={`Check ${group.label} token ${index + 1}`}
-                            />
-                            <span className="token-row-icon" style={{ color: token.color }} aria-hidden>
-                            {token.tokenImageUrl ? (
-                              <img src={token.tokenImageUrl} alt="" className="token-row-image" />
-                            ) : (
-                              <ChessPawn size={14} />
-                            )}
-                          </span>
-                          <input
-                            type="text"
-                            className="token-row-label-input"
-                            value={tokenNameDrafts[token.id] ?? token.name}
-                            onFocus={() =>
-                              setTokenNameDrafts((prev) => ({
-                                ...prev,
-                                [token.id]: token.name,
-                              }))
-                            }
-                            onChange={(event) =>
-                              setTokenNameDrafts((prev) => ({
-                                ...prev,
-                                [token.id]: event.target.value,
-                              }))
-                            }
-                            onBlur={(event) => void commitTokenLabelEdit(token, event.target.value)}
-                            onKeyDown={(event) => {
-                              if (event.key === 'Enter') {
-                                event.currentTarget.blur()
-                              }
-                            }}
-                            aria-label={`${group.label} token ${index + 1} name`}
-                            placeholder={`${group.label} ${index + 1}`}
-                          />
-                          <button
-                            type="button"
-                            className="token-row-expand"
+                      {(() => {
+                        const renderRow = (token: TokenRecord, index: number) => (
+                          <div
+                            key={token.id}
+                            className={selectedTokenIdSet.has(token.id) ? 'token-row selected' : 'token-row'}
                             onClick={(event) => {
-                              event.stopPropagation()
-                              toggleTokenExpanded(token.id)
+                              const target = event.target as HTMLElement | null
+                              if (target?.closest('button,input,select,textarea,a,label')) return
+                              toggleTokenListSelection(token.id, event.shiftKey)
                             }}
-                            aria-label={expandedTokenIds.includes(token.id) ? 'Collapse token controls' : 'Expand token controls'}
-                            title={expandedTokenIds.includes(token.id) ? 'Collapse' : 'Expand'}
                           >
-                            {expandedTokenIds.includes(token.id) ? '-' : '+'}
-                          </button>
-                        </div>
-                        {expandedTokenIds.includes(token.id) ? (
-                          <div className="token-row-details">
-                            {!token.tokenImageUrl ? (
+                            <div className="token-row-summary">
+                              <span className="token-row-icon" style={{ color: token.color }} aria-hidden>
+                                {token.tokenImageUrl ? (
+                                  <img src={token.tokenImageUrl} alt="" className="token-row-image" />
+                                ) : (
+                                  <ChessPawn size={14} />
+                                )}
+                              </span>
                               <input
-                                type="color"
-                                value={token.color}
-                                onChange={(event) => void onUpdateToken(token.id, { color: event.target.value })}
-                                aria-label={`${group.label} token ${index + 1} color`}
-                              />
-                            ) : null}
-                            <IconValueSlider
-                              className="token-row-size-row"
-                              icon={<ALargeSmall size={14} />}
-                              tooltip="Token Size"
-                              value={token.size}
-                              min={TOKEN_SIZE_MIN}
-                              max={TOKEN_SIZE_MAX}
-                              step={1}
-                              ariaLabel={`${group.label} token ${index + 1} size`}
-                              onChange={(nextSize) => void onUpdateTokenSize(token.id, nextSize)}
-                            />
-                            <div className="token-row-toggles">
-                              <button
-                                type="button"
-                                className={token.party ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
-                                onClick={() => {
-                                  const next = !token.party
-                                  if (next) {
-                                    const viewDistance = tokenViewDistanceSliderValue(token)
-                                    void onUpdateToken(token.id, {
-                                      party: next,
-                                      viewDistance,
-                                    })
-                                    return
-                                  }
-                                  void onUpdateToken(token.id, { party: next })
+                                type="text"
+                                className="token-row-label-input"
+                                value={tokenNameDrafts[token.id] ?? token.name}
+                                onFocus={() => {
+                                  onSelectedTokenIdsChange((current) => (current.includes(token.id) ? current : [...current, token.id]))
+                                  setTokenNameDrafts((prev) => ({
+                                    ...prev,
+                                    [token.id]: token.name,
+                                  }))
                                 }}
-                                aria-label="Toggle party token"
-                                data-tooltip="Party token"
-                              >
-                                <User size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                className={token.revealName ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
-                                onClick={() => void onUpdateToken(token.id, { revealName: !token.revealName })}
-                                aria-label="Toggle reveal name"
-                                data-tooltip="Reveal name"
-                              >
-                                <Tag size={14} />
-                              </button>
-                              <button
-                                type="button"
-                                className={token.hidden ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
-                                onClick={() => void onUpdateToken(token.id, { hidden: !token.hidden })}
-                                aria-label="Toggle hide token"
-                                data-tooltip="Hide token"
-                              >
-                                <EyeOff size={14} />
-                              </button>
+                                onChange={(event) =>
+                                  setTokenNameDrafts((prev) => ({
+                                    ...prev,
+                                    [token.id]: event.target.value,
+                                  }))
+                                }
+                                onBlur={(event) => void commitTokenLabelEdit(token, event.target.value)}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter') {
+                                    event.currentTarget.blur()
+                                  }
+                                }}
+                                aria-label={`${group.label} token ${index + 1} name`}
+                                placeholder={`${group.label} ${index + 1}`}
+                              />
                             </div>
-                            {token.party ? (
-                              <div className="token-view-distance" aria-label="Token view distance">
-                                <span className="token-view-distance-icon fast-tooltip" data-tooltip="View Distance" aria-hidden>
-                                  <Binoculars size={14} />
-                                </span>
-                                <input
-                                  className="token-view-distance-slider"
-                                  type="range"
-                                  min={8}
-                                  max={600}
-                                  step={2}
-                                  value={tokenViewDistanceSliderValue(token)}
-                                  onChange={(event) => void onUpdateTokenViewDistance(token.id, Number(event.target.value))}
-                                />
-                                <span className="token-view-distance-value">{tokenViewDistanceSliderValue(token)}</span>
-                              </div>
-                            ) : null}
                           </div>
-                        ) : null}
-                      </div>
-                      ))}
+                        )
+
+                        // Note: `Map` is shadowed by the lucide-react Map icon import,
+                        // so partition into an ordered list of [name, tokens] entries.
+                        const namedGroups: Array<[string, TokenRecord[]]> = []
+                        const loose: TokenRecord[] = []
+                        group.tokens.forEach((token) => {
+                          const name = (token.group ?? '').trim()
+                          if (!name) {
+                            loose.push(token)
+                            return
+                          }
+                          const existing = namedGroups.find(([key]) => key === name)
+                          if (existing) {
+                            existing[1].push(token)
+                          } else {
+                            namedGroups.push([name, [token]])
+                          }
+                        })
+
+                        return (
+                          <>
+                            {namedGroups.map(([name, groupedTokens]) => {
+                              const subgroupKey = `${group.key}:${name}`
+                              const subgroupCollapsed = collapsedSubgroupKeys.includes(subgroupKey)
+                              const subgroupAllSelected = groupedTokens.every((token) => selectedTokenIdSet.has(token.id))
+                              return (
+                              <div key={`group-${name}`} className="token-subgroup">
+                                <div className="token-subgroup-header">
+                                  <span className="token-subgroup-title">{name}</span>
+                                  <span className="token-subgroup-count">{groupedTokens.length}</span>
+                                  <button
+                                    type="button"
+                                    className="token-subgroup-collapse fast-tooltip"
+                                    onClick={() => toggleSubgroupCollapsed(subgroupKey)}
+                                    aria-label={subgroupCollapsed ? `Expand ${name} group` : `Minimize ${name} group`}
+                                    data-tooltip={subgroupCollapsed ? 'Expand group' : 'Minimize group'}
+                                  >
+                                    {subgroupCollapsed ? <Plus size={12} /> : <Minus size={12} />}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="token-subgroup-ungroup fast-tooltip"
+                                    onClick={() =>
+                                      setDisbandCandidate({ name, tokenIds: groupedTokens.map((token) => token.id) })
+                                    }
+                                    aria-label={`Disband ${name} group`}
+                                    data-tooltip="Disband group"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                  <label className="token-subgroup-check-label">
+                                    <input
+                                      type="checkbox"
+                                      checked={subgroupAllSelected}
+                                      onChange={() => toggleGroupSelected(groupedTokens, !subgroupAllSelected)}
+                                      aria-label={subgroupAllSelected ? `Deselect all ${name} tokens` : `Select all ${name} tokens`}
+                                    />
+                                  </label>
+                                </div>
+                                {subgroupCollapsed
+                                  ? null
+                                  : groupedTokens.map((token) => renderRow(token, group.tokens.indexOf(token)))}
+                              </div>
+                              )
+                            })}
+                            {loose.map((token) => renderRow(token, group.tokens.indexOf(token)))}
+                          </>
+                        )
+                      })()}
                     </div>
                     ) : null}
                   </section>
