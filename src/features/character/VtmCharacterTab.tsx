@@ -66,6 +66,62 @@ function rowsWithFallback(rows: VtmRatedRow[], options: readonly string[]): VtmR
 
 const PRIORITY_ORDER: VtmCreationPriority[] = ['primary', 'secondary', 'tertiary']
 
+function CappedTracker({
+  value,
+  cap,
+  max,
+  label,
+  disabled = false,
+  onCurrentChange,
+  onCapChange,
+}: {
+  value: number
+  cap: number
+  max: number
+  label: string
+  disabled?: boolean
+  onCurrentChange: (next: number) => void
+  onCapChange?: (next: number) => void
+}) {
+  const normalizedMax = Math.max(1, Math.floor(max || 1))
+  const normalizedCap = Math.max(1, Math.min(normalizedMax, Math.floor(cap || 1)))
+  const normalized = Math.max(0, Math.min(normalizedCap, Math.floor(value || 0)))
+
+  return (
+    <div className="vtm-capped-tracker" role="group" aria-label={`${label}: current ${normalized}, cap ${normalizedCap}`}>
+      {Array.from({ length: normalizedMax }, (_, index) => {
+        const dotValue = index + 1
+        const current = dotValue <= normalized
+        const withinCap = dotValue <= normalizedCap
+        const isCap = dotValue === normalizedCap
+        return (
+          <button
+            key={dotValue}
+            type="button"
+            className={[
+              'vtm-capped-dot',
+              current ? 'current' : '',
+              withinCap ? 'within-cap' : 'beyond-cap',
+              isCap ? 'cap' : '',
+            ].filter(Boolean).join(' ')}
+            aria-label={`${label}: set ${dotValue}${isCap ? ' permanent cap' : ''}`}
+            aria-pressed={current}
+            disabled={disabled}
+            onClick={() => {
+              if (disabled) return
+              if (dotValue > normalizedCap) {
+                if (onCapChange) onCapChange(dotValue)
+                return
+              }
+              onCurrentChange(current ? dotValue - 1 : dotValue)
+            }}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
 // Segmented Primary/Secondary/Tertiary picker. Shows each tier's dot budget;
 // picking a tier swaps it away from whichever column currently holds it, so the
 // three categories always stay a valid 7/5/3 (or 13/9/5) permutation.
@@ -311,6 +367,27 @@ export function VtmCharacterTab({
     updateSelected({ xp: dotChange.xpBalance, vtm: nextSheet })
   }
 
+  const setWillpowerCap = (nextRating: number) => {
+    if (!sheet) return
+    if (isGuidedDraft && !freebieMode) {
+      setFeedback('Starting Willpower is set by Courage until the freebie step.')
+      return
+    }
+    const currentRating = sheet.willpowerPermanent
+    const dotChange = canApplyDotChange(currentRating, nextRating, FREEBIE_COSTS.willpower, 'willpower', 'Raise Willpower')
+    if (!dotChange.ok) return
+    updateSelected({
+      xp: dotChange.xpBalance,
+      vtm: {
+        ...sheet,
+        freebiePointsSpent: dotChange.freebiePointsSpent,
+        xpLedger: dotChange.xpLedger,
+        willpowerPermanent: nextRating,
+        willpowerTemporary: Math.min(sheet.willpowerTemporary, nextRating),
+      },
+    })
+  }
+
   const updateRatedRows = (
     key: 'disciplines' | 'backgrounds' | 'otherTraits',
     rows: VtmRatedRow[],
@@ -380,6 +457,10 @@ export function VtmCharacterTab({
     const errors = selectedCharacter.creationMode === 'new' ? sheetCreationErrors(sheet) : []
     if (errors.length > 0) {
       setFeedback('Resolve overspent creation pools before finalizing.')
+      return
+    }
+    if (selectedCharacter.creationMode === 'new' && sheet.bloodPoolCurrent <= 0) {
+      setFeedback('Roll starting Blood Pool before finalizing.')
       return
     }
     updateSelected({ creationStatus: 'active' })
@@ -688,7 +769,17 @@ export function VtmCharacterTab({
               </div>
             </section>
 
-            <Trackers sheet={sheet} canEdit={canEdit} bloodPoolMax={bloodPoolMax} updateSheet={updateSheet} spendXpMode={spendXpMode} applyTrackerRaise={applyTrackerRaise} />
+            <Trackers
+              sheet={sheet}
+              canEdit={canEdit}
+              bloodPoolMax={bloodPoolMax}
+              updateSheet={updateSheet}
+              spendXpMode={spendXpMode}
+              isGuidedDraft={isGuidedDraft}
+              freebieCost={isGuidedDraft && freebieMode ? FREEBIE_COSTS.willpower : null}
+              onWillpowerCapChange={setWillpowerCap}
+              applyTrackerRaise={applyTrackerRaise}
+            />
             <TextAndCombat sheet={sheet} canEdit={canEdit} updateSheet={updateSheet} />
 
             <section className="character-placeholder-block vtm-block">
@@ -921,6 +1012,9 @@ function Trackers({
   bloodPoolMax,
   updateSheet,
   spendXpMode,
+  isGuidedDraft,
+  freebieCost,
+  onWillpowerCapChange,
   applyTrackerRaise,
 }: {
   sheet: VtmCharacterSheet
@@ -928,6 +1022,9 @@ function Trackers({
   bloodPoolMax: number | null
   updateSheet: (updater: (current: VtmCharacterSheet) => VtmCharacterSheet) => void
   spendXpMode: boolean
+  isGuidedDraft: boolean
+  freebieCost: number | null
+  onWillpowerCapChange: (nextRating: number) => void
   applyTrackerRaise: (
     category: Parameters<typeof xpCostToRaise>[0],
     currentRating: number,
@@ -935,6 +1032,10 @@ function Trackers({
     buildNextSheet: (base: VtmCharacterSheet) => VtmCharacterSheet,
   ) => void
 }) {
+  const hasRolledStartingBlood = sheet.bloodPoolCurrent > 0
+  const bloodRollLocked = isGuidedDraft && hasRolledStartingBlood
+  const bloodPoolMaxValue = bloodPoolMax ?? 10
+
   return (
     <section className="character-placeholder-block vtm-block">
       <h3 className="vtm-rule-title">Trackers</h3>
@@ -951,27 +1052,37 @@ function Trackers({
         </div>
         <div>
           <h4>Willpower</h4>
-          <DotRating
-            value={sheet.willpowerPermanent}
-            label="Permanent Willpower"
-            disabled={!canEdit}
-            onChange={(rating) => {
-              if (rating > sheet.willpowerPermanent && spendXpMode) {
-                applyTrackerRaise('willpower', sheet.willpowerPermanent, 'Raise Willpower', (current) => ({
-                  ...current,
-                  willpowerPermanent: rating,
-                  willpowerTemporary: Math.min(current.willpowerTemporary, rating),
-                }))
-                return
-              }
-              updateSheet((current) => ({ ...current, willpowerPermanent: rating, willpowerTemporary: Math.min(current.willpowerTemporary, rating) }))
-            }}
-          />
-          <DotRating value={sheet.willpowerTemporary} max={sheet.willpowerPermanent || 1} label="Temporary Willpower" disabled={!canEdit} onChange={(rating) => updateSheet((current) => ({ ...current, willpowerTemporary: rating }))} />
+          <div className="vtm-tracker-row stacked">
+            <span>Current / Permanent {freebieCost != null ? <em>{freebieCost}/dot</em> : null}</span>
+            <CappedTracker
+              value={sheet.willpowerTemporary}
+              cap={sheet.willpowerPermanent}
+              max={10}
+              label="Willpower"
+              disabled={!canEdit}
+              onCurrentChange={(rating) => updateSheet((current) => ({ ...current, willpowerTemporary: rating }))}
+              onCapChange={onWillpowerCapChange}
+            />
+          </div>
         </div>
         <div>
-          <h4>Blood Pool</h4>
-          <DotRating value={sheet.bloodPoolCurrent} max={bloodPoolMax ?? 10} label="Blood Pool" disabled={!canEdit} onChange={(rating) => updateSheet((current) => ({ ...current, bloodPoolCurrent: rating }))} />
+          <div className="vtm-tracker-head">
+            <h4>Blood Pool</h4>
+            <button
+              type="button"
+              className="vtm-roll-pill"
+              disabled={!canEdit || bloodRollLocked}
+              onClick={() => {
+                if (isGuidedDraft && hasRolledStartingBlood) return
+                const max = bloodPoolMaxValue
+                const roll = Math.floor(Math.random() * 10) + 1
+                updateSheet((current) => ({ ...current, bloodPoolCurrent: Math.min(roll, max) }))
+              }}
+            >
+              {bloodRollLocked ? 'Rolled' : 'Roll'}
+            </button>
+          </div>
+          <DotRating value={sheet.bloodPoolCurrent} max={bloodPoolMaxValue} label="Blood Pool" disabled={!canEdit || isGuidedDraft} onChange={(rating) => updateSheet((current) => ({ ...current, bloodPoolCurrent: rating }))} />
           <p className="settings-help">Max {bloodPoolMax ?? 'unknown'}</p>
         </div>
         <div>
