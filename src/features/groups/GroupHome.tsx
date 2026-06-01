@@ -51,7 +51,10 @@ export function GroupHome({
   const [campaignName, setCampaignName] = useState('')
   const [campaignSystem, setCampaignSystem] = useState('ose')
   const [error, setError] = useState<string | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
   const canDelete = group.memberRole === 'admin'
+  const groupHasContents =
+    Boolean(group.activeCampaign) || group.drafts.length > 0 || group.inactiveCampaigns.length > 0
   const canInvite = group.memberRole === 'admin'
 
   const inviteUrl = (token: string) => `${window.location.origin}/join/${token}`
@@ -221,7 +224,7 @@ export function GroupHome({
               </button>
             ) : null}
             {canDelete ? (
-              <button type="button" className="group-icon-button" onClick={() => setDeleteOpen(true)} aria-label="Delete group" title="Delete group">
+              <button type="button" className="group-icon-button" onClick={() => { setDeleteConfirm(false); setError(null); setDeleteOpen(true) }} aria-label="Delete group" title="Delete group">
                 <Trash2 size={16} />
               </button>
             ) : null}
@@ -597,28 +600,60 @@ export function GroupHome({
       {deleteOpen ? (
         <div className="confirm-overlay" role="dialog" aria-modal="true">
           <div className="confirm-modal group-modal">
-            <h3>Delete group</h3>
-            <p>Delete <strong>{group.name}</strong>?</p>
-            {group.activeCampaign || group.drafts.length > 0 || group.inactiveCampaigns.length > 0 ? (
-              <p>Remove all campaigns first.</p>
-            ) : null}
-            {error ? <p className="error">{error}</p> : null}
-            <div className="group-modal-actions">
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  if (busy) return
-                  setDeleteOpen(false)
-                  setError(null)
-                }}
-              >
-                Cancel
-              </button>
-              <button type="button" className="danger" onClick={() => void handleDelete()} disabled={busy}>
-                {busy ? 'Deleting…' : 'Delete'}
-              </button>
-            </div>
+            {!deleteConfirm ? (
+              <>
+                <h3>Delete group</h3>
+                <p>Delete <strong>{group.name}</strong>?</p>
+                {groupHasContents ? (
+                  <p>This also deletes every campaign in the group and removes all members. This can't be undone.</p>
+                ) : (
+                  <p>This removes all members and can't be undone.</p>
+                )}
+                {error ? <p className="error">{error}</p> : null}
+                <div className="group-modal-actions">
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => {
+                      if (busy) return
+                      setDeleteOpen(false)
+                      setError(null)
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button type="button" className="danger" onClick={() => { setError(null); setDeleteConfirm(true) }}>
+                    Delete
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h3>Are you sure?</h3>
+                <p>
+                  This permanently deletes <strong>{group.name}</strong>
+                  {groupHasContents ? ', all of its campaigns,' : ''} and everyone's membership.
+                  There is no undo.
+                </p>
+                {error ? <p className="error">{error}</p> : null}
+                <div className="group-modal-actions">
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => {
+                      if (busy) return
+                      setDeleteConfirm(false)
+                      setError(null)
+                    }}
+                  >
+                    Back
+                  </button>
+                  <button type="button" className="danger" onClick={() => void handleDelete()} disabled={busy}>
+                    {busy ? 'Deleting…' : 'Delete everything'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       ) : null}

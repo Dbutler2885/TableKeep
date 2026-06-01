@@ -13,6 +13,7 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 import { db } from '../../firebase'
+import { deleteCampaignDeep } from '../campaign/deleteCampaignDeep'
 import type { AppTab, Campaign, GroupRecord, GroupMemberRole } from '../../types/app'
 
 const KNOWN_TABS: AppTab[] = ['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'calendar', 'rules']
@@ -341,7 +342,7 @@ export function useGroupAccess(user: User) {
       throw new Error('Inactive campaign not found.')
     }
 
-    await deleteDoc(doc(db, 'groups', groupId, 'campaigns', campaignId))
+    await deleteCampaignDeep(db, groupId, campaignId)
 
     setGroups((current) =>
       current.map((group) =>
@@ -365,7 +366,7 @@ export function useGroupAccess(user: User) {
       throw new Error('Only the draft owner can delete it.')
     }
 
-    await deleteDoc(doc(db, 'groups', groupId, 'campaigns', campaignId))
+    await deleteCampaignDeep(db, groupId, campaignId)
 
     setGroups((current) =>
       current.map((group) =>
@@ -387,20 +388,25 @@ export function useGroupAccess(user: User) {
     if (target.memberRole !== 'admin') {
       throw new Error('Only group admins can delete groups.')
     }
-    if (target.activeCampaign || target.drafts.length > 0 || target.inactiveCampaigns.length > 0) {
-      throw new Error('Only empty groups can be deleted right now.')
-    }
 
-    const [membersSnap, invitesSnap] = await Promise.all([
+    const [membersSnap, invitesSnap, campaignsSnap] = await Promise.all([
       getDocs(collection(db, 'groups', groupId, 'members')),
       getDocs(collection(db, 'groups', groupId, 'invites')),
+      getDocs(collection(db, 'groups', groupId, 'campaigns')),
     ])
 
     const selfMemberDoc = membersSnap.docs.find((memberDoc) => memberDoc.id === user.uid) ?? null
     const otherMemberDocs = membersSnap.docs.filter((memberDoc) => memberDoc.id !== user.uid)
 
-    await Promise.all(invitesSnap.docs.map((inviteDoc) => deleteDoc(inviteDoc.ref)))
-    await Promise.all(otherMemberDocs.map((memberDoc) => deleteDoc(memberDoc.ref)))
+    // Cascade-delete everything scoped under the group: invites, every campaign
+    // (deeply, including all campaign subcollections), and every other member's
+    // membership. Self membership is removed last so the admin still passes
+    // isGroupAdmin while deleting the rest and the group doc.
+    await Promise.all([
+      ...invitesSnap.docs.map((inviteDoc) => deleteDoc(inviteDoc.ref)),
+      ...campaignsSnap.docs.map((campaignDoc) => deleteCampaignDeep(db, groupId, campaignDoc.id)),
+      ...otherMemberDocs.map((memberDoc) => deleteDoc(memberDoc.ref)),
+    ])
     await deleteDoc(doc(db, 'groups', groupId))
     if (selfMemberDoc) {
       await deleteDoc(selfMemberDoc.ref)

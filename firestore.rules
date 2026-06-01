@@ -149,9 +149,11 @@ service cloud.firestore {
           || (isGroupMember(groupId) && resource.data.gmUserId == request.auth.uid);
 
         // Per-user campaign UI scratch (currentCharacterId,
-        // lastSeenCliffhangerNoteId). Owner-only; replaces campaign `members`.
+        // lastSeenCliffhangerNoteId). Owner-only, except the campaign GM / group
+        // admin may delete other members' scratch when tearing down a campaign.
         match /userState/{userId} {
           allow read, write: if isSelf(userId) && isGroupMember(groupId);
+          allow delete: if isCampaignGm(groupId, campaignId);
         }
 
         match /characters/{characterId} {
