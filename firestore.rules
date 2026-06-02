@@ -150,10 +150,11 @@ service cloud.firestore {
 
         // Per-user campaign UI scratch (currentCharacterId,
         // lastSeenCliffhangerNoteId). Owner-only, except the campaign GM / group
-        // admin may delete other members' scratch when tearing down a campaign.
+        // admin may list and delete members' scratch when tearing down a
+        // campaign (delete needs read to enumerate the collection first).
         match /userState/{userId} {
           allow read, write: if isSelf(userId) && isGroupMember(groupId);
-          allow delete: if isCampaignGm(groupId, campaignId);
+          allow read, delete: if isCampaignGm(groupId, campaignId);
         }
 
         match /characters/{characterId} {
