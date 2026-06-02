@@ -6,7 +6,8 @@ const AUTH_ERROR_MESSAGES: Record<string, string> = {
   'auth/invalid-email': "That doesn't look like a valid email address.",
   'auth/weak-password': 'Password must be at least 8 characters.',
   'auth/missing-password': 'Enter your password.',
-  'auth/popup-blocked': 'Your browser blocked the Google sign-in popup.',
+  'auth/no-auth-event': 'Google sign-in lost its browser session state. Try the Google button again, or use email sign-in.',
+  'auth/popup-blocked': 'Your browser blocked the Google sign-in popup. Allow popups for this site, then try again.',
   'auth/popup-closed-by-user': 'Google sign-in was closed before it finished.',
   'auth/too-many-requests': 'Too many attempts. Wait a moment and try again.',
 }

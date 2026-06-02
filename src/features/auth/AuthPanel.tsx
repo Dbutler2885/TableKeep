@@ -5,7 +5,6 @@ import {
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signInWithPopup,
-  signInWithRedirect,
 } from 'firebase/auth'
 import { auth, db } from '../../firebase'
 import { SignInView } from './SignInView'
@@ -67,20 +66,8 @@ export function AuthPanel({ context }: AuthPanelProps) {
   const handleGoogle = () =>
     run(async () => {
       const provider = new GoogleAuthProvider()
-      try {
-        await signInWithPopup(auth, provider)
-        setStatus('Signed in with Google.')
-      } catch (err: unknown) {
-        const code = typeof err === 'object' && err !== null && 'code' in err
-          ? String((err as { code?: string }).code)
-          : ''
-        if (code.includes('popup-blocked') || code.includes('popup-closed-by-user')) {
-          await signInWithRedirect(auth, provider)
-          setStatus('Redirecting to Google sign-in…')
-          return
-        }
-        throw err
-      }
+      await signInWithPopup(auth, provider)
+      setStatus('Signed in with Google.')
     })
 
   // Reset transient state when swapping modes so a stale error from one view

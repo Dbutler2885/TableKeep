@@ -7,6 +7,15 @@ describe('getAuthErrorMessage', () => {
     expect(getAuthErrorMessage({ code: 'auth/user-not-found' })).toBe('No account found for this email.')
   })
 
+  it('gives actionable copy for Google popup and redirect storage failures', () => {
+    expect(getAuthErrorMessage({ code: 'auth/popup-blocked' })).toBe(
+      'Your browser blocked the Google sign-in popup. Allow popups for this site, then try again.',
+    )
+    expect(getAuthErrorMessage({ code: 'auth/no-auth-event' })).toBe(
+      'Google sign-in lost its browser session state. Try the Google button again, or use email sign-in.',
+    )
+  })
+
   it('falls back to the error message when the code is unknown', () => {
     expect(getAuthErrorMessage(new Error('Unexpected Firebase failure.'))).toBe(
       'Unexpected Firebase failure.',
