@@ -30,6 +30,7 @@ export function resolveMapInteractionIntent(
 
   if (isMiddleDrag(event)) return { type: 'pan', via: 'middleMouse' }
   if (isShiftLeftDrag(event)) return { type: 'pan', via: 'shiftLeftDrag' }
+  if (isShiftLeftClick(event)) return { type: 'no-op' }
 
   const { activeTool } = state
   if (activeTool?.type === 'hand' && isLeftDrag(event)) {
@@ -64,6 +65,10 @@ export function resolveMapInteractionIntent(
 
 function isLeftClick(event: MapInteractionEvent): boolean {
   return event.phase === 'click' && event.button === 'left'
+}
+
+function isShiftLeftClick(event: MapInteractionEvent): boolean {
+  return isLeftClick(event) && event.shiftKey === true
 }
 
 function isLeftDrag(event: MapInteractionEvent): boolean {

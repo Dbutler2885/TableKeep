@@ -13,23 +13,23 @@ export type MapToolGuidanceContext = {
 export const MAP_INTERACTION_HELP_SECTIONS: MapToolGuidance[] = [
   {
     title: 'Navigate',
-    body: 'Pan with middle mouse, shift-drag, or the hand tool. Use the wheel or touch gestures to zoom.',
+    body: 'Map movement. Middle-drag, shift-drag, or use the hand tool to pan. Wheel or pinch to zoom.',
   },
   {
     title: 'Tokens',
-    body: 'Click tokens to select them, drag tokens to move them, or use drag-select when the selection tool is active.',
+    body: 'Map pieces. Click to select. Drag to move. Use selection mode to drag-select groups.',
   },
   {
     title: 'Fog and Vision',
-    body: 'Use left-drag with fog or vision tools active. Hide All and Reveal All apply immediately.',
+    body: 'GM visibility tools. Left-drag to paint. Hide All and Reveal All apply immediately.',
   },
   {
-    title: 'Annotations',
-    body: 'Click bare map space to place labels or markers. Click an existing label or marker to edit it on the map.',
+    title: 'GM Notes and Labels',
+    body: 'Map text. Click map to place. Click an icon or label to edit.',
   },
   {
     title: 'Placement',
-    body: 'Token placement starts from the token panel. Escape cancels active tools and placement queues without undoing saved map changes.',
+    body: 'Token staging. Start from the token panel. Escape cancels the active tool without undoing saved map changes.',
   },
 ]
 
@@ -43,14 +43,14 @@ export function getMapToolGuidance(
     const count = placementDisplay.remaining > 1 ? ` ${placementDisplay.remaining} placements remain.` : ''
     return {
       title: 'Placing Token',
-      body: `Click the map to place ${name}.${count} Click Cancel or press Escape to stop placing.`,
+      body: `Token placement. Click map to place ${name}.${count} Cancel or Escape to stop.`,
     }
   }
 
   if (context.gridAdjustMode) {
     return {
       title: 'Adjusting Grid',
-      body: 'Use the mouse wheel on the map to scale the grid. Drag the map to align it. Press the selected grid button again to cancel, and use the check button to accept.',
+      body: 'Grid alignment. Mouse wheel scales grid. Drag map to align. Click check to save.',
     }
   }
 
@@ -60,35 +60,48 @@ export function getMapToolGuidance(
   if (activeTool.type === 'fog') {
     return {
       title: activeTool.tool === 'hide' ? 'Adding Fog' : 'Removing Fog',
-      body: 'Left-drag on the map to paint. Shift-drag or middle-drag still pans.',
+      body: activeTool.tool === 'hide'
+        ? 'Player visibility. Left-drag map to hide areas from players. Shift-drag or middle-drag to pan.'
+        : 'Player visibility. Left-drag map to reveal areas to players. Shift-drag or middle-drag to pan.',
     }
   }
 
   if (activeTool.type === 'vision') {
     return {
       title: activeTool.tool === 'erase' ? 'Erasing Vision Blocks' : activeTool.tool === 'hardBlock' ? 'Hard Vision Block' : 'Soft Vision Block',
-      body: 'Left-drag to draw this vision layer. Shift-drag or middle-drag still pans.',
+      body: activeTool.tool === 'erase'
+        ? 'Vision blocks. Left-drag map to erase blockers. Shift-drag or middle-drag to pan.'
+        : activeTool.tool === 'hardBlock'
+          ? 'Hard block. Blocks sight into painted area and beyond. Left-drag map to draw.'
+          : 'Soft block. Reveals painted area, blocks sight beyond. Left-drag map to draw.',
     }
   }
 
   if (activeTool.type === 'annotation') {
+    if (activeTool.tool === 'marker') {
+      return {
+        title: 'GM Notes',
+        body: 'GM facing notes. Click map to place. Click icon to edit note.',
+      }
+    }
+
     return {
-      title: activeTool.tool === 'playerLabel' ? 'Placing Player Labels' : 'Placing Annotations',
-      body: 'Click bare map space to place. Click an existing label, marker, or token to leave placement and edit or select it.',
+      title: 'Placing Player Labels',
+      body: 'Player facing labels. Click map to place. Click label to edit.',
     }
   }
 
   if (activeTool.type === 'boxSelect') {
     return {
       title: 'Selecting Tokens',
-      body: 'Left-drag a box around tokens. Click a token directly for a single-token selection.',
+      body: 'Token selection. Left-drag a box around tokens. Click token for single selection.',
     }
   }
 
   if (activeTool.type === 'hand') {
     return {
       title: 'Hand Tool',
-      body: 'Left-drag the map to pan. Middle mouse and shift-drag also pan.',
+      body: 'Map movement. Left-drag map to pan. Middle-drag and shift-drag also pan.',
     }
   }
 
@@ -96,8 +109,8 @@ export function getMapToolGuidance(
     return {
       title: activeTool.tool === 'calibrateGrid' ? 'Calibrating Grid' : 'Measuring Distance',
       body: activeTool.tool === 'calibrateGrid'
-        ? 'Click two points on the map to define a 10 foot span, then confirm with the check button. Press the ruler tool again to cancel.'
-        : 'Click two map points to measure, then drag the endpoints to refine. Press the measure tool again to clear or cancel the measurement.',
+        ? 'Grid calibration. Click two map points for a 10 foot span. Click check to save.'
+        : 'Distance ruler. Click two map points. Drag endpoints to refine. Click ruler to clear.',
     }
   }
 

@@ -6293,12 +6293,11 @@ button:disabled {
 
 .map-run-shell > .map-tools-panel {
   display: grid;
-  grid-template-columns: max-content repeat(4, max-content) minmax(14rem, 1fr);
+  grid-template-columns: max-content repeat(4, max-content) minmax(10.5rem, 12rem);
   column-gap: 0.85rem;
   row-gap: 0.55rem;
-  margin: 0;
-  /* Clears the fixed "Back" button (left: 0.8rem) that overlaps the toolbar's left edge. */
-  padding-left: 7rem;
+  /* Clears the fixed menu/back buttons so the toolbar frame does not run underneath them. */
+  margin: 0 0 0 7rem;
   justify-content: start;
 }
 
@@ -6355,7 +6354,8 @@ button:disabled {
 .map-run-shell > .map-tools-panel > .map-tool-guidance {
   grid-column: 6;
   grid-row: 1 / 3;
-  align-self: stretch;
+  align-self: center;
+  justify-self: stretch;
 }
 
 .map-run-shell > .map-tools-panel .map-tool-group .map-section-grid {
@@ -6451,6 +6451,7 @@ button:disabled {
   align-items: center;
   gap: 0.2rem;
   min-width: 0;
+  box-sizing: border-box;
   padding: 0.5rem 0.65rem;
   border: 1px solid #dddcd6;
   border-radius: 8px;
@@ -6472,11 +6473,29 @@ button:disabled {
 .map-tool-guidance-copy span {
   font-size: 0.78rem;
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .map-tool-guidance.active {
   border-color: #9eb592;
   background: #f3f8ef;
+}
+
+.map-run-shell > .map-tools-panel > .map-tool-guidance.active {
+  grid-column: 6;
+  grid-row: 1 / 3;
+  justify-self: end;
+  width: 100%;
+}
+
+.map-tool-guidance:not(.active) {
+  justify-self: end;
+  grid-template-columns: auto auto;
+  width: max-content;
+  max-width: 100%;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
 }
 
 .map-tool-info-btn {
@@ -12627,6 +12646,11 @@ button:disabled {
   background: rgba(10, 7, 8, 0.54);
   border-color: var(--vtm-rule-strong);
   color: var(--vtm-parchment-soft);
+}
+
+.shell-root[data-theme="vtm"] .map-tool-guidance:not(.active) {
+  background: transparent;
+  border-color: transparent;
 }
 
 .shell-root[data-theme="vtm"] .map-tool-guidance.active {

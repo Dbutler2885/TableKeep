@@ -1972,6 +1972,10 @@ export function MapsTab({
       target: 'bareMap',
     })
     // Box-select owns left-drag; pan (shift/middle/hand) is handled at the stage level.
+    if (intent.type === 'pan') {
+      suppressNextMapClickRef.current = true
+      return
+    }
     if (intent.type !== 'box-select') return
     const point = getTokenDropPoint(event.clientX, event.clientY)
     if (!point) return
@@ -3395,8 +3399,8 @@ function GmMapTopToolPanel({
             type="button"
             className={annotationPlaceMode ? 'map-icon-btn map-annotation-place-btn fast-tooltip fast-tooltip-left active' : 'map-icon-btn map-annotation-place-btn fast-tooltip fast-tooltip-left'}
             onClick={() => setAnnotationPlaceMode(!annotationPlaceMode)}
-            aria-label="Toggle annotation placement mode"
-            data-tooltip="Annotation placement mode"
+            aria-label="Toggle GM notes placement"
+            data-tooltip="GM Notes Placement"
           >
             <Flag size={16} />
           </button>
@@ -4343,8 +4347,8 @@ function GmMapControls({
                 setPlayerLabelPlaceMode(false)
               }
             }}
-            aria-label="Toggle annotation placement mode"
-            data-tooltip="Annotation placement mode"
+            aria-label="Toggle GM notes placement"
+            data-tooltip="GM Notes Placement"
           >
             <Flag size={16} />
           </button>

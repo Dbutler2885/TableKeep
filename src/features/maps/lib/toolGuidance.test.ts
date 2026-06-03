@@ -23,8 +23,33 @@ describe('getMapToolGuidance', () => {
 
   it('derives guidance from the active tool', () => {
     expect(getMapToolGuidance(withState({ activeTool: { type: 'fog', tool: 'hide' } }), noPlacement)?.title).toBe('Adding Fog')
-    expect(getMapToolGuidance(withState({ activeTool: { type: 'annotation', tool: 'playerLabel' } }), noPlacement)?.body).toContain('Click bare map space')
+    expect(getMapToolGuidance(withState({ activeTool: { type: 'annotation', tool: 'playerLabel' } }), noPlacement)?.body).toContain('Player facing labels')
     expect(getMapToolGuidance(withState({ activeTool: { type: 'boxSelect' } }), noPlacement)?.title).toBe('Selecting Tokens')
+  })
+
+  it('describes fog as player visibility changes', () => {
+    expect(getMapToolGuidance(withState({ activeTool: { type: 'fog', tool: 'hide' } }), noPlacement)?.body).toContain(
+      'hide areas from players',
+    )
+    expect(getMapToolGuidance(withState({ activeTool: { type: 'fog', tool: 'reveal' } }), noPlacement)?.body).toContain(
+      'reveal areas to players',
+    )
+  })
+
+  it('uses tooltip language for hard and soft vision blockers', () => {
+    expect(getMapToolGuidance(withState({ activeTool: { type: 'vision', tool: 'hardBlock' } }), noPlacement)?.body).toContain(
+      'Blocks sight into painted area and beyond',
+    )
+    expect(getMapToolGuidance(withState({ activeTool: { type: 'vision', tool: 'softBlock' } }), noPlacement)?.body).toContain(
+      'Reveals painted area, blocks sight beyond',
+    )
+  })
+
+  it('uses GM notes copy for GM-facing annotation placement', () => {
+    expect(getMapToolGuidance(withState({ activeTool: { type: 'annotation', tool: 'marker' } }), noPlacement)).toEqual({
+      title: 'GM Notes',
+      body: 'GM facing notes. Click map to place. Click icon to edit note.',
+    })
   })
 
   it('explains how to use and accept grid calibration', () => {
@@ -33,18 +58,18 @@ describe('getMapToolGuidance', () => {
       noPlacement,
     )
 
-    expect(guidance?.body).toContain('Click two points on the map to define a 10 foot span')
-    expect(guidance?.body).toContain('confirm with the check button')
-    expect(guidance?.body).toContain('Press the ruler tool again to cancel')
+    expect(guidance?.body).toContain('Grid calibration')
+    expect(guidance?.body).toContain('10 foot span')
+    expect(guidance?.body).toContain('Click check to save')
   })
 
   it('explains grid adjustment even though grid type selection is not an active tool', () => {
     const guidance = getMapToolGuidance(initialActiveToolState, noPlacement, { gridAdjustMode: true })
 
     expect(guidance?.title).toBe('Adjusting Grid')
-    expect(guidance?.body).toContain('mouse wheel')
-    expect(guidance?.body).toContain('selected grid button again to cancel')
-    expect(guidance?.body).toContain('check button to accept')
+    expect(guidance?.body).toContain('Mouse wheel scales grid')
+    expect(guidance?.body).toContain('Drag map to align')
+    expect(guidance?.body).toContain('Click check to save')
   })
 
   it('prioritizes placement guidance over active tool guidance', () => {

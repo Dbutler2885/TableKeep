@@ -58,6 +58,18 @@ describe('resolveMapInteractionIntent', () => {
     ).toEqual({ type: 'place', tool: 'playerLabel' })
   })
 
+  it('does not place annotations on shift-left-click', () => {
+    expect(
+      resolveMapInteractionIntent(
+        withState({ activeTool: { type: 'annotation', tool: 'marker' } }),
+        {
+          ...leftClickBareMap,
+          shiftKey: true,
+        },
+      ),
+    ).toEqual({ type: 'no-op' })
+  })
+
   it('resolves token placement queues to placement on any left-click target', () => {
     const state = withState({ tokenPlacement: { kind: 'monster', queueId: 'encounter-1' } })
 
@@ -79,6 +91,18 @@ describe('resolveMapInteractionIntent', () => {
         target: 'annotation',
       }),
     ).toEqual({ type: 'place', tool: 'token' })
+  })
+
+  it('does not place queued tokens on shift-left-click', () => {
+    expect(
+      resolveMapInteractionIntent(
+        withState({ tokenPlacement: { kind: 'monster', queueId: 'encounter-1' } }),
+        {
+          ...leftClickBareMap,
+          shiftKey: true,
+        },
+      ),
+    ).toEqual({ type: 'no-op' })
   })
 
   it('resolves token placement left-drags on tokens to no-op', () => {
