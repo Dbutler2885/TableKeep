@@ -1,0 +1,35 @@
+import type { OseMagicCategoryTable } from './types'
+
+export const OSE_MAGIC_SWORDS_TABLE: OseMagicCategoryTable = {
+  id: 'ose-magic-swords',
+  name: 'Magic Swords',
+  sourceUrl: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Swords',
+  usage: 'Per normal class restrictions.',
+  notes: [
+    'Cursed swords apply their penalty to both attack and damage rolls.',
+    'Once used in combat, a cursed sword cannot be discarded until the curse is removed by magic.',
+    'Enchanted sword bonuses apply to both attack and damage rolls.',
+    'Bonus vs enchanted creatures applies to magically created or animated monsters, and creatures summoned by spells or magic items.',
+    'Sentient swords: if determined randomly, the probability of intelligence is 30%.',
+    'Swords with a special purpose are always sentient and have a 1-in-20 chance if rolled randomly.',
+  ],
+  rows: [
+    { basicRoll: 1, expertRoll: { min: 1, max: 2 }, name: 'Sword -1, Cursed', rawText: 'Sword -1, Cursed', bonus: -1, cursed: true, harmful: true },
+    { basicRoll: null, expertRoll: { min: 3, max: 4 }, name: 'Sword -2, Cursed', rawText: 'Sword -2, Cursed', bonus: -2, cursed: true, harmful: true },
+    { basicRoll: 2, expertRoll: { min: 5, max: 44 }, name: 'Sword +1', rawText: 'Sword +1', bonus: 1 },
+    { basicRoll: 3, expertRoll: { min: 45, max: 50 }, name: 'Sword +1, +2 vs Lycanthropes', rawText: 'Sword +1, +2 vs Lycanthropes', bonus: 1, specialVs: '+2 vs Lycanthropes' },
+    { basicRoll: 4, expertRoll: { min: 51, max: 56 }, name: 'Sword +1, +2 vs Spell Users', rawText: 'Sword +1, +2 vs Spell Users', bonus: 1, specialVs: '+2 vs Spell Users' },
+    { basicRoll: 5, expertRoll: { min: 57, max: 61 }, name: 'Sword +1, +3 vs Dragons', rawText: 'Sword +1, +3 vs Dragons', bonus: 1, specialVs: '+3 vs Dragons' },
+    { basicRoll: null, expertRoll: { min: 62, max: 66 }, name: 'Sword +1, +3 vs Enchanted Creatures', rawText: 'Sword +1, +3 vs Enchanted Creatures', bonus: 1, specialVs: '+3 vs Enchanted Creatures' },
+    { basicRoll: null, expertRoll: { min: 67, max: 71 }, name: 'Sword +1, +3 vs Regenerating Creatures', rawText: 'Sword +1, +3 vs Regenerating Creatures', bonus: 1, specialVs: '+3 vs Regenerating Creatures' },
+    { basicRoll: 6, expertRoll: { min: 72, max: 76 }, name: 'Sword +1, +3 vs Undead', rawText: 'Sword +1, +3 vs Undead', bonus: 1, specialVs: '+3 vs Undead' },
+    { basicRoll: null, expertRoll: { min: 77, max: 77 }, name: 'Sword +1, Energy Drain', rawText: 'Sword +1, Energy Drain', bonus: 1, charges: '1d4+4 drained levels' },
+    { basicRoll: null, expertRoll: { min: 78, max: 81 }, name: 'Sword +1, Flaming', rawText: 'Sword +1, Flaming', bonus: 1 },
+    { basicRoll: 7, expertRoll: { min: 82, max: 89 }, name: 'Sword +1, Light', rawText: 'Sword +1, Light', bonus: 1 },
+    { basicRoll: null, expertRoll: { min: 90, max: 92 }, name: 'Sword +1, Locate Objects', rawText: 'Sword +1, Locate Objects', bonus: 1, usageFrequency: 'Once per day' },
+    { basicRoll: null, expertRoll: { min: 93, max: 93 }, name: 'Sword +1, Wishes', rawText: 'Sword +1, Wishes', bonus: 1, charges: '1d4 wishes' },
+    { basicRoll: 8, expertRoll: { min: 94, max: 96 }, name: 'Sword +2', rawText: 'Sword +2', bonus: 2 },
+    { basicRoll: null, expertRoll: { min: 97, max: 98 }, name: 'Sword +2, Charm Person', rawText: 'Sword +2, Charm Person', bonus: 2, usageFrequency: 'Up to three times a week' },
+    { basicRoll: null, expertRoll: { min: 99, max: 100 }, name: 'Sword +3', rawText: 'Sword +3', bonus: 3 },
+  ],
+}

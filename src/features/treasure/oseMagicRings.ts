@@ -1,0 +1,35 @@
+import type { OseMagicCategoryTable } from './types'
+
+export const OSE_MAGIC_RINGS_TABLE: OseMagicCategoryTable = {
+  id: 'ose-magic-rings',
+  name: 'Magic Rings',
+  sourceUrl: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Rings',
+  usage: 'All characters (unless noted).',
+  notes: [
+    "Activating: A ring's magical effect is activated by placing it on a finger or thumb.",
+    "Unless noted otherwise, a magical ring's effect is continuously active and ends if the ring is removed.",
+    'Multiple rings: A character can wear two magic rings, one on each hand. If more are worn, their magical effects do not function.',
+    'Cursed rings: Cannot be deactivated by wearing more magical rings.',
+  ],
+  rows: [
+    { basicRoll: 1, expertRoll: { min: 1, max: 5 }, name: 'Control Animals', rawText: 'Control Animals' },
+    { basicRoll: null, expertRoll: { min: 6, max: 10 }, name: 'Control Humans', rawText: 'Control Humans' },
+    { basicRoll: null, expertRoll: { min: 11, max: 16 }, name: 'Control Plants', rawText: 'Control Plants' },
+    { basicRoll: null, expertRoll: { min: 17, max: 26 }, name: 'Delusion', rawText: 'Delusion' },
+    { basicRoll: null, expertRoll: { min: 27, max: 29 }, name: 'Djinni Summoning', rawText: 'Djinni Summoning' },
+    { basicRoll: 2, expertRoll: { min: 30, max: 39 }, name: 'Fire Resistance', rawText: 'Fire Resistance' },
+    { basicRoll: 3, expertRoll: { min: 40, max: 50 }, name: 'Invisibility', rawText: 'Invisibility' },
+    { basicRoll: null, expertRoll: { min: 51, max: 55 }, name: "Protection +1, 5' radius", rawText: "Protection +1, 5' radius", rangeText: "5'" },
+    { basicRoll: 4, expertRoll: { min: 56, max: 70 }, name: 'Protection +1', rawText: 'Protection +1' },
+    { basicRoll: null, expertRoll: { min: 71, max: 72 }, name: 'Regeneration', rawText: 'Regeneration' },
+    { basicRoll: null, expertRoll: { min: 73, max: 74 }, name: 'Spell Storing', rawText: 'Spell Storing' },
+    { basicRoll: null, expertRoll: { min: 75, max: 80 }, name: 'Spell Turning', rawText: 'Spell Turning' },
+    { basicRoll: null, expertRoll: { min: 81, max: 82 }, name: 'Telekinesis', rawText: 'Telekinesis' },
+    { basicRoll: 5, expertRoll: { min: 83, max: 88 }, name: 'Water Walking', rawText: 'Water Walking' },
+    { basicRoll: 6, expertRoll: { min: 89, max: 94 }, name: 'Weakness', rawText: 'Weakness', harmful: true },
+    { basicRoll: null, expertRoll: { min: 95, max: 96 }, name: 'Wishes, 1-2', rawText: 'Wishes, 1-2' },
+    { basicRoll: null, expertRoll: { min: 97, max: 97 }, name: 'Wishes, 1-3', rawText: 'Wishes, 1-3' },
+    { basicRoll: null, expertRoll: { min: 98, max: 98 }, name: 'Wishes, 2-4', rawText: 'Wishes, 2-4' },
+    { basicRoll: null, expertRoll: { min: 99, max: 100 }, name: 'X-Ray Vision', rawText: 'X-Ray Vision' },
+  ],
+}

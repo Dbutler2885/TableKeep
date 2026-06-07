@@ -9,6 +9,29 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    function groupMemberPath(groupId) {
+      return /databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid);
+    }
+
+    function isGroupMember(groupId) {
+      return isSignedIn()
+        && exists(groupMemberPath(groupId))
+        && get(groupMemberPath(groupId)).data.status == "active";
+    }
+
+    function isGroupAdmin(groupId) {
+      return isGroupMember(groupId)
+        && get(groupMemberPath(groupId)).data.role == "admin";
+    }
+
+    // GM check for the nested group/campaign model: a group admin, or the
+    // active group member whose uid matches the campaign's gmUserId.
+    function isCampaignGm(groupId, campaignId) {
+      return isGroupAdmin(groupId)
+        || (isGroupMember(groupId)
+            && get(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)).data.gmUserId == request.auth.uid);
+    }
+
     function campaignMemberPath(campaignId) {
       return /databases/$(database)/documents/campaigns/$(campaignId)/members/$(request.auth.uid);
     }
@@ -28,8 +51,37 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == resource.data.ownerUserId;
     }
 
-      match /users/{userId} {
-      allow read, write: if isSelf(userId);
+    function onlyChanges(allowedKeys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys);
+    }
+
+    function isValidUsername(username) {
+      return username is string && username.matches('^[A-Za-z0-9_!@#$%^&*()]{7}$');
+    }
+
+    function hasUsername(data) {
+      return data.keys().hasAny(['username']);
+    }
+
+    match /usernames/{username} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && isValidUsername(username)
+        && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid;
+
+      allow update, delete: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if isSelf(userId);
+      allow create: if isSelf(userId)
+        && (!hasUsername(request.resource.data) || isValidUsername(request.resource.data.username));
+      allow update: if isSelf(userId)
+        && (!hasUsername(request.resource.data) || isValidUsername(request.resource.data.username))
+        && (!hasUsername(resource.data) || request.resource.data.username == resource.data.username);
+      allow delete: if isSelf(userId);
 
       match /campaignMemberships/{campaignId} {
         allow read: if isSelf(userId);
@@ -47,6 +99,191 @@ service cloud.firestore {
         ) || isCampaignGM(campaignId);
 
         allow delete: if isSelf(userId) || isCampaignGM(campaignId);
+      }
+    }
+
+    match /groups/{groupId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isGroupAdmin(groupId);
+
+      match /members/{userId} {
+        allow read: if isGroupMember(groupId) || isSelf(userId);
+        allow create: if isGroupAdmin(groupId) || (
+          isSelf(userId)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.status == "active"
+          && request.resource.data.role == "admin"
+          && get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid
+        ) || (
+          isSelf(userId)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.status == "active"
+          && request.resource.data.role == "member"
+          && request.resource.data.invitedVia is string
+          && get(/databases/$(database)/documents/inviteCodes/$(request.resource.data.invitedVia)).data.groupId == groupId
+          && get(/databases/$(database)/documents/inviteCodes/$(request.resource.data.invitedVia)).data.revoked == false
+          && get(/databases/$(database)/documents/inviteCodes/$(request.resource.data.invitedVia)).data.expiresAt > request.time
+          && get(/databases/$(database)/documents/inviteCodes/$(request.resource.data.invitedVia)).data.redeemedBy == null
+        );
+        allow update: if isGroupAdmin(groupId) || (
+          isSelf(userId)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.status == "active"
+          && request.resource.data.role == resource.data.role
+        );
+        allow delete: if isGroupAdmin(groupId) || isSelf(userId);
+      }
+
+      match /invites/{inviteId} {
+        allow read: if isGroupMember(groupId);
+        allow create, update, delete: if isGroupMember(groupId);
+      }
+
+      match /campaigns/{campaignId} {
+        allow read: if isGroupMember(groupId);
+        allow create: if isGroupMember(groupId)
+          && request.resource.data.createdBy == request.auth.uid;
+        allow update, delete: if isGroupAdmin(groupId)
+          || (isGroupMember(groupId) && resource.data.gmUserId == request.auth.uid);
+
+        // Per-user campaign UI scratch (currentCharacterId,
+        // lastSeenCliffhangerNoteId). Owner-only, except the campaign GM / group
+        // admin may list and delete members' scratch when tearing down a
+        // campaign (delete needs read to enumerate the collection first).
+        match /userState/{userId} {
+          allow read, write: if isSelf(userId) && isGroupMember(groupId);
+          allow read, delete: if isCampaignGm(groupId, campaignId);
+        }
+
+        match /characters/{characterId} {
+          allow read: if isGroupMember(groupId);
+          allow create: if isGroupMember(groupId)
+            && request.resource.data.ownerUserId == request.auth.uid;
+          allow update: if isCampaignGm(groupId, campaignId) || isCharacterOwner();
+          allow delete: if isCampaignGm(groupId, campaignId) || isCharacterOwner();
+        }
+
+        match /maps/{mapId} {
+          allow read: if isGroupMember(groupId);
+          allow write: if isCampaignGm(groupId, campaignId);
+
+          match /tokens/{tokenId} {
+            allow read: if isGroupMember(groupId);
+            allow write: if isCampaignGm(groupId, campaignId);
+          }
+
+          match /annotations/{annotationId} {
+            allow read: if isCampaignGm(groupId, campaignId) || (
+              isGroupMember(groupId)
+              && resource.data.kind == "player"
+              && resource.data.hidden != true
+            );
+            allow write: if isCampaignGm(groupId, campaignId);
+          }
+
+          match /fogChunks/{chunkId} {
+            allow read: if isGroupMember(groupId);
+            allow write: if isCampaignGm(groupId, campaignId);
+          }
+        }
+
+        match /tokenAssets/{assetId} {
+          allow read: if isGroupMember(groupId);
+          allow write: if isCampaignGm(groupId, campaignId);
+        }
+
+        match /monsters/{monsterId} {
+          allow read: if isGroupMember(groupId);
+          allow write: if isCampaignGm(groupId, campaignId);
+        }
+
+        match /npcs/{npcId} {
+          allow read: if isCampaignGm(groupId, campaignId)
+            || (isGroupMember(groupId) && resource.data.visibleToPlayers == true);
+          allow create, delete: if isCampaignGm(groupId, campaignId);
+          allow update: if isCampaignGm(groupId, campaignId) || (
+            isGroupMember(groupId)
+            && resource.data.visibleToPlayers == true
+            && request.resource.data.visibleToPlayers == true
+            && request.resource.data.name == resource.data.name
+            && request.resource.data.title == resource.data.title
+            && request.resource.data.tags == resource.data.tags
+            && request.resource.data.portraitUrl == resource.data.portraitUrl
+            && request.resource.data.portraitFocusX == resource.data.portraitFocusX
+            && request.resource.data.portraitFocusY == resource.data.portraitFocusY
+            && request.resource.data.tokenIcon == resource.data.tokenIcon
+            && request.resource.data.playerDescription == resource.data.playerDescription
+            && onlyChanges(['playerNotes', 'updatedAt'])
+          );
+        }
+
+        match /npcPrivate/{npcId} {
+          allow read, write: if isCampaignGm(groupId, campaignId);
+        }
+
+        match /itemApprovals/{approvalId} {
+          allow read: if isGroupMember(groupId);
+          allow create: if isGroupMember(groupId)
+            && request.resource.data.requestedByUserId == request.auth.uid
+            && request.resource.data.status == 'pending';
+          allow update: if isCampaignGm(groupId, campaignId);
+          allow delete: if isGroupMember(groupId);
+        }
+
+        match /items/{itemId} {
+          allow read: if isGroupMember(groupId);
+          allow create: if isCampaignGm(groupId, campaignId)
+            || (isGroupMember(groupId) && request.resource.data.status == 'dropped');
+          allow update, delete: if isCampaignGm(groupId, campaignId);
+        }
+
+        match /tables/{tableId} {
+          allow read, write: if isCampaignGm(groupId, campaignId);
+
+          match /history/{entryId} {
+            allow read, write: if isCampaignGm(groupId, campaignId);
+          }
+        }
+
+        match /pendingTransfers/{transferId} {
+          allow read: if isGroupMember(groupId);
+          allow create: if isGroupMember(groupId)
+            && request.resource.data.fromUserId == request.auth.uid
+            && request.resource.data.itemKind != 'gold'
+            && request.resource.data.keys().hasAll([
+              'id', 'itemSnapshot', 'itemId', 'itemKind', 'itemName',
+              'fromCharacterId', 'fromCharacterName', 'fromUserId',
+              'toCharacterId', 'toCharacterName', 'toUserId', 'createdAt'
+            ]);
+          allow update: if false;
+          allow delete: if request.auth.uid == resource.data.fromUserId
+            || request.auth.uid == resource.data.toUserId
+            || isCampaignGm(groupId, campaignId);
+        }
+
+        match /images/{imageId} {
+          allow read: if isCampaignGm(groupId, campaignId)
+            || (isGroupMember(groupId) && resource.data.revealed == true);
+          allow write: if isCampaignGm(groupId, campaignId);
+        }
+
+        match /referenceDocs/{docId} {
+          allow read: if isCampaignGm(groupId, campaignId)
+            || (isGroupMember(groupId) && resource.data.visibleToPlayers == true);
+          allow write: if isCampaignGm(groupId, campaignId);
+        }
+
+        match /sessionSummaries/{summaryId} {
+          allow read: if isGroupMember(groupId);
+          allow write: if isCampaignGm(groupId, campaignId);
+        }
+
+        match /sharedNotes/{noteId} {
+          allow read: if isGroupMember(groupId);
+          allow write: if isCampaignGm(groupId, campaignId);
+        }
       }
     }
 
@@ -99,7 +336,7 @@ service cloud.firestore {
           isSignedIn() && request.resource.data.ownerUserId == request.auth.uid
         );
         allow update: if isCampaignGM(campaignId) || isCharacterOwner();
-        allow delete: if isCampaignGM(campaignId);
+        allow delete: if isCampaignGM(campaignId) || isCharacterOwner();
       }
 
       match /maps/{mapId} {
@@ -111,10 +348,93 @@ service cloud.firestore {
           allow write: if isCampaignGM(campaignId);
         }
 
+        match /annotations/{annotationId} {
+          allow read: if isCampaignGM(campaignId) || (
+            isCampaignMember(campaignId)
+            && resource.data.kind == "player"
+            && resource.data.hidden != true
+          );
+          allow write: if isCampaignGM(campaignId);
+        }
+
         match /fogChunks/{chunkId} {
           allow read: if isCampaignMember(campaignId);
           allow write: if isCampaignGM(campaignId);
         }
+      }
+
+      match /tokenAssets/{assetId} {
+        allow read: if isCampaignMember(campaignId);
+        allow write: if isCampaignGM(campaignId);
+      }
+
+      match /monsters/{monsterId} {
+        allow read: if isCampaignMember(campaignId);
+        allow write: if isCampaignGM(campaignId);
+      }
+
+      match /npcs/{npcId} {
+        allow read: if isCampaignGM(campaignId)
+          || (isCampaignMember(campaignId) && resource.data.visibleToPlayers == true);
+        allow create, delete: if isCampaignGM(campaignId);
+        allow update: if isCampaignGM(campaignId) || (
+          isCampaignMember(campaignId)
+          && resource.data.visibleToPlayers == true
+          && request.resource.data.visibleToPlayers == true
+          && request.resource.data.name == resource.data.name
+          && request.resource.data.title == resource.data.title
+          && request.resource.data.tags == resource.data.tags
+          && request.resource.data.portraitUrl == resource.data.portraitUrl
+          && request.resource.data.portraitFocusX == resource.data.portraitFocusX
+          && request.resource.data.portraitFocusY == resource.data.portraitFocusY
+          && request.resource.data.tokenIcon == resource.data.tokenIcon
+          && request.resource.data.playerDescription == resource.data.playerDescription
+          && onlyChanges(['playerNotes', 'updatedAt'])
+        );
+      }
+
+      match /npcPrivate/{npcId} {
+        allow read, write: if isCampaignGM(campaignId);
+      }
+
+      match /itemApprovals/{approvalId} {
+        allow read: if isCampaignMember(campaignId);
+        allow create: if isCampaignMember(campaignId)
+          && request.resource.data.requestedByUserId == request.auth.uid
+          && request.resource.data.status == 'pending';
+        allow update: if isCampaignGM(campaignId);
+        allow delete: if isCampaignMember(campaignId);
+      }
+
+      match /items/{itemId} {
+        allow read: if isCampaignMember(campaignId);
+        allow create: if isCampaignGM(campaignId)
+          || (isCampaignMember(campaignId) && request.resource.data.status == 'dropped');
+        allow update, delete: if isCampaignGM(campaignId);
+      }
+
+      match /tables/{tableId} {
+        allow read, write: if isCampaignGM(campaignId);
+
+        match /history/{entryId} {
+          allow read, write: if isCampaignGM(campaignId);
+        }
+      }
+
+      match /pendingTransfers/{transferId} {
+        allow read: if isCampaignMember(campaignId);
+        allow create: if isCampaignMember(campaignId)
+          && request.resource.data.fromUserId == request.auth.uid
+          && request.resource.data.itemKind != 'gold'
+          && request.resource.data.keys().hasAll([
+            'id', 'itemSnapshot', 'itemId', 'itemKind', 'itemName',
+            'fromCharacterId', 'fromCharacterName', 'fromUserId',
+            'toCharacterId', 'toCharacterName', 'toUserId', 'createdAt'
+          ]);
+        allow update: if false;
+        allow delete: if request.auth.uid == resource.data.fromUserId
+          || request.auth.uid == resource.data.toUserId
+          || isCampaignGM(campaignId);
       }
 
       match /images/{imageId} {
@@ -136,6 +456,36 @@ service cloud.firestore {
         allow read: if isCampaignMember(campaignId);
         allow write: if isCampaignGM(campaignId);
       }
+    }
+
+    // Top-level invite codes. Read is open to any signed-in user (security
+    // depends on token entropy — invitees fetch by token to see the accept
+    // screen). Create/delete restricted to group admins; updates allow either
+    // an admin (revoke) or the redeeming user (mark redeemed once).
+    match /inviteCodes/{token} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && isGroupAdmin(request.resource.data.groupId)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.redeemedBy == null
+        && request.resource.data.revoked == false;
+
+      allow update: if isSignedIn() && (
+        // Admin can revoke or otherwise edit
+        isGroupAdmin(resource.data.groupId)
+        // Or the redeemer can mark it redeemed exactly once
+        || (
+          resource.data.redeemedBy == null
+          && resource.data.revoked == false
+          && resource.data.expiresAt > request.time
+          && request.resource.data.redeemedBy == request.auth.uid
+          && request.resource.data.groupId == resource.data.groupId
+          && request.resource.data.revoked == resource.data.revoked
+        )
+      );
+
+      allow delete: if isSignedIn() && isGroupAdmin(resource.data.groupId);
     }
   }
 }

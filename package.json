@@ -7,7 +7,15 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:emulator": "firebase emulators:exec --only firestore \"vitest run --config vitest.emulator.config.ts\"",
     "preview": "vite preview",
+    "ose:monsters:fetch-raw": "node scripts/fetch-ose-monsters-raw.mjs",
+    "ose:treasure:fetch": "node scripts/fetch-ose-treasure-types.mjs",
+    "ose:cleric:fetch": "node scripts/fetch-ose-cleric-spells.mjs",
+    "ose:magic-user:fetch": "node scripts/fetch-ose-magic-user-spells.mjs",
+    "ose:magic-user:import": "node scripts/import-ose-magic-user-spells.mjs",
     "firebase:login": "firebase login",
     "emulators": "firebase emulators:start",
     "emulators:import": "firebase emulators:start --import ./emulator-data --export-on-exit",
@@ -16,13 +24,17 @@
     "deploy:functions": "firebase deploy --only functions"
   },
   "dependencies": {
+    "@iconify-json/game-icons": "^1.2.4",
+    "@iconify/react": "^6.0.2",
     "firebase": "^12.9.0",
     "lucide-react": "^0.575.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.13.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@firebase/rules-unit-testing": "^5.0.0",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
@@ -34,6 +46,7 @@
     "globals": "^16.5.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.48.0",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^4.1.2"
   }
 }

@@ -125,9 +125,19 @@ Fields:
 - `sessionNumber: number | null`
 - `title: string`
 - `summaryMarkdown: string`
+- `overallSummary: string`
+- `scenes: SessionScene[]`
+- `npcMentions: SessionNpcMention[]`
+- `cliffhangers: string[]`
+- `calendar: SessionCalendarEntry[]`
+- `generatedSnapshot: object | null`
 - `postedBy: userId | 'api'`
 - `sourceType: 'manual' | 'api'`
+- `hasHumanEdits: boolean`
+- `editedAt: timestamp | null`
+- `editedBy: string | null`
 - `createdAt: timestamp`
+- `updatedAt: timestamp`
 
 #### `campaigns/{campaignId}/sharedNotes/{noteId}`
 Fields:
