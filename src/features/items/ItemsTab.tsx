@@ -1,8 +1,9 @@
 import { ChevronLeft, Gift, Minus, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { doc, runTransaction, serverTimestamp } from 'firebase/firestore'
+import { runTransaction, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { CampaignItem, CampaignItemType, CharacterInventoryItem, CharacterGoldItem, CharacterRecord, CharacterSheetDetails, Role } from '../../types/app'
+import { campaignDocRef } from '../campaign/firestorePaths'
 import type { TokenIconConfig } from '../tokens/TokenIconEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
@@ -36,6 +37,7 @@ const defaultTokenIcon: TokenIconConfig = {
 
 type ItemsTabProps = {
   campaignId: string
+  groupId: string
   role: Role | null
   characters: CharacterRecord[]
 }
@@ -265,8 +267,8 @@ const newItemTemplate = (type: CampaignItemType): CampaignItem => ({
   notes: '',
 })
 
-export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
-  const { items, addItem: hookAddItem, updateItem, deleteItem: hookDeleteItem } = useItems(campaignId)
+export function ItemsTab({ campaignId, groupId, role, characters }: ItemsTabProps) {
+  const { items, addItem: hookAddItem, updateItem, deleteItem: hookDeleteItem } = useItems(campaignId, groupId)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [deleteCandidate, setDeleteCandidate] = useState<CampaignItem | null>(null)
   const [grantTargetId, setGrantTargetId] = useState<string>('')
@@ -424,6 +426,7 @@ export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
     if (!selectedItem) throw new Error('No item selected.')
     const { path, url, name } = await uploadEntityImage({
       campaignId,
+      groupId,
       collectionName: 'items',
       entityId: selectedItem.id,
       mediaKind: 'token-icons',
@@ -442,6 +445,7 @@ export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
     if (!selectedItem) throw new Error('No item selected.')
     const { path, url } = await uploadEntityImage({
       campaignId,
+      groupId,
       collectionName: 'items',
       entityId: selectedItem.id,
       mediaKind: 'portraits',
@@ -503,7 +507,7 @@ export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
     setGrantFeedback(null)
     try {
       const isGoldGrant = selectedItem.type === 'gold'
-      const charRef = doc(db, 'campaigns', campaignId, 'characters', grantTargetId)
+      const charRef = campaignDocRef(db, { campaignId, groupId }, 'characters', grantTargetId)
       const targetName = characters.find((c) => c.id === grantTargetId)?.name ?? 'character'
 
       // Pre-generate deterministic ID for overflow gold doc (safe for transaction retry)
@@ -562,7 +566,7 @@ export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
 
         // Write non-gold overflow items in same transaction
         for (const droppedItem of overflow.droppedItems) {
-          const itemRef = doc(db, 'campaigns', campaignId, 'items', droppedItem.id)
+          const itemRef = campaignDocRef(db, { campaignId, groupId }, 'items', droppedItem.id)
           tx.set(itemRef, { ...toFirestoreItem(droppedItem), createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
         }
 
@@ -571,13 +575,13 @@ export function ItemsTab({ campaignId, role, characters }: ItemsTabProps) {
         const sourceIsDroppedGold = isGoldGrant && selectedItem.status === 'dropped'
         if (overflow.droppedGoldAmount > 0 && !sourceIsDroppedGold) {
           const goldDoc = makeDroppedGoldCampaignItem(overflow.droppedGoldAmount, grantTargetId, targetName, overflowGoldDocId)
-          const goldRef = doc(db, 'campaigns', campaignId, 'items', overflowGoldDocId)
+          const goldRef = campaignDocRef(db, { campaignId, groupId }, 'items', overflowGoldDocId)
           tx.set(goldRef, { ...toFirestoreItem(goldDoc), createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
         }
 
         // Handle dropped gold source doc: decrement remainder on same doc, or delete if fully picked up.
         if (sourceIsDroppedGold) {
-          const sourceRef = doc(db, 'campaigns', campaignId, 'items', selectedItem.id)
+          const sourceRef = campaignDocRef(db, { campaignId, groupId }, 'items', selectedItem.id)
           const keptGoldTotal = overflow.keptInventory
             .filter((i): i is CharacterGoldItem => i.kind === 'gold')
             .reduce((sum, g) => sum + (g.qty ?? 0), 0)

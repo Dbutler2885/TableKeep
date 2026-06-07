@@ -5,6 +5,7 @@ import { useSessionNotes } from './useSessionNotes'
 
 type CalendarTabProps = {
   campaignId: string
+  groupId: string
   role: Role | null
 }
 
@@ -21,8 +22,8 @@ function extractDayNumber(key: string): number {
   return match ? parseInt(match[1], 10) : 0
 }
 
-export function CalendarTab({ campaignId }: CalendarTabProps) {
-  const { notes, notesLoading } = useSessionNotes(campaignId)
+export function CalendarTab({ campaignId, groupId }: CalendarTabProps) {
+  const { notes, notesLoading } = useSessionNotes(campaignId, true, groupId)
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set())
 
   const days = useMemo(() => {

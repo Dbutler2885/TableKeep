@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Menu } from 'lucide-react'
+import { ChevronLeft, Menu, Settings } from 'lucide-react'
 import {
   onAuthStateChanged,
   signOut,
@@ -11,12 +11,17 @@ import {
   serverTimestamp,
   setDoc,
 } from 'firebase/firestore'
-import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
+// Sidebar uses the dedicated B&W "Tower Keep" mark; the color "Tablekeep"
+// stays on the lobby/picker/auth surfaces via BrandWordmark.
+import tablekeepLogo from '../logo/Tower Keep.svg'
 import './App.css'
 import { auth, db } from './firebase'
 import { AuthPanel } from './features/auth/AuthPanel'
 import { UsernameSetup } from './features/auth/UsernameSetup'
+import { VerifyEmailGate } from './features/auth/VerifyEmailGate'
 import { CharacterTab } from './features/character/CharacterTab'
+import { VtmCharacterTab } from './features/character/VtmCharacterTab'
 import { RulesTab } from './features/common/RulesTab'
 import { useDocumentVisibility } from './features/common/useDocumentVisibility'
 import { MapsTab } from './features/maps/MapsTab'
@@ -27,12 +32,16 @@ import { TablesTab } from './features/tables/TablesTab'
 import { NotesTab } from './features/notes/NotesTab'
 import { CalendarTab } from './features/notes/CalendarTab'
 import { CliffhangerModal } from './features/notes/CliffhangerModal'
-import { tabFromPathname, tabPaths, tabs } from './features/navigation/tabs'
-import { useCampaignAccess } from './features/campaign/useCampaignAccess'
+import { campaignTabPath, groupHomePath, groupPickerPath, resolveSystem, tabFromPathname, tabs, tabsForSystem } from './features/navigation/tabs'
 import { useCharacters } from './features/character/useCharacters'
 import { useItemApprovals } from './features/character/useItemApprovals'
 import { TransferNotification } from './features/transfers/TransferNotification'
-import type { ItemApprovalRequest } from './types/app'
+import { GroupPicker } from './features/groups/GroupPicker'
+import { GroupHome } from './features/groups/GroupHome'
+import { useGroupAccess } from './features/groups/useGroupAccess'
+import { AcceptInvite } from './features/invites/AcceptInvite'
+import { CampaignSettingsModal } from './features/campaign/CampaignSettingsModal'
+import type { GroupRecord, ItemApprovalRequest, Role } from './types/app'
 
 const OSE_SRD_URL = 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Main_Page'
 
@@ -41,6 +50,8 @@ function App() {
   const [authReady, setAuthReady] = useState(false)
   const [username, setUsername] = useState<string | null>(null)
   const [profileReady, setProfileReady] = useState(false)
+  const [profileUid, setProfileUid] = useState<string | null>(null)
+  const [, setAuthRefreshVersion] = useState(0)
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (nextUser) => {
@@ -67,13 +78,10 @@ function App() {
 
   useEffect(() => {
     if (!user) {
-      setUsername(null)
-      setProfileReady(false)
       return
     }
 
     const userRef = doc(db, 'users', user.uid)
-    setProfileReady(false)
 
     const unsub = onSnapshot(
       userRef,
@@ -91,11 +99,13 @@ function App() {
         // Do not treat a cached "missing username" snapshot as authoritative:
         // that causes existing users to briefly see UsernameSetup on refresh.
         if (nextUsername || canTrustMissingUsername) {
+          setProfileUid(user.uid)
           setProfileReady(true)
         }
       },
       () => {
         setUsername(null)
+        setProfileUid(user.uid)
         setProfileReady(true)
       },
     )
@@ -112,16 +122,27 @@ function App() {
   }
 
   if (!user) {
+    const isJoinFlow = window.location.pathname.startsWith('/join/')
+    const context = isJoinFlow
+      ? "You've been invited. Sign in or create an account to accept."
+      : null
+    // AuthPanel owns its own full-screen layout and masthead now;
+    // the old <main className="auth-shell"> wrapper is no longer needed.
+    return <AuthPanel context={context} />
+  }
+
+  if (!user.emailVerified) {
     return (
-      <main className="auth-shell">
-        <h1>Home Boys House</h1>
-        <p>Sign in to access your OSE campaign sidecar.</p>
-        <AuthPanel />
-      </main>
+      <VerifyEmailGate
+        user={user}
+        onVerified={() => setAuthRefreshVersion((current) => current + 1)}
+      />
     )
   }
 
-  if (!profileReady) {
+  const currentProfileReady = profileReady && profileUid === user.uid
+
+  if (!currentProfileReady) {
     return (
       <main className="auth-shell">
         <p>Loading profile...</p>
@@ -130,26 +151,122 @@ function App() {
   }
 
   if (!username) {
-    return (
-      <main className="auth-shell">
-        <h1>Home Boys House</h1>
-        <p>Choose your username to continue.</p>
-        <UsernameSetup user={user} onComplete={setUsername} />
-      </main>
-    )
+    // UsernameSetup owns its own full-screen layout (same editorial card as
+    // AuthPanel), so no auth-shell wrapper / extra masthead is needed here.
+    return <UsernameSetup user={user} onComplete={setUsername} />
   }
 
-  return <CampaignShell user={user} username={username} />
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to={groupPickerPath} replace />} />
+      <Route path="/join/:token" element={<AcceptInvite user={user} />} />
+      <Route path="/groups" element={<GroupShell user={user} username={username} />} />
+      <Route path="/groups/:groupId" element={<GroupShell user={user} username={username} />} />
+      <Route path="/groups/:groupId/campaigns/:campaignId/*" element={<GroupShell user={user} username={username} />} />
+      <Route path="*" element={<Navigate to={groupPickerPath} replace />} />
+    </Routes>
+  )
 }
 
-function CampaignShell({ user, username }: { user: User, username: string }) {
+function GroupShell({ user, username }: { user: User, username: string }) {
   const location = useLocation()
+  const navigate = useNavigate()
+  const params = useParams()
   const activeTab = useMemo(() => tabFromPathname(location.pathname), [location.pathname])
   const documentVisible = useDocumentVisibility()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
-  const { campaign, role, loading, error, setError } = useCampaignAccess(user)
-  const shouldListenForCharacters = documentVisible && ['character', 'maps', 'items'].includes(activeTab)
+  const { groups, loading, error, createCampaign, createGroup, setActiveCampaign, deactivateCampaign, deleteInactiveCampaign, deleteDraftCampaign, deleteGroup, setError } = useGroupAccess(user)
+  const selectedGroupId = params.groupId ?? null
+  const selectedCampaignId = params.campaignId ?? null
+  const selectedGroup = useMemo(
+    () => groups.find((group) => group.id === selectedGroupId) ?? null,
+    [groups, selectedGroupId],
+  )
+  const selectedCampaign = useMemo(() => {
+    if (!selectedGroup) return null
+    const campaigns = [
+      ...(selectedGroup.activeCampaign ? [selectedGroup.activeCampaign] : []),
+      ...selectedGroup.drafts,
+      ...selectedGroup.inactiveCampaigns,
+    ]
+    if (selectedCampaignId) {
+      return campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? null
+    }
+    return selectedGroup.activeCampaign ?? null
+  }, [selectedCampaignId, selectedGroup])
+  const campaign = selectedCampaign
+  const workspaceGroupId = campaign?.groupId ?? null
+  const role: Role | null = campaign ? (campaign.gmUserId === user.uid ? 'gm' : 'player') : null
+  const gameSystem = resolveSystem(campaign?.system)
+
+  useEffect(() => {
+    if (loading) return
+    if (location.pathname === '/') {
+      const target = groups.length === 1 ? groupHomePath(groups[0].id) : groupPickerPath
+      void navigate(target, { replace: true })
+    }
+  }, [groups, loading, location.pathname, navigate])
+
+  const handleSignOut = useCallback(() => {
+    void signOut(auth)
+  }, [])
+
+  const handleSelectGroup = useCallback((groupId: string) => {
+    const nextGroup = groups.find((group) => group.id === groupId) ?? null
+    void navigate(
+      nextGroup?.activeCampaign
+        ? campaignTabPath(groupId, nextGroup.activeCampaign!.id, 'character')
+        : groupHomePath(groupId),
+      { replace: true },
+    )
+    setDrawerOpen(false)
+  }, [groups, navigate])
+
+  const handleCreateGroup = useCallback(async (name: string) => {
+    const groupId = await createGroup(name)
+    void navigate(groupHomePath(groupId), { replace: true })
+  }, [createGroup, navigate])
+
+  const handleCreateCampaign = useCallback(async (groupId: string, name: string, system: string) => {
+    await createCampaign(groupId, name, system)
+    void navigate(groupHomePath(groupId), { replace: true })
+  }, [createCampaign, navigate])
+
+  const handleDeleteGroup = useCallback(async (groupId: string) => {
+    await deleteGroup(groupId)
+    void navigate(groupPickerPath, { replace: true })
+  }, [deleteGroup, navigate])
+
+  const handleSetActiveCampaign = useCallback(async (groupId: string, campaignId: string) => {
+    await setActiveCampaign(groupId, campaignId)
+  }, [setActiveCampaign])
+
+  const handleDeleteDraftCampaign = useCallback(async (groupId: string, campaignId: string) => {
+    await deleteDraftCampaign(groupId, campaignId)
+    if (selectedGroupId === groupId && selectedCampaignId === campaignId) {
+      void navigate(groupHomePath(groupId), { replace: true })
+    }
+  }, [deleteDraftCampaign, navigate, selectedCampaignId, selectedGroupId])
+
+  const handleDeactivateCampaign = useCallback(async (groupId: string, campaignId: string) => {
+    await deactivateCampaign(groupId, campaignId)
+  }, [deactivateCampaign])
+
+  const handleDeleteInactiveCampaign = useCallback(async (groupId: string, campaignId: string) => {
+    await deleteInactiveCampaign(groupId, campaignId)
+    if (selectedGroupId === groupId && selectedCampaignId === campaignId) {
+      void navigate(groupHomePath(groupId), { replace: true })
+    }
+  }, [deleteInactiveCampaign, navigate, selectedCampaignId, selectedGroupId])
+
+  const handleOpenCampaign = useCallback((campaignId: string) => {
+    if (!selectedGroupId) return
+    void navigate(campaignTabPath(selectedGroupId, campaignId, 'character'), { replace: true })
+  }, [navigate, selectedGroupId])
+
+  const shouldListenForCharacters = gameSystem === 'ose' && documentVisible && ['character', 'maps', 'items'].includes(activeTab)
   const shouldListenForApprovals = documentVisible && (role === 'gm' || activeTab === 'character')
   const shouldShowTransferNotification = documentVisible && ['character', 'maps'].includes(activeTab)
   const shouldShowCliffhangerModal = documentVisible && activeTab !== 'notes'
@@ -165,10 +282,12 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
     syncCharacterLocal,
     deleteCharacter,
     hasPendingWrite,
-  } = useCharacters(campaign?.id ?? null, user.uid, username, role, setError, shouldListenForCharacters)
+  } = useCharacters(campaign?.id ?? null, workspaceGroupId, user.uid, username, role, campaign?.gmUserId ?? null, setError, shouldListenForCharacters)
 
   const characterTabProps = campaign ? {
     campaignId: campaign.id,
+    groupId: campaign.groupId,
+    gmUserId: campaign.gmUserId ?? null,
     currentUserId: user.uid,
     currentUsername: username,
     role,
@@ -187,6 +306,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
 
   const { pendingRequests, approveRequest, rejectRequest } = useItemApprovals(
     campaign?.id ?? null,
+    workspaceGroupId,
     role,
     user.uid,
     shouldListenForApprovals,
@@ -209,42 +329,28 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
     if (tab === 'character' && role === 'gm') return 'Characters'
     return tabs.find((item) => item.id === tab)?.label ?? tab
   }
-  const visibleTabs = useMemo(
-    () => (role === 'player' ? tabs.filter((tab) => !['items', 'monsters', 'tables'].includes(tab.id)) : tabs),
-    [role],
-  )
+  const visibleTabs = useMemo(() => {
+    const systemTabs = tabsForSystem(gameSystem)
+    const enabled = campaign?.enabledTabs
+    const enabledSet = enabled ? new Set(enabled) : null
+    const enabledFiltered = enabledSet ? systemTabs.filter((t) => enabledSet.has(t.id)) : systemTabs
+    return role === 'player' && gameSystem === 'ose'
+      ? enabledFiltered.filter((tab) => !['items', 'monsters', 'tables'].includes(tab.id))
+      : enabledFiltered
+  }, [role, campaign?.enabledTabs, gameSystem])
 
+  // Hard-gate routes by system: a VtM campaign has no items/tables/rules routes,
+  // so redirect direct navigation there back to the character tab.
   useEffect(() => {
-    if (!campaign || !role) return
-    void Promise.all([
-      setDoc(
-        doc(db, 'campaigns', campaign.id, 'members', user.uid),
-        {
-          userId: user.uid,
-          role,
-          status: 'active',
-          username,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      ),
-      setDoc(
-        doc(db, 'users', user.uid, 'campaignMemberships', campaign.id),
-        {
-          campaignId: campaign.id,
-          userId: user.uid,
-          role,
-          status: 'active',
-          username,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      ),
-    ])
-  }, [campaign, role, user.uid, username])
+    if (!campaign) return
+    const allowed = new Set(tabsForSystem(gameSystem).map((tab) => tab.id))
+    if (!allowed.has(activeTab)) {
+      void navigate(campaignTabPath(campaign.groupId, campaign.id, 'character'), { replace: true })
+    }
+  }, [activeTab, campaign, gameSystem, navigate])
 
-  return (
-    <main className="shell-root">
+  const renderCampaignWorkspace = (group: GroupRecord) => (
+    <>
       <button
         type="button"
         className="menu-toggle"
@@ -261,19 +367,34 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
         </section>
       ) : error ? (
         <section>
-          <h2>Campaign Access Error</h2>
+          <h2>Access Error</h2>
           <p>{error}</p>
         </section>
       ) : !campaign ? (
         <section>
           <h2>No Active Campaign</h2>
-          <p>GM must sign in first to initialize the active campaign.</p>
+          <p>This group does not have an active campaign yet.</p>
         </section>
       ) : (
         <div className="shell-layout">
           <nav className={`side-nav ${drawerOpen ? 'open' : ''}`}>
-            <h1 className="side-title">Home Boys House</h1>
-            <p className="side-meta">{campaign.name}</p>
+            <h1 className="side-title">
+              <span className="vtm-fang-anchor">Table</span>
+              <img className="side-title-logo" src={tablekeepLogo} alt="" aria-hidden="true" />
+              <span className="vtm-fang-anchor">Keep</span>
+            </h1>
+            <p className="side-meta">{group.name}</p>
+            <button
+              type="button"
+              className="side-campaign-back"
+              onClick={() => {
+                void navigate(groupHomePath(group.id), { replace: true })
+              }}
+              aria-label={`Back to ${group.name}`}
+            >
+              <ChevronLeft size={16} />
+              <span>{campaign.name}</span>
+            </button>
 
             <div className="nav-list">
               {visibleTabs.map((tab) => (
@@ -291,7 +412,7 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
                 ) : (
                   <NavLink
                     key={tab.id}
-                    to={tabPaths[tab.id]}
+                    to={campaignTabPath(group.id, campaign.id, tab.id)}
                     end
                     onClick={() => setDrawerOpen(false)}
                     className={({ isActive }) => (isActive ? 'tab-button active' : 'tab-button')}
@@ -305,7 +426,20 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
             <div className="account-panel">
               <p className="account-email account-username">Username: {username}</p>
               <p className="account-email">Role: {role}</p>
-              <button type="button" onClick={() => signOut(auth)}>
+              {role === 'gm' ? (
+                <button
+                  type="button"
+                  className="side-settings-button"
+                  onClick={() => {
+                    setSettingsOpen(true)
+                    setDrawerOpen(false)
+                  }}
+                >
+                  <Settings size={14} />
+                  <span>Campaign settings</span>
+                </button>
+              ) : null}
+              <button type="button" onClick={handleSignOut}>
                 Sign Out
               </button>
             </div>
@@ -320,45 +454,42 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
                 : 'content-panel'
             }
           >
-            <Routes>
-              <Route path="/" element={<Navigate to={tabPaths.character} replace />} />
-              <Route
-                path={tabPaths.character}
-                element={
-                  characterTabProps ? <CharacterTab {...characterTabProps} /> : null
-                }
+            {activeTab === 'character' ? (
+              gameSystem === 'vtm' ? (
+                <VtmCharacterTab
+                  campaignId={campaign.id}
+                  groupId={campaign.groupId}
+                  role={role}
+                  currentUserId={user.uid}
+                  currentUsername={username}
+                  gmUserId={campaign.gmUserId ?? null}
+                  setError={setError}
+                />
+              ) : characterTabProps ? <CharacterTab {...characterTabProps} /> : null
+            ) : activeTab === 'maps' ? (
+              <MapsTab
+                campaignId={campaign.id}
+                groupId={campaign.groupId}
+                role={role}
+                characterTabProps={gameSystem === 'ose' ? characterTabProps ?? undefined : undefined}
               />
-              <Route
-                path={tabPaths.maps}
-                element={<MapsTab campaignId={campaign.id} role={role} characterTabProps={characterTabProps ?? undefined} />}
-              />
-              <Route
-                path={tabPaths.monsters}
-                element={role === 'gm'
-                  ? <MonstersTab campaignId={campaign.id} role={role} />
-                  : <Navigate to={tabPaths.character} replace />}
-              />
-              <Route
-                path={tabPaths.items}
-                element={role === 'gm'
-                  ? <ItemsTab campaignId={campaign.id} role={role} characters={characters} />
-                  : <Navigate to={tabPaths.character} replace />}
-              />
-              <Route
-                path={tabPaths.npcs}
-                element={<NpcsTab campaignId={campaign.id} role={role} />}
-              />
-              <Route
-                path={tabPaths.tables}
-                element={role === 'gm'
-                  ? <TablesTab campaignId={campaign.id} />
-                  : <Navigate to={tabPaths.character} replace />}
-              />
-              <Route path={tabPaths.notes} element={<NotesTab campaignId={campaign.id} role={role} />} />
-              <Route path={tabPaths.calendar} element={<CalendarTab campaignId={campaign.id} role={role} />} />
-              <Route path={tabPaths.rules} element={<RulesTab />} />
-              <Route path="*" element={<Navigate to={tabPaths.character} replace />} />
-            </Routes>
+            ) : activeTab === 'monsters' ? (
+              role === 'gm' || gameSystem === 'vtm'
+                ? <MonstersTab campaignId={campaign.id} groupId={campaign.groupId} role={role} />
+                : null
+            ) : activeTab === 'items' ? (
+              role === 'gm' ? <ItemsTab campaignId={campaign.id} groupId={campaign.groupId} role={role} characters={characters} /> : null
+            ) : activeTab === 'npcs' ? (
+              <NpcsTab campaignId={campaign.id} groupId={campaign.groupId} role={role} />
+            ) : activeTab === 'tables' ? (
+              role === 'gm' ? <TablesTab campaignId={campaign.id} groupId={campaign.groupId} /> : null
+            ) : activeTab === 'notes' ? (
+              <NotesTab campaignId={campaign.id} groupId={campaign.groupId} role={role} />
+            ) : activeTab === 'calendar' ? (
+              <CalendarTab campaignId={campaign.id} groupId={campaign.groupId} role={role} />
+            ) : (
+              <RulesTab />
+            )}
           </section>
         </div>
       )}
@@ -514,14 +645,62 @@ function CampaignShell({ user, username }: { user: User, username: string }) {
       {campaign && shouldShowTransferNotification ? (
         <TransferNotification
           campaignId={campaign.id}
+          groupId={campaign.groupId}
           currentUserId={user.uid}
           role={role}
           characters={characters}
         />
       ) : null}
       {campaign ? (
-        <CliffhangerModal campaignId={campaign.id} userId={user.uid} enabled={shouldShowCliffhangerModal} />
+        <CliffhangerModal campaignId={campaign.id} groupId={campaign.groupId} userId={user.uid} enabled={shouldShowCliffhangerModal} />
       ) : null}
+      {settingsOpen && campaign ? (
+        <CampaignSettingsModal
+          groupId={campaign.groupId}
+          campaign={campaign}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
+    </>
+  )
+
+  const shellTheme = campaign && selectedCampaignId
+    ? (gameSystem === 'vtm' ? 'vtm' : 'default')
+    : 'default'
+
+  return (
+    <main className="shell-root" data-theme={shellTheme}>
+      {location.pathname === groupPickerPath || !selectedGroup ? (
+        <GroupPicker
+          username={username}
+          groups={groups}
+          onCreateGroup={handleCreateGroup}
+          onSelectGroup={handleSelectGroup}
+          onSignOut={handleSignOut}
+        />
+      ) : !selectedCampaignId ? (
+        <GroupHome
+          user={user}
+          username={username}
+          onCreateCampaign={handleCreateCampaign}
+          onSetActiveCampaign={handleSetActiveCampaign}
+          onDeactivateCampaign={handleDeactivateCampaign}
+          onDeleteInactiveCampaign={handleDeleteInactiveCampaign}
+          onDeleteDraftCampaign={handleDeleteDraftCampaign}
+          group={selectedGroup}
+          onDeleteGroup={handleDeleteGroup}
+          onBackToGroups={() => { void navigate(groupPickerPath, { replace: true }) }}
+          onOpenCampaign={handleOpenCampaign}
+          onSignOut={handleSignOut}
+          onOpenActiveCampaign={() => {
+            if (selectedGroup.activeCampaign) {
+              void navigate(campaignTabPath(selectedGroup.id, selectedGroup.activeCampaign.id, 'character'), { replace: true })
+            }
+          }}
+        />
+      ) : (
+        renderCampaignWorkspace(selectedGroup)
+      )}
     </main>
   )
 }

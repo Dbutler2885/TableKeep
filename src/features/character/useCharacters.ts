@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { collection, deleteDoc, deleteField, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
+import { deleteDoc, deleteField, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { CharacterRecord, CharacterSheetDetails, Role, TokenIconConfig } from '../../types/app'
+import { campaignCollectionRef, campaignDocRef, campaignUserStateRef } from '../campaign/firestorePaths'
 import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence } from '../common/mediaStorage'
 
 const defaultTokenIcon: TokenIconConfig = {
@@ -12,9 +13,11 @@ const defaultTokenIcon: TokenIconConfig = {
 
 export function useCharacters(
   campaignId: string | null,
+  groupId: string | null,
   userId: string,
   currentUsername: string,
   role: Role | null,
+  gmUserId: string | null,
   setError: (message: string) => void,
   enabled = true,
 ) {
@@ -22,7 +25,6 @@ export function useCharacters(
   const [charactersLoading, setCharactersLoading] = useState(false)
   const [selectedCharacterId, setSelectedCharacterId] = useState('')
   const [currentCharacterId, setCurrentCharacterId] = useState<string | null>(null)
-  const [activePlayerIds, setActivePlayerIds] = useState<string[]>([])
   const charactersRef = useRef<CharacterRecord[]>([])
   const pendingWritesRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
   const inFlightWritesRef = useRef<Record<string, boolean>>({})
@@ -32,14 +34,14 @@ export function useCharacters(
   }, [characters])
 
   useEffect(() => {
-    if (!campaignId || !enabled) {
+    if (!campaignId || !groupId || !enabled) {
       setCurrentCharacterId(null)
       return
     }
 
-    const membershipRef = doc(db, 'users', userId, 'campaignMemberships', campaignId)
+    const userStateRef = campaignUserStateRef(db, { campaignId, groupId }, userId)
     const unsub = onSnapshot(
-      membershipRef,
+      userStateRef,
       (snap) => {
         const value = snap.data()?.currentCharacterId
         setCurrentCharacterId(typeof value === 'string' ? value : null)
@@ -51,41 +53,10 @@ export function useCharacters(
     )
 
     return () => unsub()
-  }, [campaignId, enabled, setError, userId])
+  }, [campaignId, enabled, groupId, setError, userId])
 
   useEffect(() => {
-    if (!campaignId || !enabled) {
-      setActivePlayerIds([])
-      return
-    }
-
-    const unsub = onSnapshot(
-      collection(db, 'campaigns', campaignId, 'members'),
-      (snap) => {
-        const next = snap.docs
-          .map((docSnap) => {
-            const data = docSnap.data() as {
-              userId?: string
-              role?: Role
-              status?: string
-            }
-            if (data.role !== 'player' || data.status !== 'active' || typeof data.userId !== 'string') return null
-            return data.userId
-          })
-          .filter((entry): entry is string => entry !== null)
-        setActivePlayerIds(next)
-      },
-      (err) => {
-        const message = err instanceof Error ? err.message : 'Unable to load campaign members'
-        setError(message)
-      },
-    )
-
-    return () => unsub()
-  }, [campaignId, enabled, setError])
-
-  useEffect(() => {
-    if (!campaignId || !role || !enabled) {
+    if (!campaignId || !groupId || !role || !enabled) {
       setCharacters([])
       setCharactersLoading(false)
       return
@@ -93,7 +64,7 @@ export function useCharacters(
     setCharactersLoading(true)
 
     const unsub = onSnapshot(
-      collection(db, 'campaigns', campaignId, 'characters'),
+      campaignCollectionRef(db, { campaignId, groupId }, 'characters'),
       (snap) => {
         const all = snap.docs.map((docSnap) => {
           // Clobbering guard: keep local version if a write is pending
@@ -202,7 +173,7 @@ export function useCharacters(
 
         const next = role === 'gm'
           ? all
-          : all.filter((character) => activePlayerIds.includes(character.ownerUserId))
+          : all.filter((character) => character.ownerUserId !== gmUserId)
         setCharacters(next)
         setCharactersLoading(false)
 
@@ -232,7 +203,7 @@ export function useCharacters(
     return () => {
       unsub()
     }
-  }, [activePlayerIds, campaignId, currentCharacterId, currentUsername, enabled, role, userId, setError])
+  }, [gmUserId, campaignId, currentCharacterId, currentUsername, enabled, groupId, role, userId, setError])
 
   useEffect(() => {
     const charactersNeedingMedia = characters.filter((character) =>
@@ -292,7 +263,7 @@ export function useCharacters(
   }, [])
 
   const scheduleCharacterWrite = (characterId: string) => {
-    if (!campaignId) return
+    if (!campaignId || !groupId) return
     const existing = pendingWritesRef.current[characterId]
     if (existing) clearTimeout(existing)
 
@@ -328,7 +299,7 @@ export function useCharacters(
       }
 
       void setDoc(
-        doc(db, 'campaigns', campaignId, 'characters', characterId),
+        campaignDocRef(db, { campaignId, groupId }, 'characters', characterId),
         payload,
         { merge: true },
       ).finally(() => {
@@ -381,7 +352,7 @@ export function useCharacters(
   }
 
   const deleteCharacter = (characterId: string) => {
-    if (!campaignId) return
+    if (!campaignId || !groupId) return
     const target = charactersRef.current.find((character) => character.id === characterId)
     if (!target) return
     const canDelete = role === 'gm' || target.ownerUserId === userId
@@ -404,7 +375,7 @@ export function useCharacters(
       return next
     })
 
-    void deleteDoc(doc(db, 'campaigns', campaignId, 'characters', characterId))
+    void deleteDoc(campaignDocRef(db, { campaignId, groupId }, 'characters', characterId))
   }
 
   const selectedCharacter = useMemo(
@@ -413,38 +384,21 @@ export function useCharacters(
   )
 
   const setCurrentCharacter = async (characterId: string) => {
-    if (!campaignId || !role) return
+    if (!campaignId || !groupId || !role) return
     const target = charactersRef.current.find((character) => character.id === characterId)
     if (!target) return
     if (role === 'player' && target.ownerUserId !== userId) return
 
     setCurrentCharacterId(characterId)
 
-    await Promise.all([
-      setDoc(
-        doc(db, 'users', userId, 'campaignMemberships', campaignId),
-        {
-          campaignId,
-          userId,
-          role,
-          status: 'active',
-          currentCharacterId: characterId,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      ),
-      setDoc(
-        doc(db, 'campaigns', campaignId, 'members', userId),
-        {
-          userId,
-          role,
-          status: 'active',
-          currentCharacterId: characterId,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      ),
-    ])
+    await setDoc(
+      campaignUserStateRef(db, { campaignId, groupId }, userId),
+      {
+        currentCharacterId: characterId,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    )
   }
 
   const hasPendingWrite = (id: string) => !!pendingWritesRef.current[id] || !!inFlightWritesRef.current[id]

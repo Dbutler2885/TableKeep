@@ -9,10 +9,7 @@ type UseTokenAnimationOptions = {
   tokenAnimationsRef: React.MutableRefObject<Record<string, TokenPathAnimation>>
   role: Role | null
   cameraLock: boolean
-  fullScreenOpen: boolean
-  setFullPan: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>
   setPlayerPan: React.Dispatch<React.SetStateAction<{ x: number; y: number }>>
-  fullPanRef: React.MutableRefObject<{ x: number; y: number }>
   playerPanRef: React.MutableRefObject<{ x: number; y: number }>
   activeFogCanvasRef: React.RefObject<HTMLCanvasElement | null>
   activeVisionCanvasRef: React.RefObject<HTMLCanvasElement | null>
@@ -42,10 +39,7 @@ export function useTokenAnimation({
   tokenAnimationsRef,
   role,
   cameraLock,
-  fullScreenOpen,
-  setFullPan,
   setPlayerPan,
-  fullPanRef,
   playerPanRef,
   activeFogCanvasRef,
   activeVisionCanvasRef,
@@ -160,41 +154,22 @@ export function useTokenAnimation({
       const partyTokens = tokensRef.current.filter((t) => t.party && !t.hidden)
       const hasPartyAnim = partyTokens.some((t) => nextPositions[t.id] !== undefined)
       if (hasPartyAnim && partyTokens.length > 0) {
-        if (fullScreenOpen) {
-          const stage = activeFogCanvasRef.current?.parentElement?.parentElement as HTMLDivElement | null
-          const mapLayer = stage?.querySelector('.map-zoom-layer') as HTMLDivElement | null
-          if (!stage || !mapLayer) {
-            setAnimatedTokenPositions({ ...nextPositions })
-            animRafRef.current = requestAnimationFrame(animTickRef.current)
-            return
-          }
-          const stageRect = stage.getBoundingClientRect()
-          const mapRect = mapLayer.getBoundingClientRect()
-          const { cx, cy } = averagePartyCenter(partyTokens, nextPositions, mapRect)
-          const nextPan = {
-            x: fullPanRef.current.x + (stageRect.left + stageRect.width / 2 - cx),
-            y: fullPanRef.current.y + (stageRect.top + stageRect.height / 2 - cy),
-          }
-          fullPanRef.current = nextPan
-          setFullPan(nextPan)
-        } else {
-          const stage = activeFogCanvasRef.current?.parentElement?.parentElement as HTMLDivElement | null
-          const mapLayer = stage?.querySelector('.map-zoom-layer') as HTMLDivElement | null
-          if (!stage || !mapLayer) {
-            setAnimatedTokenPositions({ ...nextPositions })
-            animRafRef.current = requestAnimationFrame(animTickRef.current)
-            return
-          }
-          const stageRect = stage.getBoundingClientRect()
-          const mapRect = mapLayer.getBoundingClientRect()
-          const { cx, cy } = averagePartyCenter(partyTokens, nextPositions, mapRect)
-          const nextPan = {
-            x: playerPanRef.current.x + (stageRect.left + stageRect.width / 2 - cx),
-            y: playerPanRef.current.y + (stageRect.top + stageRect.height / 2 - cy),
-          }
-          playerPanRef.current = nextPan
-          setPlayerPan(nextPan)
+        const stage = activeFogCanvasRef.current?.parentElement?.parentElement as HTMLDivElement | null
+        const mapLayer = stage?.querySelector('.map-zoom-layer') as HTMLDivElement | null
+        if (!stage || !mapLayer) {
+          setAnimatedTokenPositions({ ...nextPositions })
+          animRafRef.current = requestAnimationFrame(animTickRef.current)
+          return
         }
+        const stageRect = stage.getBoundingClientRect()
+        const mapRect = mapLayer.getBoundingClientRect()
+        const { cx, cy } = averagePartyCenter(partyTokens, nextPositions, mapRect)
+        const nextPan = {
+          x: playerPanRef.current.x + (stageRect.left + stageRect.width / 2 - cx),
+          y: playerPanRef.current.y + (stageRect.top + stageRect.height / 2 - cy),
+        }
+        playerPanRef.current = nextPan
+        setPlayerPan(nextPan)
       }
     }
 

@@ -4,6 +4,7 @@ import type { Role } from '../../../types/app'
 import type { TokenRecord, WheelRectSnapshot } from '../lib/types'
 import { MAX_MAP_ZOOM, MIN_MAP_ZOOM } from '../lib/constants'
 import { computeWheelZoom } from '../lib/zoomMath'
+import { shouldBeginViewportPan } from '../lib/viewportPan'
 
 // Private touch geometry helpers
 function touchDistance(touches: React.TouchList): number {
@@ -25,18 +26,19 @@ function clampMobileZoom(value: number): number {
 type UseMapViewportOptions = {
   role: Role | null
   tokens: TokenRecord[]
-  fullBaseSize: { width: number; height: number }
   inlineBaseSize: { width: number; height: number }
   activeFogDimension: number
-  fullScreenOpen: boolean
-  fullMapLayerRef: React.RefObject<HTMLDivElement | null>
   inlineMapLayerRef: React.RefObject<HTMLDivElement | null>
-  // Used in fullscreen pan guard: don't hijack left-click when GM tools are active
+  // Used in the inline pan guard: GM tools own plain left-drag, so don't hijack it
   fogTool: 'reveal' | 'hide' | null
   visionTool: 'draw' | 'drawFull' | 'erase' | null
   tokenPlaceMode: boolean
   annotationPlaceMode: boolean
   playerLabelPlaceMode: boolean
+  // Allow the GM to pan the inline stage with a plain left-drag (Map Preview).
+  allowGmInlinePan: boolean
+  // GM hand tool active — left-drag pans while it is selected.
+  handToolActive: boolean
   // Mobile: should touch events drive pan/pinch?
   isMobileZoomMapView: boolean
   // View distance scale for camera lock zoom (fog-relative)
@@ -47,26 +49,20 @@ type UseMapViewportOptions = {
 export function useMapViewport({
   role,
   tokens,
-  fullBaseSize,
   inlineBaseSize,
   activeFogDimension,
-  fullScreenOpen,
-  fullMapLayerRef,
   inlineMapLayerRef,
   fogTool: _fogTool,
   visionTool: _visionTool,
   tokenPlaceMode: _tokenPlaceMode,
   annotationPlaceMode: _annotationPlaceMode,
   playerLabelPlaceMode: _playerLabelPlaceMode,
+  allowGmInlinePan,
+  handToolActive,
   isMobileZoomMapView,
   renderTokenViewDistance,
   renderTokenDimensions,
 }: UseMapViewportOptions) {
-  // --- Fullscreen viewport state ---
-  const [fullZoom, setFullZoom] = useState(1)
-  const [fullPan, setFullPan] = useState({ x: 0, y: 0 })
-  const [fullDragging, setFullDragging] = useState(false)
-
   // --- Player (inline) viewport state ---
   const [playerZoom, setPlayerZoom] = useState(1)
   const [playerPan, setPlayerPan] = useState({ x: 0, y: 0 })
@@ -74,16 +70,9 @@ export function useMapViewport({
   const [cameraLock, setCameraLock] = useState(false)
 
   // --- Refs (kept current to avoid stale closures in RAF/event handlers) ---
-  const fullZoomRef = useRef(1)
-  const fullPanRef = useRef({ x: 0, y: 0 })
   const playerZoomRef = useRef(1)
   const playerPanRef = useRef({ x: 0, y: 0 })
-  const fullDragStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
   const playerDragStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
-  const fullWheelAnchorRef = useRef<{ expiresAt: number; anchor: WheelRectSnapshot | null }>({
-    expiresAt: 0,
-    anchor: null,
-  })
   const playerWheelAnchorRef = useRef<{ expiresAt: number; anchor: WheelRectSnapshot | null }>({
     expiresAt: 0,
     anchor: null,
@@ -103,8 +92,6 @@ export function useMapViewport({
   })
 
   // Keep option refs current so camera-lock effect always reads latest layout sizes.
-  const fullBaseSizeRef = useRef(fullBaseSize)
-  fullBaseSizeRef.current = fullBaseSize
   const inlineBaseSizeRef = useRef(inlineBaseSize)
   inlineBaseSizeRef.current = inlineBaseSize
   const renderTokenViewDistanceRef = useRef(renderTokenViewDistance)
@@ -135,8 +122,6 @@ export function useMapViewport({
   }
 
   // Sync state → refs (used by wheel/touch handlers that need latest value without re-render)
-  useEffect(() => { fullZoomRef.current = fullZoom }, [fullZoom])
-  useEffect(() => { fullPanRef.current = fullPan }, [fullPan])
   useEffect(() => { playerZoomRef.current = playerZoom }, [playerZoom])
   useEffect(() => { playerPanRef.current = playerPan }, [playerPan])
 
@@ -145,27 +130,16 @@ export function useMapViewport({
     if (!cameraLock || role === 'gm') return
     const partyTokens = tokens.filter((t) => t.party && !t.hidden)
     if (partyTokens.length === 0) return
-    if (fullScreenOpen) {
-      const delta = getPartyAnchorDelta(partyTokens, fullMapLayerRef.current?.parentElement as HTMLDivElement | null, fullMapLayerRef.current)
-      if (!delta) return
-      const nextPan = {
-        x: fullPanRef.current.x + delta.x,
-        y: fullPanRef.current.y + delta.y,
-      }
-      fullPanRef.current = nextPan
-      setFullPan(nextPan)
-    } else {
-      const delta = getPartyAnchorDelta(partyTokens, inlineMapLayerRef.current?.parentElement as HTMLDivElement | null, inlineMapLayerRef.current)
-      if (!delta) return
-      const nextPan = {
-        x: playerPanRef.current.x + delta.x,
-        y: playerPanRef.current.y + delta.y,
-      }
-      playerPanRef.current = nextPan
-      setPlayerPan(nextPan)
+    const delta = getPartyAnchorDelta(partyTokens, inlineMapLayerRef.current?.parentElement as HTMLDivElement | null, inlineMapLayerRef.current)
+    if (!delta) return
+    const nextPan = {
+      x: playerPanRef.current.x + delta.x,
+      y: playerPanRef.current.y + delta.y,
     }
+    playerPanRef.current = nextPan
+    setPlayerPan(nextPan)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tokens, cameraLock, fullScreenOpen])
+  }, [tokens, cameraLock])
 
   // --- Handlers ---
 
@@ -178,16 +152,6 @@ export function useMapViewport({
     mobileTouchRef.current.mode = 'none'
   }
 
-  // Reset fullscreen viewport to origin (call before opening fullscreen).
-  const resetFullViewport = () => {
-    fullZoomRef.current = 1
-    fullPanRef.current = { x: 0, y: 0 }
-    setFullZoom(1)
-    setFullPan({ x: 0, y: 0 })
-    setFullDragging(false)
-    fullDragStartRef.current = null
-  }
-
   const toggleCameraLock = () => {
     if (!cameraLock) {
       const partyTokens = tokens.filter((t) => t.party && !t.hidden)
@@ -195,111 +159,29 @@ export function useMapViewport({
         const avgViewDist =
           partyTokens.reduce((sum, t) => sum + renderTokenViewDistanceRef.current(t), 0) / partyTokens.length
         const losZoom = activeFogDimension / (2 * Math.max(1, avgViewDist))
-        if (fullScreenOpen) {
-          const newZoom = fullZoom > losZoom ? losZoom : fullZoom
-          fullZoomRef.current = newZoom
-          setFullZoom(newZoom)
-          requestAnimationFrame(() => {
-            const delta = getPartyAnchorDelta(
-              partyTokens,
-              fullMapLayerRef.current?.parentElement as HTMLDivElement | null,
-              fullMapLayerRef.current,
-            )
-            if (!delta) return
-            const nextPan = {
-              x: fullPanRef.current.x + delta.x,
-              y: fullPanRef.current.y + delta.y,
-            }
-            fullPanRef.current = nextPan
-            setFullPan(nextPan)
-          })
-        } else {
-          const currentPlayerZoom = playerZoomRef.current
-          const newZoom = currentPlayerZoom > losZoom ? losZoom : currentPlayerZoom
-          playerZoomRef.current = newZoom
-          setPlayerZoom(newZoom)
-          requestAnimationFrame(() => {
-            const delta = getPartyAnchorDelta(
-              partyTokens,
-              inlineMapLayerRef.current?.parentElement as HTMLDivElement | null,
-              inlineMapLayerRef.current,
-            )
-            if (!delta) return
-            const nextPan = {
-              x: playerPanRef.current.x + delta.x,
-              y: playerPanRef.current.y + delta.y,
-            }
-            playerPanRef.current = nextPan
-            setPlayerPan(nextPan)
-          })
-        }
+        const currentPlayerZoom = playerZoomRef.current
+        const newZoom = currentPlayerZoom > losZoom ? losZoom : currentPlayerZoom
+        playerZoomRef.current = newZoom
+        setPlayerZoom(newZoom)
+        requestAnimationFrame(() => {
+          const delta = getPartyAnchorDelta(
+            partyTokens,
+            inlineMapLayerRef.current?.parentElement as HTMLDivElement | null,
+            inlineMapLayerRef.current,
+          )
+          if (!delta) return
+          const nextPan = {
+            x: playerPanRef.current.x + delta.x,
+            y: playerPanRef.current.y + delta.y,
+          }
+          playerPanRef.current = nextPan
+          setPlayerPan(nextPan)
+        })
       }
       setCameraLock(true)
     } else {
       setCameraLock(false)
     }
-  }
-
-  // Fullscreen wheel zoom (cursor-centered)
-  const handleFullWheel: WheelEventHandler<HTMLDivElement> = (event) => {
-    const target = event.target as HTMLElement | null
-    if (target?.closest('.map-annotation-popover')) return
-    event.preventDefault()
-    const { nextZoom, nextPan } = computeWheelZoom(
-      event,
-      fullZoomRef.current,
-      fullPanRef.current,
-      fullMapLayerRef.current,
-      fullWheelAnchorRef,
-    )
-    fullZoomRef.current = nextZoom
-    fullPanRef.current = nextPan
-    setFullZoom(nextZoom)
-    setFullPan(nextPan)
-  }
-
-  // GM fullscreen pan: middle mouse always pans; left mouse only pans with shift held.
-  // Non-GM keeps the prior left-drag behavior.
-  const handleFullMouseDown: MouseEventHandler<HTMLDivElement> = (event) => {
-    if (role === 'gm') {
-      if (event.button === 1) {
-        event.preventDefault()
-      } else if (event.button === 0 && event.shiftKey) {
-        event.preventDefault()
-      } else {
-        return
-      }
-    } else if (event.button === 1) {
-      event.preventDefault()
-    } else if (event.button === 0) {
-      event.preventDefault()
-    } else {
-      return
-    }
-    setFullDragging(true)
-    fullDragStartRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-      panX: fullPan.x,
-      panY: fullPan.y,
-    }
-  }
-
-  const handleFullMouseMove: MouseEventHandler<HTMLDivElement> = (event) => {
-    if (!fullDragging || !fullDragStartRef.current) return
-    const deltaX = event.clientX - fullDragStartRef.current.x
-    const deltaY = event.clientY - fullDragStartRef.current.y
-    const nextPan = {
-      x: fullDragStartRef.current.panX + deltaX,
-      y: fullDragStartRef.current.panY + deltaY,
-    }
-    fullPanRef.current = nextPan
-    setFullPan(nextPan)
-  }
-
-  const endFullDrag = () => {
-    setFullDragging(false)
-    fullDragStartRef.current = null
   }
 
   // Player (inline) wheel zoom
@@ -321,9 +203,18 @@ export function useMapViewport({
   }
 
   const handlePlayerMouseDown: MouseEventHandler<HTMLDivElement> = (event) => {
-    if (event.button !== 0) return
-    if (role === 'gm' && !event.shiftKey) return
-    if (!event.shiftKey && playerZoom <= 1) return
+    if (
+      !shouldBeginViewportPan({
+        role,
+        button: event.button,
+        shiftKey: event.shiftKey,
+        handToolActive,
+        allowGmInlinePan,
+        zoom: playerZoom,
+      })
+    ) {
+      return
+    }
     event.preventDefault()
     setPlayerDragging(true)
     playerDragStartRef.current = {
@@ -448,36 +339,22 @@ export function useMapViewport({
 
   return {
     // State
-    fullZoom,
-    fullPan,
-    fullDragging,
     playerZoom,
     playerPan,
     playerDragging,
     cameraLock,
     // Refs (needed by fog/token systems that read zoom/pan without re-rendering)
-    fullZoomRef,
-    fullPanRef,
     playerZoomRef,
     playerPanRef,
-    fullWheelAnchorRef,
     playerWheelAnchorRef,
     // Setters exposed for callers that need direct control (animation tick, etc.)
-    setFullZoom,
-    setFullPan,
-    setFullDragging,
     setPlayerZoom,
     setPlayerPan,
     setCameraLock,
     // Methods
     resetPlayerViewport,
-    resetFullViewport,
     toggleCameraLock,
     // Handlers
-    handleFullWheel,
-    handleFullMouseDown,
-    handleFullMouseMove,
-    endFullDrag,
     handlePlayerWheel,
     handlePlayerMouseDown,
     handlePlayerMouseMove,

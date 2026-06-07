@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MouseEventHandler, TouchEventHandler } from 'react'
-import { deleteField, doc, serverTimestamp, writeBatch } from 'firebase/firestore'
+import { deleteField, serverTimestamp, writeBatch } from 'firebase/firestore'
 import { db } from '../../../firebase'
 import type { Role } from '../../../types/app'
+import { campaignDocRef } from '../../campaign/firestorePaths'
 import {
   DRAG_PATH_SAMPLE_DISTANCE,
   STREAMING_LOCAL_REVEAL_INTERVAL_MS,
@@ -12,6 +13,7 @@ import type { CanvasClipRect, MapRecord, TokenRecord, Waypoint } from '../lib/ty
 
 type UseTokenDragOptions = {
   campaignId: string
+  groupId: string
   role: Role | null
   selectedMap: MapRecord | null
   tokens: TokenRecord[]
@@ -21,7 +23,7 @@ type UseTokenDragOptions = {
   tokenPointToCanvasPoint: (point: { x: number; y: number }, tokenSizePx?: number) => { x: number; y: number } | null
   activeFogCanvasRef: React.RefObject<HTMLCanvasElement | null>
   activeVisionCanvasRef: React.RefObject<HTMLCanvasElement | null>
-  streamingMode: boolean
+  playerViewPreview: boolean
   renderTokenViewDistance: (token: TokenRecord) => number
   revealFromTokenPoint: (
     fogCanvas: HTMLCanvasElement,
@@ -44,6 +46,8 @@ type UseTokenDragOptions = {
   onMovementFeet: (movedFeet: number) => void
   setTokens: React.Dispatch<React.SetStateAction<TokenRecord[]>>
   persistFog: () => Promise<void>
+  beginFogLocalEdit: () => void
+  endFogLocalEdit: () => void
   recentlyDroppedRef: React.MutableRefObject<Set<string>>
   lastAnimatedPathIdRef: React.MutableRefObject<Record<string, string>>
   setSelectedTokenIds: React.Dispatch<React.SetStateAction<string[]>>
@@ -51,6 +55,7 @@ type UseTokenDragOptions = {
 
 export function useTokenDrag({
   campaignId,
+  groupId,
   role,
   selectedMap,
   tokens,
@@ -60,7 +65,7 @@ export function useTokenDrag({
   tokenPointToCanvasPoint,
   activeFogCanvasRef,
   activeVisionCanvasRef,
-  streamingMode,
+  playerViewPreview,
   renderTokenViewDistance,
   revealFromTokenPoint,
   revealFromTokenStroke,
@@ -70,6 +75,8 @@ export function useTokenDrag({
   onMovementFeet,
   setTokens,
   persistFog,
+  beginFogLocalEdit,
+  endFogLocalEdit,
   recentlyDroppedRef,
   lastAnimatedPathIdRef,
   setSelectedTokenIds,
@@ -176,8 +183,11 @@ export function useTokenDrag({
 
   useEffect(() => {
     if (!draggingTokenId || role !== 'gm' || !selectedMap) return
-    const draggingToken = tokens.find((entry) => entry.id === draggingTokenId) ?? null
     const dragGroupIds = draggingTokenIds.length > 1 ? draggingTokenIds : [draggingTokenId]
+    const revealToken =
+      dragGroupIds
+        .map((id) => tokens.find((entry) => entry.id === id) ?? null)
+        .find((token): token is TokenRecord => token?.party === true && token.hidden !== true) ?? null
     const movementTokenId =
       dragGroupIds.find((id) => {
         const token = tokens.find((entry) => entry.id === id)
@@ -195,17 +205,28 @@ export function useTokenDrag({
     let pendingRevealPoint: { x: number; y: number } | null = null
     let pendingRevealBrushSize = 0
     let pendingRevealClipRect: CanvasClipRect | null = null
+    let fogLocalEditOpen = false
+    let dragFinalizing = false
+    let releaseInProgress = false
+
+    if (revealToken) {
+      beginFogLocalEdit()
+      fogLocalEditOpen = true
+      const tokenRenderSize = renderTokenDimensions(revealToken).height
+      const startPosition = dragTokenStartPositionsRef.current?.[revealToken.id] ?? revealToken
+      tokenFogTrailPointRef.current = tokenPointToCanvasPoint(startPosition, tokenRenderSize)
+    }
 
     const flushPendingReveal = () => {
       revealFrameId = null
-      if (!draggingToken?.party || draggingToken.hidden || !activeFogCanvasRef.current || !pendingRevealPoint) return
+      if (!revealToken || !activeFogCanvasRef.current || !pendingRevealPoint) return
 
       const nextCanvasPoint = pendingRevealPoint
       const tokenBrushSize = pendingRevealBrushSize
       const clipRect = pendingRevealClipRect
       pendingRevealPoint = null
 
-      if (streamingMode) {
+      if (playerViewPreview) {
         const now = Date.now()
         const canvasArea = Math.max(1, activeFogCanvasRef.current.width * activeFogCanvasRef.current.height)
         const areaScale = Math.sqrt(canvasArea / (1280 * 720))
@@ -317,9 +338,10 @@ export function useTokenDrag({
         }
       }
 
-      if (draggingToken?.party && !draggingToken.hidden && activeFogCanvasRef.current) {
-        const tokenBrushSize = renderTokenViewDistance(draggingToken)
-        const nextCanvasPoint = tokenPointToCanvasPoint(nextPosition, renderTokenDimensions(draggingToken).height)
+      if (revealToken && activeFogCanvasRef.current) {
+        const revealPosition = dragTokenPositionsRef.current?.[revealToken.id] ?? nextPosition
+        const tokenBrushSize = renderTokenViewDistance(revealToken)
+        const nextCanvasPoint = tokenPointToCanvasPoint(revealPosition, renderTokenDimensions(revealToken).height)
         if (!nextCanvasPoint) return
         const clipRect = null
 
@@ -341,6 +363,9 @@ export function useTokenDrag({
     }
 
     const handleUp = async () => {
+      if (dragFinalizing) return
+      dragFinalizing = true
+      releaseInProgress = true
       if (revealFrameId !== null) {
         window.cancelAnimationFrame(revealFrameId)
         revealFrameId = null
@@ -354,6 +379,10 @@ export function useTokenDrag({
         setDraggingTokenIds([])
         setDragTokenPositions(null)
         tokenDragOffsetRef.current = null
+        if (fogLocalEditOpen) {
+          endFogLocalEdit()
+          fogLocalEditOpen = false
+        }
         return
       }
 
@@ -387,7 +416,7 @@ export function useTokenDrag({
           if (!finalPosition) return
           const token = tokens.find((t) => t.id === tokenId)
           if (token?.hidden) {
-            batch.update(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId), {
+            batch.update(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id, 'tokens', tokenId), {
               x: finalPosition.x,
               y: finalPosition.y,
               path: deleteField(),
@@ -397,7 +426,7 @@ export function useTokenDrag({
             return
           }
           const path = [...(dragPaths[tokenId] ?? []), { x: finalPosition.x, y: finalPosition.y, t: dropTime }]
-          batch.update(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId), {
+          batch.update(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id, 'tokens', tokenId), {
             x: finalPosition.x,
             y: finalPosition.y,
             path,
@@ -411,14 +440,23 @@ export function useTokenDrag({
         console.warn('Token write failed', error)
       }
 
-      if (draggingToken?.party && !draggingToken.hidden) {
+      if (revealToken) {
         try {
           await persistFog()
         } catch (error) {
           console.warn('Token write failed', error)
+        } finally {
+          if (fogLocalEditOpen) {
+            endFogLocalEdit()
+            fogLocalEditOpen = false
+          }
         }
       }
 
+      if (fogLocalEditOpen && !releaseInProgress) {
+        endFogLocalEdit()
+        fogLocalEditOpen = false
+      }
       tokenTouchDraggingRef.current = false
     }
 
@@ -431,6 +469,10 @@ export function useTokenDrag({
     return () => {
       if (revealFrameId !== null) {
         window.cancelAnimationFrame(revealFrameId)
+      }
+      if (fogLocalEditOpen && !releaseInProgress) {
+        endFogLocalEdit()
+        fogLocalEditOpen = false
       }
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
@@ -448,7 +490,7 @@ export function useTokenDrag({
     role,
     selectedMap,
     selectedTokenIds,
-    streamingMode,
+    playerViewPreview,
     tokens,
   ])
 

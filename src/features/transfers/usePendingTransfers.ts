@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  collection,
   deleteDoc,
-  doc,
   onSnapshot,
   serverTimestamp,
   setDoc,
 } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from '../../firebase'
+import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
 import type {
   CharacterRecord,
   PendingTransfer,
@@ -38,19 +37,20 @@ const parseTransfer = (id: string, data: Record<string, unknown>): PendingTransf
 
 export function usePendingTransfers(
   campaignId: string | null,
+  groupId: string | null,
   role: Role | null,
   currentUserId: string,
 ) {
   const [transfers, setTransfers] = useState<PendingTransfer[]>([])
 
   useEffect(() => {
-    if (!campaignId) {
+    if (!campaignId || !groupId) {
       setTransfers([])
       return
     }
 
     const unsub = onSnapshot(
-      collection(db, 'campaigns', campaignId, 'pendingTransfers'),
+      campaignCollectionRef(db, { campaignId, groupId }, 'pendingTransfers'),
       (snapshot) => {
         const next = snapshot.docs
           .map((docSnap) => parseTransfer(docSnap.id, docSnap.data() as Record<string, unknown>))
@@ -70,7 +70,7 @@ export function usePendingTransfers(
     )
 
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, groupId])
 
   const incomingTransfers = useMemo(
     () => transfers.filter((transfer) => transfer.toUserId === currentUserId),
@@ -91,7 +91,7 @@ export function usePendingTransfers(
     fromCharacter: Pick<CharacterRecord, 'id' | 'name' | 'ownerUserId'>,
     toCharacter: Pick<CharacterRecord, 'id' | 'name' | 'ownerUserId'>,
   ) => {
-    if (!campaignId) throw new Error('Campaign not ready')
+    if (!campaignId || !groupId) throw new Error('Campaign not ready')
     if (fromCharacter.id === toCharacter.id) throw new Error('Choose a different character.')
     if (!toCharacter.ownerUserId) throw new Error('Target character has no owner.')
     const duplicate = transfers.find((transfer) =>
@@ -115,7 +115,7 @@ export function usePendingTransfers(
       createdAt: serverTimestamp(),
     }
 
-    await setDoc(doc(db, 'campaigns', campaignId, 'pendingTransfers', transferId), payload)
+    await setDoc(campaignDocRef(db, { campaignId, groupId }, 'pendingTransfers', transferId), payload)
   }
 
   const acceptTransfer = async (transferId: string) => {
@@ -133,13 +133,13 @@ export function usePendingTransfers(
   }
 
   const declineTransfer = async (transferId: string) => {
-    if (!campaignId) return
-    await deleteDoc(doc(db, 'campaigns', campaignId, 'pendingTransfers', transferId))
+    if (!campaignId || !groupId) return
+    await deleteDoc(campaignDocRef(db, { campaignId, groupId }, 'pendingTransfers', transferId))
   }
 
   const cancelTransfer = async (transferId: string) => {
-    if (!campaignId) return
-    await deleteDoc(doc(db, 'campaigns', campaignId, 'pendingTransfers', transferId))
+    if (!campaignId || !groupId) return
+    await deleteDoc(campaignDocRef(db, { campaignId, groupId }, 'pendingTransfers', transferId))
   }
 
   return {

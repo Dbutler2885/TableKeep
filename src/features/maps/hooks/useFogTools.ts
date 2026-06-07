@@ -1,46 +1,43 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MouseEventHandler, TouchEventHandler } from 'react'
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { serverTimestamp, updateDoc } from 'firebase/firestore'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { db, storage } from '../../../firebase'
 import type { Role } from '../../../types/app'
-import type { MapRecord } from '../lib/types'
+import { campaignDocRef } from '../../campaign/firestorePaths'
+import type { MapRecord, TokenPathAnimation } from '../lib/types'
 import { FOG_BRUSH_SIZE_MIN, TOKEN_REFERENCE_DIMENSION } from '../lib/constants'
 
 type UseFogToolsOptions = {
   campaignId: string
+  groupId: string
   role: Role | null
   selectedMap: MapRecord | null
   setMapError: (message: string | null) => void
-  usingFullScreenCanvas: boolean
-  fullScreenOpen: boolean
   isMobile: boolean
-  mobileGmPane: 'map' | 'controls'
+  mobileGmPane: 'map' | 'tokens' | 'characters'
   mobilePlayerPane: 'map' | 'controls' | 'character'
   inlineFogSize: { width: number; height: number }
-  fullFogSize: { width: number; height: number }
   fogTool: 'reveal' | 'hide' | null
   visionTool: 'draw' | 'drawFull' | 'erase' | null
   tokenPlaceMode: boolean
   fogBrushSize: number
   activeFogDimension: number
   fogBrushStrength: number
-  tokenAnimationsRef: React.MutableRefObject<Record<string, any>>
+  tokenAnimationsRef: React.MutableRefObject<Record<string, TokenPathAnimation>>
   pendingFogReloadRef: React.MutableRefObject<boolean>
 }
 
 export function useFogTools({
   campaignId,
+  groupId,
   role,
   selectedMap,
   setMapError,
-  usingFullScreenCanvas,
-  fullScreenOpen,
   isMobile,
   mobileGmPane,
   mobilePlayerPane,
   inlineFogSize,
-  fullFogSize,
   fogTool,
   visionTool,
   tokenPlaceMode,
@@ -51,31 +48,35 @@ export function useFogTools({
   pendingFogReloadRef,
 }: UseFogToolsOptions) {
   const [fogDrawing, setFogDrawing] = useState(false)
+  const fogDrawingRef = useRef(false)
+  const fogLocalEditRevisionRef = useRef(0)
+  const fogLocalEditActiveRef = useRef(0)
+  const visionLocalEditRevisionRef = useRef(0)
+  const fogPersistingRef = useRef(0)
+  const visionPersistingRef = useRef(0)
   const [fogSampleTick, setFogSampleTick] = useState(0)
+  const [fogReloadGateTick, setFogReloadGateTick] = useState(0)
   const [inlineFogReady, setInlineFogReady] = useState(false)
-  const [fullFogReady, setFullFogReady] = useState(false)
 
   const inlineFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const fullFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const inlineVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const fullVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
   const loadedInlineFogKeyRef = useRef('')
   const loadedInlineCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const loadedInlineVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const loadedFogKeyRef = useRef('')
-  const loadedFogCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const loadedInlineVisionKeyRef = useRef('')
-  const loadedVisionKeyRef = useRef('')
-  const loadedVisionCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const fogLoadNonceRef = useRef(0)
   const visionLoadNonceRef = useRef(0)
 
   const fogLastPointRef = useRef<{ x: number; y: number } | null>(null)
   const revealMaskCanvasRef = useRef<HTMLCanvasElement | null>(null)
 
-  const activeFogCanvasRef = usingFullScreenCanvas ? fullFogCanvasRef : inlineFogCanvasRef
-  const activeVisionCanvasRef = usingFullScreenCanvas ? fullVisionCanvasRef : inlineVisionCanvasRef
+  useEffect(() => {
+    fogDrawingRef.current = fogDrawing
+  }, [fogDrawing])
+
+  const activeFogCanvasRef = inlineFogCanvasRef
+  const activeVisionCanvasRef = inlineVisionCanvasRef
   const effectiveFogBrushSize = Math.max(
     FOG_BRUSH_SIZE_MIN,
     Math.min(320, Math.round((fogBrushSize / TOKEN_REFERENCE_DIMENSION) * activeFogDimension)),
@@ -85,9 +86,60 @@ export function useFogTools({
     setFogSampleTick((value) => value + 1)
   }
 
+  const requestFogReloadCheck = () => {
+    setFogReloadGateTick((value) => value + 1)
+  }
+
+  const dataUrlSignature = (dataUrl: string) => {
+    if (!dataUrl) return ''
+    return `${dataUrl.length}:${dataUrl.slice(0, 48)}:${dataUrl.slice(-48)}`
+  }
+
+  const getFogSource = (map: MapRecord) => map.fogDataUrl || map.fogImageUrl
+
+  const getFogCacheKey = (map: MapRecord, width: number, height: number) => [
+    map.id,
+    map.fogImagePath,
+    map.fogImageUrl,
+    dataUrlSignature(map.fogDataUrl),
+    map.fullyHidden ? 'hidden' : 'mixed',
+    `${width}x${height}`,
+  ].join(':')
+
+  const getVisionCacheKey = (map: MapRecord, width: number, height: number) => [
+    map.id,
+    map.visionBlockImagePath,
+    map.visionBlockImageUrl,
+    dataUrlSignature(map.visionBlockDataUrl),
+    `${width}x${height}`,
+  ].join(':')
+
+  const markFogLocalEdit = () => {
+    fogLocalEditRevisionRef.current += 1
+  }
+
+  const beginFogLocalEdit = () => {
+    markFogLocalEdit()
+    fogLocalEditActiveRef.current += 1
+  }
+
+  const endFogLocalEdit = () => {
+    const wasActive = fogLocalEditActiveRef.current > 0
+    fogLocalEditActiveRef.current = Math.max(0, fogLocalEditActiveRef.current - 1)
+    if (wasActive && fogLocalEditActiveRef.current === 0) {
+      requestFogReloadCheck()
+    }
+  }
+
+  const isFogReloadBlocked = () =>
+    fogDrawingRef.current || fogPersistingRef.current > 0 || fogLocalEditActiveRef.current > 0
+
+  const markVisionLocalEdit = () => {
+    visionLocalEditRevisionRef.current += 1
+  }
+
   const setFogReadyForCanvas = (canvas: HTMLCanvasElement, ready: boolean) => {
     if (canvas === inlineFogCanvasRef.current) setInlineFogReady(ready)
-    if (canvas === fullFogCanvasRef.current) setFullFogReady(ready)
   }
 
   const invalidateInlineOverlayCache = () => {
@@ -95,17 +147,12 @@ export function useFogTools({
     loadedInlineVisionKeyRef.current = ''
   }
 
-  const invalidateFullFogCache = () => {
-    loadedFogKeyRef.current = ''
-  }
-
-  const invalidateFullVisionCache = () => {
-    loadedVisionKeyRef.current = ''
-  }
-
   const initializeFogCanvas = (canvas: HTMLCanvasElement, map: MapRecord, width: number, height: number) => {
     if (width <= 0 || height <= 0) return
 
+    const previousMapId = canvas.dataset.fogMapId ?? ''
+    const mapChanged = previousMapId !== map.id
+    const wasInitialized = canvas.dataset.fogInitialized === 'true'
     const resized = canvas.width !== width || canvas.height !== height
     if (resized) {
       canvas.width = width
@@ -117,36 +164,67 @@ export function useFogTools({
     setFogReadyForCanvas(canvas, false)
 
     const fogLoadToken = String(++fogLoadNonceRef.current)
+    const localEditRevision = fogLocalEditRevisionRef.current
     canvas.dataset.fogLoadToken = fogLoadToken
 
-    // Reset immediately on map switch to prevent previous-map reveal bleed-through
-    // while async fog image loading is in flight.
-    ctx.clearRect(0, 0, width, height)
-    ctx.fillStyle = 'rgba(0, 0, 0, 1)'
-    ctx.fillRect(0, 0, width, height)
-    bumpFogSampleTick()
+    if (mapChanged || resized || !wasInitialized) {
+      // Reset immediately only for a new surface. Same-map fog updates load first
+      // and swap after validation so persisted snapshots cannot blank local edits.
+      ctx.clearRect(0, 0, width, height)
+      ctx.fillStyle = 'rgba(0, 0, 0, 1)'
+      ctx.fillRect(0, 0, width, height)
+      canvas.dataset.fogMapId = map.id
+      canvas.dataset.fogInitialized = 'true'
+      bumpFogSampleTick()
+    }
 
-    const fogSource = map.fogDataUrl || map.fogImageUrl
+    const fogSource = getFogSource(map)
     if (!fogSource) {
+      ctx.clearRect(0, 0, width, height)
+      if (map.fullyHidden) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 1)'
+        ctx.fillRect(0, 0, width, height)
+      }
+      canvas.dataset.fogMapId = map.id
+      canvas.dataset.fogInitialized = 'true'
+      bumpFogSampleTick()
       setFogReadyForCanvas(canvas, true)
       return
     }
 
     const fogImage = new Image()
     fogImage.crossOrigin = 'anonymous'
+    const fallbackTimer = window.setTimeout(() => {
+      if (canvas.dataset.fogLoadToken !== fogLoadToken) return
+      setFogReadyForCanvas(canvas, true)
+    }, 8000)
     fogImage.onload = () => {
       if (canvas.dataset.fogLoadToken !== fogLoadToken) return
+      window.clearTimeout(fallbackTimer)
+      if (fogLocalEditRevisionRef.current !== localEditRevision) {
+        setFogReadyForCanvas(canvas, true)
+        return
+      }
       ctx.clearRect(0, 0, width, height)
       ctx.drawImage(fogImage, 0, 0, width, height)
+      canvas.dataset.fogMapId = map.id
+      canvas.dataset.fogInitialized = 'true'
       bumpFogSampleTick()
       setFogReadyForCanvas(canvas, true)
     }
     fogImage.onerror = () => {
       if (canvas.dataset.fogLoadToken !== fogLoadToken) return
-      ctx.clearRect(0, 0, width, height)
-      ctx.fillStyle = 'rgba(0, 0, 0, 1)'
-      ctx.fillRect(0, 0, width, height)
-      bumpFogSampleTick()
+      window.clearTimeout(fallbackTimer)
+      if (fogLocalEditRevisionRef.current !== localEditRevision) {
+        setFogReadyForCanvas(canvas, true)
+        return
+      }
+      if (mapChanged || resized || !wasInitialized) {
+        ctx.clearRect(0, 0, width, height)
+        ctx.fillStyle = 'rgba(0, 0, 0, 1)'
+        ctx.fillRect(0, 0, width, height)
+        bumpFogSampleTick()
+      }
       setFogReadyForCanvas(canvas, true)
     }
     fogImage.src = fogSource
@@ -165,6 +243,7 @@ export function useFogTools({
     if (!ctx) return
 
     const visionLoadToken = String(++visionLoadNonceRef.current)
+    const localEditRevision = visionLocalEditRevisionRef.current
     canvas.dataset.visionLoadToken = visionLoadToken
     ctx.clearRect(0, 0, width, height)
 
@@ -183,19 +262,19 @@ export function useFogTools({
       blockImage.crossOrigin = 'anonymous'
       blockImage.onload = () => {
         if (canvas.dataset.visionLoadToken !== visionLoadToken) return
+        if (visionLocalEditRevisionRef.current !== localEditRevision) return
         ctx.clearRect(0, 0, width, height)
         ctx.drawImage(blockImage, 0, 0, width, height)
       }
       blockImage.onerror = () => {
         if (canvas.dataset.visionLoadToken !== visionLoadToken) return
+        if (visionLocalEditRevisionRef.current !== localEditRevision) return
         loadAt(index + 1)
       }
       blockImage.src = source
     }
     loadAt(0)
   }
-
-  const getFogCacheKey = (map: MapRecord, width: number, height: number) => `${map.id}:${map.updatedAtMs}:${width}x${height}`
 
   const safeCanvasToDataUrl = (canvas: HTMLCanvasElement) => {
     try {
@@ -376,7 +455,9 @@ export function useFogTools({
     overlay: 'fog' | 'vision',
   ) => {
     const blob = await canvasToPngBlob(canvas)
-    const path = `campaigns/${campaignId}/maps/${mapId}/${overlay}/${Date.now()}.png`
+    const path = groupId
+      ? `groups/${groupId}/campaigns/${campaignId}/maps/${mapId}/${overlay}/${Date.now()}.png`
+      : `campaigns/${campaignId}/maps/${mapId}/${overlay}/${Date.now()}.png`
     const overlayRef = ref(storage, path)
     await uploadBytes(overlayRef, blob, {
       contentType: 'image/png',
@@ -388,6 +469,7 @@ export function useFogTools({
 
   const persistFog = async () => {
     if (!selectedMap || !activeFogCanvasRef.current || role !== 'gm') return
+    fogPersistingRef.current += 1
     try {
       const fogDataUrl = safeCanvasToDataUrl(activeFogCanvasRef.current)
       if (!fogDataUrl) {
@@ -395,7 +477,7 @@ export function useFogTools({
         return
       }
       const { path, url } = await uploadMapOverlayImage(selectedMap.id, activeFogCanvasRef.current, 'fog')
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      await updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
         fogImagePath: path,
         fogImageUrl: url,
         fogDataUrl,
@@ -406,16 +488,20 @@ export function useFogTools({
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to persist fog'
       setMapError(message)
+    } finally {
+      fogPersistingRef.current = Math.max(0, fogPersistingRef.current - 1)
+      if (fogPersistingRef.current === 0) requestFogReloadCheck()
     }
   }
 
   const persistVisionBlocks = async (sourceCanvas?: HTMLCanvasElement | null) => {
     const canvas = sourceCanvas ?? activeVisionCanvasRef.current
     if (!selectedMap || !canvas || role !== 'gm') return
+    visionPersistingRef.current += 1
     try {
       const visionBlockDataUrl = safeCanvasToDataUrl(canvas)
       const { path, url } = await uploadMapOverlayImage(selectedMap.id, canvas, 'vision')
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      await updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
         visionBlockImagePath: path,
         visionBlockImageUrl: url,
         visionBlockDataUrl,
@@ -424,6 +510,8 @@ export function useFogTools({
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to persist vision blocks'
       setMapError(message)
+    } finally {
+      visionPersistingRef.current = Math.max(0, visionPersistingRef.current - 1)
     }
   }
 
@@ -434,6 +522,12 @@ export function useFogTools({
     if (!fogTool && !visionTool) return
     if (role !== 'gm' || !activeFogCanvasRef.current) return
     event.preventDefault()
+    if (visionTool) {
+      markVisionLocalEdit()
+    } else {
+      markFogLocalEdit()
+    }
+    fogDrawingRef.current = true
     setFogDrawing(true)
     const point = canvasPointFromMouse(activeFogCanvasRef.current, event)
     fogLastPointRef.current = point
@@ -448,7 +542,7 @@ export function useFogTools({
   const handleFogPointerMove: MouseEventHandler<HTMLCanvasElement> = (event) => {
     if (tokenPlaceMode) return
     if (!fogTool && !visionTool) return
-    if (!fogDrawing || role !== 'gm' || !activeFogCanvasRef.current) return
+    if (!fogDrawingRef.current || role !== 'gm' || !activeFogCanvasRef.current) return
     event.preventDefault()
     const point = canvasPointFromMouse(activeFogCanvasRef.current, event)
     const previousPoint = fogLastPointRef.current
@@ -471,11 +565,12 @@ export function useFogTools({
   }
 
   const handleFogPointerUp = () => {
-    if (tokenPlaceMode) return
-    if (!fogDrawing) return
-    const visionCanvas = activeVisionCanvasRef.current
+    if (!fogDrawingRef.current) return
+    fogDrawingRef.current = false
     setFogDrawing(false)
     fogLastPointRef.current = null
+    if (tokenPlaceMode) return
+    const visionCanvas = activeVisionCanvasRef.current
     if (visionTool) {
       void persistVisionBlocks(visionCanvas)
       return
@@ -483,12 +578,36 @@ export function useFogTools({
     void persistFog()
   }
 
+  const pauseFogStroke = () => {
+    fogLastPointRef.current = null
+  }
+
+  useEffect(() => {
+    if (!fogDrawing) return
+
+    const handleGlobalMouseUp = () => handleFogPointerUp()
+    const handleWindowBlur = () => handleFogPointerUp()
+
+    window.addEventListener('mouseup', handleGlobalMouseUp)
+    window.addEventListener('blur', handleWindowBlur)
+    return () => {
+      window.removeEventListener('mouseup', handleGlobalMouseUp)
+      window.removeEventListener('blur', handleWindowBlur)
+    }
+  }, [fogDrawing, handleFogPointerUp])
+
   const handleFogTouchStart: TouchEventHandler<HTMLCanvasElement> = (event) => {
     if (tokenPlaceMode) return
     if ((!fogTool && !visionTool) || role !== 'gm' || !activeFogCanvasRef.current) return
     if (event.touches.length !== 1) return
     event.preventDefault()
     event.stopPropagation()
+    if (visionTool) {
+      markVisionLocalEdit()
+    } else {
+      markFogLocalEdit()
+    }
+    fogDrawingRef.current = true
     setFogDrawing(true)
     const point = canvasPointFromTouch(activeFogCanvasRef.current, event.touches[0])
     fogLastPointRef.current = point
@@ -503,7 +622,7 @@ export function useFogTools({
   const handleFogTouchMove: TouchEventHandler<HTMLCanvasElement> = (event) => {
     if (tokenPlaceMode) return
     if (!fogTool && !visionTool) return
-    if (!fogDrawing || role !== 'gm' || !activeFogCanvasRef.current) return
+    if (!fogDrawingRef.current || role !== 'gm' || !activeFogCanvasRef.current) return
     if (event.touches.length !== 1) return
     event.preventDefault()
     event.stopPropagation()
@@ -549,9 +668,11 @@ export function useFogTools({
     if (role !== 'gm' || !selectedMap) return
 
     setMapError(null)
+    markFogLocalEdit()
+    fogPersistingRef.current += 1
 
     try {
-      const activeSize = usingFullScreenCanvas ? fullFogSize : inlineFogSize
+      const activeSize = inlineFogSize
       if (activeFogCanvasRef.current && activeSize.width > 0 && activeSize.height > 0) {
         const canvas = activeFogCanvasRef.current
         const ctx = canvas.getContext('2d', { willReadFrequently: true })
@@ -565,7 +686,7 @@ export function useFogTools({
 
         const { path, url } = await uploadMapOverlayImage(selectedMap.id, canvas, 'fog')
         const fogDataUrl = safeCanvasToDataUrl(canvas)
-        await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+        await updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
           fogImagePath: path,
           fogImageUrl: url,
           fogDataUrl,
@@ -592,7 +713,7 @@ export function useFogTools({
 
       const { path, url } = await uploadMapOverlayImage(selectedMap.id, canvas, 'fog')
       const fogDataUrl = safeCanvasToDataUrl(canvas)
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      await updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
         fogImagePath: path,
         fogImageUrl: url,
         fogDataUrl,
@@ -603,53 +724,18 @@ export function useFogTools({
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to apply fog preset'
       setMapError(message)
+    } finally {
+      fogPersistingRef.current = Math.max(0, fogPersistingRef.current - 1)
+      if (fogPersistingRef.current === 0) requestFogReloadCheck()
     }
   }
 
   useEffect(() => {
     setInlineFogReady(false)
-    setFullFogReady(false)
   }, [selectedMap?.id])
 
   useEffect(() => {
-    if (!fullScreenOpen || !selectedMap || !fullFogCanvasRef.current) return
-    if (fullFogSize.width <= 0 || fullFogSize.height <= 0) return
-
-    if (loadedFogCanvasRef.current !== fullFogCanvasRef.current) {
-      loadedFogCanvasRef.current = fullFogCanvasRef.current
-      loadedFogKeyRef.current = ''
-    }
-
-    const key = getFogCacheKey(selectedMap, fullFogSize.width, fullFogSize.height)
-    if (loadedFogKeyRef.current === key) return
-
-    if (Object.keys(tokenAnimationsRef.current).length > 0) {
-      pendingFogReloadRef.current = true
-      return
-    }
-
-    loadedFogKeyRef.current = key
-    initializeFogCanvas(fullFogCanvasRef.current, selectedMap, fullFogSize.width, fullFogSize.height)
-  }, [fogSampleTick, fullFogSize.height, fullFogSize.width, fullScreenOpen, selectedMap, tokenAnimationsRef, pendingFogReloadRef])
-
-  useEffect(() => {
-    if (!fullScreenOpen || !selectedMap || !fullVisionCanvasRef.current) return
-    if (fullFogSize.width <= 0 || fullFogSize.height <= 0) return
-
-    if (loadedVisionCanvasRef.current !== fullVisionCanvasRef.current) {
-      loadedVisionCanvasRef.current = fullVisionCanvasRef.current
-      loadedVisionKeyRef.current = ''
-    }
-
-    const key = `${selectedMap.id}:${selectedMap.visionBlockImagePath || selectedMap.visionBlockImageUrl || selectedMap.visionBlockDataUrl}:${fullFogSize.width}x${fullFogSize.height}`
-    if (loadedVisionKeyRef.current === key) return
-
-    loadedVisionKeyRef.current = key
-    initializeVisionCanvas(fullVisionCanvasRef.current, selectedMap, fullFogSize.width, fullFogSize.height)
-  }, [fullFogSize.height, fullFogSize.width, fullScreenOpen, selectedMap])
-
-  useEffect(() => {
-    if (fullScreenOpen || !selectedMap || !inlineFogCanvasRef.current) return
+    if (!selectedMap || !inlineFogCanvasRef.current) return
     if (isMobile && (role === 'gm' ? mobileGmPane !== 'map' : mobilePlayerPane !== 'map')) return
     if (inlineFogSize.width <= 0 || inlineFogSize.height <= 0) return
 
@@ -657,6 +743,8 @@ export function useFogTools({
       loadedInlineCanvasRef.current = inlineFogCanvasRef.current
       loadedInlineFogKeyRef.current = ''
     }
+
+    if (isFogReloadBlocked()) return
 
     const key = getFogCacheKey(selectedMap, inlineFogSize.width, inlineFogSize.height)
     if (loadedInlineFogKeyRef.current === key) return
@@ -670,7 +758,8 @@ export function useFogTools({
     initializeFogCanvas(inlineFogCanvasRef.current, selectedMap, inlineFogSize.width, inlineFogSize.height)
   }, [
     fogSampleTick,
-    fullScreenOpen,
+    fogReloadGateTick,
+    fogDrawing,
     inlineFogSize.height,
     inlineFogSize.width,
     isMobile,
@@ -683,7 +772,7 @@ export function useFogTools({
   ])
 
   useEffect(() => {
-    if (fullScreenOpen || !selectedMap || !inlineVisionCanvasRef.current) return
+    if (!selectedMap || !inlineVisionCanvasRef.current) return
     if (isMobile && (role === 'gm' ? mobileGmPane !== 'map' : mobilePlayerPane !== 'map')) return
     if (inlineFogSize.width <= 0 || inlineFogSize.height <= 0) return
 
@@ -692,13 +781,15 @@ export function useFogTools({
       loadedInlineVisionKeyRef.current = ''
     }
 
-    const key = `${selectedMap.id}:${selectedMap.visionBlockImagePath || selectedMap.visionBlockImageUrl || selectedMap.visionBlockDataUrl}:${inlineFogSize.width}x${inlineFogSize.height}`
+    if (fogDrawingRef.current || visionPersistingRef.current > 0) return
+
+    const key = getVisionCacheKey(selectedMap, inlineFogSize.width, inlineFogSize.height)
     if (loadedInlineVisionKeyRef.current === key) return
 
     loadedInlineVisionKeyRef.current = key
     initializeVisionCanvas(inlineVisionCanvasRef.current, selectedMap, inlineFogSize.width, inlineFogSize.height)
   }, [
-    fullScreenOpen,
+    fogDrawing,
     inlineFogSize.height,
     inlineFogSize.width,
     isMobile,
@@ -711,16 +802,18 @@ export function useFogTools({
   return {
     fogDrawing,
     setFogDrawing,
+    pauseFogStroke,
+    effectiveFogBrushSize,
     inlineFogReady,
-    fullFogReady,
     inlineFogCanvasRef,
-    fullFogCanvasRef,
     inlineVisionCanvasRef,
-    fullVisionCanvasRef,
     activeFogCanvasRef,
     activeVisionCanvasRef,
     persistFog,
     persistVisionBlocks,
+    markFogLocalEdit,
+    beginFogLocalEdit,
+    endFogLocalEdit,
     applyFogPreset,
     bumpFogSampleTick,
     stampFog,
@@ -731,7 +824,5 @@ export function useFogTools({
     handleFogTouchMove,
     handleFogTouchEnd,
     invalidateInlineOverlayCache,
-    invalidateFullFogCache,
-    invalidateFullVisionCache,
   }
 }

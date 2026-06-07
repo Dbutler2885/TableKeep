@@ -6,6 +6,7 @@ import type { TokenIconConfig } from '../tokens/TokenIconEditor'
 
 type UploadEntityImageParams = {
   campaignId: string
+  groupId: string
   collectionName: 'characters' | 'npcs' | 'monsters' | 'items'
   entityId: string
   mediaKind: 'portraits' | 'token-icons'
@@ -56,6 +57,7 @@ export const resolveStoragePathUrl = async (path: string) => {
 
 export const uploadEntityImage = async ({
   campaignId,
+  groupId,
   collectionName,
   entityId,
   mediaKind,
@@ -70,7 +72,9 @@ export const uploadEntityImage = async ({
     quality: 0.9,
   })
   const safeName = normalized.file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const path = `campaigns/${campaignId}/${collectionName}/${entityId}/${mediaKind}/${Date.now()}-${safeName}`
+  const path = groupId
+    ? `groups/${groupId}/campaigns/${campaignId}/${collectionName}/${entityId}/${mediaKind}/${Date.now()}-${safeName}`
+    : `campaigns/${campaignId}/${collectionName}/${entityId}/${mediaKind}/${Date.now()}-${safeName}`
   const storageRef = ref(storage, path)
   await auth.currentUser?.getIdToken(true)
   await uploadBytes(storageRef, normalized.file, { contentType: normalized.file.type })

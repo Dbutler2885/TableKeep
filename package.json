@@ -24,6 +24,8 @@
     "deploy:functions": "firebase deploy --only functions"
   },
   "dependencies": {
+    "@iconify-json/game-icons": "^1.2.4",
+    "@iconify/react": "^6.0.2",
     "firebase": "^12.9.0",
     "lucide-react": "^0.575.0",
     "react": "^19.2.0",

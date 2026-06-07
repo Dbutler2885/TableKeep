@@ -115,6 +115,38 @@ export type Campaign = {
   id: string
   name: string
   status: string
+  groupId: string
+  slug?: string
+  system?: string
+  gmUserId?: string | null
+  enabledTabs?: AppTab[]
+  theme?: string
+}
+
+export type GroupMemberRole = 'member' | 'admin'
+
+export type InviteCode = {
+  token: string
+  groupId: string
+  groupName: string
+  createdBy: string
+  createdByName: string
+  createdAt: number
+  expiresAt: number
+  redeemedBy: string | null
+  redeemedAt: number | null
+  revoked: boolean
+}
+
+export type GroupRecord = {
+  id: string
+  name: string
+  slug: string
+  activeCampaignId: string | null
+  activeCampaign: Campaign | null
+  drafts: Campaign[]
+  inactiveCampaigns: Campaign[]
+  memberRole: GroupMemberRole
 }
 
 export type TokenIconConfig = {

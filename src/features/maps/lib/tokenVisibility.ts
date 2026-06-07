@@ -6,12 +6,12 @@ import type { Role } from '../../../types/app'
 export function isTokenVisibleOnFog(
   token: TokenRecord,
   role: Role | null,
-  streamingMode: boolean,
+  playerViewPreview: boolean,
   fullyHidden: boolean,
   fogCanvas: HTMLCanvasElement | null,
 ): boolean {
-  if (token.hidden && (role !== 'gm' || streamingMode)) return false
-  if (role === 'gm' && !streamingMode) return true
+  if (token.hidden && (role !== 'gm' || playerViewPreview)) return false
+  if (role === 'gm' && !playerViewPreview) return true
   if (token.party) return true
 
   if (!fogCanvas) return !fullyHidden

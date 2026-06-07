@@ -5,6 +5,7 @@ import { computeAvailablePackedSlots } from '../character/inventoryOverflow'
 
 type TransferNotificationProps = {
   campaignId: string
+  groupId: string
   currentUserId: string
   role: Role | null
   characters: CharacterRecord[]
@@ -12,11 +13,12 @@ type TransferNotificationProps = {
 
 export function TransferNotification({
   campaignId,
+  groupId,
   currentUserId,
   role,
   characters,
 }: TransferNotificationProps) {
-  const { incomingTransfers, acceptTransfer, declineTransfer } = usePendingTransfers(campaignId, role, currentUserId)
+  const { incomingTransfers, acceptTransfer, declineTransfer } = usePendingTransfers(campaignId, groupId, role, currentUserId)
   const [busyTransferId, setBusyTransferId] = useState('')
   const [error, setError] = useState<string | null>(null)
 

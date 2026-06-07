@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import type { MutableRefObject } from 'react'
 import {
   addDoc,
-  collection,
   deleteDoc,
   doc,
   onSnapshot,
@@ -17,6 +16,8 @@ import { deleteObject, getDownloadURL, ref, uploadBytes } from 'firebase/storage
 import { auth, db, storage } from '../../../firebase'
 import { firebaseConfig } from '../../../firebase/config'
 import type { Role } from '../../../types/app'
+import { campaignCollectionRef, campaignDocRef } from '../../campaign/firestorePaths'
+import { normalizeImageForUpload } from '../../common/imageNormalization'
 import type { TokenIconConfig } from '../../tokens/TokenIconEditor'
 import { isRenderableImageUrl, resolveStoragePathUrl } from '../../common/mediaStorage'
 import type {
@@ -34,17 +35,18 @@ import {
   DEFAULT_TOKEN_VIEW_DISTANCE,
   TOKEN_REFERENCE_DIMENSION,
 } from '../lib/constants'
+import type { TokenPlacementCommand } from '../lib/tokenPlacementQueue'
+
+const MAP_UPLOAD_MAX_DIMENSION = 2048
 
 type UseMapDataParams = {
   campaignId: string
+  groupId: string
   role: Role | null
   selectedMapId: string
   setSelectedMapId: (id: string | ((prev: string) => string)) => void
   // Coord resolver: converts screen coords to normalized map coords (owned by fog/viewport)
   getDropPoint: (clientX: number, clientY: number) => { x: number; y: number } | null
-  // Token placement UI state (owned by MapsTab tool controls)
-  tokenColor: string
-  tokenSize: number
   // Refs for triggering path animations on remote token moves (owned by useTokenAnimation)
   tokensRef: MutableRefObject<TokenRecord[]>
   recentlyDroppedRef: MutableRefObject<Set<string>>
@@ -59,12 +61,11 @@ type UseMapDataParams = {
 
 export function useMapData({
   campaignId,
+  groupId,
   role,
   selectedMapId,
   setSelectedMapId,
   getDropPoint,
-  tokenColor,
-  tokenSize,
   tokensRef,
   recentlyDroppedRef,
   lastAnimatedPathIdRef,
@@ -87,7 +88,7 @@ export function useMapData({
   const [annotations, setAnnotations] = useState<AnnotationRecord[]>([])
   const [activeAnnotationId, setActiveAnnotationId] = useState('')
   const [activeAnnotationDraft, setActiveAnnotationDraft] = useState('')
-  const [tokenDeleteCandidate, setTokenDeleteCandidate] = useState<TokenRecord | null>(null)
+  const [tokenDeleteCandidate, setTokenDeleteCandidate] = useState<TokenRecord[] | null>(null)
   const [deletingTokenId, setDeletingTokenId] = useState('')
   const [mapMonsters, setMapMonsters] = useState<MonsterSummary[]>([])
   const [mapCharacters, setMapCharacters] = useState<CharacterTokenSummary[]>([])
@@ -99,9 +100,22 @@ export function useMapData({
   const [tokenAssetDeleteCandidate, setTokenAssetDeleteCandidate] = useState<TokenAssetRecord | null>(null)
   const [deletingTokenAssetId, setDeletingTokenAssetId] = useState('')
 
+  const scope = { campaignId, groupId }
+  const mapsCollectionRef = campaignCollectionRef(db, scope, 'maps')
+  const mapDocRef = (mapId: string) => campaignDocRef(db, scope, 'maps', mapId)
+  const mapTokensCollectionRef = (mapId: string) => campaignCollectionRef(db, scope, 'maps', mapId, 'tokens')
+  const mapTokenDocRef = (mapId: string, tokenId: string) => campaignDocRef(db, scope, 'maps', mapId, 'tokens', tokenId)
+  const mapAnnotationsCollectionRef = (mapId: string) => campaignCollectionRef(db, scope, 'maps', mapId, 'annotations')
+  const mapAnnotationDocRef = (mapId: string, annotationId: string) =>
+    campaignDocRef(db, scope, 'maps', mapId, 'annotations', annotationId)
+  const tokenAssetsCollectionRef = campaignCollectionRef(db, scope, 'tokenAssets')
+  const tokenAssetDocRef = (assetId: string) => campaignDocRef(db, scope, 'tokenAssets', assetId)
+  const npcsCollectionRef = campaignCollectionRef(db, scope, 'npcs')
+  const npcDocRef = (npcId: string) => campaignDocRef(db, scope, 'npcs', npcId)
+
   // ── Maps subscription ───────────────────────────────────────────────────────
   useEffect(() => {
-    const mapsQuery = query(collection(db, 'campaigns', campaignId, 'maps'))
+    const mapsQuery = query(mapsCollectionRef)
     const unsub = onSnapshot(
       mapsQuery,
       (snap) => {
@@ -192,7 +206,7 @@ export function useMapData({
       },
     )
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, groupId])
 
   // ── Resolve missing Storage download URLs ───────────────────────────────────
   useEffect(() => {
@@ -206,31 +220,31 @@ export function useMapData({
     void Promise.allSettled([
       ...missingImageUrlMaps.map(async (map) => {
         const url = await getDownloadURL(ref(storage, map.imagePath))
-        await updateDoc(doc(db, 'campaigns', campaignId, 'maps', map.id), {
+        await updateDoc(mapDocRef(map.id), {
           imageUrl: url,
           updatedAt: serverTimestamp(),
         })
       }),
       ...missingFogUrlMaps.map(async (map) => {
         const url = await getDownloadURL(ref(storage, map.fogImagePath))
-        await updateDoc(doc(db, 'campaigns', campaignId, 'maps', map.id), {
+        await updateDoc(mapDocRef(map.id), {
           fogImageUrl: url,
           updatedAt: serverTimestamp(),
         })
       }),
       ...missingVisionUrlMaps.map(async (map) => {
         const url = await getDownloadURL(ref(storage, map.visionBlockImagePath))
-        await updateDoc(doc(db, 'campaigns', campaignId, 'maps', map.id), {
+        await updateDoc(mapDocRef(map.id), {
           visionBlockImageUrl: url,
           updatedAt: serverTimestamp(),
         })
       }),
     ])
-  }, [campaignId, maps])
+  }, [campaignId, groupId, maps])
 
   // ── Token assets subscription ───────────────────────────────────────────────
   useEffect(() => {
-    const assetsQuery = query(collection(db, 'campaigns', campaignId, 'tokenAssets'))
+    const assetsQuery = query(tokenAssetsCollectionRef)
     const unsub = onSnapshot(
       assetsQuery,
       (snap) => {
@@ -262,7 +276,7 @@ export function useMapData({
       },
     )
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, groupId])
 
   // ── Tokens subscription (per map) ───────────────────────────────────────────
   useEffect(() => {
@@ -271,7 +285,7 @@ export function useMapData({
       return
     }
 
-    const tokensQuery = query(collection(db, 'campaigns', campaignId, 'maps', selectedMapId, 'tokens'))
+    const tokensQuery = query(mapTokensCollectionRef(selectedMapId))
     const unsub = onSnapshot(
       tokensQuery,
       (snap) => {
@@ -295,6 +309,7 @@ export function useMapData({
             monsterId?: string
             characterId?: string
             npcId?: string
+            group?: string
           }
 
           return {
@@ -317,6 +332,7 @@ export function useMapData({
             monsterId: typeof data.monsterId === 'string' ? data.monsterId : '',
             characterId: typeof data.characterId === 'string' ? data.characterId : undefined,
             npcId: typeof data.npcId === 'string' ? data.npcId : undefined,
+            group: typeof data.group === 'string' && data.group ? data.group : undefined,
           }
         })
         setTokens(next)
@@ -373,7 +389,7 @@ export function useMapData({
     )
 
     return () => unsub()
-  }, [campaignId, selectedMapId, tokensRef, recentlyDroppedRef, lastAnimatedPathIdRef, startTokenPathAnimationRef])
+  }, [campaignId, groupId, selectedMapId, tokensRef, recentlyDroppedRef, lastAnimatedPathIdRef, startTokenPathAnimationRef])
 
   // ── Annotations subscription (per map) ──────────────────────────────────────
   useEffect(() => {
@@ -382,7 +398,7 @@ export function useMapData({
       return
     }
 
-    const annotationsCollection = collection(db, 'campaigns', campaignId, 'maps', selectedMapId, 'annotations')
+    const annotationsCollection = mapAnnotationsCollectionRef(selectedMapId)
     const annotationsQuery = role === 'gm'
       ? query(annotationsCollection)
       : query(
@@ -420,11 +436,11 @@ export function useMapData({
     )
 
     return () => unsub()
-  }, [campaignId, role, selectedMapId])
+  }, [campaignId, groupId, role, selectedMapId])
 
   // ── Monsters subscription (for token spawn picker) ──────────────────────────
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'monsters'), (snap) => {
+    const unsub = onSnapshot(campaignCollectionRef(db, scope, 'monsters'), (snap) => {
       setMapMonsters((current) =>
         snap.docs
           .map((d) => {
@@ -455,11 +471,11 @@ export function useMapData({
       )
     })
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, groupId])
 
   // ── Characters subscription (for token spawn picker) ───────────────────────
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'characters'), (snap) => {
+    const unsub = onSnapshot(campaignCollectionRef(db, scope, 'characters'), (snap) => {
       setMapCharacters((current) =>
         snap.docs
           .map((d) => {
@@ -487,11 +503,11 @@ export function useMapData({
       )
     })
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, groupId])
 
   // ── NPCs subscription (for token spawn picker + scene presentation) ───────
   useEffect(() => {
-    const npcsCollection = collection(db, 'campaigns', campaignId, 'npcs')
+    const npcsCollection = npcsCollectionRef
     const npcsQuery = role === 'gm'
       ? query(npcsCollection)
       : query(npcsCollection, where('visibleToPlayers', '==', true))
@@ -535,7 +551,7 @@ export function useMapData({
       )
     })
     return () => unsub()
-  }, [campaignId, role])
+  }, [campaignId, groupId, role])
 
   useEffect(() => {
     const monstersNeedingMedia = mapMonsters.filter(
@@ -647,13 +663,21 @@ export function useMapData({
     setUploading(true)
 
     try {
-      const mapRef = doc(collection(db, 'campaigns', campaignId, 'maps'))
-      const storagePath = `campaigns/${campaignId}/maps/${mapRef.id}`
+      const normalized = await normalizeImageForUpload(file, {
+        maxWidth: MAP_UPLOAD_MAX_DIMENSION,
+        maxHeight: MAP_UPLOAD_MAX_DIMENSION,
+        preferType: 'image/webp',
+        quality: 0.9,
+      })
+      const mapRef = doc(mapsCollectionRef)
+      const storagePath = groupId
+        ? `groups/${groupId}/campaigns/${campaignId}/maps/${mapRef.id}`
+        : `campaigns/${campaignId}/maps/${mapRef.id}`
       const primaryStorageRef = ref(storage, storagePath)
 
       // Ensure auth token is fresh before Storage writes.
       await auth.currentUser?.getIdToken(true)
-      await uploadBytes(primaryStorageRef, file)
+      await uploadBytes(primaryStorageRef, normalized.file, { contentType: normalized.file.type })
 
       await setDoc(mapRef, {
         name: file.name.replace(/\.[^/.]+$/, ''),
@@ -666,8 +690,8 @@ export function useMapData({
         visionBlockImagePath: '',
         visionBlockImageUrl: '',
         fullyHidden: false,
-        width: 0,
-        height: 0,
+        width: normalized.width,
+        height: normalized.height,
         sortOrder: maps.length,
         visibleToPlayers: false,
         gridEnabled: false,
@@ -710,7 +734,7 @@ export function useMapData({
   const saveRename = async (mapId: string) => {
     const name = editName.trim()
     if (!name) return
-    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', mapId), {
+    await updateDoc(mapDocRef(mapId), {
       name,
       updatedAt: serverTimestamp(),
     })
@@ -727,7 +751,7 @@ export function useMapData({
       if (deleteCandidate.imagePath) await deleteObject(ref(storage, deleteCandidate.imagePath))
       if (deleteCandidate.fogImagePath) await deleteObject(ref(storage, deleteCandidate.fogImagePath))
       if (deleteCandidate.visionBlockImagePath) await deleteObject(ref(storage, deleteCandidate.visionBlockImagePath))
-      await deleteDoc(doc(db, 'campaigns', campaignId, 'maps', deleteCandidate.id))
+      await deleteDoc(mapDocRef(deleteCandidate.id))
       setDeleteCandidate(null)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Delete failed'
@@ -738,7 +762,7 @@ export function useMapData({
   }
 
   const togglePlayerVisibility = async (map: MapRecord, checked: boolean) => {
-    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', map.id), {
+    await updateDoc(mapDocRef(map.id), {
       visibleToPlayers: checked,
       updatedAt: serverTimestamp(),
     })
@@ -747,7 +771,7 @@ export function useMapData({
   const persistMapOrder = async (ordered: MapRecord[]) => {
     const batch = writeBatch(db)
     ordered.forEach((map, index) => {
-      batch.update(doc(db, 'campaigns', campaignId, 'maps', map.id), {
+      batch.update(mapDocRef(map.id), {
         sortOrder: index,
         updatedAt: serverTimestamp(),
       })
@@ -796,7 +820,7 @@ export function useMapData({
     updates: Partial<
       Pick<
         TokenRecord,
-        'color' | 'size' | 'sizeScale' | 'viewDistance' | 'viewDistanceScale' | 'party' | 'name' | 'revealName' | 'hidden'
+        'color' | 'size' | 'sizeScale' | 'viewDistance' | 'viewDistanceScale' | 'party' | 'name' | 'revealName' | 'hidden' | 'group'
       >
     >,
   ) => {
@@ -805,7 +829,7 @@ export function useMapData({
     if (typeof nextUpdates.viewDistance === 'number' && typeof nextUpdates.viewDistanceScale !== 'number') {
       nextUpdates.viewDistanceScale = nextUpdates.viewDistance / TOKEN_REFERENCE_DIMENSION
     }
-    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId), {
+    await updateDoc(mapTokenDocRef(selectedMap.id, tokenId), {
       ...nextUpdates,
       updatedAt: serverTimestamp(),
     })
@@ -813,20 +837,31 @@ export function useMapData({
 
   const deleteToken = async (tokenId: string) => {
     if (!selectedMap || role !== 'gm') return
-    await deleteDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens', tokenId))
+    await deleteDoc(mapTokenDocRef(selectedMap.id, tokenId))
   }
 
   const requestDeleteToken = (tokenId: string) => {
     const token = tokens.find((entry) => entry.id === tokenId)
     if (!token) return
-    setTokenDeleteCandidate(token)
+    setTokenDeleteCandidate([token])
+  }
+
+  const requestDeleteTokens = (tokenIds: string[]) => {
+    const tokenIdSet = new Set(tokenIds)
+    const deleteCandidates = tokens.filter((entry) => tokenIdSet.has(entry.id))
+    if (deleteCandidates.length === 0) return
+    setTokenDeleteCandidate(deleteCandidates)
   }
 
   const confirmDeleteToken = async () => {
-    if (!tokenDeleteCandidate) return
-    setDeletingTokenId(tokenDeleteCandidate.id)
+    if (!selectedMap || !tokenDeleteCandidate || tokenDeleteCandidate.length === 0) return
+    setDeletingTokenId(tokenDeleteCandidate.length === 1 ? tokenDeleteCandidate[0].id : 'bulk')
     try {
-      await deleteToken(tokenDeleteCandidate.id)
+      const batch = writeBatch(db)
+      tokenDeleteCandidate.forEach((token) => {
+        batch.delete(mapTokenDocRef(selectedMap.id, token.id))
+      })
+      await batch.commit()
       setTokenDeleteCandidate(null)
     } finally {
       setDeletingTokenId('')
@@ -842,125 +877,40 @@ export function useMapData({
     await updateToken(tokenId, { hidden: next })
   }
 
-  const placeToken = async (clientX: number, clientY: number) => {
+  const placeQueuedToken = async (command: TokenPlacementCommand) => {
     if (!selectedMap || role !== 'gm') return
-    const point = getDropPoint(clientX, clientY)
-    if (!point) return
-
-    const spawnMonster = mapMonsters.find((m) => m.id === selectedTokenAssetId) ?? null
-    const spawnCharacter = mapCharacters.find((c) => c.id === selectedTokenAssetId) ?? null
-    const spawnNpc = mapNpcs.find((n) => n.id === selectedTokenAssetId) ?? null
-
-    if (spawnMonster) {
-      const { tokenIcon } = spawnMonster
-      const size = tokenIcon.size
-      const sizeScale = size / TOKEN_REFERENCE_DIMENSION
-      await addDoc(collection(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens'), {
-        x: point.x,
-        y: point.y,
-        color: tokenIcon.color,
-        size,
-        sizeScale,
-        viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
-        viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
-        party: false,
-        name: spawnMonster.name,
-        revealName: false,
-        hidden: false,
-        tokenImagePath: tokenIcon.customImagePath ?? '',
-        tokenImageUrl: tokenIcon.icon === 'custom' && tokenIcon.customImageUrl ? tokenIcon.customImageUrl : '',
-        tokenImageWidth: 0,
-        tokenImageHeight: 0,
-        monsterId: spawnMonster.id,
-        characterId: '',
-        npcId: '',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
-    } else if (spawnCharacter) {
-      const { tokenIcon } = spawnCharacter
-      const size = tokenIcon.size
-      const sizeScale = size / TOKEN_REFERENCE_DIMENSION
-      await addDoc(collection(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens'), {
-        x: point.x,
-        y: point.y,
-        color: tokenIcon.color,
-        size,
-        sizeScale,
-        viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
-        viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
-        party: true,
-        name: spawnCharacter.name,
-        revealName: true,
-        hidden: false,
-        tokenImagePath: tokenIcon.customImagePath ?? '',
-        tokenImageUrl: tokenIcon.icon === 'custom' && tokenIcon.customImageUrl ? tokenIcon.customImageUrl : '',
-        tokenImageWidth: 0,
-        tokenImageHeight: 0,
-        monsterId: '',
-        characterId: spawnCharacter.id,
-        npcId: '',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
-    } else if (spawnNpc) {
-      const { tokenIcon } = spawnNpc
-      const size = tokenIcon.size
-      const sizeScale = size / TOKEN_REFERENCE_DIMENSION
-      await addDoc(collection(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens'), {
-        x: point.x,
-        y: point.y,
-        color: tokenIcon.color,
-        size,
-        sizeScale,
-        viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
-        viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
-        party: false,
-        name: spawnNpc.name,
-        revealName: true,
-        hidden: false,
-        tokenImagePath: tokenIcon.customImagePath ?? '',
-        tokenImageUrl: tokenIcon.icon === 'custom' && tokenIcon.customImageUrl ? tokenIcon.customImageUrl : '',
-        tokenImageWidth: 0,
-        tokenImageHeight: 0,
-        monsterId: '',
-        characterId: '',
-        npcId: spawnNpc.id,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
-    } else {
-      const sizeScale = tokenSize / TOKEN_REFERENCE_DIMENSION
-      await addDoc(collection(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'tokens'), {
-        x: point.x,
-        y: point.y,
-        color: tokenColor,
-        size: tokenSize,
-        sizeScale,
-        viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
-        viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
-        party: false,
-        name: selectedTokenAsset?.name ?? '',
-        revealName: false,
-        hidden: false,
-        tokenImagePath: selectedTokenAsset?.imagePath ?? '',
-        tokenImageUrl: selectedTokenAsset?.imageUrl ?? '',
-        tokenImageWidth: selectedTokenAsset?.width ?? 0,
-        tokenImageHeight: selectedTokenAsset?.height ?? 0,
-        monsterId: '',
-        characterId: '',
-        npcId: '',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
-    }
+    const size = command.tokenIcon.size
+    const sizeScale = size / TOKEN_REFERENCE_DIMENSION
+    await addDoc(mapTokensCollectionRef(selectedMap.id), {
+      x: command.point.x,
+      y: command.point.y,
+      color: command.tokenIcon.color,
+      size,
+      sizeScale,
+      viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
+      viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
+      party: command.party,
+      name: command.name,
+      revealName: command.revealName,
+      hidden: false,
+      tokenImagePath: command.tokenImagePath,
+      tokenImageUrl: command.tokenImageUrl,
+      tokenImageWidth: command.tokenImageWidth,
+      tokenImageHeight: command.tokenImageHeight,
+      monsterId: command.monsterId,
+      characterId: command.characterId,
+      npcId: command.npcId,
+      tokenAssetId: command.tokenAssetId,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
   }
 
   const updateSceneNpcIds = async (sceneNpcIds: string[]) => {
     if (!selectedMap || role !== 'gm') return
     const validIds = sceneNpcIds.filter((id, index) => !!id && sceneNpcIds.indexOf(id) === index)
     const presentedNpcId = validIds.includes(selectedMap.presentedNpcId) ? selectedMap.presentedNpcId : ''
-    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+    await updateDoc(mapDocRef(selectedMap.id), {
       sceneNpcIds: validIds,
       presentedNpcId,
       updatedAt: serverTimestamp(),
@@ -970,7 +920,7 @@ export function useMapData({
   const setPresentedNpcId = async (npcId: string) => {
     if (!selectedMap || role !== 'gm') return
     if (!npcId) {
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      await updateDoc(mapDocRef(selectedMap.id), {
         presentedNpcId: '',
         updatedAt: serverTimestamp(),
       })
@@ -978,12 +928,12 @@ export function useMapData({
     }
 
     const batch = writeBatch(db)
-    batch.update(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+    batch.update(mapDocRef(selectedMap.id), {
       presentedNpcId: npcId,
       updatedAt: serverTimestamp(),
     })
     batch.set(
-      doc(db, 'campaigns', campaignId, 'npcs', npcId),
+      npcDocRef(npcId),
       {
         visibleToPlayers: true,
         updatedAt: serverTimestamp(),
@@ -998,8 +948,8 @@ export function useMapData({
     if (!selectedMap || role !== 'gm') return
     const point = getDropPoint(clientX, clientY)
     if (!point) return
-    const annotationRef = await addDoc(
-      collection(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'annotations'),
+    await addDoc(
+      mapAnnotationsCollectionRef(selectedMap.id),
       {
         x: point.x,
         y: point.y,
@@ -1011,8 +961,6 @@ export function useMapData({
         updatedAt: serverTimestamp(),
       },
     )
-    setActiveAnnotationId(annotationRef.id)
-    setActiveAnnotationDraft('')
   }
 
   const commitActiveAnnotation = async () => {
@@ -1022,14 +970,14 @@ export function useMapData({
     const nextText = activeAnnotationDraft.trim()
     if (nextText === activeAnnotation.text.trim()) return
     await updateDoc(
-      doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'annotations', activeAnnotation.id),
+      mapAnnotationDocRef(selectedMap.id, activeAnnotation.id),
       { text: nextText, updatedAt: serverTimestamp() },
     )
   }
 
   const deleteAnnotation = async (annotationId: string) => {
     if (!selectedMap || role !== 'gm') return
-    await deleteDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'annotations', annotationId))
+    await deleteDoc(mapAnnotationDocRef(selectedMap.id, annotationId))
   }
 
   const toggleAnnotationHidden = async (annotationId: string) => {
@@ -1041,7 +989,7 @@ export function useMapData({
       current.map((entry) => (entry.id === annotationId ? { ...entry, hidden: nextHidden } : entry)),
     )
     await updateDoc(
-      doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'annotations', annotationId),
+      mapAnnotationDocRef(selectedMap.id, annotationId),
       { hidden: nextHidden, updatedAt: serverTimestamp() },
     )
   }
@@ -1059,7 +1007,7 @@ export function useMapData({
       )),
     )
     await updateDoc(
-      doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'annotations', annotationId),
+      mapAnnotationDocRef(selectedMap.id, annotationId),
       { pointerDirection: nextDirection, updatedAt: serverTimestamp() },
     )
   }
@@ -1081,7 +1029,7 @@ export function useMapData({
     const clampedX = Math.max(0, Math.min(1, x))
     const clampedY = Math.max(0, Math.min(1, y))
     await updateDoc(
-      doc(db, 'campaigns', campaignId, 'maps', selectedMap.id, 'annotations', annotationId),
+      mapAnnotationDocRef(selectedMap.id, annotationId),
       { x: clampedX, y: clampedY, updatedAt: serverTimestamp() },
     )
   }
@@ -1089,13 +1037,15 @@ export function useMapData({
   // ── Token asset CRUD ────────────────────────────────────────────────────────
   const saveTokenAssetFile = async (nextFile: File, width: number, height: number, assetName?: string) => {
     const safeName = nextFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-    const tokenAssetPath = `campaigns/${campaignId}/token-assets/${Date.now()}-${safeName}`
+    const tokenAssetPath = groupId
+      ? `groups/${groupId}/campaigns/${campaignId}/token-assets/${Date.now()}-${safeName}`
+      : `campaigns/${campaignId}/token-assets/${Date.now()}-${safeName}`
     const tokenAssetRef = ref(storage, tokenAssetPath)
     await uploadBytes(tokenAssetRef, nextFile, { contentType: nextFile.type })
     const url = await getDownloadURL(tokenAssetRef)
     const fallbackName = nextFile.name.replace(/\.[^/.]+$/, '')
     const name = (assetName?.trim() || fallbackName).slice(0, 80)
-    const assetRef = await addDoc(collection(db, 'campaigns', campaignId, 'tokenAssets'), {
+    const assetRef = await addDoc(tokenAssetsCollectionRef, {
       name,
       imagePath: tokenAssetPath,
       imageUrl: url,
@@ -1113,7 +1063,7 @@ export function useMapData({
   }
 
   const archiveTokenAsset = async (assetId: string, archived: boolean) => {
-    await updateDoc(doc(db, 'campaigns', campaignId, 'tokenAssets', assetId), {
+    await updateDoc(tokenAssetDocRef(assetId), {
       archived,
       updatedAt: serverTimestamp(),
     })
@@ -1132,7 +1082,7 @@ export function useMapData({
       if (tokenAssetDeleteCandidate.imagePath) {
         await deleteObject(ref(storage, tokenAssetDeleteCandidate.imagePath))
       }
-      await deleteDoc(doc(db, 'campaigns', campaignId, 'tokenAssets', tokenAssetDeleteCandidate.id))
+      await deleteDoc(tokenAssetDocRef(tokenAssetDeleteCandidate.id))
       if (selectedTokenAssetId === tokenAssetDeleteCandidate.id) {
         setSelectedTokenAssetId('')
       }
@@ -1202,9 +1152,10 @@ export function useMapData({
     updateToken,
     deleteToken,
     requestDeleteToken,
+    requestDeleteTokens,
     confirmDeleteToken,
     toggleTokenHidden,
-    placeToken,
+    placeQueuedToken,
     updateSceneNpcIds,
     setPresentedNpcId,
     // Annotation CRUD
