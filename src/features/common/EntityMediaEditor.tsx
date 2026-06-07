@@ -1,4 +1,4 @@
-import { Check, ImagePlus, Trash2, X } from 'lucide-react'
+import { Check, ImagePlus, Skull, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { normalizeImageForUpload } from './imageNormalization'
 import { TokenPawnPreview, type TokenIconConfig } from '../tokens/TokenIconEditor'
@@ -21,6 +21,7 @@ type EntityMediaEditorProps = {
   portraitAltLabel: string
   tokenButtonAriaLabel?: string
   removePortraitMessage?: string
+  showDeadOverlay?: boolean
   onUploadTokenImage?: (file: File) => Promise<{
     customImagePath?: string
     customImageUrl?: string
@@ -42,6 +43,7 @@ export function EntityMediaEditor({
   portraitAltLabel,
   tokenButtonAriaLabel = 'Edit token icon',
   removePortraitMessage = 'Remove portrait image?',
+  showDeadOverlay = false,
   onUploadTokenImage,
   onUploadPortraitImage,
 }: EntityMediaEditorProps) {
@@ -175,6 +177,11 @@ export function EntityMediaEditor({
             >
               <Trash2 size={13} />
             </button>
+            {showDeadOverlay ? (
+              <div className="character-dead-overlay character-dead-overlay-lg" aria-label={`${entityName} is dead`}>
+                <Skull />
+              </div>
+            ) : null}
           </div>
         ) : (
           <label className="monster-portrait-frame monster-portrait-frame-empty">
@@ -188,6 +195,11 @@ export function EntityMediaEditor({
               className="sr-only"
               onChange={(event) => handlePortraitFile(event.target.files?.[0] ?? null)}
             />
+            {showDeadOverlay ? (
+              <div className="character-dead-overlay character-dead-overlay-lg" aria-label={`${entityName} is dead`}>
+                <Skull />
+              </div>
+            ) : null}
           </label>
         )}
       </div>
