@@ -11,6 +11,18 @@ service firebase.storage {
       );
     }
 
+    function groupMemberDoc(groupId) {
+      return firestore.get(
+        /databases/(default)/documents/groups/$(groupId)/members/$(request.auth.uid)
+      );
+    }
+
+    function groupCampaignDoc(groupId, campaignId) {
+      return firestore.get(
+        /databases/(default)/documents/groups/$(groupId)/campaigns/$(campaignId)
+      );
+    }
+
     function isCampaignMember(campaignId) {
       return isSignedIn()
         && campaignMemberDoc(campaignId).data.status == 'active';
@@ -21,9 +33,25 @@ service firebase.storage {
         && campaignMemberDoc(campaignId).data.role == 'gm';
     }
 
+    function isGroupMember(groupId) {
+      return isSignedIn()
+        && groupMemberDoc(groupId).data.status == 'active';
+    }
+
+    function isGroupCampaignGM(groupId, campaignId) {
+      return isGroupMember(groupId)
+        && groupCampaignDoc(groupId, campaignId).data.gmUserId == request.auth.uid;
+    }
+
     function mapDoc(campaignId, mapId) {
       return firestore.get(
         /databases/(default)/documents/campaigns/$(campaignId)/maps/$(mapId)
+      );
+    }
+
+    function groupMapDoc(groupId, campaignId, mapId) {
+      return firestore.get(
+        /databases/(default)/documents/groups/$(groupId)/campaigns/$(campaignId)/maps/$(mapId)
       );
     }
 
@@ -33,12 +61,77 @@ service firebase.storage {
       );
     }
 
+    function groupCharacterDoc(groupId, campaignId, characterId) {
+      return firestore.get(
+        /databases/(default)/documents/groups/$(groupId)/campaigns/$(campaignId)/characters/$(characterId)
+      );
+    }
+
     function canReadMapAsset(campaignId, mapId) {
       return isCampaignGM(campaignId)
         || (
           isCampaignMember(campaignId)
           && mapDoc(campaignId, mapId).data.visibleToPlayers == true
         );
+    }
+
+    function canReadGroupMapAsset(groupId, campaignId, mapId) {
+      return isGroupCampaignGM(groupId, campaignId)
+        || (
+          isGroupMember(groupId)
+          && groupMapDoc(groupId, campaignId, mapId).data.visibleToPlayers == true
+        );
+    }
+
+    match /groups/{groupId}/campaigns/{campaignId}/maps/{mapId} {
+      allow read: if canReadGroupMapAsset(groupId, campaignId, mapId);
+      allow write: if isGroupCampaignGM(groupId, campaignId);
+    }
+
+    match /groups/{groupId}/campaigns/{campaignId}/maps/{mapId}/{allPaths=**} {
+      allow read: if canReadGroupMapAsset(groupId, campaignId, mapId);
+      allow write: if isGroupCampaignGM(groupId, campaignId);
+    }
+
+    match /groups/{groupId}/campaigns/{campaignId}/token-assets/{assetName} {
+      allow read: if isGroupMember(groupId);
+      allow write: if isGroupCampaignGM(groupId, campaignId);
+    }
+
+    match /groups/{groupId}/campaigns/{campaignId}/characters/{characterId}/token-icons/{assetName} {
+      allow read: if isGroupMember(groupId);
+      allow write: if isGroupCampaignGM(groupId, campaignId)
+        || (
+          isGroupMember(groupId)
+          && groupCharacterDoc(groupId, campaignId, characterId).data.ownerUserId == request.auth.uid
+        );
+    }
+
+    match /groups/{groupId}/campaigns/{campaignId}/characters/{characterId}/portraits/{assetName} {
+      allow read: if isGroupMember(groupId);
+      allow write: if isGroupCampaignGM(groupId, campaignId)
+        || (
+          isGroupMember(groupId)
+          && groupCharacterDoc(groupId, campaignId, characterId).data.ownerUserId == request.auth.uid
+        );
+    }
+
+    match /groups/{groupId}/campaigns/{campaignId}/npcs/{npcId}/{mediaKind}/{assetName} {
+      allow read: if isGroupMember(groupId);
+      allow write: if isGroupCampaignGM(groupId, campaignId)
+        && (mediaKind == 'portraits' || mediaKind == 'token-icons');
+    }
+
+    match /groups/{groupId}/campaigns/{campaignId}/monsters/{monsterId}/{mediaKind}/{assetName} {
+      allow read: if isGroupMember(groupId);
+      allow write: if isGroupCampaignGM(groupId, campaignId)
+        && (mediaKind == 'portraits' || mediaKind == 'token-icons');
+    }
+
+    match /groups/{groupId}/campaigns/{campaignId}/items/{itemId}/{mediaKind}/{assetName} {
+      allow read: if isGroupMember(groupId);
+      allow write: if isGroupCampaignGM(groupId, campaignId)
+        && (mediaKind == 'portraits' || mediaKind == 'token-icons');
     }
 
     match /campaigns/{campaignId}/maps/{mapId} {

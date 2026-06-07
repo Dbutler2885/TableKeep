@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
+import { deleteDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { CampaignItem, WeaponEffect, WeaponRollTable, WeaponRollTableEntry } from '../../types/app'
+import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
 import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence } from '../common/mediaStorage'
 
 const defaultWeaponStats: CampaignItem['weaponStats'] = {
@@ -188,7 +189,7 @@ export const toFirestoreItem = (item: CampaignItem): Record<string, unknown> => 
   return payload
 }
 
-export function useItems(campaignId: string) {
+export function useItems(campaignId: string, groupId: string) {
   const [items, setItems] = useState<CampaignItem[]>([])
   const [itemsLoading, setItemsLoading] = useState(false)
   const itemsRef = useRef<CampaignItem[]>([])
@@ -203,7 +204,7 @@ export function useItems(campaignId: string) {
     setItemsLoading(true)
 
     const unsub = onSnapshot(
-      collection(db, 'campaigns', campaignId, 'items'),
+      campaignCollectionRef(db, { campaignId, groupId }, 'items'),
       (snap) => {
         const all = snap.docs.map((docSnap) => {
           if (pendingWritesRef.current[docSnap.id]) {
@@ -240,7 +241,7 @@ export function useItems(campaignId: string) {
     )
 
     return () => unsub()
-  }, [campaignId])
+  }, [campaignId, groupId])
 
   useEffect(() => {
     const itemsNeedingMedia = items.filter((item) =>
@@ -297,7 +298,7 @@ export function useItems(campaignId: string) {
 
       const { id } = item
       void setDoc(
-        doc(db, 'campaigns', campaignId, 'items', id),
+        campaignDocRef(db, { campaignId, groupId }, 'items', id),
         { ...toFirestoreItem(item), updatedAt: serverTimestamp() },
         { merge: true },
       ).catch((error) => {
@@ -311,7 +312,7 @@ export function useItems(campaignId: string) {
     if (!campaignId) return
     const { id } = item
     void setDoc(
-      doc(db, 'campaigns', campaignId, 'items', id),
+      campaignDocRef(db, { campaignId, groupId }, 'items', id),
       { ...toFirestoreItem(item), createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
     ).catch((error) => {
       console.error('Failed to create campaign item', { itemId: id, error })
@@ -333,7 +334,7 @@ export function useItems(campaignId: string) {
       delete pendingWritesRef.current[itemId]
     }
     setItems((current) => current.filter((item) => item.id !== itemId))
-    void deleteDoc(doc(db, 'campaigns', campaignId, 'items', itemId)).catch((error) => {
+    void deleteDoc(campaignDocRef(db, { campaignId, groupId }, 'items', itemId)).catch((error) => {
       console.error('Failed to delete campaign item', { itemId, error })
     })
   }

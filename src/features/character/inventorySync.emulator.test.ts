@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { deleteDoc, doc, getDoc, setDoc, waitForPendingWrites } from 'firebase/firestore'
-import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
+import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import type {
   CharacterAmmunitionItem,
   CharacterGoldItem,
@@ -503,5 +503,112 @@ describe('inventory sync on Firestore emulator', () => {
     const finalDetails = await detailsFromSnap(playerCharacterRef)
     expect(sumGold(inventoryFromDetails(finalDetails))).toBe(120)
     expect(finalDetails?.otherNotesText).toBe('gm dirty notes')
+  })
+})
+
+describe('nested group/campaign security rules', () => {
+  let testEnv: RulesTestEnvironment
+
+  const groupId = 'group-1'
+  const cid = 'campaign-1'
+  // gmUid is the group admin and the campaign gmUserId.
+  // memberUid is a non-admin active group member (a "player").
+  // outsiderUid has no group membership.
+  const outsiderUid = 'outsider-user'
+
+  // Path segments for groups/{groupId}/campaigns/{cid}
+  const CC = ['groups', groupId, 'campaigns', cid] as const
+
+  beforeAll(async () => {
+    testEnv = await initializeTestEnvironment({
+      projectId,
+      firestore: {
+        host: '127.0.0.1',
+        port: 8080,
+        rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
+      },
+    })
+  })
+
+  afterAll(async () => {
+    await testEnv.cleanup()
+  })
+
+  beforeAll(async () => {
+    await testEnv.clearFirestore()
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const adminDb = context.firestore()
+      await setDoc(doc(adminDb, 'groups', groupId), { createdBy: gmUid })
+      await setDoc(doc(adminDb, 'groups', groupId, 'members', gmUid), {
+        userId: gmUid, role: 'admin', status: 'active',
+      })
+      await setDoc(doc(adminDb, 'groups', groupId, 'members', playerUid), {
+        userId: playerUid, role: 'member', status: 'active',
+      })
+      await setDoc(doc(adminDb, 'groups', groupId, 'campaigns', cid), {
+        createdBy: gmUid, gmUserId: gmUid, status: 'active',
+      })
+      await setDoc(doc(adminDb, 'groups', groupId, 'campaigns', cid, 'characters', characterId), {
+        ownerUserId: playerUid, name: 'Player Character', details: { inventory: [] },
+      })
+      await setDoc(doc(adminDb, 'groups', groupId, 'campaigns', cid, 'sharedNotes', 'note-1'), {
+        body: 'session note',
+      })
+      await setDoc(doc(adminDb, 'groups', groupId, 'campaigns', cid, 'tables', 'table-1'), {
+        name: 'Loot Table',
+      })
+      await setDoc(doc(adminDb, 'groups', groupId, 'campaigns', cid, 'userState', playerUid), {
+        currentCharacterId: characterId,
+      })
+    })
+  })
+
+  it('userState is owner-only for active group members', async () => {
+    const playerDb = testEnv.authenticatedContext(playerUid).firestore()
+    const outsiderDb = testEnv.authenticatedContext(outsiderUid).firestore()
+
+    // Owner (active group member) can read + write their own userState.
+    await assertSucceeds(getDoc(doc(playerDb, ...CC, 'userState', playerUid)))
+    await assertSucceeds(
+      setDoc(doc(playerDb, ...CC, 'userState', playerUid), { currentCharacterId: characterId }),
+    )
+
+    // Member cannot read or write another user's userState.
+    await assertFails(getDoc(doc(playerDb, ...CC, 'userState', gmUid)))
+    await assertFails(
+      setDoc(doc(playerDb, ...CC, 'userState', gmUid), { currentCharacterId: 'x' }),
+    )
+
+    // A non-group-member cannot touch their own userState here.
+    await assertFails(
+      setDoc(doc(outsiderDb, ...CC, 'userState', outsiderUid), { currentCharacterId: 'x' }),
+    )
+  })
+
+  it('GM-only collections reject non-GM members and accept the campaign GM', async () => {
+    const gmDb = testEnv.authenticatedContext(gmUid).firestore()
+    const playerDb = testEnv.authenticatedContext(playerUid).firestore()
+
+    // Campaign GM (also group admin) can write a GM-only `tables` doc.
+    await assertSucceeds(
+      setDoc(doc(gmDb, ...CC, 'tables', 'table-1'), { name: 'Loot Table v2' }),
+    )
+
+    // Non-GM member can neither read nor write GM-only `tables`.
+    await assertFails(getDoc(doc(playerDb, ...CC, 'tables', 'table-1')))
+    await assertFails(
+      setDoc(doc(playerDb, ...CC, 'tables', 'table-1'), { name: 'hacked' }),
+    )
+  })
+
+  it('group members can read campaign characters and notes; outsiders cannot', async () => {
+    const playerDb = testEnv.authenticatedContext(playerUid).firestore()
+    const outsiderDb = testEnv.authenticatedContext(outsiderUid).firestore()
+
+    await assertSucceeds(getDoc(doc(playerDb, ...CC, 'characters', characterId)))
+    await assertSucceeds(getDoc(doc(playerDb, ...CC, 'sharedNotes', 'note-1')))
+
+    await assertFails(getDoc(doc(outsiderDb, ...CC, 'characters', characterId)))
+    await assertFails(getDoc(doc(outsiderDb, ...CC, 'sharedNotes', 'note-1')))
   })
 })

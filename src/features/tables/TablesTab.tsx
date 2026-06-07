@@ -13,11 +13,12 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import { collection, addDoc, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc, limit as firestoreLimit } from 'firebase/firestore'
+import { addDoc, onSnapshot, orderBy, query, serverTimestamp, setDoc, limit as firestoreLimit } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
 import { useTables } from './useTables'
 import { useEntityPickers } from './useEntityPickers'
+import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
 import type { EntitySummary } from './useEntityPickers'
 import type {
   TableRecord,
@@ -33,6 +34,7 @@ import { rollTreasureType, summarizeTreasureBlocks, coinsToGp } from '../treasur
 
 type TablesTabProps = {
   campaignId: string
+  groupId: string
 }
 
 const entityName = (list: EntitySummary[], id: string): string =>
@@ -125,9 +127,9 @@ const formatNumber = (n: number) => n.toLocaleString()
 /** Firestore doc ID for reference table history */
 const refTableFirestoreId = (tableId: string) => `_ose_${tableId}`
 
-export function TablesTab({ campaignId }: TablesTabProps) {
-  const { tables, tablesLoading, addTable, updateTable, deleteTable } = useTables(campaignId)
-  const { monsters: monsterList, npcs: npcList, items: itemList } = useEntityPickers(campaignId)
+export function TablesTab({ campaignId, groupId }: TablesTabProps) {
+  const { tables, tablesLoading, addTable, updateTable, deleteTable } = useTables(campaignId, groupId)
+  const { monsters: monsterList, npcs: npcList, items: itemList } = useEntityPickers(campaignId, groupId)
 
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list')
@@ -185,7 +187,7 @@ export function TablesTab({ campaignId }: TablesTabProps) {
       setRollHistory([])
       return
     }
-    const historyRef = collection(db, 'campaigns', campaignId, 'tables', activeHistoryId, 'history')
+    const historyRef = campaignCollectionRef(db, { campaignId, groupId }, 'tables', activeHistoryId, 'history')
     const q = query(historyRef, orderBy('timestamp', 'desc'), firestoreLimit(50))
     const unsub = onSnapshot(q, (snap) => {
       const entries = snap.docs.map((d) => {
@@ -200,7 +202,7 @@ export function TablesTab({ campaignId }: TablesTabProps) {
       setRollHistory(entries)
     })
     return () => unsub()
-  }, [campaignId, activeHistoryId])
+  }, [campaignId, activeHistoryId, groupId])
 
   // Derived data
   const allTags = useMemo(
@@ -313,7 +315,7 @@ export function TablesTab({ campaignId }: TablesTabProps) {
     }
 
     void addDoc(
-      collection(db, 'campaigns', campaignId, 'tables', refTableFirestoreId(refEntry.id), 'history'),
+      campaignCollectionRef(db, { campaignId, groupId }, 'tables', refTableFirestoreId(refEntry.id), 'history'),
       entry,
     ).then(() => {
       setRollHistoryIdx(0)
@@ -357,7 +359,7 @@ export function TablesTab({ campaignId }: TablesTabProps) {
 
     // Persist to Firestore
     void addDoc(
-      collection(db, 'campaigns', campaignId, 'tables', table.id, 'history'),
+      campaignCollectionRef(db, { campaignId, groupId }, 'tables', table.id, 'history'),
       entry,
     ).then(() => {
       setRollHistoryIdx(0)
@@ -418,7 +420,7 @@ export function TablesTab({ campaignId }: TablesTabProps) {
     )
 
     await setDoc(
-      doc(db, 'campaigns', campaignId, 'tables', selectedTable.id, 'history', historyEntry.id),
+      campaignDocRef(db, { campaignId, groupId }, 'tables', selectedTable.id, 'history', historyEntry.id),
       { steps: updatedSteps, complete: !stillHasUnresolved },
       { merge: true },
     )

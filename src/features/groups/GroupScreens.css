@@ -1,0 +1,845 @@
+/* =========================================================================
+   Group screens — editorial ledger
+   ------------------------------------------------------------------------
+   Re-themes the existing .group-screen / .group-panel / .group-home-*
+   classes to match the auth panel's warm-paper, deep-ink, hairline-and-
+   typewriter-markers aesthetic. Selectors are intentionally elevated
+   (`.group-screen .x`) so they win over the older rules in App.css
+   regardless of bundle order.
+   ========================================================================= */
+
+.shell-root:has(> .group-screen) {
+  background: #faf6ec;
+}
+
+.group-screen {
+  /* Override the cool-grey palette inherited from App.css with the
+     same variables we use in AuthPanel.css. */
+  --paper: #faf6ec;
+  --paper-deep: #f1ead8;
+  --paper-edge: #e6dcc2;
+  --ink: #1a1614;
+  --ink-soft: #5b5249;
+  --ink-faint: #8d8377;
+  --rule: #d8cdb4;
+  --rule-soft: #e7dec8;
+  --danger: #8a2a2a;
+  --ok: #2f5a3b;
+  /* Re-map the existing tokens so any leftover App.css rules that
+     reference --ink, --rule, --hover land on the paper palette. */
+  --hover: #f1ead8;
+  --accent: #1a1614;
+
+  position: relative;
+  min-height: 100vh;
+  padding: clamp(2rem, 5vw, 4rem) clamp(1.25rem, 5vw, 4rem) 4rem;
+  background:
+    radial-gradient(ellipse at 50% -10%, #fdfaf1 0%, var(--paper) 55%, #f3ecdb 100%);
+  font-family: 'IM Fell English', Georgia, serif;
+  color: var(--ink);
+}
+
+/* Subtle paper grain — same as auth, slightly toned down. */
+.group-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.28;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.10  0 0 0 0 0.08  0 0 0 0 0.06  0 0 0 0.06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+  mix-blend-mode: multiply;
+}
+
+/* Lift panel content above the paper-grain ::before overlay, but DO NOT
+   touch .confirm-overlay (which needs its own `position: fixed` to fill
+   the viewport). */
+.group-screen > .group-panel,
+.group-screen > .group-panel-wide {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- Panel containers ------------------------------------------------- */
+
+.group-screen .group-panel,
+.group-screen .group-panel-wide {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+.group-screen .group-panel-wide { max-width: 1080px; }
+
+/* ---- Masthead / eyebrow ---------------------------------------------- */
+
+.group-screen .group-eyebrow {
+  font-family: 'Special Elite', 'Courier New', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.group-screen .group-eyebrow::after {
+  content: '';
+  flex: 1;
+  display: inline-block;
+  height: 1px;
+  width: 8rem;
+  background: var(--rule);
+}
+
+.group-screen .group-panel h1,
+.group-screen .group-panel-wide h1 {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-weight: 500;
+  font-size: clamp(2.4rem, 5vw, 3.6rem);
+  line-height: 1.02;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  margin: 0;
+}
+
+/* The BrandWordmark inside the masthead h1 inherits a 100%-width inline-flex
+   that centers its contents — fights the flush-left editorial layout. Pin it
+   left-aligned and auto-sized so "Table Keep [logo]" sits under the eyebrow
+   instead of stretching across the column. */
+.group-screen .group-panel h1 .brand-wordmark,
+.group-screen .group-panel-wide h1 .brand-wordmark {
+  width: auto;
+  justify-content: flex-start;
+  align-items: baseline;
+}
+.group-screen .group-panel h1 .brand-wordmark-logo,
+.group-screen .group-panel-wide h1 .brand-wordmark-logo {
+  align-self: center;
+  width: 1.4em;
+  height: 1.4em;
+  /* Nudge the logo a few pixels above the type baseline for a more
+     deliberate, hand-set look. */
+  transform: translateY(-0.12em);
+}
+
+.group-screen .group-subtitle {
+  margin: 0.45rem 0 2rem;
+  font-style: italic;
+  font-size: 1rem;
+  color: var(--ink-soft);
+}
+
+.group-screen .group-subtitle strong {
+  font-style: normal;
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Sign-out and other inline link-buttons inside the subtitle. */
+.group-screen .group-link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--rule);
+  text-decoration-thickness: 1px;
+  cursor: pointer;
+  transition: text-decoration-color 120ms ease, color 120ms ease;
+}
+.group-screen .group-link-button:hover {
+  color: var(--ink);
+  text-decoration-color: var(--ink);
+}
+
+/* ---- Section headers ------------------------------------------------- */
+
+.group-screen .group-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 2rem 0 1rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.group-screen .group-section-header h2,
+.group-screen .group-section-heading,
+.group-screen .group-home-section h2 {
+  font-family: 'Special Elite', 'Courier New', monospace;
+  font-size: 0.78rem;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+/* ---- Icon buttons ---------------------------------------------------- */
+
+.group-screen .group-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.group-screen .group-icon-button:hover {
+  background: var(--paper-deep);
+  color: var(--ink);
+  border-color: var(--ink-soft);
+}
+
+/* ---- Group cards (picker) — table-of-contents style -----------------
+   App.css forces every child of .group-card into grid-column: 1, so we
+   abandon grid entirely here and use a flex row laid out as:
+
+      [ I. │ name + ADMIN-stamp │ "No active campaign" / "Active: X" ]
+
+   The override selectors are `.group-screen .group-card …` (specificity
+   0,2,0) to win against the older 0,1,0 rules.
+   --------------------------------------------------------------------- */
+
+.group-screen .group-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  counter-reset: tk-group-num;
+  border-top: 1px solid var(--rule);
+}
+
+.group-screen .group-card {
+  counter-increment: tk-group-num;
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1.25rem;
+  width: 100%;
+  min-height: 4.5rem;
+  text-align: left;
+  padding: 1.15rem 0.75rem 1.15rem 0.25rem;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  cursor: pointer;
+  color: var(--ink);
+  transition: background 140ms ease;
+  /* Cancel the grid columns inherited from App.css. */
+  grid-template-columns: none;
+}
+.group-screen .group-card:hover {
+  background: var(--paper-deep);
+}
+.group-screen .group-card::before {
+  content: counter(tk-group-num, upper-roman) ".";
+  flex: 0 0 2.75rem;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 0.85rem;
+  border-right: 1px solid var(--rule);
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: 1.5rem;
+  color: var(--ink-faint);
+}
+
+/* Middle cell — name + role stamp, side by side on a baseline. */
+.group-screen .group-card .group-card-header {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.group-screen .group-card .group-card-header strong,
+.group-screen .group-card > strong {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Right cell — campaign meta, right-aligned and italic. */
+.group-screen .group-card .group-card-meta,
+.group-screen .group-card > p {
+  flex: 0 1 auto;
+  margin: 0 0 0 auto;
+  padding: 0;
+  text-align: right;
+  font-family: 'IM Fell English', serif;
+  font-style: italic;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 50%;
+}
+
+/* Role badge inline next to the group name, sized to its content. */
+.group-screen .group-card .group-badge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  font-family: 'Special Elite', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding: 0.28rem 0.55rem;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: var(--paper);
+  align-self: center;
+}
+
+/* Narrow screens — let meta wrap below the name row instead of cramping. */
+@media (max-width: 640px) {
+  .group-screen .group-card {
+    flex-wrap: wrap;
+    row-gap: 0.4rem;
+  }
+  .group-screen .group-card .group-card-meta,
+  .group-screen .group-card > p {
+    margin-left: calc(2.75rem + 0.85rem + 1.25rem); /* align under the name */
+    text-align: left;
+    max-width: 100%;
+  }
+}
+
+/* ---- Home: active campaign featured tile ----------------------------- */
+
+.group-screen .group-home-section {
+  margin-bottom: 2rem;
+}
+
+.group-screen .group-home-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2.5rem;
+}
+@media (max-width: 720px) {
+  .group-screen .group-home-grid { grid-template-columns: 1fr; }
+}
+
+.group-screen .group-home-section.is-active .group-home-card {
+  position: relative;
+  padding: 2rem 2rem 1.6rem;
+  background: var(--paper);
+  border: 1px solid var(--paper-edge);
+  border-radius: 2px;
+  box-shadow:
+    0 1px 0 #fff inset,
+    0 0 0 1px rgba(26, 22, 20, 0.02),
+    0 18px 40px -28px rgba(26, 22, 20, 0.25);
+  margin-top: 0.5rem;
+}
+/* registration ticks on the active-campaign tile, like the auth card */
+.group-screen .group-home-section.is-active .group-home-card::before,
+.group-screen .group-home-section.is-active .group-home-card::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 1px solid var(--rule);
+  pointer-events: none;
+}
+.group-screen .group-home-section.is-active .group-home-card::before {
+  top: 8px; left: 8px; border-right: 0; border-bottom: 0;
+}
+.group-screen .group-home-section.is-active .group-home-card::after {
+  bottom: 8px; right: 8px; border-left: 0; border-top: 0;
+}
+.group-screen .group-home-section.is-active .group-home-card:hover {
+  box-shadow:
+    0 1px 0 #fff inset,
+    0 0 0 1px rgba(26, 22, 20, 0.02),
+    0 22px 50px -30px rgba(26, 22, 20, 0.35);
+}
+.group-screen .group-home-section.is-active .group-home-card strong {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 2rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+.group-screen .group-home-section.is-active .group-home-card p {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0.3rem 0 0;
+}
+
+.group-screen .group-home-section.is-active .group-home-card-muted {
+  padding: 1.4rem 1.5rem;
+  border: 1px dashed var(--rule);
+  background: transparent;
+  color: var(--ink-faint);
+  font-style: italic;
+}
+.group-screen .group-home-section.is-active .group-home-card-muted p {
+  font-family: 'IM Fell English', serif;
+  font-style: italic;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-faint);
+}
+
+/* ---- Home: drafts / inactive cards (chapter list, smaller) ---------- */
+
+.group-screen .group-home-section:not(.is-active) .group-home-card {
+  position: relative;
+  /* Keep grid (inherited from App.css) but make it two-column with the
+     actions sitting in column 2 vertically centered across both rows. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 0.15rem 1rem;
+  padding: 1rem 0.5rem;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  margin-top: 0;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+.group-screen .group-home-section:not(.is-active) .group-home-card > strong {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.group-screen .group-home-section:not(.is-active) .group-home-card > p {
+  grid-column: 1;
+  grid-row: 2;
+}
+.group-screen .group-home-section:not(.is-active) .group-home-card .group-card-actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  margin-top: 0;
+}
+.group-screen .group-home-section:not(.is-active) .group-home-card:hover {
+  background: var(--paper-deep);
+}
+.group-screen .group-home-section:not(.is-active) .group-home-card strong {
+  display: block;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.group-screen .group-home-section:not(.is-active) .group-home-card p {
+  margin: 0.15rem 0 0;
+  font-family: 'Special Elite', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.group-screen .group-home-section:not(.is-active) .group-home-card-muted {
+  padding: 1.2rem 0.5rem;
+  border-bottom: 1px dashed var(--rule);
+  cursor: default;
+}
+.group-screen .group-home-section:not(.is-active) .group-home-card-muted:hover {
+  background: transparent;
+}
+.group-screen .group-home-section:not(.is-active) .group-home-card-muted p {
+  font-family: 'IM Fell English', serif;
+  font-style: italic;
+  font-size: 0.95rem;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-faint);
+}
+
+/* The first non-active card in a section: give it a top hairline so the
+   list reads as a bounded block. */
+.group-screen .group-home-section:not(.is-active) .group-card-list {
+  border-top: 1px solid var(--rule);
+}
+
+/* ---- Card action buttons --------------------------------------------- */
+
+.group-screen .group-card-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.7rem;
+  /* The original CSS hides these until hover; preserve that. */
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+.group-screen .group-home-card-interactive:hover .group-card-actions,
+.group-screen .group-home-card-interactive:focus-within .group-card-actions {
+  opacity: 1;
+}
+.group-screen .group-home-section.is-active .group-card-actions {
+  opacity: 1;
+}
+.group-screen .group-card-actions > button {
+  font-family: 'Geist', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--ink-soft);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 0.32rem 0.65rem;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.group-screen .group-card-actions > button:hover {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.group-screen .group-card-actions > button.group-icon-button {
+  padding: 0;
+  width: 28px;
+  height: 28px;
+}
+
+/* ---- Empty state ----------------------------------------------------- */
+
+.group-screen .group-empty-state {
+  margin-top: 2rem;
+  padding: 3rem 2rem;
+  text-align: center;
+  border: 1px dashed var(--rule);
+  border-radius: 2px;
+  background: transparent;
+}
+.group-screen .group-empty-state h2 {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: 1.7rem;
+  color: var(--ink);
+  letter-spacing: 0;
+  text-transform: none;
+  margin: 0 0 0.4rem;
+  border: 0;
+  padding: 0;
+}
+.group-screen .group-empty-state p {
+  font-family: 'IM Fell English', serif;
+  font-style: italic;
+  font-size: 1rem;
+  color: var(--ink-soft);
+  margin: 0 0 1.5rem;
+}
+.group-screen .group-empty-action {
+  font-family: 'Geist', sans-serif;
+  font-weight: 600;
+  font-size: 0.92rem;
+  letter-spacing: 0.02em;
+  color: var(--paper);
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  padding: 0.75rem 1.4rem;
+  cursor: pointer;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+.group-screen .group-empty-action:hover {
+  background: #2a221d;
+  box-shadow: 0 4px 14px -8px rgba(26, 22, 20, 0.6);
+}
+
+/* ---- Group home header (title row + actions) ------------------------- */
+
+.group-screen .group-home-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.group-screen .group-home-title {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  border: 0;
+}
+.group-screen .group-home-title .group-eyebrow {
+  margin-bottom: 0.35rem;
+}
+.group-screen .group-home-header h1 {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 500;
+  font-size: clamp(2rem, 4.5vw, 3rem);
+  margin: 0;
+}
+.group-screen .group-home-header-actions {
+  display: flex;
+  gap: 0.4rem;
+  padding-top: 0.5rem;
+}
+.group-screen .group-home-header .group-icon-button {
+  width: 36px;
+  height: 36px;
+  color: var(--ink-soft);
+}
+.group-screen .group-home-header .group-icon-button:hover {
+  color: var(--ink);
+}
+
+/* ---- Modals ---------------------------------------------------------- */
+
+.group-screen ~ .confirm-overlay,
+.confirm-overlay:has(.group-modal) {
+  background: rgba(26, 22, 20, 0.4);
+  backdrop-filter: blur(2px);
+}
+
+.confirm-modal.group-modal {
+  background: #faf6ec;
+  border: 1px solid #e6dcc2;
+  border-radius: 2px;
+  padding: 2rem 2rem 1.6rem;
+  max-width: 460px;
+  font-family: 'IM Fell English', Georgia, serif;
+  color: #1a1614;
+  box-shadow:
+    0 1px 0 #fff inset,
+    0 0 0 1px rgba(26, 22, 20, 0.02),
+    0 24px 50px -28px rgba(26, 22, 20, 0.45);
+  position: relative;
+}
+.confirm-modal.group-modal::before,
+.confirm-modal.group-modal::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 1px solid #d8cdb4;
+  pointer-events: none;
+}
+.confirm-modal.group-modal::before {
+  top: 8px; left: 8px; border-right: 0; border-bottom: 0;
+}
+.confirm-modal.group-modal::after {
+  bottom: 8px; right: 8px; border-left: 0; border-top: 0;
+}
+.confirm-modal.group-modal h3 {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 500;
+  font-size: 1.7rem;
+  margin: 0 0 1rem;
+  letter-spacing: -0.005em;
+}
+.confirm-modal.group-modal p {
+  font-style: italic;
+  color: #5b5249;
+  margin: 0 0 0.8rem;
+}
+.confirm-modal.group-modal label {
+  display: grid;
+  gap: 0.35rem;
+  font-family: 'Special Elite', monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #5b5249;
+  margin-bottom: 0.9rem;
+}
+.confirm-modal.group-modal input,
+.confirm-modal.group-modal select {
+  font-family: 'Geist', sans-serif;
+  font-size: 0.98rem;
+  font-weight: 500;
+  color: #1a1614;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid #d8cdb4;
+  border-radius: 0;
+  padding: 0.5rem 0.1rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.confirm-modal.group-modal input:focus,
+.confirm-modal.group-modal select:focus {
+  outline: none;
+  border-bottom-color: #1a1614;
+}
+.confirm-modal.group-modal .error {
+  color: #8a2a2a;
+  font-style: italic;
+  font-family: 'Geist', sans-serif;
+  font-size: 0.85rem;
+  margin: 0.5rem 0 0;
+}
+.confirm-modal.group-modal .group-modal-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1.4rem;
+}
+.confirm-modal.group-modal .group-modal-actions button {
+  font-family: 'Geist', sans-serif;
+  font-weight: 600;
+  font-size: 0.88rem;
+  letter-spacing: 0.02em;
+  border-radius: 2px;
+  padding: 0.55rem 1.1rem;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.confirm-modal.group-modal .group-modal-actions .secondary {
+  background: transparent;
+  border: 1px solid #d8cdb4;
+  color: #5b5249;
+}
+.confirm-modal.group-modal .group-modal-actions .secondary:hover {
+  border-color: #1a1614;
+  color: #1a1614;
+}
+.confirm-modal.group-modal .group-modal-actions .primary {
+  background: #1a1614;
+  border: 1px solid #1a1614;
+  color: #faf6ec;
+}
+.confirm-modal.group-modal .group-modal-actions .primary:hover {
+  background: #2a221d;
+}
+.confirm-modal.group-modal .group-modal-actions .primary:disabled {
+  background: #d8cdb4;
+  border-color: #d8cdb4;
+  color: #8d8377;
+  cursor: not-allowed;
+}
+.confirm-modal.group-modal .group-modal-actions .danger {
+  background: #8a2a2a;
+  border: 1px solid #8a2a2a;
+  color: #faf6ec;
+}
+.confirm-modal.group-modal .group-modal-actions .danger:hover {
+  background: #6e2020;
+}
+
+/* ---- Invite modal extras --------------------------------------------- */
+
+.confirm-modal.group-modal.invite-modal { max-width: 540px; }
+.invite-modal-generate { margin: 0.8rem 0 1rem; }
+.invite-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+.invite-list-empty {
+  font-style: italic;
+  color: #8d8377;
+}
+.invite-row {
+  border: 1px solid #d8cdb4;
+  border-radius: 2px;
+  padding: 0.7rem 0.85rem;
+  background: #f1ead8;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.4rem;
+}
+.invite-row-main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.invite-token {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.78rem;
+  color: #1a1614;
+}
+.invite-state {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid #d8cdb4;
+  border-radius: 2px;
+  background: #faf6ec;
+  color: #5b5249;
+}
+.invite-state-active { border-color: #2f5a3b; color: #2f5a3b; }
+.invite-state-revoked { color: #8a2a2a; border-color: #8a2a2a; }
+.invite-expires {
+  font-family: 'IM Fell English', serif;
+  font-style: italic;
+  font-size: 0.8rem;
+  color: #8d8377;
+}
+.invite-row-actions { display: flex; gap: 0.35rem; align-items: center; }
+.invite-row-copy,
+.invite-row-revoke {
+  font-family: 'Geist', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.32rem 0.6rem;
+  border: 1px solid #d8cdb4;
+  border-radius: 2px;
+  background: #faf6ec;
+  color: #1a1614;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.invite-row-copy:hover { background: #1a1614; color: #faf6ec; border-color: #1a1614; }
+.invite-row-revoke:hover { background: #8a2a2a; color: #faf6ec; border-color: #8a2a2a; }
+.invite-row-url {
+  grid-column: 1 / -1;
+  margin-top: 0.4rem;
+  font-family: 'Special Elite', monospace;
+  font-size: 0.72rem;
+  color: #5b5249;
+  background: #faf6ec;
+  border: 1px solid #e7dec8;
+  border-radius: 2px;
+  padding: 0.35rem 0.5rem;
+}
+
+/* ---- Plus button next to section header (e.g. "Your Groups +") ------ */
+
+.group-screen .group-section-header > button.group-icon-button {
+  width: 28px;
+  height: 28px;
+}

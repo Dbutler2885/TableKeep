@@ -1,20 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { serverTimestamp, updateDoc } from 'firebase/firestore'
 import { db } from '../../../firebase'
 import type { Role } from '../../../types/app'
+import { campaignDocRef } from '../../campaign/firestorePaths'
 import type { GridAdjustDraft, MapRecord } from '../lib/types'
 import { DEFAULT_GRID_CELL_SCALE } from '../lib/constants'
-import { detectHexGridFromImageWithDebug, shouldAutoApplyHex } from '../lib/hexDetection'
+import { detectHexGridFromImageWithDebug } from '../lib/hexDetection'
 
 type UseGridToolsOptions = {
   selectedMap: MapRecord | undefined | null
   role: Role | null
   campaignId: string
+  groupId: string
   activeMapWidth: number
   activeMapHeight: number
   activeMapDimension: number
-  fullBaseSize: { width: number; height: number }
   inlineBaseSize: { width: number; height: number }
   setMaps: Dispatch<SetStateAction<MapRecord[]>>
   setMapError: (msg: string | null) => void
@@ -26,10 +27,10 @@ export function useGridTools({
   selectedMap,
   role,
   campaignId,
+  groupId,
   activeMapWidth,
   activeMapHeight,
   activeMapDimension,
-  fullBaseSize,
   inlineBaseSize,
   setMaps,
   setMapError,
@@ -55,7 +56,6 @@ export function useGridTools({
   const [hexDetecting, setHexDetecting] = useState(false)
   const [hexDetectConfidence, setHexDetectConfidence] = useState<number | null>(null)
   const [gridAlignDrag, setGridAlignDrag] = useState<{
-    usingFull: boolean
     startClientX: number
     startClientY: number
     startOffsetX: number
@@ -146,7 +146,7 @@ export function useGridTools({
             : map,
         ),
       )
-      void updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      void updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
         gridEnabled: false,
         gridVisible: true,
         gridCellScale: DEFAULT_GRID_CELL_SCALE,
@@ -174,6 +174,14 @@ export function useGridTools({
 
   const setGridType = (gridType: 'square' | 'hex-pointy' | 'hex-flat') => {
     if (!selectedMap || role !== 'gm') return
+    if (gridCalibrateMode) {
+      setGridCalibrateMode(false)
+      resetGridCalibrationDraft()
+    }
+    if (gridMeasureMode) {
+      setGridMeasureMode(false)
+      resetGridMeasurementDraft()
+    }
     // Each grid type button acts as its own toggle/cancel while adjusting.
     if (gridAdjustMode && effectiveGridType === gridType) {
       toggleGridAdjustMode()
@@ -225,7 +233,7 @@ export function useGridTools({
     }
     setMaps((prev) => prev.map((map) => (map.id === selectedMap.id ? { ...map, ...next } : map)))
     try {
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      await updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
         ...next,
         updatedAt: serverTimestamp(),
       })
@@ -270,7 +278,7 @@ export function useGridTools({
           : map,
       ),
     )
-    await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+    await updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
       gridCellScale: nextCellScale,
       gridOffsetX: nextOffsetX / mapWidth,
       gridOffsetY: nextOffsetY / mapHeight,
@@ -319,19 +327,7 @@ export function useGridTools({
         gridOffsetY: detected.gridOffsetY,
         gridType: detected.gridType,
       })
-      const confidencePct = Math.round(detected.confidence * 100)
-      const cellPct = Math.round(detected.gridCellScale * 1000) / 10
-      if (!shouldAutoApplyHex(detected.confidence)) {
-        setMapError(
-          `Low-confidence hex detection (${confidencePct}%). ` +
-          `Detected ${detected.gridType}, cell=${cellPct}% of map min-dimension. Fine-tune with wheel/drag.`,
-        )
-      } else {
-        setMapError(
-          `Hex detected (${confidencePct}%): ${detected.gridType}, cell=${cellPct}% of map min-dimension. ` +
-          'Adjust with wheel/drag if needed, then Apply grid.',
-        )
-      }
+      setMapError(null)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Hex detection failed'
       setMapError(message)
@@ -348,7 +344,7 @@ export function useGridTools({
       resetDistanceTracker()
       if (selectedMap?.gridCalibrated) {
         setMaps((prev) => prev.map((map) => (map.id === selectedMap.id ? { ...map, gridCalibrated: false } : map)))
-        void updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+        void updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
           gridCalibrated: false,
           updatedAt: serverTimestamp(),
         }).catch((error) => {
@@ -402,7 +398,7 @@ export function useGridTools({
     const nextVisible = selectedMap.gridVisible === false
     setMaps((prev) => prev.map((map) => (map.id === selectedMap.id ? { ...map, gridVisible: nextVisible } : map)))
     try {
-      await updateDoc(doc(db, 'campaigns', campaignId, 'maps', selectedMap.id), {
+      await updateDoc(campaignDocRef(db, { campaignId, groupId }, 'maps', selectedMap.id), {
         gridVisible: nextVisible,
         updatedAt: serverTimestamp(),
       })
@@ -413,10 +409,10 @@ export function useGridTools({
     }
   }
 
-  const handleGridLayerWheel = (event: React.WheelEvent<HTMLDivElement>, usingFull: boolean) => {
+  const handleGridLayerWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     if (role !== 'gm' || !selectedMap || !gridAdjustMode || !effectiveGridEnabled) return
-    const mapWidth = Math.max(1, usingFull ? fullBaseSize.width : inlineBaseSize.width)
-    const mapHeight = Math.max(1, usingFull ? fullBaseSize.height : inlineBaseSize.height)
+    const mapWidth = Math.max(1, inlineBaseSize.width)
+    const mapHeight = Math.max(1, inlineBaseSize.height)
     const mapDimension = Math.max(1, Math.min(mapWidth, mapHeight))
     if (mapDimension <= 0) return
 
@@ -448,14 +444,13 @@ export function useGridTools({
     )
   }
 
-  const handleGridLayerMouseDown = (event: React.MouseEvent<HTMLDivElement>, usingFull: boolean): boolean => {
+  const handleGridLayerMouseDown = (event: React.MouseEvent<HTMLDivElement>): boolean => {
     if (role !== 'gm' || !selectedMap || !gridAdjustMode || !effectiveGridEnabled) return false
     if (gridCalibrateMode) return false
     if (event.button !== 0) return false
     event.preventDefault()
     event.stopPropagation()
     setGridAlignDrag({
-      usingFull,
       startClientX: event.clientX,
       startClientY: event.clientY,
       startOffsetX: effectiveGridOffsetX,
@@ -544,8 +539,8 @@ export function useGridTools({
     if (!gridAlignDrag || !selectedMap || role !== 'gm' || !gridAdjustMode) return
 
     const handleMove = (event: MouseEvent) => {
-      const mapWidth = Math.max(1, gridAlignDrag.usingFull ? fullBaseSize.width : inlineBaseSize.width)
-      const mapHeight = Math.max(1, gridAlignDrag.usingFull ? fullBaseSize.height : inlineBaseSize.height)
+      const mapWidth = Math.max(1, inlineBaseSize.width)
+      const mapHeight = Math.max(1, inlineBaseSize.height)
       const nextOffsetX = gridAlignDrag.startOffsetX + (event.clientX - gridAlignDrag.startClientX) / mapWidth
       const nextOffsetY = gridAlignDrag.startOffsetY + (event.clientY - gridAlignDrag.startClientY) / mapHeight
       setGridAdjustDraft((current) =>
@@ -563,7 +558,7 @@ export function useGridTools({
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
     }
-  }, [fullBaseSize.height, fullBaseSize.width, gridAdjustMode, gridAlignDrag, inlineBaseSize.height, inlineBaseSize.width, role, selectedMap])
+  }, [gridAdjustMode, gridAlignDrag, inlineBaseSize.height, inlineBaseSize.width, role, selectedMap])
 
   // Calibration handle drag
   useEffect(() => {

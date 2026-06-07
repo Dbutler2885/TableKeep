@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronLeft, Circle, Plus, Search, Tag, Trash2, UserRound, X } from 'lucide-react'
-import { collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore'
+import { deleteDoc, onSnapshot, query, serverTimestamp, setDoc, where } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type { NpcPrivateRecord, NpcRecord, Role, TokenIconConfig } from '../../types/app'
+import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
 import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence, uploadEntityImage } from '../common/mediaStorage'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
 import { useSessionNotes } from '../notes/useSessionNotes'
@@ -10,6 +11,7 @@ import { NpcDetailEditor, buildAutoNotesForNpc } from './NpcDetailEditor'
 
 type NpcsTabProps = {
   campaignId: string
+  groupId: string
   role: Role | null
 }
 
@@ -34,7 +36,7 @@ const makeNpc = (): NpcRecord => ({
   playerNotes: '',
 })
 
-export function NpcsTab({ campaignId, role }: NpcsTabProps) {
+export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
   const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list')
   const [npcs, setNpcs] = useState<NpcRecord[]>([])
@@ -58,7 +60,7 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
   const [tagFilterOpen, setTagFilterOpen] = useState(false)
   const [tagFilterSearch, setTagFilterSearch] = useState('')
 
-  const { notes: sessionNotes } = useSessionNotes(campaignId)
+  const { notes: sessionNotes } = useSessionNotes(campaignId, true, groupId)
 
   useEffect(() => {
     const updateMobileState = () => {
@@ -95,7 +97,7 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
   }, [])
 
   useEffect(() => {
-    const npcsCollection = collection(db, 'campaigns', campaignId, 'npcs')
+    const npcsCollection = campaignCollectionRef(db, { campaignId, groupId }, 'npcs')
     const npcsQuery = role === 'gm'
       ? query(npcsCollection)
       : query(npcsCollection, where('visibleToPlayers', '==', true))
@@ -150,7 +152,7 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
       setNpcs(next)
     })
     return () => unsub()
-  }, [campaignId, role])
+  }, [campaignId, groupId, role])
 
   useEffect(() => {
     const npcsNeedingMedia = npcs.filter((npc) =>
@@ -192,7 +194,7 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
       setPrivateNotesById({})
       return
     }
-    const unsub = onSnapshot(collection(db, 'campaigns', campaignId, 'npcPrivate'), (snap) => {
+    const unsub = onSnapshot(campaignCollectionRef(db, { campaignId, groupId }, 'npcPrivate'), (snap) => {
       setPrivateNotesById(
         snap.docs.reduce<Record<string, string>>((acc, docSnap) => {
           if (pendingPrivateWritesRef.current[docSnap.id] || inFlightPrivateWritesRef.current[docSnap.id]) {
@@ -206,7 +208,7 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
       )
     })
     return () => unsub()
-  }, [campaignId, role])
+  }, [campaignId, groupId, role])
 
   useEffect(() => {
     setSelectedNpcId((current) => {
@@ -239,7 +241,7 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
         return
       }
       const { id, tokenIcon, portraitUrl: _portraitUrl, ...data } = npc
-      void setDoc(doc(db, 'campaigns', campaignId, 'npcs', id), {
+      void setDoc(campaignDocRef(db, { campaignId, groupId }, 'npcs', id), {
         ...data,
         tokenIcon: sanitizeTokenIconForPersistence(tokenIcon),
         updatedAt: serverTimestamp(),
@@ -255,7 +257,7 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
     pendingPrivateWritesRef.current[npcId] = setTimeout(() => {
       delete pendingPrivateWritesRef.current[npcId]
       inFlightPrivateWritesRef.current[npcId] = true
-      void setDoc(doc(db, 'campaigns', campaignId, 'npcPrivate', npcId), {
+      void setDoc(campaignDocRef(db, { campaignId, groupId }, 'npcPrivate', npcId), {
         id: npcId,
         gmNotes: privateNotesRef.current[npcId] ?? '',
         updatedAt: serverTimestamp(),
@@ -276,7 +278,7 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
         delete inFlightPlayerNotesWritesRef.current[npcId]
         return
       }
-      void setDoc(doc(db, 'campaigns', campaignId, 'npcs', npcId), {
+      void setDoc(campaignDocRef(db, { campaignId, groupId }, 'npcs', npcId), {
         playerNotes: npc.playerNotes,
         updatedAt: serverTimestamp(),
       }, { merge: true }).finally(() => {
@@ -300,6 +302,7 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
     if (!selectedNpc) throw new Error('No NPC selected.')
     const { path, url, name } = await uploadEntityImage({
       campaignId,
+      groupId,
       collectionName: 'npcs',
       entityId: selectedNpc.id,
       mediaKind: 'token-icons',
@@ -318,6 +321,7 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
     if (!selectedNpc) throw new Error('No NPC selected.')
     const { path, url } = await uploadEntityImage({
       campaignId,
+      groupId,
       collectionName: 'npcs',
       entityId: selectedNpc.id,
       mediaKind: 'portraits',
@@ -346,12 +350,12 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
   const addNpc = async () => {
     if (role !== 'gm') return
     const next = makeNpc()
-    await setDoc(doc(db, 'campaigns', campaignId, 'npcs', next.id), {
+    await setDoc(campaignDocRef(db, { campaignId, groupId }, 'npcs', next.id), {
       ...next,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     })
-    await setDoc(doc(db, 'campaigns', campaignId, 'npcPrivate', next.id), {
+    await setDoc(campaignDocRef(db, { campaignId, groupId }, 'npcPrivate', next.id), {
       id: next.id,
       gmNotes: '',
       createdAt: serverTimestamp(),
@@ -382,8 +386,8 @@ export function NpcsTab({ campaignId, role }: NpcsTabProps) {
       delete pendingPlayerNotesWritesRef.current[npcId]
     }
     delete inFlightPrivateWritesRef.current[npcId]
-    await deleteDoc(doc(db, 'campaigns', campaignId, 'npcs', npcId))
-    await deleteDoc(doc(db, 'campaigns', campaignId, 'npcPrivate', npcId))
+    await deleteDoc(campaignDocRef(db, { campaignId, groupId }, 'npcs', npcId))
+    await deleteDoc(campaignDocRef(db, { campaignId, groupId }, 'npcPrivate', npcId))
     setDeleteCandidate(null)
   }
 

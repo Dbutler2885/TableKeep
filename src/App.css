@@ -32,6 +32,11 @@ p {
   padding-top: 0;
 }
 
+.shell-root:has(> .group-screen) {
+  padding: 0;
+  background: #fbfbfc;
+}
+
 .auth-shell h1 {
   font-size: 2.2rem;
   margin-bottom: 0.25rem;
@@ -99,6 +104,1151 @@ button:hover {
   background: #f2f2f2;
 }
 
+/* === Picker / Group screens — neutral lobby ============================ */
+
+.group-screen {
+  --ink: #16181c;
+  --ink-soft: #515761;
+  --ink-faint: #8b919b;
+  --rule: #e6e7ea;
+  --hover: #f4f5f7;
+  --accent: #16181c;
+
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 3rem clamp(1.25rem, 5vw, 4rem) 4rem;
+  background: #fbfbfc;
+  overflow-x: hidden;
+  overflow-y: auto;
+  color: var(--ink);
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-feature-settings: 'ss01', 'cv11';
+}
+
+.group-panel,
+.group-panel-wide {
+  position: relative;
+  width: min(100%, 56rem);
+  margin: 0 auto;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* --- Hero / masthead ---------------------------------------------------- */
+
+.group-eyebrow {
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 500;
+  margin-bottom: 0.6rem;
+}
+
+.group-panel h1,
+.group-panel-wide h1 {
+  font-family: inherit;
+  font-weight: 600;
+  font-size: clamp(1.8rem, 3.4vw, 2.4rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 0;
+}
+
+.group-subtitle {
+  margin-top: 0.5rem;
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+}
+
+.group-subtitle strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* --- Section labels ----------------------------------------------------- */
+
+.group-section-heading,
+.group-home-section h2 {
+  font-family: inherit;
+  font-weight: 500;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  background: transparent;
+  padding: 0 0 0.5rem;
+  margin: 2.2rem 0 0.4rem;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: center;
+}
+
+.group-section-header h2 {
+  border-bottom: 0;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+}
+
+.group-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: transparent;
+  padding: 0 0 0.5rem;
+  margin: 2.2rem 0 0.4rem;
+  border-bottom: 1px solid var(--rule);
+  height: 2.5rem;
+  box-sizing: border-box;
+}
+
+.group-section-header > * {
+  flex: 0 0 auto;
+}
+
+.group-section-header h2 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  flex: 1;
+}
+
+/* --- Lists (replaces card grids) --------------------------------------- */
+
+.group-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+}
+
+.group-home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 1.5rem 2.5rem;
+  margin: 0;
+}
+
+/* --- Row items (replaces cards) ---------------------------------------- */
+
+.group-card,
+.group-home-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  min-height: 4.5rem;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  padding: 0.75rem 0.5rem;
+  font: inherit;
+  color: var(--ink);
+  cursor: default;
+  transition: background 120ms ease;
+  box-sizing: border-box;
+}
+
+.group-card-header,
+.group-home-card > strong,
+.group-home-card > p,
+.group-card-meta {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.group-card-header {
+  grid-column: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.group-card-header strong,
+.group-home-card > strong {
+  grid-column: 1;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+}
+
+.group-home-card > p,
+.group-card-meta {
+  grid-column: 1;
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+  font-weight: 400;
+}
+
+.group-home-card-interactive {
+  cursor: pointer;
+}
+
+.group-card:hover,
+.group-home-card-interactive:hover {
+  background: var(--hover);
+}
+
+.group-home-card-muted {
+  display: block;
+  border: 0;
+  background: transparent;
+  padding: 1rem 0.5rem;
+  cursor: default;
+  color: var(--ink-faint);
+}
+
+.group-home-card-muted:hover {
+  background: transparent;
+}
+
+.group-home-card-muted > p {
+  margin: 0;
+  font-size: 0.88rem;
+  font-style: italic;
+  color: var(--ink-faint);
+}
+
+/* --- Active campaign — featured tile ----------------------------------- */
+
+.group-home-section.is-active .group-home-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 1.25rem;
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink);
+  border-radius: 8px;
+  padding: 1.1rem 1.25rem;
+  margin-top: 0.6rem;
+}
+
+.group-home-section.is-active .group-home-card:hover {
+  background: #fff;
+  border-color: #c8cad0;
+  border-left-color: var(--ink);
+}
+
+.group-home-section.is-active .group-home-card strong {
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.group-home-section.is-active .group-home-card p {
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 500;
+}
+
+.group-home-section.is-active .group-home-card .group-card-actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  opacity: 1;
+}
+
+.group-home-section.is-active .group-home-card-muted {
+  display: block;
+  border: 1px dashed var(--rule);
+  border-left: 1px dashed var(--rule);
+  background: transparent;
+  color: var(--ink-faint);
+}
+
+.group-home-section.is-active .group-home-card-muted p {
+  font-size: 0.92rem;
+  color: var(--ink-faint);
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 400;
+  margin: 0;
+}
+
+/* --- Empty state ------------------------------------------------------- */
+
+.group-empty-state {
+  border: 1px dashed var(--rule);
+  background: transparent;
+  padding: 2rem 1.25rem;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.group-empty-state h2 {
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin-bottom: 0.35rem;
+  text-transform: none;
+}
+
+.group-empty-state p {
+  color: var(--ink-soft);
+  max-width: 28rem;
+  margin: 0 auto;
+  font-size: 0.92rem;
+}
+
+/* --- Actions inside rows ----------------------------------------------- */
+
+.group-card-actions {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  opacity: 0.55;
+  transition: opacity 120ms ease;
+}
+
+.group-home-card-interactive:hover .group-card-actions,
+.group-home-card-interactive:focus-within .group-card-actions {
+  opacity: 1;
+}
+
+.group-card-actions > button {
+  font-family: inherit;
+  font-size: 0.82rem;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 500;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0 0.7rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+}
+
+.group-card-actions > button:hover {
+  background: #fff;
+  color: var(--ink);
+  border-color: #c8cad0;
+}
+
+.group-card-actions > button.group-icon-button {
+  border: 1px solid transparent;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  color: var(--ink-faint);
+}
+
+.group-card-actions > button.group-icon-button:hover {
+  color: #b53a32;
+  background: #fff;
+  border-color: var(--rule);
+}
+
+/* --- Page-level actions ------------------------------------------------ */
+
+.group-actions {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.group-picker-actions {
+  margin-top: 1.6rem;
+  justify-content: flex-start;
+}
+
+.group-empty-action {
+  margin-top: 1rem;
+  font-family: inherit;
+  font-weight: 500;
+  font-size: 0.88rem;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 0.45rem 0.8rem;
+}
+
+.group-empty-action:hover {
+  background: var(--hover);
+  border-color: #c8cad0;
+}
+
+.group-section-header > button.group-icon-button {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+
+.group-section-header > button.group-icon-button:hover {
+  color: var(--ink);
+  background: #fff;
+  border-color: #c8cad0;
+}
+
+/* --- Group home masthead bar ------------------------------------------- */
+
+.group-home-header {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.group-home-title {
+  min-width: 0;
+}
+
+.group-home-header h1 {
+  overflow-wrap: anywhere;
+}
+
+.group-home-header h1 {
+  text-align: left;
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+}
+
+.group-home-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.group-home-title .group-eyebrow {
+  margin-bottom: 0;
+  font-size: 0.66rem;
+}
+
+.group-home-header .group-icon-button {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  color: var(--ink-soft);
+}
+
+.group-home-header .group-icon-button:hover {
+  background: #fff;
+  color: var(--ink);
+  border-color: #c8cad0;
+}
+
+/* --- Badge ------------------------------------------------------------- */
+
+.group-badge {
+  border: 1px solid var(--rule);
+  background: #fff;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  letter-spacing: 0;
+  text-transform: lowercase;
+  font-weight: 500;
+}
+
+/* --- Misc -------------------------------------------------------------- */
+
+.group-link-button {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 0;
+  font-weight: 600;
+}
+
+.group-link-button:hover {
+  background: transparent;
+  color: var(--ink-soft);
+}
+
+.group-icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+}
+
+.side-group-link {
+  margin-top: 0.5rem;
+  text-align: left;
+}
+
+.group-create-modal {
+  display: grid;
+  gap: 0.85rem;
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.group-create-modal h3 {
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+}
+
+/* === Unified modal style for group/campaign flow ====================== */
+
+.confirm-modal.group-modal {
+  width: min(92vw, 380px);
+  background: #fff;
+  border: 1px solid #e6e7ea;
+  border-radius: 10px;
+  padding: 1.1rem 1.1rem 0.9rem;
+  display: grid;
+  gap: 0.5rem;
+  font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #16181c;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+}
+
+.group-modal h3 {
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.group-modal p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #515761;
+  line-height: 1.45;
+}
+
+.group-modal label {
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.82rem;
+  color: #515761;
+  font-weight: 500;
+  margin-top: 0.3rem;
+}
+
+.group-modal input,
+.group-modal select {
+  font-family: inherit;
+  font-size: 0.95rem;
+  border: 1px solid #d8d9dd;
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  color: #16181c;
+}
+
+.group-modal input:focus,
+.group-modal select:focus {
+  outline: none;
+  border-color: #16181c;
+}
+
+.group-modal .error {
+  color: #b53a32;
+  font-size: 0.85rem;
+}
+
+.group-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+}
+
+.group-modal-actions button {
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  height: 2.25rem;
+  padding: 0 0.9rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.group-modal-actions .secondary {
+  background: transparent;
+  border-color: transparent;
+  color: #515761;
+}
+
+.group-modal-actions .secondary:hover {
+  background: #f4f5f7;
+  color: #16181c;
+}
+
+.group-modal-actions .primary {
+  background: #16181c;
+  color: #fff;
+  border-color: #16181c;
+}
+
+.group-modal-actions .primary:hover {
+  background: #2a2d33;
+  border-color: #2a2d33;
+}
+
+.group-modal-actions .primary:disabled {
+  background: #c8cad0;
+  border-color: #c8cad0;
+  cursor: not-allowed;
+}
+
+.group-modal-actions .danger {
+  background: #b53a32;
+  color: #fff;
+  border-color: #b53a32;
+}
+
+.group-modal-actions .danger:hover {
+  background: #95281f;
+  border-color: #95281f;
+}
+
+.group-modal-actions .danger:disabled {
+  background: #d99c97;
+  border-color: #d99c97;
+  cursor: not-allowed;
+}
+
+/* === Invites ============================================================ */
+
+.group-home-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.invite-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding-top: 1rem;
+}
+
+.invite-status {
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.invite-meta {
+  margin-top: 0.4rem;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+
+.invite-error {
+  margin-top: 0.4rem;
+  color: #b53a32;
+  font-size: 0.88rem;
+}
+
+.invite-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1.2rem;
+}
+
+.invite-actions .primary,
+.invite-actions .secondary {
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  height: 2.4rem;
+  padding: 0 1rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.invite-actions .primary {
+  background: #16181c;
+  color: #fff;
+  border-color: #16181c;
+}
+
+.invite-actions .primary:hover { background: #2a2d33; border-color: #2a2d33; }
+
+.invite-actions .secondary {
+  background: transparent;
+  color: #515761;
+}
+
+.invite-actions .secondary:hover { background: #f4f5f7; color: #16181c; }
+
+/* --- Invite manager modal --------------------------------------------- */
+
+.confirm-modal.group-modal.invite-modal {
+  width: min(94vw, 520px);
+}
+
+.invite-modal-generate {
+  display: flex;
+  margin-top: 0.3rem;
+}
+
+.invite-modal-generate .primary {
+  flex: 1;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  height: 2.4rem;
+  background: #16181c;
+  color: #fff;
+  border: 1px solid #16181c;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.invite-modal-generate .primary:hover { background: #2a2d33; border-color: #2a2d33; }
+.invite-modal-generate .primary:disabled { background: #c8cad0; border-color: #c8cad0; cursor: not-allowed; }
+
+.invite-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 18rem;
+  overflow-y: auto;
+  margin-top: 0.4rem;
+  padding: 0.1rem;
+}
+
+.invite-list-empty {
+  color: #8b919b;
+  font-style: italic;
+  font-size: 0.9rem;
+  padding: 0.6rem 0;
+}
+
+.invite-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.4rem 0.6rem;
+  align-items: center;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #e6e7ea;
+  border-radius: 8px;
+  background: #fbfbfc;
+  min-width: 0;
+}
+
+.invite-row-redeemed,
+.invite-row-revoked,
+.invite-row-expired {
+  background: transparent;
+}
+
+.invite-row-redeemed .invite-row-url,
+.invite-row-revoked .invite-row-url,
+.invite-row-expired .invite-row-url {
+  display: none;
+}
+
+.invite-row-main {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.invite-token {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: #515761;
+  background: #fff;
+  padding: 0.15rem 0.4rem;
+  border: 1px solid #e6e7ea;
+  border-radius: 4px;
+}
+
+.invite-state {
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+}
+
+.invite-state-active { color: #2c5e3a; background: #e8f3eb; }
+.invite-state-redeemed { color: #515761; background: #eef0f2; }
+.invite-state-revoked { color: #b53a32; background: #fae9e7; }
+.invite-state-expired { color: #8b6020; background: #faecd1; }
+
+.invite-expires {
+  font-size: 0.78rem;
+  color: #8b919b;
+}
+
+.invite-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  justify-content: flex-end;
+}
+
+.invite-row-copy,
+.invite-row-revoke {
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  height: 1.85rem;
+  padding: 0 0.6rem;
+  border-radius: 5px;
+  border: 1px solid #d8d9dd;
+  background: #fff;
+  color: #16181c;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+}
+
+.invite-row-copy:hover { background: #f4f5f7; }
+
+.invite-row-revoke {
+  border-color: transparent;
+  background: transparent;
+  color: #b53a32;
+}
+
+.invite-row-revoke:hover { background: #fae9e7; }
+
+.invite-row-url {
+  grid-column: 1 / -1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  color: #515761;
+  border: 1px solid #e6e7ea;
+  background: #fff;
+  border-radius: 4px;
+  padding: 0.3rem 0.45rem;
+  width: 100%;
+  min-width: 0;
+  outline: none;
+}
+
+.invite-row-url:focus { border-color: #16181c; }
+
+/* === Campaign settings ================================================ */
+
+.side-settings-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #1a1a1a;
+  background: transparent;
+  border: 1px solid #d8d9dd;
+  border-radius: 6px;
+  padding: 0.4rem 0.65rem;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.side-settings-button:hover {
+  background: #f4f5f7;
+}
+
+.confirm-modal.group-modal.campaign-settings-modal {
+  width: min(94vw, 460px);
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding-top: 0.4rem;
+}
+
+.settings-section + .settings-section {
+  border-top: 1px solid #eef0f2;
+  padding-top: 0.9rem;
+  margin-top: 0.4rem;
+}
+
+.settings-section h4 {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8b919b;
+  font-weight: 600;
+  margin: 0;
+}
+
+.settings-help {
+  font-size: 0.85rem;
+  color: #515761;
+  margin: 0;
+}
+
+.settings-themes {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.settings-theme-option {
+  display: grid;
+  grid-template-columns: 1.1rem 1fr;
+  align-items: start;
+  gap: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #e6e7ea;
+  border-radius: 6px;
+  cursor: pointer;
+  background: #fff;
+}
+
+.settings-theme-option.selected {
+  border-color: #16181c;
+  background: #fafafa;
+}
+
+.settings-theme-option input[type="radio"] {
+  margin: 0.25rem 0 0 0;
+  accent-color: #16181c;
+}
+
+.settings-theme-label {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #16181c;
+}
+
+.settings-theme-desc {
+  display: block;
+  font-size: 0.78rem;
+  color: #8b919b;
+  margin-top: 0.05rem;
+}
+
+.settings-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 0.65rem;
+}
+
+.settings-tab-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.9rem;
+  color: #16181c;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.settings-tab-option input[type="checkbox"] {
+  accent-color: #16181c;
+}
+
+.settings-tab-option input:disabled + span {
+  color: #8b919b;
+}
+
+.settings-tab-locked {
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8b919b;
+  background: #f4f5f7;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  margin-left: 0.2rem;
+}
+
+@media (max-width: 640px) {
+  .settings-tabs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* === Mobile (picker / group home / invite) ============================ */
+
+@media (max-width: 640px) {
+  .group-screen {
+    padding: 1.5rem 1rem 2.5rem;
+  }
+
+  .group-panel h1,
+  .group-panel-wide h1 {
+    font-size: 1.7rem;
+  }
+
+  .group-subtitle {
+    font-size: 0.88rem;
+  }
+
+  /* Header */
+  .group-home-header {
+    grid-template-columns: 2rem minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    padding-bottom: 1rem;
+  }
+
+  .group-home-header .group-icon-button {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .group-home-header h1 {
+    font-size: 1.35rem;
+  }
+
+  .group-home-title .group-eyebrow {
+    font-size: 0.62rem;
+  }
+
+  .group-home-header-actions {
+    gap: 0.3rem;
+  }
+
+  /* Section labels */
+  .group-section-heading,
+  .group-section-header,
+  .group-home-section h2 {
+    margin-top: 1.6rem;
+    font-size: 0.68rem;
+    letter-spacing: 0.1em;
+  }
+
+  /* Rows */
+  .group-card,
+  .group-home-card {
+    padding: 0.7rem 0.25rem;
+    gap: 0.6rem;
+    min-height: 4rem;
+  }
+
+  .group-card-header strong,
+  .group-home-card > strong {
+    font-size: 1rem;
+  }
+
+  .group-card-actions > button {
+    font-size: 0.78rem;
+    padding: 0 0.55rem;
+    height: 1.85rem;
+  }
+
+  .group-card-actions > button.group-icon-button {
+    width: 1.85rem;
+    height: 1.85rem;
+  }
+
+  /* Active campaign tile — stack title over actions */
+  .group-home-section.is-active .group-home-card {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 1rem 1rem 1.1rem;
+    gap: 0.5rem;
+  }
+
+  .group-home-section.is-active .group-home-card strong {
+    font-size: 1.5rem;
+  }
+
+  .group-home-section.is-active .group-home-card .group-card-actions {
+    grid-column: 1;
+    grid-row: auto;
+    align-self: start;
+    justify-content: flex-start;
+  }
+
+  /* Drafts/Inactive grid: explicitly single column with tighter gap */
+  .group-home-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  /* Modals */
+  .confirm-modal.group-modal {
+    padding: 1rem 1rem 0.85rem;
+    width: min(94vw, 380px);
+  }
+
+  .confirm-modal.group-modal.invite-modal {
+    width: min(94vw, 520px);
+  }
+
+  .group-modal h3 {
+    font-size: 1rem;
+  }
+
+  .group-modal p {
+    font-size: 0.88rem;
+  }
+
+  .group-modal-actions button {
+    height: 2.1rem;
+    font-size: 0.85rem;
+    padding: 0 0.75rem;
+  }
+
+  /* Invite list */
+  .invite-list {
+    max-height: 14rem;
+  }
+
+  .invite-row {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0.55rem 0.6rem;
+  }
+
+  .invite-row-main {
+    gap: 0.4rem;
+  }
+
+  .invite-row-actions {
+    grid-column: 1;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  /* Accept invite */
+  .invite-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .invite-actions button {
+    width: 100%;
+  }
+}
+
 .shell-layout {
   display: grid;
   grid-template-columns: 1fr;
@@ -136,10 +1286,107 @@ button:hover {
   font-size: 2rem;
   line-height: 0.95;
   margin-bottom: 0.2rem;
+  text-align: center;
+}
+
+.brand-wordmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.18em;
+  white-space: nowrap;
+}
+
+.brand-wordmark-logo {
+  width: 0.92em;
+  height: 0.92em;
+  object-fit: contain;
+  flex: 0 0 auto;
+  filter: drop-shadow(0 0.04em 0.04em rgba(0, 0, 0, 0.18));
+}
+
+.brand-wordmark-sidebar {
+  gap: 0.14em;
+}
+
+.brand-wordmark-sidebar .brand-wordmark-logo {
+  width: 1.05em;
+  height: 1.05em;
+}
+
+.side-title-logo {
+  display: inline-block;
+  width: 1.05em;
+  height: 1.05em;
+  margin: 0 0.12em;
+  object-fit: contain;
+  vertical-align: -0.2em;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45)) drop-shadow(0 0 8px rgba(214, 166, 47, 0.2));
+}
+
+/* VtM theme: the sidebar is near-black, so invert the B&W mark from
+   black-on-transparent to white-on-transparent and re-apply the
+   gothic glow shadows after the invert. */
+.shell-root[data-theme="vtm"] .side-title-logo {
+  filter:
+    invert(1)
+    drop-shadow(0 1px 0 rgba(0, 0, 0, 0.45))
+    drop-shadow(0 0 8px rgba(214, 166, 47, 0.2));
+}
+
+.brand-wordmark-foot {
+  gap: 0.12em;
+  vertical-align: middle;
+}
+
+.brand-wordmark-foot .brand-wordmark-logo {
+  width: 1.2em;
+  height: 1.2em;
+}
+
+.brand-wordmark-group-picker {
+  gap: 0.28em;
+}
+
+.brand-wordmark-group-picker .brand-wordmark-logo {
+  width: 1.08em;
+  height: 1.08em;
+}
+
+.tk-auth-title .brand-wordmark,
+.group-panel h1 .brand-wordmark,
+.auth-shell h1 .brand-wordmark {
+  width: 100%;
 }
 
 .side-meta {
   font-size: 0.9rem;
+  text-align: center;
+}
+
+.side-campaign-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.15rem;
+  padding: 0.2rem 0.4rem 0.2rem 0.2rem;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.side-campaign-back:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.side-campaign-back > svg {
+  flex: 0 0 auto;
+  opacity: 0.7;
 }
 
 .nav-list {
@@ -4530,6 +5777,10 @@ button:disabled {
   min-height: 0;
 }
 
+.maps-layout.map-run-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .maps-sidebar {
   border-right: 1px solid #dddcd6;
   padding-right: 0.75rem;
@@ -4748,6 +5999,7 @@ button:disabled {
 }
 
 .maps-main {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 275px;
   gap: 1rem;
@@ -4759,11 +6011,51 @@ button:disabled {
   grid-template-columns: minmax(0, 1fr) 275px;
 }
 
+/* Map Preview (desktop GM): no tool sidebar, so the stage takes the full width. */
+.maps-main.gm:not(.run) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.maps-main.gm.run {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .maps-content-shell {
   display: grid;
   gap: 0.75rem;
   min-width: 0;
   min-height: 0;
+}
+
+.maps-content-shell.map-run-shell {
+  grid-template-columns: minmax(0, 1fr) 275px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.map-run-shell > .map-gm-character-tabs {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.map-run-shell > .map-tools-panel {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.map-run-shell > .maps-main.run {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.map-run-shell > .map-gm-embedded-character {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.map-run-shell > .map-run-token-controls {
+  grid-column: 2;
+  grid-row: 1 / 4;
 }
 
 .maps-main-hidden {
@@ -4793,6 +6085,63 @@ button:disabled {
   color: #22301f;
 }
 
+.map-gm-character-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0.35rem;
+  border: 1px solid #dddcd6;
+  border-radius: 8px;
+  background: #f8f7f2;
+}
+
+.map-gm-character-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+  min-height: 2.05rem;
+  max-width: 12rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid #d7d7cf;
+  border-radius: 999px;
+  background: #fff;
+  color: #3f3f39;
+}
+
+.map-gm-character-tab.active {
+  background: #dfe8d8;
+  border-color: #9eb592;
+  color: #22301f;
+}
+
+.map-gm-character-tab > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-gm-character-tab-icon {
+  width: 1.35rem;
+  height: 1.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #ecece6;
+}
+
+.map-gm-character-tab-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .map-embedded-character.hidden {
   display: none;
 }
@@ -4805,6 +6154,44 @@ button:disabled {
   border: 1px solid #dcdcd5;
   border-radius: 10px;
   background: #f8f7f2;
+}
+
+.map-gm-embedded-character {
+  height: auto;
+  min-height: 0;
+}
+
+.map-mobile-character-pane {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.map-mobile-character-pager {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr) 2.25rem;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem;
+  border: 1px solid #dddcd6;
+  border-radius: 8px;
+  background: #f8f7f2;
+}
+
+.map-mobile-character-pager span {
+  min-width: 0;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.map-empty-character-pane {
+  display: grid;
+  place-items: center;
+  padding: 1rem;
 }
 
 .map-embedded-character .maps-layout {
@@ -4853,15 +6240,28 @@ button:disabled {
   pointer-events: none;
 }
 
-.map-fullscreen-btn {
+/* Map Preview "Run" entry + Map Run "Back" chevron (desktop GM workspace). */
+.map-run-btn,
+.map-preview-back-btn {
   position: absolute;
   top: 0.55rem;
-  right: 0.55rem;
-  z-index: 10;
+  z-index: 160;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   font-size: 0.82rem;
+}
+
+.map-run-btn {
+  right: 0.55rem;
+}
+
+.map-preview-back-btn {
+  position: fixed;
+  top: 3.2rem;
+  left: 0.8rem;
+  /* Sit below the side drawer (z-index 60) so the drawer covers it when open. */
+  z-index: 55;
 }
 
 .map-controls {
@@ -4878,6 +6278,263 @@ button:disabled {
   padding-left: 1rem;
 }
 
+.map-tools-panel {
+  --icon-gap: 0.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 0.55rem;
+  margin: 0 0 0.55rem;
+  padding: 0.45rem;
+  border: 1px solid #dddcd6;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.map-run-shell > .map-tools-panel {
+  display: grid;
+  grid-template-columns: max-content repeat(4, max-content) minmax(10.5rem, 12rem);
+  column-gap: 0.85rem;
+  row-gap: 0.55rem;
+  /* Clears the fixed menu/back buttons so the toolbar frame does not run underneath them. */
+  margin: 0 0 0 7rem;
+  justify-content: start;
+}
+
+.map-run-shell > .map-tools-panel > .map-tools-brush {
+  grid-column: 1;
+  grid-row: 1 / 3;
+}
+
+.map-run-shell > .map-tools-panel > .map-tool-group {
+  padding-inline: 0.05rem;
+}
+
+.map-run-shell > .map-tools-panel > .map-tool-group:nth-child(2) {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.map-run-shell > .map-tools-panel > .map-tool-group:nth-child(3) {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.map-run-shell > .map-tools-panel > .map-tool-group:nth-child(4) {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.map-run-shell > .map-tools-panel > .map-tool-group:nth-child(5) {
+  grid-column: 2;
+  grid-row: 2;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgb(221 220 214 / 38%);
+}
+
+.map-run-shell > .map-tools-panel > .map-tool-group:nth-child(6) {
+  grid-column: 4;
+  grid-row: 2;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgb(221 220 214 / 38%);
+}
+
+.map-run-shell > .map-tools-panel > .map-tool-group:nth-child(7) {
+  grid-column: 4;
+  grid-row: 1;
+}
+
+.map-run-shell > .map-tools-panel > .map-tool-group:nth-child(8) {
+  grid-column: 5;
+  grid-row: 2;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgb(221 220 214 / 38%);
+}
+
+.map-run-shell > .map-tools-panel > .map-tool-guidance {
+  grid-column: 6;
+  grid-row: 1 / 3;
+  align-self: center;
+  justify-self: stretch;
+}
+
+.map-run-shell > .map-tools-panel .map-tool-group .map-section-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 2.1rem);
+  max-width: none;
+}
+
+.map-run-shell > .map-tools-panel > .map-tool-group:nth-child(4) {
+  padding-top: 0.55rem;
+  border-top: 1px solid rgb(221 220 214 / 38%);
+}
+
+.map-run-shell > .map-tools-panel > .map-tool-group:nth-child(6) .map-section-grid {
+  grid-template-columns: repeat(4, 2.1rem);
+}
+
+.map-run-shell > .map-tools-panel > .map-tool-group:nth-child(7) .map-section-grid {
+  grid-template-columns: repeat(4, 2.1rem);
+}
+
+.map-tools-brush,
+.map-tools-left,
+.map-tools-right,
+.map-tool-group {
+  min-width: 0;
+}
+
+.map-tools-brush {
+  flex: 0 0 auto;
+}
+
+.map-tool-group {
+  flex: 0 0 auto;
+}
+
+.map-tools-left,
+.map-tools-right {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+}
+
+.map-section-label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #8a8a82;
+}
+
+/* Section labels after the first get extra top spacing to separate groups. */
+.map-section-label:not(:first-child) {
+  margin-top: 0.5rem;
+}
+
+.map-section-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 2.1rem);
+  column-gap: var(--icon-gap);
+  row-gap: var(--icon-gap);
+  justify-content: start;
+}
+
+.map-tool-group .map-section-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--icon-gap);
+  max-width: 10rem;
+}
+
+.map-section-grid>.map-icon-btn {
+  justify-self: center;
+}
+
+.map-tools-right .map-section-grid {
+  justify-content: start;
+}
+
+.map-section-grid-single>.map-icon-btn {
+  grid-column: 1;
+}
+
+.map-controls-body.dark .map-tools-panel {
+  border-color: rgb(255 255 255 / 18%);
+}
+
+.map-tool-guidance {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #dddcd6;
+  border-radius: 8px;
+  background: #fbfaf5;
+  color: #5a5a52;
+}
+
+.map-tool-guidance-copy {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.map-tool-guidance-copy strong {
+  color: #2f2f2a;
+  font-size: 0.82rem;
+}
+
+.map-tool-guidance-copy span {
+  font-size: 0.78rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.map-tool-guidance.active {
+  border-color: #9eb592;
+  background: #f3f8ef;
+}
+
+.map-run-shell > .map-tools-panel > .map-tool-guidance.active {
+  grid-column: 6;
+  grid-row: 1 / 3;
+  justify-self: end;
+  width: 100%;
+}
+
+.map-tool-guidance:not(.active) {
+  justify-self: end;
+  grid-template-columns: auto auto;
+  width: max-content;
+  max-width: 100%;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+.map-tool-info-btn {
+  width: 2.1rem;
+  height: 2.1rem;
+  flex: 0 0 auto;
+  justify-self: end;
+}
+
+.map-help-modal {
+  width: min(34rem, calc(100vw - 2rem));
+}
+
+.map-help-sections {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.75rem 0;
+}
+
+.map-help-section {
+  border: 1px solid #dddcd6;
+  border-radius: 8px;
+  padding: 0.55rem 0.65rem;
+  background: #fafaf8;
+}
+
+.map-help-section h4,
+.map-help-section p {
+  margin: 0;
+}
+
+.map-help-section h4 {
+  margin-bottom: 0.25rem;
+}
+
+.map-controls-body.dark .map-section-label {
+  color: #c8c8c8;
+}
+
 .map-icon-grid {
   --icon-gap: 0.4rem;
   display: grid;
@@ -4885,95 +6542,68 @@ button:disabled {
   grid-template-rows: repeat(5, auto);
   row-gap: var(--icon-gap);
   column-gap: var(--icon-gap);
-  margin: 0 0 0.55rem;
-  padding-top: calc(var(--icon-gap) / 2);
-  padding-bottom: calc(var(--icon-gap) / 2);
-  border: 1px solid #dddcd6;
-  border-radius: 8px;
+  margin: 0;
+  padding-top: var(--icon-gap);
   box-sizing: border-box;
-}
-
-.map-icon-grid>.map-icon-btn.map-fog-hide-btn {
-  grid-column: 1;
-  grid-row: 1;
-  justify-self: center;
-}
-
-.map-icon-grid>.map-icon-btn.map-fog-reveal-btn {
-  grid-column: 2;
-  grid-row: 1;
-  justify-self: center;
-}
-
-.map-icon-grid>.map-icon-btn.map-hide-all-btn {
-  grid-column: 3;
-  grid-row: 1;
-  justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-vision-draw-btn {
   grid-column: 1;
-  grid-row: 2;
+  grid-row: 1;
   justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-vision-erase-btn {
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 1;
   justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-annotation-place-btn {
   grid-column: 1;
-  grid-row: 5;
+  grid-row: 3;
   justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-vision-full-btn {
   grid-column: 1;
-  grid-row: 3;
+  grid-row: 2;
   justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-token-place-btn {
   grid-column: 1;
-  grid-row: 6;
+  grid-row: 4;
   justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-token-select-btn {
   grid-column: 2;
-  grid-row: 6;
-  justify-self: center;
-}
-
-.map-brush-control-inline {
-  grid-column: 1 / span 2;
   grid-row: 4;
-  align-self: center;
+  justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-player-label-mode-btn {
   grid-column: 2;
-  grid-row: 5;
+  grid-row: 3;
   justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-hide-labels-btn {
   grid-column: 3;
-  grid-row: 5;
+  grid-row: 3;
   justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-streaming-btn {
   grid-column: 5;
-  grid-row: 5;
+  grid-row: 4;
   justify-self: center;
 }
 
 .map-icon-grid>.map-icon-btn.map-scene-npc-btn {
   grid-column: 3;
-  grid-row: 6;
+  grid-row: 4;
   justify-self: center;
 }
 
@@ -5019,7 +6649,8 @@ button:disabled {
   justify-self: center;
 }
 
-.map-icon-grid .map-icon-btn {
+.map-icon-grid .map-icon-btn,
+.map-section-grid .map-icon-btn {
   width: 2.1rem;
   min-width: 2.1rem;
 }
@@ -5054,9 +6685,137 @@ button:disabled {
   }
 }
 
+.map-brush-size-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.map-tools-left .map-brush-size-control {
+  gap: 0.35rem;
+}
+
+/* Fixed box sized for the largest brush; the dot scales down from here. */
+.map-brush-size-preview {
+  flex: 0 0 auto;
+  width: 4.5rem;
+  height: 4.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dddcd6;
+  border-radius: 6px;
+  background: #fbfbf9;
+  box-sizing: border-box;
+}
+
+.map-brush-size-dot {
+  display: block;
+  flex: 0 0 auto;
+  min-width: 3px;
+  min-height: 3px;
+  border-radius: 50%;
+  background: #6f6f68;
+}
+
+/* Custom vertical slider. Native input[type=range] in vertical mode has two
+   problems we hit: the accent-color "fill" portion doesn't repaint reliably
+   on Chromium, and the thumb can't sit flush at min/max so a sliver of the
+   track shows past it. Building this from a div lets the fill and thumb
+   bind directly to React state and snap to the rail's exact endpoints. */
+.map-brush-size-slider {
+  --thumb-size: 1.4rem;
+  position: relative;
+  flex: 0 0 auto;
+  width: 1.6rem;
+  height: 6.5rem;
+  cursor: pointer;
+  touch-action: none;
+  outline: none;
+}
+
+.map-tools-left .map-brush-size-slider {
+  height: 5rem;
+}
+
+.map-brush-size-slider:focus-visible {
+  outline: 2px solid #9eb592;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.map-brush-size-rail {
+  position: absolute;
+  inset: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0.45rem;
+  border-radius: 999px;
+  background: #dddcd6;
+  overflow: hidden;
+}
+
+.map-brush-size-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #9eb592;
+}
+
+.map-brush-size-thumb {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--thumb-size);
+  height: var(--thumb-size);
+  border-radius: 50%;
+  background: #fff;
+  border: 1px solid #b0b0a8;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 18%);
+  pointer-events: none;
+}
+
+.map-controls-body.dark .map-brush-size-rail {
+  background: rgb(255 255 255 / 16%);
+}
+
+.map-controls-body.dark .map-brush-size-thumb {
+  background: #ecebe5;
+  border-color: #888;
+}
+
+.shell-root[data-theme="vtm"] .map-brush-size-rail {
+  background: rgb(255 255 255 / 12%);
+}
+
+.shell-root[data-theme="vtm"] .map-brush-size-fill {
+  background: var(--vtm-oxblood-bright);
+}
+
+.shell-root[data-theme="vtm"] .map-brush-size-thumb {
+  background: var(--vtm-bone);
+  border-color: var(--vtm-oxblood-bright);
+  box-shadow: 0 0 8px rgb(163 34 38 / 55%);
+}
+
+.shell-root[data-theme="vtm"] .map-brush-size-slider:focus-visible {
+  outline-color: var(--vtm-oxblood-bright);
+}
+
+.map-controls-body.dark .map-brush-size-preview {
+  border-color: rgb(255 255 255 / 18%);
+  background: rgb(255 255 255 / 6%);
+}
+
+.map-controls-body.dark .map-brush-size-dot {
+  background: #d8d8d2;
+}
+
 .map-brush-control-inline {
   display: grid;
-  grid-template-columns: auto 2.7rem;
+  grid-template-columns: auto 3.35rem;
   align-items: center;
   gap: 0.28rem;
   padding-inline: calc(var(--icon-gap) / 2);
@@ -5072,14 +6831,14 @@ button:disabled {
 }
 
 .map-brush-control-number {
-  width: 2.7rem;
+  width: 3.35rem;
   min-width: 0;
-  padding: 0.18rem 0.24rem;
+  padding: 0.26rem 0.34rem;
   border: 1px solid #c8c8c0;
   border-radius: 6px;
   background: #fff;
   color: #3f3f38;
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   line-height: 1.2;
   text-align: right;
   appearance: textfield;
@@ -5187,7 +6946,11 @@ button:disabled {
   transform: translate(-50%, -0.22rem);
   opacity: 0;
   pointer-events: none;
-  white-space: nowrap;
+  width: max-content;
+  max-width: min(13rem, calc(100vw - 2rem));
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-align: left;
   background: #1b1b1b;
   color: #f3f3f3;
   font-size: 0.72rem;
@@ -5253,6 +7016,21 @@ button:disabled {
   transform: translate(0, 0);
 }
 
+.map-section-grid .map-icon-btn.fast-tooltip[data-tooltip]::after {
+  left: 0;
+  transform: translate(0, -0.22rem);
+}
+
+.map-section-grid .map-icon-btn.fast-tooltip[data-tooltip]::before {
+  left: 0.58rem;
+  transform: translateX(0);
+}
+
+.map-section-grid .map-icon-btn.fast-tooltip[data-tooltip]:hover::after,
+.map-section-grid .map-icon-btn.fast-tooltip[data-tooltip]:focus-visible::after {
+  transform: translate(0, 0);
+}
+
 .map-icon-grid>.map-icon-btn.fast-tooltip:nth-of-type(odd):not(.map-hide-all-btn)[data-tooltip]::after {
   left: 0;
   transform: translate(0, -0.22rem);
@@ -5296,62 +7074,6 @@ button:disabled {
   background: #c9d8c1;
   border-color: #c9d8c1;
   color: #111;
-}
-
-.map-fullscreen-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(10, 10, 10, 0.78);
-  z-index: 140;
-  padding: 1rem;
-}
-
-.map-fullscreen-shell {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 0.75rem;
-}
-
-.map-fullscreen-stage {
-  position: relative;
-  background: #111;
-  border: 1px solid #2a2a2a;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  cursor: grab;
-}
-
-.map-fullscreen-stage.dragging {
-  cursor: grabbing;
-}
-
-.map-fullscreen-close {
-  position: absolute;
-  top: 0.65rem;
-  right: 0.65rem;
-  z-index: 10;
-  width: 2rem;
-  height: 2rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #3a3a3a;
-  background: rgba(15, 15, 15, 0.85);
-  color: #f0f0f0;
-  padding: 0;
-}
-
-.map-fullscreen-controls {
-  background: #171717;
-  border: 1px solid #2f2f2f;
-  padding: 0.9rem;
-  height: 100%;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
 }
 
 .map-zoom-layer {
@@ -5508,11 +7230,56 @@ button:disabled {
 }
 
 .map-fog-canvas.brush {
-  cursor: crosshair;
+  cursor: none;
 }
 
 .map-fog-canvas.read-only {
   pointer-events: none;
+}
+
+.map-brush-cursor {
+  position: absolute;
+  left: var(--brush-cursor-x, 0);
+  top: var(--brush-cursor-y, 0);
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 70%),
+    inset 0 0 0 1px rgb(0 0 0 / 45%),
+    0 0 12px rgb(0 0 0 / 35%);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 32;
+}
+
+.map-brush-cursor[data-visible="true"] {
+  opacity: 1;
+}
+
+.map-brush-cursor.fog-hide {
+  border-color: rgba(18, 18, 18, 0.9);
+  background: rgba(0, 0, 0, 0.12);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 82%),
+    inset 0 0 0 1px rgb(255 255 255 / 42%),
+    0 0 14px rgb(0 0 0 / 42%);
+}
+
+.map-brush-cursor.vision-draw {
+  border-color: rgba(176, 44, 44, 0.95);
+  background: rgba(176, 44, 44, 0.12);
+}
+
+.map-brush-cursor.vision-draw-full {
+  border-color: rgba(42, 72, 176, 0.95);
+  background: rgba(42, 72, 176, 0.12);
+}
+
+.map-brush-cursor.vision-erase {
+  border-color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .map-vision-canvas {
@@ -5541,6 +7308,10 @@ button:disabled {
   pointer-events: none;
 }
 
+.map-fog-loading-mask.gm {
+  background: rgba(0, 0, 0, 0.18);
+}
+
 .map-token-layer {
   position: absolute;
   inset: 0;
@@ -5558,6 +7329,11 @@ button:disabled {
 
 .map-token-layer.player-over-fog {
   z-index: 13;
+}
+
+.map-token-layer.placing,
+.map-annotation-layer.placing {
+  pointer-events: none;
 }
 
 .map-token.player {
@@ -5605,6 +7381,24 @@ button:disabled {
 
 .map-annotation-btn.active {
   color: #7f1d1d;
+}
+
+.map-annotation.unannotated:not(.active) .map-annotation-btn,
+.map-annotation.unannotated:not(.active) .map-player-label-btn {
+  animation: map-annotation-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes map-annotation-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(180, 35, 24, 0.24);
+    transform: scale(1);
+  }
+
+  50% {
+    box-shadow: 0 0 0 8px rgba(180, 35, 24, 0);
+    transform: scale(1.04);
+  }
 }
 
 .map-player-label-btn,
@@ -5956,6 +7750,214 @@ button:disabled {
   width: 100%;
 }
 
+.map-token-placement-panel {
+  display: grid;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #dddcd6;
+}
+
+.map-placement-active-block {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.map-placement-active-block .map-section-label {
+  margin: 0;
+}
+
+.map-placement-active {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem;
+  border: 1px solid #d7d7cf;
+  border-radius: 6px;
+  background: #f8f7f2;
+  font-size: 0.78rem;
+}
+
+.map-placement-active-main {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.map-placement-active-name,
+.map-placement-active-meta {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-placement-active-name {
+  font-size: 0.9rem;
+}
+
+.map-placement-active-meta {
+  font-size: 0.68rem;
+  color: #6f6f68;
+}
+
+.map-placement-group {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.map-placement-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.map-placement-group-header .map-section-label {
+  margin: 0;
+}
+
+.map-placement-group-actions {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.map-placement-collapse-btn {
+  width: 2rem;
+  min-width: 2rem;
+  min-height: 2rem;
+}
+
+.map-nonparty-picker {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.map-nonparty-source-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem;
+  align-items: stretch;
+}
+
+.map-nonparty-picker input,
+.map-nonparty-picker select {
+  width: 100%;
+  min-width: 0;
+  font-size: 0.82rem;
+}
+
+.map-nonparty-clear-btn {
+  width: 2.4rem;
+  min-width: 2.4rem;
+  height: auto;
+  min-height: 2.25rem;
+}
+
+.map-placement-stage {
+  min-width: 0;
+}
+
+.map-generic-asset-stage {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.map-generic-token-name-input {
+  width: 100%;
+  min-width: 0;
+  font-size: 0.82rem;
+}
+
+.map-placement-asset-tools {
+  padding-top: 0.35rem;
+  border-top: 1px solid rgb(221 220 214 / 58%);
+}
+
+.map-placement-asset-tools summary {
+  cursor: pointer;
+  font-size: 0.74rem;
+  color: #6f6f68;
+}
+
+.map-placement-asset-tools[open] {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.map-placement-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.map-placement-row:has(.map-placement-stepper) {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
+.map-placement-row-simple {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.map-placement-row-manage {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
+.map-placement-delete-source-btn {
+  width: 1.9rem;
+  min-width: 1.9rem;
+  height: 1.9rem;
+  min-height: 1.9rem;
+}
+
+.map-placement-source-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.82rem;
+}
+
+.map-placement-stepper {
+  display: grid;
+  grid-template-columns: 1.35rem 2.1rem 1.35rem;
+  align-items: center;
+  border: 1px solid #d7d7cf;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.map-placement-stepper button {
+  width: 1.35rem;
+  height: 1.55rem;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+
+.map-placement-stepper input {
+  width: 2.1rem;
+  min-width: 0;
+  height: 1.55rem;
+  border: 0;
+  border-left: 1px solid #d7d7cf;
+  border-right: 1px solid #d7d7cf;
+  padding: 0;
+  text-align: center;
+  font-size: 0.78rem;
+}
+
 .map-token-monster-source {
   font-size: 0.82rem;
 }
@@ -5989,6 +7991,12 @@ button:disabled {
 .map-controls-body.dark .map-token-icon-editor input[type='color'] {
   border-color: #5a5a5a;
   background: #2f2f2f;
+}
+
+.map-controls-body.dark .map-token-icon-editor .token-image-upload-row input[type='text'] {
+  background: #2f2f2f;
+  border-color: #4a4a4a;
+  color: #d8d8d1;
 }
 
 .map-controls-body.dark .icon-value-slider-icon,
@@ -6057,6 +8065,19 @@ button:disabled {
   gap: 0.35rem;
 }
 
+.token-image-upload-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem;
+  align-items: stretch;
+}
+
+.token-image-upload-row input[type='text'] {
+  width: 100%;
+  min-width: 0;
+  font-size: 0.82rem;
+}
+
 .token-image-trigger {
   width: fit-content;
 }
@@ -6110,17 +8131,20 @@ button:disabled {
 
 .token-list {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.28rem;
+  align-content: start;
 }
 
 .token-group-list {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.3rem;
+  align-content: start;
 }
 
 .token-group-block {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.18rem;
+  align-content: start;
 }
 
 .token-group-header {
@@ -6128,6 +8152,12 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 0.35rem;
+}
+
+.token-group-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
 }
 
 .token-group-title {
@@ -6151,13 +8181,274 @@ button:disabled {
   justify-content: center;
 }
 
+.token-group-check-label {
+  width: 1.35rem;
+  height: 1.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.token-group-collapse-btn {
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid #5e5e57;
+  border-radius: 6px;
+  background: #fff;
+  color: #55554e;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.token-group-collapse-btn:hover:not(:disabled) {
+  border-color: #7d1b12;
+  color: #7d1b12;
+}
+
+.token-group-check-label input {
+  margin: 0;
+}
+
+.token-group-delete {
+  width: 1.45rem;
+  height: 1.45rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #7d1b12;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.token-group-delete:hover:not(:disabled) {
+  background: #f3e9e7;
+}
+
+.token-group-delete:disabled {
+  color: #a8a8a0;
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* "Make group" button in the Selected Tokens bulk-actions row. */
+.token-group-make-group {
+  width: 1.45rem;
+  height: 1.45rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #55554e;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.token-group-make-group:hover {
+  background: #ecece6;
+  color: #2f2f2a;
+}
+
+/* Named sub-group nested inside a category block. */
+.token-subgroup {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.18rem 0 0.18rem 0.4rem;
+  border-left: 2px solid #d8d8d0;
+}
+
+.token-subgroup-header {
+  display: flex;
+  align-items: center;
+  gap: 0.32rem;
+  padding-bottom: 0.05rem;
+}
+
+.token-subgroup-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #55554e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.token-subgroup-count {
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: 999px;
+  background: #ecece6;
+  color: #55554e;
+  font-size: 0.68rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.token-subgroup-collapse {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 1px solid #5e5e57;
+  border-radius: 6px;
+  background: #fff;
+  color: #55554e;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.token-subgroup-collapse:hover {
+  border-color: #7d1b12;
+  color: #7d1b12;
+}
+
+.token-subgroup-ungroup {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #8a8a82;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.token-subgroup-ungroup:hover {
+  background: #f3e9e7;
+  color: #7d1b12;
+}
+
+.token-subgroup-check-label {
+  width: 1.25rem;
+  height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.token-subgroup-check-label input {
+  margin: 0;
+}
+
+/* Name-entry modal for "Make group". */
+.token-make-group-modal {
+  display: grid;
+  gap: 0.7rem;
+  min-width: min(22rem, 86vw);
+}
+
+.token-make-group-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.token-make-group-subtitle {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #66665f;
+}
+
+.token-make-group-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.9rem;
+}
+
+.token-make-group-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.token-make-group-confirm:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.token-global-controls {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.45rem;
+  border: 1px solid #d8d8d0;
+  border-radius: 8px;
+  background: #f7f6f0;
+}
+
+.token-global-controls-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.token-global-controls-title {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #66665f;
+}
+
+.token-global-count {
+  min-width: 1.45rem;
+  height: 1.45rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #ecece6;
+  color: #55554e;
+  font-size: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.token-group-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.token-global-controls input[type='color'] {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 1px solid #d7d7cf;
+  background: transparent;
+  padding: 0;
+}
+
+.token-group-size-row .icon-value-slider-input {
+  width: min(180px, 100%);
+}
+
+.token-group-bulk-toggles {
+  justify-content: flex-start;
+}
+
+.token-group-view-distance {
+  margin-top: 0;
+}
+
 .token-cards-panel {
   border: 1px solid #dcdcd5;
   border-radius: 8px;
   padding: 0.5rem;
   margin: 0 0 0.6rem;
   display: grid;
-  gap: 0.4rem;
+  gap: 0.3rem;
+  align-content: start;
 }
 
 .token-cards-title {
@@ -6196,9 +8487,13 @@ button:disabled {
   background: #fff;
 }
 
+.token-row:not(.scene-npc-row) {
+  cursor: pointer;
+}
+
 .token-row-summary {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 0.45rem;
 }
@@ -6221,17 +8516,6 @@ button:disabled {
   color: #111;
 }
 
-.token-row-expand {
-  width: 1.55rem;
-  height: 1.55rem;
-  border: 1px solid #d7d7cf;
-  border-radius: 6px;
-  background: #f5f4ee;
-  color: #4f4f48;
-  padding: 0;
-  line-height: 1;
-}
-
 .token-row input[type='color'] {
   width: 1.5rem;
   height: 1.5rem;
@@ -6242,11 +8526,6 @@ button:disabled {
 
 .token-row input[type='range'] {
   width: 100%;
-}
-
-.token-row-details {
-  display: grid;
-  gap: 0.45rem;
 }
 
 .token-row-actions {
@@ -6407,6 +8686,60 @@ button:disabled {
   border-color: #4f4f48;
 }
 
+.map-controls-body.dark .map-token-placement-panel {
+  border-bottom-color: #4f4f48;
+}
+
+.map-controls-body.dark .map-placement-active {
+  background: #2b2b2b;
+  border-color: #4f4f48;
+  color: #d8d8d1;
+}
+
+.map-controls-body.dark .map-placement-active-name {
+  color: #d8d8d1;
+}
+
+.map-controls-body.dark .map-placement-active-meta {
+  color: #b9b9b0;
+}
+
+.map-controls-body.dark .map-nonparty-picker input,
+.map-controls-body.dark .map-nonparty-picker select,
+.map-controls-body.dark .map-generic-token-name-input {
+  background: #2f2f2f;
+  border-color: #4a4a4a;
+  color: #d8d8d1;
+}
+
+.map-controls-body.dark .map-placement-asset-tools {
+  border-top-color: rgb(255 255 255 / 14%);
+}
+
+.map-controls-body.dark .map-placement-asset-tools summary {
+  color: #b9b9b0;
+}
+
+.map-controls-body.dark .map-placement-source-name {
+  color: #d8d8d1;
+}
+
+.map-controls-body.dark .map-placement-stepper {
+  background: #2f2f2f;
+  border-color: #4a4a4a;
+}
+
+.map-controls-body.dark .map-placement-stepper button,
+.map-controls-body.dark .map-placement-stepper input {
+  color: #d8d8d1;
+}
+
+.map-controls-body.dark .map-placement-stepper input {
+  background: #262626;
+  border-left-color: #4a4a4a;
+  border-right-color: #4a4a4a;
+}
+
 .map-controls-body.dark .token-cards-panel {
   border-color: #4f4f48;
   background: #232323;
@@ -6421,17 +8754,56 @@ button:disabled {
   color: #dbdbd3;
 }
 
+.map-controls-body.dark .token-group-collapse-btn {
+  background: #2b2b2b;
+  border-color: #4f4f48;
+  color: #dbdbd3;
+}
+
+.map-controls-body.dark .token-group-collapse-btn:hover:not(:disabled) {
+  border-color: #f0b7b2;
+  color: #f0b7b2;
+}
+
+.map-controls-body.dark .token-group-delete {
+  color: #f0b7b2;
+}
+
+.map-controls-body.dark .token-group-delete:hover:not(:disabled) {
+  background: rgba(162, 36, 23, 0.18);
+}
+
+.map-controls-body.dark .token-group-delete:disabled {
+  color: #77776f;
+}
+
+.map-controls-body.dark .token-global-controls {
+  border-color: rgb(255 255 255 / 14%);
+  background: rgb(255 255 255 / 5%);
+}
+
+.map-controls-body.dark .token-global-controls input[type='color'] {
+  border-color: rgb(255 255 255 / 18%);
+}
+
+.map-controls-body.dark .token-global-controls-title,
+.map-controls-body.dark .token-global-count {
+  color: #cecec7;
+}
+
+.map-controls-body.dark .token-global-count {
+  min-width: auto;
+  height: auto;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
 .map-controls-body.dark .token-cards-title {
   color: #cecec7;
 }
 
 .map-controls-body.dark .token-cards-toggle {
-  background: #2f2f2f;
-  border-color: #4a4a4a;
-  color: #d8d8d1;
-}
-
-.map-controls-body.dark .token-row-expand {
   background: #2f2f2f;
   border-color: #4a4a4a;
   color: #d8d8d1;
@@ -7282,9 +9654,18 @@ button:disabled {
   }
 
   .side-nav {
-    padding-top: 3.35rem;
+    width: 100dvw;
+    max-width: 100dvw;
+    padding-top: calc(3.35rem + env(safe-area-inset-top, 0px));
+    padding-right: calc(1rem + env(safe-area-inset-right, 0px));
     padding-bottom: calc(0.8rem + env(safe-area-inset-bottom, 0px));
+    padding-left: calc(1rem + env(safe-area-inset-left, 0px));
     gap: 0.6rem;
+  }
+
+  .menu-toggle {
+    top: calc(0.8rem + env(safe-area-inset-top, 0px));
+    left: calc(0.8rem + env(safe-area-inset-left, 0px));
   }
 
   .side-title {
@@ -7703,7 +10084,7 @@ button:disabled {
 
   .map-mobile-panel-nav {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
     width: 100%;
     gap: 0.5rem;
     border-top: 1px solid #dddcd6;
@@ -9138,3 +11519,2447 @@ button:disabled {
 .table-result-block.treasure-coins { background: #4a3a1722; }
 .table-result-block.treasure-item { background: #3a174a22; }
 .table-result-block.magic-item { background: #174a3a22; }
+
+/* ====================================================================== */
+/* === [data-theme="vtm"] — Final Nights, anno 1992 ===================== */
+/* ====================================================================== */
+
+.shell-root[data-theme="vtm"] {
+  --vtm-void: #0a0708;
+  --vtm-pitch: #110b0d;
+  --vtm-velvet: #1a0f12;
+  --vtm-crypt: #241419;
+  --vtm-ash: #2e1c20;
+  --vtm-rule: #3a2128;
+  --vtm-rule-strong: #5a3036;
+  --vtm-bone: #fff6e8;
+  --vtm-parchment: #f1dfc2;
+  --vtm-parchment-soft: #dec9a8;
+  --vtm-faint: #ad958c;
+  --vtm-mute: #83706c;
+  --vtm-oxblood: #7a1a1f;
+  --vtm-oxblood-deep: #4d0e10;
+  --vtm-oxblood-bright: #a32226;
+  --vtm-gold: #c4a25a;
+  --vtm-gold-soft: #8b7335;
+  --vtm-gold-faint: #5c4d2a;
+
+  background: var(--vtm-void);
+  color: var(--vtm-bone);
+  font-family: 'Cormorant Garamond', 'EB Garamond', Georgia, serif;
+  font-size: 16.5px;
+  font-weight: 400;
+  letter-spacing: 0.005em;
+  position: relative;
+}
+
+/* Film grain + vignette over the whole shell */
+.shell-root[data-theme="vtm"]::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='3'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.18'/></svg>");
+  mix-blend-mode: overlay;
+  opacity: 0.45;
+}
+
+.shell-root[data-theme="vtm"]::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99;
+  background:
+    radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.55) 100%),
+    linear-gradient(180deg, rgba(122,26,31,0.04) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.25) 100%);
+}
+
+/* --- Side nav: blackletter manuscript ------------------------------- */
+
+.shell-root[data-theme="vtm"] .side-nav {
+  background:
+    linear-gradient(180deg, var(--vtm-pitch) 0%, var(--vtm-velvet) 60%, var(--vtm-void) 100%);
+  border-right: 1px solid var(--vtm-rule);
+  color: var(--vtm-parchment);
+  padding-top: 4rem;
+  box-shadow: 4px 0 32px rgba(0,0,0,0.7), inset -1px 0 0 rgba(196, 162, 90, 0.08);
+  /* Above .map-stage (101) and the backdrop (200) so the drawer occludes the map. */
+  z-index: 210;
+}
+
+.shell-root[data-theme="vtm"] .side-title {
+  font-family: 'UnifrakturCook', 'IM Fell English', Georgia, serif;
+  font-weight: 700;
+  font-size: 2.4rem;
+  line-height: 0.95;
+  color: var(--vtm-bone);
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.8), 0 0 22px rgba(122, 26, 31, 0.35);
+  margin-bottom: 0.3rem;
+  text-align: center;
+  position: relative;
+  padding-bottom: 0.55rem;
+}
+
+/* Curved canine fangs: built-in shape curves to the LEFT (tip lower-left of top edge).
+   Used under "House" as-is so the curve naturally hooks inward (toward "Home").
+   Mirrored under "Home" via scaleX(-1) so its curve hooks the other way (toward "House"). */
+.vtm-fang-anchor {
+  position: relative;
+  display: inline-block;
+}
+
+.side-title-spacer {
+  visibility: hidden;
+}
+
+.shell-root[data-theme="vtm"] .vtm-fang-anchor::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 102%;
+  width: 22px;
+  height: 34px;
+  margin-left: -11px;
+  background-color: var(--vtm-bone);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 28'><path d='M3 0 L13 0 Q14 6 11 14 Q7 22 4 27 Q3 16 1 8 Q1 4 3 0 Z' fill='black'/></svg>") center / contain no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 28'><path d='M3 0 L13 0 Q14 6 11 14 Q7 22 4 27 Q3 16 1 8 Q1 4 3 0 Z' fill='black'/></svg>") center / contain no-repeat;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.7)) drop-shadow(0 0 6px rgba(0, 0, 0, 0.65));
+  transform-origin: top center;
+  pointer-events: none;
+}
+
+/* "Home" fang: mirrored horizontally → curve hooks to the right (toward "House") */
+.shell-root[data-theme="vtm"] .vtm-fang-anchor:nth-of-type(1)::after {
+  transform: scaleX(-1);
+}
+
+/* "House" fang: as drawn → curve hooks to the left (toward "Home") */
+.shell-root[data-theme="vtm"] .vtm-fang-anchor:nth-of-type(2)::after {
+  transform: none;
+}
+
+.shell-root[data-theme="vtm"] .side-meta {
+  font-family: 'Special Elite', 'Cormorant Garamond', serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--vtm-faint);
+  text-align: center;
+}
+
+.shell-root[data-theme="vtm"] .side-campaign-back {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--vtm-parchment);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0.3rem 0.5rem;
+  margin: 0 auto 0.6rem;
+  align-self: center;
+  text-align: center;
+  letter-spacing: 0.005em;
+}
+
+.shell-root[data-theme="vtm"] .side-campaign-back:hover {
+  background: transparent;
+  color: var(--vtm-bone);
+  text-shadow: 0 0 14px rgba(163, 34, 38, 0.4);
+}
+
+.shell-root[data-theme="vtm"] .side-campaign-back > svg {
+  opacity: 0.55;
+  color: var(--vtm-gold);
+}
+
+.shell-root[data-theme="vtm"] .nav-list {
+  position: relative;
+  padding: 0.4rem 0 0.6rem;
+  margin-top: 0.6rem;
+  border-top: 1px solid var(--vtm-rule);
+  border-bottom: 1px solid var(--vtm-rule);
+}
+
+.shell-root[data-theme="vtm"] .nav-list::before,
+.shell-root[data-theme="vtm"] .nav-list::after {
+  content: '✦';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--vtm-gold);
+  background: var(--vtm-velvet);
+  font-size: 0.68rem;
+  padding: 0 0.5rem;
+  letter-spacing: 0;
+}
+
+.shell-root[data-theme="vtm"] .nav-list::before { top: -0.45rem; }
+.shell-root[data-theme="vtm"] .nav-list::after { bottom: -0.45rem; }
+
+.shell-root[data-theme="vtm"] .tab-button {
+  font-family: 'IM Fell English', 'Cormorant Garamond', Georgia, serif;
+  font-size: 1.05rem;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--vtm-parchment);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 0.5rem 0.9rem 0.5rem 1.6rem;
+  margin: 0;
+  text-align: left;
+  letter-spacing: 0.01em;
+  position: relative;
+  transition: color 160ms ease, padding-left 160ms ease, background 160ms ease;
+}
+
+.shell-root[data-theme="vtm"] .tab-button::before {
+  content: '';
+  position: absolute;
+  left: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 1px;
+  background: var(--vtm-gold);
+  transition: width 200ms ease;
+}
+
+.shell-root[data-theme="vtm"] .tab-button:hover {
+  color: var(--vtm-bone);
+  background: linear-gradient(90deg, rgba(122,26,31,0.15), transparent 80%);
+  padding-left: 1.9rem;
+}
+
+.shell-root[data-theme="vtm"] .tab-button:hover::before {
+  width: 0.8rem;
+}
+
+.shell-root[data-theme="vtm"] .tab-button.active {
+  color: var(--vtm-bone);
+  background: linear-gradient(90deg, rgba(163,34,38,0.32), rgba(122,26,31,0.05) 70%, transparent);
+  font-style: italic;
+  font-weight: 500;
+  padding-left: 2.1rem;
+  text-shadow: 0 0 16px rgba(163, 34, 38, 0.45);
+}
+
+.shell-root[data-theme="vtm"] .tab-button.active::before {
+  width: 1rem;
+  height: 1px;
+  background: var(--vtm-oxblood-bright);
+  box-shadow: 0 0 10px rgba(163, 34, 38, 0.7);
+}
+
+/* Account panel — letterpress aristocrat */
+.shell-root[data-theme="vtm"] .account-panel {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--vtm-rule);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.shell-root[data-theme="vtm"] .account-username,
+.shell-root[data-theme="vtm"] .account-email {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.74rem;
+  letter-spacing: 0.1em;
+  color: var(--vtm-faint);
+  text-transform: lowercase;
+}
+
+.shell-root[data-theme="vtm"] .side-settings-button {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--vtm-parchment);
+  background: transparent;
+  border: 1px solid var(--vtm-rule);
+  border-radius: 2px;
+  padding: 0.4rem 0.65rem;
+  letter-spacing: 0.02em;
+}
+
+.shell-root[data-theme="vtm"] .side-settings-button:hover {
+  background: rgba(122, 26, 31, 0.18);
+  border-color: var(--vtm-gold-faint);
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .account-panel > button:last-child {
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-size: 0.92rem;
+  color: var(--vtm-parchment-soft);
+  background: transparent;
+  border: 1px solid var(--vtm-rule);
+  border-radius: 2px;
+  padding: 0.35rem 0.6rem;
+}
+
+.shell-root[data-theme="vtm"] .account-panel > button:last-child:hover {
+  background: rgba(122, 26, 31, 0.18);
+  color: var(--vtm-bone);
+  border-color: var(--vtm-oxblood);
+}
+
+/* --- Top hamburger / drawer chrome ----------------------------------- */
+
+.shell-root[data-theme="vtm"] .menu-toggle {
+  background: var(--vtm-pitch);
+  border: 1px solid var(--vtm-rule);
+  color: var(--vtm-parchment);
+  border-radius: 2px;
+  /* Sit above the VtM .map-stage (z-index 101) so the drawer stack occludes the map. */
+  z-index: 220;
+}
+
+.shell-root[data-theme="vtm"] .menu-toggle:hover {
+  background: var(--vtm-velvet);
+  border-color: var(--vtm-gold-faint);
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .drawer-backdrop {
+  background: rgba(0,0,0,0.65);
+  /* Above .map-stage (101) so the map and its red outline are covered. */
+  z-index: 200;
+}
+
+/* --- Main content surface (tabs) ------------------------------------- */
+
+.shell-root[data-theme="vtm"] section {
+  background: var(--vtm-void);
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] h1,
+.shell-root[data-theme="vtm"] h2,
+.shell-root[data-theme="vtm"] h3 {
+  font-family: 'Cormorant Garamond', 'IM Fell English', Georgia, serif;
+  color: var(--vtm-bone);
+  font-weight: 600;
+  letter-spacing: 0.005em;
+}
+
+.shell-root[data-theme="vtm"] h2 {
+  font-style: italic;
+  font-weight: 500;
+  position: relative;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid var(--vtm-rule) !important;
+  background: transparent !important;
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] h2::after {
+  content: '';
+  position: absolute;
+  bottom: -1.5px;
+  left: 0;
+  width: 4rem;
+  height: 2px;
+  background: linear-gradient(90deg, #d63a3f 0%, #a32226 60%, transparent 100%);
+  box-shadow: 0 0 14px rgba(214, 58, 63, 0.7), 0 0 4px rgba(214, 58, 63, 0.9);
+  border-radius: 1px;
+}
+
+.shell-root[data-theme="vtm"] p {
+  color: var(--vtm-parchment);
+}
+
+.shell-root[data-theme="vtm"] strong {
+  color: var(--vtm-bone);
+  font-weight: 600;
+}
+
+/* --- Inputs / forms --------------------------------------------------- */
+
+.shell-root[data-theme="vtm"] input,
+.shell-root[data-theme="vtm"] select,
+.shell-root[data-theme="vtm"] textarea {
+  background: rgba(10, 7, 8, 0.6);
+  border: 1px solid var(--vtm-rule);
+  color: var(--vtm-bone);
+  border-radius: 2px;
+  font-family: inherit;
+}
+
+.shell-root[data-theme="vtm"] input::placeholder,
+.shell-root[data-theme="vtm"] textarea::placeholder {
+  color: var(--vtm-mute);
+  font-style: italic;
+}
+
+.shell-root[data-theme="vtm"] input:focus,
+.shell-root[data-theme="vtm"] select:focus,
+.shell-root[data-theme="vtm"] textarea:focus {
+  outline: none;
+  border-color: var(--vtm-gold-soft);
+  box-shadow: 0 0 0 1px rgba(196, 162, 90, 0.18), 0 0 20px rgba(122, 26, 31, 0.18);
+}
+
+/* --- Buttons: theme colors, preserve existing sizing ----------------- */
+
+.shell-root[data-theme="vtm"] button {
+  background: rgba(26, 15, 18, 0.7);
+  color: var(--vtm-parchment);
+  border-color: var(--vtm-rule-strong);
+}
+
+.shell-root[data-theme="vtm"] button:hover {
+  background: rgba(46, 28, 32, 0.85);
+  color: var(--vtm-bone);
+  border-color: var(--vtm-gold-faint);
+}
+
+/* SVG icons: brighter color + thicker stroke so they read on dark bg */
+.shell-root[data-theme="vtm"] svg {
+  stroke: currentColor;
+}
+
+.shell-root[data-theme="vtm"] button svg,
+.shell-root[data-theme="vtm"] a svg {
+  color: var(--vtm-bone);
+  stroke-width: 2;
+}
+
+.shell-root[data-theme="vtm"] button:hover svg {
+  color: var(--vtm-bone);
+}
+
+
+/* Wildcard: every visible border in the campaign workspace defaults
+   to the dark rule color. Specific colored accents can opt back in
+   via class-based overrides above. */
+.shell-root[data-theme="vtm"] *,
+.shell-root[data-theme="vtm"] *::before,
+.shell-root[data-theme="vtm"] *::after {
+  border-color: var(--vtm-rule);
+}
+
+/* --- Universal dark-surface remap ------------------------------------ */
+/* The existing app has hundreds of light borders / white surfaces.
+   Sledgehammer them into the VtM palette. */
+
+.shell-root[data-theme="vtm"] [class*="-grid"],
+.shell-root[data-theme="vtm"] [class*="-panel"],
+.shell-root[data-theme="vtm"] [class*="-card"],
+.shell-root[data-theme="vtm"] [class*="-block"],
+.shell-root[data-theme="vtm"] [class*="-pane"],
+.shell-root[data-theme="vtm"] [class*="-list"],
+.shell-root[data-theme="vtm"] [class*="-row"],
+.shell-root[data-theme="vtm"] [class*="-tab"],
+.shell-root[data-theme="vtm"] [class*="-shell"],
+.shell-root[data-theme="vtm"] [class*="-modal"],
+.shell-root[data-theme="vtm"] [class*="-section"],
+.shell-root[data-theme="vtm"] [class*="-header"],
+.shell-root[data-theme="vtm"] [class*="-item"],
+.shell-root[data-theme="vtm"] [class*="-toolbar"],
+.shell-root[data-theme="vtm"] [class*="-control"] {
+  border-color: var(--vtm-rule);
+}
+
+.shell-root[data-theme="vtm"] [style*="background"] {
+  /* leave inline-styled bgs alone (avatars, dynamic colors) */
+}
+
+/* Hardcoded light surface backgrounds → dark velvet */
+.shell-root[data-theme="vtm"] .character-summary-grid,
+.shell-root[data-theme="vtm"] .character-placeholder-block,
+.shell-root[data-theme="vtm"] .info-grid,
+.shell-root[data-theme="vtm"] .sidebar-panel,
+.shell-root[data-theme="vtm"] .character-list-item-wrap,
+.shell-root[data-theme="vtm"] .monster-list-item,
+.shell-root[data-theme="vtm"] .map-controls-body,
+.shell-root[data-theme="vtm"] .map-toolbar,
+.shell-root[data-theme="vtm"] .item-card,
+.shell-root[data-theme="vtm"] .npc-block,
+.shell-root[data-theme="vtm"] .table-block,
+.shell-root[data-theme="vtm"] .notes-block,
+.shell-root[data-theme="vtm"] .calendar-block,
+.shell-root[data-theme="vtm"] .session-block {
+  background: var(--vtm-velvet);
+  border-color: var(--vtm-rule);
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .monster-list-item:hover,
+.shell-root[data-theme="vtm"] .character-list-item-wrap:hover,
+.shell-root[data-theme="vtm"] .item-card:hover {
+  background: var(--vtm-crypt);
+  border-color: var(--vtm-gold-faint);
+}
+
+.shell-root[data-theme="vtm"] .monster-list-item.active,
+.shell-root[data-theme="vtm"] .character-list-item-wrap.active,
+.shell-root[data-theme="vtm"] .item-card.active,
+.shell-root[data-theme="vtm"] [class*="-item"].active {
+  background: linear-gradient(180deg, rgba(122,26,31,0.28), rgba(122,26,31,0.10));
+  border-color: var(--vtm-oxblood-bright) !important;
+  box-shadow: 0 0 16px rgba(163, 34, 38, 0.25);
+}
+
+/* --- Modals ----------------------------------------------------------- */
+
+.shell-root[data-theme="vtm"] .confirm-overlay {
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(2px);
+}
+
+.shell-root[data-theme="vtm"] .confirm-modal,
+.shell-root[data-theme="vtm"] .confirm-modal.group-modal {
+  background:
+    linear-gradient(180deg, var(--vtm-pitch) 0%, var(--vtm-velvet) 100%);
+  border: 1px solid var(--vtm-rule-strong);
+  border-radius: 2px;
+  color: var(--vtm-bone);
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  box-shadow:
+    0 30px 60px rgba(0,0,0,0.7),
+    0 0 0 1px rgba(196, 162, 90, 0.06),
+    inset 0 1px 0 rgba(255, 245, 220, 0.04);
+  position: relative;
+}
+
+.shell-root[data-theme="vtm"] .confirm-modal::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 1px solid var(--vtm-rule);
+  pointer-events: none;
+  border-radius: 1px;
+}
+
+.shell-root[data-theme="vtm"] .confirm-modal h3,
+.shell-root[data-theme="vtm"] .group-modal h3 {
+  font-family: 'Cormorant Garamond', 'IM Fell English', Georgia, serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 1.4rem;
+  color: var(--vtm-bone);
+  letter-spacing: 0.01em;
+  padding-bottom: 0.5rem;
+  position: relative;
+  margin-bottom: 0.2rem;
+}
+
+.shell-root[data-theme="vtm"] .confirm-modal h3::after {
+  content: '';
+  display: block;
+  width: 36px;
+  height: 22px;
+  margin: 0.5rem auto 0;
+  background-color: var(--vtm-gold);
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><path fill='black' d='M262.97 19.438a221 221 0 0 0-10.595.375c37.426 5.91 74.12 23.423 102.188 49.624c-55.762-26.124-129.46-27.253-186.875-3.5c10.37-9.73 21.777-17.51 33.875-23.343C48.768 80.06-6.44 197.116 56.72 343.938c-16.45-26.78-29.106-55.588-35.626-84.688c-5.23 74.055 32.02 134.952 102.47 197.406q.091.095.186.188c12.107 12.125 24.238 22.045 32.875 27.03c64.588 37.292 121.345-63.365 57.78-100.062c-11.465-6.62-33.518-14.218-56.56-18.875c-76.657-36.295-93.91-155.886-20.282-240.687c-6.654 16.82-11.594 34.836-14.844 53.375c76.21-134.99 312.3-129.124 324.124 72.063c-10.722-61.622-53.708-113.837-121.03-135.344c56.69 23.942 96.28 79.752 96.28 145.25c0 94.252-72.826 148.403-154.594 165.625c42.582 2.34 94.684-13.826 125.438-36.314c-23.357 39.58-72.146 67.082-123.25 81.594c72.736-2.804 136.515-41.146 175.406-97.375c-10.316 11.652-22.718 22.04-36.78 30.97c46.54-55.267 70.795-137.97 61.31-210.25c8.428 16.284 13.583 33.51 15.782 51.374C485.26 97.63 372.46 18.3 262.97 19.437z'/></svg>") center / contain no-repeat;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><path fill='black' d='M262.97 19.438a221 221 0 0 0-10.595.375c37.426 5.91 74.12 23.423 102.188 49.624c-55.762-26.124-129.46-27.253-186.875-3.5c10.37-9.73 21.777-17.51 33.875-23.343C48.768 80.06-6.44 197.116 56.72 343.938c-16.45-26.78-29.106-55.588-35.626-84.688c-5.23 74.055 32.02 134.952 102.47 197.406q.091.095.186.188c12.107 12.125 24.238 22.045 32.875 27.03c64.588 37.292 121.345-63.365 57.78-100.062c-11.465-6.62-33.518-14.218-56.56-18.875c-76.657-36.295-93.91-155.886-20.282-240.687c-6.654 16.82-11.594 34.836-14.844 53.375c76.21-134.99 312.3-129.124 324.124 72.063c-10.722-61.622-53.708-113.837-121.03-135.344c56.69 23.942 96.28 79.752 96.28 145.25c0 94.252-72.826 148.403-154.594 165.625c42.582 2.34 94.684-13.826 125.438-36.314c-23.357 39.58-72.146 67.082-123.25 81.594c72.736-2.804 136.515-41.146 175.406-97.375c-10.316 11.652-22.718 22.04-36.78 30.97c46.54-55.267 70.795-137.97 61.31-210.25c8.428 16.284 13.583 33.51 15.782 51.374C485.26 97.63 372.46 18.3 262.97 19.437z'/></svg>") center / contain no-repeat;
+  filter: drop-shadow(0 0 4px rgba(196, 162, 90, 0.4));
+}
+
+/* Modal corner flourishes */
+.shell-root[data-theme="vtm"] .confirm-modal {
+  overflow: visible;
+}
+
+.shell-root[data-theme="vtm"] .confirm-modal::before {
+  inset: 6px;
+  border: 1px solid var(--vtm-rule);
+}
+
+.shell-root[data-theme="vtm"] .confirm-modal {
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60' width='60' height='60'><g fill='none' stroke='%23c4a25a' stroke-width='0.8' stroke-linecap='round' opacity='0.7'><path d='M2 14 Q4 4 14 2'/><path d='M14 2 Q22 6 22 14'/><path d='M2 22 Q12 22 14 14'/><circle cx='14' cy='14' r='1.5'/></g></svg>"),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60' width='60' height='60'><g fill='none' stroke='%23c4a25a' stroke-width='0.8' stroke-linecap='round' opacity='0.7'><path d='M58 14 Q56 4 46 2'/><path d='M46 2 Q38 6 38 14'/><path d='M58 22 Q48 22 46 14'/><circle cx='46' cy='14' r='1.5'/></g></svg>"),
+    linear-gradient(180deg, var(--vtm-pitch) 0%, var(--vtm-velvet) 100%);
+  background-repeat: no-repeat, no-repeat, no-repeat;
+  background-position: top 4px left 4px, top 4px right 4px, center;
+  background-size: 28px 28px, 28px 28px, auto;
+}
+
+.shell-root[data-theme="vtm"] .group-modal p {
+  color: var(--vtm-parchment);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.shell-root[data-theme="vtm"] .group-modal label {
+  color: var(--vtm-parchment-soft);
+  font-family: 'Special Elite', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="vtm"] .group-modal input,
+.shell-root[data-theme="vtm"] .group-modal select {
+  background: rgba(10, 7, 8, 0.7);
+  border: 1px solid var(--vtm-rule);
+  color: var(--vtm-bone);
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 1rem;
+}
+
+/* Modal action buttons */
+.shell-root[data-theme="vtm"] .group-modal-actions button {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  padding: 0 1rem;
+  height: 2.4rem;
+}
+
+.shell-root[data-theme="vtm"] .group-modal-actions .secondary {
+  background: transparent;
+  color: var(--vtm-parchment-soft);
+  border: 1px solid var(--vtm-rule);
+}
+
+.shell-root[data-theme="vtm"] .group-modal-actions .secondary:hover {
+  background: rgba(122, 26, 31, 0.14);
+  color: var(--vtm-bone);
+  border-color: var(--vtm-rule-strong);
+}
+
+.shell-root[data-theme="vtm"] .group-modal-actions .primary {
+  background: linear-gradient(180deg, var(--vtm-oxblood) 0%, var(--vtm-oxblood-deep) 100%);
+  color: var(--vtm-bone);
+  border: 1px solid var(--vtm-oxblood-bright);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 200, 200, 0.15),
+    0 1px 0 rgba(0,0,0,0.5),
+    0 0 18px rgba(163, 34, 38, 0.25);
+  text-shadow: 0 1px 0 rgba(0,0,0,0.6);
+}
+
+.shell-root[data-theme="vtm"] .group-modal-actions .primary:hover {
+  background: linear-gradient(180deg, var(--vtm-oxblood-bright) 0%, var(--vtm-oxblood) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 200, 200, 0.2),
+    0 1px 0 rgba(0,0,0,0.5),
+    0 0 28px rgba(163, 34, 38, 0.5);
+}
+
+.shell-root[data-theme="vtm"] .group-modal-actions .danger {
+  background: linear-gradient(180deg, #6b1818 0%, #3a0a0c 100%);
+  color: var(--vtm-bone);
+  border: 1px solid #911f23;
+}
+
+.shell-root[data-theme="vtm"] .group-modal-actions .danger:hover {
+  background: linear-gradient(180deg, #911f23 0%, #5a1014 100%);
+}
+
+/* Settings modal-specific */
+.shell-root[data-theme="vtm"] .settings-section h4 {
+  font-family: 'Special Elite', monospace;
+  color: var(--vtm-gold-soft);
+  letter-spacing: 0.18em;
+  font-size: 0.7rem;
+  font-weight: 400;
+}
+
+.shell-root[data-theme="vtm"] .settings-section + .settings-section {
+  border-top: 1px solid var(--vtm-rule);
+}
+
+.shell-root[data-theme="vtm"] .settings-help {
+  color: var(--vtm-parchment-soft);
+  font-style: italic;
+}
+
+.shell-root[data-theme="vtm"] .settings-tab-option {
+  color: var(--vtm-parchment);
+}
+
+.shell-root[data-theme="vtm"] .settings-tab-option input[type="checkbox"] {
+  accent-color: var(--vtm-oxblood-bright);
+}
+
+.shell-root[data-theme="vtm"] .settings-tab-locked {
+  background: rgba(196, 162, 90, 0.12);
+  color: var(--vtm-gold);
+  font-family: 'Special Elite', monospace;
+}
+
+/* Side-meta in active campaign-back chevron context */
+.shell-root[data-theme="vtm"] .side-campaign-back > span {
+  color: var(--vtm-bone);
+}
+
+/* === [data-theme="vtm"] — Contrast pass ============================== */
+/* The base VtM block above paints chrome (nav, modals, headings) but the
+   campaign workspace tabs inherit hundreds of legacy light-theme rules
+   from App.css. The result was two flavors of unreadable text:
+     (a) bone/parchment text laid over surfaces that kept their white
+         backgrounds (e.g. .content-panel #fff, table headers #f5f5f1,
+         tab bars #edf1e9)
+     (b) dark hardcoded text colors (#5c5c55, #4b4b44, #3f3f38, #515761)
+         left visible after we remapped their surface to velvet.
+   This block resolves both, plus nudges the muted tokens up a notch so
+   meta text passes WCAG AA on the void background.                       */
+/* ====================================================================== */
+
+.shell-root[data-theme="vtm"] {
+  /* Was #806a64 (~3.9:1 on void) → bumped for meta text legibility. */
+  --vtm-faint: #ad958c;
+  /* Was #5a4d4a (~2.5:1 on void) → bumped to clear AA for small text. */
+  --vtm-mute:  #83706c;
+}
+
+/* --- Main content shell ---------------------------------------------- */
+/* The tab content panel was painted #fff in the base theme, which left
+   bone-on-white in every campaign tab. Repaint and force inherited ink. */
+.shell-root[data-theme="vtm"] .content-panel,
+.shell-root[data-theme="vtm"] .sidebar-panel,
+.shell-root[data-theme="vtm"] .info-grid {
+  background: var(--vtm-void);
+  color: var(--vtm-bone);
+  border-color: var(--vtm-rule);
+}
+
+/* --- Character sheet / page-tab chrome -------------------------------- */
+.shell-root[data-theme="vtm"] .character-sheet-page-tabs.top,
+.shell-root[data-theme="vtm"] .character-sheet-tab-bar,
+.shell-root[data-theme="vtm"] .character-sheet-tab {
+  background: var(--vtm-velvet);
+  border-color: var(--vtm-rule);
+  color: var(--vtm-parchment);
+}
+
+.shell-root[data-theme="vtm"] .character-sheet-page-tabs.top .character-sheet-tab,
+.shell-root[data-theme="vtm"] .character-sheet-page-tabs.top .character-sheet-tab.active {
+  background: transparent;
+  color: var(--vtm-parchment-soft);
+}
+
+.shell-root[data-theme="vtm"] .character-sheet-tab.active,
+.shell-root[data-theme="vtm"] .character-sheet-page-tabs.top .character-sheet-tab.active {
+  background: linear-gradient(180deg, rgba(122,26,31,0.32), rgba(122,26,31,0.10));
+  color: var(--vtm-bone);
+  border-color: var(--vtm-oxblood-bright);
+  box-shadow: inset 0 0 12px rgba(163, 34, 38, 0.18);
+}
+
+.shell-root[data-theme="vtm"] .character-sheet .monster-section-title {
+  background: linear-gradient(90deg, rgba(122,26,31,0.28), rgba(122,26,31,0.05) 80%);
+  color: var(--vtm-bone);
+}
+
+/* --- Tables: headers, cells, wraps ----------------------------------- */
+.shell-root[data-theme="vtm"] table,
+.shell-root[data-theme="vtm"] .character-weapons-table-wrap,
+.shell-root[data-theme="vtm"] .character-weapons-table {
+  background: var(--vtm-velvet);
+  color: var(--vtm-bone);
+  border-color: var(--vtm-rule);
+}
+
+.shell-root[data-theme="vtm"] th,
+.shell-root[data-theme="vtm"] .character-weapons-table th {
+  background: var(--vtm-crypt);
+  color: var(--vtm-bone);
+  border-color: var(--vtm-rule);
+  font-family: 'Special Elite', 'Cormorant Garamond', monospace;
+  letter-spacing: 0.06em;
+}
+
+.shell-root[data-theme="vtm"] td,
+.shell-root[data-theme="vtm"] .character-weapons-table td {
+  border-color: var(--vtm-rule);
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] tr:nth-child(even) td {
+  background: rgba(26, 15, 18, 0.35);
+}
+
+/* --- Universal text-color rescue inside the workspace section --------
+   Many inline rules set dark text (`color: #4b4b44` etc.) on what is
+   now a dark surface. We can't enumerate every selector, so anything
+   inside the workspace section that doesn't override gets bone text,
+   and the small/italic meta variants drop to parchment-soft.            */
+.shell-root[data-theme="vtm"] section {
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] section p,
+.shell-root[data-theme="vtm"] section li,
+.shell-root[data-theme="vtm"] section label,
+.shell-root[data-theme="vtm"] section span,
+.shell-root[data-theme="vtm"] section td,
+.shell-root[data-theme="vtm"] section th,
+.shell-root[data-theme="vtm"] section dt,
+.shell-root[data-theme="vtm"] section dd {
+  color: inherit;
+}
+
+/* Italic / fine-print meta gets the warm muted tone, not a near-black. */
+.shell-root[data-theme="vtm"] section p[class*="meta"],
+.shell-root[data-theme="vtm"] section [class*="-meta"],
+.shell-root[data-theme="vtm"] section [class*="-hint"],
+.shell-root[data-theme="vtm"] section [class*="-help"],
+.shell-root[data-theme="vtm"] section [class*="-eyebrow"],
+.shell-root[data-theme="vtm"] section [class*="-label"],
+.shell-root[data-theme="vtm"] section [class*="-subtle"] {
+  color: var(--vtm-parchment-soft);
+}
+
+/* Stat-block / small green/grey accents in the OSE sheet ("Roll points",
+   asw head-row p, placeholder-block p) all used near-black greys that
+   vanish on velvet. Force them up to parchment. */
+.shell-root[data-theme="vtm"] .character-asw-head-row p,
+.shell-root[data-theme="vtm"] .character-placeholder-block p,
+.shell-root[data-theme="vtm"] .character-roll-points {
+  color: var(--vtm-parchment-soft);
+}
+
+.shell-root[data-theme="vtm"] .character-roll-points {
+  /* Was a leafy green that read as "ok" — swap for VtM gold to match
+     the rest of the accent system. */
+  color: var(--vtm-gold);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+/* --- Surface remap, second sweep ------------------------------------- */
+/* The base block remapped some -block / -panel / -card / -row classes,
+   but only by border-color. Extend that to backgrounds for the most
+   common opaque-light surfaces so bone text actually has a dark plate
+   to sit on.                                                            */
+.shell-root[data-theme="vtm"] section [class$="-block"],
+.shell-root[data-theme="vtm"] section [class$="-panel"],
+.shell-root[data-theme="vtm"] section [class$="-card"],
+.shell-root[data-theme="vtm"] section [class$="-wrap"],
+.shell-root[data-theme="vtm"] section [class$="-grid"] {
+  background-color: var(--vtm-velvet);
+  color: var(--vtm-bone);
+}
+
+/* Header strips inside the above containers (often #f5f5f1 / #edf1e9). */
+.shell-root[data-theme="vtm"] section [class$="-header"],
+.shell-root[data-theme="vtm"] section [class$="-toolbar"],
+.shell-root[data-theme="vtm"] section [class$="-titlebar"] {
+  background-color: var(--vtm-crypt);
+  color: var(--vtm-bone);
+  border-color: var(--vtm-rule);
+}
+
+/* Buttons inside the workspace that hardcoded dark text on light bg
+   need their dark text overridden too. */
+.shell-root[data-theme="vtm"] section button {
+  color: var(--vtm-parchment);
+}
+
+.shell-root[data-theme="vtm"] section button.active,
+.shell-root[data-theme="vtm"] section button[aria-pressed="true"],
+.shell-root[data-theme="vtm"] section button[data-active="true"] {
+  color: var(--vtm-bone);
+}
+
+/* Links: were inheriting blue from defaults in places. */
+.shell-root[data-theme="vtm"] section a {
+  color: var(--vtm-gold);
+  text-decoration-color: var(--vtm-gold-faint);
+}
+
+.shell-root[data-theme="vtm"] section a:hover {
+  color: var(--vtm-bone);
+  text-decoration-color: var(--vtm-oxblood-bright);
+}
+
+/* The invite/state pills used pastel paper bgs with dark text — invert
+   so the pill reads as oxblood/gold on velvet rather than mint on white. */
+.shell-root[data-theme="vtm"] .invite-state-active {
+  background: rgba(47, 90, 59, 0.18);
+  color: #b3d7bd;
+}
+.shell-root[data-theme="vtm"] .invite-state-redeemed {
+  background: rgba(91, 82, 73, 0.22);
+  color: var(--vtm-parchment-soft);
+}
+.shell-root[data-theme="vtm"] .invite-state-revoked {
+  background: rgba(163, 34, 38, 0.18);
+  color: #e8b7ba;
+}
+.shell-root[data-theme="vtm"] .invite-state-expired {
+  background: rgba(196, 162, 90, 0.16);
+  color: var(--vtm-gold);
+}
+
+/* === [data-theme="vtm"] — Contrast pass II ============================ */
+/* The first pass used `color: inherit` on common element types, but App.css
+   has hundreds of class-scoped color rules (e.g. `.invite-row-meta
+   { color: #515761 }`) with specificity (0,1,0) — they outrank
+   (0,1,1) descendant rules. This pass uses (0,2,1) selectors to win
+   broadly, then restores semantic accents (errors, success, links).      */
+/* ====================================================================== */
+
+/* --- Hard sweep: every descendant of the workspace section gets light
+       ink, unless it's a known accent class restored below.              */
+.shell-root[data-theme="vtm"] section *,
+.shell-root[data-theme="vtm"] section *::before,
+.shell-root[data-theme="vtm"] section *::after {
+  color: var(--vtm-bone);
+}
+
+/* Quieter ink for any element that signals "secondary" / "meta" / "hint"
+   by class name, so the hierarchy doesn't flatten into one shade.        */
+.shell-root[data-theme="vtm"] section [class*="-meta"],
+.shell-root[data-theme="vtm"] section [class*="-hint"],
+.shell-root[data-theme="vtm"] section [class*="-help"],
+.shell-root[data-theme="vtm"] section [class*="-eyebrow"],
+.shell-root[data-theme="vtm"] section [class*="-label"],
+.shell-root[data-theme="vtm"] section [class*="-subtle"],
+.shell-root[data-theme="vtm"] section [class*="-caption"],
+.shell-root[data-theme="vtm"] section [class*="-muted"],
+.shell-root[data-theme="vtm"] section [class*="-note"],
+.shell-root[data-theme="vtm"] section [class*="-aside"] {
+  color: var(--vtm-parchment-soft);
+}
+
+/* --- Semantic accent restoration ------------------------------------- */
+.shell-root[data-theme="vtm"] section .error,
+.shell-root[data-theme="vtm"] section [class*="-error"],
+.shell-root[data-theme="vtm"] section [class*="-danger"],
+.shell-root[data-theme="vtm"] section [class*="-revoked"] {
+  color: #e8b7ba;
+}
+
+.shell-root[data-theme="vtm"] section .success,
+.shell-root[data-theme="vtm"] section [class*="-success"],
+.shell-root[data-theme="vtm"] section [class*="-active-state"],
+.shell-root[data-theme="vtm"] section [class*="-ok"] {
+  color: #b3d7bd;
+}
+
+.shell-root[data-theme="vtm"] section [class*="-warning"],
+.shell-root[data-theme="vtm"] section [class*="-pending"],
+.shell-root[data-theme="vtm"] section [class*="-expired"] {
+  color: var(--vtm-gold);
+}
+
+/* Links stay gold so they read as touchable on velvet. */
+.shell-root[data-theme="vtm"] section a,
+.shell-root[data-theme="vtm"] section a * {
+  color: var(--vtm-gold);
+}
+.shell-root[data-theme="vtm"] section a:hover,
+.shell-root[data-theme="vtm"] section a:hover * {
+  color: var(--vtm-bone);
+}
+
+/* Form controls already had bg/border treatment in the base block; make
+   sure their internal text doesn't get hammered to bone for placeholders. */
+.shell-root[data-theme="vtm"] section input::placeholder,
+.shell-root[data-theme="vtm"] section textarea::placeholder {
+  color: var(--vtm-mute);
+}
+
+/* --- Background sweep ------------------------------------------------- */
+/* Far more class-suffix patterns now get a velvet plate. Anything that
+   carries opaque light bg from App.css and didn't match the earlier
+   `-block / -panel / -card / -wrap / -grid` set is mopped up here.       */
+.shell-root[data-theme="vtm"] section [class*="-list"],
+.shell-root[data-theme="vtm"] section [class*="-row"],
+.shell-root[data-theme="vtm"] section [class*="-item"],
+.shell-root[data-theme="vtm"] section [class*="-cell"],
+.shell-root[data-theme="vtm"] section [class*="-sheet"],
+.shell-root[data-theme="vtm"] section [class*="-content"],
+.shell-root[data-theme="vtm"] section [class*="-body"],
+.shell-root[data-theme="vtm"] section [class*="-summary"],
+.shell-root[data-theme="vtm"] section [class*="-section"],
+.shell-root[data-theme="vtm"] section [class*="-frame"],
+.shell-root[data-theme="vtm"] section [class*="-box"],
+.shell-root[data-theme="vtm"] section [class*="-tile"],
+.shell-root[data-theme="vtm"] section [class*="-tray"],
+.shell-root[data-theme="vtm"] section [class*="-strip"],
+.shell-root[data-theme="vtm"] section [class*="-bar"],
+.shell-root[data-theme="vtm"] section [class*="-pane"],
+.shell-root[data-theme="vtm"] section [class*="-well"] {
+  background-color: var(--vtm-velvet);
+  border-color: var(--vtm-rule);
+}
+
+/* Headers inside the above shouldn't all be the same velvet — give them a
+   one-step-darker plate so they read as section titles. */
+.shell-root[data-theme="vtm"] section [class*="-header"],
+.shell-root[data-theme="vtm"] section [class*="-toolbar"],
+.shell-root[data-theme="vtm"] section [class*="-titlebar"],
+.shell-root[data-theme="vtm"] section thead,
+.shell-root[data-theme="vtm"] section thead * {
+  background-color: var(--vtm-crypt);
+  border-color: var(--vtm-rule);
+}
+
+/* Pills / chips / badges with light pastel backgrounds become translucent
+   oxblood/gold tints so their meaning carries. The earlier invite-state
+   rules cover invites; this generalises.                                 */
+.shell-root[data-theme="vtm"] section [class*="-pill"],
+.shell-root[data-theme="vtm"] section [class*="-chip"],
+.shell-root[data-theme="vtm"] section [class*="-tag"],
+.shell-root[data-theme="vtm"] section [class*="-badge"] {
+  background-color: rgba(122, 26, 31, 0.22);
+  border-color: var(--vtm-rule-strong);
+  color: var(--vtm-bone);
+}
+
+/* Active/selected variants keep the existing oxblood-glow treatment. */
+.shell-root[data-theme="vtm"] section [class*="-item"].active,
+.shell-root[data-theme="vtm"] section [class*="-row"].active,
+.shell-root[data-theme="vtm"] section [class*="-tab"].active,
+.shell-root[data-theme="vtm"] section [class*="-cell"].active {
+  background-color: rgba(122, 26, 31, 0.28);
+  border-color: var(--vtm-oxblood-bright);
+  color: var(--vtm-bone);
+}
+
+/* SVG icons inherited `color` from the hard sweep, so existing icon
+   accents (red poison droplets, green ok ticks) flattened to bone.
+   Re-allow `currentColor` on SVG fills/strokes that opted in via CSS
+   custom properties or attributes — and explicitly keep a few well-known
+   semantic icon classes coloured.                                        */
+.shell-root[data-theme="vtm"] section svg[data-accent="danger"] *,
+.shell-root[data-theme="vtm"] section svg.icon-danger *,
+.shell-root[data-theme="vtm"] section .icon-danger {
+  color: #e8b7ba;
+  stroke: #e8b7ba;
+}
+.shell-root[data-theme="vtm"] section svg[data-accent="success"] *,
+.shell-root[data-theme="vtm"] section svg.icon-success *,
+.shell-root[data-theme="vtm"] section .icon-success {
+  color: #b3d7bd;
+  stroke: #b3d7bd;
+}
+
+/* Solid white surfaces still sneak in via inline `background: #fff` in a
+   handful of components (e.g. content-panel sub-children). Catch the
+   most common explicit-white surface classes by name.                    */
+/* --- Sidebar portrait tiles (Grant, character avatars) ---------------
+   The placeholder tile used `#fafaf8` with a `#696963` glyph — that's a
+   bright cream square stamped onto the velvet card, with a low-contrast
+   glyph on top. Repaint as a recessed crypt panel with a parchment glyph
+   so it reads as "frame waiting for a portrait" instead of a UI bug.    */
+.shell-root[data-theme="vtm"] .monster-card-portrait {
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(196, 162, 90, 0.06), transparent 70%),
+    linear-gradient(180deg, var(--vtm-crypt) 0%, var(--vtm-velvet) 100%);
+  border: 1px solid var(--vtm-rule-strong);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 245, 220, 0.04),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 1px 0 rgba(0, 0, 0, 0.5);
+  position: relative;
+}
+
+/* Tiny gold corner ticks so the tile feels intentional, not flat. */
+.shell-root[data-theme="vtm"] .monster-card-portrait::before,
+.shell-root[data-theme="vtm"] .monster-card-portrait::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--vtm-gold-faint);
+  opacity: 0.7;
+  pointer-events: none;
+}
+.shell-root[data-theme="vtm"] .monster-card-portrait::before {
+  top: 2px;
+  left: 2px;
+  border-right: 0;
+  border-bottom: 0;
+}
+.shell-root[data-theme="vtm"] .monster-card-portrait::after {
+  bottom: 2px;
+  right: 2px;
+  border-left: 0;
+  border-top: 0;
+}
+
+.shell-root[data-theme="vtm"] .monster-portrait-empty {
+  color: var(--vtm-parchment-soft);
+}
+.shell-root[data-theme="vtm"] .monster-portrait-empty svg {
+  color: var(--vtm-gold-soft);
+  opacity: 0.85;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.6));
+}
+
+/* Grant tile (active variant of the list item) gets a warmer gold glow
+   on the portrait so the gift icon reads as the inviting "GM action". */
+.shell-root[data-theme="vtm"] .monster-list-item.active .monster-card-portrait {
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(196, 162, 90, 0.18), transparent 75%),
+    linear-gradient(180deg, var(--vtm-crypt) 0%, var(--vtm-velvet) 100%);
+  border-color: var(--vtm-gold-faint);
+}
+.shell-root[data-theme="vtm"] .monster-list-item.active .monster-portrait-empty svg {
+  color: var(--vtm-gold);
+  opacity: 1;
+}
+
+/* "current" badge was mint pastel — recolor to oxblood pill. */
+.shell-root[data-theme="vtm"] .character-current-badge {
+  background: rgba(122, 26, 31, 0.28);
+  border-color: var(--vtm-oxblood-bright);
+  color: var(--vtm-bone);
+  text-shadow: 0 0 8px rgba(163, 34, 38, 0.5);
+}
+
+/* --- Cool-palette leaks (teal, sky blue, slate, mint) ----------------
+   The base theme keeps blues for accent (--accent #4a90d9), maps grid
+   readouts (#2e5875 / #93c7ef), scene NPC action highlights (#2f5bbf on
+   #e8eefb), token selection box (#3b82f6), and session importer counts
+   (#4a9 teal). All of those break the dark-cathedral palette. Override
+   the variables and the explicit colors with gold / oxblood.            */
+
+.shell-root[data-theme="vtm"] {
+  --accent: var(--vtm-gold);
+  --accent-color: var(--vtm-gold);
+  --hover: rgba(122, 26, 31, 0.18);
+}
+
+.shell-root[data-theme="vtm"] .map-grid-measurement-readout {
+  color: var(--vtm-gold);
+}
+
+.shell-root[data-theme="vtm"] .map-grid-measurement-overlay line {
+  stroke: var(--vtm-gold);
+}
+
+.shell-root[data-theme="vtm"] .map-controls-body.dark .map-grid-measurement-readout {
+  color: var(--vtm-gold);
+}
+
+.shell-root[data-theme="vtm"] .map-tool-guidance {
+  background: rgba(10, 7, 8, 0.54);
+  border-color: var(--vtm-rule-strong);
+  color: var(--vtm-parchment-soft);
+}
+
+.shell-root[data-theme="vtm"] .map-tool-guidance:not(.active) {
+  background: transparent;
+  border-color: transparent;
+}
+
+.shell-root[data-theme="vtm"] .map-tool-guidance.active {
+  background: linear-gradient(180deg, rgba(122, 26, 31, 0.18), rgba(10, 7, 8, 0.45));
+  border-color: var(--vtm-gold-faint);
+}
+
+.shell-root[data-theme="vtm"] .map-tool-guidance-copy strong {
+  color: var(--vtm-gold);
+}
+
+.shell-root[data-theme="vtm"] .map-tool-guidance-copy span {
+  color: var(--vtm-parchment-soft);
+}
+
+.shell-root[data-theme="vtm"] .map-stage {
+  z-index: 101;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-token,
+.shell-root[data-theme="vtm"] .map-stage .map-token:hover,
+.shell-root[data-theme="vtm"] .map-stage .map-token:focus,
+.shell-root[data-theme="vtm"] .map-stage .map-token:focus-visible {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-token svg,
+.shell-root[data-theme="vtm"] .map-stage .map-token svg * {
+  color: currentColor;
+  stroke: currentColor;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-token-name {
+  background: #fff;
+  border-color: #e2e2db;
+  color: #181012;
+  font-size: 0.86rem;
+  line-height: 1.15;
+  padding: 0.1rem 0.34rem;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-player-label-btn,
+.shell-root[data-theme="vtm"] .map-stage .map-player-label-static {
+  background: #f7efc5;
+  color: #3d3320;
+  border: 0;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.14);
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-player-label-btn > span:not(.map-label-pointer-btn):not(.map-label-hide-btn):not(.map-label-hidden-badge),
+.shell-root[data-theme="vtm"] .map-stage .map-player-label-static > span:not(.map-label-pointer-static) {
+  color: #3d3320;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-player-label-btn.active {
+  background: #efe1a0;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-label-pointer-btn,
+.shell-root[data-theme="vtm"] .map-stage .map-label-pointer-btn:hover,
+.shell-root[data-theme="vtm"] .map-stage .map-label-pointer-btn:focus,
+.shell-root[data-theme="vtm"] .map-stage .map-label-pointer-btn:focus-visible {
+  background: transparent;
+  border-top-color: transparent;
+  border-right-color: transparent;
+  border-bottom-color: transparent;
+  border-left-color: transparent;
+  box-shadow: none;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-label-pointer-btn.up,
+.shell-root[data-theme="vtm"] .map-stage .map-label-pointer-static.up {
+  border-bottom-color: #f7efc5;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-label-pointer-btn.down,
+.shell-root[data-theme="vtm"] .map-stage .map-label-pointer-static.down {
+  border-top-color: #f7efc5;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-player-label-btn.active .map-label-pointer-btn.up {
+  border-bottom-color: #efe1a0;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-player-label-btn.active .map-label-pointer-btn.down {
+  border-top-color: #efe1a0;
+}
+
+.shell-root[data-theme="vtm"] .map-stage .map-label-hidden-badge {
+  background: rgba(34, 34, 34, 0.88);
+  border-color: transparent;
+  color: #fff;
+}
+
+.shell-root[data-theme="vtm"] .map-token-selection-box {
+  border: 2px solid #d4484d !important;
+  background: rgba(211, 72, 77, 0.22) !important;
+  box-shadow: 0 0 0 1px rgba(10, 7, 8, 0.55) !important;
+}
+
+.shell-root[data-theme="vtm"] .scene-npc-action.active {
+  color: var(--vtm-bone);
+  background: rgba(122, 26, 31, 0.28);
+  border-color: var(--vtm-oxblood-bright);
+}
+
+.shell-root[data-theme="vtm"] .map-token-placement-panel {
+  border-bottom-color: var(--vtm-rule);
+}
+
+.shell-root[data-theme="vtm"] .map-token-placement-panel .map-placement-active {
+  background:
+    radial-gradient(ellipse at 18% 0%, rgba(196, 162, 90, 0.08), transparent 70%),
+    linear-gradient(180deg, rgba(26, 15, 18, 0.92), rgba(10, 7, 8, 0.92));
+  border-color: var(--vtm-rule-strong);
+  color: var(--vtm-bone);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 245, 220, 0.03),
+    0 0 0 1px rgba(0, 0, 0, 0.28);
+}
+
+.shell-root[data-theme="vtm"] .map-token-placement-panel .map-placement-active span {
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .map-token-placement-panel .map-placement-active-meta {
+  color: var(--vtm-parchment-soft);
+}
+
+.shell-root[data-theme="vtm"] .map-token-placement-panel .map-nonparty-picker input,
+.shell-root[data-theme="vtm"] .map-token-placement-panel .map-nonparty-picker select,
+.shell-root[data-theme="vtm"] .map-token-placement-panel .map-generic-token-name-input,
+.shell-root[data-theme="vtm"] .map-token-placement-panel .token-image-upload-row input[type='text'],
+.shell-root[data-theme="vtm"] .map-token-placement-panel .map-placement-stepper {
+  background: rgba(10, 7, 8, 0.7);
+  border-color: var(--vtm-rule-strong);
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .map-token-placement-panel .map-nonparty-picker input::placeholder,
+.shell-root[data-theme="vtm"] .map-token-placement-panel .map-generic-token-name-input::placeholder,
+.shell-root[data-theme="vtm"] .map-token-placement-panel .token-image-upload-row input[type='text']::placeholder {
+  color: var(--vtm-mute);
+}
+
+.shell-root[data-theme="vtm"] .map-token-placement-panel .map-placement-stepper input {
+  background: rgba(10, 7, 8, 0.9);
+  border-left-color: var(--vtm-rule-strong);
+  border-right-color: var(--vtm-rule-strong);
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .map-token-placement-panel .map-placement-stepper button,
+.shell-root[data-theme="vtm"] .map-token-placement-panel .map-placement-source-name {
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .map-token-placement-panel .map-placement-asset-tools {
+  border-top-color: var(--vtm-rule);
+}
+
+.shell-root[data-theme="vtm"] .map-token-placement-panel .map-placement-asset-tools summary {
+  color: var(--vtm-parchment-soft);
+}
+
+.shell-root[data-theme="vtm"] .map-controls-body .map-icon-btn.active,
+.shell-root[data-theme="vtm"] .map-run-shell > .map-tools-panel .map-icon-btn.active {
+  background: linear-gradient(180deg, rgba(163, 34, 38, 0.58), rgba(122, 26, 31, 0.24));
+  border-color: var(--vtm-oxblood-bright);
+  color: var(--vtm-bone);
+  box-shadow:
+    inset 0 0 10px rgba(163, 34, 38, 0.35),
+    0 0 0 1px rgba(196, 162, 90, 0.18),
+    0 0 12px rgba(163, 34, 38, 0.32);
+}
+
+.shell-root[data-theme="vtm"] .map-controls-body .map-icon-btn.active:hover,
+.shell-root[data-theme="vtm"] .map-run-shell > .map-tools-panel .map-icon-btn.active:hover {
+  background: linear-gradient(180deg, rgba(191, 47, 52, 0.68), rgba(122, 26, 31, 0.32));
+  border-color: var(--vtm-gold);
+}
+
+.shell-root[data-theme="vtm"] .session-importer-match-count,
+.shell-root[data-theme="vtm"] [class*="session-importer"] {
+  color: var(--vtm-gold);
+}
+
+.shell-root[data-theme="vtm"] .table-roll-next-btn,
+.shell-root[data-theme="vtm"] [class*="table-roll"] {
+  border-color: var(--vtm-gold-faint);
+  color: var(--vtm-gold);
+}
+
+/* --- Pastel/mint backgrounds and OK/active green leaks ---------------
+   Anything that read as "saved / current / available" via mint pastels
+   (e.g. #d9e8d2, #c9d8c1, #e8f3eb, #eef5ec) was carried by class names
+   like *-active, *-current, *-saved, *-online, *-available. Repaint to
+   a translucent oxblood plate so the meaning persists in-theme.          */
+.shell-root[data-theme="vtm"] section [class*="-saved"],
+.shell-root[data-theme="vtm"] section [class*="-current"],
+.shell-root[data-theme="vtm"] section [class*="-online"],
+.shell-root[data-theme="vtm"] section [class*="-available"] {
+  background-color: rgba(122, 26, 31, 0.22);
+  border-color: var(--vtm-oxblood-bright);
+  color: var(--vtm-bone);
+}
+
+/* Generic "leafy green" accent (#5f8a56, #2f5a2b, #2f6a30 etc.) used
+   for headings, points, accent-color radios → gold. */
+.shell-root[data-theme="vtm"] .account-username,
+.shell-root[data-theme="vtm"] section [style*="color: #5f8a56"],
+.shell-root[data-theme="vtm"] section [style*="color: rgb(95, 138, 86)"] {
+  color: var(--vtm-gold);
+}
+
+.shell-root[data-theme="vtm"] input[type="checkbox"],
+.shell-root[data-theme="vtm"] input[type="radio"],
+.shell-root[data-theme="vtm"] input[type="range"],
+.shell-root[data-theme="vtm"] progress,
+.shell-root[data-theme="vtm"] meter {
+  accent-color: var(--vtm-oxblood-bright);
+}
+
+/* Native range slider (font size, view distance, etc.) — accent-color
+   colours the track and thumb on modern browsers; fall back to vendor
+   pseudo-elements so the WebKit blue never shows. */
+.shell-root[data-theme="vtm"] input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: linear-gradient(90deg, var(--vtm-oxblood) 0%, var(--vtm-oxblood-deep) 100%);
+  border-radius: 2px;
+  outline: none;
+}
+.shell-root[data-theme="vtm"] input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: linear-gradient(90deg, var(--vtm-oxblood) 0%, var(--vtm-oxblood-deep) 100%);
+  border-radius: 2px;
+}
+.shell-root[data-theme="vtm"] input[type="range"]::-moz-range-track {
+  height: 4px;
+  background: linear-gradient(90deg, var(--vtm-oxblood) 0%, var(--vtm-oxblood-deep) 100%);
+  border-radius: 2px;
+}
+.shell-root[data-theme="vtm"] input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border-radius: 999px;
+  background: var(--vtm-bone);
+  border: 1px solid var(--vtm-oxblood-bright);
+  box-shadow: 0 0 8px rgba(163, 34, 38, 0.55);
+  cursor: pointer;
+}
+.shell-root[data-theme="vtm"] input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--vtm-bone);
+  border: 1px solid var(--vtm-oxblood-bright);
+  box-shadow: 0 0 8px rgba(163, 34, 38, 0.55);
+  cursor: pointer;
+}
+
+/* Group-count circle ("PARTY  ●") — was #ecece6 on dark. Make it a
+   small parchment-on-velvet wax-seal disc. */
+.shell-root[data-theme="vtm"] .token-group-count {
+  background: rgba(122, 26, 31, 0.32);
+  color: var(--vtm-bone);
+  border: 1px solid var(--vtm-oxblood-bright);
+  box-shadow: 0 0 8px rgba(163, 34, 38, 0.25);
+  font-family: 'Special Elite', monospace;
+  letter-spacing: 0.04em;
+}
+
+.shell-root[data-theme="vtm"] .token-group-delete {
+  background: transparent;
+  border: 0;
+  color: #e8b7ba;
+}
+
+.shell-root[data-theme="vtm"] .token-group-delete:hover:not(:disabled) {
+  background: rgba(163, 34, 38, 0.18);
+}
+
+.shell-root[data-theme="vtm"] .token-group-delete:disabled {
+  color: var(--vtm-mute);
+}
+
+.shell-root[data-theme="vtm"] .token-group-collapse-btn {
+  background: rgba(26, 15, 18, 0.55);
+  border-color: var(--vtm-rule-strong);
+  color: var(--vtm-parchment);
+}
+
+.shell-root[data-theme="vtm"] .token-group-collapse-btn:hover:not(:disabled) {
+  border-color: var(--vtm-oxblood-bright);
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .token-global-controls {
+  border-color: var(--vtm-rule-strong);
+  background: rgba(10, 7, 8, 0.35);
+}
+
+.shell-root[data-theme="vtm"] .token-global-controls input[type='color'] {
+  border-color: var(--vtm-rule-strong);
+}
+
+.shell-root[data-theme="vtm"] .token-global-controls-title,
+.shell-root[data-theme="vtm"] .token-global-count {
+  color: var(--vtm-gold);
+}
+
+.shell-root[data-theme="vtm"] .token-global-count {
+  min-width: auto;
+  height: auto;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  font-family: 'Special Elite', monospace;
+  font-size: 0.82rem;
+}
+
+.shell-root[data-theme="vtm"] .token-cards-title {
+  font-size: 0.94rem;
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .token-group-title {
+  font-size: 0.86rem;
+  color: var(--vtm-parchment);
+}
+
+.shell-root[data-theme="vtm"] .token-group-make-group {
+  background: transparent;
+  color: var(--vtm-parchment);
+}
+
+.shell-root[data-theme="vtm"] .token-group-make-group:hover {
+  background: rgba(163, 34, 38, 0.18);
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .token-subgroup {
+  border-left-color: var(--vtm-rule-strong);
+}
+
+.shell-root[data-theme="vtm"] .token-subgroup-title {
+  color: var(--vtm-gold);
+}
+
+.shell-root[data-theme="vtm"] .token-subgroup-count {
+  background: rgba(122, 26, 31, 0.32);
+  color: var(--vtm-bone);
+  border: 1px solid var(--vtm-oxblood-bright);
+  font-family: 'Special Elite', monospace;
+}
+
+.shell-root[data-theme="vtm"] .token-subgroup-collapse {
+  background: rgba(26, 15, 18, 0.55);
+  border-color: var(--vtm-rule-strong);
+  color: var(--vtm-parchment);
+}
+
+.shell-root[data-theme="vtm"] .token-subgroup-collapse:hover {
+  border-color: var(--vtm-oxblood-bright);
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .token-subgroup-ungroup {
+  color: #e8b7ba;
+}
+
+.shell-root[data-theme="vtm"] .token-subgroup-ungroup:hover {
+  background: rgba(163, 34, 38, 0.18);
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .token-make-group-subtitle {
+  color: var(--vtm-mute);
+}
+
+/* Token toggle buttons (person / tag / hidden eye row). The "active"
+   state was a mint pastel; recolor to oxblood. */
+.shell-root[data-theme="vtm"] .token-toggle-btn.map-icon-btn {
+  background: rgba(26, 15, 18, 0.6);
+  border-color: var(--vtm-rule-strong);
+  color: var(--vtm-parchment);
+}
+.shell-root[data-theme="vtm"] .token-toggle-btn.map-icon-btn:hover {
+  background: rgba(46, 28, 32, 0.85);
+  border-color: var(--vtm-gold-faint);
+  color: var(--vtm-bone);
+}
+.shell-root[data-theme="vtm"] .token-toggle-btn.map-icon-btn.active {
+  background: linear-gradient(180deg, rgba(163, 34, 38, 0.32) 0%, rgba(122, 26, 31, 0.12) 100%);
+  border-color: var(--vtm-oxblood-bright);
+  color: var(--vtm-bone);
+  box-shadow: inset 0 0 10px rgba(163, 34, 38, 0.25), 0 0 6px rgba(163, 34, 38, 0.25);
+}
+
+/* Token-row selected state (dark map controls already had a dark theme;
+   bring it into VtM palette explicitly). */
+.shell-root[data-theme="vtm"] .token-row {
+  background: rgba(26, 15, 18, 0.55);
+  border-color: var(--vtm-rule);
+}
+
+.shell-root[data-theme="vtm"] .token-row-label-input {
+  font-size: 0.94rem;
+  line-height: 1.25;
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .token-row-label-input::placeholder {
+  color: var(--vtm-mute);
+}
+
+.shell-root[data-theme="vtm"] .token-row.selected,
+.shell-root[data-theme="vtm"] .map-controls-body.dark .token-row.selected {
+  background: linear-gradient(180deg, rgba(122,26,31,0.28), rgba(122,26,31,0.10));
+  border-color: var(--vtm-oxblood-bright);
+}
+
+/* View-distance icon and value were a dim grey from the light theme. */
+.shell-root[data-theme="vtm"] .token-view-distance-icon,
+.shell-root[data-theme="vtm"] .token-view-distance-value {
+  color: var(--vtm-parchment);
+}
+
+.shell-root[data-theme="vtm"] .token-view-distance-value {
+  font-size: 0.86rem;
+}
+
+/* --- Rich-text editor (NPC player/GM notes) -------------------------- */
+/* The contenteditable was a #fff plate with bone-on-white placeholder
+   text — the cause of the "silver bar" look in the NPC editor.          */
+.shell-root[data-theme="vtm"] .npc-richtext-editor,
+.shell-root[data-theme="vtm"] .npc-richtext-preview {
+  background: rgba(10, 7, 8, 0.7);
+  border: 1px solid var(--vtm-rule);
+  color: var(--vtm-bone);
+  border-radius: 2px;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.shell-root[data-theme="vtm"] .npc-richtext-editor:empty::before {
+  color: var(--vtm-mute);
+  font-style: italic;
+}
+
+.shell-root[data-theme="vtm"] .npc-richtext-editor:focus {
+  outline: none;
+  border-color: var(--vtm-gold-soft);
+  box-shadow:
+    0 0 0 1px rgba(196, 162, 90, 0.2),
+    0 0 22px rgba(122, 26, 31, 0.22);
+}
+
+/* Editor toolbar (B / I / list) — match the rest of the chrome. */
+.shell-root[data-theme="vtm"] .npc-notes-toolbar .map-edit-btn {
+  background: rgba(26, 15, 18, 0.7);
+  border: 1px solid var(--vtm-rule-strong);
+  color: var(--vtm-parchment);
+  border-radius: 2px;
+}
+.shell-root[data-theme="vtm"] .npc-notes-toolbar .map-edit-btn:hover {
+  background: rgba(46, 28, 32, 0.9);
+  border-color: var(--vtm-gold-faint);
+  color: var(--vtm-bone);
+}
+
+/* Selection highlight (text-select). */
+.shell-root[data-theme="vtm"] ::selection {
+  background: rgba(163, 34, 38, 0.55);
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .character-weapons-table-wrap,
+.shell-root[data-theme="vtm"] .character-summary-grid,
+.shell-root[data-theme="vtm"] .character-placeholder-block,
+.shell-root[data-theme="vtm"] .npc-block,
+.shell-root[data-theme="vtm"] .table-block,
+.shell-root[data-theme="vtm"] .notes-block,
+.shell-root[data-theme="vtm"] .calendar-block,
+.shell-root[data-theme="vtm"] .session-block,
+.shell-root[data-theme="vtm"] .map-toolbar,
+.shell-root[data-theme="vtm"] .map-controls-body,
+.shell-root[data-theme="vtm"] .monster-list-item,
+.shell-root[data-theme="vtm"] .character-list-item-wrap,
+.shell-root[data-theme="vtm"] .item-card,
+.shell-root[data-theme="vtm"] .sidebar-panel {
+  background-color: var(--vtm-velvet);
+  color: var(--vtm-bone);
+}
+
+/* ====================================================================== */
+/* === VtM character sheet — Slice 13 polish pass ======================= */
+/* Scoped to the VtM theme + the .vtm-sheet/.vtm-character-tab surfaces so  */
+/* it never touches the OSE sheet. Builds on the "Final Nights" language.   */
+/* ====================================================================== */
+
+/* The VtM tab reuses OSE's proven two-pane layout (maps-layout /
+   monsters-layout / characters-layout) for the sidebar + detail shell, so no
+   layout rules belong here — only the VtM create-controls cluster + the
+   inline "Grant XP" shortcut on the experience panel. */
+.shell-root[data-theme="vtm"] .vtm-create-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.shell-root[data-theme="vtm"] .vtm-create-controls select {
+  font-size: 0.74rem;
+  padding: 0.2rem 0.35rem;
+}
+.shell-root[data-theme="vtm"] .vtm-xp-summary .vtm-grant-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  padding: 0.45rem 0.8rem;
+  background: linear-gradient(180deg, rgba(122, 26, 31, 0.22), rgba(122, 26, 31, 0.06));
+  border: 1px solid var(--vtm-gold-faint);
+  color: var(--vtm-parchment);
+}
+
+/* --- The sheet surface: framed parchment-on-velvet ------------------- */
+.shell-root[data-theme="vtm"] .vtm-sheet {
+  min-width: 0;
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(36, 20, 25, 0.55), rgba(17, 11, 13, 0.35)),
+    var(--vtm-pitch);
+  border: 1px solid var(--vtm-rule-strong);
+  padding: 1.6rem 1.75rem 2rem;
+  box-shadow: inset 0 0 0 1px rgba(196, 162, 90, 0.05), 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+/* inner hairline frame echoing the modal treatment */
+.shell-root[data-theme="vtm"] .vtm-sheet::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1px solid var(--vtm-rule);
+  pointer-events: none;
+}
+
+.shell-root[data-theme="vtm"] .vtm-sheet .character-sheet-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .character-sheet-header h2 {
+  font-family: 'UnifrakturCook', 'IM Fell English', Georgia, serif;
+  font-style: normal;
+  font-size: 2.1rem;
+  line-height: 1;
+  border-bottom: none !important;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8), 0 0 24px rgba(122, 26, 31, 0.35);
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .character-sheet-header h2::after { display: none; }
+
+/* --- Section titles as centered ornamental rules --------------------- */
+.shell-root[data-theme="vtm"] .vtm-rule-title {
+  text-align: center;
+  font-family: 'Cormorant Garamond', 'IM Fell English', Georgia, serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 1.45rem;
+  letter-spacing: 0.06em;
+  color: var(--vtm-bone);
+  margin: 1.9rem 0 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  white-space: nowrap;
+}
+.shell-root[data-theme="vtm"] .vtm-rule-title::before,
+.shell-root[data-theme="vtm"] .vtm-rule-title::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--vtm-rule-strong) 30%, var(--vtm-gold-faint));
+}
+.shell-root[data-theme="vtm"] .vtm-rule-title::after {
+  background: linear-gradient(270deg, transparent, var(--vtm-rule-strong) 30%, var(--vtm-gold-faint));
+}
+
+/* --- The signature dot widget ---------------------------------------- */
+.shell-root[data-theme="vtm"] .dot-rating {
+  display: inline-flex;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+.shell-root[data-theme="vtm"] .dot-rating-dot {
+  width: 14px;
+  height: 14px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--vtm-gold-soft);
+  background:
+    radial-gradient(circle at 34% 30%, rgba(255, 245, 220, 0.14), transparent 55%),
+    radial-gradient(circle at 50% 50%, #140b0d, #0a0708);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.shell-root[data-theme="vtm"] .dot-rating-dot.active {
+  border-color: var(--vtm-gold);
+  background:
+    radial-gradient(circle at 35% 28%, #e58a4a 0%, var(--vtm-oxblood-bright) 42%, var(--vtm-oxblood-deep) 100%);
+  box-shadow: 0 0 7px rgba(163, 34, 38, 0.55), inset 0 1px 1px rgba(255, 220, 180, 0.4);
+}
+.shell-root[data-theme="vtm"] .dot-rating-dot:not(:disabled):hover {
+  transform: scale(1.18);
+  border-color: var(--vtm-gold);
+  box-shadow: 0 0 8px rgba(196, 162, 90, 0.5);
+}
+.shell-root[data-theme="vtm"] .dot-rating-dot:disabled { cursor: default; }
+/* locked sheet (active, not spending): dim the whole widget so it reads as read-only */
+.shell-root[data-theme="vtm"] .dot-rating-dot:disabled:not(.active) { opacity: 0.55; }
+
+/* --- Trait columns + dotted-leader rows ------------------------------ */
+.shell-root[data-theme="vtm"] .vtm-trait-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem 1.75rem;
+  margin-bottom: 0.5rem;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-col {
+  background: transparent !important;
+  border: none !important;
+  padding: 0;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-col-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+  border-bottom: 1px solid var(--vtm-rule-strong);
+  padding-bottom: 0.3rem;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-col-head h4 {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-variant: small-caps;
+  letter-spacing: 0.12em;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--vtm-gold);
+  margin: 0;
+  flex: 1 1 auto;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-col-head select {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.3rem;
+  opacity: 0.75;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-col .character-ability-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  background: transparent !important;
+  border: none !important;
+  padding: 0.16rem 0;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-name {
+  flex: 1 1 auto;
+  font-size: 0.98rem;
+  color: var(--vtm-parchment);
+  border-bottom: 1px dotted var(--vtm-mute);
+  padding-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* --- Pool / freebie chips -------------------------------------------- */
+.shell-root[data-theme="vtm"] .vtm-pool-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--vtm-gold-faint);
+  background: rgba(196, 162, 90, 0.08);
+  color: var(--vtm-gold);
+  font-family: 'Special Elite', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+}
+.shell-root[data-theme="vtm"] .vtm-pool-chip.wide { min-width: auto; }
+.shell-root[data-theme="vtm"] .vtm-pool-chip.over {
+  border-color: var(--vtm-oxblood-bright);
+  background: rgba(163, 34, 38, 0.18);
+  color: #e8908f;
+}
+
+/* --- Creation / chronicle bar ---------------------------------------- */
+.shell-root[data-theme="vtm"] .vtm-creation .vtm-creation-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+.shell-root[data-theme="vtm"] .vtm-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  color: var(--vtm-parchment);
+}
+.shell-root[data-theme="vtm"] .vtm-toggle-xp {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--vtm-gold-faint);
+  background: rgba(196, 162, 90, 0.06);
+  color: var(--vtm-gold);
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+}
+.shell-root[data-theme="vtm"] .vtm-finalize {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.74rem;
+  padding: 0.5rem 1.1rem;
+  background: linear-gradient(180deg, rgba(163, 34, 38, 0.4), rgba(122, 26, 31, 0.18)) !important;
+  border: 1px solid var(--vtm-oxblood-bright) !important;
+  color: var(--vtm-bone) !important;
+}
+.shell-root[data-theme="vtm"] .vtm-finalize:hover { box-shadow: 0 0 16px rgba(163, 34, 38, 0.4); }
+.shell-root[data-theme="vtm"] .vtm-feedback {
+  font-style: italic;
+  color: var(--vtm-gold) !important;
+  margin-top: 0.5rem;
+}
+
+/* --- Virtues + derived ribbon ---------------------------------------- */
+.shell-root[data-theme="vtm"] .vtm-virtues {
+  max-width: 22rem;
+  background: transparent !important;
+  border: none !important;
+}
+.shell-root[data-theme="vtm"] .vtm-derived {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-top: 0.9rem;
+  padding: 0.7rem 1rem;
+  border-top: 1px solid var(--vtm-rule);
+  border-bottom: 1px solid var(--vtm-rule);
+}
+.shell-root[data-theme="vtm"] .vtm-derived span {
+  font-family: 'Special Elite', monospace;
+  font-size: 1.05rem;
+  color: var(--vtm-bone);
+}
+.shell-root[data-theme="vtm"] .vtm-derived em {
+  display: block;
+  font-style: normal;
+  font-family: 'Cormorant Garamond', serif;
+  font-variant: small-caps;
+  letter-spacing: 0.1em;
+  font-size: 0.72rem;
+  color: var(--vtm-gold-soft);
+}
+
+/* --- Trackers --------------------------------------------------------- */
+.shell-root[data-theme="vtm"] .vtm-trackers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.25rem;
+  background: transparent !important;
+  border: none !important;
+}
+.shell-root[data-theme="vtm"] .vtm-trackers > div { min-width: 0; }
+.shell-root[data-theme="vtm"] .vtm-trackers h4 {
+  font-variant: small-caps;
+  letter-spacing: 0.12em;
+  color: var(--vtm-gold);
+  border-bottom: 1px solid var(--vtm-rule-strong);
+  padding-bottom: 0.3rem;
+  margin: 0 0 0.6rem;
+}
+.shell-root[data-theme="vtm"] .vtm-tracker-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  border-bottom: 1px solid var(--vtm-rule-strong);
+  margin: 0 0 0.6rem;
+  padding-bottom: 0.3rem;
+}
+.shell-root[data-theme="vtm"] .vtm-tracker-head h4 {
+  flex: 1 1 auto;
+  border-bottom: 0;
+  margin: 0;
+  padding-bottom: 0;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-pill {
+  min-height: 0;
+  padding: 0.12rem 0.48rem;
+  border-radius: 999px;
+  border: 1px solid var(--vtm-gold-soft);
+  background: rgba(196, 162, 90, 0.08);
+  color: var(--vtm-gold);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+.shell-root[data-theme="vtm"] .vtm-tracker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.18rem 0;
+}
+.shell-root[data-theme="vtm"] .vtm-tracker-row.stacked {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.shell-root[data-theme="vtm"] .vtm-tracker-row > span {
+  flex: 1 1 auto;
+  color: var(--vtm-parchment);
+  font-size: 0.92rem;
+}
+.shell-root[data-theme="vtm"] .vtm-tracker-row > span em {
+  display: inline-block;
+  margin-left: 0.45rem;
+  color: var(--vtm-gold-soft);
+  font-style: normal;
+  font-size: 0.8rem;
+}
+.shell-root[data-theme="vtm"] .vtm-capped-tracker {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 5px;
+  padding-top: 8px;
+}
+.shell-root[data-theme="vtm"] .vtm-capped-dot {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--vtm-gold-soft);
+  background:
+    radial-gradient(circle at 34% 30%, rgba(255, 245, 220, 0.14), transparent 55%),
+    radial-gradient(circle at 50% 50%, #140b0d, #0a0708);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+  opacity: 0.42;
+  transition: opacity 0.12s ease, transform 0.12s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.shell-root[data-theme="vtm"] .vtm-capped-dot.within-cap {
+  opacity: 1;
+}
+.shell-root[data-theme="vtm"] .vtm-capped-dot.current {
+  border-color: var(--vtm-gold);
+  background:
+    radial-gradient(circle at 35% 28%, #e58a4a 0%, var(--vtm-oxblood-bright) 42%, var(--vtm-oxblood-deep) 100%);
+  box-shadow: 0 0 7px rgba(163, 34, 38, 0.55), inset 0 1px 1px rgba(255, 220, 180, 0.4);
+}
+.shell-root[data-theme="vtm"] .vtm-capped-dot.cap::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 2px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--vtm-gold);
+  box-shadow: 0 0 5px rgba(196, 162, 90, 0.65);
+  transform: translateX(-50%);
+}
+.shell-root[data-theme="vtm"] .vtm-capped-dot:not(:disabled):hover {
+  transform: scale(1.14);
+  border-color: var(--vtm-gold);
+  box-shadow: 0 0 8px rgba(196, 162, 90, 0.45);
+}
+.shell-root[data-theme="vtm"] .vtm-capped-dot:disabled { cursor: default; }
+.shell-root[data-theme="vtm"] .vtm-health-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.12rem 0;
+  border: none !important;
+  background: transparent !important;
+}
+.shell-root[data-theme="vtm"] .vtm-health-level { flex: 1 1 auto; color: var(--vtm-parchment); }
+.shell-root[data-theme="vtm"] .vtm-health-penalty {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.8rem;
+  color: var(--vtm-oxblood-bright);
+  min-width: 2rem;
+  text-align: right;
+}
+
+/* --- Grant builder ---------------------------------------------------- */
+.shell-root[data-theme="vtm"] .vtm-grant-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+.shell-root[data-theme="vtm"] .vtm-grant-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.shell-root[data-theme="vtm"] .vtm-grant-field span {
+  font-variant: small-caps;
+  letter-spacing: 0.1em;
+  font-size: 0.72rem;
+  color: var(--vtm-gold-soft);
+}
+.shell-root[data-theme="vtm"] .vtm-grant-field input { width: 7rem; }
+.shell-root[data-theme="vtm"] .vtm-grant-note input { width: 14rem; max-width: 100%; }
+.shell-root[data-theme="vtm"] .vtm-grant-targets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+.shell-root[data-theme="vtm"] .vtm-grant-target {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--vtm-rule);
+  background: rgba(10, 7, 8, 0.4);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.shell-root[data-theme="vtm"] .vtm-grant-target:hover { border-color: var(--vtm-gold-faint); }
+.shell-root[data-theme="vtm"] .vtm-grant-target.checked {
+  border-color: var(--vtm-oxblood-bright);
+  background: linear-gradient(180deg, rgba(122, 26, 31, 0.22), rgba(122, 26, 31, 0.06));
+}
+.shell-root[data-theme="vtm"] .vtm-grant-target-name { color: var(--vtm-bone); font-size: 1.02rem; }
+.shell-root[data-theme="vtm"] .vtm-grant-target-clan { color: var(--vtm-faint); font-style: italic; font-size: 0.85rem; }
+.shell-root[data-theme="vtm"] .vtm-grant-target-xp {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.82rem;
+  color: var(--vtm-gold);
+}
+.shell-root[data-theme="vtm"] .vtm-grant-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* --- Experience summary + ledger ------------------------------------- */
+.shell-root[data-theme="vtm"] .vtm-xp-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.shell-root[data-theme="vtm"] .vtm-xp-balance {
+  font-family: 'UnifrakturCook', Georgia, serif;
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--vtm-gold);
+  text-shadow: 0 0 18px rgba(196, 162, 90, 0.3);
+}
+.shell-root[data-theme="vtm"] .vtm-xp-balance-label {
+  font-variant: small-caps;
+  letter-spacing: 0.12em;
+  color: var(--vtm-faint);
+  flex: 1 1 auto;
+}
+.shell-root[data-theme="vtm"] .vtm-ledger { display: flex; flex-direction: column; gap: 0.25rem; }
+.shell-root[data-theme="vtm"] .vtm-ledger-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  padding: 0.35rem 0.7rem;
+  border-left: 2px solid var(--vtm-rule-strong);
+  background: rgba(10, 7, 8, 0.35);
+}
+.shell-root[data-theme="vtm"] .vtm-ledger-row.award { border-left-color: var(--vtm-gold-soft); }
+.shell-root[data-theme="vtm"] .vtm-ledger-row.spend { border-left-color: var(--vtm-oxblood-bright); }
+.shell-root[data-theme="vtm"] .vtm-ledger-amount {
+  font-family: 'Special Elite', monospace;
+  min-width: 2.5rem;
+  color: var(--vtm-bone);
+}
+.shell-root[data-theme="vtm"] .vtm-ledger-row.spend .vtm-ledger-amount { color: #e8908f; }
+.shell-root[data-theme="vtm"] .vtm-ledger-row.award .vtm-ledger-amount { color: var(--vtm-gold); }
+.shell-root[data-theme="vtm"] .vtm-ledger-note { color: var(--vtm-parchment); font-style: italic; }
+
+/* --- Identity summary grid tidy -------------------------------------- */
+.shell-root[data-theme="vtm"] .vtm-sheet .character-summary-grid {
+  background: transparent !important;
+  border: none !important;
+  padding: 0;
+  align-items: start; /* stop fields stretching to the tall portrait row */
+}
+/* portrait/token editor: own row at top-left, constrained to a sane width
+   (the portrait frame is width:100% × 3:4, so an unbounded column made it huge) */
+.shell-root[data-theme="vtm"] .vtm-sheet .character-summary-grid > .monster-media-column {
+  grid-column: 1 / -1;
+  width: 170px;
+  justify-self: start;
+}
+/* each field: small-caps label stacked above a normal-height control */
+.shell-root[data-theme="vtm"] .vtm-sheet .character-summary-grid > label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  color: var(--vtm-gold-soft);
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .character-summary-grid > label input,
+.shell-root[data-theme="vtm"] .vtm-sheet .character-summary-grid > label select {
+  width: 100%;
+  height: auto;
+  font-variant: normal;
+  letter-spacing: normal;
+  font-size: 1rem;
+  color: var(--vtm-bone);
+  padding: 0.4rem 0.55rem;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .character-summary-grid > label textarea {
+  width: 100%;
+  min-height: 3.5rem;
+  resize: vertical;
+  font-variant: normal;
+  letter-spacing: normal;
+  font-size: 0.95rem;
+  color: var(--vtm-bone);
+  padding: 0.4rem 0.55rem;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .character-wide-field {
+  grid-column: 1 / -1;
+}
+
+/* --- Rated rows (Disciplines / Backgrounds / Other Traits) ----------- */
+.shell-root[data-theme="vtm"] .vtm-rated {
+  background: transparent !important;
+  border: none !important;
+  padding: 0;
+  margin-bottom: 1.1rem;
+}
+.shell-root[data-theme="vtm"] .vtm-rated-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--vtm-rule-strong);
+  padding-bottom: 0.3rem;
+}
+.shell-root[data-theme="vtm"] .vtm-rated-head h4 {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-variant: small-caps;
+  letter-spacing: 0.12em;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--vtm-gold);
+  margin: 0;
+}
+.shell-root[data-theme="vtm"] .vtm-rated-add {
+  margin-left: auto;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.3rem 0.6rem;
+}
+.shell-root[data-theme="vtm"] .vtm-rated-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  background: transparent !important;
+  border: none !important;
+}
+.shell-root[data-theme="vtm"] .vtm-rated-row select { flex: 0 0 11rem; }
+.shell-root[data-theme="vtm"] .vtm-rated-row input { flex: 1 1 auto; min-width: 0; }
+.shell-root[data-theme="vtm"] .vtm-rated-row .dot-rating { margin-left: auto; }
+.shell-root[data-theme="vtm"] .vtm-rated-delete {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.4rem;
+  min-width: 0;
+}
+
+/* --- Segmented Primary/Secondary/Tertiary priority picker ------------- */
+.shell-root[data-theme="vtm"] .vtm-priority {
+  display: inline-flex;
+  border: 1px solid var(--vtm-rule-strong);
+  border-radius: 2px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.shell-root[data-theme="vtm"] .vtm-priority button {
+  min-width: 0;
+  padding: 0.1rem 0.45rem;
+  font-family: 'Special Elite', monospace;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  background: rgba(10, 7, 8, 0.5) !important;
+  color: var(--vtm-faint) !important;
+  border: none !important;
+  border-right: 1px solid var(--vtm-rule) !important;
+  border-radius: 0 !important;
+}
+.shell-root[data-theme="vtm"] .vtm-priority button:last-child { border-right: none !important; }
+.shell-root[data-theme="vtm"] .vtm-priority button:hover:not(:disabled) {
+  color: var(--vtm-bone) !important;
+  background: rgba(46, 28, 32, 0.7) !important;
+}
+.shell-root[data-theme="vtm"] .vtm-priority button.active {
+  background: linear-gradient(180deg, rgba(163, 34, 38, 0.55), rgba(122, 26, 31, 0.3)) !important;
+  color: var(--vtm-bone) !important;
+  box-shadow: inset 0 0 8px rgba(163, 34, 38, 0.4);
+}
+
+/* --- Identity: portrait beside a two-column field grid --------------- */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity {
+  display: flex !important;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity > .monster-media-column {
+  flex: 0 0 170px;
+  width: 170px;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity-fields {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem 0.9rem;
+  align-items: start;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity-fields > label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  color: var(--vtm-gold-soft);
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity-fields > label input,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity-fields > label select {
+  width: 100%;
+  font-variant: normal;
+  letter-spacing: normal;
+  font-size: 1rem;
+  color: var(--vtm-bone);
+  padding: 0.4rem 0.55rem;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity-fields > label textarea {
+  width: 100%;
+  min-height: 3.5rem;
+  resize: vertical;
+  font-variant: normal;
+  letter-spacing: normal;
+  font-size: 0.95rem;
+  color: var(--vtm-bone);
+  padding: 0.4rem 0.55rem;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity-fields .character-wide-field {
+  grid-column: 1 / -1;
+}
+
+/* --- Clan weakness: slim auto-filled strip below the identity row ----- */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-weakness {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 0.9rem;
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  font-size: 0.74rem;
+  color: var(--vtm-gold-soft);
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-weakness textarea {
+  width: 100%;
+  min-height: 2.6rem;
+  resize: vertical;
+  font-variant: normal;
+  letter-spacing: normal;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: var(--vtm-parchment);
+  padding: 0.4rem 0.55rem;
+}
+
+/* --- Readability pass: larger text, brighter labels, no body italics -- */
+/* Field labels: bigger + brighter than the dim gold-soft */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity-fields > label,
+.shell-root[data-theme="vtm"] .vtm-sheet .character-summary-grid > label,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-weakness > span {
+  font-size: 0.9rem;
+  color: var(--vtm-gold);
+}
+/* Weakness: auto-grows to content, not user-resizable, readable upright text */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-weakness textarea {
+  font-size: 1rem;
+  font-style: normal;
+  resize: none;
+  field-sizing: content;
+  min-height: 2.6rem;
+  color: var(--vtm-bone);
+}
+/* De-italicize body copy that was hard to read */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-ledger-note,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-grant-target-clan {
+  font-style: normal;
+}
+/* Bump the small accent text up to legible sizes */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-trait-name { font-size: 1.04rem; color: var(--vtm-bone); }
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-derived em { font-size: 0.84rem; }
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-pool-chip,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-priority button { font-size: 0.84rem; }
+.shell-root[data-theme="vtm"] .vtm-sheet .settings-help { font-size: 0.92rem; }
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-health-level,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-health-penalty,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-grant-target-clan,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-ledger-note { font-size: 0.95rem; }
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-trait-col-head h4,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-rated-head h4,
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-trackers h4 { font-size: 1.12rem; }
+
+/* --- Advantages: Disciplines + Backgrounds side by side -------------- */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-advantage-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem 1.75rem;
+  align-items: start;
+}
+/* tighten the rated rows now that they live in half-width columns */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-advantage-cols .vtm-rated-row select { flex: 0 0 8.5rem; }
+
+/* --- Freebie cost labels + gate modal -------------------------------- */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-cost-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+  border: 1px dashed var(--vtm-gold-soft);
+  background: rgba(196, 162, 90, 0.05);
+  color: var(--vtm-gold);
+  font-family: 'Special Elite', monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+}
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-freebie-hint {
+  font-style: italic;
+  font-size: 0.86rem;
+  color: var(--vtm-faint);
+}
+.shell-root[data-theme="vtm"] .vtm-gate-modal .vtm-gate-list {
+  margin: 0.5rem 0 1rem;
+  padding-left: 1.2rem;
+  list-style: none;
+}
+.shell-root[data-theme="vtm"] .vtm-gate-modal .vtm-gate-list li {
+  position: relative;
+  padding: 0.18rem 0;
+  color: var(--vtm-parchment);
+  font-size: 0.98rem;
+}
+.shell-root[data-theme="vtm"] .vtm-gate-modal .vtm-gate-list li::before {
+  content: '◆';
+  position: absolute;
+  left: -1.2rem;
+  color: var(--vtm-oxblood-bright);
+  font-size: 0.7rem;
+  top: 0.4rem;
+}
+
+/* --- Create-character modal: new vs established ---------------------- */
+.shell-root[data-theme="vtm"] .vtm-create-modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 1rem 0;
+}
+.shell-root[data-theme="vtm"] .vtm-create-modal-actions button {
+  width: 100%;
+  padding: 0.7rem 1rem;
+  text-align: left;
+  font-size: 0.95rem;
+}
