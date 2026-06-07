@@ -1,4 +1,4 @@
-import { Gift, Plus, Star, Trash2, UserRound } from 'lucide-react'
+import { Gift, Plus, Skull, Star, Trash2, UserRound } from 'lucide-react'
 import type { CharacterRecord, Role } from '../../types/app'
 
 type Props = {
@@ -103,6 +103,11 @@ export function CharacterListPane({
                     <UserRound size={14} />
                   </div>
                 )}
+                {character.hpCurrent <= 0 ? (
+                  <div className="character-dead-overlay" aria-label={`${character.name || 'Character'} is dead`}>
+                    <Skull size={26} />
+                  </div>
+                ) : null}
               </div>
 
               <div className="monster-card-main">
