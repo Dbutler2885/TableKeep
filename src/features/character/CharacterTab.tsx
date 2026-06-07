@@ -807,10 +807,19 @@ export function CharacterTab({
     ),
     [characters, currentCharacterId, currentUserId, embeddedMode, role],
   )
-  const sortedCharacters = useMemo(
-    () => [...visibleCharacters].sort((a, b) => a.name.localeCompare(b.name)),
-    [visibleCharacters],
-  )
+  const sortedCharacters = useMemo(() => {
+    // Tier order: active player characters, then active GM-owned, then dead.
+    const tier = (character: CharacterRecord) => {
+      if (character.hpCurrent <= 0) return 2
+      if (gmUserId && character.ownerUserId === gmUserId) return 1
+      return 0
+    }
+    return [...visibleCharacters].sort((a, b) => {
+      const tierDiff = tier(a) - tier(b)
+      if (tierDiff !== 0) return tierDiff
+      return a.name.localeCompare(b.name)
+    })
+  }, [visibleCharacters, gmUserId])
   const authoredCampaignItems = useMemo(
     () => campaignItems.filter((item) => item.status === 'authored'),
     [campaignItems],
@@ -3365,6 +3374,7 @@ export function CharacterTab({
                                 portraitAltLabel="Character portrait"
                                 tokenButtonAriaLabel="Edit character token icon"
                                 removePortraitMessage="Remove the portrait image from this character?"
+                                showDeadOverlay={effectiveSelected.hpCurrent <= 0}
                               />
                             </div>
                           </section>
@@ -3714,6 +3724,7 @@ export function CharacterTab({
                                 portraitAltLabel="Character portrait"
                                 tokenButtonAriaLabel="Edit character token icon"
                                 removePortraitMessage="Remove the portrait image from this character?"
+                                showDeadOverlay={effectiveSelected.hpCurrent <= 0}
                               />
                             </div>
                           </section>

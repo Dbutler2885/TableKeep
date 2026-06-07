@@ -3292,12 +3292,29 @@ button.character-item-add-btn:disabled {
 }
 
 .monster-card-portrait {
+  position: relative;
   width: 56px;
   height: 56px;
   border: 1px solid #dddcd5;
   border-radius: 6px;
   overflow: hidden;
   background: #fafaf8;
+}
+
+.character-dead-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 20, 20, 0.55);
+  color: #f5f5f5;
+  pointer-events: none;
+}
+
+.character-dead-overlay-lg svg {
+  width: 70%;
+  height: 70%;
 }
 
 .monster-card-main {
@@ -3562,6 +3579,7 @@ button.character-item-add-btn:disabled {
 }
 
 .monster-portrait-frame-empty {
+  position: relative;
   cursor: pointer;
   display: block;
   transition: background 120ms, border-color 120ms;
