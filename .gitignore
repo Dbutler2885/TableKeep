@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local planning docs
+thoughts/
+
+# Firebase
+.firebase/

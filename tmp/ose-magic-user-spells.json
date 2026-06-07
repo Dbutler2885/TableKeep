@@ -1,0 +1,650 @@
+[
+  {
+    "id": "arcane-charm-person",
+    "name": "Charm Person",
+    "level": 1,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Charm_Person",
+    "durationText": "One or more days (see below)",
+    "rangeText": "120'",
+    "description": "A single human, demihuman, or human-like monster (see Persons) must save versus spells or be charmed, as follows:\n- Friendship: The subject regards the caster as a close friend and will come to the caster's defence.\n- Commands: If they share a language, the caster may give the charmed creature commands, which they will obey.\n- Subject's nature: The subject may resist commands that contradict their habits or alignment.\n- Suicidal commands: Are always refused.\nRestrictions: Undead and human-like monsters of greater than 4+1 HD (see Hit point modifiers) are not affected.\nDuration: The charm lasts indefinitely, but the subject is allowed to make further saves versus spells at intervals, depending on their INT score. If one of these saves succeeds, the spell ends.\n- INT 3-8: New save once every month.\n- INT 9-12: New save each week.\n- INT 13-18: New save once every day."
+  },
+  {
+    "id": "arcane-detect-magic",
+    "name": "Detect Magic",
+    "level": 1,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Detect_Magic_(MU)",
+    "durationText": "2 turns",
+    "rangeText": "60'",
+    "description": "Enchanted objects, areas, or creatures are caused to glow. Both permanent and temporary enchantments are revealed."
+  },
+  {
+    "id": "arcane-floating-disc",
+    "name": "Floating Disc",
+    "level": 1,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Floating_Disc",
+    "durationText": "6 turns",
+    "rangeText": "6'",
+    "description": "Conjures an invisible disc of magical force that can be used to carry loads.\n- Dimensions: The disc is shaped like a round shield: around 3 feet across and slightly concave.\n- Load: It can hold a maximum load of 5,000 coins (500 pounds).\n- Motion: The disc floats at waist height, following the caster as they move.\n- End: Anything placed on the disc is dropped when it disappears at the end of the spell's duration."
+  },
+  {
+    "id": "arcane-hold-portal",
+    "name": "Hold Portal",
+    "level": 1,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Hold_Portal",
+    "durationText": "2d6 turns",
+    "rangeText": "10'",
+    "description": "Magically prevents a portal (e.g. door, gate, etc.) from being opened.\n- Opening by magic: A knock spell opens the held portal instantly.\n- Opening by force: Creatures with at least 3 Hit Dice more than the caster can open the held portal with one round of effort."
+  },
+  {
+    "id": "arcane-light",
+    "name": "Light (Darkness)",
+    "level": 1,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Light_(Darkness)_(MU)",
+    "durationText": "6 turns +1 per level",
+    "rangeText": "120'",
+    "description": "This spell has three usages:\n- Conjuring light: In a 15' radius. The magical light is sufficient for reading, but is not as bright as daylight. The spell may be cast upon an object, in which case the light moves with the object.\n- Blinding a creature: By casting the spell upon its eyes. If the target fails a saving throw versus spells, it is blinded for the duration. A blind creature cannot attack.\n- Cancelling darkness: Light may cancel a darkness spell (see below).\nReversed: Darkness\nCreates a 15' radius area of magical blackness, preventing normal sight (but not infravision). Like light, it may alternatively be used to blind creatures or to dispel a light spell."
+  },
+  {
+    "id": "arcane-magic-missile",
+    "name": "Magic Missile",
+    "level": 1,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Magic_Missile",
+    "durationText": "1 turn",
+    "rangeText": "150'",
+    "description": "This spell conjures a glowing dart of energy that the caster may choose to shoot at a visible target within range.\n- Hit: The missile hits unerringly (no attack roll or saving throw is required).\n- Damage: The missile inflicts 1d6+1 damage.\n- Higher level casters: May conjure more missiles: two additional missiles are conjured per five experience levels the caster has gained (i.e. three missiles at 6th-10th level, five missiles at 11th-15th level, etc.). Multiple missiles may be directed at a single target."
+  },
+  {
+    "id": "arcane-protection-from-evil",
+    "name": "Protection from Evil",
+    "level": 1,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Protection_from_Evil_(MU)",
+    "durationText": "6 turns",
+    "rangeText": "The caster",
+    "description": "This spell wards the caster from attacks by creatures of another alignment, as follows:\n- Bonuses: The caster gains a +1 bonus to saving throws against attacks or special abilities of affected creatures.\n- Affected creatures' attacks: Against the caster are penalised by -1.\n- Enchanted, constructed, or summoned creatures: The spell additionally prevents such creatures from attacking the caster in melee, though they may still make ranged attacks. If the caster engages such a creature in melee, this protection is broken (the caster still gains the save and attack bonuses mentioned above)."
+  },
+  {
+    "id": "arcane-read-languages",
+    "name": "Read Languages",
+    "level": 1,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Read_Languages",
+    "durationText": "2 turns",
+    "rangeText": "The caster",
+    "description": "The caster gains the ability to understand written information in any language, including coded messages or symbols (e.g. on treasure maps). No ability to speak unknown languages is conferred."
+  },
+  {
+    "id": "arcane-read-magic",
+    "name": "Read Magic",
+    "level": 1,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Read_Magic",
+    "durationText": "1 turn",
+    "rangeText": "The caster",
+    "description": "Allows the caster to decipher magical script or runes, as follows:\n- Scrolls: The magical script of a scroll of arcane spells can be understood. The caster is then able to activate the scroll at any time in the future.\n- Spell books: A spell book written by another arcane spell caster can be deciphered.\n- Inscriptions: Runes or magical words inscribed on an object or surface can be understood.\n- Reading again: Once the caster has used this spell to decipher a magical inscription, they can always understand that script again without read magic."
+  },
+  {
+    "id": "arcane-shield",
+    "name": "Shield",
+    "level": 1,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Shield",
+    "durationText": "2 turns",
+    "rangeText": "The caster",
+    "description": "Conjures a barrier of magic that gives the caster an improved AC:\n- Against missile attacks: AC 2 [17].\n- Against other attacks: AC 4 [15]."
+  },
+  {
+    "id": "arcane-sleep",
+    "name": "Sleep",
+    "level": 1,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Sleep",
+    "durationText": "4d4 turns",
+    "rangeText": "240'",
+    "description": "Causes creatures (except undead) to fall into a magical slumber. The spell may target either:\n- A single creature with 4+1 Hit Dice (see Hit point modifiers).\n- A total of 2d8 Hit Dice of creatures of 4 HD or lower each.\nWhen targeting creatures of 4 HD or less, the following rules apply:\n- Weakest first: Targets with the least HD are affected first.\n- HD: Treat monsters with less than 1 HD as having 1 HD and monsters with a fixed hit point bonus as having the flat HD. (For example, a 3+2 HD monster would be treated as having 3 HD.)\nKilling: A single attack with a bladed weapon can kill a creature enchanted by this spell.\nAwakening: Enchanted creatures can be forcefully awakened (e.g. by slapping)."
+  },
+  {
+    "id": "arcane-ventriloquism",
+    "name": "Ventriloquism",
+    "level": 1,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Ventriloquism",
+    "durationText": "2 turns",
+    "rangeText": "60'",
+    "description": "Allows the caster to cause their voice to emanate from anywhere within range (e.g. a statue, a tapestry, an animal)."
+  },
+  {
+    "id": "arcane-continual-light",
+    "name": "Continual Light (Continual Darkness)",
+    "level": 2,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Continual_Light_(Continual_Darkness)_(MU)",
+    "durationText": "Permanent",
+    "rangeText": "120'",
+    "description": "This spell has three usages:\n- Conjuring light: In a 30' radius. The magical light is sufficient for reading, but is not as bright as daylight. The spell may be cast upon an object, in which case the light moves with the object.\n- Blinding a creature: By casting the spell upon its eyes. If the target fails a saving throw versus spells, it is blinded. A blind creature cannot attack.\n- Cancelling darkness: Continual light may cancel a continual darkness spell (see below).\nReversed: Continual Darkness\nCreates a 30' radius area of magical blackness, preventing both normal sight and infravision. Light sources brought within the area of darkness do not illuminate it. Like continual light, it may alternatively be used to blind creatures or to dispel a continual light spell."
+  },
+  {
+    "id": "arcane-detect-evil",
+    "name": "Detect Evil",
+    "level": 2,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Detect_Evil_(MU)",
+    "durationText": "2 turns",
+    "rangeText": "60'",
+    "description": "Objects under an evil enchantment and living beings with evil intentions are caused to magically glow.\n- Intent only: The caster cannot read the thoughts of creatures with evil intent.\n- Definition of evil: The referee must judge what is classified as evil. Beings of chaotic alignment do not always have evil intent. Traps and poisons, while potentially harmful, are not evil."
+  },
+  {
+    "id": "arcane-detect-invisible",
+    "name": "Detect Invisible",
+    "level": 2,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Detect_Invisible",
+    "durationText": "6 turns",
+    "rangeText": "10' per level",
+    "description": "Invisible creatures or items in range are revealed to the caster."
+  },
+  {
+    "id": "arcane-esp",
+    "name": "ESP",
+    "level": 2,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/ESP",
+    "durationText": "12 turns",
+    "rangeText": "60'",
+    "description": "This spell grants the caster the ability to perceive and understand the thoughts of other living creatures.\n- Focus for 1 turn: To pick up thoughts, the caster must focus their concentration in one direction for one turn.\n- After this turn: The thoughts of all creatures within range in that direction can be perceived.\n- Multiple creatures: If multiple creatures are within range in the direction being focused on, the caster perceives an incomprehensible mix of all their thoughts. If the caster focuses for an additional turn, they can filter out and understand a single creature's thoughts.\n- Meaning: The caster can magically understand thoughts in languages they do not speak.\n- Obstructions: ESP' is obstructed by a thin layer of lead or by rock of 2' thick or greater."
+  },
+  {
+    "id": "arcane-invisibility",
+    "name": "Invisibility",
+    "level": 2,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Invisibility",
+    "durationText": "Permanent (but may be broken, see below)",
+    "rangeText": "240'",
+    "description": "The caster or another creature or object within range becomes invisible:\n- If cast on a creature: Any gear the subject is carrying is also rendered invisible (this includes clothing and armour). Items subsequently put down become visible. If the subject attacks or casts a spell, the invisibility is broken, ending the spell.\n- If cast on an object: The invisibility is permanent.\n- Light sources: If a light source is made invisible (either as part of a creature's gear or as an individual object), the light it casts is unaffected."
+  },
+  {
+    "id": "arcane-knock",
+    "name": "Knock",
+    "level": 2,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Knock",
+    "durationText": "1 round",
+    "rangeText": "60'",
+    "description": "Causes locked, barred, secured, or stuck doors, gates, chests, and so forth to open.\n- Magically held doors: Are affected (e.g. hold portal, wizard lock).\n- Secret doors: May be opened, but they must be known to the caster."
+  },
+  {
+    "id": "arcane-levitate",
+    "name": "Levitate",
+    "level": 2,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Levitate",
+    "durationText": "6 turns +1 per level",
+    "rangeText": "The caster",
+    "description": "This enchantment allows the caster to move up and down through the air:\n- Vertical: Vertical movement as desired, at up to 20' per round.\n- Horizontal: The caster can move laterally by pushing against solid objects.\n- Weight: A normal amount of weight can be carried while levitating."
+  },
+  {
+    "id": "arcane-locate-object",
+    "name": "Locate Object",
+    "level": 2,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Locate_Object_(MU)",
+    "durationText": "2 turns",
+    "rangeText": "60' +10' per level",
+    "description": "The caster can sense the direction (but not distance) of an object. One of two types of object may be located:\n- General class: An object of a general class (e.g. a stairway, an altar, etc). In this case, the nearest object of the type is located.\n- Specific object: A specific object known to the caster.\nRestrictions: This spell cannot be used to locate creatures."
+  },
+  {
+    "id": "arcane-mirror-image",
+    "name": "Mirror Image",
+    "level": 2,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Mirror_Image",
+    "durationText": "6 turns",
+    "rangeText": "The caster",
+    "description": "1d4 illusory images of the caster appear.\n- Behaviour: The mirror images look and behave exactly as the caster.\n- Attacks on the caster: Destroy one of the mirror images (even if the attack misses)."
+  },
+  {
+    "id": "arcane-phantasmal-force",
+    "name": "Phantasmal Force",
+    "level": 2,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Phantasmal_Force",
+    "durationText": "Concentration",
+    "rangeText": "240'",
+    "description": "A visual illusion of the caster's choosing manifests in a 20' cube area. Three types of illusions may be created:\n- An illusionary monster: That can be directed to attack. The monster has an Armour Class of 9 [10] and will vanish if hit in combat.\n- An illusionary attack: For example, an avalanche, a falling ceiling, a magic missile, etc. Targets who save versus spells are unaffected.\n- A scene: Either changing the appearance of the affected area or creating the appearance of something new. The scene disappears if touched.\nStipulations: The following apply:\n- Concentration: Is required to maintain the illusion. If the caster moves or loses concentration, the spell ends.\n- Illusionary monsters or attacks: May appear to be harmful but no real damage is ever inflicted. A character who appears to die actually falls unconscious, a character turned to stone will actually be paralysed, and so on. Such effects last for 1d4 turns.\n- Illusions from imagination: If the illusion is of something the caster has not personally seen, the referee should grant targets a bonus to any applicable saving throws."
+  },
+  {
+    "id": "arcane-web",
+    "name": "Web",
+    "level": 2,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Web",
+    "durationText": "48 turns",
+    "rangeText": "10'",
+    "description": "Conjures a volume of sticky webbing, blocking a 10' cube area.\n- Entanglement: Creatures caught within a web become entangled among the gluey fibres. Entangled creatures can't move, but can break free depending on their strength (see below).\n- Flammable: The web can be destroyed by fire in two rounds. All creatures caught within flaming webs suffer 1d6 damage from the flames.\nBreaking free: Depends on STR:\n- Normal human range: The creature can break free in 2d4 turns.\n- Magically augmented STR above 18: The creature can break free in 4 rounds.\n- Giant strength: The creature can break free in 2 rounds."
+  },
+  {
+    "id": "arcane-wizard-lock",
+    "name": "Wizard Lock",
+    "level": 2,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Wizard_Lock",
+    "durationText": "Permanent",
+    "rangeText": "10'",
+    "description": "A wizard lock spell magically locks a door, gate, similar portal, or any item that has a lock. The magical lock is permanent but may be bypassed as follows:\n- The caster: Can freely pass through any portals locked by their own spell.\n- A knock spell: Allows passage.\n- Higher level casters: Magic-using characters 3 or more levels higher than the caster of wizard lock may pass.\n- Temporary: Bypassing does not destroy a wizard lock."
+  },
+  {
+    "id": "arcane-clairvoyance",
+    "name": "Clairvoyance",
+    "level": 3,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Clairvoyance",
+    "durationText": "12 turns",
+    "rangeText": "60'",
+    "description": "The caster gains the ability to see through the eyes of other living creatures.\n- Focus for 1 turn: To establish a connection with a creature, the caster must focus their concentration in one particular direction for one turn.\n- After this turn: The visual perceptions of one creature within range in that direction are relayed to the caster.\n- Switching: Once a connection is established, the caster may choose to maintain it or to change to another subject.\n- Obstructions: Clairvoyance is obstructed by a thin layer of lead or by rock of 2' thick or greater."
+  },
+  {
+    "id": "arcane-dispel-magic",
+    "name": "Dispel Magic",
+    "level": 3,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Dispel_Magic",
+    "durationText": "Instant",
+    "rangeText": "120'",
+    "description": "Dispel magic ends spell effects within a 20' cube area.\n- Caster levels: Effects created by lower level casters are automatically dispelled. Effects created by higher level casters have a 5% chance per level difference of not being dispelled.\n- Magic items: Are unaffected."
+  },
+  {
+    "id": "arcane-fire-ball",
+    "name": "Fire Ball",
+    "level": 3,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Fire_Ball",
+    "durationText": "Instant",
+    "rangeText": "240'",
+    "description": "Flame streaks towards a point within range and detonates in a 20' radius sphere.\n- Damage: Creatures caught in the fire ball suffer 1d6 damage per level of the caster, with a successful save versus spells indicating half damage."
+  },
+  {
+    "id": "arcane-fly",
+    "name": "Fly",
+    "level": 3,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Fly",
+    "durationText": "1d6 turns +1 per level",
+    "rangeText": "The caster or a creature touched",
+    "description": "The subject gains the ability to fly through the air.\n- Movement rate: Up to 360' (120').\n- Free movement: Is possible in any direction, including the ability to levitate and to hover in mid-air."
+  },
+  {
+    "id": "arcane-haste",
+    "name": "Haste",
+    "level": 3,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Haste",
+    "durationText": "3 turns",
+    "rangeText": "240'",
+    "description": "Up to 24 creatures in a 30' radius area are enchanted to be able to move and act twice as quickly as normal:\n- Movement: Subjects' maximum movement rates are doubled.\n- Attacks: Subjects may make double the normal number of attacks per round.\n- Spells: The number of spells a subject may cast per round is not doubled.\n- Magical devices: The use of devices such as wands is also not doubled."
+  },
+  {
+    "id": "arcane-hold-person",
+    "name": "Hold Person",
+    "level": 3,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Hold_Person_(MU)",
+    "durationText": "1 turn per level",
+    "rangeText": "120'",
+    "description": "This spell causes one or more humans, demihumans, or human-like monsters (see Persons) to be paralysed if they fail a saving throw versus spells. It may be cast in two ways:\n- Against an individual: The target's saving throw is penalised by -2.\n- Against a group: 1d4 individuals in the group are targeted.\nRestrictions: Undead and human-like monsters of greater than 4+1 HD (see Hit point modifiers) are not affected."
+  },
+  {
+    "id": "arcane-infravision",
+    "name": "Infravision",
+    "level": 3,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Infravision",
+    "durationText": "1 day",
+    "rangeText": "The caster or a creature touched",
+    "description": "Grants infravision to 60'."
+  },
+  {
+    "id": "arcane-invisibility-10-radius",
+    "name": "Invisibility 10' Radius",
+    "level": 3,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Invisibility_10’_Radius",
+    "durationText": "Permanent (but may be broken, see below)",
+    "rangeText": "120'",
+    "description": "A selected creature and all creatures within 10' of it become invisible:\n- Area: The 10' radius area of the spell's effect moves with the chosen creature.\n- Exiting the area: Subjects that move more than 10' away from the chosen creature become visible.\n- Entering the area: Creatures that move into the area after the spell is cast do not become invisible.\n- Gear: Any gear a subject is carrying is also rendered invisible. Items subsequently put down become visible. Carried light sources become invisible but the emitted light does not.\n- Breaking the invisibility: If a subject attacks or casts a spell, the invisibility is broken for that subject."
+  },
+  {
+    "id": "arcane-lightning-bolt",
+    "name": "Lightning Bolt",
+    "level": 3,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Lightning_Bolt",
+    "durationText": "Instant",
+    "rangeText": "180'",
+    "description": "A bolt of lightning 60' long and 5' wide blasts from a point within range.\n- Damage: Creatures caught in the lightning bolt suffer 1d6 damage per level of the caster, with a successful save versus spells indicating half damage.\n- Bouncing: If the lightning bolt hits a solid barrier before its full length is reached, it is reflected and travels for any remaining distance of its full length in the direction of the caster."
+  },
+  {
+    "id": "arcane-protection-from-evil-10-radius",
+    "name": "Protection from Evil 10' Radius",
+    "level": 3,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Protection_from_Evil_10’_Radius_(MU)",
+    "durationText": "12 turns",
+    "rangeText": "10' around the caster",
+    "description": "This spell wards the caster and all allies within 10' from attacks by creatures of another alignment, as follows:\n- Bonuses: Those warded gain a +1 bonus to saving throws against attacks or special abilities of affected creatures.\n- Affected creatures' attacks: Against those warded are penalised by -1.\n- Enchanted, constructed, or summoned creatures: The spell additionally prevents such creatures from making melee attacks against those warded, though they may still make ranged attacks. If any of the warded party engages such a creature in melee, this protection is broken (those warded still gain the save and attack bonuses mentioned above)."
+  },
+  {
+    "id": "arcane-protection-from-normal-missiles",
+    "name": "Protection from Normal Missiles",
+    "level": 3,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Protection_from_Normal_Missiles",
+    "durationText": "12 turns",
+    "rangeText": "30'",
+    "description": "A single subject in range gains complete immunity to small, non-magical missiles (e.g. no protection is granted against hurled boulders or enchanted missiles)."
+  },
+  {
+    "id": "arcane-water-breathing",
+    "name": "Water Breathing",
+    "level": 3,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Water_Breathing",
+    "durationText": "1 day",
+    "rangeText": "30'",
+    "description": "Bestows the ability to breathe water upon a single subject.\n- Breathing air: The spell does not affect the subject's ability to breathe air.\n- Underwater movement: Is also not enhanced or affected."
+  },
+  {
+    "id": "arcane-charm-monster",
+    "name": "Charm Monster",
+    "level": 4,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Charm_Monster",
+    "durationText": "One or more days (see below)",
+    "rangeText": "120'",
+    "description": "This spell places a charm upon either 3d6 creatures of 3 HD or less or a single creature of more than 3 HD. Each subject must make a save versus spells or be charmed as follows:\n- Friendship: Charmed creatures regard the caster as a close friend and will come to the caster's defence.\n- Commands: If they share a language, the caster may give charmed creatures commands, which they will obey.\n- Subject's nature: Charmed creatures may resist commands that contradict their habits or alignment.\n- Suicidal commands: Are always refused.\nRestrictions: Undead are not affected.\nDuration: The charm lasts indefinitely, but the subject is allowed to make further saves versus spells at intervals, depending on its INT score. If one of these saves succeeds, the spell ends.\n- INT 3-8: New save once every month.\n- INT 9-12: New save each week.\n- INT 13-18: New save once every day."
+  },
+  {
+    "id": "arcane-confusion",
+    "name": "Confusion",
+    "level": 4,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Confusion",
+    "durationText": "12 rounds",
+    "rangeText": "120'",
+    "description": "3d6 creatures within a 30' radius area are stricken with delusions and become unable to control their actions.\n- Subjects of 2+1 HD or greater: May save versus spells each round to resist the spell's effect, acting with free will that round if they make the save.\n- Subjects of 2 HD or lower: May not make a saving throw.\n- Behaviour: Roll on the following table separately for each affected subject each round to determine how that subject acts that round:\nSubject Behaviour\n2d6\nBehaviour\n2-5\nAttack caster's group\n6-8\nNo action\n9-12\nAttack subject's group"
+  },
+  {
+    "id": "arcane-dimension-door",
+    "name": "Dimension Door",
+    "level": 4,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Dimension_Door",
+    "durationText": "1 round",
+    "rangeText": "10'",
+    "description": "The caster or a single creature is instantly transferred to another location up to 360' distant. The destination may be selected in two ways:\n- Known location: A location, within 360', known to the caster.\n- An unknown location: Specified by a series of offsets (e.g. 120' north, 160' east, 80' up) totalling not more than 360'.\nStipulations: The following apply:\n- Occupied destination: The spell has no effect if the destination is occupied by a solid object.\n- If the target is unwilling: It may save versus spells to resist the teleportation."
+  },
+  {
+    "id": "arcane-growth-of-plants",
+    "name": "Growth of Plants",
+    "level": 4,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Growth_of_Plants",
+    "durationText": "Permanent",
+    "rangeText": "120'",
+    "description": "A dense, thorny thicket of vines and brambles overwhelms an area of normal woodland or scrub within range.\n- Area: An area of up to 3,000 square feet—selected by the caster—is affected (e.g. 150' × 20', 100' × 30', etc.).\n- Passage: Only very large creatures can force their way through."
+  },
+  {
+    "id": "arcane-hallucinatory-terrain",
+    "name": "Hallucinatory Terrain",
+    "level": 4,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Hallucinatory_Terrain",
+    "durationText": "Until touched",
+    "rangeText": "240'",
+    "description": "Hallucinatory terrain either conjures an illusory terrain feature (e.g. a hill, wood, marsh, etc.) or hides an existing terrain feature.\n- Area: The illusion must fit completely within the spell's range.\n- Touching: If an intelligent being touches the illusion, it vanishes, ending the spell."
+  },
+  {
+    "id": "arcane-massmorph",
+    "name": "Massmorph",
+    "level": 4,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Massmorph",
+    "durationText": "Permanent",
+    "rangeText": "240'",
+    "description": "Up to 100 human-sized creatures within a 120' radius area are veiled by illusion to appear as a copse of trees or orchard.\n- Moving through: Once the illusion is in place, even creatures moving among the veiled subjects are deceived.\n- Subjects who leave the affected area: Cease to be veiled.\n- Dismissing: The caster may dismiss the illusion in its entirety at any time."
+  },
+  {
+    "id": "arcane-polymorph-others",
+    "name": "Polymorph Others",
+    "level": 4,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Polymorph_Others",
+    "durationText": "Permanent",
+    "rangeText": "60'",
+    "description": "A living subject is changed into another type of creature, as chosen by the caster:\n- HD: The spell fails if the new form's HD is more than twice the subject's HD.\n- Hit points: The transformation does not alter the subject's hit points.\n- Abilities: The subject truly becomes the new form: all special abilities are acquired, along with behavioural patterns, tendencies, and intelligence.\n- Specific individuals: The spell cannot be used to duplicate a specific individual.\n- Reversion: If the subject dies, it returns to its original form.\n- An unwilling subject: May save versus spells to negate the effect."
+  },
+  {
+    "id": "arcane-polymorph-self",
+    "name": "Polymorph Self",
+    "level": 4,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Polymorph_Self",
+    "durationText": "6 turns +1 per level",
+    "rangeText": "The caster",
+    "description": "The caster transforms themselves into another being:\n- HD: The new form may not have higher Hit Dice than the caster's level.\n- Stats: The transformation does not alter the caster's hit points, saving throws, attack probabilities, or intelligence.\n- Physical capabilities: Of the new form (e.g. strength, physical attack forms, modes of movement) are acquired.\n- Non-physical special abilities: (e.g. immunities, breath weapons, spell casting) are not acquired.\n- Casting spells: While polymorphed, the caster is unable to cast spells.\n- Specific individuals: The spell cannot be used to duplicate a specific individual.\n- Reversion: If the caster dies while polymorphed, they return to their original form."
+  },
+  {
+    "id": "arcane-remove-curse",
+    "name": "Remove Curse (Curse)",
+    "level": 4,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Remove_Curse_(Curse)_(MU)",
+    "durationText": "Instant / Permanent (curse)",
+    "rangeText": "The caster or a creature touched",
+    "description": "This spell removes a single curse from the subject. It may allow a character to discard a cursed magic item.\nReversed: Curse\nPlaces a deleterious effect upon a creature, if it fails a save versus spells.\n- Effects: The exact form and effects of the curse are determined by the caster.\n- Maximum possible effects include: A -2 saving throw penalty, a -4 attack roll penalty, reducing an ability score by 50%.\n- Multiple curses: May afflict a creature, as long as each has a different effect.\n- Referee judgement: The referee should judge the effects of this spell and may turn overly powerful curses back onto the caster!"
+  },
+  {
+    "id": "arcane-wall-of-fire",
+    "name": "Wall of Fire",
+    "level": 4,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Wall_of_Fire",
+    "durationText": "Concentration",
+    "rangeText": "60'",
+    "description": "Conjures an opaque curtain of raging flame, shaped as the caster wishes.\n- Size: The wall can be any length, height, and shape the caster wishes, up to 1,200 sq. ft total. For example, it may be a straight wall 10' high and 120' long or a ring 20' high and 10' radius.\n- Location: The wall cannot be created in an area occupied by objects.\n- Monsters with fewer than 4 HD: Cannot pass the wall of flames.\n- Monsters with 4 or more HD: Can pass through the wall, but suffer 1d6 damage. Undead and cold-based creatures (e.g. frost salamanders) suffer double damage.\n- Concentration: The wall persists as long as the caster concentrates on the spell and does not move."
+  },
+  {
+    "id": "arcane-wall-of-ice",
+    "name": "Wall of Ice",
+    "level": 4,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Wall_of_Ice",
+    "durationText": "12 turns",
+    "rangeText": "120'",
+    "description": "Conjures a semi-transparent sheet of ice, shaped as the caster wishes.\n- Size: The wall can be any length, height, and shape the caster wishes, up to 1,200 sq. ft total. For example, it may be a straight wall 10' high and 120' long or a ring 20' high and 10' radius.\n- Location: The wall must be supported (e.g. by the ground) and cannot be created in an area occupied by objects.\n- Monsters with fewer than 4 HD: Cannot pass the wall of ice.\n- Monsters with 4 or more HD: Can break through through the wall, but suffer 1d6 damage. Fire-based creatures (e.g. flame salamanders) suffer double damage."
+  },
+  {
+    "id": "arcane-wizard-eye",
+    "name": "Wizard Eye",
+    "level": 4,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Wizard_Eye",
+    "durationText": "6 turns",
+    "rangeText": "240'",
+    "description": "An invisible, magical eye is conjured that allows the caster to see at a distance.\n- Movement: The eye can be directed to move within range at up to 120' per turn.\n- Seeing through the eye: By concentrating, the caster can see through the eye.\n- Types of vision: The magical eye grants infravision to 60' as well as normal vision.\n- Barriers: Though invisible, the eye is tangible and cannot pass through solid barriers.\n- Size: The eye is as big as a normal human eye."
+  },
+  {
+    "id": "arcane-animate-dead",
+    "name": "Animate Dead",
+    "level": 5,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Animate_Dead",
+    "durationText": "Permanent",
+    "rangeText": "60'",
+    "description": "Causes corpses or skeletons to rise as undead skeletons or zombies.\n- Obedient: Created undead obey the caster's commands.\n- Special abilities: They are unable to use any special abilities (including spell casting) that they possessed in life.\n- Duration: The reanimating magic remains active until dispelled or until the undead are slain.\nNumber: The spell animates up to 1 Hit Die of zombies or skeletons per level of the caster:\n- Skeletons: Have AC 7 [12] and HD equal to those the creature had in life.\n- Zombies: Have AC 8 [11] and HD one greater than the creature had in life.\n- Classed characters: If a PC or NPC with levels in a class is reanimated by this spell, the levels are not counted as HD. For example, the reanimated corpse of a 5th level fighter would have 2 HD (1 HD as a normal human, +1 for being reanimated as a zombie)."
+  },
+  {
+    "id": "arcane-cloudkill",
+    "name": "Cloudkill",
+    "level": 5,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Cloudkill",
+    "durationText": "6 turns",
+    "rangeText": "30'",
+    "description": "A poisonous fog streams from the caster's fingertips, filling a 30' diameter area.\n- Movement: The fog moves at 60' (20'), driven by the wind or, in still conditions, away from the caster.\n- Sinking: Because the fog is denser than air, it sinks to the lowest point, flowing down hills, into holes, and so forth.\n- Damage: All creatures in contact with the fog suffer 1 damage per round.\n- Creatures with less than 5 Hit Dice: Must also save versus death (once per round of contact) or die."
+  },
+  {
+    "id": "arcane-conjure-elemental",
+    "name": "Conjure Elemental",
+    "level": 5,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Conjure_Elemental",
+    "durationText": "Permanent (until dismissed or slain)",
+    "rangeText": "240'",
+    "description": "A 16 Hit Dice elemental—a being formed of pure elemental matter—is summoned from an elemental plane of the caster's choice (air, earth, fire, water) to do the caster's bidding.\n- Materials: The summons requires a large volume of the appropriate element.\n- Concentration: Is required to command an elemental.\n- Dismissing: While control over the elemental is maintained, the caster may dismiss it at any time, sending it back to its plane of origin.\n- Disruption: If the caster moves at more than half speed or their concentration is disturbed, the command over the elemental ends. It is, henceforth, a free-willed entity and will immediately try to kill the caster and any who get in its way.\n- Dispelling: A conjured elemental may be dispelled by dispel magic or dispel evil.\nRestrictions: The caster may summon at most one elemental from each plane in a single day.\nContents\n1 Air Elemental\n2 Earth Elemental\n3 Fire Elemental\n4 Water Elemental\nAir Elemental\nHuge vortexes of whirling air.\nAC -2 [21], HD 16* (72hp), Att 1 × blow (3d8), THAC0 8 [+11], MV 360' (120') flying, SV D2 W3 P4 B3 S6 (16), ML 10, AL Neutral, XP 2,300\n- Size: 32' tall, 8' across.\n- Whirlwind: Creatures with less than 2HD swept aside (save versus death).\n- Mundane damage immunity: Can only be harmed by magical attacks.\n- Harm flying creatures: Inflict extra 1d8 damage.\nEarth Elemental\nHuge, humanoid figures of earth or stone.\nAC -2 [21], HD 16* (72hp), Att 1 × blow (3d8), THAC0 8 [+11], MV 60' (20'), SV D2 W3 P4 B3 S6 (16), ML 10, AL Neutral, XP 2,300\n- Size: 16' tall.\n- Blocked by water: Cannot cross a channel wider than own height.\n- Mundane damage immunity: Can only be harmed by magical attacks.\n- Harm creatures on the ground: Inflict extra 1d8 damage.\nFire Elemental\nWhirling columns of fire.\nAC -2 [21], HD 16* (72hp), Att 1 × blow (3d8), THAC0 8 [+11], MV 120' (40'), SV D2 W3 P4 B3 S6 (16), ML 10, AL Neutral, XP 2,300\n- Size: 16' tall, 16' across.\n- Blocked by water: Cannot cross a channel wider than own diameter.\n- Mundane damage immunity: Can only be harmed by magical attacks.\n- Harm cold-based creatures: Inflict extra 1d8 damage.\nWater Elemental\nHuge waves of water.\nAC -2 [21], HD 16* (72hp), Att 1 × blow (3d8), THAC0 8 [+11], MV 60' (20') / 180' (60') swimming, SV D2 W3 P4 B3 S6 (16), ML 10, AL Neutral, XP 2,300\n- Size: 8' tall, 32' across.\n- Water-bound: Must remain within 60' of water.\n- Mundane damage immunity: Can only be harmed by magical attacks.\n- Harm creatures in water: Inflict extra 1d8 damage."
+  },
+  {
+    "id": "arcane-contact-higher-plane",
+    "name": "Contact Higher Plane",
+    "level": 5,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Contact_Higher_Plane",
+    "durationText": "One conversation",
+    "rangeText": "The caster",
+    "description": "A channel of communication is opened to a higher plane of existence, allowing the caster to ask powerful, otherworldly beings for advice and knowledge on any subject.\n- Plane: The caster must choose which plane of existence to contact: communion with beings of the 3rd to 12th planes is possible via this spell. Higher numbered planes are home to more powerful and knowledgeable beings.\n- Questions: The caster may then ask a number of simple yes/no questions equal to the number of the plane contacted. The referee plays the role of the contacted being, responding to the caster's questions.\n- Answers: For each question asked, there is a chance of the contacted being not knowing the answer or of answering untruthfully: see the table below. It is impossible to detect whether the entity is lying.\nRestrictions: Casting contact higher plane is a great and perilous deed.\n- Usage limit: It may be cast at most once per week. (The referee may limit the spell's usage to even less frequently, if desired.)\n- Insanity: Communion with otherworldly beings of great power can shatter the caster's sanity. The basic chance is shown in the table below. For every level of the caster above 11, this chance is reduced by 5%. If the caster is driven insane as a result of the communion, the recovery time is a number of weeks equal to the number of the plane contacted.\nContact Higher Plane Questions\nPlane\n#Qs\nDon't Know\nTruth\nInsanity\n3rd\n3\n75%\n50%\n5%\n4th\n4\n70%\n55%\n10%\n5th\n5\n65%\n60%\n15%\n6th\n6\n60%\n65%\n20%\n7th\n7\n50%\n70%\n25%\n8th\n8\n40%\n75%\n30%\n9th\n9\n30%\n80%\n35%\n10th\n10\n20%\n85%\n40%\n11th\n11\n10%\n90%\n45%\n12th\n12\n5%\n95%\n50%"
+  },
+  {
+    "id": "arcane-feeblemind",
+    "name": "Feeblemind",
+    "level": 5,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Feeblemind",
+    "durationText": "Permanent",
+    "rangeText": "240'",
+    "description": "An arcane spell caster (e.g. a magic-user or elf) within range must save versus spells (at a -4 penalty) or become an imbecile, unable to think clearly or cast spells."
+  },
+  {
+    "id": "arcane-hold-monster",
+    "name": "Hold Monster",
+    "level": 5,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Hold_Monster",
+    "durationText": "6 turns +1 per level",
+    "rangeText": "120'",
+    "description": "This spell causes one or more creatures to be paralysed if they fail a saving throw versus spells. It may be cast in two ways:\n- Against an individual: The target's saving throw is penalised by -2.\n- Against a group: 1d4 individuals in the group are targeted.\nRestrictions: Undead are not affected."
+  },
+  {
+    "id": "arcane-magic-jar",
+    "name": "Magic Jar",
+    "level": 5,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Magic_Jar",
+    "durationText": "Special",
+    "rangeText": "The caster",
+    "description": "The caster's body enters a comatose trance as their life-force is transferred into a receptacle (any inanimate object within 30'), known as a magic jar. From there, the caster may attempt to possess the bodies of other creatures.\nWhen the caster's life-force is in the magic jar:\n- Possession: The caster may attempt to possess the body of another creature within 120'. The victim may save versus spells to resist possession. If the save is successful, the caster may not make another attempt to possess that victim for one turn. If the save fails, the caster's life-force leaves the magic jar and enters the victim, possessing it.\n- Returning: The caster may choose to return to their own body at any time, ending the spell.\n- If the magic jar is destroyed: The caster dies.\n- If the caster's own body is destroyed: Their life-force is stranded in the magic jar.\nWhen the caster's life-force is possessing a victim:\n- Control: The caster gains full control over the victim's body, but is not able to make the victim cast spells.\n- If the magic jar is destroyed: The spell ends and the caster's life-force is trapped in the possessed body.\n- If the possessed victim is killed: The caster's life-force returns to the magic jar.\n- Dispelling: Dispel evil forces the caster's life-force back into the magic jar.\n- If the caster's own body is destroyed: Their life-force is stranded in the body of the creature being possessed."
+  },
+  {
+    "id": "arcane-pass-wall",
+    "name": "Pass-Wall",
+    "level": 5,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Pass-Wall",
+    "durationText": "3 turns",
+    "rangeText": "30'",
+    "description": "A 5' diameter hole is temporarily opened in solid rock or stone, forming a passageway up to 10' deep."
+  },
+  {
+    "id": "arcane-telekinesis",
+    "name": "Telekinesis",
+    "level": 5,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Telekinesis",
+    "durationText": "Concentration (up to 6 rounds)",
+    "rangeText": "120'",
+    "description": "By concentrating, the caster is able to move objects or creatures by the power of thought.\n- Weight: Up to 200 coins of weight per level of the caster may be targeted.\n- Movement: The target may be moved up to 20' per round, in whatever direction the caster wishes (including vertically).\n- Save: If a creature is targeted, it may save versus spells to resist the spell.\n- Concentration: If the caster's concentration is broken, the target will fall."
+  },
+  {
+    "id": "arcane-teleport",
+    "name": "Teleport",
+    "level": 5,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Teleport",
+    "durationText": "Instant",
+    "rangeText": "10'",
+    "description": "The caster or a chosen creature vanishes and reappears at a location of the caster's choosing.\n- Gear: The subject is teleported with all its gear, up to its maximum load.\n- Unwilling subjects: May save versus spells to prevent the teleportation.\n- Destination: May be at any distance, but must be known to the caster. The destination must be an open space at ground level. (It is not possible to intentionally teleport the subject into mid-air or into solid matter.)\n- Risk: There is a risk, when teleporting, of accidentally arriving above or below ground level. The chance of a successful teleportation depends on the caster's knowledge of the destination (see below). Roll d% and consult the table below.\nTeleport Result\nKnowledge of Dest.\nGround Level\nToo High\nToo Low\nScant\n01-50\n51-75\n76-00\nModerate\n01-80\n81-90\n91-00\nExact\n01-95\n96-99\n00\nGround level: The subject appears at the intended destination.\nToo high: The subject appears 1d10×10' above the intended destination. If this causes the subject to appear inside solid matter, they die instantly. Otherwise, the subject falls from a height.\nToo low: The subject appears below the surface of the ground and dies instantly.\nKnowledge of destination: The caster's knowledge of the destination is rated as follows:\n- Scant: A location that the caster has visited once or twice, has seen by magical scrying, or has heard of from descriptions.\n- Moderate: A location that the caster has visited often or has studied via scrying for several weeks.\n- Exact: A location that the caster has made a detailed study of, in person."
+  },
+  {
+    "id": "arcane-transmute-rock-to-mud",
+    "name": "Transmute Rock to Mud (Mud to Rock)",
+    "level": 5,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Transmute_Rock_to_Mud_(Mud_to_Rock)",
+    "durationText": "3d6 days / Permanent (transmute mud to rock)",
+    "rangeText": "120'",
+    "description": "Changes an area of rock into thick mud.\n- Area: Up to 3,000 square feet, 10' deep.\n- Movement: Creatures in the mud move at 10% of their normal movement rate and may become stuck.\nReversed: Transmute Mud to Rock\nPermanently changes an area of mud—up to 3,000 square feet and up to 10' deep—into rock."
+  },
+  {
+    "id": "arcane-wall-of-stone",
+    "name": "Wall of Stone",
+    "level": 5,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Wall_of_Stone",
+    "durationText": "Permanent",
+    "rangeText": "60'",
+    "description": "A wall of solid rock appears.\n- Size: The wall may be of whatever shape the caster desires and is of 1,000 cubic feet in volume. (For example, a 2' thick wall, 50' long and 10' high.)\n- Location: The wall must be supported (e.g. by the ground) and cannot be created in an area occupied by objects."
+  },
+  {
+    "id": "arcane-anti-magic-shell",
+    "name": "Anti-Magic Shell",
+    "level": 6,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Anti-Magic_Shell",
+    "durationText": "12 turns",
+    "rangeText": "The caster",
+    "description": "Wreathes the caster in an anti-magic barrier.\n- Blocks magic: The barrier blocks all spells and spell effects in both directions, including spells cast by the caster.\n- Dismissing: At any time the caster wishes, they may dismiss the barrier, ending the spell."
+  },
+  {
+    "id": "arcane-control-weather",
+    "name": "Control Weather",
+    "level": 6,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Control_Weather",
+    "durationText": "Concentration",
+    "rangeText": "240 yards around the caster",
+    "description": "By concentrating (no movement allowed), the caster causes one of the following conditions to manifest in the surrounding area. This spell only functions outdoors.\n- Calm: Clears bad weather (though side-effects—e.g. mud after rain—remain.)\n- Extreme heat: Dries up snow or mud (including transmute rock to mud). Creatures in the area move at half normal rate.\n- Fog: Visibility drops to 20'. Creatures in the fog move at half their normal rate. At the referee's option, they may also have a chance of getting lost.\n- High winds: Movement rates are halved. Missile fire and flight are impossible. High winds may be used to increase the sailing speed of ships by 50%, if they travel with the wind. In sandy areas, may cause a sandstorm, reducing visibility to 20'.\n- Rain: -2 penalty to missile attacks. Mud forms in 3 turns, halving movement rates.\n- Snow: Visibility drops to 20'. Movement rates are halved. Bodies of water may freeze. After the snow thaws, mud remains and still impedes movement.\n- Tornado: Conjures a whirlwind that the caster directs, moving 120' per round and attacking as directed (see stats below). Ships caught in a tornado have a 75% chance of suffering 12 points of hull damage.\nTornado\nA whirling column of air, 24' high and 6' across, that wreaks havoc for flying creatures and ships.\nAC 0 [19], HD 12* (54hp), Att 1 × blow (2d8), THAC0 10 [+9], MV 360' (120') flying, SV D6 W7 P8 B8 S10 (12), ML 10, AL Neutral, XP 1,900\n- Whirlwind: Creatures with less than 2HD swept aside (save versus death).\n- Mundane damage immunity: Can only be harmed by magical attacks.\n- Harm flying creatures: Inflict extra 1d8 damage."
+  },
+  {
+    "id": "arcane-death-spell",
+    "name": "Death Spell",
+    "level": 6,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Death_Spell",
+    "durationText": "Instant",
+    "rangeText": "240'",
+    "description": "Up to 4d8 Hit Dice of creatures within a 60' cube area must save versus death or die, instantly.\nRestrictions: Undead and creatures with greater than 7 Hit Dice are unaffected."
+  },
+  {
+    "id": "arcane-disintegrate",
+    "name": "Disintegrate",
+    "level": 6,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Disintegrate",
+    "durationText": "Instant",
+    "rangeText": "60'",
+    "description": "The material form of a single, non-magical creature or object is instantly and permanently destroyed.\n- If a creature is targeted: It may save versus death to resist disintegration.\n- Examples of objects: The following might be targeted: a tree, a ship, a 10' section of wall."
+  },
+  {
+    "id": "arcane-geas",
+    "name": "Geas (Remove Geas)",
+    "level": 6,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Geas_(Remove_Geas)",
+    "durationText": "Permanent / Instant (remove geas)",
+    "rangeText": "30'",
+    "description": "The caster commands a subject to perform or avoid performing a specific action.\n- Examples: Bringing a specific item to the caster, eating or drinking without restraint, keeping a certain fact secret.\n- Impossible or deadly tasks: The prescribed geas must not be impossible or directly deadly—if such a geas is cast, it affects the caster, instead.\n- Saving throw: The subject may save versus spells, to avoid coming under the spell's effect.\n- If the save fails: The subject must follow the stipulated course of action or suffer gradually increasing (and eventually fatal) penalties determined by the referee (e.g. penalties to attack, ability score reductions, inability to memorize spells, physical torment and feebleness, etc.).\nReversed: Remove Geas\nCan dispel an active geas spell and any incurred penalties. A geas placed by a lower level caster is automatically dispelled. A geas created by a higher level caster has a 5% chance per level difference of not being dispelled."
+  },
+  {
+    "id": "arcane-invisible-stalker",
+    "name": "Invisible Stalker",
+    "level": 6,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Invisible_Stalker_(MU)",
+    "durationText": "One mission",
+    "rangeText": "Summoned to caster's presence",
+    "description": "An invisible stalker (see below) is summoned to the caster's presence and magically bound to perform a mission of the caster's choosing.\n- Wording: The caster must be careful with the wording of the mission. Invisible stalkers are treacherous and, unless the assigned mission can be easily and quickly accomplished, will follow the letter of the command while twisting the intent.\n- Duration: The creature is bound to attempt the mission until it succeeds or is destroyed.\n- Banishing: The spell dispel evil will banish an invisible stalker, ending the spell.\nInvisible Stalker\nHighly intelligent, magical creatures summoned from another plane of existence to perform tasks for powerful magic-users.\nAC 3 [16], HD 8* (36hp), Att 1 × blow (4d4), THAC0 12 [+7], MV 120' (40'), SV D8 W9 P10 B10 S12 (F8), ML 12, AL Neutral, XP 1,200\n- Tracking: Without fault.\n- Surprise: On a 1-5, unless target can detect invisibility.\n- If killed: Returns to plane of origin."
+  },
+  {
+    "id": "arcane-lower-water",
+    "name": "Lower Water",
+    "level": 6,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Lower_Water",
+    "durationText": "10 turns",
+    "rangeText": "240'",
+    "description": "This spell reduces the depth of a body of water by half for the duration. An area of up to 10,000 square feet may be affected."
+  },
+  {
+    "id": "arcane-move-earth",
+    "name": "Move Earth",
+    "level": 6,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Move_Earth",
+    "durationText": "6 turns",
+    "rangeText": "240'",
+    "description": "Earth (but not stone) within range is rearranged as the caster wishes.\n- Movement rate: The caster can move earth in the area at up to 60' per turn.\n- Excavations: The range of the spell also extends downwards, allowing excavations to be made."
+  },
+  {
+    "id": "arcane-part-water",
+    "name": "Part Water",
+    "level": 6,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Part_Water",
+    "durationText": "6 turns",
+    "rangeText": "120'",
+    "description": "A body of water parts, revealing a pathway across the bottom.\n- Size: The path is 10' wide and up to 120' long.\n- Dismissing: The caster may end the spell any time they wish."
+  },
+  {
+    "id": "arcane-projected-image",
+    "name": "Projected Image",
+    "level": 6,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Projected_Image",
+    "durationText": "6 turns",
+    "rangeText": "240'",
+    "description": "An illusory duplicate of the caster appears within range.\n- Duplicate: The image is an exact duplicate of the caster that can only be differentiated by touch.\n- Subsequent spells cast: Appear to originate from the image. (Targets must still be visible to the caster, however.)\n- Spells and missiles: The image appears unaffected by spells or missile weapons.\n- Melee or touch: If the image is touched or hit in melee, it disappears."
+  },
+  {
+    "id": "arcane-reincarnation",
+    "name": "Reincarnation",
+    "level": 6,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Reincarnation",
+    "durationText": "Permanent",
+    "rangeText": "Appears in the caster's presence",
+    "description": "A dead character is returned to life in a new physical form that manifests in the presence of the caster. The character's new body is not necessarily the same as the original; it is determined by rolling on the Reincarnated Class table below.\nThe roll indicates either a character class or a monster:\n- Character class: The character is of experience level 1d6 (or at most the same level as the character achieved before death). The reincarnated character can continue to gain experience and advance as normal, in the new class.\n- Monster: The type should be determined by the referee. The monster should be at least partially intelligent, have Hit Dice no greater than the level of the character being reincarnated (at most 6 HD), and be of the same alignment. The tables below may be used, or the referee may create their own tables. Monsters cannot gain experience or advance in level.\nReincarnated Class\nd10\nReincarnation\n1\nCleric\n2\nDwarf\n3\nElf\n4\nFighter\n5\nHalfling\n6\nMagic-user\n7\nThief\n8\nMonster (roll on alignment table)\n9-10\nSame class\nLawful Monsters\nd6\nReincarnation\nHD\n1\nGnome\n1\n2\nNeanderthal\n2\n3\nPegasus\n2\n4\nBlink dog\n4\n5\nUnicorn\n4\n6\nRoc, small\n6\nNeutral Monsters\nd6\nReincarnation\nHD\n1\nPixie or sprite\n1\n2\nLizard man\n2\n3\nRock baboon\n2\n4\nApe, white\n4\n5\nCentaur\n4\n6\nWerebear\n6\nChaotic Monsters\nd10\nReincarnation\nHD\n1\nGoblin\n1\n2\nHobgoblin\n1\n3\nKobold\n1\n4\nOrc\n1\n5\nGnoll\n2\n6\nBugbear\n3\n7\nWererat\n3\n8\nOgre\n4\n9\nWerewolf\n4\n10\nMinotaur\n6\nAlternative Reincarnation Tables\nStandard classes and monsters are listed in the tables. If other classes or monsters are in use, the referee may wish to create alternative reincarnation tables."
+  },
+  {
+    "id": "arcane-stone-to-flesh",
+    "name": "Stone to Flesh (Flesh to Stone)",
+    "level": 6,
+    "sourceUrl": "https://oldschoolessentials.necroticgnome.com/srd/index.php/Stone_to_Flesh_(Flesh_to_Stone)",
+    "durationText": "Permanent",
+    "rangeText": "120'",
+    "description": "Transforms stone into living flesh. It is especially useful for restoring a magically petrified creature to life.\nReversed: Flesh to Stone\nTransforms a living creature (including equipment) into stone. The victim may save versus paralysis to resist."
+  }
+]
