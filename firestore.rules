@@ -106,7 +106,13 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
         && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if isGroupAdmin(groupId);
+      // Any active group member may switch which campaign is active (e.g.
+      // promoting their own draft). Restricted to the active-campaign pointer
+      // fields so members can't rename the group or alter other metadata.
+      allow update: if isGroupAdmin(groupId)
+        || (isGroupMember(groupId)
+            && onlyChanges(['activeCampaignId', 'currentCampaignId', 'updatedAt']));
+      allow delete: if isGroupAdmin(groupId);
 
       match /members/{userId} {
         allow read: if isGroupMember(groupId) || isSelf(userId);
@@ -145,7 +151,14 @@ service cloud.firestore {
         allow read: if isGroupMember(groupId);
         allow create: if isGroupMember(groupId)
           && request.resource.data.createdBy == request.auth.uid;
-        allow update, delete: if isGroupAdmin(groupId)
+        // Group admins and the campaign's own GM have full edit/delete. Any
+        // active member may additionally flip only a campaign's status (and
+        // updatedAt), which is needed to demote the previously-active campaign
+        // when promoting their own draft to active.
+        allow update: if isGroupAdmin(groupId)
+          || (isGroupMember(groupId) && resource.data.gmUserId == request.auth.uid)
+          || (isGroupMember(groupId) && onlyChanges(['status', 'updatedAt']));
+        allow delete: if isGroupAdmin(groupId)
           || (isGroupMember(groupId) && resource.data.gmUserId == request.auth.uid);
 
         // Per-user campaign UI scratch (currentCharacterId,
