@@ -1,0 +1,590 @@
+{
+  "75BSoSJ3Z6zNyNyKSkNV": {
+    "arrayValue": {
+      "values": [
+        {
+          "mapValue": {
+            "fields": {
+              "key": {
+                "stringValue": "day_002"
+              },
+              "dayComplete": {
+                "booleanValue": true
+              },
+              "entries": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "Mid-morning, the party decides not to return to Vivian yet and continues toward the dwarven mine, ignoring the goblins' northbound trail."
+                    },
+                    {
+                      "stringValue": "The party reaches a clearing with a wrecked, smoking caravan and several bodies, and spots goblins cautiously emerging to loot the dead."
+                    },
+                    {
+                      "stringValue": "Purist charges and Nail follows; combat breaks out with Pippin drunkenly fighting at a penalty and Victorf mostly hanging back."
+                    },
+                    {
+                      "stringValue": "After several missed swings, Nail lands a devastating sword blow that hacks a goblin down at the legs, leaving it dying."
+                    },
+                    {
+                      "stringValue": "The remaining goblin attempts to flee; Purist and Thrillho pursue and Purist crushes its skull with a mace, killing it."
+                    },
+                    {
+                      "stringValue": "With the goblins dead, the party examines the caravan and notices a strong sulfur stench, corrosion/singed damage, ripped tents, and gruesomely mutilated corpses-signs of a possible dragon attack."
+                    },
+                    {
+                      "stringValue": "Nail tries to read tracks but can't make out any clear trail."
+                    },
+                    {
+                      "stringValue": "The party recovers a few coins from the dead and goblins: about 1 gp from the caravan victims and 7 gp from goblin bodies; Pippin retrieves his thrown spear."
+                    }
+                  ]
+                }
+              },
+              "label": {
+                "stringValue": ""
+              },
+              "action": {
+                "stringValue": "update"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "ATIgt0O58JnD7AuACDlH": {
+    "arrayValue": {
+      "values": [
+        {
+          "mapValue": {
+            "fields": {
+              "key": {
+                "stringValue": "day_002"
+              },
+              "dayComplete": {
+                "booleanValue": true
+              },
+              "entries": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "Around 5 p.m., the party withdraws from Brol's North Cave and decides to head south/southwest toward town to regroup and seek help (witch/smith)."
+                    },
+                    {
+                      "stringValue": "The party discovers and approaches a vine-covered, partially collapsed stone monastery in the woods."
+                    },
+                    {
+                      "stringValue": "Nail scouts through a monastery window and spots three goblins inside building a mud goblin effigy; the party hides and regroups outside the windows."
+                    },
+                    {
+                      "stringValue": "Victorf conducts recon at another window, realizing there are additional goblins in an adjacent room; he signals the others that there are many more than three."
+                    },
+                    {
+                      "stringValue": "Nail casts Sleep, putting six goblins in the larger room and one goblin in the effigy room into magical slumber for about 40 minutes."
+                    },
+                    {
+                      "stringValue": "Nail climbs in through a window to engage the two remaining awake goblins by the effigy; they flee screaming for help into the monastery."
+                    },
+                    {
+                      "stringValue": "Purist and Thrillho join the fight, wounding and then killing fleeing goblins near the effigy room."
+                    },
+                    {
+                      "stringValue": "Victorf slips into the southern room and begins killing sleeping goblins with a dagger; he also glimpses a larger goblin on a throne (a goblin leader) rousing."
+                    },
+                    {
+                      "stringValue": "Pippin tumbles through a window, kills a sleeping goblin by the effigy, then gets nicked for 1 damage as more goblins rouse and swarm into the fight."
+                    },
+                    {
+                      "stringValue": "Combat escalates as additional goblins pour out from the sleeping area toward the party; the session ends mid-fight with the goblin leader looming."
+                    }
+                  ]
+                }
+              },
+              "label": {
+                "stringValue": ""
+              },
+              "action": {
+                "stringValue": "update"
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "BgzCrI8Zh0X19kAFuyYm": {
+    "arrayValue": {
+      "values": [
+        {
+          "mapValue": {
+            "fields": {
+              "action": {
+                "stringValue": "update"
+              },
+              "label": {
+                "stringValue": ""
+              },
+              "entries": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "Nail pays for a room at Bentley's tavern in Brandonsford, buys Foxtail Brew, and keeps Thrillho tied to the bed for the night."
+                    }
+                  ]
+                }
+              },
+              "key": {
+                "stringValue": "day_002"
+              },
+              "dayComplete": {
+                "booleanValue": true
+              }
+            }
+          }
+        },
+        {
+          "mapValue": {
+            "fields": {
+              "key": {
+                "stringValue": "day_003"
+              },
+              "dayComplete": {
+                "booleanValue": false
+              },
+              "label": {
+                "stringValue": ""
+              },
+              "action": {
+                "stringValue": "new"
+              },
+              "entries": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "The next morning at the tavern, Nail and Thrillho meet new adventurers Chev and Bog and agree to team up to pursue the dragon treasure."
+                    },
+                    {
+                      "stringValue": "Purist, at 1 HP, is marched back to the monastery by a drunken goblin with a knife at his back; his weapon is taken but his pack remains."
+                    },
+                    {
+                      "stringValue": "Inside the monastery, Purist bluffs the goblin using the \"ghost of Victorf\" as leverage, buying time before the goblins plan to tie him up for later interrogation."
+                    },
+                    {
+                      "stringValue": "Purist bolts through a window and escapes the monastery, leaving Victorf's ghost behind, and makes it back to the tavern late at night."
+                    },
+                    {
+                      "stringValue": "Purist rests at the tavern but only recovers 1 HP, remaining badly wounded."
+                    },
+                    {
+                      "stringValue": "Nail tries an ankle-leash on Thrillho; Thrillho cuts the rope with his hand axe and attempts to walk off toward the dryad's tree."
+                    },
+                    {
+                      "stringValue": "With Chev and Bog, the party heads from Brandonsford to the enchanted tree intending to destroy it and free Thrillho from the dryad's charm."
+                    },
+                    {
+                      "stringValue": "At the tree, Purist resists the tree's whispering charm and helps build a pyre of forest debris around it."
+                    },
+                    {
+                      "stringValue": "Thrillho threatens self-harm to stop them, then tries to beat out the flames when Bog lights the pyre; Bog restrains Thrillho while the tree burns."
+                    },
+                    {
+                      "stringValue": "After hours, the tree dies and Thrillho's charm fades, leaving the party reunited and back at square one."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "ExfFiJHuZZMNIET3mRbe": {
+    "arrayValue": {
+      "values": [
+        {
+          "mapValue": {
+            "fields": {
+              "key": {
+                "stringValue": "day_002"
+              },
+              "dayComplete": {
+                "booleanValue": true
+              },
+              "action": {
+                "stringValue": "update"
+              },
+              "label": {
+                "stringValue": ""
+              },
+              "entries": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "Around 1:30-2:30 p.m., the party arrives northeast at the dwarven mine and finds the exterior cabin burned down weeks ago and the mine entrance caved in."
+                    },
+                    {
+                      "stringValue": "The party searches the burned cabin rubble, finding a mining pick engraved with brother Brol's name."
+                    },
+                    {
+                      "stringValue": "A further search turns up four gems (worth 50 gp each)."
+                    },
+                    {
+                      "stringValue": "Another search finds a mining pick engraved with brother Grelly's name."
+                    },
+                    {
+                      "stringValue": "The party recovers 14 iron ingots from the wreckage."
+                    },
+                    {
+                      "stringValue": "Searching continues; Thrillho uncovers a dwarven corpse buried in the cabin debris."
+                    },
+                    {
+                      "stringValue": "Another search finds another brother's mining pick."
+                    },
+                    {
+                      "stringValue": "Purist uncovers a second dwarven corpse in the rubble."
+                    },
+                    {
+                      "stringValue": "Victorf finds a small pouch containing 14 gp."
+                    },
+                    {
+                      "stringValue": "Nail finds an additional 23 gp while searching."
+                    },
+                    {
+                      "stringValue": "Two human would-be dragon hunters, Tad and Zack, emerge from the woods claiming they plan to trap the dragon with a net and a dead pig; they then wander off."
+                    },
+                    {
+                      "stringValue": "The party investigates the mine cave-in, digs through rubble, and discovers another dead dwarf wearing a strange opal ring; Purist takes the ring."
+                    },
+                    {
+                      "stringValue": "Victorf tries on the ring, summoning the ghost of Grimny, who reveals Brol collapsed the mine out of greed after finding a large pirate treasure cache and likely killed the other brothers; Grimny points to Brol's nearby private cave hideout."
+                    },
+                    {
+                      "stringValue": "Grimny asks the party to find his bejeweled silver beard comb in the cabin; the party searches and recovers it, and Thrillho agrees to keep it."
+                    },
+                    {
+                      "stringValue": "Guided by Grimny, the party heads west to Brol's cave (\"North Cave\"), noticing sulfur smell, rumbling/snoring from within, and yellow smoke at the entrance."
+                    },
+                    {
+                      "stringValue": "Hearing coins and large shuffling inside, the party decides they are unprepared and flees; Grimny walks into the cave and fades/disappears as he moves out of range while Victorf remains wearing the ring."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "bOX7g9DbfcVBrJ1lXtzS": {
+    "arrayValue": {
+      "values": [
+        {
+          "mapValue": {
+            "fields": {
+              "label": {
+                "stringValue": ""
+              },
+              "action": {
+                "stringValue": "new"
+              },
+              "entries": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "The party wakes up at the Clumsy Fox in Brandonsford and sets out northwest, planning to swing west for the wine trees on the way to the mine."
+                    },
+                    {
+                      "stringValue": "Along the river, the party spots goblins attacking a giant beaver on its lodge; Nail looses an arrow but misses, and the party chooses not to intervene further."
+                    },
+                    {
+                      "stringValue": "The giant beaver mauls one goblin, driving the others to flee west; one goblin escapes onto the far bank."
+                    },
+                    {
+                      "stringValue": "Traveling upriver, the party finds a huge fallen tree used as a bridge and crosses to the west side."
+                    },
+                    {
+                      "stringValue": "In the woods, several goblins with a wheelbarrow of stolen trade goods scatter and hide; Victorf uses ventriloquism to impersonate their king, panicking them into fleeing and abandoning the wheelbarrow."
+                    },
+                    {
+                      "stringValue": "The party searches the abandoned wheelbarrow, taking rope, wine, 20 arrows, rations, and lamp oil, then dumps the rest rather than hauling it."
+                    },
+                    {
+                      "stringValue": "The party heads west and finds a deliberate clearing of strange, sweet-smelling trees consistent with the magical wine grove."
+                    },
+                    {
+                      "stringValue": "The party follows music into the grove and encounters fawns reveling among the wine trees; they negotiate for wine."
+                    },
+                    {
+                      "stringValue": "Pippin trades away a sentimental rope for a golden goblet of fawn wine."
+                    },
+                    {
+                      "stringValue": "Pippin drinks a sip of the fawn wine, succeeds a poison save, and becomes instantly and overwhelmingly drunk."
+                    },
+                    {
+                      "stringValue": "Victorf secures the remaining fawn wine in a waterskin and keeps the golden goblet as the party prepares to continue on."
+                    }
+                  ]
+                }
+              },
+              "key": {
+                "stringValue": "day_002"
+              },
+              "dayComplete": {
+                "booleanValue": true
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "iu3mSJTLxTH8KBaQkxwC": {
+    "arrayValue": {
+      "values": [
+        {
+          "mapValue": {
+            "fields": {
+              "key": {
+                "stringValue": "day_002"
+              },
+              "dayComplete": {
+                "booleanValue": true
+              },
+              "label": {
+                "stringValue": ""
+              },
+              "action": {
+                "stringValue": "update"
+              },
+              "entries": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "The survivors flee through the woods through the evening, still on edge after the goblin massacre."
+                    },
+                    {
+                      "stringValue": "Just as the sun begins to set, Thrillho is charmed by a dryad manifested in a tree and tries to embrace it."
+                    },
+                    {
+                      "stringValue": "Nail yanks Thrillho away and drags him onward; Purist identifies the creature as a dryad and warns it can be killed by destroying its tree (and that treasure may lie in its roots)."
+                    },
+                    {
+                      "stringValue": "Thrillho remains under the dryad's charm and compulsively wants to return, so the group considers binding/using the bonsai of lashing to restrain him."
+                    },
+                    {
+                      "stringValue": "The party splits: Purist doubles back alone toward the ruined monastery to retrieve the missing wine while Nail hauls the restrained Thrillho back to town."
+                    },
+                    {
+                      "stringValue": "At the monastery at night, Purist finds multiple bodies outside and draws out a drunken goblin with a shouted challenge."
+                    },
+                    {
+                      "stringValue": "Purist fights the goblin, is badly wounded, and is captured and taken inside as the goblin begins tying him up and interrogating him about the drink/wine skin."
+                    },
+                    {
+                      "stringValue": "Nail and the bound Thrillho arrive back in town and head to the tavern to get a room and clean up."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "kqibZWXRAmC3ZXtVENCI": {
+    "arrayValue": {
+      "values": [
+        {
+          "mapValue": {
+            "fields": {
+              "entries": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "The party wins a pirate treasure map in high-stakes gambling in Dram, pointing to a spot north of Brandonsford."
+                    },
+                    {
+                      "stringValue": "In the early evening, the party arrives in Brandonsford and heads into the Clumsy Fox tavern to ask about the map."
+                    },
+                    {
+                      "stringValue": "At the Clumsy Fox, the proprietors Bentley and Eloise suggest Warwick the blacksmith might know about the map's location near the old dwarves' mine."
+                    },
+                    {
+                      "stringValue": "Outside, the town reeve Eric warns the area is threatened by a black wyrm (dragon) and offers 1000 gold for its death; the party agrees to help."
+                    },
+                    {
+                      "stringValue": "Eric directs them to George the woodsman (one-armed hunter) for intel; the party goes to his den."
+                    },
+                    {
+                      "stringValue": "George recounts his encounter: a ~15-20 ft black, wingless dragon with noxious green breath and seemingly invincible scales; he mentions Vivian the witch in the eastern woods may know more."
+                    },
+                    {
+                      "stringValue": "George gives Nail a longbow and arrows to aid the party against future threats."
+                    },
+                    {
+                      "stringValue": "As evening approaches, the party visits Warwick the blacksmith, finding his shop warded with clovers, rabbit's feet, and horseshoes."
+                    },
+                    {
+                      "stringValue": "Warwick explains the dwarven mine's deliveries stopped due to the dragon; he offers his grandfather's mithril chain shirt as payment if the party brings back metal and checks on the dwarves (notably Grimny)."
+                    },
+                    {
+                      "stringValue": "Warwick also reveals a fairy/hooded phantom has been tormenting him at night, leaving flowers and cursed talismans on his door."
+                    }
+                  ]
+                }
+              },
+              "label": {
+                "stringValue": ""
+              },
+              "action": {
+                "stringValue": "new"
+              },
+              "key": {
+                "stringValue": "day_001"
+              },
+              "dayComplete": {
+                "booleanValue": true
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "oi2jsjRywu9bcWcmXnnI": {
+    "arrayValue": {
+      "values": [
+        {
+          "mapValue": {
+            "fields": {
+              "key": {
+                "stringValue": "day_001"
+              },
+              "dayComplete": {
+                "booleanValue": true
+              },
+              "action": {
+                "stringValue": "update"
+              },
+              "label": {
+                "stringValue": ""
+              },
+              "entries": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "Toward night, the party decides it's too late to start for the dwarven mine and instead heads out to the witch's hut in the woods."
+                    },
+                    {
+                      "stringValue": "In the darkening woods, the party spots elvish hunters with fae hounds searching for a \"golden fox,\" who quickly move on when the party can't help."
+                    },
+                    {
+                      "stringValue": "Reaching the witch's clearing, the party finds a lifelike row of human-shaped topiary leading to the hut."
+                    },
+                    {
+                      "stringValue": "At the pond outside the hut, nixies demand the party throw weapons in as \"tribute,\" and the party refuses while noting a heap of rusty weapons and a fancy gold scabbard among the offerings."
+                    },
+                    {
+                      "stringValue": "Nail knocks and the party meets Vivian the Witch, who lets them inside after sizing them up."
+                    },
+                    {
+                      "stringValue": "Vivian warns the dragon's scales are tough and suggests a plan involving magical trees in the western woods that drip potent wine capable of knocking mortals unconscious, though she's unsure it will work on a dragon."
+                    },
+                    {
+                      "stringValue": "Vivian offers Pippin a vine-plant whose cut branches can lash targets; in return she demands a bottle of wine taken from the magical wine-dripping trees."
+                    },
+                    {
+                      "stringValue": "The party leaves Vivian's hut and returns to Brandonsford at nighttime, using a lantern for light."
+                    },
+                    {
+                      "stringValue": "The party rents rooms at the Clumsy Fox for the night and settles in, planning next steps (wine trees, dwarven mine, and the dragon)."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "sj2EHwMZykTKhyyTrSm1": {
+    "arrayValue": {
+      "values": [
+        {
+          "mapValue": {
+            "fields": {
+              "entries": {
+                "arrayValue": {
+                  "values": [
+                    {
+                      "stringValue": "Purist loots Pippin's corpse, taking the Tree of Lashing (bonsai) and dropping iron ingots to make room, then flees back toward Nail."
+                    },
+                    {
+                      "stringValue": "A goblin fumbles an attack on Victorf and injures itself, but another goblin slashes Victorf's leg, dropping him to 1 HP."
+                    },
+                    {
+                      "stringValue": "A goblin catches Purist and deals 5 damage, badly wounding him as he tries to run."
+                    },
+                    {
+                      "stringValue": "Nail pours oil to slick the doorway as a choke point and retreats toward the window, calling for Thrillho to ignite it."
+                    },
+                    {
+                      "stringValue": "Thrillho successfully lights the oil, creating a fire barrier that forces the goblins to route around the other way."
+                    },
+                    {
+                      "stringValue": "Purist jumps through the burning doorway/window area, risks catching fire, and pats himself out to avoid taking damage."
+                    },
+                    {
+                      "stringValue": "Victorf climbs out the window and runs east; Nail and Thrillho follow, attempting to escape into the unknown woods-side direction."
+                    },
+                    {
+                      "stringValue": "The goblin king casts Sleep; Victorf, Nail, and Thrillho fail their saves and collapse unconscious outside, while Purist is out of line-of-effect and stays awake."
+                    },
+                    {
+                      "stringValue": "Purist slaps Victorf awake; Victorf rouses Nail; Nail rouses Thrillho, restoring the party's ability to act."
+                    },
+                    {
+                      "stringValue": "The goblin king attempts to Charm Purist, but Purist succeeds on his save and resists."
+                    },
+                    {
+                      "stringValue": "Victorf charges the goblin king with a dagger strike but misses; Nail decides to run off the map to escape."
+                    },
+                    {
+                      "stringValue": "Thrillho and Purist also flee off the map, abandoning Victorf still near the goblin king and goblins."
+                    },
+                    {
+                      "stringValue": "The goblin king strikes Victorf with a greatsword, nearly killing him; moments later, surrounding goblins attack and kill Victorf, severing an arm."
+                    },
+                    {
+                      "stringValue": "The goblins celebrate and brutalize Victorf's corpse; the goblin king takes Victorf's ring."
+                    },
+                    {
+                      "stringValue": "Late into the evening, the survivors (Thrillho, Purist, Nail) regroup in the woods; Victorf's ghost manifests because the goblin king dons the ring, allowing Victorf to haunt him while the ring remains worn."
+                    }
+                  ]
+                }
+              },
+              "action": {
+                "stringValue": "update"
+              },
+              "label": {
+                "stringValue": ""
+              },
+              "key": {
+                "stringValue": "day_002"
+              },
+              "dayComplete": {
+                "booleanValue": true
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
