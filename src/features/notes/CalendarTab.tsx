@@ -22,6 +22,30 @@ function extractDayNumber(key: string): number {
   return match ? parseInt(match[1], 10) : 0
 }
 
+type SessionGroup = {
+  key: string
+  sessionNumber: number | null
+  events: AggregatedDay['events']
+}
+
+function groupEventsBySession(events: AggregatedDay['events']): SessionGroup[] {
+  const groups = new Map<string, SessionGroup>()
+  for (const event of events) {
+    const key = event.sessionNumber == null ? 'none' : String(event.sessionNumber)
+    let group = groups.get(key)
+    if (!group) {
+      group = { key, sessionNumber: event.sessionNumber, events: [] }
+      groups.set(key, group)
+    }
+    group.events.push(event)
+  }
+  return Array.from(groups.values()).sort((a, b) => {
+    if (a.sessionNumber == null) return 1
+    if (b.sessionNumber == null) return -1
+    return a.sessionNumber - b.sessionNumber
+  })
+}
+
 export function CalendarTab({ campaignId, groupId }: CalendarTabProps) {
   const { notes, notesLoading } = useSessionNotes(campaignId, true, groupId)
   const [collapsedDays, setCollapsedDays] = useState<Set<string>>(new Set())
@@ -53,7 +77,7 @@ export function CalendarTab({ campaignId, groupId }: CalendarTabProps) {
       }
     }
 
-    return Array.from(dayMap.values()).sort((a, b) => b.dayNumber - a.dayNumber || b.key.localeCompare(a.key))
+    return Array.from(dayMap.values()).sort((a, b) => a.dayNumber - b.dayNumber || a.key.localeCompare(b.key))
   }, [notes])
 
   const toggleDay = (key: string) => {
@@ -95,16 +119,22 @@ export function CalendarTab({ campaignId, groupId }: CalendarTabProps) {
                   </span>
                 </button>
                 {!collapsed && day.events.length > 0 ? (
-                  <ul className="calendar-day-events">
-                    {day.events.map((event, i) => (
-                      <li key={i}>
-                        <span className="calendar-event-text">{event.text}</span>
-                        {event.sessionNumber != null ? (
-                          <span className="calendar-event-source">Session {event.sessionNumber}</span>
+                  <div className="calendar-day-sessions">
+                    {groupEventsBySession(day.events).map((group) => (
+                      <div key={group.key} className="calendar-session-group">
+                        {group.sessionNumber != null ? (
+                          <h4 className="calendar-session-header">Session {group.sessionNumber}</h4>
                         ) : null}
-                      </li>
+                        <ul className="calendar-day-events">
+                          {group.events.map((event, i) => (
+                            <li key={i}>
+                              <span className="calendar-event-text">{event.text}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 ) : null}
               </div>
             )
