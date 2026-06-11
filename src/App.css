@@ -10806,11 +10806,24 @@ button:disabled {
   margin-right: 0.5rem;
 }
 
-.calendar-event-source {
-  font-size: 0.65rem;
-  color: var(--text-muted);
-  font-style: italic;
-  opacity: 0.7;
+.calendar-day-sessions {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.calendar-session-group + .calendar-session-group {
+  margin-top: 0.4rem;
+}
+
+.calendar-session-header {
+  margin: 0 0 0.15rem;
+  padding-bottom: 0.12rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--accent-color, #4a9);
+  border-bottom: 1px solid var(--border-color);
 }
 
 /* --- Cliffhanger Modal --- */
