@@ -416,6 +416,7 @@ export type NpcRecord = {
   tokenIcon: TokenIconConfig
   playerDescription: string
   playerNotes: string
+  sortOrder?: number
 }
 
 export type NpcPrivateRecord = {
