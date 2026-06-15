@@ -2029,6 +2029,27 @@ button:hover {
   width: 100%;
 }
 
+.npc-detail-main {
+  display: grid;
+  grid-template-columns: minmax(220px, 250px) minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.npc-detail-portrait {
+  align-self: start;
+}
+
+.npc-detail-side {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.npc-detail-description {
+  min-height: 6.5rem;
+}
+
 .character-sheet-two-col {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5867,6 +5888,32 @@ button:disabled {
 
 .map-row.dragging {
   opacity: 0.65;
+}
+
+.npc-row {
+  cursor: default;
+}
+
+.npc-row-draggable {
+  cursor: grab;
+}
+
+.npc-row-dragging {
+  opacity: 0.6;
+  cursor: grabbing;
+}
+
+.npc-row-placeholder {
+  min-height: 72px;
+  border: 1px dashed #9fb095;
+  border-radius: 8px;
+  background: rgba(159, 176, 149, 0.12);
+  box-shadow: none;
+  cursor: grabbing;
+}
+
+.npc-row-placeholder:hover {
+  background: rgba(159, 176, 149, 0.12);
 }
 
 .map-select {
@@ -9742,6 +9789,10 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
+  .npc-detail-main {
+    grid-template-columns: 1fr;
+  }
+
   .character-sheet-main-grid.intermediate {
     grid-template-columns: minmax(0, 1fr) 250px;
   }
@@ -11555,6 +11606,15 @@ button:disabled {
 /* === [data-theme="vtm"] — Final Nights, anno 1992 ===================== */
 /* ====================================================================== */
 
+/* The VtM skin's type is sized in rem (relative to the root <html>), so the one
+   clean lever to scale every label/caption/heading/body run proportionally is
+   the root font-size — applied only while VtM is the active theme. (This does
+   NOT cover form controls, which don't use rem; those are sized directly in the
+   input/select/textarea rule below.) Browser default is 16px; tune to taste. */
+:root:has(.shell-root[data-theme="vtm"]) {
+  font-size: 20px;
+}
+
 .shell-root[data-theme="vtm"] {
   --vtm-void: #0a0708;
   --vtm-pitch: #110b0d;
@@ -11563,11 +11623,11 @@ button:disabled {
   --vtm-ash: #2e1c20;
   --vtm-rule: #3a2128;
   --vtm-rule-strong: #5a3036;
-  --vtm-bone: #fff6e8;
-  --vtm-parchment: #f1dfc2;
-  --vtm-parchment-soft: #dec9a8;
-  --vtm-faint: #ad958c;
-  --vtm-mute: #83706c;
+  --vtm-bone: #fdfcfa;
+  --vtm-parchment: #f6f1e8;
+  --vtm-parchment-soft: #e9e0d2;
+  --vtm-faint: #c7bcb4;
+  --vtm-mute: #9c8e89;
   --vtm-oxblood: #7a1a1f;
   --vtm-oxblood-deep: #4d0e10;
   --vtm-oxblood-bright: #a32226;
@@ -11578,7 +11638,7 @@ button:disabled {
   background: var(--vtm-void);
   color: var(--vtm-bone);
   font-family: 'Cormorant Garamond', 'EB Garamond', Georgia, serif;
-  font-size: 16.5px;
+  font-size: 1.03rem;
   font-weight: 400;
   letter-spacing: 0.005em;
   position: relative;
@@ -11922,6 +11982,12 @@ button:disabled {
   color: var(--vtm-bone);
   border-radius: 2px;
   font-family: inherit;
+  /* Form controls don't inherit font size — without this they fall back to the
+     browser's ~13px default and clash with the serif body text. Set a readable
+     floor here so every unstyled field is consistent; specific fields below can
+     still override where a deliberately smaller/larger size is wanted. */
+  font-size: 1rem;
+  line-height: 1.4;
 }
 
 .shell-root[data-theme="vtm"] input::placeholder,

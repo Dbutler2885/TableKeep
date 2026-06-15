@@ -21,6 +21,31 @@ const defaultTokenIcon: TokenIconConfig = {
   size: 34,
 }
 
+const byOrder = (a: NpcRecord, b: NpcRecord) => {
+  const ao = a.sortOrder
+  const bo = b.sortOrder
+  if (typeof ao === 'number' && typeof bo === 'number') {
+    if (ao !== bo) return ao - bo
+  } else if (typeof ao === 'number') {
+    return -1
+  } else if (typeof bo === 'number') {
+    return 1
+  }
+  return a.name.localeCompare(b.name)
+}
+
+// Reorder `items` so `sourceId` sits immediately before `targetId` (insert-before).
+// Shared by the live drag preview and the committed reorder so they stay in sync.
+const moveBefore = (items: NpcRecord[], sourceId: string, targetId: string) => {
+  if (sourceId === targetId) return items
+  const source = items.find((npc) => npc.id === sourceId)
+  if (!source || !items.some((npc) => npc.id === targetId)) return items
+  const without = items.filter((npc) => npc.id !== sourceId)
+  const insertIndex = without.findIndex((npc) => npc.id === targetId)
+  without.splice(insertIndex, 0, source)
+  return without
+}
+
 const makeNpc = (): NpcRecord => ({
   id: crypto.randomUUID(),
   name: 'New NPC',
@@ -59,6 +84,11 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
   const [tagSearch, setTagSearch] = useState('')
   const [tagFilterOpen, setTagFilterOpen] = useState(false)
   const [tagFilterSearch, setTagFilterSearch] = useState('')
+  const [draggingNpcId, setDraggingNpcId] = useState<string | null>(null)
+  const [dragOverNpcId, setDragOverNpcId] = useState<string | null>(null)
+  const [dragHeight, setDragHeight] = useState<number | null>(null)
+  const listScrollRef = useRef<HTMLElement | null>(null)
+  const autoScrollRef = useRef<{ raf: number | null; speed: number }>({ raf: null, speed: 0 })
 
   const { notes: sessionNotes } = useSessionNotes(campaignId, true, groupId)
 
@@ -93,6 +123,9 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
       inFlightNpcWritesRef.current = {}
       inFlightPrivateWritesRef.current = {}
       inFlightPlayerNotesWritesRef.current = {}
+      if (autoScrollRef.current.raf != null) cancelAnimationFrame(autoScrollRef.current.raf)
+      autoScrollRef.current.raf = null
+      autoScrollRef.current.speed = 0
     }
   }, [])
 
@@ -146,9 +179,10 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
               : tokenIcon,
             playerDescription: typeof data.playerDescription === 'string' ? data.playerDescription : '',
             playerNotes: typeof data.playerNotes === 'string' ? data.playerNotes : '',
+            sortOrder: typeof data.sortOrder === 'number' ? data.sortOrder : undefined,
           } satisfies NpcRecord
         })
-        .sort((a, b) => a.name.localeCompare(b.name))
+        .sort(byOrder)
       setNpcs(next)
     })
     return () => unsub()
@@ -240,9 +274,10 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
         delete inFlightNpcWritesRef.current[npcId]
         return
       }
-      const { id, tokenIcon, portraitUrl: _portraitUrl, ...data } = npc
+      const { id, tokenIcon, portraitUrl: _portraitUrl, sortOrder, ...data } = npc
       void setDoc(campaignDocRef(db, { campaignId, groupId }, 'npcs', id), {
         ...data,
+        ...(typeof sortOrder === 'number' ? { sortOrder } : {}),
         tokenIcon: sanitizeTokenIconForPersistence(tokenIcon),
         updatedAt: serverTimestamp(),
       }, { merge: true }).finally(() => {
@@ -347,9 +382,17 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
     schedulePrivateWrite(npcId)
   }
 
+  // Tags are editable by GM and players (Firestore rules allow players to change tags).
+  const updateNpcTags = (npcId: string, tags: string[]) => {
+    if (role !== 'gm' && role !== 'player') return
+    setNpcs((current) => current.map((npc) => (npc.id === npcId ? { ...npc, tags } : npc)))
+    scheduleNpcWrite(npcId)
+  }
+
   const addNpc = async () => {
     if (role !== 'gm') return
     const next = makeNpc()
+    next.sortOrder = npcsRef.current.reduce((max, npc) => Math.max(max, npc.sortOrder ?? -1), -1) + 1
     await setDoc(campaignDocRef(db, { campaignId, groupId }, 'npcs', next.id), {
       ...next,
       createdAt: serverTimestamp(),
@@ -411,7 +454,7 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
       const haystack = [npc.name, npc.title, npc.tags.join(' ')].join(' ').toLowerCase()
       return haystack.includes(query)
     })
-    return [...filtered].sort((a, b) => a.name.localeCompare(b.name))
+    return [...filtered].sort(byOrder)
   }, [npcs, role, searchQuery, tagFilter])
   const groupedNpcs = useMemo(() => {
     if (role !== 'gm') return [{ key: 'all', label: '', items: visibleNpcs }]
@@ -432,6 +475,68 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
     if (isMobile) setMobileView('detail')
   }
 
+  const canReorder = role === 'gm' || role === 'player'
+
+  // Auto-scroll the NPC list while dragging near its top/bottom edge.
+  const stepAutoScroll = () => {
+    const el = listScrollRef.current
+    const { speed } = autoScrollRef.current
+    if (!el || speed === 0) {
+      autoScrollRef.current.raf = null
+      return
+    }
+    el.scrollTop += speed
+    autoScrollRef.current.raf = requestAnimationFrame(stepAutoScroll)
+  }
+
+  const updateAutoScroll = (clientY: number) => {
+    const el = listScrollRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const edge = 60
+    const maxSpeed = 16
+    let speed = 0
+    if (clientY < rect.top + edge && el.scrollTop > 0) {
+      speed = -Math.ceil(maxSpeed * Math.min(1, (rect.top + edge - clientY) / edge))
+    } else if (clientY > rect.bottom - edge && el.scrollTop + el.clientHeight < el.scrollHeight) {
+      speed = Math.ceil(maxSpeed * Math.min(1, (clientY - (rect.bottom - edge)) / edge))
+    }
+    autoScrollRef.current.speed = speed
+    if (speed !== 0 && autoScrollRef.current.raf == null) {
+      autoScrollRef.current.raf = requestAnimationFrame(stepAutoScroll)
+    } else if (speed === 0 && autoScrollRef.current.raf != null) {
+      cancelAnimationFrame(autoScrollRef.current.raf)
+      autoScrollRef.current.raf = null
+    }
+  }
+
+  const stopAutoScroll = () => {
+    if (autoScrollRef.current.raf != null) cancelAnimationFrame(autoScrollRef.current.raf)
+    autoScrollRef.current.raf = null
+    autoScrollRef.current.speed = 0
+  }
+
+  const reorderNpcs = (sourceId: string, targetId: string) => {
+    if (!canReorder || sourceId === targetId) return
+    // Reorder within the displayed sequence (groups in display order), same group only.
+    const sequence = groupedNpcs.flatMap((group) => group.items)
+    const source = sequence.find((npc) => npc.id === sourceId)
+    const target = sequence.find((npc) => npc.id === targetId)
+    if (!source || !target || source.visibleToPlayers !== target.visibleToPlayers) return
+    const reordered = moveBefore(sequence, sourceId, targetId)
+    const changed = reordered
+      .map((npc, index) => ({ id: npc.id, sortOrder: index }))
+      .filter(({ id, sortOrder }) => sequence.find((npc) => npc.id === id)?.sortOrder !== sortOrder)
+    if (changed.length === 0) return
+    setNpcs((current) =>
+      current.map((npc) => {
+        const update = changed.find((entry) => entry.id === npc.id)
+        return update ? { ...npc, sortOrder: update.sortOrder } : npc
+      }),
+    )
+    changed.forEach((entry) => scheduleNpcWrite(entry.id))
+  }
+
   const addTagToSelection = (tag: string) => {
     const trimmed = tag.trim().toLowerCase()
     if (!trimmed || tagSelection.includes(trimmed)) return
@@ -443,10 +548,10 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
   }
 
   const saveTags = async () => {
-    if (role !== 'gm' || !selectedNpc) return
+    if (!selectedNpc || (role !== 'gm' && role !== 'player')) return
     const nextTags = Array.from(new Set(tagSelection.map((tag) => tag.trim().toLowerCase()).filter(Boolean)))
     if (nextTags.join('|') !== selectedNpc.tags.join('|')) {
-      await updateSelectedNpc({ tags: nextTags })
+      updateNpcTags(selectedNpc.id, nextTags)
     }
     setTagsModalOpen(false)
   }
@@ -454,7 +559,16 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
   return (
     <div className="maps-layout monsters-layout">
       {showListPane ? (
-        <aside className="maps-sidebar monsters-sidebar characters-sidebar">
+        <aside
+          className="maps-sidebar monsters-sidebar characters-sidebar"
+          ref={listScrollRef}
+          onDragOver={(event) => {
+            if (!canReorder || !draggingNpcId) return
+            event.preventDefault()
+            updateAutoScroll(event.clientY)
+          }}
+          onDrop={() => stopAutoScroll()}
+        >
           <div className="maps-sidebar-header">
             <h2>NPCs</h2>
             {role === 'gm' ? (
@@ -543,11 +657,67 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
           </div>
           {visibleNpcs.length === 0 ? <p>No NPCs match the current filters.</p> : null}
           <div className="monster-list-grid character-list-grid">
-            {groupedNpcs.map((group) => (
+            {groupedNpcs.map((group) => {
+              const draggingInGroup = draggingNpcId != null && group.items.some((npc) => npc.id === draggingNpcId)
+              const overInGroup = dragOverNpcId != null && group.items.some((npc) => npc.id === dragOverNpcId)
+              const renderItems = draggingInGroup && overInGroup && draggingNpcId && dragOverNpcId
+                ? moveBefore(group.items, draggingNpcId, dragOverNpcId)
+                : group.items
+              return (
               <div key={group.key} className="npc-group-block">
                 {group.label ? <p className="npc-group-label">{group.label}</p> : null}
-                {group.items.map((npc) => (
-              <div key={npc.id} className={npc.id === selectedNpcId ? 'map-row active' : 'map-row'}>
+                {renderItems.map((npc) => {
+              const isDragPlaceholder = draggingInGroup && draggingNpcId === npc.id
+              return (
+              <div
+                key={npc.id}
+                className={[
+                  'map-row',
+                  'npc-row',
+                  npc.id === selectedNpcId ? 'active' : '',
+                  canReorder ? 'npc-row-draggable' : '',
+                  isDragPlaceholder ? 'npc-row-placeholder' : '',
+                ].filter(Boolean).join(' ')}
+                style={isDragPlaceholder && dragHeight ? { height: dragHeight } : undefined}
+                draggable={canReorder}
+                onDragStart={(event) => {
+                  if (!canReorder) return
+                  event.dataTransfer.effectAllowed = 'move'
+                  const id = npc.id
+                  const height = event.currentTarget.offsetHeight
+                  // Defer the re-render to the next frame: emptying the dragged row
+                  // into a placeholder synchronously here makes Chrome cancel the drag.
+                  requestAnimationFrame(() => {
+                    setDraggingNpcId(id)
+                    setDragOverNpcId(id)
+                    setDragHeight(height)
+                  })
+                }}
+                onDragOver={(event) => {
+                  if (!canReorder || !draggingNpcId) return
+                  event.preventDefault()
+                  event.dataTransfer.dropEffect = 'move'
+                  updateAutoScroll(event.clientY)
+                  if (npc.id !== draggingNpcId && dragOverNpcId !== npc.id) setDragOverNpcId(npc.id)
+                }}
+                onDrop={(event) => {
+                  if (!canReorder || !draggingNpcId) return
+                  event.preventDefault()
+                  reorderNpcs(draggingNpcId, dragOverNpcId ?? npc.id)
+                  setDraggingNpcId(null)
+                  setDragOverNpcId(null)
+                  setDragHeight(null)
+                  stopAutoScroll()
+                }}
+                onDragEnd={() => {
+                  setDraggingNpcId(null)
+                  setDragOverNpcId(null)
+                  setDragHeight(null)
+                  stopAutoScroll()
+                }}
+              >
+                {isDragPlaceholder ? null : (
+                <>
                 <div
                   className="map-select"
                   role="button"
@@ -567,6 +737,7 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
                         src={npc.portraitUrl}
                         alt={`${npc.name} portrait`}
                         className="map-thumb"
+                        draggable={false}
                         style={{ objectPosition: `${npc.portraitFocusX}% 0%` }}
                       />
                     ) : (
@@ -611,10 +782,14 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
                     <Trash2 size={14} />
                   </button>
                 ) : null}
+                </>
+                )}
               </div>
-                ))}
+              )
+                })}
               </div>
-            ))}
+              )
+            })}
           </div>
         </aside>
       ) : null}

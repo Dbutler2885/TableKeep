@@ -9,6 +9,10 @@ initializeApp()
 const db = getFirestore()
 const sessionSummaryApiKey = defineSecret('SESSION_SUMMARY_API_KEY')
 
+function campaignRef(groupId: string, campaignId: string) {
+  return db.collection('groups').doc(groupId).collection('campaigns').doc(campaignId)
+}
+
 function isAuthorized(req: Request) {
   const incoming = req.get('x-internal-api-key')
   const expected = sessionSummaryApiKey.value()
@@ -33,9 +37,11 @@ export const postSessionSummary = onRequest(
     }
 
     const body = req.body ?? {}
-    const { campaignId, title, summaryMarkdown, sessionNumber } = body
+    const { groupId, campaignId, title, summaryMarkdown, sessionNumber } = body
 
     if (
+      typeof groupId !== 'string' ||
+      groupId.trim().length === 0 ||
       typeof campaignId !== 'string' ||
       typeof title !== 'string' ||
       title.trim().length === 0
@@ -90,9 +96,11 @@ export const postSessionSummary = onRequest(
       : []
     const calendar = normalizeCalendar(body.calendar)
 
-    // Auto-match NPCs by name
+    // Auto-match NPCs by name; auto-create a stub for any the GM hasn't entered yet.
     if (npcMentions.length > 0) {
-      const npcsSnap = await db.collection('campaigns').doc(campaignId).collection('npcs').get()
+      const npcsCollection = campaignRef(groupId, campaignId).collection('npcs')
+      const npcPrivateCollection = campaignRef(groupId, campaignId).collection('npcPrivate')
+      const npcsSnap = await npcsCollection.get()
       const npcLookup = new Map<string, string>()
       npcsSnap.docs.forEach((docSnap) => {
         const data = docSnap.data() as { name?: string }
@@ -105,14 +113,52 @@ export const postSessionSummary = onRequest(
           }
         }
       })
+
+      const batch = db.batch()
+      let created = 0
       for (const mention of npcMentions) {
-        const m = mention as { name: string; linkedNpcId: string | null }
-        const matchId = npcLookup.get(m.name.toLowerCase().trim())
-        if (matchId) m.linkedNpcId = matchId
+        const m = mention as { name: string; title: string; linkedNpcId: string | null }
+        const key = m.name.toLowerCase().trim()
+        if (!key) continue
+        const matchId = npcLookup.get(key)
+        if (matchId) {
+          m.linkedNpcId = matchId
+          continue
+        }
+        // No existing NPC: create a stub the model owns (its facts surface as Auto-Notes).
+        // Transcript NPCs have been met, so they're visible to players by default.
+        const newRef = npcsCollection.doc()
+        batch.set(newRef, {
+          id: newRef.id,
+          name: m.name,
+          title: typeof m.title === 'string' ? m.title : '',
+          visibleToPlayers: true,
+          tags: [],
+          portraitPath: '',
+          portraitUrl: null,
+          portraitFocusX: 50,
+          portraitFocusY: 50,
+          tokenIcon: { icon: 'pawn', color: '#2f5bbf', size: 34 },
+          playerDescription: '',
+          playerNotes: '',
+          createdBy: 'api',
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        })
+        batch.set(npcPrivateCollection.doc(newRef.id), {
+          id: newRef.id,
+          gmNotes: '',
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        })
+        npcLookup.set(key, newRef.id)
+        m.linkedNpcId = newRef.id
+        created += 1
       }
+      if (created > 0) await batch.commit()
     }
 
-    const summaryRef = db.collection('campaigns').doc(campaignId).collection('sessionSummaries').doc()
+    const summaryRef = campaignRef(groupId, campaignId).collection('sessionSummaries').doc()
 
     await summaryRef.set({
       title: title.trim(),
@@ -142,6 +188,40 @@ export const postSessionSummary = onRequest(
     })
 
     res.status(201).json({ ok: true, id: summaryRef.id })
+  },
+)
+
+export const getCampaignNpcs = onRequest(
+  { region: 'us-central1', secrets: [sessionSummaryApiKey] },
+  async (req, res) => {
+    if (req.method !== 'GET') {
+      res.status(405).json({ error: 'method_not_allowed' })
+      return
+    }
+    if (!isAuthorized(req)) {
+      res.status(401).json({ error: 'unauthorized' })
+      return
+    }
+
+    const groupId = typeof req.query.groupId === 'string' ? req.query.groupId : ''
+    const campaignId = typeof req.query.campaignId === 'string' ? req.query.campaignId : ''
+    if (!groupId || !campaignId) {
+      res.status(400).json({ error: 'invalid_params' })
+      return
+    }
+
+    const snap = await campaignRef(groupId, campaignId).collection('npcs').get()
+    const npcs = snap.docs
+      .map((docSnap) => {
+        const data = docSnap.data() as { name?: string; title?: string }
+        return {
+          name: typeof data.name === 'string' ? data.name : '',
+          title: typeof data.title === 'string' ? data.title : '',
+        }
+      })
+      .filter((n) => n.name.trim().length > 0)
+
+    res.status(200).json({ npcs })
   },
 )
 

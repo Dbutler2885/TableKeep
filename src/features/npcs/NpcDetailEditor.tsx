@@ -97,7 +97,7 @@ export function NpcDetailEditor({
               </select>
             </label>
           ) : null}
-          {role === 'gm' ? (
+          {role === 'gm' || role === 'player' ? (
             <div className="character-header-field character-header-field-title">
               <div className="npc-tag-summary-row">
                 <button type="button" className="map-edit-btn" onClick={onOpenTags} aria-label="Manage tags">
@@ -114,58 +114,53 @@ export function NpcDetailEditor({
                 )}
               </div>
             </div>
-          ) : npc.tags.length > 0 ? (
-            <div className="character-header-field character-header-field-title">
-              <span className="character-header-tag">Tags</span>
-              <div className="item-faction-tag-list">
-                {npc.tags.map((tag) => (
-                  <span key={tag} className="item-tag">{tag}</span>
-                ))}
-              </div>
-            </div>
           ) : null}
         </div>
       </section>
 
-      <section className="monster-section-block">
-        <h3 className="monster-section-title">Portrait</h3>
-        <div className="character-media-wrap">
-          <EntityMediaEditor
-            entityName={npc.name || 'npc'}
-            portraitUrl={npc.portraitUrl}
-            portraitFocusX={npc.portraitFocusX}
-            portraitFocusY={npc.portraitFocusY}
-            tokenIcon={npc.tokenIcon}
-            onChange={onChange}
-            onUploadPortraitImage={onUploadPortraitImage}
-            onUploadTokenImage={onUploadTokenImage}
-            portraitAltLabel="NPC portrait"
-            tokenButtonAriaLabel="Edit NPC token icon"
-            removePortraitMessage="Remove the portrait image from this NPC?"
-          />
+      <div className="npc-detail-main">
+        <section className="monster-section-block npc-detail-portrait">
+          <h3 className="monster-section-title">Portrait</h3>
+          <div className="character-media-wrap">
+            <EntityMediaEditor
+              entityName={npc.name || 'npc'}
+              portraitUrl={npc.portraitUrl}
+              portraitFocusX={npc.portraitFocusX}
+              portraitFocusY={npc.portraitFocusY}
+              tokenIcon={npc.tokenIcon}
+              onChange={onChange}
+              onUploadPortraitImage={onUploadPortraitImage}
+              onUploadTokenImage={onUploadTokenImage}
+              portraitAltLabel="NPC portrait"
+              tokenButtonAriaLabel="Edit NPC token icon"
+              removePortraitMessage="Remove the portrait image from this NPC?"
+            />
+          </div>
+        </section>
+
+        <div className="npc-detail-side">
+          <section className="monster-section-block">
+            <h3 className="monster-section-title">{role === 'gm' ? 'Player Description' : 'Description'}</h3>
+            <textarea
+              className="monster-notes npc-detail-description"
+              value={npc.playerDescription}
+              onChange={(event) => onChange({ playerDescription: event.target.value })}
+              placeholder="Short player-facing description"
+              disabled={role !== 'gm'}
+            />
+          </section>
+
+          <section className="monster-section-block npc-detail-notes-block">
+            <h3 className="monster-section-title">Player Notes</h3>
+            <RichTextEditor
+              value={npc.playerNotes}
+              onChange={onChangePlayerNotes}
+              placeholder="Player-facing notes"
+              editable={role === 'gm' || role === 'player'}
+            />
+          </section>
         </div>
-      </section>
-
-      <section className="monster-section-block">
-        <h3 className="monster-section-title">Player Description</h3>
-        <textarea
-          className="monster-notes"
-          value={npc.playerDescription}
-          onChange={(event) => onChange({ playerDescription: event.target.value })}
-          placeholder="Short player-facing description"
-          disabled={role !== 'gm'}
-        />
-      </section>
-
-      <section className="monster-section-block">
-        <h3 className="monster-section-title">Player Notes</h3>
-        <RichTextEditor
-          value={npc.playerNotes}
-          onChange={onChangePlayerNotes}
-          placeholder="Player-facing notes"
-          editable={role === 'gm' || role === 'player'}
-        />
-      </section>
+      </div>
 
       {autoNotes.length > 0 ? (
         <section className="monster-section-block">
