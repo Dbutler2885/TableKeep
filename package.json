@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:emulator": "firebase emulators:exec --only firestore \"vitest run --config vitest.emulator.config.ts\"",
+    "test:emulator": "firebase emulators:exec --only firestore,storage \"vitest run --config vitest.emulator.config.ts\"",
     "preview": "vite preview",
     "ose:monsters:fetch-raw": "node scripts/fetch-ose-monsters-raw.mjs",
     "ose:treasure:fetch": "node scripts/fetch-ose-treasure-types.mjs",

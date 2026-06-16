@@ -8,20 +8,35 @@ type TokenPickerModalProps = {
   value: TokenIconConfig
   onConfirm: (value: TokenIconConfig) => void
   onCancel: () => void
+  disabled?: boolean
   onUploadImage?: (file: File) => Promise<Pick<TokenIconConfig, 'customImagePath' | 'customImageUrl' | 'customImageName'>>
 }
 
-export function TokenPickerModal({ open, value, onConfirm, onCancel, onUploadImage }: TokenPickerModalProps) {
+export function TokenPickerModal({ open, value, onConfirm, onCancel, disabled = false, onUploadImage }: TokenPickerModalProps) {
   const [draft, setDraft] = useState<TokenIconConfig>(value)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (open) setDraft(value)
+    if (open) {
+      queueMicrotask(() => {
+        setDraft(value)
+        setUploading(false)
+        setUploadError(null)
+      })
+    }
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null
 
   const handleImageUpload = (file: File) => {
-    if (!file.type.startsWith('image/')) return
+    if (disabled) return
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Please choose an image file.')
+      return
+    }
+    setUploading(true)
+    setUploadError(null)
     const persistUpload = onUploadImage
       ? onUploadImage(file)
       : normalizeImageForDataUrl(file, {
@@ -45,8 +60,12 @@ export function TokenPickerModal({ open, value, onConfirm, onCancel, onUploadIma
           customImageName,
         }))
       })
-      .catch(() => {
-        // Keep current draft if uploaded image cannot be processed.
+      .catch((error) => {
+        console.error('Token image upload failed', error)
+        setUploadError('Upload failed. Check your access and try again.')
+      })
+      .finally(() => {
+        setUploading(false)
       })
   }
 
@@ -66,15 +85,22 @@ export function TokenPickerModal({ open, value, onConfirm, onCancel, onUploadIma
             value={draft.color}
             title="Color"
             aria-label="Token color"
+            disabled={disabled}
             onChange={(event) => setDraft((current) => ({ ...current, color: event.target.value }))}
           />
 
-          <label className="icon-btn" title="Upload image" aria-label="Upload image">
+          <label
+            className="icon-btn"
+            title={disabled ? 'Token editing unavailable' : uploading ? 'Uploading…' : 'Upload image'}
+            aria-label={disabled ? 'Token editing unavailable' : uploading ? 'Uploading image' : 'Upload image'}
+            aria-busy={uploading}
+          >
             <Upload size={14} />
             <input
               type="file"
               accept="image/png,image/webp,image/jpeg,image/gif,image/svg+xml"
               className="sr-only"
+              disabled={disabled || uploading}
               onChange={(event) => {
                 const file = event.target.files?.[0]
                 if (file) handleImageUpload(file)
@@ -89,6 +115,7 @@ export function TokenPickerModal({ open, value, onConfirm, onCancel, onUploadIma
               className="icon-btn remove-btn"
               title="Remove image"
               aria-label="Remove image"
+              disabled={disabled}
               onClick={() => setDraft((current) => ({
                 ...current,
                 icon: 'pawn',
@@ -106,10 +133,12 @@ export function TokenPickerModal({ open, value, onConfirm, onCancel, onUploadIma
           <button type="button" className="icon-btn" onClick={onCancel} title="Cancel" aria-label="Cancel">
             <X size={14} />
           </button>
-          <button type="button" className="icon-btn" onClick={() => onConfirm(draft)} title="Confirm" aria-label="Confirm">
+          <button type="button" className="icon-btn" onClick={() => onConfirm(draft)} title="Confirm" aria-label="Confirm" disabled={disabled || uploading}>
             <Check size={14} />
           </button>
         </div>
+
+        {uploadError ? <p className="error token-picker-error">{uploadError}</p> : null}
       </div>
     </div>
   )

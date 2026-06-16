@@ -22,6 +22,7 @@ type EntityMediaEditorProps = {
   tokenButtonAriaLabel?: string
   removePortraitMessage?: string
   showDeadOverlay?: boolean
+  disabled?: boolean
   onUploadTokenImage?: (file: File) => Promise<{
     customImagePath?: string
     customImageUrl?: string
@@ -44,6 +45,7 @@ export function EntityMediaEditor({
   tokenButtonAriaLabel = 'Edit token icon',
   removePortraitMessage = 'Remove portrait image?',
   showDeadOverlay = false,
+  disabled = false,
   onUploadTokenImage,
   onUploadPortraitImage,
 }: EntityMediaEditorProps) {
@@ -69,6 +71,7 @@ export function EntityMediaEditor({
   }, [portraitDraft])
 
   const handlePortraitFile = (file: File | null) => {
+    if (disabled) return
     if (!file) return
     if (!file.type.startsWith('image/')) {
       setPortraitError('Please choose an image file.')
@@ -152,6 +155,7 @@ export function EntityMediaEditor({
         <button
           type="button"
           className="monster-token-thumb-frame monster-token-thumb-btn"
+          disabled={disabled}
           onClick={() => setTokenPickerOpen(true)}
           aria-label={tokenButtonAriaLabel}
         >
@@ -172,6 +176,7 @@ export function EntityMediaEditor({
             <button
               type="button"
               className="portrait-delete-btn"
+              disabled={disabled}
               onClick={() => setDeletePortraitOpen(true)}
               aria-label="Remove portrait"
             >
@@ -193,6 +198,7 @@ export function EntityMediaEditor({
               type="file"
               accept="image/*"
               className="sr-only"
+              disabled={disabled}
               onChange={(event) => handlePortraitFile(event.target.files?.[0] ?? null)}
             />
             {showDeadOverlay ? (
@@ -209,6 +215,7 @@ export function EntityMediaEditor({
       <TokenPickerModal
         open={tokenPickerOpen}
         value={tokenIcon}
+        disabled={disabled}
         onUploadImage={onUploadTokenImage}
         onConfirm={(nextTokenIcon) => {
           onChange({ tokenIcon: nextTokenIcon })

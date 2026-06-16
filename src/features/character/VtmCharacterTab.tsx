@@ -219,7 +219,7 @@ export function VtmCharacterTab({
   }
 
   const uploadCharacterTokenImage = async (file: File) => {
-    if (!selectedCharacter) throw new Error('No character selected.')
+    if (!selectedCharacter || !canEdit) throw new Error('No editable character selected.')
     const { path, url, name } = await uploadEntityImage({
       campaignId,
       groupId,
@@ -234,7 +234,7 @@ export function VtmCharacterTab({
   }
 
   const uploadCharacterPortraitImage = async (file: File) => {
-    if (!selectedCharacter) throw new Error('No character selected.')
+    if (!selectedCharacter || !canEdit) throw new Error('No editable character selected.')
     const { path, url } = await uploadEntityImage({
       campaignId,
       groupId,
@@ -643,6 +643,7 @@ export function VtmCharacterTab({
                 portraitFocusY={selectedCharacter.portraitFocusY}
                 tokenIcon={selectedCharacter.tokenIcon}
                 portraitAltLabel={`${selectedCharacter.name} portrait`}
+                disabled={!canEdit}
                 onUploadTokenImage={uploadCharacterTokenImage}
                 onUploadPortraitImage={uploadCharacterPortraitImage}
                 onChange={(updates) => updateSelected(updates)}

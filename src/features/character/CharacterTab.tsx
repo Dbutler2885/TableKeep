@@ -1995,7 +1995,7 @@ export function CharacterTab({
   const derivedEncounterMove = currentBaseMove / 3
 
   const uploadCharacterTokenImage = async (file: File) => {
-    if (!effectiveSelected) throw new Error('No character selected.')
+    if (!effectiveSelected || !canEditSelected) throw new Error('No editable character selected.')
     const { path, url, name } = await uploadEntityImage({
       campaignId,
       groupId,
@@ -2014,7 +2014,7 @@ export function CharacterTab({
   }
 
   const uploadCharacterPortraitImage = async (file: File) => {
-    if (!effectiveSelected) throw new Error('No character selected.')
+    if (!effectiveSelected || !canEditSelected) throw new Error('No editable character selected.')
     const { path, url } = await uploadEntityImage({
       campaignId,
       groupId,
@@ -3374,6 +3374,7 @@ export function CharacterTab({
                                 portraitAltLabel="Character portrait"
                                 tokenButtonAriaLabel="Edit character token icon"
                                 removePortraitMessage="Remove the portrait image from this character?"
+                                disabled={!canEditSelected}
                                 showDeadOverlay={effectiveSelected.hpCurrent <= 0}
                               />
                             </div>
@@ -3724,6 +3725,7 @@ export function CharacterTab({
                                 portraitAltLabel="Character portrait"
                                 tokenButtonAriaLabel="Edit character token icon"
                                 removePortraitMessage="Remove the portrait image from this character?"
+                                disabled={!canEditSelected}
                                 showDeadOverlay={effectiveSelected.hpCurrent <= 0}
                               />
                             </div>
