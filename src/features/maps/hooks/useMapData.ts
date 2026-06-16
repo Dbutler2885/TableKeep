@@ -296,6 +296,9 @@ export function useMapData({
             color?: string
             size?: number
             sizeScale?: number
+            rotationDeg?: number
+            flipHorizontal?: boolean
+            flipVertical?: boolean
             viewDistance?: number
             viewDistanceScale?: number
             party?: boolean
@@ -319,6 +322,11 @@ export function useMapData({
             color: typeof data.color === 'string' ? data.color : '#b45309',
             size: typeof data.size === 'number' ? data.size : 28,
             sizeScale: typeof data.sizeScale === 'number' ? data.sizeScale : null,
+            rotationDeg: typeof data.rotationDeg === 'number' && Number.isFinite(data.rotationDeg)
+              ? ((data.rotationDeg % 360) + 360) % 360
+              : 0,
+            flipHorizontal: data.flipHorizontal === true,
+            flipVertical: data.flipVertical === true,
             viewDistance: typeof data.viewDistance === 'number' ? data.viewDistance : null,
             viewDistanceScale: typeof data.viewDistanceScale === 'number' ? data.viewDistanceScale : null,
             party: data.party === true,
@@ -820,7 +828,19 @@ export function useMapData({
     updates: Partial<
       Pick<
         TokenRecord,
-        'color' | 'size' | 'sizeScale' | 'viewDistance' | 'viewDistanceScale' | 'party' | 'name' | 'revealName' | 'hidden' | 'group'
+        | 'color'
+        | 'size'
+        | 'sizeScale'
+        | 'rotationDeg'
+        | 'flipHorizontal'
+        | 'flipVertical'
+        | 'viewDistance'
+        | 'viewDistanceScale'
+        | 'party'
+        | 'name'
+        | 'revealName'
+        | 'hidden'
+        | 'group'
       >
     >,
   ) => {
@@ -887,6 +907,9 @@ export function useMapData({
       color: command.tokenIcon.color,
       size,
       sizeScale,
+      rotationDeg: 0,
+      flipHorizontal: false,
+      flipVertical: false,
       viewDistance: DEFAULT_TOKEN_VIEW_DISTANCE,
       viewDistanceScale: DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION,
       party: command.party,

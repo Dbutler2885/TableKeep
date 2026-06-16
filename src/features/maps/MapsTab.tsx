@@ -26,6 +26,8 @@ import {
   Eye,
   EyeOff,
   Flag,
+  FlipHorizontal,
+  FlipVertical,
   Grid3X3,
   Hand,
   Hexagon,
@@ -39,6 +41,7 @@ import {
   Plus,
   Ruler,
   RulerDimensionLine,
+  RotateCw,
   Search,
   SquareDashedMousePointer,
   SlidersHorizontal,
@@ -128,6 +131,8 @@ const BRUSH_SIZE_MAX = 260
 const BRUSH_PREVIEW_BOX_SIZE = 96
 const BRUSH_PREVIEW_DOT_MIN = 4
 const BRUSH_PREVIEW_DOT_MAX = 84
+
+const normalizeTokenRotation = (value: number) => ((Math.round(value) % 360) + 360) % 360
 
 function SceneNpcEditorModal({
   campaignId,
@@ -1363,6 +1368,12 @@ export function MapsTab({
       transform: 'translate(-50%, 8px)',
     }
   }
+  const renderTokenGlyphStyle = (token: TokenRecord): React.CSSProperties => ({
+    transform: [
+      `rotate(${normalizeTokenRotation(token.rotationDeg)}deg)`,
+      `scale(${token.flipHorizontal ? -1 : 1}, ${token.flipVertical ? -1 : 1})`,
+    ].join(' '),
+  })
   const autosizeAnnotationTextarea = useCallback((textarea: HTMLTextAreaElement | null) => {
     if (!textarea) return
     textarea.style.width = 'auto'
@@ -1804,18 +1815,21 @@ export function MapsTab({
 
   const renderTokenGlyph = (token: TokenRecord) => {
     const dimensions = renderTokenDimensions(token)
-    if (token.tokenImageUrl) {
-      return (
-        <img
-          src={token.tokenImageUrl}
-          alt=""
-          className="map-token-image"
-          style={{ width: `${dimensions.width}px`, height: `${dimensions.height}px` }}
-          draggable={false}
-        />
-      )
-    }
-    return <ChessPawn size={dimensions.baseSize} />
+    return (
+      <span className="map-token-glyph" style={renderTokenGlyphStyle(token)}>
+        {token.tokenImageUrl ? (
+          <img
+            src={token.tokenImageUrl}
+            alt=""
+            className="map-token-image"
+            style={{ width: `${dimensions.width}px`, height: `${dimensions.height}px` }}
+            draggable={false}
+          />
+        ) : (
+          <ChessPawn size={dimensions.baseSize} />
+        )}
+      </span>
+    )
   }
 
   const renderTokenItem = (token: TokenRecord, index: number) => {
@@ -3781,7 +3795,19 @@ function GmMapControls({
     updates: Partial<
       Pick<
         TokenRecord,
-        'color' | 'size' | 'sizeScale' | 'viewDistance' | 'viewDistanceScale' | 'party' | 'name' | 'revealName' | 'hidden' | 'group'
+        | 'color'
+        | 'size'
+        | 'sizeScale'
+        | 'rotationDeg'
+        | 'flipHorizontal'
+        | 'flipVertical'
+        | 'viewDistance'
+        | 'viewDistanceScale'
+        | 'party'
+        | 'name'
+        | 'revealName'
+        | 'hidden'
+        | 'group'
       >
     >,
   ) => Promise<void>
@@ -4034,6 +4060,7 @@ function GmMapControls({
   const selectedTokenCount = selectedTokens.length
   const selectedBulkSizeValue = selectedTokens[0]?.size ?? TOKEN_SIZE_MIN
   const selectedBulkColorValue = selectedTokens[0]?.color ?? tokenColor
+  const selectedBulkRotationValue = normalizeTokenRotation(selectedTokens[0]?.rotationDeg ?? 0)
   const selectedPartyTokens = selectedTokens.filter((token) => token.party)
   const selectedBulkViewDistanceValue = selectedPartyTokens[0]
     ? tokenViewDistanceSliderValue(selectedPartyTokens[0])
@@ -4041,6 +4068,8 @@ function GmMapControls({
   const selectedAllParty = selectedTokenCount > 0 && selectedTokens.every((token) => token.party)
   const selectedAllRevealName = selectedTokenCount > 0 && selectedTokens.every((token) => token.revealName)
   const selectedAllHidden = selectedTokenCount > 0 && selectedTokens.every((token) => token.hidden)
+  const selectedAllFlipHorizontal = selectedTokenCount > 0 && selectedTokens.every((token) => token.flipHorizontal)
+  const selectedAllFlipVertical = selectedTokenCount > 0 && selectedTokens.every((token) => token.flipVertical)
   // Top-level category a token falls under (mirrors the tokenGroups partition above).
   const tokenCategoryKey = (token: TokenRecord) =>
     token.party
@@ -5064,7 +5093,48 @@ function GmMapControls({
                     void Promise.all(selectedTokens.map((token) => onUpdateTokenSize(token.id, nextSize)))
                   }}
                 />
+                <IconValueSlider
+                  className="token-row-size-row token-group-rotation-row"
+                  icon={<RotateCw size={14} />}
+                  tooltip="Rotation"
+                  value={selectedBulkRotationValue}
+                  min={0}
+                  max={359}
+                  step={1}
+                  disabled={selectedTokenCount === 0}
+                  ariaLabel="Selected token rotation"
+                  onChange={(rotationDeg) => {
+                    const nextRotation = normalizeTokenRotation(rotationDeg)
+                    void Promise.all(selectedTokens.map((token) => onUpdateToken(token.id, { rotationDeg: nextRotation })))
+                  }}
+                />
                 <div className="token-row-toggles token-group-bulk-toggles">
+                  <button
+                    type="button"
+                    className={selectedAllFlipHorizontal ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
+                    onClick={() => {
+                      const flipHorizontal = !selectedAllFlipHorizontal
+                      void Promise.all(selectedTokens.map((token) => onUpdateToken(token.id, { flipHorizontal })))
+                    }}
+                    disabled={selectedTokenCount === 0}
+                    aria-label="Toggle selected horizontal mirror"
+                    data-tooltip="Mirror horizontal"
+                  >
+                    <FlipHorizontal size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className={selectedAllFlipVertical ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}
+                    onClick={() => {
+                      const flipVertical = !selectedAllFlipVertical
+                      void Promise.all(selectedTokens.map((token) => onUpdateToken(token.id, { flipVertical })))
+                    }}
+                    disabled={selectedTokenCount === 0}
+                    aria-label="Toggle selected vertical mirror"
+                    data-tooltip="Mirror vertical"
+                  >
+                    <FlipVertical size={14} />
+                  </button>
                   <button
                     type="button"
                     className={selectedAllParty ? 'token-toggle-btn map-icon-btn fast-tooltip active' : 'token-toggle-btn map-icon-btn fast-tooltip'}

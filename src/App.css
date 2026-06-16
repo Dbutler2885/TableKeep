@@ -7694,6 +7694,11 @@ button:disabled {
   transition: none;
 }
 
+.map-token-glyph {
+  display: block;
+  transform-origin: center center;
+}
+
 .map-token-hide-btn {
   position: absolute;
   left: 90%;
