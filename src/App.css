@@ -3227,6 +3227,7 @@ button.character-item-add-btn:disabled {
     padding-bottom: 0.75rem;
     padding-top: 0;
     min-height: 0;
+    display: block;
     overflow: auto;
   }
 
@@ -3241,7 +3242,6 @@ button.character-item-add-btn:disabled {
 .monsters-sidebar {
   min-width: 0;
   min-height: 0;
-  overflow: auto;
   padding-top: 3rem;
 }
 
@@ -5826,7 +5826,27 @@ button:disabled {
   padding-top: 3rem;
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Only the card list scrolls; the header, search and filter controls stay pinned. */
+.maps-sidebar > .maps-list,
+.maps-sidebar > .monster-list-grid,
+.maps-sidebar > .item-list-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Pinned (non-scrolling) regions keep their natural height. */
+.maps-sidebar > .maps-sidebar-header,
+.maps-sidebar > .maps-role,
+.maps-sidebar > .npc-filter-bar,
+.maps-sidebar > .table-mode-toggle,
+.maps-sidebar > .item-type-filter-grid {
+  flex: 0 0 auto;
 }
 
 .maps-sidebar-header {
@@ -9973,6 +9993,7 @@ button:disabled {
     padding-bottom: 0.75rem;
     padding-top: 0;
     min-height: 0;
+    display: block;
     overflow: auto;
   }
 
@@ -11512,8 +11533,9 @@ button:disabled {
   overflow-y: auto;
 }
 
-/* --- Tables sidebar card fix (no thumbnail column) --- */
-.monsters-layout .map-select {
+/* --- Tables/Notes sidebar card fix (no thumbnail column) --- */
+/* NPC rows keep their portrait column, so don't collapse them to one column. */
+.monsters-layout .map-row:not(.npc-row) .map-select {
   grid-template-columns: 1fr;
 }
 
