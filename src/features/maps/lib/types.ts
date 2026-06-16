@@ -37,6 +37,9 @@ export type TokenRecord = {
   color: string
   size: number
   sizeScale: number | null
+  rotationDeg: number
+  flipHorizontal: boolean
+  flipVertical: boolean
   viewDistance: number | null
   viewDistanceScale: number | null
   party: boolean
