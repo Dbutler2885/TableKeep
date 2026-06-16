@@ -87,7 +87,7 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
   const [draggingNpcId, setDraggingNpcId] = useState<string | null>(null)
   const [dragOverNpcId, setDragOverNpcId] = useState<string | null>(null)
   const [dragHeight, setDragHeight] = useState<number | null>(null)
-  const listScrollRef = useRef<HTMLElement | null>(null)
+  const listScrollRef = useRef<HTMLDivElement | null>(null)
   const autoScrollRef = useRef<{ raf: number | null; speed: number }>({ raf: null, speed: 0 })
 
   const { notes: sessionNotes } = useSessionNotes(campaignId, true, groupId)
@@ -561,7 +561,6 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
       {showListPane ? (
         <aside
           className="maps-sidebar monsters-sidebar characters-sidebar"
-          ref={listScrollRef}
           onDragOver={(event) => {
             if (!canReorder || !draggingNpcId) return
             event.preventDefault()
@@ -656,7 +655,7 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
             </div>
           </div>
           {visibleNpcs.length === 0 ? <p>No NPCs match the current filters.</p> : null}
-          <div className="monster-list-grid character-list-grid">
+          <div className="monster-list-grid character-list-grid" ref={listScrollRef}>
             {groupedNpcs.map((group) => {
               const draggingInGroup = draggingNpcId != null && group.items.some((npc) => npc.id === draggingNpcId)
               const overInGroup = dragOverNpcId != null && group.items.some((npc) => npc.id === dragOverNpcId)
