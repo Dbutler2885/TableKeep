@@ -76,7 +76,11 @@ export const uploadEntityImage = async ({
     ? `groups/${groupId}/campaigns/${campaignId}/${collectionName}/${entityId}/${mediaKind}/${Date.now()}-${safeName}`
     : `campaigns/${campaignId}/${collectionName}/${entityId}/${mediaKind}/${Date.now()}-${safeName}`
   const storageRef = ref(storage, path)
-  await auth.currentUser?.getIdToken(true)
+  await waitForAuthReady()
+  if (!auth.currentUser) {
+    throw new Error('You must be signed in to upload images.')
+  }
+  await auth.currentUser.getIdToken(true)
   await uploadBytes(storageRef, normalized.file, { contentType: normalized.file.type })
   const url = await getDownloadURL(storageRef)
   return {
@@ -89,6 +93,7 @@ export const uploadEntityImage = async ({
 }
 
 export const sanitizeTokenIconForPersistence = (tokenIcon: TokenIconConfig): TokenIconConfig => {
-  const { customImageUrl: _customImageUrl, ...persisted } = tokenIcon
+  const persisted = { ...tokenIcon }
+  delete persisted.customImageUrl
   return persisted
 }

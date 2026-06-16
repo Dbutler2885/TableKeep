@@ -1,0 +1,66 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { afterAll, beforeAll, describe, it } from 'vitest'
+import { doc, setDoc } from 'firebase/firestore'
+import { ref, uploadString } from 'firebase/storage'
+import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
+
+const projectId = 'homeboyshouse-storage-tests'
+const groupId = 'group-1'
+const campaignId = 'campaign-1'
+const characterId = 'char-1'
+const gmUid = 'gm-user'
+const playerUid = 'player-user'
+
+const tokenPath = `groups/${groupId}/campaigns/${campaignId}/characters/${characterId}/token-icons/1700000000000-token.webp`
+
+describe('character token-icon storage rules', () => {
+  let testEnv: RulesTestEnvironment
+
+  beforeAll(async () => {
+    testEnv = await initializeTestEnvironment({
+      projectId,
+      firestore: {
+        host: '127.0.0.1',
+        port: 8080,
+        rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
+      },
+      storage: {
+        host: '127.0.0.1',
+        port: 9199,
+        rules: readFileSync(resolve(process.cwd(), 'storage.rules'), 'utf8'),
+      },
+    })
+
+    // Seed the Firestore docs the storage rules read via firestore.get().
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      const adminDb = context.firestore()
+      await setDoc(doc(adminDb, 'groups', groupId, 'members', gmUid), { status: 'active', role: 'admin' })
+      await setDoc(doc(adminDb, 'groups', groupId, 'members', playerUid), { status: 'active', role: 'member' })
+      await setDoc(doc(adminDb, 'groups', groupId, 'campaigns', campaignId), { gmUserId: gmUid })
+      await setDoc(doc(adminDb, 'groups', groupId, 'campaigns', campaignId, 'characters', characterId), {
+        ownerUserId: playerUid,
+        name: 'Connor',
+      })
+    })
+  })
+
+  afterAll(async () => {
+    await testEnv.cleanup()
+  })
+
+  it('lets the owning player upload their own character token icon', async () => {
+    const storage = testEnv.authenticatedContext(playerUid).storage()
+    await assertSucceeds(uploadString(ref(storage, tokenPath), 'data', 'raw', { contentType: 'image/webp' }))
+  })
+
+  it('lets the GM upload a character token icon', async () => {
+    const storage = testEnv.authenticatedContext(gmUid).storage()
+    await assertSucceeds(uploadString(ref(storage, tokenPath), 'data', 'raw', { contentType: 'image/webp' }))
+  })
+
+  it('blocks a non-owner non-GM member from uploading', async () => {
+    const storage = testEnv.authenticatedContext('other-user').storage()
+    await assertFails(uploadString(ref(storage, tokenPath), 'data', 'raw', { contentType: 'image/webp' }))
+  })
+})

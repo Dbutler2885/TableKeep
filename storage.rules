@@ -38,9 +38,17 @@ service firebase.storage {
         && groupMemberDoc(groupId).data.status == 'active';
     }
 
-    function isGroupCampaignGM(groupId, campaignId) {
+    function isGroupAdmin(groupId) {
       return isGroupMember(groupId)
-        && groupCampaignDoc(groupId, campaignId).data.gmUserId == request.auth.uid;
+        && groupMemberDoc(groupId).data.role == 'admin';
+    }
+
+    function isGroupCampaignGM(groupId, campaignId) {
+      return isGroupAdmin(groupId)
+        || (
+          isGroupMember(groupId)
+          && groupCampaignDoc(groupId, campaignId).data.gmUserId == request.auth.uid
+        );
     }
 
     function mapDoc(campaignId, mapId) {
