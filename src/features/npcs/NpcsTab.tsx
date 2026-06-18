@@ -274,7 +274,8 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
         delete inFlightNpcWritesRef.current[npcId]
         return
       }
-      const { id, tokenIcon, portraitUrl: _portraitUrl, sortOrder, ...data } = npc
+      const { id, tokenIcon, portraitUrl, sortOrder, ...data } = npc
+      void portraitUrl
       void setDoc(campaignDocRef(db, { campaignId, groupId }, 'npcs', id), {
         ...data,
         ...(typeof sortOrder === 'number' ? { sortOrder } : {}),
@@ -315,6 +316,11 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
       }
       void setDoc(campaignDocRef(db, { campaignId, groupId }, 'npcs', npcId), {
         playerNotes: npc.playerNotes,
+        tags: npc.tags,
+        portraitPath: npc.portraitPath,
+        portraitFocusX: npc.portraitFocusX,
+        portraitFocusY: npc.portraitFocusY,
+        tokenIcon: sanitizeTokenIconForPersistence(npc.tokenIcon),
         updatedAt: serverTimestamp(),
       }, { merge: true }).finally(() => {
         delete inFlightPlayerNotesWritesRef.current[npcId]
@@ -331,6 +337,12 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
   const updateSelectedNpc = (updates: Partial<Omit<NpcRecord, 'id'>>) => {
     if (!selectedNpc) return
     updateNpc(selectedNpc.id, updates)
+  }
+
+  const updatePlayerNpcFields = (npcId: string, updates: Partial<Omit<NpcRecord, 'id'>>) => {
+    if (role !== 'player') return
+    setNpcs((current) => current.map((npc) => (npc.id === npcId ? { ...npc, ...updates } : npc)))
+    schedulePlayerNotesWrite(npcId)
   }
 
   const uploadNpcTokenImage = async (file: File) => {
@@ -386,7 +398,8 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
   const updateNpcTags = (npcId: string, tags: string[]) => {
     if (role !== 'gm' && role !== 'player') return
     setNpcs((current) => current.map((npc) => (npc.id === npcId ? { ...npc, tags } : npc)))
-    scheduleNpcWrite(npcId)
+    if (role === 'gm') scheduleNpcWrite(npcId)
+    else schedulePlayerNotesWrite(npcId)
   }
 
   const addNpc = async () => {
@@ -811,7 +824,13 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
                 role={role}
                 gmNotes={gmNotes}
                 autoNotes={autoNotes}
-                onChange={(updates) => void updateSelectedNpc(updates)}
+                onChange={(updates) => {
+                  if (role === 'gm') {
+                    updateSelectedNpc(updates)
+                    return
+                  }
+                  updatePlayerNpcFields(selectedNpc.id, updates)
+                }}
                 onChangePlayerNotes={(value) => {
                   if (role === 'gm') {
                     updateSelectedNpc({ playerNotes: value })

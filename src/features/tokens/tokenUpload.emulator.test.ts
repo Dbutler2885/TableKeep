@@ -9,10 +9,15 @@ const projectId = 'homeboyshouse-storage-tests'
 const groupId = 'group-1'
 const campaignId = 'campaign-1'
 const characterId = 'char-1'
+const visibleNpcId = 'npc-visible'
+const hiddenNpcId = 'npc-hidden'
 const gmUid = 'gm-user'
 const playerUid = 'player-user'
 
 const tokenPath = `groups/${groupId}/campaigns/${campaignId}/characters/${characterId}/token-icons/1700000000000-token.webp`
+const visibleNpcPortraitPath = `groups/${groupId}/campaigns/${campaignId}/npcs/${visibleNpcId}/portraits/1700000000000-visible.webp`
+const visibleNpcTokenPath = `groups/${groupId}/campaigns/${campaignId}/npcs/${visibleNpcId}/token-icons/1700000000000-visible.webp`
+const hiddenNpcTokenPath = `groups/${groupId}/campaigns/${campaignId}/npcs/${hiddenNpcId}/token-icons/1700000000000-hidden.webp`
 
 describe('character token-icon storage rules', () => {
   let testEnv: RulesTestEnvironment
@@ -42,6 +47,30 @@ describe('character token-icon storage rules', () => {
         ownerUserId: playerUid,
         name: 'Connor',
       })
+      await setDoc(doc(adminDb, 'groups', groupId, 'campaigns', campaignId, 'npcs', visibleNpcId), {
+        name: 'Visible NPC',
+        title: 'Contact',
+        visibleToPlayers: true,
+        tags: [],
+        portraitPath: '',
+        portraitFocusX: 50,
+        portraitFocusY: 50,
+        tokenIcon: { icon: 'pawn', color: '#2f5bbf', size: 34 },
+        playerDescription: '',
+        playerNotes: '',
+      })
+      await setDoc(doc(adminDb, 'groups', groupId, 'campaigns', campaignId, 'npcs', hiddenNpcId), {
+        name: 'Hidden NPC',
+        title: 'Secret',
+        visibleToPlayers: false,
+        tags: [],
+        portraitPath: '',
+        portraitFocusX: 50,
+        portraitFocusY: 50,
+        tokenIcon: { icon: 'pawn', color: '#2f5bbf', size: 34 },
+        playerDescription: '',
+        playerNotes: '',
+      })
     })
   })
 
@@ -62,5 +91,42 @@ describe('character token-icon storage rules', () => {
   it('blocks a non-owner non-GM member from uploading', async () => {
     const storage = testEnv.authenticatedContext('other-user').storage()
     await assertFails(uploadString(ref(storage, tokenPath), 'data', 'raw', { contentType: 'image/webp' }))
+  })
+
+  it('lets a player upload visible NPC portrait and token media', async () => {
+    const storage = testEnv.authenticatedContext(playerUid).storage()
+    await assertSucceeds(uploadString(ref(storage, visibleNpcPortraitPath), 'data', 'raw', { contentType: 'image/webp' }))
+    await assertSucceeds(uploadString(ref(storage, visibleNpcTokenPath), 'data', 'raw', { contentType: 'image/webp' }))
+  })
+
+  it('blocks a player from uploading hidden NPC media', async () => {
+    const storage = testEnv.authenticatedContext(playerUid).storage()
+    await assertFails(uploadString(ref(storage, hiddenNpcTokenPath), 'data', 'raw', { contentType: 'image/webp' }))
+  })
+
+  it('lets a player persist visible NPC media metadata', async () => {
+    const db = testEnv.authenticatedContext(playerUid).firestore()
+    const npcRef = doc(db, 'groups', groupId, 'campaigns', campaignId, 'npcs', visibleNpcId)
+    await assertSucceeds(setDoc(npcRef, {
+      portraitPath: visibleNpcPortraitPath,
+      portraitFocusX: 42,
+      portraitFocusY: 58,
+      tokenIcon: {
+        icon: 'custom',
+        color: '#ffffff',
+        size: 34,
+        customImagePath: visibleNpcTokenPath,
+        customImageName: 'visible',
+      },
+    }, { merge: true }))
+  })
+
+  it('blocks a player media update that also changes NPC identity fields', async () => {
+    const db = testEnv.authenticatedContext(playerUid).firestore()
+    const npcRef = doc(db, 'groups', groupId, 'campaigns', campaignId, 'npcs', visibleNpcId)
+    await assertFails(setDoc(npcRef, {
+      name: 'Renamed NPC',
+      portraitPath: visibleNpcPortraitPath,
+    }, { merge: true }))
   })
 })
