@@ -75,6 +75,22 @@ service firebase.storage {
       );
     }
 
+    function npcDoc(campaignId, npcId) {
+      return firestore.get(
+        /databases/(default)/documents/campaigns/$(campaignId)/npcs/$(npcId)
+      );
+    }
+
+    function groupNpcDoc(groupId, campaignId, npcId) {
+      return firestore.get(
+        /databases/(default)/documents/groups/$(groupId)/campaigns/$(campaignId)/npcs/$(npcId)
+      );
+    }
+
+    function isNpcMediaKind(mediaKind) {
+      return mediaKind == 'portraits' || mediaKind == 'token-icons';
+    }
+
     function canReadMapAsset(campaignId, mapId) {
       return isCampaignGM(campaignId)
         || (
@@ -126,8 +142,14 @@ service firebase.storage {
 
     match /groups/{groupId}/campaigns/{campaignId}/npcs/{npcId}/{mediaKind}/{assetName} {
       allow read: if isGroupMember(groupId);
-      allow write: if isGroupCampaignGM(groupId, campaignId)
-        && (mediaKind == 'portraits' || mediaKind == 'token-icons');
+      allow write: if isNpcMediaKind(mediaKind)
+        && (
+          isGroupCampaignGM(groupId, campaignId)
+          || (
+            isGroupMember(groupId)
+            && groupNpcDoc(groupId, campaignId, npcId).data.visibleToPlayers == true
+          )
+        );
     }
 
     match /groups/{groupId}/campaigns/{campaignId}/monsters/{monsterId}/{mediaKind}/{assetName} {
@@ -177,8 +199,14 @@ service firebase.storage {
 
     match /campaigns/{campaignId}/npcs/{npcId}/{mediaKind}/{assetName} {
       allow read: if isCampaignMember(campaignId);
-      allow write: if isCampaignGM(campaignId)
-        && (mediaKind == 'portraits' || mediaKind == 'token-icons');
+      allow write: if isNpcMediaKind(mediaKind)
+        && (
+          isCampaignGM(campaignId)
+          || (
+            isCampaignMember(campaignId)
+            && npcDoc(campaignId, npcId).data.visibleToPlayers == true
+          )
+        );
     }
 
     match /campaigns/{campaignId}/monsters/{monsterId}/{mediaKind}/{assetName} {

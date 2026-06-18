@@ -222,12 +222,12 @@ service cloud.firestore {
             && request.resource.data.visibleToPlayers == true
             && request.resource.data.name == resource.data.name
             && request.resource.data.title == resource.data.title
-            && request.resource.data.portraitUrl == resource.data.portraitUrl
-            && request.resource.data.portraitFocusX == resource.data.portraitFocusX
-            && request.resource.data.portraitFocusY == resource.data.portraitFocusY
-            && request.resource.data.tokenIcon == resource.data.tokenIcon
             && request.resource.data.playerDescription == resource.data.playerDescription
-            && onlyChanges(['playerNotes', 'tags', 'sortOrder', 'updatedAt'])
+            && onlyChanges([
+              'playerNotes', 'tags', 'sortOrder',
+              'portraitPath', 'portraitFocusX', 'portraitFocusY', 'tokenIcon',
+              'updatedAt'
+            ])
           );
         }
 
@@ -395,12 +395,12 @@ service cloud.firestore {
           && request.resource.data.visibleToPlayers == true
           && request.resource.data.name == resource.data.name
           && request.resource.data.title == resource.data.title
-          && request.resource.data.portraitUrl == resource.data.portraitUrl
-          && request.resource.data.portraitFocusX == resource.data.portraitFocusX
-          && request.resource.data.portraitFocusY == resource.data.portraitFocusY
-          && request.resource.data.tokenIcon == resource.data.tokenIcon
           && request.resource.data.playerDescription == resource.data.playerDescription
-          && onlyChanges(['playerNotes', 'tags', 'sortOrder', 'updatedAt'])
+          && onlyChanges([
+            'playerNotes', 'tags', 'sortOrder',
+            'portraitPath', 'portraitFocusX', 'portraitFocusY', 'tokenIcon',
+            'updatedAt'
+          ])
         );
       }
 
