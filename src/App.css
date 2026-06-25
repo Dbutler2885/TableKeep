@@ -7948,6 +7948,34 @@ button:disabled {
   min-height: 2.25rem;
 }
 
+.map-nonparty-upload-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.32rem 0.5rem;
+  font-size: 0.8rem;
+  color: #555;
+  background: transparent;
+  border: 1px dashed #c9c6bd;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.map-nonparty-upload-btn:hover {
+  color: #111;
+  background: #f0f0ea;
+  border-color: #b3b0a6;
+}
+
+.map-nonparty-upload-btn.active {
+  color: #111;
+  background: #f0f0ea;
+  border-style: solid;
+  border-color: #8a8678;
+}
+
 .map-placement-stage {
   min-width: 0;
 }
@@ -8800,6 +8828,18 @@ button:disabled {
   background: #2f2f2f;
   border-color: #4a4a4a;
   color: #d8d8d1;
+}
+
+.map-controls-body.dark .map-nonparty-upload-btn {
+  color: #d8d8d1;
+  border-color: #4a4a4a;
+}
+
+.map-controls-body.dark .map-nonparty-upload-btn:hover,
+.map-controls-body.dark .map-nonparty-upload-btn.active {
+  color: #fff;
+  background: #2f2f2f;
+  border-color: #6a6a60;
 }
 
 .map-controls-body.dark .map-placement-asset-tools {
