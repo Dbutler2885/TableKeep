@@ -13424,6 +13424,7 @@ button:disabled {
 }
 .shell-root[data-theme="vtm"] .vtm-trait-col-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 0.5rem;
   margin-bottom: 0.55rem;
@@ -13847,6 +13848,7 @@ button:disabled {
 }
 .shell-root[data-theme="vtm"] .vtm-rated-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.6rem;
   margin-bottom: 0.5rem;

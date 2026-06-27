@@ -57,6 +57,22 @@ export type VtmXpLedgerEntry = {
 
 export type VtmCreationPriority = 'primary' | 'secondary' | 'tertiary'
 
+// Dots funded by freebie points during creation, tracked per pool so the
+// creation pool validators can tell freebie-funded dots from base-pool dots.
+export type VtmFreebieDots = {
+  physical: number
+  social: number
+  mental: number
+  talents: number
+  skills: number
+  knowledges: number
+  disciplines: number
+  backgrounds: number
+  virtues: number
+  willpower: number
+  humanity: number
+}
+
 export type VtmCharacterSheet = {
   chronicle: string
   concept: string
@@ -91,6 +107,7 @@ export type VtmCharacterSheet = {
   armor: VtmArmorRow[]
   xpLedger: VtmXpLedgerEntry[]
   freebiePointsSpent: number
+  freebieDots: VtmFreebieDots
 }
 
 export type VtmCharacterRecord = {

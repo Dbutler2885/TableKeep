@@ -19,7 +19,7 @@ import {
   vtmClanWeakness,
 } from './vtmRuleset'
 import type { VtmAbilityCategory, VtmAttributeCategory, VtmClanId } from './vtmRuleset'
-import type { VtmCharacterRecord, VtmCharacterSheet, VtmCreationPriority, VtmRatedRow } from './vtmTypes'
+import type { VtmCharacterRecord, VtmCharacterSheet, VtmCreationPriority, VtmFreebieDots, VtmRatedRow } from './vtmTypes'
 import {
   abilityPoolStatus,
   ABILITY_POOL_BY_PRIORITY,
@@ -31,12 +31,14 @@ import {
   deriveWillpower,
   disciplinePoolStatus,
   dotMaxForPhase,
+  emptyFreebieDots,
+  freebiePointsFromDots,
   freebieStatus,
   FREEBIE_COSTS,
   sheetCreationErrors,
   virtuePoolStatus,
 } from './vtmCreation'
-import { applyVtmXpSpend, xpCostForNewTrait, xpCostToRaise } from './vtmXp'
+import { applyVtmXpSpend, xpCostForNewTrait, xpCostToRaise, xpRuleLabel } from './vtmXp'
 
 export type VtmCharacterTabProps = {
   campaignId: string
@@ -194,6 +196,7 @@ export function VtmCharacterTab({
   const isDraft = selectedCharacter?.creationStatus === 'draft' || selectedCharacter?.creationStatus === 'established_draft'
   const isGuidedDraft = selectedCharacter?.creationMode === 'new' && isDraft
   const isActive = selectedCharacter?.creationStatus === 'active'
+  const xpMode = isActive && spendXpMode
   const xpBalance = selectedCharacter?.xp ?? 0
   const bloodPoolMax = sheet ? deriveBloodPoolMax(sheet.generation) : null
   // Scaling Traits cap at 5 during creation and at the generation Trait Max in play.
@@ -278,9 +281,11 @@ export function VtmCharacterTab({
     freebieCost: number,
     xpCategory: Parameters<typeof xpCostToRaise>[0] | null,
     note: string,
+    freebiePool: keyof VtmFreebieDots,
     discipline?: string,
-  ): { ok: true; freebiePointsSpent: number; xpBalance: number; xpLedger: VtmCharacterSheet['xpLedger'] } | { ok: false } => {
+  ): { ok: true; freebiePointsSpent: number; freebieDots: VtmFreebieDots; xpBalance: number; xpLedger: VtmCharacterSheet['xpLedger'] } | { ok: false } => {
     if (!selectedCharacter || !sheet) return { ok: false }
+    const freebieDots = sheet.freebieDots ?? emptyFreebieDots()
     if (isActive) {
       if (!spendXpMode || nextRating <= currentRating || !xpCategory) {
         if (!xpCategory && nextRating > currentRating) setFeedback('Backgrounds are story-driven and cannot be raised with XP here.')
@@ -291,31 +296,37 @@ export function VtmCharacterTab({
       return {
         ok: true,
         freebiePointsSpent: sheet.freebiePointsSpent,
+        freebieDots,
         xpBalance: spend.balance,
         xpLedger: [spend.entry, ...sheet.xpLedger],
       }
     }
     if (!isGuidedDraft || !freebieMode) {
-      return { ok: true, freebiePointsSpent: sheet.freebiePointsSpent, xpBalance, xpLedger: sheet.xpLedger }
+      return { ok: true, freebiePointsSpent: sheet.freebiePointsSpent, freebieDots, xpBalance, xpLedger: sheet.xpLedger }
     }
-    const freebieDelta = (nextRating - currentRating) * freebieCost
-    const nextFreebiePointsSpent = Math.max(0, sheet.freebiePointsSpent + freebieDelta)
+    // Freebie phase: record the freebie-funded dots for this pool so the creation
+    // pool validators count them against the 15-point freebie budget, not the
+    // starting pool budget. freebiePointsSpent is derived from those dots.
+    const nextPoolDots = Math.max(0, (freebieDots[freebiePool] ?? 0) + (nextRating - currentRating))
+    const nextFreebieDots: VtmFreebieDots = { ...freebieDots, [freebiePool]: nextPoolDots }
+    const nextFreebiePointsSpent = freebiePointsFromDots(nextFreebieDots)
     const status = freebieStatus({ freebiePointsSpent: nextFreebiePointsSpent })
     if (status.over) {
-      setFeedback(`Not enough freebie points. Need ${freebieDelta}.`)
+      setFeedback(`Not enough freebie points. Need ${Math.max(0, (nextRating - currentRating) * freebieCost)}.`)
       return { ok: false }
     }
-    return { ok: true, freebiePointsSpent: nextFreebiePointsSpent, xpBalance, xpLedger: sheet.xpLedger }
+    return { ok: true, freebiePointsSpent: nextFreebiePointsSpent, freebieDots: nextFreebieDots, xpBalance, xpLedger: sheet.xpLedger }
   }
 
   const setAttributeDot = (category: VtmAttributeCategory, name: string, nextRating: number) => {
     if (!sheet) return
     const currentRating = sheet.attributes[category][name] ?? 1
-    const dotChange = canApplyDotChange(currentRating, nextRating, FREEBIE_COSTS.attribute, 'attribute', `Raise ${name}`)
+    const dotChange = canApplyDotChange(currentRating, nextRating, FREEBIE_COSTS.attribute, 'attribute', `Raise ${name}`, category)
     if (!dotChange.ok) return
     const nextSheet: VtmCharacterSheet = {
       ...sheet,
       freebiePointsSpent: dotChange.freebiePointsSpent,
+      freebieDots: dotChange.freebieDots,
       xpLedger: dotChange.xpLedger,
       attributes: {
         ...sheet.attributes,
@@ -332,11 +343,12 @@ export function VtmCharacterTab({
   const setAbilityDot = (category: VtmAbilityCategory, name: string, nextRating: number) => {
     if (!sheet) return
     const currentRating = sheet.abilities[category][name] ?? 0
-    const dotChange = canApplyDotChange(currentRating, nextRating, FREEBIE_COSTS.ability, 'ability', `Raise ${name}`)
+    const dotChange = canApplyDotChange(currentRating, nextRating, FREEBIE_COSTS.ability, 'ability', `Raise ${name}`, category)
     if (!dotChange.ok) return
     const nextSheet: VtmCharacterSheet = {
       ...sheet,
       freebiePointsSpent: dotChange.freebiePointsSpent,
+      freebieDots: dotChange.freebieDots,
       xpLedger: dotChange.xpLedger,
       abilities: {
         ...sheet.abilities,
@@ -353,15 +365,23 @@ export function VtmCharacterTab({
   const setVirtueDot = (name: string, nextRating: number) => {
     if (!sheet) return
     const currentRating = sheet.virtues[name] ?? 1
-    const dotChange = canApplyDotChange(currentRating, nextRating, FREEBIE_COSTS.virtue, 'virtue', `Raise ${name}`)
+    const dotChange = canApplyDotChange(currentRating, nextRating, FREEBIE_COSTS.virtue, 'virtue', `Raise ${name}`, 'virtues')
     if (!dotChange.ok) return
     const nextVirtues = { ...sheet.virtues, [name]: nextRating }
     const nextSheet: VtmCharacterSheet = {
       ...sheet,
       freebiePointsSpent: dotChange.freebiePointsSpent,
+      freebieDots: dotChange.freebieDots,
       xpLedger: dotChange.xpLedger,
       virtues: nextVirtues,
-      ...(isDraft ? { humanity: deriveHumanity(nextVirtues), willpowerPermanent: deriveWillpower(nextVirtues) } : {}),
+      // Re-derive Humanity/Willpower from the Virtues, but keep any dots already
+      // bought with freebies so a later Virtue edit does not silently refund them.
+      ...(isDraft
+        ? {
+            humanity: Math.min(10, deriveHumanity(nextVirtues) + (dotChange.freebieDots.humanity ?? 0)),
+            willpowerPermanent: Math.min(10, deriveWillpower(nextVirtues) + (dotChange.freebieDots.willpower ?? 0)),
+          }
+        : {}),
     }
     if (isGuidedDraft && !freebieMode && virtuePoolStatus(nextSheet).over) {
       setFeedback('Virtues are out of points.')
@@ -377,16 +397,47 @@ export function VtmCharacterTab({
       return
     }
     const currentRating = sheet.willpowerPermanent
-    const dotChange = canApplyDotChange(currentRating, nextRating, FREEBIE_COSTS.willpower, 'willpower', 'Raise Willpower')
+    const dotChange = canApplyDotChange(currentRating, nextRating, FREEBIE_COSTS.willpower, 'willpower', 'Raise Willpower', 'willpower')
     if (!dotChange.ok) return
     updateSelected({
       xp: dotChange.xpBalance,
       vtm: {
         ...sheet,
         freebiePointsSpent: dotChange.freebiePointsSpent,
+        freebieDots: dotChange.freebieDots,
         xpLedger: dotChange.xpLedger,
         willpowerPermanent: nextRating,
         willpowerTemporary: Math.min(sheet.willpowerTemporary, nextRating),
+      },
+    })
+  }
+
+  const setHumanityDot = (nextRating: number) => {
+    if (!sheet) return
+    if (!isGuidedDraft) {
+      // Active play / established drafts keep their existing behavior: raises cost
+      // XP when Spend XP is on, everything else (degeneration, etc.) is a free set.
+      if (nextRating > sheet.humanity && spendXpMode) {
+        applyTrackerRaise('humanity', sheet.humanity, 'Raise Humanity', (current) => ({ ...current, humanity: nextRating }))
+        return
+      }
+      updateSheet((current) => ({ ...current, humanity: nextRating }))
+      return
+    }
+    if (!freebieMode) {
+      setFeedback('Starting Humanity comes from Conscience + Self-Control until the freebie step.')
+      return
+    }
+    const dotChange = canApplyDotChange(sheet.humanity, nextRating, FREEBIE_COSTS.humanity, 'humanity', 'Raise Humanity', 'humanity')
+    if (!dotChange.ok) return
+    updateSelected({
+      xp: dotChange.xpBalance,
+      vtm: {
+        ...sheet,
+        freebiePointsSpent: dotChange.freebiePointsSpent,
+        freebieDots: dotChange.freebieDots,
+        xpLedger: dotChange.xpLedger,
+        humanity: Math.min(10, nextRating),
       },
     })
   }
@@ -417,12 +468,16 @@ export function VtmCharacterTab({
     const isBackground = key === 'backgrounds'
     const freebieCost = isDiscipline ? FREEBIE_COSTS.discipline : isBackground ? FREEBIE_COSTS.background : FREEBIE_COSTS.ability
     const xpCategory = isDiscipline ? 'discipline' : isBackground ? null : 'ability'
-    const dotChange = canApplyDotChange(row.rating, nextRating, freebieCost, xpCategory, `Raise ${row.name}`, row.name)
+    // Only disciplines and backgrounds carry a creation pool; otherTraits never
+    // reaches this path (it has its own free editor), so the pool key is moot there.
+    const freebiePool: keyof VtmFreebieDots = isDiscipline ? 'disciplines' : 'backgrounds'
+    const dotChange = canApplyDotChange(row.rating, nextRating, freebieCost, xpCategory, `Raise ${row.name}`, freebiePool, row.name)
     if (!dotChange.ok) return
     const nextRows = rows.map((entry) => entry.id === rowId ? { ...entry, rating: nextRating } : entry)
     const nextSheet: VtmCharacterSheet = {
       ...sheet,
       freebiePointsSpent: dotChange.freebiePointsSpent,
+      freebieDots: dotChange.freebieDots,
       xpLedger: dotChange.xpLedger,
       [key]: nextRows,
     }
@@ -467,6 +522,7 @@ export function VtmCharacterTab({
       return
     }
     updateSelected({ creationStatus: 'active' })
+    setFreebieMode(false)
     setFeedback('Character finalized.')
   }
 
@@ -712,7 +768,11 @@ export function VtmCharacterTab({
                   </>
                 ) : null}
                 {isActive ? (
-                  <label className="vtm-toggle vtm-toggle-xp"><input type="checkbox" checked={spendXpMode} onChange={(event) => setSpendXpMode(event.target.checked)} /> Spend XP{spendXpMode ? ' — dots unlocked' : ''}</label>
+                  <>
+                    <label className="vtm-toggle vtm-toggle-xp"><input type="checkbox" checked={spendXpMode} onChange={(event) => setSpendXpMode(event.target.checked)} /> Spend XP{spendXpMode ? ' — dots unlocked' : ''}</label>
+                    <span className="vtm-pool-chip wide">{xpBalance} XP available</span>
+                    {xpMode ? <span className="vtm-freebie-hint">Cost rule per dot shown on each section</span> : null}
+                  </>
                 ) : null}
                 {isDraft && canEdit ? <button type="button" className="vtm-finalize" onClick={finalizeCharacter}>Finalize</button> : null}
               </div>
@@ -729,6 +789,7 @@ export function VtmCharacterTab({
               updateSheet={updateSheet}
               isGuidedDraft={isGuidedDraft}
               freebieMode={freebieMode}
+              xpMode={xpMode}
             />
 
             <section className="character-placeholder-block vtm-block">
@@ -740,8 +801,9 @@ export function VtmCharacterTab({
                   options={availableDisciplines}
                   dotMax={traitDotMax}
                   disabled={!canEdit || (isActive && !spendXpMode)}
-                  status={isGuidedDraft ? disciplinePoolStatus({ disciplines: disciplineRows }) : null}
+                  status={isGuidedDraft ? disciplinePoolStatus({ disciplines: disciplineRows, freebieDots: sheet.freebieDots }) : null}
                   freebieCost={freebieMode ? FREEBIE_COSTS.discipline : null}
+                  xpRule={xpMode ? xpRuleLabel('discipline') : null}
                   onPersist={(rows) => updateSheet((current) => ({ ...current, disciplines: rows }))}
                   onDot={(rowId, rating) => setRatedRowDot('disciplines', disciplineRows, rowId, rating)}
                   onChange={(rowId, updates) => updateRatedRows('disciplines', disciplineRows, rowId, updates)}
@@ -751,8 +813,9 @@ export function VtmCharacterTab({
                   rows={backgroundRows}
                   options={VTM_BACKGROUNDS}
                   disabled={!canEdit || (isActive && !spendXpMode)}
-                  status={isGuidedDraft ? backgroundPoolStatus({ backgrounds: backgroundRows }) : null}
+                  status={isGuidedDraft ? backgroundPoolStatus({ backgrounds: backgroundRows, freebieDots: sheet.freebieDots }) : null}
                   freebieCost={freebieMode ? FREEBIE_COSTS.background : null}
+                  xpRule={xpMode ? 'Raised through play, not XP' : null}
                   onPersist={(rows) => updateSheet((current) => ({ ...current, backgrounds: rows }))}
                   onDot={(rowId, rating) => setRatedRowDot('backgrounds', backgroundRows, rowId, rating)}
                   onChange={(rowId, updates) => updateRatedRows('backgrounds', backgroundRows, rowId, updates)}
@@ -767,6 +830,7 @@ export function VtmCharacterTab({
                 ))}
                 {isGuidedDraft ? <span className={`vtm-pool-chip${virtuePoolStatus(sheet).over ? ' over' : ''}`}>{virtuePoolStatus(sheet).remaining}</span> : null}
                 {freebieMode ? <span className="vtm-cost-chip">{FREEBIE_COSTS.virtue}/dot</span> : null}
+                {xpMode ? <span className="vtm-cost-chip">{xpRuleLabel('virtue')}</span> : null}
               </div>
               <div className="vtm-derived">
                 <span><em>Humanity</em> {deriveHumanity(sheet.virtues)}</span>
@@ -780,11 +844,12 @@ export function VtmCharacterTab({
               canEdit={canEdit}
               bloodPoolMax={bloodPoolMax}
               updateSheet={updateSheet}
-              spendXpMode={spendXpMode}
+              xpMode={xpMode}
               isGuidedDraft={isGuidedDraft}
               freebieCost={isGuidedDraft && freebieMode ? FREEBIE_COSTS.willpower : null}
+              humanityFreebieCost={isGuidedDraft && freebieMode ? FREEBIE_COSTS.humanity : null}
               onWillpowerCapChange={setWillpowerCap}
-              applyTrackerRaise={applyTrackerRaise}
+              onHumanityChange={setHumanityDot}
             />
             <TextAndCombat sheet={sheet} canEdit={canEdit} updateSheet={updateSheet} />
 
@@ -879,6 +944,7 @@ function DotSections({
   updateSheet,
   isGuidedDraft,
   freebieMode,
+  xpMode,
 }: {
   sheet: VtmCharacterSheet
   canEdit: boolean
@@ -889,6 +955,7 @@ function DotSections({
   updateSheet: (updater: (current: VtmCharacterSheet) => VtmCharacterSheet) => void
   isGuidedDraft: boolean
   freebieMode: boolean
+  xpMode: boolean
 }) {
   const setPriority = (key: 'attributePriority' | 'abilityPriority', category: string, next: VtmCreationPriority) => {
     updateSheet((current) => {
@@ -917,6 +984,7 @@ function DotSections({
                 ) : null}
                 {status ? <span className={`vtm-pool-chip${status.over ? ' over' : ''}`}>{status.remaining}</span> : null}
                 {freebieMode ? <span className="vtm-cost-chip">{FREEBIE_COSTS.attribute}/dot</span> : null}
+                {xpMode ? <span className="vtm-cost-chip">{xpRuleLabel('attribute')}</span> : null}
               </div>
               <div className="character-ability-grid">
                 {names.map((name) => (
@@ -945,6 +1013,7 @@ function DotSections({
                 ) : null}
                 {status ? <span className={`vtm-pool-chip${status.over ? ' over' : ''}`}>{status.remaining}</span> : null}
                 {freebieMode ? <span className="vtm-cost-chip">{FREEBIE_COSTS.ability}/dot</span> : null}
+                {xpMode ? <span className="vtm-cost-chip">{xpRuleLabel('ability')}</span> : null}
               </div>
               <div className="character-ability-grid">
                 {names.map((name) => (
@@ -970,6 +1039,7 @@ function RatedRows({
   disabled,
   status,
   freebieCost = null,
+  xpRule = null,
   onPersist,
   onDot,
   onChange,
@@ -981,6 +1051,7 @@ function RatedRows({
   disabled: boolean
   status: { remaining: number } | null
   freebieCost?: number | null
+  xpRule?: string | null
   onPersist: (rows: VtmRatedRow[]) => void
   onDot: (rowId: string, rating: number) => void
   onChange: (rowId: string, updates: Partial<VtmRatedRow>) => void
@@ -992,6 +1063,7 @@ function RatedRows({
         <h4>{title}</h4>
         {status ? <span className={`vtm-pool-chip${status.remaining < 0 ? ' over' : ''}`}>{status.remaining}</span> : null}
         {freebieCost != null ? <span className="vtm-cost-chip">{freebieCost}/dot</span> : null}
+        {xpRule != null ? <span className="vtm-cost-chip">{xpRule}</span> : null}
         <button type="button" className="vtm-rated-add" disabled={disabled} onClick={() => onPersist([...rows, { id: makeId(), name: '', rating: 0 }])}><Plus size={14} /> Add</button>
       </div>
       {rows.map((row) => {
@@ -1021,26 +1093,23 @@ function Trackers({
   canEdit,
   bloodPoolMax,
   updateSheet,
-  spendXpMode,
+  xpMode,
   isGuidedDraft,
   freebieCost,
+  humanityFreebieCost,
   onWillpowerCapChange,
-  applyTrackerRaise,
+  onHumanityChange,
 }: {
   sheet: VtmCharacterSheet
   canEdit: boolean
   bloodPoolMax: number | null
   updateSheet: (updater: (current: VtmCharacterSheet) => VtmCharacterSheet) => void
-  spendXpMode: boolean
+  xpMode: boolean
   isGuidedDraft: boolean
   freebieCost: number | null
+  humanityFreebieCost: number | null
   onWillpowerCapChange: (nextRating: number) => void
-  applyTrackerRaise: (
-    category: Parameters<typeof xpCostToRaise>[0],
-    currentRating: number,
-    note: string,
-    buildNextSheet: (base: VtmCharacterSheet) => VtmCharacterSheet,
-  ) => void
+  onHumanityChange: (nextRating: number) => void
 }) {
   const hasRolledStartingBlood = sheet.bloodPoolCurrent > 0
   const bloodRollLocked = isGuidedDraft && hasRolledStartingBlood
@@ -1063,7 +1132,7 @@ function Trackers({
         <div>
           <h4>Willpower</h4>
           <div className="vtm-tracker-row stacked">
-            <span>Current / Permanent {freebieCost != null ? <em>{freebieCost}/dot</em> : null}</span>
+            <span>Current / Permanent {freebieCost != null ? <em>{freebieCost}/dot</em> : null}{xpMode ? <em>{xpRuleLabel('willpower')}</em> : null}</span>
             <CappedTracker
               value={sheet.willpowerTemporary}
               cap={sheet.willpowerPermanent}
@@ -1096,19 +1165,13 @@ function Trackers({
           <p className="settings-help">Max {bloodPoolMax ?? 'unknown'}</p>
         </div>
         <div>
-          <h4>Humanity</h4>
+          <h4>Humanity {humanityFreebieCost != null ? <em>{humanityFreebieCost}/dot</em> : null}{xpMode ? <em>{xpRuleLabel('humanity')}</em> : null}</h4>
           <DotRating
             value={sheet.humanity}
             max={10}
             label="Humanity"
             disabled={!canEdit}
-            onChange={(rating) => {
-              if (rating > sheet.humanity && spendXpMode) {
-                applyTrackerRaise('humanity', sheet.humanity, 'Raise Humanity', (current) => ({ ...current, humanity: rating }))
-                return
-              }
-              updateSheet((current) => ({ ...current, humanity: rating }))
-            }}
+            onChange={onHumanityChange}
           />
         </div>
       </div>
