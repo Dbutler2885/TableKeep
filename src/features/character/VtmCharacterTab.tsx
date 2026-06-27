@@ -190,7 +190,8 @@ export function VtmCharacterTab({
   const [freebieGateOpen, setFreebieGateOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
 
-  const canCreate = role === 'gm' || !characters.some((character) => character.ownerUserId === currentUserId)
+  // Players may own multiple characters and switch between them via the list.
+  const canCreate = role === 'gm' || role === 'player'
   const canEdit = !!selectedCharacter && (role === 'gm' || selectedCharacter.ownerUserId === currentUserId)
   const sheet = selectedCharacter?.vtm ?? null
   const isDraft = selectedCharacter?.creationStatus === 'draft' || selectedCharacter?.creationStatus === 'established_draft'
@@ -576,7 +577,7 @@ export function VtmCharacterTab({
     <div className="maps-layout monsters-layout characters-layout vtm-character-tab">
       <aside className="maps-sidebar monsters-sidebar characters-sidebar">
         <div className="maps-sidebar-header">
-          <h2>{role === 'gm' ? 'Characters' : 'Character'}</h2>
+          <h2>Characters</h2>
           {canCreate ? (
             <button type="button" className="monster-add-btn" onClick={() => setCreateModalOpen(true)} aria-label="Add character">
               <Plus size={16} />

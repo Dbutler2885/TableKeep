@@ -246,7 +246,7 @@ export function useVtmCharacters(
 
   const addCharacter = async (creationMode: 'new' | 'established') => {
     if (!campaignId || !groupId || !role) return
-    if (role !== 'gm' && charactersRef.current.some((character) => character.ownerUserId === userId)) return
+    // Players may own multiple characters; creation is no longer capped per user.
     const character = makeVtmCharacter(userId, currentUsername, creationMode)
     setSelectedCharacterId(character.id)
     setCharacters((current) => [...current, character])
