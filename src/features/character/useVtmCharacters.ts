@@ -34,6 +34,7 @@ const normalizeSheet = (raw: unknown): VtmCharacterSheet => {
     attributePriority: mergeObject(defaults.attributePriority, raw.attributePriority),
     abilityPriority: mergeObject(defaults.abilityPriority, raw.abilityPriority),
     virtues: mergeObject(defaults.virtues, raw.virtues),
+    freebieDots: mergeObject(defaults.freebieDots, raw.freebieDots),
     health: mergeObject(defaults.health, raw.health),
     expandedBackground: mergeObject(defaults.expandedBackground, raw.expandedBackground),
     possessions: mergeObject(defaults.possessions, raw.possessions),

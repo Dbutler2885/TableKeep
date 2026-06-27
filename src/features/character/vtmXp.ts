@@ -45,6 +45,30 @@ export const xpCostForNewTrait = (category: VtmNewTraitCategory): number => {
   return 10
 }
 
+// Short, category-level description of the XP cost rule, for the advancement UI.
+// XP cost scales with current rating, so a flat per-dot number is not correct;
+// these spell out the rule (multiplier and any new-trait flat cost) instead.
+export const xpRuleLabel = (category: VtmXpCategory): string => {
+  switch (category) {
+    case 'attribute':
+      return 'XP: rating × 4'
+    case 'ability':
+      return 'XP: rating × 2 · new 3'
+    case 'virtue':
+      return 'XP: rating × 2'
+    case 'willpower':
+      return 'XP: rating × 1'
+    case 'humanity':
+      return 'XP: rating × 2'
+    case 'thaumaturgyPath':
+      return 'XP: rating × 4 · new 7'
+    case 'discipline':
+      return 'XP: rating × 5 clan / × 7 other · new 10'
+    default:
+      return ''
+  }
+}
+
 export const canAffordVtmXp = (balance: number, cost: number): boolean =>
   Math.max(0, Math.floor(balance)) >= Math.max(0, Math.floor(cost))
 

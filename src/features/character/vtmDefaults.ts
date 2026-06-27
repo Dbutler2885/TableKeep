@@ -1,5 +1,6 @@
 import type { TokenIconConfig } from '../../types/app'
 import { makeId } from './characterFactories'
+import { emptyFreebieDots } from './vtmCreation'
 import { VTM_ABILITIES, VTM_ATTRIBUTES, VTM_VIRTUES } from './vtmRuleset'
 import type { VtmCharacterRecord, VtmCharacterSheet, VtmDotMap } from './vtmTypes'
 
@@ -98,6 +99,7 @@ export const defaultVtmSheet = (): VtmCharacterSheet => ({
   armor: [],
   xpLedger: [],
   freebiePointsSpent: 0,
+  freebieDots: emptyFreebieDots(),
 })
 
 export const makeVtmCharacter = (
