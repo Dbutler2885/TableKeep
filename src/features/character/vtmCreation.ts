@@ -1,8 +1,14 @@
-import { VTM_ABILITIES, VTM_ATTRIBUTES, VTM_VIRTUES, vtmBloodPoolMax } from './vtmRuleset'
+import { VTM_ABILITIES, VTM_ATTRIBUTES, VTM_VIRTUES, vtmBloodPoolMax, vtmTraitMax } from './vtmRuleset'
 import type { VtmAbilityCategory, VtmAttributeCategory } from './vtmRuleset'
 import type { VtmCharacterSheet, VtmCreationPriority, VtmDotMap, VtmRatedRow } from './vtmTypes'
 
 export const VTM_DOT_CAP = 5
+
+// Effective dot ceiling for scaling Traits (Attributes, Abilities, Disciplines).
+// At creation it is impossible to exceed 5 (rulebook p.139); in play a Trait may
+// rise up to the character's generation Trait Max Rating.
+export const dotMaxForPhase = (generation: string | null | undefined, isActive: boolean): number =>
+  isActive ? vtmTraitMax(generation) : VTM_DOT_CAP
 export const VTM_FREEBIE_TOTAL = 15
 
 export const ATTRIBUTE_POOL_BY_PRIORITY: Record<VtmCreationPriority, number> = {

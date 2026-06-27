@@ -8,6 +8,7 @@ import {
   deriveHumanity,
   deriveWillpower,
   disciplinePoolStatus,
+  dotMaxForPhase,
   freebieStatus,
   virtuePoolStatus,
 } from './vtmCreation'
@@ -45,6 +46,22 @@ describe('vtmCreation', () => {
       remaining: 4,
       over: false,
     })
+  })
+
+  it('caps scaling Traits at 5 during creation but at the generation Trait Max in play', () => {
+    // Creation: impossible to exceed 5 for any generation (rulebook p.139).
+    expect(dotMaxForPhase('13th', false)).toBe(5)
+    expect(dotMaxForPhase('6th', false)).toBe(5)
+    expect(dotMaxForPhase('3rd', false)).toBe(5)
+    // In play: a low-generation elder may raise a Discipline past 5.
+    expect(dotMaxForPhase('13th', true)).toBe(5)
+    expect(dotMaxForPhase('7th', true)).toBe(6)
+    expect(dotMaxForPhase('6th', true)).toBe(7)
+    expect(dotMaxForPhase('5th', true)).toBe(8)
+    expect(dotMaxForPhase('3rd', true)).toBe(10)
+    // Unknown / blank generation falls back to 5.
+    expect(dotMaxForPhase('', true)).toBe(5)
+    expect(dotMaxForPhase(undefined, true)).toBe(5)
   })
 
   it('counts advantage pools and freebies', () => {

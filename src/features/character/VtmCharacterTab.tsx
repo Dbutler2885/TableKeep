@@ -30,6 +30,7 @@ import {
   deriveHumanity,
   deriveWillpower,
   disciplinePoolStatus,
+  dotMaxForPhase,
   freebieStatus,
   FREEBIE_COSTS,
   sheetCreationErrors,
@@ -195,6 +196,8 @@ export function VtmCharacterTab({
   const isActive = selectedCharacter?.creationStatus === 'active'
   const xpBalance = selectedCharacter?.xp ?? 0
   const bloodPoolMax = sheet ? deriveBloodPoolMax(sheet.generation) : null
+  // Scaling Traits cap at 5 during creation and at the generation Trait Max in play.
+  const traitDotMax = dotMaxForPhase(sheet?.generation, isActive)
 
   // Starting pools must be fully assigned before freebies open.
   const incompletePools = sheet
@@ -720,6 +723,7 @@ export function VtmCharacterTab({
               sheet={sheet}
               canEdit={canEdit}
               dotsLocked={isActive && !spendXpMode}
+              dotMax={traitDotMax}
               setAttributeDot={setAttributeDot}
               setAbilityDot={setAbilityDot}
               updateSheet={updateSheet}
@@ -734,6 +738,7 @@ export function VtmCharacterTab({
                   title="Disciplines"
                   rows={disciplineRows}
                   options={availableDisciplines}
+                  dotMax={traitDotMax}
                   disabled={!canEdit || (isActive && !spendXpMode)}
                   status={isGuidedDraft ? disciplinePoolStatus({ disciplines: disciplineRows }) : null}
                   freebieCost={freebieMode ? FREEBIE_COSTS.discipline : null}
@@ -868,6 +873,7 @@ function DotSections({
   sheet,
   canEdit,
   dotsLocked,
+  dotMax,
   setAttributeDot,
   setAbilityDot,
   updateSheet,
@@ -877,6 +883,7 @@ function DotSections({
   sheet: VtmCharacterSheet
   canEdit: boolean
   dotsLocked: boolean
+  dotMax: number
   setAttributeDot: (category: VtmAttributeCategory, name: string, nextRating: number) => void
   setAbilityDot: (category: VtmAbilityCategory, name: string, nextRating: number) => void
   updateSheet: (updater: (current: VtmCharacterSheet) => VtmCharacterSheet) => void
@@ -915,7 +922,7 @@ function DotSections({
                 {names.map((name) => (
                   <div key={name} className="character-ability-row vtm-trait-row">
                     <span className="vtm-trait-name">{name}</span>
-                    <DotRating value={sheet.attributes[typedCategory][name] ?? 1} min={1} label={name} disabled={!canEdit || dotsLocked} onChange={(rating) => setAttributeDot(typedCategory, name, rating)} />
+                    <DotRating value={sheet.attributes[typedCategory][name] ?? 1} min={1} max={dotMax} label={name} disabled={!canEdit || dotsLocked} onChange={(rating) => setAttributeDot(typedCategory, name, rating)} />
                   </div>
                 ))}
               </div>
@@ -943,7 +950,7 @@ function DotSections({
                 {names.map((name) => (
                   <div key={name} className="character-ability-row vtm-trait-row">
                     <span className="vtm-trait-name">{name}</span>
-                    <DotRating value={sheet.abilities[typedCategory][name] ?? 0} label={name} disabled={!canEdit || dotsLocked} onChange={(rating) => setAbilityDot(typedCategory, name, rating)} />
+                    <DotRating value={sheet.abilities[typedCategory][name] ?? 0} max={dotMax} label={name} disabled={!canEdit || dotsLocked} onChange={(rating) => setAbilityDot(typedCategory, name, rating)} />
                   </div>
                 ))}
               </div>
@@ -959,6 +966,7 @@ function RatedRows({
   title,
   rows,
   options,
+  dotMax = 5,
   disabled,
   status,
   freebieCost = null,
@@ -969,6 +977,7 @@ function RatedRows({
   title: string
   rows: VtmRatedRow[]
   options: readonly string[]
+  dotMax?: number
   disabled: boolean
   status: { remaining: number } | null
   freebieCost?: number | null
@@ -998,7 +1007,7 @@ function RatedRows({
             {!isKnown ? (
               <input value={row.name} disabled={disabled} placeholder="Name" onChange={(event) => onChange(row.id, { name: event.target.value })} />
             ) : null}
-            <DotRating value={row.rating} label={row.name || title} disabled={disabled} onChange={(rating) => onDot(row.id, rating)} />
+            <DotRating value={row.rating} max={dotMax} label={row.name || title} disabled={disabled} onChange={(rating) => onDot(row.id, rating)} />
             <button type="button" className="vtm-rated-delete" disabled={disabled} onClick={() => onPersist(rows.filter((entry) => entry.id !== row.id))} aria-label="Remove row"><Trash2 size={13} /></button>
           </div>
         )
