@@ -23,6 +23,10 @@ export type VtmGeneration = {
   value: string
   bloodPoolMax: number | null
   bloodPerTurn: number | null
+  // Highest rating a Trait may reach for this generation (rulebook p.139
+  // "Generations Chart", Trait Max Rating column). Applies in play; creation
+  // is always capped at 5.
+  traitMax: number
 }
 
 export const VTM_DISCIPLINES = [
@@ -117,17 +121,17 @@ export const VTM_BACKGROUNDS = [
 export const VTM_VIRTUES = ['Conscience', 'Self-Control', 'Courage'] as const
 
 export const VTM_GENERATIONS: VtmGeneration[] = [
-  { label: '13th (and higher #)', value: '13th', bloodPoolMax: 10, bloodPerTurn: 1 },
-  { label: '12th', value: '12th', bloodPoolMax: 11, bloodPerTurn: 1 },
-  { label: '11th', value: '11th', bloodPoolMax: 12, bloodPerTurn: 1 },
-  { label: '10th', value: '10th', bloodPoolMax: 13, bloodPerTurn: 1 },
-  { label: '9th', value: '9th', bloodPoolMax: 14, bloodPerTurn: 2 },
-  { label: '8th', value: '8th', bloodPoolMax: 15, bloodPerTurn: 3 },
-  { label: '7th', value: '7th', bloodPoolMax: 20, bloodPerTurn: 5 },
-  { label: '6th', value: '6th', bloodPoolMax: 30, bloodPerTurn: 6 },
-  { label: '5th', value: '5th', bloodPoolMax: 40, bloodPerTurn: 8 },
-  { label: '4th', value: '4th', bloodPoolMax: 50, bloodPerTurn: 10 },
-  { label: '3rd', value: '3rd', bloodPoolMax: null, bloodPerTurn: null },
+  { label: '13th (and higher #)', value: '13th', bloodPoolMax: 10, bloodPerTurn: 1, traitMax: 5 },
+  { label: '12th', value: '12th', bloodPoolMax: 11, bloodPerTurn: 1, traitMax: 5 },
+  { label: '11th', value: '11th', bloodPoolMax: 12, bloodPerTurn: 1, traitMax: 5 },
+  { label: '10th', value: '10th', bloodPoolMax: 13, bloodPerTurn: 1, traitMax: 5 },
+  { label: '9th', value: '9th', bloodPoolMax: 14, bloodPerTurn: 2, traitMax: 5 },
+  { label: '8th', value: '8th', bloodPoolMax: 15, bloodPerTurn: 3, traitMax: 5 },
+  { label: '7th', value: '7th', bloodPoolMax: 20, bloodPerTurn: 5, traitMax: 6 },
+  { label: '6th', value: '6th', bloodPoolMax: 30, bloodPerTurn: 6, traitMax: 7 },
+  { label: '5th', value: '5th', bloodPoolMax: 40, bloodPerTurn: 8, traitMax: 8 },
+  { label: '4th', value: '4th', bloodPoolMax: 50, bloodPerTurn: 10, traitMax: 9 },
+  { label: '3rd', value: '3rd', bloodPoolMax: null, bloodPerTurn: null, traitMax: 10 },
 ]
 
 export const vtmClanById = (clanId: string | null | undefined): VtmClan | null =>
@@ -144,6 +148,11 @@ export const vtmGenerationByValue = (generation: string | null | undefined): Vtm
 
 export const vtmBloodPoolMax = (generation: string | null | undefined): number | null =>
   vtmGenerationByValue(generation)?.bloodPoolMax ?? null
+
+// Highest rating a Trait (Attribute, Ability, Discipline) may reach for this
+// generation. Defaults to 5 for an unknown/blank generation.
+export const vtmTraitMax = (generation: string | null | undefined): number =>
+  vtmGenerationByValue(generation)?.traitMax ?? 5
 
 export const isVtmInClanDiscipline = (clanId: string | null | undefined, discipline: string): boolean => {
   const clan = vtmClanById(clanId)

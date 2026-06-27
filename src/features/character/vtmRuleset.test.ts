@@ -9,6 +9,7 @@ import {
   vtmBloodPoolMax,
   vtmClanDisciplines,
   vtmClanWeakness,
+  vtmTraitMax,
 } from './vtmRuleset'
 
 describe('vtmRuleset', () => {
@@ -40,6 +41,24 @@ describe('vtmRuleset', () => {
       ['4th', 50],
       ['3rd', null],
     ])
+  })
+
+  it('resolves the generation Trait Max Rating (rulebook p.139)', () => {
+    expect(VTM_GENERATIONS.map((entry) => [entry.value, vtmTraitMax(entry.value)])).toEqual([
+      ['13th', 5],
+      ['12th', 5],
+      ['11th', 5],
+      ['10th', 5],
+      ['9th', 5],
+      ['8th', 5],
+      ['7th', 6],
+      ['6th', 7],
+      ['5th', 8],
+      ['4th', 9],
+      ['3rd', 10],
+    ])
+    expect(vtmTraitMax('')).toBe(5)
+    expect(vtmTraitMax(undefined)).toBe(5)
   })
 
   it('classifies clan and non-clan disciplines including Caitiff', () => {
