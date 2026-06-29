@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyVtmXpSpend, canAffordVtmXp, xpCostForNewTrait, xpCostToRaise } from './vtmXp'
+import { applyVtmXpSpend, canAffordVtmXp, xpCostForNewTrait, xpCostToRaise, xpRuleLabel } from './vtmXp'
 
 describe('vtmXp', () => {
   it('calculates raise costs by category', () => {
@@ -21,6 +21,11 @@ describe('vtmXp', () => {
     expect(xpCostForNewTrait('ability')).toBe(3)
     expect(xpCostForNewTrait('thaumaturgyPath')).toBe(7)
     expect(xpCostForNewTrait('discipline')).toBe(10)
+  })
+
+  it('describes Caitiff discipline costs separately from clan and out-of-clan costs', () => {
+    expect(xpRuleLabel('discipline', { clan: 'brujah' })).toBe('XP: rating × 5 clan / × 7 other · new 10')
+    expect(xpRuleLabel('discipline', { clan: 'caitiff' })).toBe('XP: rating × 6 Caitiff · new 10')
   })
 
   it('checks affordability and applies spend ledger entries', () => {

@@ -15,8 +15,11 @@ import {
   VTM_DISCIPLINES,
   VTM_GENERATIONS,
   VTM_VIRTUES,
-  vtmClanDisciplines,
   vtmClanWeakness,
+  vtmDisciplineClanCostNote,
+  vtmDisciplineContextSummary,
+  vtmDisciplinePickerOptions,
+  vtmSuggestedDisciplines,
 } from './vtmRuleset'
 import type { VtmAbilityCategory, VtmAttributeCategory, VtmClanId } from './vtmRuleset'
 import type { VtmCharacterRecord, VtmCharacterSheet, VtmCreationPriority, VtmFreebieDots, VtmRatedRow } from './vtmTypes'
@@ -566,11 +569,9 @@ export function VtmCharacterTab({
     setXpGrantNote('')
   }
 
-  const availableDisciplines = sheet?.clan && sheet.clan !== 'caitiff'
-    ? vtmClanDisciplines(sheet.clan)
-    : [...VTM_DISCIPLINES]
-
-  const disciplineRows = sheet ? rowsWithFallback(sheet.disciplines, availableDisciplines) : []
+  const disciplineOptions = vtmDisciplinePickerOptions()
+  const suggestedDisciplines = sheet ? vtmSuggestedDisciplines(sheet.clan) : [...VTM_DISCIPLINES]
+  const disciplineRows = sheet ? rowsWithFallback(sheet.disciplines, suggestedDisciplines) : []
   const backgroundRows = sheet ? rowsWithFallback(sheet.backgrounds, VTM_BACKGROUNDS) : []
 
   return (
@@ -799,12 +800,14 @@ export function VtmCharacterTab({
                 <RatedRows
                   title="Disciplines"
                   rows={disciplineRows}
-                  options={availableDisciplines}
+                  options={disciplineOptions}
                   dotMax={traitDotMax}
                   disabled={!canEdit || (isActive && !spendXpMode)}
                   status={isGuidedDraft ? disciplinePoolStatus({ disciplines: disciplineRows, freebieDots: sheet.freebieDots }) : null}
                   freebieCost={freebieMode ? FREEBIE_COSTS.discipline : null}
-                  xpRule={xpMode ? xpRuleLabel('discipline') : null}
+                  xpRule={xpMode ? xpRuleLabel('discipline', { clan: sheet.clan }) : null}
+                  help={vtmDisciplineContextSummary(sheet.clan)}
+                  optionLabel={(option) => vtmDisciplineClanCostNote(sheet.clan, option)}
                   onPersist={(rows) => updateSheet((current) => ({ ...current, disciplines: rows }))}
                   onDot={(rowId, rating) => setRatedRowDot('disciplines', disciplineRows, rowId, rating)}
                   onChange={(rowId, updates) => updateRatedRows('disciplines', disciplineRows, rowId, updates)}
@@ -1041,6 +1044,8 @@ function RatedRows({
   status,
   freebieCost = null,
   xpRule = null,
+  help = null,
+  optionLabel = (option) => option,
   onPersist,
   onDot,
   onChange,
@@ -1053,6 +1058,8 @@ function RatedRows({
   status: { remaining: number } | null
   freebieCost?: number | null
   xpRule?: string | null
+  help?: string | null
+  optionLabel?: (option: string) => string
   onPersist: (rows: VtmRatedRow[]) => void
   onDot: (rowId: string, rating: number) => void
   onChange: (rowId: string, updates: Partial<VtmRatedRow>) => void
@@ -1067,6 +1074,7 @@ function RatedRows({
         {xpRule != null ? <span className="vtm-cost-chip">{xpRule}</span> : null}
         <button type="button" className="vtm-rated-add" disabled={disabled} onClick={() => onPersist([...rows, { id: makeId(), name: '', rating: 0 }])}><Plus size={14} /> Add</button>
       </div>
+      {help ? <p className="settings-help vtm-rated-help">{help}</p> : null}
       {rows.map((row) => {
         const isKnown = hasOptions && options.includes(row.name)
         return (
@@ -1074,7 +1082,7 @@ function RatedRows({
             {hasOptions ? (
               <select value={isKnown ? row.name : ''} disabled={disabled} onChange={(event) => onChange(row.id, { name: event.target.value })}>
                 <option value="">Custom…</option>
-                {options.map((option) => <option key={option} value={option}>{option}</option>)}
+                {options.map((option) => <option key={option} value={option}>{optionLabel(option)}</option>)}
               </select>
             ) : null}
             {!isKnown ? (

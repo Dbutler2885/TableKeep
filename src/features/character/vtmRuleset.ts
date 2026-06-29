@@ -140,6 +140,13 @@ export const vtmClanById = (clanId: string | null | undefined): VtmClan | null =
 export const vtmClanDisciplines = (clanId: string | null | undefined): string[] =>
   vtmClanById(clanId)?.disciplines ?? []
 
+export const vtmDisciplinePickerOptions = (): string[] => [...VTM_DISCIPLINES]
+
+export const vtmSuggestedDisciplines = (clanId: string | null | undefined): string[] => {
+  const clanDisciplines = vtmClanDisciplines(clanId)
+  return clanDisciplines.length > 0 ? clanDisciplines : vtmDisciplinePickerOptions()
+}
+
 export const vtmClanWeakness = (clanId: string | null | undefined): string =>
   vtmClanById(clanId)?.weakness ?? ''
 
@@ -158,4 +165,18 @@ export const isVtmInClanDiscipline = (clanId: string | null | undefined, discipl
   const clan = vtmClanById(clanId)
   if (!clan || clan.id === 'caitiff') return false
   return clan.disciplines.includes(discipline)
+}
+
+export const vtmDisciplineClanCostNote = (clanId: string | null | undefined, discipline: string): string => {
+  const clan = vtmClanById(clanId)
+  if (!clan) return discipline
+  if (clan.id === 'caitiff') return `${discipline} (Caitiff cost)`
+  return `${discipline} (${clan.disciplines.includes(discipline) ? `${clan.name} clan` : 'out of clan'})`
+}
+
+export const vtmDisciplineContextSummary = (clanId: string | null | undefined): string => {
+  const clan = vtmClanById(clanId)
+  if (!clan) return 'Choose a clan to see which Disciplines use clan XP costs.'
+  if (clan.id === 'caitiff') return 'Caitiff have no clan Disciplines; learned Disciplines use the Caitiff XP cost.'
+  return `${clan.name} clan Disciplines: ${clan.disciplines.join(', ')}. Other Disciplines use out-of-clan XP costs.`
 }
