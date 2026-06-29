@@ -42,6 +42,16 @@ import type { TokenPlacementCommand } from '../lib/tokenPlacementQueue'
 
 const MAP_UPLOAD_MAX_DIMENSION = 2048
 
+async function deleteStorageObjectIfPresent(path: string) {
+  try {
+    await deleteObject(ref(storage, path))
+  } catch (err) {
+    const code = typeof err === 'object' && err && 'code' in err ? String(err.code) : ''
+    if (code === 'storage/object-not-found') return
+    throw err
+  }
+}
+
 type UseMapDataParams = {
   campaignId: string
   groupId: string
@@ -825,11 +835,22 @@ export function useMapData({
     setMapError(null)
 
     try {
-      if (deleteCandidate.imagePath) await deleteObject(ref(storage, deleteCandidate.imagePath))
-      if (deleteCandidate.fogImagePath) await deleteObject(ref(storage, deleteCandidate.fogImagePath))
-      if (deleteCandidate.visionBlockImagePath) await deleteObject(ref(storage, deleteCandidate.visionBlockImagePath))
       await deleteDoc(mapDocRef(deleteCandidate.id))
+      const cleanupResults = await Promise.allSettled(
+        [
+          deleteCandidate.imagePath,
+          deleteCandidate.fogImagePath,
+          deleteCandidate.visionBlockImagePath,
+        ]
+          .filter((path): path is string => Boolean(path))
+          .map((path) => deleteStorageObjectIfPresent(path)),
+      )
+      const cleanupFailure = cleanupResults.find((result) => result.status === 'rejected')
       setDeleteCandidate(null)
+      if (cleanupFailure?.status === 'rejected') {
+        const message = cleanupFailure.reason instanceof Error ? cleanupFailure.reason.message : 'Stored image cleanup failed'
+        setMapError(`Map deleted, but stored image cleanup failed: ${message}`)
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Delete failed'
       setMapError(`Delete failed: ${message}`)
