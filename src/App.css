@@ -6469,6 +6469,36 @@ button:disabled {
   outline-offset: 1px;
 }
 
+.map-konva-fills {
+  flex-wrap: wrap;
+}
+
+.map-konva-fill-divider {
+  width: 1px;
+  align-self: stretch;
+  min-height: 1.2rem;
+  background: #d4d3cc;
+  margin: 0 0.15rem;
+}
+
+.map-konva-texture {
+  width: 1.5rem;
+  height: 1.5rem;
+  min-width: 1.5rem;
+  padding: 0;
+  border: 1px solid #bcbcb4;
+  border-radius: 5px;
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+}
+
+.map-konva-texture.active {
+  outline: 2px solid #2e77b5;
+  outline-offset: 1px;
+  border-color: #2e77b5;
+}
+
 .map-konva-colors input[type="color"] {
   width: 1.45rem;
   height: 1.45rem;

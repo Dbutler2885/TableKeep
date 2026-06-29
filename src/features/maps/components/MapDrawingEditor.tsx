@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type Konva from 'konva'
 import { Stage, Layer, Rect, Ellipse, Line, Transformer } from 'react-konva'
 import {
   Circle as CircleIcon,
   Eraser,
+  Lasso,
   Loader2,
   Minus,
   MousePointer2,
@@ -14,6 +15,7 @@ import {
   X,
 } from 'lucide-react'
 import { BLANK_MAP_HEIGHT, BLANK_MAP_WIDTH } from '../lib/constants'
+import { MAP_TEXTURES, isMapTextureId, loadTextureImages, type MapTextureId } from '../lib/mapTextures'
 
 export type BlankMapSceneResult = {
   sceneJson: string
@@ -31,20 +33,24 @@ type MapDrawingEditorProps = {
   onSave: (result: BlankMapSceneResult) => Promise<void>
 }
 
-type DrawingTool = 'select' | 'pen' | 'line' | 'rect' | 'ellipse' | 'fill' | 'erase'
+type DrawingTool = 'select' | 'pen' | 'line' | 'rect' | 'ellipse' | 'region' | 'fill' | 'erase'
+
+type FillStyle = { color: string; textureId: MapTextureId | null }
 
 type BaseShape = { id: string; stroke: string; strokeWidth: number }
 type PenShape = BaseShape & { type: 'pen'; points: number[] }
 type LineShape = BaseShape & { type: 'line'; points: number[] }
-type RectShape = BaseShape & { type: 'rect'; x: number; y: number; width: number; height: number; fill: string }
-type EllipseShape = BaseShape & { type: 'ellipse'; x: number; y: number; radiusX: number; radiusY: number; fill: string }
-type Shape = PenShape | LineShape | RectShape | EllipseShape
+type RegionShape = BaseShape & { type: 'region'; points: number[]; fill: string; textureId: MapTextureId | null }
+type RectShape = BaseShape & { type: 'rect'; x: number; y: number; width: number; height: number; fill: string; textureId: MapTextureId | null }
+type EllipseShape = BaseShape & { type: 'ellipse'; x: number; y: number; radiusX: number; radiusY: number; fill: string; textureId: MapTextureId | null }
+type Shape = PenShape | LineShape | RegionShape | RectShape | EllipseShape
 
 const STROKE_SWATCHES = ['#2c2c2c', '#b42318', '#2e77b5', '#2f7d32', '#d9b96e', '#ffffff']
 const FILL_SWATCHES = ['#a5d8ff', '#ffc9c9', '#b2f2bb', '#ffec99', '#d9b96e', '#2c2c2c']
 const LINE_WEIGHT_MIN = 1
 const LINE_WEIGHT_MAX = 40
 const MIN_SHAPE_SIZE = 4
+const FILLABLE = new Set<Shape['type']>(['rect', 'ellipse', 'region'])
 
 let shapeCounter = 0
 const nextId = () => {
@@ -60,7 +66,7 @@ function parseShapes(sceneJson: string): Shape[] {
     return parsed.shapes.filter((shape): shape is Shape => {
       if (!shape || typeof shape !== 'object') return false
       const type = (shape as { type?: unknown }).type
-      return type === 'pen' || type === 'line' || type === 'rect' || type === 'ellipse'
+      return type === 'pen' || type === 'line' || type === 'rect' || type === 'ellipse' || type === 'region'
     })
   } catch {
     return []
@@ -78,16 +84,28 @@ export function MapDrawingEditor({
   const transformerRef = useRef<Konva.Transformer | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const isDrawingRef = useRef(false)
+  const texturesRef = useRef<Map<MapTextureId, HTMLImageElement>>(new Map())
 
   const [shapes, setShapes] = useState<Shape[]>(() => parseShapes(initialSceneJson))
-  const [tool, setTool] = useState<DrawingTool>('pen')
+  const [tool, setTool] = useState<DrawingTool>('region')
   const [strokeColor, setStrokeColor] = useState('#2c2c2c')
-  const [fillColor, setFillColor] = useState('#a5d8ff')
+  const [fill, setFill] = useState<FillStyle>({ color: '#a5d8ff', textureId: 'trees' })
   const [lineWeight, setLineWeight] = useState(4)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [texturesReady, setTexturesReady] = useState(false)
   const [view, setView] = useState({ scale: 1, width: BLANK_MAP_WIDTH, height: BLANK_MAP_HEIGHT })
+
+  useEffect(() => {
+    let active = true
+    void loadTextureImages().then((images) => {
+      if (!active) return
+      texturesRef.current = images
+      setTexturesReady(true)
+    })
+    return () => { active = false }
+  }, [])
 
   // Fit the fixed 1600x1000 logical canvas into the available container.
   useEffect(() => {
@@ -107,17 +125,14 @@ export function MapDrawingEditor({
     return () => observer.disconnect()
   }, [])
 
-  // Keep the transformer attached to the current selection.
+  // The Transformer (resize/rotate handles) only attaches to box shapes.
   useEffect(() => {
     const transformer = transformerRef.current
     const stage = stageRef.current
     if (!transformer || !stage) return
-    if (tool !== 'select' || !selectedId) {
-      transformer.nodes([])
-      transformer.getLayer()?.batchDraw()
-      return
-    }
-    const node = stage.findOne(`#${selectedId}`)
+    const selected = shapes.find((shape) => shape.id === selectedId)
+    const resizable = tool === 'select' && selected && (selected.type === 'rect' || selected.type === 'ellipse')
+    const node = resizable ? stage.findOne(`#${selectedId}`) : null
     transformer.nodes(node ? [node] : [])
     transformer.getLayer()?.batchDraw()
   }, [selectedId, tool, shapes])
@@ -135,12 +150,13 @@ export function MapDrawingEditor({
 
   const applyFill = useCallback((id: string) => {
     setShapes((prev) => prev.map((shape) => {
-      if (shape.id !== id) return shape
-      if (shape.type !== 'rect' && shape.type !== 'ellipse') return shape
-      const cleared = shape.fill === fillColor
-      return { ...shape, fill: cleared ? 'transparent' : fillColor }
+      if (shape.id !== id || !FILLABLE.has(shape.type)) return shape
+      const filled = shape as RectShape | EllipseShape | RegionShape
+      const sameSolid = !fill.textureId && filled.textureId === null && filled.fill === fill.color
+      if (sameSolid) return { ...filled, fill: 'transparent' } as Shape
+      return { ...filled, fill: fill.color, textureId: fill.textureId } as Shape
     }))
-  }, [fillColor])
+  }, [fill])
 
   const handleShapeInteract = useCallback((id: string, shapeType: Shape['type']) => {
     if (tool === 'erase') {
@@ -149,7 +165,7 @@ export function MapDrawingEditor({
       return
     }
     if (tool === 'fill') {
-      if (shapeType === 'rect' || shapeType === 'ellipse') applyFill(id)
+      if (FILLABLE.has(shapeType)) applyFill(id)
       return
     }
     if (tool === 'select') setSelectedId(id)
@@ -171,12 +187,14 @@ export function MapDrawingEditor({
     const id = nextId()
     if (tool === 'pen') {
       setShapes((prev) => [...prev, { id, type: 'pen', points: [pos.x, pos.y], stroke: strokeColor, strokeWidth: lineWeight }])
+    } else if (tool === 'region') {
+      setShapes((prev) => [...prev, { id, type: 'region', points: [pos.x, pos.y], stroke: strokeColor, strokeWidth: lineWeight, fill: fill.color, textureId: fill.textureId }])
     } else if (tool === 'line') {
       setShapes((prev) => [...prev, { id, type: 'line', points: [pos.x, pos.y, pos.x, pos.y], stroke: strokeColor, strokeWidth: lineWeight }])
     } else if (tool === 'rect') {
-      setShapes((prev) => [...prev, { id, type: 'rect', x: pos.x, y: pos.y, width: 0, height: 0, stroke: strokeColor, strokeWidth: lineWeight, fill: 'transparent' }])
+      setShapes((prev) => [...prev, { id, type: 'rect', x: pos.x, y: pos.y, width: 0, height: 0, stroke: strokeColor, strokeWidth: lineWeight, fill: 'transparent', textureId: null }])
     } else if (tool === 'ellipse') {
-      setShapes((prev) => [...prev, { id, type: 'ellipse', x: pos.x, y: pos.y, radiusX: 0, radiusY: 0, stroke: strokeColor, strokeWidth: lineWeight, fill: 'transparent' }])
+      setShapes((prev) => [...prev, { id, type: 'ellipse', x: pos.x, y: pos.y, radiusX: 0, radiusY: 0, stroke: strokeColor, strokeWidth: lineWeight, fill: 'transparent', textureId: null }])
     }
   }
 
@@ -188,7 +206,7 @@ export function MapDrawingEditor({
       if (prev.length === 0) return prev
       const last = prev[prev.length - 1]
       let updated: Shape = last
-      if (last.type === 'pen') {
+      if (last.type === 'pen' || last.type === 'region') {
         updated = { ...last, points: [...last.points, pos.x, pos.y] }
       } else if (last.type === 'line') {
         updated = { ...last, points: [last.points[0], last.points[1], pos.x, pos.y] }
@@ -204,7 +222,6 @@ export function MapDrawingEditor({
   const handleStageMouseUp = () => {
     if (!isDrawingRef.current) return
     isDrawingRef.current = false
-    // Normalize rect (negative size from dragging up/left) and drop tiny shapes.
     setShapes((prev) => {
       if (prev.length === 0) return prev
       const last = prev[prev.length - 1]
@@ -216,14 +233,12 @@ export function MapDrawingEditor({
         if (width < MIN_SHAPE_SIZE && height < MIN_SHAPE_SIZE) return prev.slice(0, -1)
         return [...prev.slice(0, -1), { ...last, x, y, width, height }]
       }
-      if (last.type === 'ellipse') {
-        if (last.radiusX < MIN_SHAPE_SIZE / 2 && last.radiusY < MIN_SHAPE_SIZE / 2) return prev.slice(0, -1)
-      }
+      if (last.type === 'ellipse' && last.radiusX < MIN_SHAPE_SIZE / 2 && last.radiusY < MIN_SHAPE_SIZE / 2) return prev.slice(0, -1)
       if (last.type === 'line') {
         const [x1, y1, x2, y2] = last.points
         if (Math.hypot(x2 - x1, y2 - y1) < MIN_SHAPE_SIZE) return prev.slice(0, -1)
       }
-      if (last.type === 'pen' && last.points.length < 4) return prev.slice(0, -1)
+      if ((last.type === 'pen' || last.type === 'region') && last.points.length < 6) return prev.slice(0, -1)
       return prev
     })
   }
@@ -236,7 +251,6 @@ export function MapDrawingEditor({
     setSelectedId(null)
     try {
       transformerRef.current?.nodes([])
-      // Render at the full logical resolution regardless of on-screen fit scale.
       const blob = await stage.toBlob({ pixelRatio: 1 / view.scale, mimeType: 'image/png' }) as Blob
       const sceneJson = JSON.stringify({ shapes, background: backgroundColor })
       await onSave({ sceneJson, blob, width: BLANK_MAP_WIDTH, height: BLANK_MAP_HEIGHT })
@@ -246,7 +260,15 @@ export function MapDrawingEditor({
     }
   }, [backgroundColor, onSave, saving, shapes, view.scale])
 
-  const initialShapes = useMemo(() => shapes, [shapes])
+  const fillProps = (shape: RectShape | EllipseShape | RegionShape) => {
+    if (shape.textureId && isMapTextureId(shape.textureId)) {
+      const image = texturesRef.current.get(shape.textureId)
+      if (image) {
+        return { fillPriority: 'pattern' as const, fillPatternImage: image, fillPatternRepeat: 'repeat' as const, fillPatternScale: { x: 1, y: 1 } }
+      }
+    }
+    return { fill: shape.fill === 'transparent' ? undefined : shape.fill }
+  }
 
   const toolButton = (value: DrawingTool, label: string, icon: React.ReactNode) => (
     <button
@@ -267,11 +289,12 @@ export function MapDrawingEditor({
         <span className="map-drawing-editor-title">Drawing: {mapName}</span>
         <div className="map-konva-toolbar">
           {toolButton('select', 'Select / move', <MousePointer2 size={16} />)}
+          {toolButton('region', 'Freehand area (fillable)', <Lasso size={16} />)}
           {toolButton('pen', 'Freehand pen', <Pencil size={16} />)}
           {toolButton('line', 'Straight line', <Slash size={16} />)}
           {toolButton('rect', 'Rectangle', <SquareIcon size={16} />)}
           {toolButton('ellipse', 'Ellipse', <CircleIcon size={16} />)}
-          {toolButton('fill', 'Fill shape', <PaintBucket size={16} />)}
+          {toolButton('fill', 'Fill shape / area', <PaintBucket size={16} />)}
           {toolButton('erase', 'Delete shape', <Eraser size={16} />)}
         </div>
         <div className="map-konva-colors" aria-label="Stroke color">
@@ -288,31 +311,35 @@ export function MapDrawingEditor({
           ))}
           <input type="color" value={strokeColor} onChange={(e) => setStrokeColor(e.target.value)} aria-label="Custom stroke color" />
         </div>
-        <div className="map-konva-colors" aria-label="Fill color">
+        <div className="map-konva-colors map-konva-fills" aria-label="Fill">
           <PaintBucket size={13} aria-hidden />
           {FILL_SWATCHES.map((color) => (
             <button
               key={`fill-${color}`}
               type="button"
-              className={fillColor === color ? 'map-konva-swatch active' : 'map-konva-swatch'}
+              className={!fill.textureId && fill.color === color ? 'map-konva-swatch active' : 'map-konva-swatch'}
               style={{ backgroundColor: color }}
-              onClick={() => setFillColor(color)}
+              onClick={() => setFill({ color, textureId: null })}
               aria-label={`Fill ${color}`}
             />
           ))}
-          <input type="color" value={fillColor} onChange={(e) => setFillColor(e.target.value)} aria-label="Custom fill color" />
+          <input type="color" value={fill.color} onChange={(e) => setFill({ color: e.target.value, textureId: null })} aria-label="Custom fill color" />
+          <span className="map-konva-fill-divider" aria-hidden />
+          {MAP_TEXTURES.map((texture) => (
+            <button
+              key={texture.id}
+              type="button"
+              className={fill.textureId === texture.id ? 'map-konva-texture active' : 'map-konva-texture'}
+              style={{ backgroundImage: texturesReady ? `url(${texturesRef.current.get(texture.id)?.src ?? ''})` : undefined, backgroundColor: texture.swatch }}
+              onClick={() => setFill((prev) => ({ color: prev.color, textureId: texture.id }))}
+              aria-label={`Fill texture: ${texture.label}`}
+              title={`${texture.label} texture`}
+            />
+          ))}
         </div>
         <label className="map-konva-weight" title="Line weight">
           <Minus size={14} aria-hidden />
-          <input
-            type="range"
-            min={LINE_WEIGHT_MIN}
-            max={LINE_WEIGHT_MAX}
-            step={1}
-            value={lineWeight}
-            onChange={(e) => setLineWeight(Number(e.target.value))}
-            aria-label="Line weight"
-          />
+          <input type="range" min={LINE_WEIGHT_MIN} max={LINE_WEIGHT_MAX} step={1} value={lineWeight} onChange={(e) => setLineWeight(Number(e.target.value))} aria-label="Line weight" />
           <span>{lineWeight}</span>
         </label>
         {error ? <span className="map-drawing-editor-error">{error}</span> : null}
@@ -344,7 +371,7 @@ export function MapDrawingEditor({
         >
           <Layer>
             <Rect name="background" x={0} y={0} width={BLANK_MAP_WIDTH} height={BLANK_MAP_HEIGHT} fill={backgroundColor} />
-            {initialShapes.map((shape) => {
+            {shapes.map((shape) => {
               const draggable = tool === 'select'
               const common = {
                 id: shape.id,
@@ -353,7 +380,7 @@ export function MapDrawingEditor({
                 onTap: () => handleShapeInteract(shape.id, shape.type),
                 onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
                   const node = e.target
-                  if (shape.type === 'pen' || shape.type === 'line') {
+                  if (shape.type === 'pen' || shape.type === 'line' || shape.type === 'region') {
                     const dx = node.x()
                     const dy = node.y()
                     node.position({ x: 0, y: 0 })
@@ -369,6 +396,9 @@ export function MapDrawingEditor({
               if (shape.type === 'line') {
                 return <Line key={shape.id} {...common} points={shape.points} stroke={shape.stroke} strokeWidth={shape.strokeWidth} lineCap="round" hitStrokeWidth={Math.max(12, shape.strokeWidth)} />
               }
+              if (shape.type === 'region') {
+                return <Line key={shape.id} {...common} points={shape.points} closed stroke={shape.stroke} strokeWidth={shape.strokeWidth} lineCap="round" lineJoin="round" tension={0.3} {...fillProps(shape)} />
+              }
               if (shape.type === 'rect') {
                 return (
                   <Rect
@@ -380,7 +410,7 @@ export function MapDrawingEditor({
                     height={shape.height}
                     stroke={shape.stroke}
                     strokeWidth={shape.strokeWidth}
-                    fill={shape.fill === 'transparent' ? undefined : shape.fill}
+                    {...fillProps(shape)}
                     onTransformEnd={(e) => {
                       const node = e.target
                       const sx = node.scaleX()
@@ -402,7 +432,7 @@ export function MapDrawingEditor({
                   radiusY={shape.radiusY}
                   stroke={shape.stroke}
                   strokeWidth={shape.strokeWidth}
-                  fill={shape.fill === 'transparent' ? undefined : shape.fill}
+                  {...fillProps(shape)}
                   onTransformEnd={(e) => {
                     const node = e.target
                     const sx = node.scaleX()
