@@ -24,13 +24,14 @@
     "deploy:functions": "firebase deploy --only functions"
   },
   "dependencies": {
-    "@excalidraw/excalidraw": "^0.18.1",
     "@iconify-json/game-icons": "^1.2.4",
     "@iconify/react": "^6.0.2",
     "firebase": "^12.9.0",
+    "konva": "^10.3.0",
     "lucide-react": "^0.575.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-konva": "^19.2.5",
     "react-router-dom": "^7.13.1"
   },
   "devDependencies": {
