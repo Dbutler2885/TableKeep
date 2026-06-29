@@ -65,6 +65,8 @@ const MIN_SHAPE_SIZE = 4
 const FILLABLE = new Set<Shape['type']>(['rect', 'ellipse', 'region'])
 const PASTE_OFFSET = 28
 
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+
 let counter = 0
 const nextId = () => {
   counter += 1
@@ -166,6 +168,7 @@ export function MapDrawingEditor({
   })
   const [placingStamp, setPlacingStamp] = useState<Stamp | null>(null)
   const [marquee, setMarquee] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
+  const marqueeRef = useRef<typeof marquee>(null)
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
 
@@ -173,6 +176,11 @@ export function MapDrawingEditor({
     const value = typeof next === 'function' ? next(selectedIdsRef.current) : next
     selectedIdsRef.current = value
     setSelectedIdsState(value)
+  }, [])
+
+  const updateMarquee = useCallback((next: typeof marquee) => {
+    marqueeRef.current = next
+    setMarquee(next)
   }, [])
 
   useEffect(() => {
@@ -221,10 +229,21 @@ export function MapDrawingEditor({
     transformer.getLayer()?.batchDraw()
   }, [selectedIds, selectedSet, tool, shapes])
 
-  const pointer = (): { x: number; y: number } | null => {
-    const pos = stageRef.current?.getRelativePointerPosition()
-    return pos ? { x: pos.x, y: pos.y } : null
-  }
+  const pointerFromEvent = useCallback((event?: MouseEvent | TouchEvent): { x: number; y: number } | null => {
+    if (!event) {
+      const pos = stageRef.current?.getRelativePointerPosition()
+      return pos ? { x: clamp(pos.x, 0, BLANK_MAP_WIDTH), y: clamp(pos.y, 0, BLANK_MAP_HEIGHT) } : null
+    }
+    const stage = stageRef.current
+    if (!stage) return null
+    const source = 'touches' in event ? event.touches[0] ?? event.changedTouches[0] : event
+    if (!source) return null
+    const rect = stage.container().getBoundingClientRect()
+    return {
+      x: clamp((source.clientX - rect.left) / view.scale, 0, BLANK_MAP_WIDTH),
+      y: clamp((source.clientY - rect.top) / view.scale, 0, BLANK_MAP_HEIGHT),
+    }
+  }, [view.scale])
 
   const syncHistoryFlags = useCallback(() => {
     setCanUndo(pastRef.current.length > 0)
@@ -358,39 +377,10 @@ export function MapDrawingEditor({
     }
   }, [applyFill, mutate, tool])
 
-  const handleStageMouseDown = (event: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-    const pos = pointer()
-    if (!pos) return
-    if (placingStamp) { placeStampAt(placingStamp, pos.x, pos.y); return }
-    const clickedEmpty = event.target === event.target.getStage() || event.target.name() === 'background'
-
-    if (tool === 'select') {
-      if (clickedEmpty) {
-        marqueeStartRef.current = { x: pos.x, y: pos.y, shift: (event.evt as MouseEvent).shiftKey === true }
-        setMarquee({ x: pos.x, y: pos.y, width: 0, height: 0 })
-      }
-      return
-    }
-    if (tool === 'fill' || tool === 'erase') return
-
-    isDrawingRef.current = true
-    drawingStartSnapshotRef.current = { shapes: shapesRef.current, selectedIds: selectedIdsRef.current }
-    setSelectedIds([])
-    const id = nextId()
-    const base = { id, stroke: strokeColor, strokeWidth: lineWeight, x: pos.x, y: pos.y }
-    if (tool === 'pen') mutate((prev) => [...prev, { ...base, type: 'pen', points: [0, 0] }], false)
-    else if (tool === 'region') mutate((prev) => [...prev, { ...base, type: 'region', points: [0, 0], fill: fill.color, textureId: fill.textureId }], false)
-    else if (tool === 'line') mutate((prev) => [...prev, { ...base, type: 'line', points: [0, 0, 0, 0] }], false)
-    else if (tool === 'rect') mutate((prev) => [...prev, { ...base, type: 'rect', width: 0, height: 0, fill: 'transparent', textureId: null }], false)
-    else if (tool === 'ellipse') mutate((prev) => [...prev, { ...base, type: 'ellipse', radiusX: 0, radiusY: 0, fill: 'transparent', textureId: null }], false)
-  }
-
-  const handleStageMouseMove = () => {
-    const pos = pointer()
-    if (!pos) return
+  const handlePointerMove = useCallback((pos: { x: number; y: number }) => {
     if (marqueeStartRef.current) {
       const start = marqueeStartRef.current
-      setMarquee({ x: Math.min(start.x, pos.x), y: Math.min(start.y, pos.y), width: Math.abs(pos.x - start.x), height: Math.abs(pos.y - start.y) })
+      updateMarquee({ x: Math.min(start.x, pos.x), y: Math.min(start.y, pos.y), width: Math.abs(pos.x - start.x), height: Math.abs(pos.y - start.y) })
       return
     }
     if (!isDrawingRef.current) return
@@ -406,16 +396,16 @@ export function MapDrawingEditor({
       else if (last.type === 'ellipse') updated = { ...last, radiusX: Math.abs(rx), radiusY: Math.abs(ry) }
       return [...prev.slice(0, -1), updated]
     }, false)
-  }
+  }, [mutate, updateMarquee])
 
-  const handleStageMouseUp = () => {
+  const handlePointerUp = useCallback(() => {
     if (marqueeStartRef.current) {
-      const box = marquee
+      const box = marqueeRef.current
       const shift = marqueeStartRef.current.shift
       marqueeStartRef.current = null
-      setMarquee(null)
+      updateMarquee(null)
       if (box && (box.width > 3 || box.height > 3)) {
-        const hits = shapes.filter((shape) => {
+        const hits = shapesRef.current.filter((shape) => {
           const b = shapeBBox(shape)
           return b.x < box.x + box.width && b.x + b.width > box.x && b.y < box.y + box.height && b.y + b.height > box.y
         }).map((shape) => shape.id)
@@ -457,6 +447,63 @@ export function MapDrawingEditor({
       previous: previous ?? current,
       previousSelectedIds: previousSnapshot?.selectedIds,
     })
+  }, [applyShapes, setSelectedIds, updateMarquee])
+
+  useEffect(() => {
+    const isActive = () => isDrawingRef.current || marqueeStartRef.current !== null
+    const onMove = (event: MouseEvent | TouchEvent) => {
+      if (!isActive()) return
+      const pos = pointerFromEvent(event)
+      if (!pos) return
+      event.preventDefault()
+      handlePointerMove(pos)
+    }
+    const onUp = (event: MouseEvent | TouchEvent) => {
+      if (!isActive()) return
+      const pos = pointerFromEvent(event)
+      if (pos) handlePointerMove(pos)
+      event.preventDefault()
+      handlePointerUp()
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onUp)
+    window.addEventListener('touchcancel', onUp)
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onUp)
+      window.removeEventListener('touchcancel', onUp)
+    }
+  }, [handlePointerMove, handlePointerUp, pointerFromEvent])
+
+  const handleStageMouseDown = (event: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    const pos = pointerFromEvent(event.evt)
+    if (!pos) return
+    if (placingStamp) { placeStampAt(placingStamp, pos.x, pos.y); return }
+    const clickedEmpty = event.target === event.target.getStage() || event.target.name() === 'background'
+
+    if (tool === 'select') {
+      if (clickedEmpty) {
+        marqueeStartRef.current = { x: pos.x, y: pos.y, shift: (event.evt as MouseEvent).shiftKey === true }
+        updateMarquee({ x: pos.x, y: pos.y, width: 0, height: 0 })
+      }
+      return
+    }
+    if (tool === 'fill' || tool === 'erase') return
+
+    isDrawingRef.current = true
+    drawingStartSnapshotRef.current = { shapes: shapesRef.current, selectedIds: selectedIdsRef.current }
+    setSelectedIds([])
+    const id = nextId()
+    const base = { id, stroke: strokeColor, strokeWidth: lineWeight, x: pos.x, y: pos.y }
+    if (tool === 'pen') mutate((prev) => [...prev, { ...base, type: 'pen', points: [0, 0] }], false)
+    else if (tool === 'region') mutate((prev) => [...prev, { ...base, type: 'region', points: [0, 0], fill: fill.color, textureId: fill.textureId }], false)
+    else if (tool === 'line') mutate((prev) => [...prev, { ...base, type: 'line', points: [0, 0, 0, 0] }], false)
+    else if (tool === 'rect') mutate((prev) => [...prev, { ...base, type: 'rect', width: 0, height: 0, fill: 'transparent', textureId: null }], false)
+    else if (tool === 'ellipse') mutate((prev) => [...prev, { ...base, type: 'ellipse', radiusX: 0, radiusY: 0, fill: 'transparent', textureId: null }], false)
   }
 
   const handleSave = useCallback(async () => {
@@ -619,11 +666,7 @@ export function MapDrawingEditor({
           scaleX={view.scale}
           scaleY={view.scale}
           onMouseDown={handleStageMouseDown}
-          onMouseMove={handleStageMouseMove}
-          onMouseUp={handleStageMouseUp}
           onTouchStart={handleStageMouseDown}
-          onTouchMove={handleStageMouseMove}
-          onTouchEnd={handleStageMouseUp}
           style={{ cursor: placingStamp ? 'copy' : tool === 'select' ? 'default' : 'crosshair', background: '#ffffff' }}
         >
           <Layer>
