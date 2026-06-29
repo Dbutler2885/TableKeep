@@ -9,6 +9,10 @@ import {
   vtmBloodPoolMax,
   vtmClanDisciplines,
   vtmClanWeakness,
+  vtmDisciplineClanCostNote,
+  vtmDisciplineContextSummary,
+  vtmDisciplinePickerOptions,
+  vtmSuggestedDisciplines,
   vtmTraitMax,
 } from './vtmRuleset'
 
@@ -66,6 +70,21 @@ describe('vtmRuleset', () => {
     expect(isVtmInClanDiscipline('brujah', 'Animalism')).toBe(false)
     expect(isVtmInClanDiscipline('caitiff', 'Celerity')).toBe(false)
     expect(isVtmInClanDiscipline(null, 'Celerity')).toBe(false)
+  })
+
+  it('offers every supplied Discipline while keeping clan suggestions focused', () => {
+    expect(vtmSuggestedDisciplines('brujah')).toEqual(['Celerity', 'Potence', 'Presence'])
+    expect(vtmDisciplinePickerOptions()).toContain('Animalism')
+    expect(vtmDisciplinePickerOptions()).toContain('Celerity')
+    expect(vtmSuggestedDisciplines('caitiff')).toEqual(vtmDisciplinePickerOptions())
+  })
+
+  it('labels Discipline clan cost context for the picker', () => {
+    expect(vtmDisciplineClanCostNote('brujah', 'Celerity')).toBe('Celerity (Brujah clan)')
+    expect(vtmDisciplineClanCostNote('brujah', 'Animalism')).toBe('Animalism (out of clan)')
+    expect(vtmDisciplineClanCostNote('caitiff', 'Animalism')).toBe('Animalism (Caitiff cost)')
+    expect(vtmDisciplineContextSummary('brujah')).toContain('Other Disciplines use out-of-clan XP costs.')
+    expect(vtmDisciplineContextSummary('caitiff')).toContain('Caitiff XP cost')
   })
 
   it('exports the supplied ability, background, and virtue lists', () => {
