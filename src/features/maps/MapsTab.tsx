@@ -4814,6 +4814,14 @@ function GmMapControls({
                   ) : null}
                 </div>
               </div>
+              <button
+                type="button"
+                className={genericCreatorSelected ? 'map-nonparty-upload-btn active' : 'map-nonparty-upload-btn'}
+                onClick={() => handleNonPartySourceChange(genericCreatorKey)}
+              >
+                <Plus size={14} />
+                <span>New token</span>
+              </button>
               <div className="map-placement-stage">
                 {selectedNonPartySource ? (
                   <div
