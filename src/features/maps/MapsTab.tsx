@@ -3164,6 +3164,7 @@ export function MapsTab({
           mapName={drawingEditorMap.name}
           initialSceneJson={drawingEditorMap.drawingScene}
           backgroundColor={drawingEditorMap.backgroundColor}
+          stampScopeKey={campaignId}
           onCancel={() => setDrawingEditorMapId(null)}
           onSave={handleSaveBlankDrawing}
         />
