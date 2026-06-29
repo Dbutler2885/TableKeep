@@ -6427,13 +6427,18 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 2.5rem;
+  height: 2.5rem;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: 7px;
   background: transparent;
-  color: #44443e;
+  color: #2c2c2c;
   cursor: pointer;
+}
+
+.map-konva-tool svg {
+  width: 20px;
+  height: 20px;
 }
 
 .map-konva-tool:hover {

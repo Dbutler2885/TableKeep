@@ -288,14 +288,14 @@ export function MapDrawingEditor({
       <div className="map-drawing-editor-bar">
         <span className="map-drawing-editor-title">Drawing: {mapName}</span>
         <div className="map-konva-toolbar">
-          {toolButton('select', 'Select / move', <MousePointer2 size={16} />)}
-          {toolButton('region', 'Freehand area (fillable)', <Lasso size={16} />)}
-          {toolButton('pen', 'Freehand pen', <Pencil size={16} />)}
-          {toolButton('line', 'Straight line', <Slash size={16} />)}
-          {toolButton('rect', 'Rectangle', <SquareIcon size={16} />)}
-          {toolButton('ellipse', 'Ellipse', <CircleIcon size={16} />)}
-          {toolButton('fill', 'Fill shape / area', <PaintBucket size={16} />)}
-          {toolButton('erase', 'Delete shape', <Eraser size={16} />)}
+          {toolButton('select', 'Select / move', <MousePointer2 size={20} />)}
+          {toolButton('region', 'Freehand area (fillable)', <Lasso size={20} />)}
+          {toolButton('pen', 'Freehand pen', <Pencil size={20} />)}
+          {toolButton('line', 'Straight line', <Slash size={20} />)}
+          {toolButton('rect', 'Rectangle', <SquareIcon size={20} />)}
+          {toolButton('ellipse', 'Ellipse', <CircleIcon size={20} />)}
+          {toolButton('fill', 'Fill shape / area', <PaintBucket size={20} />)}
+          {toolButton('erase', 'Delete shape', <Eraser size={20} />)}
         </div>
         <div className="map-konva-colors" aria-label="Stroke color">
           <Pencil size={13} aria-hidden />
