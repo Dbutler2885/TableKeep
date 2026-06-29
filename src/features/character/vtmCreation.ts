@@ -1,6 +1,6 @@
 import { VTM_ABILITIES, VTM_ATTRIBUTES, VTM_VIRTUES, vtmBloodPoolMax, vtmTraitMax } from './vtmRuleset'
 import type { VtmAbilityCategory, VtmAttributeCategory } from './vtmRuleset'
-import type { VtmCharacterSheet, VtmCreationPriority, VtmDotMap, VtmRatedRow } from './vtmTypes'
+import type { VtmCharacterSheet, VtmCreationPriority, VtmDotMap, VtmFreebieDots, VtmRatedRow } from './vtmTypes'
 
 export const VTM_DOT_CAP = 5
 
@@ -39,6 +39,45 @@ export const FREEBIE_COSTS = {
   willpower: 2,
 } as const
 
+// Freebie cost per dot, keyed by the pool a freebie dot lands in. This is the
+// single source of truth that links freebie-funded dots to freebiePointsSpent.
+export const FREEBIE_DOT_COST: Record<keyof VtmFreebieDots, number> = {
+  physical: FREEBIE_COSTS.attribute,
+  social: FREEBIE_COSTS.attribute,
+  mental: FREEBIE_COSTS.attribute,
+  talents: FREEBIE_COSTS.ability,
+  skills: FREEBIE_COSTS.ability,
+  knowledges: FREEBIE_COSTS.ability,
+  disciplines: FREEBIE_COSTS.discipline,
+  backgrounds: FREEBIE_COSTS.background,
+  virtues: FREEBIE_COSTS.virtue,
+  willpower: FREEBIE_COSTS.willpower,
+  humanity: FREEBIE_COSTS.humanity,
+}
+
+export const emptyFreebieDots = (): VtmFreebieDots => ({
+  physical: 0,
+  social: 0,
+  mental: 0,
+  talents: 0,
+  skills: 0,
+  knowledges: 0,
+  disciplines: 0,
+  backgrounds: 0,
+  virtues: 0,
+  willpower: 0,
+  humanity: 0,
+})
+
+const freebieDotsOf = (sheet: { freebieDots?: VtmFreebieDots | null }): VtmFreebieDots =>
+  sheet.freebieDots ?? emptyFreebieDots()
+
+export const freebiePointsFromDots = (dots: VtmFreebieDots): number =>
+  (Object.keys(FREEBIE_DOT_COST) as (keyof VtmFreebieDots)[]).reduce(
+    (sum, key) => sum + Math.max(0, Math.floor(dots[key] ?? 0)) * FREEBIE_DOT_COST[key],
+    0,
+  )
+
 export type PoolStatus = {
   allocated: number
   budget: number
@@ -64,23 +103,24 @@ export const deriveBloodPoolMax = (generation: string): number | null =>
   vtmBloodPoolMax(generation)
 
 export const attributePoolStatus = (
-  sheet: Pick<VtmCharacterSheet, 'attributes' | 'attributePriority'>,
+  sheet: Pick<VtmCharacterSheet, 'attributes' | 'attributePriority' | 'freebieDots'>,
   category: VtmAttributeCategory,
 ): PoolStatus => {
   const budget = ATTRIBUTE_POOL_BY_PRIORITY[sheet.attributePriority[category]]
-  const allocated = VTM_ATTRIBUTES[category].reduce(
+  const rawAllocated = VTM_ATTRIBUTES[category].reduce(
     (sum, name) => sum + Math.max(0, clampRating(sheet.attributes[category][name] ?? 1) - 1),
     0,
   )
+  const allocated = Math.max(0, rawAllocated - (freebieDotsOf(sheet)[category] ?? 0))
   return { allocated, budget, remaining: budget - allocated, over: allocated > budget }
 }
 
 export const abilityPoolStatus = (
-  sheet: Pick<VtmCharacterSheet, 'abilities' | 'abilityPriority'>,
+  sheet: Pick<VtmCharacterSheet, 'abilities' | 'abilityPriority' | 'freebieDots'>,
   category: VtmAbilityCategory,
 ): PoolStatus => {
   const budget = ABILITY_POOL_BY_PRIORITY[sheet.abilityPriority[category]]
-  const allocated = sumDots(sheet.abilities[category])
+  const allocated = Math.max(0, sumDots(sheet.abilities[category]) - (freebieDotsOf(sheet)[category] ?? 0))
   return { allocated, budget, remaining: budget - allocated, over: allocated > budget }
 }
 
@@ -91,17 +131,18 @@ export const flatPoolStatus = (allocated: number, budget: number): PoolStatus =>
   over: allocated > budget,
 })
 
-export const disciplinePoolStatus = (sheet: Pick<VtmCharacterSheet, 'disciplines'>): PoolStatus =>
-  flatPoolStatus(sumRows(sheet.disciplines), ADVANTAGE_POOLS.disciplines)
+export const disciplinePoolStatus = (sheet: Pick<VtmCharacterSheet, 'disciplines' | 'freebieDots'>): PoolStatus =>
+  flatPoolStatus(Math.max(0, sumRows(sheet.disciplines) - (freebieDotsOf(sheet).disciplines ?? 0)), ADVANTAGE_POOLS.disciplines)
 
-export const backgroundPoolStatus = (sheet: Pick<VtmCharacterSheet, 'backgrounds'>): PoolStatus =>
-  flatPoolStatus(sumRows(sheet.backgrounds), ADVANTAGE_POOLS.backgrounds)
+export const backgroundPoolStatus = (sheet: Pick<VtmCharacterSheet, 'backgrounds' | 'freebieDots'>): PoolStatus =>
+  flatPoolStatus(Math.max(0, sumRows(sheet.backgrounds) - (freebieDotsOf(sheet).backgrounds ?? 0)), ADVANTAGE_POOLS.backgrounds)
 
-export const virtuePoolStatus = (sheet: Pick<VtmCharacterSheet, 'virtues'>): PoolStatus => {
-  const allocated = VTM_VIRTUES.reduce(
+export const virtuePoolStatus = (sheet: Pick<VtmCharacterSheet, 'virtues' | 'freebieDots'>): PoolStatus => {
+  const rawAllocated = VTM_VIRTUES.reduce(
     (sum, name) => sum + Math.max(0, clampRating(sheet.virtues[name] ?? 1) - 1),
     0,
   )
+  const allocated = Math.max(0, rawAllocated - (freebieDotsOf(sheet).virtues ?? 0))
   return flatPoolStatus(allocated, ADVANTAGE_POOLS.virtues)
 }
 

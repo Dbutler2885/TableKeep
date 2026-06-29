@@ -9,7 +9,10 @@ import {
   deriveWillpower,
   disciplinePoolStatus,
   dotMaxForPhase,
+  emptyFreebieDots,
+  freebiePointsFromDots,
   freebieStatus,
+  sheetCreationErrors,
   virtuePoolStatus,
 } from './vtmCreation'
 
@@ -75,5 +78,56 @@ describe('vtmCreation', () => {
     expect(backgroundPoolStatus(sheet).remaining).toBe(0)
     expect(virtuePoolStatus(sheet).allocated).toBe(4)
     expect(freebieStatus(sheet).remaining).toBe(3)
+  })
+
+  it('derives freebie points spent from per-pool freebie dots', () => {
+    expect(freebiePointsFromDots(emptyFreebieDots())).toBe(0)
+    // 1 attribute dot (5) + 2 ability dots (2 each) + 1 discipline dot (7)
+    // + 1 background dot (1) + 1 virtue dot (2) + 1 willpower dot (2) + 1 humanity dot (1)
+    expect(
+      freebiePointsFromDots({
+        ...emptyFreebieDots(),
+        physical: 1,
+        talents: 2,
+        disciplines: 1,
+        backgrounds: 1,
+        virtues: 1,
+        willpower: 1,
+        humanity: 1,
+      }),
+    ).toBe(5 + 4 + 7 + 1 + 2 + 2 + 1)
+  })
+
+  it('does not count freebie-funded dots as starting-pool overspend (Bug B)', () => {
+    const sheet = defaultVtmSheet()
+    // Fill the Physical pool exactly to its budget of 7 (the freebie gate requires
+    // every starting pool to be fully assigned before freebies open).
+    sheet.attributes.physical.Strength = 4
+    sheet.attributes.physical.Dexterity = 4
+    sheet.attributes.physical.Stamina = 2
+    expect(attributePoolStatus(sheet, 'physical')).toMatchObject({ allocated: 7, remaining: 0, over: false })
+
+    // Open freebies and raise Strength 4 -> 5: a legal 5-point freebie purchase.
+    sheet.attributes.physical.Strength = 5
+    sheet.freebieDots = { ...emptyFreebieDots(), physical: 1 }
+    sheet.freebiePointsSpent = freebiePointsFromDots(sheet.freebieDots)
+
+    // The freebie dot is charged against the 15-point freebie budget, not the pool:
+    expect(freebieStatus(sheet)).toMatchObject({ allocated: 5, remaining: 10, over: false })
+    // ...so the Physical pool reads its base allocation (7), NOT an overspend.
+    expect(attributePoolStatus(sheet, 'physical')).toMatchObject({ allocated: 7, remaining: 0, over: false })
+    // ...and creation is valid, so Finalize is not blocked.
+    expect(sheetCreationErrors(sheet)).toEqual([])
+  })
+
+  it('still flags a true freebie overspend (more than 15 points)', () => {
+    const sheet = defaultVtmSheet()
+    // Four freebie attribute dots cost 20 > 15.
+    sheet.attributes.physical.Strength = 5 // +4 over the 1-dot baseline... but pool funds 4
+    sheet.freebieDots = { ...emptyFreebieDots(), physical: 4 }
+    sheet.freebiePointsSpent = freebiePointsFromDots(sheet.freebieDots)
+    expect(sheet.freebiePointsSpent).toBe(20)
+    expect(freebieStatus(sheet).over).toBe(true)
+    expect(sheetCreationErrors(sheet).length).toBeGreaterThan(0)
   })
 })

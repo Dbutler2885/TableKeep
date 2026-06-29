@@ -34,6 +34,7 @@ const normalizeSheet = (raw: unknown): VtmCharacterSheet => {
     attributePriority: mergeObject(defaults.attributePriority, raw.attributePriority),
     abilityPriority: mergeObject(defaults.abilityPriority, raw.abilityPriority),
     virtues: mergeObject(defaults.virtues, raw.virtues),
+    freebieDots: mergeObject(defaults.freebieDots, raw.freebieDots),
     health: mergeObject(defaults.health, raw.health),
     expandedBackground: mergeObject(defaults.expandedBackground, raw.expandedBackground),
     possessions: mergeObject(defaults.possessions, raw.possessions),
@@ -245,7 +246,7 @@ export function useVtmCharacters(
 
   const addCharacter = async (creationMode: 'new' | 'established') => {
     if (!campaignId || !groupId || !role) return
-    if (role !== 'gm' && charactersRef.current.some((character) => character.ownerUserId === userId)) return
+    // Players may own multiple characters; creation is no longer capped per user.
     const character = makeVtmCharacter(userId, currentUsername, creationMode)
     setSelectedCharacterId(character.id)
     setCharacters((current) => [...current, character])
