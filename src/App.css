@@ -13834,6 +13834,7 @@ button:disabled {
 }
 .shell-root[data-theme="vtm"] .vtm-trait-col-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 0.5rem;
   margin-bottom: 0.55rem;
@@ -14257,6 +14258,7 @@ button:disabled {
 }
 .shell-root[data-theme="vtm"] .vtm-rated-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.6rem;
   margin-bottom: 0.5rem;
@@ -14271,6 +14273,10 @@ button:disabled {
   font-weight: 600;
   color: var(--vtm-gold);
   margin: 0;
+}
+.shell-root[data-theme="vtm"] .vtm-rated-help {
+  margin: -0.2rem 0 0.55rem;
+  line-height: 1.35;
 }
 .shell-root[data-theme="vtm"] .vtm-rated-add {
   margin-left: auto;
