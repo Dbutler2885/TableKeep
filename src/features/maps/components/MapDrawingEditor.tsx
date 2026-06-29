@@ -12,10 +12,12 @@ import {
   MousePointer2,
   PaintBucket,
   Pencil,
+  Redo2,
   Slash,
   Square as SquareIcon,
   Stamp as StampIcon,
   Trash2,
+  Undo2,
   X,
 } from 'lucide-react'
 import { BLANK_MAP_HEIGHT, BLANK_MAP_WIDTH } from '../lib/constants'
@@ -53,6 +55,7 @@ type EllipseShape = Base & { type: 'ellipse'; radiusX: number; radiusY: number; 
 type Shape = PenShape | LineShape | RegionShape | RectShape | EllipseShape
 
 type Stamp = { id: string; name: string; thumb: string; width: number; height: number; shapes: Shape[] }
+type HistorySnapshot = { shapes: Shape[]; selectedIds: string[] }
 
 const STROKE_SWATCHES = ['#2c2c2c', '#b42318', '#2e77b5', '#2f7d32', '#d9b96e', '#ffffff']
 const FILL_SWATCHES = ['#a5d8ff', '#ffc9c9', '#b2f2bb', '#ffec99', '#d9b96e', '#2c2c2c']
@@ -127,18 +130,27 @@ export function MapDrawingEditor({
   const pasteCountRef = useRef(0)
   const stampsKey = `mapDrawingStamps:${stampScopeKey}`
 
-  const [shapes, setShapes] = useState<Shape[]>(() => {
+  const [shapes, setShapesState] = useState<Shape[]>(() => {
     try {
       return parseShapes((JSON.parse(initialSceneJson || '{}') as { shapes?: unknown }).shapes)
     } catch {
       return []
     }
   })
+  // shapesRef mirrors shapes synchronously so mutations can read the latest state
+  // without async setState lag; past/future drive undo/redo.
+  const shapesRef = useRef<Shape[]>(shapes)
+  const pastRef = useRef<HistorySnapshot[]>([])
+  const futureRef = useRef<HistorySnapshot[]>([])
+  const drawingStartSnapshotRef = useRef<HistorySnapshot | null>(null)
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
   const [tool, setTool] = useState<DrawingTool>('region')
   const [strokeColor, setStrokeColor] = useState('#2c2c2c')
   const [fill, setFill] = useState<FillStyle>({ color: '#a5d8ff', textureId: 'trees' })
   const [lineWeight, setLineWeight] = useState(4)
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [selectedIds, setSelectedIdsState] = useState<string[]>([])
+  const selectedIdsRef = useRef<string[]>(selectedIds)
   const [clipboard, setClipboard] = useState<Shape[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -156,6 +168,12 @@ export function MapDrawingEditor({
   const [marquee, setMarquee] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
+
+  const setSelectedIds = useCallback((next: string[] | ((prev: string[]) => string[])) => {
+    const value = typeof next === 'function' ? next(selectedIdsRef.current) : next
+    selectedIdsRef.current = value
+    setSelectedIdsState(value)
+  }, [])
 
   useEffect(() => {
     let active = true
@@ -208,25 +226,74 @@ export function MapDrawingEditor({
     return pos ? { x: pos.x, y: pos.y } : null
   }
 
-  const updateShape = useCallback((id: string, patch: Partial<Shape>) => {
-    setShapes((prev) => prev.map((shape) => (shape.id === id ? ({ ...shape, ...patch } as Shape) : shape)))
+  const syncHistoryFlags = useCallback(() => {
+    setCanUndo(pastRef.current.length > 0)
+    setCanRedo(futureRef.current.length > 0)
   }, [])
 
+  const applyShapes = useCallback((next: Shape[], options: { record?: boolean; previous?: Shape[]; previousSelectedIds?: string[]; nextSelectedIds?: string[] } = {}) => {
+    const previous = options.previous ?? shapesRef.current
+    if (options.record && next !== previous) {
+      pastRef.current.push({ shapes: previous, selectedIds: options.previousSelectedIds ?? selectedIdsRef.current })
+      if (pastRef.current.length > 80) pastRef.current.shift()
+      futureRef.current = []
+    }
+    shapesRef.current = next
+    setShapesState(next)
+    if (options.nextSelectedIds) setSelectedIds(options.nextSelectedIds)
+    syncHistoryFlags()
+  }, [setSelectedIds, syncHistoryFlags])
+
+  const mutate = useCallback((producer: (shapes: Shape[]) => Shape[], options: boolean | { record?: boolean; nextSelectedIds?: string[] } = true) => {
+    const record = typeof options === 'boolean' ? options : options.record ?? true
+    const previous = shapesRef.current
+    applyShapes(producer(previous), {
+      record,
+      previous,
+      nextSelectedIds: typeof options === 'boolean' ? undefined : options.nextSelectedIds,
+    })
+  }, [applyShapes])
+
+  const updateShape = useCallback((id: string, patch: Partial<Shape>) => {
+    mutate((prev) => prev.map((shape) => (shape.id === id ? ({ ...shape, ...patch } as Shape) : shape)))
+  }, [mutate])
+
+  const undo = useCallback(() => {
+    if (pastRef.current.length === 0) return
+    const prev = pastRef.current.pop() as HistorySnapshot
+    futureRef.current.push({ shapes: shapesRef.current, selectedIds: selectedIdsRef.current })
+    transformerRef.current?.nodes([])
+    shapesRef.current = prev.shapes
+    setShapesState(prev.shapes)
+    setSelectedIds(prev.selectedIds)
+    syncHistoryFlags()
+  }, [setSelectedIds, syncHistoryFlags])
+
+  const redo = useCallback(() => {
+    if (futureRef.current.length === 0) return
+    const next = futureRef.current.pop() as HistorySnapshot
+    pastRef.current.push({ shapes: shapesRef.current, selectedIds: selectedIdsRef.current })
+    transformerRef.current?.nodes([])
+    shapesRef.current = next.shapes
+    setShapesState(next.shapes)
+    setSelectedIds(next.selectedIds)
+    syncHistoryFlags()
+  }, [setSelectedIds, syncHistoryFlags])
+
   const applyFill = useCallback((id: string) => {
-    setShapes((prev) => prev.map((shape) => {
+    mutate((prev) => prev.map((shape) => {
       if (shape.id !== id || !FILLABLE.has(shape.type)) return shape
       const filled = shape as RectShape | EllipseShape | RegionShape
       const sameSolid = !fill.textureId && filled.textureId === null && filled.fill === fill.color
       if (sameSolid) return { ...filled, fill: 'transparent' } as Shape
       return { ...filled, fill: fill.color, textureId: fill.textureId } as Shape
     }))
-  }, [fill])
+  }, [fill, mutate])
 
   const deleteSelection = useCallback(() => {
     if (selectedIds.length === 0) return
-    setShapes((prev) => prev.filter((shape) => !selectedSet.has(shape.id)))
-    setSelectedIds([])
-  }, [selectedIds, selectedSet])
+    mutate((prev) => prev.filter((shape) => !selectedSet.has(shape.id)), { nextSelectedIds: [] })
+  }, [mutate, selectedIds, selectedSet])
 
   const copySelection = useCallback(() => {
     if (selectedIds.length === 0) return
@@ -239,18 +306,16 @@ export function MapDrawingEditor({
     pasteCountRef.current += 1
     const offset = PASTE_OFFSET * pasteCountRef.current
     const copies = cloneShapes(clipboard, offset, offset)
-    setShapes((prev) => [...prev, ...copies])
-    setSelectedIds(copies.map((shape) => shape.id))
+    mutate((prev) => [...prev, ...copies], { nextSelectedIds: copies.map((shape) => shape.id) })
     setTool('select')
-  }, [clipboard])
+  }, [clipboard, mutate])
 
   const duplicateSelection = useCallback(() => {
     if (selectedIds.length === 0) return
     const copies = cloneShapes(shapes.filter((shape) => selectedSet.has(shape.id)), PASTE_OFFSET, PASTE_OFFSET)
-    setShapes((prev) => [...prev, ...copies])
-    setSelectedIds(copies.map((shape) => shape.id))
+    mutate((prev) => [...prev, ...copies], { nextSelectedIds: copies.map((shape) => shape.id) })
     setTool('select')
-  }, [selectedIds, selectedSet, shapes])
+  }, [selectedIds, selectedSet, shapes, mutate])
 
   // Keyboard: copy/paste/duplicate/delete/deselect, ignoring form fields.
   useEffect(() => {
@@ -258,7 +323,9 @@ export function MapDrawingEditor({
       const target = event.target as HTMLElement | null
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
       const mod = event.metaKey || event.ctrlKey
-      if (mod && event.key.toLowerCase() === 'c') { event.preventDefault(); copySelection() }
+      if (mod && event.key.toLowerCase() === 'z') { event.preventDefault(); if (event.shiftKey) redo(); else undo() }
+      else if (mod && event.key.toLowerCase() === 'y') { event.preventDefault(); redo() }
+      else if (mod && event.key.toLowerCase() === 'c') { event.preventDefault(); copySelection() }
       else if (mod && event.key.toLowerCase() === 'v') { event.preventDefault(); pasteClipboard() }
       else if (mod && event.key.toLowerCase() === 'd') { event.preventDefault(); duplicateSelection() }
       else if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); deleteSelection() }
@@ -266,18 +333,18 @@ export function MapDrawingEditor({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [copySelection, pasteClipboard, duplicateSelection, deleteSelection])
+  }, [copySelection, deleteSelection, duplicateSelection, pasteClipboard, redo, undo])
 
   const placeStampAt = useCallback((stamp: Stamp, cx: number, cy: number) => {
     const copies = stamp.shapes.map((shape) => ({ ...shape, id: nextId(), x: shape.x + cx - stamp.width / 2, y: shape.y + cy - stamp.height / 2 }))
-    setShapes((prev) => [...prev, ...copies])
-    setSelectedIds(copies.map((shape) => shape.id))
-  }, [])
+    mutate((prev) => [...prev, ...copies], { nextSelectedIds: copies.map((shape) => shape.id) })
+    setTool('select')
+    setPlacingStamp(null)
+  }, [mutate])
 
   const handleShapeInteract = useCallback((id: string, type: Shape['type'], shiftKey: boolean) => {
     if (tool === 'erase') {
-      setShapes((prev) => prev.filter((shape) => shape.id !== id))
-      setSelectedIds((prev) => prev.filter((sid) => sid !== id))
+      mutate((prev) => prev.filter((shape) => shape.id !== id), { nextSelectedIds: selectedIdsRef.current.filter((sid) => sid !== id) })
       return
     }
     if (tool === 'fill') {
@@ -290,7 +357,7 @@ export function MapDrawingEditor({
         return prev.includes(id) && prev.length === 1 ? prev : [id]
       })
     }
-  }, [applyFill, tool])
+  }, [applyFill, mutate, tool])
 
   const handleStageMouseDown = (event: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     const pos = pointer()
@@ -308,14 +375,15 @@ export function MapDrawingEditor({
     if (tool === 'fill' || tool === 'erase') return
 
     isDrawingRef.current = true
+    drawingStartSnapshotRef.current = { shapes: shapesRef.current, selectedIds: selectedIdsRef.current }
     setSelectedIds([])
     const id = nextId()
     const base = { id, stroke: strokeColor, strokeWidth: lineWeight, x: pos.x, y: pos.y }
-    if (tool === 'pen') setShapes((prev) => [...prev, { ...base, type: 'pen', points: [0, 0] }])
-    else if (tool === 'region') setShapes((prev) => [...prev, { ...base, type: 'region', points: [0, 0], fill: fill.color, textureId: fill.textureId }])
-    else if (tool === 'line') setShapes((prev) => [...prev, { ...base, type: 'line', points: [0, 0, 0, 0] }])
-    else if (tool === 'rect') setShapes((prev) => [...prev, { ...base, type: 'rect', width: 0, height: 0, fill: 'transparent', textureId: null }])
-    else if (tool === 'ellipse') setShapes((prev) => [...prev, { ...base, type: 'ellipse', radiusX: 0, radiusY: 0, fill: 'transparent', textureId: null }])
+    if (tool === 'pen') mutate((prev) => [...prev, { ...base, type: 'pen', points: [0, 0] }], false)
+    else if (tool === 'region') mutate((prev) => [...prev, { ...base, type: 'region', points: [0, 0], fill: fill.color, textureId: fill.textureId }], false)
+    else if (tool === 'line') mutate((prev) => [...prev, { ...base, type: 'line', points: [0, 0, 0, 0] }], false)
+    else if (tool === 'rect') mutate((prev) => [...prev, { ...base, type: 'rect', width: 0, height: 0, fill: 'transparent', textureId: null }], false)
+    else if (tool === 'ellipse') mutate((prev) => [...prev, { ...base, type: 'ellipse', radiusX: 0, radiusY: 0, fill: 'transparent', textureId: null }], false)
   }
 
   const handleStageMouseMove = () => {
@@ -327,7 +395,7 @@ export function MapDrawingEditor({
       return
     }
     if (!isDrawingRef.current) return
-    setShapes((prev) => {
+    mutate((prev) => {
       if (prev.length === 0) return prev
       const last = prev[prev.length - 1]
       const rx = pos.x - last.x
@@ -338,7 +406,7 @@ export function MapDrawingEditor({
       else if (last.type === 'rect') updated = { ...last, width: rx, height: ry }
       else if (last.type === 'ellipse') updated = { ...last, radiusX: Math.abs(rx), radiusY: Math.abs(ry) }
       return [...prev.slice(0, -1), updated]
-    })
+    }, false)
   }
 
   const handleStageMouseUp = () => {
@@ -360,24 +428,35 @@ export function MapDrawingEditor({
     }
     if (!isDrawingRef.current) return
     isDrawingRef.current = false
-    setShapes((prev) => {
-      if (prev.length === 0) return prev
-      const last = prev[prev.length - 1]
+    const previousSnapshot = drawingStartSnapshotRef.current
+    drawingStartSnapshotRef.current = null
+    const previous = previousSnapshot?.shapes
+    const current = shapesRef.current
+    const discardDraft = () => previous ?? current.slice(0, -1)
+    let next = current
+    if (current.length > 0) {
+      const last = current[current.length - 1]
       if (last.type === 'rect') {
         const x = last.width < 0 ? last.x + last.width : last.x
         const y = last.height < 0 ? last.y + last.height : last.y
         const width = Math.abs(last.width)
         const height = Math.abs(last.height)
-        if (width < MIN_SHAPE_SIZE && height < MIN_SHAPE_SIZE) return prev.slice(0, -1)
-        return [...prev.slice(0, -1), { ...last, x, y, width, height }]
-      }
-      if (last.type === 'ellipse' && last.radiusX < MIN_SHAPE_SIZE / 2 && last.radiusY < MIN_SHAPE_SIZE / 2) return prev.slice(0, -1)
-      if (last.type === 'line') {
+        next = width < MIN_SHAPE_SIZE && height < MIN_SHAPE_SIZE
+          ? discardDraft()
+          : [...current.slice(0, -1), { ...last, x, y, width, height }]
+      } else if (last.type === 'ellipse' && last.radiusX < MIN_SHAPE_SIZE / 2 && last.radiusY < MIN_SHAPE_SIZE / 2) {
+        next = discardDraft()
+      } else if (last.type === 'line') {
         const [, , x2, y2] = last.points
-        if (Math.hypot(x2, y2) < MIN_SHAPE_SIZE) return prev.slice(0, -1)
+        if (Math.hypot(x2, y2) < MIN_SHAPE_SIZE) next = discardDraft()
+      } else if ((last.type === 'pen' || last.type === 'region') && last.points.length < 6) {
+        next = discardDraft()
       }
-      if ((last.type === 'pen' || last.type === 'region') && last.points.length < 6) return prev.slice(0, -1)
-      return prev
+    }
+    applyShapes(next, {
+      record: Boolean(previous && next !== previous),
+      previous: previous ?? current,
+      previousSelectedIds: previousSnapshot?.selectedIds,
     })
   }
 
@@ -462,7 +541,7 @@ export function MapDrawingEditor({
         const self = origins.get(shape.id)
         const dx = self ? e.target.x() - self.x : 0
         const dy = self ? e.target.y() - self.y : 0
-        setShapes((prev) => prev.map((s) => (origins.has(s.id) ? ({ ...s, x: (origins.get(s.id)?.x ?? s.x) + dx, y: (origins.get(s.id)?.y ?? s.y) + dy } as Shape) : s)))
+        mutate((prev) => prev.map((s) => (origins.has(s.id) ? ({ ...s, x: (origins.get(s.id)?.x ?? s.x) + dx, y: (origins.get(s.id)?.y ?? s.y) + dy } as Shape) : s)))
         groupDragRef.current = null
       } else {
         updateShape(shape.id, { x: e.target.x(), y: e.target.y() } as Partial<Shape>)
@@ -498,7 +577,9 @@ export function MapDrawingEditor({
           {toolButton('erase', 'Delete shape', <Eraser size={20} />)}
         </div>
         <div className="map-konva-actions">
-          <button type="button" className="map-konva-tool" onClick={() => { copySelection(); pasteClipboard() }} disabled={selectedIds.length === 0} aria-label="Duplicate selection" title="Duplicate (Cmd/Ctrl+D)"><Copy size={18} /></button>
+          <button type="button" className="map-konva-tool" onClick={undo} disabled={!canUndo} aria-label="Undo" title="Undo (Cmd/Ctrl+Z)"><Undo2 size={18} /></button>
+          <button type="button" className="map-konva-tool" onClick={redo} disabled={!canRedo} aria-label="Redo" title="Redo (Cmd/Ctrl+Shift+Z / Cmd/Ctrl+Y)"><Redo2 size={18} /></button>
+          <button type="button" className="map-konva-tool" onClick={duplicateSelection} disabled={selectedIds.length === 0} aria-label="Duplicate selection" title="Duplicate (Cmd/Ctrl+D)"><Copy size={18} /></button>
           <button type="button" className="map-konva-tool" onClick={pasteClipboard} disabled={clipboard.length === 0} aria-label="Paste" title="Paste (Cmd/Ctrl+V)"><ClipboardPaste size={18} /></button>
           <button type="button" className="map-konva-tool" onClick={saveSelectionAsStamp} disabled={selectedIds.length === 0} aria-label="Save selection as stamp" title="Save selection as stamp"><StampIcon size={18} /></button>
         </div>
