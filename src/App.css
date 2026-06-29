@@ -5853,7 +5853,16 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.75rem;
   margin-bottom: 0.65rem;
+}
+
+.maps-create-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  flex-wrap: wrap;
 }
 
 .maps-role {
@@ -5870,6 +5879,11 @@ button:disabled {
   border-radius: 8px;
   padding: 0.35rem 0.55rem;
   cursor: pointer;
+}
+
+.upload-trigger:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
 }
 
 .upload-trigger input {
@@ -5985,6 +5999,14 @@ button:disabled {
   object-fit: cover;
 }
 
+.map-thumb.blank {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #f3efe3;
+  box-shadow: inset 0 0 0 1px rgba(84, 84, 78, 0.18);
+}
+
 .map-meta {
   min-width: 0;
 }
@@ -6087,6 +6109,7 @@ button:disabled {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 275px;
+  grid-template-rows: minmax(0, 1fr);
   gap: 1rem;
   min-height: 0;
   overflow: hidden;
@@ -6099,10 +6122,45 @@ button:disabled {
 /* Map Preview (desktop GM): no tool sidebar, so the stage takes the full width. */
 .maps-main.gm:not(.run) {
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.55rem;
 }
 
 .maps-main.gm.run {
   grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.map-preview-drawing-toolbar {
+  grid-row: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.map-edit-drawing-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid #c8c8c0;
+  border-radius: 7px;
+  background: #fbfaf5;
+  color: #2c2c2c;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.map-edit-drawing-btn:hover {
+  border-color: #2e77b5;
+  color: #2e77b5;
+}
+
+.maps-main.gm:not(.run) > .map-stage {
+  grid-row: 2;
+  min-height: 0;
+  height: 100%;
 }
 
 .maps-content-shell {
@@ -6314,6 +6372,318 @@ button:disabled {
 
 .inline-map-image {
   max-height: min(72vh, calc(100dvh - 12rem));
+}
+
+.map-blank-surface {
+  width: 100%;
+  height: 100%;
+  border: 1px solid rgba(84, 84, 78, 0.22);
+  box-sizing: border-box;
+}
+
+/* Full-screen drawing editor (Excalidraw) overlay for blank quick-draw maps. */
+.map-drawing-editor {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+}
+
+.map-drawing-editor-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem 0.9rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid #e2e1da;
+  background: #f7f6f1;
+}
+
+.map-drawing-editor-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #2c2c2c;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* react-konva editor: lean, app-owned toolbar (no embedded third-party app). */
+.map-konva-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border: 1px solid #dddcd6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.map-konva-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: #2c2c2c;
+  cursor: pointer;
+}
+
+.map-konva-tool svg {
+  width: 20px;
+  height: 20px;
+}
+
+.map-konva-tool:hover {
+  background: #f0efe8;
+}
+
+.map-konva-tool.active {
+  background: #e7f0fa;
+  border-color: #2e77b5;
+  color: #1f5e96;
+}
+
+.map-konva-colors {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #55554e;
+}
+
+.map-konva-swatch {
+  width: 1.15rem;
+  height: 1.15rem;
+  min-width: 1.15rem;
+  padding: 0;
+  border: 1px solid #bcbcb4;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 42%);
+  cursor: pointer;
+}
+
+.map-konva-swatch.active {
+  outline: 2px solid #2e77b5;
+  outline-offset: 1px;
+}
+
+.map-konva-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border: 1px solid #dddcd6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.map-konva-tool:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.map-konva-stamps {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  border-top: 1px solid #e2e1da;
+  background: #f7f6f1;
+  overflow-x: auto;
+  min-height: 3.4rem;
+}
+
+.map-konva-stamps-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #44443e;
+  flex: 0 0 auto;
+}
+
+.map-konva-stamps-hint {
+  font-size: 0.78rem;
+  color: #8a8a80;
+  flex: 0 0 auto;
+}
+
+.map-konva-stamp {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.map-konva-stamp-place {
+  display: block;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border: 1px solid #c8c8c0;
+  border-radius: 7px;
+  background: #fff;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.map-konva-stamp.active .map-konva-stamp-place {
+  outline: 2px solid #2e77b5;
+  border-color: #2e77b5;
+}
+
+.map-konva-stamp-place img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.map-konva-stamp-delete {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 1.1rem;
+  height: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #d6b3ad;
+  border-radius: 999px;
+  background: #fff;
+  color: #b42318;
+  cursor: pointer;
+}
+
+.map-konva-fills {
+  flex-wrap: wrap;
+}
+
+.map-konva-fill-divider {
+  width: 1px;
+  align-self: stretch;
+  min-height: 1.2rem;
+  background: #d4d3cc;
+  margin: 0 0.15rem;
+}
+
+.map-konva-texture {
+  width: 1.5rem;
+  height: 1.5rem;
+  min-width: 1.5rem;
+  padding: 0;
+  border: 1px solid #bcbcb4;
+  border-radius: 5px;
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+}
+
+.map-konva-texture.active {
+  outline: 2px solid #2e77b5;
+  outline-offset: 1px;
+  border-color: #2e77b5;
+}
+
+.map-konva-colors input[type="color"] {
+  width: 1.45rem;
+  height: 1.45rem;
+  padding: 0.1rem;
+  border: 1px solid #c8c8c0;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.map-konva-weight {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #55554e;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.map-konva-weight input[type="range"] {
+  width: 7rem;
+}
+
+.map-konva-weight span {
+  min-width: 1.6ch;
+  text-align: right;
+}
+
+.map-konva-canvas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e9e8e1;
+  overflow: hidden;
+}
+
+.map-konva-canvas .konvajs-content {
+  box-shadow: 0 1px 8px rgb(0 0 0 / 18%);
+}
+
+.map-drawing-editor-error {
+  color: #b42318;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.map-drawing-editor-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.map-drawing-editor-cancel,
+.map-drawing-editor-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.42rem 0.85rem;
+  border-radius: 7px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.map-drawing-editor-cancel {
+  border: 1px solid #c8c8c0;
+  background: #ffffff;
+  color: #44443e;
+}
+
+.map-drawing-editor-save {
+  border: 1px solid #2f7d32;
+  background: #2f7d32;
+  color: #ffffff;
+}
+
+.map-drawing-editor-save:disabled,
+.map-drawing-editor-cancel:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.map-drawing-editor-canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+}
+
+.map-drawing-editor-canvas .excalidraw {
+  width: 100%;
+  height: 100%;
 }
 
 .map-fog-image {

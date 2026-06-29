@@ -4,8 +4,10 @@ import type { CharacterRecord } from '../../../types/app'
 export type MapRecord = {
   id: string
   name: string
+  kind: 'image' | 'blank'
   imagePath: string
   imageUrl: string
+  backgroundColor: string
   fogDataUrl: string
   fogImagePath: string
   fogImageUrl: string
@@ -27,6 +29,10 @@ export type MapRecord = {
   gridCalibrated: boolean
   sceneNpcIds: string[]
   presentedNpcId: string
+  // Serialized Excalidraw scene for blank (quick-draw) maps, so the GM can reopen
+  // and keep editing. The flattened result is stored as the map's image, which is
+  // what players and all other map features (fog, tokens, grid) actually render.
+  drawingScene: string
   updatedAtMs: number
 }
 
