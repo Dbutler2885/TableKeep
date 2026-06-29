@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type Konva from 'konva'
 import { Stage, Layer, Rect, Ellipse, Line, Transformer } from 'react-konva'
 import {
   Circle as CircleIcon,
+  Copy,
+  ClipboardPaste,
   Eraser,
   Lasso,
   Loader2,
@@ -12,6 +14,8 @@ import {
   Pencil,
   Slash,
   Square as SquareIcon,
+  Stamp as StampIcon,
+  Trash2,
   X,
 } from 'lucide-react'
 import { BLANK_MAP_HEIGHT, BLANK_MAP_WIDTH } from '../lib/constants'
@@ -26,24 +30,29 @@ export type BlankMapSceneResult = {
 
 type MapDrawingEditorProps = {
   mapName: string
-  // Serialized Konva scene from a previous edit, or '' for a fresh canvas.
   initialSceneJson: string
   backgroundColor: string
+  // Scopes the saved-stamp collection (stored in localStorage) to a campaign.
+  stampScopeKey: string
   onCancel: () => void
   onSave: (result: BlankMapSceneResult) => Promise<void>
 }
 
 type DrawingTool = 'select' | 'pen' | 'line' | 'rect' | 'ellipse' | 'region' | 'fill' | 'erase'
-
 type FillStyle = { color: string; textureId: MapTextureId | null }
 
-type BaseShape = { id: string; stroke: string; strokeWidth: number }
-type PenShape = BaseShape & { type: 'pen'; points: number[] }
-type LineShape = BaseShape & { type: 'line'; points: number[] }
-type RegionShape = BaseShape & { type: 'region'; points: number[]; fill: string; textureId: MapTextureId | null }
-type RectShape = BaseShape & { type: 'rect'; x: number; y: number; width: number; height: number; fill: string; textureId: MapTextureId | null }
-type EllipseShape = BaseShape & { type: 'ellipse'; x: number; y: number; radiusX: number; radiusY: number; fill: string; textureId: MapTextureId | null }
+// Every shape carries an (x, y) origin; geometry (points / size / radii) is
+// stored relative to it. That makes move, group-move, copy/paste, and stamp
+// placement uniform - they only ever translate the origin.
+type Base = { id: string; stroke: string; strokeWidth: number; x: number; y: number }
+type PenShape = Base & { type: 'pen'; points: number[] }
+type LineShape = Base & { type: 'line'; points: number[] }
+type RegionShape = Base & { type: 'region'; points: number[]; fill: string; textureId: MapTextureId | null }
+type RectShape = Base & { type: 'rect'; width: number; height: number; fill: string; textureId: MapTextureId | null }
+type EllipseShape = Base & { type: 'ellipse'; radiusX: number; radiusY: number; fill: string; textureId: MapTextureId | null }
 type Shape = PenShape | LineShape | RegionShape | RectShape | EllipseShape
+
+type Stamp = { id: string; name: string; thumb: string; width: number; height: number; shapes: Shape[] }
 
 const STROKE_SWATCHES = ['#2c2c2c', '#b42318', '#2e77b5', '#2f7d32', '#d9b96e', '#ffffff']
 const FILL_SWATCHES = ['#a5d8ff', '#ffc9c9', '#b2f2bb', '#ffec99', '#d9b96e', '#2c2c2c']
@@ -51,32 +60,61 @@ const LINE_WEIGHT_MIN = 1
 const LINE_WEIGHT_MAX = 40
 const MIN_SHAPE_SIZE = 4
 const FILLABLE = new Set<Shape['type']>(['rect', 'ellipse', 'region'])
+const PASTE_OFFSET = 28
 
-let shapeCounter = 0
+let counter = 0
 const nextId = () => {
-  shapeCounter += 1
-  return globalThis.crypto?.randomUUID?.() ?? `shape-${Date.now()}-${shapeCounter}`
+  counter += 1
+  return globalThis.crypto?.randomUUID?.() ?? `shape-${Date.now()}-${counter}`
 }
 
-function parseShapes(sceneJson: string): Shape[] {
-  if (!sceneJson) return []
-  try {
-    const parsed = JSON.parse(sceneJson) as { shapes?: unknown }
-    if (!Array.isArray(parsed.shapes)) return []
-    return parsed.shapes.filter((shape): shape is Shape => {
-      if (!shape || typeof shape !== 'object') return false
-      const type = (shape as { type?: unknown }).type
-      return type === 'pen' || type === 'line' || type === 'rect' || type === 'ellipse' || type === 'region'
-    })
-  } catch {
-    return []
+function parseShapes(value: unknown): Shape[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((shape): shape is Shape => {
+    if (!shape || typeof shape !== 'object') return false
+    const t = (shape as { type?: unknown }).type
+    return t === 'pen' || t === 'line' || t === 'rect' || t === 'ellipse' || t === 'region'
+  })
+}
+
+function shapeBBox(shape: Shape): { x: number; y: number; width: number; height: number } {
+  if (shape.type === 'rect') {
+    return { x: shape.x, y: shape.y, width: shape.width, height: shape.height }
   }
+  if (shape.type === 'ellipse') {
+    return { x: shape.x - shape.radiusX, y: shape.y - shape.radiusY, width: shape.radiusX * 2, height: shape.radiusY * 2 }
+  }
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (let i = 0; i < shape.points.length; i += 2) {
+    minX = Math.min(minX, shape.points[i])
+    maxX = Math.max(maxX, shape.points[i])
+    minY = Math.min(minY, shape.points[i + 1])
+    maxY = Math.max(maxY, shape.points[i + 1])
+  }
+  return { x: shape.x + minX, y: shape.y + minY, width: maxX - minX, height: maxY - minY }
+}
+
+function unionBBox(shapes: Shape[]) {
+  const boxes = shapes.map(shapeBBox)
+  const x = Math.min(...boxes.map((b) => b.x))
+  const y = Math.min(...boxes.map((b) => b.y))
+  const right = Math.max(...boxes.map((b) => b.x + b.width))
+  const bottom = Math.max(...boxes.map((b) => b.y + b.height))
+  return { x, y, width: right - x, height: bottom - y }
+}
+
+function cloneShapes(shapes: Shape[], dx: number, dy: number): Shape[] {
+  return shapes.map((shape) => ({ ...shape, id: nextId(), x: shape.x + dx, y: shape.y + dy }))
 }
 
 export function MapDrawingEditor({
   mapName,
   initialSceneJson,
   backgroundColor,
+  stampScopeKey,
   onCancel,
   onSave,
 }: MapDrawingEditorProps) {
@@ -84,30 +122,50 @@ export function MapDrawingEditor({
   const transformerRef = useRef<Konva.Transformer | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const isDrawingRef = useRef(false)
-  const texturesRef = useRef<Map<MapTextureId, HTMLImageElement>>(new Map())
+  const groupDragRef = useRef<Map<string, { x: number; y: number }> | null>(null)
+  const marqueeStartRef = useRef<{ x: number; y: number; shift: boolean } | null>(null)
+  const pasteCountRef = useRef(0)
+  const stampsKey = `mapDrawingStamps:${stampScopeKey}`
 
-  const [shapes, setShapes] = useState<Shape[]>(() => parseShapes(initialSceneJson))
+  const [shapes, setShapes] = useState<Shape[]>(() => {
+    try {
+      return parseShapes((JSON.parse(initialSceneJson || '{}') as { shapes?: unknown }).shapes)
+    } catch {
+      return []
+    }
+  })
   const [tool, setTool] = useState<DrawingTool>('region')
   const [strokeColor, setStrokeColor] = useState('#2c2c2c')
   const [fill, setFill] = useState<FillStyle>({ color: '#a5d8ff', textureId: 'trees' })
   const [lineWeight, setLineWeight] = useState(4)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [clipboard, setClipboard] = useState<Shape[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [texturesReady, setTexturesReady] = useState(false)
+  const [textures, setTextures] = useState<Map<MapTextureId, HTMLImageElement>>(new Map())
   const [view, setView] = useState({ scale: 1, width: BLANK_MAP_WIDTH, height: BLANK_MAP_HEIGHT })
+  const [stamps, setStamps] = useState<Stamp[]>(() => {
+    try {
+      const raw = localStorage.getItem(`mapDrawingStamps:${stampScopeKey}`)
+      return raw ? (JSON.parse(raw) as Stamp[]) : []
+    } catch {
+      return []
+    }
+  })
+  const [placingStamp, setPlacingStamp] = useState<Stamp | null>(null)
+  const [marquee, setMarquee] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
+
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds])
 
   useEffect(() => {
     let active = true
     void loadTextureImages().then((images) => {
       if (!active) return
-      texturesRef.current = images
-      setTexturesReady(true)
+      setTextures(new Map(images))
     })
     return () => { active = false }
   }, [])
 
-  // Fit the fixed 1600x1000 logical canvas into the available container.
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
@@ -125,22 +183,28 @@ export function MapDrawingEditor({
     return () => observer.disconnect()
   }, [])
 
-  // The Transformer (resize/rotate handles) only attaches to box shapes.
+  // Attach the transformer to the selection. Resize/rotate handles only show for
+  // box shapes; a mixed or multi selection just shows the bounding outline.
   useEffect(() => {
     const transformer = transformerRef.current
     const stage = stageRef.current
     if (!transformer || !stage) return
-    const selected = shapes.find((shape) => shape.id === selectedId)
-    const resizable = tool === 'select' && selected && (selected.type === 'rect' || selected.type === 'ellipse')
-    const node = resizable ? stage.findOne(`#${selectedId}`) : null
-    transformer.nodes(node ? [node] : [])
+    const selected = shapes.filter((shape) => selectedSet.has(shape.id))
+    if (tool !== 'select' || selected.length === 0) {
+      transformer.nodes([])
+      transformer.getLayer()?.batchDraw()
+      return
+    }
+    const nodes = selected.map((shape) => stage.findOne(`#${shape.id}`)).filter(Boolean) as Konva.Node[]
+    const allBox = selected.every((shape) => shape.type === 'rect' || shape.type === 'ellipse')
+    transformer.resizeEnabled(allBox)
+    transformer.rotateEnabled(allBox && selected.length === 1)
+    transformer.nodes(nodes)
     transformer.getLayer()?.batchDraw()
-  }, [selectedId, tool, shapes])
+  }, [selectedIds, selectedSet, tool, shapes])
 
-  const pointerPosition = (): { x: number; y: number } | null => {
-    const stage = stageRef.current
-    if (!stage) return null
-    const pos = stage.getRelativePointerPosition()
+  const pointer = (): { x: number; y: number } | null => {
+    const pos = stageRef.current?.getRelativePointerPosition()
     return pos ? { x: pos.x, y: pos.y } : null
   }
 
@@ -158,68 +222,142 @@ export function MapDrawingEditor({
     }))
   }, [fill])
 
-  const handleShapeInteract = useCallback((id: string, shapeType: Shape['type']) => {
+  const deleteSelection = useCallback(() => {
+    if (selectedIds.length === 0) return
+    setShapes((prev) => prev.filter((shape) => !selectedSet.has(shape.id)))
+    setSelectedIds([])
+  }, [selectedIds, selectedSet])
+
+  const copySelection = useCallback(() => {
+    if (selectedIds.length === 0) return
+    setClipboard(shapes.filter((shape) => selectedSet.has(shape.id)))
+    pasteCountRef.current = 0
+  }, [selectedIds, selectedSet, shapes])
+
+  const pasteClipboard = useCallback(() => {
+    if (clipboard.length === 0) return
+    pasteCountRef.current += 1
+    const offset = PASTE_OFFSET * pasteCountRef.current
+    const copies = cloneShapes(clipboard, offset, offset)
+    setShapes((prev) => [...prev, ...copies])
+    setSelectedIds(copies.map((shape) => shape.id))
+    setTool('select')
+  }, [clipboard])
+
+  const duplicateSelection = useCallback(() => {
+    if (selectedIds.length === 0) return
+    const copies = cloneShapes(shapes.filter((shape) => selectedSet.has(shape.id)), PASTE_OFFSET, PASTE_OFFSET)
+    setShapes((prev) => [...prev, ...copies])
+    setSelectedIds(copies.map((shape) => shape.id))
+    setTool('select')
+  }, [selectedIds, selectedSet, shapes])
+
+  // Keyboard: copy/paste/duplicate/delete/deselect, ignoring form fields.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
+      const mod = event.metaKey || event.ctrlKey
+      if (mod && event.key.toLowerCase() === 'c') { event.preventDefault(); copySelection() }
+      else if (mod && event.key.toLowerCase() === 'v') { event.preventDefault(); pasteClipboard() }
+      else if (mod && event.key.toLowerCase() === 'd') { event.preventDefault(); duplicateSelection() }
+      else if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); deleteSelection() }
+      else if (event.key === 'Escape') { setSelectedIds([]); setPlacingStamp(null) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [copySelection, pasteClipboard, duplicateSelection, deleteSelection])
+
+  const placeStampAt = useCallback((stamp: Stamp, cx: number, cy: number) => {
+    const copies = stamp.shapes.map((shape) => ({ ...shape, id: nextId(), x: shape.x + cx - stamp.width / 2, y: shape.y + cy - stamp.height / 2 }))
+    setShapes((prev) => [...prev, ...copies])
+    setSelectedIds(copies.map((shape) => shape.id))
+  }, [])
+
+  const handleShapeInteract = useCallback((id: string, type: Shape['type'], shiftKey: boolean) => {
     if (tool === 'erase') {
       setShapes((prev) => prev.filter((shape) => shape.id !== id))
-      setSelectedId((current) => (current === id ? null : current))
+      setSelectedIds((prev) => prev.filter((sid) => sid !== id))
       return
     }
     if (tool === 'fill') {
-      if (FILLABLE.has(shapeType)) applyFill(id)
+      if (FILLABLE.has(type)) applyFill(id)
       return
     }
-    if (tool === 'select') setSelectedId(id)
+    if (tool === 'select') {
+      setSelectedIds((prev) => {
+        if (shiftKey) return prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id]
+        return prev.includes(id) && prev.length === 1 ? prev : [id]
+      })
+    }
   }, [applyFill, tool])
 
   const handleStageMouseDown = (event: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-    const pos = pointerPosition()
+    const pos = pointer()
     if (!pos) return
+    if (placingStamp) { placeStampAt(placingStamp, pos.x, pos.y); return }
     const clickedEmpty = event.target === event.target.getStage() || event.target.name() === 'background'
 
     if (tool === 'select') {
-      if (clickedEmpty) setSelectedId(null)
+      if (clickedEmpty) {
+        marqueeStartRef.current = { x: pos.x, y: pos.y, shift: (event.evt as MouseEvent).shiftKey === true }
+        setMarquee({ x: pos.x, y: pos.y, width: 0, height: 0 })
+      }
       return
     }
     if (tool === 'fill' || tool === 'erase') return
 
     isDrawingRef.current = true
-    setSelectedId(null)
+    setSelectedIds([])
     const id = nextId()
-    if (tool === 'pen') {
-      setShapes((prev) => [...prev, { id, type: 'pen', points: [pos.x, pos.y], stroke: strokeColor, strokeWidth: lineWeight }])
-    } else if (tool === 'region') {
-      setShapes((prev) => [...prev, { id, type: 'region', points: [pos.x, pos.y], stroke: strokeColor, strokeWidth: lineWeight, fill: fill.color, textureId: fill.textureId }])
-    } else if (tool === 'line') {
-      setShapes((prev) => [...prev, { id, type: 'line', points: [pos.x, pos.y, pos.x, pos.y], stroke: strokeColor, strokeWidth: lineWeight }])
-    } else if (tool === 'rect') {
-      setShapes((prev) => [...prev, { id, type: 'rect', x: pos.x, y: pos.y, width: 0, height: 0, stroke: strokeColor, strokeWidth: lineWeight, fill: 'transparent', textureId: null }])
-    } else if (tool === 'ellipse') {
-      setShapes((prev) => [...prev, { id, type: 'ellipse', x: pos.x, y: pos.y, radiusX: 0, radiusY: 0, stroke: strokeColor, strokeWidth: lineWeight, fill: 'transparent', textureId: null }])
-    }
+    const base = { id, stroke: strokeColor, strokeWidth: lineWeight, x: pos.x, y: pos.y }
+    if (tool === 'pen') setShapes((prev) => [...prev, { ...base, type: 'pen', points: [0, 0] }])
+    else if (tool === 'region') setShapes((prev) => [...prev, { ...base, type: 'region', points: [0, 0], fill: fill.color, textureId: fill.textureId }])
+    else if (tool === 'line') setShapes((prev) => [...prev, { ...base, type: 'line', points: [0, 0, 0, 0] }])
+    else if (tool === 'rect') setShapes((prev) => [...prev, { ...base, type: 'rect', width: 0, height: 0, fill: 'transparent', textureId: null }])
+    else if (tool === 'ellipse') setShapes((prev) => [...prev, { ...base, type: 'ellipse', radiusX: 0, radiusY: 0, fill: 'transparent', textureId: null }])
   }
 
   const handleStageMouseMove = () => {
-    if (!isDrawingRef.current) return
-    const pos = pointerPosition()
+    const pos = pointer()
     if (!pos) return
+    if (marqueeStartRef.current) {
+      const start = marqueeStartRef.current
+      setMarquee({ x: Math.min(start.x, pos.x), y: Math.min(start.y, pos.y), width: Math.abs(pos.x - start.x), height: Math.abs(pos.y - start.y) })
+      return
+    }
+    if (!isDrawingRef.current) return
     setShapes((prev) => {
       if (prev.length === 0) return prev
       const last = prev[prev.length - 1]
+      const rx = pos.x - last.x
+      const ry = pos.y - last.y
       let updated: Shape = last
-      if (last.type === 'pen' || last.type === 'region') {
-        updated = { ...last, points: [...last.points, pos.x, pos.y] }
-      } else if (last.type === 'line') {
-        updated = { ...last, points: [last.points[0], last.points[1], pos.x, pos.y] }
-      } else if (last.type === 'rect') {
-        updated = { ...last, width: pos.x - last.x, height: pos.y - last.y }
-      } else if (last.type === 'ellipse') {
-        updated = { ...last, radiusX: Math.abs(pos.x - last.x), radiusY: Math.abs(pos.y - last.y) }
-      }
+      if (last.type === 'pen' || last.type === 'region') updated = { ...last, points: [...last.points, rx, ry] }
+      else if (last.type === 'line') updated = { ...last, points: [0, 0, rx, ry] }
+      else if (last.type === 'rect') updated = { ...last, width: rx, height: ry }
+      else if (last.type === 'ellipse') updated = { ...last, radiusX: Math.abs(rx), radiusY: Math.abs(ry) }
       return [...prev.slice(0, -1), updated]
     })
   }
 
   const handleStageMouseUp = () => {
+    if (marqueeStartRef.current) {
+      const box = marquee
+      const shift = marqueeStartRef.current.shift
+      marqueeStartRef.current = null
+      setMarquee(null)
+      if (box && (box.width > 3 || box.height > 3)) {
+        const hits = shapes.filter((shape) => {
+          const b = shapeBBox(shape)
+          return b.x < box.x + box.width && b.x + b.width > box.x && b.y < box.y + box.height && b.y + b.height > box.y
+        }).map((shape) => shape.id)
+        setSelectedIds((prev) => (shift ? Array.from(new Set([...prev, ...hits])) : hits))
+      } else if (!shift) {
+        setSelectedIds([])
+      }
+      return
+    }
     if (!isDrawingRef.current) return
     isDrawingRef.current = false
     setShapes((prev) => {
@@ -235,8 +373,8 @@ export function MapDrawingEditor({
       }
       if (last.type === 'ellipse' && last.radiusX < MIN_SHAPE_SIZE / 2 && last.radiusY < MIN_SHAPE_SIZE / 2) return prev.slice(0, -1)
       if (last.type === 'line') {
-        const [x1, y1, x2, y2] = last.points
-        if (Math.hypot(x2 - x1, y2 - y1) < MIN_SHAPE_SIZE) return prev.slice(0, -1)
+        const [, , x2, y2] = last.points
+        if (Math.hypot(x2, y2) < MIN_SHAPE_SIZE) return prev.slice(0, -1)
       }
       if ((last.type === 'pen' || last.type === 'region') && last.points.length < 6) return prev.slice(0, -1)
       return prev
@@ -248,7 +386,7 @@ export function MapDrawingEditor({
     if (!stage || saving) return
     setSaving(true)
     setError(null)
-    setSelectedId(null)
+    setSelectedIds([])
     try {
       transformerRef.current?.nodes([])
       const blob = await stage.toBlob({ pixelRatio: 1 / view.scale, mimeType: 'image/png' }) as Blob
@@ -260,21 +398,83 @@ export function MapDrawingEditor({
     }
   }, [backgroundColor, onSave, saving, shapes, view.scale])
 
+  const persistStamps = (next: Stamp[]) => {
+    setStamps(next)
+    try { localStorage.setItem(stampsKey, JSON.stringify(next)) } catch { /* storage full / disabled */ }
+  }
+
+  const saveSelectionAsStamp = () => {
+    const stage = stageRef.current
+    const selected = shapes.filter((shape) => selectedSet.has(shape.id))
+    if (!stage || selected.length === 0) return
+    const box = unionBBox(selected)
+    const thumb = stage.toDataURL({
+      x: box.x * view.scale,
+      y: box.y * view.scale,
+      width: Math.max(1, box.width * view.scale),
+      height: Math.max(1, box.height * view.scale),
+      pixelRatio: Math.min(2, 120 / Math.max(box.width, box.height, 1)),
+    })
+    const normalized = selected.map((shape) => ({ ...shape, id: nextId(), x: shape.x - box.x, y: shape.y - box.y }))
+    persistStamps([
+      ...stamps,
+      { id: nextId(), name: `Stamp ${stamps.length + 1}`, thumb, width: box.width, height: box.height, shapes: normalized },
+    ])
+  }
+
   const fillProps = (shape: RectShape | EllipseShape | RegionShape) => {
     if (shape.textureId && isMapTextureId(shape.textureId)) {
-      const image = texturesRef.current.get(shape.textureId)
-      if (image) {
-        return { fillPriority: 'pattern' as const, fillPatternImage: image, fillPatternRepeat: 'repeat' as const, fillPatternScale: { x: 1, y: 1 } }
-      }
+      const image = textures.get(shape.textureId)
+      if (image) return { fillPriority: 'pattern' as const, fillPatternImage: image, fillPatternRepeat: 'repeat' as const }
     }
     return { fill: shape.fill === 'transparent' ? undefined : shape.fill }
   }
+
+  const dragHandlers = (shape: Shape) => ({
+    onDragStart: () => {
+      if (selectedSet.has(shape.id) && selectedIds.length > 1) {
+        const origins = new Map<string, { x: number; y: number }>()
+        shapes.forEach((other) => { if (selectedSet.has(other.id)) origins.set(other.id, { x: other.x, y: other.y }) })
+        groupDragRef.current = origins
+      } else {
+        groupDragRef.current = null
+        if (!selectedSet.has(shape.id)) setSelectedIds([shape.id])
+      }
+    },
+    onDragMove: (e: Konva.KonvaEventObject<DragEvent>) => {
+      const origins = groupDragRef.current
+      if (!origins) return
+      const stage = stageRef.current
+      const self = origins.get(shape.id)
+      if (!stage || !self) return
+      const dx = e.target.x() - self.x
+      const dy = e.target.y() - self.y
+      origins.forEach((origin, id) => {
+        if (id === shape.id) return
+        const node = stage.findOne(`#${id}`)
+        node?.position({ x: origin.x + dx, y: origin.y + dy })
+      })
+      stage.batchDraw()
+    },
+    onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
+      const origins = groupDragRef.current
+      if (origins) {
+        const self = origins.get(shape.id)
+        const dx = self ? e.target.x() - self.x : 0
+        const dy = self ? e.target.y() - self.y : 0
+        setShapes((prev) => prev.map((s) => (origins.has(s.id) ? ({ ...s, x: (origins.get(s.id)?.x ?? s.x) + dx, y: (origins.get(s.id)?.y ?? s.y) + dy } as Shape) : s)))
+        groupDragRef.current = null
+      } else {
+        updateShape(shape.id, { x: e.target.x(), y: e.target.y() } as Partial<Shape>)
+      }
+    },
+  })
 
   const toolButton = (value: DrawingTool, label: string, icon: React.ReactNode) => (
     <button
       type="button"
       className={tool === value ? 'map-konva-tool active' : 'map-konva-tool'}
-      onClick={() => { setTool(value); if (value !== 'select') setSelectedId(null) }}
+      onClick={() => { setTool(value); setPlacingStamp(null); if (value !== 'select') setSelectedIds([]) }}
       aria-label={label}
       aria-pressed={tool === value}
       title={label}
@@ -297,44 +497,27 @@ export function MapDrawingEditor({
           {toolButton('fill', 'Fill shape / area', <PaintBucket size={20} />)}
           {toolButton('erase', 'Delete shape', <Eraser size={20} />)}
         </div>
+        <div className="map-konva-actions">
+          <button type="button" className="map-konva-tool" onClick={() => { copySelection(); pasteClipboard() }} disabled={selectedIds.length === 0} aria-label="Duplicate selection" title="Duplicate (Cmd/Ctrl+D)"><Copy size={18} /></button>
+          <button type="button" className="map-konva-tool" onClick={pasteClipboard} disabled={clipboard.length === 0} aria-label="Paste" title="Paste (Cmd/Ctrl+V)"><ClipboardPaste size={18} /></button>
+          <button type="button" className="map-konva-tool" onClick={saveSelectionAsStamp} disabled={selectedIds.length === 0} aria-label="Save selection as stamp" title="Save selection as stamp"><StampIcon size={18} /></button>
+        </div>
         <div className="map-konva-colors" aria-label="Stroke color">
           <Pencil size={13} aria-hidden />
           {STROKE_SWATCHES.map((color) => (
-            <button
-              key={`stroke-${color}`}
-              type="button"
-              className={strokeColor === color ? 'map-konva-swatch active' : 'map-konva-swatch'}
-              style={{ backgroundColor: color }}
-              onClick={() => setStrokeColor(color)}
-              aria-label={`Stroke ${color}`}
-            />
+            <button key={`stroke-${color}`} type="button" className={strokeColor === color ? 'map-konva-swatch active' : 'map-konva-swatch'} style={{ backgroundColor: color }} onClick={() => setStrokeColor(color)} aria-label={`Stroke ${color}`} />
           ))}
           <input type="color" value={strokeColor} onChange={(e) => setStrokeColor(e.target.value)} aria-label="Custom stroke color" />
         </div>
         <div className="map-konva-colors map-konva-fills" aria-label="Fill">
           <PaintBucket size={13} aria-hidden />
           {FILL_SWATCHES.map((color) => (
-            <button
-              key={`fill-${color}`}
-              type="button"
-              className={!fill.textureId && fill.color === color ? 'map-konva-swatch active' : 'map-konva-swatch'}
-              style={{ backgroundColor: color }}
-              onClick={() => setFill({ color, textureId: null })}
-              aria-label={`Fill ${color}`}
-            />
+            <button key={`fill-${color}`} type="button" className={!fill.textureId && fill.color === color ? 'map-konva-swatch active' : 'map-konva-swatch'} style={{ backgroundColor: color }} onClick={() => setFill({ color, textureId: null })} aria-label={`Fill ${color}`} />
           ))}
           <input type="color" value={fill.color} onChange={(e) => setFill({ color: e.target.value, textureId: null })} aria-label="Custom fill color" />
           <span className="map-konva-fill-divider" aria-hidden />
           {MAP_TEXTURES.map((texture) => (
-            <button
-              key={texture.id}
-              type="button"
-              className={fill.textureId === texture.id ? 'map-konva-texture active' : 'map-konva-texture'}
-              style={{ backgroundImage: texturesReady ? `url(${texturesRef.current.get(texture.id)?.src ?? ''})` : undefined, backgroundColor: texture.swatch }}
-              onClick={() => setFill((prev) => ({ color: prev.color, textureId: texture.id }))}
-              aria-label={`Fill texture: ${texture.label}`}
-              title={`${texture.label} texture`}
-            />
+            <button key={texture.id} type="button" className={fill.textureId === texture.id ? 'map-konva-texture active' : 'map-konva-texture'} style={{ backgroundImage: `url(${textures.get(texture.id)?.src ?? ''})`, backgroundColor: texture.swatch }} onClick={() => setFill((prev) => ({ color: prev.color, textureId: texture.id }))} aria-label={`Fill texture: ${texture.label}`} title={`${texture.label} texture`} />
           ))}
         </div>
         <label className="map-konva-weight" title="Line weight">
@@ -344,14 +527,8 @@ export function MapDrawingEditor({
         </label>
         {error ? <span className="map-drawing-editor-error">{error}</span> : null}
         <div className="map-drawing-editor-actions">
-          <button type="button" className="map-drawing-editor-cancel" onClick={onCancel} disabled={saving}>
-            <X size={15} />
-            Cancel
-          </button>
-          <button type="button" className="map-drawing-editor-save" onClick={() => void handleSave()} disabled={saving}>
-            {saving ? <Loader2 size={15} className="map-icon-spin" /> : null}
-            {saving ? 'Saving...' : 'Save & share'}
-          </button>
+          <button type="button" className="map-drawing-editor-cancel" onClick={onCancel} disabled={saving}><X size={15} />Cancel</button>
+          <button type="button" className="map-drawing-editor-save" onClick={() => void handleSave()} disabled={saving}>{saving ? <Loader2 size={15} className="map-icon-spin" /> : null}{saving ? 'Saving...' : 'Save & share'}</button>
         </div>
       </div>
       <div ref={containerRef} className="map-drawing-editor-canvas map-konva-canvas">
@@ -367,86 +544,58 @@ export function MapDrawingEditor({
           onTouchStart={handleStageMouseDown}
           onTouchMove={handleStageMouseMove}
           onTouchEnd={handleStageMouseUp}
-          style={{ cursor: tool === 'select' ? 'default' : 'crosshair', background: '#ffffff' }}
+          style={{ cursor: placingStamp ? 'copy' : tool === 'select' ? 'default' : 'crosshair', background: '#ffffff' }}
         >
           <Layer>
             <Rect name="background" x={0} y={0} width={BLANK_MAP_WIDTH} height={BLANK_MAP_HEIGHT} fill={backgroundColor} />
             {shapes.map((shape) => {
               const draggable = tool === 'select'
-              const common = {
-                id: shape.id,
-                draggable,
-                onMouseDown: () => handleShapeInteract(shape.id, shape.type),
-                onTap: () => handleShapeInteract(shape.id, shape.type),
-                onDragEnd: (e: Konva.KonvaEventObject<DragEvent>) => {
-                  const node = e.target
-                  if (shape.type === 'pen' || shape.type === 'line' || shape.type === 'region') {
-                    const dx = node.x()
-                    const dy = node.y()
-                    node.position({ x: 0, y: 0 })
-                    updateShape(shape.id, { points: shape.points.map((v, i) => (i % 2 === 0 ? v + dx : v + dy)) } as Partial<Shape>)
-                  } else {
-                    updateShape(shape.id, { x: node.x(), y: node.y() } as Partial<Shape>)
-                  }
-                },
-              }
-              if (shape.type === 'pen') {
-                return <Line key={shape.id} {...common} points={shape.points} stroke={shape.stroke} strokeWidth={shape.strokeWidth} lineCap="round" lineJoin="round" tension={0.4} hitStrokeWidth={Math.max(12, shape.strokeWidth)} />
-              }
-              if (shape.type === 'line') {
-                return <Line key={shape.id} {...common} points={shape.points} stroke={shape.stroke} strokeWidth={shape.strokeWidth} lineCap="round" hitStrokeWidth={Math.max(12, shape.strokeWidth)} />
-              }
-              if (shape.type === 'region') {
-                return <Line key={shape.id} {...common} points={shape.points} closed stroke={shape.stroke} strokeWidth={shape.strokeWidth} lineCap="round" lineJoin="round" tension={0.3} {...fillProps(shape)} />
-              }
-              if (shape.type === 'rect') {
-                return (
-                  <Rect
-                    key={shape.id}
-                    {...common}
-                    x={shape.x}
-                    y={shape.y}
-                    width={shape.width}
-                    height={shape.height}
-                    stroke={shape.stroke}
-                    strokeWidth={shape.strokeWidth}
-                    {...fillProps(shape)}
-                    onTransformEnd={(e) => {
-                      const node = e.target
-                      const sx = node.scaleX()
-                      const sy = node.scaleY()
-                      node.scaleX(1)
-                      node.scaleY(1)
-                      updateShape(shape.id, { x: node.x(), y: node.y(), width: Math.max(MIN_SHAPE_SIZE, node.width() * sx), height: Math.max(MIN_SHAPE_SIZE, node.height() * sy) } as Partial<Shape>)
-                    }}
-                  />
-                )
-              }
+              const onMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => handleShapeInteract(shape.id, shape.type, e.evt.shiftKey)
+              const onTap = () => handleShapeInteract(shape.id, shape.type, false)
+              const common = { id: shape.id, draggable, onMouseDown, onTap, ...dragHandlers(shape) }
+              if (shape.type === 'pen') return <Line key={shape.id} {...common} x={shape.x} y={shape.y} points={shape.points} stroke={shape.stroke} strokeWidth={shape.strokeWidth} lineCap="round" lineJoin="round" tension={0.4} hitStrokeWidth={Math.max(12, shape.strokeWidth)} />
+              if (shape.type === 'line') return <Line key={shape.id} {...common} x={shape.x} y={shape.y} points={shape.points} stroke={shape.stroke} strokeWidth={shape.strokeWidth} lineCap="round" hitStrokeWidth={Math.max(12, shape.strokeWidth)} />
+              if (shape.type === 'region') return <Line key={shape.id} {...common} x={shape.x} y={shape.y} points={shape.points} closed stroke={shape.stroke} strokeWidth={shape.strokeWidth} lineCap="round" lineJoin="round" tension={0.3} {...fillProps(shape)} />
+              if (shape.type === 'rect') return (
+                <Rect key={shape.id} {...common} x={shape.x} y={shape.y} width={shape.width} height={shape.height} stroke={shape.stroke} strokeWidth={shape.strokeWidth} {...fillProps(shape)}
+                  onTransformEnd={(e) => { const n = e.target; const sx = n.scaleX(); const sy = n.scaleY(); n.scaleX(1); n.scaleY(1); updateShape(shape.id, { x: n.x(), y: n.y(), width: Math.max(MIN_SHAPE_SIZE, n.width() * sx), height: Math.max(MIN_SHAPE_SIZE, n.height() * sy) } as Partial<Shape>) }} />
+              )
               return (
-                <Ellipse
-                  key={shape.id}
-                  {...common}
-                  x={shape.x}
-                  y={shape.y}
-                  radiusX={shape.radiusX}
-                  radiusY={shape.radiusY}
-                  stroke={shape.stroke}
-                  strokeWidth={shape.strokeWidth}
-                  {...fillProps(shape)}
-                  onTransformEnd={(e) => {
-                    const node = e.target
-                    const sx = node.scaleX()
-                    const sy = node.scaleY()
-                    node.scaleX(1)
-                    node.scaleY(1)
-                    updateShape(shape.id, { x: node.x(), y: node.y(), radiusX: Math.max(MIN_SHAPE_SIZE / 2, shape.radiusX * sx), radiusY: Math.max(MIN_SHAPE_SIZE / 2, shape.radiusY * sy) } as Partial<Shape>)
-                  }}
-                />
+                <Ellipse key={shape.id} {...common} x={shape.x} y={shape.y} radiusX={shape.radiusX} radiusY={shape.radiusY} stroke={shape.stroke} strokeWidth={shape.strokeWidth} {...fillProps(shape)}
+                  onTransformEnd={(e) => { const n = e.target; const sx = n.scaleX(); const sy = n.scaleY(); n.scaleX(1); n.scaleY(1); updateShape(shape.id, { x: n.x(), y: n.y(), radiusX: Math.max(MIN_SHAPE_SIZE / 2, shape.radiusX * sx), radiusY: Math.max(MIN_SHAPE_SIZE / 2, shape.radiusY * sy) } as Partial<Shape>) }} />
               )
             })}
-            <Transformer ref={transformerRef} rotateEnabled ignoreStroke keepRatio={false} />
+            {marquee ? (
+              <Rect
+                x={marquee.x}
+                y={marquee.y}
+                width={marquee.width}
+                height={marquee.height}
+                fill="rgba(46, 119, 181, 0.12)"
+                stroke="#2e77b5"
+                strokeWidth={1 / view.scale}
+                dash={[6 / view.scale, 4 / view.scale]}
+                listening={false}
+              />
+            ) : null}
+            <Transformer ref={transformerRef} ignoreStroke keepRatio={false} />
           </Layer>
         </Stage>
+      </div>
+      <div className="map-konva-stamps">
+        <span className="map-konva-stamps-label"><StampIcon size={14} /> Stamps</span>
+        {stamps.length === 0 ? (
+          <span className="map-konva-stamps-hint">Select shapes, then "Save selection as stamp" to build a reusable collection.</span>
+        ) : null}
+        {stamps.map((stamp) => (
+          <div key={stamp.id} className={placingStamp?.id === stamp.id ? 'map-konva-stamp active' : 'map-konva-stamp'}>
+            <button type="button" className="map-konva-stamp-place" onClick={() => setPlacingStamp((prev) => (prev?.id === stamp.id ? null : stamp))} title={`Place ${stamp.name}`}>
+              <img src={stamp.thumb} alt={stamp.name} />
+            </button>
+            <button type="button" className="map-konva-stamp-delete" onClick={() => persistStamps(stamps.filter((s) => s.id !== stamp.id))} aria-label={`Delete ${stamp.name}`} title="Delete stamp"><Trash2 size={12} /></button>
+          </div>
+        ))}
+        {placingStamp ? <span className="map-konva-stamps-hint">Click the map to place "{placingStamp.name}". Esc to stop.</span> : null}
       </div>
     </div>
   )

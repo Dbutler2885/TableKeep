@@ -6474,6 +6474,94 @@ button:disabled {
   outline-offset: 1px;
 }
 
+.map-konva-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border: 1px solid #dddcd6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.map-konva-tool:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.map-konva-stamps {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.85rem;
+  border-top: 1px solid #e2e1da;
+  background: #f7f6f1;
+  overflow-x: auto;
+  min-height: 3.4rem;
+}
+
+.map-konva-stamps-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #44443e;
+  flex: 0 0 auto;
+}
+
+.map-konva-stamps-hint {
+  font-size: 0.78rem;
+  color: #8a8a80;
+  flex: 0 0 auto;
+}
+
+.map-konva-stamp {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.map-konva-stamp-place {
+  display: block;
+  width: 2.6rem;
+  height: 2.6rem;
+  padding: 0;
+  border: 1px solid #c8c8c0;
+  border-radius: 7px;
+  background: #fff;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.map-konva-stamp.active .map-konva-stamp-place {
+  outline: 2px solid #2e77b5;
+  border-color: #2e77b5;
+}
+
+.map-konva-stamp-place img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.map-konva-stamp-delete {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 1.1rem;
+  height: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #d6b3ad;
+  border-radius: 999px;
+  background: #fff;
+  color: #b42318;
+  cursor: pointer;
+}
+
 .map-konva-fills {
   flex-wrap: wrap;
 }
