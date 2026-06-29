@@ -111,6 +111,7 @@ import { ModeConfirmAction } from './components/ModeConfirmAction'
 import { PlayerMapControls } from './components/PlayerMapControls'
 import { TokenLayer } from './components/TokenLayer'
 import { AnnotationLayer } from './components/AnnotationLayer'
+import { MapDrawingEditor, type BlankMapSceneResult } from './components/MapDrawingEditor'
 import { InlineMapStage } from './components/InlineMapStage'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
 import { useGridTools } from './hooks/useGridTools'
@@ -406,6 +407,8 @@ export function MapsTab({
   const [placementQueue, setPlacementQueue] = useState<TokenPlacementQueueState | null>(null)
   const [fogBrushSize, setFogBrushSize] = useState(120)
   const fogBrushStrength = 0.7
+  // When set, the blank-map drawing editor (Excalidraw) is open for this map id.
+  const [drawingEditorMapId, setDrawingEditorMapId] = useState<string | null>(null)
   const [npcSceneMode, setNpcSceneMode] = useState(false)
   const [tokenColor, setTokenColor] = useState('#b45309')
   const [tokenSize, setTokenSize] = useState(28)
@@ -548,6 +551,7 @@ export function MapsTab({
     visibleMaps,
     selectedMap,
     handleMapUpload: mapDataUpload,
+    handleCreateBlankMap,
     startRename,
     saveRename,
     deleteMap,
@@ -568,6 +572,7 @@ export function MapsTab({
     toggleAnnotationPointerDirection,
     moveAnnotationPosition,
     persistAnnotationPosition,
+    saveBlankMapDrawing,
     saveTokenAssetFile,
     archiveTokenAsset,
     requestDeleteTokenAsset,
@@ -1083,6 +1088,26 @@ export function MapsTab({
     setPlacementQueue(null)
     dispatchActiveTool({ type: 'selectTool', tool: { type: 'vision', tool: visionBlockTool } })
   }, [activeToolState.activeTool?.type, clearActiveToolIfCurrent, closeActiveMeasurementMode])
+
+  const openDrawingEditor = useCallback(async (mapId?: string) => {
+    if (role !== 'gm') return
+    if (mapId) {
+      setDrawingEditorMapId(mapId)
+      return
+    }
+    const newId = await handleCreateBlankMap()
+    if (newId) setDrawingEditorMapId(newId)
+  }, [handleCreateBlankMap, role])
+
+  const handleSaveBlankDrawing = useCallback(async (result: BlankMapSceneResult) => {
+    if (!drawingEditorMapId) return
+    await saveBlankMapDrawing(drawingEditorMapId, result.sceneJson, result.blob, result.width, result.height)
+    setDrawingEditorMapId(null)
+  }, [drawingEditorMapId, saveBlankMapDrawing])
+
+  const drawingEditorMap = drawingEditorMapId
+    ? maps.find((map) => map.id === drawingEditorMapId) ?? null
+    : null
 
   const setTokenSelectMode = useCallback((value: boolean) => {
     if (activeToolState.activeTool?.type === 'measurement') closeActiveMeasurementMode()
@@ -2122,13 +2147,13 @@ export function MapsTab({
     setActiveAnnotationId('')
   }, [viewAsPlayer])
 
-  const handleInlineImageReady = useCallback((target: HTMLImageElement, attempt = 0) => {
+  const handleInlineImageReady = useCallback(function handleInlineImageReadyCallback(target: HTMLImageElement, attempt = 0) {
     const currentMap = selectedMapRef.current
     if (!currentMap || target.dataset.mapId !== currentMap.id) return
     const measuredWidth = Math.round(target.clientWidth || target.getBoundingClientRect().width)
     const measuredHeight = Math.round(target.clientHeight || target.getBoundingClientRect().height)
     if ((measuredWidth <= 0 || measuredHeight <= 0) && attempt < 8) {
-      window.requestAnimationFrame(() => handleInlineImageReady(target, attempt + 1))
+      window.requestAnimationFrame(() => handleInlineImageReadyCallback(target, attempt + 1))
       return
     }
     const displayWidth = Math.max(1, measuredWidth || target.naturalWidth)
@@ -2148,6 +2173,29 @@ export function MapsTab({
       Math.max(1, Math.round(target.naturalWidth * fogScale)),
       Math.max(1, Math.round(target.naturalHeight * fogScale)),
     )
+    setInlineImageReady(true)
+  }, [invalidateInlineOverlayCache])
+
+  const handleInlineBlankReady = useCallback((displayWidth: number, displayHeight: number) => {
+    const currentMap = selectedMapRef.current
+    if (!currentMap || currentMap.kind !== 'blank') return
+    const safeDisplayWidth = Math.max(1, Math.round(displayWidth))
+    const safeDisplayHeight = Math.max(1, Math.round(displayHeight))
+    setInlineBaseSize({
+      width: safeDisplayWidth,
+      height: safeDisplayHeight,
+    })
+    const sourceWidth = Math.max(1, currentMap.width)
+    const sourceHeight = Math.max(1, currentMap.height)
+    const fogScale = Math.min(1, FOG_CANVAS_MAX_DIM / Math.max(sourceWidth, sourceHeight, 1))
+    const fogWidth = Math.max(1, Math.round(sourceWidth * fogScale))
+    const fogHeight = Math.max(1, Math.round(sourceHeight * fogScale))
+    setInlineFogSize({
+      width: fogWidth,
+      height: fogHeight,
+    })
+    invalidateInlineOverlayCache()
+    clearLosSeenCanvas(inlineLosSeenCanvasRef.current, fogWidth, fogHeight)
     setInlineImageReady(true)
   }, [invalidateInlineOverlayCache])
 
@@ -2483,11 +2531,22 @@ export function MapsTab({
           <div className="maps-sidebar-header">
             <h2>Maps</h2>
             {role === 'gm' ? (
-              <label className="upload-trigger">
-                <Upload size={16} />
-                {uploading ? 'Uploading...' : 'Upload'}
-                <input type="file" accept="image/*" onChange={handleMapUpload} disabled={uploading} />
-              </label>
+              <div className="maps-create-actions">
+                <button
+                  type="button"
+                  className="upload-trigger map-blank-create-btn"
+                  onClick={() => void openDrawingEditor()}
+                  disabled={uploading}
+                >
+                  <Pencil size={16} />
+                  Draw
+                </button>
+                <label className="upload-trigger">
+                  <Upload size={16} />
+                  {uploading ? 'Uploading...' : 'Upload'}
+                  <input type="file" accept="image/*" onChange={handleMapUpload} disabled={uploading} />
+                </label>
+              </div>
             ) : null}
           </div>
           <p className="maps-role">Role: {role ?? 'unknown'}</p>
@@ -2547,6 +2606,7 @@ export function MapsTab({
                   <div className="map-thumb-column">
                     <div className="map-thumb-wrap">
                       {role === 'gm' && map.imageUrl ? <img src={map.imageUrl} alt={map.name} className="map-thumb" /> : null}
+                      {role === 'gm' && map.kind === 'blank' && !map.imageUrl ? <span className="map-thumb blank" aria-hidden /> : null}
                     </div>
                     {role === 'gm' ? (
                       <button
@@ -2719,6 +2779,18 @@ export function MapsTab({
                 Back
               </button>
             ) : null}
+            {role === 'gm' && selectedMap?.kind === 'blank' && !desktopGmRun && (!isMobile || mobileGmPane === 'map') ? (
+              <div className="map-preview-drawing-toolbar">
+                <button
+                  type="button"
+                  className="map-edit-drawing-btn"
+                  onClick={() => void openDrawingEditor(selectedMap.id)}
+                >
+                  <Pencil size={15} />
+                  Edit drawing
+                </button>
+              </div>
+            ) : null}
             {!isMobile || (role === 'gm' ? mobileGmPane === 'map' : mobilePlayerPane === 'map') ? (
               <InlineMapStage
               stageRef={inlineStageRef}
@@ -2735,6 +2807,7 @@ export function MapsTab({
                   : undefined
               }
               onImageReady={handleInlineImageReady}
+              onBlankReady={handleInlineBlankReady}
               onStageWheel={isInlineZoomMapView ? handlePlayerWheel : undefined}
               onStageMouseDown={isInlineZoomMapView ? handlePlayerMouseDown : undefined}
               onStageMouseMove={isInlineZoomMapView ? handlePlayerMouseMove : undefined}
@@ -2818,7 +2891,7 @@ export function MapsTab({
               ) : null}
               {annotationLayerNode}
               {renderBrushCursor()}
-              {(!inlineImageReady || !inlineFogReady) ? <div className={loadingMaskClassName} aria-hidden /> : null}
+              {selectedMap?.kind !== 'blank' && (!inlineImageReady || !inlineFogReady) ? <div className={loadingMaskClassName} aria-hidden /> : null}
             </InlineMapStage>
             ) : null}
 
@@ -3085,6 +3158,16 @@ export function MapsTab({
             </div>
           </div>
         </div>
+      ) : null}
+      {drawingEditorMap ? (
+        <MapDrawingEditor
+          mapName={drawingEditorMap.name}
+          initialSceneJson={drawingEditorMap.drawingScene}
+          backgroundColor={drawingEditorMap.backgroundColor}
+          stampScopeKey={campaignId}
+          onCancel={() => setDrawingEditorMapId(null)}
+          onSave={handleSaveBlankDrawing}
+        />
       ) : null}
     </div>
   )
