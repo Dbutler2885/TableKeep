@@ -6395,7 +6395,8 @@ button:disabled {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.6rem 0.9rem;
+  flex-wrap: wrap;
   padding: 0.5rem 0.85rem;
   border-bottom: 1px solid #e2e1da;
   background: #f7f6f1;
@@ -6409,6 +6410,103 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* react-konva editor: lean, app-owned toolbar (no embedded third-party app). */
+.map-konva-toolbar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border: 1px solid #dddcd6;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.map-konva-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #44443e;
+  cursor: pointer;
+}
+
+.map-konva-tool:hover {
+  background: #f0efe8;
+}
+
+.map-konva-tool.active {
+  background: #e7f0fa;
+  border-color: #2e77b5;
+  color: #1f5e96;
+}
+
+.map-konva-colors {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #55554e;
+}
+
+.map-konva-swatch {
+  width: 1.15rem;
+  height: 1.15rem;
+  min-width: 1.15rem;
+  padding: 0;
+  border: 1px solid #bcbcb4;
+  border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 42%);
+  cursor: pointer;
+}
+
+.map-konva-swatch.active {
+  outline: 2px solid #2e77b5;
+  outline-offset: 1px;
+}
+
+.map-konva-colors input[type="color"] {
+  width: 1.45rem;
+  height: 1.45rem;
+  padding: 0.1rem;
+  border: 1px solid #c8c8c0;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.map-konva-weight {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #55554e;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.map-konva-weight input[type="range"] {
+  width: 7rem;
+}
+
+.map-konva-weight span {
+  min-width: 1.6ch;
+  text-align: right;
+}
+
+.map-konva-canvas {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e9e8e1;
+  overflow: hidden;
+}
+
+.map-konva-canvas .konvajs-content {
+  box-shadow: 0 1px 8px rgb(0 0 0 / 18%);
 }
 
 .map-drawing-editor-error {
