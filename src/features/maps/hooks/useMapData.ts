@@ -31,6 +31,9 @@ import type {
   Waypoint,
 } from '../lib/types'
 import {
+  BLANK_MAP_BACKGROUND,
+  BLANK_MAP_HEIGHT,
+  BLANK_MAP_WIDTH,
   DEFAULT_GRID_CELL_SCALE,
   DEFAULT_TOKEN_VIEW_DISTANCE,
   TOKEN_REFERENCE_DIMENSION,
@@ -122,8 +125,10 @@ export function useMapData({
         const next = snap.docs.map((docSnap) => {
           const data = docSnap.data() as {
             name?: string
+            kind?: string
             imagePath?: string
             imageUrl?: string
+            backgroundColor?: string
             fogDataUrl?: string
             fogImagePath?: string
             fogImageUrl?: string
@@ -145,18 +150,24 @@ export function useMapData({
             gridCalibrated?: boolean
             sceneNpcIds?: string[]
             presentedNpcId?: string
+            drawingScene?: string
             updatedAt?: { toMillis?: () => number }
           }
           const gridType: MapRecord['gridType'] =
             data.gridType === 'hex-pointy' || data.gridType === 'hex-flat'
               ? data.gridType
               : 'square'
+          const kind: MapRecord['kind'] = data.kind === 'blank' ? 'blank' : 'image'
 
           return {
             id: docSnap.id,
             name: data.name ?? `Map ${docSnap.id}`,
+            kind,
             imagePath: data.imagePath ?? '',
             imageUrl: data.imageUrl ?? '',
+            backgroundColor: typeof data.backgroundColor === 'string' && data.backgroundColor
+              ? data.backgroundColor
+              : BLANK_MAP_BACKGROUND,
             fogDataUrl: data.fogDataUrl ?? '',
             fogImagePath: data.fogImagePath ?? '',
             fogImageUrl: data.fogImageUrl ?? '',
@@ -192,6 +203,7 @@ export function useMapData({
               ? data.sceneNpcIds.filter((id): id is string => typeof id === 'string')
               : [],
             presentedNpcId: typeof data.presentedNpcId === 'string' ? data.presentedNpcId : '',
+            drawingScene: typeof data.drawingScene === 'string' ? data.drawingScene : '',
             updatedAtMs: typeof data.updatedAt?.toMillis === 'function' ? data.updatedAt.toMillis() : 0,
           }
         })
@@ -689,8 +701,10 @@ export function useMapData({
 
       await setDoc(mapRef, {
         name: file.name.replace(/\.[^/.]+$/, ''),
+        kind: 'image',
         imagePath: storagePath,
         imageUrl: '',
+        backgroundColor: BLANK_MAP_BACKGROUND,
         fogDataUrl: '',
         fogImagePath: '',
         fogImageUrl: '',
@@ -712,6 +726,7 @@ export function useMapData({
         gridCalibrated: true,
         sceneNpcIds: [],
         presentedNpcId: '',
+        drawingScene: '',
         fogEnabled: true,
         fogGridSize: 128,
         createdAt: serverTimestamp(),
@@ -729,6 +744,60 @@ export function useMapData({
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Upload failed'
       setMapError(`Upload failed: ${message}. Bucket=${firebaseConfig.storageBucket}`)
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handleCreateBlankMap = async (): Promise<string | null> => {
+    if (role !== 'gm') return null
+    setMapError(null)
+    setUploading(true)
+
+    try {
+      const mapRef = doc(mapsCollectionRef)
+      await setDoc(mapRef, {
+        name: 'Blank Map',
+        kind: 'blank',
+        imagePath: '',
+        imageUrl: '',
+        backgroundColor: BLANK_MAP_BACKGROUND,
+        fogDataUrl: '',
+        fogImagePath: '',
+        fogImageUrl: '',
+        visionBlockDataUrl: '',
+        visionBlockImagePath: '',
+        visionBlockImageUrl: '',
+        fullyHidden: false,
+        width: BLANK_MAP_WIDTH,
+        height: BLANK_MAP_HEIGHT,
+        sortOrder: maps.length,
+        visibleToPlayers: false,
+        gridEnabled: false,
+        gridVisible: false,
+        gridCellScale: DEFAULT_GRID_CELL_SCALE,
+        gridOffsetX: 0,
+        gridOffsetY: 0,
+        gridType: 'square',
+        gridUnitsPerCell: 10,
+        gridCalibrated: true,
+        sceneNpcIds: [],
+        presentedNpcId: '',
+        drawingScene: '',
+        // A blank quick-draw map starts with fog off so the exported drawing is
+        // fully visible like an uploaded image. Fog-of-war is still available - the
+        // GM can enable it from the fog tools when running.
+        fogEnabled: false,
+        fogGridSize: 128,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+      setSelectedMapId(mapRef.id)
+      return mapRef.id
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Blank map creation failed'
+      setMapError(`Blank map creation failed: ${message}`)
+      return null
     } finally {
       setUploading(false)
     }
@@ -1057,6 +1126,45 @@ export function useMapData({
     )
   }
 
+  // ── Blank-map drawing persistence ─────────────────────────────────────────
+  // The GM authors a blank map in the Excalidraw editor, then saves. We flatten
+  // the scene to a PNG and store it as the map image (uploaded like any other),
+  // plus the editable scene JSON so the drawing can be reopened later. Players
+  // and every other map feature render the flattened image, so a saved blank map
+  // behaves exactly like an uploaded image map.
+  const saveBlankMapDrawing = async (
+    mapId: string,
+    sceneJson: string,
+    imageBlob: Blob,
+    width: number,
+    height: number,
+  ) => {
+    if (role !== 'gm') return
+    const storagePath = groupId
+      ? `groups/${groupId}/campaigns/${campaignId}/maps/${mapId}`
+      : `campaigns/${campaignId}/maps/${mapId}`
+    const storageRef = ref(storage, storagePath)
+
+    await auth.currentUser?.getIdToken(true)
+    await uploadBytes(storageRef, imageBlob, { contentType: 'image/png' })
+    let imageUrl = ''
+    try {
+      imageUrl = await getDownloadURL(storageRef)
+    } catch {
+      // The missing-URL resolver effect retries if the download URL is not ready.
+    }
+
+    await updateDoc(mapDocRef(mapId), {
+      kind: 'blank',
+      imagePath: storagePath,
+      imageUrl,
+      drawingScene: sceneJson,
+      width: Math.max(1, Math.round(width)),
+      height: Math.max(1, Math.round(height)),
+      updatedAt: serverTimestamp(),
+    })
+  }
+
   // ── Token asset CRUD ────────────────────────────────────────────────────────
   const saveTokenAssetFile = async (nextFile: File, width: number, height: number, assetName?: string) => {
     const safeName = nextFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
@@ -1164,6 +1272,7 @@ export function useMapData({
     selectedMap,
     // Map CRUD
     handleMapUpload,
+    handleCreateBlankMap,
     startRename,
     saveRename,
     deleteMap,
@@ -1189,6 +1298,7 @@ export function useMapData({
     toggleAnnotationPointerDirection,
     moveAnnotationPosition,
     persistAnnotationPosition,
+    saveBlankMapDrawing,
     // Token asset CRUD
     saveTokenAssetFile,
     archiveTokenAsset,
