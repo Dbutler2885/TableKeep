@@ -339,7 +339,6 @@ export function MapDrawingEditor({
     const copies = stamp.shapes.map((shape) => ({ ...shape, id: nextId(), x: shape.x + cx - stamp.width / 2, y: shape.y + cy - stamp.height / 2 }))
     mutate((prev) => [...prev, ...copies], { nextSelectedIds: copies.map((shape) => shape.id) })
     setTool('select')
-    setPlacingStamp(null)
   }, [mutate])
 
   const handleShapeInteract = useCallback((id: string, type: Shape['type'], shiftKey: boolean) => {
