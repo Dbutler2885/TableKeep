@@ -38,6 +38,9 @@ export function useVtmRoller(characterId: string | null) {
   const [history, setHistory] = useState<RollEntry[]>([])
   const [viewIndex, setViewIndex] = useState(-1)
   const [logOpen, setLogOpen] = useState(false)
+  // Bumped on each inline single-trait roll so the bar can scroll its result
+  // into view — those pills live far below the staging bar.
+  const [singleRollTick, setSingleRollTick] = useState(0)
 
   // Switching characters resets the whole roller — staging and history are
   // per-character session state, and must not leak between sheets. Reset during
@@ -54,6 +57,7 @@ export function useVtmRoller(characterId: string | null) {
     setHistory([])
     setViewIndex(-1)
     setLogOpen(false)
+    setSingleRollTick(0)
   }
 
   const poolCount = barMode === 'damage' ? damageDice : poolDiceCount(stagedAttr, stagedSecond)
@@ -135,6 +139,7 @@ export function useVtmRoller(characterId: string | null) {
     setBarMode('single')
     const count = Math.max(0, rating)
     pushRoll(name, count, rollDice(count))
+    setSingleRollTick((tick) => tick + 1)
   }, [pushRoll])
 
   const navPrev = useCallback(() => setViewIndex((index) => Math.max(0, index - 1)), [])
@@ -182,12 +187,13 @@ export function useVtmRoller(characterId: string | null) {
       openLog: () => setLogOpen(true),
       closeLog: () => setLogOpen(false),
       isStaged,
+      singleRollTick,
     }),
     [
       rollMode, openRoller, closeRoller, stagedAttr, stagedSecond, barMode, activePreset,
       damageDice, adjustDamageDice, poolCount, stageAttr, stageSecond, clearSlot, applyPreset, clearStage,
       rollPool, rollSingle, history, viewIndex, current, isLatest, navPrev, navNext, navLatest,
-      logOpen, isStaged,
+      logOpen, isStaged, singleRollTick,
     ],
   )
 }

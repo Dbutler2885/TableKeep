@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { ChevronLast, ChevronLeft, ChevronRight, Dices, Info, Minus, Plus, X } from 'lucide-react'
 import type { VtmCharacterSheet } from './vtmTypes'
 import { initiativePreset, soakPreset } from './vtmRoll'
@@ -75,6 +76,15 @@ function RollLogModal({ history, onClose }: { history: RollEntry[]; onClose: () 
 }
 
 export function VtmRollBar({ roller, sheet }: { roller: VtmRoller; sheet: VtmCharacterSheet }) {
+  const resultRowRef = useRef<HTMLDivElement>(null)
+  // Inline single-trait pills (Virtues / Willpower / Humanity) sit far below the
+  // staging bar, so bring the result into view after rolling from one.
+  useEffect(() => {
+    if (roller.singleRollTick > 0) {
+      resultRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [roller.singleRollTick])
+
   if (!roller.rollMode) {
     return (
       <div className="vtm-roll-launch">
@@ -172,7 +182,7 @@ export function VtmRollBar({ roller, sheet }: { roller: VtmRoller; sheet: VtmCha
       ) : null}
 
       <div className="vtm-roll-result">
-        <div className="vtm-roll-result-row">
+        <div className="vtm-roll-result-row" ref={resultRowRef}>
           <div className="vtm-result-nav">
             <button type="button" className="vtm-nav-btn" onClick={roller.navPrev} disabled={!roller.canPrev} aria-label="Older roll" title="Older roll">
               <ChevronLeft size={17} />
