@@ -7,6 +7,8 @@ import { uploadEntityImage } from '../common/mediaStorage'
 import { makeId } from './characterFactories'
 import { DotRating } from './DotRating'
 import { useVtmCharacters } from './useVtmCharacters'
+import { useVtmRoller, type VtmRoller } from './useVtmRoller'
+import { VtmRollBar } from './VtmRollBar'
 import {
   VTM_ABILITIES,
   VTM_ATTRIBUTES,
@@ -180,6 +182,7 @@ export function VtmCharacterTab({
     updateCharacter,
     deleteCharacter,
   } = useVtmCharacters(campaignId, groupId, currentUserId, currentUsername, role, gmUserId, setError)
+  const roller = useVtmRoller(selectedCharacterId)
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [freebieMode, setFreebieMode] = useState(false)
   const [spendXpMode, setSpendXpMode] = useState(false)
@@ -781,6 +784,10 @@ export function VtmCharacterTab({
               {feedback ? <p className="settings-help vtm-feedback">{feedback}</p> : null}
             </section>
 
+            <section className="character-placeholder-block vtm-block vtm-roller-block">
+              <VtmRollBar roller={roller} sheet={sheet} />
+            </section>
+
             <DotSections
               sheet={sheet}
               canEdit={canEdit}
@@ -792,6 +799,7 @@ export function VtmCharacterTab({
               isGuidedDraft={isGuidedDraft}
               freebieMode={freebieMode}
               xpMode={xpMode}
+              roller={roller}
             />
 
             <section className="character-placeholder-block vtm-block">
@@ -811,6 +819,7 @@ export function VtmCharacterTab({
                   onPersist={(rows) => updateSheet((current) => ({ ...current, disciplines: rows }))}
                   onDot={(rowId, rating) => setRatedRowDot('disciplines', disciplineRows, rowId, rating)}
                   onChange={(rowId, updates) => updateRatedRows('disciplines', disciplineRows, rowId, updates)}
+                  stageRoller={roller}
                 />
                 <RatedRows
                   title="Backgrounds"
@@ -826,12 +835,18 @@ export function VtmCharacterTab({
                 />
               </div>
               <div className="character-ability-grid vtm-virtues">
-                {VTM_VIRTUES.map((virtue) => (
-                  <div key={virtue} className="character-ability-row vtm-trait-row">
-                    <span className="vtm-trait-name">{virtue}</span>
-                    <DotRating value={sheet.virtues[virtue] ?? 1} label={virtue} disabled={!canEdit || (isActive && !spendXpMode)} onChange={(rating) => setVirtueDot(virtue, rating)} min={1} />
-                  </div>
-                ))}
+                {VTM_VIRTUES.map((virtue) => {
+                  const virtueRating = sheet.virtues[virtue] ?? 1
+                  return (
+                    <div key={virtue} className="character-ability-row vtm-trait-row with-pill">
+                      <span className="vtm-trait-name">{virtue}</span>
+                      {roller.rollMode ? (
+                        <button type="button" className="vtm-roll-pill vtm-roll-pill-inline" onClick={() => roller.rollSingle(virtue, virtueRating)}>Roll</button>
+                      ) : null}
+                      <DotRating value={virtueRating} label={virtue} disabled={!canEdit || (isActive && !spendXpMode)} onChange={(rating) => setVirtueDot(virtue, rating)} min={1} />
+                    </div>
+                  )
+                })}
                 {isGuidedDraft ? <span className={`vtm-pool-chip${virtuePoolStatus(sheet).over ? ' over' : ''}`}>{virtuePoolStatus(sheet).remaining}</span> : null}
                 {freebieMode ? <span className="vtm-cost-chip">{FREEBIE_COSTS.virtue}/dot</span> : null}
                 {xpMode ? <span className="vtm-cost-chip">{xpRuleLabel('virtue')}</span> : null}
@@ -854,6 +869,7 @@ export function VtmCharacterTab({
               humanityFreebieCost={isGuidedDraft && freebieMode ? FREEBIE_COSTS.humanity : null}
               onWillpowerCapChange={setWillpowerCap}
               onHumanityChange={setHumanityDot}
+              roller={roller}
             />
             <TextAndCombat sheet={sheet} canEdit={canEdit} updateSheet={updateSheet} />
 
@@ -949,6 +965,7 @@ function DotSections({
   isGuidedDraft,
   freebieMode,
   xpMode,
+  roller,
 }: {
   sheet: VtmCharacterSheet
   canEdit: boolean
@@ -960,6 +977,7 @@ function DotSections({
   isGuidedDraft: boolean
   freebieMode: boolean
   xpMode: boolean
+  roller: VtmRoller
 }) {
   const setPriority = (key: 'attributePriority' | 'abilityPriority', category: string, next: VtmCreationPriority) => {
     updateSheet((current) => {
@@ -991,12 +1009,21 @@ function DotSections({
                 {xpMode ? <span className="vtm-cost-chip">{xpRuleLabel('attribute')}</span> : null}
               </div>
               <div className="character-ability-grid">
-                {names.map((name) => (
-                  <div key={name} className="character-ability-row vtm-trait-row">
-                    <span className="vtm-trait-name">{name}</span>
-                    <DotRating value={sheet.attributes[typedCategory][name] ?? 1} min={1} max={dotMax} label={name} disabled={!canEdit || dotsLocked} onChange={(rating) => setAttributeDot(typedCategory, name, rating)} />
-                  </div>
-                ))}
+                {names.map((name) => {
+                  const rating = sheet.attributes[typedCategory][name] ?? 1
+                  return (
+                    <div
+                      key={name}
+                      className={['character-ability-row', 'vtm-trait-row', roller.rollMode ? 'stageable' : '', roller.isStaged('attr', name) ? 'staged' : ''].filter(Boolean).join(' ')}
+                      role={roller.rollMode ? 'button' : undefined}
+                      onClick={roller.rollMode ? () => roller.stageAttr(name, rating) : undefined}
+                    >
+                      <span className="vtm-trait-name">{name}</span>
+                      {roller.rollMode ? <span className="vtm-stage-flag">Staged</span> : null}
+                      <DotRating value={rating} min={1} max={dotMax} label={name} disabled={!canEdit || dotsLocked} onChange={(next) => setAttributeDot(typedCategory, name, next)} />
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )
@@ -1020,12 +1047,21 @@ function DotSections({
                 {xpMode ? <span className="vtm-cost-chip">{xpRuleLabel('ability')}</span> : null}
               </div>
               <div className="character-ability-grid">
-                {names.map((name) => (
-                  <div key={name} className="character-ability-row vtm-trait-row">
-                    <span className="vtm-trait-name">{name}</span>
-                    <DotRating value={sheet.abilities[typedCategory][name] ?? 0} max={dotMax} label={name} disabled={!canEdit || dotsLocked} onChange={(rating) => setAbilityDot(typedCategory, name, rating)} />
-                  </div>
-                ))}
+                {names.map((name) => {
+                  const rating = sheet.abilities[typedCategory][name] ?? 0
+                  return (
+                    <div
+                      key={name}
+                      className={['character-ability-row', 'vtm-trait-row', roller.rollMode ? 'stageable' : '', roller.isStaged('second', name) ? 'staged' : ''].filter(Boolean).join(' ')}
+                      role={roller.rollMode ? 'button' : undefined}
+                      onClick={roller.rollMode ? () => roller.stageSecond('Ability', name, rating) : undefined}
+                    >
+                      <span className="vtm-trait-name">{name}</span>
+                      {roller.rollMode ? <span className="vtm-stage-flag">Staged</span> : null}
+                      <DotRating value={rating} max={dotMax} label={name} disabled={!canEdit || dotsLocked} onChange={(next) => setAbilityDot(typedCategory, name, next)} />
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )
@@ -1049,6 +1085,7 @@ function RatedRows({
   onPersist,
   onDot,
   onChange,
+  stageRoller,
 }: {
   title: string
   rows: VtmRatedRow[]
@@ -1063,6 +1100,10 @@ function RatedRows({
   onPersist: (rows: VtmRatedRow[]) => void
   onDot: (rowId: string, rating: number) => void
   onChange: (rowId: string, updates: Partial<VtmRatedRow>) => void
+  // When supplied (Disciplines only), whole-row click stages the row into the
+  // roller's second slot while Roll mode is on. CSS neutralises the inner edit
+  // controls during staging so the click reaches the row.
+  stageRoller?: VtmRoller
 }) {
   const hasOptions = options.length > 0
   return (
@@ -1077,8 +1118,16 @@ function RatedRows({
       {help ? <p className="settings-help vtm-rated-help">{help}</p> : null}
       {rows.map((row) => {
         const isKnown = hasOptions && options.includes(row.name)
+        const stageable = !!stageRoller?.rollMode && row.name.trim() !== ''
+        const staged = stageable && !!stageRoller?.isStaged('second', row.name)
         return (
-          <div key={row.id} className="vtm-rated-row">
+          <div
+            key={row.id}
+            className={['vtm-rated-row', stageable ? 'stageable' : '', staged ? 'staged' : ''].filter(Boolean).join(' ')}
+            role={stageable ? 'button' : undefined}
+            onClick={stageable ? () => stageRoller?.stageSecond('Discipline', row.name, row.rating) : undefined}
+          >
+            {stageRoller?.rollMode ? <span className="vtm-stage-flag">Staged</span> : null}
             {hasOptions ? (
               <select value={isKnown ? row.name : ''} disabled={disabled} onChange={(event) => onChange(row.id, { name: event.target.value })}>
                 <option value="">Custom…</option>
@@ -1108,6 +1157,7 @@ function Trackers({
   humanityFreebieCost,
   onWillpowerCapChange,
   onHumanityChange,
+  roller,
 }: {
   sheet: VtmCharacterSheet
   canEdit: boolean
@@ -1119,6 +1169,7 @@ function Trackers({
   humanityFreebieCost: number | null
   onWillpowerCapChange: (nextRating: number) => void
   onHumanityChange: (nextRating: number) => void
+  roller: VtmRoller
 }) {
   const hasRolledStartingBlood = sheet.bloodPoolCurrent > 0
   const bloodRollLocked = isGuidedDraft && hasRolledStartingBlood
@@ -1139,7 +1190,12 @@ function Trackers({
           ))}
         </div>
         <div>
-          <h4>Willpower</h4>
+          <div className="vtm-tracker-head">
+            <h4>Willpower</h4>
+            {roller.rollMode ? (
+              <button type="button" className="vtm-roll-pill vtm-roll-pill-inline" onClick={() => roller.rollSingle('Willpower', sheet.willpowerPermanent)}>Roll</button>
+            ) : null}
+          </div>
           <div className="vtm-tracker-row stacked">
             <span>Current / Permanent {freebieCost != null ? <em>{freebieCost}/dot</em> : null}{xpMode ? <em>{xpRuleLabel('willpower')}</em> : null}</span>
             <CappedTracker
@@ -1174,7 +1230,12 @@ function Trackers({
           <p className="settings-help">Max {bloodPoolMax ?? 'unknown'}</p>
         </div>
         <div>
-          <h4>Humanity {humanityFreebieCost != null ? <em>{humanityFreebieCost}/dot</em> : null}{xpMode ? <em>{xpRuleLabel('humanity')}</em> : null}</h4>
+          <div className="vtm-tracker-head">
+            <h4>Humanity {humanityFreebieCost != null ? <em>{humanityFreebieCost}/dot</em> : null}{xpMode ? <em>{xpRuleLabel('humanity')}</em> : null}</h4>
+            {roller.rollMode ? (
+              <button type="button" className="vtm-roll-pill vtm-roll-pill-inline" onClick={() => roller.rollSingle('Humanity', sheet.humanity)}>Roll</button>
+            ) : null}
+          </div>
           <DotRating
             value={sheet.humanity}
             max={10}
