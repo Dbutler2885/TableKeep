@@ -11,6 +11,7 @@ import {
   dropTokenPlacement,
   startWholePartyTokenPlacement,
 } from './tokenPlacementQueue'
+import type { CharacterTokenSummary } from './types'
 
 const pawn = { icon: 'pawn' as const, color: '#2f5bbf', size: 34 }
 const custom = {
@@ -21,6 +22,16 @@ const custom = {
   customImageUrl: 'https://example.test/aria.webp',
   customImageName: 'aria.webp',
 }
+const gmUserId = 'gm-user'
+
+const character = (
+  overrides: Partial<CharacterTokenSummary> & Pick<CharacterTokenSummary, 'id' | 'name'>,
+): CharacterTokenSummary => ({
+  tokenIcon: pawn,
+  ownerUserId: 'player-user',
+  hpCurrent: 1,
+  ...overrides,
+})
 
 describe('token placement sources', () => {
   it('maps NPC summaries to NPC placement sources', () => {
@@ -61,8 +72,8 @@ describe('token placement sources', () => {
   })
 
   it('maps party characters and preserves list order for Whole Party placement', () => {
-    const aria = { id: 'character-aria', name: 'Aria', tokenIcon: custom }
-    const bram = { id: 'character-bram', name: 'Bram', tokenIcon: pawn }
+    const aria = character({ id: 'character-aria', name: 'Aria', tokenIcon: custom })
+    const bram = character({ id: 'character-bram', name: 'Bram', tokenIcon: pawn })
 
     expect(toPartyCharacterTokenPlacementSource(aria)).toEqual({
       kind: 'partyCharacter',
@@ -70,16 +81,69 @@ describe('token placement sources', () => {
       name: 'Aria',
       tokenIcon: custom,
     })
-    expect(buildWholePartyTokenPlacementSources([aria, bram]).map((source) => source.id)).toEqual([
+    expect(buildWholePartyTokenPlacementSources([aria, bram], gmUserId).map((source) => source.id)).toEqual([
       'character-aria',
       'character-bram',
     ])
+  })
+
+  it('includes only player-owned living characters for party placement sources', () => {
+    const livingPlayer = character({
+      id: 'living-player',
+      name: 'Living Player',
+      ownerUserId: 'player-user',
+      hpCurrent: 4,
+    })
+    const deadPlayer = character({
+      id: 'dead-player',
+      name: 'Dead Player',
+      ownerUserId: 'player-user',
+      hpCurrent: 0,
+    })
+    const livingGm = character({
+      id: 'living-gm',
+      name: 'Living GM',
+      ownerUserId: gmUserId,
+      hpCurrent: 4,
+    })
+    const deadGm = character({
+      id: 'dead-gm',
+      name: 'Dead GM',
+      ownerUserId: gmUserId,
+      hpCurrent: 0,
+    })
+    const missingOwner = character({
+      id: 'missing-owner',
+      name: 'Missing Owner',
+      ownerUserId: '',
+      hpCurrent: 4,
+    })
+
+    expect(
+      buildWholePartyTokenPlacementSources(
+        [livingPlayer, deadPlayer, livingGm, deadGm, missingOwner],
+        gmUserId,
+      ).map((source) => source.id),
+    ).toEqual(['living-player'])
+  })
+
+  it('does not treat missing ownership fields as player-owned', () => {
+    const missingOwner = {
+      id: 'missing-owner-field',
+      name: 'Missing Owner Field',
+      tokenIcon: pawn,
+      hpCurrent: 5,
+    } as CharacterTokenSummary
+
+    expect(buildWholePartyTokenPlacementSources([missingOwner], gmUserId)).toEqual([])
   })
 
   it('lets missing party token art fall back to the default pawn in the queue', () => {
     const source = toPartyCharacterTokenPlacementSource({
       id: 'character-no-art',
       name: 'No Art',
+      ownerUserId: 'player-user',
+      hpCurrent: 1,
     } as Parameters<typeof toPartyCharacterTokenPlacementSource>[0])
     const queue = startWholePartyTokenPlacement([source])
     const result = dropTokenPlacement(queue, { x: 0.5, y: 0.5 }, [])
