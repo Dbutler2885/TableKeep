@@ -11,7 +11,7 @@ import type {
 } from '../../types/app'
 import type { AbilityScores, SaveScores, AdventureScores, ThiefSkillScores } from './characterRules'
 import { emptyAbilityScores } from './characterRules'
-import { stableStringify } from './characterFactories'
+import { stableStringify, ensureSpellBookInInventory } from './characterFactories'
 import { inventoryFromDetails, shouldAdoptIncomingInventory } from './inventorySync'
 
 type Setter<T> = Dispatch<SetStateAction<T>>
@@ -191,10 +191,19 @@ export function useCharacterPersistenceSync({
       const details = character.details
 
       const seedInventory = (d: CharacterSheetDetails) => {
-        const inv = inventoryFromDetails(d, migrateToInventory)
-        lastPersistedInventoryJsonRef.current[id] = stableStringify(inv)
-        locallyDirtyInventoryCharacterIdsRef.current.delete(id)
-        setInventoryByCharacterId((prev) => ({ ...prev, [id]: inv }))
+        const remoteInv = inventoryFromDetails(d, migrateToInventory)
+        // Backfill/self-heal: arcane spellcasters created before they were wired for
+        // spellbooks are missing the spell book item (and thus its shop-like UI). Inject it
+        // on hydration. lastPersisted stays the remote value, so the healed inventory reads
+        // as locally dirty and persists next time the character is selected.
+        const healedInv = ensureSpellBookInInventory(character.className, remoteInv)
+        lastPersistedInventoryJsonRef.current[id] = stableStringify(remoteInv)
+        if (stableStringify(healedInv) === lastPersistedInventoryJsonRef.current[id]) {
+          locallyDirtyInventoryCharacterIdsRef.current.delete(id)
+        } else {
+          locallyDirtyInventoryCharacterIdsRef.current.add(id)
+        }
+        setInventoryByCharacterId((prev) => ({ ...prev, [id]: healedInv }))
       }
 
       if (!seededCharacterIdsRef.current.has(id)) {
