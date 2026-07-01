@@ -13985,6 +13985,19 @@ button:disabled {
   border: none !important;
 }
 .shell-root[data-theme="vtm"] .vtm-trackers > div { min-width: 0; }
+/* Tracker dot rows fill their column and wrap, so a long Blood Pool (up to ~13
+   dots at low generation) wraps to a second row inside its own column instead
+   of bleeding into the neighbouring Willpower / Humanity tracker. */
+.shell-root[data-theme="vtm"] .vtm-trackers .dot-rating,
+.shell-root[data-theme="vtm"] .vtm-trackers .vtm-capped-tracker {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+/* Extra row spacing so a wrapped capped tracker keeps room for its cap mark. */
+.shell-root[data-theme="vtm"] .vtm-trackers .vtm-capped-tracker {
+  row-gap: 10px;
+}
 .shell-root[data-theme="vtm"] .vtm-trackers h4 {
   font-variant: small-caps;
   letter-spacing: 0.12em;
@@ -14018,6 +14031,588 @@ button:disabled {
   letter-spacing: 0.08em;
   line-height: 1.2;
   text-transform: uppercase;
+}
+
+/* ====================================================================== */
+/* === VtM sheet dice roller =========================================== */
+/* Local, session-only roller that lives directly above Attributes. The    */
+/* app rolls raw d10s and shows the faces — no difficulty / successes /    */
+/* botches; the table reads the dice. Markup in VtmRollBar.tsx.            */
+/* ====================================================================== */
+
+/* The roller section carries no block chrome — the trigger and bar own it. */
+.shell-root[data-theme="vtm"] .vtm-roller-block {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0.4rem 0 0.2rem;
+}
+
+/* Collapsed trigger — occupies the bar's spot until summoned. */
+.shell-root[data-theme="vtm"] .vtm-roll-launch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border: 1px dashed var(--vtm-gold-faint);
+  background: linear-gradient(180deg, rgba(36, 20, 25, 0.4), rgba(10, 7, 8, 0.3));
+  padding: 0.7rem 1rem;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-launch-hint,
+.shell-root[data-theme="vtm"] .vtm-roll-launch-sub {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--vtm-gold-soft);
+}
+.shell-root[data-theme="vtm"] .vtm-roll-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 0.82rem;
+  padding: 0.55rem 1.4rem;
+  background: rgba(196, 162, 90, 0.06);
+  border: 1px solid var(--vtm-gold-faint);
+  color: var(--vtm-gold);
+  cursor: pointer;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-toggle:hover {
+  border-color: var(--vtm-gold);
+  color: var(--vtm-bone);
+  box-shadow: 0 0 10px rgba(163, 34, 38, 0.25);
+}
+
+/* The summoned staging bar. */
+.shell-root[data-theme="vtm"] .vtm-roll-bar {
+  border: 1px solid var(--vtm-gold-faint);
+  background: linear-gradient(180deg, rgba(36, 20, 25, 0.6), rgba(10, 7, 8, 0.5));
+  box-shadow: inset 0 0 0 1px rgba(196, 162, 90, 0.05);
+  padding: 0.85rem 1rem 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  animation: vtmRollBarIn 0.22s ease-out;
+}
+@keyframes vtmRollBarIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.shell-root[data-theme="vtm"] .vtm-roll-bar-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.7rem;
+  min-height: 2.1rem;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-bar-tag {
+  font-family: 'Special Elite', monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.68rem;
+  color: var(--vtm-gold);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-live {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--vtm-oxblood-bright);
+  box-shadow: 0 0 7px rgba(163, 34, 38, 0.7);
+}
+.shell-root[data-theme="vtm"] .vtm-roll-bar-sep { flex: 1 1 auto; }
+
+/* Preset buttons — minimal pill family. */
+.shell-root[data-theme="vtm"] .vtm-preset {
+  min-height: 0;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--vtm-gold-soft);
+  background: rgba(196, 162, 90, 0.08);
+  color: var(--vtm-gold);
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 0.74rem;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.shell-root[data-theme="vtm"] .vtm-preset:hover {
+  background: rgba(196, 162, 90, 0.16);
+  border-color: var(--vtm-gold);
+  color: var(--vtm-bone);
+}
+.shell-root[data-theme="vtm"] .vtm-preset.active {
+  background: linear-gradient(180deg, rgba(163, 34, 38, 0.35), rgba(122, 26, 31, 0.15));
+  border-color: var(--vtm-oxblood-bright);
+  color: var(--vtm-bone);
+}
+.shell-root[data-theme="vtm"] .vtm-roll-bar-close {
+  flex: 0 0 auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--vtm-rule-strong);
+  background: transparent;
+  color: var(--vtm-mute);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-bar-close:hover {
+  border-color: var(--vtm-gold-faint);
+  color: var(--vtm-parchment);
+}
+
+/* Pool builder slots — fixed dimensions so staging never shifts layout. */
+.shell-root[data-theme="vtm"] .vtm-roll-pool {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+.shell-root[data-theme="vtm"] .vtm-pool-slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 2.4rem;
+  min-width: 11rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--vtm-rule-strong);
+  border-radius: 4px;
+  background: rgba(10, 7, 8, 0.55);
+}
+.shell-root[data-theme="vtm"] .vtm-pool-slot.filled {
+  border-color: var(--vtm-gold-faint);
+  background: rgba(196, 162, 90, 0.06);
+}
+.shell-root[data-theme="vtm"] .vtm-pool-slot.empty .vtm-slot-text {
+  color: var(--vtm-mute);
+  font-style: italic;
+}
+.shell-root[data-theme="vtm"] .vtm-slot-kind {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--vtm-gold-soft);
+}
+.shell-root[data-theme="vtm"] .vtm-slot-text {
+  flex: 1 1 auto;
+  color: var(--vtm-bone);
+  font-size: 1rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.shell-root[data-theme="vtm"] .vtm-slot-rating {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.9rem;
+  color: var(--vtm-gold);
+}
+.shell-root[data-theme="vtm"] .vtm-slot-x {
+  flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--vtm-mute);
+  cursor: pointer;
+  padding: 0;
+}
+.shell-root[data-theme="vtm"] .vtm-slot-x:hover { color: var(--vtm-oxblood-bright); }
+.shell-root[data-theme="vtm"] .vtm-pool-plus {
+  color: var(--vtm-gold-soft);
+  font-size: 1.2rem;
+  padding: 0 0.1rem;
+}
+.shell-root[data-theme="vtm"] .vtm-pool-count {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.92rem;
+  color: var(--vtm-gold);
+  white-space: nowrap;
+}
+.shell-root[data-theme="vtm"] .vtm-pool-count b { color: var(--vtm-bone); font-size: 1.15rem; }
+
+/* Manual damage count entry. */
+.shell-root[data-theme="vtm"] .vtm-damage-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.shell-root[data-theme="vtm"] .vtm-damage-count label {
+  font-size: 0.78rem;
+  font-variant: small-caps;
+  letter-spacing: 0.08em;
+  color: var(--vtm-gold);
+}
+.shell-root[data-theme="vtm"] .vtm-stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--vtm-rule-strong);
+  border-radius: 4px;
+  background: rgba(10, 7, 8, 0.55);
+  overflow: hidden;
+}
+.shell-root[data-theme="vtm"] .vtm-stepper button {
+  width: 1.8rem;
+  height: 2.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--vtm-gold);
+  cursor: pointer;
+}
+.shell-root[data-theme="vtm"] .vtm-stepper button:hover { background: rgba(196, 162, 90, 0.12); }
+.shell-root[data-theme="vtm"] .vtm-stepper-val {
+  width: 2.2rem;
+  text-align: center;
+  font-family: 'Special Elite', monospace;
+  font-size: 1rem;
+  color: var(--vtm-bone);
+}
+
+.shell-root[data-theme="vtm"] .vtm-roll-go {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.78rem;
+  font-family: 'Cormorant Garamond', serif;
+  padding: 0.5rem 1.2rem;
+  cursor: pointer;
+  background: linear-gradient(180deg, rgba(163, 34, 38, 0.4), rgba(122, 26, 31, 0.18));
+  border: 1px solid var(--vtm-oxblood-bright);
+  color: var(--vtm-bone);
+  transition: box-shadow 0.18s ease;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-go:hover:not(:disabled) { box-shadow: 0 0 16px rgba(163, 34, 38, 0.45); }
+.shell-root[data-theme="vtm"] .vtm-roll-go:disabled { opacity: 0.4; cursor: default; }
+.shell-root[data-theme="vtm"] .vtm-roll-clear {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.7rem;
+  font-family: 'Cormorant Garamond', serif;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--vtm-rule-strong);
+  color: var(--vtm-mute);
+}
+.shell-root[data-theme="vtm"] .vtm-roll-clear:hover { border-color: var(--vtm-gold-faint); color: var(--vtm-parchment); }
+
+/* Contextual help line. */
+.shell-root[data-theme="vtm"] .vtm-roll-bar-help {
+  margin: 0;
+  font-size: 0.9rem;
+  font-style: italic;
+  color: var(--vtm-faint);
+  border-left: 2px solid var(--vtm-gold-faint);
+  padding-left: 0.6rem;
+}
+
+/* Result area — one roll at a time. */
+.shell-root[data-theme="vtm"] .vtm-roll-result {
+  border-top: 1px solid var(--vtm-rule);
+  padding-top: 0.65rem;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-result-row {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  min-height: 2.6rem;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-result-label {
+  flex: 0 0 auto;
+  min-width: 11rem;
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  color: var(--vtm-parchment);
+  font-size: 0.98rem;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-result-label b {
+  font-style: normal;
+  color: var(--vtm-gold);
+  font-variant: small-caps;
+  letter-spacing: 0.04em;
+}
+.shell-root[data-theme="vtm"] .vtm-result-meta {
+  display: block;
+  font-style: normal;
+  font-family: 'Special Elite', monospace;
+  font-size: 0.66rem;
+  color: var(--vtm-gold-soft);
+  letter-spacing: 0.06em;
+  margin-top: 0.1rem;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="vtm"] .vtm-dice-tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.shell-root[data-theme="vtm"] .vtm-die {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--vtm-gold-soft);
+  border-radius: 6px;
+  background:
+    radial-gradient(circle at 32% 26%, rgba(255, 245, 220, 0.1), transparent 60%),
+    linear-gradient(180deg, #1c1115, #0c0809);
+  color: var(--vtm-bone);
+  font-family: 'Special Elite', monospace;
+  font-size: 1.02rem;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.6);
+}
+/* Faint neutral reading aid — gold 10s, oxblood 1s. Not a verdict. */
+.shell-root[data-theme="vtm"] .vtm-die.ten {
+  border-color: var(--vtm-gold);
+  color: var(--vtm-gold);
+  box-shadow: inset 0 0 8px rgba(196, 162, 90, 0.35);
+}
+.shell-root[data-theme="vtm"] .vtm-die.one {
+  border-color: var(--vtm-oxblood-bright);
+  color: #e8908f;
+  box-shadow: inset 0 0 8px rgba(163, 34, 38, 0.3);
+}
+.shell-root[data-theme="vtm"] .vtm-roll-empty {
+  color: var(--vtm-mute);
+  font-style: italic;
+  font-size: 0.95rem;
+}
+
+/* History nav cluster (ChevronLeft / ChevronRight / ChevronLast). */
+.shell-root[data-theme="vtm"] .vtm-result-nav {
+  flex: 0 0 auto;
+  display: inline-flex;
+  gap: 0.25rem;
+}
+.shell-root[data-theme="vtm"] .vtm-nav-btn {
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--vtm-rule-strong);
+  border-radius: 4px;
+  background: rgba(10, 7, 8, 0.55);
+  color: var(--vtm-gold);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.shell-root[data-theme="vtm"] .vtm-nav-btn:hover:not(:disabled) {
+  border-color: var(--vtm-gold);
+  color: var(--vtm-bone);
+  background: rgba(196, 162, 90, 0.12);
+}
+.shell-root[data-theme="vtm"] .vtm-nav-btn:disabled { opacity: 0.3; cursor: default; }
+
+/* Info button — opens the timestamped log. */
+.shell-root[data-theme="vtm"] .vtm-result-info {
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: 1.7rem;
+  height: 1.7rem;
+  padding: 0;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--vtm-gold-soft);
+  background: rgba(196, 162, 90, 0.08);
+  color: var(--vtm-gold);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.shell-root[data-theme="vtm"] .vtm-result-info:hover {
+  border-color: var(--vtm-gold);
+  color: var(--vtm-bone);
+  background: rgba(196, 162, 90, 0.18);
+}
+
+/* Roll log modal. */
+.shell-root[data-theme="vtm"] .vtm-roll-log-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 3, 4, 0.72);
+  padding: 1.2rem;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-log-modal {
+  position: relative;
+  width: min(640px, 100%);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, rgba(36, 20, 25, 0.96), rgba(17, 11, 13, 0.98)), var(--vtm-pitch);
+  border: 1px solid var(--vtm-rule-strong);
+  box-shadow: inset 0 0 0 1px rgba(196, 162, 90, 0.06), 0 30px 70px rgba(0, 0, 0, 0.6);
+  padding: 1.2rem 1.3rem 1.4rem;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-log-head {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-bottom: 0.4rem;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-log-head h3 {
+  margin: 0;
+  font-family: 'Cormorant Garamond', serif;
+  font-style: italic;
+  font-weight: 600;
+  font-size: 1.4rem;
+  color: var(--vtm-gold);
+  letter-spacing: 0.04em;
+  flex: 1 1 auto;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-log-close {
+  flex: 0 0 auto;
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--vtm-rule-strong);
+  background: transparent;
+  color: var(--vtm-mute);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-log-close:hover { border-color: var(--vtm-gold-faint); color: var(--vtm-parchment); }
+.shell-root[data-theme="vtm"] .vtm-roll-log-note {
+  margin: 0 0 0.7rem;
+  font-size: 0.9rem;
+  color: var(--vtm-faint);
+  font-style: italic;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-log-table {
+  overflow-y: auto;
+  border-top: 1px solid var(--vtm-rule);
+}
+.shell-root[data-theme="vtm"] .vtm-log-row {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr auto;
+  gap: 0.5rem 0.9rem;
+  align-items: center;
+  padding: 0.5rem 0.2rem;
+  border-bottom: 1px solid var(--vtm-rule);
+}
+.shell-root[data-theme="vtm"] .vtm-log-row.empty {
+  display: block;
+  color: var(--vtm-mute);
+  font-style: italic;
+}
+.shell-root[data-theme="vtm"] .vtm-log-time {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.78rem;
+  color: var(--vtm-gold-soft);
+  white-space: nowrap;
+}
+.shell-root[data-theme="vtm"] .vtm-log-label {
+  color: var(--vtm-bone);
+  font-size: 0.96rem;
+  min-width: 0;
+}
+.shell-root[data-theme="vtm"] .vtm-log-meta {
+  font-family: 'Special Elite', monospace;
+  font-size: 0.66rem;
+  color: var(--vtm-gold-soft);
+  margin-left: 0.4rem;
+}
+.shell-root[data-theme="vtm"] .vtm-log-dice {
+  display: inline-flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.shell-root[data-theme="vtm"] .vtm-log-dice .vtm-die {
+  width: 24px;
+  height: 24px;
+  flex-basis: 24px;
+  font-size: 0.82rem;
+  border-radius: 5px;
+}
+
+/* Inline single-trait roll pills (Virtues / Willpower / Humanity). */
+.shell-root[data-theme="vtm"] .vtm-roll-pill-inline {
+  flex: 0 0 auto;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.shell-root[data-theme="vtm"] .vtm-roll-pill-inline:hover {
+  background: rgba(196, 162, 90, 0.18);
+  border-color: var(--vtm-gold);
+  color: var(--vtm-bone);
+}
+.shell-root[data-theme="vtm"] .vtm-trait-row.with-pill { gap: 0.5rem; }
+
+/* Stageable rows — whole-row click stages a trait while Roll mode is on.
+   Inner controls are neutralised so the click reaches the row (and never
+   mutates the character). */
+.shell-root[data-theme="vtm"] .vtm-trait-row.stageable,
+.shell-root[data-theme="vtm"] .vtm-rated-row.stageable {
+  cursor: pointer;
+  border: 1px solid transparent !important;
+  border-radius: 3px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-row.stageable:hover,
+.shell-root[data-theme="vtm"] .vtm-rated-row.stageable:hover {
+  background: rgba(196, 162, 90, 0.06) !important;
+  border-color: var(--vtm-gold-faint) !important;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-row.stageable .dot-rating,
+.shell-root[data-theme="vtm"] .vtm-rated-row.stageable > :not(.vtm-stage-flag) {
+  pointer-events: none;
+}
+.shell-root[data-theme="vtm"] .vtm-trait-row.staged,
+.shell-root[data-theme="vtm"] .vtm-rated-row.staged {
+  background: linear-gradient(180deg, rgba(163, 34, 38, 0.22), rgba(122, 26, 31, 0.08)) !important;
+  border-color: var(--vtm-oxblood-bright) !important;
+  box-shadow: inset 0 0 10px rgba(163, 34, 38, 0.18);
+}
+.shell-root[data-theme="vtm"] .vtm-stage-flag {
+  flex: 0 0 auto;
+  font-family: 'Special Elite', monospace;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--vtm-gold);
+  border: 1px solid var(--vtm-gold-faint);
+  border-radius: 999px;
+  padding: 0.04rem 0.4rem;
+  background: rgba(10, 7, 8, 0.6);
+  visibility: hidden;
+}
+.shell-root[data-theme="vtm"] .staged > .vtm-stage-flag { visibility: visible; }
+
+@media (max-width: 720px) {
+  .shell-root[data-theme="vtm"] .vtm-roll-result-label { min-width: 0; }
+  .shell-root[data-theme="vtm"] .vtm-pool-slot { min-width: 0; flex: 1 1 100%; }
 }
 .shell-root[data-theme="vtm"] .vtm-tracker-row {
   display: flex;
