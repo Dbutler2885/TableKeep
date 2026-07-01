@@ -526,6 +526,8 @@ export function useMapData({
             return {
               id: d.id,
               name: typeof data.name === 'string' ? data.name : '',
+              ownerUserId: typeof data.ownerUserId === 'string' ? data.ownerUserId : '',
+              hpCurrent: typeof data.hpCurrent === 'number' ? Math.max(0, data.hpCurrent) : 0,
               tokenIcon: customImageUrl ? { ...tokenIcon, customImageUrl } : tokenIcon,
             } satisfies CharacterTokenSummary
           })

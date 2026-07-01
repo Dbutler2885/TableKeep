@@ -90,7 +90,7 @@ export type MonsterSummary = {
   tokenIcon: TokenIconConfig
 }
 
-export type CharacterTokenSummary = Pick<CharacterRecord, 'id' | 'name' | 'tokenIcon'>
+export type CharacterTokenSummary = Pick<CharacterRecord, 'id' | 'name' | 'tokenIcon' | 'ownerUserId' | 'hpCurrent'>
 
 export type NpcSummary = {
   id: string

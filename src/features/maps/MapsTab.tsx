@@ -106,6 +106,7 @@ import {
   toMonsterTokenPlacementSource,
   toNpcTokenPlacementSource,
 } from './lib/tokenPlacementSources'
+import { isPlayerOwnedLivingPartyCharacter } from './lib/partyCharacterEligibility'
 import { GridOverlay } from './components/GridOverlay'
 import { ModeConfirmAction } from './components/ModeConfirmAction'
 import { PlayerMapControls } from './components/PlayerMapControls'
@@ -385,11 +386,13 @@ export function MapsTab({
   campaignId,
   groupId,
   role,
+  gmUserId,
   characterTabProps,
 }: {
   campaignId: string
   groupId: string
   role: Role | null
+  gmUserId: string | null
   characterTabProps?: React.ComponentProps<typeof CharacterTab>
 }) {
   const workspaceGroupId = groupId
@@ -603,8 +606,8 @@ export function MapsTab({
     [mapNpcs, selectedMap?.presentedNpcId],
   )
   const partyPlacementSources = useMemo(
-    () => buildWholePartyTokenPlacementSources(mapCharacters),
-    [mapCharacters],
+    () => buildWholePartyTokenPlacementSources(mapCharacters, gmUserId),
+    [gmUserId, mapCharacters],
   )
   const monsterPlacementSources = useMemo(
     () => mapMonsters.map(toMonsterTokenPlacementSource),
@@ -628,18 +631,21 @@ export function MapsTab({
   )
   const gmWorkspaceCharacters = useMemo(() => {
     if (!characterTabProps) return []
-    const byId = new Map<string, (typeof characterTabProps.characters)[number]>(
-      characterTabProps.characters.map((character) => [character.id, character]),
+    const eligibleCharacters = characterTabProps.characters.filter((character) =>
+      isPlayerOwnedLivingPartyCharacter(character, gmUserId),
+    )
+    const byId = new Map<string, (typeof eligibleCharacters)[number]>(
+      eligibleCharacters.map((character) => [character.id, character]),
     )
     const ordered = gmCharacterOrderIds
       .map((id) => byId.get(id))
       .filter((character): character is NonNullable<typeof character> => Boolean(character))
     const orderedIds = new Set(ordered.map((character) => character.id))
-    const extras = characterTabProps.characters
+    const extras = eligibleCharacters
       .filter((character) => !orderedIds.has(character.id))
       .sort((a, b) => a.name.localeCompare(b.name))
     return [...ordered, ...extras]
-  }, [characterTabProps, gmCharacterOrderIds])
+  }, [characterTabProps, gmCharacterOrderIds, gmUserId])
   const selectedGmCharacter = useMemo(
     () => gmWorkspaceCharacters.find((character) => character.id === selectedGmCharacterId) ?? gmWorkspaceCharacters[0] ?? null,
     [gmWorkspaceCharacters, selectedGmCharacterId],
