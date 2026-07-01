@@ -12,13 +12,13 @@ import type {
 import {
   SPELL_BOOK_TYPE_ID,
   arcaneSpellById,
-  getAccessibleArcaneSpellLevels,
   getAccessibleDivineSpellLevels,
-  getArcaneSpellsPerDay,
+  getCappedAccessibleArcaneSpellLevels,
+  getCappedArcaneSpellsPerDay,
   getDivineSpellsPerDay,
   divineSpellById,
 } from './spellCatalog'
-import { makeSpellBookItem } from './characterFactories'
+import { ensureSpellBookInInventory, isArcaneSpellbookClass } from './characterFactories'
 
 type Params = {
   effectiveSelected: CharacterRecord | null
@@ -111,9 +111,12 @@ export function useSpellbookDomain({
   const selectedMemorizedSpells = selectedMemorizedSpellIds
     .map((id) => classSpellById[id])
     .filter((spell): spell is CharacterSpell => !!spell)
-  const accessibleArcaneSpellLevels = getAccessibleArcaneSpellLevels(selectedLevel)
+  // Per-class arcane caps (elves: level 10 / 5th-level spells) are applied on top of the
+  // shared magic-user tables, so an elf never gains 6th-level spells or level 11+ slots
+  // even if their level is somehow set beyond the class maximum.
+  const accessibleArcaneSpellLevels = getCappedAccessibleArcaneSpellLevels(selectedClassName, selectedLevel)
   const accessibleDivineSpellLevels = getAccessibleDivineSpellLevels(selectedLevel)
-  const arcaneSpellsPerDay = getArcaneSpellsPerDay(selectedLevel)
+  const arcaneSpellsPerDay = getCappedArcaneSpellsPerDay(selectedClassName, selectedLevel)
   const divineSpellsPerDay = getDivineSpellsPerDay(selectedLevel)
   const preparedSpellLevels = selectedClassName === 'Cleric' ? accessibleDivineSpellLevels : accessibleArcaneSpellLevels
   const preparedSlotsPerDay = selectedClassName === 'Cleric' ? divineSpellsPerDay : arcaneSpellsPerDay
@@ -149,24 +152,22 @@ export function useSpellbookDomain({
   // Sync effects
   // ---------------------------------------------------------------------------
 
-  // Ensure arcane spellcasters get a spell book item in inventory during creation
-  function ensureSpellBookItemForCharacter(characterId: string) {
+  // Ensure arcane spellcasters get a spell book item in inventory during creation.
+  // (Already-finalized characters are healed on load in useCharacterPersistenceSync.)
+  function ensureSpellBookItemForCharacter(characterId: string, className: string) {
     setInventoryByCharacterId((current) => {
       const items = current[characterId] ?? []
-      const hasSpellBook = items.some((item) => item.kind === 'general' && item.typeId === SPELL_BOOK_TYPE_ID)
-      if (hasSpellBook) return current
-      return {
-        ...current,
-        [characterId]: [...items, makeSpellBookItem()],
-      }
+      const nextItems = ensureSpellBookInInventory(className, items)
+      if (nextItems === items) return current
+      return { ...current, [characterId]: nextItems }
     })
   }
 
   useEffect(() => {
     if (!effectiveSelected) return
     if (!isInFinalizationFlow) return
-    if (effectiveSelected.className !== 'Magic-User' && effectiveSelected.className !== 'Elf') return
-    ensureSpellBookItemForCharacter(effectiveSelected.id)
+    if (!isArcaneSpellbookClass(effectiveSelected.className)) return
+    ensureSpellBookItemForCharacter(effectiveSelected.id, effectiveSelected.className)
   }, [effectiveSelected?.id, effectiveSelected?.className, isInFinalizationFlow])
 
   // Reset selected spell when character changes or spell removed from book

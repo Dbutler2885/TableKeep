@@ -5,9 +5,44 @@ import type {
   CharacterWeaponItem,
   CharacterArmourItem,
   CharacterGeneralItem,
+  CharacterInventoryItem,
 } from '../../types/app'
 import { DEFAULT_STACK_POLICY } from '../items/itemDefaults'
 import { SPELL_BOOK_TYPE_ID, SPELL_BOOK_ITEM_NAME } from './spellCatalog'
+
+// Arcane spellbook classes carry a spell book (with its shop-like transcribe/memorize UI).
+const ARCANE_SPELLBOOK_CLASSES = new Set(['Magic-User', 'Elf'])
+
+export const isArcaneSpellbookClass = (className: string): boolean =>
+  ARCANE_SPELLBOOK_CLASSES.has(className)
+
+// Ensure an arcane spellcaster's inventory contains a properly-typed spell book, so the
+// character sheet's spell book UI is available. Idempotent, and legacy-aware: an existing
+// "Spell Book" general item that predates the canonical typeId is adopted in place rather
+// than duplicated. Non-arcane classes (and inventories that already have one) are unchanged.
+export const ensureSpellBookInInventory = (
+  className: string,
+  items: CharacterInventoryItem[],
+): CharacterInventoryItem[] => {
+  if (!isArcaneSpellbookClass(className)) return items
+  if (items.some((item) => item.kind === 'general' && item.typeId === SPELL_BOOK_TYPE_ID)) return items
+  const legacyIndex = items.findIndex(
+    (item) =>
+      item.kind === 'general' &&
+      item.typeId !== SPELL_BOOK_TYPE_ID &&
+      (item.typeName === SPELL_BOOK_ITEM_NAME || item.name === SPELL_BOOK_ITEM_NAME),
+  )
+  if (legacyIndex >= 0) {
+    const next = items.slice()
+    next[legacyIndex] = {
+      ...(next[legacyIndex] as CharacterGeneralItem),
+      typeId: SPELL_BOOK_TYPE_ID,
+      typeName: SPELL_BOOK_ITEM_NAME,
+    }
+    return next
+  }
+  return [...items, makeSpellBookItem()]
+}
 
 export const makeId = () => {
   if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {

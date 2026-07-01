@@ -4,6 +4,39 @@ import { DIVINE_SPELL_CATALOG } from './generatedDivineSpellCatalog'
 export const SPELL_BOOK_TYPE_ID = 'spell-book'
 export const SPELL_BOOK_ITEM_NAME = 'Spell Book'
 
+// OSE per-class arcane caps. Magic-users advance to level 14 and eventually gain
+// 6th-level spells; elves stop at level 10 and never learn spells above 5th level.
+// The arcane spells-per-day / accessible-level tables are shared, so these caps are
+// applied on top of them per class.
+export type ArcaneCasterCaps = { maxCasterLevel: number; maxSpellLevel: number }
+
+export const ARCANE_CASTER_CAPS_BY_CLASS: Record<string, ArcaneCasterCaps> = {
+  'Magic-User': { maxCasterLevel: 14, maxSpellLevel: 6 },
+  Elf: { maxCasterLevel: 10, maxSpellLevel: 5 },
+}
+
+export const getArcaneCasterCaps = (className: string): ArcaneCasterCaps =>
+  ARCANE_CASTER_CAPS_BY_CLASS[className] ?? { maxCasterLevel: 14, maxSpellLevel: 6 }
+
+// Accessible arcane spell levels for a class, with per-class caps applied on top of the
+// shared magic-user table (elves clamp to level 10 and never see spells above 5th level).
+export const getCappedAccessibleArcaneSpellLevels = (className: string, characterLevel: number): number[] => {
+  const caps = getArcaneCasterCaps(className)
+  return getAccessibleArcaneSpellLevels(Math.min(characterLevel, caps.maxCasterLevel))
+    .filter((level) => level <= caps.maxSpellLevel)
+}
+
+// Arcane spells-per-day for a class, with per-class caps applied: the caster level is
+// clamped to the class maximum and any spell level above the class cap is zeroed out.
+export const getCappedArcaneSpellsPerDay = (
+  className: string,
+  characterLevel: number,
+): ReturnType<typeof getArcaneSpellsPerDay> => {
+  const caps = getArcaneCasterCaps(className)
+  return getArcaneSpellsPerDay(Math.min(characterLevel, caps.maxCasterLevel))
+    .map((slots, index) => (index + 1 <= caps.maxSpellLevel ? slots : 0)) as ReturnType<typeof getArcaneSpellsPerDay>
+}
+
 export { ARCANE_SPELL_CATALOG }
 export { DIVINE_SPELL_CATALOG }
 
