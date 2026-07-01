@@ -471,6 +471,7 @@ function GroupShell({ user, username }: { user: User, username: string }) {
                 campaignId={campaign.id}
                 groupId={campaign.groupId}
                 role={role}
+                gmUserId={campaign.gmUserId ?? null}
                 characterTabProps={gameSystem === 'ose' ? characterTabProps ?? undefined : undefined}
               />
             ) : activeTab === 'monsters' ? (

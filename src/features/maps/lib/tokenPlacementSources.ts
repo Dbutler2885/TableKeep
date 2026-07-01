@@ -10,6 +10,7 @@ import type {
   NpcTokenPlacementSource,
   PartyCharacterTokenPlacementSource,
 } from './tokenPlacementQueue'
+import { isPlayerOwnedLivingPartyCharacter } from './partyCharacterEligibility'
 
 export function toNpcTokenPlacementSource(npc: NpcSummary): NpcTokenPlacementSource {
   return {
@@ -54,6 +55,9 @@ export function toGenericTokenPlacementSource(asset: TokenAssetRecord): GenericT
 
 export function buildWholePartyTokenPlacementSources(
   characters: readonly CharacterTokenSummary[],
+  gmUserId: string | null | undefined,
 ): PartyCharacterTokenPlacementSource[] {
-  return characters.map(toPartyCharacterTokenPlacementSource)
+  return characters
+    .filter((character) => isPlayerOwnedLivingPartyCharacter(character, gmUserId))
+    .map(toPartyCharacterTokenPlacementSource)
 }
