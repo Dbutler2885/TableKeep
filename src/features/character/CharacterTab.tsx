@@ -597,12 +597,6 @@ export function CharacterTab({
   hasPendingWrite,
   embeddedMode = false,
 }: CharacterTabProps) {
-  const {
-    isMobile, setMobileCharacterView,
-    activePage, setActivePage,
-    showListPane, showDetailPane,
-    isIntermediateMobileLayout, useIntermediateLayout,
-  } = useResponsiveCharacterLayout()
   const [abilityScoresByCharacterId, setAbilityScoresByCharacterId] = useState<Record<string, AbilityScores>>({})
   const [rolledAbilityScoresByCharacterId, setRolledAbilityScoresByCharacterId] = useState<Record<string, AbilityScores>>({})
   const [abilityScoresRolledByCharacterId, setAbilityScoresRolledByCharacterId] = useState<Record<string, boolean>>({})
@@ -650,6 +644,16 @@ export function CharacterTab({
   const [alignmentByCharacterId, setAlignmentByCharacterId] = useState<Record<string, string>>({})
   const [titleByCharacterId, setTitleByCharacterId] = useState<Record<string, string>>({})
   const [grantMode, setGrantMode] = useState(false)
+
+  // Declared after `grantMode` because the grant builder occupies the detail
+  // pane just like a sheet does: both count as "open" when the layout narrows
+  // and has to choose which single pane to keep.
+  const {
+    isMobile, isSinglePane, setPaneView,
+    activePage, setActivePage,
+    showListPane, showDetailPane,
+    isIntermediateMobileLayout, useIntermediateLayout,
+  } = useResponsiveCharacterLayout({ hasOpenDetail: !!selectedCharacterId || grantMode })
   const [grantTargetIds, setGrantTargetIds] = useState<Record<string, boolean>>({})
   const [grantXpBase, setGrantXpBase] = useState('')
   const [grantXpSplitBetweenTargets, setGrantXpSplitBetweenTargets] = useState(false)
@@ -2054,7 +2058,7 @@ export function CharacterTab({
       tokenIcon: defaultTokenIcon,
     }
     setSelectedCharacterId(nextCharacter.id)
-    if (isMobile) setMobileCharacterView('detail')
+    if (isSinglePane) setPaneView('detail')
     void setDoc(campaignDocRef(db, { campaignId, groupId }, 'characters', nextCharacter.id), {
       name: nextCharacter.name,
       ownerUserId: nextCharacter.ownerUserId,
@@ -2777,7 +2781,7 @@ export function CharacterTab({
               setGrantMode(false)
             }
             setSelectedCharacterId(characterId)
-            if (isMobile) setMobileCharacterView('detail')
+            if (isSinglePane) setPaneView('detail')
           }}
           onDeleteCharacter={(character) => {
             setDeleteConfirmTarget({ id: character.id, name: character.name || 'character' })
@@ -2788,7 +2792,7 @@ export function CharacterTab({
           onEnterGrantMode={() => {
             setGrantMode(true)
             setActivePage('core')
-            if (isMobile) setMobileCharacterView('detail')
+            if (isSinglePane) setPaneView('detail')
           }}
           onToggleGrantTarget={toggleGrantTarget}
         />
@@ -2874,7 +2878,7 @@ export function CharacterTab({
                 </div>
               </div>
             ) : null}
-            {isMobile && !embeddedMode ? (
+            {isSinglePane && !embeddedMode ? (
               <div className="monster-detail-header-row">
                 {effectiveSelected || grantMode ? (
                   <button
@@ -2884,7 +2888,7 @@ export function CharacterTab({
                       if (grantMode) {
                         exitGrantMode()
                       } else {
-                        setMobileCharacterView('list')
+                        setPaneView('list')
                       }
                     }}
                     aria-label="Back to character list"
