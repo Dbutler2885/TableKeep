@@ -1069,7 +1069,6 @@ function DotSections({
                       onClick={roller.rollMode ? () => roller.stageAttr(name, rating) : undefined}
                     >
                       <span className="vtm-trait-name">{name}</span>
-                      {roller.rollMode ? <span className="vtm-stage-flag">Staged</span> : null}
                       <DotRating value={rating} min={1} max={dotMax} label={name} disabled={!canEdit || dotsLocked} onChange={(next) => setAttributeDot(typedCategory, name, next)} />
                     </div>
                   )
@@ -1107,7 +1106,6 @@ function DotSections({
                       onClick={roller.rollMode ? () => roller.stageSecond('Ability', name, rating) : undefined}
                     >
                       <span className="vtm-trait-name">{name}</span>
-                      {roller.rollMode ? <span className="vtm-stage-flag">Staged</span> : null}
                       <DotRating value={rating} max={dotMax} label={name} disabled={!canEdit || dotsLocked} onChange={(next) => setAbilityDot(typedCategory, name, next)} />
                     </div>
                   )
@@ -1177,7 +1175,6 @@ function RatedRows({
             role={stageable ? 'button' : undefined}
             onClick={stageable ? () => stageRoller?.stageSecond('Discipline', row.name, row.rating) : undefined}
           >
-            {stageRoller?.rollMode ? <span className="vtm-stage-flag">Staged</span> : null}
             {hasOptions ? (
               <select value={isKnown ? row.name : ''} disabled={disabled} onChange={(event) => onChange(row.id, { name: event.target.value })}>
                 <option value="">Custom…</option>
