@@ -3211,31 +3211,48 @@ button.character-item-add-btn:disabled {
   min-height: 0;
 }
 
-/* Characters desktop-intermediate band: 901..1150 */
-@media (min-width: 901px) and (max-width: 1150px) {
-  .characters-layout {
-    grid-template-columns: 1fr;
+/* === Characters single-pane layout (<= CHARACTER_SINGLE_PANE_MAX_WIDTH) ===
+   Below this width the roster and the sheet stop sharing the row: JS renders
+   exactly one of them (see useResponsiveCharacterLayout) and the survivor takes
+   the full width. Both character sheets cap at 920px and the roster column runs
+   up to 290px, so side-by-side below ~1250px only squeezes the sheet - and the
+   sheet's own reflow bands are keyed to *viewport* width, which is only honest
+   once the sheet actually owns the viewport.
+
+   The doubled `.maps-layout.characters-layout` selector is load-bearing. The
+   tab element carries `maps-layout monsters-layout characters-layout`, and the
+   base `.maps-layout` grid is declared later in this file; at equal specificity
+   source order wins, so a lone `.characters-layout` here silently loses and the
+   two-column grid survives. Keep both classes on these selectors.
+   Mirrors CHARACTER_SINGLE_PANE_MAX_WIDTH in src/constants/layout.ts. */
+@media (max-width: 1250px) {
+  .maps-layout.characters-layout {
+    grid-template-columns: minmax(0, 1fr);
     height: 100%;
     min-height: 0;
     overflow: hidden;
   }
 
-  .characters-sidebar {
+  /* Whichever pane survives is now the only one, so the divider it used to draw
+     against its neighbour has nothing to divide. */
+  .maps-layout.characters-layout > .characters-sidebar {
     border-right: 0;
-    border-bottom: 1px solid #dddcd6;
     padding-right: 0;
-    padding-bottom: 0.75rem;
-    padding-top: 0;
-    min-height: 0;
-    display: block;
-    overflow: auto;
   }
 
-  .characters-detail {
+  /* The menu toggle is `position: fixed` at the top-left at every width, so a
+     solo detail pane needs the clearance the sidebar used to carry alone.
+     Below 900px the shell's own top padding already covers it. */
+  .maps-layout.characters-layout > .characters-detail {
     border-left: 0;
     padding-left: 0;
-    min-height: 0;
-    overflow: auto;
+    padding-top: 3rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .maps-layout.characters-layout > .characters-detail {
+    padding-top: 0;
   }
 }
 
@@ -6340,6 +6357,19 @@ button:disabled {
 .map-embedded-character .maps-layout {
   display: block;
   min-height: 100%;
+}
+
+/* The embedded sheet lives inside the map panel's own scroller, so it must opt
+   out of the single-pane block's viewport-height clamp (it is always a lone
+   detail pane already). Higher specificity than that block, so order-safe. */
+.map-embedded-character .maps-layout.characters-layout {
+  height: auto;
+  overflow: visible;
+}
+
+/* No fixed menu toggle overlaps the embedded panel, so it needs no clearance. */
+.map-embedded-character .maps-layout.characters-layout > .characters-detail {
+  padding-top: 0;
 }
 
 .map-embedded-character .monsters-detail,
@@ -9514,6 +9544,19 @@ button:disabled {
   display: grid;
   place-items: center;
   z-index: 320;
+  /* Both `body` and `.shell-root` set `overflow: hidden`, so nothing behind the
+     overlay can ever scroll. Any modal taller than the viewport used to be
+     centred with its head and feet hanging off-screen and no way to reach
+     either - fatal when the only dismiss button sits at the bottom. Make the
+     overlay itself the scroll container so every modal stays reachable at any
+     viewport height. `align-content: safe center` keeps the modal centred while
+     it fits and pins it to the top (rather than overflowing equally in both
+     directions, where the top is unreachable) once it does not. Vertical-only
+     padding deliberately leaves the modals' `92vw`-style widths untouched. */
+  align-content: safe center;
+  padding: 1rem 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .confirm-modal {
@@ -11318,6 +11361,13 @@ button:disabled {
 .cliffhanger-modal {
   max-width: 520px;
   text-align: center;
+  /* A session note can carry any number of cliffhangers, so cap the modal at
+     the viewport and let only the list scroll - the heading and the "Continue"
+     button (the sole way to dismiss it) must never be pushed off-screen. */
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem);
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .cliffhanger-heading {
@@ -11334,6 +11384,42 @@ button:disabled {
   display: grid;
   gap: 0.75rem;
   text-align: left;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* `both-edges` keeps the centred modal symmetric and stops the list shifting
+     when it starts to overflow. */
+  scrollbar-gutter: stable both-edges;
+}
+
+/* A clipped list otherwise reads as the whole list: macOS overlay scrollbars
+   are invisible until you already started scrolling. Draw a permanent hairline
+   instead - present enough to say "there is more below", quiet enough not to
+   compete with the text it sits beside. */
+.cliffhanger-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.cliffhanger-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cliffhanger-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+}
+
+.cliffhanger-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.34);
+}
+
+/* Chromium ignores ::-webkit-scrollbar as soon as the standard properties are
+   set, so keep them for engines that have no pseudo-element support at all. */
+@supports not selector(::-webkit-scrollbar) {
+  .cliffhanger-list {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  }
 }
 
 .cliffhanger-list li {
@@ -12618,6 +12704,23 @@ button:disabled {
   background-size: 28px 28px, 28px 28px, auto;
 }
 
+/* Cliffhanger list scrollbar: a dim gold hairline, so it reads as part of the
+   modal's ornament rather than as browser chrome dropped into the middle of it.
+   Brightens on hover once you have gone looking for it. */
+.shell-root[data-theme="vtm"] .cliffhanger-list::-webkit-scrollbar-thumb {
+  background: rgba(196, 162, 90, 0.3);
+}
+
+.shell-root[data-theme="vtm"] .cliffhanger-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(196, 162, 90, 0.55);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  .shell-root[data-theme="vtm"] .cliffhanger-list {
+    scrollbar-color: rgba(196, 162, 90, 0.3) transparent;
+  }
+}
+
 .shell-root[data-theme="vtm"] .group-modal p {
   color: var(--vtm-parchment);
   font-size: 1rem;
@@ -13823,7 +13926,12 @@ button:disabled {
 /* --- Trait columns + dotted-leader rows ------------------------------ */
 .shell-root[data-theme="vtm"] .vtm-trait-columns {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* minmax(0, 1fr), never a bare 1fr: `1fr` means minmax(auto, 1fr), so each
+     column refuses to shrink below its own min-content and the grid forces the
+     whole sheet wider than its frame - the decorative border then draws at the
+     sheet's box while the traits spill past it. This is the widest block on the
+     sheet, so it is the one that decides. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem 1.75rem;
   margin-bottom: 0.5rem;
 }
@@ -15097,4 +15205,103 @@ button:disabled {
   padding: 0.7rem 1rem;
   text-align: left;
   font-size: 0.95rem;
+}
+
+/* === VtM sheet: desktop-intermediate band 901..1150 ==================== */
+/* Placed after all base VtM rules so it wins on source order (and it is also
+   one class deeper than the base .vtm-trait-columns rule, so specificity wins
+   too). The sheet is the only pane on screen at these widths (the roster
+   collapses at CHARACTER_SINGLE_PANE_MAX_WIDTH), so it spans the full viewport
+   here — BUT .monsters-detail-inner hard-caps
+   at max-width:920px and .vtm-sheet eats 2×1.75rem(=35px @ the 20px VtM root)
+   of padding, so the sheet's content box is min(viewport-60, 920)-70:
+   ~771px at a 901px viewport, rising to the 850px ceiling by ~980px. Above
+   980px the sheet is identical to wide desktop, so the only thing that actually
+   tightens in-band is the 3-up Attributes/Abilities grid at the low edge. */
+@media (min-width: 901px) and (max-width: 1150px) {
+  /* 901px: content ~771px; 3 cols @ 1.75rem(35px) column gap = (771-70)/3 =
+     ~233px/col, leaving 233 - 90(5×14px dots + 4×5px gaps) - 10(0.5rem row gap)
+     = ~133px for the name. "Investigation" (13 chars, ~124-135px in Cormorant
+     @20.8px) grazes the ellipsis. Trimming the column gap to 1rem(20px) gives
+     (771-40)/3 = ~243px/col → ~143px name room, so the longest trait clears.
+     Names use overflow:hidden (min-width auto→0), so dots never touch text
+     regardless; this is purely to stop the longest label ellipsizing. */
+  .shell-root[data-theme="vtm"] .vtm-sheet .vtm-trait-columns {
+    column-gap: 1rem;
+  }
+}
+
+/* === VtM mobile layout (<= 900px) ==================================== */
+/* MUST live after the unconditional VtM base rules above: CSS resolves    */
+/* equal-specificity ties by source order, so an override placed in the    */
+/* earlier generic @media(max-width:900px) block (~line 10145) would lose  */
+/* to the later base grid definitions. These reflow the VtM internals once */
+/* the shared shell has already collapsed to a single pane.                */
+
+/* Large phones landscape / small tablets: attributes + abilities drop from
+   three columns to two before finally stacking on true phone widths. */
+@media (max-width: 900px) {
+  .shell-root[data-theme="vtm"] .vtm-trait-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem 1.25rem;
+  }
+
+  /* Identity: portrait stacks above the field grid instead of sitting in a
+     fixed 170px rail that starves the inputs beside it. */
+  .shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+  }
+  .shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity > .monster-media-column {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 220px;
+    margin: 0 auto;
+  }
+}
+
+/* True phones (portrait): everything collapses to a single column so trait
+   names + five-dot widgets stop fighting for ~100px of shared width. */
+@media (max-width: 560px) {
+  .shell-root[data-theme="vtm"] .vtm-sheet {
+    padding: 1.1rem 0.95rem 1.4rem;
+  }
+  .shell-root[data-theme="vtm"] .vtm-trait-columns {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+  .shell-root[data-theme="vtm"] .vtm-sheet .vtm-identity-fields {
+    grid-template-columns: 1fr;
+  }
+  .shell-root[data-theme="vtm"] .vtm-sheet .vtm-advantage-cols {
+    grid-template-columns: 1fr;
+  }
+  .shell-root[data-theme="vtm"] .vtm-trackers {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  .shell-root[data-theme="vtm"] .vtm-derived {
+    gap: 0.6rem 1.4rem;
+  }
+  .shell-root[data-theme="vtm"] .vtm-virtues {
+    max-width: none;
+  }
+  /* Grant builder: let the number/note fields use the full width. */
+  .shell-root[data-theme="vtm"] .vtm-grant-field input,
+  .shell-root[data-theme="vtm"] .vtm-grant-note input {
+    width: 100%;
+  }
+  .shell-root[data-theme="vtm"] .vtm-grant-field {
+    flex: 1 1 100%;
+  }
+  /* Trim the ornamental heading scale so titles don't crowd the frame. */
+  .shell-root[data-theme="vtm"] .vtm-sheet .character-sheet-header h2 {
+    font-size: 1.7rem;
+  }
+  .shell-root[data-theme="vtm"] .vtm-rule-title {
+    font-size: 1.22rem;
+    gap: 0.6rem;
+    margin: 1.5rem 0 1rem;
+  }
 }
