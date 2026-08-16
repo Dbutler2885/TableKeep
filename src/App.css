@@ -14694,29 +14694,20 @@ button:disabled {
   border-color: var(--vtm-gold-faint) !important;
 }
 .shell-root[data-theme="vtm"] .vtm-trait-row.stageable .dot-rating,
-.shell-root[data-theme="vtm"] .vtm-rated-row.stageable > :not(.vtm-stage-flag) {
+.shell-root[data-theme="vtm"] .vtm-rated-row.stageable > * {
   pointer-events: none;
 }
+/* The staged row carries its own state: oxblood fill, bright border, inner glow.
+   Deliberately no in-row "Staged" caption - a label wide enough to read costs
+   real width in every row the moment Roll mode turns on, which truncated trait
+   names and pushed the Disciplines rows out over the Backgrounds column. The
+   roll bar already names both staged traits, so the highlight alone suffices. */
 .shell-root[data-theme="vtm"] .vtm-trait-row.staged,
 .shell-root[data-theme="vtm"] .vtm-rated-row.staged {
   background: linear-gradient(180deg, rgba(163, 34, 38, 0.22), rgba(122, 26, 31, 0.08)) !important;
   border-color: var(--vtm-oxblood-bright) !important;
   box-shadow: inset 0 0 10px rgba(163, 34, 38, 0.18);
 }
-.shell-root[data-theme="vtm"] .vtm-stage-flag {
-  flex: 0 0 auto;
-  font-family: 'Special Elite', monospace;
-  font-size: 0.6rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--vtm-gold);
-  border: 1px solid var(--vtm-gold-faint);
-  border-radius: 999px;
-  padding: 0.04rem 0.4rem;
-  background: rgba(10, 7, 8, 0.6);
-  visibility: hidden;
-}
-.shell-root[data-theme="vtm"] .staged > .vtm-stage-flag { visibility: visible; }
 
 @media (max-width: 720px) {
   .shell-root[data-theme="vtm"] .vtm-roll-result-label { min-width: 0; }
@@ -14993,10 +14984,20 @@ button:disabled {
   align-items: center;
   gap: 0.5rem;
   padding: 0.2rem 0;
+  min-width: 0;
   background: transparent !important;
   border: none !important;
 }
-.shell-root[data-theme="vtm"] .vtm-rated-row select { flex: 0 0 11rem; }
+/* A <select> defaults to min-width:auto, i.e. the width of its *longest option*
+   ("Presence (Brujah clan)"), which silently overrides any flex-basis and makes
+   the row unshrinkable - it then spills past its grid column instead of
+   ellipsizing. min-width:0 restores the basis as the real floor; the name takes
+   whatever the dots and delete button leave over. */
+.shell-root[data-theme="vtm"] .vtm-rated-row select {
+  flex: 1 1 11rem;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
 .shell-root[data-theme="vtm"] .vtm-rated-row input { flex: 1 1 auto; min-width: 0; }
 .shell-root[data-theme="vtm"] .vtm-rated-row .dot-rating { margin-left: auto; }
 .shell-root[data-theme="vtm"] .vtm-rated-delete {
@@ -15152,8 +15153,11 @@ button:disabled {
   gap: 1.25rem 1.75rem;
   align-items: start;
 }
-/* tighten the rated rows now that they live in half-width columns */
-.shell-root[data-theme="vtm"] .vtm-sheet .vtm-advantage-cols .vtm-rated-row select { flex: 0 0 8.5rem; }
+/* tighten the rated rows now that they live in half-width columns. min-width:0
+   on the column keeps the grid track (not the rows' intrinsic width) in charge
+   of how wide each half is. */
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-advantage-cols > * { min-width: 0; }
+.shell-root[data-theme="vtm"] .vtm-sheet .vtm-advantage-cols .vtm-rated-row select { flex: 1 1 8.5rem; }
 
 /* --- Freebie cost labels + gate modal -------------------------------- */
 .shell-root[data-theme="vtm"] .vtm-sheet .vtm-cost-chip {
