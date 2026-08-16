@@ -13,6 +13,16 @@ type CliffhangerModalProps = {
 
 const CLIFFHANGER_DELAY_DAYS = 3.5
 
+function persistDismissal(scope: { campaignId: string; groupId: string; userId: string }, noteId: string) {
+  void setDoc(
+    campaignUserStateRef(db, { campaignId: scope.campaignId, groupId: scope.groupId }, scope.userId),
+    { lastSeenCliffhangerNoteId: noteId, updatedAt: serverTimestamp() },
+    { merge: true },
+  ).catch((error) => {
+    console.error('Failed to save cliffhanger dismissal', error)
+  })
+}
+
 function daysSince(timestamp: unknown): number {
   if (!timestamp || typeof timestamp !== 'object') return Infinity
   const ts = timestamp as { seconds?: number; toDate?: () => Date }
@@ -53,26 +63,35 @@ export function CliffhangerModal({ campaignId, groupId, userId, enabled = true }
   // Find the latest note that has cliffhangers
   const latestWithCliffhangers = notes.find((note) => note.cliffhangers.length > 0) ?? null
 
-  if (
-    !membershipLoaded
-    || dismissed
-    || !latestWithCliffhangers
-    || latestWithCliffhangers.id === lastSeenId
-    || daysSince(latestWithCliffhangers.createdAt) < CLIFFHANGER_DELAY_DAYS
-  ) {
-    return null
-  }
+  const visible = membershipLoaded
+    && !dismissed
+    && latestWithCliffhangers !== null
+    && latestWithCliffhangers.id !== lastSeenId
+    && daysSince(latestWithCliffhangers.createdAt) >= CLIFFHANGER_DELAY_DAYS
+
+  const noteId = visible ? latestWithCliffhangers.id : null
 
   const handleDismiss = () => {
+    if (!noteId) return
     setDismissed(true)
-    void setDoc(
-      campaignUserStateRef(db, { campaignId, groupId }, userId),
-      { lastSeenCliffhangerNoteId: latestWithCliffhangers.id, updatedAt: serverTimestamp() },
-      { merge: true },
-    ).catch((error) => {
-      console.error('Failed to save cliffhanger dismissal', error)
-    })
+    persistDismissal({ campaignId, groupId, userId }, noteId)
   }
+
+  // Escape/Enter dismiss it: the modal is purely informational, and a keyboard
+  // escape hatch matters most on the short viewports where it needs scrolling.
+  useEffect(() => {
+    if (!noteId) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' && event.key !== 'Enter') return
+      event.preventDefault()
+      setDismissed(true)
+      persistDismissal({ campaignId, groupId, userId }, noteId)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [campaignId, groupId, noteId, userId])
+
+  if (!visible || !latestWithCliffhangers) return null
 
   return (
     <div className="confirm-overlay" role="dialog" aria-modal="true">
@@ -84,7 +103,7 @@ export function CliffhangerModal({ campaignId, groupId, userId, enabled = true }
           ))}
         </ul>
         <div className="cliffhanger-actions">
-          <button type="button" onClick={handleDismiss}>Continue...</button>
+          <button type="button" autoFocus onClick={handleDismiss}>Continue...</button>
         </div>
       </div>
     </div>

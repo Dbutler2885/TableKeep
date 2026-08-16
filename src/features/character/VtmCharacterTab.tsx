@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Coins, Plus, Trash2, UserRound } from 'lucide-react'
+import { ChevronLeft, Coins, Plus, Trash2, UserRound } from 'lucide-react'
 import type { Role } from '../../types/app'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { uploadEntityImage } from '../common/mediaStorage'
 import { makeId } from './characterFactories'
 import { DotRating } from './DotRating'
+import { useResponsiveCharacterLayout } from './useResponsiveCharacterLayout'
 import { useVtmCharacters } from './useVtmCharacters'
 import { useVtmRoller, type VtmRoller } from './useVtmRoller'
 import { VtmRollBar } from './VtmRollBar'
@@ -195,6 +196,12 @@ export function VtmCharacterTab({
   const [grantFeedback, setGrantFeedback] = useState<string | null>(null)
   const [freebieGateOpen, setFreebieGateOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+
+  // Grant mode fills the detail pane just like a sheet does, so both count as
+  // "open" when the layout narrows and has to pick which pane survives.
+  const { isSinglePane, setPaneView, showListPane, showDetailPane } = useResponsiveCharacterLayout({
+    hasOpenDetail: !!selectedCharacterId || grantMode,
+  })
 
   // Players may own multiple characters and switch between them via the list.
   const canCreate = role === 'gm' || role === 'player'
@@ -540,6 +547,33 @@ export function VtmCharacterTab({
     setGrantTargetIds((current) => ({ ...current, [characterId]: checked }))
   }
 
+  const enterGrantMode = () => {
+    setGrantMode(true)
+    setGrantFeedback(null)
+    if (isSinglePane) setPaneView('detail')
+  }
+
+  const exitGrantMode = () => {
+    setGrantMode(false)
+    setGrantTargetIds({})
+    setGrantFeedback(null)
+  }
+
+  const selectCharacter = (characterId: string) => {
+    setSelectedCharacterId(characterId)
+    if (isSinglePane) setPaneView('detail')
+  }
+
+  // Single-pane back control: leave grant mode if active, otherwise return to
+  // the character list (mirrors OSE's monster-mobile-back behavior).
+  const handleMobileBack = () => {
+    if (grantMode) {
+      exitGrantMode()
+    } else {
+      setPaneView('list')
+    }
+  }
+
   const amountForTarget = (total: number, split: boolean, targetCount: number, targetIndex: number): number => {
     if (!split || targetCount <= 0) return total
     const base = Math.floor(total / targetCount)
@@ -579,6 +613,7 @@ export function VtmCharacterTab({
 
   return (
     <div className="maps-layout monsters-layout characters-layout vtm-character-tab">
+      {showListPane ? (
       <aside className="maps-sidebar monsters-sidebar characters-sidebar">
         <div className="maps-sidebar-header">
           <h2>Characters</h2>
@@ -597,7 +632,7 @@ export function VtmCharacterTab({
             <button
               type="button"
               className={grantMode ? 'monster-list-item active' : 'monster-list-item'}
-              onClick={() => { setGrantMode((current) => !current); setGrantFeedback(null) }}
+              onClick={() => { if (grantMode) exitGrantMode(); else enterGrantMode() }}
             >
               <div className="monster-card-portrait"><div className="monster-portrait-empty small"><Coins size={14} /></div></div>
               <div className="monster-card-main">
@@ -615,7 +650,7 @@ export function VtmCharacterTab({
                 <button
                   type="button"
                   className={character.id === selectedCharacterId ? 'monster-list-item active' : 'monster-list-item'}
-                  onClick={() => setSelectedCharacterId(character.id)}
+                  onClick={() => selectCharacter(character.id)}
                 >
                   <div className="monster-card-portrait">
                     {character.portraitUrl ? (
@@ -646,9 +681,23 @@ export function VtmCharacterTab({
           })}
         </div>
       </aside>
+      ) : null}
 
+      {showDetailPane ? (
       <div className="monsters-detail characters-detail">
         <div className="monsters-detail-inner characters-detail-inner">
+          {isSinglePane ? (
+            <div className="monster-detail-header-row">
+              <button
+                type="button"
+                className="back-link monster-mobile-back"
+                onClick={handleMobileBack}
+                aria-label="Back to character list"
+              >
+                <ChevronLeft size={16} />
+              </button>
+            </div>
+          ) : null}
           <div className="character-sheet vtm-sheet">
         {grantMode && role === 'gm' ? (
           <section className="character-placeholder-block vtm-block vtm-grant-builder">
@@ -879,7 +928,7 @@ export function VtmCharacterTab({
                 <span className="vtm-xp-balance">{xpBalance}</span>
                 <span className="vtm-xp-balance-label">XP available</span>
                 {role === 'gm' ? (
-                  <button type="button" className="vtm-grant-toggle" onClick={() => { setGrantMode(true); setGrantFeedback(null) }}>
+                  <button type="button" className="vtm-grant-toggle" onClick={enterGrantMode}>
                     <Coins size={14} /> Grant XP
                   </button>
                 ) : null}
@@ -899,6 +948,7 @@ export function VtmCharacterTab({
           </div>
         </div>
       </div>
+      ) : null}
 
       {freebieGateOpen ? (
         <div className="confirm-overlay" role="dialog" aria-modal="true">
