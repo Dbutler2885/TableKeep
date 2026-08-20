@@ -5,7 +5,12 @@ import { doc, setDoc } from 'firebase/firestore'
 import { ref, uploadString } from 'firebase/storage'
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 
-const projectId = 'homeboyshouse-storage-tests'
+// Storage Rules resolve their `firestore.get()` lookups against the emulator's
+// own project, so this has to match the project the suite runs under
+// (`.firebaserc`'s default, exported as GCLOUD_PROJECT by `firebase emulators:exec`).
+// Under a mismatched id every firestore.get()-gated rule reads an empty database
+// and denies, which looks exactly like a rules bug.
+const projectId = process.env.GCLOUD_PROJECT ?? 'homeboyshouse-dev'
 const groupId = 'group-1'
 const campaignId = 'campaign-1'
 const characterId = 'char-1'

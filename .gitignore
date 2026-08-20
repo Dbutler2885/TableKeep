@@ -28,3 +28,6 @@ thoughts/
 
 # Firebase
 .firebase/
+
+# Python
+__pycache__/
