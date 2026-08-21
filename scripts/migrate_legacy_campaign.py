@@ -21,6 +21,12 @@ Behaviour:
 
 Idempotent: re-running overwrites the same target doc IDs.
 
+NOTE: this script moves Firestore documents ONLY. The media those documents
+point at (portraitPath, tokenIcon.customImagePath, imagePath, tokenImagePath,
+...) stays in the legacy Cloud Storage tree until phase 2 runs -- see
+`scripts/migrate_legacy_campaign_storage.py`, which copies the objects into the
+group-scoped tree and rewrites the pointers.
+
 Usage:
   python3 scripts/migrate_legacy_campaign.py            # dry run, writes nothing
   python3 scripts/migrate_legacy_campaign.py --apply    # performs the writes
