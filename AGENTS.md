@@ -4,6 +4,38 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 
 - Add durable project-specific notes here as they are discovered through real work.
 
+## Continuous integration
+
+`.github/workflows/ci.yml` gates every pull request and every push to `main`.
+It runs seven parallel jobs, each invoking a real npm script: root `lint`, `typecheck`, `test`, `build`, `test:emulator`, `test:browser-smoke`, and `lint` + `build` inside `functions/`.
+The workflow is read-only (`permissions: contents: read`), uses no secrets, and never deploys.
+
+- **Web app jobs run on Node 24; the Cloud Functions job runs on Node 20.**
+  The split is deliberate: 24 matches the README prerequisites, and 20 matches `engines.node` in `functions/package.json`, which is the deployed function runtime.
+  Do not collapse them into one version or widen either into a matrix.
+- **`npm run typecheck` is `tsc -b`, and it does not cover test files.**
+  `tsconfig.app.json` excludes `src/**/*.test.ts` and `src/**/*.emulator.test.ts`, and `tsconfig.node.json` includes only `vite.config.ts`.
+  Type errors inside a test file surface when Vitest runs it, not from the typecheck gate.
+- **The emulator job needs JDK 21 and caches `~/.cache/firebase/emulators`.**
+  The cache key is the root `package-lock.json` hash, because the emulator jar versions are decided by the pinned firebase-tools release.
+- **The browser-smoke job uses Puppeteer against only local services.**
+  It starts Vite inside `firebase emulators:exec`, creates isolated Auth emulator users, completes email verification through the emulator OOB API, claims a handle, and creates a group at desktop and mobile viewports.
+  It fails on page errors and console errors, and uploads review-only screenshots even when the smoke command fails.
+
+## Lint configuration and its recorded debt
+
+There are two ESLint flat configs: `eslint.config.js` for the web app and `functions/eslint.config.js` for the Cloud Functions package.
+
+- **The root config ignores `functions/`.**
+  Without that ignore, `eslint .` from the repo root walks into the Cloud Functions package and lints its Node entrypoint (and its compiled `lib/` output) with the browser/React rule set.
+- **`functions/` must keep a flat config, not an `.eslintrc.cjs`.**
+  ESLint 9 looks for `eslint.config.js` and, finding none in `functions/`, silently climbed to the root config instead - so the package's own rules were dead and `npm run lint` there exited 0 without ever applying them.
+  The `--ext .ts` flag was dropped from the script at the same time; flat config selects files through its own `files` patterns.
+- **`eslint.config.js` ends with four `react-hooks-v7-debt/*` blocks.**
+  `eslint-plugin-react-hooks` v7 promoted `set-state-in-effect`, `refs`, `immutability`, and `purity` into its recommended set, and 21 files that predate those rules still violate them.
+  Those blocks name the exact files and downgrade only those four rules there, so every other file is still held to the full error-level rule set and no new violations can land outside the list.
+  Shrink the lists as the hooks are reworked; never add a file to them.
+
 ## Firebase emulator tests
 
 `npm run test:emulator` runs every `src/**/*.emulator.test.ts` against a live

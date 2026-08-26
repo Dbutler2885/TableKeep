@@ -7,7 +7,8 @@ import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePath
 import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence, uploadEntityImage } from '../common/mediaStorage'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
 import { useSessionNotes } from '../notes/useSessionNotes'
-import { NpcDetailEditor, buildAutoNotesForNpc } from './NpcDetailEditor'
+import { NpcDetailEditor } from './NpcDetailEditor'
+import { buildAutoNotesForNpc } from './npcAutoNotes'
 
 type NpcsTabProps = {
   campaignId: string

@@ -1,7 +1,7 @@
 import type { SessionNote } from '../../types/app'
 
 const SESSION_TITLE_NUMBER_PATTERN = /\bsession\s+(\d+)\b/i
-const SESSION_TITLE_PREFIX_PATTERN = /^session\s+(\d+)(?:\s*[:\-]\s*|\s+)?(.*)$/i
+const SESSION_TITLE_PREFIX_PATTERN = /^session\s+(\d+)(?:\s*[:-]\s*|\s+)?(.*)$/i
 
 function normalizeSessionLabel(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLowerCase()

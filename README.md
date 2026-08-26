@@ -1,5 +1,7 @@
 # Home Boys House (Table Keep)
 
+[![CI](https://github.com/Dbutler2885/HomeBoysHouse/actions/workflows/ci.yml/badge.svg)](https://github.com/Dbutler2885/HomeBoysHouse/actions/workflows/ci.yml)
+
 A tabletop RPG campaign sidecar web app for GMs and players, built with Vite + React + TypeScript on Firebase.
 The product is branded **Table Keep** in the UI; this repository is named Home Boys House.
 
@@ -121,10 +123,12 @@ npm run dev
 ## Scripts
 - `npm run dev` - start the Vite dev server
 - `npm run build` - type-check + production build
+- `npm run typecheck` - type-check only (`tsc -b`, no bundle)
 - `npm run lint` - run ESLint
 - `npm run test` - run the unit test suite (Vitest)
 - `npm run test:watch` - run Vitest in watch mode
 - `npm run test:emulator` - run emulator-backed integration tests
+- `npm run test:browser-smoke` - run the desktop/mobile Puppeteer smoke flow against local Firebase emulators
 - `npm run preview` - preview the production build
 - `npm run emulators` - start the auth/firestore/storage emulators
 - `npm run emulators:import` - start emulators with persisted state
@@ -134,6 +138,30 @@ npm run dev
 - `npm run firebase:login` - log in to the Firebase CLI
 
 Data-import helpers for OSE reference content also exist (`npm run ose:*`); see `package.json` and `scripts/`.
+
+## Continuous integration
+
+Every pull request, and every push to `main`, runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+The workflow only ever reads the repository, holds no secrets, and deploys nothing.
+It runs seven jobs in parallel, each one a command you can reproduce locally:
+
+| Check | Command |
+| --- | --- |
+| Lint (web app) | `npm run lint` |
+| Typecheck (web app) | `npm run typecheck` |
+| Unit tests (web app) | `npm test` |
+| Production build (web app) | `npm run build` |
+| Emulator tests (Firestore + Storage rules) | `npm run test:emulator` |
+| Browser smoke (desktop + mobile) | `npm run test:browser-smoke` |
+| Cloud Functions (lint + build) | `npm run lint` and `npm run build` in `functions/` |
+
+The emulator job installs JDK 21 and caches the downloaded emulator jars.
+It runs entirely against localhost, so it needs no Firebase login and touches no real project.
+The Puppeteer smoke job signs in, verifies an emulator email, claims a handle, and creates a group at desktop and mobile viewports.
+Its review-only screenshots are uploaded on every run, including failures; visual-difference gating is intentionally deferred until stable baselines exist.
+
+The web app jobs use Node 24, matching the prerequisites above.
+The Cloud Functions job uses Node 20, matching `engines.node` in `functions/package.json` and the deployed function runtime.
 
 ## Project layout
 - `src/features/*` - feature modules (auth, groups, campaign, character incl. OSE and VtM, maps, monsters, items, treasure, npcs, tables, notes, transfers, tokens, navigation, common).

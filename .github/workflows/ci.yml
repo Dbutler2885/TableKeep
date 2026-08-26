@@ -1,0 +1,155 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Every job only reads the checked-out tree. Nothing here publishes, comments,
+# or deploys, so the token needs no write scope and no job needs a secret.
+permissions:
+  contents: read
+
+# A new push to a pull request supersedes the run already in flight. Runs on
+# main are left alone so every commit on the default branch keeps its own result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # The web app's Node version, per the README prerequisites.
+  NODE_VERSION: '24'
+  # The Cloud Functions package pins `engines.node` to its deployed runtime.
+  FUNCTIONS_NODE_VERSION: '20'
+
+jobs:
+  lint:
+    name: Lint (web app)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run lint
+
+  typecheck:
+    name: Typecheck (web app)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+
+  test:
+    name: Unit tests (web app)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  build:
+    name: Production build (web app)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  emulator-tests:
+    name: Emulator tests (Firestore + Storage rules)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      # firebase-tools 15 refuses to start the Firestore/Storage emulators on
+      # anything older than JDK 21, and says so without naming the JDK it found.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+      # The emulator jars are downloaded on first use; which versions are needed
+      # is decided by the firebase-tools release the lockfile pins.
+      - name: Cache Firebase emulator binaries
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: firebase-emulators-${{ runner.os }}-
+      - run: npm ci
+      # `firebase emulators:exec` takes the project id from .firebaserc and runs
+      # the suites against the repo's real firestore.rules / storage.rules on
+      # localhost. No Firebase credentials and no production project involved.
+      - run: npm run test:emulator
+
+  browser-smoke:
+    name: Browser smoke (desktop + mobile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Cache Firebase emulator binaries
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: firebase-emulators-${{ runner.os }}-
+      - run: npm ci
+      - run: npm run test:browser-smoke
+      - name: Upload browser smoke screenshots
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-smoke-screenshots
+          path: artifacts/browser-smoke/*.png
+          if-no-files-found: error
+          retention-days: 14
+
+  functions:
+    name: Cloud Functions (lint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: functions
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.FUNCTIONS_NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      # `tsc` is both the typecheck and the emit for this package.
+      - run: npm run build
