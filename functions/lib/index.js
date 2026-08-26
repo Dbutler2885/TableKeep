@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
+import { isTransferSourceAuthorized } from './transferAuthorization.js';
 initializeApp();
 const db = getFirestore();
 const sessionSummaryApiKey = defineSecret('SESSION_SUMMARY_API_KEY');
@@ -286,6 +287,9 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
         }
         const senderData = senderSnap.data();
         const receiverData = receiverSnap.data();
+        if (!isTransferSourceAuthorized(senderData?.ownerUserId, transfer.fromUserId)) {
+            throw new HttpsError('permission-denied', 'Transfer is not authorized.');
+        }
         const senderDetails = (senderData?.details && typeof senderData.details === 'object') ? senderData.details : {};
         const receiverDetails = (receiverData?.details && typeof receiverData.details === 'object') ? receiverData.details : {};
         const senderInventory = asInventory(senderDetails);

@@ -3,6 +3,7 @@ import { getFirestore, Timestamp } from 'firebase-admin/firestore'
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { defineSecret } from 'firebase-functions/params'
 import type { Request } from 'express'
+import { isTransferSourceAuthorized } from './transferAuthorization.js'
 
 initializeApp()
 
@@ -342,8 +343,11 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
       throw new HttpsError('not-found', 'Item no longer available.')
     }
 
-    const senderData = senderSnap.data() as { details?: unknown } | undefined
+    const senderData = senderSnap.data() as { details?: unknown; ownerUserId?: unknown } | undefined
     const receiverData = receiverSnap.data() as { details?: unknown } | undefined
+    if (!isTransferSourceAuthorized(senderData?.ownerUserId, transfer.fromUserId)) {
+      throw new HttpsError('permission-denied', 'Transfer is not authorized.')
+    }
     const senderDetails = (senderData?.details && typeof senderData.details === 'object') ? senderData.details as Record<string, unknown> : {}
     const receiverDetails = (receiverData?.details && typeof receiverData.details === 'object') ? receiverData.details as Record<string, unknown> : {}
     const senderInventory = asInventory(senderDetails)
