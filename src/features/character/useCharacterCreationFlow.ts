@@ -8,7 +8,7 @@ import type {
   CharacterInventoryItem,
   CharacterWeaponItem,
 } from '../../types/app'
-import type { AbilityScores, SaveScores, AdventureScores, ThiefSkillScores } from './characterRules'
+import type { AbilityCode, AbilityScores, SaveScores, AdventureScores, ThiefSkillScores } from './characterRules'
 import {
   classHitDieByClass,
   adventureDefaultsByClass,
@@ -104,8 +104,8 @@ export function useCharacterCreationFlow({
   const tryBuildGuidedScores = (code: string, nextValue: number): AbilityScores | null => {
     if (!selectedRolledAbilityScores) return null
     return buildGuidedAbilityScores(
-      code as any, nextValue, selectedAbilityScores, selectedRolledAbilityScores,
-      primeRequisiteCodes as any, loweringCodes,
+      code as AbilityCode, nextValue, selectedAbilityScores, selectedRolledAbilityScores,
+      primeRequisiteCodes as AbilityCode[], loweringCodes,
     )
   }
 
