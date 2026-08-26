@@ -105,9 +105,9 @@ export function GroupPicker({ username, groups, onCreateGroup, onSelectGroup, on
         )}
 
         {createOpen ? (
-          <div className="confirm-overlay" role="dialog" aria-modal="true">
+          <div className="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="new-group-title">
             <div className="confirm-modal group-modal">
-              <h3>New group</h3>
+              <h3 id="new-group-title">New group</h3>
               <label>
                 Name
                 <input
