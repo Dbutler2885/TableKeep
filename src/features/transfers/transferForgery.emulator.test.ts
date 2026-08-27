@@ -9,7 +9,7 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
 
-const projectId = process.env.GCLOUD_PROJECT ?? 'homeboyshouse-dev'
+const projectId = 'homeboyshouse-transfer-forgery-tests'
 
 const groupId = 'transfer-forgery-group'
 const campaignId = 'transfer-forgery-campaign'
@@ -29,6 +29,8 @@ beforeAll(async () => {
       port: 8080,
     },
   })
+
+  await testEnv.clearFirestore()
 
   await testEnv.withSecurityRulesDisabled(async (context) => {
     const db = context.firestore()
@@ -143,10 +145,6 @@ describe('nested pending transfer source authorization', () => {
   })
 })
 
-afterAll(async () => {
-  await testEnv.cleanup()
-})
-
 describe('legacy pending transfer source authorization', () => {
   it('rejects a transfer from a character the caller does not own', async () => {
     const attackerDb = testEnv.authenticatedContext(attackerUid).firestore()
@@ -197,4 +195,8 @@ describe('legacy pending transfer source authorization', () => {
       ),
     )
   })
+})
+
+afterAll(async () => {
+  await testEnv.cleanup()
 })

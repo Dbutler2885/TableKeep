@@ -264,7 +264,7 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
         throw new HttpsError('invalid-argument', 'campaignId and transferId are required.');
     }
     const transferRef = db.collection('campaigns').doc(campaignId).collection('pendingTransfers').doc(transferId);
-    await db.runTransaction(async (tx) => {
+    const rejection = await db.runTransaction(async (tx) => {
         const membershipRef = db.collection('campaigns').doc(campaignId).collection('members').doc(uid);
         const membershipSnap = await tx.get(membershipRef);
         if (!membershipSnap.exists || membershipSnap.data()?.status !== 'active') {
@@ -283,12 +283,13 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
         const [senderSnap, receiverSnap] = await Promise.all([tx.get(senderRef), tx.get(receiverRef)]);
         if (!senderSnap.exists || !receiverSnap.exists) {
             tx.delete(transferRef);
-            throw new HttpsError('not-found', 'Item no longer available.');
+            return { code: 'not-found', message: 'Item no longer available.' };
         }
         const senderData = senderSnap.data();
         const receiverData = receiverSnap.data();
         if (!isTransferSourceAuthorized(senderData?.ownerUserId, transfer.fromUserId)) {
-            throw new HttpsError('permission-denied', 'Transfer is not authorized.');
+            tx.delete(transferRef);
+            return { code: 'permission-denied', message: 'Transfer is not authorized.' };
         }
         const senderDetails = (senderData?.details && typeof senderData.details === 'object') ? senderData.details : {};
         const receiverDetails = (receiverData?.details && typeof receiverData.details === 'object') ? receiverData.details : {};
@@ -297,11 +298,11 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
         const transferResult = applyAcceptedTransfer(senderInventory, receiverInventory, transfer, availablePackedSlots(receiverDetails));
         if (!transferResult.ok && (transferResult.reason === 'missing_item' || transferResult.reason === 'kind_mismatch')) {
             tx.delete(transferRef);
-            throw new HttpsError('not-found', 'Item no longer available.');
+            return { code: 'not-found', message: 'Item no longer available.' };
         }
         if (!transferResult.ok && transferResult.reason === 'qty_changed') {
             tx.delete(transferRef);
-            throw new HttpsError('failed-precondition', 'Item quantity changed before transfer could be accepted.');
+            return { code: 'failed-precondition', message: 'Item quantity changed before transfer could be accepted.' };
         }
         if (!transferResult.ok) {
             throw new HttpsError('failed-precondition', 'Not enough packed slots to accept this item.');
@@ -319,6 +320,9 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
             },
         }, { merge: true });
         tx.delete(transferRef);
+        return null;
     });
+    if (rejection)
+        throw new HttpsError(rejection.code, rejection.message);
     return { ok: true };
 });
