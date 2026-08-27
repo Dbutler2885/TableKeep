@@ -80,12 +80,20 @@ import {
   ENCOUNTER_CHECK_TURNS,
   FOG_CANVAS_MAX_DIM,
   TOKEN_REFERENCE_DIMENSION,
-  TOKEN_RENDER_SIZE_MAX,
   TOKEN_SIZE_MIN,
   TOKEN_SIZE_MAX,
-  TOKEN_VIEW_DISTANCE_MAX,
-  TOKEN_VIEW_DISTANCE_MIN,
 } from './lib/constants'
+import {
+  renderTokenDimensions as calculateTokenDimensions,
+  renderTokenViewDistance as calculateTokenViewDistance,
+  tokenViewDistanceSliderValue,
+} from './lib/tokenRenderGeometry'
+import {
+  clientPointToNormalizedPoint,
+  tokenPointToCanvasPoint as calculateTokenCanvasPoint,
+} from './lib/canvasCoordinates'
+import { isGridAdjustDirty } from './lib/gridAdjustDirty'
+import { measurementDistanceFeet, measurementDistanceLabel } from './lib/measurementDistance'
 import { isTokenVisibleOnFog, isTokenPartiallyVisibleOnFog } from './lib/tokenVisibility'
 import { activeToolReducer, initialActiveToolState, type ActiveMapTool } from './lib/activeToolState'
 import { resolveMapInteractionIntent, type MapInteractionButton } from './lib/mapInteractionResolution'
@@ -906,30 +914,12 @@ export function MapsTab({
 
   const getTokenDropPoint = (clientX: number, clientY: number) => {
     const canvas = activeFogCanvasRef.current
-    if (canvas) {
-      const rect = canvas.getBoundingClientRect()
-      if (rect.width > 0 && rect.height > 0 && canvas.width > 0 && canvas.height > 0) {
-        const scaleX = canvas.width / rect.width
-        const scaleY = canvas.height / rect.height
-        const canvasX = (clientX - rect.left) * scaleX
-        const canvasY = (clientY - rect.top) * scaleY
-        return {
-          x: Math.max(0, Math.min(1, canvasX / canvas.width)),
-          y: Math.max(0, Math.min(1, canvasY / canvas.height)),
-        }
-      }
-    }
-
     const layer = activeMapLayerRef.current
-    if (!layer) return null
-    const rect = layer.getBoundingClientRect()
-    if (rect.width <= 0 || rect.height <= 0) return null
-    const x = (clientX - rect.left) / rect.width
-    const y = (clientY - rect.top) / rect.height
-    return {
-      x: Math.max(0, Math.min(1, x)),
-      y: Math.max(0, Math.min(1, y)),
-    }
+    return clientPointToNormalizedPoint(
+      { clientX, clientY },
+      canvas ? { rect: canvas.getBoundingClientRect(), width: canvas.width, height: canvas.height } : null,
+      layer?.getBoundingClientRect() ?? null,
+    )
   }
 
   // Keep getDropPointRef in sync so useMapData (called below) can use it.
@@ -1012,18 +1002,7 @@ export function MapsTab({
     />
   )
   const activeAnnotation = annotations.find((annotation) => annotation.id === activeAnnotationId) ?? null
-  const gridAdjustReady = Boolean(
-    selectedMap &&
-    gridAdjustDraft &&
-    (
-      selectedMap.gridEnabled !== gridAdjustDraft.gridEnabled ||
-      selectedMap.gridVisible !== gridAdjustDraft.gridVisible ||
-      Math.abs(selectedMap.gridCellScale - gridAdjustDraft.gridCellScale) > 0.000001 ||
-      Math.abs(selectedMap.gridOffsetX - gridAdjustDraft.gridOffsetX) > 0.000001 ||
-      Math.abs(selectedMap.gridOffsetY - gridAdjustDraft.gridOffsetY) > 0.000001 ||
-      selectedMap.gridType !== gridAdjustDraft.gridType
-    ),
-  )
+  const gridAdjustReady = isGridAdjustDirty(selectedMap, gridAdjustDraft)
   const handleApplyGridCalibration = useCallback(() => {
     void applyGridCalibration().catch((error) => {
       const message = error instanceof Error ? error.message : 'Failed to save grid calibration'
@@ -1056,18 +1035,15 @@ export function MapsTab({
     return { start: gridMeasureStart, end }
   }, [gridMeasureEnd, gridMeasureMode, gridMeasurePreview, gridMeasureStart])
   const measurementFeet = useMemo(() => {
-    if (!gridMeasurementLine) return null
-    const cellPx = Math.max(1, effectiveGridCellScale * Math.max(1, activeMapDimension))
-    const dxPx = (gridMeasurementLine.end.x - gridMeasurementLine.start.x) * Math.max(1, activeMapWidth)
-    const dyPx = (gridMeasurementLine.end.y - gridMeasurementLine.start.y) * Math.max(1, activeMapHeight)
-    const distanceFeet = (Math.hypot(dxPx, dyPx) / cellPx) * 10
-    return Number.isFinite(distanceFeet) ? distanceFeet : null
+    return measurementDistanceFeet({
+      line: gridMeasurementLine,
+      effectiveGridCellScale,
+      activeMapDimension,
+      activeMapWidth,
+      activeMapHeight,
+    })
   }, [activeMapDimension, activeMapHeight, activeMapWidth, effectiveGridCellScale, gridMeasurementLine])
-  const measurementFeetLabel = useMemo(() => {
-    if (measurementFeet === null) return '--'
-    const rounded = Math.round(measurementFeet * 10) / 10
-    return Number.isInteger(rounded) ? `${rounded.toFixed(0)}'` : `${rounded.toFixed(1)}'`
-  }, [measurementFeet])
+  const measurementFeetLabel = useMemo(() => measurementDistanceLabel(measurementFeet), [measurementFeet])
   const measurementToolEnabled = effectiveGridEnabled || gridAdjustMode || Boolean(selectedMap?.gridCalibrated)
 
   const closeActiveMeasurementMode = useCallback(() => {
@@ -1297,41 +1273,8 @@ export function MapsTab({
   const isMobileZoomMapView = isMobile && (role !== 'gm' || mobileGmPane === 'map')
   const isInlineZoomMapView = true
 
-  const renderTokenSize = (token: TokenRecord) => {
-    const scale = token.sizeScale ?? token.size / TOKEN_REFERENCE_DIMENSION
-    return Math.max(10, Math.min(TOKEN_RENDER_SIZE_MAX, Math.round(scale * activeMapDimension)))
-  }
-  const renderTokenDimensions = (token: TokenRecord) => {
-    const baseSize = renderTokenSize(token)
-    const rawWidth = token.tokenImageWidth > 0 ? token.tokenImageWidth : 0
-    const rawHeight = token.tokenImageHeight > 0 ? token.tokenImageHeight : 0
-    if (rawWidth <= 0 || rawHeight <= 0) {
-      return { width: baseSize, height: baseSize, baseSize }
-    }
-
-    const ratio = rawWidth / rawHeight
-    if (ratio >= 1) {
-      return {
-        width: baseSize,
-        height: Math.max(8, Math.round(baseSize / ratio)),
-        baseSize,
-      }
-    }
-    return {
-      width: Math.max(8, Math.round(baseSize * ratio)),
-      height: baseSize,
-      baseSize,
-    }
-  }
-  const renderTokenViewDistance = (token: TokenRecord) => {
-    const fallbackScale = DEFAULT_TOKEN_VIEW_DISTANCE / TOKEN_REFERENCE_DIMENSION
-    const scale = token.viewDistanceScale ?? fallbackScale
-    return Math.max(TOKEN_VIEW_DISTANCE_MIN, Math.min(TOKEN_VIEW_DISTANCE_MAX, Math.round(scale * activeFogDimension)))
-  }
-  const tokenViewDistanceSliderValue = (token: TokenRecord) => {
-    if (typeof token.viewDistance === 'number') return token.viewDistance
-    return DEFAULT_TOKEN_VIEW_DISTANCE
-  }
+  const renderTokenDimensions = (token: TokenRecord) => calculateTokenDimensions(token, activeMapDimension)
+  const renderTokenViewDistance = (token: TokenRecord) => calculateTokenViewDistance(token, activeFogDimension)
   const renderBrushCursor = () => {
     if (!activeBrushTool) return null
     return (
@@ -1790,12 +1733,13 @@ export function MapsTab({
   const tokenPointToCanvasPoint = (point: { x: number; y: number }, tokenSizePx = 0) => {
     const canvas = activeFogCanvasRef.current
     if (!canvas) return null
-    const fogScale = canvas.height / Math.max(1, activeMapDimension)
-    const yOffset = Math.max(0, tokenSizePx * fogScale * 0.5)
-    return {
-      x: point.x * canvas.width,
-      y: Math.max(0, point.y * canvas.height - yOffset),
-    }
+    return calculateTokenCanvasPoint({
+      point,
+      tokenSizePx,
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height,
+      activeMapDimension,
+    })
   }
 
   const tokenDrag = useTokenDrag({
