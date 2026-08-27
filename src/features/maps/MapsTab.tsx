@@ -94,7 +94,13 @@ import {
 } from './lib/canvasCoordinates'
 import { isGridAdjustDirty } from './lib/gridAdjustDirty'
 import { measurementDistanceFeet, measurementDistanceLabel } from './lib/measurementDistance'
-import { blockerKindAt, floodFillSurfaceRegion } from './lib/visionBlockers'
+import { floodFillSurfaceRegion } from './lib/visionBlockers'
+import {
+  marchRays,
+  pixelBufferHasBlockers,
+  visionBlockerCacheKey,
+  visitRevealStroke,
+} from './lib/visionRaycast'
 import { isTokenVisibleOnFog, isTokenPartiallyVisibleOnFog } from './lib/tokenVisibility'
 import { activeToolReducer, initialActiveToolState, type ActiveMapTool } from './lib/activeToolState'
 import { resolveMapInteractionIntent, type MapInteractionButton } from './lib/mapInteractionResolution'
@@ -1415,20 +1421,8 @@ export function MapsTab({
     ctx.clearRect(0, 0, width, height)
   }
 
-  const visionSourceSignature = () => {
-    const dataUrl = selectedMap?.visionBlockDataUrl ?? ''
-    return [
-      selectedMap?.id ?? '',
-      selectedMap?.visionBlockImagePath ?? '',
-      selectedMap?.visionBlockImageUrl ?? '',
-      dataUrl.length,
-      dataUrl.slice(0, 32),
-      dataUrl.slice(-32),
-    ].join(':')
-  }
-
   const visionCanvasHasBlockers = (canvas: HTMLCanvasElement) => {
-    const key = `${visionSourceSignature()}:${canvas.width}x${canvas.height}`
+    const key = visionBlockerCacheKey(selectedMap, canvas.width, canvas.height)
     const cached = visionBlockerCacheRef.current
     if (cached?.canvas === canvas && cached.key === key) return cached.hasBlockers
 
@@ -1439,13 +1433,7 @@ export function MapsTab({
     }
 
     const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data
-    let hasBlockers = false
-    for (let index = 3; index < data.length; index += 4) {
-      if ((data[index] ?? 0) > 20) {
-        hasBlockers = true
-        break
-      }
-    }
+    const hasBlockers = pixelBufferHasBlockers(data)
     visionBlockerCacheRef.current = { canvas, key, hasBlockers }
     return hasBlockers
   }
@@ -1491,13 +1479,7 @@ export function MapsTab({
     const regionWidth = Math.max(1, clippedMaxX - clippedMinX + 1)
     const regionHeight = Math.max(1, clippedMaxY - clippedMinY + 1)
     const visionData = visionCtx.getImageData(clippedMinX, clippedMinY, regionWidth, regionHeight).data
-    let hasVisionBlocker = false
-    for (let index = 3; index < visionData.length; index += 4) {
-      if ((visionData[index] ?? 0) > 20) {
-        hasVisionBlocker = true
-        break
-      }
-    }
+    const hasVisionBlocker = pixelBufferHasBlockers(visionData)
     if (!hasVisionBlocker) {
       stampFog(fogCanvas, center.x, center.y, 'reveal', brushSize)
       return
@@ -1519,39 +1501,23 @@ export function MapsTab({
     maskCtx.clearRect(0, 0, regionWidth, regionHeight)
     maskCtx.fillStyle = 'rgba(0,0,0,1)'
 
-    const rays = Math.max(220, Math.min(1800, Math.round(radius * 5.4)))
-    const rayStep = (Math.PI * 2) / rays
-    const distStep = 1
     const dot = Math.max(1, radius * 0.03)
-    let hitSurfaceBlocker = false
     const surfaceHitPoints: Array<{ x: number; y: number }> = []
-    for (let i = 0; i < rays; i += 1) {
-      const angle = i * rayStep
-      const cos = Math.cos(angle)
-      const sin = Math.sin(angle)
-      for (let dist = 0; dist <= radius; dist += distStep) {
-        const x = Math.round(center.x + cos * dist)
-        const y = Math.round(center.y + sin * dist)
-        if (x < clippedMinX || x > clippedMaxX || y < clippedMinY || y > clippedMaxY) break
-        const blockerKind = blockerKindAt(
-          visionData,
-          regionWidth,
-          regionHeight,
-          x - clippedMinX,
-          y - clippedMinY,
-        )
-        if (blockerKind !== 'none') {
-          if (blockerKind === 'surface') {
-            hitSurfaceBlocker = true
-            surfaceHitPoints.push({ x, y })
-          }
-          break
-        }
+    marchRays({
+      data: visionData,
+      width: regionWidth,
+      height: regionHeight,
+      originX: center.x,
+      originY: center.y,
+      radius,
+      clip: { minX: clippedMinX, minY: clippedMinY, maxX: clippedMaxX, maxY: clippedMaxY },
+      onLit: (x, y) => {
         maskCtx.beginPath()
         maskCtx.arc(x - clippedMinX, y - clippedMinY, dot, 0, Math.PI * 2)
         maskCtx.fill()
-      }
-    }
+      },
+      onSurfaceHit: (x, y) => surfaceHitPoints.push({ x, y }),
+    })
 
     fogCtx.save()
     fogCtx.globalCompositeOperation = 'destination-out'
@@ -1566,7 +1532,6 @@ export function MapsTab({
     // background blockers hidden behind foreground blockers.
     const now = Date.now()
     const shouldProcessSurfaceReveal =
-      hitSurfaceBlocker &&
       surfaceHitPoints.length > 0 &&
       now - lastSurfaceRevealAtRef.current >= SURFACE_REVEAL_INTERVAL_MS
 
@@ -1622,37 +1587,21 @@ export function MapsTab({
     brushSize: number,
     clipRect?: CanvasClipRect | null,
   ) => {
-    if (clipRect) {
-      const radius = Math.max(1, brushSize / 2)
-      const minX = Math.min(from.x, to.x) - radius
-      const minY = Math.min(from.y, to.y) - radius
-      const maxX = Math.max(from.x, to.x) + radius
-      const maxY = Math.max(from.y, to.y) + radius
-      if (
-        maxX < clipRect.minX ||
-        maxY < clipRect.minY ||
-        minX > clipRect.maxX ||
-        minY > clipRect.maxY
-      ) {
-        return
-      }
-    }
-
-    const deltaX = to.x - from.x
-    const deltaY = to.y - from.y
-    const distance = Math.hypot(deltaX, deltaY)
-    const step = Math.max(2, brushSize * 0.14)
-    const steps = Math.max(1, Math.ceil(distance / step))
-    for (let i = 1; i <= steps; i += 1) {
-      const t = i / steps
+    visitRevealStroke({
+      from,
+      to,
+      brushSize,
+      clipRect,
+      onPoint: (point) => {
       revealFromTokenPoint(
         fogCanvas,
         visionCanvas,
-        { x: from.x + deltaX * t, y: from.y + deltaY * t },
+        point,
         brushSize,
         clipRect,
       )
-    }
+      },
+    })
   }
 
   const tokenAnimation = useTokenAnimation({
