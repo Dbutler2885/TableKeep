@@ -3933,7 +3933,7 @@ function GmMapControls({
   const [disbandCandidate, setDisbandCandidate] = useState<{ name: string; tokenIds: string[] } | null>(null)
   const [sceneNpcPickerId, setSceneNpcPickerId] = useState('')
   const [sceneNpcModalId, setSceneNpcModalId] = useState('')
-  const [presentedNpcGmNotes, setPresentedNpcGmNotes] = useState('')
+  const [presentedNpcGmNotesState, setPresentedNpcGmNotesState] = useState({ npcId: '', gmNotes: '' })
   const [brushSizeDraft, setBrushSizeDraft] = useState(String(fogBrushSize))
   const [brushSizeEditing, setBrushSizeEditing] = useState(false)
   const [monsterPlacementCounts, setMonsterPlacementCounts] = useState<Record<string, number>>({})
@@ -3951,6 +3951,12 @@ function GmMapControls({
     () => Array.from(new Set(mapNpcs.flatMap((npc) => npc.tags))).sort((a, b) => a.localeCompare(b)),
     [mapNpcs],
   )
+  const effectiveSceneNpcPickerId = availableSceneNpcs.some((npc) => npc.id === sceneNpcPickerId)
+    ? sceneNpcPickerId
+    : availableSceneNpcs[0]?.id ?? ''
+  const presentedNpcGmNotes = presentedNpcGmNotesState.npcId === presentedNpc?.id
+    ? presentedNpcGmNotesState.gmNotes
+    : ''
 
   const selectedTokenIdSet = useMemo(() => new Set(selectedTokenIds), [selectedTokenIds])
   const nonPartySources = useMemo(
@@ -3961,7 +3967,15 @@ function GmMapControls({
     ],
     [genericPlacementSources, monsterPlacementSources, npcPlacementSources],
   )
+  const [previousNonPartySources, setPreviousNonPartySources] = useState(nonPartySources)
   const sourceKey = useCallback((source: TokenPlacementSource) => `${source.kind}:${source.id}`, [])
+  if (previousNonPartySources !== nonPartySources) {
+    setPreviousNonPartySources(nonPartySources)
+    setNonPartySourceKey((current) => {
+      if (!current || current === genericCreatorKey) return current
+      return nonPartySources.some((source) => sourceKey(source) === current) ? current : ''
+    })
+  }
   const selectedNonPartySource = nonPartySources.find((source) => sourceKey(source) === nonPartySourceKey) ?? null
   const normalizedNonPartySearch = nonPartySearch.trim().toLowerCase()
   const matchesNonPartySearch = (source: TokenPlacementSource) => {
@@ -4023,20 +4037,14 @@ function GmMapControls({
   }
 
   useEffect(() => {
-    setSceneNpcPickerId((current) => {
-      if (availableSceneNpcs.length === 0) return ''
-      return availableSceneNpcs.some((npc) => npc.id === current) ? current : availableSceneNpcs[0].id
-    })
-  }, [availableSceneNpcs])
-
-  useEffect(() => {
-    if (!presentedNpc?.id) {
-      setPresentedNpcGmNotes('')
-      return
-    }
+    if (!presentedNpc?.id) return
+    const npcId = presentedNpc.id
     const unsub = onSnapshot(campaignDocRef(db, { campaignId, groupId }, 'npcPrivate', presentedNpc.id), (snap) => {
       const data = snap.data() as Partial<NpcPrivateRecord> | undefined
-      setPresentedNpcGmNotes(typeof data?.gmNotes === 'string' ? data.gmNotes : '')
+      setPresentedNpcGmNotesState({
+        npcId,
+        gmNotes: typeof data?.gmNotes === 'string' ? data.gmNotes : '',
+      })
     })
     return () => unsub()
   }, [campaignId, groupId, presentedNpc?.id])
@@ -4147,6 +4155,12 @@ function GmMapControls({
 
     return groups.filter((group) => group.tokens.length > 0)
   }, [tokens])
+  const [previousTokenGroups, setPreviousTokenGroups] = useState(tokenGroups)
+  if (previousTokenGroups !== tokenGroups) {
+    setPreviousTokenGroups(tokenGroups)
+    const visibleGroupKeys = new Set(tokenGroups.map((group) => group.key))
+    setCollapsedTokenGroupKeys((current) => current.filter((key) => visibleGroupKeys.has(key)))
+  }
   const selectedTokens = useMemo(
     () => tokens.filter((token) => selectedTokenIdSet.has(token.id)),
     [selectedTokenIdSet, tokens],
@@ -4228,11 +4242,6 @@ function GmMapControls({
     setLastTokenListSelectionId(tokenId)
   }
 
-  useEffect(() => {
-    const visibleGroupKeys = new Set(tokenGroups.map((group) => group.key))
-    setCollapsedTokenGroupKeys((current) => current.filter((key) => visibleGroupKeys.has(key)))
-  }, [tokenGroups])
-
   const toggleTokenGroupCollapsed = (groupKey: string) => {
     setCollapsedTokenGroupKeys((current) =>
       current.includes(groupKey)
@@ -4289,12 +4298,6 @@ function GmMapControls({
     }
     onStartSinglePlacement(selectedNonPartySource)
   }
-
-  useEffect(() => {
-    if (!nonPartySourceKey || nonPartySourceKey === genericCreatorKey) return
-    if (nonPartySources.some((source) => sourceKey(source) === nonPartySourceKey)) return
-    setNonPartySourceKey('')
-  }, [genericCreatorKey, nonPartySourceKey, nonPartySources, sourceKey])
 
   return (
     <div className={dark ? 'map-controls-body dark' : 'map-controls-body'}>
@@ -4956,7 +4959,7 @@ function GmMapControls({
         </div>
         <div className="scene-npc-picker-row">
           <select
-            value={sceneNpcPickerId}
+            value={effectiveSceneNpcPickerId}
             onChange={(event) => setSceneNpcPickerId(event.target.value)}
             disabled={availableSceneNpcs.length === 0}
             aria-label="Select NPC to preload"
@@ -4974,10 +4977,10 @@ function GmMapControls({
             type="button"
             className="monster-example-btn"
             onClick={() => {
-              if (!sceneNpcPickerId) return
-              onToggleSceneNpc(sceneNpcPickerId, true)
+              if (!effectiveSceneNpcPickerId) return
+              onToggleSceneNpc(effectiveSceneNpcPickerId, true)
             }}
-            disabled={!sceneNpcPickerId}
+            disabled={!effectiveSceneNpcPickerId}
           >
             Preload
           </button>
