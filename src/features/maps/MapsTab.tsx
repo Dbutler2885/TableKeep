@@ -94,6 +94,7 @@ import {
 } from './lib/canvasCoordinates'
 import { isGridAdjustDirty } from './lib/gridAdjustDirty'
 import { measurementDistanceFeet, measurementDistanceLabel } from './lib/measurementDistance'
+import { blockerKindAt, floodFillSurfaceRegion } from './lib/visionBlockers'
 import { isTokenVisibleOnFog, isTokenPartiallyVisibleOnFog } from './lib/tokenVisibility'
 import { activeToolReducer, initialActiveToolState, type ActiveMapTool } from './lib/activeToolState'
 import { resolveMapInteractionIntent, type MapInteractionButton } from './lib/mapInteractionResolution'
@@ -1524,27 +1525,6 @@ export function MapsTab({
     const dot = Math.max(1, radius * 0.03)
     let hitSurfaceBlocker = false
     const surfaceHitPoints: Array<{ x: number; y: number }> = []
-    const pixelAt = (x: number, y: number) => {
-      const lx = x - clippedMinX
-      const ly = y - clippedMinY
-      if (lx < 0 || ly < 0 || lx >= regionWidth || ly >= regionHeight) {
-        return { r: 0, g: 0, b: 0, a: 0 }
-      }
-      const idx = (ly * regionWidth + lx) * 4
-      return {
-        r: visionData[idx] ?? 0,
-        g: visionData[idx + 1] ?? 0,
-        b: visionData[idx + 2] ?? 0,
-        a: visionData[idx + 3] ?? 0,
-      }
-    }
-    const blockerKindAt = (x: number, y: number): 'none' | 'surface' | 'full' => {
-      const px = pixelAt(x, y)
-      if (px.a <= 20) return 'none'
-      if (px.b >= px.r + 20 && px.b >= px.g + 10) return 'full'
-      return 'surface'
-    }
-
     for (let i = 0; i < rays; i += 1) {
       const angle = i * rayStep
       const cos = Math.cos(angle)
@@ -1553,7 +1533,13 @@ export function MapsTab({
         const x = Math.round(center.x + cos * dist)
         const y = Math.round(center.y + sin * dist)
         if (x < clippedMinX || x > clippedMaxX || y < clippedMinY || y > clippedMaxY) break
-        const blockerKind = blockerKindAt(x, y)
+        const blockerKind = blockerKindAt(
+          visionData,
+          regionWidth,
+          regionHeight,
+          x - clippedMinX,
+          y - clippedMinY,
+        )
         if (blockerKind !== 'none') {
           if (blockerKind === 'surface') {
             hitSurfaceBlocker = true
@@ -1598,51 +1584,22 @@ export function MapsTab({
       const compositeCtx = surfaceMaskCanvas.getContext('2d', { willReadFrequently: true })
       if (compositeCtx) {
         const surfaceMask = compositeCtx.createImageData(regionWidth, regionHeight)
-        const visited = new Uint8Array(regionWidth * regionHeight)
-        const queue: number[] = []
-        const isSurfaceLocal = (lx: number, ly: number) => {
-          if (lx < 0 || ly < 0 || lx >= regionWidth || ly >= regionHeight) return false
+        floodFillSurfaceRegion({
+          data: visionData,
+          width: regionWidth,
+          height: regionHeight,
+          seeds: surfaceHitPoints.map((hit) => ({
+            x: hit.x - clippedMinX,
+            y: hit.y - clippedMinY,
+          })),
+          onFilled: (lx, ly) => {
           const dataIndex = (ly * regionWidth + lx) * 4
-          const r = visionData[dataIndex] ?? 0
-          const g = visionData[dataIndex + 1] ?? 0
-          const b = visionData[dataIndex + 2] ?? 0
-          const a = visionData[dataIndex + 3] ?? 0
-          if (a <= 20) return false
-          const isFull = b >= r + 20 && b >= g + 10
-          return !isFull
-        }
-        const enqueueLocal = (lx: number, ly: number) => {
-          if (lx < 0 || ly < 0 || lx >= regionWidth || ly >= regionHeight) return
-          const flat = ly * regionWidth + lx
-          if (visited[flat]) return
-          visited[flat] = 1
-          if (!isSurfaceLocal(lx, ly)) return
-          queue.push(flat)
-        }
-
-        for (const hit of surfaceHitPoints) {
-          enqueueLocal(hit.x - clippedMinX, hit.y - clippedMinY)
-        }
-
-        for (let head = 0; head < queue.length; head += 1) {
-          const flat = queue[head]
-          const lx = flat % regionWidth
-          const ly = Math.floor(flat / regionWidth)
-          const dataIndex = flat * 4
           surfaceMask.data[dataIndex] = 255
           surfaceMask.data[dataIndex + 1] = 255
           surfaceMask.data[dataIndex + 2] = 255
           surfaceMask.data[dataIndex + 3] = 255
-
-          enqueueLocal(lx - 1, ly)
-          enqueueLocal(lx + 1, ly)
-          enqueueLocal(lx, ly - 1)
-          enqueueLocal(lx, ly + 1)
-          enqueueLocal(lx - 1, ly - 1)
-          enqueueLocal(lx + 1, ly - 1)
-          enqueueLocal(lx - 1, ly + 1)
-          enqueueLocal(lx + 1, ly + 1)
-        }
+          },
+        })
 
         compositeCtx.clearRect(0, 0, regionWidth, regionHeight)
         compositeCtx.putImageData(surfaceMask, 0, 0)
