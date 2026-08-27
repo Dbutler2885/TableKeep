@@ -66,7 +66,6 @@ import { sanitizeRichText } from '../common/richText'
 import { uploadEntityImage } from '../common/mediaStorage'
 import { NpcDetailEditor } from '../npcs/NpcDetailEditor'
 import type {
-  CanvasClipRect,
   MapRecord,
   NpcSummary,
   TokenAssetRecord,
@@ -94,13 +93,7 @@ import {
 } from './lib/canvasCoordinates'
 import { isGridAdjustDirty } from './lib/gridAdjustDirty'
 import { measurementDistanceFeet, measurementDistanceLabel } from './lib/measurementDistance'
-import { floodFillSurfaceRegion } from './lib/visionBlockers'
-import {
-  marchRays,
-  pixelBufferHasBlockers,
-  visionBlockerCacheKey,
-  visitRevealStroke,
-} from './lib/visionRaycast'
+import { useVisionReveal } from './hooks/useVisionReveal'
 import { isTokenVisibleOnFog, isTokenPartiallyVisibleOnFog } from './lib/tokenVisibility'
 import { activeToolReducer, initialActiveToolState, type ActiveMapTool } from './lib/activeToolState'
 import { resolveMapInteractionIntent, type MapInteractionButton } from './lib/mapInteractionResolution'
@@ -140,8 +133,6 @@ import { useTokenAnimation } from './hooks/useTokenAnimation'
 import { useTokenDrag } from './hooks/useTokenDrag'
 import { useEncounterTracking } from './hooks/useEncounterTracking'
 import { useTokenAssets } from './hooks/useTokenAssets'
-
-const SURFACE_REVEAL_INTERVAL_MS = 150
 
 const BRUSH_SIZE_MIN = 1
 const BRUSH_SIZE_MAX = 260
@@ -444,15 +435,7 @@ export function MapsTab({
   const selectedMapRef = useRef<MapRecord | null>(null)
   const brushCursorRef = useRef<HTMLDivElement | null>(null)
   const brushCursorClientRef = useRef<{ x: number; y: number } | null>(null)
-  const visionBlockerCacheRef = useRef<{
-    canvas: HTMLCanvasElement | null
-    key: string
-    hasBlockers: boolean
-  } | null>(null)
   const suppressNextMapClickRef = useRef(false)
-  const revealMaskCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const blockerCompositeCanvasRef = useRef<HTMLCanvasElement | null>(null)
-  const lastSurfaceRevealAtRef = useRef(0)
   const inlineLosSeenCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const tokenAnimationsRef = useRef<Record<string, TokenPathAnimation>>({})
   const pendingFogReloadRef = useRef(false)
@@ -1421,188 +1404,11 @@ export function MapsTab({
     ctx.clearRect(0, 0, width, height)
   }
 
-  const visionCanvasHasBlockers = (canvas: HTMLCanvasElement) => {
-    const key = visionBlockerCacheKey(selectedMap, canvas.width, canvas.height)
-    const cached = visionBlockerCacheRef.current
-    if (cached?.canvas === canvas && cached.key === key) return cached.hasBlockers
-
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
-    if (!ctx || canvas.width <= 0 || canvas.height <= 0) {
-      visionBlockerCacheRef.current = { canvas, key, hasBlockers: false }
-      return false
-    }
-
-    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data
-    const hasBlockers = pixelBufferHasBlockers(data)
-    visionBlockerCacheRef.current = { canvas, key, hasBlockers }
-    return hasBlockers
-  }
-
-  const revealFromTokenPoint = (
-    fogCanvas: HTMLCanvasElement,
-    visionCanvas: HTMLCanvasElement | null,
-    center: { x: number; y: number },
-    brushSize: number,
-    clipRect?: CanvasClipRect | null,
-  ) => {
-    const radius = Math.max(1, brushSize / 2)
-    if (
-      clipRect &&
-      (center.x < clipRect.minX - radius ||
-        center.x > clipRect.maxX + radius ||
-        center.y < clipRect.minY - radius ||
-        center.y > clipRect.maxY + radius)
-    ) {
-      return
-    }
-
-    markFogLocalEdit()
-
-    if (!visionCanvas || !visionCanvasHasBlockers(visionCanvas)) {
-      stampFog(fogCanvas, center.x, center.y, 'reveal', brushSize)
-      return
-    }
-
-    const fogCtx = fogCanvas.getContext('2d', { willReadFrequently: true })
-    const visionCtx = visionCanvas.getContext('2d', { willReadFrequently: true })
-    if (!fogCtx || !visionCtx) return
-
-    const minX = Math.max(0, Math.floor(center.x - radius - 2))
-    const minY = Math.max(0, Math.floor(center.y - radius - 2))
-    const maxX = Math.min(fogCanvas.width - 1, Math.ceil(center.x + radius + 2))
-    const maxY = Math.min(fogCanvas.height - 1, Math.ceil(center.y + radius + 2))
-    const clippedMinX = clipRect ? Math.max(minX, clipRect.minX) : minX
-    const clippedMinY = clipRect ? Math.max(minY, clipRect.minY) : minY
-    const clippedMaxX = clipRect ? Math.min(maxX, clipRect.maxX) : maxX
-    const clippedMaxY = clipRect ? Math.min(maxY, clipRect.maxY) : maxY
-    if (clippedMaxX < clippedMinX || clippedMaxY < clippedMinY) return
-    const regionWidth = Math.max(1, clippedMaxX - clippedMinX + 1)
-    const regionHeight = Math.max(1, clippedMaxY - clippedMinY + 1)
-    const visionData = visionCtx.getImageData(clippedMinX, clippedMinY, regionWidth, regionHeight).data
-    const hasVisionBlocker = pixelBufferHasBlockers(visionData)
-    if (!hasVisionBlocker) {
-      stampFog(fogCanvas, center.x, center.y, 'reveal', brushSize)
-      return
-    }
-
-    let maskCanvas = revealMaskCanvasRef.current
-    if (!maskCanvas) {
-      maskCanvas = document.createElement('canvas')
-      revealMaskCanvasRef.current = maskCanvas
-    }
-    if (maskCanvas.width !== regionWidth || maskCanvas.height !== regionHeight) {
-      maskCanvas.width = regionWidth
-      maskCanvas.height = regionHeight
-    }
-    const maskCtx = maskCanvas.getContext('2d', { willReadFrequently: true })
-    if (!maskCtx) return
-    maskCtx.globalCompositeOperation = 'source-over'
-    maskCtx.globalAlpha = 1
-    maskCtx.clearRect(0, 0, regionWidth, regionHeight)
-    maskCtx.fillStyle = 'rgba(0,0,0,1)'
-
-    const dot = Math.max(1, radius * 0.03)
-    const surfaceHitPoints: Array<{ x: number; y: number }> = []
-    marchRays({
-      data: visionData,
-      width: regionWidth,
-      height: regionHeight,
-      originX: center.x,
-      originY: center.y,
-      radius,
-      clip: { minX: clippedMinX, minY: clippedMinY, maxX: clippedMaxX, maxY: clippedMaxY },
-      onLit: (x, y) => {
-        maskCtx.beginPath()
-        maskCtx.arc(x - clippedMinX, y - clippedMinY, dot, 0, Math.PI * 2)
-        maskCtx.fill()
-      },
-      onSurfaceHit: (x, y) => surfaceHitPoints.push({ x, y }),
-    })
-
-    fogCtx.save()
-    fogCtx.globalCompositeOperation = 'destination-out'
-    fogCtx.beginPath()
-    fogCtx.arc(center.x, center.y, radius, 0, Math.PI * 2)
-    fogCtx.clip()
-    fogCtx.drawImage(maskCanvas, clippedMinX, clippedMinY)
-    fogCtx.restore()
-
-    // If LOS touches a surface blocker, reveal only connected surface-blocker
-    // paint components that were actually touched by rays. This keeps
-    // background blockers hidden behind foreground blockers.
-    const now = Date.now()
-    const shouldProcessSurfaceReveal =
-      surfaceHitPoints.length > 0 &&
-      now - lastSurfaceRevealAtRef.current >= SURFACE_REVEAL_INTERVAL_MS
-
-    if (shouldProcessSurfaceReveal) {
-      lastSurfaceRevealAtRef.current = now
-      let surfaceMaskCanvas = blockerCompositeCanvasRef.current
-      if (!surfaceMaskCanvas) {
-        surfaceMaskCanvas = document.createElement('canvas')
-        blockerCompositeCanvasRef.current = surfaceMaskCanvas
-      }
-      if (surfaceMaskCanvas.width !== regionWidth || surfaceMaskCanvas.height !== regionHeight) {
-        surfaceMaskCanvas.width = regionWidth
-        surfaceMaskCanvas.height = regionHeight
-      }
-      const compositeCtx = surfaceMaskCanvas.getContext('2d', { willReadFrequently: true })
-      if (compositeCtx) {
-        const surfaceMask = compositeCtx.createImageData(regionWidth, regionHeight)
-        floodFillSurfaceRegion({
-          data: visionData,
-          width: regionWidth,
-          height: regionHeight,
-          seeds: surfaceHitPoints.map((hit) => ({
-            x: hit.x - clippedMinX,
-            y: hit.y - clippedMinY,
-          })),
-          onFilled: (lx, ly) => {
-          const dataIndex = (ly * regionWidth + lx) * 4
-          surfaceMask.data[dataIndex] = 255
-          surfaceMask.data[dataIndex + 1] = 255
-          surfaceMask.data[dataIndex + 2] = 255
-          surfaceMask.data[dataIndex + 3] = 255
-          },
-        })
-
-        compositeCtx.clearRect(0, 0, regionWidth, regionHeight)
-        compositeCtx.putImageData(surfaceMask, 0, 0)
-        fogCtx.save()
-        fogCtx.globalCompositeOperation = 'destination-out'
-        fogCtx.beginPath()
-        fogCtx.arc(center.x, center.y, radius, 0, Math.PI * 2)
-        fogCtx.clip()
-        fogCtx.drawImage(surfaceMaskCanvas, clippedMinX, clippedMinY)
-        fogCtx.restore()
-      }
-    }
-  }
-
-  const revealFromTokenStroke = (
-    fogCanvas: HTMLCanvasElement,
-    visionCanvas: HTMLCanvasElement | null,
-    from: { x: number; y: number },
-    to: { x: number; y: number },
-    brushSize: number,
-    clipRect?: CanvasClipRect | null,
-  ) => {
-    visitRevealStroke({
-      from,
-      to,
-      brushSize,
-      clipRect,
-      onPoint: (point) => {
-      revealFromTokenPoint(
-        fogCanvas,
-        visionCanvas,
-        point,
-        brushSize,
-        clipRect,
-      )
-      },
-    })
-  }
+  const { revealFromTokenPoint, revealFromTokenStroke } = useVisionReveal({
+    selectedMap,
+    markFogLocalEdit,
+    stampFog,
+  })
 
   const tokenAnimation = useTokenAnimation({
     tokens,
