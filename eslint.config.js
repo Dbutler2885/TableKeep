@@ -66,7 +66,6 @@ export default defineConfig([
       'src/features/invites/AcceptInvite.tsx',
       'src/features/invites/useInvites.ts',
       'src/features/items/useItems.ts',
-      'src/features/maps/MapsTab.tsx',
       'src/features/maps/hooks/useTokenSelection.ts',
       'src/features/notes/CliffhangerModal.tsx',
       'src/features/notes/NotesTab.tsx',
