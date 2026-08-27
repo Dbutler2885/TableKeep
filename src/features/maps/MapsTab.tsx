@@ -155,6 +155,10 @@ function SceneNpcEditorModal({
   const [tagSelection, setTagSelection] = useState<string[]>([])
   const [newTagInput, setNewTagInput] = useState('')
   const [tagSearch, setTagSearch] = useState('')
+  const [tagSeed, setTagSeed] = useState<{ npc: NpcRecord | null; open: boolean }>({
+    npc: null,
+    open: false,
+  })
 
   useEffect(() => {
     const unsub = onSnapshot(campaignDocRef(db, { campaignId, groupId }, 'npcs', npcId), (snap) => {
@@ -189,12 +193,14 @@ function SceneNpcEditorModal({
     return () => unsub()
   }, [campaignId, groupId, npcId])
 
-  useEffect(() => {
-    if (!tagsModalOpen || !npc) return
+  if (tagsModalOpen && npc && (tagSeed.npc !== npc || !tagSeed.open)) {
+    setTagSeed({ npc, open: true })
     setTagSelection(npc.tags)
     setNewTagInput('')
     setTagSearch('')
-  }, [npc, tagsModalOpen])
+  } else if (!tagsModalOpen && tagSeed.open) {
+    setTagSeed({ npc: null, open: false })
+  }
 
   const persistNpc = async (updates: Partial<Omit<NpcRecord, 'id'>>) => {
     if (!npc) return
