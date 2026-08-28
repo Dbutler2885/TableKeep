@@ -146,9 +146,11 @@ Data-import helpers for OSE reference content also exist (`npm run ose:*`); see 
 
 The demo commands need no Firebase project, no login, and no `.env.local`: they inject the
 placeholder config in `.env.demo` into the dev server and point it at the local emulators.
-Both print the two seeded sign-in accounts (`demo-gm@tablekeep.test` and
-`demo-player@tablekeep.test`, password `tablekeep-demo`) on startup. Those accounts exist only
-inside the local emulator and are not secrets.
+The sign-in screen then offers the two seeded accounts as one-click seats - "Enter as the Game
+Master" and "Enter as a Player" - in place of the Google button, which cannot reach Google from
+an emulator. Both commands also print those accounts (`demo-gm@tablekeep.test` and
+`demo-player@tablekeep.test`, password `tablekeep-demo`) on startup, so they can be typed into
+the ordinary email form instead. They exist only inside the local emulator and are not secrets.
 
 ## Continuous integration
 

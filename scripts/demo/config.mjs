@@ -1,8 +1,9 @@
 // Shared configuration for the demo-authoring harness.
 //
 // Everything the demo path needs is derived from files that are already
-// committed - `.env.demo` for the placeholder Firebase web config, and
-// `firebase.json` for the emulator ports - so the two never drift apart.
+// committed - `.env.demo` for the placeholder Firebase web config and the two
+// demo account logins, and `firebase.json` for the emulator ports - so they
+// never drift apart.
 
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -64,6 +65,10 @@ function readDemoEnv() {
     'VITE_FIREBASE_MESSAGING_SENDER_ID',
     'VITE_FIREBASE_APP_ID',
     'VITE_USE_FIREBASE_EMULATORS',
+    'VITE_DEMO_GM_EMAIL',
+    'VITE_DEMO_GM_PASSWORD',
+    'VITE_DEMO_PLAYER_EMAIL',
+    'VITE_DEMO_PLAYER_PASSWORD',
   ]
   const missing = required.filter((key) => !values[key])
 
@@ -99,6 +104,14 @@ export const appUrl = `http://127.0.0.1:${appPort}`
 /**
  * The two seeded demo accounts.
  *
+ * The email and password are read from `.env.demo` rather than written here,
+ * because the sign-in screen needs the same pair: `startApp` in `run.mjs`
+ * injects every `VITE_*` value from that file into the demo dev server, and
+ * `src/features/auth/demoSeats.ts` turns `VITE_DEMO_*` into the one-click seat
+ * buttons a visitor sees. One definition, seeded and offered from the same
+ * line. A normal `npm run build` never loads `.env.demo`, so those seats do not
+ * exist in a production bundle.
+ *
  * The uids are pinned rather than generated. The committed snapshot stores
  * campaign ownership, group membership and character ownership by uid, so a
  * re-seed on a visitor's machine has to land on the same uids or the imported
@@ -113,16 +126,16 @@ export const demoAccounts = [
   {
     uid: 'demo-gm-uid',
     role: 'Game Master',
-    email: 'demo-gm@tablekeep.test',
-    password: 'tablekeep-demo',
+    email: demoEnv.VITE_DEMO_GM_EMAIL,
+    password: demoEnv.VITE_DEMO_GM_PASSWORD,
     username: 'demoGM1',
     displayName: 'Demo GM',
   },
   {
     uid: 'demo-player-uid',
     role: 'Player',
-    email: 'demo-player@tablekeep.test',
-    password: 'tablekeep-demo',
+    email: demoEnv.VITE_DEMO_PLAYER_EMAIL,
+    password: demoEnv.VITE_DEMO_PLAYER_PASSWORD,
     username: 'demoPC1',
     displayName: 'Demo Player',
   },
