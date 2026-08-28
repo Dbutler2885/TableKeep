@@ -67,7 +67,7 @@ function usage() {
 async function fetchJson(url) {
   const response = await fetch(url, {
     headers: {
-      'user-agent': 'HomeBoysHouse OSE spell importer',
+      'user-agent': 'Table Keep OSE spell importer',
       accept: 'application/json',
     },
   })
