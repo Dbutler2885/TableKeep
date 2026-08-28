@@ -169,7 +169,7 @@ Each campaign picks a system, and the tab set follows.
 **GM approval flow.** Players do not silently mutate the world.
 Item, spell and re-roll requests land in a GM queue with live notifications, and character-to-character transfers are handshaked on both sides.
 
-**Live everything else.** Groups with email invites, per-campaign settings including which tabs are enabled, reusable random tables with entity pickers, a shared rich-text notes surface, an in-campaign calendar, session summaries with an importer, detail view and and a cliffhanger highlight modal.
+**Live everything else.** Groups with email invites, per-campaign settings including which tabs are enabled, reusable random tables with entity pickers, a shared rich-text notes surface, an in-campaign calendar, session summaries with an importer, detail view and cliffhanger highlight modal.
 
 **Auth.** Google sign-in and email/password, gated on email verification, with a one-time username claim.
 
