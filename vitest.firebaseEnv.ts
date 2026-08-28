@@ -10,9 +10,9 @@
  */
 export const testFirebaseEnv = {
   VITE_FIREBASE_API_KEY: 'demo-api-key',
-  VITE_FIREBASE_AUTH_DOMAIN: 'demo-homeboyshouse.firebaseapp.com',
-  VITE_FIREBASE_PROJECT_ID: 'demo-homeboyshouse',
-  VITE_FIREBASE_STORAGE_BUCKET: 'demo-homeboyshouse.firebasestorage.app',
+  VITE_FIREBASE_AUTH_DOMAIN: 'demo-table-keep.firebaseapp.com',
+  VITE_FIREBASE_PROJECT_ID: 'demo-table-keep',
+  VITE_FIREBASE_STORAGE_BUCKET: 'demo-table-keep.firebasestorage.app',
   VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000',
   VITE_FIREBASE_APP_ID: '1:000000000000:web:0000000000000000000000',
 }

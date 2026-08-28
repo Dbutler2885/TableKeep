@@ -14,8 +14,8 @@ The workflow is read-only (`permissions: contents: read`), uses no secrets, and 
   The split is deliberate: 24 matches the README prerequisites, and 20 matches `engines.node` in `functions/package.json`, which is the deployed function runtime.
   Do not collapse them into one version or widen either into a matrix.
 - **`npm run typecheck` is `tsc -b`, and it does not cover test files.**
-  `tsconfig.app.json` excludes `src/**/*.test.ts` and `src/**/*.emulator.test.ts`, and `tsconfig.node.json` includes only `vite.config.ts`.
-  Type errors inside a test file surface when Vitest runs it, not from the typecheck gate.
+  `tsconfig.app.json` excludes `src/**/*.test.ts`, `src/**/*.test.tsx` and `src/**/*.emulator.test.ts`, and `tsconfig.node.json` includes only `vite.config.ts`.
+  Type errors inside a test file appear when Vitest runs it, not from the typecheck gate.
 - **The emulator job needs JDK 21 and caches `~/.cache/firebase/emulators`.**
   The cache key is the root `package-lock.json` hash, because the emulator jar versions are decided by the pinned firebase-tools release.
 - **The browser-smoke job uses Puppeteer against only local services.**
@@ -29,7 +29,8 @@ There are two ESLint flat configs: `eslint.config.js` for the web app and `funct
 - **The root config ignores `functions/`.**
   Without that ignore, `eslint .` from the repo root walks into the Cloud Functions package and lints its Node entrypoint (and its compiled `lib/` output) with the browser/React rule set.
 - **`functions/` must keep a flat config, not an `.eslintrc.cjs`.**
-  ESLint 9 looks for `eslint.config.js` and, finding none in `functions/`, silently climbed to the root config instead - so the package's own rules were dead and `npm run lint` there exited 0 without ever applying them.
+  ESLint 9 looks for `eslint.config.js` and, finding none in `functions/`, climbed to the root config instead without saying so.
+  The package's own rules were dead, and `npm run lint` there exited 0 without ever applying them.
   The `--ext .ts` flag was dropped from the script at the same time; flat config selects files through its own `files` patterns.
 - **`eslint.config.js` ends with four `react-hooks-v7-debt/*` blocks.**
   `eslint-plugin-react-hooks` v7 promoted `set-state-in-effect`, `refs`, `immutability`, and `purity` into its recommended set, and 21 files that predate those rules still violate them.
@@ -48,7 +49,7 @@ Firestore + Storage emulator, with the repo's real `firestore.rules` /
 - **Storage Rules suites must use the emulator's own project id.** `storage.rules`
   reaches into Firestore via `firestore.get()`, and the Storage emulator resolves
   those lookups against the project it was started with (`.firebaserc`'s default,
-  exported as `GCLOUD_PROJECT` by `firebase emulators:exec`) - not the `projectId`
+  exported as `GCLOUD_PROJECT` by `firebase emulators:exec`), not the `projectId`
   passed to `initializeTestEnvironment`. Under a mismatched id every
   `firestore.get()`-gated rule reads an empty database and denies, which looks
   exactly like a rules bug. Use `process.env.GCLOUD_PROJECT ?? 'homeboyshouse-dev'`.
@@ -96,11 +97,12 @@ token-asset path builders in `src/features/maps/hooks/`).
 ## Demo harness (`scripts/demo/`, `emulator-data/`)
 
 A reviewer can see a real, populated game without a Firebase project or any credentials.
-The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plus two deliberately different commands that boot the emulators and the Vite dev server together.
+The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plus two commands that boot the emulators and the Vite dev server together and differ in one way that matters.
 
 - **`npm run demo` (visitor) never writes `emulator-data/`.**
   It passes `--import` and no export flag at all, so a visitor gets the campaign read-write in their own emulator while the snapshot in their checkout stays byte-for-byte pristine.
-  This is the whole reason it is not `npm run emulators:import`: that script passes `--export-on-exit`, which would let a visitor's session silently overwrite the committed snapshot.
+  This is the whole reason it is not `npm run emulators:import`.
+  That script passes `--export-on-exit`, which would let a visitor's session overwrite the committed snapshot without anyone noticing.
 - **`npm run demo:author` is the only command that overwrites the snapshot**, via `--export-on-exit`.
   `npm run demo:save` exports a running demo emulator without quitting it.
   Both commands print a startup banner that states which of the two behaviours is in effect; keep that banner accurate if the flags change.
@@ -110,7 +112,7 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
 - **The demo accounts have pinned uids** (`demo-gm-uid`, `demo-player-uid`, in `scripts/demo/config.mjs`).
   The snapshot stores campaign ownership, group membership, and character ownership by uid, so a re-seed on a visitor's machine has to land on the same uids or the imported campaign would belong to nobody.
   Usernames must be exactly seven characters (`src/features/auth/usernameRules.ts`).
-- **Seeding goes through the emulator's admin surface, not a browser.**
+- **Seeding goes through the emulator's admin endpoints, not a browser.**
   `POST {auth}/identitytoolkit.googleapis.com/v1/projects/{projectId}/accounts` with `Authorization: Bearer owner` accepts `localId` and `emailVerified`, which the client `accounts:signUp` endpoint does not; `accounts:update` on the same prefix repairs an existing account.
   Firestore writes use `PATCH {firestore}/v1/projects/{projectId}/databases/(default)/documents/{path}?updateMask.fieldPaths=...` with the same owner token, which bypasses `firestore.rules`.
   Every write in `scripts/demo/seed-accounts.mjs` is idempotent, so it can run against a freshly imported snapshot without disturbing it.
@@ -122,17 +124,43 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
 - **In emulator mode the sign-in screen swaps the Google button for two seat buttons.**
   Against the auth emulator a Google popup only reaches the emulator's own stub page, and that page's "Add new account" mints a random uid, which matches nothing in a snapshot that stores ownership by uid.
   `src/features/auth/demoSeats.ts` resolves the seats from `VITE_DEMO_*`, so `.env.demo` is the single definition of the two logins: `scripts/demo/config.mjs` reads it to seed them and `run.mjs` injects it into the dev server for the app to offer them.
-  A seat is offered only when the emulator flag is on *and* both credentials are present, which is why `scripts/browser-smoke.mjs` - emulators on, no `VITE_DEMO_*` - still gets the ordinary Google-plus-form screen it asserts against.
+  A seat is offered only when the emulator flag is on *and* both credentials are present.
+  That is why `scripts/browser-smoke.mjs`, which runs with emulators on but no `VITE_DEMO_*`, still gets the ordinary Google-plus-form screen it asserts against.
   A production build never loads `.env.demo`, so Vite folds those references to `undefined` and no demo login reaches the bundle.
 - **`emulator-data/` is committed and budgeted.**
-  It carries every Storage object the demo uses - map images and portraits - and git keeps every version of each one forever.
+  It carries every Storage object the demo uses, the map images and the portraits, and git keeps every version of each one forever.
   The budget is 25 MB total and 1 MB per file, enforced by `npm run demo:size` (`scripts/demo/check-snapshot-size.mjs`); run it before committing a re-export.
-  Shrink source images before uploading them in the app rather than trimming the snapshot afterwards - a large PNG that lands in one commit is permanent weight even if a later commit removes it.
+  Shrink source images before uploading them in the app rather than trimming the snapshot afterwards.
+  A large PNG that lands in one commit is permanent weight even if a later commit removes it.
 
 ## Component tests
 
-`npm test` is Node-environment by default (`vite.config.ts`), because nearly every suite is pure logic.
+`npm test` runs in the Node environment by default (`vite.config.ts`), because nearly every suite is pure logic.
 The few component suites are `.test.tsx` and opt into a DOM per file with a `// @vitest-environment jsdom` docblock, so the jsdom cost stays off the rest of the run.
 
-- **`tsconfig.app.json` excludes `.test.tsx` as well as `.test.ts`**, so `npm run typecheck` does not cover component tests either; their type errors surface when Vitest runs them.
-- **`@testing-library/react` auto-cleanup does not fire here.** It installs itself only when `afterEach` is a global, and neither Vitest config enables `globals`. Call `cleanup` from an explicit `afterEach`.
+- **`tsconfig.app.json` excludes `.test.tsx` as well as `.test.ts`**, so `npm run typecheck` does not cover component tests either.
+  Their type errors appear when Vitest runs them.
+- **`@testing-library/react` auto-cleanup does not fire here.**
+  It installs itself only when `afterEach` is a global, and neither Vitest config enables `globals`.
+  Call `cleanup` from an explicit `afterEach`.
+
+## Documentation
+
+`README.md` is the only document this project ships.
+The former `docs/` folder (PRD, architecture, schema, IA, component/UX specs, milestones) is gone on purpose.
+It had drifted behind the group/campaign model, and the code is the authority.
+Do not reintroduce a `docs/` tree.
+Put durable engineering knowledge here in `AGENTS.md`, and put anything a reader needs in the README.
+
+- **README media lives in `.github/media/` and is committed.**
+  It is outside `src/` and `public/` on purpose, so it never reaches the production bundle.
+  Reference it from the README with repo-relative paths.
+- **Motion on the rendered page is carried by animated WebP, embedded inline with an `<img>` tag.**
+  A repo-relative `.mp4` does not reliably play inline in a README, because GitHub reserves its inline player for files uploaded through its own attachment flow.
+  So an `.mp4` is only ever a plain "full-quality recording" link underneath the animation, never the thing the page depends on.
+  This only works because the clips are short: the two map clips are 33s and 14s and cost about 2.4 MB each as animated WebP.
+  Recut a long recording rather than animating it.
+  A minute-plus clip would be enormous, and git keeps every version of it forever.
+- **The session transcription pipeline is external.**
+  This repo owns only the receiving endpoints in `functions/`: `postSessionSummary` and `getCampaignNpcs`.
+  The watcher, VAD, on-device speech model, and recap generation run as a separate macOS service on the GM's machine and are not in this codebase.
