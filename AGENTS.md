@@ -14,7 +14,7 @@ The workflow is read-only (`permissions: contents: read`), uses no secrets, and 
   The split is deliberate: 24 matches the README prerequisites, and 20 matches `engines.node` in `functions/package.json`, which is the deployed function runtime.
   Do not collapse them into one version or widen either into a matrix.
 - **`npm run typecheck` is `tsc -b`, and it does not cover test files.**
-  `tsconfig.app.json` excludes `src/**/*.test.ts` and `src/**/*.emulator.test.ts`, and `tsconfig.node.json` includes only `vite.config.ts`.
+  `tsconfig.app.json` excludes `src/**/*.test.ts`, `src/**/*.test.tsx` and `src/**/*.emulator.test.ts`, and `tsconfig.node.json` includes only `vite.config.ts`.
   Type errors inside a test file appear when Vitest runs it, not from the typecheck gate.
 - **The emulator job needs JDK 21 and caches `~/.cache/firebase/emulators`.**
   The cache key is the root `package-lock.json` hash, because the emulator jar versions are decided by the pinned firebase-tools release.
@@ -124,13 +124,25 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
 - **In emulator mode the sign-in screen swaps the Google button for two seat buttons.**
   Against the auth emulator a Google popup only reaches the emulator's own stub page, and that page's "Add new account" mints a random uid, which matches nothing in a snapshot that stores ownership by uid.
   `src/features/auth/demoSeats.ts` resolves the seats from `VITE_DEMO_*`, so `.env.demo` is the single definition of the two logins: `scripts/demo/config.mjs` reads it to seed them and `run.mjs` injects it into the dev server for the app to offer them.
-  A seat is offered only when the emulator flag is on *and* both credentials are present, which is why `scripts/browser-smoke.mjs` - emulators on, no `VITE_DEMO_*` - still gets the ordinary Google-plus-form screen it asserts against.
+  A seat is offered only when the emulator flag is on *and* both credentials are present.
+  That is why `scripts/browser-smoke.mjs`, which runs with emulators on but no `VITE_DEMO_*`, still gets the ordinary Google-plus-form screen it asserts against.
   A production build never loads `.env.demo`, so Vite folds those references to `undefined` and no demo login reaches the bundle.
 - **`emulator-data/` is committed and budgeted.**
   It carries every Storage object the demo uses, the map images and the portraits, and git keeps every version of each one forever.
   The budget is 25 MB total and 1 MB per file, enforced by `npm run demo:size` (`scripts/demo/check-snapshot-size.mjs`); run it before committing a re-export.
   Shrink source images before uploading them in the app rather than trimming the snapshot afterwards.
   A large PNG that lands in one commit is permanent weight even if a later commit removes it.
+
+## Component tests
+
+`npm test` runs in the Node environment by default (`vite.config.ts`), because nearly every suite is pure logic.
+The few component suites are `.test.tsx` and opt into a DOM per file with a `// @vitest-environment jsdom` docblock, so the jsdom cost stays off the rest of the run.
+
+- **`tsconfig.app.json` excludes `.test.tsx` as well as `.test.ts`**, so `npm run typecheck` does not cover component tests either.
+  Their type errors appear when Vitest runs them.
+- **`@testing-library/react` auto-cleanup does not fire here.**
+  It installs itself only when `afterEach` is a global, and neither Vitest config enables `globals`.
+  Call `cleanup` from an explicit `afterEach`.
 
 ## Documentation
 
