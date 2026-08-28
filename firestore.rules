@@ -263,6 +263,7 @@ service cloud.firestore {
           allow read: if isGroupMember(groupId);
           allow create: if isGroupMember(groupId)
             && request.resource.data.fromUserId == request.auth.uid
+            && get(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)/characters/$(request.resource.data.fromCharacterId)).data.ownerUserId == request.auth.uid
             && request.resource.data.itemKind != 'gold'
             && request.resource.data.keys().hasAll([
               'id', 'itemSnapshot', 'itemId', 'itemKind', 'itemName',
@@ -436,6 +437,7 @@ service cloud.firestore {
         allow read: if isCampaignMember(campaignId);
         allow create: if isCampaignMember(campaignId)
           && request.resource.data.fromUserId == request.auth.uid
+          && get(/databases/$(database)/documents/campaigns/$(campaignId)/characters/$(request.resource.data.fromCharacterId)).data.ownerUserId == request.auth.uid
           && request.resource.data.itemKind != 'gold'
           && request.resource.data.keys().hasAll([
             'id', 'itemSnapshot', 'itemId', 'itemKind', 'itemName',
