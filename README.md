@@ -1,158 +1,165 @@
-# Home Boys House (Table Keep)
+# Table Keep
 
 [![CI](https://github.com/Dbutler2885/HomeBoysHouse/actions/workflows/ci.yml/badge.svg)](https://github.com/Dbutler2885/HomeBoysHouse/actions/workflows/ci.yml)
 
-A tabletop RPG campaign sidecar web app for GMs and players, built with Vite + React + TypeScript on Firebase.
-The product is branded **Table Keep** in the UI; this repository is named Home Boys House.
+**Table Keep** is the campaign memory for a tabletop RPG group: character sheets, live fog-of-war maps, an NPC roster the GM reveals a piece at a time, and session recaps written straight out of the recording of the game you just played.
 
-It is a companion to the table, not a virtual tabletop: players keep their character sheets, follow live maps the GM reveals, browse revealed NPCs and reference material, and read session recaps, while the GM manages campaign content in real time.
+The repository is called `HomeBoysHouse` - that is the group it was built for.
+The product in the UI is Table Keep.
+Same thing.
 
-## Overview
+<p align="center">
+  <img src=".github/media/table-keep-fog-hero.webp" alt="A player's map view: fog of war peeling back around a token as it moves through a village" width="560">
+</p>
 
-Table Keep is organized around **groups** and **campaigns**:
+<p align="center"><em>A player's view of the village, revealed as their token moves. The GM paints the fog; every client sees it change live.</em></p>
+
+## Try it in two minutes
+
+```bash
+git clone https://github.com/Dbutler2885/HomeBoysHouse.git
+cd HomeBoysHouse
+npm install
+npm run demo
+```
+
+Then open <http://127.0.0.1:5173> and pick a seat.
+
+No Firebase project.
+No account to create.
+No API keys, no `.env` file, nothing to sign up for.
+
+`npm run demo` boots the local Firebase emulators from a committed snapshot of a real authored campaign - maps, characters, NPCs and session history already in place - and starts the Vite dev server pointed at them.
+The sign-in screen offers two seeded seats:
+
+| Seat | Email | Password |
+| --- | --- | --- |
+| Game Master | `demo-gm@tablekeep.test` | `tablekeep-demo` |
+| Player | `demo-player@tablekeep.test` | `tablekeep-demo` |
+
+The same two lines are printed in the startup banner, so you never have to come back here for them.
+
+Sign in as both, in two windows, and look at the same campaign from both sides.
+The GM sees every map, every NPC, and every character sheet.
+The player sees their own sheet, the part of the map that has been revealed to them, and only the NPCs and notes the GM has shared.
+That gap is the product.
+
+Those accounts exist only inside your own emulator and are not secrets.
+**Nothing you do in the demo touches the committed snapshot** - the visitor mode imports the snapshot and never writes it back, so break whatever you like.
+
+Prerequisites: Node.js 24+, npm 11+, and Java 21+ (the Firestore and Storage emulators are JVM processes).
+Stop the demo with `Ctrl+C`.
+
+## What it is
+
+Table Keep is not a virtual tabletop.
+Nobody is rolling dice in it.
+It is the thing your group forgets between sessions: what the reeve's name was, what he wanted, which alley you have actually walked down, and what your thief is carrying.
+
+It is organized around **groups** and **campaigns**:
 
 - A user signs in, claims a username, and can belong to multiple groups.
-- A group is the stable social container, with members and email invites.
-- A group can hold multiple campaigns over time; each campaign owns its own game system and data, and a group has at most one *current* campaign at a time (campaigns move between `draft`, `active`, and `inactive`).
-- Each campaign has exactly one GM (the campaign creator/owner). Everyone else in the group is a player; participation in a campaign is implicit (you participate by owning a character in it).
+- A group is the stable social container - members and email invites live there.
+- A group holds many campaigns over their lifetime; each campaign owns its own game system and data, and a group has at most one *current* campaign at a time.
+  Campaigns move between `draft`, `active`, and `inactive`.
+- Each campaign has exactly one GM, its creator.
+  Everyone else in the group is a player, and participation is implicit: you are in the campaign because you own a character in it.
 
-Data and files live in Firestore and Firebase Storage under the nested `groups/{groupId}/campaigns/{campaignId}/...` structure. Real-time sync uses Firestore listeners, so map, fog, token, and content changes propagate to all viewers without refresh. The UI is mobile-friendly for players (drawer navigation) and desktop-oriented for GMs (left sidebar).
+Everything lives in Firestore and Firebase Storage under `groups/{groupId}/campaigns/{campaignId}/...`, and everything reads through Firestore listeners.
+When the GM erases a patch of fog, moves a token, or publishes an NPC, it is on the players' screens before they look up.
+The player UI is built for a phone at the table; the GM UI is built for a laptop next to the screen.
 
-## Supported game systems
+## A guided tour
 
-Each campaign picks a system, and the available tabs adapt to it.
+### Maps, fog, and tokens
 
-- **OSE (Old-School Essentials)** - the fuller-featured system. Structured character sheets, inventory/store/economy, spellbooks, monster and treasure references, random tables, and the OSE SRD link.
-- **Vampire: The Masquerade (VtM)** - a lighter, mostly-presentational variant: fillable character sheets (clans, attributes, disciplines, XP), NPCs, a monster/reference tab, maps, notes, and calendar. No items/store, treasure tables, or OSE SRD link.
+[![The GM's map view, with the full tool rail across the top and a scene NPC's portrait and notes in the sidebar](.github/media/table-keep-map-controls-poster.webp)](.github/media/table-keep-map-controls.mp4)
+
+**[▶ Watch the map tools, 72 seconds](.github/media/table-keep-map-controls.mp4)** - the full GM rail (brush size, fog, vision blocking, measurement, player view, annotation, grid), placing and renaming a token, adding a scene NPC, and dropping in Eric the Town Reeve, whose portrait and notes fill the sidebar while his name renders under his token on the board.
+
+Fog is the feature the rest of the map tooling exists to serve.
+The GM paints reveals with a sizeable brush, blocks line of sight with vision walls, and can flip to player view at any time to check exactly what the table can see.
+Revealed state is stored per map and synced live, so a player who joins late or reloads gets the world in the state the GM left it.
+
+<p align="center">
+  <img src=".github/media/map-player-vision-mobile.webp" alt="The same village map on a player's phone: almost entirely black, with only the revealed wedge around their token visible" width="300">
+</p>
+
+Here is the same village from a player's phone, at the same moment.
+Almost all of it is black.
+They know there is a road, two buildings, and something south of them - and that is all they know.
+
+### NPCs
+
+![The NPC tab: searchable NPC list on the left showing player visibility, and Cedric's record with portrait, player description, auto-notes and GM notes](.github/media/npc-detail-cedric.webp)
+
+The NPC roster is split down the middle by who is allowed to see what.
+Every record has a portrait, a player-facing description, and private GM notes; the list on the left is grouped by visibility so the GM can see at a glance what the table has met.
+Under the portrait, **Auto-Notes** are generated from session transcripts - here, Cedric picked up a line from Session 11 about the party passing through his store on the thief's trail.
+Nobody typed that.
+
+### Character sheets
+
+![A full OSE character sheet for Mirelda Crow: ability scores, saving throws, combat block, THAC0 with the descending AC matrix, adventuring skills, portrait](.github/media/character-sheet-mirelda.webp)
+
+The OSE sheet is a real sheet, not a text field with a label.
+Ability scores carry their derived modifiers, saving throws are broken out by category, and the combat block computes AC from armour and DEX and lays THAC0 out against the full descending AC matrix so a player can read a to-hit off it without doing arithmetic.
+Players edit their own character; the GM can edit any of them, and hand one over from the sidebar.
 
 ## Features
 
-- **Authentication & accounts** - Google sign-in and email/password, with an email-verification gate and a one-time username claim. (Email-link sign-in is deferred.)
-- **Groups & campaigns** - create groups, invite members by email, create/activate/deactivate campaigns, and switch the group's current campaign. Per-campaign settings (including which tabs are enabled) via a GM-only settings modal.
-- **Character sheets**
-  - *OSE:* attributes, saves, class/level/HP/AC, structured inventory (weapons, armour, ammunition, consumables, general gear), a store/shopping flow, spellbooks (arcane and divine spell catalogs), thief skills, packed items, and character portraits/media. Players edit their own sheet; the GM can edit any.
-  - *VtM:* fillable sheets covering clan, attributes, disciplines, and XP tracking.
-  - GM approval flow for player requests (adding/selling items, transcribing spells, ability re-rolls) and item transfers between characters with live notifications.
-- **Maps, fog & tokens** - GM-uploaded maps with pan/zoom, a fog-of-war reveal/hide brush, a square/hex grid overlay, annotations, and tokens (create, move, rotate, flip, duplicate, animate). Players see the current map and revealed state; updates sync live. Includes basic encounter tracking.
-- **NPCs** - NPC editor with media; the GM controls what players can see, and players can edit visible NPC media where allowed.
-- **Monsters** - OSE monster catalog/reference (GM-facing for OSE; available to VtM campaigns).
-- **Items & treasure** - GM item management plus OSE treasure generation (treasure-type roll engine and magic-item tables).
-- **Tables** - reusable random tables with entity pickers.
-- **Notes & session summaries** - session summaries (with an importer, detail view, and a cliffhanger highlight modal), shared notes, and a rich-text editor.
-- **Calendar** - an in-campaign calendar tab.
-- **Reference** - direct link to the OSE SRD.
-- **Cloud Functions** - an HTTP `postSessionSummary` endpoint (API-key protected) for posting session summaries from external/local workflows, plus a `health` check.
+**Two game systems.** *Old-School Essentials* is the deep one: structured sheets, inventory with weapons/armour/ammunition/consumables/gear, a store and shopping flow, arcane and divine spellbooks, thief skills, a monster catalog, treasure-type generation with magic-item tables, and the OSE SRD link.
+*Vampire: The Masquerade* is a lighter presentational variant - fillable sheets for clan, attributes, disciplines and XP, plus NPCs, references, maps, notes and calendar, without the items/store/treasure machinery.
+Each campaign picks a system, and the tab set follows.
 
-> Status: this is an actively evolving app well beyond its initial scaffold. Some areas are still maturing - treat the feature list as "present in the code today," and expect parts of the GM tooling and system-specific sheets to keep changing.
+**GM approval flow.** Players do not silently mutate the world.
+Adding or selling an item, transcribing a spell, or re-rolling an ability raises a request the GM approves or rejects, and item transfers between characters are handshaked on both sides with live notifications.
 
-## Tech stack
+**Live everything else.** Groups with email invites, per-campaign settings including which tabs are enabled, reusable random tables with entity pickers, a shared rich-text notes surface, an in-campaign calendar, session summaries with an importer, detail view and a cliffhanger highlight modal, and basic encounter tracking.
 
-- Vite + React + TypeScript, React Router
-- Firebase: Authentication, Cloud Firestore, Storage, Cloud Functions (2nd gen), Hosting
-- Iconify (game-icons) and lucide-react for iconography
-- Vitest for unit tests, plus emulator-backed integration tests; ESLint for linting
+**Auth.** Google sign-in and email/password, gated on email verification, with a one-time username claim.
 
-## Prerequisites
-- Node.js 24+
-- npm 11+
-- Java 21+ (required for the Firestore/Storage emulators)
+This is an actively evolving app.
+Treat the list as "present in the code today" - parts of the GM tooling and the system-specific sheets are still moving.
 
-## Install
-```bash
-npm install
+## Session transcription
+
+Session recaps and the NPC auto-notes above are not typed by hand.
+They come out of a recording of the actual game.
+
+The pipeline that produces them is a separate macOS service, outside this repository.
+This repo owns the receiving end of it: the `postSessionSummary` Cloud Function in [`functions/`](functions/), plus a `getCampaignNpcs` endpoint the pipeline reads first so it can match people it hears about against the campaign's real roster.
+Both are shared-secret authenticated HTTP endpoints.
+
+```text
+Discord recording (one audio track per speaker)
+  -> dropped into a watched folder
+  -> split per speaker, resampled to 16 kHz mono
+  -> voice-activity detection finds the speech regions in each track
+  -> each region transcribed on-device by a Parakeet speech model
+  -> regions restamped and merged into one chronological transcript
+  -> language model returns a structured session recap
+       (summary, scenes, NPC mentions, cliffhangers, in-world calendar)
+  -> POST  ->  postSessionSummary  (this repo, functions/)
+               matches NPC mentions to the roster, creates stubs for new ones,
+               writes the summary into the campaign
 ```
 
-## Environment Setup
-1. Copy the env file:
-```bash
-cp .env.example .env.local
-```
-2. Fill in the Firebase web app config values (`VITE_FIREBASE_*`) in `.env.local`.
-3. Set `VITE_USE_FIREBASE_EMULATORS=true` if you want the app to talk to local emulators.
+The transcription itself runs locally on the machine - Silero VAD for segmentation, a CoreML Parakeet model through a small Swift bridge for recognition - so the session audio never leaves the room.
+Only the finished text transcript goes out to a language model, and only the structured recap comes back.
 
-> Note: `.env.example` still lists `VITE_GM_EMAILS`. GM assignment has since moved to a per-campaign owner (`gmUserId`), so this variable is legacy and no longer wired into the app.
+What lands in Table Keep is a normalized object: an overall summary, named scenes with details, NPC mentions with facts, cliffhangers, and calendar entries.
+The receiver matches each NPC mention case-insensitively against the campaign roster, links unambiguous matches to the existing record, creates a stub for anyone new, and files the whole thing as a session summary with `api` source markers so a human editing it later is distinguishable from the generator.
+That is why Cedric's card, in the screenshot above, knows about a store visit in Session 11.
 
-## Firebase CLI-First Setup
+## How it is built and tested
 
-### 1) Login
-```bash
-npm run firebase:login
-```
+**Stack.** Vite + React 19 + TypeScript, React Router, Konva for the map canvas.
+Firebase Authentication, Cloud Firestore, Storage, Cloud Functions (2nd gen), Hosting.
+Iconify (game-icons) and lucide-react for iconography.
+Vitest for tests, ESLint for linting.
 
-### 2) Create project (or use existing)
-```bash
-npx firebase projects:create homeboyshouse-dev
-```
-
-### 3) Select project for this repo
-```bash
-npx firebase use --add
-```
-Choose `homeboyshouse-dev` and alias `default`.
-
-### 4) Enable required Firebase products
-You can do most via CLI, but Auth provider toggles still often need the console/UI.
-
-CLI-friendly product provisioning:
-```bash
-npx firebase firestore:databases:create --location=us-central
-npx firebase deploy --only firestore:rules,firestore:indexes,storage
-```
-
-## Run Locally
-
-### App only
-```bash
-npm run dev
-```
-
-### App + Firebase emulators
-1. Set the emulator flag in `.env.local`:
-```bash
-VITE_USE_FIREBASE_EMULATORS=true
-```
-2. Start the emulators:
-```bash
-npm run emulators
-```
-3. Start the app in another terminal:
-```bash
-npm run dev
-```
-
-## Scripts
-- `npm run dev` - start the Vite dev server
-- `npm run build` - type-check + production build
-- `npm run typecheck` - type-check only (`tsc -b`, no bundle)
-- `npm run lint` - run ESLint
-- `npm run test` - run the unit test suite (Vitest)
-- `npm run test:watch` - run Vitest in watch mode
-- `npm run test:emulator` - run emulator-backed integration tests
-- `npm run test:browser-smoke` - run the desktop/mobile Puppeteer smoke flow against local Firebase emulators
-- `npm run preview` - preview the production build
-- `npm run emulators` - start the auth/firestore/storage emulators
-- `npm run emulators:import` - start emulators with persisted state
-- `npm run emulators:export` - export emulator state
-- `npm run demo` - visitor demo: boots the emulators from the committed `./emulator-data` snapshot plus the dev server, and never writes the snapshot back
-- `npm run demo:author` - authoring demo: the same, but exports back to `./emulator-data` on exit. This is the only command that overwrites the committed snapshot
-- `npm run demo:save` - export a running demo emulator to `./emulator-data` without quitting it
-- `npm run demo:seed` - re-seed the two demo accounts into a running demo emulator
-- `npm run demo:size` - report the `./emulator-data` size against the budget for committing it
-- `npm run deploy:hosting` - deploy web app hosting
-- `npm run deploy:functions` - deploy Cloud Functions
-- `npm run firebase:login` - log in to the Firebase CLI
-
-Data-import helpers for OSE reference content also exist (`npm run ose:*`); see `package.json` and `scripts/`.
-
-The demo commands need no Firebase project, no login, and no `.env.local`: they inject the
-placeholder config in `.env.demo` into the dev server and point it at the local emulators.
-The sign-in screen then offers the two seeded accounts as one-click seats - "Enter as the Game
-Master" and "Enter as a Player" - in place of the Google button, which cannot reach Google from
-an emulator. Both commands also print those accounts (`demo-gm@tablekeep.test` and
-`demo-player@tablekeep.test`, password `tablekeep-demo`) on startup, so they can be typed into
-the ordinary email form instead. They exist only inside the local emulator and are not secrets.
-
-## Continuous integration
+### Continuous integration
 
 Every pull request, and every push to `main`, runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 The workflow only ever reads the repository, holds no secrets, and deploys nothing.
@@ -168,24 +175,78 @@ It runs seven jobs in parallel, each one a command you can reproduce locally:
 | Browser smoke (desktop + mobile) | `npm run test:browser-smoke` |
 | Cloud Functions (lint + build) | `npm run lint` and `npm run build` in `functions/` |
 
-The emulator job installs JDK 21 and caches the downloaded emulator jars.
-It runs entirely against localhost, so it needs no Firebase login and touches no real project.
-The Puppeteer smoke job signs in, verifies an emulator email, claims a handle, and creates a group at desktop and mobile viewports.
-Its review-only screenshots are uploaded on every run, including failures; visual-difference gating is intentionally deferred until stable baselines exist.
+The web app jobs run on Node 24, matching the prerequisites above.
+The Cloud Functions job runs on Node 20, matching `engines.node` in `functions/package.json` and the deployed function runtime.
+The split is deliberate.
 
-The web app jobs use Node 24, matching the prerequisites above.
-The Cloud Functions job uses Node 20, matching `engines.node` in `functions/package.json` and the deployed function runtime.
+### Test layers
 
-## Project layout
-- `src/features/*` - feature modules (auth, groups, campaign, character incl. OSE and VtM, maps, monsters, items, treasure, npcs, tables, notes, transfers, tokens, navigation, common).
+- **Unit** (`npm test`) - Vitest over pure logic: spell catalogs and spellbook rules, inventory synchronization, VtM creation/roll/XP rules, item-transfer resolution, and the map tool-state and token-placement machines.
+- **Rules** (`npm run test:emulator`) - every `src/**/*.emulator.test.ts` runs against a live Firestore + Storage emulator with the repository's real `firestore.rules` and `storage.rules` loaded, so authorization is tested as deployed rather than as intended.
+  Needs JDK 21+.
+- **Browser smoke** (`npm run test:browser-smoke`) - Puppeteer against local services only.
+  It starts Vite inside `firebase emulators:exec`, creates isolated emulator users, completes email verification through the emulator's OOB API, claims a handle, and creates a group at both desktop and mobile viewports.
+  It fails on page errors and console errors, and uploads review-only screenshots even when the run fails.
+
+### Project layout
+
+- `src/features/*` - feature modules: auth, groups, campaign, character (OSE and VtM), maps, monsters, items, treasure, npcs, tables, notes, transfers, tokens, navigation, common.
 - `src/firebase/*` - Firebase SDK setup and emulator wiring.
-- `functions/` - Cloud Functions source (session-summary ingestion + health check).
-- `docs/` - product and design docs (PRD, architecture, Firestore schema, group/campaign model, IA/navigation, component/UX specs, security-rules plan). Note that some docs predate the group/campaign model and describe the older single-active-campaign design.
-- Firebase config lives in `firebase.json`, `.firebaserc`, `firestore.rules`, `firestore.indexes.json`, and `storage.rules`.
+- `functions/` - Cloud Functions source: session-summary ingestion, NPC roster lookup, item-transfer callable, health check.
+- `scripts/demo/` - the demo harness and its committed emulator snapshot tooling.
+- `emulator-data/` - the committed snapshot the demo boots from, size-budgeted at 25 MB total and 1 MB per file (`npm run demo:size`).
+- Firebase config: `firebase.json`, `.firebaserc`, `firestore.rules`, `firestore.indexes.json`, `storage.rules`.
 
-## Firestore data model (high level)
-- `users/{userId}` - platform identity (email, username, timestamps).
-- `groups/{groupId}` - group, with `members/{userId}`, `invites/{inviteId}`, and `campaigns/{campaignId}` subcollections.
-- `groups/{groupId}/campaigns/{campaignId}/...` - per-campaign data: `characters`, `npcs`, `maps` (with `tokens`/`annotations`/`fogChunks`), `items`, `tables`, `sessionSummaries`, and per-user UI scratch under `userState/{userId}`.
+### Firestore data model
 
-See `docs/GROUP_CAMPAIGN_MODEL.md` and `docs/FIRESTORE_SCHEMA.md` for details.
+- `users/{userId}` - platform identity: email, username, timestamps.
+- `groups/{groupId}` - the group, with `members/{userId}`, `invites/{inviteId}`, and `campaigns/{campaignId}` subcollections.
+- `groups/{groupId}/campaigns/{campaignId}/...` - per-campaign data: `characters`, `npcs`, `maps` (each with `tokens`, `annotations`, `fogChunks`), `items`, `tables`, `sessionSummaries`, and per-user UI scratch under `userState/{userId}`.
+
+## Scripts
+
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Vite dev server |
+| `npm run build` | Type-check and production build |
+| `npm run typecheck` | `tsc -b`, no bundle |
+| `npm run lint` | ESLint |
+| `npm test` | Unit tests |
+| `npm run test:watch` | Unit tests in watch mode |
+| `npm run test:emulator` | Firestore/Storage rules tests against live emulators |
+| `npm run test:browser-smoke` | Desktop + mobile Puppeteer smoke flow |
+| `npm run preview` | Preview the production build |
+| `npm run demo` | Visitor demo: emulators from the committed snapshot plus the dev server, snapshot never written |
+| `npm run demo:author` | Authoring demo: the same, but exports back to `./emulator-data` on exit. The only command that overwrites the committed snapshot |
+| `npm run demo:save` | Export a running demo emulator without quitting it |
+| `npm run demo:seed` | Re-seed the two demo accounts into a running demo emulator |
+| `npm run demo:size` | Check `./emulator-data` against its commit budget |
+| `npm run emulators` | Start the auth/firestore/storage emulators bare |
+| `npm run emulators:import` | Start emulators with persisted state |
+| `npm run emulators:export` | Export emulator state |
+| `npm run deploy:hosting` | Deploy hosting |
+| `npm run deploy:functions` | Deploy Cloud Functions |
+| `npm run firebase:login` | Log in to the Firebase CLI |
+
+Data-import helpers for OSE reference content also exist as `npm run ose:*`; see `package.json` and `scripts/`.
+
+## Running against a real Firebase project
+
+The demo needs none of this.
+It is here for anyone who wants to deploy their own instance.
+
+```bash
+npm run firebase:login
+npx firebase projects:create your-project-id     # or skip, and use an existing one
+npx firebase use --add                           # select it, alias it "default"
+npx firebase firestore:databases:create --location=us-central
+npx firebase deploy --only firestore:rules,firestore:indexes,storage
+```
+
+Then copy `.env.example` to `.env.local` and fill in the `VITE_FIREBASE_*` values from the project's web app config.
+Set `VITE_USE_FIREBASE_EMULATORS=true` to point a normal `npm run dev` at local emulators instead.
+
+Auth provider toggles (Google, email/password) still have to be enabled in the Firebase console; there is no CLI for them.
+
+> `.env.example` still lists `VITE_GM_EMAILS`.
+> GM assignment moved to a per-campaign owner (`gmUserId`) some time ago, so that variable is legacy and is not read anywhere in the app.

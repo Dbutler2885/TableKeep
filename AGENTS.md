@@ -129,10 +129,18 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
   The budget is 25 MB total and 1 MB per file, enforced by `npm run demo:size` (`scripts/demo/check-snapshot-size.mjs`); run it before committing a re-export.
   Shrink source images before uploading them in the app rather than trimming the snapshot afterwards - a large PNG that lands in one commit is permanent weight even if a later commit removes it.
 
-## Component tests
+## Documentation surface
 
-`npm test` is Node-environment by default (`vite.config.ts`), because nearly every suite is pure logic.
-The few component suites are `.test.tsx` and opt into a DOM per file with a `// @vitest-environment jsdom` docblock, so the jsdom cost stays off the rest of the run.
+`README.md` is the only document this project ships.
+The former `docs/` folder (PRD, architecture, schema, IA, component/UX specs, milestones) was deleted deliberately: it had drifted behind the group/campaign model and the code is the authority.
+Do not reintroduce a `docs/` tree - put durable engineering knowledge here in `AGENTS.md`, and put anything a reader needs in the README.
 
-- **`tsconfig.app.json` excludes `.test.tsx` as well as `.test.ts`**, so `npm run typecheck` does not cover component tests either; their type errors surface when Vitest runs them.
-- **`@testing-library/react` auto-cleanup does not fire here.** It installs itself only when `afterEach` is a global, and neither Vitest config enables `globals`. Call `cleanup` from an explicit `afterEach`.
+- **README media lives in `.github/media/` and is committed.**
+  It is outside `src/` and `public/` on purpose, so it never reaches the production bundle.
+  Reference it from the README with repo-relative paths.
+- **The animated WebP hero is what carries motion on the rendered page.**
+  A repo-relative `.mp4` does not reliably play inline in a README - GitHub's inline player is normally reserved for files uploaded through its own attachment flow - so the screen recording is presented as a poster image wrapped in a link to the `.mp4`.
+  Keep that shape if the recording is replaced; do not convert a minute-plus recording to GIF or animated WebP, which would be enormous.
+- **The session transcription pipeline is external.**
+  This repo owns only the receiving endpoints in `functions/`: `postSessionSummary` and `getCampaignNpcs`.
+  The watcher, VAD, on-device speech model, and recap generation run as a separate macOS service on the GM's machine and are not in this codebase.
