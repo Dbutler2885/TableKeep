@@ -133,11 +133,22 @@ npm run dev
 - `npm run emulators` - start the auth/firestore/storage emulators
 - `npm run emulators:import` - start emulators with persisted state
 - `npm run emulators:export` - export emulator state
+- `npm run demo` - visitor demo: boots the emulators from the committed `./emulator-data` snapshot plus the dev server, and never writes the snapshot back
+- `npm run demo:author` - authoring demo: the same, but exports back to `./emulator-data` on exit. This is the only command that overwrites the committed snapshot
+- `npm run demo:save` - export a running demo emulator to `./emulator-data` without quitting it
+- `npm run demo:seed` - re-seed the two demo accounts into a running demo emulator
+- `npm run demo:size` - report the `./emulator-data` size against the budget for committing it
 - `npm run deploy:hosting` - deploy web app hosting
 - `npm run deploy:functions` - deploy Cloud Functions
 - `npm run firebase:login` - log in to the Firebase CLI
 
 Data-import helpers for OSE reference content also exist (`npm run ose:*`); see `package.json` and `scripts/`.
+
+The demo commands need no Firebase project, no login, and no `.env.local`: they inject the
+placeholder config in `.env.demo` into the dev server and point it at the local emulators.
+Both print the two seeded sign-in accounts (`demo-gm@tablekeep.test` and
+`demo-player@tablekeep.test`, password `tablekeep-demo`) on startup. Those accounts exist only
+inside the local emulator and are not secrets.
 
 ## Continuous integration
 
