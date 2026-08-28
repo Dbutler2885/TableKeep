@@ -84,7 +84,9 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
       # firebase-tools 15 refuses to start the Firestore/Storage emulators on
       # anything older than JDK 21, and says so without naming the JDK it found.
       - uses: actions/setup-java@v6
@@ -100,6 +102,10 @@ jobs:
           key: firebase-emulators-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
           restore-keys: firebase-emulators-${{ runner.os }}-
       - run: npm ci
+      # `acceptPendingTransfer.emulator.test.ts` imports the real callable out of
+      # functions/src, so that package's own runtime dependencies (firebase-admin,
+      # firebase-functions) have to be installed for this job as well.
+      - run: npm ci --prefix functions
       # `firebase emulators:exec` takes the project id from .firebaserc and runs
       # the suites against the repo's real firestore.rules / storage.rules on
       # localhost. No Firebase credentials and no production project involved.
