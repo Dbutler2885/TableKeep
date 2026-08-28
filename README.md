@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Dbutler2885/TableKeep/actions/workflows/ci.yml/badge.svg)](https://github.com/Dbutler2885/TableKeep/actions/workflows/ci.yml)
 
-**Table Keep** is a virtual tabletop that writes its own campaign log.
+Table Keep is a virtual tabletop that writes its own campaign log.
 Play the session, and the recap and the updated NPC notes are waiting the next time anyone opens the app.
 
 <p align="center">
@@ -52,14 +52,11 @@ Stop the demo with `Ctrl+C`.
 ## What it is
 
 Table Keep is a virtual tabletop.
-Live fog-of-war maps, character sheets, an NPC roster the GM reveals a piece at a time, and a campaign that remembers itself in recaps and NPC notes.
+The GM reveals a map a piece at a time, and every client sees the fog change as it happens.
+Character sheets live in one place and stay current.
+The session recaps and the per-session NPC notes write themselves from a recording of the game.
 
-What exists today is three things.
-A place to watch maps update live as pieces move across them.
-A place where every character sheet lives and stays current, in one place.
-And a place where the campaign's memory is preserved, as AI-generated session recaps and per-session NPC descriptions.
-
-It is organized around **groups** and **campaigns**:
+Groups and campaigns hold everything else.
 
 - A user signs in, claims a username, and can belong to multiple groups.
 - A group is the stable social container. Members and email invites live there.
@@ -140,7 +137,7 @@ They know there is a road, two buildings, and something south of them. That is a
 
 The NPC roster is split down the middle by who is allowed to see what.
 Every record has a portrait, a player-facing description, and private GM notes; the list on the left is grouped by visibility so the GM can see at a glance what the table has met.
-Under the portrait, AI writes the **Auto-Notes** from the session transcript.
+Under the portrait, AI writes the Auto-Notes from the session transcript.
 Here, Cedric picked up a line from Session 11 about the party passing through his store on the thief's trail.
 Nobody typed that.
 
@@ -169,22 +166,22 @@ Buying, selling, transcribing a spell and re-rolling an ability all reach the GM
 
 ## Features
 
-**Two game systems.** *Old-School Essentials* is the deeper of the two: structured sheets, inventory with weapons/armour/ammunition/consumables/gear, a store and shopping flow, arcane and divine spellbooks, thief skills, a monster catalog, treasure-type generation with magic-item tables, and the OSE SRD link.
+Each campaign picks a game system, and the tab set follows.
+
+*Old-School Essentials* is the deeper of the two: structured sheets, inventory covering weapons, armour, ammunition, consumables and gear, a store and shopping flow, arcane and divine spellbooks, thief skills, a monster catalog, treasure-type generation with magic-item tables, and the OSE SRD link.
 The structured data is already there: items, NPCs, monsters, maps, tables, treasure.
-It is what automating a lot of play would need.
-None of that automation is built yet.
+It is what automating a lot of play would need, and none of that automation is built yet.
 What runs today computes the sheet and polices the economy. It does not run the rules of the game.
-*Vampire: The Masquerade* gets a lot of play at the table, and a real slice of it is implemented: sheets for clan, attributes, abilities, disciplines, backgrounds and virtues, a d10 dice-pool roller with initiative and soak presets, XP priced by category with separate in-clan and out-of-clan discipline costs, clan weaknesses, and generation-based blood pool maximums.
+
+*Vampire: The Masquerade* gets a lot of play at the table, and a real slice of it already works: sheets for clan, attributes, abilities, disciplines, backgrounds and virtues, a d10 dice-pool roller with initiative and soak presets, XP priced by category with separate in-clan and out-of-clan discipline costs, clan weaknesses, and generation-based blood pool maximums.
 It stops there.
 There is no items, store or treasure machinery on the VtM side, and the full ruleset is a future build rather than something already shipped.
-Each campaign picks a system, and the tab set follows.
 
-**GM approval flow.** Players cannot change the world behind the GM's back.
+Players cannot change the world behind the GM's back.
 Item, spell and re-roll requests land in a GM queue with live notifications, and a character-to-character transfer needs a handshake at both ends.
 
-**Live everything else.** Groups with email invites, per-campaign settings including which tabs are enabled, reusable random tables with entity pickers, a shared rich-text notes surface, an in-campaign calendar, session summaries with an importer, detail view and cliffhanger highlight modal.
-
-**Auth.** Google sign-in and email/password, gated on email verification, with a one-time username claim.
+The rest: groups with email invites, per-campaign settings including which tabs are enabled, reusable random tables with entity pickers, shared notes with a rich-text editor, an in-campaign calendar, and session summaries with an importer, a detail view and a cliffhanger highlight modal.
+Sign-in is Google or email and password, gated on email verification, with a one-time username claim.
 
 ## AI-generated session recaps
 
@@ -220,7 +217,7 @@ That is why Cedric's card, in the screenshot above, knows about a store visit in
 
 ## How it is built and tested
 
-**Stack.** Vite + React 19 + TypeScript, React Router, Konva for the map canvas.
+The stack is Vite, React 19 and TypeScript, with React Router and Konva for the map canvas.
 Firebase Authentication, Cloud Firestore, Storage, Cloud Functions (2nd gen), Hosting.
 Iconify (game-icons) and lucide-react for iconography.
 Vitest for tests, ESLint for linting.

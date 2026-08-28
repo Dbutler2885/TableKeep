@@ -15,7 +15,7 @@ The workflow is read-only (`permissions: contents: read`), uses no secrets, and 
   Do not collapse them into one version or widen either into a matrix.
 - **`npm run typecheck` is `tsc -b`, and it does not cover test files.**
   `tsconfig.app.json` excludes `src/**/*.test.ts` and `src/**/*.emulator.test.ts`, and `tsconfig.node.json` includes only `vite.config.ts`.
-  Type errors inside a test file surface when Vitest runs it, not from the typecheck gate.
+  Type errors inside a test file appear when Vitest runs it, not from the typecheck gate.
 - **The emulator job needs JDK 21 and caches `~/.cache/firebase/emulators`.**
   The cache key is the root `package-lock.json` hash, because the emulator jar versions are decided by the pinned firebase-tools release.
 - **The browser-smoke job uses Puppeteer against only local services.**
@@ -112,7 +112,7 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
 - **The demo accounts have pinned uids** (`demo-gm-uid`, `demo-player-uid`, in `scripts/demo/config.mjs`).
   The snapshot stores campaign ownership, group membership, and character ownership by uid, so a re-seed on a visitor's machine has to land on the same uids or the imported campaign would belong to nobody.
   Usernames must be exactly seven characters (`src/features/auth/usernameRules.ts`).
-- **Seeding goes through the emulator's admin surface, not a browser.**
+- **Seeding goes through the emulator's admin endpoints, not a browser.**
   `POST {auth}/identitytoolkit.googleapis.com/v1/projects/{projectId}/accounts` with `Authorization: Bearer owner` accepts `localId` and `emailVerified`, which the client `accounts:signUp` endpoint does not; `accounts:update` on the same prefix repairs an existing account.
   Firestore writes use `PATCH {firestore}/v1/projects/{projectId}/databases/(default)/documents/{path}?updateMask.fieldPaths=...` with the same owner token, which bypasses `firestore.rules`.
   Every write in `scripts/demo/seed-accounts.mjs` is idempotent, so it can run against a freshly imported snapshot without disturbing it.
@@ -132,7 +132,7 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
   Shrink source images before uploading them in the app rather than trimming the snapshot afterwards.
   A large PNG that lands in one commit is permanent weight even if a later commit removes it.
 
-## Documentation surface
+## Documentation
 
 `README.md` is the only document this project ships.
 The former `docs/` folder (PRD, architecture, schema, IA, component/UX specs, milestones) is gone on purpose.
