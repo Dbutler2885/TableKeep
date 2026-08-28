@@ -53,8 +53,13 @@ Stop the demo with `Ctrl+C`.
 ## What it is
 
 Table Keep is not a virtual tabletop.
-Nobody is rolling dice in it.
+The game happens at a table or on voice; the app is not where you play, it is where the campaign is kept.
 It is the thing your group forgets between sessions: what the reeve's name was, what he wanted, which alley you have actually walked down, and what your thief is carrying.
+
+What exists today is three things.
+A place to watch maps update live as pieces move across them.
+A place where every character sheet lives and stays current, in one place.
+And a place where the campaign's memory is preserved, as AI-generated session recaps and per-session NPC descriptions.
 
 It is organized around **groups** and **campaigns**:
 
@@ -73,15 +78,22 @@ The player UI is built for a phone at the table; the GM UI is built for a laptop
 
 ### Maps, fog, and tokens
 
-[![The GM's map view: the full tool rail across the top, a village half-hidden under fog, and a token labelled The Clumsy Fox on the revealed ground](.github/media/table-keep-map-tools-poster.webp)](.github/media/table-keep-map-tools.mp4)
+<p align="center">
+  <img src=".github/media/table-keep-map-tools.webp" alt="The GM's map view: the full tool rail across the top, a village half-hidden under fog, and a token being placed and labelled The Clumsy Fox" width="640">
+</p>
 
-**[▶ The map tools, 33 seconds](.github/media/table-keep-map-tools.mp4)** - the whole GM rail in one pass: brush size, fog, vision blocking, measurement, player view, selection and pan, annotation, grid.
+**The map tools, 33 seconds** - the whole GM rail in one pass: brush size, fog, vision blocking, measurement, player view, selection and pan, annotation, grid.
 Then a token is placed on the map and labelled *The Clumsy Fox*, and the label renders on the board where the table will read it.
+[Full-quality recording](.github/media/table-keep-map-tools.mp4).
 
-[![Eric the Town Reeve placed on the map, his portrait and GM notes filling the right sidebar, his name rendered under his token](.github/media/table-keep-scene-npcs-poster.webp)](.github/media/table-keep-scene-npcs.mp4)
+<p align="center">
+  <img src=".github/media/table-keep-scene-npcs.webp" alt="Eric the Town Reeve selected on the map, his portrait and GM notes filling the right sidebar, his name label appearing under his token" width="640">
+</p>
 
-**[▶ Scene NPCs, 39 seconds](.github/media/table-keep-scene-npcs.mp4)** - attaching NPCs from the campaign roster to a map, then placing Eric the Town Reeve.
-His portrait and notes fill the sidebar the moment he is selected, so the GM has what Eric wants and what he will pay for it in front of them without leaving the map.
+**Scene NPCs, 14 seconds** - Eric the Town Reeve, selected, with his portrait and notes filling the sidebar, so the GM has what Eric wants and what he will pay for it in front of them without leaving the map.
+It ends on his name label appearing on the board, where the table will read it.
+Scene NPCs attach to a map from the campaign roster, so the people in a location travel with it.
+[Full-quality recording](.github/media/table-keep-scene-npcs.mp4).
 
 Fog is the feature the rest of the map tooling exists to serve.
 The GM paints reveals with a sizeable brush, blocks line of sight with vision walls, and can flip to player view at any time to check exactly what the table can see.
@@ -125,7 +137,9 @@ Buying, selling, transcribing a spell and re-rolling an ability all reach the GM
 
 ## Features
 
-**Two game systems.** *Old-School Essentials* is the deep one: structured sheets, inventory with weapons/armour/ammunition/consumables/gear, a store and shopping flow, arcane and divine spellbooks, thief skills, a monster catalog, treasure-type generation with magic-item tables, and the OSE SRD link.
+**Two game systems.** *Old-School Essentials* is the deeper of the two: structured sheets, inventory with weapons/armour/ammunition/consumables/gear, a store and shopping flow, arcane and divine spellbooks, thief skills, a monster catalog, treasure-type generation with magic-item tables, and the OSE SRD link.
+The structured data is deliberately in place - items, NPCs, monsters, maps, tables, treasure - as the groundwork for automating a lot of play.
+That automation is a future build rather than something already shipped: what runs today computes the sheet and polices the economy, it does not run the rules of the game.
 *Vampire: The Masquerade* gets a lot of play at the table, and a real slice of it is implemented: sheets for clan, attributes, abilities, disciplines, backgrounds and virtues, a d10 dice-pool roller with initiative and soak presets, XP priced by category with separate in-clan and out-of-clan discipline costs, clan weaknesses, and generation-based blood pool maximums.
 It stops there, and it is worth being plain about that.
 There is no items, store or treasure machinery on the VtM side, and the full ruleset is a future build rather than something already shipped - a working foundation, not a finished system.

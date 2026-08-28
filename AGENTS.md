@@ -138,9 +138,10 @@ Do not reintroduce a `docs/` tree - put durable engineering knowledge here in `A
 - **README media lives in `.github/media/` and is committed.**
   It is outside `src/` and `public/` on purpose, so it never reaches the production bundle.
   Reference it from the README with repo-relative paths.
-- **The animated WebP hero is what carries motion on the rendered page.**
-  A repo-relative `.mp4` does not reliably play inline in a README - GitHub's inline player is normally reserved for files uploaded through its own attachment flow - so the screen recording is presented as a poster image wrapped in a link to the `.mp4`.
-  Keep that shape if the recording is replaced; do not convert a minute-plus recording to GIF or animated WebP, which would be enormous.
+- **Motion on the rendered page is carried by animated WebP, embedded inline with an `<img>` tag.**
+  A repo-relative `.mp4` does not reliably play inline in a README - GitHub's inline player is normally reserved for files uploaded through its own attachment flow - so an `.mp4` is only ever a plain "full-quality recording" link underneath the animation, never the thing the page depends on.
+  This only works because the clips are short: the two map clips are 33s and 14s and cost about 2.4 MB each as animated WebP.
+  Recut a long recording rather than animating it - a minute-plus clip would be enormous, and git keeps every version of it forever.
 - **The session transcription pipeline is external.**
   This repo owns only the receiving endpoints in `functions/`: `postSessionSummary` and `getCampaignNpcs`.
   The watcher, VAD, on-device speech model, and recap generation run as a separate macOS service on the GM's machine and are not in this codebase.
