@@ -1,12 +1,8 @@
 # Table Keep
 
-[![CI](https://github.com/Dbutler2885/HomeBoysHouse/actions/workflows/ci.yml/badge.svg)](https://github.com/Dbutler2885/HomeBoysHouse/actions/workflows/ci.yml)
+[![CI](https://github.com/Dbutler2885/TableKeep/actions/workflows/ci.yml/badge.svg)](https://github.com/Dbutler2885/TableKeep/actions/workflows/ci.yml)
 
 **Table Keep** is the campaign memory for a tabletop RPG group: character sheets, live fog-of-war maps, an NPC roster the GM reveals a piece at a time, and AI-generated session recaps built from a recording of the game you just played.
-
-The repository is called `HomeBoysHouse` - that is the group it was built for.
-The product in the UI is Table Keep.
-Same thing.
 
 <p align="center">
   <img src=".github/media/table-keep-fog-hero.webp" alt="A player's map view: fog of war peeling back around a token as it moves through a village" width="560">
@@ -17,8 +13,8 @@ Same thing.
 ## Try it in two minutes
 
 ```bash
-git clone https://github.com/Dbutler2885/HomeBoysHouse.git
-cd HomeBoysHouse
+git clone https://github.com/Dbutler2885/TableKeep.git
+cd TableKeep
 npm install
 npm run demo
 ```

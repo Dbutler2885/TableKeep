@@ -18,7 +18,7 @@ function usage() {
 async function fetchJson(url) {
   const response = await fetch(url, {
     headers: {
-      'user-agent': 'HomeBoysHouse OSE treasure importer',
+      'user-agent': 'Table Keep OSE treasure importer',
       accept: 'application/json',
     },
   })
