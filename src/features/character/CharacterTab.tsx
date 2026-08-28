@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Check, ChevronLeft, ShoppingBag, Sparkles, Star, X } from 'lucide-react'
-import { onSnapshot, runTransaction, serverTimestamp, setDoc } from 'firebase/firestore'
+import { runTransaction, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase'
 import type {
   CampaignItem,
@@ -20,10 +20,9 @@ import type {
 import { campaignItemToInventoryItem } from '../items/itemConversion'
 import { toFirestoreItem, useItems } from '../items/useItems'
 import { useItemApprovals } from './hooks/useItemApprovals'
-import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
+import { campaignDocRef } from '../campaign/firestorePaths'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
-import { sanitizeTokenIconForPersistence, uploadEntityImage } from '../common/mediaStorage'
 import { OSE_WEAPON_CATALOG, weaponCatalogById } from './weaponCatalog'
 import { OSE_ARMOUR_CATALOG, armourCatalogById } from './armourCatalog'
 import { OSE_GENERAL_CATALOG, generalCatalogById } from './generalCatalog'
@@ -58,7 +57,6 @@ import {
   parseArmourTemplateValues,
   armourTypeFromTemplateId,
 } from './inventoryRules'
-import { makeId } from './characterFactories'
 import { computeAvailablePackedSlots, computeOverflow, goldChunksForAmount, makeDroppedGoldCampaignItem, makeGoldItem } from './inventoryOverflow'
 import { usePendingTransfers } from '../transfers/usePendingTransfers'
 import { useResponsiveCharacterLayout } from './hooks/useResponsiveCharacterLayout'
@@ -69,6 +67,11 @@ import { useInventoryDomain } from './hooks/useInventoryDomain'
 import type { AddItemModalState } from './hooks/useInventoryDomain'
 import { useStoreDomain } from './hooks/useStoreDomain'
 import { useCharacterSheetState } from './hooks/useCharacterSheetState'
+import { useCampaignCharacterDirectory } from './hooks/useCampaignCharacterDirectory'
+import { useCharacterTransfer } from './hooks/useCharacterTransfer'
+import { usePlayerAssignment } from './hooks/usePlayerAssignment'
+import { useCharacterMedia } from './hooks/useCharacterMedia'
+import { useCharacterRoster } from './hooks/useCharacterRoster'
 import { CharacterListPane } from './components/CharacterListPane'
 import { computeGrantedXp, nextLevelXpFor, primeRequisiteXpBonusPercent, projectCharacterProgress } from './xpProgression'
 import { BlurSyncedTextarea } from './components/BlurSyncedTextarea'
@@ -89,7 +92,6 @@ import {
   thiefSkillRows,
 } from './lib/characterSheetTables'
 import {
-  defaultTokenIcon,
   equippedRowCount,
   packedMovementBands,
   packedRowCount,
@@ -114,11 +116,9 @@ import {
 } from './lib/playerAddGear'
 import type {
   AdventureEditableCode,
-  CampaignPlayerOption,
   CharacterTabProps,
   ClassFeature,
   GrantTemplateEntry,
-  TransferTargetCharacter,
 } from './lib/characterTabTypes'
 
 
@@ -203,10 +203,6 @@ export function CharacterTab({
     setAlignmentByCharacterId, setTitleByCharacterId, setLanguagesTextByCharacterId,
     setUnencumberingItemsTextByCharacterId, setOtherNotesTextByCharacterId,
   } = stateSetters
-  const [createCharacterModalOpen, setCreateCharacterModalOpen] = useState(false)
-  const [finalizeConfirmOpen, setFinalizeConfirmOpen] = useState(false)
-  const [finalizeError, setFinalizeError] = useState<string | null>(null)
-  const [holySymbolRequiredOpen, setHolySymbolRequiredOpen] = useState(false)
   const [storeOpen, setStoreOpen] = useState(false)
   const [storeCloseConfirmOpen, setStoreCloseConfirmOpen] = useState(false)
   const [storeCategory, setStoreCategory] = useState<StoreCategoryId>('adventuring')
@@ -257,15 +253,6 @@ export function CharacterTab({
   const [levelUpHpRoll, setLevelUpHpRoll] = useState<number | null>(null)
   const [levelUpApplying, setLevelUpApplying] = useState(false)
   const [levelUpError, setLevelUpError] = useState<string | null>(null)
-  const [transferPickerOpen, setTransferPickerOpen] = useState(false)
-  const [transferTargetCharacterId, setTransferTargetCharacterId] = useState('')
-  const [transferBusy, setTransferBusy] = useState(false)
-  const [transferError, setTransferError] = useState<string | null>(null)
-  const [transferQty, setTransferQty] = useState<string>('')
-  const [allCampaignCharacters, setAllCampaignCharacters] = useState<TransferTargetCharacter[]>([])
-  const [playerAssignmentOpen, setPlayerAssignmentOpen] = useState(false)
-  const [assignmentTargetUserId, setAssignmentTargetUserId] = useState('')
-  const [assignmentBusy, setAssignmentBusy] = useState(false)
 
   const { ownPendingRequests, rejections, submitRequest, submitSpellLearnRequest, submitAbilityRerollRequest, dismissRejection } = useItemApprovals(campaignId, groupId, role, currentUserId)
   const { items: campaignItems } = useItems(campaignId, groupId)
@@ -279,57 +266,7 @@ export function CharacterTab({
     return () => clearTimeout(timer)
   }, [approvalPendingFeedback])
 
-  useEffect(() => {
-    if (!campaignId) return
-
-    const unsub = onSnapshot(
-      campaignCollectionRef(db, { campaignId, groupId }, 'characters'),
-      (snapshot) => {
-        const next = snapshot.docs
-          .map((docSnap) => {
-            const data = docSnap.data() as {
-              name?: string
-              ownerUserId?: string
-              ownerUsername?: string | null
-              details?: CharacterRecord['details']
-            }
-            return {
-              id: docSnap.id,
-              name: data.name ?? docSnap.id,
-              ownerUserId: data.ownerUserId ?? '',
-              ownerUsername: typeof data.ownerUsername === 'string' ? data.ownerUsername : null,
-              details: data.details ?? null,
-            } satisfies TransferTargetCharacter
-          })
-          .filter((character) => role === 'gm' || character.ownerUserId !== gmUserId)
-        setAllCampaignCharacters(next)
-      },
-      () => setAllCampaignCharacters([]),
-    )
-
-    return () => {
-      unsub()
-      setAllCampaignCharacters([])
-    }
-  }, [campaignId, gmUserId, groupId, role])
-
-  // Players are derived from character ownership (non-GM owners), replacing the
-  // old campaign-level `members` roster.
-  const campaignPlayers = useMemo<CampaignPlayerOption[]>(() => {
-    const byUser = new Map<string, CampaignPlayerOption>()
-    for (const character of allCampaignCharacters) {
-      if (!character.ownerUserId || character.ownerUserId === gmUserId) continue
-      if (!byUser.has(character.ownerUserId)) {
-        byUser.set(character.ownerUserId, {
-          userId: character.ownerUserId,
-          username: character.ownerUsername ?? null,
-        })
-      }
-    }
-    return [...byUser.values()].sort((a, b) =>
-      (a.username ?? a.userId).localeCompare(b.username ?? b.userId),
-    )
-  }, [allCampaignCharacters, gmUserId])
+  const { allCampaignCharacters, campaignPlayers } = useCampaignCharacterDirectory(campaignId, groupId, gmUserId, role)
 
   const { seededCharacterIdsRef, justSeededRef, lastPersistedDetailsJsonRef } = useCharacterPersistenceSync({
     selectedCharacterId,
@@ -402,48 +339,15 @@ export function CharacterTab({
   const canDeleteCharacter = (character: CharacterRecord) => canDeleteCharacterForRole(role, currentUserId, character)
   const effectiveShowListPane = embeddedMode ? false : showListPane
   const effectiveShowDetailPane = embeddedMode ? true : showDetailPane
-  const assignmentOptions = useMemo(
-    () => campaignPlayers.filter((player) => player.userId !== effectiveSelected?.ownerUserId),
-    [campaignPlayers, effectiveSelected?.ownerUserId],
-  )
-
-  const effectiveAssignmentTargetUserId = assignmentOptions.some(
-    (player) => player.userId === assignmentTargetUserId,
-  )
-    ? assignmentTargetUserId
-    : (assignmentOptions[0]?.userId ?? '')
+  const {
+    playerAssignmentOpen, assignmentBusy, assignmentOptions,
+    effectiveAssignmentTargetUserId, setAssignmentTargetUserId, openPlayerAssignment,
+    closePlayerAssignment, submitPlayerAssignment,
+  } = usePlayerAssignment({ effectiveSelected, campaignPlayers, updateCharacter })
 
   const exitGrantMode = () => {
     setGrantMode(false)
     setGrantTargetIds({})
-  }
-
-  const openPlayerAssignment = () => {
-    setAssignmentTargetUserId(assignmentOptions[0]?.userId ?? '')
-    setPlayerAssignmentOpen(true)
-  }
-
-  const closePlayerAssignment = () => {
-    if (assignmentBusy) return
-    setPlayerAssignmentOpen(false)
-    setAssignmentTargetUserId('')
-  }
-
-  const submitPlayerAssignment = async () => {
-    if (!effectiveSelected || !effectiveAssignmentTargetUserId) return
-    const target = campaignPlayers.find((player) => player.userId === effectiveAssignmentTargetUserId)
-    if (!target) return
-    setAssignmentBusy(true)
-    try {
-      updateCharacter(effectiveSelected.id, {
-        ownerUserId: target.userId,
-        ownerUsername: target.username ?? target.userId,
-      })
-      setPlayerAssignmentOpen(false)
-      setAssignmentTargetUserId('')
-    } finally {
-      setAssignmentBusy(false)
-    }
   }
 
   const toggleGrantTarget = (characterId: string, checked: boolean) => {
@@ -560,66 +464,24 @@ export function CharacterTab({
     () => new Map(outgoingTransfers.map((transfer) => [`${transfer.fromCharacterId}:${transfer.itemId}`, transfer])),
     [outgoingTransfers],
   )
-  const transferTargets = useMemo(
-    () => allCampaignCharacters
-      .filter((character) => character.id !== effectiveSelected?.id)
-      .filter((character) => character.ownerUserId !== currentUserId),
-    [allCampaignCharacters, currentUserId, effectiveSelected?.id],
-  )
   const selectedClassName = effectiveSelected?.className ?? '-'
   const selectedLevel = effectiveSelected?.level ?? 1
   const unlockedClassFeatures = (classFeaturesByClass[selectedClassName] ?? [])
     .filter((feature) => selectedLevel >= feature.unlockedAt)
     .sort((a, b) => a.unlockedAt - b.unlockedAt)
 
-  const openTransferPickerForItem = (item: TransferableInventoryItem) => {
-    void item
-    setTransferError(null)
-    setTransferTargetCharacterId(transferTargets[0]?.id ?? '')
-    setTransferQty(item.stack.stackable && item.qty > 1 ? '1' : '')
-    setTransferPickerOpen(true)
-  }
-
-  const closeTransferPicker = () => {
-    setTransferPickerOpen(false)
-    setTransferTargetCharacterId('')
-    setTransferBusy(false)
-    setTransferError(null)
-    setTransferQty('')
-  }
-
-  const submitTransfer = async (item: TransferableInventoryItem) => {
-    if (!effectiveSelected) return
-    const target = transferTargets.find((character) => character.id === transferTargetCharacterId) ?? null
-    if (!target) {
-      setTransferError('Choose a target character.')
-      return
-    }
-
-    // For stackable items with qty > 1, split the stack
-    const isStackSplit = item.stack.stackable && item.qty > 1
-    const giveQty = isStackSplit ? Math.max(1, Math.min(item.qty, Number.parseInt(transferQty, 10) || 1)) : item.qty
-    const giveAll = giveQty >= item.qty
-
-    const snapshotItem: TransferableInventoryItem = giveAll
-      ? item
-      : { ...item, id: makeId(), qty: giveQty } as TransferableInventoryItem
-
-    setTransferBusy(true)
-    setTransferError(null)
-    try {
-      await createTransfer(snapshotItem, item.id, effectiveSelected, target)
-
-      setTransferPickerOpen(false)
-      setTransferTargetCharacterId('')
-      setTransferQty('')
-      setItemDetailId(null)
-    } catch (error) {
-      setTransferError(error instanceof Error ? error.message : 'Failed to create transfer.')
-    } finally {
-      setTransferBusy(false)
-    }
-  }
+  const {
+    transferPickerOpen, transferTargetCharacterId, transferBusy, transferError, transferQty,
+    transferTargets, setTransferTargetCharacterId, setTransferQty,
+    openTransferPickerForItem, closeTransferPicker, submitTransfer, cancelOutgoingTransfer,
+  } = useCharacterTransfer({
+    allCampaignCharacters,
+    currentUserId,
+    effectiveSelected,
+    createTransfer,
+    cancelTransfer,
+    closeItemDetail: () => setItemDetailId(null),
+  })
   const {
     isGuidedCreation, isInFinalizationFlow,
     canEditClassAndAlignment, canMemorizeSpell, requiresSpellLearnApproval,
@@ -1242,128 +1104,9 @@ export function CharacterTab({
     currentPackedMovement, derivedOverlandMove, derivedExplorationMove, derivedEncounterMove,
   } = deriveMovement(packedItemCount)
 
-  const uploadCharacterTokenImage = async (file: File) => {
-    if (!effectiveSelected || !canEditSelected) throw new Error('No editable character selected.')
-    const { path, url, name } = await uploadEntityImage({
-      campaignId,
-      groupId,
-      collectionName: 'characters',
-      entityId: effectiveSelected.id,
-      mediaKind: 'token-icons',
-      file,
-      maxWidth: 1024,
-      maxHeight: 1024,
-    })
-    return {
-      customImagePath: path,
-      customImageUrl: url,
-      customImageName: name,
-    }
-  }
-
-  const uploadCharacterPortraitImage = async (file: File) => {
-    if (!effectiveSelected || !canEditSelected) throw new Error('No editable character selected.')
-    const { path, url } = await uploadEntityImage({
-      campaignId,
-      groupId,
-      collectionName: 'characters',
-      entityId: effectiveSelected.id,
-      mediaKind: 'portraits',
-      file,
-      maxWidth: 600,
-      maxHeight: 800,
-    })
-    return {
-      portraitPath: path,
-      portraitUrl: url,
-    }
-  }
-
-  const addCharacter = (creationMode: 'new' | 'established') => {
-    if (!canCreateCharacter) return
-    const nextCharacter: CharacterRecord = {
-      id: makeId(),
-      name: 'New Character',
-      ownerUserId: currentUserId,
-      ownerUsername: currentUsername,
-      creationMode,
-      creationModeExplicit: true,
-      creationStatus: creationMode === 'new' ? 'draft' : 'established_draft',
-      className: '-',
-      level: 1,
-      hpCurrent: 0,
-      hpMax: 0,
-      ac: 10,
-      xp: 0,
-      portraitPath: '',
-      portraitUrl: null,
-      portraitFocusX: 50,
-      portraitFocusY: 50,
-      tokenIcon: defaultTokenIcon,
-    }
-    setSelectedCharacterId(nextCharacter.id)
-    if (isSinglePane) setPaneView('detail')
-    void setDoc(campaignDocRef(db, { campaignId, groupId }, 'characters', nextCharacter.id), {
-      name: nextCharacter.name,
-      ownerUserId: nextCharacter.ownerUserId,
-      ownerUsername: nextCharacter.ownerUsername ?? null,
-      creationMode: nextCharacter.creationMode,
-      creationModeExplicit: nextCharacter.creationModeExplicit,
-      creationStatus: nextCharacter.creationStatus,
-      class: nextCharacter.className,
-      level: nextCharacter.level,
-      hpCurrent: nextCharacter.hpCurrent,
-      hpMax: nextCharacter.hpMax,
-      ac: nextCharacter.ac,
-      xp: nextCharacter.xp,
-      portraitPath: nextCharacter.portraitPath ?? '',
-      portraitFocusX: nextCharacter.portraitFocusX,
-      portraitFocusY: nextCharacter.portraitFocusY,
-      tokenIcon: sanitizeTokenIconForPersistence(nextCharacter.tokenIcon),
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    })
-  }
-
-  const validateDraftCharacter = () => {
-    if (!effectiveSelected) return 'No character selected.'
-    if (effectiveSelected.className === '-') return 'Choose a class before finalizing.'
-    if (!hasRolledAbilityScores) return 'Roll ability scores before finalizing.'
-    if (!hasRolledHp) return 'Roll hit points before finalizing.'
-    if (effectiveSelected.hpMax <= 0) return 'Set maximum hit points before finalizing.'
-    if (effectiveSelected.className === 'Cleric') {
-      const hasHolySymbol = selectedInventory.some((item) =>
-        (item.name ?? '').toLowerCase().includes('holy symbol'),
-      )
-      if (!hasHolySymbol) return 'HOLY_SYMBOL_REQUIRED'
-    }
-    return null
-  }
-
-  const requestFinalizeCharacter = () => {
-    if (!effectiveSelected || !canEditSelected || !isInFinalizationFlow) return
-    if (isGuidedCreation) {
-      const validationError = validateDraftCharacter()
-      if (validationError) {
-        if (validationError === 'HOLY_SYMBOL_REQUIRED') {
-          setHolySymbolRequiredOpen(true)
-        } else {
-          setFinalizeError(validationError)
-        }
-        return
-      }
-    }
-    setFinalizeError(null)
-    setFinalizeConfirmOpen(true)
-  }
-
-  const finalizeCharacter = () => {
-    if (!effectiveSelected || !canEditSelected || !isInFinalizationFlow) return
-    updateSelectedCharacter({ creationStatus: 'active' })
-    setFinalizeConfirmOpen(false)
-    setFinalizeError(null)
-  }
-
+  const { uploadCharacterTokenImage, uploadCharacterPortraitImage } = useCharacterMedia({
+    campaignId, groupId, effectiveSelected, canEditSelected,
+  })
   const openLevelUpModal = () => {
     if (!canSelectedLevelUp || !canEditSelected) return
     setLevelUpHpRoll(null)
@@ -1579,10 +1322,35 @@ export function CharacterTab({
     submitSpellLearnRequest,
   })
 
-  useEffect(() => {
-    setFinalizeError(null)
-    setFinalizeConfirmOpen(false)
-  }, [effectiveSelected?.id, effectiveSelected?.creationStatus])
+  const {
+    createCharacterModalOpen,
+    setCreateCharacterModalOpen,
+    finalizeConfirmOpen,
+    setFinalizeConfirmOpen,
+    finalizeError,
+    holySymbolRequiredOpen,
+    setHolySymbolRequiredOpen,
+    addCharacter,
+    requestFinalizeCharacter,
+    finalizeCharacter,
+  } = useCharacterRoster({
+    campaignId,
+    groupId,
+    currentUserId,
+    currentUsername,
+    canCreateCharacter,
+    effectiveSelected,
+    canEditSelected,
+    isGuidedCreation,
+    isInFinalizationFlow,
+    hasRolledAbilityScores,
+    hasRolledHp,
+    selectedInventory,
+    setSelectedCharacterId,
+    isSinglePane,
+    showDetailPane: () => setPaneView('detail'),
+    updateSelectedCharacter,
+  })
 
   useEffect(() => {
     if (!isGuidedCreation && storeOpen) {
@@ -3982,13 +3750,7 @@ export function CharacterTab({
                     <button
                       type="button"
                       onClick={() => {
-                        setTransferBusy(true)
-                        setTransferError(null)
-                        void cancelTransfer(pendingOutgoingTransfer.id)
-                          .catch((error) => {
-                            setTransferError(error instanceof Error ? error.message : 'Failed to cancel transfer.')
-                          })
-                          .finally(() => setTransferBusy(false))
+                        void cancelOutgoingTransfer(pendingOutgoingTransfer.id)
                       }}
                       disabled={transferBusy}
                     >
