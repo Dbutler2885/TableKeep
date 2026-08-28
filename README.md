@@ -138,9 +138,6 @@ Item, spell and re-roll requests land in a GM queue with live notifications, and
 
 **Auth.** Google sign-in and email/password, gated on email verification, with a one-time username claim.
 
-This is an actively evolving app.
-Treat the list as "present in the code today" - parts of the GM tooling and the system-specific sheets are still moving.
-
 ## AI-generated session recaps
 
 The session recaps and the NPC auto-notes above are not typed by hand.
