@@ -28,6 +28,7 @@
     "demo:seed": "node scripts/demo/seed-accounts.mjs",
     "demo:size": "node scripts/demo/check-snapshot-size.mjs",
     "demo:seed-template": "firebase emulators:exec --only firestore,storage --import ./emulator-data \"node scripts/demo/seed-template.mjs\"",
+    "demo:sandbox": "node scripts/demo/run-sandbox.mjs",
     "deploy:hosting": "firebase deploy --only hosting",
     "deploy:functions": "firebase deploy --only functions"
   },

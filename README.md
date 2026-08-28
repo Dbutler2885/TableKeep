@@ -69,6 +69,9 @@ How it works, in one pass:
 - Sandboxes last three hours. A scheduled function deletes the documents and the visitor-created objects; a ceiling on how many can exist at once turns a spike into a "the demo is full" message rather than a bill.
 - A visitor can read the template and write only their own sandbox. That is enforced in `firestore.rules` and `storage.rules`, not in the interface, and `src/features/demo/demoSandbox.emulator.test.ts` holds it there.
 
+To see it without deploying anything, `npm run demo:sandbox` runs the whole thing on this machine: the emulators including functions, the template seeded from the same snapshot, and the dev server, on a port block of their own so they can sit alongside `npm run demo`.
+Open <http://127.0.0.1:5185/demo> and you are in a sandbox.
+
 Turning it on for a project takes three steps beyond a normal deploy: enable Anonymous sign-in in the Firebase console, deploy rules, indexes and functions, and run `npm run demo:seed-template -- --target=project --project=<id> --bucket=<bucket> --apply` once.
 
 ## What it is
@@ -309,6 +312,7 @@ The split is deliberate.
 | `npm run demo:save` | Export a running demo emulator without quitting it |
 | `npm run demo:seed` | Re-seed the demo accounts into a running demo emulator |
 | `npm run demo:seed-template` | Dry-run seeding the hosted demo's template campaign from the snapshot. Add `-- --apply` to write |
+| `npm run demo:sandbox` | The hosted try-it-now demo, run entirely locally: emulators (including functions), the seeded template, and the dev server |
 | `npm run demo:size` | Check `./emulator-data` against its commit budget |
 | `npm run emulators` | Start the auth/firestore/storage emulators bare |
 | `npm run emulators:import` | Start emulators with persisted state |

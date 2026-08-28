@@ -206,6 +206,13 @@ The pieces are `src/features/demo/`, `functions/src/demoConstants.ts` / `demoClo
 - **`functions/src/adminApp.ts` makes `initializeApp()` idempotent.**
   Before it, `functions/src/index.ts` called `initializeApp()` at import time and exactly one emulator suite could import anything from `functions/src`.
   New Cloud Functions code should take its Firestore handle as an argument (as `demoSessions.ts` does) so an emulator suite can drive it without importing the trigger registrations at all.
+- **`npm run demo:sandbox` is the local rig for this feature**, and the only way to exercise it end to end without a project.
+  It differs from `npm run demo` in exactly the three ways the sandbox needs: it starts the **functions** emulator (the feature is a callable), it seeds the template into that emulator from the snapshot, and it sets `VITE_DEMO_SANDBOX=true`.
+  That last one is what puts the "try it now" link back on the sign-in screen: `src/features/demo/demoAvailability.ts` hides it against the emulators by default, because `npm run demo` starts no functions emulator and `browser-smoke.mjs` asserts against the ordinary sign-in screen.
+  It also blanks the `VITE_DEMO_*` seat credentials, so the sign-in screen offers one door rather than two.
+- **The rig runs on its own port block** (`scripts/demo/sandboxPorts.mjs`), because it is a long-running thing somebody leaves open and must not be why another worktree's emulators refuse to start.
+  `firestoreWebsocket` is pinned there deliberately: left unset the Firestore emulator picks 9150, which is the one port the default block claims that `firebase.json` never mentions, so nothing else would catch the collision.
+  Its Firebase config is **generated** from `firebase.json` into a gitignored `firebase.sandbox.json` rather than committed, so the rules paths and functions source keep one definition; it must land in the repo root because firebase-tools resolves a config's relative paths, and the project root, from the config file's own directory.
 - **Turning the demo on in production needs three things this repo does not do:** enabling Anonymous sign-in in Firebase Auth, deploying rules/indexes/functions, and running `npm run demo:seed-template -- --target=project ... --apply` once.
 
 ## Component tests

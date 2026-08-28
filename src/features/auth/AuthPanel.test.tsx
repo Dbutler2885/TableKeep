@@ -24,7 +24,7 @@ const PLAYER_SEAT: DemoSeat = {
 // rather than by re-importing the panel under a different environment.
 const mocks = vi.hoisted(() => ({
   seats: [] as DemoSeat[],
-  emulators: false,
+  sandboxOffered: true,
   authStub: { name: 'auth-stub' },
   signInWithEmailAndPassword: vi.fn(async () => ({})),
   signInWithPopup: vi.fn(async () => ({})),
@@ -32,13 +32,14 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./demoSeats', () => ({ demoSeats: mocks.seats }))
 vi.mock('../../firebase', () => ({ auth: mocks.authStub, db: { name: 'db-stub' } }))
-// A getter, not a value: `useFirebaseEmulators` is read on every render, so this
-// lets one file cover both the emulator build and an ordinary one.
-vi.mock('../../firebase/config', () => ({
-  get useFirebaseEmulators() {
-    return mocks.emulators
+// A getter, not a value: `demoSandboxOffered` is read on every render, so this
+// lets one file cover both a build that offers the hosted sandbox and one that
+// does not. (`demoAvailability` resolves it once at import time from
+// `import.meta.env`, which is why the module is replaced rather than the env.)
+vi.mock('../demo/demoAvailability', () => ({
+  get demoSandboxOffered() {
+    return mocks.sandboxOffered
   },
-  firebaseConfig: {},
 }))
 vi.mock('firebase/auth', () => ({
   GoogleAuthProvider: class {},
@@ -58,14 +59,14 @@ function setSeats(seats: DemoSeat[]) {
 beforeEach(() => {
   vi.clearAllMocks()
   setSeats([])
-  mocks.emulators = false
+  mocks.sandboxOffered = true
 })
 
 afterEach(cleanup)
 
 describe('AuthPanel sign-in screen, against the local emulators', () => {
   beforeEach(() => {
-    mocks.emulators = true
+    mocks.sandboxOffered = false
     setSeats([GM_SEAT, PLAYER_SEAT])
   })
 
