@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import type { ThiefSkillScores } from './characterRules'
+import type { ThiefSkillScores } from '../characterRules'
 
 type ThiefSkillCode = 'CS' | 'TR' | 'HN' | 'HS' | 'MS' | 'OL' | 'PP' | 'RL'
 

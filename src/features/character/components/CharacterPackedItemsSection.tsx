@@ -1,7 +1,7 @@
 import { Fragment, memo } from 'react'
 import { Plus } from 'lucide-react'
 import type { ReactNode } from 'react'
-import type { CharacterInventoryItem } from '../../types/app'
+import type { CharacterInventoryItem } from '../../../types/app'
 
 type PackedSlotItem = {
   item: CharacterInventoryItem

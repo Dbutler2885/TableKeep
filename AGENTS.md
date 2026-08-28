@@ -36,6 +36,9 @@ There are two ESLint flat configs: `eslint.config.js` for the web app and `funct
   `eslint-plugin-react-hooks` v7 promoted `set-state-in-effect`, `refs`, `immutability`, and `purity` into its recommended set, and 21 files that predate those rules still violate them.
   Those blocks name the exact files and downgrade only those four rules there, so every other file is still held to the full error-level rule set and no new violations can land outside the list.
   Shrink the lists as the hooks are reworked; never add a file to them.
+- **Focused hook linting is required when extracting effects from a large component.**
+  React Compiler analysis can bail out for an entire component when it encounters control flow such as `try` / `finally`, which can hide hook-rule violations elsewhere in that component.
+  Lint each extracted hook directly and use a small scratch probe for effect patterns when the original component contains compiler-bailout control flow.
 
 ## Firebase emulator tests
 

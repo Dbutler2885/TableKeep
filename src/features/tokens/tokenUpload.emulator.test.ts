@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, it } from 'vitest'
 import { doc, setDoc } from 'firebase/firestore'
 import { ref, uploadString } from 'firebase/storage'
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
+import { emulatorPort } from '../../../vitest.emulatorEndpoint'
 
 // Storage Rules resolve their `firestore.get()` lookups against the emulator's
 // own project, so this has to match the project the suite runs under
@@ -32,12 +33,12 @@ describe('character token-icon storage rules', () => {
       projectId,
       firestore: {
         host: '127.0.0.1',
-        port: 8080,
+        port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
         rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
       },
       storage: {
         host: '127.0.0.1',
-        port: 9199,
+        port: emulatorPort('FIREBASE_STORAGE_EMULATOR_HOST', 9199),
         rules: readFileSync(resolve(process.cwd(), 'storage.rules'), 'utf8'),
       },
     })

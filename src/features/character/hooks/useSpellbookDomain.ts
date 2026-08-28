@@ -1,4 +1,5 @@
-// Spellbook domain: modal state, add/remove/memorize/consume handlers, sync effects.
+// Owns spellbook selection, draft-reset, and inventory-sync effects.
+// Declare this hook before the orchestrator's justSeeded clearing effect.
 // Persisted spell IDs stay in the container; this hook owns ephemeral UI state + mutations.
 
 import { useEffect, useState } from 'react'
@@ -8,7 +9,7 @@ import type {
   CharacterSpell,
   CharacterInventoryItem,
   CharacterGeneralItem,
-} from '../../types/app'
+} from '../../../types/app'
 import {
   SPELL_BOOK_TYPE_ID,
   arcaneSpellById,
@@ -17,8 +18,8 @@ import {
   getCappedArcaneSpellsPerDay,
   getDivineSpellsPerDay,
   divineSpellById,
-} from './spellCatalog'
-import { ensureSpellBookInInventory, isArcaneSpellbookClass } from './characterFactories'
+} from '../spellCatalog'
+import { ensureSpellBookInInventory, isArcaneSpellbookClass } from '../characterFactories'
 
 type Params = {
   effectiveSelected: CharacterRecord | null
