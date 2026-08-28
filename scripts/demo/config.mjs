@@ -2,8 +2,8 @@
 //
 // Everything the demo path needs is derived from files that are already
 // committed - `.env.demo` for the placeholder Firebase web config and the two
-// demo account logins, and `firebase.json` for the emulator ports - so they
-// never drift apart.
+// seat logins the sign-in screen offers, and `firebase.json` for the emulator
+// ports - so they never drift apart.
 
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -102,20 +102,40 @@ export const appPort = Number(process.env.DEMO_APP_PORT ?? 5173)
 export const appUrl = `http://127.0.0.1:${appPort}`
 
 /**
- * The two seeded demo accounts.
+ * The password shared by the party accounts that are not offered as a seat.
  *
- * The email and password are read from `.env.demo` rather than written here,
- * because the sign-in screen needs the same pair: `startApp` in `run.mjs`
- * injects every `VITE_*` value from that file into the demo dev server, and
+ * It is the same throwaway string as the two seat logins in `.env.demo`, but
+ * it is written here rather than read from there on purpose - see the comment
+ * on `demoAccounts` below.
+ */
+const partyPassword = 'tablekeep-demo'
+
+/**
+ * The seeded demo accounts: the Game Master, the Player, and three more party
+ * members so the campaign's four characters can each have an owner.
+ *
+ * Only the first two carry a `seat`, and only those two read their email and
+ * password from `.env.demo`. That indirection exists for exactly one reason:
+ * the sign-in screen needs the same pair. `startApp` in `run.mjs` injects
+ * every `VITE_*` value from that file into the demo dev server, and
  * `src/features/auth/demoSeats.ts` turns `VITE_DEMO_*` into the one-click seat
  * buttons a visitor sees. One definition, seeded and offered from the same
- * line. A normal `npm run build` never loads `.env.demo`, so those seats do not
- * exist in a production bundle.
+ * line. A normal `npm run build` never loads `.env.demo`, so those seats do
+ * not exist in a production bundle.
+ *
+ * The other three are never offered as a seat - a visitor gets one Game Master
+ * seat and one Player seat, not a lineup - so nothing outside this file needs
+ * their credentials and they are written here directly. Giving them
+ * `VITE_DEMO_*` names in `.env.demo` would push three unused logins into the
+ * demo dev server's environment and invite the seat list to grow by accident.
+ * `scripts/demo/config.test.mjs` pins that shape: exactly two seats, and every
+ * seat credential sourced from `.env.demo`.
  *
  * The uids are pinned rather than generated. The committed snapshot stores
  * campaign ownership, group membership and character ownership by uid, so a
  * re-seed on a visitor's machine has to land on the same uids or the imported
- * campaign would belong to nobody.
+ * campaign would belong to nobody. `demo-player-uid` keeps the name it was
+ * seeded under before the party grew; the other three follow the same style.
  *
  * Usernames must be exactly seven characters (see `src/features/auth/usernameRules.ts`).
  *
@@ -125,6 +145,7 @@ export const appUrl = `http://127.0.0.1:${appPort}`
 export const demoAccounts = [
   {
     uid: 'demo-gm-uid',
+    seat: 'gm',
     role: 'Game Master',
     email: demoEnv.VITE_DEMO_GM_EMAIL,
     password: demoEnv.VITE_DEMO_GM_PASSWORD,
@@ -133,10 +154,41 @@ export const demoAccounts = [
   },
   {
     uid: 'demo-player-uid',
+    seat: 'player',
     role: 'Player',
     email: demoEnv.VITE_DEMO_PLAYER_EMAIL,
     password: demoEnv.VITE_DEMO_PLAYER_PASSWORD,
     username: 'demoPC1',
     displayName: 'Demo Player',
   },
+  {
+    uid: 'demo-player-2-uid',
+    seat: null,
+    role: 'Party member',
+    email: 'marisol@tablekeep.test',
+    password: partyPassword,
+    username: 'Marisol',
+    displayName: 'Marisol Vega',
+  },
+  {
+    uid: 'demo-player-3-uid',
+    seat: null,
+    role: 'Party member',
+    email: 'desmond@tablekeep.test',
+    password: partyPassword,
+    username: 'Desmond',
+    displayName: 'Desmond Achebe',
+  },
+  {
+    uid: 'demo-player-4-uid',
+    seat: null,
+    role: 'Party member',
+    email: 'beatrix@tablekeep.test',
+    password: partyPassword,
+    username: 'Beatrix',
+    displayName: 'Beatrix Nolan',
+  },
 ]
+
+/** The accounts the sign-in screen offers as a one-click seat, in seat order. */
+export const demoSeatAccounts = demoAccounts.filter((account) => account.seat !== null)

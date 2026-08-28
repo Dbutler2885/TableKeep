@@ -1,4 +1,9 @@
-// Seeds the two demo accounts directly against the emulator's admin surface.
+// Seeds every demo account directly against the emulator's admin surface.
+//
+// That is the Game Master, the Player the sign-in screen offers as a seat, and
+// the rest of the party - one account per character in the demo campaign, so a
+// player's character list is not empty (`src/features/character/useCharacters.ts`
+// hides every GM-owned character from a player).
 //
 // The app puts two one-time gates in front of the first screen: an
 // email-verification gate (`src/features/auth/VerifyEmailGate.tsx`) and a
@@ -153,7 +158,7 @@ async function ensureUsernameClaim(account, now) {
 }
 
 /**
- * Brings both demo accounts to the state the app expects: an auth user with a
+ * Brings every demo account to the state the app expects: an auth user with a
  * pinned uid and a verified email, a `users/{uid}` profile carrying the
  * username, and the matching `usernames/{username}` claim.
  *
