@@ -5,6 +5,37 @@ service firebase.storage {
       return request.auth != null;
     }
 
+    // A "try it now" visitor. Firebase anonymous auth is the only source of
+    // these tokens, and the demo entry point is the only thing that asks.
+    function isAnonymousVisitor() {
+      return isSignedIn() && request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
+
+    // The one pristine group demo sandboxes are cloned from. Written out as a
+    // literal because a rules file cannot import a constant; kept in step with
+    // `functions/src/demoConstants.ts` and `src/features/demo/demoConstants.ts`
+    // by `src/features/demo/demoConstants.test.ts`.
+    function isDemoTemplateGroup(groupId) {
+      return groupId == 'demo-template';
+    }
+
+    /**
+     * Per-object ceiling on what an anonymous visitor may upload.
+     *
+     * A demo visitor is the GM of their sandbox, so they can upload map images
+     * and portraits like any GM - that is the point of a writable demo. The
+     * total is bounded by the cap on live sandboxes and by the expiry sweep that
+     * deletes `groups/{sandbox}/` outright; this bounds any single write, so one
+     * visitor cannot push a very large object through a path meant for a map.
+     *
+     * `request.resource` is null on a delete, which has no size to check.
+     */
+    function withinVisitorObjectLimit() {
+      return !isAnonymousVisitor()
+        || request.resource == null
+        || request.resource.size < 8 * 1024 * 1024;
+    }
+
     function campaignMemberDoc(campaignId) {
       return firestore.get(
         /databases/(default)/documents/campaigns/$(campaignId)/members/$(request.auth.uid)
@@ -107,42 +138,61 @@ service firebase.storage {
         );
     }
 
+    /**
+     * The demo template's images, readable by anyone signed in.
+     *
+     * A sandbox is cloned with every document id preserved, so a cloned map
+     * document still carries the template's absolute `imagePath` and a cloned
+     * character still carries the template's `portraitPath`. That is what makes
+     * the roughly 10 MB of art shared rather than copied per visitor, and it is
+     * the read this grant covers. There is no write grant: the template group
+     * has no members, so every `isGroupCampaignGM` / `isGroupMember` check below
+     * is false for every account.
+     */
+    match /groups/{groupId}/{demoTemplateObject=**} {
+      allow read: if isSignedIn() && isDemoTemplateGroup(groupId);
+    }
+
     match /groups/{groupId}/campaigns/{campaignId}/maps/{mapId} {
       allow read: if canReadGroupMapAsset(groupId, campaignId, mapId);
-      allow write: if isGroupCampaignGM(groupId, campaignId);
+      allow write: if withinVisitorObjectLimit() && isGroupCampaignGM(groupId, campaignId);
     }
 
     match /groups/{groupId}/campaigns/{campaignId}/maps/{mapId}/{allPaths=**} {
       allow read: if canReadGroupMapAsset(groupId, campaignId, mapId);
-      allow write: if isGroupCampaignGM(groupId, campaignId);
+      allow write: if withinVisitorObjectLimit() && isGroupCampaignGM(groupId, campaignId);
     }
 
     match /groups/{groupId}/campaigns/{campaignId}/token-assets/{assetName} {
       allow read: if isGroupMember(groupId);
-      allow write: if isGroupCampaignGM(groupId, campaignId);
+      allow write: if withinVisitorObjectLimit() && isGroupCampaignGM(groupId, campaignId);
     }
 
     match /groups/{groupId}/campaigns/{campaignId}/characters/{characterId}/token-icons/{assetName} {
       allow read: if isGroupMember(groupId);
-      allow write: if isGroupCampaignGM(groupId, campaignId)
+      allow write: if withinVisitorObjectLimit() && (
+        isGroupCampaignGM(groupId, campaignId)
         || (
           isGroupMember(groupId)
           && groupCharacterDoc(groupId, campaignId, characterId).data.ownerUserId == request.auth.uid
-        );
+        )
+      );
     }
 
     match /groups/{groupId}/campaigns/{campaignId}/characters/{characterId}/portraits/{assetName} {
       allow read: if isGroupMember(groupId);
-      allow write: if isGroupCampaignGM(groupId, campaignId)
+      allow write: if withinVisitorObjectLimit() && (
+        isGroupCampaignGM(groupId, campaignId)
         || (
           isGroupMember(groupId)
           && groupCharacterDoc(groupId, campaignId, characterId).data.ownerUserId == request.auth.uid
-        );
+        )
+      );
     }
 
     match /groups/{groupId}/campaigns/{campaignId}/npcs/{npcId}/{mediaKind}/{assetName} {
       allow read: if isGroupMember(groupId);
-      allow write: if isNpcMediaKind(mediaKind)
+      allow write: if withinVisitorObjectLimit() && isNpcMediaKind(mediaKind)
         && (
           isGroupCampaignGM(groupId, campaignId)
           || (
@@ -154,13 +204,13 @@ service firebase.storage {
 
     match /groups/{groupId}/campaigns/{campaignId}/monsters/{monsterId}/{mediaKind}/{assetName} {
       allow read: if isGroupMember(groupId);
-      allow write: if isGroupCampaignGM(groupId, campaignId)
+      allow write: if withinVisitorObjectLimit() && isGroupCampaignGM(groupId, campaignId)
         && (mediaKind == 'portraits' || mediaKind == 'token-icons');
     }
 
     match /groups/{groupId}/campaigns/{campaignId}/items/{itemId}/{mediaKind}/{assetName} {
       allow read: if isGroupMember(groupId);
-      allow write: if isGroupCampaignGM(groupId, campaignId)
+      allow write: if withinVisitorObjectLimit() && isGroupCampaignGM(groupId, campaignId)
         && (mediaKind == 'portraits' || mediaKind == 'token-icons');
     }
 

@@ -47,6 +47,24 @@ export function AcceptInvite({ user }: AcceptInviteProps) {
     }
   }, [token])
 
+  // An anonymous demo visitor cannot join anyone's group: `firestore.rules`
+  // refuses both the invite lookup and the membership write. Say so plainly
+  // rather than letting them press a button into a permission error.
+  if (user.isAnonymous) {
+    return (
+      <main className="auth-shell">
+        <h2>Invites need an account</h2>
+        <p>
+          You are in a demo table right now. Sign out of the demo and create an
+          account, then open this invite link again.
+        </p>
+        <button type="button" onClick={() => void navigate(groupPickerPath, { replace: true })}>
+          Back to the demo
+        </button>
+      </main>
+    )
+  }
+
   const handleAccept = async () => {
     if (!invite || !token) return
     setStatus('redeeming')

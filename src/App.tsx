@@ -41,11 +41,18 @@ import { GroupHome } from './features/groups/GroupHome'
 import { useGroupAccess } from './features/groups/useGroupAccess'
 import { AcceptInvite } from './features/invites/AcceptInvite'
 import { CampaignSettingsModal } from './features/campaign/CampaignSettingsModal'
+import { DemoBanner } from './features/demo/DemoBanner'
+import { DemoEntry } from './features/demo/DemoEntry'
+import { DEMO_VISITOR_USERNAME, demoEntryPath } from './features/demo/demoConstants'
+import { forgetDemoExpiry, readDemoExpiry } from './features/demo/demoSandboxState'
 import type { GroupRecord, ItemApprovalRequest, Role } from './types/app'
 
 const OSE_SRD_URL = 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Main_Page'
 
 function App() {
+  // App reads the path itself, so a client-side navigation into /demo (or into
+  // an invite link) re-renders the gate rather than only changing the URL bar.
+  const { pathname } = useLocation()
   const [user, setUser] = useState<User | null>(null)
   const [authReady, setAuthReady] = useState(false)
   const [username, setUsername] = useState<string | null>(null)
@@ -121,8 +128,16 @@ function App() {
     )
   }
 
+  // The demo entry point sits ahead of the auth gate: it is the thing that
+  // signs the visitor in. A signed-in account that lands here is sent on to
+  // their own groups instead - the sandbox is for anonymous visitors only, and
+  // the callable refuses anyone else.
+  if (pathname.startsWith(demoEntryPath)) {
+    return user && !user.isAnonymous ? <Navigate to={groupPickerPath} replace /> : <DemoEntry />
+  }
+
   if (!user) {
-    const isJoinFlow = window.location.pathname.startsWith('/join/')
+    const isJoinFlow = pathname.startsWith('/join/')
     const context = isJoinFlow
       ? "You've been invited. Sign in or create an account to accept."
       : null
@@ -131,7 +146,13 @@ function App() {
     return <AuthPanel context={context} />
   }
 
-  if (!user.emailVerified) {
+  // An anonymous visitor has no email address to verify, and no handle:
+  // `usernames/{handle}` is a global uniqueness index that `firestore.rules`
+  // keeps anonymous accounts out of, so they carry a local stand-in name and
+  // skip both gates. Everything past this point is the ordinary app.
+  const isDemoVisitor = user.isAnonymous
+
+  if (!isDemoVisitor && !user.emailVerified) {
     return (
       <VerifyEmailGate
         user={user}
@@ -142,7 +163,7 @@ function App() {
 
   const currentProfileReady = profileReady && profileUid === user.uid
 
-  if (!currentProfileReady) {
+  if (!isDemoVisitor && !currentProfileReady) {
     return (
       <main className="auth-shell">
         <p>Loading profile...</p>
@@ -150,25 +171,29 @@ function App() {
     )
   }
 
-  if (!username) {
+  const shellUsername = isDemoVisitor ? DEMO_VISITOR_USERNAME : username
+
+  if (!shellUsername) {
     // UsernameSetup owns its own full-screen layout (same editorial card as
     // AuthPanel), so no auth-shell wrapper / extra masthead is needed here.
     return <UsernameSetup user={user} onComplete={setUsername} />
   }
 
+  const shell = <GroupShell user={user} username={shellUsername} isDemoVisitor={isDemoVisitor} />
+
   return (
     <Routes>
       <Route path="/" element={<Navigate to={groupPickerPath} replace />} />
       <Route path="/join/:token" element={<AcceptInvite user={user} />} />
-      <Route path="/groups" element={<GroupShell user={user} username={username} />} />
-      <Route path="/groups/:groupId" element={<GroupShell user={user} username={username} />} />
-      <Route path="/groups/:groupId/campaigns/:campaignId/*" element={<GroupShell user={user} username={username} />} />
+      <Route path="/groups" element={shell} />
+      <Route path="/groups/:groupId" element={shell} />
+      <Route path="/groups/:groupId/campaigns/:campaignId/*" element={shell} />
       <Route path="*" element={<Navigate to={groupPickerPath} replace />} />
     </Routes>
   )
 }
 
-function GroupShell({ user, username }: { user: User, username: string }) {
+function GroupShell({ user, username, isDemoVisitor }: { user: User, username: string, isDemoVisitor: boolean }) {
   const location = useLocation()
   const navigate = useNavigate()
   const params = useParams()
@@ -210,8 +235,16 @@ function GroupShell({ user, username }: { user: User, username: string }) {
   }, [groups, loading, location.pathname, navigate])
 
   const handleSignOut = useCallback(() => {
+    forgetDemoExpiry()
     void signOut(auth)
   }, [])
+
+  // Read once per mount rather than per render: the value is written by the
+  // demo entry screen and never changes for the life of the sandbox.
+  const demoExpiresAt = useMemo(
+    () => (isDemoVisitor ? readDemoExpiry(user.uid) : null),
+    [isDemoVisitor, user.uid],
+  )
 
   const handleSelectGroup = useCallback((groupId: string) => {
     const nextGroup = groups.find((group) => group.id === groupId) ?? null
@@ -688,6 +721,7 @@ function GroupShell({ user, username }: { user: User, username: string }) {
           onDeactivateCampaign={handleDeactivateCampaign}
           onDeleteInactiveCampaign={handleDeleteInactiveCampaign}
           onDeleteDraftCampaign={handleDeleteDraftCampaign}
+          canInvite={!isDemoVisitor}
           group={selectedGroup}
           onDeleteGroup={handleDeleteGroup}
           onBackToGroups={() => { void navigate(groupPickerPath, { replace: true }) }}
@@ -702,6 +736,7 @@ function GroupShell({ user, username }: { user: User, username: string }) {
       ) : (
         renderCampaignWorkspace(selectedGroup)
       )}
+      {isDemoVisitor ? <DemoBanner expiresAtMs={demoExpiresAt} onLeave={handleSignOut} /> : null}
     </main>
   )
 }
