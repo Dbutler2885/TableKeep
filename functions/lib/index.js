@@ -3,11 +3,15 @@ import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 import { defineSecret } from 'firebase-functions/params';
 import { isTransferSourceAuthorized } from './transferAuthorization.js';
+import { campaignPath, groupMemberPath } from './firestorePaths.js';
 initializeApp();
 const db = getFirestore();
 const sessionSummaryApiKey = defineSecret('SESSION_SUMMARY_API_KEY');
 function campaignRef(groupId, campaignId) {
-    return db.collection('groups').doc(groupId).collection('campaigns').doc(campaignId);
+    return db.doc(campaignPath(groupId, campaignId));
+}
+function groupMemberRef(groupId, userId) {
+    return db.doc(groupMemberPath(groupId, userId));
 }
 function isAuthorized(req) {
     const incoming = req.get('x-internal-api-key');
@@ -258,28 +262,38 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
     const uid = request.auth?.uid ?? '';
     if (!uid)
         throw new HttpsError('unauthenticated', 'Authentication required.');
+    const groupId = typeof request.data?.groupId === 'string' ? request.data.groupId : '';
     const campaignId = typeof request.data?.campaignId === 'string' ? request.data.campaignId : '';
     const transferId = typeof request.data?.transferId === 'string' ? request.data.transferId : '';
-    if (!campaignId || !transferId) {
-        throw new HttpsError('invalid-argument', 'campaignId and transferId are required.');
+    if (!groupId || !campaignId || !transferId) {
+        throw new HttpsError('invalid-argument', 'groupId, campaignId and transferId are required.');
     }
-    const transferRef = db.collection('campaigns').doc(campaignId).collection('pendingTransfers').doc(transferId);
+    const campaignDoc = campaignRef(groupId, campaignId);
+    const transferRef = campaignDoc.collection('pendingTransfers').doc(transferId);
     const rejection = await db.runTransaction(async (tx) => {
-        const membershipRef = db.collection('campaigns').doc(campaignId).collection('members').doc(uid);
-        const membershipSnap = await tx.get(membershipRef);
+        // Mirrors `isGroupMember` / `isCampaignGm` in firestore.rules: membership is
+        // held by the group, and the GM is a group admin or the campaign's gmUserId.
+        const [membershipSnap, campaignSnap] = await Promise.all([
+            tx.get(groupMemberRef(groupId, uid)),
+            tx.get(campaignDoc),
+        ]);
         if (!membershipSnap.exists || membershipSnap.data()?.status !== 'active') {
-            throw new HttpsError('permission-denied', 'Active campaign membership required.');
+            throw new HttpsError('permission-denied', 'Active group membership required.');
+        }
+        if (!campaignSnap.exists) {
+            throw new HttpsError('not-found', 'Campaign no longer exists.');
         }
         const transferSnap = await tx.get(transferRef);
         if (!transferSnap.exists)
             throw new HttpsError('not-found', 'Transfer no longer exists.');
         const transfer = transferSnap.data();
-        const isGm = membershipSnap.data()?.role === 'gm';
+        const isGm = membershipSnap.data()?.role === 'admin'
+            || campaignSnap.data()?.gmUserId === uid;
         if (transfer.toUserId !== uid && !isGm) {
             throw new HttpsError('permission-denied', 'You cannot accept this transfer.');
         }
-        const senderRef = db.collection('campaigns').doc(campaignId).collection('characters').doc(transfer.fromCharacterId);
-        const receiverRef = db.collection('campaigns').doc(campaignId).collection('characters').doc(transfer.toCharacterId);
+        const senderRef = campaignDoc.collection('characters').doc(transfer.fromCharacterId);
+        const receiverRef = campaignDoc.collection('characters').doc(transfer.toCharacterId);
         const [senderSnap, receiverSnap] = await Promise.all([tx.get(senderRef), tx.get(receiverRef)]);
         if (!senderSnap.exists || !receiverSnap.exists) {
             tx.delete(transferRef);

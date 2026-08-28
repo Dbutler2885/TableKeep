@@ -64,6 +64,28 @@ Firestore + Storage emulator, with the repo's real `firestore.rules` /
   time and throws `auth/invalid-api-key` without a config. (The underlying
   coupling is real: `inventoryOverflow.ts` imports `toFirestoreItem` from the
   `useItems` hook module, which pulls in the singleton.)
+- **One suite runs a real Cloud Function against the emulator.**
+  `acceptPendingTransfer.emulator.test.ts` imports `functions/src/index.ts` and invokes the callable through its `run()` entrypoint.
+  The admin SDK inside the function finds the emulator through `FIRESTORE_EMULATOR_HOST`, which `firebase emulators:exec` exports, and resolves its project from `GCLOUD_PROJECT` - so that suite must use `process.env.GCLOUD_PROJECT` as its `initializeTestEnvironment` project id for the same reason the Storage suites do, or the function and the client would read two different namespaces inside one emulator.
+  Because that import crosses into the Cloud Functions package, the `emulator-tests` CI job installs `functions/` dependencies too (`npm ci --prefix functions`); the web app's own `node_modules` has neither firebase-admin nor firebase-functions.
+  `functions/src/index.ts` calls `initializeApp()` at import time, so exactly one emulator suite may import it.
+
+## The group-scoped data model in Cloud Functions
+
+Every campaign document lives under `groups/{groupId}/campaigns/{campaignId}`.
+Nothing in the app writes to the pre-reorganisation flat `campaigns/{campaignId}` tree any more, and no campaign can be created there: `useGroupAccess` only ever enumerates `groups/{groupId}/campaigns`.
+The flat Firestore documents that survive exist solely so `storage.rules`' `isCampaignMember(campaignId)` keeps resolving for the legacy campaign's un-migrated art (see the migration section below); treat them as read-gates, not as a live schema.
+
+- **A Cloud Function must never hand-build a campaign path.**
+  `functions/src/firestorePaths.ts` holds the segments and `campaignRef` / `groupMemberRef` in `index.ts` are the only builders.
+  `acceptPendingTransfer` shipped for a while resolving `campaigns/{campaignId}/...` while the client wrote to the group-scoped tree, so accepting an item transfer failed for every player in every campaign and no test noticed, because the two sides were only ever tested apart.
+- **Membership is held by the group, not the campaign.**
+  The campaign-level `members` collection is gone from the nested model; `campaigns/{campaignId}/userState/{uid}` replaced it and carries UI scratch only.
+  Server-side authorization must mirror `isGroupMember` / `isCampaignGm` in `firestore.rules`: an active `groups/{groupId}/members/{uid}`, with GM meaning that member's `role == 'admin'` or the campaign document's `gmUserId`.
+  Note the role vocabulary differs between the two trees - group members are `admin`/`member`, the retired campaign members were `gm`/`player`.
+- **A callable that touches a campaign needs `groupId` in its payload.**
+  A campaign id alone cannot be resolved to its group without a collection-group scan, and the campaign document that would carry the answer is itself only reachable through the group.
+  Passing it is safe: the function still verifies membership against `groups/{groupId}/members/{uid}`, and a mismatched pair simply resolves to a document that does not exist.
 
 ## Legacy campaign migration (two phases, `scripts/`)
 
