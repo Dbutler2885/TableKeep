@@ -61,8 +61,8 @@ export default defineConfig([
   {
     name: 'react-hooks-v7-debt/set-state-in-effect',
     files: [
-      'src/features/character/useItemApprovals.ts',
-      'src/features/character/useSpellbookDomain.ts',
+      'src/features/character/hooks/useItemApprovals.ts',
+      'src/features/character/hooks/useSpellbookDomain.ts',
       'src/features/invites/AcceptInvite.tsx',
       'src/features/invites/useInvites.ts',
       'src/features/items/useItems.ts',
@@ -82,7 +82,7 @@ export default defineConfig([
   {
     name: 'react-hooks-v7-debt/refs',
     files: [
-      'src/features/character/BlurSyncedTextarea.tsx',
+      'src/features/character/components/BlurSyncedTextarea.tsx',
       'src/features/maps/hooks/useTokenAnimation.ts',
     ],
     rules: { 'react-hooks/refs': 'warn' },
@@ -90,8 +90,8 @@ export default defineConfig([
   {
     name: 'react-hooks-v7-debt/immutability',
     files: [
-      'src/features/character/CharacterPackedItemsSection.tsx',
-      'src/features/character/useCharacters.ts',
+      'src/features/character/components/CharacterPackedItemsSection.tsx',
+      'src/features/character/hooks/useCharacters.ts',
     ],
     rules: { 'react-hooks/immutability': 'warn' },
   },

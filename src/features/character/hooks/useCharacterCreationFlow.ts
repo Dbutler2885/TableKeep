@@ -1,5 +1,5 @@
 // Owns class-derived default effects and creation flow handlers.
-// Moved verbatim from CharacterTab — preserve effect ordering exactly.
+// Declare this hook before the orchestrator's justSeeded clearing effect and preserve its internal effect order.
 
 import { useEffect } from 'react'
 import type { Dispatch, SetStateAction, MutableRefObject } from 'react'
@@ -7,8 +7,8 @@ import type {
   CharacterRecord,
   CharacterInventoryItem,
   CharacterWeaponItem,
-} from '../../types/app'
-import type { AbilityCode, AbilityScores, SaveScores, AdventureScores, ThiefSkillScores } from './characterRules'
+} from '../../../types/app'
+import type { AbilityCode, AbilityScores, SaveScores, AdventureScores, ThiefSkillScores } from '../characterRules'
 import {
   classHitDieByClass,
   adventureDefaultsByClass,
@@ -17,7 +17,7 @@ import {
   loweringCandidateCodes,
   saveScoresForClassLevel,
   thacoForClassLevel,
-} from './characterRules'
+} from '../characterRules'
 
 type Params = {
   effectiveSelected: CharacterRecord | null

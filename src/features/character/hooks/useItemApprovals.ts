@@ -1,3 +1,5 @@
+// Owns the item-approval subscription effect.
+// It is independent of seeding and may be declared before the justSeeded clearing effect.
 import { useEffect, useState } from 'react'
 import {
   deleteDoc,
@@ -9,8 +11,8 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore'
-import { db } from '../../firebase'
-import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
+import { db } from '../../../firebase'
+import { campaignCollectionRef, campaignDocRef } from '../../campaign/firestorePaths'
 import type {
   CharacterGoldItem,
   CharacterInventoryItem,
@@ -18,14 +20,14 @@ import type {
   ItemApprovalAction,
   ItemApprovalRequest,
   Role,
-} from '../../types/app'
+} from '../../../types/app'
 import {
   normalizeGoldAmount,
   goldChunksForAmount,
   makeGoldItem,
   computeOverflow,
   computeAvailablePackedSlots,
-} from './inventoryOverflow'
+} from '../inventoryOverflow'
 
 const stripUndefinedDeep = <T,>(value: T): T => {
   if (Array.isArray(value)) {

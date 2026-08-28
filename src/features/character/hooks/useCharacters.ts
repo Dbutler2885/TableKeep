@@ -1,9 +1,11 @@
+// Owns the campaign character subscription and write-reconciliation effects.
+// This hook sits above CharacterTab, so its effects are outside the local justSeeded ordering chain.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { deleteDoc, deleteField, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
-import { db } from '../../firebase'
-import type { CharacterRecord, CharacterSheetDetails, Role, TokenIconConfig } from '../../types/app'
-import { campaignCollectionRef, campaignDocRef, campaignUserStateRef } from '../campaign/firestorePaths'
-import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence } from '../common/mediaStorage'
+import { db } from '../../../firebase'
+import type { CharacterRecord, CharacterSheetDetails, Role, TokenIconConfig } from '../../../types/app'
+import { campaignCollectionRef, campaignDocRef, campaignUserStateRef } from '../../campaign/firestorePaths'
+import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence } from '../../common/mediaStorage'
 
 const defaultTokenIcon: TokenIconConfig = {
   icon: 'pawn',

@@ -1,5 +1,5 @@
-// Owns the seed/reseed/persist effect chain + refs.
-// Moved verbatim from CharacterTab — preserve effect ordering exactly.
+// Owns the seed/reseed/persist effect chain and its refs.
+// Declare this hook before all derived-state hooks and before the orchestrator's justSeeded clearing effect.
 
 import { useEffect, useRef } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
@@ -8,11 +8,11 @@ import type {
   CharacterSheetDetails,
   CharacterStoreCartEntry as StoreCartEntry,
   CharacterInventoryItem,
-} from '../../types/app'
-import type { AbilityScores, SaveScores, AdventureScores, ThiefSkillScores } from './characterRules'
-import { emptyAbilityScores } from './characterRules'
-import { stableStringify, ensureSpellBookInInventory } from './characterFactories'
-import { inventoryFromDetails, shouldAdoptIncomingInventory } from './inventorySync'
+} from '../../../types/app'
+import type { AbilityScores, SaveScores, AdventureScores, ThiefSkillScores } from '../characterRules'
+import { emptyAbilityScores } from '../characterRules'
+import { stableStringify, ensureSpellBookInInventory } from '../characterFactories'
+import { inventoryFromDetails, shouldAdoptIncomingInventory } from '../inventorySync'
 
 type Setter<T> = Dispatch<SetStateAction<T>>
 

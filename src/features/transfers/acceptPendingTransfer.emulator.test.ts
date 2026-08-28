@@ -24,6 +24,7 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
 import { campaignDocRef } from '../campaign/firestorePaths'
+import { emulatorPort } from '../../../vitest.emulatorEndpoint'
 
 // The function's admin SDK resolves the project from GCLOUD_PROJECT, so the
 // rules-unit-testing contexts have to share that project id or the two sides
@@ -94,7 +95,7 @@ beforeAll(async () => {
     firestore: {
       rules: readFileSync(resolve(__dirname, '../../../firestore.rules'), 'utf8'),
       host: '127.0.0.1',
-      port: 8080,
+      port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
     },
   })
 

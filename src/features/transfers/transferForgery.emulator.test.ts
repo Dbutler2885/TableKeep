@@ -8,6 +8,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
+import { emulatorPort } from '../../../vitest.emulatorEndpoint'
 
 const projectId = 'homeboyshouse-transfer-forgery-tests'
 
@@ -26,7 +27,7 @@ beforeAll(async () => {
     firestore: {
       rules: readFileSync(resolve(__dirname, '../../../firestore.rules'), 'utf8'),
       host: '127.0.0.1',
-      port: 8080,
+      port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
     },
   })
 

@@ -1,12 +1,12 @@
-import type { Dispatch, SetStateAction } from 'react'
+import { useEffect, type Dispatch, type SetStateAction } from 'react'
 import type {
   CharacterRecord,
   CharacterInventoryItem,
   CharacterStoreCartEntry as StoreCartEntry,
-} from '../../types/app'
-import type { StoreItem } from './storeCatalog'
-import { isArmourTemplateAllowedForClass, isWeaponTemplateAllowedForClass } from './inventoryRules'
-import { materializeCartEntries, validateStorePurchase } from './storeRules'
+} from '../../../types/app'
+import type { StoreItem } from '../storeCatalog'
+import { isArmourTemplateAllowedForClass, isWeaponTemplateAllowedForClass } from '../inventoryRules'
+import { materializeCartEntries, validateStorePurchase } from '../storeRules'
 
 type Params = {
   effectiveSelected: CharacterRecord | null
@@ -21,6 +21,7 @@ type Params = {
   packedItemsCount: number
   availablePackedSlotCount: number
   isGuidedCreation: boolean
+  storeOpen: boolean
   selectedInventory: CharacterInventoryItem[]
   customStoreName: string
   customStoreCost: string
@@ -57,6 +58,7 @@ export function useStoreDomain({
   packedItemsCount,
   availablePackedSlotCount,
   isGuidedCreation,
+  storeOpen,
   selectedInventory,
   customStoreName,
   customStoreCost,
@@ -76,6 +78,16 @@ export function useStoreDomain({
   addItemsToInventory,
   setInventoryGoldForCharacter,
 }: Params) {
+  // Owns store cleanup and must run before the orchestrator clears justSeeded.
+  useEffect(() => {
+    if (isGuidedCreation || !storeOpen) return
+    const timer = setTimeout(() => {
+      setStoreOpen(false)
+      setStoreError(null)
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [isGuidedCreation, setStoreError, setStoreOpen, storeOpen])
+
   const upsertCartEntry = (nextEntry: Omit<StoreCartEntry, 'qty'>) => {
     if (!effectiveSelected) return
     setStoreCartByCharacterId((current) => {

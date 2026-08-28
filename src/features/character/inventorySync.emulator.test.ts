@@ -15,6 +15,7 @@ import { shouldAdoptIncomingInventory } from './inventorySync'
 import { applyAcceptedTransfer } from '../transfers/transferResolution'
 import { computeAvailablePackedSlots, computeOverflow, makeDroppedGoldCampaignItem, makeGoldItem } from './inventoryOverflow'
 import { campaignGoldToInventoryChunks } from '../items/itemConversion'
+import { emulatorPort } from '../../../vitest.emulatorEndpoint'
 
 const projectId = 'homeboyshouse-emulator-tests'
 const campaignId = 'campaign-1'
@@ -81,7 +82,7 @@ describe('inventory sync on Firestore emulator', () => {
       projectId,
       firestore: {
         host: '127.0.0.1',
-        port: 8080,
+        port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
         rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
       },
     })
@@ -524,7 +525,7 @@ describe('nested group/campaign security rules', () => {
       projectId,
       firestore: {
         host: '127.0.0.1',
-        port: 8080,
+        port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
         rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
       },
     })

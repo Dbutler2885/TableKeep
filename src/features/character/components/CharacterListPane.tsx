@@ -1,5 +1,5 @@
 import { Gift, Plus, Skull, Star, Trash2, UserRound } from 'lucide-react'
-import type { CharacterRecord, Role } from '../../types/app'
+import type { CharacterRecord, Role } from '../../../types/app'
 
 type Props = {
   role: Role | null
