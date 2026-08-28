@@ -24,6 +24,7 @@ const PLAYER_SEAT: DemoSeat = {
 // rather than by re-importing the panel under a different environment.
 const mocks = vi.hoisted(() => ({
   seats: [] as DemoSeat[],
+  sandboxOffered: true,
   authStub: { name: 'auth-stub' },
   signInWithEmailAndPassword: vi.fn(async () => ({})),
   signInWithPopup: vi.fn(async () => ({})),
@@ -31,6 +32,15 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./demoSeats', () => ({ demoSeats: mocks.seats }))
 vi.mock('../../firebase', () => ({ auth: mocks.authStub, db: { name: 'db-stub' } }))
+// A getter, not a value: `demoSandboxOffered` is read on every render, so this
+// lets one file cover both a build that offers the hosted sandbox and one that
+// does not. (`demoAvailability` resolves it once at import time from
+// `import.meta.env`, which is why the module is replaced rather than the env.)
+vi.mock('../demo/demoAvailability', () => ({
+  get demoSandboxOffered() {
+    return mocks.sandboxOffered
+  },
+}))
 vi.mock('firebase/auth', () => ({
   GoogleAuthProvider: class {},
   createUserWithEmailAndPassword: vi.fn(async () => ({ user: { uid: 'uid' } })),
@@ -49,13 +59,23 @@ function setSeats(seats: DemoSeat[]) {
 beforeEach(() => {
   vi.clearAllMocks()
   setSeats([])
+  mocks.sandboxOffered = true
 })
 
 afterEach(cleanup)
 
 describe('AuthPanel sign-in screen, against the local emulators', () => {
   beforeEach(() => {
+    mocks.sandboxOffered = false
     setSeats([GM_SEAT, PLAYER_SEAT])
+  })
+
+  it('does not offer the hosted demo sandbox', () => {
+    render(<AuthPanel />)
+
+    // The seat picker already hands this visitor a populated campaign, and the
+    // demo harness does not start the functions emulator the sandbox needs.
+    expect(screen.queryByRole('link', { name: /check it out with mock data/i })).toBeNull()
   })
 
   it('offers the two seats and no Google button', () => {
@@ -112,6 +132,24 @@ describe('AuthPanel sign-in screen, in an ordinary build', () => {
     expect(screen.queryByRole('button', { name: /Enter as the Game Master/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /Enter as a Player/ })).toBeNull()
     expect(screen.queryByText(/Pick a seat/)).toBeNull()
+  })
+
+  it('offers the hosted demo sandbox as a button, next to the form', () => {
+    render(<AuthPanel />)
+
+    const tryIt = screen.getByRole('link', { name: /check it out with mock data/i })
+    expect(tryIt.getAttribute('href')).toBe('/demo')
+    expect(screen.getByText('No account needed.')).toBeTruthy()
+  })
+
+  it('leads with the wordmark alone, with no runhead or tagline above it', () => {
+    render(<AuthPanel />)
+
+    expect(screen.queryByText(/№ 01/)).toBeNull()
+    expect(screen.queryByText('a sidecar for the tabletop')).toBeNull()
+    // The masthead is the wordmark and nothing else. (The card's footer carries
+    // a second wordmark, hence the heading rather than the label.)
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('TableKeep')
   })
 
   it('still offers the Google button on the sign-up view', async () => {

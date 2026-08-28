@@ -53,6 +53,27 @@ Visitor mode imports it and never writes it back, so break whatever you like.
 Prerequisites: Node.js 24+, npm 11+, and Java 21+ (the Firestore and Storage emulators are JVM processes).
 Stop the demo with `Ctrl+C`.
 
+## The demo on the deployed site
+
+The local demo above needs a clone and a JDK.
+The deployed site has a lighter door: a **try it now** link on the sign-in screen that hands a visitor a private copy of the same campaign, with no account, no email, and no dialog.
+
+It is not a tour.
+A visitor arrives as the **Game Master** of their own copy, with the fog brush, the token layer and the whole tool rail live, because the strongest thing here is painting fog and moving tokens and a read-only version of that is a screenshot.
+
+How it works, in one pass:
+
+- One pristine template campaign lives in the project, seeded from the same `emulator-data/` snapshot the local demo imports, so there is one campaign to author rather than two.
+- The link signs the visitor in with Firebase anonymous auth and a Cloud Function copies the template into a fresh group and campaign that belong to that visitor's uid.
+- Map images and portraits are **shared, not copied**. A clone keeps every document id, and a map records its image as an absolute Storage path, so every sandbox points at the template's one copy of each image. Only the fog and vision a visitor paints is written, under their own campaign's path.
+- Sandboxes last three hours. A scheduled function deletes the documents and the visitor-created objects; a ceiling on how many can exist at once turns a spike into a "the demo is full" message rather than a bill.
+- A visitor can read the template and write only their own sandbox. That is enforced in `firestore.rules` and `storage.rules`, not in the interface, and `src/features/demo/demoSandbox.emulator.test.ts` holds it there.
+
+To see it without deploying anything, `npm run demo:sandbox` runs the whole thing on this machine: the emulators including functions, the template seeded from the same snapshot, and the dev server, on a port block of their own so they can sit alongside `npm run demo`.
+Open <http://127.0.0.1:5185/demo> and you are in a sandbox.
+
+Turning it on for a project takes three steps beyond a normal deploy: enable Anonymous sign-in in the Firebase console, deploy rules, indexes and functions, and run `npm run demo:seed-template -- --target=project --project=<id> --bucket=<bucket> --apply` once.
+
 ## What it is
 
 Table Keep is a virtual tabletop.
@@ -251,6 +272,7 @@ The split is deliberate.
 - **Unit** (`npm test`). Vitest covers the pure logic: spell catalogs and spellbook rules, inventory synchronization, VtM creation, roll and XP rules, item-transfer resolution, and the map tool-state and token-placement machines.
 - **Component** (`npm test`). The `.test.tsx` suites opt into a jsdom environment per file with a docblock, so the rest of the run stays in Node. The sign-in screen's seat picker is covered here.
 - **Rules** (`npm run test:emulator`). Every `src/**/*.emulator.test.ts` runs against a live Firestore and Storage emulator with the repository's real `firestore.rules` and `storage.rules` loaded, so the suite exercises authorization as deployed, not as intended.
+  The demo sandbox lives or dies here: one suite proves a visitor can read the template and not write it, can reach only their own sandbox, and cannot touch another visitor's or any real user's data; another drives the real clone and expiry code against the emulator.
   Needs JDK 21+.
 - **Browser smoke** (`npm run test:browser-smoke`). Puppeteer against local services only.
   It starts Vite inside `firebase emulators:exec`, creates isolated emulator users, completes email verification through the emulator's OOB API, claims a handle, and creates a group at both desktop and mobile viewports.
@@ -260,9 +282,10 @@ The split is deliberate.
 
 - `src/features/*` holds the feature modules: auth, groups, campaign, character (OSE and VtM), maps, monsters, items, treasure, npcs, tables, notes, transfers, tokens, navigation, common.
 - `src/firebase/*` sets up the Firebase SDK and wires the emulators.
-- `functions/` holds the Cloud Functions source: session-summary ingestion, NPC roster lookup, the item-transfer callable, and a health check.
+- `functions/` holds the Cloud Functions source: session-summary ingestion, NPC roster lookup, the item-transfer callable, the demo-sandbox callable and its expiry schedule, and a health check.
 - `scripts/demo/` is the demo harness and its snapshot tooling.
 - `emulator-data/` is the committed snapshot the demo boots from. `npm run demo:size` checks it against a budget of 25 MB total and 1 MB per file.
+- `demoSessions/{uid}` is the registry of live demo sandboxes: one row per anonymous visitor, and the only thing the expiry sweep reads.
 - Firebase config lives in `firebase.json`, `.firebaserc`, `firestore.rules`, `firestore.indexes.json` and `storage.rules`.
 
 ### Firestore data model
@@ -288,6 +311,8 @@ The split is deliberate.
 | `npm run demo:author` | Authoring demo: the same, but exports back to `./emulator-data` on exit. The only command that overwrites the committed snapshot |
 | `npm run demo:save` | Export a running demo emulator without quitting it |
 | `npm run demo:seed` | Re-seed the demo accounts into a running demo emulator |
+| `npm run demo:seed-template` | Dry-run seeding the hosted demo's template campaign from the snapshot. Add `-- --apply` to write |
+| `npm run demo:sandbox` | The hosted try-it-now demo, run entirely locally: emulators (including functions), the seeded template, and the dev server |
 | `npm run demo:size` | Check `./emulator-data` against its commit budget |
 | `npm run emulators` | Start the auth/firestore/storage emulators bare |
 | `npm run emulators:import` | Start emulators with persisted state |

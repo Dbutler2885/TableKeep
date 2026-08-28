@@ -4,6 +4,7 @@ import { BrandWordmark } from '../common/BrandWordmark'
 import { GoogleMark } from './GoogleMark'
 import { DemoSeatPicker } from './DemoSeatPicker'
 import type { DemoSeat } from './demoSeats'
+import { demoEntryPath } from '../demo/demoConstants'
 
 type Props = {
   onPasswordSubmit: (email: string, password: string) => Promise<unknown> | unknown
@@ -17,6 +18,12 @@ type Props = {
    */
   demoSeats?: DemoSeat[]
   onDemoSeat?: (seat: DemoSeat) => Promise<unknown> | unknown
+  /**
+   * Whether to offer the hosted "try it now" sandbox. Off in the local-emulator
+   * demo, where the seat picker already hands the visitor a populated campaign
+   * and the sandbox Cloud Function is not running.
+   */
+  showTryIt?: boolean
 }
 
 export function SignInView({
@@ -26,6 +33,7 @@ export function SignInView({
   onSwitchToForgot,
   demoSeats = [],
   onDemoSeat,
+  showTryIt = false,
 }: Props) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -37,14 +45,11 @@ export function SignInView({
 
   return (
     <>
-      <div className="tk-auth-runhead">
-        <span>№ 01 · Sign in</span>
-        <span className="tk-auth-runhead-rule" aria-hidden />
-      </div>
-
-      <header className="tk-auth-masthead">
-        <h1 className="tk-auth-title"><BrandWordmark /></h1>
-        <p className="tk-auth-subtitle">a sidecar for the tabletop</p>
+      {/* No runhead and no tagline here, unlike the other views in this card:
+          on the screen everyone lands on first, the wordmark is the whole
+          masthead and is sized to carry it. */}
+      <header className="tk-auth-masthead tk-auth-masthead-hero">
+        <h1 className="tk-auth-title tk-auth-title-hero"><BrandWordmark /></h1>
       </header>
 
       <div className="tk-auth-hairline" aria-hidden />
@@ -98,6 +103,17 @@ export function SignInView({
 
         <button type="submit" className="tk-auth-submit">Sign in with email</button>
       </form>
+
+      {showTryIt ? (
+        <div className="tk-auth-try">
+          {/* A plain anchor, not a router Link: the sign-in card renders outside
+              <Routes>, and arriving at the demo is a fresh start either way. */}
+          <a className="tk-auth-try-button" href={demoEntryPath}>
+            Check it out with mock data
+          </a>
+          <span className="tk-auth-try-note">No account needed.</span>
+        </div>
+      ) : null}
 
       <p className="tk-auth-meta">
         New to Table Keep?{' '}

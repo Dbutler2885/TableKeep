@@ -19,6 +19,14 @@ type GroupHomeProps = {
   onOpenCampaign: (campaignId: string) => void
   onOpenActiveCampaign: () => void
   onSignOut: () => void
+  /**
+   * False for an anonymous demo visitor. They are the admin of their sandbox
+   * group, so the invite affordance would otherwise be offered to them, and it
+   * would mint a top-level `inviteCodes` document that outlives the sandbox the
+   * expiry sweep deletes. `firestore.rules` refuses the write either way; this
+   * keeps a button that cannot work off the screen.
+   */
+  canInvite?: boolean
 }
 
 export function GroupHome({
@@ -35,6 +43,7 @@ export function GroupHome({
   onOpenCampaign,
   onOpenActiveCampaign,
   onSignOut,
+  canInvite: inviteAllowed = true,
 }: GroupHomeProps) {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -55,7 +64,7 @@ export function GroupHome({
   const canDelete = group.memberRole === 'admin'
   const groupHasContents =
     Boolean(group.activeCampaign) || group.drafts.length > 0 || group.inactiveCampaigns.length > 0
-  const canInvite = group.memberRole === 'admin'
+  const canInvite = inviteAllowed && group.memberRole === 'admin'
 
   const inviteUrl = (token: string) => `${window.location.origin}/join/${token}`
 
