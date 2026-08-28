@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type {
   ChangeEventHandler,
   Dispatch,
@@ -16,12 +16,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Circle,
-  Dice1,
-  Dice2,
-  Dice3,
-  Dice4,
-  Dice5,
-  Dice6,
   Eraser,
   Eye,
   EyeOff,
@@ -35,7 +29,6 @@ import {
   LoaderCircle,
   Map as MapIcon,
   Minus,
-  Paintbrush,
   Pencil,
   PenTool,
   Plus,
@@ -122,6 +115,8 @@ import { TokenLayer } from './components/TokenLayer'
 import { AnnotationLayer } from './components/AnnotationLayer'
 import { MapDrawingEditor, type BlankMapSceneResult } from './components/MapDrawingEditor'
 import { InlineMapStage } from './components/InlineMapStage'
+import { BrushSizeControl } from './components/BrushSizeControl'
+import { DistanceTrackerBadge } from './components/DistanceTrackerBadge'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
 import { useGridTools } from './hooks/useGridTools'
 import { useMapWorkspace } from './hooks/useMapWorkspace'
@@ -133,12 +128,6 @@ import { useTokenAnimation } from './hooks/useTokenAnimation'
 import { useTokenDrag } from './hooks/useTokenDrag'
 import { useEncounterTracking } from './hooks/useEncounterTracking'
 import { useTokenAssets } from './hooks/useTokenAssets'
-
-const BRUSH_SIZE_MIN = 1
-const BRUSH_SIZE_MAX = 260
-const BRUSH_PREVIEW_BOX_SIZE = 96
-const BRUSH_PREVIEW_DOT_MIN = 4
-const BRUSH_PREVIEW_DOT_MAX = 84
 
 const normalizeTokenRotation = (value: number) => ((Math.round(value) % 360) + 360) % 360
 
@@ -2930,168 +2919,13 @@ function GmMapTopToolPanel({
   guidance: ReturnType<typeof getMapToolGuidance>
   onOpenHelp: () => void
 }) {
-  const [brushSizeDraft, setBrushSizeDraft] = useState(String(fogBrushSize))
-  const [brushSizeEditing, setBrushSizeEditing] = useState(false)
-  const brushSizeInputValue = brushSizeEditing ? brushSizeDraft : String(fogBrushSize)
-
-  const DistanceRollIcon =
-    distanceTrackerMode === 'roll' && distanceTrackerRoll === 1
-      ? Dice1
-      : distanceTrackerMode === 'roll' && distanceTrackerRoll === 2
-        ? Dice2
-        : distanceTrackerMode === 'roll' && distanceTrackerRoll === 3
-          ? Dice3
-          : distanceTrackerMode === 'roll' && distanceTrackerRoll === 4
-            ? Dice4
-            : distanceTrackerMode === 'roll' && distanceTrackerRoll === 5
-              ? Dice5
-              : distanceTrackerMode === 'roll' && distanceTrackerRoll === 6
-                ? Dice6
-                : null
-  const distanceFeetLabel = `${Math.max(0, Math.round(distanceTrackerFeet))}'`
-  const distanceTrackerLabel = distanceTrackerMode === 'first' ? '1st' : distanceFeetLabel
-  const brushPct = (fogBrushSize - BRUSH_SIZE_MIN) / (BRUSH_SIZE_MAX - BRUSH_SIZE_MIN)
-  const brushPreviewDotDiameter = Math.round(
-    BRUSH_PREVIEW_DOT_MIN + brushPct * (BRUSH_PREVIEW_DOT_MAX - BRUSH_PREVIEW_DOT_MIN),
-  )
-
-  const setBrushFromPointer = (rail: DOMRect, clientY: number) => {
-    const pct = Math.max(0, Math.min(1, (rail.bottom - clientY) / rail.height))
-    setFogBrushSize(Math.round(BRUSH_SIZE_MIN + pct * (BRUSH_SIZE_MAX - BRUSH_SIZE_MIN)))
-  }
-
-  const handleBrushSliderPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    const target = event.currentTarget
-    const rail = target.getBoundingClientRect()
-    target.setPointerCapture(event.pointerId)
-    setBrushFromPointer(rail, event.clientY)
-    const move = (ev: PointerEvent) => setBrushFromPointer(rail, ev.clientY)
-    const up = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-  }
-
-  const handleBrushSliderKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    const step = event.shiftKey ? 10 : 1
-    if (event.key === 'ArrowUp' || event.key === 'ArrowRight') {
-      event.preventDefault()
-      setFogBrushSize(Math.min(BRUSH_SIZE_MAX, fogBrushSize + step))
-    } else if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') {
-      event.preventDefault()
-      setFogBrushSize(Math.max(BRUSH_SIZE_MIN, fogBrushSize - step))
-    } else if (event.key === 'Home') {
-      event.preventDefault()
-      setFogBrushSize(BRUSH_SIZE_MIN)
-    } else if (event.key === 'End') {
-      event.preventDefault()
-      setFogBrushSize(BRUSH_SIZE_MAX)
-    }
-  }
-
-  const commitBrushSizeDraft = () => {
-    setBrushSizeEditing(false)
-    const parsed = Number.parseInt(brushSizeDraft, 10)
-    if (!Number.isFinite(parsed)) {
-      setBrushSizeDraft(String(fogBrushSize))
-      return
-    }
-    const next = Math.max(BRUSH_SIZE_MIN, Math.min(BRUSH_SIZE_MAX, parsed))
-    setFogBrushSize(next)
-    setBrushSizeDraft(String(next))
-  }
-
-  const handleBrushSizeInputChange: ChangeEventHandler<HTMLInputElement> = (event) => {
-    const nextValue = event.target.value
-    if (!/^\d*$/.test(nextValue)) return
-    setBrushSizeDraft(nextValue)
-  }
-
   const handleToggleFogPreset = () => {
     void applyFogPreset(fullyHidden ? 'unhide-all' : 'hide-all')
   }
 
   return (
     <div className="map-tools-panel">
-      <div className="map-tools-brush">
-        <span className="map-section-label">Brush size</span>
-        <div className="map-brush-size-control">
-          <div
-            className="map-brush-size-preview"
-            style={{
-              width: `${BRUSH_PREVIEW_BOX_SIZE}px`,
-              height: `${BRUSH_PREVIEW_BOX_SIZE}px`,
-            }}
-            aria-hidden
-          >
-            <span
-              className="map-brush-size-dot"
-              style={{
-                width: `${brushPreviewDotDiameter}px`,
-                height: `${brushPreviewDotDiameter}px`,
-              }}
-            />
-          </div>
-          <div
-            className="map-brush-size-slider"
-            role="slider"
-            tabIndex={0}
-            aria-label="Brush size"
-            aria-valuemin={BRUSH_SIZE_MIN}
-            aria-valuemax={BRUSH_SIZE_MAX}
-            aria-valuenow={fogBrushSize}
-            onPointerDown={handleBrushSliderPointerDown}
-            onKeyDown={handleBrushSliderKeyDown}
-          >
-            <div className="map-brush-size-rail">
-              <div className="map-brush-size-fill" style={{ height: `${brushPct * 100}%` }} />
-            </div>
-            <div
-              className="map-brush-size-thumb"
-              style={{ bottom: `calc((100% - var(--thumb-size)) * ${brushPct})` }}
-            />
-          </div>
-          <div
-            className="map-brush-control-inline"
-            aria-label="Brush size value"
-            onPointerDownCapture={(event) => event.stopPropagation()}
-            onMouseDownCapture={(event) => event.stopPropagation()}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <span className="map-brush-control-icon" aria-hidden>
-              <Paintbrush size={14} />
-            </span>
-            <input
-              className="map-brush-control-number"
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={brushSizeInputValue}
-              onChange={handleBrushSizeInputChange}
-              onFocus={() => {
-                setBrushSizeDraft(String(fogBrushSize))
-                setBrushSizeEditing(true)
-              }}
-              onBlur={commitBrushSizeDraft}
-              onKeyDown={(event) => {
-                event.stopPropagation()
-                if (event.key === 'e' || event.key === 'E' || event.key === '+' || event.key === '-' || event.key === '.') {
-                  event.preventDefault()
-                  return
-                }
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  event.currentTarget.blur()
-                }
-              }}
-              aria-label="Brush size number"
-            />
-          </div>
-        </div>
-      </div>
+      <BrushSizeControl fogBrushSize={fogBrushSize} setFogBrushSize={setFogBrushSize} />
       <div className="map-tool-group">
         <span className="map-section-label">Fog</span>
         <div className="map-section-grid">
@@ -3301,29 +3135,7 @@ function GmMapTopToolPanel({
           >
             <Ruler size={16} />
           </button>
-          <button
-            type="button"
-            className={
-              distanceTrackerMode === 'roll' || distanceTrackerMode === 'first'
-                ? 'map-icon-btn map-distance-tracker-btn fast-tooltip fast-tooltip-right active'
-                : 'map-icon-btn map-distance-tracker-btn fast-tooltip fast-tooltip-right'
-            }
-            onClick={onResetDistanceTracker}
-            aria-label="Reset movement distance tracker"
-            data-tooltip={
-              distanceTrackerMode === 'roll'
-                ? `d6: ${distanceTrackerRoll ?? '-'}`
-                : distanceTrackerMode === 'first'
-                  ? `1st turn/${ENCOUNTER_CHECK_DISTANCE_FEET}'`
-                : `${distanceFeetLabel}/${ENCOUNTER_CHECK_DISTANCE_FEET}'`
-            }
-          >
-            {DistanceRollIcon ? (
-              <DistanceRollIcon size={16} />
-            ) : (
-              <span className="map-distance-tracker-value">{distanceTrackerLabel}</span>
-            )}
-          </button>
+          <DistanceTrackerBadge distanceTrackerFeet={distanceTrackerFeet} distanceTrackerMode={distanceTrackerMode} distanceTrackerRoll={distanceTrackerRoll} onResetDistanceTracker={onResetDistanceTracker} />
         </div>
       </div>
       <div className="map-tool-group">
@@ -3590,15 +3402,12 @@ function GmMapControls({
   const [sceneNpcPickerId, setSceneNpcPickerId] = useState('')
   const [sceneNpcModalId, setSceneNpcModalId] = useState('')
   const [presentedNpcGmNotesState, setPresentedNpcGmNotesState] = useState({ npcId: '', gmNotes: '' })
-  const [brushSizeDraft, setBrushSizeDraft] = useState(String(fogBrushSize))
-  const [brushSizeEditing, setBrushSizeEditing] = useState(false)
   const [monsterPlacementCounts, setMonsterPlacementCounts] = useState<Record<string, number>>({})
   const [nonPartySourceKey, setNonPartySourceKey] = useState('')
   const [nonPartySearch, setNonPartySearch] = useState('')
   const [genericTokenName, setGenericTokenName] = useState('Token')
   const [lastTokenListSelectionId, setLastTokenListSelectionId] = useState('')
   const genericCreatorKey = 'generic:create'
-  const brushSizeInputValue = brushSizeEditing ? brushSizeDraft : String(fogBrushSize)
   const availableSceneNpcs = useMemo(
     () => mapNpcs.filter((npc) => !selectedMapSceneNpcIds.includes(npc.id)),
     [mapNpcs, selectedMapSceneNpcIds],
@@ -3704,83 +3513,6 @@ function GmMapControls({
     })
     return () => unsub()
   }, [campaignId, groupId, presentedNpc?.id])
-
-  const DistanceRollIcon =
-    distanceTrackerMode === 'roll' && distanceTrackerRoll === 1
-      ? Dice1
-      : distanceTrackerMode === 'roll' && distanceTrackerRoll === 2
-        ? Dice2
-        : distanceTrackerMode === 'roll' && distanceTrackerRoll === 3
-          ? Dice3
-          : distanceTrackerMode === 'roll' && distanceTrackerRoll === 4
-            ? Dice4
-            : distanceTrackerMode === 'roll' && distanceTrackerRoll === 5
-              ? Dice5
-              : distanceTrackerMode === 'roll' && distanceTrackerRoll === 6
-                ? Dice6
-                : null
-  const distanceFeetLabel = `${Math.max(0, Math.round(distanceTrackerFeet))}'`
-  const distanceTrackerLabel = distanceTrackerMode === 'first' ? '1st' : distanceFeetLabel
-
-  const brushPct = (fogBrushSize - BRUSH_SIZE_MIN) / (BRUSH_SIZE_MAX - BRUSH_SIZE_MIN)
-  const brushPreviewDotDiameter = Math.round(
-    BRUSH_PREVIEW_DOT_MIN + brushPct * (BRUSH_PREVIEW_DOT_MAX - BRUSH_PREVIEW_DOT_MIN),
-  )
-
-  const setBrushFromPointer = (rail: DOMRect, clientY: number) => {
-    const pct = Math.max(0, Math.min(1, (rail.bottom - clientY) / rail.height))
-    setFogBrushSize(Math.round(BRUSH_SIZE_MIN + pct * (BRUSH_SIZE_MAX - BRUSH_SIZE_MIN)))
-  }
-
-  const handleBrushSliderPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    const target = event.currentTarget
-    const rail = target.getBoundingClientRect()
-    target.setPointerCapture(event.pointerId)
-    setBrushFromPointer(rail, event.clientY)
-    const move = (ev: PointerEvent) => setBrushFromPointer(rail, ev.clientY)
-    const up = () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-  }
-
-  const handleBrushSliderKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    const step = event.shiftKey ? 10 : 1
-    if (event.key === 'ArrowUp' || event.key === 'ArrowRight') {
-      event.preventDefault()
-      setFogBrushSize(Math.min(BRUSH_SIZE_MAX, fogBrushSize + step))
-    } else if (event.key === 'ArrowDown' || event.key === 'ArrowLeft') {
-      event.preventDefault()
-      setFogBrushSize(Math.max(BRUSH_SIZE_MIN, fogBrushSize - step))
-    } else if (event.key === 'Home') {
-      event.preventDefault()
-      setFogBrushSize(BRUSH_SIZE_MIN)
-    } else if (event.key === 'End') {
-      event.preventDefault()
-      setFogBrushSize(BRUSH_SIZE_MAX)
-    }
-  }
-
-  const commitBrushSizeDraft = () => {
-    setBrushSizeEditing(false)
-    const parsed = Number.parseInt(brushSizeDraft, 10)
-    if (!Number.isFinite(parsed)) {
-      setBrushSizeDraft(String(fogBrushSize))
-      return
-    }
-    const next = Math.max(BRUSH_SIZE_MIN, Math.min(BRUSH_SIZE_MAX, parsed))
-    setFogBrushSize(next)
-    setBrushSizeDraft(String(next))
-  }
-
-  const handleBrushSizeInputChange: ChangeEventHandler<HTMLInputElement> = (event) => {
-    const nextValue = event.target.value
-    if (!/^\d*$/.test(nextValue)) return
-    setBrushSizeDraft(nextValue)
-  }
 
   const commitTokenLabelEdit = async (token: TokenRecord, labelValue: string) => {
     const current = token.name.trim()
@@ -3959,82 +3691,7 @@ function GmMapControls({
     <div className={dark ? 'map-controls-body dark' : 'map-controls-body'}>
       {showTopTools ? (
       <div className="map-tools-panel">
-        <div className="map-tools-brush">
-          <span className="map-section-label">Brush size</span>
-          <div className="map-brush-size-control">
-            <div
-              className="map-brush-size-preview"
-              style={{
-                width: `${BRUSH_PREVIEW_BOX_SIZE}px`,
-                height: `${BRUSH_PREVIEW_BOX_SIZE}px`,
-              }}
-              aria-hidden
-            >
-              <span
-                className="map-brush-size-dot"
-                style={{
-                  width: `${brushPreviewDotDiameter}px`,
-                  height: `${brushPreviewDotDiameter}px`,
-                }}
-              />
-            </div>
-            <div
-              className="map-brush-size-slider"
-              role="slider"
-              tabIndex={0}
-              aria-label="Brush size"
-              aria-valuemin={BRUSH_SIZE_MIN}
-              aria-valuemax={BRUSH_SIZE_MAX}
-              aria-valuenow={fogBrushSize}
-              onPointerDown={handleBrushSliderPointerDown}
-              onKeyDown={handleBrushSliderKeyDown}
-            >
-              <div className="map-brush-size-rail">
-                <div className="map-brush-size-fill" style={{ height: `${brushPct * 100}%` }} />
-              </div>
-              <div
-                className="map-brush-size-thumb"
-                style={{ bottom: `calc((100% - var(--thumb-size)) * ${brushPct})` }}
-              />
-            </div>
-            <div
-              className="map-brush-control-inline"
-              aria-label="Brush size value"
-              onPointerDownCapture={(event) => event.stopPropagation()}
-              onMouseDownCapture={(event) => event.stopPropagation()}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <span className="map-brush-control-icon" aria-hidden>
-                <Paintbrush size={14} />
-              </span>
-              <input
-                className="map-brush-control-number"
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                value={brushSizeInputValue}
-                onChange={handleBrushSizeInputChange}
-                onFocus={() => {
-                  setBrushSizeDraft(String(fogBrushSize))
-                  setBrushSizeEditing(true)
-                }}
-                onBlur={commitBrushSizeDraft}
-                onKeyDown={(event) => {
-                  event.stopPropagation()
-                  if (event.key === 'e' || event.key === 'E' || event.key === '+' || event.key === '-' || event.key === '.') {
-                    event.preventDefault()
-                    return
-                  }
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    event.currentTarget.blur()
-                  }
-                }}
-                aria-label="Brush size number"
-              />
-            </div>
-          </div>
-        </div>
+        <BrushSizeControl fogBrushSize={fogBrushSize} setFogBrushSize={setFogBrushSize} />
         <div className="map-tools-left">
         <span className="map-section-label">Fog</span>
         <div className="map-section-grid">
@@ -4289,29 +3946,7 @@ function GmMapControls({
             >
               <Ruler size={16} />
             </button>
-            <button
-              type="button"
-              className={
-                distanceTrackerMode === 'roll' || distanceTrackerMode === 'first'
-                  ? 'map-icon-btn map-distance-tracker-btn fast-tooltip fast-tooltip-right active'
-                  : 'map-icon-btn map-distance-tracker-btn fast-tooltip fast-tooltip-right'
-              }
-              onClick={onResetDistanceTracker}
-              aria-label="Reset movement distance tracker"
-              data-tooltip={
-                distanceTrackerMode === 'roll'
-                  ? `d6: ${distanceTrackerRoll ?? '-'}`
-                  : distanceTrackerMode === 'first'
-                    ? `1st turn/${ENCOUNTER_CHECK_DISTANCE_FEET}'`
-                  : `${distanceFeetLabel}/${ENCOUNTER_CHECK_DISTANCE_FEET}'`
-              }
-            >
-              {DistanceRollIcon ? (
-                <DistanceRollIcon size={16} />
-              ) : (
-                <span className="map-distance-tracker-value">{distanceTrackerLabel}</span>
-              )}
-            </button>
+            <DistanceTrackerBadge distanceTrackerFeet={distanceTrackerFeet} distanceTrackerMode={distanceTrackerMode} distanceTrackerRoll={distanceTrackerRoll} onResetDistanceTracker={onResetDistanceTracker} />
           </div>
         </div>
       </div>
