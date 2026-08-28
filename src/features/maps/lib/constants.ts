@@ -20,6 +20,11 @@ export const ENCOUNTER_TRIGGER_ROLL_MAX = 1
 export const DISTANCE_POST_ROLL_MIN_FEET_TO_SHOW = 10
 export const MIN_MAP_ZOOM = 0.5
 export const MAX_MAP_ZOOM = 30
+export const BRUSH_SIZE_MIN = 1
+export const BRUSH_SIZE_MAX = 260
+export const BRUSH_PREVIEW_BOX_SIZE = 96
+export const BRUSH_PREVIEW_DOT_MIN = 4
+export const BRUSH_PREVIEW_DOT_MAX = 84
 
 // Default canvas dimensions and background for a blank (quick-draw) map. The GM
 // sketches on a surface of these dimensions in the drawing editor; the exported
