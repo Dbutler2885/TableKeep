@@ -164,3 +164,18 @@ Put durable engineering knowledge here in `AGENTS.md`, and put anything a reader
 - **The session transcription pipeline is external.**
   This repo owns only the receiving endpoints in `functions/`: `postSessionSummary` and `getCampaignNpcs`.
   The watcher, VAD, on-device speech model, and recap generation run as a separate macOS service on the GM's machine and are not in this codebase.
+
+## Maps feature decomposition
+
+`src/features/maps/MapsTab.tsx` is the composition root, while GM controls, pane navigation, scene-NPC editing, vision reveal, and pure geometry live under the feature's `components/`, `hooks/`, and `lib/` directories.
+
+- **Vision surface flood fill is intentionally 8-connected.**
+  Diagonally touching blocker paint belongs to one reveal region, and `visionBlockers.test.ts` pins that geometry.
+- **Flood-fill pixels are marked visited before blocker classification.**
+  This ensures boundary pixels are classified at most once during interactive token movement.
+- **The vision reveal scratch mask is region-sized.**
+  It is distinct from `useFogTools`' full-canvas reveal mask, and its offset `drawImage` call depends on that clipped-region sizing.
+- **Fog fallback stamping is nondeterministic.**
+  `useFogTools` uses randomized spray dots, so regression tests assert deterministic blocker, raycast, throttle, and structural behavior instead of exact fog pixels.
+- **Scene-NPC document and media paths must use the builders in `lib/sceneNpcRecord.ts` and `features/common/mediaStorage.ts`.**
+  The maps-scoped emulator suite verifies those production builders against the real Firestore and Storage rules.

@@ -1093,7 +1093,7 @@ export function GmMapControls({
             ) : null}
             {availableSceneNpcs.map((npc) => (
               <option key={npc.id} value={npc.id}>
-                {npc.title ? `${npc.name} — ${npc.title}` : npc.name}
+                {npc.title ? `${npc.name} - ${npc.title}` : npc.name}
               </option>
             ))}
           </select>
