@@ -94,9 +94,31 @@ It ends on his name label appearing on the board, where the table will read it.
 Scene NPCs attach to a map from the campaign roster, so the people in a location travel with it.
 [Full-quality recording](.github/media/table-keep-scene-npcs.mp4).
 
-Fog is the feature the rest of the map tooling exists to serve.
-The GM paints reveals with a sizeable brush, blocks line of sight with vision walls, and can flip to player view at any time to check exactly what the table can see.
-Revealed state is stored per map and synced live, so a player who joins late or reloads gets the world in the state the GM left it.
+Fog is what the rest of the map tooling exists to serve, and it is not a circle of light around a token.
+Vision blockers come in two kinds - hard walls that stop sight dead, and surface walls whose face you see when your sightline touches it - and a reveal is computed by casting somewhere between 220 and 1,800 rays out from the token and marching each one pixel by pixel until it hits something.
+When a ray lands on a surface wall, a flood fill reveals that contiguous stretch of wall and nothing else, so you see the face you actually looked at and not the wall standing behind it.
+
+Party tokens carry the vision.
+Each has its own view distance, and dragging one streams the fog open along the exact path it travels instead of jumping to the destination.
+The GM can flip the whole stage to player view at any time to check what the table can see, and keep dragging while it is on.
+
+Moves replay.
+A drag is recorded as timestamped waypoints, so every other client plays it back at the pace it was actually made - a token that crept across the map creeps on everyone's screen - and a party token reveals fog as it goes, so players watch the map open in front of them the way the GM saw it.
+
+Grids can be measured, or found.
+Calibrate against a known ten feet and the ruler reads distances off the map in feet.
+For hex maps there is a detector that reads the geometry out of the image itself: Sobel edge detection, an orientation histogram scored against the sixty-degree separation a hex grid has to have, autocorrelation for cell spacing, then a mask-fit search over orientation, size and offset with a local refinement pass.
+It reports a confidence and pre-fills the grid controls; the GM always confirms.
+
+Movement is counted while it happens.
+On a calibrated map, feet travelled by party tokens accumulate as the GM drags them, and every second hundred-and-twenty-foot turn rolls a d6 for a wandering monster - a B/X check that runs off the actual moving rather than off the GM remembering to make it.
+
+And a map does not have to be an uploaded image.
+There is a vector editor for sketching one: freehand regions, shapes, fills, marquee select, group drag, copy and paste, undo and redo, and reusable stamps saved per campaign.
+Its six terrain fills - trees, grass, dirt, road, water, stone - are generated at runtime from a seeded PRNG and drawn at nine wrapped offsets so they tile seamlessly, which is why there is not a single texture asset in the repository.
+A sketched map is flattened on save and behaves exactly like an uploaded one afterwards: fog, tokens, grid, line of sight, all of it.
+
+All of it syncs through Firestore listeners, so a player who joins late or reloads gets the world in the state the GM left it.
 
 <p align="center">
   <img src=".github/media/map-player-vision-mobile.webp" alt="The same village map on a player's phone: almost entirely black, with only the revealed wedge around their token visible" width="300">
@@ -147,7 +169,7 @@ Each campaign picks a system, and the tab set follows.
 **GM approval flow.** Players do not silently mutate the world.
 Item, spell and re-roll requests land in a GM queue with live notifications, and character-to-character transfers are handshaked on both sides.
 
-**Live everything else.** Groups with email invites, per-campaign settings including which tabs are enabled, reusable random tables with entity pickers, a shared rich-text notes surface, an in-campaign calendar, session summaries with an importer, detail view and a cliffhanger highlight modal, and basic encounter tracking.
+**Live everything else.** Groups with email invites, per-campaign settings including which tabs are enabled, reusable random tables with entity pickers, a shared rich-text notes surface, an in-campaign calendar, session summaries with an importer, detail view and and a cliffhanger highlight modal.
 
 **Auth.** Google sign-in and email/password, gated on email verification, with a one-time username claim.
 
@@ -230,7 +252,7 @@ The split is deliberate.
 
 - `users/{userId}` - platform identity: email, username, timestamps.
 - `groups/{groupId}` - the group, with `members/{userId}`, `invites/{inviteId}`, and `campaigns/{campaignId}` subcollections.
-- `groups/{groupId}/campaigns/{campaignId}/...` - per-campaign data: `characters`, `npcs`, `maps` (each with `tokens`, `annotations`, `fogChunks`), `items`, `tables`, `sessionSummaries`, and per-user UI scratch under `userState/{userId}`.
+- `groups/{groupId}/campaigns/{campaignId}/...` - per-campaign data: `characters`, `npcs`, `maps` (each with `tokens` and `annotations`), `items`, `tables`, `sessionSummaries`, and per-user UI scratch under `userState/{userId}`.
 
 ## Scripts
 
