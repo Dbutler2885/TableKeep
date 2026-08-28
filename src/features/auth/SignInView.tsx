@@ -45,14 +45,11 @@ export function SignInView({
 
   return (
     <>
-      <div className="tk-auth-runhead">
-        <span>№ 01 · Sign in</span>
-        <span className="tk-auth-runhead-rule" aria-hidden />
-      </div>
-
-      <header className="tk-auth-masthead">
-        <h1 className="tk-auth-title"><BrandWordmark /></h1>
-        <p className="tk-auth-subtitle">a sidecar for the tabletop</p>
+      {/* No runhead and no tagline here, unlike the other views in this card:
+          on the screen everyone lands on first, the wordmark is the whole
+          masthead and is sized to carry it. */}
+      <header className="tk-auth-masthead tk-auth-masthead-hero">
+        <h1 className="tk-auth-title tk-auth-title-hero"><BrandWordmark /></h1>
       </header>
 
       <div className="tk-auth-hairline" aria-hidden />
@@ -107,24 +104,23 @@ export function SignInView({
         <button type="submit" className="tk-auth-submit">Sign in with email</button>
       </form>
 
+      {showTryIt ? (
+        <div className="tk-auth-try">
+          {/* A plain anchor, not a router Link: the sign-in card renders outside
+              <Routes>, and arriving at the demo is a fresh start either way. */}
+          <a className="tk-auth-try-button" href={demoEntryPath}>
+            Check it out with mock data
+          </a>
+          <span className="tk-auth-try-note">No account needed.</span>
+        </div>
+      ) : null}
+
       <p className="tk-auth-meta">
         New to Table Keep?{' '}
         <button type="button" className="tk-auth-link" onClick={onSwitchToSignUp}>
           Create an account
         </button>
       </p>
-
-      {showTryIt ? (
-        <p className="tk-auth-try">
-          {/* A plain anchor, not a router Link: the sign-in card renders outside
-              <Routes>, and arriving at the demo is a fresh start either way. */}
-          Or{' '}
-          <a className="tk-auth-link" href={demoEntryPath}>
-            take a table for a few hours
-          </a>
-          {' '}- a real campaign, yours to play with, no account needed.
-        </p>
-      ) : null}
     </>
   )
 }

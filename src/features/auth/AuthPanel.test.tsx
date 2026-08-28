@@ -75,7 +75,7 @@ describe('AuthPanel sign-in screen, against the local emulators', () => {
 
     // The seat picker already hands this visitor a populated campaign, and the
     // demo harness does not start the functions emulator the sandbox needs.
-    expect(screen.queryByRole('link', { name: /take a table/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /check it out with mock data/i })).toBeNull()
   })
 
   it('offers the two seats and no Google button', () => {
@@ -134,11 +134,22 @@ describe('AuthPanel sign-in screen, in an ordinary build', () => {
     expect(screen.queryByText(/Pick a seat/)).toBeNull()
   })
 
-  it('offers the hosted demo sandbox', () => {
+  it('offers the hosted demo sandbox as a button, next to the form', () => {
     render(<AuthPanel />)
 
-    const tryIt = screen.getByRole('link', { name: /take a table/ })
+    const tryIt = screen.getByRole('link', { name: /check it out with mock data/i })
     expect(tryIt.getAttribute('href')).toBe('/demo')
+    expect(screen.getByText('No account needed.')).toBeTruthy()
+  })
+
+  it('leads with the wordmark alone, with no runhead or tagline above it', () => {
+    render(<AuthPanel />)
+
+    expect(screen.queryByText(/№ 01/)).toBeNull()
+    expect(screen.queryByText('a sidecar for the tabletop')).toBeNull()
+    // The masthead is the wordmark and nothing else. (The card's footer carries
+    // a second wordmark, hence the heading rather than the label.)
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('TableKeep')
   })
 
   it('still offers the Google button on the sign-up view', async () => {

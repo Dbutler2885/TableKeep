@@ -129,6 +129,21 @@
   color: var(--ink-soft);
 }
 
+/* The sign-in screen carries no runhead and no tagline, so the wordmark is the
+   masthead rather than a line inside one, and is sized to look deliberate at
+   that job. It stays on one line at every width (the lockup is `white-space:
+   nowrap`), which is what the upper bound of the clamp is protecting: the card
+   is 420px wide with 2.25rem of padding, and "Table Keep" plus its mark runs
+   about 5.3em. */
+.tk-auth-masthead-hero {
+  margin-top: 0;
+}
+
+.tk-auth-title-hero {
+  font-size: clamp(2.9rem, 11vw, 3.6rem);
+  line-height: 1;
+}
+
 .tk-auth-hairline {
   margin: 1.5rem 0 1.4rem;
   height: 1px;
@@ -466,16 +481,54 @@
   margin-top: 1.1rem;
 }
 
-/* ---- The sign-in screen's "try it" invitation ------------------------- */
+/* ---- The sign-in screen's "try it" entry point ------------------------
+   A real button sitting with the form's own submit, not a sentence below the
+   fold. It is deliberately the heaviest outline on the card - a visitor with
+   no account is more likely to want this than either sign-in path - while the
+   filled-ink Google button stays the single filled primary. */
 
 .tk-auth-try {
-  margin-top: 1.1rem;
-  padding-top: 0.9rem;
+  display: grid;
+  justify-items: center;
+  gap: 0.45rem;
+  margin-top: 1.25rem;
+  padding-top: 1.15rem;
   border-top: 1px solid var(--rule-soft);
+}
+
+.tk-auth-try-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  font-family: 'Geist', -apple-system, sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.005em;
+  color: var(--ink);
+  background: var(--paper-deep);
+  border: 2px solid var(--ink);
+  border-radius: 3px;
   text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease, transform 80ms ease;
+}
+
+.tk-auth-try-button:hover {
+  background: var(--ink);
+  color: var(--paper);
+  box-shadow: 0 4px 14px -8px rgba(26, 22, 20, 0.6);
+}
+
+.tk-auth-try-button:active {
+  transform: translateY(1px);
+}
+
+.tk-auth-try-note {
   font-family: 'IM Fell English', Georgia, serif;
   font-style: italic;
-  font-size: 0.92rem;
-  line-height: 1.45;
-  color: var(--ink-soft);
+  font-size: 0.86rem;
+  color: var(--ink-faint);
 }
