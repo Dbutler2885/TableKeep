@@ -29,7 +29,8 @@ There are two ESLint flat configs: `eslint.config.js` for the web app and `funct
 - **The root config ignores `functions/`.**
   Without that ignore, `eslint .` from the repo root walks into the Cloud Functions package and lints its Node entrypoint (and its compiled `lib/` output) with the browser/React rule set.
 - **`functions/` must keep a flat config, not an `.eslintrc.cjs`.**
-  ESLint 9 looks for `eslint.config.js` and, finding none in `functions/`, silently climbed to the root config instead - so the package's own rules were dead and `npm run lint` there exited 0 without ever applying them.
+  ESLint 9 looks for `eslint.config.js` and, finding none in `functions/`, climbed to the root config instead without saying so.
+  The package's own rules were dead, and `npm run lint` there exited 0 without ever applying them.
   The `--ext .ts` flag was dropped from the script at the same time; flat config selects files through its own `files` patterns.
 - **`eslint.config.js` ends with four `react-hooks-v7-debt/*` blocks.**
   `eslint-plugin-react-hooks` v7 promoted `set-state-in-effect`, `refs`, `immutability`, and `purity` into its recommended set, and 21 files that predate those rules still violate them.
@@ -48,7 +49,7 @@ Firestore + Storage emulator, with the repo's real `firestore.rules` /
 - **Storage Rules suites must use the emulator's own project id.** `storage.rules`
   reaches into Firestore via `firestore.get()`, and the Storage emulator resolves
   those lookups against the project it was started with (`.firebaserc`'s default,
-  exported as `GCLOUD_PROJECT` by `firebase emulators:exec`) - not the `projectId`
+  exported as `GCLOUD_PROJECT` by `firebase emulators:exec`), not the `projectId`
   passed to `initializeTestEnvironment`. Under a mismatched id every
   `firestore.get()`-gated rule reads an empty database and denies, which looks
   exactly like a rules bug. Use `process.env.GCLOUD_PROJECT ?? 'homeboyshouse-dev'`.
@@ -96,11 +97,12 @@ token-asset path builders in `src/features/maps/hooks/`).
 ## Demo harness (`scripts/demo/`, `emulator-data/`)
 
 A reviewer can see a real, populated game without a Firebase project or any credentials.
-The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plus two deliberately different commands that boot the emulators and the Vite dev server together.
+The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plus two commands that boot the emulators and the Vite dev server together and differ in one way that matters.
 
 - **`npm run demo` (visitor) never writes `emulator-data/`.**
   It passes `--import` and no export flag at all, so a visitor gets the campaign read-write in their own emulator while the snapshot in their checkout stays byte-for-byte pristine.
-  This is the whole reason it is not `npm run emulators:import`: that script passes `--export-on-exit`, which would let a visitor's session silently overwrite the committed snapshot.
+  This is the whole reason it is not `npm run emulators:import`.
+  That script passes `--export-on-exit`, which would let a visitor's session overwrite the committed snapshot without anyone noticing.
 - **`npm run demo:author` is the only command that overwrites the snapshot**, via `--export-on-exit`.
   `npm run demo:save` exports a running demo emulator without quitting it.
   Both commands print a startup banner that states which of the two behaviours is in effect; keep that banner accurate if the flags change.
@@ -125,23 +127,28 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
   A seat is offered only when the emulator flag is on *and* both credentials are present, which is why `scripts/browser-smoke.mjs` - emulators on, no `VITE_DEMO_*` - still gets the ordinary Google-plus-form screen it asserts against.
   A production build never loads `.env.demo`, so Vite folds those references to `undefined` and no demo login reaches the bundle.
 - **`emulator-data/` is committed and budgeted.**
-  It carries every Storage object the demo uses - map images and portraits - and git keeps every version of each one forever.
+  It carries every Storage object the demo uses, the map images and the portraits, and git keeps every version of each one forever.
   The budget is 25 MB total and 1 MB per file, enforced by `npm run demo:size` (`scripts/demo/check-snapshot-size.mjs`); run it before committing a re-export.
-  Shrink source images before uploading them in the app rather than trimming the snapshot afterwards - a large PNG that lands in one commit is permanent weight even if a later commit removes it.
+  Shrink source images before uploading them in the app rather than trimming the snapshot afterwards.
+  A large PNG that lands in one commit is permanent weight even if a later commit removes it.
 
 ## Documentation surface
 
 `README.md` is the only document this project ships.
-The former `docs/` folder (PRD, architecture, schema, IA, component/UX specs, milestones) was deleted deliberately: it had drifted behind the group/campaign model and the code is the authority.
-Do not reintroduce a `docs/` tree - put durable engineering knowledge here in `AGENTS.md`, and put anything a reader needs in the README.
+The former `docs/` folder (PRD, architecture, schema, IA, component/UX specs, milestones) is gone on purpose.
+It had drifted behind the group/campaign model, and the code is the authority.
+Do not reintroduce a `docs/` tree.
+Put durable engineering knowledge here in `AGENTS.md`, and put anything a reader needs in the README.
 
 - **README media lives in `.github/media/` and is committed.**
   It is outside `src/` and `public/` on purpose, so it never reaches the production bundle.
   Reference it from the README with repo-relative paths.
 - **Motion on the rendered page is carried by animated WebP, embedded inline with an `<img>` tag.**
-  A repo-relative `.mp4` does not reliably play inline in a README - GitHub's inline player is normally reserved for files uploaded through its own attachment flow - so an `.mp4` is only ever a plain "full-quality recording" link underneath the animation, never the thing the page depends on.
+  A repo-relative `.mp4` does not reliably play inline in a README, because GitHub reserves its inline player for files uploaded through its own attachment flow.
+  So an `.mp4` is only ever a plain "full-quality recording" link underneath the animation, never the thing the page depends on.
   This only works because the clips are short: the two map clips are 33s and 14s and cost about 2.4 MB each as animated WebP.
-  Recut a long recording rather than animating it - a minute-plus clip would be enormous, and git keeps every version of it forever.
+  Recut a long recording rather than animating it.
+  A minute-plus clip would be enormous, and git keeps every version of it forever.
 - **The session transcription pipeline is external.**
   This repo owns only the receiving endpoints in `functions/`: `postSessionSummary` and `getCampaignNpcs`.
   The watcher, VAD, on-device speech model, and recap generation run as a separate macOS service on the GM's machine and are not in this codebase.
