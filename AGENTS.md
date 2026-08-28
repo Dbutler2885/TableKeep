@@ -131,9 +131,14 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
 - **`scripts/demo/run.mjs` spawns both children `detached`.**
   In author mode an interactive Ctrl+C would otherwise reach the Firebase CLI through the terminal's process group at the same time as the orchestrator's own handler, and a second signal arriving mid-export abandons the export.
   The orchestrator owns the shutdown order instead: SIGTERM to Vite, then a single SIGINT to the Firebase CLI, which is the signal its export-on-exit hook runs on.
-- **The demo accounts have pinned uids** (`demo-gm-uid`, `demo-player-uid`, in `scripts/demo/config.mjs`).
+- **The demo accounts have pinned uids** (`demo-gm-uid`, `demo-player-uid`, `demo-player-2-uid` through `demo-player-4-uid`, in `scripts/demo/config.mjs`).
   The snapshot stores campaign ownership, group membership, and character ownership by uid, so a re-seed on a visitor's machine has to land on the same uids or the imported campaign would belong to nobody.
   Usernames must be exactly seven characters (`src/features/auth/usernameRules.ts`).
+- **More accounts are seeded than are offered as a seat.**
+  The campaign's characters belong one apiece to the four player accounts, because a player only ever sees characters that are not GM-owned (`src/features/character/useCharacters.ts`), so a single shared player account would land on an empty list.
+  Only the two accounts carrying a `seat` in `demoAccounts` read their credentials from `.env.demo`; the party members are written directly in `scripts/demo/config.mjs`.
+  That split is the guard rail: `.env.demo` holds exactly the logins the sign-in screen offers, so a new account cannot grow the picker by being added to it.
+  `demoSeatAccounts` is what the startup banner prints, and `scripts/demo/config.test.mjs` pins both halves.
 - **Seeding goes through the emulator's admin endpoints, not a browser.**
   `POST {auth}/identitytoolkit.googleapis.com/v1/projects/{projectId}/accounts` with `Authorization: Bearer owner` accepts `localId` and `emailVerified`, which the client `accounts:signUp` endpoint does not; `accounts:update` on the same prefix repairs an existing account.
   Firestore writes use `PATCH {firestore}/v1/projects/{projectId}/databases/(default)/documents/{path}?updateMask.fieldPaths=...` with the same owner token, which bypasses `firestore.rules`.

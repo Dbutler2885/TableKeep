@@ -37,6 +37,10 @@ The sign-in screen offers two seeded seats:
 
 The startup banner prints the same two lines, so you never have to come back here for them.
 
+The demo seeds more accounts than it offers.
+Each character in the campaign belongs to a different player, so the Player seat lands on a real character sheet rather than an empty list, and the rest of the party shows up in the campaign the way it would at a real table.
+Those extra accounts are not seats: there is one Game Master button and one Player button, and that is the whole picker.
+
 Sign in as both, in two windows, and look at the same campaign from both sides.
 The GM sees every map, every NPC, and every character sheet.
 The player sees their own sheet, the part of the map the GM has revealed to them, and only the NPCs and notes the GM has shared.
@@ -283,7 +287,7 @@ The split is deliberate.
 | `npm run demo` | Visitor demo: emulators from the committed snapshot plus the dev server, snapshot never written |
 | `npm run demo:author` | Authoring demo: the same, but exports back to `./emulator-data` on exit. The only command that overwrites the committed snapshot |
 | `npm run demo:save` | Export a running demo emulator without quitting it |
-| `npm run demo:seed` | Re-seed the two demo accounts into a running demo emulator |
+| `npm run demo:seed` | Re-seed the demo accounts into a running demo emulator |
 | `npm run demo:size` | Check `./emulator-data` against its commit budget |
 | `npm run emulators` | Start the auth/firestore/storage emulators bare |
 | `npm run emulators:import` | Start emulators with persisted state |
