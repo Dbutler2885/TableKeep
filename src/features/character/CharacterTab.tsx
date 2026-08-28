@@ -7,7 +7,6 @@ import type {
   CharacterInventoryItem,
   CharacterWeaponItem,
   CharacterArmourItem,
-  CharacterGoldItem,
   CharacterConsumableItem,
   CharacterAmmunitionItem,
   CharacterGeneralItem,
@@ -22,7 +21,7 @@ import { OSE_ARMOUR_CATALOG, armourCatalogById } from './armourCatalog'
 import { OSE_GENERAL_CATALOG, generalCatalogById } from './generalCatalog'
 import { OSE_AMMO_CATALOG, ammoCatalogById } from './ammoCatalog'
 import { consumableCatalogById } from './consumableCatalog'
-import { OSE_STORE_ITEMS, STORE_CATEGORY_LABELS } from './storeCatalog'
+import { STORE_CATEGORY_LABELS } from './storeCatalog'
 import {
   ARCANE_SPELL_CATALOG,
   DIVINE_SPELL_CATALOG,
@@ -32,17 +31,11 @@ import {
 import type { StoreCategoryId } from './storeCatalog'
 import {
   type AbilityCode,
-  emptyAbilityScores,
-  loweringCandidateCodes,
-  adventureDefaultsByClass,
   defaultThiefSkills,
-  primeRequisiteCodesForClass,
   saveScoresForClassLevel,
   thacoForClassLevel,
-  classHitDieByClass,
 } from './characterRules'
 import {
-  resolveArmourType,
   isWeaponTemplateAllowedForClass,
   isArmourTemplateAllowedForClass,
   parseDamageDice,
@@ -66,17 +59,14 @@ import { usePlayerAssignment } from './hooks/usePlayerAssignment'
 import { useCharacterMedia } from './hooks/useCharacterMedia'
 import { useCharacterRoster } from './hooks/useCharacterRoster'
 import { useGrantTools } from './hooks/useGrantTools'
+import { useSelectedCharacterDerivations } from './hooks/useSelectedCharacterDerivations'
 import { CharacterListPane } from './components/CharacterListPane'
-import { nextLevelXpFor, primeRequisiteXpBonusPercent } from './xpProgression'
 import { BlurSyncedTextarea } from './components/BlurSyncedTextarea'
 import { CharacterPackedItemsSection } from './components/CharacterPackedItemsSection'
 import { CharacterThiefSkillsSection } from './components/CharacterThiefSkillsSection'
 import {
   alignmentOptions,
-  classFeaturesByClass,
   classOptions,
-  levelUpChecklistForClass,
-  levelUpFlavorByClass,
 } from './lib/characterClassData'
 import {
   abilityRows,
@@ -88,7 +78,6 @@ import {
 import {
   equippedRowCount,
   packedMovementBands,
-  packedRowCount,
   packedSlotLabels,
   packedSlotThresholds,
   packedStrengthSlotCount,
@@ -102,7 +91,6 @@ import {
   weaponTypeLabel,
 } from './lib/inventoryItemLabels'
 import { canDeleteCharacterForRole, deriveCharacterPermissions } from './lib/characterPermissions'
-import { deriveCombatStats, deriveMovement, deriveThiefExpertise } from './lib/characterDerivedStats'
 import {
   applyPlayerAddTemplate as applyPlayerAddTemplateState,
   playerAddPreviewItem,
@@ -299,7 +287,12 @@ export function CharacterTab({
     }
   }, [effectiveSelected, embeddedMode, setSelectedCharacterId, sortedCharacters])
   const permissions = deriveCharacterPermissions({ role, currentUserId, character: effectiveSelected, grantMode: effectiveGrantMode })
-  const { canCreateCharacter, canEditSelected, canEditInventoryDetails, canGrant, canSetCurrentCharacter, canAssignCharacter } = permissions
+  const {
+    canCreateCharacter, canEditSelected, canEditInventoryDetails, canGrant,
+    canSetCurrentCharacter, canAssignCharacter, isGuidedCreation, isInFinalizationFlow,
+    canEditClassAndAlignment, canMemorizeSpell, requiresSpellLearnApproval,
+    requiresApprovalNow, canEditAbilityScores, canClassEquipArmour,
+  } = permissions
   const {
     grantTargetIds,
     grantXpBase, setGrantXpBase, grantXpSplitBetweenTargets, setGrantXpSplitBetweenTargets,
@@ -348,58 +341,45 @@ export function CharacterTab({
     updateCharacter(effectiveSelected.id, updates)
   }
 
-  const selectedAbilityScores = effectiveSelected
-    ? (abilityScoresByCharacterId[effectiveSelected.id] ?? emptyAbilityScores())
-    : emptyAbilityScores()
-  const selectedRolledAbilityScores = effectiveSelected
-    ? rolledAbilityScoresByCharacterId[effectiveSelected.id] ?? null
-    : null
-  const hasRolledAbilityScores = !!(effectiveSelected && abilityScoresRolledByCharacterId[effectiveSelected.id])
-  const primeRequisiteCodes = primeRequisiteCodesForClass(effectiveSelected?.className ?? '')
-  const loweringCodes = loweringCandidateCodes.filter((code) => !primeRequisiteCodes.includes(code))
-  const selectedPrimeXpModifierPercent = effectiveSelected
-    ? primeRequisiteXpBonusPercent(effectiveSelected.className, selectedAbilityScores)
-    : 0
-  const selectedNextLevelXp = effectiveSelected
-    ? nextLevelXpFor(effectiveSelected.className, effectiveSelected.level)
-    : null
-  const selectedXpToNextLevel = effectiveSelected && selectedNextLevelXp !== null
-    ? Math.max(0, selectedNextLevelXp - effectiveSelected.xp)
-    : null
-  const primeRequisiteLabel = primeRequisiteCodes.length > 0
-    ? primeRequisiteCodes.join('/')
-    : '-'
-  const selectedStrRaw = selectedAbilityScores.STR
-  const selectedDexRaw = selectedAbilityScores.DEX
-  const selectedChaRaw = selectedAbilityScores.CHA
-  const selectedConRaw = selectedAbilityScores.CON
-  const selectedStr = Number.parseInt(selectedStrRaw, 10)
-  const selectedDex = Number.parseInt(selectedDexRaw, 10)
-  const selectedCha = Number.parseInt(selectedChaRaw, 10)
-  const selectedCon = Number.parseInt(selectedConRaw, 10)
-  const selectedInventory = effectiveSelected
-    ? (inventoryByCharacterId[effectiveSelected.id] ?? [])
-    : []
-  const selectedGoldTotal = selectedInventory
-    .filter((i): i is CharacterGoldItem => i.kind === 'gold')
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- legacy data may still have `amount`
-    .reduce((sum, g) => sum + (g.qty ?? (g as any).amount ?? 0), 0)
-  const parsedGoldSpendAmount = Number.parseInt(goldSpendAmount, 10) || 0
-  const selectedWeapons = selectedInventory.filter((i): i is CharacterWeaponItem => i.kind === 'weapon')
-  const selectedArmour = selectedInventory.filter((i): i is CharacterArmourItem => i.kind === 'armour')
-  const equippedBodyArmour = selectedArmour.find((a) => a.equipped && resolveArmourType(a) === 'body') ?? null
-  const equippedShield = selectedArmour.find((a) => a.equipped && resolveArmourType(a) === 'shield') ?? null
-  const equippedItems = selectedInventory.filter((i) => i.equipped)
-  const packedItems = selectedInventory.filter((i) => !i.equipped)
-  const outgoingTransferByItemKey = useMemo(
-    () => new Map(outgoingTransfers.map((transfer) => [`${transfer.fromCharacterId}:${transfer.itemId}`, transfer])),
-    [outgoingTransfers],
-  )
-  const selectedClassName = effectiveSelected?.className ?? '-'
-  const selectedLevel = effectiveSelected?.level ?? 1
-  const unlockedClassFeatures = (classFeaturesByClass[selectedClassName] ?? [])
-    .filter((feature) => selectedLevel >= feature.unlockedAt)
-    .sort((a, b) => a.unlockedAt - b.unlockedAt)
+  const {
+    selectedAbilityScores, selectedRolledAbilityScores, hasRolledAbilityScores,
+    primeRequisiteCodes, selectedPrimeXpModifierPercent, selectedNextLevelXp,
+    selectedXpToNextLevel, primeRequisiteLabel, selectedStr,
+    selectedInventory, selectedGoldTotal, parsedGoldSpendAmount, selectedWeapons,
+    selectedArmour, equippedItems, packedItems,
+    outgoingTransferByItemKey, selectedClassName, selectedLevel, unlockedClassFeatures,
+    selectedStartingGold, hasRolledStartingGold, selectedStoreCart,
+    selectedCommittedStoreSpent, selectedStoreCartTotal, selectedStoreRemaining,
+    visibleStoreItems, availablePackedSlotIndices,
+    selectedStoreRequiredPacked, selectedStoreOpenPackedSlots, storeCartExceedsPackedSlots,
+    selectedThacoRaw, selectedThaco, selectedAdventureScores,
+    selectedThiefSkills, thiefRemainingExpertisePoints,
+    derivedDexAcModifier, derivedUnarmouredAc, computedAc, derivedInitModifier,
+    derivedReactionModifier, derivedOpenStuckDoor, derivedMeleeModifier,
+    derivedMissileModifier, derivedConModifierNumber, derivedConModifier,
+    derivedWisMagicSaveModifier, displayedSaveScores, canSelectedLevelUp, selectedHitDie,
+    levelUpHpGain, levelUpTargetLevel, levelUpNewFeatures, levelUpFlavor, levelUpChecklist,
+    availableAbilityTradePoints, currentPackedMovement, derivedOverlandMove, derivedExplorationMove,
+    derivedEncounterMove,
+  } = useSelectedCharacterDerivations({
+    effectiveSelected,
+    abilityScoresByCharacterId,
+    rolledAbilityScoresByCharacterId,
+    abilityScoresRolledByCharacterId,
+    inventoryByCharacterId,
+    startingGoldByCharacterId,
+    storeCartByCharacterId,
+    storeSpentByCharacterId,
+    thacoByCharacterId,
+    saveScoresByCharacterId,
+    adventureScoresByCharacterId,
+    thiefSkillsByCharacterId,
+    outgoingTransfers,
+    goldSpendAmount,
+    storeCategory,
+    levelUpHpRoll,
+    isInFinalizationFlow,
+  })
 
   const {
     transferPickerOpen, transferTargetCharacterId, transferBusy, transferError, transferQty,
@@ -413,18 +393,6 @@ export function CharacterTab({
     cancelTransfer,
     closeItemDetail: () => setItemDetailId(null),
   })
-  const {
-    isGuidedCreation, isInFinalizationFlow,
-    canEditClassAndAlignment, canMemorizeSpell, requiresSpellLearnApproval,
-    requiresApprovalNow, canEditAbilityScores, canClassEquipArmour,
-  } = permissions
-  const selectedStartingGold = effectiveSelected ? (startingGoldByCharacterId[effectiveSelected.id] ?? null) : null
-  const hasRolledStartingGold = typeof selectedStartingGold === 'number'
-  const selectedStoreCart = effectiveSelected ? (storeCartByCharacterId[effectiveSelected.id] ?? []) : []
-  const selectedCommittedStoreSpent = effectiveSelected ? (storeSpentByCharacterId[effectiveSelected.id] ?? 0) : 0
-  const selectedStoreCartTotal = selectedStoreCart.reduce((sum, entry) => sum + entry.costGp * entry.qty, 0)
-  const selectedStoreRemaining = (selectedStartingGold ?? 0) - selectedCommittedStoreSpent - selectedStoreCartTotal
-  const visibleStoreItems = OSE_STORE_ITEMS.filter((item) => item.category === storeCategory)
   const renderFeatureSummary = (feature: ClassFeature): ReactNode => {
     const links = feature.summaryLinks ?? []
     if (links.length === 0) return feature.summary
@@ -933,12 +901,6 @@ export function CharacterTab({
 
     return null
   }
-  const packedSlotUnlockedByIndex = Array.from({ length: packedRowCount }, (_, index) =>
-    index < packedStrengthSlotCount ? (!Number.isNaN(selectedStr) && selectedStr >= packedSlotThresholds[index]) : true,
-  )
-  const availablePackedSlotIndices = packedSlotUnlockedByIndex
-    .map((unlocked, index) => (unlocked ? index : -1))
-    .filter((index) => index >= 0)
   const packedRejectionNodes = rejections
     .filter((r) => r.characterId === effectiveSelected?.id)
     .map((r) => (
@@ -960,78 +922,6 @@ export function CharacterTab({
           </button>
         </p>
     ))
-  const selectedStoreRequiredPacked = selectedStoreCart.reduce((sum, entry) => sum + entry.qty, 0)
-  const selectedStoreOpenPackedSlots = Math.max(0, availablePackedSlotIndices.length - packedItems.length)
-  const storeCartExceedsPackedSlots = selectedStoreRequiredPacked > selectedStoreOpenPackedSlots
-  const selectedThacoRaw = effectiveSelected ? (thacoByCharacterId[effectiveSelected.id] ?? '') : ''
-  const selectedThaco = Number.parseInt(selectedThacoRaw, 10)
-  const selectedSaveScores = effectiveSelected
-    ? (saveScoresByCharacterId[effectiveSelected.id] ?? { D: '', W: '', P: '', B: '', S: '' })
-    : { D: '', W: '', P: '', B: '', S: '' }
-  const selectedAdventureScores = effectiveSelected
-    ? (adventureScoresByCharacterId[effectiveSelected.id] ?? adventureDefaultsByClass(effectiveSelected.className))
-    : adventureDefaultsByClass('-')
-  const selectedThiefSkills = effectiveSelected
-    ? (thiefSkillsByCharacterId[effectiveSelected.id] ?? defaultThiefSkills())
-    : defaultThiefSkills()
-  const isHalfling = effectiveSelected?.className === 'Halfling'
-  const thiefExpertise = deriveThiefExpertise(effectiveSelected?.level ?? 1, selectedThiefSkills)
-  const thiefRemainingExpertisePoints = thiefExpertise.remaining
-
-  const {
-    derivedDexAcModifier, derivedUnarmouredAc, computedAc, derivedInitModifier,
-    derivedReactionModifier, derivedOpenStuckDoor, derivedMeleeModifier,
-    derivedMissileModifier, derivedConModifierNumber, derivedConModifier,
-    derivedWisMagicSaveModifier, displayedSaveScores,
-  } = deriveCombatStats({
-    str: selectedStr,
-    dex: selectedDex,
-    cha: selectedCha,
-    con: selectedCon,
-    wis: Number.parseInt(selectedAbilityScores.WIS, 10),
-    isHalfling,
-    equippedBodyArmour,
-    equippedShield,
-    saveScores: selectedSaveScores,
-  })
-  const canSelectedLevelUp = !!effectiveSelected
-    && !isInFinalizationFlow
-    && selectedNextLevelXp !== null
-    && effectiveSelected.xp >= selectedNextLevelXp
-  const selectedHitDie = classHitDieByClass[selectedClassName] ?? null
-  const levelUpHpGain = levelUpHpRoll === null
-    ? null
-    : Math.max(1, levelUpHpRoll)
-  const levelUpTargetLevel = effectiveSelected ? effectiveSelected.level + 1 : null
-  const levelUpNewFeatures = levelUpTargetLevel === null
-    ? []
-    : (classFeaturesByClass[selectedClassName] ?? []).filter((feature) => feature.unlockedAt === levelUpTargetLevel)
-  const levelUpFlavor = levelUpFlavorByClass[selectedClassName] ?? 'Your experience pays off as your capabilities expand.'
-  const levelUpChecklist = levelUpChecklistForClass(selectedClassName, selectedHitDie)
-  const abilityTradePointsGained = selectedRolledAbilityScores
-    ? Math.floor(
-      loweringCodes.reduce((sum, code) => {
-        const base = Number.parseInt(selectedRolledAbilityScores[code], 10)
-        const current = Number.parseInt(selectedAbilityScores[code], 10)
-        if (Number.isNaN(base) || Number.isNaN(current)) return sum
-        return sum + Math.max(0, base - current)
-      }, 0) / 2,
-    )
-    : 0
-  const abilityTradePointsSpent = selectedRolledAbilityScores
-    ? primeRequisiteCodes.reduce((sum, code) => {
-      const base = Number.parseInt(selectedRolledAbilityScores[code], 10)
-      const current = Number.parseInt(selectedAbilityScores[code], 10)
-      if (Number.isNaN(base) || Number.isNaN(current)) return sum
-      return sum + Math.max(0, current - base)
-    }, 0)
-    : 0
-  const availableAbilityTradePoints = Math.max(0, abilityTradePointsGained - abilityTradePointsSpent)
-  const packedItemCount = packedItems.length
-  const {
-    currentPackedMovement, derivedOverlandMove, derivedExplorationMove, derivedEncounterMove,
-  } = deriveMovement(packedItemCount)
-
   const { uploadCharacterTokenImage, uploadCharacterPortraitImage } = useCharacterMedia({
     campaignId, groupId, effectiveSelected, canEditSelected,
   })
