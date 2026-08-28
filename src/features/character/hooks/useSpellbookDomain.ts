@@ -1,4 +1,5 @@
-// Spellbook domain: modal state, add/remove/memorize/consume handlers, sync effects.
+// Owns spellbook selection, draft-reset, and inventory-sync effects.
+// Declare this hook before the orchestrator's justSeeded clearing effect.
 // Persisted spell IDs stay in the container; this hook owns ephemeral UI state + mutations.
 
 import { useEffect, useState } from 'react'

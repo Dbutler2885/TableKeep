@@ -1,3 +1,5 @@
+// Owns the campaign character subscription and write-reconciliation effects.
+// This hook sits above CharacterTab, so its effects are outside the local justSeeded ordering chain.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { deleteDoc, deleteField, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../../firebase'

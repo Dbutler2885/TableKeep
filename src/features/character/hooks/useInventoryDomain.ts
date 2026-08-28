@@ -727,6 +727,19 @@ export function useInventoryDomain({
     setItemDetailId(null)
   }
 
+  const toggleItemEquip = (item: CharacterInventoryItem, checked: boolean) => {
+    if (!checked && item.kind === 'consumable' && item.lit) return
+    if (item.kind === 'weapon') {
+      updateWeaponRow(item.id, { equipped: checked })
+    } else if (item.kind === 'armour') {
+      updateArmourRow(item.id, { equipped: checked })
+    } else if (!checked && item.kind === 'general' && item.lit) {
+      updateInventoryItem(item.id, { equipped: false, lit: false })
+    } else {
+      updateInventoryItem(item.id, { equipped: checked })
+    }
+  }
+
   const addItemsToInventory = (characterId: string, items: CharacterInventoryItem[]) => {
     setInventoryByCharacterId((current) => ({
       ...current,
@@ -750,6 +763,7 @@ export function useInventoryDomain({
     updateInventoryItem,
     updateWeaponRow,
     updateArmourRow,
+    toggleItemEquip,
     hasIgnitionSource,
     openAddItemModal,
     saveAddItem,

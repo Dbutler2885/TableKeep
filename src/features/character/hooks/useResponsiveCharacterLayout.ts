@@ -1,3 +1,5 @@
+// Owns the responsive media-query subscription effect.
+// It is independent of seeding and may be declared before the justSeeded clearing effect.
 import { useEffect, useRef, useState } from 'react'
 import {
   CHARACTER_INTERMEDIATE_MAX_WIDTH,

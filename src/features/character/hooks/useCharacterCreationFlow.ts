@@ -1,5 +1,5 @@
 // Owns class-derived default effects and creation flow handlers.
-// Moved verbatim from CharacterTab — preserve effect ordering exactly.
+// Declare this hook before the orchestrator's justSeeded clearing effect and preserve its internal effect order.
 
 import { useEffect } from 'react'
 import type { Dispatch, SetStateAction, MutableRefObject } from 'react'

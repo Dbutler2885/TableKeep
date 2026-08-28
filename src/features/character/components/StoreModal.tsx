@@ -3,6 +3,7 @@ import type { CharacterRecord, CharacterStoreCartEntry } from '../../../types/ap
 import type { StoreCategoryId, StoreItem } from '../storeCatalog'
 import { STORE_CATEGORY_LABELS } from '../storeCatalog'
 import { isArmourTemplateAllowedForClass, isWeaponTemplateAllowedForClass } from '../inventoryRules'
+import { ConfirmModal } from '../../common/ConfirmModal'
 
 export type StoreModalState = {
   storeOpen: boolean; effectiveSelected: CharacterRecord | null; selectedStoreCart: CharacterStoreCartEntry[]
@@ -11,6 +12,7 @@ export type StoreModalState = {
   customStoreDescription: string; visibleStoreItems: StoreItem[]; selectedClassName: string
   selectedStoreCartTotal: number; storeCartExceedsPackedSlots: boolean; selectedStoreOpenPackedSlots: number
   selectedStoreRequiredPacked: number; storeError: string | null
+  storeCloseConfirmOpen: boolean
 }
 export type StoreModalActions = {
   setStoreCloseConfirmOpen: (open: boolean) => void; setStoreOpen: (open: boolean) => void
@@ -24,7 +26,7 @@ export type StoreModalActions = {
 type Props = { state: StoreModalState; actions: StoreModalActions }
 
 export function StoreModal({ state, actions }: Props) {
-  const { storeOpen, effectiveSelected, selectedStoreCart, hasRolledStartingGold, selectedStoreRemaining, selectedStartingGold, canEditSelected, storeCategory, customStoreName, customStoreCost, customStoreDescription, visibleStoreItems, selectedClassName, selectedStoreCartTotal, storeCartExceedsPackedSlots, selectedStoreOpenPackedSlots, selectedStoreRequiredPacked, storeError } = state
+  const { storeOpen, effectiveSelected, selectedStoreCart, hasRolledStartingGold, selectedStoreRemaining, selectedStartingGold, canEditSelected, storeCategory, customStoreName, customStoreCost, customStoreDescription, visibleStoreItems, selectedClassName, selectedStoreCartTotal, storeCartExceedsPackedSlots, selectedStoreOpenPackedSlots, selectedStoreRequiredPacked, storeError, storeCloseConfirmOpen } = state
   const { setStoreCloseConfirmOpen, setStoreOpen, rollStartingGold, setStoreCategory, setCustomStoreName, setCustomStoreCost, setCustomStoreDescription, handleBuyCustomStoreItem, handleStoreBuy, decrementCartEntry, incrementCartEntry, removeCartEntry, applyStorePurchases, clearCart } = actions
   return (
     <>
@@ -205,6 +207,18 @@ export function StoreModal({ state, actions }: Props) {
         </div>
       </div>
     ) : null}
+    <ConfirmModal
+      open={storeCloseConfirmOpen}
+      title="Discard cart?"
+      message="You have unapplied purchases in your cart. Close store and discard them?"
+      confirmLabel="Discard"
+      onConfirm={() => {
+        clearCart()
+        setStoreCloseConfirmOpen(false)
+        setStoreOpen(false)
+      }}
+      onCancel={() => setStoreCloseConfirmOpen(false)}
+    />
     </>
   )
 }

@@ -1,3 +1,5 @@
+// Owns the item-approval subscription effect.
+// It is independent of seeding and may be declared before the justSeeded clearing effect.
 import { useEffect, useState } from 'react'
 import {
   deleteDoc,
