@@ -26,6 +26,7 @@ import {
   demoAccounts,
   demoEmulators,
   demoEnv,
+  demoSeatAccounts,
   emulatorUiUrl,
   firestoreEmulatorUrl,
   projectId,
@@ -207,9 +208,12 @@ function banner(mode) {
     lines.push(`  Emulator UI        ${emulatorUiUrl}`)
   }
 
+  // Only the two seats, matching the sign-in screen. The rest of the party is
+  // seeded so the campaign's characters have owners, not so a visitor logs in
+  // as each of them.
   lines.push('', '  Sign in with either seeded account (local emulator only):', '')
 
-  for (const account of demoAccounts) {
+  for (const account of demoSeatAccounts) {
     lines.push(`    ${account.role.padEnd(12)} ${account.email}  /  ${account.password}`)
   }
 

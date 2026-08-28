@@ -30,6 +30,22 @@ describe('resolveDemoSeats', () => {
     }
   })
 
+  it('stays at two seats when the environment carries other demo credentials', () => {
+    // The demo harness seeds more accounts than it offers - the rest of the
+    // party owns the campaign's characters. A visitor still picks between one
+    // Game Master seat and one Player seat, whatever else is in scope.
+    const seats = resolveDemoSeats(
+      {
+        ...demoEnv,
+        VITE_DEMO_PLAYER_2_EMAIL: 'marisol@tablekeep.test',
+        VITE_DEMO_PLAYER_2_PASSWORD: 'tablekeep-demo',
+      },
+      true,
+    )
+
+    expect(seats.map((seat) => seat.id)).toEqual(['gm', 'player'])
+  })
+
   it('offers nothing outside emulator mode, even with the credentials present', () => {
     expect(resolveDemoSeats(demoEnv, false)).toEqual([])
   })
