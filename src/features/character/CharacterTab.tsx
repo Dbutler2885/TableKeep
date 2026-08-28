@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Check, ChevronLeft, ShoppingBag, Sparkles, Star, X } from 'lucide-react'
+import { Check, ChevronLeft, ShoppingBag, Sparkles, Star } from 'lucide-react'
 import type {
   CharacterRecord,
   CharacterSpell,
@@ -18,7 +18,6 @@ import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { OSE_WEAPON_CATALOG } from './weaponCatalog'
 import { OSE_ARMOUR_CATALOG } from './armourCatalog'
-import { STORE_CATEGORY_LABELS } from './storeCatalog'
 import {
   SPELL_BOOK_TYPE_ID,
   arcaneSpellById,
@@ -65,6 +64,8 @@ import { SellItemDialog } from './components/SellItemDialog'
 import { SpellbookAddModal } from './components/SpellbookAddModal'
 import { DivinePrepareModal } from './components/DivinePrepareModal'
 import { AddItemModal } from './components/AddItemModal'
+import { StoreModal } from './components/StoreModal'
+import { GrantToolsPanel } from './components/GrantToolsPanel'
 import {
   alignmentOptions,
   classOptions,
@@ -94,7 +95,6 @@ import { canDeleteCharacterForRole, deriveCharacterPermissions } from './lib/cha
 import {
   applyPlayerAddTemplate as applyPlayerAddTemplateState,
 } from './lib/playerAddGear'
-import { amountForTarget } from './lib/grantPlanning'
 import type {
   AdventureEditableCode,
   CharacterTabProps,
@@ -287,19 +287,7 @@ export function CharacterTab({
     canEditClassAndAlignment, canMemorizeSpell, requiresSpellLearnApproval,
     requiresApprovalNow, canEditAbilityScores, canClassEquipArmour,
   } = permissions
-  const {
-    grantTargetIds,
-    grantXpBase, setGrantXpBase, grantXpSplitBetweenTargets, setGrantXpSplitBetweenTargets,
-    grantGoldGp, setGrantGoldGp, grantGoldSplitBetweenTargets, setGrantGoldSplitBetweenTargets,
-    grantNote, setGrantNote,
-    grantCampaignItemId, setGrantCampaignItemId, grantCampaignEntries, setGrantCampaignEntries,
-    grantTemplateItemId, setGrantTemplateItemId, grantTemplateEntries, setGrantTemplateEntries,
-    grantBusy, grantFeedback, authoredCampaignItems, grantTemplateSelectable,
-    selectedGrantTargetIds, parsedGrantBaseXp, parsedGrantGoldGp, grantPreviewByCharacterId,
-    enterGrantMode, exitGrantMode, exitGrantModeForCharacterSelection, toggleGrantTarget,
-    clearGrantDraftAndTargets, selectAllGrantTargets, clearGrantTargets,
-    upsertGrantCampaignEntry, upsertGrantTemplateEntry, applyGrantToSelectedTargets,
-  } = useGrantTools({
+  const grantTools = useGrantTools({
     campaignId,
     groupId,
     grantMode,
@@ -314,6 +302,10 @@ export function CharacterTab({
     setInventoryByCharacterId,
     syncCharacterLocal,
   })
+  const {
+    selectedGrantTargetIds,
+    enterGrantMode, exitGrantMode, exitGrantModeForCharacterSelection, toggleGrantTarget,
+  } = grantTools
   const canDeleteCharacter = (character: CharacterRecord) => canDeleteCharacterForRole(role, currentUserId, character)
   const effectiveShowListPane = embeddedMode ? false : showListPane
   const effectiveShowDetailPane = embeddedMode ? true : showDetailPane
@@ -1477,324 +1469,7 @@ export function CharacterTab({
             {finalizeError ? <p className="error">{finalizeError}</p> : null}
 
             {effectiveGrantMode ? (
-              <div className="monster-editor-grid character-editor-grid">
-                <section className="character-sheet">
-                  <div className="character-sheet-main-grid">
-                    <div className="character-sheet-left">
-                      <section className="monster-section-block">
-                        <div className="section-head">
-                          <h3 className="monster-section-title">Grant Builder</h3>
-                          <span className="character-roll-points">{selectedGrantTargetIds.length} selected</span>
-                        </div>
-                        <p className="character-enc-help">Build a grant package, then choose target characters.</p>
-                        {grantFeedback ? <p className="error">{grantFeedback}</p> : null}
-                        <div className="character-sheet-two-col">
-                          <label className="character-header-field">
-                            <span className="character-header-tag">Base XP</span>
-                            <input
-                              type="number"
-                              min={0}
-                              value={grantXpBase}
-                              onChange={(event) => setGrantXpBase(event.target.value)}
-                              disabled={grantBusy}
-                            />
-                            <span className="character-inline-checkbox">
-                              <input
-                                type="checkbox"
-                                checked={grantXpSplitBetweenTargets}
-                                onChange={(event) => setGrantXpSplitBetweenTargets(event.target.checked)}
-                                disabled={grantBusy}
-                              />
-                              <small>Split between targets</small>
-                            </span>
-                          </label>
-                          <label className="character-header-field">
-                            <span className="character-header-tag">Gold (gp)</span>
-                            <input
-                              type="number"
-                              min={0}
-                              value={grantGoldGp}
-                              onChange={(event) => setGrantGoldGp(event.target.value)}
-                              disabled={grantBusy}
-                            />
-                            <span className="character-inline-checkbox">
-                              <input
-                                type="checkbox"
-                                checked={grantGoldSplitBetweenTargets}
-                                onChange={(event) => setGrantGoldSplitBetweenTargets(event.target.checked)}
-                                disabled={grantBusy}
-                              />
-                              <small>Split between targets</small>
-                            </span>
-                          </label>
-                        </div>
-                        <label className="character-header-field">
-                          <span className="character-header-tag">Note</span>
-                          <input
-                            type="text"
-                            value={grantNote}
-                            onChange={(event) => setGrantNote(event.target.value)}
-                            placeholder="Optional reason/context"
-                            disabled={grantBusy}
-                          />
-                        </label>
-                      </section>
-
-                      <section className="monster-section-block">
-                        <h3 className="monster-section-title">Grant Items</h3>
-                        <div className="character-sheet-two-col">
-                          <label className="character-header-field">
-                            <span className="character-header-tag">Campaign Items</span>
-                            <select value={grantCampaignItemId} onChange={(event) => setGrantCampaignItemId(event.target.value)} disabled={grantBusy}>
-                              <option value="">Select item...</option>
-                              {authoredCampaignItems.map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.typeName || item.name} ({item.type})
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <button
-                            type="button"
-                            className="monster-example-btn"
-                            disabled={!grantCampaignItemId || grantBusy}
-                            onClick={() => {
-                              const item = authoredCampaignItems.find((entry) => entry.id === grantCampaignItemId)
-                              if (!item) return
-                              upsertGrantCampaignEntry(item)
-                            }}
-                          >
-                            Add Campaign Item
-                          </button>
-                        </div>
-
-                        <div className="character-sheet-two-col">
-                          <label className="character-header-field">
-                            <span className="character-header-tag">OSE Templates</span>
-                            <select value={grantTemplateItemId} onChange={(event) => setGrantTemplateItemId(event.target.value)} disabled={grantBusy}>
-                              <option value="">Select template...</option>
-                              {grantTemplateSelectable.map((item) => (
-                                <option key={item.id} value={item.id}>
-                                  {item.name} ({item.kind})
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <button
-                            type="button"
-                            className="monster-example-btn"
-                            disabled={!grantTemplateItemId || grantBusy}
-                            onClick={() => upsertGrantTemplateEntry(grantTemplateItemId)}
-                          >
-                            Add Template
-                          </button>
-                        </div>
-
-                        {(grantCampaignEntries.length > 0 || grantTemplateEntries.length > 0) ? (
-                          <div className="character-sheet-rows">
-                            {grantCampaignEntries.map((entry) => (
-                              <div key={`campaign-${entry.itemId}`} className="character-sheet-row">
-                                <strong>{entry.name}</strong>
-                                <div className="character-ability-adjust">
-                                  <button
-                                    type="button"
-                                    className="character-ability-adjust-btn"
-                                    onClick={() => setGrantCampaignEntries((current) => current.map((row) =>
-                                      row.itemId === entry.itemId ? { ...row, qty: Math.max(1, row.qty - 1) } : row,
-                                    ))}
-                                  >
-                                    -
-                                  </button>
-                                  <input type="text" value={String(entry.qty)} readOnly />
-                                  <button
-                                    type="button"
-                                    className="character-ability-adjust-btn"
-                                    onClick={() => setGrantCampaignEntries((current) => current.map((row) =>
-                                      row.itemId === entry.itemId ? { ...row, qty: row.qty + 1 } : row,
-                                    ))}
-                                  >
-                                    +
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="monster-example-btn"
-                                    onClick={() => setGrantCampaignEntries((current) => current.filter((row) => row.itemId !== entry.itemId))}
-                                  >
-                                    Remove
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                            {grantTemplateEntries.map((entry) => (
-                              <div key={`template-${entry.key}`} className="character-sheet-row">
-                                <strong>{entry.name}</strong>
-                                <small>{entry.kind}</small>
-                                <div className="character-ability-adjust">
-                                  <button
-                                    type="button"
-                                    className="character-ability-adjust-btn"
-                                    onClick={() => setGrantTemplateEntries((current) => current.map((row) =>
-                                      row.key === entry.key ? { ...row, qty: Math.max(1, row.qty - 1) } : row,
-                                    ))}
-                                  >
-                                    -
-                                  </button>
-                                  <input type="text" value={String(entry.qty)} readOnly />
-                                  <button
-                                    type="button"
-                                    className="character-ability-adjust-btn"
-                                    onClick={() => setGrantTemplateEntries((current) => current.map((row) =>
-                                      row.key === entry.key ? { ...row, qty: row.qty + 1 } : row,
-                                    ))}
-                                  >
-                                    +
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="monster-example-btn"
-                                    onClick={() => setGrantTemplateEntries((current) => current.filter((row) => row.key !== entry.key))}
-                                  >
-                                    Remove
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : <p className="character-enc-help">No grant items selected yet.</p>}
-                      </section>
-
-                      {isMobile ? (
-                        <section className="monster-section-block">
-                          <div className="section-head">
-                            <h3 className="monster-section-title">Select Targets</h3>
-                            <button
-                              type="button"
-                              className="monster-example-btn"
-                              onClick={selectAllGrantTargets}
-                              disabled={grantBusy || sortedCharacters.length === 0}
-                            >
-                              Select All
-                            </button>
-                            <button
-                              type="button"
-                              className="monster-example-btn"
-                              onClick={clearGrantTargets}
-                              disabled={grantBusy || selectedGrantTargetIds.length === 0}
-                            >
-                              Clear
-                            </button>
-                          </div>
-                          <div className="character-grant-mobile-targets">
-                            {sortedCharacters.map((character) => {
-                              const selected = !!grantTargetIds[character.id]
-                              return (
-                                <button
-                                  key={`mobile-target-${character.id}`}
-                                  type="button"
-                                  className={selected ? 'character-grant-mobile-target selected' : 'character-grant-mobile-target'}
-                                  onClick={() => toggleGrantTarget(character.id, !selected)}
-                                  disabled={grantBusy}
-                                  aria-pressed={selected}
-                                >
-                                  <strong>{character.name}</strong>
-                                  <small>L{character.level} {character.className}</small>
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </section>
-                      ) : null}
-                    </div>
-
-                    <div className="character-sheet-right">
-                      <section className="monster-section-block">
-                        <div className="section-head">
-                          <h3 className="monster-section-title">Targets</h3>
-                          <button
-                            type="button"
-                            className="monster-example-btn"
-                            onClick={selectAllGrantTargets}
-                            disabled={grantBusy || sortedCharacters.length === 0}
-                          >
-                            Select All
-                          </button>
-                          <button
-                            type="button"
-                            className="monster-example-btn"
-                            onClick={clearGrantTargets}
-                            disabled={grantBusy || selectedGrantTargetIds.length === 0}
-                          >
-                            Clear
-                          </button>
-                        </div>
-                        {selectedGrantTargetIds.length === 0 ? <p className="character-enc-help">Choose one or more targets to preview and grant.</p> : (
-                          <div className="character-sheet-rows">
-                            {selectedGrantTargetIds.map((id, targetIndex) => {
-                              const character = sortedCharacters.find((entry) => entry.id === id)
-                              if (!character) return null
-                              const preview = grantPreviewByCharacterId.get(id)
-                              const targetGold = amountForTarget(
-                                parsedGrantGoldGp,
-                                grantGoldSplitBetweenTargets,
-                                selectedGrantTargetIds.length,
-                                targetIndex,
-                              )
-                              return (
-                                <div key={id} className="character-sheet-row character-grant-target-row">
-                                  <strong>{character.name}</strong>
-                                  {parsedGrantBaseXp > 0 ? (
-                                    <>
-                                      <small>
-                                        XP {character.xp.toLocaleString()}
-                                        {preview
-                                          ? ` + ${preview.awardedXp.toLocaleString()} (${preview.bonusPercent > 0 ? '+' : ''}${preview.bonusPercent}% XP modifier)`
-                                          : ''}
-                                      </small>
-                                      <small>
-                                        L{character.level}
-                                        {preview ? ` -> L${Math.max(character.level, preview.projectedLevel)}` : ''}
-                                      </small>
-                                    </>
-                                  ) : null}
-                                  {parsedGrantGoldGp > 0 ? (
-                                    <small>
-                                      Gold +{targetGold.toLocaleString()} gp
-                                      {grantGoldSplitBetweenTargets ? ' (split)' : ''}
-                                    </small>
-                                  ) : null}
-                                  {parsedGrantBaseXp <= 0 && parsedGrantGoldGp <= 0 ? (
-                                    <small>Items only grant</small>
-                                  ) : null}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )}
-                        <div className="character-sheet-tab-actions character-grant-actions">
-                          <button
-                            type="button"
-                            className="character-current-action"
-                            onClick={applyGrantToSelectedTargets}
-                            disabled={grantBusy || selectedGrantTargetIds.length === 0}
-                          >
-                            <ShoppingBag size={14} />
-                            <span>{grantBusy ? 'Granting...' : 'Grant to Selected'}</span>
-                          </button>
-                          <button
-                            type="button"
-                            className="character-current-action"
-                            onClick={clearGrantDraftAndTargets}
-                            disabled={grantBusy}
-                          >
-                            <X size={14} />
-                            <span>Clear Draft</span>
-                          </button>
-                        </div>
-                      </section>
-                    </div>
-                  </div>
-                </section>
-              </div>
+              <GrantToolsPanel tools={grantTools} characters={sortedCharacters} isMobile={isMobile} />
             ) : !effectiveSelected ? (
               <p>{embeddedMode ? "You don't have a character, yet." : 'Select a character from the list.'}</p>
             ) : (
@@ -2551,183 +2226,10 @@ export function CharacterTab({
           </div>
         </div>
       ) : null}
-      {storeOpen && effectiveSelected ? (
-        <div className="store-modal-overlay" role="dialog" aria-modal="true">
-          <div className="store-modal">
-            <div className="store-modal-head">
-              <div>
-                <h3>Store</h3>
-                <p>Buy starting equipment for this draft character.</p>
-              </div>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => {
-                  if (selectedStoreCart.length > 0) {
-                    setStoreCloseConfirmOpen(true)
-                    return
-                  }
-                  setStoreOpen(false)
-                }}
-                aria-label="Close store"
-              >
-                <X size={14} />
-              </button>
-            </div>
-
-            <div className="store-wallet">
-              {hasRolledStartingGold ? (
-                <>
-                  <p className="store-wallet-compact">
-                    <strong>{selectedStoreRemaining}</strong>/{selectedStartingGold} gp
-                  </p>
-                </>
-              ) : (
-                <button type="button" className="store-buy-btn" onClick={rollStartingGold} disabled={!canEditSelected}>
-                  Roll 3d6 x 10
-                </button>
-              )}
-            </div>
-
-            <div className="store-modal-body">
-              <div className="store-catalog">
-                <div className="store-category-tabs">
-                  {(Object.keys(STORE_CATEGORY_LABELS) as StoreCategoryId[]).map((categoryId) => (
-                    <button
-                      key={categoryId}
-                      type="button"
-                      className={storeCategory === categoryId ? 'store-category-btn active' : 'store-category-btn'}
-                      onClick={() => setStoreCategory(categoryId)}
-                    >
-                      {STORE_CATEGORY_LABELS[categoryId]}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="store-catalog-content">
-                  {storeCategory === 'other' ? (
-                    <div className="store-custom-panel">
-                      <h4>Custom equipment</h4>
-                      <p>
-                        For items not listed, use this to add referee-approved equipment and cost.
-                      </p>
-                      <label>
-                        Name
-                        <input
-                          type="text"
-                          value={customStoreName}
-                          onChange={(event) => setCustomStoreName(event.target.value)}
-                          placeholder="e.g. Silver whistle"
-                        />
-                      </label>
-                      <label>
-                        Cost (gp)
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          value={customStoreCost}
-                          onChange={(event) => setCustomStoreCost(event.target.value)}
-                          placeholder="0"
-                        />
-                      </label>
-                      <label>
-                        Description (optional)
-                        <input
-                          type="text"
-                          value={customStoreDescription}
-                          onChange={(event) => setCustomStoreDescription(event.target.value)}
-                          placeholder="short note"
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        className="store-buy-btn"
-                        onClick={handleBuyCustomStoreItem}
-                        disabled={!canEditSelected}
-                      >
-                        Add to Packed Items
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="store-items-grid">
-                      {visibleStoreItems.map((item) => (
-                        <article key={item.id} className="store-item-card">
-                          <div className="store-item-head">
-                            <strong>{item.name}</strong>
-                            <span>{item.costGp} gp</span>
-                          </div>
-                          <p>{item.description}</p>
-                          {item.kind === 'weapon' && item.weaponId && !isWeaponTemplateAllowedForClass(item.weaponId, selectedClassName) ? (
-                            <p className="store-item-note">Class restriction</p>
-                          ) : null}
-                          {item.kind === 'armour' && item.armourId && !isArmourTemplateAllowedForClass(item.armourId, selectedClassName) ? (
-                            <p className="store-item-note">Class restriction</p>
-                          ) : null}
-                          <button
-                            type="button"
-                            className="store-buy-btn"
-                            onClick={() => handleStoreBuy(item)}
-                            disabled={!canEditSelected}
-                          >
-                            Buy
-                          </button>
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <aside className="store-tally store-cart">
-                <div className="store-tally-head">
-                  <h4>Cart / Purchases</h4>
-                  <span>{selectedStoreCartTotal} gp total</span>
-                </div>
-                {selectedStoreCart.length === 0 ? (
-                  <p className="store-tally-empty">No purchases yet.</p>
-                ) : (
-                  <div className="store-tally-list">
-                    {selectedStoreCart.map((line) => (
-                      <div key={line.key} className="store-tally-row">
-                        <span>{line.name}</span>
-                        <div className="store-tally-qty-controls">
-                          <button type="button" className="store-qty-btn" onClick={() => decrementCartEntry(line.key)}>-</button>
-                          <span>x{line.qty}</span>
-                          <button type="button" className="store-qty-btn" onClick={() => incrementCartEntry(line.key)}>+</button>
-                        </div>
-                        <strong>{line.qty * line.costGp} gp</strong>
-                        <button type="button" className="store-remove-btn" onClick={() => removeCartEntry(line.key)}>Remove</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="store-cart-actions">
-                  <button
-                    type="button"
-                    className="store-buy-btn"
-                    onClick={applyStorePurchases}
-                    disabled={!canEditSelected || storeCartExceedsPackedSlots}
-                  >
-                    Apply Purchases
-                  </button>
-                  <button type="button" className="store-buy-btn" onClick={clearCart} disabled={!canEditSelected || selectedStoreCart.length === 0}>
-                    Clear Cart
-                  </button>
-                </div>
-                <p className={storeCartExceedsPackedSlots ? 'error' : 'store-item-note'}>
-                  Packed slots: {selectedStoreOpenPackedSlots} open / {selectedStoreRequiredPacked} needed
-                </p>
-                {storeCartExceedsPackedSlots ? (
-                  <p className="error">Not enough packed slots. Reorganize inventory to purchase these goods.</p>
-                ) : null}
-              </aside>
-            </div>
-
-            {storeError ? <p className="error">{storeError}</p> : null}
-          </div>
-        </div>
-      ) : null}
+      <StoreModal
+        state={{ storeOpen, effectiveSelected, selectedStoreCart, hasRolledStartingGold, selectedStoreRemaining, selectedStartingGold, canEditSelected, storeCategory, customStoreName, customStoreCost, customStoreDescription, visibleStoreItems, selectedClassName, selectedStoreCartTotal, storeCartExceedsPackedSlots, selectedStoreOpenPackedSlots, selectedStoreRequiredPacked, storeError }}
+        actions={{ setStoreCloseConfirmOpen, setStoreOpen, rollStartingGold, setStoreCategory, setCustomStoreName, setCustomStoreCost, setCustomStoreDescription, handleBuyCustomStoreItem, handleStoreBuy, decrementCartEntry, incrementCartEntry, removeCartEntry, applyStorePurchases, clearCart }}
+      />
       <CreateCharacterModal
         open={createCharacterModalOpen}
         onAdd={addCharacter}
