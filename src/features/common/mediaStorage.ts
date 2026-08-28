@@ -15,6 +15,18 @@ type UploadEntityImageParams = {
   maxHeight: number
 }
 
+export const entityMediaStoragePath = ({ groupId, campaignId, collectionName, entityId, mediaKind, fileName, timestamp }: {
+  groupId: string
+  campaignId: string
+  collectionName: UploadEntityImageParams['collectionName']
+  entityId: string
+  mediaKind: UploadEntityImageParams['mediaKind']
+  fileName: string
+  timestamp: number
+}) => groupId
+  ? `groups/${groupId}/campaigns/${campaignId}/${collectionName}/${entityId}/${mediaKind}/${timestamp}-${fileName}`
+  : `campaigns/${campaignId}/${collectionName}/${entityId}/${mediaKind}/${timestamp}-${fileName}`
+
 export const isRenderableImageUrl = (value: string | null | undefined) =>
   typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:'))
 
@@ -72,9 +84,7 @@ export const uploadEntityImage = async ({
     quality: 0.9,
   })
   const safeName = normalized.file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-  const path = groupId
-    ? `groups/${groupId}/campaigns/${campaignId}/${collectionName}/${entityId}/${mediaKind}/${Date.now()}-${safeName}`
-    : `campaigns/${campaignId}/${collectionName}/${entityId}/${mediaKind}/${Date.now()}-${safeName}`
+  const path = entityMediaStoragePath({ groupId, campaignId, collectionName, entityId, mediaKind, fileName: safeName, timestamp: Date.now() })
   const storageRef = ref(storage, path)
   await waitForAuthReady()
   if (!auth.currentUser) {
