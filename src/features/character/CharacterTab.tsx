@@ -8,7 +8,6 @@ import type {
   CharacterRecord,
   CharacterSpell,
   CharacterSheetDetails,
-  CharacterStoreCartEntry as StoreCartEntry,
   CharacterInventoryItem,
   CharacterWeaponItem,
   CharacterArmourItem,
@@ -16,10 +15,8 @@ import type {
   CharacterConsumableItem,
   CharacterAmmunitionItem,
   CharacterGeneralItem,
-  Role,
   TransferableInventoryItem,
 } from '../../types/app'
-import { DEFAULT_STACK_POLICY } from '../items/itemDefaults'
 import { campaignItemToInventoryItem } from '../items/itemConversion'
 import { toFirestoreItem, useItems } from '../items/useItems'
 import { useItemApprovals } from './hooks/useItemApprovals'
@@ -31,7 +28,7 @@ import { OSE_WEAPON_CATALOG, weaponCatalogById } from './weaponCatalog'
 import { OSE_ARMOUR_CATALOG, armourCatalogById } from './armourCatalog'
 import { OSE_GENERAL_CATALOG, generalCatalogById } from './generalCatalog'
 import { OSE_AMMO_CATALOG, ammoCatalogById } from './ammoCatalog'
-import { OSE_CONSUMABLE_CATALOG, consumableCatalogById } from './consumableCatalog'
+import { consumableCatalogById } from './consumableCatalog'
 import { OSE_STORE_ITEMS, STORE_CATEGORY_LABELS } from './storeCatalog'
 import {
   ARCANE_SPELL_CATALOG,
@@ -43,22 +40,10 @@ import type { StoreCategoryId } from './storeCatalog'
 import {
   type AbilityCode,
   type AbilityScores,
-  type SaveScores,
-  type AdventureScores,
-  type ThiefSkillScores,
   emptyAbilityScores,
   loweringCandidateCodes,
   adventureDefaultsByClass,
   defaultThiefSkills,
-  abilityModifier,
-  formatModifier,
-  conModifierByScore,
-  formatTableModifier,
-  openStuckDoorByStr,
-  meleeModifierByStr,
-  dexAcModByDex,
-  dexMissileModByDex,
-  wisMagicSaveModifierByScore,
   primeRequisiteCodesForClass,
   saveScoresForClassLevel,
   thacoForClassLevel,
@@ -66,8 +51,6 @@ import {
 } from './characterRules'
 import {
   resolveArmourType,
-  applyWeaponTemplateToItem,
-  applyArmourTemplateToItem,
   isWeaponTemplateAllowedForClass,
   isArmourTemplateAllowedForClass,
   parseDamageDice,
@@ -75,7 +58,7 @@ import {
   parseArmourTemplateValues,
   armourTypeFromTemplateId,
 } from './inventoryRules'
-import { makeId, makeWeaponItem, makeArmourItem } from './characterFactories'
+import { makeId } from './characterFactories'
 import { computeAvailablePackedSlots, computeOverflow, goldChunksForAmount, makeDroppedGoldCampaignItem, makeGoldItem } from './inventoryOverflow'
 import { usePendingTransfers } from '../transfers/usePendingTransfers'
 import { useResponsiveCharacterLayout } from './hooks/useResponsiveCharacterLayout'
@@ -85,361 +68,59 @@ import { useSpellbookDomain } from './hooks/useSpellbookDomain'
 import { useInventoryDomain } from './hooks/useInventoryDomain'
 import type { AddItemModalState } from './hooks/useInventoryDomain'
 import { useStoreDomain } from './hooks/useStoreDomain'
+import { useCharacterSheetState } from './hooks/useCharacterSheetState'
 import { CharacterListPane } from './components/CharacterListPane'
 import { computeGrantedXp, nextLevelXpFor, primeRequisiteXpBonusPercent, projectCharacterProgress } from './xpProgression'
 import { BlurSyncedTextarea } from './components/BlurSyncedTextarea'
 import { CharacterPackedItemsSection } from './components/CharacterPackedItemsSection'
 import { CharacterThiefSkillsSection } from './components/CharacterThiefSkillsSection'
+import {
+  alignmentOptions,
+  classFeaturesByClass,
+  classOptions,
+  levelUpChecklistForClass,
+  levelUpFlavorByClass,
+} from './lib/characterClassData'
+import {
+  abilityRows,
+  adventureRows,
+  playerAddGearTemplates,
+  saveRows,
+  thiefSkillRows,
+} from './lib/characterSheetTables'
+import {
+  defaultTokenIcon,
+  equippedRowCount,
+  packedMovementBands,
+  packedRowCount,
+  packedSlotLabels,
+  packedSlotThresholds,
+  packedStrengthSlotCount,
+} from './lib/characterSheetLayout'
+import { migrateToInventory } from './lib/legacyCharacterMigration'
+import {
+  armourStatsLabel,
+  armourTypeLabel,
+  formatWeaponEffectLine,
+  weaponStatsLabel,
+  weaponTypeLabel,
+} from './lib/inventoryItemLabels'
+import { amountForTarget, makeInventoryItemFromTemplateEntry } from './lib/grantPlanning'
+import { canDeleteCharacterForRole, deriveCharacterPermissions } from './lib/characterPermissions'
+import { deriveCombatStats, deriveMovement, deriveThiefExpertise } from './lib/characterDerivedStats'
+import {
+  applyPlayerAddTemplate as applyPlayerAddTemplateState,
+  playerAddPreviewItem,
+} from './lib/playerAddGear'
+import type {
+  AdventureEditableCode,
+  CampaignPlayerOption,
+  CharacterTabProps,
+  ClassFeature,
+  GrantTemplateEntry,
+  TransferTargetCharacter,
+} from './lib/characterTabTypes'
 
-type CharacterTabProps = {
-  campaignId: string
-  groupId: string
-  gmUserId: string | null
-  currentUserId: string
-  currentUsername: string
-  role: Role | null
-  characters: CharacterRecord[]
-  charactersLoading: boolean
-  currentCharacterId: string | null
-  setCurrentCharacter: (characterId: string) => Promise<void>
-  selectedCharacterId: string
-  setSelectedCharacterId: (id: string) => void
-  selectedCharacter: CharacterRecord | null
-  updateCharacter: (characterId: string, updates: Partial<CharacterRecord>) => void
-  syncCharacterLocal: (characterId: string, updates: Partial<CharacterRecord>) => void
-  deleteCharacter: (characterId: string) => void
-  hasPendingWrite: (id: string) => boolean
-  embeddedMode?: boolean
-}
-
-type AdventureEditableCode = 'FG' | 'FT' | 'HT' | 'LD' | 'SD'
-type ThiefSkillCode = 'CS' | 'TR' | 'HN' | 'HS' | 'MS' | 'OL' | 'PP' | 'RL'
-type GrantTemplateEntry = {
-  key: string
-  name: string
-  costGp: number
-  qty: number
-  kind: 'general' | 'weapon' | 'ammunition' | 'armour' | 'consumable'
-  weaponId?: string
-  armourId?: string
-  packedLabel?: string
-}
-type TransferTargetCharacter = Pick<CharacterRecord, 'id' | 'name' | 'ownerUserId' | 'ownerUsername' | 'details'>
-type CampaignPlayerOption = {
-  userId: string
-  username: string | null
-}
-type ClassFeature = {
-  id: string
-  name: string
-  unlockedAt: number
-  summary: string
-  summaryLinks?: Array<{
-    word: string
-    url: string
-  }>
-}
-
-
-const abilityRows = [
-  { code: 'STR', note: 'Melee atk./dmg., open doors' },
-  { code: 'INT', note: 'Languages, literacy' },
-  { code: 'WIS', note: 'Saves vs magic' },
-  { code: 'DEX', note: 'Missile atk., AC, initiative' },
-  { code: 'CON', note: 'Hit points' },
-  { code: 'CHA', note: 'Reactions, retainers, loyalty' },
-]
-
-const saveRows = [
-  { code: 'D', note: 'Death, poison' },
-  { code: 'W', note: 'Magic wands' },
-  { code: 'P', note: 'Paralysis, petrification' },
-  { code: 'B', note: 'Breath attacks' },
-  { code: 'S', note: 'Spells, rods, staves' },
-  { code: '±', note: 'WIS mod to saves vs magic' },
-]
-
-const adventureRows = [
-  { code: 'FG', note: 'Forage in the wild' },
-  { code: 'FT', note: 'Find room trap' },
-  { code: 'HT', note: 'Hunt in the wild' },
-  { code: 'LD', note: 'Listen at door' },
-  { code: 'OD', note: 'Open stuck door' },
-  { code: 'SD', note: 'Find secret door' },
-]
-const thiefSkillRows: { code: ThiefSkillCode; note: string }[] = [
-  { code: 'CS', note: 'Climb sheer surfaces' },
-  { code: 'TR', note: 'Find/remove treasure traps' },
-  { code: 'HN', note: 'Hear noise' },
-  { code: 'HS', note: 'Hide in shadows' },
-  { code: 'MS', note: 'Move silently' },
-  { code: 'OL', note: 'Open locks' },
-  { code: 'PP', note: 'Pick pockets' },
-  { code: 'RL', note: 'Read languages' },
-]
-
-const playerAddGearTemplates = [
-  ...OSE_GENERAL_CATALOG.map((entry) => ({ ...entry, itemKind: 'general' as const })),
-  ...OSE_CONSUMABLE_CATALOG.map((entry) => ({ ...entry, itemKind: 'consumable' as const })),
-]
-
-const classOptions = [
-  '-',
-  'Cleric',
-  'Dwarf',
-  'Elf',
-  'Fighter',
-  'Halfling',
-  'Magic-User',
-  'Thief',
-]
-const classFeaturesByClass: Record<string, ClassFeature[]> = {
-  Cleric: [
-    { id: 'turn-undead', name: 'Turn Undead', unlockedAt: 1, summary: 'Attempt to repel or destroy undead (2d6 turn roll; may turn or destroy).' },
-    { id: 'use-divine-items', name: 'Use Divine Magic Items', unlockedAt: 2, summary: 'Can use cleric scrolls and items restricted to divine spellcasters.' },
-    {
-      id: 'magical-research',
-      name: 'Magical Research',
-      unlockedAt: 1,
-      summary: 'May research new divine spells or deity-related magical effects.',
-      summaryLinks: [
-        {
-          word: 'research',
-          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Magical_Research',
-        },
-      ],
-    },
-    { id: 'religious-obligation', name: 'Religious Obligation', unlockedAt: 1, summary: 'Must remain faithful to deity/alignment tenets to avoid penalties.' },
-    {
-      id: 'divine-spellcasting',
-      name: 'Divine Spellcasting',
-      unlockedAt: 2,
-      summary: 'Begins at level 2; memorizes cleric spells. Requires a holy symbol to use divine powers.',
-      summaryLinks: [
-        {
-          word: 'cleric spells',
-          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Cleric_Spells',
-        },
-        {
-          word: 'holy symbol',
-          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Adventuring_Gear',
-        },
-      ],
-    },
-    { id: 'create-magic-items', name: 'Create Magic Items', unlockedAt: 9, summary: 'Can create magic items starting at level 9.' },
-    { id: 'establish-stronghold', name: 'Establish Stronghold', unlockedAt: 9, summary: 'May build a temple/stronghold; favored deity may reduce costs and grant followers.' },
-  ],
-  Dwarf: [
-    {
-      id: 'infravision',
-      name: 'Infravision',
-      unlockedAt: 1,
-      summary: 'Can see in darkness up to 60 feet.',
-    },
-  ],
-  Elf: [
-    {
-      id: 'arcane-spellcasting',
-      name: 'Arcane Spellcasting',
-      unlockedAt: 1,
-      summary: 'Casts arcane spells from the magic-user spell list. Uses a spell book to memorize spells.',
-      summaryLinks: [
-        {
-          word: 'magic-user spell list',
-          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Magic-User_Spells',
-        },
-        {
-          word: 'spells',
-          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Spells',
-        },
-      ],
-    },
-    {
-      id: 'magical-research',
-      name: 'Magical Research',
-      unlockedAt: 1,
-      summary: 'May perform arcane magical research at any level.',
-      summaryLinks: [
-        {
-          word: 'research',
-          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Magical_Research',
-        },
-      ],
-    },
-    {
-      id: 'use-arcane-items',
-      name: 'Use Arcane Magic Items',
-      unlockedAt: 1,
-      summary: 'May use arcane scrolls and magic wands.',
-    },
-    {
-      id: 'infravision',
-      name: 'Infravision',
-      unlockedAt: 1,
-      summary: 'Can see in darkness up to 60 feet.',
-    },
-    {
-      id: 'ghoul-paralysis-immunity',
-      name: 'Immunity to Ghoul Paralysis',
-      unlockedAt: 1,
-      summary: 'Completely immune to the paralysis caused by ghouls.',
-    },
-  ],
-  Fighter: [
-    {
-      id: 'stronghold',
-      name: 'Stronghold',
-      unlockedAt: 1,
-      summary: 'Any time a fighter wishes (and has sufficient money), they can build a castle or stronghold and control the surrounding lands.',
-      summaryLinks: [
-        {
-          word: 'build',
-          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Construction',
-        },
-        {
-          word: 'castle or stronghold',
-          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Structures',
-        },
-        {
-          word: 'control the surrounding lands',
-          url: 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Domain_Management',
-        },
-      ],
-    },
-  ],
-  Halfling: [
-    {
-      id: 'defensive-bonus',
-      name: 'Defensive Bonus',
-      unlockedAt: 1,
-      summary: '+2 AC vs large opponents (creatures larger than human-sized).',
-    },
-    {
-      id: 'hiding',
-      name: 'Hiding',
-      unlockedAt: 1,
-      summary: '90% chance to hide in woods or undergrowth. 2-in-6 chance to hide in dungeons with cover if motionless and silent.',
-    },
-    {
-      id: 'missile-attack-bonus',
-      name: 'Missile Attack Bonus',
-      unlockedAt: 1,
-      summary: '+1 to attack rolls with all missile weapons.',
-    },
-    {
-      id: 'stronghold',
-      name: 'Stronghold',
-      unlockedAt: 1,
-      summary: 'May build a halfling community (shire) when they have sufficient money. The leader of the community is called the Sheriff.',
-    },
-  ],
-  'Magic-User': [
-    {
-      id: 'arcane-spellcasting',
-      name: 'Arcane Spellcasting',
-      unlockedAt: 1,
-      summary: 'Casts arcane spells from the magic-user spell list. Uses a spell book to memorize spells. Begins play with one spell in the spell book.',
-    },
-    {
-      id: 'magical-research',
-      name: 'Magical Research',
-      unlockedAt: 1,
-      summary: 'May conduct magical research at any level to invent spells or magical effects.',
-    },
-    {
-      id: 'use-arcane-items',
-      name: 'Use Arcane Magic Items',
-      unlockedAt: 1,
-      summary: 'May use scrolls of spells on the magic-user spell list. May use items restricted to arcane spellcasters (e.g., wands).',
-    },
-    {
-      id: 'weapon-armour-restriction',
-      name: 'Weapon and Armour Restriction',
-      unlockedAt: 1,
-      summary: 'May use daggers only. Cannot wear armour or use shields.',
-    },
-  ],
-  Thief: [
-    {
-      id: 'back-stab',
-      name: 'Back-stab',
-      unlockedAt: 1,
-      summary: 'When attacking an unaware opponent from behind, a thief receives a +4 bonus to hit and doubles any damage dealt.',
-    },
-    {
-      id: 'combat',
-      name: 'Combat',
-      unlockedAt: 1,
-      summary: 'Valuing stealth above all, thieves can only wear leather armour and cannot use shields. They can use any weapon.',
-    },
-    {
-      id: 'read-languages',
-      name: 'Read Languages',
-      unlockedAt: 4,
-      summary: 'A thief of 4th level or higher can read non-magical text in any language (including dead languages and basic codes) with 80% probability. If the roll fails, the thief may not try to read the same text again before gaining an experience level.',
-    },
-    {
-      id: 'thief-skills',
-      name: 'Thief Skills',
-      unlockedAt: 1,
-      summary: 'See the Thief Skills section for the skill breakdown and apply points.',
-    },
-  ],
-}
-
-const levelUpFlavorByClass: Record<string, string> = {
-  Cleric: 'Your faith deepens, and divine authority grows with your experience.',
-  Dwarf: 'Your hard-earned craft and battle discipline make you even tougher underground.',
-  Elf: 'Your ancient training sharpens both steel and spell.',
-  Fighter: 'Your battlefield instincts sharpen, and your martial edge grows deadlier.',
-  Halfling: 'Your luck and precision carry you safely through impossible danger.',
-  'Magic-User': 'Arcane patterns become clearer as your command of magic expands.',
-  Thief: 'Your timing, nerve, and finesse improve with every risky score.',
-}
-
-const levelUpChecklistForClass = (className: string, hitDie: number | null): string[] => {
-  const steps = [`Roll 1d${hitDie ?? '?'} for hit points and add that to your HP total.`]
-  if (className === 'Cleric') {
-    steps.push('Review your cleric spell access and update what is memorized for the day.')
-    return steps
-  }
-  if (className === 'Magic-User') {
-    steps.push('Review spell slots and adjust memorized spells for your new level.')
-    steps.push('Check your spell book for what can now be prepared or transcribed.')
-    return steps
-  }
-  if (className === 'Thief') {
-    steps.push('Review thief skills and assign any newly available progression points.')
-    return steps
-  }
-  if (className === 'Fighter') {
-    steps.push('Review attack profile and class combat benefits unlocked at this level.')
-    return steps
-  }
-  if (className === 'Dwarf' || className === 'Elf' || className === 'Halfling') {
-    steps.push('Review race-class abilities that scale with level and update sheet details.')
-    return steps
-  }
-  return steps
-}
-
-const alignmentOptions = ['Law', 'Neutrality', 'Chaos']
-const packedSlotThresholds = [18, 16, 13, 9, 6, 4]
-const packedSlotLabels = ['STR 18+', 'STR 16+', 'STR 13+', 'STR 9+', 'STR 6+', 'STR 4+']
-const equippedRowCount = 9
-const packedStrengthSlotCount = packedSlotLabels.length
-const packedMovementBands = [
-  { label: "120' (40')", slotCount: 7, baseMove: 120 },
-  { label: "90' (30')", slotCount: 2, baseMove: 90 },
-  { label: "60' (20')", slotCount: 2, baseMove: 60 },
-  { label: "30' (10')", slotCount: 2, baseMove: 30 },
-]
-const packedRowCount = packedStrengthSlotCount + packedMovementBands.reduce((sum, band) => sum + band.slotCount, 0)
-const defaultTokenIcon = {
-  icon: 'pawn' as const,
-  color: '#bf2f2a',
-  size: 34,
-}
 
 const renderSpellDescriptionBody = (spell: CharacterSpell): ReactNode[] => {
   const lines = spell.description
@@ -480,100 +161,6 @@ const renderSpellDescriptionBody = (spell: CharacterSpell): ReactNode[] => {
 }
 
 
-const migrateToInventory = (details: CharacterSheetDetails): CharacterInventoryItem[] => {
-  const items: CharacterInventoryItem[] = []
-
-  // Migrate weapons
-  if (details.weapons) {
-    for (const w of details.weapons) {
-      items.push(makeWeaponItem({
-        id: w.id || makeId(),
-        name: w.name,
-        typeId: w.weaponId || 'custom',
-        typeName: '',
-        isMagic: w.isMagic,
-        damageDiceCount: w.damageDiceCount,
-        damageDiceSides: w.damageDiceSides,
-        attackBonus: w.bonus,
-        damageBonus: '',
-        rangeShort: w.rangeShort,
-        rangeMedium: w.rangeMedium,
-        rangeLong: w.rangeLong,
-        twoHanded: w.twoHanded,
-        equipped: w.equipped,
-        notes: w.notes,
-      }))
-    }
-  }
-
-  // Migrate armour
-  if (details.armour) {
-    for (const a of details.armour) {
-      items.push(makeArmourItem({
-        id: a.id || makeId(),
-        name: a.name,
-        typeId: a.armourId || 'custom',
-        typeName: '',
-        isMagic: a.isMagic,
-        armourClass: a.ac,
-        shieldMod: a.armourId === 'shield' ? '-1' : '',
-        magicMod: a.bonus,
-        equipped: a.equipped,
-        notes: a.notes,
-      }))
-    }
-  }
-
-  // Migrate packed items (strings)
-  const goldSlotSet = new Set(details.storeGoldSlotIndices ?? [])
-  if (details.packedItems) {
-    for (let i = 0; i < details.packedItems.length; i++) {
-      const text = (details.packedItems[i] ?? '').trim()
-      if (!text) continue
-      const goldMatch = text.match(/^Gold:\s*(\d+)\s*gp$/i)
-      if (goldMatch || goldSlotSet.has(i)) {
-        const amount = goldMatch ? Number.parseInt(goldMatch[1], 10) : 0
-        if (amount > 0) items.push(makeGoldItem(amount))
-      } else {
-        items.push({
-          id: makeId(),
-          kind: 'general',
-          typeId: 'custom',
-          typeName: text,
-          name: text,
-          costGp: 0,
-          equipped: false,
-          notes: '',
-          qty: 1,
-          stack: DEFAULT_STACK_POLICY.general,
-        })
-      }
-    }
-  }
-
-  // Migrate equipped items (strings)
-  if (details.equippedItems) {
-    for (const text of details.equippedItems) {
-      const trimmed = (text ?? '').trim()
-      if (!trimmed) continue
-      if (/^Gold:\s*\d+\s*gp$/i.test(trimmed)) continue // skip gold in equipped
-      items.push({
-        id: makeId(),
-        kind: 'general',
-        typeId: 'custom',
-        typeName: trimmed,
-        name: trimmed,
-        costGp: 0,
-        equipped: true,
-        notes: '',
-        qty: 1,
-        stack: DEFAULT_STACK_POLICY.general,
-      })
-    }
-  }
-
-  return items
-}
 
 
 
@@ -597,18 +184,25 @@ export function CharacterTab({
   hasPendingWrite,
   embeddedMode = false,
 }: CharacterTabProps) {
-  const [abilityScoresByCharacterId, setAbilityScoresByCharacterId] = useState<Record<string, AbilityScores>>({})
-  const [rolledAbilityScoresByCharacterId, setRolledAbilityScoresByCharacterId] = useState<Record<string, AbilityScores>>({})
-  const [abilityScoresRolledByCharacterId, setAbilityScoresRolledByCharacterId] = useState<Record<string, boolean>>({})
-  const [hpBaseRollByCharacterId, setHpBaseRollByCharacterId] = useState<Record<string, number>>({})
-  const [inventoryByCharacterId, setInventoryByCharacterId] = useState<Record<string, CharacterInventoryItem[]>>({})
-  const [spellBookSpellIdsByCharacterId, setSpellBookSpellIdsByCharacterId] = useState<Record<string, string[]>>({})
-  const [memorizedSpellIdsByCharacterId, setMemorizedSpellIdsByCharacterId] = useState<Record<string, string[]>>({})
-  const [thacoByCharacterId, setThacoByCharacterId] = useState<Record<string, string>>({})
-  const [saveScoresByCharacterId, setSaveScoresByCharacterId] = useState<Record<string, SaveScores>>({})
-  const [adventureScoresByCharacterId, setAdventureScoresByCharacterId] = useState<Record<string, AdventureScores>>({})
-  const [adventureSeedClassByCharacterId, setAdventureSeedClassByCharacterId] = useState<Record<string, string>>({})
-  const [thiefSkillsByCharacterId, setThiefSkillsByCharacterId] = useState<Record<string, ThiefSkillScores>>({})
+  const { stateMaps, stateSetters } = useCharacterSheetState()
+  const {
+    abilityScoresByCharacterId, rolledAbilityScoresByCharacterId, abilityScoresRolledByCharacterId,
+    hpBaseRollByCharacterId, inventoryByCharacterId, spellBookSpellIdsByCharacterId,
+    memorizedSpellIdsByCharacterId, thacoByCharacterId, saveScoresByCharacterId,
+    adventureScoresByCharacterId, adventureSeedClassByCharacterId, thiefSkillsByCharacterId,
+    startingGoldByCharacterId, storeSpentByCharacterId, storeCartByCharacterId,
+    alignmentByCharacterId, titleByCharacterId, languagesTextByCharacterId,
+    unencumberingItemsTextByCharacterId, otherNotesTextByCharacterId,
+  } = stateMaps
+  const {
+    setAbilityScoresByCharacterId, setRolledAbilityScoresByCharacterId, setAbilityScoresRolledByCharacterId,
+    setHpBaseRollByCharacterId, setInventoryByCharacterId, setSpellBookSpellIdsByCharacterId,
+    setMemorizedSpellIdsByCharacterId, setThacoByCharacterId, setSaveScoresByCharacterId,
+    setAdventureScoresByCharacterId, setAdventureSeedClassByCharacterId, setThiefSkillsByCharacterId,
+    setStartingGoldByCharacterId, setStoreSpentByCharacterId, setStoreCartByCharacterId,
+    setAlignmentByCharacterId, setTitleByCharacterId, setLanguagesTextByCharacterId,
+    setUnencumberingItemsTextByCharacterId, setOtherNotesTextByCharacterId,
+  } = stateSetters
   const [createCharacterModalOpen, setCreateCharacterModalOpen] = useState(false)
   const [finalizeConfirmOpen, setFinalizeConfirmOpen] = useState(false)
   const [finalizeError, setFinalizeError] = useState<string | null>(null)
@@ -617,12 +211,6 @@ export function CharacterTab({
   const [storeCloseConfirmOpen, setStoreCloseConfirmOpen] = useState(false)
   const [storeCategory, setStoreCategory] = useState<StoreCategoryId>('adventuring')
   const [storeError, setStoreError] = useState<string | null>(null)
-  const [startingGoldByCharacterId, setStartingGoldByCharacterId] = useState<Record<string, number>>({})
-  const [storeSpentByCharacterId, setStoreSpentByCharacterId] = useState<Record<string, number>>({})
-  const [storeCartByCharacterId, setStoreCartByCharacterId] = useState<Record<string, StoreCartEntry[]>>({})
-  const [languagesTextByCharacterId, setLanguagesTextByCharacterId] = useState<Record<string, string>>({})
-  const [unencumberingItemsTextByCharacterId, setUnencumberingItemsTextByCharacterId] = useState<Record<string, string>>({})
-  const [otherNotesTextByCharacterId, setOtherNotesTextByCharacterId] = useState<Record<string, string>>({})
   const [customStoreName, setCustomStoreName] = useState('')
   const [customStoreCost, setCustomStoreCost] = useState('')
   const [customStoreDescription, setCustomStoreDescription] = useState('')
@@ -641,8 +229,6 @@ export function CharacterTab({
   const [cantFireMessage, setCantFireMessage] = useState<string | null>(null)
   const [overflowFeedback, setOverflowFeedback] = useState<string | null>(null)
   const [overflowWriting, setOverflowWriting] = useState(false)
-  const [alignmentByCharacterId, setAlignmentByCharacterId] = useState<Record<string, string>>({})
-  const [titleByCharacterId, setTitleByCharacterId] = useState<Record<string, string>>({})
   const [grantMode, setGrantMode] = useState(false)
   const effectiveGrantMode = grantMode && role === 'gm'
 
@@ -751,50 +337,8 @@ export function CharacterTab({
     hasPendingWrite,
     updateCharacter,
     migrateToInventory,
-    stateMaps: {
-      abilityScoresByCharacterId,
-      rolledAbilityScoresByCharacterId,
-      abilityScoresRolledByCharacterId,
-      hpBaseRollByCharacterId,
-      inventoryByCharacterId,
-      spellBookSpellIdsByCharacterId,
-      memorizedSpellIdsByCharacterId,
-      thacoByCharacterId,
-      saveScoresByCharacterId,
-      adventureScoresByCharacterId,
-      adventureSeedClassByCharacterId,
-      thiefSkillsByCharacterId,
-      startingGoldByCharacterId,
-      storeSpentByCharacterId,
-      storeCartByCharacterId,
-      alignmentByCharacterId,
-      titleByCharacterId,
-      languagesTextByCharacterId,
-      unencumberingItemsTextByCharacterId,
-      otherNotesTextByCharacterId,
-    },
-    stateSetters: {
-      setAbilityScoresByCharacterId,
-      setRolledAbilityScoresByCharacterId,
-      setAbilityScoresRolledByCharacterId,
-      setHpBaseRollByCharacterId,
-      setInventoryByCharacterId,
-      setSpellBookSpellIdsByCharacterId,
-      setMemorizedSpellIdsByCharacterId,
-      setThacoByCharacterId,
-      setSaveScoresByCharacterId,
-      setAdventureScoresByCharacterId,
-      setAdventureSeedClassByCharacterId,
-      setThiefSkillsByCharacterId,
-      setStartingGoldByCharacterId,
-      setStoreSpentByCharacterId,
-      setStoreCartByCharacterId,
-      setAlignmentByCharacterId,
-      setTitleByCharacterId,
-      setLanguagesTextByCharacterId,
-      setUnencumberingItemsTextByCharacterId,
-      setOtherNotesTextByCharacterId,
-    },
+    stateMaps,
+    stateSetters,
   })
 
   // Auto-clear overflow feedback after 5 seconds
@@ -853,16 +397,9 @@ export function CharacterTab({
       setSelectedCharacterId(sortedCharacters[0].id)
     }
   }, [effectiveSelected, embeddedMode, setSelectedCharacterId, sortedCharacters])
-  const canCreateCharacter = role === 'gm' || role === 'player'
-  const canEditSelected = !!effectiveSelected
-    && (role === 'gm' || effectiveSelected.ownerUserId === currentUserId)
-  const canEditInventoryDetails = role === 'gm' && canEditSelected
-  const canGrant = role === 'gm'
-  const canSetCurrentCharacter = role === 'player'
-    && !!effectiveSelected
-    && effectiveSelected.ownerUserId === currentUserId
-  const canDeleteCharacter = (character: CharacterRecord) => role === 'gm' || character.ownerUserId === currentUserId
-  const canAssignCharacter = role === 'gm' && !!effectiveSelected && !effectiveGrantMode
+  const permissions = deriveCharacterPermissions({ role, currentUserId, character: effectiveSelected, grantMode: effectiveGrantMode })
+  const { canCreateCharacter, canEditSelected, canEditInventoryDetails, canGrant, canSetCurrentCharacter, canAssignCharacter } = permissions
+  const canDeleteCharacter = (character: CharacterRecord) => canDeleteCharacterForRole(role, currentUserId, character)
   const effectiveShowListPane = embeddedMode ? false : showListPane
   const effectiveShowDetailPane = embeddedMode ? true : showDetailPane
   const assignmentOptions = useMemo(
@@ -1083,16 +620,11 @@ export function CharacterTab({
       setTransferBusy(false)
     }
   }
-  const isGuidedCreation = effectiveSelected?.creationStatus === 'draft'
-  const isEstablishedDraft = effectiveSelected?.creationStatus === 'established_draft'
-  const isInFinalizationFlow = isGuidedCreation || isEstablishedDraft
-  const canEditClassAndAlignment = !!effectiveSelected && canEditSelected && isInFinalizationFlow
-  const canMemorizeSpell = !!effectiveSelected && !isInFinalizationFlow
-  const requiresSpellLearnApproval = role !== 'gm' && !isInFinalizationFlow
-  const requiresApprovalNow = role !== 'gm' && !isEstablishedDraft
-  const canEditAbilityScores = !!effectiveSelected
-    && canEditSelected
-    && (isGuidedCreation || effectiveSelected.creationMode === 'established')
+  const {
+    isGuidedCreation, isInFinalizationFlow,
+    canEditClassAndAlignment, canMemorizeSpell, requiresSpellLearnApproval,
+    requiresApprovalNow, canEditAbilityScores, canClassEquipArmour,
+  } = permissions
   const selectedStartingGold = effectiveSelected ? (startingGoldByCharacterId[effectiveSelected.id] ?? null) : null
   const hasRolledStartingGold = typeof selectedStartingGold === 'number'
   const selectedStoreCart = effectiveSelected ? (storeCartByCharacterId[effectiveSelected.id] ?? []) : []
@@ -1100,7 +632,6 @@ export function CharacterTab({
   const selectedStoreCartTotal = selectedStoreCart.reduce((sum, entry) => sum + entry.costGp * entry.qty, 0)
   const selectedStoreRemaining = (selectedStartingGold ?? 0) - selectedCommittedStoreSpent - selectedStoreCartTotal
   const visibleStoreItems = OSE_STORE_ITEMS.filter((item) => item.category === storeCategory)
-  const canClassEquipArmour = selectedClassName !== 'Magic-User'
   const renderFeatureSummary = (feature: ClassFeature): ReactNode => {
     const links = feature.summaryLinks ?? []
     if (links.length === 0) return feature.summary
@@ -1139,31 +670,6 @@ export function CharacterTab({
     })
     return <>{parts}</>
   }
-  const weaponTypeLabel = (weapon: CharacterWeaponItem) => {
-    return weapon.typeName || 'Weapon'
-  }
-  const weaponCoreStatsLabel = (weapon: CharacterWeaponItem) => {
-    const count = (weapon.damageDiceCount ?? '').trim()
-    const sides = (weapon.damageDiceSides ?? '').trim()
-    const short = (weapon.rangeShort ?? '').trim()
-    const medium = (weapon.rangeMedium ?? '').trim()
-    const long = (weapon.rangeLong ?? '').trim()
-    const hasDamage = count.length > 0 && sides.length > 0
-    const hasRange = short.length > 0 && medium.length > 0 && long.length > 0
-    if (!hasDamage && !hasRange) return ''
-    if (hasDamage && hasRange) return `${count}d${sides} ${short}/${medium}/${long}`
-    if (hasDamage) return `${count}d${sides} Mel`
-    return `${short}/${medium}/${long}`
-  }
-  const weaponStatsLabel = (weapon: CharacterWeaponItem) => {
-    const stats: string[] = []
-    stats.push(weaponCoreStatsLabel(weapon))
-    const bonus = (weapon.attackBonus ?? '').trim()
-    if (bonus) stats.push(`+${bonus.replace(/^\+/, '')}`)
-    if (weapon.slow) stats.push('Slow')
-    if (weapon.twoHanded) stats.push('2H')
-    return stats.join(' | ')
-  }
   const renderWeaponSlotLabel = (weapon: CharacterWeaponItem): ReactNode => {
     const name = (weapon.name ?? '').trim()
     const stats = weaponStatsLabel(weapon)
@@ -1178,20 +684,6 @@ export function CharacterTab({
       </span>
     )
   }
-  const armourTypeLabel = (armour: CharacterArmourItem) => armour.typeName || 'Armour'
-  const armourStatsLabel = (armour: CharacterArmourItem) => {
-    const stats: string[] = []
-    const armourClass = (armour.armourClass ?? '').trim()
-    const shieldMod = (armour.shieldMod ?? '').trim()
-    if (armour.armourType === 'shield') {
-      if (shieldMod) stats.push(`AC ${shieldMod}`)
-    } else if (armourClass) {
-      stats.push(`AC ${armourClass}`)
-    }
-    const magic = (armour.magicMod ?? '').trim()
-    if (magic) stats.push(`Magic ${magic}`)
-    return stats.join(' | ')
-  }
   const renderArmourSlotLabel = (armour: CharacterArmourItem): ReactNode => {
     const name = (armour.name ?? '').trim()
     const stats = armourStatsLabel(armour)
@@ -1203,49 +695,6 @@ export function CharacterTab({
         {stats ? <span> - {stats}</span> : null}
       </span>
     )
-  }
-  const formatWeaponEffectConditionLabel = (effect: NonNullable<CharacterWeaponItem['weaponEffects']>[number]) => {
-    if (effect.conditionType === 'none' || effect.conditionValues.length === 0) return ''
-    const formattedValues = effect.conditionValues.map((value) => {
-      if (effect.conditionType === 'armour_state') {
-        if (value === 'natural_armour') return 'Natural Armour'
-        if (value === 'unarmoured') return 'Unarmoured'
-        if (value === 'armoured') return 'Armoured'
-      }
-      if (effect.conditionType === 'alignment') {
-        return value.charAt(0).toUpperCase() + value.slice(1)
-      }
-      return value
-        .split(/[_-]/g)
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(' ')
-    })
-    if (effect.conditionType === 'alignment' || effect.conditionType === 'armour_state' || effect.conditionType === 'creature_type') {
-      return `vs ${formattedValues.join(', ')}`
-    }
-    return formattedValues.join(', ')
-  }
-  const formatWeaponEffectOutcomeLabel = (weapon: CharacterWeaponItem, effect: NonNullable<CharacterWeaponItem['weaponEffects']>[number]) => {
-    if (effect.outcomeType === 'attack_bonus') return `${effect.outcomeValue} to attack`
-    if (effect.outcomeType === 'damage_bonus') return `${effect.outcomeValue} to damage`
-    if (effect.outcomeType === 'replace_damage') return `damage becomes ${effect.outcomeValue}`
-    if (effect.outcomeType === 'extra_damage') return `extra ${effect.outcomeValue}`
-    if (effect.outcomeType === 'roll_table') {
-      const table = weapon.weaponRollTables?.find((entry) => entry.id === effect.outcomeValue) ?? null
-      if (!table) return 'roll table'
-      return `roll ${table.name || `d${table.dieSides}`}${table.dieSides ? ` (d${table.dieSides})` : ''}`
-    }
-    return effect.outcomeValue
-  }
-  const formatWeaponEffectLine = (weapon: CharacterWeaponItem, effect: NonNullable<CharacterWeaponItem['weaponEffects']>[number]) => {
-    const condition = formatWeaponEffectConditionLabel(effect)
-    const outcome = formatWeaponEffectOutcomeLabel(weapon, effect)
-    const note = effect.notes.trim()
-    const body = condition ? `${condition}: ${outcome}` : outcome
-    if (effect.trigger === 'on_crit') return `On crit: ${body}${note ? ` (${note})` : ''}`
-    if (effect.trigger === 'on_hit') return `On hit: ${body}${note ? ` (${note})` : ''}`
-    if (effect.trigger === 'passive') return `Passive: ${body}${note ? ` (${note})` : ''}`
-    return `${body}${note ? ` (${note})` : ''}`
   }
   const renderReadOnlyItemDetail = (detailItem: CharacterInventoryItem) => {
     if (detailItem.kind === 'gold') return null
@@ -1497,167 +946,14 @@ export function CharacterTab({
       </div>
     )
   }
+  // Build slot rendering arrays from unified inventory
   const applyPlayerAddTemplate = (
     kind: 'general' | 'weapon' | 'armour' | 'ammunition',
     templateId: string,
   ) => {
-    setAddItemModal((current) => {
-      if (!current) return current
-      if (kind === 'weapon') {
-        const template = weaponCatalogById[templateId]
-        if (!template) return current
-        const parsed = parseDamageDice(template.damage)
-        const range = parseRangeBands(template.range)
-        return {
-          ...current,
-          kind,
-          typeId: templateId,
-          typeName: template.name,
-          name: '',
-          costGp: String(template.costGp),
-          description: '',
-          damageDiceCount: parsed.damageDiceCount,
-          damageDiceSides: parsed.damageDiceSides,
-          rangeShort: range.rangeShort,
-          rangeMedium: range.rangeMedium,
-          rangeLong: range.rangeLong,
-          slow: template.qualities.includes('Slow'),
-          twoHanded: template.twoHanded,
-          isMagic: false,
-          attackBonus: '',
-          damageBonus: '',
-          notes: '',
-        }
-      }
-      if (kind === 'armour') {
-        const template = armourCatalogById[templateId]
-        if (!template) return current
-        const parsed = parseArmourTemplateValues(template.ac)
-        return {
-          ...current,
-          kind,
-          typeId: templateId,
-          typeName: template.name,
-          name: '',
-          costGp: String(template.costGp),
-          description: '',
-          armourClass: parsed.armourClass,
-          shieldMod: parsed.shieldMod,
-          magicMod: '',
-          armourType: armourTypeFromTemplateId(template.id),
-          isMagic: false,
-          notes: '',
-        }
-      }
-      if (kind === 'ammunition') {
-        const template = ammoCatalogById[templateId]
-        if (!template) return current
-        return {
-          ...current,
-          kind: 'ammunition',
-          typeId: templateId,
-          typeName: template.name,
-          name: '',
-          costGp: String(template.costGp),
-          description: template.description,
-          qty: String(template.qty),
-          notes: '',
-        }
-      }
-      const generalTemplate = generalCatalogById[templateId]
-      const consumableTemplate = consumableCatalogById[templateId]
-      const template = generalTemplate ?? consumableTemplate
-      if (!template) return current
-      return {
-        ...current,
-        kind,
-        typeId: templateId,
-        typeName: template.name,
-        name: '',
-        costGp: String(template.costGp),
-        description: template.description,
-        qty: consumableTemplate ? String(consumableTemplate.qty) : '1',
-        effectText: consumableTemplate?.effectText ?? '',
-        notes: '',
-      }
-    })
+    setAddItemModal((current) => current ? applyPlayerAddTemplateState(current, kind, templateId) : current)
   }
-  const playerAddPreviewItem = (modal: AddItemModalState | null): CharacterInventoryItem | null => {
-    if (!modal || !modal.typeId || modal.typeId === 'custom') return null
-    if (modal.kind === 'weapon') {
-      return makeWeaponItem({
-        typeId: modal.typeId,
-        typeName: modal.typeName,
-        costGp: Number.parseFloat(modal.costGp) || 0,
-        description: modal.description,
-        damageDiceCount: modal.damageDiceCount,
-        damageDiceSides: modal.damageDiceSides,
-        rangeShort: modal.rangeShort,
-        rangeMedium: modal.rangeMedium,
-        rangeLong: modal.rangeLong,
-        slow: modal.slow,
-        twoHanded: modal.twoHanded,
-      })
-    }
-    if (modal.kind === 'armour') {
-      return makeArmourItem({
-        typeId: modal.typeId,
-        typeName: modal.typeName,
-        costGp: Number.parseFloat(modal.costGp) || 0,
-        description: modal.description,
-        armourClass: modal.armourClass,
-        shieldMod: modal.shieldMod,
-        magicMod: modal.magicMod,
-        armourType: modal.armourType,
-      })
-    }
-    if (modal.kind === 'ammunition') {
-      const template = ammoCatalogById[modal.typeId]
-      return {
-        id: makeId(),
-        kind: 'ammunition',
-        typeId: modal.typeId,
-        typeName: modal.typeName,
-        costGp: Number.parseFloat(modal.costGp) || 0,
-        equipped: false,
-        notes: '',
-        qty: template ? template.qty : (Number.parseInt(modal.qty, 10) || 1),
-        stack: DEFAULT_STACK_POLICY.ammunition,
-        description: modal.description,
-      }
-    }
-    const consumableTemplate = consumableCatalogById[modal.typeId]
-    if (consumableTemplate) {
-      const isOil = consumableTemplate.id === 'con-oil'
-      return {
-        id: makeId(),
-        kind: 'consumable',
-        typeId: modal.typeId,
-        typeName: modal.typeName,
-        costGp: Number.parseFloat(modal.costGp) || 0,
-        equipped: false,
-        notes: '',
-        qty: consumableTemplate.qty,
-        stack: isOil ? { stackable: false } as const : DEFAULT_STACK_POLICY.consumable,
-        description: modal.description,
-        effectText: consumableTemplate.effectText || undefined,
-        ...(isOil ? { amountRemaining: consumableTemplate.fuelCapacity ?? 24 } : {}),
-      }
-    }
-    return {
-      id: makeId(),
-      kind: 'general',
-      typeId: modal.typeId,
-      typeName: modal.typeName,
-      costGp: Number.parseFloat(modal.costGp) || 0,
-      equipped: false,
-      notes: '',
-      qty: 1,
-      stack: DEFAULT_STACK_POLICY.general,
-      description: modal.description,
-    }
-  }
-  // Build slot rendering arrays from unified inventory
+
   const toggleItemEquip = (item: CharacterInventoryItem, checked: boolean) => {
     // Block packing lit torches
     if (!checked && item.kind === 'consumable' && (item as CharacterConsumableItem).lit) return
@@ -1889,40 +1185,25 @@ export function CharacterTab({
     ? (thiefSkillsByCharacterId[effectiveSelected.id] ?? defaultThiefSkills())
     : defaultThiefSkills()
   const isHalfling = effectiveSelected?.className === 'Halfling'
-  const thiefLevel = Math.max(1, effectiveSelected?.level ?? 1)
-  const thiefTotalExpertisePoints = 4 + Math.max(0, thiefLevel - 1) * 2
-  const thiefSpentExpertisePoints = thiefSkillRows.reduce((sum, row) => {
-    const score = Number.parseInt(selectedThiefSkills[row.code], 10)
-    if (Number.isNaN(score)) return sum
-    return sum + Math.max(0, score - 1)
-  }, 0)
-  const thiefRemainingExpertisePoints = Math.max(0, thiefTotalExpertisePoints - thiefSpentExpertisePoints)
+  const thiefExpertise = deriveThiefExpertise(effectiveSelected?.level ?? 1, selectedThiefSkills)
+  const thiefRemainingExpertisePoints = thiefExpertise.remaining
 
-  const derivedDexInitModifier = Number.isNaN(selectedDex) ? 0 : abilityModifier(selectedDex)
-  const derivedDexAcModifierNumber = Number.isNaN(selectedDex) ? null : dexAcModByDex(selectedDex)
-  const derivedDexAcAdjustment = derivedDexAcModifierNumber === null ? 0 : -derivedDexAcModifierNumber
-  const derivedDexAcModifier = derivedDexAcModifierNumber === null ? '' : formatModifier(derivedDexAcAdjustment)
-  const derivedUnarmouredAc = derivedDexAcModifierNumber === null ? '' : String(9 + derivedDexAcAdjustment)
-  const bodyArmourClass = Number.parseInt(equippedBodyArmour?.armourClass ?? '', 10)
-  const shieldAcMod = Number.parseInt(equippedShield?.shieldMod ?? '', 10)
-  const bodyMagicMod = Number.parseInt(equippedBodyArmour?.magicMod ?? '', 10)
-  const shieldMagicMod = Number.parseInt(equippedShield?.magicMod ?? '', 10)
-  const computedAc =
-    (Number.isNaN(bodyArmourClass) ? 9 : bodyArmourClass)
-    + derivedDexAcAdjustment
-    + (Number.isNaN(shieldAcMod) ? 0 : shieldAcMod)
-    + (Number.isNaN(bodyMagicMod) ? 0 : bodyMagicMod)
-    + (Number.isNaN(shieldMagicMod) ? 0 : shieldMagicMod)
-  const derivedInitModifierNumber = Number.isNaN(selectedDex) ? null : derivedDexInitModifier + (isHalfling ? 1 : 0)
-  const derivedInitModifier = derivedInitModifierNumber === null ? '' : formatModifier(derivedInitModifierNumber)
-  const derivedReactionModifier = Number.isNaN(selectedCha) ? '' : formatModifier(abilityModifier(selectedCha))
-  const derivedOpenStuckDoor = Number.isNaN(selectedStr) ? '' : String(openStuckDoorByStr(selectedStr))
-  const derivedMeleeModifier = Number.isNaN(selectedStr) ? '' : formatTableModifier(meleeModifierByStr(selectedStr))
-  const derivedDexMissileModifier = Number.isNaN(selectedDex) ? 0 : dexMissileModByDex(selectedDex)
-  const derivedMissileModifierNumber = Number.isNaN(selectedDex) ? null : derivedDexMissileModifier + (isHalfling ? 1 : 0)
-  const derivedMissileModifier = derivedMissileModifierNumber === null ? '' : formatTableModifier(derivedMissileModifierNumber)
-  const derivedConModifierNumber = Number.isNaN(selectedCon) ? 0 : conModifierByScore(selectedCon)
-  const derivedConModifier = Number.isNaN(selectedCon) ? '' : formatTableModifier(derivedConModifierNumber)
+  const {
+    derivedDexAcModifier, derivedUnarmouredAc, computedAc, derivedInitModifier,
+    derivedReactionModifier, derivedOpenStuckDoor, derivedMeleeModifier,
+    derivedMissileModifier, derivedConModifierNumber, derivedConModifier,
+    derivedWisMagicSaveModifier, displayedSaveScores,
+  } = deriveCombatStats({
+    str: selectedStr,
+    dex: selectedDex,
+    cha: selectedCha,
+    con: selectedCon,
+    wis: Number.parseInt(selectedAbilityScores.WIS, 10),
+    isHalfling,
+    equippedBodyArmour,
+    equippedShield,
+    saveScores: selectedSaveScores,
+  })
   const canSelectedLevelUp = !!effectiveSelected
     && !isInFinalizationFlow
     && selectedNextLevelXp !== null
@@ -1937,22 +1218,6 @@ export function CharacterTab({
     : (classFeaturesByClass[selectedClassName] ?? []).filter((feature) => feature.unlockedAt === levelUpTargetLevel)
   const levelUpFlavor = levelUpFlavorByClass[selectedClassName] ?? 'Your experience pays off as your capabilities expand.'
   const levelUpChecklist = levelUpChecklistForClass(selectedClassName, selectedHitDie)
-  const derivedWisMagicSaveModifierNumber = Number.isNaN(Number.parseInt(selectedAbilityScores.WIS, 10))
-    ? null
-    : wisMagicSaveModifierByScore(Number.parseInt(selectedAbilityScores.WIS, 10))
-  const derivedWisMagicSaveModifier =
-    derivedWisMagicSaveModifierNumber === null ? '' : formatTableModifier(derivedWisMagicSaveModifierNumber)
-  const displayedSaveScores: SaveScores = {
-    ...selectedSaveScores,
-    W:
-      derivedWisMagicSaveModifierNumber === null || Number.isNaN(Number.parseInt(selectedSaveScores.W, 10))
-        ? selectedSaveScores.W
-        : String(Number.parseInt(selectedSaveScores.W, 10) - derivedWisMagicSaveModifierNumber),
-    S:
-      derivedWisMagicSaveModifierNumber === null || Number.isNaN(Number.parseInt(selectedSaveScores.S, 10))
-        ? selectedSaveScores.S
-        : String(Number.parseInt(selectedSaveScores.S, 10) - derivedWisMagicSaveModifierNumber),
-  }
   const abilityTradePointsGained = selectedRolledAbilityScores
     ? Math.floor(
       loweringCodes.reduce((sum, code) => {
@@ -1972,21 +1237,10 @@ export function CharacterTab({
     }, 0)
     : 0
   const availableAbilityTradePoints = Math.max(0, abilityTradePointsGained - abilityTradePointsSpent)
-  // Count packed items in the movement band zone (exclude STR-gated slots)
   const packedItemCount = packedItems.length
-  const strSlotsFilled = Math.min(packedItemCount, packedStrengthSlotCount)
-  const filledPackedItemCount = Math.max(0, packedItemCount - strSlotsFilled)
-  let runningSlots = 0
-  const currentMovementBand =
-    packedMovementBands.find((band) => {
-      runningSlots += band.slotCount
-      return filledPackedItemCount <= runningSlots
-    }) ?? packedMovementBands[packedMovementBands.length - 1]
-  const currentPackedMovement = currentMovementBand.label
-  const currentBaseMove = currentMovementBand.baseMove
-  const derivedOverlandMove = currentBaseMove / 5
-  const derivedExplorationMove = currentBaseMove
-  const derivedEncounterMove = currentBaseMove / 3
+  const {
+    currentPackedMovement, derivedOverlandMove, derivedExplorationMove, derivedEncounterMove,
+  } = deriveMovement(packedItemCount)
 
   const uploadCharacterTokenImage = async (file: File) => {
     if (!effectiveSelected || !canEditSelected) throw new Error('No editable character selected.')
@@ -2438,73 +1692,6 @@ export function CharacterTab({
     setInventoryGoldForCharacter,
   })
 
-  const makeInventoryItemFromTemplateEntry = (entry: GrantTemplateEntry): CharacterInventoryItem => {
-    if (entry.kind === 'weapon' && entry.weaponId) {
-      return applyWeaponTemplateToItem(makeWeaponItem(), entry.weaponId)
-    }
-    if (entry.kind === 'armour' && entry.armourId) {
-      return applyArmourTemplateToItem(makeArmourItem(), entry.armourId)
-    }
-    if (entry.kind === 'ammunition') {
-      const storeItem = OSE_STORE_ITEMS.find((item) => item.id === entry.key)
-      const ammoTemplate = storeItem ? ammoCatalogById[storeItem.id] ?? ammoCatalogById[storeItem.id.replace('ammo-', '')] : null
-      return {
-        id: makeId(),
-        kind: 'ammunition',
-        typeId: ammoTemplate?.id ?? 'custom',
-        typeName: ammoTemplate?.name ?? entry.name,
-        name: entry.name,
-        costGp: entry.costGp,
-        equipped: false,
-        notes: '',
-        description: ammoTemplate?.description ?? '',
-        qty: ammoTemplate?.qty ?? 1,
-        stack: DEFAULT_STACK_POLICY.ammunition,
-      }
-    }
-    if (entry.kind === 'consumable') {
-      const storeItem = OSE_STORE_ITEMS.find((item) => item.id === entry.key)
-      const conTemplate = storeItem ? consumableCatalogById[storeItem.id.replace('gear-', 'con-')] : null
-      const isOil = conTemplate?.id === 'con-oil'
-      return {
-        id: makeId(),
-        kind: 'consumable',
-        typeId: conTemplate?.id ?? 'custom',
-        typeName: conTemplate?.name ?? entry.name,
-        costGp: entry.costGp,
-        equipped: false,
-        notes: '',
-        description: conTemplate?.description ?? '',
-        qty: conTemplate?.qty ?? 1,
-        stack: isOil ? { stackable: false } as const : DEFAULT_STACK_POLICY.consumable,
-        effectText: conTemplate?.effectText ?? undefined,
-        ...(isOil ? { amountRemaining: conTemplate?.fuelCapacity ?? 24 } : {}),
-      }
-    }
-    const storeItem = OSE_STORE_ITEMS.find((item) => item.id === entry.key)
-    const genTemplate = storeItem ? generalCatalogById[storeItem.id] : null
-    return {
-      id: makeId(),
-      kind: 'general',
-      typeId: genTemplate?.id ?? 'custom',
-      typeName: genTemplate?.name ?? entry.name,
-      name: entry.name,
-      costGp: genTemplate?.costGp ?? entry.costGp,
-      equipped: false,
-      notes: '',
-      description: genTemplate?.description ?? '',
-      qty: 1,
-      stack: DEFAULT_STACK_POLICY.general,
-    }
-  }
-
-  const amountForTarget = (total: number, split: boolean, targetCount: number, targetIndex: number): number => {
-    if (!split || targetCount <= 0) return total
-    const normalizedTotal = Math.max(0, Math.floor(total))
-    const base = Math.floor(normalizedTotal / targetCount)
-    const remainder = normalizedTotal % targetCount
-    return base + (targetIndex < remainder ? 1 : 0)
-  }
 
   const grantPreviewByCharacterId = useMemo(() => {
     const preview = new Map<string, ReturnType<typeof projectCharacterProgress>>()
