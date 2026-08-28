@@ -644,6 +644,7 @@ export function CharacterTab({
   const [alignmentByCharacterId, setAlignmentByCharacterId] = useState<Record<string, string>>({})
   const [titleByCharacterId, setTitleByCharacterId] = useState<Record<string, string>>({})
   const [grantMode, setGrantMode] = useState(false)
+  const effectiveGrantMode = grantMode && role === 'gm'
 
   // Declared after `grantMode` because the grant builder occupies the detail
   // pane just like a sheet does: both count as "open" when the layout narrows
@@ -653,7 +654,7 @@ export function CharacterTab({
     activePage, setActivePage,
     showListPane, showDetailPane,
     isIntermediateMobileLayout, useIntermediateLayout,
-  } = useResponsiveCharacterLayout({ hasOpenDetail: !!selectedCharacterId || grantMode })
+  } = useResponsiveCharacterLayout({ hasOpenDetail: !!selectedCharacterId || effectiveGrantMode })
   const [grantTargetIds, setGrantTargetIds] = useState<Record<string, boolean>>({})
   const [grantXpBase, setGrantXpBase] = useState('')
   const [grantXpSplitBetweenTargets, setGrantXpSplitBetweenTargets] = useState(false)
@@ -666,7 +667,7 @@ export function CharacterTab({
   const [grantTemplateEntries, setGrantTemplateEntries] = useState<GrantTemplateEntry[]>([])
   const [grantBusy, setGrantBusy] = useState(false)
   const [grantFeedback, setGrantFeedback] = useState<string | null>(null)
-  const [levelUpModalOpen, setLevelUpModalOpen] = useState(false)
+  const [levelUpModalCharacterId, setLevelUpModalCharacterId] = useState<string | null>(null)
   const [levelUpHpRoll, setLevelUpHpRoll] = useState<number | null>(null)
   const [levelUpApplying, setLevelUpApplying] = useState(false)
   const [levelUpError, setLevelUpError] = useState<string | null>(null)
@@ -693,10 +694,7 @@ export function CharacterTab({
   }, [approvalPendingFeedback])
 
   useEffect(() => {
-    if (!campaignId) {
-      setAllCampaignCharacters([])
-      return
-    }
+    if (!campaignId) return
 
     const unsub = onSnapshot(
       campaignCollectionRef(db, { campaignId, groupId }, 'characters'),
@@ -723,7 +721,10 @@ export function CharacterTab({
       () => setAllCampaignCharacters([]),
     )
 
-    return () => unsub()
+    return () => {
+      unsub()
+      setAllCampaignCharacters([])
+    }
   }, [campaignId, gmUserId, groupId, role])
 
   // Players are derived from character ownership (non-GM owners), replacing the
@@ -844,17 +845,7 @@ export function CharacterTab({
   const effectiveSelected = embeddedMode
     ? (sortedCharacters[0] ?? null)
     : selectedCharacter ?? sortedCharacters.find((character) => character.id === selectedCharacterId) ?? null
-
-  useEffect(() => {
-    setLevelUpModalOpen(false)
-    setLevelUpHpRoll(null)
-    setLevelUpError(null)
-  }, [effectiveSelected?.id])
-
-  useEffect(() => {
-    if (!transferPickerOpen) return
-    setTransferError(null)
-  }, [transferPickerOpen])
+  const levelUpModalOpen = levelUpModalCharacterId === effectiveSelected?.id
 
   useEffect(() => {
     if (embeddedMode || sortedCharacters.length === 0) return
@@ -871,7 +862,7 @@ export function CharacterTab({
     && !!effectiveSelected
     && effectiveSelected.ownerUserId === currentUserId
   const canDeleteCharacter = (character: CharacterRecord) => role === 'gm' || character.ownerUserId === currentUserId
-  const canAssignCharacter = role === 'gm' && !!effectiveSelected && !grantMode
+  const canAssignCharacter = role === 'gm' && !!effectiveSelected && !effectiveGrantMode
   const effectiveShowListPane = embeddedMode ? false : showListPane
   const effectiveShowDetailPane = embeddedMode ? true : showDetailPane
   const assignmentOptions = useMemo(
@@ -879,13 +870,11 @@ export function CharacterTab({
     [campaignPlayers, effectiveSelected?.ownerUserId],
   )
 
-  useEffect(() => {
-    if (!playerAssignmentOpen) return
-    setAssignmentTargetUserId((current) => {
-      if (assignmentOptions.length === 0) return ''
-      return assignmentOptions.some((player) => player.userId === current) ? current : assignmentOptions[0].userId
-    })
-  }, [assignmentOptions, playerAssignmentOpen])
+  const effectiveAssignmentTargetUserId = assignmentOptions.some(
+    (player) => player.userId === assignmentTargetUserId,
+  )
+    ? assignmentTargetUserId
+    : (assignmentOptions[0]?.userId ?? '')
 
   const exitGrantMode = () => {
     setGrantMode(false)
@@ -893,6 +882,7 @@ export function CharacterTab({
   }
 
   const openPlayerAssignment = () => {
+    setAssignmentTargetUserId(assignmentOptions[0]?.userId ?? '')
     setPlayerAssignmentOpen(true)
   }
 
@@ -903,8 +893,8 @@ export function CharacterTab({
   }
 
   const submitPlayerAssignment = async () => {
-    if (!effectiveSelected || !assignmentTargetUserId) return
-    const target = campaignPlayers.find((player) => player.userId === assignmentTargetUserId)
+    if (!effectiveSelected || !effectiveAssignmentTargetUserId) return
+    const target = campaignPlayers.find((player) => player.userId === effectiveAssignmentTargetUserId)
     if (!target) return
     setAssignmentBusy(true)
     try {
@@ -2124,12 +2114,12 @@ export function CharacterTab({
     if (!canSelectedLevelUp || !canEditSelected) return
     setLevelUpHpRoll(null)
     setLevelUpError(null)
-    setLevelUpModalOpen(true)
+    setLevelUpModalCharacterId(effectiveSelected?.id ?? null)
   }
 
   const closeLevelUpModal = () => {
     if (levelUpApplying) return
-    setLevelUpModalOpen(false)
+    setLevelUpModalCharacterId(null)
     setLevelUpHpRoll(null)
     setLevelUpError(null)
   }
@@ -2346,13 +2336,6 @@ export function CharacterTab({
       setStoreError(null)
     }
   }, [isGuidedCreation, storeOpen])
-
-  useEffect(() => {
-    if (canGrant) return
-    if (!grantMode) return
-    setGrantMode(false)
-    setGrantTargetIds({})
-  }, [canGrant, grantMode])
 
   // Clear justSeeded AFTER all init effects have run (effect order matters —
   // this must be defined after the init effects so they can see justSeeded as true)
@@ -2777,9 +2760,12 @@ export function CharacterTab({
           canDeleteCharacter={canDeleteCharacter}
           onCreateCharacter={() => setCreateCharacterModalOpen(true)}
           onSelectCharacter={(characterId) => {
-            if (grantMode) {
+            if (effectiveGrantMode) {
               setGrantMode(false)
             }
+            setLevelUpModalCharacterId(null)
+            setLevelUpHpRoll(null)
+            setLevelUpError(null)
             setSelectedCharacterId(characterId)
             if (isSinglePane) setPaneView('detail')
           }}
@@ -2787,7 +2773,7 @@ export function CharacterTab({
             setDeleteConfirmTarget({ id: character.id, name: character.name || 'character' })
           }}
           showGrantCard={canGrant}
-          isGrantMode={grantMode}
+          isGrantMode={effectiveGrantMode}
           selectedGrantTargetIds={selectedGrantTargetIds}
           onEnterGrantMode={() => {
             setGrantMode(true)
@@ -2801,7 +2787,7 @@ export function CharacterTab({
       {effectiveShowDetailPane ? (
         <div className="monsters-detail characters-detail">
           <div className="monsters-detail-inner characters-detail-inner">
-            {!isMobile && (effectiveSelected || grantMode) ? (
+            {!isMobile && (effectiveSelected || effectiveGrantMode) ? (
               <div className="character-sheet-page-tabs top">
                 <div className="character-sheet-tab-bar">
                   <button
@@ -2820,7 +2806,7 @@ export function CharacterTab({
                   </button>
                 </div>
                 <div className="character-sheet-tab-actions">
-                  {canSetCurrentCharacter && effectiveSelected && !grantMode ? (
+                  {canSetCurrentCharacter && effectiveSelected && !effectiveGrantMode ? (
                     <button
                       type="button"
                       className={currentCharacterId === effectiveSelected.id ? 'character-current-action active' : 'character-current-action'}
@@ -2831,7 +2817,7 @@ export function CharacterTab({
                       <span>Current Character</span>
                     </button>
                   ) : null}
-                  {isInFinalizationFlow && canEditSelected && !grantMode ? (
+                  {isInFinalizationFlow && canEditSelected && !effectiveGrantMode ? (
                     <button
                       type="button"
                       className="character-current-action"
@@ -2842,7 +2828,7 @@ export function CharacterTab({
                       <span>Finalize Character</span>
                     </button>
                   ) : null}
-                  {canSelectedLevelUp && !grantMode ? (
+                  {canSelectedLevelUp && !effectiveGrantMode ? (
                     <button
                       type="button"
                       className="character-current-action character-levelup-action"
@@ -2864,7 +2850,7 @@ export function CharacterTab({
                       <span>Give to Player</span>
                     </button>
                   ) : null}
-                  {grantMode ? (
+                  {effectiveGrantMode ? (
                     <button
                       type="button"
                       className="character-current-action"
@@ -2880,12 +2866,12 @@ export function CharacterTab({
             ) : null}
             {isSinglePane && !embeddedMode ? (
               <div className="monster-detail-header-row">
-                {effectiveSelected || grantMode ? (
+                {effectiveSelected || effectiveGrantMode ? (
                   <button
                     type="button"
                     className="back-link monster-mobile-back"
                     onClick={() => {
-                      if (grantMode) {
+                      if (effectiveGrantMode) {
                         exitGrantMode()
                       } else {
                         setPaneView('list')
@@ -2896,7 +2882,7 @@ export function CharacterTab({
                     <ChevronLeft size={16} />
                   </button>
                 ) : <span />}
-                {canSetCurrentCharacter && effectiveSelected && !grantMode ? (
+                {canSetCurrentCharacter && effectiveSelected && !effectiveGrantMode ? (
                   <button
                     type="button"
                     className={currentCharacterId === effectiveSelected.id ? 'character-current-action active' : 'character-current-action'}
@@ -2907,7 +2893,7 @@ export function CharacterTab({
                     <span>Current Character</span>
                   </button>
                 ) : <span />}
-                {isInFinalizationFlow && canEditSelected && !grantMode ? (
+                {isInFinalizationFlow && canEditSelected && !effectiveGrantMode ? (
                   <button
                     type="button"
                     className="character-current-action"
@@ -2918,7 +2904,7 @@ export function CharacterTab({
                     <span>Finalize</span>
                   </button>
                 ) : null}
-                {canSelectedLevelUp && !grantMode ? (
+                {canSelectedLevelUp && !effectiveGrantMode ? (
                   <button
                     type="button"
                     className="character-current-action character-levelup-action"
@@ -2935,7 +2921,7 @@ export function CharacterTab({
 
             {finalizeError ? <p className="error">{finalizeError}</p> : null}
 
-            {grantMode ? (
+            {effectiveGrantMode ? (
               <div className="monster-editor-grid character-editor-grid">
                 <section className="character-sheet">
                   <div className="character-sheet-main-grid">
@@ -5785,7 +5771,7 @@ export function CharacterTab({
                       type="radio"
                       name="player-assignment-target"
                       value={player.userId}
-                      checked={assignmentTargetUserId === player.userId}
+                      checked={effectiveAssignmentTargetUserId === player.userId}
                       onChange={() => setAssignmentTargetUserId(player.userId)}
                       disabled={assignmentBusy}
                     />
@@ -5801,7 +5787,7 @@ export function CharacterTab({
                 type="button"
                 className="confirm-danger"
                 onClick={() => void submitPlayerAssignment()}
-                disabled={assignmentBusy || !assignmentTargetUserId}
+                disabled={assignmentBusy || !effectiveAssignmentTargetUserId}
               >
                 Give to Player
               </button>
