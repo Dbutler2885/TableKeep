@@ -13,9 +13,14 @@ type Props = {
   onPasswordSubmit: (email: string, password: string, username: string) => Promise<unknown> | unknown
   onGoogle: () => Promise<unknown> | unknown
   onSwitchToSignIn: () => void
+  /**
+   * False against the local emulators, where a Google popup only reaches the
+   * emulator's stub page. See `demoSeats.ts`.
+   */
+  showGoogle?: boolean
 }
 
-export function SignUpView({ onPasswordSubmit, onGoogle, onSwitchToSignIn }: Props) {
+export function SignUpView({ onPasswordSubmit, onGoogle, onSwitchToSignIn, showGoogle = true }: Props) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -59,16 +64,20 @@ export function SignUpView({ onPasswordSubmit, onGoogle, onSwitchToSignIn }: Pro
 
       <div className="tk-auth-hairline" aria-hidden />
 
-      <button type="button" className="tk-auth-google" onClick={onGoogle}>
-        <GoogleMark />
-        Continue with Google
-      </button>
+      {showGoogle ? (
+        <>
+          <button type="button" className="tk-auth-google" onClick={onGoogle}>
+            <GoogleMark />
+            Continue with Google
+          </button>
 
-      <div className="tk-auth-fleuron" aria-hidden>
-        <span className="tk-auth-fleuron-rule" />
-        <span className="tk-auth-fleuron-mark">or</span>
-        <span className="tk-auth-fleuron-rule" />
-      </div>
+          <div className="tk-auth-fleuron" aria-hidden>
+            <span className="tk-auth-fleuron-rule" />
+            <span className="tk-auth-fleuron-mark">or</span>
+            <span className="tk-auth-fleuron-rule" />
+          </div>
+        </>
+      ) : null}
 
       <form className="tk-auth-form" onSubmit={submit}>
         <label className="tk-auth-field">

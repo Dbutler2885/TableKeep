@@ -119,7 +119,20 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
   `npm run dev` and `npm run build` never read `.env.demo`, so the normal config path is unchanged.
 - **The demo harness does not start the functions emulator**, only `auth,firestore,storage`.
   `acceptPendingTransfer` (`src/features/transfers/usePendingTransfers.ts`) is the one callable in the app, so accepting an item transfer does not work in the demo.
+- **In emulator mode the sign-in screen swaps the Google button for two seat buttons.**
+  Against the auth emulator a Google popup only reaches the emulator's own stub page, and that page's "Add new account" mints a random uid, which matches nothing in a snapshot that stores ownership by uid.
+  `src/features/auth/demoSeats.ts` resolves the seats from `VITE_DEMO_*`, so `.env.demo` is the single definition of the two logins: `scripts/demo/config.mjs` reads it to seed them and `run.mjs` injects it into the dev server for the app to offer them.
+  A seat is offered only when the emulator flag is on *and* both credentials are present, which is why `scripts/browser-smoke.mjs` - emulators on, no `VITE_DEMO_*` - still gets the ordinary Google-plus-form screen it asserts against.
+  A production build never loads `.env.demo`, so Vite folds those references to `undefined` and no demo login reaches the bundle.
 - **`emulator-data/` is committed and budgeted.**
   It carries every Storage object the demo uses - map images and portraits - and git keeps every version of each one forever.
   The budget is 25 MB total and 1 MB per file, enforced by `npm run demo:size` (`scripts/demo/check-snapshot-size.mjs`); run it before committing a re-export.
   Shrink source images before uploading them in the app rather than trimming the snapshot afterwards - a large PNG that lands in one commit is permanent weight even if a later commit removes it.
+
+## Component tests
+
+`npm test` is Node-environment by default (`vite.config.ts`), because nearly every suite is pure logic.
+The few component suites are `.test.tsx` and opt into a DOM per file with a `// @vitest-environment jsdom` docblock, so the jsdom cost stays off the rest of the run.
+
+- **`tsconfig.app.json` excludes `.test.tsx` as well as `.test.ts`**, so `npm run typecheck` does not cover component tests either; their type errors surface when Vitest runs them.
+- **`@testing-library/react` auto-cleanup does not fire here.** It installs itself only when `afterEach` is a global, and neither Vitest config enables `globals`. Call `cleanup` from an explicit `afterEach`.

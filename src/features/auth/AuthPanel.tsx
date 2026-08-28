@@ -12,6 +12,8 @@ import { SignUpView } from './SignUpView'
 import { ForgotPasswordView } from './ForgotPasswordView'
 import { getAuthErrorMessage } from './authErrorMessages'
 import { claimUsername, isClaimUsernameError } from './claimUsername'
+import { demoSeats } from './demoSeats'
+import type { DemoSeat } from './demoSeats'
 import { BrandWordmark } from '../common/BrandWordmark'
 import './AuthPanel.css'
 
@@ -70,6 +72,16 @@ export function AuthPanel({ context }: AuthPanelProps) {
       setStatus('Signed in with Google.')
     })
 
+  const handleDemoSeat = (seat: DemoSeat) =>
+    run(async () => {
+      await signInWithEmailAndPassword(auth, seat.email, seat.password)
+      setStatus('Signed in.')
+    })
+
+  // Empty outside the local-emulator demo, where the Google popup can only
+  // reach the auth emulator's stub page. See `demoSeats.ts`.
+  const showGoogle = demoSeats.length === 0
+
   // Reset transient state when swapping modes so a stale error from one view
   // doesn't bleed into the next.
   const switchMode = (next: Mode) => {
@@ -87,6 +99,8 @@ export function AuthPanel({ context }: AuthPanelProps) {
             onGoogle={handleGoogle}
             onSwitchToSignUp={() => switchMode('signUp')}
             onSwitchToForgot={() => switchMode('forgotPassword')}
+            demoSeats={demoSeats}
+            onDemoSeat={handleDemoSeat}
           />
         ) : null}
 
@@ -95,6 +109,7 @@ export function AuthPanel({ context }: AuthPanelProps) {
             onPasswordSubmit={handlePasswordSignUp}
             onGoogle={handleGoogle}
             onSwitchToSignIn={() => switchMode('signIn')}
+            showGoogle={showGoogle}
           />
         ) : null}
 

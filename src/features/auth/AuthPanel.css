@@ -175,6 +175,89 @@
 .tk-auth-google:active { transform: translateY(1px); }
 .tk-auth-google svg { width: 18px; height: 18px; }
 
+/* ---- Demo seat picker (local-emulator demo only) --------------------- */
+
+.tk-auth-seats {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.tk-auth-seats-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.1rem;
+  font-family: 'Special Elite', 'Courier New', monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.tk-auth-seats-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--rule-soft);
+}
+
+.tk-auth-seat {
+  display: grid;
+  gap: 0.28rem;
+  width: 100%;
+  padding: 0.8rem 1rem 0.85rem;
+  text-align: left;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: transform 80ms ease, background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.tk-auth-seat-title {
+  font-family: 'Geist', -apple-system, sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.005em;
+  color: var(--ink);
+}
+
+.tk-auth-seat-caption {
+  font-family: 'IM Fell English', Georgia, serif;
+  font-style: italic;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  color: var(--ink-soft);
+}
+
+/* The lead seat carries the filled-ink treatment the Google button has
+   elsewhere, so the card keeps exactly one primary action. */
+.tk-auth-seat-lead {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+.tk-auth-seat-lead .tk-auth-seat-title { color: var(--paper); }
+.tk-auth-seat-lead .tk-auth-seat-caption { color: rgba(250, 246, 236, 0.72); }
+
+.tk-auth-seat-lead:hover {
+  background: #2a221d;
+  box-shadow: 0 4px 14px -8px rgba(26, 22, 20, 0.6);
+}
+
+.tk-auth-seat:not(.tk-auth-seat-lead):hover {
+  background: var(--paper-deep);
+  box-shadow: 0 4px 14px -10px rgba(26, 22, 20, 0.45);
+}
+
+.tk-auth-seat:active { transform: translateY(1px); }
+
+.tk-auth-seats-note {
+  margin-top: 0.25rem;
+  font-family: 'IM Fell English', Georgia, serif;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--ink-faint);
+}
+
 /* ---- Ornamental divider (fleuron) ------------------------------------ */
 
 .tk-auth-fleuron {
