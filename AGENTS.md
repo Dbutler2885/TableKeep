@@ -92,3 +92,34 @@ Both storage trees use the same suffix, so the mapping is a prefix swap:
 `campaigns/{legacyCampaignId}/REST` -> `groups/{groupId}/campaigns/{campaignId}/REST`
 (see `uploadEntityImage` in `src/features/common/mediaStorage.ts` and the map/
 token-asset path builders in `src/features/maps/hooks/`).
+
+## Demo harness (`scripts/demo/`, `emulator-data/`)
+
+A reviewer can see a real, populated game without a Firebase project or any credentials.
+The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plus two deliberately different commands that boot the emulators and the Vite dev server together.
+
+- **`npm run demo` (visitor) never writes `emulator-data/`.**
+  It passes `--import` and no export flag at all, so a visitor gets the campaign read-write in their own emulator while the snapshot in their checkout stays byte-for-byte pristine.
+  This is the whole reason it is not `npm run emulators:import`: that script passes `--export-on-exit`, which would let a visitor's session silently overwrite the committed snapshot.
+- **`npm run demo:author` is the only command that overwrites the snapshot**, via `--export-on-exit`.
+  `npm run demo:save` exports a running demo emulator without quitting it.
+  Both commands print a startup banner that states which of the two behaviours is in effect; keep that banner accurate if the flags change.
+- **`scripts/demo/run.mjs` spawns both children `detached`.**
+  In author mode an interactive Ctrl+C would otherwise reach the Firebase CLI through the terminal's process group at the same time as the orchestrator's own handler, and a second signal arriving mid-export abandons the export.
+  The orchestrator owns the shutdown order instead: SIGTERM to Vite, then a single SIGINT to the Firebase CLI, which is the signal its export-on-exit hook runs on.
+- **The demo accounts have pinned uids** (`demo-gm-uid`, `demo-player-uid`, in `scripts/demo/config.mjs`).
+  The snapshot stores campaign ownership, group membership, and character ownership by uid, so a re-seed on a visitor's machine has to land on the same uids or the imported campaign would belong to nobody.
+  Usernames must be exactly seven characters (`src/features/auth/usernameRules.ts`).
+- **Seeding goes through the emulator's admin surface, not a browser.**
+  `POST {auth}/identitytoolkit.googleapis.com/v1/projects/{projectId}/accounts` with `Authorization: Bearer owner` accepts `localId` and `emailVerified`, which the client `accounts:signUp` endpoint does not; `accounts:update` on the same prefix repairs an existing account.
+  Firestore writes use `PATCH {firestore}/v1/projects/{projectId}/databases/(default)/documents/{path}?updateMask.fieldPaths=...` with the same owner token, which bypasses `firestore.rules`.
+  Every write in `scripts/demo/seed-accounts.mjs` is idempotent, so it can run against a freshly imported snapshot without disturbing it.
+- **`.env.demo` is committed and is injected into the dev server's environment, not loaded as a Vite mode.**
+  Vite's `loadEnv` lets `process.env` win over every `.env` file, so injecting beats any real `.env.local` on the machine as well as any exported `VITE_*` shell variable.
+  `npm run dev` and `npm run build` never read `.env.demo`, so the normal config path is unchanged.
+- **The demo harness does not start the functions emulator**, only `auth,firestore,storage`.
+  `acceptPendingTransfer` (`src/features/transfers/usePendingTransfers.ts`) is the one callable in the app, so accepting an item transfer does not work in the demo.
+- **`emulator-data/` is committed and budgeted.**
+  It carries every Storage object the demo uses - map images and portraits - and git keeps every version of each one forever.
+  The budget is 25 MB total and 1 MB per file, enforced by `npm run demo:size` (`scripts/demo/check-snapshot-size.mjs`); run it before committing a re-export.
+  Shrink source images before uploading them in the app rather than trimming the snapshot afterwards - a large PNG that lands in one commit is permanent weight even if a later commit removes it.
