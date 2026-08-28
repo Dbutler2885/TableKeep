@@ -60,6 +60,7 @@ import { useCharacterMedia } from './hooks/useCharacterMedia'
 import { useCharacterRoster } from './hooks/useCharacterRoster'
 import { useGrantTools } from './hooks/useGrantTools'
 import { useSelectedCharacterDerivations } from './hooks/useSelectedCharacterDerivations'
+import { useLevelUpFlow } from './hooks/useLevelUpFlow'
 import { CharacterListPane } from './components/CharacterListPane'
 import { BlurSyncedTextarea } from './components/BlurSyncedTextarea'
 import { CharacterPackedItemsSection } from './components/CharacterPackedItemsSection'
@@ -218,10 +219,6 @@ export function CharacterTab({
     showListPane, showDetailPane,
     isIntermediateMobileLayout, useIntermediateLayout,
   } = useResponsiveCharacterLayout({ hasOpenDetail: !!selectedCharacterId || effectiveGrantMode })
-  const [levelUpModalCharacterId, setLevelUpModalCharacterId] = useState<string | null>(null)
-  const [levelUpHpRoll, setLevelUpHpRoll] = useState<number | null>(null)
-  const [levelUpApplying, setLevelUpApplying] = useState(false)
-  const [levelUpError, setLevelUpError] = useState<string | null>(null)
 
   const { ownPendingRequests, rejections, submitRequest, submitSpellLearnRequest, submitAbilityRerollRequest, dismissRejection } = useItemApprovals(campaignId, groupId, role, currentUserId)
   const { items: campaignItems } = useItems(campaignId, groupId)
@@ -278,7 +275,6 @@ export function CharacterTab({
   const effectiveSelected = embeddedMode
     ? (sortedCharacters[0] ?? null)
     : selectedCharacter ?? sortedCharacters.find((character) => character.id === selectedCharacterId) ?? null
-  const levelUpModalOpen = levelUpModalCharacterId === effectiveSelected?.id
 
   useEffect(() => {
     if (embeddedMode || sortedCharacters.length === 0) return
@@ -358,7 +354,7 @@ export function CharacterTab({
     derivedReactionModifier, derivedOpenStuckDoor, derivedMeleeModifier,
     derivedMissileModifier, derivedConModifierNumber, derivedConModifier,
     derivedWisMagicSaveModifier, displayedSaveScores, canSelectedLevelUp, selectedHitDie,
-    levelUpHpGain, levelUpTargetLevel, levelUpNewFeatures, levelUpFlavor, levelUpChecklist,
+    levelUpTargetLevel, levelUpNewFeatures, levelUpFlavor, levelUpChecklist,
     availableAbilityTradePoints, currentPackedMovement, derivedOverlandMove, derivedExplorationMove,
     derivedEncounterMove,
   } = useSelectedCharacterDerivations({
@@ -377,8 +373,24 @@ export function CharacterTab({
     outgoingTransfers,
     goldSpendAmount,
     storeCategory,
-    levelUpHpRoll,
     isInFinalizationFlow,
+  })
+  const {
+    levelUpModalOpen, levelUpHpRoll, levelUpApplying, levelUpError, levelUpHpGain,
+    resetLevelUpForCharacterSelection, openLevelUpModal, closeLevelUpModal,
+    rollLevelUpHitPoints, applyLevelUp,
+  } = useLevelUpFlow({
+    effectiveSelected,
+    canEditSelected,
+    canSelectedLevelUp,
+    selectedHitDie,
+    levelUpTargetLevel,
+    levelUpNewFeatures,
+    levelUpFlavor,
+    levelUpChecklist,
+    updateSelectedCharacterSystem,
+    setSaveScoresByCharacterId,
+    setThacoByCharacterId,
   })
 
   const {
@@ -925,61 +937,6 @@ export function CharacterTab({
   const { uploadCharacterTokenImage, uploadCharacterPortraitImage } = useCharacterMedia({
     campaignId, groupId, effectiveSelected, canEditSelected,
   })
-  const openLevelUpModal = () => {
-    if (!canSelectedLevelUp || !canEditSelected) return
-    setLevelUpHpRoll(null)
-    setLevelUpError(null)
-    setLevelUpModalCharacterId(effectiveSelected?.id ?? null)
-  }
-
-  const closeLevelUpModal = () => {
-    if (levelUpApplying) return
-    setLevelUpModalCharacterId(null)
-    setLevelUpHpRoll(null)
-    setLevelUpError(null)
-  }
-
-  const rollLevelUpHitPoints = () => {
-    if (levelUpHpRoll !== null) return
-    if (!selectedHitDie || selectedHitDie <= 0) {
-      setLevelUpError('No valid class hit die available for this character.')
-      return
-    }
-    setLevelUpError(null)
-    setLevelUpHpRoll(1 + Math.floor(Math.random() * selectedHitDie))
-  }
-
-  const applyLevelUp = () => {
-    if (!effectiveSelected || !canSelectedLevelUp) return
-    if (levelUpHpGain === null) {
-      setLevelUpError('Roll hit points before applying level up.')
-      return
-    }
-    const nextLevel = effectiveSelected.level + 1
-    const nextSaveScores = saveScoresForClassLevel(effectiveSelected.className, nextLevel)
-    const nextThaco = thacoForClassLevel(effectiveSelected.className, nextLevel)
-    setLevelUpApplying(true)
-    if (nextSaveScores) {
-      setSaveScoresByCharacterId((current) => ({
-        ...current,
-        [effectiveSelected.id]: nextSaveScores,
-      }))
-    }
-    if (nextThaco !== null) {
-      setThacoByCharacterId((current) => ({
-        ...current,
-        [effectiveSelected.id]: String(nextThaco),
-      }))
-    }
-    updateSelectedCharacterSystem({
-      level: nextLevel,
-      hpMax: Math.max(0, effectiveSelected.hpMax) + levelUpHpGain,
-      hpCurrent: Math.max(0, effectiveSelected.hpCurrent) + levelUpHpGain,
-    })
-    setLevelUpApplying(false)
-    closeLevelUpModal()
-  }
-
   const updateAbilityScore = (code: AbilityCode, value: string) => {
     if (!effectiveSelected) return
     if (!canEditAbilityScores) return
@@ -1369,9 +1326,7 @@ export function CharacterTab({
             if (effectiveGrantMode) {
               exitGrantModeForCharacterSelection()
             }
-            setLevelUpModalCharacterId(null)
-            setLevelUpHpRoll(null)
-            setLevelUpError(null)
+            resetLevelUpForCharacterSelection()
             setSelectedCharacterId(characterId)
             if (isSinglePane) setPaneView('detail')
           }}

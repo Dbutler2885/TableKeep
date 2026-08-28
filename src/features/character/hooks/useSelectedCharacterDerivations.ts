@@ -43,7 +43,6 @@ type Params = {
   outgoingTransfers: PendingTransfer[]
   goldSpendAmount: string
   storeCategory: StoreCategoryId
-  levelUpHpRoll: number | null
   isInFinalizationFlow: boolean
 }
 
@@ -63,7 +62,6 @@ export function useSelectedCharacterDerivations({
   outgoingTransfers,
   goldSpendAmount,
   storeCategory,
-  levelUpHpRoll,
   isInFinalizationFlow,
 }: Params) {
   const selectedAbilityScores = effectiveSelected
@@ -163,7 +161,6 @@ export function useSelectedCharacterDerivations({
     && selectedNextLevelXp !== null
     && effectiveSelected.xp >= selectedNextLevelXp
   const selectedHitDie = classHitDieByClass[selectedClassName] ?? null
-  const levelUpHpGain = levelUpHpRoll === null ? null : Math.max(1, levelUpHpRoll)
   const levelUpTargetLevel = effectiveSelected ? effectiveSelected.level + 1 : null
   const levelUpNewFeatures = levelUpTargetLevel === null
     ? []
@@ -241,7 +238,6 @@ export function useSelectedCharacterDerivations({
     ...combatStats,
     canSelectedLevelUp,
     selectedHitDie,
-    levelUpHpGain,
     levelUpTargetLevel,
     levelUpNewFeatures,
     levelUpFlavor,
