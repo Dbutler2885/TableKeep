@@ -68,7 +68,6 @@ import {
   toMonsterTokenPlacementSource,
   toNpcTokenPlacementSource,
 } from './lib/tokenPlacementSources'
-import { isPlayerOwnedLivingPartyCharacter } from './lib/partyCharacterEligibility'
 import { GridOverlay } from './components/GridOverlay'
 import { PlayerMapControls } from './components/PlayerMapControls'
 import { TokenLayer } from './components/TokenLayer'
@@ -78,7 +77,6 @@ import { InlineMapStage } from './components/InlineMapStage'
 import { GmMapTopToolPanel } from './components/GmMapTopToolPanel'
 import { GmMapControls } from './components/GmMapControls'
 import { normalizeTokenRotation } from './lib/tokenRotation'
-import { MOBILE_BREAKPOINT } from '../../constants/layout'
 import { useGridTools } from './hooks/useGridTools'
 import { useMapWorkspace } from './hooks/useMapWorkspace'
 import { useMapData } from './hooks/useMapData'
@@ -89,6 +87,8 @@ import { useTokenAnimation } from './hooks/useTokenAnimation'
 import { useTokenDrag } from './hooks/useTokenDrag'
 import { useEncounterTracking } from './hooks/useEncounterTracking'
 import { useTokenAssets } from './hooks/useTokenAssets'
+import { useMapPaneVisibility } from './hooks/useMapPaneVisibility'
+import { useGmCharacterSelection } from './hooks/useGmCharacterSelection'
 
 
 export function MapsTab({
@@ -107,13 +107,7 @@ export function MapsTab({
   const workspaceGroupId = groupId
   const [selectedMapId, setSelectedMapId] = useState('')
   const { phase, runSession, enterRun, exitRun, resetToPreview } = useMapWorkspace()
-  const [isMobile, setIsMobile] = useState<boolean>(() => window.innerWidth <= MOBILE_BREAKPOINT)
-  const [mobileMapView, setMobileMapView] = useState<'list' | 'detail'>('list')
-  const [mobileGmPane, setMobileGmPane] = useState<'map' | 'tokens' | 'characters'>('map')
-  const [mobilePlayerPane, setMobilePlayerPane] = useState<'map' | 'controls' | 'character'>('map')
-  const [playerEmbeddedPane, setPlayerEmbeddedPane] = useState<'map' | 'character'>('map')
-  const [desktopGmPane, setDesktopGmPane] = useState<'map' | 'character'>('map')
-  const [selectedGmCharacterId, setSelectedGmCharacterId] = useState('')
+  const { isMobile, mobileMapView, setMobileMapView, mobileGmPane, setMobileGmPane, mobilePlayerPane, setMobilePlayerPane, playerEmbeddedPane, setPlayerEmbeddedPane, desktopGmPane, setDesktopGmPane, desktopGm, desktopGmRun, previewMode, showListPane, showMapPane, showEmbeddedCharacter, showEmbeddedMap } = useMapPaneVisibility({ role, phase, hasCharacterTab: Boolean(characterTabProps) })
   const [interactionHelpOpen, setInteractionHelpOpen] = useState(false)
   const [activeToolState, dispatchActiveTool] = useReducer(activeToolReducer, initialActiveToolState)
   const [placementQueue, setPlacementQueue] = useState<TokenPlacementQueueState | null>(null)
@@ -153,26 +147,6 @@ export function MapsTab({
   ) => void>(() => { })
   const pendingPlacedTokenNamesRef = useRef<string[]>([])
 
-  useEffect(() => {
-    const updateMobileState = () => {
-      const mobile = window.innerWidth <= MOBILE_BREAKPOINT
-      setIsMobile(mobile)
-      if (!mobile) {
-        setMobileMapView('list')
-        setMobileGmPane('map')
-        setMobilePlayerPane('map')
-      }
-    }
-
-    updateMobileState()
-    window.addEventListener('resize', updateMobileState)
-    return () => window.removeEventListener('resize', updateMobileState)
-  }, [])
-
-  // --- GM map workspace phase (desktop only; mobile keeps its pane navigation) ---
-  const desktopGm = role === 'gm' && !isMobile
-  const desktopGmRun = desktopGm && phase === 'run'
-  const previewMode = desktopGm && phase === 'preview'
   const fogTool = activeToolState.activeTool?.type === 'fog' ? activeToolState.activeTool.tool : null
   const visionTool = activeToolState.activeTool?.type === 'vision'
     ? activeToolState.activeTool.tool === 'hardBlock'
@@ -197,10 +171,6 @@ export function MapsTab({
   // player-facing (read-only); in Map Run the Player View Preview toggle drives it.
   const viewAsPlayer = playerViewPreview || previewMode
 
-  const showListPane = isMobile ? mobileMapView === 'list' : !desktopGmRun
-  const showMapPane = !isMobile || mobileMapView === 'detail'
-  const showEmbeddedCharacter = role !== 'gm' && !!characterTabProps && (isMobile ? mobilePlayerPane === 'character' : playerEmbeddedPane === 'character')
-  const showEmbeddedMap = role === 'gm' || !characterTabProps || (isMobile ? mobilePlayerPane !== 'character' : playerEmbeddedPane === 'map')
   const fogDisplayOpacity = role === 'gm' ? (viewAsPlayer ? 1 : 0.45) : 1
   const visionOverlayOpacity = role === 'gm' && !viewAsPlayer && visionTool ? 0.38 : 0
   const losSeenOverlayOpacity = role === 'gm' && !viewAsPlayer ? 0.75 : 0
@@ -330,50 +300,15 @@ export function MapsTab({
     () => partyPlacementSources.map((source) => source.id),
     [partyPlacementSources],
   )
-  const gmWorkspaceCharacters = useMemo(() => {
-    if (!characterTabProps) return []
-    const eligibleCharacters = characterTabProps.characters.filter((character) =>
-      isPlayerOwnedLivingPartyCharacter(character, gmUserId),
-    )
-    const byId = new Map<string, (typeof eligibleCharacters)[number]>(
-      eligibleCharacters.map((character) => [character.id, character]),
-    )
-    const ordered = gmCharacterOrderIds
-      .map((id) => byId.get(id))
-      .filter((character): character is NonNullable<typeof character> => Boolean(character))
-    const orderedIds = new Set(ordered.map((character) => character.id))
-    const extras = eligibleCharacters
-      .filter((character) => !orderedIds.has(character.id))
-      .sort((a, b) => a.name.localeCompare(b.name))
-    return [...ordered, ...extras]
-  }, [characterTabProps, gmCharacterOrderIds, gmUserId])
-  const selectedGmCharacter = useMemo(
-    () => gmWorkspaceCharacters.find((character) => character.id === selectedGmCharacterId) ?? gmWorkspaceCharacters[0] ?? null,
-    [gmWorkspaceCharacters, selectedGmCharacterId],
-  )
-  const selectedGmCharacterIndex = selectedGmCharacter
-    ? Math.max(0, gmWorkspaceCharacters.findIndex((character) => character.id === selectedGmCharacter.id))
-    : -1
-  const selectedGmCharacterTabProps = selectedGmCharacter && characterTabProps
-    ? {
-      ...characterTabProps,
-      characters: [selectedGmCharacter],
-      selectedCharacterId: selectedGmCharacter.id,
-      selectedCharacter: selectedGmCharacter,
-    }
-    : null
-
-  useEffect(() => {
-    if (gmWorkspaceCharacters.length === 0) {
-      setSelectedGmCharacterId('')
-      if (desktopGmPane === 'character') setDesktopGmPane('map')
-      if (mobileGmPane === 'characters') setMobileGmPane('map')
-      return
-    }
-    if (!gmWorkspaceCharacters.some((character) => character.id === selectedGmCharacterId)) {
-      setSelectedGmCharacterId(gmWorkspaceCharacters[0].id)
-    }
-  }, [desktopGmPane, gmWorkspaceCharacters, mobileGmPane, selectedGmCharacterId])
+  const { setSelectedGmCharacterId, gmWorkspaceCharacters, selectedGmCharacter, selectedGmCharacterIndex, selectedGmCharacterTabProps } = useGmCharacterSelection({
+    characterTabProps,
+    gmUserId,
+    gmCharacterOrderIds,
+    desktopGmPane,
+    setDesktopGmPane,
+    mobileGmPane,
+    setMobileGmPane,
+  })
 
   useEffect(() => {
     const syncLayerSize = (
@@ -908,7 +843,7 @@ export function MapsTab({
     } else {
       setDesktopGmPane('character')
     }
-  }, [characterTabProps, isMobile])
+  }, [characterTabProps, isMobile, setDesktopGmPane, setMobileGmPane, setSelectedGmCharacterId])
 
   const pageGmCharacter = useCallback((direction: -1 | 1) => {
     if (gmWorkspaceCharacters.length === 0) return
