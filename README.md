@@ -112,6 +112,17 @@ The OSE sheet is a real sheet, not a text field with a label.
 Ability scores carry their derived modifiers, saving throws are broken out by category, and the combat block computes AC from armour and DEX and lays THAC0 out against the full descending AC matrix so a player can read a to-hit off it without doing arithmetic.
 Players edit their own character; the GM can edit any of them, and hand one over from the sidebar.
 
+Behind the core sheet is the half of a campaign a table normally keeps on paper and loses by the third session: who is carrying what, who bought what, what got used up, and who handed what to whom.
+
+Inventory is slot-based, and the slots are derived rather than declared - carrying capacity comes off Strength, and equipped gear does not compete with packed gear for space.
+Gold is carried as real coin items at 100 gp to a slot, so money has weight.
+Go over capacity and the overflow does not silently vanish: the newest packed items, and any gold that no longer fits, move to Dropped Items as campaign objects tagged with who dropped them, to be reorganized and granted back rather than quietly deleted.
+The store validates a cart against the character's actual gold before it will sell, and weapon and armour templates know which classes are allowed to use them.
+
+Handing something to another character is a two-sided transfer, not an edit.
+The offer carries a snapshot of the item, and accepting it re-validates that snapshot against the sender's live inventory: if the item has since been sold, changed kind, or dropped in quantity, the transfer fails rather than duplicating it, and it will not push the receiver past their carrying capacity.
+Buying, selling, transcribing a spell and re-rolling an ability all reach the GM as approval requests, so the economy has exactly one referee.
+
 ## Features
 
 **Two game systems.** *Old-School Essentials* is the deep one: structured sheets, inventory with weapons/armour/ammunition/consumables/gear, a store and shopping flow, arcane and divine spellbooks, thief skills, a monster catalog, treasure-type generation with magic-item tables, and the OSE SRD link.
@@ -121,7 +132,7 @@ There is no items, store or treasure machinery on the VtM side, and the full rul
 Each campaign picks a system, and the tab set follows.
 
 **GM approval flow.** Players do not silently mutate the world.
-Adding or selling an item, transcribing a spell, or re-rolling an ability raises a request the GM approves or rejects, and item transfers between characters are handshaked on both sides with live notifications.
+Item, spell and re-roll requests land in a GM queue with live notifications, and character-to-character transfers are handshaked on both sides.
 
 **Live everything else.** Groups with email invites, per-campaign settings including which tabs are enabled, reusable random tables with entity pickers, a shared rich-text notes surface, an in-campaign calendar, session summaries with an importer, detail view and a cliffhanger highlight modal, and basic encounter tracking.
 
