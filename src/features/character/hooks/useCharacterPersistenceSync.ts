@@ -8,11 +8,11 @@ import type {
   CharacterSheetDetails,
   CharacterStoreCartEntry as StoreCartEntry,
   CharacterInventoryItem,
-} from '../../types/app'
-import type { AbilityScores, SaveScores, AdventureScores, ThiefSkillScores } from './characterRules'
-import { emptyAbilityScores } from './characterRules'
-import { stableStringify, ensureSpellBookInInventory } from './characterFactories'
-import { inventoryFromDetails, shouldAdoptIncomingInventory } from './inventorySync'
+} from '../../../types/app'
+import type { AbilityScores, SaveScores, AdventureScores, ThiefSkillScores } from '../characterRules'
+import { emptyAbilityScores } from '../characterRules'
+import { stableStringify, ensureSpellBookInInventory } from '../characterFactories'
+import { inventoryFromDetails, shouldAdoptIncomingInventory } from '../inventorySync'
 
 type Setter<T> = Dispatch<SetStateAction<T>>
 

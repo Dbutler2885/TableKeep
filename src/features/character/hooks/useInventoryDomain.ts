@@ -1,10 +1,10 @@
 import { serverTimestamp, setDoc } from 'firebase/firestore'
 import type { Dispatch, SetStateAction } from 'react'
-import { inventoryItemToCampaignItem } from '../items/itemConversion'
-import { toFirestoreItem } from '../items/useItems'
-import { DEFAULT_STACK_POLICY } from '../items/itemDefaults'
-import { db } from '../../firebase'
-import { campaignDocRef } from '../campaign/firestorePaths'
+import { inventoryItemToCampaignItem } from '../../items/itemConversion'
+import { toFirestoreItem } from '../../items/useItems'
+import { DEFAULT_STACK_POLICY } from '../../items/itemDefaults'
+import { db } from '../../../firebase'
+import { campaignDocRef } from '../../campaign/firestorePaths'
 import type {
   CharacterRecord,
   CharacterInventoryItem,
@@ -14,17 +14,17 @@ import type {
   CharacterGeneralItem,
   CharacterConsumableItem,
   CharacterAmmunitionItem,
-} from '../../types/app'
+} from '../../../types/app'
 import {
   normalizeGoldAmount,
   goldChunksForAmount,
   makeGoldItem,
   computeOverflow,
   writeDroppedOverflow,
-} from './inventoryOverflow'
-import { applyWeaponTemplateToItem, applyArmourTemplateToItem, resolveArmourType, isArmourTemplateAllowedForClass, isWeaponTemplateAllowedForClass } from './inventoryRules'
-import { makeArmourItem, makeId, makeWeaponItem } from './characterFactories'
-import { ammoCatalogById } from './ammoCatalog'
+} from '../inventoryOverflow'
+import { applyWeaponTemplateToItem, applyArmourTemplateToItem, resolveArmourType, isArmourTemplateAllowedForClass, isWeaponTemplateAllowedForClass } from '../inventoryRules'
+import { makeArmourItem, makeId, makeWeaponItem } from '../characterFactories'
+import { ammoCatalogById } from '../ammoCatalog'
 
 // Which weapon typeIds can fire which ammo typeIds
 export const AMMO_WEAPON_MAP: Record<string, string[]> = {
@@ -33,8 +33,8 @@ export const AMMO_WEAPON_MAP: Record<string, string[]> = {
   'ammo-bolts': ['crossbow'],
   'ammo-sling-stones': ['sling'],
 }
-import { consumableCatalogById } from './consumableCatalog'
-import { OSE_GENERAL_CATALOG, generalCatalogById } from './generalCatalog'
+import { consumableCatalogById } from '../consumableCatalog'
+import { OSE_GENERAL_CATALOG, generalCatalogById } from '../generalCatalog'
 
 export type AddItemModalState = {
   equipped: boolean

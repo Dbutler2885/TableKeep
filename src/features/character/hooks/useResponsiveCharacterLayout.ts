@@ -4,8 +4,8 @@ import {
   CHARACTER_MOBILE_INTERMEDIATE_MIN_WIDTH,
   CHARACTER_MOBILE_PORTRAIT_INTERMEDIATE_MIN_WIDTH,
   MOBILE_BREAKPOINT,
-} from '../../constants/layout'
-import { isSinglePaneWidth, paneViewAfterResize, type CharacterPaneView } from './characterPaneLayout'
+} from '../../../constants/layout'
+import { isSinglePaneWidth, paneViewAfterResize, type CharacterPaneView } from '../characterPaneLayout'
 
 type ResponsiveCharacterLayoutOptions = {
   /**

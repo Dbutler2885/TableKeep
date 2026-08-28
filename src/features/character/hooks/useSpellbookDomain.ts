@@ -8,7 +8,7 @@ import type {
   CharacterSpell,
   CharacterInventoryItem,
   CharacterGeneralItem,
-} from '../../types/app'
+} from '../../../types/app'
 import {
   SPELL_BOOK_TYPE_ID,
   arcaneSpellById,
@@ -17,8 +17,8 @@ import {
   getCappedArcaneSpellsPerDay,
   getDivineSpellsPerDay,
   divineSpellById,
-} from './spellCatalog'
-import { ensureSpellBookInInventory, isArcaneSpellbookClass } from './characterFactories'
+} from '../spellCatalog'
+import { ensureSpellBookInInventory, isArcaneSpellbookClass } from '../characterFactories'
 
 type Params = {
   effectiveSelected: CharacterRecord | null

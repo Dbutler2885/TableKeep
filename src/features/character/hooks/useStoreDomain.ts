@@ -3,10 +3,10 @@ import type {
   CharacterRecord,
   CharacterInventoryItem,
   CharacterStoreCartEntry as StoreCartEntry,
-} from '../../types/app'
-import type { StoreItem } from './storeCatalog'
-import { isArmourTemplateAllowedForClass, isWeaponTemplateAllowedForClass } from './inventoryRules'
-import { materializeCartEntries, validateStorePurchase } from './storeRules'
+} from '../../../types/app'
+import type { StoreItem } from '../storeCatalog'
+import { isArmourTemplateAllowedForClass, isWeaponTemplateAllowedForClass } from '../inventoryRules'
+import { materializeCartEntries, validateStorePurchase } from '../storeRules'
 
 type Params = {
   effectiveSelected: CharacterRecord | null

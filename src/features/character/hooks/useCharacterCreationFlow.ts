@@ -7,8 +7,8 @@ import type {
   CharacterRecord,
   CharacterInventoryItem,
   CharacterWeaponItem,
-} from '../../types/app'
-import type { AbilityCode, AbilityScores, SaveScores, AdventureScores, ThiefSkillScores } from './characterRules'
+} from '../../../types/app'
+import type { AbilityCode, AbilityScores, SaveScores, AdventureScores, ThiefSkillScores } from '../characterRules'
 import {
   classHitDieByClass,
   adventureDefaultsByClass,
@@ -17,7 +17,7 @@ import {
   loweringCandidateCodes,
   saveScoresForClassLevel,
   thacoForClassLevel,
-} from './characterRules'
+} from '../characterRules'
 
 type Params = {
   effectiveSelected: CharacterRecord | null
