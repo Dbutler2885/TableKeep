@@ -73,9 +73,15 @@ The player UI is built for a phone at the table; the GM UI is built for a laptop
 
 ### Maps, fog, and tokens
 
-[![The GM's map view, with the full tool rail across the top and a scene NPC's portrait and notes in the sidebar](.github/media/table-keep-map-controls-poster.webp)](.github/media/table-keep-map-controls.mp4)
+[![The GM's map view: the full tool rail across the top, a village half-hidden under fog, and a token labelled The Clumsy Fox on the revealed ground](.github/media/table-keep-map-tools-poster.webp)](.github/media/table-keep-map-tools.mp4)
 
-**[▶ Watch the map tools, 72 seconds](.github/media/table-keep-map-controls.mp4)** - the full GM rail (brush size, fog, vision blocking, measurement, player view, annotation, grid), placing and renaming a token, adding a scene NPC, and dropping in Eric the Town Reeve, whose portrait and notes fill the sidebar while his name renders under his token on the board.
+**[▶ The map tools, 33 seconds](.github/media/table-keep-map-tools.mp4)** - the whole GM rail in one pass: brush size, fog, vision blocking, measurement, player view, selection and pan, annotation, grid.
+Then a token is placed on the map and labelled *The Clumsy Fox*, and the label renders on the board where the table will read it.
+
+[![Eric the Town Reeve placed on the map, his portrait and GM notes filling the right sidebar, his name rendered under his token](.github/media/table-keep-scene-npcs-poster.webp)](.github/media/table-keep-scene-npcs.mp4)
+
+**[▶ Scene NPCs, 39 seconds](.github/media/table-keep-scene-npcs.mp4)** - attaching NPCs from the campaign roster to a map, then placing Eric the Town Reeve.
+His portrait and notes fill the sidebar the moment he is selected, so the GM has what Eric wants and what he will pay for it in front of them without leaving the map.
 
 Fog is the feature the rest of the map tooling exists to serve.
 The GM paints reveals with a sizeable brush, blocks line of sight with vision walls, and can flip to player view at any time to check exactly what the table can see.
