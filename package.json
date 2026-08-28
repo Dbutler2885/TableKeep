@@ -22,6 +22,11 @@
     "emulators": "firebase emulators:start",
     "emulators:import": "firebase emulators:start --import ./emulator-data --export-on-exit",
     "emulators:export": "firebase emulators:export ./emulator-data",
+    "demo": "node scripts/demo/run.mjs --mode=visitor",
+    "demo:author": "node scripts/demo/run.mjs --mode=author",
+    "demo:save": "firebase emulators:export ./emulator-data --force",
+    "demo:seed": "node scripts/demo/seed-accounts.mjs",
+    "demo:size": "node scripts/demo/check-snapshot-size.mjs",
     "deploy:hosting": "firebase deploy --only hosting",
     "deploy:functions": "firebase deploy --only functions"
   },
