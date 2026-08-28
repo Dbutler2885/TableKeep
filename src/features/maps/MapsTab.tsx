@@ -15,7 +15,6 @@ import {
   Minus,
   Pencil,
   Plus,
-  SlidersHorizontal,
   Trash2,
   TvMinimalPlay,
   Upload,
@@ -76,6 +75,7 @@ import { MapDrawingEditor, type BlankMapSceneResult } from './components/MapDraw
 import { InlineMapStage } from './components/InlineMapStage'
 import { GmMapTopToolPanel } from './components/GmMapTopToolPanel'
 import { GmMapControls } from './components/GmMapControls'
+import { MobilePaneNav } from './components/MobilePaneNav'
 import { normalizeTokenRotation } from './lib/tokenRotation'
 import { useGridTools } from './hooks/useGridTools'
 import { useMapWorkspace } from './hooks/useMapWorkspace'
@@ -2201,17 +2201,7 @@ export function MapsTab({
               </aside>
             ) : null}
 
-            {role !== 'gm' && !isMobile ? (
-              <aside className="map-controls">
-                <PlayerMapControls
-                  cameraLock={cameraLock}
-                  onToggleCameraLock={toggleCameraLock}
-                  presentedNpc={presentedNpc}
-                />
-              </aside>
-            ) : null}
-
-            {role !== 'gm' && isMobile && mobilePlayerPane === 'controls' ? (
+            {role !== 'gm' && (!isMobile || mobilePlayerPane === 'controls') ? (
               <aside className="map-controls">
                 <PlayerMapControls
                   cameraLock={cameraLock}
@@ -2236,92 +2226,23 @@ export function MapsTab({
 
           {isMobile && role === 'gm' && mobileGmPane === 'characters' ? renderMobileGmCharacterPane() : null}
 
-          {isMobile && role !== 'gm' ? (
-            <div className="map-mobile-panel-nav">
-              <button
-                type="button"
-                onClick={() => setMobileMapView('list')}
-                aria-label="Back to map list"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                type="button"
-                className={mobilePlayerPane === 'map' ? 'active' : ''}
-                onClick={() => setMobilePlayerPane('map')}
-                disabled={mobilePlayerPane === 'map'}
-                aria-label="Map pane"
-              >
-                <MapIcon size={16} />
-              </button>
-              <button
-                type="button"
-                className={mobilePlayerPane === 'controls' ? 'active' : ''}
-                onClick={() => setMobilePlayerPane('controls')}
-                disabled={mobilePlayerPane === 'controls'}
-                aria-label="Controls pane"
-              >
-                <SlidersHorizontal size={16} />
-              </button>
-              {characterTabProps ? (
-                <button
-                  type="button"
-                  className={mobilePlayerPane === 'character' ? 'active' : ''}
-                  onClick={() => setMobilePlayerPane('character')}
-                  disabled={mobilePlayerPane === 'character'}
-                  aria-label="Character pane"
-                >
-                  <ScrollText size={16} />
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-
-          {isMobile && role === 'gm' ? (
-            <div className="map-mobile-panel-nav">
-              <button
-                type="button"
-                onClick={() => setMobileMapView('list')}
-                aria-label="Back to map list"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <button
-                type="button"
-                className={mobileGmPane === 'map' ? 'active' : ''}
-                onClick={() => setMobileGmPane('map')}
-                disabled={mobileGmPane === 'map'}
-                aria-label="Map pane"
-              >
-                <MapIcon size={16} />
-              </button>
-              <button
-                type="button"
-                className={mobileGmPane === 'tokens' ? 'active' : ''}
-                onClick={() => setMobileGmPane('tokens')}
-                disabled={mobileGmPane === 'tokens'}
-                aria-label="Token panel"
-              >
-                <ChessPawn size={16} />
-              </button>
-              {characterTabProps ? (
-                <button
-                  type="button"
-                  className={mobileGmPane === 'characters' ? 'active' : ''}
-                  onClick={() => {
-                    if (!selectedGmCharacter && gmWorkspaceCharacters[0]) {
-                      openGmCharacterSheet(gmWorkspaceCharacters[0].id)
-                      return
-                    }
-                    setMobileGmPane('characters')
-                  }}
-                  disabled={mobileGmPane === 'characters'}
-                  aria-label="Character sheets"
-                >
-                  <ScrollText size={16} />
-                </button>
-              ) : null}
-            </div>
+          {isMobile ? (
+            <MobilePaneNav
+              role={role === 'gm' ? 'gm' : 'player'}
+              playerPane={mobilePlayerPane}
+              onPlayerPaneChange={setMobilePlayerPane}
+              gmPane={mobileGmPane}
+              onGmPaneChange={setMobileGmPane}
+              hasCharacters={Boolean(characterTabProps)}
+              onBackToList={() => setMobileMapView('list')}
+              onOpenGmCharacters={() => {
+                if (!selectedGmCharacter && gmWorkspaceCharacters[0]) {
+                  openGmCharacterSheet(gmWorkspaceCharacters[0].id)
+                  return
+                }
+                setMobileGmPane('characters')
+              }}
+            />
           ) : null}
         </div>
       ) : null}
