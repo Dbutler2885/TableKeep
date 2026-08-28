@@ -53,7 +53,7 @@ export function StoreModal({ state, actions }: Props) {
               <X size={14} />
             </button>
           </div>
-    
+
           <div className="store-wallet">
             {hasRolledStartingGold ? (
               <>
@@ -67,7 +67,7 @@ export function StoreModal({ state, actions }: Props) {
               </button>
             )}
           </div>
-    
+
           <div className="store-modal-body">
             <div className="store-catalog">
               <div className="store-category-tabs">
@@ -82,7 +82,7 @@ export function StoreModal({ state, actions }: Props) {
                   </button>
                 ))}
               </div>
-    
+
               <div className="store-catalog-content">
                 {storeCategory === 'other' ? (
                   <div className="store-custom-panel">
@@ -157,7 +157,7 @@ export function StoreModal({ state, actions }: Props) {
                 )}
               </div>
             </div>
-    
+
             <aside className="store-tally store-cart">
               <div className="store-tally-head">
                 <h4>Cart / Purchases</h4>
@@ -202,7 +202,7 @@ export function StoreModal({ state, actions }: Props) {
               ) : null}
             </aside>
           </div>
-    
+
           {storeError ? <p className="error">{storeError}</p> : null}
         </div>
       </div>

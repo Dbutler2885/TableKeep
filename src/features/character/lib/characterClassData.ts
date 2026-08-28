@@ -246,4 +246,3 @@ export const unlockedClassFeaturesForClass = (className: string, level: number):
   (classFeaturesByClass[className] ?? [])
     .filter((feature) => level >= feature.unlockedAt)
     .sort((a, b) => a.unlockedAt - b.unlockedAt)
-

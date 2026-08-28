@@ -7,6 +7,7 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
 import { claimUsername, isClaimUsernameError } from './claimUsername'
+import { emulatorPort } from '../../../vitest.emulatorEndpoint'
 
 const projectId = 'homeboyshouse-claim-username-tests'
 const userUid = 'user-1'
@@ -21,7 +22,7 @@ describe('claimUsername on Firestore emulator', () => {
       projectId,
       firestore: {
         host: '127.0.0.1',
-        port: 8080,
+        port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
         rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
       },
     })

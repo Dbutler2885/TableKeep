@@ -70,7 +70,7 @@ export function GrantToolsPanel({ tools, characters: sortedCharacters, isMobile 
                 />
               </label>
             </section>
-    
+
             <section className="monster-section-block">
               <h3 className="monster-section-title">Grant Items</h3>
               <div className="character-sheet-two-col">
@@ -98,7 +98,7 @@ export function GrantToolsPanel({ tools, characters: sortedCharacters, isMobile 
                   Add Campaign Item
                 </button>
               </div>
-    
+
               <div className="character-sheet-two-col">
                 <label className="character-header-field">
                   <span className="character-header-tag">OSE Templates</span>
@@ -120,7 +120,7 @@ export function GrantToolsPanel({ tools, characters: sortedCharacters, isMobile 
                   Add Template
                 </button>
               </div>
-    
+
               {(grantCampaignEntries.length > 0 || grantTemplateEntries.length > 0) ? (
                 <div className="character-sheet-rows">
                   {grantCampaignEntries.map((entry) => (
@@ -193,7 +193,7 @@ export function GrantToolsPanel({ tools, characters: sortedCharacters, isMobile 
                 </div>
               ) : <p className="character-enc-help">No grant items selected yet.</p>}
             </section>
-    
+
             {isMobile ? (
               <section className="monster-section-block">
                 <div className="section-head">
@@ -236,7 +236,7 @@ export function GrantToolsPanel({ tools, characters: sortedCharacters, isMobile 
               </section>
             ) : null}
           </div>
-    
+
           <div className="character-sheet-right">
             <section className="monster-section-block">
               <div className="section-head">

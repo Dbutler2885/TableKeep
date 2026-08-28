@@ -25,6 +25,7 @@ import type {
 import { makeDroppedGoldCampaignItem } from '../inventoryOverflow'
 import { amountForTarget } from './grantPlanning'
 import { applyGrantToCharacter, type ApplyGrantToCharacterParams } from './grantTransaction'
+import { emulatorPort } from '../../../../vitest.emulatorEndpoint'
 
 const projectId = 'homeboyshouse-grant-tools-tests'
 const groupId = 'grant-group'
@@ -87,7 +88,7 @@ describe('grant transaction on Firestore emulator', () => {
       projectId,
       firestore: {
         host: '127.0.0.1',
-        port: 8080,
+        port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
         rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
       },
     })
