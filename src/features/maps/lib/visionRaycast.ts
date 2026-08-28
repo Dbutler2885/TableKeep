@@ -31,6 +31,13 @@ export const pixelBufferHasBlockers = (data: Uint8ClampedArray) => {
   return false
 }
 
+export const shouldProcessSurfaceReveal = ({ hitCount, now, lastRevealAt, intervalMs }: {
+  hitCount: number
+  now: number
+  lastRevealAt: number
+  intervalMs: number
+}) => hitCount > 0 && now - lastRevealAt >= intervalMs
+
 export const rayCountForRadius = (radius: number) => (
   Math.max(220, Math.min(1800, Math.round(radius * 5.4)))
 )

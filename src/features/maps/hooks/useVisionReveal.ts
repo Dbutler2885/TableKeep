@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import type { CanvasClipRect, MapRecord } from '../lib/types'
 import { floodFillSurfaceRegion } from '../lib/visionBlockers'
-import { marchRays, pixelBufferHasBlockers, visionBlockerCacheKey, visitRevealStroke } from '../lib/visionRaycast'
+import { marchRays, pixelBufferHasBlockers, shouldProcessSurfaceReveal, visionBlockerCacheKey, visitRevealStroke } from '../lib/visionRaycast'
 
 const SURFACE_REVEAL_INTERVAL_MS = 150
 
@@ -85,7 +85,7 @@ export function useVisionReveal({ selectedMap, markFogLocalEdit, stampFog }: {
     fogCtx.drawImage(maskCanvas, clippedMinX, clippedMinY)
     fogCtx.restore()
     const now = Date.now()
-    if (surfaceHitPoints.length === 0 || now - lastSurfaceRevealAtRef.current < SURFACE_REVEAL_INTERVAL_MS) return
+    if (!shouldProcessSurfaceReveal({ hitCount: surfaceHitPoints.length, now, lastRevealAt: lastSurfaceRevealAtRef.current, intervalMs: SURFACE_REVEAL_INTERVAL_MS })) return
     lastSurfaceRevealAtRef.current = now
     let surfaceMaskCanvas = blockerCompositeCanvasRef.current
     if (!surfaceMaskCanvas) surfaceMaskCanvas = blockerCompositeCanvasRef.current = document.createElement('canvas')

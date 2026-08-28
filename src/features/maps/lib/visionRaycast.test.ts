@@ -3,6 +3,7 @@ import {
   marchRays,
   pixelBufferHasBlockers,
   rayCountForRadius,
+  shouldProcessSurfaceReveal,
   visionBlockerCacheKey,
   visionSourceSignature,
   visitRevealStroke,
@@ -115,6 +116,14 @@ describe('vision cache characterization', () => {
   it('uses alpha greater than 20 for whole-buffer blocker detection', () => {
     expect(pixelBufferHasBlockers(buffer(1, 1, () => [0, 0, 255, 20]))).toBe(false)
     expect(pixelBufferHasBlockers(buffer(1, 1, () => [0, 0, 255, 21]))).toBe(true)
+  })
+})
+
+describe('surface reveal throttle', () => {
+  it('requires a hit and permits the exact interval boundary', () => {
+    expect(shouldProcessSurfaceReveal({ hitCount: 0, now: 1000, lastRevealAt: 0, intervalMs: 150 })).toBe(false)
+    expect(shouldProcessSurfaceReveal({ hitCount: 1, now: 149, lastRevealAt: 0, intervalMs: 150 })).toBe(false)
+    expect(shouldProcessSurfaceReveal({ hitCount: 1, now: 150, lastRevealAt: 0, intervalMs: 150 })).toBe(true)
   })
 })
 
