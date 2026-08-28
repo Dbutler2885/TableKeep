@@ -119,13 +119,19 @@ export function usePendingTransfers(
   }
 
   const acceptTransfer = async (transferId: string) => {
-    if (!campaignId) throw new Error('Campaign not ready')
-    const callable = httpsCallable<{ campaignId: string; transferId: string }, { ok: boolean }>(
+    if (!campaignId || !groupId) throw new Error('Campaign not ready')
+    // The callable resolves every document under `groups/{groupId}/campaigns/
+    // {campaignId}`, the same scope the transfer was written to above, so it
+    // needs the group id that only the client knows.
+    const callable = httpsCallable<
+      { groupId: string; campaignId: string; transferId: string },
+      { ok: boolean }
+    >(
       functions,
       'acceptPendingTransfer',
     )
     try {
-      await callable({ campaignId, transferId })
+      await callable({ groupId, campaignId, transferId })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to accept transfer.'
       throw new Error(message)
