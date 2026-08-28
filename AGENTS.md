@@ -159,6 +159,33 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
   The budget is 25 MB total and 1 MB per file, enforced by `npm run demo:size` (`scripts/demo/check-snapshot-size.mjs`); run it before committing a re-export.
   Shrink source images before uploading them in the app rather than trimming the snapshot afterwards.
   A large PNG that lands in one commit is permanent weight even if a later commit removes it.
+- **The committed snapshot carries one deliberate budget violation.**
+  `storage_export/blobs/ad3d2399-6f09-444e-9feb-e4d64f040e01` is the 3.9 MB PNG behind the "Wyrm Cave" map, four times the 1 MB per-file ceiling, so `npm run demo:size` reports "over budget: 1 file(s)" and exits non-zero on a clean checkout.
+  That is the accepted state, not a regression: the total is 10.5 MB against the 25 MB budget, and no CI job runs `demo:size`, so nothing is gated on it.
+  Read the command's total-versus-budget line rather than its exit code, and only act on a *new* name appearing in the over-budget list.
+- **The snapshot carries the whole party, not just the GM.**
+  `groups/w5sFUCEDhNNxsR0wxD5z/members` holds five documents: `demo-gm-uid` as `admin`, and the four player uids as ordinary active `member`s.
+  Each of the four characters carries a different player's uid in `ownerUserId`, and the Player seat (`demo-player-uid`) owns Mirelda Crow, the fullest sheet.
+  That split is load-bearing rather than decorative: `useCharacters` hides every GM-owned character from a player (`all.filter((character) => character.ownerUserId !== gmUserId)`), so a snapshot where the GM owned the party left the Player seat on an empty list.
+- **Membership in the snapshot was authored through the app's own join path.**
+  Each player holds a real `inviteCodes/{token}` document created by the GM and redeemed by that player, and their member document carries the `invitedVia` token, exactly as `redeemInvite` in `src/features/invites/useInvites.ts` writes it.
+  That is deliberate: `firestore.rules` only lets a non-admin create their own member document when `invitedVia` names a live invite for the same group, so hand-writing a member document without one is a shape the app can never produce.
+  Re-author membership by signing in as the real account through the client SDK and letting the rules validate the write, not by patching documents in with the emulator's `Bearer owner` admin surface.
+- **The campaign is "The Black Wyrm of Brandonsford"** (`groups/w5sFUCEDhNNxsR0wxD5z/campaigns/PYvHDtNvgyD3nWFVHIxU`, system `ose`): 4 characters with portraits, 4 maps, 5 NPCs and 2 items, backed by 135 Storage objects.
+  There are no session summaries, shared notes, monsters or table rolls in it.
+  The maps account for 125 of those objects, because each fog-of-war and vision reveal is stored as its own PNG under `maps/{mapId}/fog/` and `maps/{mapId}/vision/` - 44 and 77 respectively.
+  Painting more fog in author mode therefore grows the snapshot a file at a time, and every one of those files is permanent in git history.
+- **Every map in the snapshot is un-presented (`visibleToPlayers: false`).**
+  `storage.rules` gates map art on that flag, so a player is denied the map images until the GM presents a map in the app, while character portraits are readable by the whole group.
+  A player being unable to fetch a map image is the correct outcome for this snapshot, not a membership bug.
+- **The Storage emulator renames every blob on export.**
+  A re-export rewrites all 135 files under `storage_export/` with fresh uuids even when their bytes are unchanged, which puts a second ~10 MB copy of the art into git history for a change that touched only Firestore.
+  When an authoring pass leaves Storage alone, restore the committed export over the fresh one (`rm -rf emulator-data/storage_export && git checkout HEAD -- emulator-data/storage_export`) so the commit carries only the `firestore_export` and `auth_export` diff.
+  The two directories are independent - `storage_export/` has its own `buckets.json` and `metadata/`, and `firebase-export-metadata.json` names the directories, not the blobs - so mixing an old Storage export with a new Firestore one is safe.
+- **Emulator ports are declared twice and are not derived from each other.**
+  `firebase.json` decides where the emulators listen, and `src/firebase/index.ts` hardcodes 9099 / 8080 / 9199 / 5001 for the client to connect to.
+  Editing `firebase.json` alone relocates the emulators and leaves the app talking to the old ports, which looks like an empty database in the browser while the REST API shows the data is loaded fine.
+  Two demos cannot run side by side on one machine without changing both; `DEMO_APP_PORT` moves only the Vite server.
 
 ## Component tests
 
