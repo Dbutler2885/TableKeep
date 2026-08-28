@@ -52,9 +52,12 @@ Stop the demo with `Ctrl+C`.
 
 ## What it is
 
-Table Keep is not a virtual tabletop.
-The game happens at a table or on voice; the app is not where you play, it is where the campaign is kept.
-It is the thing your group forgets between sessions: what the reeve's name was, what he wanted, which alley you have actually walked down, and what your thief is carrying.
+The group plays remotely, over Discord.
+Discord carries the voice and the dice; Table Keep is what they have open alongside it.
+It does not try to be the whole table, because Discord already is - which is why there is no OSE dice roller.
+
+And it closes the loop.
+The same Discord call that carries the session is what gets recorded, transcribed, and turned into the recaps and NPC notes waiting in the app afterwards.
 
 What exists today is three things.
 A place to watch maps update live as pieces move across them.
@@ -72,7 +75,7 @@ It is organized around **groups** and **campaigns**:
 
 Everything lives in Firestore and Firebase Storage under `groups/{groupId}/campaigns/{campaignId}/...`, and everything reads through Firestore listeners.
 When the GM erases a patch of fog, moves a token, or publishes an NPC, it is on the players' screens before they look up.
-The player UI is built for a phone at the table; the GM UI is built for a laptop next to the screen.
+The player UI is mobile-friendly with drawer navigation; the GM UI is desktop-oriented with a left sidebar.
 
 ## A guided tour
 
