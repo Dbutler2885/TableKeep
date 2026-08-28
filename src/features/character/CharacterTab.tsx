@@ -1,13 +1,9 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Check, ChevronLeft, ShoppingBag, Sparkles, Star, X } from 'lucide-react'
-import { runTransaction, serverTimestamp } from 'firebase/firestore'
-import { db } from '../../firebase'
 import type {
-  CampaignItem,
   CharacterRecord,
   CharacterSpell,
-  CharacterSheetDetails,
   CharacterInventoryItem,
   CharacterWeaponItem,
   CharacterArmourItem,
@@ -17,10 +13,8 @@ import type {
   CharacterGeneralItem,
   TransferableInventoryItem,
 } from '../../types/app'
-import { campaignItemToInventoryItem } from '../items/itemConversion'
-import { toFirestoreItem, useItems } from '../items/useItems'
+import { useItems } from '../items/useItems'
 import { useItemApprovals } from './hooks/useItemApprovals'
-import { campaignDocRef } from '../campaign/firestorePaths'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { OSE_WEAPON_CATALOG, weaponCatalogById } from './weaponCatalog'
@@ -38,7 +32,6 @@ import {
 import type { StoreCategoryId } from './storeCatalog'
 import {
   type AbilityCode,
-  type AbilityScores,
   emptyAbilityScores,
   loweringCandidateCodes,
   adventureDefaultsByClass,
@@ -57,7 +50,7 @@ import {
   parseArmourTemplateValues,
   armourTypeFromTemplateId,
 } from './inventoryRules'
-import { computeAvailablePackedSlots, computeOverflow, goldChunksForAmount, makeDroppedGoldCampaignItem, makeGoldItem } from './inventoryOverflow'
+import { computeAvailablePackedSlots } from './inventoryOverflow'
 import { usePendingTransfers } from '../transfers/usePendingTransfers'
 import { useResponsiveCharacterLayout } from './hooks/useResponsiveCharacterLayout'
 import { useCharacterPersistenceSync } from './hooks/useCharacterPersistenceSync'
@@ -72,8 +65,9 @@ import { useCharacterTransfer } from './hooks/useCharacterTransfer'
 import { usePlayerAssignment } from './hooks/usePlayerAssignment'
 import { useCharacterMedia } from './hooks/useCharacterMedia'
 import { useCharacterRoster } from './hooks/useCharacterRoster'
+import { useGrantTools } from './hooks/useGrantTools'
 import { CharacterListPane } from './components/CharacterListPane'
-import { computeGrantedXp, nextLevelXpFor, primeRequisiteXpBonusPercent, projectCharacterProgress } from './xpProgression'
+import { nextLevelXpFor, primeRequisiteXpBonusPercent } from './xpProgression'
 import { BlurSyncedTextarea } from './components/BlurSyncedTextarea'
 import { CharacterPackedItemsSection } from './components/CharacterPackedItemsSection'
 import { CharacterThiefSkillsSection } from './components/CharacterThiefSkillsSection'
@@ -107,18 +101,17 @@ import {
   weaponStatsLabel,
   weaponTypeLabel,
 } from './lib/inventoryItemLabels'
-import { amountForTarget, makeInventoryItemFromTemplateEntry } from './lib/grantPlanning'
 import { canDeleteCharacterForRole, deriveCharacterPermissions } from './lib/characterPermissions'
 import { deriveCombatStats, deriveMovement, deriveThiefExpertise } from './lib/characterDerivedStats'
 import {
   applyPlayerAddTemplate as applyPlayerAddTemplateState,
   playerAddPreviewItem,
 } from './lib/playerAddGear'
+import { amountForTarget } from './lib/grantPlanning'
 import type {
   AdventureEditableCode,
   CharacterTabProps,
   ClassFeature,
-  GrantTemplateEntry,
 } from './lib/characterTabTypes'
 
 
@@ -237,18 +230,6 @@ export function CharacterTab({
     showListPane, showDetailPane,
     isIntermediateMobileLayout, useIntermediateLayout,
   } = useResponsiveCharacterLayout({ hasOpenDetail: !!selectedCharacterId || effectiveGrantMode })
-  const [grantTargetIds, setGrantTargetIds] = useState<Record<string, boolean>>({})
-  const [grantXpBase, setGrantXpBase] = useState('')
-  const [grantXpSplitBetweenTargets, setGrantXpSplitBetweenTargets] = useState(false)
-  const [grantGoldGp, setGrantGoldGp] = useState('')
-  const [grantGoldSplitBetweenTargets, setGrantGoldSplitBetweenTargets] = useState(false)
-  const [grantNote, setGrantNote] = useState('')
-  const [grantCampaignItemId, setGrantCampaignItemId] = useState('')
-  const [grantCampaignEntries, setGrantCampaignEntries] = useState<Array<{ itemId: string; name: string; qty: number }>>([])
-  const [grantTemplateItemId, setGrantTemplateItemId] = useState('')
-  const [grantTemplateEntries, setGrantTemplateEntries] = useState<GrantTemplateEntry[]>([])
-  const [grantBusy, setGrantBusy] = useState(false)
-  const [grantFeedback, setGrantFeedback] = useState<string | null>(null)
   const [levelUpModalCharacterId, setLevelUpModalCharacterId] = useState<string | null>(null)
   const [levelUpHpRoll, setLevelUpHpRoll] = useState<number | null>(null)
   const [levelUpApplying, setLevelUpApplying] = useState(false)
@@ -306,23 +287,6 @@ export function CharacterTab({
       return a.name.localeCompare(b.name)
     })
   }, [visibleCharacters, gmUserId])
-  const authoredCampaignItems = useMemo(
-    () => campaignItems.filter((item) => item.status === 'authored'),
-    [campaignItems],
-  )
-  const grantTemplateSelectable = useMemo(
-    () => OSE_STORE_ITEMS.filter((item) =>
-      item.kind === 'general' || item.kind === 'weapon' || item.kind === 'armour' || item.kind === 'ammunition' || item.kind === 'consumable',
-    ),
-    [],
-  )
-  const selectedGrantTargetIds = useMemo(
-    () => sortedCharacters.filter((c) => grantTargetIds[c.id]).map((c) => c.id),
-    [sortedCharacters, grantTargetIds],
-  )
-  const parsedGrantBaseXp = Math.max(0, Number.parseInt(grantXpBase, 10) || 0)
-  const parsedGrantGoldGp = Math.max(0, Number.parseInt(grantGoldGp, 10) || 0)
-
   const effectiveSelected = embeddedMode
     ? (sortedCharacters[0] ?? null)
     : selectedCharacter ?? sortedCharacters.find((character) => character.id === selectedCharacterId) ?? null
@@ -336,6 +300,33 @@ export function CharacterTab({
   }, [effectiveSelected, embeddedMode, setSelectedCharacterId, sortedCharacters])
   const permissions = deriveCharacterPermissions({ role, currentUserId, character: effectiveSelected, grantMode: effectiveGrantMode })
   const { canCreateCharacter, canEditSelected, canEditInventoryDetails, canGrant, canSetCurrentCharacter, canAssignCharacter } = permissions
+  const {
+    grantTargetIds,
+    grantXpBase, setGrantXpBase, grantXpSplitBetweenTargets, setGrantXpSplitBetweenTargets,
+    grantGoldGp, setGrantGoldGp, grantGoldSplitBetweenTargets, setGrantGoldSplitBetweenTargets,
+    grantNote, setGrantNote,
+    grantCampaignItemId, setGrantCampaignItemId, grantCampaignEntries, setGrantCampaignEntries,
+    grantTemplateItemId, setGrantTemplateItemId, grantTemplateEntries, setGrantTemplateEntries,
+    grantBusy, grantFeedback, authoredCampaignItems, grantTemplateSelectable,
+    selectedGrantTargetIds, parsedGrantBaseXp, parsedGrantGoldGp, grantPreviewByCharacterId,
+    enterGrantMode, exitGrantMode, exitGrantModeForCharacterSelection, toggleGrantTarget,
+    clearGrantDraftAndTargets, selectAllGrantTargets, clearGrantTargets,
+    upsertGrantCampaignEntry, upsertGrantTemplateEntry, applyGrantToSelectedTargets,
+  } = useGrantTools({
+    campaignId,
+    groupId,
+    grantMode,
+    setGrantMode,
+    setActivePage,
+    setPaneView,
+    isSinglePane,
+    canGrant,
+    sortedCharacters,
+    campaignItems,
+    abilityScoresByCharacterId,
+    setInventoryByCharacterId,
+    syncCharacterLocal,
+  })
   const canDeleteCharacter = (character: CharacterRecord) => canDeleteCharacterForRole(role, currentUserId, character)
   const effectiveShowListPane = embeddedMode ? false : showListPane
   const effectiveShowDetailPane = embeddedMode ? true : showDetailPane
@@ -344,66 +335,6 @@ export function CharacterTab({
     effectiveAssignmentTargetUserId, setAssignmentTargetUserId, openPlayerAssignment,
     closePlayerAssignment, submitPlayerAssignment,
   } = usePlayerAssignment({ effectiveSelected, campaignPlayers, updateCharacter })
-
-  const exitGrantMode = () => {
-    setGrantMode(false)
-    setGrantTargetIds({})
-  }
-
-  const toggleGrantTarget = (characterId: string, checked: boolean) => {
-    setGrantTargetIds((current) => ({
-      ...current,
-      [characterId]: checked,
-    }))
-  }
-
-  const clearGrantDraft = () => {
-    setGrantXpBase('')
-    setGrantXpSplitBetweenTargets(false)
-    setGrantGoldGp('')
-    setGrantGoldSplitBetweenTargets(false)
-    setGrantNote('')
-    setGrantCampaignEntries([])
-    setGrantTemplateEntries([])
-    setGrantCampaignItemId('')
-    setGrantTemplateItemId('')
-  }
-
-  const upsertGrantCampaignEntry = (item: CampaignItem) => {
-    setGrantCampaignEntries((current) => {
-      const idx = current.findIndex((entry) => entry.itemId === item.id)
-      if (idx < 0) return [...current, { itemId: item.id, name: item.typeName || item.name, qty: 1 }]
-      const next = [...current]
-      next[idx] = { ...next[idx], qty: next[idx].qty + 1 }
-      return next
-    })
-  }
-
-  const upsertGrantTemplateEntry = (itemId: string) => {
-    const source = OSE_STORE_ITEMS.find((item) => item.id === itemId)
-    if (!source) return
-    const kind = source.kind
-    if (!(kind === 'general' || kind === 'weapon' || kind === 'armour' || kind === 'ammunition' || kind === 'consumable')) return
-    setGrantTemplateEntries((current) => {
-      const key = source.id
-      const idx = current.findIndex((entry) => entry.key === key)
-      if (idx < 0) {
-        return [...current, {
-          key,
-          name: source.name,
-          costGp: source.costGp,
-          qty: 1,
-          kind,
-          weaponId: source.weaponId,
-          armourId: source.armourId,
-          packedLabel: source.name,
-        }]
-      }
-      const next = [...current]
-      next[idx] = { ...next[idx], qty: next[idx].qty + 1 }
-      return next
-    })
-  }
 
   const updateSelectedCharacter = (updates: Partial<CharacterRecord>) => {
     if (!effectiveSelected) return
@@ -1008,10 +939,9 @@ export function CharacterTab({
   const availablePackedSlotIndices = packedSlotUnlockedByIndex
     .map((unlocked, index) => (unlocked ? index : -1))
     .filter((index) => index >= 0)
-  const packedRejectionNodes = useMemo(
-    () => rejections
-      .filter((r) => r.characterId === effectiveSelected?.id)
-      .map((r) => (
+  const packedRejectionNodes = rejections
+    .filter((r) => r.characterId === effectiveSelected?.id)
+    .map((r) => (
         <p key={r.id} className="error character-approval-rejection">
           {r.action === 'sell'
             ? `GM did not approve selling ${r.item?.typeName ?? 'item'}`
@@ -1029,9 +959,7 @@ export function CharacterTab({
             Dismiss
           </button>
         </p>
-      )),
-    [dismissRejection, effectiveSelected?.id, rejections],
-  )
+    ))
   const selectedStoreRequiredPacked = selectedStoreCart.reduce((sum, entry) => sum + entry.qty, 0)
   const selectedStoreOpenPackedSlots = Math.max(0, availablePackedSlotIndices.length - packedItems.length)
   const storeCartExceedsPackedSlots = selectedStoreRequiredPacked > selectedStoreOpenPackedSlots
@@ -1352,20 +1280,6 @@ export function CharacterTab({
     updateSelectedCharacter,
   })
 
-  useEffect(() => {
-    if (!isGuidedCreation && storeOpen) {
-      setStoreOpen(false)
-      setStoreError(null)
-    }
-  }, [isGuidedCreation, storeOpen])
-
-  // Clear justSeeded AFTER all init effects have run (effect order matters —
-  // this must be defined after the init effects so they can see justSeeded as true)
-  useEffect(() => {
-    if (!selectedCharacterId) return
-    justSeededRef.current.delete(selectedCharacterId)
-  })
-
   const {
     updateInventoryItem,
     updateWeaponRow,
@@ -1440,6 +1354,7 @@ export function CharacterTab({
     packedItemsCount: packedItems.length,
     availablePackedSlotCount: availablePackedSlotIndices.length,
     isGuidedCreation,
+    storeOpen,
     selectedInventory,
     customStoreName,
     customStoreCost,
@@ -1460,166 +1375,12 @@ export function CharacterTab({
     setInventoryGoldForCharacter,
   })
 
-
-  const grantPreviewByCharacterId = useMemo(() => {
-    const preview = new Map<string, ReturnType<typeof projectCharacterProgress>>()
-    const targets = sortedCharacters.filter((character) => grantTargetIds[character.id])
-    for (let index = 0; index < targets.length; index += 1) {
-      const character = targets[index]
-      const scores = abilityScoresByCharacterId[character.id] ?? emptyAbilityScores()
-      const xpForTarget = amountForTarget(parsedGrantBaseXp, grantXpSplitBetweenTargets, targets.length, index)
-      preview.set(character.id, projectCharacterProgress(character, scores, xpForTarget))
-    }
-    return preview
-  }, [sortedCharacters, grantTargetIds, abilityScoresByCharacterId, parsedGrantBaseXp, grantXpSplitBetweenTargets])
-
-  const applyGrantToSelectedTargets = async () => {
-    if (!canGrant || grantBusy) return
-    const targetIds = selectedGrantTargetIds
-    if (targetIds.length === 0) {
-      setGrantFeedback('Select at least one target.')
-      return
-    }
-    if (parsedGrantBaseXp <= 0 && parsedGrantGoldGp <= 0 && grantCampaignEntries.length === 0 && grantTemplateEntries.length === 0) {
-      setGrantFeedback('Add XP, gp, or items before granting.')
-      return
-    }
-
-    const campaignEntriesResolved = grantCampaignEntries
-      .map((entry) => ({ entry, item: authoredCampaignItems.find((item) => item.id === entry.itemId) ?? null }))
-      .filter((row): row is { entry: { itemId: string; name: string; qty: number }; item: CampaignItem } => row.item !== null)
-
-    setGrantBusy(true)
-    setGrantFeedback(null)
-    try {
-      const overflowMessages: string[] = []
-      for (let targetIndex = 0; targetIndex < targetIds.length; targetIndex += 1) {
-        const targetId = targetIds[targetIndex]
-        const target = sortedCharacters.find((character) => character.id === targetId)
-        if (!target) continue
-        const charRef = campaignDocRef(db, { campaignId, groupId }, 'characters', targetId)
-        const overflowGoldDocId = crypto.randomUUID()
-        const xpForTarget = amountForTarget(parsedGrantBaseXp, grantXpSplitBetweenTargets, targetIds.length, targetIndex)
-        const goldForTarget = amountForTarget(parsedGrantGoldGp, grantGoldSplitBetweenTargets, targetIds.length, targetIndex)
-        let grantedCharacterXp = target.xp
-        let grantedInventory: CharacterInventoryItem[] | null = null
-
-        await runTransaction(db, async (tx) => {
-          const snap = await tx.get(charRef)
-          if (!snap.exists()) throw new Error(`Target not found: ${target.name}`)
-
-          const data = snap.data() as CharacterRecord
-          const existingDetails = (data.details && typeof data.details === 'object')
-            ? data.details as CharacterSheetDetails
-            : null
-          const currentInventory = existingDetails?.inventory ?? []
-          const abilityScores = (existingDetails?.abilityScores as AbilityScores | undefined) ?? emptyAbilityScores()
-
-          let campaignGoldGrant = 0
-          const itemsToAdd: CharacterInventoryItem[] = []
-          for (const row of campaignEntriesResolved) {
-            for (let i = 0; i < row.entry.qty; i += 1) {
-              if (row.item.type === 'gold') {
-                const sourceGold = typeof row.item.goldAmount === 'number'
-                  ? row.item.goldAmount
-                  : (Number.parseInt(row.item.gpValue, 10) || 0)
-                campaignGoldGrant += sourceGold
-              } else {
-                itemsToAdd.push(campaignItemToInventoryItem(row.item))
-              }
-            }
-          }
-          for (const entry of grantTemplateEntries) {
-            for (let i = 0; i < entry.qty; i += 1) {
-              itemsToAdd.push(makeInventoryItemFromTemplateEntry(entry))
-            }
-          }
-
-          const goldGrantTotal = goldForTarget + campaignGoldGrant
-          const existingGold = currentInventory
-            .filter((item): item is CharacterGoldItem => item.kind === 'gold')
-            .reduce((sum, item) => sum + (item.qty ?? 0), 0)
-
-          const nonGoldCurrent = currentInventory.filter((item) => item.kind !== 'gold')
-          const nonGoldIncoming = itemsToAdd.filter((item) => item.kind !== 'gold')
-          const nextGoldChunks = goldChunksForAmount(Math.max(0, existingGold + goldGrantTotal))
-          const nextGoldItems = nextGoldChunks.map((chunk) => makeGoldItem(chunk))
-          const candidateInventory = [...nonGoldCurrent, ...nonGoldIncoming, ...nextGoldItems]
-
-          const strScore = Number.parseInt(abilityScores.STR ?? '', 10)
-          const availableSlots = computeAvailablePackedSlots(strScore)
-          const overflow = computeOverflow(candidateInventory, availableSlots, targetId, target.name)
-          if (overflow.feedbackMessage) {
-            overflowMessages.push(`${target.name}: ${overflow.feedbackMessage}`)
-          }
-
-          for (const droppedItem of overflow.droppedItems) {
-            const droppedRef = campaignDocRef(db, { campaignId, groupId }, 'items', droppedItem.id)
-            tx.set(droppedRef, {
-              ...toFirestoreItem(droppedItem),
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            })
-          }
-          if (overflow.droppedGoldAmount > 0) {
-            const overflowGoldRef = campaignDocRef(db, { campaignId, groupId }, 'items', overflowGoldDocId)
-            tx.set(overflowGoldRef, {
-              ...toFirestoreItem(makeDroppedGoldCampaignItem(
-                overflow.droppedGoldAmount,
-                targetId,
-                target.name,
-                overflowGoldRef.id,
-              )),
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            })
-          }
-
-          const bonusPercent = projectCharacterProgress(target, abilityScores, xpForTarget).bonusPercent
-          const grantedXp = computeGrantedXp(xpForTarget, bonusPercent)
-          const nextXp = Math.max(0, (data.xp ?? target.xp ?? 0) + grantedXp.awardedXp)
-          grantedCharacterXp = nextXp
-          grantedInventory = overflow.keptInventory
-          tx.set(charRef, {
-            xp: nextXp,
-            details: {
-              ...(existingDetails ?? {}),
-              inventory: overflow.keptInventory,
-            },
-            updatedAt: serverTimestamp(),
-          }, { merge: true })
-        })
-
-        if (grantedInventory) {
-          setInventoryByCharacterId((current) => ({
-            ...current,
-            [targetId]: grantedInventory as CharacterInventoryItem[],
-          }))
-        }
-        syncCharacterLocal(targetId, {
-          xp: grantedCharacterXp,
-        })
-      }
-
-      const parts = [
-        `Granted to ${targetIds.length} character${targetIds.length === 1 ? '' : 's'}`,
-      ]
-      if (parsedGrantBaseXp > 0) parts.push(`${parsedGrantBaseXp} base XP`)
-      if (parsedGrantGoldGp > 0) parts.push(`${parsedGrantGoldGp} gp`)
-      if (grantXpSplitBetweenTargets && parsedGrantBaseXp > 0) parts.push('XP split')
-      if (grantGoldSplitBetweenTargets && parsedGrantGoldGp > 0) parts.push('gp split')
-      if (grantCampaignEntries.length > 0 || grantTemplateEntries.length > 0) parts.push('items')
-      const overflowSummary = overflowMessages.length > 0 ? ` | Overflow: ${overflowMessages.join(' / ')}` : ''
-      setGrantFeedback(`${parts.join(' • ')}${overflowSummary}`)
-      clearGrantDraft()
-      setGrantTargetIds({})
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error'
-      setGrantFeedback(`Grant failed: ${message}`)
-    } finally {
-      setGrantBusy(false)
-    }
-  }
+  // Clear justSeeded AFTER all init effects have run (effect order matters —
+  // this must be defined after the init effects so they can see justSeeded as true)
+  useEffect(() => {
+    if (!selectedCharacterId) return
+    justSeededRef.current.delete(selectedCharacterId)
+  })
 
   const renderAdventuringSkillsSection = () => (
     <section className="monster-section-block">
@@ -1716,7 +1477,7 @@ export function CharacterTab({
           onCreateCharacter={() => setCreateCharacterModalOpen(true)}
           onSelectCharacter={(characterId) => {
             if (effectiveGrantMode) {
-              setGrantMode(false)
+              exitGrantModeForCharacterSelection()
             }
             setLevelUpModalCharacterId(null)
             setLevelUpHpRoll(null)
@@ -1730,11 +1491,7 @@ export function CharacterTab({
           showGrantCard={canGrant}
           isGrantMode={effectiveGrantMode}
           selectedGrantTargetIds={selectedGrantTargetIds}
-          onEnterGrantMode={() => {
-            setGrantMode(true)
-            setActivePage('core')
-            if (isSinglePane) setPaneView('detail')
-          }}
+          onEnterGrantMode={enterGrantMode}
           onToggleGrantTarget={toggleGrantTarget}
         />
       ) : null}
@@ -2070,7 +1827,7 @@ export function CharacterTab({
                             <button
                               type="button"
                               className="monster-example-btn"
-                              onClick={() => setGrantTargetIds(Object.fromEntries(sortedCharacters.map((character) => [character.id, true])))}
+                              onClick={selectAllGrantTargets}
                               disabled={grantBusy || sortedCharacters.length === 0}
                             >
                               Select All
@@ -2078,7 +1835,7 @@ export function CharacterTab({
                             <button
                               type="button"
                               className="monster-example-btn"
-                              onClick={() => setGrantTargetIds({})}
+                              onClick={clearGrantTargets}
                               disabled={grantBusy || selectedGrantTargetIds.length === 0}
                             >
                               Clear
@@ -2113,7 +1870,7 @@ export function CharacterTab({
                           <button
                             type="button"
                             className="monster-example-btn"
-                            onClick={() => setGrantTargetIds(Object.fromEntries(sortedCharacters.map((character) => [character.id, true])))}
+                            onClick={selectAllGrantTargets}
                             disabled={grantBusy || sortedCharacters.length === 0}
                           >
                             Select All
@@ -2121,7 +1878,7 @@ export function CharacterTab({
                           <button
                             type="button"
                             className="monster-example-btn"
-                            onClick={() => setGrantTargetIds({})}
+                            onClick={clearGrantTargets}
                             disabled={grantBusy || selectedGrantTargetIds.length === 0}
                           >
                             Clear
@@ -2183,10 +1940,7 @@ export function CharacterTab({
                           <button
                             type="button"
                             className="character-current-action"
-                            onClick={() => {
-                              clearGrantDraft()
-                              setGrantTargetIds({})
-                            }}
+                            onClick={clearGrantDraftAndTargets}
                             disabled={grantBusy}
                           >
                             <X size={14} />
