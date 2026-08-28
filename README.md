@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Dbutler2885/HomeBoysHouse/actions/workflows/ci.yml/badge.svg)](https://github.com/Dbutler2885/HomeBoysHouse/actions/workflows/ci.yml)
 
-**Table Keep** is the campaign memory for a tabletop RPG group: character sheets, live fog-of-war maps, an NPC roster the GM reveals a piece at a time, and session recaps written straight out of the recording of the game you just played.
+**Table Keep** is the campaign memory for a tabletop RPG group: character sheets, live fog-of-war maps, an NPC roster the GM reveals a piece at a time, and AI-generated session recaps built from a recording of the game you just played.
 
 The repository is called `HomeBoysHouse` - that is the group it was built for.
 The product in the UI is Table Keep.
@@ -101,7 +101,7 @@ They know there is a road, two buildings, and something south of them - and that
 
 The NPC roster is split down the middle by who is allowed to see what.
 Every record has a portrait, a player-facing description, and private GM notes; the list on the left is grouped by visibility so the GM can see at a glance what the table has met.
-Under the portrait, **Auto-Notes** are generated from session transcripts - here, Cedric picked up a line from Session 11 about the party passing through his store on the thief's trail.
+Under the portrait, **Auto-Notes** are written by AI from the session transcript - here, Cedric picked up a line from Session 11 about the party passing through his store on the thief's trail.
 Nobody typed that.
 
 ### Character sheets
@@ -115,7 +115,9 @@ Players edit their own character; the GM can edit any of them, and hand one over
 ## Features
 
 **Two game systems.** *Old-School Essentials* is the deep one: structured sheets, inventory with weapons/armour/ammunition/consumables/gear, a store and shopping flow, arcane and divine spellbooks, thief skills, a monster catalog, treasure-type generation with magic-item tables, and the OSE SRD link.
-*Vampire: The Masquerade* is a lighter presentational variant - fillable sheets for clan, attributes, disciplines and XP, plus NPCs, references, maps, notes and calendar, without the items/store/treasure machinery.
+*Vampire: The Masquerade* gets a lot of play at the table, and a real slice of it is implemented: sheets for clan, attributes, abilities, disciplines, backgrounds and virtues, a d10 dice-pool roller with initiative and soak presets, XP priced by category with separate in-clan and out-of-clan discipline costs, clan weaknesses, and generation-based blood pool maximums.
+It stops there, and it is worth being plain about that.
+There is no items, store or treasure machinery on the VtM side, and the full ruleset is a future build rather than something already shipped - a working foundation, not a finished system.
 Each campaign picks a system, and the tab set follows.
 
 **GM approval flow.** Players do not silently mutate the world.
@@ -128,10 +130,10 @@ Adding or selling an item, transcribing a spell, or re-rolling an ability raises
 This is an actively evolving app.
 Treat the list as "present in the code today" - parts of the GM tooling and the system-specific sheets are still moving.
 
-## Session transcription
+## AI-generated session recaps
 
-Session recaps and the NPC auto-notes above are not typed by hand.
-They come out of a recording of the actual game.
+The session recaps and the NPC auto-notes above are not typed by hand.
+A recording of the actual game goes in one end and a structured recap comes out the other.
 
 The pipeline that produces them is a separate macOS service, outside this repository.
 This repo owns the receiving end of it: the `postSessionSummary` Cloud Function in [`functions/`](functions/), plus a `getCampaignNpcs` endpoint the pipeline reads first so it can match people it hears about against the campaign's real roster.
