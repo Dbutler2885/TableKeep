@@ -4,6 +4,7 @@ import { BrandWordmark } from '../common/BrandWordmark'
 import { GoogleMark } from './GoogleMark'
 import { DemoSeatPicker } from './DemoSeatPicker'
 import type { DemoSeat } from './demoSeats'
+import { demoEntryPath } from '../demo/demoConstants'
 
 type Props = {
   onPasswordSubmit: (email: string, password: string) => Promise<unknown> | unknown
@@ -17,6 +18,12 @@ type Props = {
    */
   demoSeats?: DemoSeat[]
   onDemoSeat?: (seat: DemoSeat) => Promise<unknown> | unknown
+  /**
+   * Whether to offer the hosted "try it now" sandbox. Off in the local-emulator
+   * demo, where the seat picker already hands the visitor a populated campaign
+   * and the sandbox Cloud Function is not running.
+   */
+  showTryIt?: boolean
 }
 
 export function SignInView({
@@ -26,6 +33,7 @@ export function SignInView({
   onSwitchToForgot,
   demoSeats = [],
   onDemoSeat,
+  showTryIt = false,
 }: Props) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -105,6 +113,18 @@ export function SignInView({
           Create an account
         </button>
       </p>
+
+      {showTryIt ? (
+        <p className="tk-auth-try">
+          {/* A plain anchor, not a router Link: the sign-in card renders outside
+              <Routes>, and arriving at the demo is a fresh start either way. */}
+          Or{' '}
+          <a className="tk-auth-link" href={demoEntryPath}>
+            take a table for a few hours
+          </a>
+          {' '}- a real campaign, yours to play with, no account needed.
+        </p>
+      ) : null}
     </>
   )
 }

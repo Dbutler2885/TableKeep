@@ -7,6 +7,7 @@ import {
   signInWithPopup,
 } from 'firebase/auth'
 import { auth, db } from '../../firebase'
+import { useFirebaseEmulators } from '../../firebase/config'
 import { SignInView } from './SignInView'
 import { SignUpView } from './SignUpView'
 import { ForgotPasswordView } from './ForgotPasswordView'
@@ -81,6 +82,11 @@ export function AuthPanel({ context }: AuthPanelProps) {
   // Empty outside the local-emulator demo, where the Google popup can only
   // reach the auth emulator's stub page. See `demoSeats.ts`.
   const showGoogle = demoSeats.length === 0
+  // The hosted sandbox is the deployed site's demo. It is off against the
+  // emulators in every form: `npm run demo` already hands a visitor a populated
+  // campaign through the seat picker, and neither it nor `scripts/browser-smoke.mjs`
+  // starts the functions emulator the sandbox callable needs.
+  const showTryIt = !useFirebaseEmulators
 
   // Reset transient state when swapping modes so a stale error from one view
   // doesn't bleed into the next.
@@ -101,6 +107,7 @@ export function AuthPanel({ context }: AuthPanelProps) {
             onSwitchToForgot={() => switchMode('forgotPassword')}
             demoSeats={demoSeats}
             onDemoSeat={handleDemoSeat}
+            showTryIt={showTryIt}
           />
         ) : null}
 

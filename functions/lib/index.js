@@ -1,11 +1,15 @@
-import { initializeApp } from 'firebase-admin/app';
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
+import { logger } from 'firebase-functions';
+import { adminApp, adminFirestore } from './adminApp.js';
 import { isTransferSourceAuthorized } from './transferAuthorization.js';
 import { campaignPath, groupMemberPath } from './firestorePaths.js';
-initializeApp();
-const db = getFirestore();
+import { createDemoSandbox, sweepExpiredDemoSandboxes } from './demoSessions.js';
+adminApp();
+const db = adminFirestore();
 const sessionSummaryApiKey = defineSecret('SESSION_SUMMARY_API_KEY');
 function campaignRef(groupId, campaignId) {
     return db.doc(campaignPath(groupId, campaignId));
@@ -339,4 +343,65 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
     if (rejection)
         throw new HttpsError(rejection.code, rejection.message);
     return { ok: true };
+});
+// ── Try-it-now demo sandboxes ────────────────────────────────────────────────
+/**
+ * Deletes every Cloud Storage object under a prefix.
+ *
+ * Only the fog and vision overlays a visitor painted live under their own
+ * group's prefix; the map images and portraits they saw belong to the demo
+ * template and are shared, not copied, so nothing here can reach them.
+ */
+async function deleteDemoStoragePrefix(prefix) {
+    await getStorage(adminApp()).bucket().deleteFiles({ prefix, force: true });
+}
+/**
+ * Hands an anonymous visitor a private, writable copy of the demo campaign.
+ *
+ * Anonymous-only on purpose. A signed-in person already has their own groups,
+ * and letting a real account mint sandboxes would put documents they can write
+ * outside the lifecycle that cleans them up. The visitor becomes the GM of the
+ * copy - group admin plus the campaign's `gmUserId` - so they get the map tools,
+ * the fog brush and the whole tool rail rather than a player's view.
+ *
+ * Everything the caller could otherwise reach is refused rather than clamped:
+ * there is no `groupId` in the payload, so there is nothing to point at a group
+ * that is not theirs.
+ */
+export const createDemoSandboxSession = onCall({ region: 'us-central1' }, async (request) => {
+    const uid = request.auth?.uid ?? '';
+    if (!uid)
+        throw new HttpsError('unauthenticated', 'Authentication required.');
+    const provider = request.auth?.token?.firebase?.sign_in_provider;
+    if (provider !== 'anonymous') {
+        throw new HttpsError('permission-denied', 'The demo is for anonymous visitors.');
+    }
+    const result = await createDemoSandbox(db, uid, Date.now());
+    if (result.status === 'full') {
+        throw new HttpsError('resource-exhausted', `The demo is at capacity (${result.liveSandboxes} of ${result.limit} tables in use).`);
+    }
+    if (result.status === 'template-missing') {
+        logger.error('Demo template campaign is missing; run scripts/demo/seed-template.mjs');
+        throw new HttpsError('failed-precondition', 'The demo is not set up yet.');
+    }
+    return {
+        groupId: result.sandbox.groupId,
+        campaignId: result.sandbox.campaignId,
+        expiresAt: result.sandbox.expiresAtMs,
+        resumed: result.status === 'resumed',
+    };
+});
+/**
+ * Collects demo sandboxes whose time is up.
+ *
+ * Every fifteen minutes rather than hourly, because the ceiling counts sandboxes
+ * that have not expired yet: a short sweep interval keeps the live count honest
+ * and keeps a visitor who arrives just after a busy hour from being told the
+ * demo is full when it is not.
+ */
+export const expireDemoSandboxes = onSchedule({ region: 'us-central1', schedule: 'every 15 minutes' }, async () => {
+    const { removedGroupIds } = await sweepExpiredDemoSandboxes(db, deleteDemoStoragePrefix, Date.now());
+    if (removedGroupIds.length > 0) {
+        logger.info(`Expired ${removedGroupIds.length} demo sandbox(es).`, { removedGroupIds });
+    }
 });

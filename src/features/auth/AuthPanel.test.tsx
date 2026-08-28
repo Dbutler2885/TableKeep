@@ -24,6 +24,7 @@ const PLAYER_SEAT: DemoSeat = {
 // rather than by re-importing the panel under a different environment.
 const mocks = vi.hoisted(() => ({
   seats: [] as DemoSeat[],
+  emulators: false,
   authStub: { name: 'auth-stub' },
   signInWithEmailAndPassword: vi.fn(async () => ({})),
   signInWithPopup: vi.fn(async () => ({})),
@@ -31,6 +32,14 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('./demoSeats', () => ({ demoSeats: mocks.seats }))
 vi.mock('../../firebase', () => ({ auth: mocks.authStub, db: { name: 'db-stub' } }))
+// A getter, not a value: `useFirebaseEmulators` is read on every render, so this
+// lets one file cover both the emulator build and an ordinary one.
+vi.mock('../../firebase/config', () => ({
+  get useFirebaseEmulators() {
+    return mocks.emulators
+  },
+  firebaseConfig: {},
+}))
 vi.mock('firebase/auth', () => ({
   GoogleAuthProvider: class {},
   createUserWithEmailAndPassword: vi.fn(async () => ({ user: { uid: 'uid' } })),
@@ -49,13 +58,23 @@ function setSeats(seats: DemoSeat[]) {
 beforeEach(() => {
   vi.clearAllMocks()
   setSeats([])
+  mocks.emulators = false
 })
 
 afterEach(cleanup)
 
 describe('AuthPanel sign-in screen, against the local emulators', () => {
   beforeEach(() => {
+    mocks.emulators = true
     setSeats([GM_SEAT, PLAYER_SEAT])
+  })
+
+  it('does not offer the hosted demo sandbox', () => {
+    render(<AuthPanel />)
+
+    // The seat picker already hands this visitor a populated campaign, and the
+    // demo harness does not start the functions emulator the sandbox needs.
+    expect(screen.queryByRole('link', { name: /take a table/ })).toBeNull()
   })
 
   it('offers the two seats and no Google button', () => {
@@ -112,6 +131,13 @@ describe('AuthPanel sign-in screen, in an ordinary build', () => {
     expect(screen.queryByRole('button', { name: /Enter as the Game Master/ })).toBeNull()
     expect(screen.queryByRole('button', { name: /Enter as a Player/ })).toBeNull()
     expect(screen.queryByText(/Pick a seat/)).toBeNull()
+  })
+
+  it('offers the hosted demo sandbox', () => {
+    render(<AuthPanel />)
+
+    const tryIt = screen.getByRole('link', { name: /take a table/ })
+    expect(tryIt.getAttribute('href')).toBe('/demo')
   })
 
   it('still offers the Google button on the sign-up view', async () => {

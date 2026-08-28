@@ -3,13 +3,16 @@ import type { User } from 'firebase/auth'
 import {
   addDoc,
   collection,
+  collectionGroup,
   deleteDoc,
   doc,
   getDoc,
   getDocs,
   onSnapshot,
+  query,
   serverTimestamp,
   setDoc,
+  where,
   writeBatch,
 } from 'firebase/firestore'
 import { db } from '../../firebase'
@@ -44,20 +47,36 @@ export function useGroupAccess(user: User) {
   useEffect(() => {
     let cancelled = false
 
+    // Driven by the user's own membership documents, not by the `groups`
+    // collection. Listening to every group and filtering client-side cost one
+    // read per group in the database per session - which the disposable demo
+    // sandboxes would have turned into a per-visitor tax on every real user -
+    // and it required `firestore.rules` to let any signed-in account read every
+    // group document. The collection-group index this needs is already in
+    // `firestore.indexes.json`.
+    const membershipQuery = query(
+      collectionGroup(db, 'members'),
+      where('userId', '==', user.uid),
+      where('status', '==', 'active'),
+    )
+
     const unsub = onSnapshot(
-      collection(db, 'groups'),
+      membershipQuery,
       (snap) => {
         void (async () => {
           try {
             const nextGroups = await Promise.all(
-              snap.docs.map(async (groupDoc) => {
-                const groupId = groupDoc.id
-                const groupData = groupDoc.data() as Record<string, unknown>
-                const memberSnap = await getDoc(doc(db, 'groups', groupId, 'members', user.uid))
-                if (!memberSnap.exists()) return null
+              snap.docs.map(async (memberDoc) => {
+                // `groups/{groupId}/members/{uid}` - the grandparent is the group.
+                const groupRef = memberDoc.ref.parent.parent
+                if (!groupRef || groupRef.parent.id !== 'groups') return null
+                const groupId = groupRef.id
 
-                const memberData = memberSnap.data() as Record<string, unknown>
-                if (memberData.status !== 'active') return null
+                const memberData = memberDoc.data() as Record<string, unknown>
+
+                const groupSnap = await getDoc(groupRef)
+                if (!groupSnap.exists()) return null
+                const groupData = groupSnap.data() as Record<string, unknown>
 
                 const campaignsSnap = await getDocs(collection(db, 'groups', groupId, 'campaigns'))
                 const campaigns = campaignsSnap.docs.map((campaignSnap) =>

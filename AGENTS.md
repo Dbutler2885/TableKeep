@@ -64,11 +64,16 @@ Firestore + Storage emulator, with the repo's real `firestore.rules` /
   time and throws `auth/invalid-api-key` without a config. (The underlying
   coupling is real: `inventoryOverflow.ts` imports `toFirestoreItem` from the
   `useItems` hook module, which pulls in the singleton.)
-- **One suite runs a real Cloud Function against the emulator.**
+- **Emulator suites resolve their ports from the environment where they can.**
+  `demoSandbox.emulator.test.ts` reads `FIRESTORE_EMULATOR_HOST` / `FIREBASE_STORAGE_EMULATOR_HOST`, which `firebase emulators:exec` exports, and falls back to the `firebase.json` defaults.
+  The older suites still hard-code `8080` / `9199`, so running the whole file set on shifted ports needs those updated first.
+- **Some suites run real Cloud Functions code against the emulator.**
   `acceptPendingTransfer.emulator.test.ts` imports `functions/src/index.ts` and invokes the callable through its `run()` entrypoint.
   The admin SDK inside the function finds the emulator through `FIRESTORE_EMULATOR_HOST`, which `firebase emulators:exec` exports, and resolves its project from `GCLOUD_PROJECT` - so that suite must use `process.env.GCLOUD_PROJECT` as its `initializeTestEnvironment` project id for the same reason the Storage suites do, or the function and the client would read two different namespaces inside one emulator.
   Because that import crosses into the Cloud Functions package, the `emulator-tests` CI job installs `functions/` dependencies too (`npm ci --prefix functions`); the web app's own `node_modules` has neither firebase-admin nor firebase-functions.
-  `functions/src/index.ts` calls `initializeApp()` at import time, so exactly one emulator suite may import it.
+  `demoSandboxLifecycle.emulator.test.ts` instead imports `functions/src/demoSessions.ts`, which takes its Firestore handle as an argument and never touches `firebase-functions`; prefer that shape for new code.
+  `initializeApp()` is idempotent now (`functions/src/adminApp.ts`), so more than one suite may reach into `functions/src`.
+  A suite under `src/` cannot import `firebase-admin` directly, though - it resolves out of `functions/node_modules` - so take handles and types from the Cloud Functions package and write timestamps as plain `Date`s.
 
 ## The group-scoped data model in Cloud Functions
 
@@ -148,6 +153,8 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
   `npm run dev` and `npm run build` never read `.env.demo`, so the normal config path is unchanged.
 - **The demo harness does not start the functions emulator**, only `auth,firestore,storage`.
   `acceptPendingTransfer` (`src/features/transfers/usePendingTransfers.ts`) is the one callable in the app, so accepting an item transfer does not work in the demo.
+- **The hosted "try it now" sandbox is off in every emulator build.**
+  `AuthPanel` gates that link on `!useFirebaseEmulators`, so neither `npm run demo` nor `scripts/browser-smoke.mjs` offers a link to a callable no local emulator is running.
 - **In emulator mode the sign-in screen swaps the Google button for two seat buttons.**
   Against the auth emulator a Google popup only reaches the emulator's own stub page, and that page's "Add new account" mints a random uid, which matches nothing in a snapshot that stores ownership by uid.
   `src/features/auth/demoSeats.ts` resolves the seats from `VITE_DEMO_*`, so `.env.demo` is the single definition of the two logins: `scripts/demo/config.mjs` reads it to seed them and `run.mjs` injects it into the dev server for the app to offer them.
@@ -159,6 +166,47 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
   The budget is 25 MB total and 1 MB per file, enforced by `npm run demo:size` (`scripts/demo/check-snapshot-size.mjs`); run it before committing a re-export.
   Shrink source images before uploading them in the app rather than trimming the snapshot afterwards.
   A large PNG that lands in one commit is permanent weight even if a later commit removes it.
+
+## Hosted demo sandboxes (the "try it now" link)
+
+An anonymous visitor to the deployed site gets a private, disposable, **writable** copy of the demo campaign and arrives in it as the GM.
+The pieces are `src/features/demo/`, `functions/src/demoConstants.ts` / `demoClone.ts` / `demoSessions.ts`, the `createDemoSandboxSession` and `expireDemoSandboxes` triggers in `functions/src/index.ts`, and `scripts/demo/seed-template.mjs`.
+
+- **The template's ids are pinned literals, and they live in four files.**
+  `demo-template` / `demo-campaign` are written out in `functions/src/demoConstants.ts`, `src/features/demo/demoConstants.ts`, `firestore.rules` and `storage.rules`, because a rules file has no import mechanism and the browser bundle cannot import a Cloud Functions module.
+  Comparing a path segment to a literal is also free where reading a `demoTemplate: true` flag off the group document would cost a `firestore.get()` on every read of a shared demo image.
+  `src/features/demo/demoConstants.test.ts` reads all four files and fails on drift; `scripts/demo/templatePlan.test.mjs` pins the seeding script to the same ids.
+- **The template is unwritable by construction, not by exception.**
+  It has no `members` subcollection, so `isGroupMember` / `isCampaignGm` are false for every account and every existing write rule under `groups/{groupId}` already denies.
+  The only additions are read grants: one recursive `allow read` block in each rules file. Never add a member document to the template group.
+  The seeding script writes it through the admin/owner path, which does not consult rules.
+- **A clone preserves every document id; only the group id and campaign id are new.**
+  That is what makes the images shared rather than copied.
+  A map records its image as an absolute Storage path on the map document (`imagePath`), and characters/NPCs do the same (`portraitPath`, `tokenIcon.customImagePath`), so a clone keeps pointing at the template's single copy of each image - roughly 10 MB that is not duplicated per visitor.
+  Nothing about how a map records its image location had to change.
+  The reverse also falls out of it: `uploadMapOverlayImage` builds the fog/vision path from the campaign the visitor is *in*, so the moment they paint, the overlay lands under their own group prefix - which is exactly the prefix expiry deletes.
+- **Cached download URLs do not survive a move between projects**, because they embed the source object's encoded path and a per-object token.
+  `scripts/demo/templatePlan.mjs` blanks `imageUrl` / `fogImageUrl` / `visionBlockImageUrl` / `portraitUrl` / `customImageUrl` when seeding; the app's missing-URL resolvers refetch them from the `*Path` fields on first read.
+  A *clone* keeps them, because it stays inside one project and one bucket.
+- **`demoSessions/{uid}` is the registry, and it is the only input to expiry.**
+  One document per visitor, keyed by uid, which is what makes one live sandbox per visitor and makes the callable idempotent under a reload or a retry.
+  The sweep never scans `groups`, so it cannot reach a real user's group even if one carried a demo-looking field.
+  No client can read or write the registry: no rule matches it.
+- **The ceiling is soft on purpose.** `DEMO_MAX_LIVE_SANDBOXES` is checked with a count of sandboxes that have not expired yet, not of registry rows, so a visitor is never turned away because the sweep has not run.
+  Two arrivals in the same instant can both pass; overshooting by a handful is cheaper than serialising every arrival through one counter document.
+- **Anonymous accounts are fenced out of everything that is not their sandbox.**
+  `firestore.rules` refuses them group creation, the `usernames` index, the whole `inviteCodes` flow in both directions, and the legacy flat `campaigns/` tree.
+  `storage.rules` caps any single object they upload.
+  `postSessionSummary` and `getCampaignNpcs` are API-key gated and unreachable without the secret; `acceptPendingTransfer` still checks group membership, so it only ever resolves inside their own sandbox.
+  Nothing in the app sends email except the password-reset form, which a visitor never reaches.
+- **`useGroupAccess` resolves groups from a collection-group query on the user's own membership documents.**
+  It used to listen to the whole `groups` collection and filter client-side, which cost one read per group in the database per session - a per-visitor tax on every real user once disposable sandboxes exist - and forced `firestore.rules` to let any signed-in account read every group document.
+  The collection-group index (`members`: `userId`, `status`) was already in `firestore.indexes.json`; **it has to actually be deployed** before the new rule works in production.
+  The recursive rule matches on the document's `userId` **field**, not the `{userId}` path segment: a `list` is evaluated against the query rather than one document, the id wildcard is unbound there, and comparing it to `request.auth.uid` raises a null-value error rather than returning false.
+- **`functions/src/adminApp.ts` makes `initializeApp()` idempotent.**
+  Before it, `functions/src/index.ts` called `initializeApp()` at import time and exactly one emulator suite could import anything from `functions/src`.
+  New Cloud Functions code should take its Firestore handle as an argument (as `demoSessions.ts` does) so an emulator suite can drive it without importing the trigger registrations at all.
+- **Turning the demo on in production needs three things this repo does not do:** enabling Anonymous sign-in in Firebase Auth, deploying rules/indexes/functions, and running `npm run demo:seed-template -- --target=project ... --apply` once.
 
 ## Component tests
 

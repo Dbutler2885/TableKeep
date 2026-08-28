@@ -1,0 +1,121 @@
+/* =========================================================================
+   Demo notice
+   ------------------------------------------------------------------------
+   Floating rather than laid out: the app shell is a flex column whose height
+   chain feeds the map canvas, so a new child in that column changes how large
+   the map renders. Anchored bottom-left and below the nav drawer's z-index
+   (60) so an open drawer covers it cleanly.
+   ========================================================================= */
+
+.tk-demo-banner,
+.tk-demo-chip {
+  position: fixed;
+  left: max(0.75rem, env(safe-area-inset-left, 0px));
+  bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+  z-index: 55;
+  font-family: 'Geist', -apple-system, sans-serif;
+}
+
+.tk-demo-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: min(620px, calc(100vw - 1.5rem));
+  padding: 0.6rem 0.65rem 0.6rem 0.75rem;
+  background: #1a1614;
+  color: #faf6ec;
+  border-radius: 6px;
+  box-shadow: 0 10px 30px -14px rgba(26, 22, 20, 0.7);
+}
+
+.tk-demo-banner-mark,
+.tk-demo-chip-mark {
+  flex: none;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid rgba(250, 246, 236, 0.35);
+  border-radius: 3px;
+}
+
+.tk-demo-banner-copy {
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: rgba(250, 246, 236, 0.86);
+}
+
+.tk-demo-banner-leave {
+  flex: none;
+  padding: 0.4rem 0.7rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1a1614;
+  background: #faf6ec;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tk-demo-banner-leave:hover {
+  background: #fff;
+}
+
+.tk-demo-banner-collapse {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: rgba(250, 246, 236, 0.62);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tk-demo-banner-collapse:hover {
+  color: #faf6ec;
+  background: rgba(250, 246, 236, 0.12);
+}
+
+.tk-demo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.6rem;
+  background: #1a1614;
+  color: #faf6ec;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 8px 22px -14px rgba(26, 22, 20, 0.7);
+}
+
+.tk-demo-chip-clock {
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(250, 246, 236, 0.8);
+}
+
+@media (max-width: 720px) {
+  .tk-demo-banner {
+    right: max(0.75rem, env(safe-area-inset-right, 0px));
+    max-width: none;
+    flex-wrap: wrap;
+  }
+
+  .tk-demo-banner-copy {
+    flex: 1 1 100%;
+    order: 3;
+    font-size: 0.78rem;
+  }
+
+  .tk-demo-banner-leave {
+    margin-left: auto;
+  }
+}

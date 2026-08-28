@@ -9,6 +9,23 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // A visitor who arrived through the "try it now" link. Firebase anonymous
+    // auth is the only way to get one of these tokens, and the demo entry point
+    // is the only thing in the app that asks for one.
+    function isAnonymousVisitor() {
+      return isSignedIn() && request.auth.token.firebase.sign_in_provider == "anonymous";
+    }
+
+    // The single pristine group every demo sandbox is cloned from. The id is a
+    // literal because a rules file cannot import one, and because comparing a
+    // path segment to a string is free where reading a flag off the group
+    // document would cost a get() on every check. It is kept in step with
+    // `functions/src/demoConstants.ts` and `src/features/demo/demoConstants.ts`
+    // by `src/features/demo/demoConstants.test.ts`.
+    function isDemoTemplateGroup(groupId) {
+      return groupId == "demo-template";
+    }
+
     function groupMemberPath(groupId) {
       return /databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid);
     }
@@ -66,7 +83,10 @@ service cloud.firestore {
     match /usernames/{username} {
       allow read: if isSignedIn();
 
+      // Handles are a global uniqueness index; an anonymous visitor is shown a
+      // local stand-in name instead of burning (or squatting) a real one.
       allow create: if isSignedIn()
+        && !isAnonymousVisitor()
         && isValidUsername(username)
         && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
         && request.resource.data.uid == request.auth.uid;
@@ -103,8 +123,17 @@ service cloud.firestore {
     }
 
     match /groups/{groupId} {
-      allow read: if isSignedIn();
+      // Membership, not merely being signed in. The app used to listen to the
+      // whole `groups` collection and filter client-side, which meant any
+      // signed-in account could enumerate every group's name; `useGroupAccess`
+      // now resolves a user's groups from their own membership documents, so
+      // nothing needs the wider read. The demo template is the one exception,
+      // and it holds a public sample campaign.
+      allow read: if isGroupMember(groupId)
+        || (isSignedIn() && isDemoTemplateGroup(groupId));
+      // Demo visitors get exactly the one group the clone function makes them.
       allow create: if isSignedIn()
+        && !isAnonymousVisitor()
         && request.resource.data.createdBy == request.auth.uid;
       // Any active group member may switch which campaign is active (e.g.
       // promoting their own draft). Restricted to the active-campaign pointer
@@ -124,6 +153,7 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy == request.auth.uid
         ) || (
           isSelf(userId)
+          && !isAnonymousVisitor()
           && request.resource.data.userId == request.auth.uid
           && request.resource.data.status == "active"
           && request.resource.data.role == "member"
@@ -300,11 +330,41 @@ service cloud.firestore {
       }
     }
 
+    // The demo template, read-only, to anyone signed in - including an anonymous
+    // "try it now" visitor. There is no matching write grant anywhere: the
+    // template group has no member documents, so `isGroupMember` and
+    // `isCampaignGm` are false for every account, and the seeding script writes
+    // it through the admin SDK, which does not consult these rules. That is what
+    // makes the template unwritable by construction rather than by an exception.
+    match /groups/{groupId}/{demoTemplateDocument=**} {
+      allow read: if isSignedIn() && isDemoTemplateGroup(groupId);
+    }
+
+    // A user's own membership documents, wherever they live. `useGroupAccess`
+    // needs a collection-group query to find which groups a user belongs to
+    // without reading every group in the database, and a collection-group query
+    // is only matched by a rule with a recursive prefix.
+    //
+    // The test is on the document's `userId` field rather than on the {userId}
+    // path segment, because a `list` is evaluated against the query rather than
+    // against one document: the id wildcard is unbound there, and comparing it
+    // to `request.auth.uid` raises a null-value error instead of returning
+    // false. Matching the field means the grant is satisfied exactly by a query
+    // that filters `userId == request.auth.uid`, which is the only query the app
+    // issues - so this still exposes nothing beyond a user's own rows.
+    match /{demoMembershipPath=**}/members/{userId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
     match /campaigns/{campaignId} {
+      // The legacy flat tree predates the group model and holds one real
+      // campaign. An anonymous demo visitor has no business in it.
       allow read: if isCampaignMember(campaignId) || (
-        isSignedIn() && resource.data.status == "active"
+        isSignedIn() && !isAnonymousVisitor() && resource.data.status == "active"
       );
-      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow create: if isSignedIn()
+        && !isAnonymousVisitor()
+        && request.resource.data.createdBy == request.auth.uid;
       allow update, delete: if isCampaignGM(campaignId);
 
       match /members/{userId} {
@@ -316,6 +376,7 @@ service cloud.firestore {
           isCampaignGM(campaignId)
           || (
             isSelf(userId)
+            && !isAnonymousVisitor()
             && request.resource.data.userId == request.auth.uid
             && request.resource.data.status == "active"
             && (
@@ -476,15 +537,21 @@ service cloud.firestore {
     // screen). Create/delete restricted to group admins; updates allow either
     // an admin (revoke) or the redeeming user (mark redeemed once).
     match /inviteCodes/{token} {
-      allow read: if isSignedIn();
+      // Anonymous visitors are out of the invite flow in both directions: they
+      // cannot look a token up, cannot redeem one into a real user's group, and
+      // cannot mint one out of the demo sandbox they are admin of (which would
+      // outlive the sandbox, since invite codes are top-level documents the
+      // expiry sweep does not touch).
+      allow read: if isSignedIn() && !isAnonymousVisitor();
 
       allow create: if isSignedIn()
+        && !isAnonymousVisitor()
         && isGroupAdmin(request.resource.data.groupId)
         && request.resource.data.createdBy == request.auth.uid
         && request.resource.data.redeemedBy == null
         && request.resource.data.revoked == false;
 
-      allow update: if isSignedIn() && (
+      allow update: if isSignedIn() && !isAnonymousVisitor() && (
         // Admin can revoke or otherwise edit
         isGroupAdmin(resource.data.groupId)
         // Or the redeemer can mark it redeemed exactly once
@@ -498,7 +565,7 @@ service cloud.firestore {
         )
       );
 
-      allow delete: if isSignedIn() && isGroupAdmin(resource.data.groupId);
+      allow delete: if isSignedIn() && !isAnonymousVisitor() && isGroupAdmin(resource.data.groupId);
     }
   }
 }
