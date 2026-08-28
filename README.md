@@ -26,7 +26,7 @@ No Firebase project.
 No account to create.
 No API keys, no `.env` file, nothing to sign up for.
 
-`npm run demo` boots the local Firebase emulators from a committed snapshot of a real authored campaign, with its maps, characters, NPCs and session history already in place.
+`npm run demo` boots the local Firebase emulators from a committed snapshot of a real authored campaign, with its maps, fog, characters, NPCs and items already in place.
 It starts the Vite dev server pointed at them.
 The sign-in screen offers two seeded seats:
 
