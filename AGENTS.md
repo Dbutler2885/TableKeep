@@ -132,6 +132,22 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
   The budget is 25 MB total and 1 MB per file, enforced by `npm run demo:size` (`scripts/demo/check-snapshot-size.mjs`); run it before committing a re-export.
   Shrink source images before uploading them in the app rather than trimming the snapshot afterwards.
   A large PNG that lands in one commit is permanent weight even if a later commit removes it.
+- **The committed snapshot carries one deliberate budget violation.**
+  `storage_export/blobs/ad3d2399-6f09-444e-9feb-e4d64f040e01` is the 3.9 MB PNG behind the "Wyrm Cave" map, four times the 1 MB per-file ceiling, so `npm run demo:size` reports "over budget: 1 file(s)" and exits non-zero on a clean checkout.
+  That is the accepted state, not a regression: the total is 10.5 MB against the 25 MB budget, and no CI job runs `demo:size`, so nothing is gated on it.
+  Read the command's total-versus-budget line rather than its exit code, and only act on a *new* name appearing in the over-budget list.
+- **Everything in the snapshot belongs to `demo-gm-uid`.**
+  The group "The Knight Errants" has exactly one member document, the GM's, and all four characters carry `ownerUserId: demo-gm-uid`.
+  The Player seat is a real account with a `users/demo-player-uid` profile and the `demoPC1` username reservation, but it is in no group, so signing in as the Player lands on an empty home screen.
+  A reviewer following the README sees the campaign only through the Game Master seat.
+  If the demo should ever show the player's side, that is a re-authoring job in `demo:author`, not something to patch into the export.
+- **The campaign is "The Black Wyrm of Brandonsford"** (`groups/w5sFUCEDhNNxsR0wxD5z/campaigns/PYvHDtNvgyD3nWFVHIxU`, system `ose`): 4 characters with portraits, 4 maps, 5 NPCs and 2 items, backed by 135 Storage objects.
+  The maps account for 125 of those objects, because each fog-of-war and vision reveal is stored as its own PNG under `maps/{mapId}/vision/`.
+  Painting more fog in author mode therefore grows the snapshot a file at a time, and every one of those files is permanent in git history.
+- **Emulator ports are declared twice and are not derived from each other.**
+  `firebase.json` decides where the emulators listen, and `src/firebase/index.ts` hardcodes 9099 / 8080 / 9199 / 5001 for the client to connect to.
+  Editing `firebase.json` alone relocates the emulators and leaves the app talking to the old ports, which looks like an empty database in the browser while the REST API shows the data is loaded fine.
+  Two demos cannot run side by side on one machine without changing both; `DEMO_APP_PORT` moves only the Vite server.
 
 ## Component tests
 
