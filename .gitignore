@@ -29,6 +29,8 @@ thoughts/
 
 # Firebase
 .firebase/
+# emulator-data/ is deliberately NOT ignored: it holds the committed demo
+# snapshot that `npm run demo` imports. Do not add it here.
 
 # Python
 __pycache__/
