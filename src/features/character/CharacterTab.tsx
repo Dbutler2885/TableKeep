@@ -16,15 +16,10 @@ import { useItems } from '../items/useItems'
 import { useItemApprovals } from './hooks/useItemApprovals'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import { ConfirmModal } from '../common/ConfirmModal'
-import { OSE_WEAPON_CATALOG, weaponCatalogById } from './weaponCatalog'
-import { OSE_ARMOUR_CATALOG, armourCatalogById } from './armourCatalog'
-import { OSE_GENERAL_CATALOG, generalCatalogById } from './generalCatalog'
-import { OSE_AMMO_CATALOG, ammoCatalogById } from './ammoCatalog'
-import { consumableCatalogById } from './consumableCatalog'
+import { OSE_WEAPON_CATALOG } from './weaponCatalog'
+import { OSE_ARMOUR_CATALOG } from './armourCatalog'
 import { STORE_CATEGORY_LABELS } from './storeCatalog'
 import {
-  ARCANE_SPELL_CATALOG,
-  DIVINE_SPELL_CATALOG,
   SPELL_BOOK_TYPE_ID,
   arcaneSpellById,
 } from './spellCatalog'
@@ -38,10 +33,6 @@ import {
 import {
   isWeaponTemplateAllowedForClass,
   isArmourTemplateAllowedForClass,
-  parseDamageDice,
-  parseRangeBands,
-  parseArmourTemplateValues,
-  armourTypeFromTemplateId,
 } from './inventoryRules'
 import { usePendingTransfers } from '../transfers/usePendingTransfers'
 import { useResponsiveCharacterLayout } from './hooks/useResponsiveCharacterLayout'
@@ -71,6 +62,9 @@ import { PlayerAssignmentModal } from './components/PlayerAssignmentModal'
 import { LevelUpModal } from './components/LevelUpModal'
 import { DropItemDialog } from './components/DropItemDialog'
 import { SellItemDialog } from './components/SellItemDialog'
+import { SpellbookAddModal } from './components/SpellbookAddModal'
+import { DivinePrepareModal } from './components/DivinePrepareModal'
+import { AddItemModal } from './components/AddItemModal'
 import {
   alignmentOptions,
   classOptions,
@@ -78,7 +72,6 @@ import {
 import {
   abilityRows,
   adventureRows,
-  playerAddGearTemplates,
   saveRows,
   thiefSkillRows,
 } from './lib/characterSheetTables'
@@ -100,7 +93,6 @@ import {
 import { canDeleteCharacterForRole, deriveCharacterPermissions } from './lib/characterPermissions'
 import {
   applyPlayerAddTemplate as applyPlayerAddTemplateState,
-  playerAddPreviewItem,
 } from './lib/playerAddGear'
 import { amountForTarget } from './lib/grantPlanning'
 import type {
@@ -3385,776 +3377,56 @@ export function CharacterTab({
           </div>
         )
       })()}
-      {spellBookAddModalOpen && (selectedClassName === 'Magic-User' || selectedClassName === 'Elf') ? (
-        <div className="store-modal-overlay spellbook-add-overlay" role="dialog" aria-modal="true">
-          <div className="store-modal character-spell-add-modal">
-            <div className="store-modal-head">
-              <div>
-                <h3>Add Spells</h3>
-                <p>Select spells to write into the spell book.</p>
-              </div>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => {
-                  setSpellBookAddModalOpen(false)
-                  setSpellBookPendingAddIds([])
-                  setSpellBookExpandedSpellId(null)
-                }}
-                aria-label="Close add spells"
-              >
-                <X size={14} />
-              </button>
-            </div>
-
-            <div className="store-modal-body">
-              <div className="character-spell-add-main">
-                <div className="store-category-tabs">
-                  {accessibleSpellLevels.map((level) => (
-                    <button
-                      key={`spell-level-tab-${level}`}
-                      type="button"
-                      className={spellBookAddTabLevel === level ? 'store-category-btn active' : 'store-category-btn'}
-                      onClick={() => setSpellBookAddTabLevel(level)}
-                    >
-                      Level {level}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="store-grid-wrap">
-                  <div className="store-item-grid">
-                    {ARCANE_SPELL_CATALOG
-                      .filter((spell) => spell.level === spellBookAddTabLevel)
-                      .map((spell) => {
-                        const alreadyInBook = selectedSpellBookSpellIds.includes(spell.id)
-                        const pending = spellBookPendingAddIds.includes(spell.id)
-                        const expanded = spellBookExpandedSpellId === spell.id
-                        return (
-                          <article
-                            key={spell.id}
-                            className={expanded ? 'store-item-card spell-card-expanded' : 'store-item-card'}
-                            onClick={() => setSpellBookExpandedSpellId(expanded ? null : spell.id)}
-                          >
-                            <header>
-                              <h4>{spell.name}</h4>
-                              <span>Level {spell.level}</span>
-                            </header>
-                            {spell.rangeText || spell.durationText ? (
-                              <p className="spell-card-meta">
-                                {spell.rangeText ? `Range: ${spell.rangeText}` : null}
-                                {spell.rangeText && spell.durationText ? ' | ' : null}
-                                {spell.durationText ? `Duration: ${spell.durationText}` : null}
-                              </p>
-                            ) : null}
-                            <p className={expanded ? 'spell-card-description expanded' : 'spell-card-description'}>
-                              {spell.description}
-                            </p>
-                            <button
-                              type="button"
-                              className="store-buy-btn"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                if (pending) {
-                                  removePendingSpell(spell.id)
-                                } else {
-                                  queueSpellForBook(spell.id)
-                                }
-                              }}
-                              disabled={alreadyInBook}
-                            >
-                              {alreadyInBook ? 'In Spell Book' : pending ? 'Remove' : 'Add Spell'}
-                            </button>
-                          </article>
-                        )
-                      })}
-                  </div>
-                </div>
-              </div>
-
-              <aside className="store-tally store-cart">
-                <div className="store-tally-head">
-                  <h4>Selected Spells</h4>
-                  <span>{spellBookPendingAddIds.length} selected</span>
-                </div>
-                {pendingSpellObjects.length === 0 ? (
-                  <p className="store-tally-empty">No spells selected yet.</p>
-                ) : (
-                  <div className="store-tally-list">
-                    {pendingSpellObjects.map((spell) => (
-                      <div key={`pending-${spell.id}`} className="store-tally-row">
-                        <span>{spell.name}</span>
-                        <strong>Lvl {spell.level}</strong>
-                        <button
-                          type="button"
-                          className="store-remove-btn"
-                          onClick={() => removePendingSpell(spell.id)}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div className="store-cart-actions">
-                  <button
-                    type="button"
-                    className="store-buy-btn"
-                    onClick={commitPendingSpellsToBook}
-                  >
-                    Add Spells
-                  </button>
-                </div>
-              </aside>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {divinePrepareModalOpen && selectedClassName === 'Cleric' ? (
-        <div className="store-modal-overlay spellbook-add-overlay" role="dialog" aria-modal="true">
-          <div className="store-modal character-spell-add-modal">
-            <div className="store-modal-head">
-              <div>
-                <h3>Pray to Prepare</h3>
-                <p>Select divine spells to prepare for the day.</p>
-              </div>
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => {
-                  setDivinePrepareModalOpen(false)
-                  setDivinePrepareExpandedSpellId(null)
-                }}
-                aria-label="Close prepare spells"
-              >
-                <X size={14} />
-              </button>
-            </div>
-
-            <div className="store-modal-body">
-              <div className="character-spell-add-main">
-                <div className="store-category-tabs">
-                  {preparedSpellLevels.map((level) => (
-                    <button
-                      key={`divine-level-tab-${level}`}
-                      type="button"
-                      className={divinePrepareTabLevel === level ? 'store-category-btn active' : 'store-category-btn'}
-                      onClick={() => setDivinePrepareTabLevel(level)}
-                    >
-                      Level {level}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="store-grid-wrap">
-                  <div className="store-item-grid">
-                    {DIVINE_SPELL_CATALOG
-                      .filter((spell) => spell.level === divinePrepareTabLevel)
-                      .map((spell) => {
-                        const expanded = divinePrepareExpandedSpellId === spell.id
-                        const preparedCount = divineDraftCountsBySpellId[spell.id] ?? 0
-                        const slotsAtLevel = preparedSlotsPerDay[Math.max(0, spell.level - 1)] ?? 0
-                        const usedAtLevel = divineDraftCountsByLevel[spell.level] ?? 0
-                        const canPrepare = usedAtLevel < slotsAtLevel
-                        return (
-                          <article
-                            key={spell.id}
-                            className={expanded ? 'store-item-card spell-card-expanded' : 'store-item-card'}
-                            onClick={() => setDivinePrepareExpandedSpellId(expanded ? null : spell.id)}
-                          >
-                            <header>
-                              <h4>{spell.name}</h4>
-                              <span>Level {spell.level}</span>
-                            </header>
-                            {spell.rangeText || spell.durationText ? (
-                              <p className="spell-card-meta">
-                                {spell.rangeText ? `Range: ${spell.rangeText}` : null}
-                                {spell.rangeText && spell.durationText ? ' | ' : null}
-                                {spell.durationText ? `Duration: ${spell.durationText}` : null}
-                              </p>
-                            ) : null}
-                            <p className={expanded ? 'spell-card-description expanded' : 'spell-card-description'}>
-                              {spell.description}
-                            </p>
-                            <div className="section-head-actions">
-                              <button
-                                type="button"
-                                className="store-buy-btn"
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  prepareDivineSpell(spell.id)
-                                }}
-                                disabled={!canPrepare}
-                              >
-                                Prepare
-                              </button>
-                              {preparedCount > 0 ? (
-                                <button
-                                  type="button"
-                                  className="monster-example-btn"
-                                  onClick={(event) => {
-                                    event.stopPropagation()
-                                    removePreparedDivineSpell(spell.id)
-                                  }}
-                                >
-                                  Remove 1
-                                </button>
-                              ) : null}
-                            </div>
-                            <p className="store-item-note">
-                              Prepared: {preparedCount} | Slots L{spell.level}: {usedAtLevel}/{slotsAtLevel}
-                            </p>
-                          </article>
-                        )
-                      })}
-                    {DIVINE_SPELL_CATALOG.filter((spell) => spell.level === divinePrepareTabLevel).length === 0 ? (
-                      <p className="store-tally-empty">No cleric spells loaded for this level yet.</p>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-              <aside className="store-tally store-cart">
-                <div className="store-tally-head">
-                  <h4>Prepared Spells</h4>
-                  <span>{divinePreparedDraftIds.length} prepared</span>
-                </div>
-                {Object.keys(divineDraftCountsBySpellId).length === 0 ? (
-                  <p className="store-tally-empty">No spells prepared yet.</p>
-                ) : (
-                  <div className="store-tally-list">
-                    {Object.entries(divineDraftCountsBySpellId)
-                      .map(([spellId, count]) => ({
-                        spell: divinePreparedDraftSpells.find((entry) => entry.id === spellId) ?? null,
-                        count,
-                      }))
-                      .filter((row): row is { spell: (typeof DIVINE_SPELL_CATALOG)[number]; count: number } => !!row.spell)
-                      .sort((a, b) => a.spell.level - b.spell.level || a.spell.name.localeCompare(b.spell.name))
-                      .map((row) => (
-                        <div key={`prepared-${row.spell.id}`} className="store-tally-row">
-                          <span>{row.spell.name}</span>
-                          <strong>Lvl {row.spell.level} x{row.count}</strong>
-                          <button
-                            type="button"
-                            className="store-remove-btn"
-                            onClick={() => removePreparedDivineSpell(row.spell.id)}
-                          >
-                            Remove 1
-                          </button>
-                        </div>
-                      ))}
-                  </div>
-                )}
-                <div className="store-cart-actions">
-                  <button
-                    type="button"
-                    className="store-buy-btn"
-                    onClick={commitPreparedDivineSpells}
-                  >
-                    Prepare
-                  </button>
-                  <button
-                    type="button"
-                    className="store-buy-btn"
-                    onClick={clearPreparedDivineSpells}
-                    disabled={divinePreparedDraftIds.length === 0}
-                  >
-                    Clear All Prepared
-                  </button>
-                </div>
-              </aside>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <SpellbookAddModal
+        open={spellBookAddModalOpen}
+        className={selectedClassName}
+        accessibleLevels={accessibleSpellLevels}
+        tabLevel={spellBookAddTabLevel}
+        pendingIds={spellBookPendingAddIds}
+        expandedId={spellBookExpandedSpellId}
+        selectedIds={selectedSpellBookSpellIds}
+        pendingSpells={pendingSpellObjects}
+        onTabChange={setSpellBookAddTabLevel}
+        onExpandedChange={setSpellBookExpandedSpellId}
+        onQueue={queueSpellForBook}
+        onRemove={removePendingSpell}
+        onCommit={commitPendingSpellsToBook}
+        onClose={() => { setSpellBookAddModalOpen(false); setSpellBookPendingAddIds([]); setSpellBookExpandedSpellId(null) }}
+      />
+      <DivinePrepareModal
+        open={divinePrepareModalOpen}
+        className={selectedClassName}
+        levels={preparedSpellLevels}
+        tabLevel={divinePrepareTabLevel}
+        expandedId={divinePrepareExpandedSpellId}
+        draftIds={divinePreparedDraftIds}
+        slotsPerDay={preparedSlotsPerDay}
+        countsByLevel={divineDraftCountsByLevel}
+        countsBySpellId={divineDraftCountsBySpellId}
+        draftSpells={divinePreparedDraftSpells}
+        onTabChange={setDivinePrepareTabLevel}
+        onExpandedChange={setDivinePrepareExpandedSpellId}
+        onPrepare={prepareDivineSpell}
+        onRemove={removePreparedDivineSpell}
+        onCommit={commitPreparedDivineSpells}
+        onClear={clearPreparedDivineSpells}
+        onClose={() => { setDivinePrepareModalOpen(false); setDivinePrepareExpandedSpellId(null) }}
+      />
       <MemorizedSpellDetailModal
         spell={memorizedSpellDetail}
         description={memorizedSpellDetail ? renderSpellDescriptionBody(memorizedSpellDetail) : null}
         onClose={() => setMemorizedSpellDetailId(null)}
       />
-      {addItemModal ? (
-        <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={() => setAddItemModal(null)}>
-          <div className="confirm-modal item-detail-modal add-item-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Add Item</h3>
-            {requiresApprovalNow ? (
-              <>
-                <div className="add-item-kind-picker">
-                  {(['general', 'weapon', 'armour', 'ammunition'] as const).map((k) => (
-                    <button
-                      key={k}
-                      type="button"
-                      className={addItemModal.kind === k ? 'active' : ''}
-                      onClick={() => {
-                        const nextId = k === 'weapon'
-                          ? OSE_WEAPON_CATALOG[0]?.id
-                          : k === 'armour'
-                            ? OSE_ARMOUR_CATALOG[0]?.id
-                            : k === 'ammunition'
-                              ? OSE_AMMO_CATALOG[0]?.id
-                              : OSE_GENERAL_CATALOG[0]?.id
-                        if (!nextId) return
-                        applyPlayerAddTemplate(k, nextId)
-                      }}
-                    >
-                      {k === 'general' ? 'Gear' : k === 'ammunition' ? 'Ammo' : k.charAt(0).toUpperCase() + k.slice(1)}
-                    </button>
-                  ))}
-                </div>
-                <label className="character-weapon-primary-field">
-                  {addItemModal.kind === 'weapon' ? 'Weapon' : addItemModal.kind === 'armour' ? 'Armour' : addItemModal.kind === 'ammunition' ? 'Ammo' : 'Gear'}
-                  <select
-                    value={addItemModal.typeId || ''}
-                    onChange={(e) => applyPlayerAddTemplate(addItemModal.kind as 'general' | 'weapon' | 'armour' | 'ammunition', e.target.value)}
-                  >
-                    {(addItemModal.kind === 'weapon' ? OSE_WEAPON_CATALOG
-                      : addItemModal.kind === 'armour' ? OSE_ARMOUR_CATALOG
-                        : addItemModal.kind === 'ammunition' ? OSE_AMMO_CATALOG
-                          : playerAddGearTemplates).map((entry) => (
-                            <option key={entry.id} value={entry.id}>
-                              {entry.name}
-                            </option>
-                          ))}
-                  </select>
-                </label>
-                {playerAddPreviewItem(addItemModal) ? renderReadOnlyItemDetail(playerAddPreviewItem(addItemModal) as CharacterInventoryItem) : null}
-              </>
-            ) : (
-              <>
-            <div className="add-item-kind-picker">
-              {(['general', 'weapon', 'armour', 'ammunition'] as const).map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  className={addItemModal.kind === k ? 'active' : ''}
-                  onClick={() =>
-                    setAddItemModal({
-                      ...addItemModal,
-                      kind: k,
-                      typeId: 'custom',
-                      typeName: addItemModal.kind === k ? addItemModal.typeName : '',
-                      name: addItemModal.kind === k ? addItemModal.name : '',
-                    })
-                  }
-                >
-                  {k === 'ammunition' ? 'Ammo' : k.charAt(0).toUpperCase() + k.slice(1)}
-                </button>
-              ))}
-            </div>
-            {addItemModal.kind === 'weapon' ? (
-              <div className="item-detail-weapon-form">
-                <label className="character-weapon-primary-field">
-                  Template
-                  <select
-                    value={addItemModal.typeId || 'custom'}
-                    onChange={(e) => {
-                      const wId = e.target.value
-                      if (wId === 'custom') {
-                        setAddItemModal({ ...addItemModal, typeId: 'custom', typeName: '' })
-                      } else {
-                        const t = weaponCatalogById[wId]
-                        if (t) {
-                          const parsed = parseDamageDice(t.damage)
-                          const range = parseRangeBands(t.range)
-                          setAddItemModal({
-                            ...addItemModal,
-                            typeId: wId,
-                            typeName: t.name,
-                            costGp: String(t.costGp),
-                            damageDiceCount: parsed.damageDiceCount,
-                            damageDiceSides: parsed.damageDiceSides,
-                            rangeShort: range.rangeShort,
-                            rangeMedium: range.rangeMedium,
-                            rangeLong: range.rangeLong,
-                            slow: t.qualities.includes('Slow'),
-                            twoHanded: t.twoHanded,
-                          })
-                        }
-                      }
-                    }}
-                  >
-                    <option value="custom">Custom</option>
-                    {OSE_WEAPON_CATALOG.map((weapon) => (
-                      <option
-                        key={weapon.id}
-                        value={weapon.id}
-                        disabled={!isWeaponTemplateAllowedForClass(weapon.id, selectedClassName)}
-                      >
-                        {weapon.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {addItemModal.typeId === 'custom' ? (
-                  <label className="character-weapon-primary-field">
-                    Type
-                    <input
-                      type="text"
-                      value={addItemModal.typeName}
-                      onChange={(e) => setAddItemModal({ ...addItemModal, typeName: e.target.value })}
-                      placeholder="e.g. Bec de corbin"
-                    />
-                  </label>
-                ) : null}
-                <label className="character-weapon-primary-field">
-                  Name
-                  <input
-                    type="text"
-                    value={addItemModal.name}
-                    onChange={(e) => setAddItemModal({ ...addItemModal, name: e.target.value })}
-                    placeholder="Optional"
-                  />
-                </label>
-                <div className="character-weapon-mobile-grid">
-                  <label className="character-weapon-edit-field">
-                    Dmg
-                    <div className="character-weapon-damage-inputs">
-                      <input
-                        type="number"
-                        min={1}
-                        step={1}
-                        value={addItemModal.damageDiceCount}
-                        onChange={(e) => setAddItemModal({ ...addItemModal, damageDiceCount: e.target.value })}
-                      />
-                      <select
-                        value={addItemModal.damageDiceSides}
-                        onChange={(e) => setAddItemModal({ ...addItemModal, damageDiceSides: e.target.value })}
-                      >
-                        <option value="">-</option>
-                        <option value="4">d4</option>
-                        <option value="6">d6</option>
-                        <option value="8">d8</option>
-                        <option value="10">d10</option>
-                        <option value="12">d12</option>
-                        <option value="20">d20</option>
-                      </select>
-                    </div>
-                  </label>
-                  <label className="character-weapon-edit-field character-weapon-range-field">
-                    Range
-                    <div className="character-weapon-triplet-inputs">
-                      <input type="number" min={0} step={1} value={addItemModal.rangeShort} onChange={(e) => setAddItemModal({ ...addItemModal, rangeShort: e.target.value })} />
-                      <span>/</span>
-                      <input type="number" min={0} step={1} value={addItemModal.rangeMedium} onChange={(e) => setAddItemModal({ ...addItemModal, rangeMedium: e.target.value })} />
-                      <span>/</span>
-                      <input type="number" min={0} step={1} value={addItemModal.rangeLong} onChange={(e) => setAddItemModal({ ...addItemModal, rangeLong: e.target.value })} />
-                    </div>
-                  </label>
-                  <label className="character-weapon-edit-field">
-                    Cost
-                    <div className="character-inline-unit-field">
-                      <input type="text" value={addItemModal.costGp} onChange={(e) => setAddItemModal({ ...addItemModal, costGp: e.target.value })} />
-                      <span>gp</span>
-                    </div>
-                  </label>
-                </div>
-                <label className="character-weapon-card-check">
-                  <input
-                    type="checkbox"
-                    checked={addItemModal.slow}
-                    onChange={(e) => setAddItemModal({ ...addItemModal, slow: e.target.checked })}
-                    disabled={!!addItemModal.typeId && addItemModal.typeId !== 'custom'}
-                  />
-                  Slow
-                </label>
-                <label className="character-weapon-card-check">
-                  <input
-                    type="checkbox"
-                    checked={addItemModal.twoHanded}
-                    onChange={(e) => setAddItemModal({ ...addItemModal, twoHanded: e.target.checked })}
-                  />
-                  Two-handed
-                </label>
-                <div className="character-weapon-magic-row">
-                  <label className="character-weapon-card-check">
-                    <input
-                      type="checkbox"
-                      checked={addItemModal.isMagic}
-                      onChange={(e) => setAddItemModal({ ...addItemModal, isMagic: e.target.checked })}
-                    />
-                    Magic
-                  </label>
-                  {addItemModal.isMagic ? (
-                    <label className="character-weapon-magic-bonus character-weapon-edit-field">
-                      Bonus
-                      <input
-                        type="number"
-                        step={1}
-                        value={addItemModal.attackBonus}
-                        onChange={(e) => setAddItemModal({ ...addItemModal, attackBonus: e.target.value })}
-                      />
-                    </label>
-                  ) : null}
-                </div>
-                <label className="character-weapon-edit-field">
-                  Notes
-                  <textarea
-                    value={addItemModal.notes}
-                    onChange={(e) => setAddItemModal({ ...addItemModal, notes: e.target.value })}
-                    placeholder="Description, magic properties, etc."
-                  />
-                </label>
-              </div>
-            ) : addItemModal.kind === 'armour' ? (
-              <div className="item-detail-weapon-form">
-                <label className="character-weapon-primary-field">
-                  Template
-                  <select
-                    value={addItemModal.typeId || 'custom'}
-                    onChange={(e) => {
-                      const aId = e.target.value
-                      if (aId === 'custom') {
-                        setAddItemModal({ ...addItemModal, typeId: 'custom', typeName: '' })
-                      } else {
-                        const t = armourCatalogById[aId]
-                        if (t) {
-                          const parsed = parseArmourTemplateValues(t.ac)
-                          setAddItemModal({
-                            ...addItemModal,
-                            typeId: aId,
-                            typeName: t.name,
-                            costGp: String(t.costGp),
-                            armourClass: parsed.armourClass,
-                            shieldMod: parsed.shieldMod,
-                            armourType: armourTypeFromTemplateId(t.id),
-                          })
-                        }
-                      }
-                    }}
-                    disabled={!canClassEquipArmour}
-                  >
-                    <option value="custom">Custom</option>
-                    {OSE_ARMOUR_CATALOG.map((armour) => (
-                      <option
-                        key={armour.id}
-                        value={armour.id}
-                        disabled={!isArmourTemplateAllowedForClass(armour.id, selectedClassName)}
-                      >
-                        {armour.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {addItemModal.typeId === 'custom' ? (
-                  <label className="character-weapon-primary-field">
-                    Type
-                    <input
-                      type="text"
-                      value={addItemModal.typeName}
-                      onChange={(e) => setAddItemModal({ ...addItemModal, typeName: e.target.value })}
-                      placeholder="e.g. Brigandine"
-                    />
-                  </label>
-                ) : null}
-                <label className="character-weapon-primary-field">
-                  Name
-                  <input
-                    type="text"
-                    value={addItemModal.name}
-                    onChange={(e) => setAddItemModal({ ...addItemModal, name: e.target.value })}
-                    placeholder="Optional"
-                  />
-                </label>
-                <div className="character-weapon-mobile-grid">
-                  <label className="character-weapon-edit-field">
-                    {addItemModal.armourType === 'shield' ? 'Shield Mod' : 'Armour Class'}
-                    <input
-                      type="number"
-                      step={1}
-                      value={addItemModal.armourType === 'shield' ? addItemModal.shieldMod : addItemModal.armourClass}
-                      onChange={(e) =>
-                        setAddItemModal({
-                          ...addItemModal,
-                          ...(addItemModal.armourType === 'shield'
-                            ? { shieldMod: e.target.value }
-                            : { armourClass: e.target.value }),
-                        })}
-                    />
-                  </label>
-                  <label className="character-weapon-edit-field">
-                    Type
-                    <select
-                      value={addItemModal.armourType ?? 'body'}
-                      onChange={(e) => setAddItemModal({ ...addItemModal, armourType: e.target.value as 'body' | 'shield' })}
-                    >
-                      <option value="body">Body Armour</option>
-                      <option value="shield">Shield</option>
-                    </select>
-                  </label>
-                  <label className="character-weapon-edit-field">
-                    Cost
-                    <div className="character-inline-unit-field">
-                      <input type="text" value={addItemModal.costGp} onChange={(e) => setAddItemModal({ ...addItemModal, costGp: e.target.value })} />
-                      <span>gp</span>
-                    </div>
-                  </label>
-                </div>
-                <div className="character-weapon-magic-row">
-                  <label className="character-weapon-card-check">
-                    <input
-                      type="checkbox"
-                      checked={addItemModal.isMagic}
-                      onChange={(e) => setAddItemModal({ ...addItemModal, isMagic: e.target.checked })}
-                    />
-                    Magic
-                  </label>
-                  {addItemModal.isMagic ? (
-                    <label className="character-weapon-magic-bonus character-weapon-edit-field">
-                      Mod
-                      <input
-                        type="number"
-                        step={1}
-                        value={addItemModal.magicMod}
-                        onChange={(e) => setAddItemModal({ ...addItemModal, magicMod: e.target.value })}
-                      />
-                    </label>
-                  ) : null}
-                </div>
-                <label className="character-weapon-edit-field">
-                  Notes
-                  <textarea
-                    value={addItemModal.notes}
-                    onChange={(e) => setAddItemModal({ ...addItemModal, notes: e.target.value })}
-                    placeholder="Description, magic properties, etc."
-                  />
-                </label>
-              </div>
-            ) : (
-              <>
-                {addItemModal.kind === 'general' ? (
-                  <label className="item-detail-field">
-                    <span className="item-detail-field-label">Template</span>
-                    <select
-                      value={addItemModal.typeId || 'custom'}
-                      onChange={(e) => {
-                        const templateId = e.target.value
-                        if (templateId === 'custom') {
-                          setAddItemModal({ ...addItemModal, typeId: 'custom', typeName: '', costGp: '', description: '', qty: '1', effectText: '' })
-                        } else {
-                          const generalTemplate = generalCatalogById[templateId]
-                          const consumableTemplate = consumableCatalogById[templateId]
-                          const template = generalTemplate ?? consumableTemplate
-                          if (template) {
-                            setAddItemModal({
-                              ...addItemModal,
-                              typeId: templateId,
-                              typeName: template.name,
-                              costGp: String(template.costGp),
-                              description: template.description,
-                              qty: consumableTemplate ? String(consumableTemplate.qty) : '1',
-                              effectText: consumableTemplate?.effectText ?? '',
-                            })
-                          }
-                        }
-                      }}
-                    >
-                      <option value="custom">Custom</option>
-                      {playerAddGearTemplates.map((entry) => (
-                        <option key={entry.id} value={entry.id}>{`${entry.name} (${entry.costGp} gp)`}</option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-                {addItemModal.kind === 'ammunition' ? (
-                  <label className="item-detail-field">
-                    <span className="item-detail-field-label">Template</span>
-                    <select
-                      value={addItemModal.typeId || 'custom'}
-                      onChange={(e) => {
-                        const aId = e.target.value
-                        if (aId === 'custom') {
-                          setAddItemModal({ ...addItemModal, typeId: 'custom', typeName: '', costGp: '', description: '', qty: '1' })
-                        } else {
-                          const t = ammoCatalogById[aId]
-                          if (t) setAddItemModal({ ...addItemModal, typeId: aId, typeName: t.name, costGp: String(t.costGp), description: t.description, qty: String(t.qty) })
-                        }
-                      }}
-                    >
-                      <option value="custom">Custom</option>
-                      {OSE_AMMO_CATALOG.map((a) => (
-                        <option key={a.id} value={a.id}>{`${a.name} (${a.costGp} gp)`}</option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-                {addItemModal.typeId === 'custom' ? (
-                  <label className="item-detail-field">
-                    <span className="item-detail-field-label">Type</span>
-                    <input
-                      type="text"
-                      value={addItemModal.typeName}
-                      onChange={(e) => setAddItemModal({ ...addItemModal, typeName: e.target.value })}
-                    />
-                  </label>
-                ) : null}
-                <label className="item-detail-field">
-                  <span className="item-detail-field-label">Name (Optional)</span>
-                  <input
-                    type="text"
-                    value={addItemModal.name}
-                    onChange={(e) => setAddItemModal({ ...addItemModal, name: e.target.value })}
-                  />
-                </label>
-                <label className="item-detail-field">
-                  <span className="item-detail-field-label">Cost</span>
-                  <div className="character-inline-unit-field">
-                    <input type="text" value={addItemModal.costGp} onChange={(e) => setAddItemModal({ ...addItemModal, costGp: e.target.value })} />
-                    <span>gp</span>
-                  </div>
-                </label>
-                {(addItemModal.kind === 'ammunition' || !!consumableCatalogById[addItemModal.typeId]) ? (
-                  <label className="item-detail-field">
-                    <span className="item-detail-field-label">Qty</span>
-                    <input
-                      type="number"
-                      min={1}
-                      step={1}
-                      value={addItemModal.qty}
-                      onChange={(e) => setAddItemModal({ ...addItemModal, qty: e.target.value })}
-                    />
-                  </label>
-                ) : null}
-                {((addItemModal.kind === 'general' && !!consumableCatalogById[addItemModal.typeId]) || addItemModal.kind === 'consumable') ? (
-                  <label className="item-detail-field">
-                    <span className="item-detail-field-label">Effect</span>
-                    <textarea
-                      className="item-detail-notes"
-                      value={addItemModal.effectText}
-                      onChange={(e) => setAddItemModal({ ...addItemModal, effectText: e.target.value })}
-                      placeholder="Optional effect description"
-                      rows={2}
-                    />
-                  </label>
-                ) : null}
-                <label className="item-detail-field">
-                  <span className="item-detail-field-label">Description</span>
-                  <textarea
-                    className="item-detail-notes"
-                    value={addItemModal.description}
-                    onChange={(e) => setAddItemModal({ ...addItemModal, description: e.target.value })}
-                    placeholder="Optional item description"
-                    rows={2}
-                  />
-                </label>
-                <label className="item-detail-field">
-                  <span className="item-detail-field-label">Notes</span>
-                  <textarea
-                    className="item-detail-notes"
-                    value={addItemModal.notes}
-                    onChange={(e) => setAddItemModal({ ...addItemModal, notes: e.target.value })}
-                    placeholder="Optional notes"
-                    rows={2}
-                  />
-                </label>
-              </>
-            )}
-              </>
-            )}
-            <div className="confirm-actions">
-              <button type="button" onClick={() => setAddItemModal(null)}>Cancel</button>
-              <button type="button" onClick={saveAddItem}>{requiresApprovalNow ? 'Request' : 'Add'}</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <AddItemModal
+        modal={addItemModal}
+        setModal={setAddItemModal}
+        selectedClassName={selectedClassName}
+        canClassEquipArmour={canClassEquipArmour}
+        requiresApprovalNow={requiresApprovalNow}
+        onApplyTemplate={applyPlayerAddTemplate}
+        renderReadOnlyItemDetail={renderReadOnlyItemDetail}
+        onSave={saveAddItem}
+      />
       <TransferPickerModal
         open={transferPickerOpen}
         targets={transferTargets}
