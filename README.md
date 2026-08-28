@@ -48,12 +48,8 @@ Stop the demo with `Ctrl+C`.
 
 ## What it is
 
-The group plays remotely, over Discord.
-Discord carries the voice and the dice; Table Keep is what they have open alongside it.
-It does not try to be the whole table, because Discord already is - which is why there is no OSE dice roller.
-
-And it closes the loop.
-The same Discord call that carries the session is what gets recorded, transcribed, and turned into the recaps and NPC notes waiting in the app afterwards.
+Table Keep is a virtual tabletop.
+Live fog-of-war maps, character sheets, an NPC roster the GM reveals a piece at a time, and a campaign that remembers itself in recaps and NPC notes.
 
 What exists today is three things.
 A place to watch maps update live as pieces move across them.
@@ -176,7 +172,7 @@ Item, spell and re-roll requests land in a GM queue with live notifications, and
 ## AI-generated session recaps
 
 The session recaps and the NPC auto-notes above are not typed by hand.
-A recording of the actual game goes in one end and a structured recap comes out the other.
+A recording of the session goes in one end - the group plays over Discord, which captures one audio track per speaker - and a structured recap comes out the other.
 
 The pipeline that produces them is a separate macOS service, outside this repository.
 This repo owns the receiving end of it: the `postSessionSummary` Cloud Function in [`functions/`](functions/), plus a `getCampaignNpcs` endpoint the pipeline reads first so it can match people it hears about against the campaign's real roster.
