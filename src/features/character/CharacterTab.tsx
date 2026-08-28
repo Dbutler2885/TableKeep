@@ -43,7 +43,6 @@ import {
   parseArmourTemplateValues,
   armourTypeFromTemplateId,
 } from './inventoryRules'
-import { computeAvailablePackedSlots } from './inventoryOverflow'
 import { usePendingTransfers } from '../transfers/usePendingTransfers'
 import { useResponsiveCharacterLayout } from './hooks/useResponsiveCharacterLayout'
 import { useCharacterPersistenceSync } from './hooks/useCharacterPersistenceSync'
@@ -65,6 +64,13 @@ import { CharacterListPane } from './components/CharacterListPane'
 import { BlurSyncedTextarea } from './components/BlurSyncedTextarea'
 import { CharacterPackedItemsSection } from './components/CharacterPackedItemsSection'
 import { CharacterThiefSkillsSection } from './components/CharacterThiefSkillsSection'
+import { CreateCharacterModal } from './components/CreateCharacterModal'
+import { MemorizedSpellDetailModal } from './components/MemorizedSpellDetailModal'
+import { TransferPickerModal } from './components/TransferPickerModal'
+import { PlayerAssignmentModal } from './components/PlayerAssignmentModal'
+import { LevelUpModal } from './components/LevelUpModal'
+import { DropItemDialog } from './components/DropItemDialog'
+import { SellItemDialog } from './components/SellItemDialog'
 import {
   alignmentOptions,
   classOptions,
@@ -2730,39 +2736,11 @@ export function CharacterTab({
           </div>
         </div>
       ) : null}
-      {createCharacterModalOpen ? (
-        <div className="confirm-overlay" role="dialog" aria-modal="true">
-          <div className="confirm-modal character-create-modal">
-            <h3>Create Character</h3>
-            <p>Is this a brand new character or an established one?</p>
-            <div className="character-create-modal-actions">
-              <button
-                type="button"
-                onClick={() => {
-                  addCharacter('new')
-                  setCreateCharacterModalOpen(false)
-                }}
-              >
-                New
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  addCharacter('established')
-                  setCreateCharacterModalOpen(false)
-                }}
-              >
-                Established
-              </button>
-            </div>
-            <div className="confirm-actions">
-              <button type="button" onClick={() => setCreateCharacterModalOpen(false)}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <CreateCharacterModal
+        open={createCharacterModalOpen}
+        onAdd={addCharacter}
+        onClose={() => setCreateCharacterModalOpen(false)}
+      />
       <ConfirmModal
         open={storeCloseConfirmOpen}
         title="Discard cart?"
@@ -3688,60 +3666,11 @@ export function CharacterTab({
           </div>
         </div>
       ) : null}
-      {memorizedSpellDetail ? (
-        <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={() => setMemorizedSpellDetailId(null)}>
-          <div className="confirm-modal character-spell-detail-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="character-spell-detail-head">
-              <h3>{memorizedSpellDetail.name}</h3>
-              <p>Prepared spell details</p>
-            </div>
-            <div className="character-spell-detail-stat-grid">
-              <div className="character-spell-detail-stat">
-                <span>Level</span>
-                <strong>{memorizedSpellDetail.level}</strong>
-              </div>
-              {memorizedSpellDetail.rangeText ? (
-                <div className="character-spell-detail-stat">
-                  <span>Range</span>
-                  <strong>{memorizedSpellDetail.rangeText}</strong>
-                </div>
-              ) : null}
-              {memorizedSpellDetail.durationText ? (
-                <div className="character-spell-detail-stat">
-                  <span>Duration</span>
-                  <strong>{memorizedSpellDetail.durationText}</strong>
-                </div>
-              ) : null}
-              {memorizedSpellDetail.targetText ? (
-                <div className="character-spell-detail-stat">
-                  <span>Target</span>
-                  <strong>{memorizedSpellDetail.targetText}</strong>
-                </div>
-              ) : null}
-              {memorizedSpellDetail.areaText ? (
-                <div className="character-spell-detail-stat">
-                  <span>Area</span>
-                  <strong>{memorizedSpellDetail.areaText}</strong>
-                </div>
-              ) : null}
-              {memorizedSpellDetail.savingThrowText ? (
-                <div className="character-spell-detail-stat">
-                  <span>Save</span>
-                  <strong>{memorizedSpellDetail.savingThrowText}</strong>
-                </div>
-              ) : null}
-            </div>
-            <div className="character-spell-detail-body">
-              {renderSpellDescriptionBody(memorizedSpellDetail)}
-            </div>
-            <div className="confirm-actions">
-              <button type="button" onClick={() => setMemorizedSpellDetailId(null)}>
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <MemorizedSpellDetailModal
+        spell={memorizedSpellDetail}
+        description={memorizedSpellDetail ? renderSpellDescriptionBody(memorizedSpellDetail) : null}
+        onClose={() => setMemorizedSpellDetailId(null)}
+      />
       {addItemModal ? (
         <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={() => setAddItemModal(null)}>
           <div className="confirm-modal item-detail-modal add-item-modal" onClick={(e) => e.stopPropagation()}>
@@ -4226,213 +4155,47 @@ export function CharacterTab({
           </div>
         </div>
       ) : null}
-      {transferPickerOpen ? (
-        <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={closeTransferPicker}>
-          <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
-            <h3>Give Item To...</h3>
-            {transferTargets.length === 0 ? (
-              <p>No other player-owned characters are available.</p>
-            ) : (
-              <div style={{ display: 'grid', gap: 10 }}>
-                {transferTargets.map((character) => {
-                  const details = character.details
-                  const inventory = Array.isArray(details?.inventory) ? details.inventory : []
-                  const packedUsed = inventory.filter((item) => !item.equipped).length
-                  const strScore = Number.parseInt(details?.abilityScores?.STR ?? '', 10)
-                  const packedAvailable = computeAvailablePackedSlots(strScore)
-                  return (
-                    <label key={character.id} className="character-sheet-row">
-                      <input
-                        type="radio"
-                        name="transfer-target"
-                        value={character.id}
-                        checked={transferTargetCharacterId === character.id}
-                        onChange={() => setTransferTargetCharacterId(character.id)}
-                        disabled={transferBusy}
-                      />
-                      <span>
-                        <strong>{character.name}</strong>
-                        {character.ownerUsername ? ` (${character.ownerUsername})` : ''}
-                        <br />
-                        <small>Packed slots: {packedUsed}/{packedAvailable}</small>
-                      </span>
-                    </label>
-                  )
-                })}
-              </div>
-            )}
-            {(() => {
-              const transferItem = itemDetailId ? selectedInventory.find((i) => i.id === itemDetailId) ?? null : null
-              const showQtyPicker = transferItem && transferItem.stack.stackable && transferItem.qty > 1
-              if (!showQtyPicker) return null
-              return (
-                <label className="item-detail-field" style={{ marginTop: 8 }}>
-                  <span className="item-detail-field-label">Quantity (of {transferItem.qty})</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={transferItem.qty}
-                    step={1}
-                    value={transferQty}
-                    onChange={(e) => setTransferQty(e.target.value)}
-                    disabled={transferBusy}
-                  />
-                </label>
-              )
-            })()}
-            {transferError ? <p className="error">{transferError}</p> : null}
-            <div className="confirm-actions">
-              <button type="button" onClick={closeTransferPicker} disabled={transferBusy}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="confirm-danger"
-                onClick={() => {
-                  const detailItem = itemDetailId ? selectedInventory.find((item) => item.id === itemDetailId) ?? null : null
-                  if (!detailItem || detailItem.kind === 'gold') return
-                  void submitTransfer(detailItem)
-                }}
-                disabled={transferBusy || transferTargets.length === 0 || !transferTargetCharacterId}
-              >
-                {transferBusy ? 'Sending...' : 'Send'}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {playerAssignmentOpen && effectiveSelected ? (
-        <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={closePlayerAssignment}>
-          <div className="confirm-modal" onClick={(event) => event.stopPropagation()}>
-            <h3>Give to Player</h3>
-            <p>Assign <strong>{effectiveSelected.name}</strong> to a player so it appears in their character list.</p>
-            {assignmentOptions.length === 0 ? (
-              <p className="character-enc-help">No other active players are available.</p>
-            ) : (
-              <div className="character-grant-mobile-targets">
-                {assignmentOptions.map((player) => (
-                  <label key={player.userId} className="character-grant-mobile-target">
-                    <span>
-                      <strong>{player.username ?? player.userId}</strong>
-                    </span>
-                    <input
-                      type="radio"
-                      name="player-assignment-target"
-                      value={player.userId}
-                      checked={effectiveAssignmentTargetUserId === player.userId}
-                      onChange={() => setAssignmentTargetUserId(player.userId)}
-                      disabled={assignmentBusy}
-                    />
-                  </label>
-                ))}
-              </div>
-            )}
-            <div className="confirm-actions">
-              <button type="button" onClick={closePlayerAssignment} disabled={assignmentBusy}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="confirm-danger"
-                onClick={() => void submitPlayerAssignment()}
-                disabled={assignmentBusy || !effectiveAssignmentTargetUserId}
-              >
-                Give to Player
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {levelUpModalOpen && effectiveSelected ? (
-        <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={closeLevelUpModal}>
-          <div className="confirm-modal character-levelup-modal" onClick={(event) => event.stopPropagation()}>
-            <header className="character-levelup-hero">
-              <div className="character-levelup-kicker">
-                <Star size={14} />
-                <span>Level Up</span>
-              </div>
-              <h3 className="character-levelup-title">{effectiveSelected.name} Advances</h3>
-              <p className="character-levelup-story">
-                As a level {levelUpTargetLevel} {selectedClassName}, you should roll new hit points and review your
-                updated class options.
-              </p>
-              <p className="character-levelup-flavor">{levelUpFlavor}</p>
-              <div className="character-levelup-meta">
-                <span className="character-levelup-pill">Level {effectiveSelected.level} to {levelUpTargetLevel}</span>
-                <span className="character-levelup-pill">
-                  XP {effectiveSelected.xp.toLocaleString()}
-                  {selectedNextLevelXp !== null ? ` / ${selectedNextLevelXp.toLocaleString()}` : ''}
-                </span>
-              </div>
-            </header>
-
-            <div className="character-levelup-panes">
-              <section className="character-levelup-panel">
-                <h4 className="character-levelup-subhead">Checklist</h4>
-                <ul className="character-levelup-list">
-                  {levelUpChecklist.map((step) => (
-                    <li key={step}>{step}</li>
-                  ))}
-                </ul>
-              </section>
-
-              <section className="character-levelup-panel">
-                <h4 className="character-levelup-subhead">Hit Point Roll</h4>
-                <div className="character-levelup-grid">
-                  <div className="character-levelup-row">
-                    <span>Class HD</span>
-                    <strong>{selectedHitDie ? `d${selectedHitDie}` : '-'}</strong>
-                  </div>
-                  <div className="character-levelup-row">
-                    <span>HP gained this level</span>
-                    <strong>{levelUpHpGain ?? '-'}</strong>
-                  </div>
-                </div>
-                <div className="character-levelup-actions">
-                  <button
-                    type="button"
-                    className="character-levelup-roll-btn"
-                    onClick={rollLevelUpHitPoints}
-                    disabled={levelUpApplying || levelUpHpRoll !== null}
-                  >
-                    Roll Hit Points
-                  </button>
-                </div>
-                <p className="character-enc-help">This increase uses the hit die roll.</p>
-              </section>
-            </div>
-
-            <section className="character-levelup-panel">
-              <h4 className="character-levelup-subhead">New At This Level</h4>
-              {levelUpNewFeatures.length > 0 ? (
-                <ul className="character-levelup-list">
-                  {levelUpNewFeatures.map((feature) => (
-                    <li key={feature.id}>
-                      <strong>{feature.name}.</strong> {feature.summary}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="character-enc-help">No new named feature unlocks at this exact level.</p>
-              )}
-            </section>
-            {levelUpError ? <p className="error">{levelUpError}</p> : null}
-            <div className="confirm-actions">
-              <button type="button" onClick={closeLevelUpModal} disabled={levelUpApplying}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="confirm-danger"
-                onClick={applyLevelUp}
-                disabled={levelUpApplying || levelUpHpGain === null}
-              >
-                Apply Level Up
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <TransferPickerModal
+        open={transferPickerOpen}
+        targets={transferTargets}
+        targetCharacterId={transferTargetCharacterId}
+        busy={transferBusy}
+        error={transferError}
+        quantity={transferQty}
+        detailItem={itemDetailId ? selectedInventory.find((item) => item.id === itemDetailId) ?? null : null}
+        onTargetChange={setTransferTargetCharacterId}
+        onQuantityChange={setTransferQty}
+        onClose={closeTransferPicker}
+        onSubmit={(item) => void submitTransfer(item)}
+      />
+      <PlayerAssignmentModal
+        open={playerAssignmentOpen}
+        character={effectiveSelected}
+        busy={assignmentBusy}
+        options={assignmentOptions}
+        targetUserId={effectiveAssignmentTargetUserId}
+        onTargetChange={setAssignmentTargetUserId}
+        onClose={closePlayerAssignment}
+        onSubmit={() => void submitPlayerAssignment()}
+      />
+      <LevelUpModal
+        open={levelUpModalOpen}
+        character={effectiveSelected}
+        targetLevel={levelUpTargetLevel}
+        className={selectedClassName}
+        flavor={levelUpFlavor}
+        nextLevelXp={selectedNextLevelXp}
+        checklist={levelUpChecklist}
+        hitDie={selectedHitDie}
+        hpGain={levelUpHpGain}
+        hpRoll={levelUpHpRoll}
+        applying={levelUpApplying}
+        newFeatures={levelUpNewFeatures}
+        error={levelUpError}
+        onClose={closeLevelUpModal}
+        onRoll={rollLevelUpHitPoints}
+        onApply={applyLevelUp}
+      />
       <ConfirmModal
         open={goldSpendConfirmAmount !== null}
         title="Spend gold?"
@@ -4444,60 +4207,20 @@ export function CharacterTab({
         }}
         onCancel={() => setGoldSpendConfirmAmount(null)}
       />
-      {dropConfirmItemId !== null ? (() => {
-        const dropTarget = selectedInventory.find((i) => i.id === dropConfirmItemId)
-        if (!dropTarget) return null
-        const isStack = dropTarget.stack.stackable && dropTarget.qty > 1
-        const parsedDropQty = isStack ? Math.max(1, Math.min(dropTarget.qty, Number.parseInt(stackActionQty, 10) || dropTarget.qty)) : undefined
-        return (
-          <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={() => setDropConfirmItemId(null)}>
-            <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
-              <h3>Drop item?</h3>
-              <p>Drop {dropTarget.name?.trim() || dropTarget.typeName || 'this item'}? It will be moved to the campaign items list.</p>
-              {isStack ? (
-                <label className="item-detail-field">
-                  <span className="item-detail-field-label">Quantity (of {dropTarget.qty})</span>
-                  <input type="number" min={1} max={dropTarget.qty} step={1} value={stackActionQty} onChange={(e) => setStackActionQty(e.target.value)} />
-                </label>
-              ) : null}
-              <div className="confirm-actions">
-                <button type="button" onClick={() => setDropConfirmItemId(null)}>Cancel</button>
-                <button type="button" className="confirm-danger" onClick={() => void dropItem(dropConfirmItemId, parsedDropQty)}>
-                  {isStack ? `Drop ${parsedDropQty}` : 'Drop'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      })() : null}
-      {sellConfirmItemId !== null ? (() => {
-        const sellTarget = selectedInventory.find((i) => i.id === sellConfirmItemId)
-        if (!sellTarget) return null
-        const isStack = sellTarget.stack.stackable && sellTarget.qty > 1
-        const parsedSellQty = isStack ? Math.max(1, Math.min(sellTarget.qty, Number.parseInt(stackActionQty, 10) || sellTarget.qty)) : undefined
-        const unitCost = sellTarget.costGp
-        const totalCost = unitCost * (parsedSellQty ?? 1)
-        return (
-          <div className="confirm-overlay" role="dialog" aria-modal="true" onClick={() => setSellConfirmItemId(null)}>
-            <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
-              <h3>Sell item?</h3>
-              <p>Sell {sellTarget.name?.trim() || sellTarget.typeName || 'this item'} for {totalCost} gp?</p>
-              {isStack ? (
-                <label className="item-detail-field">
-                  <span className="item-detail-field-label">Quantity (of {sellTarget.qty})</span>
-                  <input type="number" min={1} max={sellTarget.qty} step={1} value={stackActionQty} onChange={(e) => setStackActionQty(e.target.value)} />
-                </label>
-              ) : null}
-              <div className="confirm-actions">
-                <button type="button" onClick={() => setSellConfirmItemId(null)}>Cancel</button>
-                <button type="button" className="confirm-danger" onClick={() => void sellItem(sellConfirmItemId, parsedSellQty)}>
-                  {isStack ? `Sell ${parsedSellQty}` : 'Sell'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      })() : null}
+      <DropItemDialog
+        item={dropConfirmItemId ? selectedInventory.find((item) => item.id === dropConfirmItemId) ?? null : null}
+        quantity={stackActionQty}
+        onQuantityChange={setStackActionQty}
+        onClose={() => setDropConfirmItemId(null)}
+        onDrop={(quantity) => { if (dropConfirmItemId) void dropItem(dropConfirmItemId, quantity) }}
+      />
+      <SellItemDialog
+        item={sellConfirmItemId ? selectedInventory.find((item) => item.id === sellConfirmItemId) ?? null : null}
+        quantity={stackActionQty}
+        onQuantityChange={setStackActionQty}
+        onClose={() => setSellConfirmItemId(null)}
+        onSell={(quantity) => { if (sellConfirmItemId) void sellItem(sellConfirmItemId, quantity) }}
+      />
       <ConfirmModal
         open={finalizeConfirmOpen}
         title="Finalize character?"
