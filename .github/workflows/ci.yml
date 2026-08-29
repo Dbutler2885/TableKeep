@@ -20,7 +20,7 @@ env:
   # The web app's Node version, per the README prerequisites.
   NODE_VERSION: '24'
   # The Cloud Functions package pins `engines.node` to its deployed runtime.
-  FUNCTIONS_NODE_VERSION: '20'
+  FUNCTIONS_NODE_VERSION: '22'
 
 jobs:
   lint:
