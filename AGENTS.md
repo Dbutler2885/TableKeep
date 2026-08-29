@@ -10,9 +10,10 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 It runs seven parallel jobs, each invoking a real npm script: root `lint`, `typecheck`, `test`, `build`, `test:emulator`, `test:browser-smoke`, and `lint` + `build` inside `functions/`.
 The workflow is read-only (`permissions: contents: read`), uses no secrets, and never deploys.
 
-- **Web app jobs run on Node 24; the Cloud Functions job runs on Node 20.**
-  The split is deliberate: 24 matches the README prerequisites, and 20 matches `engines.node` in `functions/package.json`, which is the deployed function runtime.
+- **Web app jobs run on Node 24; the Cloud Functions job runs on Node 22.**
+  The split is deliberate: 24 matches the README prerequisites, and 22 matches `engines.node` in `functions/package.json`, which is the deployed function runtime.
   Do not collapse them into one version or widen either into a matrix.
+  `functions/package.json`'s `engines.node` is the only place the deployed runtime is declared - `firebase.json` pins no `runtime` key, so the Firebase CLI reads the runtime off `engines` and nothing else needs to agree with it except CI's `FUNCTIONS_NODE_VERSION` and the two prose mentions (this bullet and the README's CI table note).
 - **`npm run typecheck` is `tsc -b`, and it does not cover test files.**
   `tsconfig.app.json` excludes `src/**/*.test.ts`, `src/**/*.test.tsx` and `src/**/*.emulator.test.ts`, and `tsconfig.node.json` includes only `vite.config.ts`.
   Type errors inside a test file appear when Vitest runs it, not from the typecheck gate.
