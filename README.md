@@ -264,7 +264,7 @@ It runs seven jobs in parallel, each one a command you can reproduce locally:
 | Cloud Functions (lint + build) | `npm run lint` and `npm run build` in `functions/` |
 
 The web app jobs run on Node 24, matching the prerequisites above.
-The Cloud Functions job runs on Node 20, matching `engines.node` in `functions/package.json` and the deployed function runtime.
+The Cloud Functions job runs on Node 22, matching `engines.node` in `functions/package.json` and the deployed function runtime.
 The split is deliberate.
 
 ### Test layers
