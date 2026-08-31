@@ -61,7 +61,7 @@ Stop the demo with `Ctrl+C`.
 ## The demo on the deployed site
 
 The local demo above needs a clone and a JDK.
-The deployed site has a lighter door: a **try it now** link on the sign-in screen that hands a visitor a private copy of the same campaign, with no account, no email, and no dialog.
+The deployed site has a lighter door: a **Check it out with mock data** link on the sign-in screen that hands a visitor a private copy of the same campaign, with no account, no email, and no dialog.
 
 It is not a tour.
 A visitor arrives as the **Game Master** of their own copy, with the fog brush, the token layer and the whole tool rail live, because the strongest thing here is painting fog and moving tokens and a read-only version of that is a screenshot.
