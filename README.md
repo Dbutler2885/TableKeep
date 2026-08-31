@@ -2,8 +2,13 @@
 
 [![CI](https://github.com/Dbutler2885/TableKeep/actions/workflows/ci.yml/badge.svg)](https://github.com/Dbutler2885/TableKeep/actions/workflows/ci.yml)
 
-Table Keep is a virtual tabletop that writes its own campaign log.
-Play the session, and the recap and the updated NPC notes are waiting the next time anyone opens the app.
+Table Keep is a virtual tabletop built to make the difficult parts of online roleplaying easier without automating the game itself.
+
+Online play lets friends scattered across the world share a campaign, but it creates new problems. Sessions can become sporadic, increasing the need for a reliable campaign memory. Character sheets turn into files scattered across devices or awkward shared drives. Maps must work remotely, while tools such as fog of war can make online play better than a simple video call.
+
+Many virtual tabletops address these problems with software that is complicated, intimidating, or expensive. I wanted something lighter. Table Keep helps with campaign history, character sheets, maps, and the other parts that become harder online, then gets out of the way. Its guiding principle is simple: make the hard things easy and leave everything else alone.
+
+Table Keep generally does not make rolls for you. It includes random encounter rolls on maps, and its *Vampire: The Masquerade* support has an assisted rolling system, but automation is not the main goal.
 
 <p align="center">
   <img src=".github/media/table-keep-fog-hero.webp" alt="A player's map view: fog of war peeling back around a token as it moves through a village" width="560">
