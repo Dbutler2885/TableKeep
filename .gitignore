@@ -38,3 +38,6 @@ firebase.sandbox.json
 
 # Python
 __pycache__/
+
+# Private one-off campaign repair backup
+/scripts/homeboys_calendar_backup.json
