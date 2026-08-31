@@ -358,10 +358,9 @@ service cloud.firestore {
 
     match /campaigns/{campaignId} {
       // The legacy flat tree predates the group model and holds one real
-      // campaign. An anonymous demo visitor has no business in it.
-      allow read: if isCampaignMember(campaignId) || (
-        isSignedIn() && !isAnonymousVisitor() && resource.data.status == "active"
-      );
+      // campaign. Its surviving documents remain readable only to members
+      // while unmigrated Storage art still depends on this tree.
+      allow read: if isCampaignMember(campaignId);
       allow create: if isSignedIn()
         && !isAnonymousVisitor()
         && request.resource.data.createdBy == request.auth.uid;
@@ -407,7 +406,8 @@ service cloud.firestore {
       match /characters/{characterId} {
         allow read: if isCampaignMember(campaignId);
         allow create: if isCampaignGM(campaignId) || (
-          isSignedIn() && request.resource.data.ownerUserId == request.auth.uid
+          isCampaignMember(campaignId)
+          && request.resource.data.ownerUserId == request.auth.uid
         );
         allow update: if isCampaignGM(campaignId) || isCharacterOwner();
         allow delete: if isCampaignGM(campaignId) || isCharacterOwner();
