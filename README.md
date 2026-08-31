@@ -323,7 +323,13 @@ The split is deliberate.
 
 Data-import helpers for OSE reference content also exist as `npm run ose:*`; see `package.json` and `scripts/`.
 
-## Running against a real Firebase project
+## Deployment
+
+[https://tablekeep.vercel.app](https://tablekeep.vercel.app) is the live production host.
+The checked-in [`vercel.json`](vercel.json) supplies the SPA rewrite that routes client-side paths through `index.html`.
+Firebase Hosting remains a supported self-deployment alternative: [`firebase.json`](firebase.json) serves `dist`, and `npm run deploy:hosting` deploys it.
+
+## Self-deploying with Firebase
 
 The demo needs none of this.
 It is here for anyone who wants to deploy their own instance.
