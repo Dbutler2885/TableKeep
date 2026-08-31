@@ -2,13 +2,29 @@
 
 [![CI](https://github.com/Dbutler2885/TableKeep/actions/workflows/ci.yml/badge.svg)](https://github.com/Dbutler2885/TableKeep/actions/workflows/ci.yml)
 
-Table Keep is a virtual tabletop built to make the difficult parts of online roleplaying easier without automating the game itself.
+Table Keep makes the awkward parts of online roleplaying easier and leaves the rest alone.
 
-Online play lets friends scattered across the world share a campaign, but it creates new problems. Sessions can become sporadic, increasing the need for a reliable campaign memory. Character sheets turn into files scattered across devices or awkward shared drives. Maps must work remotely, while tools such as fog of war can make online play better than a simple video call.
+# The theory of the case
 
-Many virtual tabletops address these problems with software that is complicated, intimidating, or expensive. I wanted something lighter. Table Keep helps with campaign history, character sheets, maps, and the other parts that become harder online, then gets out of the way. Its guiding principle is simple: make the hard things easy and leave everything else alone.
+## Players to the winds
 
-Table Keep generally does not make rolls for you. It includes random encounter rolls on maps, and its *Vampire: The Masquerade* support has an assisted rolling system, but automation is not the main goal.
+Online play lets us keep playing with friends after we scatter. Getting the group together at the scheduled time is often another matter. Jobs, families, time zones, and other obligations make regular sessions hard to schedule. Play becomes sporadic. When the last session was three weeks ago, you need a good way to generate reliable session notes. Table Keep is built around an AI-assisted campaign memory, and various parts of the site, NPCs, session summaries, the calendar are kept up to date automatically from the session trascript.
+
+## The PDF predicament
+
+Without printers in every home, character sheets often become editable PDFs, which can be difficult to update on a shared drive. This one is simple, make the character sheets live-updated, fully interactive forms that understand the rules and live in the cloud.
+
+# Mapping the Zone
+Maps have their own problems, as well as possibilities. Table Keep makes fog of war and map play easy. It even provides a drawing surface to draw a map when you need it. 
+
+## The man behind the curtain
+
+Most virtual tabletops try to mechanize the game from stem to stern. The GM becomes the operator of a rigid machine, making the OSR principle of "rulings over rules" difficult to put into practice. As a GM, I did not want to pay for software that got in my way.
+
+Table Keep generally leaves the dice to the players. I experimented with more automated rolling while building support for *Old-School Essentials* (OSE), and the groundwork for that remains. There is more to do on the side of mechanization before Table Keep strikes the right balance for my tastes, but I have proceeded cautiously. The only automatic rolls in OSE are random encounter rolls on maps.
+
+I also built an assisted rolling tool directly into the character sheet for *Vampire: The Masquerade* (VtM). 
+
 
 <p align="center">
   <img src=".github/media/table-keep-fog-hero.webp" alt="A player's map view: fog of war peeling back around a token as it moves through a village" width="560">
@@ -64,7 +80,7 @@ The local demo above needs a clone and a JDK.
 The deployed site has a lighter door: a **Check it out with mock data** link on the sign-in screen that hands a visitor a private copy of the same campaign, with no account, no email, and no dialog.
 
 It is not a tour.
-A visitor arrives as the **Game Master** of their own copy, with the fog brush, the token layer and the whole tool rail live, because the strongest thing here is painting fog and moving tokens and a read-only version of that is a screenshot.
+A visitor arrives as the **Game Master** of their own copy. Build characters, explore the Map tool check out what is possible!
 
 How it works, in one pass:
 
@@ -81,18 +97,16 @@ Turning it on for a project takes three steps beyond a normal deploy: enable Ano
 
 ## What it is
 
-Table Keep is a virtual tabletop.
-The GM reveals a map a piece at a time, and every client sees the fog change as it happens.
-Character sheets live in one place and stay current.
-The session recaps and the per-session NPC notes write themselves from a recording of the game.
+Table Keep is a live updating virtual tabletop currently under construction and refinement.
 
 Groups and campaigns hold everything else.
 
 - A user signs in, claims a username, and can belong to multiple groups.
 - A group is the stable social container. Members and email invites live there.
 - A group holds many campaigns over their lifetime; each campaign owns its own game system and data, and a group has at most one *current* campaign at a time.
-  Campaigns move between `draft`, `active`, and `inactive`.
-- Each campaign has exactly one GM, its creator.
+  Campaigns move between `draft`, `active`, and `inactive`. Inactive campaigns can be made active again with the click of a button.
+- Each campaign has exactly one GM, and the draft of the campaign is visible only to that GM. This means a GM can prepare a new campaign while another proceeds.
+- This system is built with the assumption that campaigns do not span multiple story-lines. This is not how many groups play, a carefully conceived system would need to be constructed to allow for new stories, with the same characters. This does not exist. 
   Everyone else in the group is a player, and participation is implicit. You are in the campaign because you own a character in it.
 
 Everything lives in Firestore and Firebase Storage under `groups/{groupId}/campaigns/{campaignId}/...`, and everything reads through Firestore listeners.
