@@ -14,7 +14,7 @@ Online play lets us keep playing with friends after we scatter. Getting the grou
 
 Without printers in every home, character sheets often become editable PDFs, which can be difficult to update on a shared drive. This one is simple, make the character sheets live-updated, fully interactive forms that understand the rules and live in the cloud.
 
-# Mapping the Zone
+## Mapping the Zone
 Maps have their own problems, as well as possibilities. Table Keep makes fog of war and map play easy. It even provides a drawing surface to draw a map when you need it. 
 
 ## The man behind the curtain
