@@ -109,7 +109,6 @@ The player UI is mobile-friendly with drawer navigation; the GM UI is desktop-or
 
 **The map tools, 33 seconds.** The whole GM rail in one pass: brush size, fog, vision blocking, measurement, player view, selection and pan, annotation, grid.
 Then the GM drops a token and labels it *The Clumsy Fox*, and the label renders on the board where the table will read it.
-[Full-quality recording](.github/media/table-keep-map-tools.mp4).
 
 <p align="center">
   <img src=".github/media/table-keep-scene-npcs.webp" alt="Eric the Town Reeve selected on the map, his portrait and GM notes filling the right sidebar, his name label appearing under his token" width="640">
@@ -119,7 +118,6 @@ Then the GM drops a token and labels it *The Clumsy Fox*, and the label renders 
 The GM can read what Eric wants, and what he pays for it, without leaving the map. At the same time, players see the player facing description of Eric. So if you're walking around town and meet Eric, the GM can preload the NPC into town and then make him visible when players meet him. 
 You can also display or hide his name label as the GM. Lets say players haven't met Eric yet, or you they have and the name tag is in the way, simply hide it until you want them to see it. The update propagates live to players view.
 Scene NPCs attach to a map from the campaign roster, so the people in a location travel with it.
-[Full-quality recording](.github/media/table-keep-scene-npcs.mp4).
 
 Fog is what the rest of the map tooling exists to serve, and it is not a circle of light around a token.
 Vision blockers come in two kinds.
