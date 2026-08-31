@@ -116,8 +116,8 @@ Then the GM drops a token and labels it *The Clumsy Fox*, and the label renders 
 </p>
 
 **Scene NPCs, 14 seconds.** The GM selects Eric the Town Reeve, and his portrait and notes fill the sidebar.
-The GM can read what Eric wants, and what he pays for it, without leaving the map.
-It ends on his name label appearing under his token.
+The GM can read what Eric wants, and what he pays for it, without leaving the map. At the same time, players see the player facing description of Eric. So if you're walking around town and meet Eric, the GM can preload the NPC into town and then make him visible when players meet him. 
+You can also display or hide his name label as the GM. Lets say players haven't met Eric yet, or you they have and the name tag is in the way, simply hide it until you want them to see it. The update propagates live to players view.
 Scene NPCs attach to a map from the campaign roster, so the people in a location travel with it.
 [Full-quality recording](.github/media/table-keep-scene-npcs.mp4).
 
