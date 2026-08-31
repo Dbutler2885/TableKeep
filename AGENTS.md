@@ -68,9 +68,9 @@ Firestore + Storage emulator, with the repo's real `firestore.rules` /
   time and throws `auth/invalid-api-key` without a config. (The underlying
   coupling is real: `inventoryOverflow.ts` imports `toFirestoreItem` from the
   `useItems` hook module, which pulls in the singleton.)
-- **Emulator suites resolve their ports from the environment where they can.**
-  `demoSandbox.emulator.test.ts` reads `FIRESTORE_EMULATOR_HOST` / `FIREBASE_STORAGE_EMULATOR_HOST`, which `firebase emulators:exec` exports, and falls back to the `firebase.json` defaults.
-  The older suites still hard-code `8080` / `9199`, so running the whole file set on shifted ports needs those updated first.
+- **Every emulator suite resolves its ports from the environment.**
+  The suites use `emulatorPort` from `vitest.emulatorEndpoint.ts` to read `FIRESTORE_EMULATOR_HOST` / `FIREBASE_STORAGE_EMULATOR_HOST`, which `firebase emulators:exec` exports, and fall back to the `firebase.json` defaults.
+  The full suite can therefore run on a shifted port block without source changes.
 - **Some suites run real Cloud Functions code against the emulator.**
   `acceptPendingTransfer.emulator.test.ts` imports `functions/src/index.ts` and invokes the callable through its `run()` entrypoint.
   The admin SDK inside the function finds the emulator through `FIRESTORE_EMULATOR_HOST`, which `firebase emulators:exec` exports, and resolves its project from `GCLOUD_PROJECT` - so that suite must use `process.env.GCLOUD_PROJECT` as its `initializeTestEnvironment` project id for the same reason the Storage suites do, or the function and the client would read two different namespaces inside one emulator.
@@ -241,8 +241,9 @@ The pieces are `src/features/demo/`, `functions/src/demoConstants.ts` / `demoClo
   It differs from `npm run demo` in exactly the three ways the sandbox needs: it starts the **functions** emulator (the feature is a callable), it seeds the template into that emulator from the snapshot, and it sets `VITE_DEMO_SANDBOX=true`.
   That last one is what puts the "try it now" link back on the sign-in screen: `src/features/demo/demoAvailability.ts` hides it against the emulators by default, because `npm run demo` starts no functions emulator and `browser-smoke.mjs` asserts against the ordinary sign-in screen.
   It also blanks the `VITE_DEMO_*` seat credentials, so the sign-in screen offers one door rather than two.
-- **The rig runs on its own port block** (`scripts/demo/sandboxPorts.mjs`), because it is a long-running thing somebody leaves open and must not be why another worktree's emulators refuse to start.
-  `firestoreWebsocket` is pinned there deliberately: left unset the Firestore emulator picks 9150, which is the one port the default block claims that `firebase.json` never mentions, so nothing else would catch the collision.
+- **The rig uses the standard emulator port block** (`scripts/demo/sandboxPorts.mjs`), because `src/firebase/index.ts` connects to those ports as literals.
+  Auth, Firestore, Storage, and Functions stay on 9099 / 8080 / 9199 / 5001; only the Vite app moves to 5185.
+  The rig cannot run beside another checkout's emulators until the client ports become configurable, and there is no separate `firestoreWebsocket` override.
   Its Firebase config is **generated** from `firebase.json` into a gitignored `firebase.sandbox.json` rather than committed, so the rules paths and functions source keep one definition; it must land in the repo root because firebase-tools resolves a config's relative paths, and the project root, from the config file's own directory.
 - **Turning the demo on in production needs three things this repo does not do:** enabling Anonymous sign-in in Firebase Auth, deploying rules/indexes/functions, and running `npm run demo:seed-template -- --target=project ... --apply` once.
 
