@@ -61,3 +61,9 @@ export function buildWholePartyTokenPlacementSources(
     .filter((character) => isPlayerOwnedLivingPartyCharacter(character, gmUserId))
     .map(toPartyCharacterTokenPlacementSource)
 }
+
+export function partyPlacementControlsAvailable(
+  sources: readonly PartyCharacterTokenPlacementSource[],
+): boolean {
+  return sources.length > 0
+}

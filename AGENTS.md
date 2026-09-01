@@ -133,6 +133,13 @@ token-asset path builders in `src/features/maps/hooks/`).
 - **Do not cache a failed Storage URL lookup.**
   Authentication and network failures can be transient, so `resolveStoragePathUrl` retries an authorization failure once with a refreshed ID token and evicts any rejected promise.
   Character and NPC readers share this behavior through `src/features/common/mediaStorage.ts`.
+- **Production entity media also depends on the bucket CORS policy in `storage.cors.json`.**
+  Firebase's browser Storage SDK sends authenticated `GET` requests for `getDownloadURL` and multipart `POST` requests for `uploadBytes` with Firebase and Google upload headers.
+  The production bucket must allow only `https://tablekeep.vercel.app`; localhost is deliberately absent and must use Firebase emulators.
+  Firebase deploys Storage Rules but does not apply bucket CORS, so compare or apply the file separately with `gcloud storage buckets describe gs://homeboyshouse-dev.firebasestorage.app --format=json` and `gcloud storage buckets update gs://homeboyshouse-dev.firebasestorage.app --cors-file=storage.cors.json`.
+- **A loopback browser must never connect to production Firebase.**
+  `src/firebase/runtimeSafety.ts` fails before SDK initialization unless `VITE_USE_FIREBASE_EMULATORS=true` on localhost, IPv4 loopback, or IPv6 loopback.
+  `npm run dev` is the supported empty-data workflow and starts Auth, Firestore, and Storage emulators around Vite; `npm run demo` is the supported seeded workflow.
 
 ## Demo harness (`scripts/demo/`, `emulator-data/`)
 
@@ -163,7 +170,7 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
   Every write in `scripts/demo/seed-accounts.mjs` is idempotent, so it can run against a freshly imported snapshot without disturbing it.
 - **`.env.demo` is committed and is injected into the dev server's environment, not loaded as a Vite mode.**
   Vite's `loadEnv` lets `process.env` win over every `.env` file, so injecting beats any real `.env.local` on the machine as well as any exported `VITE_*` shell variable.
-  `npm run dev` and `npm run build` never read `.env.demo`, so the normal config path is unchanged.
+  `npm run dev` and `npm run build` never read `.env.demo`; the normal dev command separately forces emulator routing around Vite.
 - **The demo harness does not start the functions emulator**, only `auth,firestore,storage`.
   `acceptPendingTransfer` (`src/features/transfers/usePendingTransfers.ts`) is the one callable in the app, so accepting an item transfer does not work in the demo.
 - **The hosted "try it now" sandbox is off in every emulator build.**

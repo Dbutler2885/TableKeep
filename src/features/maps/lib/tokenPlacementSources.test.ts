@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildWholePartyTokenPlacementSources,
+  partyPlacementControlsAvailable,
   toGenericTokenPlacementSource,
   toMonsterTokenPlacementSource,
   toNpcTokenPlacementSource,
@@ -29,6 +30,8 @@ const character = (
 ): CharacterTokenSummary => ({
   tokenIcon: pawn,
   ownerUserId: 'player-user',
+  system: 'ose',
+  creationStatus: 'active',
   hpCurrent: 1,
   ...overrides,
 })
@@ -125,6 +128,66 @@ describe('token placement sources', () => {
         gmUserId,
       ).map((source) => source.id),
     ).toEqual(['living-player'])
+  })
+
+  it('includes active VtM player characters without OSE hit points', () => {
+    const activeVampire = character({
+      id: 'active-vampire',
+      name: 'Active Vampire',
+      system: 'vtm',
+      hpCurrent: undefined,
+      incapacitated: false,
+    })
+    const incapacitatedVampire = character({
+      id: 'incapacitated-vampire',
+      name: 'Incapacitated Vampire',
+      system: 'vtm',
+      hpCurrent: undefined,
+      incapacitated: true,
+    })
+    const draftVampire = character({
+      id: 'draft-vampire',
+      name: 'Draft Vampire',
+      system: 'vtm',
+      creationStatus: 'draft',
+      hpCurrent: undefined,
+      incapacitated: false,
+    })
+
+    expect(buildWholePartyTokenPlacementSources(
+      [activeVampire, incapacitatedVampire, draftVampire],
+      gmUserId,
+    ).map((source) => source.id)).toEqual(['active-vampire'])
+  })
+
+  it('keeps hidden, deleted, and incomplete characters out of party controls', () => {
+    const active = character({ id: 'active', name: 'Active' })
+    const hidden = character({ id: 'hidden', name: 'Hidden', hidden: true })
+    const deleted = character({ id: 'deleted', name: 'Deleted', deleted: true })
+    const draft = character({ id: 'draft', name: 'Draft', creationStatus: 'draft' })
+    const sources = buildWholePartyTokenPlacementSources([active, hidden, deleted, draft], gmUserId)
+
+    expect(sources.map((source) => source.id)).toEqual(['active'])
+    expect(partyPlacementControlsAvailable(sources)).toBe(true)
+    expect(partyPlacementControlsAvailable([])).toBe(false)
+  })
+
+  it('places VtM party sources as party tokens', () => {
+    const vampire = character({
+      id: 'vampire',
+      name: 'Vampire',
+      system: 'vtm',
+      hpCurrent: undefined,
+      incapacitated: false,
+    })
+    const queue = startWholePartyTokenPlacement(buildWholePartyTokenPlacementSources([vampire], gmUserId))
+    const result = dropTokenPlacement(queue, { x: 0.25, y: 0.75 }, [])
+
+    expect(result.command).toMatchObject({
+      sourceKind: 'partyCharacter',
+      characterId: 'vampire',
+      party: true,
+    })
   })
 
   it('does not treat missing ownership fields as player-owned', () => {

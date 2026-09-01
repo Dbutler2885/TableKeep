@@ -39,6 +39,7 @@ import {
   TOKEN_REFERENCE_DIMENSION,
 } from '../lib/constants'
 import type { TokenPlacementCommand } from '../lib/tokenPlacementQueue'
+import { mapCharacterSummaryFromData } from '../lib/mapCharacterSummary'
 
 const MAP_UPLOAD_MAX_DIMENSION = 2048
 
@@ -508,29 +509,11 @@ export function useMapData({
     const unsub = onSnapshot(campaignCollectionRef(db, scope, 'characters'), (snap) => {
       setMapCharacters((current) =>
         snap.docs
-          .map((d) => {
-            const data = d.data()
-            const local = current.find((character) => character.id === d.id)
-            const tokenIcon = data.tokenIcon
-              ? (data.tokenIcon as TokenIconConfig)
-              : { icon: 'pawn' as const, color: '#bf2f2a', size: 34 }
-            const customImageUrl = tokenIcon.customImageUrl
-              ?? (
-                tokenIcon.customImagePath
-                && local
-                && local.tokenIcon.customImagePath === tokenIcon.customImagePath
-                && isRenderableImageUrl(local.tokenIcon.customImageUrl)
-                  ? local.tokenIcon.customImageUrl
-                  : undefined
-              )
-            return {
-              id: d.id,
-              name: typeof data.name === 'string' ? data.name : '',
-              ownerUserId: typeof data.ownerUserId === 'string' ? data.ownerUserId : '',
-              hpCurrent: typeof data.hpCurrent === 'number' ? Math.max(0, data.hpCurrent) : 0,
-              tokenIcon: customImageUrl ? { ...tokenIcon, customImageUrl } : tokenIcon,
-            } satisfies CharacterTokenSummary
-          })
+          .map((d) => mapCharacterSummaryFromData(
+            d.id,
+            d.data(),
+            current.find((character) => character.id === d.id),
+          ))
           .sort((a, b) => a.name.localeCompare(b.name)),
       )
     })

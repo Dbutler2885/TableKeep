@@ -16,7 +16,12 @@ import { sanitizeRichText } from '../../common/richText'
 import type { NpcSummary, TokenAssetRecord, TokenRecord } from '../lib/types'
 import { DEFAULT_TOKEN_VIEW_DISTANCE, TOKEN_SIZE_MAX, TOKEN_SIZE_MIN } from '../lib/constants'
 import { getTokenPlacementDisplay, type MonsterTokenPlacementSource, type TokenPlacementSource } from '../lib/tokenPlacementQueue'
-import { buildWholePartyTokenPlacementSources, toGenericTokenPlacementSource, toNpcTokenPlacementSource } from '../lib/tokenPlacementSources'
+import {
+  buildWholePartyTokenPlacementSources,
+  partyPlacementControlsAvailable,
+  toGenericTokenPlacementSource,
+  toNpcTokenPlacementSource,
+} from '../lib/tokenPlacementSources'
 import { normalizeTokenRotation } from '../lib/tokenRotation'
 import { sceneNpcPrivateDocSegments, toNpcGmNotes } from '../lib/sceneNpcRecord'
 import { BrushSizeControl } from './BrushSizeControl'
@@ -219,6 +224,7 @@ export function GmMapControls({
   onPresentNpc: (npcId: string) => void
   onClearPresentedNpc: () => void
 }) {
+  const partyControlsAvailable = partyPlacementControlsAvailable(partyPlacementSources)
   const toggleHidden = () => {
     void applyFogPreset(fullyHidden ? 'unhide-all' : 'hide-all')
   }
@@ -850,7 +856,7 @@ export function GmMapControls({
                 type="button"
                 className="monster-example-btn"
                 onClick={onStartWholePartyPlacement}
-                disabled={partyPlacementSources.length === 0}
+                disabled={!partyControlsAvailable}
               >
                 Whole Party
               </button>
