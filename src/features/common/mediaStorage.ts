@@ -126,25 +126,8 @@ export const uploadEntityImage = async ({
   }
 }
 
-export const isPersistableMediaUrl = (value: string | null | undefined): value is string =>
-  typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'))
-
 export const sanitizeTokenIconForPersistence = (tokenIcon: TokenIconConfig): TokenIconConfig => {
   const persisted = { ...tokenIcon }
-  if (!isPersistableMediaUrl(persisted.customImageUrl)) delete persisted.customImageUrl
+  delete persisted.customImageUrl
   return persisted
 }
-
-export const entityMediaForPersistence = ({
-  portraitPath,
-  portraitUrl,
-  tokenIcon,
-}: {
-  portraitPath?: string
-  portraitUrl?: string | null
-  tokenIcon: TokenIconConfig
-}) => ({
-  portraitPath: portraitPath ?? '',
-  portraitUrl: isPersistableMediaUrl(portraitUrl) ? portraitUrl : null,
-  tokenIcon: sanitizeTokenIconForPersistence(tokenIcon),
-})

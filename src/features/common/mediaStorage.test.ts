@@ -32,7 +32,6 @@ vi.mock('./imageNormalization', () => ({
 }))
 
 import {
-  entityMediaForPersistence,
   resolveStoragePathUrl,
   sanitizeTokenIconForPersistence,
   uploadEntityImage,
@@ -71,39 +70,6 @@ describe('entity media storage', () => {
     expect(mocks.getDownloadURL).toHaveBeenCalledTimes(2)
   })
 
-  it('persists reload-safe character and NPC media URLs but drops local data URLs', () => {
-    const portraitUrl = 'https://firebasestorage.test/portrait.webp?token=good'
-    const tokenUrl = 'https://firebasestorage.test/token.webp?token=good'
-
-    expect(entityMediaForPersistence({
-      portraitPath: 'groups/group/campaigns/campaign/characters/char/portraits/portrait.webp',
-      portraitUrl,
-      tokenIcon: {
-        icon: 'custom',
-        color: '#ffffff',
-        size: 34,
-        customImagePath: 'groups/group/campaigns/campaign/characters/char/token-icons/token.webp',
-        customImageUrl: tokenUrl,
-      },
-    })).toMatchObject({
-      portraitUrl,
-      tokenIcon: { customImageUrl: tokenUrl },
-    })
-
-    const localPreview = entityMediaForPersistence({
-      portraitPath: 'groups/group/campaigns/campaign/npcs/npc/portraits/portrait.webp',
-      portraitUrl: 'data:image/webp;base64,preview',
-      tokenIcon: {
-        icon: 'custom',
-        color: '#ffffff',
-        size: 34,
-        customImageUrl: 'data:image/webp;base64,preview',
-      },
-    })
-    expect(localPreview.portraitUrl).toBeNull()
-    expect(localPreview.tokenIcon).not.toHaveProperty('customImageUrl')
-  })
-
   it('returns a reload-safe URL with a successful upload', async () => {
     const file = { name: 'Connor portrait.png', type: 'image/png' } as File
     const normalizedFile = { name: 'Connor_portrait.webp', type: 'image/webp' } as File
@@ -111,7 +77,7 @@ describe('entity media storage', () => {
     mocks.getDownloadURL.mockResolvedValueOnce('https://firebasestorage.test/uploaded.webp?token=good')
     vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_000_000)
 
-    await expect(uploadEntityImage({
+    const upload = await uploadEntityImage({
       campaignId: 'campaign',
       groupId: 'group',
       collectionName: 'characters',
@@ -120,20 +86,26 @@ describe('entity media storage', () => {
       file,
       maxWidth: 600,
       maxHeight: 800,
-    })).resolves.toMatchObject({
+    })
+    expect(upload).toMatchObject({
       path: 'groups/group/campaigns/campaign/characters/char/portraits/1700000000000-Connor_portrait.webp',
       url: 'https://firebasestorage.test/uploaded.webp?token=good',
     })
 
+    await expect(resolveStoragePathUrl(upload.path)).resolves.toBe(upload.url)
     expect(mocks.uploadBytes).toHaveBeenCalledOnce()
+    expect(mocks.getDownloadURL).toHaveBeenCalledOnce()
   })
 
-  it('keeps persisted token URLs shared by character and NPC writers', () => {
-    expect(sanitizeTokenIconForPersistence({
+  it('removes bearer token URLs before token icon persistence', () => {
+    const persisted = sanitizeTokenIconForPersistence({
       icon: 'custom',
       color: '#ffffff',
       size: 34,
+      customImagePath: 'groups/group/campaigns/campaign/npcs/npc/token-icons/token.webp',
       customImageUrl: 'https://firebasestorage.test/token.webp?token=good',
-    }).customImageUrl).toContain('token=good')
+    })
+    expect(persisted.customImagePath).toContain('token-icons/token.webp')
+    expect(persisted).not.toHaveProperty('customImageUrl')
   })
 })

@@ -3,7 +3,7 @@ import { deleteDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firesto
 import { db } from '../../firebase'
 import type { Role, TokenIconConfig } from '../../types/app'
 import { campaignCollectionRef, campaignDocRef, campaignUserStateRef } from '../campaign/firestorePaths'
-import { entityMediaForPersistence, isRenderableImageUrl, resolveStoragePathUrl } from '../common/mediaStorage'
+import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence } from '../common/mediaStorage'
 import { defaultVtmSheet, defaultVtmTokenIcon, makeVtmCharacter } from './vtmDefaults'
 import type { VtmCharacterRecord, VtmCharacterSheet } from './vtmTypes'
 
@@ -218,9 +218,10 @@ export function useVtmCharacters(
           creationModeExplicit: character.creationModeExplicit,
           creationStatus: character.creationStatus,
           xp: character.xp,
-          ...entityMediaForPersistence(character),
+          portraitPath: character.portraitPath ?? '',
           portraitFocusX: character.portraitFocusX,
           portraitFocusY: character.portraitFocusY,
+          tokenIcon: sanitizeTokenIconForPersistence(character.tokenIcon),
           vtm: JSON.parse(JSON.stringify(character.vtm)) as unknown,
           updatedAt: serverTimestamp(),
         },
@@ -258,9 +259,10 @@ export function useVtmCharacters(
       creationModeExplicit: character.creationModeExplicit,
       creationStatus: character.creationStatus,
       xp: character.xp,
-      ...entityMediaForPersistence(character),
+      portraitPath: '',
       portraitFocusX: 50,
       portraitFocusY: 50,
+      tokenIcon: sanitizeTokenIconForPersistence(character.tokenIcon),
       vtm: character.vtm,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),

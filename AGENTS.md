@@ -127,9 +127,9 @@ token-asset path builders in `src/features/maps/hooks/`).
 
 ## Character and NPC media
 
-- **Persist both the Storage path and the Firebase download URL for entity media.**
-  The path remains the durable object identity and lets the app refresh a URL, while the URL keeps a successful upload visible through Firestore snapshots and page reloads without another metadata request.
-  Persist only HTTP(S) URLs, never local `data:` or `blob:` previews.
+- **Persist only the Storage path for entity media.**
+  Firebase download URLs contain bearer tokens that work without another Storage Rules check, so character and NPC writers must keep them only in client state or the in-memory URL cache.
+  `sanitizeTokenIconForPersistence` removes `customImageUrl`, and document writers omit `portraitUrl`.
 - **Do not cache a failed Storage URL lookup.**
   Authentication and network failures can be transient, so `resolveStoragePathUrl` retries an authorization failure once with a refreshed ID token and evicts any rejected promise.
   Character and NPC readers share this behavior through `src/features/common/mediaStorage.ts`.

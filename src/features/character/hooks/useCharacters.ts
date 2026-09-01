@@ -5,7 +5,7 @@ import { deleteDoc, deleteField, onSnapshot, serverTimestamp, setDoc } from 'fir
 import { db } from '../../../firebase'
 import type { CharacterRecord, CharacterSheetDetails, Role, TokenIconConfig } from '../../../types/app'
 import { campaignCollectionRef, campaignDocRef, campaignUserStateRef } from '../../campaign/firestorePaths'
-import { entityMediaForPersistence, isRenderableImageUrl, resolveStoragePathUrl } from '../../common/mediaStorage'
+import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence } from '../../common/mediaStorage'
 
 const defaultTokenIcon: TokenIconConfig = {
   icon: 'pawn',
@@ -291,9 +291,10 @@ export function useCharacters(
         hpMax: character.hpMax,
         ac: character.ac,
         xp: character.xp,
-        ...entityMediaForPersistence(character),
+        portraitPath: character.portraitPath ?? '',
         portraitFocusX: character.portraitFocusX,
         portraitFocusY: character.portraitFocusY,
+        tokenIcon: sanitizeTokenIconForPersistence(character.tokenIcon),
         details: character.details ? JSON.parse(JSON.stringify(character.details)) : null,
         'details.acManualOverride': deleteField(),
         updatedAt: serverTimestamp(),

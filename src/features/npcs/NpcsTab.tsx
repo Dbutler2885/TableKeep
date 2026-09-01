@@ -4,7 +4,7 @@ import { deleteDoc, onSnapshot, query, serverTimestamp, setDoc, where } from 'fi
 import { db } from '../../firebase'
 import type { NpcPrivateRecord, NpcRecord, Role, TokenIconConfig } from '../../types/app'
 import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
-import { entityMediaForPersistence, isRenderableImageUrl, resolveStoragePathUrl, uploadEntityImage } from '../common/mediaStorage'
+import { isRenderableImageUrl, resolveStoragePathUrl, sanitizeTokenIconForPersistence, uploadEntityImage } from '../common/mediaStorage'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
 import { useSessionNotes } from '../notes/useSessionNotes'
 import { NpcDetailEditor } from './NpcDetailEditor'
@@ -275,11 +275,12 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
         delete inFlightNpcWritesRef.current[npcId]
         return
       }
-      const { id, tokenIcon, portraitUrl, portraitPath, sortOrder, ...data } = npc
+      const { id, tokenIcon, portraitUrl, sortOrder, ...data } = npc
+      void portraitUrl
       void setDoc(campaignDocRef(db, { campaignId, groupId }, 'npcs', id), {
         ...data,
         ...(typeof sortOrder === 'number' ? { sortOrder } : {}),
-        ...entityMediaForPersistence({ portraitPath, portraitUrl, tokenIcon }),
+        tokenIcon: sanitizeTokenIconForPersistence(tokenIcon),
         updatedAt: serverTimestamp(),
       }, { merge: true }).finally(() => {
         delete inFlightNpcWritesRef.current[npcId]
@@ -317,9 +318,10 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
       void setDoc(campaignDocRef(db, { campaignId, groupId }, 'npcs', npcId), {
         playerNotes: npc.playerNotes,
         tags: npc.tags,
-        ...entityMediaForPersistence(npc),
+        portraitPath: npc.portraitPath,
         portraitFocusX: npc.portraitFocusX,
         portraitFocusY: npc.portraitFocusY,
+        tokenIcon: sanitizeTokenIconForPersistence(npc.tokenIcon),
         updatedAt: serverTimestamp(),
       }, { merge: true }).finally(() => {
         delete inFlightPlayerNotesWritesRef.current[npcId]

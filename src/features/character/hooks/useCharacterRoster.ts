@@ -6,7 +6,7 @@ import { serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../../firebase'
 import type { CharacterInventoryItem, CharacterRecord } from '../../../types/app'
 import { campaignDocRef } from '../../campaign/firestorePaths'
-import { entityMediaForPersistence } from '../../common/mediaStorage'
+import { sanitizeTokenIconForPersistence } from '../../common/mediaStorage'
 import { makeId } from '../characterFactories'
 import { defaultTokenIcon } from '../lib/characterSheetLayout'
 
@@ -34,7 +34,7 @@ export function useCharacterRoster(params: Params) {
     const next: CharacterRecord = { id: makeId(), name: 'New Character', ownerUserId: params.currentUserId, ownerUsername: params.currentUsername, creationMode, creationModeExplicit: true, creationStatus: creationMode === 'new' ? 'draft' : 'established_draft', className: '-', level: 1, hpCurrent: 0, hpMax: 0, ac: 10, xp: 0, portraitPath: '', portraitUrl: null, portraitFocusX: 50, portraitFocusY: 50, tokenIcon: defaultTokenIcon }
     params.setSelectedCharacterId(next.id)
     if (params.isSinglePane) params.showDetailPane()
-    void setDoc(campaignDocRef(db, { campaignId: params.campaignId, groupId: params.groupId }, 'characters', next.id), { name: next.name, ownerUserId: next.ownerUserId, ownerUsername: next.ownerUsername ?? null, creationMode: next.creationMode, creationModeExplicit: next.creationModeExplicit, creationStatus: next.creationStatus, class: next.className, level: next.level, hpCurrent: next.hpCurrent, hpMax: next.hpMax, ac: next.ac, xp: next.xp, ...entityMediaForPersistence(next), portraitFocusX: next.portraitFocusX, portraitFocusY: next.portraitFocusY, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
+    void setDoc(campaignDocRef(db, { campaignId: params.campaignId, groupId: params.groupId }, 'characters', next.id), { name: next.name, ownerUserId: next.ownerUserId, ownerUsername: next.ownerUsername ?? null, creationMode: next.creationMode, creationModeExplicit: next.creationModeExplicit, creationStatus: next.creationStatus, class: next.className, level: next.level, hpCurrent: next.hpCurrent, hpMax: next.hpMax, ac: next.ac, xp: next.xp, portraitPath: next.portraitPath ?? '', portraitFocusX: next.portraitFocusX, portraitFocusY: next.portraitFocusY, tokenIcon: sanitizeTokenIconForPersistence(next.tokenIcon), createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
   }
   const validateDraftCharacter = () => {
     const selected = params.effectiveSelected

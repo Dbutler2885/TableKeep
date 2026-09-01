@@ -28,7 +28,7 @@ const visibleNpcTokenPath = `groups/${groupId}/campaigns/${campaignId}/npcs/${vi
 const hiddenNpcTokenPath = `groups/${groupId}/campaigns/${campaignId}/npcs/${hiddenNpcId}/token-icons/1700000000000-hidden.webp`
 const captainNpcPortraitPath = `groups/${groupId}/campaigns/${campaignId}/npcs/${hiddenNpcId}/portraits/1700000000001-captain.webp`
 
-describe('character token-icon storage rules', () => {
+describe('entity media storage rules', () => {
   let testEnv: RulesTestEnvironment
 
   beforeAll(async () => {
@@ -98,7 +98,7 @@ describe('character token-icon storage rules', () => {
     await assertSucceeds(uploadString(ref(storage, tokenPath), 'data', 'raw', { contentType: 'image/webp' }))
   })
 
-  it('keeps captain-uploaded character and NPC portraits readable after metadata persistence and reload', async () => {
+  it('keeps path-only captain character and NPC portraits readable after reload', async () => {
     const captainStorage = testEnv.authenticatedContext(captainUid).storage()
     const captainDb = testEnv.authenticatedContext(captainUid).firestore()
 
@@ -109,22 +109,24 @@ describe('character token-icon storage rules', () => {
     const npcUrl = await getDownloadURL(ref(captainStorage, captainNpcPortraitPath))
     await assertSucceeds(setDoc(
       doc(captainDb, 'groups', groupId, 'campaigns', campaignId, 'characters', characterId),
-      { portraitPath: captainCharacterPortraitPath, portraitUrl: characterUrl },
+      { portraitPath: captainCharacterPortraitPath },
       { merge: true },
     ))
     await assertSucceeds(setDoc(
       doc(captainDb, 'groups', groupId, 'campaigns', campaignId, 'npcs', hiddenNpcId),
-      { portraitPath: captainNpcPortraitPath, portraitUrl: npcUrl },
+      { portraitPath: captainNpcPortraitPath },
       { merge: true },
     ))
 
     const reloaded = testEnv.authenticatedContext(captainUid)
     const reloadedCharacter = await getDoc(doc(reloaded.firestore(), 'groups', groupId, 'campaigns', campaignId, 'characters', characterId))
     const reloadedNpc = await getDoc(doc(reloaded.firestore(), 'groups', groupId, 'campaigns', campaignId, 'npcs', hiddenNpcId))
-    expect(reloadedCharacter.data()?.portraitUrl).toBe(characterUrl)
-    expect(reloadedNpc.data()?.portraitUrl).toBe(npcUrl)
+    expect(reloadedCharacter.data()?.portraitUrl).toBeUndefined()
+    expect(reloadedNpc.data()?.portraitUrl).toBeUndefined()
     expect(reloadedCharacter.data()?.portraitPath).toBe(captainCharacterPortraitPath)
     expect(reloadedNpc.data()?.portraitPath).toBe(captainNpcPortraitPath)
+    await expect(getDownloadURL(ref(reloaded.storage(), captainCharacterPortraitPath))).resolves.toBe(characterUrl)
+    await expect(getDownloadURL(ref(reloaded.storage(), captainNpcPortraitPath))).resolves.toBe(npcUrl)
     await assertSucceeds(getBytes(ref(reloaded.storage(), captainCharacterPortraitPath)))
     await assertSucceeds(getBytes(ref(reloaded.storage(), captainNpcPortraitPath)))
   })
@@ -147,13 +149,9 @@ describe('character token-icon storage rules', () => {
 
   it('lets a player persist visible NPC media metadata', async () => {
     const db = testEnv.authenticatedContext(playerUid).firestore()
-    const storage = testEnv.authenticatedContext(playerUid).storage()
     const npcRef = doc(db, 'groups', groupId, 'campaigns', campaignId, 'npcs', visibleNpcId)
-    const portraitUrl = await getDownloadURL(ref(storage, visibleNpcPortraitPath))
-    const tokenUrl = await getDownloadURL(ref(storage, visibleNpcTokenPath))
     await assertSucceeds(setDoc(npcRef, {
       portraitPath: visibleNpcPortraitPath,
-      portraitUrl,
       portraitFocusX: 42,
       portraitFocusY: 58,
       tokenIcon: {
@@ -161,9 +159,16 @@ describe('character token-icon storage rules', () => {
         color: '#ffffff',
         size: 34,
         customImagePath: visibleNpcTokenPath,
-        customImageUrl: tokenUrl,
         customImageName: 'visible',
       },
+    }, { merge: true }))
+  })
+
+  it('blocks a player from persisting a bearer portrait URL', async () => {
+    const db = testEnv.authenticatedContext(playerUid).firestore()
+    const npcRef = doc(db, 'groups', groupId, 'campaigns', campaignId, 'npcs', visibleNpcId)
+    await assertFails(setDoc(npcRef, {
+      portraitUrl: 'https://firebasestorage.test/visible.webp?token=bearer',
     }, { merge: true }))
   })
 
