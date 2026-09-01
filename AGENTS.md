@@ -125,6 +125,15 @@ Both storage trees use the same suffix, so the mapping is a prefix swap:
 (see `uploadEntityImage` in `src/features/common/mediaStorage.ts` and the map/
 token-asset path builders in `src/features/maps/hooks/`).
 
+## Character and NPC media
+
+- **Persist only the Storage path for entity media.**
+  Firebase download URLs contain bearer tokens that work without another Storage Rules check, so character and NPC writers must keep them only in client state or the in-memory URL cache.
+  `sanitizeTokenIconForPersistence` removes `customImageUrl`, and document writers omit `portraitUrl`.
+- **Do not cache a failed Storage URL lookup.**
+  Authentication and network failures can be transient, so `resolveStoragePathUrl` retries an authorization failure once with a refreshed ID token and evicts any rejected promise.
+  Character and NPC readers share this behavior through `src/features/common/mediaStorage.ts`.
+
 ## Demo harness (`scripts/demo/`, `emulator-data/`)
 
 A reviewer can see a real, populated game without a Firebase project or any credentials.
