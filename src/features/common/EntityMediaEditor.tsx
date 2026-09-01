@@ -50,6 +50,7 @@ export function EntityMediaEditor({
   onUploadPortraitImage,
 }: EntityMediaEditorProps) {
   const [portraitError, setPortraitError] = useState<string | null>(null)
+  const [portraitUploading, setPortraitUploading] = useState(false)
   const [portraitDraft, setPortraitDraft] = useState<{
     file: File
     imageUrl: string
@@ -102,8 +103,9 @@ export function EntityMediaEditor({
   }
 
   const applyPortraitDraft = () => {
-    if (!portraitDraft) return
+    if (!portraitDraft || portraitUploading) return
     if (onUploadPortraitImage) {
+      setPortraitUploading(true)
       void onUploadPortraitImage(portraitDraft.file)
         .then(({ portraitPath, portraitUrl: nextPortraitUrl }) => {
           onChange({
@@ -118,6 +120,7 @@ export function EntityMediaEditor({
         .catch(() => {
           setPortraitError('Unable to upload that image. Please try again.')
         })
+        .finally(() => setPortraitUploading(false))
       return
     }
     onChange({
@@ -240,10 +243,10 @@ export function EntityMediaEditor({
             <div className="monster-portrait-modal-header">
               <span className="monster-portrait-modal-hint">Drag to reposition</span>
               <div className="monster-portrait-modal-actions">
-                <button type="button" className="modal-icon-btn" onClick={() => setPortraitDraft(null)} aria-label="Cancel">
+                <button type="button" className="modal-icon-btn" disabled={portraitUploading} onClick={() => setPortraitDraft(null)} aria-label="Cancel">
                   <X size={16} />
                 </button>
-                <button type="button" className="modal-icon-btn confirm" onClick={applyPortraitDraft} aria-label="Save portrait">
+                <button type="button" className="modal-icon-btn confirm" disabled={portraitUploading} onClick={applyPortraitDraft} aria-label="Save portrait">
                   <Check size={16} />
                 </button>
               </div>

@@ -255,7 +255,7 @@ service cloud.firestore {
             && request.resource.data.playerDescription == resource.data.playerDescription
             && onlyChanges([
               'playerNotes', 'tags', 'sortOrder',
-              'portraitPath', 'portraitFocusX', 'portraitFocusY', 'tokenIcon',
+              'portraitPath', 'portraitUrl', 'portraitFocusX', 'portraitFocusY', 'tokenIcon',
               'updatedAt'
             ])
           );
@@ -460,7 +460,7 @@ service cloud.firestore {
           && request.resource.data.playerDescription == resource.data.playerDescription
           && onlyChanges([
             'playerNotes', 'tags', 'sortOrder',
-            'portraitPath', 'portraitFocusX', 'portraitFocusY', 'tokenIcon',
+            'portraitPath', 'portraitUrl', 'portraitFocusX', 'portraitFocusY', 'tokenIcon',
             'updatedAt'
           ])
         );

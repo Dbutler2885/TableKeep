@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { afterAll, beforeAll, describe, it } from 'vitest'
-import { doc, setDoc } from 'firebase/firestore'
-import { ref, uploadString } from 'firebase/storage'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { getBytes, getDownloadURL, ref, uploadString } from 'firebase/storage'
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { emulatorPort } from '../../../vitest.emulatorEndpoint'
 
@@ -18,12 +18,15 @@ const characterId = 'char-1'
 const visibleNpcId = 'npc-visible'
 const hiddenNpcId = 'npc-hidden'
 const gmUid = 'gm-user'
+const captainUid = 'captain-user'
 const playerUid = 'player-user'
 
 const tokenPath = `groups/${groupId}/campaigns/${campaignId}/characters/${characterId}/token-icons/1700000000000-token.webp`
+const captainCharacterPortraitPath = `groups/${groupId}/campaigns/${campaignId}/characters/${characterId}/portraits/1700000000001-captain.webp`
 const visibleNpcPortraitPath = `groups/${groupId}/campaigns/${campaignId}/npcs/${visibleNpcId}/portraits/1700000000000-visible.webp`
 const visibleNpcTokenPath = `groups/${groupId}/campaigns/${campaignId}/npcs/${visibleNpcId}/token-icons/1700000000000-visible.webp`
 const hiddenNpcTokenPath = `groups/${groupId}/campaigns/${campaignId}/npcs/${hiddenNpcId}/token-icons/1700000000000-hidden.webp`
+const captainNpcPortraitPath = `groups/${groupId}/campaigns/${campaignId}/npcs/${hiddenNpcId}/portraits/1700000000001-captain.webp`
 
 describe('character token-icon storage rules', () => {
   let testEnv: RulesTestEnvironment
@@ -32,12 +35,12 @@ describe('character token-icon storage rules', () => {
     testEnv = await initializeTestEnvironment({
       projectId,
       firestore: {
-        host: '127.0.0.1',
+        host: 'localhost',
         port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
         rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
       },
       storage: {
-        host: '127.0.0.1',
+        host: 'localhost',
         port: emulatorPort('FIREBASE_STORAGE_EMULATOR_HOST', 9199),
         rules: readFileSync(resolve(process.cwd(), 'storage.rules'), 'utf8'),
       },
@@ -46,7 +49,8 @@ describe('character token-icon storage rules', () => {
     // Seed the Firestore docs the storage rules read via firestore.get().
     await testEnv.withSecurityRulesDisabled(async (context) => {
       const adminDb = context.firestore()
-      await setDoc(doc(adminDb, 'groups', groupId, 'members', gmUid), { status: 'active', role: 'admin' })
+      await setDoc(doc(adminDb, 'groups', groupId, 'members', gmUid), { status: 'active', role: 'member' })
+      await setDoc(doc(adminDb, 'groups', groupId, 'members', captainUid), { status: 'active', role: 'admin' })
       await setDoc(doc(adminDb, 'groups', groupId, 'members', playerUid), { status: 'active', role: 'member' })
       await setDoc(doc(adminDb, 'groups', groupId, 'campaigns', campaignId), { gmUserId: gmUid })
       await setDoc(doc(adminDb, 'groups', groupId, 'campaigns', campaignId, 'characters', characterId), {
@@ -94,6 +98,37 @@ describe('character token-icon storage rules', () => {
     await assertSucceeds(uploadString(ref(storage, tokenPath), 'data', 'raw', { contentType: 'image/webp' }))
   })
 
+  it('keeps captain-uploaded character and NPC portraits readable after metadata persistence and reload', async () => {
+    const captainStorage = testEnv.authenticatedContext(captainUid).storage()
+    const captainDb = testEnv.authenticatedContext(captainUid).firestore()
+
+    await assertSucceeds(uploadString(ref(captainStorage, captainCharacterPortraitPath), 'character-bytes', 'raw', { contentType: 'image/webp' }))
+    await assertSucceeds(uploadString(ref(captainStorage, captainNpcPortraitPath), 'npc-bytes', 'raw', { contentType: 'image/webp' }))
+
+    const characterUrl = await getDownloadURL(ref(captainStorage, captainCharacterPortraitPath))
+    const npcUrl = await getDownloadURL(ref(captainStorage, captainNpcPortraitPath))
+    await assertSucceeds(setDoc(
+      doc(captainDb, 'groups', groupId, 'campaigns', campaignId, 'characters', characterId),
+      { portraitPath: captainCharacterPortraitPath, portraitUrl: characterUrl },
+      { merge: true },
+    ))
+    await assertSucceeds(setDoc(
+      doc(captainDb, 'groups', groupId, 'campaigns', campaignId, 'npcs', hiddenNpcId),
+      { portraitPath: captainNpcPortraitPath, portraitUrl: npcUrl },
+      { merge: true },
+    ))
+
+    const reloaded = testEnv.authenticatedContext(captainUid)
+    const reloadedCharacter = await getDoc(doc(reloaded.firestore(), 'groups', groupId, 'campaigns', campaignId, 'characters', characterId))
+    const reloadedNpc = await getDoc(doc(reloaded.firestore(), 'groups', groupId, 'campaigns', campaignId, 'npcs', hiddenNpcId))
+    expect(reloadedCharacter.data()?.portraitUrl).toBe(characterUrl)
+    expect(reloadedNpc.data()?.portraitUrl).toBe(npcUrl)
+    expect(reloadedCharacter.data()?.portraitPath).toBe(captainCharacterPortraitPath)
+    expect(reloadedNpc.data()?.portraitPath).toBe(captainNpcPortraitPath)
+    await assertSucceeds(getBytes(ref(reloaded.storage(), captainCharacterPortraitPath)))
+    await assertSucceeds(getBytes(ref(reloaded.storage(), captainNpcPortraitPath)))
+  })
+
   it('blocks a non-owner non-GM member from uploading', async () => {
     const storage = testEnv.authenticatedContext('other-user').storage()
     await assertFails(uploadString(ref(storage, tokenPath), 'data', 'raw', { contentType: 'image/webp' }))
@@ -112,9 +147,13 @@ describe('character token-icon storage rules', () => {
 
   it('lets a player persist visible NPC media metadata', async () => {
     const db = testEnv.authenticatedContext(playerUid).firestore()
+    const storage = testEnv.authenticatedContext(playerUid).storage()
     const npcRef = doc(db, 'groups', groupId, 'campaigns', campaignId, 'npcs', visibleNpcId)
+    const portraitUrl = await getDownloadURL(ref(storage, visibleNpcPortraitPath))
+    const tokenUrl = await getDownloadURL(ref(storage, visibleNpcTokenPath))
     await assertSucceeds(setDoc(npcRef, {
       portraitPath: visibleNpcPortraitPath,
+      portraitUrl,
       portraitFocusX: 42,
       portraitFocusY: 58,
       tokenIcon: {
@@ -122,6 +161,7 @@ describe('character token-icon storage rules', () => {
         color: '#ffffff',
         size: 34,
         customImagePath: visibleNpcTokenPath,
+        customImageUrl: tokenUrl,
         customImageName: 'visible',
       },
     }, { merge: true }))

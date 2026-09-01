@@ -33,6 +33,16 @@ export const isRenderableImageUrl = (value: string | null | undefined) =>
 let authReadyPromise: Promise<void> | null = null
 const storageUrlCache = new Map<string, Promise<string | null>>()
 
+const storageErrorCode = (error: unknown) =>
+  typeof error === 'object' && error !== null && 'code' in error
+    ? String(error.code)
+    : ''
+
+const isRetryableAuthError = (error: unknown) => {
+  const code = storageErrorCode(error)
+  return code === 'storage/unauthenticated' || code === 'storage/unauthorized'
+}
+
 const waitForAuthReady = async () => {
   if (typeof auth.authStateReady === 'function') {
     await auth.authStateReady()
@@ -57,14 +67,27 @@ export const resolveStoragePathUrl = async (path: string) => {
   if (cached) return cached
 
   const pending = (async () => {
-  await waitForAuthReady()
-    if (!auth.currentUser) return null
-    await auth.currentUser.getIdToken()
-    return getDownloadURL(ref(storage, path))
+    await waitForAuthReady()
+    const user = auth.currentUser
+    if (!user) throw new Error('You must be signed in to load images.')
+
+    await user.getIdToken()
+    try {
+      return await getDownloadURL(ref(storage, path))
+    } catch (error) {
+      if (!isRetryableAuthError(error)) throw error
+      await user.getIdToken(true)
+      return getDownloadURL(ref(storage, path))
+    }
   })()
 
   storageUrlCache.set(path, pending)
-  return pending
+  try {
+    return await pending
+  } catch (error) {
+    if (storageUrlCache.get(path) === pending) storageUrlCache.delete(path)
+    throw error
+  }
 }
 
 export const uploadEntityImage = async ({
@@ -92,7 +115,8 @@ export const uploadEntityImage = async ({
   }
   await auth.currentUser.getIdToken(true)
   await uploadBytes(storageRef, normalized.file, { contentType: normalized.file.type })
-  const url = await getDownloadURL(storageRef)
+  const url = await resolveStoragePathUrl(path)
+  if (!url) throw new Error('Unable to resolve the uploaded image.')
   return {
     path,
     url,
@@ -102,8 +126,25 @@ export const uploadEntityImage = async ({
   }
 }
 
+export const isPersistableMediaUrl = (value: string | null | undefined): value is string =>
+  typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'))
+
 export const sanitizeTokenIconForPersistence = (tokenIcon: TokenIconConfig): TokenIconConfig => {
   const persisted = { ...tokenIcon }
-  delete persisted.customImageUrl
+  if (!isPersistableMediaUrl(persisted.customImageUrl)) delete persisted.customImageUrl
   return persisted
 }
+
+export const entityMediaForPersistence = ({
+  portraitPath,
+  portraitUrl,
+  tokenIcon,
+}: {
+  portraitPath?: string
+  portraitUrl?: string | null
+  tokenIcon: TokenIconConfig
+}) => ({
+  portraitPath: portraitPath ?? '',
+  portraitUrl: isPersistableMediaUrl(portraitUrl) ? portraitUrl : null,
+  tokenIcon: sanitizeTokenIconForPersistence(tokenIcon),
+})
