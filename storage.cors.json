@@ -1,0 +1,19 @@
+[
+  {
+    "origin": [
+      "https://tablekeep.vercel.app"
+    ],
+    "method": [
+      "GET",
+      "POST"
+    ],
+    "responseHeader": [
+      "Authorization",
+      "Content-Type",
+      "X-Firebase-GMPID",
+      "X-Firebase-Storage-Version",
+      "X-Goog-Upload-Protocol"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]

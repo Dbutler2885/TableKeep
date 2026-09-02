@@ -1,3 +1,5 @@
+import { assertSafeFirebaseRuntime } from './runtimeSafety'
+
 const requiredEnv = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
@@ -26,3 +28,9 @@ export const firebaseConfig = {
 }
 
 export const useFirebaseEmulators = import.meta.env.VITE_USE_FIREBASE_EMULATORS === 'true'
+
+assertSafeFirebaseRuntime({
+  hostname: typeof window === 'undefined' ? '' : window.location.hostname,
+  projectId: firebaseConfig.projectId,
+  useFirebaseEmulators,
+})

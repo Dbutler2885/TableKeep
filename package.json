@@ -5,7 +5,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "VITE_USE_FIREBASE_EMULATORS=true firebase emulators:exec --only auth,firestore,storage \"vite\"",
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "lint": "eslint .",
@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "test:emulator": "firebase emulators:exec --only firestore,storage \"vitest run --config vitest.emulator.config.ts\"",
     "test:browser-smoke": "firebase emulators:exec --only auth,firestore,storage \"node scripts/browser-smoke.mjs\"",
-    "preview": "vite preview",
+    "preview": "VITE_USE_FIREBASE_EMULATORS=true npm run build && VITE_USE_FIREBASE_EMULATORS=true firebase emulators:exec --only auth,firestore,storage \"vite preview\"",
     "ose:monsters:fetch-raw": "node scripts/fetch-ose-monsters-raw.mjs",
     "ose:treasure:fetch": "node scripts/fetch-ose-treasure-types.mjs",
     "ose:cleric:fetch": "node scripts/fetch-ose-cleric-spells.mjs",

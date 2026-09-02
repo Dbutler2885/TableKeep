@@ -2,10 +2,10 @@ import { spawn } from 'node:child_process'
 import { mkdir } from 'node:fs/promises'
 import process from 'node:process'
 import puppeteer from 'puppeteer'
+import { isExpectedFirestoreEmulatorChannelError } from './browser-smoke-errors.mjs'
 
 const APP_URL = 'http://127.0.0.1:4173'
 const AUTH_EMULATOR_URL = 'http://127.0.0.1:9099'
-const FIRESTORE_EMULATOR_URL = 'http://127.0.0.1:8080'
 const PROJECT_ID = process.env.GCLOUD_PROJECT ?? 'homeboyshouse-dev'
 const API_KEY = 'demo-api-key'
 const PASSWORD = 'table-keep-smoke-password'
@@ -138,15 +138,14 @@ function collectBrowserErrors(page, errors, surface) {
   page.on('console', (message) => {
     if (message.type() === 'error') {
       const location = message.location()
-      // The Firestore emulator can close and retry its long-lived Listen
-      // WebChannel with a bare 400 even after the write and subsequent snapshot
-      // have succeeded. Keep this exception exact so application errors, other
-      // emulator failures, and every other HTTP 400 still fail the smoke gate.
-      if (
-        message.text() === 'Failed to load resource: the server responded with a status of 400 (Bad Request)'
-        && location.url.startsWith(`${FIRESTORE_EMULATOR_URL}/google.firestore.v1.Firestore/Listen/channel`)
-      ) {
-        console.log(`EXPECTED ${surface}: Firestore emulator retried a Listen WebChannel.`)
+      // The Firestore emulator can close and retry its long-lived Listen or
+      // Write WebChannel with a bare 400 after the operation has succeeded.
+      // Keep this exception exact so every other console error stays fatal.
+      if (isExpectedFirestoreEmulatorChannelError({
+        text: message.text(),
+        url: location.url,
+      })) {
+        console.log(`EXPECTED ${surface}: Firestore emulator retried a WebChannel.`)
         return
       }
       const source = location.url ? ` (${location.url}:${location.lineNumber ?? 0})` : ''

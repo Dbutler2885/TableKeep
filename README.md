@@ -315,7 +315,7 @@ The split is deliberate.
 
 | Script | What it does |
 | --- | --- |
-| `npm run dev` | Vite dev server |
+| `npm run dev` | Empty Auth/Firestore/Storage emulators plus the Vite dev server |
 | `npm run build` | Type-check and production build |
 | `npm run typecheck` | `tsc -b`, no bundle |
 | `npm run lint` | ESLint |
@@ -323,7 +323,7 @@ The split is deliberate.
 | `npm run test:watch` | Unit tests in watch mode |
 | `npm run test:emulator` | Firestore/Storage rules tests against live emulators |
 | `npm run test:browser-smoke` | Desktop + mobile Puppeteer smoke flow |
-| `npm run preview` | Preview the production build |
+| `npm run preview` | Build, then preview locally against empty Auth/Firestore/Storage emulators |
 | `npm run demo` | Visitor demo: emulators from the committed snapshot plus the dev server, snapshot never written |
 | `npm run demo:author` | Authoring demo: the same, but exports back to `./emulator-data` on exit. The only command that overwrites the committed snapshot |
 | `npm run demo:save` | Export a running demo emulator without quitting it |
@@ -345,6 +345,8 @@ Data-import helpers for OSE reference content also exist as `npm run ose:*`; see
 [https://tablekeep.vercel.app](https://tablekeep.vercel.app) is the live production host.
 The checked-in [`vercel.json`](vercel.json) supplies the SPA rewrite that routes client-side paths through `index.html`.
 Firebase Hosting remains a supported self-deployment alternative: [`firebase.json`](firebase.json) serves `dist`, and `npm run deploy:hosting` deploys it.
+Character and NPC media also requires the production bucket to use [`storage.cors.json`](storage.cors.json), which permits only the Table Keep production origin and the Firebase browser SDK's GET and POST requests.
+Firebase deploys Storage Rules but does not apply bucket CORS, so that reviewed policy must be applied separately with `gcloud storage buckets update gs://homeboyshouse-dev.firebasestorage.app --cors-file=storage.cors.json`.
 
 ## Self-deploying with Firebase
 
@@ -360,7 +362,10 @@ npx firebase deploy --only firestore:rules,firestore:indexes,storage
 ```
 
 Then copy `.env.example` to `.env.local` and fill in the `VITE_FIREBASE_*` values from the project's web app config.
-Set `VITE_USE_FIREBASE_EMULATORS=true` to point a normal `npm run dev` at local emulators instead.
+`npm run dev` starts empty Auth, Firestore, and Storage emulators and forces the browser SDKs to use them.
+`npm run demo` is the easier local workflow when you want seeded campaign data.
+The app refuses to start on `localhost`, `127.0.0.1`, or IPv6 loopback when `VITE_USE_FIREBASE_EMULATORS` is not `true`, so a local browser cannot silently read or write a production Firebase project.
+Set `VITE_USE_FIREBASE_EMULATORS=false` in the deployment environment before building a hosted release.
 
 Auth provider toggles (Google, email/password) still have to be enabled in the Firebase console; there is no CLI for them.
 
