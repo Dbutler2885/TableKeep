@@ -26,6 +26,7 @@ import { afterAll, beforeAll, describe, it } from 'vitest'
 import { deleteDoc, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { getBytes, ref, uploadString } from 'firebase/storage'
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
+import { uploadAuthorityMetadata } from '../common/mediaStorage'
 import { emulatorPort } from '../../../vitest.emulatorEndpoint'
 
 // Storage Rules resolve their `firestore.get()` lookups against the emulator's
@@ -207,7 +208,7 @@ describe('migrated campaign portraits after the storage migration', () => {
       // The EntityMediaEditor sequence: clear the pointer, upload the new file,
       // then persist the new pointer.
       await assertSucceeds(updateDoc(characterRef, { portraitPath: '' }))
-      await assertSucceeds(uploadString(ref(storage, replacementPortrait), 'new-bytes', 'raw', { contentType: 'image/webp' }))
+      await assertSucceeds(uploadString(ref(storage, replacementPortrait), 'new-bytes', 'raw', { contentType: 'image/webp', ...uploadAuthorityMetadata('owner') }))
       await assertSucceeds(updateDoc(characterRef, { portraitPath: replacementPortrait }))
       await assertSucceeds(getBytes(ref(storage, replacementPortrait)))
 
@@ -219,7 +220,7 @@ describe('migrated campaign portraits after the storage migration', () => {
       const storage = testEnv.authenticatedContext(wolfmanUid).storage()
       const db = testEnv.authenticatedContext(wolfmanUid).firestore()
       const replacementIcon = `${newTree}/characters/${chevId}/token-icons/1790000000000-replacement.webp`
-      await assertSucceeds(uploadString(ref(storage, replacementIcon), 'new-bytes', 'raw', { contentType: 'image/webp' }))
+      await assertSucceeds(uploadString(ref(storage, replacementIcon), 'new-bytes', 'raw', { contentType: 'image/webp', ...uploadAuthorityMetadata('owner') }))
       await assertSucceeds(updateDoc(
         doc(db, 'groups', groupId, 'campaigns', campaignId, 'characters', chevId),
         { 'tokenIcon.customImagePath': replacementIcon },
@@ -242,6 +243,7 @@ describe('migrated campaign portraits after the storage migration', () => {
       const db = testEnv.authenticatedContext(wolfmanUid).firestore()
       const stolen = `${newTree}/characters/${bogId}/portraits/1790000000002-stolen.webp`
       await assertFails(uploadString(ref(storage, stolen), 'bytes', 'raw', { contentType: 'image/webp' }))
+      await assertFails(uploadString(ref(storage, stolen), 'bytes', 'raw', { contentType: 'image/webp', ...uploadAuthorityMetadata('owner') }))
       await assertFails(updateDoc(
         doc(db, 'groups', groupId, 'campaigns', campaignId, 'characters', bogId),
         { portraitPath: stolen },

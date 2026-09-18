@@ -68,6 +68,13 @@ Firestore + Storage emulator, with the repo's real `firestore.rules` /
   time and throws `auth/invalid-api-key` without a config. (The underlying
   coupling is real: `inventoryOverflow.ts` imports `toFirestoreItem` from the
   `useItems` hook module, which pulls in the singleton.)
+- **Production Storage rules may read at most two Firestore documents per request, and the emulator does not enforce that.**
+  A rule that reads a third document is denied in production while every emulator test passes.
+  Proving "campaign GM" already costs two (the member document, then the campaign document for a GM who is not a group admin), so a GM check followed by an `||` fallback to an owner or player check can never succeed for the fallback.
+  That is how player character portraits and token icons, and player uploads to visible NPCs, were broken in production.
+  Such uploads now name their authority in the object's `uploadAuthority` custom metadata (`owner` / `player`, from `src/features/common/mediaStorage.ts`), and `storage.rules` evaluates only that branch; an unclaimed upload is held to the GM check.
+  When you add a Storage rule, count the distinct documents on every path that can allow, and keep the "unclaimed upload is denied to a non-GM" cases in `tokenUpload.emulator.test.ts`, which are what pin that structure.
+  Map image reads by a player still take three (member, campaign, map), which works only because players read map art through download URLs already stored on the map document.
 - **Every emulator suite resolves its ports from the environment.**
   The suites use `emulatorPort` from `vitest.emulatorEndpoint.ts` to read `FIRESTORE_EMULATOR_HOST` / `FIREBASE_STORAGE_EMULATOR_HOST`, which `firebase emulators:exec` exports, and fall back to the `firebase.json` defaults.
   The full suite can therefore run on a shifted port block without source changes.

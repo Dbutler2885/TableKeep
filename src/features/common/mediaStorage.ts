@@ -4,6 +4,24 @@ import { auth, storage } from '../../firebase'
 import { normalizeImageForUpload } from './imageNormalization'
 import type { TokenIconConfig } from '../tokens/TokenIconEditor'
 
+/**
+ * The authority a non-GM upload acts under, sent as the object's
+ * `uploadAuthority` custom metadata.
+ *
+ * Production Storage rules may read at most two Firestore documents per request,
+ * and proving "campaign GM" already costs two, so `storage.rules` cannot try the
+ * GM check and then fall back to an ownership check. It evaluates the one branch
+ * the upload names instead. Omit it to be held to the GM check.
+ */
+export type UploadAuthority = 'owner' | 'player'
+
+/** A character's art is uploaded as its owner when the uploader owns it, and as the GM otherwise. */
+export const characterUploadAuthority = (ownerUserId: string, currentUserId: string): UploadAuthority | undefined =>
+  ownerUserId && ownerUserId === currentUserId ? 'owner' : undefined
+
+export const uploadAuthorityMetadata = (uploadAuthority: UploadAuthority | undefined) =>
+  uploadAuthority ? { customMetadata: { uploadAuthority } } : {}
+
 type UploadEntityImageParams = {
   campaignId: string
   groupId: string
@@ -13,6 +31,7 @@ type UploadEntityImageParams = {
   file: File
   maxWidth: number
   maxHeight: number
+  uploadAuthority?: UploadAuthority
 }
 
 export const entityMediaStoragePath = ({ groupId, campaignId, collectionName, entityId, mediaKind, fileName, timestamp }: {
@@ -99,6 +118,7 @@ export const uploadEntityImage = async ({
   file,
   maxWidth,
   maxHeight,
+  uploadAuthority,
 }: UploadEntityImageParams) => {
   const normalized = await normalizeImageForUpload(file, {
     maxWidth,
@@ -114,7 +134,7 @@ export const uploadEntityImage = async ({
     throw new Error('You must be signed in to upload images.')
   }
   await auth.currentUser.getIdToken(true)
-  await uploadBytes(storageRef, normalized.file, { contentType: normalized.file.type })
+  await uploadBytes(storageRef, normalized.file, { contentType: normalized.file.type, ...uploadAuthorityMetadata(uploadAuthority) })
   const url = await resolveStoragePathUrl(path)
   if (!url) throw new Error('Unable to resolve the uploaded image.')
   return {

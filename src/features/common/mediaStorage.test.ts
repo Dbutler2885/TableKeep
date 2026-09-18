@@ -32,8 +32,10 @@ vi.mock('./imageNormalization', () => ({
 }))
 
 import {
+  characterUploadAuthority,
   resolveStoragePathUrl,
   sanitizeTokenIconForPersistence,
+  uploadAuthorityMetadata,
   uploadEntityImage,
 } from './mediaStorage'
 
@@ -94,7 +96,38 @@ describe('entity media storage', () => {
 
     await expect(resolveStoragePathUrl(upload.path)).resolves.toBe(upload.url)
     expect(mocks.uploadBytes).toHaveBeenCalledOnce()
+    expect(mocks.uploadBytes).toHaveBeenCalledWith(expect.anything(), normalizedFile, { contentType: 'image/webp' })
     expect(mocks.getDownloadURL).toHaveBeenCalledOnce()
+  })
+
+  it('sends a claimed upload authority as custom metadata', async () => {
+    const normalizedFile = { name: 'owned.webp', type: 'image/webp' } as File
+    mocks.normalizeImageForUpload.mockResolvedValueOnce({ file: normalizedFile, width: 600, height: 800 })
+    mocks.getDownloadURL.mockResolvedValueOnce('https://firebasestorage.test/owned.webp?token=good')
+
+    await uploadEntityImage({
+      campaignId: 'campaign',
+      groupId: 'group',
+      collectionName: 'characters',
+      entityId: 'owned-char',
+      mediaKind: 'portraits',
+      file: { name: 'owned.png', type: 'image/png' } as File,
+      maxWidth: 600,
+      maxHeight: 800,
+      uploadAuthority: 'owner',
+    })
+
+    expect(mocks.uploadBytes).toHaveBeenCalledWith(expect.anything(), normalizedFile, {
+      contentType: 'image/webp',
+      customMetadata: { uploadAuthority: 'owner' },
+    })
+  })
+
+  it('claims character ownership only for the owner of an owned character', () => {
+    expect(characterUploadAuthority('player-1', 'player-1')).toBe('owner')
+    expect(characterUploadAuthority('player-1', 'gm-1')).toBeUndefined()
+    expect(characterUploadAuthority('', '')).toBeUndefined()
+    expect(uploadAuthorityMetadata(undefined)).toEqual({})
   })
 
   it('removes bearer token URLs before token icon persistence', () => {

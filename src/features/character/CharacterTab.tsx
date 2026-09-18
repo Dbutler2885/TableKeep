@@ -286,7 +286,7 @@ export function CharacterTab({
   }
 
   const characterMedia = useCharacterMedia({
-    campaignId, groupId, effectiveSelected, canEditSelected,
+    campaignId, groupId, currentUserId, effectiveSelected, canEditSelected,
   })
   const updateAbilityScore = (code: AbilityCode, value: string) => {
     if (!effectiveSelected) return
