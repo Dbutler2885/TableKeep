@@ -1,12 +1,12 @@
-import { uploadEntityImage } from '../../common/mediaStorage'
+import { characterUploadAuthority, uploadEntityImage } from '../../common/mediaStorage'
 import type { CharacterRecord } from '../../../types/app'
 
-type Params = { campaignId: string; groupId: string; effectiveSelected: CharacterRecord | null; canEditSelected: boolean }
+type Params = { campaignId: string; groupId: string; currentUserId: string; effectiveSelected: CharacterRecord | null; canEditSelected: boolean }
 
-export function useCharacterMedia({ campaignId, groupId, effectiveSelected, canEditSelected }: Params) {
+export function useCharacterMedia({ campaignId, groupId, currentUserId, effectiveSelected, canEditSelected }: Params) {
   const upload = async (file: File, mediaKind: 'token-icons' | 'portraits', maxWidth: number, maxHeight: number) => {
     if (!effectiveSelected || !canEditSelected) throw new Error('No editable character selected.')
-    return uploadEntityImage({ campaignId, groupId, collectionName: 'characters', entityId: effectiveSelected.id, mediaKind, file, maxWidth, maxHeight })
+    return uploadEntityImage({ campaignId, groupId, collectionName: 'characters', entityId: effectiveSelected.id, mediaKind, file, maxWidth, maxHeight, uploadAuthority: characterUploadAuthority(effectiveSelected.ownerUserId, currentUserId) })
   }
   const uploadCharacterTokenImage = async (file: File) => {
     const { path, url, name } = await upload(file, 'token-icons', 1024, 1024)

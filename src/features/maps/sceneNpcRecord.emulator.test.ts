@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { ref, uploadString } from 'firebase/storage'
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { entityMediaStoragePath } from '../common/mediaStorage'
+import { entityMediaStoragePath, uploadAuthorityMetadata } from '../common/mediaStorage'
 import { npcDocWritePayload, npcMediaUploadParams, npcPrivateWritePayload, SCENE_NPC_WRITE_OPTIONS, sceneNpcDocSegments, sceneNpcPrivateDocSegments, toNpcGmNotes, toNpcRecord } from './lib/sceneNpcRecord'
 import type { NpcRecord } from '../../types/app'
 import { emulatorPort } from '../../../vitest.emulatorEndpoint'
@@ -86,7 +86,7 @@ describe('scene NPC production paths and payloads', () => {
     const params = npcMediaUploadParams('portraits')
     const visible = entityMediaStoragePath({ groupId, campaignId, entityId: visibleNpcId, fileName: 'visible.webp', timestamp: 1, ...params })
     const hidden = entityMediaStoragePath({ groupId, campaignId, entityId: hiddenNpcId, fileName: 'hidden.webp', timestamp: 1, ...params })
-    await assertSucceeds(uploadString(ref(storage, visible), 'data', 'raw', { contentType: 'image/webp' }))
-    await assertFails(uploadString(ref(storage, hidden), 'data', 'raw', { contentType: 'image/webp' }))
+    await assertSucceeds(uploadString(ref(storage, visible), 'data', 'raw', { contentType: 'image/webp', ...uploadAuthorityMetadata('player') }))
+    await assertFails(uploadString(ref(storage, hidden), 'data', 'raw', { contentType: 'image/webp', ...uploadAuthorityMetadata('player') }))
   })
 })

@@ -118,6 +118,45 @@ service firebase.storage {
       );
     }
 
+    /**
+     * Whether an upload claims to act under `authority` rather than as the GM.
+     *
+     * Production Storage rules may read at most two Firestore documents per
+     * request, and the emulator does not enforce that limit. Proving "campaign
+     * GM" already costs two (the member document, then the campaign document for
+     * a GM who is not a group admin), so a rule that tries the GM check and then
+     * falls back to an owner or player check reads a third document and is
+     * denied in production, while passing every emulator test.
+     *
+     * An upload that is not acting as the GM therefore names its authority in
+     * its custom metadata (`uploadAuthority`), and the rule evaluates only that
+     * branch. The claim is not a credential: it only chooses which check runs,
+     * and a false claim selects a check the caller then fails. An upload without
+     * a claim is held to the GM check, so GM-only paths need no metadata.
+     */
+    function claimsUploadAuthority(authority) {
+      return request.resource != null
+        && request.resource.metadata != null
+        && request.resource.metadata.get('uploadAuthority', '') == authority;
+    }
+
+    function ownsGroupCharacter(groupId, campaignId, characterId) {
+      return isGroupMember(groupId)
+        && groupCharacterDoc(groupId, campaignId, characterId).data.ownerUserId == request.auth.uid;
+    }
+
+    function canWriteGroupCharacterMedia(groupId, campaignId, characterId) {
+      return claimsUploadAuthority('owner')
+        ? ownsGroupCharacter(groupId, campaignId, characterId)
+        : isGroupCampaignGM(groupId, campaignId);
+    }
+
+    function canWriteGroupNpcMedia(groupId, campaignId, npcId) {
+      return claimsUploadAuthority('player')
+        ? isGroupMember(groupId) && groupNpcDoc(groupId, campaignId, npcId).data.visibleToPlayers == true
+        : isGroupCampaignGM(groupId, campaignId);
+    }
+
     function isNpcMediaKind(mediaKind) {
       return mediaKind == 'portraits' || mediaKind == 'token-icons';
     }
@@ -170,36 +209,18 @@ service firebase.storage {
 
     match /groups/{groupId}/campaigns/{campaignId}/characters/{characterId}/token-icons/{assetName} {
       allow read: if isGroupMember(groupId);
-      allow write: if withinVisitorObjectLimit() && (
-        isGroupCampaignGM(groupId, campaignId)
-        || (
-          isGroupMember(groupId)
-          && groupCharacterDoc(groupId, campaignId, characterId).data.ownerUserId == request.auth.uid
-        )
-      );
+      allow write: if withinVisitorObjectLimit() && canWriteGroupCharacterMedia(groupId, campaignId, characterId);
     }
 
     match /groups/{groupId}/campaigns/{campaignId}/characters/{characterId}/portraits/{assetName} {
       allow read: if isGroupMember(groupId);
-      allow write: if withinVisitorObjectLimit() && (
-        isGroupCampaignGM(groupId, campaignId)
-        || (
-          isGroupMember(groupId)
-          && groupCharacterDoc(groupId, campaignId, characterId).data.ownerUserId == request.auth.uid
-        )
-      );
+      allow write: if withinVisitorObjectLimit() && canWriteGroupCharacterMedia(groupId, campaignId, characterId);
     }
 
     match /groups/{groupId}/campaigns/{campaignId}/npcs/{npcId}/{mediaKind}/{assetName} {
       allow read: if isGroupMember(groupId);
       allow write: if withinVisitorObjectLimit() && isNpcMediaKind(mediaKind)
-        && (
-          isGroupCampaignGM(groupId, campaignId)
-          || (
-            isGroupMember(groupId)
-            && groupNpcDoc(groupId, campaignId, npcId).data.visibleToPlayers == true
-          )
-        );
+        && canWriteGroupNpcMedia(groupId, campaignId, npcId);
     }
 
     match /groups/{groupId}/campaigns/{campaignId}/monsters/{monsterId}/{mediaKind}/{assetName} {

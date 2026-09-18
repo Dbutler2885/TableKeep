@@ -3,7 +3,7 @@ import { ChevronLeft, Coins, Plus, Trash2, UserRound } from 'lucide-react'
 import type { Role } from '../../types/app'
 import { ConfirmModal } from '../common/ConfirmModal'
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
-import { uploadEntityImage } from '../common/mediaStorage'
+import { characterUploadAuthority, uploadEntityImage } from '../common/mediaStorage'
 import { makeId } from './characterFactories'
 import { DotRating } from './DotRating'
 import { useResponsiveCharacterLayout } from './hooks/useResponsiveCharacterLayout'
@@ -245,6 +245,7 @@ export function VtmCharacterTab({
       groupId,
       collectionName: 'characters',
       entityId: selectedCharacter.id,
+      uploadAuthority: characterUploadAuthority(selectedCharacter.ownerUserId, currentUserId),
       mediaKind: 'token-icons',
       file,
       maxWidth: 1024,
@@ -260,6 +261,7 @@ export function VtmCharacterTab({
       groupId,
       collectionName: 'characters',
       entityId: selectedCharacter.id,
+      uploadAuthority: characterUploadAuthority(selectedCharacter.ownerUserId, currentUserId),
       mediaKind: 'portraits',
       file,
       maxWidth: 600,
