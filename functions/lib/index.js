@@ -1,4 +1,3 @@
-import { Timestamp } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -9,6 +8,7 @@ import { adminApp, adminFirestore } from './adminApp.js';
 import { isTransferSourceAuthorized } from './transferAuthorization.js';
 import { campaignPath, groupMemberPath } from './firestorePaths.js';
 import { deleteCampaignSessions } from './campaignSessions.js';
+import { saveGeneratedSummary, } from './recap/sessionSummaries.js';
 import { createDemoSandbox, sweepExpiredDemoSandboxes } from './demoSessions.js';
 import { DISCORD_CONNECT_STATES_COLLECTION, beginDiscordConnect, completeDiscordConnect, disconnectDiscord, discordAuthorizeUrl, fetchDiscordIdentity, isWellFormedDiscordState, } from './discordConnect.js';
 import { beginDiscordServerLink, completeDiscordServerLink, discordServerLinkUrl, fetchLinkedDiscordServer, isActiveGroupAdmin, unlinkDiscordServer, } from './discordServerLink.js';
@@ -110,97 +110,17 @@ export const postSessionSummary = onRequest({ region: 'us-central1', secrets: [s
         ? body.cliffhangers.filter((c) => typeof c === 'string')
         : [];
     const calendar = normalizeCalendar(body.calendar);
-    // Auto-match NPCs by name; auto-create a stub for any the GM hasn't entered yet.
-    if (npcMentions.length > 0) {
-        const npcsCollection = campaignRef(groupId, campaignId).collection('npcs');
-        const npcPrivateCollection = campaignRef(groupId, campaignId).collection('npcPrivate');
-        const npcsSnap = await npcsCollection.get();
-        const npcLookup = new Map();
-        npcsSnap.docs.forEach((docSnap) => {
-            const data = docSnap.data();
-            if (typeof data.name === 'string') {
-                const key = data.name.toLowerCase().trim();
-                if (npcLookup.has(key)) {
-                    npcLookup.delete(key);
-                }
-                else {
-                    npcLookup.set(key, docSnap.id);
-                }
-            }
-        });
-        const batch = db.batch();
-        let created = 0;
-        for (const mention of npcMentions) {
-            const m = mention;
-            const key = m.name.toLowerCase().trim();
-            if (!key)
-                continue;
-            const matchId = npcLookup.get(key);
-            if (matchId) {
-                m.linkedNpcId = matchId;
-                continue;
-            }
-            // No existing NPC: create a stub the model owns (its facts surface as Auto-Notes).
-            // Transcript NPCs have been met, so they're visible to players by default.
-            const newRef = npcsCollection.doc();
-            batch.set(newRef, {
-                id: newRef.id,
-                name: m.name,
-                title: typeof m.title === 'string' ? m.title : '',
-                visibleToPlayers: true,
-                tags: [],
-                portraitPath: '',
-                portraitUrl: null,
-                portraitFocusX: 50,
-                portraitFocusY: 50,
-                tokenIcon: { icon: 'pawn', color: '#2f5bbf', size: 34 },
-                playerDescription: '',
-                playerNotes: '',
-                createdBy: 'api',
-                createdAt: Timestamp.now(),
-                updatedAt: Timestamp.now(),
-            });
-            batch.set(npcPrivateCollection.doc(newRef.id), {
-                id: newRef.id,
-                gmNotes: '',
-                createdAt: Timestamp.now(),
-                updatedAt: Timestamp.now(),
-            });
-            npcLookup.set(key, newRef.id);
-            m.linkedNpcId = newRef.id;
-            created += 1;
-        }
-        if (created > 0)
-            await batch.commit();
-    }
-    const summaryRef = campaignRef(groupId, campaignId).collection('sessionSummaries').doc();
-    await summaryRef.set({
+    const summaryId = await saveGeneratedSummary(db, groupId, campaignId, {
         title: title.trim(),
         summaryMarkdown: typeof summaryMarkdown === 'string' ? summaryMarkdown : '',
         sessionNumber: typeof sessionNumber === 'number' ? sessionNumber : null,
-        sourceType: 'api',
-        postedBy: 'api',
         overallSummary,
         scenes,
         npcMentions,
         cliffhangers,
         calendar,
-        generatedSnapshot: {
-            title: title.trim(),
-            summaryMarkdown: typeof summaryMarkdown === 'string' ? summaryMarkdown : '',
-            overallSummary,
-            scenes,
-            npcMentions,
-            cliffhangers,
-            calendar,
-        },
-        hasHumanEdits: false,
-        editedAt: null,
-        editedBy: null,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
     });
-    res.status(201).json({ ok: true, id: summaryRef.id });
+    res.status(201).json({ ok: true, id: summaryId });
 });
 export const getCampaignNpcs = onRequest({ region: 'us-central1', secrets: [sessionSummaryApiKey] }, async (req, res) => {
     if (req.method !== 'GET') {

@@ -13,7 +13,7 @@ export default defineConfig([
   globalIgnores(['dist', 'functions', 'bot']),
   {
     name: 'node-scripts',
-    files: ['scripts/browser-smoke.mjs', 'scripts/demo/*.mjs'],
+    files: ['scripts/browser-smoke.mjs', 'scripts/demo/*.mjs', 'scripts/sessions/*.mjs'],
     extends: [js.configs.recommended],
     languageOptions: {
       ecmaVersion: 2022,

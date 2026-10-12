@@ -349,6 +349,22 @@ The spec and tickets are local files under `.scratch/session-recorder-bot/`, whi
 - **What Discord sends:** one Opus packet per 20 ms while a person talks, about ten three-byte silence frames when they stop, then nothing.
   A packet's timestamp keeps counting through the silence, so within one connection it gives the packet's true position; after a speaker rejoins, the numbering restarts from unrelated values and a new epoch is anchored by the clock.
 
+## Session recaps
+
+`functions/src/recap/` writes a session's recap. It is the Python summarizer from the old drop-folder pipeline, rewritten.
+
+- **The prompt and schema wording is carried over character for character, and changing it changes every recap.**
+  `recapPrompt.ts` and `recapSchema.ts` were checked against the Python output on the groups' real files.
+- **The model only marks where an in-game day begins; `recapCalendar.ts` does the numbering,** continuing from the previous session's last day.
+- **Every summary is saved through `saveGeneratedSummary`,** whether it came from the old HTTP endpoint or from `writeSessionRecap`, so the Notes tab sees one shape.
+  It links each mentioned NPC to the campaign's NPC of the same name and creates one if there is none; a name two NPCs share links to neither.
+- **`writeSessionRecap` takes the model and the transcript reader as arguments,** so its emulator suite runs with neither.
+- **A campaign's recap settings live at `recapSettings/main`,** which no rule lets a client read or write.
+  `scripts/sessions/seed-recap-settings.mjs` copies them from the old pipeline's folder; it prints what it would write unless given `--apply`, and refuses a real project without `--live`.
+- **`scripts/sessions/trial-recap.mjs` writes a real recap for an archived session into the emulator** and prints it beside the one on record.
+  It calls the real model, so it costs what a recap costs.
+  Both scripts read the compiled `functions/lib`, so build the functions first.
+
 ## Agent skills
 
 ### Issue tracker
