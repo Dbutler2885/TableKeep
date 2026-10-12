@@ -9,6 +9,9 @@ import { useSessionNotes } from './useSessionNotes'
 import { SessionNoteDetail } from './SessionNoteDetail'
 import { SessionNoteImporter } from './SessionNoteImporter'
 import { getSessionCardSubtitle, getSessionDisplayTitle } from './sessionNoteUtils'
+import { RecordedSessionDetail } from '../sessions/RecordedSessionDetail'
+import { formatSessionDate, sessionStatusLabel } from '../sessions/sessionTimeline'
+import { useRecordedSessions } from '../sessions/useRecordedSessions'
 
 type NotesTabProps = {
   campaignId: string
@@ -21,6 +24,10 @@ export function NotesTab({ campaignId, groupId, role }: NotesTabProps) {
   const [mobileView, setMobileView] = useState<'list' | 'detail'>('list')
   const { notes, notesLoading, addNote, updateNote, deleteNote } = useSessionNotes(campaignId, true, groupId)
   const [selectedNoteId, setSelectedNoteId] = useState('')
+  // What the bot recorded sits beside the recaps: the same sessions, seen as transcripts.
+  const { sessions: recordings } = useRecordedSessions({ campaignId, groupId })
+  const [chosenView, setView] = useState<'recaps' | 'recordings'>('recaps')
+  const [selectedRecordingId, setSelectedRecordingId] = useState('')
   const [importerOpen, setImporterOpen] = useState(false)
   const [deleteCandidate, setDeleteCandidate] = useState<string | null>(null)
   const [npcs, setNpcs] = useState<NpcRecord[]>([])
@@ -81,6 +88,23 @@ export function NotesTab({ campaignId, groupId, role }: NotesTabProps) {
     [notes, selectedNoteId],
   )
 
+  // With nothing recorded there is nothing to switch to; otherwise the newest is shown until another is chosen.
+  const view = recordings.length === 0 ? 'recaps' : chosenView
+  const selectedRecording = useMemo(
+    () => recordings.find((recording) => recording.id === selectedRecordingId) ?? recordings[0] ?? null,
+    [recordings, selectedRecordingId],
+  )
+
+  const selectRecording = (recordingId: string) => {
+    setSelectedRecordingId(recordingId)
+    if (isMobile) setMobileView('detail')
+  }
+
+  const openRecap = (summaryId: string) => {
+    setView('recaps')
+    setSelectedNoteId(summaryId)
+  }
+
   const selectNote = (noteId: string) => {
     setSelectedNoteId(noteId)
     if (isMobile) setMobileView('detail')
@@ -101,7 +125,7 @@ export function NotesTab({ campaignId, groupId, role }: NotesTabProps) {
         <aside className="maps-sidebar monsters-sidebar characters-sidebar">
           <div className="maps-sidebar-header">
             <h2>Sessions</h2>
-            {role === 'gm' ? (
+            {role === 'gm' && view === 'recaps' ? (
               <button
                 type="button"
                 className="monster-add-btn"
@@ -112,7 +136,55 @@ export function NotesTab({ campaignId, groupId, role }: NotesTabProps) {
               </button>
             ) : null}
           </div>
-          {notesLoading ? (
+          {recordings.length > 0 ? (
+            <div className="table-mode-toggle" role="tablist" aria-label="What to show for each session">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === 'recaps'}
+                className={view === 'recaps' ? 'table-mode-btn active' : 'table-mode-btn'}
+                onClick={() => setView('recaps')}
+              >
+                Recaps
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === 'recordings'}
+                className={view === 'recordings' ? 'table-mode-btn active' : 'table-mode-btn'}
+                onClick={() => setView('recordings')}
+              >
+                Transcripts
+              </button>
+            </div>
+          ) : null}
+          {view === 'recordings' ? (
+            <div className="monster-list-grid character-list-grid">
+              {recordings.map((recording) => (
+                <div key={recording.id} className={recording.id === selectedRecording?.id ? 'map-row active' : 'map-row'}>
+                  <div
+                    className="map-select"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => selectRecording(recording.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        selectRecording(recording.id)
+                      }
+                    }}
+                  >
+                    <div className="map-meta notes-card-meta">
+                      <strong>Session {recording.number}</strong>
+                      <p className="monster-card-statline">
+                        {formatSessionDate(recording.startedAtMs)} · {sessionStatusLabel(recording)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : notesLoading ? (
             <p className="map-npc-scene-empty">Loading...</p>
           ) : notes.length === 0 ? (
             <p className="map-npc-scene-empty">No session notes yet.</p>
@@ -166,7 +238,19 @@ export function NotesTab({ campaignId, groupId, role }: NotesTabProps) {
                 </button>
               </div>
             ) : null}
-            {!selectedNote ? (
+            {view === 'recordings' ? (
+              selectedRecording ? (
+                <RecordedSessionDetail
+                  key={selectedRecording.id}
+                  scope={{ campaignId, groupId }}
+                  session={selectedRecording}
+                  role={role}
+                  onOpenRecap={openRecap}
+                />
+              ) : (
+                <p className="map-npc-scene-empty">Select a session from the list.</p>
+              )
+            ) : !selectedNote ? (
               <p className="map-npc-scene-empty">Select a session from the list.</p>
             ) : (
               <SessionNoteDetail note={selectedNote} role={role} onUpdate={updateNote} />
