@@ -47,6 +47,8 @@ const MAX_SPEED = 1.25
 const BURST_SECONDS = 3
 /** How long to wait before trying the service again after losing it: doubling from the first to the second. */
 const RETRY_MS = { first: 1_000, longest: 30_000 }
+/** This many failed tries in a row, about seven seconds, is an outage and not a blip. */
+const STRUGGLING_AFTER_FAILURES = 3
 
 export type Utterance = {
   speakerId: string
@@ -142,6 +144,11 @@ export class SpeakerTranscriber {
   /** Whether everything this speaker has said has been dealt with by the service. */
   get caughtUp(): boolean {
     return this.#pending.length === 0
+  }
+
+  /** Whether the service has been out of reach for several tries running. */
+  get struggling(): boolean {
+    return this.#failures >= STRUGGLING_AFTER_FAILURES
   }
 
   /** Takes the speaker's next packet, in order. */

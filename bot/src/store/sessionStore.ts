@@ -7,6 +7,7 @@
  *   groups/{g}/campaigns/{c}/sessions/{s}/speakers/{id}   who was heard, by permanent Discord ID
  *   groups/{g}/campaigns/{c}/sessions/{s}/segments/{id}   where each stored piece of audio sits in time
  *   groups/{g}/campaigns/{c}/sessions/{s}/gaps/{id}       stretches the bot could not hear anyone
+ *   groups/{g}/campaigns/{c}/sessions/{s}/markers/{id}    moments marked with `/note`
  *   groups/{g}/campaigns/{c}/sessions/{s}/transcripts/{revision}/utterances/{id}
  *                                                         what was said, one record per utterance
  *   groups/{g}/campaigns/{c}/sessions/{s}/transcripts/{revision}/checkpoints/{speaker}
@@ -40,6 +41,8 @@ export type SessionLocation = { groupId: string; campaignId: string; sessionId: 
 export type StartSessionInput = {
   discordServerId: string
   discordChannelId: string
+  /** The text channel the command was typed in, where the bot says how the session is going. */
+  discordTextChannelId?: string | null
   startedByDiscordId: string
   startedAtMs: number
 }
@@ -74,6 +77,9 @@ export type CommandAccess =
 /** A stretch of the session when the bot was not connected and could have heard nobody. */
 export type SessionGap = { startSamples: number; endSamples: number; reason: 'not-connected' }
 
+/** A moment someone marked with `/note`, placed on the session timeline. */
+export type SessionMarker = { atSamples: number; text: string; authorDiscordId: string; authorUid: string | null }
+
 /** The transcript made while the session was being recorded. Nothing in this version makes another. */
 export const LIVE_TRANSCRIPT = 'live'
 
@@ -93,6 +99,8 @@ export function utteranceId(utterance: Pick<Utterance, 'speakerId' | 'startSampl
   return `${utterance.speakerId}-${String(utterance.startSamples).padStart(12, '0')}`
 }
 
+export type SessionOrigin = { discordServerId: string; discordChannelId: string; discordTextChannelId: string | null; number: number }
+
 export type SessionState = 'running' | 'finalising' | 'ended'
 
 export interface SessionStore {
@@ -102,7 +110,7 @@ export interface SessionStore {
   /** Whether a Discord account is connected to someone who belongs to the group, as things stand now. */
   memberAccess(groupId: string, discordUserId: string): Promise<Exclude<CommandAccess, { status: 'server-not-linked' }>>
   /** The server and voice channel a session was started in, or null if the session no longer exists. */
-  sessionOrigin(location: SessionLocation): Promise<{ discordServerId: string; discordChannelId: string; number: number } | null>
+  sessionOrigin(location: SessionLocation): Promise<SessionOrigin | null>
   /** Where the session has got to, or null if it no longer exists, as when its campaign was deleted. */
   sessionState(location: SessionLocation): Promise<SessionState | null>
   /** The names worth telling the speech service about: the campaign's characters and NPCs. */
@@ -117,6 +125,8 @@ export interface SessionStore {
   /** Stores a segment's audio and the record that places it. Storing the same segment twice leaves one. */
   storeSegment(location: SessionLocation, segment: Segment, file: Buffer): Promise<void>
   recordGap(location: SessionLocation, gap: SessionGap): Promise<void>
+  /** Records a marked moment. Recording the same one twice leaves one. */
+  recordMarker(location: SessionLocation, marker: SessionMarker): Promise<void>
   /** Marks recording as over and frees the server for a new session. */
   stopRecording(location: SessionLocation, input: { stoppedAtMs: number; reason: string }): Promise<void>
   /** The names of the segments already stored, so that finalising stores only what is missing. */
@@ -187,6 +197,7 @@ export class FirestoreSessionStore implements SessionStore {
         state: 'running',
         discordServerId: input.discordServerId,
         discordChannelId: input.discordChannelId,
+        discordTextChannelId: input.discordTextChannelId ?? null,
         startedByDiscordId: input.startedByDiscordId,
         startedAt,
         stoppedAt: null,
@@ -219,10 +230,15 @@ export class FirestoreSessionStore implements SessionStore {
     return memberSnap.data()?.status === 'active' ? { status: 'allowed', groupId, uid } : { status: 'not-a-member' }
   }
 
-  async sessionOrigin(location: SessionLocation): Promise<{ discordServerId: string; discordChannelId: string; number: number } | null> {
+  async sessionOrigin(location: SessionLocation): Promise<SessionOrigin | null> {
     const data = (await this.#db.doc(sessionPath(location)).get()).data()
     if (!data) return null
-    return { discordServerId: data.discordServerId, discordChannelId: data.discordChannelId, number: data.number }
+    return {
+      discordServerId: data.discordServerId,
+      discordChannelId: data.discordChannelId,
+      discordTextChannelId: data.discordTextChannelId ?? null,
+      number: data.number,
+    }
   }
 
   async sessionState(location: SessionLocation): Promise<SessionState | null> {
@@ -300,6 +316,11 @@ export class FirestoreSessionStore implements SessionStore {
   async recordGap(location: SessionLocation, gap: SessionGap): Promise<void> {
     const id = String(gap.startSamples).padStart(12, '0')
     await this.#db.doc(sessionPath(location, 'gaps', id)).set(gap)
+  }
+
+  async recordMarker(location: SessionLocation, marker: SessionMarker): Promise<void> {
+    const id = `${String(marker.atSamples).padStart(12, '0')}-${marker.authorDiscordId}`
+    await this.#db.doc(sessionPath(location, 'markers', id)).set(marker)
   }
 
   async stopRecording(location: SessionLocation, input: { stoppedAtMs: number; reason: string }): Promise<void> {

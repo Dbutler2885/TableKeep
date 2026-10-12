@@ -27,6 +27,8 @@ export type JournalEvent = { atMs: number } & (
   | { kind: 'session-started'; groupId: string; campaignId: string; sessionId: string }
   | { kind: 'speaker-joined'; speakerId: string; displayName: string; memberUid?: string | null }
   | { kind: 'speaker-left'; speakerId: string }
+  /** Someone marked this moment with `/note`. */
+  | { kind: 'note'; authorId: string; memberUid: string | null; text: string }
   /** The bot lost its connection to the voice channel, and could hear nobody until it reconnected. */
   | { kind: 'disconnected' }
   | { kind: 'reconnected' }

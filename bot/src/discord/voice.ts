@@ -30,6 +30,14 @@ export interface VoiceLink {
   onReconnected: (() => void) | null
 }
 
+/** Saying things in a server's text channels. */
+export interface MessageBoard {
+  /** Posts a message and resolves to its id. `quiet` posts it without notifying anyone. */
+  post(channelId: string, text: string, options?: { quiet?: boolean }): Promise<string>
+  /** Changes a message the bot posted earlier. Nobody is notified of an edit. */
+  edit(channelId: string, messageId: string, text: string): Promise<void>
+}
+
 export interface VoiceGateway {
   /** Joins a voice channel. Rejects if the channel cannot be joined. */
   join(serverId: string, channelId: string): Promise<VoiceLink>

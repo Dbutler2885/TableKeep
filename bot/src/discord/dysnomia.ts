@@ -6,15 +6,30 @@
  * makes receiving voice possible under Discord's end-to-end voice encryption.
  * Everything learned about how it behaves is in the listening spike's findings.
  */
-import { Client, Constants, type AnyVoiceChannel, type CommandInteraction, type Member } from '@projectdysnomia/dysnomia'
-import { joinReply, stopReply, type Reply } from './replies.ts'
+import {
+  Client,
+  Constants,
+  type AnyVoiceChannel,
+  type ApplicationCommandStructure,
+  type CommandInteraction,
+  type Member,
+} from '@projectdysnomia/dysnomia'
+import { joinReply, noteReply, stopReply } from './replies.ts'
 import type { SessionRunner } from './runner.ts'
-import type { VoiceGateway, VoiceLink, VoiceMember } from './voice.ts'
+import type { MessageBoard, VoiceGateway, VoiceLink, VoiceMember } from './voice.ts'
 
-const COMMANDS = [
+const COMMANDS: ApplicationCommandStructure[] = [
   { name: 'join', description: 'Start recording the voice channel you are in', type: Constants.ApplicationCommandTypes.CHAT_INPUT },
   { name: 'stop', description: 'Stop recording and save the session', type: Constants.ApplicationCommandTypes.CHAT_INPUT },
-] as const
+  {
+    name: 'note',
+    description: 'Mark this moment in the session',
+    type: Constants.ApplicationCommandTypes.CHAT_INPUT,
+    options: [
+      { name: 'text', description: 'What to note', type: Constants.ApplicationCommandOptionTypes.STRING, required: true, max_length: 500 },
+    ],
+  },
+]
 
 const VOICE_CHANNEL_TYPES: number[] = [Constants.ChannelTypes.GUILD_VOICE, Constants.ChannelTypes.GUILD_STAGE_VOICE]
 
@@ -29,7 +44,7 @@ export type DiscordOptions = {
   log?: (message: string, detail?: Record<string, unknown>) => void
 }
 
-export class DiscordBot implements VoiceGateway {
+export class DiscordBot implements VoiceGateway, MessageBoard {
   readonly client: Client
   #options: DiscordOptions
   #log: NonNullable<DiscordOptions['log']>
@@ -66,13 +81,13 @@ export class DiscordBot implements VoiceGateway {
 
   async #registerCommands(serverId: string): Promise<void> {
     try {
-      await this.client.bulkEditGuildCommands(serverId, [...COMMANDS])
+      await this.client.bulkEditGuildCommands(serverId, COMMANDS)
     } catch (error) {
       this.#log('could not register commands', { serverId, error: String(error) })
     }
   }
 
-  /** Answers `/join` and `/stop` with the runner. */
+  /** Answers the bot's commands with the runner. */
   serve(runner: SessionRunner): void {
     this.client.on('interactionCreate', (interaction) => {
       if (interaction.type !== Constants.InteractionTypes.APPLICATION_COMMAND) return
@@ -93,22 +108,37 @@ export class DiscordBot implements VoiceGateway {
     // the place, privately, so that a refusal is seen only by the person who asked.
     await interaction.defer(Constants.MessageFlags.EPHEMERAL)
     const caller = { serverId, userId: member.id }
-    let reply: Reply
+    let reply: string
     if (interaction.data.name === 'join') {
       const voiceChannelId = this.client.guilds.get(serverId)?.members.get(member.id)?.voiceState.channelID ?? null
-      reply = joinReply(await runner.join({ ...caller, voiceChannelId }))
+      reply = joinReply(await runner.join({ ...caller, voiceChannelId, textChannelId: interaction.channel?.id ?? null }))
     } else if (interaction.data.name === 'stop') {
       reply = stopReply(await runner.stop(caller))
+    } else if (interaction.data.name === 'note') {
+      const option = interaction.data.options?.find((candidate) => candidate.name === 'text')
+      const text = option && 'value' in option && typeof option.value === 'string' ? option.value : ''
+      reply = noteReply(await runner.note(caller, text))
     } else {
       return
     }
-    await interaction.editOriginalMessage({ content: reply.text })
-    // What everyone should know is also said in the channel, where it stays.
-    if (!reply.private && interaction.channel) {
-      await this.client.createMessage(interaction.channel.id, { content: reply.text }).catch((error: unknown) => {
-        this.#log('could not post in the channel', { error: String(error) })
+    await interaction.editOriginalMessage({ content: reply })
+  }
+
+  async post(channelId: string, text: string, options: { quiet?: boolean } = {}): Promise<string> {
+    try {
+      const message = await this.client.createMessage(channelId, {
+        content: text,
+        flags: options.quiet ? Constants.MessageFlags.SUPPRESS_NOTIFICATIONS : undefined,
       })
+      return message.id
+    } catch (error) {
+      this.#log('could not post in the channel', { channelId, error: String(error) })
+      throw error
     }
+  }
+
+  async edit(channelId: string, messageId: string, text: string): Promise<void> {
+    await this.client.editMessage(channelId, messageId, { content: text })
   }
 
   async join(serverId: string, channelId: string): Promise<VoiceLink> {

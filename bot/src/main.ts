@@ -51,7 +51,7 @@ const discord = new DiscordBot({
   announcementPath: path.join(here, '../assets/now-recording.ogg'),
   log,
 })
-const runner = new SessionRunner({ voice: discord, recorder })
+const runner = new SessionRunner({ voice: discord, messages: discord, recorder })
 
 /** Finishes or resumes whatever an earlier run of the bot left on the disk. */
 async function recover(): Promise<void> {

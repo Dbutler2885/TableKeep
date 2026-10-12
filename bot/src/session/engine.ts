@@ -14,7 +14,7 @@ import { OPUS_SAMPLE_RATE } from '../audio/opus.ts'
 import { Segmenter, type Segment } from '../audio/segmenter.ts'
 import { SpeakerTimeline, type PlacedPacket } from '../audio/timeline.ts'
 import type { JournalRecord } from '../journal/journal.ts'
-import type { SessionGap, SessionLocation, SessionSpeaker } from '../store/sessionStore.ts'
+import type { SessionGap, SessionLocation, SessionMarker, SessionSpeaker } from '../store/sessionStore.ts'
 
 /** With nothing from a speaker for this long, their audio so far is closed off as a segment. */
 const QUIET_CLOSE_MS = 1_500
@@ -24,6 +24,7 @@ export type SessionEffect =
   | { kind: 'segment'; segment: Segment }
   | { kind: 'speaker'; speaker: SessionSpeaker }
   | { kind: 'gap'; gap: SessionGap }
+  | { kind: 'marker'; marker: SessionMarker }
   | { kind: 'stopped'; reason: string; atMs: number }
 
 type SpeakerState = { timeline: SpeakerTimeline; segmenter: Segmenter; lastPacketAtMs: number }
@@ -62,6 +63,12 @@ export class SessionEngine {
         effects.push({
           kind: 'speaker',
           speaker: { discordId: event.speakerId, displayName: event.displayName, memberUid: event.memberUid ?? null },
+        })
+        break
+      case 'note':
+        effects.push({
+          kind: 'marker',
+          marker: { atSamples: this.#samplesAt(event.atMs), text: event.text, authorDiscordId: event.authorId, authorUid: event.memberUid },
         })
         break
       case 'speaker-left':

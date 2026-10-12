@@ -73,6 +73,9 @@ export type ResumeRecordingResult =
 export class SessionRecorder {
   readonly location: SessionLocation
   readonly journalPath: string
+  readonly startedAtMs: number
+  /** Told when something a person should know about happens. Set at any time. */
+  onAlarm: ((alarm: RecorderAlarm) => void) | null
   #options: RecorderOptions
   #store: SessionStore
   #journal: JournalWriter
@@ -87,6 +90,7 @@ export class SessionRecorder {
   #retryStoringAtMs = 0
   #diskCheckAtMs = 0
   #diskLow = false
+  #utteranceCounts = new Map<string, number>()
   /** Writes to the store still in flight, and anything that went wrong with them. */
   #pending = new Set<Promise<void>>()
   readonly failures: unknown[] = []
@@ -99,6 +103,8 @@ export class SessionRecorder {
     options: RecorderOptions,
   ) {
     this.location = location
+    this.startedAtMs = startedAtMs
+    this.onAlarm = options.onAlarm ?? null
     this.#options = options
     this.#store = options.store
     this.#keyterms = keyterms
@@ -178,6 +184,24 @@ export class SessionRecorder {
     this.#record({ atMs, kind: 'speaker-left', speakerId })
   }
 
+  /** Someone has marked this moment. */
+  note(authorId: string, memberUid: string | null, text: string, atMs: number): void {
+    this.#record({ atMs, kind: 'note', authorId, memberUid, text })
+  }
+
+  /** How many utterances of each speaker's have been transcribed so far, counted here and not read back. */
+  get utteranceCounts(): ReadonlyMap<string, number> {
+    return this.#utteranceCounts
+  }
+
+  /** Whether audio is reaching storage and speech is reaching the transcript, as far as can be told right now. */
+  get health(): { storing: boolean; transcribing: boolean } {
+    return {
+      storing: this.#unstored.length === 0,
+      transcribing: ![...this.#transcription.values()].some(({ transcriber }) => transcriber.struggling),
+    }
+  }
+
   /** The bot has lost the voice channel and can hear nobody. */
   disconnected(atMs: number): void {
     this.#record({ atMs, kind: 'disconnected' })
@@ -226,7 +250,7 @@ export class SessionRecorder {
     const freeBytes = freeDiskBytes(this.#options)
     const low = freeBytes < (this.#options.lowDiskBytes ?? DEFAULT_LOW_DISK_BYTES)
     // Said once when it becomes true, not on every check.
-    if (low && !this.#diskLow) this.#options.onAlarm?.({ kind: 'disk-low', freeBytes })
+    if (low && !this.#diskLow) this.onAlarm?.({ kind: 'disk-low', freeBytes })
     this.#diskLow = low
   }
 
@@ -301,6 +325,9 @@ export class SessionRecorder {
         case 'gap':
           this.#track(this.#store.recordGap(this.location, effect.gap))
           break
+        case 'marker':
+          this.#track(this.#store.recordMarker(this.location, effect.marker))
+          break
         case 'stopped':
           break
       }
@@ -343,6 +370,7 @@ export class SessionRecorder {
   #publish(speakerId: string, utterances: Utterance[], checkpointSamples: number): void {
     const transcription = this.#transcription.get(speakerId)
     if (!transcription) return
+    this.#utteranceCounts.set(speakerId, (this.#utteranceCounts.get(speakerId) ?? 0) + utterances.length)
     const write = transcription.publishing.then(() =>
       this.#store.publishUtterances(this.location, speakerId, utterances, checkpointSamples),
     )

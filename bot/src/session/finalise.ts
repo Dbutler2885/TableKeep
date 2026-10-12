@@ -67,6 +67,8 @@ export async function finaliseSession(options: FinaliseOptions): Promise<Finalis
       await store.recordSpeaker(location, effect.speaker)
     } else if (effect.kind === 'gap') {
       await store.recordGap(location, effect.gap)
+    } else if (effect.kind === 'marker') {
+      await store.recordMarker(location, effect.marker)
     } else if (effect.kind === 'placed') {
       const packets = placed.get(effect.packet.speakerId) ?? []
       packets.push(effect.packet)
