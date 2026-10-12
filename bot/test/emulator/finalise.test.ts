@@ -155,12 +155,12 @@ test('stopping twice finishes the session once', async () => {
   assert.equal((await session(recorder.location)).stoppedAt.toMillis(), START + 3_000)
 })
 
-test('if the speech service is down when a session is stopped, the audio is safe, the session is flagged, and no recap is asked for', async () => {
+test('if the speech service is down when a session is stopped, the audio is safe, the session is flagged, and its recap is held back', async () => {
   const { recorder, outcome } = await recordedThroughAnOutage()
 
   assert.equal(outcome.status, 'needs-attention')
   const record = await session(recorder.location)
-  assert.deepEqual([record.state, record.audioComplete, record.transcriptComplete, record.recapStatus], ['finalising', false, false, null])
+  assert.deepEqual([record.state, record.audioComplete, record.transcriptComplete, record.recapStatus], ['finalising', false, false, 'delayed'])
   assert.match(record.needsAttention, /speech service could not be reached/)
   // What was said before the outage is there; what was said during it is not, yet.
   assert.deepEqual(await said(recorder.location), [[JEM, 1, 'w0.0 w0.5 w1.0 w1.5']])

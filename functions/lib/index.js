@@ -1,13 +1,15 @@
 import { getStorage } from 'firebase-admin/storage';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { onDocumentDeleted } from 'firebase-functions/v2/firestore';
+import { onDocumentDeleted, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { defineSecret, defineString } from 'firebase-functions/params';
 import { logger } from 'firebase-functions';
 import { adminApp, adminFirestore } from './adminApp.js';
 import { isTransferSourceAuthorized } from './transferAuthorization.js';
 import { campaignPath, groupMemberPath } from './firestorePaths.js';
 import { deleteCampaignSessions } from './campaignSessions.js';
+import { recapIsDue, requestRecapRerun, runSessionRecap } from './recap/sessionRecap.js';
+import { callOpenAi, transcriptObjectPath } from './recap/writeRecap.js';
 import { saveGeneratedSummary, } from './recap/sessionSummaries.js';
 import { createDemoSandbox, sweepExpiredDemoSandboxes } from './demoSessions.js';
 import { DISCORD_CONNECT_STATES_COLLECTION, beginDiscordConnect, completeDiscordConnect, disconnectDiscord, discordAuthorizeUrl, fetchDiscordIdentity, isWellFormedDiscordState, } from './discordConnect.js';
@@ -15,6 +17,8 @@ import { beginDiscordServerLink, completeDiscordServerLink, discordServerLinkUrl
 adminApp();
 const db = adminFirestore();
 const sessionSummaryApiKey = defineSecret('SESSION_SUMMARY_API_KEY');
+/** The key the recap of a recorded session is written with. */
+const openAiApiKey = defineSecret('OPENAI_API_KEY');
 // The Discord application that people approve when they connect their account.
 // The strings default to empty so that a checkout with no Discord application,
 // the demo included, still loads and deploys; the functions that need them
@@ -471,4 +475,44 @@ export const unlinkGroupDiscordServer = onCall({ region: 'us-central1' }, async 
 export const clearDeletedCampaignSessions = onDocumentDeleted({ region: 'us-central1', document: 'groups/{groupId}/campaigns/{campaignId}' }, async (event) => {
     const { groupId, campaignId } = event.params;
     await deleteCampaignSessions(db, (prefix) => getStorage(adminApp()).bucket().deleteFiles({ prefix, force: true }), groupId, campaignId);
+});
+const SESSION_DOCUMENT = 'groups/{groupId}/campaigns/{campaignId}/sessions/{sessionId}';
+/** Short of the function's own limit, so that a model that never answers is recorded as a failure and not cut off. */
+const RECAP_MODEL_TIMEOUT_MS = 8 * 60 * 1000;
+/**
+ * Writes a recorded session's recap when the session ends.
+ *
+ * The bot marks an ended session's recap as pending; this notices the mark,
+ * whenever it appears. Its progress is recorded on the session.
+ */
+export const writeEndedSessionRecap = onDocumentWritten({ region: 'us-central1', document: SESSION_DOCUMENT, secrets: [openAiApiKey], timeoutSeconds: 540, memory: '512MiB' }, async (event) => {
+    if (!recapIsDue(event.data?.after.data()))
+        return;
+    const session = event.params;
+    const outcome = await runSessionRecap(db, session, {
+        callModel: callOpenAi(openAiApiKey.value(), { timeoutMs: RECAP_MODEL_TIMEOUT_MS }),
+        readTranscript: async (ref) => {
+            const [bytes] = await getStorage(adminApp()).bucket().file(transcriptObjectPath(ref)).download();
+            return bytes.toString('utf8');
+        },
+    });
+    logger.info('Session recap', { ...session, outcome });
+});
+/** Lets a GM ask for a session's recap to be tried again after it failed. */
+export const rerunSessionRecap = onCall({ region: 'us-central1' }, async (request) => {
+    const uid = request.auth?.uid ?? '';
+    if (!uid)
+        throw new HttpsError('unauthenticated', 'Authentication required.');
+    const [groupId, campaignId, sessionId] = ['groupId', 'campaignId', 'sessionId'].map((key) => typeof request.data?.[key] === 'string' ? request.data[key] : '');
+    if (!groupId || !campaignId || !sessionId)
+        throw new HttpsError('invalid-argument', 'groupId, campaignId and sessionId are required.');
+    if (!(await isActiveGroupAdmin(db, groupId, uid))) {
+        throw new HttpsError('permission-denied', 'Only an admin of the group can rerun a recap.');
+    }
+    const result = await requestRecapRerun(db, { groupId: groupId, campaignId: campaignId, sessionId: sessionId });
+    if (result === 'not-found')
+        throw new HttpsError('not-found', 'That session does not exist.');
+    if (result === 'not-failed')
+        throw new HttpsError('failed-precondition', 'That recap has not failed.');
+    return { ok: true };
 });

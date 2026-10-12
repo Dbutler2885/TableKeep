@@ -16,7 +16,7 @@ import { calendarState, eventsToDayObjects } from './recapCalendar.js'
 import { buildRecapPrompt, type NpcRosterEntry, type PreviousRecap } from './recapPrompt.js'
 import { extractRecap, recapToolSchema, type RecapToolSchema } from './recapSchema.js'
 import { RECAP_SETTINGS_COLLECTION, RECAP_SETTINGS_ID, resolveRecapSettings, type RecapSettings } from './recapSettings.js'
-import { saveGeneratedSummary } from './sessionSummaries.js'
+import { saveGeneratedSummary, type GeneratedSummary } from './sessionSummaries.js'
 
 export type SessionRef = { groupId: string; campaignId: string; sessionId: string }
 
@@ -47,6 +47,14 @@ export type RecapDependencies = {
 export type RecapOverrides = Partial<Pick<RecapSettings, 'model' | 'reasoningEffort' | 'promptHeader' | 'style'>>
 
 export type WriteRecapResult = { summaryId: string; sessionNumber: number }
+
+/** A recap as the model wrote it, not yet saved: nothing in the campaign has been touched to make it. */
+export type RecapDraft = {
+  sessionNumber: number
+  summary: GeneratedSummary
+  /** What is recorded beside the summary: its session, and what produced it. */
+  extra: Record<string, unknown>
+}
 
 /** Where the bot saves a finished session's transcript as text. */
 export function transcriptObjectPath(session: SessionRef): string {
@@ -99,6 +107,21 @@ export async function writeSessionRecap(
   dependencies: RecapDependencies,
   options: { summaryId?: string; overrides?: RecapOverrides } = {},
 ): Promise<WriteRecapResult> {
+  const draft = await draftSessionRecap(db, session, dependencies, options.overrides)
+  const summaryId = await saveGeneratedSummary(db, session.groupId, session.campaignId, draft.summary, {
+    summaryId: options.summaryId,
+    extra: draft.extra,
+  })
+  return { summaryId, sessionNumber: draft.sessionNumber }
+}
+
+/** Gathers what the model needs, asks it, and returns the recap it wrote without saving anything. */
+export async function draftSessionRecap(
+  db: Firestore,
+  session: SessionRef,
+  dependencies: RecapDependencies,
+  overrides: RecapOverrides = {},
+): Promise<RecapDraft> {
   const now = dependencies.nowMs ?? Date.now
   const sessionSnap = await db.doc(campaignPath(session.groupId, session.campaignId, 'sessions', session.sessionId)).get()
   if (!sessionSnap.exists) throw new Error('That session does not exist.')
@@ -108,7 +131,7 @@ export async function writeSessionRecap(
   const settingsSnap = await db
     .doc(campaignPath(session.groupId, session.campaignId, RECAP_SETTINGS_COLLECTION, RECAP_SETTINGS_ID))
     .get()
-  const settings = { ...resolveRecapSettings(settingsSnap.data() as Partial<RecapSettings> | undefined), ...options.overrides }
+  const settings = { ...resolveRecapSettings(settingsSnap.data() as Partial<RecapSettings> | undefined), ...overrides }
   const includeCalendar = settings.sections.includes('calendar')
 
   const [transcript, previous, roster] = await Promise.all([
@@ -144,11 +167,9 @@ export async function writeSessionRecap(
   const previousLastDay = previous?.calendar?.length ? calendarState(previous.calendar).lastDay : 0
   const calendar = includeCalendar && Array.isArray(recap.calendar) ? eventsToDayObjects(recap.calendar, previousLastDay) : []
 
-  const summaryId = await saveGeneratedSummary(
-    db,
-    session.groupId,
-    session.campaignId,
-    {
+  return {
+    sessionNumber,
+    summary: {
       title: `Session ${sessionNumber}`,
       summaryMarkdown: '',
       sessionNumber,
@@ -171,37 +192,36 @@ export async function writeSessionRecap(
         entries: day.entries,
       })),
     },
-    {
-      summaryId: options.summaryId,
-      extra: {
-        sessionId: session.sessionId,
-        // Enough to say afterwards what produced this recap, and to produce it again.
-        generation: {
-          model: settings.model,
-          reasoningEffort: settings.reasoningEffort,
-          style: settings.style,
-          sections: settings.sections,
-          transcriptRevision,
-          instructionsSha256: createHash('sha256').update(instructions).digest('hex'),
-          transcriptSha256: createHash('sha256').update(transcript).digest('hex'),
-          responseId: response.id ?? null,
-          elapsedSeconds,
-          usage: response.usage ?? {},
-        },
+    extra: {
+      sessionId: session.sessionId,
+      // Enough to say afterwards what produced this recap, and to produce it again.
+      generation: {
+        model: settings.model,
+        reasoningEffort: settings.reasoningEffort,
+        style: settings.style,
+        sections: settings.sections,
+        transcriptRevision,
+        instructionsSha256: createHash('sha256').update(instructions).digest('hex'),
+        transcriptSha256: createHash('sha256').update(transcript).digest('hex'),
+        responseId: response.id ?? null,
+        elapsedSeconds,
+        usage: response.usage ?? {},
       },
     },
-  )
-  return { summaryId, sessionNumber }
+  }
 }
 
 /** Asks OpenAI's Responses API. A high-effort recap of a long session can take several minutes. */
-export function callOpenAi(apiKey: string, fetchImpl: typeof fetch = fetch): RecapDependencies['callModel'] {
+export function callOpenAi(
+  apiKey: string,
+  { fetchImpl = fetch, timeoutMs = 15 * 60 * 1000 }: { fetchImpl?: typeof fetch; timeoutMs?: number } = {},
+): RecapDependencies['callModel'] {
   return async (request) => {
     const response = await fetchImpl('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
       body: JSON.stringify(request),
-      signal: AbortSignal.timeout(15 * 60 * 1000),
+      signal: AbortSignal.timeout(timeoutMs),
     })
     if (!response.ok) throw new Error(`The model request failed (${response.status}): ${(await response.text()).slice(0, 500)}`)
     return (await response.json()) as RecapModelResponse

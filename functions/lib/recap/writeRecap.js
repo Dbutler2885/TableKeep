@@ -60,6 +60,15 @@ async function npcRoster(db, session) {
  * replaces that document and nothing else, which is what makes a retry safe.
  */
 export async function writeSessionRecap(db, session, dependencies, options = {}) {
+    const draft = await draftSessionRecap(db, session, dependencies, options.overrides);
+    const summaryId = await saveGeneratedSummary(db, session.groupId, session.campaignId, draft.summary, {
+        summaryId: options.summaryId,
+        extra: draft.extra,
+    });
+    return { summaryId, sessionNumber: draft.sessionNumber };
+}
+/** Gathers what the model needs, asks it, and returns the recap it wrote without saving anything. */
+export async function draftSessionRecap(db, session, dependencies, overrides = {}) {
     const now = dependencies.nowMs ?? Date.now;
     const sessionSnap = await db.doc(campaignPath(session.groupId, session.campaignId, 'sessions', session.sessionId)).get();
     if (!sessionSnap.exists)
@@ -69,7 +78,7 @@ export async function writeSessionRecap(db, session, dependencies, options = {})
     const settingsSnap = await db
         .doc(campaignPath(session.groupId, session.campaignId, RECAP_SETTINGS_COLLECTION, RECAP_SETTINGS_ID))
         .get();
-    const settings = { ...resolveRecapSettings(settingsSnap.data()), ...options.overrides };
+    const settings = { ...resolveRecapSettings(settingsSnap.data()), ...overrides };
     const includeCalendar = settings.sections.includes('calendar');
     const [transcript, previous, roster] = await Promise.all([
         dependencies.readTranscript(session),
@@ -101,30 +110,31 @@ export async function writeSessionRecap(db, session, dependencies, options = {})
     // The model only marks where days begin; the numbering carries on from the previous session here.
     const previousLastDay = previous?.calendar?.length ? calendarState(previous.calendar).lastDay : 0;
     const calendar = includeCalendar && Array.isArray(recap.calendar) ? eventsToDayObjects(recap.calendar, previousLastDay) : [];
-    const summaryId = await saveGeneratedSummary(db, session.groupId, session.campaignId, {
-        title: `Session ${sessionNumber}`,
-        summaryMarkdown: '',
+    return {
         sessionNumber,
-        overallSummary: recap.overall_summary ?? '',
-        scenes: recap.scenes ?? [],
-        npcMentions: (recap.npcs ?? []).map((npc) => ({
-            npcKey: npc.key,
-            name: npc.name,
-            title: npc.title ?? '',
-            action: npc.action === 'update' ? 'update' : 'new',
-            facts: npc.facts ?? [],
-            linkedNpcId: null,
-        })),
-        cliffhangers: recap.cliffhangers ?? [],
-        calendar: calendar.map((day) => ({
-            key: day.key,
-            action: day.action,
-            label: '',
-            dayComplete: day.day_complete,
-            entries: day.entries,
-        })),
-    }, {
-        summaryId: options.summaryId,
+        summary: {
+            title: `Session ${sessionNumber}`,
+            summaryMarkdown: '',
+            sessionNumber,
+            overallSummary: recap.overall_summary ?? '',
+            scenes: recap.scenes ?? [],
+            npcMentions: (recap.npcs ?? []).map((npc) => ({
+                npcKey: npc.key,
+                name: npc.name,
+                title: npc.title ?? '',
+                action: npc.action === 'update' ? 'update' : 'new',
+                facts: npc.facts ?? [],
+                linkedNpcId: null,
+            })),
+            cliffhangers: recap.cliffhangers ?? [],
+            calendar: calendar.map((day) => ({
+                key: day.key,
+                action: day.action,
+                label: '',
+                dayComplete: day.day_complete,
+                entries: day.entries,
+            })),
+        },
         extra: {
             sessionId: session.sessionId,
             // Enough to say afterwards what produced this recap, and to produce it again.
@@ -141,17 +151,16 @@ export async function writeSessionRecap(db, session, dependencies, options = {})
                 usage: response.usage ?? {},
             },
         },
-    });
-    return { summaryId, sessionNumber };
+    };
 }
 /** Asks OpenAI's Responses API. A high-effort recap of a long session can take several minutes. */
-export function callOpenAi(apiKey, fetchImpl = fetch) {
+export function callOpenAi(apiKey, { fetchImpl = fetch, timeoutMs = 15 * 60 * 1000 } = {}) {
     return async (request) => {
         const response = await fetchImpl('https://api.openai.com/v1/responses', {
             method: 'POST',
             headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
             body: JSON.stringify(request),
-            signal: AbortSignal.timeout(15 * 60 * 1000),
+            signal: AbortSignal.timeout(timeoutMs),
         });
         if (!response.ok)
             throw new Error(`The model request failed (${response.status}): ${(await response.text()).slice(0, 500)}`);

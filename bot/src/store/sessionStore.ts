@@ -310,13 +310,14 @@ export class FirestoreSessionStore implements SessionStore {
       endedAt: new Date(input.endedAtMs),
       audioComplete: true,
       transcriptComplete: true,
-      // Nothing writes recaps yet; this is the mark a recap is waiting to be written.
+      // The mark that asks for the recap to be written.
       recapStatus: 'pending',
       needsAttention: null,
     })
   }
 
   async flagSession(location: SessionLocation, reason: string): Promise<void> {
-    await this.#db.doc(sessionPath(location)).update({ needsAttention: reason })
+    // Its recap waits for whatever is missing.
+    await this.#db.doc(sessionPath(location)).update({ needsAttention: reason, recapStatus: 'delayed' })
   }
 }
