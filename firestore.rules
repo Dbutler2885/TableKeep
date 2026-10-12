@@ -122,6 +122,17 @@ service cloud.firestore {
       }
     }
 
+    // A person's Discord connection. It is written only by Cloud Functions,
+    // after Discord itself has said who they are: a Discord ID the client could
+    // set would let anyone be recorded and obeyed as someone else. The reverse
+    // index (`discordAccounts`), connections in progress (`discordConnectStates`)
+    // and the server index (`discordServers`) have no rule at all, so no client
+    // can reach them.
+    match /discordLinks/{userId} {
+      allow read: if isSelf(userId);
+      allow write: if false;
+    }
+
     match /groups/{groupId} {
       // Membership, not merely being signed in. The app used to listen to the
       // whole `groups` collection and filter client-side, which meant any
@@ -142,6 +153,14 @@ service cloud.firestore {
         || (isGroupMember(groupId)
             && onlyChanges(['activeCampaignId', 'currentCampaignId', 'updatedAt']));
       allow delete: if isGroupAdmin(groupId);
+
+      // Which Discord server the session bot files this group's recordings
+      // from. Members can see it; only Cloud Functions write it, after Discord
+      // has confirmed the bot was added to that server by someone who manages it.
+      match /integrations/{integrationId} {
+        allow read: if isGroupMember(groupId);
+        allow write: if false;
+      }
 
       match /members/{userId} {
         allow read: if isGroupMember(groupId) || isSelf(userId);
@@ -321,6 +340,20 @@ service cloud.firestore {
         match /sessionSummaries/{summaryId} {
           allow read: if isGroupMember(groupId);
           allow write: if isCampaignGm(groupId, campaignId);
+        }
+
+        // Recorded sessions: the session itself and everything under it
+        // (speakers, segments, gaps, markers, transcripts). Any member of the
+        // group may read them. Nobody may write them from a client, the GM
+        // included: only the recorder bot and the functions do, with the admin SDK.
+        match /sessions/{sessionId} {
+          allow read: if isGroupMember(groupId);
+          allow write: if false;
+
+          match /{sessionDocument=**} {
+            allow read: if isGroupMember(groupId);
+            allow write: if false;
+          }
         }
 
         match /sharedNotes/{noteId} {

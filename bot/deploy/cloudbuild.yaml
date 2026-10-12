@@ -1,0 +1,5 @@
+# Builds the bot's image from the repository root. Run by deploy.sh.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ['build', '-f', 'bot/Dockerfile', '-t', '$_IMAGE', '.']
+images: ['$_IMAGE']

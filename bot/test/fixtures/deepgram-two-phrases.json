@@ -1,0 +1,467 @@
+{
+  "description": "A real exchange with Deepgram nova-3, recorded with scripts/record-speech-fixture.ts from computer-generated speech.",
+  "keyterms": [
+    "Brandonsford"
+  ],
+  "phrases": [
+    {
+      "text": "The party enters Brandonsford and looks for the blacksmith.",
+      "startSeconds": 3,
+      "endSeconds": 6.04
+    },
+    {
+      "text": "Roll for initiative.",
+      "startSeconds": 8.539999999999957,
+      "endSeconds": 9.579999999999956
+    }
+  ],
+  "exchange": [
+    {
+      "by": "client",
+      "action": "audio",
+      "samples": 19200
+    },
+    {
+      "by": "service",
+      "message": {
+        "type": "Results",
+        "channel_index": [
+          0,
+          1
+        ],
+        "duration": 1,
+        "start": 0,
+        "is_final": false,
+        "speech_final": false,
+        "channel": {
+          "alternatives": [
+            {
+              "transcript": "Party enters",
+              "confidence": 1,
+              "words": [
+                {
+                  "word": "party",
+                  "start": 0.08,
+                  "end": 0.39999998,
+                  "confidence": 0.84765625,
+                  "punctuated_word": "Party"
+                },
+                {
+                  "word": "enters",
+                  "start": 0.39999998,
+                  "end": 0.79999995,
+                  "confidence": 1,
+                  "punctuated_word": "enters"
+                }
+              ]
+            }
+          ]
+        },
+        "from_finalize": false
+      }
+    },
+    {
+      "by": "client",
+      "action": "audio",
+      "samples": 13760
+    },
+    {
+      "by": "service",
+      "message": {
+        "type": "Results",
+        "channel_index": [
+          0,
+          1
+        ],
+        "duration": 2,
+        "start": 0,
+        "is_final": false,
+        "speech_final": false,
+        "channel": {
+          "alternatives": [
+            {
+              "transcript": "The party enters Brandonsford and",
+              "confidence": 0.97998047,
+              "words": [
+                {
+                  "word": "the",
+                  "start": 0,
+                  "end": 0.16,
+                  "confidence": 0.89208984,
+                  "punctuated_word": "The"
+                },
+                {
+                  "word": "party",
+                  "start": 0.16,
+                  "end": 0.48,
+                  "confidence": 0.99902344,
+                  "punctuated_word": "party"
+                },
+                {
+                  "word": "enters",
+                  "start": 0.48,
+                  "end": 0.88,
+                  "confidence": 1,
+                  "punctuated_word": "enters"
+                },
+                {
+                  "word": "brandonsford",
+                  "start": 0.88,
+                  "end": 1.68,
+                  "confidence": 0.97965497,
+                  "punctuated_word": "Brandonsford"
+                },
+                {
+                  "word": "and",
+                  "start": 1.68,
+                  "end": 1.8399999,
+                  "confidence": 0.97998047,
+                  "punctuated_word": "and"
+                }
+              ]
+            }
+          ]
+        },
+        "from_finalize": false
+      }
+    },
+    {
+      "by": "client",
+      "action": "audio",
+      "samples": 15680
+    },
+    {
+      "by": "service",
+      "message": {
+        "type": "Results",
+        "channel_index": [
+          0,
+          1
+        ],
+        "duration": 3,
+        "start": 0,
+        "is_final": false,
+        "speech_final": false,
+        "channel": {
+          "alternatives": [
+            {
+              "transcript": "The party enters Brandonsford and looks for the blacksmith.",
+              "confidence": 0.9980469,
+              "words": [
+                {
+                  "word": "the",
+                  "start": 0,
+                  "end": 0.16,
+                  "confidence": 0.9707031,
+                  "punctuated_word": "The"
+                },
+                {
+                  "word": "party",
+                  "start": 0.16,
+                  "end": 0.48,
+                  "confidence": 0.99902344,
+                  "punctuated_word": "party"
+                },
+                {
+                  "word": "enters",
+                  "start": 0.48,
+                  "end": 0.79999995,
+                  "confidence": 1,
+                  "punctuated_word": "enters"
+                },
+                {
+                  "word": "brandonsford",
+                  "start": 0.79999995,
+                  "end": 1.68,
+                  "confidence": 0.98746747,
+                  "punctuated_word": "Brandonsford"
+                },
+                {
+                  "word": "and",
+                  "start": 1.68,
+                  "end": 1.92,
+                  "confidence": 0.984375,
+                  "punctuated_word": "and"
+                },
+                {
+                  "word": "looks",
+                  "start": 1.92,
+                  "end": 2.1599998,
+                  "confidence": 1,
+                  "punctuated_word": "looks"
+                },
+                {
+                  "word": "for",
+                  "start": 2.1599998,
+                  "end": 2.32,
+                  "confidence": 1,
+                  "punctuated_word": "for"
+                },
+                {
+                  "word": "the",
+                  "start": 2.32,
+                  "end": 2.3999999,
+                  "confidence": 0.9980469,
+                  "punctuated_word": "the"
+                },
+                {
+                  "word": "blacksmith",
+                  "start": 2.3999999,
+                  "end": 2.8799999,
+                  "confidence": 0.9111328,
+                  "punctuated_word": "blacksmith."
+                }
+              ]
+            }
+          ]
+        },
+        "from_finalize": false
+      }
+    },
+    {
+      "by": "client",
+      "action": "finalize"
+    },
+    {
+      "by": "service",
+      "message": {
+        "type": "Results",
+        "channel_index": [
+          0,
+          1
+        ],
+        "duration": 3.04,
+        "start": 0,
+        "is_final": true,
+        "speech_final": true,
+        "channel": {
+          "alternatives": [
+            {
+              "transcript": "The party enters Brandonsford and looks for the blacksmith.",
+              "confidence": 0.9980469,
+              "words": [
+                {
+                  "word": "the",
+                  "start": 0,
+                  "end": 0.16,
+                  "confidence": 0.9707031,
+                  "punctuated_word": "The"
+                },
+                {
+                  "word": "party",
+                  "start": 0.16,
+                  "end": 0.48,
+                  "confidence": 0.99902344,
+                  "punctuated_word": "party"
+                },
+                {
+                  "word": "enters",
+                  "start": 0.48,
+                  "end": 0.79999995,
+                  "confidence": 1,
+                  "punctuated_word": "enters"
+                },
+                {
+                  "word": "brandonsford",
+                  "start": 0.79999995,
+                  "end": 1.68,
+                  "confidence": 0.98811847,
+                  "punctuated_word": "Brandonsford"
+                },
+                {
+                  "word": "and",
+                  "start": 1.68,
+                  "end": 1.92,
+                  "confidence": 0.9863281,
+                  "punctuated_word": "and"
+                },
+                {
+                  "word": "looks",
+                  "start": 1.92,
+                  "end": 2.1599998,
+                  "confidence": 1,
+                  "punctuated_word": "looks"
+                },
+                {
+                  "word": "for",
+                  "start": 2.1599998,
+                  "end": 2.32,
+                  "confidence": 1,
+                  "punctuated_word": "for"
+                },
+                {
+                  "word": "the",
+                  "start": 2.32,
+                  "end": 2.3999999,
+                  "confidence": 0.9980469,
+                  "punctuated_word": "the"
+                },
+                {
+                  "word": "blacksmith",
+                  "start": 2.3999999,
+                  "end": 2.8799999,
+                  "confidence": 0.9420573,
+                  "punctuated_word": "blacksmith."
+                }
+              ]
+            }
+          ]
+        },
+        "from_finalize": true
+      }
+    },
+    {
+      "by": "client",
+      "action": "audio",
+      "samples": 16640
+    },
+    {
+      "by": "service",
+      "message": {
+        "type": "Results",
+        "channel_index": [
+          0,
+          1
+        ],
+        "duration": 1,
+        "start": 3.04,
+        "is_final": false,
+        "speech_final": false,
+        "channel": {
+          "alternatives": [
+            {
+              "transcript": "Role for initiative.",
+              "confidence": 0.9099121,
+              "words": [
+                {
+                  "word": "role",
+                  "start": 3.04,
+                  "end": 3.36,
+                  "confidence": 0.6401367,
+                  "punctuated_word": "Role"
+                },
+                {
+                  "word": "for",
+                  "start": 3.36,
+                  "end": 3.52,
+                  "confidence": 0.9980469,
+                  "punctuated_word": "for"
+                },
+                {
+                  "word": "initiative",
+                  "start": 3.52,
+                  "end": 3.92,
+                  "confidence": 0.9099121,
+                  "punctuated_word": "initiative."
+                }
+              ]
+            }
+          ]
+        },
+        "from_finalize": false
+      }
+    },
+    {
+      "by": "client",
+      "action": "finalize"
+    },
+    {
+      "by": "service",
+      "message": {
+        "type": "Results",
+        "channel_index": [
+          0,
+          1
+        ],
+        "duration": 1.04,
+        "start": 3.04,
+        "is_final": true,
+        "speech_final": true,
+        "channel": {
+          "alternatives": [
+            {
+              "transcript": "Role for initiative.",
+              "confidence": 0.9104004,
+              "words": [
+                {
+                  "word": "role",
+                  "start": 3.04,
+                  "end": 3.36,
+                  "confidence": 0.62939453,
+                  "punctuated_word": "Role"
+                },
+                {
+                  "word": "for",
+                  "start": 3.36,
+                  "end": 3.52,
+                  "confidence": 0.9980469,
+                  "punctuated_word": "for"
+                },
+                {
+                  "word": "initiative",
+                  "start": 3.52,
+                  "end": 3.92,
+                  "confidence": 0.9104004,
+                  "punctuated_word": "initiative."
+                }
+              ]
+            }
+          ]
+        },
+        "from_finalize": true
+      }
+    },
+    {
+      "by": "client",
+      "action": "keepalive"
+    },
+    {
+      "by": "client",
+      "action": "close"
+    },
+    {
+      "by": "service",
+      "message": {
+        "type": "Results",
+        "channel_index": [
+          0,
+          1
+        ],
+        "duration": 0,
+        "start": 4.08,
+        "is_final": true,
+        "speech_final": true,
+        "channel": {
+          "alternatives": [
+            {
+              "transcript": "",
+              "confidence": 0,
+              "words": []
+            }
+          ]
+        },
+        "from_finalize": true
+      }
+    }
+  ],
+  "observed": {
+    "utterances": [
+      {
+        "speakerId": "narrator",
+        "startSamples": 144000,
+        "endSamples": 282240,
+        "text": "The party enters Brandonsford and looks for the blacksmith."
+      },
+      {
+        "speakerId": "narrator",
+        "startSamples": 409920,
+        "endSamples": 452160,
+        "text": "Role for initiative."
+      }
+    ],
+    "checkpoints": [
+      289920,
+      459840
+    ]
+  }
+}

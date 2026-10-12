@@ -1,16 +1,42 @@
-import { Timestamp } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { defineSecret } from 'firebase-functions/params';
+import { onDocumentDeleted, onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { defineSecret, defineString } from 'firebase-functions/params';
 import { logger } from 'firebase-functions';
 import { adminApp, adminFirestore } from './adminApp.js';
 import { isTransferSourceAuthorized } from './transferAuthorization.js';
 import { campaignPath, groupMemberPath } from './firestorePaths.js';
+import { deleteCampaignSessions } from './campaignSessions.js';
+import { recapIsDue, requestRecapRerun, runSessionRecap } from './recap/sessionRecap.js';
+import { callOpenAi, transcriptObjectPath } from './recap/writeRecap.js';
+import { saveGeneratedSummary, } from './recap/sessionSummaries.js';
 import { createDemoSandbox, sweepExpiredDemoSandboxes } from './demoSessions.js';
+import { DISCORD_CONNECT_STATES_COLLECTION, beginDiscordConnect, completeDiscordConnect, disconnectDiscord, discordAuthorizeUrl, fetchDiscordIdentity, isWellFormedDiscordState, } from './discordConnect.js';
+import { beginDiscordServerLink, completeDiscordServerLink, discordServerLinkUrl, fetchLinkedDiscordServer, isActiveGroupAdmin, unlinkDiscordServer, } from './discordServerLink.js';
 adminApp();
 const db = adminFirestore();
 const sessionSummaryApiKey = defineSecret('SESSION_SUMMARY_API_KEY');
+/** The key the recap of a recorded session is written with. */
+const openAiApiKey = defineSecret('OPENAI_API_KEY');
+// The Discord application that people approve when they connect their account.
+// The strings default to empty so that a checkout with no Discord application,
+// the demo included, still loads and deploys; the functions that need them
+// refuse to run until they are set.
+const discordClientId = defineString('DISCORD_CLIENT_ID', { default: '' });
+const discordClientSecret = defineSecret('DISCORD_CLIENT_SECRET');
+/** Where Discord sends people back to: the public URL of `discordConnectCallback`, exactly as registered with Discord. */
+const discordRedirectUri = defineString('DISCORD_REDIRECT_URI', { default: '' });
+/** The web app's own address, which the callback returns people to. */
+const appUrl = defineString('APP_URL', { default: '' });
+function discordOAuthConfig() {
+    const config = {
+        clientId: discordClientId.value(),
+        clientSecret: discordClientSecret.value(),
+        redirectUri: discordRedirectUri.value(),
+    };
+    return config.clientId && config.clientSecret && config.redirectUri && appUrl.value() ? config : null;
+}
 function campaignRef(groupId, campaignId) {
     return db.doc(campaignPath(groupId, campaignId));
 }
@@ -88,97 +114,17 @@ export const postSessionSummary = onRequest({ region: 'us-central1', secrets: [s
         ? body.cliffhangers.filter((c) => typeof c === 'string')
         : [];
     const calendar = normalizeCalendar(body.calendar);
-    // Auto-match NPCs by name; auto-create a stub for any the GM hasn't entered yet.
-    if (npcMentions.length > 0) {
-        const npcsCollection = campaignRef(groupId, campaignId).collection('npcs');
-        const npcPrivateCollection = campaignRef(groupId, campaignId).collection('npcPrivate');
-        const npcsSnap = await npcsCollection.get();
-        const npcLookup = new Map();
-        npcsSnap.docs.forEach((docSnap) => {
-            const data = docSnap.data();
-            if (typeof data.name === 'string') {
-                const key = data.name.toLowerCase().trim();
-                if (npcLookup.has(key)) {
-                    npcLookup.delete(key);
-                }
-                else {
-                    npcLookup.set(key, docSnap.id);
-                }
-            }
-        });
-        const batch = db.batch();
-        let created = 0;
-        for (const mention of npcMentions) {
-            const m = mention;
-            const key = m.name.toLowerCase().trim();
-            if (!key)
-                continue;
-            const matchId = npcLookup.get(key);
-            if (matchId) {
-                m.linkedNpcId = matchId;
-                continue;
-            }
-            // No existing NPC: create a stub the model owns (its facts surface as Auto-Notes).
-            // Transcript NPCs have been met, so they're visible to players by default.
-            const newRef = npcsCollection.doc();
-            batch.set(newRef, {
-                id: newRef.id,
-                name: m.name,
-                title: typeof m.title === 'string' ? m.title : '',
-                visibleToPlayers: true,
-                tags: [],
-                portraitPath: '',
-                portraitUrl: null,
-                portraitFocusX: 50,
-                portraitFocusY: 50,
-                tokenIcon: { icon: 'pawn', color: '#2f5bbf', size: 34 },
-                playerDescription: '',
-                playerNotes: '',
-                createdBy: 'api',
-                createdAt: Timestamp.now(),
-                updatedAt: Timestamp.now(),
-            });
-            batch.set(npcPrivateCollection.doc(newRef.id), {
-                id: newRef.id,
-                gmNotes: '',
-                createdAt: Timestamp.now(),
-                updatedAt: Timestamp.now(),
-            });
-            npcLookup.set(key, newRef.id);
-            m.linkedNpcId = newRef.id;
-            created += 1;
-        }
-        if (created > 0)
-            await batch.commit();
-    }
-    const summaryRef = campaignRef(groupId, campaignId).collection('sessionSummaries').doc();
-    await summaryRef.set({
+    const summaryId = await saveGeneratedSummary(db, groupId, campaignId, {
         title: title.trim(),
         summaryMarkdown: typeof summaryMarkdown === 'string' ? summaryMarkdown : '',
         sessionNumber: typeof sessionNumber === 'number' ? sessionNumber : null,
-        sourceType: 'api',
-        postedBy: 'api',
         overallSummary,
         scenes,
         npcMentions,
         cliffhangers,
         calendar,
-        generatedSnapshot: {
-            title: title.trim(),
-            summaryMarkdown: typeof summaryMarkdown === 'string' ? summaryMarkdown : '',
-            overallSummary,
-            scenes,
-            npcMentions,
-            cliffhangers,
-            calendar,
-        },
-        hasHumanEdits: false,
-        editedAt: null,
-        editedBy: null,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
     });
-    res.status(201).json({ ok: true, id: summaryRef.id });
+    res.status(201).json({ ok: true, id: summaryId });
 });
 export const getCampaignNpcs = onRequest({ region: 'us-central1', secrets: [sessionSummaryApiKey] }, async (req, res) => {
     if (req.method !== 'GET') {
@@ -404,4 +350,169 @@ export const expireDemoSandboxes = onSchedule({ region: 'us-central1', schedule:
     if (removedGroupIds.length > 0) {
         logger.info(`Expired ${removedGroupIds.length} demo sandbox(es).`, { removedGroupIds });
     }
+});
+/**
+ * Starts connecting the caller's Discord account and returns the Discord page
+ * to send them to.
+ *
+ * An anonymous demo visitor is refused: a connection is what lets the session
+ * bot act on someone's word, and a visitor's account is gone in three hours.
+ */
+export const startDiscordConnect = onCall({ region: 'us-central1', secrets: [discordClientSecret] }, async (request) => {
+    const uid = request.auth?.uid ?? '';
+    if (!uid)
+        throw new HttpsError('unauthenticated', 'Authentication required.');
+    if (request.auth?.token?.firebase?.sign_in_provider === 'anonymous') {
+        throw new HttpsError('permission-denied', 'Sign in with your own account to connect Discord.');
+    }
+    const config = discordOAuthConfig();
+    if (!config)
+        throw new HttpsError('failed-precondition', 'Discord is not set up for this deployment yet.');
+    const state = await beginDiscordConnect(db, uid, Date.now());
+    return { url: discordAuthorizeUrl(config, state) };
+});
+/**
+ * Where Discord sends someone back after they approve or decline, whether they
+ * were connecting their own account or adding the bot to a server. One address
+ * serves both, so only one has to be registered with Discord; the state says
+ * which it was.
+ *
+ * It always ends by returning them to the app with the outcome in the address,
+ * so that a failure is something they are told and not a blank page.
+ */
+export const discordConnectCallback = onRequest({ region: 'us-central1', secrets: [discordClientSecret] }, async (req, res) => {
+    const config = discordOAuthConfig();
+    if (!config) {
+        res.status(503).send('Discord is not set up for this deployment yet.');
+        return;
+    }
+    // A server link returns to the group it was for; everything else to the app's front door.
+    const back = (outcome, groupId) => {
+        const url = new URL(groupId ? `/groups/${encodeURIComponent(groupId)}` : '/', appUrl.value());
+        url.searchParams.set('discord', outcome);
+        res.redirect(303, url.toString());
+    };
+    const state = typeof req.query.state === 'string' ? req.query.state : '';
+    const code = typeof req.query.code === 'string' ? req.query.code : '';
+    // Declining on Discord comes back as an `error` with no code.
+    if (!code) {
+        back(req.query.error === 'access_denied' ? 'declined' : 'invalid_state');
+        return;
+    }
+    const stateSnap = isWellFormedDiscordState(state)
+        ? await db.collection(DISCORD_CONNECT_STATES_COLLECTION).doc(state).get()
+        : null;
+    if (stateSnap?.data()?.kind === 'server') {
+        const result = await completeDiscordServerLink(db, {
+            state,
+            code,
+            nowMs: Date.now(),
+            resolveServer: (authorizationCode) => fetchLinkedDiscordServer(config, authorizationCode),
+        });
+        if (result.outcome === 'discord_error')
+            logger.warn('Discord did not say which server the bot was added to.');
+        back(result.outcome, result.groupId);
+        return;
+    }
+    const { outcome } = await completeDiscordConnect(db, {
+        state,
+        code,
+        nowMs: Date.now(),
+        identify: (authorizationCode) => fetchDiscordIdentity(config, authorizationCode),
+    });
+    if (outcome === 'discord_error')
+        logger.warn('Discord could not identify an account during connect.');
+    back(outcome);
+});
+/** Removes the caller's Discord connection. */
+export const disconnectDiscordAccount = onCall({ region: 'us-central1' }, async (request) => {
+    const uid = request.auth?.uid ?? '';
+    if (!uid)
+        throw new HttpsError('unauthenticated', 'Authentication required.');
+    await disconnectDiscord(db, uid);
+    return { ok: true };
+});
+/**
+ * Starts linking a Discord server to a group and returns the Discord page
+ * where the caller picks the server and adds the bot to it.
+ */
+export const startDiscordServerLink = onCall({ region: 'us-central1', secrets: [discordClientSecret] }, async (request) => {
+    const uid = request.auth?.uid ?? '';
+    if (!uid)
+        throw new HttpsError('unauthenticated', 'Authentication required.');
+    const groupId = typeof request.data?.groupId === 'string' ? request.data.groupId : '';
+    if (!groupId)
+        throw new HttpsError('invalid-argument', 'groupId is required.');
+    const config = discordOAuthConfig();
+    if (!config)
+        throw new HttpsError('failed-precondition', 'Discord is not set up for this deployment yet.');
+    const state = await beginDiscordServerLink(db, { uid, groupId }, Date.now());
+    if (!state)
+        throw new HttpsError('permission-denied', 'Only an admin of the group can link a Discord server.');
+    return { url: discordServerLinkUrl(config, state) };
+});
+/** Removes a group's Discord server link. The bot stays in the server until someone removes it there. */
+export const unlinkGroupDiscordServer = onCall({ region: 'us-central1' }, async (request) => {
+    const uid = request.auth?.uid ?? '';
+    if (!uid)
+        throw new HttpsError('unauthenticated', 'Authentication required.');
+    const groupId = typeof request.data?.groupId === 'string' ? request.data.groupId : '';
+    if (!groupId)
+        throw new HttpsError('invalid-argument', 'groupId is required.');
+    if (!(await isActiveGroupAdmin(db, groupId, uid))) {
+        throw new HttpsError('permission-denied', 'Only an admin of the group can unlink its Discord server.');
+    }
+    await unlinkDiscordServer(db, groupId);
+    return { ok: true };
+});
+/**
+ * Clears a deleted campaign's recorded sessions.
+ *
+ * The app deletes a campaign's other subcollections itself. It cannot delete
+ * sessions, transcripts or audio, which no client may touch, so those are
+ * removed here when the campaign document goes.
+ */
+export const clearDeletedCampaignSessions = onDocumentDeleted({ region: 'us-central1', document: 'groups/{groupId}/campaigns/{campaignId}' }, async (event) => {
+    const { groupId, campaignId } = event.params;
+    await deleteCampaignSessions(db, (prefix) => getStorage(adminApp()).bucket().deleteFiles({ prefix, force: true }), groupId, campaignId);
+});
+const SESSION_DOCUMENT = 'groups/{groupId}/campaigns/{campaignId}/sessions/{sessionId}';
+/** Short of the function's own limit, so that a model that never answers is recorded as a failure and not cut off. */
+const RECAP_MODEL_TIMEOUT_MS = 8 * 60 * 1000;
+/**
+ * Writes a recorded session's recap when the session ends.
+ *
+ * The bot marks an ended session's recap as pending; this notices the mark,
+ * whenever it appears. Its progress is recorded on the session.
+ */
+export const writeEndedSessionRecap = onDocumentWritten({ region: 'us-central1', document: SESSION_DOCUMENT, secrets: [openAiApiKey], timeoutSeconds: 540, memory: '512MiB' }, async (event) => {
+    if (!recapIsDue(event.data?.after.data()))
+        return;
+    const session = event.params;
+    const outcome = await runSessionRecap(db, session, {
+        callModel: callOpenAi(openAiApiKey.value(), { timeoutMs: RECAP_MODEL_TIMEOUT_MS }),
+        readTranscript: async (ref) => {
+            const [bytes] = await getStorage(adminApp()).bucket().file(transcriptObjectPath(ref)).download();
+            return bytes.toString('utf8');
+        },
+    });
+    logger.info('Session recap', { ...session, outcome });
+});
+/** Lets a GM ask for a session's recap to be tried again after it failed. */
+export const rerunSessionRecap = onCall({ region: 'us-central1' }, async (request) => {
+    const uid = request.auth?.uid ?? '';
+    if (!uid)
+        throw new HttpsError('unauthenticated', 'Authentication required.');
+    const [groupId, campaignId, sessionId] = ['groupId', 'campaignId', 'sessionId'].map((key) => typeof request.data?.[key] === 'string' ? request.data[key] : '');
+    if (!groupId || !campaignId || !sessionId)
+        throw new HttpsError('invalid-argument', 'groupId, campaignId and sessionId are required.');
+    if (!(await isActiveGroupAdmin(db, groupId, uid))) {
+        throw new HttpsError('permission-denied', 'Only an admin of the group can rerun a recap.');
+    }
+    const result = await requestRecapRerun(db, { groupId: groupId, campaignId: campaignId, sessionId: sessionId });
+    if (result === 'not-found')
+        throw new HttpsError('not-found', 'That session does not exist.');
+    if (result === 'not-failed')
+        throw new HttpsError('failed-precondition', 'That recap has not failed.');
+    return { ok: true };
 });

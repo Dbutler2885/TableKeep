@@ -202,6 +202,14 @@ service firebase.storage {
       allow write: if withinVisitorObjectLimit() && isGroupCampaignGM(groupId, campaignId);
     }
 
+    // A recorded session's audio and saved transcript. Readable by the group's
+    // members, checked here against the group's own membership records and
+    // not left to the database rules. Never writable from a client.
+    match /groups/{groupId}/campaigns/{campaignId}/sessions/{sessionId}/{allPaths=**} {
+      allow read: if isGroupMember(groupId);
+      allow write: if false;
+    }
+
     match /groups/{groupId}/campaigns/{campaignId}/token-assets/{assetName} {
       allow read: if isGroupMember(groupId);
       allow write: if withinVisitorObjectLimit() && isGroupCampaignGM(groupId, campaignId);

@@ -26,6 +26,7 @@ dist-ssr
 
 # Local planning docs
 thoughts/
+.scratch/
 
 # Firebase
 .firebase/

@@ -1,0 +1,555 @@
+{
+  "description": "A real exchange with Deepgram nova-3, recorded with scripts/record-speech-fixture.ts from computer-generated speech.",
+  "keyterms": [
+    "Brandonsford"
+  ],
+  "phrases": [
+    {
+      "text": "The party enters Brandonsford and looks for the blacksmith.",
+      "startSeconds": 3,
+      "endSeconds": 6.04
+    },
+    {
+      "text": "The goblin draws a rusty blade and charges at the wizard.",
+      "startSeconds": 8.539999999999957,
+      "endSeconds": 11.359999999999957
+    }
+  ],
+  "exchanges": [
+    [
+      {
+        "by": "client",
+        "action": "audio",
+        "samples": 18880
+      },
+      {
+        "by": "service",
+        "message": {
+          "type": "Results",
+          "channel_index": [
+            0,
+            1
+          ],
+          "duration": 1,
+          "start": 0,
+          "is_final": false,
+          "speech_final": false,
+          "channel": {
+            "alternatives": [
+              {
+                "transcript": "Party enters",
+                "confidence": 1,
+                "words": [
+                  {
+                    "word": "party",
+                    "start": 0.08,
+                    "end": 0.39999998,
+                    "confidence": 0.84765625,
+                    "punctuated_word": "Party"
+                  },
+                  {
+                    "word": "enters",
+                    "start": 0.39999998,
+                    "end": 0.79999995,
+                    "confidence": 1,
+                    "punctuated_word": "enters"
+                  }
+                ]
+              }
+            ]
+          },
+          "from_finalize": false
+        }
+      },
+      {
+        "by": "client",
+        "action": "audio",
+        "samples": 14080
+      },
+      {
+        "by": "service",
+        "message": {
+          "type": "Results",
+          "channel_index": [
+            0,
+            1
+          ],
+          "duration": 2,
+          "start": 0,
+          "is_final": false,
+          "speech_final": false,
+          "channel": {
+            "alternatives": [
+              {
+                "transcript": "The party enters Brandonsford and",
+                "confidence": 0.97998047,
+                "words": [
+                  {
+                    "word": "the",
+                    "start": 0,
+                    "end": 0.16,
+                    "confidence": 0.89208984,
+                    "punctuated_word": "The"
+                  },
+                  {
+                    "word": "party",
+                    "start": 0.16,
+                    "end": 0.48,
+                    "confidence": 0.99902344,
+                    "punctuated_word": "party"
+                  },
+                  {
+                    "word": "enters",
+                    "start": 0.48,
+                    "end": 0.88,
+                    "confidence": 1,
+                    "punctuated_word": "enters"
+                  },
+                  {
+                    "word": "brandonsford",
+                    "start": 0.88,
+                    "end": 1.68,
+                    "confidence": 0.97965497,
+                    "punctuated_word": "Brandonsford"
+                  },
+                  {
+                    "word": "and",
+                    "start": 1.68,
+                    "end": 1.8399999,
+                    "confidence": 0.97998047,
+                    "punctuated_word": "and"
+                  }
+                ]
+              }
+            ]
+          },
+          "from_finalize": false
+        }
+      },
+      {
+        "by": "client",
+        "action": "audio",
+        "samples": 15680
+      },
+      {
+        "by": "service",
+        "message": {
+          "type": "Results",
+          "channel_index": [
+            0,
+            1
+          ],
+          "duration": 3,
+          "start": 0,
+          "is_final": false,
+          "speech_final": false,
+          "channel": {
+            "alternatives": [
+              {
+                "transcript": "The party enters Brandonsford and looks for the blacksmith.",
+                "confidence": 0.9980469,
+                "words": [
+                  {
+                    "word": "the",
+                    "start": 0,
+                    "end": 0.16,
+                    "confidence": 0.9707031,
+                    "punctuated_word": "The"
+                  },
+                  {
+                    "word": "party",
+                    "start": 0.16,
+                    "end": 0.48,
+                    "confidence": 0.99902344,
+                    "punctuated_word": "party"
+                  },
+                  {
+                    "word": "enters",
+                    "start": 0.48,
+                    "end": 0.79999995,
+                    "confidence": 1,
+                    "punctuated_word": "enters"
+                  },
+                  {
+                    "word": "brandonsford",
+                    "start": 0.79999995,
+                    "end": 1.68,
+                    "confidence": 0.98746747,
+                    "punctuated_word": "Brandonsford"
+                  },
+                  {
+                    "word": "and",
+                    "start": 1.68,
+                    "end": 1.92,
+                    "confidence": 0.984375,
+                    "punctuated_word": "and"
+                  },
+                  {
+                    "word": "looks",
+                    "start": 1.92,
+                    "end": 2.1599998,
+                    "confidence": 1,
+                    "punctuated_word": "looks"
+                  },
+                  {
+                    "word": "for",
+                    "start": 2.1599998,
+                    "end": 2.32,
+                    "confidence": 1,
+                    "punctuated_word": "for"
+                  },
+                  {
+                    "word": "the",
+                    "start": 2.32,
+                    "end": 2.3999999,
+                    "confidence": 0.9980469,
+                    "punctuated_word": "the"
+                  },
+                  {
+                    "word": "blacksmith",
+                    "start": 2.3999999,
+                    "end": 2.8799999,
+                    "confidence": 0.9111328,
+                    "punctuated_word": "blacksmith."
+                  }
+                ]
+              }
+            ]
+          },
+          "from_finalize": false
+        }
+      },
+      {
+        "by": "client",
+        "action": "finalize"
+      },
+      {
+        "by": "service",
+        "message": {
+          "type": "Results",
+          "channel_index": [
+            0,
+            1
+          ],
+          "duration": 3.04,
+          "start": 0,
+          "is_final": true,
+          "speech_final": true,
+          "channel": {
+            "alternatives": [
+              {
+                "transcript": "The party enters Brandonsford and looks for the blacksmith.",
+                "confidence": 0.9980469,
+                "words": [
+                  {
+                    "word": "the",
+                    "start": 0,
+                    "end": 0.16,
+                    "confidence": 0.9707031,
+                    "punctuated_word": "The"
+                  },
+                  {
+                    "word": "party",
+                    "start": 0.16,
+                    "end": 0.48,
+                    "confidence": 0.99902344,
+                    "punctuated_word": "party"
+                  },
+                  {
+                    "word": "enters",
+                    "start": 0.48,
+                    "end": 0.79999995,
+                    "confidence": 1,
+                    "punctuated_word": "enters"
+                  },
+                  {
+                    "word": "brandonsford",
+                    "start": 0.79999995,
+                    "end": 1.68,
+                    "confidence": 0.98811847,
+                    "punctuated_word": "Brandonsford"
+                  },
+                  {
+                    "word": "and",
+                    "start": 1.68,
+                    "end": 1.92,
+                    "confidence": 0.9863281,
+                    "punctuated_word": "and"
+                  },
+                  {
+                    "word": "looks",
+                    "start": 1.92,
+                    "end": 2.1599998,
+                    "confidence": 1,
+                    "punctuated_word": "looks"
+                  },
+                  {
+                    "word": "for",
+                    "start": 2.1599998,
+                    "end": 2.32,
+                    "confidence": 1,
+                    "punctuated_word": "for"
+                  },
+                  {
+                    "word": "the",
+                    "start": 2.32,
+                    "end": 2.3999999,
+                    "confidence": 0.9980469,
+                    "punctuated_word": "the"
+                  },
+                  {
+                    "word": "blacksmith",
+                    "start": 2.3999999,
+                    "end": 2.8799999,
+                    "confidence": 0.9420573,
+                    "punctuated_word": "blacksmith."
+                  }
+                ]
+              }
+            ]
+          },
+          "from_finalize": true
+        }
+      },
+      {
+        "by": "client",
+        "action": "audio",
+        "samples": 14720
+      },
+      {
+        "by": "service",
+        "dropped": true
+      }
+    ],
+    [
+      {
+        "by": "client",
+        "action": "audio",
+        "samples": 45120
+      },
+      {
+        "by": "service",
+        "message": {
+          "type": "Results",
+          "channel_index": [
+            0,
+            1
+          ],
+          "duration": 1,
+          "start": 0,
+          "is_final": false,
+          "speech_final": false,
+          "channel": {
+            "alternatives": [
+              {
+                "transcript": "Goblin draws a",
+                "confidence": 0.9941406,
+                "words": [
+                  {
+                    "word": "goblin",
+                    "start": 0,
+                    "end": 0.56,
+                    "confidence": 0.9060872,
+                    "punctuated_word": "Goblin"
+                  },
+                  {
+                    "word": "draws",
+                    "start": 0.56,
+                    "end": 0.79999995,
+                    "confidence": 1,
+                    "punctuated_word": "draws"
+                  },
+                  {
+                    "word": "a",
+                    "start": 0.79999995,
+                    "end": 0.96,
+                    "confidence": 0.9941406,
+                    "punctuated_word": "a"
+                  }
+                ]
+              }
+            ]
+          },
+          "from_finalize": false
+        }
+      },
+      {
+        "by": "client",
+        "action": "finalize"
+      },
+      {
+        "by": "service",
+        "message": {
+          "type": "Results",
+          "channel_index": [
+            0,
+            1
+          ],
+          "duration": 1.84,
+          "start": 0,
+          "is_final": true,
+          "speech_final": true,
+          "channel": {
+            "alternatives": [
+              {
+                "transcript": "Goblin draws a rusty blade and",
+                "confidence": 1,
+                "words": [
+                  {
+                    "word": "goblin",
+                    "start": 0,
+                    "end": 0.56,
+                    "confidence": 0.84000653,
+                    "punctuated_word": "Goblin"
+                  },
+                  {
+                    "word": "draws",
+                    "start": 0.56,
+                    "end": 0.79999995,
+                    "confidence": 1,
+                    "punctuated_word": "draws"
+                  },
+                  {
+                    "word": "a",
+                    "start": 0.79999995,
+                    "end": 0.96,
+                    "confidence": 1,
+                    "punctuated_word": "a"
+                  },
+                  {
+                    "word": "rusty",
+                    "start": 0.96,
+                    "end": 1.28,
+                    "confidence": 0.99902344,
+                    "punctuated_word": "rusty"
+                  },
+                  {
+                    "word": "blade",
+                    "start": 1.28,
+                    "end": 1.52,
+                    "confidence": 1,
+                    "punctuated_word": "blade"
+                  },
+                  {
+                    "word": "and",
+                    "start": 1.52,
+                    "end": 1.68,
+                    "confidence": 0.99609375,
+                    "punctuated_word": "and"
+                  }
+                ]
+              }
+            ]
+          },
+          "from_finalize": true
+        }
+      },
+      {
+        "by": "client",
+        "action": "finalize"
+      },
+      {
+        "by": "service",
+        "message": {
+          "type": "Results",
+          "channel_index": [
+            0,
+            1
+          ],
+          "duration": 0.9799999,
+          "start": 1.84,
+          "is_final": true,
+          "speech_final": true,
+          "channel": {
+            "alternatives": [
+              {
+                "transcript": "charges at the wizard.",
+                "confidence": 0.99902344,
+                "words": [
+                  {
+                    "word": "charges",
+                    "start": 1.84,
+                    "end": 2.08,
+                    "confidence": 0.99902344,
+                    "punctuated_word": "charges"
+                  },
+                  {
+                    "word": "at",
+                    "start": 2.08,
+                    "end": 2.32,
+                    "confidence": 0.9819336,
+                    "punctuated_word": "at"
+                  },
+                  {
+                    "word": "the",
+                    "start": 2.32,
+                    "end": 2.4,
+                    "confidence": 0.99902344,
+                    "punctuated_word": "the"
+                  },
+                  {
+                    "word": "wizard",
+                    "start": 2.4,
+                    "end": 2.72,
+                    "confidence": 0.9658203,
+                    "punctuated_word": "wizard."
+                  }
+                ]
+              }
+            ]
+          },
+          "from_finalize": true
+        }
+      },
+      {
+        "by": "client",
+        "action": "close"
+      },
+      {
+        "by": "service",
+        "message": {
+          "type": "Results",
+          "channel_index": [
+            0,
+            1
+          ],
+          "duration": 0,
+          "start": 2.82,
+          "is_final": true,
+          "speech_final": true,
+          "channel": {
+            "alternatives": [
+              {
+                "transcript": "",
+                "confidence": 0,
+                "words": []
+              }
+            ]
+          },
+          "from_finalize": true
+        }
+      }
+    ]
+  ],
+  "observed": {
+    "utterances": [
+      {
+        "speakerId": "narrator",
+        "startSamples": 144000,
+        "endSamples": 282240,
+        "text": "The party enters Brandonsford and looks for the blacksmith."
+      },
+      {
+        "speakerId": "narrator",
+        "startSamples": 409920,
+        "endSamples": 540480,
+        "text": "Goblin draws a rusty blade and charges at the wizard."
+      }
+    ],
+    "checkpoints": [
+      289920,
+      409920,
+      545280
+    ]
+  }
+}

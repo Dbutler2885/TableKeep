@@ -6,13 +6,14 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  // `functions/` is a separate npm package with its own Node-targeted flat
-  // config; linting it from here would apply the browser/React rule set to a
-  // Cloud Functions entrypoint (and to its compiled `lib/` output).
-  globalIgnores(['dist', 'functions']),
+  // `functions/` and `bot/` are separate npm packages, each with its own
+  // Node-targeted flat config; linting them from here would apply the
+  // browser/React rule set to a Cloud Functions entrypoint (and to its compiled
+  // `lib/` output) and to the session recorder bot.
+  globalIgnores(['dist', 'functions', 'bot']),
   {
     name: 'node-scripts',
-    files: ['scripts/browser-smoke.mjs', 'scripts/demo/*.mjs'],
+    files: ['scripts/browser-smoke.mjs', 'scripts/demo/*.mjs', 'scripts/sessions/*.mjs'],
     extends: [js.configs.recommended],
     languageOptions: {
       ecmaVersion: 2022,
