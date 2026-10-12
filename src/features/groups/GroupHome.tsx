@@ -2,7 +2,10 @@ import { useState } from 'react'
 import { ChevronLeft, Copy, LogOut, Plus, Trash2, UserPlus } from 'lucide-react'
 import type { User } from 'firebase/auth'
 import type { Campaign, GroupRecord, InviteCode } from '../../types/app'
+import { DiscordConnection } from '../auth/DiscordConnection'
+import { DiscordReturnNotice } from '../auth/DiscordReturnNotice'
 import { inviteState, useGroupInvites } from '../invites/useInvites'
+import { DiscordServerLink } from './DiscordServerLink'
 import './GroupScreens.css'
 
 type GroupHomeProps = {
@@ -215,6 +218,13 @@ export function GroupHome({
                 <LogOut size={13} /> Sign out
               </button>
             </p>
+            {user.isAnonymous ? null : (
+              <>
+                <DiscordConnection userId={user.uid} variant="subtitle" />
+                <DiscordServerLink groupId={group.id} canManage={group.memberRole === 'admin'} />
+                <DiscordReturnNotice variant="subtitle" />
+              </>
+            )}
           </div>
           <div className="group-home-header-actions">
             {canInvite ? (

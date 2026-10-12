@@ -2,18 +2,56 @@ import { Timestamp } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
-import { defineSecret } from 'firebase-functions/params'
+import { defineSecret, defineString } from 'firebase-functions/params'
 import { logger } from 'firebase-functions'
 import type { Request } from 'express'
 import { adminApp, adminFirestore } from './adminApp.js'
 import { isTransferSourceAuthorized } from './transferAuthorization.js'
 import { campaignPath, groupMemberPath } from './firestorePaths.js'
 import { createDemoSandbox, sweepExpiredDemoSandboxes } from './demoSessions.js'
+import {
+  DISCORD_CONNECT_STATES_COLLECTION,
+  beginDiscordConnect,
+  completeDiscordConnect,
+  disconnectDiscord,
+  discordAuthorizeUrl,
+  fetchDiscordIdentity,
+  isWellFormedDiscordState,
+  type DiscordOAuthConfig,
+} from './discordConnect.js'
+import {
+  beginDiscordServerLink,
+  completeDiscordServerLink,
+  discordServerLinkUrl,
+  fetchLinkedDiscordServer,
+  isActiveGroupAdmin,
+  unlinkDiscordServer,
+} from './discordServerLink.js'
 
 adminApp()
 
 const db = adminFirestore()
 const sessionSummaryApiKey = defineSecret('SESSION_SUMMARY_API_KEY')
+
+// The Discord application that people approve when they connect their account.
+// The strings default to empty so that a checkout with no Discord application,
+// the demo included, still loads and deploys; the functions that need them
+// refuse to run until they are set.
+const discordClientId = defineString('DISCORD_CLIENT_ID', { default: '' })
+const discordClientSecret = defineSecret('DISCORD_CLIENT_SECRET')
+/** Where Discord sends people back to: the public URL of `discordConnectCallback`, exactly as registered with Discord. */
+const discordRedirectUri = defineString('DISCORD_REDIRECT_URI', { default: '' })
+/** The web app's own address, which the callback returns people to. */
+const appUrl = defineString('APP_URL', { default: '' })
+
+function discordOAuthConfig(): DiscordOAuthConfig | null {
+  const config = {
+    clientId: discordClientId.value(),
+    clientSecret: discordClientSecret.value(),
+    redirectUri: discordRedirectUri.value(),
+  }
+  return config.clientId && config.clientSecret && config.redirectUri && appUrl.value() ? config : null
+}
 
 function campaignRef(groupId: string, campaignId: string) {
   return db.doc(campaignPath(groupId, campaignId))
@@ -490,3 +528,124 @@ export const expireDemoSandboxes = onSchedule(
     }
   },
 )
+
+/**
+ * Starts connecting the caller's Discord account and returns the Discord page
+ * to send them to.
+ *
+ * An anonymous demo visitor is refused: a connection is what lets the session
+ * bot act on someone's word, and a visitor's account is gone in three hours.
+ */
+export const startDiscordConnect = onCall(
+  { region: 'us-central1', secrets: [discordClientSecret] },
+  async (request) => {
+    const uid = request.auth?.uid ?? ''
+    if (!uid) throw new HttpsError('unauthenticated', 'Authentication required.')
+    if (request.auth?.token?.firebase?.sign_in_provider === 'anonymous') {
+      throw new HttpsError('permission-denied', 'Sign in with your own account to connect Discord.')
+    }
+    const config = discordOAuthConfig()
+    if (!config) throw new HttpsError('failed-precondition', 'Discord is not set up for this deployment yet.')
+
+    const state = await beginDiscordConnect(db, uid, Date.now())
+    return { url: discordAuthorizeUrl(config, state) }
+  },
+)
+
+/**
+ * Where Discord sends someone back after they approve or decline, whether they
+ * were connecting their own account or adding the bot to a server. One address
+ * serves both, so only one has to be registered with Discord; the state says
+ * which it was.
+ *
+ * It always ends by returning them to the app with the outcome in the address,
+ * so that a failure is something they are told and not a blank page.
+ */
+export const discordConnectCallback = onRequest(
+  { region: 'us-central1', secrets: [discordClientSecret] },
+  async (req, res) => {
+    const config = discordOAuthConfig()
+    if (!config) {
+      res.status(503).send('Discord is not set up for this deployment yet.')
+      return
+    }
+    // A server link returns to the group it was for; everything else to the app's front door.
+    const back = (outcome: string, groupId?: string) => {
+      const url = new URL(groupId ? `/groups/${encodeURIComponent(groupId)}` : '/', appUrl.value())
+      url.searchParams.set('discord', outcome)
+      res.redirect(303, url.toString())
+    }
+
+    const state = typeof req.query.state === 'string' ? req.query.state : ''
+    const code = typeof req.query.code === 'string' ? req.query.code : ''
+    // Declining on Discord comes back as an `error` with no code.
+    if (!code) {
+      back(req.query.error === 'access_denied' ? 'declined' : 'invalid_state')
+      return
+    }
+
+    const stateSnap = isWellFormedDiscordState(state)
+      ? await db.collection(DISCORD_CONNECT_STATES_COLLECTION).doc(state).get()
+      : null
+    if (stateSnap?.data()?.kind === 'server') {
+      const result = await completeDiscordServerLink(db, {
+        state,
+        code,
+        nowMs: Date.now(),
+        resolveServer: (authorizationCode) => fetchLinkedDiscordServer(config, authorizationCode),
+      })
+      if (result.outcome === 'discord_error') logger.warn('Discord did not say which server the bot was added to.')
+      back(result.outcome, result.groupId)
+      return
+    }
+    const { outcome } = await completeDiscordConnect(db, {
+      state,
+      code,
+      nowMs: Date.now(),
+      identify: (authorizationCode) => fetchDiscordIdentity(config, authorizationCode),
+    })
+    if (outcome === 'discord_error') logger.warn('Discord could not identify an account during connect.')
+    back(outcome)
+  },
+)
+
+/** Removes the caller's Discord connection. */
+export const disconnectDiscordAccount = onCall({ region: 'us-central1' }, async (request) => {
+  const uid = request.auth?.uid ?? ''
+  if (!uid) throw new HttpsError('unauthenticated', 'Authentication required.')
+  await disconnectDiscord(db, uid)
+  return { ok: true }
+})
+
+/**
+ * Starts linking a Discord server to a group and returns the Discord page
+ * where the caller picks the server and adds the bot to it.
+ */
+export const startDiscordServerLink = onCall(
+  { region: 'us-central1', secrets: [discordClientSecret] },
+  async (request) => {
+    const uid = request.auth?.uid ?? ''
+    if (!uid) throw new HttpsError('unauthenticated', 'Authentication required.')
+    const groupId = typeof request.data?.groupId === 'string' ? request.data.groupId : ''
+    if (!groupId) throw new HttpsError('invalid-argument', 'groupId is required.')
+    const config = discordOAuthConfig()
+    if (!config) throw new HttpsError('failed-precondition', 'Discord is not set up for this deployment yet.')
+
+    const state = await beginDiscordServerLink(db, { uid, groupId }, Date.now())
+    if (!state) throw new HttpsError('permission-denied', 'Only an admin of the group can link a Discord server.')
+    return { url: discordServerLinkUrl(config, state) }
+  },
+)
+
+/** Removes a group's Discord server link. The bot stays in the server until someone removes it there. */
+export const unlinkGroupDiscordServer = onCall({ region: 'us-central1' }, async (request) => {
+  const uid = request.auth?.uid ?? ''
+  if (!uid) throw new HttpsError('unauthenticated', 'Authentication required.')
+  const groupId = typeof request.data?.groupId === 'string' ? request.data.groupId : ''
+  if (!groupId) throw new HttpsError('invalid-argument', 'groupId is required.')
+  if (!(await isActiveGroupAdmin(db, groupId, uid))) {
+    throw new HttpsError('permission-denied', 'Only an admin of the group can unlink its Discord server.')
+  }
+  await unlinkDiscordServer(db, groupId)
+  return { ok: true }
+})

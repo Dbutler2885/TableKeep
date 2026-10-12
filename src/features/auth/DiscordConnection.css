@@ -1,0 +1,60 @@
+/*
+ * Discord status lines: a person's own connection, and a group's linked server.
+ *
+ * The text and the action take their look from the classes of whatever they sit
+ * beside (`group-subtitle` and `group-link-button` on the group screens,
+ * `account-email` and a plain button in the campaign side rail). Only the
+ * spacing between those lines, and the message under them, is decided here.
+ */
+
+/* On the group screens the "Signed in as" subtitle carries the gap down to the
+   content below it. Discord lines join that block, so the gap moves to the last
+   of them and the lines in between sit close together. */
+.group-screen .group-subtitle:has(+ .discord-connection--subtitle) {
+  margin-bottom: 0;
+}
+
+.group-screen .discord-connection--subtitle {
+  margin: 0.3rem 0 0;
+}
+
+.group-screen .discord-connection--subtitle:not(:has(+ .discord-connection--subtitle)) {
+  margin-bottom: 2rem;
+}
+
+.group-screen .discord-connection--subtitle .group-subtitle {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.group-screen .discord-connection--subtitle .group-link-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* In the side rail the account panel lays its children out itself, so the
+   wrapper steps aside and lets the line and its button be laid out with them. */
+.discord-connection--panel {
+  display: contents;
+}
+
+.discord-connection--panel .account-email {
+  margin: 0;
+  /* Names break between words here, not mid-letter as an email address may. */
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+.discord-connection__message {
+  margin: 0.15rem 0 0;
+  font-size: 0.875rem;
+  font-style: normal;
+}
+
+.discord-connection__message--error {
+  color: #a32226;
+}
+
+.discord-connection__message--success {
+  color: #1f6b45;
+}

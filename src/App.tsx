@@ -18,6 +18,8 @@ import tablekeepLogo from '../logo/Tower Keep.svg'
 import './App.css'
 import { auth, db } from './firebase'
 import { AuthPanel } from './features/auth/AuthPanel'
+import { DiscordConnection } from './features/auth/DiscordConnection'
+import { DiscordReturnNotice } from './features/auth/DiscordReturnNotice'
 import { UsernameSetup } from './features/auth/UsernameSetup'
 import { VerifyEmailGate } from './features/auth/VerifyEmailGate'
 import { CharacterTab } from './features/character/CharacterTab'
@@ -459,6 +461,12 @@ function GroupShell({ user, username, isDemoVisitor }: { user: User, username: s
             <div className="account-panel">
               <p className="account-email account-username">Username: {username}</p>
               <p className="account-email">Role: {role}</p>
+              {isDemoVisitor ? null : (
+                <>
+                  <DiscordConnection userId={user.uid} variant="panel" />
+                  <DiscordReturnNotice variant="panel" />
+                </>
+              )}
               {role === 'gm' ? (
                 <button
                   type="button"
@@ -711,6 +719,7 @@ function GroupShell({ user, username, isDemoVisitor }: { user: User, username: s
           onCreateGroup={handleCreateGroup}
           onSelectGroup={handleSelectGroup}
           onSignOut={handleSignOut}
+          discordUserId={isDemoVisitor ? undefined : user.uid}
         />
       ) : !selectedCampaignId ? (
         <GroupHome

@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { LogOut, Plus } from 'lucide-react'
 import type { GroupRecord } from '../../types/app'
+import { DiscordConnection } from '../auth/DiscordConnection'
+import { DiscordReturnNotice } from '../auth/DiscordReturnNotice'
 import { BrandWordmark } from '../common/BrandWordmark'
 import './GroupScreens.css'
 
@@ -10,9 +12,11 @@ type GroupPickerProps = {
   onCreateGroup: (name: string) => Promise<void>
   onSelectGroup: (groupId: string) => void
   onSignOut: () => void
+  /** The signed-in account, or undefined for a demo visitor, who has no Discord connection to manage. */
+  discordUserId?: string
 }
 
-export function GroupPicker({ username, groups, onCreateGroup, onSelectGroup, onSignOut }: GroupPickerProps) {
+export function GroupPicker({ username, groups, onCreateGroup, onSelectGroup, onSignOut, discordUserId }: GroupPickerProps) {
   const [createOpen, setCreateOpen] = useState(false)
   const [groupName, setGroupName] = useState('')
   const [busy, setBusy] = useState(false)
@@ -54,6 +58,12 @@ export function GroupPicker({ username, groups, onCreateGroup, onSelectGroup, on
             <LogOut size={13} /> Sign out
           </button>
         </p>
+        {discordUserId ? (
+          <>
+            <DiscordConnection userId={discordUserId} variant="subtitle" />
+            <DiscordReturnNotice variant="subtitle" />
+          </>
+        ) : null}
 
         {groups.length === 0 ? (
           <div className="group-empty-state">
