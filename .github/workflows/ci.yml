@@ -87,6 +87,7 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             functions/package-lock.json
+            bot/package-lock.json
       # firebase-tools 15 refuses to start the Firestore/Storage emulators on
       # anything older than JDK 21, and says so without naming the JDK it found.
       - uses: actions/setup-java@v6
@@ -110,6 +111,11 @@ jobs:
       # the suites against the repo's real firestore.rules / storage.rules on
       # localhost. No Firebase credentials and no production project involved.
       - run: npm run test:emulator
+      # The session recorder bot has its own emulator suite, which records a
+      # scripted session and checks what lands in Firestore and Storage. It runs
+      # here because this job already has the JDK and the emulator binaries.
+      - run: npm ci --prefix bot
+      - run: npm run test:emulator --prefix bot
 
   browser-smoke:
     name: Browser smoke (desktop + mobile)
@@ -159,3 +165,22 @@ jobs:
       - run: npm run lint
       # `tsc` is both the typecheck and the emit for this package.
       - run: npm run build
+
+  bot:
+    name: Session bot (lint + typecheck + unit tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bot
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          # The bot runs its TypeScript directly, which needs the same Node as the web app.
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: bot/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test

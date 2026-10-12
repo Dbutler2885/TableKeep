@@ -317,6 +317,31 @@ Put durable engineering knowledge here in `AGENTS.md`, and put anything a reader
 - **Scene-NPC document and media paths must use the builders in `lib/sceneNpcRecord.ts` and `features/common/mediaStorage.ts`.**
   The maps-scoped emulator suite verifies those production builders against the real Firestore and Storage rules.
 
+## Session recorder bot
+
+`bot/` is a third npm package beside the web app and `functions/`: the Discord bot that records and transcribes sessions.
+The spec and tickets are local files under `.scratch/session-recorder-bot/`, which is git-ignored.
+
+- **It runs its TypeScript directly, with no build step.**
+  Node 24 strips the types at load time, so imports name the real file with its `.ts` extension, and `tsconfig.json` sets `erasableSyntaxOnly`: no enums, namespaces, or constructor parameter properties.
+  `npm run typecheck` is `tsc --noEmit`.
+- **It has its own flat ESLint config, and the root config ignores `bot/`,** for the same reason as `functions/`.
+- **Tests use `node:test`, not Vitest.**
+  `npm test` runs `test/*.test.ts` and needs nothing running.
+  `npm run test:emulator` runs `test/emulator/*.test.ts` under `firebase emulators:exec` from the repo root, so it needs the root package installed and Java 21, as the web app's emulator suite does.
+  The two globs are spelled out in `package.json` because Node's default discovery would pick up the emulator suite in a plain `npm test`.
+- **Test audio is synthetic.**
+  `test/helpers/synth.ts` encodes tones to Opus the way a Discord client sends voice.
+  Captures of real sessions contain the group's conversation and must never be committed; they live under `.scratch/`.
+- **The session store in `bot/src/store/` is the only code that writes sessions, speakers, segments and gaps.**
+  It imports `campaignPath` from `functions/src/firestorePaths.ts` so the bot and the functions cannot disagree about where a campaign's documents live.
+- **No security rule matches sessions or their audio yet,** so clients can neither read nor write them.
+  Read rules arrive with the app's session views.
+- **A recorded packet is journalled before anything else happens to it.**
+  `SessionRecorder` appends each record to the journal and then applies it, with the same code a restart will use to replay the journal, so stored audio is always a function of what the journal holds.
+- **What Discord sends:** one Opus packet per 20 ms while a person talks, about ten three-byte silence frames when they stop, then nothing.
+  A packet's timestamp keeps counting through the silence, so within one connection it gives the packet's true position; after a speaker rejoins, the numbering restarts from unrelated values and a new epoch is anchored by the clock.
+
 ## Agent skills
 
 ### Issue tracker
