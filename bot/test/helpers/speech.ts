@@ -108,6 +108,8 @@ export type RecordedEntry =
   | { by: 'client'; action: 'audio'; samples: number }
   | { by: 'client'; action: 'finalize' | 'keepalive' | 'close' }
   | { by: 'service'; message: Record<string, unknown> }
+  /** The connection was lost at this point. */
+  | { by: 'service'; dropped: true }
 
 /**
  * Plays back a recorded exchange with the real speech service.
@@ -154,7 +156,11 @@ export class ReplayedConnection implements SpeechConnection {
     for (;;) {
       const entry = this.#entries[this.#next]
       if (!entry) return
-      if (entry.by === 'service') {
+      if (entry.by === 'service' && 'dropped' in entry) {
+        this.#next += 1
+        this.onclose?.()
+        return
+      } else if (entry.by === 'service') {
         this.#next += 1
         this.onmessage?.(structuredClone(entry.message))
       } else if (entry.action === 'audio') {

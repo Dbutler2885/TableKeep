@@ -7,61 +7,11 @@
  * service's recorded answers are played back at the points it gave them.
  */
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { SpeakerTimeline, type VoicePacket } from '../src/audio/timeline.ts'
-import { SpeakerTranscriber, type Utterance } from '../src/speech/transcriber.ts'
-import { ReplayedConnection, type RecordedEntry } from './helpers/speech.ts'
-import { Voice, Wire } from './helpers/synth.ts'
+import { loadSpeechFixture, RATE, replaySpeechFixture } from './helpers/speechFixture.ts'
 
-type Fixture = {
-  keyterms: string[]
-  phrases: { text: string; startSeconds: number; endSeconds: number }[]
-  exchange: RecordedEntry[]
-  observed: { utterances: Utterance[]; checkpoints: number[] }
-}
-const fixture = JSON.parse(readFileSync(new URL('./fixtures/deepgram-two-phrases.json', import.meta.url), 'utf8')) as Fixture
-
-const START = 1_000_000
-const RATE = 48_000
-
-/** Speaks the fixture's phrases through the transcriber with the clock simulated, and returns what it reported. */
-async function replay() {
-  const connection = new ReplayedConnection(fixture.exchange)
-  const utterances: Utterance[] = []
-  const checkpoints: number[] = []
-  const transcriber = new SpeakerTranscriber({
-    speakerId: 'narrator',
-    connect: () => connection,
-    keyterms: fixture.keyterms,
-    onProgress: (finished, checkpoint) => {
-      utterances.push(...finished)
-      checkpoints.push(checkpoint)
-    },
-  })
-  const timeline = new SpeakerTimeline('narrator', START)
-  const voice = new Voice()
-  const packets: VoicePacket[] = fixture.phrases.flatMap((phrase, index) =>
-    new Wire('narrator', {
-      startMs: START + phrase.startSeconds * 1000,
-      sequence: 100 + index * 5_000,
-      rtp: Math.round(phrase.startSeconds * RATE),
-    }).send(voice.speak(phrase.endSeconds - phrase.startSeconds)),
-  )
-
-  const endMs = START + (fixture.phrases.at(-1)!.endSeconds + 2) * 1000
-  let next = 0
-  for (let now = START; now <= endMs; now += 20) {
-    while (next < packets.length && packets[next]!.receivedAtMs <= now) {
-      for (const placed of timeline.push(packets[next]!)) transcriber.write(placed, now)
-      next += 1
-    }
-    for (const placed of timeline.releaseDue(now)) transcriber.write(placed, now)
-    transcriber.tick(now)
-  }
-  await transcriber.close(endMs)
-  return { connection, utterances, checkpoints }
-}
+const fixture = loadSpeechFixture('deepgram-two-phrases')
+const replay = () => replaySpeechFixture(fixture)
 
 test('each phrase comes back as one utterance, with the words the service heard', async () => {
   const { utterances } = await replay()
@@ -102,9 +52,9 @@ test('the checkpoint ends at the end of the last phrase and never moves backward
 })
 
 test('the replay follows the recorded exchange to its end, and matches what was observed when it was recorded', async () => {
-  const { connection, utterances } = await replay()
+  const { connections, utterances } = await replay()
 
-  assert.equal(connection.finished, true)
+  assert.equal(connections[0]!.finished, true)
   assert.deepEqual(
     utterances.map((utterance) => utterance.text),
     fixture.observed.utterances.map((utterance) => utterance.text),

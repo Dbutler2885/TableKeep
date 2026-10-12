@@ -35,7 +35,11 @@ export const SPEECH_SAMPLE_RATE = 16_000
 const SETTLE_AFTER_QUIET_MS = 700
 /** A quiet connection is told it is still alive this often; the service closes one left silent for ten seconds. */
 const KEEP_ALIVE_MS = 3_000
-/** If the service has not answered a request to settle within this long, stop waiting for it. */
+/** The service's account of how much it has settled may fall this far short of what was sent and still count as all of it. */
+const SETTLED_WITHIN_SECONDS = 0.05
+/** How long after an answer that stopped short the service is asked to settle the rest. */
+const ASK_AGAIN_AFTER_MS = 1_000
+/** If the service has settled nothing more for this long after being asked, stop waiting for it. */
 const SETTLE_TIMEOUT_MS = 4_000
 /** The service accepts audio at up to this multiple of real time. Catching up after an outage is paced to it. */
 const MAX_SPEED = 1.25
@@ -117,6 +121,8 @@ export class SpeakerTranscriber {
   /** When the service was last asked to settle, if it has not yet answered, and how much it had been sent by then. */
   #settleRequestedAtMs: number | null = null
   #settleRequestedStreamSeconds = 0
+  /** When to ask again, after an answer that did not cover everything. */
+  #askAgainAtMs: number | null = null
   /** Seconds of audio that may be sent right now without outrunning the service. */
   #allowanceSeconds = BURST_SECONDS
   #allowanceAtMs: number | null = null
@@ -158,10 +164,16 @@ export class SpeakerTranscriber {
     const everythingSent = this.#sent === this.#pending.length
     const quietLongEnough = this.#closing || nowMs - this.#lastAudioAtMs >= SETTLE_AFTER_QUIET_MS
     if (everythingSent && this.#pending.length > 0 && this.#settleRequestedAtMs === null && quietLongEnough) {
-      connection.finalize()
+      // Noted before asking, so that an answer is recognised however quickly it comes.
       this.#settleRequestedAtMs = nowMs
       this.#settleRequestedStreamSeconds = this.#map.streamSeconds
+      this.#askAgainAtMs = null
       this.#lastSignalAtMs = nowMs
+      connection.finalize()
+    } else if (this.#settleRequestedAtMs !== null && this.#askAgainAtMs !== null && nowMs >= this.#askAgainAtMs) {
+      this.#askAgainAtMs = null
+      this.#lastSignalAtMs = nowMs
+      connection.finalize()
     }
     // The service does not promise an answer when there was little to settle.
     if (this.#settleRequestedAtMs !== null && nowMs - this.#settleRequestedAtMs >= SETTLE_TIMEOUT_MS) {
@@ -213,8 +225,12 @@ export class SpeakerTranscriber {
       const packet = this.#pending[this.#sent]!
       const seconds = packet.durationSamples / OPUS_SAMPLE_RATE
       if (seconds > this.#allowanceSeconds) break
+      const connection = this.#connection
+      if (!connection) break
       const pcm = this.#decoder.decode(Buffer.from(packet.payload))
-      this.#connection!.sendAudio(new Int16Array(pcm.buffer, pcm.byteOffset, pcm.length / 2))
+      connection.sendAudio(new Int16Array(pcm.buffer, pcm.byteOffset, pcm.length / 2))
+      // Lost in the act of sending: everything waiting goes to the next connection instead.
+      if (this.#connection !== connection) break
       this.#map.append(packet.positionSamples / OPUS_SAMPLE_RATE, seconds)
       this.#allowanceSeconds -= seconds
       this.#sent += 1
@@ -273,20 +289,28 @@ export class SpeakerTranscriber {
     this.#failures = 0
     const words = result.channel?.alternatives?.[0]?.words ?? []
     this.#words.push(...words)
+    const settledBefore = this.#settledStreamSeconds
     if (result.start !== undefined && result.duration !== undefined) {
       this.#settledStreamSeconds = Math.max(this.#settledStreamSeconds, result.start + result.duration)
     }
-    // An answer to a request to settle covers everything sent before the request, whatever duration it reports.
-    if (result.from_finalize && this.#settleRequestedAtMs !== null) {
-      this.#settledStreamSeconds = Math.max(this.#settledStreamSeconds, this.#settleRequestedStreamSeconds)
-    }
-
-    const utterance = result.speech_final || result.from_finalize ? this.#closeUtterance() : null
+    // A request to settle is answered once the service has settled everything sent before it. Its
+    // answer can stop short of that when audio was sent faster than it was spoken, as when catching up
+    // after an outage: it settles what it had got through and holds the rest until it is asked again.
+    const settling = this.#settleRequestedAtMs !== null
+    const answered = settling && this.#settledStreamSeconds >= this.#settleRequestedStreamSeconds - SETTLED_WITHIN_SECONDS
+    // An answer that stopped short ends nothing: the sentence carries on in the next one.
+    const paused = result.from_finalize ? !settling : result.speech_final
+    const utterance = answered || paused ? this.#closeUtterance() : null
     // While words are held back for an utterance still in progress, the
     // checkpoint must not pass them: it stays where the utterance begins.
     const reach = this.#words.length > 0 ? this.#words[0]!.start : this.#settledStreamSeconds
     this.#advance(utterance ? [utterance] : [], reach)
-    if (result.from_finalize) this.#settleRequestedAtMs = null
+    if (answered) {
+      this.#settleRequestedAtMs = null
+    } else if (settling && result.from_finalize) {
+      if (this.#settledStreamSeconds > settledBefore) this.#settleRequestedAtMs = this.#nowMs
+      this.#askAgainAtMs = this.#nowMs + ASK_AGAIN_AFTER_MS
+    }
   }
 
   /** Gives up waiting for the service to answer, and takes everything sent as dealt with. */
