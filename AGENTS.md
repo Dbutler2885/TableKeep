@@ -316,3 +316,15 @@ Put durable engineering knowledge here in `AGENTS.md`, and put anything a reader
   `useFogTools` uses randomized spray dots, so regression tests assert deterministic blocker, raycast, throttle, and structural behavior instead of exact fog pixels.
 - **Scene-NPC document and media paths must use the builders in `lib/sceneNpcRecord.ts` and `features/common/mediaStorage.ts`.**
   The maps-scoped emulator suite verifies those production builders against the real Firestore and Storage rules.
+
+## Agent skills
+
+### Issue tracker
+
+Specs and tickets live as local markdown files under `.scratch/`, which is not committed.
+See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root, created when first needed.
+See `docs/agents/domain.md`.
