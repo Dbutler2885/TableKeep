@@ -23,7 +23,7 @@
 import { createHash } from 'node:crypto'
 import { FieldValue, type Firestore } from 'firebase-admin/firestore'
 import type { getStorage } from 'firebase-admin/storage'
-import { campaignPath } from '../../../functions/src/firestorePaths.ts'
+import { campaignPath, groupMemberPath } from '../../../functions/src/firestorePaths.ts'
 import { segmentId, type Segment } from '../audio/segmenter.ts'
 import type { Utterance } from '../speech/transcriber.ts'
 
@@ -32,6 +32,8 @@ export type Bucket = ReturnType<ReturnType<typeof getStorage>['bucket']>
 
 /** Where the link between a Discord server and its group is kept. Written when a GM links the server. */
 const DISCORD_SERVERS_COLLECTION = 'discordServers'
+/** Which Table Keep account each connected Discord account belongs to. Written when someone connects theirs. */
+const DISCORD_ACCOUNTS_COLLECTION = 'discordAccounts'
 
 export type SessionLocation = { groupId: string; campaignId: string; sessionId: string }
 
@@ -51,7 +53,23 @@ export type StartSessionResult =
   /** This server is already being recorded. */
   | { status: 'already-recording'; location: SessionLocation }
 
-export type SessionSpeaker = { discordId: string; displayName: string }
+export type SessionSpeaker = {
+  discordId: string
+  /** Their name on Discord when they were heard. Shown for anyone who is not a known member of the group. */
+  displayName: string
+  /** The group member this is, if their Discord account is connected and they belong to the group. */
+  memberUid?: string | null
+}
+
+/** Whether someone on Discord may run the bot's commands in a server. */
+export type CommandAccess =
+  | { status: 'allowed'; groupId: string; uid: string }
+  /** No group has linked this Discord server. */
+  | { status: 'server-not-linked' }
+  /** They have not connected their Discord account to Table Keep. */
+  | { status: 'not-connected' }
+  /** Their account is connected, but they do not belong to the group this server is linked to. */
+  | { status: 'not-a-member' }
 
 /** A stretch of the session when the bot was not connected and could have heard nobody. */
 export type SessionGap = { startSamples: number; endSamples: number; reason: 'not-connected' }
@@ -79,6 +97,12 @@ export type SessionState = 'running' | 'finalising' | 'ended'
 
 export interface SessionStore {
   startSession(input: StartSessionInput): Promise<StartSessionResult>
+  /** Decided afresh each time it is asked, from the server's link and the person's membership as they stand. */
+  commandAccess(discordServerId: string, discordUserId: string): Promise<CommandAccess>
+  /** Whether a Discord account is connected to someone who belongs to the group, as things stand now. */
+  memberAccess(groupId: string, discordUserId: string): Promise<Exclude<CommandAccess, { status: 'server-not-linked' }>>
+  /** The server and voice channel a session was started in, or null if the session no longer exists. */
+  sessionOrigin(location: SessionLocation): Promise<{ discordServerId: string; discordChannelId: string; number: number } | null>
   /** Where the session has got to, or null if it no longer exists, as when its campaign was deleted. */
   sessionState(location: SessionLocation): Promise<SessionState | null>
   /** The names worth telling the speech service about: the campaign's characters and NPCs. */
@@ -180,6 +204,27 @@ export class FirestoreSessionStore implements SessionStore {
     })
   }
 
+  async commandAccess(discordServerId: string, discordUserId: string): Promise<CommandAccess> {
+    const serverSnap = await this.#db.collection(DISCORD_SERVERS_COLLECTION).doc(discordServerId).get()
+    const groupId = serverSnap.data()?.groupId as string | undefined
+    if (!groupId) return { status: 'server-not-linked' }
+    return this.memberAccess(groupId, discordUserId)
+  }
+
+  async memberAccess(groupId: string, discordUserId: string): Promise<Exclude<CommandAccess, { status: 'server-not-linked' }>> {
+    const accountSnap = await this.#db.collection(DISCORD_ACCOUNTS_COLLECTION).doc(discordUserId).get()
+    const uid = accountSnap.data()?.uid as string | undefined
+    if (!uid) return { status: 'not-connected' }
+    const memberSnap = await this.#db.doc(groupMemberPath(groupId, uid)).get()
+    return memberSnap.data()?.status === 'active' ? { status: 'allowed', groupId, uid } : { status: 'not-a-member' }
+  }
+
+  async sessionOrigin(location: SessionLocation): Promise<{ discordServerId: string; discordChannelId: string; number: number } | null> {
+    const data = (await this.#db.doc(sessionPath(location)).get()).data()
+    if (!data) return null
+    return { discordServerId: data.discordServerId, discordChannelId: data.discordChannelId, number: data.number }
+  }
+
   async sessionState(location: SessionLocation): Promise<SessionState | null> {
     const snap = await this.#db.doc(sessionPath(location)).get()
     return (snap.data()?.state as SessionState | undefined) ?? null
@@ -227,7 +272,7 @@ export class FirestoreSessionStore implements SessionStore {
 
   async recordSpeaker(location: SessionLocation, speaker: SessionSpeaker): Promise<void> {
     await this.#db.doc(sessionPath(location, 'speakers', speaker.discordId)).set(
-      { discordId: speaker.discordId, displayName: speaker.displayName },
+      { discordId: speaker.discordId, displayName: speaker.displayName, memberUid: speaker.memberUid ?? null },
       { merge: true },
     )
   }

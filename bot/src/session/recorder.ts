@@ -169,8 +169,9 @@ export class SessionRecorder {
     this.#handle({ type: 'packet', packet })
   }
 
-  speakerJoined(speakerId: string, displayName: string, atMs: number): void {
-    this.#record({ atMs, kind: 'speaker-joined', speakerId, displayName })
+  /** Someone is in the channel to be heard. `memberUid` says which group member they are, when that is known. */
+  speakerJoined(speakerId: string, displayName: string, atMs: number, memberUid: string | null = null): void {
+    this.#record({ atMs, kind: 'speaker-joined', speakerId, displayName, memberUid })
   }
 
   speakerLeft(speakerId: string, atMs: number): void {

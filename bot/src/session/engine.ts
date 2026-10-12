@@ -59,7 +59,10 @@ export class SessionEngine {
     const { event } = record
     switch (event.kind) {
       case 'speaker-joined':
-        effects.push({ kind: 'speaker', speaker: { discordId: event.speakerId, displayName: event.displayName } })
+        effects.push({
+          kind: 'speaker',
+          speaker: { discordId: event.speakerId, displayName: event.displayName, memberUid: event.memberUid ?? null },
+        })
         break
       case 'speaker-left':
         // Whatever they send on returning is a new stream, numbered afresh.

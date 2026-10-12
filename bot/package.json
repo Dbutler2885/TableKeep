@@ -8,6 +8,7 @@
   "scripts": {
     "lint": "eslint .",
     "replay": "node --env-file-if-exists=.env.local src/replay/run.ts",
+    "start": "node --env-file-if-exists=.env.local src/main.ts",
     "test": "node --test \"test/*.test.ts\"",
     "test:emulator": "cd .. && npx firebase emulators:exec --only firestore,storage \"node --test 'bot/test/emulator/*.test.ts'\"",
     "typecheck": "tsc --noEmit"
@@ -22,6 +23,9 @@
   },
   "dependencies": {
     "@discordjs/opus": "^0.10.0",
-    "firebase-admin": "^13.10.0"
+    "@projectdysnomia/dysnomia": "github:projectdysnomia/dysnomia#00d8982d81d365c2cdb2ef5dac59af07977a65d7",
+    "@snazzah/davey": "^0.1.12",
+    "firebase-admin": "^13.10.0",
+    "sodium-native": "^5.1.0"
   }
 }
