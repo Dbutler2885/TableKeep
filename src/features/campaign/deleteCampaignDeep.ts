@@ -5,6 +5,10 @@ import type { Firestore } from 'firebase/firestore'
 // campaign schema is declared here. Deleting a campaign document does NOT remove
 // its subcollections automatically; this spec drives a recursive cleanup. Keep
 // it in sync with firestore.rules under groups/{groupId}/campaigns/{campaignId}.
+//
+// Recorded sessions (`sessions`, `sessionCounters`, and their audio) are absent
+// on purpose: no client may write or delete them. A Cloud Function,
+// `clearDeletedCampaignSessions`, removes them when the campaign document goes.
 export type SubcollectionSpec = {
   name: string
   children?: SubcollectionSpec[]

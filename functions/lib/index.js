@@ -2,11 +2,13 @@ import { Timestamp } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { onDocumentDeleted } from 'firebase-functions/v2/firestore';
 import { defineSecret, defineString } from 'firebase-functions/params';
 import { logger } from 'firebase-functions';
 import { adminApp, adminFirestore } from './adminApp.js';
 import { isTransferSourceAuthorized } from './transferAuthorization.js';
 import { campaignPath, groupMemberPath } from './firestorePaths.js';
+import { deleteCampaignSessions } from './campaignSessions.js';
 import { createDemoSandbox, sweepExpiredDemoSandboxes } from './demoSessions.js';
 import { DISCORD_CONNECT_STATES_COLLECTION, beginDiscordConnect, completeDiscordConnect, disconnectDiscord, discordAuthorizeUrl, fetchDiscordIdentity, isWellFormedDiscordState, } from './discordConnect.js';
 import { beginDiscordServerLink, completeDiscordServerLink, discordServerLinkUrl, fetchLinkedDiscordServer, isActiveGroupAdmin, unlinkDiscordServer, } from './discordServerLink.js';
@@ -538,4 +540,15 @@ export const unlinkGroupDiscordServer = onCall({ region: 'us-central1' }, async 
     }
     await unlinkDiscordServer(db, groupId);
     return { ok: true };
+});
+/**
+ * Clears a deleted campaign's recorded sessions.
+ *
+ * The app deletes a campaign's other subcollections itself. It cannot delete
+ * sessions, transcripts or audio, which no client may touch, so those are
+ * removed here when the campaign document goes.
+ */
+export const clearDeletedCampaignSessions = onDocumentDeleted({ region: 'us-central1', document: 'groups/{groupId}/campaigns/{campaignId}' }, async (event) => {
+    const { groupId, campaignId } = event.params;
+    await deleteCampaignSessions(db, (prefix) => getStorage(adminApp()).bucket().deleteFiles({ prefix, force: true }), groupId, campaignId);
 });
