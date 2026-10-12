@@ -1,0 +1,7 @@
+# Only the bot is built into an image, and it needs very little of the repository.
+**
+!bot/package.json
+!bot/package-lock.json
+!bot/src/**
+!bot/assets/**
+!functions/src/firestorePaths.ts

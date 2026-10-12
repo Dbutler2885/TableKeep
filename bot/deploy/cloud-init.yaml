@@ -1,0 +1,52 @@
+#cloud-config
+# The bot's virtual machine: Container-Optimized OS running one container,
+# with the journal on a disk of its own that outlives both.
+#
+# Which image to run is read from the machine's `bot-image` metadata each time
+# the service starts, so a deploy is: change that value, restart the service.
+
+write_files:
+  - path: /etc/systemd/system/tablekeep-journal.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Mount the bot's journal disk
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      # Formatted the first time only: a disk that already has a filesystem is left as it is.
+      ExecStart=/bin/bash -c 'DISK=/dev/disk/by-id/google-journal; blkid $DISK || mkfs.ext4 -m 0 -F $DISK; mkdir -p /mnt/disks/journal; mountpoint -q /mnt/disks/journal || mount -o discard,defaults $DISK /mnt/disks/journal; chown 1000:1000 /mnt/disks/journal'
+
+  - path: /etc/systemd/system/tablekeep-bot.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Table Keep session recorder bot
+      Requires=tablekeep-journal.service docker.service
+      After=tablekeep-journal.service docker.service network-online.target
+      Wants=network-online.target
+      [Service]
+      Environment=HOME=/home/tablekeep
+      ExecStartPre=/usr/bin/docker-credential-gcr configure-docker --registries=us-central1-docker.pkg.dev
+      ExecStartPre=/bin/bash -c 'docker pull "$(curl -sf -H Metadata-Flavor:Google http://metadata.google.internal/computeMetadata/v1/instance/attributes/bot-image)"'
+      ExecStartPre=-/usr/bin/docker rm -f tablekeep-bot
+      ExecStart=/bin/bash -c 'exec docker run --name tablekeep-bot --rm \
+        -v /mnt/disks/journal:/data \
+        -e TABLEKEEP_WRITE_LIVE=yes \
+        -e GCLOUD_PROJECT="$(curl -sf -H Metadata-Flavor:Google http://metadata.google.internal/computeMetadata/v1/project/project-id)" \
+        --log-driver=gcplogs \
+        "$(curl -sf -H Metadata-Flavor:Google http://metadata.google.internal/computeMetadata/v1/instance/attributes/bot-image)"'
+      # A recording has ninety seconds to notice and stop cleanly. What it does not finish, the next start picks up from the journal.
+      ExecStop=/usr/bin/docker stop -t 90 tablekeep-bot
+      Restart=always
+      RestartSec=5
+      [Install]
+      WantedBy=multi-user.target
+
+users:
+  - name: tablekeep
+    uid: 2000
+
+runcmd:
+  - systemctl daemon-reload
+  - systemctl enable --now tablekeep-bot.service
