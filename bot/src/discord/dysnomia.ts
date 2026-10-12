@@ -200,7 +200,11 @@ export class DiscordBot implements VoiceGateway, MessageBoard {
       link.onReconnected?.()
     })
     connection.on('error', (error) => log('voice error', { serverId, error: String(error) }))
-    connection.on('warn', (message) => log('voice warning', { serverId, message: String(message) }))
+    connection.on('warn', (message) => {
+      // Said constantly, and about nothing: these are not lost audio.
+      if (String(message).includes('empty packet')) return
+      log('voice warning', { serverId, message: String(message) })
+    })
     return link
   }
 }
