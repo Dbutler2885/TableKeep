@@ -49,12 +49,20 @@ export async function finaliseSession(options: FinaliseOptions): Promise<Finalis
   if (!replay.stopped) return { status: 'not-ready', reason: 'recording has not been stopped' }
   const { location } = replay
 
+  // A bot that died between journalling the stop and recording it left the session running and the server held.
+  const stop = replay.effects.find((effect) => effect.kind === 'stopped')!
+  await store.stopRecording(location, { stoppedAtMs: stop.atMs, reason: stop.reason })
+
   // Audio: store whatever the journal holds that is not in the bucket yet.
   const stored = await store.storedSegmentIds(location)
   const placed = new Map<string, PlacedPacket[]>()
+  let unstored = 0
   for (const effect of replay.effects) {
     if (effect.kind === 'segment' && !stored.has(segmentId(effect.segment))) {
-      await store.storeSegment(location, effect.segment, segmentFile(effect.segment))
+      // One that cannot be stored does not stop the rest, or the transcript, being finished.
+      await store.storeSegment(location, effect.segment, segmentFile(effect.segment)).catch(() => {
+        unstored += 1
+      })
     } else if (effect.kind === 'speaker') {
       await store.recordSpeaker(location, effect.speaker)
     } else if (effect.kind === 'gap') {
@@ -100,8 +108,11 @@ export async function finaliseSession(options: FinaliseOptions): Promise<Finalis
     }),
   )
 
-  if (finished.includes(false)) {
-    const reason = 'The transcript is incomplete: the speech service could not be reached for part of the session.'
+  if (unstored > 0 || finished.includes(false)) {
+    const reason =
+      unstored > 0
+        ? 'Some of the audio is not stored yet: storage could not be reached. It is safe on the bot and will be stored when it can be.'
+        : 'The transcript is incomplete: the speech service could not be reached for part of the session.'
     await store.flagSession(location, reason)
     return { status: 'needs-attention', location, reason }
   }

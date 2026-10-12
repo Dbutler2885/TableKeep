@@ -6,16 +6,27 @@
  * arrived or is being read back from the journal later. So what reaches storage
  * is always a function of what the journal holds.
  */
+import { mkdirSync, statfsSync, statSync, truncateSync } from 'node:fs'
 import path from 'node:path'
-import { segmentFile } from '../audio/segmenter.ts'
+import { segmentFile, segmentId, type Segment } from '../audio/segmenter.ts'
 import type { VoicePacket } from '../audio/timeline.ts'
-import { JournalWriter, type JournalEvent, type JournalRecord } from '../journal/journal.ts'
+import { JournalWriter, readJournal, type JournalEvent, type JournalRecord } from '../journal/journal.ts'
 import { SpeakerTranscriber, type ConnectSpeech, type Utterance } from '../speech/transcriber.ts'
 import type { SessionLocation, SessionStore, StartSessionInput, StartSessionResult } from '../store/sessionStore.ts'
-import { SessionEngine, type SessionEffect } from './engine.ts'
+import { journalSession, SessionEngine, type SessionEffect } from './engine.ts'
 import { finaliseSession, type FinaliseResult } from './finalise.ts'
 
 const DEFAULT_LAST_WORDS_MS = 8_000
+/** A long session's journal is a few hundred megabytes. Below this much free space a new one is not begun. */
+const DEFAULT_MIN_FREE_BYTES_TO_START = 1024 ** 3
+/** Below this much free space during a session, an alarm is raised. */
+const DEFAULT_LOW_DISK_BYTES = 256 * 1024 ** 2
+const DISK_CHECK_EVERY_MS = 10_000
+/** How often audio that could not be stored is tried again. */
+const RETRY_STORING_EVERY_MS = 10_000
+
+/** Something a person should be told about while a session is being recorded. */
+export type RecorderAlarm = { kind: 'disk-low'; freeBytes: number }
 
 export type RecorderOptions = {
   store: SessionStore
@@ -30,6 +41,17 @@ export type RecorderOptions = {
   finaliseGiveUpAfterMs?: number
   /** How long `stop` gives the speech service to settle each speaker's last words before finalising takes over. */
   lastWordsMs?: number
+  /** How much room is left on the journal's disk, in bytes. Asks the disk itself unless given. */
+  freeDiskBytes?: () => number
+  minFreeBytesToStart?: number
+  lowDiskBytes?: number
+  onAlarm?: (alarm: RecorderAlarm) => void
+}
+
+function freeDiskBytes(options: RecorderOptions): number {
+  if (options.freeDiskBytes) return options.freeDiskBytes()
+  const disk = statfsSync(options.journalDir)
+  return disk.bavail * disk.bsize
 }
 
 type SpeakerTranscription = {
@@ -40,7 +62,13 @@ type SpeakerTranscription = {
 
 export type StartRecordingResult =
   | { status: 'started'; recorder: SessionRecorder; number: number }
+  /** There is too little room on the bot's disk to be sure of holding a whole session. */
+  | { status: 'disk-full'; freeBytes: number }
   | Exclude<StartSessionResult, { status: 'started' }>
+
+export type ResumeRecordingResult =
+  | { status: 'resumed'; recorder: SessionRecorder }
+  | { status: 'not-resumable'; reason: string }
 
 export class SessionRecorder {
   readonly location: SessionLocation
@@ -52,28 +80,88 @@ export class SessionRecorder {
   #keyterms: string[]
   #transcription = new Map<string, SpeakerTranscription>()
   #stopping: Promise<FinaliseResult> | null = null
+  /** Where each speaker's transcription had reached when a session is picked up again. */
+  #resumeFrom = new Map<string, number>()
+  /** Audio that could not be stored, waiting to be tried again. It is all in the journal as well. */
+  #unstored: Segment[] = []
+  #retryStoringAtMs = 0
+  #diskCheckAtMs = 0
+  #diskLow = false
   /** Writes to the store still in flight, and anything that went wrong with them. */
   #pending = new Set<Promise<void>>()
   readonly failures: unknown[] = []
 
-  private constructor(location: SessionLocation, startedAtMs: number, keyterms: string[], options: RecorderOptions) {
+  private constructor(
+    location: SessionLocation,
+    startedAtMs: number,
+    keyterms: string[],
+    journalPath: string,
+    options: RecorderOptions,
+  ) {
     this.location = location
     this.#options = options
     this.#store = options.store
     this.#keyterms = keyterms
     this.#engine = new SessionEngine(startedAtMs, options.maxSegmentSeconds)
-    this.journalPath = path.join(options.journalDir, `${location.sessionId}.journal`)
-    this.#journal = new JournalWriter(this.journalPath, options.journalSyncEveryMs)
+    this.journalPath = journalPath
+    this.#journal = new JournalWriter(journalPath, options.journalSyncEveryMs)
   }
 
   /** Starts a session for a Discord server, if the server is linked and free. */
   static async start(input: StartSessionInput, options: RecorderOptions): Promise<StartRecordingResult> {
+    mkdirSync(options.journalDir, { recursive: true })
+    const freeBytes = freeDiskBytes(options)
+    if (freeBytes < (options.minFreeBytesToStart ?? DEFAULT_MIN_FREE_BYTES_TO_START)) return { status: 'disk-full', freeBytes }
+
     const result = await options.store.startSession(input)
     if (result.status !== 'started') return result
     const keyterms = options.connectSpeech ? await options.store.vocabulary(result.location) : []
-    const recorder = new SessionRecorder(result.location, input.startedAtMs, keyterms, options)
+    const journalPath = path.join(options.journalDir, `${result.location.sessionId}.journal`)
+    const recorder = new SessionRecorder(result.location, input.startedAtMs, keyterms, journalPath, options)
     recorder.#record({ atMs: input.startedAtMs, kind: 'session-started', ...result.location })
     return { status: 'started', recorder, number: result.number }
+  }
+
+  /**
+   * Picks up a session whose bot died while it was recording, from its journal.
+   *
+   * Everything the journal holds that had not reached storage is stored, and
+   * transcription carries on from where each speaker's had reached. The
+   * recorder comes back as one that has lost the voice channel: call
+   * `reconnected` once the bot is listening again, and the time it was away
+   * is recorded as a stretch nobody was heard.
+   */
+  static async resume(journalPath: string, options: RecorderOptions, nowMs: number): Promise<ResumeRecordingResult> {
+    const { store } = options
+    const { records, tornBytes } = readJournal(journalPath)
+    const session = journalSession(records)
+    if (!session) return { status: 'not-resumable', reason: 'not a session journal' }
+    if (records.some((record) => record.type === 'event' && record.event.kind === 'session-stopped')) {
+      return { status: 'not-resumable', reason: 'recording had been stopped' }
+    }
+    const state = await store.sessionState(session.location)
+    if (state !== 'running') return { status: 'not-resumable', reason: state ? `the session is ${state}` : 'the session no longer exists' }
+
+    // A record cut short by the bot dying must go, or nothing written after it could be read back.
+    if (tornBytes > 0) truncateSync(journalPath, statSync(journalPath).size - tornBytes)
+
+    const keyterms = options.connectSpeech ? await store.vocabulary(session.location) : []
+    const recorder = new SessionRecorder(session.location, session.startedAtMs, keyterms, journalPath, options)
+    recorder.#resumeFrom = await store.checkpoints(session.location)
+    const stored = await store.storedSegmentIds(session.location)
+    let lastHeardAtMs = session.startedAtMs
+    for (const record of records) {
+      lastHeardAtMs = Math.max(lastHeardAtMs, record.type === 'packet' ? record.packet.receivedAtMs : record.event.atMs)
+      recorder.#act(recorder.#engine.apply(record), { nowMs, stored })
+    }
+    // The bot heard nothing from the last thing it journalled until it is told it is listening again.
+    recorder.#record({ atMs: lastHeardAtMs, kind: 'disconnected' })
+    return { status: 'resumed', recorder }
+  }
+
+  /** How many pieces of audio are waiting for storage to come back. */
+  get unstoredSegments(): number {
+    return this.#unstored.length
   }
 
   /** A voice packet has arrived. */
@@ -107,6 +195,38 @@ export class SessionRecorder {
     if (this.#stopping) return
     this.#act(this.#engine.tick(nowMs))
     for (const { transcriber } of this.#transcription.values()) transcriber.tick(nowMs)
+    this.#retryStoring(nowMs)
+    this.#checkDisk(nowMs)
+  }
+
+  /** Tries the audio that could not be stored again, stopping at the first that still cannot be. */
+  #retryStoring(nowMs: number): void {
+    if (this.#unstored.length === 0 || nowMs < this.#retryStoringAtMs) return
+    this.#retryStoringAtMs = Infinity
+    const waiting = this.#unstored
+    this.#unstored = []
+    const work = (async () => {
+      try {
+        while (waiting.length > 0) {
+          await this.#store.storeSegment(this.location, waiting[0]!, segmentFile(waiting[0]!))
+          waiting.shift()
+        }
+      } finally {
+        this.#unstored.unshift(...waiting)
+        this.#retryStoringAtMs = nowMs + RETRY_STORING_EVERY_MS
+      }
+    })()
+    this.#track(work)
+  }
+
+  #checkDisk(nowMs: number): void {
+    if (nowMs < this.#diskCheckAtMs) return
+    this.#diskCheckAtMs = nowMs + DISK_CHECK_EVERY_MS
+    const freeBytes = freeDiskBytes(this.#options)
+    const low = freeBytes < (this.#options.lowDiskBytes ?? DEFAULT_LOW_DISK_BYTES)
+    // Said once when it becomes true, not on every check.
+    if (low && !this.#diskLow) this.#options.onAlarm?.({ kind: 'disk-low', freeBytes })
+    this.#diskLow = low
   }
 
   /**
@@ -159,15 +279,20 @@ export class SessionRecorder {
     this.#act(this.#engine.apply(record))
   }
 
-  #act(effects: SessionEffect[]): void {
+  /**
+   * Acts on what the engine said. With `replaying`, the effects are of records
+   * read back from the journal: audio already stored is not stored again, and
+   * what is still to be transcribed is paced from now, not from when it was said.
+   */
+  #act(effects: SessionEffect[], replaying?: { nowMs: number; stored: Set<string> }): void {
     for (const effect of effects) {
       switch (effect.kind) {
         case 'placed':
           // The speech check decides only what is transcribed; every placed packet is archived regardless.
-          this.#transcriptionFor(effect.packet.speakerId)?.transcriber.write(effect.packet, effect.receivedAtMs)
+          this.#transcriptionFor(effect.packet.speakerId)?.transcriber.write(effect.packet, replaying?.nowMs ?? effect.receivedAtMs)
           break
         case 'segment':
-          this.#track(this.#store.storeSegment(this.location, effect.segment, segmentFile(effect.segment)))
+          if (!replaying?.stored.has(segmentId(effect.segment))) this.#storeSegment(effect.segment)
           break
         case 'speaker':
           this.#track(this.#store.recordSpeaker(this.location, effect.speaker))
@@ -181,6 +306,14 @@ export class SessionRecorder {
     }
   }
 
+  #storeSegment(segment: Segment): void {
+    const work = this.#store.storeSegment(this.location, segment, segmentFile(segment)).catch((error: unknown) => {
+      this.#unstored.push(segment)
+      throw error
+    })
+    this.#track(work)
+  }
+
   #transcriptionFor(speakerId: string): SpeakerTranscription | null {
     const connect = this.#options.connectSpeech
     if (!connect) return null
@@ -192,6 +325,7 @@ export class SessionRecorder {
           speakerId,
           connect,
           keyterms: this.#keyterms,
+          resumeFromSamples: this.#resumeFrom.get(speakerId),
           onProgress: (utterances, checkpointSamples) => this.#publish(speakerId, utterances, checkpointSamples),
         }),
       }

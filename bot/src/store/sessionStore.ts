@@ -75,8 +75,12 @@ export function utteranceId(utterance: Pick<Utterance, 'speakerId' | 'startSampl
   return `${utterance.speakerId}-${String(utterance.startSamples).padStart(12, '0')}`
 }
 
+export type SessionState = 'running' | 'finalising' | 'ended'
+
 export interface SessionStore {
   startSession(input: StartSessionInput): Promise<StartSessionResult>
+  /** Where the session has got to, or null if it no longer exists, as when its campaign was deleted. */
+  sessionState(location: SessionLocation): Promise<SessionState | null>
   /** The names worth telling the speech service about: the campaign's characters and NPCs. */
   vocabulary(location: SessionLocation): Promise<string[]>
   /**
@@ -174,6 +178,11 @@ export class FirestoreSessionStore implements SessionStore {
       tx.update(serverRef, { activeSession: location })
       return { status: 'started', location, number }
     })
+  }
+
+  async sessionState(location: SessionLocation): Promise<SessionState | null> {
+    const snap = await this.#db.doc(sessionPath(location)).get()
+    return (snap.data()?.state as SessionState | undefined) ?? null
   }
 
   async vocabulary(location: SessionLocation): Promise<string[]> {

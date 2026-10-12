@@ -66,7 +66,8 @@ export class SessionEngine {
         this.#closeRun(event.speakerId, true, effects)
         break
       case 'disconnected':
-        this.#disconnectedAtMs = event.atMs
+        // Told twice, as after a bot that died while away, the stretch still begins where it first did.
+        this.#disconnectedAtMs ??= event.atMs
         for (const speakerId of this.#speakers.keys()) this.#closeRun(speakerId, true, effects)
         break
       case 'reconnected':
@@ -150,18 +151,26 @@ export class SessionEngine {
   }
 }
 
+/** Which session a journal belongs to, or null if the records are not a session's journal. */
+export function journalSession(records: JournalRecord[]): { location: SessionLocation; startedAtMs: number } | null {
+  const first = records[0]
+  // Every journal opens with where its session lives; one that does not was never a session's journal.
+  if (first?.type !== 'event' || first.event.kind !== 'session-started') return null
+  const { groupId, campaignId, sessionId, atMs: startedAtMs } = first.event
+  return { location: { groupId, campaignId, sessionId }, startedAtMs }
+}
+
 /** Everything a whole journal amounts to. */
 export function replayJournal(
   records: JournalRecord[],
   options: { maxSegmentSeconds?: number } = {},
 ): { location: SessionLocation; startedAtMs: number; effects: SessionEffect[]; stopped: boolean } | null {
-  const first = records[0]
-  // Every journal opens with where its session lives; one that does not was never a session's journal.
-  if (first?.type !== 'event' || first.event.kind !== 'session-started') return null
-  const { groupId, campaignId, sessionId, atMs: startedAtMs } = first.event
+  const session = journalSession(records)
+  if (!session) return null
+  const { location, startedAtMs } = session
   const engine = new SessionEngine(startedAtMs, options.maxSegmentSeconds)
   const effects = records.flatMap((record) => engine.apply(record))
   // A journal with no stop in it ends where the bot died; what was open is closed there.
   if (!engine.stopped) effects.push(...engine.flush())
-  return { location: { groupId, campaignId, sessionId }, startedAtMs, effects, stopped: engine.stopped }
+  return { location, startedAtMs, effects, stopped: engine.stopped }
 }
