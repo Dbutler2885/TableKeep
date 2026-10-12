@@ -21,6 +21,7 @@ import type { VoicePacket } from '../../src/audio/timeline.ts'
 import { readJournal } from '../../src/journal/journal.ts'
 import { SessionRecorder } from '../../src/session/recorder.ts'
 import { FirestoreSessionStore, sessionPath, type SessionLocation } from '../../src/store/sessionStore.ts'
+import { scriptedSpeech } from '../helpers/speech.ts'
 import { SILENCE, Voice, Wire, decode, rmsDifference } from '../helpers/synth.ts'
 
 const projectId = process.env.GCLOUD_PROJECT ?? 'homeboyshouse-dev'
@@ -62,7 +63,13 @@ const startInput = (startedAtMs = START) => ({
 })
 
 async function start(options: { maxSegmentSeconds?: number } = {}) {
-  const result = await SessionRecorder.start(startInput(), { store, journalDir, journalSyncEveryMs: 0, ...options })
+  const result = await SessionRecorder.start(startInput(), {
+    store,
+    journalDir,
+    journalSyncEveryMs: 0,
+    connectSpeech: scriptedSpeech().connect,
+    ...options,
+  })
   assert.equal(result.status, 'started')
   return result as Extract<typeof result, { status: 'started' }>
 }
@@ -107,7 +114,7 @@ function deliver(recorder: SessionRecorder, packets: VoicePacket[], events: { at
   }
 }
 
-test('a session is created under the linked group\'s current campaign, numbered, and frees the server when it stops', async () => {
+test('a session is created under the linked group\'s current campaign, numbered, and ends when it is stopped', async () => {
   const { recorder, number } = await start()
   const session = async () => (await db.doc(sessionPath(recorder.location)).get()).data()!
   const server = async () => (await db.collection('discordServers').doc(SERVER).get()).data()!
@@ -120,7 +127,7 @@ test('a session is created under the linked group\'s current campaign, numbered,
 
   await recorder.stop('stop command', START + 60_000)
 
-  assert.equal((await session()).state, 'finalising')
+  assert.equal((await session()).state, 'ended')
   assert.equal((await session()).stopReason, 'stop command')
   assert.equal((await server()).activeSession, null)
 })
@@ -192,6 +199,15 @@ test('a table talking, pausing, dropping packets, leaving and returning is store
     { atMs: START + 12_000, run: () => recorder.disconnected(START + 12_000) },
     { atMs: START + 14_000, run: () => recorder.reconnected(START + 14_000) },
   ])
+  // Every packet that arrived is in the journal, in the order it arrived. The lost one is not.
+  const journalled = readJournal(recorder.journalPath).records.flatMap((record) => (record.type === 'packet' ? [record.packet] : []))
+  assert.equal(journalled.length, everything.length)
+  assert.deepEqual(
+    journalled.map((packet) => `${packet.speakerId}:${packet.sequence}`),
+    [...everything].sort((a, b) => a.receivedAtMs - b.receivedAtMs).map((packet) => `${packet.speakerId}:${packet.sequence}`),
+  )
+  assert.ok(!journalled.some((packet) => packet.speakerId === JEM && packet.sequence === lost[0]!.sequence))
+
   await recorder.stop('stop command', START + 16_000)
   assert.deepEqual(recorder.failures, [])
 
@@ -241,15 +257,6 @@ test('a table talking, pausing, dropping packets, leaving and returning is store
   peterReference.set(decode(peterBefore.map((packet) => packet.payload)), 2 * RATE)
   peterReference.set(decode(peterAfter.map((packet) => packet.payload)), 9 * RATE)
   assert.equal(rmsDifference(await rebuild(recorder.location, PETER, 16), peterReference), 0)
-
-  // Every packet that arrived is in the journal, in the order it arrived. The lost one is not.
-  const journalled = readJournal(recorder.journalPath).records.flatMap((record) => (record.type === 'packet' ? [record.packet] : []))
-  assert.equal(journalled.length, everything.length)
-  assert.deepEqual(
-    journalled.map((packet) => `${packet.speakerId}:${packet.sequence}`),
-    [...everything].sort((a, b) => a.receivedAtMs - b.receivedAtMs).map((packet) => `${packet.speakerId}:${packet.sequence}`),
-  )
-  assert.ok(!journalled.some((packet) => packet.speakerId === JEM && packet.sequence === lost[0]!.sequence))
 })
 
 test('a speaker who goes quiet has their audio stored without waiting for them to speak again', async () => {

@@ -338,7 +338,14 @@ The spec and tickets are local files under `.scratch/session-recorder-bot/`, whi
 - **No security rule matches sessions or their audio yet,** so clients can neither read nor write them.
   Read rules arrive with the app's session views.
 - **A recorded packet is journalled before anything else happens to it.**
-  `SessionRecorder` appends each record to the journal and then applies it, with the same code a restart will use to replay the journal, so stored audio is always a function of what the journal holds.
+  `SessionRecorder` appends each record to the journal and then hands it to `SessionEngine`, which says what follows from it and touches nothing itself.
+  `finaliseSession` reads the journal back through the same engine, so stored audio is always a function of what the journal holds, and finishing a session can be rerun at any time.
+- **What the engine releases must depend only on the records, never on when `tick` was called.**
+  `SpeakerTimeline.push` lets go of held packets by the arriving packet's own time for this reason; `tick` only brings forward what the next record would cause anyway.
+- **A session ends only when its audio is stored and its transcript is complete.**
+  If the speech service cannot be reached it stays `finalising` with `needsAttention` set, and its journal is kept, because the rest of the transcript will be made from it.
+- **The transcriber keeps audio until its checkpoint has passed it.**
+  After a lost connection it resends from the checkpoint at no more than 1.25 times real time, which is the most Deepgram accepts.
 - **What Discord sends:** one Opus packet per 20 ms while a person talks, about ten three-byte silence frames when they stop, then nothing.
   A packet's timestamp keeps counting through the silence, so within one connection it gives the packet's true position; after a speaker rejoins, the numbering restarts from unrelated values and a new epoch is anchored by the clock.
 

@@ -2,20 +2,20 @@
  * Recording one session: from packets arriving to audio stored and placed.
  *
  * Everything that happens is written to the journal first and acted on second,
- * and it is acted on by the same code whether it has just arrived or is being
- * read back from the journal after a restart. So what reaches storage is always
- * a function of what the journal holds.
+ * and what it means is worked out by the same engine whether it has just
+ * arrived or is being read back from the journal later. So what reaches storage
+ * is always a function of what the journal holds.
  */
 import path from 'node:path'
-import { OPUS_SAMPLE_RATE } from '../audio/opus.ts'
-import { Segmenter, segmentFile, type Segment } from '../audio/segmenter.ts'
-import { SpeakerTimeline, type PlacedPacket, type VoicePacket } from '../audio/timeline.ts'
+import { segmentFile } from '../audio/segmenter.ts'
+import type { VoicePacket } from '../audio/timeline.ts'
 import { JournalWriter, type JournalEvent, type JournalRecord } from '../journal/journal.ts'
 import { SpeakerTranscriber, type ConnectSpeech, type Utterance } from '../speech/transcriber.ts'
 import type { SessionLocation, SessionStore, StartSessionInput, StartSessionResult } from '../store/sessionStore.ts'
+import { SessionEngine, type SessionEffect } from './engine.ts'
+import { finaliseSession, type FinaliseResult } from './finalise.ts'
 
-/** With nothing from a speaker for this long, their audio so far is closed off and stored. */
-const QUIET_CLOSE_MS = 1_500
+const DEFAULT_LAST_WORDS_MS = 8_000
 
 export type RecorderOptions = {
   store: SessionStore
@@ -26,15 +26,16 @@ export type RecorderOptions = {
   journalSyncEveryMs?: number
   /** How to reach the speech service. Without it the session is recorded but not transcribed. */
   connectSpeech?: ConnectSpeech
+  /** How long finalising keeps trying to complete the transcript before flagging the session. */
+  finaliseGiveUpAfterMs?: number
+  /** How long `stop` gives the speech service to settle each speaker's last words before finalising takes over. */
+  lastWordsMs?: number
 }
 
-type SpeakerState = {
-  timeline: SpeakerTimeline
-  segmenter: Segmenter
-  transcriber: SpeakerTranscriber | null
+type SpeakerTranscription = {
+  transcriber: SpeakerTranscriber
   /** The last write of this speaker's utterances, so that the next waits its turn. */
   publishing: Promise<void>
-  lastPacketAtMs: number
 }
 
 export type StartRecordingResult =
@@ -44,26 +45,23 @@ export type StartRecordingResult =
 export class SessionRecorder {
   readonly location: SessionLocation
   readonly journalPath: string
+  #options: RecorderOptions
   #store: SessionStore
   #journal: JournalWriter
-  #startedAtMs: number
-  #maxSegmentSeconds: number | undefined
-  #connectSpeech: ConnectSpeech | undefined
+  #engine: SessionEngine
   #keyterms: string[]
-  #speakers = new Map<string, SpeakerState>()
-  #disconnectedAtMs: number | null = null
-  #stopped = false
+  #transcription = new Map<string, SpeakerTranscription>()
+  #stopping: Promise<FinaliseResult> | null = null
   /** Writes to the store still in flight, and anything that went wrong with them. */
   #pending = new Set<Promise<void>>()
   readonly failures: unknown[] = []
 
   private constructor(location: SessionLocation, startedAtMs: number, keyterms: string[], options: RecorderOptions) {
     this.location = location
+    this.#options = options
     this.#store = options.store
-    this.#connectSpeech = options.connectSpeech
     this.#keyterms = keyterms
-    this.#startedAtMs = startedAtMs
-    this.#maxSegmentSeconds = options.maxSegmentSeconds
+    this.#engine = new SessionEngine(startedAtMs, options.maxSegmentSeconds)
     this.journalPath = path.join(options.journalDir, `${location.sessionId}.journal`)
     this.#journal = new JournalWriter(this.journalPath, options.journalSyncEveryMs)
   }
@@ -74,7 +72,7 @@ export class SessionRecorder {
     if (result.status !== 'started') return result
     const keyterms = options.connectSpeech ? await options.store.vocabulary(result.location) : []
     const recorder = new SessionRecorder(result.location, input.startedAtMs, keyterms, options)
-    recorder.#record({ atMs: input.startedAtMs, kind: 'session-started', sessionId: result.location.sessionId })
+    recorder.#record({ atMs: input.startedAtMs, kind: 'session-started', ...result.location })
     return { status: 'started', recorder, number: result.number }
   }
 
@@ -106,23 +104,43 @@ export class SessionRecorder {
    * stored without waiting for them to speak again, and keeps transcription moving.
    */
   tick(nowMs: number): void {
-    for (const [speakerId, speaker] of this.#speakers) {
-      // The tail of a burst is let go before the speech service is asked to settle it.
-      this.#archive(speaker, speaker.timeline.releaseDue(nowMs))
-      if (nowMs - speaker.lastPacketAtMs >= QUIET_CLOSE_MS) this.#closeRun(speakerId, false)
-      speaker.transcriber?.tick(nowMs)
-    }
+    if (this.#stopping) return
+    this.#act(this.#engine.tick(nowMs))
+    for (const { transcriber } of this.#transcription.values()) transcriber.tick(nowMs)
   }
 
-  /** Ends recording: stores everything still held and frees the server. */
-  async stop(reason: string, atMs: number): Promise<void> {
-    if (this.#stopped) return
-    this.#record({ atMs, kind: 'session-stopped', reason })
-    // Each speaker's last words are settled by the speech service before the session is closed.
-    await Promise.all([...this.#speakers.values()].map((speaker) => speaker.transcriber?.close(atMs)))
-    await this.settled()
+  /**
+   * Ends recording and finishes the session.
+   *
+   * The server is free for a new session as soon as recording has stopped,
+   * before the rest of the work is done. Resolves once the session has ended,
+   * or has been flagged because its transcript could not be completed.
+   */
+  stop(reason: string, atMs: number): Promise<FinaliseResult> {
+    this.#stopping ??= this.#stop(reason, atMs)
+    return this.#stopping
+  }
+
+  async #stop(reason: string, atMs: number): Promise<FinaliseResult> {
+    const stopped: JournalRecord = { type: 'event', event: { atMs, kind: 'session-stopped', reason } }
+    this.#journal.append(stopped)
+    this.#act(this.#engine.apply(stopped))
     this.#journal.close()
     await this.#store.stopRecording(this.location, { stoppedAtMs: atMs, reason })
+
+    // Each speaker's last words are given a moment to settle on the connection that heard them.
+    const lastWordsMs = this.#options.lastWordsMs ?? DEFAULT_LAST_WORDS_MS
+    await Promise.all([...this.#transcription.values()].map(({ transcriber }) => transcriber.close(atMs, lastWordsMs)))
+    await this.settled()
+
+    return finaliseSession({
+      store: this.#store,
+      journalPath: this.journalPath,
+      connectSpeech: this.#options.connectSpeech,
+      maxSegmentSeconds: this.#options.maxSegmentSeconds,
+      giveUpAfterMs: this.#options.finaliseGiveUpAfterMs,
+      nowMs: atMs,
+    })
   }
 
   /** Resolves once every write to the store begun so far has finished. */
@@ -134,99 +152,52 @@ export class SessionRecorder {
     this.#handle({ type: 'event', event })
   }
 
-  /** Journals a record, then acts on it. */
+  /** Journals a record, then acts on what it means. */
   #handle(record: JournalRecord): void {
-    if (this.#stopped) return
+    if (this.#stopping) return
     this.#journal.append(record)
-    this.#apply(record)
+    this.#act(this.#engine.apply(record))
   }
 
-  #apply(record: JournalRecord): void {
-    if (record.type === 'packet') {
-      const speaker = this.#speaker(record.packet.speakerId)
-      speaker.lastPacketAtMs = record.packet.receivedAtMs
-      this.#archive(speaker, speaker.timeline.push(record.packet))
-      return
-    }
-
-    const { event } = record
-    switch (event.kind) {
-      case 'speaker-joined':
-        this.#track(this.#store.recordSpeaker(this.location, { discordId: event.speakerId, displayName: event.displayName }))
-        break
-      case 'speaker-left':
-        // Whatever they send on returning is a new stream, numbered afresh.
-        this.#closeRun(event.speakerId, true)
-        break
-      case 'disconnected':
-        this.#disconnectedAtMs = event.atMs
-        for (const speakerId of this.#speakers.keys()) this.#closeRun(speakerId, true)
-        break
-      case 'reconnected':
-        if (this.#disconnectedAtMs !== null) {
-          this.#track(
-            this.#store.recordGap(this.location, {
-              startSamples: this.#samplesAt(this.#disconnectedAtMs),
-              endSamples: this.#samplesAt(event.atMs),
-              reason: 'not-connected',
-            }),
-          )
-          this.#disconnectedAtMs = null
-        }
-        break
-      case 'session-stopped':
-        for (const speakerId of this.#speakers.keys()) this.#closeRun(speakerId, false)
-        this.#stopped = true
-        break
-      case 'session-started':
-        break
-    }
-  }
-
-  #samplesAt(atMs: number): number {
-    return Math.max(0, Math.round(((atMs - this.#startedAtMs) / 1000) * OPUS_SAMPLE_RATE))
-  }
-
-  #speaker(speakerId: string): SpeakerState {
-    let speaker = this.#speakers.get(speakerId)
-    if (!speaker) {
-      speaker = {
-        timeline: new SpeakerTimeline(speakerId, this.#startedAtMs),
-        segmenter: new Segmenter(this.#maxSegmentSeconds),
-        transcriber: this.#connectSpeech
-          ? new SpeakerTranscriber({
-              speakerId,
-              connect: this.#connectSpeech,
-              keyterms: this.#keyterms,
-              onProgress: (utterances, checkpointSamples) => this.#publish(speakerId, utterances, checkpointSamples),
-            })
-          : null,
-        publishing: Promise.resolve(),
-        lastPacketAtMs: 0,
+  #act(effects: SessionEffect[]): void {
+    for (const effect of effects) {
+      switch (effect.kind) {
+        case 'placed':
+          // The speech check decides only what is transcribed; every placed packet is archived regardless.
+          this.#transcriptionFor(effect.packet.speakerId)?.transcriber.write(effect.packet, effect.receivedAtMs)
+          break
+        case 'segment':
+          this.#track(this.#store.storeSegment(this.location, effect.segment, segmentFile(effect.segment)))
+          break
+        case 'speaker':
+          this.#track(this.#store.recordSpeaker(this.location, effect.speaker))
+          break
+        case 'gap':
+          this.#track(this.#store.recordGap(this.location, effect.gap))
+          break
+        case 'stopped':
+          break
       }
-      this.#speakers.set(speakerId, speaker)
-    }
-    return speaker
-  }
-
-  /** Stores a speaker's audio so far. With `newEpoch`, what they send next is treated as a new stream. */
-  #closeRun(speakerId: string, newEpoch: boolean): void {
-    const speaker = this.#speakers.get(speakerId)
-    if (!speaker) return
-    this.#archive(speaker, newEpoch ? speaker.timeline.startNewEpoch() : speaker.timeline.flush())
-    this.#storeSegment(speaker.segmenter.flush())
-  }
-
-  #archive(speaker: SpeakerState, placed: PlacedPacket[]): void {
-    for (const packet of placed) {
-      this.#storeSegment(speaker.segmenter.push(packet))
-      // The speech check decides only what is transcribed; everything placed is archived above regardless.
-      speaker.transcriber?.write(packet, speaker.lastPacketAtMs)
     }
   }
 
-  #storeSegment(segment: Segment | null): void {
-    if (segment) this.#track(this.#store.storeSegment(this.location, segment, segmentFile(segment)))
+  #transcriptionFor(speakerId: string): SpeakerTranscription | null {
+    const connect = this.#options.connectSpeech
+    if (!connect) return null
+    let transcription = this.#transcription.get(speakerId)
+    if (!transcription) {
+      transcription = {
+        publishing: Promise.resolve(),
+        transcriber: new SpeakerTranscriber({
+          speakerId,
+          connect,
+          keyterms: this.#keyterms,
+          onProgress: (utterances, checkpointSamples) => this.#publish(speakerId, utterances, checkpointSamples),
+        }),
+      }
+      this.#transcription.set(speakerId, transcription)
+    }
+    return transcription
   }
 
   /**
@@ -235,13 +206,13 @@ export class SessionRecorder {
    * database retry them against each other.
    */
   #publish(speakerId: string, utterances: Utterance[], checkpointSamples: number): void {
-    const speaker = this.#speakers.get(speakerId)
-    if (!speaker) return
-    const write = speaker.publishing.then(() =>
+    const transcription = this.#transcription.get(speakerId)
+    if (!transcription) return
+    const write = transcription.publishing.then(() =>
       this.#store.publishUtterances(this.location, speakerId, utterances, checkpointSamples),
     )
     // A failed write is recorded by `#track`; it must not stop the ones after it.
-    speaker.publishing = write.catch(() => undefined)
+    transcription.publishing = write.catch(() => undefined)
     this.#track(write)
   }
 

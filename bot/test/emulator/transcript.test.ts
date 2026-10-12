@@ -151,7 +151,7 @@ test('the campaign\'s character and NPC names are offered to the speech service'
   assert.deepEqual([...speech.connections[0]!.keyterms].sort(), ['Eric the Town Reeve', 'Thrillho', 'Victorf'])
 })
 
-test('a session with no speech service is still recorded, with no transcript', async () => {
+test('a session with no speech service still has its audio stored, and is flagged as lacking a transcript', async () => {
   const result = await SessionRecorder.start(
     { discordServerId: SERVER, discordChannelId: 'voice', startedByDiscordId: JEM, startedAtMs: START },
     { store, journalDir, journalSyncEveryMs: 0 },
@@ -159,10 +159,14 @@ test('a session with no speech service is still recorded, with no transcript', a
   assert.equal(result.status, 'started')
   const { recorder } = result as Extract<typeof result, { status: 'started' }>
   deliver(recorder, new Wire(JEM, { startMs: START + 1_000 }).send(new Voice().speak(1)), START + 4_000)
-  await recorder.stop('stop command', START + 4_000)
+  const outcome = await recorder.stop('stop command', START + 4_000)
 
+  assert.equal(outcome.status, 'needs-attention')
   assert.equal((await db.collection(sessionPath(recorder.location, 'segments')).get()).size, 1)
   assert.deepEqual(await transcript(recorder.location), [])
+  const session = (await db.doc(sessionPath(recorder.location)).get()).data()!
+  assert.equal(session.state, 'finalising')
+  assert.match(session.needsAttention, /transcript is incomplete/)
 })
 
 test('publishing the same utterance twice leaves one, and never moves the checkpoint back', async () => {

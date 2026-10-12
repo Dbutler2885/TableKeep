@@ -9,7 +9,7 @@ const START = 1_000_000
 const RATE = 48_000
 
 /** A transcriber for one speaker, with what it has reported so far. */
-function setUp() {
+function setUp(options: { resumeFromSamples?: number } = {}) {
   const speech = scriptedSpeech()
   const progress: { utterances: Utterance[]; checkpoint: number }[] = []
   const transcriber = new SpeakerTranscriber({
@@ -17,6 +17,7 @@ function setUp() {
     connect: speech.connect,
     keyterms: ['Brandonsford', 'Victorf'],
     onProgress: (utterances, checkpoint) => progress.push({ utterances, checkpoint }),
+    ...options,
   })
   const timeline = new SpeakerTimeline('jem', START)
   const voice = new Voice()
@@ -163,4 +164,103 @@ test('closing settles the last words and closes the connection', async () => {
 
   assert.deepEqual(utterances().map((utterance) => utterance.text), ['w0.0 w0.5'])
   assert.equal(speech.connections[0]!.closed, true)
+})
+
+/** Lets `seconds` pass from `fromMs`, ticking ten times a second, and returns the time reached. */
+function wait(transcriber: SpeakerTranscriber, fromMs: number, seconds: number): number {
+  let now = fromMs
+  for (let step = 0; step < seconds * 10; step += 1) {
+    now += 100
+    transcriber.tick(now)
+  }
+  return now
+}
+
+test('if the connection is lost mid-sentence, what had not been settled is sent again on a new one', () => {
+  const { speech, transcriber, say, utterances } = setUp()
+  const wire = new Wire('jem', { startMs: START + 10_000 })
+  let now = wait(transcriber, say(wire, 2), 1)
+  assert.equal(utterances().length, 1)
+
+  wire.quiet(5)
+  now = say(wire, 2)
+  speech.connections[0]!.fail()
+  wait(transcriber, now, 3)
+
+  assert.equal(speech.connections.length, 2)
+  // The new connection is sent the unsettled sentence, whole, and nothing that was already settled.
+  assert.equal(Number(speech.connections[1]!.secondsSent.toFixed(2)), 2)
+  assert.deepEqual(
+    utterances().map((utterance) => [utterance.startSamples / RATE, utterance.endSamples / RATE, utterance.text]),
+    [
+      [10, 11.9, 'w0.0 w0.5 w1.0 w1.5'],
+      // Its words are timed from zero on the new connection, and still land where they were spoken.
+      [17, 18.9, 'w0.0 w0.5 w1.0 w1.5'],
+    ],
+  )
+  assert.equal(transcriber.caughtUp, true)
+})
+
+test('while the service cannot be reached nothing is lost, and it is tried again less and less often', () => {
+  const { speech, transcriber, say, utterances } = setUp()
+  speech.down = true
+  let now = say(new Wire('jem', { startMs: START + 4_000 }), 1)
+
+  now = wait(transcriber, now, 10)
+  // Straight away, then after one, two and four seconds: four attempts in ten seconds, not a hundred.
+  assert.equal(speech.refused, 4)
+  assert.equal(utterances().length, 0)
+  assert.equal(transcriber.caughtUp, false)
+
+  speech.down = false
+  wait(transcriber, now, 10)
+
+  assert.deepEqual(
+    utterances().map((utterance) => [utterance.startSamples / RATE, utterance.text]),
+    [[4, 'w0.0 w0.5']],
+  )
+  assert.equal(transcriber.caughtUp, true)
+})
+
+test('catching up after an outage is sent no faster than the service accepts', () => {
+  const { speech, transcriber, say } = setUp()
+  speech.down = true
+  let now = say(new Wire('jem', { startMs: START }), 20)
+  speech.down = false
+  // After twenty seconds of failed attempts the next one is up to half a minute away.
+  while (speech.connections.length === 0) now = wait(transcriber, now, 0.1)
+  const connection = speech.connections[0]!
+  const justAfterConnecting = connection.secondsSent
+
+  now = wait(transcriber, now, 4)
+  const fourSecondsLater = connection.secondsSent
+  wait(transcriber, now, 20)
+
+  // A few seconds at once, then at a quarter faster than real time: four seconds buys five.
+  assert.ok(justAfterConnecting <= 3.1, `sent ${justAfterConnecting}s at once`)
+  assert.ok(Math.abs(fourSecondsLater - justAfterConnecting - 5) < 0.2, `sent ${fourSecondsLater - justAfterConnecting}s in four seconds`)
+  assert.equal(Number(connection.secondsSent.toFixed(2)), 20)
+  assert.equal(transcriber.caughtUp, true)
+})
+
+test('picking a session up again transcribes only what comes after the point already reached', () => {
+  const { speech, transcriber, say, utterances } = setUp({ resumeFromSamples: 5 * RATE })
+  const now = say(new Wire('jem', { startMs: START + 3_000 }), 4)
+  wait(transcriber, now, 1)
+
+  assert.equal(Number(speech.connections[0]!.secondsSent.toFixed(2)), 2)
+  assert.deepEqual(
+    utterances().map((utterance) => [utterance.startSamples / RATE, utterance.endSamples / RATE]),
+    [[5, 6.9]],
+  )
+})
+
+test('closing waits for a service that is down to come back, up to a limit', async () => {
+  const { speech, transcriber, say, utterances } = setUp()
+  speech.down = true
+  const now = say(new Wire('jem', { startMs: START }), 1)
+
+  const gaveUp = await transcriber.close(now, 150)
+  assert.equal(gaveUp, false)
+  assert.equal(utterances().length, 0)
 })

@@ -23,7 +23,8 @@ const MAX_RECORD_BYTES = 1_000_000
 
 /** Something that happened in the session other than audio arriving. */
 export type JournalEvent = { atMs: number } & (
-  | { kind: 'session-started'; sessionId: string }
+  /** Where the session lives, so that the journal alone is enough to pick it up again. */
+  | { kind: 'session-started'; groupId: string; campaignId: string; sessionId: string }
   | { kind: 'speaker-joined'; speakerId: string; displayName: string }
   | { kind: 'speaker-left'; speakerId: string }
   /** The bot lost its connection to the voice channel, and could hear nobody until it reconnected. */

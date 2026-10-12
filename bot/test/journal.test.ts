@@ -18,7 +18,7 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }))
 function someRecords(): JournalRecord[] {
   const packets = new Wire('jem', { startMs: 1_000 }).send(new Voice().speak(0.2))
   return [
-    { type: 'event', event: { atMs: 990, kind: 'session-started', sessionId: 'session-1' } },
+    { type: 'event', event: { atMs: 990, kind: 'session-started', groupId: 'group-1', campaignId: 'campaign-1', sessionId: 'session-1' } },
     { type: 'event', event: { atMs: 995, kind: 'speaker-joined', speakerId: 'jem', displayName: 'Jem' } },
     ...packets.map((packet): JournalRecord => ({ type: 'packet', packet })),
     { type: 'event', event: { atMs: 1_300, kind: 'session-stopped', reason: 'stop command' } },

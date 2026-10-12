@@ -18,6 +18,8 @@ export type DeepgramOptions = {
 
 class DeepgramConnection implements SpeechConnection {
   onmessage: ((message: Record<string, unknown>) => void) | null = null
+  onclose: (() => void) | null = null
+  #closeRequested = false
   #socket: WebSocket
   /** What was asked for before the connection finished opening, sent in order once it has. */
   #waiting: (Int16Array | string)[] = []
@@ -45,7 +47,13 @@ class DeepgramConnection implements SpeechConnection {
     this.#socket.addEventListener('message', (event) => {
       if (typeof event.data === 'string') this.onmessage?.(JSON.parse(event.data) as Record<string, unknown>)
     })
-    this.#closed = new Promise((resolve) => this.#socket.addEventListener('close', () => resolve()))
+    this.#closed = new Promise((resolve) => {
+      // A failure to connect ends in a close as well, so this one event covers both.
+      this.#socket.addEventListener('close', () => {
+        resolve()
+        if (!this.#closeRequested) this.onclose?.()
+      })
+    })
   }
 
   #send(item: Int16Array | string): void {
@@ -67,6 +75,7 @@ class DeepgramConnection implements SpeechConnection {
   }
 
   async close(): Promise<void> {
+    this.#closeRequested = true
     this.#send(JSON.stringify({ type: 'CloseStream' }))
     await Promise.race([this.#closed, new Promise<void>((resolve) => setTimeout(resolve, CLOSE_TIMEOUT_MS))])
     if (this.#socket.readyState !== WebSocket.CLOSED) this.#socket.close()

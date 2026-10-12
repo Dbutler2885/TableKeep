@@ -87,9 +87,16 @@ export class SpeakerTimeline {
     return released
   }
 
-  /** Takes a packet in and returns any that are now safe to release, in order. */
+  /**
+   * Takes a packet in and returns any that are now safe to release, in order.
+   *
+   * What is released, and what is dropped as too late, depends only on the
+   * packets and their arrival times, never on when `releaseDue` happened to be
+   * called. So replaying a journal of the same packets always gives the same
+   * result as the live session did.
+   */
   push(packet: VoicePacket): PlacedPacket[] {
-    const released: PlacedPacket[] = []
+    const released: PlacedPacket[] = this.releaseDue(packet.receivedAtMs)
     if (!this.#needsNewEpoch && this.#last && this.#looksLikeNewStream(packet)) {
       released.push(...this.startNewEpoch())
     }

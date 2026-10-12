@@ -11,6 +11,7 @@ import { SPEECH_SAMPLE_RATE, type ConnectSpeech, type SpeechConnection, type Spe
 
 export class ScriptedConnection implements SpeechConnection {
   onmessage: ((message: Record<string, unknown>) => void) | null = null
+  onclose: (() => void) | null = null
   readonly keyterms: string[]
   /** Everything asked of the service, in order. */
   readonly log: string[] = []
@@ -43,6 +44,12 @@ export class ScriptedConnection implements SpeechConnection {
     this.closed = true
   }
 
+  /** The connection drops, as when the service or the network fails mid-session. */
+  fail(): void {
+    this.log.push('failed')
+    this.onclose?.()
+  }
+
   /** A final result covering everything sent since the last one, with a word for each half second. */
   result(flags: Partial<SpeechResult> = {}): SpeechResult {
     const start = this.#settledSeconds
@@ -67,17 +74,33 @@ export class ScriptedConnection implements SpeechConnection {
   }
 }
 
-/** A speech service that hands out scripted connections and remembers them, one per speaker in order. */
-export function scriptedSpeech(): { connect: ConnectSpeech; connections: ScriptedConnection[] } {
-  const connections: ScriptedConnection[] = []
-  return {
-    connections,
+export type ScriptedSpeech = {
+  connect: ConnectSpeech
+  /** Every connection handed out, in order. */
+  connections: ScriptedConnection[]
+  /** While true the service cannot be reached: every attempt to connect fails. */
+  down: boolean
+  /** How many attempts to connect were refused while it was down. */
+  refused: number
+}
+
+/** A speech service that hands out scripted connections and remembers them. */
+export function scriptedSpeech(): ScriptedSpeech {
+  const speech: ScriptedSpeech = {
+    connections: [],
+    down: false,
+    refused: 0,
     connect: ({ keyterms }) => {
+      if (speech.down) {
+        speech.refused += 1
+        throw new Error('The speech service cannot be reached.')
+      }
       const connection = new ScriptedConnection(keyterms)
-      connections.push(connection)
+      speech.connections.push(connection)
       return connection
     },
   }
+  return speech
 }
 
 /** One step of a recorded exchange with the real speech service. */
@@ -94,6 +117,7 @@ export type RecordedEntry =
  */
 export class ReplayedConnection implements SpeechConnection {
   onmessage: ((message: Record<string, unknown>) => void) | null = null
+  onclose: (() => void) | null = null
   #entries: RecordedEntry[]
   #next = 0
   #samplesSent = 0

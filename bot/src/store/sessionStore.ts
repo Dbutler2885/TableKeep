@@ -91,6 +91,25 @@ export interface SessionStore {
   recordGap(location: SessionLocation, gap: SessionGap): Promise<void>
   /** Marks recording as over and frees the server for a new session. */
   stopRecording(location: SessionLocation, input: { stoppedAtMs: number; reason: string }): Promise<void>
+  /** The names of the segments already stored, so that finalising stores only what is missing. */
+  storedSegmentIds(location: SessionLocation): Promise<Set<string>>
+  /** How far each speaker's audio has been transcribed, in samples on the session timeline. */
+  checkpoints(location: SessionLocation): Promise<Map<string, number>>
+  speakers(location: SessionLocation): Promise<SessionSpeaker[]>
+  /** Every utterance of the live transcript, in the order they were spoken. */
+  transcript(location: SessionLocation): Promise<Utterance[]>
+  /**
+   * Marks the session finished: its audio stored and its transcript complete.
+   * The rendered transcript is saved beside the audio as a convenience that
+   * can always be rebuilt from the utterances.
+   */
+  completeSession(location: SessionLocation, input: { endedAtMs: number; transcriptText: string }): Promise<void>
+  /** Marks the session as unable to finish without someone looking at it, and says why. */
+  flagSession(location: SessionLocation, reason: string): Promise<void>
+}
+
+export function transcriptObjectPath(location: SessionLocation): string {
+  return `${sessionPath(location)}/transcript.txt`
 }
 
 export function sessionPath(location: SessionLocation, ...segments: string[]): string {
@@ -145,6 +164,11 @@ export class FirestoreSessionStore implements SessionStore {
         stoppedAt: null,
         stopReason: null,
         transcriptRevision: LIVE_TRANSCRIPT,
+        audioComplete: false,
+        transcriptComplete: false,
+        recapStatus: null,
+        needsAttention: null,
+        endedAt: null,
       })
       tx.set(counterRef, { last: number, updatedAt: startedAt })
       tx.update(serverRef, { activeSession: location })
@@ -240,5 +264,50 @@ export class FirestoreSessionStore implements SessionStore {
         tx.update(serverRef, { activeSession: null })
       }
     })
+  }
+
+  async storedSegmentIds(location: SessionLocation): Promise<Set<string>> {
+    const snap = await this.#db.collection(sessionPath(location, 'segments')).select().get()
+    return new Set(snap.docs.map((doc) => doc.id))
+  }
+
+  async checkpoints(location: SessionLocation): Promise<Map<string, number>> {
+    const snap = await this.#db.collection(sessionPath(location, 'transcripts', LIVE_TRANSCRIPT, 'checkpoints')).get()
+    return new Map(snap.docs.map((doc) => [doc.id, (doc.data().samples as number | undefined) ?? 0]))
+  }
+
+  async speakers(location: SessionLocation): Promise<SessionSpeaker[]> {
+    const snap = await this.#db.collection(sessionPath(location, 'speakers')).get()
+    return snap.docs.map((doc) => doc.data() as SessionSpeaker)
+  }
+
+  async transcript(location: SessionLocation): Promise<Utterance[]> {
+    const snap = await this.#db
+      .collection(sessionPath(location, 'transcripts', LIVE_TRANSCRIPT, 'utterances'))
+      .orderBy('startSamples')
+      .get()
+    return snap.docs.map((doc) => {
+      const { speakerId, startSamples, endSamples, text } = doc.data() as Utterance
+      return { speakerId, startSamples, endSamples, text }
+    })
+  }
+
+  async completeSession(location: SessionLocation, input: { endedAtMs: number; transcriptText: string }): Promise<void> {
+    await this.#bucket
+      .file(transcriptObjectPath(location))
+      .save(input.transcriptText, { contentType: 'text/plain; charset=utf-8', resumable: false })
+    await this.#db.doc(sessionPath(location)).update({
+      state: 'ended',
+      endedAt: new Date(input.endedAtMs),
+      audioComplete: true,
+      transcriptComplete: true,
+      // Nothing writes recaps yet; this is the mark a recap is waiting to be written.
+      recapStatus: 'pending',
+      needsAttention: null,
+    })
+  }
+
+  async flagSession(location: SessionLocation, reason: string): Promise<void> {
+    await this.#db.doc(sessionPath(location)).update({ needsAttention: reason })
   }
 }
