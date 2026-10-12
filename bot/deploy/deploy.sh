@@ -68,13 +68,13 @@ setup() {
     || gc artifacts repositories create tablekeep --location "$REGION" --repository-format docker
 
   gc compute disks describe "$DISK" --zone "$ZONE" >/dev/null 2>&1 \
-    || gc compute disks create "$DISK" --zone "$ZONE" --size 20GB --type pd-balanced
+    || gc compute disks create "$DISK" --zone "$ZONE" --size 20GB --type pd-standard
 
   if ! gc compute instances describe "$VM" --zone "$ZONE" >/dev/null 2>&1; then
     gc compute instances create "$VM" --zone "$ZONE" \
-      --machine-type e2-small \
+      --machine-type e2-micro \
       --image-family cos-stable --image-project cos-cloud \
-      --boot-disk-size 10GB \
+      --boot-disk-size 10GB --boot-disk-type pd-standard \
       --disk "name=$DISK,device-name=journal,mode=rw,auto-delete=no" \
       --service-account "$ACCOUNT_EMAIL" --scopes cloud-platform \
       --metadata-from-file "user-data=$HERE/cloud-init.yaml" \
