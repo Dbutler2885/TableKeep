@@ -16,8 +16,7 @@
  *
  * A session's number also counts past every recap the campaign already has in
  * `sessionSummaries`, so the first recorded session follows the ones written
- * up before the bot, sits at the top of the Notes tab, and finds the recap
- * before it.
+ * up before the bot and finds the recap before it.
  *
  * and its audio in storage beside the campaign's other files:
  *

@@ -14,16 +14,32 @@ function timestampToMillis(value: unknown): number {
   return 0
 }
 
+/**
+ * When a note was generated.
+ *
+ * `createdAt` is the one date every writer sets once: the recap writer, the old
+ * drop-folder endpoint, and the Notes tab's own import all stamp it, and the
+ * legacy migration copied it verbatim. A note whose `createdAt` is missing falls
+ * back to `updatedAt`, and one with neither is taken to be the note just made,
+ * whose server timestamp has not arrived yet.
+ */
+function generatedAtMillis(note: SessionNote): number {
+  return timestampToMillis(note.createdAt) || timestampToMillis(note.updatedAt) || Number.MAX_SAFE_INTEGER
+}
+
+/**
+ * Newest note first, by when it was generated.
+ *
+ * The session number is not a date - a recorded session can carry a number
+ * lower than the recaps before it - so it only breaks a tie.
+ */
 export function sortSessionNotes(notes: SessionNote[]): SessionNote[] {
   return [...notes].sort((a, b) => {
+    const generatedDelta = generatedAtMillis(b) - generatedAtMillis(a)
+    if (generatedDelta !== 0) return generatedDelta
+
     const sessionDelta = (getResolvedSessionNumber(b) ?? -1) - (getResolvedSessionNumber(a) ?? -1)
     if (sessionDelta !== 0) return sessionDelta
-
-    const updatedDelta = timestampToMillis(b.updatedAt) - timestampToMillis(a.updatedAt)
-    if (updatedDelta !== 0) return updatedDelta
-
-    const createdDelta = timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt)
-    if (createdDelta !== 0) return createdDelta
 
     return b.title.localeCompare(a.title, undefined, { numeric: true, sensitivity: 'base' })
   })
