@@ -3,13 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, renderHook } from '@testing-library/react'
 import type { SessionNote } from '../../types/app'
 
-type StoredDoc = { id: string; data: () => Record<string, unknown> }
+type SnapshotOptions = { serverTimestamps?: 'estimate' | 'previous' | 'none' }
+type StoredDoc = { id: string; data: (options?: SnapshotOptions) => Record<string, unknown> }
 type Snapshot = { docs: StoredDoc[] }
 
 const SERVER_TIMESTAMP = { sentinel: 'serverTimestamp' }
+const LOCAL_NOW = 50_000
 
 const mocks = vi.hoisted(() => ({
-  emit: null as ((snap: { docs: { id: string; data: () => Record<string, unknown> }[] }) => void) | null,
+  emit: null as ((snap: { docs: { id: string; data: (options?: { serverTimestamps?: string }) => Record<string, unknown> }[] }) => void) | null,
   fail: null as ((error: unknown) => void) | null,
   subscribedTo: [] as string[],
   setDoc: vi.fn(async (..._args: unknown[]) => undefined),
@@ -18,6 +20,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
+  Timestamp: { now: () => ({ toMillis: () => LOCAL_NOW }) },
   collection: (_db: unknown, path: string) => ({ path }),
   doc: (_db: unknown, path: string) => ({ path }),
   deleteDoc: mocks.deleteDoc,
@@ -219,6 +222,18 @@ describe('useSessionNotes addNote', () => {
     expect(options).toBeUndefined()
   })
 
+  it('puts a new note first, with a local creation time, before the server stamps it', () => {
+    const { result } = renderNotes([
+      stored('older', { sessionNumber: 1, createdAt: 1_000 }),
+      stored('newer', { sessionNumber: 2, createdAt: 2_000 }),
+    ])
+
+    act(() => result.current.addNote(draft('made', { title: 'The Wyrm Wakes' })))
+
+    expect(ids(result.current.notes)).toEqual(['made', 'newer', 'older'])
+    expect((result.current.notes[0].createdAt as { toMillis: () => number }).toMillis()).toBe(LOCAL_NOW)
+  })
+
   it('keeps the session number a new note already carries', () => {
     const { result } = renderNotes([stored('four', { sessionNumber: 4 })])
 
@@ -266,7 +281,9 @@ describe('useSessionNotes updateNote', () => {
     expect(mocks.setDoc).toHaveBeenCalledTimes(1)
     const [ref, payload, options] = mocks.setDoc.mock.calls[0]
     expect(ref).toEqual(docPath('note'))
-    expect(payload).toMatchObject({ overallSummary: 'Second', sessionNumber: 5, createdAt: 1_000, updatedAt: SERVER_TIMESTAMP })
+    expect(payload).toMatchObject({ overallSummary: 'Second', sessionNumber: 5, updatedAt: SERVER_TIMESTAMP })
+    // createdAt is set once, when the note is made; an edit must not write it back.
+    expect(payload).not.toHaveProperty('createdAt')
     expect(payload).not.toHaveProperty('id')
     expect(options).toEqual({ merge: true })
   })
@@ -405,5 +422,36 @@ describe('useSessionNotes deleteNote', () => {
     await flushRejections()
 
     expect(consoleError).toHaveBeenCalledWith('Failed to delete session note', { noteId: 'gone', error: failure })
+  })
+})
+
+describe('useSessionNotes ordering by creation date', () => {
+  it('dates a note by the estimate of a creation stamp the server has not confirmed yet', () => {
+    const pending: StoredDoc = {
+      id: 'pending',
+      data: (options) => ({
+        sessionNumber: 3,
+        createdAt: options?.serverTimestamps === 'estimate' ? { toMillis: () => 9_000 } : null,
+      }),
+    }
+
+    const { result } = renderNotes([stored('dated', { sessionNumber: 4, createdAt: 2_000 }), pending])
+
+    expect(ids(result.current.notes)).toEqual(['pending', 'dated'])
+  })
+
+  it('keeps a saved note with no date below every dated note, even after it is edited', () => {
+    const { result } = renderNotes([
+      stored('undated', { sessionNumber: 20 }),
+      stored('dated', { sessionNumber: 1, createdAt: 1_000 }),
+    ])
+
+    expect(ids(result.current.notes)).toEqual(['dated', 'undated'])
+
+    act(() => result.current.updateNote('undated', { overallSummary: 'Edited' }))
+    act(() => vi.advanceTimersByTime(500))
+
+    expect(ids(result.current.notes)).toEqual(['dated', 'undated'])
+    expect(mocks.setDoc.mock.calls[0][1]).not.toHaveProperty('createdAt')
   })
 })

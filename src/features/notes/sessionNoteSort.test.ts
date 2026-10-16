@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionNote } from '../../types/app'
-import { sortSessionNotes } from './sessionNoteSort'
+import { sortSessionNotes, timestampToMillis } from './sessionNoteSort'
 
 type NoteFields = { sessionNumber?: number | null; title?: string; createdAt?: unknown; updatedAt?: unknown }
 
@@ -58,21 +58,28 @@ describe('sortSessionNotes', () => {
     expect(ids(sorted)).toEqual(['session-10', 'session-2', 'loose-b', 'loose-a'])
   })
 
-  it('dates a note saved without createdAt by its updatedAt', () => {
+  it('puts a note with no date below every dated note', () => {
     const sorted = sortSessionNotes([
-      note('dated', { sessionNumber: 17, createdAt: 2_000 }),
-      note('updated-only', { sessionNumber: 18, createdAt: null, updatedAt: 1_000 }),
+      note('undated', { sessionNumber: 20 }),
+      note('dated', { sessionNumber: 1, createdAt: 1_000 }),
     ])
 
-    expect(ids(sorted)).toEqual(['dated', 'updated-only'])
+    expect(ids(sorted)).toEqual(['dated', 'undated'])
+  })
+})
+
+describe('timestampToMillis', () => {
+  it('reads every form a stored or local date takes', () => {
+    expect(timestampToMillis(1_500)).toBe(1_500)
+    expect(timestampToMillis(new Date(2_000))).toBe(2_000)
+    expect(timestampToMillis({ toMillis: () => 3_000 })).toBe(3_000)
+    expect(timestampToMillis({ seconds: 4, nanoseconds: 0 })).toBe(4_000)
   })
 
-  it('puts a note with no date yet, one just made, above every dated note', () => {
-    const sorted = sortSessionNotes([
-      note('dated', { sessionNumber: 17, createdAt: 2_000 }),
-      note('just-made', { sessionNumber: 18 }),
-    ])
-
-    expect(ids(sorted)).toEqual(['just-made', 'dated'])
+  it('reads anything that is not a date as no date at all', () => {
+    expect(timestampToMillis(null)).toBe(0)
+    expect(timestampToMillis(Number.NaN)).toBe(0)
+    expect(timestampToMillis('2026-10-16')).toBe(0)
+    expect(timestampToMillis({})).toBe(0)
   })
 })

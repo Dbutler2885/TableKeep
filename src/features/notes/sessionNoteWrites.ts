@@ -22,7 +22,8 @@ export function createSessionNoteDoc(campaign: CampaignScope, note: SessionNote)
 }
 
 function saveSessionNoteDoc(campaign: CampaignScope, note: SessionNote) {
-  const { id, ...data } = note
+  // createdAt is set once, when the note is made; an edit must not move it.
+  const { id, createdAt: _createdAt, ...data } = note
   void setDoc(
     sessionNoteRef(campaign, id),
     { ...data, updatedAt: serverTimestamp() },

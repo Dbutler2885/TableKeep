@@ -72,6 +72,20 @@ describe('SessionNoteDetail reading', () => {
     expect(screen.queryAllByRole('heading', { level: 3 })).toEqual([])
   })
 
+  it('names an untitled session once, in its heading', () => {
+    renderDetail(note({ title: '', sessionNumber: 4 }), 'player')
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Session 4' })).toBeTruthy()
+    expect(screen.getAllByText('Session 4')).toHaveLength(1)
+  })
+
+  it('shows the session number of a note saved without one, read from its title', () => {
+    renderDetail(note({ title: 'Session 7: Into the Mire', sessionNumber: null }), 'player')
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Into the Mire' })).toBeTruthy()
+    expect(screen.getByText('Session 7')).toBeTruthy()
+  })
+
   it('falls back to the markdown summary only when there is no overall summary', () => {
     const { rerender } = renderDetail(note({ summaryMarkdown: 'Markdown line one\nMarkdown line two' }), 'player')
 
