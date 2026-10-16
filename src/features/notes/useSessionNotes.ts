@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { deleteDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
+import { onSnapshot, type QueryDocumentSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase'
-import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
+import { campaignCollectionRef } from '../campaign/firestorePaths'
 import type {
   SessionCalendarEntry,
   SessionNote,
@@ -11,6 +11,15 @@ import type {
 } from '../../types/app'
 import { sortSessionNotes } from './sessionNoteSort'
 import { getResolvedSessionNumber, sanitizeSessionTitle } from './sessionNoteUtils'
+import { applySessionNotePatch, sessionNumberBackfills } from './sessionNotePatch'
+import {
+  cancelPendingNoteWrite,
+  createSessionNoteDoc,
+  deleteSessionNoteDoc,
+  saveSessionNumberDoc,
+  scheduleSessionNoteSave,
+  type PendingNoteWrites,
+} from './sessionNoteWrites'
 
 function timestampToMillis(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) return value
@@ -166,11 +175,35 @@ const backfillMissingSessionNumbers = (notes: SessionNote[]) => {
   return notes.map((note) => updates.get(note.id) ?? note)
 }
 
+/** A stored note, or the local copy while an edit to it is waiting to be saved. */
+function readSnapshotNote(
+  docSnap: QueryDocumentSnapshot,
+  pending: PendingNoteWrites,
+  localNotes: SessionNote[],
+): SessionNote {
+  if (pending[docSnap.id]) {
+    const local = localNotes.find((n) => n.id === docSnap.id)
+    if (local) return local
+  }
+  const data = docSnap.data() as Record<string, unknown>
+  return normalizeSessionNote(docSnap.id, data)
+}
+
+function numberNewNote(note: SessionNote, notes: SessionNote[]): SessionNote {
+  const sessionNumber = note.sessionNumber ?? getNextSessionNumber(notes)
+  return {
+    ...note,
+    sessionNumber,
+    title: sanitizeSessionTitle(note.title, sessionNumber),
+  }
+}
+
 export function useSessionNotes(campaignId: string, enabled = true, groupId: string) {
   const [notes, setNotes] = useState<SessionNote[]>([])
   const [notesLoading, setNotesLoading] = useState(false)
   const notesRef = useRef<SessionNote[]>([])
-  const pendingWritesRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const pendingWritesRef = useRef<PendingNoteWrites>({})
+  const campaign = { campaignId, groupId }
 
   useEffect(() => {
     notesRef.current = notes
@@ -184,31 +217,14 @@ export function useSessionNotes(campaignId: string, enabled = true, groupId: str
     }
     setNotesLoading(true)
 
+    const scope = { campaignId, groupId }
     const unsub = onSnapshot(
-      campaignCollectionRef(db, { campaignId, groupId }, 'sessionSummaries'),
+      campaignCollectionRef(db, scope, 'sessionSummaries'),
       (snap) => {
-        const all = snap.docs.map((docSnap) => {
-          if (pendingWritesRef.current[docSnap.id]) {
-            const local = notesRef.current.find((n) => n.id === docSnap.id)
-            if (local) return local
-          }
-          const data = docSnap.data() as Record<string, unknown>
-          return normalizeSessionNote(docSnap.id, data)
-        })
+        const all = snap.docs.map((docSnap) => readSnapshotNote(docSnap, pendingWritesRef.current, notesRef.current))
         const normalizedNotes = backfillMissingSessionNumbers(all)
         setNotes(sortSessionNotes(normalizedNotes))
-        normalizedNotes.forEach((note) => {
-          const original = all.find((entry) => entry.id === note.id)
-          if (!original || original.sessionNumber != null || note.sessionNumber == null) return
-
-          void setDoc(
-            campaignDocRef(db, { campaignId, groupId }, 'sessionSummaries', note.id),
-            { sessionNumber: note.sessionNumber, title: note.title },
-            { merge: true },
-          ).catch((error) => {
-            console.error('Failed to backfill session number', { noteId: note.id, error })
-          })
-        })
+        sessionNumberBackfills(all, normalizedNotes).forEach((note) => saveSessionNumberDoc(scope, note))
         setNotesLoading(false)
       },
       (error) => {
@@ -227,74 +243,22 @@ export function useSessionNotes(campaignId: string, enabled = true, groupId: str
     }
   }, [])
 
-  const scheduleWrite = (noteId: string) => {
-    if (!campaignId) return
-    const existing = pendingWritesRef.current[noteId]
-    if (existing) clearTimeout(existing)
-
-    pendingWritesRef.current[noteId] = setTimeout(() => {
-      delete pendingWritesRef.current[noteId]
-      const note = notesRef.current.find((n) => n.id === noteId)
-      if (!note) return
-
-      const { id, ...data } = note
-      void setDoc(
-        campaignDocRef(db, { campaignId, groupId }, 'sessionSummaries', id),
-        { ...data, updatedAt: serverTimestamp() },
-        { merge: true },
-      ).catch((error) => {
-        console.error('Failed to update session note', { noteId: id, error })
-      })
-    }, 500)
-  }
-
   const addNote = (note: SessionNote) => {
-    const normalizedNote = {
-      ...note,
-      sessionNumber: note.sessionNumber ?? getNextSessionNumber(notesRef.current),
-      title: sanitizeSessionTitle(note.title, note.sessionNumber ?? getNextSessionNumber(notesRef.current)),
-    }
-
+    const normalizedNote = numberNewNote(note, notesRef.current)
     setNotes((current) => sortSessionNotes([normalizedNote, ...current]))
-    if (!campaignId) return
-    const { id, ...data } = normalizedNote
-    void setDoc(
-      campaignDocRef(db, { campaignId, groupId }, 'sessionSummaries', id),
-      { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
-    ).catch((error) => {
-      console.error('Failed to create session note', { noteId: id, error })
-    })
+    createSessionNoteDoc(campaign, normalizedNote)
   }
 
   const updateNote = (noteId: string, patch: Partial<SessionNote>) => {
-    setNotes((current) => {
-      const currentNote = current.find((note) => note.id === noteId)
-      const nextSessionNumber = patch.sessionNumber
-        ?? currentNote?.sessionNumber
-        ?? getResolvedSessionNumber({ title: patch.title ?? currentNote?.title ?? '', sessionNumber: null })
-        ?? null
-      const normalizedPatch = {
-        ...patch,
-        title: patch.title == null ? currentNote?.title ?? '' : sanitizeSessionTitle(patch.title, nextSessionNumber),
-        sessionNumber: nextSessionNumber,
-      }
-
-      return sortSessionNotes(current.map((note) => (note.id === noteId ? { ...note, ...normalizedPatch } : note)))
-    })
-    scheduleWrite(noteId)
+    setNotes((current) => applySessionNotePatch(current, noteId, patch))
+    scheduleSessionNoteSave(pendingWritesRef.current, campaign, noteId, (id) => notesRef.current.find((n) => n.id === id))
   }
 
   const deleteNote = (noteId: string) => {
     if (!campaignId) return
-    const pending = pendingWritesRef.current[noteId]
-    if (pending) {
-      clearTimeout(pending)
-      delete pendingWritesRef.current[noteId]
-    }
+    cancelPendingNoteWrite(pendingWritesRef.current, noteId)
     setNotes((current) => current.filter((note) => note.id !== noteId))
-    void deleteDoc(campaignDocRef(db, { campaignId, groupId }, 'sessionSummaries', noteId)).catch((error) => {
-      console.error('Failed to delete session note', { noteId, error })
-    })
+    deleteSessionNoteDoc(campaign, noteId)
   }
 
   return { notes, notesLoading, addNote, updateNote, deleteNote }
