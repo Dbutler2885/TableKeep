@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Role, SessionNote, SessionNoteGeneratedSnapshot } from '../../types/app'
-import { sanitizeSessionTitle } from './sessionNoteUtils'
+import { getSessionCardSubtitle, sanitizeSessionTitle } from './sessionNoteUtils'
 import {
   editingSceneIndex,
   fallbackSummaryMarkdown,
@@ -144,6 +144,7 @@ export function SessionNoteDetail({ note, role, onUpdate }: SessionNoteDetailPro
   const { editingSection, cancel } = editor
 
   const canEdit = role === 'gm'
+  const subtitle = getSessionCardSubtitle(note)
 
   const toggleScene = (index: number) => {
     setExpandedScenes((prev) => toggleIndex(prev, index))
@@ -172,8 +173,8 @@ export function SessionNoteDetail({ note, role, onUpdate }: SessionNoteDetailPro
         onCancel={cancel}
       />
 
-      {note.sessionNumber != null ? (
-        <p className="session-note-number">Session {note.sessionNumber}</p>
+      {subtitle ? (
+        <p className="session-note-number">{subtitle}</p>
       ) : null}
 
       <SessionNoteSummary text={note.overallSummary} {...summaryEditing('overallSummary')} />
