@@ -47,12 +47,32 @@ describe('sortSessionNotes', () => {
     expect(ids(sorted)).toEqual(['titled', 'numbered'])
   })
 
-  it('puts a note with no date below every dated note', () => {
+  it('falls back to the title when date and session number are both the same', () => {
     const sorted = sortSessionNotes([
-      note('undated', { sessionNumber: 20 }),
-      note('dated', { sessionNumber: 1, createdAt: 1_000 }),
+      note('session-2', { title: 'Session 2', createdAt: 1_000 }),
+      note('session-10', { title: 'Session 10', createdAt: 1_000 }),
+      note('loose-a', { title: 'A loose note', createdAt: 500 }),
+      note('loose-b', { title: 'B loose note', createdAt: 500 }),
     ])
 
-    expect(ids(sorted)).toEqual(['dated', 'undated'])
+    expect(ids(sorted)).toEqual(['session-10', 'session-2', 'loose-b', 'loose-a'])
+  })
+
+  it('dates a note saved without createdAt by its updatedAt', () => {
+    const sorted = sortSessionNotes([
+      note('dated', { sessionNumber: 17, createdAt: 2_000 }),
+      note('updated-only', { sessionNumber: 18, createdAt: null, updatedAt: 1_000 }),
+    ])
+
+    expect(ids(sorted)).toEqual(['dated', 'updated-only'])
+  })
+
+  it('puts a note with no date yet, one just made, above every dated note', () => {
+    const sorted = sortSessionNotes([
+      note('dated', { sessionNumber: 17, createdAt: 2_000 }),
+      note('just-made', { sessionNumber: 18 }),
+    ])
+
+    expect(ids(sorted)).toEqual(['just-made', 'dated'])
   })
 })

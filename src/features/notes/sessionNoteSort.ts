@@ -1,7 +1,7 @@
 import type { SessionNote } from '../../types/app'
 import { getResolvedSessionNumber } from './sessionNoteUtils'
 
-export function timestampToMillis(value: unknown): number {
+function timestampToMillis(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (value instanceof Date) return value.getTime()
 
@@ -15,19 +15,28 @@ export function timestampToMillis(value: unknown): number {
 }
 
 /**
+ * When a note was generated.
+ *
+ * `createdAt` is the one date every writer sets once: the recap writer, the old
+ * drop-folder endpoint, and the Notes tab's own import all stamp it, and the
+ * legacy migration copied it verbatim. A note whose `createdAt` is missing falls
+ * back to `updatedAt`, and one with neither is taken to be the note just made,
+ * whose server timestamp has not arrived yet.
+ */
+function generatedAtMillis(note: SessionNote): number {
+  return timestampToMillis(note.createdAt) || timestampToMillis(note.updatedAt) || Number.MAX_SAFE_INTEGER
+}
+
+/**
  * Newest note first, by when it was generated.
  *
- * `createdAt` is the one date every writer sets once and nothing changes
- * afterwards: the recap writer, the old drop-folder endpoint, and the Notes
- * tab's own import all stamp it, and the legacy migration copied it verbatim.
  * The session number is not a date - a recorded session can carry a number
- * lower than the recaps before it - and `updatedAt` moves on every edit.
- * A note without a date sorts below every dated one.
+ * lower than the recaps before it - so it only breaks a tie.
  */
 export function sortSessionNotes(notes: SessionNote[]): SessionNote[] {
   return [...notes].sort((a, b) => {
-    const createdDelta = timestampToMillis(b.createdAt) - timestampToMillis(a.createdAt)
-    if (createdDelta !== 0) return createdDelta
+    const generatedDelta = generatedAtMillis(b) - generatedAtMillis(a)
+    if (generatedDelta !== 0) return generatedDelta
 
     const sessionDelta = (getResolvedSessionNumber(b) ?? -1) - (getResolvedSessionNumber(a) ?? -1)
     if (sessionDelta !== 0) return sessionDelta
