@@ -27,7 +27,7 @@
  * can read them until rules for reading are added with the app's session views.
  */
 import { createHash } from 'node:crypto'
-import { FieldValue, type Firestore } from 'firebase-admin/firestore'
+import { FieldValue, type DocumentReference, type Firestore, type Transaction } from 'firebase-admin/firestore'
 import type { getStorage } from 'firebase-admin/storage'
 import { campaignPath, groupMemberPath } from '../../../functions/src/firestorePaths.ts'
 import { segmentId, type Segment } from '../audio/segmenter.ts'
@@ -176,6 +176,62 @@ export function segmentObjectPath(location: SessionLocation, segment: Pick<Segme
   return `${sessionPath(location)}/audio/${segment.speakerId}/${segmentId(segment)}.ogg`
 }
 
+/** The campaign a new session on this server would belong to, or why there is none. */
+async function recordingCampaign(
+  db: Firestore,
+  tx: Transaction,
+  serverRef: DocumentReference,
+): Promise<Exclude<StartSessionResult, { status: 'started' }> | { status: 'ready'; groupId: string; campaignId: string }> {
+  const server = (await tx.get(serverRef)).data() ?? {}
+  const groupId = server.groupId as string | undefined
+  if (!groupId) return { status: 'server-not-linked' }
+
+  const active = server.activeSession as SessionLocation | undefined
+  if (active) return { status: 'already-recording', location: active }
+
+  const groupSnap = await tx.get(db.collection('groups').doc(groupId))
+  const campaignId = groupSnap.data()?.activeCampaignId as string | undefined
+  if (!campaignId) return { status: 'no-current-campaign', groupId }
+  return { status: 'ready', groupId, campaignId }
+}
+
+/** One more than the higher of the last number given out and the last recap the campaign has. */
+async function nextSessionNumber(
+  db: Firestore,
+  tx: Transaction,
+  groupId: string,
+  campaignId: string,
+): Promise<{ number: number; counterRef: DocumentReference }> {
+  const counterRef = db.doc(campaignPath(groupId, campaignId, 'sessionCounters', 'sessions'))
+  const [counterSnap, summariesSnap] = await Promise.all([
+    tx.get(counterRef),
+    tx.get(db.collection(campaignPath(groupId, campaignId, 'sessionSummaries')).select('sessionNumber', 'title')),
+  ])
+  const lastGiven = (counterSnap.data()?.last as number | undefined) ?? 0
+  const lastRecap = Math.max(0, ...summariesSnap.docs.map((doc) => summarySessionNumber(doc.data()) ?? 0))
+  return { number: Math.max(lastGiven, lastRecap) + 1, counterRef }
+}
+
+function newSessionRecord(input: StartSessionInput, number: number, startedAt: Date) {
+  return {
+    number,
+    state: 'running',
+    discordServerId: input.discordServerId,
+    discordChannelId: input.discordChannelId,
+    discordTextChannelId: input.discordTextChannelId ?? null,
+    startedByDiscordId: input.startedByDiscordId,
+    startedAt,
+    stoppedAt: null,
+    stopReason: null,
+    transcriptRevision: LIVE_TRANSCRIPT,
+    audioComplete: false,
+    transcriptComplete: false,
+    recapStatus: null,
+    needsAttention: null,
+    endedAt: null,
+  }
+}
+
 export class FirestoreSessionStore implements SessionStore {
   #db: Firestore
   #bucket: Bucket
@@ -192,45 +248,15 @@ export class FirestoreSessionStore implements SessionStore {
     // One transaction decides everything, so two people typing the command at
     // the same moment cannot both start a session or be given the same number.
     return db.runTransaction(async (tx): Promise<StartSessionResult> => {
-      const serverSnap = await tx.get(serverRef)
-      const groupId = serverSnap.data()?.groupId as string | undefined
-      if (!groupId) return { status: 'server-not-linked' }
-
-      const active = serverSnap.data()?.activeSession as SessionLocation | undefined
-      if (active) return { status: 'already-recording', location: active }
-
-      const groupSnap = await tx.get(db.collection('groups').doc(groupId))
-      const campaignId = groupSnap.data()?.activeCampaignId as string | undefined
-      if (!campaignId) return { status: 'no-current-campaign', groupId }
-
-      const counterRef = db.doc(campaignPath(groupId, campaignId, 'sessionCounters', 'sessions'))
-      const [counterSnap, summariesSnap] = await Promise.all([
-        tx.get(counterRef),
-        tx.get(db.collection(campaignPath(groupId, campaignId, 'sessionSummaries')).select('sessionNumber', 'title')),
-      ])
-      const lastRecap = Math.max(0, ...summariesSnap.docs.map((doc) => summarySessionNumber(doc.data()) ?? 0))
-      const number = Math.max((counterSnap.data()?.last as number | undefined) ?? 0, lastRecap) + 1
+      const campaign = await recordingCampaign(db, tx, serverRef)
+      if (campaign.status !== 'ready') return campaign
+      const { groupId, campaignId } = campaign
+      const { number, counterRef } = await nextSessionNumber(db, tx, groupId, campaignId)
 
       const sessionRef = db.collection(campaignPath(groupId, campaignId, 'sessions')).doc()
       const location: SessionLocation = { groupId, campaignId, sessionId: sessionRef.id }
       const startedAt = new Date(input.startedAtMs)
-      tx.set(sessionRef, {
-        number,
-        state: 'running',
-        discordServerId: input.discordServerId,
-        discordChannelId: input.discordChannelId,
-        discordTextChannelId: input.discordTextChannelId ?? null,
-        startedByDiscordId: input.startedByDiscordId,
-        startedAt,
-        stoppedAt: null,
-        stopReason: null,
-        transcriptRevision: LIVE_TRANSCRIPT,
-        audioComplete: false,
-        transcriptComplete: false,
-        recapStatus: null,
-        needsAttention: null,
-        endedAt: null,
-      })
+      tx.set(sessionRef, newSessionRecord(input, number, startedAt))
       tx.set(counterRef, { last: number, updatedAt: startedAt })
       tx.update(serverRef, { activeSession: location })
       return { status: 'started', location, number }
