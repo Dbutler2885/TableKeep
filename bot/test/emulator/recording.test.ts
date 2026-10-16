@@ -146,7 +146,7 @@ test('the first recorded session in a campaign with older recaps is numbered aft
   for (let number = 1; number <= 16; number += 1) {
     await summaries.doc(`legacy-${number}`).set({ title: `Session ${number}`, sessionNumber: number })
   }
-  // An unnumbered summary counts for the number its title gives, as it does in the Notes tab's order.
+  // An unnumbered summary counts for the number its title gives, as it does in the Notes tab.
   await summaries.doc('titled').set({ title: 'Session 17: The Wyrm Wakes', sessionNumber: null })
   await summaries.doc('untitled').set({ title: 'A loose note', sessionNumber: null })
 

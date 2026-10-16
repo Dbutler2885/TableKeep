@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { deleteDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
+import { Timestamp, deleteDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { campaignCollectionRef, campaignDocRef } from '../campaign/firestorePaths'
 import type {
@@ -9,21 +9,8 @@ import type {
   SessionNpcMention,
   SessionScene,
 } from '../../types/app'
-import { sortSessionNotes } from './sessionNoteSort'
+import { sortSessionNotes, timestampToMillis } from './sessionNoteSort'
 import { getResolvedSessionNumber, sanitizeSessionTitle } from './sessionNoteUtils'
-
-function timestampToMillis(value: unknown): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (value instanceof Date) return value.getTime()
-
-  if (value && typeof value === 'object') {
-    const maybeTimestamp = value as { toMillis?: () => number; seconds?: number }
-    if (typeof maybeTimestamp.toMillis === 'function') return maybeTimestamp.toMillis()
-    if (typeof maybeTimestamp.seconds === 'number') return maybeTimestamp.seconds * 1000
-  }
-
-  return 0
-}
 
 const normalizeScenes = (value: unknown): SessionScene[] => {
   if (!Array.isArray(value)) return []
@@ -192,7 +179,8 @@ export function useSessionNotes(campaignId: string, enabled = true, groupId: str
             const local = notesRef.current.find((n) => n.id === docSnap.id)
             if (local) return local
           }
-          const data = docSnap.data() as Record<string, unknown>
+          // A note whose creation the server has not stamped yet still needs a date to sort by.
+          const data = docSnap.data({ serverTimestamps: 'estimate' }) as Record<string, unknown>
           return normalizeSessionNote(docSnap.id, data)
         })
         const normalizedNotes = backfillMissingSessionNumbers(all)
@@ -237,7 +225,8 @@ export function useSessionNotes(campaignId: string, enabled = true, groupId: str
       const note = notesRef.current.find((n) => n.id === noteId)
       if (!note) return
 
-      const { id, ...data } = note
+      // createdAt is set once, when the note is made; an edit must not move it.
+      const { id, createdAt: _createdAt, ...data } = note
       void setDoc(
         campaignDocRef(db, { campaignId, groupId }, 'sessionSummaries', id),
         { ...data, updatedAt: serverTimestamp() },
@@ -253,6 +242,8 @@ export function useSessionNotes(campaignId: string, enabled = true, groupId: str
       ...note,
       sessionNumber: note.sessionNumber ?? getNextSessionNumber(notesRef.current),
       title: sanitizeSessionTitle(note.title, note.sessionNumber ?? getNextSessionNumber(notesRef.current)),
+      // Sorts the new note to the top until the server's own stamp arrives.
+      createdAt: Timestamp.now(),
     }
 
     setNotes((current) => sortSessionNotes([normalizedNote, ...current]))

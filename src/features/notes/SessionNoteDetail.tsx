@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, ChevronDown, ChevronRight, Pencil, X } from 'lucide-react'
 import type { Role, SessionNote, SessionNoteGeneratedSnapshot } from '../../types/app'
-import { getSessionDisplayTitle, sanitizeSessionTitle } from './sessionNoteUtils'
+import { getSessionCardSubtitle, getSessionDisplayTitle, sanitizeSessionTitle } from './sessionNoteUtils'
 
 type SessionNoteDetailProps = {
   note: SessionNote
@@ -135,8 +135,8 @@ export function SessionNoteDetail({ note, role, onUpdate }: SessionNoteDetailPro
         </div>
       )}
 
-      {note.sessionNumber != null ? (
-        <p className="session-note-number">Session {note.sessionNumber}</p>
+      {getSessionCardSubtitle(note) ? (
+        <p className="session-note-number">{getSessionCardSubtitle(note)}</p>
       ) : null}
 
       {note.overallSummary ? (
