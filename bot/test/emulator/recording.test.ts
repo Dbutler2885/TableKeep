@@ -141,6 +141,33 @@ test('each new session in a campaign gets the next number', async () => {
   assert.deepEqual([first.number, second.number], [1, 2])
 })
 
+test('the first recorded session in a campaign with older recaps is numbered after the last of them', async () => {
+  const summaries = db.collection(`groups/${GROUP}/campaigns/${CAMPAIGN}/sessionSummaries`)
+  for (let number = 1; number <= 16; number += 1) {
+    await summaries.doc(`legacy-${number}`).set({ title: `Session ${number}`, sessionNumber: number })
+  }
+  // An unnumbered summary counts for the number its title gives, as it does in the Notes tab's order.
+  await summaries.doc('titled').set({ title: 'Session 17: The Wyrm Wakes', sessionNumber: null })
+  await summaries.doc('untitled').set({ title: 'A loose note', sessionNumber: null })
+
+  const first = await start()
+  await first.recorder.stop('stop command', START + 1_000)
+  const second = await start()
+  await second.recorder.stop('stop command', START + 2_000)
+
+  assert.deepEqual([first.number, second.number], [18, 19])
+})
+
+test('a session counter that has run ahead of the recaps still decides the next number', async () => {
+  await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}/sessionCounters/sessions`).set({ last: 20 })
+  await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}/sessionSummaries/legacy`).set({ title: 'Session 16', sessionNumber: 16 })
+
+  const { recorder, number } = await start()
+  await recorder.stop('stop command', START + 1_000)
+
+  assert.equal(number, 21)
+})
+
 test('a server that is already being recorded cannot start a second session', async () => {
   const { recorder } = await start()
 

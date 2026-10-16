@@ -14,6 +14,11 @@
  *                                                         how far each speaker's audio has been transcribed
  *   groups/{g}/campaigns/{c}/sessionCounters/sessions     the last session number given out
  *
+ * A session's number also counts past every recap the campaign already has in
+ * `sessionSummaries`, so the first recorded session follows the ones written
+ * up before the bot, sits at the top of the Notes tab, and finds the recap
+ * before it.
+ *
  * and its audio in storage beside the campaign's other files:
  *
  *   groups/{g}/campaigns/{c}/sessions/{s}/audio/{speaker}/{segment}.ogg
@@ -92,6 +97,19 @@ export class UtteranceConflictError extends Error {
     super(`Utterance ${id} is already published with different content.`)
     this.name = 'UtteranceConflictError'
   }
+}
+
+/** How the Notes tab reads a session number from a title, for a summary saved without one. */
+const SESSION_TITLE_NUMBER = /\bsession\s+(\d+)\b/i
+
+/**
+ * The number a session summary is listed under in the Notes tab: its
+ * `sessionNumber`, or failing that the number in its title.
+ */
+export function summarySessionNumber(summary: { sessionNumber?: unknown; title?: unknown }): number | null {
+  if (typeof summary.sessionNumber === 'number' && Number.isFinite(summary.sessionNumber)) return summary.sessionNumber
+  const match = typeof summary.title === 'string' ? summary.title.match(SESSION_TITLE_NUMBER) : null
+  return match ? Number.parseInt(match[1]!, 10) : null
 }
 
 /** A stable name for an utterance: its speaker and where its first word falls on the timeline. */
@@ -186,8 +204,12 @@ export class FirestoreSessionStore implements SessionStore {
       if (!campaignId) return { status: 'no-current-campaign', groupId }
 
       const counterRef = db.doc(campaignPath(groupId, campaignId, 'sessionCounters', 'sessions'))
-      const counterSnap = await tx.get(counterRef)
-      const number = ((counterSnap.data()?.last as number | undefined) ?? 0) + 1
+      const [counterSnap, summariesSnap] = await Promise.all([
+        tx.get(counterRef),
+        tx.get(db.collection(campaignPath(groupId, campaignId, 'sessionSummaries')).select('sessionNumber', 'title')),
+      ])
+      const lastRecap = Math.max(0, ...summariesSnap.docs.map((doc) => summarySessionNumber(doc.data()) ?? 0))
+      const number = Math.max((counterSnap.data()?.last as number | undefined) ?? 0, lastRecap) + 1
 
       const sessionRef = db.collection(campaignPath(groupId, campaignId, 'sessions')).doc()
       const location: SessionLocation = { groupId, campaignId, sessionId: sessionRef.id }
