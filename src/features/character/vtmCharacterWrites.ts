@@ -1,0 +1,127 @@
+import { deleteDoc, serverTimestamp, setDoc } from 'firebase/firestore'
+import { db } from '../../firebase'
+import { campaignDocRef, campaignUserStateRef, type CampaignScope } from '../campaign/firestorePaths'
+import { sanitizeTokenIconForPersistence } from '../common/mediaStorage'
+import type { VtmCharacterRecord } from './vtmTypes'
+
+const CHARACTER_SAVE_DELAY_MS = 500
+
+/**
+ * Saves that have not landed yet, by character id: `pending` holds the timer
+ * of a save still waiting out its delay, `inFlight` a save sent but not settled.
+ */
+export type VtmCharacterSaves = {
+  pending: Record<string, ReturnType<typeof setTimeout>>
+  inFlight: Record<string, boolean>
+}
+
+export const emptyVtmCharacterSaves = (): VtmCharacterSaves => ({ pending: {}, inFlight: {} })
+
+/** The campaign a write goes to, or null while either half of it is missing. */
+export const vtmCampaignScope = (campaignId: string | null, groupId: string | null): CampaignScope | null =>
+  campaignId && groupId ? { campaignId, groupId } : null
+
+const characterRef = (campaign: CampaignScope, characterId: string) =>
+  campaignDocRef(db, campaign, 'characters', characterId)
+
+export function isVtmCharacterSaveOutstanding(saves: VtmCharacterSaves, characterId: string): boolean {
+  return Boolean(saves.pending[characterId] || saves.inFlight[characterId])
+}
+
+/** Drops every waiting save without sending it, and forgets every save in flight. */
+export function cancelVtmCharacterSaves(saves: VtmCharacterSaves) {
+  Object.values(saves.pending).forEach((timer) => clearTimeout(timer))
+  saves.pending = {}
+  saves.inFlight = {}
+}
+
+export function vtmCharacterSaveFields(character: VtmCharacterRecord) {
+  return {
+    system: 'vtm',
+    name: character.name,
+    ownerUserId: character.ownerUserId,
+    ownerUsername: character.ownerUsername ?? null,
+    creationMode: character.creationMode,
+    creationModeExplicit: character.creationModeExplicit,
+    creationStatus: character.creationStatus,
+    xp: character.xp,
+    portraitPath: character.portraitPath ?? '',
+    portraitFocusX: character.portraitFocusX,
+    portraitFocusY: character.portraitFocusY,
+    tokenIcon: sanitizeTokenIconForPersistence(character.tokenIcon),
+    vtm: JSON.parse(JSON.stringify(character.vtm)) as unknown,
+    updatedAt: serverTimestamp(),
+  }
+}
+
+export function newVtmCharacterFields(character: VtmCharacterRecord) {
+  return {
+    system: 'vtm',
+    name: character.name,
+    ownerUserId: character.ownerUserId,
+    ownerUsername: character.ownerUsername ?? null,
+    creationMode: character.creationMode,
+    creationModeExplicit: character.creationModeExplicit,
+    creationStatus: character.creationStatus,
+    xp: character.xp,
+    portraitPath: '',
+    portraitFocusX: 50,
+    portraitFocusY: 50,
+    tokenIcon: sanitizeTokenIconForPersistence(character.tokenIcon),
+    vtm: character.vtm,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }
+}
+
+export function createVtmCharacterDoc(campaign: CampaignScope, character: VtmCharacterRecord) {
+  return setDoc(characterRef(campaign, character.id), newVtmCharacterFields(character))
+}
+
+export function deleteVtmCharacterDoc(campaign: CampaignScope, characterId: string) {
+  return deleteDoc(characterRef(campaign, characterId))
+}
+
+export function saveCurrentVtmCharacter(campaign: CampaignScope, userId: string, characterId: string) {
+  return setDoc(
+    campaignUserStateRef(db, campaign, userId),
+    { currentCharacterId: characterId, updatedAt: serverTimestamp() },
+    { merge: true },
+  )
+}
+
+function sendVtmCharacterSave(
+  saves: VtmCharacterSaves,
+  campaign: CampaignScope,
+  characterId: string,
+  readCharacter: (characterId: string) => VtmCharacterRecord | undefined,
+) {
+  delete saves.pending[characterId]
+  saves.inFlight[characterId] = true
+  const character = readCharacter(characterId)
+  if (!character) {
+    delete saves.inFlight[characterId]
+    return
+  }
+  void setDoc(characterRef(campaign, characterId), vtmCharacterSaveFields(character), { merge: true }).finally(() => {
+    delete saves.inFlight[characterId]
+  })
+}
+
+/**
+ * Saves a character half a second after its last edit, reading it when the
+ * save comes due so the save carries every edit made in between.
+ */
+export function scheduleVtmCharacterSave(
+  saves: VtmCharacterSaves,
+  campaign: CampaignScope,
+  characterId: string,
+  readCharacter: (characterId: string) => VtmCharacterRecord | undefined,
+) {
+  const existing = saves.pending[characterId]
+  if (existing) clearTimeout(existing)
+  saves.pending[characterId] = setTimeout(
+    () => sendVtmCharacterSave(saves, campaign, characterId, readCharacter),
+    CHARACTER_SAVE_DELAY_MS,
+  )
+}

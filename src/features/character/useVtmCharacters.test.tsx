@@ -426,6 +426,17 @@ describe('useVtmCharacters media', () => {
     expect(result.current.characters[0].tokenIcon.customImageUrl).toBe('https://cdn.test/tokens/a.png')
   })
 
+  it('heals only the character whose image is missing', async () => {
+    const { result } = renderCharacters()
+
+    emitCharacters([vtmDoc('a', { portraitPath: 'portraits/a.png' }), vtmDoc('b', { name: 'Untouched' })])
+    await flushMicrotasks()
+    await flushMicrotasks()
+
+    expect(result.current.characters[0].portraitUrl).toBe('https://cdn.test/portraits/a.png')
+    expect(result.current.characters[1]).toMatchObject({ name: 'Untouched', portraitUrl: null })
+  })
+
   it('resolves only the image that is missing', async () => {
     const { result } = renderCharacters()
 
