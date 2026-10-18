@@ -104,6 +104,7 @@ const savePaths = () => mocks.setDoc.mock.calls
   .map(([ref]) => (ref as { path: string }).path)
   .filter((path) => path.includes('/characters/'))
 const characterSaves = () => mocks.setDoc.mock.calls.filter(([ref]) => (ref as { path: string }).path.includes('/characters/'))
+const savedNames = () => characterSaves().map(([ref, data]) => [(ref as { path: string }).path, (data as { name: string }).name])
 const userStateSaves = () => mocks.setDoc.mock.calls.filter(([ref]) => (ref as { path: string }).path.includes('/userState/'))
 
 beforeEach(() => {
@@ -974,15 +975,40 @@ describe('useCharacters updateCharacter', () => {
     expect(result.current.hasPendingWrite('a')).toBe(false)
   })
 
-  it('cancels a waiting save when the sheet closes', () => {
+  it('sends a waiting save at once when the sheet closes, and only once', () => {
     const { result, unmount } = renderCharacters()
     emitCharacters([ownDoc('a')])
 
     act(() => result.current.updateCharacter('a', { name: 'Edited' }))
     unmount()
-    vi.advanceTimersByTime(500)
+    expect(savedNames()).toEqual([[`${CHARACTERS_PATH}/a`, 'Edited']])
 
-    expect(characterSaves()).toEqual([])
+    vi.advanceTimersByTime(500)
+    expect(savedNames()).toEqual([[`${CHARACTERS_PATH}/a`, 'Edited']])
+  })
+
+  it('sends a waiting save at once when the list is switched off, as opening Notes or hiding the page does', () => {
+    const { result, rerender } = renderCharacters()
+    emitCharacters([ownDoc('a')])
+
+    act(() => result.current.updateCharacter('a', { name: 'Edited' }))
+    rerender({ ...baseProps, enabled: false })
+    expect(result.current.characters).toEqual([])
+    expect(savedNames()).toEqual([[`${CHARACTERS_PATH}/a`, 'Edited']])
+
+    act(() => vi.advanceTimersByTime(500))
+    expect(savedNames()).toEqual([[`${CHARACTERS_PATH}/a`, 'Edited']])
+  })
+
+  it('sends nothing on leaving when no save is waiting', () => {
+    const { result, rerender } = renderCharacters()
+    emitCharacters([ownDoc('a')])
+
+    act(() => result.current.updateCharacter('a', { name: 'Edited' }))
+    act(() => vi.advanceTimersByTime(500))
+    rerender({ ...baseProps, enabled: false })
+
+    expect(savedNames()).toEqual([[`${CHARACTERS_PATH}/a`, 'Edited']])
   })
 
   it('forgets a save in flight when the sheet closes', async () => {
@@ -1011,18 +1037,28 @@ describe('useCharacters updateCharacter', () => {
     expect(characterSaves()).toEqual([])
   })
 
-  it('saves to the campaign the edit was made in, even after the campaign changes', () => {
+  it('sends a waiting save at once to the campaign the edit was made in when the campaign changes', () => {
     const { result, rerender } = renderCharacters()
     emitCharacters([ownDoc('a')])
 
     act(() => result.current.updateCharacter('a', { name: 'Edited' }))
     rerender({ ...baseProps, campaignId: 'campaign-2' })
-    act(() => vi.advanceTimersByTime(500))
 
     expect(savePaths()).toEqual([`${CHARACTERS_PATH}/a`])
   })
 
-  it('keeps the local copy of a waiting save in another campaign\'s snapshot of the same id', () => {
+  it('sends a waiting save at once to the group the edit was made in when the group changes', () => {
+    const { result, rerender } = renderCharacters()
+    emitCharacters([ownDoc('a')])
+
+    act(() => result.current.updateCharacter('a', { name: 'Edited' }))
+    rerender({ ...baseProps, groupId: 'group-2' })
+
+    expect(savePaths()).toEqual([`${CHARACTERS_PATH}/a`])
+  })
+
+  it('shows another campaign\'s own character of the same id while the original\'s save is in flight', () => {
+    mocks.setDoc.mockImplementation(() => new Promise<undefined>(() => undefined))
     const { result, rerender } = renderCharacters()
     emitCharacters([ownDoc('a', { name: 'Campaign one' })])
 
@@ -1030,10 +1066,11 @@ describe('useCharacters updateCharacter', () => {
     rerender({ ...baseProps, campaignId: 'campaign-2' })
     emitCharacters([ownDoc('a', { name: 'Campaign two' })], CAMPAIGN_2_CHARACTERS_PATH)
 
-    expect(result.current.characters[0].name).toBe('Edited in one')
+    expect(result.current.characters[0].name).toBe('Campaign two')
+    expect(result.current.hasPendingWrite('a')).toBe(false)
   })
 
-  it('writes another campaign\'s character of the same id over the original when the list was cleared in between', () => {
+  it('never writes another campaign\'s character of the same id over the original when the list was cleared in between', () => {
     const { result, rerender } = renderCharacters()
     emitCharacters([ownDoc('a', { name: 'Campaign one' })])
 
@@ -1044,8 +1081,7 @@ describe('useCharacters updateCharacter', () => {
     act(() => vi.advanceTimersByTime(500))
 
     expect(result.current.characters[0].name).toBe('Campaign two')
-    expect(characterSaves().map(([ref, data]) => [(ref as { path: string }).path, (data as { name: string }).name]))
-      .toEqual([[`${CHARACTERS_PATH}/a`, 'Campaign two']])
+    expect(savedNames()).toEqual([[`${CHARACTERS_PATH}/a`, 'Edited in one']])
   })
 })
 
