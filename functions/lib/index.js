@@ -6,6 +6,7 @@ import { defineSecret, defineString } from 'firebase-functions/params';
 import { logger } from 'firebase-functions';
 import { adminApp, adminFirestore } from './adminApp.js';
 import { isTransferSourceAuthorized } from './transferAuthorization.js';
+import { applyAcceptedTransfer, availablePackedSlots } from './oseCarrying.js';
 import { campaignPath, groupMemberPath } from './firestorePaths.js';
 import { deleteCampaignSessions } from './campaignSessions.js';
 import { recapIsDue, requestRecapRerun, runSessionRecap } from './recap/sessionRecap.js';
@@ -158,55 +159,6 @@ function asInventory(details) {
         return [];
     const inventory = details.inventory;
     return Array.isArray(inventory) ? inventory : [];
-}
-function availablePackedSlots(details) {
-    const packedSlotThresholds = [18, 16, 13, 9, 6, 4];
-    const packedMovementSlotCount = 13;
-    if (!details || typeof details !== 'object')
-        return packedMovementSlotCount;
-    const abilityScores = details.abilityScores;
-    const str = Number.parseInt(abilityScores?.STR ?? '', 10);
-    let unlocked = 0;
-    for (let i = 0; i < packedSlotThresholds.length; i += 1) {
-        if (str >= packedSlotThresholds[i])
-            unlocked += 1;
-    }
-    return unlocked + packedMovementSlotCount;
-}
-function applyAcceptedTransfer(senderInventory, receiverInventory, transfer, packedAllowed) {
-    const movedSnapshot = transfer.itemSnapshot;
-    if (!movedSnapshot || movedSnapshot.kind === 'gold') {
-        return { ok: false, reason: 'missing_item' };
-    }
-    const senderItem = senderInventory.find((item) => item.id === transfer.itemId);
-    if (!senderItem || senderItem.kind === 'gold') {
-        return { ok: false, reason: 'missing_item' };
-    }
-    if (senderItem.kind !== movedSnapshot.kind) {
-        return { ok: false, reason: 'kind_mismatch' };
-    }
-    const senderQty = Math.max(1, senderItem.qty ?? 1);
-    const movedQty = Math.max(1, movedSnapshot.qty ?? 1);
-    if (senderQty < movedQty) {
-        return { ok: false, reason: 'qty_changed' };
-    }
-    const nextReceiverInventory = [...receiverInventory, { ...movedSnapshot, equipped: false }];
-    const packedUsed = nextReceiverInventory.filter((item) => !item.equipped).length;
-    if (packedUsed > packedAllowed) {
-        return { ok: false, reason: 'packed_slots' };
-    }
-    const nextSenderInventory = senderInventory.flatMap((item) => {
-        if (item.id !== transfer.itemId)
-            return [item];
-        if (senderQty <= movedQty)
-            return [];
-        return [{ ...item, qty: senderQty - movedQty }];
-    });
-    return {
-        ok: true,
-        senderInventory: nextSenderInventory,
-        receiverInventory: nextReceiverInventory,
-    };
 }
 export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (request) => {
     const uid = request.auth?.uid ?? '';
