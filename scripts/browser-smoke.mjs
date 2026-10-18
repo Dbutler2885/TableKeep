@@ -142,7 +142,7 @@ async function waitForBodyText(page, expected) {
 }
 
 // Names the step a failure happened in; a bare Puppeteer timeout does not.
-async function step(name, action) {
+export async function step(name, action) {
   try {
     return await action()
   } catch (error) {
@@ -154,7 +154,7 @@ async function screenshot(page, name) {
   await page.screenshot({ path: `${SCREENSHOT_DIR}/${name}.png`, fullPage: true })
 }
 
-function groupIdFromUrl(page) {
+export function groupIdFromUrl(page) {
   const match = new URL(page.url()).pathname.match(/^\/groups\/([^/]+)$/)
   if (!match) throw new Error(`Expected a group home URL, got ${page.url()}.`)
   return match[1]
@@ -321,30 +321,35 @@ async function runViewport(browser, testCase) {
   }
 }
 
-await mkdir(SCREENSHOT_DIR, { recursive: true })
-const server = startApp()
-let browser
+// Importing this file (as its unit test does) must not start the smoke.
+const invokedDirectly = process.argv[1] && import.meta.url === `file://${process.argv[1]}`
 
-try {
-  await waitForApp(server)
-  browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  })
+if (invokedDirectly) {
+  await mkdir(SCREENSHOT_DIR, { recursive: true })
+  const server = startApp()
+  let browser
 
-  const failures = []
-  for (const testCase of viewports) {
-    try {
-      await runViewport(browser, testCase)
-    } catch (error) {
-      failures.push(`${testCase.name}: ${error instanceof Error ? error.message : String(error)}`)
+  try {
+    await waitForApp(server)
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    })
+
+    const failures = []
+    for (const testCase of viewports) {
+      try {
+        await runViewport(browser, testCase)
+      } catch (error) {
+        failures.push(`${testCase.name}: ${error instanceof Error ? error.message : String(error)}`)
+      }
     }
-  }
 
-  if (failures.length > 0) {
-    throw new Error(`Browser smoke failures:\n${failures.join('\n')}`)
+    if (failures.length > 0) {
+      throw new Error(`Browser smoke failures:\n${failures.join('\n')}`)
+    }
+  } finally {
+    await browser?.close()
+    await stopApp(server)
   }
-} finally {
-  await browser?.close()
-  await stopApp(server)
 }
