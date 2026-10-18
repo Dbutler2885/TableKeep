@@ -34,7 +34,7 @@ There are two ESLint flat configs: `eslint.config.js` for the web app and `funct
   The package's own rules were dead, and `npm run lint` there exited 0 without ever applying them.
   The `--ext .ts` flag was dropped from the script at the same time; flat config selects files through its own `files` patterns.
 - **`eslint.config.js` ends with four `react-hooks-v7-debt/*` blocks.**
-  `eslint-plugin-react-hooks` v7 promoted `set-state-in-effect`, `refs`, `immutability`, and `purity` into its recommended set, and 21 files that predate those rules still violate them.
+  `eslint-plugin-react-hooks` v7 promoted `set-state-in-effect`, `refs`, `immutability`, and `purity` into its recommended set, and 19 files that predate those rules still violate them.
   Those blocks name the exact files and downgrade only those four rules there, so every other file is still held to the full error-level rule set and no new violations can land outside the list.
   Shrink the lists as the hooks are reworked; never add a file to them.
 - **Focused hook linting is required when extracting effects from a large component.**
