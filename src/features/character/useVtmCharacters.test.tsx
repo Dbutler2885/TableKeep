@@ -684,15 +684,28 @@ describe('useVtmCharacters updateCharacter', () => {
     expect(result.current.characters[0].name).toBe('Stored')
   })
 
-  it('cancels a waiting save when the sheet closes', () => {
+  it('sends a waiting save at once when the sheet closes, and only once', () => {
     const { result, unmount } = renderCharacters()
     emitCharacters([vtmDoc('a')])
 
     act(() => result.current.updateCharacter('a', { name: 'Edited' }))
     unmount()
-    vi.advanceTimersByTime(500)
 
-    expect(mocks.setDoc).not.toHaveBeenCalled()
+    expect(savedPaths()).toEqual([`${CHARACTERS_PATH}/a`])
+    expect(mocks.setDoc.mock.calls[0][1]).toMatchObject({ name: 'Edited' })
+    vi.advanceTimersByTime(500)
+    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends nothing when the sheet closes with no save waiting', () => {
+    const { result, unmount } = renderCharacters()
+    emitCharacters([vtmDoc('a')])
+
+    act(() => result.current.updateCharacter('a', { name: 'Edited' }))
+    act(() => vi.advanceTimersByTime(500))
+    unmount()
+
+    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
   })
 
   it('does not schedule a save once the campaign is gone', () => {
@@ -706,18 +719,21 @@ describe('useVtmCharacters updateCharacter', () => {
     expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
-  it('saves to the campaign the edit was made in, even after the campaign changes', () => {
+  it('sends a waiting save at once to the campaign the edit was made in when the campaign changes', () => {
     const { result, rerender } = renderCharacters()
     emitCharacters([vtmDoc('a')])
 
     act(() => result.current.updateCharacter('a', { name: 'Edited' }))
     rerender({ ...baseProps, campaignId: 'campaign-2' })
-    act(() => vi.advanceTimersByTime(500))
 
     expect(savedPaths()).toEqual([`${CHARACTERS_PATH}/a`])
+    expect(mocks.setDoc.mock.calls[0][1]).toMatchObject({ name: 'Edited' })
+    act(() => vi.advanceTimersByTime(500))
+    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the local copy of a waiting save in another campaign\'s snapshot of the same id', () => {
+  it('shows the new campaign\'s own character when it has the same id as one still saving in the old campaign', () => {
+    mocks.setDoc.mockImplementationOnce(() => new Promise<undefined>(() => undefined))
     const { result, rerender } = renderCharacters()
     emitCharacters([vtmDoc('a', { name: 'Campaign one' })])
 
@@ -725,7 +741,17 @@ describe('useVtmCharacters updateCharacter', () => {
     rerender({ ...baseProps, campaignId: 'campaign-2' })
     emitCharacters([vtmDoc('a', { name: 'Campaign two' })], 'groups/group-1/campaigns/campaign-2/characters')
 
-    expect(result.current.characters[0].name).toBe('Edited in one')
+    expect(result.current.characters[0].name).toBe('Campaign two')
+  })
+
+  it('sends a waiting save at once when the group changes', () => {
+    const { result, rerender } = renderCharacters()
+    emitCharacters([vtmDoc('a')])
+
+    act(() => result.current.updateCharacter('a', { name: 'Edited' }))
+    rerender({ ...baseProps, groupId: 'group-2' })
+
+    expect(savedPaths()).toEqual([`${CHARACTERS_PATH}/a`])
   })
 })
 

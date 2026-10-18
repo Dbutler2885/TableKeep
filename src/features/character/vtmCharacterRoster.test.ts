@@ -22,7 +22,7 @@ describe('readVtmCharacterSnapshot', () => {
   })
 
   it.each([
-    ['waiting', { pending: { a: setTimeout(() => undefined, 0) }, inFlight: {} }],
+    ['waiting', { pending: { a: { timer: setTimeout(() => undefined, 0), send: () => undefined } }, inFlight: {} }],
     ['in flight', { pending: {}, inFlight: { a: true } }],
   ])('keeps the local copy while its save is %s', (_label, saves) => {
     const localA = character('a', 'user-1', 'Local')
@@ -30,7 +30,7 @@ describe('readVtmCharacterSnapshot', () => {
     const read = readVtmCharacterSnapshot([storedDoc('a', { system: 'vtm', name: 'Stored' })], saves, [localA])
 
     expect(read).toEqual([localA])
-    clearTimeout(saves.pending.a)
+    clearTimeout(saves.pending.a?.timer)
   })
 
   it('reads the stored copy when nothing is saving', () => {

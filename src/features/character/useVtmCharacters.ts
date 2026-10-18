@@ -9,8 +9,8 @@ import {
 } from './vtmCharacterActions'
 import { findVtmCharacter } from './vtmCharacterRoster'
 import {
-  cancelVtmCharacterSaves,
   emptyVtmCharacterSaves,
+  sendVtmCharacterSavesNow,
   vtmCampaignScope,
   type VtmCharacterSaves,
 } from './vtmCharacterWrites'
@@ -18,12 +18,25 @@ import { useVtmCharacterMedia } from './useVtmCharacterMedia'
 import { useCurrentVtmCharacterId, useVtmCharacterRoster } from './useVtmCharacterRoster'
 import type { VtmCharacterRecord } from './vtmTypes'
 
-/** Drops every waiting save when the sheet closes. */
-function useCancelVtmCharacterSavesOnUnmount(savesRef: RefObject<VtmCharacterSaves>) {
+/**
+ * Sends every waiting save when the sheet closes or the campaign changes, so
+ * the last edit is not lost. The next campaign then starts with no saves of its
+ * own, so a save still landing in the old campaign never makes the new
+ * campaign's snapshot keep the old campaign's character in place of a
+ * character with the same id.
+ */
+function useSendVtmCharacterSavesOnLeave(
+  savesRef: RefObject<VtmCharacterSaves>,
+  campaignId: string | null,
+  groupId: string | null,
+) {
   useEffect(() => {
     const saves = savesRef.current
-    return () => cancelVtmCharacterSaves(saves)
-  }, [savesRef])
+    return () => {
+      sendVtmCharacterSavesNow(saves)
+      savesRef.current = emptyVtmCharacterSaves()
+    }
+  }, [savesRef, campaignId, groupId])
 }
 
 export function useVtmCharacters(
@@ -43,7 +56,7 @@ export function useVtmCharacters(
   })
   const { characters, setCharacters, selectedCharacterId, setSelectedCharacterId } = roster
   useVtmCharacterMedia(characters, setCharacters)
-  useCancelVtmCharacterSavesOnUnmount(savesRef)
+  useSendVtmCharacterSavesOnLeave(savesRef, campaignId, groupId)
 
   const context: VtmCharacterActionContext = {
     campaign: vtmCampaignScope(campaignId, groupId),

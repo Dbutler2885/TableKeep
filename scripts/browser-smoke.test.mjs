@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupIdFromUrl, step } from './browser-smoke.mjs'
+import { groupIdFromUrl, step, vtmCharacterFields } from './browser-smoke.mjs'
 
 const pageAt = (url) => ({ url: () => url })
 
@@ -30,5 +30,21 @@ describe('reading the group id from the group home URL', () => {
     'http://127.0.0.1:4173/groups/abc123/campaigns/c1/character',
   ])('refuses %s, which is not a group home', (url) => {
     expect(() => groupIdFromUrl(pageAt(url))).toThrow(`Expected a group home URL, got ${url}.`)
+  })
+})
+
+describe('seeding a VtM character', () => {
+  it('writes an active, established VtM character owned by the user, with only the Concept on its sheet', () => {
+    expect(vtmCharacterFields({ uid: 'u1', username: 'desk001', name: 'Mina', concept: 'Courier' })).toEqual({
+      system: 'vtm',
+      name: 'Mina',
+      ownerUserId: 'u1',
+      ownerUsername: 'desk001',
+      creationMode: 'established',
+      creationModeExplicit: true,
+      creationStatus: 'active',
+      xp: 0,
+      vtm: { concept: 'Courier' },
+    })
   })
 })
