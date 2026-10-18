@@ -3,10 +3,10 @@ import { mkdir } from 'node:fs/promises'
 import process from 'node:process'
 import puppeteer from 'puppeteer'
 import { isExpectedFirestoreEmulatorChannelError } from './browser-smoke-errors.mjs'
+import { PROJECT_ID, seedCampaign, seedCharacter } from './browser-smoke-seed.mjs'
 
 const APP_URL = 'http://127.0.0.1:4173'
 const AUTH_EMULATOR_URL = 'http://127.0.0.1:9099'
-const PROJECT_ID = process.env.GCLOUD_PROJECT ?? 'homeboyshouse-dev'
 const API_KEY = 'demo-api-key'
 const PASSWORD = 'table-keep-smoke-password'
 const SCREENSHOT_DIR = 'artifacts/browser-smoke'
@@ -14,6 +14,7 @@ const SCREENSHOT_DIR = 'artifacts/browser-smoke'
 const viewports = [
   {
     name: 'desktop',
+    label: 'Desktop',
     viewport: { width: 1440, height: 1000, deviceScaleFactor: 1 },
     email: 'browser-desktop@example.test',
     username: 'desk001',
@@ -21,11 +22,19 @@ const viewports = [
   },
   {
     name: 'mobile',
+    label: 'Mobile',
     viewport: { width: 390, height: 844, deviceScaleFactor: 1, isMobile: true, hasTouch: true },
     email: 'browser-mobile@example.test',
     username: 'mobi001',
     groupName: 'Mobile Smoke Group',
   },
+]
+
+// One campaign per rule set the campaign creation dialog offers. `characterTab`
+// matches only that rule set's character tab, so opening the wrong sheet fails.
+const ruleSetCampaigns = [
+  { system: 'ose', label: 'OSE', characterTab: '.characters-layout:not(.vtm-character-tab)' },
+  { system: 'vtm', label: 'VtM', characterTab: '.vtm-character-tab' },
 ]
 
 function startApp() {
@@ -93,7 +102,7 @@ async function requestJson(url, init) {
 }
 
 async function createAuthUser(email) {
-  await requestJson(
+  const account = await requestJson(
     `${AUTH_EMULATOR_URL}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`,
     {
       method: 'POST',
@@ -101,6 +110,7 @@ async function createAuthUser(email) {
       body: JSON.stringify({ email, password: PASSWORD, returnSecureToken: true }),
     },
   )
+  return account.localId
 }
 
 async function waitForVerificationLink(email) {
@@ -129,6 +139,108 @@ async function waitForBodyText(page, expected) {
     { timeout: 15_000 },
     expected,
   )
+}
+
+// Names the step a failure happened in; a bare Puppeteer timeout does not.
+export async function step(name, action) {
+  try {
+    return await action()
+  } catch (error) {
+    throw new Error(`${name}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
+  }
+}
+
+async function screenshot(page, name) {
+  await page.screenshot({ path: `${SCREENSHOT_DIR}/${name}.png`, fullPage: true })
+}
+
+export function groupIdFromUrl(page) {
+  const match = new URL(page.url()).pathname.match(/^\/groups\/([^/]+)$/)
+  if (!match) throw new Error(`Expected a group home URL, got ${page.url()}.`)
+  return match[1]
+}
+
+// Leaves a campaign through its own "Back to <group>" button rather than a
+// page load. By the third full load in one browser context the Firestore client
+// reports the emulator unreachable, most likely because earlier pages' streams
+// still hold the browser's few HTTP/1.1 connections to it.
+async function backToGroupHome(page, testCase) {
+  const backButton = `[aria-label=${JSON.stringify(`Back to ${testCase.groupName}`)}]`
+  if (!(await page.$('.side-nav.open'))) {
+    await roleLocator(page, 'button', 'Open navigation').click()
+  }
+  await page.locator(backButton).click()
+  await roleLocator(page, 'button', 'Create new draft').wait()
+}
+
+async function createAndOpenCampaign(page, testCase, ruleSet) {
+  const campaignName = `${testCase.label} ${ruleSet.label} Campaign`
+  await step(`create the ${ruleSet.label} campaign`, async () => {
+    await roleLocator(page, 'button', 'Create new draft').click()
+    await page.locator('[role="dialog"] input[type="text"]').fill(campaignName)
+    await page.select('[role="dialog"] select', ruleSet.system)
+    await roleLocator(page, 'button', 'Create').click()
+  })
+  await step(`open the ${ruleSet.label} character tab`, async () => {
+    await page.locator(`.group-home-card ::-p-text(${JSON.stringify(campaignName)})`).click()
+    await page.locator(ruleSet.characterTab).wait()
+  })
+  // The back button does not close the drawer it sits in, so the next campaign
+  // opens with the drawer over its character tab. Close it as a user would.
+  if (await page.$('.side-nav.open')) {
+    await step('close the navigation drawer', async () => {
+      await roleLocator(page, 'button', 'Open navigation').click()
+      // The class drops at once; wait for the slide-out to finish too.
+      await page.waitForFunction(() => document.querySelector('.side-nav').getBoundingClientRect().right <= 0)
+    })
+  }
+  await step(`show the empty ${ruleSet.label} character list`, () => waitForBodyText(page, 'No characters available.'))
+  await screenshot(page, `${testCase.name}-${ruleSet.system}-character`)
+}
+
+async function openSeededCharacter(page, testCase, { uid, groupId }) {
+  const characterName = `${testCase.label} Seeded Fighter`
+  const campaignId = await seedCampaign({
+    groupId,
+    gmUserId: uid,
+    fields: { name: `${testCase.label} Seeded Campaign`, system: 'ose' },
+  })
+  await seedCharacter({
+    groupId,
+    campaignId,
+    fields: {
+      name: characterName,
+      ownerUserId: uid,
+      ownerUsername: testCase.username,
+      class: 'Fighter',
+      level: 1,
+      hpCurrent: 8,
+      hpMax: 8,
+      creationStatus: 'active',
+    },
+  })
+
+  // The group's campaigns were read when it loaded, so reload to pick up the seed.
+  await page.goto(
+    `${APP_URL}/groups/${groupId}/campaigns/${campaignId}/character`,
+    { waitUntil: 'domcontentloaded' },
+  )
+  await page.locator(`.character-list-grid ::-p-text(${JSON.stringify(characterName)})`).click()
+  await page.waitForFunction(
+    (name) => document.querySelector('.character-header-field-name input')?.value === name,
+    {},
+    characterName,
+  )
+  await screenshot(page, `${testCase.name}-seeded-character`)
+}
+
+// Everything the smoke checks inside the group, once it exists. Add a case here.
+async function openCampaignCases(page, testCase, { uid, groupId }) {
+  await step('open a seeded character', () => openSeededCharacter(page, testCase, { uid, groupId }))
+  for (const ruleSet of ruleSetCampaigns) {
+    await step('go back to the group home', () => backToGroupHome(page, testCase))
+    await createAndOpenCampaign(page, testCase, ruleSet)
+  }
 }
 
 function collectBrowserErrors(page, errors, surface) {
@@ -163,7 +275,7 @@ async function runViewport(browser, testCase) {
   page.setDefaultTimeout(15_000)
 
   try {
-    await createAuthUser(testCase.email)
+    const uid = await createAuthUser(testCase.email)
     await page.goto(APP_URL, { waitUntil: 'domcontentloaded' })
     await roleLocator(page, 'region', 'Authentication').wait()
 
@@ -194,46 +306,53 @@ async function runViewport(browser, testCase) {
     await page.locator('[role="dialog"] input[type="text"]').fill(testCase.groupName)
     await roleLocator(page, 'button', 'Create').click()
     await waitForBodyText(page, testCase.groupName)
+    await openCampaignCases(page, testCase, { uid, groupId: groupIdFromUrl(page) })
     await new Promise((resolve) => setTimeout(resolve, 500))
 
     if (browserErrors.length > 0) {
       throw new Error(browserErrors.join('\n'))
     }
 
-    console.log(`PASS ${testCase.name}: signed in, verified email, claimed a handle, and created a group.`)
+    console.log(
+      `PASS ${testCase.name}: signed in, verified email, claimed a handle, created a group, `
+      + 'opened a seeded character, and opened the character tab of a new '
+      + `${ruleSetCampaigns.map((ruleSet) => ruleSet.label).join(' and a new ')} campaign.`,
+    )
   } finally {
-    await page.screenshot({
-      path: `${SCREENSHOT_DIR}/${testCase.name}.png`,
-      fullPage: true,
-    })
+    await screenshot(page, testCase.name)
     await context.close()
   }
 }
 
-await mkdir(SCREENSHOT_DIR, { recursive: true })
-const server = startApp()
-let browser
+// Importing this file (as its unit test does) must not start the smoke.
+const invokedDirectly = process.argv[1] && import.meta.url === `file://${process.argv[1]}`
 
-try {
-  await waitForApp(server)
-  browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  })
+if (invokedDirectly) {
+  await mkdir(SCREENSHOT_DIR, { recursive: true })
+  const server = startApp()
+  let browser
 
-  const failures = []
-  for (const testCase of viewports) {
-    try {
-      await runViewport(browser, testCase)
-    } catch (error) {
-      failures.push(`${testCase.name}: ${error instanceof Error ? error.message : String(error)}`)
+  try {
+    await waitForApp(server)
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    })
+
+    const failures = []
+    for (const testCase of viewports) {
+      try {
+        await runViewport(browser, testCase)
+      } catch (error) {
+        failures.push(`${testCase.name}: ${error instanceof Error ? error.message : String(error)}`)
+      }
     }
-  }
 
-  if (failures.length > 0) {
-    throw new Error(`Browser smoke failures:\n${failures.join('\n')}`)
+    if (failures.length > 0) {
+      throw new Error(`Browser smoke failures:\n${failures.join('\n')}`)
+    }
+  } finally {
+    await browser?.close()
+    await stopApp(server)
   }
-} finally {
-  await browser?.close()
-  await stopApp(server)
 }
