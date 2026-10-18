@@ -4,7 +4,7 @@ import type { InventoryItem as ServerInventoryItem } from '../../../functions/sr
 // The compiled output is tracked and is what gets deployed, so it runs the same
 // cases as its source.
 import * as compiledServerCarrying from '../../../functions/lib/oseCarrying.js'
-import type { CharacterInventoryItem } from '../../types/app'
+import type { CharacterInventoryItem, PendingTransfer } from '../../types/app'
 import { applyAcceptedTransfer as appApplyAcceptedTransfer } from '../transfers/transferResolution'
 import { computeAvailablePackedSlots, computeOverflow } from './inventoryOverflow'
 import { capacityCases, spillCases, transferCases, type TransferCase } from './oseCarryingCases'
@@ -21,7 +21,7 @@ const appCopy = {
   transfer: (testCase: TransferCase) => appApplyAcceptedTransfer({
     senderInventory: testCase.senderInventory,
     receiverInventory: testCase.receiverInventory,
-    transfer: testCase.transfer,
+    transfer: testCase.transfer as Pick<PendingTransfer, 'itemId' | 'itemSnapshot'>,
     packedAllowed: appPackedSlots({ abilityScores: { STR: testCase.receiverStr } }),
   }),
 }

@@ -7,7 +7,6 @@ import type {
   CharacterGeneralItem,
   CharacterGoldItem,
   CharacterInventoryItem,
-  TransferableInventoryItem,
 } from '../../types/app'
 
 export type CapacityCase = {
@@ -22,10 +21,11 @@ export type TransferCase = {
   receiverStr: string
   senderInventory: CharacterInventoryItem[]
   receiverInventory: CharacterInventoryItem[]
-  transfer: { itemId: string; itemSnapshot: TransferableInventoryItem }
+  /** The pending transfer as stored, which can name a gold row or no snapshot at all. */
+  transfer: { itemId: string; itemSnapshot: CharacterInventoryItem | null }
   expected:
     | { ok: true; senderInventory: CharacterInventoryItem[]; receiverInventory: CharacterInventoryItem[] }
-    | { ok: false; reason: 'packed_slots' }
+    | { ok: false; reason: 'missing_item' | 'kind_mismatch' | 'qty_changed' | 'packed_slots' }
 }
 
 export type SpillCase = {
@@ -87,6 +87,12 @@ const arrows = (id: string, qty: number): CharacterAmmunitionItem => ({
   qty,
   stack: { stackable: true, maxStack: 20 },
 })
+
+/** A general item stored without a `qty`, which both copies count as one. */
+const unquantified = (id: string) => {
+  const { qty: _qty, ...item } = general(id)
+  return item as CharacterGeneralItem
+}
 
 /** `count` packed general items with ids `{prefix}1` to `{prefix}{count}`. */
 const packed = (count: number, prefix = 'p') =>
@@ -186,6 +192,58 @@ export const transferCases: TransferCase[] = [
       ok: true,
       senderInventory: [arrows('arrows', 6)],
       receiverInventory: [...packed(15), arrows('offer-arrows', 4)],
+    },
+  },
+  {
+    name: 'an item the sender no longer holds is refused as missing_item',
+    receiverStr: '3',
+    senderInventory: [general('rope')],
+    receiverInventory: [],
+    transfer: { itemId: 'lantern', itemSnapshot: general('lantern') },
+    expected: { ok: false, reason: 'missing_item' },
+  },
+  {
+    name: 'a transfer with no item snapshot is refused as missing_item',
+    receiverStr: '3',
+    senderInventory: [general('rope')],
+    receiverInventory: [],
+    transfer: { itemId: 'rope', itemSnapshot: null },
+    expected: { ok: false, reason: 'missing_item' },
+  },
+  {
+    name: 'gold offered as a transfer is refused as missing_item',
+    receiverStr: '3',
+    senderInventory: [gold('g1', 100)],
+    receiverInventory: [],
+    transfer: { itemId: 'g1', itemSnapshot: gold('g1', 100) },
+    expected: { ok: false, reason: 'missing_item' },
+  },
+  {
+    name: 'an offer whose kind no longer matches the sender item is refused as kind_mismatch',
+    receiverStr: '3',
+    senderInventory: [general('rope')],
+    receiverInventory: [],
+    transfer: { itemId: 'rope', itemSnapshot: arrows('rope', 1) },
+    expected: { ok: false, reason: 'kind_mismatch' },
+  },
+  {
+    name: 'an offer larger than the sender stack is refused as qty_changed',
+    receiverStr: '3',
+    senderInventory: [arrows('arrows', 2)],
+    receiverInventory: [],
+    transfer: { itemId: 'arrows', itemSnapshot: arrows('offer-arrows', 4) },
+    expected: { ok: false, reason: 'qty_changed' },
+  },
+  {
+    name: 'an item with no stored quantity counts as one and moves whole',
+    receiverStr: '3',
+    senderInventory: [unquantified('sack'), general('rope')],
+    receiverInventory: [],
+    transfer: { itemId: 'sack', itemSnapshot: unquantified('sack') },
+    expected: {
+      ok: true,
+      senderInventory: [general('rope')],
+      receiverInventory: [unquantified('sack')],
     },
   },
 ]

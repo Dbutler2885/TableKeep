@@ -27,46 +27,59 @@ export function availablePackedSlots(details: unknown): number {
   return unlocked + packedMovementSlotCount
 }
 
+type SenderCheck =
+  | { ok: false; reason: 'missing_item' | 'kind_mismatch' | 'qty_changed' }
+  | { ok: true; senderQty: number; movedQty: number }
+
+// Gold never moves by transfer, so a gold row counts as no item at all.
+const isTransferable = (item: InventoryItem | null | undefined): item is InventoryItem =>
+  !!item && item.kind !== 'gold'
+
+const stackQty = (item: InventoryItem) => Math.max(1, item.qty ?? 1)
+
+function checkSender(senderItem: InventoryItem | undefined, movedSnapshot: InventoryItem | null | undefined): SenderCheck {
+  if (!isTransferable(movedSnapshot) || !isTransferable(senderItem)) {
+    return { ok: false, reason: 'missing_item' }
+  }
+  if (senderItem.kind !== movedSnapshot.kind) {
+    return { ok: false, reason: 'kind_mismatch' }
+  }
+  const senderQty = stackQty(senderItem)
+  const movedQty = stackQty(movedSnapshot)
+  if (senderQty < movedQty) {
+    return { ok: false, reason: 'qty_changed' }
+  }
+  return { ok: true, senderQty, movedQty }
+}
+
+const packedCount = (inventory: InventoryItem[]) => inventory.filter((item) => !item.equipped).length
+
+function senderInventoryAfter(senderInventory: InventoryItem[], itemId: string, senderQty: number, movedQty: number) {
+  return senderInventory.flatMap((item) => {
+    if (item.id !== itemId) return [item]
+    if (senderQty <= movedQty) return []
+    return [{ ...item, qty: senderQty - movedQty }]
+  })
+}
+
 export function applyAcceptedTransfer(
   senderInventory: InventoryItem[],
   receiverInventory: InventoryItem[],
   transfer: AcceptedTransfer,
   packedAllowed: number,
 ) {
-  const movedSnapshot = transfer.itemSnapshot
-  if (!movedSnapshot || movedSnapshot.kind === 'gold') {
-    return { ok: false as const, reason: 'missing_item' as const }
-  }
-
   const senderItem = senderInventory.find((item) => item.id === transfer.itemId)
-  if (!senderItem || senderItem.kind === 'gold') {
-    return { ok: false as const, reason: 'missing_item' as const }
-  }
-  if (senderItem.kind !== movedSnapshot.kind) {
-    return { ok: false as const, reason: 'kind_mismatch' as const }
-  }
+  const sender = checkSender(senderItem, transfer.itemSnapshot)
+  if (!sender.ok) return sender
 
-  const senderQty = Math.max(1, senderItem.qty ?? 1)
-  const movedQty = Math.max(1, movedSnapshot.qty ?? 1)
-  if (senderQty < movedQty) {
-    return { ok: false as const, reason: 'qty_changed' as const }
-  }
-
-  const nextReceiverInventory = [...receiverInventory, { ...movedSnapshot, equipped: false }]
-  const packedUsed = nextReceiverInventory.filter((item) => !item.equipped).length
-  if (packedUsed > packedAllowed) {
+  const nextReceiverInventory = [...receiverInventory, { ...transfer.itemSnapshot, equipped: false }]
+  if (packedCount(nextReceiverInventory) > packedAllowed) {
     return { ok: false as const, reason: 'packed_slots' as const }
   }
 
-  const nextSenderInventory = senderInventory.flatMap((item) => {
-    if (item.id !== transfer.itemId) return [item]
-    if (senderQty <= movedQty) return []
-    return [{ ...item, qty: senderQty - movedQty }]
-  })
-
   return {
     ok: true as const,
-    senderInventory: nextSenderInventory,
+    senderInventory: senderInventoryAfter(senderInventory, transfer.itemId, sender.senderQty, sender.movedQty),
     receiverInventory: nextReceiverInventory,
   }
 }
