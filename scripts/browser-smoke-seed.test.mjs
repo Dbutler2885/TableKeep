@@ -1,5 +1,23 @@
-import { describe, expect, it } from 'vitest'
-import { toFirestoreFields, toFirestoreValue } from './browser-smoke-seed.mjs'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  characterPath,
+  readDocumentFields,
+  seedCharacter,
+  toFirestoreFields,
+  toFirestoreValue,
+} from './browser-smoke-seed.mjs'
+
+const documentsUrl = 'http://127.0.0.1:8080/v1/projects/homeboyshouse-dev/databases/(default)/documents'
+
+function stubFetch(response) {
+  const fetch = vi.fn(async () => response)
+  vi.stubGlobal('fetch', fetch)
+  return fetch
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('browser smoke seeding', () => {
   it('encodes plain values in the Firestore REST shape', () => {
@@ -58,5 +76,41 @@ describe('browser smoke seeding', () => {
     { name: 'undefined inside an array', value: [undefined] },
   ])('refuses $name rather than writing something the case did not ask for', ({ value }) => {
     expect(() => toFirestoreValue(value)).toThrow(/Cannot seed/)
+  })
+})
+
+describe('character documents', () => {
+  it('builds the group-scoped character path', () => {
+    expect(characterPath({ groupId: 'g1', campaignId: 'c1', characterId: 'x1' }))
+      .toBe('groups/g1/campaigns/c1/characters/x1')
+  })
+
+  it('seeds a character under the id it is given, as the owner', async () => {
+    const fetch = stubFetch({ ok: true })
+
+    await expect(seedCharacter({ groupId: 'g1', campaignId: 'c1', characterId: 'x1', fields: { name: 'Mina' } }))
+      .resolves.toBe('x1')
+
+    expect(fetch).toHaveBeenCalledWith(`${documentsUrl}/groups/g1/campaigns/c1/characters/x1`, {
+      method: 'PATCH',
+      headers: { authorization: 'Bearer owner', 'content-type': 'application/json' },
+      body: JSON.stringify({ fields: { name: { stringValue: 'Mina' } } }),
+    })
+  })
+
+  it('reads a stored document back in the REST shape the seed encodes to', async () => {
+    const fields = toFirestoreFields({ name: 'Mina', xp: 3 })
+    const fetch = stubFetch({ ok: true, json: async () => ({ name: 'ignored', fields }) })
+
+    await expect(readDocumentFields('groups/g1/campaigns/c1/characters/x1')).resolves.toEqual(fields)
+    expect(fetch).toHaveBeenCalledWith(`${documentsUrl}/groups/g1/campaigns/c1/characters/x1`, {
+      headers: { authorization: 'Bearer owner' },
+    })
+  })
+
+  it('names the document and the status when a read fails', async () => {
+    stubFetch({ ok: false, status: 404, text: async () => 'not found' })
+
+    await expect(readDocumentFields('groups/g1/missing')).rejects.toThrow('Reading groups/g1/missing failed (404): not found')
   })
 })

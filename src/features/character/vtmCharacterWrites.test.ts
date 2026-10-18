@@ -14,11 +14,11 @@ vi.mock('firebase/firestore', () => ({
 }))
 
 const {
-  cancelVtmCharacterSaves,
   emptyVtmCharacterSaves,
   isVtmCharacterSaveOutstanding,
   newVtmCharacterFields,
   scheduleVtmCharacterSave,
+  sendVtmCharacterSavesNow,
   vtmCampaignScope,
 } = await import('./vtmCharacterWrites')
 
@@ -95,16 +95,30 @@ describe('scheduleVtmCharacterSave', () => {
   })
 })
 
-describe('cancelVtmCharacterSaves', () => {
-  it('drops waiting saves and forgets saves in flight', () => {
+describe('sendVtmCharacterSavesNow', () => {
+  it('sends every waiting save at once, to the campaign it was made in, and only once', () => {
     const saves = emptyVtmCharacterSaves()
-    scheduleVtmCharacterSave(saves, campaign, 'a', () => stored)
-    saves.inFlight.b = true
+    const otherCampaign = { campaignId: 'campaign-2', groupId: 'group-1' }
+    scheduleVtmCharacterSave(saves, campaign, 'a', () => ({ ...stored, name: 'Edited A' }))
+    scheduleVtmCharacterSave(saves, otherCampaign, 'b', () => ({ ...stored, id: 'b', name: 'Edited B' }))
 
-    cancelVtmCharacterSaves(saves)
+    sendVtmCharacterSavesNow(saves)
     vi.advanceTimersByTime(500)
 
+    expect(mocks.setDoc.mock.calls.map(([ref, fields]) => [(ref as { path: string }).path, (fields as { name: string }).name])).toEqual([
+      ['groups/group-1/campaigns/campaign-1/characters/a', 'Edited A'],
+      ['groups/group-1/campaigns/campaign-2/characters/b', 'Edited B'],
+    ])
+    expect(saves).toEqual({ pending: {}, inFlight: { a: true, b: true } })
+  })
+
+  it('sends nothing when no save is waiting, and leaves saves in flight alone', () => {
+    const saves = emptyVtmCharacterSaves()
+    saves.inFlight.a = true
+
+    sendVtmCharacterSavesNow(saves)
+
     expect(mocks.setDoc).not.toHaveBeenCalled()
-    expect(saves).toEqual({ pending: {}, inFlight: {} })
+    expect(saves).toEqual({ pending: {}, inFlight: { a: true } })
   })
 })

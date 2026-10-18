@@ -1,9 +1,16 @@
 import { spawn } from 'node:child_process'
 import { mkdir } from 'node:fs/promises'
 import process from 'node:process'
-import puppeteer from 'puppeteer'
+import puppeteer, { Locator } from 'puppeteer'
 import { isExpectedFirestoreEmulatorChannelError } from './browser-smoke-errors.mjs'
-import { PROJECT_ID, seedCampaign, seedCharacter } from './browser-smoke-seed.mjs'
+import {
+  characterPath,
+  PROJECT_ID,
+  readDocumentFields,
+  seedCampaign,
+  seedCharacter,
+  toFirestoreFields,
+} from './browser-smoke-seed.mjs'
 
 const APP_URL = 'http://127.0.0.1:4173'
 const AUTH_EMULATOR_URL = 'http://127.0.0.1:9099'
@@ -173,6 +180,18 @@ async function backToGroupHome(page, testCase) {
   await roleLocator(page, 'button', 'Create new draft').wait()
 }
 
+// The back button does not close the drawer it sits in, so the next campaign
+// opens with the drawer over its character tab. Close it as a user would.
+async function closeNavigationDrawer(page) {
+  if (await page.$('.side-nav.open')) {
+    await step('close the navigation drawer', async () => {
+      await roleLocator(page, 'button', 'Open navigation').click()
+      // The class drops at once; wait for the slide-out to finish too.
+      await page.waitForFunction(() => document.querySelector('.side-nav').getBoundingClientRect().right <= 0)
+    })
+  }
+}
+
 async function createAndOpenCampaign(page, testCase, ruleSet) {
   const campaignName = `${testCase.label} ${ruleSet.label} Campaign`
   await step(`create the ${ruleSet.label} campaign`, async () => {
@@ -185,15 +204,7 @@ async function createAndOpenCampaign(page, testCase, ruleSet) {
     await page.locator(`.group-home-card ::-p-text(${JSON.stringify(campaignName)})`).click()
     await page.locator(ruleSet.characterTab).wait()
   })
-  // The back button does not close the drawer it sits in, so the next campaign
-  // opens with the drawer over its character tab. Close it as a user would.
-  if (await page.$('.side-nav.open')) {
-    await step('close the navigation drawer', async () => {
-      await roleLocator(page, 'button', 'Open navigation').click()
-      // The class drops at once; wait for the slide-out to finish too.
-      await page.waitForFunction(() => document.querySelector('.side-nav').getBoundingClientRect().right <= 0)
-    })
-  }
+  await closeNavigationDrawer(page)
   await step(`show the empty ${ruleSet.label} character list`, () => waitForBodyText(page, 'No characters available.'))
   await screenshot(page, `${testCase.name}-${ruleSet.system}-character`)
 }
@@ -243,6 +254,181 @@ async function openCampaignCases(page, testCase, { uid, groupId }) {
   }
 }
 
+// A VtM sheet saves 500 ms after the last keystroke. These cases leave the
+// sheet, or the campaign, well inside that window, then wait out the window
+// before they reload, so a save that was cancelled rather than sent shows.
+const VTM_EDIT_SETTLE_MS = 1_500
+const SHARED_CHARACTER_ID = 'smoke-shared-vampire'
+
+export function vtmCharacterFields({ uid, username, name, concept }) {
+  return {
+    system: 'vtm',
+    name,
+    ownerUserId: uid,
+    ownerUsername: username,
+    creationMode: 'established',
+    creationModeExplicit: true,
+    creationStatus: 'active',
+    xp: 0,
+    vtm: { concept },
+  }
+}
+
+// Seeds one VtM campaign holding one character, under SHARED_CHARACTER_ID so
+// two campaigns can hold a character with the same id.
+async function seedVtmCampaign({ uid, groupId, testCase, label }) {
+  const campaignName = `${testCase.label} VtM ${label}`
+  const characterName = `${label} Vampire`
+  const concept = `${label} concept`
+  const campaignId = await seedCampaign({ groupId, gmUserId: uid, fields: { name: campaignName, system: 'vtm' } })
+  const fields = vtmCharacterFields({ uid, username: testCase.username, name: characterName, concept })
+  await seedCharacter({ groupId, campaignId, characterId: SHARED_CHARACTER_ID, fields })
+  return { campaignId, campaignName, characterName, concept, fields, path: characterPath({ groupId, campaignId, characterId: SHARED_CHARACTER_ID }) }
+}
+
+async function openCampaignCard(page, campaignName) {
+  await page.locator(`.group-home-card ::-p-text(${JSON.stringify(campaignName)})`).click()
+  await page.locator('.vtm-character-tab').wait()
+  await closeNavigationDrawer(page)
+}
+
+// The open sheet's Concept field, once the sheet shows `characterName`. A
+// narrow screen opens on the character list, so pick the character there first.
+async function vtmConceptField(page, characterName) {
+  const card = `.monster-list-item ::-p-text(${JSON.stringify(characterName)})`
+  await Locator.race([page.locator(card), page.locator('.vtm-identity-fields')]).wait()
+  await (await page.$(card))?.click()
+  await page.waitForFunction(
+    (name) => [...document.querySelectorAll('.vtm-identity-fields input')].some((input) => input.value === name),
+    {},
+    characterName,
+  )
+  return roleLocator(page, 'textbox', 'Concept')
+}
+
+async function expectVtmConcept(page, characterName, expected) {
+  const field = await vtmConceptField(page, characterName)
+  const actual = await field.map((input) => input.value).wait()
+  if (actual !== expected) throw new Error(`Expected the Concept "${expected}", found "${actual}".`)
+}
+
+async function expectStoredUnchanged(seeded) {
+  const stored = await readDocumentFields(seeded.path)
+  const expected = toFirestoreFields(seeded.fields)
+  if (JSON.stringify(stored) !== JSON.stringify(expected)) {
+    throw new Error(`${seeded.campaignName}'s character changed: ${JSON.stringify(stored)}`)
+  }
+}
+
+// Clicks a control in the closed navigation drawer straight away, as the
+// quickest tap a user could make, rather than waiting out the drawer's slide-in.
+async function clickInDrawer(page, selector) {
+  await page.$eval(selector, (element) => element.click())
+}
+
+async function editVtmConcept(page, seeded) {
+  const field = await vtmConceptField(page, seeded.characterName)
+  await field.fill(`${seeded.concept}, edited`)
+}
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, VTM_EDIT_SETTLE_MS))
+
+async function vtmLeaveSheetCase(page, testCase, seeded) {
+  await step('open the VtM campaign', () => openCampaignCard(page, seeded.campaignName))
+  await step('edit the VtM Concept', () => editVtmConcept(page, seeded))
+  await step('open Notes at once', async () => {
+    await clickInDrawer(page, '.side-nav a[href$="/notes"]')
+    await page.waitForFunction(() => !document.querySelector('.vtm-character-tab'))
+  })
+  await settle()
+  await step('see the edit after a reload', async () => {
+    await page.goto(page.url().replace(/\/notes$/, '/character'), { waitUntil: 'domcontentloaded' })
+    await expectVtmConcept(page, seeded.characterName, `${seeded.concept}, edited`)
+  })
+}
+
+async function vtmSwitchCampaignCase(page, testCase, { origin, destination }) {
+  await step('open the original VtM campaign', () => openCampaignCard(page, origin.campaignName))
+  await step('edit the VtM Concept', () => editVtmConcept(page, origin))
+  await step('switch campaign at once', async () => {
+    await clickInDrawer(page, `[aria-label=${JSON.stringify(`Back to ${testCase.groupName}`)}]`)
+    await openCampaignCard(page, destination.campaignName)
+  })
+  await settle()
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await step('see the destination unchanged after a reload', async () => {
+    await expectVtmConcept(page, destination.characterName, destination.concept)
+    await expectStoredUnchanged(destination)
+  })
+  await step('see the edit on the original campaign', async () => {
+    await backToGroupHome(page, testCase)
+    await openCampaignCard(page, origin.campaignName)
+    await expectVtmConcept(page, origin.characterName, `${origin.concept}, edited`)
+  })
+}
+
+// The browser's back button can move from one campaign's sheet straight to
+// another's, so the sheet stays open and only its campaign changes. The
+// history this needs is the destination's sheet, then the original's.
+async function vtmBackButtonCase(page, testCase, { origin, destination }) {
+  await step('open the destination VtM campaign', () => openCampaignCard(page, destination.campaignName))
+  await step('open the original VtM campaign after it', async () => {
+    await clickInDrawer(page, '.side-nav a[href$="/notes"]')
+    await page.waitForFunction(() => !document.querySelector('.vtm-character-tab'))
+    await backToGroupHome(page, testCase)
+    await openCampaignCard(page, origin.campaignName)
+  })
+  await step('edit the VtM Concept', () => editVtmConcept(page, origin))
+  await step('go back to the destination at once', async () => {
+    await page.goBack()
+    if (!page.url().includes(destination.campaignId)) throw new Error(`Back went to ${page.url()}.`)
+    await expectVtmConcept(page, destination.characterName, destination.concept)
+  })
+  await settle()
+  await step('see the destination unchanged before and after a reload', async () => {
+    await expectVtmConcept(page, destination.characterName, destination.concept)
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await expectVtmConcept(page, destination.characterName, destination.concept)
+    await expectStoredUnchanged(destination)
+  })
+  await step('see the edit on the original campaign', async () => {
+    await backToGroupHome(page, testCase)
+    await openCampaignCard(page, origin.campaignName)
+    await expectVtmConcept(page, origin.characterName, `${origin.concept}, edited`)
+  })
+}
+
+async function seedVtmLastEditCampaigns(testCase, ids) {
+  const seed = (label) => seedVtmCampaign({ ...ids, testCase, label })
+  return {
+    leave: await seed('Leave Sheet'),
+    switch: { origin: await seed('Switch Origin'), destination: await seed('Switch Destination') },
+    back: { origin: await seed('Back Origin'), destination: await seed('Back Destination') },
+  }
+}
+
+// Each case reloads, so each gets a fresh browser context; see backToGroupHome
+// for why one context cannot take many page loads.
+async function inSignedInPage(browser, { testCase, groupId, browserErrors }, name, action) {
+  const { context, page } = await newSmokePage(browser, testCase, browserErrors)
+  try {
+    await step(`sign in for ${name}`, () => signInToGroupHome(page, testCase, groupId))
+    await step(name, () => action(page))
+  } finally {
+    await screenshot(page, `${testCase.name}-${name.replaceAll(' ', '-')}`)
+    await context.close()
+  }
+}
+
+async function vtmLastEditCases(browser, testCase, ids, browserErrors) {
+  const seeded = await seedVtmLastEditCampaigns(testCase, ids)
+  const session = { testCase, groupId: ids.groupId, browserErrors }
+  const run = (name, action) => inSignedInPage(browser, session, name, action)
+  await run('vtm-leave-sheet', (page) => vtmLeaveSheetCase(page, testCase, seeded.leave))
+  await run('vtm-switch-campaign', (page) => vtmSwitchCampaignCase(page, testCase, seeded.switch))
+  await run('vtm-back-button', (page) => vtmBackButtonCase(page, testCase, seeded.back))
+}
+
 function collectBrowserErrors(page, errors, surface) {
   page.on('pageerror', (error) => {
     errors.push(`${surface} page error: ${error.message}`)
@@ -266,22 +452,37 @@ function collectBrowserErrors(page, errors, surface) {
   })
 }
 
-async function runViewport(browser, testCase) {
+async function newSmokePage(browser, testCase, browserErrors) {
   const context = await browser.createBrowserContext()
   const page = await context.newPage()
-  const browserErrors = []
   collectBrowserErrors(page, browserErrors, testCase.name)
   await page.setViewport(testCase.viewport)
   page.setDefaultTimeout(15_000)
+  return { context, page }
+}
+
+async function submitEmailSignIn(page, testCase, path = '/') {
+  await page.goto(`${APP_URL}${path}`, { waitUntil: 'domcontentloaded' })
+  await roleLocator(page, 'region', 'Authentication').wait()
+  await page.locator('input[type="email"]').fill(testCase.email)
+  await page.locator('input[type="password"]').fill(PASSWORD)
+  await roleLocator(page, 'button', 'Sign in with email').click()
+}
+
+// Signs in an account that is already verified and has a handle, on the
+// group's home page.
+async function signInToGroupHome(page, testCase, groupId) {
+  await submitEmailSignIn(page, testCase, `/groups/${groupId}`)
+  await roleLocator(page, 'button', 'Create new draft').wait()
+}
+
+async function runViewport(browser, testCase) {
+  const browserErrors = []
+  const { context, page } = await newSmokePage(browser, testCase, browserErrors)
 
   try {
     const uid = await createAuthUser(testCase.email)
-    await page.goto(APP_URL, { waitUntil: 'domcontentloaded' })
-    await roleLocator(page, 'region', 'Authentication').wait()
-
-    await page.locator('input[type="email"]').fill(testCase.email)
-    await page.locator('input[type="password"]').fill(PASSWORD)
-    await roleLocator(page, 'button', 'Sign in with email').click()
+    await submitEmailSignIn(page, testCase)
 
     await roleLocator(page, 'region', 'Email verification').wait()
     await waitForBodyText(page, 'Verification email sent.')
@@ -306,7 +507,9 @@ async function runViewport(browser, testCase) {
     await page.locator('[role="dialog"] input[type="text"]').fill(testCase.groupName)
     await roleLocator(page, 'button', 'Create').click()
     await waitForBodyText(page, testCase.groupName)
-    await openCampaignCases(page, testCase, { uid, groupId: groupIdFromUrl(page) })
+    const groupId = groupIdFromUrl(page)
+    await openCampaignCases(page, testCase, { uid, groupId })
+    await vtmLastEditCases(browser, testCase, { uid, groupId }, browserErrors)
     await new Promise((resolve) => setTimeout(resolve, 500))
 
     if (browserErrors.length > 0) {
@@ -316,7 +519,8 @@ async function runViewport(browser, testCase) {
     console.log(
       `PASS ${testCase.name}: signed in, verified email, claimed a handle, created a group, `
       + 'opened a seeded character, and opened the character tab of a new '
-      + `${ruleSetCampaigns.map((ruleSet) => ruleSet.label).join(' and a new ')} campaign.`,
+      + `${ruleSetCampaigns.map((ruleSet) => ruleSet.label).join(' and a new ')} campaign, `
+      + 'and kept a VtM edit made just before leaving the sheet or switching campaign.',
     )
   } finally {
     await screenshot(page, testCase.name)

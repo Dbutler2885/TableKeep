@@ -78,6 +78,18 @@ export async function seedDocument(path, data) {
   }
 }
 
+// Returns the document at `path` in the same REST shape `toFirestoreFields`
+// produces, so a case can compare what is stored with what it seeded.
+export async function readDocumentFields(path) {
+  const response = await fetch(`${documentsUrl}/${path}`, {
+    headers: { authorization: 'Bearer owner' },
+  })
+  if (!response.ok) {
+    throw new Error(`Reading ${path} failed (${response.status}): ${await response.text()}`)
+  }
+  return (await response.json()).fields
+}
+
 function newDocumentId() {
   return randomUUID().replaceAll('-', '').slice(0, 20)
 }
@@ -99,7 +111,11 @@ export async function seedCampaign({ groupId, gmUserId, campaignId = newDocument
   return campaignId
 }
 
+export function characterPath({ groupId, campaignId, characterId }) {
+  return `groups/${groupId}/campaigns/${campaignId}/characters/${characterId}`
+}
+
 export async function seedCharacter({ groupId, campaignId, characterId = newDocumentId(), fields }) {
-  await seedDocument(`groups/${groupId}/campaigns/${campaignId}/characters/${characterId}`, fields)
+  await seedDocument(characterPath({ groupId, campaignId, characterId }), fields)
   return characterId
 }

@@ -6,12 +6,18 @@ import type { VtmCharacterRecord } from './vtmTypes'
 
 const CHARACTER_SAVE_DELAY_MS = 500
 
+/** A save waiting out its delay, and how to send it before the delay runs out. */
+type WaitingVtmCharacterSave = {
+  timer: ReturnType<typeof setTimeout>
+  send: () => void
+}
+
 /**
- * Saves that have not landed yet, by character id: `pending` holds the timer
- * of a save still waiting out its delay, `inFlight` a save sent but not settled.
+ * Saves that have not landed yet, by character id: `pending` holds a save
+ * still waiting out its delay, `inFlight` a save sent but not settled.
  */
 export type VtmCharacterSaves = {
-  pending: Record<string, ReturnType<typeof setTimeout>>
+  pending: Record<string, WaitingVtmCharacterSave>
   inFlight: Record<string, boolean>
 }
 
@@ -28,11 +34,12 @@ export function isVtmCharacterSaveOutstanding(saves: VtmCharacterSaves, characte
   return Boolean(saves.pending[characterId] || saves.inFlight[characterId])
 }
 
-/** Drops every waiting save without sending it, and forgets every save in flight. */
-export function cancelVtmCharacterSaves(saves: VtmCharacterSaves) {
-  Object.values(saves.pending).forEach((timer) => clearTimeout(timer))
-  saves.pending = {}
-  saves.inFlight = {}
+/** Sends every waiting save now, to the campaign it was made in, instead of when its delay runs out. */
+export function sendVtmCharacterSavesNow(saves: VtmCharacterSaves) {
+  Object.values(saves.pending).forEach(({ timer, send }) => {
+    clearTimeout(timer)
+    send()
+  })
 }
 
 export function vtmCharacterSaveFields(character: VtmCharacterRecord) {
@@ -119,9 +126,7 @@ export function scheduleVtmCharacterSave(
   readCharacter: (characterId: string) => VtmCharacterRecord | undefined,
 ) {
   const existing = saves.pending[characterId]
-  if (existing) clearTimeout(existing)
-  saves.pending[characterId] = setTimeout(
-    () => sendVtmCharacterSave(saves, campaign, characterId, readCharacter),
-    CHARACTER_SAVE_DELAY_MS,
-  )
+  if (existing) clearTimeout(existing.timer)
+  const send = () => sendVtmCharacterSave(saves, campaign, characterId, readCharacter)
+  saves.pending[characterId] = { timer: setTimeout(send, CHARACTER_SAVE_DELAY_MS), send }
 }
