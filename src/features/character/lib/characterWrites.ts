@@ -6,12 +6,18 @@ import { sanitizeTokenIconForPersistence } from '../../common/mediaStorage'
 
 const CHARACTER_SAVE_DELAY_MS = 500
 
+/** A save waiting out its delay, and how to send it before the delay runs out. */
+type WaitingCharacterSave = {
+  timer: ReturnType<typeof setTimeout>
+  send: () => void
+}
+
 /**
- * Saves that have not landed yet, by character id: `pending` holds the timer
- * of a save still waiting out its delay, `inFlight` a save sent but not settled.
+ * Saves that have not landed yet, by character id: `pending` holds a save
+ * still waiting out its delay, `inFlight` a save sent but not settled.
  */
 export type CharacterSaves = {
-  pending: Record<string, ReturnType<typeof setTimeout>>
+  pending: Record<string, WaitingCharacterSave>
   inFlight: Record<string, boolean>
 }
 
@@ -28,18 +34,19 @@ export function isCharacterSaveOutstanding(saves: CharacterSaves, characterId: s
   return !!saves.pending[characterId] || !!saves.inFlight[characterId]
 }
 
-/** Drops every waiting save without sending it, and forgets every save in flight. */
-export function cancelCharacterSaves(saves: CharacterSaves) {
-  Object.values(saves.pending).forEach((timer) => clearTimeout(timer))
-  saves.pending = {}
-  saves.inFlight = {}
+/** Sends every waiting save now, to the campaign it was made in, instead of when its delay runs out. */
+export function sendCharacterSavesNow(saves: CharacterSaves) {
+  Object.values(saves.pending).forEach(({ timer, send }) => {
+    clearTimeout(timer)
+    send()
+  })
 }
 
 /** Drops one character's waiting save without sending it, and forgets its save in flight. */
 export function cancelCharacterSave(saves: CharacterSaves, characterId: string) {
   const pending = saves.pending[characterId]
   if (pending) {
-    clearTimeout(pending)
+    clearTimeout(pending.timer)
     delete saves.pending[characterId]
   }
   delete saves.inFlight[characterId]
@@ -110,9 +117,7 @@ export function scheduleCharacterSave(
   readCharacter: (characterId: string) => CharacterRecord | undefined,
 ) {
   const existing = saves.pending[characterId]
-  if (existing) clearTimeout(existing)
-  saves.pending[characterId] = setTimeout(
-    () => sendCharacterSave(saves, campaign, characterId, readCharacter),
-    CHARACTER_SAVE_DELAY_MS,
-  )
+  if (existing) clearTimeout(existing.timer)
+  const send = () => sendCharacterSave(saves, campaign, characterId, readCharacter)
+  saves.pending[characterId] = { timer: setTimeout(send, CHARACTER_SAVE_DELAY_MS), send }
 }

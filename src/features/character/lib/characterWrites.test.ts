@@ -23,13 +23,13 @@ vi.mock('firebase/firestore', () => ({
 const {
   campaignScope,
   cancelCharacterSave,
-  cancelCharacterSaves,
   characterSaveFields,
   deleteCharacterDoc,
   emptyCharacterSaves,
   isCharacterSaveOutstanding,
   saveCurrentCharacter,
   scheduleCharacterSave,
+  sendCharacterSavesNow,
 } = await import('./characterWrites')
 
 const campaign = { campaignId: 'campaign-1', groupId: 'group-1' }
@@ -121,19 +121,31 @@ describe('scheduleCharacterSave', () => {
   })
 })
 
-describe('cancelling saves', () => {
-  it('drops every waiting save and forgets every save in flight', () => {
+describe('sendCharacterSavesNow', () => {
+  it('sends every waiting save at once, each to its own campaign, and not again when its delay runs out', () => {
+    const otherCampaign = { campaignId: 'campaign-2', groupId: 'group-1' }
     const saves = emptyCharacterSaves()
-    scheduleCharacterSave(saves, campaign, 'a', () => character('a'))
-    saves.inFlight.b = true
+    scheduleCharacterSave(saves, campaign, 'a', (id) => character(id, { name: 'Edited a' }))
+    scheduleCharacterSave(saves, otherCampaign, 'b', (id) => character(id, { name: 'Edited b' }))
 
-    cancelCharacterSaves(saves)
+    sendCharacterSavesNow(saves)
     vi.advanceTimersByTime(500)
 
-    expect(saves).toEqual({ pending: {}, inFlight: {} })
-    expect(mocks.setDoc).not.toHaveBeenCalled()
+    expect(mocks.setDoc.mock.calls.map(([ref, data]) => [ref, (data as { name: string }).name])).toEqual([
+      [{ path: `${CHARACTERS_PATH}/a` }, 'Edited a'],
+      [{ path: 'groups/group-1/campaigns/campaign-2/characters/b' }, 'Edited b'],
+    ])
+    expect(saves).toEqual({ pending: {}, inFlight: { a: true, b: true } })
   })
 
+  it('sends nothing when no save is waiting', () => {
+    sendCharacterSavesNow(emptyCharacterSaves())
+
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+  })
+})
+
+describe('cancelling saves', () => {
   it('drops one character\'s waiting save and forgets its save in flight, leaving the others', () => {
     const saves = emptyCharacterSaves()
     scheduleCharacterSave(saves, campaign, 'a', (id) => character(id))

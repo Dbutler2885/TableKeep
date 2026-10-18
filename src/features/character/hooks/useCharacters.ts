@@ -1,7 +1,7 @@
 // Owns the campaign character subscription and write-reconciliation effects.
 // This hook sits above CharacterTab, so its effects are outside the local justSeeded ordering chain.
 // Its effects run in this order: list ref sync, current character, character list,
-// media URLs, current character fallback, then the unmount cleanup of waiting saves.
+// media URLs, current character fallback, then sending waiting saves on leaving.
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type RefObject } from 'react'
 import type { CharacterRecord, Role } from '../../../types/app'
 import {
@@ -14,9 +14,9 @@ import {
 import { fallbackCurrentCharacterId, findCharacter } from '../lib/characterSnapshot'
 import {
   campaignScope,
-  cancelCharacterSaves,
   emptyCharacterSaves,
   isCharacterSaveOutstanding,
+  sendCharacterSavesNow,
   type CharacterSaves,
 } from '../lib/characterWrites'
 import { useCharacterMediaUrls } from './useCharacterMediaUrls'
@@ -55,12 +55,27 @@ function useCurrentCharacterFallback(options: CurrentCharacterFallbackOptions) {
   }, [campaignId, characters, currentCharacterId, role, userId])
 }
 
-/** Drops every waiting save when the sheet closes. */
-function useCancelCharacterSavesOnUnmount(savesRef: RefObject<CharacterSaves>) {
+/**
+ * Sends every waiting save when the list is switched off, the campaign changes
+ * or the hook unmounts, so the last edit is not lost. This cleanup runs before
+ * the list is cleared, and the save reads the character from the campaign it
+ * was made in, never a character of the same id in the next campaign. The next
+ * campaign then starts with no saves of its own, so a save still landing in the
+ * old campaign never makes its snapshot keep the old campaign's character.
+ */
+function useSendCharacterSavesOnLeave(
+  savesRef: RefObject<CharacterSaves>,
+  campaignId: string | null,
+  groupId: string | null,
+  enabled: boolean,
+) {
   useEffect(() => {
     const saves = savesRef.current
-    return () => cancelCharacterSaves(saves)
-  }, [savesRef])
+    return () => {
+      sendCharacterSavesNow(saves)
+      savesRef.current = emptyCharacterSaves()
+    }
+  }, [savesRef, campaignId, groupId, enabled])
 }
 
 export function useCharacters(
@@ -98,7 +113,7 @@ export function useCharacters(
   useCurrentCharacterFallback({
     campaignId, role, userId, characters, currentCharacterId, chooseCurrentCharacter: setCurrentCharacter,
   })
-  useCancelCharacterSavesOnUnmount(savesRef)
+  useSendCharacterSavesOnLeave(savesRef, campaignId, groupId, enabled)
 
   const selectedCharacter = useMemo(
     () => findCharacter(characters, selectedCharacterId) ?? null,
