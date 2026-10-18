@@ -286,9 +286,9 @@ async function seedVtmCampaign({ uid, groupId, testCase, label }) {
   return { campaignId, campaignName, characterName, concept, fields, path: characterPath({ groupId, campaignId, characterId: SHARED_CHARACTER_ID }) }
 }
 
-async function openCampaignCard(page, campaignName) {
+async function openCampaignCard(page, campaignName, characterTab = '.vtm-character-tab') {
   await page.locator(`.group-home-card ::-p-text(${JSON.stringify(campaignName)})`).click()
-  await page.locator('.vtm-character-tab').wait()
+  await page.locator(characterTab).wait()
   await closeNavigationDrawer(page)
 }
 
@@ -429,6 +429,134 @@ async function vtmLastEditCases(browser, testCase, ids, browserErrors) {
   await run('vtm-back-button', (page) => vtmBackButtonCase(page, testCase, seeded.back))
 }
 
+// An OSE sheet saves 500 ms after the last keystroke too, but the hook that
+// saves sits above the sheet, so the cases also cover the page being hidden.
+const OSE_SHARED_CHARACTER_ID = 'smoke-shared-fighter'
+const oseCharacterTab = ruleSetCampaigns.find((ruleSet) => ruleSet.system === 'ose').characterTab
+
+export function oseCharacterFields({ uid, username, name }) {
+  return {
+    name,
+    ownerUserId: uid,
+    ownerUsername: username,
+    class: 'Fighter',
+    level: 1,
+    hpCurrent: 8,
+    hpMax: 8,
+    creationStatus: 'active',
+  }
+}
+
+// Seeds one OSE campaign holding one character, under OSE_SHARED_CHARACTER_ID
+// so two campaigns can hold a character with the same id.
+async function seedOseCampaign({ uid, groupId, testCase, label }) {
+  const campaignName = `${testCase.label} OSE ${label}`
+  const characterName = `${label} Fighter`
+  const campaignId = await seedCampaign({ groupId, gmUserId: uid, fields: { name: campaignName, system: 'ose' } })
+  const fields = oseCharacterFields({ uid, username: testCase.username, name: characterName })
+  await seedCharacter({ groupId, campaignId, characterId: OSE_SHARED_CHARACTER_ID, fields })
+  return { campaignId, campaignName, characterName, fields, path: characterPath({ groupId, campaignId, characterId: OSE_SHARED_CHARACTER_ID }) }
+}
+
+// The open sheet's Name field. Each seeded campaign holds one character, so
+// select it in the list first, as a narrow screen needs.
+async function oseNameField(page) {
+  await page.locator('.character-list-item-wrap .monster-list-item').click()
+  const field = page.locator('.character-header-field-name input')
+  await field.filter((input) => input.value !== '').wait()
+  return field
+}
+
+async function expectOseName(page, expected) {
+  const field = await oseNameField(page)
+  const actual = await field.map((input) => input.value).wait()
+  if (actual !== expected) throw new Error(`Expected the Name "${expected}", found "${actual}".`)
+}
+
+// Types at a person's pace and checks the field shows the whole edit before
+// the case leaves. Keys typed at machine speed can go missing from this field,
+// which is a separate fault that would otherwise look like a lost save.
+async function editOseName(page, seeded) {
+  const field = await oseNameField(page)
+  await (await field.waitHandle()).type(', edited', { delay: 100 })
+  const actual = await field.map((input) => input.value).wait()
+  const expected = `${seeded.characterName}, edited`
+  if (actual !== expected) throw new Error(`The Name field shows "${actual}" after typing "${expected}".`)
+}
+
+async function oseLeaveForNotesCase(page, testCase, seeded) {
+  await step('open the OSE campaign', () => openCampaignCard(page, seeded.campaignName, oseCharacterTab))
+  await step('edit the OSE Name', () => editOseName(page, seeded))
+  await step('open Notes at once', async () => {
+    await clickInDrawer(page, '.side-nav a[href$="/notes"]')
+    await page.waitForFunction((tab) => !document.querySelector(tab), {}, oseCharacterTab)
+  })
+  await settle()
+  await step('see the edit after a reload', async () => {
+    await page.goto(page.url().replace(/\/notes$/, '/character'), { waitUntil: 'domcontentloaded' })
+    await expectOseName(page, `${seeded.characterName}, edited`)
+  })
+}
+
+// Hides the page as a user switching to another browser tab would.
+async function hidePage(page) {
+  const other = await page.browserContext().newPage()
+  await other.bringToFront()
+  await page.waitForFunction(() => document.visibilityState === 'hidden')
+  return other
+}
+
+async function oseHidePageCase(page, testCase, seeded) {
+  await step('open the OSE campaign', () => openCampaignCard(page, seeded.campaignName, oseCharacterTab))
+  await step('edit the OSE Name', () => editOseName(page, seeded))
+  const other = await step('hide the page at once', () => hidePage(page))
+  await settle()
+  await step('see the edit after a reload', async () => {
+    await other.close()
+    await page.bringToFront()
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await expectOseName(page, `${seeded.characterName}, edited`)
+  })
+}
+
+async function oseSwitchCampaignCase(page, testCase, { origin, destination }) {
+  await step('open the original OSE campaign', () => openCampaignCard(page, origin.campaignName, oseCharacterTab))
+  await step('edit the OSE Name', () => editOseName(page, origin))
+  await step('switch campaign at once', async () => {
+    await clickInDrawer(page, `[aria-label=${JSON.stringify(`Back to ${testCase.groupName}`)}]`)
+    await openCampaignCard(page, destination.campaignName, oseCharacterTab)
+  })
+  await settle()
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await step('see the destination unchanged after a reload', async () => {
+    await expectOseName(page, destination.characterName)
+    await expectStoredUnchanged(destination)
+  })
+  await step('see the edit on the original campaign', async () => {
+    await backToGroupHome(page, testCase)
+    await openCampaignCard(page, origin.campaignName, oseCharacterTab)
+    await expectOseName(page, `${origin.characterName}, edited`)
+  })
+}
+
+async function seedOseLastEditCampaigns(testCase, ids) {
+  const seed = (label) => seedOseCampaign({ ...ids, testCase, label })
+  return {
+    notes: await seed('Leave For Notes'),
+    hide: await seed('Hide Page'),
+    switch: { origin: await seed('Switch Origin'), destination: await seed('Switch Destination') },
+  }
+}
+
+async function oseLastEditCases(browser, testCase, ids, browserErrors) {
+  const seeded = await seedOseLastEditCampaigns(testCase, ids)
+  const session = { testCase, groupId: ids.groupId, browserErrors }
+  const run = (name, action) => inSignedInPage(browser, session, name, action)
+  await run('ose-leave-for-notes', (page) => oseLeaveForNotesCase(page, testCase, seeded.notes))
+  await run('ose-hide-page', (page) => oseHidePageCase(page, testCase, seeded.hide))
+  await run('ose-switch-campaign', (page) => oseSwitchCampaignCase(page, testCase, seeded.switch))
+}
+
 function collectBrowserErrors(page, errors, surface) {
   page.on('pageerror', (error) => {
     errors.push(`${surface} page error: ${error.message}`)
@@ -510,6 +638,7 @@ async function runViewport(browser, testCase) {
     const groupId = groupIdFromUrl(page)
     await openCampaignCases(page, testCase, { uid, groupId })
     await vtmLastEditCases(browser, testCase, { uid, groupId }, browserErrors)
+    await oseLastEditCases(browser, testCase, { uid, groupId }, browserErrors)
     await new Promise((resolve) => setTimeout(resolve, 500))
 
     if (browserErrors.length > 0) {
@@ -520,7 +649,8 @@ async function runViewport(browser, testCase) {
       `PASS ${testCase.name}: signed in, verified email, claimed a handle, created a group, `
       + 'opened a seeded character, and opened the character tab of a new '
       + `${ruleSetCampaigns.map((ruleSet) => ruleSet.label).join(' and a new ')} campaign, `
-      + 'and kept a VtM edit made just before leaving the sheet or switching campaign.',
+      + 'and kept a VtM edit made just before leaving the sheet or switching campaign, '
+      + 'and an OSE edit made just before opening Notes, hiding the page or switching campaign.',
     )
   } finally {
     await screenshot(page, testCase.name)

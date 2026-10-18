@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { groupIdFromUrl, step, vtmCharacterFields } from './browser-smoke.mjs'
+import { groupIdFromUrl, oseCharacterFields, step, vtmCharacterFields } from './browser-smoke.mjs'
 
 const pageAt = (url) => ({ url: () => url })
 
@@ -45,6 +45,21 @@ describe('seeding a VtM character', () => {
       creationStatus: 'active',
       xp: 0,
       vtm: { concept: 'Courier' },
+    })
+  })
+})
+
+describe('seeding an OSE character', () => {
+  it('writes an active level 1 Fighter owned by the user, with no sheet details', () => {
+    expect(oseCharacterFields({ uid: 'u1', username: 'desk001', name: 'Brom' })).toEqual({
+      name: 'Brom',
+      ownerUserId: 'u1',
+      ownerUsername: 'desk001',
+      class: 'Fighter',
+      level: 1,
+      hpCurrent: 8,
+      hpMax: 8,
+      creationStatus: 'active',
     })
   })
 })
