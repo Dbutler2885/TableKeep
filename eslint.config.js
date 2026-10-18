@@ -92,7 +92,6 @@ export default defineConfig([
     name: 'react-hooks-v7-debt/immutability',
     files: [
       'src/features/character/components/CharacterPackedItemsSection.tsx',
-      'src/features/character/hooks/useCharacters.ts',
     ],
     rules: { 'react-hooks/immutability': 'warn' },
   },
