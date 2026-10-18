@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import {
-  applyAcceptedTransfer as serverApplyAcceptedTransfer,
-  availablePackedSlots as serverAvailablePackedSlots,
-  type InventoryItem as ServerInventoryItem,
-} from '../../../functions/src/oseCarrying'
+import * as serverCarrying from '../../../functions/src/oseCarrying'
+import type { InventoryItem as ServerInventoryItem } from '../../../functions/src/oseCarrying'
+// The compiled output is tracked and is what gets deployed, so it runs the same
+// cases as its source.
+import * as compiledServerCarrying from '../../../functions/lib/oseCarrying.js'
 import type { CharacterInventoryItem } from '../../types/app'
 import { applyAcceptedTransfer as appApplyAcceptedTransfer } from '../transfers/transferResolution'
 import { computeAvailablePackedSlots, computeOverflow } from './inventoryOverflow'
@@ -26,19 +26,20 @@ const appCopy = {
   }),
 }
 
-const serverCopy = {
-  packedSlots: serverAvailablePackedSlots,
-  transfer: (testCase: TransferCase) => serverApplyAcceptedTransfer(
+const serverCopyOf = (carrying: typeof serverCarrying) => ({
+  packedSlots: carrying.availablePackedSlots,
+  transfer: (testCase: TransferCase) => carrying.applyAcceptedTransfer(
     testCase.senderInventory as ServerInventoryItem[],
     testCase.receiverInventory as ServerInventoryItem[],
     testCase.transfer as { itemId: string; itemSnapshot: ServerInventoryItem },
-    serverAvailablePackedSlots({ abilityScores: { STR: testCase.receiverStr } }),
+    carrying.availablePackedSlots({ abilityScores: { STR: testCase.receiverStr } }),
   ),
-}
+})
 
 const copies = [
   ['app', appCopy],
-  ['server', serverCopy],
+  ['server', serverCopyOf(serverCarrying)],
+  ['compiled server', serverCopyOf(compiledServerCarrying)],
 ] as const
 
 describe.each(copies)('OSE capacity, %s copy', (_label, copy) => {
