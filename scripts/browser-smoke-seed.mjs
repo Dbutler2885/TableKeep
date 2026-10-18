@@ -26,20 +26,36 @@ export const PROJECT_ID = process.env.GCLOUD_PROJECT ?? 'homeboyshouse-dev'
 
 const documentsUrl = `${FIRESTORE_EMULATOR_URL}/v1/projects/${PROJECT_ID}/databases/(default)/documents`
 
-export function toFirestoreValue(value) {
+function unsupported(value) {
+  return new Error(`Cannot seed a value of type ${typeof value}: ${String(value)}.`)
+}
+
+function numberValue(value) {
+  if (!Number.isFinite(value)) throw new Error(`Cannot seed the non-finite number ${value}.`)
+  return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value }
+}
+
+function objectValue(value) {
   if (value === null) return { nullValue: null }
-  if (typeof value === 'string') return { stringValue: value }
-  if (typeof value === 'boolean') return { booleanValue: value }
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new Error(`Cannot seed the non-finite number ${value}.`)
-    return Number.isInteger(value) ? { integerValue: String(value) } : { doubleValue: value }
-  }
   if (value instanceof Date) return { timestampValue: value.toISOString() }
   if (Array.isArray(value)) return { arrayValue: { values: value.map(toFirestoreValue) } }
-  if (typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+  if (Object.getPrototypeOf(value) === Object.prototype) {
     return { mapValue: { fields: toFirestoreFields(value) } }
   }
-  throw new Error(`Cannot seed a value of type ${typeof value}: ${String(value)}.`)
+  throw unsupported(value)
+}
+
+const encodersByType = {
+  string: (value) => ({ stringValue: value }),
+  boolean: (value) => ({ booleanValue: value }),
+  number: numberValue,
+  object: objectValue,
+}
+
+export function toFirestoreValue(value) {
+  const encode = encodersByType[typeof value]
+  if (!encode) throw unsupported(value)
+  return encode(value)
 }
 
 export function toFirestoreFields(data) {

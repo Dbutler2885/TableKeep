@@ -191,7 +191,7 @@ async function createAndOpenCampaign(page, testCase, ruleSet) {
     await step('close the navigation drawer', async () => {
       await roleLocator(page, 'button', 'Open navigation').click()
       // The class drops at once; wait for the slide-out to finish too.
-      await page.waitForFunction(() => document.querySelector('.side-nav')?.getBoundingClientRect().right <= 0)
+      await page.waitForFunction(() => document.querySelector('.side-nav').getBoundingClientRect().right <= 0)
     })
   }
   await step(`show the empty ${ruleSet.label} character list`, () => waitForBodyText(page, 'No characters available.'))
@@ -232,6 +232,15 @@ async function openSeededCharacter(page, testCase, { uid, groupId }) {
     characterName,
   )
   await screenshot(page, `${testCase.name}-seeded-character`)
+}
+
+// Everything the smoke checks inside the group, once it exists. Add a case here.
+async function openCampaignCases(page, testCase, { uid, groupId }) {
+  await step('open a seeded character', () => openSeededCharacter(page, testCase, { uid, groupId }))
+  for (const ruleSet of ruleSetCampaigns) {
+    await step('go back to the group home', () => backToGroupHome(page, testCase))
+    await createAndOpenCampaign(page, testCase, ruleSet)
+  }
 }
 
 function collectBrowserErrors(page, errors, surface) {
@@ -297,13 +306,7 @@ async function runViewport(browser, testCase) {
     await page.locator('[role="dialog"] input[type="text"]').fill(testCase.groupName)
     await roleLocator(page, 'button', 'Create').click()
     await waitForBodyText(page, testCase.groupName)
-    const groupId = groupIdFromUrl(page)
-
-    await step('open a seeded character', () => openSeededCharacter(page, testCase, { uid, groupId }))
-    for (const ruleSet of ruleSetCampaigns) {
-      await step('go back to the group home', () => backToGroupHome(page, testCase))
-      await createAndOpenCampaign(page, testCase, ruleSet)
-    }
+    await openCampaignCases(page, testCase, { uid, groupId: groupIdFromUrl(page) })
     await new Promise((resolve) => setTimeout(resolve, 500))
 
     if (browserErrors.length > 0) {
