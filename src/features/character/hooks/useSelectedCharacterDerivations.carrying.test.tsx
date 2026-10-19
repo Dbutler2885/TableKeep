@@ -12,7 +12,7 @@ const defaults: Params = {
   effectiveSelected: character, abilityScoresByCharacterId: {}, rolledAbilityScoresByCharacterId: {}, abilityScoresRolledByCharacterId: {},
   inventoryByCharacterId: {}, startingGoldByCharacterId: {}, storeCartByCharacterId: {}, storeSpentByCharacterId: {},
   thacoByCharacterId: {}, saveScoresByCharacterId: {}, adventureScoresByCharacterId: {}, thiefSkillsByCharacterId: {},
-  outgoingTransfers: [], goldSpendAmount: '', storeCategory: 'general' as Params['storeCategory'], isInFinalizationFlow: false,
+  outgoingTransfers: [], goldSpendAmount: '', storeCategory: 'adventuring', isInFinalizationFlow: false,
 }
 afterEach(cleanup)
 describe('sheet capacity and store preview', () => {
