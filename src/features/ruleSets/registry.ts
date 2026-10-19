@@ -42,8 +42,12 @@ export type RuleSetShell = {
 
 export type RuleSetDefinition<Id extends RuleSetId = RuleSetId> = {
   id: Id
+  // Its full name, in the new-campaign picker.
   label: string
+  // Its name on a campaign card.
   shortLabel: string
+  // Whether a GM can pick it for a new campaign.
+  selectable: boolean
   tabs: RuleSetTabs
   sheet: RuleSetSheet
   skin: RuleSetSkin
@@ -71,6 +75,7 @@ export const oseRuleSet = {
   id: 'ose',
   label: 'Old-School Essentials',
   shortLabel: 'OSE',
+  selectable: true,
   tabs: {
     order: ['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'calendar', 'rules'],
     hiddenFromPlayers: ['items', 'monsters', 'tables'],
@@ -95,6 +100,7 @@ export const ruleSets: RuleSetRegistry = {
     id: 'vtm',
     label: 'Vampire: the Masquerade',
     shortLabel: 'VTM',
+    selectable: true,
     tabs: {
       order: ['character', 'maps', 'monsters', 'npcs', 'notes', 'calendar'],
       hiddenFromPlayers: [],
@@ -115,3 +121,7 @@ const isRuleSetId = (value: string): value is RuleSetId => Object.hasOwn(ruleSet
 // before rule sets existed are.
 export const resolveRuleSet = (system: string | null | undefined): RuleSetDefinition =>
   system && isRuleSetId(system) ? ruleSets[system] : ruleSets.ose
+
+// The rule sets a GM can pick for a new campaign, in registry order.
+export const selectableRuleSets = (): RuleSetDefinition[] =>
+  Object.values(ruleSets).filter((ruleSet) => ruleSet.selectable)

@@ -1,9 +1,10 @@
 import type { KeyboardEvent, MouseEvent } from 'react'
 import type { Campaign, GroupRecord } from '../../types/app'
+import { resolveRuleSet } from '../ruleSets/registry'
 
-/** The line under a campaign card's name: the stored rule-set id upper-cased, then the card's status. */
+/** The line under a campaign card's name: its rule set's short label, then the card's status. */
 export const campaignCardLabel = (campaign: Campaign, status: string) =>
-  `${(campaign.system ?? '').toUpperCase()} · ${status}`
+  `${resolveRuleSet(campaign.system).shortLabel} · ${status}`
 
 /** Opens a card from the keyboard the way a button opens: on Enter or Space. */
 export function activateOnEnterOrSpace(event: KeyboardEvent, activate: () => void) {

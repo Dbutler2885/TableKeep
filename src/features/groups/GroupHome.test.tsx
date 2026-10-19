@@ -2,7 +2,9 @@
 /**
  * Records how the group home names each campaign's rule set: on the active,
  * draft and inactive cards, and in the new-campaign picker. Recorded from the
- * code as it stands before the registry names rule sets.
+ * code as it stood before the registry named rule sets; the two decided
+ * changes since are a card with no stored rule set reading "OSE", and the
+ * picker using each rule set's full name.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
@@ -71,8 +73,9 @@ describe('GroupHome campaign cards', () => {
   it.each([
     ['ose', 'OSE'],
     ['vtm', 'VTM'],
-    [undefined, ''],
-    ['', ''],
+    [undefined, 'OSE'],
+    ['', 'OSE'],
+    ['unregistered', 'OSE'],
   ] as const)('a campaign storing %j is labelled %j', (system, label) => {
     renderHome({
       activeCampaign: campaign('a', system, 'active'),
@@ -92,13 +95,13 @@ describe('GroupHome new-campaign picker', () => {
     return within(screen.getByRole('dialog')).getByRole('combobox') as HTMLSelectElement
   }
 
-  it('offers OSE and VtM, with OSE chosen', () => {
+  it('offers OSE and VtM by their full names, with OSE chosen', () => {
     renderHome()
     const picker = openPicker()
 
     expect([...picker.options].map((option) => [option.value, option.textContent])).toEqual([
-      ['ose', 'OSE'],
-      ['vtm', 'VTM'],
+      ['ose', 'Old-School Essentials'],
+      ['vtm', 'Vampire: the Masquerade'],
     ])
     expect(picker.value).toBe('ose')
   })
