@@ -1,9 +1,11 @@
+import type { StoredCharacter } from '../../ruleSets/storedCharacter'
+import { mapCharacterSummaryFromData } from './mapCharacterSummary'
+
 export type PartyCharacterEligibilityFields = {
   ownerUserId?: string | null
-  system?: 'ose' | 'vtm' | null
   creationStatus?: 'draft' | 'established_draft' | 'active' | null
-  hpCurrent?: number | null
-  incapacitated?: boolean | null
+  // The character's rule set says it is in play.
+  inPlay: boolean
   hidden?: boolean | null
   deleted?: boolean | null
 }
@@ -19,14 +21,22 @@ const isActiveAndShown = (character: PartyCharacterEligibilityFields) =>
   && character.hidden !== true
   && character.deleted !== true
 
-const isAlive = (character: PartyCharacterEligibilityFields) =>
-  character.system === 'vtm'
-    ? character.incapacitated !== true
-    : typeof character.hpCurrent === 'number' && character.hpCurrent > 0
-
-export function isPlayerOwnedLivingPartyCharacter(
+/** Whether a map summary is a player's finished, visible character that is in play. */
+export function isPartyCharacter(
   character: PartyCharacterEligibilityFields,
   gmUserId: string | null | undefined,
 ): boolean {
-  return isPlayerOwned(character, gmUserId) && isActiveAndShown(character) && isAlive(character)
+  return isPlayerOwned(character, gmUserId) && isActiveAndShown(character) && character.inPlay
+}
+
+/**
+ * The same test for a character record that has not been through the map
+ * summary yet, such as the embedded sheet's list. A map summary cannot be
+ * passed here, because its rule set has already read it.
+ */
+export function isPlayerOwnedLivingPartyCharacter(
+  character: StoredCharacter & { id: string; inPlay?: never },
+  gmUserId: string | null | undefined,
+): boolean {
+  return isPartyCharacter(mapCharacterSummaryFromData(character.id, character), gmUserId)
 }

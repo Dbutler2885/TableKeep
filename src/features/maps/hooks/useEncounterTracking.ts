@@ -10,8 +10,11 @@ import {
   type EncounterTracker,
   type EncounterTrackerMode,
 } from '../lib/encounterCycle'
+import { useMapRuleSet } from '../mapRuleSet'
 
 export function useEncounterTracking() {
+  // A rule set without wandering monsters never tracks, rolls or alerts.
+  const { wanderingMonsters } = useMapRuleSet().mapRules
   const [distanceTrackerFeet, setDistanceTrackerFeet] = useState(IDLE_TRACKER.feet)
   const [distanceTrackerMode, setDistanceTrackerMode] = useState<EncounterTrackerMode>(IDLE_TRACKER.mode)
   const [distanceTrackerRoll, setDistanceTrackerRoll] = useState(IDLE_TRACKER.roll)
@@ -37,13 +40,13 @@ export function useEncounterTracking() {
   // Called by useTokenDrag on each mousemove tick with the accumulated movement in feet.
   // Handles the turn-based encounter check cycle (first-turn warning → d6 roll per turn).
   const onMovementFeet = useCallback((movedFeet: number) => {
-    if (movedFeet <= 0.0001) return
+    if (!wanderingMonsters || movedFeet <= 0.0001) return
     const step = advanceEncounterCycle(cycleRef.current, movedFeet)
     cycleRef.current = step.cycle
     showTracker(trackerAfterStep(step, trackerRef.current))
     const notice = encounterNoticeFor(step)
     if (notice) setEncounterNotice(notice)
-  }, [showTracker])
+  }, [showTracker, wanderingMonsters])
 
   return {
     distanceTrackerFeet,

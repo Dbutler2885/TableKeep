@@ -12,6 +12,7 @@ import {
   dropTokenPlacement,
   startWholePartyTokenPlacement,
 } from './tokenPlacementQueue'
+import { mapCharacterSummaryFromData } from './mapCharacterSummary'
 import type { CharacterTokenSummary } from './types'
 
 const pawn = { icon: 'pawn' as const, color: '#2f5bbf', size: 34 }
@@ -25,15 +26,15 @@ const custom = {
 }
 const gmUserId = 'gm-user'
 
+// A stored character as the map's subscription summarizes it.
 const character = (
-  overrides: Partial<CharacterTokenSummary> & Pick<CharacterTokenSummary, 'id' | 'name'>,
-): CharacterTokenSummary => ({
+  { id, ...stored }: Record<string, unknown> & { id: string; name: string },
+): CharacterTokenSummary => mapCharacterSummaryFromData(id, {
   tokenIcon: pawn,
   ownerUserId: 'player-user',
-  system: 'ose',
   creationStatus: 'active',
   hpCurrent: 1,
-  ...overrides,
+  ...stored,
 })
 
 describe('token placement sources', () => {
@@ -136,14 +137,14 @@ describe('token placement sources', () => {
       name: 'Active Vampire',
       system: 'vtm',
       hpCurrent: undefined,
-      incapacitated: false,
+      vtm: { health: { Incapacitated: false } },
     })
     const incapacitatedVampire = character({
       id: 'incapacitated-vampire',
       name: 'Incapacitated Vampire',
       system: 'vtm',
       hpCurrent: undefined,
-      incapacitated: true,
+      vtm: { health: { Incapacitated: true } },
     })
     const draftVampire = character({
       id: 'draft-vampire',
@@ -151,7 +152,7 @@ describe('token placement sources', () => {
       system: 'vtm',
       creationStatus: 'draft',
       hpCurrent: undefined,
-      incapacitated: false,
+      vtm: { health: { Incapacitated: false } },
     })
 
     expect(buildWholePartyTokenPlacementSources(
@@ -178,7 +179,7 @@ describe('token placement sources', () => {
       name: 'Vampire',
       system: 'vtm',
       hpCurrent: undefined,
-      incapacitated: false,
+      vtm: { health: { Incapacitated: false } },
     })
     const queue = startWholePartyTokenPlacement(buildWholePartyTokenPlacementSources([vampire], gmUserId))
     const result = dropTokenPlacement(queue, { x: 0.25, y: 0.75 }, [])

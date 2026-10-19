@@ -1,7 +1,10 @@
 import type { AppTab, ItemApprovalAction } from '../../types/app'
 import { OSE_STORE_ITEMS } from '../character/storeCatalog'
 import { oseMonsterRuleset, type MonsterRulesetDef } from '../monsters/rulesets'
+import type { CharacterSummaryReader } from './characterIdentity'
 import { oseCharacterVersioning, vtmCharacterVersioning, type CharacterVersioning } from './characterMigrations'
+import { oseCharacterSummary } from './ose/characterSummary'
+import { vtmCharacterSummary } from './vtm/characterSummary'
 
 // Every rule set the app knows. A campaign stores its rule set's id in its
 // `system` field.
@@ -32,6 +35,19 @@ export type ShellTheme = 'default' | 'vtm'
 
 export type RuleSetSkin = {
   theme: ShellTheme
+  // The pawn colour of a character token without art of its own.
+  tokenColor: string
+}
+
+export type RuleSetCharacters = CharacterVersioning & {
+  // What the map shows of a character: its creation status and whether it is
+  // in play.
+  summary: CharacterSummaryReader
+}
+
+export type RuleSetMapRules = {
+  // Whether moving the party on a calibrated map rolls for wandering monsters.
+  wanderingMonsters: boolean
 }
 
 // The shell's fixed places that a rule set switches on.
@@ -62,9 +78,10 @@ export type RuleSetDefinition<Id extends RuleSetId = RuleSetId> = {
   // accepts or declines.
   transfers: boolean
   shell: RuleSetShell
-  // The version its characters are written at, and the steps that bring an
-  // older stored character up to it.
-  characters: CharacterVersioning
+  // The version its characters are written at, the steps that bring an older
+  // stored character up to it, and what the map shows of one.
+  characters: RuleSetCharacters
+  mapRules: RuleSetMapRules
   // The stock items the rule set offers, if it has any.
   catalog?: readonly RuleSetCatalogItem[]
 }
@@ -86,12 +103,13 @@ export const oseRuleSet = {
     labels: { rules: 'OSE SRD' },
   },
   sheet: { embeddable: true },
-  skin: { theme: 'default' },
+  skin: { theme: 'default', tokenColor: '#bf2f2a' },
   monsters: oseMonsterRuleset,
   approvals: ['create', 'sell', 'learn_spell', 'ability_reroll'],
   transfers: true,
   shell: { campaignStrip: false },
-  characters: oseCharacterVersioning,
+  characters: { ...oseCharacterVersioning, summary: oseCharacterSummary },
+  mapRules: { wanderingMonsters: true },
   // The store's list.
   catalog: OSE_STORE_ITEMS,
 } satisfies RuleSetDefinition<'ose'>
@@ -111,12 +129,14 @@ export const ruleSets: RuleSetRegistry = {
       hiddenFromPlayers: [],
     },
     sheet: { embeddable: false },
-    skin: { theme: 'vtm' },
+    skin: { theme: 'vtm', tokenColor: '#7a1a1f' },
     monsters: oseMonsterRuleset,
     approvals: [],
     transfers: false,
     shell: { campaignStrip: false },
-    characters: vtmCharacterVersioning,
+    characters: { ...vtmCharacterVersioning, summary: vtmCharacterSummary },
+    // The OSE wandering-monster check never belonged in VtM.
+    mapRules: { wanderingMonsters: false },
   },
 }
 

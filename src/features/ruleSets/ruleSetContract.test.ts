@@ -10,7 +10,7 @@ import { campaignSettingsTabs } from '../campaign/campaignTabSettings'
 import { OSE_STORE_ITEMS } from '../character/storeCatalog'
 import { campaignCardLabel } from '../groups/groupHomeCampaigns'
 import { mapCharacterSummaryFromData } from '../maps/lib/mapCharacterSummary'
-import { isPlayerOwnedLivingPartyCharacter } from '../maps/lib/partyCharacterEligibility'
+import { isPartyCharacter } from '../maps/lib/partyCharacterEligibility'
 import { campaignSystem } from '../shell/shellSelection'
 import { campaignNavTabs, routableTab } from '../shell/shellTabs'
 import { resolveRuleSet, ruleSets, selectableRuleSets } from './registry'
@@ -234,7 +234,15 @@ describe('map summary', () => {
     ['ose', '#bf2f2a'],
     ['vtm', '#7a1a1f'],
   ] as const)('%s tokens without art default to a %s pawn', (stored, color) => {
+    expect(ruleSets[stored].skin.tokenColor).toBe(color)
     expect(mapSummaryOf(stored, {}).tokenIcon).toEqual({ icon: 'pawn', color, size: 34 })
+  })
+
+  it('reads each rule set\'s characters through its own summary', () => {
+    for (const ruleSet of Object.values(ruleSets)) {
+      const stored = { system: ruleSet.id, creationStatus: 'active', hpCurrent: 3 }
+      expect(mapCharacterSummaryFromData('pc-1', stored)).toMatchObject(ruleSet.characters.summary(stored))
+    }
   })
 
   it.each([
@@ -263,13 +271,14 @@ describe('map summary', () => {
     ['vtm', { hpCurrent: 0, vtm: { health: {} } }, true],
   ] as const)('%s with %j is in play: %s', (stored, fields, inPlay) => {
     const summary = mapSummaryOf(stored, { creationStatus: 'active', ...fields })
-    expect(isPlayerOwnedLivingPartyCharacter(summary, 'gm-1')).toBe(inPlay)
+    expect(summary.inPlay).toBe(inPlay)
+    expect(isPartyCharacter(summary, 'gm-1')).toBe(inPlay)
   })
 
   it.each(['ose', 'vtm'] as const)('%s keeps the GM, drafts, hidden and deleted characters out of play', (stored) => {
     const alive = { creationStatus: 'active', hpCurrent: 3, vtm: { health: {} } }
     const inPlay = (fields: Record<string, unknown>, gmUserId: string | null = 'gm-1') =>
-      isPlayerOwnedLivingPartyCharacter(mapSummaryOf(stored, { ...alive, ...fields }), gmUserId)
+      isPartyCharacter(mapSummaryOf(stored, { ...alive, ...fields }), gmUserId)
     expect(inPlay({})).toBe(true)
     expect(inPlay({ ownerUserId: 'gm-1' })).toBe(false)
     expect(inPlay({ ownerUserId: '' })).toBe(false)
@@ -277,5 +286,16 @@ describe('map summary', () => {
     expect(inPlay({ creationStatus: 'draft' })).toBe(false)
     expect(inPlay({ hidden: true })).toBe(false)
     expect(inPlay({ deletedAt: { seconds: 1 } })).toBe(false)
+  })
+})
+
+describe('map rules', () => {
+  // VtM's row is the captain's decision (2026-10-17), not today's behaviour:
+  // VtM maps used to run OSE's wandering-monster check by accident.
+  it.each([
+    ['ose', true],
+    ['vtm', false],
+  ] as const)('%s rolls for wandering monsters: %s', (id: RuleSetId, wanderingMonsters) => {
+    expect(ruleSets[id].mapRules).toEqual({ wanderingMonsters })
   })
 })

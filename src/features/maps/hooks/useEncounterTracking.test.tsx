@@ -1,14 +1,21 @@
 // @vitest-environment jsdom
+import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, renderHook } from '@testing-library/react'
+import { ruleSets, type RuleSetId } from '../../ruleSets/registry'
+import { MapRuleSetContext } from '../mapRuleSet'
 import { useEncounterTracking } from './useEncounterTracking'
 
 // Math.random values that roll a 1 (an encounter) and a 6 (none) on a d6.
 const ROLL_ONE = 0
 const ROLL_SIX = 0.99
 
-function render() {
-  const view = renderHook(() => useEncounterTracking())
+// Inside the Maps panel of a campaign of the given rule set.
+function render(ruleSet: RuleSetId = 'ose') {
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <MapRuleSetContext value={ruleSets[ruleSet]}>{children}</MapRuleSetContext>
+  )
+  const view = renderHook(() => useEncounterTracking(), { wrapper })
   const move = (...feet: number[]) => {
     for (const step of feet) act(() => view.result.current.onMovementFeet(step))
   }
@@ -158,5 +165,29 @@ describe('encounter tracking', () => {
     move(50)
     expect(view.result.current.onMovementFeet).toBe(onMovementFeet)
     expect(view.result.current.resetDistanceTracker).toBe(resetDistanceTracker)
+  })
+})
+
+describe('wandering monsters per rule set', () => {
+  // A full check cycle: the first turn sets the stage, the second rolls.
+  it('alerts in an OSE campaign when the roll finds an encounter', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(ROLL_ONE)
+    const { view, move, tracker } = render('ose')
+    move(120)
+    expect(tracker().mode).toBe('first')
+    move(120)
+    expect(tracker()).toEqual({ feet: 120, mode: 'roll', roll: 1 })
+    expect(view.result.current.encounterNotice).toEqual({ checks: 1, hits: 1, rolls: [1] })
+  })
+
+  it('neither rolls, alerts nor advances in a VtM campaign', () => {
+    const random = vi.spyOn(Math, 'random').mockReturnValue(ROLL_ONE)
+    const { view, move, tracker } = render('vtm')
+    move(120)
+    move(120)
+    move(485)
+    expect(tracker()).toEqual({ feet: 0, mode: 'count', roll: null })
+    expect(view.result.current.encounterNotice).toBeNull()
+    expect(random).not.toHaveBeenCalled()
   })
 })
