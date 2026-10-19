@@ -1,3 +1,8 @@
+/**
+ * Unit characterization of the real callable, with its database boundary mocked.
+ * Lives in the emulator job because importing functions/src/index.ts requires
+ * functions/node_modules, which the ordinary web unit-test job does not install.
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
