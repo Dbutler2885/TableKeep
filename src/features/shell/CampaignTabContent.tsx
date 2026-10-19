@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { RulesTab } from '../common/RulesTab'
 import { MapsTab } from '../maps/MapsTab'
+import { MapRuleSetContext } from '../maps/mapRuleSet'
 import { MonstersTab } from '../monsters/MonstersTab'
 import { ItemsTab } from '../items/ItemsTab'
 import { NpcsTab } from '../npcs/NpcsTab'
@@ -44,16 +45,20 @@ function characterPanel({ gameSystem, ...context }: TabPanelContext) {
   return <Sheet {...context} />
 }
 
-// Maps shows the sheet beside the map only when the rule set says it can.
+// Maps shows the sheet beside the map only when the rule set says it can, and
+// gives the rule set to everything inside it.
 function mapsPanel({ campaign, role, gameSystem, characterTabProps }: TabPanelContext) {
+  const ruleSet = ruleSets[gameSystem]
   return (
-    <MapsTab
-      campaignId={campaign.id}
-      groupId={campaign.groupId}
-      role={role}
-      gmUserId={campaign.gmUserId ?? null}
-      characterTabProps={ruleSets[gameSystem].sheet.embeddable ? characterTabProps ?? undefined : undefined}
-    />
+    <MapRuleSetContext value={ruleSet}>
+      <MapsTab
+        campaignId={campaign.id}
+        groupId={campaign.groupId}
+        role={role}
+        gmUserId={campaign.gmUserId ?? null}
+        characterTabProps={ruleSet.sheet.embeddable ? characterTabProps ?? undefined : undefined}
+      />
+    </MapRuleSetContext>
   )
 }
 
