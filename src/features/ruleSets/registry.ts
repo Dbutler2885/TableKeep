@@ -1,6 +1,7 @@
 import type { AppTab, ItemApprovalAction } from '../../types/app'
 import { OSE_STORE_ITEMS } from '../character/storeCatalog'
 import { oseMonsterRuleset, type MonsterRulesetDef } from '../monsters/rulesets'
+import { oseCharacterVersioning, vtmCharacterVersioning, type CharacterVersioning } from './characterMigrations'
 
 // Every rule set the app knows. A campaign stores its rule set's id in its
 // `system` field.
@@ -61,6 +62,9 @@ export type RuleSetDefinition<Id extends RuleSetId = RuleSetId> = {
   // accepts or declines.
   transfers: boolean
   shell: RuleSetShell
+  // The version its characters are written at, and the steps that bring an
+  // older stored character up to it.
+  characters: CharacterVersioning
   // The stock items the rule set offers, if it has any.
   catalog?: readonly RuleSetCatalogItem[]
 }
@@ -87,6 +91,7 @@ export const oseRuleSet = {
   approvals: ['create', 'sell', 'learn_spell', 'ability_reroll'],
   transfers: true,
   shell: { campaignStrip: false },
+  characters: oseCharacterVersioning,
   // The store's list.
   catalog: OSE_STORE_ITEMS,
 } satisfies RuleSetDefinition<'ose'>
@@ -111,6 +116,7 @@ export const ruleSets: RuleSetRegistry = {
     approvals: [],
     transfers: false,
     shell: { campaignStrip: false },
+    characters: vtmCharacterVersioning,
   },
 }
 

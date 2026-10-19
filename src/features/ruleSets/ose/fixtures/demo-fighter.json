@@ -1,0 +1,246 @@
+{
+  "id": "777c1814-a66b-44ce-a6c0-8d11e9d5a0e6",
+  "data": {
+    "ownerUsername": "demoGM1",
+    "creationMode": "new",
+    "creationModeExplicit": true,
+    "level": 1,
+    "xp": 0,
+    "tokenIcon": {
+      "icon": "pawn",
+      "color": "#bf2f2a",
+      "size": 34
+    },
+    "createdAt": {
+      "$timestamp": "2026-08-28T04:26:42.288Z"
+    },
+    "name": "Aldric Vane",
+    "class": "Fighter",
+    "hpMax": 6,
+    "hpCurrent": 6,
+    "ac": 1,
+    "details": {
+      "spellBookSpellIds": [],
+      "memorizedSpellIds": [],
+      "storeCart": [],
+      "adventureScores": {
+        "FG": "1",
+        "SD": "1",
+        "LD": "1",
+        "HT": "1",
+        "FT": "1"
+      },
+      "thiefSkills": null,
+      "title": "",
+      "languagesText": "",
+      "unencumberingItemsText": "",
+      "otherNotesText": "",
+      "alignment": "Law",
+      "abilityScoresRolled": true,
+      "rolledAbilityScores": {
+        "STR": "12",
+        "WIS": "13",
+        "CON": "7",
+        "DEX": "16",
+        "CHA": "12",
+        "INT": "12"
+      },
+      "adventureSeedClass": "Fighter",
+      "thaco": "19",
+      "saveScores": {
+        "P": "14",
+        "B": "15",
+        "S": "16",
+        "D": "12",
+        "W": "13"
+      },
+      "abilityScores": {
+        "CON": "7",
+        "DEX": "16",
+        "CHA": "12",
+        "WIS": "9",
+        "STR": "15",
+        "INT": "10"
+      },
+      "hpBaseRoll": 7,
+      "startingGold": 120,
+      "storeSpent": 101,
+      "inventory": [
+        {
+          "id": "73a6767b-dc37-4787-937c-a9e0b416d04c",
+          "kind": "general",
+          "typeId": "gear-crowbar",
+          "typeName": "Crowbar",
+          "name": "Crowbar",
+          "costGp": 10,
+          "equipped": false,
+          "notes": "Crowbar",
+          "description": "2-3 ft iron bar for prying doors/chests.",
+          "qty": 1,
+          "stack": {
+            "stackable": false
+          },
+          "unknownRowField": "kept on the row"
+        },
+        {
+          "id": "e8d7b613-af6d-4c1c-99b7-370bc5d62954",
+          "kind": "general",
+          "typeId": "gear-rope",
+          "typeName": "Rope (50 ft)",
+          "name": "Rope (50 ft)",
+          "costGp": 1,
+          "equipped": false,
+          "notes": "Rope (50 ft)",
+          "description": "Holds up to three people + equipment.",
+          "qty": 1,
+          "stack": {
+            "stackable": false
+          }
+        },
+        {
+          "id": "4a453dc6-1e52-4c8b-9833-06d3b9100055",
+          "kind": "general",
+          "typeId": "gear-tinderbox",
+          "typeName": "Tinder box",
+          "name": "Tinder box",
+          "costGp": 3,
+          "equipped": false,
+          "notes": "Tinder box",
+          "description": "Flint/steel/tinder; 2-in-6 chance per round to light.",
+          "qty": 1,
+          "stack": {
+            "stackable": false
+          }
+        },
+        {
+          "id": "4f79d6eb-c445-4d78-949a-656b7aa22f06",
+          "kind": "general",
+          "typeId": "gear-lantern",
+          "typeName": "Lantern",
+          "name": "Lantern",
+          "costGp": 10,
+          "equipped": false,
+          "notes": "Lantern",
+          "description": "30 ft light radius. Burns 1 oil flask / 4 hours.",
+          "qty": 1,
+          "stack": {
+            "stackable": false
+          }
+        },
+        {
+          "id": "54555c09-fd32-4c64-b9a9-4ef56548e882",
+          "kind": "consumable",
+          "typeId": "con-oil",
+          "typeName": "Oil flask",
+          "costGp": 2,
+          "equipped": false,
+          "notes": "Oil (1 flask)",
+          "description": "Lantern fuel; also throwable burning oil weapon.",
+          "qty": 1,
+          "stack": {
+            "stackable": false
+          },
+          "effectText": "",
+          "amountRemaining": 24
+        },
+        {
+          "id": "6f7d45c8-3faa-40b5-995f-aa3e7608da75",
+          "kind": "consumable",
+          "typeId": "con-rations-standard",
+          "typeName": "Standard rations",
+          "costGp": 5,
+          "equipped": false,
+          "notes": "Rations (standard, 7 days)",
+          "description": "Fresh, unpreserved food.",
+          "qty": 7,
+          "stack": {
+            "stackable": true,
+            "maxStack": 20
+          },
+          "effectText": ""
+        },
+        {
+          "weaponEffects": [],
+          "weaponRollTables": [],
+          "id": "bbf337a9-d472-4ee8-8de4-65271f6612b2",
+          "kind": "weapon",
+          "costGp": 10,
+          "equipped": true,
+          "notes": "",
+          "typeId": "sword",
+          "typeName": "Sword",
+          "qty": 1,
+          "stack": {
+            "stackable": false
+          },
+          "isMagic": false,
+          "damageDiceCount": "1",
+          "damageDiceSides": "8",
+          "attackBonus": "",
+          "damageBonus": "",
+          "rangeShort": "",
+          "rangeMedium": "",
+          "rangeLong": "",
+          "slow": false,
+          "twoHanded": false
+        },
+        {
+          "id": "0d8d7b47-ecd0-4732-ba25-7de9c16f3524",
+          "kind": "armour",
+          "costGp": 60,
+          "equipped": true,
+          "notes": "",
+          "typeId": "plate-mail",
+          "typeName": "Plate mail",
+          "qty": 1,
+          "stack": {
+            "stackable": false
+          },
+          "isMagic": false,
+          "armourClass": "3",
+          "shieldMod": "",
+          "magicMod": "",
+          "armourType": "body"
+        },
+        {
+          "id": "58cadc06-77d5-4fcd-9d97-3cddaa6be639",
+          "kind": "gold",
+          "typeId": "gold",
+          "typeName": "Gold",
+          "costGp": 0,
+          "equipped": false,
+          "notes": "",
+          "qty": 19,
+          "stack": {
+            "stackable": true,
+            "maxStack": 100
+          }
+        }
+      ],
+      "unknownNested": {
+        "kept": true,
+        "deeper": {
+          "value": 7
+        }
+      }
+    },
+    "portraitPath": "groups/w5sFUCEDhNNxsR0wxD5z/campaigns/PYvHDtNvgyD3nWFVHIxU/characters/777c1814-a66b-44ce-a6c0-8d11e9d5a0e6/portraits/1787892009356-ChatGPT_Image_Aug_28__2026__12_34_25_AM.webp",
+    "portraitFocusX": 50.39093169327401,
+    "portraitFocusY": 82.1269965895429,
+    "creationStatus": "active",
+    "updatedAt": {
+      "$timestamp": "2026-08-28T04:47:28.428Z"
+    },
+    "ownerUserId": "demo-player-2-uid",
+    "unknownTopLevel": {
+      "note": "kept as stored",
+      "list": [
+        1,
+        "two",
+        {
+          "three": 3
+        }
+      ]
+    }
+  }
+}
