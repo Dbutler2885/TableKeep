@@ -178,3 +178,55 @@ describe('direct writes', () => {
     )
   })
 })
+
+describe('OSE write fields before version stamping', () => {
+  it('round-trips unknown fields, strips stored stamps and schedules an exact merged payload', () => {
+    const record = readStoredCharacter('a', {
+      name: 'Legacy', class: 'Fighter', ownerUserId: 'user-1', schemaVersion: 1, schemaWrittenAt: 'old-stamp',
+      createdAt: 'creation-time', updatedAt: 'previous-save', future: { kept: true },
+      portraitUrl: 'https://cdn.test/p', details: { inventory: [], notes: 'Keep', futureNested: [1], acManualOverride: true },
+    }, undefined, viewer)
+    const saves = emptyCharacterSaves()
+    scheduleCharacterSave(saves, campaign, 'a', () => ({ ...record, name: 'Edited' }))
+    sendCharacterSavesNow(saves)
+    expect(mocks.setDoc).toHaveBeenCalledExactlyOnceWith({ path: `${CHARACTERS_PATH}/a` }, {
+      name: 'Edited', ownerUserId: 'user-1', ownerUsername: 'Player One', creationMode: 'new', creationModeExplicit: false,
+      creationStatus: 'active', class: 'Fighter', level: 1, hpCurrent: 0, hpMax: 0, ac: 10, xp: 0,
+      portraitPath: '', portraitFocusX: 50, portraitFocusY: 50, tokenIcon: { icon: 'pawn', color: '#bf2f2a', size: 34 },
+      details: { inventory: [], notes: 'Keep', futureNested: [1] }, future: { kept: true },
+      'details.acManualOverride': DELETE_FIELD, updatedAt: SERVER_TIMESTAMP,
+    }, { merge: true })
+  })
+
+  it('saves the migrated inventory without issuing deletes for the legacy lists retained by Firestore merge', () => {
+    const raw = { class: 'Fighter', details: { weapons: [{ id: 'sword', name: 'Sword' }], armour: [], packedItems: ['Rope'], equippedItems: [], storeGoldSlotIndices: [] } }
+    const fields = characterSaveFields(readStoredCharacter('a', raw, undefined, viewer))
+    expect(fields.details).toMatchObject({ inventory: expect.any(Array) })
+    expect((fields.details as { inventory: unknown[] }).inventory).toHaveLength(2)
+    expect(Object.keys(fields).filter((key) => key.startsWith('details.'))).toEqual(['details.acManualOverride'])
+    expect(fields).not.toHaveProperty('schemaVersion')
+    expect(fields).not.toHaveProperty('schemaWrittenAt')
+  })
+})
+
+describe('OSE save failure', () => {
+  it('clears the in-flight flag on rejection and never retries or reports the error', async () => {
+    let fail: (error: Error) => void = () => undefined
+    const write = new Promise<undefined>((_resolve, reject) => { fail = reject })
+    const finalization = vi.spyOn(write, 'finally')
+    mocks.setDoc.mockReturnValueOnce(write)
+    const saves = emptyCharacterSaves()
+    scheduleCharacterSave(saves, campaign, 'a', () => character('a'))
+    sendCharacterSavesNow(saves)
+    expect(isCharacterSaveOutstanding(saves, 'a')).toBe(true)
+    // The writer returns void and does not catch its final promise. Observe it
+    // in the test so its current unhandled-rejection behavior does not leak.
+    const observed = (finalization.mock.results[0].value as Promise<unknown>).catch((error: Error) => error)
+    const failure = new Error('permission denied')
+    fail(failure)
+    expect(await observed).toBe(failure)
+    expect(saves).toEqual({ pending: {}, inFlight: {} })
+    vi.advanceTimersByTime(5000)
+    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
+  })
+})
