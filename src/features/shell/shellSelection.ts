@@ -1,5 +1,5 @@
 import type { GameSystem } from '../navigation/tabs'
-import { resolveRuleSet } from '../ruleSets/registry'
+import { resolveRuleSet, ruleSets, type ShellTheme } from '../ruleSets/registry'
 import type { Campaign, GroupRecord, Role } from '../../types/app'
 
 export type CampaignIds = {
@@ -42,9 +42,7 @@ export function campaignIds(campaign: Campaign | null): CampaignIds {
   return { campaignId: campaign.id, groupId: campaign.groupId, gmUserId: campaign.gmUserId ?? null }
 }
 
-// Only an open campaign route takes on its system's theme; the group home
+// Only an open campaign route takes on its rule set's skin; the group home
 // stays default even when its active campaign is VtM.
-export const shellTheme = (campaign: Campaign | null, selectedCampaignId: string | null, gameSystem: GameSystem) =>
-  campaign && selectedCampaignId
-    ? (gameSystem === 'vtm' ? 'vtm' : 'default')
-    : 'default'
+export const shellTheme = (campaign: Campaign | null, selectedCampaignId: string | null, gameSystem: GameSystem): ShellTheme =>
+  campaign && selectedCampaignId ? ruleSets[gameSystem].skin.theme : 'default'

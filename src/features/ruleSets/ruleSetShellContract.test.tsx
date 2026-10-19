@@ -2,9 +2,9 @@
 /**
  * The rule-set contract, shell half: which sheet the character tab shows,
  * whether Maps embeds it, which skin the shell wears and who sees the Monsters
- * tab. These rows for OSE and VtM were recorded from the shell as it stood
- * before the registry declared any of them, so any change to them is a visible
- * change for a player or GM, not a refactor.
+ * tab. The shell rows for OSE and VtM were recorded from the shell as it
+ * stood before the registry declared any of them, so any change to them is a
+ * visible change for a player or GM, not a refactor.
  */
 import { createElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -35,6 +35,10 @@ vi.mock('../notes/CalendarTab', () => ({ CalendarTab: stub('CalendarTab') }))
 
 const { CampaignTabContent } = await import('../shell/CampaignTabContent')
 const { campaignSystem, shellTheme } = await import('../shell/shellSelection')
+const { ruleSets } = await import('./registry')
+const { OseSheet, VtmSheet } = await import('./RuleSetSheets')
+const { ruleSetSheets } = await import('./sheetComponents')
+const { oseMonsterRuleset } = await import('../monsters/rulesets')
 
 const setError = () => undefined
 
@@ -69,6 +73,21 @@ const rendered = (container: HTMLElement) => [...container.querySelectorAll('[da
 afterEach(() => {
   cleanup()
   mocks.props = {}
+})
+
+describe('declarations', () => {
+  it.each([
+    ['ose', OseSheet, true, 'default'],
+    ['vtm', VtmSheet, false, 'vtm'],
+  ] as const)('%s declares its sheet, whether Maps embeds it, and its skin', (id, component, embeddable, theme) => {
+    expect(ruleSetSheets[id]).toBe(component)
+    expect(ruleSets[id].sheet).toEqual({ embeddable })
+    expect(ruleSets[id].skin).toEqual({ theme })
+  })
+
+  it.each(['ose', 'vtm'] as const)('%s declares the OSE monster statline', (id) => {
+    expect(ruleSets[id].monsters).toBe(oseMonsterRuleset)
+  })
 })
 
 describe('sheet', () => {

@@ -1,5 +1,6 @@
 import type { AppTab } from '../../types/app'
 import { OSE_STORE_ITEMS } from '../character/storeCatalog'
+import { oseMonsterRuleset, type MonsterRulesetDef } from '../monsters/rulesets'
 
 // Every rule set the app knows. A campaign stores its rule set's id in its
 // `system` field.
@@ -19,11 +20,29 @@ export type RuleSetTabs = {
 // every other field belongs to the rule set.
 export type RuleSetCatalogItem = { id: string; name: string }
 
+// The character tab's page itself is in `sheetComponents.ts`.
+export type RuleSetSheet = {
+  // Whether Maps may show that page beside the map.
+  embeddable: boolean
+}
+
+// The shell's `data-theme` inside an open campaign.
+export type ShellTheme = 'default' | 'vtm'
+
+export type RuleSetSkin = {
+  theme: ShellTheme
+}
+
 export type RuleSetDefinition<Id extends RuleSetId = RuleSetId> = {
   id: Id
   label: string
   shortLabel: string
   tabs: RuleSetTabs
+  sheet: RuleSetSheet
+  skin: RuleSetSkin
+  // The statline its Monsters tab works in, or null for a rule set without a
+  // Monsters tab.
+  monsters: MonsterRulesetDef | null
   // The stock items the rule set offers, if it has any.
   catalog?: readonly RuleSetCatalogItem[]
 }
@@ -43,6 +62,9 @@ export const oseRuleSet = {
     hiddenFromPlayers: ['items', 'monsters', 'tables'],
     labels: { rules: 'OSE SRD' },
   },
+  sheet: { embeddable: true },
+  skin: { theme: 'default' },
+  monsters: oseMonsterRuleset,
   // The store's list.
   catalog: OSE_STORE_ITEMS,
 } satisfies RuleSetDefinition<'ose'>
@@ -60,6 +82,9 @@ export const ruleSets: RuleSetRegistry = {
       order: ['character', 'maps', 'monsters', 'npcs', 'notes', 'calendar'],
       hiddenFromPlayers: [],
     },
+    sheet: { embeddable: false },
+    skin: { theme: 'vtm' },
+    monsters: oseMonsterRuleset,
   },
 }
 
