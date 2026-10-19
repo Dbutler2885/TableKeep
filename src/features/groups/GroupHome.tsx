@@ -1,16 +1,19 @@
 import { useState } from 'react'
-import { ChevronLeft, Copy, LogOut, Plus, Trash2, UserPlus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import type { User } from 'firebase/auth'
-import type { Campaign, GroupRecord, InviteCode } from '../../types/app'
-import { DiscordConnection } from '../auth/DiscordConnection'
-import { DiscordReturnNotice } from '../auth/DiscordReturnNotice'
-import { inviteState, useGroupInvites } from '../invites/useInvites'
+import type { Campaign, GroupRecord } from '../../types/app'
+import { useGroupInvites } from '../invites/useInvites'
 import { ActiveCampaignSection } from './ActiveCampaignSection'
 import { CampaignListSection } from './CampaignListSection'
-import { DiscordServerLink } from './DiscordServerLink'
+import { DeleteGroupDialog } from './DeleteGroupDialog'
+import { ConfirmDialog } from './GroupDialog'
+import { GroupHomeHeader } from './GroupHomeHeader'
+import { InviteDialog } from './InviteDialog'
+import { NewDraftDialog } from './NewDraftDialog'
+import { SetActiveDialog } from './SetActiveDialog'
 import { errorMessage, runBusyAction } from './busyAction'
 import { groupHasCampaigns } from './groupHomeCampaigns'
-import { copyToClipboard, inviteExpiresIn, inviteStateLabel, inviteUrl } from './inviteDisplay'
+import { copyToClipboard, inviteUrl } from './inviteDisplay'
 import './GroupScreens.css'
 
 type GroupHomeProps = {
@@ -65,8 +68,6 @@ export function GroupHome({
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
   const { invites, createInvite, revokeInvite } = useGroupInvites(user, inviteOpen ? group.id : null)
   const [busy, setBusy] = useState(false)
-  const [campaignName, setCampaignName] = useState('')
-  const [campaignSystem, setCampaignSystem] = useState('ose')
   const [error, setError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const canDelete = group.memberRole === 'admin'
@@ -113,14 +114,10 @@ export function GroupHome({
   const handleDelete = () =>
     runBusyAction(busySetters, () => onDeleteGroup(group.id), { fallback: 'Unable to delete group.', staysBusy: true })
 
-  const handleCreateCampaign = () =>
-    runBusyAction(busySetters, () => onCreateCampaign(group.id, campaignName, campaignSystem), {
+  const handleCreateCampaign = (name: string, system: string) =>
+    runBusyAction(busySetters, () => onCreateCampaign(group.id, name, system), {
       fallback: 'Unable to create campaign.',
-      onSuccess: () => {
-        setCreateOpen(false)
-        setCampaignName('')
-        setCampaignSystem('ose')
-      },
+      onSuccess: () => setCreateOpen(false),
     })
 
   const handleSetActiveCampaign = async () => {
@@ -158,56 +155,25 @@ export function GroupHome({
   return (
     <section className="group-screen">
       <div className="group-panel group-panel-wide">
-        <div className="group-home-header">
-          <button type="button" className="group-icon-button" onClick={onBackToGroups} aria-label="Back to groups" title="Back to groups">
-            <ChevronLeft size={16} />
-          </button>
-          <div className="group-home-title">
-            <p className="group-eyebrow">Group</p>
-            <h1>{group.name}</h1>
-            <p className="group-subtitle">
-              Signed in as <strong>{username}</strong>
-              {' · '}
-              <button
-                type="button"
-                className="group-link-button"
-                onClick={onSignOut}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' }}
-              >
-                <LogOut size={13} /> Sign out
-              </button>
-            </p>
-            {user.isAnonymous ? null : (
-              <>
-                <DiscordConnection userId={user.uid} variant="subtitle" />
-                <DiscordServerLink groupId={group.id} canManage={group.memberRole === 'admin'} />
-                <DiscordReturnNotice variant="subtitle" />
-              </>
-            )}
-          </div>
-          <div className="group-home-header-actions">
-            {canInvite ? (
-              <button
-                type="button"
-                className="group-icon-button"
-                onClick={() => {
-                  setInviteError(null)
-                  setCopiedToken(null)
-                  setInviteOpen(true)
-                }}
-                aria-label="Invite to group"
-                title="Invite to group"
-              >
-                <UserPlus size={16} />
-              </button>
-            ) : null}
-            {canDelete ? (
-              <button type="button" className="group-icon-button" onClick={() => { setDeleteConfirm(false); setError(null); setDeleteOpen(true) }} aria-label="Delete group" title="Delete group">
-                <Trash2 size={16} />
-              </button>
-            ) : null}
-          </div>
-        </div>
+        <GroupHomeHeader
+          user={user}
+          username={username}
+          group={group}
+          canInvite={canInvite}
+          canDelete={canDelete}
+          onBackToGroups={onBackToGroups}
+          onSignOut={onSignOut}
+          onInvite={() => {
+            setInviteError(null)
+            setCopiedToken(null)
+            setInviteOpen(true)
+          }}
+          onDelete={() => {
+            setDeleteConfirm(false)
+            setError(null)
+            setDeleteOpen(true)
+          }}
+        />
 
         <ActiveCampaignSection
           campaign={group.activeCampaign}
@@ -268,308 +234,136 @@ export function GroupHome({
       </div>
 
       {createOpen ? (
-        <div className="confirm-overlay" role="dialog" aria-modal="true">
-          <div className="confirm-modal group-modal">
-            <h3>New draft campaign</h3>
-            <label>
-              Name
-              <input
-                type="text"
-                value={campaignName}
-                onChange={(event) => setCampaignName(event.target.value)}
-                disabled={busy}
-                autoFocus
-              />
-            </label>
-            <label>
-              System
-              <select value={campaignSystem} onChange={(event) => setCampaignSystem(event.target.value)} disabled={busy}>
-                <option value="ose">OSE</option>
-                <option value="vtm">VTM</option>
-              </select>
-            </label>
-            {error ? <p className="error">{error}</p> : null}
-            <div className="group-modal-actions">
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  if (busy) return
-                  setCreateOpen(false)
-                  setCampaignName('')
-                  setCampaignSystem('ose')
-                  setError(null)
-                }}
-              >
-                Cancel
-              </button>
-              <button type="button" className="primary" onClick={() => void handleCreateCampaign()} disabled={busy || !campaignName.trim()}>
-                {busy ? 'Creating…' : 'Create'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <NewDraftDialog
+          busy={busy}
+          error={error}
+          onCancel={() => {
+            if (busy) return
+            setCreateOpen(false)
+            setError(null)
+          }}
+          onCreate={(name, system) => void handleCreateCampaign(name, system)}
+        />
       ) : null}
 
       {setActiveCandidate ? (
-        <div className="confirm-overlay" role="dialog" aria-modal="true">
-          <div className="confirm-modal group-modal">
-            <h3>Set active</h3>
-            <p>
-              Make <strong>{setActiveCandidate.name}</strong> the active campaign?
-            </p>
-            {group.activeCampaign ? (
-              <p><strong>{group.activeCampaign.name}</strong> will be deactivated.</p>
-            ) : null}
-            {error ? <p className="error">{error}</p> : null}
-            <div className="group-modal-actions">
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  if (busy) return
-                  setSetActiveCandidate(null)
-                  setError(null)
-                }}
-              >
-                Cancel
-              </button>
-              <button type="button" className="primary" onClick={() => void handleSetActiveCampaign()} disabled={busy}>
-                {busy ? 'Setting…' : 'Set active'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <SetActiveDialog
+          campaign={setActiveCandidate}
+          activeCampaign={group.activeCampaign}
+          busy={busy}
+          error={error}
+          onCancel={() => {
+            if (busy) return
+            setSetActiveCandidate(null)
+            setError(null)
+          }}
+          onConfirm={() => void handleSetActiveCampaign()}
+        />
       ) : null}
 
       {deactivateCandidate ? (
-        <div className="confirm-overlay" role="dialog" aria-modal="true">
-          <div className="confirm-modal group-modal">
-            <h3>Deactivate</h3>
-            <p>Deactivate <strong>{deactivateCandidate.name}</strong>?</p>
-            {error ? <p className="error">{error}</p> : null}
-            <div className="group-modal-actions">
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  if (busy) return
-                  setDeactivateCandidate(null)
-                  setError(null)
-                }}
-              >
-                Cancel
-              </button>
-              <button type="button" className="primary" onClick={() => void handleDeactivateCampaign()} disabled={busy}>
-                {busy ? 'Deactivating…' : 'Deactivate'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Deactivate"
+          error={error}
+          busy={busy}
+          onCancel={() => {
+            if (busy) return
+            setDeactivateCandidate(null)
+            setError(null)
+          }}
+          confirmLabel="Deactivate"
+          busyLabel="Deactivating…"
+          confirmClassName="primary"
+          confirmDisabled={busy}
+          onConfirm={() => void handleDeactivateCampaign()}
+        >
+          <p>Deactivate <strong>{deactivateCandidate.name}</strong>?</p>
+        </ConfirmDialog>
       ) : null}
 
       {deleteInactiveCandidate ? (
-        <div className="confirm-overlay" role="dialog" aria-modal="true">
-          <div className="confirm-modal group-modal">
-            <h3>Delete campaign</h3>
-            <p>Delete <strong>{deleteInactiveCandidate.name}</strong> and all its data?</p>
-            {error ? <p className="error">{error}</p> : null}
-            <div className="group-modal-actions">
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  if (busy) return
-                  setDeleteInactiveCandidate(null)
-                  setError(null)
-                }}
-              >
-                Cancel
-              </button>
-              <button type="button" className="danger" onClick={() => void handleDeleteInactiveCampaign()} disabled={busy}>
-                {busy ? 'Deleting…' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Delete campaign"
+          error={error}
+          busy={busy}
+          onCancel={() => {
+            if (busy) return
+            setDeleteInactiveCandidate(null)
+            setError(null)
+          }}
+          confirmLabel="Delete"
+          busyLabel="Deleting…"
+          confirmClassName="danger"
+          confirmDisabled={busy}
+          onConfirm={() => void handleDeleteInactiveCampaign()}
+        >
+          <p>Delete <strong>{deleteInactiveCandidate.name}</strong> and all its data?</p>
+        </ConfirmDialog>
       ) : null}
 
       {deleteDraftCandidate ? (
-        <div className="confirm-overlay" role="dialog" aria-modal="true">
-          <div className="confirm-modal group-modal">
-            <h3>Delete draft</h3>
-            <p>Delete <strong>{deleteDraftCandidate.name}</strong>?</p>
-            {error ? <p className="error">{error}</p> : null}
-            <div className="group-modal-actions">
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  if (busy) return
-                  setDeleteDraftCandidate(null)
-                  setError(null)
-                }}
-              >
-                Cancel
-              </button>
-              <button type="button" className="danger" onClick={() => void handleDeleteDraftCampaign()} disabled={busy}>
-                {busy ? 'Deleting…' : 'Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          title="Delete draft"
+          error={error}
+          busy={busy}
+          onCancel={() => {
+            if (busy) return
+            setDeleteDraftCandidate(null)
+            setError(null)
+          }}
+          confirmLabel="Delete"
+          busyLabel="Deleting…"
+          confirmClassName="danger"
+          confirmDisabled={busy}
+          onConfirm={() => void handleDeleteDraftCampaign()}
+        >
+          <p>Delete <strong>{deleteDraftCandidate.name}</strong>?</p>
+        </ConfirmDialog>
       ) : null}
 
       {inviteOpen ? (
-        <div className="confirm-overlay" role="dialog" aria-modal="true">
-          <div className="confirm-modal group-modal invite-modal">
-            <h3>Invite to {group.name}</h3>
-            <p>Generate a single-use link. Expires in 7 days. Share it however you like.</p>
-
-            <div className="invite-modal-generate">
-              <button
-                type="button"
-                className="primary"
-                onClick={() => void handleGenerateInvite()}
-                disabled={inviteBusy}
-              >
-                {inviteBusy ? 'Working…' : 'Generate invite link'}
-              </button>
-            </div>
-
-            {inviteError ? <p className="error">{inviteError}</p> : null}
-
-            <div className="invite-list">
-              {invites.length === 0 ? (
-                <p className="invite-list-empty">No invites yet.</p>
-              ) : (
-                invites.map((invite) => (
-                  <InviteRow
-                    key={invite.token}
-                    invite={invite}
-                    inviteUrl={inviteUrl(invite.token)}
-                    copied={copiedToken === invite.token}
-                    onCopy={() => void handleCopyInvite(invite.token)}
-                    onRevoke={() => void handleRevokeInvite(invite.token)}
-                  />
-                ))
-              )}
-            </div>
-
-            <div className="group-modal-actions">
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  setInviteOpen(false)
-                  setInviteError(null)
-                  setCopiedToken(null)
-                }}
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
+        <InviteDialog
+          groupName={group.name}
+          invites={invites}
+          now={Date.now()}
+          busy={inviteBusy}
+          error={inviteError}
+          copiedToken={copiedToken}
+          onGenerate={() => void handleGenerateInvite()}
+          onCopy={(token) => void handleCopyInvite(token)}
+          onRevoke={(token) => void handleRevokeInvite(token)}
+          onClose={() => {
+            setInviteOpen(false)
+            setInviteError(null)
+            setCopiedToken(null)
+          }}
+        />
       ) : null}
 
       {deleteOpen ? (
-        <div className="confirm-overlay" role="dialog" aria-modal="true">
-          <div className="confirm-modal group-modal">
-            {!deleteConfirm ? (
-              <>
-                <h3>Delete group</h3>
-                <p>Delete <strong>{group.name}</strong>?</p>
-                {groupHasContents ? (
-                  <p>This also deletes every campaign in the group and removes all members. This can't be undone.</p>
-                ) : (
-                  <p>This removes all members and can't be undone.</p>
-                )}
-                {error ? <p className="error">{error}</p> : null}
-                <div className="group-modal-actions">
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => {
-                      if (busy) return
-                      setDeleteOpen(false)
-                      setError(null)
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button type="button" className="danger" onClick={() => { setError(null); setDeleteConfirm(true) }}>
-                    Delete
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <h3>Are you sure?</h3>
-                <p>
-                  This permanently deletes <strong>{group.name}</strong>
-                  {groupHasContents ? ', all of its campaigns,' : ''} and everyone's membership.
-                  There is no undo.
-                </p>
-                {error ? <p className="error">{error}</p> : null}
-                <div className="group-modal-actions">
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => {
-                      if (busy) return
-                      setDeleteConfirm(false)
-                      setError(null)
-                    }}
-                  >
-                    Back
-                  </button>
-                  <button type="button" className="danger" onClick={() => void handleDelete()} disabled={busy}>
-                    {busy ? 'Deleting…' : 'Delete everything'}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        <DeleteGroupDialog
+          groupName={group.name}
+          hasCampaigns={groupHasContents}
+          confirming={deleteConfirm}
+          busy={busy}
+          error={error}
+          onCancel={() => {
+            if (busy) return
+            setDeleteOpen(false)
+            setError(null)
+          }}
+          onAdvance={() => {
+            setError(null)
+            setDeleteConfirm(true)
+          }}
+          onBack={() => {
+            if (busy) return
+            setDeleteConfirm(false)
+            setError(null)
+          }}
+          onConfirm={() => void handleDelete()}
+        />
       ) : null}
     </section>
-  )
-}
-
-type InviteRowProps = {
-  invite: InviteCode
-  inviteUrl: string
-  copied: boolean
-  onCopy: () => void
-  onRevoke: () => void
-}
-
-function InviteRow({ invite, inviteUrl, copied, onCopy, onRevoke }: InviteRowProps) {
-  const state = inviteState(invite)
-  const expiresIn = inviteExpiresIn(invite.expiresAt, Date.now())
-
-  return (
-    <div className={`invite-row invite-row-${state}`}>
-      <div className="invite-row-main">
-        <code className="invite-token">{invite.token.slice(0, 12)}…</code>
-        <span className={`invite-state invite-state-${state}`}>{inviteStateLabel(state, copied)}</span>
-        {state === 'active' && expiresIn ? <span className="invite-expires">{expiresIn}</span> : null}
-      </div>
-      <div className="invite-row-actions">
-        {state === 'active' ? (
-          <>
-            <button type="button" className="invite-row-copy" onClick={onCopy} aria-label="Copy invite link" title="Copy invite link">
-              <Copy size={14} />
-              <span>{copied ? 'Copied' : 'Copy link'}</span>
-            </button>
-            <button type="button" className="invite-row-revoke" onClick={onRevoke} aria-label="Revoke invite" title="Revoke invite">
-              Revoke
-            </button>
-          </>
-        ) : null}
-      </div>
-      <input className="invite-row-url" readOnly value={inviteUrl} onFocus={(event) => event.currentTarget.select()} />
-    </div>
   )
 }
