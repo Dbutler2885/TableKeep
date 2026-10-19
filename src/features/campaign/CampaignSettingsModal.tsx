@@ -1,8 +1,6 @@
-import { useMemo, useState } from 'react'
-import { doc, serverTimestamp, updateDoc } from 'firebase/firestore'
-import { db } from '../../firebase'
-import { resolveSystem, tabsForSystem } from '../navigation/tabs'
-import type { AppTab, Campaign } from '../../types/app'
+import type { Campaign } from '../../types/app'
+import type { SettingsTab } from './campaignTabSettings'
+import { useCampaignTabSettings } from './useCampaignTabSettings'
 
 type CampaignSettingsModalProps = {
   groupId: string
@@ -11,51 +9,7 @@ type CampaignSettingsModalProps = {
 }
 
 export function CampaignSettingsModal({ groupId, campaign, onClose }: CampaignSettingsModalProps) {
-  // Only offer tabs this campaign's system actually exposes, so a GM can't enable
-  // a tab that the system later hides (which would leave confusing stored state).
-  const systemTabs = useMemo(() => tabsForSystem(resolveSystem(campaign.system)), [campaign.system])
-  const settingsTabs = useMemo(
-    () => systemTabs.filter((t) => t.id !== 'rules').map((t) => ({ id: t.id, label: t.label, locked: t.id === 'character' })),
-    [systemTabs],
-  )
-
-  const initialEnabled = useMemo<Set<AppTab>>(() => {
-    if (campaign.enabledTabs && campaign.enabledTabs.length > 0) {
-      return new Set(campaign.enabledTabs)
-    }
-    return new Set(systemTabs.map((t) => t.id))
-  }, [campaign.enabledTabs, systemTabs])
-
-  const [enabled, setEnabled] = useState<Set<AppTab>>(initialEnabled)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const toggleTab = (tab: AppTab) => {
-    if (tab === 'character') return
-    setEnabled((prev) => {
-      const next = new Set(prev)
-      if (next.has(tab)) next.delete(tab)
-      else next.add(tab)
-      return next
-    })
-  }
-
-  const handleSave = async () => {
-    setBusy(true)
-    setError(null)
-    try {
-      const enabledTabs = systemTabs.map((t) => t.id).filter((id) => enabled.has(id))
-      await updateDoc(doc(db, 'groups', groupId, 'campaigns', campaign.id), {
-        enabledTabs,
-        updatedAt: serverTimestamp(),
-      })
-      onClose()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save settings.')
-    } finally {
-      setBusy(false)
-    }
-  }
+  const { settingsTabs, enabled, busy, error, toggleTab, save } = useCampaignTabSettings(groupId, campaign, onClose)
 
   return (
     <div className="confirm-overlay" role="dialog" aria-modal="true">
@@ -67,16 +21,13 @@ export function CampaignSettingsModal({ groupId, campaign, onClose }: CampaignSe
           <p className="settings-help">Choose which tabs your group sees in this campaign.</p>
           <div className="settings-tabs">
             {settingsTabs.map((tab) => (
-              <label key={tab.id} className="settings-tab-option">
-                <input
-                  type="checkbox"
-                  checked={enabled.has(tab.id)}
-                  onChange={() => toggleTab(tab.id)}
-                  disabled={busy || tab.locked}
-                />
-                <span>{tab.label}</span>
-                {tab.locked ? <span className="settings-tab-locked">required</span> : null}
-              </label>
+              <SettingsTabOption
+                key={tab.id}
+                tab={tab}
+                checked={enabled.has(tab.id)}
+                busy={busy}
+                onToggle={() => toggleTab(tab.id)}
+              />
             ))}
           </div>
         </section>
@@ -87,11 +38,33 @@ export function CampaignSettingsModal({ groupId, campaign, onClose }: CampaignSe
           <button type="button" className="secondary" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button type="button" className="primary" onClick={() => void handleSave()} disabled={busy}>
+          <button type="button" className="primary" onClick={() => void save()} disabled={busy}>
             {busy ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>
     </div>
+  )
+}
+
+type SettingsTabOptionProps = {
+  tab: SettingsTab
+  checked: boolean
+  busy: boolean
+  onToggle: () => void
+}
+
+function SettingsTabOption({ tab, checked, busy, onToggle }: SettingsTabOptionProps) {
+  return (
+    <label className="settings-tab-option">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onToggle}
+        disabled={busy || tab.locked}
+      />
+      <span>{tab.label}</span>
+      {tab.locked ? <span className="settings-tab-locked">required</span> : null}
+    </label>
   )
 }

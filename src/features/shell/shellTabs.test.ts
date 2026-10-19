@@ -6,18 +6,20 @@ const ids = (tabs: Array<{ id: AppTab }>) => tabs.map((tab) => tab.id)
 
 describe('campaignTabLabel', () => {
   it('calls the character tab Characters for the GM only', () => {
-    expect(campaignTabLabel('character', 'gm')).toBe('Characters')
-    expect(campaignTabLabel('character', 'player')).toBe('Character')
-    expect(campaignTabLabel('character', null)).toBe('Character')
+    expect(campaignTabLabel('ose', 'character', 'gm')).toBe('Characters')
+    expect(campaignTabLabel('vtm', 'character', 'gm')).toBe('Characters')
+    expect(campaignTabLabel('ose', 'character', 'player')).toBe('Character')
+    expect(campaignTabLabel('ose', 'character', null)).toBe('Character')
   })
 
-  it('uses the shared tab label otherwise', () => {
-    expect(campaignTabLabel('npcs', 'gm')).toBe('NPCs')
-    expect(campaignTabLabel('rules', 'player')).toBe('OSE SRD')
+  it('uses the rule set\'s label otherwise', () => {
+    expect(campaignTabLabel('ose', 'npcs', 'gm')).toBe('NPCs')
+    expect(campaignTabLabel('ose', 'rules', 'player')).toBe('OSE SRD')
+    expect(campaignTabLabel('vtm', 'rules', 'player')).toBe('Rules')
   })
 
   it('falls back to the id for a tab it does not know', () => {
-    expect(campaignTabLabel('unknown' as AppTab, 'gm')).toBe('unknown')
+    expect(campaignTabLabel('ose', 'unknown' as AppTab, 'gm')).toBe('unknown')
   })
 })
 

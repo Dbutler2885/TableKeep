@@ -1,9 +1,7 @@
 import type { AppTab } from '../../types/app'
 
-export type GameSystem = 'ose' | 'vtm'
-
-export const resolveSystem = (system: string | undefined | null): GameSystem =>
-  system === 'vtm' ? 'vtm' : 'ose'
+// The shell's name for a rule-set id.
+export type { RuleSetId as GameSystem } from '../ruleSets/registry'
 
 export const tabs: Array<{ id: AppTab; label: string }> = [
   { id: 'character', label: 'Character' },
@@ -14,21 +12,8 @@ export const tabs: Array<{ id: AppTab; label: string }> = [
   { id: 'tables', label: 'Tables' },
   { id: 'notes', label: 'Notes' },
   { id: 'calendar', label: 'Calendar' },
-  { id: 'rules', label: 'OSE SRD' },
+  { id: 'rules', label: 'Rules' },
 ]
-
-// Which tabs each game system exposes, in display order. VtM is a lighter,
-// mostly-presentational variant: fillable sheets, NPCs, monster reference, and
-// maps — no items/store, no treasure tables, no OSE SRD link.
-const SYSTEM_TAB_IDS: Record<GameSystem, AppTab[]> = {
-  ose: ['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'calendar', 'rules'],
-  vtm: ['character', 'maps', 'monsters', 'npcs', 'notes', 'calendar'],
-}
-
-export const tabsForSystem = (system: GameSystem): Array<{ id: AppTab; label: string }> =>
-  SYSTEM_TAB_IDS[system]
-    .map((id) => tabs.find((tab) => tab.id === id))
-    .filter((tab): tab is { id: AppTab; label: string } => Boolean(tab))
 
 export const tabPaths: Record<AppTab, string> = {
   character: '/character',
