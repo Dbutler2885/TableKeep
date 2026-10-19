@@ -21,7 +21,7 @@ import { TablesTab } from '../tables/TablesTab'
 import { NotesTab } from '../notes/NotesTab'
 import { CalendarTab } from '../notes/CalendarTab'
 import { CliffhangerModal } from '../notes/CliffhangerModal'
-import { campaignTabPath, groupHomePath, groupPickerPath, resolveSystem, tabFromPathname, tabs, tabsForSystem } from '../navigation/tabs'
+import { campaignTabPath, groupHomePath, groupPickerPath, tabFromPathname } from '../navigation/tabs'
 import { useCharacters } from '../character/hooks/useCharacters'
 import { useItemApprovals } from '../character/hooks/useItemApprovals'
 import { TransferNotification } from '../transfers/TransferNotification'
@@ -31,7 +31,11 @@ import { useGroupAccess } from '../groups/useGroupAccess'
 import { CampaignSettingsModal } from '../campaign/CampaignSettingsModal'
 import { DemoBanner } from '../demo/DemoBanner'
 import { forgetDemoExpiry, readDemoExpiry } from '../demo/demoSandboxState'
-import type { GroupRecord, ItemApprovalRequest, Role } from '../../types/app'
+import type { GroupRecord, ItemApprovalRequest } from '../../types/app'
+import { approvalTitle, flagSuffix, itemDisplayName, numericSuffix } from './approvalText'
+import { campaignIds, campaignRole, campaignSystem, findCampaign, findGroup, shellTheme } from './shellSelection'
+import { campaignNavTabs, contentPanelClass, routableTab } from './shellTabs'
+import { listensForApprovals, listensForCharacters, showsCliffhangerModal, showsTransferNotification } from './workspaceListening'
 
 const OSE_SRD_URL = 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Main_Page'
 
@@ -47,26 +51,11 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
   const { groups, loading, error, createCampaign, createGroup, setActiveCampaign, deactivateCampaign, deleteInactiveCampaign, deleteDraftCampaign, deleteGroup, setError } = useGroupAccess(user)
   const selectedGroupId = params.groupId ?? null
   const selectedCampaignId = params.campaignId ?? null
-  const selectedGroup = useMemo(
-    () => groups.find((group) => group.id === selectedGroupId) ?? null,
-    [groups, selectedGroupId],
-  )
-  const selectedCampaign = useMemo(() => {
-    if (!selectedGroup) return null
-    const campaigns = [
-      ...(selectedGroup.activeCampaign ? [selectedGroup.activeCampaign] : []),
-      ...selectedGroup.drafts,
-      ...selectedGroup.inactiveCampaigns,
-    ]
-    if (selectedCampaignId) {
-      return campaigns.find((campaign) => campaign.id === selectedCampaignId) ?? null
-    }
-    return selectedGroup.activeCampaign ?? null
-  }, [selectedCampaignId, selectedGroup])
-  const campaign = selectedCampaign
-  const workspaceGroupId = campaign?.groupId ?? null
-  const role: Role | null = campaign ? (campaign.gmUserId === user.uid ? 'gm' : 'player') : null
-  const gameSystem = resolveSystem(campaign?.system)
+  const selectedGroup = useMemo(() => findGroup(groups, selectedGroupId), [groups, selectedGroupId])
+  const campaign = useMemo(() => findCampaign(selectedGroup, selectedCampaignId), [selectedCampaignId, selectedGroup])
+  const ids = campaignIds(campaign)
+  const role = campaignRole(campaign, user.uid)
+  const gameSystem = campaignSystem(campaign)
 
   useEffect(() => {
     if (loading) return
@@ -141,10 +130,10 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
     void navigate(campaignTabPath(selectedGroupId, campaignId, 'character'), { replace: true })
   }, [navigate, selectedGroupId])
 
-  const shouldListenForCharacters = gameSystem === 'ose' && documentVisible && ['character', 'maps', 'items'].includes(activeTab)
-  const shouldListenForApprovals = documentVisible && (role === 'gm' || activeTab === 'character')
-  const shouldShowTransferNotification = documentVisible && ['character', 'maps'].includes(activeTab)
-  const shouldShowCliffhangerModal = documentVisible && activeTab !== 'notes'
+  const shouldListenForCharacters = listensForCharacters(gameSystem, documentVisible, activeTab)
+  const shouldListenForApprovals = listensForApprovals(documentVisible, role, activeTab)
+  const shouldShowTransferNotification = showsTransferNotification(documentVisible, activeTab)
+  const shouldShowCliffhangerModal = showsCliffhangerModal(documentVisible, activeTab)
   const {
     characters,
     charactersLoading,
@@ -157,7 +146,7 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
     syncCharacterLocal,
     deleteCharacter,
     hasPendingWrite,
-  } = useCharacters(campaign?.id ?? null, workspaceGroupId, user.uid, username, role, campaign?.gmUserId ?? null, setError, shouldListenForCharacters)
+  } = useCharacters(ids.campaignId, ids.groupId, user.uid, username, role, ids.gmUserId, setError, shouldListenForCharacters)
 
   const characterTabProps = campaign ? {
     campaignId: campaign.id,
@@ -180,8 +169,8 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
   } : null
 
   const { pendingRequests, approveRequest, rejectRequest } = useItemApprovals(
-    campaign?.id ?? null,
-    workspaceGroupId,
+    ids.campaignId,
+    ids.groupId,
     role,
     user.uid,
     shouldListenForApprovals,
@@ -200,27 +189,18 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
     setApprovalBusy(false)
   }, [rejectRequest])
 
-  const tabLabel = (tab: (typeof tabs)[number]['id']) => {
-    if (tab === 'character' && role === 'gm') return 'Characters'
-    return tabs.find((item) => item.id === tab)?.label ?? tab
-  }
-  const visibleTabs = useMemo(() => {
-    const systemTabs = tabsForSystem(gameSystem)
-    const enabled = campaign?.enabledTabs
-    const enabledSet = enabled ? new Set(enabled) : null
-    const enabledFiltered = enabledSet ? systemTabs.filter((t) => enabledSet.has(t.id)) : systemTabs
-    return role === 'player' && gameSystem === 'ose'
-      ? enabledFiltered.filter((tab) => !['items', 'monsters', 'tables'].includes(tab.id))
-      : enabledFiltered
-  }, [role, campaign?.enabledTabs, gameSystem])
+  const visibleTabs = useMemo(
+    () => campaignNavTabs(gameSystem, role, campaign?.enabledTabs),
+    [role, campaign?.enabledTabs, gameSystem],
+  )
 
   // Hard-gate routes by system: a VtM campaign has no items/tables/rules routes,
   // so redirect direct navigation there back to the character tab.
   useEffect(() => {
     if (!campaign) return
-    const allowed = new Set(tabsForSystem(gameSystem).map((tab) => tab.id))
-    if (!allowed.has(activeTab)) {
-      void navigate(campaignTabPath(campaign.groupId, campaign.id, 'character'), { replace: true })
+    const target = routableTab(gameSystem, activeTab)
+    if (target !== activeTab) {
+      void navigate(campaignTabPath(campaign.groupId, campaign.id, target), { replace: true })
     }
   }, [activeTab, campaign, gameSystem, navigate])
 
@@ -282,7 +262,7 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
                     onClick={() => setDrawerOpen(false)}
                     className="tab-button"
                   >
-                    {tabLabel(tab.id)}
+                    {tab.label}
                   </a>
                 ) : (
                   <NavLink
@@ -292,7 +272,7 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
                     onClick={() => setDrawerOpen(false)}
                     className={({ isActive }) => (isActive ? 'tab-button active' : 'tab-button')}
                   >
-                    {tabLabel(tab.id)}
+                    {tab.label}
                   </NavLink>
                 )
               ))}
@@ -328,13 +308,7 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
 
           {drawerOpen ? <button className="drawer-backdrop" onClick={() => setDrawerOpen(false)} /> : null}
 
-          <section
-            className={
-              ['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes'].includes(activeTab)
-                ? 'content-panel sidebar-panel'
-                : 'content-panel'
-            }
-          >
+          <section className={contentPanelClass(activeTab)}>
             {activeTab === 'character' ? (
               gameSystem === 'vtm' ? (
                 <VtmCharacterTab
@@ -378,15 +352,7 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
       {role === 'gm' && pendingRequests.length > 0 ? (
         <div className="confirm-overlay" role="dialog" aria-modal="true">
           <div className="confirm-modal">
-            <h3>
-              {pendingRequests[0]?.action === 'sell'
-                ? 'Sell Approval Request'
-                : pendingRequests[0]?.action === 'learn_spell'
-                  ? 'Spell Transcription Request'
-                  : pendingRequests[0]?.action === 'ability_reroll'
-                    ? 'Ability Re-roll Request'
-                  : 'Item Approval Request'}
-            </h3>
+            <h3>{approvalTitle(pendingRequests[0].action)}</h3>
             {(() => {
               const req = pendingRequests[0]
               const item = req.item
@@ -460,9 +426,7 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
                 )
               }
               if (!item) return null
-              const displayName = item.name
-                ? `${item.typeName} "${item.name}"`
-                : item.typeName
+              const displayName = itemDisplayName(item)
               return (
                 <>
                   <p>
@@ -476,19 +440,19 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
                   {item.kind === 'weapon' && 'damageDiceCount' in item ? (
                     <p style={{ fontSize: '0.9em' }}>
                       Damage: {item.damageDiceCount}d{item.damageDiceSides}
-                      {Number(item.attackBonus) ? ` | Atk +${item.attackBonus}` : ''}
-                      {Number(item.damageBonus) ? ` | Dmg +${item.damageBonus}` : ''}
-                      {Number(item.rangeShort) ? ` | Range ${item.rangeShort}/${item.rangeMedium}/${item.rangeLong}` : ''}
-                      {item.twoHanded ? ' | Two-handed' : ''}
-                      {item.isMagic ? ' | Magic' : ''}
+                      {numericSuffix(item.attackBonus, ` | Atk +${item.attackBonus}`)}
+                      {numericSuffix(item.damageBonus, ` | Dmg +${item.damageBonus}`)}
+                      {numericSuffix(item.rangeShort, ` | Range ${item.rangeShort}/${item.rangeMedium}/${item.rangeLong}`)}
+                      {flagSuffix(item.twoHanded, ' | Two-handed')}
+                      {flagSuffix(item.isMagic, ' | Magic')}
                     </p>
                   ) : null}
                   {item.kind === 'armour' && 'armourClass' in item ? (
                     <p style={{ fontSize: '0.9em' }}>
                       AC: {item.armourClass}
                       {item.armourType === 'shield' ? ' (Shield)' : ' (Body)'}
-                      {Number(item.magicMod) ? ` | Magic +${item.magicMod}` : ''}
-                      {item.isMagic ? ' | Magic' : ''}
+                      {numericSuffix(item.magicMod, ` | Magic +${item.magicMod}`)}
+                      {flagSuffix(item.isMagic, ' | Magic')}
                     </p>
                   ) : null}
                   {item.kind === 'ammunition' || item.kind === 'consumable' ? (
@@ -546,12 +510,8 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
     </>
   )
 
-  const shellTheme = campaign && selectedCampaignId
-    ? (gameSystem === 'vtm' ? 'vtm' : 'default')
-    : 'default'
-
   return (
-    <main className="shell-root" data-theme={shellTheme}>
+    <main className="shell-root" data-theme={shellTheme(campaign, selectedCampaignId, gameSystem)}>
       {location.pathname === groupPickerPath || !selectedGroup ? (
         <GroupPicker
           username={username}
