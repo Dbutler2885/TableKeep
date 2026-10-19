@@ -1,0 +1,88 @@
+/**
+ * How the VtM sheet reads a stored character and what a save leaves stored,
+ * recorded on the checked-in VtM fixtures.
+ */
+import { Timestamp } from 'firebase/firestore'
+import { describe, expect, it, vi } from 'vitest'
+import { readVtmCharacterDoc } from '../../character/vtmCharacterRecord'
+import { vtmCharacterSaveFields } from '../../character/vtmCharacterWrites'
+import { markTimestamps, reviveTimestamps, type CharacterFixture } from '../characterFixtures'
+import type { StoredCharacter } from '../storedCharacter'
+import filledSheet from './fixtures/filled-sheet.json'
+import olderSheet from './fixtures/older-sheet.json'
+
+const SERVER_TIME = 'server time'
+
+vi.mock('firebase/firestore', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('firebase/firestore')>()),
+  serverTimestamp: () => SERVER_TIME,
+}))
+
+type Fields = Record<string, unknown>
+
+const revive = (fixture: unknown) =>
+  reviveTimestamps(fixture, (iso) => Timestamp.fromDate(new Date(iso))) as CharacterFixture
+
+const asFixtureJson = (value: unknown) =>
+  `${JSON.stringify(markTimestamps(value, (entry) => entry instanceof Timestamp ? entry.toDate().toISOString() : null), null, 2)}\n`
+
+const cases = [
+  ['filled-sheet', revive(filledSheet)],
+  ['older-sheet', revive(olderSheet)],
+] as const
+
+const isMap = (value: unknown): value is Fields =>
+  typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Timestamp)
+
+/**
+ * A document after `setDoc(payload, { merge: true })`: maps merge field by
+ * field, and any other value, lists included, replaces what was stored.
+ */
+function mergedLikeFirestore(stored: Fields, payload: Fields): Fields {
+  const merged = { ...stored }
+  Object.entries(payload).forEach(([key, value]) => {
+    merged[key] = isMap(value) && isMap(stored[key]) ? mergedLikeFirestore(stored[key], value) : value
+  })
+  return merged
+}
+
+// The sheet's own record; fields a save writes back without reading them are
+// recorded by the saved-document case.
+const sheetRecord = (record: Fields) => Object.fromEntries(Object.entries(record).filter(([key]) => key !== 'unknownFields'))
+
+const read = ({ id, data }: CharacterFixture) => readVtmCharacterDoc(id, data, undefined)!
+
+const savedUnedited = (fixture: CharacterFixture): StoredCharacter =>
+  mergedLikeFirestore(fixture.data, vtmCharacterSaveFields(read(fixture)))
+
+describe('VtM reading and saving', () => {
+  it.each(cases)('%s reads as its recorded sheet record', async (name, fixture) => {
+    await expect(asFixtureJson(sheetRecord(read(fixture)))).toMatchFileSnapshot(`./fixtures/recorded/${name}.read.json`)
+  })
+
+  it.each(cases)('%s is stored as recorded after an unedited save', async (name, fixture) => {
+    await expect(asFixtureJson(savedUnedited(fixture))).toMatchFileSnapshot(`./fixtures/recorded/${name}.saved.json`)
+  })
+
+  it.each(cases)('%s keeps its unknown fields and its creation time through a save', (_name, fixture) => {
+    const saved = savedUnedited(fixture)
+    expect(saved.unknownTopLevel).toEqual(fixture.data.unknownTopLevel)
+    expect(saved.createdAt).toBe(fixture.data.createdAt)
+    expect(saved.updatedAt).toBe(SERVER_TIME)
+    const sheet = saved.vtm as { unknownNested: unknown; disciplines: { unknownRowField?: string }[] }
+    expect(sheet.unknownNested).toEqual({ kept: true, deeper: { value: 7 } })
+    expect(sheet.disciplines[0].unknownRowField).toBe('kept on the discipline row')
+  })
+
+  it.each([
+    ['new', undefined, 'draft'],
+    ['established', undefined, 'established_draft'],
+    [undefined, undefined, 'draft'],
+    ['established', 'unknown', 'established_draft'],
+    ['new', 'active', 'active'],
+    ['established', 'draft', 'draft'],
+  ])('a %s character stored with creation status %s reads as %s', (creationMode, creationStatus, expected) => {
+    const record = readVtmCharacterDoc('a', { system: 'vtm', creationMode, creationStatus }, undefined)
+    expect(record?.creationStatus).toBe(expected)
+  })
+})

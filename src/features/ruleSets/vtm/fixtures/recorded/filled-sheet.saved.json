@@ -1,0 +1,265 @@
+{
+  "system": "vtm",
+  "name": "Edda Marsh",
+  "ownerUserId": "player-uid",
+  "ownerUsername": "player1",
+  "creationMode": "new",
+  "creationModeExplicit": true,
+  "creationStatus": "active",
+  "xp": 2,
+  "portraitPath": "groups/g1/campaigns/c1/characters/vtm-filled/portrait.png",
+  "portraitFocusX": 40,
+  "portraitFocusY": 35,
+  "tokenIcon": {
+    "icon": "pawn",
+    "color": "#7a1a1f",
+    "size": 34,
+    "customImagePath": "groups/g1/campaigns/c1/characters/vtm-filled/token.png"
+  },
+  "vtm": {
+    "chronicle": "Brandonsford by Night",
+    "concept": "Disgraced surgeon",
+    "sire": "Dr. Halvorsen",
+    "nature": "Caregiver",
+    "demeanor": "Curmudgeon",
+    "clan": "tremere",
+    "generation": "11th",
+    "weakness": "Blood bond to the clan",
+    "attributes": {
+      "physical": {
+        "Strength": 1,
+        "Dexterity": 3,
+        "Stamina": 1
+      },
+      "social": {
+        "Charisma": 1,
+        "Manipulation": 2,
+        "Appearance": 1
+      },
+      "mental": {
+        "Perception": 1,
+        "Intelligence": 4,
+        "Wits": 1
+      }
+    },
+    "abilities": {
+      "talents": {
+        "Acting": 0,
+        "Alertness": 2,
+        "Athletics": 0,
+        "Brawl": 0,
+        "Dodge": 0,
+        "Empathy": 0,
+        "Intimidation": 0,
+        "Leadership": 0,
+        "Streetwise": 0,
+        "Subterfuge": 0
+      },
+      "skills": {
+        "Animal Ken": 0,
+        "Drive": 0,
+        "Etiquette": 1,
+        "Firearms": 0,
+        "Melee": 0,
+        "Music": 0,
+        "Repair": 0,
+        "Security": 0,
+        "Stealth": 0,
+        "Survival": 0
+      },
+      "knowledges": {
+        "Bureaucracy": 0,
+        "Computer": 0,
+        "Finance": 0,
+        "Investigation": 0,
+        "Law": 0,
+        "Linguistics": 0,
+        "Medicine": 4,
+        "Occult": 3,
+        "Politics": 0,
+        "Science": 0
+      }
+    },
+    "attributePriority": {
+      "physical": "primary",
+      "social": "secondary",
+      "mental": "tertiary"
+    },
+    "abilityPriority": {
+      "talents": "primary",
+      "skills": "secondary",
+      "knowledges": "tertiary"
+    },
+    "disciplines": [
+      {
+        "id": "disc-1",
+        "name": "Thaumaturgy",
+        "rating": 2,
+        "unknownRowField": "kept on the discipline row"
+      },
+      {
+        "id": "disc-2",
+        "name": "Auspex",
+        "rating": 1
+      }
+    ],
+    "backgrounds": [
+      {
+        "id": "bg-1",
+        "name": "Resources",
+        "rating": 2
+      }
+    ],
+    "virtues": {
+      "Conscience": 3,
+      "Self-Control": 1,
+      "Courage": 1
+    },
+    "humanity": 6,
+    "willpowerPermanent": 5,
+    "willpowerTemporary": 3,
+    "bloodPoolCurrent": 8,
+    "health": {
+      "Bruised": true,
+      "Hurt": true,
+      "Injured": false,
+      "Wounded": false,
+      "Mauled": false,
+      "Crippled": false,
+      "Incapacitated": false
+    },
+    "otherTraits": [
+      {
+        "id": "trait-1",
+        "name": "Eat Food",
+        "rating": 1
+      }
+    ],
+    "rituals": [
+      {
+        "id": "rit-1",
+        "name": "Defense of the Sacred Haven",
+        "level": "1",
+        "notes": "Cast nightly"
+      }
+    ],
+    "derangements": "Counts everything twice",
+    "bloodBonds": [
+      {
+        "id": "bond-1",
+        "boundTo": "Dr. Halvorsen",
+        "rating": 1,
+        "notes": ""
+      }
+    ],
+    "expandedBackground": {
+      "Allies": "",
+      "Mentor": "",
+      "Contacts": "",
+      "Resources": "A small trust fund",
+      "Fame": "",
+      "Retainers": "",
+      "Herd": "",
+      "Status": "",
+      "Influence": "",
+      "Other": ""
+    },
+    "possessions": {
+      "Gear": "Surgical kit, ledger",
+      "Equipment": "",
+      "Feeding Grounds": "",
+      "Vehicles": "1949 Hudson"
+    },
+    "havens": [
+      {
+        "id": "haven-1",
+        "location": "Old clinic cellar",
+        "description": "Warded"
+      }
+    ],
+    "history": "Embraced in 1952 after a botched operation.",
+    "appearance": {
+      "Age": "41",
+      "Apparent Age": "",
+      "DoB": "",
+      "RIP": "",
+      "Hair": "Grey",
+      "Eyes": "",
+      "Race": "",
+      "Nationality": "",
+      "Height": "",
+      "Weight": "",
+      "Sex": ""
+    },
+    "combatWeapons": [
+      {
+        "id": "cw-1",
+        "weapon": "Scalpel",
+        "damage": "Str+1",
+        "range": "-",
+        "rate": "-",
+        "clip": "-",
+        "conceal": "P"
+      }
+    ],
+    "armor": [
+      {
+        "id": "arm-1",
+        "armor": "Heavy coat",
+        "rating": "1",
+        "penalty": "0",
+        "notes": ""
+      }
+    ],
+    "xpLedger": [
+      {
+        "id": "xp-1",
+        "type": "award",
+        "amount": 5,
+        "note": "Session 1",
+        "createdAtMs": 1730000000000
+      },
+      {
+        "id": "xp-2",
+        "type": "spend",
+        "amount": 3,
+        "note": "Occult 2 to 3",
+        "createdAtMs": 1730600000000
+      }
+    ],
+    "freebiePointsSpent": 7,
+    "freebieDots": {
+      "physical": 0,
+      "social": 0,
+      "mental": 0,
+      "talents": 0,
+      "skills": 0,
+      "knowledges": 1,
+      "disciplines": 0,
+      "backgrounds": 0,
+      "virtues": 0,
+      "willpower": 0,
+      "humanity": 0
+    },
+    "unknownNested": {
+      "kept": true,
+      "deeper": {
+        "value": 7
+      }
+    }
+  },
+  "createdAt": {
+    "$timestamp": "2025-10-01T02:00:00.000Z"
+  },
+  "updatedAt": "server time",
+  "unknownTopLevel": {
+    "note": "kept as stored",
+    "list": [
+      1,
+      "two",
+      {
+        "three": 3
+      }
+    ]
+  }
+}
