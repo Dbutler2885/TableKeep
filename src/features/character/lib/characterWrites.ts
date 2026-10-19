@@ -2,6 +2,9 @@ import { deleteDoc, deleteField, serverTimestamp, setDoc } from 'firebase/firest
 import { db } from '../../../firebase'
 import type { CharacterRecord } from '../../../types/app'
 import { campaignDocRef, campaignUserStateRef, type CampaignScope } from '../../campaign/firestorePaths'
+import { oseCharacterVersioning } from '../../ruleSets/characterMigrations'
+import { characterSchemaStamp } from '../../ruleSets/characterSchemaStamp'
+import { RETIRED_DETAIL_FIELDS } from '../../ruleSets/ose/characterMigrations'
 import { serializeOseCharacter } from './storedCharacterRecord'
 
 const CHARACTER_SAVE_DELAY_MS = 500
@@ -52,11 +55,19 @@ export function cancelCharacterSave(saves: CharacterSaves, characterId: string) 
   delete saves.inFlight[characterId]
 }
 
-/** What a save writes: the serialized record, without the retired AC override, stamped with the save time. */
+/**
+ * What a save writes: the serialized record, stamped with the current version
+ * and the save time. A merge keeps fields it does not mention, so the save
+ * deletes the detail fields OSE's step removes, or an old character's lists
+ * would stay stored under the new version.
+ */
 export function characterSaveFields(character: CharacterRecord): Record<string, unknown> {
+  const fields = serializeOseCharacter(character)
+  const details = fields.details as Record<string, unknown> | null
   return {
-    ...serializeOseCharacter(character),
-    'details.acManualOverride': deleteField(),
+    ...fields,
+    details: details && { ...details, ...Object.fromEntries(RETIRED_DETAIL_FIELDS.map((name) => [name, deleteField()])) },
+    ...characterSchemaStamp(oseCharacterVersioning),
     updatedAt: serverTimestamp(),
   }
 }

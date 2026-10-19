@@ -134,6 +134,7 @@ beforeEach(async () => {
       {
         ownerUserId: senderUid,
         name: 'Sender PC',
+        schemaVersion: 1,
         details: { abilityScores: { STR: '12' }, inventory: [sword] },
       },
     )
@@ -142,6 +143,7 @@ beforeEach(async () => {
       {
         ownerUserId: receiverUid,
         name: 'Receiver PC',
+        schemaVersion: 1,
         details: { abilityScores: { STR: '12' }, inventory: [] },
       },
     )
@@ -294,29 +296,58 @@ afterAll(async () => {
 })
 
 
-describe('transfer persistence before version stamping', () => {
+describe('transfer persistence', () => {
   const characterRef = (db: Firestore, id: string) => doc(db, `groups/${groupId}/campaigns/${campaignId}/characters/${id}`)
   const offerRef = (db: Firestore) => doc(db, `groups/${groupId}/campaigns/${campaignId}/pendingTransfers/baseline`)
   const accept = () => acceptPendingTransfer({ auth: { uid: receiverUid }, data: { groupId, campaignId, transferId: 'baseline' } })
 
-  it.each([0, 2])('accepts version %s, retaining both stale schema stamps, timestamps and unknown fields', async (schemaVersion) => {
-    const oldTime = Timestamp.fromDate(new Date('2026-01-01T00:00:00Z'))
+  const oldTime = Timestamp.fromDate(new Date('2026-01-01T00:00:00Z'))
+  const characterData = async (db: Firestore, id: string) => (await getDoc(characterRef(db, id))).data()!
+
+  it('accepts an OSE transfer between current-version characters, stamping both with version 1 and a fresh write time', async () => {
     await withAdmin(async (db) => {
       for (const id of [senderCharacterId, receiverCharacterId]) {
-        await setDoc(characterRef(db, id), { schemaVersion, schemaWrittenAt: oldTime, updatedAt: oldTime,
-          future: { kept: true }, details: { weapons: ['legacy'], futureNested: { kept: true } } }, { merge: true })
+        await setDoc(characterRef(db, id), { schemaWrittenAt: oldTime, updatedAt: oldTime,
+          future: { kept: true }, details: { futureNested: { kept: true } } }, { merge: true })
       }
       await setDoc(offerRef(db), transferPayload('baseline'))
     })
+    const startedAt = Date.now()
     await expect(accept()).resolves.toEqual({ ok: true })
     await withAdmin(async (db) => {
       for (const id of [senderCharacterId, receiverCharacterId]) {
-        expect((await getDoc(characterRef(db, id))).data()).toMatchObject({ schemaVersion, schemaWrittenAt: oldTime, updatedAt: oldTime,
-          future: { kept: true }, details: { weapons: ['legacy'], futureNested: { kept: true } } })
+        const data = await characterData(db, id)
+        expect(data).toMatchObject({ schemaVersion: 1, updatedAt: oldTime, future: { kept: true }, details: { futureNested: { kept: true } } })
+        // The emulator's clock is the machine's, so allow it a little skew.
+        expect(data.schemaWrittenAt.toMillis()).toBeGreaterThan(startedAt - 5_000)
       }
       expect(await inventoryOf(db, senderCharacterId)).toEqual([])
       expect(await inventoryOf(db, receiverCharacterId)).toEqual([sword])
       expect((await getDoc(offerRef(db))).exists()).toBe(false)
+    })
+  })
+
+  it.each([
+    ['receiver', 'version 0', 0],
+    ['receiver', 'an unversioned', undefined],
+    ['sender', 'version 0', 0],
+    ['receiver', 'above-current', 2],
+    ['sender', 'above-current', 2],
+  ])('refuses a transfer when the %s is %s character, with the plain message, leaving both characters and the offer', async (side, _label, schemaVersion) => {
+    let before: unknown[] = []
+    await withAdmin(async (db) => {
+      const id = side === 'sender' ? senderCharacterId : receiverCharacterId
+      const rest = await characterData(db, id)
+      delete rest.schemaVersion
+      await setDoc(characterRef(db, id), { ...rest, ...(schemaVersion === undefined ? {} : { schemaVersion }),
+        schemaWrittenAt: oldTime, details: { ...rest.details, weapons: ['legacy'] } })
+      await setDoc(offerRef(db), transferPayload('baseline'))
+      before = await Promise.all([senderCharacterId, receiverCharacterId].map((characterId) => characterData(db, characterId)))
+    })
+    await expect(accept()).rejects.toMatchObject({ code: 'failed-precondition', message: 'This character is being updated. Try again in a minute.' })
+    await withAdmin(async (db) => {
+      expect(await Promise.all([senderCharacterId, receiverCharacterId].map((characterId) => characterData(db, characterId)))).toEqual(before)
+      expect((await getDoc(offerRef(db))).exists()).toBe(true)
     })
   })
 

@@ -550,6 +550,8 @@ describe('useVtmCharacters updateCharacter', () => {
       portraitFocusY: 50,
       tokenIcon: defaultVtmTokenIcon,
       vtm: defaultVtmSheet(),
+      schemaVersion: 1,
+      schemaWrittenAt: SERVER_TIMESTAMP,
       updatedAt: SERVER_TIMESTAMP,
     })
   })
@@ -789,6 +791,8 @@ describe('useVtmCharacters addCharacter', () => {
       portraitFocusY: 50,
       tokenIcon: defaultVtmTokenIcon,
       vtm: added.vtm,
+      schemaVersion: 1,
+      schemaWrittenAt: SERVER_TIMESTAMP,
       createdAt: SERVER_TIMESTAMP,
       updatedAt: SERVER_TIMESTAMP,
     })

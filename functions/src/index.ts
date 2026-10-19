@@ -1,3 +1,4 @@
+import { FieldValue } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
@@ -9,6 +10,11 @@ import { adminApp, adminFirestore } from './adminApp.js'
 import { isTransferSourceAuthorized } from './transferAuthorization.js'
 import { applyAcceptedTransfer, availablePackedSlots, type InventoryItem } from './oseCarrying.js'
 import { campaignPath, groupMemberPath } from './firestorePaths.js'
+import {
+  CHARACTER_BEING_UPDATED_MESSAGE,
+  currentCharacterSchemaVersion,
+  isCharacterAtSchemaVersion,
+} from './characterSchemaVersions.js'
 import { deleteCampaignSessions } from './campaignSessions.js'
 import { recapIsDue, requestRecapRerun, runSessionRecap } from './recap/sessionRecap.js'
 import { callOpenAi, transcriptObjectPath } from './recap/writeRecap.js'
@@ -273,11 +279,17 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
       return { code: 'not-found', message: 'Item no longer available.' }
     }
 
-    const senderData = senderSnap.data() as { details?: unknown; ownerUserId?: unknown } | undefined
-    const receiverData = receiverSnap.data() as { details?: unknown } | undefined
+    const senderData = senderSnap.data() as { details?: unknown; ownerUserId?: unknown; schemaVersion?: unknown } | undefined
+    const receiverData = receiverSnap.data() as { details?: unknown; schemaVersion?: unknown } | undefined
     if (!isTransferSourceAuthorized(senderData?.ownerUserId, transfer.fromUserId)) {
       tx.delete(transferRef)
       return { code: 'permission-denied', message: 'Transfer is not authorized.' }
+    }
+    // Admin access bypasses the rules' version floor, so the callable checks
+    // the version itself, and keeps the offer for after the migration.
+    const schemaVersion = currentCharacterSchemaVersion(campaignSnap.data()?.system)
+    if (![senderData, receiverData].every((character) => isCharacterAtSchemaVersion(character, schemaVersion))) {
+      throw new HttpsError('failed-precondition', CHARACTER_BEING_UPDATED_MESSAGE)
     }
     const senderDetails = (senderData?.details && typeof senderData.details === 'object') ? senderData.details as Record<string, unknown> : {}
     const receiverDetails = (receiverData?.details && typeof receiverData.details === 'object') ? receiverData.details as Record<string, unknown> : {}
@@ -302,17 +314,20 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
       throw new HttpsError('failed-precondition', 'Not enough packed slots to accept this item.')
     }
 
+    const schemaStamp = { schemaVersion, schemaWrittenAt: FieldValue.serverTimestamp() }
     tx.set(senderRef, {
       details: {
         ...senderDetails,
         inventory: transferResult.senderInventory,
       },
+      ...schemaStamp,
     }, { merge: true })
     tx.set(receiverRef, {
       details: {
         ...receiverDetails,
         inventory: transferResult.receiverInventory,
       },
+      ...schemaStamp,
     }, { merge: true })
     tx.delete(transferRef)
     return null

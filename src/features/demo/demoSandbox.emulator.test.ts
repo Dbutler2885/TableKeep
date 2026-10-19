@@ -37,6 +37,8 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
 import { DEMO_TEMPLATE_CAMPAIGN_ID, DEMO_TEMPLATE_GROUP_ID } from './demoConstants'
+import { oseCharacterVersioning } from '../ruleSets/characterMigrations'
+import { characterSchemaStamp } from '../ruleSets/characterSchemaStamp'
 import { firestoreRules } from '../../../vitest.firestoreRules'
 
 const projectId = process.env.GCLOUD_PROJECT ?? 'homeboyshouse-dev'
@@ -217,7 +219,9 @@ describe('a visitor inside their own sandbox', () => {
     await assertSucceeds(setDoc(campaignDoc(db, SANDBOX_A, CAMPAIGN_A, 'npcs', 'n1'), { name: 'Invented', visibleToPlayers: true }))
     // GM powers over a character the template owned, which is the whole point
     // of arriving as the GM rather than as a player.
-    await assertSucceeds(updateDoc(campaignDoc(db, SANDBOX_A, CAMPAIGN_A, 'characters', CHARACTER_ID), { hpCurrent: 3 }))
+    await assertSucceeds(updateDoc(campaignDoc(db, SANDBOX_A, CAMPAIGN_A, 'characters', CHARACTER_ID), {
+      hpCurrent: 3, ...characterSchemaStamp(oseCharacterVersioning),
+    }))
     await assertSucceeds(setDoc(campaignDoc(db, SANDBOX_A, CAMPAIGN_A, 'tables', 'wandering'), { name: 'Wandering monsters' }))
   })
 

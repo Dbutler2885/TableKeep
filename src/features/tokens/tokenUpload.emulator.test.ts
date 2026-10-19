@@ -5,6 +5,8 @@ import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { getBytes, getDownloadURL, ref, uploadString } from 'firebase/storage'
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { uploadAuthorityMetadata, type UploadAuthority } from '../common/mediaStorage'
+import { oseCharacterVersioning } from '../ruleSets/characterMigrations'
+import { characterSchemaStamp } from '../ruleSets/characterSchemaStamp'
 import { emulatorPort } from '../../../vitest.emulatorEndpoint'
 import { firestoreRules } from '../../../vitest.firestoreRules'
 
@@ -139,9 +141,10 @@ describe('character and NPC media storage rules', () => {
 
     const characterUrl = await getDownloadURL(ref(captainStorage, captainCharacterPortraitPath))
     const npcUrl = await getDownloadURL(ref(captainStorage, captainNpcPortraitPath))
+    // The pointer as the character's save writes it, stamped with the version.
     await assertSucceeds(setDoc(
       doc(captainDb, 'groups', groupId, 'campaigns', campaignId, 'characters', characterId),
-      { portraitPath: captainCharacterPortraitPath },
+      { portraitPath: captainCharacterPortraitPath, ...characterSchemaStamp(oseCharacterVersioning) },
       { merge: true },
     ))
     await assertSucceeds(setDoc(

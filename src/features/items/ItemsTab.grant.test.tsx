@@ -24,8 +24,9 @@ const rope = { id: 'rope', kind: 'general', typeId: 'custom', typeName: 'Rope', 
 function source(overrides: Partial<CampaignItem> = {}): CampaignItem {
   return { ...makeDroppedGoldCampaignItem(50, 'source-pc', 'Source', 'source'), status: 'authored', ...overrides }
 }
+// A stored character at OSE's current version, unless the data names another.
 function stored(data: Record<string, unknown>) {
-  mocks.get.mockResolvedValue({ exists: () => true, data: () => data })
+  mocks.get.mockResolvedValue({ exists: () => true, data: () => ({ schemaVersion: 1, ...data }) })
 }
 function mount(item: CampaignItem, role: 'gm' | 'player' = 'gm') {
   mocks.items = [item]
@@ -39,7 +40,7 @@ async function grant() {
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Grant item to selected character' })) })
 }
 function expectCharacterWrite(inventory: unknown[], details: Record<string, unknown> = {}) {
-  expect(mocks.set.mock.calls[0]).toEqual([charRef, { details: { ...details, inventory } }, { merge: true }])
+  expect(mocks.set.mock.calls[0]).toEqual([charRef, { details: { ...details, inventory }, schemaVersion: 1, schemaWrittenAt: 'server-time' }, { merge: true }])
   expect(mocks.get).toHaveBeenCalledExactlyOnceWith(charRef)
   expect(mocks.get.mock.invocationCallOrder[0]).toBeLessThan(mocks.set.mock.invocationCallOrder[0])
 }
@@ -50,10 +51,10 @@ beforeEach(() => {
 })
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.useRealTimers() })
 
-describe('Items tab character grants before version stamping', () => {
-  it.each([undefined, 0, 1, 2])('adds a non-gold item at stored version %s, preserving legacy and unknown details', async (schemaVersion) => {
-    const details = { inventory: [rope], weapons: ['legacy'], unknown: true }
-    stored({ details, ...(schemaVersion === undefined ? {} : { schemaVersion }) })
+describe('Items tab character grants', () => {
+  it('adds a non-gold item at the current version, preserving unknown details, and stamps it', async () => {
+    const details = { inventory: [rope], unknown: true }
+    stored({ details, schemaWrittenAt: 'old-stamp' })
     mount(source({ type: 'general', typeId: 'custom', typeName: 'Lantern', name: 'Lantern' }))
     await grant()
     const inventory = mocks.set.mock.calls[0][1].details.inventory
@@ -159,6 +160,17 @@ describe('Items tab character grants before version stamping', () => {
     expect(screen.getByText('Grant failed: Target character not found')).toBeTruthy()
     expect(mocks.set).not.toHaveBeenCalled()
     expect(consoleError).toHaveBeenCalledWith('Grant item failed', expect.any(Error))
+    expect((screen.getByRole('button', { name: 'Grant item to selected character' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it.each([undefined, 0, 2])('refuses a character at stored version %s with the plain message, writing nothing', async (schemaVersion) => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    stored({ schemaVersion, details: { inventory: [rope], weapons: ['legacy'] } })
+    mount(source({ status: 'dropped' }))
+    await grant()
+    expect(screen.getByText('Grant failed: This character is being updated. Try again in a minute.')).toBeTruthy()
+    expect(mocks.set).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
     expect((screen.getByRole('button', { name: 'Grant item to selected character' }) as HTMLButtonElement).disabled).toBe(false)
   })
 

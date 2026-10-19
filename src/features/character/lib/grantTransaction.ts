@@ -13,6 +13,8 @@ import type {
   CharacterSheetDetails,
 } from '../../../types/app'
 import { campaignItemToInventoryItem } from '../../items/itemConversion'
+import { oseCharacterVersioning } from '../../ruleSets/characterMigrations'
+import { assertCharacterAtCurrentVersion, characterSchemaStamp } from '../../ruleSets/characterSchemaStamp'
 import { toFirestoreItem } from '../../items/useItems'
 import { computeGrantedXp, projectCharacterProgress } from '../xpProgression'
 import {
@@ -53,6 +55,7 @@ export async function applyGrantToCharacter(
 ): Promise<GrantTransactionResult> {
   const snap = await tx.get(charRef)
   if (!snap.exists()) throw new Error(`Target not found: ${params.target.name}`)
+  assertCharacterAtCurrentVersion(snap.data(), oseCharacterVersioning)
 
   const data = snap.data() as CharacterRecord
   const existingDetails = data.details && typeof data.details === 'object'
@@ -131,6 +134,7 @@ export async function applyGrantToCharacter(
       ...(existingDetails ?? {}),
       inventory: overflow.keptInventory,
     },
+    ...characterSchemaStamp(oseCharacterVersioning),
     updatedAt: serverTimestamp(),
   }, { merge: true })
 

@@ -30,6 +30,9 @@ const offer = {
 }
 const request: Request = { auth: { uid: 'receiver-user' }, data: { groupId: 'g', campaignId: 'c', transferId: 'offer' } }
 const writes = () => mocks.set.mock.calls.map(([ref, fields, options]) => [ref.path, fields, options])
+// The admin SDK's server time sentinel, which the callable stamps both characters with.
+const SERVER_TIME = expect.objectContaining({ methodName: 'FieldValue.serverTimestamp' })
+const stamp = { schemaVersion: 1, schemaWrittenAt: SERVER_TIME }
 const deletes = () => mocks.delete.mock.calls.map(([ref]) => ref.path)
 
 beforeEach(() => {
@@ -38,40 +41,42 @@ beforeEach(() => {
   mocks.records.set('groups/g/members/receiver-user', { status: 'active', role: 'member' })
   mocks.records.set(path, { gmUserId: 'gm' })
   mocks.records.set(transferPath, offer)
-  mocks.records.set(senderPath, { ownerUserId: 'sender-user', details: { inventory: [sword], notes: 'sender-note' } })
-  mocks.records.set(receiverPath, { ownerUserId: 'receiver-user', details: { inventory: [], future: { kept: true } } })
+  mocks.records.set(senderPath, { ownerUserId: 'sender-user', schemaVersion: 1, details: { inventory: [sword], notes: 'sender-note' } })
+  mocks.records.set(receiverPath, { ownerUserId: 'receiver-user', schemaVersion: 1, details: { inventory: [], future: { kept: true } } })
   mocks.get.mockImplementation(async (ref) => ({ exists: mocks.records.has(ref.path), data: () => mocks.records.get(ref.path) }))
   mocks.runTransaction.mockImplementation(async (body) => body(mocks))
 })
 
-describe('actual transfer callable before version stamping', () => {
+describe('actual transfer callable', () => {
   it('reads membership/campaign, transfer, then both characters; writes sender then receiver then deletes the offer', async () => {
     await expect(accept(request)).resolves.toEqual({ ok: true })
     expect(mocks.get.mock.calls.map(([ref]) => ref.path)).toEqual([
       'groups/g/members/receiver-user', path, transferPath, senderPath, receiverPath,
     ])
     expect(writes()).toEqual([
-      [senderPath, { details: { inventory: [{ ...sword, qty: 3 }], notes: 'sender-note' } }, { merge: true }],
-      [receiverPath, { details: { inventory: [{ ...offer.itemSnapshot, equipped: false }], future: { kept: true } } }, { merge: true }],
+      [senderPath, { details: { inventory: [{ ...sword, qty: 3 }], notes: 'sender-note' }, ...stamp }, { merge: true }],
+      [receiverPath, { details: { inventory: [{ ...offer.itemSnapshot, equipped: false }], future: { kept: true } }, ...stamp }, { merge: true }],
     ])
     expect(deletes()).toEqual([transferPath])
     expect(Math.max(...mocks.get.mock.invocationCallOrder)).toBeLessThan(mocks.set.mock.invocationCallOrder[0])
     expect(mocks.set.mock.invocationCallOrder[1]).toBeLessThan(mocks.delete.mock.invocationCallOrder[0])
   })
 
-  it.each([undefined, '', 'unknown', 'ose', 'vtm', 'lubec'])('currently ignores campaign system %s', async (system) => {
+  it.each([undefined, '', 'unknown', 'ose', 'vtm', 'lubec'])('accepts current-version characters in a campaign of system %s and stamps that version', async (system) => {
     mocks.records.set(path, { gmUserId: 'gm', ...(system === undefined ? {} : { system }) })
     await expect(accept(request)).resolves.toEqual({ ok: true })
-    expect(mocks.set).toHaveBeenCalledTimes(2)
+    expect(writes().map(([, fields]) => [fields.schemaVersion, fields.schemaWrittenAt])).toEqual([[1, SERVER_TIME], [1, SERVER_TIME]])
   })
 
-  it.each([senderPath, receiverPath])('ignores old and newer versions on %s and writes no stamps', async (characterPath) => {
-    for (const schemaVersion of [undefined, 0, 1, 2]) {
-      mocks.set.mockClear()
+  it.each([senderPath, receiverPath])('refuses %s below or above the current version with the plain message, keeping the offer', async (characterPath) => {
+    for (const schemaVersion of [undefined, 0, 2, '1']) {
       mocks.records.set(characterPath, { ...mocks.records.get(characterPath), schemaVersion, schemaWrittenAt: 'previous' })
-      await expect(accept(request)).resolves.toEqual({ ok: true })
-      expect(writes().map(([, fields]) => Object.keys(fields))).toEqual([['details'], ['details']])
+      await expect(accept(request)).rejects.toMatchObject({
+        code: 'failed-precondition', message: 'This character is being updated. Try again in a minute.',
+      })
     }
+    expect(mocks.set).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
   })
 
   it.each([{}, { auth: { uid: '' } }])('requires authentication before any database operation: %j', async (auth) => {
@@ -132,30 +137,30 @@ describe('actual transfer callable before version stamping', () => {
     ['missing inventory', undefined], ['malformed details', 'bad'], ['malformed inventory', { inventory: 'bad' }],
     ['missing item', { inventory: [] }], ['kind mismatch', { inventory: [{ ...sword, kind: 'general' }] }],
   ])('discards an unavailable offer for %s', async (_name, details) => {
-    mocks.records.set(senderPath, { ownerUserId: 'sender-user', details })
+    mocks.records.set(senderPath, { ownerUserId: 'sender-user', schemaVersion: 1, details })
     await expect(accept(request)).rejects.toMatchObject({ code: 'not-found', message: 'Item no longer available.' })
     expect(mocks.set).not.toHaveBeenCalled()
     expect(deletes()).toEqual([transferPath])
   })
 
   it('discards an offer whose quantity changed', async () => {
-    mocks.records.set(senderPath, { ownerUserId: 'sender-user', details: { inventory: [{ ...sword, qty: 1 }] } })
+    mocks.records.set(senderPath, { ownerUserId: 'sender-user', schemaVersion: 1, details: { inventory: [{ ...sword, qty: 1 }] } })
     await expect(accept(request)).rejects.toMatchObject({ code: 'failed-precondition', message: 'Item quantity changed before transfer could be accepted.' })
     expect(mocks.set).not.toHaveBeenCalled()
     expect(deletes()).toEqual([transferPath])
   })
 
   it('keeps the offer and both characters untouched when packed slots are full', async () => {
-    mocks.records.set(receiverPath, { details: { inventory: Array.from({ length: 13 }, (_, i) => ({ ...sword, id: String(i), equipped: false })) } })
+    mocks.records.set(receiverPath, { schemaVersion: 1, details: { inventory: Array.from({ length: 13 }, (_, i) => ({ ...sword, id: String(i), equipped: false })) } })
     await expect(accept(request)).rejects.toMatchObject({ code: 'failed-precondition', message: 'Not enough packed slots to accept this item.' })
     expect(mocks.set).not.toHaveBeenCalled()
     expect(mocks.delete).not.toHaveBeenCalled()
   })
 
   it.each([undefined, null, 'bad', { inventory: 'bad' }])('defaults receiver details %j and writes the offered snapshot', async (details) => {
-    mocks.records.set(receiverPath, { details })
+    mocks.records.set(receiverPath, { schemaVersion: 1, details })
     await expect(accept(request)).resolves.toEqual({ ok: true })
-    expect(writes()[1]).toEqual([receiverPath, { details: { inventory: [{ ...offer.itemSnapshot, equipped: false }] } }, { merge: true }])
+    expect(writes()[1]).toEqual([receiverPath, { details: { inventory: [{ ...offer.itemSnapshot, equipped: false }] }, ...stamp }, { merge: true }])
   })
 
   it('propagates a transaction failure', async () => {

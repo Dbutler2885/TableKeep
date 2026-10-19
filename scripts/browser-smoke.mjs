@@ -13,7 +13,7 @@ import {
   toFirestoreFields,
 } from './browser-smoke-seed.mjs'
 import { reviveTimestamps } from '../src/features/ruleSets/characterFixtures.ts'
-import { oseCharacterV0ToV1 } from '../src/features/ruleSets/ose/characterMigrations.ts'
+import { oseCharacterV0ToV1, RETIRED_DETAIL_FIELDS } from '../src/features/ruleSets/ose/characterMigrations.ts'
 
 const APP_URL = 'http://127.0.0.1:4173'
 const AUTH_EMULATOR_URL = 'http://127.0.0.1:9099'
@@ -488,12 +488,38 @@ async function seedFilledVtmCampaign({ uid, groupId, testCase }) {
   return { campaignId, campaignName, characterName: fields.name, concept: fields.vtm.concept, fields, path }
 }
 
+// The fields every save sets beside the edit: the rule set's version, the
+// write time and `updatedAt`, in the order `changedFirestoreFields` names them.
+const SAVE_STAMP_FIELDS = ['schemaVersion', 'schemaWrittenAt', 'updatedAt']
+
+// What is wrong with a stored character, in the REST shape, that a save
+// should have left at version 1 with a write time.
+export function storedVersionProblems(stored) {
+  const problems = []
+  if (stored.schemaVersion?.integerValue !== '1') problems.push(`schemaVersion is ${JSON.stringify(stored.schemaVersion)}, not 1`)
+  if (typeof stored.schemaWrittenAt?.timestampValue !== 'string') problems.push('schemaWrittenAt is not a time')
+  return problems
+}
+
+// The OSE detail fields a save at version 1 must have removed.
+export function retiredDetailFieldsStored(stored) {
+  const details = stored.details?.mapValue?.fields ?? {}
+  return RETIRED_DETAIL_FIELDS.filter((name) => Object.hasOwn(details, name))
+}
+
+function expectStoredAtVersion1(stored) {
+  const problems = storedVersionProblems(stored)
+  if (problems.length > 0) throw new Error(`The save did not store the character at version 1: ${problems.join('; ')}.`)
+}
+
 async function expectOnlyEditStored(seeded, concept) {
+  const stored = await readDocumentFields(seeded.path)
   const expected = toFirestoreFields(withVtmConcept(seeded.fields, concept))
-  const changed = changedFirestoreFields(await readDocumentFields(seeded.path), expected)
-  if (changed.join() !== 'updatedAt') {
-    throw new Error(`Expected only the edit and updatedAt to change, but these differ: ${changed.join(', ')}.`)
+  const changed = changedFirestoreFields(stored, expected)
+  if (changed.join() !== SAVE_STAMP_FIELDS.join()) {
+    throw new Error(`Expected only the edit, the version stamp and updatedAt to change, but these differ: ${changed.join(', ')}.`)
   }
+  expectStoredAtVersion1(stored)
 }
 
 async function vtmEditKeepsFieldsCase(page, seeded) {
@@ -673,11 +699,21 @@ async function expectStepItemsStored(seeded) {
   }
 }
 
+// A save of an old-format character stores it at version 1, without the old
+// lists or the manual-AC flag a merge would otherwise keep.
+async function expectStoredAsVersion1(seeded) {
+  const stored = await readDocumentFields(seeded.path)
+  expectStoredAtVersion1(stored)
+  const retired = retiredDetailFieldsStored(stored)
+  if (retired.length > 0) throw new Error(`The save left old fields stored: ${retired.join(', ')}.`)
+}
+
 async function oseLegacyItemsCase(page, seeded) {
   await step('open the OSE campaign with an old-format character', () => openCampaignCard(page, seeded.campaignName, oseCharacterTab))
   await step('edit the OSE Name', () => editOseName(page, seeded))
   await settle()
   await step('see the save store the items OSE\'s step makes, with its ids', () => expectStepItemsStored(seeded))
+  await step('see the save store the character at version 1, without the old lists', () => expectStoredAsVersion1(seeded))
   for (const reload of ['first', 'second']) {
     await step(`see the same items and ids after the ${reload} reload`, async () => {
       await page.reload({ waitUntil: 'domcontentloaded' })
@@ -949,6 +985,7 @@ async function runViewport(browser, testCase) {
       + 'and saved a VtM edit leaving every other stored field of a filled-in sheet as it was, '
       + 'and an OSE edit made just before opening Notes, hiding the page or switching campaign, '
       + 'and kept the items and ids OSE\'s step makes of an old-format character through a save and two reloads, '
+      + 'storing it at version 1 without its old lists, '
       + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map, '
       + 'and opened a seeded Lubec campaign to its placeholder page in its own skin.',
     )

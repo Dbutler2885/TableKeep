@@ -123,8 +123,8 @@ describe('sendVtmCharacterSavesNow', () => {
   })
 })
 
-describe('VtM write fields before version stamping', () => {
-  it('creates the document without merging, omitting URLs, unknown fields, id and version fields', async () => {
+describe('VtM write fields', () => {
+  it('creates the document without merging, stamped with the current version, omitting URLs, unknown fields and id', async () => {
     const { createVtmCharacterDoc } = await import('./vtmCharacterWrites')
     const character = { ...stored, portraitPath: 'portraits/old', portraitUrl: 'https://cdn.test/p', unknownFields: { future: true },
       tokenIcon: { ...stored.tokenIcon, customImagePath: 'tokens/t', customImageUrl: 'https://cdn.test/t' } }
@@ -133,7 +133,8 @@ describe('VtM write fields before version stamping', () => {
       system: 'vtm', name: character.name, ownerUserId: character.ownerUserId, ownerUsername: character.ownerUsername,
       creationMode: character.creationMode, creationModeExplicit: character.creationModeExplicit, creationStatus: character.creationStatus,
       xp: character.xp, portraitPath: '', portraitFocusX: 50, portraitFocusY: 50,
-      tokenIcon: { ...stored.tokenIcon, customImagePath: 'tokens/t' }, vtm: character.vtm, createdAt: 'now', updatedAt: 'now',
+      tokenIcon: { ...stored.tokenIcon, customImagePath: 'tokens/t' }, vtm: character.vtm, schemaVersion: 1, schemaWrittenAt: 'now',
+      createdAt: 'now', updatedAt: 'now',
     })
   })
 
@@ -143,7 +144,7 @@ describe('VtM write fields before version stamping', () => {
     await expect(createVtmCharacterDoc(campaign, stored)).rejects.toThrow('permission denied')
   })
 
-  it('round-trips an edited sheet, unknown nested fields and media paths but drops stored stamps and URLs', async () => {
+  it('round-trips an edited sheet, unknown nested fields and media paths, replaces stored stamps with fresh ones and drops URLs', async () => {
     const { readVtmCharacterDoc } = await import('./vtmCharacterRecord')
     const { vtmCharacterSaveFields } = await import('./vtmCharacterWrites')
     const raw = { ...newVtmCharacterFields(stored), schemaVersion: 2, schemaWrittenAt: 'old-stamp',
@@ -157,7 +158,8 @@ describe('VtM write fields before version stamping', () => {
       system: 'vtm', name: 'Edited', ownerUserId: stored.ownerUserId, ownerUsername: stored.ownerUsername,
       creationMode: stored.creationMode, creationModeExplicit: stored.creationModeExplicit, creationStatus: stored.creationStatus,
       xp: stored.xp, portraitPath: 'portraits/p', portraitFocusX: 50, portraitFocusY: 50,
-      tokenIcon: { ...stored.tokenIcon, customImagePath: 'tokens/t' }, vtm: parsed.vtm, future: { nested: ['keep'] }, updatedAt: 'now',
+      tokenIcon: { ...stored.tokenIcon, customImagePath: 'tokens/t' }, vtm: parsed.vtm, future: { nested: ['keep'] },
+      schemaVersion: 1, schemaWrittenAt: 'now', updatedAt: 'now',
     })
     expect(fields.vtm).not.toBe(parsed.vtm)
     expect(fields.vtm).toHaveProperty('futureSheet', { kept: true })

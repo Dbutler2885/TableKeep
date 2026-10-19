@@ -237,5 +237,7 @@
         "three": 3
       }
     ]
-  }
+  },
+  "schemaVersion": 1,
+  "schemaWrittenAt": "server time"
 }
