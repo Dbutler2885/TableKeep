@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import type { AppTab, Campaign } from '../../types/app'
 import { campaignSettingsTabs } from '../campaign/campaignTabSettings'
+import { OSE_STORE_ITEMS } from '../character/storeCatalog'
 import { campaignSystem } from '../shell/shellSelection'
 import { campaignNavTabs, routableTab } from '../shell/shellTabs'
 import { resolveRuleSet, ruleSets } from './registry'
@@ -53,6 +54,16 @@ describe('rule-set declarations', () => {
     ['vtm', 'Vampire: the Masquerade', 'VTM'],
   ] as const)('%s is labelled %j, shortened to %j', (id: RuleSetId, label, shortLabel) => {
     expect(ruleSets[id]).toMatchObject({ id, label, shortLabel })
+  })
+})
+
+describe('catalog', () => {
+  it('OSE declares the store list as its catalog', () => {
+    expect(ruleSets.ose.catalog).toBe(OSE_STORE_ITEMS)
+  })
+
+  it('VtM declares no catalog', () => {
+    expect(ruleSets.vtm).not.toHaveProperty('catalog')
   })
 })
 

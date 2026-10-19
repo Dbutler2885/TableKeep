@@ -9,7 +9,7 @@ import type {
   PendingTransfer,
 } from '../../../types/app'
 import { resolveArmourType } from '../inventoryRules'
-import { OSE_STORE_ITEMS, type StoreCategoryId } from '../storeCatalog'
+import type { StoreCategoryId } from '../storeCatalog'
 import {
   adventureDefaultsByClass,
   classHitDieByClass,
@@ -26,6 +26,10 @@ import { nextLevelXpFor, primeRequisiteXpBonusPercent } from '../xpProgression'
 import { classFeaturesByClass, levelUpChecklistForClass, levelUpFlavorByClass } from '../lib/characterClassData'
 import { packedRowCount, packedSlotThresholds, packedStrengthSlotCount } from '../lib/characterSheetLayout'
 import { deriveCombatStats, deriveMovement, deriveThiefExpertise } from '../lib/characterDerivedStats'
+import { oseRuleSet } from '../../ruleSets/registry'
+
+// The store's list, read through OSE's rule-set entry.
+const OSE_STORE_ITEMS = oseRuleSet.catalog
 
 type Params = {
   effectiveSelected: CharacterRecord | null

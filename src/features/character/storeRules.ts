@@ -9,7 +9,7 @@ import type {
   CharacterGeneralItem,
 } from '../../types/app'
 import { DEFAULT_STACK_POLICY } from '../items/itemDefaults'
-import { OSE_STORE_ITEMS } from './storeCatalog'
+import { oseRuleSet } from '../ruleSets/registry'
 import { ammoCatalogById } from './ammoCatalog'
 import { consumableCatalogById } from './consumableCatalog'
 import { generalCatalogById } from './generalCatalog'
@@ -20,6 +20,9 @@ import {
   isWeaponTemplateAllowedForClass,
   isArmourTemplateAllowedForClass,
 } from './inventoryRules'
+
+// The store's list, read through OSE's rule-set entry.
+const OSE_STORE_ITEMS = oseRuleSet.catalog
 
 // ---------------------------------------------------------------------------
 // Cart materialization
