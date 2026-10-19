@@ -14,7 +14,7 @@
  * no test ever put the two sides in the same room.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc, Timestamp } from 'firebase/firestore'
 import type { Firestore } from 'firebase/firestore'
 import {
   assertSucceeds,
@@ -51,7 +51,7 @@ let testEnv: RulesTestEnvironment
 let acceptPendingTransfer: AcceptCallable
 
 const withAdmin = (fn: (db: Firestore) => Promise<void>) =>
-  testEnv.withSecurityRulesDisabled(async (context) => fn(context.firestore()))
+  testEnv.withSecurityRulesDisabled(async (context) => fn(context.firestore() as unknown as Firestore))
 
 const transferPayload = (transferId: string, overrides: Record<string, unknown> = {}) => ({
   id: transferId,
@@ -150,7 +150,7 @@ beforeEach(async () => {
 
 /** Writes the transfer the way `usePendingTransfers.createTransfer` does. */
 const writeTransferAsClient = async (transferId: string) => {
-  const senderDb = testEnv.authenticatedContext(senderUid).firestore()
+  const senderDb = testEnv.authenticatedContext(senderUid).firestore() as unknown as Firestore
   await assertSucceeds(
     setDoc(
       campaignDocRef(senderDb, { campaignId, groupId }, 'pendingTransfers', transferId),
@@ -291,4 +291,64 @@ describe('acceptPendingTransfer authorization', () => {
 
 afterAll(async () => {
   await testEnv.cleanup()
+})
+
+
+describe('transfer persistence before version stamping', () => {
+  const characterRef = (db: Firestore, id: string) => doc(db, `groups/${groupId}/campaigns/${campaignId}/characters/${id}`)
+  const offerRef = (db: Firestore) => doc(db, `groups/${groupId}/campaigns/${campaignId}/pendingTransfers/baseline`)
+  const accept = () => acceptPendingTransfer({ auth: { uid: receiverUid }, data: { groupId, campaignId, transferId: 'baseline' } })
+
+  it.each([0, 2])('accepts version %s, retaining both stale schema stamps, timestamps and unknown fields', async (schemaVersion) => {
+    const oldTime = Timestamp.fromDate(new Date('2026-01-01T00:00:00Z'))
+    await withAdmin(async (db) => {
+      for (const id of [senderCharacterId, receiverCharacterId]) {
+        await setDoc(characterRef(db, id), { schemaVersion, schemaWrittenAt: oldTime, updatedAt: oldTime,
+          future: { kept: true }, details: { weapons: ['legacy'], futureNested: { kept: true } } }, { merge: true })
+      }
+      await setDoc(offerRef(db), transferPayload('baseline'))
+    })
+    await expect(accept()).resolves.toEqual({ ok: true })
+    await withAdmin(async (db) => {
+      for (const id of [senderCharacterId, receiverCharacterId]) {
+        expect((await getDoc(characterRef(db, id))).data()).toMatchObject({ schemaVersion, schemaWrittenAt: oldTime, updatedAt: oldTime,
+          future: { kept: true }, details: { weapons: ['legacy'], futureNested: { kept: true } } })
+      }
+      expect(await inventoryOf(db, senderCharacterId)).toEqual([])
+      expect(await inventoryOf(db, receiverCharacterId)).toEqual([sword])
+      expect((await getDoc(offerRef(db))).exists()).toBe(false)
+    })
+  })
+
+  it.each(['missing sender', 'missing receiver', 'missing item', 'kind mismatch', 'quantity changed'])('commits offer deletion for %s but leaves both character documents unchanged', async (scenario) => {
+    let before: unknown[] = []
+    await withAdmin(async (db) => {
+      if (scenario === 'missing sender') await deleteDoc(characterRef(db, senderCharacterId))
+      if (scenario === 'missing receiver') await deleteDoc(characterRef(db, receiverCharacterId))
+      if (scenario === 'missing item') await setDoc(characterRef(db, senderCharacterId), { details: { inventory: [] } }, { merge: true })
+      if (scenario === 'kind mismatch') await setDoc(characterRef(db, senderCharacterId), { details: { inventory: [{ ...sword, kind: 'general' }] } }, { merge: true })
+      await setDoc(offerRef(db), transferPayload('baseline', scenario === 'quantity changed' ? { itemSnapshot: { ...sword, qty: 2 } } : {}))
+      before = await Promise.all([senderCharacterId, receiverCharacterId].map(async (id) => (await getDoc(characterRef(db, id))).data()))
+    })
+    await expect(accept()).rejects.toMatchObject({ code: scenario === 'quantity changed' ? 'failed-precondition' : 'not-found' })
+    await withAdmin(async (db) => {
+      const after = await Promise.all([senderCharacterId, receiverCharacterId].map(async (id) => (await getDoc(characterRef(db, id))).data()))
+      expect(after).toEqual(before)
+      expect((await getDoc(offerRef(db))).exists()).toBe(false)
+    })
+  })
+
+  it('retains the offer and both characters unchanged when receiver capacity rejects the transfer', async () => {
+    let before: unknown[] = []
+    await withAdmin(async (db) => {
+      await setDoc(characterRef(db, receiverCharacterId), { details: { inventory: Array.from({ length: 16 }, (_, i) => ({ ...sword, id: `packed-${i}` })) } }, { merge: true })
+      await setDoc(offerRef(db), transferPayload('baseline'))
+      before = await Promise.all([senderCharacterId, receiverCharacterId].map(async (id) => (await getDoc(characterRef(db, id))).data()))
+    })
+    await expect(accept()).rejects.toMatchObject({ code: 'failed-precondition', message: 'Not enough packed slots to accept this item.' })
+    await withAdmin(async (db) => {
+      expect(await Promise.all([senderCharacterId, receiverCharacterId].map(async (id) => (await getDoc(characterRef(db, id))).data()))).toEqual(before)
+      expect((await getDoc(offerRef(db))).exists()).toBe(true)
+    })
+  })
 })

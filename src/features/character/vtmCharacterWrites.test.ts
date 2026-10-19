@@ -122,3 +122,65 @@ describe('sendVtmCharacterSavesNow', () => {
     expect(saves).toEqual({ pending: {}, inFlight: { a: true } })
   })
 })
+
+describe('VtM write fields before version stamping', () => {
+  it('creates the document without merging, omitting URLs, unknown fields, id and version fields', async () => {
+    const { createVtmCharacterDoc } = await import('./vtmCharacterWrites')
+    const character = { ...stored, portraitPath: 'portraits/old', portraitUrl: 'https://cdn.test/p', unknownFields: { future: true },
+      tokenIcon: { ...stored.tokenIcon, customImagePath: 'tokens/t', customImageUrl: 'https://cdn.test/t' } }
+    await createVtmCharacterDoc(campaign, character)
+    expect(mocks.setDoc).toHaveBeenCalledExactlyOnceWith({ path: 'groups/group-1/campaigns/campaign-1/characters/a' }, {
+      system: 'vtm', name: character.name, ownerUserId: character.ownerUserId, ownerUsername: character.ownerUsername,
+      creationMode: character.creationMode, creationModeExplicit: character.creationModeExplicit, creationStatus: character.creationStatus,
+      xp: character.xp, portraitPath: '', portraitFocusX: 50, portraitFocusY: 50,
+      tokenIcon: { ...stored.tokenIcon, customImagePath: 'tokens/t' }, vtm: character.vtm, createdAt: 'now', updatedAt: 'now',
+    })
+  })
+
+  it('propagates creation write failure to the caller', async () => {
+    const { createVtmCharacterDoc } = await import('./vtmCharacterWrites')
+    mocks.setDoc.mockRejectedValueOnce(new Error('permission denied'))
+    await expect(createVtmCharacterDoc(campaign, stored)).rejects.toThrow('permission denied')
+  })
+
+  it('round-trips an edited sheet, unknown nested fields and media paths but drops stored stamps and URLs', async () => {
+    const { readVtmCharacterDoc } = await import('./vtmCharacterRecord')
+    const { vtmCharacterSaveFields } = await import('./vtmCharacterWrites')
+    const raw = { ...newVtmCharacterFields(stored), schemaVersion: 2, schemaWrittenAt: 'old-stamp',
+      future: { nested: ['keep'] }, portraitPath: 'portraits/p', portraitUrl: 'https://cdn.test/p',
+      tokenIcon: { ...stored.tokenIcon, customImagePath: 'tokens/t', customImageUrl: 'https://cdn.test/t' },
+      vtm: { ...stored.vtm, futureSheet: { kept: true } } }
+    const parsed = readVtmCharacterDoc('a', raw, undefined)
+    if (!parsed) throw new Error('Expected the VtM reader to accept a VtM document')
+    const fields: Record<string, unknown> = vtmCharacterSaveFields({ ...parsed, name: 'Edited' })
+    expect(fields).toEqual({
+      system: 'vtm', name: 'Edited', ownerUserId: stored.ownerUserId, ownerUsername: stored.ownerUsername,
+      creationMode: stored.creationMode, creationModeExplicit: stored.creationModeExplicit, creationStatus: stored.creationStatus,
+      xp: stored.xp, portraitPath: 'portraits/p', portraitFocusX: 50, portraitFocusY: 50,
+      tokenIcon: { ...stored.tokenIcon, customImagePath: 'tokens/t' }, vtm: parsed.vtm, future: { nested: ['keep'] }, updatedAt: 'now',
+    })
+    expect(fields.vtm).not.toBe(parsed.vtm)
+    expect(fields.vtm).toHaveProperty('futureSheet', { kept: true })
+  })
+})
+
+describe('VtM save failure', () => {
+  it('clears the in-flight flag on rejection and never retries or reports the error', async () => {
+    let fail: (error: Error) => void = () => undefined
+    const write = new Promise<undefined>((_resolve, reject) => { fail = reject })
+    const finalization = vi.spyOn(write, 'finally')
+    mocks.setDoc.mockReturnValueOnce(write)
+    const saves = emptyVtmCharacterSaves()
+    scheduleVtmCharacterSave(saves, campaign, 'a', () => stored)
+    sendVtmCharacterSavesNow(saves)
+    expect(isVtmCharacterSaveOutstanding(saves, 'a')).toBe(true)
+    // Observe the otherwise unhandled final promise without changing the writer.
+    const observed = (finalization.mock.results[0].value as Promise<unknown>).catch((error: Error) => error)
+    const failure = new Error('permission denied')
+    fail(failure)
+    expect(await observed).toBe(failure)
+    expect(saves).toEqual({ pending: {}, inFlight: {} })
+    vi.advanceTimersByTime(5000)
+    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
+  })
+})
