@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CharacterInventoryItem } from '../../../types/app'
+import type { AdventureScores, SaveScores, ThiefSkillScores } from '../characterRules'
 import { emptyAbilityScores } from '../characterRules'
 import { detailsFromState, type StateMaps } from './characterSheetFields'
 
@@ -55,6 +56,9 @@ describe('detailsFromState', () => {
   it('reads each field from that character\'s local state only', () => {
     const scores = { STR: '13', INT: '9', WIS: '10', DEX: '15', CON: '12', CHA: '8' }
     const rope = { id: 'rope' } as CharacterInventoryItem
+    const saves = { D: '12' } as unknown as SaveScores
+    const adventure = { FG: '2' } as unknown as AdventureScores
+    const thief = { CS: '87' } as unknown as ThiefSkillScores
     const cart = [{ key: 'rope', name: 'Rope', costGp: 1, qty: 1, kind: 'general' as const }]
     const maps: StateMaps = {
       abilityScoresByCharacterId: { a: scores, b: emptyAbilityScores() },
@@ -65,10 +69,10 @@ describe('detailsFromState', () => {
       spellBookSpellIdsByCharacterId: { a: ['sleep'] },
       memorizedSpellIdsByCharacterId: { a: ['light'] },
       thacoByCharacterId: { a: '19' },
-      saveScoresByCharacterId: { a: { death: '12' } },
-      adventureScoresByCharacterId: { a: { listen: '2' } },
+      saveScoresByCharacterId: { a: saves },
+      adventureScoresByCharacterId: { a: adventure },
       adventureSeedClassByCharacterId: { a: 'Thief' },
-      thiefSkillsByCharacterId: { a: { climb: '87' } },
+      thiefSkillsByCharacterId: { a: thief },
       startingGoldByCharacterId: { a: 0 },
       storeSpentByCharacterId: { a: 12 },
       storeCartByCharacterId: { a: cart },
@@ -85,10 +89,10 @@ describe('detailsFromState', () => {
       hpBaseRoll: 0,
       inventory: [rope],
       thaco: '19',
-      saveScores: { death: '12' },
-      adventureScores: { listen: '2' },
+      saveScores: saves,
+      adventureScores: adventure,
       adventureSeedClass: 'Thief',
-      thiefSkills: { climb: '87' },
+      thiefSkills: thief,
       startingGold: 0,
       storeSpent: 12,
       storeCart: cart,

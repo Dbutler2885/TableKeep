@@ -14,7 +14,7 @@ const generalItem = (id: string, name: string, typeId = id): CharacterGeneralIte
   equipped: false,
   notes: '',
   qty: 1,
-  stack: 'none',
+  stack: { stackable: false },
 })
 
 const rope = generalItem('rope', 'Rope')

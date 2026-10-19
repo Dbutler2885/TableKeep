@@ -477,7 +477,7 @@ describe('taking in another person\'s items', () => {
 
   it('turns an incoming old-format sheet into items', () => {
     const { result, rerender } = renderSheet({ characters: [character('a', fullDetails())] })
-    const armour = [{ id: 'ar1', armourId: 'chain', name: 'Chain mail', isMagic: false, acBonus: '', equipped: true, notes: '' }]
+    const armour = [{ id: 'ar1', armourId: 'chain', name: 'Chain mail', isMagic: false, ac: '5', bonus: '', equipped: true, notes: '' }]
     const legacy = { ...fullDetails(), armour } as Partial<CharacterSheetDetails>
     delete legacy.inventory
     rerender({ characters: [character('a', legacy)] })
