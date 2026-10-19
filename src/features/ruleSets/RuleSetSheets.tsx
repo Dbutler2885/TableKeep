@@ -36,3 +36,13 @@ export function VtmSheet({ campaign, role, user, username, setError }: RuleSetSh
     />
   )
 }
+
+// Lubec has no sheet yet; its character tab says so.
+export function LubecSheet() {
+  return (
+    <section className="placeholder-panel lubec-sheet-placeholder">
+      <h2>Lubec 1977</h2>
+      <p>The Lubec character sheet is not built yet.</p>
+    </section>
+  )
+}

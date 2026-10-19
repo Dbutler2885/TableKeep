@@ -15396,3 +15396,15 @@ button:disabled {
     gap: 0.45rem;
   }
 }
+
+/* The Lubec rule set's placeholder character tab, until Spec B builds its sheet.
+   It clears the menu toggle as the character list does. */
+.lubec-sheet-placeholder {
+  padding: 3rem 1rem 1rem;
+}
+
+@media (max-width: 900px) {
+  .lubec-sheet-placeholder {
+    padding-top: 0;
+  }
+}

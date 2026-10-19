@@ -15,7 +15,7 @@ describe('the migration script\'s rule-set table', () => {
     }
   })
 
-  it.each([['ose'], ['vtm'], [undefined], [null], [''], ['pathfinder'], ['OSE'], ['toString'], [7]])(
+  it.each([['ose'], ['vtm'], ['lubec'], ['LUBEC'], [undefined], [null], [''], ['pathfinder'], ['OSE'], ['toString'], [7]])(
     'resolves %j as the registry does',
     (system) => {
       expect(resolveCharacterRuleSetId(system)).toBe(resolveRuleSet(system as string | null | undefined).id)

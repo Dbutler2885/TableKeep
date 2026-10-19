@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
+  lubecCharacterVersioning,
   migrateCharacter,
   oseCharacterVersioning,
   storedSchemaVersion,
@@ -92,6 +93,13 @@ describe('the migration runner', () => {
     for (const versioning of [oseCharacterVersioning, vtmCharacterVersioning]) {
       expect(versioning.migrations).toHaveLength(versioning.schemaVersion)
     }
+  })
+
+  it('leaves a current Lubec character as stored, and refuses one below the version Lubec is born at', () => {
+    const current = { system: 'lubec', schemaVersion: 1, name: 'Ilse' }
+    expect(migrateCharacter(lubecCharacterVersioning, 'c1', current)).toEqual({ status: 'current', fromVersion: 1, document: current })
+    expect(() => migrateCharacter(lubecCharacterVersioning, 'c1', { system: 'lubec' }))
+      .toThrow('no migration step from version 0')
   })
 })
 

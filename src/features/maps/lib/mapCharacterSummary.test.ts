@@ -96,7 +96,7 @@ describe('map character summary fields', () => {
     })
   })
 
-  it.each(['ose', 'lubec', '', 'VTM'])('reads a character storing system %j as OSE', (system) => {
+  it.each(['ose', 'pathfinder', '', 'VTM'])('reads a character storing system %j as OSE', (system) => {
     expect(mapCharacterSummaryFromData('other', { system, hpCurrent: 4 })).toMatchObject({
       inPlay: true,
       tokenIcon: { icon: 'pawn', color: '#bf2f2a', size: 34 },

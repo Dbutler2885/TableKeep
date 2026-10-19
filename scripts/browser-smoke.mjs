@@ -194,11 +194,21 @@ async function closeNavigationDrawer(page) {
   }
 }
 
+// The picker offers exactly the rule sets the smoke creates, so a hidden one
+// such as Lubec never shows there.
+async function expectPickerOffersOnly(page, systems) {
+  const offered = await page.$$eval('[role="dialog"] select option', (options) => options.map((option) => option.value))
+  if (offered.join() !== systems.join()) {
+    throw new Error(`The campaign picker offers ${offered.join(', ')}, not ${systems.join(', ')}.`)
+  }
+}
+
 async function createAndOpenCampaign(page, testCase, ruleSet) {
   const campaignName = `${testCase.label} ${ruleSet.label} Campaign`
   await step(`create the ${ruleSet.label} campaign`, async () => {
     await roleLocator(page, 'button', 'Create new draft').click()
     await page.locator('[role="dialog"] input[type="text"]').fill(campaignName)
+    await expectPickerOffersOnly(page, ruleSetCampaigns.map((offered) => offered.system))
     await page.select('[role="dialog"] select', ruleSet.system)
     await roleLocator(page, 'button', 'Create').click()
   })
@@ -762,6 +772,28 @@ async function wanderingMonsterCases(browser, testCase, ids, browserErrors) {
   await inSignedInPage(browser, session, 'vtm-wandering-monsters', (page) => vtmWanderingMonsterCase(page, testCase, vtmMap))
 }
 
+// No GM can create a Lubec campaign, so the smoke seeds one. It opens to the
+// placeholder page in Lubec's own skin, with the character tab its only tab.
+const LUBEC_PLACEHOLDER = '.shell-root[data-theme="lubec"] .lubec-sheet-placeholder'
+
+async function expectNavTabs(page, expected) {
+  const labels = await page.$$eval('.side-nav .nav-list .tab-button', (tabs) => tabs.map((tab) => tab.textContent.trim()))
+  if (labels.join() !== expected.join()) throw new Error(`The side nav shows ${labels.join(', ')}, not ${expected.join(', ')}.`)
+}
+
+async function lubecPlaceholderCase(page, campaignName) {
+  await step('open the seeded Lubec campaign', () => openCampaignCard(page, campaignName, LUBEC_PLACEHOLDER))
+  await step('show the Lubec placeholder page', () => waitForBodyText(page, 'The Lubec character sheet is not built yet.'))
+  await step('offer only the character tab', () => expectNavTabs(page, ['Characters']))
+}
+
+async function lubecCampaignCase(browser, testCase, ids, browserErrors) {
+  const campaignName = `${testCase.label} Lubec Campaign`
+  await seedCampaign({ groupId: ids.groupId, gmUserId: ids.uid, fields: { name: campaignName, system: 'lubec' } })
+  const session = { testCase, groupId: ids.groupId, browserErrors }
+  await inSignedInPage(browser, session, 'lubec-placeholder', (page) => lubecPlaceholderCase(page, campaignName))
+}
+
 function collectBrowserErrors(page, errors, surface) {
   page.on('pageerror', (error) => {
     errors.push(`${surface} page error: ${error.message}`)
@@ -846,6 +878,7 @@ async function runViewport(browser, testCase) {
     await vtmEditKeepsFieldsCases(browser, testCase, { uid, groupId }, browserErrors)
     await oseLastEditCases(browser, testCase, { uid, groupId }, browserErrors)
     await wanderingMonsterCases(browser, testCase, { uid, groupId }, browserErrors)
+    await lubecCampaignCase(browser, testCase, { uid, groupId }, browserErrors)
     await new Promise((resolve) => setTimeout(resolve, 500))
 
     if (browserErrors.length > 0) {
@@ -859,7 +892,8 @@ async function runViewport(browser, testCase) {
       + 'and kept a VtM edit made just before leaving the sheet or switching campaign, '
       + 'and saved a VtM edit leaving every other stored field of a filled-in sheet as it was, '
       + 'and an OSE edit made just before opening Notes, hiding the page or switching campaign, '
-      + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map.',
+      + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map, '
+      + 'and opened a seeded Lubec campaign to its placeholder page in its own skin.',
     )
   } finally {
     await screenshot(page, testCase.name)

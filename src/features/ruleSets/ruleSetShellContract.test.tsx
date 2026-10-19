@@ -36,7 +36,7 @@ vi.mock('../notes/CalendarTab', () => ({ CalendarTab: stub('CalendarTab') }))
 const { CampaignTabContent } = await import('../shell/CampaignTabContent')
 const { campaignSystem, shellTheme } = await import('../shell/shellSelection')
 const { ruleSets } = await import('./registry')
-const { OseSheet, VtmSheet } = await import('./RuleSetSheets')
+const { LubecSheet, OseSheet, VtmSheet } = await import('./RuleSetSheets')
 const { ruleSetSheets } = await import('./sheetComponents')
 const { oseMonsterRuleset } = await import('../monsters/rulesets')
 
@@ -79,6 +79,7 @@ describe('declarations', () => {
   it.each([
     ['ose', OseSheet, true, 'default'],
     ['vtm', VtmSheet, false, 'vtm'],
+    ['lubec', LubecSheet, false, 'lubec'],
   ] as const)('%s declares its sheet, whether Maps embeds it, and its skin', (id, component, embeddable, theme) => {
     expect(ruleSetSheets[id]).toBe(component)
     expect(ruleSets[id].sheet).toEqual({ embeddable })
@@ -87,6 +88,10 @@ describe('declarations', () => {
 
   it.each(['ose', 'vtm'] as const)('%s declares the OSE monster statline', (id) => {
     expect(ruleSets[id].monsters).toBe(oseMonsterRuleset)
+  })
+
+  it('Lubec declares no monsters', () => {
+    expect(ruleSets.lubec.monsters).toBeNull()
   })
 })
 
@@ -111,6 +116,14 @@ describe('sheet', () => {
       gmUserId: 'gm-1',
       setError,
     })
+  })
+
+  it('Lubec shows its placeholder page, and neither OSE nor VtM sheet', () => {
+    const { container } = renderTab('lubec', 'character', 'player')
+
+    expect(rendered(container)).toEqual([])
+    expect(container.querySelector('.lubec-sheet-placeholder')?.textContent)
+      .toBe('Lubec 1977The Lubec character sheet is not built yet.')
   })
 
   it('VtM gives its sheet no GM when the campaign has none', () => {
@@ -154,14 +167,15 @@ describe('skin', () => {
   it.each([
     ['ose', 'default'],
     ['vtm', 'vtm'],
+    ['lubec', 'lubec'],
     ['', 'default'],
-    ['lubec', 'default'],
+    ['pathfinder', 'default'],
   ] as const)('an open campaign storing %j wears the %s skin', (stored, theme) => {
     const campaign = campaignOf(stored)
     expect(shellTheme(campaign, campaign.id, campaignSystem(campaign))).toBe(theme)
   })
 
-  it.each(['ose', 'vtm'] as const)('the group home stays default when its active campaign is %s', (stored) => {
+  it.each(['ose', 'vtm', 'lubec'] as const)('the group home stays default when its active campaign is %s', (stored) => {
     const campaign = campaignOf(stored)
     expect(shellTheme(campaign, null, campaignSystem(campaign))).toBe('default')
     expect(shellTheme(null, campaign.id, campaignSystem(campaign))).toBe('default')
@@ -176,6 +190,8 @@ describe('Monsters tab', () => {
     ['vtm', 'gm', true],
     ['vtm', 'player', true],
     ['vtm', null, true],
+    ['lubec', 'gm', false],
+    ['lubec', 'player', false],
   ] as const)('%s, viewed as %s: shown %s', (stored, role, shown) => {
     const { container } = renderTab(stored, 'monsters', role)
 

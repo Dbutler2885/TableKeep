@@ -2,13 +2,19 @@ import type { AppTab, ItemApprovalAction } from '../../types/app'
 import { OSE_STORE_ITEMS } from '../character/storeCatalog'
 import { oseMonsterRuleset, type MonsterRulesetDef } from '../monsters/rulesets'
 import type { CharacterSummaryReader } from './characterIdentity'
-import { oseCharacterVersioning, vtmCharacterVersioning, type CharacterVersioning } from './characterMigrations'
+import {
+  lubecCharacterVersioning,
+  oseCharacterVersioning,
+  vtmCharacterVersioning,
+  type CharacterVersioning,
+} from './characterMigrations'
+import { lubecCharacterSummary } from './lubec/characterSummary'
 import { oseCharacterSummary } from './ose/characterSummary'
 import { vtmCharacterSummary } from './vtm/characterSummary'
 
 // Every rule set the app knows. A campaign stores its rule set's id in its
 // `system` field.
-export type RuleSetId = 'ose' | 'vtm'
+export type RuleSetId = 'ose' | 'vtm' | 'lubec'
 
 export type RuleSetTabs = {
   // Every tab the rule set has, in display order. A campaign can route only
@@ -31,7 +37,7 @@ export type RuleSetSheet = {
 }
 
 // The shell's `data-theme` inside an open campaign.
-export type ShellTheme = 'default' | 'vtm'
+export type ShellTheme = 'default' | 'vtm' | 'lubec'
 
 export type RuleSetSkin = {
   theme: ShellTheme
@@ -136,6 +142,27 @@ export const ruleSets: RuleSetRegistry = {
     shell: { campaignStrip: false },
     characters: { ...vtmCharacterVersioning, summary: vtmCharacterSummary },
     // The OSE wandering-monster check never belonged in VtM.
+    mapRules: { wanderingMonsters: false },
+  },
+  // An empty, hidden entry that proves the registry takes a third rule set. No
+  // GM can pick it, and its character tab is a placeholder until Spec B builds
+  // the sheet.
+  lubec: {
+    id: 'lubec',
+    label: 'Lubec 1977',
+    shortLabel: 'LUBEC',
+    selectable: false,
+    tabs: {
+      order: ['character'],
+      hiddenFromPlayers: [],
+    },
+    sheet: { embeddable: false },
+    skin: { theme: 'lubec', tokenColor: '#c08a2e' },
+    monsters: null,
+    approvals: [],
+    transfers: false,
+    shell: { campaignStrip: false },
+    characters: { ...lubecCharacterVersioning, summary: lubecCharacterSummary },
     mapRules: { wanderingMonsters: false },
   },
 }

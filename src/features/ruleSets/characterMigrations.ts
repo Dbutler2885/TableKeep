@@ -19,6 +19,10 @@ export const oseCharacterVersioning: CharacterVersioning = { schemaVersion: 1, m
 
 export const vtmCharacterVersioning: CharacterVersioning = { schemaVersion: 1, migrations: vtmCharacterSteps }
 
+// Lubec is born at version 1: no old code ever wrote a Lubec character, so
+// there is nothing to migrate from.
+export const lubecCharacterVersioning: CharacterVersioning = { schemaVersion: 1, migrations: [] }
+
 export type CharacterMigrationResult = {
   // `current`: already at the current version, returned as stored.
   // `migrated`: brought up from an older version.
@@ -41,7 +45,10 @@ export function storedSchemaVersion(document: StoredCharacter): number {
 
 /** Runs one step and checks it produced exactly the next version. */
 function applyStep(versioning: CharacterVersioning, version: number, document: StoredCharacter, characterId: string) {
-  const next = versioning.migrations[version](document, characterId)
+  // A rule set born above version 0, such as Lubec, has no step from below it.
+  const step = versioning.migrations.at(version)
+  if (!step) throw new Error(`no migration step from version ${version}`)
+  const next = step(document, characterId)
   if (storedSchemaVersion(next) !== version + 1) {
     throw new Error(`migration step ${version} did not produce version ${version + 1}`)
   }
@@ -71,6 +78,7 @@ export function migrateCharacter(
 export const characterVersioningByRuleSet = {
   ose: oseCharacterVersioning,
   vtm: vtmCharacterVersioning,
+  lubec: lubecCharacterVersioning,
 } as const satisfies Record<string, CharacterVersioning>
 
 export type CharacterRuleSetId = keyof typeof characterVersioningByRuleSet
