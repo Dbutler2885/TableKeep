@@ -8,9 +8,10 @@ import { describe, expect, it } from 'vitest'
 import type { AppTab, Campaign } from '../../types/app'
 import { campaignSettingsTabs } from '../campaign/campaignTabSettings'
 import { OSE_STORE_ITEMS } from '../character/storeCatalog'
+import { campaignCardLabel } from '../groups/groupHomeCampaigns'
 import { campaignSystem } from '../shell/shellSelection'
 import { campaignNavTabs, routableTab } from '../shell/shellTabs'
-import { resolveRuleSet, ruleSets } from './registry'
+import { resolveRuleSet, ruleSets, selectableRuleSets } from './registry'
 import type { RuleSetId } from './registry'
 
 // A campaign stores its rule set as a raw `system` string, which may be
@@ -54,6 +55,33 @@ describe('rule-set declarations', () => {
     ['vtm', 'Vampire: the Masquerade', 'VTM'],
   ] as const)('%s is labelled %j, shortened to %j', (id: RuleSetId, label, shortLabel) => {
     expect(ruleSets[id]).toMatchObject({ id, label, shortLabel })
+  })
+})
+
+describe('campaign creation and cards', () => {
+  it.each([
+    ['ose', true],
+    ['vtm', true],
+  ] as const)('%s is selectable for a new campaign: %s', (id: RuleSetId, selectable) => {
+    expect(ruleSets[id].selectable).toBe(selectable)
+  })
+
+  it('the picker offers the selectable rule sets by full name, OSE first', () => {
+    expect(selectableRuleSets().map((ruleSet) => [ruleSet.id, ruleSet.label])).toEqual([
+      ['ose', 'Old-School Essentials'],
+      ['vtm', 'Vampire: the Masquerade'],
+    ])
+  })
+
+  it.each([
+    ['ose', 'OSE'],
+    ['vtm', 'VTM'],
+    [undefined, 'OSE'],
+    ['', 'OSE'],
+    ['lubec', 'OSE'],
+  ] as const)('a campaign card storing %j reads %j', (stored, shortLabel) => {
+    const campaign = { id: 'c1', name: 'Campaign', status: 'active', groupId: 'g1', system: stored } as Campaign
+    expect(campaignCardLabel(campaign, 'active')).toBe(`${shortLabel} · active`)
   })
 })
 

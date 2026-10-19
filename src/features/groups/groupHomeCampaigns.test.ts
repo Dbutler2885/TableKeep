@@ -6,14 +6,15 @@ import { activateOnEnterOrSpace, campaignCardLabel, groupHasCampaigns, withoutOp
 const campaign = (system: string | undefined) => ({ id: 'c1', name: 'C', status: 'draft', groupId: 'g1', system }) as Campaign
 
 describe('campaignCardLabel', () => {
-  it('upper-cases the stored rule-set id before the status', () => {
+  it('puts the rule set\'s short label before the status', () => {
     expect(campaignCardLabel(campaign('ose'), 'active')).toBe('OSE · active')
     expect(campaignCardLabel(campaign('vtm'), 'private draft')).toBe('VTM · private draft')
   })
 
-  it('leaves the id blank when none is stored', () => {
-    expect(campaignCardLabel(campaign(undefined), 'inactive')).toBe(' · inactive')
-    expect(campaignCardLabel(campaign(''), 'inactive')).toBe(' · inactive')
+  it('labels a missing, empty or unregistered rule set as OSE, which it resolves to', () => {
+    expect(campaignCardLabel(campaign(undefined), 'inactive')).toBe('OSE · inactive')
+    expect(campaignCardLabel(campaign(''), 'inactive')).toBe('OSE · inactive')
+    expect(campaignCardLabel(campaign('unregistered'), 'inactive')).toBe('OSE · inactive')
   })
 })
 

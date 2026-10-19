@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { selectableRuleSets } from '../ruleSets/registry'
 import { DialogShell } from './GroupDialog'
 
 type NewDraftDialogProps = {
@@ -29,8 +30,11 @@ export function NewDraftDialog({ busy, error, onCancel, onCreate }: NewDraftDial
       <label>
         System
         <select value={system} onChange={(event) => setSystem(event.target.value)} disabled={busy}>
-          <option value="ose">OSE</option>
-          <option value="vtm">VTM</option>
+          {selectableRuleSets().map((ruleSet) => (
+            <option key={ruleSet.id} value={ruleSet.id}>
+              {ruleSet.label}
+            </option>
+          ))}
         </select>
       </label>
       {error ? <p className="error">{error}</p> : null}
