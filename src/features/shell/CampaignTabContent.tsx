@@ -1,7 +1,4 @@
 import type { ReactNode } from 'react'
-import type { User } from 'firebase/auth'
-import { CharacterTab } from '../character/CharacterTab'
-import { VtmCharacterTab } from '../character/VtmCharacterTab'
 import { RulesTab } from '../common/RulesTab'
 import { MapsTab } from '../maps/MapsTab'
 import { MonstersTab } from '../monsters/MonstersTab'
@@ -11,18 +8,14 @@ import { TablesTab } from '../tables/TablesTab'
 import { NotesTab } from '../notes/NotesTab'
 import { CalendarTab } from '../notes/CalendarTab'
 import type { GameSystem } from '../navigation/tabs'
-import type { AppTab, Campaign, CharacterRecord, Role } from '../../types/app'
-import type { CharacterTabProps } from './characterTabProps'
+import { ruleSets } from '../ruleSets/registry'
+import type { RuleSetSheetProps } from '../ruleSets/RuleSetSheets'
+import { ruleSetSheets } from '../ruleSets/sheetComponents'
+import type { AppTab, CharacterRecord } from '../../types/app'
 
-export type TabPanelContext = {
-  campaign: Campaign
-  role: Role | null
+export type TabPanelContext = RuleSetSheetProps & {
   gameSystem: GameSystem
-  user: User
-  username: string
-  setError: (message: string) => void
   characters: CharacterRecord[]
-  characterTabProps: CharacterTabProps | null
 }
 
 type CampaignTabContentProps = TabPanelContext & { activeTab: AppTab }
@@ -45,23 +38,13 @@ export function CampaignTabContent({ activeTab, ...context }: CampaignTabContent
   return TAB_PANELS[activeTab](context)
 }
 
-function characterPanel({ campaign, role, gameSystem, user, username, setError, characterTabProps }: TabPanelContext) {
-  if (gameSystem === 'vtm') {
-    return (
-      <VtmCharacterTab
-        campaignId={campaign.id}
-        groupId={campaign.groupId}
-        role={role}
-        currentUserId={user.uid}
-        currentUsername={username}
-        gmUserId={campaign.gmUserId ?? null}
-        setError={setError}
-      />
-    )
-  }
-  return characterTabProps ? <CharacterTab {...characterTabProps} /> : null
+// The character tab shows whichever sheet the rule set declares.
+function characterPanel({ gameSystem, ...context }: TabPanelContext) {
+  const Sheet = ruleSetSheets[gameSystem]
+  return <Sheet {...context} />
 }
 
+// Maps shows the sheet beside the map only when the rule set says it can.
 function mapsPanel({ campaign, role, gameSystem, characterTabProps }: TabPanelContext) {
   return (
     <MapsTab
@@ -69,13 +52,17 @@ function mapsPanel({ campaign, role, gameSystem, characterTabProps }: TabPanelCo
       groupId={campaign.groupId}
       role={role}
       gmUserId={campaign.gmUserId ?? null}
-      characterTabProps={gameSystem === 'ose' ? characterTabProps ?? undefined : undefined}
+      characterTabProps={ruleSets[gameSystem].sheet.embeddable ? characterTabProps ?? undefined : undefined}
     />
   )
 }
 
+// A rule set with a statline has a Monsters tab, which its players see unless
+// the rule set hides it from them.
 function monstersPanel({ campaign, role, gameSystem }: TabPanelContext) {
-  return role === 'gm' || gameSystem === 'vtm'
+  const { monsters, tabs } = ruleSets[gameSystem]
+  const visible = role === 'gm' || !tabs.hiddenFromPlayers.includes('monsters')
+  return monsters && visible
     ? <MonstersTab campaignId={campaign.id} groupId={campaign.groupId} role={role} />
     : null
 }

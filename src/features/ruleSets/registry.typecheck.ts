@@ -2,6 +2,7 @@
 // Nothing imports this file. Each `@ts-expect-error` fails the typecheck if
 // the line below it ever stops being an error.
 import { ruleSets, type RuleSetRegistry } from './registry'
+import { ruleSetSheets } from './sheetComponents'
 
 // @ts-expect-error a registry without an entry for every rule set
 export const missingEntry: RuleSetRegistry = { ose: ruleSets.ose }
@@ -23,3 +24,6 @@ export const catalogItemWithoutName: RuleSetRegistry = {
   // @ts-expect-error a catalog item without a name
   vtm: { ...ruleSets.vtm, catalog: [{ id: 'blood-bag' }] },
 }
+
+// @ts-expect-error a sheet map without a sheet for every rule set
+export const missingSheet: typeof ruleSetSheets = { ose: ruleSetSheets.ose }
