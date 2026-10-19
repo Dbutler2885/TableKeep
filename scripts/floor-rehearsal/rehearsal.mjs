@@ -2,6 +2,8 @@
 // because that module starts emulators the moment it is imported, and this is
 // the part worth testing on its own.
 
+import { readFileSync, writeFileSync } from 'node:fs'
+import path from 'node:path'
 import { withCharacterSchemaFloors } from './floors.mjs'
 
 /**
@@ -49,4 +51,21 @@ export function selectedJobs(argv) {
   const job = flag.slice('--job='.length)
   if (!Object.hasOwn(REHEARSAL_JOBS, job)) throw new Error(`Unknown job "${job}". Use one of: ${Object.keys(REHEARSAL_JOBS).join(', ')}.`)
   return [job]
+}
+
+/** Writes the raised rules and the config that loads them into `root`. */
+export function writeRehearsalFiles(root, currentVersions) {
+  const read = (file) => readFileSync(path.join(root, file), 'utf8')
+  writeFileSync(path.join(root, REHEARSAL_RULES_FILE), raisedFloorRules(read('firestore.rules'), currentVersions))
+  const config = rehearsalConfig(JSON.parse(read('firebase.json')))
+  writeFileSync(path.join(root, REHEARSAL_CONFIG_FILE), `${JSON.stringify(config, null, 2)}\n`)
+}
+
+/**
+ * Runs one job through `spawnFirebase(args, env)` with the emulator suites
+ * pointed at the raised rules, and returns its exit status.
+ */
+export function runRehearsalJob(job, scripts, env, spawnFirebase) {
+  const result = spawnFirebase(rehearsalJobArgs(scripts, job), { ...env, FIRESTORE_RULES_FILE: REHEARSAL_RULES_FILE })
+  return result.status ?? 1
 }
