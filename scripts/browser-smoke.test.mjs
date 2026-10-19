@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   calibratedMapFields,
+  changedFirestoreFields,
+  filledVtmCharacterFields,
   groupIdFromUrl,
   interpolatePath,
   oseCharacterFields,
@@ -8,7 +10,9 @@ import {
   step,
   trackersAtZero,
   vtmCharacterFields,
+  withVtmConcept,
 } from './browser-smoke.mjs'
+import { toFirestoreFields } from './browser-smoke-seed.mjs'
 
 const pageAt = (url) => ({ url: () => url })
 
@@ -117,5 +121,70 @@ describe('reading the distance tracker', () => {
     [['1st'], false],
   ])('reads %j as still at zero: %s', (values, expected) => {
     expect(trackersAtZero(values)).toBe(expected)
+  })
+})
+
+describe('seeding the filled-in VtM fixture', () => {
+  const fixtureData = {
+    name: 'Edda Marsh',
+    ownerUserId: 'player-uid',
+    ownerUsername: 'player1',
+    portraitPath: 'groups/g1/portrait.png',
+    tokenIcon: { icon: 'pawn', color: '#7a1a1f', customImagePath: 'groups/g1/token.png' },
+    createdAt: { $timestamp: '2025-10-01T02:00:00.000Z' },
+    vtm: { concept: 'Disgraced surgeon', unknownNested: { kept: true } },
+  }
+
+  it('gives the character to the smoke user, without its art, with real dates', () => {
+    expect(filledVtmCharacterFields(fixtureData, { uid: 'u1', username: 'desk001' })).toEqual({
+      name: 'Edda Marsh',
+      ownerUserId: 'u1',
+      ownerUsername: 'desk001',
+      portraitPath: '',
+      tokenIcon: { icon: 'pawn', color: '#7a1a1f' },
+      createdAt: new Date('2025-10-01T02:00:00.000Z'),
+      vtm: { concept: 'Disgraced surgeon', unknownNested: { kept: true } },
+    })
+  })
+
+  it('changes only the sheet\'s Concept for an edit', () => {
+    const fields = { name: 'Edda', vtm: { concept: 'Old', clan: 'tremere' } }
+    expect(withVtmConcept(fields, 'New')).toEqual({ name: 'Edda', vtm: { concept: 'New', clan: 'tremere' } })
+    expect(fields.vtm.concept).toBe('Old')
+  })
+})
+
+describe('comparing a stored document with what was seeded', () => {
+  const seeded = toFirestoreFields({
+    name: 'Edda',
+    createdAt: new Date('2025-10-01T02:00:00.000Z'),
+    vtm: { concept: 'Surgeon', rows: [{ id: 'a', rating: 2 }] },
+    updatedAt: new Date('2025-10-01T02:00:00.000Z'),
+  })
+
+  it('finds nothing changed when only map order and timestamp spelling differ', () => {
+    const stored = {
+      updatedAt: { timestampValue: '2025-10-01T02:00:00Z' },
+      vtm: { mapValue: { fields: { rows: seeded.vtm.mapValue.fields.rows, concept: { stringValue: 'Surgeon' } } } },
+      createdAt: { timestampValue: '2025-10-01T02:00:00Z' },
+      name: { stringValue: 'Edda' },
+    }
+    expect(changedFirestoreFields(stored, seeded)).toEqual([])
+  })
+
+  it('names each field that differs, is missing or was added', () => {
+    const stored = {
+      ...seeded,
+      name: { stringValue: 'Edda Marsh' },
+      updatedAt: { timestampValue: '2026-10-19T09:00:00Z' },
+      extra: { booleanValue: true },
+    }
+    delete stored.createdAt
+    expect(changedFirestoreFields(stored, seeded)).toEqual(['createdAt', 'extra', 'name', 'updatedAt'])
+  })
+
+  it('tells a reordered list apart', () => {
+    const rows = toFirestoreFields({ rows: [1, 2] })
+    expect(changedFirestoreFields(toFirestoreFields({ rows: [2, 1] }), rows)).toEqual(['rows'])
   })
 })

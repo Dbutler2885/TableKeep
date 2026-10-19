@@ -1,12 +1,15 @@
 /**
  * How the VtM sheet reads a stored character and what a save leaves stored,
- * recorded on the checked-in VtM fixtures.
+ * recorded on the checked-in VtM fixtures before the reading moved onto VtM's
+ * steps and parser, and the parser's own round trip.
  */
 import { Timestamp } from 'firebase/firestore'
 import { describe, expect, it, vi } from 'vitest'
-import { readVtmCharacterDoc } from '../../character/vtmCharacterRecord'
+import { readVtmCharacterDoc, vtmCharacterParser } from '../../character/vtmCharacterRecord'
 import { vtmCharacterSaveFields } from '../../character/vtmCharacterWrites'
 import { markTimestamps, reviveTimestamps, type CharacterFixture } from '../characterFixtures'
+import { readStoredCharacter } from '../characterParser'
+import { ruleSets } from '../registry'
 import type { StoredCharacter } from '../storedCharacter'
 import filledSheet from './fixtures/filled-sheet.json'
 import olderSheet from './fixtures/older-sheet.json'
@@ -84,5 +87,70 @@ describe('VtM reading and saving', () => {
   ])('a %s character stored with creation status %s reads as %s', (creationMode, creationStatus, expected) => {
     const record = readVtmCharacterDoc('a', { system: 'vtm', creationMode, creationStatus }, undefined)
     expect(record?.creationStatus).toBe(expected)
+  })
+})
+
+const parse = ({ id, data }: CharacterFixture) => readStoredCharacter(ruleSets.vtm.characters, vtmCharacterParser, id, data)
+
+const reparse = (id: string, record: ReturnType<typeof parse>) =>
+  readStoredCharacter(ruleSets.vtm.characters, vtmCharacterParser, id, vtmCharacterParser.serialize(record))
+
+describe('VtM character parser', () => {
+  it.each(cases)('%s parses the same twice', (_name, fixture) => {
+    expect(parse(fixture)).toEqual(parse(fixture))
+  })
+
+  it.each(cases)('%s parses the same after a serialize', (_name, fixture) => {
+    const parsed = parse(fixture)
+    expect(reparse(fixture.id, parsed)).toEqual(parsed)
+  })
+
+  it.each(cases)('%s keeps its unknown fields through a parse and a serialize', (_name, fixture) => {
+    const serialized = vtmCharacterParser.serialize(parse(fixture))
+    expect(serialized.unknownTopLevel).toEqual({ note: 'kept as stored', list: [1, 'two', { three: 3 }] })
+    const sheet = serialized.vtm as { unknownNested: unknown; disciplines: { unknownRowField?: string }[] }
+    expect(sheet.unknownNested).toEqual({ kept: true, deeper: { value: 7 } })
+    expect(sheet.disciplines[0].unknownRowField).toBe('kept on the discipline row')
+  })
+
+  it.each(cases)('%s serializes no media URL, time or version field', (_name, fixture) => {
+    const parsed = parse(fixture)
+    const withUrls = {
+      ...parsed,
+      portraitUrl: 'https://cdn.test/portrait.png',
+      tokenIcon: { ...parsed.tokenIcon, customImageUrl: 'https://cdn.test/token.png' },
+    }
+    const serialized = vtmCharacterParser.serialize(withUrls)
+    expect(serialized).not.toHaveProperty('portraitUrl')
+    expect(serialized.tokenIcon).not.toHaveProperty('customImageUrl')
+    for (const field of ['createdAt', 'updatedAt', 'schemaVersion', 'schemaWrittenAt']) {
+      expect(serialized).not.toHaveProperty(field)
+    }
+  })
+
+  it('reads a character at any stored version the same', () => {
+    const { id, data } = cases[0][1]
+    const unversioned = readVtmCharacterDoc(id, data, undefined)
+    expect(readVtmCharacterDoc(id, { ...data, schemaVersion: 1 }, undefined)).toEqual(unversioned)
+    expect(readVtmCharacterDoc(id, { ...data, schemaVersion: 2 }, undefined)).toEqual(unversioned)
+  })
+})
+
+describe('readStoredCharacter', () => {
+  it('parses what the rule set\'s steps make of the stored document', () => {
+    const versioning = {
+      schemaVersion: 2,
+      migrations: [
+        (document: StoredCharacter) => ({ ...document, schemaVersion: 1, first: true }),
+        (document: StoredCharacter) => ({ ...document, schemaVersion: 2, second: true }),
+      ],
+    }
+    const parser = { parse: (id: string, stored: StoredCharacter) => ({ id, stored }), serialize: () => ({}) }
+
+    expect(readStoredCharacter(versioning, parser, 'a', { name: 'Edda' })).toEqual({
+      id: 'a',
+      stored: { name: 'Edda', schemaVersion: 2, first: true, second: true },
+    })
+    expect(readStoredCharacter(versioning, parser, 'a', { schemaVersion: 3 })).toEqual({ id: 'a', stored: { schemaVersion: 3 } })
   })
 })

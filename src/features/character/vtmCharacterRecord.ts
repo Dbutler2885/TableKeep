@@ -1,5 +1,7 @@
 import type { TokenIconConfig } from '../../types/app'
-import { isRenderableImageUrl } from '../common/mediaStorage'
+import { isRenderableImageUrl, sanitizeTokenIconForPersistence } from '../common/mediaStorage'
+import { fieldsOutside, readStoredCharacter, type CharacterParser } from '../ruleSets/characterParser'
+import { ruleSets } from '../ruleSets/registry'
 import { defaultVtmSheet, defaultVtmTokenIcon } from './vtmDefaults'
 import type { VtmCharacterRecord, VtmCharacterSheet } from './vtmTypes'
 
@@ -71,15 +73,75 @@ function readCreationStatus(raw: unknown, creationMode: CreationMode): CreationS
   return creationMode === 'new' ? 'draft' : 'established_draft'
 }
 
-/**
- * The stored portrait URL, or else the URL already resolved locally for the
- * same storage path, so a snapshot does not blank an image it did not change.
- */
-function readPortraitUrl(raw: unknown, portraitPath: string, local: VtmCharacterRecord | undefined): string | null {
-  const persisted = stringOr(raw, null)
-  if (persisted !== null) return persisted
-  return local?.portraitPath === portraitPath && isRenderableImageUrl(local.portraitUrl) ? local.portraitUrl : null
+// The stored fields the VtM record models. The last four are the writers'
+// own: each save sets `updatedAt` itself, a create sets `createdAt`, and the
+// version fields are never carried in the record.
+const VTM_CHARACTER_FIELDS: ReadonlySet<string> = new Set([
+  'system', 'name', 'ownerUserId', 'ownerUsername', 'creationMode', 'creationModeExplicit', 'creationStatus', 'xp',
+  'portraitPath', 'portraitUrl', 'portraitFocusX', 'portraitFocusY', 'tokenIcon', 'vtm',
+  'createdAt', 'updatedAt', 'schemaVersion', 'schemaWrittenAt',
+])
+
+/** The stored fields the record does not model, or nothing when there are none. */
+function unknownFieldsOf(data: StoredFields): Pick<VtmCharacterRecord, 'unknownFields'> {
+  const unknownFields = fieldsOutside(data, VTM_CHARACTER_FIELDS)
+  return Object.keys(unknownFields).length > 0 ? { unknownFields } : {}
 }
+
+/** A stored VtM character, at the current version, as the sheet's record. */
+export function parseVtmCharacter(id: string, data: StoredFields): VtmCharacterRecord {
+  const creationMode = data.creationMode === 'established' ? 'established' : 'new'
+  return {
+    id,
+    system: 'vtm',
+    name: stringOr(data.name, 'New Vampire'),
+    ownerUserId: stringOr(data.ownerUserId, ''),
+    ownerUsername: stringOr(data.ownerUsername, null),
+    creationMode,
+    creationModeExplicit: data.creationModeExplicit === true,
+    creationStatus: readCreationStatus(data.creationStatus, creationMode),
+    xp: numberOr(data.xp, 0),
+    portraitPath: stringOr(data.portraitPath, ''),
+    portraitUrl: stringOr(data.portraitUrl, null),
+    portraitFocusX: numberOr(data.portraitFocusX, 50),
+    portraitFocusY: numberOr(data.portraitFocusY, 50),
+    tokenIcon: (isRecord(data.tokenIcon) ? data.tokenIcon : defaultVtmTokenIcon) as TokenIconConfig,
+    vtm: normalizeVtmSheet(data.vtm),
+    ...unknownFieldsOf(data),
+  }
+}
+
+/**
+ * The fields a save of the record writes. Media URLs are left out, because
+ * they carry access tokens; only their storage paths are stored.
+ */
+export function serializeVtmCharacter(character: VtmCharacterRecord): StoredFields {
+  return {
+    ...character.unknownFields,
+    system: 'vtm',
+    name: character.name,
+    ownerUserId: character.ownerUserId,
+    ownerUsername: character.ownerUsername ?? null,
+    creationMode: character.creationMode,
+    creationModeExplicit: character.creationModeExplicit,
+    creationStatus: character.creationStatus,
+    xp: character.xp,
+    portraitPath: character.portraitPath ?? '',
+    portraitFocusX: character.portraitFocusX,
+    portraitFocusY: character.portraitFocusY,
+    tokenIcon: sanitizeTokenIconForPersistence(character.tokenIcon),
+    vtm: JSON.parse(JSON.stringify(character.vtm)) as unknown,
+  }
+}
+
+export const vtmCharacterParser: CharacterParser<VtmCharacterRecord> = {
+  parse: parseVtmCharacter,
+  serialize: serializeVtmCharacter,
+}
+
+/** The portrait URL already resolved locally for the same storage path, if any. */
+const localPortraitUrl = (portraitPath: string | undefined, local: VtmCharacterRecord | undefined) =>
+  local && local.portraitPath === portraitPath && isRenderableImageUrl(local.portraitUrl) ? local.portraitUrl : null
 
 /** The token image URL already resolved locally for the same storage path, if any. */
 const localTokenImageUrl = (tokenIcon: TokenIconConfig, local: VtmCharacterRecord | undefined) =>
@@ -95,31 +157,26 @@ function withLocalTokenImage(tokenIcon: TokenIconConfig, local: VtmCharacterReco
   return customImageUrl ? { ...tokenIcon, customImageUrl } : tokenIcon
 }
 
-/** A stored character document as a VtM character, or null when it belongs to another system. */
+/**
+ * The record with any media URL it lacks taken from the local copy, so a
+ * snapshot does not blank an image it did not change. A stored URL wins.
+ */
+const withLocalMedia = (character: VtmCharacterRecord, local: VtmCharacterRecord | undefined): VtmCharacterRecord => ({
+  ...character,
+  portraitUrl: character.portraitUrl ?? localPortraitUrl(character.portraitPath, local),
+  tokenIcon: withLocalTokenImage(character.tokenIcon, local),
+})
+
+/**
+ * A stored character document as a VtM character, or null when it belongs to
+ * another system. VtM's steps bring it up to the current version before it is
+ * parsed; nothing is written because of a read.
+ */
 export function readVtmCharacterDoc(
   id: string,
   data: StoredFields,
   local: VtmCharacterRecord | undefined,
 ): VtmCharacterRecord | null {
   if (data.system !== 'vtm') return null
-  const tokenIcon = (isRecord(data.tokenIcon) ? data.tokenIcon : defaultVtmTokenIcon) as TokenIconConfig
-  const portraitPath = stringOr(data.portraitPath, '')
-  const creationMode = data.creationMode === 'established' ? 'established' : 'new'
-  return {
-    id,
-    system: 'vtm',
-    name: stringOr(data.name, 'New Vampire'),
-    ownerUserId: stringOr(data.ownerUserId, ''),
-    ownerUsername: stringOr(data.ownerUsername, null),
-    creationMode,
-    creationModeExplicit: data.creationModeExplicit === true,
-    creationStatus: readCreationStatus(data.creationStatus, creationMode),
-    xp: numberOr(data.xp, 0),
-    portraitPath,
-    portraitUrl: readPortraitUrl(data.portraitUrl, portraitPath, local),
-    portraitFocusX: numberOr(data.portraitFocusX, 50),
-    portraitFocusY: numberOr(data.portraitFocusY, 50),
-    tokenIcon: withLocalTokenImage(tokenIcon, local),
-    vtm: normalizeVtmSheet(data.vtm),
-  }
+  return withLocalMedia(readStoredCharacter(ruleSets.vtm.characters, vtmCharacterParser, id, data), local)
 }
