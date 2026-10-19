@@ -63,3 +63,21 @@ export function migrateCharacter(
   }
   return { status: 'migrated', fromVersion, document: migrated }
 }
+
+// Each rule set's character versioning, by the id a campaign stores in its
+// `system` field. The migration script resolves campaigns with this table,
+// because it cannot load the registry, which imports app modules;
+// `characterRuleSetTable.test.ts` pins the two together.
+export const characterVersioningByRuleSet = {
+  ose: oseCharacterVersioning,
+  vtm: vtmCharacterVersioning,
+} as const satisfies Record<string, CharacterVersioning>
+
+export type CharacterRuleSetId = keyof typeof characterVersioningByRuleSet
+
+const isCharacterRuleSetId = (system: unknown): system is CharacterRuleSetId =>
+  typeof system === 'string' && Object.hasOwn(characterVersioningByRuleSet, system)
+
+/** A stored `system`, resolved as the registry resolves it: a registered id gives itself, anything else OSE. */
+export const resolveCharacterRuleSetId = (system: unknown): CharacterRuleSetId =>
+  isCharacterRuleSetId(system) ? system : 'ose'

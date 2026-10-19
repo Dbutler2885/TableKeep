@@ -11,12 +11,12 @@ const isRecord = (value: unknown): value is Fields =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
 // Classes that carry a spell book, as `characterFactories.ts` has them.
-const ARCANE_SPELLBOOK_CLASSES = new Set(['Magic-User', 'Elf'])
-const SPELL_BOOK_TYPE_ID = 'spell-book'
+export const ARCANE_SPELLBOOK_CLASSES = new Set(['Magic-User', 'Elf'])
+export const SPELL_BOOK_TYPE_ID = 'spell-book'
 const SPELL_BOOK_ITEM_NAME = 'Spell Book'
 
 // The old lists, which today's code reads only while a character has no inventory.
-const LEGACY_LIST_FIELDS = ['weapons', 'armour', 'packedItems', 'equippedItems', 'storeGoldSlotIndices']
+export const LEGACY_LIST_FIELDS = ['weapons', 'armour', 'packedItems', 'equippedItems', 'storeGoldSlotIndices']
 // Everything version 1 no longer stores: the old lists and the retired manual-AC flag.
 const RETIRED_DETAIL_FIELDS = [...LEGACY_LIST_FIELDS, 'acManualOverride']
 
@@ -28,7 +28,7 @@ const WEAPON_ROW_FIELDS = [
 ]
 const ARMOUR_ROW_FIELDS = ['id', 'armourId', 'isMagic', 'name', 'ac', 'bonus', 'equipped', 'notes']
 
-const GOLD_TEXT = /^Gold:\s*(\d+)\s*gp$/i
+export const GOLD_TEXT = /^Gold:\s*(\d+)\s*gp$/i
 
 /** The id a row without one gets: the same on every run, for the app and the migration script alike. */
 const stableItemId = (characterId: string, list: string, position: number) =>

@@ -270,6 +270,107 @@ The pieces are `src/features/demo/`, `functions/src/demoConstants.ts` / `demoClo
   Its Firebase config is **generated** from `firebase.json` into a gitignored `firebase.sandbox.json` rather than committed, so the rules paths and functions source keep one definition; it must land in the repo root because firebase-tools resolves a config's relative paths, and the project root, from the config file's own directory.
 - **Turning the demo on in production needs three things this repo does not do:** enabling Anonymous sign-in in Firebase Auth, deploying rules/indexes/functions, and running `npm run demo:seed-template -- --target=project ... --apply` once.
 
+## Character schema changes (`scripts/characters/`)
+
+Every character document carries `schemaVersion`; a missing one means 0, written before versioning.
+Each rule set declares its current version and its ordered migration steps in `src/features/ruleSets/characterMigrations.ts`.
+`node scripts/characters/migrate.mjs` brings every character under `groups/*/campaigns/*/characters` up to its campaign's rule set's current version with those same steps.
+It never walks the flat legacy `campaigns/` tree.
+
+- **The script is a dry run unless given `--apply`.**
+  With `FIRESTORE_EMULATOR_HOST` set it uses the emulator; a real project has to be named with `--live --project <id>` and uses your gcloud login.
+  It refuses to run with neither, and refuses `--live` while an emulator is set.
+  It takes `firebase-admin` from the Cloud Functions package, so install that first (`npm ci --prefix functions`).
+  Against the emulator outside `firebase emulators:exec`, pass `--project homeboyshouse-dev` too, or the admin SDK cannot tell which project to read.
+- **It prints counts and document paths only, never a name or sheet text.**
+  The dry run counts characters per rule set and stored version, OSE characters per old shape, and campaigns whose `system` resolves to OSE without naming it (missing, `''`, unregistered).
+  The write run migrates each document in its own transaction, writes only documents below the current version, leaves `updatedAt` as the player's last save, and prints the field paths it changed or removed.
+- **A flagged document is left unchanged, listed by path, and makes the run exit 1.**
+  Flagged means its stored `system` disagrees with its campaign's rule set, its version is above the current one, or a step could not convert it.
+- **It is safe to run twice and safe to stop.**
+  A second write run writes nothing, and a run stopped halfway leaves every document either migrated or untouched, so the next write run finishes the rest.
+- **The script resolves campaigns with its own copy of the rule-set table**, `characterVersioningByRuleSet`, because the registry imports app modules that plain Node cannot load.
+  `characterRuleSetTable.test.ts` fails when a rule set is in one and not the other.
+- **The steps and the script stay after the legacy reading is deleted from the app**, so a restored old export can be migrated again.
+  Keep the last build of the app and Functions that reads both shapes until no backup older than the current version is kept, and delete a step only once no export older than it is kept.
+
+### The order for a schema change
+
+1. Deploy code that reads both shapes and stamps the new version and a fresh `schemaWrittenAt` on every character write, including the transfer Function, when nobody is playing.
+   The version floor in `firestore.rules` stays at its previous value.
+   Verify the deployed app and Functions.
+2. Take both exports (below) before any bulk write, then rehearse the migration and the restore on an export copy in the emulator (below).
+   This reads production, so it needs the captain's first go-ahead.
+3. Run a live dry run (`node scripts/characters/migrate.mjs --live --project homeboyshouse-dev`) and review its counts and flagged paths.
+4. With the captain's second go-ahead, raise the floor to the new version and deploy the rules on their own: `firebase deploy --only firestore:rules`.
+   This closes old-client writes before the first document is migrated; never let a bare `firebase deploy` carry the floor out earlier.
+   Run the live dry run again with the fence on and resolve every flagged path before going on.
+   Pause any demo clone or snapshot seed that could still copy the old version until its source has been migrated.
+5. Off-hours, run the write run (`... --live --project homeboyshouse-dev --apply`), then a final live dry run that reports every character current and nothing flagged.
+   Keep the floor raised.
+6. Migrate the committed demo snapshot through `npm run demo:author` and commit only the Firestore diff, restoring the Storage export over the fresh one as the demo harness notes above say.
+7. Later, delete the legacy reading from the app.
+
+To roll the app back while the floor is up: lower the floor, deploy the rules, then redeploy the previous build.
+
+### The two exports
+
+Both go to a backup bucket that is not the app's media bucket (`homeboyshouse-dev.firebasestorage.app`), named with the date:
+
+```sh
+gcloud firestore export gs://<backup-bucket>/firestore-YYYY-MM-DD --project homeboyshouse-dev
+gcloud firestore export gs://<backup-bucket>/characters-YYYY-MM-DD --collection-ids=characters --project homeboyshouse-dev
+```
+
+The first is the whole database.
+The second holds only the `characters` collection groups, so characters can be restored on their own.
+
+### Rehearsing on an export copy
+
+The copy holds real players' data, so it lives under the git-ignored `.scratch/` and is deleted afterwards.
+
+1. Download the whole-database export: `gcloud storage cp -r gs://<backup-bucket>/firestore-YYYY-MM-DD .scratch/rehearsal/`.
+2. Beside it, write `.scratch/rehearsal/firebase-export-metadata.json`, which is how the emulator finds a managed export:
+
+   ```json
+   {
+     "version": "15.8.0",
+     "firestore": {
+       "version": "1.20.2",
+       "path": "firestore-YYYY-MM-DD",
+       "metadata_file": "firestore-YYYY-MM-DD/firestore-YYYY-MM-DD.overall_export_metadata"
+     }
+   }
+   ```
+
+3. Start the emulator from it without `--export-on-exit`, so the copy stays as exported: `firebase emulators:start --only firestore --import .scratch/rehearsal`.
+4. In a second terminal, with `FIRESTORE_EMULATOR_HOST=127.0.0.1:8080`:
+   - `node scripts/characters/migrate.mjs --project homeboyshouse-dev`: the counts match the live dry run;
+   - `... --apply`: check the changed-field list by eye;
+   - `... --apply` again: it writes nothing and reports every document current.
+5. Rehearse the restore before cleanup.
+   Stop the emulator and start it again from the same copy: for characters, that is the state `gcloud firestore import` of the characters-only export leaves, because the import overwrites every exported document.
+   Check a few restored characters against the backup in the Emulator UI (`http://127.0.0.1:4000/firestore`), then run the dry run, the write run and a final dry run again.
+   After that re-migration, check the expected fields on characters of each rule set: `schemaVersion` is current; `updatedAt` equals the export's; an OSE character has `details.inventory` and no `weapons`, `armour`, `packedItems`, `equippedItems`, `storeGoldSlotIndices` or `acManualOverride` under `details`; an arcane caster (Magic-User or Elf) has an item with `typeId: 'spell-book'`.
+6. Stop the emulator and delete `.scratch/rehearsal/`.
+
+### Restoring from the export
+
+If the migration's result is wrong:
+
+1. Pause app character access and writes before restoring, including the Admin transfer callable (`acceptPendingTransfer`), demo cloning and snapshot seeding, and keep them paused through migration.
+2. If the floor is up, lower it and deploy the rules (`firebase deploy --only firestore:rules`) while writers stay paused.
+3. Import the characters-only export: `gcloud firestore import gs://<backup-bucket>/characters-YYYY-MM-DD --collection-ids=characters --project homeboyshouse-dev`.
+   It overwrites the exported documents and leaves documents created since alone.
+4. Verify restored fields against the backup.
+   The import overwrites later character edits and can resurrect deleted characters, but does not rewind Items or approval and transfer records.
+5. After the legacy reading has been deleted from the app, do not let that app read a restored character before migration finishes: keep it paused, or redeploy the retained build that reads both shapes first.
+6. Run the dry run, the write run and a final dry run while writes stay paused; fix the step and repeat if needed.
+7. Raise and deploy the current floor, verify it, then reopen character writes and the transfer callable.
+
+If the new code itself is at fault, redeploy the retained build that reads both shapes while writers stay paused.
+Rehearse the restore both before and after the legacy reading is deleted; after it, never open a restored character in the app until migration has verified it.
+
 ## Component tests
 
 `npm test` runs in the Node environment by default (`vite.config.ts`), because nearly every suite is pure logic.
