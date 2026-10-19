@@ -31,13 +31,18 @@ const { scripts } = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'),
 writeRehearsalFiles(repoRoot, currentCharacterSchemaVersions)
 console.log(`Floors raised to ${JSON.stringify(currentCharacterSchemaVersions)} in ${REHEARSAL_RULES_FILE}.`)
 
-const env = { ...process.env, PATH: resolveJavaPath() }
-const spawnFirebase = (args, jobEnv) =>
-  spawnSync(process.execPath, [firebaseBin.pathname, ...args], { cwd: repoRoot, env: jobEnv, stdio: 'inherit' })
+const options = {
+  scripts,
+  env: { ...process.env, PATH: resolveJavaPath() },
+  root: repoRoot,
+  firebaseBin: firebaseBin.pathname,
+  spawn: spawnSync,
+}
 
-const outcomes = jobs.map((job) => {
+const outcomes = []
+for (const job of jobs) {
   console.log(`\n== Raised-floor rehearsal: ${job} ==\n`)
-  return [job, runRehearsalJob(job, scripts, env, spawnFirebase)]
-})
+  outcomes.push([job, runRehearsalJob(job, options)])
+}
 for (const [job, status] of outcomes) console.log(`${job}: ${status === 0 ? 'passed' : `failed (exit ${status})`}`)
 process.exitCode = outcomes.every(([, status]) => status === 0) ? 0 : 1

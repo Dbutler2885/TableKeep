@@ -4,6 +4,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import process from 'node:process'
 import { withCharacterSchemaFloors } from './floors.mjs'
 
 /**
@@ -62,10 +63,15 @@ export function writeRehearsalFiles(root, currentVersions) {
 }
 
 /**
- * Runs one job through `spawnFirebase(args, env)` with the emulator suites
- * pointed at the raised rules, and returns its exit status.
+ * Runs one job's `firebase` command with `spawn` (`spawnSync`'s signature),
+ * from `root`, with the emulator suites pointed at the raised rules, and
+ * returns its exit status.
  */
-export function runRehearsalJob(job, scripts, env, spawnFirebase) {
-  const result = spawnFirebase(rehearsalJobArgs(scripts, job), { ...env, FIRESTORE_RULES_FILE: REHEARSAL_RULES_FILE })
+export function runRehearsalJob(job, { scripts, env, root, firebaseBin, spawn }) {
+  const result = spawn(process.execPath, [firebaseBin, ...rehearsalJobArgs(scripts, job)], {
+    cwd: root,
+    env: { ...env, FIRESTORE_RULES_FILE: REHEARSAL_RULES_FILE },
+    stdio: 'inherit',
+  })
   return result.status ?? 1
 }

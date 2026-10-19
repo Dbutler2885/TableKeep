@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { readCharacterSchemaFloors } from './floors.mjs'
@@ -77,15 +78,21 @@ describe('the raised-floor rehearsal', () => {
 
   it('runs a job with the emulator suites pointed at the raised rules, and reports its exit', () => {
     const calls = []
-    const spawnFirebase = (args, env) => {
-      calls.push({ args, rulesFile: env.FIRESTORE_RULES_FILE, path: env.PATH })
+    const spawn = (command, args, options) => {
+      calls.push({ command, args, options })
       return { status: calls.length === 1 ? 0 : null }
     }
-    expect(runRehearsalJob('emulator', scripts, { PATH: '/java/bin' }, spawnFirebase)).toBe(0)
-    expect(runRehearsalJob('smoke', scripts, { PATH: '/java/bin' }, spawnFirebase)).toBe(1)
+    const options = { scripts, env: { PATH: '/java/bin' }, root: '/repo', firebaseBin: '/repo/firebase.js', spawn }
+    expect(runRehearsalJob('emulator', options)).toBe(0)
+    expect(runRehearsalJob('smoke', options)).toBe(1)
+    const expectedOptions = {
+      cwd: '/repo',
+      env: { PATH: '/java/bin', FIRESTORE_RULES_FILE: REHEARSAL_RULES_FILE },
+      stdio: 'inherit',
+    }
     expect(calls).toEqual([
-      { args: rehearsalJobArgs(scripts, 'emulator'), rulesFile: REHEARSAL_RULES_FILE, path: '/java/bin' },
-      { args: rehearsalJobArgs(scripts, 'smoke'), rulesFile: REHEARSAL_RULES_FILE, path: '/java/bin' },
+      { command: process.execPath, args: ['/repo/firebase.js', ...rehearsalJobArgs(scripts, 'emulator')], options: expectedOptions },
+      { command: process.execPath, args: ['/repo/firebase.js', ...rehearsalJobArgs(scripts, 'smoke')], options: expectedOptions },
     ])
   })
 })
