@@ -57,6 +57,20 @@ describe('rule-set declarations', () => {
   })
 })
 
+describe('campaign dialogs and strip', () => {
+  it.each([
+    ['ose', ['create', 'sell', 'learn_spell', 'ability_reroll'], true],
+    ['vtm', [], false],
+  ] as const)('%s declares approvals %j and transfers %s', (id: RuleSetId, approvals, transfers) => {
+    expect(ruleSets[id].approvals).toEqual(approvals)
+    expect(ruleSets[id].transfers).toBe(transfers)
+  })
+
+  it.each(Object.keys(ruleSets) as RuleSetId[])('%s leaves the campaign strip off', (id) => {
+    expect(ruleSets[id].shell).toEqual({ campaignStrip: false })
+  })
+})
+
 describe('catalog', () => {
   it('OSE declares the store list as its catalog', () => {
     expect(ruleSets.ose.catalog).toBe(OSE_STORE_ITEMS)

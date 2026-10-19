@@ -1,4 +1,4 @@
-import type { AppTab } from '../../types/app'
+import type { AppTab, ItemApprovalAction } from '../../types/app'
 import { OSE_STORE_ITEMS } from '../character/storeCatalog'
 import { oseMonsterRuleset, type MonsterRulesetDef } from '../monsters/rulesets'
 
@@ -33,6 +33,13 @@ export type RuleSetSkin = {
   theme: ShellTheme
 }
 
+// The shell's fixed places that a rule set switches on.
+export type RuleSetShell = {
+  // The strip across the top of the content area, for one line of live
+  // campaign information.
+  campaignStrip: boolean
+}
+
 export type RuleSetDefinition<Id extends RuleSetId = RuleSetId> = {
   id: Id
   label: string
@@ -43,6 +50,13 @@ export type RuleSetDefinition<Id extends RuleSetId = RuleSetId> = {
   // The statline its Monsters tab works in, or null for a rule set without a
   // Monsters tab.
   monsters: MonsterRulesetDef | null
+  // The player requests its GM approves or rejects, or none for a rule set
+  // without approvals.
+  approvals: readonly ItemApprovalAction[]
+  // Whether a character can hand an item to another, which the receiver
+  // accepts or declines.
+  transfers: boolean
+  shell: RuleSetShell
   // The stock items the rule set offers, if it has any.
   catalog?: readonly RuleSetCatalogItem[]
 }
@@ -65,6 +79,9 @@ export const oseRuleSet = {
   sheet: { embeddable: true },
   skin: { theme: 'default' },
   monsters: oseMonsterRuleset,
+  approvals: ['create', 'sell', 'learn_spell', 'ability_reroll'],
+  transfers: true,
+  shell: { campaignStrip: false },
   // The store's list.
   catalog: OSE_STORE_ITEMS,
 } satisfies RuleSetDefinition<'ose'>
@@ -85,6 +102,9 @@ export const ruleSets: RuleSetRegistry = {
     sheet: { embeddable: false },
     skin: { theme: 'vtm' },
     monsters: oseMonsterRuleset,
+    approvals: [],
+    transfers: false,
+    shell: { campaignStrip: false },
   },
 }
 

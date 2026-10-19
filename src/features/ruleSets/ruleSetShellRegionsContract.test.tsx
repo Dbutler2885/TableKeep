@@ -4,7 +4,9 @@
  * set's shell subscribes to and shows, and whether it shows the campaign strip.
  * The rows for OSE and VtM were recorded from the shell as it stood before the
  * registry declared any of them, so any change to them is a visible change for
- * a player or GM, not a refactor.
+ * a player or GM, not a refactor. VtM's approval and transfer rows changed on
+ * purpose when the registry began declaring them: VtM has neither, so its
+ * campaigns stopped subscribing to approvals and showing the transfer notice.
  */
 import { createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -50,6 +52,7 @@ vi.mock('../transfers/TransferNotification', () => ({ TransferNotification: stub
 vi.mock('../campaign/CampaignSettingsModal', () => ({ CampaignSettingsModal: stub('CampaignSettingsModal') }))
 
 const { GroupShell } = await import('../shell/GroupShell')
+const { CampaignStrip } = await import('../shell/CampaignStrip')
 const { ruleSets } = await import('./registry')
 
 const GM = 'gm-1'
@@ -89,7 +92,7 @@ afterEach(() => {
 describe('approvals', () => {
   it.each([
     ['ose', true],
-    ['vtm', true],
+    ['vtm', false],
   ] as const)('%s subscribes the GM to approval requests: %s', async (system, subscribed) => {
     await openCampaign(system, 'notes')
 
@@ -98,7 +101,7 @@ describe('approvals', () => {
 
   it.each([
     ['ose', true],
-    ['vtm', true],
+    ['vtm', false],
   ] as const)('%s shows the GM a pending approval request: %s', async (system, shown) => {
     mocks.pendingRequests = [pendingReroll]
     await openCampaign(system, 'notes')
@@ -110,7 +113,7 @@ describe('approvals', () => {
 describe('transfers', () => {
   it.each([
     ['ose', true],
-    ['vtm', true],
+    ['vtm', false],
   ] as const)('%s shows the transfer notice on the character and maps tabs: %s', async (system, shown) => {
     for (const tab of ['character', 'maps'] as const) {
       await openCampaign(system, tab)
@@ -135,5 +138,11 @@ describe('campaign strip', () => {
       expect(document.querySelector('.campaign-strip')).toBeNull()
       cleanup()
     }
+  })
+
+  it('is a status line when a rule set switches it on', () => {
+    const { container } = render(<CampaignStrip />)
+
+    expect(container.innerHTML).toBe('<div class="campaign-strip" role="status"></div>')
   })
 })
