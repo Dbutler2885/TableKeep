@@ -2,6 +2,8 @@ import { deleteDoc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { campaignDocRef, campaignUserStateRef, type CampaignScope } from '../campaign/firestorePaths'
 import { sanitizeTokenIconForPersistence } from '../common/mediaStorage'
+import { vtmCharacterVersioning } from '../ruleSets/characterMigrations'
+import { characterSchemaStamp } from '../ruleSets/characterSchemaStamp'
 import { serializeVtmCharacter } from './vtmCharacterRecord'
 import type { VtmCharacterRecord } from './vtmTypes'
 
@@ -43,9 +45,9 @@ export function sendVtmCharacterSavesNow(saves: VtmCharacterSaves) {
   })
 }
 
-/** What a save writes: the serialized record, stamped with the save time. */
+/** What a save writes: the serialized record, stamped with the current version and the save time. */
 export function vtmCharacterSaveFields(character: VtmCharacterRecord) {
-  return { ...serializeVtmCharacter(character), updatedAt: serverTimestamp() }
+  return { ...serializeVtmCharacter(character), ...characterSchemaStamp(vtmCharacterVersioning), updatedAt: serverTimestamp() }
 }
 
 export function newVtmCharacterFields(character: VtmCharacterRecord) {
@@ -63,6 +65,7 @@ export function newVtmCharacterFields(character: VtmCharacterRecord) {
     portraitFocusY: 50,
     tokenIcon: sanitizeTokenIconForPersistence(character.tokenIcon),
     vtm: character.vtm,
+    ...characterSchemaStamp(vtmCharacterVersioning),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }

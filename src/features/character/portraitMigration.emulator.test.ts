@@ -27,6 +27,11 @@ import { deleteDoc, doc, getDoc, setDoc, updateDoc } from 'firebase/firestore'
 import { getBytes, ref, uploadString } from 'firebase/storage'
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { uploadAuthorityMetadata } from '../common/mediaStorage'
+import { oseCharacterVersioning } from '../ruleSets/characterMigrations'
+import { characterSchemaStamp } from '../ruleSets/characterSchemaStamp'
+
+// A character write carries the version stamp, as the app's save does.
+const stamp = () => characterSchemaStamp(oseCharacterVersioning)
 import { emulatorPort } from '../../../vitest.emulatorEndpoint'
 import { firestoreRules } from '../../../vitest.firestoreRules'
 
@@ -208,13 +213,13 @@ describe('migrated campaign portraits after the storage migration', () => {
 
       // The EntityMediaEditor sequence: clear the pointer, upload the new file,
       // then persist the new pointer.
-      await assertSucceeds(updateDoc(characterRef, { portraitPath: '' }))
+      await assertSucceeds(updateDoc(characterRef, { portraitPath: '', ...stamp() }))
       await assertSucceeds(uploadString(ref(storage, replacementPortrait), 'new-bytes', 'raw', { contentType: 'image/webp', ...uploadAuthorityMetadata('owner') }))
-      await assertSucceeds(updateDoc(characterRef, { portraitPath: replacementPortrait }))
+      await assertSucceeds(updateDoc(characterRef, { portraitPath: replacementPortrait, ...stamp() }))
       await assertSucceeds(getBytes(ref(storage, replacementPortrait)))
 
       // Leave the seeded state as the migration produced it for later tests.
-      await assertSucceeds(updateDoc(characterRef, { portraitPath: chevPortrait.migrated }))
+      await assertSucceeds(updateDoc(characterRef, { portraitPath: chevPortrait.migrated, ...stamp() }))
     })
 
     it('lets the owning player replace their token icon at the new path', async () => {
@@ -224,7 +229,7 @@ describe('migrated campaign portraits after the storage migration', () => {
       await assertSucceeds(uploadString(ref(storage, replacementIcon), 'new-bytes', 'raw', { contentType: 'image/webp', ...uploadAuthorityMetadata('owner') }))
       await assertSucceeds(updateDoc(
         doc(db, 'groups', groupId, 'campaigns', campaignId, 'characters', chevId),
-        { 'tokenIcon.customImagePath': replacementIcon },
+        { 'tokenIcon.customImagePath': replacementIcon, ...stamp() },
       ))
     })
 
@@ -235,7 +240,7 @@ describe('migrated campaign portraits after the storage migration', () => {
       await assertSucceeds(uploadString(ref(storage, gmUpload), 'gm-bytes', 'raw', { contentType: 'image/webp' }))
       await assertSucceeds(updateDoc(
         doc(db, 'groups', groupId, 'campaigns', campaignId, 'characters', bogId),
-        { portraitPath: gmUpload },
+        { portraitPath: gmUpload, ...stamp() },
       ))
     })
 
@@ -247,7 +252,7 @@ describe('migrated campaign portraits after the storage migration', () => {
       await assertFails(uploadString(ref(storage, stolen), 'bytes', 'raw', { contentType: 'image/webp', ...uploadAuthorityMetadata('owner') }))
       await assertFails(updateDoc(
         doc(db, 'groups', groupId, 'campaigns', campaignId, 'characters', bogId),
-        { portraitPath: stolen },
+        { portraitPath: stolen, ...stamp() },
       ))
     })
 

@@ -75,21 +75,30 @@ const oseRecord = (): CharacterRecord => ({
   } as unknown as CharacterRecord['details'],
 })
 
-// The document `useCharacterRoster`'s "add character" writes today.
+// What code from before version stamping writes: the current writers' fields
+// without the two schema fields.
+const withoutSchemaStamp = ({ schemaVersion: _version, schemaWrittenAt: _writtenAt, ...fields }: DocumentData): DocumentData => fields
+
+// The document `useCharacterRoster`'s "add character" wrote before stamping.
 const oseCreateFields = (): DocumentData => {
   const { className, details: _details, id: _id, portraitUrl: _portraitUrl, ...rest } = oseRecord()
   return { ...rest, class: className, createdAt: serverTimestamp(), updatedAt: serverTimestamp() }
 }
 
-// An OSE character stored as today's code leaves it, with no schema fields.
+// An OSE character stored as code before stamping left it, with no schema fields.
 const storedOseCharacter = (): DocumentData => ({ ...oseCreateFields(), details: oseRecord().details })
 
 const vtmRecord = (): VtmCharacterRecord =>
   readVtmCharacterDoc(characterId, { system: 'vtm', name: 'Lucien', ownerUserId: ownerUid }, undefined)!
 
-const storedVtmCharacter = (): DocumentData => newVtmCharacterFields(vtmRecord())
+// The old merge saves and VtM create, with no schema fields.
+const oldOseSaveFields = (): DocumentData => withoutSchemaStamp(characterSaveFields(oseRecord()))
+const oldVtmSaveFields = (): DocumentData => withoutSchemaStamp(vtmCharacterSaveFields(vtmRecord()))
+const oldVtmCreateFields = (): DocumentData => withoutSchemaStamp(newVtmCharacterFields(vtmRecord()))
 
-// Today's fields with the schema stamp a current writer adds.
+const storedVtmCharacter = (): DocumentData => oldVtmCreateFields()
+
+// Old fields with a schema stamp added.
 const stamped = (fields: DocumentData, schemaVersion: unknown = 1): DocumentData =>
   ({ ...fields, schemaVersion, schemaWrittenAt: serverTimestamp() })
 
@@ -97,7 +106,11 @@ const stamped = (fields: DocumentData, schemaVersion: unknown = 1): DocumentData
 const migratedOseCharacter = (): DocumentData =>
   ({ ...storedOseCharacter(), schemaVersion: 1, schemaWrittenAt: new Date('2026-01-01T00:00:00Z') })
 
-const withFloors = (floors: Record<string, number>) => withCharacterSchemaFloors(firestoreRules(), floors)
+// The rules with every floor named here. Under `npm run rehearse:floors`,
+// `firestoreRules()` is the raised copy, so the committed floors are read from
+// `firestore.rules` itself.
+const committedRules = () => firestoreRules({})
+const withFloors = (floors: Record<string, number>) => withCharacterSchemaFloors(committedRules(), floors)
 
 // A Lubec character as a current writer stores it, some time ago.
 const storedLubecCharacter = (): DocumentData =>
@@ -142,7 +155,8 @@ const create = (testEnv: RulesTestEnvironment, campaign: CampaignKey, fields: Do
 const save = (testEnv: RulesTestEnvironment, campaign: CampaignKey, fields: DocumentData, uid = ownerUid) =>
   setDoc(doc(asUser(testEnv, uid), ...characterPath(campaign)), fields, { merge: true })
 
-// The grant panel's character write, through the real grant transaction.
+// The grant panel's character write, through the real grant transaction,
+// which stamps the version and refuses a character not at it.
 const grant = (db: Firestore, campaign: CampaignKey) => runTransaction(db, (tx) =>
   applyGrantToCharacter(tx, doc(db, ...characterPath(campaign)), {
     target: oseRecord(),
@@ -153,16 +167,17 @@ const grant = (db: Firestore, campaign: CampaignKey) => runTransaction(db, (tx) 
     overflowGoldDocId: 'overflow-gold',
   }))
 
-// An approval's character write, as `useItemApprovals` makes it: read the
-// character, then merge the approved item into its inventory.
-const approve = (db: Firestore, campaign: CampaignKey) => runTransaction(db, async (tx) => {
+// A grant's or an approval's character write as code before stamping made
+// it: read the character, then merge an item into its inventory.
+const oldTransaction = (db: Firestore, campaign: CampaignKey) => runTransaction(db, async (tx) => {
   const ref = doc(db, ...characterPath(campaign))
   const details = ((await tx.get(ref)).data()?.details ?? {}) as Record<string, unknown>
   const inventory = (details.inventory ?? []) as CharacterInventoryItem[]
   tx.set(ref, { details: { ...details, inventory: [...inventory, rope] } }, { merge: true })
 })
 
-// Today's floors: landing the fence changes nothing for OSE and VtM players.
+// The committed floors: landing the fence changed nothing for OSE and VtM
+// players, and code from before stamping still passes until they rise.
 describe('character writes with the OSE and VtM floors at 0', () => {
   let testEnv: RulesTestEnvironment
 
@@ -177,22 +192,26 @@ describe('character writes with the OSE and VtM floors at 0', () => {
   describe('in an OSE campaign', () => {
     beforeEach(() => seed(testEnv, { ose: storedOseCharacter() }))
 
-    it("passes today's create", async () => {
+    it("passes the old create", async () => {
       await assertSucceeds(setDoc(doc(asUser(testEnv, ownerUid), ...characterPath('ose', 'new-character')), oseCreateFields()))
     })
 
-    it("passes today's merge save, by the owner and by the GM", async () => {
+    it("passes the old merge save, by the owner and by the GM", async () => {
       for (const uid of [ownerUid, gmUid]) {
-        await assertSucceeds(setDoc(doc(asUser(testEnv, uid), ...characterPath('ose')), characterSaveFields(oseRecord()), { merge: true }))
+        await assertSucceeds(setDoc(doc(asUser(testEnv, uid), ...characterPath('ose')), oldOseSaveFields(), { merge: true }))
       }
     })
 
-    it("passes today's grant and approval", async () => {
-      await assertSucceeds(grant(asUser(testEnv, gmUid), 'ose'))
-      await assertSucceeds(approve(asUser(testEnv, gmUid), 'ose'))
+    it("passes the old grant and approval write", async () => {
+      await assertSucceeds(oldTransaction(asUser(testEnv, gmUid), 'ose'))
+    })
+
+    it("passes the current stamped merge save", async () => {
+      await assertSucceeds(setDoc(doc(asUser(testEnv, ownerUid), ...characterPath('ose')), characterSaveFields(oseRecord()), { merge: true }))
     })
 
     it('refuses a save by another player', async () => {
+      await assertFails(setDoc(doc(asUser(testEnv, otherMemberUid), ...characterPath('ose')), oldOseSaveFields(), { merge: true }))
       await assertFails(setDoc(doc(asUser(testEnv, otherMemberUid), ...characterPath('ose')), characterSaveFields(oseRecord()), { merge: true }))
     })
   })
@@ -200,15 +219,17 @@ describe('character writes with the OSE and VtM floors at 0', () => {
   describe('in a VtM campaign', () => {
     beforeEach(() => seed(testEnv, { vtm: storedVtmCharacter() }))
 
-    it("passes today's create", async () => {
+    it("passes the old create and the current stamped create", async () => {
       const db = asUser(testEnv, ownerUid)
+      await assertSucceeds(setDoc(doc(db, ...characterPath('vtm', 'new-character')), oldVtmCreateFields()))
       await assertSucceeds(setDoc(doc(db, ...characterPath('vtm', 'new-character')), newVtmCharacterFields(vtmRecord())))
     })
 
-    it("passes today's merge save, by the owner and by the GM", async () => {
+    it("passes the old merge save, by the owner and by the GM, and the current stamped one", async () => {
       for (const uid of [ownerUid, gmUid]) {
-        await assertSucceeds(setDoc(doc(asUser(testEnv, uid), ...characterPath('vtm')), vtmCharacterSaveFields(vtmRecord()), { merge: true }))
+        await assertSucceeds(setDoc(doc(asUser(testEnv, uid), ...characterPath('vtm')), oldVtmSaveFields(), { merge: true }))
       }
+      await assertSucceeds(setDoc(doc(asUser(testEnv, ownerUid), ...characterPath('vtm')), vtmCharacterSaveFields(vtmRecord()), { merge: true }))
     })
   })
 })
@@ -234,25 +255,27 @@ describe('character writes with the OSE floor at 1', () => {
 
   it("refuses the old create and the old merge save, even on a version 1 document", async () => {
     await assertFails(create(testEnv, 'ose', oseCreateFields()))
-    await assertFails(save(testEnv, 'ose', characterSaveFields(oseRecord())))
-    await assertFails(save(testEnv, 'ose', characterSaveFields(oseRecord()), gmUid))
+    await assertFails(save(testEnv, 'ose', oldOseSaveFields()))
+    await assertFails(save(testEnv, 'ose', oldOseSaveFields(), gmUid))
+    await assertFails(oldTransaction(asUser(testEnv, gmUid), 'ose'))
   })
 
   it('refuses a version 0 write with a fresh write time', async () => {
     await assertFails(create(testEnv, 'ose', stamped(oseCreateFields(), 0)))
-    await assertFails(save(testEnv, 'ose', stamped(characterSaveFields(oseRecord()), 0)))
+    await assertFails(save(testEnv, 'ose', stamped(oldOseSaveFields(), 0)))
   })
 
   it('refuses a write that keeps the stored stamp, or a version that is not a whole number', async () => {
-    await assertFails(save(testEnv, 'ose', { ...characterSaveFields(oseRecord()), schemaVersion: 1 }))
-    await assertFails(save(testEnv, 'ose', stamped(characterSaveFields(oseRecord()), 1.5)))
-    await assertFails(save(testEnv, 'ose', stamped(characterSaveFields(oseRecord()), '1')))
+    await assertFails(save(testEnv, 'ose', { ...oldOseSaveFields(), schemaVersion: 1 }))
+    await assertFails(save(testEnv, 'ose', stamped(oldOseSaveFields(), 1.5)))
+    await assertFails(save(testEnv, 'ose', stamped(oldOseSaveFields(), '1')))
   })
 
-  it('allows a current create, a stamped merge save and a stamped transaction', async () => {
+  it('allows a current create, the current merge save and grant, and a stamped transaction', async () => {
     await assertSucceeds(create(testEnv, 'ose', stamped(oseCreateFields())))
-    await assertSucceeds(save(testEnv, 'ose', stamped(characterSaveFields(oseRecord()))))
-    await assertSucceeds(save(testEnv, 'ose', stamped(characterSaveFields(oseRecord())), gmUid))
+    await assertSucceeds(save(testEnv, 'ose', characterSaveFields(oseRecord())))
+    await assertSucceeds(save(testEnv, 'ose', characterSaveFields(oseRecord()), gmUid))
+    await assertSucceeds(grant(asUser(testEnv, gmUid), 'ose'))
     const db = asUser(testEnv, gmUid)
     await assertSucceeds(runTransaction(db, async (tx) => {
       const ref = doc(db, ...characterPath('ose'))
@@ -262,20 +285,20 @@ describe('character writes with the OSE floor at 1', () => {
   })
 
   it('still refuses a stamped save by another player', async () => {
-    await assertFails(save(testEnv, 'ose', stamped(characterSaveFields(oseRecord())), otherMemberUid))
+    await assertFails(save(testEnv, 'ose', characterSaveFields(oseRecord()), otherMemberUid))
   })
 
   it('uses the OSE floor for a missing, empty or unregistered campaign value', async () => {
     for (const campaign of ['missing', 'empty', 'unregistered'] as const) {
-      await assertFails(save(testEnv, campaign, characterSaveFields(oseRecord())))
+      await assertFails(save(testEnv, campaign, oldOseSaveFields()))
       await assertFails(create(testEnv, campaign, oseCreateFields()))
-      await assertSucceeds(save(testEnv, campaign, stamped(characterSaveFields(oseRecord()))))
+      await assertSucceeds(save(testEnv, campaign, characterSaveFields(oseRecord())))
     }
   })
 
   it("uses the VtM floor in a VtM campaign, which is still 0", async () => {
-    await assertSucceeds(save(testEnv, 'vtm', vtmCharacterSaveFields(vtmRecord())))
-    await assertSucceeds(create(testEnv, 'vtm', newVtmCharacterFields(vtmRecord())))
+    await assertSucceeds(save(testEnv, 'vtm', oldVtmSaveFields()))
+    await assertSucceeds(create(testEnv, 'vtm', oldVtmCreateFields()))
   })
 })
 
@@ -298,28 +321,29 @@ describe('character writes with the VtM floor at 1', () => {
     unregistered: storedOseCharacter(),
   }))
 
-  it("refuses today's VtM create and merge save, and allows them stamped", async () => {
-    await assertFails(create(testEnv, 'vtm', newVtmCharacterFields(vtmRecord())))
-    await assertFails(save(testEnv, 'vtm', vtmCharacterSaveFields(vtmRecord())))
-    await assertSucceeds(create(testEnv, 'vtm', stamped(newVtmCharacterFields(vtmRecord()))))
-    await assertSucceeds(save(testEnv, 'vtm', stamped(vtmCharacterSaveFields(vtmRecord()))))
+  it("refuses the old VtM create and merge save, and allows the current stamped ones", async () => {
+    await assertFails(create(testEnv, 'vtm', oldVtmCreateFields()))
+    await assertFails(save(testEnv, 'vtm', oldVtmSaveFields()))
+    await assertSucceeds(create(testEnv, 'vtm', newVtmCharacterFields(vtmRecord())))
+    await assertSucceeds(save(testEnv, 'vtm', vtmCharacterSaveFields(vtmRecord())))
   })
 
   it('leaves every OSE campaign on the OSE floor, still 0', async () => {
     for (const campaign of ['ose', 'missing', 'empty', 'unregistered'] as const) {
-      await assertSucceeds(save(testEnv, campaign, characterSaveFields(oseRecord())))
+      await assertSucceeds(save(testEnv, campaign, oldOseSaveFields()))
     }
-    await assertSucceeds(grant(asUser(testEnv, gmUid), 'ose'))
+    await assertSucceeds(oldTransaction(asUser(testEnv, gmUid), 'ose'))
   })
 })
 
 // Lubec's floor is 1 from the day the fence lands: no old code ever wrote a
-// Lubec character, and today's OSE code would write OSE fields into one.
+// Lubec character, and OSE code from before stamping would write OSE fields
+// into one.
 describe('character writes into a Lubec campaign, with the floors as committed', () => {
   let testEnv: RulesTestEnvironment
 
   beforeAll(async () => {
-    testEnv = await startEnvironment('lubec-floor', firestoreRules())
+    testEnv = await startEnvironment('lubec-floor', committedRules())
   })
 
   afterAll(async () => {
@@ -330,9 +354,9 @@ describe('character writes into a Lubec campaign, with the floors as committed',
 
   it('refuses an OSE-shaped create and merge save, by the owner and by the GM', async () => {
     await assertFails(create(testEnv, 'lubec', oseCreateFields()))
-    await assertFails(save(testEnv, 'lubec', characterSaveFields(oseRecord())))
-    await assertFails(save(testEnv, 'lubec', characterSaveFields(oseRecord()), gmUid))
-    await assertFails(grant(asUser(testEnv, gmUid), 'lubec'))
+    await assertFails(save(testEnv, 'lubec', oldOseSaveFields()))
+    await assertFails(save(testEnv, 'lubec', oldOseSaveFields(), gmUid))
+    await assertFails(oldTransaction(asUser(testEnv, gmUid), 'lubec'))
   })
 
   it('refuses a version 0 write with a fresh write time', async () => {
@@ -346,14 +370,14 @@ describe('character writes into a Lubec campaign, with the floors as committed',
     await assertSucceeds(save(testEnv, 'lubec', stamped({ name: 'Ilse Brandt' }), gmUid))
   })
 
-  it("still passes today's OSE create and merge save in an OSE campaign", async () => {
+  it("still passes the old OSE create and merge save in an OSE campaign", async () => {
     await assertSucceeds(create(testEnv, 'ose', oseCreateFields()))
-    await assertSucceeds(save(testEnv, 'ose', characterSaveFields(oseRecord())))
+    await assertSucceeds(save(testEnv, 'ose', oldOseSaveFields()))
   })
 })
 
 describe.each([
-  ['as committed', 'deletes-committed', () => firestoreRules()],
+  ['as committed', 'deletes-committed', committedRules],
   ['with every floor at 1', 'deletes-raised', () => withFloors({ ose: 1, vtm: 1, lubec: 1 })],
 ])('character deletes with the floors %s', (_name, label, rules) => {
   let testEnv: RulesTestEnvironment

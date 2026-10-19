@@ -18,7 +18,7 @@ const SPELL_BOOK_ITEM_NAME = 'Spell Book'
 // The old lists, which today's code reads only while a character has no inventory.
 export const LEGACY_LIST_FIELDS = ['weapons', 'armour', 'packedItems', 'equippedItems', 'storeGoldSlotIndices']
 // Everything version 1 no longer stores: the old lists and the retired manual-AC flag.
-const RETIRED_DETAIL_FIELDS = [...LEGACY_LIST_FIELDS, 'acManualOverride']
+export const RETIRED_DETAIL_FIELDS = [...LEGACY_LIST_FIELDS, 'acManualOverride']
 
 // The fields an old weapon or armour row was converted from. Any other field on
 // the row is kept on the item it becomes.

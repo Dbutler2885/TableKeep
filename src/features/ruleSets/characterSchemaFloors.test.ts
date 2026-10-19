@@ -14,6 +14,12 @@ import {
   readCharacterSchemaFloors,
   withCharacterSchemaFloors,
 } from '../../../scripts/floor-rehearsal/floors.mjs'
+import {
+  CHARACTER_BEING_UPDATED_MESSAGE as SERVER_BEING_UPDATED_MESSAGE,
+  characterSchemaVersions as serverVersions,
+} from '../../../functions/src/characterSchemaVersions'
+import { characterSchemaVersions as compiledServerVersions } from '../../../functions/lib/characterSchemaVersions.js'
+import { CHARACTER_BEING_UPDATED_MESSAGE } from './characterSchemaStamp'
 import { ruleSets } from './registry'
 
 const rulesText = readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8')
@@ -40,5 +46,16 @@ describe('character schema floors', () => {
 
   it('gives the raised-floor rehearsal the same current versions as the registry', () => {
     expect(currentCharacterSchemaVersions).toEqual(registryVersions)
+  })
+
+  // The transfer callable checks and stamps versions with its own copy, because
+  // it writes with admin access, which the floor does not see.
+  it("gives the Cloud Functions the registry's current versions", () => {
+    expect(serverVersions).toEqual(registryVersions)
+    expect(compiledServerVersions).toEqual(registryVersions)
+  })
+
+  it('refuses an unmigrated character with the same message in the app and the Cloud Functions', () => {
+    expect(SERVER_BEING_UPDATED_MESSAGE).toBe(CHARACTER_BEING_UPDATED_MESSAGE)
   })
 })

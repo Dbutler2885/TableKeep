@@ -17,30 +17,38 @@ const target = parseOseCharacter('pc', { name: 'Ada', class: 'Fighter', xp: 10 }
 const rope = { id: 'rope', name: 'Rope', kind: 'general', typeId: 'rope', typeName: 'Rope', equipped: false, qty: 1, costGp: 1 } as CharacterInventoryItem
 const tx = { get: vi.fn(), set: vi.fn() }
 const params = { target, xpAmount: 0, goldAmount: 0, campaignEntries: [], templateEntries: [], overflowGoldDocId: 'overflow-gold' }
+// A stored character at OSE's current version, unless the data names another.
 function stored(data: Record<string, unknown>) {
-  tx.get.mockResolvedValue({ exists: () => true, data: () => data })
+  tx.get.mockResolvedValue({ exists: () => true, data: () => ({ schemaVersion: 1, ...data }) })
 }
+const stamp = { schemaVersion: 1, schemaWrittenAt: 'server-time' }
 const grant = (overrides: Partial<Parameters<typeof applyGrantToCharacter>[2]> = {}, ref = charRef) =>
   applyGrantToCharacter(tx as unknown as Transaction, ref, { ...params, ...overrides })
 const goldTotal = (inventory: CharacterInventoryItem[]) => inventory.reduce((sum, item) => sum + (item.kind === 'gold' ? item.qty : 0), 0)
 
 beforeEach(() => { vi.resetAllMocks(); stored({ xp: 100, details: { inventory: [rope], abilityScores: { STR: '10' } } }) })
 
-describe('GM grant transaction before version stamping', () => {
-  it.each([undefined, 0, 1, 2])('grants onto stored version %s without checking or stamping it', async (schemaVersion) => {
-    const details = { inventory: [rope], weapons: ['legacy'], future: { kept: true }, abilityScores: { STR: '16' } }
-    stored({ details, xp: 100, ...(schemaVersion === undefined ? {} : { schemaVersion }) })
+describe('GM grant transaction', () => {
+  it('grants onto the current version, preserving unknown details, and stamps it', async () => {
+    const details = { inventory: [rope], future: { kept: true }, abilityScores: { STR: '16' } }
+    stored({ details, xp: 100, schemaWrittenAt: 'old-stamp' })
     const result = await grant({ xpAmount: 15 })
     expect(result).toEqual({ xp: 116, inventory: [rope], overflowFeedback: null })
     expect(tx.get).toHaveBeenCalledExactlyOnceWith(charRef)
-    expect(tx.set).toHaveBeenCalledExactlyOnceWith(charRef, { xp: 116, details, updatedAt: 'server-time' }, { merge: true })
+    expect(tx.set).toHaveBeenCalledExactlyOnceWith(charRef, { xp: 116, details, ...stamp, updatedAt: 'server-time' }, { merge: true })
     expect(tx.get.mock.invocationCallOrder[0]).toBeLessThan(tx.set.mock.invocationCallOrder[0])
+  })
+
+  it.each([undefined, 0, 2])('refuses stored version %s with the plain message and writes nothing', async (schemaVersion) => {
+    stored({ details: { inventory: [rope], weapons: ['legacy'] }, xp: 100, schemaVersion })
+    await expect(grant({ xpAmount: 15 })).rejects.toThrow('This character is being updated. Try again in a minute.')
+    expect(tx.set).not.toHaveBeenCalled()
   })
 
   it.each([null, 'invalid', undefined])('defaults details %j and falls back to the target XP', async (details) => {
     stored({ details })
     expect(await grant({ xpAmount: 3 })).toEqual({ xp: 13, inventory: [], overflowFeedback: null })
-    expect(tx.set).toHaveBeenCalledExactlyOnceWith(charRef, { xp: 13, details: { inventory: [] }, updatedAt: 'server-time' }, { merge: true })
+    expect(tx.set).toHaveBeenCalledExactlyOnceWith(charRef, { xp: 13, details: { inventory: [] }, ...stamp, updatedAt: 'server-time' }, { merge: true })
   })
 
   it('defaults both missing XP values to zero and clamps a negative stored XP', async () => {
@@ -81,7 +89,7 @@ describe('GM grant transaction before version stamping', () => {
     expect(itemWrite).toHaveLength(2)
     expect(goldWrite[0]).toEqual({ path: `${campaignPath}/items/overflow-gold`, id: 'overflow-gold' })
     expect(goldWrite[1]).toMatchObject({ type: 'gold', goldAmount: 120, status: 'dropped', droppedByCharacterName: 'Ada', createdAt: 'server-time', updatedAt: 'server-time' })
-    expect(characterWrite).toEqual([charRef, { xp: 4, details: { inventory: result.inventory, notes: 'keep' }, updatedAt: 'server-time' }, { merge: true }])
+    expect(characterWrite).toEqual([charRef, { xp: 4, details: { inventory: result.inventory, notes: 'keep' }, ...stamp, updatedAt: 'server-time' }, { merge: true }])
   })
 
   it('does not write when the character is missing', async () => {

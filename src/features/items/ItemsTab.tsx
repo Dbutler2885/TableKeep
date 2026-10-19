@@ -12,6 +12,8 @@ import { MOBILE_BREAKPOINT } from '../../constants/layout'
 import { useItems, toFirestoreItem } from './useItems'
 import { campaignItemToInventoryItem, campaignGoldToInventoryChunks } from './itemConversion'
 import { computeAvailablePackedSlots, computeOverflow, makeDroppedGoldCampaignItem } from '../character/inventoryOverflow'
+import { oseCharacterVersioning } from '../ruleSets/characterMigrations'
+import { assertCharacterAtCurrentVersion, characterSchemaStamp } from '../ruleSets/characterSchemaStamp'
 import { OSE_WEAPON_CATALOG, weaponCatalogById } from '../character/weaponCatalog'
 import { OSE_ARMOUR_CATALOG, armourCatalogById } from '../character/armourCatalog'
 import { OSE_STORE_ITEMS } from '../character/storeCatalog'
@@ -518,6 +520,7 @@ export function ItemsTab({ campaignId, groupId, role, characters }: ItemsTabProp
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(charRef)
         if (!snap.exists()) throw new Error('Target character not found')
+        assertCharacterAtCurrentVersion(snap.data(), oseCharacterVersioning)
         const data = snap.data() as { details?: CharacterSheetDetails | null } | undefined
         const existingDetails = (data?.details && typeof data.details === 'object')
           ? data.details as Record<string, unknown>
@@ -562,6 +565,7 @@ export function ItemsTab({ campaignId, groupId, role, characters }: ItemsTabProp
             ...existingDetails,
             inventory: overflow.keptInventory,
           },
+          ...characterSchemaStamp(oseCharacterVersioning),
         }, { merge: true })
 
         // Write non-gold overflow items in same transaction

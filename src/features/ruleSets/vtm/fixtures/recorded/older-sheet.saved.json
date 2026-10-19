@@ -222,5 +222,7 @@
   "creationModeExplicit": false,
   "creationStatus": "draft",
   "portraitFocusX": 50,
-  "portraitFocusY": 50
+  "portraitFocusY": 50,
+  "schemaVersion": 1,
+  "schemaWrittenAt": "server time"
 }

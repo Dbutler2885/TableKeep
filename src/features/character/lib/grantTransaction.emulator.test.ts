@@ -126,6 +126,8 @@ describe('grant transaction on Firestore emulator', () => {
         await setDoc(doc(db, ...campaignPath, 'characters', target.id), {
           ...target,
           details: details(),
+          // A grant refuses a character that is not at OSE's current version.
+          schemaVersion: 1,
         })
       }
     })

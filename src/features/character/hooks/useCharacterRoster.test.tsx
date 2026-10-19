@@ -24,8 +24,8 @@ function setup(overrides: Partial<Parameters<typeof useCharacterRoster>[0]> = {}
 beforeEach(() => { vi.clearAllMocks(); mocks.setDoc.mockResolvedValue(undefined) })
 afterEach(() => cleanup())
 
-describe('OSE creation before version stamping', () => {
-  it.each(['new', 'established'] as const)('creates a %s sheet with precisely the existing defaults, without system, details or version fields', (creationMode) => {
+describe('OSE creation', () => {
+  it.each(['new', 'established'] as const)('creates a %s sheet with precisely the existing defaults, stamped with the current version, without system or details', (creationMode) => {
     const { result, params } = setup()
     act(() => result.current.addCharacter(creationMode))
     expect(params.setSelectedCharacterId).toHaveBeenCalledExactlyOnceWith('new-pc')
@@ -34,7 +34,8 @@ describe('OSE creation before version stamping', () => {
       name: 'New Character', ownerUserId: 'player', ownerUsername: 'player1', creationMode, creationModeExplicit: true,
       creationStatus: creationMode === 'new' ? 'draft' : 'established_draft', class: '-', level: 1,
       hpCurrent: 0, hpMax: 0, ac: 10, xp: 0, portraitPath: '', portraitFocusX: 50, portraitFocusY: 50,
-      tokenIcon: { icon: 'pawn', color: '#bf2f2a', size: 34 }, createdAt: 'server-time', updatedAt: 'server-time',
+      tokenIcon: { icon: 'pawn', color: '#bf2f2a', size: 34 }, schemaVersion: 1, schemaWrittenAt: 'server-time',
+      createdAt: 'server-time', updatedAt: 'server-time',
     })
     expect(vi.mocked(params.setSelectedCharacterId).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(params.showDetailPane).mock.invocationCallOrder[0])
     expect(vi.mocked(params.showDetailPane).mock.invocationCallOrder[0]).toBeLessThan(mocks.setDoc.mock.invocationCallOrder[0])

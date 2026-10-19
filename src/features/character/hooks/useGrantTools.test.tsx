@@ -25,7 +25,7 @@ function setup(overrides: Partial<Parameters<typeof useGrantTools>[0]> = {}) {
 }
 beforeEach(() => {
   vi.resetAllMocks()
-  mocks.get.mockResolvedValue({ exists: () => true, data: () => ({ xp: 100, details: { inventory: [] } }) })
+  mocks.get.mockResolvedValue({ exists: () => true, data: () => ({ schemaVersion: 1, xp: 100, details: { inventory: [] } }) })
   mocks.runTransaction.mockImplementation(async (_db, body) => body(mocks))
 })
 afterEach(() => cleanup())
@@ -61,7 +61,7 @@ describe('GM grant panel write orchestration', () => {
       ['groups/g/campaigns/c/characters/b', 103, [2], { merge: true }],
     ])
     expect(mocks.set.mock.calls.map(([, fields]) => Object.keys(fields).sort())).toEqual([
-      ['details', 'updatedAt', 'xp'], ['details', 'updatedAt', 'xp'],
+      ['details', 'schemaVersion', 'schemaWrittenAt', 'updatedAt', 'xp'], ['details', 'schemaVersion', 'schemaWrittenAt', 'updatedAt', 'xp'],
     ])
     expect(mocks.runTransaction).toHaveBeenCalledTimes(2)
     expect(mocks.set.mock.invocationCallOrder[0]).toBeLessThan(mocks.get.mock.invocationCallOrder[1])
@@ -88,6 +88,19 @@ describe('GM grant panel write orchestration', () => {
     expect(result.current.grantXpBase).toBe('10')
     expect(result.current.selectedGrantTargetIds).toEqual(['a', 'b'])
     expect(result.current.grantBusy).toBe(false)
+  })
+
+  it('refuses a target not yet at the current version with the plain message, keeping earlier targets granted', async () => {
+    mocks.get
+      .mockResolvedValueOnce({ exists: () => true, data: () => ({ schemaVersion: 1, xp: 100, details: { inventory: [] } }) })
+      .mockResolvedValueOnce({ exists: () => true, data: () => ({ xp: 100, details: { weapons: ['legacy'] } }) })
+    const { result, params } = setup()
+    act(() => { result.current.selectAllGrantTargets(); result.current.setGrantXpBase('10') })
+    await act(() => result.current.applyGrantToSelectedTargets())
+    expect(mocks.set).toHaveBeenCalledTimes(1)
+    expect(params.syncCharacterLocal).toHaveBeenCalledExactlyOnceWith('a', { xp: 110 })
+    expect(result.current.grantFeedback).toBe('Grant failed: This character is being updated. Try again in a minute.')
+    expect(result.current.selectedGrantTargetIds).toEqual(['a', 'b'])
   })
 
   it('reports overflow from the actual grant writer and includes an item grant in feedback', async () => {

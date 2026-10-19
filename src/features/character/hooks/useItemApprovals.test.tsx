@@ -27,8 +27,9 @@ const request = (action: ItemApprovalRequest['action'], fields: Partial<ItemAppr
   id: 'request', action, characterId: 'pc', characterName: 'Ada', campaignId: 'c',
   requestedByUserId: 'player', requestedByUsername: 'player1', status: 'pending', createdAt: 'requested-at', ...fields,
 })
+// A stored character at OSE's current version, unless the data names another.
 function stored(data: Record<string, unknown> = {}) {
-  mocks.get.mockResolvedValue({ exists: () => true, data: () => data })
+  mocks.get.mockResolvedValue({ exists: () => true, data: () => ({ schemaVersion: 1, ...data }) })
 }
 function approval(campaign: string | null = 'c', group: string | null = 'g') {
   return renderHook(() => useItemApprovals(campaign, group, 'gm', 'gm')).result
@@ -39,7 +40,7 @@ async function approve(action: ItemApprovalRequest['action'], fields: Partial<It
 }
 function expectCharacterWrite(details: Record<string, unknown>) {
   expect(mocks.get).toHaveBeenCalledExactlyOnceWith(charRef)
-  expect(mocks.set).toHaveBeenCalledExactlyOnceWith(charRef, { details }, { merge: true })
+  expect(mocks.set).toHaveBeenCalledExactlyOnceWith(charRef, { details, schemaVersion: 1, schemaWrittenAt: 'server-time' }, { merge: true })
   expect(mocks.update).toHaveBeenCalledExactlyOnceWith(approvalRef, resolved)
   expect(mocks.get.mock.invocationCallOrder[0]).toBeLessThan(mocks.set.mock.invocationCallOrder[0])
   expect(mocks.set.mock.invocationCallOrder[0]).toBeLessThan(mocks.update.mock.invocationCallOrder[0])
@@ -52,12 +53,21 @@ beforeEach(() => {
 })
 afterEach(() => { cleanup(); vi.restoreAllMocks() })
 
-describe('approval character writes before version stamping', () => {
-  it.each([undefined, 0, 1, 2])('create appends an item even at stored schema version %s, keeping unknown and legacy details', async (schemaVersion) => {
-    const details = { inventory: [rope], weapons: ['old sword'], acManualOverride: true, future: { kept: true } }
-    stored({ ...(schemaVersion === undefined ? {} : { schemaVersion }), details })
+describe('approval character writes', () => {
+  it('create appends an item at the current version, keeping unknown details, and stamps it', async () => {
+    const details = { inventory: [rope], future: { kept: true } }
+    stored({ details, schemaWrittenAt: 'old-stamp' })
     await approve('create', { item: { ...rope, id: 'new' } })
     expectCharacterWrite({ ...details, inventory: [rope, { ...rope, id: 'new' }] })
+  })
+
+  it.each(['create', 'sell', 'learn_spell', 'ability_reroll'] as const)('%s refuses a character not at the current version with the plain message', async (action) => {
+    for (const schemaVersion of [undefined, 0, 2]) {
+      stored({ schemaVersion, creationStatus: 'draft', details: { inventory: [rope], weapons: ['old sword'] } })
+      await expect(approve(action, { item: rope, spellIds: ['light'] })).rejects.toThrow('This character is being updated. Try again in a minute.')
+    }
+    expect(mocks.set).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
   })
 
   it.each([null, 'invalid', { inventory: 'invalid' }])('create defaults malformed details/inventory: %j', async (details) => {

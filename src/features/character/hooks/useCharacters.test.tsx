@@ -804,7 +804,8 @@ describe('useCharacters updateCharacter', () => {
       portraitFocusY: 50,
       tokenIcon: DEFAULT_TOKEN_ICON,
       details: null,
-      'details.acManualOverride': DELETE_FIELD,
+      schemaVersion: 1,
+      schemaWrittenAt: SERVER_TIMESTAMP,
       updatedAt: SERVER_TIMESTAMP,
     })
   })
@@ -832,7 +833,10 @@ describe('useCharacters updateCharacter', () => {
     act(() => vi.advanceTimersByTime(500))
 
     const data = characterSaves()[0][1] as Record<string, unknown>
-    expect(data.details).toEqual(details)
+    const retiredDeletes = Object.fromEntries(
+      ['weapons', 'armour', 'packedItems', 'equippedItems', 'storeGoldSlotIndices', 'acManualOverride'].map((name) => [name, DELETE_FIELD]),
+    )
+    expect(data.details).toEqual({ ...details, ...retiredDeletes })
     expect(data.details).not.toBe(details)
     expect(data.tokenIcon).toEqual({ icon: 'pawn', color: '#000', size: 30, customImagePath: 't.png' })
   })

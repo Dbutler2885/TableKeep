@@ -13,6 +13,8 @@ import {
 } from 'firebase/firestore'
 import { db } from '../../../firebase'
 import { campaignCollectionRef, campaignDocRef } from '../../campaign/firestorePaths'
+import { oseCharacterVersioning } from '../../ruleSets/characterMigrations'
+import { assertCharacterAtCurrentVersion, characterSchemaStamp } from '../../ruleSets/characterSchemaStamp'
 import type {
   CharacterGoldItem,
   CharacterInventoryItem,
@@ -195,6 +197,7 @@ export function useItemApprovals(
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(charRef)
       if (!snap.exists()) throw new Error('Character not found')
+      assertCharacterAtCurrentVersion(snap.data(), oseCharacterVersioning)
       const data = snap.data() as { details?: CharacterSheetDetails | null }
       const existingDetails = (data?.details && typeof data.details === 'object')
         ? data.details as Record<string, unknown>
@@ -208,6 +211,7 @@ export function useItemApprovals(
           ...existingDetails,
           inventory: [...currentInventory, request.item],
         },
+        ...characterSchemaStamp(oseCharacterVersioning),
       }, { merge: true })
 
       tx.update(approvalRef, { status: 'approved', resolvedAt: serverTimestamp() })
@@ -225,6 +229,7 @@ export function useItemApprovals(
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(charRef)
       if (!snap.exists()) throw new Error('Character not found')
+      assertCharacterAtCurrentVersion(snap.data(), oseCharacterVersioning)
       const data = snap.data() as { details?: CharacterSheetDetails | null }
       const existingDetails = (data?.details && typeof data.details === 'object')
         ? data.details as Record<string, unknown>
@@ -245,6 +250,7 @@ export function useItemApprovals(
       if (sellAmount <= 0) {
         tx.set(charRef, {
           details: { ...existingDetails, inventory: remaining },
+          ...characterSchemaStamp(oseCharacterVersioning),
         }, { merge: true })
         tx.update(approvalRef, { status: 'approved', resolvedAt: serverTimestamp() })
         return
@@ -270,6 +276,7 @@ export function useItemApprovals(
 
       tx.set(charRef, {
         details: { ...existingDetails, inventory: overflow.keptInventory },
+        ...characterSchemaStamp(oseCharacterVersioning),
       }, { merge: true })
 
       tx.update(approvalRef, { status: 'approved', resolvedAt: serverTimestamp() })
@@ -289,6 +296,7 @@ export function useItemApprovals(
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(charRef)
       if (!snap.exists()) throw new Error('Character not found')
+      assertCharacterAtCurrentVersion(snap.data(), oseCharacterVersioning)
       const data = snap.data() as { details?: CharacterSheetDetails | null }
       const existingDetails = (data?.details && typeof data.details === 'object')
         ? data.details as Record<string, unknown>
@@ -306,6 +314,7 @@ export function useItemApprovals(
           ...existingDetails,
           spellBookSpellIds: merged,
         },
+        ...characterSchemaStamp(oseCharacterVersioning),
       }, { merge: true })
 
       tx.update(approvalRef, { status: 'approved', resolvedAt: serverTimestamp() })
@@ -320,6 +329,7 @@ export function useItemApprovals(
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(charRef)
       if (!snap.exists()) throw new Error('Character not found')
+      assertCharacterAtCurrentVersion(snap.data(), oseCharacterVersioning)
       const data = snap.data() as { details?: CharacterSheetDetails | null, creationStatus?: string }
       if (data.creationStatus !== 'draft') {
         tx.update(approvalRef, { status: 'approved', resolvedAt: serverTimestamp() })
@@ -338,6 +348,7 @@ export function useItemApprovals(
           rolledAbilityScores: nextScores,
           abilityScoresRolled: true,
         },
+        ...characterSchemaStamp(oseCharacterVersioning),
       }, { merge: true })
 
       tx.update(approvalRef, { status: 'approved', resolvedAt: serverTimestamp() })

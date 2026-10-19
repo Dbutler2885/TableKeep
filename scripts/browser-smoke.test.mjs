@@ -7,8 +7,10 @@ import {
   oseCharacterFields,
   ownedFixtureFields,
   partyTokenFields,
+  retiredDetailFieldsStored,
   step,
   stepInventory,
+  storedVersionProblems,
   trackersAtZero,
   vtmCharacterFields,
   withVtmConcept,
@@ -201,5 +203,23 @@ describe('comparing a stored document with what was seeded', () => {
   it('tells a reordered list apart', () => {
     const rows = toFirestoreFields({ rows: [1, 2] })
     expect(changedFirestoreFields(toFirestoreFields({ rows: [2, 1] }), rows)).toEqual(['rows'])
+  })
+})
+
+describe('checking a saved character is stored at version 1', () => {
+  it('finds nothing wrong with version 1 and a write time', () => {
+    expect(storedVersionProblems(toFirestoreFields({ schemaVersion: 1, schemaWrittenAt: new Date('2026-10-19T00:00:00Z') }))).toEqual([])
+  })
+
+  it('names a missing, older or misspelled version and a missing write time', () => {
+    expect(storedVersionProblems({})).toEqual(['schemaVersion is undefined, not 1', 'schemaWrittenAt is not a time'])
+    expect(storedVersionProblems(toFirestoreFields({ schemaVersion: 0, schemaWrittenAt: new Date() }))).toEqual(['schemaVersion is {"integerValue":"0"}, not 1'])
+    expect(storedVersionProblems(toFirestoreFields({ schemaVersion: '1', schemaWrittenAt: new Date() }))).toEqual(['schemaVersion is {"stringValue":"1"}, not 1'])
+  })
+
+  it('names the old OSE detail fields still stored', () => {
+    expect(retiredDetailFieldsStored(toFirestoreFields({ details: { inventory: [], weapons: [], acManualOverride: true } }))).toEqual(['weapons', 'acManualOverride'])
+    expect(retiredDetailFieldsStored(toFirestoreFields({ details: { inventory: [] } }))).toEqual([])
+    expect(retiredDetailFieldsStored({})).toEqual([])
   })
 })
