@@ -1,0 +1,15 @@
+{
+  "id": "legacy-mage-old-book-inv",
+  "name": "Mage Old Book Inventory",
+  "ownerUserId": "player-uid",
+  "creationStatus": "active",
+  "inPlay": true,
+  "hidden": false,
+  "deleted": false,
+  "tokenIcon": {
+    "icon": "pawn",
+    "color": "#bf2f2a",
+    "size": 34,
+    "customImagePath": "groups/g1/campaigns/c1/characters/legacy-mage-old-book-inv/token.png"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "vtm-filled",
+  "name": "Edda Marsh",
+  "ownerUserId": "player-uid",
+  "creationStatus": "active",
+  "inPlay": true,
+  "hidden": false,
+  "deleted": false,
+  "tokenIcon": {
+    "icon": "pawn",
+    "color": "#7a1a1f",
+    "size": 34,
+    "customImagePath": "groups/g1/campaigns/c1/characters/vtm-filled/token.png"
+  }
+}

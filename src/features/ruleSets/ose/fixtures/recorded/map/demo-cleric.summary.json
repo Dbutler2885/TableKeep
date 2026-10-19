@@ -1,0 +1,14 @@
+{
+  "id": "fa557c78-2315-4b44-a061-061aa68d3021",
+  "name": "Brother Caldus",
+  "ownerUserId": "demo-player-4-uid",
+  "creationStatus": "active",
+  "inPlay": true,
+  "hidden": false,
+  "deleted": false,
+  "tokenIcon": {
+    "icon": "pawn",
+    "color": "#bf2f2a",
+    "size": 34
+  }
+}

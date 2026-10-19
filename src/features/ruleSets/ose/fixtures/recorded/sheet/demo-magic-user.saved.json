@@ -1,0 +1,236 @@
+{
+  "ownerUsername": "demoGM1",
+  "creationMode": "new",
+  "creationModeExplicit": true,
+  "level": 1,
+  "xp": 0,
+  "portraitFocusX": 50,
+  "portraitFocusY": 50,
+  "tokenIcon": {
+    "icon": "pawn",
+    "color": "#bf2f2a",
+    "size": 34
+  },
+  "createdAt": {
+    "$timestamp": "2026-08-28T04:31:00.173Z"
+  },
+  "ac": 9,
+  "name": "Mirelda Crow",
+  "class": "Magic-User",
+  "hpMax": 2,
+  "hpCurrent": 2,
+  "details": {
+    "spellBookSpellIds": [],
+    "memorizedSpellIds": [],
+    "storeCart": [],
+    "adventureScores": {
+      "FG": "1",
+      "SD": "1",
+      "LD": "1",
+      "HT": "1",
+      "FT": "1"
+    },
+    "thiefSkills": null,
+    "title": "",
+    "languagesText": "",
+    "unencumberingItemsText": "",
+    "otherNotesText": "",
+    "alignment": "Neutrality",
+    "adventureSeedClass": "Magic-User",
+    "thaco": "19",
+    "saveScores": {
+      "P": "13",
+      "B": "16",
+      "S": "15",
+      "D": "13",
+      "W": "14"
+    },
+    "abilityScoresRolled": true,
+    "rolledAbilityScores": {
+      "STR": "16",
+      "WIS": "10",
+      "CON": "4",
+      "DEX": "12",
+      "CHA": "15",
+      "INT": "17"
+    },
+    "abilityScores": {
+      "CON": "4",
+      "DEX": "12",
+      "CHA": "15",
+      "WIS": "10",
+      "STR": "14",
+      "INT": "18"
+    },
+    "hpBaseRoll": 4,
+    "startingGold": 140,
+    "storeSpent": 34,
+    "inventory": [
+      {
+        "id": "7a09c5c2-4667-4621-ba25-cfbaec375e50",
+        "kind": "general",
+        "typeId": "spell-book",
+        "typeName": "Spell Book",
+        "name": "Spell Book",
+        "costGp": 0,
+        "equipped": false,
+        "notes": "",
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        },
+        "unknownRowField": "kept on the row"
+      },
+      {
+        "id": "38954a9a-4a4f-4885-9ba8-2bf337eea802",
+        "kind": "general",
+        "typeId": "gear-waterskin",
+        "typeName": "Waterskin",
+        "name": "Waterskin",
+        "costGp": 1,
+        "equipped": false,
+        "notes": "Waterskin",
+        "description": "Holds 2 pints (1 quart).",
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        }
+      },
+      {
+        "id": "16e81330-01fa-4047-a083-bef8abad2e04",
+        "kind": "general",
+        "typeId": "gear-lantern",
+        "typeName": "Lantern",
+        "name": "Lantern",
+        "costGp": 10,
+        "equipped": false,
+        "notes": "Lantern",
+        "description": "30 ft light radius. Burns 1 oil flask / 4 hours.",
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        }
+      },
+      {
+        "id": "61d70207-6a11-4d94-83c5-3d7b13721e68",
+        "kind": "general",
+        "typeId": "gear-tinderbox",
+        "typeName": "Tinder box",
+        "name": "Tinder box",
+        "costGp": 3,
+        "equipped": false,
+        "notes": "Tinder box",
+        "description": "Flint/steel/tinder; 2-in-6 chance per round to light.",
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        }
+      },
+      {
+        "id": "caeacb2f-42c3-4e7f-965d-e8ff683379bd",
+        "kind": "consumable",
+        "typeId": "con-oil",
+        "typeName": "Oil flask",
+        "costGp": 2,
+        "equipped": false,
+        "notes": "Oil (1 flask)",
+        "description": "Lantern fuel; also throwable burning oil weapon.",
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        },
+        "effectText": "",
+        "amountRemaining": 24
+      },
+      {
+        "id": "ec822faa-76cf-471e-9c26-62eea8805a87",
+        "kind": "consumable",
+        "typeId": "con-rations-iron",
+        "typeName": "Iron rations",
+        "costGp": 15,
+        "equipped": false,
+        "notes": "Rations (iron, 7 days)",
+        "description": "Preserved travel food.",
+        "qty": 7,
+        "stack": {
+          "stackable": true,
+          "maxStack": 20
+        },
+        "effectText": ""
+      },
+      {
+        "weaponEffects": [],
+        "weaponRollTables": [],
+        "id": "879809ee-5dd3-42ac-a035-0bbfe0f3d15d",
+        "kind": "weapon",
+        "costGp": 3,
+        "equipped": true,
+        "notes": "",
+        "typeId": "dagger",
+        "typeName": "Dagger",
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        },
+        "isMagic": false,
+        "damageDiceCount": "1",
+        "damageDiceSides": "4",
+        "attackBonus": "",
+        "damageBonus": "",
+        "rangeShort": "10",
+        "rangeMedium": "20",
+        "rangeLong": "30",
+        "slow": false,
+        "twoHanded": false
+      },
+      {
+        "id": "47c064ef-d904-46de-9adf-7db0cd3ab8ff",
+        "kind": "gold",
+        "typeId": "gold",
+        "typeName": "Gold",
+        "costGp": 0,
+        "equipped": false,
+        "notes": "",
+        "qty": 100,
+        "stack": {
+          "stackable": true,
+          "maxStack": 100
+        }
+      },
+      {
+        "id": "89661031-7215-4369-b8ee-b68343efbc29",
+        "kind": "gold",
+        "typeId": "gold",
+        "typeName": "Gold",
+        "costGp": 0,
+        "equipped": false,
+        "notes": "",
+        "qty": 6,
+        "stack": {
+          "stackable": true,
+          "maxStack": 100
+        }
+      }
+    ],
+    "unknownNested": {
+      "kept": true,
+      "deeper": {
+        "value": 7
+      }
+    }
+  },
+  "portraitPath": "groups/w5sFUCEDhNNxsR0wxD5z/campaigns/PYvHDtNvgyD3nWFVHIxU/characters/2ad3968a-19c2-4858-ab0a-83390fbfe0f9/portraits/1787892024925-ChatGPT_Image_Aug_28__2026__12_39_17_AM.webp",
+  "creationStatus": "active",
+  "updatedAt": "server time",
+  "ownerUserId": "demo-player-uid",
+  "unknownTopLevel": {
+    "note": "kept as stored",
+    "list": [
+      1,
+      "two",
+      {
+        "three": 3
+      }
+    ]
+  }
+}
