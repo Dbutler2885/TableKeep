@@ -6,6 +6,9 @@ import { DiscordConnection } from '../auth/DiscordConnection'
 import { DiscordReturnNotice } from '../auth/DiscordReturnNotice'
 import { inviteState, useGroupInvites } from '../invites/useInvites'
 import { DiscordServerLink } from './DiscordServerLink'
+import { errorMessage, runBusyAction } from './busyAction'
+import { activateOnEnterOrSpace, campaignCardLabel, groupHasCampaigns } from './groupHomeCampaigns'
+import { copyToClipboard, inviteExpiresIn, inviteStateLabel, inviteUrl } from './inviteDisplay'
 import './GroupScreens.css'
 
 type GroupHomeProps = {
@@ -65,11 +68,9 @@ export function GroupHome({
   const [error, setError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const canDelete = group.memberRole === 'admin'
-  const groupHasContents =
-    Boolean(group.activeCampaign) || group.drafts.length > 0 || group.inactiveCampaigns.length > 0
+  const groupHasContents = groupHasCampaigns(group)
   const canInvite = inviteAllowed && group.memberRole === 'admin'
-
-  const inviteUrl = (token: string) => `${window.location.origin}/join/${token}`
+  const busySetters = { setBusy, setError }
 
   const handleGenerateInvite = async () => {
     setInviteBusy(true)
@@ -81,13 +82,13 @@ export function GroupHome({
         createdByName: username,
       })
       try {
-        await navigator.clipboard?.writeText(inviteUrl(token))
+        await copyToClipboard(inviteUrl(token))
         setCopiedToken(token)
       } catch {
         // Clipboard may be unavailable; user can copy from the list manually.
       }
     } catch (err) {
-      setInviteError(err instanceof Error ? err.message : 'Could not create invite.')
+      setInviteError(errorMessage(err, 'Could not create invite.'))
     } finally {
       setInviteBusy(false)
     }
@@ -95,105 +96,61 @@ export function GroupHome({
 
   const handleCopyInvite = async (token: string) => {
     try {
-      await navigator.clipboard?.writeText(inviteUrl(token))
+      await copyToClipboard(inviteUrl(token))
       setCopiedToken(token)
     } catch {
       setInviteError('Clipboard unavailable. Copy the link manually.')
     }
   }
 
-  const handleRevokeInvite = async (token: string) => {
-    setInviteBusy(true)
-    setInviteError(null)
-    try {
-      await revokeInvite(token)
-    } catch (err) {
-      setInviteError(err instanceof Error ? err.message : 'Could not revoke invite.')
-    } finally {
-      setInviteBusy(false)
-    }
-  }
+  const handleRevokeInvite = (token: string) =>
+    runBusyAction({ setBusy: setInviteBusy, setError: setInviteError }, () => revokeInvite(token), {
+      fallback: 'Could not revoke invite.',
+    })
 
-  const handleDelete = async () => {
-    setBusy(true)
-    setError(null)
-    try {
-      await onDeleteGroup(group.id)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to delete group.')
-      setBusy(false)
-    }
-  }
+  const handleDelete = () =>
+    runBusyAction(busySetters, () => onDeleteGroup(group.id), { fallback: 'Unable to delete group.', staysBusy: true })
 
-  const handleCreateCampaign = async () => {
-    setBusy(true)
-    setError(null)
-    try {
-      await onCreateCampaign(group.id, campaignName, campaignSystem)
-      setBusy(false)
-      setCreateOpen(false)
-      setCampaignName('')
-      setCampaignSystem('ose')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to create campaign.')
-      setBusy(false)
-    }
-  }
+  const handleCreateCampaign = () =>
+    runBusyAction(busySetters, () => onCreateCampaign(group.id, campaignName, campaignSystem), {
+      fallback: 'Unable to create campaign.',
+      onSuccess: () => {
+        setCreateOpen(false)
+        setCampaignName('')
+        setCampaignSystem('ose')
+      },
+    })
 
   const handleSetActiveCampaign = async () => {
     if (!setActiveCandidate) return
-    setBusy(true)
-    setError(null)
-    try {
-      await onSetActiveCampaign(group.id, setActiveCandidate.id)
-      setBusy(false)
-      setSetActiveCandidate(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to set active campaign.')
-      setBusy(false)
-    }
+    await runBusyAction(busySetters, () => onSetActiveCampaign(group.id, setActiveCandidate.id), {
+      fallback: 'Unable to set active campaign.',
+      onSuccess: () => setSetActiveCandidate(null),
+    })
   }
 
   const handleDeleteDraftCampaign = async () => {
     if (!deleteDraftCandidate) return
-    setBusy(true)
-    setError(null)
-    try {
-      await onDeleteDraftCampaign(group.id, deleteDraftCandidate.id)
-      setBusy(false)
-      setDeleteDraftCandidate(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to delete draft.')
-      setBusy(false)
-    }
+    await runBusyAction(busySetters, () => onDeleteDraftCampaign(group.id, deleteDraftCandidate.id), {
+      fallback: 'Unable to delete draft.',
+      onSuccess: () => setDeleteDraftCandidate(null),
+    })
   }
 
   const handleDeactivateCampaign = async () => {
     if (!deactivateCandidate) return
-    setBusy(true)
-    setError(null)
-    try {
-      await onDeactivateCampaign(group.id, deactivateCandidate.id)
-      setBusy(false)
-      setDeactivateCandidate(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to deactivate campaign.')
-      setBusy(false)
-    }
+    await runBusyAction(busySetters, () => onDeactivateCampaign(group.id, deactivateCandidate.id), {
+      fallback: 'Unable to deactivate campaign.',
+      onSuccess: () => setDeactivateCandidate(null),
+    })
   }
 
   const handleDeleteInactiveCampaign = async () => {
     if (!deleteInactiveCandidate) return
-    setBusy(true)
-    setError(null)
-    try {
-      await onDeleteInactiveCampaign(group.id, deleteInactiveCandidate.id)
-      setBusy(false)
-      setDeleteInactiveCandidate(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to delete campaign.')
-      setBusy(false)
-    }
+    await runBusyAction(busySetters, () => onDeleteInactiveCampaign(group.id, deleteInactiveCandidate.id), {
+      fallback: 'Unable to delete campaign.',
+      onSuccess: () => setDeleteInactiveCandidate(null),
+    })
   }
 
   return (
@@ -258,15 +215,10 @@ export function GroupHome({
               role="button"
               tabIndex={0}
               onClick={onOpenActiveCampaign}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  onOpenActiveCampaign()
-                }
-              }}
+              onKeyDown={(event) => activateOnEnterOrSpace(event, onOpenActiveCampaign)}
             >
               <strong>{group.activeCampaign.name}</strong>
-              <p>{(group.activeCampaign.system ?? '').toUpperCase()} · active</p>
+              <p>{campaignCardLabel(group.activeCampaign, 'active')}</p>
               <div className="group-actions group-card-actions">
                 <button
                   type="button"
@@ -310,15 +262,10 @@ export function GroupHome({
                     role="button"
                     tabIndex={0}
                     onClick={() => onOpenCampaign(campaign.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        onOpenCampaign(campaign.id)
-                      }
-                    }}
+                    onKeyDown={(event) => activateOnEnterOrSpace(event, () => onOpenCampaign(campaign.id))}
                   >
                     <strong>{campaign.name}</strong>
-                    <p>{(campaign.system ?? '').toUpperCase()} · private draft</p>
+                    <p>{campaignCardLabel(campaign, 'private draft')}</p>
                     <div className="group-actions group-card-actions">
                       <button type="button" onClick={(event) => {
                         event.stopPropagation()
@@ -365,15 +312,10 @@ export function GroupHome({
                     role="button"
                     tabIndex={0}
                     onClick={() => onOpenCampaign(campaign.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        onOpenCampaign(campaign.id)
-                      }
-                    }}
+                    onKeyDown={(event) => activateOnEnterOrSpace(event, () => onOpenCampaign(campaign.id))}
                   >
                     <strong>{campaign.name}</strong>
-                    <p>{(campaign.system ?? '').toUpperCase()} · inactive</p>
+                    <p>{campaignCardLabel(campaign, 'inactive')}</p>
                     <div className="group-actions group-card-actions">
                       <button type="button" onClick={(event) => {
                         event.stopPropagation()
@@ -690,27 +632,13 @@ type InviteRowProps = {
 
 function InviteRow({ invite, inviteUrl, copied, onCopy, onRevoke }: InviteRowProps) {
   const state = inviteState(invite)
-  const stateLabel: Record<typeof state, string> = {
-    active: copied ? 'Copied' : 'Active',
-    redeemed: 'Redeemed',
-    revoked: 'Revoked',
-    expired: 'Expired',
-  }
-  const expiresIn = (() => {
-    if (!invite.expiresAt) return ''
-    const ms = invite.expiresAt - Date.now()
-    if (ms <= 0) return ''
-    const days = Math.floor(ms / (24 * 60 * 60 * 1000))
-    if (days >= 1) return `${days}d left`
-    const hours = Math.max(1, Math.floor(ms / (60 * 60 * 1000)))
-    return `${hours}h left`
-  })()
+  const expiresIn = inviteExpiresIn(invite.expiresAt, Date.now())
 
   return (
     <div className={`invite-row invite-row-${state}`}>
       <div className="invite-row-main">
         <code className="invite-token">{invite.token.slice(0, 12)}…</code>
-        <span className={`invite-state invite-state-${state}`}>{stateLabel[state]}</span>
+        <span className={`invite-state invite-state-${state}`}>{inviteStateLabel(state, copied)}</span>
         {state === 'active' && expiresIn ? <span className="invite-expires">{expiresIn}</span> : null}
       </div>
       <div className="invite-row-actions">
