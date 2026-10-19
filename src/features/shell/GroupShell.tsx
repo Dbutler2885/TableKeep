@@ -28,7 +28,7 @@ import { useGroupAccess } from '../groups/useGroupAccess'
 import { CampaignSettingsModal } from '../campaign/CampaignSettingsModal'
 import { DemoBanner } from '../demo/DemoBanner'
 import type { GroupRecord } from '../../types/app'
-import { approvalTitle, flagSuffix, itemDisplayName, numericSuffix } from './approvalText'
+import { ApprovalPrompt } from './ApprovalPrompt'
 import { characterTabPropsFor } from './characterTabProps'
 import { campaignIds, campaignRole, campaignSystem, shellTheme } from './shellSelection'
 import { contentPanelClass } from './shellTabs'
@@ -236,145 +236,7 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
           </section>
         </div>
       )}
-      {role === 'gm' && pendingRequests.length > 0 ? (
-        <div className="confirm-overlay" role="dialog" aria-modal="true">
-          <div className="confirm-modal">
-            <h3>{approvalTitle(pendingRequests[0].action)}</h3>
-            {(() => {
-              const req = pendingRequests[0]
-              const item = req.item
-              if (req.action === 'ability_reroll') {
-                return (
-                  <>
-                    <p>
-                      <strong>{req.requestedByUsername}</strong> wants to re-roll ability scores for <strong>{req.characterName}</strong>.
-                    </p>
-                    <div className="confirm-actions">
-                      <button
-                        type="button"
-                        className="confirm-danger"
-                        disabled={approvalBusy}
-                        onClick={() => void handleReject(req)}
-                      >
-                        Reject
-                      </button>
-                      <button
-                        type="button"
-                        disabled={approvalBusy}
-                        onClick={() => void handleApprove(req)}
-                      >
-                        Approve
-                      </button>
-                    </div>
-                    {pendingRequests.length > 1 ? (
-                      <p style={{ marginTop: 8, fontSize: '0.85em', opacity: 0.7 }}>
-                        +{pendingRequests.length - 1} more pending
-                      </p>
-                    ) : null}
-                  </>
-                )
-              }
-              if (req.action === 'learn_spell') {
-                const spellNames = req.spellNames ?? []
-                return (
-                  <>
-                    <p>
-                      <strong>{req.requestedByUsername}</strong> wants to transcribe spell
-                      {spellNames.length === 1 ? '' : 's'} into <strong>{req.characterName}</strong>&apos;s spell book:
-                    </p>
-                    {spellNames.length > 0 ? (
-                      <p style={{ margin: '8px 0', fontWeight: 600 }}>{spellNames.join(', ')}</p>
-                    ) : (
-                      <p style={{ margin: '8px 0', fontWeight: 600 }}>(No spell names provided)</p>
-                    )}
-                    <div className="confirm-actions">
-                      <button
-                        type="button"
-                        className="confirm-danger"
-                        disabled={approvalBusy}
-                        onClick={() => void handleReject(req)}
-                      >
-                        Reject
-                      </button>
-                      <button
-                        type="button"
-                        disabled={approvalBusy}
-                        onClick={() => void handleApprove(req)}
-                      >
-                        Approve
-                      </button>
-                    </div>
-                    {pendingRequests.length > 1 ? (
-                      <p style={{ marginTop: 8, fontSize: '0.85em', opacity: 0.7 }}>
-                        +{pendingRequests.length - 1} more pending
-                      </p>
-                    ) : null}
-                  </>
-                )
-              }
-              if (!item) return null
-              const displayName = itemDisplayName(item)
-              return (
-                <>
-                  <p>
-                    <strong>{req.requestedByUsername}</strong> wants to {req.action === 'sell' ? 'sell' : 'add'}
-                    {' '}a <strong>{item.kind}</strong> {req.action === 'sell' ? 'from' : 'to'} <strong>{req.characterName}</strong>:
-                  </p>
-                  <p style={{ margin: '8px 0', fontWeight: 600 }}>{displayName}</p>
-                  {item.costGp > 0 ? (
-                    <p>{req.action === 'sell' ? `Sell for: ${item.costGp} gp` : `Cost: ${item.costGp} gp`}</p>
-                  ) : null}
-                  {item.kind === 'weapon' && 'damageDiceCount' in item ? (
-                    <p style={{ fontSize: '0.9em' }}>
-                      Damage: {item.damageDiceCount}d{item.damageDiceSides}
-                      {numericSuffix(item.attackBonus, ` | Atk +${item.attackBonus}`)}
-                      {numericSuffix(item.damageBonus, ` | Dmg +${item.damageBonus}`)}
-                      {numericSuffix(item.rangeShort, ` | Range ${item.rangeShort}/${item.rangeMedium}/${item.rangeLong}`)}
-                      {flagSuffix(item.twoHanded, ' | Two-handed')}
-                      {flagSuffix(item.isMagic, ' | Magic')}
-                    </p>
-                  ) : null}
-                  {item.kind === 'armour' && 'armourClass' in item ? (
-                    <p style={{ fontSize: '0.9em' }}>
-                      AC: {item.armourClass}
-                      {item.armourType === 'shield' ? ' (Shield)' : ' (Body)'}
-                      {numericSuffix(item.magicMod, ` | Magic +${item.magicMod}`)}
-                      {flagSuffix(item.isMagic, ' | Magic')}
-                    </p>
-                  ) : null}
-                  {item.kind === 'ammunition' || item.kind === 'consumable' ? (
-                    <p style={{ fontSize: '0.9em' }}>Qty: {item.qty}</p>
-                  ) : null}
-                  {item.description ? <p style={{ fontSize: '0.9em', opacity: 0.8 }}>{item.description}</p> : null}
-                  {item.notes ? <p style={{ fontSize: '0.9em', opacity: 0.8 }}>{item.notes}</p> : null}
-                  <div className="confirm-actions">
-                    <button
-                      type="button"
-                      className="confirm-danger"
-                      disabled={approvalBusy}
-                      onClick={() => void handleReject(req)}
-                    >
-                      Reject
-                    </button>
-                    <button
-                      type="button"
-                      disabled={approvalBusy}
-                      onClick={() => void handleApprove(req)}
-                    >
-                      Approve
-                    </button>
-                  </div>
-                  {pendingRequests.length > 1 ? (
-                    <p style={{ marginTop: 8, fontSize: '0.85em', opacity: 0.7 }}>
-                      +{pendingRequests.length - 1} more pending
-                    </p>
-                  ) : null}
-                </>
-              )
-            })()}
-          </div>
-        </div>
-      ) : null}
+      <ApprovalPrompt role={role} pendingRequests={pendingRequests} busy={approvalBusy} onApprove={handleApprove} onReject={handleReject} />
       {campaign && shouldShowTransferNotification ? (
         <TransferNotification
           campaignId={campaign.id}
