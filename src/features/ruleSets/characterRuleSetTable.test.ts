@@ -9,7 +9,9 @@ describe('the migration script\'s rule-set table', () => {
   it('lists every registered rule set, with the versioning the registry declares', () => {
     expect(Object.keys(characterVersioningByRuleSet).sort()).toEqual(Object.keys(ruleSets).sort())
     for (const ruleSet of Object.values(ruleSets)) {
-      expect(characterVersioningByRuleSet[ruleSet.id as keyof typeof characterVersioningByRuleSet]).toBe(ruleSet.characters)
+      const versioning = characterVersioningByRuleSet[ruleSet.id as keyof typeof characterVersioningByRuleSet]
+      expect(versioning.schemaVersion).toBe(ruleSet.characters.schemaVersion)
+      expect(versioning.migrations).toBe(ruleSet.characters.migrations)
     }
   })
 
