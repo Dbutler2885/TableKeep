@@ -23,6 +23,7 @@ describe('the migration report', () => {
       'Characters by rule set, by stored version',
       '  ose (current version 1): 4 documents; version 0: 2, version 1: 1, version unreadable: 1; 2 to convert, 1 already current',
       '  vtm (current version 1): 1 documents; version 2: 1; 0 to convert, 0 already current',
+      '  lubec (current version 1): 0 documents; none; 0 to convert, 0 already current',
       'OSE characters to convert, by old shape',
       '  old lists, no inventory: 1',
       '  old lists beside an inventory: 0',

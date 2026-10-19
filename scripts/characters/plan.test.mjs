@@ -20,6 +20,7 @@ describe('a campaign\'s rule set', () => {
   it.each([
     ['ose', 'ose', null],
     ['vtm', 'vtm', null],
+    ['lubec', 'lubec', null],
     [undefined, 'ose', 'missing'],
     [null, 'ose', 'missing'],
     ['', 'ose', 'empty'],
@@ -114,6 +115,13 @@ describe('the plan for one character', () => {
     })
     expect(planCharacter('c1', { schemaVersion: '1' }, 'ose')).toMatchObject({
       version: null, status: 'flagged', reason: 'a migration step failed: schemaVersion is not a whole number: 1',
+    })
+  })
+
+  it('leaves a current Lubec character alone, and flags one below the version Lubec is born at', () => {
+    expect(planCharacter('c1', { system: 'lubec', schemaVersion: 1 }, 'lubec')).toMatchObject({ version: 1, status: 'current' })
+    expect(planCharacter('c1', { system: 'lubec' }, 'lubec')).toEqual({
+      ruleSetId: 'lubec', version: 0, status: 'flagged', reason: 'a migration step failed: no migration step from version 0',
     })
   })
 

@@ -133,6 +133,7 @@ describe('the dry run', () => {
       'Characters by rule set, by stored version',
       '  ose (current version 1): 20 documents; version 0: 20; 20 to convert, 0 already current',
       '  vtm (current version 1): 2 documents; version 0: 2; 2 to convert, 0 already current',
+      '  lubec (current version 1): 0 documents; none; 0 to convert, 0 already current',
       'OSE characters to convert, by old shape',
       '  old lists, no inventory: 7',
       '  old lists beside an inventory: 3',

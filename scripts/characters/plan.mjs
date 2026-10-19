@@ -11,7 +11,7 @@ import {
 import { oseLegacyShapes } from '../../src/features/ruleSets/ose/legacyShapes.ts'
 
 // The old shapes the dry run counts, per rule set. Only OSE has any.
-const legacyShapes = { ose: oseLegacyShapes, vtm: () => [] }
+const legacyShapes = { ose: oseLegacyShapes, vtm: () => [], lubec: () => [] }
 
 /** The rule set a campaign's stored `system` resolves to, and how it got there. */
 export function campaignRuleSet(system) {

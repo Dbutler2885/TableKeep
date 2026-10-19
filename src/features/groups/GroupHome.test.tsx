@@ -73,6 +73,7 @@ describe('GroupHome campaign cards', () => {
   it.each([
     ['ose', 'OSE'],
     ['vtm', 'VTM'],
+    ['lubec', 'LUBEC'],
     [undefined, 'OSE'],
     ['', 'OSE'],
     ['unregistered', 'OSE'],
@@ -95,7 +96,7 @@ describe('GroupHome new-campaign picker', () => {
     return within(screen.getByRole('dialog')).getByRole('combobox') as HTMLSelectElement
   }
 
-  it('offers OSE and VtM by their full names, with OSE chosen', () => {
+  it('offers OSE and VtM by their full names, with OSE chosen, and never the hidden Lubec', () => {
     renderHome()
     const picker = openPicker()
 

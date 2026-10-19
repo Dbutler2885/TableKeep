@@ -93,6 +93,7 @@ describe('approvals', () => {
   it.each([
     ['ose', true],
     ['vtm', false],
+    ['lubec', false],
   ] as const)('%s subscribes the GM to approval requests: %s', async (system, subscribed) => {
     await openCampaign(system, 'notes')
 
@@ -102,6 +103,7 @@ describe('approvals', () => {
   it.each([
     ['ose', true],
     ['vtm', false],
+    ['lubec', false],
   ] as const)('%s shows the GM a pending approval request: %s', async (system, shown) => {
     mocks.pendingRequests = [pendingReroll]
     await openCampaign(system, 'notes')
@@ -114,6 +116,7 @@ describe('transfers', () => {
   it.each([
     ['ose', true],
     ['vtm', false],
+    ['lubec', false],
   ] as const)('%s shows the transfer notice on the character and maps tabs: %s', async (system, shown) => {
     for (const tab of ['character', 'maps'] as const) {
       await openCampaign(system, tab)
@@ -124,7 +127,7 @@ describe('transfers', () => {
 })
 
 describe('cliffhanger dialog', () => {
-  it.each(['ose', 'vtm'] as const)('%s shows the cliffhanger dialog off the notes tab', async (system) => {
+  it.each(['ose', 'vtm', 'lubec'] as const)('%s shows the cliffhanger dialog off the notes tab', async (system) => {
     await openCampaign(system, 'maps')
 
     expect(mocks.props.CliffhangerModal).toEqual({ campaignId: 'c1', groupId: 'g1', userId: GM, enabled: true })
