@@ -8,15 +8,25 @@ export type PartyCharacterEligibilityFields = {
   deleted?: boolean | null
 }
 
+// Owned by a player, never by the GM; with no GM known nobody qualifies.
+const isPlayerOwned = (character: PartyCharacterEligibilityFields, gmUserId: string | null | undefined) =>
+  Boolean(gmUserId) && Boolean(character.ownerUserId) && character.ownerUserId !== gmUserId
+
+// Finished, and neither hidden nor deleted. A character with no creation
+// status predates drafts and counts as finished.
+const isActiveAndShown = (character: PartyCharacterEligibilityFields) =>
+  (!character.creationStatus || character.creationStatus === 'active')
+  && character.hidden !== true
+  && character.deleted !== true
+
+const isAlive = (character: PartyCharacterEligibilityFields) =>
+  character.system === 'vtm'
+    ? character.incapacitated !== true
+    : typeof character.hpCurrent === 'number' && character.hpCurrent > 0
+
 export function isPlayerOwnedLivingPartyCharacter(
   character: PartyCharacterEligibilityFields,
   gmUserId: string | null | undefined,
 ): boolean {
-  if (!gmUserId) return false
-  if (!character.ownerUserId) return false
-  if (character.ownerUserId === gmUserId) return false
-  if (character.creationStatus && character.creationStatus !== 'active') return false
-  if (character.hidden === true || character.deleted === true) return false
-  if (character.system === 'vtm') return character.incapacitated !== true
-  return typeof character.hpCurrent === 'number' && character.hpCurrent > 0
+  return isPlayerOwned(character, gmUserId) && isActiveAndShown(character) && isAlive(character)
 }

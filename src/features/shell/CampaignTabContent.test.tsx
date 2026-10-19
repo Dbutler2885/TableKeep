@@ -5,7 +5,10 @@ import { cleanup, render } from '@testing-library/react'
 import type { User } from 'firebase/auth'
 import type { Campaign } from '../../types/app'
 
-const mocks = vi.hoisted(() => ({ props: {} as Record<string, Record<string, unknown>> }))
+const mocks = vi.hoisted(() => ({
+  props: {} as Record<string, Record<string, unknown>>,
+  mapRuleSet: null as unknown,
+}))
 
 function stub(name: string) {
   return function Stub(props: Record<string, unknown>) {
@@ -17,7 +20,16 @@ function stub(name: string) {
 vi.mock('../character/CharacterTab', () => ({ CharacterTab: stub('CharacterTab') }))
 vi.mock('../character/VtmCharacterTab', () => ({ VtmCharacterTab: stub('VtmCharacterTab') }))
 vi.mock('../common/RulesTab', () => ({ RulesTab: stub('RulesTab') }))
-vi.mock('../maps/MapsTab', () => ({ MapsTab: stub('MapsTab') }))
+vi.mock('../maps/MapsTab', async () => {
+  const { useMapRuleSet } = await import('../maps/mapRuleSet')
+  const MapsTab = stub('MapsTab')
+  return {
+    MapsTab: (props: Record<string, unknown>) => {
+      mocks.mapRuleSet = useMapRuleSet()
+      return MapsTab(props)
+    },
+  }
+})
 vi.mock('../monsters/MonstersTab', () => ({ MonstersTab: stub('MonstersTab') }))
 vi.mock('../items/ItemsTab', () => ({ ItemsTab: stub('ItemsTab') }))
 vi.mock('../npcs/NpcsTab', () => ({ NpcsTab: stub('NpcsTab') }))
@@ -26,6 +38,7 @@ vi.mock('../notes/NotesTab', () => ({ NotesTab: stub('NotesTab') }))
 vi.mock('../notes/CalendarTab', () => ({ CalendarTab: stub('CalendarTab') }))
 
 const { CampaignTabContent } = await import('./CampaignTabContent')
+const { ruleSets } = await import('../ruleSets/registry')
 
 const campaign: Campaign = { id: 'c1', name: 'Wyrm', status: 'active', groupId: 'g1', gmUserId: 'gm-1' }
 
@@ -43,6 +56,7 @@ const context = {
 afterEach(() => {
   cleanup()
   mocks.props = {}
+  mocks.mapRuleSet = null
 })
 
 describe('CampaignTabContent', () => {
@@ -56,5 +70,11 @@ describe('CampaignTabContent', () => {
     render(<CampaignTabContent activeTab="maps" {...context} />)
 
     expect(mocks.props.MapsTab).toMatchObject({ characterTabProps: undefined })
+  })
+
+  it.each(['ose', 'vtm'] as const)('gives everything inside the %s maps tab its rule set', (gameSystem) => {
+    render(<CampaignTabContent activeTab="maps" {...context} gameSystem={gameSystem} />)
+
+    expect(mocks.mapRuleSet).toBe(ruleSets[gameSystem])
   })
 })
