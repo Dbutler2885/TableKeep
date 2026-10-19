@@ -2,6 +2,7 @@ import { deleteDoc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { campaignDocRef, campaignUserStateRef, type CampaignScope } from '../campaign/firestorePaths'
 import { sanitizeTokenIconForPersistence } from '../common/mediaStorage'
+import { serializeVtmCharacter } from './vtmCharacterRecord'
 import type { VtmCharacterRecord } from './vtmTypes'
 
 const CHARACTER_SAVE_DELAY_MS = 500
@@ -42,23 +43,9 @@ export function sendVtmCharacterSavesNow(saves: VtmCharacterSaves) {
   })
 }
 
+/** What a save writes: the serialized record, stamped with the save time. */
 export function vtmCharacterSaveFields(character: VtmCharacterRecord) {
-  return {
-    system: 'vtm',
-    name: character.name,
-    ownerUserId: character.ownerUserId,
-    ownerUsername: character.ownerUsername ?? null,
-    creationMode: character.creationMode,
-    creationModeExplicit: character.creationModeExplicit,
-    creationStatus: character.creationStatus,
-    xp: character.xp,
-    portraitPath: character.portraitPath ?? '',
-    portraitFocusX: character.portraitFocusX,
-    portraitFocusY: character.portraitFocusY,
-    tokenIcon: sanitizeTokenIconForPersistence(character.tokenIcon),
-    vtm: JSON.parse(JSON.stringify(character.vtm)) as unknown,
-    updatedAt: serverTimestamp(),
-  }
+  return { ...serializeVtmCharacter(character), updatedAt: serverTimestamp() }
 }
 
 export function newVtmCharacterFields(character: VtmCharacterRecord) {

@@ -126,4 +126,7 @@ export type VtmCharacterRecord = {
   portraitFocusY: number
   tokenIcon: TokenIconConfig
   vtm: VtmCharacterSheet
+  // Stored top-level fields this code does not model, kept as stored so a
+  // save writes them back.
+  unknownFields?: Record<string, unknown>
 }

@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, readFile } from 'node:fs/promises'
 import process from 'node:process'
 import puppeteer, { Locator } from 'puppeteer'
 import { isExpectedFirestoreEmulatorChannelError } from './browser-smoke-errors.mjs'
@@ -12,6 +12,7 @@ import {
   seedDocument,
   toFirestoreFields,
 } from './browser-smoke-seed.mjs'
+import { reviveTimestamps } from '../src/features/ruleSets/characterFixtures.ts'
 
 const APP_URL = 'http://127.0.0.1:4173'
 const AUTH_EMULATOR_URL = 'http://127.0.0.1:9099'
@@ -430,6 +431,76 @@ async function vtmLastEditCases(browser, testCase, ids, browserErrors) {
   await run('vtm-back-button', (page) => vtmBackButtonCase(page, testCase, seeded.back))
 }
 
+// A filled-in VtM sheet, carrying fields the app does not model at the top
+// level, nested in the sheet and in a list row. Editing it in the browser must
+// store the edit and a new `updatedAt`, and leave every other field as seeded.
+const VTM_FILLED_FIXTURE_URL = new URL('../src/features/ruleSets/vtm/fixtures/filled-sheet.json', import.meta.url)
+
+// The fixture's own document, owned by the smoke's user. Its art is not in the
+// Storage emulator, so its portrait and token image paths are left out.
+export function filledVtmCharacterFields(fixtureData, { uid, username }) {
+  const fields = reviveTimestamps(fixtureData, (iso) => new Date(iso))
+  const tokenIcon = { ...fields.tokenIcon }
+  delete tokenIcon.customImagePath
+  return { ...fields, ownerUserId: uid, ownerUsername: username, portraitPath: '', tokenIcon }
+}
+
+export const withVtmConcept = (fields, concept) => ({ ...fields, vtm: { ...fields.vtm, concept } })
+
+// A stored REST value with its map keys in order and its timestamps in one
+// spelling, so it compares equal to an expected value Firestore calls equal.
+function canonicalFirestoreValue(value) {
+  if (Array.isArray(value)) return value.map(canonicalFirestoreValue)
+  if (value === null || typeof value !== 'object') return value
+  if (typeof value.timestampValue === 'string') return { timestampValue: new Date(value.timestampValue).toISOString() }
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalFirestoreValue(value[key])]))
+}
+
+const sameFirestoreValue = (a, b) =>
+  JSON.stringify(canonicalFirestoreValue(a)) === JSON.stringify(canonicalFirestoreValue(b))
+
+// The top-level fields, in the REST shape, where `stored` differs from `expected`.
+export function changedFirestoreFields(stored, expected) {
+  const keys = [...new Set([...Object.keys(stored), ...Object.keys(expected)])]
+  return keys.filter((key) => !sameFirestoreValue(stored[key], expected[key])).sort()
+}
+
+async function seedFilledVtmCampaign({ uid, groupId, testCase }) {
+  const fixture = JSON.parse(await readFile(VTM_FILLED_FIXTURE_URL, 'utf8'))
+  const campaignName = `${testCase.label} VtM Filled Sheet`
+  const campaignId = await seedCampaign({ groupId, gmUserId: uid, fields: { name: campaignName, system: 'vtm' } })
+  const fields = filledVtmCharacterFields(fixture.data, { uid, username: testCase.username })
+  await seedCharacter({ groupId, campaignId, characterId: fixture.id, fields })
+  const path = characterPath({ groupId, campaignId, characterId: fixture.id })
+  return { campaignId, campaignName, characterName: fields.name, concept: fields.vtm.concept, fields, path }
+}
+
+async function expectOnlyEditStored(seeded, concept) {
+  const expected = toFirestoreFields(withVtmConcept(seeded.fields, concept))
+  const changed = changedFirestoreFields(await readDocumentFields(seeded.path), expected)
+  if (changed.join() !== 'updatedAt') {
+    throw new Error(`Expected only the edit and updatedAt to change, but these differ: ${changed.join(', ')}.`)
+  }
+}
+
+async function vtmEditKeepsFieldsCase(page, seeded) {
+  const edited = `${seeded.concept}, edited`
+  await step('open the filled-in VtM campaign', () => openCampaignCard(page, seeded.campaignName))
+  await step('edit the VtM Concept', () => editVtmConcept(page, seeded))
+  await settle()
+  await step('see the edit after a reload', async () => {
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await expectVtmConcept(page, seeded.characterName, edited)
+  })
+  await step('see every other stored field as seeded', () => expectOnlyEditStored(seeded, edited))
+}
+
+async function vtmEditKeepsFieldsCases(browser, testCase, ids, browserErrors) {
+  const seeded = await seedFilledVtmCampaign({ ...ids, testCase })
+  const session = { testCase, groupId: ids.groupId, browserErrors }
+  await inSignedInPage(browser, session, 'vtm-edit-keeps-fields', (page) => vtmEditKeepsFieldsCase(page, seeded))
+}
+
 // An OSE sheet saves 500 ms after the last keystroke too, but the hook that
 // saves sits above the sheet, so the cases also cover the page being hidden.
 const OSE_SHARED_CHARACTER_ID = 'smoke-shared-fighter'
@@ -772,6 +843,7 @@ async function runViewport(browser, testCase) {
     const groupId = groupIdFromUrl(page)
     await openCampaignCases(page, testCase, { uid, groupId })
     await vtmLastEditCases(browser, testCase, { uid, groupId }, browserErrors)
+    await vtmEditKeepsFieldsCases(browser, testCase, { uid, groupId }, browserErrors)
     await oseLastEditCases(browser, testCase, { uid, groupId }, browserErrors)
     await wanderingMonsterCases(browser, testCase, { uid, groupId }, browserErrors)
     await new Promise((resolve) => setTimeout(resolve, 500))
@@ -785,6 +857,7 @@ async function runViewport(browser, testCase) {
       + 'opened a seeded character, and opened the character tab of a new '
       + `${ruleSetCampaigns.map((ruleSet) => ruleSet.label).join(' and a new ')} campaign, `
       + 'and kept a VtM edit made just before leaving the sheet or switching campaign, '
+      + 'and saved a VtM edit leaving every other stored field of a filled-in sheet as it was, '
       + 'and an OSE edit made just before opening Notes, hiding the page or switching campaign, '
       + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map.',
     )
