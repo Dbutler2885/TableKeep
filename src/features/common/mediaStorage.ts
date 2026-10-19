@@ -2,7 +2,8 @@ import { onAuthStateChanged } from 'firebase/auth'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { auth, storage } from '../../firebase'
 import { normalizeImageForUpload } from './imageNormalization'
-import type { TokenIconConfig } from '../tokens/TokenIconEditor'
+
+export { isRenderableImageUrl, sanitizeTokenIconForPersistence } from './mediaFields'
 
 /**
  * The authority a non-GM upload acts under, sent as the object's
@@ -46,8 +47,6 @@ export const entityMediaStoragePath = ({ groupId, campaignId, collectionName, en
   ? `groups/${groupId}/campaigns/${campaignId}/${collectionName}/${entityId}/${mediaKind}/${timestamp}-${fileName}`
   : `campaigns/${campaignId}/${collectionName}/${entityId}/${mediaKind}/${timestamp}-${fileName}`
 
-export const isRenderableImageUrl = (value: string | null | undefined) =>
-  typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://') || value.startsWith('data:'))
 
 let authReadyPromise: Promise<void> | null = null
 const storageUrlCache = new Map<string, Promise<string | null>>()
@@ -144,10 +143,4 @@ export const uploadEntityImage = async ({
     height: normalized.height,
     name: file.name.replace(/\.[^/.]+$/, ''),
   }
-}
-
-export const sanitizeTokenIconForPersistence = (tokenIcon: TokenIconConfig): TokenIconConfig => {
-  const persisted = { ...tokenIcon }
-  delete persisted.customImageUrl
-  return persisted
 }

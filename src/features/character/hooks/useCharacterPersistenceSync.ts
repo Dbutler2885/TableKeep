@@ -2,7 +2,7 @@
 // Declare this hook before all derived-state hooks and before the orchestrator's justSeeded clearing effect.
 
 import { useEffect, useEffectEvent, useRef } from 'react'
-import type { CharacterRecord, CharacterSheetDetails, CharacterInventoryItem } from '../../../types/app'
+import type { CharacterRecord } from '../../../types/app'
 import {
   markLocalDetailsDirty,
   markLocalInventoriesDirty,
@@ -17,7 +17,6 @@ type Params = {
   characters: CharacterRecord[]
   hasPendingWrite: (id: string) => boolean
   updateCharacter: (characterId: string, updates: Partial<CharacterRecord>) => void
-  migrateToInventory: (details: CharacterSheetDetails) => CharacterInventoryItem[]
   stateMaps: StateMaps
   stateSetters: StateSetters
 }
@@ -27,7 +26,6 @@ export function useCharacterPersistenceSync({
   characters,
   hasPendingWrite,
   updateCharacter,
-  migrateToInventory,
   stateMaps,
   stateSetters,
 }: Params) {
@@ -84,7 +82,7 @@ export function useCharacterPersistenceSync({
 
   // Seed local state from Firestore details when characters load
   const syncFromStore = useEffectEvent(() =>
-    syncCharactersFromStore(characters, { hasPendingWrite, migrateToInventory, setters: stateSetters, refs }))
+    syncCharactersFromStore(characters, { hasPendingWrite, setters: stateSetters, refs }))
   useEffect(() => {
     syncFromStore()
   }, [characters, hasPendingWrite])

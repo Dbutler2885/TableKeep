@@ -2,7 +2,7 @@ import { deleteDoc, deleteField, serverTimestamp, setDoc } from 'firebase/firest
 import { db } from '../../../firebase'
 import type { CharacterRecord } from '../../../types/app'
 import { campaignDocRef, campaignUserStateRef, type CampaignScope } from '../../campaign/firestorePaths'
-import { sanitizeTokenIconForPersistence } from '../../common/mediaStorage'
+import { serializeOseCharacter } from './storedCharacterRecord'
 
 const CHARACTER_SAVE_DELAY_MS = 500
 
@@ -52,25 +52,10 @@ export function cancelCharacterSave(saves: CharacterSaves, characterId: string) 
   delete saves.inFlight[characterId]
 }
 
+/** What a save writes: the serialized record, without the retired AC override, stamped with the save time. */
 export function characterSaveFields(character: CharacterRecord): Record<string, unknown> {
   return {
-    name: character.name,
-    ownerUserId: character.ownerUserId,
-    ownerUsername: character.ownerUsername ?? null,
-    creationMode: character.creationMode,
-    creationModeExplicit: character.creationModeExplicit,
-    creationStatus: character.creationStatus,
-    class: character.className,
-    level: character.level,
-    hpCurrent: character.hpCurrent,
-    hpMax: character.hpMax,
-    ac: character.ac,
-    xp: character.xp,
-    portraitPath: character.portraitPath ?? '',
-    portraitFocusX: character.portraitFocusX,
-    portraitFocusY: character.portraitFocusY,
-    tokenIcon: sanitizeTokenIconForPersistence(character.tokenIcon),
-    details: character.details ? JSON.parse(JSON.stringify(character.details)) : null,
+    ...serializeOseCharacter(character),
     'details.acManualOverride': deleteField(),
     updatedAt: serverTimestamp(),
   }

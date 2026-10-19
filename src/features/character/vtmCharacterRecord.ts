@@ -1,7 +1,7 @@
 import type { TokenIconConfig } from '../../types/app'
-import { isRenderableImageUrl, sanitizeTokenIconForPersistence } from '../common/mediaStorage'
+import { isRenderableImageUrl, sanitizeTokenIconForPersistence } from '../common/mediaFields'
+import { vtmCharacterVersioning } from '../ruleSets/characterMigrations'
 import { fieldsOutside, readStoredCharacter, type CharacterParser } from '../ruleSets/characterParser'
-import { ruleSets } from '../ruleSets/registry'
 import { defaultVtmSheet, defaultVtmTokenIcon } from './vtmDefaults'
 import type { VtmCharacterRecord, VtmCharacterSheet } from './vtmTypes'
 
@@ -178,5 +178,5 @@ export function readVtmCharacterDoc(
   local: VtmCharacterRecord | undefined,
 ): VtmCharacterRecord | null {
   if (data.system !== 'vtm') return null
-  return withLocalMedia(readStoredCharacter(ruleSets.vtm.characters, vtmCharacterParser, id, data), local)
+  return withLocalMedia(readStoredCharacter(vtmCharacterVersioning, vtmCharacterParser, id, data), local)
 }

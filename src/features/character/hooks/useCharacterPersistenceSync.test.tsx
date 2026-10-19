@@ -2,7 +2,8 @@
 /**
  * How the OSE sheet seeds its local state from stored characters, takes in
  * other people's edits, and writes local edits back, recorded before the
- * hook was split into small pieces.
+ * hook was split into small pieces. Since OSE's step took over converting
+ * old-format sheets and adding missing spell books, hydration does neither.
  */
 import { useEffect } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -10,12 +11,8 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import type { CharacterInventoryItem, CharacterRecord, CharacterSheetDetails } from '../../../types/app'
 import { emptyAbilityScores } from '../characterRules'
 import { stableStringify } from '../characterFactories'
-import { migrateToInventory } from '../lib/legacyCharacterMigration'
 import { useCharacterSheetState } from './useCharacterSheetState'
 import { useCharacterPersistenceSync } from './useCharacterPersistenceSync'
-
-// The legacy item migration reaches the Firebase singleton through the item hooks.
-vi.mock('../../../firebase', () => ({ db: { name: 'db-stub' } }))
 
 type Props = {
   selectedCharacterId: string
@@ -30,7 +27,7 @@ type SheetMaps = ReturnType<typeof useCharacterSheetState>['stateMaps']
 /** The sheet as CharacterTab wires it: sheet state, then persistence, then its justSeeded clearing effect. */
 function useSheetWithPersistence({ clearJustSeeded, ...params }: Props) {
   const { stateMaps, stateSetters } = useCharacterSheetState()
-  const sync = useCharacterPersistenceSync({ ...params, migrateToInventory, stateMaps, stateSetters })
+  const sync = useCharacterPersistenceSync({ ...params, stateMaps, stateSetters })
   const { justSeededRef } = sync
   useEffect(() => {
     if (!clearJustSeeded || !params.selectedCharacterId) return
@@ -193,20 +190,17 @@ describe('seeding a character the first time it loads', () => {
     })
   })
 
-  it('turns an old-format character\'s weapon list into items', () => {
+  // OSE's step turns an old-format sheet into items and gives an arcane caster
+  // its spell book before the sheet reads a character; hydration does neither.
+  it('converts no old-format weapon list, and shows the sheet without items', () => {
     const weapons = [{ id: 'w1', weaponId: 'sword', name: 'Sword', isMagic: false, damageDiceCount: '1', damageDiceSides: '8', bonus: '', rangeShort: '', rangeMedium: '', rangeLong: '', twoHanded: false, equipped: true, notes: '' }]
     const { result } = renderSheet({ characters: [character('a', { weapons } as Partial<CharacterSheetDetails>)] })
-    expect(result.current.stateMaps.inventoryByCharacterId.a).toEqual([
-      expect.objectContaining({ id: 'w1', kind: 'weapon', name: 'Sword', typeId: 'sword', equipped: true }),
-    ])
+    expect(result.current.stateMaps.inventoryByCharacterId.a).toEqual([])
   })
 
-  it('adds a missing spell book to an arcane caster', () => {
+  it('adds no spell book to an arcane caster', () => {
     const { result } = renderSheet({ characters: [character('a', { ...fullDetails(), inventory: [rope] }, 'Magic-User')] })
-    expect(result.current.stateMaps.inventoryByCharacterId.a).toEqual([
-      rope,
-      expect.objectContaining({ kind: 'general', typeId: 'spell-book' }),
-    ])
+    expect(result.current.stateMaps.inventoryByCharacterId.a).toEqual([rope])
   })
 
   it('keeps an arcane caster\'s spell book as stored', () => {
@@ -265,15 +259,13 @@ describe('writing local edits', () => {
     expect(updateCharacter).toHaveBeenCalledWith('a', { details: { ...defaultDetails(), title: 'Hero' } })
   })
 
-  it('writes an arcane caster\'s added spell book with the first edit after the caster is opened', () => {
+  it('writes an arcane caster\'s items as stored with the first edit after the caster is opened', () => {
     const { result, rerender, updateCharacter } = renderSheet({ characters: [character('a', fullDetails(), 'Magic-User')] })
     rerender({ selectedCharacterId: 'a' })
     expect(updateCharacter).not.toHaveBeenCalled()
     act(() => result.current.stateSetters.setTitleByCharacterId((prev) => ({ ...prev, a: 'Hero' })))
     expect(updateCharacter).toHaveBeenCalledTimes(1)
-    const healed = result.current.stateMaps.inventoryByCharacterId.a
-    expect(healed).toEqual([rope, expect.objectContaining({ typeId: 'spell-book' })])
-    expect(updateCharacter).toHaveBeenCalledWith('a', { details: { ...fullDetails(), title: 'Hero', inventory: healed } })
+    expect(updateCharacter).toHaveBeenCalledWith('a', { details: { ...fullDetails(), title: 'Hero' } })
   })
 
   it('does not write while the open character is still marked just seeded', () => {
@@ -475,15 +467,13 @@ describe('taking in another person\'s items', () => {
     expect(result.current.stateMaps.inventoryByCharacterId.a).toEqual([rope, torch])
   })
 
-  it('turns an incoming old-format sheet into items', () => {
+  it('converts no incoming old-format sheet, and takes it in as having no items', () => {
     const { result, rerender } = renderSheet({ characters: [character('a', fullDetails())] })
     const armour = [{ id: 'ar1', armourId: 'chain', name: 'Chain mail', isMagic: false, ac: '5', bonus: '', equipped: true, notes: '' }]
     const legacy = { ...fullDetails(), armour } as Partial<CharacterSheetDetails>
     delete legacy.inventory
     rerender({ characters: [character('a', legacy)] })
-    expect(result.current.stateMaps.inventoryByCharacterId.a).toEqual([
-      expect.objectContaining({ id: 'ar1', kind: 'armour', name: 'Chain mail', typeId: 'chain' }),
-    ])
+    expect(result.current.stateMaps.inventoryByCharacterId.a).toEqual([])
   })
 
   it('keeps unsaved local items on a character that is not open', () => {
@@ -502,11 +492,10 @@ describe('taking in another person\'s items', () => {
     expect(result.current.stateMaps.inventoryByCharacterId.a).toEqual([rope, torch])
   })
 
-  it('keeps an added spell book over unchanged incoming items until the caster is saved', () => {
+  it('takes in an arcane caster\'s changed items, having added nothing to them locally', () => {
     const { result, rerender } = renderSheet({ characters: [character('a', fullDetails(), 'Magic-User')] })
-    const healed = result.current.stateMaps.inventoryByCharacterId.a
     rerender({ characters: [character('a', { ...fullDetails(), inventory: [rope, torch] }, 'Magic-User')] })
-    expect(result.current.stateMaps.inventoryByCharacterId.a).toBe(healed)
+    expect(result.current.stateMaps.inventoryByCharacterId.a).toEqual([rope, torch])
   })
 
   it('takes in the items of a character first stored without a sheet', () => {

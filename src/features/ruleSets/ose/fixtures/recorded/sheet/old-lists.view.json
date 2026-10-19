@@ -61,17 +61,20 @@
     },
     "inventory": [
       {
-        "id": "w1",
+        "unknownRowField": "kept on the weapon row",
         "kind": "weapon",
         "costGp": 0,
-        "equipped": true,
-        "notes": "",
-        "typeId": "sword",
-        "typeName": "",
         "qty": 1,
         "stack": {
           "stackable": false
         },
+        "slow": false,
+        "weaponEffects": [],
+        "weaponRollTables": [],
+        "id": "w1",
+        "name": "Sword",
+        "typeId": "sword",
+        "typeName": "",
         "isMagic": false,
         "damageDiceCount": "1",
         "damageDiceSides": "8",
@@ -80,24 +83,24 @@
         "rangeShort": "",
         "rangeMedium": "",
         "rangeLong": "",
-        "slow": false,
         "twoHanded": false,
-        "weaponEffects": [],
-        "weaponRollTables": [],
-        "name": "Sword"
+        "equipped": true,
+        "notes": ""
       },
       {
-        "id": "new-id-1",
         "kind": "weapon",
         "costGp": 0,
-        "equipped": false,
-        "notes": "found in the crypt",
-        "typeId": "custom",
-        "typeName": "",
         "qty": 1,
         "stack": {
           "stackable": false
         },
+        "slow": false,
+        "weaponEffects": [],
+        "weaponRollTables": [],
+        "id": "new-id-1",
+        "name": "Odd blade",
+        "typeId": "custom",
+        "typeName": "",
         "isMagic": true,
         "damageDiceCount": "1",
         "damageDiceSides": "8",
@@ -106,85 +109,84 @@
         "rangeShort": "",
         "rangeMedium": "",
         "rangeLong": "",
-        "slow": false,
         "twoHanded": false,
-        "weaponEffects": [],
-        "weaponRollTables": [],
-        "name": "Odd blade"
+        "equipped": false,
+        "notes": "found in the crypt"
       },
       {
-        "id": "w3",
         "kind": "weapon",
         "costGp": 0,
-        "equipped": false,
-        "typeId": "sling",
-        "typeName": "",
         "qty": 1,
         "stack": {
           "stackable": false
         },
-        "damageBonus": "",
         "slow": false,
         "weaponEffects": [],
         "weaponRollTables": [],
-        "name": "Sling"
+        "id": "w3",
+        "name": "Sling",
+        "typeId": "sling",
+        "typeName": "",
+        "damageBonus": "",
+        "equipped": false
       },
       {
-        "id": "a1",
+        "unknownRowField": "kept on the armour row",
         "kind": "armour",
         "costGp": 0,
-        "equipped": true,
-        "notes": "",
-        "typeId": "shield",
-        "typeName": "",
         "qty": 1,
         "stack": {
           "stackable": false
         },
+        "armourType": "body",
+        "id": "a1",
+        "name": "Shield",
+        "typeId": "shield",
+        "typeName": "",
         "isMagic": false,
         "armourClass": "",
         "shieldMod": "-1",
         "magicMod": "",
-        "armourType": "body",
-        "name": "Shield"
+        "equipped": true,
+        "notes": ""
       },
       {
-        "id": "a2",
         "kind": "armour",
         "costGp": 0,
-        "equipped": true,
-        "notes": "",
-        "typeId": "plate-mail",
-        "typeName": "",
         "qty": 1,
         "stack": {
           "stackable": false
         },
+        "armourType": "body",
+        "id": "a2",
+        "name": "Plate",
+        "typeId": "plate-mail",
+        "typeName": "",
         "isMagic": true,
         "armourClass": "3",
         "shieldMod": "",
         "magicMod": "+1",
-        "armourType": "body",
-        "name": "Plate"
+        "equipped": true,
+        "notes": ""
       },
       {
-        "id": "new-id-2",
         "kind": "armour",
         "costGp": 0,
-        "equipped": false,
-        "notes": "",
-        "typeId": "custom",
-        "typeName": "",
         "qty": 1,
         "stack": {
           "stackable": false
         },
+        "armourType": "body",
+        "id": "new-id-2",
+        "name": "Old leather",
+        "typeId": "custom",
+        "typeName": "",
         "isMagic": false,
         "armourClass": "",
         "shieldMod": "",
         "magicMod": "",
-        "armourType": "body",
-        "name": "Old leather"
+        "equipped": false,
+        "notes": ""
       }
     ]
   }

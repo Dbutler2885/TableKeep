@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { readVtmCharacterDoc, vtmCharacterParser } from '../../character/vtmCharacterRecord'
 import { vtmCharacterSaveFields } from '../../character/vtmCharacterWrites'
 import { markTimestamps, reviveTimestamps, type CharacterFixture } from '../characterFixtures'
-import { readStoredCharacter } from '../characterParser'
+import { readCharacter, readStoredCharacter } from '../characterParser'
 import { ruleSets } from '../registry'
 import type { StoredCharacter } from '../storedCharacter'
 import filledSheet from './fixtures/filled-sheet.json'
@@ -136,7 +136,7 @@ describe('VtM character parser', () => {
   })
 })
 
-describe('readStoredCharacter', () => {
+describe('reading a stored character', () => {
   it('parses what the rule set\'s steps make of the stored document', () => {
     const versioning = {
       schemaVersion: 2,
@@ -152,5 +152,17 @@ describe('readStoredCharacter', () => {
       stored: { name: 'Edda', schemaVersion: 2, first: true, second: true },
     })
     expect(readStoredCharacter(versioning, parser, 'a', { schemaVersion: 3 })).toEqual({ id: 'a', stored: { schemaVersion: 3 } })
+  })
+
+  it('keeps the document as the steps left it beside the record', () => {
+    const versioning = { schemaVersion: 1, migrations: [(document: StoredCharacter) => ({ ...document, schemaVersion: 1 })] }
+    const parser = { parse: (id: string, stored: StoredCharacter) => ({ id, name: stored.name }), serialize: () => ({}) }
+    const raw = { name: 'Edda', hp: 3 }
+
+    expect(readCharacter(versioning, parser, 'a', raw)).toEqual({
+      stored: { name: 'Edda', hp: 3, schemaVersion: 1 },
+      record: { id: 'a', name: 'Edda' },
+    })
+    expect(raw).toEqual({ name: 'Edda', hp: 3 })
   })
 })

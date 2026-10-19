@@ -1,25 +1,21 @@
-import type { CharacterRecord, Role } from '../../../types/app'
+import type { Role } from '../../../types/app'
+import { oseCharacterVersioning } from '../../ruleSets/characterMigrations'
+import { readStoredCharacter } from '../../ruleSets/characterParser'
 import type { CampaignPlayerOption, TransferTargetCharacter } from './characterTabTypes'
+import { oseCharacterParser, type StoredCharacterFields } from './storedCharacterRecord'
 
 type StoredCharacterDoc = { id: string; data: () => unknown }
 
-type StoredDirectoryFields = {
-  name?: string
-  ownerUserId?: string
-  ownerUsername?: string | null
-  details?: CharacterRecord['details']
-}
-
-/** A stored character as the campaign directory lists it. */
+/**
+ * A stored character as the campaign directory lists it. OSE's steps bring it
+ * up to the current version and its parser reads it, so an old-format sheet is
+ * listed with the items the sheet shows. Nothing is written because of a read.
+ */
 export function transferTargetFromDoc(docSnap: StoredCharacterDoc): TransferTargetCharacter {
-  const data = docSnap.data() as StoredDirectoryFields
-  return {
-    id: docSnap.id,
-    name: data.name ?? docSnap.id,
-    ownerUserId: data.ownerUserId ?? '',
-    ownerUsername: typeof data.ownerUsername === 'string' ? data.ownerUsername : null,
-    details: data.details ?? null,
-  }
+  const data = docSnap.data() as StoredCharacterFields
+  const { id, name, ownerUserId, ownerUsername, details } =
+    readStoredCharacter(oseCharacterVersioning, oseCharacterParser, docSnap.id, data)
+  return { id, name, ownerUserId, ownerUsername, details }
 }
 
 /** The GM sees every character; anyone else does not see the GM's own. */

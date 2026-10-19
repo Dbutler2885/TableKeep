@@ -1,6 +1,8 @@
 import type { AppTab, ItemApprovalAction } from '../../types/app'
 import { OSE_STORE_ITEMS } from '../character/storeCatalog'
 import { oseMonsterRuleset, type MonsterRulesetDef } from '../monsters/rulesets'
+import { oseCharacterParser } from '../character/lib/storedCharacterRecord'
+import { vtmCharacterParser } from '../character/vtmCharacterRecord'
 import type { CharacterSummaryReader } from './characterIdentity'
 import {
   lubecCharacterVersioning,
@@ -8,6 +10,8 @@ import {
   vtmCharacterVersioning,
   type CharacterVersioning,
 } from './characterMigrations'
+import type { CharacterParser } from './characterParser'
+import { lubecCharacterParser } from './lubec/characterParser'
 import { lubecCharacterSummary } from './lubec/characterSummary'
 import { oseCharacterSummary } from './ose/characterSummary'
 import { vtmCharacterSummary } from './vtm/characterSummary'
@@ -49,6 +53,9 @@ export type RuleSetCharacters = CharacterVersioning & {
   // What the map shows of a character: its creation status and whether it is
   // in play.
   summary: CharacterSummaryReader
+  // How a stored character at the current version is read into the rule
+  // set's record, and how a save writes that record back.
+  parser: CharacterParser<unknown>
 }
 
 export type RuleSetMapRules = {
@@ -85,7 +92,8 @@ export type RuleSetDefinition<Id extends RuleSetId = RuleSetId> = {
   transfers: boolean
   shell: RuleSetShell
   // The version its characters are written at, the steps that bring an older
-  // stored character up to it, and what the map shows of one.
+  // stored character up to it, how one is read and written, and what the map
+  // shows of one.
   characters: RuleSetCharacters
   mapRules: RuleSetMapRules
   // The stock items the rule set offers, if it has any.
@@ -114,7 +122,7 @@ export const oseRuleSet = {
   approvals: ['create', 'sell', 'learn_spell', 'ability_reroll'],
   transfers: true,
   shell: { campaignStrip: false },
-  characters: { ...oseCharacterVersioning, summary: oseCharacterSummary },
+  characters: { ...oseCharacterVersioning, summary: oseCharacterSummary, parser: oseCharacterParser },
   mapRules: { wanderingMonsters: true },
   // The store's list.
   catalog: OSE_STORE_ITEMS,
@@ -140,7 +148,7 @@ export const ruleSets: RuleSetRegistry = {
     approvals: [],
     transfers: false,
     shell: { campaignStrip: false },
-    characters: { ...vtmCharacterVersioning, summary: vtmCharacterSummary },
+    characters: { ...vtmCharacterVersioning, summary: vtmCharacterSummary, parser: vtmCharacterParser },
     // The OSE wandering-monster check never belonged in VtM.
     mapRules: { wanderingMonsters: false },
   },
@@ -162,7 +170,7 @@ export const ruleSets: RuleSetRegistry = {
     approvals: [],
     transfers: false,
     shell: { campaignStrip: false },
-    characters: { ...lubecCharacterVersioning, summary: lubecCharacterSummary },
+    characters: { ...lubecCharacterVersioning, summary: lubecCharacterSummary, parser: lubecCharacterParser },
     mapRules: { wanderingMonsters: false },
   },
 }

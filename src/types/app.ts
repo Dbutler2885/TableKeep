@@ -491,4 +491,6 @@ export type CharacterRecord = {
   portraitFocusY: number
   tokenIcon: TokenIconConfig
   details?: CharacterSheetDetails | null
+  // Stored top-level fields the record does not model, written back as they were.
+  unknownFields?: Record<string, unknown>
 }

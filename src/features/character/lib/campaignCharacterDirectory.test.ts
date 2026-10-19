@@ -15,14 +15,23 @@ const target = (id: string, ownerUserId: string, ownerUsername: string | null = 
 
 describe('transferTargetFromDoc', () => {
   it('lists a stored character by its name, owner and sheet', () => {
-    const details = { thaco: '19' } as CharacterSheetDetails
-    expect(transferTargetFromDoc(doc('a', { name: 'Aldric', ownerUserId: 'p1', ownerUsername: 'pip', details, hpCurrent: 4 }))).toEqual({
+    const details = { thaco: '19', inventory: [] } as unknown as CharacterSheetDetails
+    expect(transferTargetFromDoc(doc('a', { name: 'Aldric', ownerUserId: 'p1', ownerUsername: 'pip', details, hpCurrent: 4, schemaVersion: 1 }))).toEqual({
       id: 'a',
       name: 'Aldric',
       ownerUserId: 'p1',
       ownerUsername: 'pip',
       details,
     })
+  })
+
+  it('lists an old-format sheet with the items OSE\'s step makes of it', () => {
+    const details = { thaco: '19', packedItems: ['Rope'], acManualOverride: 4 }
+    expect(transferTargetFromDoc(doc('a', { name: 'Aldric', details })).details).toEqual({
+      thaco: '19',
+      inventory: [expect.objectContaining({ id: 'legacy-a-packedItems-0', kind: 'general', name: 'Rope' })],
+    })
+    expect(details).toEqual({ thaco: '19', packedItems: ['Rope'], acManualOverride: 4 })
   })
 
   it('names a character without a name by its id, with no owner and no sheet', () => {

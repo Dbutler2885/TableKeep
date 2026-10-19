@@ -1,21 +1,22 @@
 /**
  * How the OSE sheet and the map read a stored character, and what a save
  * leaves stored, recorded on the checked-in OSE fixtures before the reading
- * moved onto OSE's steps and parser.
+ * moved onto OSE's steps and parser, and kept since.
  *
- * Today's sheet converts an old-format character and heals a missing spell
- * book while hydrating, and gives each new row a random id. A recorded sheet
- * view therefore names an id the stored document did not carry by its place
- * among the new ids, so the same items read the same whichever code made them.
+ * Before the move the sheet converted an old-format character and healed a
+ * missing spell book while hydrating, giving each new row a random id; OSE's
+ * step now does both, with stable ids. A recorded sheet view therefore names
+ * an id the stored document did not carry by its place among the new ids, so
+ * the same items read the same whichever code made them. The only change the
+ * move made to a recorded view is that a converted weapon or armour row now
+ * keeps its unknown fields, which the old conversion dropped.
  */
 import { Timestamp } from 'firebase/firestore'
 import { describe, expect, it, vi } from 'vitest'
 import type { CharacterInventoryItem, CharacterRecord } from '../../../types/app'
-import { ensureSpellBookInInventory } from '../../character/characterFactories'
-import { inventoryFromDetails } from '../../character/inventorySync'
+import { seedInventoryFromDetails } from '../../character/inventoryHydration'
 import { readCharacterSnapshot } from '../../character/lib/characterSnapshot'
 import { characterSaveFields, emptyCharacterSaves } from '../../character/lib/characterWrites'
-import { migrateToInventory } from '../../character/lib/legacyCharacterMigration'
 import { mapCharacterSummaryFromData } from '../../maps/lib/mapCharacterSummary'
 import { markTimestamps, reviveTimestamps, type CharacterFixture } from '../characterFixtures'
 import type { StoredCharacter } from '../storedCharacter'
@@ -65,10 +66,8 @@ const sheetRecord = ({ id, data }: CharacterFixture): CharacterRecord =>
   readCharacterSnapshot([{ id, data: () => data }], emptyCharacterSaves(), [], VIEWER)[0]
 
 /** The items the sheet hydrates for a record. */
-const sheetInventory = (record: CharacterRecord): CharacterInventoryItem[] =>
-  record.details
-    ? ensureSpellBookInInventory(record.className, inventoryFromDetails(record.details, migrateToInventory))
-    : []
+const sheetInventory = (record: Pick<CharacterRecord, 'details'>): CharacterInventoryItem[] =>
+  record.details ? seedInventoryFromDetails(record.details).inventory : []
 
 const isMap = (value: unknown): value is Fields =>
   typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Timestamp)
@@ -94,7 +93,8 @@ function withNewIdsNamed(items: CharacterInventoryItem[], stored: StoredCharacte
  * fields it never shows left out, and the items it hydrates.
  */
 function sheetView(fixture: CharacterFixture) {
-  const record = sheetRecord(fixture)
+  // Fields a save writes back without reading them are recorded by the saved-document case.
+  const { unknownFields: _unknownFields, ...record } = sheetRecord(fixture)
   if (!record.details) return record
   const details: Fields = { ...record.details }
   LEGACY_LIST_FIELDS.forEach((field) => delete details[field])

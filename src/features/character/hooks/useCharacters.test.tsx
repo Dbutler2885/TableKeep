@@ -434,14 +434,23 @@ describe('useCharacters stored records', () => {
     expect(result.current.characters[0]).toMatchObject(expected)
   })
 
-  it('copies stored sheet details without the retired AC override', () => {
+  it('reads stored sheet details through OSE\'s step, without the retired AC override', () => {
     const { result } = renderCharacters()
     const details = { notes: 'Brave', acManualOverride: 4, abilities: { str: 12 } }
 
     emitCharacters([ownDoc('a', { details })])
 
-    expect(result.current.characters[0].details).toEqual({ notes: 'Brave', abilities: { str: 12 } })
+    // An unversioned sheet with no items and no old lists gets an empty inventory from the step.
+    expect(result.current.characters[0].details).toEqual({ notes: 'Brave', abilities: { str: 12 }, inventory: [] })
     expect(details.acManualOverride).toBe(4)
+  })
+
+  it('reads a sheet already at the current version as stored', () => {
+    const { result } = renderCharacters()
+
+    emitCharacters([ownDoc('a', { schemaVersion: 1, details: { notes: 'Brave' } })])
+
+    expect(result.current.characters[0].details).toEqual({ notes: 'Brave' })
   })
 
   it.each([

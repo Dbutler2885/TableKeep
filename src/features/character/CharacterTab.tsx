@@ -45,7 +45,6 @@ import { CharacterSheetNavigation } from './components/CharacterSheetNavigation'
 import { ItemInteractionDialogs } from './components/ItemInteractionDialogs'
 import { CharacterWorkflowDialogs } from './components/CharacterWorkflowDialogs'
 import { SpellbookModals } from './components/SpellbookModals'
-import { migrateToInventory } from './lib/legacyCharacterMigration'
 import { canDeleteCharacterForRole, deriveCharacterPermissions } from './lib/characterPermissions'
 import {
   applyPlayerAddTemplate as applyPlayerAddTemplateState,
@@ -140,7 +139,6 @@ export function CharacterTab({
     characters,
     hasPendingWrite,
     updateCharacter,
-    migrateToInventory,
     stateMaps,
     stateSetters,
   })

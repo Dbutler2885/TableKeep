@@ -7,7 +7,9 @@
 import { describe, expect, it } from 'vitest'
 import type { AppTab, Campaign } from '../../types/app'
 import { campaignSettingsTabs } from '../campaign/campaignTabSettings'
+import { oseCharacterParser } from '../character/lib/storedCharacterRecord'
 import { OSE_STORE_ITEMS } from '../character/storeCatalog'
+import { vtmCharacterParser } from '../character/vtmCharacterRecord'
 import { campaignCardLabel } from '../groups/groupHomeCampaigns'
 import { mapCharacterSummaryFromData } from '../maps/lib/mapCharacterSummary'
 import { isPartyCharacter } from '../maps/lib/partyCharacterEligibility'
@@ -238,13 +240,36 @@ describe('character schema versions', () => {
   })
 })
 
-// A character document as the map reads it. OSE characters store no
-// `system`; every other rule set's characters store its id.
+describe('character parsers', () => {
+  it('reads OSE and VtM characters through their own sheets\' parsers', () => {
+    expect(ruleSets.ose.characters.parser).toBe(oseCharacterParser)
+    expect(ruleSets.vtm.characters.parser).toBe(vtmCharacterParser)
+  })
+
+  it('hands a Lubec character through unchanged, as Lubec has no sheet yet', () => {
+    const stored = { system: 'lubec', schemaVersion: 1, name: 'Ada', unknownTopLevel: { kept: true } }
+    const { parser } = ruleSets.lubec.characters
+    expect(parser.parse('pc-1', stored)).toBe(stored)
+    expect(parser.serialize(stored)).toBe(stored)
+  })
+})
+
+// What a rule set's characters store to say which rule set they belong to.
+// OSE characters store no `system`; every other rule set's characters store
+// its id. Lubec characters are born at version 1, and the rules refuse a Lubec
+// write without it, so none is stored unversioned.
+const ruleSetFields = (stored: RuleSetId): Record<string, unknown> => ({
+  ose: {},
+  vtm: { system: 'vtm' },
+  lubec: { system: 'lubec', schemaVersion: 1 },
+})[stored]
+
+// A character document as the map reads it.
 const mapSummaryOf = (stored: RuleSetId, fields: Record<string, unknown>) =>
   mapCharacterSummaryFromData('pc-1', {
     name: 'Mirelda',
     ownerUserId: 'player-1',
-    ...(stored === 'ose' ? {} : { system: stored }),
+    ...ruleSetFields(stored),
     ...fields,
   })
 
@@ -260,7 +285,7 @@ describe('map summary', () => {
 
   it('reads each rule set\'s characters through its own summary', () => {
     for (const ruleSet of Object.values(ruleSets)) {
-      const stored = { system: ruleSet.id, creationStatus: 'active', hpCurrent: 3 }
+      const stored = { ...ruleSetFields(ruleSet.id), system: ruleSet.id, creationStatus: 'active', hpCurrent: 3 }
       expect(mapCharacterSummaryFromData('pc-1', stored)).toMatchObject(ruleSet.characters.summary(stored))
     }
   })

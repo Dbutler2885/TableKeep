@@ -1,5 +1,7 @@
 import type { CharacterRecord, CharacterSheetDetails, TokenIconConfig } from '../../../types/app'
-import { isRenderableImageUrl } from '../../common/mediaStorage'
+import { isRenderableImageUrl, sanitizeTokenIconForPersistence } from '../../common/mediaFields'
+import { oseCharacterVersioning } from '../../ruleSets/characterMigrations'
+import { fieldsOutside, readCharacter, type CharacterParser } from '../../ruleSets/characterParser'
 
 export type StoredCharacterFields = Record<string, unknown>
 
@@ -81,31 +83,93 @@ export function withLocalTokenImage(tokenIcon: TokenIconConfig, local: Character
   return customImageUrl ? { ...tokenIcon, customImageUrl } : tokenIcon
 }
 
-/** A stored character document as a character record, with every missing field defaulted. */
-export function readStoredCharacter(
-  id: string,
-  data: StoredCharacterFields,
-  local: CharacterRecord | undefined,
-  viewer: CharacterViewer,
-): CharacterRecord {
-  const portraitPath = stringOr(data.portraitPath, '')
-  const tokenIcon = (data.tokenIcon ?? defaultTokenIcon) as TokenIconConfig
+// The stored fields the OSE record models. The last four are the writers'
+// own: each save sets `updatedAt` itself, a create sets `createdAt`, and the
+// version fields are never carried in the record.
+const OSE_CHARACTER_FIELDS: ReadonlySet<string> = new Set([
+  'name', 'ownerUserId', 'ownerUsername', 'creationMode', 'creationModeExplicit', 'creationStatus', 'class', 'level',
+  'hpCurrent', 'hpMax', 'ac', 'xp', 'portraitPath', 'portraitUrl', 'portraitFocusX', 'portraitFocusY', 'tokenIcon',
+  'details', 'createdAt', 'updatedAt', 'schemaVersion', 'schemaWrittenAt',
+])
+
+/** The stored fields the record does not model, or nothing when there are none. */
+function unknownFieldsOf(data: StoredCharacterFields): Pick<CharacterRecord, 'unknownFields'> {
+  const unknownFields = fieldsOutside(data, OSE_CHARACTER_FIELDS)
+  return Object.keys(unknownFields).length > 0 ? { unknownFields } : {}
+}
+
+/** A stored OSE character, at the current version, as the sheet's record, with every missing field defaulted. */
+export function parseOseCharacter(id: string, data: StoredCharacterFields): CharacterRecord {
   return {
     id,
     name: (data.name ?? id) as string,
     ownerUserId: (data.ownerUserId ?? '') as string,
-    ownerUsername: readOwnerUsername(data, viewer),
+    ownerUsername: stringOr(data.ownerUsername, null),
     ...readCreationFields(data),
     className: (data.class ?? '-') as string,
     level: numberOr(data.level, 1),
     ...readHitPoints(data),
     ac: numberOr(data.ac, 10),
     xp: numberOr(data.xp, 0),
-    portraitPath,
-    portraitUrl: readPortraitUrl(data.portraitUrl, portraitPath, local),
+    portraitPath: stringOr(data.portraitPath, ''),
+    portraitUrl: stringOr(data.portraitUrl, null),
     portraitFocusX: numberOr(data.portraitFocusX, 50),
     portraitFocusY: numberOr(data.portraitFocusY, 50),
-    tokenIcon: withLocalTokenImage(tokenIcon, local),
+    tokenIcon: (data.tokenIcon ?? defaultTokenIcon) as TokenIconConfig,
     details: readDetails(data.details),
+    ...unknownFieldsOf(data),
+  }
+}
+
+/**
+ * The fields a save of the record writes. Media URLs are left out, because
+ * they carry access tokens; only their storage paths are stored.
+ */
+export function serializeOseCharacter(character: CharacterRecord): StoredCharacterFields {
+  return {
+    ...character.unknownFields,
+    name: character.name,
+    ownerUserId: character.ownerUserId,
+    ownerUsername: character.ownerUsername ?? null,
+    creationMode: character.creationMode,
+    creationModeExplicit: character.creationModeExplicit,
+    creationStatus: character.creationStatus,
+    class: character.className,
+    level: character.level,
+    hpCurrent: character.hpCurrent,
+    hpMax: character.hpMax,
+    ac: character.ac,
+    xp: character.xp,
+    portraitPath: character.portraitPath ?? '',
+    portraitFocusX: character.portraitFocusX,
+    portraitFocusY: character.portraitFocusY,
+    tokenIcon: sanitizeTokenIconForPersistence(character.tokenIcon),
+    details: character.details ? JSON.parse(JSON.stringify(character.details)) : null,
+  }
+}
+
+export const oseCharacterParser: CharacterParser<CharacterRecord> = {
+  parse: parseOseCharacter,
+  serialize: serializeOseCharacter,
+}
+
+/**
+ * A stored character document as the OSE sheet's record. OSE's steps bring it
+ * up to the current version before it is parsed, and nothing is written
+ * because of a read. A missing owner name and media URLs are then filled in
+ * from the viewer and the local copy.
+ */
+export function readStoredCharacter(
+  id: string,
+  data: StoredCharacterFields,
+  local: CharacterRecord | undefined,
+  viewer: CharacterViewer,
+): CharacterRecord {
+  const record = readCharacter(oseCharacterVersioning, oseCharacterParser, id, data).record
+  return {
+    ...record,
+    ownerUsername: readOwnerUsername(record, viewer),
+    portraitUrl: readPortraitUrl(record.portraitUrl, record.portraitPath ?? '', local),
+    tokenIcon: withLocalTokenImage(record.tokenIcon, local),
   }
 }
