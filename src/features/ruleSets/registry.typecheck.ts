@@ -17,3 +17,9 @@ export const entryUnderAnotherId: RuleSetRegistry = {
   // @ts-expect-error OSE's entry filed under VtM's id
   vtm: ruleSets.ose,
 }
+
+export const catalogItemWithoutName: RuleSetRegistry = {
+  ...ruleSets,
+  // @ts-expect-error a catalog item without a name
+  vtm: { ...ruleSets.vtm, catalog: [{ id: 'blood-bag' }] },
+}
