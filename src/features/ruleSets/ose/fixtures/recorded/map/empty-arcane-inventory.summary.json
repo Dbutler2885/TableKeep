@@ -1,0 +1,15 @@
+{
+  "id": "legacy-empty-mage",
+  "name": "Empty Mage",
+  "ownerUserId": "player-uid",
+  "creationStatus": "active",
+  "inPlay": true,
+  "hidden": false,
+  "deleted": false,
+  "tokenIcon": {
+    "icon": "pawn",
+    "color": "#bf2f2a",
+    "size": 34,
+    "customImagePath": "groups/g1/campaigns/c1/characters/legacy-empty-mage/token.png"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "2ad3968a-19c2-4858-ab0a-83390fbfe0f9",
+  "name": "Mirelda Crow",
+  "ownerUserId": "demo-player-uid",
+  "creationStatus": "active",
+  "inPlay": true,
+  "hidden": false,
+  "deleted": false,
+  "tokenIcon": {
+    "icon": "pawn",
+    "color": "#bf2f2a",
+    "size": 34
+  }
+}

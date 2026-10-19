@@ -1,0 +1,15 @@
+{
+  "id": "legacy-mage-no-book-inv",
+  "name": "Mage Inventory Without Book",
+  "ownerUserId": "player-uid",
+  "creationStatus": "active",
+  "inPlay": true,
+  "hidden": false,
+  "deleted": false,
+  "tokenIcon": {
+    "icon": "pawn",
+    "color": "#bf2f2a",
+    "size": 34,
+    "customImagePath": "groups/g1/campaigns/c1/characters/legacy-mage-no-book-inv/token.png"
+  }
+}

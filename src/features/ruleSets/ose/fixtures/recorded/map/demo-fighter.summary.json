@@ -1,0 +1,14 @@
+{
+  "id": "777c1814-a66b-44ce-a6c0-8d11e9d5a0e6",
+  "name": "Aldric Vane",
+  "ownerUserId": "demo-player-2-uid",
+  "creationStatus": "active",
+  "inPlay": true,
+  "hidden": false,
+  "deleted": false,
+  "tokenIcon": {
+    "icon": "pawn",
+    "color": "#bf2f2a",
+    "size": 34
+  }
+}

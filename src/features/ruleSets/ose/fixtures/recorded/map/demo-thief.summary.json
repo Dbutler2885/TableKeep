@@ -1,0 +1,14 @@
+{
+  "id": "bc122060-20c9-4220-9ad8-2a5b74ab5b25",
+  "name": "Nix Underbough",
+  "ownerUserId": "demo-player-3-uid",
+  "creationStatus": "active",
+  "inPlay": true,
+  "hidden": false,
+  "deleted": false,
+  "tokenIcon": {
+    "icon": "pawn",
+    "color": "#bf2f2a",
+    "size": 34
+  }
+}

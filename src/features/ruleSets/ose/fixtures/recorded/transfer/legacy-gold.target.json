@@ -1,0 +1,78 @@
+{
+  "id": "legacy-gold",
+  "name": "Legacy Gold",
+  "ownerUserId": "player-uid",
+  "ownerUsername": "player1",
+  "details": {
+    "abilityScores": {
+      "STR": "13",
+      "INT": "10",
+      "WIS": "9",
+      "DEX": "12",
+      "CON": "11",
+      "CHA": "8"
+    },
+    "rolledAbilityScores": null,
+    "abilityScoresRolled": true,
+    "hpBaseRoll": 5,
+    "thaco": "19",
+    "saveScores": null,
+    "adventureScores": null,
+    "adventureSeedClass": "Fighter",
+    "thiefSkills": null,
+    "startingGold": 90,
+    "storeSpent": 40,
+    "storeCart": [
+      {
+        "key": "gear-rope",
+        "name": "Rope (50 ft)",
+        "costGp": 1,
+        "qty": 1,
+        "kind": "general",
+        "unknownRowField": "kept on the cart row"
+      }
+    ],
+    "alignment": "Neutral",
+    "title": "Veteran",
+    "unknownNested": {
+      "kept": true,
+      "deeper": {
+        "value": 7
+      }
+    },
+    "packedItems": [
+      "Gold: 17 gp",
+      "gold: 3 GP",
+      "Rope",
+      "42",
+      "not gold",
+      "Gold: 0 gp"
+    ],
+    "storeGoldSlotIndices": [
+      3,
+      4
+    ],
+    "equippedItems": [
+      "Gold: 2 gp",
+      "Sword belt"
+    ],
+    "weapons": [
+      {
+        "id": "w1",
+        "weaponId": "mace",
+        "isMagic": false,
+        "name": "Mace",
+        "damageDiceCount": "1",
+        "damageDiceSides": "8",
+        "bonus": "",
+        "rangeShort": "",
+        "rangeMedium": "",
+        "rangeLong": "",
+        "twoHanded": false,
+        "equipped": true,
+        "notes": "",
+        "unknownRowField": "kept on the weapon row"
+      }
+    ]
+  }
+}

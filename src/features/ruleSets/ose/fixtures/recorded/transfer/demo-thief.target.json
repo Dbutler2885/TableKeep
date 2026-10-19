@@ -1,0 +1,238 @@
+{
+  "id": "bc122060-20c9-4220-9ad8-2a5b74ab5b25",
+  "name": "Nix Underbough",
+  "ownerUserId": "demo-player-3-uid",
+  "ownerUsername": "demoGM1",
+  "details": {
+    "spellBookSpellIds": [],
+    "memorizedSpellIds": [],
+    "storeCart": [],
+    "adventureScores": {
+      "FG": "1",
+      "SD": "1",
+      "LD": "1",
+      "HT": "1",
+      "FT": "1"
+    },
+    "title": "",
+    "languagesText": "",
+    "unencumberingItemsText": "",
+    "otherNotesText": "",
+    "adventureSeedClass": "Thief",
+    "thaco": "19",
+    "thiefSkills": {
+      "CS": "1",
+      "PP": "1",
+      "HN": "1",
+      "MS": "1",
+      "RL": "1",
+      "HS": "1",
+      "OL": "1",
+      "TR": "1"
+    },
+    "saveScores": {
+      "P": "13",
+      "B": "16",
+      "S": "15",
+      "D": "13",
+      "W": "14"
+    },
+    "abilityScoresRolled": true,
+    "rolledAbilityScores": {
+      "STR": "6",
+      "WIS": "11",
+      "CON": "5",
+      "DEX": "12",
+      "CHA": "9",
+      "INT": "13"
+    },
+    "alignment": "Chaos",
+    "abilityScores": {
+      "STR": "6",
+      "CON": "5",
+      "CHA": "9",
+      "INT": "9",
+      "WIS": "9",
+      "DEX": "15"
+    },
+    "hpBaseRoll": 4,
+    "startingGold": 140,
+    "storeSpent": 100,
+    "inventory": [
+      {
+        "id": "52fdb9da-2bf8-4a64-a68b-110aff29a713",
+        "kind": "armour",
+        "costGp": 20,
+        "equipped": false,
+        "notes": "",
+        "typeId": "leather",
+        "typeName": "Leather",
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        },
+        "isMagic": false,
+        "armourClass": "7",
+        "shieldMod": "",
+        "magicMod": "",
+        "armourType": "body",
+        "unknownRowField": "kept on the row"
+      },
+      {
+        "id": "4c930729-2fed-4408-b3cd-a0d25ee60158",
+        "kind": "general",
+        "typeId": "gear-tinderbox",
+        "typeName": "Tinder box",
+        "name": "Tinder box",
+        "costGp": 3,
+        "equipped": false,
+        "notes": "Tinder box",
+        "description": "Flint/steel/tinder; 2-in-6 chance per round to light.",
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        }
+      },
+      {
+        "id": "f3d04ca8-e96b-45b8-b60b-401306812da6",
+        "kind": "general",
+        "typeId": "gear-lantern",
+        "typeName": "Lantern",
+        "name": "Lantern",
+        "costGp": 10,
+        "equipped": false,
+        "notes": "Lantern",
+        "description": "30 ft light radius. Burns 1 oil flask / 4 hours.",
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        }
+      },
+      {
+        "id": "892fd861-8bfd-4747-8e4c-805083b81caf",
+        "kind": "consumable",
+        "typeId": "con-oil",
+        "typeName": "Oil flask",
+        "costGp": 2,
+        "equipped": false,
+        "notes": "Oil (1 flask)",
+        "description": "Lantern fuel; also throwable burning oil weapon.",
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        },
+        "effectText": "",
+        "amountRemaining": 24
+      },
+      {
+        "id": "1345fce3-baec-40bd-b6b7-07f461af4868",
+        "kind": "consumable",
+        "typeId": "con-rations-standard",
+        "typeName": "Standard rations",
+        "costGp": 5,
+        "equipped": false,
+        "notes": "Rations (standard, 7 days)",
+        "description": "Fresh, unpreserved food.",
+        "qty": 7,
+        "stack": {
+          "stackable": true,
+          "maxStack": 20
+        },
+        "effectText": ""
+      },
+      {
+        "weaponEffects": [],
+        "weaponRollTables": [],
+        "id": "ee8bd649-0927-4c5f-9704-09e94d35b449",
+        "kind": "weapon",
+        "costGp": 25,
+        "equipped": true,
+        "notes": "",
+        "typeId": "short-bow",
+        "typeName": "Short bow",
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        },
+        "isMagic": false,
+        "damageDiceCount": "1",
+        "damageDiceSides": "6",
+        "attackBonus": "",
+        "damageBonus": "",
+        "rangeShort": "50",
+        "rangeMedium": "100",
+        "rangeLong": "150",
+        "slow": false,
+        "twoHanded": true
+      },
+      {
+        "id": "ebed205d-dd53-42f3-a33f-03b2a290e60e",
+        "kind": "ammunition",
+        "typeId": "ammo-arrows",
+        "typeName": "Arrows",
+        "name": "Arrows (20)",
+        "costGp": 5,
+        "equipped": true,
+        "notes": "",
+        "description": "Quiver of 20 arrows.",
+        "qty": 20,
+        "stack": {
+          "stackable": true,
+          "maxStack": 40
+        }
+      },
+      {
+        "id": "8d68518c-6d4a-4a59-b437-d27767e282cd",
+        "kind": "ammunition",
+        "typeId": "ammo-arrows",
+        "typeName": "Arrows",
+        "name": "Arrows (20)",
+        "costGp": 5,
+        "equipped": false,
+        "notes": "",
+        "description": "Quiver of 20 arrows.",
+        "qty": 20,
+        "stack": {
+          "stackable": true,
+          "maxStack": 40
+        }
+      },
+      {
+        "id": "36648589-a126-4607-b3d8-1b19a62f8a3a",
+        "kind": "ammunition",
+        "typeId": "ammo-arrows",
+        "typeName": "Arrows",
+        "name": "Arrows (20)",
+        "costGp": 5,
+        "equipped": false,
+        "notes": "",
+        "description": "Quiver of 20 arrows.",
+        "qty": 20,
+        "stack": {
+          "stackable": true,
+          "maxStack": 40
+        }
+      },
+      {
+        "id": "31e44978-3041-4bd5-a28e-994a07bebdc2",
+        "kind": "gold",
+        "typeId": "gold",
+        "typeName": "Gold",
+        "costGp": 0,
+        "equipped": false,
+        "notes": "",
+        "qty": 40,
+        "stack": {
+          "stackable": true,
+          "maxStack": 100
+        }
+      }
+    ],
+    "unknownNested": {
+      "kept": true,
+      "deeper": {
+        "value": 7
+      }
+    }
+  }
+}

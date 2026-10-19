@@ -1,0 +1,114 @@
+{
+  "id": "legacy-beside",
+  "name": "Beside",
+  "ownerUserId": "player-uid",
+  "ownerUsername": "player1",
+  "details": {
+    "abilityScores": {
+      "STR": "13",
+      "INT": "10",
+      "WIS": "9",
+      "DEX": "12",
+      "CON": "11",
+      "CHA": "8"
+    },
+    "rolledAbilityScores": null,
+    "abilityScoresRolled": true,
+    "hpBaseRoll": 5,
+    "thaco": "19",
+    "saveScores": null,
+    "adventureScores": null,
+    "adventureSeedClass": "Cleric",
+    "thiefSkills": null,
+    "startingGold": 90,
+    "storeSpent": 40,
+    "storeCart": [
+      {
+        "key": "gear-rope",
+        "name": "Rope (50 ft)",
+        "costGp": 1,
+        "qty": 1,
+        "kind": "general",
+        "unknownRowField": "kept on the cart row"
+      }
+    ],
+    "alignment": "Neutral",
+    "title": "Veteran",
+    "unknownNested": {
+      "kept": true,
+      "deeper": {
+        "value": 7
+      }
+    },
+    "inventory": [
+      {
+        "kind": "weapon",
+        "typeId": "mace",
+        "typeName": "Mace",
+        "name": "Mace",
+        "costGp": 0,
+        "equipped": false,
+        "notes": "",
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        },
+        "id": "i1",
+        "unknownRowField": "kept on the inventory row"
+      },
+      {
+        "kind": "general",
+        "typeId": "gear-holy-symbol",
+        "typeName": "Holy symbol",
+        "name": "Holy symbol",
+        "costGp": 0,
+        "equipped": false,
+        "notes": "",
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        },
+        "id": "i2"
+      }
+    ],
+    "weapons": [
+      {
+        "id": "w-old",
+        "weaponId": "club",
+        "isMagic": false,
+        "name": "Old club",
+        "damageDiceCount": "1",
+        "damageDiceSides": "8",
+        "bonus": "",
+        "rangeShort": "",
+        "rangeMedium": "",
+        "rangeLong": "",
+        "twoHanded": false,
+        "equipped": true,
+        "notes": ""
+      }
+    ],
+    "armour": [
+      {
+        "id": "a-old",
+        "armourId": "shield",
+        "isMagic": false,
+        "name": "Old shield",
+        "ac": "",
+        "bonus": "",
+        "equipped": true,
+        "notes": ""
+      }
+    ],
+    "packedItems": [
+      "Gold: 50 gp",
+      "Old torch"
+    ],
+    "equippedItems": [
+      "Old cloak"
+    ],
+    "storeGoldSlotIndices": [
+      0
+    ]
+  }
+}
