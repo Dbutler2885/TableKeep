@@ -3,12 +3,12 @@ import { Menu } from 'lucide-react'
 import type { User } from 'firebase/auth'
 import type { NavigateFunction } from 'react-router-dom'
 import { CampaignSettingsModal } from '../campaign/CampaignSettingsModal'
-import { CliffhangerModal } from '../notes/CliffhangerModal'
-import { TransferNotification } from '../transfers/TransferNotification'
 import type { GameSystem } from '../navigation/tabs'
+import { ruleSets } from '../ruleSets/registry'
 import type { AppTab, Campaign, CharacterRecord, GroupRecord, ItemApprovalRequest, Role } from '../../types/app'
-import { ApprovalPrompt } from './ApprovalPrompt'
+import { CampaignDialogs } from './CampaignDialogs'
 import { CampaignSideNav } from './CampaignSideNav'
+import { CampaignStrip } from './CampaignStrip'
 import { CampaignTabContent } from './CampaignTabContent'
 import type { CharacterTabProps } from './characterTabProps'
 import { contentPanelClass } from './shellTabs'
@@ -46,7 +46,7 @@ type CampaignWorkspaceProps = {
 // A group's campaign route: the menu toggle, the campaign (or why there is
 // none), and the overlays that sit above it.
 export function CampaignWorkspace(props: CampaignWorkspaceProps) {
-  const { campaign, loading, error, setDrawerOpen, role, pendingRequests, approvalBusy, onApprove, onReject } = props
+  const { campaign, loading, error, setDrawerOpen } = props
   return (
     <>
       <button
@@ -76,14 +76,13 @@ export function CampaignWorkspace(props: CampaignWorkspaceProps) {
       ) : (
         <CampaignLayout {...props} campaign={campaign} />
       )}
-      <ApprovalPrompt role={role} pendingRequests={pendingRequests} busy={approvalBusy} onApprove={onApprove} onReject={onReject} />
       <CampaignOverlays {...props} />
     </>
   )
 }
 
 function CampaignLayout(props: CampaignWorkspaceProps & { campaign: Campaign }) {
-  const { drawerOpen, setDrawerOpen, activeTab } = props
+  const { drawerOpen, setDrawerOpen, activeTab, gameSystem } = props
   return (
     <div className="shell-layout">
       <CampaignSideNav {...props} />
@@ -91,35 +90,19 @@ function CampaignLayout(props: CampaignWorkspaceProps & { campaign: Campaign }) 
       {drawerOpen ? <button className="drawer-backdrop" onClick={() => setDrawerOpen(false)} /> : null}
 
       <section className={contentPanelClass(activeTab)}>
+        {ruleSets[gameSystem].shell.campaignStrip ? <CampaignStrip /> : null}
         <CampaignTabContent {...props} />
       </section>
     </div>
   )
 }
 
-function CampaignOverlays({
-  campaign,
-  user,
-  role,
-  characters,
-  showTransferNotification,
-  cliffhangerEnabled,
-  settingsOpen,
-  setSettingsOpen,
-}: CampaignWorkspaceProps) {
+function CampaignOverlays(props: CampaignWorkspaceProps) {
+  const { campaign, settingsOpen, setSettingsOpen } = props
   if (!campaign) return null
   return (
     <>
-      {showTransferNotification ? (
-        <TransferNotification
-          campaignId={campaign.id}
-          groupId={campaign.groupId}
-          currentUserId={user.uid}
-          role={role}
-          characters={characters}
-        />
-      ) : null}
-      <CliffhangerModal campaignId={campaign.id} groupId={campaign.groupId} userId={user.uid} enabled={cliffhangerEnabled} />
+      <CampaignDialogs {...props} campaign={campaign} />
       {settingsOpen ? (
         <CampaignSettingsModal
           groupId={campaign.groupId}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AppTab } from '../../types/app'
-import { listensForApprovals, listensForCharacters, showsCliffhangerModal, showsTransferNotification } from './workspaceListening'
+import { hasApprovals, listensForApprovals, listensForCharacters, showsCliffhangerModal, showsTransferNotification } from './workspaceListening'
 
 const ALL_TABS: AppTab[] = ['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'calendar', 'rules']
 const tabsWhere = (test: (tab: AppTab) => boolean) => ALL_TABS.filter(test)
@@ -16,22 +16,35 @@ describe('listensForCharacters', () => {
   })
 })
 
+describe('hasApprovals', () => {
+  it('is true for OSE only', () => {
+    expect(hasApprovals('ose')).toBe(true)
+    expect(hasApprovals('vtm')).toBe(false)
+  })
+})
+
 describe('listensForApprovals', () => {
-  it('listens for the GM on every tab and for others on the character tab', () => {
-    expect(tabsWhere((tab) => listensForApprovals(true, 'gm', tab))).toEqual(ALL_TABS)
-    expect(tabsWhere((tab) => listensForApprovals(true, 'player', tab))).toEqual(['character'])
-    expect(tabsWhere((tab) => listensForApprovals(true, null, tab))).toEqual(['character'])
+  it('listens in OSE for the GM on every tab and for others on the character tab', () => {
+    expect(tabsWhere((tab) => listensForApprovals('ose', true, 'gm', tab))).toEqual(ALL_TABS)
+    expect(tabsWhere((tab) => listensForApprovals('ose', true, 'player', tab))).toEqual(['character'])
+    expect(tabsWhere((tab) => listensForApprovals('ose', true, null, tab))).toEqual(['character'])
   })
 
-  it('never listens while hidden', () => {
-    expect(tabsWhere((tab) => listensForApprovals(false, 'gm', tab))).toEqual([])
+  it('never listens for VtM or while hidden', () => {
+    expect(tabsWhere((tab) => listensForApprovals('vtm', true, 'gm', tab))).toEqual([])
+    expect(tabsWhere((tab) => listensForApprovals('vtm', true, 'player', tab))).toEqual([])
+    expect(tabsWhere((tab) => listensForApprovals('ose', false, 'gm', tab))).toEqual([])
   })
 })
 
 describe('showsTransferNotification', () => {
-  it('shows on the visible character and maps tabs only', () => {
-    expect(tabsWhere((tab) => showsTransferNotification(true, tab))).toEqual(['character', 'maps'])
-    expect(tabsWhere((tab) => showsTransferNotification(false, tab))).toEqual([])
+  it('shows in OSE on the visible character and maps tabs only', () => {
+    expect(tabsWhere((tab) => showsTransferNotification('ose', true, tab))).toEqual(['character', 'maps'])
+    expect(tabsWhere((tab) => showsTransferNotification('ose', false, tab))).toEqual([])
+  })
+
+  it('never shows for VtM', () => {
+    expect(tabsWhere((tab) => showsTransferNotification('vtm', true, tab))).toEqual([])
   })
 })
 

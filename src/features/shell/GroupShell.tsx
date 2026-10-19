@@ -62,7 +62,7 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
     ids.groupId,
     role,
     user.uid,
-    listensForApprovals(documentVisible, role, activeTab),
+    listensForApprovals(gameSystem, documentVisible, role, activeTab),
   )
   const visibleTabs = useCampaignNav(campaign, gameSystem, role, activeTab, navigate)
 
@@ -120,7 +120,7 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
           approvalBusy={approvalBusy}
           onApprove={handleApprove}
           onReject={handleReject}
-          showTransferNotification={showsTransferNotification(documentVisible, activeTab)}
+          showTransferNotification={showsTransferNotification(gameSystem, documentVisible, activeTab)}
           cliffhangerEnabled={showsCliffhangerModal(documentVisible, activeTab)}
         />
       )}
