@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react'
+import type { KeyboardEvent, MouseEvent } from 'react'
 import type { Campaign, GroupRecord } from '../../types/app'
 
 /** The line under a campaign card's name: the stored rule-set id upper-cased, then the card's status. */
@@ -11,6 +11,12 @@ export function activateOnEnterOrSpace(event: KeyboardEvent, activate: () => voi
     event.preventDefault()
     activate()
   }
+}
+
+/** A button on a card does its own job without also opening the card underneath it. */
+export const withoutOpeningCard = (action: () => void) => (event: MouseEvent) => {
+  event.stopPropagation()
+  action()
 }
 
 /** Whether deleting the group would also delete campaigns, which the delete warning says. */

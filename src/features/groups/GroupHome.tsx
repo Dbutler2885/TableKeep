@@ -5,9 +5,11 @@ import type { Campaign, GroupRecord, InviteCode } from '../../types/app'
 import { DiscordConnection } from '../auth/DiscordConnection'
 import { DiscordReturnNotice } from '../auth/DiscordReturnNotice'
 import { inviteState, useGroupInvites } from '../invites/useInvites'
+import { ActiveCampaignSection } from './ActiveCampaignSection'
+import { CampaignListSection } from './CampaignListSection'
 import { DiscordServerLink } from './DiscordServerLink'
 import { errorMessage, runBusyAction } from './busyAction'
-import { activateOnEnterOrSpace, campaignCardLabel, groupHasCampaigns } from './groupHomeCampaigns'
+import { groupHasCampaigns } from './groupHomeCampaigns'
 import { copyToClipboard, inviteExpiresIn, inviteStateLabel, inviteUrl } from './inviteDisplay'
 import './GroupScreens.css'
 
@@ -207,42 +209,19 @@ export function GroupHome({
           </div>
         </div>
 
-        <div className="group-home-section is-active">
-          <h2>Active Campaign</h2>
-          {group.activeCampaign ? (
-            <div
-              className="group-home-card group-home-card-interactive"
-              role="button"
-              tabIndex={0}
-              onClick={onOpenActiveCampaign}
-              onKeyDown={(event) => activateOnEnterOrSpace(event, onOpenActiveCampaign)}
-            >
-              <strong>{group.activeCampaign.name}</strong>
-              <p>{campaignCardLabel(group.activeCampaign, 'active')}</p>
-              <div className="group-actions group-card-actions">
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    setError(null)
-                    setDeactivateCandidate(group.activeCampaign)
-                  }}
-                >
-                  Deactivate
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="group-home-card group-home-card-muted">
-              <p>No active campaign.</p>
-            </div>
-          )}
-        </div>
+        <ActiveCampaignSection
+          campaign={group.activeCampaign}
+          onOpen={onOpenActiveCampaign}
+          onDeactivate={(campaign) => {
+            setError(null)
+            setDeactivateCandidate(campaign)
+          }}
+        />
 
         <div className="group-home-grid">
-          <div className="group-home-section">
-            <div className="group-section-header">
-              <h2>My Drafts</h2>
+          <CampaignListSection
+            title="My Drafts"
+            headerAction={
               <button
                 type="button"
                 className="group-icon-button"
@@ -252,102 +231,38 @@ export function GroupHome({
               >
                 <Plus size={18} />
               </button>
-            </div>
-            {group.drafts.length > 0 ? (
-              <div className="group-card-list">
-                {group.drafts.map((campaign) => (
-                  <div
-                    key={campaign.id}
-                    className="group-home-card group-home-card-interactive"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onOpenCampaign(campaign.id)}
-                    onKeyDown={(event) => activateOnEnterOrSpace(event, () => onOpenCampaign(campaign.id))}
-                  >
-                    <strong>{campaign.name}</strong>
-                    <p>{campaignCardLabel(campaign, 'private draft')}</p>
-                    <div className="group-actions group-card-actions">
-                      <button type="button" onClick={(event) => {
-                        event.stopPropagation()
-                        setError(null)
-                        setSetActiveCandidate(campaign)
-                      }}
-                      >
-                        Set active
-                      </button>
-                      <button
-                        type="button"
-                        className="group-icon-button"
-                        aria-label={`Delete draft ${campaign.name}`}
-                        title={`Delete draft ${campaign.name}`}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          setError(null)
-                          setDeleteDraftCandidate(campaign)
-                        }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="group-home-card group-home-card-muted">
-                <p>No drafts yet.</p>
-              </div>
-            )}
-          </div>
+            }
+            campaigns={group.drafts}
+            status="private draft"
+            emptyText="No drafts yet."
+            deleteLabel="Delete draft"
+            onOpenCampaign={onOpenCampaign}
+            onSetActive={(campaign) => {
+              setError(null)
+              setSetActiveCandidate(campaign)
+            }}
+            onDelete={(campaign) => {
+              setError(null)
+              setDeleteDraftCandidate(campaign)
+            }}
+          />
 
-          <div className="group-home-section">
-            <div className="group-section-header">
-              <h2>Inactive Campaigns</h2>
-            </div>
-            {group.inactiveCampaigns.length > 0 ? (
-              <div className="group-card-list">
-                {group.inactiveCampaigns.map((campaign) => (
-                  <div
-                    key={campaign.id}
-                    className="group-home-card group-home-card-interactive"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onOpenCampaign(campaign.id)}
-                    onKeyDown={(event) => activateOnEnterOrSpace(event, () => onOpenCampaign(campaign.id))}
-                  >
-                    <strong>{campaign.name}</strong>
-                    <p>{campaignCardLabel(campaign, 'inactive')}</p>
-                    <div className="group-actions group-card-actions">
-                      <button type="button" onClick={(event) => {
-                        event.stopPropagation()
-                        setError(null)
-                        setSetActiveCandidate(campaign)
-                      }}
-                      >
-                        Set active
-                      </button>
-                      <button
-                        type="button"
-                        className="group-icon-button"
-                        aria-label={`Delete ${campaign.name}`}
-                        title={`Delete ${campaign.name}`}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          setError(null)
-                          setDeleteInactiveCandidate(campaign)
-                        }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="group-home-card group-home-card-muted">
-                <p>No inactive campaigns yet.</p>
-              </div>
-            )}
-          </div>
+          <CampaignListSection
+            title="Inactive Campaigns"
+            campaigns={group.inactiveCampaigns}
+            status="inactive"
+            emptyText="No inactive campaigns yet."
+            deleteLabel="Delete"
+            onOpenCampaign={onOpenCampaign}
+            onSetActive={(campaign) => {
+              setError(null)
+              setSetActiveCandidate(campaign)
+            }}
+            onDelete={(campaign) => {
+              setError(null)
+              setDeleteInactiveCandidate(campaign)
+            }}
+          />
         </div>
 
       </div>

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { KeyboardEvent } from 'react'
+import type { KeyboardEvent, MouseEvent } from 'react'
 import type { Campaign, GroupRecord } from '../../types/app'
-import { activateOnEnterOrSpace, campaignCardLabel, groupHasCampaigns } from './groupHomeCampaigns'
+import { activateOnEnterOrSpace, campaignCardLabel, groupHasCampaigns, withoutOpeningCard } from './groupHomeCampaigns'
 
 const campaign = (system: string | undefined) => ({ id: 'c1', name: 'C', status: 'draft', groupId: 'g1', system }) as Campaign
 
@@ -33,6 +33,17 @@ describe('activateOnEnterOrSpace', () => {
   it('leaves every other key alone', () => {
     expect(press('a')).toEqual({ prevented: 0, activated: 0 })
     expect(press('Tab')).toEqual({ prevented: 0, activated: 0 })
+  })
+})
+
+describe('withoutOpeningCard', () => {
+  it('stops the click reaching the card, then runs the action', () => {
+    const order: string[] = []
+    const event = { stopPropagation: () => order.push('stopped') } as unknown as MouseEvent
+
+    withoutOpeningCard(() => order.push('action'))(event)
+
+    expect(order).toEqual(['stopped', 'action'])
   })
 })
 
