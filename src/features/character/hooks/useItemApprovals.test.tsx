@@ -176,3 +176,26 @@ describe('approval character writes', () => {
     expect(mocks.updateDoc).not.toHaveBeenCalled()
   })
 })
+
+describe('approval trust boundaries before shared persistence', () => {
+  it('does not re-read approval status or action before applying a supplied request', async () => {
+    stored({ details: { inventory: [], future: true } })
+    const result = approval()
+    await act(() => result.current.approveRequest(request('create', { item: rope, status: 'rejected' })))
+    expectCharacterWrite({ inventory: [rope], future: true })
+    // Only the character is read. The request object, including its item, is
+    // trusted even when its status is already resolved.
+    expect(mocks.get).toHaveBeenCalledTimes(1)
+  })
+
+  it('propagates a failed approval update after staging the character write', async () => {
+    stored({ details: { inventory: [] } })
+    mocks.update.mockImplementationOnce(() => { throw new Error('approval update failed') })
+    await expect(approve('create', { item: rope })).rejects.toThrow('approval update failed')
+    expect(mocks.set).toHaveBeenCalledExactlyOnceWith(charRef, {
+      details: { inventory: [rope] }, schemaVersion: 1, schemaWrittenAt: 'server-time',
+    }, { merge: true })
+    expect(mocks.set.mock.invocationCallOrder[0]).toBeLessThan(mocks.update.mock.invocationCallOrder[0])
+    // The existing emulator rollback case proves a staged set is not committed.
+  })
+})

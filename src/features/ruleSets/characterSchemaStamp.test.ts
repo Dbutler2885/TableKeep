@@ -29,3 +29,10 @@ describe('character schema stamp', () => {
     expect(() => assertCharacterAtCurrentVersion({}, { schemaVersion: 0, migrations: [] })).not.toThrow()
   })
 })
+
+it('checks only the version, ignoring system and an absent or stale write time', () => {
+  for (const stored of [
+    { schemaVersion: 2, system: 'vtm' },
+    { schemaVersion: 2, system: 'ose', schemaWrittenAt: 'old-time' },
+  ]) expect(() => assertCharacterAtCurrentVersion(stored, versioning)).not.toThrow()
+})

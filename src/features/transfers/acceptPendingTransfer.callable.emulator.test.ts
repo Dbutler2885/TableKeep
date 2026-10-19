@@ -170,3 +170,20 @@ describe('actual transfer callable', () => {
     expect(mocks.delete).not.toHaveBeenCalled()
   })
 })
+
+describe('transfer ordering before shared persistence', () => {
+  it('checks sender authority before versions and deletes an unauthorized legacy offer', async () => {
+    mocks.records.set(senderPath, { ownerUserId: 'different-owner', schemaVersion: 0 })
+    mocks.records.set(receiverPath, { schemaVersion: 0 })
+    await expect(accept(request)).rejects.toMatchObject({ code: 'permission-denied', message: 'Transfer is not authorized.' })
+    expect(deletes()).toEqual([transferPath])
+    expect(mocks.set).not.toHaveBeenCalled()
+  })
+
+  it('rejects an old character before checking an unavailable item, retaining the offer for migration', async () => {
+    mocks.records.set(senderPath, { ownerUserId: 'sender-user', schemaVersion: 0, details: { inventory: [] } })
+    await expect(accept(request)).rejects.toMatchObject({ code: 'failed-precondition', message: 'This character is being updated. Try again in a minute.' })
+    expect(mocks.set).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
+  })
+})
