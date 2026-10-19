@@ -1,5 +1,5 @@
 import type { StoredCharacter } from '../../ruleSets/storedCharacter'
-import { mapCharacterSummaryFromData } from './mapCharacterSummary'
+import { mapCharacterSummary } from './mapCharacterSummary'
 
 export type PartyCharacterEligibilityFields = {
   ownerUserId?: string | null
@@ -31,12 +31,13 @@ export function isPartyCharacter(
 
 /**
  * The same test for a character record that has not been through the map
- * summary yet, such as the embedded sheet's list. A map summary cannot be
- * passed here, because its rule set has already read it.
+ * summary yet, such as the embedded sheet's list. The record has already been
+ * read through its rule set's steps, so they do not run again. A map summary
+ * cannot be passed here, because its rule set has already read it.
  */
 export function isPlayerOwnedLivingPartyCharacter(
   character: StoredCharacter & { id: string; inPlay?: never },
   gmUserId: string | null | undefined,
 ): boolean {
-  return isPartyCharacter(mapCharacterSummaryFromData(character.id, character), gmUserId)
+  return isPartyCharacter(mapCharacterSummary(character.id, character), gmUserId)
 }

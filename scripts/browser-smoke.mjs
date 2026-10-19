@@ -13,6 +13,7 @@ import {
   toFirestoreFields,
 } from './browser-smoke-seed.mjs'
 import { reviveTimestamps } from '../src/features/ruleSets/characterFixtures.ts'
+import { oseCharacterV0ToV1 } from '../src/features/ruleSets/ose/characterMigrations.ts'
 
 const APP_URL = 'http://127.0.0.1:4173'
 const AUTH_EMULATOR_URL = 'http://127.0.0.1:9099'
@@ -446,9 +447,9 @@ async function vtmLastEditCases(browser, testCase, ids, browserErrors) {
 // store the edit and a new `updatedAt`, and leave every other field as seeded.
 const VTM_FILLED_FIXTURE_URL = new URL('../src/features/ruleSets/vtm/fixtures/filled-sheet.json', import.meta.url)
 
-// The fixture's own document, owned by the smoke's user. Its art is not in the
-// Storage emulator, so its portrait and token image paths are left out.
-export function filledVtmCharacterFields(fixtureData, { uid, username }) {
+// A checked-in fixture's own document, owned by the smoke's user. Its art is
+// not in the Storage emulator, so its portrait and token image paths are left out.
+export function ownedFixtureFields(fixtureData, { uid, username }) {
   const fields = reviveTimestamps(fixtureData, (iso) => new Date(iso))
   const tokenIcon = { ...fields.tokenIcon }
   delete tokenIcon.customImagePath
@@ -457,12 +458,14 @@ export function filledVtmCharacterFields(fixtureData, { uid, username }) {
 
 export const withVtmConcept = (fields, concept) => ({ ...fields, vtm: { ...fields.vtm, concept } })
 
-// A stored REST value with its map keys in order and its timestamps in one
-// spelling, so it compares equal to an expected value Firestore calls equal.
+// A stored REST value with its map keys in order, and its timestamps and
+// empty lists in one spelling, so it compares equal to an expected value
+// Firestore calls equal.
 function canonicalFirestoreValue(value) {
   if (Array.isArray(value)) return value.map(canonicalFirestoreValue)
   if (value === null || typeof value !== 'object') return value
   if (typeof value.timestampValue === 'string') return { timestampValue: new Date(value.timestampValue).toISOString() }
+  if (value.arrayValue && !value.arrayValue.values) return { arrayValue: { values: [] } }
   return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalFirestoreValue(value[key])]))
 }
 
@@ -479,7 +482,7 @@ async function seedFilledVtmCampaign({ uid, groupId, testCase }) {
   const fixture = JSON.parse(await readFile(VTM_FILLED_FIXTURE_URL, 'utf8'))
   const campaignName = `${testCase.label} VtM Filled Sheet`
   const campaignId = await seedCampaign({ groupId, gmUserId: uid, fields: { name: campaignName, system: 'vtm' } })
-  const fields = filledVtmCharacterFields(fixture.data, { uid, username: testCase.username })
+  const fields = ownedFixtureFields(fixture.data, { uid, username: testCase.username })
   await seedCharacter({ groupId, campaignId, characterId: fixture.id, fields })
   const path = characterPath({ groupId, campaignId, characterId: fixture.id })
   return { campaignId, campaignName, characterName: fields.name, concept: fields.vtm.concept, fields, path }
@@ -637,6 +640,58 @@ async function oseLastEditCases(browser, testCase, ids, browserErrors) {
   await run('ose-leave-for-notes', (page) => oseLeaveForNotesCase(page, testCase, seeded.notes))
   await run('ose-hide-page', (page) => oseHidePageCase(page, testCase, seeded.hide))
   await run('ose-switch-campaign', (page) => oseSwitchCampaignCase(page, testCase, seeded.switch))
+}
+
+// An old-format OSE character, stored before characters carried a version: an
+// Elf with old weapon and pack lists, a pack row without an id, and no spell
+// book. The sheet reads it through OSE's step, so it holds the items the step
+// makes, with the step's ids, on every reload.
+const OSE_LEGACY_FIXTURES_URL = new URL('../src/features/ruleSets/ose/fixtures/legacy.json', import.meta.url)
+const OSE_LEGACY_FIXTURE = 'caster-without-book'
+
+// The inventory OSE's step makes of a stored character, in the REST shape.
+export const stepInventory = (characterId, fields) =>
+  toFirestoreFields(oseCharacterV0ToV1(fields, characterId).details).inventory
+
+async function seedLegacyOseCampaign({ uid, groupId, testCase }) {
+  const fixture = JSON.parse(await readFile(OSE_LEGACY_FIXTURES_URL, 'utf8'))[OSE_LEGACY_FIXTURE]
+  const campaignName = `${testCase.label} OSE Old Format`
+  const campaignId = await seedCampaign({ groupId, gmUserId: uid, fields: { name: campaignName, system: 'ose' } })
+  const fields = ownedFixtureFields(fixture.data, { uid, username: testCase.username })
+  await seedCharacter({ groupId, campaignId, characterId: fixture.id, fields })
+  const path = characterPath({ groupId, campaignId, characterId: fixture.id })
+  return { campaignName, characterName: fields.name, characterId: fixture.id, fields, path }
+}
+
+// A save writes the items the sheet holds, so the stored items are the ones
+// the sheet showed when it last saved.
+async function expectStepItemsStored(seeded) {
+  const stored = (await readDocumentFields(seeded.path)).details?.mapValue?.fields?.inventory
+  const expected = stepInventory(seeded.characterId, seeded.fields)
+  if (!sameFirestoreValue(stored, expected)) {
+    throw new Error(`The sheet holds other items than OSE's step makes: ${JSON.stringify(stored)}`)
+  }
+}
+
+async function oseLegacyItemsCase(page, seeded) {
+  await step('open the OSE campaign with an old-format character', () => openCampaignCard(page, seeded.campaignName, oseCharacterTab))
+  await step('edit the OSE Name', () => editOseName(page, seeded))
+  await settle()
+  await step('see the save store the items OSE\'s step makes, with its ids', () => expectStepItemsStored(seeded))
+  for (const reload of ['first', 'second']) {
+    await step(`see the same items and ids after the ${reload} reload`, async () => {
+      await page.reload({ waitUntil: 'domcontentloaded' })
+      await expectOseName(page, `${seeded.characterName}, edited`)
+      await settle()
+      await expectStepItemsStored(seeded)
+    })
+  }
+}
+
+async function oseLegacyItemsCases(browser, testCase, ids, browserErrors) {
+  const seeded = await seedLegacyOseCampaign({ ...ids, testCase })
+  const session = { testCase, groupId: ids.groupId, browserErrors }
+  await inSignedInPage(browser, session, 'ose-legacy-items', (page) => oseLegacyItemsCase(page, seeded))
 }
 
 // A blank map whose grid is calibrated, so dragging a party token across it
@@ -877,6 +932,7 @@ async function runViewport(browser, testCase) {
     await vtmLastEditCases(browser, testCase, { uid, groupId }, browserErrors)
     await vtmEditKeepsFieldsCases(browser, testCase, { uid, groupId }, browserErrors)
     await oseLastEditCases(browser, testCase, { uid, groupId }, browserErrors)
+    await oseLegacyItemsCases(browser, testCase, { uid, groupId }, browserErrors)
     await wanderingMonsterCases(browser, testCase, { uid, groupId }, browserErrors)
     await lubecCampaignCase(browser, testCase, { uid, groupId }, browserErrors)
     await new Promise((resolve) => setTimeout(resolve, 500))
@@ -892,6 +948,7 @@ async function runViewport(browser, testCase) {
       + 'and kept a VtM edit made just before leaving the sheet or switching campaign, '
       + 'and saved a VtM edit leaving every other stored field of a filled-in sheet as it was, '
       + 'and an OSE edit made just before opening Notes, hiding the page or switching campaign, '
+      + 'and kept the items and ids OSE\'s step makes of an old-format character through a save and two reloads, '
       + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map, '
       + 'and opened a seeded Lubec campaign to its placeholder page in its own skin.',
     )

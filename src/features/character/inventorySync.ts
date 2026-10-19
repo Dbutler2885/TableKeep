@@ -1,12 +1,5 @@
-import type { CharacterInventoryItem, CharacterSheetDetails } from '../../types/app'
+import type { CharacterInventoryItem } from '../../types/app'
 import { stableStringify } from './characterFactories'
-
-export function inventoryFromDetails(
-  details: CharacterSheetDetails,
-  migrateToInventory: (details: CharacterSheetDetails) => CharacterInventoryItem[],
-): CharacterInventoryItem[] {
-  return details.inventory ? (details.inventory as CharacterInventoryItem[]) : migrateToInventory(details)
-}
 
 type IncomingInventorySyncParams = {
   hasPendingWrite: boolean

@@ -2,7 +2,7 @@
 // Each takes the refs the chain shares, so useCharacterPersistenceSync only orders the effects.
 
 import type { RefObject } from 'react'
-import type { CharacterInventoryItem, CharacterRecord, CharacterSheetDetails } from '../../../types/app'
+import type { CharacterRecord, CharacterSheetDetails } from '../../../types/app'
 import { stableStringify } from '../characterFactories'
 import { incomingInventoryFromDetails, seedInventoryFromDetails } from '../inventoryHydration'
 import { shouldAdoptIncomingInventory } from '../inventorySync'
@@ -28,7 +28,6 @@ export type PersistenceSyncRefs = {
 
 export type StoreSync = {
   hasPendingWrite: (id: string) => boolean
-  migrateToInventory: (details: CharacterSheetDetails) => CharacterInventoryItem[]
   setters: StateSetters
   refs: PersistenceSyncRefs
 }
@@ -64,27 +63,27 @@ export function markLocalInventoriesDirty(
   }
 }
 
-function seedInventory(id: string, className: string, details: CharacterSheetDetails, { migrateToInventory, setters, refs }: StoreSync) {
-  const { inventory, persistedInventoryJson, isLocallyDirty } = seedInventoryFromDetails(className, details, migrateToInventory)
+function seedInventory(id: string, details: CharacterSheetDetails, { setters, refs }: StoreSync) {
+  const { inventory, persistedInventoryJson } = seedInventoryFromDetails(details)
   refs.lastPersistedInventoryJsonRef.current[id] = persistedInventoryJson
-  setMembership(refs.locallyDirtyInventoryCharacterIdsRef.current, id, isLocallyDirty)
+  refs.locallyDirtyInventoryCharacterIdsRef.current.delete(id)
   setters.setInventoryByCharacterId((prev) => ({ ...prev, [id]: inventory }))
 }
 
-function seedSheet(id: string, className: string, details: CharacterSheetDetails, sync: StoreSync) {
+function seedSheet(id: string, details: CharacterSheetDetails, sync: StoreSync) {
   seedScoreFields(id, details, sync.setters)
-  seedInventory(id, className, details, sync)
+  seedInventory(id, details, sync)
   seedCombatFields(id, details, sync.setters)
   seedStoreAndSpellFields(id, details, sync.setters)
   seedNoteFields(id, details, sync.setters)
 }
 
-function seedCharacter({ id, className, details }: CharacterRecord, sync: StoreSync) {
+function seedCharacter({ id, details }: CharacterRecord, sync: StoreSync) {
   const { refs } = sync
   refs.seededCharacterIdsRef.current.add(id)
   refs.justSeededRef.current.add(id)
   if (details) {
-    seedSheet(id, className, details, sync)
+    seedSheet(id, details, sync)
   } else {
     refs.lastPersistedInventoryJsonRef.current[id] = stableStringify([])
     refs.locallyDirtyInventoryCharacterIdsRef.current.delete(id)
@@ -92,9 +91,9 @@ function seedCharacter({ id, className, details }: CharacterRecord, sync: StoreS
   refs.lastPersistedDetailsJsonRef.current[id] = stableStringify(details ?? null)
 }
 
-function adoptIncomingInventory({ id, details }: CharacterRecord, { hasPendingWrite, migrateToInventory, setters, refs }: StoreSync) {
+function adoptIncomingInventory({ id, details }: CharacterRecord, { hasPendingWrite, setters, refs }: StoreSync) {
   if (hasPendingWrite(id) || !details) return
-  const incomingInventory = incomingInventoryFromDetails(details, migrateToInventory)
+  const incomingInventory = incomingInventoryFromDetails(details)
   const inventoryDecision = shouldAdoptIncomingInventory({
     hasPendingWrite: hasPendingWrite(id),
     isLocallyDirtyInventory: refs.locallyDirtyInventoryCharacterIdsRef.current.has(id),

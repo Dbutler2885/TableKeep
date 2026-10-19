@@ -9,7 +9,6 @@ import { Timestamp } from 'firebase/firestore'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CharacterInventoryItem } from '../../../types/app'
 import { ensureSpellBookInInventory, makeSpellBookItem } from '../../character/characterFactories'
-import { inventoryFromDetails } from '../../character/inventorySync'
 import { migrateToInventory } from '../../character/lib/legacyCharacterMigration'
 import { readDetails } from '../../character/lib/storedCharacterRecord'
 import { markTimestamps, reviveTimestamps, type CharacterFixture } from '../characterFixtures'
@@ -48,7 +47,8 @@ const inventoryOf = (document: StoredCharacter) => detailsOf(document).inventory
 const todaysInventory = ({ data }: CharacterFixture): CharacterInventoryItem[] => {
   const details = readDetails(data.details)
   if (!details) return []
-  return ensureSpellBookInInventory((data.class ?? '-') as string, inventoryFromDetails(details, migrateToInventory))
+  const stored = details.inventory ? details.inventory : migrateToInventory(details)
+  return ensureSpellBookInInventory((data.class ?? '-') as string, stored)
 }
 
 // Today's code makes a random id for a row that has none; the mock below makes
@@ -203,5 +203,46 @@ describe('OSE step 0 to 1 inventory choice and spell-book repair', () => {
     ['an old armour row that is not a record', { armour: [null] }, 'an old armour row is not a record'],
   ])('refuses %s', (_case, details, message) => {
     expect(() => oseCharacterV0ToV1({ class: 'Fighter', details }, 'odd')).toThrow(message)
+  })
+})
+
+// The legacy conversion's own cases, moved here from the sheet's hydration
+// when the step became the only owner of the conversion. Each sheet stores no
+// inventory, so the step builds one from the old lists.
+describe('OSE step 0 to 1 conversion of the old lists', () => {
+  const convert = (details: Fields) => inventoryOf(oseCharacterV0ToV1({ class: 'Fighter', details }, 'old'))
+
+  it('converts weapons and armour, including custom fallbacks and shield derivation', () => {
+    const items = convert({
+      weapons: [
+        { id: 'w1', name: 'Sword', weaponId: 'sword', isMagic: false, damageDiceCount: '1', damageDiceSides: '8', bonus: '', rangeShort: '', rangeMedium: '', rangeLong: '', twoHanded: false, equipped: true, notes: '' },
+        { id: '', name: 'Odd blade', weaponId: '', isMagic: true, damageDiceCount: '', damageDiceSides: '', bonus: '+1', rangeShort: '', rangeMedium: '', rangeLong: '', twoHanded: false, equipped: false, notes: '' },
+      ],
+      armour: [
+        { id: 'a1', name: 'Shield', armourId: 'shield', isMagic: false, ac: '', bonus: '', equipped: true, notes: '' },
+        { id: 'a2', name: 'Plate', armourId: 'plate-mail', isMagic: true, ac: '3', bonus: '+1', equipped: true, notes: '' },
+      ],
+    })
+    expect(items.find((item) => item.id === 'w1')?.typeId).toBe('sword')
+    expect(items.find((item) => item.name === 'Odd blade')).toMatchObject({ id: 'legacy-old-weapons-1', typeId: 'custom' })
+    expect(items.find((item) => item.id === 'a1')).toMatchObject({ kind: 'armour', shieldMod: '-1' })
+    expect(items.find((item) => item.id === 'a2')).toMatchObject({ kind: 'armour', armourClass: '3', magicMod: '+1' })
+  })
+
+  it('keeps today\'s gold and text-row edge cases', () => {
+    const items = convert({
+      packedItems: ['Gold: 17 gp', 'Rope', 'not gold', '', '   '],
+      storeGoldSlotIndices: [2],
+      equippedItems: ['Gold: 2 gp', 'Sword belt', '', '  '],
+    })
+    expect(items.some((item) => item.kind === 'gold' && item.qty === 17)).toBe(true)
+    expect(items.some((item) => item.typeName === 'Rope' && !item.equipped)).toBe(true)
+    expect(items.some((item) => item.typeName === 'Sword belt' && item.equipped)).toBe(true)
+    expect(items.some((item) => item.typeName === 'not gold')).toBe(false)
+    expect(items).toHaveLength(3)
+  })
+
+  it('accepts entirely absent old lists', () => {
+    expect(convert({ thaco: '19' })).toEqual([])
   })
 })

@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 /**
  * The OSE list of transfer targets, recorded on the checked-in OSE fixtures
- * before it read through OSE's steps and parser.
+ * before it read through OSE's steps and parser. The demo characters are
+ * listed as they were; an old-format fixture is now listed with the sheet the
+ * sheet itself shows.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, renderHook } from '@testing-library/react'
@@ -13,6 +15,7 @@ import demoFighter from '../../ruleSets/ose/fixtures/demo-fighter.json'
 import demoMagicUser from '../../ruleSets/ose/fixtures/demo-magic-user.json'
 import demoThief from '../../ruleSets/ose/fixtures/demo-thief.json'
 import legacy from '../../ruleSets/ose/fixtures/legacy.json'
+import { readStoredCharacter } from '../lib/storedCharacterRecord'
 
 type Listener = { next: (snap: unknown) => void; fail: (error: unknown) => void }
 
@@ -38,13 +41,16 @@ const revive = (fixture: unknown) =>
 const asFixtureJson = (value: unknown) =>
   `${JSON.stringify(markTimestamps(value, (entry) => entry instanceof Timestamp ? entry.toDate().toISOString() : null), null, 2)}\n`
 
-const cases = Object.entries({
+const asCases = (fixtures: Record<string, unknown>) =>
+  Object.entries(fixtures).map(([name, fixture]) => [name, revive(fixture)] as const)
+
+const demoCases = asCases({
   'demo-magic-user': demoMagicUser,
   'demo-fighter': demoFighter,
   'demo-thief': demoThief,
   'demo-cleric': demoCleric,
-  ...legacy,
-}).map(([name, fixture]) => [name, revive(fixture)] as const)
+})
+const legacyCases = asCases(legacy)
 
 function renderDirectory(role: Role, gmUserId: string | null) {
   return renderHook(() => useCampaignCharacterDirectory('campaign-1', 'group-1', gmUserId, role))
@@ -59,12 +65,20 @@ function emit(fixtures: CharacterFixture[]) {
 afterEach(() => cleanup())
 
 describe('OSE transfer targets', () => {
-  it.each(cases)('%s is listed as its recorded transfer target', async (name, fixture) => {
+  it.each(demoCases)('%s is listed as its recorded transfer target', async (name, fixture) => {
     const { result } = renderDirectory('gm', 'gm-uid')
     emit([fixture])
     await expect(asFixtureJson(result.current.allCampaignCharacters[0])).toMatchFileSnapshot(
       `../../ruleSets/ose/fixtures/recorded/transfer/${name}.target.json`,
     )
+  })
+
+  it.each(legacyCases)('%s is listed with the sheet and items the sheet shows', (_name, fixture) => {
+    const { result } = renderDirectory('gm', 'gm-uid')
+    emit([fixture])
+    const sheet = readStoredCharacter(fixture.id, fixture.data, undefined, { userId: 'gm-uid', currentUsername: 'gm1' })
+    expect(result.current.allCampaignCharacters[0].details).toEqual(sheet.details)
+    expect(result.current.allCampaignCharacters[0].details?.inventory).toBeInstanceOf(Array)
   })
 
   it('lists a character without a name, owner or details by its id, with no owner', () => {

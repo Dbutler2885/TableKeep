@@ -61,17 +61,20 @@
     },
     "inventory": [
       {
-        "id": "w1",
+        "unknownRowField": "kept on the weapon row",
         "kind": "weapon",
         "costGp": 0,
-        "equipped": true,
-        "notes": "",
-        "typeId": "dagger",
-        "typeName": "",
         "qty": 1,
         "stack": {
           "stackable": false
         },
+        "slow": false,
+        "weaponEffects": [],
+        "weaponRollTables": [],
+        "id": "w1",
+        "name": "Dagger",
+        "typeId": "dagger",
+        "typeName": "",
         "isMagic": false,
         "damageDiceCount": "1",
         "damageDiceSides": "8",
@@ -80,11 +83,9 @@
         "rangeShort": "",
         "rangeMedium": "",
         "rangeLong": "",
-        "slow": false,
         "twoHanded": false,
-        "weaponEffects": [],
-        "weaponRollTables": [],
-        "name": "Dagger"
+        "equipped": true,
+        "notes": ""
       },
       {
         "id": "new-id-1",

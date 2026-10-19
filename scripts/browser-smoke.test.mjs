@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
   calibratedMapFields,
   changedFirestoreFields,
-  filledVtmCharacterFields,
   groupIdFromUrl,
   interpolatePath,
   oseCharacterFields,
+  ownedFixtureFields,
   partyTokenFields,
   step,
+  stepInventory,
   trackersAtZero,
   vtmCharacterFields,
   withVtmConcept,
@@ -136,7 +137,7 @@ describe('seeding the filled-in VtM fixture', () => {
   }
 
   it('gives the character to the smoke user, without its art, with real dates', () => {
-    expect(filledVtmCharacterFields(fixtureData, { uid: 'u1', username: 'desk001' })).toEqual({
+    expect(ownedFixtureFields(fixtureData, { uid: 'u1', username: 'desk001' })).toEqual({
       name: 'Edda Marsh',
       ownerUserId: 'u1',
       ownerUsername: 'desk001',
@@ -151,6 +152,15 @@ describe('seeding the filled-in VtM fixture', () => {
     const fields = { name: 'Edda', vtm: { concept: 'Old', clan: 'tremere' } }
     expect(withVtmConcept(fields, 'New')).toEqual({ name: 'Edda', vtm: { concept: 'New', clan: 'tremere' } })
     expect(fields.vtm.concept).toBe('Old')
+  })
+})
+
+describe('the items OSE\'s step makes of an old-format character', () => {
+  it('are the step\'s inventory in the REST shape, with stable ids', () => {
+    const inventory = stepInventory('elf-1', { class: 'Elf', details: { packedItems: ['Rope'] } })
+    const ids = inventory.arrayValue.values.map((item) => item.mapValue.fields.id.stringValue)
+    expect(ids).toEqual(['legacy-elf-1-packedItems-0', 'legacy-elf-1-spell-book'])
+    expect(stepInventory('elf-1', { class: 'Elf', details: { packedItems: ['Rope'] } })).toEqual(inventory)
   })
 })
 
@@ -170,6 +180,11 @@ describe('comparing a stored document with what was seeded', () => {
       name: { stringValue: 'Edda' },
     }
     expect(changedFirestoreFields(stored, seeded)).toEqual([])
+  })
+
+  it('finds nothing changed when an empty list is stored without its values', () => {
+    expect(changedFirestoreFields({ rows: { arrayValue: {} } }, toFirestoreFields({ rows: [] }))).toEqual([])
+    expect(changedFirestoreFields({ rows: { arrayValue: {} } }, toFirestoreFields({ rows: [1] }))).toEqual(['rows'])
   })
 
   it('names each field that differs, is missing or was added', () => {

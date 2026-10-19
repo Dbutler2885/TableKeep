@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mapCharacterSummaryFromData } from './mapCharacterSummary'
+import { mapCharacterSummary, mapCharacterSummaryFromData } from './mapCharacterSummary'
 
 describe('map character summary', () => {
   it('puts an OSE character with hit points left in play, without carrying the hit points', () => {
@@ -203,5 +203,25 @@ describe('map character token icon', () => {
   it('carries a local URL into the default icon only when both lack a path', () => {
     const next = mapCharacterSummaryFromData('pc', {}, localWith({ icon: 'pawn', color: '#000', size: 34 }))
     expect(next.tokenIcon).toEqual({ icon: 'pawn', color: '#bf2f2a', size: 34 })
+  })
+})
+
+describe('reading through the rule set', () => {
+  it('keeps an unversioned OSE character with hit points and no maximum in play, as stored', () => {
+    expect(mapCharacterSummaryFromData('ose', { hpCurrent: 5, details: { packedItems: ['Rope'] } })).toMatchObject({
+      creationStatus: 'active',
+      inPlay: true,
+    })
+  })
+
+  it('runs the rule set\'s steps on a stored document first', () => {
+    // Lubec is born at version 1 and has no step from 0, so only its steps refuse this.
+    const unversioned = { system: 'lubec', name: 'Ada' }
+    expect(() => mapCharacterSummaryFromData('lubec', unversioned)).toThrow('no migration step from version 0')
+    expect(mapCharacterSummaryFromData('lubec', { ...unversioned, schemaVersion: 1 }).name).toBe('Ada')
+  })
+
+  it('summarises a record its rule set has already read without running the steps again', () => {
+    expect(mapCharacterSummary('lubec', { system: 'lubec', name: 'Ada' })).toMatchObject({ name: 'Ada', inPlay: true })
   })
 })
