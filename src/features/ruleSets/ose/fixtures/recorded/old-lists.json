@@ -1,0 +1,203 @@
+{
+  "name": "Old Lists",
+  "ownerUserId": "player-uid",
+  "ownerUsername": "player1",
+  "class": "Fighter",
+  "level": 2,
+  "hpCurrent": 6,
+  "hpMax": 9,
+  "ac": 6,
+  "xp": 2100,
+  "portraitPath": "groups/g1/campaigns/c1/characters/legacy-old-lists/portrait.png",
+  "tokenIcon": {
+    "icon": "pawn",
+    "color": "#bf2f2a",
+    "size": 34,
+    "customImagePath": "groups/g1/campaigns/c1/characters/legacy-old-lists/token.png"
+  },
+  "createdAt": {
+    "$timestamp": "2025-03-01T18:00:00.000Z"
+  },
+  "updatedAt": {
+    "$timestamp": "2025-04-12T20:15:30.250Z"
+  },
+  "unknownTopLevel": {
+    "note": "kept as stored",
+    "list": [
+      1,
+      "two",
+      {
+        "three": 3
+      }
+    ]
+  },
+  "details": {
+    "abilityScores": {
+      "STR": "13",
+      "INT": "10",
+      "WIS": "9",
+      "DEX": "12",
+      "CON": "11",
+      "CHA": "8"
+    },
+    "rolledAbilityScores": null,
+    "abilityScoresRolled": true,
+    "hpBaseRoll": 5,
+    "thaco": "19",
+    "saveScores": null,
+    "adventureScores": null,
+    "adventureSeedClass": "Fighter",
+    "thiefSkills": null,
+    "startingGold": 90,
+    "storeSpent": 40,
+    "storeCart": [
+      {
+        "key": "gear-rope",
+        "name": "Rope (50 ft)",
+        "costGp": 1,
+        "qty": 1,
+        "kind": "general",
+        "unknownRowField": "kept on the cart row"
+      }
+    ],
+    "alignment": "Neutral",
+    "title": "Veteran",
+    "unknownNested": {
+      "kept": true,
+      "deeper": {
+        "value": 7
+      }
+    },
+    "inventory": [
+      {
+        "unknownRowField": "kept on the weapon row",
+        "kind": "weapon",
+        "costGp": 0,
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        },
+        "slow": false,
+        "weaponEffects": [],
+        "weaponRollTables": [],
+        "id": "w1",
+        "name": "Sword",
+        "typeId": "sword",
+        "typeName": "",
+        "isMagic": false,
+        "damageDiceCount": "1",
+        "damageDiceSides": "8",
+        "attackBonus": "",
+        "damageBonus": "",
+        "rangeShort": "",
+        "rangeMedium": "",
+        "rangeLong": "",
+        "twoHanded": false,
+        "equipped": true,
+        "notes": ""
+      },
+      {
+        "kind": "weapon",
+        "costGp": 0,
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        },
+        "slow": false,
+        "weaponEffects": [],
+        "weaponRollTables": [],
+        "id": "legacy-legacy-old-lists-weapons-1",
+        "name": "Odd blade",
+        "typeId": "custom",
+        "typeName": "",
+        "isMagic": true,
+        "damageDiceCount": "1",
+        "damageDiceSides": "8",
+        "attackBonus": "+1",
+        "damageBonus": "",
+        "rangeShort": "",
+        "rangeMedium": "",
+        "rangeLong": "",
+        "twoHanded": false,
+        "equipped": false,
+        "notes": "found in the crypt"
+      },
+      {
+        "kind": "weapon",
+        "costGp": 0,
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        },
+        "slow": false,
+        "weaponEffects": [],
+        "weaponRollTables": [],
+        "id": "w3",
+        "name": "Sling",
+        "typeId": "sling",
+        "typeName": "",
+        "damageBonus": "",
+        "equipped": false
+      },
+      {
+        "unknownRowField": "kept on the armour row",
+        "kind": "armour",
+        "costGp": 0,
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        },
+        "armourType": "body",
+        "id": "a1",
+        "name": "Shield",
+        "typeId": "shield",
+        "typeName": "",
+        "isMagic": false,
+        "armourClass": "",
+        "shieldMod": "-1",
+        "magicMod": "",
+        "equipped": true,
+        "notes": ""
+      },
+      {
+        "kind": "armour",
+        "costGp": 0,
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        },
+        "armourType": "body",
+        "id": "a2",
+        "name": "Plate",
+        "typeId": "plate-mail",
+        "typeName": "",
+        "isMagic": true,
+        "armourClass": "3",
+        "shieldMod": "",
+        "magicMod": "+1",
+        "equipped": true,
+        "notes": ""
+      },
+      {
+        "kind": "armour",
+        "costGp": 0,
+        "qty": 1,
+        "stack": {
+          "stackable": false
+        },
+        "armourType": "body",
+        "id": "legacy-legacy-old-lists-armour-2",
+        "name": "Old leather",
+        "typeId": "custom",
+        "typeName": "",
+        "isMagic": false,
+        "armourClass": "",
+        "shieldMod": "",
+        "magicMod": "",
+        "equipped": false,
+        "notes": ""
+      }
+    ]
+  },
+  "schemaVersion": 1
+}

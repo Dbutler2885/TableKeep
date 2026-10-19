@@ -178,3 +178,13 @@ describe('campaign settings tabs', () => {
     expect(campaignSettingsTabs(resolve(stored)).map((tab) => [tab.id, tab.label, tab.locked])).toEqual(expected)
   })
 })
+
+describe('character schema versions', () => {
+  it.each([
+    ['ose', 1],
+    ['vtm', 1],
+  ] as const)('%s characters are written at version %i, with a step for each older version', (id: RuleSetId, version) => {
+    expect(ruleSets[id].characters.schemaVersion).toBe(version)
+    expect(ruleSets[id].characters.migrations).toHaveLength(version)
+  })
+})

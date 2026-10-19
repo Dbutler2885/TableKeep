@@ -1,0 +1,74 @@
+{
+  "name": "No Inventory",
+  "ownerUserId": "player-uid",
+  "ownerUsername": "player1",
+  "class": "Fighter",
+  "level": 2,
+  "hpCurrent": 6,
+  "hpMax": 9,
+  "ac": 6,
+  "xp": 2100,
+  "portraitPath": "groups/g1/campaigns/c1/characters/legacy-no-inventory/portrait.png",
+  "tokenIcon": {
+    "icon": "pawn",
+    "color": "#bf2f2a",
+    "size": 34,
+    "customImagePath": "groups/g1/campaigns/c1/characters/legacy-no-inventory/token.png"
+  },
+  "createdAt": {
+    "$timestamp": "2025-03-01T18:00:00.000Z"
+  },
+  "updatedAt": {
+    "$timestamp": "2025-04-12T20:15:30.250Z"
+  },
+  "unknownTopLevel": {
+    "note": "kept as stored",
+    "list": [
+      1,
+      "two",
+      {
+        "three": 3
+      }
+    ]
+  },
+  "details": {
+    "abilityScores": {
+      "STR": "13",
+      "INT": "10",
+      "WIS": "9",
+      "DEX": "12",
+      "CON": "11",
+      "CHA": "8"
+    },
+    "rolledAbilityScores": null,
+    "abilityScoresRolled": true,
+    "hpBaseRoll": 5,
+    "thaco": "19",
+    "saveScores": null,
+    "adventureScores": null,
+    "adventureSeedClass": "Fighter",
+    "thiefSkills": null,
+    "startingGold": 90,
+    "storeSpent": 40,
+    "storeCart": [
+      {
+        "key": "gear-rope",
+        "name": "Rope (50 ft)",
+        "costGp": 1,
+        "qty": 1,
+        "kind": "general",
+        "unknownRowField": "kept on the cart row"
+      }
+    ],
+    "alignment": "Neutral",
+    "title": "Veteran",
+    "unknownNested": {
+      "kept": true,
+      "deeper": {
+        "value": 7
+      }
+    },
+    "inventory": []
+  },
+  "schemaVersion": 1
+}

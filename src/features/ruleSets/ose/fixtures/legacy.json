@@ -1,0 +1,1346 @@
+{
+  "old-lists": {
+    "id": "legacy-old-lists",
+    "data": {
+      "name": "Old Lists",
+      "ownerUserId": "player-uid",
+      "ownerUsername": "player1",
+      "class": "Fighter",
+      "level": 2,
+      "hpCurrent": 6,
+      "hpMax": 9,
+      "ac": 6,
+      "xp": 2100,
+      "portraitPath": "groups/g1/campaigns/c1/characters/legacy-old-lists/portrait.png",
+      "tokenIcon": {
+        "icon": "pawn",
+        "color": "#bf2f2a",
+        "size": 34,
+        "customImagePath": "groups/g1/campaigns/c1/characters/legacy-old-lists/token.png"
+      },
+      "createdAt": {
+        "$timestamp": "2025-03-01T18:00:00.000Z"
+      },
+      "updatedAt": {
+        "$timestamp": "2025-04-12T20:15:30.250Z"
+      },
+      "unknownTopLevel": {
+        "note": "kept as stored",
+        "list": [
+          1,
+          "two",
+          {
+            "three": 3
+          }
+        ]
+      },
+      "details": {
+        "abilityScores": {
+          "STR": "13",
+          "INT": "10",
+          "WIS": "9",
+          "DEX": "12",
+          "CON": "11",
+          "CHA": "8"
+        },
+        "rolledAbilityScores": null,
+        "abilityScoresRolled": true,
+        "hpBaseRoll": 5,
+        "thaco": "19",
+        "saveScores": null,
+        "adventureScores": null,
+        "adventureSeedClass": "Fighter",
+        "thiefSkills": null,
+        "startingGold": 90,
+        "storeSpent": 40,
+        "storeCart": [
+          {
+            "key": "gear-rope",
+            "name": "Rope (50 ft)",
+            "costGp": 1,
+            "qty": 1,
+            "kind": "general",
+            "unknownRowField": "kept on the cart row"
+          }
+        ],
+        "alignment": "Neutral",
+        "title": "Veteran",
+        "unknownNested": {
+          "kept": true,
+          "deeper": {
+            "value": 7
+          }
+        },
+        "weapons": [
+          {
+            "id": "w1",
+            "weaponId": "sword",
+            "isMagic": false,
+            "name": "Sword",
+            "damageDiceCount": "1",
+            "damageDiceSides": "8",
+            "bonus": "",
+            "rangeShort": "",
+            "rangeMedium": "",
+            "rangeLong": "",
+            "twoHanded": false,
+            "equipped": true,
+            "notes": "",
+            "unknownRowField": "kept on the weapon row"
+          },
+          {
+            "id": "",
+            "weaponId": "",
+            "isMagic": true,
+            "name": "Odd blade",
+            "damageDiceCount": "1",
+            "damageDiceSides": "8",
+            "bonus": "+1",
+            "rangeShort": "",
+            "rangeMedium": "",
+            "rangeLong": "",
+            "twoHanded": false,
+            "equipped": false,
+            "notes": "found in the crypt"
+          },
+          {
+            "id": "w3",
+            "name": "Sling",
+            "weaponId": "sling",
+            "equipped": false
+          }
+        ],
+        "armour": [
+          {
+            "id": "a1",
+            "armourId": "shield",
+            "isMagic": false,
+            "name": "Shield",
+            "ac": "",
+            "bonus": "",
+            "equipped": true,
+            "notes": "",
+            "unknownRowField": "kept on the armour row"
+          },
+          {
+            "id": "a2",
+            "armourId": "plate-mail",
+            "isMagic": true,
+            "name": "Plate",
+            "ac": "3",
+            "bonus": "+1",
+            "equipped": true,
+            "notes": ""
+          },
+          {
+            "id": "",
+            "armourId": "",
+            "isMagic": false,
+            "name": "Old leather",
+            "ac": "",
+            "bonus": "",
+            "equipped": false,
+            "notes": ""
+          }
+        ]
+      }
+    }
+  },
+  "text-rows": {
+    "id": "legacy-text-rows",
+    "data": {
+      "name": "Text Rows",
+      "ownerUserId": "player-uid",
+      "ownerUsername": "player1",
+      "class": "Thief",
+      "level": 2,
+      "hpCurrent": 6,
+      "hpMax": 9,
+      "ac": 6,
+      "xp": 2100,
+      "portraitPath": "groups/g1/campaigns/c1/characters/legacy-text-rows/portrait.png",
+      "tokenIcon": {
+        "icon": "pawn",
+        "color": "#bf2f2a",
+        "size": 34,
+        "customImagePath": "groups/g1/campaigns/c1/characters/legacy-text-rows/token.png"
+      },
+      "createdAt": {
+        "$timestamp": "2025-03-01T18:00:00.000Z"
+      },
+      "updatedAt": {
+        "$timestamp": "2025-04-12T20:15:30.250Z"
+      },
+      "unknownTopLevel": {
+        "note": "kept as stored",
+        "list": [
+          1,
+          "two",
+          {
+            "three": 3
+          }
+        ]
+      },
+      "details": {
+        "abilityScores": {
+          "STR": "13",
+          "INT": "10",
+          "WIS": "9",
+          "DEX": "12",
+          "CON": "11",
+          "CHA": "8"
+        },
+        "rolledAbilityScores": null,
+        "abilityScoresRolled": true,
+        "hpBaseRoll": 5,
+        "thaco": "19",
+        "saveScores": null,
+        "adventureScores": null,
+        "adventureSeedClass": "Thief",
+        "thiefSkills": null,
+        "startingGold": 90,
+        "storeSpent": 40,
+        "storeCart": [
+          {
+            "key": "gear-rope",
+            "name": "Rope (50 ft)",
+            "costGp": 1,
+            "qty": 1,
+            "kind": "general",
+            "unknownRowField": "kept on the cart row"
+          }
+        ],
+        "alignment": "Neutral",
+        "title": "Veteran",
+        "unknownNested": {
+          "kept": true,
+          "deeper": {
+            "value": 7
+          }
+        },
+        "packedItems": [
+          "Rope",
+          "  Lantern  ",
+          "",
+          "   ",
+          null,
+          "Iron spikes"
+        ],
+        "equippedItems": [
+          "Sword belt",
+          "",
+          "  Cloak "
+        ],
+        "weapons": [
+          {
+            "id": "w1",
+            "weaponId": "dagger",
+            "isMagic": false,
+            "name": "Dagger",
+            "damageDiceCount": "1",
+            "damageDiceSides": "8",
+            "bonus": "",
+            "rangeShort": "",
+            "rangeMedium": "",
+            "rangeLong": "",
+            "twoHanded": false,
+            "equipped": true,
+            "notes": "",
+            "unknownRowField": "kept on the weapon row"
+          }
+        ]
+      }
+    }
+  },
+  "legacy-gold": {
+    "id": "legacy-gold",
+    "data": {
+      "name": "Legacy Gold",
+      "ownerUserId": "player-uid",
+      "ownerUsername": "player1",
+      "class": "Fighter",
+      "level": 2,
+      "hpCurrent": 6,
+      "hpMax": 9,
+      "ac": 6,
+      "xp": 2100,
+      "portraitPath": "groups/g1/campaigns/c1/characters/legacy-gold/portrait.png",
+      "tokenIcon": {
+        "icon": "pawn",
+        "color": "#bf2f2a",
+        "size": 34,
+        "customImagePath": "groups/g1/campaigns/c1/characters/legacy-gold/token.png"
+      },
+      "createdAt": {
+        "$timestamp": "2025-03-01T18:00:00.000Z"
+      },
+      "updatedAt": {
+        "$timestamp": "2025-04-12T20:15:30.250Z"
+      },
+      "unknownTopLevel": {
+        "note": "kept as stored",
+        "list": [
+          1,
+          "two",
+          {
+            "three": 3
+          }
+        ]
+      },
+      "details": {
+        "abilityScores": {
+          "STR": "13",
+          "INT": "10",
+          "WIS": "9",
+          "DEX": "12",
+          "CON": "11",
+          "CHA": "8"
+        },
+        "rolledAbilityScores": null,
+        "abilityScoresRolled": true,
+        "hpBaseRoll": 5,
+        "thaco": "19",
+        "saveScores": null,
+        "adventureScores": null,
+        "adventureSeedClass": "Fighter",
+        "thiefSkills": null,
+        "startingGold": 90,
+        "storeSpent": 40,
+        "storeCart": [
+          {
+            "key": "gear-rope",
+            "name": "Rope (50 ft)",
+            "costGp": 1,
+            "qty": 1,
+            "kind": "general",
+            "unknownRowField": "kept on the cart row"
+          }
+        ],
+        "alignment": "Neutral",
+        "title": "Veteran",
+        "unknownNested": {
+          "kept": true,
+          "deeper": {
+            "value": 7
+          }
+        },
+        "packedItems": [
+          "Gold: 17 gp",
+          "gold: 3 GP",
+          "Rope",
+          "42",
+          "not gold",
+          "Gold: 0 gp"
+        ],
+        "storeGoldSlotIndices": [
+          3,
+          4
+        ],
+        "equippedItems": [
+          "Gold: 2 gp",
+          "Sword belt"
+        ],
+        "weapons": [
+          {
+            "id": "w1",
+            "weaponId": "mace",
+            "isMagic": false,
+            "name": "Mace",
+            "damageDiceCount": "1",
+            "damageDiceSides": "8",
+            "bonus": "",
+            "rangeShort": "",
+            "rangeMedium": "",
+            "rangeLong": "",
+            "twoHanded": false,
+            "equipped": true,
+            "notes": "",
+            "unknownRowField": "kept on the weapon row"
+          }
+        ]
+      }
+    }
+  },
+  "no-inventory": {
+    "id": "legacy-no-inventory",
+    "data": {
+      "name": "No Inventory",
+      "ownerUserId": "player-uid",
+      "ownerUsername": "player1",
+      "class": "Fighter",
+      "level": 2,
+      "hpCurrent": 6,
+      "hpMax": 9,
+      "ac": 6,
+      "xp": 2100,
+      "portraitPath": "groups/g1/campaigns/c1/characters/legacy-no-inventory/portrait.png",
+      "tokenIcon": {
+        "icon": "pawn",
+        "color": "#bf2f2a",
+        "size": 34,
+        "customImagePath": "groups/g1/campaigns/c1/characters/legacy-no-inventory/token.png"
+      },
+      "createdAt": {
+        "$timestamp": "2025-03-01T18:00:00.000Z"
+      },
+      "updatedAt": {
+        "$timestamp": "2025-04-12T20:15:30.250Z"
+      },
+      "unknownTopLevel": {
+        "note": "kept as stored",
+        "list": [
+          1,
+          "two",
+          {
+            "three": 3
+          }
+        ]
+      },
+      "details": {
+        "abilityScores": {
+          "STR": "13",
+          "INT": "10",
+          "WIS": "9",
+          "DEX": "12",
+          "CON": "11",
+          "CHA": "8"
+        },
+        "rolledAbilityScores": null,
+        "abilityScoresRolled": true,
+        "hpBaseRoll": 5,
+        "thaco": "19",
+        "saveScores": null,
+        "adventureScores": null,
+        "adventureSeedClass": "Fighter",
+        "thiefSkills": null,
+        "startingGold": 90,
+        "storeSpent": 40,
+        "storeCart": [
+          {
+            "key": "gear-rope",
+            "name": "Rope (50 ft)",
+            "costGp": 1,
+            "qty": 1,
+            "kind": "general",
+            "unknownRowField": "kept on the cart row"
+          }
+        ],
+        "alignment": "Neutral",
+        "title": "Veteran",
+        "unknownNested": {
+          "kept": true,
+          "deeper": {
+            "value": 7
+          }
+        }
+      }
+    }
+  },
+  "empty-non-arcane-inventory": {
+    "id": "legacy-empty-fighter",
+    "data": {
+      "name": "Empty Fighter",
+      "ownerUserId": "player-uid",
+      "ownerUsername": "player1",
+      "class": "Fighter",
+      "level": 2,
+      "hpCurrent": 6,
+      "hpMax": 9,
+      "ac": 6,
+      "xp": 2100,
+      "portraitPath": "groups/g1/campaigns/c1/characters/legacy-empty-fighter/portrait.png",
+      "tokenIcon": {
+        "icon": "pawn",
+        "color": "#bf2f2a",
+        "size": 34,
+        "customImagePath": "groups/g1/campaigns/c1/characters/legacy-empty-fighter/token.png"
+      },
+      "createdAt": {
+        "$timestamp": "2025-03-01T18:00:00.000Z"
+      },
+      "updatedAt": {
+        "$timestamp": "2025-04-12T20:15:30.250Z"
+      },
+      "unknownTopLevel": {
+        "note": "kept as stored",
+        "list": [
+          1,
+          "two",
+          {
+            "three": 3
+          }
+        ]
+      },
+      "details": {
+        "abilityScores": {
+          "STR": "13",
+          "INT": "10",
+          "WIS": "9",
+          "DEX": "12",
+          "CON": "11",
+          "CHA": "8"
+        },
+        "rolledAbilityScores": null,
+        "abilityScoresRolled": true,
+        "hpBaseRoll": 5,
+        "thaco": "19",
+        "saveScores": null,
+        "adventureScores": null,
+        "adventureSeedClass": "Fighter",
+        "thiefSkills": null,
+        "startingGold": 90,
+        "storeSpent": 40,
+        "storeCart": [
+          {
+            "key": "gear-rope",
+            "name": "Rope (50 ft)",
+            "costGp": 1,
+            "qty": 1,
+            "kind": "general",
+            "unknownRowField": "kept on the cart row"
+          }
+        ],
+        "alignment": "Neutral",
+        "title": "Veteran",
+        "unknownNested": {
+          "kept": true,
+          "deeper": {
+            "value": 7
+          }
+        },
+        "inventory": [],
+        "packedItems": [
+          "Rope"
+        ]
+      }
+    }
+  },
+  "empty-arcane-inventory": {
+    "id": "legacy-empty-mage",
+    "data": {
+      "name": "Empty Mage",
+      "ownerUserId": "player-uid",
+      "ownerUsername": "player1",
+      "class": "Magic-User",
+      "level": 2,
+      "hpCurrent": 6,
+      "hpMax": 9,
+      "ac": 6,
+      "xp": 2100,
+      "portraitPath": "groups/g1/campaigns/c1/characters/legacy-empty-mage/portrait.png",
+      "tokenIcon": {
+        "icon": "pawn",
+        "color": "#bf2f2a",
+        "size": 34,
+        "customImagePath": "groups/g1/campaigns/c1/characters/legacy-empty-mage/token.png"
+      },
+      "createdAt": {
+        "$timestamp": "2025-03-01T18:00:00.000Z"
+      },
+      "updatedAt": {
+        "$timestamp": "2025-04-12T20:15:30.250Z"
+      },
+      "unknownTopLevel": {
+        "note": "kept as stored",
+        "list": [
+          1,
+          "two",
+          {
+            "three": 3
+          }
+        ]
+      },
+      "details": {
+        "abilityScores": {
+          "STR": "13",
+          "INT": "10",
+          "WIS": "9",
+          "DEX": "12",
+          "CON": "11",
+          "CHA": "8"
+        },
+        "rolledAbilityScores": null,
+        "abilityScoresRolled": true,
+        "hpBaseRoll": 5,
+        "thaco": "19",
+        "saveScores": null,
+        "adventureScores": null,
+        "adventureSeedClass": "Magic-User",
+        "thiefSkills": null,
+        "startingGold": 90,
+        "storeSpent": 40,
+        "storeCart": [
+          {
+            "key": "gear-rope",
+            "name": "Rope (50 ft)",
+            "costGp": 1,
+            "qty": 1,
+            "kind": "general",
+            "unknownRowField": "kept on the cart row"
+          }
+        ],
+        "alignment": "Neutral",
+        "title": "Veteran",
+        "unknownNested": {
+          "kept": true,
+          "deeper": {
+            "value": 7
+          }
+        },
+        "inventory": [],
+        "packedItems": [
+          "Spell Book",
+          "Candles"
+        ]
+      }
+    }
+  },
+  "old-lists-beside-inventory": {
+    "id": "legacy-beside",
+    "data": {
+      "name": "Beside",
+      "ownerUserId": "player-uid",
+      "ownerUsername": "player1",
+      "class": "Cleric",
+      "level": 2,
+      "hpCurrent": 6,
+      "hpMax": 9,
+      "ac": 6,
+      "xp": 2100,
+      "portraitPath": "groups/g1/campaigns/c1/characters/legacy-beside/portrait.png",
+      "tokenIcon": {
+        "icon": "pawn",
+        "color": "#bf2f2a",
+        "size": 34,
+        "customImagePath": "groups/g1/campaigns/c1/characters/legacy-beside/token.png"
+      },
+      "createdAt": {
+        "$timestamp": "2025-03-01T18:00:00.000Z"
+      },
+      "updatedAt": {
+        "$timestamp": "2025-04-12T20:15:30.250Z"
+      },
+      "unknownTopLevel": {
+        "note": "kept as stored",
+        "list": [
+          1,
+          "two",
+          {
+            "three": 3
+          }
+        ]
+      },
+      "details": {
+        "abilityScores": {
+          "STR": "13",
+          "INT": "10",
+          "WIS": "9",
+          "DEX": "12",
+          "CON": "11",
+          "CHA": "8"
+        },
+        "rolledAbilityScores": null,
+        "abilityScoresRolled": true,
+        "hpBaseRoll": 5,
+        "thaco": "19",
+        "saveScores": null,
+        "adventureScores": null,
+        "adventureSeedClass": "Cleric",
+        "thiefSkills": null,
+        "startingGold": 90,
+        "storeSpent": 40,
+        "storeCart": [
+          {
+            "key": "gear-rope",
+            "name": "Rope (50 ft)",
+            "costGp": 1,
+            "qty": 1,
+            "kind": "general",
+            "unknownRowField": "kept on the cart row"
+          }
+        ],
+        "alignment": "Neutral",
+        "title": "Veteran",
+        "unknownNested": {
+          "kept": true,
+          "deeper": {
+            "value": 7
+          }
+        },
+        "inventory": [
+          {
+            "kind": "weapon",
+            "typeId": "mace",
+            "typeName": "Mace",
+            "name": "Mace",
+            "costGp": 0,
+            "equipped": false,
+            "notes": "",
+            "qty": 1,
+            "stack": {
+              "stackable": false
+            },
+            "id": "i1",
+            "unknownRowField": "kept on the inventory row"
+          },
+          {
+            "kind": "general",
+            "typeId": "gear-holy-symbol",
+            "typeName": "Holy symbol",
+            "name": "Holy symbol",
+            "costGp": 0,
+            "equipped": false,
+            "notes": "",
+            "qty": 1,
+            "stack": {
+              "stackable": false
+            },
+            "id": "i2"
+          }
+        ],
+        "weapons": [
+          {
+            "id": "w-old",
+            "weaponId": "club",
+            "isMagic": false,
+            "name": "Old club",
+            "damageDiceCount": "1",
+            "damageDiceSides": "8",
+            "bonus": "",
+            "rangeShort": "",
+            "rangeMedium": "",
+            "rangeLong": "",
+            "twoHanded": false,
+            "equipped": true,
+            "notes": ""
+          }
+        ],
+        "armour": [
+          {
+            "id": "a-old",
+            "armourId": "shield",
+            "isMagic": false,
+            "name": "Old shield",
+            "ac": "",
+            "bonus": "",
+            "equipped": true,
+            "notes": ""
+          }
+        ],
+        "packedItems": [
+          "Gold: 50 gp",
+          "Old torch"
+        ],
+        "equippedItems": [
+          "Old cloak"
+        ],
+        "storeGoldSlotIndices": [
+          0
+        ]
+      }
+    }
+  },
+  "rows-without-ids": {
+    "id": "legacy-rows-without-ids",
+    "data": {
+      "name": "Rows Without Ids",
+      "ownerUserId": "player-uid",
+      "ownerUsername": "player1",
+      "class": "Fighter",
+      "level": 2,
+      "hpCurrent": 6,
+      "hpMax": 9,
+      "ac": 6,
+      "xp": 2100,
+      "portraitPath": "groups/g1/campaigns/c1/characters/legacy-rows-without-ids/portrait.png",
+      "tokenIcon": {
+        "icon": "pawn",
+        "color": "#bf2f2a",
+        "size": 34,
+        "customImagePath": "groups/g1/campaigns/c1/characters/legacy-rows-without-ids/token.png"
+      },
+      "createdAt": {
+        "$timestamp": "2025-03-01T18:00:00.000Z"
+      },
+      "updatedAt": {
+        "$timestamp": "2025-04-12T20:15:30.250Z"
+      },
+      "unknownTopLevel": {
+        "note": "kept as stored",
+        "list": [
+          1,
+          "two",
+          {
+            "three": 3
+          }
+        ]
+      },
+      "details": {
+        "abilityScores": {
+          "STR": "13",
+          "INT": "10",
+          "WIS": "9",
+          "DEX": "12",
+          "CON": "11",
+          "CHA": "8"
+        },
+        "rolledAbilityScores": null,
+        "abilityScoresRolled": true,
+        "hpBaseRoll": 5,
+        "thaco": "19",
+        "saveScores": null,
+        "adventureScores": null,
+        "adventureSeedClass": "Fighter",
+        "thiefSkills": null,
+        "startingGold": 90,
+        "storeSpent": 40,
+        "storeCart": [
+          {
+            "key": "gear-rope",
+            "name": "Rope (50 ft)",
+            "costGp": 1,
+            "qty": 1,
+            "kind": "general",
+            "unknownRowField": "kept on the cart row"
+          }
+        ],
+        "alignment": "Neutral",
+        "title": "Veteran",
+        "unknownNested": {
+          "kept": true,
+          "deeper": {
+            "value": 7
+          }
+        },
+        "inventory": [
+          {
+            "kind": "general",
+            "typeId": "gear-rope",
+            "typeName": "Rope (50 ft)",
+            "name": "Rope (50 ft)",
+            "costGp": 0,
+            "equipped": false,
+            "notes": "",
+            "qty": 1,
+            "stack": {
+              "stackable": false
+            },
+            "unknownRowField": "kept on the inventory row"
+          },
+          {
+            "kind": "weapon",
+            "typeId": "sword",
+            "typeName": "Sword",
+            "name": "Sword",
+            "costGp": 0,
+            "equipped": false,
+            "notes": "",
+            "qty": 1,
+            "stack": {
+              "stackable": false
+            },
+            "id": "keep-me"
+          },
+          {
+            "kind": "gold",
+            "typeId": "gold",
+            "typeName": "Gold",
+            "name": "Gold",
+            "costGp": 0,
+            "equipped": false,
+            "notes": "",
+            "qty": 12,
+            "stack": {
+              "stackable": true
+            },
+            "id": ""
+          }
+        ]
+      }
+    }
+  },
+  "manual-ac-flag": {
+    "id": "legacy-manual-ac",
+    "data": {
+      "name": "Manual AC",
+      "ownerUserId": "player-uid",
+      "ownerUsername": "player1",
+      "class": "Fighter",
+      "level": 2,
+      "hpCurrent": 6,
+      "hpMax": 9,
+      "ac": 6,
+      "xp": 2100,
+      "portraitPath": "groups/g1/campaigns/c1/characters/legacy-manual-ac/portrait.png",
+      "tokenIcon": {
+        "icon": "pawn",
+        "color": "#bf2f2a",
+        "size": 34,
+        "customImagePath": "groups/g1/campaigns/c1/characters/legacy-manual-ac/token.png"
+      },
+      "createdAt": {
+        "$timestamp": "2025-03-01T18:00:00.000Z"
+      },
+      "updatedAt": {
+        "$timestamp": "2025-04-12T20:15:30.250Z"
+      },
+      "unknownTopLevel": {
+        "note": "kept as stored",
+        "list": [
+          1,
+          "two",
+          {
+            "three": 3
+          }
+        ]
+      },
+      "details": {
+        "abilityScores": {
+          "STR": "13",
+          "INT": "10",
+          "WIS": "9",
+          "DEX": "12",
+          "CON": "11",
+          "CHA": "8"
+        },
+        "rolledAbilityScores": null,
+        "abilityScoresRolled": true,
+        "hpBaseRoll": 5,
+        "thaco": "19",
+        "saveScores": null,
+        "adventureScores": null,
+        "adventureSeedClass": "Fighter",
+        "thiefSkills": null,
+        "startingGold": 90,
+        "storeSpent": 40,
+        "storeCart": [
+          {
+            "key": "gear-rope",
+            "name": "Rope (50 ft)",
+            "costGp": 1,
+            "qty": 1,
+            "kind": "general",
+            "unknownRowField": "kept on the cart row"
+          }
+        ],
+        "alignment": "Neutral",
+        "title": "Veteran",
+        "unknownNested": {
+          "kept": true,
+          "deeper": {
+            "value": 7
+          }
+        },
+        "acManualOverride": true,
+        "inventory": [
+          {
+            "kind": "armour",
+            "typeId": "chain-mail",
+            "typeName": "Chain mail",
+            "name": "Chain mail",
+            "costGp": 0,
+            "equipped": false,
+            "notes": "",
+            "qty": 1,
+            "stack": {
+              "stackable": false
+            },
+            "id": "i1",
+            "unknownRowField": "kept on the inventory row"
+          }
+        ]
+      }
+    }
+  },
+  "caster-without-book": {
+    "id": "legacy-elf-no-book",
+    "data": {
+      "name": "Elf Without Book",
+      "ownerUserId": "player-uid",
+      "ownerUsername": "player1",
+      "class": "Elf",
+      "level": 2,
+      "hpCurrent": 6,
+      "hpMax": 9,
+      "ac": 6,
+      "xp": 2100,
+      "portraitPath": "groups/g1/campaigns/c1/characters/legacy-elf-no-book/portrait.png",
+      "tokenIcon": {
+        "icon": "pawn",
+        "color": "#bf2f2a",
+        "size": 34,
+        "customImagePath": "groups/g1/campaigns/c1/characters/legacy-elf-no-book/token.png"
+      },
+      "createdAt": {
+        "$timestamp": "2025-03-01T18:00:00.000Z"
+      },
+      "updatedAt": {
+        "$timestamp": "2025-04-12T20:15:30.250Z"
+      },
+      "unknownTopLevel": {
+        "note": "kept as stored",
+        "list": [
+          1,
+          "two",
+          {
+            "three": 3
+          }
+        ]
+      },
+      "details": {
+        "abilityScores": {
+          "STR": "13",
+          "INT": "10",
+          "WIS": "9",
+          "DEX": "12",
+          "CON": "11",
+          "CHA": "8"
+        },
+        "rolledAbilityScores": null,
+        "abilityScoresRolled": true,
+        "hpBaseRoll": 5,
+        "thaco": "19",
+        "saveScores": null,
+        "adventureScores": null,
+        "adventureSeedClass": "Elf",
+        "thiefSkills": null,
+        "startingGold": 90,
+        "storeSpent": 40,
+        "storeCart": [
+          {
+            "key": "gear-rope",
+            "name": "Rope (50 ft)",
+            "costGp": 1,
+            "qty": 1,
+            "kind": "general",
+            "unknownRowField": "kept on the cart row"
+          }
+        ],
+        "alignment": "Neutral",
+        "title": "Veteran",
+        "unknownNested": {
+          "kept": true,
+          "deeper": {
+            "value": 7
+          }
+        },
+        "weapons": [
+          {
+            "id": "w1",
+            "weaponId": "long-sword",
+            "isMagic": false,
+            "name": "Long sword",
+            "damageDiceCount": "1",
+            "damageDiceSides": "8",
+            "bonus": "",
+            "rangeShort": "",
+            "rangeMedium": "",
+            "rangeLong": "",
+            "twoHanded": false,
+            "equipped": true,
+            "notes": "",
+            "unknownRowField": "kept on the weapon row"
+          }
+        ],
+        "packedItems": [
+          "Rope"
+        ]
+      }
+    }
+  },
+  "caster-old-spell-book-row": {
+    "id": "legacy-mage-old-book",
+    "data": {
+      "name": "Mage Old Book",
+      "ownerUserId": "player-uid",
+      "ownerUsername": "player1",
+      "class": "Magic-User",
+      "level": 2,
+      "hpCurrent": 6,
+      "hpMax": 9,
+      "ac": 6,
+      "xp": 2100,
+      "portraitPath": "groups/g1/campaigns/c1/characters/legacy-mage-old-book/portrait.png",
+      "tokenIcon": {
+        "icon": "pawn",
+        "color": "#bf2f2a",
+        "size": 34,
+        "customImagePath": "groups/g1/campaigns/c1/characters/legacy-mage-old-book/token.png"
+      },
+      "createdAt": {
+        "$timestamp": "2025-03-01T18:00:00.000Z"
+      },
+      "updatedAt": {
+        "$timestamp": "2025-04-12T20:15:30.250Z"
+      },
+      "unknownTopLevel": {
+        "note": "kept as stored",
+        "list": [
+          1,
+          "two",
+          {
+            "three": 3
+          }
+        ]
+      },
+      "details": {
+        "abilityScores": {
+          "STR": "13",
+          "INT": "10",
+          "WIS": "9",
+          "DEX": "12",
+          "CON": "11",
+          "CHA": "8"
+        },
+        "rolledAbilityScores": null,
+        "abilityScoresRolled": true,
+        "hpBaseRoll": 5,
+        "thaco": "19",
+        "saveScores": null,
+        "adventureScores": null,
+        "adventureSeedClass": "Magic-User",
+        "thiefSkills": null,
+        "startingGold": 90,
+        "storeSpent": 40,
+        "storeCart": [
+          {
+            "key": "gear-rope",
+            "name": "Rope (50 ft)",
+            "costGp": 1,
+            "qty": 1,
+            "kind": "general",
+            "unknownRowField": "kept on the cart row"
+          }
+        ],
+        "alignment": "Neutral",
+        "title": "Veteran",
+        "unknownNested": {
+          "kept": true,
+          "deeper": {
+            "value": 7
+          }
+        },
+        "weapons": [
+          {
+            "id": "w1",
+            "weaponId": "dagger",
+            "isMagic": false,
+            "name": "Dagger",
+            "damageDiceCount": "1",
+            "damageDiceSides": "8",
+            "bonus": "",
+            "rangeShort": "",
+            "rangeMedium": "",
+            "rangeLong": "",
+            "twoHanded": false,
+            "equipped": true,
+            "notes": "",
+            "unknownRowField": "kept on the weapon row"
+          }
+        ],
+        "packedItems": [
+          "Candles",
+          "Spell Book"
+        ]
+      }
+    }
+  },
+  "caster-old-spell-book-in-inventory": {
+    "id": "legacy-mage-old-book-inv",
+    "data": {
+      "name": "Mage Old Book Inventory",
+      "ownerUserId": "player-uid",
+      "ownerUsername": "player1",
+      "class": "Magic-User",
+      "level": 2,
+      "hpCurrent": 6,
+      "hpMax": 9,
+      "ac": 6,
+      "xp": 2100,
+      "portraitPath": "groups/g1/campaigns/c1/characters/legacy-mage-old-book-inv/portrait.png",
+      "tokenIcon": {
+        "icon": "pawn",
+        "color": "#bf2f2a",
+        "size": 34,
+        "customImagePath": "groups/g1/campaigns/c1/characters/legacy-mage-old-book-inv/token.png"
+      },
+      "createdAt": {
+        "$timestamp": "2025-03-01T18:00:00.000Z"
+      },
+      "updatedAt": {
+        "$timestamp": "2025-04-12T20:15:30.250Z"
+      },
+      "unknownTopLevel": {
+        "note": "kept as stored",
+        "list": [
+          1,
+          "two",
+          {
+            "three": 3
+          }
+        ]
+      },
+      "details": {
+        "abilityScores": {
+          "STR": "13",
+          "INT": "10",
+          "WIS": "9",
+          "DEX": "12",
+          "CON": "11",
+          "CHA": "8"
+        },
+        "rolledAbilityScores": null,
+        "abilityScoresRolled": true,
+        "hpBaseRoll": 5,
+        "thaco": "19",
+        "saveScores": null,
+        "adventureScores": null,
+        "adventureSeedClass": "Magic-User",
+        "thiefSkills": null,
+        "startingGold": 90,
+        "storeSpent": 40,
+        "storeCart": [
+          {
+            "key": "gear-rope",
+            "name": "Rope (50 ft)",
+            "costGp": 1,
+            "qty": 1,
+            "kind": "general",
+            "unknownRowField": "kept on the cart row"
+          }
+        ],
+        "alignment": "Neutral",
+        "title": "Veteran",
+        "unknownNested": {
+          "kept": true,
+          "deeper": {
+            "value": 7
+          }
+        },
+        "inventory": [
+          {
+            "kind": "weapon",
+            "typeId": "dagger",
+            "typeName": "Dagger",
+            "name": "Dagger",
+            "costGp": 0,
+            "equipped": false,
+            "notes": "",
+            "qty": 1,
+            "stack": {
+              "stackable": false
+            },
+            "id": "i1",
+            "unknownRowField": "kept on the inventory row"
+          },
+          {
+            "kind": "general",
+            "typeId": "custom",
+            "typeName": "Spell Book",
+            "name": "Spell Book",
+            "costGp": 0,
+            "equipped": false,
+            "notes": "bound in red leather",
+            "qty": 1,
+            "stack": {
+              "stackable": false
+            },
+            "id": "i2"
+          }
+        ]
+      }
+    }
+  },
+  "caster-inventory-without-book": {
+    "id": "legacy-mage-no-book-inv",
+    "data": {
+      "name": "Mage Inventory Without Book",
+      "ownerUserId": "player-uid",
+      "ownerUsername": "player1",
+      "class": "Magic-User",
+      "level": 2,
+      "hpCurrent": 6,
+      "hpMax": 9,
+      "ac": 6,
+      "xp": 2100,
+      "portraitPath": "groups/g1/campaigns/c1/characters/legacy-mage-no-book-inv/portrait.png",
+      "tokenIcon": {
+        "icon": "pawn",
+        "color": "#bf2f2a",
+        "size": 34,
+        "customImagePath": "groups/g1/campaigns/c1/characters/legacy-mage-no-book-inv/token.png"
+      },
+      "createdAt": {
+        "$timestamp": "2025-03-01T18:00:00.000Z"
+      },
+      "updatedAt": {
+        "$timestamp": "2025-04-12T20:15:30.250Z"
+      },
+      "unknownTopLevel": {
+        "note": "kept as stored",
+        "list": [
+          1,
+          "two",
+          {
+            "three": 3
+          }
+        ]
+      },
+      "details": {
+        "abilityScores": {
+          "STR": "13",
+          "INT": "10",
+          "WIS": "9",
+          "DEX": "12",
+          "CON": "11",
+          "CHA": "8"
+        },
+        "rolledAbilityScores": null,
+        "abilityScoresRolled": true,
+        "hpBaseRoll": 5,
+        "thaco": "19",
+        "saveScores": null,
+        "adventureScores": null,
+        "adventureSeedClass": "Magic-User",
+        "thiefSkills": null,
+        "startingGold": 90,
+        "storeSpent": 40,
+        "storeCart": [
+          {
+            "key": "gear-rope",
+            "name": "Rope (50 ft)",
+            "costGp": 1,
+            "qty": 1,
+            "kind": "general",
+            "unknownRowField": "kept on the cart row"
+          }
+        ],
+        "alignment": "Neutral",
+        "title": "Veteran",
+        "unknownNested": {
+          "kept": true,
+          "deeper": {
+            "value": 7
+          }
+        },
+        "inventory": [
+          {
+            "kind": "weapon",
+            "typeId": "dagger",
+            "typeName": "Dagger",
+            "name": "Dagger",
+            "costGp": 0,
+            "equipped": false,
+            "notes": "",
+            "qty": 1,
+            "stack": {
+              "stackable": false
+            },
+            "id": "i1",
+            "unknownRowField": "kept on the inventory row"
+          }
+        ]
+      }
+    }
+  }
+}
