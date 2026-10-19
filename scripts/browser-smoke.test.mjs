@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { groupIdFromUrl, oseCharacterFields, step, vtmCharacterFields } from './browser-smoke.mjs'
+import {
+  calibratedMapFields,
+  groupIdFromUrl,
+  interpolatePath,
+  oseCharacterFields,
+  partyTokenFields,
+  step,
+  trackersAtZero,
+  vtmCharacterFields,
+} from './browser-smoke.mjs'
 
 const pageAt = (url) => ({ url: () => url })
 
@@ -61,5 +70,52 @@ describe('seeding an OSE character', () => {
       hpMax: 8,
       creationStatus: 'active',
     })
+  })
+})
+
+describe('seeding a calibrated map', () => {
+  it('writes a blank map with a calibrated grid of 20 cells of 10 feet across', () => {
+    expect(calibratedMapFields()).toEqual({
+      name: 'Calibrated Map',
+      kind: 'blank',
+      width: 1600,
+      height: 1000,
+      sortOrder: 0,
+      gridEnabled: true,
+      gridCalibrated: true,
+      gridCellScale: 0.05,
+      gridUnitsPerCell: 10,
+    })
+  })
+
+  it('writes a visible party token near the left edge, halfway down', () => {
+    expect(partyTokenFields()).toEqual({ x: 0.1, y: 0.5, party: true, name: 'Party', size: 28, color: '#b45309' })
+  })
+})
+
+describe('a dragging gesture', () => {
+  it('passes through evenly spaced points on each leg, ending on each corner', () => {
+    expect(interpolatePath([{ x: 0, y: 0 }, { x: 40, y: 20 }, { x: 0, y: 0 }], 2)).toEqual([
+      { x: 20, y: 10 },
+      { x: 40, y: 20 },
+      { x: 20, y: 10 },
+      { x: 0, y: 0 },
+    ])
+  })
+
+  it('has nowhere to go from a single point', () => {
+    expect(interpolatePath([{ x: 5, y: 5 }], 10)).toEqual([])
+  })
+})
+
+describe('reading the distance tracker', () => {
+  it.each([
+    [["0'"], true],
+    [["0'", "0'"], true],
+    [[], false],
+    [["0'", "120'"], false],
+    [['1st'], false],
+  ])('reads %j as still at zero: %s', (values, expected) => {
+    expect(trackersAtZero(values)).toBe(expected)
   })
 })
