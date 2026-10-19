@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { afterAll, beforeAll, describe, it } from 'vitest'
 import { doc, setDoc } from 'firebase/firestore'
 import {
@@ -9,6 +7,7 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
 import { emulatorPort } from '../../../vitest.emulatorEndpoint'
+import { firestoreRules } from '../../../vitest.firestoreRules'
 
 const projectId = 'homeboyshouse-transfer-forgery-tests'
 
@@ -25,7 +24,7 @@ beforeAll(async () => {
   testEnv = await initializeTestEnvironment({
     projectId,
     firestore: {
-      rules: readFileSync(resolve(__dirname, '../../../firestore.rules'), 'utf8'),
+      rules: firestoreRules(),
       host: '127.0.0.1',
       port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
     },

@@ -8,6 +8,7 @@ import { entityMediaStoragePath, uploadAuthorityMetadata } from '../common/media
 import { npcDocWritePayload, npcMediaUploadParams, npcPrivateWritePayload, SCENE_NPC_WRITE_OPTIONS, sceneNpcDocSegments, sceneNpcPrivateDocSegments, toNpcGmNotes, toNpcRecord } from './lib/sceneNpcRecord'
 import type { NpcRecord } from '../../types/app'
 import { emulatorPort } from '../../../vitest.emulatorEndpoint'
+import { firestoreRules } from '../../../vitest.firestoreRules'
 
 const projectId = process.env.GCLOUD_PROJECT ?? 'homeboyshouse-dev'
 const groupId = 'maps-npc-group'
@@ -24,7 +25,7 @@ describe('scene NPC production paths and payloads', () => {
   beforeAll(async () => {
     testEnv = await initializeTestEnvironment({
       projectId,
-      firestore: { host: '127.0.0.1', port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080), rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8') },
+      firestore: { host: '127.0.0.1', port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080), rules: firestoreRules() },
       storage: { host: '127.0.0.1', port: emulatorPort('FIREBASE_STORAGE_EMULATOR_HOST', 9199), rules: readFileSync(resolve(process.cwd(), 'storage.rules'), 'utf8') },
     })
     await testEnv.withSecurityRulesDisabled(async (context) => {

@@ -7,8 +7,6 @@
  * its way of asking Discord who someone is as arguments, so this suite can
  * drive it without importing `functions/src/index.ts` and without Discord.
  */
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore'
 import {
@@ -29,6 +27,7 @@ import {
   type DiscordIdentity,
 } from '../../../functions/src/discordConnect'
 import { emulatorPort } from '../../../vitest.emulatorEndpoint'
+import { firestoreRules } from '../../../vitest.firestoreRules'
 
 // The admin SDK resolves its project from GCLOUD_PROJECT, so the rules contexts
 // have to share that id or the two sides would read different namespaces.
@@ -70,7 +69,7 @@ beforeAll(async () => {
     firestore: {
       host: '127.0.0.1',
       port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
-      rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
+      rules: firestoreRules(),
     },
   })
 })

@@ -10,6 +10,7 @@ import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, updateDoc } from '
 import { deleteObject, getBytes, ref, uploadString } from 'firebase/storage'
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { emulatorPort } from '../../../vitest.emulatorEndpoint'
+import { firestoreRules } from '../../../vitest.firestoreRules'
 
 // Storage rules look membership up in the emulator's own project, so this has to be that project.
 const projectId = process.env.GCLOUD_PROJECT ?? 'homeboyshouse-dev'
@@ -51,7 +52,7 @@ describe('reading a recorded session', () => {
       firestore: {
         host: '127.0.0.1',
         port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
-        rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
+        rules: firestoreRules(),
       },
       storage: {
         host: '127.0.0.1',
