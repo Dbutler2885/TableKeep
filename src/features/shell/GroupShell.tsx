@@ -1,12 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { ChevronLeft, Menu, Settings } from 'lucide-react'
-import { signOut } from 'firebase/auth'
 import type { User } from 'firebase/auth'
-import { NavLink, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 // Sidebar uses the dedicated B&W "Tower Keep" mark; the color "Tablekeep"
 // stays on the lobby/picker/auth surfaces via BrandWordmark.
 import tablekeepLogo from '../../../logo/Tower Keep.svg'
-import { auth } from '../../firebase'
 import { DiscordConnection } from '../auth/DiscordConnection'
 import { DiscordReturnNotice } from '../auth/DiscordReturnNotice'
 import { CharacterTab } from '../character/CharacterTab'
@@ -21,188 +19,77 @@ import { TablesTab } from '../tables/TablesTab'
 import { NotesTab } from '../notes/NotesTab'
 import { CalendarTab } from '../notes/CalendarTab'
 import { CliffhangerModal } from '../notes/CliffhangerModal'
-import { campaignTabPath, groupHomePath, groupPickerPath, tabFromPathname } from '../navigation/tabs'
+import { campaignTabPath, groupHomePath, groupPickerPath } from '../navigation/tabs'
 import { useCharacters } from '../character/hooks/useCharacters'
-import { useItemApprovals } from '../character/hooks/useItemApprovals'
 import { TransferNotification } from '../transfers/TransferNotification'
 import { GroupPicker } from '../groups/GroupPicker'
 import { GroupHome } from '../groups/GroupHome'
 import { useGroupAccess } from '../groups/useGroupAccess'
 import { CampaignSettingsModal } from '../campaign/CampaignSettingsModal'
 import { DemoBanner } from '../demo/DemoBanner'
-import { forgetDemoExpiry, readDemoExpiry } from '../demo/demoSandboxState'
-import type { GroupRecord, ItemApprovalRequest } from '../../types/app'
+import type { GroupRecord } from '../../types/app'
 import { approvalTitle, flagSuffix, itemDisplayName, numericSuffix } from './approvalText'
-import { campaignIds, campaignRole, campaignSystem, findCampaign, findGroup, shellTheme } from './shellSelection'
-import { campaignNavTabs, contentPanelClass, routableTab } from './shellTabs'
+import { characterTabPropsFor } from './characterTabProps'
+import { campaignIds, campaignRole, campaignSystem, shellTheme } from './shellSelection'
+import { contentPanelClass } from './shellTabs'
+import { useApprovalQueue } from './useApprovalQueue'
+import { useCampaignLifecycle } from './useCampaignLifecycle'
+import { useCampaignNav } from './useCampaignNav'
+import { useDemoSession } from './useDemoSession'
+import { useGroupNavigation } from './useGroupNavigation'
+import { useRootRedirect } from './useRootRedirect'
+import { useSelectedCampaign } from './useSelectedCampaign'
+import { useShellRoute } from './useShellRoute'
 import { listensForApprovals, listensForCharacters, showsCliffhangerModal, showsTransferNotification } from './workspaceListening'
 
 const OSE_SRD_URL = 'https://oldschoolessentials.necroticgnome.com/srd/index.php/Main_Page'
 
 export function GroupShell({ user, username, isDemoVisitor }: { user: User, username: string, isDemoVisitor: boolean }) {
-  const location = useLocation()
-  const navigate = useNavigate()
-  const params = useParams()
-  const activeTab = useMemo(() => tabFromPathname(location.pathname), [location.pathname])
+  const { pathname, navigate, activeTab, selectedGroupId, selectedCampaignId } = useShellRoute()
   const documentVisible = useDocumentVisibility()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const { groups, loading, error, createCampaign, createGroup, setActiveCampaign, deactivateCampaign, deleteInactiveCampaign, deleteDraftCampaign, deleteGroup, setError } = useGroupAccess(user)
-  const selectedGroupId = params.groupId ?? null
-  const selectedCampaignId = params.campaignId ?? null
-  const selectedGroup = useMemo(() => findGroup(groups, selectedGroupId), [groups, selectedGroupId])
-  const campaign = useMemo(() => findCampaign(selectedGroup, selectedCampaignId), [selectedCampaignId, selectedGroup])
+  const { selectedGroup, campaign } = useSelectedCampaign(groups, selectedGroupId, selectedCampaignId)
   const ids = campaignIds(campaign)
   const role = campaignRole(campaign, user.uid)
   const gameSystem = campaignSystem(campaign)
 
-  useEffect(() => {
-    if (loading) return
-    if (location.pathname === '/') {
-      const target = groups.length === 1 ? groupHomePath(groups[0].id) : groupPickerPath
-      void navigate(target, { replace: true })
-    }
-  }, [groups, loading, location.pathname, navigate])
+  useRootRedirect(groups, loading, pathname, navigate)
+  const { handleSignOut, demoExpiresAt } = useDemoSession(isDemoVisitor, user.uid)
+  const { handleSelectGroup, handleCreateGroup, handleCreateCampaign, handleDeleteGroup, handleOpenCampaign, openActiveCampaign } = useGroupNavigation({
+    groups,
+    navigate,
+    selectedGroupId,
+    setDrawerOpen,
+    createGroup,
+    createCampaign,
+    deleteGroup,
+  })
+  const { handleSetActiveCampaign, handleDeleteDraftCampaign, handleDeactivateCampaign, handleDeleteInactiveCampaign } = useCampaignLifecycle({
+    navigate,
+    selectedGroupId,
+    selectedCampaignId,
+    setActiveCampaign,
+    deactivateCampaign,
+    deleteDraftCampaign,
+    deleteInactiveCampaign,
+  })
 
-  const handleSignOut = useCallback(() => {
-    forgetDemoExpiry()
-    void signOut(auth)
-  }, [])
-
-  // Read once per mount rather than per render: the value is written by the
-  // demo entry screen and never changes for the life of the sandbox.
-  const demoExpiresAt = useMemo(
-    () => (isDemoVisitor ? readDemoExpiry(user.uid) : null),
-    [isDemoVisitor, user.uid],
-  )
-
-  const handleSelectGroup = useCallback((groupId: string) => {
-    const nextGroup = groups.find((group) => group.id === groupId) ?? null
-    void navigate(
-      nextGroup?.activeCampaign
-        ? campaignTabPath(groupId, nextGroup.activeCampaign!.id, 'character')
-        : groupHomePath(groupId),
-      { replace: true },
-    )
-    setDrawerOpen(false)
-  }, [groups, navigate])
-
-  const handleCreateGroup = useCallback(async (name: string) => {
-    const groupId = await createGroup(name)
-    void navigate(groupHomePath(groupId), { replace: true })
-  }, [createGroup, navigate])
-
-  const handleCreateCampaign = useCallback(async (groupId: string, name: string, system: string) => {
-    await createCampaign(groupId, name, system)
-    void navigate(groupHomePath(groupId), { replace: true })
-  }, [createCampaign, navigate])
-
-  const handleDeleteGroup = useCallback(async (groupId: string) => {
-    await deleteGroup(groupId)
-    void navigate(groupPickerPath, { replace: true })
-  }, [deleteGroup, navigate])
-
-  const handleSetActiveCampaign = useCallback(async (groupId: string, campaignId: string) => {
-    await setActiveCampaign(groupId, campaignId)
-  }, [setActiveCampaign])
-
-  const handleDeleteDraftCampaign = useCallback(async (groupId: string, campaignId: string) => {
-    await deleteDraftCampaign(groupId, campaignId)
-    if (selectedGroupId === groupId && selectedCampaignId === campaignId) {
-      void navigate(groupHomePath(groupId), { replace: true })
-    }
-  }, [deleteDraftCampaign, navigate, selectedCampaignId, selectedGroupId])
-
-  const handleDeactivateCampaign = useCallback(async (groupId: string, campaignId: string) => {
-    await deactivateCampaign(groupId, campaignId)
-  }, [deactivateCampaign])
-
-  const handleDeleteInactiveCampaign = useCallback(async (groupId: string, campaignId: string) => {
-    await deleteInactiveCampaign(groupId, campaignId)
-    if (selectedGroupId === groupId && selectedCampaignId === campaignId) {
-      void navigate(groupHomePath(groupId), { replace: true })
-    }
-  }, [deleteInactiveCampaign, navigate, selectedCampaignId, selectedGroupId])
-
-  const handleOpenCampaign = useCallback((campaignId: string) => {
-    if (!selectedGroupId) return
-    void navigate(campaignTabPath(selectedGroupId, campaignId, 'character'), { replace: true })
-  }, [navigate, selectedGroupId])
-
-  const shouldListenForCharacters = listensForCharacters(gameSystem, documentVisible, activeTab)
-  const shouldListenForApprovals = listensForApprovals(documentVisible, role, activeTab)
-  const shouldShowTransferNotification = showsTransferNotification(documentVisible, activeTab)
-  const shouldShowCliffhangerModal = showsCliffhangerModal(documentVisible, activeTab)
-  const {
-    characters,
-    charactersLoading,
-    currentCharacterId,
-    setCurrentCharacter,
-    selectedCharacterId,
-    setSelectedCharacterId,
-    selectedCharacter,
-    updateCharacter,
-    syncCharacterLocal,
-    deleteCharacter,
-    hasPendingWrite,
-  } = useCharacters(ids.campaignId, ids.groupId, user.uid, username, role, ids.gmUserId, setError, shouldListenForCharacters)
-
-  const characterTabProps = campaign ? {
-    campaignId: campaign.id,
-    groupId: campaign.groupId,
-    gmUserId: campaign.gmUserId ?? null,
-    currentUserId: user.uid,
-    currentUsername: username,
-    role,
-    characters,
-    charactersLoading,
-    currentCharacterId,
-    setCurrentCharacter,
-    selectedCharacterId,
-    setSelectedCharacterId,
-    selectedCharacter,
-    updateCharacter,
-    syncCharacterLocal,
-    deleteCharacter,
-    hasPendingWrite,
-  } : null
-
-  const { pendingRequests, approveRequest, rejectRequest } = useItemApprovals(
+  const characterState = useCharacters(ids.campaignId, ids.groupId, user.uid, username, role, ids.gmUserId, setError, listensForCharacters(gameSystem, documentVisible, activeTab))
+  const { characters } = characterState
+  const characterTabProps = characterTabPropsFor(campaign, { userId: user.uid, username, role }, characterState)
+  const { pendingRequests, approvalBusy, handleApprove, handleReject } = useApprovalQueue(
     ids.campaignId,
     ids.groupId,
     role,
     user.uid,
-    shouldListenForApprovals,
+    listensForApprovals(documentVisible, role, activeTab),
   )
-  const [approvalBusy, setApprovalBusy] = useState(false)
-
-  const handleApprove = useCallback(async (request: ItemApprovalRequest) => {
-    setApprovalBusy(true)
-    try { await approveRequest(request) } catch (e) { console.error('Approve failed', e) }
-    setApprovalBusy(false)
-  }, [approveRequest])
-
-  const handleReject = useCallback(async (request: ItemApprovalRequest) => {
-    setApprovalBusy(true)
-    try { await rejectRequest(request) } catch (e) { console.error('Reject failed', e) }
-    setApprovalBusy(false)
-  }, [rejectRequest])
-
-  const visibleTabs = useMemo(
-    () => campaignNavTabs(gameSystem, role, campaign?.enabledTabs),
-    [role, campaign?.enabledTabs, gameSystem],
-  )
-
-  // Hard-gate routes by system: a VtM campaign has no items/tables/rules routes,
-  // so redirect direct navigation there back to the character tab.
-  useEffect(() => {
-    if (!campaign) return
-    const target = routableTab(gameSystem, activeTab)
-    if (target !== activeTab) {
-      void navigate(campaignTabPath(campaign.groupId, campaign.id, target), { replace: true })
-    }
-  }, [activeTab, campaign, gameSystem, navigate])
+  const visibleTabs = useCampaignNav(campaign, gameSystem, role, activeTab, navigate)
+  const shouldShowTransferNotification = showsTransferNotification(documentVisible, activeTab)
+  const shouldShowCliffhangerModal = showsCliffhangerModal(documentVisible, activeTab)
 
   const renderCampaignWorkspace = (group: GroupRecord) => (
     <>
@@ -512,7 +399,7 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
 
   return (
     <main className="shell-root" data-theme={shellTheme(campaign, selectedCampaignId, gameSystem)}>
-      {location.pathname === groupPickerPath || !selectedGroup ? (
+      {pathname === groupPickerPath || !selectedGroup ? (
         <GroupPicker
           username={username}
           groups={groups}
@@ -536,11 +423,7 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
           onBackToGroups={() => { void navigate(groupPickerPath, { replace: true }) }}
           onOpenCampaign={handleOpenCampaign}
           onSignOut={handleSignOut}
-          onOpenActiveCampaign={() => {
-            if (selectedGroup.activeCampaign) {
-              void navigate(campaignTabPath(selectedGroup.id, selectedGroup.activeCampaign.id, 'character'), { replace: true })
-            }
-          }}
+          onOpenActiveCampaign={() => openActiveCampaign(selectedGroup)}
         />
       ) : (
         renderCampaignWorkspace(selectedGroup)
