@@ -9,6 +9,8 @@ import type { AppTab, Campaign } from '../../types/app'
 import { campaignSettingsTabs } from '../campaign/campaignTabSettings'
 import { campaignSystem } from '../shell/shellSelection'
 import { campaignNavTabs, routableTab } from '../shell/shellTabs'
+import { resolveRuleSet, ruleSets } from './registry'
+import type { RuleSetId } from './registry'
 
 // A campaign stores its rule set as a raw `system` string, which may be
 // missing, empty or a value no rule set registers.
@@ -34,6 +36,23 @@ describe('rule-set resolution', () => {
 
   it('resolves a campaign that is not open yet to OSE', () => {
     expect(campaignSystem(null)).toBe('ose')
+  })
+})
+
+describe('rule-set declarations', () => {
+  it('resolves every registered id to its own entry', () => {
+    for (const [id, ruleSet] of Object.entries(ruleSets)) {
+      expect(ruleSet.id).toBe(id)
+      expect(resolveRuleSet(id)).toBe(ruleSet)
+      expect(resolve(id)).toBe(id)
+    }
+  })
+
+  it.each([
+    ['ose', 'Old-School Essentials', 'OSE'],
+    ['vtm', 'Vampire: the Masquerade', 'VTM'],
+  ] as const)('%s is labelled %j, shortened to %j', (id: RuleSetId, label, shortLabel) => {
+    expect(ruleSets[id]).toMatchObject({ id, label, shortLabel })
   })
 })
 

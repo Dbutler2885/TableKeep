@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react'
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { db } from '../../firebase'
-import { resolveSystem } from '../navigation/tabs'
+import { resolveRuleSet } from '../ruleSets/registry'
 import type { AppTab, Campaign } from '../../types/app'
 import { campaignSettingsTabs, enabledTabsToSave, initialEnabledTabs, toggleEnabledTab } from './campaignTabSettings'
 
-// The campaign settings form: which of its system's tabs the campaign shows,
+// The campaign settings form: which of its rule set's tabs the campaign shows,
 // and saving that choice onto the campaign document.
 export function useCampaignTabSettings(groupId: string, campaign: Campaign, onClose: () => void) {
-  const gameSystem = resolveSystem(campaign.system)
+  const gameSystem = resolveRuleSet(campaign.system).id
   const settingsTabs = useMemo(() => campaignSettingsTabs(gameSystem), [gameSystem])
   const [enabled, setEnabled] = useState(() => initialEnabledTabs(gameSystem, campaign.enabledTabs))
   const [busy, setBusy] = useState(false)

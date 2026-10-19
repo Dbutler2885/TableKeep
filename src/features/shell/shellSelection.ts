@@ -1,5 +1,5 @@
-import { resolveSystem } from '../navigation/tabs'
 import type { GameSystem } from '../navigation/tabs'
+import { resolveRuleSet } from '../ruleSets/registry'
 import type { Campaign, GroupRecord, Role } from '../../types/app'
 
 export type CampaignIds = {
@@ -33,7 +33,7 @@ export function findCampaign(group: GroupRecord | null, campaignId: string | nul
 export const campaignRole = (campaign: Campaign | null, userId: string): Role | null =>
   campaign ? (campaign.gmUserId === userId ? 'gm' : 'player') : null
 
-export const campaignSystem = (campaign: Campaign | null): GameSystem => resolveSystem(campaign?.system)
+export const campaignSystem = (campaign: Campaign | null): GameSystem => resolveRuleSet(campaign?.system).id
 
 // useGroupAccess always sets a campaign's id and groupId from its document
 // path, so only the GM can be missing.
