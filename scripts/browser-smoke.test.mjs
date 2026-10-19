@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  assertStepItems,
   calibratedMapFields,
   changedFirestoreFields,
   groupIdFromUrl,
@@ -161,6 +162,27 @@ describe('the items OSE\'s step makes of an old-format character', () => {
     const ids = inventory.arrayValue.values.map((item) => item.mapValue.fields.id.stringValue)
     expect(ids).toEqual(['legacy-elf-1-packedItems-0', 'legacy-elf-1-spell-book'])
     expect(stepInventory('elf-1', { class: 'Elf', details: { packedItems: ['Rope'] } })).toEqual(inventory)
+  })
+
+  describe('checking a stored document holds them', () => {
+    const seeded = { characterId: 'elf-1', fields: { class: 'Elf', details: { weapons: [{ id: 'w1', name: 'Sword' }] } } }
+    const expected = stepInventory(seeded.characterId, seeded.fields)
+    const storedWith = (inventory) => ({ details: { mapValue: { fields: { inventory } } } })
+
+    it('accepts the step\'s items, with empty lists in Firestore\'s own spelling', () => {
+      const asStored = JSON.parse(JSON.stringify(expected).replaceAll('{"values":[]}', '{}'))
+      expect(asStored).not.toEqual(expected)
+      expect(() => assertStepItems(storedWith(asStored), seeded)).not.toThrow()
+    })
+
+    it('refuses items with another id', () => {
+      const renamed = JSON.parse(JSON.stringify(expected).replace('"w1"', '"random-id"'))
+      expect(() => assertStepItems(storedWith(renamed), seeded)).toThrow('other items than OSE\'s step makes')
+    })
+
+    it('refuses a document without items', () => {
+      expect(() => assertStepItems({ name: { stringValue: 'Elf' } }, seeded)).toThrow('other items than OSE\'s step makes')
+    })
   })
 })
 

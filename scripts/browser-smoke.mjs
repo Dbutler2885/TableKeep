@@ -663,14 +663,19 @@ async function seedLegacyOseCampaign({ uid, groupId, testCase }) {
   return { campaignName, characterName: fields.name, characterId: fixture.id, fields, path }
 }
 
+// Throws unless a stored document, in the REST shape, holds exactly the items
+// OSE's step makes of the seeded character, ids included.
+export function assertStepItems(storedFields, seeded) {
+  const stored = storedFields.details?.mapValue?.fields?.inventory
+  if (!sameFirestoreValue(stored, stepInventory(seeded.characterId, seeded.fields))) {
+    throw new Error(`The sheet holds other items than OSE's step makes: ${JSON.stringify(stored)}`)
+  }
+}
+
 // A save writes the items the sheet holds, so the stored items are the ones
 // the sheet showed when it last saved.
 async function expectStepItemsStored(seeded) {
-  const stored = (await readDocumentFields(seeded.path)).details?.mapValue?.fields?.inventory
-  const expected = stepInventory(seeded.characterId, seeded.fields)
-  if (!sameFirestoreValue(stored, expected)) {
-    throw new Error(`The sheet holds other items than OSE's step makes: ${JSON.stringify(stored)}`)
-  }
+  assertStepItems(await readDocumentFields(seeded.path), seeded)
 }
 
 async function oseLegacyItemsCase(page, seeded) {
