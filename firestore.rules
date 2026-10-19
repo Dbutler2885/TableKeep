@@ -53,7 +53,7 @@ service cloud.firestore {
     // Its keys are also this file's list of rule sets: a campaign whose `system`
     // is not one of them is OSE, as it is in the app. A floor of 0 leaves a
     // write judged as it was before the fence. The keys and the floors are
-    // pinned to the registry by `src/features/rulesets/characterSchemaFloors.test.ts`,
+    // pinned to the registry by `src/features/ruleSets/characterSchemaFloors.test.ts`,
     // which refuses a floor above the version the app writes.
     function characterSchemaFloors() {
       return {"ose": 0, "vtm": 0};
