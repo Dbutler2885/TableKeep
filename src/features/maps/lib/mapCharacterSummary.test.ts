@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mapCharacterSummaryFromData } from './mapCharacterSummary'
 
 describe('map character summary', () => {
-  it('normalizes OSE hit points without changing living-party semantics', () => {
+  it('puts an OSE character with hit points left in play, without carrying the hit points', () => {
     const summary = mapCharacterSummaryFromData('ose-character', {
       name: 'Mirelda',
       ownerUserId: 'player',
@@ -12,14 +12,14 @@ describe('map character summary', () => {
     })
 
     expect(summary).toMatchObject({
-      system: 'ose',
       creationStatus: 'active',
-      hpCurrent: 7,
+      inPlay: true,
     })
-    expect(summary).not.toHaveProperty('incapacitated')
+    expect(summary).not.toHaveProperty('hpCurrent')
+    expect(summary).not.toHaveProperty('system')
   })
 
-  it('normalizes VtM health instead of inventing zero OSE hit points', () => {
+  it('reads VtM health instead of inventing zero OSE hit points', () => {
     const summary = mapCharacterSummaryFromData('vtm-character', {
       system: 'vtm',
       name: 'Connor',
@@ -30,11 +30,10 @@ describe('map character summary', () => {
     })
 
     expect(summary).toMatchObject({
-      system: 'vtm',
       creationStatus: 'active',
-      incapacitated: false,
+      inPlay: true,
     })
-    expect(summary).not.toHaveProperty('hpCurrent')
+    expect(summary).not.toHaveProperty('incapacitated')
   })
 
   it('preserves a resolved VtM token URL while the same Storage path remains current', () => {
@@ -89,29 +88,29 @@ describe('map character summary fields', () => {
       id: 'bare',
       name: '',
       ownerUserId: '',
-      system: 'ose',
       creationStatus: 'active',
-      hpCurrent: 0,
+      inPlay: false,
       hidden: false,
       deleted: false,
       tokenIcon: { icon: 'pawn', color: '#bf2f2a', size: 34 },
     })
   })
 
-  it('treats any system other than vtm as OSE', () => {
-    expect(mapCharacterSummaryFromData('other', { system: 'lubec', hpCurrent: 4 })).toMatchObject({
-      system: 'ose',
-      hpCurrent: 4,
+  it.each(['ose', 'lubec', '', 'VTM'])('reads a character storing system %j as OSE', (system) => {
+    expect(mapCharacterSummaryFromData('other', { system, hpCurrent: 4 })).toMatchObject({
+      inPlay: true,
+      tokenIcon: { icon: 'pawn', color: '#bf2f2a', size: 34 },
     })
+    expect(mapCharacterSummaryFromData('other', { system, vtm: { health: {} } }).inPlay).toBe(false)
   })
 
   it.each([
-    [-3, 0],
-    [0, 0],
-    [2.5, 2.5],
-    ['5', 0],
-  ])('clamps OSE hit points %j to %j', (hpCurrent, expected) => {
-    expect(mapCharacterSummaryFromData('ose', { hpCurrent }).hpCurrent).toBe(expected)
+    [-3, false],
+    [0, false],
+    [2.5, true],
+    ['5', false],
+  ])('puts an OSE character with hit points %j in play: %s', (hpCurrent, expected) => {
+    expect(mapCharacterSummaryFromData('ose', { hpCurrent }).inPlay).toBe(expected)
   })
 
   it.each([
@@ -142,7 +141,7 @@ describe('map character summary fields', () => {
     [{ health: { Incapacitated: 'yes' } }, false],
     [{ health: { Incapacitated: true } }, true],
   ])('reads VtM health %j as incapacitated %s', (vtm, incapacitated) => {
-    expect(mapCharacterSummaryFromData('vtm', { system: 'vtm', vtm }).incapacitated).toBe(incapacitated)
+    expect(mapCharacterSummaryFromData('vtm', { system: 'vtm', vtm }).inPlay).toBe(!incapacitated)
   })
 
   it.each([

@@ -9,6 +9,8 @@ import type { AppTab, Campaign } from '../../types/app'
 import { campaignSettingsTabs } from '../campaign/campaignTabSettings'
 import { OSE_STORE_ITEMS } from '../character/storeCatalog'
 import { campaignCardLabel } from '../groups/groupHomeCampaigns'
+import { mapCharacterSummaryFromData } from '../maps/lib/mapCharacterSummary'
+import { isPartyCharacter } from '../maps/lib/partyCharacterEligibility'
 import { campaignSystem } from '../shell/shellSelection'
 import { campaignNavTabs, routableTab } from '../shell/shellTabs'
 import { resolveRuleSet, ruleSets, selectableRuleSets } from './registry'
@@ -214,5 +216,86 @@ describe('character schema versions', () => {
   ] as const)('%s characters are written at version %i, with a step for each older version', (id: RuleSetId, version) => {
     expect(ruleSets[id].characters.schemaVersion).toBe(version)
     expect(ruleSets[id].characters.migrations).toHaveLength(version)
+  })
+})
+
+// A character document as the map reads it. OSE characters store no
+// `system`; VtM characters store `vtm`.
+const mapSummaryOf = (stored: 'ose' | 'vtm', fields: Record<string, unknown>) =>
+  mapCharacterSummaryFromData('pc-1', {
+    name: 'Mirelda',
+    ownerUserId: 'player-1',
+    ...(stored === 'vtm' ? { system: 'vtm' } : {}),
+    ...fields,
+  })
+
+describe('map summary', () => {
+  it.each([
+    ['ose', '#bf2f2a'],
+    ['vtm', '#7a1a1f'],
+  ] as const)('%s tokens without art default to a %s pawn', (stored, color) => {
+    expect(ruleSets[stored].skin.tokenColor).toBe(color)
+    expect(mapSummaryOf(stored, {}).tokenIcon).toEqual({ icon: 'pawn', color, size: 34 })
+  })
+
+  it('reads each rule set\'s characters through its own summary', () => {
+    for (const ruleSet of Object.values(ruleSets)) {
+      const stored = { system: ruleSet.id, creationStatus: 'active', hpCurrent: 3 }
+      expect(mapCharacterSummaryFromData('pc-1', stored)).toMatchObject(ruleSet.characters.summary(stored))
+    }
+  })
+
+  it.each([
+    ['ose', {}, 'active'],
+    ['ose', { creationMode: 'new' }, 'active'],
+    ['ose', { creationMode: 'new', creationModeExplicit: true }, 'draft'],
+    ['ose', { creationStatus: 'established_draft' }, 'established_draft'],
+    ['vtm', {}, 'established_draft'],
+    ['vtm', { creationMode: 'new' }, 'draft'],
+    ['vtm', { creationStatus: 'active' }, 'active'],
+  ] as const)('%s with %j is %s', (stored, fields, creationStatus) => {
+    expect(mapSummaryOf(stored, fields).creationStatus).toBe(creationStatus)
+  })
+
+  it.each([
+    ['ose', { hpCurrent: 3, hpMax: 8 }, true],
+    // Current hit points with no maximum stay in the party.
+    ['ose', { hpCurrent: 3 }, true],
+    ['ose', { hpCurrent: 0, hpMax: 8 }, false],
+    ['ose', { hpCurrent: -2, hpMax: 8 }, false],
+    ['ose', {}, false],
+    ['vtm', { vtm: { health: { Incapacitated: false } } }, true],
+    ['vtm', {}, true],
+    ['vtm', { vtm: { health: { Incapacitated: true } } }, false],
+    // A VtM document's OSE fields never count.
+    ['vtm', { hpCurrent: 0, vtm: { health: {} } }, true],
+  ] as const)('%s with %j is in play: %s', (stored, fields, inPlay) => {
+    const summary = mapSummaryOf(stored, { creationStatus: 'active', ...fields })
+    expect(summary.inPlay).toBe(inPlay)
+    expect(isPartyCharacter(summary, 'gm-1')).toBe(inPlay)
+  })
+
+  it.each(['ose', 'vtm'] as const)('%s keeps the GM, drafts, hidden and deleted characters out of play', (stored) => {
+    const alive = { creationStatus: 'active', hpCurrent: 3, vtm: { health: {} } }
+    const inPlay = (fields: Record<string, unknown>, gmUserId: string | null = 'gm-1') =>
+      isPartyCharacter(mapSummaryOf(stored, { ...alive, ...fields }), gmUserId)
+    expect(inPlay({})).toBe(true)
+    expect(inPlay({ ownerUserId: 'gm-1' })).toBe(false)
+    expect(inPlay({ ownerUserId: '' })).toBe(false)
+    expect(inPlay({}, null)).toBe(false)
+    expect(inPlay({ creationStatus: 'draft' })).toBe(false)
+    expect(inPlay({ hidden: true })).toBe(false)
+    expect(inPlay({ deletedAt: { seconds: 1 } })).toBe(false)
+  })
+})
+
+describe('map rules', () => {
+  // VtM's row is the captain's decision (2026-10-17), not today's behaviour:
+  // VtM maps used to run OSE's wandering-monster check by accident.
+  it.each([
+    ['ose', true],
+    ['vtm', false],
+  ] as const)('%s rolls for wandering monsters: %s', (id: RuleSetId, wanderingMonsters) => {
+    expect(ruleSets[id].mapRules).toEqual({ wanderingMonsters })
   })
 })

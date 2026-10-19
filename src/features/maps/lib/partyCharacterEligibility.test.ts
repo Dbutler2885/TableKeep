@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  isPartyCharacter,
   isPlayerOwnedLivingPartyCharacter,
   type PartyCharacterEligibilityFields,
 } from './partyCharacterEligibility'
@@ -7,19 +8,19 @@ import {
 const living: PartyCharacterEligibilityFields = {
   ownerUserId: 'player',
   creationStatus: 'active',
-  hpCurrent: 4,
+  inPlay: true,
 }
 
-const eligible = (fields: PartyCharacterEligibilityFields, gmUserId: string | null | undefined = 'gm') =>
-  isPlayerOwnedLivingPartyCharacter({ ...living, ...fields }, gmUserId)
+const eligible = (fields: Partial<PartyCharacterEligibilityFields>, gmUserId: string | null | undefined = 'gm') =>
+  isPartyCharacter({ ...living, ...fields }, gmUserId)
 
 describe('party character eligibility', () => {
-  it('admits a living, active, player-owned OSE character', () => {
+  it('admits an active, player-owned character in play', () => {
     expect(eligible({})).toBe(true)
   })
 
   it.each([null, undefined, ''])('admits nobody when the GM is %j', (gmUserId) => {
-    expect(isPlayerOwnedLivingPartyCharacter(living, gmUserId)).toBe(false)
+    expect(isPartyCharacter(living, gmUserId)).toBe(false)
   })
 
   it.each([null, undefined, ''])('refuses an owner of %j', (ownerUserId) => {
@@ -51,6 +52,20 @@ describe('party character eligibility', () => {
     expect(eligible(fields)).toBe(expected)
   })
 
+  it('refuses a character its rule set says is out of play', () => {
+    expect(eligible({ inPlay: false })).toBe(false)
+  })
+})
+
+// A record the map has not summarized yet, such as the embedded OSE sheet's.
+const record = (fields: Record<string, unknown>) => ({
+  id: 'pc',
+  ownerUserId: 'player',
+  creationStatus: 'active',
+  ...fields,
+})
+
+describe('party character eligibility of an unsummarized record', () => {
   it.each([
     [{ hpCurrent: 1 }, true],
     [{ hpCurrent: 0 }, false],
@@ -59,23 +74,26 @@ describe('party character eligibility', () => {
     [{ hpCurrent: undefined }, false],
     [{ system: 'ose', hpCurrent: 2 }, true],
     [{ system: null, hpCurrent: 2 }, true],
-    [{ system: 'ose', hpCurrent: 0, incapacitated: false }, false],
+    [{ system: 'ose', hpCurrent: 0, vtm: { health: {} } }, false],
   ] as const)('reads OSE life from %j as %s', (fields, expected) => {
-    expect(eligible(fields)).toBe(expected)
+    expect(isPlayerOwnedLivingPartyCharacter(record(fields), 'gm')).toBe(expected)
   })
 
   it.each([
-    [{ incapacitated: true }, false],
-    [{ incapacitated: false }, true],
-    [{ incapacitated: null }, true],
-    [{ incapacitated: undefined, hpCurrent: 0 }, true],
-  ] as const)('reads VtM life from %j as %s', (fields, expected) => {
-    expect(eligible({ system: 'vtm', ...fields })).toBe(expected)
+    [{ health: { Incapacitated: true } }, false],
+    [{ health: { Incapacitated: false } }, true],
+    [{ health: {} }, true],
+    [undefined, true],
+  ] as const)('reads VtM life from %j as %s', (vtm, expected) => {
+    expect(isPlayerOwnedLivingPartyCharacter(record({ system: 'vtm', hpCurrent: 0, vtm }), 'gm')).toBe(expected)
   })
 
-  it('checks ownership before life for VtM', () => {
-    expect(eligible({ system: 'vtm', ownerUserId: 'gm', incapacitated: false })).toBe(false)
-    expect(eligible({ system: 'vtm', creationStatus: 'draft', incapacitated: false })).toBe(false)
-    expect(eligible({ system: 'vtm', hidden: true, incapacitated: false })).toBe(false)
+  it('checks ownership, creation and visibility before life for VtM', () => {
+    const vampire = (fields: Record<string, unknown>) =>
+      isPlayerOwnedLivingPartyCharacter(record({ system: 'vtm', ...fields }), 'gm')
+    expect(vampire({})).toBe(true)
+    expect(vampire({ ownerUserId: 'gm' })).toBe(false)
+    expect(vampire({ creationStatus: 'draft' })).toBe(false)
+    expect(vampire({ hidden: true })).toBe(false)
   })
 })

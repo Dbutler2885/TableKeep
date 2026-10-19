@@ -9,6 +9,7 @@ import {
   readDocumentFields,
   seedCampaign,
   seedCharacter,
+  seedDocument,
   toFirestoreFields,
 } from './browser-smoke-seed.mjs'
 
@@ -557,6 +558,139 @@ async function oseLastEditCases(browser, testCase, ids, browserErrors) {
   await run('ose-switch-campaign', (page) => oseSwitchCampaignCase(page, testCase, seeded.switch))
 }
 
+// A blank map whose grid is calibrated, so dragging a party token across it
+// counts feet: 20 cells of 10 feet each, so the map is 200 feet wide.
+const CALIBRATED_MAP_ID = 'smoke-calibrated-map'
+const PARTY_TOKEN_ID = 'smoke-party-token'
+const ENCOUNTER_ALERT = '[role="dialog"][aria-label="Encounter alert"]'
+
+export function calibratedMapFields() {
+  return {
+    name: 'Calibrated Map',
+    kind: 'blank',
+    width: 1600,
+    height: 1000,
+    sortOrder: 0,
+    gridEnabled: true,
+    gridCalibrated: true,
+    gridCellScale: 0.05,
+    gridUnitsPerCell: 10,
+  }
+}
+
+export function partyTokenFields() {
+  return { x: 0.1, y: 0.5, party: true, name: 'Party', size: 28, color: '#b45309' }
+}
+
+async function seedCalibratedMapCampaign({ uid, groupId, testCase, ruleSet }) {
+  const campaignName = `${testCase.label} ${ruleSet.label} Wandering Monsters`
+  const campaignId = await seedCampaign({ groupId, gmUserId: uid, fields: { name: campaignName, system: ruleSet.system } })
+  const mapPath = `groups/${groupId}/campaigns/${campaignId}/maps/${CALIBRATED_MAP_ID}`
+  await seedDocument(mapPath, calibratedMapFields())
+  await seedDocument(`${mapPath}/tokens/${PARTY_TOKEN_ID}`, partyTokenFields())
+  return { groupId, campaignId }
+}
+
+async function centreOf(handle) {
+  const box = await handle.boundingBox()
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+}
+
+// A desktop GM opens a map in a preview of the players' view, where tokens
+// stay put, and runs it to move them; a phone GM moves them straight away.
+async function runTheMap(page) {
+  await roleLocator(page, 'button', 'Run this map').click()
+  await page.locator('.map-token:not(.player)').wait()
+}
+
+async function mouseMove(page, path) {
+  await page.mouse.move(path[0].x, path[0].y)
+  await page.mouse.down()
+  for (const point of path.slice(1)) await page.mouse.move(point.x, point.y, { steps: 40 })
+}
+
+// A phone GM holds a token for a moment before it follows the finger.
+async function touchMove(page, path) {
+  await page.touchscreen.touchStart(path[0].x, path[0].y)
+  await new Promise((resolve) => setTimeout(resolve, 400))
+  for (const point of interpolatePath(path, 40)) await page.touchscreen.touchMove(point.x, point.y)
+}
+
+// The points a pointer passes through along `path`, `steps` to each leg, so a
+// gesture moves the way a hand does rather than jumping corner to corner.
+export function interpolatePath(path, steps) {
+  return path.slice(1).flatMap((to, leg) => Array.from({ length: steps }, (_, index) => {
+    const from = path[leg]
+    const share = (index + 1) / steps
+    return { x: from.x + (to.x - from.x) * share, y: from.y + (to.y - from.y) * share }
+  }))
+}
+
+// Each viewport's way to open a map for moving tokens, to drag a token along
+// a path, and to let go of it.
+const mapGestures = {
+  desktop: { open: runTheMap, move: mouseMove, release: (page) => page.mouse.up() },
+  mobile: { open: async () => {}, move: touchMove, release: (page) => page.touchscreen.touchEnd() },
+}
+
+// Opens the seeded map and drags the party token to the far side and back:
+// over 400 feet, past the first turn's warning at 120 and the roll at 240.
+// Every d6 rolls a 1 while the token moves, so any check made finds an
+// encounter. Randomness is real again before the token is let go, because
+// letting go saves the fog through Storage, whose upload is framed with a
+// random boundary that a constant Math.random leaves empty.
+async function dragPartyTokenThroughACheckCycle(page, testCase, seeded) {
+  const gestures = mapGestures[testCase.name]
+  await page.goto(`${APP_URL}/groups/${seeded.groupId}/campaigns/${seeded.campaignId}/maps`, { waitUntil: 'domcontentloaded' })
+  await page.locator('.map-select').click()
+  await gestures.open(page)
+  const start = await centreOf(await page.locator('.map-token').waitHandle())
+  const layer = await (await page.locator('.blank-map-layer').waitHandle()).boundingBox()
+  await page.evaluate(() => {
+    globalThis.smokeRandom = Math.random
+    Math.random = () => 0
+  })
+  await gestures.move(page, [start, { x: layer.x + layer.width * 0.9, y: start.y }, start])
+  await page.evaluate(() => { Math.random = globalThis.smokeRandom })
+  await gestures.release(page)
+}
+
+async function oseWanderingMonsterCase(page, testCase, seeded) {
+  await step('drag the party token through a check cycle', () => dragPartyTokenThroughACheckCycle(page, testCase, seeded))
+  await step('see the encounter alert', () => page.locator(ENCOUNTER_ALERT).wait())
+}
+
+// Whether every distance tracker on the page still reads 0 feet; a page
+// without one proves nothing.
+export function trackersAtZero(values) {
+  return values.length > 0 && values.every((value) => value === "0'")
+}
+
+async function expectNoEncounterAlert(page) {
+  if (await page.$(ENCOUNTER_ALERT)) throw new Error('A VtM map raised the encounter alert.')
+}
+
+async function expectTrackersAtZero(page) {
+  const values = await page.$$eval('.map-distance-tracker-value', (elements) => elements.map((element) => element.textContent))
+  if (!trackersAtZero(values)) throw new Error(`The distance tracker moved on a VtM map: ${JSON.stringify(values)}.`)
+}
+
+async function vtmWanderingMonsterCase(page, testCase, seeded) {
+  await step('drag the party token through a check cycle', () => dragPartyTokenThroughACheckCycle(page, testCase, seeded))
+  await settle()
+  await step('see no encounter alert', () => expectNoEncounterAlert(page))
+  await step('see the distance tracker still at 0 feet', () => expectTrackersAtZero(page))
+}
+
+async function wanderingMonsterCases(browser, testCase, ids, browserErrors) {
+  const [ose, vtm] = ruleSetCampaigns
+  const session = { testCase, groupId: ids.groupId, browserErrors }
+  const oseMap = await seedCalibratedMapCampaign({ ...ids, testCase, ruleSet: ose })
+  const vtmMap = await seedCalibratedMapCampaign({ ...ids, testCase, ruleSet: vtm })
+  await inSignedInPage(browser, session, 'ose-wandering-monsters', (page) => oseWanderingMonsterCase(page, testCase, oseMap))
+  await inSignedInPage(browser, session, 'vtm-wandering-monsters', (page) => vtmWanderingMonsterCase(page, testCase, vtmMap))
+}
+
 function collectBrowserErrors(page, errors, surface) {
   page.on('pageerror', (error) => {
     errors.push(`${surface} page error: ${error.message}`)
@@ -639,6 +773,7 @@ async function runViewport(browser, testCase) {
     await openCampaignCases(page, testCase, { uid, groupId })
     await vtmLastEditCases(browser, testCase, { uid, groupId }, browserErrors)
     await oseLastEditCases(browser, testCase, { uid, groupId }, browserErrors)
+    await wanderingMonsterCases(browser, testCase, { uid, groupId }, browserErrors)
     await new Promise((resolve) => setTimeout(resolve, 500))
 
     if (browserErrors.length > 0) {
@@ -650,7 +785,8 @@ async function runViewport(browser, testCase) {
       + 'opened a seeded character, and opened the character tab of a new '
       + `${ruleSetCampaigns.map((ruleSet) => ruleSet.label).join(' and a new ')} campaign, `
       + 'and kept a VtM edit made just before leaving the sheet or switching campaign, '
-      + 'and an OSE edit made just before opening Notes, hiding the page or switching campaign.',
+      + 'and an OSE edit made just before opening Notes, hiding the page or switching campaign, '
+      + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map.',
     )
   } finally {
     await screenshot(page, testCase.name)

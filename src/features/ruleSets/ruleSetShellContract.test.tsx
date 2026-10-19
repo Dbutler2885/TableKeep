@@ -82,7 +82,7 @@ describe('declarations', () => {
   ] as const)('%s declares its sheet, whether Maps embeds it, and its skin', (id, component, embeddable, theme) => {
     expect(ruleSetSheets[id]).toBe(component)
     expect(ruleSets[id].sheet).toEqual({ embeddable })
-    expect(ruleSets[id].skin).toEqual({ theme })
+    expect(ruleSets[id].skin.theme).toBe(theme)
   })
 
   it.each(['ose', 'vtm'] as const)('%s declares the OSE monster statline', (id) => {

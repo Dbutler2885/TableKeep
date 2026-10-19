@@ -1,5 +1,6 @@
 import type { TokenIconConfig } from '../../tokens/TokenIconEditor'
 import type { CharacterRecord } from '../../../types/app'
+import type { CharacterSummary } from '../../ruleSets/characterIdentity'
 
 export type MapRecord = {
   id: string
@@ -90,11 +91,9 @@ export type MonsterSummary = {
   tokenIcon: TokenIconConfig
 }
 
-export type CharacterTokenSummary = Pick<CharacterRecord, 'id' | 'name' | 'tokenIcon' | 'ownerUserId'> & {
-  system: 'ose' | 'vtm'
-  creationStatus: CharacterRecord['creationStatus']
-  hpCurrent?: number
-  incapacitated?: boolean
+// A character as the map shows it: the common identity it needs, plus what
+// the character's rule set says of it.
+export type CharacterTokenSummary = Pick<CharacterRecord, 'id' | 'name' | 'tokenIcon' | 'ownerUserId'> & CharacterSummary & {
   hidden?: boolean
   deleted?: boolean
 }
