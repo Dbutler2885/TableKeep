@@ -1,0 +1,47 @@
+import { useState } from 'react'
+import { DialogShell } from './GroupDialog'
+
+type NewDraftDialogProps = {
+  busy: boolean
+  error: string | null
+  onCancel: () => void
+  onCreate: (name: string, system: string) => void
+}
+
+/** The new draft form. It opens empty on OSE each time, because closing it unmounts it. */
+export function NewDraftDialog({ busy, error, onCancel, onCreate }: NewDraftDialogProps) {
+  const [name, setName] = useState('')
+  const [system, setSystem] = useState('ose')
+
+  return (
+    <DialogShell>
+      <h3>New draft campaign</h3>
+      <label>
+        Name
+        <input
+          type="text"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          disabled={busy}
+          autoFocus
+        />
+      </label>
+      <label>
+        System
+        <select value={system} onChange={(event) => setSystem(event.target.value)} disabled={busy}>
+          <option value="ose">OSE</option>
+          <option value="vtm">VTM</option>
+        </select>
+      </label>
+      {error ? <p className="error">{error}</p> : null}
+      <div className="group-modal-actions">
+        <button type="button" className="secondary" onClick={onCancel}>
+          Cancel
+        </button>
+        <button type="button" className="primary" onClick={() => onCreate(name, system)} disabled={busy || !name.trim()}>
+          {busy ? 'Creating…' : 'Create'}
+        </button>
+      </div>
+    </DialogShell>
+  )
+}
