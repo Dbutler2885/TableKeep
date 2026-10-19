@@ -13,8 +13,6 @@
  * while the client wrote under `groups/{groupId}/campaigns/{campaignId}`, and
  * no test ever put the two sides in the same room.
  */
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { collection, doc, getDoc, getDocs, serverTimestamp, setDoc } from 'firebase/firestore'
 import type { Firestore } from 'firebase/firestore'
@@ -25,6 +23,7 @@ import {
 } from '@firebase/rules-unit-testing'
 import { campaignDocRef } from '../campaign/firestorePaths'
 import { emulatorPort } from '../../../vitest.emulatorEndpoint'
+import { firestoreRules } from '../../../vitest.firestoreRules'
 
 // The function's admin SDK resolves the project from GCLOUD_PROJECT, so the
 // rules-unit-testing contexts have to share that project id or the two sides
@@ -93,7 +92,7 @@ beforeAll(async () => {
   testEnv = await initializeTestEnvironment({
     projectId,
     firestore: {
-      rules: readFileSync(resolve(__dirname, '../../../firestore.rules'), 'utf8'),
+      rules: firestoreRules(),
       host: '127.0.0.1',
       port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
     },

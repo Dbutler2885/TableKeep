@@ -6,6 +6,7 @@ import { getBytes, getDownloadURL, ref, uploadString } from 'firebase/storage'
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { uploadAuthorityMetadata, type UploadAuthority } from '../common/mediaStorage'
 import { emulatorPort } from '../../../vitest.emulatorEndpoint'
+import { firestoreRules } from '../../../vitest.firestoreRules'
 
 // Storage Rules resolve their `firestore.get()` lookups against the emulator's
 // own project, so this has to match the project the suite runs under
@@ -39,7 +40,7 @@ describe('character and NPC media storage rules', () => {
       firestore: {
         host: 'localhost',
         port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
-        rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
+        rules: firestoreRules(),
       },
       storage: {
         host: 'localhost',

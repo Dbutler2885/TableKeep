@@ -49,6 +49,38 @@ service cloud.firestore {
             && get(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)).data.gmUserId == request.auth.uid);
     }
 
+    // The lowest schema version each rule set's characters may be written at.
+    // Its keys are also this file's list of rule sets: a campaign whose `system`
+    // is not one of them is OSE, as it is in the app. A floor of 0 leaves a
+    // write judged as it was before the fence. The keys and the floors are
+    // pinned to the registry by `src/features/ruleSets/characterSchemaFloors.test.ts`,
+    // which refuses a floor above the version the app writes.
+    function characterSchemaFloors() {
+      return {"ose": 0, "vtm": 0};
+    }
+
+    // The rule set a nested campaign's characters belong to.
+    function campaignRuleSet(groupId, campaignId) {
+      let campaignPath = /databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId);
+      let system = exists(campaignPath) ? get(campaignPath).data.get("system", "") : "";
+      return system is string && system in characterSchemaFloors() ? system : "ose";
+    }
+
+    // Whether a character write clears its rule set's floor. Above 0 it must
+    // leave a whole `schemaVersion` at or above the floor and stamp
+    // `schemaWrittenAt` with the server time. The stamp is what refuses an old
+    // client's merge: it never mentions either field, so the stored version
+    // would pass on its own.
+    function meetsCharacterSchemaFloor(groupId, campaignId) {
+      let floor = characterSchemaFloors()[campaignRuleSet(groupId, campaignId)];
+      let written = request.resource.data;
+      return floor == 0 || (
+        written.get("schemaVersion", null) is int
+        && written.schemaVersion >= floor
+        && written.get("schemaWrittenAt", null) == request.time
+      );
+    }
+
     function campaignMemberPath(campaignId) {
       return /databases/$(database)/documents/campaigns/$(campaignId)/members/$(request.auth.uid);
     }
@@ -219,11 +251,15 @@ service cloud.firestore {
           allow read, delete: if isCampaignGm(groupId, campaignId);
         }
 
+        // Creates and updates are fenced by the schema floor; deletes are not,
+        // because a delete leaves no old-shaped data behind.
         match /characters/{characterId} {
           allow read: if isGroupMember(groupId);
           allow create: if isGroupMember(groupId)
-            && request.resource.data.ownerUserId == request.auth.uid;
-          allow update: if isCampaignGm(groupId, campaignId) || isCharacterOwner();
+            && request.resource.data.ownerUserId == request.auth.uid
+            && meetsCharacterSchemaFloor(groupId, campaignId);
+          allow update: if (isCampaignGm(groupId, campaignId) || isCharacterOwner())
+            && meetsCharacterSchemaFloor(groupId, campaignId);
           allow delete: if isCampaignGm(groupId, campaignId) || isCharacterOwner();
         }
 

@@ -28,6 +28,7 @@ import { getBytes, ref, uploadString } from 'firebase/storage'
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { uploadAuthorityMetadata } from '../common/mediaStorage'
 import { emulatorPort } from '../../../vitest.emulatorEndpoint'
+import { firestoreRules } from '../../../vitest.firestoreRules'
 
 // Storage Rules resolve their `firestore.get()` lookups against the emulator's
 // own project, so this has to match the project the suite runs under
@@ -86,7 +87,7 @@ describe('migrated campaign portraits after the storage migration', () => {
       firestore: {
         host: '127.0.0.1',
         port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
-        rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
+        rules: firestoreRules(),
       },
       storage: {
         host: '127.0.0.1',

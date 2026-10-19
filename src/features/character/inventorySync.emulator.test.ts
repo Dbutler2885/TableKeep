@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { deleteDoc, doc, getDoc, setDoc, waitForPendingWrites } from 'firebase/firestore'
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
@@ -16,6 +14,7 @@ import { applyAcceptedTransfer } from '../transfers/transferResolution'
 import { computeAvailablePackedSlots, computeOverflow, makeDroppedGoldCampaignItem, makeGoldItem } from './inventoryOverflow'
 import { campaignGoldToInventoryChunks } from '../items/itemConversion'
 import { emulatorPort } from '../../../vitest.emulatorEndpoint'
+import { firestoreRules } from '../../../vitest.firestoreRules'
 
 const projectId = 'homeboyshouse-emulator-tests'
 const campaignId = 'campaign-1'
@@ -83,7 +82,7 @@ describe('inventory sync on Firestore emulator', () => {
       firestore: {
         host: '127.0.0.1',
         port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
-        rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
+        rules: firestoreRules(),
       },
     })
   })
@@ -526,7 +525,7 @@ describe('nested group/campaign security rules', () => {
       firestore: {
         host: '127.0.0.1',
         port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
-        rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
+        rules: firestoreRules(),
       },
     })
   })

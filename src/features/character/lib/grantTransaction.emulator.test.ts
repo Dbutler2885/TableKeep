@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import {
   collection,
@@ -26,6 +24,7 @@ import { makeDroppedGoldCampaignItem } from '../inventoryOverflow'
 import { amountForTarget } from './grantPlanning'
 import { applyGrantToCharacter, type ApplyGrantToCharacterParams } from './grantTransaction'
 import { emulatorPort } from '../../../../vitest.emulatorEndpoint'
+import { firestoreRules } from '../../../../vitest.firestoreRules'
 
 const projectId = 'homeboyshouse-grant-tools-tests'
 const groupId = 'grant-group'
@@ -89,7 +88,7 @@ describe('grant transaction on Firestore emulator', () => {
       firestore: {
         host: '127.0.0.1',
         port: emulatorPort('FIRESTORE_EMULATOR_HOST', 8080),
-        rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8'),
+        rules: firestoreRules(),
       },
     })
   })

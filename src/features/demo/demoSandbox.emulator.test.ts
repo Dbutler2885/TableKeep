@@ -37,6 +37,7 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
 import { DEMO_TEMPLATE_CAMPAIGN_ID, DEMO_TEMPLATE_GROUP_ID } from './demoConstants'
+import { firestoreRules } from '../../../vitest.firestoreRules'
 
 const projectId = process.env.GCLOUD_PROJECT ?? 'homeboyshouse-dev'
 
@@ -94,7 +95,7 @@ beforeAll(async () => {
 
   testEnv = await initializeTestEnvironment({
     projectId,
-    firestore: { ...firestore, rules: readFileSync(resolve(process.cwd(), 'firestore.rules'), 'utf8') },
+    firestore: { ...firestore, rules: firestoreRules() },
     storage: { ...storage, rules: readFileSync(resolve(process.cwd(), 'storage.rules'), 'utf8') },
   })
 
