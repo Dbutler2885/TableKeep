@@ -15,6 +15,7 @@ import { mapCharacterSummaryFromData } from '../maps/lib/mapCharacterSummary'
 import { isPartyCharacter } from '../maps/lib/partyCharacterEligibility'
 import { campaignSystem } from '../shell/shellSelection'
 import { campaignNavTabs, routableTab } from '../shell/shellTabs'
+import { oseCarrying } from './ose/carrying'
 import { resolveRuleSet, ruleSets, selectableRuleSets } from './registry'
 import type { RuleSetId } from './registry'
 
@@ -349,5 +350,17 @@ describe('map rules', () => {
     ['lubec', false],
   ] as const)('%s rolls for wandering monsters: %s', (id: RuleSetId, wanderingMonsters) => {
     expect(ruleSets[id].mapRules).toEqual({ wanderingMonsters })
+  })
+})
+
+describe('carrying', () => {
+  // OSE's packed slots and spill; VtM and Lubec carry without a limit until a
+  // rule set of theirs declares one.
+  it.each([
+    ['ose', oseCarrying],
+    ['vtm', null],
+    ['lubec', null],
+  ] as const)('%s declares its carrying rule', (id: RuleSetId, carrying) => {
+    expect(ruleSets[id].carrying).toBe(carrying)
   })
 })

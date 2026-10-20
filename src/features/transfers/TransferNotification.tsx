@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { CharacterRecord, Role } from '../../types/app'
 import { usePendingTransfers } from './usePendingTransfers'
-import { computeAvailablePackedSlots } from '../character/inventoryOverflow'
+import { oseCarrying } from '../ruleSets/ose/carrying'
 
 type TransferNotificationProps = {
   campaignId: string
@@ -33,8 +33,7 @@ export function TransferNotification({
   const details = receiver?.details ?? null
   const inventory = Array.isArray(details?.inventory) ? details.inventory : []
   const packedUsed = inventory.filter((item) => !item.equipped).length
-  const strScore = Number.parseInt(details?.abilityScores?.STR ?? '', 10)
-  const packedAvailable = computeAvailablePackedSlots(strScore)
+  const packedAvailable = oseCarrying.packedSlots(details)
 
   const handleAccept = async () => {
     setBusyTransferId(activeTransfer.id)

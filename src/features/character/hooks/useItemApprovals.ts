@@ -27,9 +27,9 @@ import {
   normalizeGoldAmount,
   goldChunksForAmount,
   makeGoldItem,
-  computeOverflow,
-  computeAvailablePackedSlots,
 } from '../inventoryOverflow'
+import { carriedAfter } from '../../ruleSets/carrying'
+import { oseCarrying } from '../../ruleSets/ose/carrying'
 
 const stripUndefinedDeep = <T,>(value: T): T => {
   if (Array.isArray(value)) {
@@ -265,14 +265,8 @@ export function useItemApprovals(
       const golds = chunks.map((chunk) => makeGoldItem(chunk))
       const candidateInventory = [...nonGold, ...golds]
 
-      // Compute STR-based packed slots
-      const abilityScores = (existingDetails.abilityScores && typeof existingDetails.abilityScores === 'object')
-        ? existingDetails.abilityScores as Record<string, string>
-        : {}
-      const strScore = Number.parseInt(abilityScores.STR ?? '', 10)
-      const availableSlots = computeAvailablePackedSlots(strScore)
-
-      const overflow = computeOverflow(candidateInventory, availableSlots, request.characterId, request.characterName)
+      const carrier = { id: request.characterId, name: request.characterName, details: existingDetails }
+      const overflow = carriedAfter(oseCarrying.decide(carrier, 'add', candidateInventory), candidateInventory)
 
       tx.set(charRef, {
         details: { ...existingDetails, inventory: overflow.keptInventory },

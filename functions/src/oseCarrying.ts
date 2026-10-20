@@ -2,6 +2,9 @@
 // from STR, and whether a transferred item fits. The server never spills an item
 // it cannot fit; a transfer that does not fit is refused.
 
+// The app's copy of the rule refuses with the same words.
+export const PACKED_SLOTS_MESSAGE = 'Not enough packed slots to accept this item.'
+
 export type InventoryItem = {
   id: string
   kind: 'weapon' | 'armour' | 'ammunition' | 'consumable' | 'general' | 'gold' | 'treasure'

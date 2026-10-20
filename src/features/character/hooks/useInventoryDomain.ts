@@ -20,8 +20,8 @@ import {
   goldChunksForAmount,
   makeGoldItem,
   computeOverflow,
-  writeDroppedOverflow,
 } from '../inventoryOverflow'
+import { writeDroppedOverflow } from '../writeDroppedOverflow'
 import { applyWeaponTemplateToItem, applyArmourTemplateToItem, resolveArmourType, isArmourTemplateAllowedForClass, isWeaponTemplateAllowedForClass } from '../inventoryRules'
 import { makeArmourItem, makeId, makeWeaponItem } from '../characterFactories'
 import { ammoCatalogById } from '../ammoCatalog'

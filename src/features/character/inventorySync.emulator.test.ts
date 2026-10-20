@@ -11,7 +11,9 @@ import type {
 } from '../../types/app'
 import { shouldAdoptIncomingInventory } from './inventorySync'
 import { applyAcceptedTransfer } from '../transfers/transferResolution'
-import { computeAvailablePackedSlots, computeOverflow, makeDroppedGoldCampaignItem, makeGoldItem } from './inventoryOverflow'
+import { carriedAfter } from '../ruleSets/carrying'
+import { oseCarrying } from '../ruleSets/ose/carrying'
+import { makeDroppedGoldCampaignItem, makeGoldItem } from './inventoryOverflow'
 import { campaignGoldToInventoryChunks } from '../items/itemConversion'
 import { emulatorPort } from '../../../vitest.emulatorEndpoint'
 import { firestoreRules } from '../../../vitest.firestoreRules'
@@ -404,9 +406,9 @@ describe('inventory sync on Firestore emulator', () => {
 
     const beforeDetails = await detailsFromSnap(targetRef)
     const currentInventory = inventoryFromDetails(beforeDetails)
-    const availableSlots = computeAvailablePackedSlots(12)
     const candidateInventory = [...currentInventory, ...campaignGoldToInventoryChunks(90)]
-    const overflow = computeOverflow(candidateInventory, availableSlots, characterId, 'Gold Target')
+    const target = { id: characterId, name: 'Gold Target', details: { abilityScores: { STR: '12' } } }
+    const overflow = carriedAfter(oseCarrying.decide(target, 'grant', candidateInventory), candidateInventory)
     const existingGoldBeforeGrant = sumGold(currentInventory)
     const keptGoldTotal = sumGold(overflow.keptInventory)
     const acceptedFromSource = Math.max(0, Math.min(90, keptGoldTotal - existingGoldBeforeGrant))

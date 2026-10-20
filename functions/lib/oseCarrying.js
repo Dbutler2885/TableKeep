@@ -1,6 +1,8 @@
 // OSE's carrying rule as the transfer callable applies it: packed-slot capacity
 // from STR, and whether a transferred item fits. The server never spills an item
 // it cannot fit; a transfer that does not fit is refused.
+// The app's copy of the rule refuses with the same words.
+export const PACKED_SLOTS_MESSAGE = 'Not enough packed slots to accept this item.';
 export function availablePackedSlots(details) {
     const packedSlotThresholds = [18, 16, 13, 9, 6, 4];
     const packedMovementSlotCount = 13;

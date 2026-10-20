@@ -1,5 +1,5 @@
 import type { CharacterInventoryItem } from '../../../types/app'
-import { computeAvailablePackedSlots } from '../inventoryOverflow'
+import { oseCarrying } from '../../ruleSets/ose/carrying'
 import type { useCharacterTransfer } from '../hooks/useCharacterTransfer'
 
 type Props = {
@@ -20,11 +20,10 @@ export function TransferPickerModal(props: Props) {
             {flow.transferTargets.map((character) => {
               const inventory = Array.isArray(character.details?.inventory) ? character.details.inventory : []
               const packedUsed = inventory.filter((item) => !item.equipped).length
-              const strScore = Number.parseInt(character.details?.abilityScores?.STR ?? '', 10)
               return (
                 <label key={character.id} className="character-sheet-row">
                   <input type="radio" name="transfer-target" value={character.id} checked={flow.transferTargetCharacterId === character.id} onChange={() => flow.setTransferTargetCharacterId(character.id)} disabled={flow.transferBusy} />
-                  <span><strong>{character.name}</strong>{character.ownerUsername ? ` (${character.ownerUsername})` : ''}<br /><small>Packed slots: {packedUsed}/{computeAvailablePackedSlots(strScore)}</small></span>
+                  <span><strong>{character.name}</strong>{character.ownerUsername ? ` (${character.ownerUsername})` : ''}<br /><small>Packed slots: {packedUsed}/{oseCarrying.packedSlots(character.details)}</small></span>
                 </label>
               )
             })}

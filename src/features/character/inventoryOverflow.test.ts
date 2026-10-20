@@ -2,8 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Firestore } from 'firebase/firestore'
 import {
   computeOverflow, goldChunksForAmount, makeDroppedGoldCampaignItem, makeGoldItem,
-  normalizeGoldAmount, writeDroppedOverflow,
+  normalizeGoldAmount,
 } from './inventoryOverflow'
+import { writeDroppedOverflow } from './writeDroppedOverflow'
 
 const mocks = vi.hoisted(() => ({ setDoc: vi.fn() }))
 vi.mock('../../firebase', () => ({ db: {} }))

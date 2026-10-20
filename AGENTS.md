@@ -66,7 +66,7 @@ Firestore + Storage emulator, with the repo's real `firestore.rules` /
   `vitest.firebaseEnv.ts`. Tests never touch a real project, but some test modules
   transitively import `src/firebase`, which builds the SDK singleton at import
   time and throws `auth/invalid-api-key` without a config. (The underlying
-  coupling is real: `inventoryOverflow.ts` imports `toFirestoreItem` from the
+  coupling is real: `writeDroppedOverflow.ts` imports `toFirestoreItem` from the
   `useItems` hook module, which pulls in the singleton.)
 - **Production Storage rules may read at most two Firestore documents per request, and the emulator does not enforce that.**
   A rule that reads a third document is denied in production while every emulator test passes.
