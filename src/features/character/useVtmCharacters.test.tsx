@@ -915,3 +915,86 @@ describe('useVtmCharacters setCurrentCharacter', () => {
     expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 })
+
+// Characterization of existing edge behavior, including limitations. These
+// assertions describe today's implementation, not the shared store's design.
+describe('VtM persistence edge behavior before extraction', () => {
+  it('loses a waiting edit when disabled, because the roster clears before the save timer reads it', async () => {
+    const { result, rerender } = renderCharacters()
+    emitCharacters([vtmDoc('a', { name: 'Stored' })])
+    act(() => result.current.updateCharacter('a', { name: 'Local edit' }))
+    rerender({ ...baseProps, enabled: false })
+    await flushMicrotasks()
+    expect(result.current.characters).toEqual([])
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+    act(() => vi.advanceTimersByTime(500))
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+    rerender(baseProps)
+    emitCharacters([vtmDoc('a', { name: 'Stored' })])
+    expect(result.current.selectedCharacter?.name).toBe('Stored')
+  })
+
+  it('keeps current-character state optimistic after its write fails and does not select that character', async () => {
+    const { result } = renderCharacters()
+    emitCharacters([vtmDoc('a'), vtmDoc('b')])
+    mocks.setDoc.mockRejectedValueOnce(new Error('state denied'))
+    let failure: unknown
+    await act(async () => {
+      try { await result.current.setCurrentCharacter('b') } catch (error) { failure = error }
+    })
+    expect(failure).toEqual(new Error('state denied'))
+    expect(result.current.currentCharacterId).toBe('b')
+    expect(result.current.selectedCharacterId).toBe('a')
+    expect(savedPaths()).toEqual([USER_STATE_PATH])
+    expect(setError).not.toHaveBeenCalled()
+  })
+
+  it('retains the optimistic character and selection after create fails, without marking it current', async () => {
+    const { result } = renderCharacters()
+    emitCharacters([vtmDoc('a')])
+    mocks.setDoc.mockRejectedValueOnce(new Error('create denied'))
+    let failure: unknown
+    await act(async () => {
+      try { await result.current.addCharacter('new') } catch (error) { failure = error }
+    })
+    expect(failure).toEqual(new Error('create denied'))
+    const added = result.current.characters[1]
+    expect(added).toMatchObject({ name: 'New Vampire', creationStatus: 'draft' })
+    expect(result.current.selectedCharacterId).toBe(added.id)
+    expect(result.current.currentCharacterId).toBeNull()
+    expect(savedPaths()).toEqual([`${CHARACTERS_PATH}/${added.id}`])
+    expect(setError).not.toHaveBeenCalled()
+  })
+
+  it('keeps stale current and selected ids on delete and does not roll back a failed delete', async () => {
+    const { result } = renderCharacters()
+    emitCharacters([vtmDoc('a')])
+    emitUserState({ currentCharacterId: 'a' })
+    const rejected = Promise.reject(new Error('delete denied'))
+    // The action returns void and does not handle this rejection.
+    const observed = rejected.catch((error: Error) => error.message)
+    mocks.deleteDoc.mockReturnValueOnce(rejected)
+    act(() => result.current.deleteCharacter('a'))
+    expect(await observed).toBe('delete denied')
+    expect(result.current.characters).toEqual([])
+    expect(result.current.currentCharacterId).toBe('a')
+    expect(result.current.selectedCharacterId).toBe('a')
+    expect(mocks.deleteDoc).toHaveBeenCalledExactlyOnceWith({ path: `${CHARACTERS_PATH}/a` })
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+    expect(setError).not.toHaveBeenCalled()
+  })
+
+  it('does not flush when current-character changes restart the roster subscription; the timer still saves the edit', () => {
+    const { result } = renderCharacters()
+    emitCharacters([vtmDoc('a'), vtmDoc('b')])
+    act(() => result.current.updateCharacter('a', { name: 'Edited' }))
+    emitUserState({ currentCharacterId: 'b' })
+    expect(mocks.subscribedTo.filter((path) => path === CHARACTERS_PATH)).toHaveLength(2)
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+    emitCharacters([vtmDoc('a'), vtmDoc('b')])
+    expect(result.current.characters[0].name).toBe('Edited')
+    act(() => vi.advanceTimersByTime(500))
+    expect(savedPaths()).toEqual([`${CHARACTERS_PATH}/a`])
+    expect(mocks.setDoc.mock.calls[0][1]).toMatchObject({ name: 'Edited' })
+  })
+})

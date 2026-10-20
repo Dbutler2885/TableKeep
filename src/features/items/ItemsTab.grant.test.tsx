@@ -190,3 +190,28 @@ describe('Items tab character grants', () => {
     expect(mocks.runTransaction).not.toHaveBeenCalled()
   })
 })
+
+describe('Items tab source reads before shared persistence', () => {
+  it('grants the selected snapshot without reading the campaign item document', async () => {
+    mount(source({ status: 'dropped', goldAmount: 10 }))
+    await grant()
+    expect(mocks.get.mock.calls).toEqual([[charRef]])
+    expect(mocks.set.mock.calls[0][1].details.inventory).toMatchObject([{ kind: 'gold', qty: 10 }])
+    expect(mocks.delete).toHaveBeenCalledExactlyOnceWith({ path: `${path}/items/source` })
+  })
+
+  it('reports a commit rejection after staging writes, without success feedback', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    mocks.runTransaction.mockImplementationOnce(async (_db, body) => {
+      await body(mocks)
+      throw new Error('commit rejected')
+    })
+    mount(source({ status: 'dropped' }))
+    await grant()
+    expect(mocks.set).toHaveBeenCalledTimes(1)
+    expect(mocks.delete).toHaveBeenCalledTimes(1)
+    expect(screen.getByText('Grant failed: commit rejected')).toBeTruthy()
+    expect(screen.queryByText('Granted 50 gp to Ada')).toBeNull()
+    expect((screen.getByRole('button', { name: 'Grant item to selected character' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+})

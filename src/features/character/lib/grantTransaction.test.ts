@@ -117,3 +117,23 @@ describe('GM grant transaction', () => {
     await expect(grant()).rejects.toThrow('write failed')
   })
 })
+
+describe('grant edge behavior before shared persistence', () => {
+  it('uses the caller target class for XP bonus even when the stored class differs', async () => {
+    stored({ class: 'Magic-User', xp: 100, details: { inventory: [], abilityScores: { STR: '16', INT: '3' } } })
+    // The caller's Fighter gets +10% from STR; the stored Magic-User would get
+    // a penalty from INT. The transaction does not parse a fresh target.
+    const result = await grant({ xpAmount: 20 })
+    expect(result.xp).toBe(122)
+    expect(tx.set).toHaveBeenCalledExactlyOnceWith(charRef, {
+      xp: 122, details: { inventory: [], abilityScores: { STR: '16', INT: '3' } }, ...stamp, updatedAt: 'server-time',
+    }, { merge: true })
+  })
+
+  it('normalizes negative total gold to empty, ignoring gold rows with missing quantities', async () => {
+    stored({ details: { inventory: [rope, { id: 'gold', kind: 'gold' }] } })
+    const result = await grant({ goldAmount: -5 })
+    expect(result.inventory).toEqual([rope])
+    expect(tx.set).toHaveBeenCalledTimes(1)
+  })
+})
