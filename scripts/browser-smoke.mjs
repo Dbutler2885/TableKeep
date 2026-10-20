@@ -1,10 +1,13 @@
 import { spawn } from 'node:child_process'
-import { mkdir, readFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import process from 'node:process'
 import puppeteer, { Locator } from 'puppeteer'
 import { isExpectedFirestoreEmulatorChannelError } from './browser-smoke-errors.mjs'
 import {
   characterPath,
+  listDocumentIds,
   PROJECT_ID,
   readDocumentFields,
   seedCampaign,
@@ -540,6 +543,122 @@ async function vtmEditKeepsFieldsCases(browser, testCase, ids, browserErrors) {
   await inSignedInPage(browser, session, 'vtm-edit-keeps-fields', (page) => vtmEditKeepsFieldsCase(page, seeded))
 }
 
+// A VtM character made, edited, given a portrait and a token image, and
+// deleted through the sheet, checked against what Firestore stores at each
+// step. The images go to the Storage emulator, and after a reload the sheet
+// shows them again from their stored paths alone.
+const VTM_NEW_CHARACTER_NAME = 'New Vampire'
+// A 1x1 PNG.
+const SMOKE_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==', 'base64')
+const STORED_POLL_MS = 250
+const STORED_TIMEOUT_MS = 10_000
+
+// What is wrong with a stored character, in the REST shape, that should hold
+// a portrait and a token image by their storage paths alone.
+export function storedMediaProblems(stored) {
+  const problems = []
+  const tokenIcon = stored.tokenIcon?.mapValue?.fields ?? {}
+  if (!stored.portraitPath?.stringValue) problems.push('no portrait path is stored')
+  if (stored.portraitUrl) problems.push('a portrait URL is stored')
+  if (tokenIcon.icon?.stringValue !== 'custom') problems.push('the token icon is not a custom image')
+  if (!tokenIcon.customImagePath?.stringValue) problems.push('no token image path is stored')
+  if (tokenIcon.customImageUrl) problems.push('a token image URL is stored')
+  return problems
+}
+
+// Reads until `problemsOf` finds nothing wrong with what is read, or fails
+// with what it last found.
+async function waitForStored(read, problemsOf) {
+  const deadline = Date.now() + STORED_TIMEOUT_MS
+  for (;;) {
+    const problems = problemsOf(await read())
+    if (problems.length === 0) return
+    if (Date.now() > deadline) throw new Error(`${problems.join('; ')}.`)
+    await new Promise((resolve) => setTimeout(resolve, STORED_POLL_MS))
+  }
+}
+
+async function smokeImageFile() {
+  const path = join(await mkdtemp(join(tmpdir(), 'table-keep-smoke-')), 'vampire.png')
+  await writeFile(path, SMOKE_PNG)
+  return path
+}
+
+async function createVtmCharacter(page, charactersPath) {
+  await roleLocator(page, 'button', 'Add character').click()
+  await page.locator('[role="dialog"] ::-p-text(Established — direct entry)').click()
+  let ids = []
+  await waitForStored(() => listDocumentIds(charactersPath), (listed) => {
+    ids = listed
+    return listed.length === 1 ? [] : [`expected one stored character, found ${listed.length}`]
+  })
+  return `${charactersPath}/${ids[0]}`
+}
+
+async function uploadPortrait(page, imagePath) {
+  const input = await page.locator('.vtm-identity .monster-portrait-frame-empty input[type="file"]').waitHandle()
+  await input.uploadFile(imagePath)
+  await roleLocator(page, 'button', 'Save portrait').click()
+  await page.locator('.vtm-identity .monster-portrait-frame-filled img').wait()
+}
+
+async function uploadTokenImage(page, imagePath) {
+  await roleLocator(page, 'button', 'Edit token icon').click()
+  const input = await page.locator('.token-picker-modal input[type="file"]').waitHandle()
+  await input.uploadFile(imagePath)
+  await page.locator('.token-picker-modal img.token-icon-preview-image').wait()
+  await page.locator('.token-picker-modal [aria-label="Confirm"]:not([disabled])').click()
+  await page.waitForFunction(() => !document.querySelector('.token-picker-modal'))
+}
+
+// Both images show with a renderable URL, which only the stored paths can
+// have given them after a reload.
+async function expectVtmMediaShown(page) {
+  await page.waitForFunction(() => {
+    const shown = (selector) => /^https?:/.test(document.querySelector(selector)?.getAttribute('src') ?? '')
+    return shown('.vtm-identity .monster-portrait-frame-filled img') && shown('.vtm-identity .monster-token-thumb-btn img')
+  })
+}
+
+async function deleteVtmCharacter(page, charactersPath) {
+  await page.locator('.characters-detail button.confirm-danger').click()
+  await page.locator('[role="dialog"] button.confirm-danger').click()
+  await waitForStored(() => listDocumentIds(charactersPath), (listed) =>
+    (listed.length === 0 ? [] : [`${listed.length} character(s) still stored`]))
+  // A narrow screen stays on the sheet pane; go back to the list as a user would.
+  await (await page.$('[aria-label="Back to character list"]'))?.click()
+  await waitForBodyText(page, 'No characters available.')
+}
+
+async function vtmCharacterLifecycleCase(page, { campaignName, charactersPath }) {
+  const concept = 'Made in the smoke'
+  const imagePath = await smokeImageFile()
+  await step('open the empty VtM campaign', () => openCampaignCard(page, campaignName))
+  const path = await step('create a VtM character', () => createVtmCharacter(page, charactersPath))
+  await step('edit its Concept', async () => {
+    await (await vtmConceptField(page, VTM_NEW_CHARACTER_NAME)).fill(concept)
+    await waitForStored(() => readDocumentFields(path), (stored) =>
+      (stored.vtm?.mapValue?.fields?.concept?.stringValue === concept ? [] : ['the Concept edit is not stored']))
+  })
+  await step('give it a portrait', () => uploadPortrait(page, imagePath))
+  await step('give it a token image', () => uploadTokenImage(page, imagePath))
+  await step('store both images by path alone', () => waitForStored(() => readDocumentFields(path), storedMediaProblems))
+  await step('see the edit and both images after a reload', async () => {
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await expectVtmConcept(page, VTM_NEW_CHARACTER_NAME, concept)
+    await expectVtmMediaShown(page)
+  })
+  await step('delete it', () => deleteVtmCharacter(page, charactersPath))
+}
+
+async function vtmCharacterLifecycleCases(browser, testCase, ids, browserErrors) {
+  const campaignName = `${testCase.label} VtM Lifecycle`
+  const campaignId = await seedCampaign({ groupId: ids.groupId, gmUserId: ids.uid, fields: { name: campaignName, system: 'vtm' } })
+  const charactersPath = `groups/${ids.groupId}/campaigns/${campaignId}/characters`
+  const session = { testCase, groupId: ids.groupId, browserErrors }
+  await inSignedInPage(browser, session, 'vtm-character-lifecycle', (page) => vtmCharacterLifecycleCase(page, { campaignName, charactersPath }))
+}
+
 // An OSE sheet saves 500 ms after the last keystroke too, but the hook that
 // saves sits above the sheet, so the cases also cover the page being hidden.
 const OSE_SHARED_CHARACTER_ID = 'smoke-shared-fighter'
@@ -967,6 +1086,7 @@ async function runViewport(browser, testCase) {
     await openCampaignCases(page, testCase, { uid, groupId })
     await vtmLastEditCases(browser, testCase, { uid, groupId }, browserErrors)
     await vtmEditKeepsFieldsCases(browser, testCase, { uid, groupId }, browserErrors)
+    await vtmCharacterLifecycleCases(browser, testCase, { uid, groupId }, browserErrors)
     await oseLastEditCases(browser, testCase, { uid, groupId }, browserErrors)
     await oseLegacyItemsCases(browser, testCase, { uid, groupId }, browserErrors)
     await wanderingMonsterCases(browser, testCase, { uid, groupId }, browserErrors)
@@ -983,6 +1103,7 @@ async function runViewport(browser, testCase) {
       + `${ruleSetCampaigns.map((ruleSet) => ruleSet.label).join(' and a new ')} campaign, `
       + 'and kept a VtM edit made just before leaving the sheet or switching campaign, '
       + 'and saved a VtM edit leaving every other stored field of a filled-in sheet as it was, '
+      + 'and created, edited, gave a portrait and a token image to, reloaded and deleted a VtM character, '
       + 'and an OSE edit made just before opening Notes, hiding the page or switching campaign, '
       + 'and kept the items and ids OSE\'s step makes of an old-format character through a save and two reloads, '
       + 'storing it at version 1 without its old lists, '

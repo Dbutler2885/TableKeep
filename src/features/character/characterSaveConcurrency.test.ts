@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CharacterSaves } from './lib/characterWrites'
-import type { VtmCharacterSaves } from './vtmCharacterWrites'
+import type { CharacterStoreSaves } from './characterStore/characterStoreWrites'
 import { parseOseCharacter } from './lib/storedCharacterRecord'
+import { vtmCharacterStore } from './vtmCharacterRecord'
 import { makeVtmCharacter } from './vtmDefaults'
 
 const mocks = vi.hoisted(() => ({ setDoc: vi.fn() }))
@@ -11,13 +12,13 @@ vi.mock('firebase/firestore', () => ({
   serverTimestamp: () => 'server-time', deleteField: () => 'delete-field', deleteDoc: vi.fn(),
 }))
 const ose = await import('./lib/characterWrites')
-const vtm = await import('./vtmCharacterWrites')
+const vtm = await import('./characterStore/characterStoreWrites')
 const campaign = { groupId: 'g', campaignId: 'c' }
 const adapters = [
   { name: 'OSE', empty: ose.emptyCharacterSaves, outstanding: ose.isCharacterSaveOutstanding,
     schedule: (saves: CharacterSaves) => ose.scheduleCharacterSave(saves, campaign, 'pc', () => parseOseCharacter('pc', { ownerUserId: 'player' })) },
-  { name: 'VtM', empty: vtm.emptyVtmCharacterSaves, outstanding: vtm.isVtmCharacterSaveOutstanding,
-    schedule: (saves: VtmCharacterSaves) => vtm.scheduleVtmCharacterSave(saves, campaign, 'pc', () => ({ ...makeVtmCharacter('player', 'player1'), id: 'pc' })) },
+  { name: 'VtM', empty: vtm.emptyCharacterStoreSaves, outstanding: vtm.isCharacterStoreSaveOutstanding,
+    schedule: (saves: CharacterStoreSaves) => vtm.scheduleCharacterStoreSave(saves, campaign, vtmCharacterStore, 'pc', () => ({ ...makeVtmCharacter('player', 'player1'), id: 'pc' })) },
 ]
 
 beforeEach(() => { vi.resetAllMocks(); vi.useFakeTimers() })

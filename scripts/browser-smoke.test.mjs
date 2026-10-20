@@ -10,6 +10,7 @@ import {
   retiredDetailFieldsStored,
   step,
   stepInventory,
+  storedMediaProblems,
   storedVersionProblems,
   trackersAtZero,
   vtmCharacterFields,
@@ -215,6 +216,23 @@ describe('checking a saved character is stored at version 1', () => {
     expect(storedVersionProblems({})).toEqual(['schemaVersion is undefined, not 1', 'schemaWrittenAt is not a time'])
     expect(storedVersionProblems(toFirestoreFields({ schemaVersion: 0, schemaWrittenAt: new Date() }))).toEqual(['schemaVersion is {"integerValue":"0"}, not 1'])
     expect(storedVersionProblems(toFirestoreFields({ schemaVersion: '1', schemaWrittenAt: new Date() }))).toEqual(['schemaVersion is {"stringValue":"1"}, not 1'])
+  })
+
+  it('finds nothing wrong with a portrait and a token image stored by path alone', () => {
+    expect(storedMediaProblems(toFirestoreFields({
+      portraitPath: 'portraits/p.png',
+      tokenIcon: { icon: 'custom', color: '#000', size: 30, customImagePath: 'token-icons/t.png' },
+    }))).toEqual([])
+  })
+
+  it('names missing media paths and any stored media URL', () => {
+    expect(storedMediaProblems(toFirestoreFields({ portraitPath: '', tokenIcon: { icon: 'pawn' } }))).toEqual([
+      'no portrait path is stored', 'the token icon is not a custom image', 'no token image path is stored',
+    ])
+    expect(storedMediaProblems(toFirestoreFields({
+      portraitPath: 'p.png', portraitUrl: 'https://cdn.test/p.png',
+      tokenIcon: { icon: 'custom', customImagePath: 't.png', customImageUrl: 'https://cdn.test/t.png' },
+    }))).toEqual(['a portrait URL is stored', 'a token image URL is stored'])
   })
 
   it('names the old OSE detail fields still stored', () => {

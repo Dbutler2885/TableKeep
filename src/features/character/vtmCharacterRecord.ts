@@ -1,7 +1,8 @@
 import type { TokenIconConfig } from '../../types/app'
-import { isRenderableImageUrl, sanitizeTokenIconForPersistence } from '../common/mediaFields'
+import { sanitizeTokenIconForPersistence } from '../common/mediaFields'
 import { vtmCharacterVersioning } from '../ruleSets/characterMigrations'
-import { fieldsOutside, readStoredCharacter, type CharacterParser } from '../ruleSets/characterParser'
+import { fieldsOutside, type CharacterParser } from '../ruleSets/characterParser'
+import type { CharacterStoreRuleSet } from './characterStore/characterStoreRecord'
 import { defaultVtmSheet, defaultVtmTokenIcon } from './vtmDefaults'
 import type { VtmCharacterRecord, VtmCharacterSheet } from './vtmTypes'
 
@@ -139,44 +140,10 @@ export const vtmCharacterParser: CharacterParser<VtmCharacterRecord> = {
   serialize: serializeVtmCharacter,
 }
 
-/** The portrait URL already resolved locally for the same storage path, if any. */
-const localPortraitUrl = (portraitPath: string | undefined, local: VtmCharacterRecord | undefined) =>
-  local && local.portraitPath === portraitPath && isRenderableImageUrl(local.portraitUrl) ? local.portraitUrl : null
-
-/** The token image URL already resolved locally for the same storage path, if any. */
-const localTokenImageUrl = (tokenIcon: TokenIconConfig, local: VtmCharacterRecord | undefined) =>
-  tokenIcon.customImagePath
-  && local?.tokenIcon.customImagePath === tokenIcon.customImagePath
-  && isRenderableImageUrl(local.tokenIcon.customImageUrl)
-    ? local.tokenIcon.customImageUrl
-    : undefined
-
-/** The token icon, carrying over the locally resolved image URL for the same storage path. */
-function withLocalTokenImage(tokenIcon: TokenIconConfig, local: VtmCharacterRecord | undefined): TokenIconConfig {
-  const customImageUrl = tokenIcon.customImageUrl ?? localTokenImageUrl(tokenIcon, local)
-  return customImageUrl ? { ...tokenIcon, customImageUrl } : tokenIcon
-}
-
-/**
- * The record with any media URL it lacks taken from the local copy, so a
- * snapshot does not blank an image it did not change. A stored URL wins.
- */
-const withLocalMedia = (character: VtmCharacterRecord, local: VtmCharacterRecord | undefined): VtmCharacterRecord => ({
-  ...character,
-  portraitUrl: character.portraitUrl ?? localPortraitUrl(character.portraitPath, local),
-  tokenIcon: withLocalTokenImage(character.tokenIcon, local),
-})
-
-/**
- * A stored character document as a VtM character, or null when it belongs to
- * another system. VtM's steps bring it up to the current version before it is
- * parsed; nothing is written because of a read.
- */
-export function readVtmCharacterDoc(
-  id: string,
-  data: StoredFields,
-  local: VtmCharacterRecord | undefined,
-): VtmCharacterRecord | null {
-  if (data.system !== 'vtm') return null
-  return withLocalMedia(readStoredCharacter(vtmCharacterVersioning, vtmCharacterParser, id, data), local)
+/** How the shared character store loads and saves VtM characters. */
+export const vtmCharacterStore: CharacterStoreRuleSet<VtmCharacterRecord> = {
+  system: 'vtm',
+  label: 'VtM',
+  versioning: vtmCharacterVersioning,
+  parser: vtmCharacterParser,
 }

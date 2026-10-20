@@ -12,8 +12,9 @@ const connection = vi.hoisted(() => ({ db: null as unknown as Firestore }))
 vi.mock('../../firebase', () => ({ get db() { return connection.db } }))
 const { characterSaveFields } = await import('./lib/characterWrites')
 const { readStoredCharacter, parseOseCharacter } = await import('./lib/storedCharacterRecord')
-const { createVtmCharacterDoc, vtmCharacterSaveFields } = await import('./vtmCharacterWrites')
-const { readVtmCharacterDoc } = await import('./vtmCharacterRecord')
+const { createCharacterStoreDoc, characterStoreSaveFields } = await import('./characterStore/characterStoreWrites')
+const { readCharacterStoreDoc } = await import('./characterStore/characterStoreRecord')
+const { vtmCharacterStore } = await import('./vtmCharacterRecord')
 const { useCharacterRoster } = await import('./hooks/useCharacterRoster')
 const { useItemApprovals } = await import('./hooks/useItemApprovals')
 const { applyGrantToCharacter } = await import('./lib/grantTransaction')
@@ -78,10 +79,10 @@ describe('character writer persistence', () => {
     const character = makeVtmCharacter('gm', 'gamemst')
     const raw = { ...character, schemaVersion: 0, schemaWrittenAt: oldTime, createdAt: oldTime, future: { kept: true } }
     await seed(raw)
-    const record = readVtmCharacterDoc('pc', raw, undefined)
+    const record = readCharacterStoreDoc(vtmCharacterStore, 'pc', raw, undefined)
     if (!record) throw new Error('Expected the VtM reader to accept a VtM document')
     const startedAt = Date.now()
-    await setDoc(charRef(), vtmCharacterSaveFields({ ...record, name: 'Edited Vampire' }), { merge: true })
+    await setDoc(charRef(), characterStoreSaveFields(vtmCharacterStore, { ...record, name: 'Edited Vampire' }), { merge: true })
     const saved = await read()
     expect(saved).toMatchObject({ name: 'Edited Vampire', system: 'vtm', schemaVersion: 1, createdAt: oldTime, future: { kept: true }, vtm: character.vtm })
     expectFreshStamp(saved.schemaWrittenAt, startedAt)
@@ -107,7 +108,7 @@ describe('character writer persistence', () => {
 
   it('the VtM create writer persists system, version 1 and timestamps', async () => {
     const character = { ...makeVtmCharacter('gm', 'gamemst'), id: 'pc' }
-    await createVtmCharacterDoc(scope, character)
+    await createCharacterStoreDoc(scope, vtmCharacterStore, character)
     const data = await read()
     expect(data).toMatchObject({ system: 'vtm', vtm: character.vtm, schemaVersion: 1, schemaWrittenAt: expect.any(Timestamp),
       createdAt: expect.any(Timestamp), updatedAt: expect.any(Timestamp) })

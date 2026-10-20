@@ -5,8 +5,9 @@
  */
 import { Timestamp } from 'firebase/firestore'
 import { describe, expect, it, vi } from 'vitest'
-import { readVtmCharacterDoc, vtmCharacterParser } from '../../character/vtmCharacterRecord'
-import { vtmCharacterSaveFields } from '../../character/vtmCharacterWrites'
+import { readCharacterStoreDoc } from '../../character/characterStore/characterStoreRecord'
+import { characterStoreSaveFields } from '../../character/characterStore/characterStoreWrites'
+import { vtmCharacterParser, vtmCharacterStore } from '../../character/vtmCharacterRecord'
 import { markTimestamps, reviveTimestamps, type CharacterFixture } from '../characterFixtures'
 import { readCharacter, readStoredCharacter } from '../characterParser'
 import { ruleSets } from '../registry'
@@ -53,10 +54,10 @@ function mergedLikeFirestore(stored: Fields, payload: Fields): Fields {
 // recorded by the saved-document case.
 const sheetRecord = (record: Fields) => Object.fromEntries(Object.entries(record).filter(([key]) => key !== 'unknownFields'))
 
-const read = ({ id, data }: CharacterFixture) => readVtmCharacterDoc(id, data, undefined)!
+const read = ({ id, data }: CharacterFixture) => readCharacterStoreDoc(vtmCharacterStore, id, data, undefined)!
 
 const savedUnedited = (fixture: CharacterFixture): StoredCharacter =>
-  mergedLikeFirestore(fixture.data, vtmCharacterSaveFields(read(fixture)))
+  mergedLikeFirestore(fixture.data, characterStoreSaveFields(vtmCharacterStore, read(fixture)))
 
 describe('VtM reading and saving', () => {
   it.each(cases)('%s reads as its recorded sheet record', async (name, fixture) => {
@@ -85,7 +86,7 @@ describe('VtM reading and saving', () => {
     ['new', 'active', 'active'],
     ['established', 'draft', 'draft'],
   ])('a %s character stored with creation status %s reads as %s', (creationMode, creationStatus, expected) => {
-    const record = readVtmCharacterDoc('a', { system: 'vtm', creationMode, creationStatus }, undefined)
+    const record = readCharacterStoreDoc(vtmCharacterStore, 'a', { system: 'vtm', creationMode, creationStatus }, undefined)
     expect(record?.creationStatus).toBe(expected)
   })
 })
@@ -130,9 +131,9 @@ describe('VtM character parser', () => {
 
   it('reads a character at any stored version the same', () => {
     const { id, data } = cases[0][1]
-    const unversioned = readVtmCharacterDoc(id, data, undefined)
-    expect(readVtmCharacterDoc(id, { ...data, schemaVersion: 1 }, undefined)).toEqual(unversioned)
-    expect(readVtmCharacterDoc(id, { ...data, schemaVersion: 2 }, undefined)).toEqual(unversioned)
+    const unversioned = readCharacterStoreDoc(vtmCharacterStore, id, data, undefined)
+    expect(readCharacterStoreDoc(vtmCharacterStore, id, { ...data, schemaVersion: 1 }, undefined)).toEqual(unversioned)
+    expect(readCharacterStoreDoc(vtmCharacterStore, id, { ...data, schemaVersion: 2 }, undefined)).toEqual(unversioned)
   })
 })
 

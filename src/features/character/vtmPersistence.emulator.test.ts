@@ -86,7 +86,7 @@ beforeEach(async () => {
 afterEach(async () => { cleanup(); await waitForPendingWrites(connection.db) })
 afterAll(async () => { await env?.cleanup() })
 
-describe('VtM store persistence before extraction', () => {
+describe('VtM persistence through the shared character store', () => {
   it.each([0, 1])('loads version %s without writing, edits one sheet field, debounces, and reloads every other stored field unchanged', async (version) => {
     const raw = populatedDocument(version)
     await env.withSecurityRulesDisabled(async (context) => {
