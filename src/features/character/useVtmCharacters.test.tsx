@@ -916,22 +916,23 @@ describe('useVtmCharacters setCurrentCharacter', () => {
   })
 })
 
-// Characterization of existing edge behavior, including limitations. These
-// assertions describe today's implementation, not the shared store's design.
-describe('VtM persistence edge behavior before extraction', () => {
-  it('loses a waiting edit when disabled, because the roster clears before the save timer reads it', async () => {
+// Edge behavior of VtM persistence through the shared character store,
+// including limitations it keeps from the code it replaced.
+describe('VtM persistence edge behavior', () => {
+  it('sends a waiting edit at once when disabled, before the roster clears', async () => {
     const { result, rerender } = renderCharacters()
     emitCharacters([vtmDoc('a', { name: 'Stored' })])
     act(() => result.current.updateCharacter('a', { name: 'Local edit' }))
     rerender({ ...baseProps, enabled: false })
+    expect(savedPaths()).toEqual([`${CHARACTERS_PATH}/a`])
+    expect(mocks.setDoc.mock.calls[0][1]).toMatchObject({ name: 'Local edit' })
     await flushMicrotasks()
     expect(result.current.characters).toEqual([])
-    expect(mocks.setDoc).not.toHaveBeenCalled()
     act(() => vi.advanceTimersByTime(500))
-    expect(mocks.setDoc).not.toHaveBeenCalled()
+    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
     rerender(baseProps)
-    emitCharacters([vtmDoc('a', { name: 'Stored' })])
-    expect(result.current.selectedCharacter?.name).toBe('Stored')
+    emitCharacters([vtmDoc('a', { name: 'Local edit' })])
+    expect(result.current.selectedCharacter?.name).toBe('Local edit')
   })
 
   it('keeps current-character state optimistic after its write fails and does not select that character', async () => {
@@ -984,17 +985,15 @@ describe('VtM persistence edge behavior before extraction', () => {
     expect(setError).not.toHaveBeenCalled()
   })
 
-  it('does not flush when current-character changes restart the roster subscription; the timer still saves the edit', () => {
+  it('sends a waiting edit at once when a current-character change restarts the roster subscription, and only once', () => {
     const { result } = renderCharacters()
     emitCharacters([vtmDoc('a'), vtmDoc('b')])
     act(() => result.current.updateCharacter('a', { name: 'Edited' }))
     emitUserState({ currentCharacterId: 'b' })
     expect(mocks.subscribedTo.filter((path) => path === CHARACTERS_PATH)).toHaveLength(2)
-    expect(mocks.setDoc).not.toHaveBeenCalled()
-    emitCharacters([vtmDoc('a'), vtmDoc('b')])
-    expect(result.current.characters[0].name).toBe('Edited')
-    act(() => vi.advanceTimersByTime(500))
     expect(savedPaths()).toEqual([`${CHARACTERS_PATH}/a`])
     expect(mocks.setDoc.mock.calls[0][1]).toMatchObject({ name: 'Edited' })
+    act(() => vi.advanceTimersByTime(500))
+    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
   })
 })

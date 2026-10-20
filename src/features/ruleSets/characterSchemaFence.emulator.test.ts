@@ -21,8 +21,9 @@ import {
 import type { CharacterInventoryItem, CharacterRecord } from '../../types/app'
 import { characterSaveFields } from '../character/lib/characterWrites'
 import { applyGrantToCharacter } from '../character/lib/grantTransaction'
-import { readVtmCharacterDoc } from '../character/vtmCharacterRecord'
-import { newVtmCharacterFields, vtmCharacterSaveFields } from '../character/vtmCharacterWrites'
+import { readCharacterStoreDoc } from '../character/characterStore/characterStoreRecord'
+import { characterStoreSaveFields, newCharacterStoreFields } from '../character/characterStore/characterStoreWrites'
+import { vtmCharacterStore } from '../character/vtmCharacterRecord'
 import type { VtmCharacterRecord } from '../character/vtmTypes'
 import { defaultTokenIcon } from '../character/lib/characterSheetLayout'
 import { emulatorPort } from '../../../vitest.emulatorEndpoint'
@@ -89,12 +90,12 @@ const oseCreateFields = (): DocumentData => {
 const storedOseCharacter = (): DocumentData => ({ ...oseCreateFields(), details: oseRecord().details })
 
 const vtmRecord = (): VtmCharacterRecord =>
-  readVtmCharacterDoc(characterId, { system: 'vtm', name: 'Lucien', ownerUserId: ownerUid }, undefined)!
+  readCharacterStoreDoc(vtmCharacterStore, characterId, { system: 'vtm', name: 'Lucien', ownerUserId: ownerUid }, undefined)!
 
 // The old merge saves and VtM create, with no schema fields.
 const oldOseSaveFields = (): DocumentData => withoutSchemaStamp(characterSaveFields(oseRecord()))
-const oldVtmSaveFields = (): DocumentData => withoutSchemaStamp(vtmCharacterSaveFields(vtmRecord()))
-const oldVtmCreateFields = (): DocumentData => withoutSchemaStamp(newVtmCharacterFields(vtmRecord()))
+const oldVtmSaveFields = (): DocumentData => withoutSchemaStamp(characterStoreSaveFields(vtmCharacterStore, vtmRecord()))
+const oldVtmCreateFields = (): DocumentData => withoutSchemaStamp(newCharacterStoreFields(vtmCharacterStore, vtmRecord()))
 
 const storedVtmCharacter = (): DocumentData => oldVtmCreateFields()
 
@@ -222,14 +223,14 @@ describe('character writes with the OSE and VtM floors at 0', () => {
     it("passes the old create and the current stamped create", async () => {
       const db = asUser(testEnv, ownerUid)
       await assertSucceeds(setDoc(doc(db, ...characterPath('vtm', 'new-character')), oldVtmCreateFields()))
-      await assertSucceeds(setDoc(doc(db, ...characterPath('vtm', 'new-character')), newVtmCharacterFields(vtmRecord())))
+      await assertSucceeds(setDoc(doc(db, ...characterPath('vtm', 'new-character')), newCharacterStoreFields(vtmCharacterStore, vtmRecord())))
     })
 
     it("passes the old merge save, by the owner and by the GM, and the current stamped one", async () => {
       for (const uid of [ownerUid, gmUid]) {
         await assertSucceeds(setDoc(doc(asUser(testEnv, uid), ...characterPath('vtm')), oldVtmSaveFields(), { merge: true }))
       }
-      await assertSucceeds(setDoc(doc(asUser(testEnv, ownerUid), ...characterPath('vtm')), vtmCharacterSaveFields(vtmRecord()), { merge: true }))
+      await assertSucceeds(setDoc(doc(asUser(testEnv, ownerUid), ...characterPath('vtm')), characterStoreSaveFields(vtmCharacterStore, vtmRecord()), { merge: true }))
     })
   })
 })
@@ -324,8 +325,8 @@ describe('character writes with the VtM floor at 1', () => {
   it("refuses the old VtM create and merge save, and allows the current stamped ones", async () => {
     await assertFails(create(testEnv, 'vtm', oldVtmCreateFields()))
     await assertFails(save(testEnv, 'vtm', oldVtmSaveFields()))
-    await assertSucceeds(create(testEnv, 'vtm', newVtmCharacterFields(vtmRecord())))
-    await assertSucceeds(save(testEnv, 'vtm', vtmCharacterSaveFields(vtmRecord())))
+    await assertSucceeds(create(testEnv, 'vtm', newCharacterStoreFields(vtmCharacterStore, vtmRecord())))
+    await assertSucceeds(save(testEnv, 'vtm', characterStoreSaveFields(vtmCharacterStore, vtmRecord())))
   })
 
   it('leaves every OSE campaign on the OSE floor, still 0', async () => {

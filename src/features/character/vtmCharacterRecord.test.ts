@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeVtmSheet, readVtmCharacterDoc } from './vtmCharacterRecord'
-import { defaultVtmSheet, makeVtmCharacter } from './vtmDefaults'
-
-const local = (fields: Partial<ReturnType<typeof makeVtmCharacter>> = {}) => ({
-  ...makeVtmCharacter('user-1', 'player1'),
-  ...fields,
-})
+import { normalizeVtmSheet } from './vtmCharacterRecord'
+import { defaultVtmSheet } from './vtmDefaults'
 
 describe('normalizeVtmSheet', () => {
   it('is the default sheet for anything that is not an object', () => {
@@ -34,41 +29,5 @@ describe('normalizeVtmSheet', () => {
     expect(sheet.humanity).toBe(7)
     expect(sheet.havens).toBe(havens)
     expect(sheet.rituals).toEqual([])
-  })
-})
-
-describe('readVtmCharacterDoc', () => {
-  it('is null for another system', () => {
-    expect(readVtmCharacterDoc('a', { system: 'ose' }, undefined)).toBeNull()
-  })
-
-  it('prefers a stored portrait URL, even an empty one, over the local one', () => {
-    const resolved = local({ portraitPath: 'p.png', portraitUrl: 'https://cdn.test/local.png' })
-
-    expect(readVtmCharacterDoc('a', { system: 'vtm', portraitPath: 'p.png', portraitUrl: '' }, resolved)?.portraitUrl).toBe('')
-    expect(readVtmCharacterDoc('a', { system: 'vtm', portraitPath: 'p.png' }, resolved)?.portraitUrl).toBe('https://cdn.test/local.png')
-  })
-
-  it('does not carry over a local portrait URL that cannot render', () => {
-    const unresolved = local({ portraitPath: 'p.png', portraitUrl: 'p.png' })
-
-    expect(readVtmCharacterDoc('a', { system: 'vtm', portraitPath: 'p.png' }, unresolved)?.portraitUrl).toBeNull()
-  })
-
-  it('carries over a local token image URL only for the same storage path', () => {
-    const resolved = local({
-      tokenIcon: { icon: 'bat', color: '#000', size: 30, customImagePath: 't.png', customImageUrl: 'https://cdn.test/t.png' },
-    })
-    const stored = (customImagePath: string) =>
-      ({ system: 'vtm', tokenIcon: { icon: 'bat', color: '#000', size: 30, customImagePath } })
-
-    expect(readVtmCharacterDoc('a', stored('t.png'), resolved)?.tokenIcon.customImageUrl).toBe('https://cdn.test/t.png')
-    expect(readVtmCharacterDoc('a', stored('other.png'), resolved)?.tokenIcon.customImageUrl).toBeUndefined()
-  })
-
-  it('keeps a stored token image URL', () => {
-    const tokenIcon = { icon: 'bat', color: '#000', size: 30, customImagePath: 't.png', customImageUrl: 'https://cdn.test/s.png' }
-
-    expect(readVtmCharacterDoc('a', { system: 'vtm', tokenIcon }, undefined)?.tokenIcon).toEqual(tokenIcon)
   })
 })

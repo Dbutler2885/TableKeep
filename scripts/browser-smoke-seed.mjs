@@ -90,6 +90,19 @@ export async function readDocumentFields(path) {
   return (await response.json()).fields
 }
 
+// Returns the ids of the documents directly in the collection at `path`, so a
+// case can find a document the app created under an id of its own choosing.
+export async function listDocumentIds(path) {
+  const response = await fetch(`${documentsUrl}/${path}`, {
+    headers: { authorization: 'Bearer owner' },
+  })
+  if (!response.ok) {
+    throw new Error(`Listing ${path} failed (${response.status}): ${await response.text()}`)
+  }
+  const { documents = [] } = await response.json()
+  return documents.map((document) => document.name.split('/').at(-1))
+}
+
 function newDocumentId() {
   return randomUUID().replaceAll('-', '').slice(0, 20)
 }

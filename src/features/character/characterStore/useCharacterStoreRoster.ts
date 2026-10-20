@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { onSnapshot, type DocumentData } from 'firebase/firestore'
-import { db } from '../../firebase'
-import type { Role } from '../../types/app'
-import { campaignCollectionRef, campaignUserStateRef } from '../campaign/firestorePaths'
-import { nextSelectedVtmCharacterId, readVtmCharacterSnapshot, visibleVtmCharacters } from './vtmCharacterRoster'
-import type { VtmCharacterSaves } from './vtmCharacterWrites'
-import type { VtmCharacterRecord } from './vtmTypes'
+import { db } from '../../../firebase'
+import type { Role } from '../../../types/app'
+import { campaignCollectionRef, campaignUserStateRef } from '../../campaign/firestorePaths'
+import type { CharacterStoreRecord, CharacterStoreRuleSet } from './characterStoreRecord'
+import {
+  nextSelectedCharacterStoreId,
+  readCharacterStoreSnapshot,
+  visibleCharacterStoreCharacters,
+} from './characterStoreRoster'
+import { sendCharacterStoreSavesNow, type CharacterStoreSaves } from './characterStoreWrites'
 
 const errorMessage = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback)
 
@@ -15,7 +19,7 @@ export const readCurrentCharacterId = (data: DocumentData | undefined) => {
 }
 
 /** The character this user has marked as current in the campaign. */
-export function useCurrentVtmCharacterId(
+export function useCharacterStoreCurrentCharacterId(
   campaignId: string | null,
   groupId: string | null,
   userId: string,
@@ -40,7 +44,8 @@ export function useCurrentVtmCharacterId(
   return [currentCharacterId, setCurrentCharacterId] as const
 }
 
-type RosterOptions = {
+type RosterOptions<Character extends CharacterStoreRecord> = {
+  ruleSet: CharacterStoreRuleSet<Character>
   campaignId: string | null
   groupId: string | null
   userId: string
@@ -49,16 +54,21 @@ type RosterOptions = {
   currentCharacterId: string | null
   enabled: boolean
   setError: (message: string) => void
-  savesRef: RefObject<VtmCharacterSaves>
+  savesRef: RefObject<CharacterStoreSaves>
 }
 
-/** The campaign's VtM characters this user can see, kept in step with Firestore, and the selected one. */
-export function useVtmCharacterRoster(options: RosterOptions) {
-  const { campaignId, groupId, userId, role, gmUserId, currentCharacterId, enabled, setError, savesRef } = options
-  const [characters, setCharacters] = useState<VtmCharacterRecord[]>([])
+/**
+ * The campaign's characters of the rule set this user can see, kept in step
+ * with Firestore, and the selected one. Every waiting save is sent before the
+ * subscription stops, because the list it would read its character from is
+ * cleared once nothing is listening.
+ */
+export function useCharacterStoreRoster<Character extends CharacterStoreRecord>(options: RosterOptions<Character>) {
+  const { ruleSet, campaignId, groupId, userId, role, gmUserId, currentCharacterId, enabled, setError, savesRef } = options
+  const [characters, setCharacters] = useState<Character[]>([])
   const [charactersLoading, setCharactersLoading] = useState(false)
   const [selectedCharacterId, setSelectedCharacterId] = useState('')
-  const charactersRef = useRef<VtmCharacterRecord[]>([])
+  const charactersRef = useRef<Character[]>([])
 
   useEffect(() => {
     charactersRef.current = characters
@@ -73,22 +83,27 @@ export function useVtmCharacterRoster(options: RosterOptions) {
       return
     }
     queueMicrotask(() => setCharactersLoading(true))
+    // The saves made while this subscription runs; a campaign change replaces them.
+    const saves = savesRef.current
     const unsub = onSnapshot(
       campaignCollectionRef(db, { campaignId, groupId }, 'characters'),
       (snap) => {
-        const all = readVtmCharacterSnapshot(snap.docs, savesRef.current, charactersRef.current)
-        const next = visibleVtmCharacters(all, role, gmUserId)
+        const all = readCharacterStoreSnapshot(ruleSet, snap.docs, savesRef.current, charactersRef.current)
+        const next = visibleCharacterStoreCharacters(all, role, gmUserId)
         setCharacters(next)
         setCharactersLoading(false)
-        setSelectedCharacterId((current) => nextSelectedVtmCharacterId(current, next, currentCharacterId, userId))
+        setSelectedCharacterId((current) => nextSelectedCharacterStoreId(current, next, currentCharacterId, userId))
       },
       (err) => {
-        setError(errorMessage(err, 'Unable to load VtM characters'))
+        setError(errorMessage(err, `Unable to load ${ruleSet.label} characters`))
         setCharactersLoading(false)
       },
     )
-    return () => unsub()
-  }, [campaignId, currentCharacterId, enabled, gmUserId, groupId, role, savesRef, setError, userId])
+    return () => {
+      sendCharacterStoreSavesNow(saves)
+      unsub()
+    }
+  }, [campaignId, currentCharacterId, enabled, gmUserId, groupId, role, ruleSet, savesRef, setError, userId])
 
   return {
     characters,

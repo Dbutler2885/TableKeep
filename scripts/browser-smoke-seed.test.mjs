@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   characterPath,
+  listDocumentIds,
   readDocumentFields,
   seedCharacter,
   toFirestoreFields,
@@ -106,6 +107,25 @@ describe('character documents', () => {
     expect(fetch).toHaveBeenCalledWith(`${documentsUrl}/groups/g1/campaigns/c1/characters/x1`, {
       headers: { authorization: 'Bearer owner' },
     })
+  })
+
+  it('lists the ids of the documents in a collection, and none for an empty one', async () => {
+    const fetch = stubFetch({ ok: true, json: async () => ({
+      documents: [{ name: `projects/p/databases/(default)/documents/groups/g1/campaigns/c1/characters/x1` }],
+    }) })
+
+    await expect(listDocumentIds('groups/g1/campaigns/c1/characters')).resolves.toEqual(['x1'])
+    expect(fetch).toHaveBeenCalledWith(`${documentsUrl}/groups/g1/campaigns/c1/characters`, {
+      headers: { authorization: 'Bearer owner' },
+    })
+    stubFetch({ ok: true, json: async () => ({}) })
+    await expect(listDocumentIds('groups/g1/campaigns/c2/characters')).resolves.toEqual([])
+  })
+
+  it('names the collection and the status when a list fails', async () => {
+    stubFetch({ ok: false, status: 403, text: async () => 'denied' })
+
+    await expect(listDocumentIds('groups/g1/x')).rejects.toThrow('Listing groups/g1/x failed (403): denied')
   })
 
   it('names the document and the status when a read fails', async () => {
