@@ -24,7 +24,7 @@ import {
 } from '../characterRules'
 import { nextLevelXpFor, primeRequisiteXpBonusPercent } from '../xpProgression'
 import { classFeaturesByClass, levelUpChecklistForClass, levelUpFlavorByClass } from '../lib/characterClassData'
-import { packedRowCount, packedSlotThresholds, packedStrengthSlotCount } from '../lib/characterSheetLayout'
+import { packedSlotsUnlocked } from '../../ruleSets/ose/packedSlots'
 import { deriveCombatStats, deriveMovement, deriveThiefExpertise } from '../lib/characterDerivedStats'
 import { oseRuleSet } from '../../ruleSets/registry'
 
@@ -123,10 +123,7 @@ export function useSelectedCharacterDerivations({
   const selectedStoreCartTotal = selectedStoreCart.reduce((sum, entry) => sum + entry.costGp * entry.qty, 0)
   const selectedStoreRemaining = (selectedStartingGold ?? 0) - selectedCommittedStoreSpent - selectedStoreCartTotal
   const visibleStoreItems = OSE_STORE_ITEMS.filter((item) => item.category === storeCategory)
-  const packedSlotUnlockedByIndex = Array.from({ length: packedRowCount }, (_, index) =>
-    index < packedStrengthSlotCount
-      ? (!Number.isNaN(selectedStr) && selectedStr >= packedSlotThresholds[index])
-      : true)
+  const packedSlotUnlockedByIndex = packedSlotsUnlocked(selectedStr)
   const availablePackedSlotIndices = packedSlotUnlockedByIndex
     .map((unlocked, index) => (unlocked ? index : -1))
     .filter((index) => index >= 0)

@@ -7,7 +7,7 @@ import { defineSecret, defineString } from 'firebase-functions/params';
 import { logger } from 'firebase-functions';
 import { adminApp, adminFirestore } from './adminApp.js';
 import { isTransferSourceAuthorized } from './transferAuthorization.js';
-import { applyAcceptedTransfer, availablePackedSlots } from './oseCarrying.js';
+import { PACKED_SLOTS_MESSAGE, applyAcceptedTransfer, availablePackedSlots } from './oseCarrying.js';
 import { campaignPath, groupMemberPath } from './firestorePaths.js';
 import { CHARACTER_BEING_UPDATED_MESSAGE, currentCharacterSchemaVersion, isCharacterAtSchemaVersion, } from './characterSchemaVersions.js';
 import { deleteCampaignSessions } from './campaignSessions.js';
@@ -229,7 +229,7 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
             return { code: 'failed-precondition', message: 'Item quantity changed before transfer could be accepted.' };
         }
         if (!transferResult.ok) {
-            throw new HttpsError('failed-precondition', 'Not enough packed slots to accept this item.');
+            throw new HttpsError('failed-precondition', PACKED_SLOTS_MESSAGE);
         }
         const schemaStamp = { schemaVersion, schemaWrittenAt: FieldValue.serverTimestamp() };
         tx.set(senderRef, {

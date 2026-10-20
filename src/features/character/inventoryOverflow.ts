@@ -1,12 +1,8 @@
-import { serverTimestamp, setDoc } from 'firebase/firestore'
-import type { Firestore } from 'firebase/firestore'
-import { campaignDocRef } from '../campaign/firestorePaths'
 import type {
   CampaignItem,
   CharacterGoldItem,
   CharacterInventoryItem,
 } from '../../types/app'
-import { toFirestoreItem } from '../items/useItems'
 import { DEFAULT_STACK_POLICY } from '../items/itemDefaults'
 import { inventoryItemToCampaignItem } from '../items/itemConversion'
 
@@ -57,24 +53,8 @@ export const makeGoldItem = (amount: number): CharacterGoldItem => ({
 })
 
 // ---------------------------------------------------------------------------
-// Packed-slot capacity — single source of truth
-// ---------------------------------------------------------------------------
-
-const packedSlotThresholds = [18, 16, 13, 9, 6, 4]
-const packedStrengthSlotCount = packedSlotThresholds.length // 6
-const packedMovementSlotCount = 7 + 2 + 2 + 2 // 13
-
-export function computeAvailablePackedSlots(strScore: number): number {
-  const str = Number.isNaN(strScore) ? 0 : strScore
-  let unlocked = 0
-  for (let i = 0; i < packedStrengthSlotCount; i++) {
-    if (str >= packedSlotThresholds[i]) unlocked++
-  }
-  return unlocked + packedMovementSlotCount
-}
-
-// ---------------------------------------------------------------------------
-// Overflow computation
+// Overflow computation (packed-slot capacity is OSE's carrying rule, in
+// `ruleSets/ose/packedSlots.ts`)
 // ---------------------------------------------------------------------------
 
 export type OverflowResult = {
@@ -140,7 +120,7 @@ export function computeOverflow(
 }
 
 // ---------------------------------------------------------------------------
-// Firestore write helper for overflow
+// Dropped Items documents for overflow (written by `writeDroppedOverflow.ts`)
 // ---------------------------------------------------------------------------
 
 // Default stat sub-objects for canonical CampaignItem shape
@@ -183,36 +163,4 @@ export function makeDroppedGoldCampaignItem(
     notes: '',
     goldAmount,
   }
-}
-
-export async function writeDroppedOverflow(
-  db: Firestore,
-  campaignId: string,
-  groupId: string,
-  droppedItems: CampaignItem[],
-  droppedGoldAmount: number,
-  characterId: string,
-  characterName: string,
-): Promise<void> {
-  const writes: Promise<void>[] = []
-  for (const item of droppedItems) {
-    const { id, ...rest } = item
-    writes.push(
-      setDoc(
-        campaignDocRef(db, { campaignId, groupId }, 'items', id),
-        { ...toFirestoreItem({ ...rest, id } as typeof item), createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
-      ),
-    )
-  }
-  if (droppedGoldAmount > 0) {
-    const goldDoc = makeDroppedGoldCampaignItem(droppedGoldAmount, characterId, characterName)
-    const { id, ...rest } = goldDoc
-    writes.push(
-      setDoc(
-        campaignDocRef(db, { campaignId, groupId }, 'items', id),
-        { ...toFirestoreItem({ ...rest, id } as typeof goldDoc), createdAt: serverTimestamp(), updatedAt: serverTimestamp() },
-      ),
-    )
-  }
-  await Promise.all(writes)
 }

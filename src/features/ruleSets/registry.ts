@@ -3,6 +3,7 @@ import { OSE_STORE_ITEMS } from '../character/storeCatalog'
 import { oseMonsterRuleset, type MonsterRulesetDef } from '../monsters/rulesets'
 import { oseCharacterParser } from '../character/lib/storedCharacterRecord'
 import { vtmCharacterParser } from '../character/vtmCharacterRecord'
+import type { CarryingRule } from './carrying'
 import type { CharacterSummaryReader } from './characterIdentity'
 import {
   lubecCharacterVersioning,
@@ -13,6 +14,7 @@ import {
 import type { CharacterParser } from './characterParser'
 import { lubecCharacterParser } from './lubec/characterParser'
 import { lubecCharacterSummary } from './lubec/characterSummary'
+import { oseCarrying } from './ose/carrying'
 import { oseCharacterSummary } from './ose/characterSummary'
 import { vtmCharacterSummary } from './vtm/characterSummary'
 
@@ -90,6 +92,9 @@ export type RuleSetDefinition<Id extends RuleSetId = RuleSetId> = {
   // Whether a character can hand an item to another, which the receiver
   // accepts or declines.
   transfers: boolean
+  // What a character can carry, and what happens to an add, grant or transfer
+  // that does not fit, or null for a rule set without a carrying limit.
+  carrying: CarryingRule | null
   shell: RuleSetShell
   // The version its characters are written at, the steps that bring an older
   // stored character up to it, how one is read and written, and what the map
@@ -121,6 +126,7 @@ export const oseRuleSet = {
   monsters: oseMonsterRuleset,
   approvals: ['create', 'sell', 'learn_spell', 'ability_reroll'],
   transfers: true,
+  carrying: oseCarrying,
   shell: { campaignStrip: false },
   characters: { ...oseCharacterVersioning, summary: oseCharacterSummary, parser: oseCharacterParser },
   mapRules: { wanderingMonsters: true },
@@ -147,6 +153,7 @@ export const ruleSets: RuleSetRegistry = {
     monsters: oseMonsterRuleset,
     approvals: [],
     transfers: false,
+    carrying: null,
     shell: { campaignStrip: false },
     characters: { ...vtmCharacterVersioning, summary: vtmCharacterSummary, parser: vtmCharacterParser },
     // The OSE wandering-monster check never belonged in VtM.
@@ -169,6 +176,7 @@ export const ruleSets: RuleSetRegistry = {
     monsters: null,
     approvals: [],
     transfers: false,
+    carrying: null,
     shell: { campaignStrip: false },
     characters: { ...lubecCharacterVersioning, summary: lubecCharacterSummary, parser: lubecCharacterParser },
     mapRules: { wanderingMonsters: false },

@@ -1,5 +1,6 @@
-export const packedSlotThresholds = [18, 16, 13, 9, 6, 4]
-export const packedSlotLabels = ['STR 18+', 'STR 16+', 'STR 13+', 'STR 9+', 'STR 6+', 'STR 4+']
+import { packedStrengthSlotLabels } from '../../ruleSets/ose/packedSlots'
+
+export const packedSlotLabels = packedStrengthSlotLabels
 export const equippedRowCount = 9
 export const packedStrengthSlotCount = packedSlotLabels.length
 export const packedMovementBands = [

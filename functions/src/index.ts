@@ -8,7 +8,7 @@ import { logger } from 'firebase-functions'
 import type { Request } from 'express'
 import { adminApp, adminFirestore } from './adminApp.js'
 import { isTransferSourceAuthorized } from './transferAuthorization.js'
-import { applyAcceptedTransfer, availablePackedSlots, type InventoryItem } from './oseCarrying.js'
+import { PACKED_SLOTS_MESSAGE, applyAcceptedTransfer, availablePackedSlots, type InventoryItem } from './oseCarrying.js'
 import { campaignPath, groupMemberPath } from './firestorePaths.js'
 import {
   CHARACTER_BEING_UPDATED_MESSAGE,
@@ -311,7 +311,7 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
       return { code: 'failed-precondition', message: 'Item quantity changed before transfer could be accepted.' }
     }
     if (!transferResult.ok) {
-      throw new HttpsError('failed-precondition', 'Not enough packed slots to accept this item.')
+      throw new HttpsError('failed-precondition', PACKED_SLOTS_MESSAGE)
     }
 
     const schemaStamp = { schemaVersion, schemaWrittenAt: FieldValue.serverTimestamp() }

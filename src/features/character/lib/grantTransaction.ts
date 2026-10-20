@@ -17,9 +17,9 @@ import { oseCharacterVersioning } from '../../ruleSets/characterMigrations'
 import { assertCharacterAtCurrentVersion, characterSchemaStamp } from '../../ruleSets/characterSchemaStamp'
 import { toFirestoreItem } from '../../items/useItems'
 import { computeGrantedXp, projectCharacterProgress } from '../xpProgression'
+import { carriedAfter } from '../../ruleSets/carrying'
+import { oseCarrying } from '../../ruleSets/ose/carrying'
 import {
-  computeAvailablePackedSlots,
-  computeOverflow,
   goldChunksForAmount,
   makeDroppedGoldCampaignItem,
   makeGoldItem,
@@ -92,14 +92,8 @@ export async function applyGrantToCharacter(
   const nextGoldItems = goldChunksForAmount(Math.max(0, existingGold + goldGrantTotal)).map(makeGoldItem)
   const candidateInventory = [...nonGoldCurrent, ...nonGoldIncoming, ...nextGoldItems]
 
-  const strScore = Number.parseInt(abilityScores.STR ?? '', 10)
-  const availableSlots = computeAvailablePackedSlots(strScore)
-  const overflow = computeOverflow(
-    candidateInventory,
-    availableSlots,
-    params.target.id,
-    params.target.name,
-  )
+  const carrier = { id: params.target.id, name: params.target.name, details: existingDetails }
+  const overflow = carriedAfter(oseCarrying.decide(carrier, 'grant', candidateInventory), candidateInventory)
   const campaignRef = charRef.parent.parent
   if (!campaignRef) throw new Error('Character reference must be nested below a campaign document.')
 

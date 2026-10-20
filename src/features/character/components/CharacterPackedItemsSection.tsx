@@ -18,9 +18,9 @@ type CharacterPackedItemsSectionProps = {
   packedSlotItems: PackedSlotItem[]
   packedStrengthSlotCount: number
   packedSlotLabels: string[]
-  packedSlotThresholds: number[]
   packedMovementBands: PackedMovementBand[]
-  selectedStr: number
+  // Whether each packed row is open, from OSE's carrying rule.
+  packedSlotUnlockedByIndex: boolean[]
   canEditSelected: boolean
   isGuidedCreation: boolean
   equippedSlotItemsLength: number
@@ -41,9 +41,8 @@ export const CharacterPackedItemsSection = memo(function CharacterPackedItemsSec
   packedSlotItems,
   packedStrengthSlotCount,
   packedSlotLabels,
-  packedSlotThresholds,
   packedMovementBands,
-  selectedStr,
+  packedSlotUnlockedByIndex,
   canEditSelected,
   isGuidedCreation,
   equippedSlotItemsLength,
@@ -131,11 +130,8 @@ export const CharacterPackedItemsSection = memo(function CharacterPackedItemsSec
     <section className="monster-section-block character-enc-packed">
       <h3 className="monster-section-title">Packed Items</h3>
       <div className="character-item-rows packed">
-        {Array.from({ length: packedStrengthSlotCount }, (_, index) => {
-          const threshold = packedSlotThresholds[index]
-          const unlocked = !Number.isNaN(selectedStr) && selectedStr >= threshold
-          return renderPackedSlot(index, unlocked, packedSlotLabels[index])
-        })}
+        {Array.from({ length: packedStrengthSlotCount }, (_, index) =>
+          renderPackedSlot(index, packedSlotUnlockedByIndex[index], packedSlotLabels[index]))}
         {packedMovementBands.map((band, bandIndex) => {
           const bandOffset = packedMovementBands
             .slice(0, bandIndex)

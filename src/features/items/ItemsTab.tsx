@@ -11,7 +11,9 @@ import { uploadEntityImage } from '../common/mediaStorage'
 import { MOBILE_BREAKPOINT } from '../../constants/layout'
 import { useItems, toFirestoreItem } from './useItems'
 import { campaignItemToInventoryItem, campaignGoldToInventoryChunks } from './itemConversion'
-import { computeAvailablePackedSlots, computeOverflow, makeDroppedGoldCampaignItem } from '../character/inventoryOverflow'
+import { makeDroppedGoldCampaignItem } from '../character/inventoryOverflow'
+import { carriedAfter } from '../ruleSets/carrying'
+import { oseCarrying } from '../ruleSets/ose/carrying'
 import { oseCharacterVersioning } from '../ruleSets/characterMigrations'
 import { assertCharacterAtCurrentVersion, characterSchemaStamp } from '../ruleSets/characterSchemaStamp'
 import { OSE_WEAPON_CATALOG, weaponCatalogById } from '../character/weaponCatalog'
@@ -529,13 +531,6 @@ export function ItemsTab({ campaignId, groupId, role, characters }: ItemsTabProp
           ? existingDetails.inventory
           : []
 
-        // Compute available packed slots from STR
-        const abilityScores = (existingDetails.abilityScores && typeof existingDetails.abilityScores === 'object')
-          ? existingDetails.abilityScores as Record<string, string>
-          : {}
-        const strScore = Number.parseInt(abilityScores.STR ?? '', 10)
-        const availableSlots = computeAvailablePackedSlots(strScore)
-
         // Build candidate inventory
         let candidateInventory: CharacterInventoryItem[]
         let grantAmount = 0
@@ -556,7 +551,8 @@ export function ItemsTab({ campaignId, groupId, role, characters }: ItemsTabProp
           candidateInventory = [...currentInventory, inventoryItem]
         }
 
-        const overflow = computeOverflow(candidateInventory, availableSlots, grantTargetId, targetName)
+        const carrier = { id: grantTargetId, name: targetName, details: existingDetails }
+        const overflow = carriedAfter(oseCarrying.decide(carrier, 'grant', candidateInventory), candidateInventory)
         overflowFeedback = overflow.feedbackMessage
 
         // Write kept inventory to character doc

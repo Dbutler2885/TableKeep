@@ -8,7 +8,7 @@ import type { useSpellbookDomain } from '../hooks/useSpellbookDomain'
 import type { useStoreDomain } from '../hooks/useStoreDomain'
 import type { useItemApprovals } from '../hooks/useItemApprovals'
 import type { deriveCharacterPermissions } from '../lib/characterPermissions'
-import { equippedRowCount, packedMovementBands, packedSlotLabels, packedSlotThresholds, packedStrengthSlotCount } from '../lib/characterSheetLayout'
+import { equippedRowCount, packedMovementBands, packedSlotLabels, packedStrengthSlotCount } from '../lib/characterSheetLayout'
 import { BlurSyncedTextarea } from './BlurSyncedTextarea'
 import { CharacterPackedItemsSection } from './CharacterPackedItemsSection'
 import { InlineInventoryAction } from './InlineInventoryAction'
@@ -49,7 +49,7 @@ export function CharacterItemsPage({
 }: Props) {
   const { canEditSelected, isGuidedCreation } = permissions
   const {
-    selectedClassName, equippedItems, packedItems, selectedStr, availablePackedSlotIndices,
+    selectedClassName, equippedItems, packedItems, packedSlotUnlockedByIndex, availablePackedSlotIndices,
     currentPackedMovement, selectedNextLevelXp, selectedXpToNextLevel,
     selectedPrimeXpModifierPercent, primeRequisiteLabel,
   } = derivations
@@ -258,9 +258,8 @@ export function CharacterItemsPage({
       packedSlotItems={packedSlotItems}
       packedStrengthSlotCount={packedStrengthSlotCount}
       packedSlotLabels={packedSlotLabels}
-      packedSlotThresholds={packedSlotThresholds}
       packedMovementBands={packedMovementBands}
-      selectedStr={selectedStr}
+      packedSlotUnlockedByIndex={packedSlotUnlockedByIndex}
       canEditSelected={canEditSelected}
       isGuidedCreation={isGuidedCreation}
       equippedSlotItemsLength={equippedSlotItems.length}

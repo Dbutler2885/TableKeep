@@ -6,15 +6,13 @@ import type { InventoryItem as ServerInventoryItem } from '../../../functions/sr
 import * as compiledServerCarrying from '../../../functions/lib/oseCarrying.js'
 import type { CharacterInventoryItem, PendingTransfer } from '../../types/app'
 import { applyAcceptedTransfer as appApplyAcceptedTransfer } from '../transfers/transferResolution'
-import { computeAvailablePackedSlots, computeOverflow } from './inventoryOverflow'
+import { carriedAfter } from '../ruleSets/carrying'
+import { oseCarrying, PACKED_SLOTS_MESSAGE } from '../ruleSets/ose/carrying'
 import { capacityCases, spillCases, transferCases, type TransferCase } from './oseCarryingCases'
 
-// Every app caller reads STR off the stored details this way before asking for
-// capacity (grants, the Items tab, approvals and the transfer screens).
-const appPackedSlots = (details: unknown) => {
-  const abilityScores = (details as { abilityScores?: { STR?: string } } | undefined)?.abilityScores
-  return computeAvailablePackedSlots(Number.parseInt(abilityScores?.STR ?? '', 10))
-}
+// Every app caller asks OSE's carrying rule for capacity from the stored
+// details (grants, the Items tab, approvals and the transfer screens).
+const appPackedSlots = (details: unknown) => oseCarrying.packedSlots(details)
 
 const appCopy = {
   packedSlots: appPackedSlots,
@@ -54,16 +52,19 @@ describe.each(copies)('OSE transfer in, %s copy', (_label, copy) => {
   })
 })
 
+it.each([
+  ['server', serverCarrying],
+  ['compiled server', compiledServerCarrying],
+] as const)('the %s copy refuses a transfer that does not fit with the app copy\'s words', (_label, carrying) => {
+  expect(carrying.PACKED_SLOTS_MESSAGE).toBe(PACKED_SLOTS_MESSAGE)
+})
+
 const keptLabel = (item: CharacterInventoryItem) => (item.kind === 'gold' ? `gold:${item.qty}` : item.id)
 
 describe('OSE add and grant spill, app copy', () => {
-  it.each(spillCases)('$operation: $name', ({ str, candidateInventory, expected }) => {
-    const result = computeOverflow(
-      candidateInventory,
-      appPackedSlots({ abilityScores: { STR: str } }),
-      'character-1',
-      'Mirelda Crow',
-    )
+  it.each(spillCases)('$operation: $name', ({ operation, str, candidateInventory, expected }) => {
+    const character = { id: 'character-1', name: 'Mirelda Crow', details: { abilityScores: { STR: str } } }
+    const result = carriedAfter(oseCarrying.decide(character, operation, candidateInventory), candidateInventory)
 
     expect({
       keptInventory: result.keptInventory.map(keptLabel),
