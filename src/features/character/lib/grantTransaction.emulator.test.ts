@@ -219,4 +219,22 @@ describe('grant transaction on Firestore emulator', () => {
     await assertSucceeds(grant(gmDb, 'character-2', { xpAmount: 1 }))
     await assertFails(grant(memberDb, 'character-2', { xpAmount: 1 }))
   })
+
+  it('rolls back all queued overflow documents and the character stamp when the transaction aborts', async () => {
+    const db = testEnv.authenticatedContext(gmUid).firestore()
+    const target = makeTarget('character-1')
+    const charRef = doc(db, ...campaignPath, 'characters', target.id)
+    const before = (await getDoc(charRef)).data()
+    await expect(runTransaction(db, async (tx) => {
+      const result = await applyGrantToCharacter(tx, charRef, {
+        target, xpAmount: 20, goldAmount: 200, campaignEntries: [],
+        templateEntries: [{ ...ropeEntry, qty: 17 }], overflowGoldDocId: 'aborted-gold',
+      })
+      expect(result.inventory).toHaveLength(16)
+      expect(result.overflowFeedback).toContain('Not all items fit')
+      throw new Error('abort after queuing all writes')
+    })).rejects.toThrow('abort after queuing all writes')
+    expect((await getDoc(charRef)).data()).toEqual(before)
+    expect((await getDocs(collection(db, ...campaignPath, 'items'))).empty).toBe(true)
+  })
 })

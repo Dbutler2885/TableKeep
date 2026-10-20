@@ -3,6 +3,7 @@
  * Lives in the emulator job because importing functions/src/index.ts requires
  * functions/node_modules, which the ordinary web unit-test job does not install.
  */
+import { capacityCases } from '../character/oseCarryingCases'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
@@ -184,6 +185,37 @@ describe('transfer ordering before shared persistence', () => {
     mocks.records.set(senderPath, { ownerUserId: 'sender-user', schemaVersion: 0, details: { inventory: [] } })
     await expect(accept(request)).rejects.toMatchObject({ code: 'failed-precondition', message: 'This character is being updated. Try again in a minute.' })
     expect(mocks.set).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
+  })
+})
+
+describe('callable carrying boundaries', () => {
+  it.each(capacityCases)('$name accepts the last packed slot, counts equipped rows separately, and refuses the next', async ({ details, packedSlots }) => {
+    const packed = Array.from({ length: packedSlots - 1 }, (_, i) => ({ ...sword, id: 'packed-' + i, equipped: false }))
+    const equipped = Array.from({ length: 20 }, (_, i) => ({ ...sword, id: 'equipped-' + i }))
+    const receiverDetails = { ...(details && typeof details === 'object' ? details : {}), inventory: [...equipped, ...packed] }
+    mocks.records.set(receiverPath, { schemaVersion: 1, details: receiverDetails })
+    await expect(accept(request)).resolves.toEqual({ ok: true })
+    expect(writes()[1][1].details.inventory).toEqual([...equipped, ...packed, { ...offer.itemSnapshot, equipped: false }])
+    mocks.set.mockClear()
+    mocks.delete.mockClear()
+    mocks.records.set(receiverPath, { schemaVersion: 1, details: { ...receiverDetails, inventory: [...receiverDetails.inventory, { ...sword, equipped: false }] } })
+    await expect(accept(request)).rejects.toMatchObject({ code: 'failed-precondition', message: 'Not enough packed slots to accept this item.' })
+    expect(mocks.set).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
+  })
+
+  it('does not deduplicate an offered snapshot id already in the receiver inventory', async () => {
+    const existing = { ...offer.itemSnapshot, equipped: false }
+    mocks.records.set(receiverPath, { schemaVersion: 1, details: { inventory: [existing] } })
+    await expect(accept(request)).resolves.toEqual({ ok: true })
+    expect(writes()[1][1].details.inventory).toEqual([existing, existing])
+  })
+
+  it('does not delete the offer when a queued character write throws', async () => {
+    mocks.set.mockImplementationOnce(() => undefined).mockImplementationOnce(() => { throw new Error('write failed') })
+    await expect(accept(request)).rejects.toThrow('write failed')
+    expect(mocks.set).toHaveBeenCalledTimes(2)
     expect(mocks.delete).not.toHaveBeenCalled()
   })
 })

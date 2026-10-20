@@ -1,3 +1,4 @@
+import { capacityCases } from '../oseCarryingCases'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DocumentReference, Transaction } from 'firebase/firestore'
 import type { CampaignItem, CharacterInventoryItem } from '../../../types/app'
@@ -135,5 +136,20 @@ describe('grant edge behavior before shared persistence', () => {
     const result = await grant({ goldAmount: -5 })
     expect(result.inventory).toEqual([rope])
     expect(tx.set).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('grant capacity integration', () => {
+  it.each(capacityCases)('$name uses stored STR and writes every overflow row before the stamped character', async ({ details, packedSlots }) => {
+    const equipped = { ...rope, id: 'equipped', equipped: true }
+    const packed = Array.from({ length: 20 }, (_, i) => ({ ...rope, id: 'packed-' + i }))
+    stored({ xp: 7, details: { ...(details && typeof details === 'object' ? details : {}), inventory: [equipped, ...packed] } })
+    const result = await grant({ goldAmount: 150 })
+    expect(result.inventory).toEqual([equipped, ...packed.slice(0, packedSlots)])
+    expect(tx.set).toHaveBeenCalledTimes(20 - packedSlots + 2)
+    const writes = tx.set.mock.calls
+    expect(writes.slice(0, -2).map(([, fields]) => fields)).toMatchObject(Array.from({ length: 20 - packedSlots }, () => ({ type: 'general', status: 'dropped' })))
+    expect(writes.at(-2)?.[1]).toMatchObject({ type: 'gold', goldAmount: 150 })
+    expect(writes.at(-1)).toEqual([charRef, expect.objectContaining({ xp: 7, ...stamp }), { merge: true }])
   })
 })

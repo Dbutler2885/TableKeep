@@ -215,3 +215,19 @@ describe('Items tab source reads before shared persistence', () => {
     expect((screen.getByRole('button', { name: 'Grant item to selected character' }) as HTMLButtonElement).disabled).toBe(false)
   })
 })
+
+describe('Items grant transaction retries', () => {
+  it('reuses the preallocated dropped-gold document id across callback retries', async () => {
+    const packed = Array.from({ length: 13 }, (_, i) => ({ ...rope, id: 'packed-' + i }))
+    stored({ details: { inventory: packed } })
+    mocks.runTransaction.mockImplementation(async (_db, body) => { await body(mocks); return body(mocks) })
+    mount(source({ goldAmount: 150 }))
+    await grant()
+    const goldWrites = mocks.set.mock.calls.filter(([, fields]) => fields.type === 'gold')
+    expect(goldWrites).toHaveLength(2)
+    expect(goldWrites[0]).toEqual(goldWrites[1])
+    expect(goldWrites[0][0].path).toMatch(/^groups\/g\/campaigns\/c\/items\/[^/]+$/)
+    expect(goldWrites[0][1]).toMatchObject({ goldAmount: 150, status: 'dropped', createdAt: 'server-time', updatedAt: 'server-time' })
+    expect(mocks.delete).not.toHaveBeenCalled()
+  })
+})

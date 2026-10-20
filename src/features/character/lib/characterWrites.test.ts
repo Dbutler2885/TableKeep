@@ -235,3 +235,25 @@ describe('OSE save failure', () => {
     expect(mocks.setDoc).toHaveBeenCalledTimes(1)
   })
 })
+
+
+describe('overlapping character saves', () => {
+  it('sends a second edit while the first is in flight, and the first completion clears the shared flag early', async () => {
+    const finishes: Array<() => void> = []
+    mocks.setDoc.mockImplementation(() => new Promise<undefined>((resolve) => { finishes.push(() => resolve(undefined)) }))
+    const saves = emptyCharacterSaves()
+    scheduleCharacterSave(saves, campaign, 'a', () => (character('a', { name: 'First' })))
+    sendCharacterSavesNow(saves)
+    scheduleCharacterSave(saves, campaign, 'a', () => (character('a', { name: 'Second' })))
+    sendCharacterSavesNow(saves)
+    expect(mocks.setDoc.mock.calls.map(([, fields]) => (fields as { name: string }).name)).toEqual(['First', 'Second'])
+    expect(isCharacterSaveOutstanding(saves, 'a')).toBe(true)
+    finishes[0]()
+    await Promise.resolve()
+    // Characterization: inFlight is a boolean, so it forgets the second write.
+    expect(isCharacterSaveOutstanding(saves, 'a')).toBe(false)
+    finishes[1]()
+    await Promise.resolve()
+    expect(saves).toEqual({ pending: {}, inFlight: {} })
+  })
+})

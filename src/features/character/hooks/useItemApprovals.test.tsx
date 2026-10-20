@@ -199,3 +199,27 @@ describe('approval trust boundaries before shared persistence', () => {
     // The existing emulator rollback case proves a staged set is not committed.
   })
 })
+
+describe('approval carrying edge cases', () => {
+  it('a partial-stack sale removes the whole matching stack and pays a single unit price', async () => {
+    stored({ details: { inventory: [{ ...rope, qty: 10 }] } })
+    await approve('sell', { item: { ...rope, qty: 2 } })
+    const inventory = mocks.set.mock.calls[0][1].details.inventory
+    expect(inventory).toMatchObject([{ kind: 'gold', qty: 3 }])
+    expectCharacterWrite({ inventory })
+  })
+  it('discards existing non-gold overflow as well as sale proceeds without writing dropped documents', async () => {
+    const packed = Array.from({ length: 15 }, (_, i) => ({ ...rope, id: 'packed-' + i }))
+    stored({ details: { inventory: [...packed, rope] } })
+    await approve('sell', { item: rope })
+    expectCharacterWrite({ inventory: packed.slice(0, 13) })
+  })
+  it.each([null, 'bad', undefined])('uses baseline capacity when stored ability scores are %j', async (abilityScores) => {
+    const packed = Array.from({ length: 12 }, (_, i) => ({ ...rope, id: 'packed-' + i }))
+    stored({ details: { inventory: [...packed, rope], abilityScores } })
+    await approve('sell', { item: { ...rope, costGp: 150 } })
+    const inventory = mocks.set.mock.calls[0][1].details.inventory
+    expect(inventory).toMatchObject([...packed, { kind: 'gold', qty: 100 }])
+    expectCharacterWrite({ inventory, abilityScores })
+  })
+})
