@@ -383,3 +383,69 @@ describe('transfer persistence', () => {
     })
   })
 })
+
+describe('transfer carrying by rule set', () => {
+  const campaignDocPath = `groups/${groupId}/campaigns/${campaignId}`
+  const characterRef = (db: Firestore, id: string) => doc(db, `${campaignDocPath}/characters/${id}`)
+  const offerRef = (db: Firestore) => doc(db, `${campaignDocPath}/pendingTransfers/by-rule-set`)
+  const accept = () => acceptPendingTransfer({ auth: { uid: receiverUid }, data: { groupId, campaignId, transferId: 'by-rule-set' } })
+  const bothCharacters = (db: Firestore) =>
+    Promise.all([senderCharacterId, receiverCharacterId].map(async (id) => (await getDoc(characterRef(db, id))).data()))
+  const oldTime = Timestamp.fromDate(new Date('2026-01-01T00:00:00Z'))
+
+  // The campaign document as beforeEach leaves it has no `system` at all.
+  const offerIn = async (system: string | undefined, { both = {}, receiver = {} }: Record<string, Record<string, unknown>> = {}) => {
+    let before: unknown[] = []
+    await withAdmin(async (db) => {
+      if (system !== undefined) await setDoc(doc(db, campaignDocPath), { system }, { merge: true })
+      for (const id of [senderCharacterId, receiverCharacterId]) {
+        await setDoc(characterRef(db, id), { schemaWrittenAt: oldTime, ...both }, { merge: true })
+      }
+      await setDoc(characterRef(db, receiverCharacterId), receiver, { merge: true })
+      await setDoc(offerRef(db), transferPayload('by-rule-set'))
+      before = await bothCharacters(db)
+    })
+    return before
+  }
+
+  const actsAsOse = [['ose', 'ose'], ['missing', undefined], ['empty', ''], ['unregistered', 'pathfinder']] as const
+
+  it.each(actsAsOse)('moves the item as today in a campaign whose rule set is %s, stamping both characters', async (_label, system) => {
+    await offerIn(system)
+    const startedAt = Date.now()
+    await expect(accept()).resolves.toEqual({ ok: true })
+    await withAdmin(async (db) => {
+      expect(await inventoryOf(db, senderCharacterId)).toEqual([])
+      expect(await inventoryOf(db, receiverCharacterId)).toEqual([sword])
+      for (const data of await bothCharacters(db)) {
+        expect(data?.schemaVersion).toBe(1)
+        // The emulator's clock is the machine's, so allow it a little skew.
+        expect(data?.schemaWrittenAt.toMillis()).toBeGreaterThan(startedAt - 5_000)
+      }
+      expect((await getDoc(offerRef(db))).exists()).toBe(false)
+    })
+  })
+
+  it.each(actsAsOse)('refuses an over-capacity transfer with the packed-slots reason in a campaign whose rule set is %s', async (_label, system) => {
+    // STR 12 gives 16 packed slots, all of them full.
+    const before = await offerIn(system, {
+      receiver: { details: { inventory: Array.from({ length: 16 }, (_, i) => ({ ...sword, id: `packed-${i}` })) } },
+    })
+    await expect(accept()).rejects.toMatchObject({ code: 'failed-precondition', message: 'Not enough packed slots to accept this item.' })
+    await withAdmin(async (db) => {
+      expect(await bothCharacters(db)).toEqual(before)
+      expect((await getDoc(offerRef(db))).exists()).toBe(true)
+    })
+  })
+
+  it.each(['vtm', 'lubec'])('refuses a transfer in a %s campaign, which declares no carrying, leaving both characters and the offer', async (system) => {
+    const before = await offerIn(system, { both: { system } })
+    await expect(accept()).rejects.toMatchObject({
+      code: 'failed-precondition', message: 'Items cannot be handed to another character in this campaign.',
+    })
+    await withAdmin(async (db) => {
+      expect(await bothCharacters(db)).toEqual(before)
+      expect((await getDoc(offerRef(db))).exists()).toBe(true)
+    })
+  })
+})
