@@ -56,7 +56,7 @@ service cloud.firestore {
     // pinned to the registry by `src/features/ruleSets/characterSchemaFloors.test.ts`,
     // which refuses a floor above the version the app writes.
     function characterSchemaFloors() {
-      return {"ose": 0, "vtm": 0, "lubec": 1};
+      return {"ose": 1, "vtm": 1, "lubec": 1};
     }
 
     // The rule set a nested campaign's characters belong to.
