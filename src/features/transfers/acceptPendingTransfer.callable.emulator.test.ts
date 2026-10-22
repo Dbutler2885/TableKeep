@@ -63,10 +63,20 @@ describe('actual transfer callable', () => {
     expect(mocks.set.mock.invocationCallOrder[1]).toBeLessThan(mocks.delete.mock.invocationCallOrder[0])
   })
 
-  it.each([undefined, '', 'unknown', 'ose', 'vtm', 'lubec'])('accepts current-version characters in a campaign of system %s and stamps that version', async (system) => {
+  it.each([undefined, '', 'unknown', 'ose'])('accepts current-version characters in a campaign of system %s and stamps that version', async (system) => {
     mocks.records.set(path, { gmUserId: 'gm', ...(system === undefined ? {} : { system }) })
     await expect(accept(request)).resolves.toEqual({ ok: true })
     expect(writes().map(([, fields]) => [fields.schemaVersion, fields.schemaWrittenAt])).toEqual([[1, SERVER_TIME], [1, SERVER_TIME]])
+  })
+
+  it.each(['vtm', 'lubec'])('refuses a transfer in a %s campaign, which has no carrying rule, without reading either character or dropping the offer', async (system) => {
+    mocks.records.set(path, { gmUserId: 'gm', system })
+    await expect(accept(request)).rejects.toMatchObject({
+      code: 'failed-precondition', message: 'Items cannot be handed to another character in this campaign.',
+    })
+    expect(mocks.get).toHaveBeenCalledTimes(3)
+    expect(mocks.set).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
   })
 
   it.each([senderPath, receiverPath])('refuses %s below or above the current version with the plain message, keeping the offer', async (characterPath) => {

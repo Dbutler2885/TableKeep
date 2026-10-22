@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { characterVersioningByRuleSet, resolveCharacterRuleSetId } from './characterMigrations'
 import { resolveRuleSet, ruleSets } from './registry'
+import { ruleSetResolutionCases } from './ruleSetResolutionCases'
 
 // The migration script cannot load the registry, so it resolves campaigns with
 // the plain-Node table in `characterMigrations.ts`. A rule set added to the
@@ -15,10 +16,8 @@ describe('the migration script\'s rule-set table', () => {
     }
   })
 
-  it.each([['ose'], ['vtm'], ['lubec'], ['LUBEC'], [undefined], [null], [''], ['pathfinder'], ['OSE'], ['toString'], [7]])(
-    'resolves %j as the registry does',
-    (system) => {
-      expect(resolveCharacterRuleSetId(system)).toBe(resolveRuleSet(system as string | null | undefined).id)
-    },
-  )
+  it.each(ruleSetResolutionCases)('resolves %j to %s, as the registry does', (system, ruleSet) => {
+    expect(resolveCharacterRuleSetId(system)).toBe(ruleSet)
+    expect(resolveRuleSet(system as string | null | undefined).id).toBe(ruleSet)
+  })
 })

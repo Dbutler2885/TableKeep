@@ -8,7 +8,8 @@ import { logger } from 'firebase-functions'
 import type { Request } from 'express'
 import { adminApp, adminFirestore } from './adminApp.js'
 import { isTransferSourceAuthorized } from './transferAuthorization.js'
-import { PACKED_SLOTS_MESSAGE, applyAcceptedTransfer, availablePackedSlots, type InventoryItem } from './oseCarrying.js'
+import { PACKED_SLOTS_MESSAGE, type InventoryItem } from './oseCarrying.js'
+import { NO_CARRYING_MESSAGE, resolveTransferCarrying } from './ruleSetCarrying.js'
 import { campaignPath, groupMemberPath } from './firestorePaths.js'
 import {
   CHARACTER_BEING_UPDATED_MESSAGE,
@@ -270,6 +271,10 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
     if (transfer.toUserId !== uid && !isGm) {
       throw new HttpsError('permission-denied', 'You cannot accept this transfer.')
     }
+    // A rule set without a carrying rule has no transfers; the offer is kept.
+    const system = campaignSnap.data()?.system
+    const carrying = resolveTransferCarrying(system)
+    if (!carrying) throw new HttpsError('failed-precondition', NO_CARRYING_MESSAGE)
 
     const senderRef = campaignDoc.collection('characters').doc(transfer.fromCharacterId)
     const receiverRef = campaignDoc.collection('characters').doc(transfer.toCharacterId)
@@ -287,7 +292,7 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
     }
     // Admin access bypasses the rules' version floor, so the callable checks
     // the version itself, and keeps the offer for after the migration.
-    const schemaVersion = currentCharacterSchemaVersion(campaignSnap.data()?.system)
+    const schemaVersion = currentCharacterSchemaVersion(system)
     if (![senderData, receiverData].every((character) => isCharacterAtSchemaVersion(character, schemaVersion))) {
       throw new HttpsError('failed-precondition', CHARACTER_BEING_UPDATED_MESSAGE)
     }
@@ -295,11 +300,11 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
     const receiverDetails = (receiverData?.details && typeof receiverData.details === 'object') ? receiverData.details as Record<string, unknown> : {}
     const senderInventory = asInventory(senderDetails)
     const receiverInventory = asInventory(receiverDetails)
-    const transferResult = applyAcceptedTransfer(
+    const transferResult = carrying.acceptTransfer(
       senderInventory,
       receiverInventory,
       transfer,
-      availablePackedSlots(receiverDetails),
+      carrying.packedSlots(receiverDetails),
     )
 
     if (!transferResult.ok && (transferResult.reason === 'missing_item' || transferResult.reason === 'kind_mismatch')) {
