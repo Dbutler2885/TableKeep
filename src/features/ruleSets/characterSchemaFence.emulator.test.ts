@@ -177,8 +177,8 @@ const oldTransaction = (db: Firestore, campaign: CampaignKey) => runTransaction(
   tx.set(ref, { details: { ...details, inventory: [...inventory, rope] } }, { merge: true })
 })
 
-// The committed floors: landing the fence changed nothing for OSE and VtM
-// players, and code from before stamping still passes until they rise.
+// The floors the fence first shipped with: landing it changed nothing for OSE
+// and VtM players, and code from before stamping still passes until they rise.
 describe('character writes with the OSE and VtM floors at 0', () => {
   let testEnv: RulesTestEnvironment
 
@@ -340,11 +340,13 @@ describe('character writes with the VtM floor at 1', () => {
 // Lubec's floor is 1 from the day the fence lands: no old code ever wrote a
 // Lubec character, and OSE code from before stamping would write OSE fields
 // into one.
-describe('character writes into a Lubec campaign, with the floors as committed', () => {
+// Lubec at 1 beside OSE and VtM at 0, so an OSE campaign shows the Lubec floor
+// does not reach past its own rule set.
+describe('character writes into a Lubec campaign, with only the Lubec floor at 1', () => {
   let testEnv: RulesTestEnvironment
 
   beforeAll(async () => {
-    testEnv = await startEnvironment('lubec-floor', committedRules())
+    testEnv = await startEnvironment('lubec-floor', withFloors({ ose: 0, vtm: 0, lubec: 1 }))
   })
 
   afterAll(async () => {
