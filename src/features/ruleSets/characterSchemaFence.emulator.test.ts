@@ -19,11 +19,11 @@ import {
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing'
 import type { CharacterInventoryItem, CharacterRecord } from '../../types/app'
-import { characterSaveFields } from '../character/lib/characterWrites'
 import { applyGrantToCharacter } from '../character/lib/grantTransaction'
 import { readCharacterStoreDoc } from '../character/characterStore/characterStoreRecord'
 import { characterStoreSaveFields, newCharacterStoreFields } from '../character/characterStore/characterStoreWrites'
 import { vtmCharacterStore } from '../character/vtmCharacterRecord'
+import { oseCharacterStore } from '../character/lib/storedCharacterRecord'
 import type { VtmCharacterRecord } from '../character/vtmTypes'
 import { defaultTokenIcon } from '../character/lib/characterSheetLayout'
 import { emulatorPort } from '../../../vitest.emulatorEndpoint'
@@ -76,6 +76,9 @@ const oseRecord = (): CharacterRecord => ({
   } as unknown as CharacterRecord['details'],
 })
 
+const oseStore = oseCharacterStore({ userId: ownerUid, currentUsername: ownerUid })
+const oseSaveFields = (): DocumentData => characterStoreSaveFields(oseStore, oseRecord())
+
 // What code from before version stamping writes: the current writers' fields
 // without the two schema fields.
 const withoutSchemaStamp = ({ schemaVersion: _version, schemaWrittenAt: _writtenAt, ...fields }: DocumentData): DocumentData => fields
@@ -93,7 +96,7 @@ const vtmRecord = (): VtmCharacterRecord =>
   readCharacterStoreDoc(vtmCharacterStore, characterId, { system: 'vtm', name: 'Lucien', ownerUserId: ownerUid }, undefined)!
 
 // The old merge saves and VtM create, with no schema fields.
-const oldOseSaveFields = (): DocumentData => withoutSchemaStamp(characterSaveFields(oseRecord()))
+const oldOseSaveFields = (): DocumentData => withoutSchemaStamp(oseSaveFields())
 const oldVtmSaveFields = (): DocumentData => withoutSchemaStamp(characterStoreSaveFields(vtmCharacterStore, vtmRecord()))
 const oldVtmCreateFields = (): DocumentData => withoutSchemaStamp(newCharacterStoreFields(vtmCharacterStore, vtmRecord()))
 
@@ -208,12 +211,12 @@ describe('character writes with the OSE and VtM floors at 0', () => {
     })
 
     it("passes the current stamped merge save", async () => {
-      await assertSucceeds(setDoc(doc(asUser(testEnv, ownerUid), ...characterPath('ose')), characterSaveFields(oseRecord()), { merge: true }))
+      await assertSucceeds(setDoc(doc(asUser(testEnv, ownerUid), ...characterPath('ose')), oseSaveFields(), { merge: true }))
     })
 
     it('refuses a save by another player', async () => {
       await assertFails(setDoc(doc(asUser(testEnv, otherMemberUid), ...characterPath('ose')), oldOseSaveFields(), { merge: true }))
-      await assertFails(setDoc(doc(asUser(testEnv, otherMemberUid), ...characterPath('ose')), characterSaveFields(oseRecord()), { merge: true }))
+      await assertFails(setDoc(doc(asUser(testEnv, otherMemberUid), ...characterPath('ose')), oseSaveFields(), { merge: true }))
     })
   })
 
@@ -273,9 +276,9 @@ describe('character writes with the OSE floor at 1', () => {
   })
 
   it('allows a current create, the current merge save and grant, and a stamped transaction', async () => {
-    await assertSucceeds(create(testEnv, 'ose', stamped(oseCreateFields())))
-    await assertSucceeds(save(testEnv, 'ose', characterSaveFields(oseRecord())))
-    await assertSucceeds(save(testEnv, 'ose', characterSaveFields(oseRecord()), gmUid))
+    await assertSucceeds(create(testEnv, 'ose', newCharacterStoreFields(oseStore, oseRecord())))
+    await assertSucceeds(save(testEnv, 'ose', oseSaveFields()))
+    await assertSucceeds(save(testEnv, 'ose', oseSaveFields(), gmUid))
     await assertSucceeds(grant(asUser(testEnv, gmUid), 'ose'))
     const db = asUser(testEnv, gmUid)
     await assertSucceeds(runTransaction(db, async (tx) => {
@@ -286,14 +289,14 @@ describe('character writes with the OSE floor at 1', () => {
   })
 
   it('still refuses a stamped save by another player', async () => {
-    await assertFails(save(testEnv, 'ose', characterSaveFields(oseRecord()), otherMemberUid))
+    await assertFails(save(testEnv, 'ose', oseSaveFields(), otherMemberUid))
   })
 
   it('uses the OSE floor for a missing, empty or unregistered campaign value', async () => {
     for (const campaign of ['missing', 'empty', 'unregistered'] as const) {
       await assertFails(save(testEnv, campaign, oldOseSaveFields()))
       await assertFails(create(testEnv, campaign, oseCreateFields()))
-      await assertSucceeds(save(testEnv, campaign, characterSaveFields(oseRecord())))
+      await assertSucceeds(save(testEnv, campaign, oseSaveFields()))
     }
   })
 

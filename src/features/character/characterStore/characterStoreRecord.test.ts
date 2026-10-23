@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { oseCharacterStore } from '../lib/storedCharacterRecord'
 import { vtmCharacterStore } from '../vtmCharacterRecord'
 import { makeVtmCharacter } from '../vtmDefaults'
 import { readCharacterStoreDoc } from './characterStoreRecord'
@@ -11,6 +12,13 @@ const local = (fields: Partial<ReturnType<typeof makeVtmCharacter>> = {}) => ({
 describe('readCharacterStoreDoc', () => {
   it('is null for another system', () => {
     expect(readCharacterStoreDoc(vtmCharacterStore, 'a', { system: 'ose' }, undefined)).toBeNull()
+  })
+
+  it('reads every system for a rule set whose characters store none', () => {
+    const ose = oseCharacterStore({ userId: 'user-1', currentUsername: 'player1' })
+
+    expect(readCharacterStoreDoc(ose, 'a', { system: 'vtm', name: 'Stored' }, undefined)?.name).toBe('Stored')
+    expect(readCharacterStoreDoc(ose, 'b', { name: 'Plain' }, undefined)?.name).toBe('Plain')
   })
 
   it('prefers a stored portrait URL, even an empty one, over the local one', () => {

@@ -1,20 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { CharacterRecord } from '../../../types/app'
+import { oseCharacterStore, readStoredCharacter } from '../lib/storedCharacterRecord'
 import { vtmCharacterStore } from '../vtmCharacterRecord'
 import { makeVtmCharacter } from '../vtmDefaults'
 
 const mocks = vi.hoisted(() => ({
   setDoc: vi.fn(async (..._args: unknown[]) => undefined),
+  deleteDoc: vi.fn(async (..._args: unknown[]) => undefined),
 }))
 
 vi.mock('../../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   doc: (_db: unknown, path: string) => ({ path }),
-  deleteDoc: vi.fn(),
+  deleteDoc: mocks.deleteDoc,
   serverTimestamp: () => 'now',
   setDoc: mocks.setDoc,
 }))
 
 const {
+  cancelCharacterStoreSave,
+  characterStoreSaveFields,
+  deleteCharacterStoreDoc,
+  saveCharacterStoreCurrentCharacter,
   emptyCharacterStoreSaves,
   isCharacterStoreSaveOutstanding,
   newCharacterStoreFields,
@@ -29,6 +36,7 @@ const stored = { ...makeVtmCharacter('user-1', 'player1'), id: 'a' }
 beforeEach(() => {
   vi.clearAllMocks()
   vi.useFakeTimers()
+  mocks.setDoc.mockImplementation(async () => undefined)
 })
 
 afterEach(() => {
@@ -207,5 +215,85 @@ describe('overlapping character saves', () => {
     finishes[1]()
     await Promise.resolve()
     expect(saves).toEqual({ pending: {}, inFlight: {} })
+  })
+})
+
+const viewer = { userId: 'user-1', currentUsername: 'Player One' }
+const ose = oseCharacterStore(viewer)
+const oseCharacter = (id: string, fields: Partial<CharacterRecord> = {}): CharacterRecord =>
+  ({ ...readStoredCharacter(id, { ownerUserId: 'user-1' }, viewer), ...fields })
+const CHARACTERS_PATH = 'groups/group-1/campaigns/campaign-1/characters'
+
+describe('OSE write fields', () => {
+  it('saves a deep copy of the details, no token image URL, and stamps the version', () => {
+    const details = { notes: 'Brave' } as unknown as CharacterRecord['details']
+    const fields = characterStoreSaveFields(ose, oseCharacter('a', {
+      details,
+      tokenIcon: { icon: 'pawn', color: '#000', size: 30, customImagePath: 't.png', customImageUrl: 'https://cdn.test/t.png' },
+    }))
+
+    expect(fields.details).toEqual(details)
+    expect(fields.details).not.toBe(details)
+    expect(details).toEqual({ notes: 'Brave' })
+    expect(fields.tokenIcon).toEqual({ icon: 'pawn', color: '#000', size: 30, customImagePath: 't.png' })
+    expect(Object.keys(fields).filter((key) => key.startsWith('details.'))).toEqual([])
+    expect(fields).toMatchObject({ schemaVersion: 1, schemaWrittenAt: 'now', updatedAt: 'now' })
+  })
+
+  it('saves no details, no owner name and an empty portrait path when the character has none', () => {
+    expect(characterStoreSaveFields(ose, oseCharacter('a', { details: undefined, ownerUsername: undefined, portraitPath: undefined })))
+      .toMatchObject({ details: null, ownerUsername: null, portraitPath: '' })
+  })
+
+  it('round-trips unknown fields, replaces stored stamps with fresh ones and schedules an exact merged payload', () => {
+    const record = readStoredCharacter('a', {
+      name: 'Legacy', class: 'Fighter', ownerUserId: 'user-1', schemaVersion: 1, schemaWrittenAt: 'old-stamp',
+      createdAt: 'creation-time', updatedAt: 'previous-save', future: { kept: true },
+      portraitUrl: 'https://cdn.test/p', details: { inventory: [], notes: 'Keep', futureNested: [1] },
+    }, viewer)
+    const saves = emptyCharacterStoreSaves()
+    scheduleCharacterStoreSave(saves, campaign, ose, 'a', () => ({ ...record, name: 'Edited' }))
+    sendCharacterStoreSavesNow(saves)
+    expect(mocks.setDoc).toHaveBeenCalledExactlyOnceWith({ path: `${CHARACTERS_PATH}/a` }, {
+      name: 'Edited', ownerUserId: 'user-1', ownerUsername: 'Player One', creationMode: 'new', creationModeExplicit: false,
+      creationStatus: 'active', class: 'Fighter', level: 1, hpCurrent: 0, hpMax: 0, ac: 10, xp: 0,
+      portraitPath: '', portraitFocusX: 50, portraitFocusY: 50, tokenIcon: { icon: 'pawn', color: '#bf2f2a', size: 34 },
+      details: { inventory: [], notes: 'Keep', futureNested: [1] }, future: { kept: true },
+      schemaVersion: 1, schemaWrittenAt: 'now', updatedAt: 'now',
+    }, { merge: true })
+  })
+})
+
+describe('cancelCharacterStoreSave', () => {
+  it('drops one character\'s waiting save and forgets its save in flight, leaving the others', () => {
+    const saves = emptyCharacterStoreSaves()
+    scheduleCharacterStoreSave(saves, campaign, ose, 'a', (id) => oseCharacter(id))
+    scheduleCharacterStoreSave(saves, campaign, ose, 'b', (id) => oseCharacter(id))
+    saves.inFlight.a = true
+
+    cancelCharacterStoreSave(saves, 'a')
+    cancelCharacterStoreSave(saves, 'missing')
+    vi.advanceTimersByTime(500)
+
+    expect(isCharacterStoreSaveOutstanding(saves, 'a')).toBe(false)
+    expect(mocks.setDoc.mock.calls.map(([ref]) => ref)).toEqual([{ path: `${CHARACTERS_PATH}/b` }])
+  })
+})
+
+describe('direct writes', () => {
+  it('deletes a character document', async () => {
+    await deleteCharacterStoreDoc(campaign, 'a')
+
+    expect(mocks.deleteDoc).toHaveBeenCalledWith({ path: `${CHARACTERS_PATH}/a` })
+  })
+
+  it('remembers the user\'s current character', async () => {
+    await saveCharacterStoreCurrentCharacter(campaign, 'user-1', 'a')
+
+    expect(mocks.setDoc).toHaveBeenCalledWith(
+      { path: 'groups/group-1/campaigns/campaign-1/userState/user-1' },
+      { currentCharacterId: 'a', updatedAt: 'now' },
+      { merge: true },
+    )
   })
 })

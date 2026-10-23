@@ -77,7 +77,7 @@ describe('OSE transfer targets', () => {
   it.each(legacyCases)('%s is listed with the sheet and items the sheet shows', (_name, fixture) => {
     const { result } = renderDirectory('gm', 'gm-uid')
     emit([fixture])
-    const sheet = readStoredCharacter(fixture.id, fixture.data, undefined, { userId: 'gm-uid', currentUsername: 'gm1' })
+    const sheet = readStoredCharacter(fixture.id, fixture.data, { userId: 'gm-uid', currentUsername: 'gm1' })
     expect(result.current.allCampaignCharacters[0].details).toEqual(sheet.details)
     expect(result.current.allCampaignCharacters[0].details?.inventory).toBeInstanceOf(Array)
   })

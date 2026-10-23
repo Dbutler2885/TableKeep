@@ -10,12 +10,12 @@ import type { ItemApprovalRequest } from '../../types/app'
 
 const connection = vi.hoisted(() => ({ db: null as unknown as Firestore }))
 vi.mock('../../firebase', () => ({ get db() { return connection.db } }))
-const { characterSaveFields } = await import('./lib/characterWrites')
-const { readStoredCharacter, parseOseCharacter } = await import('./lib/storedCharacterRecord')
+const { oseCharacterStore, readStoredCharacter, parseOseCharacter } = await import('./lib/storedCharacterRecord')
 const { createCharacterStoreDoc, characterStoreSaveFields } = await import('./characterStore/characterStoreWrites')
 const { readCharacterStoreDoc } = await import('./characterStore/characterStoreRecord')
 const { vtmCharacterStore } = await import('./vtmCharacterRecord')
 const { useCharacterRoster } = await import('./hooks/useCharacterRoster')
+const { useCharacters } = await import('./hooks/useCharacters')
 const { useItemApprovals } = await import('./hooks/useItemApprovals')
 const { applyGrantToCharacter } = await import('./lib/grantTransaction')
 
@@ -62,9 +62,10 @@ describe('character writer persistence', () => {
       schemaVersion: 1, schemaWrittenAt: oldTime, createdAt: oldTime, updatedAt: oldTime, future: { kept: true },
       details: { inventory: [rope], futureNested: { kept: true } } }
     await seed(raw)
-    const record = readStoredCharacter('pc', raw, undefined, { userId: 'gm', currentUsername: 'gamemst' })
+    const viewer = { userId: 'gm', currentUsername: 'gamemst' }
+    const record = readStoredCharacter('pc', raw, viewer)
     const startedAt = Date.now()
-    await setDoc(charRef(), characterSaveFields({ ...record, name: 'Edited' }), { merge: true })
+    await setDoc(charRef(), characterStoreSaveFields(oseCharacterStore(viewer), { ...record, name: 'Edited' }), { merge: true })
     const saved = await read()
     expect(saved).toMatchObject({ name: 'Edited', schemaVersion: 1, createdAt: oldTime, future: { kept: true },
       details: { futureNested: { kept: true }, inventory: [rope] } })
@@ -87,14 +88,18 @@ describe('character writer persistence', () => {
     expectFreshStamp(saved.schemaWrittenAt, startedAt)
   })
 
-  it.each(['new', 'established'] as const)('the real OSE create hook persists a %s character at version 1, without system or details', async (mode) => {
+  it.each(['new', 'established'] as const)('the real OSE create hook persists a %s character at version 1 through the shared store, with no system and no details', async (mode) => {
     let selected = ''
-    const { result } = renderHook(() => useCharacterRoster({
-      campaignId: scope.campaignId, groupId: scope.groupId, currentUserId: 'gm', currentUsername: 'gamemst',
-      canCreateCharacter: true, effectiveSelected: null, canEditSelected: false, isGuidedCreation: false,
-      isInFinalizationFlow: false, hasRolledAbilityScores: false, hasRolledHp: false, selectedInventory: [],
-      setSelectedCharacterId: (id) => { selected = id }, isSinglePane: false, showDetailPane: vi.fn(), updateSelectedCharacter: vi.fn(),
-    }))
+    const { result } = renderHook(() => {
+      const store = useCharacters(scope.campaignId, scope.groupId, 'gm', 'gamemst', 'gm', 'gm', vi.fn())
+      return useCharacterRoster({
+        campaignId: scope.campaignId, groupId: scope.groupId, currentUserId: 'gm', currentUsername: 'gamemst',
+        canCreateCharacter: true, effectiveSelected: null, canEditSelected: false, isGuidedCreation: false,
+        isInFinalizationFlow: false, hasRolledAbilityScores: false, hasRolledHp: false, selectedInventory: [],
+        setSelectedCharacterId: (id) => { selected = id }, isSinglePane: false, showDetailPane: vi.fn(), updateSelectedCharacter: vi.fn(),
+        createCharacter: store.addCharacter,
+      })
+    })
     act(() => result.current.addCharacter(mode))
     const created = doc(connection.db, `${path}/characters/${selected}`)
     await waitForPendingWrites(connection.db)
@@ -102,7 +107,9 @@ describe('character writer persistence', () => {
     const data = (await getDoc(created)).data()!
     expect(data).toMatchObject({ name: 'New Character', ownerUserId: 'gm', creationMode: mode, creationStatus: mode === 'new' ? 'draft' : 'established_draft',
       schemaVersion: 1, schemaWrittenAt: expect.any(Timestamp), createdAt: expect.any(Timestamp), updatedAt: expect.any(Timestamp) })
-    for (const field of ['system', 'details']) expect(data).not.toHaveProperty(field)
+    expect(data).not.toHaveProperty('system')
+    // The store writes the serializer's output, so a new character has no details yet.
+    expect(data.details).toBeNull()
   })
 
   it('the VtM create writer persists system, version 1 and timestamps', async () => {

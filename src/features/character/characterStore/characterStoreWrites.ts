@@ -42,6 +42,16 @@ export function sendCharacterStoreSavesNow(saves: CharacterStoreSaves) {
   })
 }
 
+/** Drops one character's waiting save without sending it, and forgets its save in flight. */
+export function cancelCharacterStoreSave(saves: CharacterStoreSaves, characterId: string) {
+  const pending = saves.pending[characterId]
+  if (pending) {
+    clearTimeout(pending.timer)
+    delete saves.pending[characterId]
+  }
+  delete saves.inFlight[characterId]
+}
+
 /** What a save writes: the serialized record, stamped with the current version and the save time. */
 export function characterStoreSaveFields<Character extends CharacterStoreRecord>(
   ruleSet: CharacterStoreRuleSet<Character>,

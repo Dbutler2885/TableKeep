@@ -4,6 +4,7 @@ import type { CampaignScope } from '../../campaign/firestorePaths'
 import type { CharacterStoreRecord, CharacterStoreRuleSet } from './characterStoreRecord'
 import { findCharacterStoreCharacter } from './characterStoreRoster'
 import {
+  cancelCharacterStoreSave,
   createCharacterStoreDoc,
   deleteCharacterStoreDoc,
   saveCharacterStoreCurrentCharacter,
@@ -32,21 +33,36 @@ export const canEditCharacterStoreCharacter = (target: CharacterStoreRecord | un
 export const canChooseCharacterStoreCharacter = (target: CharacterStoreRecord | undefined, role: Role | null, userId: string) =>
   target !== undefined && (role !== 'player' || target.ownerUserId === userId)
 
+const withCharacterStoreUpdates = <Character extends CharacterStoreRecord>(
+  characters: Character[],
+  characterId: string,
+  updates: Partial<Character>,
+) => characters.map((character) => (character.id === characterId ? { ...character, ...updates } : character))
+
 export function updateCharacterStoreCharacter<Character extends CharacterStoreRecord>(
   context: CharacterStoreActionContext<Character>,
   characterId: string,
   updates: Partial<Character>,
 ) {
-  const { charactersRef } = context
-  if (!canEditCharacterStoreCharacter(findCharacterStoreCharacter(charactersRef.current, characterId), context.role, context.userId)) return
-  const next = charactersRef.current.map((character) =>
-    character.id === characterId ? { ...character, ...updates } : character,
-  )
+  const { charactersRef, ruleSet } = context
+  const target = findCharacterStoreCharacter(charactersRef.current, characterId)
+  if (!target || !canEditCharacterStoreCharacter(target, context.role, context.userId)) return
+  const next = withCharacterStoreUpdates(charactersRef.current, characterId,
+    ruleSet.adjustUpdates ? ruleSet.adjustUpdates(target, updates) : updates)
   charactersRef.current = next
   context.setCharacters(next)
   if (!context.campaign) return
-  scheduleCharacterStoreSave(context.savesRef.current, context.campaign, context.ruleSet, characterId,
+  scheduleCharacterStoreSave(context.savesRef.current, context.campaign, ruleSet, characterId,
     (id) => findCharacterStoreCharacter(charactersRef.current, id))
+}
+
+/** Changes the local copy only, with no permission check and no save. */
+export function syncCharacterStoreCharacterLocal<Character extends CharacterStoreRecord>(
+  context: CharacterStoreActionContext<Character>,
+  characterId: string,
+  updates: Partial<Character>,
+) {
+  context.setCharacters((current) => withCharacterStoreUpdates(current, characterId, updates))
 }
 
 /** Adds, selects and creates a character the caller has made, under the id it already carries. */
@@ -61,15 +77,21 @@ export async function addCharacterStoreCharacter<Character extends CharacterStor
   await createCharacterStoreDoc(campaign, context.ruleSet, character)
 }
 
+/**
+ * Removes the character and deletes its document, dropping any save of it
+ * that has not landed. True when it was deleted.
+ */
 export function deleteCharacterStoreCharacter<Character extends CharacterStoreRecord>(
   context: CharacterStoreActionContext<Character>,
   characterId: string,
-) {
-  if (!context.campaign) return
+): boolean {
+  if (!context.campaign) return false
   const target = findCharacterStoreCharacter(context.charactersRef.current, characterId)
-  if (!canEditCharacterStoreCharacter(target, context.role, context.userId)) return
+  if (!canEditCharacterStoreCharacter(target, context.role, context.userId)) return false
+  cancelCharacterStoreSave(context.savesRef.current, characterId)
   context.setCharacters((current) => current.filter((character) => character.id !== characterId))
   void deleteCharacterStoreDoc(context.campaign, characterId)
+  return true
 }
 
 export async function chooseCharacterStoreCurrentCharacter<Character extends CharacterStoreRecord>(

@@ -14,8 +14,9 @@ import { Timestamp } from 'firebase/firestore'
 import { describe, expect, it, vi } from 'vitest'
 import type { CharacterInventoryItem, CharacterRecord } from '../../../types/app'
 import { seedInventoryFromDetails } from '../../character/inventoryHydration'
-import { readCharacterSnapshot } from '../../character/lib/characterSnapshot'
-import { characterSaveFields, emptyCharacterSaves } from '../../character/lib/characterWrites'
+import { readCharacterStoreSnapshot } from '../../character/characterStore/characterStoreRoster'
+import { characterStoreSaveFields, emptyCharacterStoreSaves } from '../../character/characterStore/characterStoreWrites'
+import { oseCharacterStore } from '../../character/lib/storedCharacterRecord'
 import { mapCharacterSummaryFromData } from '../../maps/lib/mapCharacterSummary'
 import { markTimestamps, migratedFixture, reviveTimestamps, type CharacterFixture } from '../characterFixtures'
 import { oseCharacterVersioning, vtmCharacterVersioning } from '../characterMigrations'
@@ -60,11 +61,12 @@ const vtmCases = [
 ] as const
 
 const VIEWER = { userId: 'viewer-uid', currentUsername: 'viewer1' }
+const OSE_STORE = oseCharacterStore(VIEWER)
 
 /** A fixture, as the migration leaves it, as the OSE sheet's character list reads it. */
 const sheetRecord = (fixture: CharacterFixture): CharacterRecord => {
   const { id, data } = migrated(fixture)
-  return readCharacterSnapshot([{ id, data: () => data }], emptyCharacterSaves(), [], VIEWER)[0]
+  return readCharacterStoreSnapshot(OSE_STORE, [{ id, data: () => data }], emptyCharacterStoreSaves(), [])[0]
 }
 
 /** The items the sheet hydrates for a record. */
@@ -111,7 +113,7 @@ function mergedLikeFirestore(stored: Fields, payload: Fields): Fields {
 }
 
 const savedUnedited = (fixture: CharacterFixture): StoredCharacter =>
-  mergedLikeFirestore(migrated(fixture).data, characterSaveFields(sheetRecord(fixture)))
+  mergedLikeFirestore(migrated(fixture).data, characterStoreSaveFields(OSE_STORE, sheetRecord(fixture)))
 
 describe('OSE sheet reading', () => {
   it.each(oseCases)('%s shows as its recorded sheet view', async (name, fixture) => {

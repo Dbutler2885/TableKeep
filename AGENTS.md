@@ -167,7 +167,7 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
   The snapshot stores campaign ownership, group membership, and character ownership by uid, so a re-seed on a visitor's machine has to land on the same uids or the imported campaign would belong to nobody.
   Usernames must be exactly seven characters (`src/features/auth/usernameRules.ts`).
 - **More accounts are seeded than are offered as a seat.**
-  The campaign's characters belong one apiece to the four player accounts, because a player only ever sees characters that are not GM-owned (`src/features/character/useCharacters.ts`), so a single shared player account would land on an empty list.
+  The campaign's characters belong one apiece to the four player accounts, because a player only ever sees characters that are not GM-owned (`src/features/character/characterStore/characterStoreRoster.ts`), so a single shared player account would land on an empty list.
   Only the two accounts carrying a `seat` in `demoAccounts` read their credentials from `.env.demo`; the party members are written directly in `scripts/demo/config.mjs`.
   That split is the guard rail: `.env.demo` holds exactly the logins the sign-in screen offers, so a new account cannot grow the picker by being added to it.
   `demoSeatAccounts` is what the startup banner prints, and `scripts/demo/config.test.mjs` pins both halves.
@@ -200,7 +200,7 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
 - **The snapshot carries the whole party, not just the GM.**
   `groups/w5sFUCEDhNNxsR0wxD5z/members` holds five documents: `demo-gm-uid` as `admin`, and the four player uids as ordinary active `member`s.
   Each of the four characters carries a different player's uid in `ownerUserId`, and the Player seat (`demo-player-uid`) owns Mirelda Crow, the fullest sheet.
-  That split is load-bearing rather than decorative: `useCharacters` hides every GM-owned character from a player (`all.filter((character) => character.ownerUserId !== gmUserId)`), so a snapshot where the GM owned the party left the Player seat on an empty list.
+  That split is load-bearing rather than decorative: the shared character store hides every GM-owned character from a player (`characters.filter((character) => character.ownerUserId !== gmUserId)`), so a snapshot where the GM owned the party left the Player seat on an empty list.
 - **Membership in the snapshot was authored through the app's own join path.**
   Each player holds a real `inviteCodes/{token}` document created by the GM and redeemed by that player, and their member document carries the `invitedVia` token, exactly as `redeemInvite` in `src/features/invites/useInvites.ts` writes it.
   That is deliberate: `firestore.rules` only lets a non-admin create their own member document when `invitedVia` names a live invite for the same group, so hand-writing a member document without one is a shape the app can never produce.

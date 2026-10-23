@@ -4,6 +4,7 @@ import {
   addCharacterStoreCharacter,
   chooseCharacterStoreCurrentCharacter,
   deleteCharacterStoreCharacter,
+  syncCharacterStoreCharacterLocal,
   updateCharacterStoreCharacter,
   type CharacterStoreActionContext,
 } from './characterStoreActions'
@@ -12,6 +13,7 @@ import { findCharacterStoreCharacter } from './characterStoreRoster'
 import {
   characterStoreCampaign,
   emptyCharacterStoreSaves,
+  isCharacterStoreSaveOutstanding,
   sendCharacterStoreSavesNow,
   type CharacterStoreSaves,
 } from './characterStoreWrites'
@@ -94,6 +96,9 @@ export function useCharacterStore<Character extends CharacterStoreRecord>(option
     addCharacter: (character: Character) => addCharacterStoreCharacter(context, character),
     updateCharacter: (characterId: string, updates: Partial<Character>) =>
       updateCharacterStoreCharacter(context, characterId, updates),
+    syncCharacterLocal: (characterId: string, updates: Partial<Character>) =>
+      syncCharacterStoreCharacterLocal(context, characterId, updates),
     deleteCharacter: (characterId: string) => deleteCharacterStoreCharacter(context, characterId),
+    hasPendingWrite: (characterId: string) => isCharacterStoreSaveOutstanding(savesRef.current, characterId),
   }
 }

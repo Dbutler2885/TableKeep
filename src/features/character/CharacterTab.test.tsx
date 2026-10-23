@@ -43,14 +43,14 @@ const VIEWER = { userId: PLAYER, currentUsername: 'player1' }
 const migratedElf = (): CharacterRecord => {
   const fixture = reviveTimestamps(legacy['caster-without-book'], (iso) => Timestamp.fromDate(new Date(iso))) as CharacterFixture
   const { id, data } = migratedFixture(oseCharacterVersioning, fixture)
-  return readStoredCharacter(id, data, undefined, VIEWER)
+  return readStoredCharacter(id, data, VIEWER)
 }
 
 /** A character just created, as its create stores it, once its player has picked a class. */
 const newCharacter = (className: string): CharacterRecord => readStoredCharacter('new-pc', {
   name: 'New Character', ownerUserId: PLAYER, ownerUsername: 'player1', creationMode: 'new', creationModeExplicit: true,
   creationStatus: 'draft', class: className, level: 1, hpCurrent: 0, hpMax: 0, ac: 10, xp: 0, schemaVersion: 1,
-}, undefined, VIEWER)
+}, VIEWER)
 
 function sheetProps(character: CharacterRecord): CharacterTabProps {
   return {
@@ -71,6 +71,7 @@ function sheetProps(character: CharacterRecord): CharacterTabProps {
     syncCharacterLocal: vi.fn(),
     deleteCharacter: vi.fn(),
     hasPendingWrite: () => false,
+    createCharacter: vi.fn(async () => undefined),
   }
 }
 
