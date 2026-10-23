@@ -39,7 +39,7 @@ import {
   TOKEN_REFERENCE_DIMENSION,
 } from '../lib/constants'
 import type { TokenPlacementCommand } from '../lib/tokenPlacementQueue'
-import { mapCharacterSummary } from '../lib/mapCharacterSummary'
+import { mapCharacterSummaryFromData } from '../lib/mapCharacterSummary'
 
 const MAP_UPLOAD_MAX_DIMENSION = 2048
 
@@ -509,7 +509,7 @@ export function useMapData({
     const unsub = onSnapshot(campaignCollectionRef(db, scope, 'characters'), (snap) => {
       setMapCharacters((current) =>
         snap.docs
-          .map((d) => mapCharacterSummary(
+          .map((d) => mapCharacterSummaryFromData(
             d.id,
             d.data(),
             current.find((character) => character.id === d.id),

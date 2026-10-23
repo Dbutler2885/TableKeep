@@ -16,7 +16,7 @@ import type { CharacterInventoryItem, CharacterRecord } from '../../../types/app
 import { seedInventoryFromDetails } from '../../character/inventoryHydration'
 import { readCharacterSnapshot } from '../../character/lib/characterSnapshot'
 import { characterSaveFields, emptyCharacterSaves } from '../../character/lib/characterWrites'
-import { mapCharacterSummary } from '../../maps/lib/mapCharacterSummary'
+import { mapCharacterSummaryFromData } from '../../maps/lib/mapCharacterSummary'
 import { markTimestamps, migratedFixture, reviveTimestamps, type CharacterFixture } from '../characterFixtures'
 import { oseCharacterVersioning, vtmCharacterVersioning } from '../characterMigrations'
 import type { StoredCharacter } from '../storedCharacter'
@@ -126,10 +126,10 @@ describe('OSE sheet reading', () => {
 describe('map reading', () => {
   it.each(oseCases)('OSE %s gives its recorded map summary', async (name, fixture) => {
     const { id, data } = migrated(fixture)
-    await expect(asFixtureJson(mapCharacterSummary(id, data))).toMatchFileSnapshot(`./fixtures/recorded/map/${name}.summary.json`)
+    await expect(asFixtureJson(mapCharacterSummaryFromData(id, data))).toMatchFileSnapshot(`./fixtures/recorded/map/${name}.summary.json`)
   })
 
   it.each(vtmCases)('VtM %s gives its recorded map summary', async (name, { id, data }) => {
-    await expect(asFixtureJson(mapCharacterSummary(id, data))).toMatchFileSnapshot(`../vtm/fixtures/recorded/${name}.summary.json`)
+    await expect(asFixtureJson(mapCharacterSummaryFromData(id, data))).toMatchFileSnapshot(`../vtm/fixtures/recorded/${name}.summary.json`)
   })
 })

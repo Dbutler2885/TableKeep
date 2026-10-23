@@ -23,7 +23,7 @@ const mapTokenIcon = (tokenIcon: TokenIconConfig, local?: CharacterTokenSummary)
 // that says whether it is in play and what pawn colour it gets without art.
 // The map reads the stored values with its own defaults, not the sheet's
 // tidied ones.
-export function mapCharacterSummary(
+export function mapCharacterSummaryFromData(
   id: string,
   data: StoredCharacter,
   local?: CharacterTokenSummary,

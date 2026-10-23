@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { mapCharacterSummary } from './mapCharacterSummary'
+import { mapCharacterSummaryFromData } from './mapCharacterSummary'
 
 describe('map character summary', () => {
   it('puts an OSE character with hit points left in play, without carrying the hit points', () => {
-    const summary = mapCharacterSummary('ose-character', {
+    const summary = mapCharacterSummaryFromData('ose-character', {
       name: 'Mirelda',
       ownerUserId: 'player',
       creationStatus: 'active',
@@ -20,7 +20,7 @@ describe('map character summary', () => {
   })
 
   it('reads VtM health instead of inventing zero OSE hit points', () => {
-    const summary = mapCharacterSummary('vtm-character', {
+    const summary = mapCharacterSummaryFromData('vtm-character', {
       system: 'vtm',
       name: 'Connor',
       ownerUserId: 'player',
@@ -38,7 +38,7 @@ describe('map character summary', () => {
 
   it('preserves a resolved VtM token URL while the same Storage path remains current', () => {
     const customImagePath = 'groups/group/campaigns/campaign/characters/connor/token-icons/connor.webp'
-    const local = mapCharacterSummary('vtm-character', {
+    const local = mapCharacterSummaryFromData('vtm-character', {
       system: 'vtm',
       name: 'Connor',
       ownerUserId: 'player',
@@ -53,7 +53,7 @@ describe('map character summary', () => {
       },
     })
 
-    const next = mapCharacterSummary('vtm-character', {
+    const next = mapCharacterSummaryFromData('vtm-character', {
       system: 'vtm',
       name: 'Connor',
       ownerUserId: 'player',
@@ -71,7 +71,7 @@ describe('map character summary', () => {
   })
 
   it('marks explicit hidden and deleted records ineligible upstream', () => {
-    expect(mapCharacterSummary('deleted-character', {
+    expect(mapCharacterSummaryFromData('deleted-character', {
       name: 'Deleted',
       ownerUserId: 'player',
       creationStatus: 'active',
@@ -84,7 +84,7 @@ describe('map character summary', () => {
 
 describe('map character summary fields', () => {
   it('reads blank identity fields when the document has none', () => {
-    expect(mapCharacterSummary('bare', { name: 7, ownerUserId: null })).toEqual({
+    expect(mapCharacterSummaryFromData('bare', { name: 7, ownerUserId: null })).toEqual({
       id: 'bare',
       name: '',
       ownerUserId: '',
@@ -97,11 +97,11 @@ describe('map character summary fields', () => {
   })
 
   it.each(['ose', 'pathfinder', '', 'VTM'])('reads a character storing system %j as OSE', (system) => {
-    expect(mapCharacterSummary('other', { system, hpCurrent: 4 })).toMatchObject({
+    expect(mapCharacterSummaryFromData('other', { system, hpCurrent: 4 })).toMatchObject({
       inPlay: true,
       tokenIcon: { icon: 'pawn', color: '#bf2f2a', size: 34 },
     })
-    expect(mapCharacterSummary('other', { system, vtm: { health: {} } }).inPlay).toBe(false)
+    expect(mapCharacterSummaryFromData('other', { system, vtm: { health: {} } }).inPlay).toBe(false)
   })
 
   it.each([
@@ -110,7 +110,7 @@ describe('map character summary fields', () => {
     [2.5, true],
     ['5', false],
   ])('puts an OSE character with hit points %j in play: %s', (hpCurrent, expected) => {
-    expect(mapCharacterSummary('ose', { hpCurrent }).inPlay).toBe(expected)
+    expect(mapCharacterSummaryFromData('ose', { hpCurrent }).inPlay).toBe(expected)
   })
 
   it.each([
@@ -120,7 +120,7 @@ describe('map character summary fields', () => {
     [{ creationModeExplicit: true, creationMode: 'established' }, 'active'],
     [{ creationModeExplicit: 'yes', creationMode: 'new' }, 'active'],
   ])('reads OSE creation status from %j as %s', (fields, expected) => {
-    expect(mapCharacterSummary('ose', fields).creationStatus).toBe(expected)
+    expect(mapCharacterSummaryFromData('ose', fields).creationStatus).toBe(expected)
   })
 
   it.each([
@@ -129,7 +129,7 @@ describe('map character summary fields', () => {
     [{ creationStatus: 'retired', creationMode: 'new' }, 'draft'],
     [{ creationMode: 'established' }, 'established_draft'],
   ])('reads VtM creation status from %j as %s', (fields, expected) => {
-    expect(mapCharacterSummary('vtm', { system: 'vtm', ...fields }).creationStatus).toBe(expected)
+    expect(mapCharacterSummaryFromData('vtm', { system: 'vtm', ...fields }).creationStatus).toBe(expected)
   })
 
   it.each([
@@ -141,7 +141,7 @@ describe('map character summary fields', () => {
     [{ health: { Incapacitated: 'yes' } }, false],
     [{ health: { Incapacitated: true } }, true],
   ])('reads VtM health %j as incapacitated %s', (vtm, incapacitated) => {
-    expect(mapCharacterSummary('vtm', { system: 'vtm', vtm }).inPlay).toBe(!incapacitated)
+    expect(mapCharacterSummaryFromData('vtm', { system: 'vtm', vtm }).inPlay).toBe(!incapacitated)
   })
 
   it.each([
@@ -151,7 +151,7 @@ describe('map character summary fields', () => {
     [{ deletedAt: 0 }, true],
     [{ hidden: 'yes' }, false],
   ])('reads hidden and deleted from %j', (fields, deleted) => {
-    const summary = mapCharacterSummary('flags', fields)
+    const summary = mapCharacterSummaryFromData('flags', fields)
     expect(summary.deleted).toBe(deleted)
     expect(summary.hidden).toBe(false)
   })
@@ -160,26 +160,26 @@ describe('map character summary fields', () => {
 describe('map character token icon', () => {
   const customImagePath = 'groups/group/campaigns/campaign/characters/pc/token-icons/pc.webp'
   const localWith = (tokenIcon: Record<string, unknown>) =>
-    mapCharacterSummary('pc', { tokenIcon })
+    mapCharacterSummaryFromData('pc', { tokenIcon })
 
   it.each([null, 'pawn', ['pawn']])('falls back to the default pawn when the stored icon is %j', (tokenIcon) => {
-    expect(mapCharacterSummary('pc', { tokenIcon }).tokenIcon).toEqual({ icon: 'pawn', color: '#bf2f2a', size: 34 })
+    expect(mapCharacterSummaryFromData('pc', { tokenIcon }).tokenIcon).toEqual({ icon: 'pawn', color: '#bf2f2a', size: 34 })
   })
 
   it('keeps a stored icon as it is', () => {
     const tokenIcon = { icon: 'skull', color: '#123456', size: 40 }
-    expect(mapCharacterSummary('pc', { tokenIcon }).tokenIcon).toBe(tokenIcon)
+    expect(mapCharacterSummaryFromData('pc', { tokenIcon }).tokenIcon).toBe(tokenIcon)
   })
 
   it('keeps a stored custom URL even when a local one is resolved', () => {
     const local = localWith({ icon: 'custom', color: '#000', size: 34, customImagePath, customImageUrl: 'https://local.test/a.webp' })
     const tokenIcon = { icon: 'custom', color: '#000', size: 34, customImagePath, customImageUrl: 'https://stored.test/b.webp' }
-    expect(mapCharacterSummary('pc', { tokenIcon }, local).tokenIcon).toEqual(tokenIcon)
+    expect(mapCharacterSummaryFromData('pc', { tokenIcon }, local).tokenIcon).toEqual(tokenIcon)
   })
 
   it('carries an OSE local URL over for the same path', () => {
     const local = localWith({ icon: 'custom', color: '#000', size: 34, customImagePath, customImageUrl: 'data:image/webp;base64,AAAA' })
-    const next = mapCharacterSummary('pc', { tokenIcon: { icon: 'custom', color: '#000', size: 34, customImagePath } }, local)
+    const next = mapCharacterSummaryFromData('pc', { tokenIcon: { icon: 'custom', color: '#000', size: 34, customImagePath } }, local)
     expect(next.tokenIcon).toEqual({ icon: 'custom', color: '#000', size: 34, customImagePath, customImageUrl: 'data:image/webp;base64,AAAA' })
   })
 
@@ -190,25 +190,25 @@ describe('map character token icon', () => {
   ])('drops a local URL with %s', (_label, localIcon) => {
     const local = localWith({ icon: 'custom', color: '#000', size: 34, ...localIcon })
     const tokenIcon = { icon: 'custom', color: '#000', size: 34, customImagePath }
-    const next = mapCharacterSummary('pc', { tokenIcon }, local)
+    const next = mapCharacterSummaryFromData('pc', { tokenIcon }, local)
     expect(next.tokenIcon).toBe(tokenIcon)
   })
 
   it('carries nothing over when the stored icon has no path', () => {
     const local = localWith({ icon: 'custom', color: '#000', size: 34, customImageUrl: 'https://local.test/a.webp' })
     const tokenIcon = { icon: 'pawn', color: '#000', size: 34 }
-    expect(mapCharacterSummary('pc', { tokenIcon }, local).tokenIcon).toBe(tokenIcon)
+    expect(mapCharacterSummaryFromData('pc', { tokenIcon }, local).tokenIcon).toBe(tokenIcon)
   })
 
   it('carries a local URL into the default icon only when both lack a path', () => {
-    const next = mapCharacterSummary('pc', {}, localWith({ icon: 'pawn', color: '#000', size: 34 }))
+    const next = mapCharacterSummaryFromData('pc', {}, localWith({ icon: 'pawn', color: '#000', size: 34 }))
     expect(next.tokenIcon).toEqual({ icon: 'pawn', color: '#bf2f2a', size: 34 })
   })
 })
 
 describe('reading a stored character', () => {
   it('keeps an OSE character with hit points and no maximum in play, as stored', () => {
-    expect(mapCharacterSummary('ose', { schemaVersion: 1, hpCurrent: 5, details: { inventory: [] } })).toMatchObject({
+    expect(mapCharacterSummaryFromData('ose', { schemaVersion: 1, hpCurrent: 5, details: { inventory: [] } })).toMatchObject({
       creationStatus: 'active',
       inPlay: true,
     })
