@@ -9,9 +9,9 @@ export type SeededInventory = {
 }
 
 /**
- * The items a sheet holds, as stored. OSE's steps have already turned an
- * old-format sheet into items and given an arcane caster its spell book
- * before the sheet reads it, so hydration converts and adds nothing itself.
+ * The items a sheet holds, as stored. The migration has already turned every
+ * old-format sheet into items and given every arcane caster its spell book,
+ * so hydration converts and adds nothing itself.
  */
 const storedItems = (details: CharacterSheetDetails): CharacterInventoryItem[] => details.inventory ?? []
 

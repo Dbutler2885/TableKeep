@@ -1,14 +1,16 @@
 // @vitest-environment jsdom
 /**
- * The OSE sheet with an old-format character. The sheet's reader runs OSE's
- * step, so the sheet shows the items the step made of the old lists, the
- * spell book included, without converting or adding anything itself.
+ * The OSE sheet with an arcane caster. A character the migration brought from
+ * the old format shows the items OSE's step made of its old lists, the spell
+ * book included, and the sheet converts and adds nothing itself; a newly
+ * created magic-user gets its spell book while it is being created.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { Timestamp } from 'firebase/firestore'
 import type { CharacterRecord } from '../../types/app'
-import { reviveTimestamps, type CharacterFixture } from '../ruleSets/characterFixtures'
+import { migratedFixture, reviveTimestamps, type CharacterFixture } from '../ruleSets/characterFixtures'
+import { oseCharacterVersioning } from '../ruleSets/characterMigrations'
 import legacy from '../ruleSets/ose/fixtures/legacy.json'
 import type { CharacterTabProps } from './lib/characterTabTypes'
 
@@ -35,13 +37,23 @@ const { readStoredCharacter } = await import('./lib/storedCharacterRecord')
 
 const PLAYER = 'player-uid'
 
-const oldFormatElf = (): CharacterRecord => {
-  const { id, data } = reviveTimestamps(legacy['caster-without-book'], (iso) => Timestamp.fromDate(new Date(iso))) as CharacterFixture
-  return readStoredCharacter(id, data, undefined, { userId: PLAYER, currentUsername: 'player1' })
+const VIEWER = { userId: PLAYER, currentUsername: 'player1' }
+
+/** An Elf stored in the old format, with no spell book, as the migration left it. */
+const migratedElf = (): CharacterRecord => {
+  const fixture = reviveTimestamps(legacy['caster-without-book'], (iso) => Timestamp.fromDate(new Date(iso))) as CharacterFixture
+  const { id, data } = migratedFixture(oseCharacterVersioning, fixture)
+  return readStoredCharacter(id, data, undefined, VIEWER)
 }
 
-function renderSheet(character: CharacterRecord) {
-  const props: CharacterTabProps = {
+/** A character just created, as its create stores it, once its player has picked a class. */
+const newCharacter = (className: string): CharacterRecord => readStoredCharacter('new-pc', {
+  name: 'New Character', ownerUserId: PLAYER, ownerUsername: 'player1', creationMode: 'new', creationModeExplicit: true,
+  creationStatus: 'draft', class: className, level: 1, hpCurrent: 0, hpMax: 0, ac: 10, xp: 0, schemaVersion: 1,
+}, undefined, VIEWER)
+
+function sheetProps(character: CharacterRecord): CharacterTabProps {
+  return {
     campaignId: 'campaign-1',
     groupId: 'group-1',
     gmUserId: 'gm-uid',
@@ -60,21 +72,31 @@ function renderSheet(character: CharacterRecord) {
     deleteCharacter: vi.fn(),
     hasPendingWrite: () => false,
   }
+}
+
+function renderSheet(character: CharacterRecord) {
+  const props = sheetProps(character)
   render(<CharacterTab {...props} />)
   return props
 }
 
 /** Opens the character's Items page; a narrow layout shows the character list first. */
-function openItemsPage() {
-  fireEvent.click(screen.getByRole('button', { name: /^Elf Without Book/ }))
+function openItemsPage(characterName: RegExp = /^Elf Without Book/) {
+  fireEvent.click(screen.getByRole('button', { name: characterName }))
   fireEvent.click(screen.getAllByRole('button', { name: 'Items' })[0])
 }
 
+/** The spell books in each set of items the sheet wrote. */
+const writtenSpellBooks = (props: CharacterTabProps) => vi.mocked(props.updateCharacter).mock.calls
+  .map(([, updates]) => updates.details?.inventory)
+  .filter((inventory) => inventory !== undefined)
+  .map((inventory) => inventory.filter((item) => item.kind === 'general' && item.typeId === 'spell-book'))
+
 afterEach(() => cleanup())
 
-describe('the OSE sheet with an old-format character', () => {
+describe('the OSE sheet with a character migrated from the old format', () => {
   it('shows the items OSE\'s step made of the old lists, with its spell book', () => {
-    const character = oldFormatElf()
+    const character = migratedElf()
     expect(character.details?.inventory.map(({ id }) => id)).toEqual([
       'w1',
       'legacy-legacy-elf-no-book-packedItems-0',
@@ -90,16 +112,29 @@ describe('the OSE sheet with an old-format character', () => {
   })
 
   it('adds no second spell book to the items it was given', () => {
-    const props = renderSheet(oldFormatElf())
+    const props = renderSheet(migratedElf())
     openItemsPage()
 
-    const writtenInventories = vi.mocked(props.updateCharacter).mock.calls
-      .map(([, updates]) => updates.details?.inventory)
-      .filter((inventory) => inventory !== undefined)
+    const written = writtenSpellBooks(props)
     // The sheet writes a sparsely stored sheet's defaults when it opens it, items included.
-    expect(writtenInventories.length).toBeGreaterThan(0)
-    for (const inventory of writtenInventories) {
-      expect(inventory.filter((item) => item.kind === 'general' && item.typeId === 'spell-book')).toHaveLength(1)
-    }
+    expect(written.length).toBeGreaterThan(0)
+    for (const books of written) expect(books).toHaveLength(1)
+  })
+})
+
+describe('the OSE sheet with a newly created character', () => {
+  it('gives a magic-user a spell book once its class is picked', () => {
+    const props = sheetProps(newCharacter('-'))
+    const { rerender } = render(<CharacterTab {...props} />)
+    expect(writtenSpellBooks(props).flat()).toEqual([])
+
+    const magicUser = newCharacter('Magic-User')
+    rerender(<CharacterTab {...props} characters={[magicUser]} selectedCharacter={magicUser} />)
+    openItemsPage(/^New Character/)
+
+    expect(screen.getAllByText(/Spell Book/).length).toBeGreaterThan(0)
+    const written = writtenSpellBooks(props)
+    expect(written.length).toBeGreaterThan(0)
+    expect(written.at(-1)).toHaveLength(1)
   })
 })

@@ -165,7 +165,7 @@ describe('Items tab character grants', () => {
 
   it.each([undefined, 0, 2])('refuses a character at stored version %s with the plain message, writing nothing', async (schemaVersion) => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined)
-    stored({ schemaVersion, details: { inventory: [rope], weapons: ['legacy'] } })
+    stored({ schemaVersion, details: { inventory: [rope] } })
     mount(source({ status: 'dropped' }))
     await grant()
     expect(screen.getByText('Grant failed: This character is being updated. Try again in a minute.')).toBeTruthy()

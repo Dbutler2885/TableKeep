@@ -11,7 +11,7 @@ import { oseCharacterParser } from '../character/lib/storedCharacterRecord'
 import { OSE_STORE_ITEMS } from '../character/storeCatalog'
 import { vtmCharacterParser } from '../character/vtmCharacterRecord'
 import { campaignCardLabel } from '../groups/groupHomeCampaigns'
-import { mapCharacterSummaryFromData } from '../maps/lib/mapCharacterSummary'
+import { mapCharacterSummary } from '../maps/lib/mapCharacterSummary'
 import { isPartyCharacter } from '../maps/lib/partyCharacterEligibility'
 import { campaignSystem } from '../shell/shellSelection'
 import { campaignNavTabs, routableTab } from '../shell/shellTabs'
@@ -267,7 +267,7 @@ const ruleSetFields = (stored: RuleSetId): Record<string, unknown> => ({
 
 // A character document as the map reads it.
 const mapSummaryOf = (stored: RuleSetId, fields: Record<string, unknown>) =>
-  mapCharacterSummaryFromData('pc-1', {
+  mapCharacterSummary('pc-1', {
     name: 'Mirelda',
     ownerUserId: 'player-1',
     ...ruleSetFields(stored),
@@ -287,7 +287,7 @@ describe('map summary', () => {
   it('reads each rule set\'s characters through its own summary', () => {
     for (const ruleSet of Object.values(ruleSets)) {
       const stored = { ...ruleSetFields(ruleSet.id), system: ruleSet.id, creationStatus: 'active', hpCurrent: 3 }
-      expect(mapCharacterSummaryFromData('pc-1', stored)).toMatchObject(ruleSet.characters.summary(stored))
+      expect(mapCharacterSummary('pc-1', stored)).toMatchObject(ruleSet.characters.summary(stored))
     }
   })
 

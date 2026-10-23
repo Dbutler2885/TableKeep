@@ -3,11 +3,6 @@ import type { CharacterRecord } from '../../../types/app'
 import { readStoredCharacter } from './storedCharacterRecord'
 
 const SERVER_TIMESTAMP = { sentinel: 'serverTimestamp' }
-const DELETE_FIELD = { sentinel: 'deleteField' }
-// The detail fields OSE's step removes, which a merge save deletes.
-const RETIRED_DETAIL_DELETES = Object.fromEntries(
-  ['weapons', 'armour', 'packedItems', 'equippedItems', 'storeGoldSlotIndices', 'acManualOverride'].map((name) => [name, DELETE_FIELD]),
-)
 
 const mocks = vi.hoisted(() => ({
   setDoc: vi.fn(async (..._args: unknown[]) => undefined),
@@ -19,7 +14,6 @@ vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
   doc: (_db: unknown, path: string) => ({ path }),
   deleteDoc: mocks.deleteDoc,
-  deleteField: () => DELETE_FIELD,
   serverTimestamp: () => SERVER_TIMESTAMP,
   setDoc: mocks.setDoc,
 }))
@@ -61,14 +55,14 @@ describe('campaignScope', () => {
 })
 
 describe('characterSaveFields', () => {
-  it('saves a deep copy of the details, no token image URL, removes the fields OSE\'s step removes, and stamps the version', () => {
+  it('saves a deep copy of the details, no token image URL, and stamps the version', () => {
     const details = { notes: 'Brave' } as unknown as CharacterRecord['details']
     const fields = characterSaveFields(character('a', {
       details,
       tokenIcon: { icon: 'pawn', color: '#000', size: 30, customImagePath: 't.png', customImageUrl: 'https://cdn.test/t.png' },
     }))
 
-    expect(fields.details).toEqual({ ...details, ...RETIRED_DETAIL_DELETES })
+    expect(fields.details).toEqual(details)
     expect(fields.details).not.toBe(details)
     expect(details).toEqual({ notes: 'Brave' })
     expect(fields.tokenIcon).toEqual({ icon: 'pawn', color: '#000', size: 30, customImagePath: 't.png' })
@@ -191,7 +185,7 @@ describe('OSE write fields', () => {
     const record = readStoredCharacter('a', {
       name: 'Legacy', class: 'Fighter', ownerUserId: 'user-1', schemaVersion: 1, schemaWrittenAt: 'old-stamp',
       createdAt: 'creation-time', updatedAt: 'previous-save', future: { kept: true },
-      portraitUrl: 'https://cdn.test/p', details: { inventory: [], notes: 'Keep', futureNested: [1], acManualOverride: true },
+      portraitUrl: 'https://cdn.test/p', details: { inventory: [], notes: 'Keep', futureNested: [1] },
     }, undefined, viewer)
     const saves = emptyCharacterSaves()
     scheduleCharacterSave(saves, campaign, 'a', () => ({ ...record, name: 'Edited' }))
@@ -200,17 +194,9 @@ describe('OSE write fields', () => {
       name: 'Edited', ownerUserId: 'user-1', ownerUsername: 'Player One', creationMode: 'new', creationModeExplicit: false,
       creationStatus: 'active', class: 'Fighter', level: 1, hpCurrent: 0, hpMax: 0, ac: 10, xp: 0,
       portraitPath: '', portraitFocusX: 50, portraitFocusY: 50, tokenIcon: { icon: 'pawn', color: '#bf2f2a', size: 34 },
-      details: { inventory: [], notes: 'Keep', futureNested: [1], ...RETIRED_DETAIL_DELETES }, future: { kept: true },
+      details: { inventory: [], notes: 'Keep', futureNested: [1] }, future: { kept: true },
       schemaVersion: 1, schemaWrittenAt: SERVER_TIMESTAMP, updatedAt: SERVER_TIMESTAMP,
     }, { merge: true })
-  })
-
-  it('saves the migrated inventory at version 1, deleting the legacy lists a Firestore merge would otherwise keep', () => {
-    const raw = { class: 'Fighter', details: { weapons: [{ id: 'sword', name: 'Sword' }], armour: [], packedItems: ['Rope'], equippedItems: [], storeGoldSlotIndices: [] } }
-    const fields = characterSaveFields(readStoredCharacter('a', raw, undefined, viewer))
-    expect(fields.details).toMatchObject({ inventory: expect.any(Array), ...RETIRED_DETAIL_DELETES })
-    expect((fields.details as { inventory: unknown[] }).inventory).toHaveLength(2)
-    expect(fields).toMatchObject({ schemaVersion: 1, schemaWrittenAt: SERVER_TIMESTAMP })
   })
 })
 

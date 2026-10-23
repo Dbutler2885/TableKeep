@@ -25,15 +25,6 @@ describe('transferTargetFromDoc', () => {
     })
   })
 
-  it('lists an old-format sheet with the items OSE\'s step makes of it', () => {
-    const details = { thaco: '19', packedItems: ['Rope'], acManualOverride: 4 }
-    expect(transferTargetFromDoc(doc('a', { name: 'Aldric', details })).details).toEqual({
-      thaco: '19',
-      inventory: [expect.objectContaining({ id: 'legacy-a-packedItems-0', kind: 'general', name: 'Rope' })],
-    })
-    expect(details).toEqual({ thaco: '19', packedItems: ['Rope'], acManualOverride: 4 })
-  })
-
   it('names a character without a name by its id, with no owner and no sheet', () => {
     expect(transferTargetFromDoc(doc('bare', {}))).toEqual({ id: 'bare', name: 'bare', ownerUserId: '', ownerUsername: null, details: null })
   })

@@ -12,7 +12,7 @@ import {
   dropTokenPlacement,
   startWholePartyTokenPlacement,
 } from './tokenPlacementQueue'
-import { mapCharacterSummaryFromData } from './mapCharacterSummary'
+import { mapCharacterSummary } from './mapCharacterSummary'
 import type { CharacterTokenSummary } from './types'
 
 const pawn = { icon: 'pawn' as const, color: '#2f5bbf', size: 34 }
@@ -29,7 +29,7 @@ const gmUserId = 'gm-user'
 // A stored character as the map's subscription summarizes it.
 const character = (
   { id, ...stored }: Record<string, unknown> & { id: string; name: string },
-): CharacterTokenSummary => mapCharacterSummaryFromData(id, {
+): CharacterTokenSummary => mapCharacterSummary(id, {
   tokenIcon: pawn,
   ownerUserId: 'player-user',
   creationStatus: 'active',

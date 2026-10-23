@@ -339,8 +339,7 @@ describe('transfer persistence', () => {
       const id = side === 'sender' ? senderCharacterId : receiverCharacterId
       const rest = await characterData(db, id)
       delete rest.schemaVersion
-      await setDoc(characterRef(db, id), { ...rest, ...(schemaVersion === undefined ? {} : { schemaVersion }),
-        schemaWrittenAt: oldTime, details: { ...rest.details, weapons: ['legacy'] } })
+      await setDoc(characterRef(db, id), { ...rest, ...(schemaVersion === undefined ? {} : { schemaVersion }), schemaWrittenAt: oldTime })
       await setDoc(offerRef(db), transferPayload('baseline'))
       before = await Promise.all([senderCharacterId, receiverCharacterId].map((characterId) => characterData(db, characterId)))
     })

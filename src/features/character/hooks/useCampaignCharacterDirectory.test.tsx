@@ -1,15 +1,16 @@
 // @vitest-environment jsdom
 /**
- * The OSE list of transfer targets, recorded on the checked-in OSE fixtures
- * before it read through OSE's steps and parser. The demo characters are
- * listed as they were; an old-format fixture is now listed with the sheet the
- * sheet itself shows.
+ * The OSE list of transfer targets, on the checked-in OSE fixtures as the
+ * migration leaves them, which is the only shape the app reads. The demo
+ * characters are listed as recorded; a fixture migrated from the old format
+ * is listed with the sheet the sheet itself shows.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { Timestamp } from 'firebase/firestore'
 import type { Role } from '../../../types/app'
-import { markTimestamps, reviveTimestamps, type CharacterFixture } from '../../ruleSets/characterFixtures'
+import { markTimestamps, migratedFixture, reviveTimestamps, type CharacterFixture } from '../../ruleSets/characterFixtures'
+import { oseCharacterVersioning } from '../../ruleSets/characterMigrations'
 import demoCleric from '../../ruleSets/ose/fixtures/demo-cleric.json'
 import demoFighter from '../../ruleSets/ose/fixtures/demo-fighter.json'
 import demoMagicUser from '../../ruleSets/ose/fixtures/demo-magic-user.json'
@@ -36,7 +37,7 @@ const { useCampaignCharacterDirectory } = await import('./useCampaignCharacterDi
 const CHARACTERS_PATH = 'groups/group-1/campaigns/campaign-1/characters'
 
 const revive = (fixture: unknown) =>
-  reviveTimestamps(fixture, (iso) => Timestamp.fromDate(new Date(iso))) as CharacterFixture
+  migratedFixture(oseCharacterVersioning, reviveTimestamps(fixture, (iso) => Timestamp.fromDate(new Date(iso))) as CharacterFixture)
 
 const asFixtureJson = (value: unknown) =>
   `${JSON.stringify(markTimestamps(value, (entry) => entry instanceof Timestamp ? entry.toDate().toISOString() : null), null, 2)}\n`

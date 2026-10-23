@@ -63,7 +63,7 @@ describe('approval character writes', () => {
 
   it.each(['create', 'sell', 'learn_spell', 'ability_reroll'] as const)('%s refuses a character not at the current version with the plain message', async (action) => {
     for (const schemaVersion of [undefined, 0, 2]) {
-      stored({ schemaVersion, creationStatus: 'draft', details: { inventory: [rope], weapons: ['old sword'] } })
+      stored({ schemaVersion, creationStatus: 'draft', details: { inventory: [rope] } })
       await expect(approve(action, { item: rope, spellIds: ['light'] })).rejects.toThrow('This character is being updated. Try again in a minute.')
     }
     expect(mocks.set).not.toHaveBeenCalled()

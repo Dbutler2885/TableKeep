@@ -57,27 +57,26 @@ const expectFreshStamp = (stamp: Timestamp, startedAt: number) => {
 }
 
 describe('character writer persistence', () => {
-  it('OSE save stores an old-format character at version 1, with its inventory and without the old lists or the AC flag', async () => {
+  it('OSE save changes sheet fields, keeps the inventory and unknown fields, and stamps version 1 with a fresh write time', async () => {
     const raw = { name: 'Ada', ownerUserId: 'gm', class: 'Fighter', hpMax: 6, hpCurrent: 6,
-      schemaWrittenAt: oldTime, createdAt: oldTime, updatedAt: oldTime, future: { kept: true },
-      details: { weapons: [{ id: 'sword', name: 'Sword' }], armour: [], packedItems: ['Rope'], equippedItems: [], storeGoldSlotIndices: [], acManualOverride: true, futureNested: { kept: true } } }
+      schemaVersion: 1, schemaWrittenAt: oldTime, createdAt: oldTime, updatedAt: oldTime, future: { kept: true },
+      details: { inventory: [rope], futureNested: { kept: true } } }
     await seed(raw)
     const record = readStoredCharacter('pc', raw, undefined, { userId: 'gm', currentUsername: 'gamemst' })
     const startedAt = Date.now()
     await setDoc(charRef(), characterSaveFields({ ...record, name: 'Edited' }), { merge: true })
     const saved = await read()
     expect(saved).toMatchObject({ name: 'Edited', schemaVersion: 1, createdAt: oldTime, future: { kept: true },
-      details: { futureNested: { kept: true }, inventory: record.details!.inventory } })
+      details: { futureNested: { kept: true }, inventory: [rope] } })
     expectFreshStamp(saved.schemaWrittenAt, startedAt)
     expect(saved.updatedAt.toMillis()).toBeGreaterThan(oldTime.toMillis())
-    expect(saved.details.inventory).toHaveLength(2)
     expect(Object.keys(saved.details).sort()).toEqual(['futureNested', 'inventory'])
     expect(saved).not.toHaveProperty('system')
   })
 
   it('VtM save changes sheet fields, preserves unknown fields and stamps version 1 with a fresh write time', async () => {
     const character = makeVtmCharacter('gm', 'gamemst')
-    const raw = { ...character, schemaVersion: 0, schemaWrittenAt: oldTime, createdAt: oldTime, future: { kept: true } }
+    const raw = { ...character, schemaVersion: 1, schemaWrittenAt: oldTime, createdAt: oldTime, future: { kept: true } }
     await seed(raw)
     const record = readCharacterStoreDoc(vtmCharacterStore, 'pc', raw, undefined)
     if (!record) throw new Error('Expected the VtM reader to accept a VtM document')
@@ -134,7 +133,7 @@ describe('character writer persistence', () => {
 
   it.each([0, 2])('the grant writer refuses a version %s character with the plain message, leaving it unchanged', async (schemaVersion) => {
     const raw = { name: 'Ada', ownerUserId: 'gm', class: 'Fighter', schemaVersion, schemaWrittenAt: oldTime, updatedAt: oldTime,
-      details: { weapons: [{ name: 'Old sword' }], future: { kept: true } } }
+      details: { inventory: [], future: { kept: true } } }
     await seed(raw)
     await expect(grantRope()).rejects.toThrow(BEING_UPDATED)
     expect(await read()).toEqual(raw)
@@ -168,7 +167,7 @@ describe('character writer persistence', () => {
 
   it.each(['create', 'sell', 'learn_spell', 'ability_reroll'] as const)('the real %s approval refuses a version 0 character with the plain message, leaving it and the request unchanged', async (action) => {
     const raw = { name: 'Ada', ownerUserId: 'gm', creationStatus: 'draft', schemaVersion: 0, schemaWrittenAt: oldTime, updatedAt: oldTime,
-      details: { inventory: [rope], weapons: ['legacy'], unknown: { kept: true } } }
+      details: { inventory: [rope], unknown: { kept: true } } }
     await seed(raw)
     await expect(approveAsGm(approvalRequest(action))).rejects.toThrow(BEING_UPDATED)
     expect(await read()).toEqual(raw)

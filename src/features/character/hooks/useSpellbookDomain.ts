@@ -154,7 +154,7 @@ export function useSpellbookDomain({
   // ---------------------------------------------------------------------------
 
   // Ensure arcane spellcasters get a spell book item in inventory during creation.
-  // (Already-finalized characters are healed on load in useCharacterPersistenceSync.)
+  // (Already-finalized characters got theirs from OSE's migration step.)
   function ensureSpellBookItemForCharacter(characterId: string, className: string) {
     setInventoryByCharacterId((current) => {
       const items = current[characterId] ?? []

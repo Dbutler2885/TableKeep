@@ -1,5 +1,5 @@
-// OSE's character migration steps. The 0 to 1 step is today's legacy
-// conversion (`legacyCharacterMigration.ts`) and hydration spell-book heal
+// OSE's character migration steps. The 0 to 1 step is the app's former legacy
+// conversion (`migrateToInventory`) and hydration spell-book heal
 // (`ensureSpellBookInInventory`), frozen here so the step does not change when
 // the app's item factories do. It imports no app module: the item shapes and
 // stack policies below are copies.
@@ -15,7 +15,7 @@ export const ARCANE_SPELLBOOK_CLASSES = new Set(['Magic-User', 'Elf'])
 export const SPELL_BOOK_TYPE_ID = 'spell-book'
 const SPELL_BOOK_ITEM_NAME = 'Spell Book'
 
-// The old lists, which today's code reads only while a character has no inventory.
+// The old lists, which the app read only while a character had no inventory.
 export const LEGACY_LIST_FIELDS = ['weapons', 'armour', 'packedItems', 'equippedItems', 'storeGoldSlotIndices']
 // Everything version 1 no longer stores: the old lists and the retired manual-AC flag.
 export const RETIRED_DETAIL_FIELDS = [...LEGACY_LIST_FIELDS, 'acManualOverride']
@@ -170,7 +170,7 @@ function equippedItems(details: Fields, characterId: string): Fields[] {
   })
 }
 
-/** An inventory built from the old lists, in today's order: weapons, armour, packed, then equipped. */
+/** An inventory built from the old lists, in the app's former order: weapons, armour, packed, then equipped. */
 const inventoryFromLegacyLists = (details: Fields, characterId: string): unknown[] => [
   ...convertRows(details, 'weapons', weaponItem, characterId),
   ...convertRows(details, 'armour', armourItem, characterId),

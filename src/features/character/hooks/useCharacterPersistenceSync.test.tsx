@@ -190,14 +190,7 @@ describe('seeding a character the first time it loads', () => {
     })
   })
 
-  // OSE's step turns an old-format sheet into items and gives an arcane caster
-  // its spell book before the sheet reads a character; hydration does neither.
-  it('converts no old-format weapon list, and shows the sheet without items', () => {
-    const weapons = [{ id: 'w1', weaponId: 'sword', name: 'Sword', isMagic: false, damageDiceCount: '1', damageDiceSides: '8', bonus: '', rangeShort: '', rangeMedium: '', rangeLong: '', twoHanded: false, equipped: true, notes: '' }]
-    const { result } = renderSheet({ characters: [character('a', { weapons } as Partial<CharacterSheetDetails>)] })
-    expect(result.current.stateMaps.inventoryByCharacterId.a).toEqual([])
-  })
-
+  // The migration gave every stored arcane caster its spell book; hydration adds none.
   it('adds no spell book to an arcane caster', () => {
     const { result } = renderSheet({ characters: [character('a', { ...fullDetails(), inventory: [rope] }, 'Magic-User')] })
     expect(result.current.stateMaps.inventoryByCharacterId.a).toEqual([rope])
@@ -465,15 +458,6 @@ describe('taking in another person\'s items', () => {
     const { result, rerender } = renderSheet({ characters: [character('a', fullDetails())] })
     rerender({ characters: [character('a', { ...fullDetails(), inventory: [rope, torch] })] })
     expect(result.current.stateMaps.inventoryByCharacterId.a).toEqual([rope, torch])
-  })
-
-  it('converts no incoming old-format sheet, and takes it in as having no items', () => {
-    const { result, rerender } = renderSheet({ characters: [character('a', fullDetails())] })
-    const armour = [{ id: 'ar1', armourId: 'chain', name: 'Chain mail', isMagic: false, ac: '5', bonus: '', equipped: true, notes: '' }]
-    const legacy = { ...fullDetails(), armour } as Partial<CharacterSheetDetails>
-    delete legacy.inventory
-    rerender({ characters: [character('a', legacy)] })
-    expect(result.current.stateMaps.inventoryByCharacterId.a).toEqual([])
   })
 
   it('keeps unsaved local items on a character that is not open', () => {

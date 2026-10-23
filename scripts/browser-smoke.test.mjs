@@ -4,12 +4,11 @@ import {
   changedFirestoreFields,
   groupIdFromUrl,
   interpolatePath,
+  migratedFixtureFields,
   oseCharacterFields,
   ownedFixtureFields,
   partyTokenFields,
-  retiredDetailFieldsStored,
   step,
-  stepInventory,
   storedMediaProblems,
   storedVersionProblems,
   trackersAtZero,
@@ -17,6 +16,7 @@ import {
   withVtmConcept,
 } from './browser-smoke.mjs'
 import { toFirestoreFields } from './browser-smoke-seed.mjs'
+import { oseCharacterVersioning } from '../src/features/ruleSets/characterMigrations.ts'
 
 const pageAt = (url) => ({ url: () => url })
 
@@ -62,6 +62,7 @@ describe('seeding a VtM character', () => {
       creationStatus: 'active',
       xp: 0,
       vtm: { concept: 'Courier' },
+      schemaVersion: 1,
     })
   })
 })
@@ -77,6 +78,7 @@ describe('seeding an OSE character', () => {
       hpCurrent: 8,
       hpMax: 8,
       creationStatus: 'active',
+      schemaVersion: 1,
     })
   })
 })
@@ -158,12 +160,20 @@ describe('seeding the filled-in VtM fixture', () => {
   })
 })
 
-describe('the items OSE\'s step makes of an old-format character', () => {
-  it('are the step\'s inventory in the REST shape, with stable ids', () => {
-    const inventory = stepInventory('elf-1', { class: 'Elf', details: { packedItems: ['Rope'] } })
-    const ids = inventory.arrayValue.values.map((item) => item.mapValue.fields.id.stringValue)
-    expect(ids).toEqual(['legacy-elf-1-packedItems-0', 'legacy-elf-1-spell-book'])
-    expect(stepInventory('elf-1', { class: 'Elf', details: { packedItems: ['Rope'] } })).toEqual(inventory)
+describe('seeding a fixture as the migration left it', () => {
+  it('gives the smoke user the fixture at version 1, with the items the migration made', () => {
+    const fixture = { id: 'elf-1', data: { class: 'Elf', ownerUserId: 'player-uid', tokenIcon: { icon: 'pawn' }, details: { packedItems: ['Rope'] } } }
+    const fields = migratedFixtureFields(oseCharacterVersioning, fixture, { uid: 'u1', username: 'desk001' })
+    expect(fields).toMatchObject({ ownerUserId: 'u1', ownerUsername: 'desk001', schemaVersion: 1 })
+    expect(fields.details.inventory.map((item) => item.id)).toEqual(['legacy-elf-1-packedItems-0', 'legacy-elf-1-spell-book'])
+    expect(fields.details).not.toHaveProperty('packedItems')
+  })
+
+  it('leaves a character already at version 1 as it was', () => {
+    const fixture = { id: 'pc', data: { name: 'Ada', schemaVersion: 1, tokenIcon: {}, details: { inventory: [] } } }
+    expect(migratedFixtureFields(oseCharacterVersioning, fixture, { uid: 'u1', username: 'desk001' })).toEqual({
+      name: 'Ada', schemaVersion: 1, ownerUserId: 'u1', ownerUsername: 'desk001', portraitPath: '', tokenIcon: {}, details: { inventory: [] },
+    })
   })
 })
 
@@ -233,11 +243,5 @@ describe('checking a saved character is stored at version 1', () => {
       portraitPath: 'p.png', portraitUrl: 'https://cdn.test/p.png',
       tokenIcon: { icon: 'custom', customImagePath: 't.png', customImageUrl: 'https://cdn.test/t.png' },
     }))).toEqual(['a portrait URL is stored', 'a token image URL is stored'])
-  })
-
-  it('names the old OSE detail fields still stored', () => {
-    expect(retiredDetailFieldsStored(toFirestoreFields({ details: { inventory: [], weapons: [], acManualOverride: true } }))).toEqual(['weapons', 'acManualOverride'])
-    expect(retiredDetailFieldsStored(toFirestoreFields({ details: { inventory: [] } }))).toEqual([])
-    expect(retiredDetailFieldsStored({})).toEqual([])
   })
 })

@@ -158,33 +158,6 @@ export type TokenIconConfig = {
   customImageName?: string
 }
 
-export type CharacterWeaponRow = {
-  id: string
-  weaponId: string
-  isMagic: boolean
-  name: string
-  damageDiceCount: string
-  damageDiceSides: string
-  bonus: string
-  rangeShort: string
-  rangeMedium: string
-  rangeLong: string
-  twoHanded: boolean
-  equipped: boolean
-  notes: string
-}
-
-export type CharacterArmourRow = {
-  id: string
-  armourId: string
-  isMagic: boolean
-  name: string
-  ac: string
-  bonus: string
-  equipped: boolean
-  notes: string
-}
-
 export type CharacterStoreCartEntry = {
   key: string
   name: string
@@ -430,12 +403,6 @@ export type CharacterSheetDetails = {
   abilityScoresRolled: boolean
   hpBaseRoll: number | null
   inventory: CharacterInventoryItem[]
-  // Legacy fields (optional, used by migrateToInventory on first load)
-  equippedItems?: string[]
-  packedItems?: string[]
-  weapons?: CharacterWeaponRow[]
-  armour?: CharacterArmourRow[]
-  storeGoldSlotIndices?: number[]
   thaco: string
   saveScores: Record<string, string> | null
   adventureScores: Record<string, string> | null

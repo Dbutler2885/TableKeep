@@ -31,11 +31,11 @@ describe('readCreationFields', () => {
 })
 
 describe('readDetails', () => {
-  it('copies the details without the retired AC override', () => {
-    const stored = { notes: 'Brave', acManualOverride: 3 }
+  it('copies the details as stored', () => {
+    const stored = { notes: 'Brave', inventory: [] }
 
-    expect(readDetails(stored)).toEqual({ notes: 'Brave' })
-    expect(stored).toEqual({ notes: 'Brave', acManualOverride: 3 })
+    expect(readDetails(stored)).toEqual(stored)
+    expect(readDetails(stored)).not.toBe(stored)
   })
 
   it.each([[null], [undefined], ['text'], [4]])('reads %o as no details', (raw) => {
