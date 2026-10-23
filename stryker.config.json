@@ -1,0 +1,15 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "vitest": { "configFile": "vitest.character-mutation.config.ts", "related": false },
+  "mutate": [
+    "src/features/character/CharacterTab.tsx",
+    "src/features/character/hooks/useCharacterRoster.ts"
+  ],
+  "concurrency": 2,
+  "reporters": ["progress", "clear-text", "json", "html"],
+  "jsonReporter": { "fileName": "artifacts/character-mutation/mutation.json" },
+  "htmlReporter": { "fileName": "artifacts/character-mutation/index.html" },
+  "tempDirName": "artifacts/stryker-tmp",
+  "ignorePatterns": ["emulator-data/**", "data/**"]
+}
