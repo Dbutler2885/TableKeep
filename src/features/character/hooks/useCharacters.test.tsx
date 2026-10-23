@@ -147,8 +147,9 @@ describe('useCharacters subscriptions', () => {
     expect(result.current.charactersLoading).toBe(false)
   })
 
-  it('loads from the render that subscribes until the first roster snapshot arrives', () => {
+  it('loads until the first roster snapshot arrives', async () => {
     const { result } = renderCharacters(gmProps)
+    await flushMicrotasks()
 
     expect(mocks.subscribedTo).toEqual([`${CAMPAIGN}/userState/gm-1`, CHARACTERS_PATH])
     expect(result.current.charactersLoading).toBe(true)
@@ -159,10 +160,11 @@ describe('useCharacters subscriptions', () => {
     expect(ids(result.current.characters)).toEqual(['a'])
   })
 
-  it('loads again when the current character changes, until the next roster snapshot', () => {
+  it('loads again when the current character changes, until the next roster snapshot', async () => {
     const { result } = renderCharacters()
 
     emitCharacters([ownDoc('a')])
+    await flushMicrotasks()
 
     expect(result.current.currentCharacterId).toBe('a')
     expect(result.current.charactersLoading).toBe(true)
@@ -173,12 +175,13 @@ describe('useCharacters subscriptions', () => {
     expect(result.current.charactersLoading).toBe(false)
   })
 
-  it('clears the roster and the current character in the render that disables it, and stops listening', () => {
+  it('clears the roster and the current character when it is disabled, and stops listening', async () => {
     const { result, rerender } = renderCharacters()
     emitUserState({ currentCharacterId: 'a' })
     emitCharacters([ownDoc('a')])
 
     rerender({ ...baseProps, enabled: false })
+    await flushMicrotasks()
 
     expect(mocks.listeners[CHARACTERS_PATH]).toBeUndefined()
     expect(mocks.listeners[USER_STATE_PATH]).toBeUndefined()
@@ -187,22 +190,24 @@ describe('useCharacters subscriptions', () => {
     expect(result.current.currentCharacterId).toBeNull()
   })
 
-  it('keeps the selection when the roster is cleared', () => {
+  it('keeps the selection when the roster is cleared', async () => {
     const { result, rerender } = renderCharacters()
     emitCharacters([ownDoc('a')])
 
     rerender({ ...baseProps, enabled: false })
+    await flushMicrotasks()
 
     expect(result.current.selectedCharacterId).toBe('a')
     expect(result.current.selectedCharacter).toBeNull()
   })
 
-  it('clears the roster when the role goes, but keeps reading the current character', () => {
+  it('clears the roster when the role goes, but keeps reading the current character', async () => {
     const { result, rerender } = renderCharacters()
     emitUserState({ currentCharacterId: 'a' })
     emitCharacters([ownDoc('a')])
 
     rerender({ ...baseProps, role: null })
+    await flushMicrotasks()
 
     expect(result.current.characters).toEqual([])
     expect(result.current.currentCharacterId).toBe('a')
@@ -263,7 +268,7 @@ describe('useCharacters subscriptions', () => {
     expect(result.current.charactersLoading).toBe(false)
     act(() => mocks.listeners[CHARACTERS_PATH].fail({ code: 'x' }))
 
-    expect(setError.mock.calls).toEqual([['roster denied'], ['Unable to load characters']])
+    expect(setError.mock.calls).toEqual([['roster denied'], ['Unable to load OSE characters']])
   })
 })
 
@@ -984,12 +989,13 @@ describe('useCharacters updateCharacter', () => {
     expect(savedNames()).toEqual([[`${CHARACTERS_PATH}/a`, 'Edited']])
   })
 
-  it('sends a waiting save at once when the list is switched off, as opening Notes or hiding the page does', () => {
+  it('sends a waiting save at once when the list is switched off, as opening Notes or hiding the page does', async () => {
     const { result, rerender } = renderCharacters()
     emitCharacters([ownDoc('a')])
 
     act(() => result.current.updateCharacter('a', { name: 'Edited' }))
     rerender({ ...baseProps, enabled: false })
+    await flushMicrotasks()
     expect(result.current.characters).toEqual([])
     expect(savedNames()).toEqual([[`${CHARACTERS_PATH}/a`, 'Edited']])
 
@@ -1022,11 +1028,12 @@ describe('useCharacters updateCharacter', () => {
     expect(hasPendingWrite('a')).toBe(false)
   })
 
-  it('does not save once the campaign is gone, because the list is cleared with it', () => {
+  it('does not save once the campaign is gone, because the list is cleared with it', async () => {
     const { result, rerender } = renderCharacters()
     emitCharacters([ownDoc('a')])
 
     rerender({ ...baseProps, campaignId: null })
+    await flushMicrotasks()
     act(() => result.current.updateCharacter('a', { name: 'Edited' }))
     act(() => vi.advanceTimersByTime(500))
 

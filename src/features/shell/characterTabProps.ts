@@ -30,5 +30,6 @@ export function characterTabPropsFor(campaign: Campaign | null, viewer: Characte
     syncCharacterLocal: state.syncCharacterLocal,
     deleteCharacter: state.deleteCharacter,
     hasPendingWrite: state.hasPendingWrite,
+    createCharacter: state.addCharacter,
   }
 }

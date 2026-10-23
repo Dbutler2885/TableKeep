@@ -18,6 +18,7 @@ export type CharacterTabProps = {
   syncCharacterLocal: (characterId: string, updates: Partial<CharacterRecord>) => void
   deleteCharacter: (characterId: string) => void
   hasPendingWrite: (id: string) => boolean
+  createCharacter: (character: CharacterRecord) => Promise<void>
   embeddedMode?: boolean
 }
 

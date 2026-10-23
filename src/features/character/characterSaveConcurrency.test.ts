@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CharacterSaves } from './lib/characterWrites'
 import type { CharacterStoreSaves } from './characterStore/characterStoreWrites'
-import { parseOseCharacter } from './lib/storedCharacterRecord'
+import { oseCharacterStore, parseOseCharacter } from './lib/storedCharacterRecord'
 import { vtmCharacterStore } from './vtmCharacterRecord'
 import { makeVtmCharacter } from './vtmDefaults'
 
@@ -11,14 +10,14 @@ vi.mock('firebase/firestore', () => ({
   doc: (_db: unknown, path: string) => ({ path }), setDoc: mocks.setDoc,
   serverTimestamp: () => 'server-time', deleteDoc: vi.fn(),
 }))
-const ose = await import('./lib/characterWrites')
-const vtm = await import('./characterStore/characterStoreWrites')
+const store = await import('./characterStore/characterStoreWrites')
 const campaign = { groupId: 'g', campaignId: 'c' }
+const ose = oseCharacterStore({ userId: 'player', currentUsername: 'player1' })
 const adapters = [
-  { name: 'OSE', empty: ose.emptyCharacterSaves, outstanding: ose.isCharacterSaveOutstanding,
-    schedule: (saves: CharacterSaves) => ose.scheduleCharacterSave(saves, campaign, 'pc', () => parseOseCharacter('pc', { ownerUserId: 'player' })) },
-  { name: 'VtM', empty: vtm.emptyCharacterStoreSaves, outstanding: vtm.isCharacterStoreSaveOutstanding,
-    schedule: (saves: CharacterStoreSaves) => vtm.scheduleCharacterStoreSave(saves, campaign, vtmCharacterStore, 'pc', () => ({ ...makeVtmCharacter('player', 'player1'), id: 'pc' })) },
+  { name: 'OSE', empty: store.emptyCharacterStoreSaves, outstanding: store.isCharacterStoreSaveOutstanding,
+    schedule: (saves: CharacterStoreSaves) => store.scheduleCharacterStoreSave(saves, campaign, ose, 'pc', () => parseOseCharacter('pc', { ownerUserId: 'player' })) },
+  { name: 'VtM', empty: store.emptyCharacterStoreSaves, outstanding: store.isCharacterStoreSaveOutstanding,
+    schedule: (saves: CharacterStoreSaves) => store.scheduleCharacterStoreSave(saves, campaign, vtmCharacterStore, 'pc', () => ({ ...makeVtmCharacter('player', 'player1'), id: 'pc' })) },
 ]
 
 beforeEach(() => { vi.resetAllMocks(); vi.useFakeTimers() })

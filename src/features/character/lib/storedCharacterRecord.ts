@@ -1,6 +1,9 @@
 import type { CharacterRecord, CharacterSheetDetails, TokenIconConfig } from '../../../types/app'
-import { isRenderableImageUrl, sanitizeTokenIconForPersistence } from '../../common/mediaFields'
+import { sanitizeTokenIconForPersistence } from '../../common/mediaFields'
+import { oseCharacterVersioning } from '../../ruleSets/characterMigrations'
 import { fieldsOutside, type CharacterParser } from '../../ruleSets/characterParser'
+import type { CharacterStoreRuleSet } from '../characterStore/characterStoreRecord'
+import { clampHitPointUpdates } from './characterActions'
 
 export type StoredCharacterFields = Record<string, unknown>
 
@@ -54,30 +57,6 @@ export function readHitPoints(data: StoredCharacterFields) {
 export function readOwnerUsername(data: StoredCharacterFields, viewer: CharacterViewer): string | null {
   if (typeof data.ownerUsername === 'string') return data.ownerUsername
   return (data.ownerUserId ?? '') === viewer.userId ? viewer.currentUsername : null
-}
-
-/**
- * The stored portrait URL, or else the URL already resolved locally for the
- * same storage path, so a snapshot does not blank an image it did not change.
- */
-export function readPortraitUrl(raw: unknown, portraitPath: string, local: CharacterRecord | undefined): string | null {
-  const persisted = stringOr(raw, null)
-  if (persisted !== null) return persisted
-  return local?.portraitPath === portraitPath && isRenderableImageUrl(local.portraitUrl) ? local.portraitUrl : null
-}
-
-/** The token image URL already resolved locally for the same storage path, if any. */
-const localTokenImageUrl = (tokenIcon: TokenIconConfig, local: CharacterRecord | undefined) =>
-  local?.tokenIcon.customImagePath
-  && local.tokenIcon.customImagePath === tokenIcon.customImagePath
-  && isRenderableImageUrl(local.tokenIcon.customImageUrl)
-    ? local.tokenIcon.customImageUrl
-    : undefined
-
-/** The token icon, carrying over the locally resolved image URL for the same storage path. */
-export function withLocalTokenImage(tokenIcon: TokenIconConfig, local: CharacterRecord | undefined): TokenIconConfig {
-  const customImageUrl = tokenIcon.customImageUrl ?? localTokenImageUrl(tokenIcon, local)
-  return customImageUrl ? { ...tokenIcon, customImageUrl } : tokenIcon
 }
 
 // The stored fields the OSE record models. The last four are the writers'
@@ -152,20 +131,20 @@ export const oseCharacterParser: CharacterParser<CharacterRecord> = {
 
 /**
  * A stored character document, at the current version, as the OSE sheet's
- * record. A missing owner name and media URLs are filled in from the viewer
- * and the local copy.
+ * record for a viewer: a missing owner name is filled in from the viewer.
  */
-export function readStoredCharacter(
-  id: string,
-  data: StoredCharacterFields,
-  local: CharacterRecord | undefined,
-  viewer: CharacterViewer,
-): CharacterRecord {
+export function readStoredCharacter(id: string, data: StoredCharacterFields, viewer: CharacterViewer): CharacterRecord {
   const record = parseOseCharacter(id, data)
-  return {
-    ...record,
-    ownerUsername: readOwnerUsername(record, viewer),
-    portraitUrl: readPortraitUrl(record.portraitUrl, record.portraitPath ?? '', local),
-    tokenIcon: withLocalTokenImage(record.tokenIcon, local),
-  }
+  return { ...record, ownerUsername: readOwnerUsername(record, viewer) }
 }
+
+/**
+ * How the shared character store loads and saves OSE characters for a viewer.
+ * OSE characters store no `system`, and an edit keeps hit points within their maximum.
+ */
+export const oseCharacterStore = (viewer: CharacterViewer): CharacterStoreRuleSet<CharacterRecord> => ({
+  label: 'OSE',
+  versioning: oseCharacterVersioning,
+  parser: { parse: (id, data) => readStoredCharacter(id, data, viewer), serialize: serializeOseCharacter },
+  adjustUpdates: clampHitPointUpdates,
+})

@@ -21,11 +21,15 @@ export type CharacterStoreRecord = {
 
 export type CharacterStoreRuleSet<Character extends CharacterStoreRecord> = {
   // The id its characters store in `system`; the store leaves out the rest.
-  system: string
+  // OSE characters store none, so a rule set without one reads every document.
+  system?: string
   // Its name in the message shown when its characters cannot be loaded.
   label: string
   versioning: CharacterVersioning
   parser: CharacterParser<Character>
+  // What an edit of a character becomes before it is applied, such as OSE
+  // keeping hit points within their maximum; without it an edit applies as made.
+  adjustUpdates?: (target: Character, updates: Partial<Character>) => Partial<Character>
 }
 
 /** The portrait URL already resolved locally for the same storage path, if any. */
@@ -66,6 +70,6 @@ export function readCharacterStoreDoc<Character extends CharacterStoreRecord>(
   data: StoredCharacter,
   local: Character | undefined,
 ): Character | null {
-  if (readCharacterIdentity(id, data).system !== ruleSet.system) return null
+  if (ruleSet.system && readCharacterIdentity(id, data).system !== ruleSet.system) return null
   return withLocalMedia(ruleSet.parser.parse(id, data), local)
 }

@@ -1,38 +1,11 @@
-// Owns the campaign character subscription and write-reconciliation effects.
+// OSE's characters in a campaign, loaded and saved through the shared character store.
 // This hook sits above CharacterTab, so its effects are outside the local justSeeded ordering chain.
-// Its effects run in this order: list ref sync, current character, character list,
-// media URLs, current character fallback, then sending waiting saves on leaving.
-import { useEffect, useEffectEvent, useMemo, useRef, useState, type RefObject } from 'react'
+// The store's effects run first, then the current character fallback.
+import { useEffect, useEffectEvent, useMemo } from 'react'
 import type { CharacterRecord, Role } from '../../../types/app'
-import {
-  chooseCurrentCharacter,
-  deleteCharacter,
-  syncCharacterLocal,
-  updateCharacter,
-  type CharacterActionContext,
-} from '../lib/characterActions'
-import { fallbackCurrentCharacterId, findCharacter } from '../lib/characterSnapshot'
-import {
-  campaignScope,
-  emptyCharacterSaves,
-  isCharacterSaveOutstanding,
-  sendCharacterSavesNow,
-  type CharacterSaves,
-} from '../lib/characterWrites'
-import { useCharacterMediaUrls } from './useCharacterMediaUrls'
-import { useCharacterListSubscription, useCurrentCharacterId } from './useCharacterSubscriptions'
-
-/** The character list, and a ref to it that the save timers and snapshot reader read. */
-function useCharacterList() {
-  const [characters, setCharacters] = useState<CharacterRecord[]>([])
-  const charactersRef = useRef<CharacterRecord[]>([])
-
-  useEffect(() => {
-    charactersRef.current = characters
-  }, [characters])
-
-  return [characters, setCharacters, charactersRef] as const
-}
+import { useCharacterStore } from '../characterStore/useCharacterStore'
+import { fallbackCurrentCharacterId, selectionAfterDelete } from '../lib/characterSnapshot'
+import { oseCharacterStore } from '../lib/storedCharacterRecord'
 
 type CurrentCharacterFallbackOptions = {
   campaignId: string | null
@@ -55,29 +28,6 @@ function useCurrentCharacterFallback(options: CurrentCharacterFallbackOptions) {
   }, [campaignId, characters, currentCharacterId, role, userId])
 }
 
-/**
- * Sends every waiting save when the list is switched off, the campaign changes
- * or the hook unmounts, so the last edit is not lost. This cleanup runs before
- * the list is cleared, and the save reads the character from the campaign it
- * was made in, never a character of the same id in the next campaign. The next
- * campaign then starts with no saves of its own, so a save still landing in the
- * old campaign never makes its snapshot keep the old campaign's character.
- */
-function useSendCharacterSavesOnLeave(
-  savesRef: RefObject<CharacterSaves>,
-  campaignId: string | null,
-  groupId: string | null,
-  enabled: boolean,
-) {
-  useEffect(() => {
-    const saves = savesRef.current
-    return () => {
-      sendCharacterSavesNow(saves)
-      savesRef.current = emptyCharacterSaves()
-    }
-  }, [savesRef, campaignId, groupId, enabled])
-}
-
 export function useCharacters(
   campaignId: string | null,
   groupId: string | null,
@@ -88,51 +38,22 @@ export function useCharacters(
   setError: (message: string) => void,
   enabled = true,
 ) {
-  const savesRef = useRef<CharacterSaves>(emptyCharacterSaves())
-  const [characters, setCharacters, charactersRef] = useCharacterList()
-  const [currentCharacterId, setCurrentCharacterId] = useCurrentCharacterId(campaignId, groupId, userId, enabled, setError)
-  const { charactersLoading, selectedCharacterId, setSelectedCharacterId } = useCharacterListSubscription({
-    campaignId, groupId, userId, currentUsername, role, gmUserId, currentCharacterId, enabled, setError,
-    savesRef, charactersRef, setCharacters,
-  })
-  useCharacterMediaUrls(characters, setCharacters)
-
-  const context: CharacterActionContext = {
-    campaign: campaignScope(campaignId, groupId),
-    role,
-    userId,
-    selectedCharacterId,
-    charactersRef,
-    savesRef,
-    setCharacters,
-    setSelectedCharacterId,
-    setCurrentCharacterId,
-  }
-  const setCurrentCharacter = (characterId: string) => chooseCurrentCharacter(context, characterId)
+  const ruleSet = useMemo(() => oseCharacterStore({ userId, currentUsername }), [currentUsername, userId])
+  const store = useCharacterStore({ ruleSet, campaignId, groupId, userId, role, gmUserId, setError, enabled })
+  const { characters, currentCharacterId, selectedCharacterId, setSelectedCharacterId } = store
 
   useCurrentCharacterFallback({
-    campaignId, role, userId, characters, currentCharacterId, chooseCurrentCharacter: setCurrentCharacter,
+    campaignId, role, userId, characters, currentCharacterId, chooseCurrentCharacter: store.setCurrentCharacter,
   })
-  useSendCharacterSavesOnLeave(savesRef, campaignId, groupId, enabled)
-
-  const selectedCharacter = useMemo(
-    () => findCharacter(characters, selectedCharacterId) ?? null,
-    [characters, selectedCharacterId],
-  )
 
   return {
-    characters,
-    charactersLoading,
-    currentCharacterId,
-    setCurrentCharacter,
-    selectedCharacterId,
-    setSelectedCharacterId,
-    selectedCharacter,
-    updateCharacter: (characterId: string, updates: Partial<CharacterRecord>) =>
-      updateCharacter(context, characterId, updates),
-    syncCharacterLocal: (characterId: string, updates: Partial<CharacterRecord>) =>
-      syncCharacterLocal(context, characterId, updates),
-    deleteCharacter: (characterId: string) => deleteCharacter(context, characterId),
-    hasPendingWrite: (id: string) => isCharacterSaveOutstanding(savesRef.current, id),
+    ...store,
+    // Deleting the selected character selects the first one left, and the last one selects nothing.
+    deleteCharacter: (characterId: string) => {
+      if (!store.deleteCharacter(characterId)) return
+      const remaining = characters.filter((character) => character.id !== characterId)
+      const selection = selectionAfterDelete(remaining, selectedCharacterId, characterId)
+      if (selection !== null) setSelectedCharacterId(selection)
+    },
   }
 }

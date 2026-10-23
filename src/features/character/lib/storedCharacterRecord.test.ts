@@ -1,20 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import type { CharacterRecord } from '../../../types/app'
+import { oseCharacterVersioning } from '../../ruleSets/characterMigrations'
 import {
+  oseCharacterStore,
   readCreationFields,
   readDetails,
   readHitPoints,
   readOwnerUsername,
-  readPortraitUrl,
   readStoredCharacter,
-  withLocalTokenImage,
+  serializeOseCharacter,
 } from './storedCharacterRecord'
 
 const viewer = { userId: 'user-1', currentUsername: 'Player One' }
-const tokenIcon = { icon: 'pawn', color: '#000', size: 30 }
-
-const local = (fields: Partial<CharacterRecord>): CharacterRecord =>
-  ({ ...readStoredCharacter('a', {}, undefined, viewer), ...fields })
 
 describe('readCreationFields', () => {
   it.each([
@@ -67,50 +63,9 @@ describe('readOwnerUsername', () => {
   })
 })
 
-describe('readPortraitUrl', () => {
-  it('prefers the stored URL', () => {
-    expect(readPortraitUrl('https://cdn.test/stored.png', 'p.png', local({ portraitPath: 'p.png', portraitUrl: 'https://cdn.test/local.png' })))
-      .toBe('https://cdn.test/stored.png')
-  })
-
-  it('keeps a renderable local URL for the same path only', () => {
-    const resolved = local({ portraitPath: 'p.png', portraitUrl: 'https://cdn.test/local.png' })
-
-    expect(readPortraitUrl(undefined, 'p.png', resolved)).toBe('https://cdn.test/local.png')
-    expect(readPortraitUrl(undefined, 'q.png', resolved)).toBeNull()
-    expect(readPortraitUrl(undefined, 'p.png', local({ portraitPath: 'p.png', portraitUrl: 'blob:x' }))).toBeNull()
-    expect(readPortraitUrl(undefined, 'p.png', undefined)).toBeNull()
-  })
-})
-
-describe('withLocalTokenImage', () => {
-  const resolved = local({ tokenIcon: { ...tokenIcon, customImagePath: 't.png', customImageUrl: 'https://cdn.test/t.png' } })
-
-  it('keeps a stored token image URL', () => {
-    const stored = { ...tokenIcon, customImagePath: 't.png', customImageUrl: 'https://cdn.test/stored.png' }
-
-    expect(withLocalTokenImage(stored, resolved)).toEqual(stored)
-  })
-
-  it('carries over a renderable local URL for the same path', () => {
-    expect(withLocalTokenImage({ ...tokenIcon, customImagePath: 't.png' }, resolved))
-      .toEqual({ ...tokenIcon, customImagePath: 't.png', customImageUrl: 'https://cdn.test/t.png' })
-  })
-
-  it('returns the stored icon itself when there is no URL to carry over', () => {
-    const otherPath = { ...tokenIcon, customImagePath: 'u.png' }
-    const blobLocal = local({ tokenIcon: { ...tokenIcon, customImagePath: 'u.png', customImageUrl: 'blob:u' } })
-
-    expect(withLocalTokenImage(otherPath, resolved)).toBe(otherPath)
-    expect(withLocalTokenImage(otherPath, blobLocal)).toBe(otherPath)
-    expect(withLocalTokenImage(tokenIcon, local({ tokenIcon }))).toBe(tokenIcon)
-    expect(withLocalTokenImage(tokenIcon, undefined)).toBe(tokenIcon)
-  })
-})
-
 describe('readStoredCharacter', () => {
   it('defaults every missing field', () => {
-    expect(readStoredCharacter('bare', {}, undefined, { userId: 'gm', currentUsername: 'GM' })).toEqual({
+    expect(readStoredCharacter('bare', {}, { userId: 'gm', currentUsername: 'GM' })).toEqual({
       id: 'bare',
       name: 'bare',
       ownerUserId: '',
@@ -134,7 +89,31 @@ describe('readStoredCharacter', () => {
   })
 
   it('keeps a stored name, class and token icon that are present, whatever their type', () => {
-    expect(readStoredCharacter('a', { name: '', class: 0, tokenIcon: 'odd' }, undefined, viewer))
+    expect(readStoredCharacter('a', { name: '', class: 0, tokenIcon: 'odd' }, viewer))
       .toMatchObject({ name: '', className: 0, tokenIcon: 'odd' })
+  })
+
+  it('names the viewer\'s own character after them when it stores no owner name', () => {
+    expect(readStoredCharacter('a', { ownerUserId: 'user-1' }, viewer).ownerUsername).toBe('Player One')
+    expect(readStoredCharacter('a', { ownerUserId: 'user-2' }, viewer).ownerUsername).toBeNull()
+  })
+})
+
+describe('oseCharacterStore', () => {
+  const ruleSet = oseCharacterStore(viewer)
+
+  it('reads every document, at OSE\'s version, as the viewer\'s sheet record, and saves it with OSE\'s serializer', () => {
+    const record = ruleSet.parser.parse('a', { ownerUserId: 'user-1', class: 'Fighter' })
+
+    expect(ruleSet.system).toBeUndefined()
+    expect(ruleSet.versioning).toBe(oseCharacterVersioning)
+    expect(record).toEqual(readStoredCharacter('a', { ownerUserId: 'user-1', class: 'Fighter' }, viewer))
+    expect(ruleSet.parser.serialize(record)).toEqual(serializeOseCharacter(record))
+  })
+
+  it('keeps an edit\'s hit points within the maximum', () => {
+    const target = readStoredCharacter('a', { hpCurrent: 6, hpMax: 10 }, viewer)
+
+    expect(ruleSet.adjustUpdates?.(target, { hpCurrent: 15, name: 'Edited' })).toEqual({ hpCurrent: 10, name: 'Edited' })
   })
 })

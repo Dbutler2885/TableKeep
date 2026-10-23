@@ -72,6 +72,7 @@ export function CharacterTab({
   syncCharacterLocal,
   deleteCharacter,
   hasPendingWrite,
+  createCharacter,
   embeddedMode = false,
 }: CharacterTabProps) {
   const { stateMaps, stateSetters } = useCharacterSheetState()
@@ -443,6 +444,7 @@ export function CharacterTab({
     isSinglePane,
     showDetailPane: () => setPaneView('detail'),
     updateSelectedCharacter,
+    createCharacter,
   })
   const {
     createCharacterModalOpen,
