@@ -9,6 +9,7 @@ import {
   ownedFixtureFields,
   partyTokenFields,
   step,
+  storedItemsProblem,
   storedMediaProblems,
   storedVersionProblems,
   trackersAtZero,
@@ -167,6 +168,21 @@ describe('seeding a fixture as the migration left it', () => {
     expect(fields).toMatchObject({ ownerUserId: 'u1', ownerUsername: 'desk001', schemaVersion: 1 })
     expect(fields.details.inventory.map((item) => item.id)).toEqual(['legacy-elf-1-packedItems-0', 'legacy-elf-1-spell-book'])
     expect(fields.details).not.toHaveProperty('packedItems')
+  })
+
+  it('finds the stored items the same as the seeded ones, whatever the map order', () => {
+    const seededFields = { details: { inventory: [{ id: 'rope', name: 'Rope', qty: 1 }] } }
+    const stored = toFirestoreFields({ details: { inventory: [{ qty: 1, name: 'Rope', id: 'rope' }], notes: 'kept' } })
+    expect(storedItemsProblem(stored, seededFields)).toBeNull()
+  })
+
+  it('names the items stored when they differ from the seeded ones, or are missing', () => {
+    const seededFields = { details: { inventory: [{ id: 'rope', name: 'Rope' }] } }
+    const stored = toFirestoreFields({ details: { inventory: [{ id: 'rope-2', name: 'Rope' }] } })
+    expect(storedItemsProblem(stored, seededFields)).toBe(
+      `The sheet holds other items than the migration made: ${JSON.stringify(stored.details.mapValue.fields.inventory)}`,
+    )
+    expect(storedItemsProblem({}, seededFields)).toBe('The sheet holds other items than the migration made: undefined')
   })
 
   it('leaves a character already at version 1 as it was', () => {

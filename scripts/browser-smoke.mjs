@@ -262,6 +262,15 @@ async function openSeededCharacter(page, testCase, { uid, groupId }) {
   await screenshot(page, `${testCase.name}-seeded-character`)
 }
 
+// Waits until the open OSE sheet is `characterName`'s.
+async function waitForOseSheet(page, characterName) {
+  await page.waitForFunction(
+    (name) => document.querySelector('.character-header-field-name input')?.value === name,
+    {},
+    characterName,
+  )
+}
+
 // Everything the smoke checks inside the group, once it exists. Add a case here.
 async function openCampaignCases(page, testCase, { uid, groupId }) {
   await step('open a seeded character', () => openSeededCharacter(page, testCase, { uid, groupId }))
@@ -517,7 +526,7 @@ async function expectOnlyEditStored(seeded, concept) {
   const expected = toFirestoreFields(withVtmConcept(seeded.fields, concept))
   const changed = changedFirestoreFields(stored, expected)
   if (changed.join() !== SAVE_STAMP_FIELDS.join()) {
-    throw new Error(`Expected only the edit, the write time and updatedAt to change, but these differ: ${changed.join(', ')}.`)
+    throw new Error(`Expected only the edit, the version stamp and updatedAt to change, but these differ: ${changed.join(', ')}.`)
   }
   expectStoredAtVersion1(stored)
 }
@@ -819,11 +828,7 @@ async function openOseCharacterFromList(page, characterName) {
   const backToList = '[aria-label="Back to character list"]'
   if (await page.$(backToList)) await page.locator(backToList).click()
   await page.locator(`.character-list-grid ::-p-text(${JSON.stringify(characterName)})`).click()
-  await page.waitForFunction(
-    (name) => document.querySelector('.character-header-field-name input')?.value === name,
-    {},
-    characterName,
-  )
+  await waitForOseSheet(page, characterName)
 }
 
 async function oseDemoCharactersCase(page, seeded) {
@@ -843,14 +848,19 @@ async function seedMigratedOseCampaign({ uid, groupId, testCase }) {
   return { campaignName, characterName: fields.name, fields, path }
 }
 
+// What is wrong with a stored character's items, in the REST shape, against
+// the items it was seeded with, or null when they are the same.
+export function storedItemsProblem(stored, seededFields) {
+  const inventory = stored.details?.mapValue?.fields?.inventory
+  if (sameFirestoreValue(inventory, toFirestoreFields(seededFields.details).inventory)) return null
+  return `The sheet holds other items than the migration made: ${JSON.stringify(inventory)}`
+}
+
 // A save writes the items the sheet holds, so the stored items are the ones
 // the sheet showed when it last saved: those the migration made, as seeded.
 async function expectSeededItemsStored(seeded) {
-  const stored = (await readDocumentFields(seeded.path)).details?.mapValue?.fields?.inventory
-  const expected = toFirestoreFields(seeded.fields.details).inventory
-  if (!sameFirestoreValue(stored, expected)) {
-    throw new Error(`The sheet holds other items than the migration made: ${JSON.stringify(stored)}`)
-  }
+  const problem = storedItemsProblem(await readDocumentFields(seeded.path), seeded.fields)
+  if (problem) throw new Error(problem)
 }
 
 async function oseMigratedItemsCase(page, seeded) {
