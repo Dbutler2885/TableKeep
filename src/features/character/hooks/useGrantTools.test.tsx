@@ -93,7 +93,7 @@ describe('GM grant panel write orchestration', () => {
   it('refuses a target not yet at the current version with the plain message, keeping earlier targets granted', async () => {
     mocks.get
       .mockResolvedValueOnce({ exists: () => true, data: () => ({ schemaVersion: 1, xp: 100, details: { inventory: [] } }) })
-      .mockResolvedValueOnce({ exists: () => true, data: () => ({ xp: 100, details: { weapons: ['legacy'] } }) })
+      .mockResolvedValueOnce({ exists: () => true, data: () => ({ xp: 100, details: { inventory: [] } }) })
     const { result, params } = setup()
     act(() => { result.current.selectAllGrantTargets(); result.current.setGrantXpBase('10') })
     await act(() => result.current.applyGrantToSelectedTargets())

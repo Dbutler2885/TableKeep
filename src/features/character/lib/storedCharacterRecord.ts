@@ -1,7 +1,6 @@
 import type { CharacterRecord, CharacterSheetDetails, TokenIconConfig } from '../../../types/app'
 import { isRenderableImageUrl, sanitizeTokenIconForPersistence } from '../../common/mediaFields'
-import { oseCharacterVersioning } from '../../ruleSets/characterMigrations'
-import { fieldsOutside, readCharacter, type CharacterParser } from '../../ruleSets/characterParser'
+import { fieldsOutside, type CharacterParser } from '../../ruleSets/characterParser'
 
 export type StoredCharacterFields = Record<string, unknown>
 
@@ -39,12 +38,10 @@ export function readCreationFields(data: StoredCharacterFields): CreationFields 
   return { creationMode, creationModeExplicit, creationStatus }
 }
 
-/** A copy of the stored sheet details without the retired AC override, or null when there are none. */
+/** A copy of the stored sheet details, or null when there are none. */
 export function readDetails(raw: unknown): CharacterSheetDetails | null {
   if (typeof raw !== 'object' || raw === null) return null
-  const normalized = { ...(raw as Record<string, unknown>) }
-  delete normalized.acManualOverride
-  return normalized as CharacterSheetDetails
+  return { ...(raw as CharacterSheetDetails) }
 }
 
 /** Hit points with the max at least zero and the current between zero and the max. */
@@ -154,10 +151,9 @@ export const oseCharacterParser: CharacterParser<CharacterRecord> = {
 }
 
 /**
- * A stored character document as the OSE sheet's record. OSE's steps bring it
- * up to the current version before it is parsed, and nothing is written
- * because of a read. A missing owner name and media URLs are then filled in
- * from the viewer and the local copy.
+ * A stored character document, at the current version, as the OSE sheet's
+ * record. A missing owner name and media URLs are filled in from the viewer
+ * and the local copy.
  */
 export function readStoredCharacter(
   id: string,
@@ -165,7 +161,7 @@ export function readStoredCharacter(
   local: CharacterRecord | undefined,
   viewer: CharacterViewer,
 ): CharacterRecord {
-  const record = readCharacter(oseCharacterVersioning, oseCharacterParser, id, data).record
+  const record = parseOseCharacter(id, data)
   return {
     ...record,
     ownerUsername: readOwnerUsername(record, viewer),

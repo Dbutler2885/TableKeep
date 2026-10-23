@@ -5,7 +5,7 @@ import type { TokenIconConfig } from '../../../types/app'
 import { isRenderableImageUrl } from '../../common/mediaFields'
 import { readCharacterIdentity } from '../../ruleSets/characterIdentity'
 import type { CharacterVersioning } from '../../ruleSets/characterMigrations'
-import { readStoredCharacter, type CharacterParser } from '../../ruleSets/characterParser'
+import type { CharacterParser } from '../../ruleSets/characterParser'
 import type { StoredCharacter } from '../../ruleSets/storedCharacter'
 
 // The fields of a rule set's record the store reads: the identity it lists,
@@ -57,9 +57,8 @@ const withLocalMedia = <Character extends CharacterStoreRecord>(character: Chara
 })
 
 /**
- * A stored character document as the rule set's record, or null when it
- * belongs to another system. The rule set's steps bring it up to the current
- * version before it is parsed; nothing is written because of a read.
+ * A stored character document, at the current version, as the rule set's
+ * record, or null when it belongs to another system.
  */
 export function readCharacterStoreDoc<Character extends CharacterStoreRecord>(
   ruleSet: CharacterStoreRuleSet<Character>,
@@ -68,5 +67,5 @@ export function readCharacterStoreDoc<Character extends CharacterStoreRecord>(
   local: Character | undefined,
 ): Character | null {
   if (readCharacterIdentity(id, data).system !== ruleSet.system) return null
-  return withLocalMedia(readStoredCharacter(ruleSet.versioning, ruleSet.parser, id, data), local)
+  return withLocalMedia(ruleSet.parser.parse(id, data), local)
 }

@@ -45,14 +45,8 @@ const tokenIcon: TokenIconConfig = { icon: 'pawn', color: '#000', size: 30 }
 const toyRuleSet: CharacterStoreRuleSet<ToyCharacter> = {
   system: 'toy',
   label: 'Toy',
-  versioning: {
-    schemaVersion: 2,
-    migrations: [
-      (document) => ({ ...document, schemaVersion: 1 }),
-      // Version 2 renamed `fortune` to `luck`.
-      ({ fortune, ...document }) => ({ ...document, luck: fortune, schemaVersion: 2 }),
-    ],
-  },
+  // The store only stamps the version; the migration brings every stored character to it.
+  versioning: { schemaVersion: 2, migrations: [] },
   parser: {
     parse: (id, { ownerUserId, luck, schemaVersion: _version, ...extra }) =>
       ({ id, ownerUserId: String(ownerUserId), portraitUrl: null, tokenIcon, luck: Number(luck), extra }),
@@ -84,10 +78,10 @@ afterEach(() => {
 })
 
 describe('useCharacterStore with any rule set', () => {
-  it('reads only its own system, through its steps and parser', () => {
+  it('reads only its own system, through its parser', () => {
     const { result } = renderStore()
     emitCharacters([
-      { id: 'old', data: () => ({ system: 'toy', ownerUserId: 'user-1', fortune: 3, mood: 'grim' }) },
+      { id: 'old', data: () => ({ system: 'toy', ownerUserId: 'user-1', luck: 3, mood: 'grim', schemaVersion: 2 }) },
       { id: 'other', data: () => ({ system: 'vtm', ownerUserId: 'user-1' }) },
     ])
 
@@ -98,7 +92,7 @@ describe('useCharacterStore with any rule set', () => {
 
   it('saves through its serializer, stamped with its version', () => {
     const { result } = renderStore()
-    emitCharacters([{ id: 'old', data: () => ({ system: 'toy', ownerUserId: 'user-1', fortune: 3 }) }])
+    emitCharacters([{ id: 'old', data: () => ({ system: 'toy', ownerUserId: 'user-1', luck: 3, schemaVersion: 2 }) }])
 
     act(() => result.current.updateCharacter('old', { luck: 4 }))
     act(() => vi.advanceTimersByTime(500))

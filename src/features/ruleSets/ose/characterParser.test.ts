@@ -6,8 +6,8 @@
 import { Timestamp } from 'firebase/firestore'
 import { describe, expect, it } from 'vitest'
 import { oseCharacterParser } from '../../character/lib/storedCharacterRecord'
-import { reviveTimestamps, type CharacterFixture } from '../characterFixtures'
-import { readStoredCharacter } from '../characterParser'
+import { migratedFixture, reviveTimestamps, type CharacterFixture } from '../characterFixtures'
+import { oseCharacterVersioning } from '../characterMigrations'
 import { ruleSets } from '../registry'
 import demoCleric from './fixtures/demo-cleric.json'
 import demoFighter from './fixtures/demo-fighter.json'
@@ -18,7 +18,7 @@ import legacy from './fixtures/legacy.json'
 type Fields = Record<string, unknown>
 
 const revive = (fixture: unknown) =>
-  reviveTimestamps(fixture, (iso) => Timestamp.fromDate(new Date(iso))) as CharacterFixture
+  migratedFixture(oseCharacterVersioning, reviveTimestamps(fixture, (iso) => Timestamp.fromDate(new Date(iso))) as CharacterFixture)
 
 const cases = Object.entries({
   'demo-magic-user': demoMagicUser,
@@ -29,11 +29,10 @@ const cases = Object.entries({
 }).map(([name, fixture]) => [name, revive(fixture)] as const)
 const legacyCases = cases.filter(([name]) => !name.startsWith('demo-'))
 
-const parse = ({ id, data }: CharacterFixture) =>
-  readStoredCharacter(ruleSets.ose.characters, oseCharacterParser, id, data)
+const parse = ({ id, data }: CharacterFixture) => oseCharacterParser.parse(id, data)
 
 const reparse = (id: string, record: ReturnType<typeof parse>) =>
-  readStoredCharacter(ruleSets.ose.characters, oseCharacterParser, id, oseCharacterParser.serialize(record))
+  oseCharacterParser.parse(id, oseCharacterParser.serialize(record))
 
 describe('OSE character parser', () => {
   it('is the parser OSE declares', () => {
@@ -86,12 +85,6 @@ describe('OSE character parser', () => {
     expect(parsed.portraitUrl).toBe('https://cdn.test/portrait.png')
     expect(serialized).not.toHaveProperty('portraitUrl')
     expect(serialized.tokenIcon).toEqual({ icon: 'custom', color: '#000', size: 34, customImagePath: 't.png' })
-  })
-
-  it('reads a character at any stored version the same, once its steps have run', () => {
-    const [, fixture] = cases[1]
-    const unversioned = parse(fixture)
-    expect(parse({ ...fixture, data: { ...fixture.data, schemaVersion: 1 } })).toEqual(unversioned)
   })
 })
 

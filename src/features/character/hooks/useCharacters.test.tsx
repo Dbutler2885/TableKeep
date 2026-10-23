@@ -7,7 +7,6 @@ type StoredDoc = { id: string; data: () => Record<string, unknown> | undefined }
 type Listener = { next: (snap: unknown) => void; fail: (error: unknown) => void }
 
 const SERVER_TIMESTAMP = { sentinel: 'serverTimestamp' }
-const DELETE_FIELD = { sentinel: 'deleteField' }
 
 const mocks = vi.hoisted(() => ({
   listeners: {} as Record<string, { next: (snap: unknown) => void; fail: (error: unknown) => void }>,
@@ -22,7 +21,6 @@ vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
   doc: (_db: unknown, path: string) => ({ path }),
   deleteDoc: mocks.deleteDoc,
-  deleteField: () => DELETE_FIELD,
   onSnapshot: (ref: { path: string }, next: Listener['next'], fail: Listener['fail']) => {
     mocks.subscribedTo.push(ref.path)
     mocks.listeners[ref.path] = { next, fail }
@@ -434,17 +432,6 @@ describe('useCharacters stored records', () => {
     expect(result.current.characters[0]).toMatchObject(expected)
   })
 
-  it('reads stored sheet details through OSE\'s step, without the retired AC override', () => {
-    const { result } = renderCharacters()
-    const details = { notes: 'Brave', acManualOverride: 4, abilities: { str: 12 } }
-
-    emitCharacters([ownDoc('a', { details })])
-
-    // An unversioned sheet with no items and no old lists gets an empty inventory from the step.
-    expect(result.current.characters[0].details).toEqual({ notes: 'Brave', abilities: { str: 12 }, inventory: [] })
-    expect(details.acManualOverride).toBe(4)
-  })
-
   it('reads a sheet already at the current version as stored', () => {
     const { result } = renderCharacters()
 
@@ -833,10 +820,7 @@ describe('useCharacters updateCharacter', () => {
     act(() => vi.advanceTimersByTime(500))
 
     const data = characterSaves()[0][1] as Record<string, unknown>
-    const retiredDeletes = Object.fromEntries(
-      ['weapons', 'armour', 'packedItems', 'equippedItems', 'storeGoldSlotIndices', 'acManualOverride'].map((name) => [name, DELETE_FIELD]),
-    )
-    expect(data.details).toEqual({ ...details, ...retiredDeletes })
+    expect(data.details).toEqual(details)
     expect(data.details).not.toBe(details)
     expect(data.tokenIcon).toEqual({ icon: 'pawn', color: '#000', size: 30, customImagePath: 't.png' })
   })

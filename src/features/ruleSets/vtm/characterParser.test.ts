@@ -1,16 +1,15 @@
 /**
  * How the VtM sheet reads a stored character and what a save leaves stored,
- * recorded on the checked-in VtM fixtures before the reading moved onto VtM's
- * steps and parser, and the parser's own round trip.
+ * recorded on the checked-in VtM fixtures as VtM's steps leave them, and the
+ * parser's own round trip.
  */
 import { Timestamp } from 'firebase/firestore'
 import { describe, expect, it, vi } from 'vitest'
 import { readCharacterStoreDoc } from '../../character/characterStore/characterStoreRecord'
 import { characterStoreSaveFields } from '../../character/characterStore/characterStoreWrites'
 import { vtmCharacterParser, vtmCharacterStore } from '../../character/vtmCharacterRecord'
-import { markTimestamps, reviveTimestamps, type CharacterFixture } from '../characterFixtures'
-import { readCharacter, readStoredCharacter } from '../characterParser'
-import { ruleSets } from '../registry'
+import { markTimestamps, migratedFixture, reviveTimestamps, type CharacterFixture } from '../characterFixtures'
+import { vtmCharacterVersioning } from '../characterMigrations'
 import type { StoredCharacter } from '../storedCharacter'
 import filledSheet from './fixtures/filled-sheet.json'
 import olderSheet from './fixtures/older-sheet.json'
@@ -25,7 +24,7 @@ vi.mock('firebase/firestore', async (importOriginal) => ({
 type Fields = Record<string, unknown>
 
 const revive = (fixture: unknown) =>
-  reviveTimestamps(fixture, (iso) => Timestamp.fromDate(new Date(iso))) as CharacterFixture
+  migratedFixture(vtmCharacterVersioning, reviveTimestamps(fixture, (iso) => Timestamp.fromDate(new Date(iso))) as CharacterFixture)
 
 const asFixtureJson = (value: unknown) =>
   `${JSON.stringify(markTimestamps(value, (entry) => entry instanceof Timestamp ? entry.toDate().toISOString() : null), null, 2)}\n`
@@ -91,10 +90,10 @@ describe('VtM reading and saving', () => {
   })
 })
 
-const parse = ({ id, data }: CharacterFixture) => readStoredCharacter(ruleSets.vtm.characters, vtmCharacterParser, id, data)
+const parse = ({ id, data }: CharacterFixture) => vtmCharacterParser.parse(id, data)
 
 const reparse = (id: string, record: ReturnType<typeof parse>) =>
-  readStoredCharacter(ruleSets.vtm.characters, vtmCharacterParser, id, vtmCharacterParser.serialize(record))
+  vtmCharacterParser.parse(id, vtmCharacterParser.serialize(record))
 
 describe('VtM character parser', () => {
   it.each(cases)('%s parses the same twice', (_name, fixture) => {
@@ -127,43 +126,5 @@ describe('VtM character parser', () => {
     for (const field of ['createdAt', 'updatedAt', 'schemaVersion', 'schemaWrittenAt']) {
       expect(serialized).not.toHaveProperty(field)
     }
-  })
-
-  it('reads a character at any stored version the same', () => {
-    const { id, data } = cases[0][1]
-    const unversioned = readCharacterStoreDoc(vtmCharacterStore, id, data, undefined)
-    expect(readCharacterStoreDoc(vtmCharacterStore, id, { ...data, schemaVersion: 1 }, undefined)).toEqual(unversioned)
-    expect(readCharacterStoreDoc(vtmCharacterStore, id, { ...data, schemaVersion: 2 }, undefined)).toEqual(unversioned)
-  })
-})
-
-describe('reading a stored character', () => {
-  it('parses what the rule set\'s steps make of the stored document', () => {
-    const versioning = {
-      schemaVersion: 2,
-      migrations: [
-        (document: StoredCharacter) => ({ ...document, schemaVersion: 1, first: true }),
-        (document: StoredCharacter) => ({ ...document, schemaVersion: 2, second: true }),
-      ],
-    }
-    const parser = { parse: (id: string, stored: StoredCharacter) => ({ id, stored }), serialize: () => ({}) }
-
-    expect(readStoredCharacter(versioning, parser, 'a', { name: 'Edda' })).toEqual({
-      id: 'a',
-      stored: { name: 'Edda', schemaVersion: 2, first: true, second: true },
-    })
-    expect(readStoredCharacter(versioning, parser, 'a', { schemaVersion: 3 })).toEqual({ id: 'a', stored: { schemaVersion: 3 } })
-  })
-
-  it('keeps the document as the steps left it beside the record', () => {
-    const versioning = { schemaVersion: 1, migrations: [(document: StoredCharacter) => ({ ...document, schemaVersion: 1 })] }
-    const parser = { parse: (id: string, stored: StoredCharacter) => ({ id, name: stored.name }), serialize: () => ({}) }
-    const raw = { name: 'Edda', hp: 3 }
-
-    expect(readCharacter(versioning, parser, 'a', raw)).toEqual({
-      stored: { name: 'Edda', hp: 3, schemaVersion: 1 },
-      record: { id: 'a', name: 'Edda' },
-    })
-    expect(raw).toEqual({ name: 'Edda', hp: 3 })
   })
 })

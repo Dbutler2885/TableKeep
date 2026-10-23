@@ -16,7 +16,7 @@ import {
   toFirestoreFields,
 } from './browser-smoke-seed.mjs'
 import { reviveTimestamps } from '../src/features/ruleSets/characterFixtures.ts'
-import { oseCharacterV0ToV1, RETIRED_DETAIL_FIELDS } from '../src/features/ruleSets/ose/characterMigrations.ts'
+import { migrateCharacter, oseCharacterVersioning, vtmCharacterVersioning } from '../src/features/ruleSets/characterMigrations.ts'
 
 const APP_URL = 'http://127.0.0.1:4173'
 const AUTH_EMULATOR_URL = 'http://127.0.0.1:9099'
@@ -244,6 +244,7 @@ async function openSeededCharacter(page, testCase, { uid, groupId }) {
       hpCurrent: 8,
       hpMax: 8,
       creationStatus: 'active',
+      schemaVersion: 1,
     },
   })
 
@@ -259,6 +260,15 @@ async function openSeededCharacter(page, testCase, { uid, groupId }) {
     characterName,
   )
   await screenshot(page, `${testCase.name}-seeded-character`)
+}
+
+// Waits until the open OSE sheet is `characterName`'s.
+async function waitForOseSheet(page, characterName) {
+  await page.waitForFunction(
+    (name) => document.querySelector('.character-header-field-name input')?.value === name,
+    {},
+    characterName,
+  )
 }
 
 // Everything the smoke checks inside the group, once it exists. Add a case here.
@@ -287,6 +297,7 @@ export function vtmCharacterFields({ uid, username, name, concept }) {
     creationStatus: 'active',
     xp: 0,
     vtm: { concept },
+    schemaVersion: 1,
   }
 }
 
@@ -485,15 +496,16 @@ async function seedFilledVtmCampaign({ uid, groupId, testCase }) {
   const fixture = JSON.parse(await readFile(VTM_FILLED_FIXTURE_URL, 'utf8'))
   const campaignName = `${testCase.label} VtM Filled Sheet`
   const campaignId = await seedCampaign({ groupId, gmUserId: uid, fields: { name: campaignName, system: 'vtm' } })
-  const fields = ownedFixtureFields(fixture.data, { uid, username: testCase.username })
+  const fields = migratedFixtureFields(vtmCharacterVersioning, fixture, { uid, username: testCase.username })
   await seedCharacter({ groupId, campaignId, characterId: fixture.id, fields })
   const path = characterPath({ groupId, campaignId, characterId: fixture.id })
   return { campaignId, campaignName, characterName: fields.name, concept: fields.vtm.concept, fields, path }
 }
 
-// The fields every save sets beside the edit: the rule set's version, the
+// The fields a save of a version 1 character changes beside the edit: the
 // write time and `updatedAt`, in the order `changedFirestoreFields` names them.
-const SAVE_STAMP_FIELDS = ['schemaVersion', 'schemaWrittenAt', 'updatedAt']
+// The save stamps version 1 too, which the character already carried.
+const SAVE_STAMP_FIELDS = ['schemaWrittenAt', 'updatedAt']
 
 // What is wrong with a stored character, in the REST shape, that a save
 // should have left at version 1 with a write time.
@@ -502,12 +514,6 @@ export function storedVersionProblems(stored) {
   if (stored.schemaVersion?.integerValue !== '1') problems.push(`schemaVersion is ${JSON.stringify(stored.schemaVersion)}, not 1`)
   if (typeof stored.schemaWrittenAt?.timestampValue !== 'string') problems.push('schemaWrittenAt is not a time')
   return problems
-}
-
-// The OSE detail fields a save at version 1 must have removed.
-export function retiredDetailFieldsStored(stored) {
-  const details = stored.details?.mapValue?.fields ?? {}
-  return RETIRED_DETAIL_FIELDS.filter((name) => Object.hasOwn(details, name))
 }
 
 function expectStoredAtVersion1(stored) {
@@ -674,6 +680,7 @@ export function oseCharacterFields({ uid, username, name }) {
     hpCurrent: 8,
     hpMax: 8,
     creationStatus: 'active',
+    schemaVersion: 1,
   }
 }
 
@@ -787,66 +794,97 @@ async function oseLastEditCases(browser, testCase, ids, browserErrors) {
   await run('ose-switch-campaign', (page) => oseSwitchCampaignCase(page, testCase, seeded.switch))
 }
 
-// An old-format OSE character, stored before characters carried a version: an
-// Elf with old weapon and pack lists, a pack row without an id, and no spell
-// book. The sheet reads it through OSE's step, so it holds the items the step
-// makes, with the step's ids, on every reload.
+// Characters as the migration left them, at version 1, which is the only shape
+// the app reads: the four demo party characters, and an Elf stored in the old
+// format, with old weapon and pack lists, a pack row without an id and no spell
+// book, which the migration turned into items with stable ids.
+const OSE_DEMO_FIXTURES = ['demo-magic-user', 'demo-fighter', 'demo-thief', 'demo-cleric']
 const OSE_LEGACY_FIXTURES_URL = new URL('../src/features/ruleSets/ose/fixtures/legacy.json', import.meta.url)
-const OSE_LEGACY_FIXTURE = 'caster-without-book'
+const OSE_MIGRATED_FIXTURE = 'caster-without-book'
 
-// The inventory OSE's step makes of a stored character, in the REST shape.
-export const stepInventory = (characterId, fields) =>
-  toFirestoreFields(oseCharacterV0ToV1(fields, characterId).details).inventory
+const oseFixture = async (name) =>
+  JSON.parse(await readFile(new URL(`../src/features/ruleSets/ose/fixtures/${name}.json`, import.meta.url), 'utf8'))
 
-async function seedLegacyOseCampaign({ uid, groupId, testCase }) {
-  const fixture = JSON.parse(await readFile(OSE_LEGACY_FIXTURES_URL, 'utf8'))[OSE_LEGACY_FIXTURE]
-  const campaignName = `${testCase.label} OSE Old Format`
+// A checked-in fixture's document as the migration leaves it, owned by the smoke's user.
+export const migratedFixtureFields = (versioning, fixture, owner) =>
+  migrateCharacter(versioning, fixture.id, ownedFixtureFields(fixture.data, owner)).document
+
+async function seedDemoOseCampaign({ uid, groupId, testCase }) {
+  const campaignName = `${testCase.label} OSE Demo Party`
   const campaignId = await seedCampaign({ groupId, gmUserId: uid, fields: { name: campaignName, system: 'ose' } })
-  const fields = ownedFixtureFields(fixture.data, { uid, username: testCase.username })
-  await seedCharacter({ groupId, campaignId, characterId: fixture.id, fields })
-  const path = characterPath({ groupId, campaignId, characterId: fixture.id })
-  return { campaignName, characterName: fields.name, characterId: fixture.id, fields, path }
+  const characterNames = []
+  for (const name of OSE_DEMO_FIXTURES) {
+    const fixture = await oseFixture(name)
+    const fields = migratedFixtureFields(oseCharacterVersioning, fixture, { uid, username: testCase.username })
+    await seedCharacter({ groupId, campaignId, characterId: fixture.id, fields })
+    characterNames.push(fields.name)
+  }
+  return { campaignName, characterNames }
 }
 
-// A save writes the items the sheet holds, so the stored items are the ones
-// the sheet showed when it last saved.
-async function expectStepItemsStored(seeded) {
-  const stored = (await readDocumentFields(seeded.path)).details?.mapValue?.fields?.inventory
-  const expected = stepInventory(seeded.characterId, seeded.fields)
-  if (!sameFirestoreValue(stored, expected)) {
-    throw new Error(`The sheet holds other items than OSE's step makes: ${JSON.stringify(stored)}`)
+// Picks a character in the open campaign's list; a narrow screen shows the
+// list again only after leaving the sheet that is open.
+async function openOseCharacterFromList(page, characterName) {
+  const backToList = '[aria-label="Back to character list"]'
+  if (await page.$(backToList)) await page.locator(backToList).click()
+  await page.locator(`.character-list-grid ::-p-text(${JSON.stringify(characterName)})`).click()
+  await waitForOseSheet(page, characterName)
+}
+
+async function oseDemoCharactersCase(page, seeded) {
+  await step('open the OSE campaign with the demo party', () => openCampaignCard(page, seeded.campaignName, oseCharacterTab))
+  for (const characterName of seeded.characterNames) {
+    await step(`open ${characterName}'s sheet`, () => openOseCharacterFromList(page, characterName))
   }
 }
 
-// A save of an old-format character stores it at version 1, without the old
-// lists or the manual-AC flag a merge would otherwise keep.
-async function expectStoredAsVersion1(seeded) {
-  const stored = await readDocumentFields(seeded.path)
-  expectStoredAtVersion1(stored)
-  const retired = retiredDetailFieldsStored(stored)
-  if (retired.length > 0) throw new Error(`The save left old fields stored: ${retired.join(', ')}.`)
+async function seedMigratedOseCampaign({ uid, groupId, testCase }) {
+  const fixture = JSON.parse(await readFile(OSE_LEGACY_FIXTURES_URL, 'utf8'))[OSE_MIGRATED_FIXTURE]
+  const campaignName = `${testCase.label} OSE Migrated`
+  const campaignId = await seedCampaign({ groupId, gmUserId: uid, fields: { name: campaignName, system: 'ose' } })
+  const fields = migratedFixtureFields(oseCharacterVersioning, fixture, { uid, username: testCase.username })
+  await seedCharacter({ groupId, campaignId, characterId: fixture.id, fields })
+  const path = characterPath({ groupId, campaignId, characterId: fixture.id })
+  return { campaignName, characterName: fields.name, fields, path }
 }
 
-async function oseLegacyItemsCase(page, seeded) {
-  await step('open the OSE campaign with an old-format character', () => openCampaignCard(page, seeded.campaignName, oseCharacterTab))
+// What is wrong with a stored character's items, in the REST shape, against
+// the items it was seeded with, or null when they are the same.
+export function storedItemsProblem(stored, seededFields) {
+  const inventory = stored.details?.mapValue?.fields?.inventory
+  if (sameFirestoreValue(inventory, toFirestoreFields(seededFields.details).inventory)) return null
+  return `The sheet holds other items than the migration made: ${JSON.stringify(inventory)}`
+}
+
+// A save writes the items the sheet holds, so the stored items are the ones
+// the sheet showed when it last saved: those the migration made, as seeded.
+async function expectSeededItemsStored(seeded) {
+  const problem = storedItemsProblem(await readDocumentFields(seeded.path), seeded.fields)
+  if (problem) throw new Error(problem)
+}
+
+async function oseMigratedItemsCase(page, seeded) {
+  await step('open the OSE campaign with a migrated character', () => openCampaignCard(page, seeded.campaignName, oseCharacterTab))
   await step('edit the OSE Name', () => editOseName(page, seeded))
   await settle()
-  await step('see the save store the items OSE\'s step makes, with its ids', () => expectStepItemsStored(seeded))
-  await step('see the save store the character at version 1, without the old lists', () => expectStoredAsVersion1(seeded))
+  await step('see the save keep the items the migration made, with their ids', () => expectSeededItemsStored(seeded))
+  await step('see the save store the character at version 1', async () => expectStoredAtVersion1(await readDocumentFields(seeded.path)))
   for (const reload of ['first', 'second']) {
     await step(`see the same items and ids after the ${reload} reload`, async () => {
       await page.reload({ waitUntil: 'domcontentloaded' })
       await expectOseName(page, `${seeded.characterName}, edited`)
       await settle()
-      await expectStepItemsStored(seeded)
+      await expectSeededItemsStored(seeded)
     })
   }
 }
 
-async function oseLegacyItemsCases(browser, testCase, ids, browserErrors) {
-  const seeded = await seedLegacyOseCampaign({ ...ids, testCase })
+async function oseMigratedCharacterCases(browser, testCase, ids, browserErrors) {
+  const demo = await seedDemoOseCampaign({ ...ids, testCase })
+  const migrated = await seedMigratedOseCampaign({ ...ids, testCase })
   const session = { testCase, groupId: ids.groupId, browserErrors }
-  await inSignedInPage(browser, session, 'ose-legacy-items', (page) => oseLegacyItemsCase(page, seeded))
+  await inSignedInPage(browser, session, 'ose-demo-characters', (page) => oseDemoCharactersCase(page, demo))
+  await inSignedInPage(browser, session, 'ose-migrated-items', (page) => oseMigratedItemsCase(page, migrated))
 }
 
 // A blank map whose grid is calibrated, so dragging a party token across it
@@ -1088,7 +1126,7 @@ async function runViewport(browser, testCase) {
     await vtmEditKeepsFieldsCases(browser, testCase, { uid, groupId }, browserErrors)
     await vtmCharacterLifecycleCases(browser, testCase, { uid, groupId }, browserErrors)
     await oseLastEditCases(browser, testCase, { uid, groupId }, browserErrors)
-    await oseLegacyItemsCases(browser, testCase, { uid, groupId }, browserErrors)
+    await oseMigratedCharacterCases(browser, testCase, { uid, groupId }, browserErrors)
     await wanderingMonsterCases(browser, testCase, { uid, groupId }, browserErrors)
     await lubecCampaignCase(browser, testCase, { uid, groupId }, browserErrors)
     await new Promise((resolve) => setTimeout(resolve, 500))
@@ -1105,8 +1143,9 @@ async function runViewport(browser, testCase) {
       + 'and saved a VtM edit leaving every other stored field of a filled-in sheet as it was, '
       + 'and created, edited, gave a portrait and a token image to, reloaded and deleted a VtM character, '
       + 'and an OSE edit made just before opening Notes, hiding the page or switching campaign, '
-      + 'and kept the items and ids OSE\'s step makes of an old-format character through a save and two reloads, '
-      + 'storing it at version 1 without its old lists, '
+      + 'and opened the sheets of the demo party as the migration left them, '
+      + 'and kept the items and ids the migration made of an old-format character through a save and two reloads, '
+      + 'storing it at version 1, '
       + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map, '
       + 'and opened a seeded Lubec campaign to its placeholder page in its own skin.',
     )

@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({ setDoc: vi.fn() }))
 vi.mock('../../firebase', () => ({ db: {} }))
 vi.mock('firebase/firestore', () => ({
   doc: (_db: unknown, path: string) => ({ path }), setDoc: mocks.setDoc,
-  serverTimestamp: () => 'server-time', deleteField: () => 'delete-field', deleteDoc: vi.fn(),
+  serverTimestamp: () => 'server-time', deleteDoc: vi.fn(),
 }))
 const ose = await import('./lib/characterWrites')
 const vtm = await import('./characterStore/characterStoreWrites')

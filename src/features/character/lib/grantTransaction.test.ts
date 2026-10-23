@@ -41,7 +41,7 @@ describe('GM grant transaction', () => {
   })
 
   it.each([undefined, 0, 2])('refuses stored version %s with the plain message and writes nothing', async (schemaVersion) => {
-    stored({ details: { inventory: [rope], weapons: ['legacy'] }, xp: 100, schemaVersion })
+    stored({ details: { inventory: [rope] }, xp: 100, schemaVersion })
     await expect(grant({ xpAmount: 15 })).rejects.toThrow('This character is being updated. Try again in a minute.')
     expect(tx.set).not.toHaveBeenCalled()
   })

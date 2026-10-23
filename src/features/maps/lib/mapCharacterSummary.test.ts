@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mapCharacterSummary, mapCharacterSummaryFromData } from './mapCharacterSummary'
+import { mapCharacterSummaryFromData } from './mapCharacterSummary'
 
 describe('map character summary', () => {
   it('puts an OSE character with hit points left in play, without carrying the hit points', () => {
@@ -206,22 +206,11 @@ describe('map character token icon', () => {
   })
 })
 
-describe('reading through the rule set', () => {
-  it('keeps an unversioned OSE character with hit points and no maximum in play, as stored', () => {
-    expect(mapCharacterSummaryFromData('ose', { hpCurrent: 5, details: { packedItems: ['Rope'] } })).toMatchObject({
+describe('reading a stored character', () => {
+  it('keeps an OSE character with hit points and no maximum in play, as stored', () => {
+    expect(mapCharacterSummaryFromData('ose', { schemaVersion: 1, hpCurrent: 5, details: { inventory: [] } })).toMatchObject({
       creationStatus: 'active',
       inPlay: true,
     })
-  })
-
-  it('runs the rule set\'s steps on a stored document first', () => {
-    // Lubec is born at version 1 and has no step from 0, so only its steps refuse this.
-    const unversioned = { system: 'lubec', name: 'Ada' }
-    expect(() => mapCharacterSummaryFromData('lubec', unversioned)).toThrow('no migration step from version 0')
-    expect(mapCharacterSummaryFromData('lubec', { ...unversioned, schemaVersion: 1 }).name).toBe('Ada')
-  })
-
-  it('summarises a record its rule set has already read without running the steps again', () => {
-    expect(mapCharacterSummary('lubec', { system: 'lubec', name: 'Ada' })).toMatchObject({ name: 'Ada', inPlay: true })
   })
 })

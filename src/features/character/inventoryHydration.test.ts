@@ -23,8 +23,8 @@ const book = generalItem('book', 'Spell book', SPELL_BOOK_TYPE_ID)
 const details = (fields: Partial<CharacterSheetDetails>) => fields as CharacterSheetDetails
 
 // Converting an old-format sheet and adding a missing spell book are OSE's
-// step's now (`ruleSets/ose/characterMigrations.test.ts`); hydration takes the
-// items the step left.
+// step's (`ruleSets/ose/characterMigrations.test.ts`); hydration takes the
+// items the migration left.
 describe('seedInventoryFromDetails', () => {
   it('shows a stored inventory as it is, matching what was stored', () => {
     expect(seedInventoryFromDetails(details({ inventory: [rope, book] }))).toEqual({
@@ -34,8 +34,7 @@ describe('seedInventoryFromDetails', () => {
   })
 
   it('shows a sheet without items as having none, and adds no spell book', () => {
-    const legacy = details({ weapons: [{ id: 'w1', name: 'Sword' }] } as Partial<CharacterSheetDetails>)
-    expect(seedInventoryFromDetails(legacy)).toEqual({ inventory: [], persistedInventoryJson: '[]' })
+    expect(seedInventoryFromDetails(details({}))).toEqual({ inventory: [], persistedInventoryJson: '[]' })
   })
 })
 

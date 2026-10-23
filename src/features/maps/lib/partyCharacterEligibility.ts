@@ -1,5 +1,5 @@
 import type { StoredCharacter } from '../../ruleSets/storedCharacter'
-import { mapCharacterSummary } from './mapCharacterSummary'
+import { mapCharacterSummaryFromData } from './mapCharacterSummary'
 
 export type PartyCharacterEligibilityFields = {
   ownerUserId?: string | null
@@ -39,5 +39,5 @@ export function isPlayerOwnedLivingPartyCharacter(
   character: StoredCharacter & { id: string; inPlay?: never },
   gmUserId: string | null | undefined,
 ): boolean {
-  return isPartyCharacter(mapCharacterSummary(character.id, character), gmUserId)
+  return isPartyCharacter(mapCharacterSummaryFromData(character.id, character), gmUserId)
 }

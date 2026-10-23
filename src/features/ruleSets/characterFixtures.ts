@@ -1,6 +1,7 @@
 // The checked-in character fixtures under `ose/fixtures/` and `vtm/fixtures/`
 // are plain JSON, so a Firestore timestamp is written as { "$timestamp": ISO }.
 // These turn that marker into a real timestamp value and back.
+import { migrateCharacter, type CharacterVersioning } from './characterMigrations.ts'
 import type { StoredCharacter } from './storedCharacter.ts'
 
 export type CharacterFixture = { id: string; data: StoredCharacter }
@@ -32,3 +33,10 @@ export function markTimestamps(value: unknown, toIso: (value: unknown) => string
   if (!isRecord(value)) return value
   return mapValues(value, (entry) => markTimestamps(entry, toIso))
 }
+
+/**
+ * A fixture as the migration leaves it, at its rule set's current version.
+ * The app reads only that shape, so app tests open a fixture through this.
+ */
+export const migratedFixture = (versioning: CharacterVersioning, { id, data }: CharacterFixture): CharacterFixture =>
+  ({ id, data: migrateCharacter(versioning, id, data).document })

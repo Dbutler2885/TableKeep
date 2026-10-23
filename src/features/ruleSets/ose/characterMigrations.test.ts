@@ -1,16 +1,24 @@
 /**
  * OSE's 0 to 1 step, run on the checked-in fixtures. Its items are compared
- * with what today's hydration makes of the same document: the legacy
- * conversion (`migrateToInventory`) and the spell-book heal
- * (`ensureSpellBookInInventory`). Only the ids differ, because the step gives
- * a row without an id a stable one where today's code makes a random one.
+ * with what the app's hydration made of the same document before the step
+ * owned the conversion: the legacy conversion (`migrateToInventory`, kept
+ * below as that reference once the app stopped reading old-format sheets) and
+ * the spell-book heal (`ensureSpellBookInInventory`). Only the ids differ,
+ * because the step gives a row without an id a stable one where that code
+ * made a random one.
  */
 import { Timestamp } from 'firebase/firestore'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CharacterInventoryItem } from '../../../types/app'
-import { ensureSpellBookInInventory, makeSpellBookItem } from '../../character/characterFactories'
-import { migrateToInventory } from '../../character/lib/legacyCharacterMigration'
-import { readDetails } from '../../character/lib/storedCharacterRecord'
+import {
+  ensureSpellBookInInventory,
+  makeArmourItem,
+  makeId,
+  makeSpellBookItem,
+  makeWeaponItem,
+} from '../../character/characterFactories'
+import { makeGoldItem } from '../../character/inventoryOverflow'
+import { DEFAULT_STACK_POLICY } from '../../items/itemDefaults'
 import { markTimestamps, reviveTimestamps, type CharacterFixture } from '../characterFixtures'
 import type { StoredCharacter } from '../storedCharacter'
 import demoCleric from './fixtures/demo-cleric.json'
@@ -43,16 +51,67 @@ const migrate = ({ id, data }: CharacterFixture) => oseCharacterV0ToV1(data, id)
 const detailsOf = (document: StoredCharacter) => document.details as Fields
 const inventoryOf = (document: StoredCharacter) => detailsOf(document).inventory as Fields[]
 
-/** What today's hydration shows for a stored document: converted from the old lists if needed, then healed. */
-const todaysInventory = ({ data }: CharacterFixture): CharacterInventoryItem[] => {
-  const details = readDetails(data.details)
-  if (!details) return []
+type LegacyWeaponRow = {
+  id: string; weaponId: string; isMagic: boolean; name: string; damageDiceCount: string; damageDiceSides: string
+  bonus: string; rangeShort: string; rangeMedium: string; rangeLong: string; twoHanded: boolean; equipped: boolean; notes: string
+}
+type LegacyArmourRow = { id: string; armourId: string; isMagic: boolean; name: string; ac: string; bonus: string; equipped: boolean; notes: string }
+type LegacyDetails = {
+  inventory?: CharacterInventoryItem[]
+  weapons?: LegacyWeaponRow[]
+  armour?: LegacyArmourRow[]
+  packedItems?: string[]
+  equippedItems?: string[]
+  storeGoldSlotIndices?: number[]
+}
+
+const legacyTextItem = (text: string, equipped: boolean): CharacterInventoryItem => ({
+  id: makeId(), kind: 'general', typeId: 'custom', typeName: text, name: text, costGp: 0, equipped, notes: '', qty: 1,
+  stack: DEFAULT_STACK_POLICY.general,
+})
+
+/** The app's legacy conversion, as it stood when the step was made from it. */
+const migrateToInventory = (details: LegacyDetails): CharacterInventoryItem[] => {
+  const items: CharacterInventoryItem[] = []
+  for (const w of details.weapons ?? []) {
+    items.push(makeWeaponItem({
+      id: w.id || makeId(), name: w.name, typeId: w.weaponId || 'custom', typeName: '', isMagic: w.isMagic,
+      damageDiceCount: w.damageDiceCount, damageDiceSides: w.damageDiceSides, attackBonus: w.bonus, damageBonus: '',
+      rangeShort: w.rangeShort, rangeMedium: w.rangeMedium, rangeLong: w.rangeLong, twoHanded: w.twoHanded,
+      equipped: w.equipped, notes: w.notes,
+    }))
+  }
+  for (const a of details.armour ?? []) {
+    items.push(makeArmourItem({
+      id: a.id || makeId(), name: a.name, typeId: a.armourId || 'custom', typeName: '', isMagic: a.isMagic,
+      armourClass: a.ac, shieldMod: a.armourId === 'shield' ? '-1' : '', magicMod: a.bonus, equipped: a.equipped, notes: a.notes,
+    }))
+  }
+  const goldSlotSet = new Set(details.storeGoldSlotIndices ?? [])
+  ;(details.packedItems ?? []).forEach((row, i) => {
+    const text = (row ?? '').trim()
+    if (!text) return
+    const goldMatch = text.match(/^Gold:\s*(\d+)\s*gp$/i)
+    if (!goldMatch && !goldSlotSet.has(i)) items.push(legacyTextItem(text, false))
+    else if (goldMatch && Number.parseInt(goldMatch[1], 10) > 0) items.push(makeGoldItem(Number.parseInt(goldMatch[1], 10)))
+  })
+  for (const row of details.equippedItems ?? []) {
+    const text = (row ?? '').trim()
+    if (text && !/^Gold:\s*\d+\s*gp$/i.test(text)) items.push(legacyTextItem(text, true))
+  }
+  return items
+}
+
+/** What the app's hydration showed for a stored document: converted from the old lists if needed, then healed. */
+const formerInventory = ({ data }: CharacterFixture): CharacterInventoryItem[] => {
+  if (typeof data.details !== 'object' || data.details === null) return []
+  const details = data.details as LegacyDetails
   const stored = details.inventory ? details.inventory : migrateToInventory(details)
   return ensureSpellBookInInventory((data.class ?? '-') as string, stored)
 }
 
-// Today's code makes a random id for a row that has none; the mock below makes
-// those recognisable. The step's stable ids all start with `legacy-<character id>-`.
+// The former code made a random id for a row that had none; the mock below
+// makes those recognisable. The step's stable ids all start with `legacy-<character id>-`.
 const isGeneratedToday = (id: unknown) => !id || String(id).startsWith('generated-')
 
 const knownFields = (item: Fields, keys: string[]) => Object.fromEntries(keys.map((key) => [key, item[key]]))
@@ -76,8 +135,8 @@ describe('OSE step 0 to 1', () => {
     await expect(asFixtureJson(migrate(fixture))).toMatchFileSnapshot(`./fixtures/recorded/${name}.json`)
   })
 
-  it.each(allCases)('%s gives the same items, in the same order, as today\'s hydration', (_name, fixture) => {
-    const today = todaysInventory(fixture)
+  it.each(allCases)('%s gives the same items, in the same order, as the app\'s former hydration', (_name, fixture) => {
+    const today = formerInventory(fixture)
     const migrated = inventoryOf(migrate(fixture))
     expect(migrated).toHaveLength(today.length)
     today.forEach((todayItem, position) => {
@@ -229,7 +288,7 @@ describe('OSE step 0 to 1 conversion of the old lists', () => {
     expect(items.find((item) => item.id === 'a2')).toMatchObject({ kind: 'armour', armourClass: '3', magicMod: '+1' })
   })
 
-  it('keeps today\'s gold and text-row edge cases', () => {
+  it('keeps the former conversion\'s gold and text-row edge cases', () => {
     const items = convert({
       packedItems: ['Gold: 17 gp', 'Rope', 'not gold', '', '   '],
       storeGoldSlotIndices: [2],
