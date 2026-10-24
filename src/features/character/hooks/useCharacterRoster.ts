@@ -3,8 +3,14 @@
 
 import { useState } from 'react'
 import type { CharacterInventoryItem, CharacterRecord } from '../../../types/app'
-import { makeId } from '../characterFactories'
-import { defaultTokenIcon } from '../lib/characterSheetLayout'
+import {
+  type CreationMode,
+  HOLY_SYMBOL_REQUIRED,
+  addNewCharacter,
+  canFinalizeCharacter,
+  draftFinalizeError,
+  finalizeSelectionKey,
+} from '../lib/characterRoster'
 
 type Params = {
   campaignId: string; groupId: string; currentUserId: string; currentUsername: string
@@ -16,44 +22,35 @@ type Params = {
   createCharacter: (character: CharacterRecord) => Promise<void>
 }
 
-export function useCharacterRoster(params: Params) {
-  const [createCharacterModalOpen, setCreateCharacterModalOpen] = useState(false)
-  const selectionKey = params.effectiveSelected ? `${params.effectiveSelected.id}:${params.effectiveSelected.creationStatus}` : ''
+// The confirmation and error are stored with the selection key they were set
+// for, so both read as closed and empty once the selection or its status changes.
+function useSelectionKeyedFinalizeState(selectionKey: string) {
   const [finalizeConfirmKey, setFinalizeConfirmKey] = useState<string | null>(null)
   const [finalizeErrorState, setFinalizeErrorState] = useState<{ key: string; message: string } | null>(null)
-  const finalizeConfirmOpen = finalizeConfirmKey === selectionKey
-  const finalizeError = finalizeErrorState?.key === selectionKey ? finalizeErrorState.message : null
-  const setFinalizeConfirmOpen = (open: boolean) => setFinalizeConfirmKey(open ? selectionKey : null)
-  const setFinalizeError = (message: string | null) => setFinalizeErrorState(message ? { key: selectionKey, message } : null)
+  return {
+    finalizeConfirmOpen: finalizeConfirmKey === selectionKey,
+    finalizeError: finalizeErrorState?.key === selectionKey ? finalizeErrorState.message : null,
+    setFinalizeConfirmOpen: (open: boolean) => setFinalizeConfirmKey(open ? selectionKey : null),
+    setFinalizeError: (message: string | null) => setFinalizeErrorState(message ? { key: selectionKey, message } : null),
+  }
+}
+
+export function useCharacterRoster(params: Params) {
+  const [createCharacterModalOpen, setCreateCharacterModalOpen] = useState(false)
+  const { finalizeConfirmOpen, setFinalizeConfirmOpen, finalizeError, setFinalizeError } = useSelectionKeyedFinalizeState(finalizeSelectionKey(params.effectiveSelected))
   const [holySymbolRequiredOpen, setHolySymbolRequiredOpen] = useState(false)
-  const addCharacter = (creationMode: 'new' | 'established') => {
-    if (!params.canCreateCharacter) return
-    const next: CharacterRecord = { id: makeId(), name: 'New Character', ownerUserId: params.currentUserId, ownerUsername: params.currentUsername, creationMode, creationModeExplicit: true, creationStatus: creationMode === 'new' ? 'draft' : 'established_draft', className: '-', level: 1, hpCurrent: 0, hpMax: 0, ac: 10, xp: 0, portraitPath: '', portraitUrl: null, portraitFocusX: 50, portraitFocusY: 50, tokenIcon: defaultTokenIcon }
-    params.setSelectedCharacterId(next.id)
-    if (params.isSinglePane) params.showDetailPane()
-    void params.createCharacter(next)
-  }
-  const validateDraftCharacter = () => {
-    const selected = params.effectiveSelected
-    if (!selected) return 'No character selected.'
-    if (selected.className === '-') return 'Choose a class before finalizing.'
-    if (!params.hasRolledAbilityScores) return 'Roll ability scores before finalizing.'
-    if (!params.hasRolledHp) return 'Roll hit points before finalizing.'
-    if (selected.hpMax <= 0) return 'Set maximum hit points before finalizing.'
-    if (selected.className === 'Cleric' && !params.selectedInventory.some((item) => (item.name ?? '').toLowerCase().includes('holy symbol'))) return 'HOLY_SYMBOL_REQUIRED'
-    return null
-  }
+  const addCharacter = (creationMode: CreationMode) => addNewCharacter(params, creationMode)
   const requestFinalizeCharacter = () => {
-    if (!params.effectiveSelected || !params.canEditSelected || !params.isInFinalizationFlow) return
+    if (!canFinalizeCharacter(params)) return
     if (params.isGuidedCreation) {
-      const error = validateDraftCharacter()
-      if (error) { if (error === 'HOLY_SYMBOL_REQUIRED') setHolySymbolRequiredOpen(true); else setFinalizeError(error); return }
+      const error = draftFinalizeError(params)
+      if (error) { if (error === HOLY_SYMBOL_REQUIRED) setHolySymbolRequiredOpen(true); else setFinalizeError(error); return }
     }
     setFinalizeError(null)
     setFinalizeConfirmOpen(true)
   }
   const finalizeCharacter = () => {
-    if (!params.effectiveSelected || !params.canEditSelected || !params.isInFinalizationFlow) return
+    if (!canFinalizeCharacter(params)) return
     params.updateSelectedCharacter({ creationStatus: 'active' })
     setFinalizeConfirmOpen(false)
     setFinalizeError(null)
