@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type {
   CharacterRecord,
   CharacterInventoryItem,
@@ -6,13 +6,9 @@ import type {
 import { useItems } from '../items/useItems'
 import { useItemApprovals } from './hooks/useItemApprovals'
 import type { StoreCategoryId } from './storeCatalog'
-import {
-  type AbilityCode,
-  saveScoresForClassLevel,
-  thacoForClassLevel,
-} from './characterRules'
 import { usePendingTransfers } from '../transfers/usePendingTransfers'
-import { useResponsiveCharacterLayout } from './hooks/useResponsiveCharacterLayout'
+import { useCharacterTabLayout } from './hooks/useCharacterTabLayout'
+import { useCharacterSelection } from './hooks/useCharacterSelection'
 import { useCharacterPersistenceSync } from './hooks/useCharacterPersistenceSync'
 import { useCharacterCreationFlow } from './hooks/useCharacterCreationFlow'
 import { useSpellbookDomain } from './hooks/useSpellbookDomain'
@@ -42,13 +38,21 @@ import { CharacterCoreSheetPage } from './components/CharacterCoreSheetPage'
 import { CharacterItemsPage } from './components/CharacterItemsPage'
 import { ItemDetailModal } from './components/ItemDetailModal'
 import { CharacterSheetNavigation } from './components/CharacterSheetNavigation'
+import { CharacterDetailPane } from './components/CharacterDetailPane'
 import { ItemInteractionDialogs } from './components/ItemInteractionDialogs'
 import { CharacterWorkflowDialogs } from './components/CharacterWorkflowDialogs'
 import { SpellbookModals } from './components/SpellbookModals'
 import { canDeleteCharacterForRole, deriveCharacterPermissions } from './lib/characterPermissions'
+import { applyPlayerAddTemplateToOpenModal } from './lib/playerAddGear'
+import { characterIdOf } from './lib/characterSelection'
+import { selectedCharacterUpdaters } from './lib/selectedCharacterUpdates'
 import {
-  applyPlayerAddTemplate as applyPlayerAddTemplateState,
-} from './lib/playerAddGear'
+  applyClassDerivedData,
+  hasPendingAbilityRerollFor,
+  requestAbilityScoreRoll,
+  updateAbilityScore,
+} from './lib/coreSheetActions'
+import { deleteConfirmTargetFor, detailItemFor, selectCharacterFromList } from './lib/characterTabHandlers'
 import type {
   CharacterTabProps,
 } from './lib/characterTabTypes'
@@ -113,7 +117,6 @@ export function CharacterTab({
   const [overflowFeedback, setOverflowFeedback] = useState<string | null>(null)
   const [overflowWriting, setOverflowWriting] = useState(false)
   const [grantMode, setGrantMode] = useState(false)
-  const effectiveGrantMode = grantMode && role === 'gm'
 
   // Declared after `grantMode` because the grant builder occupies the detail
   // pane just like a sheet does: both count as "open" when the layout narrows
@@ -121,9 +124,9 @@ export function CharacterTab({
   const {
     isMobile, isSinglePane, setPaneView,
     activePage, setActivePage,
-    showListPane, showDetailPane,
+    effectiveShowListPane, effectiveShowDetailPane, effectiveGrantMode,
     isIntermediateMobileLayout, useIntermediateLayout,
-  } = useResponsiveCharacterLayout({ hasOpenDetail: !!selectedCharacterId || effectiveGrantMode })
+  } = useCharacterTabLayout({ grantMode, role, selectedCharacterId, embeddedMode })
 
   const itemApprovals = useItemApprovals(campaignId, groupId, role, currentUserId)
   const { ownPendingRequests, submitRequest, submitSpellLearnRequest, submitAbilityRerollRequest } = itemApprovals
@@ -146,37 +149,17 @@ export function CharacterTab({
 
   useAutoClearFeedback(overflowFeedback, setOverflowFeedback)
 
-  const visibleCharacters = useMemo(
-    () => (
-      embeddedMode && role === 'player'
-        ? characters.filter((character) => character.id === currentCharacterId && character.ownerUserId === currentUserId)
-        : characters
-    ),
-    [characters, currentCharacterId, currentUserId, embeddedMode, role],
-  )
-  const sortedCharacters = useMemo(() => {
-    // Tier order: active player characters, then active GM-owned, then dead.
-    const tier = (character: CharacterRecord) => {
-      if (character.hpCurrent <= 0) return 2
-      if (gmUserId && character.ownerUserId === gmUserId) return 1
-      return 0
-    }
-    return [...visibleCharacters].sort((a, b) => {
-      const tierDiff = tier(a) - tier(b)
-      if (tierDiff !== 0) return tierDiff
-      return a.name.localeCompare(b.name)
-    })
-  }, [visibleCharacters, gmUserId])
-  const effectiveSelected = embeddedMode
-    ? (sortedCharacters[0] ?? null)
-    : selectedCharacter ?? sortedCharacters.find((character) => character.id === selectedCharacterId) ?? null
-
-  useEffect(() => {
-    if (embeddedMode || sortedCharacters.length === 0) return
-    if (!effectiveSelected) {
-      setSelectedCharacterId(sortedCharacters[0].id)
-    }
-  }, [effectiveSelected, embeddedMode, setSelectedCharacterId, sortedCharacters])
+  const { sortedCharacters, effectiveSelected } = useCharacterSelection({
+    characters,
+    role,
+    gmUserId,
+    currentUserId,
+    currentCharacterId,
+    selectedCharacter,
+    selectedCharacterId,
+    setSelectedCharacterId,
+    embeddedMode,
+  })
   const permissions = deriveCharacterPermissions({ role, currentUserId, character: effectiveSelected, grantMode: effectiveGrantMode })
   const {
     canCreateCharacter, canEditSelected, canEditInventoryDetails, canGrant,
@@ -204,22 +187,10 @@ export function CharacterTab({
     enterGrantMode, exitGrantMode, exitGrantModeForCharacterSelection, toggleGrantTarget,
   } = grantTools
   const canDeleteCharacter = (character: CharacterRecord) => canDeleteCharacterForRole(role, currentUserId, character)
-  const effectiveShowListPane = embeddedMode ? false : showListPane
-  const effectiveShowDetailPane = embeddedMode ? true : showDetailPane
   const playerAssignment = usePlayerAssignment({ effectiveSelected, campaignPlayers, updateCharacter })
   const { openPlayerAssignment } = playerAssignment
 
-  const updateSelectedCharacter = (updates: Partial<CharacterRecord>) => {
-    if (!effectiveSelected) return
-    const nextUpdates = { ...updates }
-    delete nextUpdates.hpMax
-    updateCharacter(effectiveSelected.id, nextUpdates)
-  }
-
-  const updateSelectedCharacterSystem = (updates: Partial<CharacterRecord>) => {
-    if (!effectiveSelected) return
-    updateCharacter(effectiveSelected.id, updates)
-  }
+  const { updateSelectedCharacter, updateSelectedCharacterSystem } = selectedCharacterUpdaters(effectiveSelected, updateCharacter)
 
   const selectedDerivations = useSelectedCharacterDerivations({
     effectiveSelected,
@@ -281,68 +252,12 @@ export function CharacterTab({
     kind: 'general' | 'weapon' | 'armour' | 'ammunition',
     templateId: string,
   ) => {
-    setAddItemModal((current) => current ? applyPlayerAddTemplateState(current, kind, templateId) : current)
+    setAddItemModal((current) => applyPlayerAddTemplateToOpenModal(current, kind, templateId))
   }
 
   const characterMedia = useCharacterMedia({
     campaignId, groupId, currentUserId, effectiveSelected, canEditSelected,
   })
-  const updateAbilityScore = (code: AbilityCode, value: string) => {
-    if (!effectiveSelected) return
-    if (!canEditAbilityScores) return
-    if (!isGuidedCreation) {
-      if (value.trim().length === 0) {
-        setAbilityScoresByCharacterId((current) => ({
-          ...current,
-          [effectiveSelected.id]: {
-            ...selectedAbilityScores,
-            [code]: '',
-          },
-        }))
-        return
-      }
-      const nextValue = Number.parseInt(value, 10)
-      if (!Number.isFinite(nextValue) || nextValue < 1 || nextValue > 18) return
-      setAbilityScoresByCharacterId((current) => ({
-        ...current,
-        [effectiveSelected.id]: {
-          ...selectedAbilityScores,
-          [code]: String(nextValue),
-        },
-      }))
-      return
-    }
-    if (selectedClassName === '-') {
-      setReallocationClassRequiredOpen(true)
-      return
-    }
-    const nextValue = Number.parseInt(value, 10)
-    const nextGuidedScores = tryBuildGuidedScores(code, nextValue)
-    if (!nextGuidedScores) return
-    setAbilityScoresByCharacterId((current) => ({
-      ...current,
-      [effectiveSelected.id]: nextGuidedScores,
-    }))
-  }
-
-  const applyClassDerivedData = (characterId: string, className: string) => {
-    const classLevel = characterId === effectiveSelected?.id ? (effectiveSelected.level ?? 1) : 1
-    const saveProfile = saveScoresForClassLevel(className, classLevel)
-    if (saveProfile) {
-      setSaveScoresByCharacterId((current) => ({
-        ...current,
-        [characterId]: saveProfile,
-      }))
-    }
-    const nextThaco = thacoForClassLevel(className, classLevel)
-    if (nextThaco !== null) {
-      setThacoByCharacterId((current) => ({
-        ...current,
-        [characterId]: String(nextThaco),
-      }))
-    }
-  }
-
   const creationFlow = useCharacterCreationFlow({
     effectiveSelected,
     selectedCharacterId,
@@ -388,25 +303,27 @@ export function CharacterTab({
   } = creationFlow
 
   const requestRollHitPoints = () => _requestRollHitPoints(setHpClassRequiredOpen)
-  const hasPendingAbilityReroll = ownPendingRequests.some((request) =>
-    request.action === 'ability_reroll'
-    && request.characterId === effectiveSelected?.id
-    && request.status === 'pending',
-  )
-
-  const requestAbilityScoreRoll = () => {
-    if (!effectiveSelected || !canEditSelected || !isGuidedCreation) return
-    if (!hasRolledAbilityScores || role === 'gm') {
-      rollAbilityScores()
-      return
-    }
-    if (hasPendingAbilityReroll) return
-    void submitAbilityRerollRequest(
-      effectiveSelected.id,
-      effectiveSelected.name,
-      currentUsername,
-    )
-    setApprovalPendingFeedback('Ability score re-roll sent to GM for approval.')
+  const hasPendingAbilityReroll = hasPendingAbilityRerollFor(ownPendingRequests, effectiveSelected)
+  const openReallocationClassRequired = () => setReallocationClassRequiredOpen(true)
+  const coreSheetActionState = {
+    effectiveSelected,
+    role,
+    currentUsername,
+    canEditSelected,
+    canEditAbilityScores,
+    isGuidedCreation,
+    hasRolledAbilityScores,
+    hasPendingAbilityReroll,
+    selectedClassName,
+    selectedAbilityScores,
+    tryBuildGuidedScores,
+    rollAbilityScores,
+    submitAbilityRerollRequest,
+    setAbilityScoresByCharacterId,
+    setSaveScoresByCharacterId,
+    setThacoByCharacterId,
+    setApprovalPendingFeedback,
+    openReallocationClassRequired,
   }
 
   const spellbookDomain = useSpellbookDomain({
@@ -547,20 +464,20 @@ export function CharacterTab({
           canCreateCharacter={canCreateCharacter}
           charactersLoading={charactersLoading}
           sortedCharacters={sortedCharacters}
-          effectiveSelectedId={effectiveSelected?.id ?? null}
+          effectiveSelectedId={characterIdOf(effectiveSelected)}
           currentCharacterId={currentCharacterId}
           canDeleteCharacter={canDeleteCharacter}
           onCreateCharacter={() => setCreateCharacterModalOpen(true)}
-          onSelectCharacter={(characterId) => {
-            if (effectiveGrantMode) {
-              exitGrantModeForCharacterSelection()
-            }
-            resetLevelUpForCharacterSelection()
-            setSelectedCharacterId(characterId)
-            if (isSinglePane) setPaneView('detail')
-          }}
+          onSelectCharacter={(characterId) => selectCharacterFromList({
+            effectiveGrantMode,
+            isSinglePane,
+            exitGrantModeForCharacterSelection,
+            resetLevelUpForCharacterSelection,
+            setSelectedCharacterId,
+            setPaneView,
+          }, characterId)}
           onDeleteCharacter={(character) => {
-            setDeleteConfirmTarget({ id: character.id, name: character.name || 'character' })
+            setDeleteConfirmTarget(deleteConfirmTargetFor(character))
           }}
           showGrantCard={canGrant}
           isGrantMode={effectiveGrantMode}
@@ -571,10 +488,15 @@ export function CharacterTab({
       ) : null}
 
       {effectiveShowDetailPane ? (
-        <div className="monsters-detail characters-detail">
-          <div className="monsters-detail-inner characters-detail-inner">
+        <CharacterDetailPane
+          character={effectiveSelected}
+          embeddedMode={embeddedMode}
+          grantMode={effectiveGrantMode}
+          activePage={activePage}
+          finalizeError={finalizeError}
+          renderNavigation={(position) => (
             <CharacterSheetNavigation
-              position="top"
+              position={position}
               character={effectiveSelected}
               effectiveGrantMode={effectiveGrantMode}
               activePage={activePage}
@@ -592,81 +514,54 @@ export function CharacterTab({
               onExitGrant={exitGrantMode}
               onBackToList={() => setPaneView('list')}
             />
-
-            {finalizeError ? <p className="error">{finalizeError}</p> : null}
-
-            {effectiveGrantMode ? (
-              <GrantToolsPanel tools={grantTools} characters={sortedCharacters} isMobile={isMobile} />
-            ) : !effectiveSelected ? (
-              <p>{embeddedMode ? "You don't have a character, yet." : 'Select a character from the list.'}</p>
-            ) : (
-              <div className="monster-editor-grid character-editor-grid">
-                {activePage === 'core' ? (
-                  <CharacterCoreSheetPage
-                    character={effectiveSelected}
-                    role={role}
-                    layout={{ isMobile, useIntermediateLayout, isIntermediateMobileLayout }}
-                    permissions={permissions}
-                    derivations={selectedDerivations}
-                    creationFlow={creationFlow}
-                    media={characterMedia}
-                    sheetState={{ stateMaps, stateSetters }}
-                    hasPendingAbilityReroll={hasPendingAbilityReroll}
-                    actions={{
-                      updateCharacter: updateSelectedCharacter,
-                      updateCharacterSystem: updateSelectedCharacterSystem,
-                      applyClassDerivedData,
-                      requestAbilityScoreRoll,
-                      requestRollHitPoints,
-                      updateAbilityScore,
-                      openReallocationClassRequired: () => setReallocationClassRequiredOpen(true),
-                    }}
-                  />
-                ) : (
-                  <CharacterItemsPage
-                    character={effectiveSelected}
-                    permissions={permissions}
-                    derivations={selectedDerivations}
-                    inventoryDomain={inventoryDomain}
-                    spellbookDomain={spellbookDomain}
-                    storeDomain={storeDomain}
-                    approvals={itemApprovals}
-                    sheetState={{ stateMaps, stateSetters }}
-                    overflowFeedback={overflowFeedback}
-                    approvalPendingFeedback={approvalPendingFeedback}
-                    onOpenStore={() => {
-                      setStoreError(null)
-                      setStoreOpen(true)
-                    }}
-                    onOpenStoreClassRequired={() => setStoreClassRequiredOpen(true)}
-                    onOpenItemDetail={setItemDetailId}
-                    onUpdateCharacter={updateSelectedCharacter}
-                  />
-                )}
-
-                <CharacterSheetNavigation
-                  position="bottom"
-                  character={effectiveSelected}
-                  effectiveGrantMode={effectiveGrantMode}
-                  activePage={activePage}
-                  setActivePage={setActivePage}
-                  permissions={permissions}
-                  levelUpFlow={levelUpFlow}
-                  canSelectedLevelUp={canSelectedLevelUp}
-                  currentCharacterId={currentCharacterId}
-                  setCurrentCharacter={setCurrentCharacter}
-                  isMobile={isMobile}
-                  isSinglePane={isSinglePane}
-                  embeddedMode={embeddedMode}
-                  onFinalize={requestFinalizeCharacter}
-                  onAssign={openPlayerAssignment}
-                  onExitGrant={exitGrantMode}
-                  onBackToList={() => setPaneView('list')}
-                />
-              </div>
-            )}
-          </div>
-        </div>
+          )}
+          renderGrantTools={() => (
+            <GrantToolsPanel tools={grantTools} characters={sortedCharacters} isMobile={isMobile} />
+          )}
+          renderCorePage={(character) => (
+            <CharacterCoreSheetPage
+              character={character}
+              role={role}
+              layout={{ isMobile, useIntermediateLayout, isIntermediateMobileLayout }}
+              permissions={permissions}
+              derivations={selectedDerivations}
+              creationFlow={creationFlow}
+              media={characterMedia}
+              sheetState={{ stateMaps, stateSetters }}
+              hasPendingAbilityReroll={hasPendingAbilityReroll}
+              actions={{
+                updateCharacter: updateSelectedCharacter,
+                updateCharacterSystem: updateSelectedCharacterSystem,
+                applyClassDerivedData: (characterId, className) => applyClassDerivedData(coreSheetActionState, characterId, className),
+                requestAbilityScoreRoll: () => requestAbilityScoreRoll(coreSheetActionState),
+                requestRollHitPoints,
+                updateAbilityScore: (code, value) => updateAbilityScore(coreSheetActionState, code, value),
+                openReallocationClassRequired,
+              }}
+            />
+          )}
+          renderItemsPage={(character) => (
+            <CharacterItemsPage
+              character={character}
+              permissions={permissions}
+              derivations={selectedDerivations}
+              inventoryDomain={inventoryDomain}
+              spellbookDomain={spellbookDomain}
+              storeDomain={storeDomain}
+              approvals={itemApprovals}
+              sheetState={{ stateMaps, stateSetters }}
+              overflowFeedback={overflowFeedback}
+              approvalPendingFeedback={approvalPendingFeedback}
+              onOpenStore={() => {
+                setStoreError(null)
+                setStoreOpen(true)
+              }}
+              onOpenStoreClassRequired={() => setStoreClassRequiredOpen(true)}
+              onOpenItemDetail={setItemDetailId}
+              onUpdateCharacter={updateSelectedCharacter}
+            />
+          )}
+        />
       ) : null}
       <StoreModal
         state={{ storeOpen, effectiveSelected, selectedStoreCart, hasRolledStartingGold, selectedStoreRemaining, selectedStartingGold, canEditSelected, storeCategory, customStoreName, customStoreCost, customStoreDescription, visibleStoreItems, selectedClassName, selectedStoreCartTotal, storeCartExceedsPackedSlots, selectedStoreOpenPackedSlots, selectedStoreRequiredPacked, storeError, storeCloseConfirmOpen }}
@@ -709,7 +604,7 @@ export function CharacterTab({
         renderReadOnlyItemDetail={renderReadOnlyItemDetail}
         onSave={saveAddItem}
       />
-      <TransferPickerModal flow={transferFlow} detailItem={itemDetailId ? selectedInventory.find((item) => item.id === itemDetailId) ?? null : null} />
+      <TransferPickerModal flow={transferFlow} detailItem={detailItemFor(selectedInventory, itemDetailId)} />
       <PlayerAssignmentModal character={effectiveSelected} flow={playerAssignment} />
       <LevelUpModal character={effectiveSelected} flow={levelUpFlow} derivations={selectedDerivations} />
       <ItemInteractionDialogs

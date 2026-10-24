@@ -54,3 +54,10 @@ export const playerAddPreviewItem = (modal: AddItemModalState | null): Character
   }
   return { id: makeId(), kind: 'general', typeId: modal.typeId, typeName: modal.typeName, costGp: Number.parseFloat(modal.costGp) || 0, equipped: false, notes: '', qty: 1, stack: DEFAULT_STACK_POLICY.general, description: modal.description }
 }
+
+/** The template applied to the add-item modal when it is open; a closed modal stays closed. */
+export const applyPlayerAddTemplateToOpenModal = (
+  current: AddItemModalState | null,
+  kind: 'general' | 'weapon' | 'armour' | 'ammunition',
+  templateId: string,
+): AddItemModalState | null => (current ? applyPlayerAddTemplate(current, kind, templateId) : current)

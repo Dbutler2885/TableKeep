@@ -4,7 +4,15 @@
   "vitest": { "configFile": "vitest.character-mutation.config.ts", "related": false },
   "mutate": [
     "src/features/character/CharacterTab.tsx",
-    "src/features/character/hooks/useCharacterRoster.ts"
+    "src/features/character/hooks/useCharacterRoster.ts",
+    "src/features/character/hooks/useCharacterSelection.ts",
+    "src/features/character/hooks/useCharacterTabLayout.ts",
+    "src/features/character/components/CharacterDetailPane.tsx",
+    "src/features/character/lib/characterRoster.ts",
+    "src/features/character/lib/characterSelection.ts",
+    "src/features/character/lib/characterTabHandlers.ts",
+    "src/features/character/lib/coreSheetActions.ts",
+    "src/features/character/lib/selectedCharacterUpdates.ts"
   ],
   "concurrency": 2,
   "reporters": ["progress", "clear-text", "json", "html"],
