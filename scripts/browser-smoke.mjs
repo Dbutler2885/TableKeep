@@ -1021,7 +1021,7 @@ async function wanderingMonsterCases(browser, testCase, ids, browserErrors) {
 }
 
 // No GM can create a Lubec campaign, so the smoke seeds one. It opens to the
-// placeholder page in Lubec's own skin, with the character tab its only tab.
+// placeholder page in Lubec's own skin, with its five tabs in the side nav.
 const LUBEC_PLACEHOLDER = '.shell-root[data-theme="lubec"] .lubec-sheet-placeholder'
 
 async function expectNavTabs(page, expected) {
@@ -1032,7 +1032,7 @@ async function expectNavTabs(page, expected) {
 async function lubecPlaceholderCase(page, campaignName) {
   await step('open the seeded Lubec campaign', () => openCampaignCard(page, campaignName, LUBEC_PLACEHOLDER))
   await step('show the Lubec placeholder page', () => waitForBodyText(page, 'The Lubec character sheet is not built yet.'))
-  await step('offer only the character tab', () => expectNavTabs(page, ['Characters']))
+  await step('offer the five Lubec tabs', () => expectNavTabs(page, ['Characters', 'Maps', 'NPCs', 'Notes', 'Calendar']))
 }
 
 async function lubecCampaignCase(browser, testCase, ids, browserErrors) {
@@ -1147,7 +1147,7 @@ async function runViewport(browser, testCase) {
       + 'and kept the items and ids the migration made of an old-format character through a save and two reloads, '
       + 'storing it at version 1, '
       + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map, '
-      + 'and opened a seeded Lubec campaign to its placeholder page in its own skin.',
+      + 'and opened a seeded Lubec campaign to its placeholder page in its own skin, with its five tabs.',
     )
   } finally {
     await screenshot(page, testCase.name)

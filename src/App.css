@@ -15408,3 +15408,406 @@ button:disabled {
     padding-top: 0;
   }
 }
+
+/* ====================================================================== */
+/* === [data-theme="lubec"] - Washington County, Maine, 1977 ============ */
+/* ====================================================================== */
+
+/* After the "Lubec 1977 | Gear, v4" prototype: aged paper under ink, a dark
+   band with a rust and mustard stripe, Rockwell headings over American
+   Typewriter text. The tokens are the prototype's; the sheet's own masthead,
+   name band and panels build on them. */
+.shell-root[data-theme="lubec"] {
+  --lubec-ink: #17282b;
+  --lubec-muted: #607071;
+  --lubec-paper: #f2ead7;
+  --lubec-paper-deep: #e4d6b9;
+  --lubec-blue: #174b58;
+  --lubec-blue-alt: #256675;
+  --lubec-rust: #a34229;
+  --lubec-cream: #fff8e7;
+  --lubec-success: #278153;
+  --lubec-failure: #ef3f2f;
+  --lubec-mustard: #d69a2d;
+  --lubec-pine: #2d5745;
+  --lubec-line: rgba(23, 40, 43, 0.36);
+  --lubec-display: 'Rockwell', 'American Typewriter', Georgia, serif;
+  --lubec-type: 'American Typewriter', 'Courier New', monospace;
+  --lubec-condensed: 'DIN Condensed', 'Avenir Next Condensed', 'Arial Narrow', sans-serif;
+
+  /* The shared variables the notes, calendar and map panels read. */
+  --accent: var(--lubec-rust);
+  --accent-color: var(--lubec-rust);
+  --hover: var(--lubec-paper-deep);
+  --text-color: var(--lubec-ink);
+  --text-muted: var(--lubec-muted);
+  --border-color: var(--lubec-line);
+
+  background:
+    radial-gradient(ellipse at 50% 40%, transparent 55%, rgba(74, 52, 26, 0.16) 100%),
+    repeating-linear-gradient(0deg, rgba(53, 64, 53, 0.025) 0 1px, transparent 1px 4px),
+    var(--lubec-paper);
+  color: var(--lubec-ink);
+  font-family: var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] ::selection {
+  background: var(--lubec-mustard);
+  color: var(--lubec-ink);
+}
+
+/* --- Side nav: the prototype's dark top bar, turned on its side ------- */
+
+.shell-root[data-theme="lubec"] .side-nav {
+  background: var(--lubec-ink);
+  color: var(--lubec-paper);
+  border-right: 5px solid var(--lubec-rust);
+  box-shadow: 4px 0 0 var(--lubec-mustard), 12px 0 32px rgba(7, 20, 23, 0.35);
+  /* Above .map-stage (101) and the backdrop (200) so the drawer occludes the map. */
+  z-index: 210;
+}
+
+.shell-root[data-theme="lubec"] .side-title {
+  color: var(--lubec-cream);
+  font: 700 2.1rem/1 var(--lubec-condensed);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* The B&W mark is black on transparent; the band is ink, so turn it cream. */
+.shell-root[data-theme="lubec"] .side-title-logo {
+  filter: invert(1) sepia(0.25);
+}
+
+.shell-root[data-theme="lubec"] .side-meta {
+  color: var(--lubec-mustard);
+  font: 700 0.95rem/1.1 var(--lubec-condensed);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .side-campaign-back {
+  align-self: center;
+  background: transparent;
+  border: 0;
+  color: var(--lubec-paper);
+  font: 800 1.1rem/1.1 var(--lubec-display);
+  text-align: center;
+}
+
+.shell-root[data-theme="lubec"] .side-campaign-back:hover {
+  background: rgba(242, 234, 215, 0.1);
+}
+
+.shell-root[data-theme="lubec"] .nav-list {
+  gap: 0.25rem;
+  padding: 0.6rem 0;
+  border-top: 2px solid rgba(242, 234, 215, 0.25);
+  border-bottom: 2px solid rgba(242, 234, 215, 0.25);
+}
+
+.shell-root[data-theme="lubec"] .tab-button {
+  padding: 0.55rem 0.8rem 0.4rem;
+  color: var(--lubec-paper);
+  font: 700 1.15rem/1 var(--lubec-condensed);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .tab-button:hover,
+.shell-root[data-theme="lubec"] .tab-button:active,
+.shell-root[data-theme="lubec"] .tab-button:focus {
+  background: rgba(242, 234, 215, 0.1);
+  color: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .tab-button:focus-visible {
+  outline: 2px solid var(--lubec-mustard);
+  outline-offset: -2px;
+}
+
+.shell-root[data-theme="lubec"] .tab-button.active {
+  background: var(--lubec-rust);
+  color: var(--lubec-cream);
+  font-weight: 700;
+}
+
+.shell-root[data-theme="lubec"] .account-panel {
+  border-top: 2px solid rgba(242, 234, 215, 0.25);
+}
+
+.shell-root[data-theme="lubec"] .account-email,
+.shell-root[data-theme="lubec"] .account-username {
+  color: rgba(242, 234, 215, 0.78);
+  font: 700 0.78rem/1.3 var(--lubec-type);
+  letter-spacing: 0.04em;
+}
+
+.shell-root[data-theme="lubec"] .account-username {
+  color: var(--lubec-mustard);
+}
+
+.shell-root[data-theme="lubec"] .account-panel button {
+  background: transparent;
+  color: var(--lubec-paper);
+  border: 2px solid rgba(242, 234, 215, 0.55);
+  border-radius: 0;
+}
+
+.shell-root[data-theme="lubec"] .account-panel button:hover {
+  background: rgba(242, 234, 215, 0.1);
+  color: var(--lubec-cream);
+}
+
+/* --- Menu toggle and drawer ------------------------------------------- */
+
+.shell-root[data-theme="lubec"] .menu-toggle {
+  background: var(--lubec-ink);
+  color: var(--lubec-cream);
+  border: 2px solid var(--lubec-ink);
+  border-radius: 0;
+  box-shadow: 0 3px 0 var(--lubec-mustard);
+  /* Above the Lubec .map-stage (101) so the drawer stack occludes the map. */
+  z-index: 220;
+}
+
+.shell-root[data-theme="lubec"] .menu-toggle:hover {
+  background: var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .drawer-backdrop {
+  background: rgba(16, 43, 49, 0.62);
+  /* Above .map-stage (101) so the map is covered. */
+  z-index: 200;
+}
+
+/* --- Content surface ---------------------------------------------------- */
+
+.shell-root[data-theme="lubec"] .content-panel,
+.shell-root[data-theme="lubec"] section {
+  background: transparent;
+  color: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] h1,
+.shell-root[data-theme="lubec"] h2,
+.shell-root[data-theme="lubec"] h3 {
+  font-family: var(--lubec-display);
+  color: var(--lubec-blue);
+  letter-spacing: -0.01em;
+}
+
+.shell-root[data-theme="lubec"] .content-panel h2 {
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] input,
+.shell-root[data-theme="lubec"] select,
+.shell-root[data-theme="lubec"] textarea {
+  background: var(--lubec-cream);
+  color: var(--lubec-ink);
+  border: 1.5px solid var(--lubec-ink);
+  border-radius: 0;
+  font-family: var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] input::placeholder,
+.shell-root[data-theme="lubec"] textarea::placeholder {
+  color: var(--lubec-muted);
+}
+
+.shell-root[data-theme="lubec"] input:focus,
+.shell-root[data-theme="lubec"] select:focus,
+.shell-root[data-theme="lubec"] textarea:focus {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 1px;
+}
+
+/* Buttons take the skin's colours and type and keep their own sizes. */
+.shell-root[data-theme="lubec"] button {
+  background: var(--lubec-cream);
+  color: var(--lubec-blue);
+  border-color: var(--lubec-ink);
+  font-family: var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] button:hover {
+  background: var(--lubec-paper-deep);
+  color: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] button:focus-visible {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] input[type="checkbox"],
+.shell-root[data-theme="lubec"] input[type="radio"],
+.shell-root[data-theme="lubec"] input[type="range"] {
+  accent-color: var(--lubec-rust);
+}
+
+/* --- Lists: maps, NPCs, sessions -------------------------------------- */
+
+.shell-root[data-theme="lubec"] .map-row {
+  background: var(--lubec-cream);
+  border: 1.5px solid var(--lubec-line);
+  border-radius: 0;
+}
+
+.shell-root[data-theme="lubec"] .map-row:hover {
+  background: var(--lubec-paper-deep);
+}
+
+.shell-root[data-theme="lubec"] .map-row.active,
+.shell-root[data-theme="lubec"] .map-row.active:hover {
+  background: var(--lubec-paper-deep);
+  border-color: var(--lubec-ink);
+  box-shadow: inset 5px 0 0 var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .map-row.drag-over {
+  border-color: var(--lubec-rust);
+}
+
+/* Section labels wear the prototype's coloured header bars. */
+.shell-root[data-theme="lubec"] .monster-section-title {
+  background: var(--lubec-blue);
+  color: var(--lubec-cream);
+  border-radius: 0;
+  font-family: var(--lubec-display);
+  letter-spacing: 0.02em;
+}
+
+.shell-root[data-theme="lubec"] .character-header-tag {
+  background: var(--lubec-ink);
+  color: var(--lubec-cream);
+  border-color: var(--lubec-ink);
+  font-family: var(--lubec-type);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .npc-tag-chip {
+  background: var(--lubec-cream);
+  border-color: var(--lubec-line);
+  color: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .npc-tag-chip.selected {
+  background: var(--lubec-blue);
+  border-color: var(--lubec-blue);
+  color: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .npc-richtext-editor,
+.shell-root[data-theme="lubec"] .npc-richtext-preview {
+  background: var(--lubec-cream);
+  border: 1.5px solid var(--lubec-ink);
+  border-radius: 0;
+  color: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .npc-richtext-editor:focus {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 1px;
+}
+
+/* --- Dialogs -------------------------------------------------------------- */
+
+.shell-root[data-theme="lubec"] .confirm-overlay {
+  background: rgba(16, 43, 49, 0.62);
+}
+
+.shell-root[data-theme="lubec"] .confirm-modal {
+  background:
+    repeating-linear-gradient(0deg, rgba(53, 64, 53, 0.025) 0 1px, transparent 1px 4px),
+    var(--lubec-paper);
+  border: 2px solid var(--lubec-ink);
+  border-radius: 0;
+  box-shadow: 0 24px 64px rgba(7, 20, 23, 0.45);
+  color: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .confirm-modal.group-modal::before,
+.shell-root[data-theme="lubec"] .confirm-modal.group-modal::after {
+  display: none;
+}
+
+.shell-root[data-theme="lubec"] .confirm-modal h3 {
+  color: var(--lubec-blue);
+  font: 800 1.5rem/1.1 var(--lubec-display);
+  text-transform: uppercase;
+  padding-bottom: 0.6rem;
+  border-bottom: 5px double var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .confirm-modal p,
+.shell-root[data-theme="lubec"] .settings-help {
+  color: var(--lubec-muted);
+  font-family: var(--lubec-type);
+  font-style: normal;
+}
+
+.shell-root[data-theme="lubec"] .settings-section {
+  background: transparent;
+}
+
+.shell-root[data-theme="lubec"] .settings-section h4 {
+  color: var(--lubec-rust);
+  font: 800 0.72rem/1.2 var(--lubec-type);
+  letter-spacing: 0.12em;
+}
+
+/* One row per tab: the box, then its name. */
+.shell-root[data-theme="lubec"] .confirm-modal.group-modal .settings-tab-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--lubec-ink);
+  font: 700 0.95rem/1.2 var(--lubec-condensed);
+  letter-spacing: 0.08em;
+}
+
+.shell-root[data-theme="lubec"] .settings-tab-locked {
+  background: var(--lubec-paper-deep);
+  color: var(--lubec-muted);
+  border-radius: 0;
+  font-family: var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .confirm-modal.group-modal .group-modal-actions button {
+  border-radius: 0;
+  font: 800 0.75rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .confirm-modal.group-modal .group-modal-actions .secondary {
+  background: transparent;
+  border: 2px solid var(--lubec-blue);
+  color: var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .confirm-modal.group-modal .group-modal-actions .primary {
+  background: var(--lubec-blue);
+  border: 2px solid var(--lubec-blue);
+  color: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .confirm-modal.group-modal .group-modal-actions .primary:hover {
+  background: var(--lubec-blue-alt);
+}
+
+/* Disclosure headers are text, not buttons, in the notes and calendar. */
+.shell-root[data-theme="lubec"] .session-scene-header,
+.shell-root[data-theme="lubec"] .calendar-day-header {
+  background: transparent;
+  color: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .calendar-session-header {
+  font-family: var(--lubec-type);
+  letter-spacing: 0.1em;
+}
