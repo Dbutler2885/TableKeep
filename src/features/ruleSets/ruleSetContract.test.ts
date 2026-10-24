@@ -158,9 +158,17 @@ describe('side nav tabs per role', () => {
     ]],
     ['lubec', 'gm', [
       ['character', 'Characters'],
+      ['maps', 'Maps'],
+      ['npcs', 'NPCs'],
+      ['notes', 'Notes'],
+      ['calendar', 'Calendar'],
     ]],
     ['lubec', 'player', [
       ['character', 'Character'],
+      ['maps', 'Maps'],
+      ['npcs', 'NPCs'],
+      ['notes', 'Notes'],
+      ['calendar', 'Calendar'],
     ]],
   ] as const)('%s %s', (stored, role, expected) => {
     const nav = campaignNavTabs(resolve(stored), role, undefined)
@@ -174,7 +182,7 @@ describe('side nav tabs per role', () => {
     expect(campaignNavTabs(resolve('vtm'), 'gm', enabled).map((tab) => tab.id))
       .toEqual(['character', 'maps', 'notes'])
     expect(campaignNavTabs(resolve('lubec'), 'gm', enabled).map((tab) => tab.id))
-      .toEqual(['character'])
+      .toEqual(['character', 'maps', 'notes'])
   })
 
   it('still hides OSE player tabs that the campaign has enabled', () => {
@@ -194,7 +202,7 @@ describe('route gate', () => {
   it.each([
     ['ose', allTabs, []],
     ['vtm', ['character', 'maps', 'monsters', 'npcs', 'notes', 'calendar'], ['items', 'tables', 'rules']],
-    ['lubec', ['character'], ['maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'calendar', 'rules']],
+    ['lubec', ['character', 'maps', 'npcs', 'notes', 'calendar'], ['monsters', 'items', 'tables', 'rules']],
   ] as const)('%s keeps its own tabs and sends the rest to the character tab', (stored, kept, redirected) => {
     for (const tab of kept) expect(routableTab(resolve(stored), tab)).toBe(tab)
     for (const tab of redirected) expect(routableTab(resolve(stored), tab)).toBe('character')
@@ -223,6 +231,10 @@ describe('campaign settings tabs', () => {
     ]],
     ['lubec', [
       ['character', 'Character', true],
+      ['maps', 'Maps', false],
+      ['npcs', 'NPCs', false],
+      ['notes', 'Notes', false],
+      ['calendar', 'Calendar', false],
     ]],
   ] as const)('%s lists only its own tabs', (stored, expected) => {
     expect(campaignSettingsTabs(resolve(stored)).map((tab) => [tab.id, tab.label, tab.locked])).toEqual(expected)
