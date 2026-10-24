@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AddItemModalState } from '../hooks/useInventoryDomain'
-import { applyPlayerAddTemplate, playerAddPreviewItem } from './playerAddGear'
+import { applyPlayerAddTemplate, applyPlayerAddTemplateToOpenModal, playerAddPreviewItem } from './playerAddGear'
 
 const emptyModal = { kind: 'general', typeId: '', typeName: '', name: '', costGp: '', description: '', qty: '1' } as AddItemModalState
 
@@ -12,5 +12,12 @@ describe('player add gear', () => {
   it('previews catalog gear and rejects custom entries', () => {
     expect(playerAddPreviewItem({ ...emptyModal, typeId: 'custom' })).toBeNull()
     expect(playerAddPreviewItem(applyPlayerAddTemplate(emptyModal, 'ammunition', 'ammo-arrows'))).toMatchObject({ kind: 'ammunition', qty: 20 })
+  })
+})
+
+describe('player add template on the add-item modal', () => {
+  it('applies a template to an open modal and leaves a closed modal closed', () => {
+    expect(applyPlayerAddTemplateToOpenModal(emptyModal, 'general', 'gear-rope')).toEqual(applyPlayerAddTemplate(emptyModal, 'general', 'gear-rope'))
+    expect(applyPlayerAddTemplateToOpenModal(null, 'general', 'gear-rope')).toBeNull()
   })
 })
