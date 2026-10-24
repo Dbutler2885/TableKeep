@@ -19,6 +19,7 @@ function stub(name: string) {
 
 vi.mock('../character/CharacterTab', () => ({ CharacterTab: stub('CharacterTab') }))
 vi.mock('../character/VtmCharacterTab', () => ({ VtmCharacterTab: stub('VtmCharacterTab') }))
+vi.mock('../lubec/LubecCharacterTab', () => ({ LubecCharacterTab: stub('LubecCharacterTab') }))
 vi.mock('../common/RulesTab', () => ({ RulesTab: stub('RulesTab') }))
 vi.mock('../maps/MapsTab', async () => {
   const { useMapRuleSet } = await import('../maps/mapRuleSet')

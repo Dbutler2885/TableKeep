@@ -45,6 +45,7 @@ vi.mock('../auth/DiscordConnection', () => ({ DiscordConnection: stub('DiscordCo
 vi.mock('../auth/DiscordReturnNotice', () => ({ DiscordReturnNotice: stub('DiscordReturnNotice') }))
 vi.mock('../character/CharacterTab', () => ({ CharacterTab: stub('CharacterTab') }))
 vi.mock('../character/VtmCharacterTab', () => ({ VtmCharacterTab: stub('VtmCharacterTab') }))
+vi.mock('../lubec/LubecCharacterTab', () => ({ LubecCharacterTab: stub('LubecCharacterTab') }))
 vi.mock('../maps/MapsTab', () => ({ MapsTab: stub('MapsTab') }))
 vi.mock('../notes/NotesTab', () => ({ NotesTab: stub('NotesTab') }))
 vi.mock('../notes/CliffhangerModal', () => ({ CliffhangerModal: stub('CliffhangerModal') }))

@@ -1,6 +1,7 @@
 import type { User } from 'firebase/auth'
 import { CharacterTab } from '../character/CharacterTab'
 import { VtmCharacterTab } from '../character/VtmCharacterTab'
+import { LubecCharacterTab } from '../lubec/LubecCharacterTab'
 import type { CharacterTabProps } from '../shell/characterTabProps'
 import type { Campaign, Role } from '../../types/app'
 
@@ -37,12 +38,17 @@ export function VtmSheet({ campaign, role, user, username, setError }: RuleSetSh
   )
 }
 
-// Lubec has no sheet yet; its character tab says so.
-export function LubecSheet() {
+// Lubec's sheet loads its own characters from the campaign, as VtM's does.
+export function LubecSheet({ campaign, role, user, username, setError }: RuleSetSheetProps) {
   return (
-    <section className="placeholder-panel lubec-sheet-placeholder">
-      <h2>Lubec 1977</h2>
-      <p>The Lubec character sheet is not built yet.</p>
-    </section>
+    <LubecCharacterTab
+      campaignId={campaign.id}
+      groupId={campaign.groupId}
+      role={role}
+      currentUserId={user.uid}
+      currentUsername={username}
+      gmUserId={campaign.gmUserId ?? null}
+      setError={setError}
+    />
   )
 }

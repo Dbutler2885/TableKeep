@@ -24,6 +24,7 @@ function stub(name: string) {
 
 vi.mock('../character/CharacterTab', () => ({ CharacterTab: stub('CharacterTab') }))
 vi.mock('../character/VtmCharacterTab', () => ({ VtmCharacterTab: stub('VtmCharacterTab') }))
+vi.mock('../lubec/LubecCharacterTab', () => ({ LubecCharacterTab: stub('LubecCharacterTab') }))
 vi.mock('../common/RulesTab', () => ({ RulesTab: stub('RulesTab') }))
 vi.mock('../maps/MapsTab', () => ({ MapsTab: stub('MapsTab') }))
 vi.mock('../monsters/MonstersTab', () => ({ MonstersTab: stub('MonstersTab') }))
@@ -118,22 +119,32 @@ describe('sheet', () => {
     })
   })
 
-  it('Lubec shows its placeholder page, and neither OSE nor VtM sheet', () => {
+  it('Lubec shows its own sheet, wired to the campaign and the viewer', () => {
     const { container } = renderTab('lubec', 'character', 'player')
 
-    expect(rendered(container)).toEqual([])
-    expect(container.querySelector('.lubec-sheet-placeholder')?.textContent)
-      .toBe('Lubec 1977The Lubec character sheet is not built yet.')
+    expect(rendered(container)).toEqual(['LubecCharacterTab'])
+    expect(mocks.props.LubecCharacterTab).toEqual({
+      campaignId: 'c1',
+      groupId: 'g1',
+      role: 'player',
+      currentUserId: 'user-1',
+      currentUsername: 'handle1',
+      gmUserId: 'gm-1',
+      setError,
+    })
   })
 
-  it('VtM gives its sheet no GM when the campaign has none', () => {
-    const campaign: Campaign = { ...campaignOf('vtm'), gmUserId: undefined }
+  it.each([
+    ['vtm', 'VtmCharacterTab'],
+    ['lubec', 'LubecCharacterTab'],
+  ] as const)('%s gives its sheet no GM when the campaign has none', (stored, sheet) => {
+    const campaign: Campaign = { ...campaignOf(stored), gmUserId: undefined }
     render(
       <CampaignTabContent
         activeTab="character"
         campaign={campaign}
         role="player"
-        gameSystem="vtm"
+        gameSystem={stored}
         user={{ uid: 'user-1' } as User}
         username="handle1"
         setError={setError}
@@ -142,7 +153,7 @@ describe('sheet', () => {
       />,
     )
 
-    expect(mocks.props.VtmCharacterTab).toMatchObject({ gmUserId: null })
+    expect(mocks.props[sheet]).toMatchObject({ gmUserId: null })
   })
 })
 

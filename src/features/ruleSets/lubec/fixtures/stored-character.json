@@ -1,0 +1,52 @@
+{
+  "id": "lubec-pc-1",
+  "data": {
+    "system": "lubec",
+    "schemaVersion": 1,
+    "name": "Ada Mitchell",
+    "ownerUserId": "player-1",
+    "ownerUsername": "adamitc",
+    "creationMode": "established",
+    "creationStatus": "active",
+    "portraitPath": "groups/group-1/campaigns/campaign-1/characters/lubec-pc-1/portraits/ada.png",
+    "portraitFocusX": 40,
+    "portraitFocusY": 60,
+    "tokenIcon": { "icon": "pawn", "color": "#c08a2e", "size": 34 },
+    "hidden": false,
+    "unknownTopLevel": { "note": "kept as stored", "list": [1, "two", { "three": 3 }] },
+    "lubec": {
+      "age": 13,
+      "door": "direct",
+      "class": {
+        "key": "nerd",
+        "choices": { "statPenalty": "Strength", "unknownChoiceField": "kept on the choices" },
+        "unknownClassField": "kept on the class"
+      },
+      "base": {
+        "Strength": 33,
+        "Speed": null,
+        "Intellect": 52,
+        "Handle": 41,
+        "Charm": 27,
+        "Sanity": 24,
+        "Fear": 19,
+        "Body": 22,
+        "unknownBaseField": "kept on the base"
+      },
+      "skills": { "free": "Science", "picked": ["Electronics & Radio", "Chemistry", "Computers"], "unknownSkillsField": true },
+      "counters": { "stress": 4, "minimumStress": 3, "trauma": 1, "unknownCounter": 9 },
+      "effects": [
+        {
+          "id": "effect-1",
+          "name": "Severe Concussion",
+          "cause": "Severe Concussion (failed Body Save)",
+          "steps": [{ "modifiers": [{ "target": "Handle", "amount": -40 }], "labels": ["Dazed"] }],
+          "unknownRowField": "kept on the effect row"
+        }
+      ],
+      "lastRoll": { "kind": "stat", "against": "Intellect", "roll": 31, "outcome": "success" },
+      "importNotes": [],
+      "unknownNested": { "kept": true, "deeper": { "value": 7 } }
+    }
+  }
+}
