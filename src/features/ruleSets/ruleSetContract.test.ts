@@ -14,6 +14,8 @@ import { campaignCardLabel } from '../groups/groupHomeCampaigns'
 import { mapCharacterSummaryFromData } from '../maps/lib/mapCharacterSummary'
 import { isPartyCharacter } from '../maps/lib/partyCharacterEligibility'
 import { campaignSystem } from '../shell/shellSelection'
+import { lubecCharacterParser } from './lubec/characterParser'
+import lubecFixture from './lubec/fixtures/stored-character.json'
 import { campaignNavTabs, routableTab } from '../shell/shellTabs'
 import { oseCarrying } from './ose/carrying'
 import { resolveRuleSet, ruleSets, selectableRuleSets } from './registry'
@@ -259,11 +261,27 @@ describe('character parsers', () => {
     expect(ruleSets.vtm.characters.parser).toBe(vtmCharacterParser)
   })
 
-  it('hands a Lubec character through unchanged, as Lubec has no sheet yet', () => {
-    const stored = { system: 'lubec', schemaVersion: 1, name: 'Ada', unknownTopLevel: { kept: true } }
+  it('reads Lubec characters through the Lubec sheet\'s parser', () => {
+    expect(ruleSets.lubec.characters.parser).toBe(lubecCharacterParser)
+  })
+
+  // The checked-in Lubec character carries fields the parser does not model,
+  // top-level, nested and on a list row, and a hole: Speed was never given.
+  it('parses a Lubec character the same after a serialize, keeping its unknown fields and its hole', () => {
     const { parser } = ruleSets.lubec.characters
-    expect(parser.parse('pc-1', stored)).toBe(stored)
-    expect(parser.serialize(stored)).toBe(stored)
+    const parsed = parser.parse(lubecFixture.id, lubecFixture.data)
+    const serialized = parser.serialize(parsed)
+
+    expect(parser.parse(lubecFixture.id, serialized)).toEqual(parsed)
+    expect(serialized.unknownTopLevel).toEqual(lubecFixture.data.unknownTopLevel)
+    const sheet = serialized.lubec as typeof lubecFixture.data.lubec
+    expect(sheet.unknownNested).toEqual({ kept: true, deeper: { value: 7 } })
+    expect(sheet.class.unknownClassField).toBe('kept on the class')
+    expect(sheet.class.choices.unknownChoiceField).toBe('kept on the choices')
+    expect(sheet.base.unknownBaseField).toBe('kept on the base')
+    expect(sheet.counters.unknownCounter).toBe(9)
+    expect(sheet.effects[0].unknownRowField).toBe('kept on the effect row')
+    expect(sheet.base.Speed).toBeNull()
   })
 })
 
@@ -311,9 +329,9 @@ describe('map summary', () => {
     ['vtm', {}, 'established_draft'],
     ['vtm', { creationMode: 'new' }, 'draft'],
     ['vtm', { creationStatus: 'active' }, 'active'],
-    ['lubec', {}, 'active'],
-    ['lubec', { creationMode: 'new', creationModeExplicit: true }, 'active'],
-    ['lubec', { creationStatus: 'draft' }, 'draft'],
+    ['lubec', {}, 'established_draft'],
+    ['lubec', { creationMode: 'new' }, 'draft'],
+    ['lubec', { creationStatus: 'active' }, 'active'],
   ] as const)('%s with %j is %s', (stored, fields, creationStatus) => {
     expect(mapSummaryOf(stored, fields).creationStatus).toBe(creationStatus)
   })
@@ -337,6 +355,19 @@ describe('map summary', () => {
     const summary = mapSummaryOf(stored, { creationStatus: 'active', ...fields })
     expect(summary.inPlay).toBe(inPlay)
     expect(isPartyCharacter(summary, 'gm-1')).toBe(inPlay)
+  })
+
+  it.each([
+    ['draft', false],
+    ['established_draft', false],
+    ['active', true],
+  ] as const)('a Lubec character in %s counts towards the party: %s', (creationStatus, party) => {
+    expect(isPartyCharacter(mapSummaryOf('lubec', { creationStatus }), 'gm-1')).toBe(party)
+  })
+
+  it('a Lubec character with a stored token icon reports that icon', () => {
+    const tokenIcon = { icon: 'custom', color: '#c08a2e', size: 40, customImagePath: 'groups/g1/campaigns/c1/characters/pc-1/token.png' }
+    expect(mapSummaryOf('lubec', { tokenIcon }).tokenIcon).toEqual(tokenIcon)
   })
 
   it.each(['ose', 'vtm', 'lubec'] as const)('%s keeps the GM, drafts, hidden and deleted characters out of play', (stored) => {

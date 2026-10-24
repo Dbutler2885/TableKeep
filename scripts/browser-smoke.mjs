@@ -1020,26 +1020,90 @@ async function wanderingMonsterCases(browser, testCase, ids, browserErrors) {
   await inSignedInPage(browser, session, 'vtm-wandering-monsters', (page) => vtmWanderingMonsterCase(page, testCase, vtmMap))
 }
 
-// No GM can create a Lubec campaign, so the smoke seeds one. It opens to the
-// placeholder page in Lubec's own skin, with its five tabs in the side nav.
-const LUBEC_PLACEHOLDER = '.shell-root[data-theme="lubec"] .lubec-sheet-placeholder'
+// No GM can create a Lubec campaign or character yet, so the smoke seeds both:
+// Tommy Eves, a Working Kid as the standalone sheet saved him. The campaign
+// opens in Lubec's own skin with its five tabs, and his Core page shows each
+// Stat and Save in the v4 frame without the page scrolling sideways.
+const LUBEC_TAB = '.shell-root[data-theme="lubec"] .lubec-character-tab'
+const LUBEC_CORE_PAGE = '.shell-root[data-theme="lubec"] .lubec-sheet .lubec-core'
+const LUBEC_CHARACTER_NAME = 'Tommy Eves'
+
+// Each Stat and Save as the Core page shows it: base, final with the Working
+// Kid's +5 to every Stat and +10 to every Save, and current.
+const LUBEC_CORE_VALUES = [
+  ['Strength', '24', '29', '29'],
+  ['Speed', '51', '56', '56'],
+  ['Intellect', '38', '43', '43'],
+  ['Handle', '50', '55', '55'],
+  ['Charm', '48', '53', '53'],
+  ['Sanity', '20', '30', '30'],
+  ['Fear', '24', '34', '34'],
+  ['Body', '21', '31', '31'],
+]
+
+function lubecCharacterFields({ uid, username }) {
+  return {
+    system: 'lubec',
+    schemaVersion: 1,
+    name: LUBEC_CHARACTER_NAME,
+    ownerUserId: uid,
+    ownerUsername: username,
+    creationMode: 'established',
+    creationStatus: 'active',
+    lubec: {
+      class: { key: 'working', choices: {} },
+      base: { Strength: 24, Speed: 51, Intellect: 38, Handle: 50, Charm: 48, Sanity: 20, Fear: 24, Body: 21 },
+      skills: { free: 'Boatwork', picked: ['Swimming', 'Diving'] },
+    },
+  }
+}
 
 async function expectNavTabs(page, expected) {
   const labels = await page.$$eval('.side-nav .nav-list .tab-button', (tabs) => tabs.map((tab) => tab.textContent.trim()))
   if (labels.join() !== expected.join()) throw new Error(`The side nav shows ${labels.join(', ')}, not ${expected.join(', ')}.`)
 }
 
-async function lubecPlaceholderCase(page, campaignName) {
-  await step('open the seeded Lubec campaign', () => openCampaignCard(page, campaignName, LUBEC_PLACEHOLDER))
-  await step('show the Lubec placeholder page', () => waitForBodyText(page, 'The Lubec character sheet is not built yet.'))
+// A narrow screen opens on the character list, so pick the character there first.
+async function openLubecSheet(page) {
+  const card = `.lubec-roster .monster-list-item ::-p-text(${JSON.stringify(LUBEC_CHARACTER_NAME)})`
+  await Locator.race([page.locator(card), page.locator(LUBEC_CORE_PAGE)]).wait()
+  await (await page.$(card))?.click()
+  await page.locator(LUBEC_CORE_PAGE).wait()
+}
+
+async function expectLubecCoreValues(page) {
+  const rows = await page.$$eval(`${LUBEC_CORE_PAGE} .lubec-values tbody tr`, (elements) =>
+    elements.map((row) => [...row.cells].map((cell) => cell.textContent.trim())))
+  if (JSON.stringify(rows) !== JSON.stringify(LUBEC_CORE_VALUES)) throw new Error(`The Core page shows ${JSON.stringify(rows)}.`)
+}
+
+async function expectLubecPage(page, expected) {
+  const current = await page.$eval('.lubec-page-tabs [aria-current="page"]', (tab) => tab.textContent)
+  if (current !== expected) throw new Error(`The sheet shows its ${current} page, not ${expected}.`)
+}
+
+async function expectNoSidewaysScroll(page) {
+  const widths = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth])
+  if (widths[0] > widths[1]) throw new Error(`The page is ${widths[0]}px wide in a ${widths[1]}px viewport.`)
+}
+
+async function lubecSheetCase(page, campaignName) {
+  await step('open the seeded Lubec campaign', () => openCampaignCard(page, campaignName, LUBEC_TAB))
   await step('offer the five Lubec tabs', () => expectNavTabs(page, ['Characters', 'Maps', 'NPCs', 'Notes', 'Calendar']))
+  await step('open the seeded Lubec character', () => openLubecSheet(page))
+  // Clear of the page tabs, so the review screenshot shows them at rest.
+  await page.mouse.move(0, page.viewport().height - 1)
+  await step('show the Core page in the v4 frame', () => expectLubecPage(page, 'Core sheet'))
+  await step('show each Stat and Save with its base, final and current value', () => expectLubecCoreValues(page))
+  await step('fit the Lubec sheet without scrolling sideways', () => expectNoSidewaysScroll(page))
 }
 
 async function lubecCampaignCase(browser, testCase, ids, browserErrors) {
   const campaignName = `${testCase.label} Lubec Campaign`
-  await seedCampaign({ groupId: ids.groupId, gmUserId: ids.uid, fields: { name: campaignName, system: 'lubec' } })
+  const campaignId = await seedCampaign({ groupId: ids.groupId, gmUserId: ids.uid, fields: { name: campaignName, system: 'lubec' } })
+  await seedCharacter({ groupId: ids.groupId, campaignId, fields: lubecCharacterFields({ uid: ids.uid, username: testCase.username }) })
   const session = { testCase, groupId: ids.groupId, browserErrors }
-  await inSignedInPage(browser, session, 'lubec-placeholder', (page) => lubecPlaceholderCase(page, campaignName))
+  await inSignedInPage(browser, session, 'lubec-sheet', (page) => lubecSheetCase(page, campaignName))
 }
 
 function collectBrowserErrors(page, errors, surface) {
@@ -1147,7 +1211,7 @@ async function runViewport(browser, testCase) {
       + 'and kept the items and ids the migration made of an old-format character through a save and two reloads, '
       + 'storing it at version 1, '
       + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map, '
-      + 'and opened a seeded Lubec campaign to its placeholder page in its own skin, with its five tabs.',
+      + 'and opened a seeded Lubec campaign in its own skin, with its five tabs, to a seeded character\'s Core page.',
     )
   } finally {
     await screenshot(page, testCase.name)
