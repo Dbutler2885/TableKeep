@@ -16042,8 +16042,6 @@ button:disabled {
 
 /* Top bar: the wordmark and the page tabs on ink, with the stripe under it. */
 .shell-root[data-theme="lubec"] .lubec-topbar {
-  position: relative;
-  z-index: 2;
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem 1.2rem;
@@ -16065,7 +16063,10 @@ button:disabled {
   filter: url(#lubec-rough);
 }
 
+/* The tabs stand in front of the pines' tips. */
 .shell-root[data-theme="lubec"] .lubec-page-tabs {
+  position: relative;
+  z-index: 2;
   display: flex;
   gap: 0.25rem;
 }
@@ -16233,14 +16234,15 @@ button:disabled {
   filter: url(#lubec-rough);
 }
 
-/* The pines rise from the name band's double rule, tips up to the stripe. */
+/* The pines rise from the name band's double rule, in front of the top bar,
+   so their tips peek up over the stripe to the foot of the page tabs. */
 .shell-root[data-theme="lubec"] .lubec-pines {
   position: absolute;
   right: var(--pad);
   bottom: 5px;
   z-index: 1;
   width: min(36rem, 56%);
-  height: calc(100% - 5px - 2.05rem);
+  height: calc(100% - 5px - 2.3rem);
   object-fit: contain;
   object-position: right bottom;
   pointer-events: none;
