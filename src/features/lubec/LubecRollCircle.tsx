@@ -20,6 +20,23 @@ function LubecCircleNumber({ face }: { face: LubecCircleFace }) {
   return <LubecCheckPair roll={face.roll.result} target={face.roll.target} />
 }
 
+/**
+ * Under Advantage or Disadvantage, the second die as a dimmer, smaller copy of
+ * the spinning circle beside it, merging into the kept die once both settle.
+ */
+function LubecRollGhost({ face }: { face: LubecCircleFace }) {
+  if (face.kind !== 'rolling' || face.ghost === null) return null
+  return (
+    <span className={`roll-circle rolling lubec-roll-ghost${face.phase === 'merge' ? ' merging' : ''}`} aria-hidden="true">
+      <span className="number"><LubecCheckPair roll={face.ghost} target={face.target} /></span>
+    </span>
+  )
+}
+
+// Both dice settled, for a moment before the ghost merges; the status line says it aloud.
+const LubecRollDone = ({ face }: { face: LubecCircleFace }) =>
+  (face.kind === 'rolling' && face.phase === 'done' ? <span className="dice-formula lubec-roll-done" aria-hidden="true">done</span> : null)
+
 // The prototype's circle states: a value, a skill armed, a spin, a success or failure, a double.
 function faceClasses(face: LubecCircleFace): string[] {
   if (face.kind === 'missing') return []
@@ -57,7 +74,7 @@ type CircleProps = {
   circles: LubecCircles
 }
 
-/** The prototype's roll circle: tapped to roll, it spins, then shows the result until it is tapped again. */
+/** The prototype's roll circle: tapped to roll, it spins, with a ghost for a second die, then shows the result until it is tapped again. */
 export function LubecRollCircle({ name, labels, face, roller, circles }: CircleProps) {
   return (
     <button
@@ -69,6 +86,8 @@ export function LubecRollCircle({ name, labels, face, roller, circles }: CircleP
       onClick={() => circles.click(name)}
     >
       <span className="number"><LubecCircleNumber face={face} /></span>
+      <LubecRollGhost face={face} />
+      <LubecRollDone face={face} />
     </button>
   )
 }

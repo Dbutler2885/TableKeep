@@ -3,7 +3,7 @@ import { lubecCheckTarget } from '../ruleSets/lubec/checkRoll'
 import type { LubecCharacterSheet, LubecCounters } from '../ruleSets/lubec/characterRecord'
 import { readLubecLastRoll, type LubecLastRoll } from '../ruleSets/lubec/lastRoll'
 import { lubecLowestSave } from '../ruleSets/lubec/recoveryRoll'
-import { LUBEC_SPIN_STEPS, lubecCirclesStatus, lubecRollCircle, lubecSpinDelay, type LubecCircleName, type LubecSpin } from './lubecCircles'
+import { lubecCirclesStatus, lubecNextSpin, lubecRollCircle, lubecSpinWait, type LubecCircleName, type LubecSpin } from './lubecCircles'
 import type { LubecRoller } from './useLubecRoller'
 
 export type LubecCircles = {
@@ -24,19 +24,21 @@ export const lubecMotionAllowed = (): boolean =>
 
 const rollKey = (roll: LubecLastRoll): string => JSON.stringify(roll)
 
-/** What a click on a circle rolls: its target, the die, and the roll itself. */
-type LubecCircleRoll = { target: number | null; sides: number; roll: () => void }
+/** What a click on a circle rolls: its target, the die, whether it rolls twice, and the roll itself. */
+type LubecCircleRoll = { target: number | null; sides: number; twice: boolean; roll: () => void }
 
 function useLubecSpin() {
   const [spin, setSpin] = useState<LubecSpin | null>(null)
   useEffect(() => {
     if (!spin) return
-    const next = spin.step + 1 < LUBEC_SPIN_STEPS ? { ...spin, step: spin.step + 1, preview: randomPreview(spin.sides) } : null
-    const timer = setTimeout(() => setSpin(next), lubecSpinDelay(spin.step))
+    const next = lubecNextSpin(spin, randomPreview)
+    const timer = setTimeout(() => setSpin(next), lubecSpinWait(spin))
     return () => clearTimeout(timer)
   }, [spin])
-  const start = (name: LubecCircleName, { target, sides }: LubecCircleRoll, counters: LubecCounters) => {
-    if (target !== null && lubecMotionAllowed()) setSpin({ name, target, sides, preview: randomPreview(sides), step: 0, counters })
+  const start = (name: LubecCircleName, { target, sides, twice }: LubecCircleRoll, counters: LubecCounters) => {
+    if (target === null || !lubecMotionAllowed()) return
+    const ghost = twice ? randomPreview(sides) : null
+    setSpin({ name, target, sides, preview: randomPreview(sides), step: 0, ghost, phase: 'spin', counters })
   }
   return { spin, start }
 }
@@ -69,10 +71,12 @@ const shownOn = (last: LubecLastShown, name: LubecCircleName): LubecLastRoll | n
   (last.shown && lubecRollCircle(last.shown) === name ? last.shown : null)
 
 // The Panic Check rolls a d20 over Stress, the Recovery Save a d100 under the lowest Save, and a Stat or Save a d100 under itself.
+// Each rolls twice under Advantage or Disadvantage.
 function circleRoll(sheet: LubecCharacterSheet, roller: LubecRoller, name: LubecCircleName): LubecCircleRoll {
-  if (name === 'Panic') return { target: sheet.counters.stress, sides: 20, roll: roller.panic }
-  if (name === 'Recovery') return { target: lubecLowestSave(sheet)?.value ?? null, sides: 100, roll: roller.recover }
-  return { target: lubecCheckTarget(sheet, name, roller.armed), sides: 100, roll: () => roller.roll(name) }
+  const twice = roller.advantage !== 'normal'
+  if (name === 'Panic') return { target: sheet.counters.stress, sides: 20, twice, roll: roller.panic }
+  if (name === 'Recovery') return { target: lubecLowestSave(sheet)?.value ?? null, sides: 100, twice, roll: roller.recover }
+  return { target: lubecCheckTarget(sheet, name, roller.armed), sides: 100, twice, roll: () => roller.roll(name) }
 }
 
 type CircleClick = { sheet: LubecCharacterSheet; roller: LubecRoller | null; last: LubecLastShown; spinner: LubecSpinner }

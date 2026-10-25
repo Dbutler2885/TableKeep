@@ -13,9 +13,15 @@ import {
   lubecRollCircle,
   lubecRolledSkill,
   lubecRollStatus,
+  LUBEC_DONE_MS,
+  LUBEC_MERGE_MS,
+  lubecNextSpin,
   lubecShownSheet,
   lubecSpinDelay,
+  lubecSpinWait,
   lubecTallyFace,
+  type LubecCircleName,
+  type LubecSpin,
 } from './lubecCircles'
 
 const tommy = lubecCharacterSheet()
@@ -28,6 +34,11 @@ const handleRoll: LubecCheckRoll = {
 }
 
 const idle = { armed: null, result: null, spin: null }
+
+// A spin on one circle, with one die unless a ghost is given.
+const spinning = (name: LubecCircleName, fields: Partial<LubecSpin> = {}): LubecSpin => ({
+  name, target: 55, sides: 100, preview: 7, step: 0, ghost: null, phase: 'spin', counters: tommy.counters, ...fields,
+})
 
 const panicRoll: LubecPanicRoll = {
   kind: 'panic', target: 5, dice: [4], result: 4, advantage: 'normal', outcome: 'failure', stressAdded: 0, effectRolls: null,
@@ -48,8 +59,9 @@ describe('Lubec roll circles', () => {
   })
 
   it('shows a spin on its own circle before a result, and a result over the value', () => {
-    const spin = { name: 'Handle' as const, target: 55, sides: 100, preview: 7, step: 3, counters: tommy.counters }
-    expect(lubecCircleFace(request('Handle'), { ...idle, spin, result: handleRoll })).toEqual({ kind: 'rolling', preview: 7, target: 55 })
+    const spin = spinning('Handle', { step: 3 })
+    expect(lubecCircleFace(request('Handle'), { ...idle, spin, result: handleRoll }))
+      .toEqual({ kind: 'rolling', preview: 7, target: 55, ghost: null, phase: 'spin' })
     expect(lubecCircleFace(request('Strength'), { ...idle, spin })).toEqual({ kind: 'value', value: 29, armed: false })
     expect(lubecCircleFace(request('Handle'), { ...idle, result: handleRoll })).toEqual({ kind: 'result', roll: handleRoll })
   })
@@ -74,7 +86,7 @@ describe('Lubec roll circles', () => {
   })
 
   it('says what the circles are doing in the status line', () => {
-    expect(lubecCirclesStatus({ name: 'Handle', target: 65, sides: 100, preview: 4, step: 0 }, null, handleRoll)).toBe('Rolling Handle check...')
+    expect(lubecCirclesStatus(spinning('Handle'), null, handleRoll)).toBe('Rolling Handle check...')
     expect(lubecCirclesStatus(null, null, handleRoll)).toBe('Handle + Boatwork: 32 vs 65 - success.')
     expect(lubecCirclesStatus(null, handleRoll, handleRoll)).toBe('Handle check cleared. Score unchanged.')
     expect(lubecCirclesStatus(null, null, { ...handleRoll, skill: null, result: 77, outcome: 'failure', stressAdded: 1 }))
@@ -94,10 +106,10 @@ describe('Lubec roll circles', () => {
   })
 
   it('shows what the Panic Check or the Recovery Save rolls against, a hole as missing, a spin, and a result', () => {
-    const spin = { name: 'Panic' as const, target: 5, sides: 20, preview: 17, step: 0, counters: tommy.counters }
+    const spin = spinning('Panic', { target: 5, sides: 20, preview: 17 })
     expect(lubecTallyFace('Panic', 5, idle)).toEqual({ kind: 'value', value: 5, armed: false })
     expect(lubecTallyFace('Recovery', null, idle)).toEqual({ kind: 'missing' })
-    expect(lubecTallyFace('Panic', 5, { ...idle, spin })).toEqual({ kind: 'rolling', preview: 17, target: 5 })
+    expect(lubecTallyFace('Panic', 5, { ...idle, spin })).toEqual({ kind: 'rolling', preview: 17, target: 5, ghost: null, phase: 'spin' })
     expect(lubecTallyFace('Recovery', 31, { ...idle, spin })).toEqual({ kind: 'value', value: 31, armed: false })
     expect(lubecTallyFace('Panic', 5, { ...idle, result: panicRoll })).toEqual({ kind: 'result', roll: panicRoll })
   })
@@ -110,20 +122,56 @@ describe('Lubec roll circles', () => {
   })
 
   it('names the Panic Check and the Recovery Save in the status line while they spin or once cleared', () => {
-    expect(lubecCirclesStatus({ name: 'Panic', target: 5, sides: 20, preview: 3, step: 0 }, null, null)).toBe('Rolling Panic Check...')
-    expect(lubecCirclesStatus({ name: 'Recovery', target: 31, sides: 100, preview: 3, step: 0 }, null, null)).toBe('Rolling Recovery Save...')
+    expect(lubecCirclesStatus(spinning('Panic'), null, null)).toBe('Rolling Panic Check...')
+    expect(lubecCirclesStatus(spinning('Recovery'), null, null)).toBe('Rolling Recovery Save...')
     expect(lubecCirclesStatus(null, panicRoll, panicRoll)).toBe('Panic Check cleared. Score unchanged.')
     expect(lubecCirclesStatus(null, recoveryRoll, recoveryRoll)).toBe('Recovery Save cleared. Score unchanged.')
   })
 
   it('shows the counters as they stood before a spinning roll, and the sheet itself once nothing spins', () => {
     const rolled = { ...tommy, counters: { stress: 3, minimumStress: 2, trauma: 1 } }
-    const spin = { name: 'Strength' as const, target: 29, sides: 100, preview: 40, step: 5, counters: tommy.counters }
+    const spin = spinning('Strength', { target: 29, preview: 40, step: 5 })
     expect(lubecShownSheet(rolled, spin)).toEqual({ ...rolled, counters: tommy.counters })
     expect(lubecShownSheet(rolled, null)).toBe(rolled)
   })
 
   it('slows the spin as the prototype does', () => {
     expect([0, 1, 11].map(lubecSpinDelay)).toEqual([14, 19, 412])
+  })
+
+  it('spins one die and lands after its last step, with no ghost under Normal', () => {
+    const previews = [61, 62]
+    const next = lubecNextSpin(spinning('Handle', { step: 3 }), () => previews.shift() ?? 0)
+    expect(next).toEqual(spinning('Handle', { step: 4, preview: 61 }))
+    expect(lubecNextSpin(spinning('Handle', { step: 11 }), () => 0)).toBeNull()
+  })
+
+  it('spins a ghost beside the die under Advantage or Disadvantage, then shows "done", merges it, and lands', () => {
+    const previews = [61, 62]
+    const ghosted = spinning('Handle', { step: 3, ghost: 9 })
+    expect(lubecNextSpin(ghosted, () => previews.shift() ?? 0)).toEqual({ ...ghosted, step: 4, preview: 61, ghost: 62 })
+    const settled = { ...ghosted, step: 11 }
+    expect(lubecNextSpin(settled, () => 0)).toEqual({ ...settled, phase: 'done' })
+    expect(lubecNextSpin({ ...settled, phase: 'done' }, () => 0)).toEqual({ ...settled, phase: 'merge' })
+    expect(lubecNextSpin({ ...settled, phase: 'merge' }, () => 0)).toBeNull()
+  })
+
+  it('waits the prototype\'s slowing delay while spinning, then for "done" and the merge', () => {
+    expect(lubecSpinWait(spinning('Handle', { step: 11, ghost: 9 }))).toBe(412)
+    expect(lubecSpinWait(spinning('Handle', { ghost: 9, phase: 'done' }))).toBe(LUBEC_DONE_MS)
+    expect(lubecSpinWait(spinning('Handle', { ghost: 9, phase: 'merge' }))).toBe(LUBEC_MERGE_MS)
+  })
+
+  it('shows both dice once settled, the kept die as the ghost merges, and says "done"', () => {
+    const roll = { ...handleRoll, dice: [32, 71], result: 32, advantage: 'advantage' as const }
+    const settled = spinning('Handle', { target: 65, ghost: 9, phase: 'done' })
+    expect(lubecCircleFace(request('Handle'), { ...idle, spin: settled, result: roll }))
+      .toEqual({ kind: 'rolling', preview: 32, target: 65, ghost: 71, phase: 'done' })
+    const merging = { ...settled, phase: 'merge' as const }
+    expect(lubecCircleFace(request('Handle'), { ...idle, spin: merging, result: { ...roll, dice: [71, 32] } }))
+      .toEqual({ kind: 'rolling', preview: 32, target: 65, ghost: 32, phase: 'merge' })
+    expect(lubecCircleFace(request('Handle'), { ...idle, spin: settled }))
+      .toEqual({ kind: 'rolling', preview: 7, target: 65, ghost: 9, phase: 'done' })
+    expect(lubecCirclesStatus(settled, null, roll)).toBe('Rolling Handle check... done')
   })
 })
