@@ -1020,7 +1020,7 @@ async function wanderingMonsterCases(browser, testCase, ids, browserErrors) {
   await inSignedInPage(browser, session, 'vtm-wandering-monsters', (page) => vtmWanderingMonsterCase(page, testCase, vtmMap))
 }
 
-// No GM can create a Lubec campaign or character yet, so the smoke seeds both:
+// No GM can create a Lubec campaign yet, so the smoke seeds one, and in it
 // Tommy Eves, a Working Kid as the standalone sheet saved him. The campaign
 // opens in Lubec's own skin with its five tabs, and his Core page shows each
 // Stat and Save in the v4 frame, and his Severe Concussion as one active effect
