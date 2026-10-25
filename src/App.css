@@ -16430,7 +16430,8 @@ button:disabled {
   border-radius: 50%;
   box-shadow: inset 0 0 0 2px rgba(255, 248, 231, 0.62);
   font: 800 clamp(0.76rem, 1.5vw, 0.9rem)/1 var(--lubec-type);
-  letter-spacing: 0.09em;
+  --lubec-circle-tracking: 0.09em;
+  letter-spacing: var(--lubec-circle-tracking);
   text-transform: uppercase;
   cursor: pointer;
   transition: color 140ms ease, background 140ms ease, border-color 140ms ease, transform 140ms ease;
@@ -16459,7 +16460,8 @@ button:disabled {
   color: var(--lubec-ink);
   background: rgba(255, 255, 255, 0.42);
   font: 800 clamp(1.8rem, 3.5vw, 2.35rem)/1 var(--lubec-display);
-  letter-spacing: -0.04em;
+  --lubec-circle-tracking: -0.04em;
+  letter-spacing: var(--lubec-circle-tracking);
 }
 
 .shell-root[data-theme="lubec"] .roll-circle.has-value:hover:not(:disabled),
@@ -16487,7 +16489,8 @@ button:disabled {
   background: var(--lubec-rust);
   border-color: var(--lubec-ink);
   font: 800 clamp(1.8rem, 3.5vw, 2.35rem)/1 var(--lubec-display);
-  letter-spacing: -0.04em;
+  --lubec-circle-tracking: -0.04em;
+  letter-spacing: var(--lubec-circle-tracking);
   cursor: wait;
   opacity: 1;
   transform: none;
@@ -16519,33 +16522,54 @@ button:disabled {
   cursor: not-allowed;
 }
 
+/*
+ * A number sits on the circle's centre by its ink. Its line is trimmed to the
+ * figures' height, cap to baseline; an indent as wide as the letter-spacing
+ * balances the spacing the last figure carries; and LubecInk moves it by the
+ * figures' own side bearings.
+ */
 .shell-root[data-theme="lubec"] .roll-circle .number {
-  display: flex;
+  display: block;
   width: 100%;
-  align-items: center;
-  justify-content: center;
-  padding: 0.08em 0.2em;
   line-height: 1.12;
   text-align: center;
-  transform: translateY(0.12em);
+  text-indent: var(--lubec-circle-tracking);
+  text-box: trim-both cap alphabetic;
 }
 
+@supports not (text-box: trim-both cap alphabetic) {
+  .shell-root[data-theme="lubec"] .roll-circle .number {
+    transform: translateY(0.12em);
+  }
+}
+
+.shell-root[data-theme="lubec"] .lubec-ink {
+  position: relative;
+}
+
+/* "32/65" is centred as a whole; only its first part carries the indent, so
+   the spacing around the slash stays as it was. */
 .shell-root[data-theme="lubec"] .check-pair {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: repeat(3, auto);
   width: 100%;
   align-items: baseline;
+  justify-content: center;
   font: 800 clamp(1.08rem, 2.25vw, 1.48rem)/1 var(--lubec-display);
-  letter-spacing: -0.045em;
+  --lubec-circle-tracking: -0.045em;
+  letter-spacing: var(--lubec-circle-tracking);
+  text-indent: 0;
   white-space: nowrap;
 }
 
 .shell-root[data-theme="lubec"] .check-pair > :first-child {
-  text-align: right;
+  text-indent: var(--lubec-circle-tracking);
 }
 
-.shell-root[data-theme="lubec"] .check-pair > :last-child {
-  text-align: left;
+.shell-root[data-theme="lubec"] .check-pair > *,
+.shell-root[data-theme="lubec"] .check-stack > * {
+  text-box: trim-both cap alphabetic;
 }
 
 .shell-root[data-theme="lubec"] .check-stack {
@@ -16553,7 +16577,9 @@ button:disabled {
   row-gap: 0.06em;
   justify-items: center;
   font: 800 clamp(0.88rem, 1.8vw, 1.16rem)/1.05 var(--lubec-display);
-  letter-spacing: -0.035em;
+  --lubec-circle-tracking: -0.035em;
+  letter-spacing: var(--lubec-circle-tracking);
+  text-indent: var(--lubec-circle-tracking);
 }
 
 .shell-root[data-theme="lubec"] .check-stack > :nth-child(2) {
@@ -16933,6 +16959,7 @@ button:disabled {
   color: var(--lubec-rust);
   font: 700 0.68rem/1.2 var(--lubec-type);
   letter-spacing: 0.08em;
+  text-indent: 0;
   text-transform: uppercase;
 }
 
