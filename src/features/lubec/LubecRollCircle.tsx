@@ -1,13 +1,28 @@
 import type { LubecLastRoll } from '../ruleSets/lubec/lastRoll'
+import { LubecInk } from './LubecInk'
 import { isLubecDoubleRoll, type LubecCircleFace, type LubecCircleName } from './lubecCircles'
 import { LubecMissing } from './LubecMissing'
 import type { LubecCircles } from './useLubecCircles'
+import { useLubecInkCentre } from './useLubecInkCentre'
 import type { LubecRoller } from './useLubecRoller'
 
-// "32/65" side by side, or stacked for a 100, which is too wide for one line.
-function LubecCheckPair({ roll, target }: { roll: number; target: number }) {
+type CheckProps = { roll: number; target: number }
+
+// "32/65" side by side, centred as a whole by its ink.
+function LubecCheckLine({ roll, target }: CheckProps) {
+  const ref = useLubecInkCentre<HTMLSpanElement>(`${roll}/${target}`)
   return (
-    <span className={roll === 100 ? 'check-stack' : 'check-pair'}>
+    <span ref={ref} className="check-pair">
+      <span>{roll}</span><span aria-hidden="true">/</span><span>{target}</span>
+    </span>
+  )
+}
+
+// A roll and its target, stacked for a 100, which is too wide for one line.
+function LubecCheckPair({ roll, target }: CheckProps) {
+  if (roll !== 100) return <LubecCheckLine roll={roll} target={target} />
+  return (
+    <span className="check-stack">
       <span>{roll}</span><span aria-hidden="true">/</span><span>{target}</span>
     </span>
   )
@@ -15,7 +30,7 @@ function LubecCheckPair({ roll, target }: { roll: number; target: number }) {
 
 function LubecCircleNumber({ face }: { face: LubecCircleFace }) {
   if (face.kind === 'missing') return <LubecMissing />
-  if (face.kind === 'value') return <>{face.value}</>
+  if (face.kind === 'value') return <LubecInk text={String(face.value)} />
   if (face.kind === 'rolling') return <LubecCheckPair roll={face.preview} target={face.target} />
   return <LubecCheckPair roll={face.roll.result} target={face.roll.target} />
 }

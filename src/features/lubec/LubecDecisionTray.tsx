@@ -1,4 +1,5 @@
 import type { LubecValueName } from '../ruleSets/lubec/sheet'
+import { LubecInk } from './LubecInk'
 import { lubecSwapHint, type LubecSwapDraft } from './lubecRollUpCircles'
 import { useLubecGenerateTimers, type LubecRollUpActions, type LubecRollUpView } from './useLubecRollUp'
 
@@ -74,7 +75,7 @@ export function LubecRollUpAbility({ name, view }: { name: LubecValueName; view:
         aria-label={circle.label}
         onClick={() => view.actions?.tap(name)}
       >
-        <span className="number">{circle.number}</span>
+        <span className="number"><LubecInk text={circle.number} /></span>
       </button>
       <span className="ability-name">{name}</span>
       <span className={circle.swapNote ? 'base-note swap-note' : 'base-note'}>{circle.note}</span>
