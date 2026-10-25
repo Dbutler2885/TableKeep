@@ -1850,6 +1850,105 @@ describe('New character and Direct entry', () => {
   })
 })
 
+describe('Give to Player', () => {
+  const giveButton = () => screen.queryByRole('button', { name: 'Give character to player' })
+
+  /** The players the dialog offers, in order, and the one it has picked. */
+  const offeredPlayers = () => within(screen.getByRole('dialog')).getAllByRole('radio')
+    .map((radio) => [radio.closest('label')?.textContent, (radio as HTMLInputElement).checked])
+
+  const confirmGive = () => fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Give to Player' }))
+
+  const ownerOnCard = (name: string) =>
+    screen.getByRole('button', { name: new RegExp(`^${name}`) }).querySelector('.character-card-owner')?.textContent
+
+  beforeEach(() => {
+    window.innerWidth = 1440
+  })
+
+  it('gives the GM a Give to Player on every sheet, draft or finalized, their own included, and a player none', () => {
+    seed({
+      tommy: tommyEves(),
+      ada: directDraft({ ownerUserId: 'player-2', ownerUsername: 'adamitc' }),
+      wayne: directDraft({ name: 'Wayne Gardner', ownerUserId: GM, ownerUsername: 'gmuser1' }),
+    })
+    mountTab('gm', GM)
+
+    for (const name of ['Tommy Eves', 'Ada Mitchell', 'Wayne Gardner']) {
+      openSheet(name)
+      expect(giveButton()).toBeTruthy()
+    }
+
+    reload('player', 'player-1')
+    for (const name of ['Tommy Eves', 'Ada Mitchell']) {
+      openSheet(name)
+      expect(giveButton()).toBeNull()
+    }
+  })
+
+  it('lets the GM give a draft they made to a player, who then sees it, can type into it and delete it, and writes nothing on Cancel', () => {
+    vi.useFakeTimers()
+    seed({
+      tommy: tommyEves(),
+      ada: directDraft({ ownerUserId: 'player-2', ownerUsername: 'adamitc' }),
+      wayne: directDraft({ name: 'Wayne Gardner', ownerUserId: GM, ownerUsername: 'gmuser1' }),
+    })
+    mountTab('gm', GM)
+    openSheet('Wayne Gardner')
+
+    fireEvent.click(giveButton() as HTMLElement)
+    expect(within(screen.getByRole('dialog')).getByText('Wayne Gardner')).toBeTruthy()
+    expect(offeredPlayers()).toEqual([['adamitc', true], ['tommyev', false]])
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+    sendSaves()
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+
+    fireEvent.click(giveButton() as HTMLElement)
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('radio', { name: 'tommyev' }))
+    confirmGive()
+    sendSaves()
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(database.wayne).toMatchObject({ ownerUserId: 'player-1', ownerUsername: 'tommyev', creationStatus: 'established_draft' })
+    expect(ownerOnCard('Wayne Gardner')).toBe('tommyev')
+
+    reload('player', 'player-1')
+    expect(rosterNames()).toContain('Wayne Gardner')
+    openSheet('Wayne Gardner')
+    expect(baseInput('Strength')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Delete draft' })).toBeTruthy()
+  })
+
+  it('hands a finalized character over: the new owner can edit and delete it, and the old owner no longer can', () => {
+    vi.useFakeTimers()
+    seed({ tommy: tommyEves(), ada: directDraft({ ownerUserId: 'player-2', ownerUsername: 'adamitc' }) })
+    mountTab('gm', GM)
+    openSheet('Tommy Eves')
+
+    fireEvent.click(giveButton() as HTMLElement)
+    expect(offeredPlayers()).toEqual([['adamitc', true]])
+    confirmGive()
+    sendSaves()
+
+    expect(database.tommy).toMatchObject({ ownerUserId: 'player-2', ownerUsername: 'adamitc', creationStatus: 'active' })
+    expect(ownerOnCard('Tommy Eves')).toBe('adamitc')
+
+    reload('player', 'player-2')
+    let sheet = openSheet('Tommy Eves')
+    expect(within(sheet).getByRole('button', { name: 'Edit name band' })).toBeTruthy()
+    expect(within(sheet).getByRole('button', { name: 'Delete character' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Delete Tommy Eves' })).toBeTruthy()
+
+    reload('player', 'player-1')
+    sheet = openSheet('Tommy Eves')
+    expect(within(sheet).queryByRole('button', { name: 'Edit name band' })).toBeNull()
+    expect(within(sheet).queryByRole('button', { name: 'Delete character' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Delete Tommy Eves' })).toBeNull()
+  })
+})
+
 describe('Lubec roller', () => {
   // Labels and classes, rather than role queries, keep these cases quick in jsdom.
   const rollButton = circleOf

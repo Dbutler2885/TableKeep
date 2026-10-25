@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, Trash2, UserPlus } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { lubecClass } from '../ruleSets/lubec/classes'
@@ -57,25 +57,40 @@ type MastheadProps = {
   onEdit: (() => void) | null
   /** Asks to delete a finalized character; absent for a draft, whose stage bar has its own, or a viewer who may not. */
   onDelete: (() => void) | null
+  /** Opens Give to Player, at any stage; absent unless the viewer is the GM. */
+  onAssign: (() => void) | null
 }
 
-type BandActionsProps = Pick<MastheadProps, 'onEdit' | 'onDelete'>
+type BandActionsProps = Pick<MastheadProps, 'onEdit' | 'onDelete' | 'onAssign'>
 
-// The name band's Edit and Delete buttons, for those who may.
-function LubecBandActions({ onEdit, onDelete }: BandActionsProps) {
-  if (!onEdit && !onDelete) return null
+type BandAction = {
+  onClick: (() => void) | null
+  label: string
+  ariaLabel: string
+  Icon: typeof Pencil
+  className: string
+}
+
+type ShownBandAction = BandAction & { onClick: () => void }
+
+// The name band's buttons, in the order they show.
+const bandActionsOf = ({ onEdit, onDelete, onAssign }: BandActionsProps): BandAction[] => [
+  { onClick: onEdit, label: 'Edit', ariaLabel: 'Edit name band', Icon: Pencil, className: 'lubec-band-edit' },
+  { onClick: onAssign, label: 'Give to Player', ariaLabel: 'Give character to player', Icon: UserPlus, className: 'lubec-band-edit' },
+  { onClick: onDelete, label: 'Delete', ariaLabel: 'Delete character', Icon: Trash2, className: 'lubec-band-edit lubec-band-delete' },
+]
+
+// The name band's Edit, Give to Player and Delete buttons, for those who may.
+function LubecBandActions(props: BandActionsProps) {
+  const actions = bandActionsOf(props).filter((action): action is ShownBandAction => action.onClick !== null)
+  if (actions.length === 0) return null
   return (
     <div className="lubec-band-actions">
-      {onEdit ? (
-        <button type="button" className="lubec-band-edit" aria-label="Edit name band" onClick={onEdit}>
-          <Pencil size={12} aria-hidden="true" /> Edit
+      {actions.map(({ onClick, label, ariaLabel, Icon, className }) => (
+        <button key={label} type="button" className={className} aria-label={ariaLabel} onClick={onClick}>
+          <Icon size={12} aria-hidden="true" /> {label}
         </button>
-      ) : null}
-      {onDelete ? (
-        <button type="button" className="lubec-band-edit lubec-band-delete" aria-label="Delete character" onClick={onDelete}>
-          <Trash2 size={12} aria-hidden="true" /> Delete
-        </button>
-      ) : null}
+      ))}
     </div>
   )
 }
@@ -94,7 +109,7 @@ function LubecKidMeta({ character }: { character: LubecCharacterRecord }) {
 // rust and mustard stripe, then the name band with the portrait and the token
 // at the left and the stamp at the right, with a stand of pines rising behind
 // the stamp.
-function LubecMasthead({ character, page, onPage, editing, onEdit, onDelete }: MastheadProps) {
+function LubecMasthead({ character, page, onPage, editing, ...actions }: MastheadProps) {
   return (
     <header className="lubec-masthead">
       {/* The worn edge of the big lettering, as printed on old paper. */}
@@ -116,7 +131,7 @@ function LubecMasthead({ character, page, onPage, editing, onEdit, onDelete }: M
         <div className="lubec-id-text">
           <h2 className="lubec-kid-name">{lubecCharacterName(character)}</h2>
           <LubecKidMeta character={character} />
-          <LubecBandActions onEdit={onEdit} onDelete={onDelete} />
+          <LubecBandActions {...actions} />
         </div>
         <div className="lubec-stamp" aria-hidden="true">Lubec<br />Maine<br />1977</div>
       </div>
@@ -158,6 +173,8 @@ type SheetViewProps = {
   onDraftEdit: LubecSheetEdit | null
   /** Asks to delete the character, at any stage; null unless the viewer may. */
   onDelete: (() => void) | null
+  /** Opens Give to Player, at any stage; null unless the viewer is the GM. */
+  onAssign: (() => void) | null
   /** Puts the draft in use; null unless the viewer may. */
   onFinalize: (() => void) | null
   /** Saves a guided draft's dice and Swap at once; null unless the viewer may roll them. */
@@ -231,7 +248,7 @@ function showLubecClass(sheet: HTMLElement | null, onPage: (page: LubecPage) => 
 }
 
 /** One Lubec character's sheet, in the v4 frame, on its Core or Skills page. */
-export function LubecSheetView({ character, editing, onCountersChange, onDelete, onFinalize, onRollUp, corrections, ...edits }: SheetViewProps) {
+export function LubecSheetView({ character, editing, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, ...edits }: SheetViewProps) {
   const [page, setPage] = useState<LubecPage>('core')
   const [bandOpen, setBandOpen] = useState(false)
   const [correcting, setCorrecting] = useState(false)
@@ -245,6 +262,7 @@ export function LubecSheetView({ character, editing, onCountersChange, onDelete,
         editing={editing}
         onEdit={editing ? () => setBandOpen(true) : null}
         onDelete={bandDeleteOf(character, onDelete)}
+        onAssign={onAssign}
       />
       {editing && bandOpen ? <LubecNameBandEditor character={character} editing={editing} onDone={() => setBandOpen(false)} /> : null}
       <LubecStageBar

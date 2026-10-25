@@ -1,4 +1,4 @@
-import type { Role } from '../../../types/app'
+import type { CharacterRecord, Role } from '../../../types/app'
 import type { CampaignPlayerOption, TransferTargetCharacter } from './characterTabTypes'
 import { oseCharacterParser, type StoredCharacterFields } from './storedCharacterRecord'
 
@@ -25,13 +25,16 @@ export function readDirectorySnapshot(docs: StoredCharacterDoc[], role: Role | n
     .filter((character) => isVisibleInDirectory(character, role, gmUserId))
 }
 
-const isPlayerOwned = (character: TransferTargetCharacter, gmUserId: string | null) =>
+/** The fields that say who owns a character, which is all the player list reads. */
+type CharacterOwner = Pick<CharacterRecord, 'ownerUserId' | 'ownerUsername'>
+
+const isPlayerOwned = (character: CharacterOwner, gmUserId: string | null) =>
   !!character.ownerUserId && character.ownerUserId !== gmUserId
 
 const playerSortName = (player: CampaignPlayerOption) => player.username ?? player.userId
 
 /** Each player who owns a listed character, once, by name and then by id. */
-export function campaignPlayersFrom(characters: TransferTargetCharacter[], gmUserId: string | null): CampaignPlayerOption[] {
+export function campaignPlayersFrom(characters: CharacterOwner[], gmUserId: string | null): CampaignPlayerOption[] {
   const byUser = new Map<string, CampaignPlayerOption>()
   for (const character of characters) {
     if (!isPlayerOwned(character, gmUserId)) continue

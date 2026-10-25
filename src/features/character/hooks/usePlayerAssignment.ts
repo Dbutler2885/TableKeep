@@ -5,7 +5,11 @@ import { useMemo, useState } from 'react'
 import type { CharacterRecord } from '../../../types/app'
 import type { CampaignPlayerOption } from '../lib/characterTabTypes'
 
-type Params = { effectiveSelected: CharacterRecord | null; campaignPlayers: CampaignPlayerOption[]; updateCharacter: (id: string, updates: Partial<CharacterRecord>) => void }
+// Only the fields assignment reads and writes, so any rule set's character can be given to a player.
+type AssignableCharacter = Pick<CharacterRecord, 'id' | 'ownerUserId'>
+type OwnerUpdate = { ownerUserId: string; ownerUsername: string }
+
+type Params = { effectiveSelected: AssignableCharacter | null; campaignPlayers: CampaignPlayerOption[]; updateCharacter: (id: string, updates: OwnerUpdate) => void }
 
 export function usePlayerAssignment({ effectiveSelected, campaignPlayers, updateCharacter }: Params) {
   const [playerAssignmentOpen, setPlayerAssignmentOpen] = useState(false)
