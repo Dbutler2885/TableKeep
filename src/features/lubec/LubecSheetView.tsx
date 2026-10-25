@@ -119,7 +119,13 @@ export function LubecSheetView({ character, editing, onCountersChange }: SheetVi
     <article className="lubec-sheet" aria-label={`${lubecCharacterName(character)} character sheet`}>
       <LubecMasthead character={character} page={page} onPage={setPage} onEdit={editing ? () => setBandOpen(true) : null} />
       {editing && bandOpen ? <LubecNameBandEditor character={character} editing={editing} onDone={() => setBandOpen(false)} /> : null}
-      {page === 'core' ? <LubecCorePage sheet={character.lubec} onCountersChange={onCountersChange} /> : <LubecSkillsPage />}
+      {page === 'core' ? (
+        <LubecCorePage
+          sheet={character.lubec}
+          onCountersChange={onCountersChange}
+          onEffectsChange={editing ? (effects) => editing.update({ lubec: { ...character.lubec, effects } }) : null}
+        />
+      ) : <LubecSkillsPage />}
     </article>
   )
 }

@@ -13,6 +13,7 @@ import {
   type LubecStoredEntry,
 } from './characterRecord'
 import { lubecCharacterSummary } from './characterSummary'
+import { parseLubecEffects } from './effects'
 import { LUBEC_VALUE_NAMES, type LubecSheet } from './sheet'
 
 // Reads a stored Lubec character into the sheet's record and writes it back.
@@ -88,9 +89,7 @@ export function parseLubecSheet(raw: unknown): LubecCharacterSheet {
     door: doorOf(stored.door),
     rollUp: entryOrNone(stored.rollUp),
     counters: parseCounters(stored.counters),
-    // Effect rows are kept as stored, unknown fields and all, until the
-    // effects list reads them.
-    effects: listOf(stored.effects) as LubecStoredEntry[],
+    effects: parseLubecEffects(stored.effects),
     lastRoll: entryOrNone(stored.lastRoll),
     importNotes: listOf(stored.importNotes).filter(isText),
   }

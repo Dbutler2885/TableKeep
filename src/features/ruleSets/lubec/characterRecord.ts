@@ -1,5 +1,6 @@
 import type { TokenIconConfig } from '../../../types/app'
 import type { StoredCharacter } from '../storedCharacter'
+import type { LubecEffect } from './effects'
 import type { LubecSheet } from './sheet'
 
 // A Lubec character as the sheet reads it: the identity every rule set shares
@@ -19,7 +20,7 @@ export type LubecCharacterSheet = LubecSheet & {
   /** A guided character's dice, as each one landed. */
   rollUp: LubecStoredEntry | null
   counters: LubecCounters
-  effects: readonly LubecStoredEntry[]
+  effects: readonly LubecEffect[]
   lastRoll: LubecStoredEntry | null
   /** The notices only an import can know, kept for the Finalize dialog. */
   importNotes: readonly string[]
