@@ -191,7 +191,6 @@ const lockedEdits = (correcting: boolean, corrections: LubecCorrections | null, 
 
 type SheetPageProps = LockedEdits & Pick<SheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp'> & {
   page: LubecPage
-  onShowTree: () => void
   onHideTree: () => void
   /** Brings the Core page's class cards into view once the class is cleared. */
   onShowClass: () => void
@@ -210,7 +209,7 @@ function changeClassOf(sheet: LubecCharacterRecord['lubec'], onDraftEdit: LubecS
   }
 }
 
-function LubecSheetPage({ page, onShowTree, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp }: SheetPageProps) {
+function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp }: SheetPageProps) {
   if (page === 'skills') {
     const onChangeClass = changeClassOf(character.lubec, onDraftEdit, onShowClass)
     return <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} onHideTree={onHideTree} onChangeClass={onChangeClass} />
@@ -223,16 +222,9 @@ function LubecSheetPage({ page, onShowTree, onHideTree, onShowClass, character, 
       onDraftEdit={onDraftEdit}
       onRolled={editing ? (lubec) => editing.update({ lubec }) : null}
       guided={guidedOf(character, onRollUp)}
-      onShowTree={onShowTree}
       inPlay={character.creationStatus === 'active'}
     />
   )
-}
-
-// "Show skill tree" opens the Skills page and brings it into view, as the prototype scrolls to its tree.
-function showLubecTree(sheet: HTMLElement | null, onPage: (page: LubecPage) => void) {
-  flushSync(() => onPage('skills'))
-  sheet?.querySelector('.lubec-page')?.scrollIntoView({ behavior: lubecMotionAllowed() ? 'smooth' : 'auto', block: 'start' })
 }
 
 // "Hide skill tree" goes back to the Core page and brings its skill strip into view, as the prototype does.
@@ -274,7 +266,6 @@ export function LubecSheetView({ character, editing, onCountersChange, onDelete,
       />
       <LubecSheetPage
         page={page}
-        onShowTree={() => showLubecTree(sheetRef.current, setPage)}
         onHideTree={() => hideLubecTree(sheetRef.current, setPage)}
         onShowClass={() => showLubecClass(sheetRef.current, setPage)}
         character={character}

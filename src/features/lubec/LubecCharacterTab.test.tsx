@@ -2141,28 +2141,20 @@ describe('Lubec roller', () => {
     expect(shownStatus()).toBe('Intellect: 50 vs 43 - failure, +1 Stress.')
   })
 
-  it('opens the Skills page from "Show skill tree" in the strip under the Saves, and brings it into view', () => {
-    const scrollIntoView = vi.fn()
-    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
-    // jsdom has no scrollIntoView, so the stub is taken away again after this case.
-    Element.prototype.scrollIntoView = scrollIntoView
-    onTestFinished(() => {
-      delete (Element.prototype as Partial<Element>).scrollIntoView
-    })
+  it('keeps the strip under the Saves to arming skills, leaving the Skills tab to open the tree', () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     const sheet = openSheet('Tommy Eves')
     const strip = within(sheet).getByRole('region', { name: 'Skills' })
     expect(strip.previousElementSibling?.getAttribute('aria-labelledby')).toBe('lubec-saves-title')
     expect(strip.querySelector('.dice-formula')?.textContent).toBe('Add to a roll')
+    expect([...strip.querySelectorAll('.skill-strip-footer > *')].map((child) => child.className)).toEqual(['lubec-advantage', 'skill-strip-hint'])
+    expect(within(sheet).queryByText('Show skill tree')).toBeNull()
 
-    fireEvent.click(within(strip).getByText('Show skill tree', { selector: 'button' }))
+    fireEvent.click(within(within(sheet).getByRole('navigation', { name: 'Character sheet pages' })).getByRole('button', { name: 'Skills' }))
 
     expect(within(sheet).queryByRole('region', { name: 'Stats' })).toBeNull()
-    const tabs = within(within(sheet).getByRole('navigation', { name: 'Character sheet pages' })).getAllByRole('button')
-    expect(tabs[1].getAttribute('aria-current')).toBe('page')
-    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
-    expect(scrollIntoView.mock.contexts[0]).toBe(sheet.querySelector('.lubec-skills'))
+    expect(within(sheet).getByRole('region', { name: 'Skill tree' })).toBeTruthy()
   })
 
   it('disarms a skill tapped a second time', () => {
@@ -2377,7 +2369,6 @@ describe('Lubec roller', () => {
 
     expect(shownStatus()).toBe('Fear (Advantage, 12 and 44): 12 vs 34 - success.')
     expect(screen.queryByLabelText('Arm a skill')).toBeNull()
-    expect(screen.queryByText('Show skill tree')).toBeNull()
     expect([...document.querySelectorAll('button.roll-circle')].map((circle) => (circle as HTMLButtonElement).disabled)).toEqual(Array(10).fill(true))
     expect(valuesOf('Fear')).toEqual(['12/34', '24 +10 class'])
     expect(circleOf('Fear').className).toBe('roll-circle has-value check-success')
