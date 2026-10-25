@@ -1,4 +1,4 @@
-import { Pencil } from 'lucide-react'
+import { Pencil, Trash2 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { lubecClass } from '../ruleSets/lubec/classes'
@@ -55,6 +55,29 @@ type MastheadProps = {
   editing: LubecSheetEditing | null
   /** Opens the name band's edits; absent for a viewer who cannot edit. */
   onEdit: (() => void) | null
+  /** Asks to delete a finalized character; absent for a draft, whose stage bar has its own, or a viewer who may not. */
+  onDelete: (() => void) | null
+}
+
+type BandActionsProps = Pick<MastheadProps, 'onEdit' | 'onDelete'>
+
+// The name band's Edit and Delete buttons, for those who may.
+function LubecBandActions({ onEdit, onDelete }: BandActionsProps) {
+  if (!onEdit && !onDelete) return null
+  return (
+    <div className="lubec-band-actions">
+      {onEdit ? (
+        <button type="button" className="lubec-band-edit" aria-label="Edit name band" onClick={onEdit}>
+          <Pencil size={12} aria-hidden="true" /> Edit
+        </button>
+      ) : null}
+      {onDelete ? (
+        <button type="button" className="lubec-band-edit lubec-band-delete" aria-label="Delete character" onClick={onDelete}>
+          <Trash2 size={12} aria-hidden="true" /> Delete
+        </button>
+      ) : null}
+    </div>
+  )
 }
 
 function LubecKidMeta({ character }: { character: LubecCharacterRecord }) {
@@ -71,7 +94,7 @@ function LubecKidMeta({ character }: { character: LubecCharacterRecord }) {
 // rust and mustard stripe, then the name band with the portrait and the token
 // at the left and the stamp at the right, with a stand of pines rising behind
 // the stamp.
-function LubecMasthead({ character, page, onPage, editing, onEdit }: MastheadProps) {
+function LubecMasthead({ character, page, onPage, editing, onEdit, onDelete }: MastheadProps) {
   return (
     <header className="lubec-masthead">
       {/* The worn edge of the big lettering, as printed on old paper. */}
@@ -93,11 +116,7 @@ function LubecMasthead({ character, page, onPage, editing, onEdit }: MastheadPro
         <div className="lubec-id-text">
           <h2 className="lubec-kid-name">{lubecCharacterName(character)}</h2>
           <LubecKidMeta character={character} />
-          {onEdit ? (
-            <button type="button" className="lubec-band-edit" aria-label="Edit name band" onClick={onEdit}>
-              <Pencil size={12} aria-hidden="true" /> Edit
-            </button>
-          ) : null}
+          <LubecBandActions onEdit={onEdit} onDelete={onDelete} />
         </div>
         <div className="lubec-stamp" aria-hidden="true">Lubec<br />Maine<br />1977</div>
       </div>
@@ -117,6 +136,10 @@ type StageBarProps = {
   onFinalize: (() => void) | null
 }
 
+// A finalized character's Delete is on the name band, as it has no stage bar for its owner; a draft's is on its stage bar.
+const bandDeleteOf = (character: LubecCharacterRecord, onDelete: (() => void) | null) =>
+  (character.creationStatus === 'active' ? onDelete : null)
+
 // A draft shows its creation bar; a finalized character shows the GM the Correct switch.
 function LubecStageBar({ character, correcting, onCorrecting, onDelete, onFinalize }: StageBarProps) {
   if (character.creationStatus !== 'active') return <LubecDraftBar character={character} onDelete={onDelete} onFinalize={onFinalize} />
@@ -133,7 +156,7 @@ type SheetViewProps = {
   onSkillsChange: ((skills: LubecSkills) => void) | null
   /** Changes a draft's base values, class and class choice; null unless the viewer may type into the draft. */
   onDraftEdit: LubecSheetEdit | null
-  /** Deletes the draft; null unless the viewer may. */
+  /** Asks to delete the character, at any stage; null unless the viewer may. */
   onDelete: (() => void) | null
   /** Puts the draft in use; null unless the viewer may. */
   onFinalize: (() => void) | null
@@ -215,7 +238,14 @@ export function LubecSheetView({ character, editing, onCountersChange, onDelete,
   const sheetRef = useRef<HTMLElement>(null)
   return (
     <article ref={sheetRef} className="lubec-sheet" aria-label={`${lubecCharacterName(character)} character sheet`}>
-      <LubecMasthead character={character} page={page} onPage={setPage} editing={editing} onEdit={editing ? () => setBandOpen(true) : null} />
+      <LubecMasthead
+        character={character}
+        page={page}
+        onPage={setPage}
+        editing={editing}
+        onEdit={editing ? () => setBandOpen(true) : null}
+        onDelete={bandDeleteOf(character, onDelete)}
+      />
       {editing && bandOpen ? <LubecNameBandEditor character={character} editing={editing} onDone={() => setBandOpen(false)} /> : null}
       <LubecStageBar
         character={character}

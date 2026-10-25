@@ -22,7 +22,7 @@ export function selectCharacterFromList(selection: CharacterListSelection, chara
   if (selection.isSinglePane) selection.setPaneView('detail')
 }
 
-export function deleteConfirmTargetFor(character: CharacterRecord) {
+export function deleteConfirmTargetFor(character: Pick<CharacterRecord, 'id' | 'name'>) {
   return { id: character.id, name: character.name || 'character' }
 }
 

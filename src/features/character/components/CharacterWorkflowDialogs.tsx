@@ -1,7 +1,6 @@
 import type { useCharacterRoster } from '../hooks/useCharacterRoster'
 import { ConfirmModal } from '../../common/ConfirmModal'
-
-type DeleteTarget = { id: string; name: string }
+import { CharacterDeleteDialog, type CharacterDeleteTarget } from './CharacterDeleteDialog'
 
 type Props = {
   rosterFlow: ReturnType<typeof useCharacterRoster>
@@ -12,8 +11,8 @@ type Props = {
   setStoreClassRequiredOpen: (open: boolean) => void
   hpClassRequiredOpen: boolean
   setHpClassRequiredOpen: (open: boolean) => void
-  deleteTarget: DeleteTarget | null
-  onConfirmDelete: (target: DeleteTarget) => void
+  deleteTarget: CharacterDeleteTarget | null
+  onConfirmDelete: (target: CharacterDeleteTarget) => void
   onCancelDelete: () => void
 }
 
@@ -66,16 +65,7 @@ export function CharacterWorkflowDialogs(props: Props) {
         onConfirm={() => props.setHpClassRequiredOpen(false)}
         onCancel={() => props.setHpClassRequiredOpen(false)}
       />
-      <ConfirmModal
-        open={props.deleteTarget !== null}
-        title="Delete character?"
-        message={`Are you sure you want to delete ${props.deleteTarget?.name ?? 'this character'}? This cannot be undone.`}
-        confirmLabel="Delete"
-        onConfirm={() => {
-          if (props.deleteTarget) props.onConfirmDelete(props.deleteTarget)
-        }}
-        onCancel={props.onCancelDelete}
-      />
+      <CharacterDeleteDialog target={props.deleteTarget} onConfirm={props.onConfirmDelete} onCancel={props.onCancelDelete} />
     </>
   )
 }

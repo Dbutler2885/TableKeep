@@ -2,7 +2,7 @@ import type { CharacterRecord, Role } from '../../../types/app'
 
 type Params = { role: Role | null; currentUserId: string; character: CharacterRecord | null; grantMode: boolean }
 
-export const canDeleteCharacterForRole = (role: Role | null, currentUserId: string, character: CharacterRecord) =>
+export const canDeleteCharacterForRole = (role: Role | null, currentUserId: string, character: Pick<CharacterRecord, 'ownerUserId'>) =>
   role === 'gm' || character.ownerUserId === currentUserId
 
 export const deriveCharacterPermissions = ({ role, currentUserId, character, grantMode }: Params) => {

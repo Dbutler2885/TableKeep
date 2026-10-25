@@ -1,8 +1,9 @@
-import { UserRound } from 'lucide-react'
+import { Trash2, UserRound } from 'lucide-react'
 import { lubecClass } from '../ruleSets/lubec/classes'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import { LubecNewCharacter, type LubecDoors } from './LubecNewCharacter'
 import { lubecCharacterName } from './lubecNames'
+import type { LubecDeleteFor } from './useLubecCharacterDelete'
 
 type RosterProps = {
   characters: LubecCharacterRecord[]
@@ -10,6 +11,8 @@ type RosterProps = {
   selectedCharacterId: string
   currentUserId: string
   onSelect: (characterId: string) => void
+  /** Asks to delete a character from its card; no delete when absent. */
+  deleteFor?: LubecDeleteFor
   /** The ways to start a new character; null when the viewer may not make one. */
   doors?: LubecDoors | null
 }
@@ -19,6 +22,8 @@ type CardProps = {
   selected: boolean
   own: boolean
   onSelect: (characterId: string) => void
+  /** Asks to delete the character; null when the viewer may not. */
+  onDelete: (() => void) | null
 }
 
 function LubecRosterThumb({ character }: { character: LubecCharacterRecord }) {
@@ -26,24 +31,32 @@ function LubecRosterThumb({ character }: { character: LubecCharacterRecord }) {
   return <img src={character.portraitUrl} alt="" className="monster-portrait" />
 }
 
-function LubecRosterCard({ character, selected, own, onSelect }: CardProps) {
+// The card opens the sheet; the owner and the GM also get OSE's small delete button in its corner.
+function LubecRosterCard({ character, selected, own, onSelect, onDelete }: CardProps) {
   return (
-    <button type="button" className={selected ? 'monster-list-item active' : 'monster-list-item'} onClick={() => onSelect(character.id)}>
-      <div className="monster-card-portrait"><LubecRosterThumb character={character} /></div>
-      <div className="monster-card-main">
-        <div className="character-card-title-row">
-          <h4>{lubecCharacterName(character)}</h4>
-          {own ? <span className="lubec-own-tag">Yours</span> : null}
+    <div className="character-list-item-wrap">
+      <button type="button" className={selected ? 'monster-list-item active' : 'monster-list-item'} onClick={() => onSelect(character.id)}>
+        <div className="monster-card-portrait"><LubecRosterThumb character={character} /></div>
+        <div className="monster-card-main">
+          <div className="character-card-title-row">
+            <h4>{lubecCharacterName(character)}</h4>
+            {own ? <span className="lubec-own-tag">Yours</span> : null}
+          </div>
+          <p className="monster-card-statline">{lubecClass(character.lubec.class.key)?.name ?? 'No class yet'}</p>
+          <p className="character-card-owner">{character.ownerUsername ?? 'Unassigned'}</p>
         </div>
-        <p className="monster-card-statline">{lubecClass(character.lubec.class.key)?.name ?? 'No class yet'}</p>
-        <p className="character-card-owner">{character.ownerUsername ?? 'Unassigned'}</p>
-      </div>
-    </button>
+      </button>
+      {onDelete ? (
+        <button type="button" className="map-delete-btn character-card-delete-btn" onClick={onDelete} aria-label={`Delete ${lubecCharacterName(character)}`}>
+          <Trash2 size={14} />
+        </button>
+      ) : null}
+    </div>
   )
 }
 
 /** The campaign's Lubec characters the viewer may see, with their own marked. */
-export function LubecRoster({ characters, loading, selectedCharacterId, currentUserId, onSelect, doors = null }: RosterProps) {
+export function LubecRoster({ characters, loading, selectedCharacterId, currentUserId, onSelect, deleteFor = () => null, doors = null }: RosterProps) {
   return (
     <aside className="maps-sidebar monsters-sidebar characters-sidebar lubec-roster">
       <div className="maps-sidebar-header">
@@ -60,6 +73,7 @@ export function LubecRoster({ characters, loading, selectedCharacterId, currentU
             selected={character.id === selectedCharacterId}
             own={character.ownerUserId === currentUserId}
             onSelect={onSelect}
+            onDelete={deleteFor(character)}
           />
         ))}
       </div>

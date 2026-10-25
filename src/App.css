@@ -15961,6 +15961,27 @@ button:disabled {
   font-family: var(--lubec-type);
 }
 
+/* OSE's small delete button in the card's corner, in the sheet's rust, filled
+   once pointed at or focused, as the sheet's action buttons are. */
+.shell-root[data-theme="lubec"] .lubec-roster .character-card-delete-btn {
+  width: 1.75rem;
+  height: 1.75rem;
+  background: transparent;
+  border-radius: 0;
+  color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-roster .character-card-delete-btn:hover,
+.shell-root[data-theme="lubec"] .lubec-roster .character-card-delete-btn:focus-visible {
+  background: var(--lubec-rust);
+  color: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-roster .character-card-delete-btn:focus-visible {
+  outline: 2px solid var(--lubec-blue);
+  outline-offset: 2px;
+}
+
 .shell-root[data-theme="lubec"] .lubec-own-tag {
   padding: 0.15rem 0.4rem 0.05rem;
   background: var(--lubec-rust);
@@ -16170,17 +16191,29 @@ button:disabled {
   margin: 0 0.45rem;
 }
 
+.shell-root[data-theme="lubec"] .lubec-band-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.45rem;
+}
+
 .shell-root[data-theme="lubec"] .lubec-band-edit {
   display: inline-flex;
   gap: 0.3rem;
   align-items: center;
-  margin-top: 0.45rem;
   padding: 0.25rem 0.55rem 0.2rem;
   border: 1.5px solid var(--lubec-ink);
   border-radius: 0;
   font: 700 0.68rem/1 var(--lubec-type);
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+/* Delete takes the rust of the draft bar's Delete draft. */
+.shell-root[data-theme="lubec"] .lubec-band-delete {
+  border-color: var(--lubec-rust);
+  color: var(--lubec-rust);
 }
 
 .shell-root[data-theme="lubec"] .lubec-stamp {
@@ -18403,7 +18436,7 @@ button:disabled {
     grid-column: 1 / -1;
   }
 
-  .shell-root[data-theme="lubec"] .lubec-band-edit {
+  .shell-root[data-theme="lubec"] .lubec-band-actions {
     justify-self: start;
     margin-top: 0.4rem;
   }

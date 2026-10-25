@@ -1,8 +1,5 @@
-import { useState } from 'react'
-import { ConfirmModal } from '../common/ConfirmModal'
 import type { LubecCharacterRecord, LubecDoor } from '../ruleSets/lubec/characterRecord'
 import { LubecFinalize } from './LubecFinalize'
-import { lubecCharacterName } from './lubecNames'
 
 const LUBEC_DOOR_NAMES: Readonly<Record<LubecDoor, string>> = {
   direct: 'Direct entry',
@@ -12,27 +9,10 @@ const LUBEC_DOOR_NAMES: Readonly<Record<LubecDoor, string>> = {
 
 type DraftBarProps = {
   character: LubecCharacterRecord
-  /** Deletes the draft; null when the viewer may not. */
+  /** Asks to delete the draft; null when the viewer may not. */
   onDelete: (() => void) | null
   /** Puts the draft in use; null when the viewer may not. */
   onFinalize: (() => void) | null
-}
-
-function LubecDeleteDraft({ character, onDelete }: { character: LubecCharacterRecord; onDelete: () => void }) {
-  const [confirming, setConfirming] = useState(false)
-  return (
-    <>
-      <button type="button" className="action-button" onClick={() => setConfirming(true)}>Delete draft</button>
-      <ConfirmModal
-        open={confirming}
-        title="Delete draft"
-        message={`Permanently delete ${lubecCharacterName(character)}? This cannot be undone.`}
-        confirmLabel="Delete"
-        onConfirm={() => { setConfirming(false); onDelete() }}
-        onCancel={() => setConfirming(false)}
-      />
-    </>
-  )
 }
 
 /**
@@ -46,7 +26,7 @@ export function LubecDraftBar({ character, onDelete, onFinalize }: DraftBarProps
       <p className="phase-chip">
         In creation{door ? <> &middot; {LUBEC_DOOR_NAMES[door]}</> : null}
       </p>
-      {onDelete ? <LubecDeleteDraft character={character} onDelete={onDelete} /> : null}
+      {onDelete ? <button type="button" className="action-button" onClick={onDelete}>Delete draft</button> : null}
       {onFinalize ? <LubecFinalize character={character} onFinalize={onFinalize} /> : null}
     </div>
   )
