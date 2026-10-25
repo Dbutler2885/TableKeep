@@ -1023,18 +1023,20 @@ async function wanderingMonsterCases(browser, testCase, ids, browserErrors) {
 // No GM can create a Lubec campaign or character yet, so the smoke seeds both:
 // Tommy Eves, a Working Kid as the standalone sheet saved him. The campaign
 // opens in Lubec's own skin with its five tabs, and his Core page shows each
-// Stat and Save in the v4 frame without the page scrolling sideways.
+// Stat and Save in the v4 frame, and his Severe Concussion as one active effect
+// line, without the page scrolling sideways, with the effect closed or open.
 const LUBEC_TAB = '.shell-root[data-theme="lubec"] .lubec-character-tab'
 const LUBEC_CORE_PAGE = '.shell-root[data-theme="lubec"] .lubec-sheet .lubec-core'
 const LUBEC_CHARACTER_NAME = 'Tommy Eves'
 
 // Each Stat and Save as the Core page shows it: base, final with the Working
-// Kid's +5 to every Stat and +10 to every Save, and current.
+// Kid's +5 to every Stat and +10 to every Save, and current, with Handle -40
+// from the concussion's first step.
 const LUBEC_CORE_VALUES = [
   ['Strength', '24', '29', '29'],
   ['Speed', '51', '56', '56'],
   ['Intellect', '38', '43', '43'],
-  ['Handle', '50', '55', '55'],
+  ['Handle', '50', '55', '15'],
   ['Charm', '48', '53', '53'],
   ['Sanity', '20', '30', '30'],
   ['Fear', '24', '34', '34'],
@@ -1054,9 +1056,21 @@ function lubecCharacterFields({ uid, username }) {
       class: { key: 'working', choices: {} },
       base: { Strength: 24, Speed: 51, Intellect: 38, Handle: 50, Charm: 48, Sanity: 20, Fear: 24, Body: 21 },
       skills: { free: 'Boatwork', picked: ['Swimming', 'Diving'] },
+      effects: [{
+        id: 'severe-concussion',
+        name: 'Severe Concussion',
+        cause: 'Severe Concussion (failed Body Save)',
+        steps: [
+          { modifiers: [{ target: 'Handle', amount: -40 }], labels: ['Dazed'] },
+          { modifiers: [{ target: 'Handle', amount: -10 }], labels: [] },
+        ],
+      }],
     },
   }
 }
+
+const LUBEC_EFFECT_LINE = `${LUBEC_CORE_PAGE} .lubec-effects .lubec-effect-line`
+const LUBEC_EFFECT_TEXT = 'Severe ConcussionHandle -40, Dazedthen Handle -10'
 
 async function expectNavTabs(page, expected) {
   const labels = await page.$$eval('.side-nav .nav-list .tab-button', (tabs) => tabs.map((tab) => tab.textContent.trim()))
@@ -1087,6 +1101,20 @@ async function expectNoSidewaysScroll(page) {
   if (widths[0] > widths[1]) throw new Error(`The page is ${widths[0]}px wide in a ${widths[1]}px viewport.`)
 }
 
+async function expectLubecEffectLine(page) {
+  const lines = await page.$$eval(LUBEC_EFFECT_LINE, (elements) => elements.map((line) => line.textContent))
+  if (lines.join() !== LUBEC_EFFECT_TEXT) throw new Error(`The active effects show ${JSON.stringify(lines)}.`)
+}
+
+// Opened, the effect shows its editor in place of the line; Cancel closes it.
+async function openAndCloseLubecEffect(page) {
+  await page.locator(LUBEC_EFFECT_LINE).click()
+  await page.locator(`${LUBEC_CORE_PAGE} .lubec-effect-editor`).wait()
+  await expectNoSidewaysScroll(page)
+  await page.locator(`${LUBEC_CORE_PAGE} .lubec-effect-editor ::-p-text(Cancel)`).click()
+  await page.locator(LUBEC_EFFECT_LINE).wait()
+}
+
 async function lubecSheetCase(page, campaignName) {
   await step('open the seeded Lubec campaign', () => openCampaignCard(page, campaignName, LUBEC_TAB))
   await step('offer the five Lubec tabs', () => expectNavTabs(page, ['Characters', 'Maps', 'NPCs', 'Notes', 'Calendar']))
@@ -1095,6 +1123,9 @@ async function lubecSheetCase(page, campaignName) {
   await page.mouse.move(0, page.viewport().height - 1)
   await step('show the Core page in the v4 frame', () => expectLubecPage(page, 'Core sheet'))
   await step('show each Stat and Save with its base, final and current value', () => expectLubecCoreValues(page))
+  await step('show the active effect as one line', () => expectLubecEffectLine(page))
+  await step('fit an opened active effect without scrolling sideways', () => openAndCloseLubecEffect(page))
+  await page.mouse.move(0, page.viewport().height - 1)
   await step('fit the Lubec sheet without scrolling sideways', () => expectNoSidewaysScroll(page))
 }
 
@@ -1211,7 +1242,7 @@ async function runViewport(browser, testCase) {
       + 'and kept the items and ids the migration made of an old-format character through a save and two reloads, '
       + 'storing it at version 1, '
       + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map, '
-      + 'and opened a seeded Lubec campaign in its own skin, with its five tabs, to a seeded character\'s Core page.',
+      + 'and opened a seeded Lubec campaign in its own skin, with its five tabs, to a seeded character\'s Core page with its active effect.',
     )
   } finally {
     await screenshot(page, testCase.name)

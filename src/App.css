@@ -16350,6 +16350,176 @@ button:disabled {
   border-bottom: 1.5px solid var(--lubec-ink);
 }
 
+/* Active effects: one compact line each, opened in place to edit. */
+.shell-root[data-theme="lubec"] .lubec-effects-none {
+  margin: 0 0.7rem 0.4rem;
+  color: var(--lubec-muted);
+  font: 700 0.85rem/1.3 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-list {
+  margin: 0 0.6rem;
+  padding: 0;
+  list-style: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 0;
+  padding: 0.3rem 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect + .lubec-effect {
+  border-top: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-line {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.6rem;
+  align-items: baseline;
+  min-width: 0;
+  padding: 0.25rem 0.1rem;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--lubec-ink);
+  font: 700 0.9rem/1.25 var(--lubec-type);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.shell-root[data-theme="lubec"] button.lubec-effect-line:hover {
+  background: rgba(23, 40, 43, 0.06);
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-name {
+  font: 700 1.05rem/1.1 var(--lubec-condensed);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-now {
+  color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-next {
+  color: var(--lubec-muted);
+  font-weight: 400;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effects button:not(.lubec-effect-line) {
+  min-height: 2rem;
+  padding: 0.3rem 0.65rem 0.2rem;
+  background: var(--lubec-cream);
+  border: 1.5px solid var(--lubec-ink);
+  border-radius: 0;
+  color: var(--lubec-ink);
+  font: 700 0.85rem/1 var(--lubec-condensed);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effects button:not(.lubec-effect-line):hover {
+  background: var(--lubec-paper-deep);
+}
+
+.shell-root[data-theme="lubec"] .lubec-effects button:disabled {
+  opacity: 0.5;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effects .lubec-effect-add {
+  margin: 0.4rem 0.6rem 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effects .lubec-effect-save {
+  background: var(--lubec-pine);
+  color: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-effects .lubec-effect-remove {
+  margin-left: auto;
+  border-color: var(--lubec-rust);
+  color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-editor {
+  display: grid;
+  flex: 1;
+  gap: 0.55rem;
+  min-width: 0;
+  margin: 0.2rem 0 0.4rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effects > .lubec-effect-editor {
+  margin: 0.4rem 0.6rem 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-field {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-field > span,
+.shell-root[data-theme="lubec"] .lubec-effect-step legend {
+  color: var(--lubec-muted);
+  font: 800 0.62rem/1.2 var(--lubec-type);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-editor input,
+.shell-root[data-theme="lubec"] .lubec-effect-editor select,
+.shell-root[data-theme="lubec"] .lubec-effect-editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 0.35rem 0.45rem;
+  background: var(--lubec-cream);
+  border: 1.5px solid var(--lubec-ink);
+  border-radius: 0;
+  color: var(--lubec-ink);
+  font: 400 0.95rem/1.25 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-step {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.4rem 0.5rem 0.5rem;
+  border: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-modifier {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 6rem) auto;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effects .lubec-effect-icon {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  padding: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effects .lubec-effect-add-step {
+  justify-self: start;
+}
+
 @media (max-width: 560px) {
   .shell-root[data-theme="lubec"] .lubec-sheet {
     --pad: 1rem;

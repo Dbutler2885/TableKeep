@@ -699,3 +699,255 @@ describe('Lubec name band', () => {
     expect(database.tommy.tokenIcon).toEqual({ icon: 'custom', color: '#c08a2e', size: 34, customImagePath: 'uploaded/token.png', customImageName: 'token' })
   })
 })
+
+describe('Lubec active effects', () => {
+  type StepEntry = { modifiers?: [string, string][]; labels?: string }
+
+  const concussion = (fields: Fields = {}): Fields => ({
+    id: 'concussion',
+    name: 'Severe Concussion',
+    cause: 'Severe Concussion (failed Body Save)',
+    steps: [
+      { modifiers: [{ target: 'Handle', amount: -40 }], labels: ['Dazed'] },
+      { modifiers: [{ target: 'Handle', amount: -10 }], labels: [] },
+    ],
+    ...fields,
+  })
+
+  // Labels and text, rather than role queries, keep these many-step cases quick in jsdom.
+  const effectsRegion = () => screen.getByLabelText('Active effects')
+
+  const button = (container: HTMLElement, text: string) => within(container).getByText(text, { selector: 'button' })
+
+  /** A Stat or Save's base, final and current values, as `valuesOf` reads them. */
+  const shownValues = (name: string) => {
+    const row = [...document.querySelectorAll('.lubec-values tbody tr')].find((candidate) => candidate.querySelector('th')?.textContent === name)
+    return [...(row?.querySelectorAll('td') ?? [])].map((cell) => cell.textContent)
+  }
+
+  const openEffect = (index: number) => fireEvent.click(effectsRegion().querySelectorAll('button.lubec-effect-line')[index])
+
+  /** Each effect's one-line view, as its name, current step and next step. */
+  const effectLines = () => [...effectsRegion().querySelectorAll('.lubec-effect-line')].map((line) =>
+    [...line.children].map((part) => part.textContent))
+
+  const writtenEffects = (id = 'tommy') => parseLubecCharacter(id, database[id]).lubec.effects
+
+  async function flushSave() {
+    act(() => vi.advanceTimersByTime(500))
+    await flushMicrotasks()
+  }
+
+  function fillStep(form: HTMLElement, index: number, step: StepEntry) {
+    const name = `Step ${index + 1}`
+    ;(step.modifiers ?? []).forEach(([target, amount], at) => {
+      fireEvent.click(within(form).getByLabelText(`Add modifier to ${name.toLowerCase()}`))
+      fireEvent.change(within(form).getByLabelText(`${name} modifier ${at + 1}`), { target: { value: target } })
+      fireEvent.change(within(form).getByLabelText(`${name} modifier ${at + 1} amount`), { target: { value: amount } })
+    })
+    if (step.labels) fireEvent.change(within(form).getByLabelText(`${name} labels`), { target: { value: step.labels } })
+  }
+
+  function addEffect(name: string, cause: string, steps: StepEntry[]) {
+    fireEvent.click(button(effectsRegion(), 'Add effect'))
+    const form = within(effectsRegion()).getByLabelText('New effect')
+    fireEvent.change(within(form).getByLabelText('Name'), { target: { value: name } })
+    fireEvent.change(within(form).getByLabelText('Cause'), { target: { value: cause } })
+    steps.forEach((step, index) => {
+      if (index > 0) fireEvent.click(button(form, 'Add step'))
+      fillStep(form, index, step)
+    })
+    fireEvent.click(button(form, 'Add'))
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('adds two Handle effects by hand, sums them in the current Handle, and writes both', async () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect(within(effectsRegion()).getByText('No active effects.')).toBeTruthy()
+
+    addEffect('Bruised knuckles', 'Punched a locker', [{ modifiers: [['Handle', '-40']] }])
+    addEffect('Sprained wrist', 'Fell off a bike', [{ modifiers: [['Handle', '-10']] }])
+
+    expect(shownValues('Handle')).toEqual(['50', '55', '5'])
+    expect(effectLines()).toEqual([['Bruised knuckles', 'Handle -40'], ['Sprained wrist', 'Handle -10']])
+    await flushSave()
+    expect(writtenEffects().map(({ name, cause, steps }) => ({ name, cause, steps }))).toEqual([
+      { name: 'Bruised knuckles', cause: 'Punched a locker', steps: [{ modifiers: [{ target: 'Handle', amount: -40 }], labels: [] }] },
+      { name: 'Sprained wrist', cause: 'Fell off a bike', steps: [{ modifiers: [{ target: 'Handle', amount: -10 }], labels: [] }] },
+    ])
+    expect(new Set(writtenEffects().map((effect) => effect.id)).size).toBe(2)
+  })
+
+  it('floors a value at 0 under a large penalty, and keeps a hole a hole whatever the effects', () => {
+    const crushed = { id: 'crushed', name: 'Crushed hand', cause: 'Boat winch', steps: [{ modifiers: [{ target: 'Handle', amount: -80 }, { target: 'Speed', amount: -10 }] }] }
+    seed({ tommy: withSheet({ base: { Strength: 24, Speed: null, Intellect: 38, Handle: 50, Charm: 48, Sanity: 20, Fear: 24, Body: 21 }, effects: [crushed] }) })
+    mountTab('player', 'player-1')
+
+    openSheet('Tommy Eves')
+
+    expect(shownValues('Handle')).toEqual(['50', '55', '0'])
+    expect(shownValues('Speed')).toEqual(['missing', 'missing', 'missing'])
+    expect(document.querySelector('.lubec-effective-handle')?.textContent).toBe('0')
+    expect(shownValues('Strength')).toEqual(['24', '29', '29'])
+  })
+
+  it('shows a stored effect with no steps by its name alone, and an empty next step as nothing', () => {
+    const note = { id: 'note', name: 'Owes Wayne a favour', cause: 'Borrowed his bike', steps: [] }
+    const fading = { id: 'fading', name: 'Sunburn', cause: 'Fell asleep on the dock', steps: [{ labels: ['Sore'] }, {}] }
+    seed({ tommy: withSheet({ effects: [note, fading] }) })
+    mountTab('player', 'player-1')
+
+    openSheet('Tommy Eves')
+
+    expect(effectLines()).toEqual([['Owes Wayne a favour'], ['Sunburn', 'Sore', 'then nothing']])
+  })
+
+  it('walks the Severe Concussion down its steps and off the sheet, writing each change so it survives a reload', async () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    addEffect('Severe Concussion', 'Severe Concussion (failed Body Save)', [{ modifiers: [['Handle', '-40']], labels: 'Dazed' }, { modifiers: [['Handle', '-10']] }])
+
+    expect(effectLines()).toEqual([['Severe Concussion', 'Handle -40, Dazed', 'then Handle -10']])
+    expect(effectsRegion().textContent).not.toContain('failed Body Save')
+    expect(shownValues('Handle')).toEqual(['50', '55', '15'])
+    await flushSave()
+    expect(writtenEffects()).toEqual([{
+      id: expect.any(String),
+      name: 'Severe Concussion',
+      cause: 'Severe Concussion (failed Body Save)',
+      steps: [{ modifiers: [{ target: 'Handle', amount: -40 }], labels: ['Dazed'] }, { modifiers: [{ target: 'Handle', amount: -10 }], labels: [] }],
+    }])
+    reload('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect(effectLines()).toEqual([['Severe Concussion', 'Handle -40, Dazed', 'then Handle -10']])
+    expect(shownValues('Handle')).toEqual(['50', '55', '15'])
+
+    fireEvent.click(within(effectsRegion()).getByLabelText('Step down Severe Concussion'))
+
+    expect(effectLines()).toEqual([['Severe Concussion', 'Handle -10']])
+    expect(shownValues('Handle')).toEqual(['50', '55', '45'])
+    await flushSave()
+    expect(writtenEffects()[0].steps).toEqual([{ modifiers: [{ target: 'Handle', amount: -10 }], labels: [] }])
+    expect(writtenEffects()[0].cause).toBe('Severe Concussion (failed Body Save)')
+    reload('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect(effectLines()).toEqual([['Severe Concussion', 'Handle -10']])
+
+    fireEvent.click(within(effectsRegion()).getByLabelText('Step down Severe Concussion'))
+
+    expect(effectLines()).toEqual([])
+    expect(shownValues('Handle')).toEqual(['50', '55', '55'])
+    await flushSave()
+    expect(writtenEffects()).toEqual([])
+    reload('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect(within(effectsRegion()).getByText('No active effects.')).toBeTruthy()
+  })
+
+  it('opens an effect to edit its name, cause, modifiers, labels and steps, keeping what the sheet does not model', async () => {
+    seed({ tommy: withSheet({ effects: [concussion({ source: 'damage table' })] }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    openEffect(0)
+    const form = within(effectsRegion()).getByLabelText('Edit Severe Concussion')
+    expect((within(form).getByLabelText('Cause') as HTMLInputElement).value).toBe('Severe Concussion (failed Body Save)')
+    fireEvent.change(within(form).getByLabelText('Name'), { target: { value: 'Concussion' } })
+    fireEvent.change(within(form).getByLabelText('Cause'), { target: { value: 'Fell from the bleachers' } })
+    fireEvent.change(within(form).getByLabelText('Step 1 modifier 1'), { target: { value: 'Speed' } })
+    fireEvent.change(within(form).getByLabelText('Step 1 modifier 1 amount'), { target: { value: '-20' } })
+    fireEvent.change(within(form).getByLabelText('Step 1 labels'), { target: { value: 'Dazed\nDisadvantage on exertion checks' } })
+    fireEvent.click(within(form).getByLabelText('Remove step 2'))
+    fireEvent.click(button(form, 'Add step'))
+    fillStep(form, 1, { modifiers: [['Body', '-5']] })
+    fireEvent.click(button(form, 'Save'))
+
+    expect(effectLines()).toEqual([['Concussion', 'Speed -20, Dazed, Disadvantage on exertion checks', 'then Body -5']])
+    expect(shownValues('Speed')).toEqual(['51', '56', '36'])
+    expect(shownValues('Handle')).toEqual(['50', '55', '55'])
+    await flushSave()
+    expect(writtenEffects()).toEqual([{
+      id: 'concussion',
+      name: 'Concussion',
+      cause: 'Fell from the bleachers',
+      source: 'damage table',
+      steps: [
+        { modifiers: [{ target: 'Speed', amount: -20 }], labels: ['Dazed', 'Disadvantage on exertion checks'] },
+        { modifiers: [{ target: 'Body', amount: -5 }], labels: [] },
+      ],
+    }])
+  })
+
+  it('drops the edits when an opened effect is cancelled, and removes an effect from its editor', async () => {
+    const bruise = { id: 'bruise', name: 'Bruised ribs', cause: 'Fell off the pier', steps: [{ modifiers: [{ target: 'Strength', amount: -5 }], labels: [] }] }
+    seed({ tommy: withSheet({ effects: [concussion(), bruise] }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    openEffect(0)
+    fireEvent.change(within(effectsRegion()).getByLabelText('Name'), { target: { value: 'Headache' } })
+    fireEvent.click(button(effectsRegion(), 'Cancel'))
+
+    expect(effectLines()).toEqual([['Severe Concussion', 'Handle -40, Dazed', 'then Handle -10'], ['Bruised ribs', 'Strength -5']])
+
+    openEffect(0)
+    fireEvent.click(button(effectsRegion(), 'Remove effect'))
+
+    expect(effectLines()).toEqual([['Bruised ribs', 'Strength -5']])
+    expect(shownValues('Handle')).toEqual(['50', '55', '55'])
+    await flushSave()
+    expect(writtenEffects().map((effect) => effect.id)).toEqual(['bruise'])
+  })
+
+  it('cannot add an effect without a name', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    fireEvent.click(button(effectsRegion(), 'Add effect'))
+
+    expect((button(effectsRegion(), 'Add') as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(button(effectsRegion(), 'Cancel'))
+    expect(button(effectsRegion(), 'Add effect')).toBeTruthy()
+    expect(within(effectsRegion()).getByText('No active effects.')).toBeTruthy()
+  })
+
+  it('lets the GM add to and step down the effects on a player\'s character', async () => {
+    seed({ tommy: withSheet({ effects: [concussion()] }) })
+    mountTab('gm', GM)
+    openSheet('Tommy Eves')
+
+    fireEvent.click(within(effectsRegion()).getByLabelText('Step down Severe Concussion'))
+    addEffect('Grounded', 'Caught after curfew', [{ labels: 'No leaving the house' }])
+
+    expect(effectLines()).toEqual([['Severe Concussion', 'Handle -10'], ['Grounded', 'No leaving the house']])
+    await flushSave()
+    expect(writtenEffects().map((effect) => [effect.name, effect.steps])).toEqual([
+      ['Severe Concussion', [{ modifiers: [{ target: 'Handle', amount: -10 }], labels: [] }]],
+      ['Grounded', [{ modifiers: [], labels: ['No leaving the house'] }]],
+    ])
+  })
+
+  it('shows a player the effects on someone else\'s character, with no way to change them', async () => {
+    seed({ tommy: withSheet({ effects: [concussion()] }) })
+    mountTab('player', 'player-2')
+    openSheet('Tommy Eves')
+
+    expect(effectLines()).toEqual([['Severe Concussion', 'Handle -40, Dazed', 'then Handle -10']])
+    expect(shownValues('Handle')).toEqual(['50', '55', '15'])
+    expect(effectsRegion().querySelectorAll('button')).toHaveLength(0)
+    await flushSave()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+  })
+})
