@@ -1075,6 +1075,7 @@ const LUBEC_CORE_VALUES = [
 
 // The skills the tree marks, in tree order, with the mark each shows.
 const LUBEC_TREE_MARKS = [['Swimming', 'Pick +10'], ['Diving', 'Pick +15'], ['Boatwork', 'Free +10']]
+const LUBEC_SKILL_CHIPS = ['Boatwork +10', 'Swimming +10', 'Diving +15']
 
 /** A Lubec character file with a PNG as its portrait data URL. */
 export const withLubecPortrait = (file, png) => ({ ...file, portrait: `data:image/png;base64,${png.toString('base64')}` })
@@ -1152,8 +1153,14 @@ async function openAndCloseLubecEffect(page) {
   await page.waitForFunction((selector) => !document.querySelector(selector), {}, LUBEC_EFFECT_EDITOR)
 }
 
+async function expectLubecSkillChips(page) {
+  const chips = await page.$$eval(`${LUBEC_CORE_PAGE} .skill-chips .skill-chip`, (elements) => elements.map((chip) => chip.textContent))
+  if (JSON.stringify(chips) !== JSON.stringify(LUBEC_SKILL_CHIPS)) throw new Error(`The skill strip offers ${JSON.stringify(chips)}.`)
+}
+
+// "Show skill tree" in the Core page's skill strip opens the Skills page, where the tree is.
 async function openLubecSkillsPage(page) {
-  await page.locator('.lubec-page-tabs button ::-p-text(Skills)').click()
+  await page.locator(`${LUBEC_CORE_PAGE} .skill-strip-footer ::-p-text(Show skill tree)`).click()
   await page.locator(LUBEC_SKILLS_PAGE).wait()
 }
 
@@ -1169,7 +1176,7 @@ async function expectLubecTreeMarks(page) {
 }
 
 async function lubecSkillsPageSteps(page, testCase) {
-  await step('open the Lubec Skills page', () => openLubecSkillsPage(page))
+  await step('open the Lubec Skills page from the skill strip', () => openLubecSkillsPage(page))
   await page.mouse.move(0, page.viewport().height - 1)
   await step('show the Skills page in the v4 frame', () => expectLubecPage(page, 'Skills'))
   await step('show all 27 Trained and 27 Expert skills on the tree', () => expectLubecTreeSize(page))
@@ -1194,6 +1201,7 @@ async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) 
   await page.mouse.move(0, page.viewport().height - 1)
   await step('show the Core page in the v4 frame', () => expectLubecPage(page, 'Core sheet'))
   await step('show each Stat and Save in a roll circle with its base and class modifier under it', () => expectLubecCoreValues(page))
+  await step('offer the skills to add to a roll in the strip under the Saves', () => expectLubecSkillChips(page))
   await step('fit a new active effect\'s editor without scrolling sideways', () => openAndCloseLubecEffect(page))
   await page.mouse.move(0, page.viewport().height - 1)
   await step('fit the Lubec sheet without scrolling sideways', () => expectNoSidewaysScroll(page))

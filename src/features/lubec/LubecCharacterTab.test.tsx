@@ -8,7 +8,7 @@
  * documents as last written. Rolls draw from seeded dice provided around the
  * tab. Later sheet tickets add their cases here.
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../types/app'
@@ -1436,14 +1436,12 @@ describe('Lubec roller', () => {
 
   const roll = (name: string) => fireEvent.click(rollButton(name))
 
-  const rollRegion = () => screen.getByLabelText('Roll', { selector: 'section' })
-
-  const rollerButton = (text: string) => within(rollRegion()).getByText(text, { selector: 'button' })
+  const rollerButton = (text: string) => within(screen.getByLabelText('Advantage')).getByText(text, { selector: 'button' })
 
   const skillChip = (name: string) => within(screen.getByLabelText('Arm a skill')).getByText(name, { exact: false, selector: 'button' })
 
-  /** The last roll as the Core page shows it: what was rolled, the dice and the outcome. */
-  const shownLastRoll = () => [...screen.getByLabelText('Last roll').children].map((part) => part.textContent)
+  /** The skill chips as the strip shows them, each with its bonus. */
+  const shownChips = () => [...screen.getByLabelText('Arm a skill').children].map((chip) => chip.textContent)
 
   const writtenLastRoll = (id = 'tommy') => parseLubecCharacter(id, database[id]).lubec.lastRoll
 
@@ -1463,12 +1461,11 @@ describe('Lubec roller', () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
-    expect(shownLastRoll()).toEqual(['No roll yet.'])
+    expect(shownStatus()).toBe('')
     expect(rollButton('Strength').getAttribute('aria-label')).toBe('Roll Strength at or under 29')
 
     seedRolls(29)
     roll('Strength')
-    expect(shownLastRoll()).toEqual(['Strength check', 'Rolled 29 vs 29', 'Success'])
     expect(shownCounters().stress).toBe('2')
     expect(valuesOf('Strength')).toEqual(['29/29', '24 +5 class'])
     expect(circleOf('Strength').className).toBe('roll-circle has-value check-success')
@@ -1478,11 +1475,9 @@ describe('Lubec roller', () => {
     roll('Strength')
     expect(valuesOf('Strength')).toEqual(['29', '24 +5 class'])
     expect(shownStatus()).toBe('Strength check cleared. Score unchanged.')
-    expect(shownLastRoll()).toEqual(['Strength check', 'Rolled 29 vs 29', 'Success'])
 
     seedRolls(30)
     roll('Strength')
-    expect(shownLastRoll()).toEqual(['Strength check', 'Rolled 30 vs 29', 'Failure, +1 Stress'])
     expect(shownCounters().stress).toBe('3')
     expect(valuesOf('Strength')).toEqual(['30/29', '24 +5 class'])
     expect(circleOf('Strength').className).toBe('roll-circle has-value check-failure')
@@ -1509,7 +1504,7 @@ describe('Lubec roller', () => {
     seedRolls(35)
     roll('Fear')
 
-    expect(shownLastRoll()).toEqual(['Fear save', 'Rolled 35 vs 34', 'Failure, +1 Stress'])
+    expect(shownStatus()).toBe('Fear: 35 vs 34 - failure, +1 Stress.')
     expect(shownCounters().stress).toBe('3')
     await flushSave()
     expect(writtenLastRoll()).toMatchObject({ kind: 'save', against: 'Fear', stressAdded: 1 })
@@ -1524,14 +1519,14 @@ describe('Lubec roller', () => {
     fireEvent.click(rollerButton('Advantage'))
     seedRolls(71, 23)
     roll('Speed')
-    expect(shownLastRoll()).toEqual(['Speed check', 'Advantage: 71 and 23, kept 23 vs 56', 'Success'])
+    expect(shownStatus()).toBe('Speed (Advantage, 71 and 23): 23 vs 56 - success.')
     expect(rollerButton('Advantage').getAttribute('aria-pressed')).toBe('true')
 
     fireEvent.click(rollerButton('Disadvantage'))
     roll('Speed')
     seedRolls(23, 71)
     roll('Speed')
-    expect(shownLastRoll()).toEqual(['Speed check', 'Disadvantage: 23 and 71, kept 71 vs 56', 'Failure, +1 Stress'])
+    expect(shownStatus()).toBe('Speed (Disadvantage, 23 and 71): 71 vs 56 - failure, +1 Stress.')
     await flushSave()
     expect(writtenLastRoll()).toMatchObject({ dice: [23, 71], result: 71, advantage: 'disadvantage', outcome: 'failure' })
   })
@@ -1540,19 +1535,19 @@ describe('Lubec roller', () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
-    expect([...screen.getByLabelText('Arm a skill').children].map((chip) => chip.textContent))
-      .toEqual(['Boatwork +10', 'Swimming +10', 'Diving +15'])
+    expect(shownChips()).toEqual(['Boatwork +10', 'Swimming +10', 'Diving +15'])
+    expect(skillChip('Diving').className).toBe('skill-chip expert')
+    expect(screen.getByText('Tap a skill, then roll a Stat or Save').className).toBe('skill-strip-hint')
 
     fireEvent.click(skillChip('Diving'))
     expect(skillChip('Diving').getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByText('+15 Diving applies to your next roll.')).toBeTruthy()
+    expect(screen.getByText('+15 Diving applies to your next roll').className).toBe('skill-strip-hint armed')
     expect(rollButton('Intellect').getAttribute('aria-label')).toBe('Roll Intellect at or under 58')
     expect(valuesOf('Intellect')).toEqual(['58', '+15 skill'])
     expect(circleOf('Intellect').className).toBe('roll-circle has-value skill-armed')
     seedRolls(50)
     roll('Intellect')
 
-    expect(shownLastRoll()).toEqual(['Intellect check with Diving', 'Rolled 50 vs 58', 'Success'])
     expect(skillChip('Diving').getAttribute('aria-pressed')).toBe('false')
     expect(valuesOf('Intellect')).toEqual(['50/58', '+15 Diving'])
     expect(valuesOf('Speed')).toEqual(['56', '51 +5 class'])
@@ -1564,7 +1559,31 @@ describe('Lubec roller', () => {
 
     seedRolls(50)
     roll('Intellect')
-    expect(shownLastRoll()).toEqual(['Intellect check', 'Rolled 50 vs 43', 'Failure, +1 Stress'])
+    expect(shownStatus()).toBe('Intellect: 50 vs 43 - failure, +1 Stress.')
+  })
+
+  it('opens the Skills page from "Show skill tree" in the strip under the Saves, and brings it into view', () => {
+    const scrollIntoView = vi.fn()
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
+    // jsdom has no scrollIntoView, so the stub is taken away again after this case.
+    Element.prototype.scrollIntoView = scrollIntoView
+    onTestFinished(() => {
+      delete (Element.prototype as Partial<Element>).scrollIntoView
+    })
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    const sheet = openSheet('Tommy Eves')
+    const strip = within(sheet).getByRole('region', { name: 'Skills' })
+    expect(strip.previousElementSibling?.getAttribute('aria-labelledby')).toBe('lubec-saves-title')
+    expect(strip.querySelector('.dice-formula')?.textContent).toBe('Add to a roll')
+
+    fireEvent.click(within(strip).getByText('Show skill tree', { selector: 'button' }))
+
+    expect(within(sheet).queryByRole('region', { name: 'Stats' })).toBeNull()
+    const tabs = within(within(sheet).getByRole('navigation', { name: 'Character sheet pages' })).getAllByRole('button')
+    expect(tabs[1].getAttribute('aria-current')).toBe('page')
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
+    expect(scrollIntoView.mock.contexts[0]).toBe(sheet.querySelector('.lubec-skills'))
   })
 
   it('disarms a skill tapped a second time', () => {
@@ -1579,23 +1598,18 @@ describe('Lubec roller', () => {
     expect(rollButton('Handle').getAttribute('aria-label')).toBe('Roll Handle at or under 55')
   })
 
-  it('cannot arm Scrapping, Boxing, Firearms or Slingshot / Archery', async () => {
+  it('leaves Scrapping, Boxing, Firearms and Slingshot / Archery off the strip', async () => {
     const fighter = { free: 'Scrapping', picked: ['Boxing', 'Firearms', 'Slingshot / Archery', 'Athletics'] }
     seed({ tommy: withSheet({ class: { key: 'tough', choices: {} }, skills: fighter }) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
 
-    for (const name of ['Scrapping', 'Boxing', 'Firearms', 'Slingshot / Archery']) {
-      expect(skillChip(name).disabled).toBe(true)
-      fireEvent.click(skillChip(name))
-      expect(skillChip(name).getAttribute('aria-pressed')).toBe('false')
-    }
-    expect(skillChip('Athletics').disabled).toBe(false)
+    expect(shownChips()).toEqual(['Athletics +10'])
     expect(rollButton('Handle').getAttribute('aria-label')).toBe('Roll Handle at or under 50')
     seedRolls(40)
     roll('Handle')
 
-    expect(shownLastRoll()[0]).toBe('Handle check')
+    expect(shownStatus()).toBe('Handle: 40 vs 50 - success.')
     await flushSave()
     expect(writtenLastRoll()).toMatchObject({ target: 50, skill: null })
   })
@@ -1607,14 +1621,14 @@ describe('Lubec roller', () => {
 
     seedRolls(90)
     roll('Charm')
-    expect(shownLastRoll()[2]).toBe('Failure, +2 Stress')
+    expect(shownStatus()).toMatch(/^Charm: 90 vs \d+ - failure, \+2 Stress\.$/)
     expect(shownCounters().stress).toBe('4')
     await flushSave()
     expect(writtenLastRoll()).toMatchObject({ kind: 'stat-check', stressAdded: 2 })
 
     seedRolls(90)
     roll('Sanity')
-    expect(shownLastRoll()[2]).toBe('Failure, +1 Stress')
+    expect(shownStatus()).toMatch(/^Sanity: 90 vs \d+ - failure, \+1 Stress\.$/)
     expect(shownCounters().stress).toBe('5')
 
     press('Lower Stress')
@@ -1635,7 +1649,7 @@ describe('Lubec roller', () => {
     fireEvent.click(rollButton('Speed'))
     await flushSave()
 
-    expect(shownLastRoll()).toEqual(['No roll yet.'])
+    expect(shownStatus()).toBe('')
     expect(mocks.setDoc).not.toHaveBeenCalled()
     expect(rollButton('Strength').disabled).toBe(false)
   })
@@ -1651,8 +1665,6 @@ describe('Lubec roller', () => {
     reload('player', 'player-1')
     openSheet('Tommy Eves')
 
-    expect(shownLastRoll()).toEqual(['Strength check', 'Rolled 33 vs 29', 'Critical failure, +1 Stress'])
-    expect(screen.getByLabelText('Last roll').querySelector('.critical')?.textContent).toBe('Critical failure, +1 Stress')
     expect(shownCounters().stress).toBe('3')
     expect(circleOf('Strength').className).toBe('roll-circle has-value check-failure check-double')
     expect(circleOf('Strength').getAttribute('aria-label')).toBe('Strength rolled 33 against 29. Critical failure. Click to clear.')
@@ -1672,7 +1684,6 @@ describe('Lubec roller', () => {
     expect(circleOf('Strength').textContent).toMatch(/^\d+\/29$/)
     expect(shownStatus()).toBe('Rolling Strength check...')
     expect([...document.querySelectorAll('button.roll-circle')].every((circle) => (circle as HTMLButtonElement).disabled)).toBe(true)
-    expect(shownLastRoll()).toEqual(['Strength check', 'Rolled 12 vs 29', 'Success'])
 
     // Each preview's timer is set once the last one has shown, so the spin is let run a step at a time.
     for (let step = 0; step < 11; step += 1) act(() => vi.advanceTimersByTime(500))
@@ -1693,7 +1704,7 @@ describe('Lubec roller', () => {
     seedRolls(22)
     roll('Strength')
 
-    expect(shownLastRoll()[2]).toBe('Critical success')
+    expect(shownStatus()).toBe('Strength: 22 vs 29 - critical success.')
     expect(circleOf('Strength').className).toBe('roll-circle has-value check-success check-double')
   })
 
@@ -1719,8 +1730,9 @@ describe('Lubec roller', () => {
     mountTab('player', 'player-2')
     openSheet('Tommy Eves')
 
-    expect(shownLastRoll()).toEqual(['Fear save', 'Advantage: 12 and 44, kept 12 vs 34', 'Success'])
-    expect(rollRegion().querySelectorAll('button')).toHaveLength(0)
+    expect(shownStatus()).toBe('Fear (Advantage, 12 and 44): 12 vs 34 - success.')
+    expect(screen.queryByLabelText('Arm a skill')).toBeNull()
+    expect(screen.queryByText('Show skill tree')).toBeNull()
     expect([...document.querySelectorAll('button.roll-circle')].map((circle) => (circle as HTMLButtonElement).disabled)).toEqual(Array(8).fill(true))
     expect(valuesOf('Fear')).toEqual(['12/34', '24 +10 class'])
     expect(circleOf('Fear').className).toBe('roll-circle has-value check-success')
@@ -1733,7 +1745,7 @@ describe('Lubec roller', () => {
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
 
-    expect(shownLastRoll()).toEqual(['No roll yet.'])
+    expect(shownStatus()).toBe('')
     press('Raise Trauma')
     await flushSave()
     expect(writtenLastRoll()).toEqual({ kind: 'stat', roll: 31 })
@@ -1741,7 +1753,8 @@ describe('Lubec roller', () => {
 })
 
 describe('Lubec Panic Check and Recovery Save', () => {
-  const shownLastRoll = () => [...screen.getByLabelText('Last roll').children].map((part) => part.textContent)
+  /** The status line under the circles, which says how the last roll of any kind came out. */
+  const shownStatus = () => document.querySelector('.abilities .status')?.textContent
 
   const writtenSheet = (id = 'tommy') => parseLubecCharacter(id, database[id]).lubec
 
@@ -1786,7 +1799,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     seedFace(20, 3)
     fireEvent.click(panicButton())
 
-    expect(shownLastRoll()).toEqual(['Panic Check', 'Rolled 3 vs Stress 2', 'Success'])
+    expect(shownStatus()).toBe('Panic Check: 3 vs Stress 2 - success.')
     expect(panicResult()).toBeNull()
     expect(shownCounters().stress).toBe('2')
     await flushSave()
@@ -1803,7 +1816,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     seedFace(20, 5)
     fireEvent.click(panicButton())
 
-    expect(shownLastRoll()).toEqual(['Panic Check', 'Rolled 5 vs Stress 5', 'Failure'])
+    expect(shownStatus()).toBe('Panic Check: 5 vs Stress 5 - failure.')
     expect(shownPanicResult()).toEqual(['05 COWARD', 'Gain a new Condition: You must make a Fear Save to engage in violence, otherwise you flee.', 'Add effect'])
     expect(shownCounters().stress).toBe('5')
     await flushSave()
@@ -1887,7 +1900,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     seedFace(20, 9)
     fireEvent.click(panicButton())
 
-    expect(shownLastRoll()).toEqual(['Panic Check', 'Advantage: 2 and 9, kept 9 vs Stress 5', 'Success'])
+    expect(shownStatus()).toBe('Panic Check (Advantage, 2 and 9): 9 vs Stress 5 - success.')
   })
 
   it('lowers Stress on a Recovery success by the roll\'s ones digit, stopping at Minimum Stress', async () => {
@@ -1898,12 +1911,12 @@ describe('Lubec Panic Check and Recovery Save', () => {
 
     seedRolls(23)
     fireEvent.click(recoveryButton())
-    expect(shownLastRoll()).toEqual(['Recovery save on Sanity', 'Rolled 23 vs 30', 'Success, -3 Stress'])
+    expect(shownStatus()).toBe('Recovery Save on Sanity: 23 vs 30 - success, -3 Stress.')
     expect(shownCounters().stress).toBe('6')
 
     seedRolls(27)
     fireEvent.click(recoveryButton())
-    expect(shownLastRoll()[2]).toBe('Success, -4 Stress')
+    expect(shownStatus()).toMatch(/ - success, -4 Stress\.$/)
     expect(shownCounters().stress).toBe('2')
     await flushSave()
     expect(writtenSheet().counters.stress).toBe(2)
@@ -1918,7 +1931,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     seedRolls(31)
     fireEvent.click(recoveryButton())
 
-    expect(shownLastRoll()).toEqual(['Recovery save on Sanity', 'Rolled 31 vs 30', 'Failure, +1 Stress'])
+    expect(shownStatus()).toBe('Recovery Save on Sanity: 31 vs 30 - failure, +1 Stress.')
     expect(shownCounters().stress).toBe('4')
     await flushSave()
     expect(writtenSheet().counters.stress).toBe(4)
@@ -1933,11 +1946,11 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect(recoveryButton().getAttribute('aria-label')).toBe('Recovery Save: missing value')
     expect(recoveryButton().title).toBe('missing value')
     fireEvent.click(recoveryButton())
-    expect(shownLastRoll()).toEqual(['No roll yet.'])
+    expect(shownStatus()).toBe('')
 
     seedFace(20, 12)
     fireEvent.click(panicButton())
-    expect(shownLastRoll()).toEqual(['Panic Check', 'Rolled 12 vs Stress 2', 'Success'])
+    expect(shownStatus()).toBe('Panic Check: 12 vs Stress 2 - success.')
   })
 
   it('shows both rolls as the last roll after a reload', async () => {
@@ -1950,7 +1963,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
 
     reload('player', 'player-1')
     openSheet('Tommy Eves')
-    expect(shownLastRoll()).toEqual(['Panic Check', 'Rolled 2 vs Stress 6', 'Failure'])
+    expect(shownStatus()).toBe('Panic Check: 2 vs Stress 6 - failure.')
     expect(shownPanicResult()).toEqual(['02 NERVOUS', 'Gain 1 Stress.', 'Increase Stress by 1', 'Add effect'])
 
     seedRolls(14)
@@ -1958,7 +1971,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     await flushSave()
     reload('player', 'player-1')
     openSheet('Tommy Eves')
-    expect(shownLastRoll()).toEqual(['Recovery save on Sanity', 'Rolled 14 vs 30', 'Success, -4 Stress'])
+    expect(shownStatus()).toBe('Recovery Save on Sanity: 14 vs 30 - success, -4 Stress.')
     expect(panicResult()).toBeNull()
     expect(shownCounters().stress).toBe('2')
   })

@@ -1,6 +1,13 @@
-import { describeLubecCheckOutcome, lubecCheckTarget, type LubecCheckRoll } from '../ruleSets/lubec/checkRoll'
+import {
+  describeLubecCheckOutcome,
+  describeLubecOutcome,
+  lubecAdvantageName,
+  lubecCheckTarget,
+  type LubecCheckRoll,
+} from '../ruleSets/lubec/checkRoll'
 import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
 import { lubecCurrentValue, lubecFinalValue, type LubecModifier } from '../ruleSets/lubec/derivations'
+import type { LubecLastRoll } from '../ruleSets/lubec/lastRoll'
 import type { LubecValueName } from '../ruleSets/lubec/sheet'
 
 // What each roll circle on the Core page shows, as the combined prototype
@@ -65,17 +72,34 @@ export function lubecBaseNote(request: ValueRequest): string {
 
 const lowerFirst = (text: string): string => `${text.charAt(0).toLowerCase()}${text.slice(1)}`
 
-/** "Handle + Boatwork: 32 vs 65 - success.", with any Stress the roll added. */
-export function lubecCheckStatus(roll: LubecCheckRoll): string {
+type StatusParts = { what: string; target: string; outcome: string }
+
+// What was rolled, what it was rolled against and how it came out, for each kind of roll.
+function statusParts(roll: LubecLastRoll): StatusParts {
+  if (roll.kind === 'panic') return { what: 'Panic Check', target: `Stress ${roll.target}`, outcome: describeLubecOutcome(roll.outcome, 0) }
+  if (roll.kind === 'recovery') {
+    const outcome = describeLubecOutcome(roll.outcome, roll.stressAdded - roll.stressRemoved)
+    return { what: `Recovery Save on ${roll.against}`, target: `${roll.target}`, outcome }
+  }
   const skill = roll.skill === null ? '' : ` + ${roll.skill}`
-  return `${roll.against}${skill}: ${roll.result} vs ${roll.target} - ${lowerFirst(describeLubecCheckOutcome(roll))}.`
+  return { what: `${roll.against}${skill}`, target: `${roll.target}`, outcome: describeLubecCheckOutcome(roll) }
 }
 
-/** The status line: a check spinning, a cleared result, or the last check's result. */
-export function lubecCirclesStatus(spin: LubecSpin | null, check: LubecCheckRoll | null, cleared: boolean): string {
+// Both dice under Advantage or Disadvantage, so anyone viewing sees which one was kept.
+const advantageNote = (roll: LubecLastRoll): string =>
+  (roll.advantage === 'normal' ? '' : ` (${lubecAdvantageName(roll.advantage)}, ${roll.dice.join(' and ')})`)
+
+/** "Handle + Boatwork: 32 vs 65 - success.", with both dice under Advantage and any Stress the roll changed. */
+export function lubecRollStatus(roll: LubecLastRoll): string {
+  const { what, target, outcome } = statusParts(roll)
+  return `${what}${advantageNote(roll)}: ${roll.result} vs ${target} - ${lowerFirst(outcome)}.`
+}
+
+/** The status line: a check spinning, a check whose result was cleared, or the last roll of any kind. */
+export function lubecCirclesStatus(spin: LubecSpin | null, cleared: LubecCheckRoll | null, roll: LubecLastRoll | null): string {
   if (spin) return `Rolling ${spin.name} check...`
-  if (!check) return ''
-  return cleared ? `${check.against} check cleared. Score unchanged.` : lubecCheckStatus(check)
+  if (cleared) return `${cleared.against} check cleared. Score unchanged.`
+  return roll ? lubecRollStatus(roll) : ''
 }
 
 export const LUBEC_SPIN_STEPS = 12

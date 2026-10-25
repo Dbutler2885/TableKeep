@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { lubecCheckTarget, readLubecCheckRoll, type LubecCheckRoll } from '../ruleSets/lubec/checkRoll'
 import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
+import { readLubecLastRoll } from '../ruleSets/lubec/lastRoll'
 import type { LubecValueName } from '../ruleSets/lubec/sheet'
 import { LUBEC_SPIN_STEPS, lubecCirclesStatus, lubecSpinDelay, type LubecSpin } from './lubecCircles'
 import type { LubecRoller } from './useLubecRoller'
@@ -17,7 +18,8 @@ export type LubecCircles = {
 // A spinning number is only for show; the roll itself is made and recorded on the click.
 const randomPreview = (): number => Math.floor(Math.random() * 100) + 1
 
-const spins = (): boolean =>
+/** Whether the viewer allows motion: the circles spin and the sheet scrolls smoothly only then. */
+export const lubecMotionAllowed = (): boolean =>
   typeof window.matchMedia === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
 const rollKey = (roll: LubecCheckRoll): string => JSON.stringify(roll)
@@ -31,7 +33,7 @@ function useLubecSpin() {
     return () => clearTimeout(timer)
   }, [spin])
   const start = (name: LubecValueName, target: number | null) => {
-    if (target !== null && spins()) setSpin({ name, target, preview: randomPreview(), step: 0 })
+    if (target !== null && lubecMotionAllowed()) setSpin({ name, target, preview: randomPreview(), step: 0 })
   }
   return { spin, start }
 }
@@ -85,7 +87,7 @@ export function useLubecCircles(sheet: LubecCharacterSheet, roller: LubecRoller 
   return {
     result: (name) => shownOn(last, name),
     spin: spinner.spin,
-    status: lubecCirclesStatus(spinner.spin, last.check, last.cleared),
+    status: lubecCirclesStatus(spinner.spin, last.cleared ? last.check : null, readLubecLastRoll(sheet.lastRoll)),
     click: (name) => clickLubecCircle({ sheet, roller, last, spinner }, name),
   }
 }
