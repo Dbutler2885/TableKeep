@@ -54,6 +54,8 @@ const { ruleSetSheets } = await import('../ruleSets/sheetComponents')
 const { parseLubecCharacter } = await import('../ruleSets/lubec/characterParser')
 const { lubecRuleWarnings } = await import('../ruleSets/lubec/ruleChecks')
 const { LubecDiceContext } = await import('./useLubecRoller')
+const { mapCharacterSummaryFromData } = await import('../maps/lib/mapCharacterSummary')
+const { isPartyCharacter } = await import('../maps/lib/partyCharacterEligibility')
 
 const CHARACTERS_PATH = 'groups/group-1/campaigns/campaign-1/characters'
 const GM = 'gm-1'
@@ -1944,5 +1946,193 @@ describe('Lubec Panic Check and Recovery Save', () => {
     backToRoster()
     openSheet('Cal Pike')
     expect(effectiveHandle()).toBe('0')
+  })
+})
+
+const tommyBase = (tommyEves().lubec as Fields).base as Fields
+
+const finalizeButton = () => screen.queryByText('Finalize', { selector: '.lubec-draft-bar button' })
+
+const correctSwitch = () => screen.queryByLabelText('Correct') as HTMLInputElement | null
+
+function openFinalize() {
+  fireEvent.click(finalizeButton() as HTMLElement)
+  return screen.getByRole('dialog', { name: /^Finalize/ })
+}
+
+/** The notices the Finalize dialog lists under one heading. */
+const noticesIn = (dialog: HTMLElement, title: string) =>
+  [...(dialog.querySelector(`section[aria-label="${title}"]`)?.querySelectorAll('li') ?? [])].map((item) => item.textContent)
+
+async function finalize() {
+  fireEvent.click(within(openFinalize()).getByText('Finalize', { selector: 'button' }))
+  await settleSaves()
+}
+
+const inParty = (id: string) => isPartyCharacter(mapCharacterSummaryFromData(id, database[id]), GM)
+
+describe('Finalize, locked values and the Correct switch', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('offers Finalize to the owner and the GM on a draft, to no other player, and never on a finalized character', () => {
+    seed({ ada: directDraft(), bea: directDraft({ name: 'Bea Lowell', ownerUserId: 'player-2' }), tommy: tommyEves() })
+    mountTab('player', 'player-1')
+
+    openSheet('Ada Mitchell')
+    expect(finalizeButton()).toBeTruthy()
+    backToRoster()
+    openSheet('Bea Lowell')
+    expect(finalizeButton()).toBeNull()
+    backToRoster()
+    openSheet('Tommy Eves')
+    expect(finalizeButton()).toBeNull()
+
+    reload('gm', GM)
+    openSheet('Bea Lowell')
+    expect(finalizeButton()).toBeTruthy()
+    backToRoster()
+    openSheet('Tommy Eves')
+    expect(finalizeButton()).toBeNull()
+  })
+
+  it('lists each rule warning, each hole by name and each import note, and finalizes with them showing', async () => {
+    const importNotes = ['This file is version 2; Table Keep read the fields it knows.']
+    seed({
+      ada: withSheet(
+        { class: { key: 'nerd', choices: {} }, base: { ...tommyBase, Speed: null }, importNotes },
+        { name: 'Ada Mitchell', creationStatus: 'established_draft' },
+      ),
+    })
+    mountTab('player', 'player-1')
+    openSheet('Ada Mitchell')
+    const warnings = lubecRuleWarnings(stored('ada').lubec).map(({ message }) => message)
+
+    const dialog = openFinalize()
+
+    expect(warnings).toContain('Speed has no whole-number base value.')
+    expect(noticesIn(dialog, 'Rule warnings')).toEqual(warnings)
+    expect(noticesIn(dialog, 'Missing values')).toEqual(['Stat taking -10', 'Speed'])
+    expect(noticesIn(dialog, 'Import notes')).toEqual(importNotes)
+    expect(inParty('ada')).toBe(false)
+
+    fireEvent.click(within(dialog).getByText('Finalize', { selector: 'button' }))
+    await settleSaves()
+
+    expect(database.ada.creationStatus).toBe('active')
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByText(/In creation/)).toBeNull()
+    expect(inParty('ada')).toBe(true)
+  })
+
+  it('says there is nothing to warn about for a clean draft, and writes nothing when Finalize is cancelled', async () => {
+    seed({ tommy: tommyEves({ creationStatus: 'established_draft' }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    const dialog = openFinalize()
+    expect(within(dialog).getByText('Nothing to warn about.')).toBeTruthy()
+    expect(dialog.querySelectorAll('section')).toHaveLength(0)
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await settleSaves()
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+    expect(finalizeButton()).toBeTruthy()
+  })
+
+  it('finalizes a character missing a base value and its class, keeping both as holes through a remount', async () => {
+    seed({
+      ada: withSheet(
+        { class: { key: null, choices: {} }, base: { ...tommyBase, Handle: null } },
+        { name: 'Ada Mitchell', creationStatus: 'established_draft' },
+      ),
+    })
+    mountTab('player', 'player-1')
+    openSheet('Ada Mitchell')
+
+    await finalize()
+
+    expect(database.ada).toMatchObject({ creationStatus: 'active', lubec: { class: { key: null }, base: { Handle: null } } })
+
+    reload('player', 'player-1')
+    openSheet('Ada Mitchell')
+
+    expect(valuesOf('Handle')).toEqual(['missing', 'missing', 'missing'])
+    expect(valuesOf('Strength')).toEqual(['24', 'missing', 'missing'])
+    expect(screen.queryByLabelText('Handle base')).toBeNull()
+    expect(finalizeButton()).toBeNull()
+  })
+
+  it('locks the owner out of base values, class, class choice and skills once finalized', async () => {
+    seed({ ada: withSheet({ class: { key: 'nerd', choices: {} } }, { name: 'Ada Mitchell', creationStatus: 'established_draft' }) })
+    mountTab('player', 'player-1')
+    openSheet('Ada Mitchell')
+    expect(baseInput('Strength')).toBeTruthy()
+    expect(picker('Stat taking -10')).toBeTruthy()
+
+    await finalize()
+
+    expect(screen.queryByLabelText('Strength base')).toBeNull()
+    expect(screen.queryByLabelText('Class', { selector: 'select' })).toBeNull()
+    expect(screen.queryByLabelText('Stat taking -10', { selector: 'select' })).toBeNull()
+    fireEvent.click(screen.getByText('Skills', { selector: 'nav button' }))
+    expect(screen.queryByRole('combobox', { name: 'Free class skill' })).toBeNull()
+    expect(skillButtons()).toEqual([])
+    expect(correctSwitch()).toBeNull()
+  })
+
+  it('gives the GM a Correct switch on a finalized character that unlocks every value, holes included, and is never stored', async () => {
+    seed({ tommy: withSheet({ class: { key: null, choices: {} }, base: { ...tommyBase, Handle: null } }) })
+    mountTab('gm', GM)
+    openSheet('Tommy Eves')
+    expect(correctSwitch()?.checked).toBe(false)
+    expect(screen.queryByLabelText('Handle base')).toBeNull()
+
+    fireEvent.click(correctSwitch() as HTMLInputElement)
+    await settleSaves()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+
+    typeBase('Handle', '50')
+    typeBase('Strength', '30')
+    choose('Class', 'working')
+    fireEvent.click(screen.getByText('Skills', { selector: 'nav button' }))
+    fireEvent.click(skillButton('Swimming'))
+    await settleSaves()
+
+    expect(stored('tommy')).toMatchObject({
+      creationStatus: 'active',
+      lubec: { class: { key: 'working' }, base: { Handle: 50, Strength: 30 }, skills: { picked: ['Diving'] } },
+    })
+
+    fireEvent.click(correctSwitch() as HTMLInputElement)
+    expect(skillButtons()).toEqual([])
+
+    reload('gm', GM)
+    openSheet('Tommy Eves')
+    expect(correctSwitch()?.checked).toBe(false)
+    expect(screen.queryByLabelText('Handle base')).toBeNull()
+    expect(valuesOf('Handle')).toEqual(['50', '55', '55'])
+  })
+
+  it('never shows a player the Correct switch, and shows the GM none on a draft', () => {
+    seed({ tommy: tommyEves(), ada: directDraft() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect(correctSwitch()).toBeNull()
+
+    reload('player', 'player-2')
+    openSheet('Tommy Eves')
+    expect(correctSwitch()).toBeNull()
+
+    reload('gm', GM)
+    openSheet('Ada Mitchell')
+    expect(correctSwitch()).toBeNull()
   })
 })

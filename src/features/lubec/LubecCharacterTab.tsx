@@ -12,7 +12,7 @@ import type { LubecSkills } from '../ruleSets/lubec/skillPicks'
 import type { LubecCountersChange } from './LubecCountersPanel'
 import type { LubecSheetEditing } from './LubecNameBandEditor'
 import { LubecRoster } from './LubecRoster'
-import { LubecSheetView } from './LubecSheetView'
+import { LubecSheetView, type LubecCorrections } from './LubecSheetView'
 
 export type LubecCharacterTabProps = {
   campaignId: string
@@ -31,10 +31,11 @@ type DetailProps = {
   onBack: () => void
   onCountersChange: LubecCountersChange | null
   onSkillsChange: LubecSkillsChange | null
+  corrections: LubecCorrections | null
 } & DraftActions
 
-/** What the viewer may do to a draft; both are null for a finalized character or someone else's. */
-type DraftActions = { onDraftEdit: LubecSheetEdit | null; onDelete: (() => void) | null }
+/** What the viewer may do to a draft; all are null for a finalized character or someone else's. */
+type DraftActions = { onDraftEdit: LubecSheetEdit | null; onDelete: (() => void) | null; onFinalize: (() => void) | null }
 
 type CharacterUpdate = (characterId: string, updates: Partial<LubecCharacterRecord>) => void
 
@@ -61,8 +62,21 @@ function skillsChangeFor(
   return (skills) => update(character.id, { lubec: { ...character.lubec, skills } })
 }
 
-// The owner and the GM may type into a draft and delete it; nobody may do
-// either to a finalized character here.
+// The GM may correct any locked value on a finalized character; nobody else may change one.
+function correctionsFor(
+  character: LubecCharacterRecord | null,
+  viewer: { role: Role | null },
+  update: CharacterUpdate,
+): LubecCorrections | null {
+  if (!character || character.creationStatus !== 'active' || viewer.role !== 'gm') return null
+  return {
+    onDraftEdit: (changes) => update(character.id, { lubec: { ...character.lubec, ...changes } }),
+    onSkillsChange: (skills) => update(character.id, { lubec: { ...character.lubec, skills } }),
+  }
+}
+
+// The owner and the GM may type into a draft, delete it and finalize it;
+// nobody may do any of these to a finalized character, which has no way back.
 function draftActionsFor(
   character: LubecCharacterRecord | null,
   viewer: { role: Role | null; userId: string },
@@ -70,15 +84,16 @@ function draftActionsFor(
   onDeleted: () => void,
 ): DraftActions {
   if (!character || character.creationStatus === 'active' || !canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) {
-    return { onDraftEdit: null, onDelete: null }
+    return { onDraftEdit: null, onDelete: null, onFinalize: null }
   }
   return {
     onDraftEdit: (changes) => store.updateCharacter(character.id, { lubec: { ...character.lubec, ...changes } }),
     onDelete: () => { if (store.deleteCharacter(character.id)) onDeleted() },
+    onFinalize: () => store.updateCharacter(character.id, { creationStatus: 'active' }),
   }
 }
 
-function LubecDetail({ character, editing, isSinglePane, onBack, onCountersChange, onSkillsChange, onDraftEdit, onDelete }: DetailProps) {
+function LubecDetail({ character, editing, isSinglePane, onBack, ...sheetProps }: DetailProps) {
   return (
     <div className="monsters-detail characters-detail">
       <div className="monsters-detail-inner characters-detail-inner">
@@ -94,10 +109,7 @@ function LubecDetail({ character, editing, isSinglePane, onBack, onCountersChang
             key={character.id}
             character={character}
             editing={editing}
-            onCountersChange={onCountersChange}
-            onSkillsChange={onSkillsChange}
-            onDraftEdit={onDraftEdit}
-            onDelete={onDelete}
+            {...sheetProps}
           />
         ) : <p className="lubec-sheet-none">Pick a character to open their sheet.</p>}
       </div>
@@ -161,6 +173,7 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, cu
           onBack={() => layout.setPaneView('list')}
           onCountersChange={countersChangeFor(store.selectedCharacter, { role, userId: currentUserId }, store.updateCharacter)}
           onSkillsChange={skillsChangeFor(store.selectedCharacter, { role, userId: currentUserId }, store.updateCharacter)}
+          corrections={correctionsFor(store.selectedCharacter, viewer, store.updateCharacter)}
           {...draftActionsFor(store.selectedCharacter, viewer, store, () => layout.setPaneView('list'))}
         />
       ) : null}

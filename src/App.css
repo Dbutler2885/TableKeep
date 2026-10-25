@@ -17013,6 +17013,98 @@ button:disabled {
   color: var(--lubec-cream);
 }
 
+.shell-root[data-theme="lubec"] .lubec-draft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-finalize-btn,
+.shell-root[data-theme="lubec"] .lubec-finalize .lubec-finalize-confirm {
+  padding: 0.35rem 0.7rem 0.3rem;
+  background: var(--lubec-blue);
+  border: 1.5px solid var(--lubec-blue);
+  border-radius: 0;
+  color: var(--lubec-cream);
+  font: 800 0.68rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-finalize-btn:hover,
+.shell-root[data-theme="lubec"] .lubec-finalize .lubec-finalize-confirm:hover {
+  background: var(--lubec-blue-alt);
+  border-color: var(--lubec-blue-alt);
+}
+
+/* The Finalize dialog: what is still wrong, kept as warnings rather than blocks. */
+.shell-root[data-theme="lubec"] .confirm-modal.lubec-finalize {
+  width: min(92vw, 480px);
+}
+
+.shell-root[data-theme="lubec"] .lubec-finalize .confirm-actions button {
+  border-radius: 0;
+  font: 800 0.72rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-finalize-notices h4 {
+  margin: 0 0 0.3rem;
+  color: var(--lubec-rust);
+  font: 800 0.72rem/1.2 var(--lubec-type);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-finalize-notices ul {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0 0 0 1.1rem;
+  color: var(--lubec-ink);
+  font: 400 0.85rem/1.35 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .confirm-modal p.lubec-finalize-clear {
+  color: var(--lubec-success);
+  font-weight: 700;
+}
+
+/* The GM's Correct switch on a finalized character, held only on the GM's screen. */
+.shell-root[data-theme="lubec"] .lubec-correct-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 1rem;
+  margin: 0.8rem var(--pad) 0;
+  padding: 0.45rem 0.7rem;
+  border: 1.5px solid var(--lubec-blue);
+  background: rgba(255, 248, 231, 0.6);
+}
+
+.shell-root[data-theme="lubec"] .lubec-correct-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--lubec-blue);
+  font: 800 0.72rem/1.2 var(--lubec-type);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-correct-switch input {
+  margin: 0;
+  accent-color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-correct-hint {
+  margin: 0;
+  color: var(--lubec-muted);
+  font: 400 0.8rem/1.3 var(--lubec-type);
+}
+
 /* The class and its choice span the page above the Stats and Saves. */
 .shell-root[data-theme="lubec"] .lubec-class-picker {
   grid-column: 1 / -1;

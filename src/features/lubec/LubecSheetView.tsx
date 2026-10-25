@@ -5,6 +5,7 @@ import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import type { LubecSheetEdit } from '../ruleSets/lubec/directEntry'
 import type { LubecSkills } from '../ruleSets/lubec/skillPicks'
 import { LubecCorePage } from './LubecCorePage'
+import { LubecCorrectSwitch } from './LubecCorrectSwitch'
 import type { LubecCountersChange } from './LubecCountersPanel'
 import { LubecDraftBar } from './LubecDraftBar'
 import { LubecMissing } from './LubecMissing'
@@ -96,24 +97,51 @@ function LubecMasthead({ character, page, onPage, onEdit }: MastheadProps) {
   )
 }
 
+/** The edits the GM's Correct switch unlocks on a finalized character. */
+export type LubecCorrections = { onDraftEdit: LubecSheetEdit; onSkillsChange: (skills: LubecSkills) => void }
+
+type StageBarProps = {
+  character: LubecCharacterRecord
+  correcting: boolean
+  onCorrecting: ((on: boolean) => void) | null
+  onDelete: (() => void) | null
+  onFinalize: (() => void) | null
+}
+
+// A draft shows its creation bar; a finalized character shows the GM the Correct switch.
+function LubecStageBar({ character, correcting, onCorrecting, onDelete, onFinalize }: StageBarProps) {
+  if (character.creationStatus !== 'active') return <LubecDraftBar character={character} onDelete={onDelete} onFinalize={onFinalize} />
+  return onCorrecting ? <LubecCorrectSwitch on={correcting} onChange={onCorrecting} /> : null
+}
+
 type SheetViewProps = {
   character: LubecCharacterRecord
   /** The viewer's edits, or null when they may only look. */
   editing: LubecSheetEditing | null
-  /** Absent for a viewer who may not change the character. */
+  /** Null for a viewer who may not change the character. */
   onCountersChange: LubecCountersChange | null
-  /** Absent unless the viewer may change the character's skills, which is only in creation. */
+  /** Null unless the viewer may change the character's skills, which is only in creation. */
   onSkillsChange: ((skills: LubecSkills) => void) | null
-  /** Changes a draft's base values, class and class choice; absent unless the viewer may type into the draft. */
-  onDraftEdit?: LubecSheetEdit | null
-  /** Deletes the draft; absent unless the viewer may. */
-  onDelete?: (() => void) | null
+  /** Changes a draft's base values, class and class choice; null unless the viewer may type into the draft. */
+  onDraftEdit: LubecSheetEdit | null
+  /** Deletes the draft; null unless the viewer may. */
+  onDelete: (() => void) | null
+  /** Puts the draft in use; null unless the viewer may. */
+  onFinalize: (() => void) | null
+  /** What the Correct switch unlocks; null unless the viewer is the GM on a finalized character. */
+  corrections: LubecCorrections | null
 }
 
-type CoreProps = Pick<SheetViewProps, 'character' | 'editing' | 'onCountersChange'> & { onDraftEdit: LubecSheetEdit | null }
+type LockedEdits = Pick<SheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
 
-// The Core page, with its effects and rolls saved through the viewer's edits; neither is offered without them.
-function LubecCore({ character, editing, onCountersChange, onDraftEdit }: CoreProps) {
+// While the GM's Correct switch is on, the locked values take the GM's corrections.
+const lockedEdits = (correcting: boolean, corrections: LubecCorrections | null, edits: LockedEdits): LockedEdits =>
+  correcting && corrections ? corrections : edits
+
+type SheetPageProps = LockedEdits & Pick<SheetViewProps, 'character' | 'editing' | 'onCountersChange'> & { page: LubecPage }
+
+function LubecSheetPage({ page, character, editing, onCountersChange, onDraftEdit, onSkillsChange }: SheetPageProps) {
+  if (page === 'skills') return <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} />
   return (
     <LubecCorePage
       sheet={character.lubec}
@@ -126,17 +154,28 @@ function LubecCore({ character, editing, onCountersChange, onDraftEdit }: CorePr
 }
 
 /** One Lubec character's sheet, in the v4 frame, on its Core or Skills page. */
-export function LubecSheetView({ character, editing, onCountersChange, onSkillsChange, onDraftEdit = null, onDelete = null }: SheetViewProps) {
+export function LubecSheetView({ character, editing, onCountersChange, onDelete, onFinalize, corrections, ...edits }: SheetViewProps) {
   const [page, setPage] = useState<LubecPage>('core')
   const [bandOpen, setBandOpen] = useState(false)
+  const [correcting, setCorrecting] = useState(false)
   return (
     <article className="lubec-sheet" aria-label={`${lubecCharacterName(character)} character sheet`}>
       <LubecMasthead character={character} page={page} onPage={setPage} onEdit={editing ? () => setBandOpen(true) : null} />
       {editing && bandOpen ? <LubecNameBandEditor character={character} editing={editing} onDone={() => setBandOpen(false)} /> : null}
-      {character.creationStatus === 'active' ? null : <LubecDraftBar character={character} onDelete={onDelete} />}
-      {page === 'core'
-        ? <LubecCore character={character} editing={editing} onCountersChange={onCountersChange} onDraftEdit={onDraftEdit} />
-        : <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} />}
+      <LubecStageBar
+        character={character}
+        correcting={correcting}
+        onCorrecting={corrections ? setCorrecting : null}
+        onDelete={onDelete}
+        onFinalize={onFinalize}
+      />
+      <LubecSheetPage
+        page={page}
+        character={character}
+        editing={editing}
+        onCountersChange={onCountersChange}
+        {...lockedEdits(correcting, corrections, edits)}
+      />
     </article>
   )
 }
