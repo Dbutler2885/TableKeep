@@ -30,6 +30,11 @@ describe('what a sandbox copies', () => {
     expect(cloned.filter((name) => !known.includes(name))).toEqual([])
   })
 
+  it('copies the GM Items tab, whose library items are part of a campaign', () => {
+    expect(DEMO_CLONED_SUBCOLLECTIONS.map((spec) => spec.name)).toContain('gmItems')
+    expect(CAMPAIGN_SUBCOLLECTIONS.map((spec) => spec.name)).toContain('gmItems')
+  })
+
   it('carries the nested subcollections the campaign schema declares', () => {
     const nestedIn = (specs: typeof CAMPAIGN_SUBCOLLECTIONS, name: string) =>
       (specs.find((spec) => spec.name === name)?.children ?? []).map((child) => child.name).sort()

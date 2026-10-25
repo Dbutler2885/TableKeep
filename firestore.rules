@@ -343,6 +343,23 @@ service cloud.firestore {
           allow update, delete: if isCampaignGm(groupId, campaignId);
         }
 
+        // A Lubec campaign's GM Items tab: library items, the GM's own list that
+        // every member picks from, and dropped items, which only the GM sees. A
+        // member creates a dropped item only in the move that drops it from their
+        // sheet, naming themselves as the dropper. A member's list must carry
+        // `where('status', '==', 'library')`, which is what proves the query.
+        // Distinct documents read on any path: the caller's member document and
+        // the campaign document (the GM check). That is 2.
+        match /gmItems/{itemId} {
+          allow read: if isCampaignGm(groupId, campaignId)
+            || (isGroupMember(groupId) && resource.data.status == 'library');
+          allow create: if isCampaignGm(groupId, campaignId)
+            || (isGroupMember(groupId)
+                && request.resource.data.status == 'dropped'
+                && request.resource.data.droppedByUserId == request.auth.uid);
+          allow update, delete: if isCampaignGm(groupId, campaignId);
+        }
+
         match /tables/{tableId} {
           allow read, write: if isCampaignGm(groupId, campaignId);
 

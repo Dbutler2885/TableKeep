@@ -29,3 +29,23 @@ export function campaignUserStateRef(db: Firestore, scope: CampaignScope, userId
 export function npcSheetRef(db: Firestore, scope: CampaignScope, npcId: string) {
   return campaignDocRef(db, scope, 'npcSheets', npcId)
 }
+
+// The GM's Items tab for a Lubec campaign: library items and dropped items,
+// one document per item under the item's own id.
+export function campaignGmItemsRef(db: Firestore, scope: CampaignScope) {
+  return campaignCollectionRef(db, scope, 'gmItems')
+}
+
+export function campaignGmItemRef(db: Firestore, scope: CampaignScope, itemId: string) {
+  return campaignDocRef(db, scope, 'gmItems', itemId)
+}
+
+// A Lubec carrier any member of the group may put things into.
+export function campaignSharedCarrierRef(db: Firestore, scope: CampaignScope, carrierId: string) {
+  return campaignDocRef(db, scope, 'sharedCarriers', carrierId)
+}
+
+// A Lubec carrier only its character's owner and the GM may see, kept under the character so it follows its id.
+export function characterHiddenCarrierRef(db: Firestore, scope: CampaignScope, characterId: string, carrierId: string) {
+  return campaignDocRef(db, scope, 'characters', characterId, 'hiddenCarriers', carrierId)
+}

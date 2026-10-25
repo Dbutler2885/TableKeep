@@ -37,6 +37,7 @@ export const TEMPLATE_SUBCOLLECTIONS = [
   { name: 'npcPrivate' },
   { name: 'npcSheets' },
   { name: 'items' },
+  { name: 'gmItems' },
   { name: 'tables', children: [{ name: 'history' }] },
   { name: 'images' },
   { name: 'referenceDocs' },
