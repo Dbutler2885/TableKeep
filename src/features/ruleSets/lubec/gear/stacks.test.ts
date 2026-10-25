@@ -193,6 +193,12 @@ describe('the add form\'s submit rules', () => {
       msg: "Pick what it holds. If it isn't on the list, make a supply.",
       field: 'takes',
     })
+    expect(draftProblem(draft({ kind: 'holder', hold: 'box', takes: 'a38', capacity: 50 }))).toBeNull()
+  })
+
+  it('asks a thing and a consumable nothing of their own', () => {
+    expect(draftProblem(draft({ kind: 'thing' }))).toBeNull()
+    expect(draftProblem(draft({ kind: 'consumable', qty: 2 }))).toBeNull()
   })
 
   it('asks for at least one, and tells a consumable a used-up one leaves the sheet', () => {

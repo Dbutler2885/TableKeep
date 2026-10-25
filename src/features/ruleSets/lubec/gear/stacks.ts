@@ -51,15 +51,26 @@ const notCarried = (kind: LubecItemDraft['kind']) => kind === 'armor' || kind ==
 export const draftStacks = (draft: LubecItemDraft): number[] =>
   (notCarried(draft.kind) ? [1] : stacksOf(draft.qty, draft.per || 1, draft.size))
 
-function kindProblem(draft: LubecItemDraft): LubecDraftProblem | null {
-  if (draft.kind === 'weapon') {
-    if (!draft.wounds?.length) return problem('Pick at least one way it wounds: cut, pierce, blunt or gun.', 'wounds')
-    if (draft.mode !== 'melee' && !draft.takes) return problem("Pick the ammo it takes. If it isn't on the list, make a supply.", 'takes')
-  }
-  if (draft.kind === 'armor' && !draft.locs?.length) return problem('Pick at least one place it covers.', 'locs')
-  if (draft.kind === 'holder' && !draft.takes) return problem("Pick what it holds. If it isn't on the list, make a supply.", 'takes')
+function weaponProblem(draft: LubecItemDraft): LubecDraftProblem | null {
+  if (!draft.wounds?.length) return problem('Pick at least one way it wounds: cut, pierce, blunt or gun.', 'wounds')
+  if (draft.mode !== 'melee' && !draft.takes) return problem("Pick the ammo it takes. If it isn't on the list, make a supply.", 'takes')
   return null
 }
+
+const armorProblem = (draft: LubecItemDraft): LubecDraftProblem | null =>
+  (draft.locs?.length ? null : problem('Pick at least one place it covers.', 'locs'))
+
+const holderProblem = (draft: LubecItemDraft): LubecDraftProblem | null =>
+  (draft.takes ? null : problem("Pick what it holds. If it isn't on the list, make a supply.", 'takes'))
+
+// What each kind must say before it can be saved; a thing and a consumable need nothing of their own.
+const KIND_PROBLEMS: Partial<Record<LubecItemDraft['kind'], (draft: LubecItemDraft) => LubecDraftProblem | null>> = {
+  weapon: weaponProblem,
+  armor: armorProblem,
+  holder: holderProblem,
+}
+
+const kindProblem = (draft: LubecItemDraft): LubecDraftProblem | null => KIND_PROBLEMS[draft.kind]?.(draft) ?? null
 
 /** The add form's submit rules, in B's order: the first one a draft breaks, or null when it may be placed. */
 export function draftProblem(draft: LubecItemDraft): LubecDraftProblem | null {
