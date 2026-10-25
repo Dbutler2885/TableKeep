@@ -29,6 +29,9 @@ export type LubecRoller = {
   addPanicEffect: () => void
 }
 
+/** A switch's next value: the one pressed, or `off` when it was already on. */
+const lubecToggled = <Value>(current: Value, pressed: Value, off: Value): Value => (current === pressed ? off : pressed)
+
 /** The Core page's roller for a viewer who may roll on the character; null for anyone else. */
 export function useLubecRoller(sheet: LubecCharacterSheet, onRolled: LubecRolled | null): LubecRoller | null {
   const dice = useContext(LubecDiceContext)
@@ -40,14 +43,15 @@ export function useLubecRoller(sheet: LubecCharacterSheet, onRolled: LubecRolled
   }
   // A roll made with the mode uses it up; one that was never made leaves it set.
   const recordRoll = (roll: LubecLastRoll | null) => {
-    if (roll) setAdvantage('normal')
-    record(roll && withLubecLastRoll(sheet, roll))
+    if (!roll) return
+    setAdvantage('normal')
+    onRolled(withLubecLastRoll(sheet, roll))
   }
   return {
     advantage,
-    toggleAdvantage: (mode) => setAdvantage((current) => (current === mode ? 'normal' : mode)),
+    toggleAdvantage: (mode) => setAdvantage((current) => lubecToggled<LubecAdvantage>(current, mode, 'normal')),
     armed,
-    toggleArmed: (name) => setArmed((current) => (current === name ? null : name)),
+    toggleArmed: (name) => setArmed((current) => lubecToggled<string | null>(current, name, null)),
     roll: (name) => {
       const roll = rollLubecCheck(sheet, { name, advantage, skill: armed }, dice)
       if (roll) setArmed(null)
