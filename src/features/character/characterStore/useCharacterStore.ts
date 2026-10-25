@@ -12,10 +12,11 @@ import {
 import type { CharacterStoreRecord, CharacterStoreRuleSet } from './characterStoreRecord'
 import { findCharacterStoreCharacter } from './characterStoreRoster'
 import {
-  characterStoreCampaign,
+  characterStoreScope,
   emptyCharacterStoreSaves,
   isCharacterStoreSaveOutstanding,
   sendCharacterStoreSavesNow,
+  type CharacterStoreCollection,
   type CharacterStoreSaves,
 } from './characterStoreWrites'
 import { useCharacterStoreMedia } from './useCharacterStoreMedia'
@@ -51,6 +52,10 @@ export type CharacterStoreOptions<Character extends CharacterStoreRecord> = {
   gmUserId: string | null
   setError: (message: string) => void
   enabled: boolean
+  /** The campaign collection the records live in; the characters unless named. */
+  collection?: CharacterStoreCollection
+  /** Narrows the store to the one record with this id. */
+  onlyId?: string
 }
 
 /**
@@ -59,11 +64,11 @@ export type CharacterStoreOptions<Character extends CharacterStoreRecord> = {
  * their stored media resolved, and the user's current character.
  */
 export function useCharacterStore<Character extends CharacterStoreRecord>(options: CharacterStoreOptions<Character>) {
-  const { ruleSet, campaignId, groupId, userId, role, gmUserId, setError, enabled } = options
+  const { ruleSet, campaignId, groupId, userId, role, gmUserId, setError, enabled, collection = 'characters', onlyId } = options
   const savesRef = useRef<CharacterStoreSaves>(emptyCharacterStoreSaves())
   const [currentCharacterId, setCurrentCharacterId] = useCharacterStoreCurrentCharacterId(campaignId, groupId, userId, enabled, setError)
   const roster = useCharacterStoreRoster({
-    ruleSet, campaignId, groupId, userId, role, gmUserId, currentCharacterId, enabled, setError, savesRef,
+    ruleSet, collection, onlyId, campaignId, groupId, userId, role, gmUserId, currentCharacterId, enabled, setError, savesRef,
   })
   const { characters, setCharacters, selectedCharacterId, setSelectedCharacterId } = roster
   useCharacterStoreMedia(characters, setCharacters)
@@ -71,7 +76,7 @@ export function useCharacterStore<Character extends CharacterStoreRecord>(option
 
   const context: CharacterStoreActionContext<Character> = {
     ruleSet,
-    campaign: characterStoreCampaign(campaignId, groupId),
+    campaign: characterStoreScope(campaignId, groupId, collection),
     role,
     userId,
     charactersRef: roster.charactersRef,
