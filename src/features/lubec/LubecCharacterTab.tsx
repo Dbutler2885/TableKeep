@@ -4,6 +4,7 @@ import { useCharacterStore } from '../character/characterStore/useCharacterStore
 import { useResponsiveCharacterLayout } from '../character/hooks/useResponsiveCharacterLayout'
 import { lubecCharacterStore } from '../ruleSets/lubec/characterParser'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
+import type { LubecCountersChange } from './LubecCountersPanel'
 import { LubecRoster } from './LubecRoster'
 import { LubecSheetView } from './LubecSheetView'
 
@@ -21,9 +22,22 @@ type DetailProps = {
   character: LubecCharacterRecord | null
   isSinglePane: boolean
   onBack: () => void
+  onCountersChange: LubecCountersChange | null
 }
 
-function LubecDetail({ character, isSinglePane, onBack }: DetailProps) {
+type CharacterUpdate = (characterId: string, updates: Partial<LubecCharacterRecord>) => void
+
+// The owner and the GM change a character's counters; anyone else only sees them.
+function countersChangeFor(
+  character: LubecCharacterRecord | null,
+  viewer: { role: Role | null; userId: string },
+  update: CharacterUpdate,
+): LubecCountersChange | null {
+  if (!character || (viewer.role !== 'gm' && character.ownerUserId !== viewer.userId)) return null
+  return (counters) => update(character.id, { lubec: { ...character.lubec, counters } })
+}
+
+function LubecDetail({ character, isSinglePane, onBack, onCountersChange }: DetailProps) {
   return (
     <div className="monsters-detail characters-detail">
       <div className="monsters-detail-inner characters-detail-inner">
@@ -34,7 +48,7 @@ function LubecDetail({ character, isSinglePane, onBack }: DetailProps) {
             </button>
           </div>
         ) : null}
-        {character ? <LubecSheetView key={character.id} character={character} /> : <p className="lubec-sheet-none">Pick a character to open their sheet.</p>}
+        {character ? <LubecSheetView key={character.id} character={character} onCountersChange={onCountersChange} /> : <p className="lubec-sheet-none">Pick a character to open their sheet.</p>}
       </div>
     </div>
   )
@@ -62,7 +76,12 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, gm
         />
       ) : null}
       {layout.showDetailPane ? (
-        <LubecDetail character={store.selectedCharacter} isSinglePane={layout.isSinglePane} onBack={() => layout.setPaneView('list')} />
+        <LubecDetail
+          character={store.selectedCharacter}
+          isSinglePane={layout.isSinglePane}
+          onBack={() => layout.setPaneView('list')}
+          onCountersChange={countersChangeFor(store.selectedCharacter, { role, userId: currentUserId }, store.updateCharacter)}
+        />
       ) : null}
     </div>
   )

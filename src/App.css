@@ -16143,6 +16143,132 @@ button:disabled {
   text-transform: uppercase;
 }
 
+/* Counters: a name, then minus, the count and plus, the count read largest. */
+.shell-root[data-theme="lubec"] .lubec-counters {
+  display: grid;
+  margin: 0 0.6rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-counter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.25rem 2.75rem 2.25rem;
+  gap: 0.35rem;
+  align-items: center;
+  padding: 0.35rem 0.1rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-counter + .lubec-counter {
+  border-top: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-counter-name {
+  grid-column: 1;
+  color: var(--lubec-ink);
+  font: 700 1.05rem/1.1 var(--lubec-condensed);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-counter-value {
+  grid-column: 3;
+  color: var(--lubec-blue);
+  font: 800 1.45rem/1 var(--lubec-display);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-counter button {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  background: var(--lubec-cream);
+  border: 2px solid var(--lubec-ink);
+  border-radius: 0;
+  color: var(--lubec-ink);
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-counter button:first-of-type {
+  grid-column: 2;
+}
+
+.shell-root[data-theme="lubec"] .lubec-counter button:last-of-type {
+  grid-column: 4;
+}
+
+.shell-root[data-theme="lubec"] .lubec-counter button:hover:not(:disabled) {
+  background: var(--lubec-paper-deep);
+}
+
+.shell-root[data-theme="lubec"] .lubec-counter button:disabled {
+  border-color: var(--lubec-line);
+  color: var(--lubec-line);
+  cursor: default;
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-save {
+  margin: 0.5rem 0.6rem 0;
+  padding: 0.4rem 0.6rem;
+  background: var(--lubec-rust);
+  color: var(--lubec-cream);
+  font: 800 0.85rem/1.25 var(--lubec-type);
+  letter-spacing: 0.04em;
+}
+
+/* The class's reminders and the Fight panel: small labels over typed text. */
+.shell-root[data-theme="lubec"] .lubec-class-rules,
+.shell-root[data-theme="lubec"] .lubec-fight {
+  margin: 0 0.6rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-class-rules dt,
+.shell-root[data-theme="lubec"] .lubec-fight dt {
+  color: var(--lubec-muted);
+  font: 800 0.62rem/1.2 var(--lubec-type);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-class-rules dd {
+  margin: 0.2rem 0 0.6rem;
+  font: 400 0.88rem/1.4 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-class-rules dd:last-child {
+  margin-bottom: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight > div {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  padding: 0.35rem 0.1rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight > div + div {
+  border-top: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight dd {
+  margin: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effective-handle {
+  margin-left: auto;
+  color: var(--lubec-blue);
+  font: 800 1.45rem/1 var(--lubec-display);
+  font-variant-numeric: tabular-nums;
+}
+
+/* An empty blank to be filled in later, as on a printed form. */
+.shell-root[data-theme="lubec"] .lubec-fight .lubec-in-hand {
+  flex: 1;
+  min-height: 1.2rem;
+  border-bottom: 1.5px solid var(--lubec-ink);
+}
+
 @media (max-width: 560px) {
   .shell-root[data-theme="lubec"] .lubec-sheet {
     --pad: 1rem;
