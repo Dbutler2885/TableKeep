@@ -1,6 +1,6 @@
 import type { LubecValueName } from '../ruleSets/lubec/sheet'
 import { lubecSwapHint, type LubecSwapDraft } from './lubecRollUpCircles'
-import type { LubecRollUpActions, LubecRollUpView } from './useLubecRollUp'
+import { useLubecGenerateTimers, type LubecRollUpActions, type LubecRollUpView } from './useLubecRollUp'
 
 type ButtonsProps = { swap: LubecSwapDraft | null; canSwap: boolean; actions: LubecRollUpActions }
 
@@ -34,13 +34,25 @@ function LubecTrayButtons({ swap, canSwap, actions }: ButtonsProps) {
   )
 }
 
+/** Rolling every value left at once, beside rolling each from its own circle; shut once none is left. */
+function LubecRollAllTray({ actions, disabled }: { actions: LubecRollUpActions; disabled: boolean }) {
+  return (
+    <div className="decision-tray">
+      <button type="button" className="action-button" disabled={disabled} onClick={actions.rollAll}>Roll all remaining</button>
+    </div>
+  )
+}
+
 /**
- * The prototype's decision tray under the Stats, once every value is rolled:
- * Swap the lowest Stat or keep the scores, then Cancel while the trade is
- * picked on the circles, and undo or confirm once it is shown traded.
+ * The prototype's decision tray under the Stats: while values are left to
+ * roll, a button that rolls them all at once, kept shut in place while the
+ * last dice spin; once they land, Swap the lowest Stat or keep the scores,
+ * then Cancel while the trade is picked on the circles, and undo or confirm
+ * once it is shown traded.
  */
 export function LubecDecisionTray({ view }: { view: LubecRollUpView }) {
-  if (!view.actions || view.stage !== 'deciding' || view.spinning) return null
+  if (!view.actions || view.stage === 'settled') return null
+  if (view.stage === 'rolling' || view.spinning) return <LubecRollAllTray actions={view.actions} disabled={view.stage !== 'rolling'} />
   return (
     <div className="decision-tray">
       {view.swap ? <span className="swap-hint">{lubecSwapHint(view.swap)}</span> : null}
@@ -51,6 +63,7 @@ export function LubecDecisionTray({ view }: { view: LubecRollUpView }) {
 
 /** One value's roll-up circle: "Roll" until it is rolled, the spin, then its score with its dice or Swap state under it. */
 export function LubecRollUpAbility({ name, view }: { name: LubecValueName; view: LubecRollUpView }) {
+  useLubecGenerateTimers(view.spinner, name)
   const circle = view.circle(name)
   return (
     <div className="ability">

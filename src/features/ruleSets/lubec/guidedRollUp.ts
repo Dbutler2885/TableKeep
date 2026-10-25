@@ -85,8 +85,12 @@ export function lubecRolledDice(rollUp: LubecRollUp, name: LubecValueName): Lube
   return (isLubecStat(name) ? rollUp.stats[name] : rollUp.saves[name]) ?? null
 }
 
+/** The values not rolled yet, in the sheet's order. */
+export const lubecUnrolledValues = (rollUp: LubecRollUp): LubecValueName[] =>
+  LUBEC_VALUE_NAMES.filter((name) => lubecRolledDice(rollUp, name) === null)
+
 export function lubecRollUpStage(rollUp: LubecRollUp): LubecRollUpStage {
-  if (LUBEC_VALUE_NAMES.some((name) => lubecRolledDice(rollUp, name) === null)) return 'rolling'
+  if (lubecUnrolledValues(rollUp).length > 0) return 'rolling'
   return rollUp.swap === null && !rollUp.kept ? 'deciding' : 'settled'
 }
 
@@ -122,6 +126,18 @@ function rollSave(sheet: LubecCharacterSheet, name: LubecSave, dice: LubecDice):
 export function withLubecValueRolled(sheet: LubecCharacterSheet, name: LubecValueName, dice: LubecDice): RollUpChanges | null {
   if (lubecRolledDice(readLubecRollUp(sheet.rollUp), name) !== null) return null
   return isLubecStat(name) ? rollStat(sheet, name, dice) : rollSave(sheet, name, dice)
+}
+
+/**
+ * Rolls every value not rolled yet in one go, in the sheet's order, each just
+ * as its own roll would be: a Stat is dealt from the tens the ones before it
+ * left. Null when every value is rolled already.
+ */
+export function withLubecRemainingRolled(sheet: LubecCharacterSheet, dice: LubecDice): RollUpChanges | null {
+  const names = lubecUnrolledValues(readLubecRollUp(sheet.rollUp))
+  if (names.length === 0) return null
+  const rolled = names.reduce((current, name) => ({ ...current, ...withLubecValueRolled(current, name, dice) }), sheet)
+  return { rollUp: rolled.rollUp, base: rolled.base }
 }
 
 const statScores = (sheet: Pick<LubecCharacterSheet, 'base'>) =>
@@ -162,7 +178,7 @@ export const withLubecScoresKept = (sheet: LubecCharacterSheet): Pick<LubecChara
 export function lubecRollUpIncomplete(sheet: LubecCharacterSheet): string[] {
   if (sheet.door !== 'guided') return []
   const rollUp = readLubecRollUp(sheet.rollUp)
-  const unrolled = LUBEC_VALUE_NAMES.filter((name) => lubecRolledDice(rollUp, name) === null)
+  const unrolled = lubecUnrolledValues(rollUp)
   if (unrolled.length > 0) return [`Not rolled yet: ${unrolled.join(', ')}.`]
   return lubecRollUpStage(rollUp) === 'deciding' ? ['The scores are neither kept nor swapped yet.'] : []
 }

@@ -38,7 +38,7 @@ const rolled = (changes: Partial<LubecCharacterSheet> = {}): LubecCharacterSheet
 })
 
 const state = (sheet: LubecCharacterSheet, changes: Partial<LubecRollUpState> = {}): LubecRollUpState =>
-  ({ sheet, swap: null, spin: null, landed: null, canAct: true, ...changes })
+  ({ sheet, swap: null, spins: {}, landed: [], canAct: true, ...changes })
 
 const STATS: LubecStat[] = ['Strength', 'Speed', 'Intellect', 'Handle', 'Charm']
 
@@ -59,17 +59,18 @@ describe('Lubec roll-up circles', () => {
     expect(lubecRollUpCircle(state(empty(), { canAct: false }), 'Body')).toMatchObject({ label: 'Body not rolled yet', tappable: false })
   })
 
-  it('spins a circle on its preview, and holds every other circle until it lands', () => {
-    const spin = { name: 'Speed' as LubecValueName, preview: 37, step: 3 }
-    expect(lubecRollUpCircle(state(empty(), { spin }), 'Speed')).toEqual({
+  it('spins each rolled circle on its own preview, leaving every value not rolled yet to roll meanwhile', () => {
+    const spins = { Speed: { preview: 37, step: 3 }, Body: { preview: 22, step: 0 } }
+    expect(lubecRollUpCircle(state(empty(), { spins }), 'Speed')).toEqual({
       classes: ['rolling'], number: '37', label: 'Rolling Speed', tappable: false, note: '', swapNote: false,
     })
-    expect(lubecRollUpCircle(state(empty(), { spin }), 'Charm').tappable).toBe(false)
+    expect(lubecRollUpCircle(state(empty(), { spins }), 'Body')).toMatchObject({ classes: ['rolling'], number: '22' })
+    expect(lubecRollUpCircle(state(empty(), { spins }), 'Charm')).toMatchObject({ number: 'Roll', tappable: true })
   })
 
   it('shows a rolled value waiting for its class with its dice under it, landing once, and never rolled again', () => {
     const sheet = rolled()
-    expect(lubecRollUpCircle(state(sheet, { landed: 'Strength' }), 'Strength')).toEqual({
+    expect(lubecRollUpCircle(state(sheet, { landed: ['Speed', 'Strength'] }), 'Strength')).toEqual({
       classes: ['has-value', 'awaiting-class', 'landed'], number: '47', label: 'Strength score 47', tappable: false, note: '40 + 7', swapNote: false,
     })
     expect(lubecRollUpCircle(state(sheet), 'Sanity')).toMatchObject({ classes: ['has-value', 'awaiting-class'], note: '10 + 3 + 4' })
@@ -145,11 +146,13 @@ describe('Lubec roll-up circles', () => {
 
   it('says what is happening on the status line, in the prototype\'s words', () => {
     const status = (sheet: LubecCharacterSheet, changes: { swap?: LubecSwapDraft; generated?: LubecValueName } = {}) =>
-      lubecRollUpStatus({ sheet, swap: changes.swap ?? null, spin: null, generated: changes.generated ?? null })
+      lubecRollUpStatus({ sheet, swap: changes.swap ?? null, spins: {}, generated: changes.generated ?? null })
     const partly = rolled({ rollUp: { stats: { Strength: { tens: 40, d10: 7 } } } })
     const tied = rolled({ base: { ...rolled().base, Speed: 24 } })
 
-    expect(lubecRollUpStatus({ sheet: empty(), swap: null, spin: { name: 'Fear', preview: 15, step: 0 }, generated: 'Fear' })).toBe('Rolling Fear...')
+    expect(lubecRollUpStatus({ sheet: empty(), swap: null, spins: { Fear: { preview: 15, step: 0 } }, generated: 'Fear' })).toBe('Rolling Fear...')
+    const spins = { Body: { preview: 15, step: 2 }, Strength: { preview: 47, step: 0 } }
+    expect(lubecRollUpStatus({ sheet: empty(), swap: null, spins, generated: 'Strength' })).toBe('Rolling Strength, Body...')
     expect(status(empty())).toBe('Roll each Stat and Save to begin.')
     expect(status(empty(), { generated: 'Strength' })).toBe('Roll each Stat and Save to begin.')
     expect(status(partly, { generated: 'Strength' })).toBe('Strength generated at 47.')

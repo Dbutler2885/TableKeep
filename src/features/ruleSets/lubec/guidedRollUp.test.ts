@@ -8,9 +8,11 @@ import {
   lubecSwapSources,
   lubecSwapTargets,
   lubecTensLeft,
+  lubecUnrolledValues,
   readLubecRollUp,
   withLubecScoresKept,
   withLubecSwap,
+  withLubecRemainingRolled,
   withLubecValueRolled,
 } from './guidedRollUp'
 import { LUBEC_VALUE_NAMES, type LubecValueName } from './sheet'
@@ -97,6 +99,34 @@ describe('rolling a value', () => {
     const next = rolled(sheet, 'Speed', diceLanding([1, 4], [9, 10]))
 
     expect(next.rollUp).toEqual({ note: 'kept', stats: { Charm: { tens: 20, d10: 1, by: 'gm' }, Speed: { tens: 50, d10: 9 } } })
+  })
+})
+
+describe('rolling every value left at once', () => {
+  it('rolls each value not rolled yet in the sheet\'s order, just as one roll at a time would', () => {
+    const dice = diceLanding(
+      [2, 5], [7, 10], [3, 4], [3, 10], [3, 3], [4, 10], [1, 2], [2, 10], [1, 1], [1, 10],
+      [3, 10], [4, 10], [3, 10], [4, 10], [3, 10], [4, 10],
+    )
+    const sheet = { ...freshSheet(), ...withLubecRemainingRolled(freshSheet(), dice) }
+
+    expect(sheet.rollUp).toEqual(allRolled().rollUp)
+    expect(sheet.base).toEqual(allRolled().base)
+    expect(lubecRollUpStage(readLubecRollUp(sheet.rollUp))).toBe('deciding')
+  })
+
+  it('leaves the values already rolled as they landed and deals the rest from the tens they left', () => {
+    let sheet = rolled(freshSheet(), 'Strength', diceLanding([1, 5], [7, 10]))
+    sheet = rolled(sheet, 'Fear', diceLanding([10, 10], [1, 10]))
+    const dice = diceLanding([1, 4], [3, 10], [1, 3], [4, 10], [1, 2], [2, 10], [1, 1], [1, 10], [3, 10], [4, 10], [5, 10], [6, 10])
+    sheet = { ...sheet, ...withLubecRemainingRolled(sheet, dice) }
+
+    expect(sheet.base).toEqual({ Strength: 57, Speed: 43, Intellect: 44, Handle: 32, Charm: 21, Sanity: 17, Fear: 21, Body: 21 })
+    expect(lubecUnrolledValues(readLubecRollUp(sheet.rollUp))).toEqual([])
+  })
+
+  it('rolls nothing once every value is rolled', () => {
+    expect(withLubecRemainingRolled(allRolled(), diceLanding())).toBeNull()
   })
 })
 

@@ -76,11 +76,13 @@ function freeSkillWarnings(sheet: LubecSheet, definition: LubecClass): LubecRule
 const shapeLabel = (shape: LubecPackageShape): string =>
   [shape.trained && `${shape.trained} Trained`, shape.expert && `${shape.expert} Expert`].filter(Boolean).join(' and ')
 
+// The package is what a class picks at least: picks beyond it are the player's
+// own and never warned about, so only falling short of every shape is.
 function packageWarnings(sheet: LubecSheet, definition: LubecClass): LubecRuleWarning[] {
   const picks = knownSkills(sheet.skills.picked.filter((name) => name !== sheet.skills.free))
   const expert = picks.filter((skill) => skill.tier === 'Expert').length
   const shapes = definition.skillPackage.shapes
-  if (shapes.some((shape) => shape.expert === expert && shape.trained === picks.length - expert)) return []
+  if (shapes.some((shape) => expert >= shape.expert && picks.length - expert >= shape.trained)) return []
   return [warning('package', `The ${definition.name} picks ${shapes.map(shapeLabel).join(' or ')} beside the free class skill.`)]
 }
 

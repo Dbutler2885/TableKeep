@@ -10,7 +10,7 @@ import {
   type LubecValueDice,
 } from '../ruleSets/lubec/guidedRollUp'
 import { LUBEC_SAVE_FLAT } from '../ruleSets/lubec/rollUp'
-import { isLubecStat, LUBEC_STATS, type LubecStat, type LubecValueName } from '../ruleSets/lubec/sheet'
+import { isLubecStat, LUBEC_STATS, LUBEC_VALUE_NAMES, type LubecStat, type LubecValueName } from '../ruleSets/lubec/sheet'
 
 // A guided draft's roll-up on the Core page's roll circles, as the combined
 // prototype draws it: "Roll" in an empty circle, a spin, the number it lands
@@ -28,14 +28,17 @@ export type LubecSwapDraft =
   | { stage: 'review'; source: LubecStat; target: LubecStat }
 
 /** A number shown while a value's dice spin, before they land. */
-export type LubecGenerateSpin = { name: LubecValueName; preview: number; step: number }
+export type LubecGenerateSpin = { preview: number; step: number }
 
-/** What the roll-up circles show: the sheet, the Swap being made, a spin, the circle just landed, and whether the viewer may roll. */
+/** Every circle spinning at once, by the value whose dice it shows. */
+export type LubecGenerateSpins = Partial<Record<LubecValueName, LubecGenerateSpin>>
+
+/** What the roll-up circles show: the sheet, the Swap being made, the spins, the circles just landed, and whether the viewer may roll. */
 export type LubecRollUpState = {
   sheet: LubecCharacterSheet
   swap: LubecSwapDraft | null
-  spin: LubecGenerateSpin | null
-  landed: LubecValueName | null
+  spins: LubecGenerateSpins
+  landed: readonly LubecValueName[]
   canAct: boolean
 }
 
@@ -137,7 +140,7 @@ function rolledLabel(state: LubecRollUpState, name: LubecValueName, mark: SwapMa
 function rolledCircle(state: LubecRollUpState, name: LubecValueName, dice: LubecValueDice): LubecRollUpCircle {
   const mark = swapMark(state.sheet, state.swap, name)
   return {
-    classes: ['has-value', 'awaiting-class', ...(state.landed === name ? ['landed'] : []), ...(mark ? [mark.mark] : [])],
+    classes: ['has-value', 'awaiting-class', ...(state.landed.includes(name) ? ['landed'] : []), ...(mark ? [mark.mark] : [])],
     number: String(lubecSwapPreview(state.sheet, state.swap)[name] ?? ''),
     label: rolledLabel(state, name, mark),
     tappable: state.canAct && mark?.tappable === true,
@@ -149,16 +152,15 @@ const unrolledCircle = (state: LubecRollUpState, name: LubecValueName): LubecRol
   classes: [],
   number: 'Roll',
   label: state.canAct ? `Generate ${name}` : `${name} not rolled yet`,
-  tappable: state.canAct && state.spin === null,
+  tappable: state.canAct,
   note: '',
   swapNote: false,
 })
 
 /** One value's circle on the roll-up: spinning, waiting to be rolled, or rolled with its dice or its Swap state under it. */
 export function lubecRollUpCircle(state: LubecRollUpState, name: LubecValueName): LubecRollUpCircle {
-  if (state.spin?.name === name) {
-    return { classes: ['rolling'], number: String(state.spin.preview), label: `Rolling ${name}`, tappable: false, note: '', swapNote: false }
-  }
+  const spin = state.spins[name]
+  if (spin) return { classes: ['rolling'], number: String(spin.preview), label: `Rolling ${name}`, tappable: false, note: '', swapNote: false }
   const dice = lubecRolledDice(readLubecRollUp(state.sheet.rollUp), name)
   return dice ? rolledCircle(state, name, dice) : unrolledCircle(state, name)
 }
@@ -176,11 +178,16 @@ function settledStatus(rollUp: LubecRollUp): string {
   return rollUp.swap ? `${rollUp.swap.lowest} and ${rollUp.swap.other} swapped. Now choose a class.` : 'Scores settled. Now choose a class.'
 }
 
-type StatusRequest = { sheet: LubecCharacterSheet; swap: LubecSwapDraft | null; spin: LubecGenerateSpin | null; generated: LubecValueName | null }
+/** The values whose circles spin, in the sheet's order. */
+export const lubecSpinningValues = (spins: LubecGenerateSpins): LubecValueName[] =>
+  LUBEC_VALUE_NAMES.filter((name) => spins[name] !== undefined)
+
+type StatusRequest = { sheet: LubecCharacterSheet; swap: LubecSwapDraft | null; spins: LubecGenerateSpins; generated: LubecValueName | null }
 
 /** The status line under the roll-up circles, in the prototype's words for each step. */
-export function lubecRollUpStatus({ sheet, swap, spin, generated }: StatusRequest): string {
-  if (spin) return `Rolling ${spin.name}...`
+export function lubecRollUpStatus({ sheet, swap, spins, generated }: StatusRequest): string {
+  const spinning = lubecSpinningValues(spins)
+  if (spinning.length > 0) return `Rolling ${spinning.join(', ')}...`
   const rollUp = readLubecRollUp(sheet.rollUp)
   const stage = lubecRollUpStage(rollUp)
   if (stage === 'settled') return settledStatus(rollUp)
