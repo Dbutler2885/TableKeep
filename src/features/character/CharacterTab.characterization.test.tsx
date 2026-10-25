@@ -178,7 +178,11 @@ describe('roster display and selection', () => {
   })
 })
 
-describe('sheet workflows through the real controls', () => {
+// Each of these renders the whole OSE sheet and drives it through its real
+// controls. One takes a few hundred milliseconds on a quiet machine, but under
+// coverage on a loaded one it has passed Vitest's 5 s default, so the block
+// allows more time; the assertions are unchanged.
+describe('sheet workflows through the real controls', { timeout: 20_000 }, () => {
   it('edits established ability scores within 1..18, truncates decimals, and clears an empty input while preserving other scores', () => {
     const { props } = selectedSheet(characterFixture({ creationMode: 'established', creationStatus: 'established_draft' }))
     fireEvent.change(abilityInput('INT'), { target: { value: '14' } })

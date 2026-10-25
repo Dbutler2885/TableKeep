@@ -1,10 +1,13 @@
 import { ChevronLeft } from 'lucide-react'
 import type { Role } from '../../types/app'
+import { canEditCharacterStoreCharacter } from '../character/characterStore/characterStoreActions'
 import { useCharacterStore } from '../character/characterStore/useCharacterStore'
+import { useCharacterMedia } from '../character/hooks/useCharacterMedia'
 import { useResponsiveCharacterLayout } from '../character/hooks/useResponsiveCharacterLayout'
 import { lubecCharacterStore } from '../ruleSets/lubec/characterParser'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import type { LubecCountersChange } from './LubecCountersPanel'
+import type { LubecSheetEditing } from './LubecNameBandEditor'
 import { LubecRoster } from './LubecRoster'
 import { LubecSheetView } from './LubecSheetView'
 
@@ -20,6 +23,7 @@ export type LubecCharacterTabProps = {
 
 type DetailProps = {
   character: LubecCharacterRecord | null
+  editing: LubecSheetEditing | null
   isSinglePane: boolean
   onBack: () => void
   onCountersChange: LubecCountersChange | null
@@ -37,7 +41,7 @@ function countersChangeFor(
   return (counters) => update(character.id, { lubec: { ...character.lubec, counters } })
 }
 
-function LubecDetail({ character, isSinglePane, onBack, onCountersChange }: DetailProps) {
+function LubecDetail({ character, editing, isSinglePane, onBack, onCountersChange }: DetailProps) {
   return (
     <div className="monsters-detail characters-detail">
       <div className="monsters-detail-inner characters-detail-inner">
@@ -48,16 +52,39 @@ function LubecDetail({ character, isSinglePane, onBack, onCountersChange }: Deta
             </button>
           </div>
         ) : null}
-        {character ? <LubecSheetView key={character.id} character={character} onCountersChange={onCountersChange} /> : <p className="lubec-sheet-none">Pick a character to open their sheet.</p>}
+        {character ? (
+          <LubecSheetView key={character.id} character={character} editing={editing} onCountersChange={onCountersChange} />
+        ) : <p className="lubec-sheet-none">Pick a character to open their sheet.</p>}
       </div>
     </div>
   )
+}
+
+type EditingProps = Pick<LubecCharacterTabProps, 'campaignId' | 'groupId' | 'role' | 'currentUserId'> & {
+  character: LubecCharacterRecord | null
+  updateCharacter: (characterId: string, updates: Partial<LubecCharacterRecord>) => void
+}
+
+// The open sheet's edits for its owner and the GM, saved through the shared
+// store, with art uploaded under the uploader's authority; null for anyone else.
+function useLubecSheetEditing({ character, updateCharacter, role, currentUserId, ...campaign }: EditingProps): LubecSheetEditing | null {
+  const canEdit = character !== null && canEditCharacterStoreCharacter(character, role, currentUserId)
+  const media = useCharacterMedia({ ...campaign, currentUserId, effectiveSelected: character, canEditSelected: canEdit })
+  if (!character || !canEdit) return null
+  return {
+    update: (updates) => updateCharacter(character.id, updates),
+    uploadPortrait: media.uploadCharacterPortraitImage,
+    uploadToken: media.uploadCharacterTokenImage,
+  }
 }
 
 /** A Lubec campaign's characters, loaded through the shared character store, and the chosen one's sheet. */
 export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, gmUserId, setError }: LubecCharacterTabProps) {
   const store = useCharacterStore({
     ruleSet: lubecCharacterStore, campaignId, groupId, userId: currentUserId, role, gmUserId, setError, enabled: true,
+  })
+  const editing = useLubecSheetEditing({
+    character: store.selectedCharacter, updateCharacter: store.updateCharacter, campaignId, groupId, role, currentUserId,
   })
   const layout = useResponsiveCharacterLayout({ hasOpenDetail: Boolean(store.selectedCharacterId) })
   const selectCharacter = (characterId: string) => {
@@ -78,6 +105,7 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, gm
       {layout.showDetailPane ? (
         <LubecDetail
           character={store.selectedCharacter}
+          editing={editing}
           isSinglePane={layout.isSinglePane}
           onBack={() => layout.setPaneView('list')}
           onCountersChange={countersChangeFor(store.selectedCharacter, { role, userId: currentUserId }, store.updateCharacter)}

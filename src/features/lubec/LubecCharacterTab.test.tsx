@@ -41,6 +41,11 @@ vi.mock('../common/mediaStorage', async (importOriginal) => ({
   resolveStoragePathUrl: mocks.resolveStoragePathUrl,
   uploadEntityImage: mocks.uploadEntityImage,
 }))
+// jsdom has no canvas to decode with, so a chosen image goes on unchanged.
+vi.mock('../common/imageNormalization', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../common/imageNormalization')>()),
+  normalizeImageForUpload: async (file: File) => ({ file }),
+}))
 
 const { ruleSetSheets } = await import('../ruleSets/sheetComponents')
 const { parseLubecCharacter } = await import('../ruleSets/lubec/characterParser')
@@ -151,6 +156,8 @@ beforeEach(() => {
     return undefined
   })
   window.innerWidth = 1024
+  URL.createObjectURL = vi.fn(() => 'blob:chosen-image')
+  URL.revokeObjectURL = vi.fn()
 })
 
 afterEach(() => {
@@ -539,5 +546,156 @@ describe('Lubec Fight panel', () => {
 
     expect(effectiveHandle()).toBe('missing')
     expect(fightPanel().querySelector('.lubec-missing')).toBeTruthy()
+  })
+})
+
+const imageFile = (name: string) => new File(['image bytes'], name, { type: 'image/png' })
+
+function openNameBand(name: string) {
+  const sheet = openSheet(name)
+  fireEvent.click(within(sheet).getByRole('button', { name: 'Edit name band' }))
+  return within(sheet).getByRole('region', { name: 'Name, age and portrait' })
+}
+
+const typeInto = (editor: HTMLElement, label: string, value: string) =>
+  fireEvent.change(within(editor).getByLabelText(label), { target: { value } })
+
+async function choosePortrait(editor: HTMLElement, file: File) {
+  fireEvent.change(editor.querySelector('.monster-portrait-frame-empty input[type="file"]') as HTMLInputElement, { target: { files: [file] } })
+  await flushMicrotasks()
+  fireEvent.click(screen.getByRole('button', { name: 'Save portrait' }))
+  await flushMicrotasks()
+}
+
+const bandPortrait = (name: string) =>
+  within(screen.getByRole('article', { name: `${name} character sheet` }).querySelector('.lubec-idband') as HTMLElement)
+
+describe('Lubec name band', () => {
+  it('lets the owner of a finalized character change its name and age, kept through a reload', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    const editor = openNameBand('Tommy Eves')
+
+    typeInto(editor, 'Name', 'Tom Eves')
+    typeInto(editor, 'Age', '13')
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Tom Eves' })).toBeTruthy()
+    reload('player', 'player-1')
+    const sheet = openSheet('Tom Eves')
+    expect(database.tommy.name).toBe('Tom Eves')
+    expect((database.tommy.lubec as Fields).age).toBe(13)
+    expect(database.tommy.creationStatus).toBe('active')
+    expect(sheet.querySelector('.lubec-kid-age')?.textContent).toBe('Age 13')
+  })
+
+  it('keeps age a whole number or empty', () => {
+    seed({ tommy: withSheet({ age: 12 }) })
+    mountTab('player', 'player-1')
+    const editor = openNameBand('Tommy Eves')
+    const age = within(editor).getByLabelText('Age') as HTMLInputElement
+
+    typeInto(editor, 'Age', '12.5')
+    expect(age.value).toBe('12')
+    typeInto(editor, 'Age', '')
+
+    expect(age.value).toBe('')
+    reload('player', 'player-1')
+    const sheet = openSheet('Tommy Eves')
+    expect((database.tommy.lubec as Fields).age).toBeNull()
+    expect(sheet.querySelector('.lubec-kid-age')).toBeNull()
+  })
+
+  it('lets the GM change a player\'s character\'s name', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('gm', GM)
+    const editor = openNameBand('Tommy Eves')
+
+    typeInto(editor, 'Name', 'Thomas Eves')
+
+    reload('gm', GM)
+    expect(database.tommy.name).toBe('Thomas Eves')
+    expect(database.tommy.ownerUserId).toBe('player-1')
+  })
+
+  it('offers a player no edits on someone else\'s character', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-2')
+
+    const sheet = openSheet('Tommy Eves')
+
+    expect(within(sheet).queryByRole('button', { name: 'Edit name band' })).toBeNull()
+    expect(within(sheet).queryByRole('region', { name: 'Name, age and portrait' })).toBeNull()
+  })
+
+  it('closes the edits with Done', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    const editor = openNameBand('Tommy Eves')
+
+    fireEvent.click(within(editor).getByRole('button', { name: 'Done' }))
+
+    expect(screen.queryByRole('region', { name: 'Name, age and portrait' })).toBeNull()
+  })
+
+  it('uploads a new portrait as the owner and stores only its path, which a reload shows again', async () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    const editor = openNameBand('Tommy Eves')
+    const file = imageFile('tommy.png')
+
+    await choosePortrait(editor, file)
+
+    expect(mocks.uploadEntityImage).toHaveBeenCalledWith(expect.objectContaining({
+      file, collectionName: 'characters', entityId: 'tommy', mediaKind: 'portraits', uploadAuthority: 'owner',
+    }))
+    expect(bandPortrait('Tommy Eves').getByRole('img', { name: 'Tommy Eves portrait' }).getAttribute('src')).toBe('https://media.test/uploaded/portrait.png')
+    reload('player', 'player-1')
+    await flushMicrotasks()
+    openSheet('Tommy Eves')
+    expect(database.tommy.portraitPath).toBe('uploaded/portrait.png')
+    expect(database.tommy).not.toHaveProperty('portraitUrl')
+    expect(mocks.resolveStoragePathUrl).toHaveBeenCalledWith('uploaded/portrait.png')
+    expect(bandPortrait('Tommy Eves').getByRole('img', { name: 'Tommy Eves portrait' }).getAttribute('src')).toBe('https://media.test/uploaded/portrait.png')
+  })
+
+  it('lets the GM remove a portrait and replace it, uploading as the GM', async () => {
+    seed({ tommy: tommyEves({ portraitPath: 'portraits/tommy.png' }) })
+    mountTab('gm', GM)
+    await flushMicrotasks()
+    const editor = openNameBand('Tommy Eves')
+
+    fireEvent.click(within(editor).getByRole('button', { name: 'Remove portrait' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+
+    expect(bandPortrait('Tommy Eves').getByRole('img', { name: 'No photo yet' })).toBeTruthy()
+    reload('gm', GM)
+    expect(database.tommy.portraitPath).toBe('')
+
+    const reopened = openNameBand('Tommy Eves')
+    mocks.uploadEntityImage.mockResolvedValueOnce({ path: 'uploaded/replacement.png', url: 'https://media.test/uploaded/replacement.png' })
+    await choosePortrait(reopened, imageFile('replacement.png'))
+
+    expect(mocks.uploadEntityImage).toHaveBeenCalledWith(expect.objectContaining({ mediaKind: 'portraits', uploadAuthority: undefined }))
+    reload('gm', GM)
+    expect(database.tommy.portraitPath).toBe('uploaded/replacement.png')
+    expect(database.tommy).not.toHaveProperty('portraitUrl')
+  })
+
+  it('sets the map token through the token picker and stores no download URL', async () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    const editor = openNameBand('Tommy Eves')
+    mocks.uploadEntityImage.mockResolvedValueOnce({ path: 'uploaded/token.png', url: 'https://media.test/uploaded/token.png', name: 'token' } as never)
+
+    fireEvent.click(within(editor).getByRole('button', { name: 'Set map token' }))
+    await flushMicrotasks()
+    const picker = screen.getByRole('dialog')
+    fireEvent.change(within(picker).getByLabelText('Upload image').querySelector('input') as HTMLInputElement, { target: { files: [imageFile('token.png')] } })
+    await flushMicrotasks()
+    fireEvent.click(within(picker).getByRole('button', { name: 'Confirm' }))
+
+    expect(mocks.uploadEntityImage).toHaveBeenCalledWith(expect.objectContaining({ mediaKind: 'token-icons', uploadAuthority: 'owner' }))
+    reload('player', 'player-1')
+    expect(database.tommy.tokenIcon).toEqual({ icon: 'custom', color: '#c08a2e', size: 34, customImagePath: 'uploaded/token.png', customImageName: 'token' })
   })
 })
