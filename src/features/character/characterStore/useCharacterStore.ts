@@ -6,6 +6,7 @@ import {
   deleteCharacterStoreCharacter,
   syncCharacterStoreCharacterLocal,
   updateCharacterStoreCharacter,
+  updateCharacterStoreCharacterNow,
   type CharacterStoreActionContext,
 } from './characterStoreActions'
 import type { CharacterStoreRecord, CharacterStoreRuleSet } from './characterStoreRecord'
@@ -96,6 +97,9 @@ export function useCharacterStore<Character extends CharacterStoreRecord>(option
     addCharacter: (character: Character) => addCharacterStoreCharacter(context, character),
     updateCharacter: (characterId: string, updates: Partial<Character>) =>
       updateCharacterStoreCharacter(context, characterId, updates),
+    /** Like `updateCharacter`, but saves at once rather than after the delay. */
+    updateCharacterNow: (characterId: string, updates: Partial<Character>) =>
+      updateCharacterStoreCharacterNow(context, characterId, updates),
     syncCharacterLocal: (characterId: string, updates: Partial<Character>) =>
       syncCharacterStoreCharacterLocal(context, characterId, updates),
     deleteCharacter: (characterId: string) => deleteCharacterStoreCharacter(context, characterId),

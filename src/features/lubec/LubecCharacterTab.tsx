@@ -7,7 +7,7 @@ import { useCharacterMedia } from '../character/hooks/useCharacterMedia'
 import { useResponsiveCharacterLayout } from '../character/hooks/useResponsiveCharacterLayout'
 import { lubecCharacterStore } from '../ruleSets/lubec/characterParser'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
-import { makeLubecDirectEntryCharacter, type LubecSheetEdit } from '../ruleSets/lubec/directEntry'
+import { makeLubecDirectEntryCharacter, makeLubecGuidedCharacter, type LubecOwner, type LubecSheetEdit } from '../ruleSets/lubec/directEntry'
 import type { LubecSkills } from '../ruleSets/lubec/skillPicks'
 import type { LubecCountersChange } from './LubecCountersPanel'
 import type { LubecSheetEditing } from './LubecNameBandEditor'
@@ -35,7 +35,13 @@ type DetailProps = {
 } & DraftActions
 
 /** What the viewer may do to a draft; all are null for a finalized character or someone else's. */
-type DraftActions = { onDraftEdit: LubecSheetEdit | null; onDelete: (() => void) | null; onFinalize: (() => void) | null }
+type DraftActions = {
+  onDraftEdit: LubecSheetEdit | null
+  /** Saves at once rather than after the delay; only a guided draft's dice and Swap use it. */
+  onRollUp: LubecSheetEdit | null
+  onDelete: (() => void) | null
+  onFinalize: (() => void) | null
+}
 
 type CharacterUpdate = (characterId: string, updates: Partial<LubecCharacterRecord>) => void
 
@@ -80,14 +86,15 @@ function correctionsFor(
 function draftActionsFor(
   character: LubecCharacterRecord | null,
   viewer: { role: Role | null; userId: string },
-  store: { updateCharacter: CharacterUpdate; deleteCharacter: (characterId: string) => boolean },
+  store: { updateCharacter: CharacterUpdate; updateCharacterNow: CharacterUpdate; deleteCharacter: (characterId: string) => boolean },
   onDeleted: () => void,
 ): DraftActions {
   if (!character || character.creationStatus === 'active' || !canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) {
-    return { onDraftEdit: null, onDelete: null, onFinalize: null }
+    return { onDraftEdit: null, onRollUp: null, onDelete: null, onFinalize: null }
   }
   return {
     onDraftEdit: (changes) => store.updateCharacter(character.id, { lubec: { ...character.lubec, ...changes } }),
+    onRollUp: (changes) => store.updateCharacterNow(character.id, { lubec: { ...character.lubec, ...changes } }),
     onDelete: () => { if (store.deleteCharacter(character.id)) onDeleted() },
     onFinalize: () => store.updateCharacter(character.id, { creationStatus: 'active' }),
   }
@@ -148,10 +155,11 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, cu
     store.setSelectedCharacterId(characterId)
     layout.setPaneView('detail')
   }
-  const createDirectEntry = () => {
-    void store.addCharacter(makeLubecDirectEntryCharacter(makeId(), { userId: currentUserId, username: currentUsername }))
+  const create = (make: (id: string, owner: LubecOwner) => LubecCharacterRecord) => () => {
+    void store.addCharacter(make(makeId(), { userId: currentUserId, username: currentUsername }))
     layout.setPaneView('detail')
   }
+  const doors = { onDirectEntry: create(makeLubecDirectEntryCharacter), onGuided: create(makeLubecGuidedCharacter) }
   const viewer = { role, userId: currentUserId }
   return (
     <div className="maps-layout monsters-layout characters-layout lubec-character-tab">
@@ -162,7 +170,7 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, cu
           selectedCharacterId={store.selectedCharacterId}
           currentUserId={currentUserId}
           onSelect={selectCharacter}
-          onDirectEntry={role === 'gm' || role === 'player' ? createDirectEntry : null}
+          doors={role === 'gm' || role === 'player' ? doors : null}
         />
       ) : null}
       {layout.showDetailPane ? (

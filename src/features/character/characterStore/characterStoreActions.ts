@@ -9,6 +9,7 @@ import {
   deleteCharacterStoreDoc,
   saveCharacterStoreCurrentCharacter,
   scheduleCharacterStoreSave,
+  sendCharacterStoreSaveNow,
   type CharacterStoreSaves,
 } from './characterStoreWrites'
 
@@ -39,21 +40,48 @@ const withCharacterStoreUpdates = <Character extends CharacterStoreRecord>(
   updates: Partial<Character>,
 ) => characters.map((character) => (character.id === characterId ? { ...character, ...updates } : character))
 
+// Applies an edit locally when the viewer may make it; true when it was applied.
+function applyCharacterStoreUpdate<Character extends CharacterStoreRecord>(
+  context: CharacterStoreActionContext<Character>,
+  characterId: string,
+  updates: Partial<Character>,
+): boolean {
+  const { charactersRef, ruleSet } = context
+  const target = findCharacterStoreCharacter(charactersRef.current, characterId)
+  if (!target || !canEditCharacterStoreCharacter(target, context.role, context.userId)) return false
+  const next = withCharacterStoreUpdates(charactersRef.current, characterId,
+    ruleSet.adjustUpdates ? ruleSet.adjustUpdates(target, updates) : updates)
+  charactersRef.current = next
+  context.setCharacters(next)
+  return true
+}
+
+const readCharacterStoreCharacter = <Character extends CharacterStoreRecord>(context: CharacterStoreActionContext<Character>) =>
+  (id: string) => findCharacterStoreCharacter(context.charactersRef.current, id)
+
+/** Applies an edit and saves it half a second after the character's last edit. */
 export function updateCharacterStoreCharacter<Character extends CharacterStoreRecord>(
   context: CharacterStoreActionContext<Character>,
   characterId: string,
   updates: Partial<Character>,
 ) {
-  const { charactersRef, ruleSet } = context
-  const target = findCharacterStoreCharacter(charactersRef.current, characterId)
-  if (!target || !canEditCharacterStoreCharacter(target, context.role, context.userId)) return
-  const next = withCharacterStoreUpdates(charactersRef.current, characterId,
-    ruleSet.adjustUpdates ? ruleSet.adjustUpdates(target, updates) : updates)
-  charactersRef.current = next
-  context.setCharacters(next)
-  if (!context.campaign) return
-  scheduleCharacterStoreSave(context.savesRef.current, context.campaign, ruleSet, characterId,
-    (id) => findCharacterStoreCharacter(charactersRef.current, id))
+  if (!applyCharacterStoreUpdate(context, characterId, updates) || !context.campaign) return
+  scheduleCharacterStoreSave(context.savesRef.current, context.campaign, context.ruleSet, characterId,
+    readCharacterStoreCharacter(context))
+}
+
+/**
+ * Applies an edit and saves the character at once, instead of after the delay,
+ * so the save also carries any edit still waiting out its delay.
+ */
+export function updateCharacterStoreCharacterNow<Character extends CharacterStoreRecord>(
+  context: CharacterStoreActionContext<Character>,
+  characterId: string,
+  updates: Partial<Character>,
+) {
+  if (!applyCharacterStoreUpdate(context, characterId, updates) || !context.campaign) return
+  sendCharacterStoreSaveNow(context.savesRef.current, context.campaign, context.ruleSet, characterId,
+    readCharacterStoreCharacter(context))
 }
 
 /** Changes the local copy only, with no permission check and no save. */

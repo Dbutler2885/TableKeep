@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
+import { lubecRollUpIncomplete } from '../ruleSets/lubec/guidedRollUp'
 import { lubecHoles } from '../ruleSets/lubec/holes'
 import { lubecRuleWarnings } from '../ruleSets/lubec/ruleChecks'
 import { lubecCharacterName } from './lubecNames'
@@ -24,7 +25,8 @@ function LubecFinalizeDialog({ character, onFinalize, onCancel }: DialogProps) {
   const sheet = character.lubec
   const warnings = lubecRuleWarnings(sheet).map(({ message }) => message)
   const holes = lubecHoles(sheet)
-  const clear = warnings.length + holes.length + sheet.importNotes.length === 0
+  const incomplete = lubecRollUpIncomplete(sheet)
+  const clear = incomplete.length + warnings.length + holes.length + sheet.importNotes.length === 0
   return (
     <div className="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="lubec-finalize-title">
       <div className="confirm-modal lubec-finalize">
@@ -34,6 +36,7 @@ function LubecFinalizeDialog({ character, onFinalize, onCancel }: DialogProps) {
           after this, and only the GM can correct them.
         </p>
         {clear ? <p className="lubec-finalize-clear">Nothing to warn about.</p> : null}
+        <LubecNoticeList title="Still incomplete" notices={incomplete} />
         <LubecNoticeList title="Rule warnings" notices={warnings} />
         <LubecNoticeList title="Missing values" notices={holes} />
         <LubecNoticeList title="Import notes" notices={sheet.importNotes} />

@@ -4,7 +4,7 @@ import { lubecClass } from '../ruleSets/lubec/classes'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import type { LubecSheetEdit } from '../ruleSets/lubec/directEntry'
 import type { LubecSkills } from '../ruleSets/lubec/skillPicks'
-import { LubecCorePage } from './LubecCorePage'
+import { LubecCorePage, type LubecGuided } from './LubecCorePage'
 import { LubecCorrectSwitch } from './LubecCorrectSwitch'
 import type { LubecCountersChange } from './LubecCountersPanel'
 import { LubecDraftBar } from './LubecDraftBar'
@@ -128,6 +128,8 @@ type SheetViewProps = {
   onDelete: (() => void) | null
   /** Puts the draft in use; null unless the viewer may. */
   onFinalize: (() => void) | null
+  /** Saves a guided draft's dice and Swap at once; null unless the viewer may roll them. */
+  onRollUp: LubecSheetEdit | null
   /** What the Correct switch unlocks; null unless the viewer is the GM on a finalized character. */
   corrections: LubecCorrections | null
 }
@@ -138,9 +140,13 @@ type LockedEdits = Pick<SheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
 const lockedEdits = (correcting: boolean, corrections: LubecCorrections | null, edits: LockedEdits): LockedEdits =>
   correcting && corrections ? corrections : edits
 
-type SheetPageProps = LockedEdits & Pick<SheetViewProps, 'character' | 'editing' | 'onCountersChange'> & { page: LubecPage }
+type SheetPageProps = LockedEdits & Pick<SheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp'> & { page: LubecPage }
 
-function LubecSheetPage({ page, character, editing, onCountersChange, onDraftEdit, onSkillsChange }: SheetPageProps) {
+// Only a guided character still in creation is rolled up; once finalized its values are like any other's.
+const guidedOf = (character: LubecCharacterRecord, onRollUp: LubecSheetEdit | null): LubecGuided | null =>
+  (character.lubec.door === 'guided' && character.creationStatus !== 'active' ? { onRollUp } : null)
+
+function LubecSheetPage({ page, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp }: SheetPageProps) {
   if (page === 'skills') return <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} />
   return (
     <LubecCorePage
@@ -149,12 +155,13 @@ function LubecSheetPage({ page, character, editing, onCountersChange, onDraftEdi
       onEffectsChange={editing ? (effects) => editing.update({ lubec: { ...character.lubec, effects } }) : null}
       onDraftEdit={onDraftEdit}
       onRolled={editing ? (lubec) => editing.update({ lubec }) : null}
+      guided={guidedOf(character, onRollUp)}
     />
   )
 }
 
 /** One Lubec character's sheet, in the v4 frame, on its Core or Skills page. */
-export function LubecSheetView({ character, editing, onCountersChange, onDelete, onFinalize, corrections, ...edits }: SheetViewProps) {
+export function LubecSheetView({ character, editing, onCountersChange, onDelete, onFinalize, onRollUp, corrections, ...edits }: SheetViewProps) {
   const [page, setPage] = useState<LubecPage>('core')
   const [bandOpen, setBandOpen] = useState(false)
   const [correcting, setCorrecting] = useState(false)
@@ -174,6 +181,7 @@ export function LubecSheetView({ character, editing, onCountersChange, onDelete,
         character={character}
         editing={editing}
         onCountersChange={onCountersChange}
+        onRollUp={onRollUp}
         {...lockedEdits(correcting, corrections, edits)}
       />
     </article>
