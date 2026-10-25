@@ -16690,8 +16690,8 @@ button:disabled {
 }
 
 /* The prototype's skills strip: settled skills sit under Stats and Saves,
-   ready to add to the next roll, with the hint line, "Show skill tree" and,
-   from the grilling decisions, the Advantage switch as its blue buttons. */
+   ready to add to the next roll, with the hint line and, from the grilling
+   decisions, the Advantage switch as its blue buttons. */
 .shell-root[data-theme="lubec"] .skill-strip-body {
   display: grid;
   gap: 0.55rem;
@@ -18509,14 +18509,9 @@ button:disabled {
     justify-content: flex-start;
   }
 
-  /* The Advantage switch and "Show skill tree" share a line, with the hint under them. */
-  .shell-root[data-theme="lubec"] .lubec-core .lubec-advantage {
-    margin-right: 0;
-  }
-
+  /* The hint goes under the Advantage switch. */
   .shell-root[data-theme="lubec"] .lubec-core .skill-strip-footer > .skill-strip-hint {
     flex-basis: 100%;
-    order: 1;
   }
 
   .shell-root[data-theme="lubec"] .lubec-core .lubec-effects-body > .skill-strip-hint,

@@ -121,7 +121,6 @@ type AbilitiesProps = ValuesProps & {
   rollUp: LubecRollUpEdits | null
   /** The roll circles' shared state, which the Core page also shows its counters by. */
   circles: LubecCircles
-  onShowTree: () => void
 }
 
 /**
@@ -135,14 +134,14 @@ type AbilitiesProps = ValuesProps & {
  * A guided draft's circles roll its dice instead and carry the lowest-Stat
  * decision, and a draft being typed into takes each base in its circle's place.
  */
-export function LubecAbilities({ onShowTree, rollUp: rollUpEdits, circles, ...values }: AbilitiesProps) {
+export function LubecAbilities({ rollUp: rollUpEdits, circles, ...values }: AbilitiesProps) {
   const rollUp = useLubecRollUp(values.sheet, rollUpEdits)
   const tray = rollUp ? <LubecDecisionTray view={rollUp} /> : null
   return (
     <div className="abilities">
       <LubecAbilitySection title="Stats" formula="Array + D10 each" names={LUBEC_STATS} circles={circles} rollUp={rollUp} tray={tray} {...values} />
       <LubecAbilitySection title="Saves" formula="2D10 + 10" names={LUBEC_SAVES} circles={circles} rollUp={rollUp} {...values} />
-      {values.roller ? <LubecSkillStrip sheet={values.sheet} roller={values.roller} spin={circles.spin} onShowTree={onShowTree} /> : null}
+      {values.roller ? <LubecSkillStrip sheet={values.sheet} roller={values.roller} spin={circles.spin} /> : null}
       {rollUp ? null : <LubecPanicSection sheet={lubecShownSheet(values.sheet, circles.spin)} roller={values.roller} circles={circles} />}
       <p className="status" role="status" aria-live="polite">{rollUp ? rollUp.status : circles.status}</p>
     </div>

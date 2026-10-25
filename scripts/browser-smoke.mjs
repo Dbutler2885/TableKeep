@@ -1226,9 +1226,9 @@ async function expectLubecClassRecord(page) {
   if (JSON.stringify(record) !== JSON.stringify(LUBEC_CLASS_RECORD)) throw new Error(`The class record shows ${JSON.stringify(record)}.`)
 }
 
-// "Show skill tree" in the Core page's skill strip opens the Skills page, where the tree is.
+// The Skills tab at the top of the sheet opens the Skills page, where the tree is.
 async function openLubecSkillsPage(page) {
-  await page.locator(`${LUBEC_CORE_PAGE} .skill-strip-footer ::-p-text(Show skill tree)`).click()
+  await page.locator('.lubec-page-tabs ::-p-text(Skills)').click()
   await page.locator(LUBEC_SKILLS_PAGE).wait()
 }
 
@@ -1263,7 +1263,7 @@ async function readLubecSkill(page) {
 }
 
 async function lubecSkillsPageSteps(page, testCase) {
-  await step('open the Lubec Skills page from the skill strip', () => openLubecSkillsPage(page))
+  await step('open the Lubec Skills page from its tab', () => openLubecSkillsPage(page))
   await page.mouse.move(0, page.viewport().height - 1)
   await step('show the Skills page in the v4 frame', () => expectLubecPage(page, 'Skills'))
   await step('show all 27 Trained and 27 Expert skills on the tree', () => expectLubecTreeSize(page))

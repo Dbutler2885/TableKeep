@@ -51,14 +51,14 @@ function LubecAdvantageSwitch({ roller, spin }: SwitchProps) {
   )
 }
 
-type StripProps = { sheet: LubecCharacterSheet; roller: LubecRoller; spin: LubecSpin | null; onShowTree: () => void }
+type StripProps = { sheet: LubecCharacterSheet; roller: LubecRoller; spin: LubecSpin | null }
 
 /**
  * The combined prototype's "Skills / Add to a roll" strip under the Saves:
- * a chip for each skill to arm for the next roll, the hint line, the
- * Advantage switch and "Show skill tree", which opens the Skills page.
+ * a chip for each skill to arm for the next roll, the Advantage switch and the
+ * hint line. The Skills tab opens the tree.
  */
-export function LubecSkillStrip({ sheet, roller, spin, onShowTree }: StripProps) {
+export function LubecSkillStrip({ sheet, roller, spin }: StripProps) {
   const skills = stripSkills(sheet)
   return (
     <section className="ability-section" aria-labelledby="lubec-skill-strip-title">
@@ -71,7 +71,6 @@ export function LubecSkillStrip({ sheet, roller, spin, onShowTree }: StripProps)
         <div className="skill-strip-footer">
           <LubecAdvantageSwitch roller={roller} spin={spin} />
           <p className={roller.armed ? 'skill-strip-hint armed' : 'skill-strip-hint'} aria-live="polite">{stripHint(skills, roller.armed)}</p>
-          <button type="button" className="secondary-button" onClick={onShowTree}>Show skill tree</button>
         </div>
       </div>
     </section>

@@ -31,8 +31,6 @@ type CorePageProps = {
   onRolled: LubecRolled | null
   /** Present on a guided draft, whose base values are rolled rather than typed. */
   guided?: LubecGuided | null
-  /** Opens the Skills page, where the skill tree is. */
-  onShowTree: () => void
   /** True once the character is finalized: as in the prototype, only a character in play has a Fight bar. */
   inPlay: boolean
 }
@@ -48,7 +46,7 @@ type CorePageProps = {
  * values. A guided draft's circles roll its dice and settle its scores
  * instead, and its class cards unlock once they are settled.
  */
-export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraftEdit = null, onRolled, guided = null, onShowTree, inPlay }: CorePageProps) {
+export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraftEdit = null, onRolled, guided = null, inPlay }: CorePageProps) {
   const modifiers = lubecActiveModifiers(sheet.effects)
   const roller = useLubecRoller(sheet, onRolled)
   const rollUp = rollUpOf(sheet, guided, onDraftEdit)
@@ -63,7 +61,6 @@ export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraf
         roller={rollUp ? null : roller}
         rollUp={rollUp}
         circles={circles}
-        onShowTree={onShowTree}
       />
       {onDraftEdit ? classSection : null}
       <div className="lubec-tallies">
