@@ -4,23 +4,32 @@ import type { LubecRollUpActions, LubecRollUpView } from './useLubecRollUp'
 
 type ButtonsProps = { swap: LubecSwapDraft | null; canSwap: boolean; actions: LubecRollUpActions }
 
-// The tray's buttons in the prototype's order, each shown only at its step of the Swap.
-function LubecTrayButtons({ swap, canSwap, actions }: ButtonsProps) {
+const KeepButton = ({ actions }: { actions: LubecRollUpActions }) =>
+  <button type="button" className="secondary-button" onClick={actions.keep}>Keep these scores</button>
+
+// Once the trade is shown, it is undone or confirmed.
+function LubecReviewButtons({ actions }: { actions: LubecRollUpActions }) {
   return (
     <>
-      {swap ? null : <button type="button" className="action-button" disabled={!canSwap} onClick={actions.startSwap}>Swap lowest stat</button>}
-      {swap?.stage === 'select' ? <button type="button" className="secondary-button" onClick={actions.cancelSwap}>Cancel</button> : null}
-      {swap?.stage === 'review' ? (
-        <>
-          <button type="button" className="secondary-button tray-icon lubec-swap-undo" aria-label="Undo swap" title="Undo swap" onClick={actions.undoSwap}>
-            <span aria-hidden="true">&#8634;</span>
-          </button>
-          <button type="button" className="confirm-button tray-icon" aria-label="Confirm swap" title="Confirm swap" onClick={actions.confirmSwap}>
-            <span aria-hidden="true">&#10003;</span>
-          </button>
-        </>
-      ) : null}
-      {swap?.stage === 'review' ? null : <button type="button" className="secondary-button" onClick={actions.keep}>Keep these scores</button>}
+      <button type="button" className="secondary-button tray-icon lubec-swap-undo" aria-label="Undo swap" title="Undo swap" onClick={actions.undoSwap}>
+        <span aria-hidden="true">&#8634;</span>
+      </button>
+      <button type="button" className="confirm-button tray-icon" aria-label="Confirm swap" title="Confirm swap" onClick={actions.confirmSwap}>
+        <span aria-hidden="true">&#10003;</span>
+      </button>
+    </>
+  )
+}
+
+// The tray's buttons in the prototype's order, each shown only at its step of the Swap.
+function LubecTrayButtons({ swap, canSwap, actions }: ButtonsProps) {
+  if (swap?.stage === 'review') return <LubecReviewButtons actions={actions} />
+  const start = <button type="button" className="action-button" disabled={!canSwap} onClick={actions.startSwap}>Swap lowest stat</button>
+  const cancel = <button type="button" className="secondary-button" onClick={actions.cancelSwap}>Cancel</button>
+  return (
+    <>
+      {swap ? cancel : start}
+      <KeepButton actions={actions} />
     </>
   )
 }
