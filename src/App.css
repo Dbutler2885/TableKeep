@@ -16153,10 +16153,6 @@ button:disabled {
   --c: var(--lubec-pine);
 }
 
-.shell-root[data-theme="lubec"] .lubec-skills .lubec-panel {
-  min-height: 8rem;
-}
-
 .shell-root[data-theme="lubec"] .lubec-section-head {
   margin: 0 0 0.55rem;
   padding: 0.4rem 0.7rem 0.25rem;
@@ -16518,6 +16514,181 @@ button:disabled {
 
 .shell-root[data-theme="lubec"] .lubec-effects .lubec-effect-add-step {
   justify-self: start;
+}
+
+/* Skills: the character's own skills beside the whole tree, Trained on the left, the Experts they unlock on the right. */
+.shell-root[data-theme="lubec"] .lubec-skills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.shell-root[data-theme="lubec"] .lubec-skills .lubec-panel.blue {
+  flex: 1 1 16rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-skills .lubec-panel.pine {
+  flex: 3 1 min(100%, 28rem);
+}
+
+.shell-root[data-theme="lubec"] .lubec-free-skill {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0 0.7rem 0.6rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-free-skill > span,
+.shell-root[data-theme="lubec"] .lubec-skill-tree thead th {
+  color: var(--lubec-muted);
+  font: 800 0.62rem/1.2 var(--lubec-type);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-free-skill select {
+  min-width: 0;
+  padding: 0.35rem 0.4rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-skills-none {
+  margin: 0 0.7rem;
+  color: var(--lubec-muted);
+}
+
+.shell-root[data-theme="lubec"] .lubec-taken-skills {
+  margin: 0 0.7rem;
+  padding: 0;
+  list-style: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-taken-skill {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.5rem;
+  padding: 0.4rem 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-taken-skill + .lubec-taken-skill {
+  border-top: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-taken-name {
+  color: var(--lubec-ink);
+  font: 700 1.05rem/1.1 var(--lubec-condensed);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-taken-tier {
+  margin-left: auto;
+  color: var(--lubec-muted);
+  font-size: 0.78rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-taken-bonus {
+  min-width: 2.2rem;
+  color: var(--lubec-blue);
+  font: 800 1.2rem/1 var(--lubec-display);
+  text-align: right;
+}
+
+.shell-root[data-theme="lubec"] .lubec-taken-skill.unknown .lubec-taken-name {
+  color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-taken-skill.unknown .lubec-taken-bonus {
+  min-width: 0;
+  color: var(--lubec-rust);
+  font: 700 0.68rem/1.2 var(--lubec-type);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-skill-tree {
+  width: calc(100% - 1.2rem);
+  margin: 0 0.6rem;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.shell-root[data-theme="lubec"] .lubec-skill-tree thead th {
+  padding: 0.15rem 0.35rem 0.3rem;
+  border-bottom: 2px solid var(--lubec-ink);
+  text-align: left;
+}
+
+.shell-root[data-theme="lubec"] .lubec-skill-tree td {
+  padding: 0.3rem 0.35rem;
+  vertical-align: top;
+}
+
+.shell-root[data-theme="lubec"] .lubec-skill-tree tbody tr + tr td {
+  border-top: 1px solid var(--lubec-line);
+}
+
+/* The Expert column hangs off the Trained one, as a branch off the trunk. */
+.shell-root[data-theme="lubec"] .lubec-skill-tree td + td {
+  border-left: 2px dotted var(--lubec-pine);
+}
+
+.shell-root[data-theme="lubec"] .lubec-skill-name {
+  display: block;
+  padding: 0.2rem 0.35rem;
+  border: 1.5px solid transparent;
+  overflow-wrap: anywhere;
+  color: var(--lubec-ink);
+  font: 700 0.98rem/1.15 var(--lubec-condensed);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] button.lubec-skill-name {
+  width: 100%;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] button.lubec-skill-name:hover {
+  border-color: var(--lubec-line);
+  background: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] button.lubec-skill-name:disabled {
+  cursor: default;
+}
+
+.shell-root[data-theme="lubec"] .lubec-tree-skill.free .lubec-skill-name,
+.shell-root[data-theme="lubec"] .lubec-tree-skill.picked .lubec-skill-name {
+  border-color: var(--lubec-pine);
+  background: var(--lubec-pine);
+  color: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-skill-mark {
+  display: inline-block;
+  margin-top: 0.2rem;
+  padding: 0.05rem 0.3rem;
+  background: var(--lubec-mustard);
+  color: var(--lubec-ink);
+  font: 800 0.7rem/1.3 var(--lubec-type);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* In line with the padded skill name above them. */
+.shell-root[data-theme="lubec"] .lubec-tree-skill .lubec-skill-mark {
+  margin-left: 0.35rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-skill-needs {
+  display: block;
+  margin: 0.2rem 0 0 0.35rem;
+  color: var(--lubec-muted);
+  font-size: 0.72rem;
+  line-height: 1.25;
 }
 
 @media (max-width: 560px) {

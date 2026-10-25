@@ -6,6 +6,7 @@ import { useCharacterMedia } from '../character/hooks/useCharacterMedia'
 import { useResponsiveCharacterLayout } from '../character/hooks/useResponsiveCharacterLayout'
 import { lubecCharacterStore } from '../ruleSets/lubec/characterParser'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
+import type { LubecSkills } from '../ruleSets/lubec/skillPicks'
 import type { LubecCountersChange } from './LubecCountersPanel'
 import type { LubecSheetEditing } from './LubecNameBandEditor'
 import { LubecRoster } from './LubecRoster'
@@ -27,9 +28,12 @@ type DetailProps = {
   isSinglePane: boolean
   onBack: () => void
   onCountersChange: LubecCountersChange | null
+  onSkillsChange: LubecSkillsChange | null
 }
 
 type CharacterUpdate = (characterId: string, updates: Partial<LubecCharacterRecord>) => void
+
+type LubecSkillsChange = (skills: LubecSkills) => void
 
 // The owner and the GM change a character's counters; anyone else only sees them.
 function countersChangeFor(
@@ -41,7 +45,18 @@ function countersChangeFor(
   return (counters) => update(character.id, { lubec: { ...character.lubec, counters } })
 }
 
-function LubecDetail({ character, editing, isSinglePane, onBack, onCountersChange }: DetailProps) {
+// The owner and the GM change a character's skills until it is finalized; anyone else only sees them.
+function skillsChangeFor(
+  character: LubecCharacterRecord | null,
+  viewer: { role: Role | null; userId: string },
+  update: CharacterUpdate,
+): LubecSkillsChange | null {
+  if (!character || character.creationStatus === 'active') return null
+  if (!canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) return null
+  return (skills) => update(character.id, { lubec: { ...character.lubec, skills } })
+}
+
+function LubecDetail({ character, editing, isSinglePane, onBack, onCountersChange, onSkillsChange }: DetailProps) {
   return (
     <div className="monsters-detail characters-detail">
       <div className="monsters-detail-inner characters-detail-inner">
@@ -53,7 +68,13 @@ function LubecDetail({ character, editing, isSinglePane, onBack, onCountersChang
           </div>
         ) : null}
         {character ? (
-          <LubecSheetView key={character.id} character={character} editing={editing} onCountersChange={onCountersChange} />
+          <LubecSheetView
+            key={character.id}
+            character={character}
+            editing={editing}
+            onCountersChange={onCountersChange}
+            onSkillsChange={onSkillsChange}
+          />
         ) : <p className="lubec-sheet-none">Pick a character to open their sheet.</p>}
       </div>
     </div>
@@ -109,6 +130,7 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, gm
           isSinglePane={layout.isSinglePane}
           onBack={() => layout.setPaneView('list')}
           onCountersChange={countersChangeFor(store.selectedCharacter, { role, userId: currentUserId }, store.updateCharacter)}
+          onSkillsChange={skillsChangeFor(store.selectedCharacter, { role, userId: currentUserId }, store.updateCharacter)}
         />
       ) : null}
     </div>
