@@ -714,7 +714,7 @@ const imageFile = (name: string) => new File(['image bytes'], name, { type: 'ima
 function openNameBand(name: string) {
   const sheet = openSheet(name)
   fireEvent.click(within(sheet).getByRole('button', { name: 'Edit name band' }))
-  return within(sheet).getByRole('region', { name: 'Name, age and portrait' })
+  return within(sheet).getByRole('region', { name: 'Character identity' })
 }
 
 const typeInto = (editor: HTMLElement, label: string, value: string) =>
@@ -736,7 +736,7 @@ describe('Lubec name band', () => {
     mountTab('player', 'player-1')
     const editor = openNameBand('Tommy Eves')
 
-    typeInto(editor, 'Name', 'Tom Eves')
+    typeInto(editor, 'Character name', 'Tom Eves')
     typeInto(editor, 'Age', '13')
 
     expect(screen.getByRole('heading', { level: 2, name: 'Tom Eves' })).toBeTruthy()
@@ -746,6 +746,20 @@ describe('Lubec name band', () => {
     expect((database.tommy.lubec as Fields).age).toBe(13)
     expect(database.tommy.creationStatus).toBe('active')
     expect(sheet.querySelector('.lubec-kid-age')?.textContent).toBe('Age 13')
+  })
+
+  it('keeps the player name inside the stored sheet, kept through a reload', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    const editor = openNameBand('Tommy Eves')
+
+    typeInto(editor, 'Player name', 'Eves')
+
+    reload('player', 'player-1')
+    const reopened = openNameBand('Tommy Eves')
+    expect((within(reopened).getByLabelText('Player name') as HTMLInputElement).value).toBe('Eves')
+    expect((database.tommy.lubec as Fields).playerName).toBe('Eves')
+    expect(database.tommy).not.toHaveProperty('playerName')
   })
 
   it('keeps age a whole number or empty', () => {
@@ -770,7 +784,7 @@ describe('Lubec name band', () => {
     mountTab('gm', GM)
     const editor = openNameBand('Tommy Eves')
 
-    typeInto(editor, 'Name', 'Thomas Eves')
+    typeInto(editor, 'Character name', 'Thomas Eves')
 
     reload('gm', GM)
     expect(database.tommy.name).toBe('Thomas Eves')
@@ -784,7 +798,7 @@ describe('Lubec name band', () => {
     const sheet = openSheet('Tommy Eves')
 
     expect(within(sheet).queryByRole('button', { name: 'Edit name band' })).toBeNull()
-    expect(within(sheet).queryByRole('region', { name: 'Name, age and portrait' })).toBeNull()
+    expect(within(sheet).queryByRole('region', { name: 'Character identity' })).toBeNull()
   })
 
   it('closes the edits with Done', () => {
@@ -794,7 +808,7 @@ describe('Lubec name band', () => {
 
     fireEvent.click(within(editor).getByRole('button', { name: 'Done' }))
 
-    expect(screen.queryByRole('region', { name: 'Name, age and portrait' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Character identity' })).toBeNull()
   })
 
   it('uploads a new portrait as the owner and stores only its path, which a reload shows again', async () => {

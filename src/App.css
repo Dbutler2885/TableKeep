@@ -16175,7 +16175,7 @@ button:disabled {
   align-items: start;
 }
 
-/* The name band's edits: the portrait and token at the left, name and age beside them. */
+/* The name band's edits: the portrait and token at the left, name, age and player name beside them. */
 .shell-root[data-theme="lubec"] .lubec-name-editor {
   margin: 0.8rem var(--pad) 0;
 }
@@ -16210,32 +16210,49 @@ button:disabled {
   background: var(--lubec-paper-deep);
 }
 
+/* The prototype's identity card fields: cream on ink, the name and age on one
+   row and the player name the full width under them. */
 .shell-root[data-theme="lubec"] .lubec-name-fields {
   display: grid;
-  gap: 0.6rem;
+  grid-template-columns: 1fr 5.2rem;
+  gap: 0.75rem;
   min-width: 0;
+  padding: 0.85rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-name-fields .lubec-player-field {
+  grid-column: 1 / -1;
 }
 
 .shell-root[data-theme="lubec"] .lubec-name-fields label {
-  display: grid;
-  gap: 0.25rem;
-  color: var(--lubec-muted);
-  font: 700 0.68rem/1.2 var(--lubec-type);
-  letter-spacing: 0.12em;
+  display: block;
+  min-width: 0;
+  color: inherit;
+  font: 800 0.58rem/1 var(--lubec-type);
+  letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 
 .shell-root[data-theme="lubec"] .lubec-name-fields input {
   width: 100%;
-  min-width: 0;
-  padding: 0.4rem 0.55rem;
-  font-size: 1rem;
+  margin-top: 0.26rem;
+  padding: 0.22rem 0.1rem;
+  color: var(--lubec-cream);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid rgba(255, 248, 231, 0.72);
+  border-radius: 0;
+  outline: 0;
+  font: 800 1.15rem/1.2 var(--lubec-display);
   letter-spacing: normal;
   text-transform: none;
 }
 
-.shell-root[data-theme="lubec"] .lubec-name-fields .lubec-age-field input {
-  width: 6rem;
+.shell-root[data-theme="lubec"] .lubec-name-fields input:focus {
+  border-color: #f6cc72;
+  box-shadow: 0 2px 0 #f6cc72;
 }
 
 /* Panels: a coloured header bar with the section's name, a thin frame in the same colour. */
