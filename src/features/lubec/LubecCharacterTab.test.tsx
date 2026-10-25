@@ -166,6 +166,10 @@ const abilityOf = (name: string) =>
   screen.getByText(name, { selector: '.ability-name' }).closest('.ability') as HTMLElement
 
 const circleOf = (name: string) => abilityOf(name).querySelector('.roll-circle') as HTMLButtonElement
+// A spinning circle's own number, the second die's ghost beside it, and its "done" tag.
+const circleNumberOf = (name: string) => circleOf(name).querySelector(':scope > .number')?.textContent
+const ghostOf = (name: string) => circleOf(name).querySelector('.lubec-roll-ghost')
+const doneOf = (name: string) => circleOf(name).querySelector('.lubec-roll-done')
 
 const noteOf = (name: string) => abilityOf(name).querySelector('.base-note')?.textContent
 
@@ -1942,6 +1946,7 @@ describe('Lubec roller', () => {
 
     expect(circleOf('Strength').className).toBe('roll-circle rolling')
     expect(circleOf('Strength').textContent).toMatch(/^\d+\/29$/)
+    expect(ghostOf('Strength')).toBeNull()
     expect(shownStatus()).toBe('Rolling Strength check...')
     expect([...document.querySelectorAll('button.roll-circle')].every((circle) => (circle as HTMLButtonElement).disabled)).toBe(true)
 
@@ -1976,6 +1981,44 @@ describe('Lubec roller', () => {
     expect(valuesOf('Strength')).toEqual(['30/29', '24 +5 class'])
     expect(shownCounters().stress).toBe('3')
     expect((screen.getByRole('button', { name: 'Raise Stress' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('spins a ghost for the second die under Disadvantage, shows "done" once both settle, then merges it into the kept die', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    fireEvent.click(rollerButton('Disadvantage'))
+
+    seedRolls(23, 71)
+    roll('Speed')
+
+    // Each frame's timer is set once the last one has shown, so the spin is let run a frame at a time.
+    for (let step = 0; step < 12; step += 1) {
+      expect(circleNumberOf('Speed')).toMatch(/^\d+\/56$/)
+      expect(ghostOf('Speed')?.textContent).toMatch(/^\d+\/56$/)
+      expect(ghostOf('Speed')?.getAttribute('aria-hidden')).toBe('true')
+      expect(doneOf('Speed')).toBeNull()
+      act(() => vi.advanceTimersByTime(500))
+    }
+
+    expect(circleOf('Speed').className).toBe('roll-circle rolling')
+    expect([circleNumberOf('Speed'), ghostOf('Speed')?.textContent, doneOf('Speed')?.textContent]).toEqual(['23/56', '71/56', 'done'])
+    expect(shownStatus()).toBe('Rolling Speed check... done')
+    expect(shownCounters().stress).toBe('2')
+    act(() => vi.advanceTimersByTime(500))
+
+    expect(circleNumberOf('Speed')).toBe('71/56')
+    expect(ghostOf('Speed')?.className).toBe('roll-circle rolling lubec-roll-ghost merging')
+    expect(doneOf('Speed')).toBeNull()
+    expect(shownCounters().stress).toBe('2')
+    act(() => vi.advanceTimersByTime(500))
+
+    expect(circleOf('Speed').className).toBe('roll-circle has-value check-failure')
+    expect(ghostOf('Speed')).toBeNull()
+    expect(valuesOf('Speed')).toEqual(['71/56', '51 +5 class'])
+    expect(shownStatus()).toBe('Speed (Disadvantage, 23 and 71): 71 vs 56 - failure, +1 Stress.')
+    expect(shownCounters().stress).toBe('3')
   })
 
   it('marks a double that succeeds a critical success', () => {
@@ -2250,6 +2293,33 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect(shownCounters().stress).toBe('6')
     expect(panicButton().textContent).toBe('6')
     expect((screen.getByRole('button', { name: 'Lower Stress' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('spins a ghost d20 under Advantage and shows a failed check\'s row only once the ghost has merged into the kept die', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
+    seed({ tommy: stressed(5) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    fireEvent.click(within(screen.getByLabelText('Advantage')).getByText('Advantage', { selector: 'button' }))
+
+    seedFace(20, 2)
+    seedFace(20, 4)
+    fireEvent.click(panicButton())
+
+    for (let step = 0; step < 12; step += 1) {
+      expect(ghostOf('Panic Check')?.textContent).toMatch(/^\d+\/5$/)
+      act(() => vi.advanceTimersByTime(500))
+    }
+    expect([circleNumberOf('Panic Check'), ghostOf('Panic Check')?.textContent, doneOf('Panic Check')?.textContent]).toEqual(['2/5', '4/5', 'done'])
+    expect(panicResult()).toBeNull()
+    act(() => vi.advanceTimersByTime(500))
+    expect(circleNumberOf('Panic Check')).toBe('4/5')
+    expect(panicResult()).toBeNull()
+    act(() => vi.advanceTimersByTime(500))
+
+    expect(panicCircle().className).toBe('roll-circle has-value check-failure')
+    expect(panicCircle().textContent).toBe('4/5')
+    expect(shownPanicResult()[0]).toBe('04 OVERWHEMED')
   })
 
   it('keeps the higher d20 under Advantage', () => {

@@ -23,10 +23,26 @@ export const lubecRollCircle = (roll: LubecLastRoll): LubecCircleName =>
   (roll.kind === 'panic' ? 'Panic' : roll.kind === 'recovery' ? 'Recovery' : roll.against)
 
 /**
- * A roll spinning on one circle: the target, the die it rolls, the number it
- * shows while it spins, and the counters as they stood before the roll.
+ * Where a spin is: its dice spinning, then, under Advantage or Disadvantage,
+ * both dice settled with "done" showing, then the ghost merging into the kept die.
  */
-export type LubecSpin = { name: LubecCircleName; target: number; sides: number; preview: number; step: number; counters: LubecCounters }
+export type LubecSpinPhase = 'spin' | 'done' | 'merge'
+
+/**
+ * A roll spinning on one circle: the target, the die it rolls, the number it
+ * shows while it spins, the second die's ghost number under Advantage or
+ * Disadvantage, and the counters as they stood before the roll.
+ */
+export type LubecSpin = {
+  name: LubecCircleName
+  target: number
+  sides: number
+  preview: number
+  step: number
+  ghost: number | null
+  phase: LubecSpinPhase
+  counters: LubecCounters
+}
 
 /**
  * The sheet as the Core page shows it. The roll is recorded on the click, so
@@ -40,7 +56,8 @@ export type LubecCircleFace =
   | { kind: 'missing' }
   /** `armed` when the value includes an armed skill's bonus. */
   | { kind: 'value'; value: number; armed: boolean }
-  | { kind: 'rolling'; preview: number; target: number }
+  /** `ghost` is the second die's number under Advantage or Disadvantage. */
+  | { kind: 'rolling'; preview: number; target: number; ghost: number | null; phase: LubecSpinPhase }
   | { kind: 'result'; roll: LubecLastRoll }
 
 export type LubecCircleState = { armed: string | null; result: LubecLastRoll | null; spin: LubecSpin | null }
@@ -63,9 +80,16 @@ function lubecValueFace({ sheet, name, modifiers }: ValueRequest, armed: string 
   return { kind: 'value', value: target, armed: target !== current }
 }
 
+// The spin's previews; settled, the two dice as rolled; merging, the kept die as the ghost goes into it.
+function spinFace(spin: LubecSpin, roll: LubecLastRoll | null): LubecCircleFace {
+  const face = { kind: 'rolling' as const, preview: spin.preview, target: spin.target, ghost: spin.ghost, phase: spin.phase }
+  if (spin.phase === 'spin' || !roll) return face
+  return { ...face, preview: spin.phase === 'done' ? roll.dice[0] : roll.result, ghost: roll.dice[1] ?? null }
+}
+
 // A roll spinning on the circle, or the result it shows; null while it shows its value.
 function shownFace(name: LubecCircleName, { spin, result }: LubecCircleState): LubecCircleFace | null {
-  if (spin?.name === name) return { kind: 'rolling', preview: spin.preview, target: spin.target }
+  if (spin?.name === name) return spinFace(spin, result)
   return result ? { kind: 'result', roll: result } : null
 }
 
@@ -135,7 +159,7 @@ const circleRollName = (name: LubecCircleName): string =>
 
 /** The status line: a roll spinning, a roll whose result was cleared, or the last roll of any kind. */
 export function lubecCirclesStatus(spin: LubecSpin | null, cleared: LubecLastRoll | null, roll: LubecLastRoll | null): string {
-  if (spin) return `Rolling ${circleRollName(spin.name)}...`
+  if (spin) return `Rolling ${circleRollName(spin.name)}...${spin.phase === 'spin' ? '' : ' done'}`
   if (cleared) return `${circleRollName(lubecRollCircle(cleared))} cleared. Score unchanged.`
   return roll ? lubecRollStatus(roll) : ''
 }
@@ -144,3 +168,27 @@ export const LUBEC_SPIN_STEPS = 12
 
 /** The prototype's slowing spin: each preview stays a little longer than the last. */
 export const lubecSpinDelay = (step: number): number => Math.round(14 * Math.pow(1.36, step))
+
+/** How long "done" shows once both dice settle, and how long the ghost takes to merge, as the CSS transition does. */
+export const LUBEC_DONE_MS = 450
+export const LUBEC_MERGE_MS = 280
+
+const PHASE_WAITS: Readonly<Record<Exclude<LubecSpinPhase, 'spin'>, number>> = { done: LUBEC_DONE_MS, merge: LUBEC_MERGE_MS }
+
+/** How long the spin stays as it is before its next frame. */
+export const lubecSpinWait = (spin: LubecSpin): number =>
+  (spin.phase === 'spin' ? lubecSpinDelay(spin.step) : PHASE_WAITS[spin.phase])
+
+const NEXT_PHASE: Readonly<Record<LubecSpinPhase, LubecSpinPhase | null>> = { spin: 'done', done: 'merge', merge: null }
+
+/**
+ * The spin's next frame: a new number on each die until the last step, then,
+ * with a ghost, "done" and the merge; null once the result lands.
+ */
+export function lubecNextSpin(spin: LubecSpin, preview: (sides: number) => number): LubecSpin | null {
+  if (spin.phase === 'spin' && spin.step + 1 < LUBEC_SPIN_STEPS) {
+    return { ...spin, step: spin.step + 1, preview: preview(spin.sides), ghost: spin.ghost === null ? null : preview(spin.sides) }
+  }
+  const phase = spin.ghost === null ? null : NEXT_PHASE[spin.phase]
+  return phase ? { ...spin, phase } : null
+}

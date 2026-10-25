@@ -16507,6 +16507,36 @@ button:disabled {
   animation: lubec-landed 0.48s ease-out;
 }
 
+/*
+ * The second die under Advantage or Disadvantage: the spinning circle itself,
+ * dimmer and half its size, its centre on the circle's top-right edge, clear
+ * of the next circle. It merges into the kept die in LUBEC_MERGE_MS.
+ */
+.shell-root[data-theme="lubec"] .roll-circle.lubec-roll-ghost {
+  position: absolute;
+  inset: -3px;
+  width: auto;
+  margin: 0;
+  opacity: 0.62;
+  pointer-events: none;
+  transform: translate(35.35%, -35.35%) scale(0.5);
+  transition: transform 280ms ease-in, opacity 280ms ease-in;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.lubec-roll-ghost.merging {
+  opacity: 0;
+  transform: translate(0, 0) scale(0.5);
+}
+
+/* "done", once both dice settle, inside the circle under its numbers. */
+.shell-root[data-theme="lubec"] .roll-circle .lubec-roll-done {
+  position: absolute;
+  bottom: 0.45rem;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
 .shell-root[data-theme="lubec"] .roll-circle.skill-armed:not(:disabled) {
   border-color: var(--lubec-rust);
   border-style: dashed;
