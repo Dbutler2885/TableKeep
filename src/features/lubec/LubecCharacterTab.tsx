@@ -3,6 +3,7 @@ import type { Role } from '../../types/app'
 import { makeId } from '../character/characterFactories'
 import { canEditCharacterStoreCharacter } from '../character/characterStore/characterStoreActions'
 import { useCharacterStore } from '../character/characterStore/useCharacterStore'
+import { CharacterDeleteDialog } from '../character/components/CharacterDeleteDialog'
 import { useCharacterMedia } from '../character/hooks/useCharacterMedia'
 import { useResponsiveCharacterLayout } from '../character/hooks/useResponsiveCharacterLayout'
 import { lubecCharacterStore } from '../ruleSets/lubec/characterParser'
@@ -15,6 +16,7 @@ import type { LubecSheetEditing } from './LubecNameBandEditor'
 import type { LubecDoors } from './LubecNewCharacter'
 import { LubecRoster } from './LubecRoster'
 import { LubecSheetView, type LubecCorrections } from './LubecSheetView'
+import { useLubecCharacterDelete } from './useLubecCharacterDelete'
 
 export type LubecCharacterTabProps = {
   campaignId: string
@@ -34,6 +36,8 @@ type DetailProps = {
   onCountersChange: LubecCountersChange | null
   onSkillsChange: LubecSkillsChange | null
   corrections: LubecCorrections | null
+  /** Asks to delete the character, at any stage; null when the viewer may not. */
+  onDelete: (() => void) | null
 } & DraftActions
 
 /** What the viewer may do to a draft; all are null for a finalized character or someone else's. */
@@ -41,7 +45,6 @@ type DraftActions = {
   onDraftEdit: LubecSheetEdit | null
   /** Saves at once rather than after the delay; only a guided draft's dice and Swap use it. */
   onRollUp: LubecSheetEdit | null
-  onDelete: (() => void) | null
   onFinalize: (() => void) | null
 }
 
@@ -83,21 +86,19 @@ function correctionsFor(
   }
 }
 
-// The owner and the GM may type into a draft, delete it and finalize it;
-// nobody may do any of these to a finalized character, which has no way back.
+// The owner and the GM may type into a draft and finalize it;
+// nobody may do either to a finalized character, which has no way back.
 function draftActionsFor(
   character: LubecCharacterRecord | null,
   viewer: { role: Role | null; userId: string },
-  store: { updateCharacter: CharacterUpdate; updateCharacterNow: CharacterUpdate; deleteCharacter: (characterId: string) => boolean },
-  onDeleted: () => void,
+  store: { updateCharacter: CharacterUpdate; updateCharacterNow: CharacterUpdate },
 ): DraftActions {
   if (!character || character.creationStatus === 'active' || !canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) {
-    return { onDraftEdit: null, onRollUp: null, onDelete: null, onFinalize: null }
+    return { onDraftEdit: null, onRollUp: null, onFinalize: null }
   }
   return {
     onDraftEdit: (changes) => store.updateCharacter(character.id, { lubec: { ...character.lubec, ...changes } }),
     onRollUp: (changes) => store.updateCharacterNow(character.id, { lubec: { ...character.lubec, ...changes } }),
-    onDelete: () => { if (store.deleteCharacter(character.id)) onDeleted() },
     onFinalize: () => store.updateCharacter(character.id, { creationStatus: 'active' }),
   }
 }
@@ -183,6 +184,7 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, cu
     addCharacter: store.addCharacter, updateCharacter: store.updateCharacter, onCreated: () => layout.setPaneView('detail'),
   })
   const viewer = { role, userId: currentUserId }
+  const deletion = useLubecCharacterDelete(store, viewer, () => layout.setPaneView('list'))
   return (
     <div className="maps-layout monsters-layout characters-layout lubec-character-tab">
       {layout.showListPane ? (
@@ -192,6 +194,7 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, cu
           selectedCharacterId={store.selectedCharacterId}
           currentUserId={currentUserId}
           onSelect={selectCharacter}
+          deleteFor={deletion.deleteFor}
           doors={doors}
         />
       ) : null}
@@ -204,9 +207,11 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, cu
           onCountersChange={countersChangeFor(store.selectedCharacter, { role, userId: currentUserId }, store.updateCharacter)}
           onSkillsChange={skillsChangeFor(store.selectedCharacter, { role, userId: currentUserId }, store.updateCharacter)}
           corrections={correctionsFor(store.selectedCharacter, viewer, store.updateCharacter)}
-          {...draftActionsFor(store.selectedCharacter, viewer, store, () => layout.setPaneView('list'))}
+          onDelete={deletion.deleteFor(store.selectedCharacter)}
+          {...draftActionsFor(store.selectedCharacter, viewer, store)}
         />
       ) : null}
+      <CharacterDeleteDialog target={deletion.target} onConfirm={deletion.confirm} onCancel={deletion.cancel} />
     </div>
   )
 }

@@ -155,7 +155,7 @@ const flushMicrotasks = () => act(async () => { await Promise.resolve() })
 const rosterNames = () => screen.queryAllByRole('heading', { level: 4 }).map((heading) => heading.textContent)
 
 function openSheet(name: string) {
-  fireEvent.click(screen.getByRole('button', { name: new RegExp(name) }))
+  fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${name}`) }))
   return screen.getByRole('article', { name: `${name} character sheet` })
 }
 
@@ -418,8 +418,8 @@ describe('Lubec character tab', () => {
     mountTab('player', 'player-1')
 
     expect(rosterNames().sort()).toEqual(['Ada Mitchell', 'Tommy Eves'])
-    const own = screen.getByRole('button', { name: /Tommy Eves/ })
-    const other = screen.getByRole('button', { name: /Ada Mitchell/ })
+    const own = screen.getByRole('button', { name: /^Tommy Eves/ })
+    const other = screen.getByRole('button', { name: /^Ada Mitchell/ })
     expect(within(own).getByText('Yours')).toBeTruthy()
     expect(within(own).getByText('Working Kid')).toBeTruthy()
     expect(within(other).queryByText('Yours')).toBeNull()
@@ -1747,7 +1747,7 @@ describe('New character and Direct entry', () => {
     expect(screen.queryByText(/In creation/)).toBeNull()
   })
 
-  it('lets the owner delete their draft after confirming', async () => {
+  it('lets the owner delete their draft after confirming, through the shared delete dialog', async () => {
     seed({ ada: directDraft() })
     mountTab('player', 'player-1')
     openSheet('Ada Mitchell')
@@ -1755,10 +1755,12 @@ describe('New character and Direct entry', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
 
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(mocks.deleteDoc).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
-    expect(screen.getByText('Permanently delete Ada Mitchell? This cannot be undone.')).toBeTruthy()
+    expect(within(screen.getByRole('dialog')).getByText('Delete character?')).toBeTruthy()
+    expect(screen.getByText('Are you sure you want to delete Ada Mitchell? This cannot be undone.')).toBeTruthy()
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
     await flushMicrotasks()
 
@@ -1779,15 +1781,71 @@ describe('New character and Direct entry', () => {
     expect(database.ada).toBeUndefined()
   })
 
-  it('gives a player no Delete on someone else\'s draft, and nobody a Delete on a finalized character', () => {
-    seed({ ada: directDraft({ ownerUserId: 'player-2' }), tommy: tommyEves() })
+  it('lets the owner delete their finalized character from the sheet, and opens the next one left', async () => {
+    window.innerWidth = 1440
+    seed({ tommy: tommyEves(), ada: directDraft() })
     mountTab('player', 'player-1')
+    const sheet = openSheet('Tommy Eves')
+
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Delete character' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+
+    expect(mocks.deleteDoc).not.toHaveBeenCalled()
+    expect(rosterNames().sort()).toEqual(['Ada Mitchell', 'Tommy Eves'])
+
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Delete character' }))
+    expect(screen.getByText('Are you sure you want to delete Tommy Eves? This cannot be undone.')).toBeTruthy()
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    await flushMicrotasks()
+
+    expect(mocks.deleteDoc).toHaveBeenCalledWith({ path: `${CHARACTERS_PATH}/tommy` })
+    expect(database.tommy).toBeUndefined()
+    expect(screen.queryByRole('button', { name: /^Tommy Eves/ })).toBeNull()
+    expect(screen.getByRole('article', { name: 'Ada Mitchell character sheet' })).toBeTruthy()
+  })
+
+  it('lets the GM delete a player\'s finalized character from its roster card, after confirming', async () => {
+    window.innerWidth = 1440
+    seed({ tommy: tommyEves() })
+    mountTab('gm', GM)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Tommy Eves' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+
+    expect(mocks.deleteDoc).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Tommy Eves' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    await flushMicrotasks()
+
+    expect(database.tommy).toBeUndefined()
+    expect(rosterNames()).toEqual([])
+    expect(screen.getByText('Pick a character to open their sheet.')).toBeTruthy()
+  })
+
+  it('gives a player a Delete on their own characters and none on anyone else\'s, draft or finalized', () => {
+    seed({
+      tommy: tommyEves(),
+      ada: directDraft({ ownerUserId: 'player-2' }),
+      wayne: tommyEves({ name: 'Wayne Gardner', ownerUserId: 'player-2' }),
+    })
+    mountTab('player', 'player-1')
+
+    expect(screen.getByRole('button', { name: 'Delete Tommy Eves' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Delete Ada Mitchell' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Delete Wayne Gardner' })).toBeNull()
 
     openSheet('Ada Mitchell')
     expect(screen.queryByRole('button', { name: 'Delete draft' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Delete character' })).toBeNull()
+
+    backToRoster()
+    openSheet('Wayne Gardner')
+    expect(screen.queryByRole('button', { name: 'Delete character' })).toBeNull()
 
     backToRoster()
     openSheet('Tommy Eves')
+    expect(screen.getByRole('button', { name: 'Delete character' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Delete draft' })).toBeNull()
   })
 })

@@ -5,7 +5,7 @@ import type { CharacterRecord } from '../../../types/app'
  * the first one left when the selected one went, or null to keep it.
  */
 export function selectionAfterDelete(
-  remaining: CharacterRecord[],
+  remaining: Pick<CharacterRecord, 'id'>[],
   selectedCharacterId: string,
   deletedCharacterId: string,
 ): string | null {
