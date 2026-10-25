@@ -1,5 +1,6 @@
+import { X } from 'lucide-react'
 import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
-import { describeLubecPanicChange, lubecPanicResultRow, readLubecPanicRoll, type LubecPanicRoll } from '../ruleSets/lubec/panicRoll'
+import { describeLubecPanicChange, lubecPanicPendingRow, readLubecPanicRoll } from '../ruleSets/lubec/panicRoll'
 import type { LubecPanicRow } from '../ruleSets/lubec/panicTable'
 import { lubecLowestSave } from '../ruleSets/lubec/recoveryRoll'
 import { lubecTallyFace, type LubecCircleState } from './lubecCircles'
@@ -42,35 +43,51 @@ function LubecRecoveryAbility({ sheet, roller, circles }: RollsProps) {
   )
 }
 
-function LubecPanicAdd({ roll, roller }: { roll: LubecPanicRoll; roller: LubecRoller | null }) {
-  if (roll.effectRolls !== null) return <p className="skill-strip-hint">Added to active effects.</p>
+function LubecPanicAdd({ roller }: { roller: LubecRoller | null }) {
   if (!roller) return null
   return <button type="button" className="action-button lubec-panic-add" onClick={roller.addPanicEffect}>Add effect</button>
 }
 
-// The row's own Stress and Minimum Stress changes, each with what its dice rolled once "Add effect" has rolled them.
-function LubecPanicChanges({ row, roll }: { row: LubecPanicRow; roll: LubecPanicRoll }) {
+// The X in the card's corner: clears the row without adding it.
+function LubecPanicDismiss({ roller }: { roller: LubecRoller | null }) {
+  if (!roller) return null
+  return (
+    <button type="button" className="secondary-button tray-icon lubec-panic-dismiss" aria-label="Dismiss panic result" title="Dismiss panic result" onClick={roller.dismissPanicResult}>
+      <X size={14} aria-hidden="true" />
+    </button>
+  )
+}
+
+// The row's own Stress and Minimum Stress changes, as "Add effect" will apply them.
+function LubecPanicChanges({ row }: { row: LubecPanicRow }) {
   if (row.changes.length === 0) return null
   return (
     <ul className="lubec-panic-changes">
       {row.changes.map((change, index) => (
-        <li key={index} className="modifier skill-modifier">{describeLubecPanicChange(change, roll.effectRolls?.[index] ?? null)}</li>
+        <li key={index} className="modifier skill-modifier">{describeLubecPanicChange(change, null)}</li>
       ))}
     </ul>
   )
 }
 
-/** A failed Panic Check's row as the class cards' modifier bars, its changes and "Add effect"; nothing after any other roll. */
+/**
+ * A failed Panic Check's row as the class cards' modifier bars, its changes,
+ * "Add effect" and an X that dismisses it; nothing after any other roll, or
+ * once the row was added or dismissed. Only a viewer who may roll gets the buttons.
+ */
 function LubecPanicResult({ sheet, roller }: Omit<RollsProps, 'circles'>) {
   const roll = readLubecPanicRoll(sheet.lastRoll)
-  const row = roll ? lubecPanicResultRow(roll) : null
-  if (!roll || !row) return null
+  const row = roll ? lubecPanicPendingRow(roll) : null
+  if (!row) return null
   return (
     <div className="modifier-list lubec-panic-result" role="group" aria-label="Panic result">
-      <p className="modifier lubec-panic-row"><b>{String(row.roll).padStart(2, '0')}</b> {row.name}</p>
+      <div className="lubec-panic-head">
+        <p className="modifier lubec-panic-row"><b>{String(row.roll).padStart(2, '0')}</b> {row.name}</p>
+        <LubecPanicDismiss roller={roller} />
+      </div>
       <p className="modifier skill-modifier">{row.text}</p>
-      <LubecPanicChanges row={row} roll={roll} />
-      <LubecPanicAdd roll={roll} roller={roller} />
+      <LubecPanicChanges row={row} />
+      <LubecPanicAdd roller={roller} />
     </div>
   )
 }

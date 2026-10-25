@@ -22,7 +22,12 @@ const randomPreview = (sides: number): number => Math.floor(Math.random() * side
 export const lubecMotionAllowed = (): boolean =>
   typeof window.matchMedia === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-const rollKey = (roll: LubecLastRoll): string => JSON.stringify(roll)
+// Which roll this is: what it was against and its dice. The copy read back from
+// the store can differ from the one just made in key order, in a Panic row added
+// or dismissed since, or in fields an older roll left behind (the sheet is saved
+// by merging), and none of those may bring back a cleared number.
+const rollKey = (roll: LubecLastRoll): string =>
+  JSON.stringify([roll.kind, roll.kind === 'panic' ? null : roll.against, roll.target, roll.dice, roll.result, roll.advantage, roll.outcome])
 
 /** What a click on a circle rolls: its target, the die, the mode it rolls with, and the roll itself. */
 type LubecCircleRoll = { target: number | null; sides: number; advantage: LubecAdvantage; roll: () => void }

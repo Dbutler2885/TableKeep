@@ -5,9 +5,11 @@ import {
   applyLubecPanicChanges,
   describeLubecPanicChange,
   describeLubecPanicDice,
+  lubecPanicPendingRow,
   lubecPanicResultRow,
   readLubecPanicRoll,
   rollLubecPanic,
+  withLubecPanicDismissed,
   withLubecPanicEffect,
   type LubecPanicRoll,
 } from './panicRoll'
@@ -29,7 +31,7 @@ describe('Lubec Panic Check', () => {
   it('succeeds only above Stress as it stood before the roll, adding no Stress either way', () => {
     const sheet = lubecCharacterSheet({ counters: counters(5) })
     expect(rollLubecPanic(sheet, 'normal', faces(20, 6))).toEqual({
-      kind: 'panic', target: 5, dice: [6], result: 6, advantage: 'normal', outcome: 'success', stressAdded: 0, effectRolls: null,
+      kind: 'panic', target: 5, dice: [6], result: 6, advantage: 'normal', outcome: 'success', stressAdded: 0, effectRolls: null, dismissed: false,
     })
     expect(rollLubecPanic(sheet, 'normal', faces(20, 5))).toMatchObject({ result: 5, outcome: 'failure', stressAdded: 0 })
   })
@@ -45,6 +47,14 @@ describe('Lubec Panic Check', () => {
     expect(lubecPanicResultRow(failedPanic(7, { outcome: 'success' }))).toBeNull()
   })
 
+  it('holds a failed check\'s row as waiting until it is added or dismissed', () => {
+    expect(lubecPanicPendingRow(failedPanic(7))?.name).toBe('NIGHTMARES')
+    expect(lubecPanicPendingRow(failedPanic(7, { dismissed: false }))?.name).toBe('NIGHTMARES')
+    expect(lubecPanicPendingRow(failedPanic(7, { effectRolls: [] }))).toBeNull()
+    expect(lubecPanicPendingRow(failedPanic(7, { dismissed: true }))).toBeNull()
+    expect(lubecPanicPendingRow(failedPanic(7, { outcome: 'success' }))).toBeNull()
+  })
+
   it('reads a stored Panic Check, keeping the fields it does not model, and nothing malformed', () => {
     const stored = { ...failedPanic(4, { effectRolls: [null] }), rolledAt: 'night' }
     expect(readLubecPanicRoll(stored)).toEqual(stored)
@@ -52,6 +62,8 @@ describe('Lubec Panic Check', () => {
     expect(readLubecPanicRoll({ ...failedPanic(4), result: 21 })).toBeNull()
     expect(readLubecPanicRoll({ ...failedPanic(4), dice: [] })).toBeNull()
     expect(readLubecPanicRoll({ ...failedPanic(4), effectRolls: ['3'] })).toBeNull()
+    expect(readLubecPanicRoll(failedPanic(4, { dismissed: true }))).toEqual(failedPanic(4, { dismissed: true }))
+    expect(readLubecPanicRoll({ ...failedPanic(4), dismissed: 'yes' })).toBeNull()
     expect(readLubecPanicRoll({ ...failedPanic(4), kind: 'save' })).toBeNull()
   })
 
@@ -93,6 +105,10 @@ describe('Lubec Panic "Add effect"', () => {
     expect(nightmares?.effects.map((effect) => effect.name)).toEqual(['NIGHTMARES'])
   })
 
+  it('does nothing once the row was dismissed', () => {
+    expect(withLubecPanicEffect(lubecCharacterSheet({ lastRoll: failedPanic(4, { dismissed: true }) }), faces(5), 'a')).toBeNull()
+  })
+
   it('does nothing after a successful Panic Check or any other last roll', () => {
     expect(withLubecPanicEffect(lubecCharacterSheet({ lastRoll: failedPanic(7, { outcome: 'success' }) }), faces(5), 'a')).toBeNull()
     expect(withLubecPanicEffect(lubecCharacterSheet({ lastRoll: { kind: 'save', against: 'Fear' } }), faces(5), 'a')).toBeNull()
@@ -114,5 +130,21 @@ describe('Lubec Panic "Add effect"', () => {
     expect(describeLubecPanicChange(row(2).changes[0], null)).toBe('Increase Stress by 1')
     expect(describeLubecPanicChange(row(1).changes[0], null)).toBe('Reduce Stress by 1d5')
     expect(describeLubecPanicChange(row(15).changes[0], 7)).toBe('Reduce Stress by 1d10: rolled 7')
+  })
+})
+
+describe('Lubec Panic row dismissed', () => {
+  it('marks the roll and changes nothing else on the character', () => {
+    const sheet = lubecCharacterSheet({ counters: counters(4), lastRoll: failedPanic(2) })
+    const dismissed = withLubecPanicDismissed(sheet)
+    expect(dismissed).toEqual({ ...sheet, lastRoll: failedPanic(2, { dismissed: true }) })
+    expect(dismissed && withLubecPanicDismissed(dismissed)).toBeNull()
+  })
+
+  it('does nothing once the row was added, after a success, or after any other last roll', () => {
+    expect(withLubecPanicDismissed(lubecCharacterSheet({ lastRoll: failedPanic(2, { effectRolls: [null] }) }))).toBeNull()
+    expect(withLubecPanicDismissed(lubecCharacterSheet({ lastRoll: failedPanic(7, { outcome: 'success' }) }))).toBeNull()
+    expect(withLubecPanicDismissed(lubecCharacterSheet({ lastRoll: { kind: 'save', against: 'Fear' } }))).toBeNull()
+    expect(withLubecPanicDismissed(lubecCharacterSheet())).toBeNull()
   })
 })

@@ -11,6 +11,7 @@ import { areFaces, isCount, isFace, isOneOf, readLubecRollFields, type LubecRoll
 // the Panic table row, and "Add effect" later adds that row as an ordinary
 // effect and applies the row's own Stress and Minimum Stress changes to the
 // counters as they then stand. "Add effect" lands once per failed check.
+// The row shows until it is added or dismissed, and a reload keeps it gone.
 
 export type LubecPanicRoll = {
   kind: 'panic'
@@ -29,6 +30,12 @@ export type LubecPanicRoll = {
    * row's order: what its dice rolled, or null for a fixed change.
    */
   effectRolls: (number | null)[] | null
+  /**
+   * True once the row was dismissed without adding it. Every new roll writes
+   * false, because the sheet is saved by merging and an absent field would keep
+   * the last roll's true; only a roll stored before dismissing existed lacks it.
+   */
+  dismissed?: boolean
 }
 
 /** A Panic Check against the character's current Stress. */
@@ -36,7 +43,7 @@ export function rollLubecPanic(sheet: LubecCharacterSheet, advantage: LubecAdvan
   const rolled = rollLubecDice(20, advantage, dice)
   const result = keptLubecRoll(rolled, advantage, true)
   const target = sheet.counters.stress
-  return { kind: 'panic', target, dice: rolled, result, advantage, outcome: result > target ? 'success' : 'failure', stressAdded: 0, effectRolls: null }
+  return { kind: 'panic', target, dice: rolled, result, advantage, outcome: result > target ? 'success' : 'failure', stressAdded: 0, effectRolls: null, dismissed: false }
 }
 
 const isEffectRolls = (value: unknown): boolean =>
@@ -51,6 +58,7 @@ const PANIC_ROLL_FIELDS: LubecRollFieldChecks<LubecPanicRoll> = {
   outcome: isOneOf(['success', 'failure']),
   stressAdded: isCount,
   effectRolls: isEffectRolls,
+  dismissed: (value) => value === undefined || typeof value === 'boolean',
 }
 
 /** A stored last roll as a Panic Check, or null when it does not read as one. */
@@ -60,6 +68,10 @@ export const readLubecPanicRoll = (entry: LubecStoredEntry | null): LubecPanicRo
 /** The row a failed Panic Check picked; null for a success. */
 export const lubecPanicResultRow = (roll: LubecPanicRoll): LubecPanicRow | null =>
   roll.outcome === 'failure' ? lubecPanicRow(roll.result) : null
+
+/** The row a failed Panic Check picked while it is still waiting to be added or dismissed; null otherwise. */
+export const lubecPanicPendingRow = (roll: LubecPanicRoll): LubecPanicRow | null =>
+  roll.effectRolls === null && !roll.dismissed ? lubecPanicResultRow(roll) : null
 
 const rollPanicChange = (change: LubecPanicChange, dice: LubecDice): number | null =>
   'dice' in change
@@ -96,11 +108,11 @@ const panicEffect = (row: LubecPanicRow, roll: LubecPanicRoll, id: string): Lube
 /**
  * The sheet after "Add effect" on its last roll's Panic row: the row added as
  * an effect, its changes applied, and the roll marked so they cannot land
- * twice. Null when the last roll is no failed Panic Check, or it was already added.
+ * twice. Null when the last roll is no failed Panic Check, or it was already added or dismissed.
  */
 export function withLubecPanicEffect(sheet: LubecCharacterSheet, dice: LubecDice, id: string): LubecCharacterSheet | null {
   const roll = readLubecPanicRoll(sheet.lastRoll)
-  const row = roll && roll.effectRolls === null ? lubecPanicResultRow(roll) : null
+  const row = roll ? lubecPanicPendingRow(roll) : null
   if (!roll || !row) return null
   const effectRolls = row.changes.map((change) => rollPanicChange(change, dice))
   return {
@@ -109,6 +121,16 @@ export function withLubecPanicEffect(sheet: LubecCharacterSheet, dice: LubecDice
     effects: [...sheet.effects, panicEffect(row, roll, id)],
     lastRoll: { ...roll, effectRolls },
   }
+}
+
+/**
+ * The sheet after its last roll's Panic row is dismissed: only the roll marked,
+ * with no effect and no counter changed. Null when there is no row waiting.
+ */
+export function withLubecPanicDismissed(sheet: LubecCharacterSheet): LubecCharacterSheet | null {
+  const roll = readLubecPanicRoll(sheet.lastRoll)
+  if (!roll || !lubecPanicPendingRow(roll)) return null
+  return { ...sheet, lastRoll: { ...roll, dismissed: true } }
 }
 
 const PANIC_COUNTER_NAMES = { stress: 'Stress', minimumStress: 'Minimum Stress' } as const
