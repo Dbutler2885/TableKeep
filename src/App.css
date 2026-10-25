@@ -16608,12 +16608,120 @@ button:disabled {
   background: var(--lubec-blue);
 }
 
-/* A draft's base, typed into the note in place of the number. */
-.shell-root[data-theme="lubec"] .base-note .lubec-base-input {
-  width: 2.8rem;
-  padding: 0.15rem 0.25rem;
-  font-size: 0.85rem;
+/* What a typed base comes to wraps under its circle, so the columns keep the circles' width. */
+.shell-root[data-theme="lubec"] .base-note.typed-note {
+  max-width: var(--lubec-circle);
+  margin-inline: auto;
+}
+
+.shell-root[data-theme="lubec"] .base-note.typed-note > span {
+  white-space: nowrap;
+}
+
+/* A draft's base, typed into its circle's place: the circle's own number,
+   underlined while it waits for a value, with the circle's focus ring. */
+.shell-root[data-theme="lubec"] .roll-circle.typed {
+  cursor: text;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.typed:focus-within {
+  border-color: var(--lubec-blue);
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 3px;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.typed .lubec-base-input {
+  width: 72%;
+  min-width: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px dashed var(--lubec-line);
+  border-radius: 0;
+  font: inherit;
+  letter-spacing: inherit;
   text-align: center;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.typed .lubec-base-input:focus {
+  border-bottom-color: var(--lubec-rust);
+  outline: none;
+}
+
+/* Guided roll-up's decision tray under the Stats, and the lowest-Stat Swap on
+   the circles: the lowest glows rust, the best is locked, eligible Stats
+   invite a tap, and the two traded show blue for review. */
+.shell-root[data-theme="lubec"] .decision-tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.48rem;
+  justify-content: flex-end;
+  margin-top: 0.62rem;
+}
+
+.shell-root[data-theme="lubec"] .decision-tray > button {
+  display: inline-flex;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.shell-root[data-theme="lubec"] .decision-tray > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.shell-root[data-theme="lubec"] .tray-icon {
+  min-width: 2.4rem;
+  padding-block: 0;
+  font: 800 1rem/1 var(--lubec-display);
+  letter-spacing: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-swap-undo span {
+  font: 800 1.35rem/1 "Arial Unicode MS", "Segoe UI Symbol", sans-serif;
+  transform: translateY(-0.04em);
+}
+
+.shell-root[data-theme="lubec"] .swap-hint {
+  align-self: center;
+  margin-right: auto;
+  color: var(--lubec-rust);
+  font: 800 0.59rem/1.3 var(--lubec-type);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.swap-source,
+.shell-root[data-theme="lubec"] .roll-circle.swap-source:disabled {
+  color: var(--lubec-cream);
+  background: var(--lubec-rust);
+  border-color: var(--lubec-rust);
+  opacity: 1;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.swap-locked:disabled {
+  opacity: 0.32;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.swap-target:not(:disabled) {
+  background: rgba(255, 255, 255, 0.6);
+  border-style: dashed;
+  border-color: var(--lubec-rust);
+  opacity: 1;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.swap-moved,
+.shell-root[data-theme="lubec"] .roll-circle.swap-moved:disabled {
+  color: var(--lubec-cream);
+  background: var(--lubec-blue-alt);
+  border-color: var(--lubec-blue);
+  opacity: 1;
+}
+
+.shell-root[data-theme="lubec"] .base-note.swap-note {
+  color: var(--lubec-rust);
 }
 
 @keyframes lubec-stat-double-flash {
@@ -17010,6 +17118,133 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+/* Choosing a class: the placeholder until a guided draft's scores are
+   settled, then the prototype's class cards two across, each with its grey
+   modifier bars, tan skill line, description, choice and blue Choose button.
+   A lone last card spans the row, split so its columns line up with the cards above. */
+.shell-root[data-theme="lubec"] .class-lock {
+  padding: 1rem;
+  color: var(--lubec-muted);
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px dashed var(--lubec-line);
+  font: 800 0.62rem/1.4 var(--lubec-type);
+  letter-spacing: 0.05em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .class-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.shell-root[data-theme="lubec"] .class-card {
+  display: flex;
+  min-height: 19rem;
+  flex-direction: column;
+  padding: 0.9rem;
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .class-card h4 {
+  margin: 0 0 0.65rem;
+  color: var(--lubec-blue);
+  font: 800 1.6rem/1.05 var(--lubec-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .modifier-list {
+  display: grid;
+  gap: 0.38rem;
+  margin-bottom: 0.72rem;
+}
+
+.shell-root[data-theme="lubec"] .modifier {
+  padding: 0.42rem 0.52rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-muted);
+  font: 800 1rem/1.25 var(--lubec-type);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .modifier.skill-modifier {
+  color: var(--lubec-ink);
+  background: var(--lubec-paper-deep);
+  font-size: 0.82rem;
+  text-transform: none;
+}
+
+.shell-root[data-theme="lubec"] .class-note {
+  margin: 0 0 0.9rem;
+  color: var(--lubec-muted);
+  font: 600 1rem/1.5 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .choice-row {
+  display: grid;
+  gap: 0.38rem;
+  margin: auto 0 0.65rem;
+}
+
+.shell-root[data-theme="lubec"] .choice-row label {
+  display: block;
+  color: var(--lubec-muted);
+  font: 800 0.9rem/1 var(--lubec-type);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .choice-row select {
+  width: 100%;
+  padding: 0.55rem;
+  color: var(--lubec-ink);
+  background: var(--lubec-paper-deep);
+  border: 1px solid var(--lubec-line);
+  border-radius: 0;
+  font: 800 1rem/1.2 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .class-card:last-child:nth-child(odd) {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: auto auto 1fr auto;
+  column-gap: calc(1.8rem + 0.8rem + 2px);
+  min-height: 0;
+}
+
+.shell-root[data-theme="lubec"] .class-card:last-child:nth-child(odd) h4 {
+  grid-column: 1 / -1;
+}
+
+.shell-root[data-theme="lubec"] .class-card:last-child:nth-child(odd) .modifier-list {
+  grid-column: 1;
+  grid-row: 2 / 5;
+  align-content: start;
+  margin-bottom: 0;
+}
+
+.shell-root[data-theme="lubec"] .class-card:last-child:nth-child(odd) .class-note {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.shell-root[data-theme="lubec"] .class-card:last-child:nth-child(odd) .choice-row {
+  grid-column: 2;
+  grid-row: 3;
+  align-self: end;
+  margin-top: 0;
+}
+
+.shell-root[data-theme="lubec"] .class-card:last-child:nth-child(odd) .class-select {
+  grid-column: 2;
+  grid-row: 4;
+}
+
 @media (max-width: 820px) {
   .shell-root[data-theme="lubec"] .class-record,
   .shell-root[data-theme="lubec"] .record-values {
@@ -17017,27 +17252,28 @@ button:disabled {
   }
 }
 
-/* A guided draft's class options and the Fight panel: small labels over typed text. */
-.shell-root[data-theme="lubec"] .lubec-class-rules,
+@media (max-width: 640px) {
+  .shell-root[data-theme="lubec"] .class-grid,
+  .shell-root[data-theme="lubec"] .class-card:last-child:nth-child(odd) {
+    grid-template-columns: 1fr;
+  }
+
+  .shell-root[data-theme="lubec"] .class-card:last-child:nth-child(odd) > * {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+/* The Fight panel: small labels over typed text. */
 .shell-root[data-theme="lubec"] .lubec-fight {
   margin: 0 0.6rem;
 }
 
-.shell-root[data-theme="lubec"] .lubec-class-rules dt,
 .shell-root[data-theme="lubec"] .lubec-fight dt {
   color: var(--lubec-muted);
   font: 800 0.62rem/1.2 var(--lubec-type);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-}
-
-.shell-root[data-theme="lubec"] .lubec-class-rules dd {
-  margin: 0.2rem 0 0.6rem;
-  font: 400 0.88rem/1.4 var(--lubec-type);
-}
-
-.shell-root[data-theme="lubec"] .lubec-class-rules dd:last-child {
-  margin-bottom: 0;
 }
 
 .shell-root[data-theme="lubec"] .lubec-fight > div {
@@ -17934,220 +18170,6 @@ button:disabled {
   margin: 0;
   color: var(--lubec-muted);
   font: 400 0.8rem/1.3 var(--lubec-type);
-}
-
-/* The class and its choice span the page above the Stats and Saves. */
-.shell-root[data-theme="lubec"] .lubec-class-picker {
-  grid-column: 1 / -1;
-}
-
-.shell-root[data-theme="lubec"] .lubec-picks {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
-  gap: 0.6rem 1rem;
-  margin: 0 0.7rem;
-}
-
-.shell-root[data-theme="lubec"] .lubec-pick {
-  display: grid;
-  gap: 0.25rem;
-  min-width: 0;
-}
-
-.shell-root[data-theme="lubec"] .lubec-pick label {
-  color: var(--lubec-muted);
-  font: 800 0.62rem/1.2 var(--lubec-type);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.shell-root[data-theme="lubec"] .lubec-pick select {
-  width: 100%;
-  min-width: 0;
-  padding: 0.4rem 0.45rem;
-  font-size: 1rem;
-}
-
-.shell-root[data-theme="lubec"] .lubec-base-input {
-  width: 3.4rem;
-  padding: 0.25rem 0.35rem;
-  font: 700 1rem/1.1 var(--lubec-type);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
-/* Guided roll-up: every die as it landed, a Roll button for each value still to roll, then Keep or Swap. */
-.shell-root[data-theme="lubec"] .lubec-roll-up,
-.shell-root[data-theme="lubec"] .lubec-class-step {
-  grid-column: 1 / -1;
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-up-hint,
-.shell-root[data-theme="lubec"] .lubec-roll-up-decision,
-.shell-root[data-theme="lubec"] .lubec-swap-step p {
-  margin: 0 0.7rem 0.6rem;
-  font: 400 0.85rem/1.35 var(--lubec-type);
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-up-hint {
-  color: var(--lubec-muted);
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-up-decision {
-  margin-top: 0.6rem;
-  color: var(--lubec-rust);
-  font-weight: 700;
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-up-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr));
-  gap: 0 1rem;
-  margin: 0 0.7rem;
-  padding: 0;
-  list-style: none;
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-up-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  min-height: 2.3rem;
-  border-bottom: 1px solid var(--lubec-line);
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-up-name {
-  color: var(--lubec-ink);
-  font: 700 1rem/1.1 var(--lubec-condensed);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-up-dice {
-  color: var(--lubec-blue);
-  font: 700 0.95rem/1.1 var(--lubec-type);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-up-waiting {
-  color: var(--lubec-muted);
-  font: 400 0.8rem/1.2 var(--lubec-type);
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-up-roll,
-.shell-root[data-theme="lubec"] .lubec-swap-actions button {
-  padding: 0.35rem 0.7rem 0.3rem;
-  border: 1.5px solid var(--lubec-rust);
-  border-radius: 0;
-  color: var(--lubec-rust);
-  font: 800 0.68rem/1 var(--lubec-type);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-up-roll {
-  background: var(--lubec-rust);
-  color: var(--lubec-cream);
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-up-roll:hover {
-  background: var(--lubec-ink);
-  border-color: var(--lubec-ink);
-  color: var(--lubec-cream);
-}
-
-.shell-root[data-theme="lubec"] .lubec-swap-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0.6rem 0.7rem 0;
-}
-
-.shell-root[data-theme="lubec"] .lubec-swap-step .lubec-swap-actions {
-  margin-top: 0;
-}
-
-.shell-root[data-theme="lubec"] .lubec-swap-actions .lubec-swap-keep,
-.shell-root[data-theme="lubec"] .lubec-swap-actions .lubec-swap-confirm {
-  background: var(--lubec-blue);
-  border-color: var(--lubec-blue);
-  color: var(--lubec-cream);
-}
-
-.shell-root[data-theme="lubec"] .lubec-swap-actions .lubec-swap-keep:hover,
-.shell-root[data-theme="lubec"] .lubec-swap-actions .lubec-swap-confirm:hover {
-  background: var(--lubec-blue-alt);
-  border-color: var(--lubec-blue-alt);
-}
-
-.shell-root[data-theme="lubec"] .lubec-swap-actions button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.shell-root[data-theme="lubec"] .lubec-swap-step {
-  margin-top: 0.6rem;
-}
-
-/* Guided roll-up's class step: each class with its modifiers, Trauma Response and rule. */
-.shell-root[data-theme="lubec"] .lubec-class-options {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
-  gap: 0.6rem;
-  margin: 0 0.7rem 0.6rem;
-  padding: 0;
-  list-style: none;
-}
-
-.shell-root[data-theme="lubec"] .lubec-class-option {
-  display: grid;
-  align-content: start;
-  gap: 0.5rem;
-  min-width: 0;
-  padding-bottom: 0.5rem;
-  border: 1.5px solid var(--lubec-line);
-  background: rgba(255, 248, 231, 0.6);
-}
-
-.shell-root[data-theme="lubec"] .lubec-class-option button {
-  display: grid;
-  gap: 0.25rem;
-  width: 100%;
-  padding: 0.55rem 0.6rem;
-  border: 0;
-  border-bottom: 1.5px solid var(--lubec-line);
-  border-radius: 0;
-  text-align: left;
-}
-
-.shell-root[data-theme="lubec"] .lubec-class-option button strong {
-  color: var(--lubec-blue);
-  font: 800 1.1rem/1.1 var(--lubec-display);
-}
-
-.shell-root[data-theme="lubec"] .lubec-class-mods {
-  color: var(--lubec-ink);
-  font: 700 0.8rem/1.3 var(--lubec-type);
-}
-
-.shell-root[data-theme="lubec"] .lubec-class-option button[aria-pressed="true"] {
-  background: var(--lubec-pine);
-  cursor: default;
-}
-
-.shell-root[data-theme="lubec"] .lubec-class-option button[aria-pressed="true"] strong,
-.shell-root[data-theme="lubec"] .lubec-class-option button[aria-pressed="true"] .lubec-class-mods {
-  color: var(--lubec-cream);
-}
-
-.shell-root[data-theme="lubec"] .lubec-class-option:has(button[aria-pressed="true"]) {
-  border-color: var(--lubec-pine);
-}
-
-.shell-root[data-theme="lubec"] .lubec-class-option .lubec-class-rules dd {
-  font-size: 0.8rem;
 }
 
 @media (max-width: 560px) {
