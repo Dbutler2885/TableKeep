@@ -1,0 +1,973 @@
+/* The Lubec sheet's Gear page, copied from the inventory prototype (B,
+   "Lubec 1977 | Gear, v4"): the Gear bar, the On you view with the backpack,
+   the hands and the body, the add form and the toast. B's tokens are the
+   sheet's own without the prefix; every rule is scoped to the page.
+   B's lines: the Gear bar and tabs 110-129 and 1061-1070, On you and the pack
+   185-268, hands and body 269-311, the W3 note 331-334, panels and the bag
+   1071-1101, desktop and short-window sizing 1102-1188, the form 506-670 and
+   745-767, the toast 679-695. */
+
+.shell-root[data-theme="lubec"] .lubec-gear button {
+  border-radius: 0;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+/* The views are the app's sections, which carry a margin and padding of their own. */
+.shell-root[data-theme="lubec"] .lubec-gear > section {
+  margin: 0;
+  padding: 0;
+}
+
+/* The Gear bar follows the name band at B's distance, and the view sets its own gap below it. */
+.shell-root[data-theme="lubec"] .lubec-page.lubec-gear {
+  gap: 0;
+  margin-top: 0.65rem;
+}
+
+/* Gear page: On you / Carriers */
+.shell-root[data-theme="lubec"] .lubec-gear .gear-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .bar-end {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.8rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .tabs {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  border: 2px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .tabs button {
+  min-width: 7.5rem;
+  min-height: 2.6rem;
+  padding: 0.45rem 0.8rem;
+  color: var(--lubec-blue);
+  background: transparent;
+  border: 0;
+  font: 800 0.68rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .tabs button + button {
+  border-left: 2px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .tabs button[aria-selected="true"] {
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .tabs button:focus-visible,
+.shell-root[data-theme="lubec"] .lubec-gear .btn:focus-visible,
+.shell-root[data-theme="lubec"] .lubec-gear .slot:focus-visible {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+/* Tab band: On you / Carriers on ink, the full tag and the add button at its
+   end, across the whole sheet like the top bar, worn through to the paper in
+   places. */
+.shell-root[data-theme="lubec"] .lubec-gear .gear-bar {
+  margin: 0 calc(-1 * var(--pad));
+  padding: 0.4rem var(--pad);
+  background-color: var(--lubec-ink);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75 .05' numOctaves='2' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .95 0 0 0 0 .91 0 0 0 0 .83 2.2 0 0 0 -1.62'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23w)'/%3E%3C/svg%3E");
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .gear-bar .tabs {
+  gap: 0.25rem;
+  border: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .gear-bar .tabs button {
+  min-height: 2.3rem;
+  padding: 0.5rem 1rem 0.35rem;
+  color: var(--lubec-paper);
+  font: 700 1.02rem/1 var(--lubec-condensed);
+  letter-spacing: 0.08em;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .gear-bar .tabs button + button {
+  border-left: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .gear-bar .tabs button[aria-selected="true"] {
+  color: var(--lubec-cream);
+  background: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .gear-bar .tabs button[aria-selected="false"]:hover {
+  background: rgba(242, 234, 215, 0.1);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .gear-bar .btn.line {
+  color: var(--lubec-ink);
+  background: var(--lubec-paper);
+  border-color: var(--lubec-paper);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .gear-bar .btn.line:hover {
+  background: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear h2 {
+  margin: 0 0 0.3rem;
+  color: var(--lubec-blue);
+  font: 800 clamp(1.15rem, 3.4vw, 1.5rem)/1 var(--lubec-display);
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .count {
+  color: var(--lubec-ink);
+  font: 800 0.66rem/1.3 var(--lubec-type);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .count b {
+  color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .eyebrow,
+.shell-root[data-theme="lubec"] .lubec-gear .label {
+  color: var(--lubec-muted);
+  font: 800 0.59rem/1.2 var(--lubec-type);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .note {
+  margin: 0;
+  color: var(--lubec-muted);
+  font: 700 0.7rem/1.45 var(--lubec-type);
+}
+
+/* On-you layout */
+.shell-root[data-theme="lubec"] .lubec-gear .on-you {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+  align-items: start;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .section-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.8rem;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack {
+  position: relative;
+  width: 100%;
+  /* The photo's crop sets the shape (1100/1120 on a desktop) */
+  margin: 0 auto;
+  aspect-ratio: var(--bag-ratio, 1100 / 1120);
+  container-type: inline-size; /* text on the drawing scales with the bag */
+}
+
+/* Backpack slots, drawn on the bag. The sheet places things itself; players pick only the pocket. */
+.shell-root[data-theme="lubec"] .lubec-gear .zone-label {
+  position: absolute;
+  transform: translateX(-50%);
+  padding: 0.18rem 0.38rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+  font: 800 clamp(0.48rem, 1.6vw, 0.56rem)/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot {
+  position: absolute;
+  min-height: 0;
+  gap: 0.1rem;
+  padding: 0.15rem 0.25rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot.item .name {
+  -webkit-line-clamp: 2;
+  font-size: clamp(0.54rem, 2.47cqw, 0.8rem);
+  line-height: 1.1;
+  hyphens: auto;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot.item.large .name {
+  font-size: clamp(0.8rem, 3.35cqw, 1.05rem);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot.item.pocket {
+  padding: 0.2rem 0.15rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot.item.pocket .name {
+  font-size: clamp(0.5rem, 2.39cqw, 0.7rem);
+  overflow-wrap: anywhere;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot .qty {
+  font-size: clamp(0.5rem, 2.07cqw, 0.62rem);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .small-stuff {
+  position: absolute;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.12rem;
+  padding: 0.25rem 0.55rem;
+  color: var(--lubec-cream);
+  background: rgba(18, 22, 24, 0.8);
+  border: 1.5px solid rgba(242, 234, 215, 0.6);
+  border-radius: 999px;
+  text-align: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .small-stuff .label {
+  color: rgba(242, 234, 215, 0.78);
+  font-size: clamp(0.42rem, 1.83cqw, 0.56rem);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .small-stuff .names {
+  max-width: 100%;
+  font: 800 clamp(0.48rem, 2.15cqw, 0.68rem)/1.2 var(--lubec-type);
+  overflow-wrap: anywhere;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear button.small-stuff:hover {
+  color: var(--lubec-cream);
+  background: rgba(18, 22, 24, 0.92);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .small-stuff:focus-visible {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .tag {
+  display: inline-block;
+  padding: 0.14rem 0.3rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-rust);
+  font: 800 0.5rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .tag.blue {
+  background: var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .tag.red {
+  background: var(--lubec-failure);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .tag {
+  font-size: clamp(0.38rem, 1.51cqw, 0.5rem);
+}
+
+/* Hands, body and the other side panels */
+.shell-root[data-theme="lubec"] .lubec-gear .side {
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+  min-width: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .slot {
+  position: relative;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.2rem;
+  min-width: 0;
+  min-height: 4.6rem;
+  padding: 1.1rem 0.35rem 0.35rem;
+  overflow: hidden;
+  color: var(--lubec-blue);
+  background: rgba(255, 248, 231, 0.5);
+  border: 1.5px dashed var(--lubec-blue);
+  font: 800 0.55rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .slot .plus {
+  font: 400 1.3rem/1 var(--lubec-display);
+  letter-spacing: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear button.slot:hover {
+  color: var(--lubec-blue);
+  background: rgba(255, 248, 231, 0.82);
+}
+
+/* An item card: its picture on the left, the words beside it */
+.shell-root[data-theme="lubec"] .lubec-gear .slot.item {
+  grid-template-columns: auto minmax(0, auto);
+  justify-content: center;
+  align-items: center;
+  column-gap: 0.55rem;
+  color: var(--lubec-ink);
+  background: var(--lubec-cream);
+  border: 2px solid var(--lubec-ink);
+  box-shadow: 2px 2px 0 rgba(23, 40, 43, 0.28);
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .slot.item .name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font: 800 clamp(0.66rem, 2.3vw, 0.8rem)/1.15 var(--lubec-type);
+  overflow-wrap: break-word;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .slot.item .qty {
+  color: var(--lubec-blue);
+  font: 800 0.6rem/1.2 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .slot.item.heavy {
+  border-color: var(--lubec-rust);
+  box-shadow: 2px 2px 0 rgba(163, 66, 41, 0.45);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .slot .where {
+  position: absolute;
+  top: 0.32rem;
+  left: 0.4rem;
+  color: var(--lubec-muted);
+  font: 800 0.5rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .slot-text {
+  display: grid;
+  gap: 0.15rem;
+  justify-items: start;
+  min-width: 0;
+  text-align: left;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .slot-pic {
+  --pic: 2.9rem;
+  display: grid;
+  flex: none;
+  width: var(--pic);
+  height: var(--pic);
+  place-items: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .slot-pic.none {
+  color: var(--lubec-muted);
+  border: 1.5px dashed var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .slot-pic.none svg {
+  width: 45%;
+  height: 45%;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot-pic {
+  --pic: 6.38cqw;
+}
+
+/* Tall cells in the pack stack the picture over the words */
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot.item.pocket,
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot.item.large {
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  row-gap: 0.1rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot.item.pocket .slot-text,
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot.item.large .slot-text {
+  justify-items: center;
+  gap: 0.05rem;
+  text-align: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot.item.pocket .slot-pic {
+  --pic: 5.58cqw;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot.item.large .slot-pic {
+  --pic: 12.75cqw;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .slot-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .slot-row .slot.both {
+  grid-column: span 2;
+}
+
+/* Rule W3 in plain words, under the hands (captain, round 28) */
+.shell-root[data-theme="lubec"] .lubec-gear .note.hands-note {
+  margin-top: 0.4rem;
+  font-size: 0.66rem;
+  line-height: 1.35;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.85rem;
+  padding: 0.55rem 1rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-blue);
+  border: 2px solid var(--lubec-blue);
+  font: 800 0.7rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .btn:hover {
+  color: var(--lubec-cream);
+  background: var(--lubec-blue-alt);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .btn.line {
+  color: var(--lubec-blue);
+  background: transparent;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .btn.line:hover {
+  color: var(--lubec-blue);
+  background: rgba(23, 75, 88, 0.08);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .btn.small {
+  min-height: 2.2rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.6rem;
+}
+
+/* Panels: a colored header bar with the section's name and count, a thin
+   frame in the same color. The panel is the page's own paper, so the paper
+   shows through between them. */
+.shell-root[data-theme="lubec"] .lubec-gear .panel {
+  --c: var(--lubec-ink);
+  min-width: 0;
+  padding: 0 0 0.6rem;
+  background: rgba(236, 224, 196, 0.6);
+  border: 2px solid var(--c);
+  box-shadow: inset 0 0 0 2px #eadcbf, inset 0 0 0 3px var(--c), inset 0 0 26px rgba(90, 64, 30, 0.18);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .panel.rust {
+  --c: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .panel.blue {
+  --c: var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .panel.pine {
+  --c: var(--lubec-pine);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .panel > .section-head {
+  margin: 0 0 0.55rem;
+  padding: 0.4rem 0.7rem 0.25rem;
+  background-color: var(--c);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75 .05' numOctaves='2' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .95 0 0 0 0 .91 0 0 0 0 .83 2.2 0 0 0 -1.62'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23w)'/%3E%3C/svg%3E");
+  border: 0;
+  align-items: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .panel > :not(.section-head) {
+  margin-inline: 0.6rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .panel > .pack {
+  width: calc(100% - 1.2rem);
+  margin-inline: auto;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .panel > .section-head h2 {
+  margin: 0;
+  color: var(--lubec-cream);
+  font: 800 clamp(1.25rem, 2.4vw, 1.7rem)/1 var(--lubec-display);
+  filter: url(#lubec-rough);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .panel > .section-head .count {
+  color: var(--lubec-cream);
+  font: 700 1rem/1 var(--lubec-condensed);
+  letter-spacing: 0.08em;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .panel > .section-head .count b {
+  color: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .hb {
+  display: grid;
+  gap: 0.8rem;
+}
+
+/* The bag: the photo, and dark boxes on it with light text */
+.shell-root[data-theme="lubec"] .lubec-gear .pack-art {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-position: var(--bag-pos, 0 0);
+  background-size: var(--bag-size, 100% auto);
+  background-repeat: no-repeat;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot {
+  color: var(--lubec-paper);
+  background: rgba(18, 22, 24, 0.8);
+  border: 1.5px solid rgba(242, 234, 215, 0.55);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot:not(.item) {
+  border-style: dashed;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack button.slot:hover {
+  color: var(--lubec-paper);
+  background: rgba(18, 22, 24, 0.92);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot.item {
+  color: var(--lubec-cream);
+  background: rgba(18, 22, 24, 0.82);
+  border: 1.5px solid rgba(242, 234, 215, 0.6);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot.item.heavy {
+  border: 2px solid #e2623d;
+  box-shadow: 0 0 0 2px rgba(226, 98, 61, 0.35), 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot .qty {
+  color: rgba(242, 234, 215, 0.78);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack .slot-pic.none {
+  color: rgba(242, 234, 215, 0.7);
+  border-color: rgba(242, 234, 215, 0.45);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .carriers-view {
+  margin-top: 0.8rem;
+}
+
+/* The toast: one line after an action */
+.shell-root[data-theme="lubec"] .lubec-gear .toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  z-index: 330;
+  max-width: calc(100% - 2rem);
+  padding: 0.7rem 0.9rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+  border-left: 5px solid var(--lubec-rust);
+  font: 800 0.72rem/1.35 var(--lubec-type);
+  transform: translate(-50%, 1rem);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-root[data-theme="lubec"] .lubec-gear .toast {
+    transition: none;
+  }
+}
+
+/* The add form: B's sheet, in the app's overlay */
+.shell-root[data-theme="lubec"] .lubec-gear .lubec-gear-overlay {
+  background: rgba(16, 43, 49, 0.62);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-sheet {
+  width: min(100% - 1rem, 30rem);
+  max-height: min(92vh, 46rem);
+  color: var(--lubec-ink);
+  background:
+    repeating-linear-gradient(0deg, rgba(53, 64, 53, 0.025) 0 1px, transparent 1px 4px),
+    var(--lubec-paper);
+  border: 2px solid var(--lubec-ink);
+  box-shadow: 0 24px 64px rgba(7, 20, 23, 0.45);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .sheet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .sheet-form header {
+  display: flex;
+  gap: 1rem;
+  align-items: start;
+  justify-content: space-between;
+  padding-bottom: 0.6rem;
+  border-bottom: 5px double var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .sheet-form h2 {
+  margin: 0.3rem 0 0;
+  color: var(--lubec-ink);
+  font-size: 1.45rem;
+  text-transform: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .close {
+  display: grid;
+  flex: none;
+  width: 2.6rem;
+  height: 2.6rem;
+  place-items: center;
+  padding: 0;
+  color: var(--lubec-ink);
+  background: transparent;
+  border: 1px solid var(--lubec-ink);
+  font: 400 1.4rem/1 var(--lubec-display);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .close:focus {
+  outline: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .close:focus-visible {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .field {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .field > .label,
+.shell-root[data-theme="lubec"] .lubec-gear .field legend {
+  margin-bottom: 0.1rem;
+  padding: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .field input[type="text"],
+.shell-root[data-theme="lubec"] .lubec-gear .field input[type="number"] {
+  width: 100%;
+  min-height: 2.85rem;
+  padding: 0.45rem 0.55rem;
+  background: var(--lubec-cream);
+  border: 1.5px solid var(--lubec-ink);
+  border-radius: 0;
+  font: 800 1rem/1.2 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .field textarea {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  background: var(--lubec-cream);
+  border: 1.5px solid var(--lubec-ink);
+  border-radius: 0;
+  font: 700 0.9rem/1.4 var(--lubec-type);
+  resize: vertical;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .size-pick {
+  gap: 0.3rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .seg-row {
+  display: grid;
+  grid-template-columns: 1.7fr repeat(4, minmax(0, 1fr));
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .seg-row label {
+  position: relative;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .seg-row input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .seg-row span {
+  display: grid;
+  height: 2.2rem;
+  place-items: center;
+  border: 1.5px solid var(--lubec-ink);
+  font: 800 0.78rem/1 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .seg-row label + label span {
+  border-left: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .seg-row input:checked + span {
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .seg-row input:focus-visible + span {
+  position: relative;
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .field-note {
+  margin: 0;
+  color: var(--lubec-muted);
+  font: 700 0.62rem/1.35 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .field-note.warn {
+  color: var(--lubec-rust);
+}
+
+/* The count row matches the size row: same height, half and half */
+.shell-root[data-theme="lubec"] .lubec-gear .count-pick {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .count-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.7rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .count-row:has(> :only-child) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .count-row .field {
+  gap: 0.3rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .count-row .field input[type="number"] {
+  min-height: 2.2rem;
+  padding-block: 0.2rem;
+  font-size: 0.9rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .form-error {
+  margin: 0;
+  padding: 0.55rem 0.65rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-rust);
+  font: 800 0.72rem/1.4 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .sheet-foot {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: auto;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+/* Desktop: Hands and Body are stacked panels, each with its two slots side by side */
+@media (min-width: 861px) {
+  /* Table Keep's chrome around On you, measured at 1920x1080: the masthead
+     and the Gear bar above the panels, the sheet's foot and the shell's
+     margin below them. The sheet's fit zoom scales the window's height with
+     everything else, so the stage divides it back out. */
+  .shell-root[data-theme="lubec"] .lubec-gear {
+    --lubec-gear-chrome: 18.5rem;
+    --lubec-gear-zoom: min(var(--lubec-fit-width, 1), var(--lubec-fit-height, 1));
+  }
+
+  /* The GM's Correct switch on a finalized character is one more band above the page. */
+  .shell-root[data-theme="lubec"] .lubec-sheet:has(> .lubec-correct-bar) > .lubec-gear {
+    --lubec-gear-chrome: 21rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you {
+    --stage: clamp(28rem, 100vh / var(--lubec-gear-zoom) - var(--lubec-gear-chrome), 40rem);
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+    margin-top: 0.6rem;
+    align-items: stretch;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you > .panel {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you > .panel > .pack {
+    margin-block: auto;
+  }
+
+  /* The stage is the window below the sheet's chrome, capped so a very tall
+     window doesn't blow it up; the pack takes its height less its header bar. */
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .pack {
+    max-width: min(36rem, calc((var(--stage) - 2.9rem) * 0.9821));
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .gear-bar {
+    padding-block: 0.3rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .gear-bar .tabs button {
+    min-height: 2.1rem;
+  }
+
+  /* Tighter bands, so the whole of On you fits the window */
+  .shell-root[data-theme="lubec"] .lubec-gear .panel > .section-head {
+    margin-bottom: 0.45rem;
+    padding: 0.3rem 0.6rem 0.16rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .panel > .section-head h2 {
+    font-size: clamp(1.1rem, 2vw, 1.4rem);
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .panel > .section-head .count {
+    font-size: 0.92rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .side {
+    gap: 0.5rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .hb {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.8rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .hb .slot-row {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.45rem;
+    margin-top: 0;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .hb .slot-row .slot.both {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .hb .slot {
+    min-height: 3.6rem;
+    padding-top: 0.9rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .hb .slot-pic {
+    --pic: 2.1rem;
+  }
+}
+
+/* Short desktop windows: smaller bands and rows, so On you still fits */
+@media (min-width: 861px) and (max-height: 820px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .gear-bar .tabs button {
+    min-height: 1.9rem;
+    padding-block: 0.4rem 0.25rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .gear-bar .btn.small {
+    min-height: 1.9rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .panel > .section-head h2 {
+    font-size: 1.15rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .hb .slot-pic {
+    --pic: 1.9rem;
+  }
+
+  /* Room for the hands note (round 28) */
+  .shell-root[data-theme="lubec"] .lubec-gear .hb .slot {
+    min-height: 2.6rem;
+    padding-top: 0.8rem;
+    padding-bottom: 0.15rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .hb,
+  .shell-root[data-theme="lubec"] .lubec-gear .side {
+    gap: 0.4rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .note.hands-note {
+    margin-top: 0.25rem;
+  }
+}
+
+/* Tablets and phones: one column */
+@media (max-width: 860px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .pack {
+    max-width: 30rem;
+  }
+}
+
+/* Phones: the view tabs across the whole band, and the form at the foot of the screen */
+@media (max-width: 560px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .tabs {
+    display: grid;
+    width: 100%;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .lubec-gear-overlay {
+    align-content: end;
+    padding-bottom: 0;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .item-sheet {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92vh;
+    border-width: 2px 0 0;
+  }
+}

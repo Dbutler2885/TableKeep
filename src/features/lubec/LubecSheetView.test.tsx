@@ -26,6 +26,7 @@ function renderSheet(props: Partial<LubecSheetViewProps>) {
       onFinalize={null}
       onRollUp={null}
       corrections={null}
+      onGearChange={null}
       {...props}
     />,
   )

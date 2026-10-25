@@ -1063,6 +1063,7 @@ async function wanderingMonsterCases(browser, testCase, ids, browserErrors) {
 const LUBEC_TAB = '.shell-root[data-theme="lubec"] .lubec-character-tab'
 const LUBEC_CORE_PAGE = '.shell-root[data-theme="lubec"] .lubec-sheet .lubec-core'
 const LUBEC_SKILLS_PAGE = '.shell-root[data-theme="lubec"] .lubec-sheet .lubec-skills'
+const LUBEC_GEAR_PAGE = '.shell-root[data-theme="lubec"] .lubec-sheet .lubec-gear'
 const LUBEC_CHARACTER_NAME = 'Tommy'
 const LUBEC_FIXTURE_URL = new URL('../src/features/ruleSets/lubec/fixtures/tommy-eves.lubec-character.json', import.meta.url)
 const LUBEC_PORTRAIT = `.lubec-idband img.lubec-portrait[alt=${JSON.stringify(`${LUBEC_CHARACTER_NAME} portrait`)}]`
@@ -1197,11 +1198,15 @@ async function expectNoSidewaysScroll(page) {
   if (widths[0] > widths[1]) throw new Error(`The page is ${widths[0]}px wide in a ${widths[1]}px viewport.`)
 }
 
-// Beside the roster on a desktop, the whole Core page fits its pane without scrolling.
-async function expectLubecCoreOnOneScreen(page) {
+// Beside the roster on a desktop, the whole page fits its pane without scrolling.
+async function expectLubecPageOnOneScreen(page, name) {
   const [height, visible] = await page.$eval(`${LUBEC_TAB} .characters-detail`, (pane) => [pane.scrollHeight, pane.clientHeight])
-  if (height > visible) throw new Error(`The Core page is ${height}px tall in a ${visible}px pane.`)
+  if (height > visible) throw new Error(`The ${name} page is ${height}px tall in a ${visible}px pane.`)
 }
+
+const expectLubecCoreOnOneScreen = (page) => expectLubecPageOnOneScreen(page, 'Core')
+
+const expectLubecGearOnOneScreen = (page) => expectLubecPageOnOneScreen(page, 'Gear')
 
 // A new effect's editor opens in the effects panel; Cancel closes it unsaved.
 async function openAndCloseLubecEffect(page) {
@@ -1341,6 +1346,99 @@ async function lubecNpcSheetSteps(page, testCase, campaignPath) {
   await screenshot(page, `${testCase.name}-lubec-npc-sheet`)
 }
 
+async function expectLubecPageTabs(page) {
+  const tabs = await page.$$eval('.lubec-page-tabs button', (buttons) => buttons.map((button) => button.textContent))
+  if (tabs.join() !== 'Core sheet,Skills,Gear') throw new Error(`The sheet offers the pages ${tabs.join(', ')}.`)
+}
+
+// The draft bar's Finalize, then the dialog's: the character goes into use, and the draft bar goes.
+async function finalizeLubecCharacter(page) {
+  await page.locator('.lubec-draft-bar .confirm-button').click()
+  await page.locator('[role="dialog"] .lubec-finalize .confirm-button').click()
+  await page.waitForFunction(() => !document.querySelector('.lubec-draft-bar'))
+}
+
+async function openLubecGearPage(page) {
+  await page.locator('.lubec-page-tabs ::-p-text(Gear)').click()
+  await page.locator(`${LUBEC_GEAR_PAGE} .pack`).wait()
+}
+
+// The empty backpack: five main boxes, two front boxes and the small stuff pill, empty hands and body, and no full tag.
+async function expectEmptyLubecGear(page) {
+  const shown = await page.$eval(LUBEC_GEAR_PAGE, (gear) => ({
+    main: gear.querySelectorAll('.pack [aria-label="Empty main-pocket slot, add an item"]').length,
+    front: gear.querySelectorAll('.pack [aria-label$="pocket, empty, add an item"]').length,
+    small: gear.querySelector('.pack .small-stuff')?.getAttribute('aria-label'),
+    handsAndBody: gear.querySelectorAll('.hb .slot:not(.item)').length,
+    items: gear.querySelectorAll('.slot.item').length,
+    full: gear.querySelector('.gear-bar .tag.red') !== null,
+  }))
+  const expected = { main: 5, front: 2, small: 'Small stuff: empty', handsAndBody: 4, items: 0, full: false }
+  if (JSON.stringify(shown) !== JSON.stringify(expected)) throw new Error(`The empty Gear page shows ${JSON.stringify(shown)}.`)
+}
+
+// The add form takes a plain Thing; it lands in the main pocket, the first place the Gear bar's add offers.
+async function addLubecThing(page, name) {
+  await page.locator(`${LUBEC_GEAR_PAGE} .gear-bar .add-top`).click()
+  await page.locator(`${LUBEC_GEAR_PAGE} [role="dialog"] input[type="text"]`).fill(name)
+  await page.locator(`${LUBEC_GEAR_PAGE} [role="dialog"] button[type="submit"]`).click()
+  await page.waitForFunction((selector) => !document.querySelector(selector), {}, `${LUBEC_GEAR_PAGE} [role="dialog"]`)
+}
+
+async function expectLubecGearItemInMainPocket(page, name) {
+  const items = await page.$$eval(`${LUBEC_GEAR_PAGE} .pack .slot.item .name`, (names) => names.map((item) => item.textContent))
+  if (items.join() !== name) throw new Error(`The backpack holds ${JSON.stringify(items)}, not ${name}.`)
+}
+
+// One item in `lubec.gear.items`, and nothing in the gear that is a URL.
+function storedGearProblems(stored, name) {
+  const gear = stored.lubec?.mapValue?.fields?.gear
+  const items = gear?.mapValue?.fields?.items?.arrayValue?.values ?? []
+  const problems = []
+  if (items.length !== 1 || items[0].mapValue?.fields?.name?.stringValue !== name) problems.push(`the stored gear items are ${JSON.stringify(items)}`)
+  if (JSON.stringify(gear ?? {}).includes('http')) problems.push('the stored gear holds a URL')
+  return problems
+}
+
+// On a phone the On you view is one column, under the page tabs in the top bar.
+async function expectLubecGearOneColumn(page) {
+  const [columns, tabsInTopBar] = await page.$eval(LUBEC_GEAR_PAGE, (gear) => [
+    gear.ownerDocument.defaultView.getComputedStyle(gear.querySelector('.on-you')).gridTemplateColumns.split(' ').length,
+    document.querySelector('.lubec-topbar .lubec-page-tabs [aria-current="page"]')?.textContent,
+  ])
+  if (columns !== 1 || tabsInTopBar !== 'Gear') throw new Error(`On you shows ${columns} columns, with the ${tabsInTopBar} tab current in the top bar.`)
+}
+
+async function lubecGearPageSteps(page, testCase, path) {
+  await step('offer the three page tabs: Core sheet, Skills, Gear', () => expectLubecPageTabs(page))
+  await step('finalize Tommy with the draft bar\'s Finalize and the dialog\'s Finalize', () => finalizeLubecCharacter(page))
+  await step('open the Lubec Gear page from its tab', () => openLubecGearPage(page))
+  await page.mouse.move(0, page.viewport().height - 1)
+  await step('show the Gear page in the v4 frame', () => expectLubecPage(page, 'Gear'))
+  await step('show the empty backpack, hands and body with no full-inventory tag', () => expectEmptyLubecGear(page))
+  await step('fit the Lubec Gear page without scrolling sideways', () => expectNoSidewaysScroll(page))
+  if (!testCase.viewport.isMobile) await step('fit On you on one desktop screen', () => expectLubecGearOnOneScreen(page))
+  await step('add a Flashlight through the add form into the main pocket', async () => {
+    await addLubecThing(page, 'Flashlight')
+    await expectLubecGearItemInMainPocket(page, 'Flashlight')
+  })
+  await step('store the gear by path alone, with one item', () => waitForStored(() => readDocumentFields(path), (stored) => storedGearProblems(stored, 'Flashlight')))
+  await step('see the Flashlight in the main pocket after a reload', async () => {
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await openLubecSheet(page)
+    await openLubecGearPage(page)
+    await expectLubecGearItemInMainPocket(page, 'Flashlight')
+  })
+  await page.mouse.move(0, page.viewport().height - 1)
+  if (testCase.viewport.isMobile) {
+    await step('fit the Gear page on a phone in one column with the page tabs in place', async () => {
+      await expectLubecGearOneColumn(page)
+      await expectNoSidewaysScroll(page)
+    })
+  }
+  await screenshot(page, `${testCase.name}-lubec-gear`)
+}
+
 async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) {
   const filePath = await lubecImportFile()
   await step('open the Lubec campaign made through the picker', () => openCampaignCard(page, campaignName, LUBEC_TAB))
@@ -1360,6 +1458,7 @@ async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) 
   if (!testCase.viewport.isMobile) await step('fit the Lubec Core page on one desktop screen', () => expectLubecCoreOnOneScreen(page))
   await screenshot(page, `${testCase.name}-lubec-core`)
   await lubecSkillsPageSteps(page, testCase)
+  await lubecGearPageSteps(page, testCase, path)
   await lubecNpcSheetSteps(page, testCase, charactersPath.replace(/\/characters$/, ''))
 }
 

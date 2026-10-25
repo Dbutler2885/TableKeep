@@ -9,6 +9,7 @@ import { LubecCorePage, type LubecGuided } from './LubecCorePage'
 import { LubecCorrectSwitch } from './LubecCorrectSwitch'
 import type { LubecCountersChange } from './LubecCountersPanel'
 import { LubecDraftBar } from './LubecDraftBar'
+import { LubecGearPage, type LubecGearChange } from './gear/LubecGearPage'
 import { LubecMissing } from './LubecMissing'
 import { LubecNameBandEditor, type LubecSheetEditing } from './LubecNameBandEditor'
 import { LubecSkillsPage } from './LubecSkillsPage'
@@ -17,9 +18,9 @@ import { lubecCharacterName } from './lubecNames'
 import { lubecMotionAllowed } from './useLubecCircles'
 import lubecPines from './lubecPines.svg'
 
-type LubecPage = 'core' | 'skills'
+type LubecPage = 'core' | 'skills' | 'gear'
 
-const LUBEC_PAGES: readonly (readonly [LubecPage, string])[] = [['core', 'Core sheet'], ['skills', 'Skills']]
+const LUBEC_PAGES: readonly (readonly [LubecPage, string])[] = [['core', 'Core sheet'], ['skills', 'Skills'], ['gear', 'Gear']]
 
 function LubecPortrait({ character }: { character: LubecCharacterRecord }) {
   if (!character.portraitUrl) {
@@ -183,6 +184,8 @@ export type LubecSheetViewProps = {
   onRollUp: LubecSheetEdit | null
   /** What the Correct switch unlocks; null unless the viewer is the GM on a finalized character. */
   corrections: LubecCorrections | null
+  /** Saves the character's gear, at any stage; null unless the viewer may change the character. */
+  onGearChange: LubecGearChange
 }
 
 type LockedEdits = Pick<LubecSheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
@@ -191,7 +194,7 @@ type LockedEdits = Pick<LubecSheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
 const lockedEdits = (correcting: boolean, corrections: LubecCorrections | null, edits: LockedEdits): LockedEdits =>
   correcting && corrections ? corrections : edits
 
-type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp'> & {
+type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp' | 'onGearChange'> & {
   page: LubecPage
   onHideTree: () => void
   /** Brings the Core page's class cards into view once the class is cleared. */
@@ -211,7 +214,8 @@ function changeClassOf(sheet: LubecCharacterRecord['lubec'], onDraftEdit: LubecS
   }
 }
 
-function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp }: SheetPageProps) {
+function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp, onGearChange }: SheetPageProps) {
+  if (page === 'gear') return <LubecGearPage gear={character.lubec.gear} onGearChange={onGearChange} />
   if (page === 'skills') {
     const onChangeClass = changeClassOf(character.lubec, onDraftEdit, onShowClass)
     return <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} onHideTree={onHideTree} onChangeClass={onChangeClass} />
@@ -245,9 +249,9 @@ function showLubecClass(sheet: HTMLElement | null, onPage: (page: LubecPage) => 
 const identityEditingOf = (editing: LubecSheetEditing | null, identityEditable: boolean | undefined) =>
   (identityEditable === false ? null : editing)
 
-/** One Lubec character's sheet, in the v4 frame, on its Core or Skills page. */
+/** One Lubec character's sheet, in the v4 frame, on its Core, Skills or Gear page. */
 export function LubecSheetView({
-  character, editing, identityEditable, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, ...edits
+  character, editing, identityEditable, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, ...edits
 }: LubecSheetViewProps) {
   const [page, setPage] = useState<LubecPage>('core')
   const [bandOpen, setBandOpen] = useState(false)
@@ -281,6 +285,7 @@ export function LubecSheetView({
         editing={editing}
         onCountersChange={onCountersChange}
         onRollUp={onRollUp}
+        onGearChange={onGearChange}
         {...lockedEdits(correcting, corrections, edits)}
       />
     </article>
