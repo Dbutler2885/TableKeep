@@ -15851,6 +15851,16 @@ button:disabled {
   outline-offset: 2px;
 }
 
+/* A confirm button with words on it takes the outlined buttons' type, as the
+   prototype's Confirm skills button does. */
+.shell-root[data-theme="lubec"] .lubec-draft-bar .confirm-button,
+.shell-root[data-theme="lubec"] .lubec-finalize .confirm-button,
+.shell-root[data-theme="lubec"] .lubec-effect-actions .confirm-button {
+  font: 800 0.59rem/1 var(--lubec-type);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .shell-root[data-theme="lubec"] .action-button:hover,
 .shell-root[data-theme="lubec"] .action-button:focus-visible {
   color: var(--lubec-cream);
@@ -16244,10 +16254,6 @@ button:disabled {
 
 .shell-root[data-theme="lubec"] .lubec-panel.blue {
   --c: var(--lubec-blue);
-}
-
-.shell-root[data-theme="lubec"] .lubec-panel.pine {
-  --c: var(--lubec-pine);
 }
 
 .shell-root[data-theme="lubec"] .lubec-section-head {
@@ -16822,141 +16828,32 @@ button:disabled {
   text-transform: uppercase;
 }
 
-/* Counters: a name, then minus, the count and plus, the count read largest. */
-.shell-root[data-theme="lubec"] .lubec-counters {
+/* The Panic Check and the Recovery Save, a section below the Saves with a
+   roll circle each, and a failed Panic Check's row under them as the class
+   cards' modifier bars. The counters and active effects follow the values as
+   sections of the same shape: Stress, Minimum Stress and Trauma in the class
+   record's value cells with the decision tray's square buttons either side,
+   and the Death Save reminder as its rust Class Rule block. */
+.shell-root[data-theme="lubec"] .lubec-panic-grid {
+  grid-template-columns: repeat(2, max-content);
+}
+
+.shell-root[data-theme="lubec"] .lubec-panic-body,
+.shell-root[data-theme="lubec"] .lubec-counters-body {
   display: grid;
-  margin: 0 0.6rem;
+  gap: 0.62rem;
+  justify-items: end;
+  min-width: 0;
 }
 
-.shell-root[data-theme="lubec"] .lubec-counter {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 2.25rem 2.75rem 2.25rem;
-  gap: 0.35rem;
-  align-items: center;
-  padding: 0.35rem 0.1rem;
-}
-
-.shell-root[data-theme="lubec"] .lubec-counter + .lubec-counter {
-  border-top: 1px solid var(--lubec-line);
-}
-
-.shell-root[data-theme="lubec"] .lubec-counter-name {
-  grid-column: 1;
-  color: var(--lubec-ink);
-  font: 700 1.05rem/1.1 var(--lubec-condensed);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.shell-root[data-theme="lubec"] .lubec-counter-value {
-  grid-column: 3;
-  color: var(--lubec-blue);
-  font: 800 1.45rem/1 var(--lubec-display);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}
-
-.shell-root[data-theme="lubec"] .lubec-counter button {
-  display: grid;
-  place-items: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  padding: 0;
-  background: var(--lubec-cream);
-  border: 2px solid var(--lubec-ink);
-  border-radius: 0;
-  color: var(--lubec-ink);
-  cursor: pointer;
-}
-
-.shell-root[data-theme="lubec"] .lubec-counter button:first-of-type {
-  grid-column: 2;
-}
-
-.shell-root[data-theme="lubec"] .lubec-counter button:last-of-type {
-  grid-column: 4;
-}
-
-.shell-root[data-theme="lubec"] .lubec-counter button:hover:not(:disabled) {
-  background: var(--lubec-paper-deep);
-}
-
-.shell-root[data-theme="lubec"] .lubec-counter button:disabled {
-  border-color: var(--lubec-line);
-  color: var(--lubec-line);
-  cursor: default;
-}
-
-.shell-root[data-theme="lubec"] .lubec-death-save {
-  margin: 0.5rem 0.6rem 0;
-  padding: 0.4rem 0.6rem;
-  background: var(--lubec-rust);
-  color: var(--lubec-cream);
-  font: 800 0.85rem/1.25 var(--lubec-type);
-  letter-spacing: 0.04em;
-}
-
-/* The Panic Check and the Recovery Save, set a little apart below the Saves. */
-.shell-root[data-theme="lubec"] .lubec-save-rolls {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
-  margin: 0.7rem 0.6rem 0;
-  padding-top: 0.6rem;
-  border-top: 1.5px dashed var(--lubec-line);
-}
-
-.shell-root[data-theme="lubec"] .lubec-save-roll {
-  display: grid;
-  gap: 0.1rem;
-  justify-items: center;
-  min-height: 2.6rem;
-  padding: 0.3rem 0.45rem 0.25rem;
-  background: var(--lubec-cream);
-  border: 2px solid var(--lubec-blue);
-  border-radius: 0;
-  box-shadow: 0 2px 0 var(--lubec-blue);
-  color: var(--lubec-ink);
-  font: 700 0.85rem/1.1 var(--lubec-condensed);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.shell-root[data-theme="lubec"] .lubec-save-roll small {
-  color: var(--lubec-muted);
-  font: 700 0.75rem/1.1 var(--lubec-type);
-  letter-spacing: normal;
-  text-transform: none;
-}
-
-.shell-root[data-theme="lubec"] .lubec-save-roll:hover:not(:disabled) {
-  background: var(--lubec-paper-deep);
-}
-
-.shell-root[data-theme="lubec"] .lubec-save-roll:active:not(:disabled) {
-  box-shadow: none;
-  transform: translateY(2px);
-}
-
-.shell-root[data-theme="lubec"] .lubec-save-roll:disabled {
-  border-style: dashed;
-  border-color: var(--lubec-line);
-  box-shadow: none;
-  color: var(--lubec-muted);
-  cursor: not-allowed;
-}
-
-/* A failed Panic Check's row under the Panic Check, with its changes and "Add effect". */
-.shell-root[data-theme="lubec"] .lubec-panic-result {
-  display: grid;
-  gap: 0.3rem;
-  margin: 0.4rem 0.6rem 0;
-  padding: 0.45rem 0.6rem;
-  background: var(--lubec-cream);
-  border: 1.5px dashed var(--lubec-rust);
-  font: 700 0.85rem/1.3 var(--lubec-type);
-  overflow-wrap: anywhere;
+/* On the class card's surface, which the tan bars need to show on the
+   sheet's paper, and without the card's space below its bars. */
+.shell-root[data-theme="lubec"] .lubec-panic-body > .lubec-panic-result {
+  width: min(100%, 34rem);
+  margin: 0;
+  padding: 0.9rem;
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid var(--lubec-line);
 }
 
 .shell-root[data-theme="lubec"] .lubec-panic-result p,
@@ -16964,32 +16861,94 @@ button:disabled {
   margin: 0;
 }
 
-.shell-root[data-theme="lubec"] .lubec-panic-row {
-  color: var(--lubec-rust);
-  font: 700 1.05rem/1.1 var(--lubec-condensed);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
 .shell-root[data-theme="lubec"] .lubec-panic-changes {
-  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.38rem;
+  padding: 0;
+  list-style: none;
 }
 
-.shell-root[data-theme="lubec"] .lubec-panic-add {
-  justify-self: start;
-  padding: 0.35rem 0.7rem 0.25rem;
-  background: var(--lubec-rust);
-  border: 1.5px solid var(--lubec-ink);
-  border-radius: 0;
-  color: var(--lubec-cream);
-  font: 700 0.72rem/1 var(--lubec-type);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  cursor: pointer;
+.shell-root[data-theme="lubec"] .lubec-panic-result > .lubec-panic-add,
+.shell-root[data-theme="lubec"] .lubec-panic-result > .skill-strip-hint {
+  justify-self: end;
 }
 
-.shell-root[data-theme="lubec"] .lubec-panic-added {
-  color: var(--lubec-muted);
+.shell-root[data-theme="lubec"] .lubec-tallies {
+  grid-column: 1 / -1;
+  min-width: 0;
+  border-top: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-counters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(9rem, max-content));
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.shell-root[data-theme="lubec"] .record-value.lubec-counter {
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-counter-row {
+  display: flex;
+  gap: 0.48rem;
+  align-items: center;
+  margin-top: 0.3rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-counter-row > button {
+  display: inline-flex;
+  height: 1.75rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-counter-row > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.shell-root[data-theme="lubec"] .record-value .lubec-counter-value {
+  min-width: 1.6em;
+  margin: 0;
+  text-align: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-save {
+  width: min(100%, 34rem);
+}
+
+@media (max-width: 580px) {
+  .shell-root[data-theme="lubec"] .lubec-panic-body,
+  .shell-root[data-theme="lubec"] .lubec-counters-body {
+    justify-items: stretch;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-panic-grid {
+    justify-content: start;
+  }
+}
+
+/* Three cells side by side leave the buttons no room, so each counter becomes a row. */
+@media (max-width: 720px) {
+  .shell-root[data-theme="lubec"] .lubec-counters {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .shell-root[data-theme="lubec"] .record-value.lubec-counter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem 0.8rem;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-counter-row {
+    margin-top: 0;
+  }
 }
 
 /* The prototype's class record, under its class's name: the description with
@@ -17392,31 +17351,45 @@ button:disabled {
   }
 }
 
-/* Active effects: one compact line each, opened in place to edit. */
-.shell-root[data-theme="lubec"] .lubec-effects-none {
-  margin: 0 0.7rem 0.4rem;
-  color: var(--lubec-muted);
-  font: 700 0.85rem/1.3 var(--lubec-type);
+/* Active effects: a section like the Stats', each effect one grey modifier
+   bar from the class cards, tapped to open it in place, with Step down beside
+   it. The editor takes the class cards' choice fields and the prototype's
+   buttons. The bar restates its colours on hover, as the class buttons do,
+   because the skin's button:hover would otherwise turn it ink. */
+.shell-root[data-theme="lubec"] .lubec-effects-body,
+.shell-root[data-theme="lubec"] .lubec-effect-editor {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effects-body > .skill-strip-hint,
+.shell-root[data-theme="lubec"] .lubec-effects-body > .lubec-effect-add {
+  justify-self: end;
 }
 
 .shell-root[data-theme="lubec"] .lubec-effect-list {
-  margin: 0 0.6rem;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.shell-root[data-theme="lubec"] .lubec-effect-list:empty {
+  display: none;
+}
+
 .shell-root[data-theme="lubec"] .lubec-effect {
   display: flex;
-  gap: 0.5rem;
-  align-items: center;
+  gap: 0.48rem;
+  align-items: stretch;
   min-width: 0;
-  padding: 0.3rem 0;
 }
 
-.shell-root[data-theme="lubec"] .lubec-effect + .lubec-effect {
-  border-top: 1px solid var(--lubec-line);
+.shell-root[data-theme="lubec"] .lubec-effect > .secondary-button {
+  flex: none;
 }
 
+/* The grey bar at the tan bar's size, so a long step reads as a line rather than a heading. */
 .shell-root[data-theme="lubec"] .lubec-effect-line {
   display: flex;
   flex: 1;
@@ -17424,94 +17397,54 @@ button:disabled {
   gap: 0.15rem 0.6rem;
   align-items: baseline;
   min-width: 0;
-  padding: 0.25rem 0.1rem;
-  background: none;
   border: 0;
   border-radius: 0;
-  color: var(--lubec-ink);
-  font: 700 0.9rem/1.25 var(--lubec-type);
+  font-size: 0.82rem;
   text-align: left;
+  text-transform: none;
   overflow-wrap: anywhere;
 }
 
-.shell-root[data-theme="lubec"] button.lubec-effect-line:hover {
-  background: rgba(23, 40, 43, 0.06);
+.shell-root[data-theme="lubec"] button.lubec-effect-line {
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] button.lubec-effect-line:hover,
+.shell-root[data-theme="lubec"] button.lubec-effect-line:focus-visible {
+  color: var(--lubec-cream);
+  background: var(--lubec-blue-alt);
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
 }
 
 .shell-root[data-theme="lubec"] .lubec-effect-name {
-  font: 700 1.05rem/1.1 var(--lubec-condensed);
-  letter-spacing: 0.06em;
+  font-weight: 800;
+  letter-spacing: 0.02em;
   text-transform: uppercase;
-}
-
-.shell-root[data-theme="lubec"] .lubec-effect-now {
-  color: var(--lubec-rust);
 }
 
 .shell-root[data-theme="lubec"] .lubec-effect-next {
-  color: var(--lubec-muted);
-  font-weight: 400;
-}
-
-.shell-root[data-theme="lubec"] .lubec-effects button:not(.lubec-effect-line) {
-  min-height: 2rem;
-  padding: 0.3rem 0.65rem 0.2rem;
-  background: var(--lubec-cream);
-  border: 1.5px solid var(--lubec-ink);
-  border-radius: 0;
-  color: var(--lubec-ink);
-  font: 700 0.85rem/1 var(--lubec-condensed);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.shell-root[data-theme="lubec"] .lubec-effects button:not(.lubec-effect-line):hover {
-  background: var(--lubec-paper-deep);
-}
-
-.shell-root[data-theme="lubec"] .lubec-effects button:disabled {
-  opacity: 0.5;
-}
-
-.shell-root[data-theme="lubec"] .lubec-effects .lubec-effect-add {
-  margin: 0.4rem 0.6rem 0;
-}
-
-.shell-root[data-theme="lubec"] .lubec-effects .lubec-effect-save {
-  background: var(--lubec-pine);
-  color: var(--lubec-cream);
-}
-
-.shell-root[data-theme="lubec"] .lubec-effects .lubec-effect-remove {
-  margin-left: auto;
-  border-color: var(--lubec-rust);
-  color: var(--lubec-rust);
+  opacity: 0.72;
 }
 
 .shell-root[data-theme="lubec"] .lubec-effect-editor {
-  display: grid;
   flex: 1;
-  gap: 0.55rem;
-  min-width: 0;
-  margin: 0.2rem 0 0.4rem;
-}
-
-.shell-root[data-theme="lubec"] .lubec-effects > .lubec-effect-editor {
-  margin: 0.4rem 0.6rem 0;
+  padding: 0.9rem;
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid var(--lubec-line);
 }
 
 .shell-root[data-theme="lubec"] .lubec-effect-field {
   display: grid;
-  gap: 0.2rem;
+  gap: 0.38rem;
   min-width: 0;
 }
 
 .shell-root[data-theme="lubec"] .lubec-effect-field > span,
 .shell-root[data-theme="lubec"] .lubec-effect-step legend {
   color: var(--lubec-muted);
-  font: 800 0.62rem/1.2 var(--lubec-type);
-  letter-spacing: 0.12em;
+  font: 800 0.75rem/1.25 var(--lubec-type);
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
@@ -17521,45 +17454,49 @@ button:disabled {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  padding: 0.35rem 0.45rem;
-  background: var(--lubec-cream);
-  border: 1.5px solid var(--lubec-ink);
-  border-radius: 0;
+  padding: 0.55rem;
   color: var(--lubec-ink);
-  font: 400 0.95rem/1.25 var(--lubec-type);
+  background: var(--lubec-paper-deep);
+  border: 1px solid var(--lubec-line);
+  border-radius: 0;
+  font: 800 1rem/1.2 var(--lubec-type);
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .shell-root[data-theme="lubec"] .lubec-effect-step {
   display: grid;
-  gap: 0.4rem;
+  gap: 0.38rem;
   min-width: 0;
   margin: 0;
-  padding: 0.4rem 0.5rem 0.5rem;
+  padding: 0.5rem 0.6rem 0.6rem;
   border: 1px solid var(--lubec-line);
 }
 
 .shell-root[data-theme="lubec"] .lubec-effect-modifier {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 6rem) auto;
-  gap: 0.35rem;
-  align-items: center;
-}
-
-.shell-root[data-theme="lubec"] .lubec-effects .lubec-effect-icon {
-  display: grid;
-  place-items: center;
-  width: 2rem;
-  padding: 0;
+  gap: 0.38rem;
+  align-items: stretch;
 }
 
 .shell-root[data-theme="lubec"] .lubec-effect-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 0.48rem;
 }
 
-.shell-root[data-theme="lubec"] .lubec-effects .lubec-effect-add-step {
+.shell-root[data-theme="lubec"] .lubec-effect-actions .lubec-effect-remove {
+  margin-left: auto;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-add-step {
   justify-self: start;
+}
+
+.shell-root[data-theme="lubec"] .lubec-effect-editor .confirm-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 /* --- The combined prototype's Skills page ------------------------------ */
@@ -18128,79 +18065,9 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* A character in creation: which door made it, and deleting the draft. */
-.shell-root[data-theme="lubec"] .lubec-draft-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  margin: 0.8rem var(--pad) 0;
-  padding: 0.45rem 0.7rem;
-  border: 1.5px dashed var(--lubec-rust);
-  background: rgba(255, 248, 231, 0.6);
-}
-
-.shell-root[data-theme="lubec"] .lubec-draft-status {
-  margin: 0;
-  color: var(--lubec-rust);
-  font: 800 0.72rem/1.2 var(--lubec-type);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.shell-root[data-theme="lubec"] .lubec-delete-draft {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.35rem 0.6rem 0.3rem;
-  border: 1.5px solid var(--lubec-rust);
-  border-radius: 0;
-  color: var(--lubec-rust);
-  font: 800 0.68rem/1 var(--lubec-type);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.shell-root[data-theme="lubec"] .lubec-delete-draft:hover {
-  background: var(--lubec-rust);
-  color: var(--lubec-cream);
-}
-
-.shell-root[data-theme="lubec"] .lubec-draft-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.shell-root[data-theme="lubec"] .lubec-finalize-btn,
-.shell-root[data-theme="lubec"] .lubec-finalize .lubec-finalize-confirm {
-  padding: 0.35rem 0.7rem 0.3rem;
-  background: var(--lubec-blue);
-  border: 1.5px solid var(--lubec-blue);
-  border-radius: 0;
-  color: var(--lubec-cream);
-  font: 800 0.68rem/1 var(--lubec-type);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.shell-root[data-theme="lubec"] .lubec-finalize-btn:hover,
-.shell-root[data-theme="lubec"] .lubec-finalize .lubec-finalize-confirm:hover {
-  background: var(--lubec-blue-alt);
-  border-color: var(--lubec-blue-alt);
-}
-
 /* The Finalize dialog: what is still wrong, kept as warnings rather than blocks. */
 .shell-root[data-theme="lubec"] .confirm-modal.lubec-finalize {
   width: min(92vw, 480px);
-}
-
-.shell-root[data-theme="lubec"] .lubec-finalize .confirm-actions button {
-  border-radius: 0;
-  font: 800 0.72rem/1 var(--lubec-type);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
 }
 
 .shell-root[data-theme="lubec"] .lubec-finalize-notices h4 {
@@ -18225,38 +18092,43 @@ button:disabled {
   font-weight: 700;
 }
 
-/* The GM's Correct switch on a finalized character, held only on the GM's screen. */
+/* The stage bar under the name band, from the prototype's own parts: the
+   phase chip saying where the character stands, then buttons laid out as the
+   decision tray's. A draft offers Delete draft and Finalize; a finalized
+   character offers the GM the Correct switch, filled rust while it is on. */
+.shell-root[data-theme="lubec"] .lubec-draft-bar,
 .shell-root[data-theme="lubec"] .lubec-correct-bar {
   display: flex;
   flex-wrap: wrap;
+  gap: 0.48rem;
   align-items: center;
-  gap: 0.4rem 1rem;
+  justify-content: flex-end;
   margin: 0.8rem var(--pad) 0;
-  padding: 0.45rem 0.7rem;
-  border: 1.5px solid var(--lubec-blue);
-  background: rgba(255, 248, 231, 0.6);
 }
 
-.shell-root[data-theme="lubec"] .lubec-correct-switch {
+.shell-root[data-theme="lubec"] .lubec-draft-bar > button,
+.shell-root[data-theme="lubec"] .lubec-correct-bar > button {
   display: inline-flex;
+  height: 1.75rem;
   align-items: center;
-  gap: 0.4rem;
+  justify-content: center;
+}
+
+.shell-root[data-theme="lubec"] .phase-chip {
+  max-width: 24rem;
+  margin: 0 auto 0 0;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--lubec-line);
   color: var(--lubec-blue);
-  font: 800 0.72rem/1.2 var(--lubec-type);
-  letter-spacing: 0.12em;
+  font: 800 0.63rem/1.4 var(--lubec-type);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  cursor: pointer;
+  text-wrap: balance;
 }
 
-.shell-root[data-theme="lubec"] .lubec-correct-switch input {
-  margin: 0;
-  accent-color: var(--lubec-rust);
-}
-
-.shell-root[data-theme="lubec"] .lubec-correct-hint {
-  margin: 0;
-  color: var(--lubec-muted);
-  font: 400 0.8rem/1.3 var(--lubec-type);
+.shell-root[data-theme="lubec"] .lubec-correct-switch[aria-checked="true"] {
+  color: var(--lubec-cream);
+  background: var(--lubec-rust);
 }
 
 @media (max-width: 560px) {

@@ -38,8 +38,9 @@ type CorePageProps = {
 /**
  * The Core page: the five Stats and three Saves as the prototype's roll
  * circles, each current value rolled under with a tap, the skills to add to a
- * roll, the Panic Check and the Recovery Save below the Saves, the counters,
- * the active effects that change the values, and, once in play, the Fight bar over the class record.
+ * roll, the Panic Check and the Recovery Save below them, then the counters and
+ * the active effects that change the values in sections of the same shape, and,
+ * once in play, the Fight bar over the class record.
  * While a draft can be typed into, each base is typed into its circle's place
  * and the class is chosen from the prototype's class cards straight under the
  * values. A guided draft's circles roll its dice and settle its scores
@@ -61,8 +62,10 @@ export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraf
         onShowTree={onShowTree}
       />
       {onDraftEdit ? classSection : null}
-      <LubecCountersPanel sheet={sheet} onChange={onCountersChange} />
-      <LubecEffectsPanel effects={sheet.effects} onChange={onEffectsChange} />
+      <div className="lubec-tallies">
+        <LubecCountersPanel sheet={sheet} onChange={onCountersChange} />
+        <LubecEffectsPanel effects={sheet.effects} onChange={onEffectsChange} />
+      </div>
       {inPlay ? <LubecFightPanel sheet={sheet} modifiers={modifiers} /> : null}
       {onDraftEdit ? null : classSection}
     </div>

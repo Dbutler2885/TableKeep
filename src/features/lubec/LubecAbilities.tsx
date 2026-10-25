@@ -1,15 +1,15 @@
 import type { ReactNode } from 'react'
-import { isLubecCritical, type LubecCheckRoll } from '../ruleSets/lubec/checkRoll'
 import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
 import { lubecCurrentValue, type LubecModifier } from '../ruleSets/lubec/derivations'
 import { withLubecBaseValue, type LubecSheetEdit } from '../ruleSets/lubec/directEntry'
 import { LUBEC_SAVES, LUBEC_STATS, type LubecValueName } from '../ruleSets/lubec/sheet'
 import { lubecSkillBonus } from '../ruleSets/lubec/skills'
 import { LubecBaseInput } from './LubecBaseInput'
-import { lubecBaseNote, lubecCircleFace, lubecNoteParts, type LubecCircleFace } from './lubecCircles'
+import { lubecBaseNote, lubecCircleFace, lubecNoteParts, lubecRolledSkill, type LubecCircleFace } from './lubecCircles'
 import { LubecDecisionTray, LubecRollUpAbility } from './LubecDecisionTray'
 import { LubecMissing } from './LubecMissing'
-import { LubecPanicResult, LubecSaveRolls } from './LubecPanicRolls'
+import { LubecPanicSection } from './LubecPanicRolls'
+import { LubecRollCircle, type LubecCircleLabels } from './LubecRollCircle'
 import { LubecSkillStrip } from './LubecSkillStrip'
 import { useLubecCircles, type LubecCircles } from './useLubecCircles'
 import { useLubecRollUp, type LubecRollUpEdits, type LubecRollUpView } from './useLubecRollUp'
@@ -28,68 +28,17 @@ type ValuesProps = {
 
 type AbilityProps = ValuesProps & { name: LubecValueName; circles: LubecCircles; rollUp: LubecRollUpView | null }
 
-// "32/65" side by side, or stacked for a 100, which is too wide for one line.
-function LubecCheckPair({ roll, target }: { roll: number; target: number }) {
-  return (
-    <span className={roll === 100 ? 'check-stack' : 'check-pair'}>
-      <span>{roll}</span><span aria-hidden="true">/</span><span>{target}</span>
-    </span>
-  )
-}
-
-function LubecCircleNumber({ face }: { face: LubecCircleFace }) {
-  if (face.kind === 'missing') return <LubecMissing />
-  if (face.kind === 'value') return <>{face.value}</>
-  if (face.kind === 'rolling') return <LubecCheckPair roll={face.preview} target={face.target} />
-  return <LubecCheckPair roll={face.roll.result} target={face.roll.target} />
-}
-
-// The prototype's circle states: a value, a skill armed, a spin, a success or failure, a double.
-function faceClasses(face: LubecCircleFace): string[] {
-  if (face.kind === 'missing') return []
-  if (face.kind === 'rolling') return ['rolling']
-  if (face.kind === 'result') return ['has-value', `check-${face.roll.outcome}`, ...(isLubecCritical(face.roll) ? ['check-double'] : [])]
-  return ['has-value', ...(face.armed ? ['skill-armed'] : [])]
-}
-
-const circleClasses = (face: LubecCircleFace): string => ['roll-circle', ...faceClasses(face)].join(' ')
-
-function resultLabel(name: LubecValueName, roll: LubecCheckRoll): string {
-  const outcome = isLubecCritical(roll) ? `Critical ${roll.outcome}` : `${roll.outcome.charAt(0).toUpperCase()}${roll.outcome.slice(1)}`
-  return `${name} rolled ${roll.result} against ${roll.target}. ${outcome}. Click to clear.`
-}
-
-function circleLabel(name: LubecValueName, face: LubecCircleFace, rolls: boolean): string {
-  if (face.kind === 'missing') return `Roll ${name}: missing value`
-  if (face.kind === 'rolling') return `Rolling ${name}`
-  if (face.kind === 'result') return resultLabel(name, face.roll)
-  return rolls ? `Roll ${name} at or under ${face.value}` : `${name} score ${face.value}`
-}
-
-// A hole cannot be rolled under, and nothing is rolled while a check spins.
-const circleDisabled = (face: LubecCircleFace, roller: LubecRoller | null, circles: LubecCircles): boolean =>
-  !roller || circles.spin !== null || face.kind === 'missing'
-
-type CircleProps = { name: LubecValueName; face: LubecCircleFace; roller: LubecRoller | null; circles: LubecCircles }
-
-function LubecRollCircle({ name, face, roller, circles }: CircleProps) {
-  return (
-    <button
-      type="button"
-      className={circleClasses(face)}
-      disabled={circleDisabled(face, roller, circles)}
-      aria-label={circleLabel(name, face, roller !== null)}
-      title={face.kind === 'missing' ? 'missing value' : undefined}
-      onClick={() => circles.click(name)}
-    >
-      <span className="number"><LubecCircleNumber face={face} /></span>
-    </button>
-  )
-}
+// "Roll Strength at or under 29" for whoever may roll it, "Strength score 29" for anyone else.
+const valueLabels = (name: LubecValueName, rolls: boolean): LubecCircleLabels => ({
+  name,
+  missing: `Roll ${name}: missing value`,
+  value: (value) => (rolls ? `Roll ${name} at or under ${value}` : `${name} score ${value}`),
+})
 
 // The armed skill's bonus while a value waits to be rolled, or the skill a shown result was rolled with.
 function skillNote(face: LubecCircleFace, armed: string | null): string | null {
-  if (face.kind === 'result') return face.roll.skill && `+${lubecSkillBonus(face.roll.skill)} ${face.roll.skill}`
+  const skill = face.kind === 'result' ? lubecRolledSkill(face.roll) : null
+  if (skill) return `+${lubecSkillBonus(skill)} ${skill}`
   if (face.kind === 'value' && face.armed && armed) return `+${lubecSkillBonus(armed)} skill`
   return null
 }
@@ -132,7 +81,7 @@ function LubecRolledAbility({ circles, ...values }: Omit<AbilityProps, 'rollUp'>
   const note = skillNote(face, roller?.armed ?? null)
   return (
     <div className="ability">
-      <LubecRollCircle name={name} face={face} roller={roller} circles={circles} />
+      <LubecRollCircle name={name} labels={valueLabels(name, roller !== null)} face={face} roller={roller} circles={circles} />
       <span className="ability-name">{name}</span>
       <span className={note ? 'base-note skill-note' : 'base-note'}>{note ?? lubecBaseNote({ sheet, name, modifiers })}</span>
     </div>
@@ -177,9 +126,10 @@ type AbilitiesProps = ValuesProps & {
  * The combined prototype's Stats and Saves: a roll circle for each, showing
  * the current value with the base and its class modifier under it, and the
  * skills to add to a roll under them. Clicking a circle rolls a check on it and
- * the result shows on the circle until it is clicked away; the status line
- * under them says what happened, whatever was rolled. The Panic Check and the
- * Recovery Save stay a little apart below that, with a failed Panic Check's row.
+ * the result shows on the circle until it is clicked away. The Panic Check and
+ * the Recovery Save have circles of their own a little apart below that, with a
+ * failed Panic Check's row; the status line under them all says what happened,
+ * whatever was rolled.
  * A guided draft's circles roll its dice instead and carry the lowest-Stat
  * decision, and a draft being typed into takes each base in its circle's place.
  */
@@ -192,9 +142,8 @@ export function LubecAbilities({ onShowTree, rollUp: rollUpEdits, ...values }: A
       <LubecAbilitySection title="Stats" formula="Array + D10 each" names={LUBEC_STATS} circles={circles} rollUp={rollUp} tray={tray} {...values} />
       <LubecAbilitySection title="Saves" formula="2D10 + 10" names={LUBEC_SAVES} circles={circles} rollUp={rollUp} {...values} />
       {values.roller ? <LubecSkillStrip sheet={values.sheet} roller={values.roller} onShowTree={onShowTree} /> : null}
+      {rollUp ? null : <LubecPanicSection sheet={values.sheet} roller={values.roller} circles={circles} />}
       <p className="status" role="status" aria-live="polite">{rollUp ? rollUp.status : circles.status}</p>
-      {values.roller ? <LubecSaveRolls sheet={values.sheet} roller={values.roller} /> : null}
-      <LubecPanicResult sheet={values.sheet} roller={values.roller} />
     </div>
   )
 }

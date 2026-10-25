@@ -1130,8 +1130,12 @@ async function expectLubecPortraitShown(page) {
   await page.locator(`${LUBEC_PORTRAIT}[src^="http"]`).wait()
 }
 
+// The Stats and Saves sections, not the Panic and Recovery circles below them.
+const LUBEC_VALUE_ABILITIES = ['stats', 'saves']
+  .map((section) => `${LUBEC_CORE_PAGE} [aria-labelledby="lubec-${section}-title"] .ability`).join(', ')
+
 async function expectLubecCoreValues(page) {
-  const rows = await page.$$eval(`${LUBEC_CORE_PAGE} .abilities .ability`, (elements) =>
+  const rows = await page.$$eval(LUBEC_VALUE_ABILITIES, (elements) =>
     // An imported character is a draft, so each base value is in its field in the circle's place.
     elements.map((ability) => [
       ability.querySelector('.ability-name').textContent,
@@ -1139,6 +1143,14 @@ async function expectLubecCoreValues(page) {
       ability.querySelector('.base-note').textContent,
     ]))
   if (JSON.stringify(rows) !== JSON.stringify(LUBEC_CORE_VALUES)) throw new Error(`The Core page shows ${JSON.stringify(rows)}.`)
+}
+
+// Tommy comes in at the starting Stress of 2, and Sanity 30 is his lowest Save.
+async function expectLubecPanicCircles(page) {
+  const circles = await page.$$eval(`${LUBEC_CORE_PAGE} [aria-labelledby="lubec-panic-title"] .ability`, (elements) =>
+    elements.map((ability) => [ability.querySelector('.ability-name').textContent, ability.querySelector('.roll-circle').textContent]))
+  const expected = [['Panic Check', '2'], ['Recovery Save', '30']]
+  if (JSON.stringify(circles) !== JSON.stringify(expected)) throw new Error(`The Panic section shows ${JSON.stringify(circles)}.`)
 }
 
 async function expectLubecPage(page, expected) {
@@ -1239,6 +1251,7 @@ async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) 
   await step('show the Core page in the v4 frame', () => expectLubecPage(page, 'Core sheet'))
   await step('show each Stat and Save\'s typed base in its roll circle with what its class makes of it under it', () => expectLubecCoreValues(page))
   await step('offer the skills to add to a roll in the strip under the Saves', () => expectLubecSkillChips(page))
+  await step('show the Panic Check over Stress and the Recovery Save on the lowest Save in roll circles', () => expectLubecPanicCircles(page))
   await step('show the class record with its Trauma Response and Melee Strength Mod', () => expectLubecClassRecord(page))
   await step('fit a new active effect\'s editor without scrolling sideways', () => openAndCloseLubecEffect(page))
   await page.mouse.move(0, page.viewport().height - 1)

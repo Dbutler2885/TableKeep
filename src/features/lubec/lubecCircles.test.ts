@@ -4,7 +4,18 @@ import type { LubecModifier } from '../ruleSets/lubec/derivations'
 import type { LubecPanicRoll } from '../ruleSets/lubec/panicRoll'
 import type { LubecRecoveryRoll } from '../ruleSets/lubec/recoveryRoll'
 import { lubecCharacterSheet } from '../ruleSets/lubec/sheetFixtures'
-import { lubecBaseNote, lubecCircleFace, lubecCirclesStatus, lubecNoteParts, lubecRollStatus, lubecSpinDelay } from './lubecCircles'
+import {
+  isLubecDoubleRoll,
+  lubecBaseNote,
+  lubecCircleFace,
+  lubecCirclesStatus,
+  lubecNoteParts,
+  lubecRollCircle,
+  lubecRolledSkill,
+  lubecRollStatus,
+  lubecSpinDelay,
+  lubecTallyFace,
+} from './lubecCircles'
 
 const tommy = lubecCharacterSheet()
 
@@ -17,6 +28,15 @@ const handleRoll: LubecCheckRoll = {
 
 const idle = { armed: null, result: null, spin: null }
 
+const panicRoll: LubecPanicRoll = {
+  kind: 'panic', target: 5, dice: [4], result: 4, advantage: 'normal', outcome: 'failure', stressAdded: 0, effectRolls: null,
+}
+
+const recoveryRoll: LubecRecoveryRoll = {
+  kind: 'recovery', against: 'Body', target: 31, dice: [12, 44], result: 12,
+  advantage: 'advantage', outcome: 'success', stressAdded: 0, stressRemoved: 2,
+}
+
 describe('Lubec roll circles', () => {
   it('shows the current value, or the armed skill\'s target marked armed, and a hole as missing', () => {
     expect(lubecCircleFace(request('Strength'), idle)).toEqual({ kind: 'value', value: 29, armed: false })
@@ -27,7 +47,7 @@ describe('Lubec roll circles', () => {
   })
 
   it('shows a spin on its own circle before a result, and a result over the value', () => {
-    const spin = { name: 'Handle' as const, target: 55, preview: 7, step: 3 }
+    const spin = { name: 'Handle' as const, target: 55, sides: 100, preview: 7, step: 3 }
     expect(lubecCircleFace(request('Handle'), { ...idle, spin, result: handleRoll })).toEqual({ kind: 'rolling', preview: 7, target: 55 })
     expect(lubecCircleFace(request('Strength'), { ...idle, spin })).toEqual({ kind: 'value', value: 29, armed: false })
     expect(lubecCircleFace(request('Handle'), { ...idle, result: handleRoll })).toEqual({ kind: 'result', roll: handleRoll })
@@ -53,7 +73,7 @@ describe('Lubec roll circles', () => {
   })
 
   it('says what the circles are doing in the status line', () => {
-    expect(lubecCirclesStatus({ name: 'Handle', target: 65, preview: 4, step: 0 }, null, handleRoll)).toBe('Rolling Handle check...')
+    expect(lubecCirclesStatus({ name: 'Handle', target: 65, sides: 100, preview: 4, step: 0 }, null, handleRoll)).toBe('Rolling Handle check...')
     expect(lubecCirclesStatus(null, null, handleRoll)).toBe('Handle + Boatwork: 32 vs 65 - success.')
     expect(lubecCirclesStatus(null, handleRoll, handleRoll)).toBe('Handle check cleared. Score unchanged.')
     expect(lubecCirclesStatus(null, null, { ...handleRoll, skill: null, result: 77, outcome: 'failure', stressAdded: 1 }))
@@ -62,17 +82,37 @@ describe('Lubec roll circles', () => {
   })
 
   it('says how a Panic Check or a Recovery Save came out, with both dice under Advantage or Disadvantage', () => {
-    const panic: LubecPanicRoll = {
-      kind: 'panic', target: 5, dice: [4], result: 4, advantage: 'normal', outcome: 'failure', stressAdded: 0, effectRolls: null,
-    }
-    const recovery: LubecRecoveryRoll = {
-      kind: 'recovery', against: 'Body', target: 31, dice: [12, 44], result: 12,
-      advantage: 'advantage', outcome: 'success', stressAdded: 0, stressRemoved: 2,
-    }
-    expect(lubecRollStatus(panic)).toBe('Panic Check: 4 vs Stress 5 - failure.')
-    expect(lubecRollStatus(recovery)).toBe('Recovery Save on Body (Advantage, 12 and 44): 12 vs 31 - success, -2 Stress.')
+    expect(lubecRollStatus(panicRoll)).toBe('Panic Check: 4 vs Stress 5 - failure.')
+    expect(lubecRollStatus(recoveryRoll)).toBe('Recovery Save on Body (Advantage, 12 and 44): 12 vs 31 - success, -2 Stress.')
     expect(lubecRollStatus({ ...handleRoll, dice: [32, 90], result: 90, advantage: 'disadvantage', outcome: 'failure', stressAdded: 1 }))
       .toBe('Handle + Boatwork (Disadvantage, 32 and 90): 90 vs 65 - failure, +1 Stress.')
+  })
+
+  it('shows a Panic Check or a Recovery Save on its own circle, never on the Save it was rolled on', () => {
+    expect([panicRoll, recoveryRoll, handleRoll].map(lubecRollCircle)).toEqual(['Panic', 'Recovery', 'Handle'])
+  })
+
+  it('shows what the Panic Check or the Recovery Save rolls against, a hole as missing, a spin, and a result', () => {
+    const spin = { name: 'Panic' as const, target: 5, sides: 20, preview: 17, step: 0 }
+    expect(lubecTallyFace('Panic', 5, idle)).toEqual({ kind: 'value', value: 5, armed: false })
+    expect(lubecTallyFace('Recovery', null, idle)).toEqual({ kind: 'missing' })
+    expect(lubecTallyFace('Panic', 5, { ...idle, spin })).toEqual({ kind: 'rolling', preview: 17, target: 5 })
+    expect(lubecTallyFace('Recovery', 31, { ...idle, spin })).toEqual({ kind: 'value', value: 31, armed: false })
+    expect(lubecTallyFace('Panic', 5, { ...idle, result: panicRoll })).toEqual({ kind: 'result', roll: panicRoll })
+  })
+
+  it('marks doubles and skills only on a Stat Check or Save', () => {
+    expect(isLubecDoubleRoll({ ...handleRoll, result: 33 })).toBe(true)
+    expect(isLubecDoubleRoll({ ...panicRoll, result: 11 })).toBe(false)
+    expect(isLubecDoubleRoll({ ...recoveryRoll, result: 22 })).toBe(false)
+    expect([handleRoll, panicRoll, recoveryRoll].map(lubecRolledSkill)).toEqual(['Boatwork', null, null])
+  })
+
+  it('names the Panic Check and the Recovery Save in the status line while they spin or once cleared', () => {
+    expect(lubecCirclesStatus({ name: 'Panic', target: 5, sides: 20, preview: 3, step: 0 }, null, null)).toBe('Rolling Panic Check...')
+    expect(lubecCirclesStatus({ name: 'Recovery', target: 31, sides: 100, preview: 3, step: 0 }, null, null)).toBe('Rolling Recovery Save...')
+    expect(lubecCirclesStatus(null, panicRoll, panicRoll)).toBe('Panic Check cleared. Score unchanged.')
+    expect(lubecCirclesStatus(null, recoveryRoll, recoveryRoll)).toBe('Recovery Save cleared. Score unchanged.')
   })
 
   it('slows the spin as the prototype does', () => {

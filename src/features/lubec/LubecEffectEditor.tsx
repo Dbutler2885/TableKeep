@@ -36,7 +36,7 @@ function LubecModifierRow({ label, modifier, onChange, onRemove }: ModifierRowPr
         value={modifier.amount}
         onChange={(event) => onChange({ ...modifier, amount: event.target.value })}
       />
-      <button type="button" className="lubec-effect-icon" aria-label={`Remove ${label}`} onClick={onRemove}><X size={14} /></button>
+      <button type="button" className="secondary-button tray-icon" aria-label={`Remove ${label}`} onClick={onRemove}><X size={14} aria-hidden="true" /></button>
     </div>
   )
 }
@@ -68,10 +68,10 @@ function LubecStepEditor({ index, step, onChange, onRemove }: StepEditorProps) {
         <textarea rows={2} aria-label={`${name} labels`} value={step.labels} onChange={(event) => onChange({ ...step, labels: event.target.value })} />
       </label>
       <div className="lubec-effect-actions">
-        <button type="button" aria-label={`Add modifier to ${name.toLowerCase()}`} onClick={() => onChange({ ...step, modifiers: [...step.modifiers, { target: 'Handle', amount: '' }] })}>
+        <button type="button" className="secondary-button" aria-label={`Add modifier to ${name.toLowerCase()}`} onClick={() => onChange({ ...step, modifiers: [...step.modifiers, { target: 'Handle', amount: '' }] })}>
           Add modifier
         </button>
-        {onRemove ? <button type="button" aria-label={`Remove ${name.toLowerCase()}`} onClick={onRemove}>Remove step</button> : null}
+        {onRemove ? <button type="button" className="secondary-button" aria-label={`Remove ${name.toLowerCase()}`} onClick={onRemove}>Remove step</button> : null}
       </div>
     </fieldset>
   )
@@ -90,7 +90,7 @@ function LubecStepsEditor({ draft, onChange }: { draft: LubecEffectDraft; onChan
           onRemove={draft.steps.length > 1 ? () => setSteps(removedAt(draft.steps, index)) : null}
         />
       ))}
-      <button type="button" className="lubec-effect-add-step" onClick={() => setSteps([...draft.steps, emptyLubecStepDraft()])}>Add step</button>
+      <button type="button" className="secondary-button lubec-effect-add-step" onClick={() => setSteps([...draft.steps, emptyLubecStepDraft()])}>Add step</button>
     </>
   )
 }
@@ -123,9 +123,9 @@ export function LubecEffectEditor({ effect, onSave, onCancel, onRemove }: Editor
       </label>
       <LubecStepsEditor draft={draft} onChange={setDraft} />
       <div className="lubec-effect-actions">
-        <button type="submit" className="lubec-effect-save" disabled={!canSaveLubecEffectDraft(draft)}>{effect ? 'Save' : 'Add'}</button>
-        <button type="button" onClick={onCancel}>Cancel</button>
-        {onRemove ? <button type="button" className="lubec-effect-remove" onClick={onRemove}>Remove effect</button> : null}
+        <button type="submit" className="confirm-button" disabled={!canSaveLubecEffectDraft(draft)}>{effect ? 'Save' : 'Add'}</button>
+        <button type="button" className="secondary-button" onClick={onCancel}>Cancel</button>
+        {onRemove ? <button type="button" className="action-button lubec-effect-remove" onClick={onRemove}>Remove effect</button> : null}
       </div>
     </form>
   )
