@@ -63,26 +63,34 @@ type MastheadProps = {
 
 type BandActionsProps = Pick<MastheadProps, 'onEdit' | 'onDelete' | 'onAssign'>
 
+type BandAction = {
+  onClick: (() => void) | null
+  label: string
+  ariaLabel: string
+  Icon: typeof Pencil
+  className: string
+}
+
+type ShownBandAction = BandAction & { onClick: () => void }
+
+// The name band's buttons, in the order they show.
+const bandActionsOf = ({ onEdit, onDelete, onAssign }: BandActionsProps): BandAction[] => [
+  { onClick: onEdit, label: 'Edit', ariaLabel: 'Edit name band', Icon: Pencil, className: 'lubec-band-edit' },
+  { onClick: onAssign, label: 'Give to Player', ariaLabel: 'Give character to player', Icon: UserPlus, className: 'lubec-band-edit' },
+  { onClick: onDelete, label: 'Delete', ariaLabel: 'Delete character', Icon: Trash2, className: 'lubec-band-edit lubec-band-delete' },
+]
+
 // The name band's Edit, Give to Player and Delete buttons, for those who may.
-function LubecBandActions({ onEdit, onDelete, onAssign }: BandActionsProps) {
-  if (!onEdit && !onDelete && !onAssign) return null
+function LubecBandActions(props: BandActionsProps) {
+  const actions = bandActionsOf(props).filter((action): action is ShownBandAction => action.onClick !== null)
+  if (actions.length === 0) return null
   return (
     <div className="lubec-band-actions">
-      {onEdit ? (
-        <button type="button" className="lubec-band-edit" aria-label="Edit name band" onClick={onEdit}>
-          <Pencil size={12} aria-hidden="true" /> Edit
+      {actions.map(({ onClick, label, ariaLabel, Icon, className }) => (
+        <button key={label} type="button" className={className} aria-label={ariaLabel} onClick={onClick}>
+          <Icon size={12} aria-hidden="true" /> {label}
         </button>
-      ) : null}
-      {onAssign ? (
-        <button type="button" className="lubec-band-edit" aria-label="Give character to player" onClick={onAssign}>
-          <UserPlus size={12} aria-hidden="true" /> Give to Player
-        </button>
-      ) : null}
-      {onDelete ? (
-        <button type="button" className="lubec-band-edit lubec-band-delete" aria-label="Delete character" onClick={onDelete}>
-          <Trash2 size={12} aria-hidden="true" /> Delete
-        </button>
-      ) : null}
+      ))}
     </div>
   )
 }
