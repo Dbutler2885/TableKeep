@@ -13,6 +13,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../types/app'
 import type { LubecDice } from '../ruleSets/lubec/dice'
+import tommyEvesFile from '../ruleSets/lubec/fixtures/tommy-eves.lubec-character.json'
 
 type Fields = Record<string, unknown>
 type Listener = { next: (snap: unknown) => void; fail: (error: unknown) => void }
@@ -1204,7 +1205,7 @@ describe('New character and Direct entry', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'New character' })
     expect(within(dialog).getAllByRole('button').map((button) => button.querySelector('strong')?.textContent ?? button.textContent))
-      .toEqual(['Direct entry', 'Guided roll-up', 'Cancel'])
+      .toEqual(['Import a file', 'Direct entry', 'Guided roll-up', 'Cancel'])
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
 
@@ -2479,5 +2480,246 @@ describe('Guided roll-up', () => {
     await flushMicrotasks()
 
     expect(rollUpButtons()).toHaveLength(8)
+  })
+})
+
+// The standalone sheet's file for Tommy Eves, with any fields replaced, as text.
+const characterFileText = (fields: Fields = {}) => JSON.stringify({ ...tommyEvesFile, ...fields }, null, 2)
+
+const SMOKE_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='
+
+function openImportDoor() {
+  fireEvent.click(screen.getByRole('button', { name: 'New character' }))
+  const dialog = screen.getByRole('dialog', { name: 'New character' })
+  fireEvent.click(within(dialog).getByRole('button', { name: /Import a file/ }))
+  return dialog
+}
+
+/** Lets an import read its input, create its character and upload any portrait. */
+async function settleImport() {
+  for (let round = 0; round < 5; round += 1) await flushMicrotasks()
+}
+
+async function chooseCharacterFile(text: string) {
+  const dialog = openImportDoor()
+  const file = new File([text], 'lubec-Tommy-Eves.json', { type: 'application/json' })
+  fireEvent.change(within(dialog).getByLabelText('Character file'), { target: { files: [file] } })
+  await settleImport()
+  return dialog
+}
+
+async function pasteCharacterCode(text: string) {
+  const dialog = openImportDoor()
+  fireEvent.change(within(dialog).getByLabelText('Character code'), { target: { value: text } })
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Import code' }))
+  await settleImport()
+  return dialog
+}
+
+/** A draft's Stat or Save as shown: the base typed in its field, then its final and current values. */
+const draftValuesOf = (name: string) => [(screen.getByLabelText(`${name} base`) as HTMLInputElement).value, ...finalsOf(name)]
+
+/** The one character the import wrote, by id. */
+function importedId() {
+  const ids = Object.keys(database)
+  expect(ids).toHaveLength(1)
+  return ids[0]
+}
+
+describe('Import a character file', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('imports the Tommy Eves file as the importer\'s Working Kid draft, with the right finals, no portrait and no warnings', async () => {
+    mountTab('player', 'player-1')
+
+    await chooseCharacterFile(characterFileText())
+
+    const id = importedId()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(database[id]).toMatchObject({
+      system: 'lubec',
+      name: 'Tommy',
+      ownerUserId: 'player-1',
+      ownerUsername: 'viewer1',
+      creationMode: 'established',
+      creationStatus: 'established_draft',
+      portraitPath: '',
+      lubec: {
+        door: 'import',
+        class: { key: 'working' },
+        base: { Strength: 24, Speed: 51, Intellect: 38, Handle: 50, Charm: 48, Sanity: 20, Fear: 24, Body: 21 },
+        skills: { free: 'Boatwork', picked: ['Swimming', 'Diving'] },
+        counters: { stress: 2, minimumStress: 2, trauma: 0 },
+        effects: [],
+        importNotes: [],
+      },
+    })
+    expect(mocks.uploadEntityImage).not.toHaveBeenCalled()
+    const sheet = screen.getByRole('article', { name: 'Tommy character sheet' })
+    expect(within(sheet).getByText(/In creation · Imported/)).toBeTruthy()
+    expect(within(sheet).getByRole('img', { name: 'No photo yet' })).toBeTruthy()
+    expect(draftValuesOf('Strength')).toEqual(['24', '29', '29'])
+    expect(draftValuesOf('Handle')).toEqual(['50', '55', '55'])
+    expect(draftValuesOf('Sanity')).toEqual(['20', '30', '30'])
+    expect(counterValue('Stress')).toBe('2')
+    expect(within(openFinalize()).getByText('Nothing to warn about.')).toBeTruthy()
+    fireEvent.click(within(screen.getByRole('dialog', { name: /^Finalize/ })).getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(within(within(sheet).getByRole('navigation', { name: 'Character sheet pages' })).getByRole('button', { name: 'Skills' }))
+    expect(takenSkills()).toEqual([['Boatwork', 'Free', 'Trained', '+10'], ['Swimming', 'Trained', '+10'], ['Diving', 'Expert', '+15']])
+  })
+
+  it('refuses input that is not JSON, not an object, or of another format, with a plain message, and writes nothing', async () => {
+    mountTab('player', 'player-1')
+    const dialog = await pasteCharacterCode('{ "format": "lubec-character", ')
+
+    expect(within(dialog).getByRole('alert').textContent).toBe('That is not a Lubec character file: it is not readable JSON.')
+
+    fireEvent.change(within(dialog).getByLabelText('Character code'), { target: { value: '["lubec-character"]' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Import code' }))
+    expect(within(dialog).getByRole('alert').textContent).toBe('That is not a Lubec character file: it is not a JSON object.')
+
+    fireEvent.change(within(dialog).getByLabelText('Character file'), {
+      target: { files: [new File([characterFileText({ format: 'vtm-character' })], 'vampire.json', { type: 'application/json' })] },
+    })
+    await settleImport()
+    expect(within(dialog).getByRole('alert').textContent).toBe('That is not a Lubec character file: its format is not "lubec-character".')
+
+    await settleSaves()
+    expect(screen.getByRole('dialog', { name: 'New character' })).toBeTruthy()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+    expect(database).toEqual({})
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Back' }))
+    expect(within(dialog).getByRole('button', { name: /Import a file/ })).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('says so when a chosen file cannot be read, and writes nothing', async () => {
+    mountTab('player', 'player-1')
+    const dialog = openImportDoor()
+    const unreadable = { name: 'locked.json', text: () => Promise.reject(new Error('NotReadableError')) }
+
+    fireEvent.change(within(dialog).getByLabelText('Character file'), { target: { files: [unreadable] } })
+    await settleImport()
+
+    expect(within(dialog).getByRole('alert').textContent).toBe('That file could not be read.')
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+  })
+
+  it('imports a version 2 file with its known fields read and the unfamiliar version noted in the Finalize dialog, also after a remount', async () => {
+    const note = 'This file is version 2; Table Keep read the fields it knows.'
+    mountTab('player', 'player-1')
+
+    await chooseCharacterFile(characterFileText({ version: 2, futureField: { anything: true } }))
+
+    const id = importedId()
+    expect(database[id]).toMatchObject({ lubec: { class: { key: 'working' }, base: { Speed: 51 }, importNotes: [note] } })
+    expect(JSON.stringify(database[id])).not.toContain('futureField')
+    expect(noticesIn(openFinalize(), 'Import notes')).toEqual([note])
+
+    reload('player', 'player-1')
+    openSheet('Tommy')
+
+    expect(draftValuesOf('Speed')).toEqual(['51', '56', '56'])
+    expect(noticesIn(openFinalize(), 'Import notes')).toEqual([note])
+  })
+
+  it('lands a file with rule breaks in creation, with each warning in the Finalize dialog', async () => {
+    mountTab('player', 'player-1')
+
+    await chooseCharacterFile(characterFileText({
+      stats: { ...tommyEvesFile.stats, Strength: { base: 95 } },
+      skills: { free: { name: 'Science' }, picked: [{ name: 'Diving' }, { name: 'Diving' }, { name: 'Juggling' }] },
+    }))
+
+    const id = importedId()
+    const warnings = lubecRuleWarnings(stored(id).lubec)
+    expect(database[id].creationStatus).toBe('established_draft')
+    expect(warnings.map(({ code }) => code)).toEqual(['base-range', 'free-skill', 'package', 'unknown-skill', 'repeated-skill', 'prerequisite'])
+    expect(noticesIn(openFinalize(), 'Rule warnings')).toEqual(warnings.map(({ message }) => message))
+  })
+
+  it('lands a file missing a base value and the class with both as null, listed as missing in the Finalize dialog', async () => {
+    const { Handle: _handle, ...stats } = tommyEvesFile.stats
+    mountTab('player', 'player-1')
+
+    await chooseCharacterFile(characterFileText({ class: { name: 'Working Kid', choices: {} }, stats }))
+
+    const id = importedId()
+    expect((database[id].lubec as Fields).class).toEqual({ key: null, choices: { statPenalty: null, statBonus: null } })
+    expect(((database[id].lubec as Fields).base as Fields).Handle).toBeNull()
+    expect(draftValuesOf('Handle')).toEqual(['', 'missing', 'missing'])
+    expect(noticesIn(openFinalize(), 'Missing values')).toEqual(['Class', 'Handle'])
+  })
+
+  it('imports pasted text the same as a chosen file', async () => {
+    mountTab('gm', GM)
+
+    await pasteCharacterCode(characterFileText())
+
+    const id = importedId()
+    expect(database[id]).toMatchObject({
+      name: 'Tommy',
+      ownerUserId: GM,
+      creationStatus: 'established_draft',
+      lubec: { door: 'import', class: { key: 'working' }, skills: { free: 'Boatwork', picked: ['Swimming', 'Diving'] } },
+    })
+    expect(draftValuesOf('Charm')).toEqual(['48', '53', '53'])
+  })
+
+  it('hands a pasted portrait to the media upload as the owner, and stores only the path it returns', async () => {
+    mountTab('player', 'player-1')
+
+    await pasteCharacterCode(characterFileText({ portrait: `data:image/png;base64,${SMOKE_PNG_BASE64}` }))
+    await settleSaves()
+
+    const id = importedId()
+    expect(mocks.uploadEntityImage).toHaveBeenCalledTimes(1)
+    const [upload] = mocks.uploadEntityImage.mock.calls[0] as [{ file: File }]
+    expect(upload).toMatchObject({ collectionName: 'characters', entityId: id, mediaKind: 'portraits', uploadAuthority: 'owner' })
+    expect(upload.file.type).toBe('image/png')
+    expect(upload.file.size).toBe(Buffer.from(SMOKE_PNG_BASE64, 'base64').length)
+    expect(database[id].portraitPath).toBe('uploaded/portrait.png')
+    expect(database[id]).not.toHaveProperty('portraitUrl')
+    expect(JSON.stringify(database[id])).not.toContain('data:image')
+    expect(bandPortrait('Tommy').getByRole('img', { name: 'Tommy portrait' }).getAttribute('src')).toBe('https://media.test/uploaded/portrait.png')
+  })
+
+  it('brings a character with an unreadable portrait in without one, noting it in the Finalize dialog', async () => {
+    mountTab('player', 'player-1')
+
+    await pasteCharacterCode(characterFileText({ portrait: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=' }))
+
+    const id = importedId()
+    expect(mocks.uploadEntityImage).not.toHaveBeenCalled()
+    expect(database[id].portraitPath).toBe('')
+    expect(noticesIn(openFinalize(), 'Import notes')).toEqual(['The file\'s portrait could not be read, so the character came in without one.'])
+  })
+
+  it('keeps the file\'s inventory, counters and derived values out of the written document', async () => {
+    mountTab('player', 'player-1')
+
+    await chooseCharacterFile(characterFileText({
+      inventory: [{ name: 'Flashlight' }],
+      counters: { stress: 7, minimumStress: 4, trauma: 3 },
+      derived: { meleeStrengthImpact: 9, effectiveHandle: 99 },
+    }))
+
+    const id = importedId()
+    const written = JSON.stringify(database[id])
+    expect((database[id].lubec as Fields).counters).toEqual({ stress: 2, minimumStress: 2, trauma: 0 })
+    expect(written).not.toContain('Flashlight')
+    expect(written).not.toContain('inventory')
+    expect(written).not.toContain('derived')
+    expect(written).not.toContain('meleeStrengthImpact')
+    expect(written).not.toContain('playerName')
+    expect(written).not.toContain('defenseLines')
   })
 })

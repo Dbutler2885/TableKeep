@@ -11,9 +11,11 @@ import {
   step,
   storedItemsProblem,
   storedMediaProblems,
+  storedPortraitProblems,
   storedVersionProblems,
   trackersAtZero,
   vtmCharacterFields,
+  withLubecPortrait,
   withVtmConcept,
 } from './browser-smoke.mjs'
 import { toFirestoreFields } from './browser-smoke-seed.mjs'
@@ -259,5 +261,18 @@ describe('checking a saved character is stored at version 1', () => {
       portraitPath: 'p.png', portraitUrl: 'https://cdn.test/p.png',
       tokenIcon: { icon: 'custom', customImagePath: 't.png', customImageUrl: 'https://cdn.test/t.png' },
     }))).toEqual(['a portrait URL is stored', 'a token image URL is stored'])
+  })
+
+  it('finds nothing wrong with a portrait stored by path alone, and names a missing path or a stored URL', () => {
+    expect(storedPortraitProblems(toFirestoreFields({ portraitPath: 'portraits/p.png' }))).toEqual([])
+    expect(storedPortraitProblems(toFirestoreFields({ portraitPath: '' }))).toEqual(['no portrait path is stored'])
+    expect(storedPortraitProblems(toFirestoreFields({ portraitPath: 'p.png', portraitUrl: 'https://cdn.test/p.png' })))
+      .toEqual(['a portrait URL is stored'])
+  })
+
+  it('sets a Lubec character file\'s portrait to a PNG data URL, leaving the rest of the file as it was', () => {
+    const png = Buffer.from([0x89, 0x50, 0x4e, 0x47])
+    expect(withLubecPortrait({ format: 'lubec-character', characterName: 'Tommy', portrait: null }, png))
+      .toEqual({ format: 'lubec-character', characterName: 'Tommy', portrait: 'data:image/png;base64,iVBORw==' })
   })
 })
