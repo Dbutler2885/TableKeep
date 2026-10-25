@@ -34,6 +34,11 @@ function LubecPortrait({ character }: { character: LubecCharacterRecord }) {
   )
 }
 
+// The place kept for the character's token beside the portrait; it stays empty until tokens come to Lubec.
+function LubecTokenSlot() {
+  return <div className="lubec-token-slot" role="img" aria-label="No token yet"><span>Token</span></div>
+}
+
 function LubecPageTabs({ page, onPage }: { page: LubecPage; onPage: (page: LubecPage) => void }) {
   return (
     <nav className="lubec-page-tabs" aria-label="Character sheet pages">
@@ -65,8 +70,9 @@ function LubecKidMeta({ character }: { character: LubecCharacterRecord }) {
 }
 
 // The v4 frame: the dark top bar with the wordmark and the page tabs over the
-// rust and mustard stripe, then the name band with the portrait at the left and
-// the stamp at the right, with a stand of pines rising behind the stamp.
+// rust and mustard stripe, then the name band with the portrait and the token's
+// place at the left and the stamp at the right, with a stand of pines rising
+// behind the stamp.
 function LubecMasthead({ character, page, onPage, onEdit }: MastheadProps) {
   return (
     <header className="lubec-masthead">
@@ -82,7 +88,10 @@ function LubecMasthead({ character, page, onPage, onEdit }: MastheadProps) {
         <LubecPageTabs page={page} onPage={onPage} />
       </div>
       <div className="lubec-idband">
-        <LubecPortrait character={character} />
+        <div className="lubec-id-art">
+          <LubecPortrait character={character} />
+          <LubecTokenSlot />
+        </div>
         <div className="lubec-id-text">
           <h2 className="lubec-kid-name">{lubecCharacterName(character)}</h2>
           <LubecKidMeta character={character} />

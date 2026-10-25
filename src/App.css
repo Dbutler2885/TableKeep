@@ -16092,6 +16092,30 @@ button:disabled {
   text-transform: uppercase;
 }
 
+/* The token's place beside the portrait: an empty round slot on the
+   portrait's paper, dashed until a token fills it. */
+.shell-root[data-theme="lubec"] .lubec-id-art {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.shell-root[data-theme="lubec"] .lubec-token-slot {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  aspect-ratio: 1;
+  background:
+    repeating-linear-gradient(135deg, rgba(23, 40, 43, 0.06) 0 6px, transparent 6px 12px),
+    var(--lubec-paper-deep);
+  border: 2px dashed var(--lubec-ink);
+  border-radius: 50%;
+  color: var(--lubec-muted);
+  font: 700 0.62rem/1 var(--lubec-condensed);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 .shell-root[data-theme="lubec"] .lubec-id-text {
   position: relative;
   z-index: 2;
@@ -18195,6 +18219,15 @@ button:disabled {
     width: 3.6rem;
   }
 
+  .shell-root[data-theme="lubec"] .lubec-id-art {
+    gap: 0.35rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-token-slot {
+    width: 2.4rem;
+    font-size: 0.5rem;
+  }
+
   .shell-root[data-theme="lubec"] .lubec-name-editor-body {
     grid-template-columns: 6rem minmax(0, 1fr);
   }
@@ -18207,4 +18240,303 @@ button:disabled {
 
 .shell-root[data-theme="lubec"] .lubec-filters {
   position: absolute;
+}
+
+/* Desktop, where the roster and the sheet share the row (above
+   CHARACTER_SINGLE_PANE_MAX_WIDTH): the sheet takes the whole pane beside the
+   roster and the Core page fits one screen. Its sections pair up two to a row,
+   Stats with Saves, the skills with Panic and Recovery, Stress with the
+   effects, and the Fight bar runs over the class record below them. The
+   page's wrappers step aside so each section takes its own place. */
+@media (min-width: 1251px) {
+  .shell-root[data-theme="lubec"] .lubec-character-tab .characters-detail-inner {
+    max-width: none;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-sheet {
+    --pad: 1.2rem;
+    width: 100%;
+    padding-bottom: 0.7rem;
+    background: none;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-sheet::after {
+    margin-top: 0.4rem;
+  }
+
+  /* The open sheet and the page are one sheet of paper: the sheet's paper
+     and grain cover the whole page, the sheet loses its edge and shadow,
+     the panes lose the rule between them, and the masthead meets the top of
+     the page. The grain lies over everything below the menu and dialogs, as
+     it lay over the sheet. Each tile's filter covers exactly the tile, and the
+     mottling tile is 1000px, a whole number of the noise's cycles, so the
+     tiles stitch across the page without a seam. */
+  .shell-root[data-theme="lubec"]:has(.lubec-sheet) {
+    background:
+      radial-gradient(ellipse at 50% 40%, transparent 55%, rgba(74, 52, 26, 0.3) 100%),
+      linear-gradient(180deg, rgba(120, 88, 40, 0.08), transparent 30%, rgba(90, 64, 30, 0.12)),
+      #eadcbf;
+  }
+
+  .shell-root[data-theme="lubec"]:has(.lubec-sheet)::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1000' height='1000'%3E%3Cfilter id='m' x='0' y='0' width='1' height='1'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.006' numOctaves='4' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .42 0 0 0 0 .3 0 0 0 0 .16 1.4 0 0 0 -.62'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23m)'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g' x='0' y='0' width='1' height='1'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .22 0 0 0 0 .16 0 0 0 0 .1 1.1 0 0 0 -.5'/%3E%3C/filter%3E%3Crect width='100%' height='100%' filter='url(%23g)'/%3E%3C/svg%3E");
+    mix-blend-mode: multiply;
+    opacity: 0.5;
+  }
+
+  .shell-root[data-theme="lubec"]:has(.lubec-sheet) .shell-layout {
+    margin-top: 0;
+  }
+
+  /* The roster keeps the shell's top margin, clear of the menu button. */
+  .shell-root[data-theme="lubec"]:has(.lubec-sheet) .lubec-character-tab > .characters-sidebar {
+    margin-top: 0.4rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-character-tab > .characters-sidebar {
+    border-right: 0;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-character-tab > .characters-detail {
+    border-left: 0;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-sheet::before {
+    content: none;
+  }
+
+  /* A screen too narrow or too short for the Core page at full size shows all
+     of it a little smaller: the page needs a sheet about 1066px wide and 850px
+     tall, and the steps below scale it to the pane beside the roster. */
+  .shell-root[data-theme="lubec"] .lubec-sheet:has(> .lubec-core) {
+    zoom: min(var(--lubec-fit-width, 1), var(--lubec-fit-height, 1));
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-idband {
+    margin-top: calc(4px + 0.4rem);
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-portrait {
+    width: 4rem;
+  }
+
+  /* The Edit button sits on the class line rather than under it. */
+  .shell-root[data-theme="lubec"] .lubec-id-text {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0 0.9rem;
+    align-items: center;
+    justify-content: start;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-kid-name {
+    grid-column: 1 / -1;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-band-edit {
+    justify-self: start;
+    margin-top: 0.4rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-correct-bar,
+  .shell-root[data-theme="lubec"] .lubec-draft-bar {
+    margin-top: 0.55rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core {
+    --lubec-circle: clamp(4.5rem, 5.55vw, 5.55rem);
+    grid-template-columns: minmax(max-content, 1fr) minmax(max-content, 1fr);
+    grid-template-areas:
+      "stats saves"
+      "skills panic"
+      "status panic"
+      "counters effects"
+      "fight fight"
+      "class class";
+    grid-template-rows: auto auto 1fr;
+    gap: 0 1rem;
+    margin-top: 0.6rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core > .abilities,
+  .shell-root[data-theme="lubec"] .lubec-core > .lubec-tallies {
+    display: contents;
+  }
+
+  /* A rule over every row of sections but the first. */
+  .shell-root[data-theme="lubec"] .lubec-core .ability-section {
+    margin-top: 0;
+    padding-block: 0.35rem;
+    border-top: 1px solid var(--lubec-line);
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core [aria-labelledby="lubec-stats-title"],
+  .shell-root[data-theme="lubec"] .lubec-core [aria-labelledby="lubec-saves-title"] {
+    border-top: 0;
+  }
+
+  /* Each section's contents follow its heading, so a wide column leaves its
+     room at the right rather than between the two. */
+  .shell-root[data-theme="lubec"] .lubec-core .ability-grid {
+    gap: 0.55rem;
+    justify-content: start;
+  }
+
+  /* A result keeps its full-size proportion to the narrower circles. */
+  .shell-root[data-theme="lubec"] .lubec-core .check-pair {
+    font-size: calc(var(--lubec-circle) * 0.266);
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core .check-stack {
+    font-size: calc(var(--lubec-circle) * 0.209);
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core .skill-strip-body,
+  .shell-root[data-theme="lubec"] .lubec-core .lubec-panic-body,
+  .shell-root[data-theme="lubec"] .lubec-core .lubec-counters-body,
+  .shell-root[data-theme="lubec"] .lubec-core .lubec-effects-body {
+    justify-items: start;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core .skill-chips,
+  .shell-root[data-theme="lubec"] .lubec-core .skill-strip-footer,
+  .shell-root[data-theme="lubec"] .lubec-core .decision-tray {
+    justify-content: flex-start;
+  }
+
+  /* The Advantage switch and "Show skill tree" share a line, with the hint under them. */
+  .shell-root[data-theme="lubec"] .lubec-core .lubec-advantage {
+    margin-right: 0;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core .skill-strip-footer > .skill-strip-hint {
+    flex-basis: 100%;
+    order: 1;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core .lubec-effects-body > .skill-strip-hint,
+  .shell-root[data-theme="lubec"] .lubec-core .lubec-effects-body > .lubec-effect-add,
+  .shell-root[data-theme="lubec"] .lubec-core .lubec-panic-result > .lubec-panic-add,
+  .shell-root[data-theme="lubec"] .lubec-core .lubec-panic-result > .skill-strip-hint {
+    justify-self: start;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core [aria-labelledby="lubec-stats-title"] {
+    grid-area: stats;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core [aria-labelledby="lubec-saves-title"] {
+    grid-area: saves;
+  }
+
+  /* The strip wraps to its column rather than widening it. */
+  .shell-root[data-theme="lubec"] .lubec-core [aria-labelledby="lubec-skill-strip-title"] {
+    grid-area: skills;
+    contain: inline-size;
+  }
+
+  /* A failed Panic Check's row wraps to the column Saves sets. */
+  .shell-root[data-theme="lubec"] .lubec-core [aria-labelledby="lubec-panic-title"] {
+    grid-area: panic;
+    contain: inline-size;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core [aria-labelledby="lubec-counters-title"] {
+    grid-area: counters;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core .lubec-effects {
+    grid-area: effects;
+    contain: inline-size;
+  }
+
+  /* Only the paired sections size the two columns; these take the width they are given. */
+  .shell-root[data-theme="lubec"] .lubec-core .abilities > .status,
+  .shell-root[data-theme="lubec"] .lubec-core > .fight-region,
+  .shell-root[data-theme="lubec"] .lubec-core > .class-section {
+    contain: inline-size;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core .abilities > .status {
+    grid-area: status;
+    align-self: start;
+    margin: 0 0 0.4rem;
+    /* Under the skill strip's body, past the headings' column. */
+    padding-left: calc(0.1rem + 7.8rem + 0.7rem);
+    text-align: left;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core > .fight-region {
+    grid-area: fight;
+    margin-top: 0.5rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core > .class-section {
+    grid-area: class;
+    margin-top: 0.6rem;
+    padding-top: 0.6rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core .section-bar {
+    margin-bottom: 0.5rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-core .class-record {
+    padding: 0.75rem 1rem;
+  }
+}
+
+@media (min-width: 1251px) and (max-width: 1432px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet {
+    --lubec-fit-width: 0.95;
+  }
+}
+
+@media (min-width: 1251px) and (max-width: 1379px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet {
+    --lubec-fit-width: 0.9;
+  }
+}
+
+@media (min-width: 1251px) and (max-width: 1326px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet {
+    --lubec-fit-width: 0.85;
+  }
+}
+
+@media (min-width: 1251px) and (max-width: 1273px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet {
+    --lubec-fit-width: 0.8;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 887px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet {
+    --lubec-fit-height: 0.95;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 845px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet {
+    --lubec-fit-height: 0.9;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 802px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet {
+    --lubec-fit-height: 0.85;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 760px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet {
+    --lubec-fit-height: 0.8;
+  }
 }

@@ -1060,6 +1060,7 @@ const LUBEC_SKILLS_PAGE = '.shell-root[data-theme="lubec"] .lubec-sheet .lubec-s
 const LUBEC_CHARACTER_NAME = 'Tommy'
 const LUBEC_FIXTURE_URL = new URL('../src/features/ruleSets/lubec/fixtures/tommy-eves.lubec-character.json', import.meta.url)
 const LUBEC_PORTRAIT = `.lubec-idband img.lubec-portrait[alt=${JSON.stringify(`${LUBEC_CHARACTER_NAME} portrait`)}]`
+const LUBEC_TOKEN_SLOT = '.lubec-idband .lubec-id-art .lubec-token-slot[aria-label="No token yet"]'
 
 // Each Stat and Save as the imported draft's Core page shows it: the base
 // typed in its circle's place, and under it what the Working Kid's +5 to every
@@ -1163,6 +1164,12 @@ async function expectNoSidewaysScroll(page) {
   if (widths[0] > widths[1]) throw new Error(`The page is ${widths[0]}px wide in a ${widths[1]}px viewport.`)
 }
 
+// Beside the roster on a desktop, the whole Core page fits its pane without scrolling.
+async function expectLubecCoreOnOneScreen(page) {
+  const [height, visible] = await page.$eval(`${LUBEC_TAB} .characters-detail`, (pane) => [pane.scrollHeight, pane.clientHeight])
+  if (height > visible) throw new Error(`The Core page is ${height}px tall in a ${visible}px pane.`)
+}
+
 // A new effect's editor opens in the effects panel; Cancel closes it unsaved.
 async function openAndCloseLubecEffect(page) {
   await page.locator(`${LUBEC_CORE_PAGE} .lubec-effects .lubec-effect-add`).click()
@@ -1240,6 +1247,7 @@ async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) 
   await step('offer the five Lubec tabs', () => expectNavTabs(page, ['Characters', 'Maps', 'NPCs', 'Notes', 'Calendar']))
   const path = await step('import the Tommy Eves file with a portrait', () => importLubecCharacter(page, charactersPath, filePath))
   await step('show the imported portrait on the sheet', () => expectLubecPortraitShown(page))
+  await step('keep an empty place for the token beside the portrait', () => page.locator(LUBEC_TOKEN_SLOT).wait())
   await step('store the imported portrait by path alone', () => waitForStored(() => readDocumentFields(path), storedPortraitProblems))
   await step('see the imported portrait after a reload', async () => {
     await page.reload({ waitUntil: 'domcontentloaded' })
@@ -1256,6 +1264,7 @@ async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) 
   await step('fit a new active effect\'s editor without scrolling sideways', () => openAndCloseLubecEffect(page))
   await page.mouse.move(0, page.viewport().height - 1)
   await step('fit the Lubec sheet without scrolling sideways', () => expectNoSidewaysScroll(page))
+  if (!testCase.viewport.isMobile) await step('fit the Lubec Core page on one desktop screen', () => expectLubecCoreOnOneScreen(page))
   await screenshot(page, `${testCase.name}-lubec-core`)
   await lubecSkillsPageSteps(page, testCase)
 }
