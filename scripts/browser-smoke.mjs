@@ -1097,17 +1097,18 @@ async function importLubecCharacter(page, charactersPath, filePath) {
   return `${charactersPath}/${ids[0]}`
 }
 
-// The portrait shows with a renderable URL, which after a reload only its
-// stored path can have given it.
+// The portrait shows with a renderable http(s) URL, which after a reload only
+// its stored path can have given it.
 async function expectLubecPortraitShown(page) {
-  await page.waitForFunction((selector) =>
-    /^https?:/.test(document.querySelector(selector)?.getAttribute('src') ?? ''), {}, LUBEC_PORTRAIT)
+  await page.locator(`${LUBEC_PORTRAIT}[src^="http"]`).wait()
 }
 
 async function expectLubecCoreValues(page) {
   const rows = await page.$$eval(`${LUBEC_CORE_PAGE} .lubec-values tbody tr`, (elements) =>
-    // An imported character is a draft, so its base values are in their fields.
-    elements.map((row) => [...row.cells].map((cell) => cell.querySelector('input')?.value ?? cell.textContent.trim())))
+    // An imported character is a draft, so its base values are in their fields:
+    // each cell reads as its text followed by the value of any field in it.
+    elements.map((row) => [...row.cells].map((cell) =>
+      [cell.textContent, ...[...cell.querySelectorAll('input')].map((input) => input.value)].join('').trim())))
   if (JSON.stringify(rows) !== JSON.stringify(LUBEC_CORE_VALUES)) throw new Error(`The Core page shows ${JSON.stringify(rows)}.`)
 }
 
