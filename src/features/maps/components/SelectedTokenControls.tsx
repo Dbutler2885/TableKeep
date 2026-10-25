@@ -6,6 +6,7 @@ import { TOKEN_SIZE_MAX, TOKEN_SIZE_MIN } from '../lib/constants'
 import { bulkTokenValues, everyTokenHas } from '../lib/selectedTokenSummary'
 import { normalizeTokenRotation } from '../lib/tokenRotation'
 import type { TokenRecord } from '../lib/types'
+import { NpcSheetTokenAction } from './NpcSheetTokenAction'
 
 export type TokenFieldUpdates = Partial<
   Pick<
@@ -164,6 +165,7 @@ function SelectedTokenToggles({ selectedTokens, onUpdateToken, tokenViewDistance
       >
         <EyeOff size={14} />
       </TokenFlagToggle>
+      <NpcSheetTokenAction selectedTokens={selectedTokens} />
     </div>
   )
 }

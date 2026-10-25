@@ -15,6 +15,7 @@ import {
 } from '../lib/mapTokenDisplay'
 import type { renderTokenDimensions } from '../lib/tokenRenderGeometry'
 import type { TokenRecord } from '../lib/types'
+import { npcSheetDoubleClick, useNpcSheetOpener } from '../mapNpcSheet'
 
 type TokenDimensions = ReturnType<typeof renderTokenDimensions>
 type LivePosition = ReturnType<typeof tokenLivePosition>
@@ -86,9 +87,11 @@ export type GmTokenItemProps = {
   onToggleHidden: (tokenId: string) => void
 }
 
-// One token on the GM's view of the map: drag it, hide it from players, and see
-// its name on hover unless it is revealed.
+// One token on the GM's view of the map: drag it, hide it from players, see
+// its name on hover unless it is revealed, and double-click an NPC's token to
+// open its sheet where there is one.
 export function GmTokenItem({ token, index, visible, position, selected, dimensions, playerViewPreview, onPress, onTouchStart, onTouchEnd, onToggleHidden }: GmTokenItemProps) {
+  const openNpcSheet = useNpcSheetOpener()
   if (!visible) return null
   return (
     <button
@@ -99,6 +102,7 @@ export function GmTokenItem({ token, index, visible, position, selected, dimensi
       onTouchStart={(event) => onTouchStart(token.id, event)}
       onTouchEnd={onTouchEnd}
       onTouchCancel={onTouchEnd}
+      onDoubleClick={npcSheetDoubleClick(openNpcSheet, token)}
       aria-label="Map token"
     >
       <TokenHideToggle hidden={token.hidden} onToggle={() => onToggleHidden(token.id)} />

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { RulesTab } from '../common/RulesTab'
 import { MapsTab } from '../maps/MapsTab'
 import { MapRuleSetContext } from '../maps/mapRuleSet'
+import { MapNpcSheetProvider } from '../maps/components/MapNpcSheetOverlay'
 import { MonstersTab } from '../monsters/MonstersTab'
 import { ItemsTab } from '../items/ItemsTab'
 import { NpcsTab } from '../npcs/NpcsTab'
@@ -45,19 +46,23 @@ function characterPanel({ gameSystem, ...context }: TabPanelContext) {
   return <Sheet {...context} />
 }
 
-// Maps shows the sheet beside the map only when the rule set says it can, and
-// gives the rule set to everything inside it.
-function mapsPanel({ campaign, role, gameSystem, characterTabProps }: TabPanelContext) {
+// Maps shows the sheet beside the map only when the rule set says it can,
+// gives the rule set to everything inside it, and lets the GM open an NPC's
+// sheet over the map from its token.
+function mapsPanel(context: TabPanelContext) {
+  const { campaign, role, gameSystem, characterTabProps } = context
   const ruleSet = ruleSets[gameSystem]
   return (
     <MapRuleSetContext value={ruleSet}>
-      <MapsTab
-        campaignId={campaign.id}
-        groupId={campaign.groupId}
-        role={role}
-        gmUserId={campaign.gmUserId ?? null}
-        characterTabProps={ruleSet.sheet.embeddable ? characterTabProps ?? undefined : undefined}
-      />
+      <MapNpcSheetProvider scope={{ campaignId: campaign.id, groupId: campaign.groupId }} sheetFor={npcSheetTabFor(context)}>
+        <MapsTab
+          campaignId={campaign.id}
+          groupId={campaign.groupId}
+          role={role}
+          gmUserId={campaign.gmUserId ?? null}
+          characterTabProps={ruleSet.sheet.embeddable ? characterTabProps ?? undefined : undefined}
+        />
+      </MapNpcSheetProvider>
     </MapRuleSetContext>
   )
 }
@@ -76,7 +81,8 @@ function itemsPanel({ campaign, role, characters }: TabPanelContext) {
   return role === 'gm' ? <ItemsTab campaignId={campaign.id} groupId={campaign.groupId} role={role} characters={characters} /> : null
 }
 
-// The GM gets an NPC's character sheet beside its story, in a rule set that keeps one.
+// The GM gets an NPC's character sheet, beside its story and over the map, in a
+// rule set that keeps one.
 function npcSheetTabFor({ gameSystem, role, campaign, user, username, setError }: TabPanelContext) {
   const NpcSheet = ruleSets[gameSystem].sheet.npcSheet ? ruleSetNpcSheets[gameSystem] : null
   if (!NpcSheet || role !== 'gm') return undefined

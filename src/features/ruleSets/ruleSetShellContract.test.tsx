@@ -6,7 +6,7 @@
  * stood before the registry declared any of them, so any change to them is a
  * visible change for a player or GM, not a refactor.
  */
-import { createElement } from 'react'
+import { createElement, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import type { User } from 'firebase/auth'
@@ -28,6 +28,12 @@ vi.mock('../lubec/LubecCharacterTab', () => ({ LubecCharacterTab: stub('LubecCha
 vi.mock('../lubec/LubecNpcSheetTab', () => ({ LubecNpcSheetTab: stub('LubecNpcSheetTab') }))
 vi.mock('../common/RulesTab', () => ({ RulesTab: stub('RulesTab') }))
 vi.mock('../maps/MapsTab', () => ({ MapsTab: stub('MapsTab') }))
+vi.mock('../maps/components/MapNpcSheetOverlay', () => ({
+  MapNpcSheetProvider: (props: { children: ReactNode }) => {
+    mocks.props.MapNpcSheetProvider = props
+    return props.children
+  },
+}))
 vi.mock('../monsters/MonstersTab', () => ({ MonstersTab: stub('MonstersTab') }))
 vi.mock('../items/ItemsTab', () => ({ ItemsTab: stub('ItemsTab') }))
 vi.mock('../npcs/NpcsTab', () => ({ NpcsTab: stub('NpcsTab') }))
@@ -244,5 +250,27 @@ describe('NPC character sheet', () => {
     renderTab(stored, 'npcs', role)
 
     expect(mocks.props.NpcsTab).toEqual({ campaignId: 'c1', groupId: 'g1', role, sheetTab: undefined })
+  })
+
+  it('lets the Lubec GM open an NPC\'s sheet over the map, wired as the NPC tab\'s is', () => {
+    renderTab('lubec', 'maps', 'gm')
+    const { scope, sheetFor } = mocks.props.MapNpcSheetProvider as { scope: unknown; sheetFor: (npc: NpcRecord) => ReturnType<typeof createElement> }
+
+    const { container } = render(sheetFor(npc))
+
+    expect(scope).toEqual({ campaignId: 'c1', groupId: 'g1' })
+    expect(rendered(container)).toEqual(['LubecNpcSheetTab'])
+    expect(mocks.props.LubecNpcSheetTab).toMatchObject({ npc, campaignId: 'c1', groupId: 'g1', role: 'gm', gmUserId: 'gm-1' })
+  })
+
+  it.each([
+    ['lubec', 'player'],
+    ['lubec', null],
+    ['ose', 'gm'],
+    ['vtm', 'gm'],
+  ] as const)('%s map, viewed as %s: no NPC sheet to open from a token', (stored, role) => {
+    renderTab(stored, 'maps', role)
+
+    expect(mocks.props.MapNpcSheetProvider.sheetFor).toBeUndefined()
   })
 })

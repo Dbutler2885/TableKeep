@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { createElement } from 'react'
+import { createElement, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import type { User } from 'firebase/auth'
@@ -32,6 +32,9 @@ vi.mock('../maps/MapsTab', async () => {
     },
   }
 })
+vi.mock('../maps/components/MapNpcSheetOverlay', () => ({
+  MapNpcSheetProvider: ({ children }: { children: ReactNode }) => children,
+}))
 vi.mock('../monsters/MonstersTab', () => ({ MonstersTab: stub('MonstersTab') }))
 vi.mock('../items/ItemsTab', () => ({ ItemsTab: stub('ItemsTab') }))
 vi.mock('../npcs/NpcsTab', () => ({ NpcsTab: stub('NpcsTab') }))
