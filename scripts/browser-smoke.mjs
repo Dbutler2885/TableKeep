@@ -1052,7 +1052,8 @@ async function wanderingMonsterCases(browser, testCase, ids, browserErrors) {
 // after a reload the sheet shows it again from its stored path alone. His Core
 // page shows each Stat and Save in the v4 frame, without the page scrolling
 // sideways, with a new active effect's editor closed or open. His Skills page
-// shows the skill tree with his skills marked, without scrolling sideways either.
+// shows the skill tree with his skills filled in and its wires drawn, reads a
+// skill into the detail bar, and does not scroll sideways either.
 const LUBEC_TAB = '.shell-root[data-theme="lubec"] .lubec-character-tab'
 const LUBEC_CORE_PAGE = '.shell-root[data-theme="lubec"] .lubec-sheet .lubec-core'
 const LUBEC_SKILLS_PAGE = '.shell-root[data-theme="lubec"] .lubec-sheet .lubec-skills'
@@ -1073,8 +1074,12 @@ const LUBEC_CORE_VALUES = [
   ['Body', '31', '21 +10 class'],
 ]
 
-// The skills the tree marks, in tree order, with the mark each shows.
-const LUBEC_TREE_MARKS = [['Swimming', 'Pick +10'], ['Diving', 'Pick +15'], ['Boatwork', 'Free +10']]
+// The skills the tree fills in, in tree order, with their node's classes: the
+// imported draft is still being chosen, so his free class skill's dot is the fixed one.
+const LUBEC_TREE_MARKS = [['Swimming', 'skill-node on'], ['Diving', 'skill-node on'], ['Boatwork', 'skill-node on fixed']]
+// One wire for each Expert's prerequisite.
+const LUBEC_TREE_WIRES = 59
+const LUBEC_TREE = `${LUBEC_SKILLS_PAGE} .skill-tree`
 const LUBEC_SKILL_CHIPS = ['Boatwork +10', 'Swimming +10', 'Diving +15']
 // The class record's title, Trauma Response and Melee Strength Mod; Strength 29 is one full 20.
 const LUBEC_CLASS_RECORD = ['Working Kid', 'Steady Under Pressure', '+1 Impact']
@@ -1176,14 +1181,33 @@ async function openLubecSkillsPage(page) {
 }
 
 async function expectLubecTreeSize(page) {
-  const cells = await page.$$eval(`${LUBEC_SKILLS_PAGE} .lubec-skill-tree td.lubec-tree-skill`, (elements) => elements.length)
-  if (cells !== 54) throw new Error(`The skill tree shows ${cells} skills, not 54.`)
+  const nodes = await page.$$eval(`${LUBEC_TREE} .skill-node`, (elements) => elements.length)
+  if (nodes !== 54) throw new Error(`The skill tree shows ${nodes} skills, not 54.`)
 }
 
 async function expectLubecTreeMarks(page) {
-  const marks = await page.$$eval(`${LUBEC_SKILLS_PAGE} .lubec-tree-skill.free, ${LUBEC_SKILLS_PAGE} .lubec-tree-skill.picked`, (elements) =>
-    elements.map((cell) => [cell.querySelector('.lubec-skill-name').textContent, cell.querySelector('.lubec-skill-mark').textContent]))
+  const marks = await page.$$eval(`${LUBEC_TREE} .skill-node.on`, (elements) => elements.map((node) => [node.dataset.skill, node.className]))
   if (JSON.stringify(marks) !== JSON.stringify(LUBEC_TREE_MARKS)) throw new Error(`The skill tree marks ${JSON.stringify(marks)}.`)
+}
+
+// The wires are measured from the laid-out tree, so they appear once it has a size.
+async function expectLubecTreeWires(page) {
+  await page.waitForFunction((selector, count) => document.querySelectorAll(selector).length === count, {}, `${LUBEC_TREE} path.wire`, LUBEC_TREE_WIRES)
+}
+
+// A narrow screen shows the skills as a list instead of the tree, so Diving's
+// name is clicked wherever it shows: the hidden one has no box on the page.
+async function clickShownDivingLabel(page) {
+  await page.$$eval(`${LUBEC_SKILLS_PAGE} .skill-node[data-skill="Diving"] .skill-label`, (labels) =>
+    labels.find((label) => label.getClientRects().length > 0).click())
+}
+
+// Reading Diving lights its two wires and puts it in the detail bar.
+async function readLubecSkill(page) {
+  await clickShownDivingLabel(page)
+  const read = await page.$eval(LUBEC_SKILLS_PAGE, (section) =>
+    [section.querySelector('.skill-detail h4').textContent, section.querySelectorAll('.skill-tree path.wire.hot').length])
+  if (JSON.stringify(read) !== JSON.stringify(['Diving', 2])) throw new Error(`Reading Diving showed ${JSON.stringify(read)}.`)
 }
 
 async function lubecSkillsPageSteps(page, testCase) {
@@ -1191,7 +1215,9 @@ async function lubecSkillsPageSteps(page, testCase) {
   await page.mouse.move(0, page.viewport().height - 1)
   await step('show the Skills page in the v4 frame', () => expectLubecPage(page, 'Skills'))
   await step('show all 27 Trained and 27 Expert skills on the tree', () => expectLubecTreeSize(page))
-  await step('mark the free skill and picks on the tree with their bonus', () => expectLubecTreeMarks(page))
+  await step('fill in the free skill and picks on the tree', () => expectLubecTreeMarks(page))
+  await step('wire each Trained skill to the Experts it unlocks', () => expectLubecTreeWires(page))
+  await step('read a skill into the detail bar with its wires lit', () => readLubecSkill(page))
   await step('fit the Lubec Skills page without scrolling sideways', () => expectNoSidewaysScroll(page))
   await screenshot(page, `${testCase.name}-lubec-skills`)
 }
