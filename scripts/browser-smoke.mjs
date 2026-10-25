@@ -1074,9 +1074,9 @@ const LUBEC_CORE_VALUES = [
   ['Body', '31', '21 +10 class'],
 ]
 
-// The skills the tree fills in, in tree order: the imported draft is still being
-// chosen, so his free class skill's dot is the fixed one.
-const LUBEC_TREE_MARKS = [['Swimming', 'on'], ['Diving', 'on'], ['Boatwork', 'fixed']]
+// The skills the tree fills in, in tree order, with their node's classes: the
+// imported draft is still being chosen, so his free class skill's dot is the fixed one.
+const LUBEC_TREE_MARKS = [['Swimming', 'skill-node on'], ['Diving', 'skill-node on'], ['Boatwork', 'skill-node on fixed']]
 // One wire for each Expert's prerequisite.
 const LUBEC_TREE_WIRES = 59
 const LUBEC_TREE = `${LUBEC_SKILLS_PAGE} .skill-tree`
@@ -1186,8 +1186,7 @@ async function expectLubecTreeSize(page) {
 }
 
 async function expectLubecTreeMarks(page) {
-  const marks = await page.$$eval(`${LUBEC_TREE} .skill-node.on`, (elements) =>
-    elements.map((node) => [node.dataset.skill, node.classList.contains('fixed') ? 'fixed' : 'on']))
+  const marks = await page.$$eval(`${LUBEC_TREE} .skill-node.on`, (elements) => elements.map((node) => [node.dataset.skill, node.className]))
   if (JSON.stringify(marks) !== JSON.stringify(LUBEC_TREE_MARKS)) throw new Error(`The skill tree marks ${JSON.stringify(marks)}.`)
 }
 
@@ -1196,14 +1195,18 @@ async function expectLubecTreeWires(page) {
   await page.waitForFunction((selector, count) => document.querySelectorAll(selector).length === count, {}, `${LUBEC_TREE} path.wire`, LUBEC_TREE_WIRES)
 }
 
-// Reading Diving lights its two wires and puts it in the detail bar. A narrow
-// screen shows the skills as a list instead of the tree, so whichever shows is read.
+// A narrow screen shows the skills as a list instead of the tree, so Diving's
+// name is clicked wherever it shows: the hidden one has no box on the page.
+async function clickShownDivingLabel(page) {
+  await page.$$eval(`${LUBEC_SKILLS_PAGE} .skill-node[data-skill="Diving"] .skill-label`, (labels) =>
+    labels.find((label) => label.getClientRects().length > 0).click())
+}
+
+// Reading Diving lights its two wires and puts it in the detail bar.
 async function readLubecSkill(page) {
-  const treeHidden = await page.$eval(LUBEC_TREE, (tree) => tree.getClientRects().length === 0)
-  const view = treeHidden ? `${LUBEC_SKILLS_PAGE} .skill-list` : LUBEC_TREE
-  await page.locator(`${view} .skill-node[data-skill="Diving"] .skill-label`).click()
+  await clickShownDivingLabel(page)
   const read = await page.$eval(LUBEC_SKILLS_PAGE, (section) =>
-    [section.querySelector('.skill-detail h4')?.textContent, section.querySelectorAll('.skill-tree path.wire.hot').length])
+    [section.querySelector('.skill-detail h4').textContent, section.querySelectorAll('.skill-tree path.wire.hot').length])
   if (JSON.stringify(read) !== JSON.stringify(['Diving', 2])) throw new Error(`Reading Diving showed ${JSON.stringify(read)}.`)
 }
 

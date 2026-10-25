@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react'
-import { lubecClass } from '../ruleSets/lubec/classes'
 import type { LubecSheet } from '../ruleSets/lubec/sheet'
 import type { LubecSkills } from '../ruleSets/lubec/skillPicks'
 import { LUBEC_SKILL_BONUS, LUBEC_SKILL_TREE_ROWS, lubecSkill } from '../ruleSets/lubec/skills'
@@ -8,7 +7,10 @@ import { LubecSkillPackage } from './LubecSkillPackage'
 import {
   LUBEC_TREE_EXPERT,
   LUBEC_TREE_TRAINED,
-  lubecRelatedSkills,
+  lubecFreeList,
+  lubecHasSkill,
+  lubecHotSkills,
+  lubecSuggestedSkills,
   withDotClicked,
   withFreeChipClicked,
   type LubecWire,
@@ -25,6 +27,8 @@ type TreeView = {
   /** The class's free list while no free class skill is chosen: the dashed dots. */
   suggested: readonly string[]
   focused: string | null
+  /** The focused skill and everything wired to it. */
+  hot: ReadonlySet<string>
   onDot: (name: string) => void
   onLabel: (name: string) => void
 }
@@ -33,14 +37,13 @@ type TreeView = {
 // the free class skill and suggested for its choices while skills are chosen,
 // hot for the focused skill and everything wired to it.
 function nodeClassName(name: string, view: TreeView): string {
-  const on = name === view.skills.free || view.skills.picked.includes(name)
-  return [
-    'skill-node',
-    on && 'on',
-    view.picking && name === view.skills.free && 'fixed',
-    view.suggested.includes(name) && 'suggested',
-    view.focused !== null && lubecRelatedSkills(view.focused).has(name) && 'hot',
-  ].filter(Boolean).join(' ')
+  const marks: Record<string, boolean> = {
+    on: lubecHasSkill(view.skills, name),
+    fixed: view.picking && name === view.skills.free,
+    suggested: view.suggested.includes(name),
+    hot: view.hot.has(name),
+  }
+  return ['skill-node', ...Object.keys(marks).filter((mark) => marks[mark])].join(' ')
 }
 
 // A dot that chooses and a label that explains, as the prototype's nodeMarkup.
@@ -50,7 +53,7 @@ function LubecSkillNode({ name, view }: { name: string; view: TreeView }) {
       <button
         type="button"
         className="skill-dot"
-        aria-pressed={name === view.skills.free || view.skills.picked.includes(name)}
+        aria-pressed={lubecHasSkill(view.skills, name)}
         aria-label={`Choose ${name}`}
         aria-disabled={!view.picking}
         onClick={() => view.onDot(name)}
@@ -159,6 +162,16 @@ type SkillFocus = { focused: string | null; shown: string | null }
 
 const NO_FOCUS: SkillFocus = { focused: null, shown: null }
 
+// Reading a name focuses it and a second read clears it; choosing a skill only shows it.
+function useSkillFocus() {
+  const [focus, setFocus] = useState<SkillFocus>(NO_FOCUS)
+  return {
+    focus,
+    show: (name: string) => setFocus((current) => ({ ...current, shown: name })),
+    toggle: (name: string) => setFocus((current) => (current.focused === name ? NO_FOCUS : { focused: name, shown: name })),
+  }
+}
+
 type PageProps = { sheet: LubecSheet; onChange: OnSkillsChange; onHideTree: () => void }
 
 /**
@@ -167,21 +180,22 @@ type PageProps = { sheet: LubecSheet; onChange: OnSkillsChange; onHideTree: () =
  * with the sticky detail bar under it either way.
  */
 export function LubecSkillsPage({ sheet, onChange, onHideTree }: PageProps) {
-  const [focus, setFocus] = useState<SkillFocus>(NO_FOCUS)
+  const { focus, show, toggle } = useSkillFocus()
   const skills = sheet.skills
-  const freeList = lubecClass(sheet.class.key)?.skillPackage.free ?? []
-  const show = (name: string) => setFocus((current) => ({ ...current, shown: name }))
+  const picking = onChange !== null
+  const freeList = lubecFreeList(sheet.class.key)
   const choose = (next: LubecSkills, name: string) => {
     onChange?.(next)
     show(name)
   }
   const view: TreeView = {
     skills,
-    picking: onChange !== null,
-    suggested: onChange !== null && skills.free === null ? freeList : [],
+    picking,
+    suggested: lubecSuggestedSkills(skills, freeList, picking),
     focused: focus.focused,
-    onDot: (name) => { if (onChange) choose(withDotClicked(skills, name, freeList), name) },
-    onLabel: (name) => setFocus(focus.focused === name ? NO_FOCUS : { focused: name, shown: name }),
+    hot: lubecHotSkills(focus.focused),
+    onDot: (name) => { if (picking) choose(withDotClicked(skills, name, freeList), name) },
+    onLabel: toggle,
   }
   return (
     <div className="lubec-page lubec-skills">

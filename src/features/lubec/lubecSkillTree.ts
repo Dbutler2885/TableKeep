@@ -28,6 +28,26 @@ export function lubecRelatedSkills(name: string): Set<string> {
   return new Set([name, ...(lubecSkill(name)?.prerequisites ?? []), ...lubecLeadsTo(name)])
 }
 
+/** Whether the character has the skill, as its free class skill or a pick. */
+export function lubecHasSkill(skills: LubecSkills, name: string): boolean {
+  return name === skills.free || skills.picked.includes(name)
+}
+
+/** What lights up on the tree: the focused skill and everything wired to it, or nothing while no name is focused. */
+export function lubecHotSkills(focused: string | null): ReadonlySet<string> {
+  return focused === null ? new Set() : lubecRelatedSkills(focused)
+}
+
+/** The free list of the class a stored key names, or none while the class is a hole. */
+export function lubecFreeList(classKey: string | null): readonly string[] {
+  return lubecClass(classKey)?.skillPackage.free ?? []
+}
+
+/** The dashed dots: the class's free list while skills are chosen and no free class skill is. */
+export function lubecSuggestedSkills(skills: LubecSkills, freeList: readonly string[], picking: boolean): readonly string[] {
+  return picking && skills.free === null ? freeList : []
+}
+
 /**
  * What a dot click does, as the prototype's toggleSkill without its blocks: the
  * free class skill's dot clears it, the first dot taken from the class's free

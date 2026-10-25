@@ -8,6 +8,9 @@ import {
   LUBEC_TREE_EXPERT,
   LUBEC_TREE_TRAINED,
   lubecDetailTag,
+  lubecFreeList,
+  lubecHasSkill,
+  lubecHotSkills,
   lubecKitLine,
   lubecLeadsTo,
   lubecPackageProgress,
@@ -15,6 +18,7 @@ import {
   lubecPickCounts,
   lubecRelatedSkills,
   lubecShapeLabel,
+  lubecSuggestedSkills,
   lubecUnknownSkills,
   lubecWires,
   withDotClicked,
@@ -41,6 +45,29 @@ describe('the Lubec skill tree', () => {
     expect([...lubecRelatedSkills('Diving')]).toEqual(['Diving', 'Swimming', 'Tides & Flats'])
     expect([...lubecRelatedSkills('Swimming')]).toEqual(['Swimming', 'Diving'])
     expect([...lubecRelatedSkills('Knot Tying')]).toEqual(['Knot Tying'])
+  })
+})
+
+describe('the Lubec skill tree\'s nodes', () => {
+  it('fills in the free class skill and the picks', () => {
+    const skills = { free: 'Boatwork', picked: ['Swimming'] }
+    expect(lubecHasSkill(skills, 'Boatwork')).toBe(true)
+    expect(lubecHasSkill(skills, 'Swimming')).toBe(true)
+    expect(lubecHasSkill(skills, 'Diving')).toBe(false)
+  })
+
+  it('lights nothing until a name is focused', () => {
+    expect([...lubecHotSkills(null)]).toEqual([])
+    expect([...lubecHotSkills('Diving')]).toEqual(['Diving', 'Swimming', 'Tides & Flats'])
+  })
+
+  it('dashes the class\'s free list only while skills are chosen and no free class skill is', () => {
+    const freeList = lubecFreeList('working')
+    expect(freeList).toEqual(['Boatwork', 'Jury-Rigging', 'Tides & Flats'])
+    expect(lubecFreeList(null)).toEqual([])
+    expect(lubecSuggestedSkills({ free: null, picked: [] }, freeList, true)).toEqual(freeList)
+    expect(lubecSuggestedSkills({ free: 'Boatwork', picked: [] }, freeList, true)).toEqual([])
+    expect(lubecSuggestedSkills({ free: null, picked: [] }, freeList, false)).toEqual([])
   })
 })
 
