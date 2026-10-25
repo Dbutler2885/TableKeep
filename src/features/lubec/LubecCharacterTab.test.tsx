@@ -322,7 +322,7 @@ describe('Lubec character tab', () => {
     expect(within(sheet).getByRole('heading', { level: 2, name: 'Tommy Eves' })).toBeTruthy()
     expect(within(sheet.querySelector('.lubec-idband') as HTMLElement).getByText('Working Kid')).toBeTruthy()
     expect(within(sheet).getByRole('img', { name: 'No photo yet' })).toBeTruthy()
-    expect(within(sheet).getByRole('img', { name: 'No token yet' }).textContent).toBe('Token')
+    expect(bandToken('Tommy Eves').getByRole('button', { name: 'Edit map token' }).querySelector('.token-pawn-preview')).toBeTruthy()
     expect(sheet.querySelector('.lubec-stamp')?.textContent).toBe('LubecMaine1977')
     const tabs = within(within(sheet).getByRole('navigation', { name: 'Character sheet pages' })).getAllByRole('button')
     expect(tabs.map((tab) => [tab.textContent, tab.getAttribute('aria-current')])).toEqual([['Core sheet', 'page'], ['Skills', null]])
@@ -876,6 +876,103 @@ describe('Lubec name band', () => {
     expect(mocks.uploadEntityImage).toHaveBeenCalledWith(expect.objectContaining({ mediaKind: 'token-icons', uploadAuthority: 'owner' }))
     reload('player', 'player-1')
     expect(database.tommy.tokenIcon).toEqual({ icon: 'custom', color: '#c08a2e', size: 34, customImagePath: 'uploaded/token.png', customImageName: 'token' })
+  })
+})
+
+const sheetToken = (name: string) =>
+  screen.getByRole('article', { name: `${name} character sheet` }).querySelector('.lubec-id-art .lubec-token') as HTMLElement
+
+const bandToken = (name: string) => within(sheetToken(name).parentElement as HTMLElement)
+
+const tokenImageSrc = (name: string) => sheetToken(name).querySelector('img')?.getAttribute('src') ?? null
+
+// Opens the token picker from the sheet's token, uploads an image in it, and confirms.
+async function setTokenImage(name: string, file: File) {
+  fireEvent.click(bandToken(name).getByRole('button', { name: 'Edit map token' }))
+  await flushMicrotasks()
+  const picker = screen.getByRole('dialog')
+  fireEvent.change(within(picker).getByLabelText('Upload image').querySelector('input') as HTMLInputElement, { target: { files: [file] } })
+  await flushMicrotasks()
+  fireEvent.click(within(picker).getByRole('button', { name: 'Confirm' }))
+}
+
+describe('Lubec map token', () => {
+  it('shows a viewer the token in its colour beside the portrait, with nothing to edit', () => {
+    seed({ tommy: tommyEves({ tokenIcon: { icon: 'pawn', color: '#174b58', size: 34 } }) })
+    mountTab('player', 'player-2')
+    openSheet('Tommy Eves')
+
+    const token = bandToken('Tommy Eves').getByRole('img', { name: 'Tommy Eves map token' })
+
+    expect((token.querySelector('.token-pawn-preview') as HTMLElement).style.color).toBe('rgb(23, 75, 88)')
+    expect(bandToken('Tommy Eves').queryByRole('button')).toBeNull()
+  })
+
+  it('gives a character with no stored token the Lubec pawn', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-2')
+    openSheet('Tommy Eves')
+
+    const token = bandToken('Tommy Eves').getByRole('img', { name: 'Tommy Eves map token' })
+
+    expect((token.querySelector('.token-pawn-preview') as HTMLElement).style.color).toBe('rgb(192, 138, 46)')
+  })
+
+  it('shows the token image the store resolves from its stored path', async () => {
+    seed({ tommy: tommyEves({ tokenIcon: { icon: 'custom', color: '#c08a2e', size: 34, customImagePath: 'tokens/tommy.png' } }) })
+    mountTab('player', 'player-2')
+    await flushMicrotasks()
+    openSheet('Tommy Eves')
+
+    expect(tokenImageSrc('Tommy Eves')).toBe('https://media.test/tokens/tommy.png')
+    expect(mocks.resolveStoragePathUrl).toHaveBeenCalledWith('tokens/tommy.png')
+  })
+
+  it('lets the owner set the token from the sheet, uploading as the owner and storing only its path', async () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    mocks.uploadEntityImage.mockResolvedValueOnce({ path: 'uploaded/token.png', url: 'https://media.test/uploaded/token.png', name: 'token' } as never)
+
+    await setTokenImage('Tommy Eves', imageFile('token.png'))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(mocks.uploadEntityImage).toHaveBeenCalledWith(expect.objectContaining({ entityId: 'tommy', mediaKind: 'token-icons', uploadAuthority: 'owner' }))
+    expect(tokenImageSrc('Tommy Eves')).toBe('https://media.test/uploaded/token.png')
+    reload('player', 'player-1')
+    await flushMicrotasks()
+    openSheet('Tommy Eves')
+    expect(database.tommy.tokenIcon).toEqual({ icon: 'custom', color: '#c08a2e', size: 34, customImagePath: 'uploaded/token.png', customImageName: 'token' })
+    expect(tokenImageSrc('Tommy Eves')).toBe('https://media.test/uploaded/token.png')
+  })
+
+  it('lets the GM recolour a player\'s token from the sheet', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('gm', GM)
+    openSheet('Tommy Eves')
+
+    fireEvent.click(bandToken('Tommy Eves').getByRole('button', { name: 'Edit map token' }))
+    fireEvent.change(within(screen.getByRole('dialog')).getByLabelText('Token color'), { target: { value: '#a34229' } })
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm' }))
+
+    reload('gm', GM)
+    expect(database.tommy.tokenIcon).toEqual({ icon: 'pawn', color: '#a34229', size: 34 })
+    expect(database.tommy.ownerUserId).toBe('player-1')
+  })
+
+  it('keeps the token as it was when the picker is cancelled', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    fireEvent.click(bandToken('Tommy Eves').getByRole('button', { name: 'Edit map token' }))
+    fireEvent.change(within(screen.getByRole('dialog')).getByLabelText('Token color'), { target: { value: '#a34229' } })
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect((sheetToken('Tommy Eves').querySelector('.token-pawn-preview') as HTMLElement).style.color).toBe('rgb(192, 138, 46)')
+    reload('player', 'player-1')
+    expect(database.tommy).not.toHaveProperty('tokenIcon')
   })
 })
 
