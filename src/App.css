@@ -16009,6 +16009,24 @@ button:disabled {
   text-transform: uppercase;
 }
 
+.shell-root[data-theme="lubec"] .lubec-kid-age::before {
+  content: "\00b7";
+  margin: 0 0.45rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-band-edit {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+  margin-top: 0.45rem;
+  padding: 0.25rem 0.55rem 0.2rem;
+  border: 1.5px solid var(--lubec-ink);
+  border-radius: 0;
+  font: 700 0.68rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
 .shell-root[data-theme="lubec"] .lubec-stamp {
   position: relative;
   z-index: 2;
@@ -16048,6 +16066,69 @@ button:disabled {
 .shell-root[data-theme="lubec"] .lubec-core {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
   align-items: start;
+}
+
+/* The name band's edits: the portrait and token at the left, name and age beside them. */
+.shell-root[data-theme="lubec"] .lubec-name-editor {
+  margin: 0.8rem var(--pad) 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-name-editor .lubec-section-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.shell-root[data-theme="lubec"] .lubec-name-editor-done {
+  padding: 0.3rem 0.7rem 0.25rem;
+  border: 1.5px solid var(--lubec-ink);
+  border-radius: 0;
+  font: 700 0.72rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-name-editor-body {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: 0.9rem;
+  align-items: start;
+  padding: 0 0.7rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-name-editor .monster-portrait-frame {
+  border: 2px solid var(--lubec-ink);
+  border-radius: 0;
+  background: var(--lubec-paper-deep);
+}
+
+.shell-root[data-theme="lubec"] .lubec-name-fields {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-name-fields label {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--lubec-muted);
+  font: 700 0.68rem/1.2 var(--lubec-type);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-name-fields input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.4rem 0.55rem;
+  font-size: 1rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-name-fields .lubec-age-field input {
+  width: 6rem;
 }
 
 /* Panels: a coloured header bar with the section's name, a thin frame in the same colour. */
@@ -16284,6 +16365,10 @@ button:disabled {
 
   .shell-root[data-theme="lubec"] .lubec-portrait {
     width: 3.6rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-name-editor-body {
+    grid-template-columns: 6rem minmax(0, 1fr);
   }
 
   .shell-root[data-theme="lubec"] .lubec-pines {

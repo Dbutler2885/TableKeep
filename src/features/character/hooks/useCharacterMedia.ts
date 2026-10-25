@@ -1,7 +1,7 @@
 import { characterUploadAuthority, uploadEntityImage } from '../../common/mediaStorage'
 import type { CharacterRecord } from '../../../types/app'
 
-type Params = { campaignId: string; groupId: string; currentUserId: string; effectiveSelected: CharacterRecord | null; canEditSelected: boolean }
+type Params = { campaignId: string; groupId: string; currentUserId: string; effectiveSelected: Pick<CharacterRecord, 'id' | 'ownerUserId'> | null; canEditSelected: boolean }
 
 export function useCharacterMedia({ campaignId, groupId, currentUserId, effectiveSelected, canEditSelected }: Params) {
   const upload = async (file: File, mediaKind: 'token-icons' | 'portraits', maxWidth: number, maxHeight: number) => {

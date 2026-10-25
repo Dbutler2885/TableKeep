@@ -1,9 +1,11 @@
+import { Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { lubecClass } from '../ruleSets/lubec/classes'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import { LubecCorePage } from './LubecCorePage'
 import type { LubecCountersChange } from './LubecCountersPanel'
 import { LubecMissing } from './LubecMissing'
+import { LubecNameBandEditor, type LubecSheetEditing } from './LubecNameBandEditor'
 import { lubecCharacterName } from './lubecNames'
 import lubecPines from './lubecPines.svg'
 
@@ -37,10 +39,28 @@ function LubecPageTabs({ page, onPage }: { page: LubecPage; onPage: (page: Lubec
   )
 }
 
+type MastheadProps = {
+  character: LubecCharacterRecord
+  page: LubecPage
+  onPage: (page: LubecPage) => void
+  /** Opens the name band's edits; absent for a viewer who cannot edit. */
+  onEdit: (() => void) | null
+}
+
+function LubecKidMeta({ character }: { character: LubecCharacterRecord }) {
+  const { age } = character.lubec
+  return (
+    <div className="lubec-kid-meta">
+      <span>{lubecClass(character.lubec.class.key)?.name ?? <LubecMissing />}</span>
+      {age === null ? null : <span className="lubec-kid-age">Age {age}</span>}
+    </div>
+  )
+}
+
 // The v4 frame: the dark top bar with the wordmark and the page tabs over the
 // rust and mustard stripe, then the name band with the portrait at the left and
 // the stamp at the right, with a stand of pines rising behind the stamp.
-function LubecMasthead({ character, page, onPage }: { character: LubecCharacterRecord; page: LubecPage; onPage: (page: LubecPage) => void }) {
+function LubecMasthead({ character, page, onPage, onEdit }: MastheadProps) {
   return (
     <header className="lubec-masthead">
       {/* The worn edge of the big lettering, as printed on old paper. */}
@@ -58,7 +78,12 @@ function LubecMasthead({ character, page, onPage }: { character: LubecCharacterR
         <LubecPortrait character={character} />
         <div className="lubec-id-text">
           <h2 className="lubec-kid-name">{lubecCharacterName(character)}</h2>
-          <div className="lubec-kid-meta">{lubecClass(character.lubec.class.key)?.name ?? <LubecMissing />}</div>
+          <LubecKidMeta character={character} />
+          {onEdit ? (
+            <button type="button" className="lubec-band-edit" aria-label="Edit name band" onClick={onEdit}>
+              <Pencil size={12} aria-hidden="true" /> Edit
+            </button>
+          ) : null}
         </div>
         <div className="lubec-stamp" aria-hidden="true">Lubec<br />Maine<br />1977</div>
       </div>
@@ -80,16 +105,20 @@ function LubecSkillsPage() {
 
 type SheetViewProps = {
   character: LubecCharacterRecord
+  /** The viewer's edits, or null when they may only look. */
+  editing: LubecSheetEditing | null
   /** Absent for a viewer who may not change the character. */
   onCountersChange: LubecCountersChange | null
 }
 
 /** One Lubec character's sheet, in the v4 frame, on its Core or Skills page. */
-export function LubecSheetView({ character, onCountersChange }: SheetViewProps) {
+export function LubecSheetView({ character, editing, onCountersChange }: SheetViewProps) {
   const [page, setPage] = useState<LubecPage>('core')
+  const [bandOpen, setBandOpen] = useState(false)
   return (
     <article className="lubec-sheet" aria-label={`${lubecCharacterName(character)} character sheet`}>
-      <LubecMasthead character={character} page={page} onPage={setPage} />
+      <LubecMasthead character={character} page={page} onPage={setPage} onEdit={editing ? () => setBandOpen(true) : null} />
+      {editing && bandOpen ? <LubecNameBandEditor character={character} editing={editing} onDone={() => setBandOpen(false)} /> : null}
       {page === 'core' ? <LubecCorePage sheet={character.lubec} onCountersChange={onCountersChange} /> : <LubecSkillsPage />}
     </article>
   )
