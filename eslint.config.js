@@ -72,7 +72,6 @@ export default defineConfig([
       'src/features/notes/NotesTab.tsx',
       'src/features/notes/SessionNoteDetail.tsx',
       'src/features/notes/useSessionNotes.ts',
-      'src/features/npcs/NpcsTab.tsx',
       'src/features/tables/TablesTab.tsx',
       'src/features/tables/useTables.ts',
       'src/features/tokens/TokenIconEditor.tsx',

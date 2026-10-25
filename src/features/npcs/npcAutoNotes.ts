@@ -27,3 +27,6 @@ export function buildAutoNotesForNpc(npcId: string, notes: SessionNote[]): NpcAu
   }
   return result
 }
+
+export const autoNotesForNpc = (npc: { id: string } | null, notes: SessionNote[]): NpcAutoNote[] =>
+  npc ? buildAutoNotesForNpc(npc.id, notes) : []
