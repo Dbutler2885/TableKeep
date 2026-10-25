@@ -1128,7 +1128,7 @@ async function expectLubecCoreValues(page) {
     elements.map((ability) => [
       ability.querySelector('.ability-name').textContent,
       ability.querySelector('.roll-circle').textContent,
-      [...ability.querySelector('.base-note').childNodes].map((node) => (node.nodeName === 'INPUT' ? node.value : node.textContent)).join(''),
+      [...ability.querySelectorAll('.base-note input')].map((input) => input.value).join('') + ability.querySelector('.base-note').textContent,
     ]))
   if (JSON.stringify(rows) !== JSON.stringify(LUBEC_CORE_VALUES)) throw new Error(`The Core page shows ${JSON.stringify(rows)}.`)
 }
