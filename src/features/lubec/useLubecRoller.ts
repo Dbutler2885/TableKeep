@@ -3,7 +3,7 @@ import { rollLubecCheck, type LubecAdvantage } from '../ruleSets/lubec/checkRoll
 import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
 import { cryptoLubecDice, type LubecDice } from '../ruleSets/lubec/dice'
 import { withLubecLastRoll, type LubecLastRoll } from '../ruleSets/lubec/lastRoll'
-import { rollLubecPanic, withLubecPanicEffect } from '../ruleSets/lubec/panicRoll'
+import { rollLubecPanic, withLubecPanicDismissed, withLubecPanicEffect } from '../ruleSets/lubec/panicRoll'
 import { rollLubecRecovery } from '../ruleSets/lubec/recoveryRoll'
 import type { LubecValueName } from '../ruleSets/lubec/sheet'
 
@@ -27,6 +27,8 @@ export type LubecRoller = {
   recover: () => void
   /** Adds the last roll's Panic row as an effect and applies its changes. */
   addPanicEffect: () => void
+  /** Clears the last roll's Panic row without adding it, changing nothing else. */
+  dismissPanicResult: () => void
 }
 
 /** A switch's next value: the one pressed, or `off` when it was already on. */
@@ -60,5 +62,6 @@ export function useLubecRoller(sheet: LubecCharacterSheet, onRolled: LubecRolled
     panic: () => recordRoll(rollLubecPanic(sheet, advantage, dice)),
     recover: () => recordRoll(rollLubecRecovery(sheet, advantage, dice)),
     addPanicEffect: () => record(withLubecPanicEffect(sheet, dice, crypto.randomUUID())),
+    dismissPanicResult: () => record(withLubecPanicDismissed(sheet)),
   }
 }

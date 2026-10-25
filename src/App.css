@@ -17038,9 +17038,17 @@ button:disabled {
   list-style: none;
 }
 
-.shell-root[data-theme="lubec"] .lubec-panic-result > .lubec-panic-add,
-.shell-root[data-theme="lubec"] .lubec-panic-result > .skill-strip-hint {
+.shell-root[data-theme="lubec"] .lubec-panic-result > .lubec-panic-add {
   justify-self: end;
+}
+
+/* The row's bar with the X that dismisses it in the card's top corner, the
+   effect editor's square remove button stretched to the bar's height. */
+.shell-root[data-theme="lubec"] .lubec-panic-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.38rem;
+  align-items: stretch;
 }
 
 .shell-root[data-theme="lubec"] .lubec-tallies {
@@ -18521,8 +18529,7 @@ button:disabled {
 
   .shell-root[data-theme="lubec"] .lubec-core .lubec-effects-body > .skill-strip-hint,
   .shell-root[data-theme="lubec"] .lubec-core .lubec-effects-body > .lubec-effect-add,
-  .shell-root[data-theme="lubec"] .lubec-core .lubec-panic-result > .lubec-panic-add,
-  .shell-root[data-theme="lubec"] .lubec-core .lubec-panic-result > .skill-strip-hint {
+  .shell-root[data-theme="lubec"] .lubec-core .lubec-panic-result > .lubec-panic-add {
     justify-self: start;
   }
 
