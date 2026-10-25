@@ -15416,6 +15416,9 @@ button:disabled {
   --lubec-cream: #fff8e7;
   --lubec-success: #278153;
   --lubec-failure: #ef3f2f;
+  --lubec-modifier: #a85f12;
+  --lubec-gray: #a4a7a1;
+  --lubec-circle: clamp(4.5rem, 9vw, 5.55rem);
   --lubec-mustard: #d69a2d;
   --lubec-pine: #2d5745;
   --lubec-line: rgba(23, 40, 43, 0.36);
@@ -15798,6 +15801,100 @@ button:disabled {
 .shell-root[data-theme="lubec"] .calendar-session-header {
   font-family: var(--lubec-type);
   letter-spacing: 0.1em;
+}
+
+/* --- The combined prototype's buttons and status line ------------------ */
+
+/* Copied from the combined character sheet prototype: square outlined
+   buttons in rust (action) and blue (secondary), the filled blue confirm
+   and class buttons, and the small centred status line under a roll. The
+   filled buttons restate cream on hover, which the prototype leaves to the
+   base rule, because the skin's button:hover would otherwise turn it ink. */
+.shell-root[data-theme="lubec"] .action-button,
+.shell-root[data-theme="lubec"] .secondary-button,
+.shell-root[data-theme="lubec"] .class-select {
+  border-radius: 0;
+  cursor: pointer;
+  font: 800 0.59rem/1 var(--lubec-type);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .action-button,
+.shell-root[data-theme="lubec"] .secondary-button {
+  padding: 0.48rem 0.66rem;
+  color: var(--lubec-rust);
+  background: transparent;
+  border: 1px solid var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .secondary-button {
+  color: var(--lubec-blue);
+  border-color: var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .confirm-button {
+  padding: 0.48rem 0.66rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-blue);
+  border: 1px solid var(--lubec-blue);
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .confirm-button:hover,
+.shell-root[data-theme="lubec"] .confirm-button:focus-visible {
+  color: var(--lubec-cream);
+  background: var(--lubec-success);
+  border-color: var(--lubec-success);
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .action-button:hover,
+.shell-root[data-theme="lubec"] .action-button:focus-visible {
+  color: var(--lubec-cream);
+  background: var(--lubec-rust);
+  outline: 2px solid var(--lubec-blue);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .secondary-button:hover,
+.shell-root[data-theme="lubec"] .secondary-button:focus-visible {
+  color: var(--lubec-cream);
+  background: var(--lubec-blue);
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .class-select {
+  width: 100%;
+  margin-top: auto;
+  padding: 0.7rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-blue);
+  border: 1px solid var(--lubec-blue);
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.shell-root[data-theme="lubec"] .class-select:hover,
+.shell-root[data-theme="lubec"] .class-select:focus-visible {
+  color: var(--lubec-cream);
+  background: var(--lubec-rust);
+  border-color: var(--lubec-rust);
+  outline: 2px solid var(--lubec-blue);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .status {
+  min-height: 1rem;
+  margin: 0.05rem 0 0;
+  color: var(--lubec-muted);
+  font: 700 0.57rem/1.4 var(--lubec-type);
+  letter-spacing: 0.04em;
+  text-align: center;
+  text-transform: uppercase;
 }
 
 /* --- The Lubec sheet ---------------------------------------------------- */
