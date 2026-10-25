@@ -41,8 +41,8 @@ function LubecFinalizeDialog({ character, onFinalize, onCancel }: DialogProps) {
         <LubecNoticeList title="Missing values" notices={holes} />
         <LubecNoticeList title="Import notes" notices={sheet.importNotes} />
         <div className="confirm-actions">
-          <button type="button" onClick={onCancel}>Cancel</button>
-          <button type="button" className="lubec-finalize-confirm" onClick={onFinalize}>Finalize</button>
+          <button type="button" className="secondary-button" onClick={onCancel}>Cancel</button>
+          <button type="button" className="confirm-button" onClick={onFinalize}>Finalize</button>
         </div>
       </div>
     </div>
@@ -54,7 +54,7 @@ export function LubecFinalize({ character, onFinalize }: { character: LubecChara
   const [open, setOpen] = useState(false)
   return (
     <>
-      <button type="button" className="lubec-finalize-btn" onClick={() => setOpen(true)}>Finalize</button>
+      <button type="button" className="confirm-button" onClick={() => setOpen(true)}>Finalize</button>
       {open ? (
         <LubecFinalizeDialog character={character} onFinalize={() => { setOpen(false); onFinalize() }} onCancel={() => setOpen(false)} />
       ) : null}

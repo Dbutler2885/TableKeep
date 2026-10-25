@@ -526,7 +526,7 @@ describe('Lubec counters', () => {
     openSheet('Ada Mitchell')
 
     expect(shownCounters()).toEqual({ stress: '5', minimumStress: '3', trauma: '2' })
-    expect(within(screen.getByRole('region', { name: 'Stress & Trauma' })).queryAllByRole('button')).toEqual([])
+    expect(within(screen.getByRole('region', { name: 'Stress' })).queryAllByRole('button')).toEqual([])
   })
 
   it('never go below 0: minus on a counter at 0 does nothing and writes nothing', () => {
@@ -562,7 +562,7 @@ describe('Lubec counters', () => {
   })
 
   it('call for a Death Save at Trauma 4, or 5 for a Tough, and not below', () => {
-    const reminder = () => screen.queryByText(/^Death Save/)?.textContent
+    const reminder = () => document.querySelector('.lubec-death-save p')?.textContent
     seed({
       tommy: withSheet({ counters: { trauma: 3 } }),
       tough: tommyEves({ name: 'Wayne Gardner', lubec: { ...(tommyEves().lubec as Fields), class: { key: 'tough' }, counters: { trauma: 4 } } }),
@@ -572,13 +572,13 @@ describe('Lubec counters', () => {
     openSheet('Tommy Eves')
     expect(reminder()).toBeUndefined()
     press('Raise Trauma')
-    expect(reminder()).toBe('Death Save: Trauma has reached 4.')
+    expect(reminder()).toBe('Trauma has reached 4.')
 
     press('Back to character list')
     openSheet('Wayne Gardner')
     expect(reminder()).toBeUndefined()
     press('Raise Trauma')
-    expect(reminder()).toBe('Death Save: Trauma has reached 5.')
+    expect(reminder()).toBe('Trauma has reached 5.')
   })
 
   it('call for no Death Save while the class is missing', () => {
@@ -587,7 +587,7 @@ describe('Lubec counters', () => {
     openSheet('Tommy Eves')
 
     expect(counterValue('Trauma')).toBe('9')
-    expect(screen.queryByText(/^Death Save/)).toBeNull()
+    expect(document.querySelector('.lubec-death-save')).toBeNull()
   })
 })
 
@@ -1979,7 +1979,7 @@ describe('Lubec roller', () => {
     expect(shownStatus()).toBe('Fear (Advantage, 12 and 44): 12 vs 34 - success.')
     expect(screen.queryByLabelText('Arm a skill')).toBeNull()
     expect(screen.queryByText('Show skill tree')).toBeNull()
-    expect([...document.querySelectorAll('button.roll-circle')].map((circle) => (circle as HTMLButtonElement).disabled)).toEqual(Array(8).fill(true))
+    expect([...document.querySelectorAll('button.roll-circle')].map((circle) => (circle as HTMLButtonElement).disabled)).toEqual(Array(10).fill(true))
     expect(valuesOf('Fear')).toEqual(['12/34', '24 +10 class'])
     expect(circleOf('Fear').className).toBe('roll-circle has-value check-success')
     await flushSave()
@@ -2008,6 +2008,9 @@ describe('Lubec Panic Check and Recovery Save', () => {
   const seedFace = (sides: number, face: number) => seedRolls((face * 100) / sides)
 
   const panicButton = () => screen.getByLabelText(/^Panic Check over Stress/, { selector: 'button' }) as HTMLButtonElement
+
+  /** The Panic Check's circle, whatever it shows. */
+  const panicCircle = () => circleOf('Panic Check')
 
   const recoveryButton = () => screen.getByLabelText(/^Recovery Save/, { selector: 'button' }) as HTMLButtonElement
 
@@ -2040,12 +2043,14 @@ describe('Lubec Panic Check and Recovery Save', () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
-    expect(panicButton().textContent).toBe('Panic Check over 2')
+    expect(panicButton().textContent).toBe('2')
 
     seedFace(20, 3)
     fireEvent.click(panicButton())
 
     expect(shownStatus()).toBe('Panic Check: 3 vs Stress 2 - success.')
+    expect(panicCircle().textContent).toBe('3/2')
+    expect(panicCircle().className).toBe('roll-circle has-value check-success')
     expect(panicResult()).toBeNull()
     expect(shownCounters().stress).toBe('2')
     await flushSave()
@@ -2136,6 +2141,32 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect(writtenSheet().effects).toEqual([])
   })
 
+  it('spins a d20 on the Panic circle before it lands, where motion is allowed, and clears it with a tap', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
+    seed({ tommy: stressed(5) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    seedFace(20, 4)
+    fireEvent.click(panicButton())
+
+    expect(panicCircle().className).toBe('roll-circle rolling')
+    expect(Number(panicCircle().textContent?.split('/')[0])).toBeLessThanOrEqual(20)
+    expect(panicCircle().textContent).toMatch(/\/5$/)
+    expect(shownStatus()).toBe('Rolling Panic Check...')
+    expect([...document.querySelectorAll('button.roll-circle')].every((circle) => (circle as HTMLButtonElement).disabled)).toBe(true)
+    for (let step = 0; step < 12; step += 1) act(() => vi.advanceTimersByTime(500))
+
+    expect(panicCircle().textContent).toBe('4/5')
+    expect(panicCircle().className).toBe('roll-circle has-value check-failure')
+    expect(shownPanicResult()[0]).toBe('04 OVERWHEMED')
+
+    fireEvent.click(panicCircle())
+    expect(panicCircle().textContent).toBe('5')
+    expect(shownStatus()).toBe('Panic Check cleared. Score unchanged.')
+    expect(shownPanicResult()[0]).toBe('04 OVERWHEMED')
+  })
+
   it('keeps the higher d20 under Advantage', () => {
     seed({ tommy: stressed(5) })
     mountTab('player', 'player-1')
@@ -2158,8 +2189,13 @@ describe('Lubec Panic Check and Recovery Save', () => {
     seedRolls(23)
     fireEvent.click(recoveryButton())
     expect(shownStatus()).toBe('Recovery Save on Sanity: 23 vs 30 - success, -3 Stress.')
+    expect(recoveryButton().textContent).toBe('23/30')
+    expect(recoveryButton().className).toBe('roll-circle has-value check-success')
     expect(shownCounters().stress).toBe('6')
 
+    fireEvent.click(recoveryButton())
+    expect(shownStatus()).toBe('Recovery Save cleared. Score unchanged.')
+    expect(recoveryButton().textContent).toBe('30')
     seedRolls(27)
     fireEvent.click(recoveryButton())
     expect(shownStatus()).toMatch(/ - success, -4 Stress\.$/)
@@ -2222,14 +2258,16 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect(shownCounters().stress).toBe('2')
   })
 
-  it('shows a player someone else\'s Panic row with no Panic, Recovery or "Add effect" buttons', () => {
+  it('shows a player someone else\'s Panic roll and row, with the Panic and Recovery circles shut and no "Add effect"', () => {
     const lastRoll = { kind: 'panic', target: 6, dice: [2], result: 2, advantage: 'normal', outcome: 'failure', stressAdded: 0, effectRolls: null }
     seed({ tommy: withSheet({ lastRoll }) })
     mountTab('player', 'player-2')
     openSheet('Tommy Eves')
 
     expect(shownPanicResult()).toEqual(['02 NERVOUS', 'Gain 1 Stress.', 'Increase Stress by 1'])
-    expect(screen.queryByLabelText('Panic and Recovery')).toBeNull()
+    expect(panicCircle().textContent).toBe('2/6')
+    expect(panicCircle().className).toBe('roll-circle has-value check-failure')
+    expect([panicCircle().disabled, recoveryButton().disabled]).toEqual([true, true])
   })
 
   it('lowers the Fight panel\'s Effective Handle by both Handle effects, capped at 100 and floored at 0, and restores it when one is removed', async () => {
@@ -2267,7 +2305,9 @@ const tommyBase = (tommyEves().lubec as Fields).base as Fields
 
 const finalizeButton = () => screen.queryByText('Finalize', { selector: '.lubec-draft-bar button' })
 
-const correctSwitch = () => screen.queryByLabelText('Correct') as HTMLInputElement | null
+const correctSwitch = () => screen.queryByRole('switch', { name: 'Correct' })
+
+const correcting = () => correctSwitch()?.getAttribute('aria-checked')
 
 function openFinalize() {
   fireEvent.click(finalizeButton() as HTMLElement)
@@ -2408,11 +2448,12 @@ describe('Finalize, locked values and the Correct switch', () => {
     seed({ tommy: withSheet({ class: { key: null, choices: {} }, base: { ...tommyBase, Handle: null } }) })
     mountTab('gm', GM)
     openSheet('Tommy Eves')
-    expect(correctSwitch()?.checked).toBe(false)
+    expect(correcting()).toBe('false')
     expect(screen.queryByLabelText('Handle base')).toBeNull()
 
-    fireEvent.click(correctSwitch() as HTMLInputElement)
+    fireEvent.click(correctSwitch() as HTMLElement)
     await settleSaves()
+    expect(correcting()).toBe('true')
     expect(mocks.setDoc).not.toHaveBeenCalled()
 
     typeBase('Handle', '50')
@@ -2427,12 +2468,12 @@ describe('Finalize, locked values and the Correct switch', () => {
       lubec: { class: { key: 'working' }, base: { Handle: 50, Strength: 30 }, skills: { picked: ['Diving'] } },
     })
 
-    fireEvent.click(correctSwitch() as HTMLInputElement)
+    fireEvent.click(correctSwitch() as HTMLElement)
     expect(choosableDots()).toEqual([])
 
     reload('gm', GM)
     openSheet('Tommy Eves')
-    expect(correctSwitch()?.checked).toBe(false)
+    expect(correcting()).toBe('false')
     expect(screen.queryByLabelText('Handle base')).toBeNull()
     expect(valuesOf('Handle')).toEqual(['55', '50 +5 class'])
   })
@@ -2826,7 +2867,7 @@ describe('Guided roll-up', () => {
     expect(document.querySelector('.decision-tray, .class-grid, .class-lock')).toBeNull()
     expect(screen.queryByLabelText('Strength base')).toBeNull()
 
-    fireEvent.click(correctSwitch() as HTMLInputElement)
+    fireEvent.click(correctSwitch() as HTMLElement)
     typeBase('Strength', '50')
     await settleSaves()
 

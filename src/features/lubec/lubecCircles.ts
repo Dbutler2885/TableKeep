@@ -2,8 +2,8 @@ import {
   describeLubecCheckOutcome,
   describeLubecOutcome,
   lubecAdvantageName,
+  isLubecCritical,
   lubecCheckTarget,
-  type LubecCheckRoll,
 } from '../ruleSets/lubec/checkRoll'
 import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
 import { lubecCurrentValue, lubecFinalValue, type LubecModifier } from '../ruleSets/lubec/derivations'
@@ -11,20 +11,36 @@ import type { LubecLastRoll } from '../ruleSets/lubec/lastRoll'
 import type { LubecValueName } from '../ruleSets/lubec/sheet'
 
 // What each roll circle on the Core page shows, as the combined prototype
-// draws it: the value rolled under, a check spinning, or the check's result
+// draws it: the value rolled under, a roll spinning, or the roll's result
 // as "roll/target", with the base and its class modifier in a note below.
+// The Panic Check and the Recovery Save have a circle each, built the same way.
 
-/** A check being rolled on one circle: the target and the number it shows while it spins. */
-export type LubecSpin = { name: LubecValueName; target: number; preview: number; step: number }
+/** A Stat or Save's own circle, or the Panic Check's or the Recovery Save's. */
+export type LubecCircleName = LubecValueName | 'Panic' | 'Recovery'
+
+/** The circle a roll shows its result on. */
+export const lubecRollCircle = (roll: LubecLastRoll): LubecCircleName =>
+  (roll.kind === 'panic' ? 'Panic' : roll.kind === 'recovery' ? 'Recovery' : roll.against)
+
+/** A roll spinning on one circle: the target, the die it rolls, and the number it shows while it spins. */
+export type LubecSpin = { name: LubecCircleName; target: number; sides: number; preview: number; step: number }
 
 export type LubecCircleFace =
   | { kind: 'missing' }
   /** `armed` when the value includes an armed skill's bonus. */
   | { kind: 'value'; value: number; armed: boolean }
   | { kind: 'rolling'; preview: number; target: number }
-  | { kind: 'result'; roll: LubecCheckRoll }
+  | { kind: 'result'; roll: LubecLastRoll }
 
-export type LubecCircleState = { armed: string | null; result: LubecCheckRoll | null; spin: LubecSpin | null }
+export type LubecCircleState = { armed: string | null; result: LubecLastRoll | null; spin: LubecSpin | null }
+
+/** A double on a Stat Check or Save; the Panic Check and the Recovery Save have none. */
+export const isLubecDoubleRoll = (roll: LubecLastRoll): boolean =>
+  roll.kind !== 'panic' && roll.kind !== 'recovery' && isLubecCritical(roll)
+
+/** The skill a Stat Check or Save was rolled with. */
+export const lubecRolledSkill = (roll: LubecLastRoll): string | null =>
+  (roll.kind === 'panic' || roll.kind === 'recovery' ? null : roll.skill)
 
 type ValueRequest = { sheet: LubecCharacterSheet; name: LubecValueName; modifiers: readonly LubecModifier[] }
 
@@ -36,11 +52,18 @@ function lubecValueFace({ sheet, name, modifiers }: ValueRequest, armed: string 
   return { kind: 'value', value: target, armed: target !== current }
 }
 
-export function lubecCircleFace(request: ValueRequest, state: LubecCircleState): LubecCircleFace {
-  if (state.spin?.name === request.name) return { kind: 'rolling', preview: state.spin.preview, target: state.spin.target }
-  if (state.result) return { kind: 'result', roll: state.result }
-  return lubecValueFace(request, state.armed)
+// A roll spinning on the circle, or the result it shows; null while it shows its value.
+function shownFace(name: LubecCircleName, { spin, result }: LubecCircleState): LubecCircleFace | null {
+  if (spin?.name === name) return { kind: 'rolling', preview: spin.preview, target: spin.target }
+  return result ? { kind: 'result', roll: result } : null
 }
+
+export const lubecCircleFace = (request: ValueRequest, state: LubecCircleState): LubecCircleFace =>
+  shownFace(request.name, state) ?? lubecValueFace(request, state.armed)
+
+/** The Panic Check's or the Recovery Save's circle: what it rolls against, or a hole. */
+export const lubecTallyFace = (name: 'Panic' | 'Recovery', target: number | null, state: LubecCircleState): LubecCircleFace =>
+  shownFace(name, state) ?? (target === null ? { kind: 'missing' } : { kind: 'value', value: target, armed: false })
 
 const signed = (amount: number): string => `${amount > 0 ? '+' : ''}${amount}`
 
@@ -95,10 +118,14 @@ export function lubecRollStatus(roll: LubecLastRoll): string {
   return `${what}${advantageNote(roll)}: ${roll.result} vs ${target} - ${lowerFirst(outcome)}.`
 }
 
-/** The status line: a check spinning, a check whose result was cleared, or the last roll of any kind. */
-export function lubecCirclesStatus(spin: LubecSpin | null, cleared: LubecCheckRoll | null, roll: LubecLastRoll | null): string {
-  if (spin) return `Rolling ${spin.name} check...`
-  if (cleared) return `${cleared.against} check cleared. Score unchanged.`
+// "Handle check", "Panic Check", "Recovery Save".
+const circleRollName = (name: LubecCircleName): string =>
+  (name === 'Panic' ? 'Panic Check' : name === 'Recovery' ? 'Recovery Save' : `${name} check`)
+
+/** The status line: a roll spinning, a roll whose result was cleared, or the last roll of any kind. */
+export function lubecCirclesStatus(spin: LubecSpin | null, cleared: LubecLastRoll | null, roll: LubecLastRoll | null): string {
+  if (spin) return `Rolling ${circleRollName(spin.name)}...`
+  if (cleared) return `${circleRollName(lubecRollCircle(cleared))} cleared. Score unchanged.`
   return roll ? lubecRollStatus(roll) : ''
 }
 

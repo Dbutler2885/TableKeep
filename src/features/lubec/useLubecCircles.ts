@@ -1,93 +1,104 @@
 import { useEffect, useState } from 'react'
-import { lubecCheckTarget, readLubecCheckRoll, type LubecCheckRoll } from '../ruleSets/lubec/checkRoll'
+import { lubecCheckTarget } from '../ruleSets/lubec/checkRoll'
 import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
-import { readLubecLastRoll } from '../ruleSets/lubec/lastRoll'
-import type { LubecValueName } from '../ruleSets/lubec/sheet'
-import { LUBEC_SPIN_STEPS, lubecCirclesStatus, lubecSpinDelay, type LubecSpin } from './lubecCircles'
+import { readLubecLastRoll, type LubecLastRoll } from '../ruleSets/lubec/lastRoll'
+import { lubecLowestSave } from '../ruleSets/lubec/recoveryRoll'
+import { LUBEC_SPIN_STEPS, lubecCirclesStatus, lubecRollCircle, lubecSpinDelay, type LubecCircleName, type LubecSpin } from './lubecCircles'
 import type { LubecRoller } from './useLubecRoller'
 
 export type LubecCircles = {
-  /** The check whose result a circle shows: the last roll, when it was against that value and is not cleared. */
-  result: (name: LubecValueName) => LubecCheckRoll | null
+  /** The roll whose result a circle shows: the last roll, when it was on that circle and is not cleared. */
+  result: (name: LubecCircleName) => LubecLastRoll | null
   spin: LubecSpin | null
   status: string
-  /** Rolls the value, or clears the result the circle shows. */
-  click: (name: LubecValueName) => void
+  /** Rolls on the circle, or clears the result it shows. */
+  click: (name: LubecCircleName) => void
 }
 
 // A spinning number is only for show; the roll itself is made and recorded on the click.
-const randomPreview = (): number => Math.floor(Math.random() * 100) + 1
+const randomPreview = (sides: number): number => Math.floor(Math.random() * sides) + 1
 
 /** Whether the viewer allows motion: the circles spin and the sheet scrolls smoothly only then. */
 export const lubecMotionAllowed = (): boolean =>
   typeof window.matchMedia === 'function' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-const rollKey = (roll: LubecCheckRoll): string => JSON.stringify(roll)
+const rollKey = (roll: LubecLastRoll): string => JSON.stringify(roll)
+
+/** What a click on a circle rolls: its target, the die, and the roll itself. */
+type LubecCircleRoll = { target: number | null; sides: number; roll: () => void }
 
 function useLubecSpin() {
   const [spin, setSpin] = useState<LubecSpin | null>(null)
   useEffect(() => {
     if (!spin) return
-    const next = spin.step + 1 < LUBEC_SPIN_STEPS ? { ...spin, step: spin.step + 1, preview: randomPreview() } : null
+    const next = spin.step + 1 < LUBEC_SPIN_STEPS ? { ...spin, step: spin.step + 1, preview: randomPreview(spin.sides) } : null
     const timer = setTimeout(() => setSpin(next), lubecSpinDelay(spin.step))
     return () => clearTimeout(timer)
   }, [spin])
-  const start = (name: LubecValueName, target: number | null) => {
-    if (target !== null && lubecMotionAllowed()) setSpin({ name, target, preview: randomPreview(), step: 0 })
+  const start = (name: LubecCircleName, { target, sides }: LubecCircleRoll) => {
+    if (target !== null && lubecMotionAllowed()) setSpin({ name, target, sides, preview: randomPreview(sides), step: 0 })
   }
   return { spin, start }
 }
 
 type LubecSpinner = ReturnType<typeof useLubecSpin>
 
-/** The last check, the one still shown on its circle unless it was clicked away, and whether it was. */
-type LubecLastCheck = {
-  check: LubecCheckRoll | null
-  shown: LubecCheckRoll | null
+/** The last roll, the one still shown on its circle unless it was clicked away, and whether it was. */
+type LubecLastShown = {
+  roll: LubecLastRoll | null
+  shown: LubecLastRoll | null
   cleared: boolean
   clear: () => void
   reset: () => void
 }
 
-function useLubecLastCheck(sheet: LubecCharacterSheet): LubecLastCheck {
+function useLubecLastShown(sheet: LubecCharacterSheet): LubecLastShown {
   const [clearedKey, setClearedKey] = useState<string | null>(null)
-  const check = readLubecCheckRoll(sheet.lastRoll)
-  const shown = check && rollKey(check) !== clearedKey ? check : null
+  const roll = readLubecLastRoll(sheet.lastRoll)
+  const shown = roll && rollKey(roll) !== clearedKey ? roll : null
   return {
-    check,
+    roll,
     shown,
-    cleared: check !== null && shown === null,
-    clear: () => setClearedKey(check && rollKey(check)),
+    cleared: roll !== null && shown === null,
+    clear: () => setClearedKey(roll && rollKey(roll)),
     reset: () => setClearedKey(null),
   }
 }
 
-const shownOn = (last: LubecLastCheck, name: LubecValueName): LubecCheckRoll | null =>
-  (last.shown?.against === name ? last.shown : null)
+const shownOn = (last: LubecLastShown, name: LubecCircleName): LubecLastRoll | null =>
+  (last.shown && lubecRollCircle(last.shown) === name ? last.shown : null)
 
-type CircleClick = { sheet: LubecCharacterSheet; roller: LubecRoller | null; last: LubecLastCheck; spinner: LubecSpinner }
+// The Panic Check rolls a d20 over Stress, the Recovery Save a d100 under the lowest Save, and a Stat or Save a d100 under itself.
+function circleRoll(sheet: LubecCharacterSheet, roller: LubecRoller, name: LubecCircleName): LubecCircleRoll {
+  if (name === 'Panic') return { target: sheet.counters.stress, sides: 20, roll: roller.panic }
+  if (name === 'Recovery') return { target: lubecLowestSave(sheet)?.value ?? null, sides: 100, roll: roller.recover }
+  return { target: lubecCheckTarget(sheet, name, roller.armed), sides: 100, roll: () => roller.roll(name) }
+}
 
-// A shown result is cleared; otherwise the value is rolled, if the viewer may roll.
-function clickLubecCircle({ sheet, roller, last, spinner }: CircleClick, name: LubecValueName) {
+type CircleClick = { sheet: LubecCharacterSheet; roller: LubecRoller | null; last: LubecLastShown; spinner: LubecSpinner }
+
+// A shown result is cleared; otherwise the circle is rolled, if the viewer may roll.
+function clickLubecCircle({ sheet, roller, last, spinner }: CircleClick, name: LubecCircleName) {
   if (shownOn(last, name)) return last.clear()
   if (!roller) return
+  const roll = circleRoll(sheet, roller, name)
   last.reset()
-  spinner.start(name, lubecCheckTarget(sheet, name, roller.armed))
-  roller.roll(name)
+  spinner.start(name, roll)
+  roll.roll()
 }
 
 /**
- * The roll circles' shared state: the last check shown on its own circle until
+ * The roll circles' shared state: the last roll shown on its own circle until
  * it is clicked away, the prototype's spin before a new result shows, and the
  * status line under the circles. Clearing a result changes nothing stored.
  */
 export function useLubecCircles(sheet: LubecCharacterSheet, roller: LubecRoller | null): LubecCircles {
   const spinner = useLubecSpin()
-  const last = useLubecLastCheck(sheet)
+  const last = useLubecLastShown(sheet)
   return {
     result: (name) => shownOn(last, name),
     spin: spinner.spin,
-    status: lubecCirclesStatus(spinner.spin, last.cleared ? last.check : null, readLubecLastRoll(sheet.lastRoll)),
+    status: lubecCirclesStatus(spinner.spin, last.cleared ? last.roll : null, last.roll),
     click: (name) => clickLubecCircle({ sheet, roller, last, spinner }, name),
   }
 }

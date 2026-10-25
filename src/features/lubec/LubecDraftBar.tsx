@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Trash2 } from 'lucide-react'
 import { ConfirmModal } from '../common/ConfirmModal'
 import type { LubecCharacterRecord, LubecDoor } from '../ruleSets/lubec/characterRecord'
 import { LubecFinalize } from './LubecFinalize'
@@ -23,9 +22,7 @@ function LubecDeleteDraft({ character, onDelete }: { character: LubecCharacterRe
   const [confirming, setConfirming] = useState(false)
   return (
     <>
-      <button type="button" className="lubec-delete-draft" onClick={() => setConfirming(true)}>
-        <Trash2 size={14} aria-hidden="true" /> Delete draft
-      </button>
+      <button type="button" className="action-button" onClick={() => setConfirming(true)}>Delete draft</button>
       <ConfirmModal
         open={confirming}
         title="Delete draft"
@@ -38,18 +35,19 @@ function LubecDeleteDraft({ character, onDelete }: { character: LubecCharacterRe
   )
 }
 
-/** A character in creation: which door made it, and finalizing or deleting the draft for those who may. */
+/**
+ * A character in creation: which door made it, in the prototype's phase chip,
+ * then the decision tray's buttons to delete or finalize the draft for those who may.
+ */
 export function LubecDraftBar({ character, onDelete, onFinalize }: DraftBarProps) {
   const door = character.lubec.door
   return (
     <div className="lubec-draft-bar">
-      <p className="lubec-draft-status">
+      <p className="phase-chip">
         In creation{door ? <> &middot; {LUBEC_DOOR_NAMES[door]}</> : null}
       </p>
-      <div className="lubec-draft-actions">
-        {onDelete ? <LubecDeleteDraft character={character} onDelete={onDelete} /> : null}
-        {onFinalize ? <LubecFinalize character={character} onFinalize={onFinalize} /> : null}
-      </div>
+      {onDelete ? <LubecDeleteDraft character={character} onDelete={onDelete} /> : null}
+      {onFinalize ? <LubecFinalize character={character} onFinalize={onFinalize} /> : null}
     </div>
   )
 }
