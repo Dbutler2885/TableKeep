@@ -7,7 +7,8 @@ import { lubecSkillBonus } from '../ruleSets/lubec/skills'
 import { LubecBaseInput } from './LubecBaseInput'
 import { lubecBaseNote, lubecCircleFace, lubecNoteParts, type LubecCircleFace } from './lubecCircles'
 import { LubecMissing } from './LubecMissing'
-import { LubecSaveRolls } from './LubecPanicRolls'
+import { LubecPanicResult, LubecSaveRolls } from './LubecPanicRolls'
+import { LubecSkillStrip } from './LubecSkillStrip'
 import { useLubecCircles, type LubecCircles } from './useLubecCircles'
 import type { LubecRoller } from './useLubecRoller'
 
@@ -134,19 +135,22 @@ function LubecAbilitySection({ title, formula, names, ...values }: SectionProps)
 
 /**
  * The combined prototype's Stats and Saves: a roll circle for each, showing
- * the current value with the base and its class modifier under it. Clicking a
- * circle rolls a check on it and the result shows on the circle until it is
- * clicked away; the status line under them says what happened. The Panic
- * Check and the Recovery Save stay a little apart below that.
+ * the current value with the base and its class modifier under it, and the
+ * skills to add to a roll under them. Clicking a circle rolls a check on it and
+ * the result shows on the circle until it is clicked away; the status line
+ * under them says what happened, whatever was rolled. The Panic Check and the
+ * Recovery Save stay a little apart below that, with a failed Panic Check's row.
  */
-export function LubecAbilities(values: ValuesProps) {
+export function LubecAbilities({ onShowTree, ...values }: ValuesProps & { onShowTree: () => void }) {
   const circles = useLubecCircles(values.sheet, values.roller)
   return (
     <div className="abilities">
       <LubecAbilitySection title="Stats" formula="Array + D10 each" names={LUBEC_STATS} circles={circles} {...values} />
       <LubecAbilitySection title="Saves" formula="2D10 + 10" names={LUBEC_SAVES} circles={circles} {...values} />
+      {values.roller ? <LubecSkillStrip sheet={values.sheet} roller={values.roller} onShowTree={onShowTree} /> : null}
       <p className="status" role="status" aria-live="polite">{circles.status}</p>
       {values.roller ? <LubecSaveRolls sheet={values.sheet} roller={values.roller} /> : null}
+      <LubecPanicResult sheet={values.sheet} roller={values.roller} />
     </div>
   )
 }

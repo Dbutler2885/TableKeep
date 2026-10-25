@@ -1,5 +1,6 @@
 import { Pencil } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { lubecClass } from '../ruleSets/lubec/classes'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import type { LubecSheetEdit } from '../ruleSets/lubec/directEntry'
@@ -12,6 +13,7 @@ import { LubecMissing } from './LubecMissing'
 import { LubecNameBandEditor, type LubecSheetEditing } from './LubecNameBandEditor'
 import { LubecSkillsPage } from './LubecSkillsPage'
 import { lubecCharacterName } from './lubecNames'
+import { lubecMotionAllowed } from './useLubecCircles'
 import lubecPines from './lubecPines.svg'
 
 type LubecPage = 'core' | 'skills'
@@ -140,13 +142,16 @@ type LockedEdits = Pick<SheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
 const lockedEdits = (correcting: boolean, corrections: LubecCorrections | null, edits: LockedEdits): LockedEdits =>
   correcting && corrections ? corrections : edits
 
-type SheetPageProps = LockedEdits & Pick<SheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp'> & { page: LubecPage }
+type SheetPageProps = LockedEdits & Pick<SheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp'> & {
+  page: LubecPage
+  onShowTree: () => void
+}
 
 // Only a guided character still in creation is rolled up; once finalized its values are like any other's.
 const guidedOf = (character: LubecCharacterRecord, onRollUp: LubecSheetEdit | null): LubecGuided | null =>
   (character.lubec.door === 'guided' && character.creationStatus !== 'active' ? { onRollUp } : null)
 
-function LubecSheetPage({ page, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp }: SheetPageProps) {
+function LubecSheetPage({ page, onShowTree, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp }: SheetPageProps) {
   if (page === 'skills') return <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} />
   return (
     <LubecCorePage
@@ -156,8 +161,15 @@ function LubecSheetPage({ page, character, editing, onCountersChange, onDraftEdi
       onDraftEdit={onDraftEdit}
       onRolled={editing ? (lubec) => editing.update({ lubec }) : null}
       guided={guidedOf(character, onRollUp)}
+      onShowTree={onShowTree}
     />
   )
+}
+
+// "Show skill tree" opens the Skills page and brings it into view, as the prototype scrolls to its tree.
+function showLubecTree(sheet: HTMLElement | null, onPage: (page: LubecPage) => void) {
+  flushSync(() => onPage('skills'))
+  sheet?.querySelector('.lubec-page')?.scrollIntoView({ behavior: lubecMotionAllowed() ? 'smooth' : 'auto', block: 'start' })
 }
 
 /** One Lubec character's sheet, in the v4 frame, on its Core or Skills page. */
@@ -165,8 +177,9 @@ export function LubecSheetView({ character, editing, onCountersChange, onDelete,
   const [page, setPage] = useState<LubecPage>('core')
   const [bandOpen, setBandOpen] = useState(false)
   const [correcting, setCorrecting] = useState(false)
+  const sheetRef = useRef<HTMLElement>(null)
   return (
-    <article className="lubec-sheet" aria-label={`${lubecCharacterName(character)} character sheet`}>
+    <article ref={sheetRef} className="lubec-sheet" aria-label={`${lubecCharacterName(character)} character sheet`}>
       <LubecMasthead character={character} page={page} onPage={setPage} onEdit={editing ? () => setBandOpen(true) : null} />
       {editing && bandOpen ? <LubecNameBandEditor character={character} editing={editing} onDone={() => setBandOpen(false)} /> : null}
       <LubecStageBar
@@ -178,6 +191,7 @@ export function LubecSheetView({ character, editing, onCountersChange, onDelete,
       />
       <LubecSheetPage
         page={page}
+        onShowTree={() => showLubecTree(sheetRef.current, setPage)}
         character={character}
         editing={editing}
         onCountersChange={onCountersChange}

@@ -16514,6 +16514,100 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+/* The prototype's skills strip: settled skills sit under Stats and Saves,
+   ready to add to the next roll, with the hint line, "Show skill tree" and,
+   from the grilling decisions, the Advantage switch as its blue buttons. */
+.shell-root[data-theme="lubec"] .skill-strip-body {
+  display: grid;
+  gap: 0.55rem;
+  justify-items: end;
+  min-width: 0;
+}
+
+.shell-root[data-theme="lubec"] .skill-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+
+.shell-root[data-theme="lubec"] .skill-chip {
+  display: inline-flex;
+  gap: 0.45rem;
+  align-items: baseline;
+  padding: 0.42rem 0.55rem;
+  color: var(--lubec-ink);
+  background: rgba(255, 255, 255, 0.32);
+  border: 2px solid var(--lubec-ink);
+  border-radius: 0;
+  cursor: pointer;
+  font: 800 0.78rem/1 var(--lubec-display);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .skill-chip b {
+  color: var(--lubec-modifier);
+  font: 800 0.7rem/1 var(--lubec-type);
+  letter-spacing: 0;
+}
+
+.shell-root[data-theme="lubec"] .skill-chip.expert b {
+  color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .skill-chip:hover,
+.shell-root[data-theme="lubec"] .skill-chip:focus-visible {
+  color: var(--lubec-cream);
+  background: var(--lubec-blue-alt);
+  border-color: var(--lubec-blue);
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .skill-chip:hover b,
+.shell-root[data-theme="lubec"] .skill-chip:focus-visible b,
+.shell-root[data-theme="lubec"] .skill-chip[aria-pressed="true"] b {
+  color: #f6cc72;
+}
+
+.shell-root[data-theme="lubec"] .skill-chip[aria-pressed="true"] {
+  color: var(--lubec-cream);
+  background: var(--lubec-rust);
+  border-color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .skill-strip-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.8rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.shell-root[data-theme="lubec"] .skill-strip-hint {
+  margin: 0;
+  color: var(--lubec-muted);
+  font: 700 0.57rem/1.4 var(--lubec-type);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .skill-strip-hint.armed {
+  color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-advantage {
+  display: flex;
+  gap: 0.3rem;
+  margin-right: auto;
+}
+
+.shell-root[data-theme="lubec"] .lubec-advantage .secondary-button[aria-pressed="true"] {
+  color: var(--lubec-cream);
+  background: var(--lubec-blue);
+}
+
 /* A draft's base, typed into the note in place of the number. */
 .shell-root[data-theme="lubec"] .base-note .lubec-base-input {
   width: 2.8rem;
@@ -16584,6 +16678,15 @@ button:disabled {
 
   .shell-root[data-theme="lubec"] .base-note {
     overflow-wrap: anywhere;
+  }
+
+  .shell-root[data-theme="lubec"] .skill-strip-body {
+    justify-items: stretch;
+  }
+
+  .shell-root[data-theme="lubec"] .skill-chips,
+  .shell-root[data-theme="lubec"] .skill-strip-footer {
+    justify-content: flex-start;
   }
 
   /* Table Keep's frame leaves the grid a little narrower than the
@@ -16685,114 +16788,6 @@ button:disabled {
   letter-spacing: 0.04em;
 }
 
-/* The roller: the Advantage switch, the skills to arm and the last roll in the Roll panel. */
-.shell-root[data-theme="lubec"] .lubec-roll-switch {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 0 0.6rem;
-  border: 2px solid var(--lubec-ink);
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-switch button,
-.shell-root[data-theme="lubec"] .lubec-roll-skills button {
-  min-height: 2.25rem;
-  padding: 0.3rem 0.45rem 0.2rem;
-  background: var(--lubec-cream);
-  border: 0;
-  border-radius: 0;
-  color: var(--lubec-ink);
-  font: 700 0.85rem/1.1 var(--lubec-condensed);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-switch button + button {
-  border-left: 2px solid var(--lubec-ink);
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-switch button[aria-pressed="true"],
-.shell-root[data-theme="lubec"] .lubec-roll-skills button[aria-pressed="true"] {
-  background: var(--lubec-blue);
-  color: var(--lubec-cream);
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-skills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin: 0.6rem 0.6rem 0;
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-skills button {
-  border: 1.5px solid var(--lubec-ink);
-  text-transform: none;
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-skills button:hover:not(:disabled):not([aria-pressed="true"]) {
-  background: var(--lubec-paper-deep);
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-skills button:disabled {
-  border-style: dashed;
-  border-color: var(--lubec-line);
-  color: var(--lubec-muted);
-  cursor: not-allowed;
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-hint {
-  margin: 0.35rem 0.7rem 0;
-  color: var(--lubec-muted);
-  font: 700 0.8rem/1.3 var(--lubec-type);
-}
-
-.shell-root[data-theme="lubec"] .lubec-last-roll {
-  display: grid;
-  gap: 0.15rem;
-  margin: 0.6rem 0.6rem 0;
-  padding: 0.45rem 0.6rem;
-  background: var(--lubec-cream);
-  border: 1.5px solid var(--lubec-ink);
-  border-left-width: 6px;
-  font: 700 0.9rem/1.25 var(--lubec-type);
-  overflow-wrap: anywhere;
-}
-
-.shell-root[data-theme="lubec"] .lubec-last-roll.success {
-  border-left-color: var(--lubec-success);
-}
-
-.shell-root[data-theme="lubec"] .lubec-last-roll.failure {
-  border-left-color: var(--lubec-failure);
-}
-
-.shell-root[data-theme="lubec"] .lubec-last-roll-what {
-  font: 700 1.05rem/1.1 var(--lubec-condensed);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.shell-root[data-theme="lubec"] .lubec-last-roll-dice {
-  font-variant-numeric: tabular-nums;
-}
-
-.shell-root[data-theme="lubec"] .lubec-last-roll.success .lubec-last-roll-outcome {
-  color: var(--lubec-success);
-}
-
-.shell-root[data-theme="lubec"] .lubec-last-roll.failure .lubec-last-roll-outcome {
-  color: var(--lubec-rust);
-}
-
-.shell-root[data-theme="lubec"] .lubec-last-roll-outcome.critical {
-  font: 800 1.1rem/1.1 var(--lubec-display);
-  letter-spacing: 0.02em;
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-none {
-  color: var(--lubec-muted);
-}
-
 /* The Panic Check and the Recovery Save, set a little apart below the Saves. */
 .shell-root[data-theme="lubec"] .lubec-save-rolls {
   display: grid;
@@ -16844,7 +16839,7 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* A failed Panic Check's row under the last roll, with its changes and "Add effect". */
+/* A failed Panic Check's row under the Panic Check, with its changes and "Add effect". */
 .shell-root[data-theme="lubec"] .lubec-panic-result {
   display: grid;
   gap: 0.3rem;

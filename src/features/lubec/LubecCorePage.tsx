@@ -8,7 +8,6 @@ import { LubecCountersPanel, type LubecCountersChange } from './LubecCountersPan
 import { LubecEffectsPanel } from './LubecEffectsPanel'
 import { LubecFightPanel } from './LubecFightPanel'
 import { LubecGuidedClassStep } from './LubecGuidedClassStep'
-import { LubecRollPanel } from './LubecRollPanel'
 import { LubecRollUpPanel } from './LubecRollUpPanel'
 import { useLubecRoller, type LubecRolled } from './useLubecRoller'
 
@@ -40,25 +39,26 @@ type CorePageProps = {
   onRolled: LubecRolled | null
   /** Present on a guided draft, whose base values are rolled rather than typed. */
   guided?: LubecGuided | null
+  /** Opens the Skills page, where the skill tree is. */
+  onShowTree: () => void
 }
 
 /**
  * The Core page: the five Stats and three Saves as the prototype's roll
- * circles, each current value rolled under with a tap, the Panic Check and
- * the Recovery Save below the Saves, the roller and the last roll, the counters, the active effects that change the values, the
- * class's reminders and the reserved Fight panel. While a draft can be typed
+ * circles, each current value rolled under with a tap, the skills to add to a
+ * roll, the Panic Check and the Recovery Save below the Saves, the counters,
+ * the active effects that change the values, the class's reminders and the reserved Fight panel. While a draft can be typed
  * into, its base values and its class and choice are fields, and each final
  * value follows as it is typed. A guided draft's base values are rolled
  * instead, so they are never fields.
  */
-export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraftEdit = null, onRolled, guided = null }: CorePageProps) {
+export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraftEdit = null, onRolled, guided = null, onShowTree }: CorePageProps) {
   const modifiers = lubecActiveModifiers(sheet.effects)
   const roller = useLubecRoller(sheet, onRolled)
   return (
     <div className="lubec-page lubec-core">
       <LubecCreationPanels sheet={sheet} guided={guided} onDraftEdit={onDraftEdit} />
-      <LubecAbilities sheet={sheet} modifiers={modifiers} onDraftEdit={guided ? null : onDraftEdit} roller={roller} />
-      <LubecRollPanel sheet={sheet} roller={roller} />
+      <LubecAbilities sheet={sheet} modifiers={modifiers} onDraftEdit={guided ? null : onDraftEdit} roller={roller} onShowTree={onShowTree} />
       <LubecCountersPanel sheet={sheet} onChange={onCountersChange} />
       <LubecEffectsPanel effects={sheet.effects} onChange={onEffectsChange} />
       <LubecClassPanel sheet={sheet} />

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { LubecCheckRoll } from '../ruleSets/lubec/checkRoll'
 import type { LubecModifier } from '../ruleSets/lubec/derivations'
+import type { LubecPanicRoll } from '../ruleSets/lubec/panicRoll'
+import type { LubecRecoveryRoll } from '../ruleSets/lubec/recoveryRoll'
 import { lubecCharacterSheet } from '../ruleSets/lubec/sheetFixtures'
-import { lubecBaseNote, lubecCircleFace, lubecCirclesStatus, lubecNoteParts, lubecSpinDelay } from './lubecCircles'
+import { lubecBaseNote, lubecCircleFace, lubecCirclesStatus, lubecNoteParts, lubecRollStatus, lubecSpinDelay } from './lubecCircles'
 
 const tommy = lubecCharacterSheet()
 
@@ -51,12 +53,26 @@ describe('Lubec roll circles', () => {
   })
 
   it('says what the circles are doing in the status line', () => {
-    expect(lubecCirclesStatus({ name: 'Handle', target: 65, preview: 4, step: 0 }, handleRoll, false)).toBe('Rolling Handle check...')
-    expect(lubecCirclesStatus(null, handleRoll, false)).toBe('Handle + Boatwork: 32 vs 65 - success.')
-    expect(lubecCirclesStatus(null, handleRoll, true)).toBe('Handle check cleared. Score unchanged.')
-    expect(lubecCirclesStatus(null, { ...handleRoll, skill: null, result: 77, outcome: 'failure', stressAdded: 1 }, false))
+    expect(lubecCirclesStatus({ name: 'Handle', target: 65, preview: 4, step: 0 }, null, handleRoll)).toBe('Rolling Handle check...')
+    expect(lubecCirclesStatus(null, null, handleRoll)).toBe('Handle + Boatwork: 32 vs 65 - success.')
+    expect(lubecCirclesStatus(null, handleRoll, handleRoll)).toBe('Handle check cleared. Score unchanged.')
+    expect(lubecCirclesStatus(null, null, { ...handleRoll, skill: null, result: 77, outcome: 'failure', stressAdded: 1 }))
       .toBe('Handle: 77 vs 65 - critical failure, +1 Stress.')
-    expect(lubecCirclesStatus(null, null, false)).toBe('')
+    expect(lubecCirclesStatus(null, null, null)).toBe('')
+  })
+
+  it('says how a Panic Check or a Recovery Save came out, with both dice under Advantage or Disadvantage', () => {
+    const panic: LubecPanicRoll = {
+      kind: 'panic', target: 5, dice: [4], result: 4, advantage: 'normal', outcome: 'failure', stressAdded: 0, effectRolls: null,
+    }
+    const recovery: LubecRecoveryRoll = {
+      kind: 'recovery', against: 'Body', target: 31, dice: [12, 44], result: 12,
+      advantage: 'advantage', outcome: 'success', stressAdded: 0, stressRemoved: 2,
+    }
+    expect(lubecRollStatus(panic)).toBe('Panic Check: 4 vs Stress 5 - failure.')
+    expect(lubecRollStatus(recovery)).toBe('Recovery Save on Body (Advantage, 12 and 44): 12 vs 31 - success, -2 Stress.')
+    expect(lubecRollStatus({ ...handleRoll, dice: [32, 90], result: 90, advantage: 'disadvantage', outcome: 'failure', stressAdded: 1 }))
+      .toBe('Handle + Boatwork (Disadvantage, 32 and 90): 90 vs 65 - failure, +1 Stress.')
   })
 
   it('slows the spin as the prototype does', () => {
