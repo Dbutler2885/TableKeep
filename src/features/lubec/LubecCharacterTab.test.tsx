@@ -1682,3 +1682,267 @@ describe('Lubec roller', () => {
     expect(writtenLastRoll()).toEqual({ kind: 'stat', roll: 31 })
   })
 })
+
+describe('Lubec Panic Check and Recovery Save', () => {
+  const shownLastRoll = () => [...screen.getByLabelText('Last roll').children].map((part) => part.textContent)
+
+  const writtenSheet = (id = 'tommy') => parseLubecCharacter(id, database[id]).lubec
+
+  /** The next roll lands on this face of a die with this many sides. */
+  const seedFace = (sides: number, face: number) => seedRolls((face * 100) / sides)
+
+  const panicButton = () => screen.getByLabelText(/^Panic Check over Stress/, { selector: 'button' }) as HTMLButtonElement
+
+  const recoveryButton = () => screen.getByLabelText(/^Recovery Save/, { selector: 'button' }) as HTMLButtonElement
+
+  const panicResult = () => screen.queryByLabelText('Panic result')
+
+  /** A failed Panic Check's row as the sheet shows it: the row, its text, each change and "Add effect" or its note. */
+  const shownPanicResult = () => [...(panicResult()?.querySelectorAll('p, li, button') ?? [])].map((part) => part.textContent)
+
+  const addPanicEffect = () => fireEvent.click(within(panicResult() as HTMLElement).getByText('Add effect', { selector: 'button' }))
+
+  const effectsRegion = () => screen.getByLabelText('Active effects')
+
+  const effectLines = () => [...effectsRegion().querySelectorAll('.lubec-effect-line')].map((line) =>
+    [...line.children].map((part) => part.textContent))
+
+  const effectiveHandle = () => document.querySelector('.lubec-effective-handle')?.textContent
+
+  async function flushSave() {
+    act(() => vi.advanceTimersByTime(500))
+    await flushMicrotasks()
+  }
+
+  const stressed = (stress: number, minimumStress = 2) => withSheet({ counters: { stress, minimumStress, trauma: 0 } })
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  it('succeeds above current Stress, shows no table row and adds no Stress', async () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect(panicButton().textContent).toBe('Panic Check over 2')
+
+    seedFace(20, 3)
+    fireEvent.click(panicButton())
+
+    expect(shownLastRoll()).toEqual(['Panic Check', 'Rolled 3 vs Stress 2', 'Success'])
+    expect(panicResult()).toBeNull()
+    expect(shownCounters().stress).toBe('2')
+    await flushSave()
+    expect(writtenSheet().lastRoll).toEqual({
+      kind: 'panic', target: 2, dice: [3], result: 3, advantage: 'normal', outcome: 'success', stressAdded: 0, effectRolls: null,
+    })
+  })
+
+  it('fails at or under the pre-roll Stress, picks its row from that d20, and adds no Stress by itself', async () => {
+    seed({ tommy: stressed(5) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    seedFace(20, 5)
+    fireEvent.click(panicButton())
+
+    expect(shownLastRoll()).toEqual(['Panic Check', 'Rolled 5 vs Stress 5', 'Failure'])
+    expect(shownPanicResult()).toEqual(['05 COWARD', 'Gain a new Condition: You must make a Fear Save to engage in violence, otherwise you flee.', 'Add effect'])
+    expect(shownCounters().stress).toBe('5')
+    await flushSave()
+    expect(writtenSheet().counters.stress).toBe(5)
+
+    press('Raise Stress')
+    press('Raise Stress')
+    expect(shownPanicResult()[0]).toBe('05 COWARD')
+  })
+
+  it('adds a Minimum Stress row as an effect and raises Minimum Stress, only once even after a reload', async () => {
+    seed({ tommy: stressed(4) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    seedFace(20, 4)
+    fireEvent.click(panicButton())
+    expect(shownPanicResult().slice(2)).toEqual(['Increase Minimum Stress by 1', 'Add effect'])
+
+    addPanicEffect()
+
+    expect(shownCounters()).toEqual({ stress: '4', minimumStress: '3', trauma: '0' })
+    expect(effectLines()).toEqual([['OVERWHEMED', 'Disadvantage on all rolls for the next 1d10 minutes. Increase Minimum Stress by 1.']])
+    expect(shownPanicResult().slice(2)).toEqual(['Increase Minimum Stress by 1', 'Added to active effects.'])
+    await flushSave()
+    expect(writtenSheet().effects).toEqual([expect.objectContaining({ name: 'OVERWHEMED', cause: 'Panic Check (rolled 4)' })])
+    expect(writtenSheet().counters.minimumStress).toBe(3)
+
+    reload('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect(shownPanicResult().at(-1)).toBe('Added to active effects.')
+    expect(within(panicResult() as HTMLElement).queryByText('Add effect', { selector: 'button' })).toBeNull()
+  })
+
+  it('rolls row 01\'s 1d5 from the dice when "Add effect" is pressed, shows it, and stops Stress at Minimum Stress', async () => {
+    seed({ tommy: stressed(3) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    seedFace(20, 1)
+    fireEvent.click(panicButton())
+    expect(shownPanicResult()[2]).toBe('Reduce Stress by 1d5')
+
+    seedFace(5, 4)
+    addPanicEffect()
+
+    expect(shownPanicResult()[2]).toBe('Reduce Stress by 1d5: rolled 4')
+    expect(shownCounters().stress).toBe('2')
+    await flushSave()
+    expect(writtenSheet().lastRoll).toMatchObject({ result: 1, effectRolls: [4] })
+    expect(writtenSheet().counters).toEqual({ stress: 2, minimumStress: 2, trauma: 0 })
+  })
+
+  it('adds an ordinary effect that can be edited and removed like any other', async () => {
+    seed({ tommy: stressed(8) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    seedFace(20, 7)
+    fireEvent.click(panicButton())
+    addPanicEffect()
+
+    fireEvent.click(effectsRegion().querySelector('button.lubec-effect-line') as HTMLElement)
+    fireEvent.change(within(effectsRegion()).getByLabelText('Name'), { target: { value: 'Bad dreams' } })
+    fireEvent.click(within(effectsRegion()).getByText('Save', { selector: 'button' }))
+    expect(effectLines()).toEqual([['Bad dreams', 'Gain a new Condition: Sleep is difficult; Rest Saves are at Disadvantage.']])
+    await flushSave()
+    expect(writtenSheet().effects).toEqual([expect.objectContaining({ name: 'Bad dreams', cause: 'Panic Check (rolled 7)' })])
+
+    fireEvent.click(effectsRegion().querySelector('button.lubec-effect-line') as HTMLElement)
+    fireEvent.click(within(effectsRegion()).getByText('Remove effect', { selector: 'button' }))
+    expect(effectLines()).toEqual([])
+    await flushSave()
+    expect(writtenSheet().effects).toEqual([])
+  })
+
+  it('keeps the higher d20 under Advantage', () => {
+    seed({ tommy: stressed(5) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    fireEvent.click(within(screen.getByLabelText('Advantage')).getByText('Advantage', { selector: 'button' }))
+
+    seedFace(20, 2)
+    seedFace(20, 9)
+    fireEvent.click(panicButton())
+
+    expect(shownLastRoll()).toEqual(['Panic Check', 'Advantage: 2 and 9, kept 9 vs Stress 5', 'Success'])
+  })
+
+  it('lowers Stress on a Recovery success by the roll\'s ones digit, stopping at Minimum Stress', async () => {
+    seed({ tommy: stressed(9) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect(recoveryButton().getAttribute('aria-label')).toBe('Recovery Save on Sanity at or under 30')
+
+    seedRolls(23)
+    fireEvent.click(recoveryButton())
+    expect(shownLastRoll()).toEqual(['Recovery save on Sanity', 'Rolled 23 vs 30', 'Success, -3 Stress'])
+    expect(shownCounters().stress).toBe('6')
+
+    seedRolls(27)
+    fireEvent.click(recoveryButton())
+    expect(shownLastRoll()[2]).toBe('Success, -4 Stress')
+    expect(shownCounters().stress).toBe('2')
+    await flushSave()
+    expect(writtenSheet().counters.stress).toBe(2)
+    expect(writtenSheet().lastRoll).toMatchObject({ kind: 'recovery', against: 'Sanity', result: 27, stressRemoved: 4 })
+  })
+
+  it('adds 1 Stress for a failed Recovery Save', async () => {
+    seed({ tommy: stressed(3) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    seedRolls(31)
+    fireEvent.click(recoveryButton())
+
+    expect(shownLastRoll()).toEqual(['Recovery save on Sanity', 'Rolled 31 vs 30', 'Failure, +1 Stress'])
+    expect(shownCounters().stress).toBe('4')
+    await flushSave()
+    expect(writtenSheet().counters.stress).toBe(4)
+  })
+
+  it('disables the Recovery Save while any Save is a hole, and still rolls the Panic Check', () => {
+    seed({ tommy: withSheet({ base: { Strength: 24, Speed: 51, Intellect: 38, Handle: 50, Charm: 48, Sanity: 20, Fear: null, Body: 21 } }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    expect(recoveryButton().disabled).toBe(true)
+    expect(recoveryButton().getAttribute('aria-label')).toBe('Recovery Save: missing value')
+    expect(recoveryButton().title).toBe('missing value')
+    fireEvent.click(recoveryButton())
+    expect(shownLastRoll()).toEqual(['No roll yet.'])
+
+    seedFace(20, 12)
+    fireEvent.click(panicButton())
+    expect(shownLastRoll()).toEqual(['Panic Check', 'Rolled 12 vs Stress 2', 'Success'])
+  })
+
+  it('shows both rolls as the last roll after a reload', async () => {
+    seed({ tommy: stressed(6) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    seedFace(20, 2)
+    fireEvent.click(panicButton())
+    await flushSave()
+
+    reload('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect(shownLastRoll()).toEqual(['Panic Check', 'Rolled 2 vs Stress 6', 'Failure'])
+    expect(shownPanicResult()).toEqual(['02 NERVOUS', 'Gain 1 Stress.', 'Increase Stress by 1', 'Add effect'])
+
+    seedRolls(14)
+    fireEvent.click(recoveryButton())
+    await flushSave()
+    reload('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect(shownLastRoll()).toEqual(['Recovery save on Sanity', 'Rolled 14 vs 30', 'Success, -4 Stress'])
+    expect(panicResult()).toBeNull()
+    expect(shownCounters().stress).toBe('2')
+  })
+
+  it('shows a player someone else\'s Panic row with no Panic, Recovery or "Add effect" buttons', () => {
+    const lastRoll = { kind: 'panic', target: 6, dice: [2], result: 2, advantage: 'normal', outcome: 'failure', stressAdded: 0, effectRolls: null }
+    seed({ tommy: withSheet({ lastRoll }) })
+    mountTab('player', 'player-2')
+    openSheet('Tommy Eves')
+
+    expect(shownPanicResult()).toEqual(['02 NERVOUS', 'Gain 1 Stress.', 'Increase Stress by 1'])
+    expect(screen.queryByLabelText('Panic and Recovery')).toBeNull()
+  })
+
+  it('lowers the Fight panel\'s Effective Handle by both Handle effects, capped at 100 and floored at 0, and restores it when one is removed', async () => {
+    const handleEffect = (id: string, amount: number) =>
+      ({ id, name: `Hurt ${amount}`, cause: 'Fell', steps: [{ modifiers: [{ target: 'Handle', amount }], labels: [] }] })
+    const hurt = [handleEffect('concussion', -40), handleEffect('bruise', -10)]
+    const base = (Handle: number) => ({ ...((tommyEves().lubec as Fields).base as Fields), Handle })
+    seed({
+      tommy: withSheet({ effects: hurt }),
+      ada: withSheet({ base: base(145), effects: hurt }, { name: 'Ada Mitchell' }),
+      cal: withSheet({ base: base(20), effects: hurt }, { name: 'Cal Pike' }),
+    })
+    mountTab('player', 'player-1')
+
+    openSheet('Tommy Eves')
+    expect(effectLines()).toEqual([['Hurt -40', 'Handle -40'], ['Hurt -10', 'Handle -10']])
+    expect(effectiveHandle()).toBe('5')
+    fireEvent.click(effectsRegion().querySelector('button.lubec-effect-line') as HTMLElement)
+    fireEvent.click(within(effectsRegion()).getByText('Remove effect', { selector: 'button' }))
+    expect(effectiveHandle()).toBe('45')
+    await flushSave()
+    expect(writtenSheet().effects.map((effect) => effect.id)).toEqual(['bruise'])
+
+    const backToRoster = () => fireEvent.click(screen.getByLabelText('Back to character list'))
+    backToRoster()
+    openSheet('Ada Mitchell')
+    expect(effectiveHandle()).toBe('100')
+    backToRoster()
+    openSheet('Cal Pike')
+    expect(effectiveHandle()).toBe('0')
+  })
+})

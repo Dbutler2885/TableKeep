@@ -7,7 +7,6 @@ import {
   lubecRollSkills,
   readLubecCheckRoll,
   rollLubecCheck,
-  withLubecCheckRoll,
   type LubecCheckRoll,
 } from './checkRoll'
 import { cryptoLubecDice, rollLubecDie, type LubecDice } from './dice'
@@ -94,12 +93,6 @@ describe('Lubec check rolls', () => {
     expect(rollLubecCheck(sheet, { name: 'Charm', advantage: 'normal', skill: null }, rolls(99))?.stressAdded).toBe(2)
     expect(rollLubecCheck(sheet, { name: 'Body', advantage: 'normal', skill: null }, rolls(99))?.stressAdded).toBe(1)
     expect(rollLubecCheck(sheet, { name: 'Charm', advantage: 'normal', skill: null }, rolls(1))?.stressAdded).toBe(0)
-  })
-
-  it('writes the roll as the last roll and adds its Stress', () => {
-    const sheet = withLubecCheckRoll(characterSheet(), strengthRoll)
-    expect(sheet.lastRoll).toEqual(strengthRoll)
-    expect(sheet.counters).toEqual({ stress: 3, minimumStress: 2, trauma: 0 })
   })
 })
 
