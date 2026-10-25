@@ -1,7 +1,7 @@
 import { EntityMediaEditor } from '../common/EntityMediaEditor'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import type { TokenIconConfig } from '../tokens/TokenIconEditor'
-import { lubecAgeFromInput, lubecCharacterName } from './lubecNames'
+import { lubecAgeFromInput, lubecCharacterName, lubecPlayerName, withLubecPlayerName } from './lubecNames'
 
 /** What an owner or the GM can do to a character from its sheet. */
 export type LubecSheetEditing = {
@@ -29,8 +29,22 @@ function LubecAgeField({ character, editing }: Omit<EditorProps, 'onDone'>) {
   )
 }
 
+// The prototype's Player name, the full width of the fields under the name and age.
+function LubecPlayerField({ character, editing }: Omit<EditorProps, 'onDone'>) {
+  return (
+    <label className="lubec-player-field">
+      Player name
+      <input
+        autoComplete="name"
+        value={lubecPlayerName(character)}
+        onChange={(event) => editing.update({ lubec: withLubecPlayerName(character, event.target.value) })}
+      />
+    </label>
+  )
+}
+
 /**
- * The name band's own edits: name, age, portrait and map token. None of them
+ * The name band's own edits: name, age, player name, portrait and map token. None of them
  * is locked by Finalize, so the owner and the GM can change them at any stage.
  */
 export function LubecNameBandEditor({ character, editing, onDone }: EditorProps) {
@@ -38,7 +52,7 @@ export function LubecNameBandEditor({ character, editing, onDone }: EditorProps)
   return (
     <section className="lubec-panel lubec-name-editor" aria-labelledby="lubec-panel-name-band">
       <div className="lubec-section-head">
-        <h3 id="lubec-panel-name-band">Name, age and portrait</h3>
+        <h3 id="lubec-panel-name-band">Character identity</h3>
         <button type="button" className="lubec-name-editor-done" onClick={onDone}>Done</button>
       </div>
       <div className="lubec-name-editor-body">
@@ -56,10 +70,11 @@ export function LubecNameBandEditor({ character, editing, onDone }: EditorProps)
         />
         <div className="lubec-name-fields">
           <label>
-            Name
-            <input value={character.name} onChange={(event) => editing.update({ name: event.target.value })} />
+            Character name
+            <input autoComplete="off" value={character.name} onChange={(event) => editing.update({ name: event.target.value })} />
           </label>
           <LubecAgeField character={character} editing={editing} />
+          <LubecPlayerField character={character} editing={editing} />
         </div>
       </div>
     </section>
