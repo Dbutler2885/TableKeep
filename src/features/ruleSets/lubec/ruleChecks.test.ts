@@ -39,6 +39,27 @@ describe('Lubec rule checks', () => {
     ])
   })
 
+  it('let a character pick more skills than its package, silently', () => {
+    const tough = { class: { key: 'tough', choices: {} } }
+    expect(lubecRuleWarnings(lubecSheet({ ...tough, ...skills('Scrapping', 'Boxing', 'Fibbing', 'Art') }))).toEqual([])
+    expect(lubecRuleWarnings(lubecSheet(skills('Boatwork', 'Swimming', 'Diving', 'Fibbing', 'Art')))).toEqual([])
+    const nerd = lubecSheet({
+      class: { key: 'nerd', choices: { statPenalty: 'Handle' } },
+      ...skills('Electronics & Radio', 'Hunting', 'Science', 'A/V Club', 'Firearms', 'Science Fair Champ'),
+    })
+    expect(lubecRuleWarnings(nerd)).toEqual([])
+  })
+
+  it('still warn when extra picks leave a tier of the package short', () => {
+    const nerd = lubecSheet({
+      class: { key: 'nerd', choices: { statPenalty: 'Handle' } },
+      ...skills('Electronics & Radio', 'A/V Club', 'Science Fair Champ', 'Treasure Hunting'),
+    })
+    expect(lubecRuleWarnings(nerd)).toEqual([
+      { code: 'package', message: 'The Nerd picks 1 Trained and 2 Expert beside the free class skill.' },
+    ])
+  })
+
   it('warn about a missing or unknown class key', () => {
     expect(lubecRuleWarnings(lubecSheet({ class: { key: null, choices: {} } }))).toEqual([
       { code: 'class', message: 'No class is chosen.' },

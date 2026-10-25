@@ -2803,7 +2803,7 @@ describe('Guided roll-up', () => {
     expect(screen.queryByText(/re-?roll/i, { selector: 'button' })).toBeNull()
   })
 
-  it('spins a circle where motion is allowed, holding every other circle until it lands', () => {
+  it('spins each circle rolled where motion is allowed, leaving the values not rolled yet to roll while it spins', () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
     seed({ gus: guidedDraft() })
     mountTab('player', 'player-1')
@@ -2816,20 +2816,91 @@ describe('Guided roll-up', () => {
     expect(circleOf('Strength').className).toBe('roll-circle rolling')
     expect(circleOf('Strength').getAttribute('aria-label')).toBe('Rolling Strength')
     expect(statusLine()).toBe('Rolling Strength...')
-    expect(rollUpButtons()).toEqual([])
+    expect(rollUpButtons()).toHaveLength(7)
+
+    act(() => vi.advanceTimersByTime(500))
+    seedRolls(face(3, 4), face(3, 10))
+    rollUp('Speed')
+
+    expect(mocks.setDoc).toHaveBeenCalledTimes(2)
+    expect(stored('gus').lubec.base).toMatchObject({ Strength: 47, Speed: 33 })
+    expect(circleOf('Speed').className).toBe('roll-circle rolling')
+    expect(statusLine()).toBe('Rolling Strength, Speed...')
+    expect(rollUpButtons()).toHaveLength(6)
 
     // Each preview's timer is set once the last one has shown, so the spin is let run a step at a time.
-    for (let step = 0; step < 11; step += 1) act(() => vi.advanceTimersByTime(500))
+    for (let step = 1; step < 11; step += 1) act(() => vi.advanceTimersByTime(500))
     expect(circleOf('Strength').className).toBe('roll-circle rolling')
     act(() => vi.advanceTimersByTime(500))
 
     expect(valuesOf('Strength')).toEqual(['47', '40 + 7'])
     expect(circleOf('Strength').className).toBe('roll-circle has-value awaiting-class landed')
-    expect(statusLine()).toBe('Strength generated at 47.')
-    expect(rollUpButtons()).toHaveLength(7)
+    expect(circleOf('Speed').className).toBe('roll-circle rolling')
+    expect(statusLine()).toBe('Rolling Speed...')
+    act(() => vi.advanceTimersByTime(500))
+
+    expect(valuesOf('Speed')).toEqual(['33', '30 + 3'])
+    expect(circleOf('Speed').className).toBe('roll-circle has-value awaiting-class landed')
+    expect(circleOf('Strength').className).toBe('roll-circle has-value awaiting-class')
+    expect(statusLine()).toBe('Speed generated at 33.')
+    expect(rollUpButtons()).toHaveLength(6)
 
     act(() => vi.advanceTimersByTime(500))
-    expect(circleOf('Strength').className).toBe('roll-circle has-value awaiting-class')
+    expect(circleOf('Speed').className).toBe('roll-circle has-value awaiting-class')
+  })
+
+  it('rolls every value left at once from the tray, in one write, each with its own dice, and spins them all together', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
+    seed({ gus: guidedDraft({ base: { ...allRolledSheet().base as Fields }, rollUp: { stats: { Strength: { tens: 40, d10: 7 } } } }) })
+    mountTab('player', 'player-1')
+    openSheet('Gus Pike')
+    expect(trayButton('Swap lowest stat')).toBeNull()
+
+    seedRolls(
+      face(3, 4), face(3, 10), face(3, 3), face(4, 10), face(1, 2), face(2, 10), face(1, 1), face(1, 10),
+      face(3, 10), face(4, 10), face(10, 10), face(1, 10), face(5, 10), face(6, 10),
+    )
+    fireEvent.click(trayButton('Roll all remaining') as HTMLElement)
+
+    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
+    expect(stored('gus').lubec.base).toEqual({ Strength: 47, Speed: 33, Intellect: 24, Handle: 52, Charm: 41, Sanity: 17, Fear: 21, Body: 21 })
+    expect(stored('gus').lubec.rollUp).toMatchObject({ stats: { Strength: { tens: 40, d10: 7 }, Charm: { tens: 40, d10: 1 } }, saves: { Body: [5, 6] } })
+    expect(VALUE_NAMES.map((name) => circleOf(name).className.includes('rolling'))).toEqual([false, true, true, true, true, true, true, true])
+    expect(statusLine()).toBe('Rolling Speed, Intellect, Handle, Charm, Sanity, Fear, Body...')
+    expect((trayButton('Roll all remaining') as HTMLButtonElement).disabled).toBe(true)
+    expect(trayButton('Swap lowest stat')).toBeNull()
+
+    for (let step = 0; step < 12; step += 1) act(() => vi.advanceTimersByTime(500))
+
+    expect(rolledValues()).toEqual([
+      ['Strength', '47', '40 + 7'],
+      ['Speed', '33', '30 + 3'],
+      ['Intellect', '24', '20 + 4'],
+      ['Handle', '52', '50 + 2'],
+      ['Charm', '41', '40 + 1'],
+      ['Sanity', '17', '10 + 3 + 4'],
+      ['Fear', '21', '10 + 10 + 1'],
+      ['Body', '21', '10 + 5 + 6'],
+    ])
+    expect(statusLine()).toBe('Keep these scores or swap your lowest Stat.')
+    expect(trayButton('Swap lowest stat')).toBeTruthy()
+    expect(trayButton('Roll all remaining')).toBeNull()
+  })
+
+  it('offers rolling every value left only to whoever may roll, and only while values are left', () => {
+    seed({ gus: guidedDraft({ ...allRolledSheet(), rollUp: { ...allRolledSheet().rollUp as Fields, saves: { Sanity: [3, 4] } } }) })
+    mountTab('gm', GM)
+    openSheet('Gus Pike')
+    expect(trayButton('Roll all remaining')).toBeTruthy()
+
+    reload('player', 'player-2')
+    openSheet('Gus Pike')
+    expect(document.querySelector('.decision-tray')).toBeNull()
+
+    seed({ gus: guidedDraft(allRolledSheet()) })
+    reload('player', 'player-1')
+    openSheet('Gus Pike')
+    expect(trayButton('Roll all remaining')).toBeNull()
   })
 
   it('never lets the owner or the GM type over a base value on a guided draft, rolled or not', () => {
@@ -2948,7 +3019,8 @@ describe('Guided roll-up', () => {
     seed({ gus: guidedDraft({ ...allRolledSheet(), rollUp: { ...allRolledSheet().rollUp as Fields, saves: {} } }) })
     mountTab('player', 'player-1')
     openSheet('Gus Pike')
-    expect(document.querySelector('.decision-tray')).toBeNull()
+    expect(trayButton('Swap lowest stat')).toBeNull()
+    expect(trayButton('Keep these scores')).toBeNull()
 
     seed({ gus: guidedDraft(allRolledSheet()) })
     reload('player', 'player-1')
@@ -2964,6 +3036,28 @@ describe('Guided roll-up', () => {
     expect(document.querySelector('.decision-tray')).toBeNull()
     expect(document.querySelector('.class-lock')).toBeNull()
     expect(circleOf('Strength').className).toBe('roll-circle has-value awaiting-class')
+  })
+
+  it('takes more skills than the class package without a warning, a block or a GM\'s say-so', () => {
+    const working = { class: { key: 'working', choices: { statPenalty: null, statBonus: null } } }
+    seed({ gus: guidedDraft({ ...keptSheet(), ...working, skills: { free: 'Boatwork', picked: ['Swimming', 'Diving'] } }) })
+    mountTab('player', 'player-1')
+    openSkillsPage('Gus Pike')
+    expect(packageProgress()).toBe('Package complete')
+
+    fireEvent.click(skillDot('Driving'))
+    fireEvent.click(skillDot('Art'))
+    fireEvent.click(skillDot('Forgery'))
+    sendSaves()
+
+    expect(storedSkills('gus')).toEqual({ free: 'Boatwork', picked: ['Swimming', 'Diving', 'Driving', 'Art', 'Forgery'] })
+    expect(treeMarks()).toEqual([['Swimming', 'on'], ['Diving', 'on'], ['Boatwork', 'fixed'], ['Driving', 'on'], ['Art', 'on'], ['Forgery', 'on']])
+    expect(packagePanel()).toEqual({
+      rules: [[true, 'Free class skill:'], [true, 'Bonus:']],
+      count: 'Picks made3 Expert + 2 Trainedof 1 Expert + 1 Trained',
+    })
+    expect(packageProgress()).toBe('Package complete')
+    expect(noticesIn(openFinalize(), 'Rule warnings')).toEqual([])
   })
 
   it('records the class chosen from its card with the card\'s choice, shows its class record, and lets Change class bring the cards back', async () => {

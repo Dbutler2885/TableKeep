@@ -119,6 +119,10 @@ describe('the Lubec class package', () => {
     expect(lubecPackageProgress(withSkills({ free: 'Boatwork', picked: ['Swimming', 'Driving'] }))).toBe('Package complete')
   })
 
+  it('is complete with more picks than the package asks for', () => {
+    expect(lubecPackageProgress(withSkills({ free: 'Boatwork', picked: ['Swimming', 'Driving', 'Diving', 'Art'] }))).toBe('Package complete')
+  })
+
   it('is not complete while an Expert lacks its prerequisite, even with the right shape', () => {
     expect(lubecPackageProgress(withSkills({ free: 'Boatwork', picked: ['Art', 'Firearms'] }))).toBe('Picked 1 Expert + 1 Trained of 1 Expert + 1 Trained')
   })
