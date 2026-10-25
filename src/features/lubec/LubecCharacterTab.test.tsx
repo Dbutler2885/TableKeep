@@ -1204,7 +1204,7 @@ describe('New character and Direct entry', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'New character' })
     expect(within(dialog).getAllByRole('button').map((button) => button.querySelector('strong')?.textContent ?? button.textContent))
-      .toEqual(['Direct entry', 'Cancel'])
+      .toEqual(['Direct entry', 'Guided roll-up', 'Cancel'])
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
 
@@ -2134,5 +2134,350 @@ describe('Finalize, locked values and the Correct switch', () => {
     reload('gm', GM)
     openSheet('Ada Mitchell')
     expect(correctSwitch()).toBeNull()
+  })
+})
+
+// A draft made through Guided roll-up, with whatever has been rolled so far.
+const guidedDraft = (sheet: Fields = {}, fields: Fields = {}): Fields => ({
+  ...tommyEves({ name: 'Gus Pike', creationMode: 'new', creationStatus: 'draft', ...fields }),
+  lubec: {
+    door: 'guided',
+    class: { key: null, choices: { statPenalty: null, statBonus: null } },
+    base: { Strength: null, Speed: null, Intellect: null, Handle: null, Charm: null, Sanity: null, Fear: null, Body: null },
+    skills: { free: null, picked: [] },
+    ...sheet,
+  },
+})
+
+// Every value rolled: Stats 47, 33, 24, 52 and 41, so Intellect is the lowest and Handle the highest, and each Save 10 + 3 + 4.
+const allRolledSheet = (): Fields => ({
+  base: { Strength: 47, Speed: 33, Intellect: 24, Handle: 52, Charm: 41, Sanity: 17, Fear: 17, Body: 17 },
+  rollUp: {
+    stats: {
+      Strength: { tens: 40, d10: 7 },
+      Speed: { tens: 30, d10: 3 },
+      Intellect: { tens: 20, d10: 4 },
+      Handle: { tens: 50, d10: 2 },
+      Charm: { tens: 40, d10: 1 },
+    },
+    saves: { Sanity: [3, 4], Fear: [3, 4], Body: [3, 4] },
+  },
+})
+
+/** A number the seeded dice turn into `face` on a die of `sides`. */
+const face = (value: number, sides: number) => ((value - 0.5) * 100) / sides + 0.5
+
+/** Each value's dice as the roll-up lists them; a value not rolled yet shows its Roll button or "not rolled yet". */
+const rollUpDice = () => [...document.querySelectorAll('.lubec-roll-up-list li')]
+  .map((item) => [item.querySelector('.lubec-roll-up-name')?.textContent, item.lastElementChild?.textContent])
+
+const rollUpButton = (name: string) => screen.queryByLabelText(`Roll ${name}`, { selector: '.lubec-roll-up-roll' })
+
+const rollUpButtons = () => document.querySelectorAll('.lubec-roll-up-roll')
+
+const rollUp = (name: string) => fireEvent.click(rollUpButton(name) as HTMLElement)
+
+const writtenSheet = () => (mocks.setDoc.mock.calls.at(-1)?.[1] as Fields).lubec as Fields
+
+const swapButton = (text: string) => screen.queryByText(text, { selector: '.lubec-roll-up button' })
+
+/** The Stats the Swap offers at its current step, by their button text. */
+const swapStats = () => [...document.querySelectorAll('.lubec-swap-stat')].map((button) => button.textContent)
+
+const classOption = (name: string) => screen.getByText(name, { selector: '.lubec-class-option strong' }).closest('li') as HTMLElement
+
+function startGuided() {
+  fireEvent.click(screen.getByRole('button', { name: 'New character' }))
+  const dialog = screen.getByRole('dialog', { name: 'New character' })
+  fireEvent.click(within(dialog).getByRole('button', { name: /Guided roll-up/ }))
+}
+
+describe('Guided roll-up', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('stores a guided character as a new character\'s draft, owned by whoever starts it, with the door recorded', async () => {
+    mountTab('player', 'player-1')
+
+    startGuided()
+    await flushMicrotasks()
+
+    const [id] = Object.keys(database)
+    expect(database[id]).toMatchObject({
+      system: 'lubec',
+      ownerUserId: 'player-1',
+      creationMode: 'new',
+      creationStatus: 'draft',
+      lubec: { door: 'guided', counters: { stress: 2, minimumStress: 2, trauma: 0 }, base: { Strength: null, Body: null } },
+    })
+    expect(screen.getByText(/In creation · Guided roll-up/)).toBeTruthy()
+    expect(rollUpButtons()).toHaveLength(8)
+
+    reload('gm', GM)
+    startGuided()
+    await flushMicrotasks()
+
+    expect(Object.values(database).map(({ ownerUserId, creationStatus }) => [ownerUserId, creationStatus]))
+      .toEqual([['player-1', 'draft'], [GM, 'draft']])
+  })
+
+  it('writes each Stat and Save die before the debounce comes due, shows the same numbers after a remount, and offers no re-roll', () => {
+    seed({ gus: guidedDraft() })
+    mountTab('player', 'player-1')
+    openSheet('Gus Pike')
+
+    seedRolls(face(2, 5), face(7, 10))
+    rollUp('Strength')
+
+    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
+    expect(writtenSheet()).toMatchObject({ base: { Strength: 47 }, rollUp: { stats: { Strength: { tens: 40, d10: 7 } } } })
+
+    const rolls: [string, ...number[]][] = [
+      ['Speed', face(3, 4), face(3, 10)],
+      ['Intellect', face(3, 3), face(4, 10)],
+      ['Handle', face(1, 2), face(2, 10)],
+      ['Charm', face(1, 1), face(1, 10)],
+      ['Sanity', face(3, 10), face(4, 10)],
+      ['Fear', face(10, 10), face(1, 10)],
+      ['Body', face(5, 10), face(6, 10)],
+    ]
+    rolls.forEach(([name, ...dice], index) => {
+      seedRolls(...dice)
+      rollUp(name)
+      expect(mocks.setDoc).toHaveBeenCalledTimes(index + 2)
+      expect((writtenSheet().base as Fields)[name]).toEqual(stored('gus').lubec.base[name as 'Strength'])
+    })
+
+    expect(stored('gus').lubec.base).toEqual({ Strength: 47, Speed: 33, Intellect: 24, Handle: 52, Charm: 41, Sanity: 17, Fear: 21, Body: 21 })
+    expect(stored('gus').lubec.rollUp).toEqual({
+      stats: {
+        Strength: { tens: 40, d10: 7 },
+        Speed: { tens: 30, d10: 3 },
+        Intellect: { tens: 20, d10: 4 },
+        Handle: { tens: 50, d10: 2 },
+        Charm: { tens: 40, d10: 1 },
+      },
+      saves: { Sanity: [3, 4], Fear: [10, 1], Body: [5, 6] },
+    })
+    const shown = rollUpDice()
+    expect(rollUpButtons()).toHaveLength(0)
+
+    reload('player', 'player-1')
+    openSheet('Gus Pike')
+
+    expect(rollUpDice()).toEqual(shown)
+    expect(shown.slice(0, 1).concat(shown.slice(-1))).toEqual([['Strength', '40 + 7 = 47'], ['Body', '10 + 5 + 6 = 21']])
+    expect(valuesOf('Fear')[0]).toBe('21')
+    expect(rollUpButtons()).toHaveLength(0)
+    expect(screen.queryByText(/re-?roll/i, { selector: 'button' })).toBeNull()
+  })
+
+  it('never lets the owner or the GM type over a base value on a guided draft, rolled or not', () => {
+    seed({ gus: guidedDraft({ base: { ...tommyBase, Charm: null }, rollUp: { stats: { Strength: { tens: 20, d10: 4 } } } }) })
+    mountTab('player', 'player-1')
+    openSheet('Gus Pike')
+
+    expect(screen.queryByLabelText('Strength base')).toBeNull()
+    expect(screen.queryByLabelText('Charm base')).toBeNull()
+    expect(rollUpButton('Strength')).toBeNull()
+    expect(rollUpButton('Charm')).toBeTruthy()
+
+    reload('gm', GM)
+    openSheet('Gus Pike')
+
+    expect(screen.queryByLabelText('Strength base')).toBeNull()
+    expect(screen.queryByLabelText('Charm base')).toBeNull()
+    expect(rollUpButton('Charm')).toBeTruthy()
+  })
+
+  it('shows the GM every roll on a player\'s draft, and another player the rolls with no way to make one', () => {
+    seed({ gus: guidedDraft({ ...allRolledSheet(), rollUp: { ...allRolledSheet().rollUp as Fields, saves: { Sanity: [3, 4] } } }) })
+    mountTab('gm', GM)
+    openSheet('Gus Pike')
+
+    expect(rollUpDice()).toEqual([
+      ['Strength', '40 + 7 = 47'],
+      ['Speed', '30 + 3 = 33'],
+      ['Intellect', '20 + 4 = 24'],
+      ['Handle', '50 + 2 = 52'],
+      ['Charm', '40 + 1 = 41'],
+      ['Sanity', '10 + 3 + 4 = 17'],
+      ['Fear', 'Roll'],
+      ['Body', 'Roll'],
+    ])
+
+    reload('player', 'player-2')
+    openSheet('Gus Pike')
+
+    expect(rollUpDice().slice(-3)).toEqual([['Sanity', '10 + 3 + 4 = 17'], ['Fear', 'not rolled yet'], ['Body', 'not rolled yet']])
+    expect(rollUpButtons()).toHaveLength(0)
+  })
+
+  it('offers the Swap only once every value is rolled, from the lowest Stat to any but the highest, and writes it at once', () => {
+    seed({ gus: guidedDraft(allRolledSheet()) })
+    mountTab('player', 'player-1')
+    openSheet('Gus Pike')
+
+    fireEvent.click(swapButton('Swap lowest Stat') as HTMLElement)
+    expect(swapStats()).toEqual(['Strength 47', 'Speed 33', 'Charm 41'])
+
+    fireEvent.click(screen.getByText('Speed 33'))
+    expect(screen.getByText(/Intellect becomes 33 and Speed becomes 24/)).toBeTruthy()
+    fireEvent.click(swapButton('Undo') as HTMLElement)
+    fireEvent.click(screen.getByText('Strength 47'))
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+
+    fireEvent.click(swapButton('Confirm Swap') as HTMLElement)
+
+    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
+    expect(writtenSheet()).toMatchObject({
+      base: { Intellect: 47, Strength: 24 },
+      rollUp: { swap: { lowest: 'Intellect', other: 'Strength' }, stats: { Intellect: { tens: 20, d10: 4 } } },
+    })
+
+    reload('player', 'player-1')
+    openSheet('Gus Pike')
+
+    expect(screen.getByText('Swapped Intellect and Strength.')).toBeTruthy()
+    expect(swapButton('Swap lowest Stat')).toBeNull()
+    expect(swapButton('Keep scores')).toBeNull()
+    expect([valuesOf('Intellect')[0], valuesOf('Strength')[0]]).toEqual(['47', '24'])
+    expect(screen.queryByLabelText('Intellect base')).toBeNull()
+    expect(screen.queryByLabelText('Strength base')).toBeNull()
+  })
+
+  it('lets a tie for lowest pick which Stat moves', () => {
+    seed({ gus: guidedDraft({ ...allRolledSheet(), base: { ...allRolledSheet().base as Fields, Speed: 24 } }) })
+    mountTab('player', 'player-1')
+    openSheet('Gus Pike')
+
+    fireEvent.click(swapButton('Swap lowest Stat') as HTMLElement)
+    expect(screen.getByText('Tied for lowest: which one moves?')).toBeTruthy()
+    expect(swapStats()).toEqual(['Speed 24', 'Intellect 24'])
+
+    fireEvent.click(screen.getByText('Speed 24'))
+
+    expect(swapStats()).toEqual(['Strength 47', 'Charm 41'])
+  })
+
+  it('offers no Swap while a value is still to roll, and keeping the scores closes it', async () => {
+    seed({ gus: guidedDraft({ ...allRolledSheet(), rollUp: { ...allRolledSheet().rollUp as Fields, saves: {} } }) })
+    mountTab('player', 'player-1')
+    openSheet('Gus Pike')
+    expect(swapButton('Swap lowest Stat')).toBeNull()
+
+    reload('player', 'player-1')
+    seed({ gus: guidedDraft(allRolledSheet()) })
+    reload('player', 'player-1')
+    openSheet('Gus Pike')
+    fireEvent.click(swapButton('Keep scores') as HTMLElement)
+    await settleSaves()
+
+    expect(stored('gus').lubec.rollUp).toMatchObject({ kept: true })
+    reload('player', 'player-1')
+    openSheet('Gus Pike')
+    expect(screen.getByText('Scores kept as rolled.')).toBeTruthy()
+    expect(swapButton('Swap lowest Stat')).toBeNull()
+  })
+
+  it('shows each class\'s modifiers, Trauma Response and class rule, and records the class and its choice, still changeable', async () => {
+    seed({ gus: guidedDraft(allRolledSheet()) })
+    mountTab('player', 'player-1')
+    openSheet('Gus Pike')
+
+    expect(within(classOption('Working Kid')).getByText('+5 every Stat, +10 every Save')).toBeTruthy()
+    expect(within(classOption('Working Kid')).getByText(/Steady Under Pressure/)).toBeTruthy()
+    expect(within(classOption('Overachiever')).getByText('Failed Stat Checks give +2 Stress instead of +1.')).toBeTruthy()
+    expect(within(classOption('Nerd')).getByText(/-10 to one of Strength, Speed, Handle or Charm/)).toBeTruthy()
+
+    fireEvent.click(within(classOption('Nerd')).getByRole('button'))
+    choose('Stat taking -10', 'Charm')
+    await settleSaves()
+
+    expect(stored('gus').lubec.class).toMatchObject({ key: 'nerd', choices: { statPenalty: 'Charm' } })
+    expect(finalsOf('Charm')).toEqual(['31', '31'])
+
+    fireEvent.click(within(classOption('Tough')).getByRole('button'))
+    await settleSaves()
+
+    expect(stored('gus').lubec.class).toMatchObject({ key: 'tough', choices: { statPenalty: null } })
+    expect(within(classOption('Tough')).getByRole('button').getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('takes the Nerd package on the Skills page, then finalizes clean and gives the GM the Correct switch', async () => {
+    seed({ gus: guidedDraft({ ...allRolledSheet(), class: { key: 'nerd', choices: { statPenalty: 'Charm' } }, rollUp: { ...allRolledSheet().rollUp as Fields, kept: true } }) })
+    mountTab('player', 'player-1')
+    openSkillsPage('Gus Pike')
+
+    fireEvent.change(freeSkillChoice(), { target: { value: 'Science' } })
+    fireEvent.click(skillButton('Art'))
+    fireEvent.click(skillButton('Science Fair Champ'))
+    fireEvent.click(skillButton('Forgery'))
+    await settleSaves()
+
+    expect(storedSkills('gus')).toEqual({ free: 'Science', picked: ['Art', 'Science Fair Champ', 'Forgery'] })
+    const dialog = openFinalize()
+    expect(within(dialog).getByText('Nothing to warn about.')).toBeTruthy()
+    fireEvent.click(within(dialog).getByText('Finalize', { selector: 'button' }))
+    await settleSaves()
+
+    expect(database.gus).toMatchObject({ creationMode: 'new', creationStatus: 'active' })
+
+    reload('gm', GM)
+    openSheet('Gus Pike')
+    expect(document.querySelector('.lubec-roll-up')).toBeNull()
+    expect(screen.queryByLabelText('Strength base')).toBeNull()
+
+    fireEvent.click(correctSwitch() as HTMLInputElement)
+    typeBase('Strength', '50')
+    await settleSaves()
+
+    expect(stored('gus').lubec.base.Strength).toBe(50)
+  })
+
+  it('lists an unfinished roll-up as still incomplete in the Finalize dialog, and finalizes it anyway', async () => {
+    const rolled = allRolledSheet()
+    seed({ gus: guidedDraft({ ...rolled, rollUp: { ...rolled.rollUp as Fields, saves: { Sanity: [3, 4] } } }) })
+    mountTab('player', 'player-1')
+    openSheet('Gus Pike')
+
+    let dialog = openFinalize()
+    expect(noticesIn(dialog, 'Still incomplete')).toEqual(['Not rolled yet: Fear, Body.'])
+    expect(noticesIn(dialog, 'Rule warnings')).toContain('No class is chosen.')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    fireEvent.click(within(classOption('Working Kid')).getByRole('button'))
+    fireEvent.click(screen.getByText('Skills', { selector: 'nav button' }))
+    fireEvent.change(freeSkillChoice(), { target: { value: 'Boatwork' } })
+    dialog = openFinalize()
+
+    expect(noticesIn(dialog, 'Rule warnings')).toEqual(['The Working Kid picks 1 Trained and 1 Expert beside the free class skill.'])
+
+    fireEvent.click(within(dialog).getByText('Finalize', { selector: 'button' }))
+    await settleSaves()
+
+    expect(database.gus.creationStatus).toBe('active')
+  })
+
+  it('rolls again only on a new draft once the old one is deleted', async () => {
+    seed({ gus: guidedDraft(allRolledSheet()) })
+    mountTab('player', 'player-1')
+    openSheet('Gus Pike')
+    expect(rollUpButtons()).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    await flushMicrotasks()
+    expect(database.gus).toBeUndefined()
+
+    startGuided()
+    await flushMicrotasks()
+
+    expect(rollUpButtons()).toHaveLength(8)
   })
 })

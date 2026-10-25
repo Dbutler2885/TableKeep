@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 
-type DialogProps = { onDirectEntry: () => void; onClose: () => void }
+/** The ways a new character comes in, each starting a new draft. */
+export type LubecDoors = { onDirectEntry: () => void; onGuided: () => void }
 
-// The doors that exist so far; Import and Guided roll-up add theirs here.
-function LubecNewCharacterDialog({ onDirectEntry, onClose }: DialogProps) {
+type DialogProps = LubecDoors & { onClose: () => void }
+
+// The doors that exist so far; Import adds its own here.
+function LubecNewCharacterDialog({ onDirectEntry, onGuided, onClose }: DialogProps) {
   return (
     <div className="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="lubec-new-character-title">
       <div className="confirm-modal lubec-new-character">
@@ -14,6 +17,10 @@ function LubecNewCharacterDialog({ onDirectEntry, onClose }: DialogProps) {
           <button type="button" className="lubec-door" onClick={() => { onDirectEntry(); onClose() }}>
             <strong>Direct entry</strong>
             <span>Type in the base Stats and Saves, the class and its choice from a sheet you already have.</span>
+          </button>
+          <button type="button" className="lubec-door" onClick={() => { onGuided(); onClose() }}>
+            <strong>Guided roll-up</strong>
+            <span>Roll each Stat and Save, keep the scores or Swap the lowest, then choose a class and skills. Every die is saved as it lands.</span>
           </button>
         </div>
         <div className="confirm-actions">
@@ -25,14 +32,14 @@ function LubecNewCharacterDialog({ onDirectEntry, onClose }: DialogProps) {
 }
 
 /** The "New character" action and the dialog that offers the ways in. */
-export function LubecNewCharacter({ onDirectEntry }: { onDirectEntry: () => void }) {
+export function LubecNewCharacter(doors: LubecDoors) {
   const [open, setOpen] = useState(false)
   return (
     <>
       <button type="button" className="lubec-new-btn" onClick={() => setOpen(true)}>
         <Plus size={14} aria-hidden="true" /> New character
       </button>
-      {open ? <LubecNewCharacterDialog onDirectEntry={onDirectEntry} onClose={() => setOpen(false)} /> : null}
+      {open ? <LubecNewCharacterDialog {...doors} onClose={() => setOpen(false)} /> : null}
     </>
   )
 }

@@ -42,6 +42,22 @@ export function sendCharacterStoreSavesNow(saves: CharacterStoreSaves) {
   })
 }
 
+/**
+ * Sends one character's save now, dropping its waiting delay, so the save also
+ * carries any edit made just before it.
+ */
+export function sendCharacterStoreSaveNow<Character extends CharacterStoreRecord>(
+  saves: CharacterStoreSaves,
+  campaign: CampaignScope,
+  ruleSet: CharacterStoreRuleSet<Character>,
+  characterId: string,
+  readCharacter: (characterId: string) => Character | undefined,
+) {
+  const pending = saves.pending[characterId]
+  if (pending) clearTimeout(pending.timer)
+  sendCharacterStoreSave(saves, campaign, ruleSet, characterId, readCharacter)
+}
+
 /** Drops one character's waiting save without sending it, and forgets its save in flight. */
 export function cancelCharacterStoreSave(saves: CharacterStoreSaves, characterId: string) {
   const pending = saves.pending[characterId]

@@ -11,9 +11,11 @@ import { LubecClassPicker } from './LubecClassPicker'
 import { LubecCountersPanel, type LubecCountersChange } from './LubecCountersPanel'
 import { LubecEffectsPanel } from './LubecEffectsPanel'
 import { LubecFightPanel } from './LubecFightPanel'
+import { LubecGuidedClassStep } from './LubecGuidedClassStep'
 import { LubecMissing, LubecNumber } from './LubecMissing'
 import { LubecSaveRolls } from './LubecPanicRolls'
 import { LubecRollPanel } from './LubecRollPanel'
+import { LubecRollUpPanel } from './LubecRollUpPanel'
 import { useLubecRoller, type LubecRolled, type LubecRoller } from './useLubecRoller'
 
 /**
@@ -98,6 +100,22 @@ function LubecValuesPanel({ title, column, tone, names, footer, ...values }: Val
   )
 }
 
+/** A guided draft's roll-up: its dice and Swap saved at once, or null for a viewer who may only look. */
+export type LubecGuided = { onRollUp: LubecSheetEdit | null }
+
+type CreationProps = { sheet: LubecCharacterSheet; guided: LubecGuided | null; onDraftEdit: LubecSheetEdit | null }
+
+// What a draft is made with: a guided draft's roll-up and class step, or a typed draft's class picker.
+function LubecCreationPanels({ sheet, guided, onDraftEdit }: CreationProps) {
+  if (!guided) return onDraftEdit ? <LubecClassPicker sheet={sheet} onEdit={onDraftEdit} /> : null
+  return (
+    <>
+      <LubecRollUpPanel sheet={sheet} onRollUp={guided.onRollUp} onDraftEdit={onDraftEdit} />
+      {onDraftEdit ? <LubecGuidedClassStep sheet={sheet} onEdit={onDraftEdit} /> : null}
+    </>
+  )
+}
+
 type CorePageProps = {
   sheet: LubecCharacterSheet
   /** Absent for a viewer who may not change the character. */
@@ -108,6 +126,8 @@ type CorePageProps = {
   onDraftEdit?: LubecSheetEdit | null
   /** Absent for a viewer who may not roll on the character. */
   onRolled: LubecRolled | null
+  /** Present on a guided draft, whose base values are rolled rather than typed. */
+  guided?: LubecGuided | null
 }
 
 /**
@@ -116,15 +136,16 @@ type CorePageProps = {
  * and the Recovery Save below the Saves, the roller and the last roll, the counters, the active effects that change the values, the
  * class's reminders and the reserved Fight panel. While a draft can be typed
  * into, its base values and its class and choice are fields, and each final
- * value follows as it is typed.
+ * value follows as it is typed. A guided draft's base values are rolled
+ * instead, so they are never fields.
  */
-export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraftEdit = null, onRolled }: CorePageProps) {
+export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraftEdit = null, onRolled, guided = null }: CorePageProps) {
   const modifiers = lubecActiveModifiers(sheet.effects)
   const roller = useLubecRoller(sheet, onRolled)
-  const values = { sheet, modifiers, onDraftEdit, roller }
+  const values = { sheet, modifiers, onDraftEdit: guided ? null : onDraftEdit, roller }
   return (
     <div className="lubec-page lubec-core">
-      {onDraftEdit ? <LubecClassPicker sheet={sheet} onEdit={onDraftEdit} /> : null}
+      <LubecCreationPanels sheet={sheet} guided={guided} onDraftEdit={onDraftEdit} />
       <LubecValuesPanel title="Stats" column="Stat" tone="rust" names={LUBEC_STATS} {...values} />
       <LubecValuesPanel
         title="Saves"

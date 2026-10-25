@@ -8,7 +8,8 @@ const pickOf = (value: string) => (value === '' ? null : value)
 
 type ChoiceProps = { choice: LubecClassChoice; sheet: LubecSheet; onEdit: LubecSheetEdit }
 
-function LubecChoicePicker({ choice, sheet, onEdit }: ChoiceProps) {
+/** The Stat a class's own choice names, picked from the class's list. */
+export function LubecChoicePicker({ choice, sheet, onEdit }: ChoiceProps) {
   const id = useId()
   return (
     <div className="lubec-pick">

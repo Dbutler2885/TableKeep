@@ -17145,6 +17145,180 @@ button:disabled {
   text-align: right;
 }
 
+/* Guided roll-up: every die as it landed, a Roll button for each value still to roll, then Keep or Swap. */
+.shell-root[data-theme="lubec"] .lubec-roll-up,
+.shell-root[data-theme="lubec"] .lubec-class-step {
+  grid-column: 1 / -1;
+}
+
+.shell-root[data-theme="lubec"] .lubec-roll-up-hint,
+.shell-root[data-theme="lubec"] .lubec-roll-up-decision,
+.shell-root[data-theme="lubec"] .lubec-swap-step p {
+  margin: 0 0.7rem 0.6rem;
+  font: 400 0.85rem/1.35 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-roll-up-hint {
+  color: var(--lubec-muted);
+}
+
+.shell-root[data-theme="lubec"] .lubec-roll-up-decision {
+  margin-top: 0.6rem;
+  color: var(--lubec-rust);
+  font-weight: 700;
+}
+
+.shell-root[data-theme="lubec"] .lubec-roll-up-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr));
+  gap: 0 1rem;
+  margin: 0 0.7rem;
+  padding: 0;
+  list-style: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-roll-up-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 2.3rem;
+  border-bottom: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-roll-up-name {
+  color: var(--lubec-ink);
+  font: 700 1rem/1.1 var(--lubec-condensed);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-roll-up-dice {
+  color: var(--lubec-blue);
+  font: 700 0.95rem/1.1 var(--lubec-type);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.shell-root[data-theme="lubec"] .lubec-roll-up-waiting {
+  color: var(--lubec-muted);
+  font: 400 0.8rem/1.2 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-roll-up-roll,
+.shell-root[data-theme="lubec"] .lubec-swap-actions button {
+  padding: 0.35rem 0.7rem 0.3rem;
+  border: 1.5px solid var(--lubec-rust);
+  border-radius: 0;
+  color: var(--lubec-rust);
+  font: 800 0.68rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-roll-up-roll {
+  background: var(--lubec-rust);
+  color: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-roll-up-roll:hover {
+  background: var(--lubec-ink);
+  border-color: var(--lubec-ink);
+  color: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-swap-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.6rem 0.7rem 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-swap-step .lubec-swap-actions {
+  margin-top: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-swap-actions .lubec-swap-keep,
+.shell-root[data-theme="lubec"] .lubec-swap-actions .lubec-swap-confirm {
+  background: var(--lubec-blue);
+  border-color: var(--lubec-blue);
+  color: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-swap-actions .lubec-swap-keep:hover,
+.shell-root[data-theme="lubec"] .lubec-swap-actions .lubec-swap-confirm:hover {
+  background: var(--lubec-blue-alt);
+  border-color: var(--lubec-blue-alt);
+}
+
+.shell-root[data-theme="lubec"] .lubec-swap-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.shell-root[data-theme="lubec"] .lubec-swap-step {
+  margin-top: 0.6rem;
+}
+
+/* Guided roll-up's class step: each class with its modifiers, Trauma Response and rule. */
+.shell-root[data-theme="lubec"] .lubec-class-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: 0.6rem;
+  margin: 0 0.7rem 0.6rem;
+  padding: 0;
+  list-style: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-class-option {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+  min-width: 0;
+  padding-bottom: 0.5rem;
+  border: 1.5px solid var(--lubec-line);
+  background: rgba(255, 248, 231, 0.6);
+}
+
+.shell-root[data-theme="lubec"] .lubec-class-option button {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.55rem 0.6rem;
+  border: 0;
+  border-bottom: 1.5px solid var(--lubec-line);
+  border-radius: 0;
+  text-align: left;
+}
+
+.shell-root[data-theme="lubec"] .lubec-class-option button strong {
+  color: var(--lubec-blue);
+  font: 800 1.1rem/1.1 var(--lubec-display);
+}
+
+.shell-root[data-theme="lubec"] .lubec-class-mods {
+  color: var(--lubec-ink);
+  font: 700 0.8rem/1.3 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-class-option button[aria-pressed="true"] {
+  background: var(--lubec-pine);
+  cursor: default;
+}
+
+.shell-root[data-theme="lubec"] .lubec-class-option button[aria-pressed="true"] strong,
+.shell-root[data-theme="lubec"] .lubec-class-option button[aria-pressed="true"] .lubec-class-mods {
+  color: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-class-option:has(button[aria-pressed="true"]) {
+  border-color: var(--lubec-pine);
+}
+
+.shell-root[data-theme="lubec"] .lubec-class-option .lubec-class-rules dd {
+  font-size: 0.8rem;
+}
+
 @media (max-width: 560px) {
   .shell-root[data-theme="lubec"] .lubec-sheet {
     --pad: 1rem;
