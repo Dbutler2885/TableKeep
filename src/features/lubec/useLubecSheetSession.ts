@@ -1,15 +1,31 @@
+import { useMemo } from 'react'
 import type { Role } from '../../types/app'
 import { canEditCharacterStoreCharacter } from '../character/characterStore/characterStoreActions'
 import { useCharacterStore } from '../character/characterStore/useCharacterStore'
 import { useCharacterMedia } from '../character/hooks/useCharacterMedia'
 import { lubecCharacterStore } from '../ruleSets/lubec/characterParser'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
+import type { CharacterStoreCollection } from '../character/characterStore/characterStoreWrites'
 import type { LubecSheetEditing } from './LubecNameBandEditor'
+import { lubecNpcSheetRecord, type LubecNpcIdentity } from './lubecNpcSheetRecord'
 import { lubecSheetWiring, type LubecViewer } from './lubecSheetWiring'
 import type { LubecSheetViewProps } from './LubecSheetView'
 
-/** Where the sheets come from: the campaign's characters, all of them. */
-export type LubecSheetSource = { kind: 'characters' }
+/** Where the sheets come from: the campaign's characters, all of them, or one NPC's sheet. */
+export type LubecSheetSource =
+  | { kind: 'characters' }
+  | { kind: 'npc'; npc: LubecNpcIdentity }
+
+type StoreScope = { collection: CharacterStoreCollection; onlyId?: string }
+
+// The collection a source's sheets are stored in, narrowed to the one document of an NPC's sheet.
+const storeScopeOf = (source: LubecSheetSource): StoreScope =>
+  (source.kind === 'npc' ? { collection: 'npcSheets', onlyId: source.npc.id } : { collection: 'characters' })
+
+// The open sheet as shown: a character as stored, an NPC's sheet under the NPC's own name, portrait and token.
+function useOpenRecord(npc: LubecNpcIdentity | null, stored: LubecCharacterRecord | null) {
+  return useMemo(() => (npc && stored ? lubecNpcSheetRecord(npc, stored) : stored), [npc, stored])
+}
 
 /** The shared character store over Lubec characters: the roster, the selected id, add, update and delete. */
 export type LubecStore = ReturnType<typeof useCharacterStore<LubecCharacterRecord>>
@@ -60,11 +76,10 @@ function useLubecSheetEditing({ character, updateCharacter, role, currentUserId,
  * this viewer. Every tab that shows a Lubec sheet starts from here.
  */
 export function useLubecSheetSession({ source, campaignId, groupId, role, currentUserId, gmUserId, setError }: LubecSheetSessionOptions): LubecSheetSession {
-  // A source's kind names the campaign collection its sheets are stored in.
   const store = useCharacterStore({
-    ruleSet: lubecCharacterStore, collection: source.kind, campaignId, groupId, userId: currentUserId, role, gmUserId, setError, enabled: true,
+    ruleSet: lubecCharacterStore, ...storeScopeOf(source), campaignId, groupId, userId: currentUserId, role, gmUserId, setError, enabled: true,
   })
-  const character = store.selectedCharacter
+  const character = useOpenRecord(source.kind === 'npc' ? source.npc : null, store.selectedCharacter)
   const editing = useLubecSheetEditing({ character, updateCharacter: store.updateCharacter, campaignId, groupId, role, currentUserId })
   const viewer = { role, userId: currentUserId }
   const sheetProps = character ? { character, editing, ...lubecSheetWiring(character, viewer, store) } : null

@@ -462,7 +462,7 @@ describe('adding and deleting', () => {
     expect(mocks.setDoc.mock.calls[0][1]).toMatchObject({ sortOrder: 0 })
   })
 
-  it('confirms a delete, removes both documents and drops that NPC\'s pending writes', async () => {
+  it('confirms a delete, removes the NPC, its GM notes and its sheet, and drops that NPC\'s pending writes', async () => {
     renderTab('gm')
     act(() => editor().onChange({ name: 'Bee' }))
     act(() => editor().onChangeGmNotes('gone soon'))
@@ -472,7 +472,8 @@ describe('adding and deleting', () => {
     fireEvent.click(within(dialog).getByText('Delete'))
     await flush()
     await flush()
-    expect(mocks.deleteDoc.mock.calls).toEqual([[{ path: `${NPCS}/b` }], [{ path: `${PRIVATE}/b` }]])
+    await flush()
+    expect(mocks.deleteDoc.mock.calls).toEqual([[{ path: `${NPCS}/b` }], [{ path: `${PRIVATE}/b` }], [{ path: `${BASE}/npcSheets/b` }]])
     expect(screen.queryByRole('dialog')).toBeNull()
     act(() => vi.advanceTimersByTime(500))
     expect(mocks.setDoc).not.toHaveBeenCalled()

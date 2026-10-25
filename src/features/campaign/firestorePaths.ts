@@ -23,3 +23,9 @@ export function campaignDocRef(db: Firestore, scope: CampaignScope, ...segments:
 export function campaignUserStateRef(db: Firestore, scope: CampaignScope, userId: string) {
   return campaignDocRef(db, scope, 'userState', userId)
 }
+
+// The GM-only Lubec character sheet of one NPC, beside the NPC's own
+// documents and keyed by the same id.
+export function npcSheetRef(db: Firestore, scope: CampaignScope, npcId: string) {
+  return campaignDocRef(db, scope, 'npcSheets', npcId)
+}

@@ -10,7 +10,7 @@ import { createElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import type { User } from 'firebase/auth'
-import type { Campaign, Role } from '../../types/app'
+import type { Campaign, NpcRecord, Role } from '../../types/app'
 import type { CharacterTabProps } from '../shell/characterTabProps'
 
 const mocks = vi.hoisted(() => ({ props: {} as Record<string, Record<string, unknown>> }))
@@ -25,6 +25,7 @@ function stub(name: string) {
 vi.mock('../character/CharacterTab', () => ({ CharacterTab: stub('CharacterTab') }))
 vi.mock('../character/VtmCharacterTab', () => ({ VtmCharacterTab: stub('VtmCharacterTab') }))
 vi.mock('../lubec/LubecCharacterTab', () => ({ LubecCharacterTab: stub('LubecCharacterTab') }))
+vi.mock('../lubec/LubecNpcSheetTab', () => ({ LubecNpcSheetTab: stub('LubecNpcSheetTab') }))
 vi.mock('../common/RulesTab', () => ({ RulesTab: stub('RulesTab') }))
 vi.mock('../maps/MapsTab', () => ({ MapsTab: stub('MapsTab') }))
 vi.mock('../monsters/MonstersTab', () => ({ MonstersTab: stub('MonstersTab') }))
@@ -37,8 +38,8 @@ vi.mock('../notes/CalendarTab', () => ({ CalendarTab: stub('CalendarTab') }))
 const { CampaignTabContent } = await import('../shell/CampaignTabContent')
 const { campaignSystem, shellTheme } = await import('../shell/shellSelection')
 const { ruleSets } = await import('./registry')
-const { LubecSheet, OseSheet, VtmSheet } = await import('./RuleSetSheets')
-const { ruleSetSheets } = await import('./sheetComponents')
+const { LubecNpcSheet, LubecSheet, OseSheet, VtmSheet } = await import('./RuleSetSheets')
+const { ruleSetNpcSheets, ruleSetSheets } = await import('./sheetComponents')
 const { oseMonsterRuleset } = await import('../monsters/rulesets')
 
 const setError = () => undefined
@@ -52,7 +53,7 @@ const campaignOf = (stored: string): Campaign =>
 // its rule set, so each row gets it and the rule set decides what uses it.
 const characterTabProps = { campaignId: 'c1', characters: [] } as unknown as CharacterTabProps
 
-const renderTab = (stored: string, activeTab: 'character' | 'maps' | 'monsters', role: Role | null = 'gm') => {
+const renderTab = (stored: string, activeTab: 'character' | 'maps' | 'monsters' | 'npcs', role: Role | null = 'gm') => {
   const campaign = campaignOf(stored)
   return render(
     <CampaignTabContent
@@ -78,12 +79,13 @@ afterEach(() => {
 
 describe('declarations', () => {
   it.each([
-    ['ose', OseSheet, true, 'default'],
-    ['vtm', VtmSheet, false, 'vtm'],
-    ['lubec', LubecSheet, false, 'lubec'],
-  ] as const)('%s declares its sheet, whether Maps embeds it, and its skin', (id, component, embeddable, theme) => {
+    ['ose', OseSheet, true, null, 'default'],
+    ['vtm', VtmSheet, false, null, 'vtm'],
+    ['lubec', LubecSheet, false, LubecNpcSheet, 'lubec'],
+  ] as const)('%s declares its sheet, whether Maps embeds it, its NPC sheet and its skin', (id, component, embeddable, npcSheet, theme) => {
     expect(ruleSetSheets[id]).toBe(component)
-    expect(ruleSets[id].sheet).toEqual({ embeddable })
+    expect(ruleSetNpcSheets[id]).toBe(npcSheet)
+    expect(ruleSets[id].sheet).toEqual({ embeddable, npcSheet: npcSheet !== null })
     expect(ruleSets[id].skin.theme).toBe(theme)
   })
 
@@ -208,5 +210,39 @@ describe('Monsters tab', () => {
 
     expect(rendered(container)).toEqual(shown ? ['MonstersTab'] : [])
     if (shown) expect(mocks.props.MonstersTab).toEqual({ campaignId: 'c1', groupId: 'g1', role })
+  })
+})
+
+describe('NPC character sheet', () => {
+  const npc = { id: 'npc-1', name: 'Rene Dube' } as NpcRecord
+
+  it('hands the Lubec GM\'s NPC tab a Character sheet tab that opens the NPC\'s sheet, wired to the campaign and the viewer', () => {
+    renderTab('lubec', 'npcs', 'gm')
+    const sheetTab = mocks.props.NpcsTab.sheetTab as (npc: NpcRecord) => ReturnType<typeof createElement>
+
+    const { container } = render(sheetTab(npc))
+
+    expect(rendered(container)).toEqual(['LubecNpcSheetTab'])
+    expect(mocks.props.LubecNpcSheetTab).toEqual({
+      npc,
+      campaignId: 'c1',
+      groupId: 'g1',
+      role: 'gm',
+      currentUserId: 'user-1',
+      currentUsername: 'handle1',
+      gmUserId: 'gm-1',
+      setError,
+    })
+  })
+
+  it.each([
+    ['lubec', 'player'],
+    ['lubec', null],
+    ['ose', 'gm'],
+    ['vtm', 'gm'],
+  ] as const)('%s, viewed as %s: no Character sheet tab', (stored, role) => {
+    renderTab(stored, 'npcs', role)
+
+    expect(mocks.props.NpcsTab).toEqual({ campaignId: 'c1', groupId: 'g1', role, sheetTab: undefined })
   })
 })

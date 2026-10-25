@@ -40,6 +40,9 @@ export type RuleSetCatalogItem = { id: string; name: string }
 export type RuleSetSheet = {
   // Whether Maps may show that page beside the map.
   embeddable: boolean
+  // Whether the GM may keep a character sheet for an NPC, on a tab of its own
+  // beside the NPC's story; the sheet itself is in `sheetComponents.ts`.
+  npcSheet: boolean
 }
 
 // The shell's `data-theme` inside an open campaign.
@@ -121,7 +124,7 @@ export const oseRuleSet = {
     hiddenFromPlayers: ['items', 'monsters', 'tables'],
     labels: { rules: 'OSE SRD' },
   },
-  sheet: { embeddable: true },
+  sheet: { embeddable: true, npcSheet: false },
   skin: { theme: 'default', tokenColor: '#bf2f2a' },
   monsters: oseMonsterRuleset,
   approvals: ['create', 'sell', 'learn_spell', 'ability_reroll'],
@@ -148,7 +151,7 @@ export const ruleSets: RuleSetRegistry = {
       order: ['character', 'maps', 'monsters', 'npcs', 'notes', 'calendar'],
       hiddenFromPlayers: [],
     },
-    sheet: { embeddable: false },
+    sheet: { embeddable: false, npcSheet: false },
     skin: { theme: 'vtm', tokenColor: '#7a1a1f' },
     monsters: oseMonsterRuleset,
     approvals: [],
@@ -169,7 +172,7 @@ export const ruleSets: RuleSetRegistry = {
       order: ['character', 'maps', 'npcs', 'notes', 'calendar'],
       hiddenFromPlayers: [],
     },
-    sheet: { embeddable: false },
+    sheet: { embeddable: false, npcSheet: true },
     skin: { theme: 'lubec', tokenColor: '#c08a2e' },
     monsters: null,
     approvals: [],

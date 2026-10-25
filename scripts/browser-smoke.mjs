@@ -1274,6 +1274,73 @@ async function lubecSkillsPageSteps(page, testCase) {
   await screenshot(page, `${testCase.name}-lubec-skills`)
 }
 
+// The GM makes an NPC in the same campaign, opens its Character sheet tab,
+// makes a Direct entry sheet there and finalizes it. The sheet is stored in
+// npcSheets under the NPC's own id, never scrolls sideways, and on a desktop
+// fits the NPC's detail pane as a character's fits beside the roster.
+const LUBEC_NPC_SHEET = '.shell-root[data-theme="lubec"] .npc-detail-tabs .lubec-sheet'
+const LUBEC_NPC_PANE = '.shell-root[data-theme="lubec"] .monsters-layout .monsters-detail'
+
+async function openLubecNpcsTab(page) {
+  if (!(await page.$('.side-nav.open'))) await roleLocator(page, 'button', 'Open navigation').click()
+  await page.locator('.side-nav .nav-list .tab-button ::-p-text(NPCs)').click()
+  await closeNavigationDrawer(page)
+  await page.locator('.shell-root[data-theme="lubec"] .monsters-layout').wait()
+}
+
+async function addLubecNpc(page, npcsPath) {
+  await roleLocator(page, 'button', 'Add NPC').click()
+  let ids = []
+  await waitForStored(() => listDocumentIds(npcsPath), (listed) => {
+    ids = listed
+    return listed.length === 1 ? [] : [`expected one stored NPC, found ${listed.length}`]
+  })
+  return ids[0]
+}
+
+// The stage the NPC's stored sheet is at; null while there is none.
+async function storedSheetStatus(path) {
+  try {
+    return (await readDocumentFields(path)).creationStatus.stringValue
+  } catch {
+    return null
+  }
+}
+
+const sheetStatusIs = (expected) => (status) => (status === expected ? [] : [`the NPC's sheet is stored as ${status}, not ${expected}`])
+
+async function makeLubecNpcSheet(page, sheetPath) {
+  await page.locator('.npc-detail-tab-strip ::-p-text(Character sheet)').click()
+  await page.locator('.lubec-npc-sheet-start .lubec-new-btn').click()
+  await page.locator('[role="dialog"] .lubec-door ::-p-text(Direct entry)').click()
+  await page.locator(`${LUBEC_NPC_SHEET} .lubec-draft-bar`).wait()
+  await waitForStored(() => storedSheetStatus(sheetPath), sheetStatusIs('established_draft'))
+}
+
+async function finalizeLubecNpcSheet(page, sheetPath) {
+  await page.locator(`${LUBEC_NPC_SHEET} .lubec-draft-bar .confirm-button`).click()
+  await page.locator('[role="dialog"] .lubec-finalize .confirm-button').click()
+  await page.waitForFunction((selector) => !document.querySelector(selector), {}, `${LUBEC_NPC_SHEET} .lubec-draft-bar`)
+  await waitForStored(() => storedSheetStatus(sheetPath), sheetStatusIs('active'))
+}
+
+async function expectLubecNpcSheetOnOneScreen(page) {
+  const [height, visible] = await page.$eval(LUBEC_NPC_PANE, (pane) => [pane.scrollHeight, pane.clientHeight])
+  if (height > visible) throw new Error(`The NPC's Core page is ${height}px tall in a ${visible}px pane.`)
+}
+
+async function lubecNpcSheetSteps(page, testCase, campaignPath) {
+  await step('open the Lubec NPCs tab', () => openLubecNpcsTab(page))
+  const npcId = await step('make an NPC', () => addLubecNpc(page, `${campaignPath}/npcs`))
+  const sheetPath = `${campaignPath}/npcSheets/${npcId}`
+  await step('make a Direct entry sheet on the NPC\'s Character sheet tab', () => makeLubecNpcSheet(page, sheetPath))
+  await step('finalize the NPC\'s sheet', () => finalizeLubecNpcSheet(page, sheetPath))
+  await page.mouse.move(0, page.viewport().height - 1)
+  await step('fit the NPC\'s sheet without scrolling sideways', () => expectNoSidewaysScroll(page))
+  if (!testCase.viewport.isMobile) await step('fit the NPC\'s Core page on one desktop screen', () => expectLubecNpcSheetOnOneScreen(page))
+  await screenshot(page, `${testCase.name}-lubec-npc-sheet`)
+}
+
 async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) {
   const filePath = await lubecImportFile()
   await step('open the Lubec campaign made through the picker', () => openCampaignCard(page, campaignName, LUBEC_TAB))
@@ -1293,6 +1360,7 @@ async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) 
   if (!testCase.viewport.isMobile) await step('fit the Lubec Core page on one desktop screen', () => expectLubecCoreOnOneScreen(page))
   await screenshot(page, `${testCase.name}-lubec-core`)
   await lubecSkillsPageSteps(page, testCase)
+  await lubecNpcSheetSteps(page, testCase, charactersPath.replace(/\/characters$/, ''))
 }
 
 // Runs in the Lubec campaign `createAndOpenCampaign` made through the picker.

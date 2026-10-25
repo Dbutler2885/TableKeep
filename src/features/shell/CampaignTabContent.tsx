@@ -11,8 +11,8 @@ import { CalendarTab } from '../notes/CalendarTab'
 import type { GameSystem } from '../navigation/tabs'
 import { ruleSets } from '../ruleSets/registry'
 import type { RuleSetSheetProps } from '../ruleSets/RuleSetSheets'
-import { ruleSetSheets } from '../ruleSets/sheetComponents'
-import type { AppTab, CharacterRecord } from '../../types/app'
+import { ruleSetNpcSheets, ruleSetSheets } from '../ruleSets/sheetComponents'
+import type { AppTab, CharacterRecord, NpcRecord } from '../../types/app'
 
 export type TabPanelContext = RuleSetSheetProps & {
   gameSystem: GameSystem
@@ -76,8 +76,16 @@ function itemsPanel({ campaign, role, characters }: TabPanelContext) {
   return role === 'gm' ? <ItemsTab campaignId={campaign.id} groupId={campaign.groupId} role={role} characters={characters} /> : null
 }
 
-function npcsPanel({ campaign, role }: TabPanelContext) {
-  return <NpcsTab campaignId={campaign.id} groupId={campaign.groupId} role={role} />
+// The GM gets an NPC's character sheet beside its story, in a rule set that keeps one.
+function npcSheetTabFor({ gameSystem, role, campaign, user, username, setError }: TabPanelContext) {
+  const NpcSheet = ruleSets[gameSystem].sheet.npcSheet ? ruleSetNpcSheets[gameSystem] : null
+  if (!NpcSheet || role !== 'gm') return undefined
+  return (npc: NpcRecord) => <NpcSheet npc={npc} campaign={campaign} role={role} user={user} username={username} setError={setError} />
+}
+
+function npcsPanel(context: TabPanelContext) {
+  const { campaign, role } = context
+  return <NpcsTab campaignId={campaign.id} groupId={campaign.groupId} role={role} sheetTab={npcSheetTabFor(context)} />
 }
 
 function tablesPanel({ campaign, role }: TabPanelContext) {

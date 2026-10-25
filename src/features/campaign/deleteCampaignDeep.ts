@@ -25,6 +25,7 @@ export const CAMPAIGN_SUBCOLLECTIONS: SubcollectionSpec[] = [
   { name: 'monsters' },
   { name: 'npcs' },
   { name: 'npcPrivate' },
+  { name: 'npcSheets' },
   { name: 'itemApprovals' },
   { name: 'items' },
   { name: 'tables', children: [{ name: 'history' }] },

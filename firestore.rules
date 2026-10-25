@@ -320,6 +320,13 @@ service cloud.firestore {
           allow read, write: if isCampaignGm(groupId, campaignId);
         }
 
+        // An NPC's Lubec character sheet, in the shape of a character
+        // document. Only the GM ever sees it, whether or not the NPC is shown
+        // to players.
+        match /npcSheets/{npcId} {
+          allow read, write: if isCampaignGm(groupId, campaignId);
+        }
+
         match /itemApprovals/{approvalId} {
           allow read: if isGroupMember(groupId);
           allow create: if isGroupMember(groupId)

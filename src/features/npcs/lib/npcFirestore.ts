@@ -3,7 +3,7 @@ import { deleteDoc, onSnapshot, query, serverTimestamp, setDoc, where } from 'fi
 import { db } from '../../../firebase'
 import type { NpcRecord, Role } from '../../../types/app'
 import type { CampaignScope } from '../../campaign/firestorePaths'
-import { campaignCollectionRef, campaignDocRef } from '../../campaign/firestorePaths'
+import { campaignCollectionRef, campaignDocRef, npcSheetRef } from '../../campaign/firestorePaths'
 import { sanitizeTokenIconForPersistence } from '../../common/mediaFields'
 import type { NpcDocumentSnapshot } from './npcRecords'
 
@@ -67,7 +67,9 @@ export async function createNpcDocuments(scope: CampaignScope, npc: NpcRecord) {
   })
 }
 
+// The NPC goes with its GM notes and its character sheet, if it has one.
 export async function deleteNpcDocuments(scope: CampaignScope, npcId: string) {
   await deleteDoc(campaignDocRef(db, scope, 'npcs', npcId))
   await deleteDoc(campaignDocRef(db, scope, 'npcPrivate', npcId))
+  await deleteDoc(npcSheetRef(db, scope, npcId))
 }
