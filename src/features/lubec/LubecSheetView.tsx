@@ -3,7 +3,7 @@ import { useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { lubecClass } from '../ruleSets/lubec/classes'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
-import type { LubecSheetEdit } from '../ruleSets/lubec/directEntry'
+import { withLubecClass, type LubecSheetEdit } from '../ruleSets/lubec/directEntry'
 import type { LubecSkills } from '../ruleSets/lubec/skillPicks'
 import { LubecCorePage, type LubecGuided } from './LubecCorePage'
 import { LubecCorrectSwitch } from './LubecCorrectSwitch'
@@ -146,14 +146,28 @@ type SheetPageProps = LockedEdits & Pick<SheetViewProps, 'character' | 'editing'
   page: LubecPage
   onShowTree: () => void
   onHideTree: () => void
+  /** Brings the Core page's class cards into view once the class is cleared. */
+  onShowClass: () => void
 }
 
 // Only a guided character still in creation is rolled up; once finalized its values are like any other's.
 const guidedOf = (character: LubecCharacterRecord, onRollUp: LubecSheetEdit | null): LubecGuided | null =>
   (character.lubec.door === 'guided' && character.creationStatus !== 'active' ? { onRollUp } : null)
 
-function LubecSheetPage({ page, onShowTree, onHideTree, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp }: SheetPageProps) {
-  if (page === 'skills') return <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} onHideTree={onHideTree} />
+// The prototype's Change class: the class and the skills chosen for it are cleared, and the class cards come back.
+function changeClassOf(sheet: LubecCharacterRecord['lubec'], onDraftEdit: LubecSheetEdit | null, onShowClass: () => void) {
+  if (!onDraftEdit) return null
+  return () => {
+    onDraftEdit({ ...withLubecClass(sheet, null), skills: { free: null, picked: [] } })
+    onShowClass()
+  }
+}
+
+function LubecSheetPage({ page, onShowTree, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp }: SheetPageProps) {
+  if (page === 'skills') {
+    const onChangeClass = changeClassOf(character.lubec, onDraftEdit, onShowClass)
+    return <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} onHideTree={onHideTree} onChangeClass={onChangeClass} />
+  }
   return (
     <LubecCorePage
       sheet={character.lubec}
@@ -179,6 +193,12 @@ function hideLubecTree(sheet: HTMLElement | null, onPage: (page: LubecPage) => v
   sheet?.querySelector('[aria-labelledby="lubec-skill-strip-title"]')?.scrollIntoView({ behavior: lubecMotionAllowed() ? 'smooth' : 'auto', block: 'center' })
 }
 
+// Change class goes back to the Core page and brings its class cards into view, as the prototype scrolls to them.
+function showLubecClass(sheet: HTMLElement | null, onPage: (page: LubecPage) => void) {
+  flushSync(() => onPage('core'))
+  sheet?.querySelector('#lubec-class-title')?.scrollIntoView({ behavior: lubecMotionAllowed() ? 'smooth' : 'auto', block: 'start' })
+}
+
 /** One Lubec character's sheet, in the v4 frame, on its Core or Skills page. */
 export function LubecSheetView({ character, editing, onCountersChange, onDelete, onFinalize, onRollUp, corrections, ...edits }: SheetViewProps) {
   const [page, setPage] = useState<LubecPage>('core')
@@ -200,6 +220,7 @@ export function LubecSheetView({ character, editing, onCountersChange, onDelete,
         page={page}
         onShowTree={() => showLubecTree(sheetRef.current, setPage)}
         onHideTree={() => hideLubecTree(sheetRef.current, setPage)}
+        onShowClass={() => showLubecClass(sheetRef.current, setPage)}
         character={character}
         editing={editing}
         onCountersChange={onCountersChange}

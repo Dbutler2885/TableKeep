@@ -1061,17 +1061,18 @@ const LUBEC_CHARACTER_NAME = 'Tommy'
 const LUBEC_FIXTURE_URL = new URL('../src/features/ruleSets/lubec/fixtures/tommy-eves.lubec-character.json', import.meta.url)
 const LUBEC_PORTRAIT = `.lubec-idband img.lubec-portrait[alt=${JSON.stringify(`${LUBEC_CHARACTER_NAME} portrait`)}]`
 
-// Each Stat and Save as the Core page shows it: base, final with the Working
-// Kid's +5 to every Stat and +10 to every Save, and current, with no effects.
+// Each Stat and Save as the imported draft's Core page shows it: the base
+// typed in its circle's place, and under it what the Working Kid's +5 to every
+// Stat and +10 to every Save make of it, with no effects.
 const LUBEC_CORE_VALUES = [
-  ['Strength', '29', '24 +5 class'],
-  ['Speed', '56', '51 +5 class'],
-  ['Intellect', '43', '38 +5 class'],
-  ['Handle', '55', '50 +5 class'],
-  ['Charm', '53', '48 +5 class'],
-  ['Sanity', '30', '20 +10 class'],
-  ['Fear', '34', '24 +10 class'],
-  ['Body', '31', '21 +10 class'],
+  ['Strength', '24', '+5 class = 29'],
+  ['Speed', '51', '+5 class = 56'],
+  ['Intellect', '38', '+5 class = 43'],
+  ['Handle', '50', '+5 class = 55'],
+  ['Charm', '48', '+5 class = 53'],
+  ['Sanity', '20', '+10 class = 30'],
+  ['Fear', '24', '+10 class = 34'],
+  ['Body', '21', '+10 class = 31'],
 ]
 
 // The skills the tree fills in, in tree order, with their node's classes: the
@@ -1131,12 +1132,11 @@ async function expectLubecPortraitShown(page) {
 
 async function expectLubecCoreValues(page) {
   const rows = await page.$$eval(`${LUBEC_CORE_PAGE} .abilities .ability`, (elements) =>
-    // An imported character is a draft, so its base values are in their fields
-    // in the note under each circle: the note reads as the field's value, then its text.
+    // An imported character is a draft, so each base value is in its field in the circle's place.
     elements.map((ability) => [
       ability.querySelector('.ability-name').textContent,
-      ability.querySelector('.roll-circle').textContent,
-      [...ability.querySelectorAll('.base-note input')].map((input) => input.value).join('') + ability.querySelector('.base-note').textContent,
+      ability.querySelector('.roll-circle.typed input').value,
+      ability.querySelector('.base-note').textContent,
     ]))
   if (JSON.stringify(rows) !== JSON.stringify(LUBEC_CORE_VALUES)) throw new Error(`The Core page shows ${JSON.stringify(rows)}.`)
 }
@@ -1237,7 +1237,7 @@ async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) 
   // Clear of the page tabs, so the review screenshot shows them at rest.
   await page.mouse.move(0, page.viewport().height - 1)
   await step('show the Core page in the v4 frame', () => expectLubecPage(page, 'Core sheet'))
-  await step('show each Stat and Save in a roll circle with its base and class modifier under it', () => expectLubecCoreValues(page))
+  await step('show each Stat and Save\'s typed base in its roll circle with what its class makes of it under it', () => expectLubecCoreValues(page))
   await step('offer the skills to add to a roll in the strip under the Saves', () => expectLubecSkillChips(page))
   await step('show the class record with its Trauma Response and Melee Strength Mod', () => expectLubecClassRecord(page))
   await step('fit a new active effect\'s editor without scrolling sideways', () => openAndCloseLubecEffect(page))

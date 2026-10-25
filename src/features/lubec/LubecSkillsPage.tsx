@@ -172,14 +172,20 @@ function useSkillFocus() {
   }
 }
 
-type PageProps = { sheet: LubecSheet; onChange: OnSkillsChange; onHideTree: () => void }
+type PageProps = {
+  sheet: LubecSheet
+  onChange: OnSkillsChange
+  onHideTree: () => void
+  /** Clears the class and its skills to choose again; null unless the viewer may change the class. */
+  onChangeClass: (() => void) | null
+}
 
 /**
  * The combined prototype's Skills section: the class package and the tree's
  * dots for choosing while `onChange` is given, and otherwise the tree to read,
  * with the sticky detail bar under it either way.
  */
-export function LubecSkillsPage({ sheet, onChange, onHideTree }: PageProps) {
+export function LubecSkillsPage({ sheet, onChange, onHideTree, onChangeClass }: PageProps) {
   const { focus, show, toggle } = useSkillFocus()
   const skills = sheet.skills
   const picking = onChange !== null
@@ -205,7 +211,7 @@ export function LubecSkillsPage({ sheet, onChange, onHideTree }: PageProps) {
         <LubecTreeHeads />
         <LubecSkillTree view={view} />
         <LubecSkillList view={view} />
-        <LubecSkillDetail sheet={sheet} shown={focus.shown} picking={view.picking} onHideTree={onHideTree} />
+        <LubecSkillDetail sheet={sheet} shown={focus.shown} picking={view.picking} onHideTree={onHideTree} onChangeClass={onChangeClass} />
       </section>
     </div>
   )

@@ -34,8 +34,10 @@ function LubecSkillDetailBody({ name, skills }: { name: string; skills: LubecSki
   )
 }
 
-// Choosing shows how far the package has come; viewing offers the way back to the Core sheet.
-function LubecSkillActions({ sheet, picking, onHideTree }: { sheet: LubecSheet; picking: boolean; onHideTree: () => void }) {
+type ActionsProps = Pick<DetailProps, 'sheet' | 'picking' | 'onHideTree' | 'onChangeClass'>
+
+// Choosing shows how far the package has come and offers Change class; viewing offers the way back to the Core sheet.
+function LubecSkillActions({ sheet, picking, onHideTree, onChangeClass }: ActionsProps) {
   if (!picking) {
     return (
       <div className="skill-actions">
@@ -45,17 +47,30 @@ function LubecSkillActions({ sheet, picking, onHideTree }: { sheet: LubecSheet; 
     )
   }
   const progress = lubecPackageProgress(sheet)
-  return progress === null ? null : <div className="skill-actions"><span className="package-progress">{progress}</span></div>
+  if (progress === null) return null
+  return (
+    <div className="skill-actions">
+      <span className="package-progress">{progress}</span>
+      {onChangeClass ? <button type="button" className="secondary-button" onClick={onChangeClass}>Change class</button> : null}
+    </div>
+  )
 }
 
-type DetailProps = { sheet: LubecSheet; shown: string | null; picking: boolean; onHideTree: () => void }
+type DetailProps = {
+  sheet: LubecSheet
+  shown: string | null
+  picking: boolean
+  onHideTree: () => void
+  /** Clears the class and its skills to choose again; null unless the viewer may change the class. */
+  onChangeClass: (() => void) | null
+}
 
 /**
  * The prototype's sticky dark detail bar: the skill last chosen or read, or
  * the hint until there is one, any stored name the tree does not have, and the
- * package progress or the way back to the Core sheet.
+ * package progress with Change class, or the way back to the Core sheet.
  */
-export function LubecSkillDetail({ sheet, shown, picking, onHideTree }: DetailProps) {
+export function LubecSkillDetail({ sheet, shown, picking, onHideTree, onChangeClass }: DetailProps) {
   const unknown = lubecUnknownSkills(sheet.skills)
   return (
     <aside className="skill-detail" aria-label="Skill detail">
@@ -63,7 +78,7 @@ export function LubecSkillDetail({ sheet, shown, picking, onHideTree }: DetailPr
         {shown ? <LubecSkillDetailBody name={shown} skills={sheet.skills} /> : <div className="hint">{picking ? PICKING_HINT : VIEWING_HINT}</div>}
       </div>
       {unknown.length > 0 ? <div className="meta msg">Not on the tree, counting for nothing: {unknown.join(', ')}</div> : null}
-      <LubecSkillActions sheet={sheet} picking={picking} onHideTree={onHideTree} />
+      <LubecSkillActions sheet={sheet} picking={picking} onHideTree={onHideTree} onChangeClass={onChangeClass} />
     </aside>
   )
 }

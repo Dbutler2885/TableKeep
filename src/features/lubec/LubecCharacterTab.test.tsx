@@ -165,14 +165,44 @@ function openSheet(name: string) {
 const abilityOf = (name: string) =>
   screen.getByText(name, { selector: '.ability-name' }).closest('.ability') as HTMLElement
 
-const circleOf = (name: string) => abilityOf(name).querySelector('button.roll-circle') as HTMLButtonElement
+const circleOf = (name: string) => abilityOf(name).querySelector('.roll-circle') as HTMLButtonElement
 
-// The note under a circle, with a draft's typed base read from its field.
-const noteOf = (name: string) => [...(abilityOf(name).querySelector('.base-note')?.childNodes ?? [])]
-  .map((node) => (node instanceof HTMLInputElement ? node.value : node.textContent)).join('')
+const noteOf = (name: string) => abilityOf(name).querySelector('.base-note')?.textContent
 
-/** A Stat or Save as the sheet shows it: the number in its circle, and the base and what is added to it in the note below. */
-const valuesOf = (name: string) => [circleOf(name).textContent, noteOf(name)]
+/**
+ * A Stat or Save as the sheet shows it: the number in its circle, or a draft's
+ * typed base in its field there, and what the note below says of it.
+ */
+const valuesOf = (name: string) => [circleOf(name).querySelector('input')?.value ?? circleOf(name).textContent, noteOf(name)]
+
+const statusLine = () => document.querySelector('.abilities .status')?.textContent
+
+// By attribute rather than by role, as naming every card's controls is slow in jsdom.
+const classCard = (name: string) => document.querySelector(`.class-card[aria-label="${name}"]`) as HTMLElement
+
+const chooseClass = (name: string) => fireEvent.click(classCard(name).querySelector('.class-select') as HTMLElement)
+
+/** Picks a Stat in a class card's own choice. */
+const chooseOnCard = (name: string, stat: string) =>
+  fireEvent.change(classCard(name).querySelector('select') as HTMLSelectElement, { target: { value: stat } })
+
+const cardOptions = (name: string) => [...(classCard(name).querySelector('select') as HTMLSelectElement).options].map((option) => option.textContent)
+
+/** The card's modifier bars and its free skill line. */
+const cardBars = (name: string) => [...classCard(name).querySelectorAll('.modifier')].map((bar) => bar.textContent)
+
+const changeClassButton = () => screen.queryByText('Change class', { selector: '.skill-actions button' })
+
+/** The Skills page's Change class, which brings the class cards back on the Core page. */
+function changeClass() {
+  // jsdom has no scrollIntoView, so the stub is taken away again after the case.
+  if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = vi.fn()
+    onTestFinished(() => { delete (Element.prototype as Partial<Element>).scrollIntoView })
+  }
+  fireEvent.click(screen.getByText('Skills', { selector: 'nav button' }))
+  fireEvent.click(changeClassButton() as HTMLElement)
+}
 
 const missingMarks = (name: string) => abilityOf(name).querySelectorAll('.lubec-missing').length
 
@@ -1342,15 +1372,6 @@ const baseInput = (name: string) => screen.getByLabelText(`${name} base`) as HTM
 
 const typeBase = (name: string, text: string) => fireEvent.change(baseInput(name), { target: { value: text } })
 
-/** The number in a Stat or Save's circle; the base is a field in the note below while it can be typed into. */
-const shownOf = (name: string) => circleOf(name).textContent
-
-const picker = (label: string) => screen.getByLabelText(label, { selector: 'select' }) as HTMLSelectElement
-
-const choose = (label: string, value: string) => fireEvent.change(picker(label), { target: { value } })
-
-const optionsOf = (label: string) => [...picker(label).options].map((option) => option.textContent)
-
 const backToRoster = () => fireEvent.click(screen.getByRole('button', { name: 'Back to character list' }))
 
 /** Lets the store's half-second save come due and land. */
@@ -1414,7 +1435,8 @@ describe('New character and Direct entry', () => {
     })
     const sheet = screen.getByRole('article', { name: 'Unnamed kid character sheet' })
     expect(within(sheet).getByText(/In creation · Direct entry/)).toBeTruthy()
-    expect(shownOf('Strength')).toBe('missing')
+    expect(valuesOf('Strength')).toEqual(['', ''])
+    expect(within(sheet).getByText('Choose your class', { selector: 'h3' })).toBeTruthy()
   })
 
   it('lets the GM create a Direct entry character, owned by the GM', async () => {
@@ -1434,18 +1456,19 @@ describe('New character and Direct entry', () => {
     expect(screen.queryByRole('button', { name: 'New character' })).toBeNull()
   })
 
-  it('shows each value in its circle as its base is typed in the note, and saves the typed base values', async () => {
+  it('takes each base typed into its circle\'s place, says under it what it comes to, and saves the typed base values', async () => {
     seed({ ada: directDraft() })
     mountTab('player', 'player-1')
     openSheet('Ada Mitchell')
 
-    choose('Class', 'working')
+    chooseClass('Working Kid')
     typeBase('Strength', '24')
     typeBase('Sanity', '20')
 
-    expect(valuesOf('Strength')).toEqual(['29', '24 +5 class'])
-    expect(shownOf('Sanity')).toBe('30')
-    expect(shownOf('Speed')).toBe('missing')
+    expect(valuesOf('Strength')).toEqual(['24', '+5 class = 29'])
+    expect(valuesOf('Sanity')).toEqual(['20', '+10 class = 30'])
+    expect(valuesOf('Speed')).toEqual(['', ''])
+    expect(document.querySelector('.class-grid')).toBeNull()
 
     await settleSaves()
 
@@ -1453,33 +1476,57 @@ describe('New character and Direct entry', () => {
     expect(stored('ada').lubec.class.key).toBe('working')
   })
 
-  it('takes the Nerd and Popular Kid\'s -10 Stat and the Overachiever\'s +5 Stat from the class\'s own list', async () => {
+  it('offers the five class cards, each with its modifiers, free skill, description and its own choice, and no Trauma Response yet', () => {
     seed({ ada: directDraft() })
+    mountTab('player', 'player-1')
+    openSheet('Ada Mitchell')
+
+    expect([...document.querySelectorAll('.class-card h4')].map((title) => title.textContent))
+      .toEqual(['Working Kid', 'Nerd', 'Tough', 'Overachiever', 'Popular Kid'])
+    expect(cardBars('Working Kid')).toEqual(['+5 all Stats', '+10 all Saves', 'Free skill: Boatwork, Jury-Rigging or Tides & Flats + 1 Trained and 1 Expert'])
+    expect(cardBars('Tough').slice(0, 3)).toEqual(['+10 Strength', '+10 Body', '+20 Fear'])
+    expect(within(classCard('Nerd')).getByText(/Tape on your glasses/)).toBeTruthy()
+    expect(screen.queryByText(/Steady Under Pressure/)).toBeNull()
+    expect(classCard('Working Kid').querySelector('select')).toBeNull()
+    expect(document.querySelector('.class-lock')).toBeNull()
+    expect(document.querySelector('.class-section .section-kicker')).toBeNull()
+  })
+
+  it('takes the Nerd and Popular Kid\'s -10 Stat and the Overachiever\'s +5 Stat from the card\'s own list, and Change class clears the class and its skills', async () => {
+    seed({ ada: directDraft({ lubec: { ...(directDraft().lubec as Fields), skills: { free: 'Science', picked: ['Art'] } } }) })
     mountTab('player', 'player-1')
     openSheet('Ada Mitchell')
     typeBase('Charm', '40')
     typeBase('Intellect', '30')
 
-    choose('Class', 'nerd')
+    expect(cardOptions('Nerd')).toEqual(['Strength', 'Speed', 'Handle', 'Charm'])
+    expect(cardOptions('Popular Kid')).toEqual(['Strength', 'Speed', 'Intellect', 'Handle'])
+    expect(cardOptions('Overachiever')).toEqual(['Strength', 'Speed', 'Handle', 'Charm'])
 
-    expect(optionsOf('Stat taking -10')).toEqual(['Choose a Stat', 'Strength', 'Speed', 'Handle', 'Charm'])
-    expect(shownOf('Charm')).toBe('missing')
+    chooseOnCard('Nerd', 'Charm')
+    chooseClass('Nerd')
 
-    choose('Stat taking -10', 'Charm')
+    expect(valuesOf('Charm')).toEqual(['40', '-10 class = 30'])
+    expect(valuesOf('Intellect')).toEqual(['30', '+20 class = 50'])
 
-    expect(shownOf('Charm')).toBe('30')
-    expect(shownOf('Intellect')).toBe('50')
+    changeClass()
+    await settleSaves()
 
-    choose('Class', 'popular')
+    expect(stored('ada').lubec.class).toMatchObject({ key: null, choices: { statPenalty: null, statBonus: null } })
+    expect(stored('ada').lubec.skills).toEqual({ free: null, picked: [] })
+    expect(document.querySelector('.lubec-skills')).toBeNull()
+    expect(valuesOf('Charm')).toEqual(['40', 'missing'])
 
-    expect(optionsOf('Stat taking -10')).toEqual(['Choose a Stat', 'Strength', 'Speed', 'Intellect', 'Handle'])
-    expect(shownOf('Intellect')).toBe('missing')
+    chooseClass('Popular Kid')
+    await settleSaves()
 
-    choose('Class', 'scout')
-    choose('Stat gaining +5', 'Charm')
+    expect(stored('ada').lubec.class).toMatchObject({ key: 'popular', choices: { statPenalty: 'Strength' } })
 
-    expect(shownOf('Charm')).toBe('45')
-    expect(screen.queryByLabelText('Stat taking -10', { selector: 'select' })).toBeNull()
+    changeClass()
+    chooseOnCard('Overachiever', 'Charm')
+    chooseClass('Overachiever')
+
+    expect(valuesOf('Charm')).toEqual(['40', '+5 class = 45'])
 
     await settleSaves()
 
@@ -1490,7 +1537,7 @@ describe('New character and Direct entry', () => {
     seed({ ada: directDraft() })
     mountTab('player', 'player-1')
     openSheet('Ada Mitchell')
-    choose('Class', 'working')
+    chooseClass('Working Kid')
     typeBase('Speed', '51')
     await settleSaves()
 
@@ -1501,28 +1548,27 @@ describe('New character and Direct entry', () => {
     const written = (database.ada.lubec as Fields).base as Fields
     expect(written.Speed).toBeNull()
     expect(written.Handle).toBeNull()
-    expect(shownOf('Speed')).toBe('missing')
-    expect(baseInput('Handle').value).toBe('12.5')
+    expect(valuesOf('Speed')).toEqual(['', ''])
+    expect(valuesOf('Handle')).toEqual(['12.5', ''])
 
     reload('player', 'player-1')
     openSheet('Ada Mitchell')
 
-    expect(baseInput('Speed').value).toBe('')
-    expect(shownOf('Speed')).toBe('missing')
-    expect(shownOf('Handle')).toBe('missing')
+    expect(valuesOf('Speed')).toEqual(['', ''])
+    expect(valuesOf('Handle')).toEqual(['', ''])
   })
 
   it('neither blocks nor warns when a typed value breaks a rule', async () => {
     seed({ ada: directDraft() })
     mountTab('player', 'player-1')
     openSheet('Ada Mitchell')
-    choose('Class', 'working')
+    chooseClass('Working Kid')
 
     typeBase('Strength', '99')
     typeBase('Fear', '5')
 
-    expect(shownOf('Strength')).toBe('104')
-    expect(shownOf('Fear')).toBe('15')
+    expect(valuesOf('Strength')).toEqual(['99', '+5 class = 104'])
+    expect(valuesOf('Fear')).toEqual(['5', '+10 class = 15'])
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.queryByText(/warning|outside|range/i)).toBeNull()
 
@@ -1553,7 +1599,7 @@ describe('New character and Direct entry', () => {
 
     openSheet('Ada Mitchell')
     expect(screen.queryByLabelText('Strength base')).toBeNull()
-    expect(screen.queryByLabelText('Class', { selector: 'select' })).toBeNull()
+    expect(document.querySelector('.class-grid')).toBeNull()
     expect(screen.getByText(/In creation · Direct entry/)).toBeTruthy()
 
     backToRoster()
@@ -2320,16 +2366,18 @@ describe('Finalize, locked values and the Correct switch', () => {
     mountTab('player', 'player-1')
     openSheet('Ada Mitchell')
     expect(baseInput('Strength')).toBeTruthy()
-    expect(picker('Stat taking -10')).toBeTruthy()
+    fireEvent.click(screen.getByText('Skills', { selector: 'nav button' }))
+    expect(changeClassButton()).toBeTruthy()
+    fireEvent.click(screen.getByText('Core sheet', { selector: 'nav button' }))
 
     await finalize()
 
     expect(screen.queryByLabelText('Strength base')).toBeNull()
-    expect(screen.queryByLabelText('Class', { selector: 'select' })).toBeNull()
-    expect(screen.queryByLabelText('Stat taking -10', { selector: 'select' })).toBeNull()
+    expect(document.querySelector('.class-grid')).toBeNull()
     fireEvent.click(screen.getByText('Skills', { selector: 'nav button' }))
     expect(freeChips()).toEqual([])
     expect(choosableDots()).toEqual([])
+    expect(changeClassButton()).toBeNull()
     expect(correctSwitch()).toBeNull()
   })
 
@@ -2346,7 +2394,7 @@ describe('Finalize, locked values and the Correct switch', () => {
 
     typeBase('Handle', '50')
     typeBase('Strength', '30')
-    choose('Class', 'working')
+    chooseClass('Working Kid')
     fireEvent.click(screen.getByText('Skills', { selector: 'nav button' }))
     fireEvent.click(skillDot('Swimming'))
     await settleSaves()
@@ -2409,27 +2457,32 @@ const allRolledSheet = (): Fields => ({
   },
 })
 
+// Every value rolled and the scores kept, so the class cards are open.
+const keptSheet = (): Fields => ({ ...allRolledSheet(), rollUp: { ...allRolledSheet().rollUp as Fields, kept: true } })
+
 /** A number the seeded dice turn into `face` on a die of `sides`. */
 const face = (value: number, sides: number) => ((value - 0.5) * 100) / sides + 0.5
 
-/** Each value's dice as the roll-up lists them; a value not rolled yet shows its Roll button or "not rolled yet". */
-const rollUpDice = () => [...document.querySelectorAll('.lubec-roll-up-list li')]
-  .map((item) => [item.querySelector('.lubec-roll-up-name')?.textContent, item.lastElementChild?.textContent])
+const VALUE_NAMES = ['Strength', 'Speed', 'Intellect', 'Handle', 'Charm', 'Sanity', 'Fear', 'Body']
 
-const rollUpButton = (name: string) => screen.queryByLabelText(`Roll ${name}`, { selector: '.lubec-roll-up-roll' })
+/** Each value as its circle and the dice note under it show it. */
+const rolledValues = () => VALUE_NAMES.map((name) => [name, ...valuesOf(name)])
 
-const rollUpButtons = () => document.querySelectorAll('.lubec-roll-up-roll')
+/** The circles that roll their value on a tap. */
+const rollUpButtons = () => VALUE_NAMES.filter((name) => circleOf(name).textContent === 'Roll' && !circleOf(name).disabled)
 
-const rollUp = (name: string) => fireEvent.click(rollUpButton(name) as HTMLElement)
+const rollUp = (name: string) => fireEvent.click(circleOf(name))
 
 const writtenSheet = () => (mocks.setDoc.mock.calls.at(-1)?.[1] as Fields).lubec as Fields
 
-const swapButton = (text: string) => screen.queryByText(text, { selector: '.lubec-roll-up button' })
+const trayButton = (text: string) => screen.queryByText(text, { selector: '.decision-tray button' })
 
-/** The Stats the Swap offers at its current step, by their button text. */
-const swapStats = () => [...document.querySelectorAll('.lubec-swap-stat')].map((button) => button.textContent)
+const trayIcon = (label: string) => document.querySelector(`.decision-tray [aria-label="${label}"]`) as HTMLElement | null
 
-const classOption = (name: string) => screen.getByText(name, { selector: '.lubec-class-option strong' }).closest('li') as HTMLElement
+/** The Stats a tap does something on, at the Swap's current step. */
+const tappableStats = () => VALUE_NAMES.slice(0, 5).filter((name) => !circleOf(name).disabled)
+
+const swapMark = (name: string) => [...circleOf(name).classList].find((entry) => entry.startsWith('swap-')) ?? null
 
 function startGuided() {
   fireEvent.click(screen.getByRole('button', { name: 'New character' }))
@@ -2462,6 +2515,11 @@ describe('Guided roll-up', () => {
     })
     expect(screen.getByText(/In creation · Guided roll-up/)).toBeTruthy()
     expect(rollUpButtons()).toHaveLength(8)
+    expect(circleOf('Strength').getAttribute('aria-label')).toBe('Generate Strength')
+    expect(statusLine()).toBe('Roll each Stat and Save to begin.')
+    expect(document.querySelector('.class-section .section-kicker')?.textContent).toBe('Settle Stats and Saves first')
+    expect(document.querySelector('.class-lock')?.textContent).toMatch(/unlock after all eight abilities are rolled/)
+    expect(document.querySelector('.class-grid')).toBeNull()
 
     reload('gm', GM)
     startGuided()
@@ -2471,7 +2529,7 @@ describe('Guided roll-up', () => {
       .toEqual([['player-1', 'draft'], [GM, 'draft']])
   })
 
-  it('writes each Stat and Save die before the debounce comes due, shows the same numbers after a remount, and offers no re-roll', () => {
+  it('writes each Stat and Save die from its circle before the debounce comes due, shows the same numbers after a remount, and offers no re-roll', () => {
     seed({ gus: guidedDraft() })
     mountTab('player', 'player-1')
     openSheet('Gus Pike')
@@ -2481,6 +2539,10 @@ describe('Guided roll-up', () => {
 
     expect(mocks.setDoc).toHaveBeenCalledTimes(1)
     expect(writtenSheet()).toMatchObject({ base: { Strength: 47 }, rollUp: { stats: { Strength: { tens: 40, d10: 7 } } } })
+    expect(valuesOf('Strength')).toEqual(['47', '40 + 7'])
+    expect(circleOf('Strength').className).toBe('roll-circle has-value awaiting-class')
+    expect(circleOf('Strength').disabled).toBe(true)
+    expect(statusLine()).toBe('Strength generated at 47.')
 
     const rolls: [string, ...number[]][] = [
       ['Speed', face(3, 4), face(3, 10)],
@@ -2509,17 +2571,46 @@ describe('Guided roll-up', () => {
       },
       saves: { Sanity: [3, 4], Fear: [10, 1], Body: [5, 6] },
     })
-    const shown = rollUpDice()
+    expect(statusLine()).toBe('Keep these scores or swap your lowest Stat.')
+    const shown = rolledValues()
     expect(rollUpButtons()).toHaveLength(0)
 
     reload('player', 'player-1')
     openSheet('Gus Pike')
 
-    expect(rollUpDice()).toEqual(shown)
-    expect(shown.slice(0, 1).concat(shown.slice(-1))).toEqual([['Strength', '40 + 7 = 47'], ['Body', '10 + 5 + 6 = 21']])
-    expect(valuesOf('Fear')[1]).toBe('21')
+    expect(rolledValues()).toEqual(shown)
+    expect(shown.slice(0, 1).concat(shown.slice(-1))).toEqual([['Strength', '47', '40 + 7'], ['Body', '21', '10 + 5 + 6']])
     expect(rollUpButtons()).toHaveLength(0)
     expect(screen.queryByText(/re-?roll/i, { selector: 'button' })).toBeNull()
+  })
+
+  it('spins a circle where motion is allowed, holding every other circle until it lands', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
+    seed({ gus: guidedDraft() })
+    mountTab('player', 'player-1')
+    openSheet('Gus Pike')
+
+    seedRolls(face(2, 5), face(7, 10))
+    rollUp('Strength')
+
+    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
+    expect(circleOf('Strength').className).toBe('roll-circle rolling')
+    expect(circleOf('Strength').getAttribute('aria-label')).toBe('Rolling Strength')
+    expect(statusLine()).toBe('Rolling Strength...')
+    expect(rollUpButtons()).toEqual([])
+
+    // Each preview's timer is set once the last one has shown, so the spin is let run a step at a time.
+    for (let step = 0; step < 11; step += 1) act(() => vi.advanceTimersByTime(500))
+    expect(circleOf('Strength').className).toBe('roll-circle rolling')
+    act(() => vi.advanceTimersByTime(500))
+
+    expect(valuesOf('Strength')).toEqual(['47', '40 + 7'])
+    expect(circleOf('Strength').className).toBe('roll-circle has-value awaiting-class landed')
+    expect(statusLine()).toBe('Strength generated at 47.')
+    expect(rollUpButtons()).toHaveLength(7)
+
+    act(() => vi.advanceTimersByTime(500))
+    expect(circleOf('Strength').className).toBe('roll-circle has-value awaiting-class')
   })
 
   it('never lets the owner or the GM type over a base value on a guided draft, rolled or not', () => {
@@ -2529,15 +2620,15 @@ describe('Guided roll-up', () => {
 
     expect(screen.queryByLabelText('Strength base')).toBeNull()
     expect(screen.queryByLabelText('Charm base')).toBeNull()
-    expect(rollUpButton('Strength')).toBeNull()
-    expect(rollUpButton('Charm')).toBeTruthy()
+    expect(rollUpButtons()).not.toContain('Strength')
+    expect(rollUpButtons()).toContain('Charm')
 
     reload('gm', GM)
     openSheet('Gus Pike')
 
     expect(screen.queryByLabelText('Strength base')).toBeNull()
     expect(screen.queryByLabelText('Charm base')).toBeNull()
-    expect(rollUpButton('Charm')).toBeTruthy()
+    expect(rollUpButtons()).toContain('Charm')
   })
 
   it('shows the GM every roll on a player\'s draft, and another player the rolls with no way to make one', () => {
@@ -2545,39 +2636,56 @@ describe('Guided roll-up', () => {
     mountTab('gm', GM)
     openSheet('Gus Pike')
 
-    expect(rollUpDice()).toEqual([
-      ['Strength', '40 + 7 = 47'],
-      ['Speed', '30 + 3 = 33'],
-      ['Intellect', '20 + 4 = 24'],
-      ['Handle', '50 + 2 = 52'],
-      ['Charm', '40 + 1 = 41'],
-      ['Sanity', '10 + 3 + 4 = 17'],
-      ['Fear', 'Roll'],
-      ['Body', 'Roll'],
+    expect(rolledValues()).toEqual([
+      ['Strength', '47', '40 + 7'],
+      ['Speed', '33', '30 + 3'],
+      ['Intellect', '24', '20 + 4'],
+      ['Handle', '52', '50 + 2'],
+      ['Charm', '41', '40 + 1'],
+      ['Sanity', '17', '10 + 3 + 4'],
+      ['Fear', 'Roll', ''],
+      ['Body', 'Roll', ''],
     ])
+    expect(rollUpButtons()).toEqual(['Fear', 'Body'])
 
     reload('player', 'player-2')
     openSheet('Gus Pike')
 
-    expect(rollUpDice().slice(-3)).toEqual([['Sanity', '10 + 3 + 4 = 17'], ['Fear', 'not rolled yet'], ['Body', 'not rolled yet']])
+    expect(rolledValues().slice(-3)).toEqual([['Sanity', '17', '10 + 3 + 4'], ['Fear', 'Roll', ''], ['Body', 'Roll', '']])
+    expect(circleOf('Fear').getAttribute('aria-label')).toBe('Fear not rolled yet')
     expect(rollUpButtons()).toHaveLength(0)
   })
 
-  it('offers the Swap only once every value is rolled, from the lowest Stat to any but the highest, and writes it at once', () => {
+  it('makes the Swap on the circles once every value is rolled, from the lowest Stat to any but the highest, and writes it only when confirmed', () => {
     seed({ gus: guidedDraft(allRolledSheet()) })
     mountTab('player', 'player-1')
     openSheet('Gus Pike')
+    expect(tappableStats()).toEqual([])
 
-    fireEvent.click(swapButton('Swap lowest Stat') as HTMLElement)
-    expect(swapStats()).toEqual(['Strength 47', 'Speed 33', 'Charm 41'])
+    fireEvent.click(trayButton('Swap lowest stat') as HTMLElement)
 
-    fireEvent.click(screen.getByText('Speed 33'))
-    expect(screen.getByText(/Intellect becomes 33 and Speed becomes 24/)).toBeTruthy()
-    fireEvent.click(swapButton('Undo') as HTMLElement)
-    fireEvent.click(screen.getByText('Strength 47'))
+    expect(tappableStats()).toEqual(['Strength', 'Speed', 'Charm'])
+    expect([swapMark('Intellect'), noteOf('Intellect')]).toEqual(['swap-source', 'Lowest'])
+    expect([swapMark('Handle'), noteOf('Handle')]).toEqual(['swap-locked', 'Locked'])
+    expect(swapMark('Speed')).toBe('swap-target')
+    expect(circleOf('Speed').getAttribute('aria-label')).toBe('Swap Intellect 24 with Speed 33')
+    expect(document.querySelector('.swap-hint')?.textContent).toBe('Tap a Stat to trade with your lowest')
+    expect(statusLine()).toBe('Intellect is your lowest. Tap a Stat to trade places with it. Your best Stat is locked.')
+
+    fireEvent.click(circleOf('Speed'))
+
+    expect(valuesOf('Intellect')).toEqual(['33', 'Swapped'])
+    expect(valuesOf('Speed')).toEqual(['24', 'Swapped'])
+    expect(swapMark('Speed')).toBe('swap-moved')
+    expect(statusLine()).toBe('Intellect is now 33; Speed is now 24. Confirm or undo.')
+    expect(trayButton('Keep these scores')).toBeNull()
+
+    fireEvent.click(trayIcon('Undo swap') as HTMLElement)
+    expect(valuesOf('Speed')).toEqual(['33', '30 + 3'])
+    fireEvent.click(circleOf('Strength'))
     expect(mocks.setDoc).not.toHaveBeenCalled()
 
-    fireEvent.click(swapButton('Confirm Swap') as HTMLElement)
+    fireEvent.click(trayIcon('Confirm swap') as HTMLElement)
 
     expect(mocks.setDoc).toHaveBeenCalledTimes(1)
     expect(writtenSheet()).toMatchObject({
@@ -2588,74 +2696,91 @@ describe('Guided roll-up', () => {
     reload('player', 'player-1')
     openSheet('Gus Pike')
 
-    expect(screen.getByText('Swapped Intellect and Strength.')).toBeTruthy()
-    expect(swapButton('Swap lowest Stat')).toBeNull()
-    expect(swapButton('Keep scores')).toBeNull()
-    expect([valuesOf('Intellect')[1], valuesOf('Strength')[1]]).toEqual(['47', '24'])
+    expect(statusLine()).toBe('Intellect and Strength swapped. Now choose a class.')
+    expect(document.querySelector('.decision-tray')).toBeNull()
+    expect([valuesOf('Intellect'), valuesOf('Strength')]).toEqual([['47', 'Swapped'], ['24', 'Swapped']])
     expect(screen.queryByLabelText('Intellect base')).toBeNull()
-    expect(screen.queryByLabelText('Strength base')).toBeNull()
+    expect(document.querySelector('.class-section .section-kicker')?.textContent).toBe('Choose the kid after seeing the rolls')
+    expect(classCard('Nerd')).toBeTruthy()
   })
 
-  it('lets a tie for lowest pick which Stat moves', () => {
+  it('lets a tie for lowest pick which Stat moves, and Cancel puts the scores back as they were', () => {
     seed({ gus: guidedDraft({ ...allRolledSheet(), base: { ...allRolledSheet().base as Fields, Speed: 24 } }) })
     mountTab('player', 'player-1')
     openSheet('Gus Pike')
 
-    fireEvent.click(swapButton('Swap lowest Stat') as HTMLElement)
-    expect(screen.getByText('Tied for lowest: which one moves?')).toBeTruthy()
-    expect(swapStats()).toEqual(['Speed 24', 'Intellect 24'])
+    fireEvent.click(trayButton('Swap lowest stat') as HTMLElement)
+    expect(statusLine()).toBe('Two Stats tie for lowest. Tap the one you want to move.')
+    expect(tappableStats()).toEqual(['Speed', 'Intellect'])
+    expect(noteOf('Speed')).toBe('Pick one')
 
-    fireEvent.click(screen.getByText('Speed 24'))
+    fireEvent.click(circleOf('Speed'))
 
-    expect(swapStats()).toEqual(['Strength 47', 'Charm 41'])
+    expect(tappableStats()).toEqual(['Strength', 'Charm'])
+
+    fireEvent.click(trayButton('Cancel') as HTMLElement)
+
+    expect(tappableStats()).toEqual([])
+    expect(statusLine()).toBe('Keep these scores or swap your lowest Stat.')
+    expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
-  it('offers no Swap while a value is still to roll, and keeping the scores closes it', async () => {
+  it('offers no Swap while a value is still to roll, and keeping the scores closes it and opens the class cards', async () => {
     seed({ gus: guidedDraft({ ...allRolledSheet(), rollUp: { ...allRolledSheet().rollUp as Fields, saves: {} } }) })
     mountTab('player', 'player-1')
     openSheet('Gus Pike')
-    expect(swapButton('Swap lowest Stat')).toBeNull()
+    expect(document.querySelector('.decision-tray')).toBeNull()
 
-    reload('player', 'player-1')
     seed({ gus: guidedDraft(allRolledSheet()) })
     reload('player', 'player-1')
     openSheet('Gus Pike')
-    fireEvent.click(swapButton('Keep scores') as HTMLElement)
+    expect(document.querySelector('.class-lock')).toBeTruthy()
+    fireEvent.click(trayButton('Keep these scores') as HTMLElement)
     await settleSaves()
 
     expect(stored('gus').lubec.rollUp).toMatchObject({ kept: true })
     reload('player', 'player-1')
     openSheet('Gus Pike')
-    expect(screen.getByText('Scores kept as rolled.')).toBeTruthy()
-    expect(swapButton('Swap lowest Stat')).toBeNull()
+    expect(statusLine()).toBe('Scores settled. Now choose a class.')
+    expect(document.querySelector('.decision-tray')).toBeNull()
+    expect(document.querySelector('.class-lock')).toBeNull()
+    expect(circleOf('Strength').className).toBe('roll-circle has-value awaiting-class')
   })
 
-  it('shows each class\'s modifiers, Trauma Response and class rule, and records the class and its choice, still changeable', async () => {
-    seed({ gus: guidedDraft(allRolledSheet()) })
+  it('records the class chosen from its card with the card\'s choice, shows its class record, and lets Change class bring the cards back', async () => {
+    seed({ gus: guidedDraft(keptSheet()) })
     mountTab('player', 'player-1')
     openSheet('Gus Pike')
 
-    expect(within(classOption('Working Kid')).getByText('+5 every Stat, +10 every Save')).toBeTruthy()
-    expect(within(classOption('Working Kid')).getByText(/Steady Under Pressure/)).toBeTruthy()
-    expect(within(classOption('Overachiever')).getByText('Failed Stat Checks give +2 Stress instead of +1.')).toBeTruthy()
-    expect(within(classOption('Nerd')).getByText(/-10 to one of Strength, Speed, Handle or Charm/)).toBeTruthy()
+    expect(cardBars('Nerd')).toEqual([
+      '+20 Intellect',
+      '-10 one other Stat',
+      '+30 Sanity',
+      'Free skill: Electronics & Radio, Science or History & Geography + 1 Trained and 2 Expert, each Expert with a Trained prerequisite',
+    ])
 
-    fireEvent.click(within(classOption('Nerd')).getByRole('button'))
-    choose('Stat taking -10', 'Charm')
+    chooseOnCard('Nerd', 'Charm')
+    chooseClass('Nerd')
     await settleSaves()
 
     expect(stored('gus').lubec.class).toMatchObject({ key: 'nerd', choices: { statPenalty: 'Charm' } })
-    expect(shownOf('Charm')).toBe('31')
+    expect(valuesOf('Charm')).toEqual(['31', '41 -10 class'])
+    expect(document.querySelector('.class-grid')).toBeNull()
+    expect(document.querySelector('.class-section .section-bar h3')?.textContent).toBe('Nerd')
+    expect(document.querySelector('.trauma-response strong')?.textContent).toBe('Failed Sanity Spreads Stress')
 
-    fireEvent.click(within(classOption('Tough')).getByRole('button'))
+    changeClass()
+
+    expect(classCard('Tough')).toBeTruthy()
+    chooseClass('Tough')
     await settleSaves()
 
     expect(stored('gus').lubec.class).toMatchObject({ key: 'tough', choices: { statPenalty: null } })
-    expect(within(classOption('Tough')).getByRole('button').getAttribute('aria-pressed')).toBe('true')
+    expect(valuesOf('Strength')).toEqual(['57', '47 +10 class'])
   })
 
   it('takes the Nerd package on the Skills page, then finalizes clean and gives the GM the Correct switch', async () => {
-    seed({ gus: guidedDraft({ ...allRolledSheet(), class: { key: 'nerd', choices: { statPenalty: 'Charm' } }, rollUp: { ...allRolledSheet().rollUp as Fields, kept: true } }) })
+    seed({ gus: guidedDraft({ ...keptSheet(), class: { key: 'nerd', choices: { statPenalty: 'Charm' } } }) })
     mountTab('player', 'player-1')
     openSkillsPage('Gus Pike')
 
@@ -2675,7 +2800,7 @@ describe('Guided roll-up', () => {
 
     reload('gm', GM)
     openSheet('Gus Pike')
-    expect(document.querySelector('.lubec-roll-up')).toBeNull()
+    expect(document.querySelector('.decision-tray, .class-grid, .class-lock')).toBeNull()
     expect(screen.queryByLabelText('Strength base')).toBeNull()
 
     fireEvent.click(correctSwitch() as HTMLInputElement)
@@ -2691,22 +2816,15 @@ describe('Guided roll-up', () => {
     mountTab('player', 'player-1')
     openSheet('Gus Pike')
 
-    let dialog = openFinalize()
+    const dialog = openFinalize()
     expect(noticesIn(dialog, 'Still incomplete')).toEqual(['Not rolled yet: Fear, Body.'])
     expect(noticesIn(dialog, 'Rule warnings')).toContain('No class is chosen.')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
-
-    fireEvent.click(within(classOption('Working Kid')).getByRole('button'))
-    fireEvent.click(screen.getByText('Skills', { selector: 'nav button' }))
-    fireEvent.click(freeChip('Boatwork'))
-    dialog = openFinalize()
-
-    expect(noticesIn(dialog, 'Rule warnings')).toEqual(['The Working Kid picks 1 Trained and 1 Expert beside the free class skill.'])
 
     fireEvent.click(within(dialog).getByText('Finalize', { selector: 'button' }))
     await settleSaves()
 
     expect(database.gus.creationStatus).toBe('active')
+    expect(document.querySelector('.class-lock')).toBeNull()
   })
 
   it('rolls again only on a new draft once the old one is deleted', async () => {
@@ -2805,9 +2923,9 @@ describe('Import a character file', () => {
     const sheet = screen.getByRole('article', { name: 'Tommy character sheet' })
     expect(within(sheet).getByText(/In creation · Imported/)).toBeTruthy()
     expect(within(sheet).getByRole('img', { name: 'No photo yet' })).toBeTruthy()
-    expect(valuesOf('Strength')).toEqual(['29', '24 +5 class'])
-    expect(valuesOf('Handle')).toEqual(['55', '50 +5 class'])
-    expect(valuesOf('Sanity')).toEqual(['30', '20 +10 class'])
+    expect(valuesOf('Strength')).toEqual(['24', '+5 class = 29'])
+    expect(valuesOf('Handle')).toEqual(['50', '+5 class = 55'])
+    expect(valuesOf('Sanity')).toEqual(['20', '+10 class = 30'])
     expect(counterValue('Stress')).toBe('2')
     expect(within(openFinalize()).getByText('Nothing to warn about.')).toBeTruthy()
     fireEvent.click(within(screen.getByRole('dialog', { name: /^Finalize/ })).getByRole('button', { name: 'Cancel' }))
@@ -2868,7 +2986,7 @@ describe('Import a character file', () => {
     reload('player', 'player-1')
     openSheet('Tommy')
 
-    expect(valuesOf('Speed')).toEqual(['56', '51 +5 class'])
+    expect(valuesOf('Speed')).toEqual(['51', '+5 class = 56'])
     expect(noticesIn(openFinalize(), 'Import notes')).toEqual([note])
   })
 
@@ -2896,7 +3014,7 @@ describe('Import a character file', () => {
     const id = importedId()
     expect((database[id].lubec as Fields).class).toEqual({ key: null, choices: { statPenalty: null, statBonus: null } })
     expect(((database[id].lubec as Fields).base as Fields).Handle).toBeNull()
-    expect(valuesOf('Handle')).toEqual(['missing', ''])
+    expect(valuesOf('Handle')).toEqual(['', ''])
     expect(noticesIn(openFinalize(), 'Missing values')).toEqual(['Class', 'Handle'])
   })
 
@@ -2912,7 +3030,7 @@ describe('Import a character file', () => {
       creationStatus: 'established_draft',
       lubec: { door: 'import', class: { key: 'working' }, skills: { free: 'Boatwork', picked: ['Swimming', 'Diving'] } },
     })
-    expect(valuesOf('Charm')).toEqual(['53', '48 +5 class'])
+    expect(valuesOf('Charm')).toEqual(['48', '+5 class = 53'])
   })
 
   it('hands a pasted portrait to the media upload as the owner, and stores only the path it returns', async () => {

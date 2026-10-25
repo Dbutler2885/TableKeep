@@ -2,30 +2,20 @@ import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
 import type { LubecSheetEdit } from '../ruleSets/lubec/directEntry'
 import { lubecActiveModifiers, type LubecEffect } from '../ruleSets/lubec/effects'
 import { LubecAbilities } from './LubecAbilities'
-import { LubecClassRecord } from './LubecClassRecord'
-import { LubecClassPicker } from './LubecClassPicker'
+import { LubecClassSection } from './LubecClassSection'
 import { LubecCountersPanel, type LubecCountersChange } from './LubecCountersPanel'
 import { LubecEffectsPanel } from './LubecEffectsPanel'
 import { LubecFightPanel } from './LubecFightPanel'
-import { LubecGuidedClassStep } from './LubecGuidedClassStep'
-import { LubecRollUpPanel } from './LubecRollUpPanel'
+import { lubecRollUpActive } from './lubecRollUpCircles'
+import type { LubecRollUpEdits } from './useLubecRollUp'
 import { useLubecRoller, type LubecRolled } from './useLubecRoller'
 
 /** A guided draft's roll-up: its dice and Swap saved at once, or null for a viewer who may only look. */
 export type LubecGuided = { onRollUp: LubecSheetEdit | null }
 
-type CreationProps = { sheet: LubecCharacterSheet; guided: LubecGuided | null; onDraftEdit: LubecSheetEdit | null }
-
-// What a draft is made with: a guided draft's roll-up and class step, or a typed draft's class picker.
-function LubecCreationPanels({ sheet, guided, onDraftEdit }: CreationProps) {
-  if (!guided) return onDraftEdit ? <LubecClassPicker sheet={sheet} onEdit={onDraftEdit} /> : null
-  return (
-    <>
-      <LubecRollUpPanel sheet={sheet} onRollUp={guided.onRollUp} onDraftEdit={onDraftEdit} />
-      {onDraftEdit ? <LubecGuidedClassStep sheet={sheet} onEdit={onDraftEdit} /> : null}
-    </>
-  )
-}
+// A guided draft rolls on its circles until its scores are settled and its class chosen.
+const rollUpOf = (sheet: LubecCharacterSheet, guided: LubecGuided | null, onDraftEdit: LubecSheetEdit | null): LubecRollUpEdits | null =>
+  (guided && lubecRollUpActive(sheet) ? { onRollUp: guided.onRollUp, onDraftEdit } : null)
 
 type CorePageProps = {
   sheet: LubecCharacterSheet
@@ -47,21 +37,31 @@ type CorePageProps = {
  * The Core page: the five Stats and three Saves as the prototype's roll
  * circles, each current value rolled under with a tap, the skills to add to a
  * roll, the Panic Check and the Recovery Save below the Saves, the counters,
- * the active effects that change the values, the class record and the reserved Fight panel. While a draft can be typed
- * into, its base values and its class and choice are fields, and each final
- * value follows as it is typed. A guided draft's base values are rolled
- * instead, so they are never fields.
+ * the active effects that change the values, the class record and the reserved Fight panel.
+ * While a draft can be typed into, each base is typed into its circle's place
+ * and the class is chosen from the prototype's class cards straight under the
+ * values. A guided draft's circles roll its dice and settle its scores
+ * instead, and its class cards unlock once they are settled.
  */
 export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraftEdit = null, onRolled, guided = null, onShowTree }: CorePageProps) {
   const modifiers = lubecActiveModifiers(sheet.effects)
   const roller = useLubecRoller(sheet, onRolled)
+  const rollUp = rollUpOf(sheet, guided, onDraftEdit)
+  const classSection = <LubecClassSection sheet={sheet} modifiers={modifiers} onDraftEdit={onDraftEdit} guided={guided !== null} />
   return (
     <div className="lubec-page lubec-core">
-      <LubecCreationPanels sheet={sheet} guided={guided} onDraftEdit={onDraftEdit} />
-      <LubecAbilities sheet={sheet} modifiers={modifiers} onDraftEdit={guided ? null : onDraftEdit} roller={roller} onShowTree={onShowTree} />
+      <LubecAbilities
+        sheet={sheet}
+        modifiers={modifiers}
+        onDraftEdit={guided ? null : onDraftEdit}
+        roller={rollUp ? null : roller}
+        rollUp={rollUp}
+        onShowTree={onShowTree}
+      />
+      {onDraftEdit ? classSection : null}
       <LubecCountersPanel sheet={sheet} onChange={onCountersChange} />
       <LubecEffectsPanel effects={sheet.effects} onChange={onEffectsChange} />
-      <LubecClassRecord sheet={sheet} modifiers={modifiers} />
+      {onDraftEdit ? null : classSection}
       <LubecFightPanel sheet={sheet} modifiers={modifiers} />
     </div>
   )
