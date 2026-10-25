@@ -43,6 +43,7 @@ vi.mock('../common/mediaStorage', async (importOriginal) => ({
 }))
 
 const { ruleSetSheets } = await import('../ruleSets/sheetComponents')
+const { parseLubecCharacter } = await import('../ruleSets/lubec/characterParser')
 
 const CHARACTERS_PATH = 'groups/group-1/campaigns/campaign-1/characters'
 const GM = 'gm-1'
@@ -130,12 +131,16 @@ function openSheet(name: string) {
   return screen.getByRole('article', { name: `${name} character sheet` })
 }
 
-/** A Stat or Save's base, final and current values as the sheet shows them. */
-const valuesOf = (name: string) =>
-  within(screen.getByRole('row', { name: new RegExp(`^${name}`) })).getAllByRole('cell').map((cell) => cell.textContent)
+// A Stat or Save's row, found by its row header's text: a role query here
+// computes styles for every element on the sheet, which is slow enough under
+// load to time a test out.
+const valueRow = (name: string) =>
+  screen.getByText(name, { selector: 'th[scope="row"]' }).closest('tr') as HTMLTableRowElement
 
-const missingMarks = (name: string) =>
-  screen.getByRole('row', { name: new RegExp(`^${name}`) }).querySelectorAll('.lubec-missing').length
+/** A Stat or Save's base, final and current values as the sheet shows them. */
+const valuesOf = (name: string) => Array.from(valueRow(name).cells).slice(1).map((cell) => cell.textContent)
+
+const missingMarks = (name: string) => valueRow(name).querySelectorAll('.lubec-missing').length
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -150,6 +155,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
 })
 
 describe('Lubec character tab', () => {
@@ -332,5 +338,206 @@ describe('Lubec character tab', () => {
     mountTab('gm', GM)
 
     expect(screen.getByText('Pick a character to open their sheet.')).toBeTruthy()
+  })
+})
+
+/** A counter's value as the Core page shows it. */
+const counterValue = (label: string) =>
+  screen.getByRole('group', { name: label }).querySelector('.lubec-counter-value')?.textContent
+
+const shownCounters = () => ({
+  stress: counterValue('Stress'),
+  minimumStress: counterValue('Minimum Stress'),
+  trauma: counterValue('Trauma'),
+})
+
+const press = (name: string) => fireEvent.click(screen.getByRole('button', { name }))
+
+/** The last document the store wrote, read back through the Lubec parser. */
+function lastWritten() {
+  const [ref, payload] = mocks.setDoc.mock.calls.at(-1) as [{ path: string }, Fields]
+  return parseLubecCharacter(ref.path.split('/').pop() as string, payload)
+}
+
+const afterSaveDelay = () => act(() => vi.advanceTimersByTime(500))
+
+describe('Lubec counters', () => {
+  it('start at the rules\' starting values, and the owner\'s changes save after the debounce and survive a reload', () => {
+    vi.useFakeTimers()
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect(shownCounters()).toEqual({ stress: '2', minimumStress: '2', trauma: '0' })
+
+    press('Raise Stress')
+    press('Raise Stress')
+    press('Raise Minimum Stress')
+    press('Raise Trauma')
+    press('Raise Trauma')
+    press('Lower Trauma')
+
+    expect(shownCounters()).toEqual({ stress: '4', minimumStress: '3', trauma: '1' })
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+    afterSaveDelay()
+    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
+    expect(lastWritten().lubec.counters).toEqual({ stress: 4, minimumStress: 3, trauma: 1 })
+
+    reload('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    expect(shownCounters()).toEqual({ stress: '4', minimumStress: '3', trauma: '1' })
+  })
+
+  it('let the GM change a player\'s counters', () => {
+    vi.useFakeTimers()
+    seed({ tommy: tommyEves() })
+    mountTab('gm', GM)
+    openSheet('Tommy Eves')
+
+    press('Lower Minimum Stress')
+    afterSaveDelay()
+
+    expect(lastWritten().lubec.counters).toEqual({ stress: 2, minimumStress: 1, trauma: 0 })
+    expect(lastWritten().ownerUserId).toBe('player-1')
+  })
+
+  it('show a player someone else\'s counters with no way to change them', () => {
+    seed({ ada: tommyEves({ name: 'Ada Mitchell', ownerUserId: 'player-2', lubec: { counters: { stress: 5, minimumStress: 3, trauma: 2 } } }) })
+    mountTab('player', 'player-1')
+    openSheet('Ada Mitchell')
+
+    expect(shownCounters()).toEqual({ stress: '5', minimumStress: '3', trauma: '2' })
+    expect(within(screen.getByRole('region', { name: 'Stress & Trauma' })).queryAllByRole('button')).toEqual([])
+  })
+
+  it('never go below 0: minus on a counter at 0 does nothing and writes nothing', () => {
+    vi.useFakeTimers()
+    seed({ tommy: withSheet({ counters: { stress: 0, minimumStress: 0, trauma: 0 } }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    for (const label of ['Stress', 'Minimum Stress', 'Trauma']) {
+      const minus = screen.getByRole('button', { name: `Lower ${label}` })
+      expect((minus as HTMLButtonElement).disabled).toBe(true)
+      fireEvent.click(minus)
+    }
+    afterSaveDelay()
+
+    expect(shownCounters()).toEqual({ stress: '0', minimumStress: '0', trauma: '0' })
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+  })
+
+  it('let minus take Stress below Minimum Stress, down to 0', () => {
+    vi.useFakeTimers()
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    press('Lower Stress')
+    press('Lower Stress')
+
+    expect(shownCounters()).toEqual({ stress: '0', minimumStress: '2', trauma: '0' })
+    expect((screen.getByRole('button', { name: 'Lower Stress' }) as HTMLButtonElement).disabled).toBe(true)
+    afterSaveDelay()
+    expect(lastWritten().lubec.counters).toEqual({ stress: 0, minimumStress: 2, trauma: 0 })
+  })
+
+  it('call for a Death Save at Trauma 4, or 5 for a Tough, and not below', () => {
+    const reminder = () => screen.queryByText(/^Death Save/)?.textContent
+    seed({
+      tommy: withSheet({ counters: { trauma: 3 } }),
+      tough: tommyEves({ name: 'Wayne Gardner', lubec: { ...(tommyEves().lubec as Fields), class: { key: 'tough' }, counters: { trauma: 4 } } }),
+    })
+    mountTab('player', 'player-1')
+
+    openSheet('Tommy Eves')
+    expect(reminder()).toBeUndefined()
+    press('Raise Trauma')
+    expect(reminder()).toBe('Death Save: Trauma has reached 4.')
+
+    press('Back to character list')
+    openSheet('Wayne Gardner')
+    expect(reminder()).toBeUndefined()
+    press('Raise Trauma')
+    expect(reminder()).toBe('Death Save: Trauma has reached 5.')
+  })
+
+  it('call for no Death Save while the class is missing', () => {
+    seed({ tommy: withSheet({ class: { key: null }, counters: { trauma: 9 } }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    expect(counterValue('Trauma')).toBe('9')
+    expect(screen.queryByText(/^Death Save/)).toBeNull()
+  })
+})
+
+describe('Lubec class panel', () => {
+  const classPanel = () => screen.getByRole('region', { name: 'Class' })
+
+  it('shows the class\'s Trauma Response', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    const panel = classPanel()
+    expect(within(panel).getByText('Trauma Response')).toBeTruthy()
+    expect(within(panel).getByText(/Once per session, you may take Advantage on a Panic Check\./).textContent)
+      .toBe('Steady Under Pressure. Once per session, you may take Advantage on a Panic Check.')
+    expect(within(panel).queryByText('Class rule')).toBeNull()
+  })
+
+  it('shows the class rule beside the Trauma Response when the class has one', () => {
+    seed({ tommy: withSheet({ class: { key: 'scout', choices: { statBonus: 'Speed' } } }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    const panel = classPanel()
+    expect(within(panel).getByText(/Your Success Raises the Stakes/)).toBeTruthy()
+    expect(within(panel).getByText('Class rule')).toBeTruthy()
+    expect(within(panel).getByText('Failed Stat Checks give +2 Stress instead of +1.')).toBeTruthy()
+  })
+
+  it('shows nothing when the class is missing', () => {
+    seed({ tommy: withSheet({ class: { key: null } }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    expect(screen.queryByRole('region', { name: 'Class' })).toBeNull()
+    expect(screen.queryByText('Trauma Response')).toBeNull()
+  })
+})
+
+describe('Lubec Fight panel', () => {
+  const fightPanel = () => screen.getByRole('region', { name: 'Fight' })
+  const effectiveHandle = () => fightPanel().querySelector('.lubec-effective-handle')?.textContent
+
+  it('shows Effective Handle and an empty "In hand" line with no input', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    expect(effectiveHandle()).toBe('55')
+    expect(within(fightPanel()).getByText('In hand')).toBeTruthy()
+    expect(fightPanel().querySelector('.lubec-in-hand')?.textContent).toBe('')
+    expect(fightPanel().querySelectorAll('input, textarea, select, button')).toHaveLength(0)
+  })
+
+  it('caps Effective Handle at 100', () => {
+    seed({ tommy: withSheet({ base: { ...((tommyEves().lubec as Fields).base as Fields), Handle: 120 } }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    expect(valuesOf('Handle')).toEqual(['120', '125', '125'])
+    expect(effectiveHandle()).toBe('100')
+  })
+
+  it('shows Effective Handle as missing when Handle is a hole', () => {
+    seed({ tommy: withSheet({ base: { ...((tommyEves().lubec as Fields).base as Fields), Handle: null } }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    expect(effectiveHandle()).toBe('missing')
+    expect(fightPanel().querySelector('.lubec-missing')).toBeTruthy()
   })
 })

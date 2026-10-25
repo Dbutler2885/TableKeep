@@ -1,5 +1,9 @@
+import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
 import { lubecCurrentValue, lubecFinalValue } from '../ruleSets/lubec/derivations'
 import { LUBEC_SAVES, LUBEC_STATS, type LubecSheet, type LubecValueName } from '../ruleSets/lubec/sheet'
+import { LubecClassPanel } from './LubecClassPanel'
+import { LubecCountersPanel, type LubecCountersChange } from './LubecCountersPanel'
+import { LubecFightPanel } from './LubecFightPanel'
 import { LubecNumber } from './LubecMissing'
 
 type ValuesPanelProps = {
@@ -43,12 +47,24 @@ function LubecValuesPanel({ title, column, tone, names, sheet }: ValuesPanelProp
   )
 }
 
-/** The Core page: the five Stats and three Saves with their base, final and current values. */
-export function LubecCorePage({ sheet }: { sheet: LubecSheet }) {
+type CorePageProps = {
+  sheet: LubecCharacterSheet
+  /** Absent for a viewer who may not change the character. */
+  onCountersChange: LubecCountersChange | null
+}
+
+/**
+ * The Core page: the five Stats and three Saves with their base, final and
+ * current values, the counters, the class's reminders and the reserved Fight panel.
+ */
+export function LubecCorePage({ sheet, onCountersChange }: CorePageProps) {
   return (
     <div className="lubec-page lubec-core">
       <LubecValuesPanel title="Stats" column="Stat" tone="rust" names={LUBEC_STATS} sheet={sheet} />
       <LubecValuesPanel title="Saves" column="Save" tone="blue" names={LUBEC_SAVES} sheet={sheet} />
+      <LubecCountersPanel sheet={sheet} onChange={onCountersChange} />
+      <LubecClassPanel sheet={sheet} />
+      <LubecFightPanel sheet={sheet} />
     </div>
   )
 }

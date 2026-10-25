@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { lubecClass } from '../ruleSets/lubec/classes'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import { LubecCorePage } from './LubecCorePage'
+import type { LubecCountersChange } from './LubecCountersPanel'
 import { LubecMissing } from './LubecMissing'
 import { lubecCharacterName } from './lubecNames'
 import lubecPines from './lubecPines.svg'
@@ -77,13 +78,19 @@ function LubecSkillsPage() {
   )
 }
 
+type SheetViewProps = {
+  character: LubecCharacterRecord
+  /** Absent for a viewer who may not change the character. */
+  onCountersChange: LubecCountersChange | null
+}
+
 /** One Lubec character's sheet, in the v4 frame, on its Core or Skills page. */
-export function LubecSheetView({ character }: { character: LubecCharacterRecord }) {
+export function LubecSheetView({ character, onCountersChange }: SheetViewProps) {
   const [page, setPage] = useState<LubecPage>('core')
   return (
     <article className="lubec-sheet" aria-label={`${lubecCharacterName(character)} character sheet`}>
       <LubecMasthead character={character} page={page} onPage={setPage} />
-      {page === 'core' ? <LubecCorePage sheet={character.lubec} /> : <LubecSkillsPage />}
+      {page === 'core' ? <LubecCorePage sheet={character.lubec} onCountersChange={onCountersChange} /> : <LubecSkillsPage />}
     </article>
   )
 }

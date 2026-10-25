@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { lubecCurrentValue, lubecEffectiveHandle, lubecFinalValue, type LubecModifier } from './derivations'
+import {
+  isLubecDeathSaveDue,
+  lubecCurrentValue,
+  lubecDeathSaveTrauma,
+  lubecEffectiveHandle,
+  lubecFinalValue,
+  type LubecModifier,
+} from './derivations'
 import { LUBEC_VALUE_NAMES, type LubecSheet } from './sheet'
 import { lubecSheet, tommyEves } from './sheetFixtures'
 
@@ -84,5 +91,22 @@ describe('Lubec Effective Handle', () => {
   it('is a hole when Handle is', () => {
     expect(lubecEffectiveHandle(lubecSheet({ base: { ...tommyBase, Handle: null } }), [])).toBeNull()
     expect(lubecEffectiveHandle(lubecSheet({ class: { key: null, choices: {} } }), [])).toBeNull()
+  })
+})
+
+describe('Lubec Death Save threshold', () => {
+  const tough = lubecSheet({ class: { key: 'tough', choices: {} } })
+  const noClass = lubecSheet({ class: { key: null, choices: {} } })
+
+  it('is 4 Trauma, or 5 for a Tough, and a hole when the class is', () => {
+    expect(lubecDeathSaveTrauma(tommyEves())).toBe(4)
+    expect(lubecDeathSaveTrauma(tough)).toBe(5)
+    expect(lubecDeathSaveTrauma(noClass)).toBeNull()
+  })
+
+  it('is due once Trauma reaches it, and never while the class is a hole', () => {
+    expect([3, 4, 5].map((trauma) => isLubecDeathSaveDue(tommyEves(), trauma))).toEqual([false, true, true])
+    expect([4, 5, 6].map((trauma) => isLubecDeathSaveDue(tough, trauma))).toEqual([false, true, true])
+    expect(isLubecDeathSaveDue(noClass, 9)).toBe(false)
   })
 })

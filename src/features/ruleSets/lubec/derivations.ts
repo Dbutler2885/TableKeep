@@ -44,3 +44,14 @@ export function lubecEffectiveHandle(sheet: LubecSheet, modifiers: readonly Lube
   const handle = lubecCurrentValue(sheet, 'Handle', modifiers)
   return handle === null ? null : Math.min(LUBEC_EFFECTIVE_HANDLE_CAP, handle)
 }
+
+/** The Trauma at which the class calls for a Death Save; a hole when the class is. */
+export function lubecDeathSaveTrauma(sheet: LubecSheet): number | null {
+  return lubecClass(sheet.class.key)?.deathSaveTrauma ?? null
+}
+
+/** Whether Trauma has reached the class's Death Save threshold; never while the class is a hole. */
+export function isLubecDeathSaveDue(sheet: LubecSheet, trauma: number): boolean {
+  const threshold = lubecDeathSaveTrauma(sheet)
+  return threshold !== null && trauma >= threshold
+}
