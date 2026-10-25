@@ -17264,45 +17264,132 @@ button:disabled {
   }
 }
 
-/* The Fight panel: small labels over typed text. */
-.shell-root[data-theme="lubec"] .lubec-fight {
-  margin: 0 0.6rem;
+/* The prototype's Fight bar: a full-width rust button, collapsed until
+   tapped, over the Effective Handle heading. "In hand" is an empty blank to be
+   filled in later, as on a printed form. */
+.shell-root[data-theme="lubec"] .fight-region {
+  grid-column: 1 / -1;
+  margin-top: 1rem;
+  /* The prototype's region has no padding of its own, in place of every section's 1rem. */
+  padding: 0;
 }
 
-.shell-root[data-theme="lubec"] .lubec-fight dt {
+.shell-root[data-theme="lubec"] .fight-toggle {
+  display: grid;
+  width: 100%;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.8rem 1rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-rust);
+  border: 0;
+  border-radius: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.shell-root[data-theme="lubec"] .fight-toggle:hover,
+.shell-root[data-theme="lubec"] .fight-toggle:focus-visible {
+  color: var(--lubec-cream);
+  background: #7e321f;
+  outline: 3px solid var(--lubec-blue);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .fight-toggle strong {
+  font: 800 clamp(1.25rem, 2.6vw, 1.75rem)/1 var(--lubec-display);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .fight-toggle span {
+  font: 700 0.58rem/1.35 var(--lubec-type);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .fight-toggle .caret {
+  font: 800 1.4rem/1 var(--lubec-display);
+  transition: transform 160ms ease;
+}
+
+.shell-root[data-theme="lubec"] .fight-toggle[aria-expanded="true"] .caret {
+  transform: rotate(180deg);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel {
+  padding: 0.85rem;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--lubec-rust);
+  border-top: 0;
+}
+
+.shell-root[data-theme="lubec"] .fight-heading {
+  display: flex;
+  gap: 0.8rem;
+  align-items: end;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.shell-root[data-theme="lubec"] .fight-heading h3 {
+  margin: 0;
+  color: var(--lubec-rust);
+  font: 800 1rem/1 var(--lubec-display);
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .fight-region .eyebrow {
   color: var(--lubec-muted);
-  font: 800 0.62rem/1.2 var(--lubec-type);
+  font: 800 0.59rem/1 var(--lubec-type);
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
-.shell-root[data-theme="lubec"] .lubec-fight > div {
+.shell-root[data-theme="lubec"] .effective-handle {
+  color: var(--lubec-muted);
+  font: 800 0.56rem/1.2 var(--lubec-type);
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .effective-handle strong {
+  color: var(--lubec-ink);
+  font: 800 1.4rem/1 var(--lubec-display);
+}
+
+.shell-root[data-theme="lubec"] .lubec-hands {
   display: flex;
   gap: 0.6rem;
   align-items: baseline;
-  padding: 0.35rem 0.1rem;
 }
 
-.shell-root[data-theme="lubec"] .lubec-fight > div + div {
-  border-top: 1px solid var(--lubec-line);
-}
-
-.shell-root[data-theme="lubec"] .lubec-fight dd {
-  margin: 0;
-}
-
-.shell-root[data-theme="lubec"] .lubec-effective-handle {
-  margin-left: auto;
-  color: var(--lubec-blue);
-  font: 800 1.45rem/1 var(--lubec-display);
-  font-variant-numeric: tabular-nums;
-}
-
-/* An empty blank to be filled in later, as on a printed form. */
-.shell-root[data-theme="lubec"] .lubec-fight .lubec-in-hand {
+.shell-root[data-theme="lubec"] .lubec-in-hand {
   flex: 1;
   min-height: 1.2rem;
   border-bottom: 1.5px solid var(--lubec-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-root[data-theme="lubec"] .fight-toggle .caret {
+    transition: none;
+  }
+}
+
+@media (max-width: 580px) {
+  .shell-root[data-theme="lubec"] .fight-toggle {
+    grid-template-columns: 1fr auto;
+  }
+
+  .shell-root[data-theme="lubec"] .fight-toggle > span:not(.caret) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .shell-root[data-theme="lubec"] .fight-heading {
+    align-items: start;
+    flex-direction: column;
+  }
 }
 
 /* Active effects: one compact line each, opened in place to edit. */
