@@ -272,6 +272,20 @@ describe('reading NPC documents', () => {
   })
 })
 
+describe('changing role', () => {
+  it('drops the GM notes when the viewer stops being the GM, and reads them again on return', () => {
+    const view = renderTab('gm', [bea])
+    act(() => mocks.listeners[PRIVATE]({ docs: [{ id: 'b', data: () => ({ gmNotes: 'secret' }) }] }))
+    expect(editor().gmNotes).toBe('secret')
+    view.rerender(<NpcsTab campaignId="campaign-1" groupId="group-1" role="player" />)
+    expect(mocks.listeners[PRIVATE]).toBeUndefined()
+    view.rerender(<NpcsTab campaignId="campaign-1" groupId="group-1" role="gm" />)
+    expect(editor().gmNotes).toBe('')
+    act(() => mocks.listeners[PRIVATE]({ docs: [{ id: 'b', data: () => ({ gmNotes: 'secret' }) }] }))
+    expect(editor().gmNotes).toBe('secret')
+  })
+})
+
 describe('editing', () => {
   it('saves a GM edit half a second after the last change, without URLs and without an id', async () => {
     renderTab('gm', [['t', { name: 'Tam', sortOrder: 2, tokenIcon: { icon: 'custom', color: '#111', size: 30, customImagePath: 't.png', customImageUrl: 'https://t' } }]])
@@ -605,6 +619,15 @@ describe('the tags dialog', () => {
     act(() => vi.advanceTimersByTime(500))
     expect(mocks.setDoc.mock.calls[0][1]).toEqual(expect.objectContaining({ tags: [], playerNotes: '' }))
     expect(mocks.setDoc.mock.calls[0][1]).not.toHaveProperty('name')
+  })
+
+  it('starts the draft again from the NPC when its document changes while the dialog is open', () => {
+    renderTab('gm', [aldo])
+    const dialog = openTags()
+    fireEvent.click(within(dialog).getByText('merchant'))
+    expect(chips(dialog, '.npc-tag-chip.selected')).toEqual([])
+    emit(NPCS, [['a', { ...aldo[1], tags: ['merchant', 'smith'] }]])
+    expect(chips(screen.getByRole('dialog'), '.npc-tag-chip.selected')).toEqual(['merchant', 'smith'])
   })
 
   it('does not save tags for a viewer with no role', () => {
