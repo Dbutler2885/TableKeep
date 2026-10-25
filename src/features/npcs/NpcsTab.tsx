@@ -140,9 +140,7 @@ export function NpcsTab({ campaignId, groupId, role, sheetTab }: NpcsTabProps) {
           drag={drag}
           listRef={listRef}
           onAdd={() => void addNpc(actions, openNpc)}
-          onSelect={(npcId) => {
-            if (npcId !== selectedNpcId) openNpc(npcId)
-          }}
+          onSelect={openNpc}
           onToggleVisibility={(npc) => updateNpc(actions, npc.id, { visibleToPlayers: !npc.visibleToPlayers })}
           onDelete={setDeleteCandidate}
         />

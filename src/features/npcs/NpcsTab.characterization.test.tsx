@@ -646,8 +646,6 @@ describe('the mobile layout', () => {
     setViewportWidth(600)
     renderTab('gm')
     expect(screen.queryByTestId('npc-editor')).toBeNull()
-    fireEvent.click(row('Bea').querySelector('.map-select')!)
-    expect(screen.queryByTestId('npc-editor')).toBeNull()
     fireEvent.click(row('Aldo').querySelector('.map-select')!)
     expect(rows()).toEqual([])
     expect(screen.getByTestId('npc-editor').textContent).toContain('Aldo')
@@ -662,6 +660,19 @@ describe('the mobile layout', () => {
     expect(rowNames()).toEqual(['Bea', 'Aldo', 'Cid', 'Unnamed NPC'])
     expect(screen.getByTestId('npc-editor').textContent).toContain('Cid')
     expect(document.querySelector('.monster-mobile-back')).toBeNull()
+  })
+
+  it('opens the NPC already selected, so the first one and the one just left open again', () => {
+    setViewportWidth(600)
+    renderTab('gm')
+    fireEvent.click(row('Bea').querySelector('.map-select')!)
+    expect(screen.getByTestId('npc-editor').textContent).toContain('Bea')
+
+    fireEvent.click(document.querySelector('.monster-mobile-back')!)
+    fireEvent.click(row('Bea').querySelector('.map-select')!)
+
+    expect(rows()).toEqual([])
+    expect(screen.getByTestId('npc-editor').textContent).toContain('Bea')
   })
 
   it('opens a newly added NPC straight away', async () => {
