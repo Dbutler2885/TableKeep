@@ -1,5 +1,6 @@
 import { Pencil } from 'lucide-react'
 import { useState } from 'react'
+import { withLubecCheckRoll } from '../ruleSets/lubec/checkRoll'
 import { lubecClass } from '../ruleSets/lubec/classes'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import type { LubecSheetEdit } from '../ruleSets/lubec/directEntry'
@@ -110,6 +111,21 @@ type SheetViewProps = {
   onDelete?: (() => void) | null
 }
 
+type CoreProps = Pick<SheetViewProps, 'character' | 'editing' | 'onCountersChange'> & { onDraftEdit: LubecSheetEdit | null }
+
+// The Core page, with its effects and rolls saved through the viewer's edits; neither is offered without them.
+function LubecCore({ character, editing, onCountersChange, onDraftEdit }: CoreProps) {
+  return (
+    <LubecCorePage
+      sheet={character.lubec}
+      onCountersChange={onCountersChange}
+      onEffectsChange={editing ? (effects) => editing.update({ lubec: { ...character.lubec, effects } }) : null}
+      onDraftEdit={onDraftEdit}
+      onRolled={editing ? (roll) => editing.update({ lubec: withLubecCheckRoll(character.lubec, roll) }) : null}
+    />
+  )
+}
+
 /** One Lubec character's sheet, in the v4 frame, on its Core or Skills page. */
 export function LubecSheetView({ character, editing, onCountersChange, onSkillsChange, onDraftEdit = null, onDelete = null }: SheetViewProps) {
   const [page, setPage] = useState<LubecPage>('core')
@@ -119,14 +135,9 @@ export function LubecSheetView({ character, editing, onCountersChange, onSkillsC
       <LubecMasthead character={character} page={page} onPage={setPage} onEdit={editing ? () => setBandOpen(true) : null} />
       {editing && bandOpen ? <LubecNameBandEditor character={character} editing={editing} onDone={() => setBandOpen(false)} /> : null}
       {character.creationStatus === 'active' ? null : <LubecDraftBar character={character} onDelete={onDelete} />}
-      {page === 'core' ? (
-        <LubecCorePage
-          sheet={character.lubec}
-          onCountersChange={onCountersChange}
-          onEffectsChange={editing ? (effects) => editing.update({ lubec: { ...character.lubec, effects } }) : null}
-          onDraftEdit={onDraftEdit}
-        />
-      ) : <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} />}
+      {page === 'core'
+        ? <LubecCore character={character} editing={editing} onCountersChange={onCountersChange} onDraftEdit={onDraftEdit} />
+        : <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} />}
     </article>
   )
 }
