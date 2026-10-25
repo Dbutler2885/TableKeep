@@ -1,31 +1,61 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
+import type { LubecImportedCharacter } from '../ruleSets/lubec/importFile'
+import { LubecImportDoor } from './LubecImportDoor'
 
 /** The ways a new character comes in, each starting a new draft. */
-export type LubecDoors = { onDirectEntry: () => void; onGuided: () => void }
+export type LubecDoors = {
+  onDirectEntry: () => void
+  onGuided: () => void
+  onImport: (imported: LubecImportedCharacter) => void
+}
 
 type DialogProps = LubecDoors & { onClose: () => void }
 
-// The doors that exist so far; Import adds its own here.
-function LubecNewCharacterDialog({ onDirectEntry, onGuided, onClose }: DialogProps) {
+type DoorListProps = { onChooseImport: () => void; onDirectEntry: () => void; onGuided: () => void; onCancel: () => void }
+
+function LubecDoorList({ onChooseImport, onDirectEntry, onGuided, onCancel }: DoorListProps) {
+  return (
+    <>
+      <p>How does this kid come in?</p>
+      <div className="lubec-doors">
+        <button type="button" className="lubec-door" onClick={onChooseImport}>
+          <strong>Import a file</strong>
+          <span>Bring in a character the Lubec sheet saved, as its file or its pasted character code.</span>
+        </button>
+        <button type="button" className="lubec-door" onClick={onDirectEntry}>
+          <strong>Direct entry</strong>
+          <span>Type in the base Stats and Saves, the class and its choice from a sheet you already have.</span>
+        </button>
+        <button type="button" className="lubec-door" onClick={onGuided}>
+          <strong>Guided roll-up</strong>
+          <span>Roll each Stat and Save, keep the scores or Swap the lowest, then choose a class and skills. Every die is saved as it lands.</span>
+        </button>
+      </div>
+      <div className="confirm-actions">
+        <button type="button" onClick={onCancel}>Cancel</button>
+      </div>
+    </>
+  )
+}
+
+function LubecNewCharacterDialog({ onDirectEntry, onGuided, onImport, onClose }: DialogProps) {
+  const [importing, setImporting] = useState(false)
+  const andClose = (action: () => void) => () => { action(); onClose() }
   return (
     <div className="confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="lubec-new-character-title">
       <div className="confirm-modal lubec-new-character">
         <h3 id="lubec-new-character-title">New character</h3>
-        <p>How does this kid come in?</p>
-        <div className="lubec-doors">
-          <button type="button" className="lubec-door" onClick={() => { onDirectEntry(); onClose() }}>
-            <strong>Direct entry</strong>
-            <span>Type in the base Stats and Saves, the class and its choice from a sheet you already have.</span>
-          </button>
-          <button type="button" className="lubec-door" onClick={() => { onGuided(); onClose() }}>
-            <strong>Guided roll-up</strong>
-            <span>Roll each Stat and Save, keep the scores or Swap the lowest, then choose a class and skills. Every die is saved as it lands.</span>
-          </button>
-        </div>
-        <div className="confirm-actions">
-          <button type="button" onClick={onClose}>Cancel</button>
-        </div>
+        {importing ? (
+          <LubecImportDoor onImport={(imported) => { onImport(imported); onClose() }} onBack={() => setImporting(false)} onCancel={onClose} />
+        ) : (
+          <LubecDoorList
+            onChooseImport={() => setImporting(true)}
+            onDirectEntry={andClose(onDirectEntry)}
+            onGuided={andClose(onGuided)}
+            onCancel={onClose}
+          />
+        )}
       </div>
     </div>
   )

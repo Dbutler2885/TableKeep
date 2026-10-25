@@ -562,13 +562,25 @@ const STORED_TIMEOUT_MS = 10_000
 // What is wrong with a stored character, in the REST shape, that should hold
 // a portrait and a token image by their storage paths alone.
 export function storedMediaProblems(stored) {
+  return [...storedPortraitProblems(stored), ...storedTokenImageProblems(stored.tokenIcon?.mapValue?.fields ?? {})]
+}
+
+// What is wrong with a stored token icon's fields, in the REST shape, that
+// should hold a custom image by its storage path alone.
+export function storedTokenImageProblems(tokenIcon) {
   const problems = []
-  const tokenIcon = stored.tokenIcon?.mapValue?.fields ?? {}
-  if (!stored.portraitPath?.stringValue) problems.push('no portrait path is stored')
-  if (stored.portraitUrl) problems.push('a portrait URL is stored')
   if (tokenIcon.icon?.stringValue !== 'custom') problems.push('the token icon is not a custom image')
   if (!tokenIcon.customImagePath?.stringValue) problems.push('no token image path is stored')
   if (tokenIcon.customImageUrl) problems.push('a token image URL is stored')
+  return problems
+}
+
+// What is wrong with a stored character, in the REST shape, that should hold
+// a portrait by its storage path alone.
+export function storedPortraitProblems(stored) {
+  const problems = []
+  if (!stored.portraitPath?.stringValue) problems.push('no portrait path is stored')
+  if (stored.portraitUrl) problems.push('a portrait URL is stored')
   return problems
 }
 
@@ -1020,26 +1032,28 @@ async function wanderingMonsterCases(browser, testCase, ids, browserErrors) {
   await inSignedInPage(browser, session, 'vtm-wandering-monsters', (page) => vtmWanderingMonsterCase(page, testCase, vtmMap))
 }
 
-// No GM can create a Lubec campaign yet, so the smoke seeds one, and in it
-// Tommy Eves, a Working Kid as the standalone sheet saved him. The campaign
-// opens in Lubec's own skin with its five tabs, and his Core page shows each
-// Stat and Save in the v4 frame, and his Severe Concussion as one active effect
-// line, without the page scrolling sideways, with the effect closed or open.
-// His Skills page shows the skill tree with his skills marked, without
-// scrolling sideways either.
+// No GM can create a Lubec campaign yet, so the smoke seeds one, empty. It
+// opens in Lubec's own skin with its five tabs, and Tommy Eves, a Working Kid,
+// comes in through Import a file as the standalone sheet saved him, with the
+// smoke's PNG as his portrait. The portrait goes to the Storage emulator, and
+// after a reload the sheet shows it again from its stored path alone. His Core
+// page shows each Stat and Save in the v4 frame, without the page scrolling
+// sideways, with a new active effect's editor closed or open. His Skills page
+// shows the skill tree with his skills marked, without scrolling sideways either.
 const LUBEC_TAB = '.shell-root[data-theme="lubec"] .lubec-character-tab'
 const LUBEC_CORE_PAGE = '.shell-root[data-theme="lubec"] .lubec-sheet .lubec-core'
 const LUBEC_SKILLS_PAGE = '.shell-root[data-theme="lubec"] .lubec-sheet .lubec-skills'
-const LUBEC_CHARACTER_NAME = 'Tommy Eves'
+const LUBEC_CHARACTER_NAME = 'Tommy'
+const LUBEC_FIXTURE_URL = new URL('../src/features/ruleSets/lubec/fixtures/tommy-eves.lubec-character.json', import.meta.url)
+const LUBEC_PORTRAIT = `.lubec-idband img.lubec-portrait[alt=${JSON.stringify(`${LUBEC_CHARACTER_NAME} portrait`)}]`
 
 // Each Stat and Save as the Core page shows it: base, final with the Working
-// Kid's +5 to every Stat and +10 to every Save, and current, with Handle -40
-// from the concussion's first step.
+// Kid's +5 to every Stat and +10 to every Save, and current, with no effects.
 const LUBEC_CORE_VALUES = [
   ['Strength', '24', '29', '29'],
   ['Speed', '51', '56', '56'],
   ['Intellect', '38', '43', '43'],
-  ['Handle', '50', '55', '15'],
+  ['Handle', '50', '55', '55'],
   ['Charm', '48', '53', '53'],
   ['Sanity', '20', '30', '30'],
   ['Fear', '24', '34', '34'],
@@ -1049,34 +1063,17 @@ const LUBEC_CORE_VALUES = [
 // The skills the tree marks, in tree order, with the mark each shows.
 const LUBEC_TREE_MARKS = [['Swimming', 'Pick +10'], ['Diving', 'Pick +15'], ['Boatwork', 'Free +10']]
 
-function lubecCharacterFields({ uid, username }) {
-  return {
-    system: 'lubec',
-    schemaVersion: 1,
-    name: LUBEC_CHARACTER_NAME,
-    ownerUserId: uid,
-    ownerUsername: username,
-    creationMode: 'established',
-    creationStatus: 'active',
-    lubec: {
-      class: { key: 'working', choices: {} },
-      base: { Strength: 24, Speed: 51, Intellect: 38, Handle: 50, Charm: 48, Sanity: 20, Fear: 24, Body: 21 },
-      skills: { free: 'Boatwork', picked: ['Swimming', 'Diving'] },
-      effects: [{
-        id: 'severe-concussion',
-        name: 'Severe Concussion',
-        cause: 'Severe Concussion (failed Body Save)',
-        steps: [
-          { modifiers: [{ target: 'Handle', amount: -40 }], labels: ['Dazed'] },
-          { modifiers: [{ target: 'Handle', amount: -10 }], labels: [] },
-        ],
-      }],
-    },
-  }
+/** A Lubec character file with a PNG as its portrait data URL. */
+export const withLubecPortrait = (file, png) => ({ ...file, portrait: `data:image/png;base64,${png.toString('base64')}` })
+
+async function lubecImportFile() {
+  const fixture = JSON.parse(await readFile(LUBEC_FIXTURE_URL, 'utf8'))
+  const path = join(await mkdtemp(join(tmpdir(), 'table-keep-smoke-')), 'lubec-Tommy-Eves.json')
+  await writeFile(path, JSON.stringify(withLubecPortrait(fixture, SMOKE_PNG), null, 2))
+  return path
 }
 
-const LUBEC_EFFECT_LINE = `${LUBEC_CORE_PAGE} .lubec-effects .lubec-effect-line`
-const LUBEC_EFFECT_TEXT = 'Severe ConcussionHandle -40, Dazedthen Handle -10'
+const LUBEC_EFFECT_EDITOR = `${LUBEC_CORE_PAGE} .lubec-effects .lubec-effect-editor`
 
 async function expectNavTabs(page, expected) {
   const labels = await page.$$eval('.side-nav .nav-list .tab-button', (tabs) => tabs.map((tab) => tab.textContent.trim()))
@@ -1091,9 +1088,32 @@ async function openLubecSheet(page) {
   await page.locator(LUBEC_CORE_PAGE).wait()
 }
 
+async function importLubecCharacter(page, charactersPath, filePath) {
+  // By class: the Lubec skin sets the button in capitals, which Chrome puts in its accessible name.
+  await page.locator('.lubec-roster .lubec-new-btn').click()
+  await page.locator('[role="dialog"] .lubec-door ::-p-text(Import a file)').click()
+  const input = await page.locator('[role="dialog"] .lubec-import-file input[type="file"]').waitHandle()
+  await input.uploadFile(filePath)
+  let ids = []
+  await waitForStored(() => listDocumentIds(charactersPath), (listed) => {
+    ids = listed
+    return listed.length === 1 ? [] : [`expected one stored character, found ${listed.length}`]
+  })
+  return `${charactersPath}/${ids[0]}`
+}
+
+// The portrait shows with a renderable http(s) URL, which after a reload only
+// its stored path can have given it.
+async function expectLubecPortraitShown(page) {
+  await page.locator(`${LUBEC_PORTRAIT}[src^="http"]`).wait()
+}
+
 async function expectLubecCoreValues(page) {
   const rows = await page.$$eval(`${LUBEC_CORE_PAGE} .lubec-values tbody tr`, (elements) =>
-    elements.map((row) => [...row.cells].map((cell) => cell.textContent.trim())))
+    // An imported character is a draft, so its base values are in their fields:
+    // each cell reads as its text followed by the value of any field in it.
+    elements.map((row) => [...row.cells].map((cell) =>
+      [cell.textContent, ...[...cell.querySelectorAll('input')].map((input) => input.value)].join('').trim())))
   if (JSON.stringify(rows) !== JSON.stringify(LUBEC_CORE_VALUES)) throw new Error(`The Core page shows ${JSON.stringify(rows)}.`)
 }
 
@@ -1107,18 +1127,13 @@ async function expectNoSidewaysScroll(page) {
   if (widths[0] > widths[1]) throw new Error(`The page is ${widths[0]}px wide in a ${widths[1]}px viewport.`)
 }
 
-async function expectLubecEffectLine(page) {
-  const lines = await page.$$eval(LUBEC_EFFECT_LINE, (elements) => elements.map((line) => line.textContent))
-  if (lines.join() !== LUBEC_EFFECT_TEXT) throw new Error(`The active effects show ${JSON.stringify(lines)}.`)
-}
-
-// Opened, the effect shows its editor in place of the line; Cancel closes it.
+// A new effect's editor opens in the effects panel; Cancel closes it unsaved.
 async function openAndCloseLubecEffect(page) {
-  await page.locator(LUBEC_EFFECT_LINE).click()
-  await page.locator(`${LUBEC_CORE_PAGE} .lubec-effect-editor`).wait()
+  await page.locator(`${LUBEC_CORE_PAGE} .lubec-effects .lubec-effect-add`).click()
+  await page.locator(LUBEC_EFFECT_EDITOR).wait()
   await expectNoSidewaysScroll(page)
-  await page.locator(`${LUBEC_CORE_PAGE} .lubec-effect-editor ::-p-text(Cancel)`).click()
-  await page.locator(LUBEC_EFFECT_LINE).wait()
+  await page.locator(`${LUBEC_EFFECT_EDITOR} ::-p-text(Cancel)`).click()
+  await page.waitForFunction((selector) => !document.querySelector(selector), {}, LUBEC_EFFECT_EDITOR)
 }
 
 async function openLubecSkillsPage(page) {
@@ -1147,16 +1162,23 @@ async function lubecSkillsPageSteps(page, testCase) {
   await screenshot(page, `${testCase.name}-lubec-skills`)
 }
 
-async function lubecSheetCase(page, testCase, campaignName) {
+async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) {
+  const filePath = await lubecImportFile()
   await step('open the seeded Lubec campaign', () => openCampaignCard(page, campaignName, LUBEC_TAB))
   await step('offer the five Lubec tabs', () => expectNavTabs(page, ['Characters', 'Maps', 'NPCs', 'Notes', 'Calendar']))
-  await step('open the seeded Lubec character', () => openLubecSheet(page))
+  const path = await step('import the Tommy Eves file with a portrait', () => importLubecCharacter(page, charactersPath, filePath))
+  await step('show the imported portrait on the sheet', () => expectLubecPortraitShown(page))
+  await step('store the imported portrait by path alone', () => waitForStored(() => readDocumentFields(path), storedPortraitProblems))
+  await step('see the imported portrait after a reload', async () => {
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await openLubecSheet(page)
+    await expectLubecPortraitShown(page)
+  })
   // Clear of the page tabs, so the review screenshot shows them at rest.
   await page.mouse.move(0, page.viewport().height - 1)
   await step('show the Core page in the v4 frame', () => expectLubecPage(page, 'Core sheet'))
   await step('show each Stat and Save with its base, final and current value', () => expectLubecCoreValues(page))
-  await step('show the active effect as one line', () => expectLubecEffectLine(page))
-  await step('fit an opened active effect without scrolling sideways', () => openAndCloseLubecEffect(page))
+  await step('fit a new active effect\'s editor without scrolling sideways', () => openAndCloseLubecEffect(page))
   await page.mouse.move(0, page.viewport().height - 1)
   await step('fit the Lubec sheet without scrolling sideways', () => expectNoSidewaysScroll(page))
   await screenshot(page, `${testCase.name}-lubec-core`)
@@ -1166,9 +1188,9 @@ async function lubecSheetCase(page, testCase, campaignName) {
 async function lubecCampaignCase(browser, testCase, ids, browserErrors) {
   const campaignName = `${testCase.label} Lubec Campaign`
   const campaignId = await seedCampaign({ groupId: ids.groupId, gmUserId: ids.uid, fields: { name: campaignName, system: 'lubec' } })
-  await seedCharacter({ groupId: ids.groupId, campaignId, fields: lubecCharacterFields({ uid: ids.uid, username: testCase.username }) })
+  const charactersPath = `groups/${ids.groupId}/campaigns/${campaignId}/characters`
   const session = { testCase, groupId: ids.groupId, browserErrors }
-  await inSignedInPage(browser, session, 'lubec-sheet', (page) => lubecSheetCase(page, testCase, campaignName))
+  await inSignedInPage(browser, session, 'lubec-sheet', (page) => lubecSheetCase(page, testCase, { campaignName, charactersPath }))
 }
 
 function collectBrowserErrors(page, errors, surface) {
@@ -1276,7 +1298,8 @@ async function runViewport(browser, testCase) {
       + 'and kept the items and ids the migration made of an old-format character through a save and two reloads, '
       + 'storing it at version 1, '
       + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map, '
-      + 'and opened a seeded Lubec campaign in its own skin, with its five tabs, to a seeded character\'s Core page with its active effect and to their Skills page.',
+      + 'and opened a seeded Lubec campaign in its own skin, with its five tabs, imported a character file with a portrait, '
+      + 'saw the portrait again after a reload from its stored path, and opened the imported character\'s Core page and Skills page.',
     )
   } finally {
     await screenshot(page, testCase.name)

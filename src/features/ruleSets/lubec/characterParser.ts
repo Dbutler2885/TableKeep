@@ -26,18 +26,18 @@ type Fields = Record<string, unknown>
 
 const LUBEC_DOORS: readonly LubecDoor[] = ['import', 'direct', 'guided']
 
-const isRecord = (value: unknown): value is Fields =>
+export const isRecord = (value: unknown): value is Fields =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-const fieldsOf = (raw: unknown): Fields => (isRecord(raw) ? raw : {})
+export const fieldsOf = (raw: unknown): Fields => (isRecord(raw) ? raw : {})
 
-const listOf = (raw: unknown): unknown[] => (Array.isArray(raw) ? raw : [])
+export const listOf = (raw: unknown): unknown[] => (Array.isArray(raw) ? raw : [])
 
-const isText = (value: unknown): value is string => typeof value === 'string'
+export const isText = (value: unknown): value is string => typeof value === 'string'
 
-const textOrHole = (raw: unknown): string | null => (isText(raw) ? raw : null)
+export const textOrHole = (raw: unknown): string | null => (isText(raw) ? raw : null)
 
-const wholeOrHole = (raw: unknown): number | null => (Number.isInteger(raw) ? raw as number : null)
+export const wholeOrHole = (raw: unknown): number | null => (Number.isInteger(raw) ? raw as number : null)
 
 const countOr = (raw: unknown, start: number): number =>
   Number.isInteger(raw) && (raw as number) >= 0 ? raw as number : start

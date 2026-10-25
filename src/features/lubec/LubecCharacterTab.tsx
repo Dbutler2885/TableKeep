@@ -10,7 +10,9 @@ import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import { makeLubecDirectEntryCharacter, makeLubecGuidedCharacter, type LubecOwner, type LubecSheetEdit } from '../ruleSets/lubec/directEntry'
 import type { LubecSkills } from '../ruleSets/lubec/skillPicks'
 import type { LubecCountersChange } from './LubecCountersPanel'
+import { importLubecCharacter, type LubecImportContext } from './lubecImport'
 import type { LubecSheetEditing } from './LubecNameBandEditor'
+import type { LubecDoors } from './LubecNewCharacter'
 import { LubecRoster } from './LubecRoster'
 import { LubecSheetView, type LubecCorrections } from './LubecSheetView'
 
@@ -100,6 +102,27 @@ function draftActionsFor(
   }
 }
 
+type DoorsOptions = Pick<LubecCharacterTabProps, 'campaignId' | 'groupId' | 'role' | 'currentUserId' | 'currentUsername' | 'setError'> &
+  Pick<LubecImportContext, 'addCharacter' | 'updateCharacter'> & { onCreated: () => void }
+
+// The ways a player or the GM starts a character, which they then own; null for anyone else.
+function lubecDoorsFor({ role, currentUserId, currentUsername, onCreated, ...context }: DoorsOptions): LubecDoors | null {
+  if (role !== 'gm' && role !== 'player') return null
+  const owner = { userId: currentUserId, username: currentUsername }
+  const create = (make: (id: string, owner: LubecOwner) => LubecCharacterRecord) => () => {
+    void context.addCharacter(make(makeId(), owner))
+    onCreated()
+  }
+  return {
+    onDirectEntry: create(makeLubecDirectEntryCharacter),
+    onGuided: create(makeLubecGuidedCharacter),
+    onImport: (imported) => {
+      void importLubecCharacter({ ...context, owner }, imported)
+      onCreated()
+    },
+  }
+}
+
 function LubecDetail({ character, editing, isSinglePane, onBack, ...sheetProps }: DetailProps) {
   return (
     <div className="monsters-detail characters-detail">
@@ -155,11 +178,10 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, cu
     store.setSelectedCharacterId(characterId)
     layout.setPaneView('detail')
   }
-  const create = (make: (id: string, owner: LubecOwner) => LubecCharacterRecord) => () => {
-    void store.addCharacter(make(makeId(), { userId: currentUserId, username: currentUsername }))
-    layout.setPaneView('detail')
-  }
-  const doors = { onDirectEntry: create(makeLubecDirectEntryCharacter), onGuided: create(makeLubecGuidedCharacter) }
+  const doors = lubecDoorsFor({
+    campaignId, groupId, role, currentUserId, currentUsername, setError,
+    addCharacter: store.addCharacter, updateCharacter: store.updateCharacter, onCreated: () => layout.setPaneView('detail'),
+  })
   const viewer = { role, userId: currentUserId }
   return (
     <div className="maps-layout monsters-layout characters-layout lubec-character-tab">
@@ -170,7 +192,7 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, cu
           selectedCharacterId={store.selectedCharacterId}
           currentUserId={currentUserId}
           onSelect={selectCharacter}
-          doors={role === 'gm' || role === 'player' ? doors : null}
+          doors={doors}
         />
       ) : null}
       {layout.showDetailPane ? (

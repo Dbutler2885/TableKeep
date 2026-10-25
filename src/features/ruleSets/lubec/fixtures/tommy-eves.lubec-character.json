@@ -1,0 +1,105 @@
+{
+  "format": "lubec-character",
+  "version": 1,
+  "exportedAt": "2026-10-20T01:55:04.059Z",
+  "playerName": "Eves",
+  "characterName": "Tommy",
+  "age": null,
+  "class": {
+    "key": "working",
+    "name": "Working Kid",
+    "choices": {},
+    "traumaResponse": {
+      "name": "Steady Under Pressure",
+      "rule": "Once per session, you may take Advantage on a Panic Check."
+    },
+    "classRule": null
+  },
+  "stats": {
+    "Strength": {
+      "base": 24,
+      "classMod": 5,
+      "final": 29
+    },
+    "Speed": {
+      "base": 51,
+      "classMod": 5,
+      "final": 56
+    },
+    "Intellect": {
+      "base": 38,
+      "classMod": 5,
+      "final": 43
+    },
+    "Handle": {
+      "base": 50,
+      "classMod": 5,
+      "final": 55
+    },
+    "Charm": {
+      "base": 48,
+      "classMod": 5,
+      "final": 53
+    }
+  },
+  "saves": {
+    "Sanity": {
+      "base": 20,
+      "classMod": 10,
+      "final": 30
+    },
+    "Fear": {
+      "base": 24,
+      "classMod": 10,
+      "final": 34
+    },
+    "Body": {
+      "base": 21,
+      "classMod": 10,
+      "final": 31
+    }
+  },
+  "counters": {
+    "stress": 0
+  },
+  "skills": {
+    "free": {
+      "name": "Boatwork",
+      "tier": "Trained",
+      "bonus": 10
+    },
+    "picked": [
+      {
+        "name": "Swimming",
+        "tier": "Trained",
+        "bonus": 10
+      },
+      {
+        "name": "Diving",
+        "tier": "Expert",
+        "bonus": 15
+      }
+    ]
+  },
+  "derived": {
+    "meleeStrengthImpact": 1,
+    "effectiveHandle": 55
+  },
+  "creation": {
+    "statMethod": "array",
+    "assignedTens": {
+      "Strength": 20,
+      "Speed": 50,
+      "Intellect": 30,
+      "Handle": 40,
+      "Charm": 40
+    },
+    "defenseLines": [
+      10,
+      50,
+      55
+    ]
+  },
+  "inventory": [],
+  "portrait": null
+}

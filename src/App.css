@@ -16928,6 +16928,12 @@ button:disabled {
 
 /* --- New character and Direct entry ------------------------------------ */
 
+/* The roster's heading and New character share a row while they fit, and the
+   button drops below the heading in a sidebar too narrow for both. */
+.shell-root[data-theme="lubec"] .lubec-roster .maps-sidebar-header {
+  flex-wrap: wrap;
+}
+
 .shell-root[data-theme="lubec"] .lubec-new-btn {
   display: inline-flex;
   align-items: center;
@@ -16972,6 +16978,81 @@ button:disabled {
 .shell-root[data-theme="lubec"] .lubec-door span {
   color: var(--lubec-muted);
   font: 400 0.85rem/1.35 var(--lubec-type);
+}
+
+/* Import a file: a chosen file or pasted character code, read the same way. */
+.shell-root[data-theme="lubec"] .lubec-import {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+  margin-top: 0.4rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-import > p {
+  margin: 0;
+  color: var(--lubec-muted);
+  font: 400 0.85rem/1.35 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-import-file,
+.shell-root[data-theme="lubec"] .lubec-import-code {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-import-file > span,
+.shell-root[data-theme="lubec"] .lubec-import-code > span {
+  color: var(--lubec-muted);
+  font: 800 0.62rem/1.2 var(--lubec-type);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-import-file input {
+  max-width: 100%;
+  color: var(--lubec-ink);
+  font: 400 0.85rem/1.25 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-import-code textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 0.35rem 0.45rem;
+  background: var(--lubec-cream);
+  border: 1.5px solid var(--lubec-ink);
+  border-radius: 0;
+  color: var(--lubec-ink);
+  font: 400 0.8rem/1.3 var(--lubec-type);
+  resize: vertical;
+}
+
+.shell-root[data-theme="lubec"] .lubec-import-refusal {
+  margin: 0;
+  color: var(--lubec-rust);
+  font: 700 0.85rem/1.35 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-import .confirm-actions {
+  flex-wrap: wrap;
+}
+
+.shell-root[data-theme="lubec"] .lubec-import .lubec-import-btn {
+  background: var(--lubec-blue);
+  border: 1.5px solid var(--lubec-blue);
+  border-radius: 0;
+  color: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-import .lubec-import-btn:hover:not(:disabled) {
+  background: var(--lubec-blue-alt);
+  border-color: var(--lubec-blue-alt);
+}
+
+.shell-root[data-theme="lubec"] .lubec-import .lubec-import-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* A character in creation: which door made it, and deleting the draft. */
