@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { ChevronLeft } from 'lucide-react'
 import type { NpcRecord, Role } from '../../types/app'
 import { useSessionNotes } from '../notes/useSessionNotes'
 import { NpcDeleteDialog } from './components/NpcDeleteDialog'
+import { NpcDetailTabs } from './components/NpcDetailTabs'
 import { NpcListPane } from './components/NpcListPane'
 import { NpcTagsModal } from './components/NpcTagsModal'
 import { useNpcDocuments } from './hooks/useNpcDocuments'
@@ -33,10 +34,15 @@ import { NpcDetailEditor } from './NpcDetailEditor'
 import type { NpcAutoNote } from './npcAutoNotes'
 import { autoNotesForNpc } from './npcAutoNotes'
 
+/** The NPC's character sheet, as its rule set shows it to the GM. */
+type NpcSheetTab = (npc: NpcRecord) => ReactNode
+
 type NpcsTabProps = {
   campaignId: string
   groupId: string
   role: Role | null
+  /** The GM's character sheet tab beside each NPC's story; absent where there is none. */
+  sheetTab?: NpcSheetTab
 }
 
 // Only the GM deletes. The NPC's queued writes are dropped first, so none of
@@ -78,9 +84,10 @@ type NpcDetailPaneProps = Omit<NpcEditorProps, 'npc'> & {
   npc: NpcRecord | null
   isMobile: boolean
   onBack: () => void
+  sheetTab: NpcSheetTab | undefined
 }
 
-function NpcDetailPane({ npc, isMobile, onBack, ...editorProps }: NpcDetailPaneProps) {
+function NpcDetailPane({ npc, isMobile, onBack, sheetTab, ...editorProps }: NpcDetailPaneProps) {
   return (
     <div className="monsters-detail">
       <div className="monsters-detail-inner">
@@ -94,14 +101,14 @@ function NpcDetailPane({ npc, isMobile, onBack, ...editorProps }: NpcDetailPaneP
         {!npc ? (
           <p>Select an NPC from the list.</p>
         ) : (
-          <NpcEditor npc={npc} {...editorProps} />
+          <NpcDetailTabs npc={npc} story={<NpcEditor npc={npc} {...editorProps} />} sheetTab={sheetTab} />
         )}
       </div>
     </div>
   )
 }
 
-export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
+export function NpcsTab({ campaignId, groupId, role, sheetTab }: NpcsTabProps) {
   const scope = { campaignId, groupId }
   const layout = useNpcLayout()
   const queues = useNpcWriteQueues()
@@ -133,9 +140,7 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
           drag={drag}
           listRef={listRef}
           onAdd={() => void addNpc(actions, openNpc)}
-          onSelect={(npcId) => {
-            if (npcId !== selectedNpcId) openNpc(npcId)
-          }}
+          onSelect={openNpc}
           onToggleVisibility={(npc) => updateNpc(actions, npc.id, { visibleToPlayers: !npc.visibleToPlayers })}
           onDelete={setDeleteCandidate}
         />
@@ -150,6 +155,7 @@ export function NpcsTab({ campaignId, groupId, role }: NpcsTabProps) {
           gmNotes={gmNotesFor(privateNotesById, selectedNpc)}
           autoNotes={autoNotes}
           onOpenTags={tagEditor.openEditor}
+          sheetTab={sheetTab}
         />
       ) : null}
 

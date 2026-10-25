@@ -5945,6 +5945,7 @@ button:disabled {
 }
 
 .npc-row {
+  position: relative;
   cursor: default;
 }
 
@@ -6303,6 +6304,32 @@ button:disabled {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* An NPC's Story and Character sheet tabs, above its detail pane, in the
+   manner of the map's GM character tabs. */
+.npc-detail-tab-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  margin-bottom: 0.6rem;
+}
+
+.npc-detail-tab {
+  flex: 0 0 auto;
+  min-height: 2.05rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid #d7d7cf;
+  border-radius: 999px;
+  background: #fff;
+  color: #3f3f39;
+}
+
+.npc-detail-tab[aria-selected="true"] {
+  background: #dfe8d8;
+  border-color: #9eb592;
+  color: #22301f;
 }
 
 .map-embedded-character.hidden {
@@ -15963,7 +15990,8 @@ button:disabled {
 
 /* OSE's small delete button in the card's corner, in the sheet's rust, filled
    once pointed at or focused, as the sheet's action buttons are. */
-.shell-root[data-theme="lubec"] .lubec-roster .character-card-delete-btn {
+.shell-root[data-theme="lubec"] .lubec-roster .character-card-delete-btn,
+.shell-root[data-theme="lubec"] .npc-row .character-card-delete-btn {
   width: 1.75rem;
   height: 1.75rem;
   background: transparent;
@@ -15972,12 +16000,15 @@ button:disabled {
 }
 
 .shell-root[data-theme="lubec"] .lubec-roster .character-card-delete-btn:hover,
-.shell-root[data-theme="lubec"] .lubec-roster .character-card-delete-btn:focus-visible {
+.shell-root[data-theme="lubec"] .lubec-roster .character-card-delete-btn:focus-visible,
+.shell-root[data-theme="lubec"] .npc-row .character-card-delete-btn:hover,
+.shell-root[data-theme="lubec"] .npc-row .character-card-delete-btn:focus-visible {
   background: var(--lubec-rust);
   color: var(--lubec-cream);
 }
 
-.shell-root[data-theme="lubec"] .lubec-roster .character-card-delete-btn:focus-visible {
+.shell-root[data-theme="lubec"] .lubec-roster .character-card-delete-btn:focus-visible,
+.shell-root[data-theme="lubec"] .npc-row .character-card-delete-btn:focus-visible {
   outline: 2px solid var(--lubec-blue);
   outline-offset: 2px;
 }
@@ -18114,6 +18145,58 @@ button:disabled {
   }
 }
 
+/* --- An NPC's character sheet ------------------------------------------- */
+
+/* The Story and Character sheet tabs, as the sheet's page tabs are lettered,
+   on cream with the current one in rust. */
+.shell-root[data-theme="lubec"] .npc-detail-tab-strip {
+  gap: 0.3rem;
+  margin-bottom: 0.4rem;
+}
+
+.shell-root[data-theme="lubec"] .npc-detail-tab {
+  min-height: 2rem;
+  padding: 0.4rem 0.9rem 0.25rem;
+  background: var(--lubec-cream);
+  border: 1.5px solid var(--lubec-ink);
+  border-radius: 0;
+  color: var(--lubec-ink);
+  font: 700 1rem/1 var(--lubec-condensed);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .npc-detail-tab:hover {
+  background: var(--lubec-paper-deep);
+}
+
+.shell-root[data-theme="lubec"] .npc-detail-tab[aria-selected="true"] {
+  background: var(--lubec-rust);
+  border-color: var(--lubec-rust);
+  color: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .npc-detail-tab:focus-visible {
+  outline: 2px solid var(--lubec-blue);
+  outline-offset: 2px;
+}
+
+/* An NPC with no sheet yet: a line and the ways a sheet comes in. */
+.shell-root[data-theme="lubec"] .lubec-npc-sheet-start {
+  display: grid;
+  justify-items: start;
+  gap: 0.8rem;
+  padding: 1rem 1.1rem;
+  background: var(--lubec-cream);
+  border: 1.5px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-npc-sheet-start p {
+  margin: 0;
+  color: var(--lubec-ink);
+  font-family: var(--lubec-type);
+}
+
 /* --- New character and Direct entry ------------------------------------ */
 
 /* The roster's heading and New character share a row while they fit, and the
@@ -18638,5 +18721,60 @@ button:disabled {
 @media (min-width: 1251px) and (max-height: 760px) {
   .shell-root[data-theme="lubec"] .lubec-sheet {
     --lubec-fit-height: 0.8;
+  }
+}
+
+/* Desktop, an NPC's open sheet: the same sheet as a character's, taking the
+   whole detail pane beside the NPC list on the one sheet of paper, with the
+   list keeping the shell's top margin as the roster does. */
+@media (min-width: 1251px) {
+  .shell-root[data-theme="lubec"] .monsters-layout:has(.lubec-sheet) > .monsters-sidebar {
+    margin-top: 0.4rem;
+    border-right: 0;
+  }
+
+  .shell-root[data-theme="lubec"] .monsters-layout:has(.lubec-sheet) > .monsters-detail {
+    border-left: 0;
+  }
+
+  .shell-root[data-theme="lubec"] .monsters-detail-inner:has(.lubec-sheet) {
+    max-width: none;
+  }
+
+  .shell-root[data-theme="lubec"] .npc-detail-tabs:has(.lubec-sheet) {
+    padding-top: 0.4rem;
+  }
+}
+
+/* The NPC's tabs stand above its sheet, so its Core page takes the next step
+   down the character's height ladder at every height: the tabs and their
+   spacing are about one step's height. */
+@media (min-width: 1251px) and (max-height: 929px) {
+  .shell-root[data-theme="lubec"] .npc-detail-tabs .lubec-sheet {
+    --lubec-fit-height: 0.95;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 887px) {
+  .shell-root[data-theme="lubec"] .npc-detail-tabs .lubec-sheet {
+    --lubec-fit-height: 0.9;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 845px) {
+  .shell-root[data-theme="lubec"] .npc-detail-tabs .lubec-sheet {
+    --lubec-fit-height: 0.85;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 802px) {
+  .shell-root[data-theme="lubec"] .npc-detail-tabs .lubec-sheet {
+    --lubec-fit-height: 0.8;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 760px) {
+  .shell-root[data-theme="lubec"] .npc-detail-tabs .lubec-sheet {
+    --lubec-fit-height: 0.75;
   }
 }

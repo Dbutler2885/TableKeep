@@ -61,13 +61,18 @@ function LubecNewCharacterDialog({ onDirectEntry, onGuided, onImport, onClose }:
   )
 }
 
+type NewCharacterProps = LubecDoors & {
+  /** The action's label; "New character" unless named. */
+  label?: string
+}
+
 /** The "New character" action and the dialog that offers the ways in. */
-export function LubecNewCharacter(doors: LubecDoors) {
+export function LubecNewCharacter({ label = 'New character', ...doors }: NewCharacterProps) {
   const [open, setOpen] = useState(false)
   return (
     <>
       <button type="button" className="lubec-new-btn" onClick={() => setOpen(true)}>
-        <Plus size={14} aria-hidden="true" /> New character
+        <Plus size={14} aria-hidden="true" /> {label}
       </button>
       {open ? <LubecNewCharacterDialog {...doors} onClose={() => setOpen(false)} /> : null}
     </>

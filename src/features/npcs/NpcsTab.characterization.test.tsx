@@ -462,7 +462,7 @@ describe('adding and deleting', () => {
     expect(mocks.setDoc.mock.calls[0][1]).toMatchObject({ sortOrder: 0 })
   })
 
-  it('confirms a delete, removes both documents and drops that NPC\'s pending writes', async () => {
+  it('confirms a delete, removes the NPC, its GM notes and its sheet, and drops that NPC\'s pending writes', async () => {
     renderTab('gm')
     act(() => editor().onChange({ name: 'Bee' }))
     act(() => editor().onChangeGmNotes('gone soon'))
@@ -472,7 +472,8 @@ describe('adding and deleting', () => {
     fireEvent.click(within(dialog).getByText('Delete'))
     await flush()
     await flush()
-    expect(mocks.deleteDoc.mock.calls).toEqual([[{ path: `${NPCS}/b` }], [{ path: `${PRIVATE}/b` }]])
+    await flush()
+    expect(mocks.deleteDoc.mock.calls).toEqual([[{ path: `${NPCS}/b` }], [{ path: `${PRIVATE}/b` }], [{ path: `${BASE}/npcSheets/b` }]])
     expect(screen.queryByRole('dialog')).toBeNull()
     act(() => vi.advanceTimersByTime(500))
     expect(mocks.setDoc).not.toHaveBeenCalled()
@@ -645,8 +646,6 @@ describe('the mobile layout', () => {
     setViewportWidth(600)
     renderTab('gm')
     expect(screen.queryByTestId('npc-editor')).toBeNull()
-    fireEvent.click(row('Bea').querySelector('.map-select')!)
-    expect(screen.queryByTestId('npc-editor')).toBeNull()
     fireEvent.click(row('Aldo').querySelector('.map-select')!)
     expect(rows()).toEqual([])
     expect(screen.getByTestId('npc-editor').textContent).toContain('Aldo')
@@ -661,6 +660,19 @@ describe('the mobile layout', () => {
     expect(rowNames()).toEqual(['Bea', 'Aldo', 'Cid', 'Unnamed NPC'])
     expect(screen.getByTestId('npc-editor').textContent).toContain('Cid')
     expect(document.querySelector('.monster-mobile-back')).toBeNull()
+  })
+
+  it('opens the NPC already selected, so the first one and the one just left open again', () => {
+    setViewportWidth(600)
+    renderTab('gm')
+    fireEvent.click(row('Bea').querySelector('.map-select')!)
+    expect(screen.getByTestId('npc-editor').textContent).toContain('Bea')
+
+    fireEvent.click(document.querySelector('.monster-mobile-back')!)
+    fireEvent.click(row('Bea').querySelector('.map-select')!)
+
+    expect(rows()).toEqual([])
+    expect(screen.getByTestId('npc-editor').textContent).toContain('Bea')
   })
 
   it('opens a newly added NPC straight away', async () => {
