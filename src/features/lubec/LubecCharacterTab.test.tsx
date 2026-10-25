@@ -322,6 +322,7 @@ describe('Lubec character tab', () => {
     expect(within(sheet).getByRole('heading', { level: 2, name: 'Tommy Eves' })).toBeTruthy()
     expect(within(sheet.querySelector('.lubec-idband') as HTMLElement).getByText('Working Kid')).toBeTruthy()
     expect(within(sheet).getByRole('img', { name: 'No photo yet' })).toBeTruthy()
+    expect(within(sheet).getByRole('img', { name: 'No token yet' }).textContent).toBe('Token')
     expect(sheet.querySelector('.lubec-stamp')?.textContent).toBe('LubecMaine1977')
     const tabs = within(within(sheet).getByRole('navigation', { name: 'Character sheet pages' })).getAllByRole('button')
     expect(tabs.map((tab) => [tab.textContent, tab.getAttribute('aria-current')])).toEqual([['Core sheet', 'page'], ['Skills', null]])
