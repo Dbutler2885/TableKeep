@@ -562,8 +562,13 @@ const STORED_TIMEOUT_MS = 10_000
 // What is wrong with a stored character, in the REST shape, that should hold
 // a portrait and a token image by their storage paths alone.
 export function storedMediaProblems(stored) {
-  const problems = storedPortraitProblems(stored)
-  const tokenIcon = stored.tokenIcon?.mapValue?.fields ?? {}
+  return [...storedPortraitProblems(stored), ...storedTokenImageProblems(stored.tokenIcon?.mapValue?.fields ?? {})]
+}
+
+// What is wrong with a stored token icon's fields, in the REST shape, that
+// should hold a custom image by its storage path alone.
+export function storedTokenImageProblems(tokenIcon) {
+  const problems = []
   if (tokenIcon.icon?.stringValue !== 'custom') problems.push('the token icon is not a custom image')
   if (!tokenIcon.customImagePath?.stringValue) problems.push('no token image path is stored')
   if (tokenIcon.customImageUrl) problems.push('a token image URL is stored')

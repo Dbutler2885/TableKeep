@@ -12,6 +12,7 @@ import {
   storedItemsProblem,
   storedMediaProblems,
   storedPortraitProblems,
+  storedTokenImageProblems,
   storedVersionProblems,
   trackersAtZero,
   vtmCharacterFields,
@@ -261,6 +262,14 @@ describe('checking a saved character is stored at version 1', () => {
       portraitPath: 'p.png', portraitUrl: 'https://cdn.test/p.png',
       tokenIcon: { icon: 'custom', customImagePath: 't.png', customImageUrl: 'https://cdn.test/t.png' },
     }))).toEqual(['a portrait URL is stored', 'a token image URL is stored'])
+  })
+
+  it('names each token image problem on its own, and none for a custom image stored by path alone', () => {
+    const fields = (tokenIcon) => toFirestoreFields({ tokenIcon }).tokenIcon.mapValue.fields
+    expect(storedTokenImageProblems(fields({ icon: 'custom', customImagePath: 't.png' }))).toEqual([])
+    expect(storedTokenImageProblems({})).toEqual(['the token icon is not a custom image', 'no token image path is stored'])
+    expect(storedTokenImageProblems(fields({ icon: 'custom', customImagePath: 't.png', customImageUrl: 'https://cdn.test/t.png' })))
+      .toEqual(['a token image URL is stored'])
   })
 
   it('finds nothing wrong with a portrait stored by path alone, and names a missing path or a stored URL', () => {
