@@ -2,7 +2,7 @@ import type { CharacterRecord } from '../../../types/app'
 import type { usePlayerAssignment } from '../hooks/usePlayerAssignment'
 
 type Props = {
-  character: CharacterRecord | null
+  character: Pick<CharacterRecord, 'name'> | null
   flow: ReturnType<typeof usePlayerAssignment>
 }
 

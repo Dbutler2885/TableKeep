@@ -4,6 +4,7 @@ import { makeId } from '../character/characterFactories'
 import { canEditCharacterStoreCharacter } from '../character/characterStore/characterStoreActions'
 import { useCharacterStore } from '../character/characterStore/useCharacterStore'
 import { CharacterDeleteDialog } from '../character/components/CharacterDeleteDialog'
+import { PlayerAssignmentModal } from '../character/components/PlayerAssignmentModal'
 import { useCharacterMedia } from '../character/hooks/useCharacterMedia'
 import { useResponsiveCharacterLayout } from '../character/hooks/useResponsiveCharacterLayout'
 import { lubecCharacterStore } from '../ruleSets/lubec/characterParser'
@@ -15,8 +16,10 @@ import { importLubecCharacter, type LubecImportContext } from './lubecImport'
 import type { LubecSheetEditing } from './LubecNameBandEditor'
 import type { LubecDoors } from './LubecNewCharacter'
 import { LubecRoster } from './LubecRoster'
+import { lubecCharacterName } from './lubecNames'
 import { LubecSheetView, type LubecCorrections } from './LubecSheetView'
 import { useLubecCharacterDelete } from './useLubecCharacterDelete'
+import { useLubecPlayerAssignment } from './useLubecPlayerAssignment'
 
 export type LubecCharacterTabProps = {
   campaignId: string
@@ -38,6 +41,8 @@ type DetailProps = {
   corrections: LubecCorrections | null
   /** Asks to delete the character, at any stage; null when the viewer may not. */
   onDelete: (() => void) | null
+  /** Opens Give to Player; null unless the viewer is the GM. */
+  onAssign: (() => void) | null
 } & DraftActions
 
 /** What the viewer may do to a draft; all are null for a finalized character or someone else's. */
@@ -185,6 +190,8 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, cu
   })
   const viewer = { role, userId: currentUserId }
   const deletion = useLubecCharacterDelete(store, viewer, () => layout.setPaneView('list'))
+  const assignment = useLubecPlayerAssignment(store, role, gmUserId)
+  const selectedName = store.selectedCharacter ? { name: lubecCharacterName(store.selectedCharacter) } : null
   return (
     <div className="maps-layout monsters-layout characters-layout lubec-character-tab">
       {layout.showListPane ? (
@@ -208,10 +215,12 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, cu
           onSkillsChange={skillsChangeFor(store.selectedCharacter, { role, userId: currentUserId }, store.updateCharacter)}
           corrections={correctionsFor(store.selectedCharacter, viewer, store.updateCharacter)}
           onDelete={deletion.deleteFor(store.selectedCharacter)}
+          onAssign={assignment.onAssign}
           {...draftActionsFor(store.selectedCharacter, viewer, store)}
         />
       ) : null}
       <CharacterDeleteDialog target={deletion.target} onConfirm={deletion.confirm} onCancel={deletion.cancel} />
+      <PlayerAssignmentModal character={selectedName} flow={assignment.flow} />
     </div>
   )
 }
