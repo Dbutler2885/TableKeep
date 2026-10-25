@@ -159,13 +159,12 @@ export const ruleSets: RuleSetRegistry = {
     // The OSE wandering-monster check never belonged in VtM.
     mapRules: { wanderingMonsters: false },
   },
-  // Lubec 1977, still hidden: no GM can pick it yet while its sheet is built.
-  // It has the table tools VtM has, without monsters.
+  // Lubec 1977: the table tools VtM has, without monsters.
   lubec: {
     id: 'lubec',
     label: 'Lubec 1977',
     shortLabel: 'LUBEC',
-    selectable: false,
+    selectable: true,
     tabs: {
       order: ['character', 'maps', 'npcs', 'notes', 'calendar'],
       hiddenFromPlayers: [],

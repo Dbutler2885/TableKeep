@@ -44,10 +44,12 @@ const viewports = [
 ]
 
 // One campaign per rule set the campaign creation dialog offers. `characterTab`
-// matches only that rule set's character tab, so opening the wrong sheet fails.
+// matches only that rule set's character tab, so opening the wrong sheet fails;
+// `emptyList` is what that tab says before it holds a character.
 const ruleSetCampaigns = [
-  { system: 'ose', label: 'OSE', characterTab: '.characters-layout:not(.vtm-character-tab)' },
-  { system: 'vtm', label: 'VtM', characterTab: '.vtm-character-tab' },
+  { system: 'ose', label: 'OSE', characterTab: '.characters-layout:not(.vtm-character-tab)', emptyList: 'No characters available.' },
+  { system: 'vtm', label: 'VtM', characterTab: '.vtm-character-tab', emptyList: 'No characters available.' },
+  { system: 'lubec', label: 'Lubec', characterTab: '.shell-root[data-theme="lubec"] .lubec-character-tab', emptyList: 'No characters yet.' },
 ]
 
 function startApp() {
@@ -167,6 +169,12 @@ async function screenshot(page, name) {
   await page.screenshot({ path: `${SCREENSHOT_DIR}/${name}.png`, fullPage: true })
 }
 
+export function campaignIdFromUrl(page) {
+  const match = new URL(page.url()).pathname.match(/^\/groups\/[^/]+\/campaigns\/([^/]+)\//)
+  if (!match) throw new Error(`Expected a campaign URL, got ${page.url()}.`)
+  return match[1]
+}
+
 export function groupIdFromUrl(page) {
   const match = new URL(page.url()).pathname.match(/^\/groups\/([^/]+)$/)
   if (!match) throw new Error(`Expected a group home URL, got ${page.url()}.`)
@@ -199,7 +207,7 @@ async function closeNavigationDrawer(page) {
 }
 
 // The picker offers exactly the rule sets the smoke creates, so a hidden one
-// such as Lubec never shows there.
+// never shows there.
 async function expectPickerOffersOnly(page, systems) {
   const offered = await page.$$eval('[role="dialog"] select option', (options) => options.map((option) => option.value))
   if (offered.join() !== systems.join()) {
@@ -207,6 +215,7 @@ async function expectPickerOffersOnly(page, systems) {
   }
 }
 
+// Returns the campaign's id, so a later case can find its documents.
 async function createAndOpenCampaign(page, testCase, ruleSet) {
   const campaignName = `${testCase.label} ${ruleSet.label} Campaign`
   await step(`create the ${ruleSet.label} campaign`, async () => {
@@ -221,8 +230,9 @@ async function createAndOpenCampaign(page, testCase, ruleSet) {
     await page.locator(ruleSet.characterTab).wait()
   })
   await closeNavigationDrawer(page)
-  await step(`show the empty ${ruleSet.label} character list`, () => waitForBodyText(page, 'No characters available.'))
+  await step(`show the empty ${ruleSet.label} character list`, () => waitForBodyText(page, ruleSet.emptyList))
   await screenshot(page, `${testCase.name}-${ruleSet.system}-character`)
+  return campaignIdFromUrl(page)
 }
 
 async function openSeededCharacter(page, testCase, { uid, groupId }) {
@@ -272,12 +282,15 @@ async function waitForOseSheet(page, characterName) {
 }
 
 // Everything the smoke checks inside the group, once it exists. Add a case here.
+// Returns the id of each campaign made through the picker, by rule set.
 async function openCampaignCases(page, testCase, { uid, groupId }) {
   await step('open a seeded character', () => openSeededCharacter(page, testCase, { uid, groupId }))
+  const created = {}
   for (const ruleSet of ruleSetCampaigns) {
     await step('go back to the group home', () => backToGroupHome(page, testCase))
-    await createAndOpenCampaign(page, testCase, ruleSet)
+    created[ruleSet.system] = await createAndOpenCampaign(page, testCase, ruleSet)
   }
+  return created
 }
 
 // A VtM sheet saves 500 ms after the last keystroke. These cases leave the
@@ -1032,7 +1045,7 @@ async function wanderingMonsterCases(browser, testCase, ids, browserErrors) {
   await inSignedInPage(browser, session, 'vtm-wandering-monsters', (page) => vtmWanderingMonsterCase(page, testCase, vtmMap))
 }
 
-// No GM can create a Lubec campaign yet, so the smoke seeds one, empty. It
+// The Lubec campaign the GM made through the picker, still empty. It
 // opens in Lubec's own skin with its five tabs, and Tommy Eves, a Working Kid,
 // comes in through Import a file as the standalone sheet saved him, with the
 // smoke's PNG as his portrait. The portrait goes to the Storage emulator, and
@@ -1164,7 +1177,7 @@ async function lubecSkillsPageSteps(page, testCase) {
 
 async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) {
   const filePath = await lubecImportFile()
-  await step('open the seeded Lubec campaign', () => openCampaignCard(page, campaignName, LUBEC_TAB))
+  await step('open the Lubec campaign made through the picker', () => openCampaignCard(page, campaignName, LUBEC_TAB))
   await step('offer the five Lubec tabs', () => expectNavTabs(page, ['Characters', 'Maps', 'NPCs', 'Notes', 'Calendar']))
   const path = await step('import the Tommy Eves file with a portrait', () => importLubecCharacter(page, charactersPath, filePath))
   await step('show the imported portrait on the sheet', () => expectLubecPortraitShown(page))
@@ -1185,9 +1198,9 @@ async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) 
   await lubecSkillsPageSteps(page, testCase)
 }
 
-async function lubecCampaignCase(browser, testCase, ids, browserErrors) {
+// Runs in the Lubec campaign `createAndOpenCampaign` made through the picker.
+async function lubecCampaignCase(browser, testCase, ids, campaignId, browserErrors) {
   const campaignName = `${testCase.label} Lubec Campaign`
-  const campaignId = await seedCampaign({ groupId: ids.groupId, gmUserId: ids.uid, fields: { name: campaignName, system: 'lubec' } })
   const charactersPath = `groups/${ids.groupId}/campaigns/${campaignId}/characters`
   const session = { testCase, groupId: ids.groupId, browserErrors }
   await inSignedInPage(browser, session, 'lubec-sheet', (page) => lubecSheetCase(page, testCase, { campaignName, charactersPath }))
@@ -1272,14 +1285,14 @@ async function runViewport(browser, testCase) {
     await roleLocator(page, 'button', 'Create').click()
     await waitForBodyText(page, testCase.groupName)
     const groupId = groupIdFromUrl(page)
-    await openCampaignCases(page, testCase, { uid, groupId })
+    const created = await openCampaignCases(page, testCase, { uid, groupId })
     await vtmLastEditCases(browser, testCase, { uid, groupId }, browserErrors)
     await vtmEditKeepsFieldsCases(browser, testCase, { uid, groupId }, browserErrors)
     await vtmCharacterLifecycleCases(browser, testCase, { uid, groupId }, browserErrors)
     await oseLastEditCases(browser, testCase, { uid, groupId }, browserErrors)
     await oseMigratedCharacterCases(browser, testCase, { uid, groupId }, browserErrors)
     await wanderingMonsterCases(browser, testCase, { uid, groupId }, browserErrors)
-    await lubecCampaignCase(browser, testCase, { uid, groupId }, browserErrors)
+    await lubecCampaignCase(browser, testCase, { uid, groupId }, created.lubec, browserErrors)
     await new Promise((resolve) => setTimeout(resolve, 500))
 
     if (browserErrors.length > 0) {
@@ -1289,7 +1302,7 @@ async function runViewport(browser, testCase) {
     console.log(
       `PASS ${testCase.name}: signed in, verified email, claimed a handle, created a group, `
       + 'opened a seeded character, and opened the character tab of a new '
-      + `${ruleSetCampaigns.map((ruleSet) => ruleSet.label).join(' and a new ')} campaign, `
+      + `${ruleSetCampaigns.map((ruleSet) => ruleSet.label).join(' and a new ')} campaign made through the picker, `
       + 'and kept a VtM edit made just before leaving the sheet or switching campaign, '
       + 'and saved a VtM edit leaving every other stored field of a filled-in sheet as it was, '
       + 'and created, edited, gave a portrait and a token image to, reloaded and deleted a VtM character, '
@@ -1298,7 +1311,7 @@ async function runViewport(browser, testCase) {
       + 'and kept the items and ids the migration made of an old-format character through a save and two reloads, '
       + 'storing it at version 1, '
       + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map, '
-      + 'and opened a seeded Lubec campaign in its own skin, with its five tabs, imported a character file with a portrait, '
+      + 'and, in the Lubec campaign made through the picker, in its own skin, with its five tabs, imported a character file with a portrait, '
       + 'saw the portrait again after a reload from its stored path, and opened the imported character\'s Core page and Skills page.',
     )
   } finally {
