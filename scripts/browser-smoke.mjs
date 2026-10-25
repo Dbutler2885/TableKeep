@@ -1477,7 +1477,8 @@ async function runViewport(browser, testCase) {
       + 'storing it at version 1, '
       + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map, '
       + 'and, in the Lubec campaign made through the picker, in its own skin, with its five tabs, imported a character file with a portrait, '
-      + 'gave it a token image from the sheet, saw both again after a reload from their stored paths, and opened the imported character\'s Core page and Skills page.',
+      + 'gave it a token image from the sheet, saw both again after a reload from their stored paths, opened the imported character\'s Core page and Skills page, '
+      + 'and made an NPC a Direct entry sheet on its Character sheet tab and finalized it.',
     )
   } finally {
     await screenshot(page, testCase.name)
