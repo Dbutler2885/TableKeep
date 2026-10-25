@@ -96,18 +96,19 @@ describe('GroupHome new-campaign picker', () => {
     return within(screen.getByRole('dialog')).getByRole('combobox') as HTMLSelectElement
   }
 
-  it('offers OSE and VtM by their full names, with OSE chosen, and never the hidden Lubec', () => {
+  it('offers OSE, VtM and Lubec by their full names, with OSE chosen', () => {
     renderHome()
     const picker = openPicker()
 
     expect([...picker.options].map((option) => [option.value, option.textContent])).toEqual([
       ['ose', 'Old-School Essentials'],
       ['vtm', 'Vampire: the Masquerade'],
+      ['lubec', 'Lubec 1977'],
     ])
     expect(picker.value).toBe('ose')
   })
 
-  it.each(['ose', 'vtm'])('creates a %s campaign storing that id', async (system) => {
+  it.each(['ose', 'vtm', 'lubec'])('creates a %s campaign storing that id', async (system) => {
     const { onCreateCampaign } = renderHome()
     const picker = openPicker()
     const dialog = within(screen.getByRole('dialog'))

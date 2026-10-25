@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   calibratedMapFields,
+  campaignIdFromUrl,
   changedFirestoreFields,
   groupIdFromUrl,
   interpolatePath,
@@ -51,6 +52,19 @@ describe('reading the group id from the group home URL', () => {
     'http://127.0.0.1:4173/groups/abc123/campaigns/c1/character',
   ])('refuses %s, which is not a group home', (url) => {
     expect(() => groupIdFromUrl(pageAt(url))).toThrow(`Expected a group home URL, got ${url}.`)
+  })
+})
+
+describe('reading the campaign id from a campaign tab URL', () => {
+  it('reads the campaign id from a campaign tab URL', () => {
+    expect(campaignIdFromUrl(pageAt('http://127.0.0.1:4173/groups/g1/campaigns/c1/character'))).toBe('c1')
+  })
+
+  it.each([
+    'http://127.0.0.1:4173/groups/g1',
+    'http://127.0.0.1:4173/groups/g1/campaigns/c1',
+  ])('refuses %s, which is not a campaign tab', (url) => {
+    expect(() => campaignIdFromUrl(pageAt(url))).toThrow(`Expected a campaign URL, got ${url}.`)
   })
 })
 

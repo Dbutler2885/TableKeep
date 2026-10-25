@@ -71,15 +71,16 @@ describe('campaign creation and cards', () => {
   it.each([
     ['ose', true],
     ['vtm', true],
-    ['lubec', false],
+    ['lubec', true],
   ] as const)('%s is selectable for a new campaign: %s', (id: RuleSetId, selectable) => {
     expect(ruleSets[id].selectable).toBe(selectable)
   })
 
-  it('the picker offers the selectable rule sets by full name, OSE first, and not Lubec', () => {
+  it('the picker offers the selectable rule sets by full name, OSE first', () => {
     expect(selectableRuleSets().map((ruleSet) => [ruleSet.id, ruleSet.label])).toEqual([
       ['ose', 'Old-School Essentials'],
       ['vtm', 'Vampire: the Masquerade'],
+      ['lubec', 'Lubec 1977'],
     ])
   })
 
