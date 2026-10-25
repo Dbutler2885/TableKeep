@@ -22,6 +22,8 @@ export type LubecSkillPackage = { free: readonly string[]; shapes: readonly Lube
 export type LubecClass = {
   key: LubecClassKey
   name: string
+  /** Who the kid is, in the prototype's words, shown at the head of the class record. */
+  description: string
   modifiers: Partial<Record<LubecValueName, number>>
   choice: LubecClassChoice | null
   traumaResponse: { name: string; text: string }
@@ -42,6 +44,8 @@ export const LUBEC_CLASSES: Readonly<Record<LubecClassKey, LubecClass>> = {
   working: {
     key: 'working',
     name: 'Working Kid',
+    description:
+      "Your family's work is your work. You play a major role in the family business or family labor, especially all summer, but also evenings and weekends. You have had to grow up a little faster than most kids.",
     modifiers: { ...allStats(5), Sanity: 10, Fear: 10, Body: 10 },
     choice: null,
     traumaResponse: {
@@ -56,6 +60,8 @@ export const LUBEC_CLASSES: Readonly<Record<LubecClassKey, LubecClass>> = {
   nerd: {
     key: 'nerd',
     name: 'Nerd',
+    description:
+      'Tape on your glasses, adenoids, wall-eyed, and mental math. Maybe you live in the library, run the projector, build radios, do science experiments, know history, or all of the above.',
     modifiers: { Intellect: 20, Sanity: 30 },
     choice: { field: 'statPenalty', label: 'Stat taking -10', amount: -10, options: ['Strength', 'Speed', 'Handle', 'Charm'] },
     traumaResponse: {
@@ -75,6 +81,8 @@ export const LUBEC_CLASSES: Readonly<Record<LubecClassKey, LubecClass>> = {
   tough: {
     key: 'tough',
     name: 'Tough',
+    description:
+      'For whatever reason, it was advantageous for you to look tough, act tough, and become tough. Maybe you learned to scrap, stare somebody down, hide pain, and never let anyone see you flinch.',
     modifiers: { Strength: 10, Body: 10, Fear: 20 },
     choice: null,
     traumaResponse: {
@@ -89,6 +97,8 @@ export const LUBEC_CLASSES: Readonly<Record<LubecClassKey, LubecClass>> = {
   scout: {
     key: 'scout',
     name: 'Overachiever',
+    description:
+      'You are prepared, capable, and used to being right. Maybe you are a Scout, honor-roll kid, student leader, church volunteer, athlete, or the one adults always trust.',
     modifiers: { Intellect: 10, Fear: 60 },
     choice: { field: 'statBonus', label: 'Stat gaining +5', amount: 5, options: ['Strength', 'Speed', 'Handle', 'Charm'] },
     traumaResponse: {
@@ -103,6 +113,8 @@ export const LUBEC_CLASSES: Readonly<Record<LubecClassKey, LubecClass>> = {
   popular: {
     key: 'popular',
     name: 'Popular Kid',
+    description:
+      "Everybody knows your name. Maybe you're good-looking, the star of the team, the funniest kid in class, or you just have a way with people. Kids want to be around you, and adults let you get away with things.",
     modifiers: { Charm: 20, Fear: 20 },
     choice: { field: 'statPenalty', label: 'Stat taking -10', amount: -10, options: ['Strength', 'Speed', 'Intellect', 'Handle'] },
     traumaResponse: {

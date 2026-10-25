@@ -1076,6 +1076,8 @@ const LUBEC_CORE_VALUES = [
 // The skills the tree marks, in tree order, with the mark each shows.
 const LUBEC_TREE_MARKS = [['Swimming', 'Pick +10'], ['Diving', 'Pick +15'], ['Boatwork', 'Free +10']]
 const LUBEC_SKILL_CHIPS = ['Boatwork +10', 'Swimming +10', 'Diving +15']
+// The class record's title, Trauma Response and Melee Strength Mod; Strength 29 is one full 20.
+const LUBEC_CLASS_RECORD = ['Working Kid', 'Steady Under Pressure', '+1 Impact']
 
 /** A Lubec character file with a PNG as its portrait data URL. */
 export const withLubecPortrait = (file, png) => ({ ...file, portrait: `data:image/png;base64,${png.toString('base64')}` })
@@ -1158,6 +1160,15 @@ async function expectLubecSkillChips(page) {
   if (JSON.stringify(chips) !== JSON.stringify(LUBEC_SKILL_CHIPS)) throw new Error(`The skill strip offers ${JSON.stringify(chips)}.`)
 }
 
+// The three come back in page order: title, Trauma Response, Melee Strength Mod.
+const LUBEC_CLASS_RECORD_PARTS = ['.section-bar h3', '.trauma-response strong', '.record-value strong']
+  .map((part) => `${LUBEC_CORE_PAGE} .class-section ${part}`).join(', ')
+
+async function expectLubecClassRecord(page) {
+  const record = await page.$$eval(LUBEC_CLASS_RECORD_PARTS, (elements) => elements.map((element) => element.textContent))
+  if (JSON.stringify(record) !== JSON.stringify(LUBEC_CLASS_RECORD)) throw new Error(`The class record shows ${JSON.stringify(record)}.`)
+}
+
 // "Show skill tree" in the Core page's skill strip opens the Skills page, where the tree is.
 async function openLubecSkillsPage(page) {
   await page.locator(`${LUBEC_CORE_PAGE} .skill-strip-footer ::-p-text(Show skill tree)`).click()
@@ -1202,6 +1213,7 @@ async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) 
   await step('show the Core page in the v4 frame', () => expectLubecPage(page, 'Core sheet'))
   await step('show each Stat and Save in a roll circle with its base and class modifier under it', () => expectLubecCoreValues(page))
   await step('offer the skills to add to a roll in the strip under the Saves', () => expectLubecSkillChips(page))
+  await step('show the class record with its Trauma Response and Melee Strength Mod', () => expectLubecClassRecord(page))
   await step('fit a new active effect\'s editor without scrolling sideways', () => openAndCloseLubecEffect(page))
   await page.mouse.move(0, page.viewport().height - 1)
   await step('fit the Lubec sheet without scrolling sideways', () => expectNoSidewaysScroll(page))
