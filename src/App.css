@@ -16433,6 +16433,102 @@ button:disabled {
   color: var(--lubec-muted);
 }
 
+/* The Panic Check and the Recovery Save, set a little apart below the Saves. */
+.shell-root[data-theme="lubec"] .lubec-save-rolls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0.7rem 0.6rem 0;
+  padding-top: 0.6rem;
+  border-top: 1.5px dashed var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-save-roll {
+  display: grid;
+  gap: 0.1rem;
+  justify-items: center;
+  min-height: 2.6rem;
+  padding: 0.3rem 0.45rem 0.25rem;
+  background: var(--lubec-cream);
+  border: 2px solid var(--lubec-blue);
+  border-radius: 0;
+  box-shadow: 0 2px 0 var(--lubec-blue);
+  color: var(--lubec-ink);
+  font: 700 0.85rem/1.1 var(--lubec-condensed);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-save-roll small {
+  color: var(--lubec-muted);
+  font: 700 0.75rem/1.1 var(--lubec-type);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-save-roll:hover:not(:disabled) {
+  background: var(--lubec-paper-deep);
+}
+
+.shell-root[data-theme="lubec"] .lubec-save-roll:active:not(:disabled) {
+  box-shadow: none;
+  transform: translateY(2px);
+}
+
+.shell-root[data-theme="lubec"] .lubec-save-roll:disabled {
+  border-style: dashed;
+  border-color: var(--lubec-line);
+  box-shadow: none;
+  color: var(--lubec-muted);
+  cursor: not-allowed;
+}
+
+/* A failed Panic Check's row under the last roll, with its changes and "Add effect". */
+.shell-root[data-theme="lubec"] .lubec-panic-result {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.4rem 0.6rem 0;
+  padding: 0.45rem 0.6rem;
+  background: var(--lubec-cream);
+  border: 1.5px dashed var(--lubec-rust);
+  font: 700 0.85rem/1.3 var(--lubec-type);
+  overflow-wrap: anywhere;
+}
+
+.shell-root[data-theme="lubec"] .lubec-panic-result p,
+.shell-root[data-theme="lubec"] .lubec-panic-changes {
+  margin: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-panic-row {
+  color: var(--lubec-rust);
+  font: 700 1.05rem/1.1 var(--lubec-condensed);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-panic-changes {
+  padding-left: 1.1rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-panic-add {
+  justify-self: start;
+  padding: 0.35rem 0.7rem 0.25rem;
+  background: var(--lubec-rust);
+  border: 1.5px solid var(--lubec-ink);
+  border-radius: 0;
+  color: var(--lubec-cream);
+  font: 700 0.72rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-panic-added {
+  color: var(--lubec-muted);
+}
+
 /* The class's reminders and the Fight panel: small labels over typed text. */
 .shell-root[data-theme="lubec"] .lubec-class-rules,
 .shell-root[data-theme="lubec"] .lubec-fight {

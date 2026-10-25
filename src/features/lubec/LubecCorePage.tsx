@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { lubecCheckTarget } from '../ruleSets/lubec/checkRoll'
 import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
 import { lubecCurrentValue, lubecFinalValue, type LubecModifier } from '../ruleSets/lubec/derivations'
@@ -11,6 +12,7 @@ import { LubecCountersPanel, type LubecCountersChange } from './LubecCountersPan
 import { LubecEffectsPanel } from './LubecEffectsPanel'
 import { LubecFightPanel } from './LubecFightPanel'
 import { LubecMissing, LubecNumber } from './LubecMissing'
+import { LubecSaveRolls } from './LubecPanicRolls'
 import { LubecRollPanel } from './LubecRollPanel'
 import { useLubecRoller, type LubecRolled, type LubecRoller } from './useLubecRoller'
 
@@ -30,6 +32,8 @@ type ValuesPanelProps = ValuesProps & {
   column: string
   tone: 'rust' | 'blue'
   names: readonly LubecValueName[]
+  /** Shown below the table, set apart from the values. */
+  footer?: ReactNode
 }
 
 type BaseCellProps = { name: LubecValueName; sheet: LubecSheet; onDraftEdit: LubecSheetEdit | null }
@@ -72,7 +76,7 @@ function LubecValueRow({ name, sheet, modifiers, onDraftEdit, roller }: ValuesPr
   )
 }
 
-function LubecValuesPanel({ title, column, tone, names, ...values }: ValuesPanelProps) {
+function LubecValuesPanel({ title, column, tone, names, footer, ...values }: ValuesPanelProps) {
   return (
     <section className={`lubec-panel ${tone}`} aria-labelledby={`lubec-panel-${column}`}>
       <div className="lubec-section-head"><h3 id={`lubec-panel-${column}`}>{title}</h3></div>
@@ -89,6 +93,7 @@ function LubecValuesPanel({ title, column, tone, names, ...values }: ValuesPanel
           {names.map((name) => <LubecValueRow key={name} name={name} {...values} />)}
         </tbody>
       </table>
+      {footer}
     </section>
   )
 }
@@ -107,8 +112,8 @@ type CorePageProps = {
 
 /**
  * The Core page: the five Stats and three Saves with their base, final and
- * current values, each current value rolled under with a tap, the roller and
- * the last roll, the counters, the active effects that change the values, the
+ * current values, each current value rolled under with a tap, the Panic Check
+ * and the Recovery Save below the Saves, the roller and the last roll, the counters, the active effects that change the values, the
  * class's reminders and the reserved Fight panel. While a draft can be typed
  * into, its base values and its class and choice are fields, and each final
  * value follows as it is typed.
@@ -121,7 +126,14 @@ export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraf
     <div className="lubec-page lubec-core">
       {onDraftEdit ? <LubecClassPicker sheet={sheet} onEdit={onDraftEdit} /> : null}
       <LubecValuesPanel title="Stats" column="Stat" tone="rust" names={LUBEC_STATS} {...values} />
-      <LubecValuesPanel title="Saves" column="Save" tone="blue" names={LUBEC_SAVES} {...values} />
+      <LubecValuesPanel
+        title="Saves"
+        column="Save"
+        tone="blue"
+        names={LUBEC_SAVES}
+        footer={roller ? <LubecSaveRolls sheet={sheet} roller={roller} /> : null}
+        {...values}
+      />
       <LubecRollPanel sheet={sheet} roller={roller} />
       <LubecCountersPanel sheet={sheet} onChange={onCountersChange} />
       <LubecEffectsPanel effects={sheet.effects} onChange={onEffectsChange} />

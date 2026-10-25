@@ -1,14 +1,7 @@
-import {
-  LUBEC_ADVANTAGE_MODES,
-  describeLubecCheckDice,
-  describeLubecCheckOutcome,
-  describeLubecCheckRoll,
-  isLubecCritical,
-  lubecAdvantageName,
-  lubecRollSkills,
-  readLubecCheckRoll,
-} from '../ruleSets/lubec/checkRoll'
+import { LUBEC_ADVANTAGE_MODES, lubecAdvantageName, lubecRollSkills } from '../ruleSets/lubec/checkRoll'
 import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
+import { describeLubecLastRoll, readLubecLastRoll } from '../ruleSets/lubec/lastRoll'
+import { LubecPanicResult } from './LubecPanicRolls'
 import type { LubecRoller } from './useLubecRoller'
 
 function LubecAdvantageSwitch({ roller }: { roller: LubecRoller }) {
@@ -53,22 +46,21 @@ function LubecArmSkills({ sheet, roller }: { sheet: LubecCharacterSheet; roller:
 }
 
 function LubecLastRollText({ sheet }: { sheet: LubecCharacterSheet }) {
-  const roll = readLubecCheckRoll(sheet.lastRoll)
+  const roll = readLubecLastRoll(sheet.lastRoll)
   if (!roll) return <span className="lubec-roll-none">No roll yet.</span>
+  const lines = describeLubecLastRoll(roll)
   return (
     <>
-      <span className="lubec-last-roll-what">{describeLubecCheckRoll(roll)}</span>
-      <span className="lubec-last-roll-dice">{describeLubecCheckDice(roll)}</span>
-      <strong className={isLubecCritical(roll) ? 'lubec-last-roll-outcome critical' : 'lubec-last-roll-outcome'}>
-        {describeLubecCheckOutcome(roll)}
-      </strong>
+      <span className="lubec-last-roll-what">{lines.what}</span>
+      <span className="lubec-last-roll-dice">{lines.dice}</span>
+      <strong className={lines.critical ? 'lubec-last-roll-outcome critical' : 'lubec-last-roll-outcome'}>{lines.outcome}</strong>
     </>
   )
 }
 
 // One live region that stays in place, so a screen reader hears each new roll.
 function LubecLastRoll({ sheet }: { sheet: LubecCharacterSheet }) {
-  const outcome = readLubecCheckRoll(sheet.lastRoll)?.outcome ?? 'none'
+  const outcome = readLubecLastRoll(sheet.lastRoll)?.outcome ?? 'none'
   return (
     <div className={`lubec-last-roll ${outcome}`} role="status" aria-label="Last roll">
       <LubecLastRollText sheet={sheet} />
@@ -76,7 +68,10 @@ function LubecLastRoll({ sheet }: { sheet: LubecCharacterSheet }) {
   )
 }
 
-/** The Advantage switch and the skills to arm for a viewer who may roll, and the last roll for anyone. */
+/**
+ * The Advantage switch and the skills to arm for a viewer who may roll, and
+ * the last roll for anyone, with a failed Panic Check's row below it.
+ */
 export function LubecRollPanel({ sheet, roller }: { sheet: LubecCharacterSheet; roller: LubecRoller | null }) {
   return (
     <section className="lubec-panel blue lubec-roll" aria-labelledby="lubec-panel-roll">
@@ -84,6 +79,7 @@ export function LubecRollPanel({ sheet, roller }: { sheet: LubecCharacterSheet; 
       {roller ? <LubecAdvantageSwitch roller={roller} /> : null}
       {roller ? <LubecArmSkills sheet={sheet} roller={roller} /> : null}
       <LubecLastRoll sheet={sheet} />
+      <LubecPanicResult sheet={sheet} roller={roller} />
     </section>
   )
 }

@@ -1,6 +1,5 @@
 import { Pencil } from 'lucide-react'
 import { useState } from 'react'
-import { withLubecCheckRoll } from '../ruleSets/lubec/checkRoll'
 import { lubecClass } from '../ruleSets/lubec/classes'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import type { LubecSheetEdit } from '../ruleSets/lubec/directEntry'
@@ -121,7 +120,7 @@ function LubecCore({ character, editing, onCountersChange, onDraftEdit }: CorePr
       onCountersChange={onCountersChange}
       onEffectsChange={editing ? (effects) => editing.update({ lubec: { ...character.lubec, effects } }) : null}
       onDraftEdit={onDraftEdit}
-      onRolled={editing ? (roll) => editing.update({ lubec: withLubecCheckRoll(character.lubec, roll) }) : null}
+      onRolled={editing ? (lubec) => editing.update({ lubec }) : null}
     />
   )
 }

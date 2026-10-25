@@ -3,13 +3,16 @@ import { lubecClass } from './classes'
 import { lubecCurrentValue } from './derivations'
 import { rollLubecDie, type LubecDice } from './dice'
 import { isLubecValueName, lubecActiveModifiers } from './effects'
+import { areFaces, isCount, isFace, isOneOf, readLubecRollFields, type LubecRollFieldChecks } from './rollFields'
 import { isLubecStat, type LubecSheet, type LubecValueName } from './sheet'
 import { isFightingOrShootingSkill, lubecSkillBonus } from './skills'
 
 // The core roller's Stat Checks and Saves: a d100 at or under the target,
 // which is the current value plus an armed skill's bonus. Advantage rolls twice
 // and keeps the lower roll, Disadvantage the higher. A failure adds Stress by
-// itself, and the roll is recorded on the character as its last roll.
+// itself, and the roll is recorded on the character as its last roll
+// (`lastRoll.ts`). The Panic Check and the Recovery Save share the Advantage
+// switch and the dice helpers here.
 
 export const LUBEC_ADVANTAGE_MODES = ['advantage', 'normal', 'disadvantage'] as const
 export type LubecAdvantage = typeof LUBEC_ADVANTAGE_MODES[number]
@@ -56,8 +59,14 @@ export function lubecCheckTarget(sheet: LubecCharacterSheet, name: LubecValueNam
   return current === null ? null : current + (armedSkill(sheet, skill)?.bonus ?? 0)
 }
 
-const keptRoll = (dice: readonly number[], advantage: LubecAdvantage): number =>
-  advantage === 'disadvantage' ? Math.max(...dice) : Math.min(...dice)
+/**
+ * The die kept: the better of two under Advantage, the worse under
+ * Disadvantage. The lower die is the better one unless `higherIsBetter`.
+ */
+export function keptLubecRoll(dice: readonly number[], advantage: LubecAdvantage, higherIsBetter = false): number {
+  const keepsHigher = (advantage === 'disadvantage') !== higherIsBetter
+  return keepsHigher ? Math.max(...dice) : Math.min(...dice)
+}
 
 // 1 for a failed Save; a failed Stat Check adds the class's own amount, 2 for an Overachiever.
 const failureStress = (sheet: LubecSheet, kind: LubecCheckKind): number =>
@@ -65,9 +74,9 @@ const failureStress = (sheet: LubecSheet, kind: LubecCheckKind): number =>
 
 export type LubecCheckRequest = { name: LubecValueName; advantage: LubecAdvantage; skill: string | null }
 
-// One d100, or two under Advantage or Disadvantage.
-const rollD100s = (advantage: LubecAdvantage, dice: LubecDice): number[] =>
-  Array.from({ length: advantage === 'normal' ? 1 : 2 }, () => rollLubecDie(100, dice))
+/** One die of this many sides, or two under Advantage or Disadvantage. */
+export const rollLubecDice = (sides: number, advantage: LubecAdvantage, dice: LubecDice): number[] =>
+  Array.from({ length: advantage === 'normal' ? 1 : 2 }, () => rollLubecDie(sides, dice))
 
 type LubecCheckOutcome = Pick<LubecCheckRoll, 'kind' | 'outcome' | 'stressAdded'>
 
@@ -81,8 +90,8 @@ function checkOutcome(sheet: LubecSheet, name: LubecValueName, target: number, r
 export function rollLubecCheck(sheet: LubecCharacterSheet, request: LubecCheckRequest, dice: LubecDice): LubecCheckRoll | null {
   const target = lubecCheckTarget(sheet, request.name, request.skill)
   if (target === null) return null
-  const rolled = rollD100s(request.advantage, dice)
-  const result = keptRoll(rolled, request.advantage)
+  const rolled = rollLubecDice(100, request.advantage, dice)
+  const result = keptLubecRoll(rolled, request.advantage)
   return {
     against: request.name,
     target,
@@ -94,25 +103,12 @@ export function rollLubecCheck(sheet: LubecCharacterSheet, request: LubecCheckRe
   }
 }
 
-/** The sheet with the roll as its last roll and the Stress the roll added. */
-export function withLubecCheckRoll(sheet: LubecCharacterSheet, roll: LubecCheckRoll): LubecCharacterSheet {
-  const counters = { ...sheet.counters, stress: sheet.counters.stress + roll.stressAdded }
-  return { ...sheet, counters, lastRoll: roll }
-}
-
-const isOneOf = <Option extends string>(options: readonly Option[]) => (value: unknown): value is Option =>
-  (options as readonly unknown[]).includes(value)
-
-const isCount = (value: unknown): boolean => Number.isInteger(value) && (value as number) >= 0
-
-const isD100 = (value: unknown): boolean => Number.isInteger(value) && (value as number) >= 1 && (value as number) <= 100
-
-const CHECK_ROLL_FIELDS: Readonly<Record<keyof LubecCheckRoll, (value: unknown) => boolean>> = {
+const CHECK_ROLL_FIELDS: LubecRollFieldChecks<LubecCheckRoll> = {
   kind: isOneOf(LUBEC_CHECK_KINDS),
   against: isLubecValueName,
   target: isCount,
-  dice: (value) => Array.isArray(value) && value.length > 0 && value.every(isD100),
-  result: isD100,
+  dice: areFaces(100),
+  result: isFace(100),
   advantage: isOneOf(LUBEC_ADVANTAGE_MODES),
   skill: (value) => value === null || typeof value === 'string',
   outcome: isOneOf(['success', 'failure']),
@@ -120,11 +116,8 @@ const CHECK_ROLL_FIELDS: Readonly<Record<keyof LubecCheckRoll, (value: unknown) 
 }
 
 /** A stored last roll as a Stat Check or Save, or null when it does not read as one. */
-export function readLubecCheckRoll(entry: LubecStoredEntry | null): LubecCheckRoll | null {
-  if (entry === null) return null
-  const reads = Object.entries(CHECK_ROLL_FIELDS).every(([field, check]) => check(entry[field]))
-  return reads ? entry as LubecCheckRoll : null
-}
+export const readLubecCheckRoll = (entry: LubecStoredEntry | null): LubecCheckRoll | null =>
+  readLubecRollFields(entry, CHECK_ROLL_FIELDS)
 
 /** A double (11, 22 ... 99) is a critical; it changes nothing else. */
 export const isLubecCritical = (roll: LubecCheckRoll): boolean => roll.result % 11 === 0
@@ -140,17 +133,24 @@ export const lubecAdvantageName = (mode: LubecAdvantage): string => ADVANTAGE_NA
 export const describeLubecCheckRoll = (roll: LubecCheckRoll): string =>
   `${roll.against} ${KIND_NAMES[roll.kind]}${roll.skill === null ? '' : ` with ${roll.skill}`}`
 
-/** "Rolled 23 vs 39", or "Advantage: 23 and 71, kept 23 vs 39". */
-export function describeLubecCheckDice(roll: LubecCheckRoll): string {
+type LubecRolledDice = { dice: readonly number[]; result: number; advantage: LubecAdvantage }
+
+/** "Rolled 23 vs 39", or "Advantage: 23 and 71, kept 23 vs 39", against what `versus` names. */
+export function describeLubecDice(roll: LubecRolledDice, versus: string): string {
   const dice = roll.dice.length > 1
     ? `${lubecAdvantageName(roll.advantage)}: ${roll.dice.join(' and ')}, kept ${roll.result}`
     : `Rolled ${roll.result}`
-  return `${dice} vs ${roll.target}`
+  return `${dice} vs ${versus}`
+}
+
+export const describeLubecCheckDice = (roll: LubecCheckRoll): string => describeLubecDice(roll, `${roll.target}`)
+
+/** "Failure, +1 Stress": the outcome, capitalised, and the Stress it changed by, if any. */
+export function describeLubecOutcome(outcome: string, stressChange: number): string {
+  const stress = stressChange === 0 ? '' : `, ${stressChange > 0 ? '+' : ''}${stressChange} Stress`
+  return `${outcome.charAt(0).toUpperCase()}${outcome.slice(1)}${stress}`
 }
 
 /** "Success", "Critical failure, +1 Stress". */
-export function describeLubecCheckOutcome(roll: LubecCheckRoll): string {
-  const outcome = isLubecCritical(roll) ? `Critical ${roll.outcome}` : roll.outcome
-  const stress = roll.stressAdded > 0 ? `, +${roll.stressAdded} Stress` : ''
-  return `${outcome.charAt(0).toUpperCase()}${outcome.slice(1)}${stress}`
-}
+export const describeLubecCheckOutcome = (roll: LubecCheckRoll): string =>
+  describeLubecOutcome(isLubecCritical(roll) ? `Critical ${roll.outcome}` : roll.outcome, roll.stressAdded)

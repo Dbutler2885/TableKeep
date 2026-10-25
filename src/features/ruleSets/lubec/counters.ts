@@ -17,3 +17,10 @@ export function stepLubecCounter(counters: LubecCounters, name: LubecCounterName
   const next = counters[name] + step
   return next < 0 ? null : { ...counters, [name]: next }
 }
+
+/**
+ * Stress after a recovery or a Panic row lowers it: never below Minimum Stress,
+ * and never raised when the buttons have already taken it lower than that.
+ */
+export const lubecStressLoweredBy = (counters: LubecCounters, by: number): number =>
+  Math.min(counters.stress, Math.max(counters.minimumStress, counters.stress - by))
