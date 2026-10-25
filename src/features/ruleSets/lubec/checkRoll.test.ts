@@ -10,6 +10,7 @@ import {
   type LubecCheckRoll,
 } from './checkRoll'
 import { cryptoLubecDice, rollLubecDie, type LubecDice } from './dice'
+import { emptyLubecGear } from './gear/gearRecord'
 import { lubecSheet } from './sheetFixtures'
 
 const characterSheet = (overrides: Partial<LubecCharacterSheet> = {}): LubecCharacterSheet => ({
@@ -20,6 +21,7 @@ const characterSheet = (overrides: Partial<LubecCharacterSheet> = {}): LubecChar
   effects: [],
   lastRoll: null,
   importNotes: [],
+  gear: emptyLubecGear(),
   ...overrides,
 })
 
