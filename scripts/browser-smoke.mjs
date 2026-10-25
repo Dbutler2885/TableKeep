@@ -1063,14 +1063,14 @@ const LUBEC_PORTRAIT = `.lubec-idband img.lubec-portrait[alt=${JSON.stringify(`$
 // Each Stat and Save as the Core page shows it: base, final with the Working
 // Kid's +5 to every Stat and +10 to every Save, and current, with no effects.
 const LUBEC_CORE_VALUES = [
-  ['Strength', '24', '29', '29'],
-  ['Speed', '51', '56', '56'],
-  ['Intellect', '38', '43', '43'],
-  ['Handle', '50', '55', '55'],
-  ['Charm', '48', '53', '53'],
-  ['Sanity', '20', '30', '30'],
-  ['Fear', '24', '34', '34'],
-  ['Body', '21', '31', '31'],
+  ['Strength', '29', '24 +5 class'],
+  ['Speed', '56', '51 +5 class'],
+  ['Intellect', '43', '38 +5 class'],
+  ['Handle', '55', '50 +5 class'],
+  ['Charm', '53', '48 +5 class'],
+  ['Sanity', '30', '20 +10 class'],
+  ['Fear', '34', '24 +10 class'],
+  ['Body', '31', '21 +10 class'],
 ]
 
 // The skills the tree marks, in tree order, with the mark each shows.
@@ -1122,11 +1122,14 @@ async function expectLubecPortraitShown(page) {
 }
 
 async function expectLubecCoreValues(page) {
-  const rows = await page.$$eval(`${LUBEC_CORE_PAGE} .lubec-values tbody tr`, (elements) =>
-    // An imported character is a draft, so its base values are in their fields:
-    // each cell reads as its text followed by the value of any field in it.
-    elements.map((row) => [...row.cells].map((cell) =>
-      [cell.textContent, ...[...cell.querySelectorAll('input')].map((input) => input.value)].join('').trim())))
+  const rows = await page.$$eval(`${LUBEC_CORE_PAGE} .abilities .ability`, (elements) =>
+    // An imported character is a draft, so its base values are in their fields
+    // in the note under each circle: the note reads as the field's value, then its text.
+    elements.map((ability) => [
+      ability.querySelector('.ability-name').textContent,
+      ability.querySelector('.roll-circle').textContent,
+      [...ability.querySelector('.base-note').childNodes].map((node) => (node.nodeName === 'INPUT' ? node.value : node.textContent)).join(''),
+    ]))
   if (JSON.stringify(rows) !== JSON.stringify(LUBEC_CORE_VALUES)) throw new Error(`The Core page shows ${JSON.stringify(rows)}.`)
 }
 
@@ -1190,7 +1193,7 @@ async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) 
   // Clear of the page tabs, so the review screenshot shows them at rest.
   await page.mouse.move(0, page.viewport().height - 1)
   await step('show the Core page in the v4 frame', () => expectLubecPage(page, 'Core sheet'))
-  await step('show each Stat and Save with its base, final and current value', () => expectLubecCoreValues(page))
+  await step('show each Stat and Save in a roll circle with its base and class modifier under it', () => expectLubecCoreValues(page))
   await step('fit a new active effect\'s editor without scrolling sideways', () => openAndCloseLubecEffect(page))
   await page.mouse.move(0, page.viewport().height - 1)
   await step('fit the Lubec sheet without scrolling sideways', () => expectNoSidewaysScroll(page))

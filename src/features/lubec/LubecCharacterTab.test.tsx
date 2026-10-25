@@ -159,16 +159,22 @@ function openSheet(name: string) {
   return screen.getByRole('article', { name: `${name} character sheet` })
 }
 
-// A Stat or Save's row, found by its row header's text: a role query here
+// A Stat or Save, found by the name under its roll circle: a role query here
 // computes styles for every element on the sheet, which is slow enough under
 // load to time a test out.
-const valueRow = (name: string) =>
-  screen.getByText(name, { selector: 'th[scope="row"]' }).closest('tr') as HTMLTableRowElement
+const abilityOf = (name: string) =>
+  screen.getByText(name, { selector: '.ability-name' }).closest('.ability') as HTMLElement
 
-/** A Stat or Save's base, final and current values as the sheet shows them. */
-const valuesOf = (name: string) => Array.from(valueRow(name).cells).slice(1).map((cell) => cell.textContent)
+const circleOf = (name: string) => abilityOf(name).querySelector('button.roll-circle') as HTMLButtonElement
 
-const missingMarks = (name: string) => valueRow(name).querySelectorAll('.lubec-missing').length
+// The note under a circle, with a draft's typed base read from its field.
+const noteOf = (name: string) => [...(abilityOf(name).querySelector('.base-note')?.childNodes ?? [])]
+  .map((node) => (node instanceof HTMLInputElement ? node.value : node.textContent)).join('')
+
+/** A Stat or Save as the sheet shows it: the number in its circle, and the base and what is added to it in the note below. */
+const valuesOf = (name: string) => [circleOf(name).textContent, noteOf(name)]
+
+const missingMarks = (name: string) => abilityOf(name).querySelectorAll('.lubec-missing').length
 
 function openSkillsPage(name: string) {
   const sheet = openSheet(name)
@@ -223,6 +229,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 
 describe('Lubec character tab', () => {
@@ -238,20 +245,20 @@ describe('Lubec character tab', () => {
     expect(rosterNames()).toEqual([])
   })
 
-  it('shows a seeded character\'s Stats and Saves with base, final and current values', () => {
+  it('shows a seeded character\'s Stats and Saves as roll circles, each with its base and class modifier under it', () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
 
     openSheet('Tommy Eves')
 
-    expect(valuesOf('Strength')).toEqual(['24', '29', '29'])
-    expect(valuesOf('Speed')).toEqual(['51', '56', '56'])
-    expect(valuesOf('Intellect')).toEqual(['38', '43', '43'])
-    expect(valuesOf('Handle')).toEqual(['50', '55', '55'])
-    expect(valuesOf('Charm')).toEqual(['48', '53', '53'])
-    expect(valuesOf('Sanity')).toEqual(['20', '30', '30'])
-    expect(valuesOf('Fear')).toEqual(['24', '34', '34'])
-    expect(valuesOf('Body')).toEqual(['21', '31', '31'])
+    expect(valuesOf('Strength')).toEqual(['29', '24 +5 class'])
+    expect(valuesOf('Speed')).toEqual(['56', '51 +5 class'])
+    expect(valuesOf('Intellect')).toEqual(['43', '38 +5 class'])
+    expect(valuesOf('Handle')).toEqual(['55', '50 +5 class'])
+    expect(valuesOf('Charm')).toEqual(['53', '48 +5 class'])
+    expect(valuesOf('Sanity')).toEqual(['30', '20 +10 class'])
+    expect(valuesOf('Fear')).toEqual(['34', '24 +10 class'])
+    expect(valuesOf('Body')).toEqual(['31', '21 +10 class'])
     expect(screen.getByRole('region', { name: 'Stats' })).toBeTruthy()
     expect(screen.getByRole('region', { name: 'Saves' })).toBeTruthy()
   })
@@ -294,38 +301,38 @@ describe('Lubec character tab', () => {
     expect(mocks.resolveStoragePathUrl).toHaveBeenCalledWith('portraits/tommy.png')
   })
 
-  it('shows a missing base value as missing, never 0, and its final and current values as missing too', () => {
+  it('shows a missing base value as missing, never 0, in its circle', () => {
     seed({ tommy: withSheet({ base: { Strength: 24, Speed: null, Intellect: 38, Handle: 50, Charm: 48, Sanity: 20, Fear: 24 } }) })
     mountTab('player', 'player-1')
 
     openSheet('Tommy Eves')
 
-    expect(valuesOf('Speed')).toEqual(['missing', 'missing', 'missing'])
-    expect(missingMarks('Speed')).toBe(3)
-    expect(valuesOf('Body')).toEqual(['missing', 'missing', 'missing'])
-    expect(valuesOf('Strength')).toEqual(['24', '29', '29'])
+    expect(valuesOf('Speed')).toEqual(['missing', ''])
+    expect(missingMarks('Speed')).toBe(1)
+    expect(valuesOf('Body')).toEqual(['missing', ''])
+    expect(valuesOf('Strength')).toEqual(['29', '24 +5 class'])
   })
 
-  it('shows every final and current value as missing when the class is missing', () => {
+  it('shows every circle as missing when the class is missing, with the base alone under it', () => {
     seed({ tommy: withSheet({ class: { key: null } }) })
     mountTab('player', 'player-1')
 
     const sheet = openSheet('Tommy Eves')
 
-    expect(valuesOf('Strength')).toEqual(['24', 'missing', 'missing'])
-    expect(valuesOf('Body')).toEqual(['21', 'missing', 'missing'])
+    expect(valuesOf('Strength')).toEqual(['missing', '24'])
+    expect(valuesOf('Body')).toEqual(['missing', '21'])
     expect(sheet.querySelector('.lubec-kid-meta .lubec-missing')?.textContent).toBe('missing')
   })
 
-  it('shows the values a missing class choice could touch as missing', () => {
+  it('shows the circles a missing class choice could touch as missing', () => {
     seed({ tommy: withSheet({ class: { key: 'nerd', choices: { statPenalty: null } } }) })
     mountTab('player', 'player-1')
 
     openSheet('Tommy Eves')
 
-    expect(valuesOf('Strength')).toEqual(['24', 'missing', 'missing'])
-    expect(valuesOf('Intellect')).toEqual(['38', '58', '58'])
-    expect(valuesOf('Sanity')).toEqual(['20', '50', '50'])
+    expect(valuesOf('Strength')).toEqual(['missing', '24'])
+    expect(valuesOf('Intellect')).toEqual(['58', '38 +20 class'])
+    expect(valuesOf('Sanity')).toEqual(['50', '20 +30 class'])
   })
 
   it('keeps a hole through a reload, and writes nothing for viewing a sheet', () => {
@@ -336,7 +343,7 @@ describe('Lubec character tab', () => {
     reload('player', 'player-1')
     openSheet('Tommy Eves')
 
-    expect(valuesOf('Strength')).toEqual(['missing', 'missing', 'missing'])
+    expect(valuesOf('Strength')).toEqual(['missing', ''])
     expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
@@ -595,7 +602,7 @@ describe('Lubec Fight panel', () => {
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
 
-    expect(valuesOf('Handle')).toEqual(['120', '125', '125'])
+    expect(valuesOf('Handle')).toEqual(['125', '120 +5 class'])
     expect(effectiveHandle()).toBe('100')
   })
 
@@ -779,12 +786,6 @@ describe('Lubec active effects', () => {
 
   const button = (container: HTMLElement, text: string) => within(container).getByText(text, { selector: 'button' })
 
-  /** A Stat or Save's base, final and current values, as `valuesOf` reads them. */
-  const shownValues = (name: string) => {
-    const row = [...document.querySelectorAll('.lubec-values tbody tr')].find((candidate) => candidate.querySelector('th')?.textContent === name)
-    return [...(row?.querySelectorAll('td') ?? [])].map((cell) => cell.textContent)
-  }
-
   const openEffect = (index: number) => fireEvent.click(effectsRegion().querySelectorAll('button.lubec-effect-line')[index])
 
   /** Each effect's one-line view, as its name, current step and next step. */
@@ -837,7 +838,7 @@ describe('Lubec active effects', () => {
     addEffect('Bruised knuckles', 'Punched a locker', [{ modifiers: [['Handle', '-40']] }])
     addEffect('Sprained wrist', 'Fell off a bike', [{ modifiers: [['Handle', '-10']] }])
 
-    expect(shownValues('Handle')).toEqual(['50', '55', '5'])
+    expect(valuesOf('Handle')).toEqual(['5', '50 +5 class -50 effect'])
     expect(effectLines()).toEqual([['Bruised knuckles', 'Handle -40'], ['Sprained wrist', 'Handle -10']])
     await flushSave()
     expect(writtenEffects().map(({ name, cause, steps }) => ({ name, cause, steps }))).toEqual([
@@ -854,10 +855,10 @@ describe('Lubec active effects', () => {
 
     openSheet('Tommy Eves')
 
-    expect(shownValues('Handle')).toEqual(['50', '55', '0'])
-    expect(shownValues('Speed')).toEqual(['missing', 'missing', 'missing'])
+    expect(valuesOf('Handle')).toEqual(['0', '50 +5 class -55 effect'])
+    expect(valuesOf('Speed')).toEqual(['missing', ''])
     expect(document.querySelector('.lubec-effective-handle')?.textContent).toBe('0')
-    expect(shownValues('Strength')).toEqual(['24', '29', '29'])
+    expect(valuesOf('Strength')).toEqual(['29', '24 +5 class'])
   })
 
   it('shows a stored effect with no steps by its name alone, and an empty next step as nothing', () => {
@@ -880,7 +881,7 @@ describe('Lubec active effects', () => {
 
     expect(effectLines()).toEqual([['Severe Concussion', 'Handle -40, Dazed', 'then Handle -10']])
     expect(effectsRegion().textContent).not.toContain('failed Body Save')
-    expect(shownValues('Handle')).toEqual(['50', '55', '15'])
+    expect(valuesOf('Handle')).toEqual(['15', '50 +5 class -40 effect'])
     await flushSave()
     expect(writtenEffects()).toEqual([{
       id: expect.any(String),
@@ -891,12 +892,12 @@ describe('Lubec active effects', () => {
     reload('player', 'player-1')
     openSheet('Tommy Eves')
     expect(effectLines()).toEqual([['Severe Concussion', 'Handle -40, Dazed', 'then Handle -10']])
-    expect(shownValues('Handle')).toEqual(['50', '55', '15'])
+    expect(valuesOf('Handle')).toEqual(['15', '50 +5 class -40 effect'])
 
     fireEvent.click(within(effectsRegion()).getByLabelText('Step down Severe Concussion'))
 
     expect(effectLines()).toEqual([['Severe Concussion', 'Handle -10']])
-    expect(shownValues('Handle')).toEqual(['50', '55', '45'])
+    expect(valuesOf('Handle')).toEqual(['45', '50 +5 class -10 effect'])
     await flushSave()
     expect(writtenEffects()[0].steps).toEqual([{ modifiers: [{ target: 'Handle', amount: -10 }], labels: [] }])
     expect(writtenEffects()[0].cause).toBe('Severe Concussion (failed Body Save)')
@@ -907,7 +908,7 @@ describe('Lubec active effects', () => {
     fireEvent.click(within(effectsRegion()).getByLabelText('Step down Severe Concussion'))
 
     expect(effectLines()).toEqual([])
-    expect(shownValues('Handle')).toEqual(['50', '55', '55'])
+    expect(valuesOf('Handle')).toEqual(['55', '50 +5 class'])
     await flushSave()
     expect(writtenEffects()).toEqual([])
     reload('player', 'player-1')
@@ -934,8 +935,8 @@ describe('Lubec active effects', () => {
     fireEvent.click(button(form, 'Save'))
 
     expect(effectLines()).toEqual([['Concussion', 'Speed -20, Dazed, Disadvantage on exertion checks', 'then Body -5']])
-    expect(shownValues('Speed')).toEqual(['51', '56', '36'])
-    expect(shownValues('Handle')).toEqual(['50', '55', '55'])
+    expect(valuesOf('Speed')).toEqual(['36', '51 +5 class -20 effect'])
+    expect(valuesOf('Handle')).toEqual(['55', '50 +5 class'])
     await flushSave()
     expect(writtenEffects()).toEqual([{
       id: 'concussion',
@@ -965,7 +966,7 @@ describe('Lubec active effects', () => {
     fireEvent.click(button(effectsRegion(), 'Remove effect'))
 
     expect(effectLines()).toEqual([['Bruised ribs', 'Strength -5']])
-    expect(shownValues('Handle')).toEqual(['50', '55', '55'])
+    expect(valuesOf('Handle')).toEqual(['55', '50 +5 class'])
     await flushSave()
     expect(writtenEffects().map((effect) => effect.id)).toEqual(['bruise'])
   })
@@ -1005,7 +1006,7 @@ describe('Lubec active effects', () => {
     openSheet('Tommy Eves')
 
     expect(effectLines()).toEqual([['Severe Concussion', 'Handle -40, Dazed', 'then Handle -10']])
-    expect(shownValues('Handle')).toEqual(['50', '55', '15'])
+    expect(valuesOf('Handle')).toEqual(['15', '50 +5 class -40 effect'])
     expect(effectsRegion().querySelectorAll('button')).toHaveLength(0)
     await flushSave()
     expect(mocks.setDoc).not.toHaveBeenCalled()
@@ -1164,8 +1165,8 @@ const baseInput = (name: string) => screen.getByLabelText(`${name} base`) as HTM
 
 const typeBase = (name: string, text: string) => fireEvent.change(baseInput(name), { target: { value: text } })
 
-/** A Stat or Save's final and current values; the base is a field while it can be typed into. */
-const finalsOf = (name: string) => valuesOf(name).slice(1)
+/** The number in a Stat or Save's circle; the base is a field in the note below while it can be typed into. */
+const shownOf = (name: string) => circleOf(name).textContent
 
 const picker = (label: string) => screen.getByLabelText(label, { selector: 'select' }) as HTMLSelectElement
 
@@ -1236,7 +1237,7 @@ describe('New character and Direct entry', () => {
     })
     const sheet = screen.getByRole('article', { name: 'Unnamed kid character sheet' })
     expect(within(sheet).getByText(/In creation · Direct entry/)).toBeTruthy()
-    expect(finalsOf('Strength')).toEqual(['missing', 'missing'])
+    expect(shownOf('Strength')).toBe('missing')
   })
 
   it('lets the GM create a Direct entry character, owned by the GM', async () => {
@@ -1256,7 +1257,7 @@ describe('New character and Direct entry', () => {
     expect(screen.queryByRole('button', { name: 'New character' })).toBeNull()
   })
 
-  it('shows each final value beside its base as it is typed, and saves the typed base values', async () => {
+  it('shows each value in its circle as its base is typed in the note, and saves the typed base values', async () => {
     seed({ ada: directDraft() })
     mountTab('player', 'player-1')
     openSheet('Ada Mitchell')
@@ -1265,9 +1266,9 @@ describe('New character and Direct entry', () => {
     typeBase('Strength', '24')
     typeBase('Sanity', '20')
 
-    expect(finalsOf('Strength')).toEqual(['29', '29'])
-    expect(finalsOf('Sanity')).toEqual(['30', '30'])
-    expect(finalsOf('Speed')).toEqual(['missing', 'missing'])
+    expect(valuesOf('Strength')).toEqual(['29', '24 +5 class'])
+    expect(shownOf('Sanity')).toBe('30')
+    expect(shownOf('Speed')).toBe('missing')
 
     await settleSaves()
 
@@ -1285,22 +1286,22 @@ describe('New character and Direct entry', () => {
     choose('Class', 'nerd')
 
     expect(optionsOf('Stat taking -10')).toEqual(['Choose a Stat', 'Strength', 'Speed', 'Handle', 'Charm'])
-    expect(finalsOf('Charm')).toEqual(['missing', 'missing'])
+    expect(shownOf('Charm')).toBe('missing')
 
     choose('Stat taking -10', 'Charm')
 
-    expect(finalsOf('Charm')).toEqual(['30', '30'])
-    expect(finalsOf('Intellect')).toEqual(['50', '50'])
+    expect(shownOf('Charm')).toBe('30')
+    expect(shownOf('Intellect')).toBe('50')
 
     choose('Class', 'popular')
 
     expect(optionsOf('Stat taking -10')).toEqual(['Choose a Stat', 'Strength', 'Speed', 'Intellect', 'Handle'])
-    expect(finalsOf('Intellect')).toEqual(['missing', 'missing'])
+    expect(shownOf('Intellect')).toBe('missing')
 
     choose('Class', 'scout')
     choose('Stat gaining +5', 'Charm')
 
-    expect(finalsOf('Charm')).toEqual(['45', '45'])
+    expect(shownOf('Charm')).toBe('45')
     expect(screen.queryByLabelText('Stat taking -10', { selector: 'select' })).toBeNull()
 
     await settleSaves()
@@ -1323,15 +1324,15 @@ describe('New character and Direct entry', () => {
     const written = (database.ada.lubec as Fields).base as Fields
     expect(written.Speed).toBeNull()
     expect(written.Handle).toBeNull()
-    expect(finalsOf('Speed')).toEqual(['missing', 'missing'])
+    expect(shownOf('Speed')).toBe('missing')
     expect(baseInput('Handle').value).toBe('12.5')
 
     reload('player', 'player-1')
     openSheet('Ada Mitchell')
 
     expect(baseInput('Speed').value).toBe('')
-    expect(finalsOf('Speed')).toEqual(['missing', 'missing'])
-    expect(finalsOf('Handle')).toEqual(['missing', 'missing'])
+    expect(shownOf('Speed')).toBe('missing')
+    expect(shownOf('Handle')).toBe('missing')
   })
 
   it('neither blocks nor warns when a typed value breaks a rule', async () => {
@@ -1343,8 +1344,8 @@ describe('New character and Direct entry', () => {
     typeBase('Strength', '99')
     typeBase('Fear', '5')
 
-    expect(finalsOf('Strength')).toEqual(['104', '104'])
-    expect(finalsOf('Fear')).toEqual(['15', '15'])
+    expect(shownOf('Strength')).toBe('104')
+    expect(shownOf('Fear')).toBe('15')
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.queryByText(/warning|outside|range/i)).toBeNull()
 
@@ -1431,7 +1432,7 @@ describe('New character and Direct entry', () => {
 
 describe('Lubec roller', () => {
   // Labels and classes, rather than role queries, keep these cases quick in jsdom.
-  const rollButton = (name: string) => valueRow(name).querySelector('button.lubec-roll-value') as HTMLButtonElement
+  const rollButton = circleOf
 
   const roll = (name: string) => fireEvent.click(rollButton(name))
 
@@ -1445,6 +1446,9 @@ describe('Lubec roller', () => {
   const shownLastRoll = () => [...screen.getByLabelText('Last roll').children].map((part) => part.textContent)
 
   const writtenLastRoll = (id = 'tommy') => parseLubecCharacter(id, database[id]).lubec.lastRoll
+
+  /** The status line under the circles. */
+  const shownStatus = () => document.querySelector('.abilities .status')?.textContent
 
   async function flushSave() {
     act(() => vi.advanceTimersByTime(500))
@@ -1466,11 +1470,23 @@ describe('Lubec roller', () => {
     roll('Strength')
     expect(shownLastRoll()).toEqual(['Strength check', 'Rolled 29 vs 29', 'Success'])
     expect(shownCounters().stress).toBe('2')
+    expect(valuesOf('Strength')).toEqual(['29/29', '24 +5 class'])
+    expect(circleOf('Strength').className).toBe('roll-circle has-value check-success')
+    expect(circleOf('Strength').getAttribute('aria-label')).toBe('Strength rolled 29 against 29. Success. Click to clear.')
+    expect(shownStatus()).toBe('Strength: 29 vs 29 - success.')
+
+    roll('Strength')
+    expect(valuesOf('Strength')).toEqual(['29', '24 +5 class'])
+    expect(shownStatus()).toBe('Strength check cleared. Score unchanged.')
+    expect(shownLastRoll()).toEqual(['Strength check', 'Rolled 29 vs 29', 'Success'])
 
     seedRolls(30)
     roll('Strength')
     expect(shownLastRoll()).toEqual(['Strength check', 'Rolled 30 vs 29', 'Failure, +1 Stress'])
     expect(shownCounters().stress).toBe('3')
+    expect(valuesOf('Strength')).toEqual(['30/29', '24 +5 class'])
+    expect(circleOf('Strength').className).toBe('roll-circle has-value check-failure')
+    expect(shownStatus()).toBe('Strength: 30 vs 29 - failure, +1 Stress.')
     await flushSave()
     expect(writtenLastRoll()).toEqual({
       kind: 'stat-check', against: 'Strength', target: 29, dice: [30], result: 30,
@@ -1512,6 +1528,7 @@ describe('Lubec roller', () => {
     expect(rollerButton('Advantage').getAttribute('aria-pressed')).toBe('true')
 
     fireEvent.click(rollerButton('Disadvantage'))
+    roll('Speed')
     seedRolls(23, 71)
     roll('Speed')
     expect(shownLastRoll()).toEqual(['Speed check', 'Disadvantage: 23 and 71, kept 71 vs 56', 'Failure, +1 Stress'])
@@ -1530,11 +1547,17 @@ describe('Lubec roller', () => {
     expect(skillChip('Diving').getAttribute('aria-pressed')).toBe('true')
     expect(screen.getByText('+15 Diving applies to your next roll.')).toBeTruthy()
     expect(rollButton('Intellect').getAttribute('aria-label')).toBe('Roll Intellect at or under 58')
+    expect(valuesOf('Intellect')).toEqual(['58', '+15 skill'])
+    expect(circleOf('Intellect').className).toBe('roll-circle has-value skill-armed')
     seedRolls(50)
     roll('Intellect')
 
     expect(shownLastRoll()).toEqual(['Intellect check with Diving', 'Rolled 50 vs 58', 'Success'])
     expect(skillChip('Diving').getAttribute('aria-pressed')).toBe('false')
+    expect(valuesOf('Intellect')).toEqual(['50/58', '+15 Diving'])
+    expect(valuesOf('Speed')).toEqual(['56', '51 +5 class'])
+    expect(shownStatus()).toBe('Intellect + Diving: 50 vs 58 - success.')
+    roll('Intellect')
     expect(rollButton('Intellect').getAttribute('aria-label')).toBe('Roll Intellect at or under 43')
     await flushSave()
     expect(writtenLastRoll()).toMatchObject({ target: 58, skill: 'Diving', outcome: 'success', stressAdded: 0 })
@@ -1631,6 +1654,35 @@ describe('Lubec roller', () => {
     expect(shownLastRoll()).toEqual(['Strength check', 'Rolled 33 vs 29', 'Critical failure, +1 Stress'])
     expect(screen.getByLabelText('Last roll').querySelector('.critical')?.textContent).toBe('Critical failure, +1 Stress')
     expect(shownCounters().stress).toBe('3')
+    expect(circleOf('Strength').className).toBe('roll-circle has-value check-failure check-double')
+    expect(circleOf('Strength').getAttribute('aria-label')).toBe('Strength rolled 33 against 29. Critical failure. Click to clear.')
+    expect(shownStatus()).toBe('Strength: 33 vs 29 - critical failure, +1 Stress.')
+  })
+
+  it('spins the circle before it shows the result, where motion is allowed, with every circle held until it lands', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    seedRolls(12)
+    roll('Strength')
+
+    expect(circleOf('Strength').className).toBe('roll-circle rolling')
+    expect(circleOf('Strength').textContent).toMatch(/^\d+\/29$/)
+    expect(shownStatus()).toBe('Rolling Strength check...')
+    expect([...document.querySelectorAll('button.roll-circle')].every((circle) => (circle as HTMLButtonElement).disabled)).toBe(true)
+    expect(shownLastRoll()).toEqual(['Strength check', 'Rolled 12 vs 29', 'Success'])
+
+    // Each preview's timer is set once the last one has shown, so the spin is let run a step at a time.
+    for (let step = 0; step < 11; step += 1) act(() => vi.advanceTimersByTime(500))
+    expect(circleOf('Strength').className).toBe('roll-circle rolling')
+    act(() => vi.advanceTimersByTime(500))
+
+    expect(valuesOf('Strength')).toEqual(['12/29', '24 +5 class'])
+    expect(circleOf('Strength').className).toBe('roll-circle has-value check-success')
+    expect(shownStatus()).toBe('Strength: 12 vs 29 - success.')
+    expect(circleOf('Speed').disabled).toBe(false)
   })
 
   it('marks a double that succeeds a critical success', () => {
@@ -1642,6 +1694,7 @@ describe('Lubec roller', () => {
     roll('Strength')
 
     expect(shownLastRoll()[2]).toBe('Critical success')
+    expect(circleOf('Strength').className).toBe('roll-circle has-value check-success check-double')
   })
 
   it('lets the GM roll on a player\'s character', async () => {
@@ -1668,8 +1721,9 @@ describe('Lubec roller', () => {
 
     expect(shownLastRoll()).toEqual(['Fear save', 'Advantage: 12 and 44, kept 12 vs 34', 'Success'])
     expect(rollRegion().querySelectorAll('button')).toHaveLength(0)
-    expect(document.querySelectorAll('.lubec-values button')).toHaveLength(0)
-    expect(valuesOf('Fear')).toEqual(['24', '34', '34'])
+    expect([...document.querySelectorAll('button.roll-circle')].map((circle) => (circle as HTMLButtonElement).disabled)).toEqual(Array(8).fill(true))
+    expect(valuesOf('Fear')).toEqual(['12/34', '24 +10 class'])
+    expect(circleOf('Fear').className).toBe('roll-circle has-value check-success')
     await flushSave()
     expect(mocks.setDoc).not.toHaveBeenCalled()
   })
@@ -2065,8 +2119,8 @@ describe('Finalize, locked values and the Correct switch', () => {
     reload('player', 'player-1')
     openSheet('Ada Mitchell')
 
-    expect(valuesOf('Handle')).toEqual(['missing', 'missing', 'missing'])
-    expect(valuesOf('Strength')).toEqual(['24', 'missing', 'missing'])
+    expect(valuesOf('Handle')).toEqual(['missing', ''])
+    expect(valuesOf('Strength')).toEqual(['missing', '24'])
     expect(screen.queryByLabelText('Handle base')).toBeNull()
     expect(finalizeButton()).toBeNull()
   })
@@ -2119,7 +2173,7 @@ describe('Finalize, locked values and the Correct switch', () => {
     openSheet('Tommy Eves')
     expect(correctSwitch()?.checked).toBe(false)
     expect(screen.queryByLabelText('Handle base')).toBeNull()
-    expect(valuesOf('Handle')).toEqual(['50', '55', '55'])
+    expect(valuesOf('Handle')).toEqual(['55', '50 +5 class'])
   })
 
   it('never shows a player the Correct switch, and shows the GM none on a draft', () => {
@@ -2273,7 +2327,7 @@ describe('Guided roll-up', () => {
 
     expect(rollUpDice()).toEqual(shown)
     expect(shown.slice(0, 1).concat(shown.slice(-1))).toEqual([['Strength', '40 + 7 = 47'], ['Body', '10 + 5 + 6 = 21']])
-    expect(valuesOf('Fear')[0]).toBe('21')
+    expect(valuesOf('Fear')[1]).toBe('21')
     expect(rollUpButtons()).toHaveLength(0)
     expect(screen.queryByText(/re-?roll/i, { selector: 'button' })).toBeNull()
   })
@@ -2347,7 +2401,7 @@ describe('Guided roll-up', () => {
     expect(screen.getByText('Swapped Intellect and Strength.')).toBeTruthy()
     expect(swapButton('Swap lowest Stat')).toBeNull()
     expect(swapButton('Keep scores')).toBeNull()
-    expect([valuesOf('Intellect')[0], valuesOf('Strength')[0]]).toEqual(['47', '24'])
+    expect([valuesOf('Intellect')[1], valuesOf('Strength')[1]]).toEqual(['47', '24'])
     expect(screen.queryByLabelText('Intellect base')).toBeNull()
     expect(screen.queryByLabelText('Strength base')).toBeNull()
   })
@@ -2401,7 +2455,7 @@ describe('Guided roll-up', () => {
     await settleSaves()
 
     expect(stored('gus').lubec.class).toMatchObject({ key: 'nerd', choices: { statPenalty: 'Charm' } })
-    expect(finalsOf('Charm')).toEqual(['31', '31'])
+    expect(shownOf('Charm')).toBe('31')
 
     fireEvent.click(within(classOption('Tough')).getByRole('button'))
     await settleSaves()
@@ -2516,9 +2570,6 @@ async function pasteCharacterCode(text: string) {
   return dialog
 }
 
-/** A draft's Stat or Save as shown: the base typed in its field, then its final and current values. */
-const draftValuesOf = (name: string) => [(screen.getByLabelText(`${name} base`) as HTMLInputElement).value, ...finalsOf(name)]
-
 /** The one character the import wrote, by id. */
 function importedId() {
   const ids = Object.keys(database)
@@ -2564,9 +2615,9 @@ describe('Import a character file', () => {
     const sheet = screen.getByRole('article', { name: 'Tommy character sheet' })
     expect(within(sheet).getByText(/In creation · Imported/)).toBeTruthy()
     expect(within(sheet).getByRole('img', { name: 'No photo yet' })).toBeTruthy()
-    expect(draftValuesOf('Strength')).toEqual(['24', '29', '29'])
-    expect(draftValuesOf('Handle')).toEqual(['50', '55', '55'])
-    expect(draftValuesOf('Sanity')).toEqual(['20', '30', '30'])
+    expect(valuesOf('Strength')).toEqual(['29', '24 +5 class'])
+    expect(valuesOf('Handle')).toEqual(['55', '50 +5 class'])
+    expect(valuesOf('Sanity')).toEqual(['30', '20 +10 class'])
     expect(counterValue('Stress')).toBe('2')
     expect(within(openFinalize()).getByText('Nothing to warn about.')).toBeTruthy()
     fireEvent.click(within(screen.getByRole('dialog', { name: /^Finalize/ })).getByRole('button', { name: 'Cancel' }))
@@ -2627,7 +2678,7 @@ describe('Import a character file', () => {
     reload('player', 'player-1')
     openSheet('Tommy')
 
-    expect(draftValuesOf('Speed')).toEqual(['51', '56', '56'])
+    expect(valuesOf('Speed')).toEqual(['56', '51 +5 class'])
     expect(noticesIn(openFinalize(), 'Import notes')).toEqual([note])
   })
 
@@ -2655,7 +2706,7 @@ describe('Import a character file', () => {
     const id = importedId()
     expect((database[id].lubec as Fields).class).toEqual({ key: null, choices: { statPenalty: null, statBonus: null } })
     expect(((database[id].lubec as Fields).base as Fields).Handle).toBeNull()
-    expect(draftValuesOf('Handle')).toEqual(['', 'missing', 'missing'])
+    expect(valuesOf('Handle')).toEqual(['missing', ''])
     expect(noticesIn(openFinalize(), 'Missing values')).toEqual(['Class', 'Handle'])
   })
 
@@ -2671,7 +2722,7 @@ describe('Import a character file', () => {
       creationStatus: 'established_draft',
       lubec: { door: 'import', class: { key: 'working' }, skills: { free: 'Boatwork', picked: ['Swimming', 'Diving'] } },
     })
-    expect(draftValuesOf('Charm')).toEqual(['48', '53', '53'])
+    expect(valuesOf('Charm')).toEqual(['53', '48 +5 class'])
   })
 
   it('hands a pasted portrait to the media upload as the owner, and stores only the path it returns', async () => {

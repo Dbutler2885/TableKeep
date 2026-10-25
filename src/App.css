@@ -16264,47 +16264,341 @@ button:disabled {
   filter: url(#lubec-rough);
 }
 
-/* Stats and Saves: base, final and current, the number rolled under largest. */
-.shell-root[data-theme="lubec"] .lubec-values {
-  width: calc(100% - 1.2rem);
-  margin: 0 0.6rem;
-  border-collapse: collapse;
-  font-variant-numeric: tabular-nums;
+/* Stats and Saves: the combined prototype's open sections, a heading with
+   its dice badge at the left of a rule and a roll circle for each value, the
+   number rolled under in the circle and the base and its class modifier in a
+   note below. The circle spins while a check is rolled, then shows
+   "roll/target" in green or red, striped for a double, until it is clicked. */
+.shell-root[data-theme="lubec"] .abilities {
+  grid-column: 1 / -1;
+  min-width: 0;
 }
 
-.shell-root[data-theme="lubec"] .lubec-values th,
-.shell-root[data-theme="lubec"] .lubec-values td {
-  padding: 0.4rem 0.35rem;
-  text-align: right;
+.shell-root[data-theme="lubec"] .ability-section {
+  display: grid;
+  grid-template-columns: 7.8rem minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.8rem 0.1rem;
 }
 
-.shell-root[data-theme="lubec"] .lubec-values thead th {
-  padding-top: 0.15rem;
-  border-bottom: 2px solid var(--lubec-ink);
-  color: var(--lubec-muted);
-  font: 800 0.62rem/1.2 var(--lubec-type);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.shell-root[data-theme="lubec"] .lubec-values tbody tr + tr {
+.shell-root[data-theme="lubec"] .ability-section + .ability-section {
   border-top: 1px solid var(--lubec-line);
 }
 
-.shell-root[data-theme="lubec"] .lubec-values th:first-child {
-  text-align: left;
+.shell-root[data-theme="lubec"] .section-heading {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  padding-right: 0.72rem;
+  border-right: 1px solid var(--lubec-line);
+  text-align: right;
 }
 
-.shell-root[data-theme="lubec"] .lubec-values tbody th {
-  color: var(--lubec-ink);
-  font: 700 1.05rem/1.1 var(--lubec-condensed);
+.shell-root[data-theme="lubec"] .section-heading h3 {
+  margin: 0 0 0.3rem;
+  color: var(--lubec-blue);
+  font: 800 clamp(1.1rem, 2.4vw, 1.5rem)/0.95 var(--lubec-display);
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .dice-formula {
+  width: max-content;
+  padding: 0.24rem 0.4rem;
+  color: var(--lubec-paper);
+  background: var(--lubec-blue);
+  font: 800 0.56rem/1 var(--lubec-type);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.shell-root[data-theme="lubec"] .lubec-values .lubec-current {
+.shell-root[data-theme="lubec"] .ability-grid {
+  display: grid;
+  grid-template-columns: repeat(5, max-content);
+  gap: clamp(0.55rem, 1.3vw, 0.85rem);
+  justify-content: end;
+  min-width: 0;
+}
+
+.shell-root[data-theme="lubec"] .save-grid {
+  grid-template-columns: repeat(3, max-content);
+}
+
+.shell-root[data-theme="lubec"] .ability {
+  min-width: 0;
+  text-align: center;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle {
+  position: relative;
+  display: grid;
+  width: var(--lubec-circle);
+  aspect-ratio: 1;
+  margin: 0 auto 0.38rem;
+  padding: 0;
+  place-items: center;
   color: var(--lubec-blue);
-  font: 800 1.45rem/1 var(--lubec-display);
+  background: rgba(255, 255, 255, 0.2);
+  border: 3px solid var(--lubec-ink);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px rgba(255, 248, 231, 0.62);
+  font: 800 clamp(0.76rem, 1.5vw, 0.9rem)/1 var(--lubec-type);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle::after {
+  content: "";
+  position: absolute;
+  inset: 0.34rem;
+  border: 1px solid rgba(23, 40, 43, 0.18);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle:hover:not(:disabled),
+.shell-root[data-theme="lubec"] .roll-circle:focus-visible:not(:disabled) {
+  color: var(--lubec-cream);
+  background: var(--lubec-blue);
+  border-color: var(--lubec-blue);
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 3px;
+  transform: translateY(-2px);
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.has-value {
+  color: var(--lubec-ink);
+  background: rgba(255, 255, 255, 0.42);
+  font: 800 clamp(1.8rem, 3.5vw, 2.35rem)/1 var(--lubec-display);
+  letter-spacing: -0.04em;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.has-value:hover:not(:disabled),
+.shell-root[data-theme="lubec"] .roll-circle.has-value:focus-visible:not(:disabled) {
+  color: var(--lubec-cream);
+  background: var(--lubec-blue-alt);
+  border-color: var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.has-value:disabled {
+  color: var(--lubec-ink);
+  background: rgba(255, 255, 255, 0.42);
+  border-color: var(--lubec-ink);
+  cursor: default;
+  opacity: 1;
+  transform: none;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.awaiting-class:disabled {
+  opacity: 0.58;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.rolling {
+  color: var(--lubec-cream);
+  background: var(--lubec-rust);
+  border-color: var(--lubec-ink);
+  font: 800 clamp(1.8rem, 3.5vw, 2.35rem)/1 var(--lubec-display);
+  letter-spacing: -0.04em;
+  cursor: wait;
+  opacity: 1;
+  transform: none;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.check-success {
+  color: var(--lubec-cream);
+  background: var(--lubec-success);
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.check-failure {
+  color: var(--lubec-cream);
+  background: var(--lubec-failure);
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.check-double {
+  --critical-color: var(--lubec-failure);
+  color: var(--lubec-ink);
+  background: repeating-linear-gradient(-45deg, var(--critical-color) 0 9px, var(--lubec-cream) 9px 18px);
+  animation: lubec-stat-double-flash 0.7s steps(1, end) infinite;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.check-double.check-success {
+  --critical-color: var(--lubec-success);
+}
+
+/* A hole has no number to show, only its missing mark. */
+.shell-root[data-theme="lubec"] .roll-circle:disabled:not(.has-value) {
+  cursor: not-allowed;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle .number {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 0.08em 0.2em;
+  line-height: 1.12;
+  text-align: center;
+  transform: translateY(0.12em);
+}
+
+.shell-root[data-theme="lubec"] .check-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  width: 100%;
+  align-items: baseline;
+  font: 800 clamp(1.08rem, 2.25vw, 1.48rem)/1 var(--lubec-display);
+  letter-spacing: -0.045em;
+  white-space: nowrap;
+}
+
+.shell-root[data-theme="lubec"] .check-pair > :first-child {
+  text-align: right;
+}
+
+.shell-root[data-theme="lubec"] .check-pair > :last-child {
+  text-align: left;
+}
+
+.shell-root[data-theme="lubec"] .check-stack {
+  display: grid;
+  row-gap: 0.06em;
+  justify-items: center;
+  font: 800 clamp(0.88rem, 1.8vw, 1.16rem)/1.05 var(--lubec-display);
+  letter-spacing: -0.035em;
+}
+
+.shell-root[data-theme="lubec"] .check-stack > :nth-child(2) {
+  font-size: 0.72em;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle .number.spinning {
+  animation: none;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.landed {
+  animation: lubec-landed 0.48s ease-out;
+}
+
+.shell-root[data-theme="lubec"] .roll-circle.skill-armed:not(:disabled) {
+  border-color: var(--lubec-rust);
+  border-style: dashed;
+}
+
+.shell-root[data-theme="lubec"] .ability-name {
+  display: block;
+  overflow-wrap: anywhere;
+  font: 800 clamp(0.68rem, 1.35vw, 0.82rem)/1.05 var(--lubec-display);
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .base-note {
+  display: block;
+  min-height: 1rem;
+  margin-top: 0.22rem;
+  color: var(--lubec-modifier);
+  font: 800 0.72rem/1.1 var(--lubec-type);
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .base-note.skill-note {
+  max-width: calc(var(--lubec-circle) + 1.4rem);
+  margin-inline: auto;
+  color: var(--lubec-rust);
+  overflow-wrap: anywhere;
+}
+
+/* A draft's base, typed into the note in place of the number. */
+.shell-root[data-theme="lubec"] .base-note .lubec-base-input {
+  width: 2.8rem;
+  padding: 0.15rem 0.25rem;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+@keyframes lubec-stat-double-flash {
+  0%, 49% { background: repeating-linear-gradient(-45deg, var(--critical-color) 0 9px, var(--lubec-cream) 9px 18px); }
+  50%, 100% { background: repeating-linear-gradient(-45deg, var(--lubec-cream) 0 9px, var(--critical-color) 9px 18px); }
+}
+
+@keyframes lubec-landed {
+  0% { color: var(--lubec-cream); background: var(--lubec-rust); transform: scale(1.08); }
+  100% { color: var(--lubec-ink); background: rgba(255, 255, 255, 0.42); transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-root[data-theme="lubec"] .roll-circle {
+    transition: none;
+  }
+
+  .shell-root[data-theme="lubec"] .roll-circle.landed,
+  .shell-root[data-theme="lubec"] .roll-circle.check-double {
+    animation: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .shell-root[data-theme="lubec"] .abilities {
+    --lubec-circle: clamp(4.35rem, 18vw, 5.35rem);
+  }
+}
+
+@media (max-width: 580px) {
+  .shell-root[data-theme="lubec"] .abilities {
+    --lubec-circle: min(16vw, 4.5rem);
+  }
+
+  .shell-root[data-theme="lubec"] .ability-section {
+    grid-template-columns: 1fr;
+  }
+
+  .shell-root[data-theme="lubec"] .section-heading {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    padding: 0 0 0.55rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--lubec-line);
+    text-align: left;
+  }
+
+  .shell-root[data-theme="lubec"] .section-heading h3 {
+    margin: 0;
+  }
+
+  .shell-root[data-theme="lubec"] .ability-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    justify-content: space-between;
+    gap: 0.25rem;
+  }
+
+  .shell-root[data-theme="lubec"] .save-grid {
+    grid-template-columns: repeat(3, max-content);
+  }
+
+  .shell-root[data-theme="lubec"] .base-note {
+    overflow-wrap: anywhere;
+  }
+
+  /* Table Keep's frame leaves the grid a little narrower than the
+     prototype's page, so a long name runs a few pixels into the gap rather
+     than breaking mid-word. */
+  .shell-root[data-theme="lubec"] .ability-name {
+    font-size: clamp(0.52rem, 2.55vw, 0.66rem);
+    overflow-wrap: normal;
+  }
+}
+
+@media (max-width: 380px) {
+  .shell-root[data-theme="lubec"] .abilities {
+    --lubec-circle: min(16vw, 3.65rem);
+  }
 }
 
 .shell-root[data-theme="lubec"] .lubec-missing {
@@ -16391,38 +16685,7 @@ button:disabled {
   letter-spacing: 0.04em;
 }
 
-/* The roller: each current value is its own roll button, then the Advantage
-   switch, the skills to arm and the last roll in the Roll panel. */
-.shell-root[data-theme="lubec"] .lubec-roll-value {
-  min-width: 3.1rem;
-  min-height: 2.4rem;
-  padding: 0.2rem 0.45rem 0.1rem;
-  background: var(--lubec-cream);
-  border: 2px solid var(--lubec-blue);
-  border-radius: 0;
-  box-shadow: 0 2px 0 var(--lubec-blue);
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-value:hover:not(:disabled) {
-  background: var(--lubec-paper-deep);
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-value:active:not(:disabled) {
-  box-shadow: none;
-  transform: translateY(2px);
-}
-
-.shell-root[data-theme="lubec"] .lubec-roll-value:disabled {
-  padding: 0.2rem;
-  background: none;
-  border-color: transparent;
-  box-shadow: none;
-  cursor: not-allowed;
-}
-
+/* The roller: the Advantage switch, the skills to arm and the last roll in the Roll panel. */
 .shell-root[data-theme="lubec"] .lubec-roll-switch {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
