@@ -4,6 +4,7 @@ import {
   lubecAdvantageName,
   isLubecCritical,
   lubecCheckTarget,
+  type LubecAdvantage,
 } from '../ruleSets/lubec/checkRoll'
 import type { LubecCharacterSheet, LubecCounters } from '../ruleSets/lubec/characterRecord'
 import { lubecCurrentValue, lubecFinalValue, type LubecModifier } from '../ruleSets/lubec/derivations'
@@ -30,8 +31,8 @@ export type LubecSpinPhase = 'spin' | 'done' | 'merge'
 
 /**
  * A roll spinning on one circle: the target, the die it rolls, the number it
- * shows while it spins, the second die's ghost number under Advantage or
- * Disadvantage, and the counters as they stood before the roll.
+ * shows while it spins, the mode it was rolled with, the second die's ghost
+ * number under Advantage or Disadvantage, and the counters as they stood before the roll.
  */
 export type LubecSpin = {
   name: LubecCircleName
@@ -39,10 +40,19 @@ export type LubecSpin = {
   sides: number
   preview: number
   step: number
+  advantage: LubecAdvantage
   ghost: number | null
   phase: LubecSpinPhase
   counters: LubecCounters
 }
+
+/**
+ * The mode the Advantage switch shows. A roll uses the mode up as it is made,
+ * but the switch keeps showing the mode a roll spins with until its ghost has
+ * merged, and goes back to Normal only once the result lands.
+ */
+export const lubecShownAdvantage = (spin: LubecSpin | null, mode: LubecAdvantage): LubecAdvantage =>
+  spin?.advantage ?? mode
 
 /**
  * The sheet as the Core page shows it. The roll is recorded on the click, so

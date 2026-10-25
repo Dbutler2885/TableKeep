@@ -142,7 +142,7 @@ export function LubecAbilities({ onShowTree, rollUp: rollUpEdits, circles, ...va
     <div className="abilities">
       <LubecAbilitySection title="Stats" formula="Array + D10 each" names={LUBEC_STATS} circles={circles} rollUp={rollUp} tray={tray} {...values} />
       <LubecAbilitySection title="Saves" formula="2D10 + 10" names={LUBEC_SAVES} circles={circles} rollUp={rollUp} {...values} />
-      {values.roller ? <LubecSkillStrip sheet={values.sheet} roller={values.roller} onShowTree={onShowTree} /> : null}
+      {values.roller ? <LubecSkillStrip sheet={values.sheet} roller={values.roller} spin={circles.spin} onShowTree={onShowTree} /> : null}
       {rollUp ? null : <LubecPanicSection sheet={lubecShownSheet(values.sheet, circles.spin)} roller={values.roller} circles={circles} />}
       <p className="status" role="status" aria-live="polite">{rollUp ? rollUp.status : circles.status}</p>
     </div>

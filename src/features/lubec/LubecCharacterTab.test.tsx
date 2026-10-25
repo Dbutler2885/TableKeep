@@ -2039,7 +2039,6 @@ describe('Lubec roller', () => {
     seedRolls(71, 23)
     roll('Speed')
     expect(shownStatus()).toBe('Speed (Advantage, 71 and 23): 23 vs 56 - success.')
-    expect(rollerButton('Advantage').getAttribute('aria-pressed')).toBe('true')
 
     fireEvent.click(rollerButton('Disadvantage'))
     roll('Speed')
@@ -2048,6 +2047,67 @@ describe('Lubec roller', () => {
     expect(shownStatus()).toBe('Speed (Disadvantage, 23 and 71): 71 vs 56 - failure, +1 Stress.')
     await flushSave()
     expect(writtenLastRoll()).toMatchObject({ dice: [23, 71], result: 71, advantage: 'disadvantage', outcome: 'failure' })
+  })
+
+  /** The mode the Advantage switch shows pressed. */
+  const pressedMode = () => within(screen.getByLabelText('Advantage')).getAllByRole('button')
+    .filter((button) => button.getAttribute('aria-pressed') === 'true').map((button) => button.textContent)
+
+  it('puts Advantage and Disadvantage back to Normal once a Stat Check or Save is rolled with it', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    fireEvent.click(rollerButton('Advantage'))
+    expect(pressedMode()).toEqual(['Advantage'])
+    seedRolls(71, 23)
+    roll('Speed')
+    expect(shownStatus()).toBe('Speed (Advantage, 71 and 23): 23 vs 56 - success.')
+    expect(pressedMode()).toEqual(['Normal'])
+
+    seedRolls(40)
+    roll('Strength')
+    expect(shownStatus()).toBe('Strength: 40 vs 29 - failure, +1 Stress.')
+
+    fireEvent.click(rollerButton('Disadvantage'))
+    seedRolls(12, 45)
+    roll('Fear')
+    expect(shownStatus()).toBe('Fear (Disadvantage, 12 and 45): 45 vs 34 - failure, +1 Stress.')
+    expect(pressedMode()).toEqual(['Normal'])
+  })
+
+  it('turns the mode off when it is pressed again before a roll', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    fireEvent.click(rollerButton('Disadvantage'))
+    fireEvent.click(rollerButton('Disadvantage'))
+    expect(pressedMode()).toEqual(['Normal'])
+    fireEvent.click(rollerButton('Advantage'))
+    fireEvent.click(rollerButton('Normal'))
+    expect(pressedMode()).toEqual(['Normal'])
+
+    seedRolls(40)
+    roll('Speed')
+    expect(shownStatus()).toBe('Speed: 40 vs 56 - success.')
+  })
+
+  it('keeps the mode set when a result is only cleared, and never brings it back after a reload', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    seedRolls(40)
+    roll('Speed')
+
+    fireEvent.click(rollerButton('Advantage'))
+    roll('Speed')
+    expect(shownStatus()).toBe('Speed check cleared. Score unchanged.')
+    expect(pressedMode()).toEqual(['Advantage'])
+
+    reload('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect(pressedMode()).toEqual(['Normal'])
   })
 
   it('applies an armed skill\'s bonus to the next roll only, then disarms it', async () => {
@@ -2250,6 +2310,8 @@ describe('Lubec roller', () => {
 
     // Each frame's timer is set once the last one has shown, so the spin is let run a frame at a time.
     for (let step = 0; step < 12; step += 1) {
+      expect(pressedMode()).toEqual(['Disadvantage'])
+      expect((rollerButton('Normal') as HTMLButtonElement).disabled).toBe(true)
       expect(circleNumberOf('Speed')).toMatch(/^\d+\/56$/)
       expect(ghostOf('Speed')?.textContent).toMatch(/^\d+\/56$/)
       expect(ghostOf('Speed')?.getAttribute('aria-hidden')).toBe('true')
@@ -2267,8 +2329,11 @@ describe('Lubec roller', () => {
     expect(ghostOf('Speed')?.className).toBe('roll-circle rolling lubec-roll-ghost merging')
     expect(doneOf('Speed')).toBeNull()
     expect(shownCounters().stress).toBe('2')
+    expect(pressedMode()).toEqual(['Disadvantage'])
     act(() => vi.advanceTimersByTime(500))
 
+    expect(pressedMode()).toEqual(['Normal'])
+    expect((rollerButton('Normal') as HTMLButtonElement).disabled).toBe(false)
     expect(circleOf('Speed').className).toBe('roll-circle has-value check-failure')
     expect(ghostOf('Speed')).toBeNull()
     expect(valuesOf('Speed')).toEqual(['71/56', '51 +5 class'])
@@ -2368,6 +2433,10 @@ describe('Lubec Panic Check and Recovery Save', () => {
   }
 
   const stressed = (stress: number, minimumStress = 2) => withSheet({ counters: { stress, minimumStress, trauma: 0 } })
+
+  const modeButton = (text: string) => within(screen.getByLabelText('Advantage')).getByText(text, { selector: 'button' })
+
+  const modePressed = (text: string) => modeButton(text).getAttribute('aria-pressed') === 'true'
 
   beforeEach(() => {
     vi.useFakeTimers()
@@ -2570,14 +2639,16 @@ describe('Lubec Panic Check and Recovery Save', () => {
     act(() => vi.advanceTimersByTime(500))
     expect(circleNumberOf('Panic Check')).toBe('4/5')
     expect(panicResult()).toBeNull()
+    expect(modePressed('Advantage')).toBe(true)
     act(() => vi.advanceTimersByTime(500))
 
+    expect(modePressed('Normal')).toBe(true)
     expect(panicCircle().className).toBe('roll-circle has-value check-failure')
     expect(panicCircle().textContent).toBe('4/5')
     expect(shownPanicResult()[0]).toBe('04 OVERWHEMED')
   })
 
-  it('keeps the higher d20 under Advantage', () => {
+  it('keeps the higher d20 under Advantage, then puts the switch back to Normal', () => {
     seed({ tommy: stressed(5) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -2588,6 +2659,34 @@ describe('Lubec Panic Check and Recovery Save', () => {
     fireEvent.click(panicButton())
 
     expect(shownStatus()).toBe('Panic Check (Advantage, 2 and 9): 9 vs Stress 5 - success.')
+    expect(modePressed('Normal')).toBe(true)
+  })
+
+  it('puts the switch back to Normal after a Recovery Save rolled with Disadvantage', () => {
+    seed({ tommy: stressed(9) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    fireEvent.click(modeButton('Disadvantage'))
+
+    seedRolls(23, 12)
+    fireEvent.click(recoveryButton())
+
+    expect(shownStatus()).toBe('Recovery Save on Sanity (Disadvantage, 23 and 12): 23 vs 30 - success, -3 Stress.')
+    expect(modePressed('Normal')).toBe(true)
+  })
+
+  it('leaves the mode set when a Panic row is added as an effect, which is not a roll it counts for', () => {
+    seed({ tommy: stressed(4) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    seedFace(20, 4)
+    fireEvent.click(panicButton())
+
+    fireEvent.click(modeButton('Advantage'))
+    addPanicEffect()
+
+    expect(effectLines()).toEqual([['OVERWHEMED', 'Disadvantage on all rolls for the next 1d10 minutes. Increase Minimum Stress by 1.']])
+    expect(modePressed('Advantage')).toBe(true)
   })
 
   it('lowers Stress on a Recovery success by the roll\'s ones digit, stopping at Minimum Stress', async () => {
