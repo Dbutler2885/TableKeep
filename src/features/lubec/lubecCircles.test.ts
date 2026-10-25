@@ -13,6 +13,7 @@ import {
   lubecRollCircle,
   lubecRolledSkill,
   lubecRollStatus,
+  lubecShownSheet,
   lubecSpinDelay,
   lubecTallyFace,
 } from './lubecCircles'
@@ -47,7 +48,7 @@ describe('Lubec roll circles', () => {
   })
 
   it('shows a spin on its own circle before a result, and a result over the value', () => {
-    const spin = { name: 'Handle' as const, target: 55, sides: 100, preview: 7, step: 3 }
+    const spin = { name: 'Handle' as const, target: 55, sides: 100, preview: 7, step: 3, counters: tommy.counters }
     expect(lubecCircleFace(request('Handle'), { ...idle, spin, result: handleRoll })).toEqual({ kind: 'rolling', preview: 7, target: 55 })
     expect(lubecCircleFace(request('Strength'), { ...idle, spin })).toEqual({ kind: 'value', value: 29, armed: false })
     expect(lubecCircleFace(request('Handle'), { ...idle, result: handleRoll })).toEqual({ kind: 'result', roll: handleRoll })
@@ -93,7 +94,7 @@ describe('Lubec roll circles', () => {
   })
 
   it('shows what the Panic Check or the Recovery Save rolls against, a hole as missing, a spin, and a result', () => {
-    const spin = { name: 'Panic' as const, target: 5, sides: 20, preview: 17, step: 0 }
+    const spin = { name: 'Panic' as const, target: 5, sides: 20, preview: 17, step: 0, counters: tommy.counters }
     expect(lubecTallyFace('Panic', 5, idle)).toEqual({ kind: 'value', value: 5, armed: false })
     expect(lubecTallyFace('Recovery', null, idle)).toEqual({ kind: 'missing' })
     expect(lubecTallyFace('Panic', 5, { ...idle, spin })).toEqual({ kind: 'rolling', preview: 17, target: 5 })
@@ -113,6 +114,13 @@ describe('Lubec roll circles', () => {
     expect(lubecCirclesStatus({ name: 'Recovery', target: 31, sides: 100, preview: 3, step: 0 }, null, null)).toBe('Rolling Recovery Save...')
     expect(lubecCirclesStatus(null, panicRoll, panicRoll)).toBe('Panic Check cleared. Score unchanged.')
     expect(lubecCirclesStatus(null, recoveryRoll, recoveryRoll)).toBe('Recovery Save cleared. Score unchanged.')
+  })
+
+  it('shows the counters as they stood before a spinning roll, and the sheet itself once nothing spins', () => {
+    const rolled = { ...tommy, counters: { stress: 3, minimumStress: 2, trauma: 1 } }
+    const spin = { name: 'Strength' as const, target: 29, sides: 100, preview: 40, step: 5, counters: tommy.counters }
+    expect(lubecShownSheet(rolled, spin)).toEqual({ ...rolled, counters: tommy.counters })
+    expect(lubecShownSheet(rolled, null)).toBe(rolled)
   })
 
   it('slows the spin as the prototype does', () => {

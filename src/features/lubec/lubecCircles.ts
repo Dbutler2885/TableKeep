@@ -5,7 +5,7 @@ import {
   isLubecCritical,
   lubecCheckTarget,
 } from '../ruleSets/lubec/checkRoll'
-import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
+import type { LubecCharacterSheet, LubecCounters } from '../ruleSets/lubec/characterRecord'
 import { lubecCurrentValue, lubecFinalValue, type LubecModifier } from '../ruleSets/lubec/derivations'
 import type { LubecLastRoll } from '../ruleSets/lubec/lastRoll'
 import type { LubecValueName } from '../ruleSets/lubec/sheet'
@@ -22,8 +22,19 @@ export type LubecCircleName = LubecValueName | 'Panic' | 'Recovery'
 export const lubecRollCircle = (roll: LubecLastRoll): LubecCircleName =>
   (roll.kind === 'panic' ? 'Panic' : roll.kind === 'recovery' ? 'Recovery' : roll.against)
 
-/** A roll spinning on one circle: the target, the die it rolls, and the number it shows while it spins. */
-export type LubecSpin = { name: LubecCircleName; target: number; sides: number; preview: number; step: number }
+/**
+ * A roll spinning on one circle: the target, the die it rolls, the number it
+ * shows while it spins, and the counters as they stood before the roll.
+ */
+export type LubecSpin = { name: LubecCircleName; target: number; sides: number; preview: number; step: number; counters: LubecCounters }
+
+/**
+ * The sheet as the Core page shows it. The roll is recorded on the click, so
+ * while it spins the counters show what they were before it, and any Stress
+ * it adds or removes lands with its number, as every other part of its result does.
+ */
+export const lubecShownSheet = (sheet: LubecCharacterSheet, spin: LubecSpin | null): LubecCharacterSheet =>
+  (spin ? { ...sheet, counters: spin.counters } : sheet)
 
 export type LubecCircleFace =
   | { kind: 'missing' }

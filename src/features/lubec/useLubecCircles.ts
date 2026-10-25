@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { lubecCheckTarget } from '../ruleSets/lubec/checkRoll'
-import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
+import type { LubecCharacterSheet, LubecCounters } from '../ruleSets/lubec/characterRecord'
 import { readLubecLastRoll, type LubecLastRoll } from '../ruleSets/lubec/lastRoll'
 import { lubecLowestSave } from '../ruleSets/lubec/recoveryRoll'
 import { LUBEC_SPIN_STEPS, lubecCirclesStatus, lubecRollCircle, lubecSpinDelay, type LubecCircleName, type LubecSpin } from './lubecCircles'
@@ -35,8 +35,8 @@ function useLubecSpin() {
     const timer = setTimeout(() => setSpin(next), lubecSpinDelay(spin.step))
     return () => clearTimeout(timer)
   }, [spin])
-  const start = (name: LubecCircleName, { target, sides }: LubecCircleRoll) => {
-    if (target !== null && lubecMotionAllowed()) setSpin({ name, target, sides, preview: randomPreview(sides), step: 0 })
+  const start = (name: LubecCircleName, { target, sides }: LubecCircleRoll, counters: LubecCounters) => {
+    if (target !== null && lubecMotionAllowed()) setSpin({ name, target, sides, preview: randomPreview(sides), step: 0, counters })
   }
   return { spin, start }
 }
@@ -83,7 +83,7 @@ function clickLubecCircle({ sheet, roller, last, spinner }: CircleClick, name: L
   if (!roller) return
   const roll = circleRoll(sheet, roller, name)
   last.reset()
-  spinner.start(name, roll)
+  spinner.start(name, roll, sheet.counters)
   roll.roll()
 }
 
