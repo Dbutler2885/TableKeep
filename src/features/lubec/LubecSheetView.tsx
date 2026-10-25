@@ -145,14 +145,15 @@ const lockedEdits = (correcting: boolean, corrections: LubecCorrections | null, 
 type SheetPageProps = LockedEdits & Pick<SheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp'> & {
   page: LubecPage
   onShowTree: () => void
+  onHideTree: () => void
 }
 
 // Only a guided character still in creation is rolled up; once finalized its values are like any other's.
 const guidedOf = (character: LubecCharacterRecord, onRollUp: LubecSheetEdit | null): LubecGuided | null =>
   (character.lubec.door === 'guided' && character.creationStatus !== 'active' ? { onRollUp } : null)
 
-function LubecSheetPage({ page, onShowTree, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp }: SheetPageProps) {
-  if (page === 'skills') return <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} />
+function LubecSheetPage({ page, onShowTree, onHideTree, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp }: SheetPageProps) {
+  if (page === 'skills') return <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} onHideTree={onHideTree} />
   return (
     <LubecCorePage
       sheet={character.lubec}
@@ -170,6 +171,12 @@ function LubecSheetPage({ page, onShowTree, character, editing, onCountersChange
 function showLubecTree(sheet: HTMLElement | null, onPage: (page: LubecPage) => void) {
   flushSync(() => onPage('skills'))
   sheet?.querySelector('.lubec-page')?.scrollIntoView({ behavior: lubecMotionAllowed() ? 'smooth' : 'auto', block: 'start' })
+}
+
+// "Hide skill tree" goes back to the Core page and brings its skill strip into view, as the prototype does.
+function hideLubecTree(sheet: HTMLElement | null, onPage: (page: LubecPage) => void) {
+  flushSync(() => onPage('core'))
+  sheet?.querySelector('[aria-labelledby="lubec-skill-strip-title"]')?.scrollIntoView({ behavior: lubecMotionAllowed() ? 'smooth' : 'auto', block: 'center' })
 }
 
 /** One Lubec character's sheet, in the v4 frame, on its Core or Skills page. */
@@ -192,6 +199,7 @@ export function LubecSheetView({ character, editing, onCountersChange, onDelete,
       <LubecSheetPage
         page={page}
         onShowTree={() => showLubecTree(sheetRef.current, setPage)}
+        onHideTree={() => hideLubecTree(sheetRef.current, setPage)}
         character={character}
         editing={editing}
         onCountersChange={onCountersChange}

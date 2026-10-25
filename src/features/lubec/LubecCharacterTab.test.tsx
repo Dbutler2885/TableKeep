@@ -182,26 +182,41 @@ function openSkillsPage(name: string) {
   return sheet
 }
 
-/** The character's skills as the Skills page lists them: name, any Free mark, tier and bonus. */
-const takenSkills = () =>
-  within(screen.getByRole('list', { name: 'Skills taken' })).queryAllByRole('listitem')
-    .map((item) => [...item.children].map((part) => part.textContent))
+/** The skills the tree marks as the character's, in tree order: fixed for the free class skill while skills are chosen, on otherwise. */
+const treeMarks = () => [...document.querySelectorAll('.skill-tree .skill-node.on')]
+  .map((node) => [node.getAttribute('data-skill'), node.classList.contains('fixed') ? 'fixed' : 'on'])
 
-/** The skills the tree marks, with the mark each shows. */
-const treeMarks = () => [...document.querySelectorAll('.lubec-tree-skill.free, .lubec-tree-skill.picked')]
-  .map((cell) => [cell.querySelector('.lubec-skill-name')?.textContent, cell.querySelector('.lubec-skill-mark')?.textContent])
+const treeColumn = (column: number) => [...document.querySelectorAll('.skill-tree .skill-row')]
+  .map((row) => row.children[column].querySelector('.skill-node')?.getAttribute('data-skill'))
+  .filter(Boolean)
 
-const treeColumn = (column: number) => [...document.querySelectorAll('.lubec-skill-tree tbody tr')]
-  .map((row) => row.children[column])
-  .filter((cell) => cell.classList.contains('lubec-tree-skill'))
-  .map((cell) => cell.querySelector('.lubec-skill-name')?.textContent)
+// By attribute rather than by role: naming every button on the tree is slow in jsdom.
+const treeNode = (name: string) =>
+  [...document.querySelectorAll('.skill-tree .skill-node')].find((node) => node.getAttribute('data-skill') === name) as HTMLElement
 
-// By text rather than by role: naming every button on the tree is slow in jsdom.
-const skillButton = (name: string) => screen.getByText(name, { selector: 'button' })
+const skillDot = (name: string) => treeNode(name).querySelector('.skill-dot') as HTMLButtonElement
 
-const skillButtons = () => screen.queryAllByText(/./, { selector: '.lubec-skill-tree button' })
+const skillLabel = (name: string) => treeNode(name).querySelector('.skill-label') as HTMLButtonElement
 
-const freeSkillChoice = () => screen.getByRole('combobox', { name: 'Free class skill' }) as HTMLSelectElement
+const choosableDots = () => [...document.querySelectorAll('.skill-tree .skill-dot')].filter((dot) => dot.getAttribute('aria-disabled') !== 'true')
+
+const nodesWith = (mark: string) => [...document.querySelectorAll(`.skill-tree .skill-node.${mark}`)].map((node) => node.getAttribute('data-skill'))
+
+const freeChip = (name: string) => screen.getByText(name, { selector: '.free-chip' })
+
+/** The class's free list as chips, with whether each is the chosen free class skill. */
+const freeChips = () => [...document.querySelectorAll('.free-chip')].map((chip) => [chip.textContent, chip.getAttribute('aria-pressed')])
+
+/** The package panel's two rules, each with whether it is ticked, then its picks counter. */
+const packagePanel = () => ({
+  rules: [...document.querySelectorAll('.package-rules li')].map((rule) => [rule.classList.contains('done'), rule.firstElementChild?.firstChild?.textContent]),
+  count: document.querySelector('.package-count')?.textContent,
+})
+
+const packageProgress = () => document.querySelector('.skill-detail .package-progress')?.textContent
+
+/** The detail bar's lines: its title row, description and meta lines, or its hint. */
+const detailLines = () => [...(document.querySelector('.skill-detail [aria-live]')?.children ?? [])].map((line) => line.textContent)
 
 const storedSkills = (id: string) => (database[id].lubec as Fields).skills
 
@@ -279,7 +294,7 @@ describe('Lubec character tab', () => {
 
     fireEvent.click(tabs[1])
 
-    expect(within(sheet).getByRole('region', { name: 'Skills' })).toBeTruthy()
+    expect(within(sheet).getByRole('region', { name: 'Skill tree' })).toBeTruthy()
     expect(within(sheet).queryByRole('region', { name: 'Stats' })).toBeNull()
     expect(tabs[1].getAttribute('aria-current')).toBe('page')
 
@@ -1050,7 +1065,7 @@ describe('Lubec Skills page', () => {
     vi.useRealTimers()
   })
 
-  it('shows all 27 Trained and 27 Expert skills as a tree, with the free skill and picks marked and their bonus', () => {
+  it('shows all 27 Trained and 27 Expert skills as the prototype\'s tree to read, with the character\'s skills filled in', () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
 
@@ -1060,14 +1075,74 @@ describe('Lubec Skills page', () => {
     expect(new Set(treeColumn(0)).size).toBe(27)
     expect(treeColumn(1)).toHaveLength(27)
     expect(new Set(treeColumn(1)).size).toBe(27)
-    expect([...document.querySelectorAll('.lubec-skill-tree thead th')].map((th) => th.textContent)).toEqual(['Trained +10', 'Expert +15'])
-    expect(treeMarks()).toEqual([['Swimming', 'Pick +10'], ['Diving', 'Pick +15'], ['Boatwork', 'Free +10']])
-    expect(takenSkills()).toEqual([
-      ['Boatwork', 'Free', 'Trained', '+10'],
-      ['Swimming', 'Trained', '+10'],
-      ['Diving', 'Expert', '+15'],
+    expect(document.querySelectorAll('.skill-tree .skill-empty')).toHaveLength(8)
+    expect([...document.querySelectorAll('.tree-head')].map((head) => head.textContent)).toEqual(['Trained Skills+10 bonus', 'Expert Skills+15 bonus'])
+    expect(screen.getByRole('region', { name: 'Skill tree' }).querySelector('.section-kicker')?.textContent).toBe('Your skills are filled in')
+    expect(treeMarks()).toEqual([['Swimming', 'on'], ['Diving', 'on'], ['Boatwork', 'on']])
+    expect(document.querySelector('.skill-package')).toBeNull()
+    expect(detailLines()).toEqual(['Click a name to read it and see its connections.'])
+    expect(packageProgress()).toBe('Your skills are filled in')
+  })
+
+  it('reads a skill from its name: the detail bar, its wires\' ends lit, and a second click puts the hint back', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSkillsPage('Tommy Eves')
+
+    fireEvent.click(skillLabel('Diving'))
+
+    expect(document.querySelector('.skill-tree')?.classList.contains('focus')).toBe(true)
+    expect(skillLabel('Diving').getAttribute('aria-expanded')).toBe('true')
+    expect(nodesWith('hot')).toEqual(['Tides & Flats', 'Swimming', 'Diving'])
+    expect(detailLines()).toEqual([
+      'DivingExpert +15Chosen',
+      'Breath-hold diving, working underwater in cold or murky conditions, and using actual diving equipment when it becomes available.',
+      'Prerequisite (any one): Swimming, Tides & Flats',
+      'Kit: A wetsuit, A weight belt, A dive light, A dive knife, A borrowed scuba tank and regulator',
     ])
-    expect(screen.getByText('needs Swimming or Tides & Flats')).toBeTruthy()
+
+    fireEvent.click(skillLabel('Hunting'))
+
+    expect(skillLabel('Diving').getAttribute('aria-expanded')).toBe('false')
+    expect(detailLines()).toEqual([
+      'HuntingTrained +10',
+      'Hunting game, reading sign, staying concealed from animals, playing the wind, fieldcraft, and competent use of your familiar hunting rifle.',
+      'Leads to: Trapping, Tracking, Firearms, Slingshot / Archery',
+      "Always have: Your rifle: a .22, or Dad's .30-30 you're allowed to take / Kit: A box of shells, Binoculars, A rifle scope, A tree stand you built, A skinning knife, A key to the deer camp up the woods road",
+    ])
+
+    fireEvent.click(skillLabel('Hunting'))
+
+    expect(document.querySelector('.skill-tree')?.classList.contains('focus')).toBe(false)
+    expect(nodesWith('hot')).toEqual([])
+    expect(detailLines()).toEqual(['Click a name to read it and see its connections.'])
+  })
+
+  it('wires each Trained skill to the Experts it unlocks, and lights the focused skill\'s wires on top', () => {
+    const observed: Element[] = []
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(private readonly draw: () => void) {}
+      observe(element: Element) {
+        observed.push(element)
+        this.draw()
+      }
+      disconnect() {}
+    })
+    onTestFinished(() => { vi.unstubAllGlobals() })
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSkillsPage('Tommy Eves')
+
+    const wires = () => [...document.querySelectorAll('.skill-tree path.wire')]
+    expect(observed).toEqual([document.querySelector('.skill-tree')])
+    expect(wires()).toHaveLength(59)
+    expect(wires().every((wire) => wire.getAttribute('marker-end') === 'url(#lubec-skill-arrow)')).toBe(true)
+
+    fireEvent.click(skillLabel('Diving'))
+
+    const hot = wires().filter((wire) => wire.classList.contains('hot'))
+    expect(hot).toEqual(wires().slice(-2))
+    expect(hot.map((wire) => wire.getAttribute('marker-end'))).toEqual(['url(#lubec-skill-arrow-hot)', 'url(#lubec-skill-arrow-hot)'])
   })
 
   it('offers no skill choices on a finalized character, even to its owner and the GM', () => {
@@ -1075,44 +1150,100 @@ describe('Lubec Skills page', () => {
     mountTab('gm', GM)
 
     openSkillsPage('Tommy Eves')
+    fireEvent.click(skillDot('Hunting'))
+    sendSaves()
 
-    expect(screen.queryByRole('combobox', { name: 'Free class skill' })).toBeNull()
-    expect(skillButtons()).toEqual([])
+    expect(choosableDots()).toEqual([])
+    expect(freeChips()).toEqual([])
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+    expect(treeMarks()).toEqual([['Swimming', 'on'], ['Diving', 'on'], ['Boatwork', 'on']])
   })
 
-  it('lets the owner choose the free class skill from the class\'s list and add or remove picks, storing names only', () => {
+  it('goes back to the Core page from the detail bar, bringing the skill strip into view', () => {
+    const scrollIntoView = vi.fn()
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
+    Element.prototype.scrollIntoView = scrollIntoView
+    onTestFinished(() => {
+      vi.unstubAllGlobals()
+      delete (Element.prototype as Partial<Element>).scrollIntoView
+    })
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    const sheet = openSkillsPage('Tommy Eves')
+
+    fireEvent.click(within(sheet).getByText('Hide skill tree', { selector: 'button' }))
+
+    const strip = within(sheet).getByRole('region', { name: 'Skills' })
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' })
+    expect(scrollIntoView.mock.contexts[0]).toBe(strip)
+  })
+
+  it('lets the owner choose the free class skill from its chips and add or remove picks with the dots, storing names only', () => {
     seed({ tommy: draft({ skills: { free: null, picked: [] } }) })
     mountTab('player', 'player-1')
     openSkillsPage('Tommy Eves')
-    expect(takenSkills()).toEqual([])
-    expect(screen.getByText('No skills yet.')).toBeTruthy()
-    expect([...freeSkillChoice().options].map((option) => option.text)).toEqual(['Not chosen', 'Boatwork', 'Jury-Rigging', 'Tides & Flats'])
+    expect(screen.getByRole('region', { name: 'Choose your skills' })).toBeTruthy()
+    expect(treeMarks()).toEqual([])
+    expect(freeChips()).toEqual([['Boatwork', 'false'], ['Jury-Rigging', 'false'], ['Tides & Flats', 'false']])
+    expect(nodesWith('suggested')).toEqual(['Tides & Flats', 'Boatwork', 'Jury-Rigging'])
+    expect(packagePanel()).toEqual({
+      rules: [[false, 'Free class skill:'], [false, 'Bonus:']],
+      count: 'Picks madeNothing yetof 1 Expert + 1 Trained',
+    })
+    expect(packageProgress()).toBe('Choose your free class skill')
+    expect(detailLines()).toEqual(['Click a dot to choose a skill. Click a name to read it and see its connections.'])
 
-    fireEvent.change(freeSkillChoice(), { target: { value: 'Tides & Flats' } })
-    fireEvent.click(skillButton('Swimming'))
-    fireEvent.click(skillButton('Diving'))
-    fireEvent.click(skillButton('Swimming'))
-    fireEvent.click(skillButton('Foraging'))
+    fireEvent.click(freeChip('Tides & Flats'))
+    expect(packageProgress()).toBe('Pick 1 Expert + 1 Trained')
+    fireEvent.click(skillDot('Swimming'))
+    fireEvent.click(skillDot('Diving'))
+    fireEvent.click(skillDot('Swimming'))
+    fireEvent.click(skillDot('Foraging'))
     sendSaves()
 
     expect(storedSkills('tommy')).toEqual({ free: 'Tides & Flats', picked: ['Diving', 'Foraging'] })
-    expect(skillButton('Diving').getAttribute('aria-pressed')).toBe('true')
-    expect(skillButton('Swimming').getAttribute('aria-pressed')).toBe('false')
-    expect((skillButton('Tides & Flats') as HTMLButtonElement).disabled).toBe(true)
-    expect(takenSkills()).toEqual([
-      ['Tides & Flats', 'Free', 'Trained', '+10'],
-      ['Diving', 'Expert', '+15'],
-      ['Foraging', 'Expert', '+15'],
-    ])
+    expect(skillDot('Diving').getAttribute('aria-pressed')).toBe('true')
+    expect(skillDot('Swimming').getAttribute('aria-pressed')).toBe('false')
+    expect(treeMarks()).toEqual([['Tides & Flats', 'fixed'], ['Foraging', 'on'], ['Diving', 'on']])
+    expect(nodesWith('suggested')).toEqual([])
+    expect(freeChips()).toEqual([['Boatwork', 'false'], ['Jury-Rigging', 'false'], ['Tides & Flats', 'true']])
+    expect(packagePanel()).toEqual({
+      rules: [[true, 'Free class skill:'], [false, 'Bonus:']],
+      count: 'Picks made2 Expertof 1 Expert + 1 Trained',
+    })
+    expect(packageProgress()).toBe('Picked 2 Expert of 1 Expert + 1 Trained')
+    expect(detailLines()[0]).toBe('ForagingExpert +15Chosen')
+  })
+
+  it('takes the first dot from the class\'s free list as the free class skill, and clears it from its dot or its chip', () => {
+    seed({ tommy: draft({ skills: { free: null, picked: ['Swimming'] } }) })
+    mountTab('player', 'player-1')
+    openSkillsPage('Tommy Eves')
+
+    fireEvent.click(skillDot('Boatwork'))
+    sendSaves()
+    expect(storedSkills('tommy')).toEqual({ free: 'Boatwork', picked: ['Swimming'] })
+    expect(detailLines()[0]).toBe('BoatworkTrained +10Class skill')
+
+    fireEvent.click(skillDot('Jury-Rigging'))
+    fireEvent.click(skillDot('Boatwork'))
+    sendSaves()
+    expect(storedSkills('tommy')).toEqual({ free: null, picked: ['Swimming', 'Jury-Rigging'] })
+
+    fireEvent.click(freeChip('Tides & Flats'))
+    fireEvent.click(freeChip('Tides & Flats'))
+    sendSaves()
+    expect(storedSkills('tommy')).toEqual({ free: null, picked: ['Swimming', 'Jury-Rigging'] })
   })
 
   it('lets the GM change the skills on a player\'s draft, and no other player', () => {
     seed({ tommy: draft({}, { creationMode: 'established', creationStatus: 'established_draft' }) })
     mountTab('gm', GM)
     openSkillsPage('Tommy Eves')
+    expect(packageProgress()).toBe('Package complete')
 
-    fireEvent.click(skillButton('Diving'))
-    fireEvent.click(skillButton('Driving'))
+    fireEvent.click(skillDot('Diving'))
+    fireEvent.click(skillDot('Driving'))
     sendSaves()
 
     expect(storedSkills('tommy')).toEqual({ free: 'Boatwork', picked: ['Swimming', 'Driving'] })
@@ -1120,20 +1251,23 @@ describe('Lubec Skills page', () => {
     reload('player', 'player-2')
     openSkillsPage('Tommy Eves')
 
-    expect(screen.queryByRole('combobox', { name: 'Free class skill' })).toBeNull()
-    expect(skillButtons()).toEqual([])
-    expect(treeMarks()).toEqual([['Swimming', 'Pick +10'], ['Boatwork', 'Free +10'], ['Driving', 'Pick +15']])
+    expect(freeChips()).toEqual([])
+    expect(choosableDots()).toEqual([])
+    expect(treeMarks()).toEqual([['Swimming', 'on'], ['Boatwork', 'on'], ['Driving', 'on']])
   })
 
   it('takes the Nerd package as the free skill, 1 Trained and 2 Expert with one Expert off the chosen Trained skill, and keeps it through a reload', () => {
     seed({ ada: draft({ class: { key: 'nerd', choices: { statPenalty: 'Charm' } }, skills: { free: null, picked: [] } }, { name: 'Ada Mitchell' }) })
     mountTab('player', 'player-1')
     openSkillsPage('Ada Mitchell')
+    expect(document.querySelectorAll('.package-rules li')[1].textContent).toBe(
+      'Bonus: 1 Trained and 2 Expert. Each Expert needs one of its prerequisites among your Trained skills, the free class skill included.')
+    expect(packagePanel().count).toBe('Picks madeNothing yetof 2 Expert + 1 Trained')
 
-    fireEvent.change(freeSkillChoice(), { target: { value: 'Science' } })
-    fireEvent.click(skillButton('Art'))
-    fireEvent.click(skillButton('Science Fair Champ'))
-    fireEvent.click(skillButton('Forgery'))
+    fireEvent.click(freeChip('Science'))
+    fireEvent.click(skillDot('Art'))
+    fireEvent.click(skillDot('Science Fair Champ'))
+    fireEvent.click(skillDot('Forgery'))
     sendSaves()
 
     expect(storedSkills('ada')).toEqual({ free: 'Science', picked: ['Art', 'Science Fair Champ', 'Forgery'] })
@@ -1144,34 +1278,52 @@ describe('Lubec Skills page', () => {
     reload('player', 'player-1')
     openSkillsPage('Ada Mitchell')
 
-    expect(freeSkillChoice().value).toBe('Science')
-    expect(takenSkills()).toEqual([
-      ['Science', 'Free', 'Trained', '+10'],
-      ['Art', 'Trained', '+10'],
-      ['Science Fair Champ', 'Expert', '+15'],
-      ['Forgery', 'Expert', '+15'],
-    ])
+    expect(freeChips()).toEqual([['Electronics & Radio', 'false'], ['Science', 'true'], ['History & Geography', 'false']])
+    expect(treeMarks()).toEqual([['Science', 'fixed'], ['Science Fair Champ', 'on'], ['Art', 'on'], ['Forgery', 'on']])
+    expect(packagePanel()).toEqual({
+      rules: [[true, 'Free class skill:'], [true, 'Bonus:']],
+      count: 'Picks made2 Expert + 1 Trainedof 2 Expert + 1 Trained',
+    })
+    expect(packageProgress()).toBe('Package complete')
   })
 
-  it('shows a stored skill name the skill data does not know, counting for nothing, and keeps it through a save', () => {
+  it('names a stored skill the tree does not have, counting for nothing, and keeps it through a save', () => {
     seed({ tommy: draft({ skills: { free: 'Knot Tying', picked: ['Swimming', 'Whittling'] } }) })
     mountTab('player', 'player-1')
     openSkillsPage('Tommy Eves')
 
-    expect(takenSkills()).toEqual([
-      ['Knot Tying', 'Free', 'Not a Lubec skill', 'counts for nothing'],
-      ['Swimming', 'Trained', '+10'],
-      ['Whittling', 'Not a Lubec skill', 'counts for nothing'],
-    ])
-    expect(freeSkillChoice().value).toBe('Knot Tying')
+    expect(document.querySelector('.skill-detail .msg')?.textContent).toBe('Not on the tree, counting for nothing: Knot Tying, Whittling')
+    expect(treeMarks()).toEqual([['Swimming', 'on']])
+    expect(packagePanel()).toEqual({
+      rules: [[false, 'Free class skill:'], [false, 'Bonus:']],
+      count: 'Picks made1 Trainedof 1 Expert + 1 Trained',
+    })
+    expect(document.querySelector('.package-rules li')?.textContent).toMatch(/^Free class skill: Knot Tying/)
+    expect(freeChips().map(([, pressed]) => pressed)).toEqual(['false', 'false', 'false'])
 
-    fireEvent.click(skillButton('Diving'))
+    fireEvent.click(skillDot('Diving'))
     sendSaves()
 
     expect(storedSkills('tommy')).toEqual({ free: 'Knot Tying', picked: ['Swimming', 'Whittling', 'Diving'] })
     reload('player', 'player-1')
     openSkillsPage('Tommy Eves')
-    expect(takenSkills().map(([name]) => name)).toEqual(['Knot Tying', 'Swimming', 'Whittling', 'Diving'])
+    expect(document.querySelector('.skill-detail .msg')?.textContent).toBe('Not on the tree, counting for nothing: Knot Tying, Whittling')
+    expect(treeMarks()).toEqual([['Swimming', 'on'], ['Diving', 'on']])
+  })
+
+  it('shows no package panel or progress while the class is a hole, and the dots still choose', () => {
+    seed({ tommy: draft({ class: { key: null, choices: {} }, skills: { free: null, picked: [] } }) })
+    mountTab('player', 'player-1')
+    openSkillsPage('Tommy Eves')
+
+    expect(document.querySelector('.skill-package')).toBeNull()
+    expect(document.querySelector('.skill-actions')).toBeNull()
+    expect(nodesWith('suggested')).toEqual([])
+
+    fireEvent.click(skillDot('Boatwork'))
+    sendSaves()
+
+    expect(storedSkills('tommy')).toEqual({ free: null, picked: ['Boatwork'] })
   })
 })
 
@@ -2176,8 +2328,8 @@ describe('Finalize, locked values and the Correct switch', () => {
     expect(screen.queryByLabelText('Class', { selector: 'select' })).toBeNull()
     expect(screen.queryByLabelText('Stat taking -10', { selector: 'select' })).toBeNull()
     fireEvent.click(screen.getByText('Skills', { selector: 'nav button' }))
-    expect(screen.queryByRole('combobox', { name: 'Free class skill' })).toBeNull()
-    expect(skillButtons()).toEqual([])
+    expect(freeChips()).toEqual([])
+    expect(choosableDots()).toEqual([])
     expect(correctSwitch()).toBeNull()
   })
 
@@ -2196,7 +2348,7 @@ describe('Finalize, locked values and the Correct switch', () => {
     typeBase('Strength', '30')
     choose('Class', 'working')
     fireEvent.click(screen.getByText('Skills', { selector: 'nav button' }))
-    fireEvent.click(skillButton('Swimming'))
+    fireEvent.click(skillDot('Swimming'))
     await settleSaves()
 
     expect(stored('tommy')).toMatchObject({
@@ -2205,7 +2357,7 @@ describe('Finalize, locked values and the Correct switch', () => {
     })
 
     fireEvent.click(correctSwitch() as HTMLInputElement)
-    expect(skillButtons()).toEqual([])
+    expect(choosableDots()).toEqual([])
 
     reload('gm', GM)
     openSheet('Tommy Eves')
@@ -2507,10 +2659,10 @@ describe('Guided roll-up', () => {
     mountTab('player', 'player-1')
     openSkillsPage('Gus Pike')
 
-    fireEvent.change(freeSkillChoice(), { target: { value: 'Science' } })
-    fireEvent.click(skillButton('Art'))
-    fireEvent.click(skillButton('Science Fair Champ'))
-    fireEvent.click(skillButton('Forgery'))
+    fireEvent.click(freeChip('Science'))
+    fireEvent.click(skillDot('Art'))
+    fireEvent.click(skillDot('Science Fair Champ'))
+    fireEvent.click(skillDot('Forgery'))
     await settleSaves()
 
     expect(storedSkills('gus')).toEqual({ free: 'Science', picked: ['Art', 'Science Fair Champ', 'Forgery'] })
@@ -2546,7 +2698,7 @@ describe('Guided roll-up', () => {
 
     fireEvent.click(within(classOption('Working Kid')).getByRole('button'))
     fireEvent.click(screen.getByText('Skills', { selector: 'nav button' }))
-    fireEvent.change(freeSkillChoice(), { target: { value: 'Boatwork' } })
+    fireEvent.click(freeChip('Boatwork'))
     dialog = openFinalize()
 
     expect(noticesIn(dialog, 'Rule warnings')).toEqual(['The Working Kid picks 1 Trained and 1 Expert beside the free class skill.'])
@@ -2660,7 +2812,7 @@ describe('Import a character file', () => {
     expect(within(openFinalize()).getByText('Nothing to warn about.')).toBeTruthy()
     fireEvent.click(within(screen.getByRole('dialog', { name: /^Finalize/ })).getByRole('button', { name: 'Cancel' }))
     fireEvent.click(within(within(sheet).getByRole('navigation', { name: 'Character sheet pages' })).getByRole('button', { name: 'Skills' }))
-    expect(takenSkills()).toEqual([['Boatwork', 'Free', 'Trained', '+10'], ['Swimming', 'Trained', '+10'], ['Diving', 'Expert', '+15']])
+    expect(treeMarks()).toEqual([['Swimming', 'on'], ['Diving', 'on'], ['Boatwork', 'fixed']])
   })
 
   it('refuses input that is not JSON, not an object, or of another format, with a plain message, and writes nothing', async () => {
