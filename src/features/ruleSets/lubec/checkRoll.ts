@@ -65,24 +65,32 @@ const failureStress = (sheet: LubecSheet, kind: LubecCheckKind): number =>
 
 export type LubecCheckRequest = { name: LubecValueName; advantage: LubecAdvantage; skill: string | null }
 
+// One d100, or two under Advantage or Disadvantage.
+const rollD100s = (advantage: LubecAdvantage, dice: LubecDice): number[] =>
+  Array.from({ length: advantage === 'normal' ? 1 : 2 }, () => rollLubecDie(100, dice))
+
+type LubecCheckOutcome = Pick<LubecCheckRoll, 'kind' | 'outcome' | 'stressAdded'>
+
+function checkOutcome(sheet: LubecSheet, name: LubecValueName, target: number, result: number): LubecCheckOutcome {
+  const kind: LubecCheckKind = isLubecStat(name) ? 'stat-check' : 'save'
+  if (result <= target) return { kind, outcome: 'success', stressAdded: 0 }
+  return { kind, outcome: 'failure', stressAdded: failureStress(sheet, kind) }
+}
+
 /** A Stat Check or Save rolled with the dice; null when the value it needs is a hole. */
 export function rollLubecCheck(sheet: LubecCharacterSheet, request: LubecCheckRequest, dice: LubecDice): LubecCheckRoll | null {
   const target = lubecCheckTarget(sheet, request.name, request.skill)
   if (target === null) return null
-  const rolled = Array.from({ length: request.advantage === 'normal' ? 1 : 2 }, () => rollLubecDie(100, dice))
+  const rolled = rollD100s(request.advantage, dice)
   const result = keptRoll(rolled, request.advantage)
-  const kind: LubecCheckKind = isLubecStat(request.name) ? 'stat-check' : 'save'
-  const outcome = result <= target ? 'success' : 'failure'
   return {
-    kind,
     against: request.name,
     target,
     dice: rolled,
     result,
     advantage: request.advantage,
     skill: armedSkill(sheet, request.skill)?.name ?? null,
-    outcome,
-    stressAdded: outcome === 'failure' ? failureStress(sheet, kind) : 0,
+    ...checkOutcome(sheet, request.name, target, result),
   }
 }
 
