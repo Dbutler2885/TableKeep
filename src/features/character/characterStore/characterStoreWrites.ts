@@ -23,12 +23,24 @@ export type CharacterStoreSaves = {
 
 export const emptyCharacterStoreSaves = (): CharacterStoreSaves => ({ pending: {}, inFlight: {} })
 
+/** The campaign collections a store keeps its records in: the characters, or the GM's NPC sheets. */
+export type CharacterStoreCollection = 'characters' | 'npcSheets'
+
+/** The campaign a store writes to, and the collection there, which is the characters unless named. */
+export type CharacterStoreScope = CampaignScope & { collection?: CharacterStoreCollection }
+
 /** The campaign a write goes to, or null while either half of it is missing. */
 export const characterStoreCampaign = (campaignId: string | null, groupId: string | null): CampaignScope | null =>
   campaignId && groupId ? { campaignId, groupId } : null
 
-const characterRef = (campaign: CampaignScope, characterId: string) =>
-  campaignDocRef(db, campaign, 'characters', characterId)
+/** Where a store's writes go, or null while either half of the campaign is missing. */
+export function characterStoreScope(campaignId: string | null, groupId: string | null, collection: CharacterStoreCollection): CharacterStoreScope | null {
+  const campaign = characterStoreCampaign(campaignId, groupId)
+  return campaign && { ...campaign, collection }
+}
+
+const characterRef = (campaign: CharacterStoreScope, characterId: string) =>
+  campaignDocRef(db, campaign, campaign.collection ?? 'characters', characterId)
 
 export function isCharacterStoreSaveOutstanding(saves: CharacterStoreSaves, characterId: string): boolean {
   return Boolean(saves.pending[characterId] || saves.inFlight[characterId])
@@ -48,7 +60,7 @@ export function sendCharacterStoreSavesNow(saves: CharacterStoreSaves) {
  */
 export function sendCharacterStoreSaveNow<Character extends CharacterStoreRecord>(
   saves: CharacterStoreSaves,
-  campaign: CampaignScope,
+  campaign: CharacterStoreScope,
   ruleSet: CharacterStoreRuleSet<Character>,
   characterId: string,
   readCharacter: (characterId: string) => Character | undefined,
@@ -86,7 +98,7 @@ export function newCharacterStoreFields<Character extends CharacterStoreRecord>(
 
 /** Creates the character under the id it already carries, so a retried create writes the same document. */
 export function createCharacterStoreDoc<Character extends CharacterStoreRecord>(
-  campaign: CampaignScope,
+  campaign: CharacterStoreScope,
   ruleSet: CharacterStoreRuleSet<Character>,
   character: Character,
 ) {
@@ -94,7 +106,7 @@ export function createCharacterStoreDoc<Character extends CharacterStoreRecord>(
 }
 
 /** Deletes the character document only; nothing stored under or beside it is touched. */
-export function deleteCharacterStoreDoc(campaign: CampaignScope, characterId: string) {
+export function deleteCharacterStoreDoc(campaign: CharacterStoreScope, characterId: string) {
   return deleteDoc(characterRef(campaign, characterId))
 }
 
@@ -108,7 +120,7 @@ export function saveCharacterStoreCurrentCharacter(campaign: CampaignScope, user
 
 function sendCharacterStoreSave<Character extends CharacterStoreRecord>(
   saves: CharacterStoreSaves,
-  campaign: CampaignScope,
+  campaign: CharacterStoreScope,
   ruleSet: CharacterStoreRuleSet<Character>,
   characterId: string,
   readCharacter: (characterId: string) => Character | undefined,
@@ -131,7 +143,7 @@ function sendCharacterStoreSave<Character extends CharacterStoreRecord>(
  */
 export function scheduleCharacterStoreSave<Character extends CharacterStoreRecord>(
   saves: CharacterStoreSaves,
-  campaign: CampaignScope,
+  campaign: CharacterStoreScope,
   ruleSet: CharacterStoreRuleSet<Character>,
   characterId: string,
   readCharacter: (characterId: string) => Character | undefined,

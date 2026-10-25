@@ -2,7 +2,8 @@ import type { Role } from '../../../types/app'
 import { readCharacterStoreDoc, type CharacterStoreRecord, type CharacterStoreRuleSet } from './characterStoreRecord'
 import { isCharacterStoreSaveOutstanding, type CharacterStoreSaves } from './characterStoreWrites'
 
-type StoredCharacterDoc = { id: string; data: () => unknown }
+/** A stored record as a snapshot hands it over. */
+export type StoredCharacterDoc = { id: string; data: () => unknown }
 
 export const findCharacterStoreCharacter = <Character extends CharacterStoreRecord>(characters: Character[], characterId: string) =>
   characters.find((character) => character.id === characterId)

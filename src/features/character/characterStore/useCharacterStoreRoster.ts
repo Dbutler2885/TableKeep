@@ -2,14 +2,15 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { onSnapshot, type DocumentData } from 'firebase/firestore'
 import { db } from '../../../firebase'
 import type { Role } from '../../../types/app'
-import { campaignCollectionRef, campaignUserStateRef } from '../../campaign/firestorePaths'
+import { campaignCollectionRef, campaignDocRef, campaignUserStateRef, type CampaignScope } from '../../campaign/firestorePaths'
 import type { CharacterStoreRecord, CharacterStoreRuleSet } from './characterStoreRecord'
 import {
   nextSelectedCharacterStoreId,
   readCharacterStoreSnapshot,
   visibleCharacterStoreCharacters,
+  type StoredCharacterDoc,
 } from './characterStoreRoster'
-import { sendCharacterStoreSavesNow, type CharacterStoreSaves } from './characterStoreWrites'
+import { sendCharacterStoreSavesNow, type CharacterStoreCollection, type CharacterStoreSaves } from './characterStoreWrites'
 
 const errorMessage = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback)
 
@@ -44,8 +45,24 @@ export function useCharacterStoreCurrentCharacterId(
   return [currentCharacterId, setCurrentCharacterId] as const
 }
 
+// Listens to the store's records: the whole collection, or only the one document when the store is narrowed to it.
+function listenToCharacterStoreDocs(
+  campaign: CampaignScope,
+  collection: CharacterStoreCollection,
+  onlyId: string | undefined,
+  next: (docs: StoredCharacterDoc[]) => void,
+  fail: (err: unknown) => void,
+) {
+  if (onlyId) {
+    return onSnapshot(campaignDocRef(db, campaign, collection, onlyId), (snap) => next(snap.exists() ? [snap] : []), fail)
+  }
+  return onSnapshot(campaignCollectionRef(db, campaign, collection), (snap) => next(snap.docs), fail)
+}
+
 type RosterOptions<Character extends CharacterStoreRecord> = {
   ruleSet: CharacterStoreRuleSet<Character>
+  collection: CharacterStoreCollection
+  onlyId: string | undefined
   campaignId: string | null
   groupId: string | null
   userId: string
@@ -64,7 +81,7 @@ type RosterOptions<Character extends CharacterStoreRecord> = {
  * cleared once nothing is listening.
  */
 export function useCharacterStoreRoster<Character extends CharacterStoreRecord>(options: RosterOptions<Character>) {
-  const { ruleSet, campaignId, groupId, userId, role, gmUserId, currentCharacterId, enabled, setError, savesRef } = options
+  const { ruleSet, collection, onlyId, campaignId, groupId, userId, role, gmUserId, currentCharacterId, enabled, setError, savesRef } = options
   const [characters, setCharacters] = useState<Character[]>([])
   const [charactersLoading, setCharactersLoading] = useState(false)
   const [selectedCharacterId, setSelectedCharacterId] = useState('')
@@ -85,10 +102,12 @@ export function useCharacterStoreRoster<Character extends CharacterStoreRecord>(
     queueMicrotask(() => setCharactersLoading(true))
     // The saves made while this subscription runs; a campaign change replaces them.
     const saves = savesRef.current
-    const unsub = onSnapshot(
-      campaignCollectionRef(db, { campaignId, groupId }, 'characters'),
-      (snap) => {
-        const all = readCharacterStoreSnapshot(ruleSet, snap.docs, savesRef.current, charactersRef.current)
+    const unsub = listenToCharacterStoreDocs(
+      { campaignId, groupId },
+      collection,
+      onlyId,
+      (docs) => {
+        const all = readCharacterStoreSnapshot(ruleSet, docs, savesRef.current, charactersRef.current)
         const next = visibleCharacterStoreCharacters(all, role, gmUserId)
         setCharacters(next)
         setCharactersLoading(false)
@@ -103,7 +122,7 @@ export function useCharacterStoreRoster<Character extends CharacterStoreRecord>(
       sendCharacterStoreSavesNow(saves)
       unsub()
     }
-  }, [campaignId, currentCharacterId, enabled, gmUserId, groupId, role, ruleSet, savesRef, setError, userId])
+  }, [campaignId, collection, currentCharacterId, enabled, gmUserId, groupId, onlyId, role, ruleSet, savesRef, setError, userId])
 
   return {
     characters,

@@ -161,10 +161,12 @@ function LubecStageBar({ character, correcting, onCorrecting, onDelete, onFinali
   return onCorrecting ? <LubecCorrectSwitch on={correcting} onChange={onCorrecting} /> : null
 }
 
-type SheetViewProps = {
+export type LubecSheetViewProps = {
   character: LubecCharacterRecord
   /** The viewer's edits, or null when they may only look. */
   editing: LubecSheetEditing | null
+  /** False where the name, portrait and token are edited elsewhere: the band has no Edit and the token is only a picture. */
+  identityEditable?: boolean
   /** Null for a viewer who may not change the character. */
   onCountersChange: LubecCountersChange | null
   /** Null unless the viewer may change the character's skills, which is only in creation. */
@@ -183,13 +185,13 @@ type SheetViewProps = {
   corrections: LubecCorrections | null
 }
 
-type LockedEdits = Pick<SheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
+type LockedEdits = Pick<LubecSheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
 
 // While the GM's Correct switch is on, the locked values take the GM's corrections.
 const lockedEdits = (correcting: boolean, corrections: LubecCorrections | null, edits: LockedEdits): LockedEdits =>
   correcting && corrections ? corrections : edits
 
-type SheetPageProps = LockedEdits & Pick<SheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp'> & {
+type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp'> & {
   page: LubecPage
   onHideTree: () => void
   /** Brings the Core page's class cards into view once the class is cleared. */
@@ -239,24 +241,31 @@ function showLubecClass(sheet: HTMLElement | null, onPage: (page: LubecPage) => 
   sheet?.querySelector('#lubec-class-title')?.scrollIntoView({ behavior: lubecMotionAllowed() ? 'smooth' : 'auto', block: 'start' })
 }
 
+// The name band's edits, unless the name, portrait and token are edited elsewhere; editable unless said otherwise.
+const identityEditingOf = (editing: LubecSheetEditing | null, identityEditable: boolean | undefined) =>
+  (identityEditable === false ? null : editing)
+
 /** One Lubec character's sheet, in the v4 frame, on its Core or Skills page. */
-export function LubecSheetView({ character, editing, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, ...edits }: SheetViewProps) {
+export function LubecSheetView({
+  character, editing, identityEditable, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, ...edits
+}: LubecSheetViewProps) {
   const [page, setPage] = useState<LubecPage>('core')
   const [bandOpen, setBandOpen] = useState(false)
   const [correcting, setCorrecting] = useState(false)
   const sheetRef = useRef<HTMLElement>(null)
+  const identityEditing = identityEditingOf(editing, identityEditable)
   return (
     <article ref={sheetRef} className="lubec-sheet" aria-label={`${lubecCharacterName(character)} character sheet`}>
       <LubecMasthead
         character={character}
         page={page}
         onPage={setPage}
-        editing={editing}
-        onEdit={editing ? () => setBandOpen(true) : null}
+        editing={identityEditing}
+        onEdit={identityEditing ? () => setBandOpen(true) : null}
         onDelete={bandDeleteOf(character, onDelete)}
         onAssign={onAssign}
       />
-      {editing && bandOpen ? <LubecNameBandEditor character={character} editing={editing} onDone={() => setBandOpen(false)} /> : null}
+      {identityEditing && bandOpen ? <LubecNameBandEditor character={character} editing={identityEditing} onDone={() => setBandOpen(false)} /> : null}
       <LubecStageBar
         character={character}
         correcting={correcting}

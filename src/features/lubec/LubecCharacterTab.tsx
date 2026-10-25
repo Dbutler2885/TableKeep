@@ -1,25 +1,19 @@
 import { ChevronLeft } from 'lucide-react'
 import type { Role } from '../../types/app'
 import { makeId } from '../character/characterFactories'
-import { canEditCharacterStoreCharacter } from '../character/characterStore/characterStoreActions'
-import { useCharacterStore } from '../character/characterStore/useCharacterStore'
 import { CharacterDeleteDialog } from '../character/components/CharacterDeleteDialog'
 import { PlayerAssignmentModal } from '../character/components/PlayerAssignmentModal'
-import { useCharacterMedia } from '../character/hooks/useCharacterMedia'
 import { useResponsiveCharacterLayout } from '../character/hooks/useResponsiveCharacterLayout'
-import { lubecCharacterStore } from '../ruleSets/lubec/characterParser'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
-import { makeLubecDirectEntryCharacter, makeLubecGuidedCharacter, type LubecOwner, type LubecSheetEdit } from '../ruleSets/lubec/directEntry'
-import type { LubecSkills } from '../ruleSets/lubec/skillPicks'
-import type { LubecCountersChange } from './LubecCountersPanel'
+import { makeLubecDirectEntryCharacter, makeLubecGuidedCharacter, type LubecOwner } from '../ruleSets/lubec/directEntry'
 import { importLubecCharacter, type LubecImportContext } from './lubecImport'
-import type { LubecSheetEditing } from './LubecNameBandEditor'
 import type { LubecDoors } from './LubecNewCharacter'
 import { LubecRoster } from './LubecRoster'
 import { lubecCharacterName } from './lubecNames'
-import { LubecSheetView, type LubecCorrections } from './LubecSheetView'
+import { LubecSheetView } from './LubecSheetView'
 import { useLubecCharacterDelete } from './useLubecCharacterDelete'
 import { useLubecPlayerAssignment } from './useLubecPlayerAssignment'
+import { useLubecSheetSession, type LubecSheetProps } from './useLubecSheetSession'
 
 export type LubecCharacterTabProps = {
   campaignId: string
@@ -32,80 +26,14 @@ export type LubecCharacterTabProps = {
 }
 
 type DetailProps = {
-  character: LubecCharacterRecord | null
-  editing: LubecSheetEditing | null
+  /** The open sheet's props, or null while none is open. */
+  sheetProps: LubecSheetProps | null
   isSinglePane: boolean
   onBack: () => void
-  onCountersChange: LubecCountersChange | null
-  onSkillsChange: LubecSkillsChange | null
-  corrections: LubecCorrections | null
   /** Asks to delete the character, at any stage; null when the viewer may not. */
   onDelete: (() => void) | null
   /** Opens Give to Player; null unless the viewer is the GM. */
   onAssign: (() => void) | null
-} & DraftActions
-
-/** What the viewer may do to a draft; all are null for a finalized character or someone else's. */
-type DraftActions = {
-  onDraftEdit: LubecSheetEdit | null
-  /** Saves at once rather than after the delay; only a guided draft's dice and Swap use it. */
-  onRollUp: LubecSheetEdit | null
-  onFinalize: (() => void) | null
-}
-
-type CharacterUpdate = (characterId: string, updates: Partial<LubecCharacterRecord>) => void
-
-type LubecSkillsChange = (skills: LubecSkills) => void
-
-// The owner and the GM change a character's counters; anyone else only sees them.
-function countersChangeFor(
-  character: LubecCharacterRecord | null,
-  viewer: { role: Role | null; userId: string },
-  update: CharacterUpdate,
-): LubecCountersChange | null {
-  if (!character || (viewer.role !== 'gm' && character.ownerUserId !== viewer.userId)) return null
-  return (counters) => update(character.id, { lubec: { ...character.lubec, counters } })
-}
-
-// The owner and the GM change a character's skills until it is finalized; anyone else only sees them.
-function skillsChangeFor(
-  character: LubecCharacterRecord | null,
-  viewer: { role: Role | null; userId: string },
-  update: CharacterUpdate,
-): LubecSkillsChange | null {
-  if (!character || character.creationStatus === 'active') return null
-  if (!canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) return null
-  return (skills) => update(character.id, { lubec: { ...character.lubec, skills } })
-}
-
-// The GM may correct any locked value on a finalized character; nobody else may change one.
-function correctionsFor(
-  character: LubecCharacterRecord | null,
-  viewer: { role: Role | null },
-  update: CharacterUpdate,
-): LubecCorrections | null {
-  if (!character || character.creationStatus !== 'active' || viewer.role !== 'gm') return null
-  return {
-    onDraftEdit: (changes) => update(character.id, { lubec: { ...character.lubec, ...changes } }),
-    onSkillsChange: (skills) => update(character.id, { lubec: { ...character.lubec, skills } }),
-  }
-}
-
-// The owner and the GM may type into a draft and finalize it;
-// nobody may do either to a finalized character, which has no way back.
-function draftActionsFor(
-  character: LubecCharacterRecord | null,
-  viewer: { role: Role | null; userId: string },
-  store: { updateCharacter: CharacterUpdate; updateCharacterNow: CharacterUpdate },
-): DraftActions {
-  if (!character || character.creationStatus === 'active' || !canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) {
-    return { onDraftEdit: null, onRollUp: null, onFinalize: null }
-  }
-  return {
-    onDraftEdit: (changes) => store.updateCharacter(character.id, { lubec: { ...character.lubec, ...changes } }),
-    onRollUp: (changes) => store.updateCharacterNow(character.id, { lubec: { ...character.lubec, ...changes } }),
-    onFinalize: () => store.updateCharacter(character.id, { creationStatus: 'active' }),
-  }
 }
 
 type DoorsOptions = Pick<LubecCharacterTabProps, 'campaignId' | 'groupId' | 'role' | 'currentUserId' | 'currentUsername' | 'setError'> &
@@ -129,7 +57,7 @@ function lubecDoorsFor({ role, currentUserId, currentUsername, onCreated, ...con
   }
 }
 
-function LubecDetail({ character, editing, isSinglePane, onBack, ...sheetProps }: DetailProps) {
+function LubecDetail({ sheetProps, isSinglePane, onBack, onDelete, onAssign }: DetailProps) {
   return (
     <div className="monsters-detail characters-detail">
       <div className="monsters-detail-inner characters-detail-inner">
@@ -140,44 +68,18 @@ function LubecDetail({ character, editing, isSinglePane, onBack, ...sheetProps }
             </button>
           </div>
         ) : null}
-        {character ? (
-          <LubecSheetView
-            key={character.id}
-            character={character}
-            editing={editing}
-            {...sheetProps}
-          />
+        {sheetProps ? (
+          <LubecSheetView key={sheetProps.character.id} {...sheetProps} onDelete={onDelete} onAssign={onAssign} />
         ) : <p className="lubec-sheet-none">Pick a character to open their sheet.</p>}
       </div>
     </div>
   )
 }
 
-type EditingProps = Pick<LubecCharacterTabProps, 'campaignId' | 'groupId' | 'role' | 'currentUserId'> & {
-  character: LubecCharacterRecord | null
-  updateCharacter: (characterId: string, updates: Partial<LubecCharacterRecord>) => void
-}
-
-// The open sheet's edits for its owner and the GM, saved through the shared
-// store, with art uploaded under the uploader's authority; null for anyone else.
-function useLubecSheetEditing({ character, updateCharacter, role, currentUserId, ...campaign }: EditingProps): LubecSheetEditing | null {
-  const canEdit = character !== null && canEditCharacterStoreCharacter(character, role, currentUserId)
-  const media = useCharacterMedia({ ...campaign, currentUserId, effectiveSelected: character, canEditSelected: canEdit })
-  if (!character || !canEdit) return null
-  return {
-    update: (updates) => updateCharacter(character.id, updates),
-    uploadPortrait: media.uploadCharacterPortraitImage,
-    uploadToken: media.uploadCharacterTokenImage,
-  }
-}
-
 /** A Lubec campaign's characters, loaded through the shared character store, and the chosen one's sheet. */
 export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, currentUsername, gmUserId, setError }: LubecCharacterTabProps) {
-  const store = useCharacterStore({
-    ruleSet: lubecCharacterStore, campaignId, groupId, userId: currentUserId, role, gmUserId, setError, enabled: true,
-  })
-  const editing = useLubecSheetEditing({
-    character: store.selectedCharacter, updateCharacter: store.updateCharacter, campaignId, groupId, role, currentUserId,
+  const { store, character, viewer, sheetProps } = useLubecSheetSession({
+    source: { kind: 'characters' }, campaignId, groupId, role, currentUserId, gmUserId, setError,
   })
   const layout = useResponsiveCharacterLayout({ hasOpenDetail: Boolean(store.selectedCharacterId) })
   const selectCharacter = (characterId: string) => {
@@ -188,10 +90,9 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, cu
     campaignId, groupId, role, currentUserId, currentUsername, setError,
     addCharacter: store.addCharacter, updateCharacter: store.updateCharacter, onCreated: () => layout.setPaneView('detail'),
   })
-  const viewer = { role, userId: currentUserId }
   const deletion = useLubecCharacterDelete(store, viewer, () => layout.setPaneView('list'))
   const assignment = useLubecPlayerAssignment(store, role, gmUserId)
-  const selectedName = store.selectedCharacter ? { name: lubecCharacterName(store.selectedCharacter) } : null
+  const selectedName = character ? { name: lubecCharacterName(character) } : null
   return (
     <div className="maps-layout monsters-layout characters-layout lubec-character-tab">
       {layout.showListPane ? (
@@ -207,16 +108,11 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, cu
       ) : null}
       {layout.showDetailPane ? (
         <LubecDetail
-          character={store.selectedCharacter}
-          editing={editing}
+          sheetProps={sheetProps}
           isSinglePane={layout.isSinglePane}
           onBack={() => layout.setPaneView('list')}
-          onCountersChange={countersChangeFor(store.selectedCharacter, { role, userId: currentUserId }, store.updateCharacter)}
-          onSkillsChange={skillsChangeFor(store.selectedCharacter, { role, userId: currentUserId }, store.updateCharacter)}
-          corrections={correctionsFor(store.selectedCharacter, viewer, store.updateCharacter)}
-          onDelete={deletion.deleteFor(store.selectedCharacter)}
+          onDelete={deletion.deleteFor(character)}
           onAssign={assignment.onAssign}
-          {...draftActionsFor(store.selectedCharacter, viewer, store)}
         />
       ) : null}
       <CharacterDeleteDialog target={deletion.target} onConfirm={deletion.confirm} onCancel={deletion.cancel} />

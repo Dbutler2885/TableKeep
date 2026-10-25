@@ -1,6 +1,5 @@
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { Role } from '../../../types/app'
-import type { CampaignScope } from '../../campaign/firestorePaths'
 import type { CharacterStoreRecord, CharacterStoreRuleSet } from './characterStoreRecord'
 import { findCharacterStoreCharacter } from './characterStoreRoster'
 import {
@@ -11,12 +10,13 @@ import {
   scheduleCharacterStoreSave,
   sendCharacterStoreSaveNow,
   type CharacterStoreSaves,
+  type CharacterStoreScope,
 } from './characterStoreWrites'
 
 /** Everything the character actions read and change, as of the render that made them. */
 export type CharacterStoreActionContext<Character extends CharacterStoreRecord> = {
   ruleSet: CharacterStoreRuleSet<Character>
-  campaign: CampaignScope | null
+  campaign: CharacterStoreScope | null
   role: Role | null
   userId: string
   charactersRef: RefObject<Character[]>
