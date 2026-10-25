@@ -2,7 +2,7 @@ import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
 import type { LubecSheetEdit } from '../ruleSets/lubec/directEntry'
 import { lubecActiveModifiers, type LubecEffect } from '../ruleSets/lubec/effects'
 import { LubecAbilities } from './LubecAbilities'
-import { LubecClassPanel } from './LubecClassPanel'
+import { LubecClassRecord } from './LubecClassRecord'
 import { LubecClassPicker } from './LubecClassPicker'
 import { LubecCountersPanel, type LubecCountersChange } from './LubecCountersPanel'
 import { LubecEffectsPanel } from './LubecEffectsPanel'
@@ -47,7 +47,7 @@ type CorePageProps = {
  * The Core page: the five Stats and three Saves as the prototype's roll
  * circles, each current value rolled under with a tap, the skills to add to a
  * roll, the Panic Check and the Recovery Save below the Saves, the counters,
- * the active effects that change the values, the class's reminders and the reserved Fight panel. While a draft can be typed
+ * the active effects that change the values, the class record and the reserved Fight panel. While a draft can be typed
  * into, its base values and its class and choice are fields, and each final
  * value follows as it is typed. A guided draft's base values are rolled
  * instead, so they are never fields.
@@ -61,7 +61,7 @@ export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraf
       <LubecAbilities sheet={sheet} modifiers={modifiers} onDraftEdit={guided ? null : onDraftEdit} roller={roller} onShowTree={onShowTree} />
       <LubecCountersPanel sheet={sheet} onChange={onCountersChange} />
       <LubecEffectsPanel effects={sheet.effects} onChange={onEffectsChange} />
-      <LubecClassPanel sheet={sheet} />
+      <LubecClassRecord sheet={sheet} modifiers={modifiers} />
       <LubecFightPanel sheet={sheet} modifiers={modifiers} />
     </div>
   )

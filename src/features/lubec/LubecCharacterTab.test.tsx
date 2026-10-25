@@ -271,7 +271,7 @@ describe('Lubec character tab', () => {
 
     expect(within(sheet).getByText('Lubec 1977')).toBeTruthy()
     expect(within(sheet).getByRole('heading', { level: 2, name: 'Tommy Eves' })).toBeTruthy()
-    expect(within(sheet).getByText('Working Kid')).toBeTruthy()
+    expect(within(sheet.querySelector('.lubec-idband') as HTMLElement).getByText('Working Kid')).toBeTruthy()
     expect(within(sheet).getByRole('img', { name: 'No photo yet' })).toBeTruthy()
     expect(sheet.querySelector('.lubec-stamp')?.textContent).toBe('LubecMaine1977')
     const tabs = within(within(sheet).getByRole('navigation', { name: 'Character sheet pages' })).getAllByRole('button')
@@ -546,30 +546,55 @@ describe('Lubec counters', () => {
   })
 })
 
-describe('Lubec class panel', () => {
-  const classPanel = () => screen.getByRole('region', { name: 'Class' })
+describe('Lubec class record', () => {
+  const classRecord = (name: string) => screen.getByRole('region', { name })
+  const meleeStrengthMod = (record: HTMLElement) => record.querySelector('.record-value strong')?.textContent
+  const withStrength = (Strength: number | null, effects: Fields[] = []) =>
+    withSheet({ base: { ...((tommyEves().lubec as Fields).base as Fields), Strength }, effects })
 
-  it('shows the class\'s Trauma Response', () => {
+  it('shows the class under its name: description, Trauma Response and Melee Strength Mod', () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
 
-    const panel = classPanel()
-    expect(within(panel).getByText('Trauma Response')).toBeTruthy()
-    expect(within(panel).getByText(/Once per session, you may take Advantage on a Panic Check\./).textContent)
-      .toBe('Steady Under Pressure. Once per session, you may take Advantage on a Panic Check.')
-    expect(within(panel).queryByText('Class rule')).toBeNull()
+    const record = classRecord('Working Kid')
+    expect(within(record).getByText(/^Your family's work is your work\./)).toBeTruthy()
+    expect(within(record).getByText('Trauma Response')).toBeTruthy()
+    expect(within(record).getByText('Steady Under Pressure')).toBeTruthy()
+    expect(within(record).getByText('Once per session, you may take Advantage on a Panic Check.')).toBeTruthy()
+    expect(within(record).queryByText('Class Rule')).toBeNull()
+    expect(within(record).getByText('Melee Strength Mod')).toBeTruthy()
+    // Strength 29: one full 20.
+    expect(meleeStrengthMod(record)).toBe('+1 Impact')
   })
 
-  it('shows the class rule beside the Trauma Response when the class has one', () => {
+  it('shows the Class Rule beside the Trauma Response when the class has one', () => {
     seed({ tommy: withSheet({ class: { key: 'scout', choices: { statBonus: 'Speed' } } }) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
 
-    const panel = classPanel()
-    expect(within(panel).getByText(/Your Success Raises the Stakes/)).toBeTruthy()
-    expect(within(panel).getByText('Class rule')).toBeTruthy()
-    expect(within(panel).getByText('Failed Stat Checks give +2 Stress instead of +1.')).toBeTruthy()
+    const record = classRecord('Overachiever')
+    expect(within(record).getByText('Your Success Raises the Stakes')).toBeTruthy()
+    expect(within(record).getByText('Class Rule')).toBeTruthy()
+    expect(within(record).getByText('Failed Stat Checks give +2 Stress instead of +1.')).toBeTruthy()
+  })
+
+  it('works the Melee Strength Mod out from current Strength, effects included', () => {
+    const training = { id: 'training', name: 'Summer training', cause: 'Hauling traps', steps: [{ modifiers: [{ target: 'Strength', amount: 5 }] }] }
+    seed({ tommy: withStrength(35, [training]) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    // 35 + 5 class + 5 from the effect is 45: two full 20s.
+    expect(meleeStrengthMod(classRecord('Working Kid'))).toBe('+2 Impact')
+  })
+
+  it('marks the Melee Strength Mod missing while Strength is a hole', () => {
+    seed({ tommy: withStrength(null) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    expect(meleeStrengthMod(classRecord('Working Kid'))).toBe('missing')
   })
 
   it('shows nothing when the class is missing', () => {
@@ -577,8 +602,8 @@ describe('Lubec class panel', () => {
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
 
-    expect(screen.queryByRole('region', { name: 'Class' })).toBeNull()
     expect(screen.queryByText('Trauma Response')).toBeNull()
+    expect(screen.queryByText('Melee Strength Mod')).toBeNull()
   })
 })
 
