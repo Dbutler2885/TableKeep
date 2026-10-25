@@ -31,19 +31,21 @@ type CorePageProps = {
   guided?: LubecGuided | null
   /** Opens the Skills page, where the skill tree is. */
   onShowTree: () => void
+  /** True once the character is finalized: as in the prototype, only a character in play has a Fight bar. */
+  inPlay: boolean
 }
 
 /**
  * The Core page: the five Stats and three Saves as the prototype's roll
  * circles, each current value rolled under with a tap, the skills to add to a
  * roll, the Panic Check and the Recovery Save below the Saves, the counters,
- * the active effects that change the values, the class record and the reserved Fight panel.
+ * the active effects that change the values, and, once in play, the Fight bar over the class record.
  * While a draft can be typed into, each base is typed into its circle's place
  * and the class is chosen from the prototype's class cards straight under the
  * values. A guided draft's circles roll its dice and settle its scores
  * instead, and its class cards unlock once they are settled.
  */
-export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraftEdit = null, onRolled, guided = null, onShowTree }: CorePageProps) {
+export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraftEdit = null, onRolled, guided = null, onShowTree, inPlay }: CorePageProps) {
   const modifiers = lubecActiveModifiers(sheet.effects)
   const roller = useLubecRoller(sheet, onRolled)
   const rollUp = rollUpOf(sheet, guided, onDraftEdit)
@@ -61,8 +63,8 @@ export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraf
       {onDraftEdit ? classSection : null}
       <LubecCountersPanel sheet={sheet} onChange={onCountersChange} />
       <LubecEffectsPanel effects={sheet.effects} onChange={onEffectsChange} />
+      {inPlay ? <LubecFightPanel sheet={sheet} modifiers={modifiers} /> : null}
       {onDraftEdit ? null : classSection}
-      <LubecFightPanel sheet={sheet} modifiers={modifiers} />
     </div>
   )
 }

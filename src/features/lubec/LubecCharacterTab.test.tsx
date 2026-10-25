@@ -653,18 +653,41 @@ describe('Lubec class record', () => {
 })
 
 describe('Lubec Fight panel', () => {
-  const fightPanel = () => screen.getByRole('region', { name: 'Fight' })
+  const fightPanel = () => screen.getByRole('region', { name: 'Fight controls' })
+  const fightToggle = () => within(fightPanel()).getByRole('button')
   const effectiveHandle = () => fightPanel().querySelector('.lubec-effective-handle')?.textContent
 
-  it('shows Effective Handle and an empty "In hand" line with no input', () => {
+  it('shows the prototype\'s collapsed Fight bar, which opens on Effective Handle and an empty "In hand" line with no input', () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
 
+    const panel = fightPanel().querySelector('.fight-panel') as HTMLElement
+    expect(fightToggle().textContent).toBe('FightDivide your Effective Handle between Defense commitments and your attack⌄')
+    expect(fightToggle().getAttribute('aria-expanded')).toBe('false')
+    expect(fightToggle().getAttribute('aria-controls')).toBe(panel.id)
+    expect(panel.hidden).toBe(true)
+
+    fireEvent.click(fightToggle())
+    expect(fightToggle().getAttribute('aria-expanded')).toBe('true')
+    expect(panel.hidden).toBe(false)
+    expect(within(panel).getByRole('heading', { name: 'Handle' })).toBeTruthy()
     expect(effectiveHandle()).toBe('55')
-    expect(within(fightPanel()).getByText('In hand')).toBeTruthy()
-    expect(fightPanel().querySelector('.lubec-in-hand')?.textContent).toBe('')
-    expect(fightPanel().querySelectorAll('input, textarea, select, button')).toHaveLength(0)
+    expect(within(panel).getByText('In hand')).toBeTruthy()
+    expect(panel.querySelector('.lubec-in-hand')?.textContent).toBe('')
+    expect(panel.querySelectorAll('input, textarea, select, button')).toHaveLength(0)
+
+    fireEvent.click(fightToggle())
+    expect(fightToggle().getAttribute('aria-expanded')).toBe('false')
+    expect(panel.hidden).toBe(true)
+  })
+
+  it('has no Fight bar while the character is still a draft, as the prototype shows it only in play', () => {
+    seed({ tommy: tommyEves({ creationStatus: 'established_draft' }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    expect(screen.queryByRole('region', { name: 'Fight controls' })).toBeNull()
   })
 
   it('caps Effective Handle at 100', () => {

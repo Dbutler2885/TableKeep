@@ -177,6 +177,7 @@ function LubecSheetPage({ page, onShowTree, onHideTree, onShowClass, character, 
       onRolled={editing ? (lubec) => editing.update({ lubec }) : null}
       guided={guidedOf(character, onRollUp)}
       onShowTree={onShowTree}
+      inPlay={character.creationStatus === 'active'}
     />
   )
 }
