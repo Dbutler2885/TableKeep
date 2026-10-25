@@ -159,20 +159,35 @@ export type LubecMainPocket = {
   fresh: boolean
 }
 
-function packCells(its: readonly LubecItem[], keep: boolean): Omit<LubecMainPocket, 'fresh'> | null {
-  const cells: (LubecItem | null)[] = new Array(MAIN_CELLS).fill(null)
-  const placed: LubecMainPocket['placed'] = []
-  const free = (at: readonly number[]) => at.every((k) => !cells[k])
-  const put = (item: LubecItem, at: readonly number[]) => { at.forEach((k) => { cells[k] = item }); placed.push({ item, at }) }
-  const kept = (i: LubecItem) => keep && i.cells && footprintsOf(i).some((f) => sameCells(f, i.cells as number[])) && free(i.cells)
-  const rest: LubecItem[] = []
-  for (const i of its) if (kept(i)) put(i, i.cells as number[]); else rest.push(i)
+type Packing = Omit<LubecMainPocket, 'fresh'>
+
+const isFree = (cells: Packing['cells'], at: readonly number[]) => at.every((k) => !cells[k])
+
+function putAt(pocket: Packing, item: LubecItem, at: readonly number[]): void {
+  at.forEach((k) => { pocket.cells[k] = item })
+  pocket.placed.push({ item, at })
+}
+
+/** The boxes the player arranged `i` in, when they are one of its footprints. */
+const arrangedAt = (i: LubecItem): readonly number[] | undefined => footprintsOf(i).find((f) => sameCells(f, i.cells ?? []))
+
+/** Puts `i` where the player arranged it, if those boxes are still free. */
+function keepArranged(pocket: Packing, i: LubecItem): boolean {
+  const at = arrangedAt(i)
+  if (!at || !isFree(pocket.cells, at)) return false
+  putAt(pocket, i, at)
+  return true
+}
+
+function packCells(its: readonly LubecItem[], keep: boolean): Packing | null {
+  const pocket: Packing = { cells: new Array(MAIN_CELLS).fill(null), placed: [] }
+  const rest = keep ? its.filter((i) => !keepArranged(pocket, i)) : its
   for (const i of rest) {
-    const at = footprintsOf(i).find(free)
+    const at = footprintsOf(i).find((f) => isFree(pocket.cells, f))
     if (!at) return null
-    put(i, at)
+    putAt(pocket, i, at)
   }
-  return { cells, placed }
+  return pocket
 }
 
 // Things the player arranged (by dragging) keep their boxes; the rest are packed around them the way a kid would:
