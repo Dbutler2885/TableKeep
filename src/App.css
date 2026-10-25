@@ -16691,6 +16691,133 @@ button:disabled {
   line-height: 1.25;
 }
 
+/* --- New character and Direct entry ------------------------------------ */
+
+.shell-root[data-theme="lubec"] .lubec-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.7rem 0.35rem;
+  background: var(--lubec-blue);
+  border: 2px solid var(--lubec-blue);
+  border-radius: 0;
+  color: var(--lubec-cream);
+  font: 800 0.72rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.shell-root[data-theme="lubec"] .lubec-new-btn:hover {
+  background: var(--lubec-blue-alt);
+  color: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-doors {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.4rem 0 1rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-door {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.75rem 0.85rem;
+  border: 2px solid var(--lubec-ink);
+  border-radius: 0;
+  box-shadow: inset 5px 0 0 var(--lubec-rust);
+  text-align: left;
+}
+
+.shell-root[data-theme="lubec"] .lubec-door strong {
+  color: var(--lubec-blue);
+  font: 800 1.15rem/1.1 var(--lubec-display);
+}
+
+.shell-root[data-theme="lubec"] .lubec-door span {
+  color: var(--lubec-muted);
+  font: 400 0.85rem/1.35 var(--lubec-type);
+}
+
+/* A character in creation: which door made it, and deleting the draft. */
+.shell-root[data-theme="lubec"] .lubec-draft-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin: 0.8rem var(--pad) 0;
+  padding: 0.45rem 0.7rem;
+  border: 1.5px dashed var(--lubec-rust);
+  background: rgba(255, 248, 231, 0.6);
+}
+
+.shell-root[data-theme="lubec"] .lubec-draft-status {
+  margin: 0;
+  color: var(--lubec-rust);
+  font: 800 0.72rem/1.2 var(--lubec-type);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-delete-draft {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.6rem 0.3rem;
+  border: 1.5px solid var(--lubec-rust);
+  border-radius: 0;
+  color: var(--lubec-rust);
+  font: 800 0.68rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-delete-draft:hover {
+  background: var(--lubec-rust);
+  color: var(--lubec-cream);
+}
+
+/* The class and its choice span the page above the Stats and Saves. */
+.shell-root[data-theme="lubec"] .lubec-class-picker {
+  grid-column: 1 / -1;
+}
+
+.shell-root[data-theme="lubec"] .lubec-picks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: 0.6rem 1rem;
+  margin: 0 0.7rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-pick {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-pick label {
+  color: var(--lubec-muted);
+  font: 800 0.62rem/1.2 var(--lubec-type);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-pick select {
+  width: 100%;
+  min-width: 0;
+  padding: 0.4rem 0.45rem;
+  font-size: 1rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-base-input {
+  width: 3.4rem;
+  padding: 0.25rem 0.35rem;
+  font: 700 1rem/1.1 var(--lubec-type);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
 @media (max-width: 560px) {
   .shell-root[data-theme="lubec"] .lubec-sheet {
     --pad: 1rem;

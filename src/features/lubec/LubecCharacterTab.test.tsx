@@ -18,6 +18,7 @@ type Listener = { next: (snap: unknown) => void; fail: (error: unknown) => void 
 const mocks = vi.hoisted(() => ({
   listeners: {} as Record<string, { next: (snap: unknown) => void; fail: (error: unknown) => void }>,
   setDoc: vi.fn(async (..._args: unknown[]) => undefined),
+  deleteDoc: vi.fn(async (..._args: unknown[]) => undefined),
   resolveStoragePathUrl: vi.fn(async (path: string): Promise<string | null> => `https://media.test/${path}`),
   uploadEntityImage: vi.fn(async (..._args: unknown[]) => ({ path: 'uploaded/portrait.png', url: 'https://media.test/uploaded/portrait.png' })),
 }))
@@ -26,7 +27,7 @@ vi.mock('../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
   doc: (_db: unknown, path: string) => ({ path }),
-  deleteDoc: vi.fn(async () => undefined),
+  deleteDoc: mocks.deleteDoc,
   onSnapshot: (ref: { path: string }, next: Listener['next'], fail: Listener['fail']) => {
     mocks.listeners[ref.path] = { next, fail }
     return () => {
@@ -186,6 +187,10 @@ beforeEach(() => {
   database = {}
   mocks.setDoc.mockImplementation(async (...args: unknown[]) => {
     writeToDatabase(...args)
+    return undefined
+  })
+  mocks.deleteDoc.mockImplementation(async (...args: unknown[]) => {
+    delete database[(args[0] as { path: string }).path.split('/').pop() as string]
     return undefined
   })
   window.innerWidth = 1024
@@ -1119,5 +1124,285 @@ describe('Lubec Skills page', () => {
     reload('player', 'player-1')
     openSkillsPage('Tommy Eves')
     expect(takenSkills().map(([name]) => name)).toEqual(['Knot Tying', 'Swimming', 'Whittling', 'Diving'])
+  })
+})
+
+// A draft typed in through Direct entry, with nothing given yet.
+const directDraft = (fields: Fields = {}): Fields => ({
+  ...tommyEves({ name: 'Ada Mitchell', creationStatus: 'established_draft', ...fields }),
+  lubec: {
+    door: 'direct',
+    class: { key: null, choices: { statPenalty: null, statBonus: null } },
+    base: { Strength: null, Speed: null, Intellect: null, Handle: null, Charm: null, Sanity: null, Fear: null, Body: null },
+    skills: { free: null, picked: [] },
+  },
+})
+
+const baseInput = (name: string) => screen.getByLabelText(`${name} base`) as HTMLInputElement
+
+const typeBase = (name: string, text: string) => fireEvent.change(baseInput(name), { target: { value: text } })
+
+/** A Stat or Save's final and current values; the base is a field while it can be typed into. */
+const finalsOf = (name: string) => valuesOf(name).slice(1)
+
+const picker = (label: string) => screen.getByLabelText(label, { selector: 'select' }) as HTMLSelectElement
+
+const choose = (label: string, value: string) => fireEvent.change(picker(label), { target: { value } })
+
+const optionsOf = (label: string) => [...picker(label).options].map((option) => option.textContent)
+
+const backToRoster = () => fireEvent.click(screen.getByRole('button', { name: 'Back to character list' }))
+
+/** Lets the store's half-second save come due and land. */
+async function settleSaves() {
+  act(() => { vi.advanceTimersByTime(500) })
+  await flushMicrotasks()
+}
+
+const stored = (id: string) => parseLubecCharacter(id, database[id] as never)
+
+function startDirectEntry() {
+  fireEvent.click(screen.getByRole('button', { name: 'New character' }))
+  const dialog = screen.getByRole('dialog', { name: 'New character' })
+  fireEvent.click(within(dialog).getByRole('button', { name: /Direct entry/ }))
+}
+
+describe('New character and Direct entry', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('offers only the doors that exist when a player starts a new character', () => {
+    mountTab('player', 'player-1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'New character' }))
+
+    const dialog = screen.getByRole('dialog', { name: 'New character' })
+    expect(within(dialog).getAllByRole('button').map((button) => button.querySelector('strong')?.textContent ?? button.textContent))
+      .toEqual(['Direct entry', 'Cancel'])
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+  })
+
+  it('stores a player\'s Direct entry character as their own established draft, with the starting counters and every value a hole', async () => {
+    mountTab('player', 'player-1')
+
+    startDirectEntry()
+    await flushMicrotasks()
+
+    const [id] = Object.keys(database)
+    expect(database[id]).toMatchObject({
+      system: 'lubec',
+      ownerUserId: 'player-1',
+      ownerUsername: 'viewer1',
+      creationMode: 'established',
+      creationStatus: 'established_draft',
+      lubec: {
+        door: 'direct',
+        counters: { stress: 2, minimumStress: 2, trauma: 0 },
+        effects: [],
+        class: { key: null, choices: { statPenalty: null, statBonus: null } },
+        base: { Strength: null, Speed: null, Intellect: null, Handle: null, Charm: null, Sanity: null, Fear: null, Body: null },
+      },
+    })
+    const sheet = screen.getByRole('article', { name: 'Unnamed kid character sheet' })
+    expect(within(sheet).getByText(/In creation · Direct entry/)).toBeTruthy()
+    expect(finalsOf('Strength')).toEqual(['missing', 'missing'])
+  })
+
+  it('lets the GM create a Direct entry character, owned by the GM', async () => {
+    mountTab('gm', GM)
+
+    startDirectEntry()
+    await flushMicrotasks()
+
+    const [id] = Object.keys(database)
+    expect(database[id]).toMatchObject({ ownerUserId: GM, creationStatus: 'established_draft', lubec: { door: 'direct' } })
+  })
+
+  it('offers no New character to a viewer with no role in the campaign', () => {
+    const LubecSheet = ruleSetSheets.lubec
+    render(<LubecSheet campaign={campaign} role={null} user={{ uid: 'stranger' } as User} username="viewer1" setError={vi.fn()} characterTabProps={null} />)
+
+    expect(screen.queryByRole('button', { name: 'New character' })).toBeNull()
+  })
+
+  it('shows each final value beside its base as it is typed, and saves the typed base values', async () => {
+    seed({ ada: directDraft() })
+    mountTab('player', 'player-1')
+    openSheet('Ada Mitchell')
+
+    choose('Class', 'working')
+    typeBase('Strength', '24')
+    typeBase('Sanity', '20')
+
+    expect(finalsOf('Strength')).toEqual(['29', '29'])
+    expect(finalsOf('Sanity')).toEqual(['30', '30'])
+    expect(finalsOf('Speed')).toEqual(['missing', 'missing'])
+
+    await settleSaves()
+
+    expect(stored('ada').lubec.base).toMatchObject({ Strength: 24, Sanity: 20, Speed: null })
+    expect(stored('ada').lubec.class.key).toBe('working')
+  })
+
+  it('takes the Nerd and Popular Kid\'s -10 Stat and the Overachiever\'s +5 Stat from the class\'s own list', async () => {
+    seed({ ada: directDraft() })
+    mountTab('player', 'player-1')
+    openSheet('Ada Mitchell')
+    typeBase('Charm', '40')
+    typeBase('Intellect', '30')
+
+    choose('Class', 'nerd')
+
+    expect(optionsOf('Stat taking -10')).toEqual(['Choose a Stat', 'Strength', 'Speed', 'Handle', 'Charm'])
+    expect(finalsOf('Charm')).toEqual(['missing', 'missing'])
+
+    choose('Stat taking -10', 'Charm')
+
+    expect(finalsOf('Charm')).toEqual(['30', '30'])
+    expect(finalsOf('Intellect')).toEqual(['50', '50'])
+
+    choose('Class', 'popular')
+
+    expect(optionsOf('Stat taking -10')).toEqual(['Choose a Stat', 'Strength', 'Speed', 'Intellect', 'Handle'])
+    expect(finalsOf('Intellect')).toEqual(['missing', 'missing'])
+
+    choose('Class', 'scout')
+    choose('Stat gaining +5', 'Charm')
+
+    expect(finalsOf('Charm')).toEqual(['45', '45'])
+    expect(screen.queryByLabelText('Stat taking -10', { selector: 'select' })).toBeNull()
+
+    await settleSaves()
+
+    expect(stored('ada').lubec.class).toMatchObject({ key: 'scout', choices: { statPenalty: null, statBonus: 'Charm' } })
+  })
+
+  it('stores an emptied field as null, shows it as missing, and keeps it a hole after a remount', async () => {
+    seed({ ada: directDraft() })
+    mountTab('player', 'player-1')
+    openSheet('Ada Mitchell')
+    choose('Class', 'working')
+    typeBase('Speed', '51')
+    await settleSaves()
+
+    typeBase('Speed', '')
+    typeBase('Handle', '12.5')
+    await settleSaves()
+
+    const written = (database.ada.lubec as Fields).base as Fields
+    expect(written.Speed).toBeNull()
+    expect(written.Handle).toBeNull()
+    expect(finalsOf('Speed')).toEqual(['missing', 'missing'])
+    expect(baseInput('Handle').value).toBe('12.5')
+
+    reload('player', 'player-1')
+    openSheet('Ada Mitchell')
+
+    expect(baseInput('Speed').value).toBe('')
+    expect(finalsOf('Speed')).toEqual(['missing', 'missing'])
+    expect(finalsOf('Handle')).toEqual(['missing', 'missing'])
+  })
+
+  it('neither blocks nor warns when a typed value breaks a rule', async () => {
+    seed({ ada: directDraft() })
+    mountTab('player', 'player-1')
+    openSheet('Ada Mitchell')
+    choose('Class', 'working')
+
+    typeBase('Strength', '99')
+    typeBase('Fear', '5')
+
+    expect(finalsOf('Strength')).toEqual(['104', '104'])
+    expect(finalsOf('Fear')).toEqual(['15', '15'])
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText(/warning|outside|range/i)).toBeNull()
+
+    await settleSaves()
+
+    expect(stored('ada').lubec.base).toMatchObject({ Strength: 99, Fear: 5 })
+  })
+
+  it('lets the GM type into a player\'s draft, and shows a field the stored value when it changes elsewhere', async () => {
+    seed({ ada: directDraft() })
+    mountTab('gm', GM)
+    openSheet('Ada Mitchell')
+
+    typeBase('Body', '21')
+    await settleSaves()
+
+    expect(stored('ada').lubec.base.Body).toBe(21)
+
+    database.ada = { ...database.ada, lubec: { ...(directDraft().lubec as Fields), base: { Body: 33 } } }
+    emitDatabase()
+
+    expect(baseInput('Body').value).toBe('33')
+  })
+
+  it('gives a player no fields on someone else\'s draft, and nobody fields on a finalized character', () => {
+    seed({ ada: directDraft({ ownerUserId: 'player-2' }), tommy: tommyEves() })
+    mountTab('player', 'player-1')
+
+    openSheet('Ada Mitchell')
+    expect(screen.queryByLabelText('Strength base')).toBeNull()
+    expect(screen.queryByLabelText('Class', { selector: 'select' })).toBeNull()
+    expect(screen.getByText(/In creation · Direct entry/)).toBeTruthy()
+
+    backToRoster()
+    openSheet('Tommy Eves')
+    expect(screen.queryByLabelText('Strength base')).toBeNull()
+    expect(screen.queryByText(/In creation/)).toBeNull()
+  })
+
+  it('lets the owner delete their draft after confirming', async () => {
+    seed({ ada: directDraft() })
+    mountTab('player', 'player-1')
+    openSheet('Ada Mitchell')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+
+    expect(mocks.deleteDoc).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
+    expect(screen.getByText('Permanently delete Ada Mitchell? This cannot be undone.')).toBeTruthy()
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    await flushMicrotasks()
+
+    expect(mocks.deleteDoc).toHaveBeenCalledWith({ path: `${CHARACTERS_PATH}/ada` })
+    expect(database.ada).toBeUndefined()
+    expect(rosterNames()).toEqual([])
+  })
+
+  it('lets the GM delete a player\'s draft', async () => {
+    seed({ ada: directDraft() })
+    mountTab('gm', GM)
+    openSheet('Ada Mitchell')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    await flushMicrotasks()
+
+    expect(database.ada).toBeUndefined()
+  })
+
+  it('gives a player no Delete on someone else\'s draft, and nobody a Delete on a finalized character', () => {
+    seed({ ada: directDraft({ ownerUserId: 'player-2' }), tommy: tommyEves() })
+    mountTab('player', 'player-1')
+
+    openSheet('Ada Mitchell')
+    expect(screen.queryByRole('button', { name: 'Delete draft' })).toBeNull()
+
+    backToRoster()
+    openSheet('Tommy Eves')
+    expect(screen.queryByRole('button', { name: 'Delete draft' })).toBeNull()
   })
 })

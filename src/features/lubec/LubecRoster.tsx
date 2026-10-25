@@ -1,6 +1,7 @@
 import { UserRound } from 'lucide-react'
 import { lubecClass } from '../ruleSets/lubec/classes'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
+import { LubecNewCharacter } from './LubecNewCharacter'
 import { lubecCharacterName } from './lubecNames'
 
 type RosterProps = {
@@ -9,6 +10,8 @@ type RosterProps = {
   selectedCharacterId: string
   currentUserId: string
   onSelect: (characterId: string) => void
+  /** Starts a new character through Direct entry; null when the viewer may not make one. */
+  onDirectEntry?: (() => void) | null
 }
 
 type CardProps = {
@@ -40,10 +43,13 @@ function LubecRosterCard({ character, selected, own, onSelect }: CardProps) {
 }
 
 /** The campaign's Lubec characters the viewer may see, with their own marked. */
-export function LubecRoster({ characters, loading, selectedCharacterId, currentUserId, onSelect }: RosterProps) {
+export function LubecRoster({ characters, loading, selectedCharacterId, currentUserId, onSelect, onDirectEntry = null }: RosterProps) {
   return (
     <aside className="maps-sidebar monsters-sidebar characters-sidebar lubec-roster">
-      <div className="maps-sidebar-header"><h2>Characters</h2></div>
+      <div className="maps-sidebar-header">
+        <h2>Characters</h2>
+        {onDirectEntry ? <LubecNewCharacter onDirectEntry={onDirectEntry} /> : null}
+      </div>
       {loading ? <p>Loading characters...</p> : null}
       {!loading && characters.length === 0 ? <p className="lubec-roster-empty">No characters yet.</p> : null}
       <div className="monster-list-grid character-list-grid">
