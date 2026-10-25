@@ -22,7 +22,8 @@ export type LubecRuleWarning = { code: LubecRuleWarningCode; message: string }
 
 const warning = (code: LubecRuleWarningCode, message: string): LubecRuleWarning => ({ code, message })
 
-const anyOf = (names: readonly string[]): string =>
+/** Names joined as "A, B or C". */
+export const anyOf = (names: readonly string[]): string =>
   names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}`
 
 function classWarnings(sheet: LubecSheet, definition: LubecClass | null): LubecRuleWarning[] {

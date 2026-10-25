@@ -1025,8 +1025,11 @@ async function wanderingMonsterCases(browser, testCase, ids, browserErrors) {
 // opens in Lubec's own skin with its five tabs, and his Core page shows each
 // Stat and Save in the v4 frame, and his Severe Concussion as one active effect
 // line, without the page scrolling sideways, with the effect closed or open.
+// His Skills page shows the skill tree with his skills marked, without
+// scrolling sideways either.
 const LUBEC_TAB = '.shell-root[data-theme="lubec"] .lubec-character-tab'
 const LUBEC_CORE_PAGE = '.shell-root[data-theme="lubec"] .lubec-sheet .lubec-core'
+const LUBEC_SKILLS_PAGE = '.shell-root[data-theme="lubec"] .lubec-sheet .lubec-skills'
 const LUBEC_CHARACTER_NAME = 'Tommy Eves'
 
 // Each Stat and Save as the Core page shows it: base, final with the Working
@@ -1042,6 +1045,9 @@ const LUBEC_CORE_VALUES = [
   ['Fear', '24', '34', '34'],
   ['Body', '21', '31', '31'],
 ]
+
+// The skills the tree marks, in tree order, with the mark each shows.
+const LUBEC_TREE_MARKS = [['Swimming', 'Pick +10'], ['Diving', 'Pick +15'], ['Boatwork', 'Free +10']]
 
 function lubecCharacterFields({ uid, username }) {
   return {
@@ -1115,7 +1121,33 @@ async function openAndCloseLubecEffect(page) {
   await page.locator(LUBEC_EFFECT_LINE).wait()
 }
 
-async function lubecSheetCase(page, campaignName) {
+async function openLubecSkillsPage(page) {
+  await page.locator('.lubec-page-tabs button ::-p-text(Skills)').click()
+  await page.locator(LUBEC_SKILLS_PAGE).wait()
+}
+
+async function expectLubecTreeSize(page) {
+  const cells = await page.$$eval(`${LUBEC_SKILLS_PAGE} .lubec-skill-tree td.lubec-tree-skill`, (elements) => elements.length)
+  if (cells !== 54) throw new Error(`The skill tree shows ${cells} skills, not 54.`)
+}
+
+async function expectLubecTreeMarks(page) {
+  const marks = await page.$$eval(`${LUBEC_SKILLS_PAGE} .lubec-tree-skill.free, ${LUBEC_SKILLS_PAGE} .lubec-tree-skill.picked`, (elements) =>
+    elements.map((cell) => [cell.querySelector('.lubec-skill-name').textContent, cell.querySelector('.lubec-skill-mark').textContent]))
+  if (JSON.stringify(marks) !== JSON.stringify(LUBEC_TREE_MARKS)) throw new Error(`The skill tree marks ${JSON.stringify(marks)}.`)
+}
+
+async function lubecSkillsPageSteps(page, testCase) {
+  await step('open the Lubec Skills page', () => openLubecSkillsPage(page))
+  await page.mouse.move(0, page.viewport().height - 1)
+  await step('show the Skills page in the v4 frame', () => expectLubecPage(page, 'Skills'))
+  await step('show all 27 Trained and 27 Expert skills on the tree', () => expectLubecTreeSize(page))
+  await step('mark the free skill and picks on the tree with their bonus', () => expectLubecTreeMarks(page))
+  await step('fit the Lubec Skills page without scrolling sideways', () => expectNoSidewaysScroll(page))
+  await screenshot(page, `${testCase.name}-lubec-skills`)
+}
+
+async function lubecSheetCase(page, testCase, campaignName) {
   await step('open the seeded Lubec campaign', () => openCampaignCard(page, campaignName, LUBEC_TAB))
   await step('offer the five Lubec tabs', () => expectNavTabs(page, ['Characters', 'Maps', 'NPCs', 'Notes', 'Calendar']))
   await step('open the seeded Lubec character', () => openLubecSheet(page))
@@ -1127,6 +1159,8 @@ async function lubecSheetCase(page, campaignName) {
   await step('fit an opened active effect without scrolling sideways', () => openAndCloseLubecEffect(page))
   await page.mouse.move(0, page.viewport().height - 1)
   await step('fit the Lubec sheet without scrolling sideways', () => expectNoSidewaysScroll(page))
+  await screenshot(page, `${testCase.name}-lubec-core`)
+  await lubecSkillsPageSteps(page, testCase)
 }
 
 async function lubecCampaignCase(browser, testCase, ids, browserErrors) {
@@ -1134,7 +1168,7 @@ async function lubecCampaignCase(browser, testCase, ids, browserErrors) {
   const campaignId = await seedCampaign({ groupId: ids.groupId, gmUserId: ids.uid, fields: { name: campaignName, system: 'lubec' } })
   await seedCharacter({ groupId: ids.groupId, campaignId, fields: lubecCharacterFields({ uid: ids.uid, username: testCase.username }) })
   const session = { testCase, groupId: ids.groupId, browserErrors }
-  await inSignedInPage(browser, session, 'lubec-sheet', (page) => lubecSheetCase(page, campaignName))
+  await inSignedInPage(browser, session, 'lubec-sheet', (page) => lubecSheetCase(page, testCase, campaignName))
 }
 
 function collectBrowserErrors(page, errors, surface) {
@@ -1242,7 +1276,7 @@ async function runViewport(browser, testCase) {
       + 'and kept the items and ids the migration made of an old-format character through a save and two reloads, '
       + 'storing it at version 1, '
       + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map, '
-      + 'and opened a seeded Lubec campaign in its own skin, with its five tabs, to a seeded character\'s Core page with its active effect.',
+      + 'and opened a seeded Lubec campaign in its own skin, with its five tabs, to a seeded character\'s Core page with its active effect and to their Skills page.',
     )
   } finally {
     await screenshot(page, testCase.name)

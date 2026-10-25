@@ -49,6 +49,7 @@ vi.mock('../common/imageNormalization', async (importOriginal) => ({
 
 const { ruleSetSheets } = await import('../ruleSets/sheetComponents')
 const { parseLubecCharacter } = await import('../ruleSets/lubec/characterParser')
+const { lubecRuleWarnings } = await import('../ruleSets/lubec/ruleChecks')
 
 const CHARACTERS_PATH = 'groups/group-1/campaigns/campaign-1/characters'
 const GM = 'gm-1'
@@ -146,6 +147,38 @@ const valueRow = (name: string) =>
 const valuesOf = (name: string) => Array.from(valueRow(name).cells).slice(1).map((cell) => cell.textContent)
 
 const missingMarks = (name: string) => valueRow(name).querySelectorAll('.lubec-missing').length
+
+function openSkillsPage(name: string) {
+  const sheet = openSheet(name)
+  fireEvent.click(within(within(sheet).getByRole('navigation', { name: 'Character sheet pages' })).getByRole('button', { name: 'Skills' }))
+  return sheet
+}
+
+/** The character's skills as the Skills page lists them: name, any Free mark, tier and bonus. */
+const takenSkills = () =>
+  within(screen.getByRole('list', { name: 'Skills taken' })).queryAllByRole('listitem')
+    .map((item) => [...item.children].map((part) => part.textContent))
+
+/** The skills the tree marks, with the mark each shows. */
+const treeMarks = () => [...document.querySelectorAll('.lubec-tree-skill.free, .lubec-tree-skill.picked')]
+  .map((cell) => [cell.querySelector('.lubec-skill-name')?.textContent, cell.querySelector('.lubec-skill-mark')?.textContent])
+
+const treeColumn = (column: number) => [...document.querySelectorAll('.lubec-skill-tree tbody tr')]
+  .map((row) => row.children[column])
+  .filter((cell) => cell.classList.contains('lubec-tree-skill'))
+  .map((cell) => cell.querySelector('.lubec-skill-name')?.textContent)
+
+// By text rather than by role: naming every button on the tree is slow in jsdom.
+const skillButton = (name: string) => screen.getByText(name, { selector: 'button' })
+
+const skillButtons = () => screen.queryAllByText(/./, { selector: '.lubec-skill-tree button' })
+
+const freeSkillChoice = () => screen.getByRole('combobox', { name: 'Free class skill' }) as HTMLSelectElement
+
+const storedSkills = (id: string) => (database[id].lubec as Fields).skills
+
+/** Lets the store's half-second debounce send its save. */
+const sendSaves = () => act(() => { vi.advanceTimersByTime(500) })
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -949,5 +982,142 @@ describe('Lubec active effects', () => {
     expect(effectsRegion().querySelectorAll('button')).toHaveLength(0)
     await flushSave()
     expect(mocks.setDoc).not.toHaveBeenCalled()
+  })
+})
+
+describe('Lubec Skills page', () => {
+  const draft = (sheet: Fields = {}, fields: Fields = {}) =>
+    withSheet(sheet, { creationMode: 'new', creationStatus: 'draft', ...fields })
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('shows all 27 Trained and 27 Expert skills as a tree, with the free skill and picks marked and their bonus', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+
+    openSkillsPage('Tommy Eves')
+
+    expect(treeColumn(0)).toHaveLength(27)
+    expect(new Set(treeColumn(0)).size).toBe(27)
+    expect(treeColumn(1)).toHaveLength(27)
+    expect(new Set(treeColumn(1)).size).toBe(27)
+    expect([...document.querySelectorAll('.lubec-skill-tree thead th')].map((th) => th.textContent)).toEqual(['Trained +10', 'Expert +15'])
+    expect(treeMarks()).toEqual([['Swimming', 'Pick +10'], ['Diving', 'Pick +15'], ['Boatwork', 'Free +10']])
+    expect(takenSkills()).toEqual([
+      ['Boatwork', 'Free', 'Trained', '+10'],
+      ['Swimming', 'Trained', '+10'],
+      ['Diving', 'Expert', '+15'],
+    ])
+    expect(screen.getByText('needs Swimming or Tides & Flats')).toBeTruthy()
+  })
+
+  it('offers no skill choices on a finalized character, even to its owner and the GM', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('gm', GM)
+
+    openSkillsPage('Tommy Eves')
+
+    expect(screen.queryByRole('combobox', { name: 'Free class skill' })).toBeNull()
+    expect(skillButtons()).toEqual([])
+  })
+
+  it('lets the owner choose the free class skill from the class\'s list and add or remove picks, storing names only', () => {
+    seed({ tommy: draft({ skills: { free: null, picked: [] } }) })
+    mountTab('player', 'player-1')
+    openSkillsPage('Tommy Eves')
+    expect(takenSkills()).toEqual([])
+    expect(screen.getByText('No skills yet.')).toBeTruthy()
+    expect([...freeSkillChoice().options].map((option) => option.text)).toEqual(['Not chosen', 'Boatwork', 'Jury-Rigging', 'Tides & Flats'])
+
+    fireEvent.change(freeSkillChoice(), { target: { value: 'Tides & Flats' } })
+    fireEvent.click(skillButton('Swimming'))
+    fireEvent.click(skillButton('Diving'))
+    fireEvent.click(skillButton('Swimming'))
+    fireEvent.click(skillButton('Foraging'))
+    sendSaves()
+
+    expect(storedSkills('tommy')).toEqual({ free: 'Tides & Flats', picked: ['Diving', 'Foraging'] })
+    expect(skillButton('Diving').getAttribute('aria-pressed')).toBe('true')
+    expect(skillButton('Swimming').getAttribute('aria-pressed')).toBe('false')
+    expect((skillButton('Tides & Flats') as HTMLButtonElement).disabled).toBe(true)
+    expect(takenSkills()).toEqual([
+      ['Tides & Flats', 'Free', 'Trained', '+10'],
+      ['Diving', 'Expert', '+15'],
+      ['Foraging', 'Expert', '+15'],
+    ])
+  })
+
+  it('lets the GM change the skills on a player\'s draft, and no other player', () => {
+    seed({ tommy: draft({}, { creationMode: 'established', creationStatus: 'established_draft' }) })
+    mountTab('gm', GM)
+    openSkillsPage('Tommy Eves')
+
+    fireEvent.click(skillButton('Diving'))
+    fireEvent.click(skillButton('Driving'))
+    sendSaves()
+
+    expect(storedSkills('tommy')).toEqual({ free: 'Boatwork', picked: ['Swimming', 'Driving'] })
+
+    reload('player', 'player-2')
+    openSkillsPage('Tommy Eves')
+
+    expect(screen.queryByRole('combobox', { name: 'Free class skill' })).toBeNull()
+    expect(skillButtons()).toEqual([])
+    expect(treeMarks()).toEqual([['Swimming', 'Pick +10'], ['Boatwork', 'Free +10'], ['Driving', 'Pick +15']])
+  })
+
+  it('takes the Nerd package as the free skill, 1 Trained and 2 Expert with one Expert off the chosen Trained skill, and keeps it through a reload', () => {
+    seed({ ada: draft({ class: { key: 'nerd', choices: { statPenalty: 'Charm' } }, skills: { free: null, picked: [] } }, { name: 'Ada Mitchell' }) })
+    mountTab('player', 'player-1')
+    openSkillsPage('Ada Mitchell')
+
+    fireEvent.change(freeSkillChoice(), { target: { value: 'Science' } })
+    fireEvent.click(skillButton('Art'))
+    fireEvent.click(skillButton('Science Fair Champ'))
+    fireEvent.click(skillButton('Forgery'))
+    sendSaves()
+
+    expect(storedSkills('ada')).toEqual({ free: 'Science', picked: ['Art', 'Science Fair Champ', 'Forgery'] })
+    const skillWarnings = lubecRuleWarnings(parseLubecCharacter('ada', database.ada).lubec)
+      .filter((warning) => ['free-skill', 'package', 'prerequisite'].includes(warning.code))
+    expect(skillWarnings).toEqual([])
+
+    reload('player', 'player-1')
+    openSkillsPage('Ada Mitchell')
+
+    expect(freeSkillChoice().value).toBe('Science')
+    expect(takenSkills()).toEqual([
+      ['Science', 'Free', 'Trained', '+10'],
+      ['Art', 'Trained', '+10'],
+      ['Science Fair Champ', 'Expert', '+15'],
+      ['Forgery', 'Expert', '+15'],
+    ])
+  })
+
+  it('shows a stored skill name the skill data does not know, counting for nothing, and keeps it through a save', () => {
+    seed({ tommy: draft({ skills: { free: 'Knot Tying', picked: ['Swimming', 'Whittling'] } }) })
+    mountTab('player', 'player-1')
+    openSkillsPage('Tommy Eves')
+
+    expect(takenSkills()).toEqual([
+      ['Knot Tying', 'Free', 'Not a Lubec skill', 'counts for nothing'],
+      ['Swimming', 'Trained', '+10'],
+      ['Whittling', 'Not a Lubec skill', 'counts for nothing'],
+    ])
+    expect(freeSkillChoice().value).toBe('Knot Tying')
+
+    fireEvent.click(skillButton('Diving'))
+    sendSaves()
+
+    expect(storedSkills('tommy')).toEqual({ free: 'Knot Tying', picked: ['Swimming', 'Whittling', 'Diving'] })
+    reload('player', 'player-1')
+    openSkillsPage('Tommy Eves')
+    expect(takenSkills().map(([name]) => name)).toEqual(['Knot Tying', 'Swimming', 'Whittling', 'Diving'])
   })
 })

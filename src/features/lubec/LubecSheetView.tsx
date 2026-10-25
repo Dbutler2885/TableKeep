@@ -2,10 +2,12 @@ import { Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { lubecClass } from '../ruleSets/lubec/classes'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
+import type { LubecSkills } from '../ruleSets/lubec/skillPicks'
 import { LubecCorePage } from './LubecCorePage'
 import type { LubecCountersChange } from './LubecCountersPanel'
 import { LubecMissing } from './LubecMissing'
 import { LubecNameBandEditor, type LubecSheetEditing } from './LubecNameBandEditor'
+import { LubecSkillsPage } from './LubecSkillsPage'
 import { lubecCharacterName } from './lubecNames'
 import lubecPines from './lubecPines.svg'
 
@@ -92,27 +94,18 @@ function LubecMasthead({ character, page, onPage, onEdit }: MastheadProps) {
   )
 }
 
-// The Skills page is an empty panel until the skill tree is built.
-function LubecSkillsPage() {
-  return (
-    <div className="lubec-page lubec-skills">
-      <section className="lubec-panel pine" aria-labelledby="lubec-panel-skills">
-        <div className="lubec-section-head"><h3 id="lubec-panel-skills">Skills</h3></div>
-      </section>
-    </div>
-  )
-}
-
 type SheetViewProps = {
   character: LubecCharacterRecord
   /** The viewer's edits, or null when they may only look. */
   editing: LubecSheetEditing | null
   /** Absent for a viewer who may not change the character. */
   onCountersChange: LubecCountersChange | null
+  /** Absent unless the viewer may change the character's skills, which is only in creation. */
+  onSkillsChange: ((skills: LubecSkills) => void) | null
 }
 
 /** One Lubec character's sheet, in the v4 frame, on its Core or Skills page. */
-export function LubecSheetView({ character, editing, onCountersChange }: SheetViewProps) {
+export function LubecSheetView({ character, editing, onCountersChange, onSkillsChange }: SheetViewProps) {
   const [page, setPage] = useState<LubecPage>('core')
   const [bandOpen, setBandOpen] = useState(false)
   return (
@@ -125,7 +118,7 @@ export function LubecSheetView({ character, editing, onCountersChange }: SheetVi
           onCountersChange={onCountersChange}
           onEffectsChange={editing ? (effects) => editing.update({ lubec: { ...character.lubec, effects } }) : null}
         />
-      ) : <LubecSkillsPage />}
+      ) : <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} />}
     </article>
   )
 }
