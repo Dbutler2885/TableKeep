@@ -1,4 +1,5 @@
 import { LUBEC_STARTING_COUNTERS, type LubecCharacterSheet } from './characterRecord'
+import { emptyLubecGear } from './gear/gearRecord'
 import type { LubecSheet } from './sheet'
 
 // Tommy Eves, a Working Kid saved by the standalone sheet
@@ -13,7 +14,7 @@ export const tommyEves = (): LubecSheet => ({
 /** Tommy's base values under another class and skills. */
 export const lubecSheet = (overrides: Partial<LubecSheet>): LubecSheet => ({ ...tommyEves(), ...overrides })
 
-/** Tommy as the Core page holds him: the rules' starting counters, no effects and no last roll. */
+/** Tommy as the Core page holds him: the rules' starting counters, no effects, no last roll and no gear. */
 export const lubecCharacterSheet = (overrides: Partial<LubecCharacterSheet> = {}): LubecCharacterSheet => ({
   ...tommyEves(),
   door: null,
@@ -22,5 +23,6 @@ export const lubecCharacterSheet = (overrides: Partial<LubecCharacterSheet> = {}
   effects: [],
   lastRoll: null,
   importNotes: [],
+  gear: emptyLubecGear(),
   ...overrides,
 })

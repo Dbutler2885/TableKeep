@@ -5,6 +5,7 @@ import {
   type LubecCharacterSheet,
   type LubecDoor,
 } from './characterRecord'
+import { emptyLubecGear } from './gear/gearRecord'
 import { LUBEC_VALUE_NAMES, type LubecClassChoices, type LubecSheet, type LubecValueName } from './sheet'
 
 // Direct entry: a new draft whose owner types the base values and chooses the
@@ -49,6 +50,7 @@ const makeLubecDraft = (
     effects: [],
     lastRoll: null,
     importNotes: [],
+    gear: emptyLubecGear(),
   },
 })
 

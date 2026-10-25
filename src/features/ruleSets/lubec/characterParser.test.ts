@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { ruleSets } from '../registry'
 import { lubecCharacterParser, lubecCharacterStore, parseLubecCharacter, serializeLubecCharacter } from './characterParser'
 import { lubecDefaultTokenIcon } from './characterRecord'
+import { emptyLubecGear } from './gear/gearRecord'
 import storedCharacter from './fixtures/stored-character.json'
 
 const parse = (data: Record<string, unknown>) => parseLubecCharacter('pc-1', { system: 'lubec', ...data })
@@ -39,6 +40,7 @@ describe('Lubec character parser', () => {
         effects: [],
         lastRoll: null,
         importNotes: [],
+        gear: { items: [], carriers: [], overrides: [], supplies: [] },
       },
     })
   })
@@ -95,6 +97,22 @@ describe('Lubec character parser', () => {
     })
     expect(record.lubec.base.Speed).toBeNull()
     expect(record.lubec.effects).toEqual(storedCharacter.data.lubec.effects)
+    expect(record.lubec.gear).toEqual(emptyLubecGear())
+  })
+
+  it('writes gear back as it read it, and reads the save as the same record', () => {
+    const gear = {
+      items: [{ id: 'item-1', kind: 'thing', name: 'Wool watch cap', note: 'Navy blue. Smells like the boat.', size: 1, weight: 'normal', qty: 1, carrier: 'backpack', pocket: 0, unknownItemField: 'kept' }],
+      carriers: [{ id: 'chest', name: 'Bedroom chest', type: 'chest', pockets: [{ name: 'Chest', slots: 12, max: 8 }] }],
+      overrides: ['heavy:item-1'],
+      supplies: [{ id: 'dcell', name: 'D batteries', loose: [1, 4] }],
+      backpackArt: 'teal',
+      unknownGearField: { kept: true },
+    }
+    const record = parse({ lubec: { gear } })
+    const serialized = serializeLubecCharacter(record)
+    expect(serialized.lubec).toMatchObject({ gear })
+    expect(parse(serialized)).toEqual(record)
   })
 
   it('drops a stored portrait URL, and saves no media URL, time or version field', () => {

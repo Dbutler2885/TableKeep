@@ -14,6 +14,7 @@ import {
 } from './characterRecord'
 import { lubecCharacterSummary } from './characterSummary'
 import { parseLubecEffects } from './effects'
+import { parseLubecGear } from './gear/gearRecord'
 import { LUBEC_VALUE_NAMES, type LubecSheet } from './sheet'
 
 // Reads a stored Lubec character into the sheet's record and writes it back.
@@ -92,6 +93,7 @@ export function parseLubecSheet(raw: unknown): LubecCharacterSheet {
     effects: parseLubecEffects(stored.effects),
     lastRoll: entryOrNone(stored.lastRoll),
     importNotes: listOf(stored.importNotes).filter(isText),
+    gear: parseLubecGear(stored.gear),
   }
 }
 

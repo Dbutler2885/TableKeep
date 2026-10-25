@@ -1,6 +1,7 @@
 import type { TokenIconConfig } from '../../../types/app'
 import type { StoredCharacter } from '../storedCharacter'
 import type { LubecEffect } from './effects'
+import type { LubecGear } from './gear/gearRecord'
 import type { LubecSheet } from './sheet'
 
 // A Lubec character as the sheet reads it: the identity every rule set shares
@@ -24,6 +25,8 @@ export type LubecCharacterSheet = LubecSheet & {
   lastRoll: LubecStoredEntry | null
   /** The notices only an import can know, kept for the Finalize dialog. */
   importNotes: readonly string[]
+  /** What the character carries: items, personal carriers and the choices about them. */
+  gear: LubecGear
 }
 
 export type LubecCharacterRecord = {

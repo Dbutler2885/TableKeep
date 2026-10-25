@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import tommyEvesFile from './fixtures/tommy-eves.lubec-character.json'
+import { emptyLubecGear } from './gear/gearRecord'
 import {
   LUBEC_UNREADABLE_PORTRAIT_NOTE,
   lubecPortraitFile,
@@ -151,5 +152,6 @@ describe('an imported character', () => {
         importNotes: ['This file is version 2; Table Keep read the fields it knows.'],
       },
     })
+    expect(character.lubec.gear).toEqual(emptyLubecGear())
   })
 })
