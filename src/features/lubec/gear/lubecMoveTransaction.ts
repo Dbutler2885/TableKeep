@@ -80,11 +80,16 @@ function recordRef(db: Firestore, scope: CampaignScope, ref: LubecRecordRef, ite
   }
 }
 
+/** A sheet's gear, refusing a sheet that is not at the current version, as every character writer does. */
+function sheetGear(data: DocumentData) {
+  assertCharacterAtCurrentVersion(data as StoredCharacter, lubecCharacterVersioning)
+  return parseLubecGear(data.lubec?.gear)
+}
+
 function recordFrom(ref: LubecRecordRef, data: DocumentData | null, id: string): LubecMoveRecord {
-  if (ref.kind === 'gm-items') return { kind: 'gm-items', item: data && parseLubecGmItem(data, id) }
-  if (ref.kind === 'shared' || ref.kind === 'hidden') return { kind: ref.kind, carrier: data && parseLubecCarrierRecord(data, id) }
-  if (data) assertCharacterAtCurrentVersion(data as StoredCharacter, lubecCharacterVersioning)
-  return { kind: ref.kind, gear: data && parseLubecGear(data.lubec?.gear) }
+  if (ref.kind === 'gm-items') return { kind: ref.kind, item: data && parseLubecGmItem(data, id) }
+  if (ref.kind === 'character' || ref.kind === 'npc') return { kind: ref.kind, gear: data && sheetGear(data) }
+  return { kind: ref.kind, carrier: data && parseLubecCarrierRecord(data, id) }
 }
 
 // A drop is never read first: a member may not read a dropped item, and the document it makes is new.

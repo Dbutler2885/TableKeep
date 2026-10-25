@@ -119,18 +119,19 @@ function takeOutOfGmItems(gmItem: LubecGmItem | null, move: LubecMove): Taken | 
 const takeOut = (record: LubecMoveRecord, move: LubecMove): Taken | null =>
   (record.kind === 'gm-items' ? takeOutOfGmItems(record.item, move) : takeOutOfGear(record, move))
 
-// B's `moveItem`, less its prompt, log and toast: the thing takes the place `place` found, keeps the boxes it was
-// dropped on only in the main pocket, and keeps a Strength roll only while it is on you.
+// Rule W2: the boxes a dragged thing was dropped on are kept only in the main pocket.
+const keptCells = (cells: number[] | undefined, at: LubecItem) =>
+  (cells && at.carrier === 'backpack' && at.pocket === 0 ? { cells } : {})
+
+// Rule E5: a Strength roll is kept only while the thing is on you.
+const keptCheck = (check: LubecItem['check'], at: LubecItem) => (check && onYou(at) ? { check } : {})
+
+// B's `moveItem`, less its prompt, log and toast: the thing takes the place `place` found.
 function movedTo(gear: LubecGear, item: LubecItem, move: LubecMove & { dest: string }): LubecArrival {
   const pl = place(gear, move.dest, item, item.id)
   if (!pl.ok) return pl
   const at = lubecPlacedAt(fieldsWithout(item, ['carrier', 'pocket', 'slot', 'cells', 'check']) as LubecItem, pl)
-  const check = move.check ?? item.check
-  const moved: LubecItem = {
-    ...at,
-    ...(move.cells && pl.carrier === 'backpack' && pl.pocket === 0 && { cells: move.cells }),
-    ...(check && onYou(at) && { check }),
-  }
+  const moved: LubecItem = { ...at, ...keptCells(move.cells, at), ...keptCheck(move.check ?? item.check, at) }
   return { ok: true, item: moved, gear: { ...gear, items: [...gear.items, moved] } }
 }
 
