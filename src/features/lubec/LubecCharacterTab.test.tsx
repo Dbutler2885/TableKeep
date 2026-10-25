@@ -1956,6 +1956,28 @@ describe('Lubec roller', () => {
     expect(circleOf('Speed').disabled).toBe(false)
   })
 
+  it('adds a failed check\'s Stress only as its number lands, with the Stress buttons shut while it spins', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    seedRolls(30)
+    roll('Strength')
+
+    // Each preview's timer is set once the last one has shown, so the spin is let run a step at a time.
+    for (let step = 0; step < 12; step += 1) {
+      expect(circleOf('Strength').className).toBe('roll-circle rolling')
+      expect(shownCounters().stress).toBe('2')
+      expect((screen.getByRole('button', { name: 'Raise Stress' }) as HTMLButtonElement).disabled).toBe(true)
+      act(() => vi.advanceTimersByTime(500))
+    }
+
+    expect(valuesOf('Strength')).toEqual(['30/29', '24 +5 class'])
+    expect(shownCounters().stress).toBe('3')
+    expect((screen.getByRole('button', { name: 'Raise Stress' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
   it('marks a double that succeeds a critical success', () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
@@ -2179,6 +2201,55 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect(panicCircle().textContent).toBe('5')
     expect(shownStatus()).toBe('Panic Check cleared. Score unchanged.')
     expect(shownPanicResult()[0]).toBe('04 OVERWHEMED')
+  })
+
+  it('shows a failed Panic Check\'s row only as its number lands, holding the last row back while it spins', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
+    seed({ tommy: stressed(5) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    seedFace(20, 4)
+    fireEvent.click(panicButton())
+    for (let step = 0; step < 12; step += 1) act(() => vi.advanceTimersByTime(500))
+    expect(shownPanicResult()[0]).toBe('04 OVERWHEMED')
+    fireEvent.click(panicCircle())
+
+    seedFace(20, 5)
+    fireEvent.click(panicButton())
+
+    // Each preview's timer is set once the last one has shown, so the spin is let run a step at a time.
+    for (let step = 0; step < 12; step += 1) {
+      expect(panicCircle().className).toBe('roll-circle rolling')
+      expect(panicResult()).toBeNull()
+      act(() => vi.advanceTimersByTime(500))
+    }
+
+    expect(panicCircle().textContent).toBe('5/5')
+    expect(panicCircle().className).toBe('roll-circle has-value check-failure')
+    expect(shownPanicResult()[0]).toBe('05 COWARD')
+  })
+
+  it('holds Stress, and the Panic circle\'s Stress, at their values before a Recovery Save until its number lands', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
+    seed({ tommy: stressed(9) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    seedRolls(23)
+    fireEvent.click(recoveryButton())
+
+    for (let step = 0; step < 12; step += 1) {
+      expect(circleOf('Recovery Save').className).toBe('roll-circle rolling')
+      expect(shownCounters().stress).toBe('9')
+      expect(panicButton().textContent).toBe('9')
+      expect((screen.getByRole('button', { name: 'Lower Stress' }) as HTMLButtonElement).disabled).toBe(true)
+      act(() => vi.advanceTimersByTime(500))
+    }
+
+    expect(recoveryButton().textContent).toBe('23/30')
+    expect(shownCounters().stress).toBe('6')
+    expect(panicButton().textContent).toBe('6')
+    expect((screen.getByRole('button', { name: 'Lower Stress' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('keeps the higher d20 under Advantage', () => {

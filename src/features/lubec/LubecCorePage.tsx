@@ -2,11 +2,13 @@ import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
 import type { LubecSheetEdit } from '../ruleSets/lubec/directEntry'
 import { lubecActiveModifiers, type LubecEffect } from '../ruleSets/lubec/effects'
 import { LubecAbilities } from './LubecAbilities'
+import { lubecShownSheet } from './lubecCircles'
 import { LubecClassSection } from './LubecClassSection'
 import { LubecCountersPanel, type LubecCountersChange } from './LubecCountersPanel'
 import { LubecEffectsPanel } from './LubecEffectsPanel'
 import { LubecFightPanel } from './LubecFightPanel'
 import { lubecRollUpActive } from './lubecRollUpCircles'
+import { useLubecCircles } from './useLubecCircles'
 import type { LubecRollUpEdits } from './useLubecRollUp'
 import { useLubecRoller, type LubecRolled } from './useLubecRoller'
 
@@ -50,6 +52,7 @@ export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraf
   const modifiers = lubecActiveModifiers(sheet.effects)
   const roller = useLubecRoller(sheet, onRolled)
   const rollUp = rollUpOf(sheet, guided, onDraftEdit)
+  const circles = useLubecCircles(sheet, rollUp ? null : roller)
   const classSection = <LubecClassSection sheet={sheet} modifiers={modifiers} onDraftEdit={onDraftEdit} guided={guided !== null} />
   return (
     <div className="lubec-page lubec-core">
@@ -59,11 +62,12 @@ export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraf
         onDraftEdit={guided ? null : onDraftEdit}
         roller={rollUp ? null : roller}
         rollUp={rollUp}
+        circles={circles}
         onShowTree={onShowTree}
       />
       {onDraftEdit ? classSection : null}
       <div className="lubec-tallies">
-        <LubecCountersPanel sheet={sheet} onChange={onCountersChange} />
+        <LubecCountersPanel sheet={lubecShownSheet(sheet, circles.spin)} onChange={onCountersChange} held={circles.spin !== null} />
         <LubecEffectsPanel effects={sheet.effects} onChange={onEffectsChange} />
       </div>
       {inPlay ? <LubecFightPanel sheet={sheet} modifiers={modifiers} /> : null}

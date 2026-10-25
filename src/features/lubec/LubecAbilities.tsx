@@ -5,13 +5,13 @@ import { withLubecBaseValue, type LubecSheetEdit } from '../ruleSets/lubec/direc
 import { LUBEC_SAVES, LUBEC_STATS, type LubecValueName } from '../ruleSets/lubec/sheet'
 import { lubecSkillBonus } from '../ruleSets/lubec/skills'
 import { LubecBaseInput } from './LubecBaseInput'
-import { lubecBaseNote, lubecCircleFace, lubecNoteParts, lubecRolledSkill, type LubecCircleFace } from './lubecCircles'
+import { lubecBaseNote, lubecCircleFace, lubecNoteParts, lubecRolledSkill, lubecShownSheet, type LubecCircleFace } from './lubecCircles'
 import { LubecDecisionTray, LubecRollUpAbility } from './LubecDecisionTray'
 import { LubecMissing } from './LubecMissing'
 import { LubecPanicSection } from './LubecPanicRolls'
 import { LubecRollCircle, type LubecCircleLabels } from './LubecRollCircle'
 import { LubecSkillStrip } from './LubecSkillStrip'
-import { useLubecCircles, type LubecCircles } from './useLubecCircles'
+import type { LubecCircles } from './useLubecCircles'
 import { useLubecRollUp, type LubecRollUpEdits, type LubecRollUpView } from './useLubecRollUp'
 import type { LubecRoller } from './useLubecRoller'
 
@@ -119,6 +119,8 @@ function LubecAbilitySection({ title, formula, names, tray = null, ...values }: 
 type AbilitiesProps = ValuesProps & {
   /** A guided draft's roll-up, while its circles still roll the dice and settle the scores. */
   rollUp: LubecRollUpEdits | null
+  /** The roll circles' shared state, which the Core page also shows its counters by. */
+  circles: LubecCircles
   onShowTree: () => void
 }
 
@@ -133,8 +135,7 @@ type AbilitiesProps = ValuesProps & {
  * A guided draft's circles roll its dice instead and carry the lowest-Stat
  * decision, and a draft being typed into takes each base in its circle's place.
  */
-export function LubecAbilities({ onShowTree, rollUp: rollUpEdits, ...values }: AbilitiesProps) {
-  const circles = useLubecCircles(values.sheet, values.roller)
+export function LubecAbilities({ onShowTree, rollUp: rollUpEdits, circles, ...values }: AbilitiesProps) {
   const rollUp = useLubecRollUp(values.sheet, rollUpEdits)
   const tray = rollUp ? <LubecDecisionTray view={rollUp} /> : null
   return (
@@ -142,7 +143,7 @@ export function LubecAbilities({ onShowTree, rollUp: rollUpEdits, ...values }: A
       <LubecAbilitySection title="Stats" formula="Array + D10 each" names={LUBEC_STATS} circles={circles} rollUp={rollUp} tray={tray} {...values} />
       <LubecAbilitySection title="Saves" formula="2D10 + 10" names={LUBEC_SAVES} circles={circles} rollUp={rollUp} {...values} />
       {values.roller ? <LubecSkillStrip sheet={values.sheet} roller={values.roller} onShowTree={onShowTree} /> : null}
-      {rollUp ? null : <LubecPanicSection sheet={values.sheet} roller={values.roller} circles={circles} />}
+      {rollUp ? null : <LubecPanicSection sheet={lubecShownSheet(values.sheet, circles.spin)} roller={values.roller} circles={circles} />}
       <p className="status" role="status" aria-live="polite">{rollUp ? rollUp.status : circles.status}</p>
     </div>
   )

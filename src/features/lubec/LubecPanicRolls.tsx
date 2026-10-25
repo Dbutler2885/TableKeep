@@ -78,7 +78,8 @@ function LubecPanicResult({ sheet, roller }: Omit<RollsProps, 'circles'>) {
 /**
  * The Panic Check and the Recovery Save, set a little apart below the Saves as
  * a section of their own: a roll circle each, as the Stats and Saves have, and a
- * failed Panic Check's row under them.
+ * failed Panic Check's row under them, which shows only once no roll is spinning,
+ * so a new row lands with its number.
  */
 export function LubecPanicSection({ sheet, roller, circles }: RollsProps) {
   return (
@@ -92,7 +93,7 @@ export function LubecPanicSection({ sheet, roller, circles }: RollsProps) {
           <LubecPanicAbility sheet={sheet} roller={roller} circles={circles} />
           <LubecRecoveryAbility sheet={sheet} roller={roller} circles={circles} />
         </div>
-        <LubecPanicResult sheet={sheet} roller={roller} />
+        {circles.spin ? null : <LubecPanicResult sheet={sheet} roller={roller} />}
       </div>
     </section>
   )
