@@ -1160,9 +1160,12 @@ async function expectLubecSkillChips(page) {
   if (JSON.stringify(chips) !== JSON.stringify(LUBEC_SKILL_CHIPS)) throw new Error(`The skill strip offers ${JSON.stringify(chips)}.`)
 }
 
+// The three come back in page order: title, Trauma Response, Melee Strength Mod.
+const LUBEC_CLASS_RECORD_PARTS = ['.section-bar h3', '.trauma-response strong', '.record-value strong']
+  .map((part) => `${LUBEC_CORE_PAGE} .class-section ${part}`).join(', ')
+
 async function expectLubecClassRecord(page) {
-  const record = await page.$eval(`${LUBEC_CORE_PAGE} .class-section`, (section) =>
-    ['.section-bar h3', '.trauma-response strong', '.record-value strong'].map((selector) => section.querySelector(selector)?.textContent))
+  const record = await page.$$eval(LUBEC_CLASS_RECORD_PARTS, (elements) => elements.map((element) => element.textContent))
   if (JSON.stringify(record) !== JSON.stringify(LUBEC_CLASS_RECORD)) throw new Error(`The class record shows ${JSON.stringify(record)}.`)
 }
 
