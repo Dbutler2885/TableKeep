@@ -16,6 +16,7 @@ import {
   LUBEC_DONE_MS,
   LUBEC_MERGE_MS,
   lubecNextSpin,
+  lubecShownAdvantage,
   lubecShownSheet,
   lubecSpinDelay,
   lubecSpinWait,
@@ -37,7 +38,7 @@ const idle = { armed: null, result: null, spin: null }
 
 // A spin on one circle, with one die unless a ghost is given.
 const spinning = (name: LubecCircleName, fields: Partial<LubecSpin> = {}): LubecSpin => ({
-  name, target: 55, sides: 100, preview: 7, step: 0, ghost: null, phase: 'spin', counters: tommy.counters, ...fields,
+  name, target: 55, sides: 100, preview: 7, step: 0, advantage: 'normal', ghost: null, phase: 'spin', counters: tommy.counters, ...fields,
 })
 
 const panicRoll: LubecPanicRoll = {
@@ -173,5 +174,13 @@ describe('Lubec roll circles', () => {
     expect(lubecCircleFace(request('Handle'), { ...idle, spin: settled }))
       .toEqual({ kind: 'rolling', preview: 7, target: 65, ghost: 9, phase: 'done' })
     expect(lubecCirclesStatus(settled, null, roll)).toBe('Rolling Handle check... done')
+  })
+
+  it('shows the mode a roll spins with until it lands, then the mode set for the next roll', () => {
+    const ghosted = spinning('Handle', { advantage: 'disadvantage', ghost: 9, phase: 'merge' })
+    expect(lubecShownAdvantage(ghosted, 'normal')).toBe('disadvantage')
+    expect(lubecShownAdvantage(spinning('Handle'), 'advantage')).toBe('normal')
+    expect(lubecShownAdvantage(null, 'normal')).toBe('normal')
+    expect(lubecShownAdvantage(null, 'advantage')).toBe('advantage')
   })
 })

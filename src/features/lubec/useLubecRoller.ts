@@ -2,7 +2,7 @@ import { createContext, useContext, useState } from 'react'
 import { rollLubecCheck, type LubecAdvantage } from '../ruleSets/lubec/checkRoll'
 import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
 import { cryptoLubecDice, type LubecDice } from '../ruleSets/lubec/dice'
-import { withLubecLastRoll } from '../ruleSets/lubec/lastRoll'
+import { withLubecLastRoll, type LubecLastRoll } from '../ruleSets/lubec/lastRoll'
 import { rollLubecPanic, withLubecPanicEffect } from '../ruleSets/lubec/panicRoll'
 import { rollLubecRecovery } from '../ruleSets/lubec/recoveryRoll'
 import type { LubecValueName } from '../ruleSets/lubec/sheet'
@@ -15,8 +15,10 @@ export const LubecDiceContext = createContext<LubecDice>(cryptoLubecDice)
 export type LubecRolled = (sheet: LubecCharacterSheet) => void
 
 export type LubecRoller = {
+  /** The mode set for the next roll only; every roll made with it puts it back to Normal. */
   advantage: LubecAdvantage
-  setAdvantage: (mode: LubecAdvantage) => void
+  /** Sets the mode for the next roll, or, when it is already set, puts it back to Normal. */
+  toggleAdvantage: (mode: LubecAdvantage) => void
   /** The skill armed for the next Stat Check or Save only. */
   armed: string | null
   toggleArmed: (name: string) => void
@@ -36,22 +38,23 @@ export function useLubecRoller(sheet: LubecCharacterSheet, onRolled: LubecRolled
   const record = (next: LubecCharacterSheet | null) => {
     if (next) onRolled(next)
   }
+  // A roll made with the mode uses it up; one that was never made leaves it set.
+  const recordRoll = (roll: LubecLastRoll | null) => {
+    if (roll) setAdvantage('normal')
+    record(roll && withLubecLastRoll(sheet, roll))
+  }
   return {
     advantage,
-    setAdvantage,
+    toggleAdvantage: (mode) => setAdvantage((current) => (current === mode ? 'normal' : mode)),
     armed,
     toggleArmed: (name) => setArmed((current) => (current === name ? null : name)),
     roll: (name) => {
       const roll = rollLubecCheck(sheet, { name, advantage, skill: armed }, dice)
-      if (!roll) return
-      setArmed(null)
-      onRolled(withLubecLastRoll(sheet, roll))
+      if (roll) setArmed(null)
+      recordRoll(roll)
     },
-    panic: () => onRolled(withLubecLastRoll(sheet, rollLubecPanic(sheet, advantage, dice))),
-    recover: () => {
-      const roll = rollLubecRecovery(sheet, advantage, dice)
-      record(roll && withLubecLastRoll(sheet, roll))
-    },
+    panic: () => recordRoll(rollLubecPanic(sheet, advantage, dice)),
+    recover: () => recordRoll(rollLubecRecovery(sheet, advantage, dice)),
     addPanicEffect: () => record(withLubecPanicEffect(sheet, dice, crypto.randomUUID())),
   }
 }
