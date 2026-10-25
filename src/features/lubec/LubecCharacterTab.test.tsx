@@ -5,12 +5,14 @@
  * `firebase/firestore` and the media module stubbed. Stored documents reach it
  * through the stubbed snapshot listener, and every test asserts on what the
  * screen shows or on what the store writes. A reload is a remount fed the
- * documents as last written. Later sheet tickets add their cases here.
+ * documents as last written. Rolls draw from seeded dice provided around the
+ * tab. Later sheet tickets add their cases here.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../types/app'
+import type { LubecDice } from '../ruleSets/lubec/dice'
 
 type Fields = Record<string, unknown>
 type Listener = { next: (snap: unknown) => void; fail: (error: unknown) => void }
@@ -51,6 +53,7 @@ vi.mock('../common/imageNormalization', async (importOriginal) => ({
 const { ruleSetSheets } = await import('../ruleSets/sheetComponents')
 const { parseLubecCharacter } = await import('../ruleSets/lubec/characterParser')
 const { lubecRuleWarnings } = await import('../ruleSets/lubec/ruleChecks')
+const { LubecDiceContext } = await import('./useLubecRoller')
 
 const CHARACTERS_PATH = 'groups/group-1/campaigns/campaign-1/characters'
 const GM = 'gm-1'
@@ -100,6 +103,19 @@ const tommyEves = (fields: Fields = {}): Fields => ({
 const withSheet = (sheet: Fields, fields: Fields = {}) =>
   tommyEves({ ...fields, lubec: { ...(tommyEves().lubec as Fields), ...sheet } })
 
+// The d100 results the next rolls land on, in order; a roll past the last one fails the test.
+let seededRolls: number[] = []
+
+const seededDice: LubecDice = () => {
+  const next = seededRolls.shift()
+  if (next === undefined) throw new Error('No seeded roll left')
+  return (next - 0.5) / 100
+}
+
+function seedRolls(...rolls: number[]) {
+  seededRolls = [...seededRolls, ...rolls]
+}
+
 function seed(documents: Record<string, Fields>) {
   database = { ...database, ...documents }
 }
@@ -113,7 +129,9 @@ function emitDatabase() {
 function renderTab(role: Role, uid: string) {
   const LubecSheet = ruleSetSheets.lubec
   return render(
-    <LubecSheet campaign={campaign} role={role} user={{ uid } as User} username="viewer1" setError={vi.fn()} characterTabProps={null} />,
+    <LubecDiceContext.Provider value={seededDice}>
+      <LubecSheet campaign={campaign} role={role} user={{ uid } as User} username="viewer1" setError={vi.fn()} characterTabProps={null} />
+    </LubecDiceContext.Provider>,
   )
 }
 
@@ -185,6 +203,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.listeners = {}
   database = {}
+  seededRolls = []
   mocks.setDoc.mockImplementation(async (...args: unknown[]) => {
     writeToDatabase(...args)
     return undefined
@@ -1404,5 +1423,262 @@ describe('New character and Direct entry', () => {
     backToRoster()
     openSheet('Tommy Eves')
     expect(screen.queryByRole('button', { name: 'Delete draft' })).toBeNull()
+  })
+})
+
+describe('Lubec roller', () => {
+  // Labels and classes, rather than role queries, keep these cases quick in jsdom.
+  const rollButton = (name: string) => valueRow(name).querySelector('button.lubec-roll-value') as HTMLButtonElement
+
+  const roll = (name: string) => fireEvent.click(rollButton(name))
+
+  const rollRegion = () => screen.getByLabelText('Roll', { selector: 'section' })
+
+  const rollerButton = (text: string) => within(rollRegion()).getByText(text, { selector: 'button' })
+
+  const skillChip = (name: string) => within(screen.getByLabelText('Arm a skill')).getByText(name, { exact: false, selector: 'button' })
+
+  /** The last roll as the Core page shows it: what was rolled, the dice and the outcome. */
+  const shownLastRoll = () => [...screen.getByLabelText('Last roll').children].map((part) => part.textContent)
+
+  const writtenLastRoll = (id = 'tommy') => parseLubecCharacter(id, database[id]).lubec.lastRoll
+
+  async function flushSave() {
+    act(() => vi.advanceTimersByTime(500))
+    await flushMicrotasks()
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  it('succeeds at or under the current value, and a failure adds 1 Stress that the Stress buttons take back', async () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect(shownLastRoll()).toEqual(['No roll yet.'])
+    expect(rollButton('Strength').getAttribute('aria-label')).toBe('Roll Strength at or under 29')
+
+    seedRolls(29)
+    roll('Strength')
+    expect(shownLastRoll()).toEqual(['Strength check', 'Rolled 29 vs 29', 'Success'])
+    expect(shownCounters().stress).toBe('2')
+
+    seedRolls(30)
+    roll('Strength')
+    expect(shownLastRoll()).toEqual(['Strength check', 'Rolled 30 vs 29', 'Failure, +1 Stress'])
+    expect(shownCounters().stress).toBe('3')
+    await flushSave()
+    expect(writtenLastRoll()).toEqual({
+      kind: 'stat-check', against: 'Strength', target: 29, dice: [30], result: 30,
+      advantage: 'normal', skill: null, outcome: 'failure', stressAdded: 1,
+    })
+    expect(parseLubecCharacter('tommy', database.tommy).lubec.counters.stress).toBe(3)
+
+    press('Lower Stress')
+    await flushSave()
+    expect(shownCounters().stress).toBe('2')
+    expect(parseLubecCharacter('tommy', database.tommy).lubec.counters.stress).toBe(2)
+    expect(writtenLastRoll()).toMatchObject({ stressAdded: 1 })
+  })
+
+  it('adds 1 Stress for a failed Save', async () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    seedRolls(35)
+    roll('Fear')
+
+    expect(shownLastRoll()).toEqual(['Fear save', 'Rolled 35 vs 34', 'Failure, +1 Stress'])
+    expect(shownCounters().stress).toBe('3')
+    await flushSave()
+    expect(writtenLastRoll()).toMatchObject({ kind: 'save', against: 'Fear', stressAdded: 1 })
+  })
+
+  it('keeps the lower roll under Advantage and the higher under Disadvantage', async () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect(rollerButton('Normal').getAttribute('aria-pressed')).toBe('true')
+
+    fireEvent.click(rollerButton('Advantage'))
+    seedRolls(71, 23)
+    roll('Speed')
+    expect(shownLastRoll()).toEqual(['Speed check', 'Advantage: 71 and 23, kept 23 vs 56', 'Success'])
+    expect(rollerButton('Advantage').getAttribute('aria-pressed')).toBe('true')
+
+    fireEvent.click(rollerButton('Disadvantage'))
+    seedRolls(23, 71)
+    roll('Speed')
+    expect(shownLastRoll()).toEqual(['Speed check', 'Disadvantage: 23 and 71, kept 71 vs 56', 'Failure, +1 Stress'])
+    await flushSave()
+    expect(writtenLastRoll()).toMatchObject({ dice: [23, 71], result: 71, advantage: 'disadvantage', outcome: 'failure' })
+  })
+
+  it('applies an armed skill\'s bonus to the next roll only, then disarms it', async () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect([...screen.getByLabelText('Arm a skill').children].map((chip) => chip.textContent))
+      .toEqual(['Boatwork +10', 'Swimming +10', 'Diving +15'])
+
+    fireEvent.click(skillChip('Diving'))
+    expect(skillChip('Diving').getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText('+15 Diving applies to your next roll.')).toBeTruthy()
+    expect(rollButton('Intellect').getAttribute('aria-label')).toBe('Roll Intellect at or under 58')
+    seedRolls(50)
+    roll('Intellect')
+
+    expect(shownLastRoll()).toEqual(['Intellect check with Diving', 'Rolled 50 vs 58', 'Success'])
+    expect(skillChip('Diving').getAttribute('aria-pressed')).toBe('false')
+    expect(rollButton('Intellect').getAttribute('aria-label')).toBe('Roll Intellect at or under 43')
+    await flushSave()
+    expect(writtenLastRoll()).toMatchObject({ target: 58, skill: 'Diving', outcome: 'success', stressAdded: 0 })
+
+    seedRolls(50)
+    roll('Intellect')
+    expect(shownLastRoll()).toEqual(['Intellect check', 'Rolled 50 vs 43', 'Failure, +1 Stress'])
+  })
+
+  it('disarms a skill tapped a second time', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    fireEvent.click(skillChip('Boatwork'))
+    fireEvent.click(skillChip('Boatwork'))
+
+    expect(skillChip('Boatwork').getAttribute('aria-pressed')).toBe('false')
+    expect(rollButton('Handle').getAttribute('aria-label')).toBe('Roll Handle at or under 55')
+  })
+
+  it('cannot arm Scrapping, Boxing, Firearms or Slingshot / Archery', async () => {
+    const fighter = { free: 'Scrapping', picked: ['Boxing', 'Firearms', 'Slingshot / Archery', 'Athletics'] }
+    seed({ tommy: withSheet({ class: { key: 'tough', choices: {} }, skills: fighter }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    for (const name of ['Scrapping', 'Boxing', 'Firearms', 'Slingshot / Archery']) {
+      expect(skillChip(name).disabled).toBe(true)
+      fireEvent.click(skillChip(name))
+      expect(skillChip(name).getAttribute('aria-pressed')).toBe('false')
+    }
+    expect(skillChip('Athletics').disabled).toBe(false)
+    expect(rollButton('Handle').getAttribute('aria-label')).toBe('Roll Handle at or under 50')
+    seedRolls(40)
+    roll('Handle')
+
+    expect(shownLastRoll()[0]).toBe('Handle check')
+    await flushSave()
+    expect(writtenLastRoll()).toMatchObject({ target: 50, skill: null })
+  })
+
+  it('adds 2 Stress for an Overachiever\'s failed Stat Check and 1 for a failed Save', async () => {
+    seed({ tommy: withSheet({ class: { key: 'scout', choices: { statBonus: 'Handle' } } }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    seedRolls(90)
+    roll('Charm')
+    expect(shownLastRoll()[2]).toBe('Failure, +2 Stress')
+    expect(shownCounters().stress).toBe('4')
+    await flushSave()
+    expect(writtenLastRoll()).toMatchObject({ kind: 'stat-check', stressAdded: 2 })
+
+    seedRolls(90)
+    roll('Sanity')
+    expect(shownLastRoll()[2]).toBe('Failure, +1 Stress')
+    expect(shownCounters().stress).toBe('5')
+
+    press('Lower Stress')
+    press('Lower Stress')
+    press('Lower Stress')
+    await flushSave()
+    expect(parseLubecCharacter('tommy', database.tommy).lubec.counters.stress).toBe(2)
+  })
+
+  it('disables the roll on a hole with "missing value"', async () => {
+    seed({ tommy: withSheet({ base: { Strength: 24, Speed: null, Intellect: 38, Handle: 50, Charm: 48, Sanity: 20, Fear: 24, Body: 21 } }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    expect(rollButton('Speed').disabled).toBe(true)
+    expect(rollButton('Speed').getAttribute('aria-label')).toBe('Roll Speed: missing value')
+    expect(rollButton('Speed').title).toBe('missing value')
+    fireEvent.click(rollButton('Speed'))
+    await flushSave()
+
+    expect(shownLastRoll()).toEqual(['No roll yet.'])
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+    expect(rollButton('Strength').disabled).toBe(false)
+  })
+
+  it('writes the last roll to the character and shows it after a reload, with a double marked critical', async () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    seedRolls(33)
+    roll('Strength')
+    await flushSave()
+    reload('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    expect(shownLastRoll()).toEqual(['Strength check', 'Rolled 33 vs 29', 'Critical failure, +1 Stress'])
+    expect(screen.getByLabelText('Last roll').querySelector('.critical')?.textContent).toBe('Critical failure, +1 Stress')
+    expect(shownCounters().stress).toBe('3')
+  })
+
+  it('marks a double that succeeds a critical success', () => {
+    seed({ tommy: tommyEves() })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    seedRolls(22)
+    roll('Strength')
+
+    expect(shownLastRoll()[2]).toBe('Critical success')
+  })
+
+  it('lets the GM roll on a player\'s character', async () => {
+    seed({ tommy: tommyEves() })
+    mountTab('gm', GM)
+    openSheet('Tommy Eves')
+
+    seedRolls(10)
+    roll('Body')
+    await flushSave()
+
+    expect(writtenLastRoll()).toMatchObject({ kind: 'save', against: 'Body', result: 10, outcome: 'success' })
+    expect(lastWritten().ownerUserId).toBe('player-1')
+  })
+
+  it('shows a player someone else\'s last roll with no roll controls', async () => {
+    const lastRoll = {
+      kind: 'save', against: 'Fear', target: 34, dice: [12, 44], result: 12,
+      advantage: 'advantage', skill: null, outcome: 'success', stressAdded: 0,
+    }
+    seed({ tommy: withSheet({ lastRoll }) })
+    mountTab('player', 'player-2')
+    openSheet('Tommy Eves')
+
+    expect(shownLastRoll()).toEqual(['Fear save', 'Advantage: 12 and 44, kept 12 vs 34', 'Success'])
+    expect(rollRegion().querySelectorAll('button')).toHaveLength(0)
+    expect(document.querySelectorAll('.lubec-values button')).toHaveLength(0)
+    expect(valuesOf('Fear')).toEqual(['24', '34', '34'])
+    await flushSave()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+  })
+
+  it('shows a stored last roll it cannot read as no roll yet, and keeps it until the next roll', async () => {
+    seed({ tommy: withSheet({ lastRoll: { kind: 'stat', roll: 31 } }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+
+    expect(shownLastRoll()).toEqual(['No roll yet.'])
+    press('Raise Trauma')
+    await flushSave()
+    expect(writtenLastRoll()).toEqual({ kind: 'stat', roll: 31 })
   })
 })
