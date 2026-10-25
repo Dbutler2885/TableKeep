@@ -12,6 +12,7 @@ import { LubecDraftBar } from './LubecDraftBar'
 import { LubecMissing } from './LubecMissing'
 import { LubecNameBandEditor, type LubecSheetEditing } from './LubecNameBandEditor'
 import { LubecSkillsPage } from './LubecSkillsPage'
+import { LubecToken } from './LubecToken'
 import { lubecCharacterName } from './lubecNames'
 import { lubecMotionAllowed } from './useLubecCircles'
 import lubecPines from './lubecPines.svg'
@@ -34,11 +35,6 @@ function LubecPortrait({ character }: { character: LubecCharacterRecord }) {
   )
 }
 
-// The place kept for the character's token beside the portrait; it stays empty until tokens come to Lubec.
-function LubecTokenSlot() {
-  return <div className="lubec-token-slot" role="img" aria-label="No token yet"><span>Token</span></div>
-}
-
 function LubecPageTabs({ page, onPage }: { page: LubecPage; onPage: (page: LubecPage) => void }) {
   return (
     <nav className="lubec-page-tabs" aria-label="Character sheet pages">
@@ -55,6 +51,8 @@ type MastheadProps = {
   character: LubecCharacterRecord
   page: LubecPage
   onPage: (page: LubecPage) => void
+  /** The viewer's edits, or null when they may only look. */
+  editing: LubecSheetEditing | null
   /** Opens the name band's edits; absent for a viewer who cannot edit. */
   onEdit: (() => void) | null
 }
@@ -70,10 +68,10 @@ function LubecKidMeta({ character }: { character: LubecCharacterRecord }) {
 }
 
 // The v4 frame: the dark top bar with the wordmark and the page tabs over the
-// rust and mustard stripe, then the name band with the portrait and the token's
-// place at the left and the stamp at the right, with a stand of pines rising
-// behind the stamp.
-function LubecMasthead({ character, page, onPage, onEdit }: MastheadProps) {
+// rust and mustard stripe, then the name band with the portrait and the token
+// at the left and the stamp at the right, with a stand of pines rising behind
+// the stamp.
+function LubecMasthead({ character, page, onPage, editing, onEdit }: MastheadProps) {
   return (
     <header className="lubec-masthead">
       {/* The worn edge of the big lettering, as printed on old paper. */}
@@ -90,7 +88,7 @@ function LubecMasthead({ character, page, onPage, onEdit }: MastheadProps) {
       <div className="lubec-idband">
         <div className="lubec-id-art">
           <LubecPortrait character={character} />
-          <LubecTokenSlot />
+          <LubecToken character={character} editing={editing} />
         </div>
         <div className="lubec-id-text">
           <h2 className="lubec-kid-name">{lubecCharacterName(character)}</h2>
@@ -217,7 +215,7 @@ export function LubecSheetView({ character, editing, onCountersChange, onDelete,
   const sheetRef = useRef<HTMLElement>(null)
   return (
     <article ref={sheetRef} className="lubec-sheet" aria-label={`${lubecCharacterName(character)} character sheet`}>
-      <LubecMasthead character={character} page={page} onPage={setPage} onEdit={editing ? () => setBandOpen(true) : null} />
+      <LubecMasthead character={character} page={page} onPage={setPage} editing={editing} onEdit={editing ? () => setBandOpen(true) : null} />
       {editing && bandOpen ? <LubecNameBandEditor character={character} editing={editing} onDone={() => setBandOpen(false)} /> : null}
       <LubecStageBar
         character={character}

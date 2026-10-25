@@ -635,6 +635,11 @@ async function uploadPortrait(page, imagePath) {
 
 async function uploadTokenImage(page, imagePath) {
   await roleLocator(page, 'button', 'Edit token icon').click()
+  await pickTokenImage(page, imagePath)
+}
+
+// Uploads an image in the open token picker and confirms it.
+async function pickTokenImage(page, imagePath) {
   const input = await page.locator('.token-picker-modal input[type="file"]').waitHandle()
   await input.uploadFile(imagePath)
   await page.locator('.token-picker-modal img.token-icon-preview-image').wait()
@@ -1048,8 +1053,9 @@ async function wanderingMonsterCases(browser, testCase, ids, browserErrors) {
 // The Lubec campaign the GM made through the picker, still empty. It
 // opens in Lubec's own skin with its five tabs, and Tommy Eves, a Working Kid,
 // comes in through Import a file as the standalone sheet saved him, with the
-// smoke's PNG as his portrait. The portrait goes to the Storage emulator, and
-// after a reload the sheet shows it again from its stored path alone. His Core
+// smoke's PNG as his portrait, then gets the same PNG as his map token from
+// the token beside the portrait. Both go to the Storage emulator, and after a
+// reload the sheet shows them again from their stored paths alone. His Core
 // page shows each Stat and Save in the v4 frame, without the page scrolling
 // sideways, with a new active effect's editor closed or open. His Skills page
 // shows the skill tree with his skills filled in and its wires drawn, reads a
@@ -1060,7 +1066,7 @@ const LUBEC_SKILLS_PAGE = '.shell-root[data-theme="lubec"] .lubec-sheet .lubec-s
 const LUBEC_CHARACTER_NAME = 'Tommy'
 const LUBEC_FIXTURE_URL = new URL('../src/features/ruleSets/lubec/fixtures/tommy-eves.lubec-character.json', import.meta.url)
 const LUBEC_PORTRAIT = `.lubec-idband img.lubec-portrait[alt=${JSON.stringify(`${LUBEC_CHARACTER_NAME} portrait`)}]`
-const LUBEC_TOKEN_SLOT = '.lubec-idband .lubec-id-art .lubec-token-slot[aria-label="No token yet"]'
+const LUBEC_TOKEN = '.lubec-idband .lubec-id-art button.lubec-token[aria-label="Edit map token"]'
 
 // Each Stat and Save as the imported draft's Core page shows it: the base
 // typed in its circle's place, and under it what the Working Kid's +5 to every
@@ -1129,6 +1135,33 @@ async function importLubecCharacter(page, charactersPath, filePath) {
 // its stored path can have given it.
 async function expectLubecPortraitShown(page) {
   await page.locator(`${LUBEC_PORTRAIT}[src^="http"]`).wait()
+}
+
+// The token's image shows with a renderable URL, which after a reload only its stored path can have given it.
+async function expectLubecTokenShown(page) {
+  await page.locator(`${LUBEC_TOKEN} img.token-icon-preview-image[src^="http"]`).wait()
+}
+
+async function setLubecTokenImage(page, imagePath) {
+  await page.locator(LUBEC_TOKEN).click()
+  await pickTokenImage(page, imagePath)
+}
+
+// The imported portrait, then a token image set from the sheet, both stored by path and shown again after a reload.
+async function lubecMediaSteps(page, path) {
+  await step('show the imported portrait on the sheet', () => expectLubecPortraitShown(page))
+  await step('show the Lubec pawn as the token beside the portrait', () => page.locator(`${LUBEC_TOKEN} .token-pawn-preview`).wait())
+  await step('give the character a token image from the token beside the portrait', async () => {
+    await setLubecTokenImage(page, await smokeImageFile())
+    await expectLubecTokenShown(page)
+  })
+  await step('store the portrait and the token image by path alone', () => waitForStored(() => readDocumentFields(path), storedMediaProblems))
+  await step('see the portrait and the token image after a reload', async () => {
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await openLubecSheet(page)
+    await expectLubecPortraitShown(page)
+    await expectLubecTokenShown(page)
+  })
 }
 
 // The Stats and Saves sections, not the Panic and Recovery circles below them.
@@ -1246,14 +1279,7 @@ async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) 
   await step('open the Lubec campaign made through the picker', () => openCampaignCard(page, campaignName, LUBEC_TAB))
   await step('offer the five Lubec tabs', () => expectNavTabs(page, ['Characters', 'Maps', 'NPCs', 'Notes', 'Calendar']))
   const path = await step('import the Tommy Eves file with a portrait', () => importLubecCharacter(page, charactersPath, filePath))
-  await step('show the imported portrait on the sheet', () => expectLubecPortraitShown(page))
-  await step('keep an empty place for the token beside the portrait', () => page.locator(LUBEC_TOKEN_SLOT).wait())
-  await step('store the imported portrait by path alone', () => waitForStored(() => readDocumentFields(path), storedPortraitProblems))
-  await step('see the imported portrait after a reload', async () => {
-    await page.reload({ waitUntil: 'domcontentloaded' })
-    await openLubecSheet(page)
-    await expectLubecPortraitShown(page)
-  })
+  await lubecMediaSteps(page, path)
   // Clear of the page tabs, so the review screenshot shows them at rest.
   await page.mouse.move(0, page.viewport().height - 1)
   await step('show the Core page in the v4 frame', () => expectLubecPage(page, 'Core sheet'))
@@ -1383,7 +1409,7 @@ async function runViewport(browser, testCase) {
       + 'storing it at version 1, '
       + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map, '
       + 'and, in the Lubec campaign made through the picker, in its own skin, with its five tabs, imported a character file with a portrait, '
-      + 'saw the portrait again after a reload from its stored path, and opened the imported character\'s Core page and Skills page.',
+      + 'gave it a token image from the sheet, saw both again after a reload from their stored paths, and opened the imported character\'s Core page and Skills page.',
     )
   } finally {
     await screenshot(page, testCase.name)
