@@ -30,12 +30,12 @@
   font-weight: 800;
 }
 
-/* The table's own penalty: a small box in B's field style beside the penalty's words, or under them, flush left, when they are long */
+/* The table's own penalty: a small box in B's field style beside the penalty's words, on their baseline so they stay level with the term, or under them, flush left, when they are long */
 .shell-root[data-theme="lubec"] .lubec-gear .facts dd:has(> .table-says) {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem 0.6rem;
-  align-items: center;
+  align-items: baseline;
 }
 
 .shell-root[data-theme="lubec"] .lubec-gear .table-says {
