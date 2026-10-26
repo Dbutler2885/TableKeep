@@ -18,6 +18,12 @@ import tommyEvesFile from '../ruleSets/lubec/fixtures/tommy-eves.lubec-character
 type Fields = Record<string, unknown>
 type Listener = { next: (snap: unknown) => void; fail: (error: unknown) => void }
 
+// A case here mounts the whole tab, often more than once with reloads, and runs
+// role queries over it in jsdom. Alone the slowest takes about a second and a
+// half, but under coverage on a loaded machine the same cases ran past
+// Vitest's 5 second default and failed without any assertion failing.
+vi.setConfig({ testTimeout: 30_000 })
+
 const mocks = vi.hoisted(() => ({
   listeners: {} as Record<string, { next: (snap: unknown) => void; fail: (error: unknown) => void }>,
   setDoc: vi.fn(async (..._args: unknown[]) => undefined),

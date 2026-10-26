@@ -231,6 +231,15 @@ const parseCarrier = (stored: Fields, index: number): LubecCarrier => ({
   pockets: parseLubecPockets(stored.pockets),
 })
 
+/** A carrier stored as its own document, shared or hidden: the carrier and the items in it. */
+export type LubecCarrierRecord = LubecCarrier & { items: LubecItem[] }
+
+/** A stored shared or hidden carrier as the sheet reads it. Its id is its document id. */
+export function parseLubecCarrierRecord(raw: unknown, docId: string): LubecCarrierRecord {
+  const stored = isRecord(raw) ? raw : {}
+  return { ...parseCarrier(stored, 0), id: docId, items: parseLubecItems(stored.items) }
+}
+
 const parseSupply = (stored: Fields, index: number): LubecSupply => ({
   ...readableFields(stored, SUPPLY_FIELD_CHECKS),
   id: textOf(stored.id) || `supply-${index + 1}`,

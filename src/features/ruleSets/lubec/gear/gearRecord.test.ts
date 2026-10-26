@@ -7,6 +7,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseLubecCharacter, serializeLubecCharacter } from '../characterParser'
 import {
+  parseLubecCarrierRecord,
   emptyLubecGear,
   LUBEC_DEFAULT_BACKPACK_ART,
   lubecBackpackArt,
@@ -147,6 +148,21 @@ describe('reading stored gear', () => {
   it('reads a supply\'s loose size only as a pair of counts, or null when it cannot be loose', () => {
     const { supplies } = parseLubecGear({ supplies: [batteries, { id: 'water', name: 'Water', loose: null }, { id: 'oil', name: 'Lamp oil', loose: [1] }] })
     expect(supplies).toEqual([batteries, { id: 'water', name: 'Water', loose: null }, { id: 'oil', name: 'Lamp oil' }])
+  })
+})
+
+describe('a carrier stored on its own', () => {
+  it('reads its pockets and items, with its document id as its id', () => {
+    const stored = { id: 'old', name: "Stephen's skiff", type: 'boat', ownerCharacterId: 'stephen', pockets: [{ name: 'Hull', slots: 2, max: 2 }], items: [{ id: 'rope', name: 'Rope', carrier: 'skiff', pocket: 0 }, 'junk'] }
+
+    expect(parseLubecCarrierRecord(stored, 'skiff')).toEqual({
+      id: 'skiff', name: "Stephen's skiff", type: 'boat', ownerCharacterId: 'stephen', pockets: [{ name: 'Hull', slots: 2, max: 2 }],
+      items: [{ id: 'rope', kind: 'thing', name: 'Rope', note: '', size: 1, weight: 'normal', qty: 1, carrier: 'skiff', pocket: 0 }],
+    })
+  })
+
+  it('reads anything that is not a record as an empty carrier', () => {
+    expect(parseLubecCarrierRecord(null, 'skiff')).toEqual({ id: 'skiff', name: '', type: '', pockets: [], items: [] })
   })
 })
 
