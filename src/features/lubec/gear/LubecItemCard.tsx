@@ -115,19 +115,20 @@ function Facts({ facts, check, actions }: { facts: LubecCardFact[]; check: Lubec
 // Rule L10: a consumable that isn't a loose supply has "Use one"; a loose supply's count changes with − and +.
 const canUseOne = (i: LubecItem) => i.kind === 'consumable' && i.qty > 0 && !i.fits
 
-// A box with something in it has its "Take some out" panel under the buttons, while it is open.
-const takeOutShown = (item: LubecItem, load: LubecCardLoad) => isBox(item) && Boolean(item.loaded) && load.takeoutOpen
+// The available count also decides whether the box's "Take some out" panel is visible.
+const takeOutCount = (item: LubecItem, load: LubecCardLoad) => isBox(item) && load.takeoutOpen ? item.loaded ?? 0 : 0
 
 /** The kind's own buttons: a weapon's attacks (B 2787-2793), "Use one", and loading (B 2794-2803). */
 function KindActions({ item, load, actions }: { item: LubecItem; load: LubecCardLoad; actions: LubecCardActions }) {
   const attacks = lubecAttackButtons(item)
+  const takeOut = takeOutCount(item, load)
   if (!attacks.length && !canUseOne(item) && !load.buttons.length) return null
   return (
     <div className="kind-actions">
       {attacks.map((b) => <button key={b.label} type="button" className="btn" disabled={b.disabled} onClick={actions.onAttack}>{b.label}</button>)}
       {canUseOne(item) ? <button type="button" className="btn" onClick={actions.onUseOne}>Use one</button> : null}
       <LubecLoadButtons buttons={load.buttons} takeoutOpen={load.takeoutOpen} onLoad={actions.onLoad} />
-      {takeOutShown(item, load) ? <LubecTakeOutPanel key={item.id} loaded={item.loaded ?? 0} costOf={load.takeOutCost} onTakeOut={actions.onTakeOut} /> : null}
+      {takeOut ? <LubecTakeOutPanel key={item.id} loaded={takeOut} costOf={load.takeOutCost} onTakeOut={actions.onTakeOut} /> : null}
     </div>
   )
 }

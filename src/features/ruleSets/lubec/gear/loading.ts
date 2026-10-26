@@ -225,7 +225,7 @@ const dearest = (costs: readonly (LubecMoveCost | null)[]): LubecMoveCost | null
 export function lubecBoxFillPlan(gear: LubecGear, box: LubecItem): LubecBoxFillPlan {
   const loose = gear.items.filter((x) => x.kind === 'consumable' && x.fits === box.takes && x.qty > 0 && (onYou(x) || x.carrier === box.carrier))
   if (!loose.length) return { ok: false, why: 'no-loose' }
-  const take = drawFrom(loose, (box.capacity ?? 0) - (box.loaded ?? 0))
+  const take = drawFrom(loose, roomIn(box))
   return { ok: true, take, put: sumOf(take), cost: dearest(take.map(([x]) => lubecMoveCost(x.carrier, box.carrier))) }
 }
 

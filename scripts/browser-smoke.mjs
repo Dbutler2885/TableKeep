@@ -1713,7 +1713,7 @@ async function readDroppedItems(path) {
 const LUBEC_GEAR_PROMPT = `${LUBEC_GEAR_PAGE} [role="dialog"][aria-labelledby="lubec-gear-prompt-title"]`
 
 // What a prompt shows: its title, its text, and each button with the line under it, the red one marked.
-const readLubecGearPrompt = (prompt) => ({
+export const readLubecGearPrompt = (prompt) => ({
   title: prompt.querySelector('h2')?.textContent,
   text: prompt.querySelector('.prompt-text')?.textContent,
   buttons: [...prompt.querySelectorAll('.actions .btn')].map((b) => `${b.textContent}${b.classList.contains('dispensation') ? ' (red)' : ''}`),
