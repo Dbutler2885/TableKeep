@@ -17,6 +17,12 @@ import type { TokenRecord } from '../lib/types'
 type Fields = Record<string, unknown>
 type Listener = { next: (snap: unknown) => void; fail?: (error: unknown) => void }
 
+// These cases mount large component trees and run role queries over them in
+// jsdom. Alone each takes about a second, but under coverage on a loaded
+// machine the same cases ran past Vitest's 5 second default and failed without
+// any assertion failing, as `LubecCharacterTab.test.tsx`'s did.
+vi.setConfig({ testTimeout: 30_000 })
+
 const mocks = vi.hoisted(() => ({
   listeners: {} as Record<string, { next: (snap: unknown) => void; fail?: (error: unknown) => void }>,
   setDoc: vi.fn(async (..._args: unknown[]) => undefined),

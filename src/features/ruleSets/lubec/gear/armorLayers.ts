@@ -3,7 +3,7 @@
 // before it lets armor be worn.
 
 import type { LubecGear, LubecItem } from './gearRecord'
-import { baseLoc, locName, RULES } from './gearRules'
+import { baseLoc, LOC_KEYS, locName, RULES } from './gearRules'
 
 /** Armor as the layer rule reads it: an item, or the add form's draft of one. */
 export type LubecArmorPiece = Pick<LubecItem, 'name'> & Partial<Pick<LubecItem, 'locs' | 'exclusive'>>
@@ -34,4 +34,9 @@ export function layerProblem(gear: LubecGear, a: LubecArmorPiece, ignoreId?: str
     if (layersUsed(gear, k, ignoreId) + (a.exclusive ? lim : 1) > lim) return layerRefusal(gear, a, k, ignoreId)
   }
   return null
+}
+
+/** The parts in `locs`, in body order, that have no free layer left: the armor maker's "Already full". */
+export function lubecFullParts(gear: LubecGear, locs: readonly string[], ignoreId?: string | null): string[] {
+  return LOC_KEYS.filter((k) => locs.includes(k) && layersUsed(gear, k, ignoreId) >= RULES.layers[baseLoc(k)])
 }

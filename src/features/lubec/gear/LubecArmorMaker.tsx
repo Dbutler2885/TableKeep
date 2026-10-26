@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { layersUsed } from '../../ruleSets/lubec/gear/armorLayers'
-import { baseLoc, LOC_KEYS, locName, locSummary, RULES } from '../../ruleSets/lubec/gear/gearRules'
+import { lubecFullParts } from '../../ruleSets/lubec/gear/armorLayers'
+import { LOC_KEYS, locName, locSummary } from '../../ruleSets/lubec/gear/gearRules'
 import type { LubecGear } from '../../ruleSets/lubec/gear/gearRecord'
 import { WOUND_KINDS, WOUNDS } from './itemLabels'
 import { lubecTogglePart, type LubecItemFields } from './itemForm'
@@ -26,7 +26,7 @@ function Toggle({ checked, onChange, children }: ToggleProps) {
 function PickedText({ gear, locs, editId }: { gear: LubecGear; locs: readonly string[]; editId: string | null }) {
   const ordered = LOC_KEYS.filter((k) => locs.includes(k))
   if (!ordered.length) return <p className="picked">Nothing picked yet. Tap the body.</p>
-  const full = ordered.filter((k) => layersUsed(gear, k, editId) >= RULES.layers[baseLoc(k)])
+  const full = lubecFullParts(gear, ordered, editId)
   const already = full.length ? ` Already full: ${full.map(locName).join(', ')}, so it can't be worn until something comes off there.` : ''
   return <p className="picked">Covers <b>{locSummary(ordered)}</b>.{already}</p>
 }

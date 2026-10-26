@@ -55,6 +55,7 @@ describe('the card\'s Move list', () => {
     const groups = lubecMoveGroups(gear, byId(gear, 'h'))
     expect(groups.map((g) => g.label)).toEqual(['On you', 'Elsewhere'])
     expect(groups[0].options[0]).toEqual({ value: 'worn', label: 'Wear it', disabled: true })
+    expect(groups[0].options.filter((o) => o.value === 'worn')).toHaveLength(1)
   })
 
   it('starts on the first place it can go', () => {

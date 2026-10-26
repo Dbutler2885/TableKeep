@@ -27,8 +27,7 @@ export type LubecMoveGroup = { label: string; options: LubecMoveOption[] }
 // Personal carriers join "On you" and "Elsewhere" with the Carriers view (G17), which builds them.
 function onYouOptions(gear: LubecGear, i: LubecItem): LubecMoveOption[] {
   const here = selectValue(destOf(i))
-  const places = [...(i.kind === 'armor' ? [{ value: 'worn', label: 'Wear it' }] : []), ...lubecDestinations(gear)]
-  return places.map((p) => ({ ...p, disabled: p.value === here }))
+  return lubecDestinations(gear, i.kind).map((p) => ({ ...p, disabled: p.value === here }))
 }
 
 // The card's Move list offers every thing a swap would work with; the ones it wouldn't are greyed out.

@@ -1,8 +1,9 @@
 // The item sheet, copied from the inventory prototype (B's one item dialog):
 // one sheet with four modes of the same shape, the card, small stuff, the
-// add and edit form, and the stock picker. These are its states and its
-// save, pure: gear in, the next gear and B's toast out. A save that brings a
-// heavy thing onto you carries the Strength roll it asked for (Rule E5).
+// add and edit form, and the stock picker, and B's "which piece?" prompt.
+// These are its states and its save, pure: gear in, the next gear and B's
+// toast out. A save that brings a heavy thing onto you carries the Strength
+// roll it asked for (Rule E5).
 
 import { addLubecItem, editLubecItem } from '../../ruleSets/lubec/gear/addItem'
 import type { LubecGear, LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
@@ -33,7 +34,12 @@ export type LubecFormSheet = {
 /** The card, with its Move panel open or not. */
 export type LubecCardSheet = { mode: 'view'; itemId: string; error: string | null; move?: boolean }
 
-export type LubecItemSheetState = LubecCardSheet | { mode: 'small' } | LubecFormSheet
+export type LubecItemSheetState =
+  | LubecCardSheet
+  | { mode: 'small' }
+  /** Which of the pieces of armor worn on a part to open, asked when there is more than one. */
+  | { mode: 'pieces'; part: string }
+  | LubecFormSheet
 
 export const lubecCardSheet = (itemId: string): LubecItemSheetState => ({ mode: 'view', itemId, error: null })
 
