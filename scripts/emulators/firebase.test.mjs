@@ -19,13 +19,17 @@ function fakeSpawn() {
   return { spawn, child }
 }
 
+/** A scratch checkout, with the system temp directory moved inside it so a block's temp directory lands there too. */
 function withRoot(run) {
   const root = mkdtempSync(path.join(tmpdir(), 'tablekeep-wrapper-'))
   try {
     writeFileSync(path.join(root, 'firebase.json'), readFileSync(path.join(repoRoot, 'firebase.json')))
     mkdirSync(path.join(root, 'node_modules'))
+    mkdirSync(path.join(root, 'tmp'))
+    vi.stubEnv('TMPDIR', path.join(root, 'tmp'))
     return run(root)
   } finally {
+    vi.unstubAllEnvs()
     rmSync(root, { recursive: true, force: true })
   }
 }
@@ -51,7 +55,7 @@ describe('running firebase-tools', () => {
       const [, args, options] = spawn.mock.calls[0]
       expect(args.slice(1)).toEqual(['--config', PORTED_CONFIG_FILE, 'emulators:start'])
       expect(JSON.parse(readFileSync(path.join(root, PORTED_CONFIG_FILE), 'utf8')).emulators.firestore.port).toBe(block.ports.firestore)
-      expect(options.env.TMPDIR).toMatch(/tablekeep-20000$/)
+      expect(options.env.TMPDIR).toBe(path.join(root, 'tmp', 'tablekeep-20000'))
       expect(options.env.VITE_FIRESTORE_EMULATOR_PORT).toBe(String(block.ports.firestore))
     })
   })

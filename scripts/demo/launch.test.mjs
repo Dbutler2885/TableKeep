@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
@@ -11,12 +11,16 @@ const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 const standard = { source: 'checkout', base: null, ports: { ...DEFAULT_PORTS } }
 const block = { source: 'worktree', base: 20_000, ports: portBlock(20_000) }
 
+/** A scratch checkout, with the system temp directory moved inside it so a block's temp directory lands there too. */
 function withRoot(run) {
   const root = mkdtempSync(path.join(tmpdir(), 'tablekeep-launch-'))
   try {
     writeFileSync(path.join(root, 'firebase.json'), readFileSync(path.join(repoRoot, 'firebase.json')))
+    mkdirSync(path.join(root, 'tmp'))
+    vi.stubEnv('TMPDIR', path.join(root, 'tmp'))
     return run(root)
   } finally {
+    vi.unstubAllEnvs()
     rmSync(root, { recursive: true, force: true })
   }
 }
@@ -44,19 +48,19 @@ describe('the demo emulators\' arguments', () => {
 })
 
 describe('starting the rig\'s children', () => {
-  it('starts firebase-tools detached, on the given JDK and the block\'s temp directory', () => {
+  it('starts firebase-tools detached, on the given JDK and the block\'s temp directory', () => withRoot((root) => {
     const spawn = vi.fn(() => 'child')
-    const child = startEmulatorProcess({ args: ['emulators:start'], javaPath: '/jdk/bin', resolved: block, root: '/repo', spawn })
+    const child = startEmulatorProcess({ args: ['emulators:start'], javaPath: '/jdk/bin', resolved: block, root, spawn })
 
     expect(child).toBe('child')
     const [command, args, options] = spawn.mock.calls[0]
     expect(command).toBe(process.execPath)
     expect(args[0]).toMatch(/node_modules\/firebase-tools\/lib\/bin\/firebase\.js$/)
     expect(args.slice(1)).toEqual(['emulators:start'])
-    expect(options).toMatchObject({ cwd: '/repo', detached: true, stdio: ['ignore', 'inherit', 'inherit'] })
+    expect(options).toMatchObject({ cwd: root, detached: true, stdio: ['ignore', 'inherit', 'inherit'] })
     expect(options.env.PATH).toBe('/jdk/bin')
-    expect(options.env.TMPDIR).toMatch(/tablekeep-20000$/)
-  })
+    expect(options.env.TMPDIR).toBe(path.join(root, 'tmp', 'tablekeep-20000'))
+  }))
 
   it('starts Vite detached on a strict port, with the given variables on top of this environment', () => {
     const spawn = vi.fn(() => 'child')
