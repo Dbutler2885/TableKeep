@@ -2,29 +2,33 @@
 // prototype (B's BAG and CROPS). The positions are in the picture's own
 // pixels, and every backpack picture is prepared on the same 1122x1402 canvas,
 // so the boxes never move: a different pack is only a different picture.
+// The numbers live in backpackSlots.json, which the scripts in
+// scripts/backpacks/ read too, so the overlay check page draws what ships.
+import slots from './backpackSlots.json'
 
 /** A box on the picture: x, y, width and height in the picture's pixels. */
 type Box = readonly [x: number, y: number, w: number, h: number]
+type Point = readonly [x: number, y: number]
 
 /** The part of the picture the pack box shows. */
 export type LubecPackCrop = { x: number; y: number; w: number; h: number }
 
+const box = ([x, y, w, h]: number[]): Box => [x, y, w, h]
+const point = ([x, y]: number[]): Point => [x, y]
+
 // Where things sit on the navy backpack photo, in its own pixels (it is 1122 by 1402):
 // the main pocket's three rows on the big front panel, and one box in each zip pocket, below its zip.
 export const BAG = {
-  size: [1122, 1402] as const,
-  main: ([[238, 318], [572, 318], [238, 462], [572, 462], [238, 606]] as const).map(([x, y]): Box => [x, y, 320, 132]),
-  small: [580, 614, 304, 116] as Box,
-  front: [[226, 912, 290, 220], [606, 912, 300, 220]] as readonly Box[],
-  mainLabel: [565, 292] as const,
-  frontLabel: [566, 814] as const,
+  size: point(slots.size),
+  main: slots.main.map(box),
+  small: box(slots.small),
+  front: slots.front.map(box),
+  mainLabel: point(slots.mainLabel),
+  frontLabel: point(slots.frontLabel),
 }
 
 // The pack box is a crop of the photo around the bag; phones get a closer one, so the boxes stay big enough to read.
-export const CROPS: Readonly<Record<'wide' | 'phone', LubecPackCrop>> = {
-  wide: { x: 10, y: 110, w: 1100, h: 1120 },
-  phone: { x: 130, y: 230, w: 860, h: 990 },
-}
+export const CROPS: Readonly<Record<'wide' | 'phone', LubecPackCrop>> = slots.crops
 
 /** A box on the pack, in percent of the pack box. */
 export type LubecPackSpot = { x: number; y: number; w: number; h: number }

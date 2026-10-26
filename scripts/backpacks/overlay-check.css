@@ -1,0 +1,156 @@
+/* The overlay check page's look. The boxes, panels and buttons are copied from
+   the carrying prototype (backpack-prototype-v4.html, called B), with the
+   sheet's tokens written out as the literal values in App.css, because the
+   page is a standalone file. Not shipped, and not part of the app's CSS. */
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  --ink: #17282b;
+  --muted: #607071;
+  --paper: #f2ead7;
+  --blue: #174b58;
+  --blue-alt: #256675;
+  --rust: #a34229;
+  --cream: #fff8e7;
+  --line: rgba(23, 40, 43, .36);
+  --display: 'Rockwell', 'American Typewriter', Georgia, serif;
+  --type: 'American Typewriter', 'Courier New', monospace;
+  --condensed: 'DIN Condensed', 'Avenir Next Condensed', 'Arial Narrow', sans-serif;
+}
+
+/* The sheet's paper, as the page is in Table Keep (App.css, .shell-root[data-theme="lubec"]). */
+body {
+  min-height: 100vh;
+  margin: 0;
+  padding: clamp(.75rem, 2.4vw, 1.65rem);
+  color: var(--ink);
+  background:
+    radial-gradient(ellipse at 50% 40%, transparent 55%, rgba(74, 52, 26, .16) 100%),
+    repeating-linear-gradient(0deg, rgba(53, 64, 53, .025) 0 1px, transparent 1px 4px),
+    var(--paper);
+  font-family: var(--type);
+  -webkit-text-size-adjust: 100%;
+}
+
+button { font: inherit; color: inherit; touch-action: manipulation; cursor: pointer; }
+h1, h2, p { margin-top: 0; }
+
+header { max-width: 72rem; margin-bottom: 1.1rem; }
+header h1 { margin: 0 0 .4rem; color: var(--blue); font: 800 clamp(1.15rem, 3.4vw, 1.5rem)/1.1 var(--display); letter-spacing: -.02em; text-transform: uppercase; }
+header p { margin: 0 0 .8rem; font: 700 .72rem/1.45 var(--type); letter-spacing: .02em; }
+.switches { display: flex; flex-wrap: wrap; gap: .6rem 1.4rem; }
+fieldset { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin: 0; padding: 0; border: 0; }
+legend { float: left; margin-right: .3rem; color: var(--muted); font: 800 .6rem/1 var(--type); letter-spacing: .1em; text-transform: uppercase; }
+
+/* B's buttons (B 334-357) */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  min-height: 2.85rem;
+  padding: .55rem 1rem;
+  color: var(--cream);
+  background: var(--blue);
+  border: 2px solid var(--blue);
+  font: 800 .7rem/1 var(--type);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.btn:hover { background: var(--blue-alt); }
+.btn.line { color: var(--blue); background: transparent; }
+.btn.line:hover { background: rgba(23, 75, 88, .08); }
+.btn.small { min-height: 2.2rem; padding: .35rem .6rem; font-size: .6rem; }
+.btn:focus-visible { outline: 2px solid var(--rust); outline-offset: 2px; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr)); gap: clamp(.8rem, 2vw, 1.2rem); }
+
+/* B's panel with its coloured header bar (B 1072-1081) */
+.panel { --c: var(--ink); min-width: 0; margin: 0; padding: 0 0 .6rem; background: var(--paper); border: 2px solid var(--c); box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3px var(--c); }
+.panel.rust { --c: var(--rust); }
+.panel > .section-head { display: flex; flex-wrap: wrap; gap: .2rem .8rem; align-items: center; justify-content: space-between; margin: 0 0 .55rem; padding: .4rem .7rem .25rem; background: var(--c); }
+.panel > :not(.section-head) { margin-inline: .6rem; }
+.panel > .pack { width: calc(100% - 1.2rem); margin-inline: auto; }
+.panel > .section-head h2 { margin: 0; color: var(--cream); font: 800 clamp(1.1rem, 2vw, 1.4rem)/1 var(--display); }
+.panel.flagged { --c: #ef3f2f; }
+
+/* B's tag (B 255-267) */
+.tag { display: inline-block; padding: .14rem .3rem; color: var(--rust); background: var(--cream); font: 800 .5rem/1 var(--type); letter-spacing: .1em; text-transform: uppercase; white-space: nowrap; }
+
+/* The pack (B 204-213, 1090) */
+.pack {
+  position: relative;
+  width: 100%;
+  aspect-ratio: var(--bag-ratio, 1100 / 1120);
+  container-type: inline-size;
+}
+.pack-art { position: absolute; inset: 0; pointer-events: none; background: var(--bag-pos, 0 0) / var(--bag-size, 100% auto) no-repeat; }
+.backdrop-white .pack { background: #fff; }
+
+.zone-label {
+  position: absolute;
+  transform: translateX(-50%);
+  padding: .18rem .38rem;
+  color: var(--cream);
+  background: var(--ink);
+  font: 800 clamp(.42rem, 1.6cqw, .56rem)/1 var(--type);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* The slots (B 229-235, 272-301, 313-328, 1091-1098) */
+.slot {
+  position: absolute;
+  display: grid;
+  grid-template-columns: auto minmax(0, auto);
+  justify-content: center;
+  align-items: center;
+  column-gap: .55rem;
+  min-width: 0;
+  min-height: 0;
+  padding: .15rem .25rem;
+  overflow: hidden;
+  color: var(--cream);
+  background: rgba(18, 22, 24, .82);
+  border: 1.5px solid rgba(242, 234, 215, .6);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .35);
+  font: 800 .55rem/1 var(--type);
+  letter-spacing: .02em;
+}
+.slot-text { display: grid; gap: .15rem; justify-items: start; min-width: 0; text-align: left; }
+.slot .name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font: 800 clamp(.54rem, 2.47cqw, .8rem)/1.1 var(--type); overflow-wrap: break-word; hyphens: auto; }
+.slot .qty { color: rgba(242, 234, 215, .78); font: 800 clamp(.5rem, 2.07cqw, .62rem)/1.2 var(--type); }
+.slot-pic { --pic: 6.38cqw; display: grid; width: var(--pic); height: var(--pic); place-items: center; flex: none; color: rgba(242, 234, 215, .7); border: 1.5px dashed rgba(242, 234, 215, .45); }
+.slot.pocket { grid-template-columns: minmax(0, 1fr); justify-items: center; row-gap: .1rem; padding: .2rem .15rem; }
+.slot.pocket .slot-text { justify-items: center; gap: .05rem; text-align: center; }
+.slot.pocket .slot-pic { --pic: 5.58cqw; }
+.slot.pocket .name { font-size: clamp(.5rem, 2.39cqw, .7rem); overflow-wrap: anywhere; }
+
+.small-stuff {
+  position: absolute;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: .12rem;
+  padding: .25rem .55rem;
+  color: var(--cream);
+  background: rgba(18, 22, 24, .8);
+  border: 1.5px solid rgba(242, 234, 215, .6);
+  border-radius: 999px;
+  text-align: center;
+}
+.small-stuff .label { color: rgba(242, 234, 215, .78); font: 800 clamp(.42rem, 1.83cqw, .56rem)/1 var(--type); letter-spacing: .1em; text-transform: uppercase; }
+.small-stuff .names { max-width: 100%; font: 800 clamp(.48rem, 2.15cqw, .68rem)/1.2 var(--type); overflow-wrap: anywhere; }
+
+/* Outlines: only the edges of the boxes, so the picture under them shows. */
+.boxes-outline .slot, .boxes-outline .small-stuff { background: transparent; border: 2px solid var(--rust); box-shadow: 0 0 0 1.5px var(--cream), inset 0 0 0 1.5px var(--cream); }
+.boxes-outline .slot > *, .boxes-outline .small-stuff > * { visibility: hidden; }
+
+/* The numbers under each pack */
+figcaption dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .25rem .7rem; margin: .7rem 0 0; font: 700 .68rem/1.3 var(--type); }
+figcaption dt { color: var(--muted); font: 800 .58rem/1.3 var(--type); letter-spacing: .1em; text-transform: uppercase; }
+figcaption dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+figcaption .low { color: #ef3f2f; }
