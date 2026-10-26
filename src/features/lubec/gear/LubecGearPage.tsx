@@ -3,7 +3,7 @@ import { makeId } from '../../character/characterFactories'
 import { addLubecItem } from '../../ruleSets/lubec/gear/addItem'
 import { inventoryFull } from '../../ruleSets/lubec/gear/placement'
 import type { LubecGear } from '../../ruleSets/lubec/gear/gearRecord'
-import { addedToast, type LubecSupplyName } from './gearLabels'
+import { addedToast, supplyNameIn } from './gearLabels'
 import { LubecGearAddForm, type LubecGearAddSubmit } from './LubecGearAddForm'
 import { LubecGearHandsBody } from './LubecGearHandsBody'
 import { LubecGearPack } from './LubecGearPack'
@@ -16,9 +16,6 @@ export type LubecGearChange = ((gear: LubecGear) => void) | null
 type LubecGearView = 'on-you' | 'carriers'
 
 type GearPageProps = { gear: LubecGear; onGearChange: LubecGearChange }
-
-// A gun or holder names its supply by id (Rule L1); the game's own list of supplies comes with loading.
-const supplyNameIn = (gear: LubecGear): LubecSupplyName => (id) => gear.supplies.find((s) => s.id === id)?.name ?? 'no supply'
 
 function GearTabs({ view, onView }: { view: LubecGearView; onView: (view: LubecGearView) => void }) {
   const tab = (id: LubecGearView, label: string) => (
@@ -49,7 +46,8 @@ type OnYouProps = { gear: LubecGear; onAdd: ((dest: string) => void) | null }
 
 // On you: the backpack, the hands and the body, on one screen.
 function OnYou({ gear, onAdd }: OnYouProps) {
-  const supplyName = supplyNameIn(gear)
+  // The game's own list of supplies comes with loading; until then a supply is named from the player's own.
+  const supplyName = supplyNameIn(gear.supplies)
   return (
     <section id="lubec-gear-view-on-you" role="tabpanel" aria-labelledby="lubec-gear-tab-on-you">
       <div className="on-you">

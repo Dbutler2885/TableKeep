@@ -264,6 +264,22 @@ describe('Lubec Gear page', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('closes the add form on Escape without adding', () => {
+    database = { tommy: tommyEves() }
+    mountTab('player', 'player-1')
+    openGear('Tommy Eves')
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add an item' }))
+    const form = within(screen.getByRole('dialog', { name: 'Add an item' }))
+    fireEvent.change(form.getByRole('textbox', { name: 'Name' }), { target: { value: 'Brick' } })
+    fireEvent.keyDown(form.getByRole('textbox', { name: 'Name' }), { key: 'Enter' })
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    fireEvent.keyDown(form.getByRole('textbox', { name: 'Name' }), { key: 'Escape' })
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.querySelector('.lubec-gear .pack .slot.item')).toBeNull()
+  })
+
   it('shows a full inventory with its tag, and another player the page with no buttons', () => {
     database = { tommy: tommyEves({ gear: FULL_GEAR }) }
     mountTab('player', 'player-2')
@@ -276,6 +292,30 @@ describe('Lubec Gear page', () => {
     expect([...gear.querySelectorAll('.hb .slot')].map((slot) => slot.textContent)).toEqual([
       "Left handGrandpa's revolver0 of 6 loaded", 'Right handWalkie-talkie', 'BodyRain slicker', 'BodyPocketknife',
     ])
+  })
+
+  it('draws a 4-slot thing large across the block, and a 2-slot thing arranged one above the other upright', () => {
+    database = { tommy: tommyEves({ gear: { ...FULL_GEAR, items: [
+      T('a', 'backpack', 0, 'Toolbox', 4),
+      T('b', 'backpack', 0, 'Wool watch cap', 1),
+    ] } }), wayne: { ...tommyEves({ gear: { ...FULL_GEAR, items: [T('c', 'backpack', 0, 'Oar', 2, { cells: [1, 3] })] } }), name: 'Wayne Gardner' } }
+    mountTab('player', 'player-2')
+    const toolbox = openGear('Tommy Eves').querySelector('.pack .slot.item.large')
+    expect(toolbox?.textContent).toBe('ToolboxLarge / 4 slots')
+    expect((toolbox as HTMLElement).style.height).not.toBe('')
+
+    cleanup()
+    mountTab('player', 'player-2')
+    expect(openGear('Wayne Gardner').querySelector('.pack .slot.item.upright')?.textContent).toBe('OarBulky / 2 slots')
+  })
+
+  it('shows stored gear that breaks the main pocket\'s rules as an empty main pocket rather than failing', () => {
+    database = { tommy: tommyEves({ gear: { ...FULL_GEAR, items: [T('a', 'backpack', 0, 'Toolbox', 4), T('b', 'backpack', 0, 'Crate', 4)] } }) }
+    mountTab('player', 'player-2')
+    const gear = openGear('Tommy Eves')
+
+    expect(gear.querySelectorAll('.pack .slot:not(.item)')).toHaveLength(7)
+    expect(gear.querySelector('.pack .slot.item')).toBeNull()
   })
 
   it('lets anyone switch to Carriers and back', () => {

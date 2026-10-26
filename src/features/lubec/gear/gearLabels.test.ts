@@ -1,7 +1,7 @@
 /** The words the On you view shows, as B's subLine, whereText, syncCount and toast write them. */
 import { describe, expect, it } from 'vitest'
 import type { LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
-import { addedToast, countNote, heavyClass, qtyText, subLine, weightTagText, whereText } from './gearLabels'
+import { addedToast, countNote, heavyClass, largeClass, qtyText, subLine, supplyNameIn, uprightClass, weightTagText, whereText } from './gearLabels'
 
 const item = (extra: Partial<LubecItem>): LubecItem => ({ id: 'i', kind: 'thing', name: 'Rope', note: '', size: 1, weight: 'normal', qty: 1, carrier: 'backpack', pocket: 0, ...extra })
 const supplyName = (id: string | undefined) => (id === 'water' ? 'Water' : 'no supply')
@@ -22,6 +22,16 @@ describe('the On you words', () => {
   it('tag a heavy or extra heavy item', () => {
     expect([weightTagText(item({})), weightTagText(item({ weight: 'heavy' })), weightTagText(item({ weight: 'extra' }))]).toEqual([null, 'Heavy', 'Extra heavy'])
     expect([heavyClass(item({})), heavyClass(item({ weight: 'extra' }))]).toEqual(['', ' heavy'])
+  })
+
+  it('name a supply from its id, or say there is none', () => {
+    const supplyNamed = supplyNameIn([{ id: 'oil', name: 'Lamp oil' }])
+    expect([supplyNamed('oil'), supplyNamed('water'), supplyNamed(undefined)]).toEqual(['Lamp oil', 'no supply', 'no supply'])
+  })
+
+  it('mark a 4-slot box large, and a 2-slot thing standing one box above the other upright', () => {
+    expect([largeClass(item({ size: 4 })), largeClass(item({ size: 2 }))]).toEqual([' large', ''])
+    expect([uprightClass(item({ size: 2 }), [0, 2]), uprightClass(item({ size: 2 }), [0, 1]), uprightClass(item({ size: 1 }), [4])]).toEqual([' upright', '', ''])
   })
 
   it('say where an item on you is', () => {

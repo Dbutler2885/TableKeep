@@ -3,7 +3,7 @@ import { capacity, itemsIn, packMain, pocketUsed, used } from '../../ruleSets/lu
 import { LUBEC_BACKPACK_POCKETS, type LubecGear, type LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
 import backpackNavy from './assets/backpack4-navy.webp'
 import { lubecPackLayout, lubecSpotsRect, type LubecPackLayout, type LubecPackSpot } from './backpackSlots'
-import { heavyClass, type LubecSupplyName } from './gearLabels'
+import { heavyClass, largeClass, uprightClass, type LubecSupplyName } from './gearLabels'
 import { LubecEmptySlot, LubecSlotPic, LubecSlotText } from './LubecGearSlot'
 import { useLubecPackCrop } from './useLubecPackCrop'
 
@@ -35,7 +35,7 @@ function MainPocket({ gear, spots, supplyName, onAdd }: PackProps & { spots: Lub
         <PackItem
           key={item.id}
           item={item}
-          className={`${item.size === 4 ? ' large' : ''}${item.size === 2 && at[1] - at[0] === 2 ? ' upright' : ''}`}
+          className={`${largeClass(item)}${uprightClass(item, at)}`}
           style={lubecSpotsRect(at.map((k) => spots[k]))}
           supplyName={supplyName}
         />

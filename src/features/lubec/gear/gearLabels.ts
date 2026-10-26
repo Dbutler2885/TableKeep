@@ -3,11 +3,15 @@
 
 import { bothHands } from '../../ruleSets/lubec/gear/placement'
 import { holdWay } from '../../ruleSets/lubec/gear/gearRules'
-import { LUBEC_BACKPACK_POCKETS, type LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
+import { LUBEC_BACKPACK_POCKETS, type LubecItem, type LubecSupply } from '../../ruleSets/lubec/gear/gearRecord'
 import { MAX_STACKS, slotsText, stacksOf } from '../../ruleSets/lubec/gear/stacks'
 
 /** A supply's name from its id, or "no supply". */
 export type LubecSupplyName = (id: string | undefined) => string
+
+/** A gun or holder names its supply by id (Rule L1): the name among `supplies`, or "no supply". */
+export const supplyNameIn = (supplies: readonly LubecSupply[]): LubecSupplyName => (id) =>
+  supplies.find((s) => s.id === id)?.name ?? 'no supply'
 
 export const SLOT_NAMES: Readonly<Record<'hands' | 'body', readonly [string, string]>> = { hands: ['Left hand', 'Right hand'], body: ['Body', 'Body'] }
 
@@ -15,6 +19,12 @@ export const qtyText = (i: Pick<LubecItem, 'qty'>): string => (i.qty !== 1 ? `×
 
 /** The class a heavy or extra heavy item's box takes. */
 export const heavyClass = (i: Pick<LubecItem, 'weight'>): string => (i.weight !== 'normal' ? ' heavy' : '')
+
+/** The class a 4-slot thing's box takes, which stacks its picture over its words. */
+export const largeClass = (i: Pick<LubecItem, 'size'>): string => (i.size === 4 ? ' large' : '')
+
+/** The class a 2-slot thing standing in two boxes one above the other takes (`at` is the boxes it sits in). */
+export const uprightClass = (i: Pick<LubecItem, 'size'>, at: readonly number[]): string => (i.size === 2 && at[1] - at[0] === 2 ? ' upright' : '')
 
 /** The weight's tag, or null for a normal one. */
 export const weightTagText = (i: Pick<LubecItem, 'weight'>): string | null => {

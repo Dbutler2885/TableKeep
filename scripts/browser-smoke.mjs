@@ -1363,16 +1363,19 @@ async function openLubecGearPage(page) {
   await page.locator(`${LUBEC_GEAR_PAGE} .pack`).wait()
 }
 
+// What the Gear page shows of its boxes, read in the page.
+const readLubecGearBoxes = (gear) => ({
+  main: gear.querySelectorAll('.pack [aria-label="Empty main-pocket slot, add an item"]').length,
+  front: gear.querySelectorAll('.pack [aria-label$="pocket, empty, add an item"]').length,
+  small: gear.querySelector('.pack .small-stuff')?.getAttribute('aria-label'),
+  handsAndBody: gear.querySelectorAll('.hb .slot:not(.item)').length,
+  items: gear.querySelectorAll('.slot.item').length,
+  full: gear.querySelectorAll('.gear-bar .tag.red').length > 0,
+})
+
 // The empty backpack: five main boxes, two front boxes and the small stuff pill, empty hands and body, and no full tag.
 async function expectEmptyLubecGear(page) {
-  const shown = await page.$eval(LUBEC_GEAR_PAGE, (gear) => ({
-    main: gear.querySelectorAll('.pack [aria-label="Empty main-pocket slot, add an item"]').length,
-    front: gear.querySelectorAll('.pack [aria-label$="pocket, empty, add an item"]').length,
-    small: gear.querySelector('.pack .small-stuff')?.getAttribute('aria-label'),
-    handsAndBody: gear.querySelectorAll('.hb .slot:not(.item)').length,
-    items: gear.querySelectorAll('.slot.item').length,
-    full: gear.querySelector('.gear-bar .tag.red') !== null,
-  }))
+  const shown = await page.$eval(LUBEC_GEAR_PAGE, readLubecGearBoxes)
   const expected = { main: 5, front: 2, small: 'Small stuff: empty', handsAndBody: 4, items: 0, full: false }
   if (JSON.stringify(shown) !== JSON.stringify(expected)) throw new Error(`The empty Gear page shows ${JSON.stringify(shown)}.`)
 }
@@ -1390,23 +1393,40 @@ async function expectLubecGearItemInMainPocket(page, name) {
   if (items.join() !== name) throw new Error(`The backpack holds ${JSON.stringify(items)}, not ${name}.`)
 }
 
+// The value down `path` in a stored document's REST shape, or undefined where any step is missing.
+const storedAt = (value, path) => path.reduce((at, key) => (at == null ? undefined : at[key]), value)
+
+const storedGearItems = (gear) => storedAt(gear, ['mapValue', 'fields', 'items', 'arrayValue', 'values']) || []
+
+const storedItemNames = (items) => items.map((item) => storedAt(item, ['mapValue', 'fields', 'name', 'stringValue'])).join()
+
+const gearItemsProblem = (items, name) => (storedItemNames(items) === name ? [] : [`the stored gear items are ${JSON.stringify(items)}`])
+
+const gearUrlProblem = (gear) => (String(JSON.stringify(gear)).includes('http') ? ['the stored gear holds a URL'] : [])
+
 // One item in `lubec.gear.items`, and nothing in the gear that is a URL.
 function storedGearProblems(stored, name) {
-  const gear = stored.lubec?.mapValue?.fields?.gear
-  const items = gear?.mapValue?.fields?.items?.arrayValue?.values ?? []
-  const problems = []
-  if (items.length !== 1 || items[0].mapValue?.fields?.name?.stringValue !== name) problems.push(`the stored gear items are ${JSON.stringify(items)}`)
-  if (JSON.stringify(gear ?? {}).includes('http')) problems.push('the stored gear holds a URL')
-  return problems
+  const gear = storedAt(stored, ['lubec', 'mapValue', 'fields', 'gear'])
+  return [...gearItemsProblem(storedGearItems(gear), name), ...gearUrlProblem(gear)]
+}
+
+// How many columns On you has, and which page tab is current in the top bar, read in the page.
+const readLubecGearLayout = (gear) => {
+  const columns = gear.ownerDocument.defaultView.getComputedStyle(gear.querySelector('.on-you')).gridTemplateColumns.split(' ').length
+  const tab = gear.ownerDocument.querySelector('.lubec-topbar .lubec-page-tabs [aria-current="page"]')?.textContent
+  return `${columns} column(s), with the ${tab} tab current in the top bar`
 }
 
 // On a phone the On you view is one column, under the page tabs in the top bar.
 async function expectLubecGearOneColumn(page) {
-  const [columns, tabsInTopBar] = await page.$eval(LUBEC_GEAR_PAGE, (gear) => [
-    gear.ownerDocument.defaultView.getComputedStyle(gear.querySelector('.on-you')).gridTemplateColumns.split(' ').length,
-    document.querySelector('.lubec-topbar .lubec-page-tabs [aria-current="page"]')?.textContent,
-  ])
-  if (columns !== 1 || tabsInTopBar !== 'Gear') throw new Error(`On you shows ${columns} columns, with the ${tabsInTopBar} tab current in the top bar.`)
+  const layout = await page.$eval(LUBEC_GEAR_PAGE, readLubecGearLayout)
+  if (layout !== '1 column(s), with the Gear tab current in the top bar') throw new Error(`On you shows ${layout}.`)
+}
+
+// On a desktop On you fits one screen; on a phone it is one column under the page tabs.
+function lubecGearFitStep(page, testCase) {
+  if (testCase.viewport.isMobile) return step('fit the Gear page on a phone in one column with the page tabs in place', () => expectLubecGearOneColumn(page))
+  return step('fit On you on one desktop screen', () => expectLubecGearOnOneScreen(page))
 }
 
 async function lubecGearPageSteps(page, testCase, path) {
@@ -1417,7 +1437,7 @@ async function lubecGearPageSteps(page, testCase, path) {
   await step('show the Gear page in the v4 frame', () => expectLubecPage(page, 'Gear'))
   await step('show the empty backpack, hands and body with no full-inventory tag', () => expectEmptyLubecGear(page))
   await step('fit the Lubec Gear page without scrolling sideways', () => expectNoSidewaysScroll(page))
-  if (!testCase.viewport.isMobile) await step('fit On you on one desktop screen', () => expectLubecGearOnOneScreen(page))
+  await lubecGearFitStep(page, testCase)
   await step('add a Flashlight through the add form into the main pocket', async () => {
     await addLubecThing(page, 'Flashlight')
     await expectLubecGearItemInMainPocket(page, 'Flashlight')
@@ -1430,12 +1450,7 @@ async function lubecGearPageSteps(page, testCase, path) {
     await expectLubecGearItemInMainPocket(page, 'Flashlight')
   })
   await page.mouse.move(0, page.viewport().height - 1)
-  if (testCase.viewport.isMobile) {
-    await step('fit the Gear page on a phone in one column with the page tabs in place', async () => {
-      await expectLubecGearOneColumn(page)
-      await expectNoSidewaysScroll(page)
-    })
-  }
+  await step('fit the Gear page without scrolling sideways after the add', () => expectNoSidewaysScroll(page))
   await screenshot(page, `${testCase.name}-lubec-gear`)
 }
 
