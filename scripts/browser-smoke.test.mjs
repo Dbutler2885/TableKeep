@@ -3,12 +3,15 @@ import {
   calibratedMapFields,
   campaignIdFromUrl,
   changedFirestoreFields,
+  draggedToHandProblems,
+  droppedAnvilProblems,
   groupIdFromUrl,
   interpolatePath,
   migratedFixtureFields,
   oseCharacterFields,
   ownedFixtureFields,
   partyTokenFields,
+  showLubecFormField,
   step,
   storedItemsProblem,
   storedMediaProblems,
@@ -297,5 +300,65 @@ describe('checking a saved character is stored at version 1', () => {
     const png = Buffer.from([0x89, 0x50, 0x4e, 0x47])
     expect(withLubecPortrait({ format: 'lubec-character', characterName: 'Tommy', portrait: null }, png))
       .toEqual({ format: 'lubec-character', characterName: 'Tommy', portrait: 'data:image/png;base64,iVBORw==' })
+  })
+})
+
+// A Lubec character as the REST API returns it, with these things in its gear.
+const lubecWith = (items) => toFirestoreFields({ name: 'Tommy', lubec: { gear: { items, carriers: [] } } })
+
+describe('the dragged flashlight (step 14)', () => {
+  it('passes when the stored flashlight is in a hand', () => {
+    expect(draggedToHandProblems(lubecWith([{ name: 'Flashlight', carrier: 'hands', slot: 0 }]))).toEqual([])
+  })
+
+  it('names where the flashlight is when it is not in a hand, or that it is gone', () => {
+    expect(draggedToHandProblems(lubecWith([{ name: 'Flashlight', carrier: 'backpack', pocket: 0 }]))).toEqual(['the stored flashlight is in backpack'])
+    expect(draggedToHandProblems(lubecWith([]))).toEqual(['the stored flashlight is in undefined'])
+  })
+})
+
+describe('the dropped anvil (step 15)', () => {
+  const anvil = (fields = {}) => toFirestoreFields({
+    name: 'Small anvil', status: 'dropped', droppedByCharacterName: 'Tommy', droppedByUserId: 'gm-1', droppedFrom: 'backpack', ...fields,
+  })
+
+  it('passes when the anvil left the sheet and is one dropped GM item named for the character, with who dropped it', () => {
+    expect(droppedAnvilProblems({ dropped: [anvil()], character: lubecWith([]) })).toEqual([])
+  })
+
+  it('names what the GM items hold when they are not that one dropped anvil', () => {
+    expect(droppedAnvilProblems({ dropped: [], character: lubecWith([]) })).toEqual(['the GM items are [], not Small anvil/dropped/Tommy/backpack'])
+    expect(droppedAnvilProblems({ dropped: [anvil({ droppedFrom: 'hands' })], character: lubecWith([]) }))
+      .toEqual(['the GM items are ["Small anvil/dropped/Tommy/hands"], not Small anvil/dropped/Tommy/backpack'])
+  })
+
+  it('says when no one is named as having dropped it, and when the anvil is still on the sheet', () => {
+    expect(droppedAnvilProblems({ dropped: [anvil({ droppedByUserId: undefined })], character: lubecWith([{ name: 'Small anvil', carrier: 'backpack' }]) }))
+      .toEqual(['a dropped GM item names nobody who dropped it', 'the anvil is still on the sheet'])
+  })
+})
+
+describe('showing a field of the paged add form', () => {
+  // A page whose form shows `field` on the step tab at `shownOn`, starting on the first.
+  function pagedForm(tabs, shownOn) {
+    let on = 0
+    const clicked = []
+    const page = {
+      $$: async () => Array.from({ length: tabs }, (_, k) => ({ click: async () => { clicked.push(k); on = k + 1 } })),
+      $eval: async () => on >= shownOn,
+    }
+    return { page, clicked }
+  }
+
+  it('turns no page when the field already shows, as on a desktop form with no step tabs', async () => {
+    const { page, clicked } = pagedForm(0, 0)
+    await showLubecFormField(page, 'input')
+    expect(clicked).toEqual([])
+  })
+
+  it('turns the pages one at a time until the field shows', async () => {
+    const { page, clicked } = pagedForm(3, 2)
+    await showLubecFormField(page, 'input')
+    expect(clicked).toEqual([0, 1])
   })
 })

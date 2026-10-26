@@ -1457,7 +1457,7 @@ const storedGearItem = (stored, name) => storedGearItems(storedAt(stored, ['lube
   .find((item) => storedAt(item, ['mapValue', 'fields', 'name', 'stringValue']) === name)
 
 // Step 14: the flashlight dragged from the main pocket into the empty left hand is stored in `hands`.
-function draggedToHandProblems(stored) {
+export function draggedToHandProblems(stored) {
   const carrier = storedAt(storedGearItem(stored, 'Flashlight'), ['mapValue', 'fields', 'carrier', 'stringValue'])
   return carrier === 'hands' ? [] : [`the stored flashlight is in ${carrier}`]
 }
@@ -1468,7 +1468,7 @@ async function dragLubecFlashlightToHand(page) {
 }
 
 // On a phone the form is pages: each step tab is tried until the field shows.
-async function showLubecFormField(page, selector) {
+export async function showLubecFormField(page, selector) {
   const steps = await page.$$(`${LUBEC_GEAR_SHEET} .form-steps button`)
   for (const tab of steps) {
     if (await page.$eval(selector, (el) => el.checkVisibility())) return
@@ -1494,16 +1494,20 @@ async function dropLubecAnvil(page) {
 const storedText = (stored, field) => storedAt(stored, [field, 'stringValue'])
 
 // Step 15: the anvil is off the sheet, and one dropped GM item holds it, named for the character that dropped it, with who and from where.
-async function droppedAnvilProblems(path) {
-  const gmItemsPath = path.replace(/\/characters\/[^/]+$/, '/gmItems')
-  const dropped = await Promise.all((await listDocumentIds(gmItemsPath)).map((id) => readDocumentFields(`${gmItemsPath}/${id}`)))
-  const character = await readDocumentFields(path)
+export function droppedAnvilProblems({ dropped, character }) {
   const shown = dropped.map((item) => ['name', 'status', 'droppedByCharacterName', 'droppedFrom'].map((field) => storedText(item, field)).join('/'))
   const expected = `Small anvil/dropped/${storedText(character, 'name')}/backpack`
   const problems = shown.join() === expected ? [] : [`the GM items are ${JSON.stringify(shown)}, not ${expected}`]
   if (dropped.some((item) => !storedText(item, 'droppedByUserId'))) problems.push('a dropped GM item names nobody who dropped it')
   if (storedGearItem(character, 'Small anvil')) problems.push('the anvil is still on the sheet')
   return problems
+}
+
+// The campaign's GM items, and the character they were dropped from, as stored.
+async function readDroppedItems(path) {
+  const gmItemsPath = path.replace(/\/characters\/[^/]+$/, '/gmItems')
+  const dropped = await Promise.all((await listDocumentIds(gmItemsPath)).map((id) => readDocumentFields(`${gmItemsPath}/${id}`)))
+  return { dropped, character: await readDocumentFields(path) }
 }
 
 async function lubecGearPageSteps(page, testCase, path) {
@@ -1533,7 +1537,7 @@ async function lubecGearPageSteps(page, testCase, path) {
   await step('drop a heavy Small anvil from the backpack, which leaves the sheet for a dropped GM item', async () => {
     await addLubecHeavyAnvil(page)
     await dropLubecAnvil(page)
-    await waitForStored(() => droppedAnvilProblems(path), (problems) => problems)
+    await waitForStored(() => readDroppedItems(path), droppedAnvilProblems)
   })
   await page.mouse.move(0, page.viewport().height - 1)
   await step('fit the Gear page without scrolling sideways after the add', () => expectNoSidewaysScroll(page))
