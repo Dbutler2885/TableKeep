@@ -18503,8 +18503,10 @@ button:disabled {
 
   /* A screen too narrow or too short for the Core page at full size shows all
      of it a little smaller: the page needs a sheet about 1066px wide and 850px
-     tall, and the steps below scale it to the pane beside the roster. */
-  .shell-root[data-theme="lubec"] .lubec-sheet:has(> .lubec-core) {
+     tall, and the steps below scale it to the pane beside the roster. The
+     Gear page takes the same steps, so the masthead keeps one size across the
+     two; its pack sizes itself to what the window has left (lubecGear.css). */
+  .shell-root[data-theme="lubec"] .lubec-sheet:has(> .lubec-core, > .lubec-gear) {
     zoom: min(var(--lubec-fit-width, 1), var(--lubec-fit-height, 1));
   }
 

@@ -9,6 +9,7 @@ import { LubecCorePage, type LubecGuided } from './LubecCorePage'
 import { LubecCorrectSwitch } from './LubecCorrectSwitch'
 import type { LubecCountersChange } from './LubecCountersPanel'
 import { LubecDraftBar } from './LubecDraftBar'
+import { LubecGearPage, type LubecGearChange } from './gear/LubecGearPage'
 import { LubecMissing } from './LubecMissing'
 import { LubecNameBandEditor, type LubecSheetEditing } from './LubecNameBandEditor'
 import { LubecSkillsPage } from './LubecSkillsPage'
@@ -17,9 +18,15 @@ import { lubecCharacterName } from './lubecNames'
 import { lubecMotionAllowed } from './useLubecCircles'
 import lubecPines from './lubecPines.svg'
 
-type LubecPage = 'core' | 'skills'
+type LubecPage = 'core' | 'skills' | 'gear'
 
-const LUBEC_PAGES: readonly (readonly [LubecPage, string])[] = [['core', 'Core sheet'], ['skills', 'Skills']]
+type LubecPages = readonly (readonly [LubecPage, string])[]
+
+const LUBEC_PAGES: LubecPages = [['core', 'Core sheet'], ['skills', 'Skills'], ['gear', 'Gear']]
+
+// Every page, or every page but Gear where the sheet has no Gear page yet.
+const pagesOf = (withGear: boolean | undefined): LubecPages =>
+  (withGear === false ? LUBEC_PAGES.filter(([id]) => id !== 'gear') : LUBEC_PAGES)
 
 function LubecPortrait({ character }: { character: LubecCharacterRecord }) {
   if (!character.portraitUrl) {
@@ -35,10 +42,10 @@ function LubecPortrait({ character }: { character: LubecCharacterRecord }) {
   )
 }
 
-function LubecPageTabs({ page, onPage }: { page: LubecPage; onPage: (page: LubecPage) => void }) {
+function LubecPageTabs({ pages, page, onPage }: { pages: LubecPages; page: LubecPage; onPage: (page: LubecPage) => void }) {
   return (
     <nav className="lubec-page-tabs" aria-label="Character sheet pages">
-      {LUBEC_PAGES.map(([id, label]) => (
+      {pages.map(([id, label]) => (
         <button key={id} type="button" aria-current={id === page ? 'page' : undefined} onClick={() => onPage(id)}>
           {label}
         </button>
@@ -49,6 +56,7 @@ function LubecPageTabs({ page, onPage }: { page: LubecPage; onPage: (page: Lubec
 
 type MastheadProps = {
   character: LubecCharacterRecord
+  pages: LubecPages
   page: LubecPage
   onPage: (page: LubecPage) => void
   /** The viewer's edits, or null when they may only look. */
@@ -109,7 +117,7 @@ function LubecKidMeta({ character }: { character: LubecCharacterRecord }) {
 // rust and mustard stripe, then the name band with the portrait and the token
 // at the left and the stamp at the right, with a stand of pines rising behind
 // the stamp.
-function LubecMasthead({ character, page, onPage, editing, ...actions }: MastheadProps) {
+function LubecMasthead({ character, pages, page, onPage, editing, ...actions }: MastheadProps) {
   return (
     <header className="lubec-masthead">
       {/* The worn edge of the big lettering, as printed on old paper. */}
@@ -121,7 +129,7 @@ function LubecMasthead({ character, page, onPage, editing, ...actions }: Masthea
       </svg>
       <div className="lubec-topbar">
         <div className="lubec-wordmark">Lubec 1977</div>
-        <LubecPageTabs page={page} onPage={onPage} />
+        <LubecPageTabs pages={pages} page={page} onPage={onPage} />
       </div>
       <div className="lubec-idband">
         <div className="lubec-id-art">
@@ -167,6 +175,8 @@ export type LubecSheetViewProps = {
   editing: LubecSheetEditing | null
   /** False where the name, portrait and token are edited elsewhere: the band has no Edit and the token is only a picture. */
   identityEditable?: boolean
+  /** False where the sheet has no Gear page yet, as on an NPC's sheet; offered unless said otherwise. */
+  withGear?: boolean
   /** Null for a viewer who may not change the character. */
   onCountersChange: LubecCountersChange | null
   /** Null unless the viewer may change the character's skills, which is only in creation. */
@@ -183,6 +193,8 @@ export type LubecSheetViewProps = {
   onRollUp: LubecSheetEdit | null
   /** What the Correct switch unlocks; null unless the viewer is the GM on a finalized character. */
   corrections: LubecCorrections | null
+  /** Saves the character's gear, at any stage; null unless the viewer may change the character. */
+  onGearChange: LubecGearChange
 }
 
 type LockedEdits = Pick<LubecSheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
@@ -191,7 +203,7 @@ type LockedEdits = Pick<LubecSheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
 const lockedEdits = (correcting: boolean, corrections: LubecCorrections | null, edits: LockedEdits): LockedEdits =>
   correcting && corrections ? corrections : edits
 
-type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp'> & {
+type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp' | 'onGearChange'> & {
   page: LubecPage
   onHideTree: () => void
   /** Brings the Core page's class cards into view once the class is cleared. */
@@ -211,7 +223,8 @@ function changeClassOf(sheet: LubecCharacterRecord['lubec'], onDraftEdit: LubecS
   }
 }
 
-function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp }: SheetPageProps) {
+function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp, onGearChange }: SheetPageProps) {
+  if (page === 'gear') return <LubecGearPage gear={character.lubec.gear} onGearChange={onGearChange} />
   if (page === 'skills') {
     const onChangeClass = changeClassOf(character.lubec, onDraftEdit, onShowClass)
     return <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} onHideTree={onHideTree} onChangeClass={onChangeClass} />
@@ -245,9 +258,9 @@ function showLubecClass(sheet: HTMLElement | null, onPage: (page: LubecPage) => 
 const identityEditingOf = (editing: LubecSheetEditing | null, identityEditable: boolean | undefined) =>
   (identityEditable === false ? null : editing)
 
-/** One Lubec character's sheet, in the v4 frame, on its Core or Skills page. */
+/** One Lubec character's sheet, in the v4 frame, on its Core, Skills or Gear page. */
 export function LubecSheetView({
-  character, editing, identityEditable, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, ...edits
+  character, editing, identityEditable, withGear, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, ...edits
 }: LubecSheetViewProps) {
   const [page, setPage] = useState<LubecPage>('core')
   const [bandOpen, setBandOpen] = useState(false)
@@ -258,6 +271,7 @@ export function LubecSheetView({
     <article ref={sheetRef} className="lubec-sheet" aria-label={`${lubecCharacterName(character)} character sheet`}>
       <LubecMasthead
         character={character}
+        pages={pagesOf(withGear)}
         page={page}
         onPage={setPage}
         editing={identityEditing}
@@ -281,6 +295,7 @@ export function LubecSheetView({
         editing={editing}
         onCountersChange={onCountersChange}
         onRollUp={onRollUp}
+        onGearChange={onGearChange}
         {...lockedEdits(correcting, corrections, edits)}
       />
     </article>

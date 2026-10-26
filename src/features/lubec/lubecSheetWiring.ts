@@ -2,7 +2,9 @@ import type { Role } from '../../types/app'
 import { canEditCharacterStoreCharacter } from '../character/characterStore/characterStoreActions'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import type { LubecSheetEdit } from '../ruleSets/lubec/directEntry'
+import type { LubecGear } from '../ruleSets/lubec/gear/gearRecord'
 import type { LubecSkills } from '../ruleSets/lubec/skillPicks'
+import type { LubecGearChange } from './gear/LubecGearPage'
 import type { LubecCountersChange } from './LubecCountersPanel'
 import type { LubecCorrections } from './LubecSheetView'
 
@@ -33,6 +35,7 @@ export type LubecSheetEdits = DraftActions & {
   onCountersChange: LubecCountersChange | null
   onSkillsChange: LubecSkillsChange | null
   corrections: LubecCorrections | null
+  onGearChange: LubecGearChange
 }
 
 // The owner and the GM change a character's counters; anyone else only sees them.
@@ -54,6 +57,12 @@ function skillsChangeFor(
   if (!character || character.creationStatus === 'active') return null
   if (!canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) return null
   return (skills) => update(character.id, { lubec: { ...character.lubec, skills } })
+}
+
+// The owner and the GM change a character's gear at every stage, draft or in play; anyone else only sees it.
+function gearChangeFor(character: LubecCharacterRecord | null, viewer: LubecViewer, update: CharacterUpdate): LubecGearChange {
+  if (!character || !canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) return null
+  return (gear: LubecGear) => update(character.id, { lubec: { ...character.lubec, gear } })
 }
 
 // The GM may correct any locked value on a finalized character; nobody else may change one.
@@ -100,6 +109,7 @@ export function lubecSheetWiring(
     onCountersChange: countersChangeFor(character, viewer, store.updateCharacter),
     onSkillsChange: skillsChangeFor(character, viewer, store.updateCharacter),
     corrections: correctionsFor(character, viewer, store.updateCharacter),
+    onGearChange: gearChangeFor(character, viewer, store.updateCharacter),
     ...draftActionsFor(character, viewer, store),
   }
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import { makeLubecDirectEntryCharacter } from '../ruleSets/lubec/directEntry'
+import { emptyLubecGear } from '../ruleSets/lubec/gear/gearRecord'
 import { lubecSheetWiring, type LubecViewer } from './lubecSheetWiring'
 
 const draft = makeLubecDirectEntryCharacter('tommy', { userId: 'player-1', username: 'tommyev' })
@@ -19,7 +20,7 @@ function wire(character: LubecCharacterRecord | null, viewer: LubecViewer) {
 }
 
 const noEdits = {
-  onCountersChange: null, onSkillsChange: null, corrections: null, onDraftEdit: null, onRollUp: null, onFinalize: null,
+  onCountersChange: null, onSkillsChange: null, corrections: null, onDraftEdit: null, onRollUp: null, onFinalize: null, onGearChange: null,
 }
 
 describe('lubecSheetWiring', () => {
@@ -51,12 +52,21 @@ describe('lubecSheetWiring', () => {
     expect(edits.corrections).toBeNull()
   })
 
-  it('leaves the owner of a finalized character only the counters', () => {
+  it('leaves the owner of a finalized character only the counters and the gear', () => {
     const { store, edits } = wire(finalized, owner)
 
-    expect({ ...edits, onCountersChange: null }).toEqual(noEdits)
+    expect({ ...edits, onCountersChange: null, onGearChange: null }).toEqual(noEdits)
     edits.onCountersChange?.(counters)
     expect(store.updateCharacter).toHaveBeenCalledExactlyOnceWith('tommy', { lubec: { ...finalized.lubec, counters } })
+  })
+
+  it('lets the owner and the GM change the gear at every stage, saved under lubec.gear', () => {
+    const gear = { ...emptyLubecGear(), overrides: ['full'] }
+    for (const [character, viewer] of [[draft, owner], [finalized, owner], [draft, gm], [finalized, gm]] as const) {
+      const { store, edits } = wire(character, viewer)
+      edits.onGearChange?.(gear)
+      expect(store.updateCharacter).toHaveBeenCalledExactlyOnceWith('tommy', { lubec: { ...character.lubec, gear } })
+    }
   })
 
   it('gives the GM corrections to a finalized character\'s locked values', () => {

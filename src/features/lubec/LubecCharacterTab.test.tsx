@@ -318,7 +318,7 @@ describe('Lubec character tab', () => {
     expect(screen.getByRole('region', { name: 'Saves' })).toBeTruthy()
   })
 
-  it('opens the sheet in the v4 frame, with Core sheet and Skills page tabs', () => {
+  it('opens the sheet in the v4 frame, with Core sheet, Skills and Gear page tabs', () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
 
@@ -331,7 +331,7 @@ describe('Lubec character tab', () => {
     expect(bandToken('Tommy Eves').getByRole('button', { name: 'Edit map token' }).querySelector('.token-pawn-preview')).toBeTruthy()
     expect(sheet.querySelector('.lubec-stamp')?.textContent).toBe('LubecMaine1977')
     const tabs = within(within(sheet).getByRole('navigation', { name: 'Character sheet pages' })).getAllByRole('button')
-    expect(tabs.map((tab) => [tab.textContent, tab.getAttribute('aria-current')])).toEqual([['Core sheet', 'page'], ['Skills', null]])
+    expect(tabs.map((tab) => [tab.textContent, tab.getAttribute('aria-current')])).toEqual([['Core sheet', 'page'], ['Skills', null], ['Gear', null]])
 
     fireEvent.click(tabs[1])
 

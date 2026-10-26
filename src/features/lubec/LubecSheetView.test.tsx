@@ -26,6 +26,7 @@ function renderSheet(props: Partial<LubecSheetViewProps>) {
       onFinalize={null}
       onRollUp={null}
       corrections={null}
+      onGearChange={null}
       {...props}
     />,
   )
@@ -51,5 +52,21 @@ describe('LubecSheetView identity', () => {
     expect(screen.getByRole('img', { name: 'Tommy Eves map token' })).toBeTruthy()
     // The rest of the sheet still takes the viewer's edits.
     expect(screen.getByRole('button', { name: 'Add effect' })).toBeTruthy()
+  })
+})
+
+describe('LubecSheetView pages', () => {
+  const pageTabs = () => screen.getAllByRole('button').filter((button) => button.closest('.lubec-page-tabs')).map((tab) => tab.textContent)
+
+  it('offers the Core sheet, Skills and Gear pages by default', () => {
+    renderSheet({})
+
+    expect(pageTabs()).toEqual(['Core sheet', 'Skills', 'Gear'])
+  })
+
+  it('leaves the Gear page out where the sheet has none yet, as on an NPC\'s sheet', () => {
+    renderSheet({ withGear: false })
+
+    expect(pageTabs()).toEqual(['Core sheet', 'Skills'])
   })
 })
