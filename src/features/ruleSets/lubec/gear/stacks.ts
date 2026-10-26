@@ -53,7 +53,7 @@ export const draftStacks = (draft: LubecItemDraft): number[] =>
 
 function weaponProblem(draft: LubecItemDraft): LubecDraftProblem | null {
   if (!draft.wounds?.length) return problem('Pick at least one way it wounds: cut, pierce, blunt or gun.', 'wounds')
-  if (draft.mode !== 'melee' && !draft.takes) return problem("Pick the ammo it takes. If it isn't on the list, make a supply.", 'takes')
+  if (draft.mode === 'firearm' && !draft.takes) return problem("Pick the ammo it takes. If it isn't on the list, make a supply.", 'takes')
   return null
 }
 

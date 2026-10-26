@@ -12,6 +12,7 @@ import type { LubecCountersChange } from './LubecCountersPanel'
 import { LubecDraftBar } from './LubecDraftBar'
 import type { LubecGearDrop } from './gear/lubecGearDrop'
 import { LubecGearPage, type LubecGearChange } from './gear/LubecGearPage'
+import { lubecWielder } from '../ruleSets/lubec/gear/minStrength'
 import { LubecMissing } from './LubecMissing'
 import { LubecNameBandEditor, type LubecSheetEditing } from './LubecNameBandEditor'
 import { LubecSkillsPage } from './LubecSkillsPage'
@@ -240,7 +241,7 @@ function changeClassOf(sheet: LubecCharacterRecord['lubec'], onDraftEdit: LubecS
 // The Gear page, which asks the owner for a heavy thing's Strength roll on the character's own sheet.
 function LubecSheetGear({ character, onGearChange, onGearDrop, onGearRolled }: Pick<SheetPageProps, 'character' | 'onGearChange' | 'onGearDrop' | 'onGearRolled'>) {
   const strength = onGearRolled && { sheet: character.lubec, onRolled: onGearRolled }
-  return <LubecGearPage gear={character.lubec.gear} onGearChange={onGearChange} onDrop={onGearDrop} strength={strength} />
+  return <LubecGearPage gear={character.lubec.gear} wielder={lubecWielder(character.lubec)} onGearChange={onGearChange} onDrop={onGearDrop} strength={strength} />
 }
 
 function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp, onGearChange, onGearDrop, onGearRolled }: SheetPageProps) {

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { LUBEC_STOCK } from '../../ruleSets/lubec/gear/stock'
 import type { LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
 import {
+  lubecBothHandsByRule,
   lubecCountOf,
   lubecDraftOf,
   lubecFieldPage,
@@ -92,9 +93,17 @@ describe('the form\'s own rules', () => {
     expect(lubecWithDest(lubecWithSize(lubecNewFields('backpack#0'), 0), 'hands')).toMatchObject({ size: 0, dest: 'hands' })
   })
 
-  it('sets the table and the wound with melee or firearm', () => {
+  it('sets the table and the wound with melee, firearm or thrown', () => {
     expect(lubecWithMode(lubecNewFields('hands'), 'firearm')).toMatchObject({ mode: 'firearm', table: 'gunshot', wounds: ['gun'] })
     expect(lubecWithMode(lubecNewFields('hands'), 'melee')).toMatchObject({ mode: 'melee', table: 'blunt', wounds: ['blunt'] })
+    expect(lubecWithMode(lubecNewFields('hands'), 'thrown')).toMatchObject({ mode: 'thrown', table: 'blunt', wounds: ['blunt'] })
+  })
+
+  it('gives both hands by the hands rule to anything bigger than one slot or heavier than normal', () => {
+    expect(lubecBothHandsByRule({ size: 1, weight: 'normal' })).toBe(false)
+    expect(lubecBothHandsByRule({ size: 0, weight: 'normal' })).toBe(false)
+    expect(lubecBothHandsByRule({ size: 2, weight: 'normal' })).toBe(true)
+    expect(lubecBothHandsByRule({ size: 1, weight: 'heavy' })).toBe(true)
   })
 
   it('leaves "Wear it" for a kind that is not armor, and keeps any other place', () => {
@@ -130,6 +139,32 @@ describe('the draft', () => {
     const gun = lubecDraftOf({ ...lubecWithMode({ ...base, kind: 'weapon', name: 'Gun' }, 'firearm'), wCapacity: '0', wLoaded: '9' })
     expect(gun).toMatchObject({ capacity: 1, loaded: 1 })
     expect('takes' in gun).toBe(false)
+  })
+
+  it('makes a thrown weapon with neither reach nor rounds', () => {
+    const rock = lubecDraftOf({ ...lubecWithMode({ ...base, kind: 'weapon', name: 'Rock', impact: '1' }, 'thrown'), reach: 'short', wTakes: 'a38' })
+    expect(rock).toEqual({ kind: 'weapon', name: 'Rock', note: '', size: 1, weight: 'normal', qty: 1, per: 1, mode: 'thrown', impact: 1, table: 'blunt', wounds: ['blunt'] })
+  })
+
+  it('writes a minimum Strength only when one is typed, never below 0', () => {
+    const weapon = { ...base, kind: 'weapon' as const, name: 'Sledgehammer' }
+    expect('minStrength' in lubecDraftOf({ ...weapon, minStrength: ' ' })).toBe(false)
+    expect(lubecDraftOf({ ...weapon, minStrength: '60' })).toMatchObject({ minStrength: 60 })
+    expect(lubecDraftOf({ ...weapon, minStrength: '-5' })).toMatchObject({ minStrength: 0 })
+  })
+
+  it('writes "both hands" only for a weapon the hands rule would give one hand', () => {
+    const weapon = { ...base, kind: 'weapon' as const, name: 'Slingshot', hands: 2 as const }
+    expect(lubecDraftOf(weapon)).toMatchObject({ hands: 2 })
+    expect('hands' in lubecDraftOf({ ...weapon, hands: 1 })).toBe(false)
+    expect('hands' in lubecDraftOf({ ...weapon, size: 2 })).toBe(false)
+    expect('hands' in lubecDraftOf({ ...weapon, weight: 'heavy' })).toBe(false)
+  })
+
+  it('fills the minimum Strength and the hands from the item, and empty when it has none', () => {
+    const slingshot: LubecItem = { id: 's', kind: 'weapon', name: 'Slingshot', note: '', size: 1, weight: 'normal', qty: 1, carrier: 'body', slot: 0, mode: 'thrown', minStrength: 20, hands: 2 }
+    expect(lubecFieldsOf(slingshot, 'body')).toMatchObject({ mode: 'thrown', minStrength: '20', hands: 2 })
+    expect(lubecFieldsOf({ ...slingshot, minStrength: undefined, hands: undefined }, 'body')).toMatchObject({ minStrength: '', hands: 1 })
   })
 
   it('makes armor of one, in the order of the body, its numbers held between 0 and 9', () => {

@@ -13,6 +13,9 @@ export const WOUNDS: Readonly<Record<LubecWoundKind, string>> = { cut: 'Cutting'
 export const WOUND_SHORT: Readonly<Record<LubecWoundKind, string>> = { cut: 'Cut', pierce: 'Pierce', blunt: 'Blunt', gun: 'Gun' }
 export const WOUND_KINDS = Object.keys(WOUNDS) as LubecWoundKind[]
 
+/** The ways a weapon wounds; one stored with none wounds as its mode does, a firearm by gunshot and anything else blunt. */
+export const woundsOf = (x: Partial<LubecItem>): LubecWoundKind[] => (x.wounds?.length ? x.wounds : [x.mode === 'firearm' ? 'gun' : 'blunt'])
+
 export const armorVs = (a: Pick<LubecItem, 'armor'>, w: LubecWoundKind): number => a.armor?.[w] ?? 0
 export const armorText = (n: number): string => (n ? `−${n}` : '0')
 /** The kinds a piece actually stops, for short labels: "Cut −1, Blunt −1". */
@@ -24,7 +27,8 @@ export const armorAll = (a: Pick<LubecItem, 'armor'>): string => WOUND_KINDS.map
 export const TABLES: Readonly<Record<string, string>> = { blunt: 'Blunt Force', gunshot: 'Gunshot', fisticuffs: 'Fisticuffs', none: 'No table yet' }
 export const WEIGHT_NAMES: Readonly<Record<LubecItemWeight, string>> = { normal: 'Normal', heavy: 'Heavy', extra: 'Extra heavy' }
 
-const sgn = (n: number): string => (n < 0 ? `− ${-n}` : `+ ${n}`)
+/** A signed number as B writes it in a sum: "+ 1", "− 1". */
+export const sgn = (n: number): string => (n < 0 ? `− ${-n}` : `+ ${n}`)
 
 /** The kind tiles' one line each. */
 export const KIND_TILE: Readonly<Record<LubecItemKind, string>> = {

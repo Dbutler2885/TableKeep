@@ -186,6 +186,10 @@ describe('the add form\'s submit rules', () => {
     expect(draftProblem(draft({ kind: 'weapon', mode: 'firearm', wounds: ['gun'], takes: 'a38' }))).toBeNull()
   })
 
+  it('asks a thrown weapon for no ammo', () => {
+    expect(draftProblem(draft({ kind: 'weapon', mode: 'thrown', wounds: ['blunt'] }))).toBeNull()
+  })
+
   it('asks armor where it covers, and a holder what it holds', () => {
     expect(draftProblem(draft({ kind: 'armor', locs: [] }))).toEqual({ msg: 'Pick at least one place it covers.', field: 'locs' })
     expect(draftProblem(draft({ kind: 'armor', locs: ['torso'] }))).toBeNull()

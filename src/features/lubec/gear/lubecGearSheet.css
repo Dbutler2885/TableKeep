@@ -1296,7 +1296,8 @@
   display: none;
 }
 
-/* Wide screens: the form is one size whatever the kind, the firearm's, the tallest; the kind's own fields sit to the right (B 512-542, 912-923) */
+/* Wide screens: the form is one size whatever the kind, the firearm's, the tallest; the kind's own fields sit to the right (B 512-542, 912-923).
+   A weapon's page has its minimum Strength and hands besides, so in every mode "Put it" and the weight sit under the name, as for a firearm (B 917) */
 @media (min-width: 60rem) {
     .shell-root[data-theme="lubec"] .lubec-gear .item-sheet.form,
   .shell-root[data-theme="lubec"] .lubec-gear .item-sheet.stock {
@@ -1372,8 +1373,7 @@
     display: none;
   }
 
-.shell-root[data-theme="lubec"] .lubec-gear .item-form[data-kind="weapon"][data-mode="melee"],
-  .shell-root[data-theme="lubec"] .lubec-gear .item-form[data-kind="consumable"],
+.shell-root[data-theme="lubec"] .lubec-gear .item-form[data-kind="consumable"],
   .shell-root[data-theme="lubec"] .lubec-gear .item-form[data-kind="holder"] {
     grid-template-areas: "head head" "kinds kinds" "top kind" "top bottom" "error error" "foot foot";
   }

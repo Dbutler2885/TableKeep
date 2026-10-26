@@ -9,7 +9,10 @@ const T = (id: string, extra: Partial<LubecItem> = {}): LubecItem =>
 
 const gearOf = (...items: LubecItem[]): LubecGear => ({ ...emptyLubecGear(), items })
 
-const factsOf = (item: LubecItem, gear = gearOf(item)) => lubecCardFacts(gear, item, LUBEC_SUPPLIES).map((f) => [f.term, f.text, f.step].filter(Boolean))
+// A weapon's lines read Strength and Handle; nothing here is a weapon.
+const WAYNE = { strength: 45, handle: 55 }
+
+const factsOf = (item: LubecItem, gear = gearOf(item)) => lubecCardFacts(gear, item, LUBEC_SUPPLIES, WAYNE).map((f) => [f.term, f.text, f.step].filter(Boolean))
 
 describe('the card\'s head', () => {
   it('names the kind and where it is, and how many unless it counts down', () => {
@@ -46,7 +49,7 @@ describe('the card\'s facts', () => {
   })
 
   it('gives a heavy thing on you the Passed and Failed switch, and none to one elsewhere or a normal thing', () => {
-    const weightLine = (item: LubecItem) => lubecCardFacts(gearOf(item), item, LUBEC_SUPPLIES).find((f) => f.term === 'Weight')
+    const weightLine = (item: LubecItem) => lubecCardFacts(gearOf(item), item, LUBEC_SUPPLIES, WAYNE).find((f) => f.term === 'Weight')
     expect(weightLine(T('Anvil', { weight: 'heavy', carrier: 'worn' }))?.check).toBe(true)
     expect(weightLine(T('Anvil', { weight: 'heavy', carrier: 'car' }))?.check).toBeUndefined()
     expect(weightLine(T('Rope'))?.check).toBeUndefined()
@@ -94,6 +97,6 @@ describe('the card\'s facts', () => {
       ['Armor', 'None (it only takes layers)'], ['Covers', 'Torso'], ['Layers', 'Exclusive: every layer where it covers'], ['Where', 'Worn: torso'],
     ])
     const bare = T('bare', { kind: 'armor' })
-    expect(lubecCardFacts(gearOf(bare), bare, LUBEC_SUPPLIES)).toContainEqual({ term: 'Covers', text: '' })
+    expect(lubecCardFacts(gearOf(bare), bare, LUBEC_SUPPLIES, WAYNE)).toContainEqual({ term: 'Covers', text: '' })
   })
 })

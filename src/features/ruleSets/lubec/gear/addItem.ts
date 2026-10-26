@@ -43,7 +43,7 @@ export type LubecEdited =
 
 // What the form sets, which an edit clears before it writes the draft back; and where it was, which the placement replaces.
 const FORM_FIELDS = [
-  'mode', 'impact', 'table', 'reach', 'wounds', 'capacity', 'loaded', 'takes', 'hold', 'locs', 'exclusive', 'armor', 'fits', 'per',
+  'mode', 'impact', 'table', 'reach', 'wounds', 'minStrength', 'hands', 'capacity', 'loaded', 'takes', 'hold', 'locs', 'exclusive', 'armor', 'fits', 'per',
   'art', 'picturePath', 'shape', 'stock', 'batch', 'cells', 'carrier', 'pocket', 'slot',
 ] as const
 

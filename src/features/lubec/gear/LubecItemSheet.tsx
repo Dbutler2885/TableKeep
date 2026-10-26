@@ -1,7 +1,9 @@
 import type { KeyboardEvent } from 'react'
 import { makeId } from '../../character/characterFactories'
+import { lubecSpendRound } from '../../ruleSets/lubec/gear/attack'
 import { lubecUseOne, stepLubecLoaded, stepLubecQty, type LubecCountChange } from '../../ruleSets/lubec/gear/counts'
 import type { LubecGear, LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
+import { lubecWithTableSays, type LubecWielder } from '../../ruleSets/lubec/gear/minStrength'
 import type { LubecStockItem } from '../../ruleSets/lubec/gear/stock'
 import { lubecWithCheck, type LubecCheck } from '../../ruleSets/lubec/gear/strengthCheck'
 import { lubecSupplies } from '../../ruleSets/lubec/gear/supplies'
@@ -30,6 +32,7 @@ import { LubecStockPicker } from './LubecStockPicker'
 import { lubecStockEntries, type LubecStockEntry } from './stockEntries'
 import { lubecAskFirst, type LubecStrengthAsk } from './strengthAsk'
 import { lubecTooHeavyDropped } from './strengthLabels'
+import { attackRefusalText, attackToast } from './weaponFacts'
 
 type SheetContext = {
   gear: LubecGear
@@ -44,6 +47,8 @@ type SheetContext = {
   onAsk: ((ask: LubecStrengthAsk) => void) | null
   /** True while a move is being saved. */
   busy: boolean
+  /** The character's Strength and Handle, for a weapon's minimum Strength. */
+  wielder: LubecWielder
 }
 
 type SheetProps = SheetContext & { sheet: LubecItemSheetState }
@@ -72,6 +77,15 @@ function moveFromCard(ctx: SheetContext, sheet: CardSheet, item: LubecItem, valu
   ctx.toast(r.toast)
 }
 
+// Attack or Fire: a firearm uses a round; Gear rolls no die and logs nothing, so the toast says to roll it at the table.
+function attackFromCard(ctx: SheetContext, sheet: CardSheet, item: LubecItem) {
+  const r = lubecSpendRound(ctx.gear, item.id)
+  if (!r.ok) return ctx.onSheet({ ...sheet, error: attackRefusalText(item, r.why) })
+  ctx.onGearChange(r.gear)
+  ctx.onSheet({ ...sheet, error: null })
+  ctx.toast(attackToast(r.weapon))
+}
+
 // The card's Passed and Failed switch overrides the recorded roll and never touches Stress; an extra heavy thing that failed is dropped.
 function checkFromCard(ctx: SheetContext, sheet: CardSheet, item: LubecItem, check: LubecCheck) {
   if (item.check === check) return
@@ -90,11 +104,13 @@ function CardMode({ sheet, item, ...ctx }: SheetContext & { sheet: CardSheet; it
     },
     onUseOne: () => countChanged(ctx, sheet, item, lubecUseOne(ctx.gear, item)),
     onCheck: (check: LubecCheck) => checkFromCard(ctx, sheet, item, check),
+    onAttack: () => attackFromCard(ctx, sheet, item),
+    onTableSays: (penalty: number | null) => ctx.onGearChange(lubecWithTableSays(ctx.gear, item.id, penalty)),
     onEdit: () => ctx.onSheet(lubecEditSheet(item, destOf(item))),
     onClose: () => ctx.onSheet(null),
   }
   return (
-    <LubecItemCard gear={ctx.gear} item={item} supplies={lubecSupplies(ctx.gear)} error={sheet.error} moveOpen={sheet.move === true} busy={ctx.busy} actions={actions} />
+    <LubecItemCard gear={ctx.gear} item={item} supplies={lubecSupplies(ctx.gear)} wielder={ctx.wielder} error={sheet.error} moveOpen={sheet.move === true} busy={ctx.busy} actions={actions} />
   )
 }
 
