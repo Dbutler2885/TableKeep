@@ -55,7 +55,7 @@ function LubecNpcSheetStart({ npcName, doors }: { npcName: string; doors: LubecD
 export function LubecNpcSheetTab({ npc, currentUsername, ...options }: LubecNpcSheetTabProps) {
   const { store, sheetProps } = useLubecSheetSession({ source: { kind: 'npc', npc }, ...options })
   if (sheetProps) {
-    return <LubecSheetView key={sheetProps.character.id} {...sheetProps} identityEditable={false} onDelete={null} onAssign={null} />
+    return <LubecSheetView key={sheetProps.character.id} {...sheetProps} identityEditable={false} withGear={false} onDelete={null} onAssign={null} />
   }
   if (store.charactersLoading) return <p className="lubec-sheet-none">Opening the sheet…</p>
   const owner = { userId: options.currentUserId, username: currentUsername }
