@@ -3,6 +3,7 @@ import { SIZE_NAMES } from '../../ruleSets/lubec/gear/gearRules'
 import type { LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
 import { LubecPicture } from './LubecGearArt'
 import { subLine, weightTagText, type LubecSupplyName } from './gearLabels'
+import { lubecMarkOf, useLubecDropClass } from './lubecDragMarks'
 
 /** Every item card carries its picture, or its kind's outline when it has none. */
 export function LubecSlotPic({ item }: { item: LubecItem }) {
@@ -42,6 +43,8 @@ export function LubecEmptyInner({ canAdd }: { canAdd: boolean }) {
 type EmptySlotProps = {
   className?: string
   style?: CSSProperties
+  /** The place a dragged thing goes when it is let go here (Rule M7). */
+  drop?: string
   label: string
   /** Adds an item here; null for a viewer who may only look. */
   onAdd: (() => void) | null
@@ -49,23 +52,27 @@ type EmptySlotProps = {
 }
 
 /** An empty slot: a button that adds an item there, or for a viewer who may only look, a plain box. */
-export function LubecEmptySlot({ className = 'slot', style, label, onAdd, children }: EmptySlotProps) {
+export function LubecEmptySlot({ className = 'slot', style, drop, label, onAdd, children }: EmptySlotProps) {
   const inner = <>{children}<LubecEmptyInner canAdd={onAdd !== null} /></>
-  if (!onAdd) return <div className={className} style={style}>{inner}</div>
-  return <button type="button" className={className} style={style} aria-label={label} onClick={onAdd}>{inner}</button>
+  const box = { className: `${className}${useLubecDropClass(lubecMarkOf(drop, null))}`, style, 'data-drop': drop }
+  if (!onAdd) return <div {...box}>{inner}</div>
+  return <button type="button" {...box} aria-label={label} onClick={onAdd}>{inner}</button>
 }
 
 type ItemBoxProps = {
   item: LubecItem
   className: string
   style?: CSSProperties
+  /** The place a dragged thing goes when it is let go on this one, which swaps them (Rule M9); none in the main pocket. */
+  drop?: string
   /** Opens the item's card; null for a viewer who may only look. */
   onOpen: ((itemId: string) => void) | null
   children: ReactNode
 }
 
-/** A box holding an item: a button that opens its card, or for a viewer who may only look, a plain box. */
-export function LubecItemBox({ item, className, style, onOpen, children }: ItemBoxProps) {
-  if (!onOpen) return <div className={className} style={style}>{children}</div>
-  return <button type="button" className={className} style={style} onClick={() => onOpen(item.id)}>{children}</button>
+/** A box holding an item: a button that opens its card, and that a drag picks up, or for a viewer who may only look, a plain box. */
+export function LubecItemBox({ item, className, style, drop, onOpen, children }: ItemBoxProps) {
+  const box = { className: `${className}${useLubecDropClass(lubecMarkOf(drop, item.id))}`, style, 'data-item': item.id, 'data-drop': drop }
+  if (!onOpen) return <div {...box}>{children}</div>
+  return <button type="button" {...box} onClick={() => onOpen(item.id)}>{children}</button>
 }

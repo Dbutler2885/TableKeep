@@ -9,6 +9,7 @@ import { LubecCorePage, type LubecGuided } from './LubecCorePage'
 import { LubecCorrectSwitch } from './LubecCorrectSwitch'
 import type { LubecCountersChange } from './LubecCountersPanel'
 import { LubecDraftBar } from './LubecDraftBar'
+import type { LubecGearDrop } from './gear/lubecGearDrop'
 import { LubecGearPage, type LubecGearChange } from './gear/LubecGearPage'
 import { LubecMissing } from './LubecMissing'
 import { LubecNameBandEditor, type LubecSheetEditing } from './LubecNameBandEditor'
@@ -195,6 +196,8 @@ export type LubecSheetViewProps = {
   corrections: LubecCorrections | null
   /** Saves the character's gear, at any stage; null unless the viewer may change the character. */
   onGearChange: LubecGearChange
+  /** Drops a thing to the GM's Items tab; null unless the viewer may change the character. */
+  onGearDrop: LubecGearDrop
 }
 
 type LockedEdits = Pick<LubecSheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
@@ -203,7 +206,7 @@ type LockedEdits = Pick<LubecSheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
 const lockedEdits = (correcting: boolean, corrections: LubecCorrections | null, edits: LockedEdits): LockedEdits =>
   correcting && corrections ? corrections : edits
 
-type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp' | 'onGearChange'> & {
+type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp' | 'onGearChange' | 'onGearDrop'> & {
   page: LubecPage
   onHideTree: () => void
   /** Brings the Core page's class cards into view once the class is cleared. */
@@ -223,8 +226,8 @@ function changeClassOf(sheet: LubecCharacterRecord['lubec'], onDraftEdit: LubecS
   }
 }
 
-function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp, onGearChange }: SheetPageProps) {
-  if (page === 'gear') return <LubecGearPage gear={character.lubec.gear} onGearChange={onGearChange} />
+function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp, onGearChange, onGearDrop }: SheetPageProps) {
+  if (page === 'gear') return <LubecGearPage gear={character.lubec.gear} onGearChange={onGearChange} onDrop={onGearDrop} />
   if (page === 'skills') {
     const onChangeClass = changeClassOf(character.lubec, onDraftEdit, onShowClass)
     return <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} onHideTree={onHideTree} onChangeClass={onChangeClass} />
@@ -260,7 +263,7 @@ const identityEditingOf = (editing: LubecSheetEditing | null, identityEditable: 
 
 /** One Lubec character's sheet, in the v4 frame, on its Core, Skills or Gear page. */
 export function LubecSheetView({
-  character, editing, identityEditable, withGear, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, ...edits
+  character, editing, identityEditable, withGear, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, ...edits
 }: LubecSheetViewProps) {
   const [page, setPage] = useState<LubecPage>('core')
   const [bandOpen, setBandOpen] = useState(false)
@@ -296,6 +299,7 @@ export function LubecSheetView({
         onCountersChange={onCountersChange}
         onRollUp={onRollUp}
         onGearChange={onGearChange}
+        onGearDrop={onGearDrop}
         {...lockedEdits(correcting, corrections, edits)}
       />
     </article>

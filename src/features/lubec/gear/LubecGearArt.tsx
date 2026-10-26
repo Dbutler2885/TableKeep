@@ -59,9 +59,9 @@ export function LubecKindGlyph({ kind }: { kind: LubecItemKind }) {
 
 type Pictured = Pick<LubecItem, 'kind' | 'art' | 'shape'>
 
-type FrameProps = { item: Pictured; frame: 'slot-pic' | 'thumb' | 'pic-in' }
+type FrameProps = { item: Pictured; frame: 'slot-pic' | 'thumb' | 'pic-in' | 'pic' }
 
-/** An item's picture in a small frame: on a slot, in a list row, or in the form's picture box. Its kind's icon when it has none. */
+/** An item's picture in a small frame: on a slot, in a list row, in the form's picture box, or on the picked-up card of a drag. Its kind's icon when it has none. */
 export function LubecPicture({ item, frame }: FrameProps) {
   if (!isLubecArt(item.art)) return <span className={`${frame} none`} aria-hidden="true"><LubecKindGlyph kind={item.kind} /></span>
   return <span className={`${frame} ${lubecPictureShape(item)}`} aria-hidden="true"><LubecArt art={item.art} /></span>
