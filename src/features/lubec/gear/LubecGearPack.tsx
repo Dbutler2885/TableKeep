@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import { capacity, itemsIn, packMain, pocketUsed, used } from '../../ruleSets/lubec/gear/placement'
 import { LUBEC_BACKPACK_POCKETS, type LubecGear, type LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
-import backpackNavy from './assets/backpack4-navy.webp'
+import backpackNavy from './assets/backpacks/navy-stripe.webp'
 import { lubecPackLayout, lubecSpotsRect, type LubecPackLayout, type LubecPackSpot } from './backpackSlots'
 import { heavyClass, largeClass, uprightClass, type LubecSupplyName } from './gearLabels'
 import { LubecEmptySlot, LubecSlotPic, LubecSlotText } from './LubecGearSlot'

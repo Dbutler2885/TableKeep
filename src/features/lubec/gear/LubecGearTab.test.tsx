@@ -182,7 +182,7 @@ describe('Lubec Gear page', () => {
     expect(screen.getByRole('button', { name: 'Small stuff: empty' }).textContent).toBe('Small stuff+ Add')
     expect(['Left hand', 'Right hand'].map((hand) => screen.getByRole('button', { name: `${hand}, empty, add an item` }))).toHaveLength(2)
     expect(gear.querySelectorAll('button[aria-label="Body, empty, add an item"]')).toHaveLength(2)
-    expect(gear.querySelector('.pack-art')?.getAttribute('style')).toContain('backpack4-navy')
+    expect(gear.querySelector('.pack-art')?.getAttribute('style')).toContain('navy-stripe')
     expect(screen.queryByText('Full inventory / Speed −10')).toBeNull()
     expect(gear.querySelector('.panel.rust .count')?.textContent).toBe('0 of 7 used / 7 free')
 
