@@ -11,6 +11,12 @@ export default defineConfig({
     // parallel therefore lets one suite's `cleanup()` unload the ruleset another
     // is still using, and one suite's `clearFirestore()` wipe another's seed.
     fileParallelism: false,
+    // Every test here waits on a Java emulator, which slows down sharply when
+    // the machine is busy - another worktree's emulators, a browser smoke, a
+    // CI runner's two cores. Vitest's 5 seconds then fails tests that are only
+    // slow, not stuck.
+    testTimeout: 20_000,
+    hookTimeout: 30_000,
     env: testFirebaseEnv,
   },
 })

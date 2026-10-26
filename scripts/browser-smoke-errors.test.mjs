@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { isExpectedFirestoreEmulatorChannelError } from './browser-smoke-errors.mjs'
+import { FIRESTORE_EMULATOR_URL, isExpectedFirestoreEmulatorChannelError } from './browser-smoke-errors.mjs'
 
 const bareBadRequest = 'Failed to load resource: the server responded with a status of 400 (Bad Request)'
-const emulatorUrl = 'http://127.0.0.1:8080'
+const emulatorUrl = FIRESTORE_EMULATOR_URL
 
 describe('browser smoke console error classification', () => {
   it.each(['Listen', 'Write'])('ignores the local Firestore emulator %s channel 400', (channel) => {
@@ -13,6 +13,11 @@ describe('browser smoke console error classification', () => {
   })
 
   it.each([
+    {
+      name: 'Firestore emulator on another port',
+      text: bareBadRequest,
+      url: `http://127.0.0.1:${Number(new URL(emulatorUrl).port) + 1}/google.firestore.v1.Firestore/Write/channel?VER=8`,
+    },
     {
       name: 'production Firestore URL',
       text: bareBadRequest,

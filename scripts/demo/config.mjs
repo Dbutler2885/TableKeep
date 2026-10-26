@@ -2,12 +2,13 @@
 //
 // Everything the demo path needs is derived from files that are already
 // committed - `.env.demo` for the placeholder Firebase web config and the two
-// seat logins the sign-in screen offers, and `firebase.json` for the emulator
-// ports - so they never drift apart.
+// seat logins the sign-in screen offers, and `scripts/emulators/ports.mjs` for
+// this checkout's emulator ports - so they never drift apart.
 
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { readFirebaseJson, resolveEmulatorPorts } from '../emulators/ports.mjs'
 
 export const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 
@@ -85,20 +86,21 @@ export const demoEnv = readDemoEnv()
 export const projectId = demoEnv.VITE_FIREBASE_PROJECT_ID
 export const apiKey = demoEnv.VITE_FIREBASE_API_KEY
 
-const firebaseJson = JSON.parse(readFileSync(path.join(repoRoot, 'firebase.json'), 'utf8'))
-const emulatorPorts = firebaseJson.emulators ?? {}
+/** This checkout's ports: the standard ones, or its own block in a linked worktree. */
+export const emulatorPorts = resolveEmulatorPorts()
+const { ports } = emulatorPorts
 
-export const authEmulatorUrl = `http://127.0.0.1:${emulatorPorts.auth.port}`
-export const firestoreEmulatorUrl = `http://127.0.0.1:${emulatorPorts.firestore.port}`
-export const storageEmulatorUrl = `http://127.0.0.1:${emulatorPorts.storage.port}`
-export const emulatorUiUrl = emulatorPorts.ui?.enabled
-  ? `http://127.0.0.1:${emulatorPorts.ui.port}`
+export const authEmulatorUrl = `http://127.0.0.1:${ports.auth}`
+export const firestoreEmulatorUrl = `http://127.0.0.1:${ports.firestore}`
+export const storageEmulatorUrl = `http://127.0.0.1:${ports.storage}`
+export const emulatorUiUrl = readFirebaseJson(repoRoot).emulators?.ui?.enabled
+  ? `http://127.0.0.1:${ports.ui}`
   : null
 
 /** The emulators the demo harness starts. The functions emulator is not one of them. */
 export const demoEmulators = 'auth,firestore,storage'
 
-export const appPort = Number(process.env.DEMO_APP_PORT ?? 5173)
+export const appPort = Number(process.env.DEMO_APP_PORT ?? ports.app)
 export const appUrl = `http://127.0.0.1:${appPort}`
 
 /**

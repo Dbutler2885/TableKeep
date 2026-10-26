@@ -17,11 +17,13 @@ import { lubecAmmoOnYou } from '../../ruleSets/lubec/gear/supplies'
 import { sgn, TABLES, WOUNDS, woundsOf } from './itemLabels'
 import { theName } from './moveLabels'
 
-/** One line of the card: a term and its text, a count the card steps with − and +, the missing mark after it, or the "Table says" box. */
+/** One line of the card: a term and its text, a count the card steps with − and +, the Passed and Failed switch, the missing mark after it, or the "Table says" box. */
 export type LubecCardFact = {
   term: string
   text: string
   step?: 'qty' | 'loaded'
+  /** The Passed and Failed switch of a heavy thing's recorded Strength roll follows the text. */
+  check?: true
   /** The sheet's missing mark follows the text: a value worked out from a hole. */
   missing?: true
   tone?: 'failure'

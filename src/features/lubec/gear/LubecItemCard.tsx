@@ -1,19 +1,21 @@
 import type { LubecGear, LubecItem, LubecSupply } from '../../ruleSets/lubec/gear/gearRecord'
 import type { LubecWielder } from '../../ruleSets/lubec/gear/minStrength'
 import { LubecMissing } from '../LubecMissing'
+import type { LubecCheck } from '../../ruleSets/lubec/gear/strengthCheck'
 import { cardEyebrow, cardTitle, lubecCardFacts, type LubecCardFact } from './cardFacts'
 import { LubecCardPicture } from './LubecGearArt'
 import { LubecMovePanel, LUBEC_MOVE_PANEL } from './LubecMovePanel'
 import { LubecSheetHead } from './LubecSheetHead'
 import { lubecAttackButtons } from './weaponFacts'
 
-/** What the card's buttons do: step a count, use one, attack, set the table's penalty, open the edit form, open the Move panel, move, drop, or close. */
+/** What the card's buttons do: step a count, use one, record the Strength roll, attack, set the table's penalty, open the edit form, open the Move panel, move, drop, or close. */
 export type LubecCardActions = {
   onStep: (field: 'qty' | 'loaded', d: number) => void
   onUseOne: () => void
   onAttack: () => void
   /** The table's own minimum Strength penalty; null clears it. */
   onTableSays: (penalty: number | null) => void
+  onCheck: (check: LubecCheck) => void
   onEdit: () => void
   onToggleMove: () => void
   onMove: (value: string) => void
@@ -46,6 +48,16 @@ function Stepper({ f, onStep }: { f: LubecCardFact; onStep: LubecCardActions['on
   )
 }
 
+// The recorded Strength roll, as a switch: the manual override, which never touches Stress.
+function CheckSwitch({ check, onCheck }: { check: LubecItem['check']; onCheck: LubecCardActions['onCheck'] }) {
+  return (
+    <span className="seg" role="group" aria-label="Strength roll, recorded">
+      <button type="button" className="pass" aria-pressed={check === 'pass'} onClick={() => onCheck('pass')}>Passed</button>
+      <button type="button" className="fail" aria-pressed={check === 'fail'} onClick={() => onCheck('fail')}>Failed</button>
+    </span>
+  )
+}
+
 // The box is empty while the table says nothing; a number typed with a minus sign is the same penalty.
 const penaltyOf = (raw: string): number | null => (raw.trim() === '' ? null : Math.abs(Math.round(Number(raw) || 0)))
 
@@ -59,24 +71,33 @@ function TableSays({ value, onTableSays }: { value: number | null; onTableSays: 
   )
 }
 
-type FactActions = Pick<LubecCardActions, 'onStep' | 'onTableSays'>
+type FactActions = Pick<LubecCardActions, 'onStep' | 'onTableSays' | 'onCheck'>
 
-function FactValue({ f, actions }: { f: LubecCardFact; actions: FactActions }) {
+type FactProps = { f: LubecCardFact; check: LubecItem['check']; actions: FactActions }
+
+// The sheet's missing mark after a value worked out from a hole.
+function MissingMark({ f }: { f: LubecCardFact }) {
+  if (!f.missing) return null
+  return <>{f.text ? ' ' : null}<LubecMissing /></>
+}
+
+function FactValue({ f, check, actions }: FactProps) {
   if (f.step) return <Stepper f={f} onStep={actions.onStep} />
   return (
     <>
-      {f.text}{f.missing ? <>{f.text ? ' ' : null}<LubecMissing /></> : null}
+      {f.text}<MissingMark f={f} />
+      {f.check ? <CheckSwitch check={check} onCheck={actions.onCheck} /> : null}
       {f.tableSays === undefined ? null : <TableSays value={f.tableSays} onTableSays={actions.onTableSays} />}
     </>
   )
 }
 
-function Facts({ facts, actions }: { facts: LubecCardFact[]; actions: FactActions }) {
+function Facts({ facts, check, actions }: { facts: LubecCardFact[]; check: LubecItem['check']; actions: FactActions }) {
   return (
     <dl className="facts item-facts">
       {facts.map((f) => [
         <dt key={`${f.term}-t`}>{f.term}</dt>,
-        <dd key={`${f.term}-d`} className={f.tone}><FactValue f={f} actions={actions} /></dd>,
+        <dd key={`${f.term}-d`} className={f.tone}><FactValue f={f} check={check} actions={actions} /></dd>,
       ])}
     </dl>
   )
@@ -134,7 +155,7 @@ export function LubecItemCard({ supplies, wielder, ...props }: CardProps) {
         <LubecCardPicture item={item} name={item.name} />
         <p className={`item-note${item.note ? '' : ' empty'}`}>{item.note || 'No description yet. Tap Edit to add one.'}</p>
       </div>
-      <Facts facts={lubecCardFacts(gear, item, supplies, wielder)} actions={actions} />
+      <Facts facts={lubecCardFacts(gear, item, supplies, wielder)} check={item.check} actions={actions} />
       <StockRow item={item} />
       <KindActions item={item} actions={actions} />
       <CardFoot {...props} />

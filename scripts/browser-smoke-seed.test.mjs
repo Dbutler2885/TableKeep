@@ -7,8 +7,9 @@ import {
   toFirestoreFields,
   toFirestoreValue,
 } from './browser-smoke-seed.mjs'
+import { FIRESTORE_EMULATOR_URL } from './browser-smoke-errors.mjs'
 
-const documentsUrl = 'http://127.0.0.1:8080/v1/projects/homeboyshouse-dev/databases/(default)/documents'
+const documentsUrl = `${FIRESTORE_EMULATOR_URL}/v1/projects/homeboyshouse-dev/databases/(default)/documents`
 
 function stubFetch(response) {
   const fetch = vi.fn(async () => response)

@@ -39,8 +39,12 @@ function weightEffect(i: LubecItem): string {
   return i.check === 'fail' ? `Strength failed: Speed −${RULES.heavyFail}.` : 'Strength passed: no penalty.'
 }
 
-const weightFact = (i: LubecItem): LubecCardFact =>
-  fact('Weight', i.weight === 'normal' ? WEIGHT_NAMES.normal : `${WEIGHT_NAMES[i.weight]}, so it takes both hands to hold. ${weightEffect(i)}`)
+// A heavy thing on you carries the switch that records, or overrides, its Strength roll.
+function weightFact(i: LubecItem): LubecCardFact {
+  if (i.weight === 'normal') return fact('Weight', WEIGHT_NAMES.normal)
+  const line = fact('Weight', `${WEIGHT_NAMES[i.weight]}, so it takes both hands to hold. ${weightEffect(i)}`)
+  return onYou(i) ? { ...line, check: true } : line
+}
 
 // Rule S3: a stack's room, and which of its batch it is.
 function stackFact({ gear, item: i }: Facts): LubecCardFact[] {

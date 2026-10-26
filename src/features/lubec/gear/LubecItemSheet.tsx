@@ -5,6 +5,7 @@ import { lubecUseOne, stepLubecLoaded, stepLubecQty, type LubecCountChange } fro
 import type { LubecGear, LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
 import { lubecWithTableSays, type LubecWielder } from '../../ruleSets/lubec/gear/minStrength'
 import type { LubecStockItem } from '../../ruleSets/lubec/gear/stock'
+import { lubecWithCheck, type LubecCheck } from '../../ruleSets/lubec/gear/strengthCheck'
 import { lubecSupplies } from '../../ruleSets/lubec/gear/supplies'
 import { supplyNameIn } from './gearLabels'
 import { destOf } from './itemLabels'
@@ -15,7 +16,9 @@ import {
   lubecBackSheet,
   lubecCardSheet,
   lubecEditSheet,
+  lubecFormNeedsStrength,
   lubecSaveForm,
+  type LubecFormSaved,
   type LubecCardSheet,
   type LubecFormSheet,
   type LubecItemSheetState,
@@ -26,6 +29,8 @@ import { LUBEC_SHEET_TITLE } from './LubecSheetHead'
 import { LubecSmallStuffList } from './LubecSmallStuffList'
 import { LubecStockPicker } from './LubecStockPicker'
 import { lubecStockEntries, type LubecStockEntry } from './stockEntries'
+import { lubecAskFirst, type LubecStrengthAsk } from './strengthAsk'
+import { lubecTooHeavyDropped } from './strengthLabels'
 import { attackRefusalText, attackToast } from './weaponFacts'
 
 type SheetContext = {
@@ -35,8 +40,10 @@ type SheetContext = {
   toast: (text: string) => void
   /** The campaign's own list for the picker; empty until the GM Items tab fills it. */
   campaignStock: readonly LubecStockItem[]
-  /** Drops the thing, which goes to the GM's Items tab; a refusal comes back to the card. */
-  onDrop: (item: LubecItem, refused: (msg: string) => void) => void
+  /** Drops the thing, which goes to the GM's Items tab; a refusal comes back to the card. `said` replaces the drop's own toast. */
+  onDrop: (item: LubecItem, refused: (msg: string) => void, said?: string) => void
+  /** Asks the character's owner for a Strength roll before a heavy thing comes onto them; null when nobody is asked. */
+  onAsk: ((ask: LubecStrengthAsk) => void) | null
   /** True while a move is being saved. */
   busy: boolean
   /** The character's Strength and Handle, for a weapon's minimum Strength. */
@@ -57,9 +64,11 @@ function countChanged(ctx: SheetContext, sheet: CardSheet, item: LubecItem, r: L
 }
 
 // The Move panel's Move it or Swap: one commit, then the card shows where it is now, with the panel closed.
+// A heavy thing coming onto you asks its owner first (Rule E5).
 function moveFromCard(ctx: SheetContext, sheet: CardSheet, item: LubecItem, value: string) {
   const refused = (msg: string) => ctx.onSheet({ ...sheet, error: msg })
-  const r = lubecCardMove(ctx.gear, item, value)
+  const r = lubecAskFirst(ctx.gear, lubecCardMove(ctx.gear, item, value), ctx.onAsk, sheet)
+  if (!r) return
   if (r.kind === 'drop') return ctx.onDrop(item, refused)
   if (r.kind === 'refused') return refused(r.msg)
   ctx.onGearChange(r.gear)
@@ -76,6 +85,13 @@ function attackFromCard(ctx: SheetContext, sheet: CardSheet, item: LubecItem) {
   ctx.toast(attackToast(r.weapon))
 }
 
+// The card's Passed and Failed switch overrides the recorded roll and never touches Stress; an extra heavy thing that failed is dropped.
+function checkFromCard(ctx: SheetContext, sheet: CardSheet, item: LubecItem, check: LubecCheck) {
+  if (item.check === check) return
+  if (check === 'fail' && item.weight === 'extra') return ctx.onDrop(item, (msg) => ctx.onSheet({ ...sheet, error: msg }), lubecTooHeavyDropped(item))
+  ctx.onGearChange(lubecWithCheck(ctx.gear, item.id, check))
+}
+
 function CardMode({ sheet, item, ...ctx }: SheetContext & { sheet: CardSheet; item: LubecItem }) {
   const actions = {
     onToggleMove: () => ctx.onSheet({ ...sheet, error: null, move: !sheet.move }),
@@ -86,6 +102,7 @@ function CardMode({ sheet, item, ...ctx }: SheetContext & { sheet: CardSheet; it
       else countChanged(ctx, sheet, item, { ok: true, gear: stepLubecLoaded(ctx.gear, item, d), gone: false })
     },
     onUseOne: () => countChanged(ctx, sheet, item, lubecUseOne(ctx.gear, item)),
+    onCheck: (check: LubecCheck) => checkFromCard(ctx, sheet, item, check),
     onAttack: () => attackFromCard(ctx, sheet, item),
     onTableSays: (penalty: number | null) => ctx.onGearChange(lubecWithTableSays(ctx.gear, item.id, penalty)),
     onEdit: () => ctx.onSheet(lubecEditSheet(item, destOf(item))),
@@ -96,13 +113,17 @@ function CardMode({ sheet, item, ...ctx }: SheetContext & { sheet: CardSheet; it
   )
 }
 
-// The form's Add it or Save; a refusal stays on the form, turning a phone to the page it points at.
+// A refusal stays on the form, turning a phone to the page it points at.
+function formRefused(ctx: SheetContext, form: LubecFormSheet, saved: Extract<LubecFormSaved, { ok: false }>, paged: boolean) {
+  const at = lubecFormPages(form.fields.kind).findIndex(([id]) => id === saved.page)
+  ctx.onSheet({ ...form, error: saved.msg, page: paged && at >= 0 ? at : form.page })
+}
+
+// The form's Add it or Save. One that brings a heavy thing onto you asks its owner for a Strength roll first, and saves on Done (Rule E5).
 function submitForm(ctx: SheetContext, form: LubecFormSheet, paged: boolean) {
   const saved = lubecSaveForm(ctx.gear, form, makeId)
-  if (!saved.ok) {
-    const at = lubecFormPages(form.fields.kind).findIndex(([id]) => id === saved.page)
-    return ctx.onSheet({ ...form, error: saved.msg, page: paged && at >= 0 ? at : form.page })
-  }
+  if (!saved.ok) return formRefused(ctx, form, saved, paged)
+  if (ctx.onAsk && lubecFormNeedsStrength(ctx.gear, form)) return ctx.onAsk({ kind: 'form', form })
   ctx.onGearChange(saved.gear)
   ctx.onSheet(saved.next)
   ctx.toast(saved.toast)
