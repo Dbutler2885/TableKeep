@@ -22,31 +22,37 @@
 // web config is the placeholder set in `.env.demo`, and the snapshot is only
 // ever read.
 
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import process from 'node:process'
 import { demoEnv, projectId, repoRoot, snapshotDir } from './config.mjs'
 import { resolveJavaPath } from './java.mjs'
-import { SANDBOX_EMULATORS, sandboxConfig, sandboxPorts } from './sandboxPorts.mjs'
-import { assertBlockIsFree, clientEmulatorEnv, describeEmulatorPorts, firebaseEnv, resolveEmulatorPorts } from '../emulators/ports.mjs'
-
-const firebaseBin = new URL('../../node_modules/firebase-tools/lib/bin/firebase.js', import.meta.url)
-const viteBin = new URL('../../node_modules/vite/bin/vite.js', import.meta.url)
+import { startEmulatorProcess, startViteProcess } from './launch.mjs'
+import { SANDBOX_CONFIG_FILE, SANDBOX_EMULATORS, sandboxBanner, sandboxPorts, writeSandboxConfig } from './sandboxPorts.mjs'
+import { assertBlockIsFree, clientEmulatorEnv, describeEmulatorPorts, resolveEmulatorPorts } from '../emulators/ports.mjs'
 
 const EMULATOR_READY_TIMEOUT_MS = 180_000
 const APP_READY_TIMEOUT_MS = 60_000
 const SHUTDOWN_GRACE_MS = 20_000
 
-/** Where the generated Firebase config lives. Ignored by git; see `.gitignore`. */
-const sandboxConfigPath = path.join(repoRoot, 'firebase.sandbox.json')
-
 const emulatorPorts = resolveEmulatorPorts()
 const SANDBOX_PORTS = sandboxPorts(emulatorPorts)
 
-function writeSandboxConfig() {
-  const base = JSON.parse(readFileSync(path.join(repoRoot, 'firebase.json'), 'utf8'))
-  writeFileSync(sandboxConfigPath, `${JSON.stringify(sandboxConfig(base, emulatorPorts), null, 2)}\n`)
+/** What the sandbox's dev server is started with, on top of this process's environment. */
+const sandboxAppEnv = {
+  ...demoEnv,
+  ...clientEmulatorEnv(emulatorPorts.ports),
+  // Puts the "try it now" link back on the sign-in screen. Without it the
+  // link is hidden against the emulators, because the two other builds
+  // that run there cannot serve the callable behind it.
+  VITE_DEMO_SANDBOX: 'true',
+  // The seat picker is the *other* demo. Offering both on one screen would
+  // muddle which door a reviewer is meant to walk through.
+  VITE_DEMO_GM_EMAIL: '',
+  VITE_DEMO_GM_PASSWORD: '',
+  VITE_DEMO_PLAYER_EMAIL: '',
+  VITE_DEMO_PLAYER_PASSWORD: '',
 }
 
 function parseSnapshotDir() {
@@ -55,28 +61,6 @@ function parseSnapshotDir() {
 }
 
 const url = (port) => `http://127.0.0.1:${port}`
-
-function startEmulators(snapshot, javaPath) {
-  // Detached, so an interactive Ctrl+C reaches the Firebase CLI through this
-  // process's shutdown order rather than through the terminal's process group.
-  return spawn(
-    process.execPath,
-    [
-      firebaseBin.pathname,
-      'emulators:start',
-      '--config', sandboxConfigPath,
-      '--only', SANDBOX_EMULATORS,
-      '--project', projectId,
-      `--import=${snapshot}`,
-    ],
-    {
-      cwd: repoRoot,
-      detached: true,
-      env: firebaseEnv(emulatorPorts, { ...process.env, PATH: javaPath }),
-      stdio: ['ignore', 'inherit', 'inherit'],
-    },
-  )
-}
 
 /**
  * Seeds the template into the running emulator.
@@ -112,33 +96,6 @@ function seedTemplate() {
       reject(new Error(`Seeding the demo template failed (exit ${code}).`))
     })
   })
-}
-
-function startApp() {
-  return spawn(
-    process.execPath,
-    [viteBin.pathname, '--host', '127.0.0.1', '--port', String(SANDBOX_PORTS.app), '--strictPort'],
-    {
-      cwd: repoRoot,
-      detached: true,
-      env: {
-        ...process.env,
-        ...demoEnv,
-        ...clientEmulatorEnv(emulatorPorts.ports),
-        // Puts the "try it now" link back on the sign-in screen. Without it the
-        // link is hidden against the emulators, because the two other builds
-        // that run there cannot serve the callable behind it.
-        VITE_DEMO_SANDBOX: 'true',
-        // The seat picker is the *other* demo. Offering both on one screen would
-        // muddle which door a reviewer is meant to walk through.
-        VITE_DEMO_GM_EMAIL: '',
-        VITE_DEMO_GM_PASSWORD: '',
-        VITE_DEMO_PLAYER_EMAIL: '',
-        VITE_DEMO_PLAYER_PASSWORD: '',
-      },
-      stdio: ['ignore', 'inherit', 'inherit'],
-    },
-  )
 }
 
 async function waitForHttp(target, label, timeoutMs, child) {
@@ -178,34 +135,6 @@ async function stopChild(child, signal, graceMs) {
   }
 }
 
-function banner(seedSummary) {
-  return [
-    '',
-    '='.repeat(74),
-    '  TABLE KEEP - HOSTED DEMO SANDBOX, RUNNING LOCALLY',
-    '='.repeat(74),
-    '',
-    `  Start here       ${url(SANDBOX_PORTS.app)}/demo`,
-    `  Sign-in screen   ${url(SANDBOX_PORTS.app)}   ("take a table for a few hours")`,
-    `  Emulator UI      ${url(SANDBOX_PORTS.ui)}`,
-    '',
-    `  ${seedSummary}`,
-    '',
-    '  Opening /demo signs you in anonymously and clones the template into a',
-    '  campaign of your own, as its GM. Reload and you land back in the same',
-    '  one. "Leave demo" signs out; opening /demo again builds a fresh sandbox',
-    '  only once the old one has expired.',
-    '',
-    '  Everything is local. No Firebase project is contacted, and the committed',
-    `  snapshot is only ever read. Ports: app ${SANDBOX_PORTS.app}, emulators`,
-    `  ${SANDBOX_PORTS.auth}/${SANDBOX_PORTS.firestore}/${SANDBOX_PORTS.storage}/${SANDBOX_PORTS.functions}.`,
-    '',
-    '  Press Ctrl+C to stop.',
-    '='.repeat(74),
-    '',
-  ].join('\n')
-}
-
 function preflight() {
   const snapshot = parseSnapshotDir()
 
@@ -234,13 +163,23 @@ try {
   ({ snapshot, javaPath } = preflight())
   console.log(describeEmulatorPorts(emulatorPorts))
   await assertBlockIsFree(emulatorPorts)
-  writeSandboxConfig()
+  writeSandboxConfig(repoRoot, emulatorPorts)
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error))
   process.exit(1)
 }
 
-const emulators = startEmulators(snapshot, javaPath)
+const emulators = startEmulatorProcess({
+  args: [
+    'emulators:start',
+    '--config', SANDBOX_CONFIG_FILE,
+    '--only', SANDBOX_EMULATORS,
+    '--project', projectId,
+    `--import=${snapshot}`,
+  ],
+  javaPath,
+  resolved: emulatorPorts,
+})
 let app = null
 let shuttingDown = false
 
@@ -276,7 +215,7 @@ try {
 
   const seedSummary = await seedTemplate()
 
-  app = startApp()
+  app = startViteProcess({ port: SANDBOX_PORTS.app, env: sandboxAppEnv })
   app.on('exit', (code) => {
     if (shuttingDown) return
     console.error(`\nThe Vite dev server exited (code ${code}). Shutting down.`)
@@ -285,7 +224,7 @@ try {
 
   await waitForHttp(url(SANDBOX_PORTS.app), 'Vite dev server', APP_READY_TIMEOUT_MS, app)
 
-  console.log(banner(seedSummary))
+  console.log(sandboxBanner(seedSummary, SANDBOX_PORTS))
 } catch (error) {
   console.error(`\n${error instanceof Error ? error.message : String(error)}`)
   await shutdown(1)

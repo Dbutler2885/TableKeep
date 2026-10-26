@@ -100,8 +100,12 @@ export function hashedBlockBase(worktreePath) {
   return HASHED_RANGE_START + (digest.readUInt32BE(0) % HASHED_BLOCK_COUNT) * BLOCK_SIZE
 }
 
-function parseOverride(value) {
-  if (value === 'default') return null
+const standardPorts = (source) => ({ source, base: null, ports: { ...DEFAULT_PORTS } })
+const blockPorts = (source, base) => ({ source, base, ports: portBlock(base) })
+
+/** What `TABLEKEEP_PORT_BASE=<value>` asks for: `default`, or a block at a usable port. */
+function fromOverride(value) {
+  if (value === 'default') return standardPorts('override')
   const base = Number(value)
   if (!Number.isInteger(base) || base < 1024 || base + BLOCK_SIZE - 1 > 65_535) {
     throw new Error(
@@ -109,7 +113,7 @@ function parseOverride(value) {
       + `the block takes ${BLOCK_SIZE} ports from there.`,
     )
   }
-  return base
+  return blockPorts('override', base)
 }
 
 function isLinkedWorktree(root) {
@@ -124,24 +128,10 @@ function isLinkedWorktree(root) {
  * first port, or null for the standard ports.
  */
 export function resolveEmulatorPorts({ env = process.env, root = repoRoot } = {}) {
-  const override = env[PORT_BASE_VARIABLE]
-  if (override !== undefined && override !== '') {
-    const base = parseOverride(override)
-    return base === null
-      ? { source: 'override', base: null, ports: { ...DEFAULT_PORTS } }
-      : { source: 'override', base, ports: portBlock(base) }
-  }
-
-  if (env.CI && env.CI !== 'false') {
-    return { source: 'ci', base: null, ports: { ...DEFAULT_PORTS } }
-  }
-
-  if (isLinkedWorktree(root)) {
-    const base = hashedBlockBase(realpathSync(root))
-    return { source: 'worktree', base, ports: portBlock(base) }
-  }
-
-  return { source: 'checkout', base: null, ports: { ...DEFAULT_PORTS } }
+  if (env[PORT_BASE_VARIABLE]) return fromOverride(env[PORT_BASE_VARIABLE])
+  if (env.CI && env.CI !== 'false') return standardPorts('ci')
+  if (isLinkedWorktree(root)) return blockPorts('worktree', hashedBlockBase(realpathSync(root)))
+  return standardPorts('checkout')
 }
 
 /** One line saying which ports are in use and how to move them. */
@@ -270,8 +260,8 @@ export function blockTempDir(resolved, tmp = os.tmpdir()) {
  * this checkout's ports: the browser client's port variables and, on a block,
  * the block's own `TMPDIR` (created here).
  */
-export function firebaseEnv(resolved, env = process.env) {
-  const tempDir = blockTempDir(resolved)
+export function firebaseEnv(resolved, env = process.env, tmp = os.tmpdir()) {
+  const tempDir = blockTempDir(resolved, tmp)
   if (tempDir) mkdirSync(tempDir, { recursive: true })
   return { ...env, ...clientEmulatorEnv(resolved.ports), ...(tempDir ? { TMPDIR: tempDir } : {}) }
 }
@@ -293,7 +283,7 @@ export function emulatorHostPort(env, variable, fallback) {
 /** The emulators in a block that must be free before anything starts on it. */
 const STARTED_PORTS = ['auth', 'firestore', 'firestoreWebsocket', 'storage', 'functions', 'ui', 'hub', 'logging', 'eventarc', 'tasks']
 
-function portIsFree(port) {
+export function portIsFree(port) {
   return new Promise((resolve) => {
     const server = net.createServer()
     server.once('error', () => resolve(false))
@@ -307,13 +297,13 @@ function portIsFree(port) {
  * firebase-tools would fail on its own, but with a message that does not say
  * the port was chosen for this worktree or how to choose another.
  */
-export async function assertBlockIsFree(resolved) {
+export async function assertBlockIsFree(resolved, isFree = portIsFree) {
   // The standard ports are firebase-tools' to check, exactly as they always were.
   if (resolved.base === null) return
 
   const taken = []
   for (const name of STARTED_PORTS) {
-    if (!(await portIsFree(resolved.ports[name]))) taken.push(`${name} ${resolved.ports[name]}`)
+    if (!(await isFree(resolved.ports[name]))) taken.push(`${name} ${resolved.ports[name]}`)
   }
   if (taken.length === 0) return
 

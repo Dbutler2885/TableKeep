@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import net from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -7,13 +8,16 @@ import {
   BLOCK_SIZE,
   DEFAULT_PORTS,
   PORTED_CONFIG_FILE,
+  assertBlockIsFree,
   blockTempDir,
   clientEmulatorEnv,
+  describeEmulatorPorts,
   emulatorHostPort,
   firebaseConfigArgs,
   firebaseEnv,
   hashedBlockBase,
   portBlock,
+  portIsFree,
   resolveEmulatorPorts,
   withEmulatorPorts,
 } from './ports.mjs'
@@ -69,6 +73,12 @@ describe('which ports a checkout gets', () => {
     withCheckout('clone', (root) => {
       expect(resolveEmulatorPorts({ env: { TABLEKEEP_PORT_BASE: '41000', CI: 'true' }, root }))
         .toEqual({ source: 'override', base: 41_000, ports: portBlock(41_000) })
+    })
+  })
+
+  it('treats an empty TABLEKEEP_PORT_BASE as unset', () => {
+    withCheckout('clone', (root) => {
+      expect(resolveEmulatorPorts({ env: { TABLEKEEP_PORT_BASE: '' }, root }).source).toBe('checkout')
     })
   })
 
@@ -176,8 +186,12 @@ describe('what the browser client is told', () => {
     expect(emulatorPortsFromEnv({})).toEqual(DEFAULT_EMULATOR_PORTS)
   })
 
-  it('refuses a variable that is not a port', () => {
-    expect(() => emulatorPortsFromEnv({ VITE_FIRESTORE_EMULATOR_PORT: 'eighty' })).toThrow(/VITE_FIRESTORE_EMULATOR_PORT/)
+  it('treats an empty variable as unset', () => {
+    expect(emulatorPortsFromEnv({ VITE_AUTH_EMULATOR_PORT: '' }).auth).toBe(DEFAULT_EMULATOR_PORTS.auth)
+  })
+
+  it.each(['eighty', '0', '65536', '80.5'])('refuses %s, which is not a port', (value) => {
+    expect(() => emulatorPortsFromEnv({ VITE_FIRESTORE_EMULATOR_PORT: value })).toThrow(/VITE_FIRESTORE_EMULATOR_PORT/)
   })
 })
 
@@ -187,8 +201,9 @@ describe('reading an emulator host variable', () => {
     expect(emulatorHostPort({ FIRESTORE_EMULATOR_HOST: '[::1]:20001' }, 'FIRESTORE_EMULATOR_HOST', 8080)).toBe(20_001)
   })
 
-  it('falls back when the variable is missing', () => {
+  it('falls back when the variable is missing or names no port', () => {
     expect(emulatorHostPort({}, 'FIRESTORE_EMULATOR_HOST', 8080)).toBe(8080)
+    expect(emulatorHostPort({ FIRESTORE_EMULATOR_HOST: 'localhost' }, 'FIRESTORE_EMULATOR_HOST', 8080)).toBe(8080)
   })
 })
 
@@ -213,9 +228,65 @@ describe('the temporary directory firebase-tools is given', () => {
     expect(Buffer.byteLength(socket)).toBeLessThan(104)
   })
 
+  it('is created and handed to firebase-tools as TMPDIR on a block', () => {
+    const tmp = mkdtempSync(path.join(tmpdir(), 'tablekeep-tmp-'))
+    try {
+      const env = firebaseEnv(block, { PATH: '/bin' }, tmp)
+      expect(env).toEqual({ PATH: '/bin', ...clientEmulatorEnv(block.ports), TMPDIR: path.join(tmp, 'tablekeep-20000') })
+      expect(existsSync(env.TMPDIR)).toBe(true)
+    } finally {
+      rmSync(tmp, { recursive: true, force: true })
+    }
+  })
+
   it('is left alone on the standard ports, as CI has always run', () => {
     expect(blockTempDir(standard, '/tmp')).toBeNull()
     const env = firebaseEnv(standard, { TMPDIR: '/tmp/original', PATH: '/bin' })
     expect(env).toEqual({ TMPDIR: '/tmp/original', PATH: '/bin', ...clientEmulatorEnv(standard.ports) })
+  })
+})
+
+describe('the line that says which ports are in use', () => {
+  it.each([
+    [{ source: 'worktree', base: 20_000, ports: portBlock(20_000) }, 'block 20000-20015 (chosen for this worktree)'],
+    [{ source: 'override', base: 41_000, ports: portBlock(41_000) }, 'block 41000-41015 (set by TABLEKEEP_PORT_BASE)'],
+    [{ source: 'ci', base: null, ports: { ...DEFAULT_PORTS } }, 'the standard ports (under CI)'],
+    [{ source: 'checkout', base: null, ports: { ...DEFAULT_PORTS } }, 'the standard ports (this checkout is not a linked worktree)'],
+  ])('names the block and why for %j', (resolved, expected) => {
+    const line = describeEmulatorPorts(resolved)
+    expect(line).toContain(expected)
+    expect(line).toContain(`firestore ${resolved.ports.firestore}`)
+    expect(line).toContain('TABLEKEEP_PORT_BASE')
+  })
+})
+
+describe('the check that a block is free', () => {
+  const block = { source: 'worktree', base: 20_000, ports: portBlock(20_000) }
+
+  it('passes when every port the emulators take is free', async () => {
+    await expect(assertBlockIsFree(block, async () => true)).resolves.toBeUndefined()
+  })
+
+  it('names each taken port and how to move', async () => {
+    const taken = new Set([block.ports.firestore, block.ports.hub])
+    await expect(assertBlockIsFree(block, async (port) => !taken.has(port)))
+      .rejects.toThrow(/in use: firestore 20001, hub 20006\.[\s\S]*TABLEKEEP_PORT_BASE/)
+  })
+
+  it('leaves the standard ports to firebase-tools', async () => {
+    const isFree = async () => { throw new Error('should not be asked') }
+    await expect(assertBlockIsFree({ source: 'ci', base: null, ports: { ...DEFAULT_PORTS } }, isFree)).resolves.toBeUndefined()
+  })
+
+  it('sees a port another process is listening on as taken, and a released one as free', async () => {
+    const server = net.createServer()
+    await new Promise((resolve) => server.listen({ port: 0, host: '127.0.0.1' }, resolve))
+    const { port } = server.address()
+    try {
+      expect(await portIsFree(port)).toBe(false)
+    } finally {
+      await new Promise((resolve) => server.close(resolve))
+    }
+    expect(await portIsFree(port)).toBe(true)
   })
 })

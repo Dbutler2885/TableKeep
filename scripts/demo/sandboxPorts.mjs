@@ -1,9 +1,9 @@
-// The port block and generated Firebase config for `npm run demo:sandbox`.
+// The port block, generated Firebase config and banner for `npm run demo:sandbox`.
 //
 // Kept out of `run-sandbox.mjs` because that module starts emulators the moment
 // it is imported, and this is the part worth reading - and testing - on its own.
 
-import { resolveEmulatorPorts, withEmulatorPorts } from '../emulators/ports.mjs'
+import { readFirebaseJson, resolveEmulatorPorts, withEmulatorPorts, writeFirebaseConfig } from '../emulators/ports.mjs'
 
 /**
  * The rig's ports: this checkout's emulator ports (see
@@ -50,4 +50,42 @@ export function sandboxConfig(baseConfig, resolved = resolveEmulatorPorts()) {
       singleProjectMode: true,
     },
   }
+}
+
+/** Where the generated Firebase config lives, beside `firebase.json`. Ignored by git; see `.gitignore`. */
+export const SANDBOX_CONFIG_FILE = 'firebase.sandbox.json'
+
+/** Writes the sandbox's Firebase config into `root` and returns its path. */
+export function writeSandboxConfig(root, resolved) {
+  return writeFirebaseConfig(root, SANDBOX_CONFIG_FILE, sandboxConfig(readFirebaseJson(root), resolved))
+}
+
+/** What the rig prints once everything is up. */
+export function sandboxBanner(seedSummary, ports) {
+  const url = (port) => `http://127.0.0.1:${port}`
+  return [
+    '',
+    '='.repeat(74),
+    '  TABLE KEEP - HOSTED DEMO SANDBOX, RUNNING LOCALLY',
+    '='.repeat(74),
+    '',
+    `  Start here       ${url(ports.app)}/demo`,
+    `  Sign-in screen   ${url(ports.app)}   ("take a table for a few hours")`,
+    `  Emulator UI      ${url(ports.ui)}`,
+    '',
+    `  ${seedSummary}`,
+    '',
+    '  Opening /demo signs you in anonymously and clones the template into a',
+    '  campaign of your own, as its GM. Reload and you land back in the same',
+    '  one. "Leave demo" signs out; opening /demo again builds a fresh sandbox',
+    '  only once the old one has expired.',
+    '',
+    '  Everything is local. No Firebase project is contacted, and the committed',
+    `  snapshot is only ever read. Ports: app ${ports.app}, emulators`,
+    `  ${ports.auth}/${ports.firestore}/${ports.storage}/${ports.functions}.`,
+    '',
+    '  Press Ctrl+C to stop.',
+    '='.repeat(74),
+    '',
+  ].join('\n')
 }
