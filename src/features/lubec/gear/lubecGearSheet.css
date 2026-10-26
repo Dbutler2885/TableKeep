@@ -1,0 +1,1408 @@
+/* The Gear page's item sheet, copied from the inventory prototype (B,
+   "Lubec 1977 | Gear, v4"): the item card, small stuff, the add and edit
+   form for every kind, the stock picker and the pictures. B's tokens are the
+   sheet's own without the prefix, and every rule is scoped to the page.
+   B's lines: the card 312-330, the sheets and forms 506-696, pictures, kind
+   tiles and stock 718-831, the phone frame 862-884, the form's one size
+   888-941 and holders 942-960. B's native dialog is the app's overlay, so
+   B's `#item-dialog` and `#item-form` are `.item-sheet` and `.item-form`. */
+
+/* Buttons and lists the sheet's modes share (B 340-385) */
+.shell-root[data-theme="lubec"] .lubec-gear .btn.wide {
+  width: 100%;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .actions .btn:only-child {
+  grid-column: 1 / -1;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .tag.ghost {
+  color: var(--lubec-blue);
+  background: transparent;
+  border: 1px solid var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .row-list {
+  margin-top: 0.6rem;
+  border-top: 2px solid var(--lubec-ink);
+  container-type: inline-size;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .row-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.5rem 0.2rem;
+  color: var(--lubec-ink);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--lubec-line);
+  font: 800 0.8rem/1.25 var(--lubec-type);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .row-item:hover {
+  background: rgba(255, 248, 231, 0.6);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .row-item .tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 0.3rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .row-item:has(> .thumb) {
+  grid-template-columns: 2.6rem minmax(0, 1fr) auto;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .row-list > .note {
+  padding: 0.6rem 0.2rem;
+}
+
+/* An item's box opens its card, and keeps its look under the pointer, as in B */
+.shell-root[data-theme="lubec"] .lubec-gear button.slot.item:hover {
+  background: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack button.slot.item:hover {
+  background: rgba(18, 22, 24, 0.82);
+}
+
+/* The card's facts (B 485-487) */
+.shell-root[data-theme="lubec"] .lubec-gear .facts {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.28rem 0.6rem;
+  margin: 0;
+  font: 700 0.68rem/1.35 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .facts dt {
+  padding-top: 0.12rem;
+  color: var(--lubec-muted);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The sheet is a window over the page: the desktop fit zoom that shrinks the page to one screen is undone for it, so it keeps B's sizes */
+.shell-root[data-theme="lubec"] .lubec-gear .lubec-gear-overlay {
+  zoom: calc(1 / var(--lubec-gear-zoom, 1));
+}
+
+/* The item sheet keeps one shape in every mode, so the card and the edit form feel like one object (B 506-523) */
+.shell-root[data-theme="lubec"] .lubec-gear .item-sheet {
+  min-height: min(20rem, 70vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-sheet .sheet-form {
+  min-height: 100%;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-actions .btn {
+  flex: 1 1 8rem;
+  flex-direction: column;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-note {
+  margin: 0;
+  padding: 0.7rem 0.8rem;
+  background: rgba(255, 248, 231, 0.7);
+  border-left: 3px solid var(--lubec-blue);
+  font: 700 1rem/1.5 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-note.empty {
+  color: var(--lubec-muted);
+  font-weight: 600;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-facts {
+  gap: 0.45rem 0.8rem;
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-facts dt {
+  padding-top: 0.22rem;
+  font-size: 0.64rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stepper {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stepper button {
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  color: var(--lubec-ink);
+  background: var(--lubec-cream);
+  border: 1.5px solid var(--lubec-ink);
+  font: 800 1rem/1 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stepper b {
+  min-width: 4.5rem;
+  text-align: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .cost {
+  min-height: 0;
+  margin: 0;
+  color: var(--lubec-blue);
+  font: 800 0.66rem/1.35 var(--lubec-type);
+  letter-spacing: 0.04em;
+}
+
+/* Fields (B 586-655) */
+.shell-root[data-theme="lubec"] .lubec-gear .field select {
+  width: 100%;
+  min-height: 2.85rem;
+  padding: 0.45rem 2rem 0.45rem 0.55rem;
+  color: var(--lubec-ink);
+  background-color: var(--lubec-cream);
+  background-image: linear-gradient(45deg, transparent 50%, var(--lubec-ink) 50%), linear-gradient(135deg, var(--lubec-ink) 50%, transparent 50%);
+  background-position: calc(100% - 1.05rem) 55%, calc(100% - 0.7rem) 55%;
+  background-size: 0.35rem 0.35rem;
+  background-repeat: no-repeat;
+  border: 1.5px solid var(--lubec-ink);
+  border-radius: 0;
+  font: 800 1rem/1.2 var(--lubec-type);
+  appearance: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .field textarea:focus,
+.shell-root[data-theme="lubec"] .lubec-gear .field input:focus,
+.shell-root[data-theme="lubec"] .lubec-gear .field select:focus {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 1px;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .two {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.8rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .choices label {
+  position: relative;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .choices input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .choices span {
+  display: grid;
+  gap: 0.2rem;
+  height: 100%;
+  min-height: 2.85rem;
+  padding: 0.5rem;
+  background: rgba(255, 248, 231, 0.55);
+  border: 1.5px solid var(--lubec-ink);
+  font: 800 0.74rem/1.15 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .choices span small {
+  color: var(--lubec-muted);
+  font: 700 0.58rem/1.3 var(--lubec-type);
+  letter-spacing: 0.03em;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .choices input:checked + span {
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .choices input:checked + span small {
+  color: rgba(255, 248, 231, 0.75);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .choices input:focus-visible + span {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .choices.six {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .toggle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.55rem 0.65rem;
+  background: rgba(255, 248, 231, 0.55);
+  border: 1.5px solid var(--lubec-ink);
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .toggle .knob {
+  position: relative;
+  width: 2.8rem;
+  height: 1.55rem;
+  background: var(--lubec-cream);
+  border: 2px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .toggle .knob::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 1.05rem;
+  height: 1.05rem;
+  background: var(--lubec-ink);
+  transition: transform 140ms ease;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .toggle input:checked ~ .knob {
+  background: var(--lubec-blue);
+  border-color: var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .toggle input:checked ~ .knob::after {
+  background: var(--lubec-cream);
+  transform: translateX(1.25rem);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .toggle input:focus-visible ~ .knob {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .toggle .t {
+  font: 800 0.8rem/1.2 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .toggle .t small {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--lubec-muted);
+  font: 700 0.6rem/1.35 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .weight-pick {
+  gap: 0.3rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-block {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0.7rem;
+  background: rgba(23, 75, 88, 0.05);
+  border-left: 4px solid var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-block .eyebrow {
+  color: var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kb-holder .choices {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stack {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .seg-row.thirds {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .seg-row.fours {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .wound-pick legend small {
+  color: var(--lubec-muted);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Armor on the body drawing: dark = layers used, black = full, blue = picked (B 386-434) */
+.shell-root[data-theme="lubec"] .lubec-gear .armor-wrap {
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 10.5rem) minmax(0, 1fr);
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .armor-wrap.maker {
+  grid-template-columns: minmax(7rem, 9.5rem) minmax(0, 1fr);
+  margin-top: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .armor-side {
+  display: grid;
+  gap: 0.6rem;
+  align-content: start;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .body-map {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  touch-action: manipulation;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .body-map .base {
+  fill: var(--lubec-paper-deep);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .body-map .worn {
+  fill: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .body-map .picked {
+  fill: var(--lubec-blue);
+  fill-opacity: 0.62;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .body-map .hl {
+  fill: var(--lubec-rust);
+  fill-opacity: 0;
+  transition: fill-opacity 0.12s;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .body-map .hl.on {
+  fill-opacity: 0.72;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .body-map .hit {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 7;
+  cursor: pointer;
+  outline: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .body-map .hit:focus-visible {
+  stroke: var(--lubec-rust);
+  stroke-width: 9;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .body-map .side-label {
+  fill: var(--lubec-muted);
+  font: 800 44px var(--lubec-type);
+  letter-spacing: 0.1em;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.7rem;
+  margin: 0.45rem 0 0;
+  color: var(--lubec-muted);
+  font: 800 0.55rem/1.2 var(--lubec-type);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .map-legend i {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  margin-right: 0.25rem;
+  vertical-align: -.08rem;
+  border: 1px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .map-legend .legend-layers {
+  background: rgba(23, 40, 43, 0.45);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .map-legend .legend-full {
+  background: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .map-legend .legend-picked {
+  background: rgba(23, 75, 88, 0.62);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .picked {
+  margin: 0;
+  font: 700 0.74rem/1.45 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .picked b {
+  color: var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .wound-nums {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .wound-nums .field-note {
+  margin: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .field.wound-nums legend {
+  margin-bottom: 0.45rem;
+  padding: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .four-num {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .four-num input {
+  min-width: 0;
+}
+
+/* Item pictures: three shapes. A stock drawing fits inside its frame (B 718-743) */
+.shell-root[data-theme="lubec"] .lubec-gear .lubec-art .fd {
+  fill: var(--lubec-paper-deep);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .lubec-art .fc {
+  fill: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .lubec-art .fi {
+  fill: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .lubec-art .fr {
+  fill: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .lubec-art > g {
+  stroke: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .lubec-art .sr {
+  stroke: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .lubec-art .sc {
+  stroke: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .lubec-art .sd {
+  stroke: var(--lubec-paper-deep);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .lubec-art .sn {
+  stroke: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .slot-pic .art,
+.shell-root[data-theme="lubec"] .lubec-gear .thumb .art,
+.shell-root[data-theme="lubec"] .lubec-gear .pic-in .art,
+.shell-root[data-theme="lubec"] .lubec-gear .tile-pic .art,
+.shell-root[data-theme="lubec"] .lubec-gear .card-pic .art {
+  display: block;
+  box-sizing: border-box;
+  max-width: 100%;
+  max-height: 100%;
+  padding: 6%;
+  background: var(--lubec-cream);
+  border: 1.5px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .slot-pic.tall .art,
+.shell-root[data-theme="lubec"] .lubec-gear .thumb.tall .art,
+.shell-root[data-theme="lubec"] .lubec-gear .pic-in.tall .art {
+  width: 66.7%;
+  height: 100%;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .slot-pic.wide .art,
+.shell-root[data-theme="lubec"] .lubec-gear .thumb.wide .art,
+.shell-root[data-theme="lubec"] .lubec-gear .pic-in.wide .art {
+  width: 100%;
+  height: 66.7%;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .slot-pic.square .art,
+.shell-root[data-theme="lubec"] .lubec-gear .thumb.square .art,
+.shell-root[data-theme="lubec"] .lubec-gear .pic-in.square .art {
+  width: 86%;
+  height: 86%;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .thumb,
+.shell-root[data-theme="lubec"] .lubec-gear .pic-in,
+.shell-root[data-theme="lubec"] .lubec-gear .tile-pic {
+  display: grid;
+  flex: none;
+  place-items: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .thumb {
+  width: 2.6rem;
+  height: 2.6rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .thumb.none {
+  color: var(--lubec-muted);
+  border: 1.5px dashed var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .thumb.none svg {
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .tile-pic {
+  height: 5.2rem;
+  margin-bottom: 0.15rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .tile-pic.tall .art {
+  width: 3.47rem;
+  height: 5.2rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .tile-pic.wide .art {
+  width: 7.2rem;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 2;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .tile-pic.square .art {
+  width: 4.7rem;
+  height: 4.7rem;
+}
+
+/* The kind is the big choice; size is a small row with a one-line hint (B 745-777) */
+.shell-root[data-theme="lubec"] .lubec-gear .kind-tiles {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-tiles label {
+  position: relative;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-tiles input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-tiles span {
+  display: grid;
+  grid-template-columns: 1.7rem minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  column-gap: 0.55rem;
+  row-gap: 0.1rem;
+  height: 100%;
+  padding: 0.5rem 0.6rem;
+  color: var(--lubec-ink);
+  background: rgba(255, 248, 231, 0.55);
+  border: 1.5px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-tiles i {
+  grid-row: 1 / 3;
+  align-self: center;
+  color: var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-tiles i svg {
+  display: block;
+  width: 1.7rem;
+  height: 1.7rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-tiles b {
+  font: 400 1.05rem/1.1 var(--lubec-display);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-tiles small {
+  color: var(--lubec-muted);
+  font: 700 0.6rem/1.3 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-tiles input:checked + span {
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-tiles input:checked + span i,
+.shell-root[data-theme="lubec"] .lubec-gear .kind-tiles input:checked + span small {
+  color: rgba(255, 248, 231, 0.82);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-tiles input:focus-visible + span {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .seg-row input:disabled + span {
+  color: var(--lubec-muted);
+  background: transparent;
+  border-color: var(--lubec-gray);
+  cursor: default;
+}
+
+/* The picture field beside the name (B 779-807) */
+.shell-root[data-theme="lubec"] .lubec-gear .name-pic {
+  position: relative;
+  display: grid;
+  grid-template-columns: 5.6rem minmax(0, 1fr);
+  gap: 0.45rem 0.8rem;
+  align-items: start;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pic-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pic-frame {
+  position: relative;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pic-box {
+  display: grid;
+  width: 100%;
+  aspect-ratio: 1;
+  place-items: center;
+  padding: 0;
+  color: var(--lubec-blue);
+  background: rgba(255, 248, 231, 0.55);
+  border: 1.5px dashed var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pic-box:has(.pic-in) {
+  background: transparent;
+  border-color: transparent;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pic-box .pic-in {
+  width: 100%;
+  height: 100%;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pic-box .pic-none svg {
+  display: block;
+  width: 1.9rem;
+  height: 1.9rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pic-x {
+  position: absolute;
+  top: -.45rem;
+  right: -.45rem;
+  display: grid;
+  width: 1.6rem;
+  height: 1.6rem;
+  place-items: center;
+  padding: 0;
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+  border: 0;
+  border-radius: 50%;
+  font: 400 1rem/1 var(--lubec-display);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pic-x:focus-visible,
+.shell-root[data-theme="lubec"] .lubec-gear .stock-tile:focus-visible,
+.shell-root[data-theme="lubec"] .lubec-gear .link-btn:focus-visible {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .shape-seg {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .shape-seg label {
+  position: relative;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .shape-seg input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .shape-seg span {
+  display: grid;
+  height: 1.9rem;
+  place-items: center;
+  border: 1.5px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .shape-seg label + label span {
+  border-left: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .shape-seg i {
+  display: block;
+  border: 1.5px solid currentColor;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .shape-seg .tall i {
+  width: 0.62rem;
+  height: 0.95rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .shape-seg .wide i {
+  width: 0.95rem;
+  height: 0.62rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .shape-seg .square i {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .shape-seg input:checked + span {
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .shape-seg input:focus-visible + span {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .shape-seg input:disabled + span {
+  color: var(--lubec-gray);
+  border-color: var(--lubec-gray);
+  cursor: default;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .shape-seg label:has(input:disabled) {
+  cursor: default;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .shape-name {
+  color: var(--lubec-muted);
+  font: 700 0.56rem/1.2 var(--lubec-type);
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .name-col {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.7rem;
+  align-items: baseline;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-line:empty {
+  display: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .link-btn {
+  padding: 0.25rem 0;
+  color: var(--lubec-blue);
+  background: none;
+  border: 0;
+  border-bottom: 1.5px solid currentColor;
+  font: 800 0.62rem/1.2 var(--lubec-type);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .from-stock {
+  margin: 0;
+  color: var(--lubec-muted);
+  font: 700 0.62rem/1.35 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .from-stock b {
+  color: var(--lubec-ink);
+}
+
+/* Stock suggestions under the name: a listbox, picked with the arrow keys or a tap (B 809-814) */
+.shell-root[data-theme="lubec"] .lubec-gear .suggest {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  left: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--lubec-cream);
+  border: 2px solid var(--lubec-ink);
+  box-shadow: 0 10px 24px rgba(7, 20, 23, 0.25);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .suggest li {
+  display: grid;
+  grid-template-columns: 2.6rem minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+  min-height: 3rem;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--lubec-line);
+  cursor: pointer;
+  font: 800 0.8rem/1.25 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .suggest li small {
+  display: block;
+  margin-top: 0.1rem;
+  color: var(--lubec-muted);
+  font: 700 0.6rem/1.3 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .suggest li[aria-selected="true"],
+.shell-root[data-theme="lubec"] .lubec-gear .suggest li:hover {
+  background: rgba(23, 75, 88, 0.1);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .suggest li.all {
+  display: block;
+  min-height: 0;
+  padding: 0.55rem 0.6rem;
+  color: var(--lubec-blue);
+  border-bottom: 0;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Browsing stock (B 816-828) */
+.shell-root[data-theme="lubec"] .lubec-gear .stock-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.7rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-kinds span,
+.shell-root[data-theme="lubec"] .lubec-gear .stock-from span {
+  min-height: 2.3rem;
+  padding: 0.3rem;
+  place-content: center;
+  text-align: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-sec {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-sec h3 {
+  margin: 0;
+  color: var(--lubec-ink);
+  font: 700 1rem/1.2 var(--lubec-display);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.2rem, 1fr));
+  gap: 0.55rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-tile {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+  gap: 0.3rem;
+  align-content: start;
+  min-width: 0;
+  padding: 0.55rem;
+  color: var(--lubec-ink);
+  text-align: left;
+  background: rgba(255, 248, 231, 0.55);
+  border: 1.5px solid var(--lubec-ink);
+  font: 800 0.76rem/1.25 var(--lubec-type);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-tile:hover {
+  background: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-tile small {
+  color: var(--lubec-muted);
+  font: 700 0.58rem/1.35 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-tile .k {
+  color: var(--lubec-blue);
+  font: 800 0.52rem/1.2 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-empty {
+  margin: 0;
+  color: var(--lubec-muted);
+  font: 700 0.74rem/1.45 var(--lubec-type);
+}
+
+/* The card's picture sits beside the description (B 830-841) */
+.shell-root[data-theme="lubec"] .lubec-gear .card-top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .card-pic {
+  width: 7.2rem;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .card-pic .art {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .card-pic.tall {
+  width: 5.6rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .card-pic.tall .art {
+  aspect-ratio: 2 / 3;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .card-pic.wide {
+  width: 10rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .card-pic.wide .art {
+  aspect-ratio: 3 / 2;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .card-pic.none {
+  display: grid;
+  width: 5.6rem;
+  aspect-ratio: 1;
+  place-items: center;
+  align-content: center;
+  gap: 0.3rem;
+  color: var(--lubec-blue);
+  border: 1.5px dashed var(--lubec-blue);
+  font: 800 0.52rem/1.2 var(--lubec-type);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .card-pic.none svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.8rem;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-row p {
+  margin: 0;
+  color: var(--lubec-muted);
+  font: 700 0.66rem/1.4 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-row p b {
+  color: var(--lubec-ink);
+}
+
+/* The form's pages on a phone (B 888-897) */
+.shell-root[data-theme="lubec"] .lubec-gear .form-steps {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  border: 2px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .form-steps button {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.4rem;
+  padding: 0.3rem 0.4rem;
+  color: var(--lubec-blue);
+  background: transparent;
+  border: 0;
+  font: 800 0.62rem/1 var(--lubec-type);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .form-steps button + button {
+  border-left: 2px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .form-steps button[aria-selected="true"] {
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .form-steps b {
+  font: 400 1rem/1 var(--lubec-display);
+  letter-spacing: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .form-top,
+.shell-root[data-theme="lubec"] .lubec-gear .form-kind,
+.shell-root[data-theme="lubec"] .lubec-gear .form-bottom {
+  display: contents;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form[data-page="top"] .form-kind,
+.shell-root[data-theme="lubec"] .lubec-gear .item-form[data-page="top"] .form-bottom,
+.shell-root[data-theme="lubec"] .lubec-gear .item-form[data-page="kind"] .form-kinds,
+.shell-root[data-theme="lubec"] .lubec-gear .item-form[data-page="kind"] .form-top,
+.shell-root[data-theme="lubec"] .lubec-gear .item-form[data-page="kind"] .form-bottom,
+.shell-root[data-theme="lubec"] .lubec-gear .item-form[data-page="bottom"] .form-kinds,
+.shell-root[data-theme="lubec"] .lubec-gear .item-form[data-page="bottom"] .form-top,
+.shell-root[data-theme="lubec"] .lubec-gear .item-form[data-page="bottom"] .form-kind {
+  display: none;
+}
+
+/* Wide screens: the form is one size whatever the kind, the firearm's, the tallest; the kind's own fields sit to the right (B 512-542, 912-923) */
+@media (min-width: 60rem) {
+    .shell-root[data-theme="lubec"] .lubec-gear .item-sheet.form,
+  .shell-root[data-theme="lubec"] .lubec-gear .item-sheet.stock {
+    width: min(100% - 2rem, 58rem);
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-sheet.form {
+    height: min(92vh, 46rem);
+    max-height: min(92vh, 50rem);
+    overflow: hidden;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto auto 1fr auto auto;
+    grid-template-areas: "head head" "kinds kinds" "top kind" "bottom kind" "error error" "foot foot";
+    gap: 0.55rem 1.2rem;
+    align-items: start;
+    min-height: 100%;
+    padding-block: 0.7rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form h2 {
+    font-size: 1.3rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form > header {
+    grid-area: head;
+    padding-bottom: 0.5rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form .form-kinds {
+    grid-area: kinds;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form .form-top {
+    grid-area: top;
+    display: grid;
+    gap: 0.55rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form .form-kind {
+    grid-area: kind;
+    display: grid;
+    align-self: stretch;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form .form-bottom {
+    grid-area: bottom;
+    display: grid;
+    gap: 0.55rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form > .form-error {
+    grid-area: error;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form > .sheet-foot {
+    grid-area: foot;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form .form-kind .kind-block {
+    align-content: start;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form[data-kind="thing"] {
+    grid-template-rows: auto auto 1fr auto auto;
+    grid-template-areas: "head head" "kinds kinds" "top bottom" "error error" "foot foot";
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form[data-kind="thing"] .form-kind {
+    display: none;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form[data-kind="weapon"][data-mode="melee"],
+  .shell-root[data-theme="lubec"] .lubec-gear .item-form[data-kind="consumable"],
+  .shell-root[data-theme="lubec"] .lubec-gear .item-form[data-kind="holder"] {
+    grid-template-areas: "head head" "kinds kinds" "top kind" "top bottom" "error error" "foot foot";
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .kb-armor {
+    gap: 0.55rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .kb-armor .four-num input {
+    min-height: 2.4rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .kb-armor .armor-wrap.maker {
+    grid-template-columns: minmax(7rem, 8.6rem) minmax(0, 1fr);
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .kb-armor .map-legend {
+    gap: 0.2rem 0.5rem;
+    margin-top: 0.3rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .w-firearm {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.6fr);
+    gap: 0.55rem;
+    align-items: end;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .w-firearm .two {
+    display: contents;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-tools {
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    grid-template-areas: "search search" "kind from";
+    align-items: end;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-tools > :nth-child(1) {
+    grid-area: search;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-tools > :nth-child(2) {
+    grid-area: kind;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-tools > :nth-child(3) {
+    grid-area: from;
+  }
+}
+
+/* Short wide windows: the kind tiles drop their lines and the form tightens, so the armor maker still fits (B 934-941) */
+@media (min-width: 60rem) and (max-height: 780px) {
+    .shell-root[data-theme="lubec"] .lubec-gear .item-sheet.form {
+    height: min(97vh, 46rem);
+    max-height: 97vh;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form .kind-tiles small {
+    display: none;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form .kind-tiles span {
+    padding-block: 0.35rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form {
+    gap: 0.45rem 1.2rem;
+    padding-block: 0.55rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form textarea {
+    min-height: 2.6rem;
+  }
+}
+
+/* Phones and narrow windows: the same height on every page and every kind (B 899-910, 926-932, 952-958) */
+@media (max-width: 59.99rem) {
+    .shell-root[data-theme="lubec"] .lubec-gear .item-sheet.form {
+    height: min(92vh, 46rem);
+    overflow: hidden;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form {
+    gap: 0.7rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form .kind-tiles {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.25rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form .kind-tiles span {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    justify-items: center;
+    row-gap: 0.25rem;
+    padding: 0.45rem 0.1rem;
+    text-align: center;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form .kind-tiles i {
+    grid-row: auto;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form .kind-tiles i svg {
+    width: 1.4rem;
+    height: 1.4rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form .kind-tiles b {
+    font-size: clamp(0.5rem, 2.45vw, 0.78rem);
+    letter-spacing: -.02em;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-form .kind-tiles small {
+    display: none;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .kb-armor {
+    gap: 0.5rem;
+    padding: 0.55rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .kb-armor .armor-wrap.maker {
+    grid-template-columns: minmax(6rem, 7.4rem) minmax(0, 1fr);
+    gap: 0.6rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .kb-armor .toggle small {
+    font-size: 0.58rem;
+    line-height: 1.3;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .kb-armor .four-num input {
+    min-height: 2.4rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .kb-armor .map-legend {
+    gap: 0.2rem 0.5rem;
+    margin-top: 0.3rem;
+  }
+}
+
+/* Phones (B 862-884) */
+@media (max-width: 560px) {
+    .shell-root[data-theme="lubec"] .lubec-gear .card-pic {
+    width: 6rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .card-pic.tall {
+    width: 4.8rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .card-pic.wide {
+    width: 7.6rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .card-pic.none {
+    width: 4.8rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .stock-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .choices.six {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (max-width: 24rem) {
+    .shell-root[data-theme="lubec"] .lubec-gear .row-item:has(> .thumb) {
+    grid-template-columns: 2.6rem minmax(0, 1fr);
+    row-gap: 0.3rem;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .row-item:has(> .thumb) .thumb {
+    grid-row: span 2;
+    align-self: start;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .row-item:has(> .thumb) .tags {
+    grid-column: 2;
+    justify-content: start;
+  }
+
+.shell-root[data-theme="lubec"] .lubec-gear .row-item:has(> .thumb) .tags:empty {
+    display: none;
+  }
+}
+

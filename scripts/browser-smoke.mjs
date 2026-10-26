@@ -1380,17 +1380,29 @@ async function expectEmptyLubecGear(page) {
   if (JSON.stringify(shown) !== JSON.stringify(expected)) throw new Error(`The empty Gear page shows ${JSON.stringify(shown)}.`)
 }
 
-// The add form takes a plain Thing; it lands in the main pocket, the first place the Gear bar's add offers.
-async function addLubecThing(page, name) {
-  await page.locator(`${LUBEC_GEAR_PAGE} .gear-bar .add-top`).click()
-  await page.locator(`${LUBEC_GEAR_PAGE} [role="dialog"] input[type="text"]`).fill(name)
-  await page.locator(`${LUBEC_GEAR_PAGE} [role="dialog"] button[type="submit"]`).click()
-  await page.waitForFunction((selector) => !document.querySelector(selector), {}, `${LUBEC_GEAR_PAGE} [role="dialog"]`)
+const LUBEC_GEAR_SHEET = `${LUBEC_GEAR_PAGE} [role="dialog"]`
+
+// On a phone the form is pages, and only the last one offers Add it: its step tab turns straight to it.
+async function submitLubecGearForm(page) {
+  if (await page.$(`${LUBEC_GEAR_SHEET} .form-steps`)) await page.locator(`${LUBEC_GEAR_SHEET} .form-steps button:last-child`).click()
+  await page.locator(`${LUBEC_GEAR_SHEET} button[type="submit"]`).click()
+  await page.waitForFunction((selector) => !document.querySelector(selector), {}, LUBEC_GEAR_SHEET)
 }
 
-async function expectLubecGearItemInMainPocket(page, name) {
-  const items = await page.$$eval(`${LUBEC_GEAR_PAGE} .pack .slot.item .name`, (names) => names.map((item) => item.textContent))
-  if (items.join() !== name) throw new Error(`The backpack holds ${JSON.stringify(items)}, not ${name}.`)
+// The Gear bar's add opens the form at the main pocket; Browse stock opens on the form's kind, a Thing, so the
+// search is widened to every kind before it finds the item, and picking its tile copies it in.
+async function addLubecStockItem(page, name) {
+  await page.locator(`${LUBEC_GEAR_PAGE} .gear-bar .add-top`).click()
+  await page.locator(`${LUBEC_GEAR_SHEET} .link-btn`).click()
+  await page.locator(`${LUBEC_GEAR_SHEET} .stock-kinds label:first-child`).click()
+  await page.locator(`${LUBEC_GEAR_SHEET} .stock-tools input[type="text"]`).fill(name)
+  await page.locator(`${LUBEC_GEAR_SHEET} .stock-tile ::-p-text(${name})`).click()
+  await submitLubecGearForm(page)
+}
+
+async function expectLubecGearItemInMainPocket(page, name, line = '') {
+  const items = await page.$$eval(`${LUBEC_GEAR_PAGE} .pack .slot.item .slot-text`, (texts) => texts.map((item) => item.textContent))
+  if (items.join() !== `${name}${line}`) throw new Error(`The backpack holds ${JSON.stringify(items)}, not ${name} reading "${line}".`)
 }
 
 // The value down `path` in a stored document's REST shape, or undefined where any step is missing.
@@ -1438,16 +1450,16 @@ async function lubecGearPageSteps(page, testCase, path) {
   await step('show the empty backpack, hands and body with no full-inventory tag', () => expectEmptyLubecGear(page))
   await step('fit the Lubec Gear page without scrolling sideways', () => expectNoSidewaysScroll(page))
   await lubecGearFitStep(page, testCase)
-  await step('add a Flashlight through the add form into the main pocket', async () => {
-    await addLubecThing(page, 'Flashlight')
-    await expectLubecGearItemInMainPocket(page, 'Flashlight')
+  await step('add a Flashlight from the stock picker into the main pocket, reading "2 of 2 loaded"', async () => {
+    await addLubecStockItem(page, 'Flashlight')
+    await expectLubecGearItemInMainPocket(page, 'Flashlight', '2 of 2 loaded')
   })
   await step('store the gear by path alone, with one item', () => waitForStored(() => readDocumentFields(path), (stored) => storedGearProblems(stored, 'Flashlight')))
   await step('see the Flashlight in the main pocket after a reload', async () => {
     await page.reload({ waitUntil: 'domcontentloaded' })
     await openLubecSheet(page)
     await openLubecGearPage(page)
-    await expectLubecGearItemInMainPocket(page, 'Flashlight')
+    await expectLubecGearItemInMainPocket(page, 'Flashlight', '2 of 2 loaded')
   })
   await page.mouse.move(0, page.viewport().height - 1)
   await step('fit the Gear page without scrolling sideways after the add', () => expectNoSidewaysScroll(page))
@@ -1592,7 +1604,7 @@ async function runViewport(browser, testCase) {
       + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map, '
       + 'and, in the Lubec campaign made through the picker, in its own skin, with its five tabs, imported a character file with a portrait, '
       + 'gave it a token image from the sheet, saw both again after a reload from their stored paths, opened the imported character\'s Core page and Skills page, '
-      + 'finalized it and added a thing on its Gear page that was stored by path alone and kept through a reload, '
+      + 'finalized it and added a stock Flashlight on its Gear page that was stored by path alone and kept through a reload, '
       + 'and made an NPC a Direct entry sheet on its Character sheet tab and finalized it.',
     )
   } finally {

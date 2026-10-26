@@ -12,6 +12,12 @@ import type { GenericTokenPlacementSource, MonsterTokenPlacementSource, NpcToken
 import { aToken, aTokenAsset, anNpc } from '../test/mapFixtures'
 import { gmMapControlsProps, type GmMapControlsProps } from '../test/gmMapControlsProps'
 
+// These cases mount large component trees and run role queries over them in
+// jsdom. Alone each takes about a second, but under coverage on a loaded
+// machine the same cases ran past Vitest's 5 second default and failed without
+// any assertion failing, as `LubecCharacterTab.test.tsx`'s did.
+vi.setConfig({ testTimeout: 30_000 })
+
 const mocks = vi.hoisted(() => ({
   listeners: {} as Record<string, (snap: unknown) => void>,
   sceneNpcModal: null as { npcId: string; allTags: string[]; onClose: () => void } | null,

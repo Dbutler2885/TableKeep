@@ -1,21 +1,30 @@
 import { useState } from 'react'
-import { makeId } from '../../character/characterFactories'
-import { addLubecItem } from '../../ruleSets/lubec/gear/addItem'
 import { inventoryFull } from '../../ruleSets/lubec/gear/placement'
 import type { LubecGear } from '../../ruleSets/lubec/gear/gearRecord'
-import { addedToast, supplyNameIn } from './gearLabels'
-import { LubecGearAddForm, type LubecGearAddSubmit } from './LubecGearAddForm'
+import type { LubecStockItem } from '../../ruleSets/lubec/gear/stock'
+import { lubecSupplies } from '../../ruleSets/lubec/gear/supplies'
+import { supplyNameIn } from './gearLabels'
+import { lubecAddSheet, lubecCardSheet, type LubecItemSheetState } from './itemSheet'
 import { LubecGearHandsBody } from './LubecGearHandsBody'
-import { LubecGearPack } from './LubecGearPack'
+import { LubecGearPack, type LubecGearAdd, type LubecGearOpen } from './LubecGearPack'
+import { LubecItemSheet } from './LubecItemSheet'
 import { useLubecToast } from './useLubecToast'
 import './lubecGear.css'
+import './lubecGearSheet.css'
 
 /** Saves the character's next gear; null for a viewer who may only look. */
 export type LubecGearChange = ((gear: LubecGear) => void) | null
 
 type LubecGearView = 'on-you' | 'carriers'
 
-type GearPageProps = { gear: LubecGear; onGearChange: LubecGearChange }
+type GearPageProps = {
+  gear: LubecGear
+  onGearChange: LubecGearChange
+  /** The campaign's own list for the stock picker's "This campaign"; empty, and so hidden, until the GM Items tab fills it. */
+  campaignStock?: readonly LubecStockItem[]
+}
+
+const NO_CAMPAIGN_STOCK: readonly LubecStockItem[] = []
 
 function GearTabs({ view, onView }: { view: LubecGearView; onView: (view: LubecGearView) => void }) {
   const tab = (id: LubecGearView, label: string) => (
@@ -42,18 +51,17 @@ function GearBar({ view, onView, full, onAdd }: GearBarProps) {
   )
 }
 
-type OnYouProps = { gear: LubecGear; onAdd: ((dest: string) => void) | null }
+type OnYouProps = { gear: LubecGear; onAdd: LubecGearAdd; onOpen: LubecGearOpen }
 
 // On you: the backpack, the hands and the body, on one screen.
-function OnYou({ gear, onAdd }: OnYouProps) {
-  // The game's own list of supplies comes with loading; until then a supply is named from the player's own.
-  const supplyName = supplyNameIn(gear.supplies)
+function OnYou({ gear, onAdd, onOpen }: OnYouProps) {
+  const supplyName = supplyNameIn(lubecSupplies(gear))
   return (
     <section id="lubec-gear-view-on-you" role="tabpanel" aria-labelledby="lubec-gear-tab-on-you">
       <div className="on-you">
-        <LubecGearPack gear={gear} supplyName={supplyName} onAdd={onAdd} />
+        <LubecGearPack gear={gear} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} />
         <div className="side">
-          <LubecGearHandsBody gear={gear} supplyName={supplyName} onAdd={onAdd} />
+          <LubecGearHandsBody gear={gear} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} />
         </div>
       </div>
     </section>
@@ -68,33 +76,29 @@ function Carriers() {
   )
 }
 
-// Adds through the rules and saves the next gear in one commit, with B's toast; returns why not, else null.
-function addSubmitFor(gear: LubecGear, onGearChange: (gear: LubecGear) => void, done: (toast: string) => void): LubecGearAddSubmit {
-  return (dest, draft) => {
-    const added = addLubecItem(gear, dest, draft, makeId)
-    if (!added.ok) return added.msg
-    onGearChange(added.gear)
-    done(addedToast(added.first, added.stacks))
-    return null
+type SheetOpeners = { onAdd: LubecGearAdd; onOpen: LubecGearOpen }
+
+// What opens the item sheet: the add form at a place, an item's card, and small stuff; none for a viewer who may only look.
+function sheetOpeners(canEdit: boolean, setSheet: (sheet: LubecItemSheetState) => void): SheetOpeners {
+  if (!canEdit) return { onAdd: null, onOpen: null }
+  return {
+    onAdd: (dest) => setSheet(lubecAddSheet(dest)),
+    onOpen: { item: (id) => setSheet(lubecCardSheet(id)), small: () => setSheet({ mode: 'small' }) },
   }
 }
 
-/** The Lubec sheet's Gear page: the Gear bar, and B's On you view of the backpack, the hands and the body. */
-export function LubecGearPage({ gear, onGearChange }: GearPageProps) {
+/** The Lubec sheet's Gear page: the Gear bar, B's On you view of the backpack, the hands and the body, and the item sheet over it. */
+export function LubecGearPage({ gear, onGearChange, campaignStock = NO_CAMPAIGN_STOCK }: GearPageProps) {
   const [view, setView] = useState<LubecGearView>('on-you')
-  const [adding, setAdding] = useState<string | null>(null)
+  const [sheet, setSheet] = useState<LubecItemSheetState | null>(null)
   const toast = useLubecToast()
-  const onAdd = onGearChange ? setAdding : null
+  const { onAdd, onOpen } = sheetOpeners(onGearChange !== null, setSheet)
   return (
     <div className="lubec-page lubec-gear">
       <GearBar view={view} onView={setView} full={inventoryFull(gear)} onAdd={onAdd && (() => onAdd('backpack#0'))} />
-      {view === 'on-you' ? <OnYou gear={gear} onAdd={onAdd} /> : <Carriers />}
-      {onGearChange && adding !== null ? (
-        <LubecGearAddForm
-          dest={adding}
-          onSubmit={addSubmitFor(gear, onGearChange, (text) => { setAdding(null); toast.show(text) })}
-          onClose={() => setAdding(null)}
-        />
+      {view === 'on-you' ? <OnYou gear={gear} onAdd={onAdd} onOpen={onOpen} /> : <Carriers />}
+      {onGearChange && sheet ? (
+        <LubecItemSheet sheet={sheet} gear={gear} onGearChange={onGearChange} onSheet={setSheet} toast={toast.show} campaignStock={campaignStock} />
       ) : null}
       <div className={`toast${toast.shown ? ' show' : ''}`} role="status" aria-live="polite">{toast.text}</div>
     </div>

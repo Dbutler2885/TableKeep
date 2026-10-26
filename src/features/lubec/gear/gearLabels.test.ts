@@ -41,6 +41,9 @@ describe('the On you words', () => {
     expect(whereText(item({ carrier: 'hands', slot: 1 }))).toBe('Right hand')
     expect(whereText(item({ carrier: 'hands', slot: 0, size: 2 }))).toBe('Both hands')
     expect(whereText(item({ carrier: 'body', slot: 0 }))).toBe('Body slot')
+    expect(whereText(item({ carrier: 'hands' }))).toBe('Left hand')
+    expect(whereText(item({ carrier: 'worn', locs: ['head', 'hand-L', 'hand-R'] }))).toBe('Worn: head, hands')
+    expect(whereText(item({ carrier: 'worn' }))).toBe('Worn: ')
   })
 
   it('confirm an add in one line', () => {

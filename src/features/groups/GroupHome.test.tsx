@@ -11,6 +11,12 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import type { User } from 'firebase/auth'
 import type { Campaign, GroupRecord } from '../../types/app'
 
+// These cases mount large component trees and run role queries over them in
+// jsdom. Alone each takes about a second, but under coverage on a loaded
+// machine the same cases ran past Vitest's 5 second default and failed without
+// any assertion failing, as `LubecCharacterTab.test.tsx`'s did.
+vi.setConfig({ testTimeout: 30_000 })
+
 vi.mock('../auth/DiscordConnection', () => ({ DiscordConnection: () => null }))
 vi.mock('../auth/DiscordReturnNotice', () => ({ DiscordReturnNotice: () => null }))
 vi.mock('./DiscordServerLink', () => ({ DiscordServerLink: () => null }))

@@ -1,0 +1,32 @@
+import type { LubecGear, LubecItem, LubecItemWeight } from '../../ruleSets/lubec/gear/gearRecord'
+import { lubecCostText } from '../../ruleSets/lubec/gear/moveCost'
+import { lubecDestinations, WEIGHT_NAMES, weightHint } from './itemLabels'
+import { lubecWithDest } from './itemForm'
+import type { LubecFieldsProps } from './LubecItemFormTop'
+
+type BottomProps = LubecFieldsProps & { gear: LubecGear; editing: LubecItem | undefined }
+
+const WEIGHTS = Object.keys(WEIGHT_NAMES) as LubecItemWeight[]
+
+/** Where it goes, what moving it there costs when it is being edited, and its weight. */
+export function LubecItemFormBottom({ fields, onFields, gear, editing }: BottomProps) {
+  return (
+    <div className="form-bottom">
+      <label className="field"><span className="label">Put it</span>
+        <select value={fields.dest} onChange={(e) => onFields(lubecWithDest(fields, e.target.value))}>
+          <optgroup label="On you">{lubecDestinations(gear).map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>
+        </select>
+      </label>
+      <p className="cost">{editing ? lubecCostText(editing.carrier, fields.dest) : ''}</p>
+      <fieldset className="field weight-pick">
+        <legend className="label">Weight</legend>
+        <div className="seg-row thirds">
+          {WEIGHTS.map((w) => (
+            <label key={w}><input type="radio" name="weight" value={w} checked={fields.weight === w} onChange={() => onFields({ ...fields, weight: w })} /><span>{WEIGHT_NAMES[w]}</span></label>
+          ))}
+        </div>
+        <p className="field-note" aria-live="polite">{weightHint(fields.weight)}</p>
+      </fieldset>
+    </div>
+  )
+}

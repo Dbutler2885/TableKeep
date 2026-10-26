@@ -26,6 +26,12 @@ import {
 } from './test/mapsTabStubs'
 import type { MapsTab as MapsTabType } from './MapsTab'
 
+// These cases mount large component trees and run role queries over them in
+// jsdom. Alone each takes about a second, but under coverage on a loaded
+// machine the same cases ran past Vitest's 5 second default and failed without
+// any assertion failing, as `LubecCharacterTab.test.tsx`'s did.
+vi.setConfig({ testTimeout: 30_000 })
+
 type Stub = Record<string, unknown>
 
 const h = vi.hoisted(() => ({
