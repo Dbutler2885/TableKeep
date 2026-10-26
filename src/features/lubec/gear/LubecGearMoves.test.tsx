@@ -8,12 +8,14 @@
  * made-up rectangles; the browser smoke drags with real pointer events.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../../types/app'
 
 // These cases mount large component trees and run role queries over them in jsdom (see LubecGearTab.test.tsx).
 vi.setConfig({ testTimeout: 30_000 })
+// A drop waits on its transaction and the snapshot after it, which on a loaded machine outlasts waitFor's 1 second default.
+configure({ asyncUtilTimeout: 10_000 })
 
 type Fields = Record<string, unknown>
 type Ref = { path: string }

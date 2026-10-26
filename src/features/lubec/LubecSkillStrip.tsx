@@ -36,9 +36,12 @@ function LubecSkillChips({ skills, roller }: { skills: readonly LubecRollSkill[]
 
 type SwitchProps = { roller: LubecRoller; spin: LubecSpin | null }
 
-// The mode is for the next roll only: pressing the one set turns it off, and a
-// roll puts it back to Normal once it lands. Like the circles, it is held while a roll spins.
-function LubecAdvantageSwitch({ roller, spin }: SwitchProps) {
+/**
+ * The mode is for the next roll only: pressing the one set turns it off, and a
+ * roll puts it back to Normal once it lands. Like the circles, it is held while
+ * a roll spins. The Gear page's Strength prompt shows it too, as the roller reads it.
+ */
+export function LubecAdvantageSwitch({ roller, spin }: SwitchProps) {
   const shown = lubecShownAdvantage(spin, roller.advantage)
   return (
     <div className="lubec-advantage" role="group" aria-label="Advantage">

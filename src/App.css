@@ -16198,6 +16198,17 @@ button:disabled {
   color: var(--lubec-cream);
 }
 
+/* A heavy thing on the character waits for its Strength roll: a dot on the Gear tab. */
+.shell-root[data-theme="lubec"] .lubec-page-dot {
+  display: inline-block;
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-left: 0.4rem;
+  vertical-align: 0.15em;
+  background: var(--lubec-mustard);
+  border-radius: 50%;
+}
+
 /* Name band: the photo frame, the name, the place stamp. */
 .shell-root[data-theme="lubec"] .lubec-idband {
   display: grid;

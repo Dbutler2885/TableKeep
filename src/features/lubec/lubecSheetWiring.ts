@@ -8,6 +8,7 @@ import { lubecGearDrop, type LubecGearDrop, type LubecGearRecords } from './gear
 import type { LubecGearChange } from './gear/LubecGearPage'
 import { lubecCharacterName } from './lubecNames'
 import type { LubecCountersChange } from './LubecCountersPanel'
+import type { LubecRolled } from './useLubecRoller'
 import type { LubecCorrections } from './LubecSheetView'
 
 /** Who is looking at the sheet. */
@@ -41,6 +42,7 @@ export type LubecSheetEdits = DraftActions & {
   corrections: LubecCorrections | null
   onGearChange: LubecGearChange
   onGearDrop: LubecGearDrop
+  onGearRolled: LubecRolled | null
 }
 
 // The owner and the GM change a character's counters; anyone else only sees them.
@@ -79,6 +81,13 @@ function gearDropFor(
 ): LubecGearDrop {
   if (!character || !records || !canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) return null
   return lubecGearDrop(records, store, { characterId: character.id, characterName: lubecCharacterName(character), userId: viewer.userId })
+}
+
+// Only the owner of a character in play is asked for a heavy thing's Strength roll, which is recorded as any roll is.
+// A heavy thing the GM gives, or one packed while the character is a draft, arrives with none, for the owner to roll in play.
+function gearRolledFor(character: LubecCharacterRecord | null, viewer: LubecViewer, update: CharacterUpdate): LubecRolled | null {
+  if (!character || character.creationStatus !== 'active' || character.ownerUserId !== viewer.userId) return null
+  return (lubec) => update(character.id, { lubec })
 }
 
 // The GM may correct any locked value on a finalized character; nobody else may change one.
@@ -129,6 +138,7 @@ export function lubecSheetWiring(
     corrections: correctionsFor(character, viewer, store.updateCharacter),
     onGearChange: gearChangeFor(character, viewer, store.updateCharacter),
     onGearDrop: gearDropFor(character, viewer, store, records),
+    onGearRolled: gearRolledFor(character, viewer, store.updateCharacter),
     ...draftActionsFor(character, viewer, store),
   }
 }
