@@ -12,6 +12,12 @@ import { emptyLubecGear, type LubecGear, type LubecItem } from '../../ruleSets/l
 import type { LubecStockItem } from '../../ruleSets/lubec/gear/stock'
 import { LubecGearPage } from './LubecGearPage'
 
+// These cases mount large component trees and run role queries over them in
+// jsdom. Alone each takes about a second, but under coverage on a loaded
+// machine the same cases ran past Vitest's 5 second default and failed without
+// any assertion failing, as `LubecCharacterTab.test.tsx`'s did.
+vi.setConfig({ testTimeout: 30_000 })
+
 const T = (id: string, extra: Partial<LubecItem> = {}): LubecItem =>
   ({ id, kind: 'thing', name: id, note: '', size: 1, weight: 'normal', qty: 1, carrier: 'backpack', pocket: 0, ...extra })
 

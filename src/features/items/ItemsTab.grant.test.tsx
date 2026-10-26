@@ -4,6 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CampaignItem, CharacterInventoryItem } from '../../types/app'
 import { parseOseCharacter } from '../character/lib/storedCharacterRecord'
 
+// These cases mount large component trees and run role queries over them in
+// jsdom. Alone each takes about a second, but under coverage on a loaded
+// machine the same cases ran past Vitest's 5 second default and failed without
+// any assertion failing, as `LubecCharacterTab.test.tsx`'s did.
+vi.setConfig({ testTimeout: 30_000 })
+
 const mocks = vi.hoisted(() => ({ items: [] as CampaignItem[], get: vi.fn(), set: vi.fn(), delete: vi.fn(), runTransaction: vi.fn() }))
 vi.mock('../../firebase', () => ({ db: {}, auth: {}, storage: {} }))
 vi.mock('firebase/firestore', async (original) => ({
