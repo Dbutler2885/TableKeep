@@ -27,7 +27,7 @@ import {
 
 const tommy = lubecCharacterSheet()
 
-const request = (name: 'Strength' | 'Handle' | 'Sanity', modifiers: LubecModifier[] = [], sheet = tommy) => ({ sheet, name, modifiers })
+const request = (name: 'Strength' | 'Speed' | 'Handle' | 'Sanity', modifiers: LubecModifier[] = [], sheet = tommy) => ({ sheet, name, modifiers })
 
 const handleRoll: LubecCheckRoll = {
   kind: 'stat-check', against: 'Handle', target: 65, dice: [32], result: 32,
@@ -77,6 +77,25 @@ describe('Lubec roll circles', () => {
     expect(lubecBaseNote(request('Strength', [], classless))).toBe('24')
     const noBase = lubecCharacterSheet({ base: { ...tommy.base, Strength: null } })
     expect(lubecBaseNote(request('Strength', [], noBase))).toBe('')
+  })
+
+  it('notes gear\'s losses as a part of their own, and one part that adds up where the floor at 0 clips', () => {
+    const gear = (amount: number): LubecModifier => ({ target: 'Speed', amount, source: 'gear' })
+    const effect = (amount: number): LubecModifier => ({ target: 'Speed', amount })
+    expect(lubecBaseNote(request('Speed', [gear(-20)]))).toBe('51 +5 class -20 gear')
+    expect(lubecBaseNote(request('Speed', [effect(-10), gear(-20), gear(-10)]))).toBe('51 +5 class -10 effect -30 gear')
+    expect(lubecNoteParts(request('Speed', [effect(10), gear(-10)]))).toEqual(['+5 class', '+10 effect', '-10 gear'])
+    expect(lubecBaseNote(request('Speed', [gear(-60)]))).toBe('51 +5 class -56 gear, immobile')
+    expect(lubecBaseNote(request('Speed', [effect(-40), gear(-20)]))).toBe('51 +5 class -56 effect and gear, immobile')
+    expect(lubecBaseNote(request('Handle', [{ target: 'Handle', amount: -200 }, gear(-20)]))).toBe('50 +5 class -55 effect')
+  })
+
+  it('says immobile under Speed at 0, and only under Speed', () => {
+    const still = lubecCharacterSheet({ class: { key: 'tough', choices: {} }, base: { ...tommy.base, Speed: 0, Handle: 0 } })
+    expect(lubecBaseNote(request('Speed', [], still))).toBe('0, immobile')
+    expect(lubecBaseNote(request('Speed', [{ target: 'Speed', amount: -56 }]))).toBe('51 +5 class -56 effect, immobile')
+    expect(lubecBaseNote(request('Speed', [{ target: 'Speed', amount: -55 }]))).toBe('51 +5 class -55 effect')
+    expect(lubecBaseNote(request('Handle', [], still))).toBe('')
   })
 
   it('shows no note when the circle already shows the base', () => {

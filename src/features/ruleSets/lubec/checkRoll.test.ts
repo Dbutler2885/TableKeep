@@ -25,6 +25,12 @@ const characterSheet = (overrides: Partial<LubecCharacterSheet> = {}): LubecChar
   ...overrides,
 })
 
+// A Small anvil in the backpack whose Strength roll failed: Speed -20 while it is on you (Rule E1).
+const anvilGear = (check: 'pass' | 'fail' | null = 'fail', carrier = 'backpack') => ({
+  ...emptyLubecGear(),
+  items: [{ id: 'a', kind: 'thing' as const, name: 'Small anvil', note: '', size: 1 as const, weight: 'heavy' as const, qty: 1, carrier, pocket: 0, ...(check ? { check } : {}) }],
+})
+
 /** Dice that land on these d100 results, in order. */
 const rolls = (...results: number[]): LubecDice => () => ((results.shift() as number) - 0.5) / 100
 
@@ -70,6 +76,17 @@ describe('Lubec check rolls', () => {
   it('rolls under the current value with the active effects counted', () => {
     const effects = [{ id: 'e', name: 'Sprain', cause: 'Fell', steps: [{ modifiers: [{ target: 'Strength' as const, amount: -9 }], labels: [] }] }]
     expect(lubecCheckTarget(characterSheet({ effects }), 'Strength', null)).toBe(20)
+  })
+
+  it('rolls Speed 20 lower with a failed heavy anvil on you, and nothing else; in a carrier, or not rolled yet, it costs nothing', () => {
+    expect(lubecCheckTarget(characterSheet(), 'Speed', null)).toBe(56)
+    expect(lubecCheckTarget(characterSheet({ gear: anvilGear() }), 'Speed', null)).toBe(36)
+    expect(lubecCheckTarget(characterSheet({ gear: anvilGear() }), 'Strength', null)).toBe(29)
+    expect(lubecCheckTarget(characterSheet({ gear: anvilGear() }), 'Body', null)).toBe(31)
+    expect(lubecCheckTarget(characterSheet({ gear: anvilGear(null) }), 'Speed', null)).toBe(56)
+    const chest = { id: 'chest', name: 'Bedroom chest', type: 'chest', pockets: [{ name: 'Inside', slots: 24, max: 8 }] }
+    expect(lubecCheckTarget(characterSheet({ gear: { ...anvilGear('fail', 'chest'), carriers: [chest] } }), 'Speed', null)).toBe(56)
+    expect(rollLubecCheck(characterSheet({ gear: anvilGear() }), { name: 'Speed', advantage: 'normal', skill: null }, rolls(40))).toMatchObject({ target: 36, outcome: 'failure' })
   })
 
   it('adds a skill only when it is the character\'s own and armable', () => {

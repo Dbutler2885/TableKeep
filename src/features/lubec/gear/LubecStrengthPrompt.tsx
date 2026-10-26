@@ -1,7 +1,7 @@
 import { useState, type KeyboardEvent } from 'react'
 import type { LubecCharacterSheet } from '../../ruleSets/lubec/characterRecord'
 import { readLubecCheckRoll, type LubecCheckRoll } from '../../ruleSets/lubec/checkRoll'
-import { lubecActiveModifiers } from '../../ruleSets/lubec/effects'
+import { lubecSheetModifiers } from '../../ruleSets/lubec/modifiers'
 import type { LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
 import { lubecStrengthStress, lubecStrengthTarget } from '../../ruleSets/lubec/gear/strengthCheck'
 import { lubecCircleFace } from '../lubecCircles'
@@ -45,7 +45,7 @@ type RollProps = { sheet: LubecCharacterSheet; roller: LubecRoller | null; circl
 // The Core page's Strength circle and its Advantage switch; once rolled, the switch gives way to what the roll did.
 function StrengthRoll({ sheet, roller, circles, rolled }: RollProps) {
   const state = { armed: null, result: circles.result('Strength'), spin: circles.spin }
-  const face = lubecCircleFace({ sheet, name: 'Strength', modifiers: lubecActiveModifiers(sheet.effects) }, state)
+  const face = lubecCircleFace({ sheet, name: 'Strength', modifiers: lubecSheetModifiers(sheet) }, state)
   return (
     <div className="strength-roll">
       <div className="ability">

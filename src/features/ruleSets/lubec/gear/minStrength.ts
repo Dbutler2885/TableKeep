@@ -5,17 +5,17 @@
 // works the penalty out; Core owns Strength and Handle (spec 5.2, row 12).
 
 import { lubecCurrentValue, lubecEffectiveHandle } from '../derivations'
-import { lubecActiveModifiers } from '../effects'
 import type { LubecCharacterSheet } from '../characterRecord'
+import { lubecSheetModifiers } from '../modifiers'
 import type { LubecSheet } from '../sheet'
 import type { LubecGear, LubecItem } from './gearRecord'
 
 /** What a weapon card needs of the character: current Strength and Effective Handle, each null when it is a hole. */
 export type LubecWielder = { strength: number | null; handle: number | null }
 
-/** The wielder's Strength and Effective Handle, with the active effects' modifiers. */
-export function lubecWielder(sheet: LubecSheet & Pick<LubecCharacterSheet, 'effects'>): LubecWielder {
-  const modifiers = lubecActiveModifiers(sheet.effects)
+/** The wielder's Strength and Effective Handle, with the active effects' modifiers and gear's. */
+export function lubecWielder(sheet: LubecSheet & Pick<LubecCharacterSheet, 'effects' | 'gear'>): LubecWielder {
+  const modifiers = lubecSheetModifiers(sheet)
   return { strength: lubecCurrentValue(sheet, 'Strength', modifiers), handle: lubecEffectiveHandle(sheet, modifiers) }
 }
 

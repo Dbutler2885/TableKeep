@@ -112,31 +112,65 @@ export const lubecTallyFace = (name: 'Panic' | 'Recovery', target: number | null
 
 const signed = (amount: number): string => `${amount > 0 ? '+' : ''}${amount}`
 
+const isGear = (modifier: LubecModifier): boolean => modifier.source === 'gear'
+
+/** What the modifiers on one value add up to, the effects' and gear's apart. */
+function sourceTotals(name: LubecValueName, modifiers: readonly LubecModifier[]) {
+  const on = modifiers.filter((modifier) => modifier.target === name)
+  const total = (list: readonly LubecModifier[]) => list.reduce((sum, modifier) => sum + modifier.amount, 0)
+  return { effect: total(on.filter((modifier) => !isGear(modifier))), gear: total(on.filter(isGear)) }
+}
+
+const SOURCES = ['effect', 'gear'] as const
+
+// "-10 effect -20 gear"; where the floor at 0 clips the total, one part that
+// adds up, rather than numbers that do not: "-15 effect and gear".
+function modifierParts(request: ValueRequest, final: number, current: number): string[] {
+  const totals = sourceTotals(request.name, request.modifiers)
+  const sources = SOURCES.filter((source) => totals[source] !== 0)
+  if (final + totals.effect + totals.gear !== current) return [`${signed(current - final)} ${sources.join(' and ')}`]
+  return sources.map((source) => `${signed(totals[source])} ${source}`)
+}
+
 /**
- * What the class, and any effect, add to the base: "+5 class", "-10 effect".
- * Empty while a value is a hole or nothing is added, as the prototype shows no note then.
+ * What the class, any effect and gear add to the base: "+5 class", "-10
+ * effect", "-20 gear". Empty while a value is a hole or nothing is added, as
+ * the prototype shows no note then.
  */
-export function lubecNoteParts({ sheet, name, modifiers }: ValueRequest): string[] {
+export function lubecNoteParts(request: ValueRequest): string[] {
+  const { sheet, name, modifiers } = request
   const base = sheet.base[name]
   const final = lubecFinalValue(sheet, name)
   const current = lubecCurrentValue(sheet, name, modifiers)
   if (base === null || final === null || current === null) return []
-  return [
-    ...(final === base ? [] : [`${signed(final - base)} class`]),
-    ...(current === final ? [] : [`${signed(current - final)} effect`]),
-  ]
+  return [...(final === base ? [] : [`${signed(final - base)} class`]), ...modifierParts(request, final, current)]
 }
 
+/** Speed at 0 is immobile (the plan); the note under the Speed circle says so. */
+export const isLubecImmobile = ({ sheet, name, modifiers }: ValueRequest): boolean =>
+  name === 'Speed' && lubecCurrentValue(sheet, name, modifiers) === 0
+
+const IMMOBILE = 'immobile'
+
+// The last part before "immobile" takes the comma, so the note reads "47 -47 gear, immobile".
+const withComma = (parts: readonly string[]): string[] => parts.map((part, n) => (n === parts.length - 1 ? `${part},` : part))
+
 /**
- * The note under a circle: "24 +5 class", the base and what is added to it.
- * The base alone when the circle is a hole, and nothing when the circle already shows the base.
+ * The note under a circle, in parts the sheet never breaks inside: the base
+ * and what is added to it, "24", "+5 class", and "immobile" after them at
+ * Speed 0. The base alone when the circle is a hole, and nothing when the
+ * circle already shows the base.
  */
-export function lubecBaseNote(request: ValueRequest): string {
+export function lubecBaseNoteParts(request: ValueRequest): string[] {
   const base = request.sheet.base[request.name]
-  const parts = lubecNoteParts(request)
-  if (base === null || (parts.length === 0 && lubecCurrentValue(request.sheet, request.name, request.modifiers) !== null)) return ''
-  return [base, ...parts].join(' ')
+  if (base === null) return []
+  const parts = [`${base}`, ...lubecNoteParts(request)]
+  if (isLubecImmobile(request)) return [...withComma(parts), IMMOBILE]
+  return parts.length === 1 && lubecCurrentValue(request.sheet, request.name, request.modifiers) !== null ? [] : parts
 }
+
+/** The note under a circle as one line: "24 +5 class -20 gear". */
+export const lubecBaseNote = (request: ValueRequest): string => lubecBaseNoteParts(request).join(' ')
 
 const lowerFirst = (text: string): string => `${text.charAt(0).toLowerCase()}${text.slice(1)}`
 

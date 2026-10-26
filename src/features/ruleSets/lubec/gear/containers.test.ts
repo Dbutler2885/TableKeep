@@ -4,7 +4,7 @@
  * was read, and a refused move that leaves both records as they were.
  */
 import { describe, expect, it } from 'vitest'
-import { parseLubecCarrierRecord, parseLubecGear, type LubecItem } from './gearRecord'
+import { parseLubecCarrierRecord, parseLubecGear, type LubecGear, type LubecItem } from './gearRecord'
 import { parseLubecGmItem } from './gmItem'
 import {
   LUBEC_STALE_MOVE,
@@ -119,6 +119,15 @@ describe('a move between two records', () => {
     const crate = T('crate', 'skiff', 0, 'Crate', 1, { weight: 'heavy' })
     const lifted = planned(skiff([crate]), emptySheet(), { itemId: 'crate', seen: seenAt(crate), dest: 'hands', check: 'pass' })
     expect(lifted.item).toMatchObject({ carrier: 'hands', slot: 0, check: 'pass' })
+  })
+
+  it('forgets a switched-off Speed loss on the sheet a thing leaves, and keeps one still true', () => {
+    const switchedOff = (record: LubecMoveRecord): LubecMoveRecord =>
+      ({ kind: 'character', gear: { ...(record as { gear: LubecGear }).gear, overrides: ['heavy:anvil'] } })
+    const left = planned(switchedOff(wayne()), skiff(), moveOf(anvil, { dest: 'skiff' })).from as { gear: LubecGear }
+    expect(left.gear.overrides).toEqual([])
+    const stayed = planned(switchedOff(wayne()), skiff(), moveOf(flashlight, { dest: 'skiff' })).from as { gear: LubecGear }
+    expect(stayed.gear.overrides).toEqual(['heavy:anvil'])
   })
 
   it('keeps the boxes a dragged thing was dropped on only in the main pocket', () => {

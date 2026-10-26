@@ -20,6 +20,7 @@ import {
   storedPortraitProblems,
   storedTokenImageProblems,
   storedVersionProblems,
+  switchedOffProblems,
   trackersAtZero,
   vtmCharacterFields,
   withLubecPortrait,
@@ -340,6 +341,22 @@ describe('the heavy anvil\'s Strength roll (step 9)', () => {
     expect(heavyAnvilProblems(rolled('pass', 2, 'Speed'), { failed: true, stressBefore: 2 })).toEqual([
       "the stored anvil's Strength roll is pass", 'the last roll is not the Strength check', 'Stress is 2, not 3',
     ])
+  })
+})
+
+describe('the anvil\'s switched-off Speed loss (step 11)', () => {
+  const switched = (overrides) => toFirestoreFields({
+    name: 'Tommy', lubec: { gear: { items: [{ id: 'a1', name: 'Small anvil', carrier: 'backpack', check: 'fail' }], carriers: [], overrides } },
+  })
+
+  it('passes the anvil\'s key stored while it is off, and none once it is on again', () => {
+    expect(switchedOffProblems(switched(['heavy:a1']), true)).toEqual([])
+    expect(switchedOffProblems(switched([]), false)).toEqual([])
+  })
+
+  it('names the stored keys when they are not the anvil\'s', () => {
+    expect(switchedOffProblems(switched([]), true)).toEqual(['the stored switched-off losses are [], not ["heavy:a1"]'])
+    expect(switchedOffProblems(switched(['heavy:a1']), false)).toEqual(['the stored switched-off losses are ["heavy:a1"], not []'])
   })
 })
 

@@ -1,11 +1,11 @@
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
 import { lubecCurrentValue, type LubecModifier } from '../ruleSets/lubec/derivations'
 import { withLubecBaseValue, type LubecSheetEdit } from '../ruleSets/lubec/directEntry'
 import { LUBEC_SAVES, LUBEC_STATS, type LubecValueName } from '../ruleSets/lubec/sheet'
 import { lubecSkillBonus } from '../ruleSets/lubec/skills'
 import { LubecBaseInput } from './LubecBaseInput'
-import { lubecBaseNote, lubecCircleFace, lubecNoteParts, lubecRolledSkill, lubecShownSheet, type LubecCircleFace } from './lubecCircles'
+import { lubecBaseNoteParts, lubecCircleFace, lubecNoteParts, lubecRolledSkill, lubecShownSheet, type LubecCircleFace } from './lubecCircles'
 import { LubecDecisionTray, LubecRollUpAbility } from './LubecDecisionTray'
 import { LubecMissing } from './LubecMissing'
 import { LubecPanicSection } from './LubecPanicRolls'
@@ -54,6 +54,11 @@ function LubecTypedNote({ sheet, name, modifiers }: Omit<ValuesProps, 'onDraftEd
   return <span className="base-note typed-note"><span>{parts.join(' ')}</span> <span>= {current}</span></span>
 }
 
+// The note's parts, each kept whole, so a long note wraps between them under its circle rather than widening the column.
+function LubecNoteParts({ parts }: { parts: readonly string[] }) {
+  return <>{parts.map((part, n) => <Fragment key={n}>{n > 0 ? ' ' : null}<span className="note-part">{part}</span></Fragment>)}</>
+}
+
 // A draft being typed into: the base is typed into the circle's place, and the note says what it comes to.
 function LubecTypedAbility({ sheet, name, modifiers, onDraftEdit }: ValuesProps & { name: LubecValueName; onDraftEdit: LubecSheetEdit }) {
   return (
@@ -83,7 +88,7 @@ function LubecRolledAbility({ circles, ...values }: Omit<AbilityProps, 'rollUp'>
     <div className="ability">
       <LubecRollCircle name={name} labels={valueLabels(name, roller !== null)} face={face} roller={roller} circles={circles} />
       <span className="ability-name">{name}</span>
-      <span className={note ? 'base-note skill-note' : 'base-note'}>{note ?? lubecBaseNote({ sheet, name, modifiers })}</span>
+      <span className={note ? 'base-note skill-note' : 'base-note'}>{note ?? <LubecNoteParts parts={lubecBaseNoteParts({ sheet, name, modifiers })} />}</span>
     </div>
   )
 }

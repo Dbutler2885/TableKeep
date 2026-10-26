@@ -3,6 +3,7 @@ import { canEditCharacterStoreCharacter } from '../character/characterStore/char
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import type { LubecSheetEdit } from '../ruleSets/lubec/directEntry'
 import type { LubecGear } from '../ruleSets/lubec/gear/gearRecord'
+import { lubecPrunedOverrides } from '../ruleSets/lubec/modifiers'
 import type { LubecSkills } from '../ruleSets/lubec/skillPicks'
 import { lubecGearDrop, type LubecGearDrop, type LubecGearRecords } from './gear/lubecGearDrop'
 import type { LubecGearChange } from './gear/LubecGearPage'
@@ -67,9 +68,10 @@ function skillsChangeFor(
 }
 
 // The owner and the GM change a character's gear at every stage, draft or in play; anyone else only sees it.
+// A switched-off Speed loss that names no loss now is dropped on the way (spec 5.3).
 function gearChangeFor(character: LubecCharacterRecord | null, viewer: LubecViewer, update: CharacterUpdate): LubecGearChange {
   if (!character || !canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) return null
-  return (gear: LubecGear) => update(character.id, { lubec: { ...character.lubec, gear } })
+  return (gear: LubecGear) => update(character.id, { lubec: { ...character.lubec, gear: lubecPrunedOverrides(gear) } })
 }
 
 // The owner and the GM drop a character's things to the GM's Items tab; anyone else only sees them.

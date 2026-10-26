@@ -1607,6 +1607,65 @@ async function expectLubecStrengthOnCore(page, shown) {
   await openLubecGearPage(page)
 }
 
+// Steps 10 and 11 need the anvil failed: a passed roll is switched to Failed on its card, the manual override, which adds no Stress.
+async function failLubecAnvil(page) {
+  await page.locator(`${LUBEC_GEAR_PAGE} .pack .slot.item ::-p-text(Small anvil)`).click()
+  await page.locator(`${LUBEC_GEAR_SHEET} [aria-label="Strength roll, recorded"] .fail`).click()
+  await waitForBodyText(page, 'Strength failed: Speed −20.')
+  await page.locator(`${LUBEC_GEAR_SHEET} .close`).click()
+  await waitForNoLubecGearSheet(page)
+}
+
+// What the Core page's Speed circle shows, "36 / 51 +5 class -20 gear", read in the page.
+const readLubecSpeed = (core) => {
+  const ability = [...core.querySelectorAll('.ability')].find((a) => a.querySelector('.ability-name')?.textContent === 'Speed')
+  return `${ability?.querySelector('.roll-circle')?.textContent} / ${ability?.querySelector('.base-note')?.textContent}`
+}
+
+const expectLubecSpeed = (page, expected) => waitForStored(() => page.$eval(LUBEC_CORE_PAGE, readLubecSpeed),
+  (shown) => (shown === expected ? [] : [`the Speed circle shows ${shown}, not ${expected}`]))
+
+// The Effects panel's "From your gear" lines and each one's switch, read in the page.
+const readLubecGearLosses = (core) => [...core.querySelectorAll('.lubec-gear-loss')]
+  .map((line) => `${line.querySelector('.lubec-effect-line').textContent} / ${line.querySelector('button')?.textContent}`)
+
+async function expectLubecGearLosses(page, expected) {
+  const shown = await page.$eval(LUBEC_CORE_PAGE, readLubecGearLosses)
+  if (JSON.stringify(shown) !== JSON.stringify(expected)) throw new Error(`"From your gear" lists ${JSON.stringify(shown)}.`)
+}
+
+const storedOverrides = (stored) =>
+  (storedAt(storedLubecFields(stored), ['gear', 'mapValue', 'fields', 'overrides', 'arrayValue', 'values']) || []).map((key) => key.stringValue)
+
+// Step 11: a switched-off loss is stored by its key, the anvil's, and switching it on again removes the key.
+export function switchedOffProblems(stored, off) {
+  const anvilId = storedAt(storedGearItem(stored, 'Small anvil'), ['mapValue', 'fields', 'id', 'stringValue'])
+  const expected = off ? [`heavy:${anvilId}`] : []
+  const overrides = storedOverrides(stored)
+  return JSON.stringify(overrides) === JSON.stringify(expected) ? [] : [`the stored switched-off losses are ${JSON.stringify(overrides)}, not ${JSON.stringify(expected)}`]
+}
+
+const LUBEC_GEAR_LOSS_SWITCH = `${LUBEC_CORE_PAGE} .lubec-gear-loss button`
+
+async function lubecSpeedSteps(page, path, failed) {
+  if (!failed) await step('switch the passed anvil to Failed on its card', () => failLubecAnvil(page))
+  await page.locator('.lubec-page-tabs ::-p-text(Core sheet)').click()
+  await step('drop the Speed circle by 20 with "-20 gear" in its note', () => expectLubecSpeed(page, '36 / 51 +5 class -20 gear'))
+  await step('list the anvil under "From your gear" with its Turn off switch', () =>
+    expectLubecGearLosses(page, ['Small anvil: heavy, Strength failedSpeed -20 / Turn off']))
+  await step('turn the anvil\'s loss off, which puts Speed back and is stored', async () => {
+    await page.locator(LUBEC_GEAR_LOSS_SWITCH).click()
+    await expectLubecSpeed(page, '56 / 51 +5 class')
+    await waitForStored(() => readDocumentFields(path), (stored) => switchedOffProblems(stored, true))
+  })
+  await step('turn it on again', async () => {
+    await page.locator(LUBEC_GEAR_LOSS_SWITCH).click()
+    await expectLubecSpeed(page, '36 / 51 +5 class -20 gear')
+    await waitForStored(() => readDocumentFields(path), (stored) => switchedOffProblems(stored, false))
+  })
+  await openLubecGearPage(page)
+}
+
 async function lubecStrengthSteps(page, path) {
   const stressBefore = storedLubecStress(await readDocumentFields(path))
   await step('add a heavy Small anvil through the form, which stops at the Strength prompt', () => addLubecHeavyAnvil(page))
@@ -1615,6 +1674,7 @@ async function lubecStrengthSteps(page, path) {
     waitForStored(() => readDocumentFields(path), (stored) => heavyAnvilProblems(stored, { failed: shown.failed, stressBefore })))
   await step('say on the anvil\'s card what its roll does', () => expectLubecAnvilCard(page, shown.failed))
   await step('show the roll on the Core page\'s Strength circle', () => expectLubecStrengthOnCore(page, shown))
+  await lubecSpeedSteps(page, path, shown.failed)
 }
 
 async function dropLubecAnvil(page) {
@@ -1821,7 +1881,8 @@ async function runViewport(browser, testCase) {
       + 'gave it a token image from the sheet, saw both again after a reload from their stored paths, opened the imported character\'s Core page and Skills page, '
       + 'finalized it and added a stock Flashlight on its Gear page that was stored by path alone and kept through a reload, '
       + 'wore two stock hockey helmets on its head and was refused a third, dragged the Flashlight to a hand, '
-      + 'rolled Strength for a heavy anvil through the prompt and saw the roll on the Core page, dropped the anvil to the GM Items tab, '
+      + 'rolled Strength for a heavy anvil through the prompt and saw the roll on the Core page, saw the failed anvil take 20 off Speed under "From your gear" '
+      + 'and turned that off and on again, dropped the anvil to the GM Items tab, '
       + 'and made an NPC a Direct entry sheet on its Character sheet tab and finalized it.',
     )
   } finally {

@@ -33,6 +33,7 @@ const noEdits = {
 }
 
 const flashlight = { id: 'f1', kind: 'holder', name: 'Flashlight', carrier: 'backpack', pocket: 0 } as LubecItem
+const anvil = { id: 'a1', kind: 'thing', name: 'Small anvil', size: 1, weight: 'heavy', qty: 1, note: '', check: 'fail', carrier: 'backpack', pocket: 0 } as LubecItem
 
 describe('lubecSheetWiring', () => {
   it('offers nothing while no sheet is open', () => {
@@ -73,12 +74,20 @@ describe('lubecSheetWiring', () => {
   })
 
   it('lets the owner and the GM change the gear at every stage, saved under lubec.gear', () => {
-    const gear = { ...emptyLubecGear(), overrides: ['full'] }
+    const gear = { ...emptyLubecGear(), items: [anvil], overrides: ['heavy:a1'] }
     for (const [character, viewer] of [[draft, owner], [finalized, owner], [draft, gm], [finalized, gm]] as const) {
       const { store, edits } = wire(character, viewer)
       edits.onGearChange?.(gear)
       expect(store.updateCharacter).toHaveBeenCalledExactlyOnceWith('tommy', { lubec: { ...character.lubec, gear } })
     }
+  })
+
+  it('drops a switched-off Speed loss that names no loss any more from the gear it saves', () => {
+    const { store, edits } = wire(finalized, owner)
+    edits.onGearChange?.({ ...emptyLubecGear(), items: [anvil], overrides: ['heavy:a1', 'full', 'heavy:gone'] })
+    expect(store.updateCharacter).toHaveBeenCalledExactlyOnceWith('tommy', {
+      lubec: { ...finalized.lubec, gear: { ...emptyLubecGear(), items: [anvil], overrides: ['heavy:a1'] } },
+    })
   })
 
   it('lets the owner and the GM drop a thing to the GM Items tab, as the one who dropped it, from the sheet\'s own record', async () => {
