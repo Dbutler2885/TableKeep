@@ -1449,10 +1449,15 @@ async function readLubecArmorHead(page) {
   }))
 }
 
+// The head's readout with one helmet on, and with two: their layers, their numbers added up, and who covers it.
+const LUBEC_HELMET_READOUTS = {
+  1: 'Head1 of 2 layersCut−1Pierce−1Blunt−2Gun0Hockey helmet',
+  2: 'Head2 of 2 layersCut−2Pierce−2Blunt−4Gun0Hockey helmet, Hockey helmet',
+}
+
 async function expectLubecArmorHead(page, layers) {
   const head = await readLubecArmorHead(page)
-  const numbers = layers === 1 ? 'Cut−1Pierce−1Blunt−2Gun0' : 'Cut−2Pierce−2Blunt−4Gun0'
-  const expected = { worn: 1, readout: `Head${layers} of 2 layers${numbers}${Array(layers).fill('Hockey helmet').join(', ')}` }
+  const expected = { worn: 1, readout: LUBEC_HELMET_READOUTS[layers] }
   if (JSON.stringify(head) !== JSON.stringify(expected)) throw new Error(`The Armor panel shows ${JSON.stringify(head)}.`)
 }
 
