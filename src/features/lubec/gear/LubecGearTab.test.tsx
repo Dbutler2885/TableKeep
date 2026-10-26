@@ -405,6 +405,9 @@ describe('Lubec Gear page: armor', () => {
   const armorPanel = () => within(document.querySelector('.lubec-gear .armor-panel') as HTMLElement)
   const part = (name: RegExp) => armorPanel().getByRole('button', { name })
   const readout = () => document.querySelector('.armor-panel .readout')?.textContent
+  const wornHelmet = (id: string) => ({
+    id, kind: 'armor', carrier: 'worn', name: 'Hockey helmet', size: 2, qty: 1, weight: 'normal', note: '', locs: ['head'], armor: { cut: 1, pierce: 1, blunt: 2, gun: 0 },
+  })
 
   // "+ Make armor" opens the form on armor, worn; the picker opens on armor, and the helmet's tile copies it in.
   function wearStockHelmet() {
@@ -444,20 +447,34 @@ describe('Lubec Gear page: armor', () => {
     expect(items).toEqual([expect.objectContaining({ kind: 'armor', name: 'Hockey helmet', carrier: 'worn', locs: ['head'], armor: { cut: 1, pierce: 1, blunt: 2, gun: 0 } })])
   })
 
-  it('wears a second helmet as a second layer, refuses a third with the plain message, and asks which piece to open', () => {
-    database = { tommy: tommyEves() }
+  it('wears a second helmet as the head\'s second layer', () => {
+    database = { tommy: tommyEves({ gear: { items: [wornHelmet('h1')] } }) }
     mountTab('player', 'player-1')
     openGear('Tommy Eves')
     wearStockHelmet()
-    wearStockHelmet()
+
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.querySelector('.armor-panel .count')?.textContent).toBe('2 worn / takes no slots')
     expect(part(/^Head:/).getAttribute('aria-label')).toBe('Head: 2 of 2 layers, armor Cut −2, Pierce −2, Blunt −4 (Hockey helmet, Hockey helmet)')
+  })
 
+  it('refuses a third helmet with the plain message, and keeps the form open saying the head is full', () => {
+    database = { tommy: tommyEves({ gear: { items: [wornHelmet('h1'), wornHelmet('h2')] } }) }
+    mountTab('player', 'player-1')
+    openGear('Tommy Eves')
     wearStockHelmet()
+
     const form = within(screen.getByRole('dialog', { name: 'Add an item' }))
     expect(form.getByRole('alert').textContent).toBe('No free layer on the head: 2 of 2 taken by Hockey helmet, Hockey helmet. Take something off first.')
     expect(document.querySelector('.item-sheet p.picked')?.textContent).toBe("Covers Head. Already full: Head, so it can't be worn until something comes off there.")
     fireEvent.click(form.getByRole('button', { name: 'Cancel' }))
+    expect(document.querySelector('.armor-panel .count')?.textContent).toBe('2 worn / takes no slots')
+  })
+
+  it('asks which piece to open when two cover the part tapped, and opens the one picked', () => {
+    database = { tommy: tommyEves({ gear: { items: [wornHelmet('h1'), wornHelmet('h2')] } }) }
+    mountTab('player', 'player-1')
+    openGear('Tommy Eves')
 
     fireEvent.click(part(/^Head:/))
     const which = within(screen.getByRole('dialog', { name: 'Head: which piece?' }))
@@ -495,8 +512,7 @@ describe('Lubec Gear page: armor', () => {
   })
 
   it('shows another player the armor worn with no button to open it', () => {
-    const helmet = { id: 'h', kind: 'armor', carrier: 'worn', name: 'Hockey helmet', size: 2, qty: 1, weight: 'normal', note: '', locs: ['head'], armor: { cut: 1, pierce: 1, blunt: 2, gun: 0 } }
-    database = { tommy: tommyEves({ gear: { items: [helmet] } }) }
+    database = { tommy: tommyEves({ gear: { items: [wornHelmet('h')] } }) }
     mountTab('player', 'player-2')
     const gear = openGear('Tommy Eves')
 
