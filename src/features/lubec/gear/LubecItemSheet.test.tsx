@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useState } from 'react'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { emptyLubecGear, type LubecGear, type LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
+import type { LubecWielder } from '../../ruleSets/lubec/gear/minStrength'
 import type { LubecStockItem } from '../../ruleSets/lubec/gear/stock'
 import { LubecGearPage } from './LubecGearPage'
 
@@ -23,18 +24,26 @@ const T = (id: string, extra: Partial<LubecItem> = {}): LubecItem =>
 
 let latest: LubecGear = emptyLubecGear()
 
-function Page({ initial, campaignStock }: { initial: LubecGear; campaignStock?: LubecStockItem[] }) {
+// Wayne Gardner's Strength and Effective Handle.
+const WAYNE: LubecWielder = { strength: 45, handle: 55 }
+
+function Page({ initial, campaignStock, wielder = WAYNE }: { initial: LubecGear; campaignStock?: LubecStockItem[]; wielder?: LubecWielder }) {
   const [gear, setGear] = useState(initial)
   const change = (next: LubecGear) => {
     latest = next
     setGear(next)
   }
-  return <LubecGearPage gear={gear} onGearChange={change} campaignStock={campaignStock} />
+  return <LubecGearPage gear={gear} wielder={wielder} onGearChange={change} campaignStock={campaignStock} />
 }
 
 function mount(...items: LubecItem[]) {
   latest = { ...emptyLubecGear(), items }
   return render(<Page initial={latest} />)
+}
+
+function mountWith(wielder: LubecWielder, ...items: LubecItem[]) {
+  latest = { ...emptyLubecGear(), items }
+  return render(<Page initial={latest} wielder={wielder} />)
 }
 
 const dialog = (name: string) => within(screen.getByRole('dialog', { name }))
@@ -125,6 +134,76 @@ describe('the item card', () => {
   })
 })
 
+describe('a weapon\'s card', () => {
+  const W = (id: string, extra: Partial<LubecItem>): LubecItem => T(id, { kind: 'weapon', carrier: 'hands', slot: 0, pocket: undefined, mode: 'melee', impact: 0, wounds: ['blunt'], ...extra })
+  const revolver = W('revolver', { name: "Grandpa's revolver", mode: 'firearm', impact: 1, table: 'gunshot', wounds: ['gun'], capacity: 6, loaded: 6, takes: 'a38' })
+  const sledgehammer = W('sledge', { name: 'Sledgehammer', size: 2, impact: 2, table: 'blunt', reach: 'long', minStrength: 60 })
+  const facts = () => [...document.querySelectorAll('.item-facts dt')].map((dt) => `${dt.textContent}: ${dt.nextElementSibling?.textContent}`)
+
+  it('fires a firearm in hand, using one round, and says to roll it at the table', () => {
+    mount(revolver)
+    fireEvent.click(screen.getByRole('button', { name: /Grandpa's revolver/ }))
+    const card = dialog("Grandpa's revolver")
+    expect(facts()).toContain('Impact: Quality + 1 base')
+    expect(facts()).toContain('Loaded: −6 of 6+')
+    fireEvent.click(card.getByRole('button', { name: 'Fire' }))
+    expect(latest.items[0].loaded).toBe(5)
+    expect(status()).toBe('Fired. 5 of 6 left. Roll it at the table.')
+    expect(facts()).toContain('Loaded: −5 of 6+')
+  })
+
+  it("stops an empty firearm on the card, and uses no round of a melee weapon", () => {
+    mount({ ...revolver, loaded: 0 }, W('bat', { name: 'Baseball bat', slot: 1, impact: 1, table: 'blunt', reach: 'long' }))
+    fireEvent.click(screen.getByRole('button', { name: /Grandpa's revolver/ }))
+    fireEvent.click(dialog("Grandpa's revolver").getByRole('button', { name: 'Fire' }))
+    expect(dialog("Grandpa's revolver").getByRole('alert').textContent).toBe("Grandpa's revolver isn't loaded.")
+    fireEvent.click(dialog("Grandpa's revolver").getByRole('button', { name: 'Close' }))
+    fireEvent.click(screen.getByRole('button', { name: /Baseball bat/ }))
+    const before = latest
+    fireEvent.click(dialog('Baseball bat').getByRole('button', { name: 'Attack' }))
+    expect(latest).toBe(before)
+    expect(status()).toBe('Roll it at the table.')
+  })
+
+  it('asks for a weapon to be taken in hand before it attacks, and gives one button for each way it wounds', () => {
+    mount({ ...sledgehammer, carrier: 'backpack', pocket: 0, slot: undefined }, W('knife', { name: 'Pocketknife', size: 0, slot: 1, wounds: ['cut', 'pierce'] }))
+    fireEvent.click(screen.getByRole('button', { name: /Sledgehammer/ }))
+    expect((dialog('Sledgehammer').getByRole('button', { name: 'Attack: take it in hand first' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(dialog('Sledgehammer').getByRole('button', { name: 'Close' }))
+    fireEvent.click(screen.getByRole('button', { name: /Pocketknife/ }))
+    expect(dialog('Pocketknife').getByRole('button', { name: 'Slash' })).toBeTruthy()
+    expect(dialog('Pocketknife').getByRole('button', { name: 'Stab' })).toBeTruthy()
+  })
+
+  it("shows the minimum Strength penalty, and the table's number replaces it", () => {
+    mount(sledgehammer)
+    fireEvent.click(screen.getByRole('button', { name: /Sledgehammer/ }))
+    expect(facts()).toEqual(expect.arrayContaining(['Strength: Needs 60. Yours is 45.', 'Penalty: Handle −20.Table says', 'Handle: 35 with it (55 − 20).']))
+    const box = dialog('Sledgehammer').getByRole('spinbutton', { name: 'Table says' }) as HTMLInputElement
+    fireEvent.change(box, { target: { value: '-10' } })
+    expect(latest.items[0].handlePenaltyOverride).toBe(10)
+    expect(box.value).toBe('10')
+    expect(facts()).toEqual(expect.arrayContaining(['Penalty: Handle −10, the table says. Worked out: −20.Table says', 'Handle: 45 with it (55 − 10).']))
+    fireEvent.change(box, { target: { value: '' } })
+    expect(latest.items[0].handlePenaltyOverride).toBeNull()
+    expect(facts()).toContain('Handle: 35 with it (55 − 20).')
+  })
+
+  it('says "Cannot handle this" once the penalty takes the Handle to 0', () => {
+    mountWith({ strength: 24, handle: 50 }, { ...sledgehammer, minStrength: 80 })
+    fireEvent.click(screen.getByRole('button', { name: /Sledgehammer/ }))
+    const line = [...document.querySelectorAll('.item-facts dd')].find((dd) => dd.textContent?.startsWith('Cannot'))
+    expect(line?.textContent).toBe('Cannot handle this: 50 − 60 = −10.')
+    expect(line?.className).toBe('failure')
+  })
+
+  it('shows the missing mark, never a number, while Strength is a hole', () => {
+    mountWith({ strength: null, handle: 55 }, sledgehammer)
+    fireEvent.click(screen.getByRole('button', { name: /Sledgehammer/ }))
+    expect(facts()).toEqual(expect.arrayContaining(['Strength: Needs 60. Yours is missing', 'Penalty: missingTable says', 'Handle: missing']))
+  })
+})
+
 describe('small stuff', () => {
   it('lists the small things, each opening its card, and says when there are none', () => {
     mount(T('key', { name: 'House key', size: 0, pocket: null }), T('marbles', { name: 'Marbles', size: 0, pocket: null, qty: 12, weight: 'heavy' }))
@@ -184,6 +263,30 @@ describe('the add form\'s kinds', () => {
     fireEvent.change(field(form, 'spinbutton', 'Base Impact'), { target: { value: '2' } })
     fireEvent.click(form.getByRole('button', { name: 'Add it' }))
     expect(latest.items[0]).toMatchObject({ kind: 'weapon', name: 'Hockey stick', mode: 'melee', impact: 2, reach: 'short', wounds: ['cut'], table: 'blunt' })
+  })
+
+  it('adds a thrown weapon with a minimum Strength and both hands, which has no reach and takes no ammo', () => {
+    mount()
+    const form = openAdd()
+    fireEvent.click(field(form, 'radio', /^Weapon/ as never))
+    fireEvent.click(field(form, 'radio', 'ThrownStrength adds, from a distance'))
+    expect(form.queryByRole('radio', { name: /^Long/ })).toBeNull()
+    expect(form.queryByRole('spinbutton', { name: 'Holds' })).toBeNull()
+    fireEvent.change(field(form, 'combobox', 'Name'), { target: { value: 'Slingshot' } })
+    fireEvent.change(field(form, 'spinbutton', 'Minimum Strength'), { target: { value: '30' } })
+    fireEvent.click(field(form, 'radio', 'Both'))
+    fireEvent.click(form.getByRole('button', { name: 'Add it' }))
+    expect(latest.items[0]).toMatchObject({ kind: 'weapon', name: 'Slingshot', mode: 'thrown', minStrength: 30, hands: 2, wounds: ['blunt'] })
+    expect(latest.items[0]).not.toHaveProperty('reach')
+  })
+
+  it('gives a bulky weapon both hands by the hands rule, so its Hands cannot say one', () => {
+    mount()
+    const form = openAdd()
+    fireEvent.click(field(form, 'radio', /^Weapon/ as never))
+    fireEvent.click(field(form, 'radio', '2'))
+    expect(field(form, 'radio', 'One').disabled).toBe(true)
+    expect(field(form, 'radio', 'Both').checked).toBe(true)
   })
 
   it('adds a firearm, which needs its ammo picked', () => {

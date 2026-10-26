@@ -9,7 +9,7 @@ const T = (id: string, extra: Partial<LubecItem> = {}): LubecItem =>
 
 const gearOf = (...items: LubecItem[]): LubecGear => ({ ...emptyLubecGear(), items })
 
-const factsOf = (item: LubecItem, gear = gearOf(item)) => lubecCardFacts(gear, item, LUBEC_SUPPLIES).map((f) => [f.term, f.text, f.step].filter(Boolean))
+const factsOf = (item: LubecItem, gear = gearOf(item)) => lubecCardFacts(gear, item, LUBEC_SUPPLIES, { strength: 45, handle: 55 }).map((f) => [f.term, f.text, f.step].filter(Boolean))
 
 describe('the card\'s head', () => {
   it('names the kind and where it is, and how many unless it counts down', () => {

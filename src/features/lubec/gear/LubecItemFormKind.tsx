@@ -1,7 +1,7 @@
 import type { LubecGear, LubecSupply, LubecWoundKind } from '../../ruleSets/lubec/gear/gearRecord'
 import { HOLD, type LubecHoldWay } from '../../ruleSets/lubec/gear/gearRules'
 import { TABLES, WOUND_KINDS, WOUND_SHORT } from './itemLabels'
-import { lubecWithMode, type LubecItemFields } from './itemForm'
+import { lubecBothHandsByRule, lubecWithMode, type LubecItemFields } from './itemForm'
 import { LubecArmorMaker } from './LubecArmorMaker'
 import type { LubecFieldsProps } from './LubecItemFormTop'
 
@@ -20,10 +20,10 @@ function Choices<T extends string>({ name, value, options, onPick, className = '
   )
 }
 
-type NumberProps = { label: string; value: string; min: number; max: number; onValue: (value: string) => void }
+type NumberProps = { label: string; value: string; min: number; max: number; onValue: (value: string) => void; placeholder?: string }
 
-function NumberField({ label, value, min, max, onValue }: NumberProps) {
-  return <label className="field"><span className="label">{label}</span><input type="number" min={min} max={max} inputMode="numeric" value={value} onChange={(e) => onValue(e.target.value)} /></label>
+function NumberField({ label, value, min, max, onValue, placeholder }: NumberProps) {
+  return <label className="field"><span className="label">{label}</span><input type="number" min={min} max={max} inputMode="numeric" placeholder={placeholder} value={value} onChange={(e) => onValue(e.target.value)} /></label>
 }
 
 type SupplyProps = { label: string; value: string; empty: string; supplies: readonly LubecSupply[]; onValue: (value: string) => void }
@@ -40,7 +40,7 @@ function SupplyField({ label, value, empty, supplies, onValue }: SupplyProps) {
   )
 }
 
-const MODES = [['melee', 'Melee', 'Strength adds'], ['firearm', 'Firearm', 'no Strength, takes rounds']] as const
+const MODES = [['melee', 'Melee', 'Strength adds'], ['firearm', 'Firearm', 'no Strength, takes rounds'], ['thrown', 'Thrown', 'Strength adds, from a distance']] as const
 const REACHES = [['long', 'Long', 'like a bat; not on the ground'], ['short', 'Short', 'like a knife; works in a grapple']] as const
 const TABLE_CHOICES = Object.entries(TABLES).filter(([k]) => k !== 'fisticuffs')
 
@@ -72,7 +72,43 @@ function FirearmFields({ fields, onFields, supplies }: KindProps) {
   )
 }
 
-/** A weapon's page: melee or firearm, base Impact, the results table, the wounds it deals, and its reach or its rounds. */
+const HANDS = [[1, 'One'], [2, 'Both']] as const
+
+/** How many hands it takes to use: one unless picked, and both whenever the hands rule says so (Rule W3, spec D15). */
+function HandsPick({ fields, onFields }: LubecFieldsProps) {
+  const byRule = lubecBothHandsByRule(fields)
+  return (
+    <fieldset className="field hands-pick">
+      <legend className="label">Hands</legend>
+      <div className="seg-row halves">
+        {HANDS.map(([n, label]) => (
+          <label key={n}><input type="radio" name="hands" value={n} disabled={byRule && n === 1} checked={(byRule ? 2 : fields.hands) === n} onChange={() => onFields({ ...fields, hands: n })} /><span>{label}</span></label>
+        ))}
+      </div>
+    </fieldset>
+  )
+}
+
+/** What a weapon needs to be wielded: a minimum Strength, which costs Handle below it, and its hands. */
+function HandlingFields(props: KindProps) {
+  const { fields, onFields } = props
+  return (
+    <div className="two w-handling">
+      <NumberField label="Minimum Strength" placeholder="None" value={fields.minStrength} min={0} max={99} onValue={(minStrength) => onFields({ ...fields, minStrength })} />
+      <HandsPick {...props} />
+    </div>
+  )
+}
+
+// A melee weapon's reach, or a firearm's rounds; a thrown weapon has neither.
+function ModeFields(props: KindProps) {
+  const { fields, onFields } = props
+  if (fields.mode === 'firearm') return <FirearmFields {...props} />
+  if (fields.mode === 'thrown') return null
+  return <Choices name="reach" value={fields.reach} options={REACHES} onPick={(reach) => onFields({ ...fields, reach })} className="choices w-melee" />
+}
+
+/** A weapon's page: melee, firearm or thrown, base Impact, the results table, the wounds it deals, what wielding it takes, and its reach or its rounds. */
 function WeaponPage(props: KindProps) {
   const { fields, onFields } = props
   const set = (changes: Partial<LubecItemFields>) => onFields({ ...fields, ...changes })
@@ -87,7 +123,8 @@ function WeaponPage(props: KindProps) {
         </label>
       </div>
       <WoundPick {...props} />
-      {fields.mode === 'firearm' ? <FirearmFields {...props} /> : <Choices name="reach" value={fields.reach} options={REACHES} onPick={(reach) => set({ reach })} className="choices w-melee" />}
+      <HandlingFields {...props} />
+      <ModeFields {...props} />
     </div>
   )
 }

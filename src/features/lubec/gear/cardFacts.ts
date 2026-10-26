@@ -1,6 +1,6 @@
 // The item card's facts, copied from the inventory prototype (B's
 // openActDialog): what the item is and what it does where it is. A weapon's
-// own lines come with weapons; a carrier's with carriers.
+// own lines are in weaponFacts; a carrier's come with carriers.
 
 import { HOLD, holds, holdWay, isBox, KIND_NAMES, locSummary, RULES, SIZE_NAMES } from '../../ruleSets/lubec/gear/gearRules'
 import type { LubecGear, LubecItem, LubecSupply } from '../../ruleSets/lubec/gear/gearRecord'
@@ -9,11 +9,12 @@ import { stackMates } from '../../ruleSets/lubec/gear/stacks'
 import { lubecAmmoOnYou, lubecLooseOf } from '../../ruleSets/lubec/gear/supplies'
 import { qtyText, whereText } from './gearLabels'
 import { armorAll, armorVs, WEIGHT_NAMES, WOUND_KINDS } from './itemLabels'
+import { lubecWeaponFacts, type LubecCardFact, type LubecWeaponFacts } from './weaponFacts'
+import type { LubecWielder } from '../../ruleSets/lubec/gear/minStrength'
 
-/** One line of the card: a term and its text, or a count the card steps with − and +. */
-export type LubecCardFact = { term: string; text: string; step?: 'qty' | 'loaded' }
+export type { LubecCardFact } from './weaponFacts'
 
-type Facts = { gear: LubecGear; item: LubecItem; supplies: readonly LubecSupply[] }
+type Facts = LubecWeaponFacts
 
 const nameOf = (supplies: readonly LubecSupply[], sid: string | undefined) => supplies.find((s) => s.id === sid)?.name ?? 'no supply'
 
@@ -91,13 +92,14 @@ function armorFacts(i: LubecItem): LubecCardFact[] {
 }
 
 const KIND_FACTS: Partial<Record<LubecItem['kind'], (f: Facts) => LubecCardFact[]>> = {
+  weapon: lubecWeaponFacts,
   holder: holderFacts,
   armor: (f) => armorFacts(f.item),
 }
 
-/** The card's facts, in B's order: size, weight, stack, encumbering, the count, the kind's own, and where it is. */
-export function lubecCardFacts(gear: LubecGear, item: LubecItem, supplies: readonly LubecSupply[]): LubecCardFact[] {
-  const f = { gear, item, supplies }
+/** The card's facts, in B's order: size, weight, stack, encumbering, the count, the kind's own, and where it is. A weapon's read the wielder's Strength and Handle. */
+export function lubecCardFacts(gear: LubecGear, item: LubecItem, supplies: readonly LubecSupply[], wielder: LubecWielder): LubecCardFact[] {
+  const f = { gear, item, supplies, wielder }
   return [
     sizeFact(item), weightFact(item), ...stackFact(f), ...encumberingFact(item), ...countFacts(f),
     ...(KIND_FACTS[item.kind]?.(f) ?? []), fact('Where', whereText(item)),

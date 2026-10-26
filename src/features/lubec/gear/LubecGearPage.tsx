@@ -1,6 +1,7 @@
 import { useState, type RefObject } from 'react'
 import { inventoryFull } from '../../ruleSets/lubec/gear/placement'
 import type { LubecGear } from '../../ruleSets/lubec/gear/gearRecord'
+import type { LubecWielder } from '../../ruleSets/lubec/gear/minStrength'
 import type { LubecStockItem } from '../../ruleSets/lubec/gear/stock'
 import { lubecSupplies } from '../../ruleSets/lubec/gear/supplies'
 import { supplyNameIn } from './gearLabels'
@@ -15,6 +16,7 @@ import { useLubecGearMoves } from './useLubecGearMoves'
 import { useLubecToast } from './useLubecToast'
 import './lubecGear.css'
 import './lubecGearSheet.css'
+import './lubecGearWeapons.css'
 
 /** Saves the character's next gear; null for a viewer who may only look. */
 export type LubecGearChange = ((gear: LubecGear) => void) | null
@@ -23,6 +25,8 @@ type LubecGearView = 'on-you' | 'carriers'
 
 type GearPageProps = {
   gear: LubecGear
+  /** The character's Strength and Handle, which a weapon's card reads. */
+  wielder: LubecWielder
   onGearChange: LubecGearChange
   /** Drops a thing to the GM's Items tab; null for a viewer who may only look. */
   onDrop?: LubecGearDrop
@@ -99,7 +103,7 @@ function Toast({ text, shown, busy }: { text: string; shown: boolean; busy: bool
 }
 
 /** The Lubec sheet's Gear page: the Gear bar, B's On you view of the backpack, the hands and the body, and the item sheet over it. */
-export function LubecGearPage({ gear, onGearChange, onDrop = null, campaignStock = NO_CAMPAIGN_STOCK }: GearPageProps) {
+export function LubecGearPage({ gear, wielder, onGearChange, onDrop = null, campaignStock = NO_CAMPAIGN_STOCK }: GearPageProps) {
   const [view, setView] = useState<LubecGearView>('on-you')
   const [sheet, setSheet] = useState<LubecItemSheetState | null>(null)
   const toast = useLubecToast()
@@ -114,7 +118,7 @@ export function LubecGearPage({ gear, onGearChange, onDrop = null, campaignStock
       {moves.change && sheet ? (
         <LubecItemSheet
           sheet={sheet} gear={gear} onGearChange={moves.change} onSheet={setSheet} toast={toast.show} campaignStock={campaignStock}
-          onDrop={moves.drop} busy={moves.busy}
+          onDrop={moves.drop} busy={moves.busy} wielder={wielder}
         />
       ) : null}
       <LubecDragLayer view={moves.drag.view} item={gear.items.find((x) => x.id === moves.drag.view?.itemId)} ghost={moves.drag.ghost} dropZone={moves.drag.dropZone} />

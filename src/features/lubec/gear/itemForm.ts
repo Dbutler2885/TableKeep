@@ -6,13 +6,16 @@
 import { KIND_NAMES, LOC_KEYS } from '../../ruleSets/lubec/gear/gearRules'
 import type { LubecItem, LubecItemKind, LubecItemSize, LubecItemWeight, LubecWoundKind } from '../../ruleSets/lubec/gear/gearRecord'
 import { lubecCopyOf } from '../../ruleSets/lubec/gear/stock'
+import { bothHands } from '../../ruleSets/lubec/gear/placement'
 import { perOf, type LubecDraftField, type LubecItemDraft } from '../../ruleSets/lubec/gear/stacks'
 import type { LubecHoldWay } from '../../ruleSets/lubec/gear/gearRules'
 import { isLubecArt, type LubecShape } from './gearArt'
-import { armorVs, WOUND_KINDS } from './itemLabels'
+import { armorVs, WOUND_KINDS, woundsOf } from './itemLabels'
 
 /** The form's picture: a drawing's key and the shape it is framed in. */
 export type LubecFormPicture = { art: string; shape: LubecShape }
+
+export type LubecWeaponMode = NonNullable<LubecItem['mode']>
 
 export type LubecItemFields = {
   kind: LubecItemKind
@@ -27,11 +30,15 @@ export type LubecItemFields = {
   picture: LubecFormPicture | null
   /** The name of the stock entry it was copied from. */
   stock: string | null
-  mode: 'melee' | 'firearm'
+  mode: LubecWeaponMode
   impact: string
   table: string
   wounds: LubecWoundKind[]
   reach: 'long' | 'short'
+  /** The weapon's minimum Strength; '' is none. */
+  minStrength: string
+  /** 2 when a 1-slot weapon takes both hands; the hands rule already gives anything bigger or heavier both. */
+  hands: 1 | 2
   wCapacity: string
   wLoaded: string
   wTakes: string
@@ -52,7 +59,7 @@ const ZERO_ARMOR = { cut: '0', pierce: '0', blunt: '0', gun: '0' }
 /** A new item's form, opened at `dest`: a Thing of one slot, or Small when opened from small stuff. */
 export const lubecNewFields = (dest: string): LubecItemFields => ({
   kind: 'thing', name: '', note: '', size: dest.endsWith('#small') ? 0 : 1, weight: 'normal', qty: '1', per: '1', dest, picture: null, stock: null,
-  mode: 'melee', impact: '0', table: 'blunt', wounds: ['blunt'], reach: 'long', wCapacity: '6', wLoaded: '0', wTakes: '',
+  mode: 'melee', impact: '0', table: 'blunt', wounds: ['blunt'], reach: 'long', minStrength: '', hands: 1, wCapacity: '6', wLoaded: '0', wTakes: '',
   armor: { ...ZERO_ARMOR }, locs: [], exclusive: false, bothSides: false, fits: '', hold: 'load', hCapacity: '2', hLoaded: '2', hTakes: '',
 })
 
@@ -63,12 +70,11 @@ const pictureOf = (x: Partial<LubecItem>): LubecFormPicture | null => (x.art ? {
 
 const armorFields = (x: Partial<LubecItem>) => Object.fromEntries(WOUND_KINDS.map((w) => [w, String(armorVs(x, w))])) as Record<LubecWoundKind, string>
 
-const woundsOf = (x: Partial<LubecItem>): LubecWoundKind[] => (x.wounds?.length ? x.wounds : [x.mode === 'firearm' ? 'gun' : 'blunt'])
-
 // Each kind's page reads what the item or entry carries; a field it doesn't carry keeps the form's own value.
 const weaponFields = (f: LubecItemFields, x: Partial<LubecItem>): Partial<LubecItemFields> => ({
-  mode: x.mode === 'firearm' ? 'firearm' : 'melee', impact: text(x.impact, f.impact), table: textOr(x.table, f.table), wounds: woundsOf(x),
-  reach: x.reach === 'short' ? 'short' : 'long', wCapacity: text(x.capacity, f.wCapacity), wLoaded: text(x.loaded, '0'), wTakes: textOr(x.takes, ''),
+  mode: x.mode ?? 'melee', impact: text(x.impact, f.impact), table: textOr(x.table, f.table), wounds: woundsOf(x),
+  reach: x.reach === 'short' ? 'short' : 'long', minStrength: text(x.minStrength, ''), hands: x.hands === 2 ? 2 : 1,
+  wCapacity: text(x.capacity, f.wCapacity), wLoaded: text(x.loaded, '0'), wTakes: textOr(x.takes, ''),
 })
 
 const armorPageFields = (x: Partial<LubecItem>): Partial<LubecItemFields> =>
@@ -113,9 +119,12 @@ export function lubecWithDest(f: LubecItemFields, dest: string): LubecItemFields
   return { ...f, dest, size: dest.startsWith('backpack#') && f.size === 0 ? 1 : f.size }
 }
 
-/** The form after the player picks melee or firearm: the table and the wound follow. */
-export const lubecWithMode = (f: LubecItemFields, mode: LubecItemFields['mode']): LubecItemFields =>
+/** The form after the player picks melee, firearm or thrown: the table and the wound follow. */
+export const lubecWithMode = (f: LubecItemFields, mode: LubecWeaponMode): LubecItemFields =>
   ({ ...f, mode, table: mode === 'firearm' ? 'gunshot' : 'blunt', wounds: [mode === 'firearm' ? 'gun' : 'blunt'] })
+
+/** Whether the hands rule already gives the thing both hands (Rule W3), so the form's Hands can't say one. */
+export const lubecBothHandsByRule = (f: Pick<LubecItemFields, 'size' | 'weight'>): boolean => bothHands({ ...f, hands: 1 })
 
 const otherSide = (k: string): string | null => {
   if (k.endsWith('-L')) return k.replace(/-L$/, '-R')
@@ -141,9 +150,14 @@ const whole = (raw: string) => Math.round(Number(raw) || 0)
 const atLeastOne = (raw: string) => Math.max(1, whole(raw) || 1)
 const between = (n: number, least: number, most: number) => Math.max(least, Math.min(most, n))
 
+// A minimum Strength left empty is none; a 1-slot weapon keeps "both hands" only where the hands rule would not give it them anyway.
+const minStrengthDraft = (f: LubecItemFields): Partial<LubecItem> => (f.minStrength.trim() ? { minStrength: Math.max(0, whole(f.minStrength)) } : {})
+const handsDraft = (f: LubecItemFields): Partial<LubecItem> => (f.hands === 2 && !lubecBothHandsByRule(f) ? { hands: 2 } : {})
+
 function weaponDraft(f: LubecItemFields): Partial<LubecItem> {
-  const base = { mode: f.mode, impact: whole(f.impact), table: f.table, wounds: [...f.wounds] }
+  const base = { mode: f.mode, impact: whole(f.impact), table: f.table, wounds: [...f.wounds], ...minStrengthDraft(f), ...handsDraft(f) }
   if (f.mode === 'melee') return { ...base, reach: f.reach }
+  if (f.mode === 'thrown') return base
   const capacity = atLeastOne(f.wCapacity)
   return { ...base, capacity, loaded: between(whole(f.wLoaded), 0, capacity), ...(f.wTakes ? { takes: f.wTakes } : {}) }
 }

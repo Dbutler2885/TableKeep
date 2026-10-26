@@ -89,6 +89,14 @@ describe('editLubecItem', () => {
     expect(batched.ok && batched.gear.items.map((i) => i.batch)).toEqual(['b7', 'b7'])
   })
 
+  it("clears a minimum Strength and both hands the form no longer says, and keeps the table's own penalty", () => {
+    const weapon = (extra: Partial<LubecItemDraft>) => thing({ kind: 'weapon', name: 'Sledgehammer', mode: 'melee', wounds: ['blunt'], ...extra })
+    const sledge = placed('s', { ...weapon({ minStrength: 60, hands: 2 }), handlePenaltyOverride: 10 })
+    const after = edit(gearOf(sledge), 's', 'backpack#0', weapon({}))
+    expect(after.ok && after.item).toMatchObject({ handlePenaltyOverride: 10 })
+    expect(after.ok && ['minStrength', 'hands'].filter((k) => k in after.item)).toEqual([])
+  })
+
   it('keeps a recorded Strength roll only for a heavy thing on you', () => {
     const anvil = placed('a', { weight: 'heavy', check: 'fail', carrier: 'hands', slot: 0, pocket: undefined })
     const heavy = edit(gearOf(anvil), 'a', 'hands', thing({ weight: 'heavy' }))

@@ -11,6 +11,7 @@ import type { LubecCountersChange } from './LubecCountersPanel'
 import { LubecDraftBar } from './LubecDraftBar'
 import type { LubecGearDrop } from './gear/lubecGearDrop'
 import { LubecGearPage, type LubecGearChange } from './gear/LubecGearPage'
+import { lubecWielder } from '../ruleSets/lubec/gear/minStrength'
 import { LubecMissing } from './LubecMissing'
 import { LubecNameBandEditor, type LubecSheetEditing } from './LubecNameBandEditor'
 import { LubecSkillsPage } from './LubecSkillsPage'
@@ -227,7 +228,7 @@ function changeClassOf(sheet: LubecCharacterRecord['lubec'], onDraftEdit: LubecS
 }
 
 function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp, onGearChange, onGearDrop }: SheetPageProps) {
-  if (page === 'gear') return <LubecGearPage gear={character.lubec.gear} onGearChange={onGearChange} onDrop={onGearDrop} />
+  if (page === 'gear') return <LubecGearPage gear={character.lubec.gear} wielder={lubecWielder(character.lubec)} onGearChange={onGearChange} onDrop={onGearDrop} />
   if (page === 'skills') {
     const onChangeClass = changeClassOf(character.lubec, onDraftEdit, onShowClass)
     return <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} onHideTree={onHideTree} onChangeClass={onChangeClass} />
