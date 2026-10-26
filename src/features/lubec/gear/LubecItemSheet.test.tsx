@@ -165,9 +165,9 @@ describe('the add form\'s kinds', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('adds a melee weapon, then a firearm that needs its ammo picked', () => {
+  it('adds a melee weapon, which needs a way it wounds', () => {
     mount()
-    let form = openAdd()
+    const form = openAdd()
     fireEvent.click(field(form, 'radio', /^Weapon/ as never))
     fireEvent.change(field(form, 'combobox', 'Name'), { target: { value: 'Hockey stick' } })
     fireEvent.click(field(form, 'radio', 'Shortlike a knife; works in a grapple'))
@@ -178,8 +178,11 @@ describe('the add form\'s kinds', () => {
     fireEvent.change(field(form, 'spinbutton', 'Base Impact'), { target: { value: '2' } })
     fireEvent.click(form.getByRole('button', { name: 'Add it' }))
     expect(latest.items[0]).toMatchObject({ kind: 'weapon', name: 'Hockey stick', mode: 'melee', impact: 2, reach: 'short', wounds: ['cut'], table: 'blunt' })
+  })
 
-    form = openAdd()
+  it('adds a firearm, which needs its ammo picked', () => {
+    mount()
+    const form = openAdd()
     fireEvent.click(field(form, 'radio', /^Weapon/ as never))
     fireEvent.click(field(form, 'radio', 'Firearmno Strength, takes rounds'))
     fireEvent.change(field(form, 'combobox', 'Name'), { target: { value: 'Pistol' } })
@@ -190,11 +193,11 @@ describe('the add form\'s kinds', () => {
     expect(form.getByRole('alert').textContent).toBe("Pick the ammo it takes. If it isn't on the list, make a supply.")
     fireEvent.change(form.getByRole('combobox', { name: 'Takes' }), { target: { value: 'a22' } })
     fireEvent.click(form.getByRole('button', { name: 'Add it' }))
-    expect(latest.items[1]).toMatchObject({ mode: 'firearm', capacity: 8, loaded: 3, takes: 'a22', wounds: ['gun'], table: 'none' })
+    expect(latest.items[0]).toMatchObject({ mode: 'firearm', capacity: 8, loaded: 3, takes: 'a22', wounds: ['gun'], table: 'none' })
     expect(screen.getByRole('button', { name: /Pistol3 of 8 loaded/ })).toBeTruthy()
   })
 
-  it('makes armor on the body drawing, with both sides at once, clear and exclusive', () => {
+  it('makes armor on the body drawing, which needs a part, with both sides at once and clear', () => {
     mount()
     const form = openAdd()
     fireEvent.click(field(form, 'radio', /^Armor/ as never))
@@ -211,7 +214,14 @@ describe('the add form\'s kinds', () => {
     expect(form.getByRole('checkbox', { name: /^Left hand: 0 of 2 layers, picked/ })).toBeTruthy()
     fireEvent.click(form.getByRole('button', { name: 'Clear' }))
     expect(form.queryByRole('button', { name: 'Clear' })).toBeNull()
+  })
 
+  it('picks parts by keyboard, lights the part pointed at, and adds exclusive armor', () => {
+    mount()
+    const form = openAdd()
+    fireEvent.click(field(form, 'radio', /^Armor/ as never))
+    fireEvent.change(field(form, 'combobox', 'Name'), { target: { value: 'Mittens' } })
+    fireEvent.change(field(form, 'spinbutton', 'Cutting'), { target: { value: '1' } })
     const head = form.getByRole('checkbox', { name: /^Head/ })
     fireEvent.mouseOver(head)
     expect(document.querySelectorAll('.body-map .hl.on')).toHaveLength(1)
@@ -236,9 +246,9 @@ describe('the add form\'s kinds', () => {
     expect(document.querySelector('p.picked')?.textContent).toBe("Covers Head. Already full: Head, so it can't be worn until something comes off there.")
   })
 
-  it('adds a consumable that goes into a gun, and a holder of what it holds', () => {
+  it('adds a consumable that goes into a gun, in stacks', () => {
     mount()
-    let form = openAdd()
+    const form = openAdd()
     fireEvent.click(field(form, 'radio', /^Consumable/ as never))
     fireEvent.change(field(form, 'combobox', 'Name'), { target: { value: 'C batteries' } })
     fireEvent.change(form.getByRole('combobox', { name: 'Goes into a gun or holder?' }), { target: { value: 'dcell' } })
@@ -248,8 +258,11 @@ describe('the add form\'s kinds', () => {
     fireEvent.click(form.getByRole('button', { name: 'Add it' }))
     expect(status()).toBe('C batteries: 2 stacks, backpack, main pocket.')
     expect(latest.items.map((i) => [i.qty, i.fits])).toEqual([[4, 'dcell'], [2, 'dcell']])
+  })
 
-    form = openAdd()
+  it('adds a holder, which needs what it holds', () => {
+    mount()
+    const form = openAdd()
     fireEvent.click(field(form, 'radio', /^Holder/ as never))
     fireEvent.change(field(form, 'combobox', 'Name'), { target: { value: 'Oil lamp' } })
     fireEvent.click(field(form, 'radio', 'Filledlike a canteen'))
@@ -260,7 +273,7 @@ describe('the add form\'s kinds', () => {
     expect(form.getByRole('alert').textContent).toBe("Pick what it holds. If it isn't on the list, make a supply.")
     fireEvent.change(form.getByRole('combobox', { name: 'Holds what' }), { target: { value: 'oil' } })
     fireEvent.click(form.getByRole('button', { name: 'Add it' }))
-    expect(latest.items[2]).toMatchObject({ kind: 'holder', hold: 'fill', capacity: 3, loaded: 1, takes: 'oil', qty: 1 })
+    expect(latest.items[0]).toMatchObject({ kind: 'holder', hold: 'fill', capacity: 3, loaded: 1, takes: 'oil', qty: 1 })
   })
 })
 

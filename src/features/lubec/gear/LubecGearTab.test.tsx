@@ -287,7 +287,8 @@ describe('Lubec Gear page', () => {
 
   it('takes a used-up consumable off the sheet, and keeps an empty box', () => {
     vi.useFakeTimers()
-    database = { tommy: tommyEves({ gear: FULL_GEAR }) }
+    const lastRound = FULL_GEAR.items.map((i) => (i.id === 'i6' ? { ...i, loaded: 1 } : i))
+    database = { tommy: tommyEves({ gear: { ...FULL_GEAR, items: lastRound } }) }
     mountTab('player', 'player-1')
     openGear('Tommy Eves')
 
@@ -300,7 +301,8 @@ describe('Lubec Gear page', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /^Box of \.38 rounds/ }))
     card = within(screen.getByRole('dialog', { name: 'Box of .38 rounds' }))
-    for (let n = 0; n < 13; n++) fireEvent.click(card.getByRole('button', { name: 'One fewer' }))
+    fireEvent.click(card.getByRole('button', { name: 'One fewer' }))
+    fireEvent.click(card.getByRole('button', { name: 'One fewer' }))
     expect(card.getByText('0 of 50')).toBeTruthy()
     fireEvent.click(card.getByRole('button', { name: 'Close' }))
 
