@@ -1452,7 +1452,9 @@ async function fillLubecStockHelmet(page) {
 
 // The head's shade on the drawing, and the readout once the head has focus, read in the page.
 // The head is an SVG region, which Puppeteer's own focus refuses, so the page focuses it.
+// The pointer is moved off the drawing first: where the form's button was, it can rest over another part, whose hover replaces the readout.
 async function readLubecArmorHead(page) {
+  await page.mouse.move(0, page.viewport().height - 1)
   await page.$eval(`${LUBEC_ARMOR_PANEL} .hit[aria-label^="Head:"]`, (head) => head.focus())
   await page.waitForFunction((selector) => document.querySelector(selector)?.textContent.startsWith('Head'), {}, `${LUBEC_ARMOR_PANEL} .readout`)
   return page.$eval(LUBEC_ARMOR_PANEL, (panel) => ({
