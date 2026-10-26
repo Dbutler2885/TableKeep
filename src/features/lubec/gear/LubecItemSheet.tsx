@@ -7,7 +7,17 @@ import { lubecSupplies } from '../../ruleSets/lubec/gear/supplies'
 import { supplyNameIn } from './gearLabels'
 import { destOf } from './itemLabels'
 import { lubecFieldsFromStock, lubecFormPages } from './itemForm'
-import { lubecAddSheet, lubecBackSheet, lubecCardSheet, lubecEditSheet, lubecSaveForm, type LubecFormSheet, type LubecItemSheetState } from './itemSheet'
+import { lubecCardMove } from './gearMoves'
+import {
+  lubecAddSheet,
+  lubecBackSheet,
+  lubecCardSheet,
+  lubecEditSheet,
+  lubecSaveForm,
+  type LubecCardSheet,
+  type LubecFormSheet,
+  type LubecItemSheetState,
+} from './itemSheet'
 import { LubecArmorPieces } from './LubecArmorPieces'
 import { LubecItemCard } from './LubecItemCard'
 import { LubecItemForm } from './LubecItemForm'
@@ -23,11 +33,15 @@ type SheetContext = {
   toast: (text: string) => void
   /** The campaign's own list for the picker; empty until the GM Items tab fills it. */
   campaignStock: readonly LubecStockItem[]
+  /** Drops the thing, which goes to the GM's Items tab; a refusal comes back to the card. */
+  onDrop: (item: LubecItem, refused: (msg: string) => void) => void
+  /** True while a move is being saved. */
+  busy: boolean
 }
 
 type SheetProps = SheetContext & { sheet: LubecItemSheetState }
 
-type CardSheet = Extract<LubecItemSheetState, { mode: 'view' }>
+type CardSheet = LubecCardSheet
 
 // Rule K4: a count that reaches 0 on a consumable uses it up, and it leaves the sheet and the card closes.
 function countChanged(ctx: SheetContext, sheet: CardSheet, item: LubecItem, r: LubecCountChange) {
@@ -38,8 +52,22 @@ function countChanged(ctx: SheetContext, sheet: CardSheet, item: LubecItem, r: L
   ctx.toast(`${item.name}: used up.`)
 }
 
+// The Move panel's Move it or Swap: one commit, then the card shows where it is now, with the panel closed.
+function moveFromCard(ctx: SheetContext, sheet: CardSheet, item: LubecItem, value: string) {
+  const refused = (msg: string) => ctx.onSheet({ ...sheet, error: msg })
+  const r = lubecCardMove(ctx.gear, item, value)
+  if (r.kind === 'drop') return ctx.onDrop(item, refused)
+  if (r.kind === 'refused') return refused(r.msg)
+  ctx.onGearChange(r.gear)
+  ctx.onSheet({ ...sheet, error: null, move: false })
+  ctx.toast(r.toast)
+}
+
 function CardMode({ sheet, item, ...ctx }: SheetContext & { sheet: CardSheet; item: LubecItem }) {
   const actions = {
+    onToggleMove: () => ctx.onSheet({ ...sheet, error: null, move: !sheet.move }),
+    onMove: (value: string) => moveFromCard(ctx, sheet, item, value),
+    onDrop: () => ctx.onDrop(item, (msg) => ctx.onSheet({ ...sheet, error: msg })),
     onStep: (field: 'qty' | 'loaded', d: number) => {
       if (field === 'qty') countChanged(ctx, sheet, item, stepLubecQty(ctx.gear, item, d))
       else countChanged(ctx, sheet, item, { ok: true, gear: stepLubecLoaded(ctx.gear, item, d), gone: false })
@@ -48,7 +76,9 @@ function CardMode({ sheet, item, ...ctx }: SheetContext & { sheet: CardSheet; it
     onEdit: () => ctx.onSheet(lubecEditSheet(item, destOf(item))),
     onClose: () => ctx.onSheet(null),
   }
-  return <LubecItemCard gear={ctx.gear} item={item} supplies={lubecSupplies(ctx.gear)} error={sheet.error} actions={actions} />
+  return (
+    <LubecItemCard gear={ctx.gear} item={item} supplies={lubecSupplies(ctx.gear)} error={sheet.error} moveOpen={sheet.move === true} busy={ctx.busy} actions={actions} />
+  )
 }
 
 // The form's Add it or Save; a refusal stays on the form, turning a phone to the page it points at.

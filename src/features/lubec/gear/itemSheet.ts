@@ -28,8 +28,11 @@ export type LubecFormSheet = {
   browsing: string | null
 }
 
+/** The card, with its Move panel open or not. */
+export type LubecCardSheet = { mode: 'view'; itemId: string; error: string | null; move?: boolean }
+
 export type LubecItemSheetState =
-  | { mode: 'view'; itemId: string; error: string | null }
+  | LubecCardSheet
   | { mode: 'small' }
   /** Which of the pieces of armor worn on a part to open, asked when there is more than one. */
   | { mode: 'pieces'; part: string }

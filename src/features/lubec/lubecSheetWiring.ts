@@ -4,7 +4,9 @@ import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import type { LubecSheetEdit } from '../ruleSets/lubec/directEntry'
 import type { LubecGear } from '../ruleSets/lubec/gear/gearRecord'
 import type { LubecSkills } from '../ruleSets/lubec/skillPicks'
+import { lubecGearDrop, type LubecGearDrop, type LubecGearRecords } from './gear/lubecGearDrop'
 import type { LubecGearChange } from './gear/LubecGearPage'
+import { lubecCharacterName } from './lubecNames'
 import type { LubecCountersChange } from './LubecCountersPanel'
 import type { LubecCorrections } from './LubecSheetView'
 
@@ -18,6 +20,8 @@ export type LubecSheetWiringStore = {
   updateCharacter: CharacterUpdate
   /** Saves at once rather than after the delay. */
   updateCharacterNow: CharacterUpdate
+  /** True while a save of the character waits out its delay or is in flight. */
+  hasPendingWrite: (characterId: string) => boolean
 }
 
 type LubecSkillsChange = (skills: LubecSkills) => void
@@ -36,6 +40,7 @@ export type LubecSheetEdits = DraftActions & {
   onSkillsChange: LubecSkillsChange | null
   corrections: LubecCorrections | null
   onGearChange: LubecGearChange
+  onGearDrop: LubecGearDrop
 }
 
 // The owner and the GM change a character's counters; anyone else only sees them.
@@ -63,6 +68,17 @@ function skillsChangeFor(
 function gearChangeFor(character: LubecCharacterRecord | null, viewer: LubecViewer, update: CharacterUpdate): LubecGearChange {
   if (!character || !canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) return null
   return (gear: LubecGear) => update(character.id, { lubec: { ...character.lubec, gear } })
+}
+
+// The owner and the GM drop a character's things to the GM's Items tab; anyone else only sees them.
+function gearDropFor(
+  character: LubecCharacterRecord | null,
+  viewer: LubecViewer,
+  store: LubecSheetWiringStore,
+  records: LubecGearRecords | null,
+): LubecGearDrop {
+  if (!character || !records || !canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) return null
+  return lubecGearDrop(records, store, { characterId: character.id, characterName: lubecCharacterName(character), userId: viewer.userId })
 }
 
 // The GM may correct any locked value on a finalized character; nobody else may change one.
@@ -98,18 +114,21 @@ function draftActionsFor(
 /**
  * The open sheet's edits for this viewer, saved through the shared store.
  * Every tab that shows a Lubec sheet takes its edits from here, so a new edit
- * is wired once.
+ * is wired once. A move that leaves the sheet's record, a drop, needs to know
+ * where the records are; without `records` there is none.
  */
 export function lubecSheetWiring(
   character: LubecCharacterRecord | null,
   viewer: LubecViewer,
   store: LubecSheetWiringStore,
+  records: LubecGearRecords | null = null,
 ): LubecSheetEdits {
   return {
     onCountersChange: countersChangeFor(character, viewer, store.updateCharacter),
     onSkillsChange: skillsChangeFor(character, viewer, store.updateCharacter),
     corrections: correctionsFor(character, viewer, store.updateCharacter),
     onGearChange: gearChangeFor(character, viewer, store.updateCharacter),
+    onGearDrop: gearDropFor(character, viewer, store, records),
     ...draftActionsFor(character, viewer, store),
   }
 }

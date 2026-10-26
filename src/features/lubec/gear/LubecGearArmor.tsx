@@ -5,6 +5,8 @@ import { baseLoc, LOC_KEYS, locName, locSummary, RULES } from '../../ruleSets/lu
 import type { LubecGear, LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
 import { itemsIn } from '../../ruleSets/lubec/gear/placement'
 import { armorSome, armorText, armorVs, WOUND_KINDS, WOUND_SHORT } from './itemLabels'
+import { LUBEC_WORN_MARK } from './dragGeometry'
+import { useLubecDropClass } from './lubecDragMarks'
 import { LubecBodyDrawing } from './LubecBodyMap'
 import { LubecPicture } from './LubecGearArt'
 import type { LubecGearAdd, LubecGearOpen } from './LubecGearPack'
@@ -91,6 +93,7 @@ type ArmorProps = { gear: LubecGear; onAdd: LubecGearAdd; onOpen: LubecGearOpen 
 /** The Armor panel: the count and "+ Make armor", the body, the worn list and the readout (Rules A1 to A3, W5). */
 export function LubecGearArmor({ gear, onAdd, onOpen }: ArmorProps) {
   const [at, setAt] = useState<Pointing>(NOWHERE)
+  const dropClass = useLubecDropClass(LUBEC_WORN_MARK)
   const worn = itemsIn(gear, 'worn')
   const lit = litPieces(gear, at)
   const onPart = (part: string | null) => setAt({ part, piece: null })
@@ -103,7 +106,8 @@ export function LubecGearArmor({ gear, onAdd, onOpen }: ArmorProps) {
           {onAdd ? <button type="button" className="btn line small" onClick={() => onAdd('worn')}>+ Make armor</button> : null}
         </span>
       </div>
-      <div className="armor-wrap">
+      {/* The drawing and the list are where armor not worn yet is dropped to put it on (Rule M7). */}
+      <div className={`armor-wrap${dropClass}`} data-mark={LUBEC_WORN_MARK}>
         <div className="body-col">
           <LubecBodyDrawing gear={gear} picked={[]} use={onOpen ? 'opens' : 'shows'} lit={partsUnder(lit)}
             onTap={(k) => tapPart(gear, onOpen, k)} onPoint={onPart} onFocusPart={onPart} />

@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { db } from '../../firebase'
 import type { Role } from '../../types/app'
 import { canEditCharacterStoreCharacter } from '../character/characterStore/characterStoreActions'
 import { useCharacterStore } from '../character/characterStore/useCharacterStore'
@@ -7,6 +8,7 @@ import { lubecCharacterStore } from '../ruleSets/lubec/characterParser'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import type { CharacterStoreCollection } from '../character/characterStore/characterStoreWrites'
 import type { LubecSheetEditing } from './LubecNameBandEditor'
+import type { LubecGearRecords } from './gear/lubecGearDrop'
 import { lubecNpcSheetRecord, type LubecNpcIdentity } from './lubecNpcSheetRecord'
 import { lubecSheetWiring, type LubecViewer } from './lubecSheetWiring'
 import type { LubecSheetViewProps } from './LubecSheetView'
@@ -21,6 +23,12 @@ type StoreScope = { collection: CharacterStoreCollection; onlyId?: string }
 // The collection a source's sheets are stored in, narrowed to the one document of an NPC's sheet.
 const storeScopeOf = (source: LubecSheetSource): StoreScope =>
   (source.kind === 'npc' ? { collection: 'npcSheets', onlyId: source.npc.id } : { collection: 'characters' })
+
+// Where the open sheet's records are, for a move that leaves its own: an NPC's sheet is the NPC's record.
+const gearRecordsOf = (source: LubecSheetSource, character: LubecCharacterRecord | null, scope: { campaignId: string; groupId: string }): LubecGearRecords | null => {
+  if (!character) return null
+  return { db, scope, sheet: source.kind === 'npc' ? { kind: 'npc', npcId: source.npc.id } : { kind: 'character', characterId: character.id } }
+}
 
 // The open sheet as shown: a character as stored, an NPC's sheet under the NPC's own name, portrait and token.
 function useOpenRecord(npc: LubecNpcIdentity | null, stored: LubecCharacterRecord | null) {
@@ -82,6 +90,7 @@ export function useLubecSheetSession({ source, campaignId, groupId, role, curren
   const character = useOpenRecord(source.kind === 'npc' ? source.npc : null, store.selectedCharacter)
   const editing = useLubecSheetEditing({ character, updateCharacter: store.updateCharacter, campaignId, groupId, role, currentUserId })
   const viewer = { role, userId: currentUserId }
-  const sheetProps = character ? { character, editing, ...lubecSheetWiring(character, viewer, store) } : null
+  const records = gearRecordsOf(source, character, { campaignId, groupId })
+  const sheetProps = character ? { character, editing, ...lubecSheetWiring(character, viewer, store, records) } : null
   return { store, character, viewer, sheetProps }
 }

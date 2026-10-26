@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { Firestore } from 'firebase/firestore'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import { makeLubecDirectEntryCharacter } from '../ruleSets/lubec/directEntry'
 import { emptyLubecGear } from '../ruleSets/lubec/gear/gearRecord'
+import type { LubecItem } from '../ruleSets/lubec/gear/gearRecord'
 import { lubecSheetWiring, type LubecViewer } from './lubecSheetWiring'
+
+const moves = vi.hoisted(() => ({ lubecMoveBetween: vi.fn(async (..._args: unknown[]) => ({ ok: true })) }))
+vi.mock('./gear/lubecMoveTransaction', () => moves)
 
 const draft = makeLubecDirectEntryCharacter('tommy', { userId: 'player-1', username: 'tommyev' })
 const finalized: LubecCharacterRecord = { ...draft, creationStatus: 'active' }
@@ -14,14 +19,19 @@ const otherPlayer: LubecViewer = { role: 'player', userId: 'player-2' }
 const counters = { stress: 3, minimumStress: 2, trauma: 1 }
 const skills = { free: 'Boatwork', picked: ['Swimming'] }
 
-function wire(character: LubecCharacterRecord | null, viewer: LubecViewer) {
-  const store = { updateCharacter: vi.fn(), updateCharacterNow: vi.fn() }
-  return { store, edits: lubecSheetWiring(character, viewer, store) }
+const db = { name: 'db-stub' } as unknown as Firestore
+const records = { db, scope: { groupId: 'group-1', campaignId: 'campaign-1' }, sheet: { kind: 'character', characterId: 'tommy' } } as const
+
+function wire(character: LubecCharacterRecord | null, viewer: LubecViewer, withRecords = false) {
+  const store = { updateCharacter: vi.fn(), updateCharacterNow: vi.fn(), hasPendingWrite: vi.fn(() => false) }
+  return { store, edits: lubecSheetWiring(character, viewer, store, withRecords ? records : null) }
 }
 
 const noEdits = {
-  onCountersChange: null, onSkillsChange: null, corrections: null, onDraftEdit: null, onRollUp: null, onFinalize: null, onGearChange: null,
+  onCountersChange: null, onSkillsChange: null, corrections: null, onDraftEdit: null, onRollUp: null, onFinalize: null, onGearChange: null, onGearDrop: null,
 }
+
+const flashlight = { id: 'f1', kind: 'holder', name: 'Flashlight', carrier: 'backpack', pocket: 0 } as LubecItem
 
 describe('lubecSheetWiring', () => {
   it('offers nothing while no sheet is open', () => {
@@ -56,6 +66,7 @@ describe('lubecSheetWiring', () => {
     const { store, edits } = wire(finalized, owner)
 
     expect({ ...edits, onCountersChange: null, onGearChange: null }).toEqual(noEdits)
+    expect(wire(finalized, owner, true).edits.onGearDrop).not.toBeNull()
     edits.onCountersChange?.(counters)
     expect(store.updateCharacter).toHaveBeenCalledExactlyOnceWith('tommy', { lubec: { ...finalized.lubec, counters } })
   })
@@ -67,6 +78,35 @@ describe('lubecSheetWiring', () => {
       edits.onGearChange?.(gear)
       expect(store.updateCharacter).toHaveBeenCalledExactlyOnceWith('tommy', { lubec: { ...character.lubec, gear } })
     }
+  })
+
+  it('lets the owner and the GM drop a thing to the GM Items tab, as the one who dropped it, from the sheet\'s own record', async () => {
+    for (const viewer of [owner, gm]) {
+      moves.lubecMoveBetween.mockClear()
+      await wire(finalized, viewer, true).edits.onGearDrop?.(flashlight)
+      expect(moves.lubecMoveBetween).toHaveBeenCalledExactlyOnceWith(db, expect.objectContaining({
+        scope: records.scope,
+        from: records.sheet,
+        to: { kind: 'gm-items' },
+        move: { itemId: 'f1', seen: { carrier: 'backpack', pocket: 0, slot: undefined }, droppedBy: { characterId: 'tommy', characterName: 'Unnamed kid', userId: viewer.userId } },
+      }))
+    }
+  })
+
+  it('offers no drop to another player, or where the records are not known', () => {
+    expect(wire(finalized, otherPlayer, true).edits.onGearDrop).toBeNull()
+    expect(wire(finalized, owner).edits.onGearDrop).toBeNull()
+  })
+
+  it('sends the sheet\'s waiting save before a drop, and nothing when none waits', async () => {
+    const { store, edits } = wire(finalized, owner, true)
+    await edits.onGearDrop?.(flashlight)
+    const { store: moveStore } = moves.lubecMoveBetween.mock.lastCall?.[1] as { store: { sendSaveNow: (id: string) => void } }
+    moveStore.sendSaveNow('tommy')
+    expect(store.updateCharacterNow).not.toHaveBeenCalled()
+    store.hasPendingWrite.mockReturnValue(true)
+    moveStore.sendSaveNow('tommy')
+    expect(store.updateCharacterNow).toHaveBeenCalledExactlyOnceWith('tommy', {})
   })
 
   it('gives the GM corrections to a finalized character\'s locked values', () => {
