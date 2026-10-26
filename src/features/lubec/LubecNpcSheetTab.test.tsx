@@ -14,6 +14,11 @@ import type { Campaign, Role } from '../../types/app'
 import type { LubecDice } from '../ruleSets/lubec/dice'
 import tommyEvesFile from '../ruleSets/lubec/fixtures/tommy-eves.lubec-character.json'
 
+// These cases mount the NPCs tab and the sheet in jsdom. Under coverage on a
+// loaded machine they ran past Vitest's 5 second default and failed without
+// any assertion failing, as the other Lubec tab suites' did.
+vi.setConfig({ testTimeout: 30_000 })
+
 type Fields = Record<string, unknown>
 type Listener = { next: (snap: unknown) => void; fail?: (error: unknown) => void }
 

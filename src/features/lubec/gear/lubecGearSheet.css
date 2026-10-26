@@ -198,6 +198,144 @@
   background: var(--lubec-blue);
 }
 
+/* The card's recorded Strength roll (B 666-669). Pressed, Passed and Failed
+   take the roll circles' own success and failure colors. */
+.shell-root[data-theme="lubec"] .lubec-gear .seg {
+  display: inline-flex;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .seg button {
+  min-height: 1.9rem;
+  padding: 0.25rem 0.5rem;
+  color: var(--lubec-ink);
+  background: transparent;
+  border: 1.5px solid var(--lubec-ink);
+  border-radius: 0;
+  font: 800 0.58rem/1 var(--lubec-type);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .seg button + button {
+  border-left: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .seg button.pass[aria-pressed="true"] {
+  color: var(--lubec-cream);
+  background: var(--lubec-success);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .seg button.fail[aria-pressed="true"] {
+  color: var(--lubec-cream);
+  background: var(--lubec-failure);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .seg button:focus-visible {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+/* The Strength prompt (B 507-521 and 1625-1635): B's prompt sheet, sized to
+   its words, with the Core page's Strength circle and Advantage switch in
+   place of B's Failed and Passed buttons. */
+.shell-root[data-theme="lubec"] .lubec-gear .prompt-sheet {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .prompt-sheet .sheet-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .prompt-text {
+  color: var(--lubec-ink);
+  font-size: 0.82rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .strength-roll {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.6rem 1rem;
+  align-items: center;
+}
+
+/* The roll stands, so the circle is held once rolled; it still shows the
+   result in the Core page's own colors, which its held state would grey out. */
+.shell-root[data-theme="lubec"] .lubec-gear .strength-roll .roll-circle.check-success:disabled {
+  color: var(--lubec-cream);
+  background: var(--lubec-success);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .strength-roll .roll-circle.check-failure:disabled {
+  color: var(--lubec-cream);
+  background: var(--lubec-failure);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .strength-roll .roll-circle.check-double:disabled {
+  color: var(--lubec-ink);
+  background: repeating-linear-gradient(-45deg, var(--critical-color) 0 9px, var(--lubec-cream) 9px 18px);
+}
+
+/* The header keeps its height when the close button goes with the roll. */
+.shell-root[data-theme="lubec"] .lubec-gear .prompt-sheet header > div {
+  min-height: 2.6rem;
+}
+
+/* The circle is the Core page's, at the size the sheet's fit zoom gives it there. */
+.shell-root[data-theme="lubec"] .lubec-gear .strength-roll .ability {
+  zoom: var(--lubec-gear-zoom, 1);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .strength-roll-side {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .strength-roll-side .lubec-advantage {
+  flex-wrap: wrap;
+  margin-right: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .strength-roll-side .status {
+  text-align: left;
+}
+
+@media (min-width: 1251px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .strength-roll {
+    --lubec-circle: clamp(4.5rem, 5.55vw, 5.55rem);
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .strength-roll .check-pair {
+    font-size: calc(var(--lubec-circle) * 0.266);
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .strength-roll .check-stack {
+    font-size: calc(var(--lubec-circle) * 0.209);
+  }
+}
+
+@media (max-width: 720px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .strength-roll {
+    --lubec-circle: clamp(4.35rem, 18vw, 5.35rem);
+  }
+}
+
+@media (max-width: 580px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .strength-roll {
+    --lubec-circle: min(16vw, 4.5rem);
+  }
+}
+
+@media (max-width: 380px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .strength-roll {
+    --lubec-circle: min(16vw, 3.65rem);
+  }
+}
+
 .shell-root[data-theme="lubec"] .lubec-gear .split {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 6.5rem;

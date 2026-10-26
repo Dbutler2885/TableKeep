@@ -6,6 +6,7 @@ import {
   draggedToHandProblems,
   droppedAnvilProblems,
   groupIdFromUrl,
+  heavyAnvilProblems,
   interpolatePath,
   migratedFixtureFields,
   oseCharacterFields,
@@ -14,6 +15,7 @@ import {
   showLubecFormField,
   step,
   storedItemsProblem,
+  storedLubecStress,
   storedMediaProblems,
   storedPortraitProblems,
   storedTokenImageProblems,
@@ -314,6 +316,30 @@ describe('the dragged flashlight (step 14)', () => {
   it('names where the flashlight is when it is not in a hand, or that it is gone', () => {
     expect(draggedToHandProblems(lubecWith([{ name: 'Flashlight', carrier: 'backpack', pocket: 0 }]))).toEqual(['the stored flashlight is in backpack'])
     expect(draggedToHandProblems(lubecWith([]))).toEqual(['the stored flashlight is in undefined'])
+  })
+})
+
+describe('the heavy anvil\'s Strength roll (step 9)', () => {
+  const rolled = (check, stress, against = 'Strength') => toFirestoreFields({
+    name: 'Tommy', lubec: { counters: { stress }, lastRoll: { against }, gear: { items: [{ name: 'Small anvil', carrier: 'backpack', check }], carriers: [] } },
+  })
+
+  it('reads the stored Stress', () => {
+    expect(storedLubecStress(rolled('fail', 3))).toBe(3)
+  })
+
+  it('passes a failed roll recorded on the anvil and as the last roll, with 1 Stress added', () => {
+    expect(heavyAnvilProblems(rolled('fail', 3), { failed: true, stressBefore: 2 })).toEqual([])
+  })
+
+  it('passes a passed roll with no Stress added', () => {
+    expect(heavyAnvilProblems(rolled('pass', 2), { failed: false, stressBefore: 2 })).toEqual([])
+  })
+
+  it('names a wrong recorded roll, a last roll that is not Strength, and Stress that does not add up', () => {
+    expect(heavyAnvilProblems(rolled('pass', 2, 'Speed'), { failed: true, stressBefore: 2 })).toEqual([
+      "the stored anvil's Strength roll is pass", 'the last roll is not the Strength check', 'Stress is 2, not 3',
+    ])
   })
 })
 

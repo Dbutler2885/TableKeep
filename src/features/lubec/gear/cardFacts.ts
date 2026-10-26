@@ -10,8 +10,8 @@ import { lubecAmmoOnYou, lubecLooseOf } from '../../ruleSets/lubec/gear/supplies
 import { qtyText, whereText } from './gearLabels'
 import { armorAll, armorVs, WEIGHT_NAMES, WOUND_KINDS } from './itemLabels'
 
-/** One line of the card: a term and its text, or a count the card steps with − and +. */
-export type LubecCardFact = { term: string; text: string; step?: 'qty' | 'loaded' }
+/** One line of the card: a term and its text, or a count the card steps with − and +; `check` adds the Passed and Failed switch. */
+export type LubecCardFact = { term: string; text: string; step?: 'qty' | 'loaded'; check?: true }
 
 type Facts = { gear: LubecGear; item: LubecItem; supplies: readonly LubecSupply[] }
 
@@ -38,8 +38,12 @@ function weightEffect(i: LubecItem): string {
   return i.check === 'fail' ? `Strength failed: Speed −${RULES.heavyFail}.` : 'Strength passed: no penalty.'
 }
 
-const weightFact = (i: LubecItem): LubecCardFact =>
-  fact('Weight', i.weight === 'normal' ? WEIGHT_NAMES.normal : `${WEIGHT_NAMES[i.weight]}, so it takes both hands to hold. ${weightEffect(i)}`)
+// A heavy thing on you carries the switch that records, or overrides, its Strength roll.
+function weightFact(i: LubecItem): LubecCardFact {
+  if (i.weight === 'normal') return fact('Weight', WEIGHT_NAMES.normal)
+  const line = fact('Weight', `${WEIGHT_NAMES[i.weight]}, so it takes both hands to hold. ${weightEffect(i)}`)
+  return onYou(i) ? { ...line, check: true } : line
+}
 
 // Rule S3: a stack's room, and which of its batch it is.
 function stackFact({ gear, item: i }: Facts): LubecCardFact[] {

@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { emptyLubecGear, type LubecGear, type LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
 import { lubecWithMode } from './itemForm'
-import { lubecAddSheet, lubecBackSheet, lubecCardSheet, lubecEditSheet, lubecSaveForm, type LubecFormSheet } from './itemSheet'
+import { lubecAddSheet, lubecBackSheet, lubecCardSheet, lubecEditSheet, lubecFormNeedsStrength, lubecSaveForm, type LubecFormSheet } from './itemSheet'
 
 const counter = () => {
   let n = 0
@@ -77,5 +77,36 @@ describe('saving the form', () => {
     expect(lubecSaveForm(gearOf(rope), named(lubecEditSheet(rope, 'backpack#0'), 'Rope', { dest: 'backpack#1', size: 2 }), counter())).toEqual({
       ok: false, msg: 'Front pocket, left takes things up to 1 slot. This one is 2.',
     })
+  })
+})
+
+describe('saving a heavy thing onto you (Rule E5)', () => {
+  const anvil = (dest: string, extra: Partial<LubecFormSheet['fields']> = {}) => named(lubecAddSheet(dest), 'Small anvil', { weight: 'heavy', ...extra })
+
+  it('asks for a Strength roll for a heavy thing added onto you, and not for a normal one', () => {
+    expect(lubecFormNeedsStrength(gearOf(), anvil('backpack#0'))).toBe(true)
+    expect(lubecFormNeedsStrength(gearOf(), anvil('hands#0', { weight: 'extra' }))).toBe(true)
+    expect(lubecFormNeedsStrength(gearOf(), named(lubecAddSheet('backpack#0'), 'Rope'))).toBe(false)
+  })
+
+  it('asks again on an edit only when the weight on you changes', () => {
+    const block = T('block', { weight: 'heavy', check: 'fail' })
+    expect(lubecFormNeedsStrength(gearOf(block), named(lubecEditSheet(block, 'backpack#0'), 'Cinder block'))).toBe(false)
+    expect(lubecFormNeedsStrength(gearOf(block), named(lubecEditSheet(block, 'backpack#0'), 'block', { weight: 'extra' }))).toBe(true)
+  })
+
+  it('records the roll on every stack it adds', () => {
+    const saved = lubecSaveForm(gearOf(), anvil('backpack#0', { qty: '2' }), counter(), 'fail')
+    expect(saved.ok && saved.gear.items.map((i) => i.check)).toEqual(['fail', 'fail'])
+  })
+
+  it('replaces the roll recorded before when an edit asks again, and keeps it when it does not', () => {
+    const block = T('block', { weight: 'heavy', check: 'fail' })
+    const heavier = lubecSaveForm(gearOf(block), named(lubecEditSheet(block, 'backpack#0'), 'block', { weight: 'extra' }), counter(), 'pass')
+    expect(heavier.ok && heavier.gear.items[0].check).toBe('pass')
+    const unasked = lubecSaveForm(gearOf(block), named(lubecEditSheet(block, 'backpack#0'), 'block', { weight: 'extra' }), counter())
+    expect(unasked.ok && unasked.gear.items[0]).not.toHaveProperty('check')
+    const renamed = lubecSaveForm(gearOf(block), named(lubecEditSheet(block, 'backpack#0'), 'Cinder block'), counter())
+    expect(renamed.ok && renamed.gear.items[0].check).toBe('fail')
   })
 })

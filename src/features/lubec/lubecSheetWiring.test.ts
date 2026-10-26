@@ -29,6 +29,7 @@ function wire(character: LubecCharacterRecord | null, viewer: LubecViewer, withR
 
 const noEdits = {
   onCountersChange: null, onSkillsChange: null, corrections: null, onDraftEdit: null, onRollUp: null, onFinalize: null, onGearChange: null, onGearDrop: null,
+  onGearRolled: null,
 }
 
 const flashlight = { id: 'f1', kind: 'holder', name: 'Flashlight', carrier: 'backpack', pocket: 0 } as LubecItem
@@ -65,7 +66,7 @@ describe('lubecSheetWiring', () => {
   it('leaves the owner of a finalized character only the counters and the gear', () => {
     const { store, edits } = wire(finalized, owner)
 
-    expect({ ...edits, onCountersChange: null, onGearChange: null }).toEqual(noEdits)
+    expect({ ...edits, onCountersChange: null, onGearChange: null, onGearRolled: null }).toEqual(noEdits)
     expect(wire(finalized, owner, true).edits.onGearDrop).not.toBeNull()
     edits.onCountersChange?.(counters)
     expect(store.updateCharacter).toHaveBeenCalledExactlyOnceWith('tommy', { lubec: { ...finalized.lubec, counters } })
@@ -91,6 +92,20 @@ describe('lubecSheetWiring', () => {
         move: { itemId: 'f1', seen: { carrier: 'backpack', pocket: 0, slot: undefined }, droppedBy: { characterId: 'tommy', characterName: 'Unnamed kid', userId: viewer.userId } },
       }))
     }
+  })
+
+  it('records a heavy thing\'s Strength roll for the owner of a character in play, as any roll is recorded', () => {
+    const { store, edits } = wire(finalized, owner)
+    const rolled = { ...finalized.lubec, counters: { ...finalized.lubec.counters, stress: 1 } }
+    edits.onGearRolled?.(rolled)
+    expect(store.updateCharacter).toHaveBeenCalledExactlyOnceWith('tommy', { lubec: rolled })
+  })
+
+  it('asks nobody for a Strength roll but the owner of a character in play: not the GM, another player, or a draft\'s owner', () => {
+    expect(wire(finalized, gm).edits.onGearRolled).toBeNull()
+    expect(wire(finalized, otherPlayer).edits.onGearRolled).toBeNull()
+    expect(wire(draft, owner).edits.onGearRolled).toBeNull()
+    expect(wire({ ...finalized, ownerUserId: 'gm-1' }, gm).edits.onGearRolled).not.toBeNull()
   })
 
   it('offers no drop to another player, or where the records are not known', () => {

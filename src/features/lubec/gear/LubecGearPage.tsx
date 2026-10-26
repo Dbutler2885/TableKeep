@@ -11,7 +11,10 @@ import type { LubecGearDrop } from './lubecGearDrop'
 import { LubecGearHandsBody } from './LubecGearHandsBody'
 import { LubecGearPack, type LubecGearAdd, type LubecGearOpen } from './LubecGearPack'
 import { LubecItemSheet } from './LubecItemSheet'
-import { useLubecGearMoves } from './useLubecGearMoves'
+import { LubecStrengthPrompt } from './LubecStrengthPrompt'
+import { lubecAskedThing, type LubecStrengthAsk } from './strengthAsk'
+import { useLubecGearMoves, type LubecDropIt } from './useLubecGearMoves'
+import { lubecAnswerStrength, useLubecStrengthAsk, type LubecGearStrength } from './useLubecStrengthAsk'
 import { useLubecToast } from './useLubecToast'
 import './lubecGear.css'
 import './lubecGearSheet.css'
@@ -28,6 +31,8 @@ type GearPageProps = {
   onDrop?: LubecGearDrop
   /** The campaign's own list for the stock picker's "This campaign"; empty, and so hidden, until the GM Items tab fills it. */
   campaignStock?: readonly LubecStockItem[]
+  /** The sheet the Strength check rolls on, for the character's owner; null where nobody is asked. */
+  strength?: LubecGearStrength
 }
 
 const NO_CAMPAIGN_STOCK: readonly LubecStockItem[] = []
@@ -98,12 +103,51 @@ function Toast({ text, shown, busy }: { text: string; shown: boolean; busy: bool
   return <div className={`toast${shown || busy ? ' show' : ''}`} role="status" aria-live="polite">{busy ? 'Moving...' : text}</div>
 }
 
+type AskProps = {
+  gear: LubecGear
+  ask: LubecStrengthAsk
+  strength: NonNullable<LubecGearStrength>
+  change: (gear: LubecGear) => void
+  setSheet: (sheet: LubecItemSheetState | null) => void
+  toast: (text: string) => void
+  drop: LubecDropIt
+  setAsk: (ask: LubecStrengthAsk | null) => void
+}
+
+// The Strength prompt over the page, for the thing it asks about while that is still on the sheet; Done answers from the gear as it is then.
+function StrengthAsk({ gear, ask, strength, setAsk, ...ctx }: AskProps) {
+  const thing = lubecAskedThing(gear, ask)
+  if (!thing) return null
+  return (
+    <LubecStrengthPrompt
+      sheet={strength.sheet} onRolled={strength.onRolled} thing={thing} onCancel={() => setAsk(null)}
+      onDone={(outcome) => lubecAnswerStrength({ ...ctx, setAsk }, gear, ask, outcome)}
+    />
+  )
+}
+
+// One prompt for each thing asked about, so a roll made for one is never shown for the next.
+const askKey = (ask: LubecStrengthAsk) => (ask.kind === 'pending' ? `pending:${ask.itemId}` : ask.kind)
+
+type AskOverProps = Omit<AskProps, 'ask' | 'strength' | 'change' | 'setAsk'> & {
+  asking: ReturnType<typeof useLubecStrengthAsk>
+  strength: LubecGearStrength
+  change: ((gear: LubecGear) => void) | null
+}
+
+// The prompt, while one is open for an owner who may change the gear.
+function StrengthAskOver({ asking, strength, change, ...ctx }: AskOverProps) {
+  if (!asking.ask || !strength || !change) return null
+  return <StrengthAsk key={askKey(asking.ask)} ask={asking.ask} strength={strength} change={change} setAsk={asking.setAsk} {...ctx} />
+}
+
 /** The Lubec sheet's Gear page: the Gear bar, B's On you view of the backpack, the hands and the body, and the item sheet over it. */
-export function LubecGearPage({ gear, onGearChange, onDrop = null, campaignStock = NO_CAMPAIGN_STOCK }: GearPageProps) {
+export function LubecGearPage({ gear, onGearChange, onDrop = null, campaignStock = NO_CAMPAIGN_STOCK, strength = null }: GearPageProps) {
   const [view, setView] = useState<LubecGearView>('on-you')
   const [sheet, setSheet] = useState<LubecItemSheetState | null>(null)
   const toast = useLubecToast()
-  const moves = useLubecGearMoves({ gear, onGearChange, onDrop, toast, setSheet })
+  const asking = useLubecStrengthAsk(gear, strength)
+  const moves = useLubecGearMoves({ gear, onGearChange, onDrop, toast, setSheet, onAsk: asking.onAsk })
   const { onAdd, onOpen } = sheetOpeners(moves.change !== null, setSheet)
   return (
     <div className="lubec-page lubec-gear" aria-busy={moves.busy}>
@@ -114,9 +158,10 @@ export function LubecGearPage({ gear, onGearChange, onDrop = null, campaignStock
       {moves.change && sheet ? (
         <LubecItemSheet
           sheet={sheet} gear={gear} onGearChange={moves.change} onSheet={setSheet} toast={toast.show} campaignStock={campaignStock}
-          onDrop={moves.drop} busy={moves.busy}
+          onDrop={moves.drop} busy={moves.busy} onAsk={asking.onAsk}
         />
       ) : null}
+      <StrengthAskOver gear={gear} asking={asking} strength={strength} change={moves.change} setSheet={setSheet} toast={toast.show} drop={moves.drop} />
       <LubecDragLayer view={moves.drag.view} item={gear.items.find((x) => x.id === moves.drag.view?.itemId)} ghost={moves.drag.ghost} dropZone={moves.drag.dropZone} />
       <Toast text={toast.text} shown={toast.shown} busy={moves.busy} />
     </div>

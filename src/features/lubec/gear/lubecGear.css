@@ -7,7 +7,8 @@
    1071-1101, desktop and short-window sizing 1102-1188, the form 506-670 and
    745-767, the toast 679-695. */
 
-.shell-root[data-theme="lubec"] .lubec-gear button {
+/* The Strength prompt's roll circle keeps the Core page's own shape and cursor. */
+.shell-root[data-theme="lubec"] .lubec-gear button:not(.roll-circle) {
   border-radius: 0;
   touch-action: manipulation;
   cursor: pointer;
@@ -834,7 +835,8 @@ body.lubec-dragging * {
   background: rgba(16, 43, 49, 0.62);
 }
 
-.shell-root[data-theme="lubec"] .lubec-gear .item-sheet {
+.shell-root[data-theme="lubec"] .lubec-gear .item-sheet,
+.shell-root[data-theme="lubec"] .lubec-gear .prompt-sheet {
   width: min(100% - 1rem, 30rem);
   max-height: min(92vh, 46rem);
   color: var(--lubec-ink);
@@ -1176,7 +1178,8 @@ body.lubec-dragging * {
     padding-bottom: 0;
   }
 
-  .shell-root[data-theme="lubec"] .lubec-gear .item-sheet {
+  .shell-root[data-theme="lubec"] .lubec-gear .item-sheet,
+  .shell-root[data-theme="lubec"] .lubec-gear .prompt-sheet {
     width: 100%;
     max-width: 100%;
     max-height: 92vh;
