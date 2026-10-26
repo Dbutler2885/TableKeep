@@ -9,6 +9,7 @@ import { lubecAddSheet, lubecCardSheet, type LubecItemSheetState } from './itemS
 import { LubecDragLayer } from './LubecDragLayer'
 import { LubecDragContext } from './lubecDragMarks'
 import type { LubecGearDrop } from './lubecGearDrop'
+import { LubecGearArmor } from './LubecGearArmor'
 import { LubecGearHandsBody } from './LubecGearHandsBody'
 import { LubecGearPack, type LubecGearAdd, type LubecGearOpen } from './LubecGearPack'
 import { LubecItemSheet } from './LubecItemSheet'
@@ -19,6 +20,7 @@ import { lubecAnswerStrength, useLubecStrengthAsk, type LubecGearStrength } from
 import { useLubecToast } from './useLubecToast'
 import './lubecGear.css'
 import './lubecGearSheet.css'
+import './lubecGearArmor.css'
 import './lubecGearWeapons.css'
 
 /** Saves the character's next gear; null for a viewer who may only look. */
@@ -68,7 +70,7 @@ function GearBar({ view, onView, full, onAdd }: GearBarProps) {
 
 type OnYouProps = { gear: LubecGear; onAdd: LubecGearAdd; onOpen: LubecGearOpen; sectionRef: RefObject<HTMLElement | null> }
 
-// On you: the backpack, the hands and the body, on one screen. Things on it are dragged to move them (Rule M7).
+// On you: the backpack, the hands, the body and the armor worn, on one screen. Things on it are dragged to move them (Rule M7).
 function OnYou({ gear, onAdd, onOpen, sectionRef }: OnYouProps) {
   const supplyName = supplyNameIn(lubecSupplies(gear))
   return (
@@ -77,6 +79,7 @@ function OnYou({ gear, onAdd, onOpen, sectionRef }: OnYouProps) {
         <LubecGearPack gear={gear} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} />
         <div className="side">
           <LubecGearHandsBody gear={gear} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} />
+          <LubecGearArmor gear={gear} onAdd={onAdd} onOpen={onOpen} />
         </div>
       </div>
     </section>
@@ -98,7 +101,7 @@ function sheetOpeners(canEdit: boolean, setSheet: (sheet: LubecItemSheetState) =
   if (!canEdit) return { onAdd: null, onOpen: null }
   return {
     onAdd: (dest) => setSheet(lubecAddSheet(dest)),
-    onOpen: { item: (id) => setSheet(lubecCardSheet(id)), small: () => setSheet({ mode: 'small' }) },
+    onOpen: { item: (id) => setSheet(lubecCardSheet(id)), small: () => setSheet({ mode: 'small' }), pieces: (part) => setSheet({ mode: 'pieces', part }) },
   }
 }
 
@@ -145,7 +148,7 @@ function StrengthAskOver({ asking, strength, change, ...ctx }: AskOverProps) {
   return <StrengthAsk key={askKey(asking.ask)} ask={asking.ask} strength={strength} change={change} setAsk={asking.setAsk} {...ctx} />
 }
 
-/** The Lubec sheet's Gear page: the Gear bar, B's On you view of the backpack, the hands and the body, and the item sheet over it. */
+/** The Lubec sheet's Gear page: the Gear bar, B's On you view of the backpack, the hands, the body and the armor, and the item sheet over it. */
 export function LubecGearPage({ gear, wielder, onGearChange, onDrop = null, campaignStock = NO_CAMPAIGN_STOCK, strength = null }: GearPageProps) {
   const [view, setView] = useState<LubecGearView>('on-you')
   const [sheet, setSheet] = useState<LubecItemSheetState | null>(null)

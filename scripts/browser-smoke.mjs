@@ -1440,6 +1440,54 @@ function storedGearProblems(stored, name) {
   return [...gearItemsProblem(storedGearItems(gear), name), ...gearUrlProblem(gear)]
 }
 
+const LUBEC_ARMOR_PANEL = `${LUBEC_GEAR_PAGE} .armor-panel`
+
+// "+ Make armor" opens the form on armor, to be worn, and Browse stock opens on armor, where the helmet's tile copies it in.
+async function fillLubecStockHelmet(page) {
+  await page.locator(`${LUBEC_ARMOR_PANEL} .section-head .btn`).click()
+  await page.locator(`${LUBEC_GEAR_SHEET} .link-btn`).click()
+  await page.locator(`${LUBEC_GEAR_SHEET} .stock-tile ::-p-text(Hockey helmet)`).click()
+  await pressLubecGearSubmit(page)
+}
+
+// The head's shade on the drawing, and the readout once the head has focus, read in the page.
+// The head is an SVG region, which Puppeteer's own focus refuses, so the page focuses it.
+async function readLubecArmorHead(page) {
+  await page.$eval(`${LUBEC_ARMOR_PANEL} .hit[aria-label^="Head:"]`, (head) => head.focus())
+  await page.waitForFunction((selector) => document.querySelector(selector)?.textContent.startsWith('Head'), {}, `${LUBEC_ARMOR_PANEL} .readout`)
+  return page.$eval(LUBEC_ARMOR_PANEL, (panel) => ({
+    worn: panel.querySelectorAll('.body-map .worn').length,
+    readout: panel.querySelector('.readout').textContent,
+  }))
+}
+
+// The head's readout with one helmet on, and with two: their layers, their numbers added up, and who covers it.
+const LUBEC_HELMET_READOUTS = {
+  1: 'Head1 of 2 layersCut−1Pierce−1Blunt−2Gun0Hockey helmet',
+  2: 'Head2 of 2 layersCut−2Pierce−2Blunt−4Gun0Hockey helmet, Hockey helmet',
+}
+
+async function expectLubecArmorHead(page, layers) {
+  const head = await readLubecArmorHead(page)
+  const expected = { worn: 1, readout: LUBEC_HELMET_READOUTS[layers] }
+  if (JSON.stringify(head) !== JSON.stringify(expected)) throw new Error(`The Armor panel shows ${JSON.stringify(head)}.`)
+}
+
+async function wearLubecStockHelmet(page, layers) {
+  await fillLubecStockHelmet(page)
+  await waitForNoLubecGearSheet(page)
+  await expectLubecArmorHead(page, layers)
+}
+
+// With both of the head's layers taken, the form stays open with the refusal, and its close button leaves it unsaved.
+async function expectLubecThirdHelmetRefused(page) {
+  await fillLubecStockHelmet(page)
+  const refusal = await page.locator(`${LUBEC_GEAR_SHEET} .form-error`).map((error) => error.textContent).wait()
+  if (!refusal.startsWith('No free layer on the head: 2 of 2 taken by ')) throw new Error(`The third helmet is refused with "${refusal}".`)
+  await page.locator(`${LUBEC_GEAR_SHEET} .close`).click()
+  await waitForNoLubecGearSheet(page)
+}
+
 // How many columns On you has, and which page tab is current in the top bar, read in the page.
 const readLubecGearLayout = (gear) => {
   const columns = gear.ownerDocument.defaultView.getComputedStyle(gear.querySelector('.on-you')).gridTemplateColumns.split(' ').length
@@ -1615,6 +1663,9 @@ async function lubecGearPageSteps(page, testCase, path) {
     await openLubecGearPage(page)
     await expectLubecGearItemInMainPocket(page, 'Flashlight', '2 of 2 loaded')
   })
+  await step('wear a stock hockey helmet, shading the head, with its layers and numbers in the readout', () => wearLubecStockHelmet(page, 1))
+  await step('wear a second helmet as the head\'s second layer', () => wearLubecStockHelmet(page, 2))
+  await step('refuse a third helmet with "No free layer on the head: 2 of 2 taken by ..."', () => expectLubecThirdHelmetRefused(page))
   await step('drag the Flashlight to the free left hand with real pointer events, storing it in hands', async () => {
     await dragLubecFlashlightToHand(page)
     await waitForStored(() => readDocumentFields(path), draggedToHandProblems)
@@ -1625,7 +1676,8 @@ async function lubecGearPageSteps(page, testCase, path) {
     await waitForStored(() => readDroppedItems(path), droppedAnvilProblems)
   })
   await page.mouse.move(0, page.viewport().height - 1)
-  await step('fit the Gear page without scrolling sideways after the add', () => expectNoSidewaysScroll(page))
+  await step('fit the Gear page without scrolling sideways after the adds', () => expectNoSidewaysScroll(page))
+  await lubecGearFitStep(page, testCase)
   await screenshot(page, `${testCase.name}-lubec-gear`)
 }
 
@@ -1767,7 +1819,8 @@ async function runViewport(browser, testCase) {
       + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map, '
       + 'and, in the Lubec campaign made through the picker, in its own skin, with its five tabs, imported a character file with a portrait, '
       + 'gave it a token image from the sheet, saw both again after a reload from their stored paths, opened the imported character\'s Core page and Skills page, '
-      + 'finalized it and added a stock Flashlight on its Gear page that was stored by path alone and kept through a reload, dragged it to a hand, '
+      + 'finalized it and added a stock Flashlight on its Gear page that was stored by path alone and kept through a reload, '
+      + 'wore two stock hockey helmets on its head and was refused a third, dragged the Flashlight to a hand, '
       + 'rolled Strength for a heavy anvil through the prompt and saw the roll on the Core page, dropped the anvil to the GM Items tab, '
       + 'and made an NPC a Direct entry sheet on its Character sheet tab and finalized it.',
     )

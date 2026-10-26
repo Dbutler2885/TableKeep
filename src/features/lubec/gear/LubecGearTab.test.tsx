@@ -400,3 +400,128 @@ describe('Lubec Gear page', () => {
     expect(document.querySelector('.lubec-gear .pack')).not.toBeNull()
   })
 })
+
+describe('Lubec Gear page: armor', () => {
+  const armorPanel = () => within(document.querySelector('.lubec-gear .armor-panel') as HTMLElement)
+  const part = (name: RegExp) => armorPanel().getByRole('button', { name })
+  const readout = () => document.querySelector('.armor-panel .readout')?.textContent
+  const wornHelmet = (id: string) => ({
+    id, kind: 'armor', carrier: 'worn', name: 'Hockey helmet', size: 2, qty: 1, weight: 'normal', note: '', locs: ['head'], armor: { cut: 1, pierce: 1, blunt: 2, gun: 0 },
+  })
+
+  // "+ Make armor" opens the form on armor, worn; the picker opens on armor, and the helmet's tile copies it in.
+  function wearStockHelmet() {
+    fireEvent.click(armorPanel().getByRole('button', { name: '+ Make armor' }))
+    const form = within(screen.getByRole('dialog', { name: 'Add an item' }))
+    expect((form.getByRole('combobox', { name: 'Put it' }) as HTMLSelectElement).value).toBe('worn')
+    fireEvent.click(form.getByRole('button', { name: 'Browse stock' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Pick from stock' })).getByRole('button', { name: /Hockey helmet/ }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Add an item' })).getByRole('button', { name: 'Add it' }))
+  }
+
+  it('wears a stock helmet, shades the head, and fills the readout while the head is pointed at', () => {
+    vi.useFakeTimers()
+    database = { tommy: tommyEves() }
+    mountTab('player', 'player-1')
+    openGear('Tommy Eves')
+    expect(document.querySelector('.armor-panel .count')?.textContent).toBe('0 worn / takes no slots')
+    expect(readout()).toBe('Point at a partCut–Pierce–Blunt–Gun–Tap worn armor to open it.')
+
+    wearStockHelmet()
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('status').textContent).toBe('Hockey helmet: Worn: head.')
+    expect(document.querySelector('.armor-panel .count')?.textContent).toBe('1 worn / takes no slots')
+    expect(document.querySelectorAll('.armor-panel .body-map .worn')).toHaveLength(1)
+    expect(armorPanel().getByRole('button', { name: /^Hockey helmet/ }).textContent).toBe('Hockey helmetHeadCut −1Pierce −1Blunt −2')
+    fireEvent.mouseOver(part(/^Head:/))
+    expect(readout()).toBe('Head1 of 2 layersCut−1Pierce−1Blunt−2Gun0Hockey helmet')
+    expect([...document.querySelectorAll('.armor-panel .readout .some dt')].map((dt) => dt.textContent)).toEqual(['Cut', 'Pierce', 'Blunt'])
+    fireEvent.mouseLeave(document.querySelector('.armor-panel .body-map') as Element)
+    expect(readout()).toMatch(/^Point at a part/)
+    fireEvent.focus(part(/^Neck:/))
+    expect(readout()).toBe('Neck0 of 2 layersCut0Pierce0Blunt0Gun0Nothing worn here.')
+
+    act(() => vi.advanceTimersByTime(500))
+    const items = ((lastPayload().lubec as Fields).gear as Fields).items as Fields[]
+    expect(items).toEqual([expect.objectContaining({ kind: 'armor', name: 'Hockey helmet', carrier: 'worn', locs: ['head'], armor: { cut: 1, pierce: 1, blunt: 2, gun: 0 } })])
+  })
+
+  it('wears a second helmet as the head\'s second layer', () => {
+    database = { tommy: tommyEves({ gear: { items: [wornHelmet('h1')] } }) }
+    mountTab('player', 'player-1')
+    openGear('Tommy Eves')
+    wearStockHelmet()
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.querySelector('.armor-panel .count')?.textContent).toBe('2 worn / takes no slots')
+    expect(part(/^Head:/).getAttribute('aria-label')).toBe('Head: 2 of 2 layers, armor Cut −2, Pierce −2, Blunt −4 (Hockey helmet, Hockey helmet)')
+  })
+
+  it('refuses a third helmet with the plain message, and keeps the form open saying the head is full', () => {
+    database = { tommy: tommyEves({ gear: { items: [wornHelmet('h1'), wornHelmet('h2')] } }) }
+    mountTab('player', 'player-1')
+    openGear('Tommy Eves')
+    wearStockHelmet()
+
+    const form = within(screen.getByRole('dialog', { name: 'Add an item' }))
+    expect(form.getByRole('alert').textContent).toBe('No free layer on the head: 2 of 2 taken by Hockey helmet, Hockey helmet. Take something off first.')
+    expect(document.querySelector('.item-sheet p.picked')?.textContent).toBe("Covers Head. Already full: Head, so it can't be worn until something comes off there.")
+    fireEvent.click(form.getByRole('button', { name: 'Cancel' }))
+    expect(document.querySelector('.armor-panel .count')?.textContent).toBe('2 worn / takes no slots')
+  })
+
+  it('asks which piece to open when two cover the part tapped, and opens the one picked', () => {
+    database = { tommy: tommyEves({ gear: { items: [wornHelmet('h1'), wornHelmet('h2')] } }) }
+    mountTab('player', 'player-1')
+    openGear('Tommy Eves')
+
+    fireEvent.click(part(/^Head:/))
+    const which = within(screen.getByRole('dialog', { name: 'Head: which piece?' }))
+    expect(which.getByText('2 pieces are worn here. In all: Cut −2, Pierce −2, Blunt −4, Gun 0.')).toBeTruthy()
+    expect(which.getAllByRole('button').map((button) => button.textContent)).toEqual(['×', 'Cancel', 'Hockey helmetCut −1, Pierce −1, Blunt −2', 'Hockey helmetCut −1, Pierce −1, Blunt −2'])
+    fireEvent.click(which.getAllByRole('button', { name: /^Hockey helmet/ })[1])
+    expect(screen.getByRole('dialog', { name: 'Hockey helmet' })).toBeTruthy()
+  })
+
+  it('picks a pair with "Both sides at once", and lights a worn piece\'s parts from its row and the pieces on a part from the body', () => {
+    database = { tommy: tommyEves() }
+    mountTab('gm', GM)
+    openGear('Tommy Eves')
+
+    fireEvent.click(armorPanel().getByRole('button', { name: '+ Make armor' }))
+    const form = within(screen.getByRole('dialog', { name: 'Add an item' }))
+    fireEvent.change(form.getByRole('combobox', { name: 'Name' }), { target: { value: 'Mittens' } })
+    fireEvent.click(form.getByRole('checkbox', { name: /^Both sides at once/ }))
+    fireEvent.click(form.getByRole('checkbox', { name: /^Left hand/ }))
+    expect(document.querySelector('.item-sheet p.picked')?.textContent).toBe('Covers Hands.')
+    expect(document.querySelectorAll('.item-sheet .body-map .picked')).toHaveLength(2)
+    fireEvent.change(form.getByRole('spinbutton', { name: 'Blunt' }), { target: { value: '1' } })
+    fireEvent.click(form.getByRole('button', { name: 'Add it' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    fireEvent.mouseOver(armorPanel().getByRole('button', { name: /^Mittens/ }))
+    expect(document.querySelectorAll('.armor-panel .body-map .hl.on')).toHaveLength(2)
+    fireEvent.mouseLeave(document.querySelector('.armor-panel .row-list') as Element)
+    expect(document.querySelectorAll('.armor-panel .body-map .hl.on')).toHaveLength(0)
+    fireEvent.mouseOver(part(/^Right hand:/))
+    expect(armorPanel().getByRole('button', { name: /^Mittens/ }).className).toBe('row-item lit')
+    expect(document.querySelectorAll('.armor-panel .body-map .hl.on')).toHaveLength(2)
+    fireEvent.click(part(/^Right hand:/))
+    expect(screen.getByRole('dialog', { name: 'Mittens' })).toBeTruthy()
+  })
+
+  it('shows another player the armor worn with no button to open it', () => {
+    database = { tommy: tommyEves({ gear: { items: [wornHelmet('h')] } }) }
+    mountTab('player', 'player-2')
+    const gear = openGear('Tommy Eves')
+
+    expect([...gear.querySelectorAll('button')].map((button) => button.textContent)).toEqual(['On you', 'Carriers'])
+    expect(gear.querySelector('.armor-panel .row-item.static')?.textContent).toBe('Hockey helmetHeadCut −1Pierce −1Blunt −2')
+    expect(part(/^Head:/).getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(part(/^Head:/))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.mouseOver(part(/^Head:/))
+    expect(readout()).toBe('Head1 of 2 layersCut−1Pierce−1Blunt−2Gun0Hockey helmet')
+  })
+})

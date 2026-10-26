@@ -11,6 +11,12 @@ import type { Campaign, CharacterInventoryItem, GroupRecord, ItemApprovalRequest
 
 type Props = Record<string, unknown>
 
+// These cases mount large component trees and run role queries over them in
+// jsdom. Alone each takes about a second, but under coverage on a loaded
+// machine the same cases ran past Vitest's 5 second default and failed without
+// any assertion failing, as `LubecCharacterTab.test.tsx`'s did.
+vi.setConfig({ testTimeout: 30_000 })
+
 const mocks = vi.hoisted(() => ({
   props: {} as Record<string, Record<string, unknown>>,
   user: null as Record<string, unknown> | null,

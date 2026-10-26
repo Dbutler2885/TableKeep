@@ -1,0 +1,223 @@
+/* The Armor panel on On you and the "which piece?" sheet, copied from the
+   inventory prototype (B, "Lubec 1977 | Gear, v4"). The body drawing's own
+   rules, which the armor maker shares, are in lubecGearSheet.css. B's tokens
+   are the sheet's own without the prefix; every rule is scoped to the page.
+   B's lines: the list rows 382-386, armor on the body 388-410, the readout
+   419-434, the header bar's tag and button 1082-1083, the prompt's piece
+   buttons 646-652, and the compact desktop rows 1119 and 1128-1155. */
+
+.shell-root[data-theme="lubec"] .lubec-gear .row-item small {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--lubec-muted);
+  font: 700 0.62rem/1.35 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .row-item.static {
+  cursor: default;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .row-item.static:hover {
+  background: transparent;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .row-item.lit,
+.shell-root[data-theme="lubec"] .lubec-gear .row-item.static.lit {
+  background: rgba(23, 75, 88, 0.08);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .head-end {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.7rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .panel > .section-head .tag {
+  color: var(--lubec-rust);
+  background: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .panel > .section-head .btn.line {
+  color: var(--lubec-ink);
+  background: var(--lubec-paper);
+  border-color: var(--lubec-paper);
+}
+
+/* Armor on the body drawing: dark = layers used, black = full */
+.shell-root[data-theme="lubec"] .lubec-gear .armor-panel .armor-wrap {
+  margin-top: 0.6rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .armor-side .row-list {
+  margin-top: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .body-map .hit[aria-disabled="true"] {
+  cursor: default;
+}
+
+/* One part's armor against each kind of wound, shown while a part is pointed at */
+.shell-root[data-theme="lubec"] .lubec-gear .readout {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.55rem 0.6rem;
+  background: rgba(255, 248, 231, 0.5);
+  border: 1.5px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .readout .head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font: 800 0.7rem/1.3 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .readout .head small {
+  color: var(--lubec-muted);
+  font-weight: 700;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .readout .wounds {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.3rem;
+  margin: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .readout .wounds div {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.3rem 0.2rem;
+  text-align: center;
+  border: 1px solid rgba(23, 40, 43, 0.25);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .readout .wounds dt {
+  color: var(--lubec-muted);
+  font: 800 0.5rem/1.1 var(--lubec-type);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .readout .wounds dd {
+  margin: 0;
+  font: 800 0.95rem/1.1 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .readout .wounds .some {
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+  border-color: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .readout .wounds .some dt {
+  color: rgba(255, 248, 231, 0.75);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .readout p {
+  margin: 0;
+  color: var(--lubec-muted);
+  font: 700 0.62rem/1.35 var(--lubec-type);
+}
+
+@container (max-width: 15rem) {
+  .shell-root[data-theme="lubec"] .lubec-gear .readout .wounds {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* "Which piece?": B's prompt, which fits its content rather than taking the item sheet's one shape */
+.shell-root[data-theme="lubec"] .lubec-gear .item-sheet.prompt {
+  min-height: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .item-sheet.prompt .sheet-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .confirm-text {
+  margin: 0;
+  color: var(--lubec-ink);
+  font-size: 0.82rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .actions.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .actions .btn.piece {
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .actions .btn.piece small {
+  font: 700 0.55rem/1.2 var(--lubec-type);
+  letter-spacing: 0.03em;
+  text-transform: none;
+  opacity: 0.85;
+}
+
+/* Desktop: the armor rows and the readout, compact, and the drawing sized by the stage */
+@media (min-width: 861px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .panel > .section-head .btn.small {
+    min-height: 1.8rem;
+    padding-block: 0.2rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .armor-side {
+    gap: 0.45rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .armor-panel .row-item {
+    min-height: 2.5rem;
+    padding: 0.3rem 0.15rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .armor-panel .thumb {
+    width: 2.1rem;
+    height: 2.1rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .readout {
+    gap: 0.3rem;
+    padding: 0.4rem 0.5rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .readout .wounds div {
+    padding: 0.2rem 0.15rem;
+  }
+
+  /* The hands note (round 28) costs two lines, so the drawing gives back 2rem of the stage */
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .armor-panel .armor-wrap {
+    grid-template-columns: min(10rem, max(6rem, calc((var(--stage) - 22rem) * 0.48))) minmax(0, 1fr);
+    margin-top: 0;
+  }
+}
+
+/* Short desktop windows: smaller rows, and the drawing narrower, so On you still fits */
+@media (min-width: 861px) and (max-height: 820px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .armor-panel .armor-wrap {
+    grid-template-columns: min(10rem, max(5.2rem, calc((var(--stage) - 21.6rem) * 0.48))) minmax(0, 1fr);
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .armor-panel .row-item {
+    min-height: 2.2rem;
+    padding-block: 0.2rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .armor-panel .thumb {
+    width: 1.9rem;
+    height: 1.9rem;
+  }
+}
+
+/* Phones: Table Keep's phone frame is narrower than B's, so the drawing gives up the difference and the list and readout keep B's width */
+@media (max-width: 560px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .armor-panel .armor-wrap {
+    grid-template-columns: minmax(6.5rem, 9rem) minmax(0, 1fr);
+  }
+}

@@ -82,13 +82,14 @@ export type LubecDestination = { value: string; label: string }
 
 const POCKET_SHORT = ['main pocket', 'front left', 'front right']
 
-/** The places on you the form's "Put it" offers, with what is free in each. */
-export function lubecDestinations(gear: LubecGear): LubecDestination[] {
+/** The places on you the form's "Put it" offers, with what is free in each; armor can be worn too (Rule W5). */
+export function lubecDestinations(gear: LubecGear, kind: LubecItemKind): LubecDestination[] {
   const pockets = LUBEC_BACKPACK_POCKETS.map((p, k) => ({
     value: `backpack#${k}`,
     label: `Backpack: ${POCKET_SHORT[k]} (${p.slots - pocketUsed(gear, 'backpack', k)} of ${p.slots} free)`,
   }))
   return [
+    ...(kind === 'armor' ? [{ value: 'worn', label: 'Wear it' }] : []),
     ...pockets,
     { value: 'backpack#small', label: 'Backpack: small stuff (no slot)' },
     { value: 'hands', label: `Hands (${2 - handsTaken(gear).size} free)` },

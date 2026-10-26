@@ -23,6 +23,7 @@ import {
   type LubecFormSheet,
   type LubecItemSheetState,
 } from './itemSheet'
+import { LubecArmorPieces } from './LubecArmorPieces'
 import { LubecItemCard } from './LubecItemCard'
 import { LubecItemForm } from './LubecItemForm'
 import { LUBEC_SHEET_TITLE } from './LubecSheetHead'
@@ -156,6 +157,7 @@ function FormMode({ sheet, ...ctx }: SheetContext & { sheet: LubecFormSheet }) {
 
 function SheetBody({ sheet, ...ctx }: SheetProps) {
   if (sheet.mode === 'form') return <FormMode sheet={sheet} {...ctx} />
+  if (sheet.mode === 'pieces') return <LubecArmorPieces gear={ctx.gear} part={sheet.part} onPick={(id) => ctx.onSheet(lubecCardSheet(id))} onClose={() => ctx.onSheet(null)} />
   if (sheet.mode === 'small') {
     return <LubecSmallStuffList gear={ctx.gear} onOpen={(id) => ctx.onSheet(lubecCardSheet(id))} onAdd={() => ctx.onSheet(lubecAddSheet('backpack#small', { mode: 'small' }))} onClose={() => ctx.onSheet(null)} />
   }
@@ -163,13 +165,15 @@ function SheetBody({ sheet, ...ctx }: SheetProps) {
   return item ? <CardMode sheet={sheet} item={item} {...ctx} /> : null
 }
 
-// The sheet keeps one shape in every mode; the form and the stock picker are wider on a wide screen.
+// The sheet keeps one shape in every mode; the form and the stock picker are wider on a wide screen, and "which piece?" fits its words.
+const SHEET_CLASS = { view: 'card', small: 'small', pieces: 'prompt' } as const
+
 const sheetClass = (sheet: LubecItemSheetState) => {
-  if (sheet.mode !== 'form') return sheet.mode === 'view' ? 'card' : 'small'
+  if (sheet.mode !== 'form') return SHEET_CLASS[sheet.mode]
   return sheet.browsing === null ? 'form' : 'stock'
 }
 
-/** The item sheet over the Gear page: one dialog, in the sheet's overlay, whose mode is the card, small stuff, the form or the stock picker. */
+/** The item sheet over the Gear page: one dialog, in the sheet's overlay, whose mode is the card, small stuff, the form, the stock picker or "which piece?". */
 export function LubecItemSheet(props: SheetProps) {
   const closeOnEscape = (e: KeyboardEvent) => {
     if (e.key === 'Escape') props.onSheet(null)

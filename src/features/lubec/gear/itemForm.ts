@@ -56,9 +56,9 @@ export type LubecItemFields = {
 
 const ZERO_ARMOR = { cut: '0', pierce: '0', blunt: '0', gun: '0' }
 
-/** A new item's form, opened at `dest`: a Thing of one slot, or Small when opened from small stuff. */
+/** A new item's form, opened at `dest`: a Thing of one slot, Small when opened from small stuff, or armor to wear. */
 export const lubecNewFields = (dest: string): LubecItemFields => ({
-  kind: 'thing', name: '', note: '', size: dest.endsWith('#small') ? 0 : 1, weight: 'normal', qty: '1', per: '1', dest, picture: null, stock: null,
+  kind: dest === 'worn' ? 'armor' : 'thing', name: '', note: '', size: dest.endsWith('#small') ? 0 : 1, weight: 'normal', qty: '1', per: '1', dest, picture: null, stock: null,
   mode: 'melee', impact: '0', table: 'blunt', wounds: ['blunt'], reach: 'long', minStrength: '', hands: 1, wCapacity: '6', wLoaded: '0', wTakes: '',
   armor: { ...ZERO_ARMOR }, locs: [], exclusive: false, bothSides: false, fits: '', hold: 'load', hCapacity: '2', hLoaded: '2', hTakes: '',
 })
@@ -104,11 +104,17 @@ function destForSize(dest: string, size: LubecItemSize): string {
   return size !== 0 && dest === 'backpack#small' ? 'backpack#0' : dest
 }
 
+// Only armor is worn (Rule W5): anything else asked to be worn goes to the main pocket instead.
+const destForKind = (dest: string, kind: LubecItemKind): string => (dest === 'worn' && kind !== 'armor' ? 'backpack#0' : dest)
+
 /** Rule T2: the form after picking a stock entry, a copy of it to change as the player likes. */
 export function lubecFieldsFromStock(f: LubecItemFields, x: LubecItemDraft): LubecItemFields {
   const c = lubecCopyOf(x) as LubecItemDraft
-  return { ...itemFields(f, c), stock: x.name, dest: destForSize(f.dest, c.size) }
+  return { ...itemFields(f, c), stock: x.name, dest: destForKind(destForSize(f.dest, c.size), c.kind) }
 }
+
+/** The form after the player picks a kind: one that is not armor leaves "Wear it". */
+export const lubecWithKind = (f: LubecItemFields, kind: LubecItemKind): LubecItemFields => ({ ...f, kind, dest: destForKind(f.dest, kind) })
 
 /** The form after the player picks a size: a small thing goes to small stuff, and a bigger one leaves it. */
 export const lubecWithSize = (f: LubecItemFields, size: LubecItemSize): LubecItemFields => ({ ...f, size, dest: destForSize(f.dest, size) })

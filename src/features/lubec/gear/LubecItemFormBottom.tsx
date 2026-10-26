@@ -14,7 +14,7 @@ export function LubecItemFormBottom({ fields, onFields, gear, editing }: BottomP
     <div className="form-bottom">
       <label className="field"><span className="label">Put it</span>
         <select value={fields.dest} onChange={(e) => onFields(lubecWithDest(fields, e.target.value))}>
-          <optgroup label="On you">{lubecDestinations(gear).map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>
+          <optgroup label="On you">{lubecDestinations(gear, fields.kind).map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>
         </select>
       </label>
       <p className="cost">{editing ? lubecCostText(editing.carrier, fields.dest) : ''}</p>
