@@ -2,14 +2,14 @@
 // inventory prototype (B's subLine, weightTag, qtyText and whereText).
 
 import { bothHands } from '../../ruleSets/lubec/gear/placement'
-import { holdWay } from '../../ruleSets/lubec/gear/gearRules'
+import { holdWay, locSummary } from '../../ruleSets/lubec/gear/gearRules'
 import { LUBEC_BACKPACK_POCKETS, type LubecItem, type LubecSupply } from '../../ruleSets/lubec/gear/gearRecord'
 import { MAX_STACKS, slotsText, stacksOf } from '../../ruleSets/lubec/gear/stacks'
 
 /** A supply's name from its id, or "no supply". */
 export type LubecSupplyName = (id: string | undefined) => string
 
-/** A gun or holder names its supply by id (Rule L1): the name among `supplies`, or "no supply". */
+/** A gun or holder names its supply by id (Rule L1): the name among `supplies` (the game's and the player's), or "no supply". */
 export const supplyNameIn = (supplies: readonly LubecSupply[]): LubecSupplyName => (id) =>
   supplies.find((s) => s.id === id)?.name ?? 'no supply'
 
@@ -54,10 +54,11 @@ function backpackWhere(i: LubecItem): string {
   return `Backpack, ${(LUBEC_BACKPACK_POCKETS[i.pocket]?.name ?? '').toLowerCase()}`
 }
 
-/** Where an item on you is, in words: "Backpack, main pocket", "Left hand", "Body slot". */
+/** Where an item on you is, in words: "Backpack, main pocket", "Left hand", "Body slot", "Worn: head". */
 export function whereText(i: LubecItem): string {
   if (i.carrier === 'backpack') return backpackWhere(i)
   if (i.carrier === 'hands') return bothHands(i) ? 'Both hands' : SLOT_NAMES.hands[i.slot ?? 0]
+  if (i.carrier === 'worn') return `Worn: ${locSummary(i.locs ?? []).toLowerCase()}`
   return 'Body slot'
 }
 

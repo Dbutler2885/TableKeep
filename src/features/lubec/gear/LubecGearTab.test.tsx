@@ -202,7 +202,7 @@ describe('Lubec Gear page', () => {
     fireEvent.click(form.getByRole('button', { name: 'Add it' }))
     expect(form.getByRole('alert').textContent).toBe('Give it a name.')
 
-    fireEvent.change(form.getByRole('textbox', { name: 'Name' }), { target: { value: 'Coil of rope' } })
+    fireEvent.change(form.getByRole('combobox', { name: 'Name' }), { target: { value: 'Coil of rope' } })
     fireEvent.change(form.getByRole('textbox', { name: 'Description' }), { target: { value: 'Fifty feet.' } })
     fireEvent.click(form.getByRole('button', { name: 'Add it' }))
 
@@ -230,16 +230,20 @@ describe('Lubec Gear page', () => {
     openGear('Tommy Eves')
 
     fireEvent.click(screen.getByRole('button', { name: 'Small stuff: empty' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Small stuff' })).getByRole('button', { name: '+ Add a small thing' }))
     let form = within(screen.getByRole('dialog', { name: 'Add an item' }))
     expect((form.getByRole('radio', { name: 'Small' }) as HTMLInputElement).checked).toBe(true)
-    fireEvent.change(form.getByRole('textbox', { name: 'Name' }), { target: { value: 'Marbles' } })
+    fireEvent.change(form.getByRole('combobox', { name: 'Name' }), { target: { value: 'Marbles' } })
     fireEvent.change(form.getByRole('spinbutton', { name: 'How many in all' }), { target: { value: '12' } })
     fireEvent.click(form.getByRole('button', { name: 'Add it' }))
+    expect(screen.getByRole('status').textContent).toBe('Marbles: Backpack, small stuff.')
+    expect(within(screen.getByRole('dialog', { name: 'Small stuff' })).getByRole('button', { name: 'Marbles ×12' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.getByRole('button', { name: 'Small stuff: Marbles ×12' })).toBeTruthy()
 
     fireEvent.click(screen.getByRole('button', { name: 'Right hand, empty, add an item' }))
     form = within(screen.getByRole('dialog', { name: 'Add an item' }))
-    fireEvent.change(form.getByRole('textbox', { name: 'Name' }), { target: { value: 'Oar' } })
+    fireEvent.change(form.getByRole('combobox', { name: 'Name' }), { target: { value: 'Oar' } })
     fireEvent.click(form.getByRole('radio', { name: '2' }))
     fireEvent.click(form.getByRole('button', { name: 'Add it' }))
 
@@ -249,6 +253,63 @@ describe('Lubec Gear page', () => {
     expect(mocks.setDoc).toHaveBeenCalledTimes(1)
   })
 
+  it('adds a stock flashlight the owner picks as one item with no URL, after the delay, and keeps it through a reload', () => {
+    vi.useFakeTimers()
+    database = { tommy: tommyEves() }
+    mountTab('player', 'player-1')
+    openGear('Tommy Eves')
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add an item' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Browse stock' }))
+    const picker = within(screen.getByRole('dialog', { name: 'Pick from stock' }))
+    expect((picker.getByRole('radio', { name: 'Thing' }) as HTMLInputElement).checked).toBe(true)
+    fireEvent.click(picker.getByRole('radio', { name: 'Holder' }))
+    fireEvent.click(picker.getByRole('button', { name: /^Lubec 1977 ?Flashlight/ }))
+    expect(screen.getByRole('status').textContent).toBe('Flashlight: copied in from stock.')
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Add an item' })).getByRole('button', { name: 'Add it' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+    act(() => vi.advanceTimersByTime(500))
+    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
+    const items = ((lastPayload().lubec as Fields).gear as Fields).items as Fields[]
+    expect(items).toEqual([{
+      id: expect.any(String), kind: 'holder', name: 'Flashlight', note: 'Two D batteries. About four hours of light.', size: 1, weight: 'normal', qty: 1,
+      art: 'flashlight', shape: 'tall', stock: 'Flashlight', hold: 'load', capacity: 2, loaded: 2, takes: 'dcell', carrier: 'backpack', pocket: 0,
+    }])
+    expect(JSON.stringify(items)).not.toMatch(/http|Url"/)
+
+    reload('player', 'player-1')
+    const gear = openGear('Tommy Eves')
+    expect(gear.querySelector('.pack .slot.item')?.textContent).toBe('Flashlight2 of 2 loaded')
+    expect(gear.querySelector('.pack .slot.item .slot-pic.tall svg.lubec-art')).not.toBeNull()
+  })
+
+  it('takes a used-up consumable off the sheet, and keeps an empty box', () => {
+    vi.useFakeTimers()
+    database = { tommy: tommyEves({ gear: FULL_GEAR }) }
+    mountTab('player', 'player-1')
+    openGear('Tommy Eves')
+
+    fireEvent.click(screen.getByRole('button', { name: /^Peanut butter sandwich/ }))
+    let card = within(screen.getByRole('dialog', { name: 'Peanut butter sandwich' }))
+    fireEvent.click(card.getByRole('button', { name: 'One fewer' }))
+    fireEvent.click(card.getByRole('button', { name: 'Use one' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('status').textContent).toBe('Peanut butter sandwich: used up.')
+
+    fireEvent.click(screen.getByRole('button', { name: /^Box of \.38 rounds/ }))
+    card = within(screen.getByRole('dialog', { name: 'Box of .38 rounds' }))
+    for (let n = 0; n < 13; n++) fireEvent.click(card.getByRole('button', { name: 'One fewer' }))
+    expect(card.getByText('0 of 50')).toBeTruthy()
+    fireEvent.click(card.getByRole('button', { name: 'Close' }))
+
+    act(() => vi.advanceTimersByTime(500))
+    const items = ((lastPayload().lubec as Fields).gear as Fields).items as Fields[]
+    expect(items.map((i) => i.name)).not.toContain('Peanut butter sandwich')
+    expect(items.find((i) => i.name === 'Box of .38 rounds')).toMatchObject({ loaded: 0 })
+  })
+
   it('keeps the form open with the refusal when the place is full', () => {
     database = { tommy: tommyEves({ gear: FULL_GEAR }) }
     mountTab('player', 'player-1')
@@ -256,7 +317,7 @@ describe('Lubec Gear page', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '+ Add an item' }))
     const form = within(screen.getByRole('dialog', { name: 'Add an item' }))
-    fireEvent.change(form.getByRole('textbox', { name: 'Name' }), { target: { value: 'Brick' } })
+    fireEvent.change(form.getByRole('combobox', { name: 'Name' }), { target: { value: 'Brick' } })
     fireEvent.click(form.getByRole('button', { name: 'Add it' }))
 
     expect(form.getByRole('alert').textContent).toBe('Main pocket is full: 0 of 5 free, and this needs 1.')
@@ -271,10 +332,10 @@ describe('Lubec Gear page', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '+ Add an item' }))
     const form = within(screen.getByRole('dialog', { name: 'Add an item' }))
-    fireEvent.change(form.getByRole('textbox', { name: 'Name' }), { target: { value: 'Brick' } })
-    fireEvent.keyDown(form.getByRole('textbox', { name: 'Name' }), { key: 'Enter' })
+    fireEvent.change(form.getByRole('combobox', { name: 'Name' }), { target: { value: 'Brick' } })
+    fireEvent.keyDown(form.getByRole('combobox', { name: 'Name' }), { key: 'Enter' })
     expect(screen.getByRole('dialog')).toBeTruthy()
-    fireEvent.keyDown(form.getByRole('textbox', { name: 'Name' }), { key: 'Escape' })
+    fireEvent.keyDown(form.getByRole('combobox', { name: 'Name' }), { key: 'Escape' })
 
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.querySelector('.lubec-gear .pack .slot.item')).toBeNull()

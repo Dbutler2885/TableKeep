@@ -1,27 +1,29 @@
 import { bodyTaken, bothHands, handsTaken, itemsIn } from '../../ruleSets/lubec/gear/placement'
 import type { LubecGear, LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
 import { heavyClass, SLOT_NAMES, type LubecSupplyName } from './gearLabels'
-import type { LubecGearAdd } from './LubecGearPack'
-import { LubecEmptySlot, LubecSlotPic, LubecSlotText } from './LubecGearSlot'
+import type { LubecGearAdd, LubecGearOpen } from './LubecGearPack'
+import { LubecEmptySlot, LubecItemBox, LubecSlotPic, LubecSlotText } from './LubecGearSlot'
 
 type RowId = 'hands' | 'body'
 
-type RowProps = { gear: LubecGear; id: RowId; supplyName: LubecSupplyName; onAdd: LubecGearAdd }
+type RowProps = { gear: LubecGear; id: RowId; supplyName: LubecSupplyName; onAdd: LubecGearAdd; onOpen: LubecGearOpen }
 
-function ItemSlot({ item, where, className = '', supplyName }: { item: LubecItem; where: string; className?: string; supplyName: LubecSupplyName }) {
+type ItemSlotProps = { item: LubecItem; where: string; className?: string; supplyName: LubecSupplyName; onOpen: LubecGearOpen }
+
+function ItemSlot({ item, where, className = '', supplyName, onOpen }: ItemSlotProps) {
   return (
-    <div className={`slot item${className}${heavyClass(item)}`}>
+    <LubecItemBox item={item} className={`slot item${className}${heavyClass(item)}`} onOpen={onOpen && onOpen.item}>
       <span className="where">{where}</span>
       <LubecSlotPic item={item} />
       <LubecSlotText item={item} supplyName={supplyName} />
-    </div>
+    </LubecItemBox>
   )
 }
 
-function SlotAt({ gear, id, supplyName, onAdd, k }: RowProps & { k: 0 | 1 }) {
+function SlotAt({ gear, id, supplyName, onAdd, onOpen, k }: RowProps & { k: 0 | 1 }) {
   const item = itemsIn(gear, id).find((x) => x.slot === k)
   const name = SLOT_NAMES[id][k]
-  if (item) return <ItemSlot item={item} where={name} supplyName={supplyName} />
+  if (item) return <ItemSlot item={item} where={name} supplyName={supplyName} onOpen={onOpen} />
   return (
     <LubecEmptySlot label={`${name}, empty, add an item`} onAdd={onAdd ? () => onAdd(`${id}#${k}`) : null}>
       <span className="where">{name}</span>
@@ -35,7 +37,7 @@ function SlotRow(props: RowProps) {
   return (
     <div className="slot-row">
       {both ? (
-        <ItemSlot item={both} where={`Both hands${both.size > 1 ? ` / ${both.size} slots` : ''}`} className=" both" supplyName={props.supplyName} />
+        <ItemSlot item={both} where={`Both hands${both.size > 1 ? ` / ${both.size} slots` : ''}`} className=" both" supplyName={props.supplyName} onOpen={props.onOpen} />
       ) : (
         <>
           <SlotAt {...props} k={0} />

@@ -1,7 +1,7 @@
 /** Adding a new item (Rules S3, S4 and W1 to W4), with B's submit wording. */
 import { describe, expect, it } from 'vitest'
-import { addLubecItem } from './addItem'
-import { emptyLubecGear, type LubecGear } from './gearRecord'
+import { addLubecItem, editLubecItem } from './addItem'
+import { emptyLubecGear, type LubecGear, type LubecItem } from './gearRecord'
 import type { LubecItemDraft } from './stacks'
 
 const thing = (extra: Partial<LubecItemDraft> = {}): LubecItemDraft => ({ kind: 'thing', name: 'Rope', note: '', size: 1, weight: 'normal', qty: 1, per: 1, ...extra })
@@ -54,5 +54,52 @@ describe('addLubecItem', () => {
   it('keeps a small thing in small stuff, whatever its count', () => {
     const added = add(emptyLubecGear(), 'backpack#small', thing({ size: 0, qty: 12, per: undefined }))
     expect(added.ok && added.gear.items).toEqual([{ ...thing({ size: 0, qty: 12, per: undefined }), id: 'id-1', carrier: 'backpack', pocket: null }])
+  })
+})
+
+describe('editLubecItem', () => {
+  const placed = (id: string, extra: Partial<LubecItem>): LubecItem => ({ ...thing(), id, carrier: 'backpack', pocket: 0, ...extra } as LubecItem)
+  const gearOf = (...items: LubecItem[]): LubecGear => ({ ...emptyLubecGear(), items })
+  const edit = (gear: LubecGear, id: string, dest: string, draft: LubecItemDraft) =>
+    editLubecItem(gear, gear.items.find((x) => x.id === id) as LubecItem, dest, draft, counter())
+
+  it('keeps the item\'s id, its place in the list and any field the form does not set, and clears what the form no longer says', () => {
+    const rope = placed('a', { kept: 'yes', art: 'rope', shape: 'square', stock: 'Coil of rope', cells: [4], per: 1 })
+    const after = edit(gearOf(rope, placed('b', { name: 'Map' })), 'a', 'backpack#0', thing({ name: 'Long rope', note: 'Frayed.' }))
+    expect(after).toEqual({
+      ok: true, extra: 0,
+      item: { ...thing({ name: 'Long rope', note: 'Frayed.' }), id: 'a', kept: 'yes', carrier: 'backpack', pocket: 0 },
+      gear: gearOf({ ...thing({ name: 'Long rope', note: 'Frayed.' }), id: 'a', kept: 'yes', carrier: 'backpack', pocket: 0 } as LubecItem, placed('b', { name: 'Map' })),
+    })
+  })
+
+  it('moves it to the place picked, setting its own place aside so a full place it already fills still takes it', () => {
+    const items = [0, 1, 2, 3, 4].map((k) => placed(`m${k}`, {}))
+    const after = edit(gearOf(...items), 'm0', 'backpack#0', thing({ name: 'Rope' }))
+    expect(after.ok && after.item).toMatchObject({ id: 'm0', carrier: 'backpack', pocket: 0 })
+    const held = edit(gearOf(placed('h', { carrier: 'hands', slot: 1, pocket: undefined })), 'h', 'hands#1', thing())
+    expect(held.ok && held.item).toEqual({ ...thing(), id: 'h', carrier: 'hands', slot: 1 })
+  })
+
+  it('adds the rest of a bigger count as new stacks of its batch, and keeps the batch it had', () => {
+    const after = edit(gearOf(placed('a', {})), 'a', 'backpack#0', thing({ qty: 3 }))
+    expect(after.ok && after.gear.items.map((i) => [i.id, i.qty, i.batch])).toEqual([['a', 1, 'id-1'], ['id-2', 1, 'id-1'], ['id-3', 1, 'id-1']])
+    expect(after.ok && after.extra).toBe(2)
+    const batched = edit(gearOf(placed('a', { batch: 'b7' })), 'a', 'backpack#0', thing({ qty: 2 }))
+    expect(batched.ok && batched.gear.items.map((i) => i.batch)).toEqual(['b7', 'b7'])
+  })
+
+  it('keeps a recorded Strength roll only for a heavy thing on you', () => {
+    const anvil = placed('a', { weight: 'heavy', check: 'fail', carrier: 'hands', slot: 0, pocket: undefined })
+    const heavy = edit(gearOf(anvil), 'a', 'hands', thing({ weight: 'heavy' }))
+    expect(heavy.ok && heavy.item.check).toBe('fail')
+    const light = edit(gearOf(anvil), 'a', 'hands', thing())
+    expect(light.ok && 'check' in light.item).toBe(false)
+  })
+
+  it('changes nothing when the draft or the place is refused', () => {
+    const gear = gearOf(placed('a', {}))
+    expect(edit(gear, 'a', 'backpack#0', thing({ name: '' }))).toEqual({ ok: false, msg: 'Give it a name.' })
+    expect(edit(gear, 'a', 'body', thing({ size: 2 }))).toEqual({ ok: false, msg: 'Body slots take 1-slot things only. Try both hands, the backpack or a carrier.' })
   })
 })

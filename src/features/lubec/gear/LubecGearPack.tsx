@@ -4,27 +4,32 @@ import { LUBEC_BACKPACK_POCKETS, type LubecGear, type LubecItem } from '../../ru
 import backpackNavy from './assets/backpack4-navy.webp'
 import { lubecPackLayout, lubecSpotsRect, type LubecPackLayout, type LubecPackSpot } from './backpackSlots'
 import { heavyClass, largeClass, uprightClass, type LubecSupplyName } from './gearLabels'
-import { LubecEmptySlot, LubecSlotPic, LubecSlotText } from './LubecGearSlot'
+import { LubecEmptySlot, LubecItemBox, LubecSlotPic, LubecSlotText } from './LubecGearSlot'
 import { useLubecPackCrop } from './useLubecPackCrop'
 
 /** Opens the add form at a place ("backpack#0", "hands#1", ...); null for a viewer who may only look. */
 export type LubecGearAdd = ((dest: string) => void) | null
 
-type PackProps = { gear: LubecGear; supplyName: LubecSupplyName; onAdd: LubecGearAdd }
+/** Opens the item sheet: an item's card, or the small stuff list; null for a viewer who may only look. */
+export type LubecGearOpen = { item: (itemId: string) => void; small: () => void } | null
+
+type PackProps = { gear: LubecGear; supplyName: LubecSupplyName; onAdd: LubecGearAdd; onOpen: LubecGearOpen }
 
 const addAt = (onAdd: LubecGearAdd, dest: string) => (onAdd ? () => onAdd(dest) : null)
 
-function PackItem({ item, className, style, supplyName }: { item: LubecItem; className: string; style: CSSProperties; supplyName: LubecSupplyName }) {
+type PackItemProps = { item: LubecItem; className: string; style: CSSProperties; supplyName: LubecSupplyName; onOpen: LubecGearOpen }
+
+function PackItem({ item, className, style, supplyName, onOpen }: PackItemProps) {
   return (
-    <div className={`slot item${className}${heavyClass(item)}`} style={style}>
+    <LubecItemBox item={item} className={`slot item${className}${heavyClass(item)}`} style={style} onOpen={onOpen && onOpen.item}>
       <LubecSlotPic item={item} />
       <LubecSlotText item={item} supplyName={supplyName} sizeTag />
-    </div>
+    </LubecItemBox>
   )
 }
 
 // The main pocket: the five boxes, each thing in the boxes it sits in, the big thing first (Rule W2).
-function MainPocket({ gear, spots, supplyName, onAdd }: PackProps & { spots: LubecPackSpot[] }) {
+function MainPocket({ gear, spots, supplyName, onAdd, onOpen }: PackProps & { spots: LubecPackSpot[] }) {
   const main = packMain(gear) ?? { cells: new Array(spots.length).fill(null), placed: [] }
   return (
     <>
@@ -38,17 +43,18 @@ function MainPocket({ gear, spots, supplyName, onAdd }: PackProps & { spots: Lub
           className={`${largeClass(item)}${uprightClass(item, at)}`}
           style={lubecSpotsRect(at.map((k) => spots[k]))}
           supplyName={supplyName}
+          onOpen={onOpen}
         />
       ))}
     </>
   )
 }
 
-function FrontPockets({ gear, spots, supplyName, onAdd }: PackProps & { spots: LubecPackSpot[] }) {
+function FrontPockets({ gear, spots, supplyName, onAdd, onOpen }: PackProps & { spots: LubecPackSpot[] }) {
   return [1, 2].map((k) => {
     const item = itemsIn(gear, 'backpack').find((x) => x.pocket === k)
     const style = lubecSpotsRect([spots[k - 1]])
-    if (item) return <PackItem key={item.id} item={item} className=" pocket" style={style} supplyName={supplyName} />
+    if (item) return <PackItem key={item.id} item={item} className=" pocket" style={style} supplyName={supplyName} onOpen={onOpen} />
     const side = k === 1 ? 'left' : 'right'
     return <LubecEmptySlot key={`front-${k}`} style={style} label={`Front ${side} pocket, empty, add an item`} onAdd={addAt(onAdd, `backpack#${k}`)} />
   })
@@ -62,19 +68,19 @@ function smallNames(small: readonly LubecItem[], canAdd: boolean): string {
   return small.slice(0, 2).map(smallLabel).join(', ') + (small.length > 2 ? ` +${small.length - 2} more` : '')
 }
 
-// Small stuff: things too small to count, which take no slot in the bag (Rule S4).
-function SmallStuff({ gear, spot, onAdd }: { gear: LubecGear; spot: LubecPackSpot; onAdd: LubecGearAdd }) {
+// Small stuff: things too small to count, which take no slot in the bag (Rule S4). The pill opens their list.
+function SmallStuff({ gear, spot, onOpen }: { gear: LubecGear; spot: LubecPackSpot; onOpen: LubecGearOpen }) {
   const small = itemsIn(gear, 'backpack').filter((i) => i.pocket == null)
   const style = { left: `${spot.x}%`, top: `${spot.y}%`, width: `${spot.w}%`, minHeight: `${spot.h}%` }
   const inner = (
     <>
       <span className="label">Small stuff{small.length ? ` / ${small.length}` : ''}</span>
-      <span className="names">{smallNames(small, onAdd !== null)}</span>
+      <span className="names">{smallNames(small, onOpen !== null)}</span>
     </>
   )
-  if (!onAdd) return <div className="small-stuff" style={style}>{inner}</div>
+  if (!onOpen) return <div className="small-stuff" style={style}>{inner}</div>
   const label = `Small stuff: ${small.length ? small.map(smallLabel).join(', ') : 'empty'}`
-  return <button type="button" className="small-stuff" style={style} aria-label={label} onClick={() => onAdd('backpack#small')}>{inner}</button>
+  return <button type="button" className="small-stuff" style={style} aria-label={label} onClick={onOpen.small}>{inner}</button>
 }
 
 function ZoneLabels({ gear, labels }: { gear: LubecGear; labels: LubecPackLayout['labels'] }) {
@@ -87,7 +93,7 @@ function ZoneLabels({ gear, labels }: { gear: LubecGear; labels: LubecPackLayout
 }
 
 /** The Backpack panel: the pack's picture with its five main boxes, the small stuff pill and the two front boxes on it (B's renderPack). */
-export function LubecGearPack({ gear, supplyName, onAdd }: PackProps) {
+export function LubecGearPack({ gear, supplyName, onAdd, onOpen }: PackProps) {
   const layout = lubecPackLayout(useLubecPackCrop())
   const cap = capacity(LUBEC_BACKPACK_POCKETS)
   const full = used(gear, 'backpack')
@@ -105,9 +111,9 @@ export function LubecGearPack({ gear, supplyName, onAdd }: PackProps) {
           style={{ backgroundImage: `url(${backpackNavy})` }}
         />
         <ZoneLabels gear={gear} labels={layout.labels} />
-        <MainPocket gear={gear} spots={layout.main} supplyName={supplyName} onAdd={onAdd} />
-        <FrontPockets gear={gear} spots={layout.front} supplyName={supplyName} onAdd={onAdd} />
-        <SmallStuff gear={gear} spot={layout.small} onAdd={onAdd} />
+        <MainPocket gear={gear} spots={layout.main} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} />
+        <FrontPockets gear={gear} spots={layout.front} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} />
+        <SmallStuff gear={gear} spot={layout.small} onOpen={onOpen} />
       </div>
     </div>
   )
