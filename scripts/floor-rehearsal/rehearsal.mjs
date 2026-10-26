@@ -6,6 +6,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { withCharacterSchemaFloors } from './floors.mjs'
+import { withEmulatorPorts } from '../emulators/ports.mjs'
 
 /**
  * The generated files. Both are ignored by git, and both land in the
@@ -26,12 +27,16 @@ export function raisedFloorRules(rulesText, currentVersions) {
   return withCharacterSchemaFloors(rulesText, currentVersions)
 }
 
-/** `firebase.json` with the emulators loading the raised rules instead. */
-export function rehearsalConfig(baseConfig) {
-  return { ...baseConfig, firestore: { ...baseConfig.firestore, rules: REHEARSAL_RULES_FILE } }
+/**
+ * `firebase.json` with the emulators loading the raised rules instead, on this
+ * checkout's port block when it has one (see `scripts/emulators/ports.mjs`).
+ */
+export function rehearsalConfig(baseConfig, resolvedPorts = { base: null }) {
+  const config = resolvedPorts.base === null ? baseConfig : withEmulatorPorts(baseConfig, resolvedPorts.ports)
+  return { ...config, firestore: { ...config.firestore, rules: REHEARSAL_RULES_FILE } }
 }
 
-const EMULATORS_EXEC = /^firebase emulators:exec --only (\S+) "(.+)"$/
+const EMULATORS_EXEC = /^node scripts\/emulators\/firebase\.mjs emulators:exec --only (\S+) "(.+)"$/
 
 /**
  * The `firebase` arguments that rerun one job against the generated config.
@@ -55,10 +60,10 @@ export function selectedJobs(argv) {
 }
 
 /** Writes the raised rules and the config that loads them into `root`. */
-export function writeRehearsalFiles(root, currentVersions) {
+export function writeRehearsalFiles(root, currentVersions, resolvedPorts) {
   const read = (file) => readFileSync(path.join(root, file), 'utf8')
   writeFileSync(path.join(root, REHEARSAL_RULES_FILE), raisedFloorRules(read('firestore.rules'), currentVersions))
-  const config = rehearsalConfig(JSON.parse(read('firebase.json')))
+  const config = rehearsalConfig(JSON.parse(read('firebase.json')), resolvedPorts)
   writeFileSync(path.join(root, REHEARSAL_CONFIG_FILE), `${JSON.stringify(config, null, 2)}\n`)
 }
 

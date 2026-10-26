@@ -8,13 +8,13 @@ const exampleEnv = readFileSync(resolve(process.cwd(), '.env.example'), 'utf8')
 describe('local Firebase boundary', () => {
   it('starts the default development server inside the Firebase emulators', () => {
     expect(packageJson.scripts.dev).toBe(
-      'VITE_USE_FIREBASE_EMULATORS=true firebase emulators:exec --only auth,firestore,storage "vite"',
+      'VITE_USE_FIREBASE_EMULATORS=true node scripts/emulators/firebase.mjs emulators:exec --only auth,firestore,storage "vite"',
     )
   })
 
   it('builds and serves local previews against the Firebase emulators', () => {
     expect(packageJson.scripts.preview).toBe(
-      'VITE_USE_FIREBASE_EMULATORS=true npm run build && VITE_USE_FIREBASE_EMULATORS=true firebase emulators:exec --only auth,firestore,storage "vite preview"',
+      'VITE_USE_FIREBASE_EMULATORS=true node scripts/emulators/firebase.mjs emulators:exec --only auth,firestore,storage "npm run build && vite preview"',
     )
   })
 

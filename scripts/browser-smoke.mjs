@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import process from 'node:process'
 import puppeteer, { Locator } from 'puppeteer'
 import { isExpectedFirestoreEmulatorChannelError } from './browser-smoke-errors.mjs'
+import { clientEmulatorEnv, emulatorHostPort, resolveEmulatorPorts } from './emulators/ports.mjs'
 import {
   characterPath,
   listDocumentIds,
@@ -18,8 +19,18 @@ import {
 import { reviveTimestamps } from '../src/features/ruleSets/characterFixtures.ts'
 import { migrateCharacter, oseCharacterVersioning, vtmCharacterVersioning } from '../src/features/ruleSets/characterMigrations.ts'
 
-const APP_URL = 'http://127.0.0.1:4173'
-const AUTH_EMULATOR_URL = 'http://127.0.0.1:9099'
+// This checkout's ports, corrected by what `firebase emulators:exec` says it
+// actually started, so the app and the seeding talk to the same emulators.
+const { ports } = resolveEmulatorPorts()
+const emulatorPorts = {
+  auth: emulatorHostPort(process.env, 'FIREBASE_AUTH_EMULATOR_HOST', ports.auth),
+  firestore: emulatorHostPort(process.env, 'FIRESTORE_EMULATOR_HOST', ports.firestore),
+  storage: emulatorHostPort(process.env, 'FIREBASE_STORAGE_EMULATOR_HOST', ports.storage),
+  functions: ports.functions,
+}
+
+const APP_URL = `http://127.0.0.1:${ports.smokeApp}`
+const AUTH_EMULATOR_URL = `http://127.0.0.1:${emulatorPorts.auth}`
 const API_KEY = 'demo-api-key'
 const PASSWORD = 'table-keep-smoke-password'
 const SCREENSHOT_DIR = 'artifacts/browser-smoke'
@@ -56,7 +67,7 @@ function startApp() {
   const viteBin = new URL('../node_modules/vite/bin/vite.js', import.meta.url)
   return spawn(
     process.execPath,
-    [viteBin.pathname, '--host', '127.0.0.1', '--port', '4173', '--strictPort'],
+    [viteBin.pathname, '--host', '127.0.0.1', '--port', String(ports.smokeApp), '--strictPort'],
     {
       env: {
         ...process.env,
@@ -67,6 +78,7 @@ function startApp() {
         VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000',
         VITE_FIREBASE_APP_ID: '1:000000000000:web:0000000000000000000000',
         VITE_USE_FIREBASE_EMULATORS: 'true',
+        ...clientEmulatorEnv(emulatorPorts),
       },
       stdio: ['ignore', 'inherit', 'inherit'],
     },
