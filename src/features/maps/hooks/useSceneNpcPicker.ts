@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { NpcSummary } from '../lib/types'
+import type { MapRecord, NpcSummary } from '../lib/types'
 
 // The map's NPCs not yet preloaded into its scene, and which of them the picker
 // shows. A pick that gets preloaded moves the picker on to the first one left.
@@ -25,4 +25,19 @@ export function useAllNpcTags(mapNpcs: NpcSummary[]) {
     () => Array.from(new Set(mapNpcs.flatMap((npc) => npc.tags))).sort((a, b) => a.localeCompare(b)),
     [mapNpcs],
   )
+}
+
+// The selected map's preloaded scene NPCs, and the NPC it is presenting.
+export function useSceneNpcs(mapNpcs: NpcSummary[], selectedMap: MapRecord | null) {
+  const sceneNpcIds = selectedMap?.sceneNpcIds
+  const presentedNpcId = selectedMap?.presentedNpcId
+  const sceneNpcs = useMemo(
+    () => mapNpcs.filter((npc) => sceneNpcIds?.includes(npc.id)),
+    [mapNpcs, sceneNpcIds],
+  )
+  const presentedNpc = useMemo(
+    () => mapNpcs.find((npc) => npc.id === presentedNpcId) ?? null,
+    [mapNpcs, presentedNpcId],
+  )
+  return { sceneNpcs, presentedNpc }
 }
