@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { JSDOM } from 'jsdom'
 import {
   calibratedMapFields,
   campaignIdFromUrl,
@@ -12,6 +13,7 @@ import {
   oseCharacterFields,
   ownedFixtureFields,
   partyTokenFields,
+  readLubecSpeed,
   showLubecFormField,
   step,
   storedItemsProblem,
@@ -341,6 +343,37 @@ describe('the heavy anvil\'s Strength roll (step 9)', () => {
     expect(heavyAnvilProblems(rolled('pass', 2, 'Speed'), { failed: true, stressBefore: 2 })).toEqual([
       "the stored anvil's Strength roll is pass", 'the last roll is not the Strength check', 'Stress is 2, not 3',
     ])
+  })
+})
+
+describe('reading the Speed circle (step 10)', () => {
+  it.each([
+    ['36', '51 +5 class -20 gear'],
+    ['56', '51 +5 class'],
+  ])('reads Speed %s and its full note, ignoring other abilities', (value, note) => {
+    const dom = new JSDOM(`
+      <div class="ability"></div>
+      <div class="ability"><span class="ability-name">Strength</span><button class="roll-circle">45</button></div>
+      <div class="ability">
+        <button class="roll-circle"><span class="number">${value}</span></button>
+        <span class="ability-name">Speed</span>
+        <span class="base-note"><span class="note-part">${note}</span></span>
+      </div>
+    `)
+    expect(readLubecSpeed(dom.window.document.body)).toBe(`${value} / ${note}`)
+    dom.window.close()
+  })
+
+  it.each([
+    ['', 'undefined / undefined'],
+    ['<span class="ability-name">Strength</span><button class="roll-circle">45</button>', 'undefined / undefined'],
+    ['<span class="ability-name">Speed</span>', 'undefined / undefined'],
+    ['<span class="ability-name">Speed</span><span class="base-note">51 +5 class</span>', 'undefined / 51 +5 class'],
+    ['<span class="ability-name">Speed</span><button class="roll-circle">56</button>', '56 / undefined'],
+  ])('returns an incomplete reading for the smoke poll when markup is %s', (markup, expected) => {
+    const dom = new JSDOM(`<div class="ability">${markup}</div>`)
+    expect(readLubecSpeed(dom.window.document.body)).toBe(expected)
+    dom.window.close()
   })
 })
 

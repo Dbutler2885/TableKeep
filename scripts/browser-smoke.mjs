@@ -1619,7 +1619,7 @@ async function failLubecAnvil(page) {
 }
 
 // What the Core page's Speed circle shows, "36 / 51 +5 class -20 gear", read in the page.
-const readLubecSpeed = (core) => {
+export const readLubecSpeed = (core) => {
   const ability = [...core.querySelectorAll('.ability')].find((a) => a.querySelector('.ability-name')?.textContent === 'Speed')
   return `${ability?.querySelector('.roll-circle')?.textContent} / ${ability?.querySelector('.base-note')?.textContent}`
 }
