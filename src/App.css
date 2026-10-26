@@ -9567,6 +9567,80 @@ button:disabled {
   padding-right: 0.25rem;
 }
 
+/* An NPC's character sheet over the map: nearly the whole window, a bar that
+   names the NPC and holds the close button, and the sheet below it, which
+   scrolls when it is taller than the window. A phone gets the whole screen. */
+.confirm-overlay.map-npc-sheet-overlay {
+  padding: 1rem;
+  overflow: hidden;
+}
+
+.confirm-modal.map-npc-sheet-modal {
+  width: calc(100vw - 2rem);
+  height: calc(100dvh - 2rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.map-npc-sheet-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.35rem 0.6rem 0.35rem 1rem;
+  border-bottom: 1px solid #d7d7d1;
+}
+
+.map-npc-sheet-header h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  min-width: 0;
+  margin: 0;
+  font-size: 1rem;
+}
+
+.map-npc-sheet-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-npc-sheet-close {
+  flex: 0 0 auto;
+}
+
+.map-npc-sheet-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.map-npc-sheet-note {
+  margin: 1rem;
+}
+
+@media (max-width: 560px) {
+  .confirm-overlay.map-npc-sheet-overlay {
+    padding: 0;
+  }
+
+  .confirm-modal.map-npc-sheet-modal {
+    width: 100vw;
+    height: 100dvh;
+    border: 0;
+    border-radius: 0;
+  }
+}
+
 .confirm-overlay {
   position: fixed;
   inset: 0;
@@ -18197,6 +18271,62 @@ button:disabled {
   font-family: var(--lubec-type);
 }
 
+/* An NPC's sheet over the map: the sheet's own dialog paper, with a bar that
+   letters "Character sheet" as the NPC tabs are lettered and names the NPC in
+   the sheet's display face. */
+.shell-root[data-theme="lubec"] .map-npc-sheet-header {
+  border-bottom: 1.5px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .confirm-modal .map-npc-sheet-header h3 {
+  padding: 0;
+  border: 0;
+  color: var(--lubec-ink);
+  font: 800 1.15rem/1.1 var(--lubec-display);
+}
+
+.shell-root[data-theme="lubec"] .map-npc-sheet-kicker {
+  color: var(--lubec-rust);
+  font: 700 1rem/1 var(--lubec-condensed);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .map-npc-sheet-close {
+  background: var(--lubec-cream);
+  border: 1.5px solid var(--lubec-ink);
+  border-radius: 0;
+  color: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .map-npc-sheet-close:hover {
+  background: var(--lubec-paper-deep);
+}
+
+/* An NPC with no sheet yet, or one still opening: its line and the ways in,
+   clear of the frame. */
+.shell-root[data-theme="lubec"] .map-npc-sheet-body > .lubec-npc-sheet-start,
+.shell-root[data-theme="lubec"] .map-npc-sheet-body > .lubec-sheet-none {
+  margin: 1rem;
+}
+
+.shell-root[data-theme="lubec"] .map-npc-sheet-close:focus-visible {
+  outline: 2px solid var(--lubec-blue);
+  outline-offset: -2px;
+}
+
+.shell-root[data-theme="lubec"] .map-npc-sheet-note {
+  color: var(--lubec-muted);
+  font-family: var(--lubec-type);
+}
+
+@media (max-width: 560px) {
+  .shell-root[data-theme="lubec"] .confirm-modal.map-npc-sheet-modal {
+    border: 0;
+    box-shadow: none;
+  }
+}
+
 /* --- New character and Direct entry ------------------------------------ */
 
 /* The roster's heading and New character share a row while they fit, and the
@@ -18461,15 +18591,17 @@ button:disabled {
      the page. The grain lies over everything below the menu and dialogs, as
      it lay over the sheet. Each tile's filter covers exactly the tile, and the
      mottling tile is 1000px, a whole number of the noise's cycles, so the
-     tiles stitch across the page without a seam. */
-  .shell-root[data-theme="lubec"]:has(.lubec-sheet) {
+     tiles stitch across the page without a seam. An NPC's sheet open over
+     the map is in a dialog, not on the page, and leaves the map's page as it
+     is. */
+  .shell-root[data-theme="lubec"]:has(.lubec-sheet:not(.map-npc-sheet-overlay *)) {
     background:
       radial-gradient(ellipse at 50% 40%, transparent 55%, rgba(74, 52, 26, 0.3) 100%),
       linear-gradient(180deg, rgba(120, 88, 40, 0.08), transparent 30%, rgba(90, 64, 30, 0.12)),
       #eadcbf;
   }
 
-  .shell-root[data-theme="lubec"]:has(.lubec-sheet)::after {
+  .shell-root[data-theme="lubec"]:has(.lubec-sheet:not(.map-npc-sheet-overlay *))::after {
     content: "";
     position: fixed;
     inset: 0;
@@ -18480,7 +18612,7 @@ button:disabled {
     opacity: 0.5;
   }
 
-  .shell-root[data-theme="lubec"]:has(.lubec-sheet) .shell-layout {
+  .shell-root[data-theme="lubec"]:has(.lubec-sheet:not(.map-npc-sheet-overlay *)) .shell-layout {
     margin-top: 0;
   }
 
@@ -18778,5 +18910,45 @@ button:disabled {
 @media (min-width: 1251px) and (max-height: 760px) {
   .shell-root[data-theme="lubec"] .npc-detail-tabs .lubec-sheet {
     --lubec-fit-height: 0.75;
+  }
+}
+
+/* An NPC's sheet over the map sits under the overlay's bar and inside its
+   margins, about 81px of the window's height, so its Core page takes its own
+   steps down the height ladder: the page is about 835px tall at full size. */
+
+@media (min-width: 1251px) and (max-height: 915px) {
+  .shell-root[data-theme="lubec"] .map-npc-sheet-overlay .lubec-sheet {
+    --lubec-fit-height: 0.95;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 874px) {
+  .shell-root[data-theme="lubec"] .map-npc-sheet-overlay .lubec-sheet {
+    --lubec-fit-height: 0.9;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 832px) {
+  .shell-root[data-theme="lubec"] .map-npc-sheet-overlay .lubec-sheet {
+    --lubec-fit-height: 0.85;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 790px) {
+  .shell-root[data-theme="lubec"] .map-npc-sheet-overlay .lubec-sheet {
+    --lubec-fit-height: 0.8;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 748px) {
+  .shell-root[data-theme="lubec"] .map-npc-sheet-overlay .lubec-sheet {
+    --lubec-fit-height: 0.75;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 707px) {
+  .shell-root[data-theme="lubec"] .map-npc-sheet-overlay .lubec-sheet {
+    --lubec-fit-height: 0.7;
   }
 }
