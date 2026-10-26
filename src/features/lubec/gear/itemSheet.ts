@@ -28,7 +28,10 @@ export type LubecFormSheet = {
   browsing: string | null
 }
 
-export type LubecItemSheetState = { mode: 'view'; itemId: string; error: string | null } | { mode: 'small' } | LubecFormSheet
+/** The card, with its Move panel open or not. */
+export type LubecCardSheet = { mode: 'view'; itemId: string; error: string | null; move?: boolean }
+
+export type LubecItemSheetState = LubecCardSheet | { mode: 'small' } | LubecFormSheet
 
 export const lubecCardSheet = (itemId: string): LubecItemSheetState => ({ mode: 'view', itemId, error: null })
 

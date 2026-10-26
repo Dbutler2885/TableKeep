@@ -1441,6 +1441,75 @@ function lubecGearFitStep(page, testCase) {
   return step('fit On you on one desktop screen', () => expectLubecGearOnOneScreen(page))
 }
 
+// Drags with real pointer events: a press, a few steps past the pick-up distance, then across, then a let-go.
+async function dragWithMouse(page, from, to) {
+  await page.$eval(to, (el) => el.scrollIntoView({ block: 'end' }))
+  const a = await centreOf(await page.waitForSelector(from)), b = await centreOf(await page.waitForSelector(to))
+  await page.mouse.move(a.x, a.y)
+  await page.mouse.down()
+  await page.mouse.move(a.x + 12, a.y + 6, { steps: 3 })
+  await page.mouse.move(b.x, b.y, { steps: 12 })
+  await page.waitForSelector(`${to}.drop-hot`)
+  await page.mouse.up()
+}
+
+const storedGearItem = (stored, name) => storedGearItems(storedAt(stored, ['lubec', 'mapValue', 'fields', 'gear']))
+  .find((item) => storedAt(item, ['mapValue', 'fields', 'name', 'stringValue']) === name)
+
+// Step 14: the flashlight dragged from the main pocket into the empty left hand is stored in `hands`.
+export function draggedToHandProblems(stored) {
+  const carrier = storedAt(storedGearItem(stored, 'Flashlight'), ['mapValue', 'fields', 'carrier', 'stringValue'])
+  return carrier === 'hands' ? [] : [`the stored flashlight is in ${carrier}`]
+}
+
+async function dragLubecFlashlightToHand(page) {
+  await dragWithMouse(page, `${LUBEC_GEAR_PAGE} .pack .slot.item`, `${LUBEC_GEAR_PAGE} [data-drop="hands#0"]`)
+  await waitForBodyText(page, 'Flashlight: Left hand. 2 actions.')
+}
+
+// On a phone the form is pages: each step tab is tried until the field shows.
+export async function showLubecFormField(page, selector) {
+  const steps = await page.$$(`${LUBEC_GEAR_SHEET} .form-steps button`)
+  for (const tab of steps) {
+    if (await page.$eval(selector, (el) => el.checkVisibility())) return
+    await tab.click()
+  }
+}
+
+async function addLubecHeavyAnvil(page) {
+  await page.locator(`${LUBEC_GEAR_PAGE} .gear-bar .add-top`).click()
+  await page.locator(`${LUBEC_GEAR_SHEET} input[role="combobox"]`).fill('Small anvil')
+  await showLubecFormField(page, `${LUBEC_GEAR_SHEET} input[name="weight"][value="heavy"]`)
+  await page.locator(`${LUBEC_GEAR_SHEET} input[name="weight"][value="heavy"]`).click()
+  await submitLubecGearForm(page)
+}
+
+async function dropLubecAnvil(page) {
+  await page.locator(`${LUBEC_GEAR_PAGE} .pack .slot.item ::-p-text(Small anvil)`).click()
+  await page.locator(`${LUBEC_GEAR_SHEET} .actions button ::-p-text(Drop)`).click()
+  await waitForBodyText(page, 'Dropped the small anvil. It goes to the GM.')
+  await page.waitForFunction((selector) => !document.querySelector(selector), {}, LUBEC_GEAR_SHEET)
+}
+
+const storedText = (stored, field) => storedAt(stored, [field, 'stringValue'])
+
+// Step 15: the anvil is off the sheet, and one dropped GM item holds it, named for the character that dropped it, with who and from where.
+export function droppedAnvilProblems({ dropped, character }) {
+  const shown = dropped.map((item) => ['name', 'status', 'droppedByCharacterName', 'droppedFrom'].map((field) => storedText(item, field)).join('/'))
+  const expected = `Small anvil/dropped/${storedText(character, 'name')}/backpack`
+  const problems = shown.join() === expected ? [] : [`the GM items are ${JSON.stringify(shown)}, not ${expected}`]
+  if (dropped.some((item) => !storedText(item, 'droppedByUserId'))) problems.push('a dropped GM item names nobody who dropped it')
+  if (storedGearItem(character, 'Small anvil')) problems.push('the anvil is still on the sheet')
+  return problems
+}
+
+// The campaign's GM items, and the character they were dropped from, as stored.
+async function readDroppedItems(path) {
+  const gmItemsPath = path.replace(/\/characters\/[^/]+$/, '/gmItems')
+  const dropped = await Promise.all((await listDocumentIds(gmItemsPath)).map((id) => readDocumentFields(`${gmItemsPath}/${id}`)))
+  return { dropped, character: await readDocumentFields(path) }
+}
+
 async function lubecGearPageSteps(page, testCase, path) {
   await step('offer the three page tabs: Core sheet, Skills, Gear', () => expectLubecPageTabs(page))
   await step('finalize Tommy with the draft bar\'s Finalize and the dialog\'s Finalize', () => finalizeLubecCharacter(page))
@@ -1460,6 +1529,15 @@ async function lubecGearPageSteps(page, testCase, path) {
     await openLubecSheet(page)
     await openLubecGearPage(page)
     await expectLubecGearItemInMainPocket(page, 'Flashlight', '2 of 2 loaded')
+  })
+  await step('drag the Flashlight to the free left hand with real pointer events, storing it in hands', async () => {
+    await dragLubecFlashlightToHand(page)
+    await waitForStored(() => readDocumentFields(path), draggedToHandProblems)
+  })
+  await step('drop a heavy Small anvil from the backpack, which leaves the sheet for a dropped GM item', async () => {
+    await addLubecHeavyAnvil(page)
+    await dropLubecAnvil(page)
+    await waitForStored(() => readDroppedItems(path), droppedAnvilProblems)
   })
   await page.mouse.move(0, page.viewport().height - 1)
   await step('fit the Gear page without scrolling sideways after the add', () => expectNoSidewaysScroll(page))
@@ -1604,7 +1682,8 @@ async function runViewport(browser, testCase) {
       + 'and saw a party moved through a check cycle meet a wandering monster on an OSE map but not on a VtM map, '
       + 'and, in the Lubec campaign made through the picker, in its own skin, with its five tabs, imported a character file with a portrait, '
       + 'gave it a token image from the sheet, saw both again after a reload from their stored paths, opened the imported character\'s Core page and Skills page, '
-      + 'finalized it and added a stock Flashlight on its Gear page that was stored by path alone and kept through a reload, '
+      + 'finalized it and added a stock Flashlight on its Gear page that was stored by path alone and kept through a reload, dragged it to a hand, '
+      + 'dropped a heavy anvil to the GM Items tab, '
       + 'and made an NPC a Direct entry sheet on its Character sheet tab and finalized it.',
     )
   } finally {

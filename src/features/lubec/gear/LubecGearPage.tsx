@@ -1,13 +1,17 @@
-import { useState } from 'react'
+import { useState, type RefObject } from 'react'
 import { inventoryFull } from '../../ruleSets/lubec/gear/placement'
 import type { LubecGear } from '../../ruleSets/lubec/gear/gearRecord'
 import type { LubecStockItem } from '../../ruleSets/lubec/gear/stock'
 import { lubecSupplies } from '../../ruleSets/lubec/gear/supplies'
 import { supplyNameIn } from './gearLabels'
 import { lubecAddSheet, lubecCardSheet, type LubecItemSheetState } from './itemSheet'
+import { LubecDragLayer } from './LubecDragLayer'
+import { LubecDragContext } from './lubecDragMarks'
+import type { LubecGearDrop } from './lubecGearDrop'
 import { LubecGearHandsBody } from './LubecGearHandsBody'
 import { LubecGearPack, type LubecGearAdd, type LubecGearOpen } from './LubecGearPack'
 import { LubecItemSheet } from './LubecItemSheet'
+import { useLubecGearMoves } from './useLubecGearMoves'
 import { useLubecToast } from './useLubecToast'
 import './lubecGear.css'
 import './lubecGearSheet.css'
@@ -20,6 +24,8 @@ type LubecGearView = 'on-you' | 'carriers'
 type GearPageProps = {
   gear: LubecGear
   onGearChange: LubecGearChange
+  /** Drops a thing to the GM's Items tab; null for a viewer who may only look. */
+  onDrop?: LubecGearDrop
   /** The campaign's own list for the stock picker's "This campaign"; empty, and so hidden, until the GM Items tab fills it. */
   campaignStock?: readonly LubecStockItem[]
 }
@@ -51,13 +57,13 @@ function GearBar({ view, onView, full, onAdd }: GearBarProps) {
   )
 }
 
-type OnYouProps = { gear: LubecGear; onAdd: LubecGearAdd; onOpen: LubecGearOpen }
+type OnYouProps = { gear: LubecGear; onAdd: LubecGearAdd; onOpen: LubecGearOpen; sectionRef: RefObject<HTMLElement | null> }
 
-// On you: the backpack, the hands and the body, on one screen.
-function OnYou({ gear, onAdd, onOpen }: OnYouProps) {
+// On you: the backpack, the hands and the body, on one screen. Things on it are dragged to move them (Rule M7).
+function OnYou({ gear, onAdd, onOpen, sectionRef }: OnYouProps) {
   const supplyName = supplyNameIn(lubecSupplies(gear))
   return (
-    <section id="lubec-gear-view-on-you" role="tabpanel" aria-labelledby="lubec-gear-tab-on-you">
+    <section ref={sectionRef} id="lubec-gear-view-on-you" role="tabpanel" aria-labelledby="lubec-gear-tab-on-you">
       <div className="on-you">
         <LubecGearPack gear={gear} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} />
         <div className="side">
@@ -87,20 +93,32 @@ function sheetOpeners(canEdit: boolean, setSheet: (sheet: LubecItemSheetState) =
   }
 }
 
+// The one-line confirmation, which says "Moving..." while a move is being saved.
+function Toast({ text, shown, busy }: { text: string; shown: boolean; busy: boolean }) {
+  return <div className={`toast${shown || busy ? ' show' : ''}`} role="status" aria-live="polite">{busy ? 'Moving...' : text}</div>
+}
+
 /** The Lubec sheet's Gear page: the Gear bar, B's On you view of the backpack, the hands and the body, and the item sheet over it. */
-export function LubecGearPage({ gear, onGearChange, campaignStock = NO_CAMPAIGN_STOCK }: GearPageProps) {
+export function LubecGearPage({ gear, onGearChange, onDrop = null, campaignStock = NO_CAMPAIGN_STOCK }: GearPageProps) {
   const [view, setView] = useState<LubecGearView>('on-you')
   const [sheet, setSheet] = useState<LubecItemSheetState | null>(null)
   const toast = useLubecToast()
-  const { onAdd, onOpen } = sheetOpeners(onGearChange !== null, setSheet)
+  const moves = useLubecGearMoves({ gear, onGearChange, onDrop, toast, setSheet })
+  const { onAdd, onOpen } = sheetOpeners(moves.change !== null, setSheet)
   return (
-    <div className="lubec-page lubec-gear">
+    <div className="lubec-page lubec-gear" aria-busy={moves.busy}>
       <GearBar view={view} onView={setView} full={inventoryFull(gear)} onAdd={onAdd && (() => onAdd('backpack#0'))} />
-      {view === 'on-you' ? <OnYou gear={gear} onAdd={onAdd} onOpen={onOpen} /> : <Carriers />}
-      {onGearChange && sheet ? (
-        <LubecItemSheet sheet={sheet} gear={gear} onGearChange={onGearChange} onSheet={setSheet} toast={toast.show} campaignStock={campaignStock} />
+      <LubecDragContext value={moves.drag.view}>
+        {view === 'on-you' ? <OnYou gear={gear} onAdd={onAdd} onOpen={onOpen} sectionRef={moves.onYou} /> : <Carriers />}
+      </LubecDragContext>
+      {moves.change && sheet ? (
+        <LubecItemSheet
+          sheet={sheet} gear={gear} onGearChange={moves.change} onSheet={setSheet} toast={toast.show} campaignStock={campaignStock}
+          onDrop={moves.drop} busy={moves.busy}
+        />
       ) : null}
-      <div className={`toast${toast.shown ? ' show' : ''}`} role="status" aria-live="polite">{toast.text}</div>
+      <LubecDragLayer view={moves.drag.view} item={gear.items.find((x) => x.id === moves.drag.view?.itemId)} ghost={moves.drag.ghost} dropZone={moves.drag.dropZone} />
+      <Toast text={toast.text} shown={toast.shown} busy={moves.busy} />
     </div>
   )
 }

@@ -5,6 +5,8 @@ import backpackNavy from './assets/backpacks/navy-stripe.webp'
 import { lubecPackLayout, lubecSpotsRect, type LubecPackLayout, type LubecPackSpot } from './backpackSlots'
 import { heavyClass, largeClass, uprightClass, type LubecSupplyName } from './gearLabels'
 import { LubecEmptySlot, LubecItemBox, LubecSlotPic, LubecSlotText } from './LubecGearSlot'
+import type { LubecDropTarget } from './dragGeometry'
+import { useLubecDragView, useLubecDropClass } from './lubecDragMarks'
 import { useLubecPackCrop } from './useLubecPackCrop'
 
 /** Opens the add form at a place ("backpack#0", "hands#1", ...); null for a viewer who may only look. */
@@ -17,11 +19,11 @@ type PackProps = { gear: LubecGear; supplyName: LubecSupplyName; onAdd: LubecGea
 
 const addAt = (onAdd: LubecGearAdd, dest: string) => (onAdd ? () => onAdd(dest) : null)
 
-type PackItemProps = { item: LubecItem; className: string; style: CSSProperties; supplyName: LubecSupplyName; onOpen: LubecGearOpen }
+type PackItemProps = { item: LubecItem; className: string; style: CSSProperties; drop?: string; supplyName: LubecSupplyName; onOpen: LubecGearOpen }
 
-function PackItem({ item, className, style, supplyName, onOpen }: PackItemProps) {
+function PackItem({ item, className, style, drop, supplyName, onOpen }: PackItemProps) {
   return (
-    <LubecItemBox item={item} className={`slot item${className}${heavyClass(item)}`} style={style} onOpen={onOpen && onOpen.item}>
+    <LubecItemBox item={item} className={`slot item${className}${heavyClass(item)}`} style={style} drop={drop} onOpen={onOpen && onOpen.item}>
       <LubecSlotPic item={item} />
       <LubecSlotText item={item} supplyName={supplyName} sizeTag />
     </LubecItemBox>
@@ -54,9 +56,9 @@ function FrontPockets({ gear, spots, supplyName, onAdd, onOpen }: PackProps & { 
   return [1, 2].map((k) => {
     const item = itemsIn(gear, 'backpack').find((x) => x.pocket === k)
     const style = lubecSpotsRect([spots[k - 1]])
-    if (item) return <PackItem key={item.id} item={item} className=" pocket" style={style} supplyName={supplyName} onOpen={onOpen} />
+    if (item) return <PackItem key={item.id} item={item} className=" pocket" style={style} drop={`backpack#${k}`} supplyName={supplyName} onOpen={onOpen} />
     const side = k === 1 ? 'left' : 'right'
-    return <LubecEmptySlot key={`front-${k}`} style={style} label={`Front ${side} pocket, empty, add an item`} onAdd={addAt(onAdd, `backpack#${k}`)} />
+    return <LubecEmptySlot key={`front-${k}`} style={style} drop={`backpack#${k}`} label={`Front ${side} pocket, empty, add an item`} onAdd={addAt(onAdd, `backpack#${k}`)} />
   })
 }
 
@@ -68,19 +70,47 @@ function smallNames(small: readonly LubecItem[], canAdd: boolean): string {
   return small.slice(0, 2).map(smallLabel).join(', ') + (small.length > 2 ? ` +${small.length - 2} more` : '')
 }
 
+const SMALL = 'backpack#small'
+
 // Small stuff: things too small to count, which take no slot in the bag (Rule S4). The pill opens their list.
 function SmallStuff({ gear, spot, onOpen }: { gear: LubecGear; spot: LubecPackSpot; onOpen: LubecGearOpen }) {
   const small = itemsIn(gear, 'backpack').filter((i) => i.pocket == null)
   const style = { left: `${spot.x}%`, top: `${spot.y}%`, width: `${spot.w}%`, minHeight: `${spot.h}%` }
+  const box = { className: `small-stuff${useLubecDropClass(SMALL)}`, style, 'data-drop': SMALL }
   const inner = (
     <>
       <span className="label">Small stuff{small.length ? ` / ${small.length}` : ''}</span>
       <span className="names">{smallNames(small, onOpen !== null)}</span>
     </>
   )
-  if (!onOpen) return <div className="small-stuff" style={style}>{inner}</div>
+  if (!onOpen) return <div {...box}>{inner}</div>
   const label = `Small stuff: ${small.length ? small.map(smallLabel).join(', ') : 'empty'}`
-  return <button type="button" className="small-stuff" style={style} aria-label={label} onClick={onOpen.small}>{inner}</button>
+  return <button type="button" {...box} aria-label={label} onClick={onOpen.small}>{inner}</button>
+}
+
+// An open box's mark sits 2 pixels inside the box, so neighbouring marks never touch.
+const insetSpot = (p: LubecPackSpot) =>
+  ({ left: `calc(${p.x}% + 2px)`, top: `calc(${p.y}% + 2px)`, width: `calc(${p.w}% - 4px)`, height: `calc(${p.h}% - 4px)` })
+
+// While a thing is dragged, the main pocket's open boxes are marked, and the boxes it would take under the pointer (Rule W2).
+const ALL_BOXES = [0, 1, 2, 3, 4]
+
+// The boxes the thing would take under the pointer: the ones it is over, or the whole pocket when it packs afresh.
+function footOf(hot: LubecDropTarget | null): readonly number[] | null {
+  if (!hot?.ok) return null
+  return hot.cells ?? (hot.repack ? ALL_BOXES : null)
+}
+
+function DropMarks({ spots }: { spots: LubecPackSpot[] }) {
+  const view = useLubecDragView()
+  if (!view) return null
+  const hot = footOf(view.hot)
+  return (
+    <>
+      {view.cells.map((k) => <span key={k} className="drop-cell" style={insetSpot(spots[k])} aria-hidden="true" />)}
+      {hot ? <span className="drop-foot" style={lubecSpotsRect(hot.map((k) => spots[k]))} aria-hidden="true" /> : null}
+    </>
+  )
 }
 
 function ZoneLabels({ gear, labels }: { gear: LubecGear; labels: LubecPackLayout['labels'] }) {
@@ -114,6 +144,7 @@ export function LubecGearPack({ gear, supplyName, onAdd, onOpen }: PackProps) {
         <MainPocket gear={gear} spots={layout.main} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} />
         <FrontPockets gear={gear} spots={layout.front} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} />
         <SmallStuff gear={gear} spot={layout.small} onOpen={onOpen} />
+        <DropMarks spots={layout.main} />
       </div>
     </div>
   )

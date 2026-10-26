@@ -1,17 +1,31 @@
 import type { LubecGear, LubecItem, LubecSupply } from '../../ruleSets/lubec/gear/gearRecord'
 import { cardEyebrow, cardTitle, lubecCardFacts, type LubecCardFact } from './cardFacts'
 import { LubecCardPicture } from './LubecGearArt'
+import { LubecMovePanel, LUBEC_MOVE_PANEL } from './LubecMovePanel'
 import { LubecSheetHead } from './LubecSheetHead'
 
-/** What the card's buttons do: step a count, use one, open the edit form, or close. */
+/** What the card's buttons do: step a count, use one, open the edit form, open the Move panel, move, drop, or close. */
 export type LubecCardActions = {
   onStep: (field: 'qty' | 'loaded', d: number) => void
   onUseOne: () => void
   onEdit: () => void
+  onToggleMove: () => void
+  onMove: (value: string) => void
+  onDrop: () => void
   onClose: () => void
 }
 
-type CardProps = { gear: LubecGear; item: LubecItem; supplies: readonly LubecSupply[]; error: string | null; actions: LubecCardActions }
+type CardProps = {
+  gear: LubecGear
+  item: LubecItem
+  supplies: readonly LubecSupply[]
+  error: string | null
+  /** True while the Move panel is open. */
+  moveOpen: boolean
+  /** True while a move is being saved. */
+  busy: boolean
+  actions: LubecCardActions
+}
 
 function Stepper({ f, onStep }: { f: LubecCardFact; onStep: LubecCardActions['onStep'] }) {
   const field = f.step as 'qty' | 'loaded'
@@ -42,8 +56,32 @@ function StockRow({ item }: { item: LubecItem }) {
   return <div className="stock-row"><p>{item.stock ? <>From stock: <b>{item.stock}</b>.</> : 'Made by hand.'}</p></div>
 }
 
-/** The item card: its picture beside its description, its facts, and Edit (B's card mode of the item sheet). */
-export function LubecItemCard({ gear, item, supplies, error, actions }: CardProps) {
+// Dropping from a hand is free, so its button says so (Rule M4).
+const dropLabel = (i: LubecItem, busy: boolean) => {
+  if (busy) return 'Moving...'
+  return i.carrier === 'hands' ? 'Drop / free' : 'Drop'
+}
+
+type FootProps = Omit<CardProps, 'supplies'>
+
+// Give is the transfer's button (G28), so the row is Edit, Move and Drop for now.
+function CardFoot({ gear, item, error, moveOpen, busy, actions }: FootProps) {
+  return (
+    <div className="sheet-foot">
+      {moveOpen ? <LubecMovePanel key={item.id} gear={gear} item={item} busy={busy} onMove={actions.onMove} /> : null}
+      {error ? <p className="form-error" role="alert">{error}</p> : null}
+      <div className="actions three">
+        <button className="btn line" type="button" onClick={actions.onEdit}>Edit</button>
+        <button className="btn line" type="button" aria-expanded={moveOpen} aria-controls={LUBEC_MOVE_PANEL} onClick={actions.onToggleMove}>Move</button>
+        <button className="btn line" type="button" disabled={busy} onClick={actions.onDrop}>{dropLabel(item, busy)}</button>
+      </div>
+    </div>
+  )
+}
+
+/** The item card: its picture beside its description, its facts, and Edit, Move and Drop (B's card mode of the item sheet). */
+export function LubecItemCard({ supplies, ...props }: CardProps) {
+  const { gear, item, actions } = props
   return (
     <div className="sheet-form">
       <LubecSheetHead eyebrow={cardEyebrow(item)} title={cardTitle(item)} onClose={actions.onClose} />
@@ -54,10 +92,7 @@ export function LubecItemCard({ gear, item, supplies, error, actions }: CardProp
       <Facts facts={lubecCardFacts(gear, item, supplies)} onStep={actions.onStep} />
       <StockRow item={item} />
       {canUseOne(item) ? <div className="kind-actions"><button type="button" className="btn" onClick={actions.onUseOne}>Use one</button></div> : null}
-      <div className="sheet-foot">
-        {error ? <p className="form-error" role="alert">{error}</p> : null}
-        <div className="actions"><button className="btn line" type="button" onClick={actions.onEdit}>Edit</button></div>
-      </div>
+      <CardFoot {...props} />
     </div>
   )
 }
