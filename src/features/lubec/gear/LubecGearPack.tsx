@@ -10,8 +10,8 @@ import { useLubecPackCrop } from './useLubecPackCrop'
 /** Opens the add form at a place ("backpack#0", "hands#1", ...); null for a viewer who may only look. */
 export type LubecGearAdd = ((dest: string) => void) | null
 
-/** Opens the item sheet: an item's card, or the small stuff list; null for a viewer who may only look. */
-export type LubecGearOpen = { item: (itemId: string) => void; small: () => void } | null
+/** Opens the item sheet: an item's card, the small stuff list, or which of a part's pieces of armor; null for a viewer who may only look. */
+export type LubecGearOpen = { item: (itemId: string) => void; small: () => void; pieces: (part: string) => void } | null
 
 type PackProps = { gear: LubecGear; supplyName: LubecSupplyName; onAdd: LubecGearAdd; onOpen: LubecGearOpen }
 

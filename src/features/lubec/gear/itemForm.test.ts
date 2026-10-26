@@ -13,6 +13,7 @@ import {
   lubecPictureShown,
   lubecTogglePart,
   lubecWithDest,
+  lubecWithKind,
   lubecWithMode,
   lubecWithSize,
 } from './itemForm'
@@ -23,6 +24,7 @@ describe('opening the form', () => {
   it('opens a new item as a 1-slot Thing at the place it was opened, or Small from small stuff', () => {
     expect(lubecNewFields('hands')).toMatchObject({ kind: 'thing', size: 1, weight: 'normal', qty: '1', per: '1', dest: 'hands', picture: null, stock: null })
     expect(lubecNewFields('backpack#small').size).toBe(0)
+    expect(lubecNewFields('worn')).toMatchObject({ kind: 'armor', dest: 'worn', locs: [] })
     expect(lubecDraftOf({ ...lubecNewFields('backpack#0'), name: ' Rope ', note: ' Long. ' })).toEqual({ kind: 'thing', name: 'Rope', note: 'Long.', size: 1, weight: 'normal', qty: 1, per: 1 })
   })
 
@@ -54,6 +56,11 @@ describe('copying from stock (Rule T2)', () => {
     expect(lubecFieldsFromStock(lubecNewFields('backpack#1'), stock('compass')).dest).toBe('backpack#small')
     expect(lubecFieldsFromStock(lubecNewFields('backpack#small'), stock('rope')).dest).toBe('backpack#0')
     expect(lubecFieldsFromStock(lubecNewFields('hands'), stock('compass')).dest).toBe('hands')
+  })
+
+  it('keeps armor worn, and takes anything else picked while "Wear it" is chosen to the main pocket', () => {
+    expect(lubecFieldsFromStock(lubecNewFields('worn'), stock('helmet')).dest).toBe('worn')
+    expect(lubecFieldsFromStock(lubecNewFields('worn'), stock('rope')).dest).toBe('backpack#0')
   })
 
   it('fills a holder full unless the entry says how full it is', () => {
@@ -88,6 +95,12 @@ describe('the form\'s own rules', () => {
   it('sets the table and the wound with melee or firearm', () => {
     expect(lubecWithMode(lubecNewFields('hands'), 'firearm')).toMatchObject({ mode: 'firearm', table: 'gunshot', wounds: ['gun'] })
     expect(lubecWithMode(lubecNewFields('hands'), 'melee')).toMatchObject({ mode: 'melee', table: 'blunt', wounds: ['blunt'] })
+  })
+
+  it('leaves "Wear it" for a kind that is not armor, and keeps any other place', () => {
+    expect(lubecWithKind(lubecNewFields('worn'), 'thing')).toMatchObject({ kind: 'thing', dest: 'backpack#0' })
+    expect(lubecWithKind(lubecNewFields('worn'), 'armor').dest).toBe('worn')
+    expect(lubecWithKind(lubecNewFields('hands'), 'weapon')).toMatchObject({ kind: 'weapon', dest: 'hands' })
   })
 
   it('picks and unpicks parts, and both sides at once', () => {

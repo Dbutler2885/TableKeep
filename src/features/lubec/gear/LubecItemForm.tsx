@@ -1,7 +1,7 @@
 import type { FormEvent } from 'react'
 import type { LubecGear, LubecItemKind, LubecSupply } from '../../ruleSets/lubec/gear/gearRecord'
 import type { LubecSupplyName } from './gearLabels'
-import { lubecFormPages, type LubecItemFields } from './itemForm'
+import { lubecFormPages, lubecWithKind, type LubecItemFields } from './itemForm'
 import type { LubecFormSheet } from './itemSheet'
 import { LubecItemFormBottom } from './LubecItemFormBottom'
 import { LubecItemFormKind } from './LubecItemFormKind'
@@ -64,7 +64,7 @@ const pageId = (form: LubecFormSheet, paged: boolean) => (paged ? lubecFormPages
 
 /** The form after the player picks a kind, still on a page that kind has. */
 const withKind = (form: LubecFormSheet, kind: LubecItemKind): LubecFormSheet =>
-  ({ ...form, fields: { ...form.fields, kind }, page: Math.min(form.page, lubecFormPages(kind).length - 1) })
+  ({ ...form, fields: lubecWithKind(form.fields, kind), page: Math.min(form.page, lubecFormPages(kind).length - 1) })
 
 function FormTop({ form, onFields, stock, supplyName, actions }: Pick<FormProps, 'form' | 'stock' | 'supplyName' | 'actions'> & { onFields: (fields: LubecItemFields) => void }) {
   const { fields } = form

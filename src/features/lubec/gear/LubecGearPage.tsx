@@ -5,12 +5,14 @@ import type { LubecStockItem } from '../../ruleSets/lubec/gear/stock'
 import { lubecSupplies } from '../../ruleSets/lubec/gear/supplies'
 import { supplyNameIn } from './gearLabels'
 import { lubecAddSheet, lubecCardSheet, type LubecItemSheetState } from './itemSheet'
+import { LubecGearArmor } from './LubecGearArmor'
 import { LubecGearHandsBody } from './LubecGearHandsBody'
 import { LubecGearPack, type LubecGearAdd, type LubecGearOpen } from './LubecGearPack'
 import { LubecItemSheet } from './LubecItemSheet'
 import { useLubecToast } from './useLubecToast'
 import './lubecGear.css'
 import './lubecGearSheet.css'
+import './lubecGearArmor.css'
 
 /** Saves the character's next gear; null for a viewer who may only look. */
 export type LubecGearChange = ((gear: LubecGear) => void) | null
@@ -53,7 +55,7 @@ function GearBar({ view, onView, full, onAdd }: GearBarProps) {
 
 type OnYouProps = { gear: LubecGear; onAdd: LubecGearAdd; onOpen: LubecGearOpen }
 
-// On you: the backpack, the hands and the body, on one screen.
+// On you: the backpack, the hands, the body and the armor worn, on one screen.
 function OnYou({ gear, onAdd, onOpen }: OnYouProps) {
   const supplyName = supplyNameIn(lubecSupplies(gear))
   return (
@@ -62,6 +64,7 @@ function OnYou({ gear, onAdd, onOpen }: OnYouProps) {
         <LubecGearPack gear={gear} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} />
         <div className="side">
           <LubecGearHandsBody gear={gear} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} />
+          <LubecGearArmor gear={gear} onAdd={onAdd} onOpen={onOpen} />
         </div>
       </div>
     </section>
@@ -83,11 +86,11 @@ function sheetOpeners(canEdit: boolean, setSheet: (sheet: LubecItemSheetState) =
   if (!canEdit) return { onAdd: null, onOpen: null }
   return {
     onAdd: (dest) => setSheet(lubecAddSheet(dest)),
-    onOpen: { item: (id) => setSheet(lubecCardSheet(id)), small: () => setSheet({ mode: 'small' }) },
+    onOpen: { item: (id) => setSheet(lubecCardSheet(id)), small: () => setSheet({ mode: 'small' }), pieces: (part) => setSheet({ mode: 'pieces', part }) },
   }
 }
 
-/** The Lubec sheet's Gear page: the Gear bar, B's On you view of the backpack, the hands and the body, and the item sheet over it. */
+/** The Lubec sheet's Gear page: the Gear bar, B's On you view of the backpack, the hands, the body and the armor, and the item sheet over it. */
 export function LubecGearPage({ gear, onGearChange, campaignStock = NO_CAMPAIGN_STOCK }: GearPageProps) {
   const [view, setView] = useState<LubecGearView>('on-you')
   const [sheet, setSheet] = useState<LubecItemSheetState | null>(null)

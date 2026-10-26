@@ -67,7 +67,7 @@ describe('"Put it"', () => {
 
   it('offers each place on you with what is free in it', () => {
     const gear = { ...emptyLubecGear(), items: [T('a', { size: 2 }), T('b', { pocket: 1 }), T('c', { carrier: 'hands', slot: 0, pocket: undefined })] }
-    expect(lubecDestinations(gear)).toEqual([
+    expect(lubecDestinations(gear, 'thing')).toEqual([
       { value: 'backpack#0', label: 'Backpack: main pocket (3 of 5 free)' },
       { value: 'backpack#1', label: 'Backpack: front left (0 of 1 free)' },
       { value: 'backpack#2', label: 'Backpack: front right (1 of 1 free)' },
@@ -75,6 +75,12 @@ describe('"Put it"', () => {
       { value: 'hands', label: 'Hands (1 free)' },
       { value: 'body', label: 'Body (2 free)' },
     ])
+  })
+
+  it('offers armor "Wear it" first, and nothing else (Rule W5)', () => {
+    expect(lubecDestinations(emptyLubecGear(), 'armor')[0]).toEqual({ value: 'worn', label: 'Wear it' })
+    expect(lubecDestinations(emptyLubecGear(), 'armor')).toHaveLength(7)
+    expect(lubecDestinations(emptyLubecGear(), 'weapon').map((d) => d.value)).not.toContain('worn')
   })
 
   it('reads a place as its choice, and an item\'s place as one the form can ask for again', () => {

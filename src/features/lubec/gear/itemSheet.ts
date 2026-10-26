@@ -1,6 +1,6 @@
 // The item sheet, copied from the inventory prototype (B's one item dialog):
 // one sheet with four modes of the same shape, the card, small stuff, the
-// add and edit form, and the stock picker. These are its states and its
+// add and edit form, and the stock picker, and B's "which piece?" prompt. These are its states and its
 // save, pure: gear in, the next gear and B's toast out.
 
 import { addLubecItem, editLubecItem } from '../../ruleSets/lubec/gear/addItem'
@@ -28,7 +28,12 @@ export type LubecFormSheet = {
   browsing: string | null
 }
 
-export type LubecItemSheetState = { mode: 'view'; itemId: string; error: string | null } | { mode: 'small' } | LubecFormSheet
+export type LubecItemSheetState =
+  | { mode: 'view'; itemId: string; error: string | null }
+  | { mode: 'small' }
+  /** Which of the pieces of armor worn on a part to open, asked when there is more than one. */
+  | { mode: 'pieces'; part: string }
+  | LubecFormSheet
 
 export const lubecCardSheet = (itemId: string): LubecItemSheetState => ({ mode: 'view', itemId, error: null })
 
