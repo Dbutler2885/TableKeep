@@ -76,13 +76,23 @@ function Carriers() {
   )
 }
 
+type SheetOpeners = { onAdd: LubecGearAdd; onOpen: LubecGearOpen }
+
+// What opens the item sheet: the add form at a place, an item's card, and small stuff; none for a viewer who may only look.
+function sheetOpeners(canEdit: boolean, setSheet: (sheet: LubecItemSheetState) => void): SheetOpeners {
+  if (!canEdit) return { onAdd: null, onOpen: null }
+  return {
+    onAdd: (dest) => setSheet(lubecAddSheet(dest)),
+    onOpen: { item: (id) => setSheet(lubecCardSheet(id)), small: () => setSheet({ mode: 'small' }) },
+  }
+}
+
 /** The Lubec sheet's Gear page: the Gear bar, B's On you view of the backpack, the hands and the body, and the item sheet over it. */
 export function LubecGearPage({ gear, onGearChange, campaignStock = NO_CAMPAIGN_STOCK }: GearPageProps) {
   const [view, setView] = useState<LubecGearView>('on-you')
   const [sheet, setSheet] = useState<LubecItemSheetState | null>(null)
   const toast = useLubecToast()
-  const onAdd = onGearChange && ((dest: string) => setSheet(lubecAddSheet(dest)))
-  const onOpen = onGearChange && { item: (id: string) => setSheet(lubecCardSheet(id)), small: () => setSheet({ mode: 'small' }) }
+  const { onAdd, onOpen } = sheetOpeners(onGearChange !== null, setSheet)
   return (
     <div className="lubec-page lubec-gear">
       <GearBar view={view} onView={setView} full={inventoryFull(gear)} onAdd={onAdd && (() => onAdd('backpack#0'))} />

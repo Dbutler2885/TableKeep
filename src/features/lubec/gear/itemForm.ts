@@ -78,14 +78,14 @@ const holderFields = (f: LubecItemFields, x: Partial<LubecItem>): Partial<LubecI
   hold: x.hold ?? 'load', hCapacity: text(x.capacity, f.hCapacity), hLoaded: text(x.loaded ?? x.capacity, f.hLoaded), hTakes: textOr(x.takes, ''),
 })
 
-// Its name, words, size, weight and count.
-const topFields = (x: Partial<LubecItem>): Partial<LubecItemFields> => ({
-  kind: x.kind ?? 'thing', name: textOr(x.name, ''), note: textOr(x.note, ''), size: x.size ?? 1, weight: x.weight ?? 'normal',
-  qty: text(x.qty, '1'), per: String(perOf({ per: x.per, qty: x.qty ?? 1 })), picture: pictureOf(x),
+// Its name, words, size, weight and count, which every item and stock entry has.
+const topFields = (x: LubecItemDraft): Partial<LubecItemFields> => ({
+  kind: x.kind, name: x.name, note: x.note, size: x.size, weight: x.weight,
+  qty: String(x.qty), per: String(perOf(x)), picture: pictureOf(x),
 })
 
 // Every field the item or entry is: its own, and its kind's page.
-const itemFields = (f: LubecItemFields, x: Partial<LubecItem>): LubecItemFields =>
+const itemFields = (f: LubecItemFields, x: LubecItemDraft): LubecItemFields =>
   ({ ...f, ...weaponFields(f, x), ...armorPageFields(x), ...holderFields(f, x), ...topFields(x) })
 
 /** The edit form, filled from the item, at the place it is. */
@@ -99,9 +99,9 @@ function destForSize(dest: string, size: LubecItemSize): string {
 }
 
 /** Rule T2: the form after picking a stock entry, a copy of it to change as the player likes. */
-export function lubecFieldsFromStock(f: LubecItemFields, x: Partial<LubecItem> & { name: string }): LubecItemFields {
-  const c = lubecCopyOf(x)
-  return { ...itemFields(f, c), stock: x.name, dest: destForSize(f.dest, c.size ?? 1) }
+export function lubecFieldsFromStock(f: LubecItemFields, x: LubecItemDraft): LubecItemFields {
+  const c = lubecCopyOf(x) as LubecItemDraft
+  return { ...itemFields(f, c), stock: x.name, dest: destForSize(f.dest, c.size) }
 }
 
 /** The form after the player picks a size: a small thing goes to small stuff, and a bigger one leaves it. */
