@@ -16,6 +16,7 @@ import {
   writeRehearsalFiles,
 } from './rehearsal.mjs'
 import { firestoreRules } from '../../vitest.firestoreRules'
+import { portBlock } from '../emulators/ports.mjs'
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 const readRepoFile = (file) => readFileSync(path.join(repoRoot, file), 'utf8')
@@ -33,6 +34,15 @@ describe('the raised-floor rehearsal', () => {
       ...baseConfig,
       firestore: { ...baseConfig.firestore, rules: REHEARSAL_RULES_FILE },
     })
+  })
+
+  it('runs on this checkout\'s port block when it has one', () => {
+    const resolved = { source: 'worktree', base: 20_000, ports: portBlock(20_000) }
+    const config = rehearsalConfig(baseConfig, resolved)
+    expect(config.firestore.rules).toBe(REHEARSAL_RULES_FILE)
+    expect(config.emulators.firestore.port).toBe(resolved.ports.firestore)
+    expect(config.emulators.auth.port).toBe(resolved.ports.auth)
+    expect(config.emulators.storage.port).toBe(resolved.ports.storage)
   })
 
   it('runs the same emulators and command as each CI job, against the generated config', () => {

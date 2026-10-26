@@ -216,10 +216,13 @@ The mechanism is a committed Firebase emulator snapshot in `emulator-data/`, plu
   A re-export rewrites all 135 files under `storage_export/` with fresh uuids even when their bytes are unchanged, which puts a second ~10 MB copy of the art into git history for a change that touched only Firestore.
   When an authoring pass leaves Storage alone, restore the committed export over the fresh one (`rm -rf emulator-data/storage_export && git checkout HEAD -- emulator-data/storage_export`) so the commit carries only the `firestore_export` and `auth_export` diff.
   The two directories are independent - `storage_export/` has its own `buckets.json` and `metadata/`, and `firebase-export-metadata.json` names the directories, not the blobs - so mixing an old Storage export with a new Firestore one is safe.
-- **Emulator ports are declared twice and are not derived from each other.**
-  `firebase.json` decides where the emulators listen, and `src/firebase/index.ts` hardcodes 9099 / 8080 / 9199 / 5001 for the client to connect to.
-  Editing `firebase.json` alone relocates the emulators and leaves the app talking to the old ports, which looks like an empty database in the browser while the REST API shows the data is loaded fine.
-  Two demos cannot run side by side on one machine without changing both; `DEMO_APP_PORT` moves only the Vite server.
+- **Each linked worktree runs its emulators on a port block of its own.**
+  `scripts/emulators/ports.mjs` decides the ports: `TABLEKEEP_PORT_BASE` (a port, or `default`) wins, CI and an ordinary clone keep `firebase.json`'s standard ports, and a linked worktree (its `.git` is a file) gets a 16-port block hashed from its real path, between 10000 and 32000.
+  The npm scripts start firebase-tools through `scripts/emulators/firebase.mjs`, which on a block generates the gitignored `firebase.ports.json` and passes `--config` for it; on the standard ports it passes nothing, so CI still reads `firebase.json` as it is.
+  A bare `npx firebase emulators:exec` ignores the block and lands on the standard ports, so anything that starts emulators in a worktree must go through the wrapper.
+  The browser client reads its ports from `VITE_*_EMULATOR_PORT` (`src/firebase/emulatorPorts.ts`), which the wrapper, the demo rigs and the browser smoke pass to Vite; a Vite server started any other way connects to the standard ports, which looks like an empty database while the REST API shows the data is loaded fine.
+  On a block, `emulators:export` (and so `npm run demo:save`) asks the checkout's own hub to export, because firebase-tools' own lookup keeps one locator file per project id and every checkout shares the project id.
+  Two runs in the same checkout still share one block, so `npm run demo` and `npm run test:emulator` cannot run together in one worktree; `DEMO_APP_PORT` moves only the Vite server.
 
 ## Hosted demo sandboxes (the "try it now" link)
 
@@ -264,9 +267,8 @@ The pieces are `src/features/demo/`, `functions/src/demoConstants.ts` / `demoClo
   It differs from `npm run demo` in exactly the three ways the sandbox needs: it starts the **functions** emulator (the feature is a callable), it seeds the template into that emulator from the snapshot, and it sets `VITE_DEMO_SANDBOX=true`.
   That last one is what puts the "try it now" link back on the sign-in screen: `src/features/demo/demoAvailability.ts` hides it against the emulators by default, because `npm run demo` starts no functions emulator and `browser-smoke.mjs` asserts against the ordinary sign-in screen.
   It also blanks the `VITE_DEMO_*` seat credentials, so the sign-in screen offers one door rather than two.
-- **The rig uses the standard emulator port block** (`scripts/demo/sandboxPorts.mjs`), because `src/firebase/index.ts` connects to those ports as literals.
-  Auth, Firestore, Storage, and Functions stay on 9099 / 8080 / 9199 / 5001; only the Vite app moves to 5185.
-  The rig cannot run beside another checkout's emulators until the client ports become configurable, and there is no separate `firestoreWebsocket` override.
+- **The rig uses the checkout's emulator ports** (`scripts/demo/sandboxPorts.mjs`), the same ones `npm run demo` uses, so the two rigs cannot run in one checkout at once.
+  In an ordinary clone that is 9099 / 8080 / 9199 / 5001 with the Vite app on 5185; in a linked worktree it is the worktree's own block, so the rig can run beside another worktree's emulators.
   Its Firebase config is **generated** from `firebase.json` into a gitignored `firebase.sandbox.json` rather than committed, so the rules paths and functions source keep one definition; it must land in the repo root because firebase-tools resolves a config's relative paths, and the project root, from the config file's own directory.
 - **Turning the demo on in production needs three things this repo does not do:** enabling Anonymous sign-in in Firebase Auth, deploying rules/indexes/functions, and running `npm run demo:seed-template -- --target=project ... --apply` once.
 

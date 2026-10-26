@@ -1,4 +1,11 @@
-export const FIRESTORE_EMULATOR_URL = 'http://127.0.0.1:8080'
+import process from 'node:process'
+import { emulatorHostPort, resolveEmulatorPorts } from './emulators/ports.mjs'
+
+// The Firestore emulator this run talks to: the one `firebase emulators:exec`
+// started, or this checkout's own port when run outside it.
+export const FIRESTORE_EMULATOR_URL = `http://127.0.0.1:${
+  emulatorHostPort(process.env, 'FIRESTORE_EMULATOR_HOST', resolveEmulatorPorts().ports.firestore)
+}`
 
 const bareBadRequest = 'Failed to load resource: the server responded with a status of 400 (Bad Request)'
 const retryableChannelPaths = new Set([

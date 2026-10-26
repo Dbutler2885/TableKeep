@@ -26,6 +26,7 @@ import {
   demoEmulators,
   demoEnv,
   demoSeatAccounts,
+  emulatorPorts,
   emulatorUiUrl,
   firestoreEmulatorUrl,
   projectId,
@@ -36,6 +37,7 @@ import {
 } from './config.mjs'
 import { resolveJavaPath } from './java.mjs'
 import { seedDemoAccounts, verifyDemoSignIn } from './seed-accounts.mjs'
+import { assertBlockIsFree, clientEmulatorEnv, describeEmulatorPorts, firebaseConfigArgs, firebaseEnv } from '../emulators/ports.mjs'
 
 const firebaseBin = new URL('../../node_modules/firebase-tools/lib/bin/firebase.js', import.meta.url)
 const viteBin = new URL('../../node_modules/vite/bin/vite.js', import.meta.url)
@@ -61,6 +63,7 @@ function hasSnapshot() {
 
 function startEmulators(mode, javaPath) {
   const args = [
+    ...firebaseConfigArgs(emulatorPorts),
     'emulators:start',
     '--only', demoEmulators,
     '--project', projectId,
@@ -80,7 +83,7 @@ function startEmulators(mode, javaPath) {
   return spawn(process.execPath, [firebaseBin.pathname, ...args], {
     cwd: repoRoot,
     detached: true,
-    env: { ...process.env, PATH: javaPath },
+    env: firebaseEnv(emulatorPorts, { ...process.env, PATH: javaPath }),
     stdio: ['ignore', 'inherit', 'inherit'],
   })
 }
@@ -94,7 +97,7 @@ function startApp() {
       detached: true,
       // Vite lets `process.env` win over every `.env` file, so injecting the
       // demo config here beats any real `.env.local` the machine already has.
-      env: { ...process.env, ...demoEnv },
+      env: { ...process.env, ...demoEnv, ...clientEmulatorEnv(emulatorPorts.ports) },
       stdio: ['ignore', 'inherit', 'inherit'],
     },
   )
@@ -206,6 +209,8 @@ let javaPath
 
 try {
   ({ mode, javaPath } = preflight())
+  console.log(describeEmulatorPorts(emulatorPorts))
+  await assertBlockIsFree(emulatorPorts)
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error))
   process.exit(1)

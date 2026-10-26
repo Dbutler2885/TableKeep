@@ -14,8 +14,9 @@
 //      link back on the sign-in screen against the emulators. See
 //      `src/features/demo/demoAvailability.ts`.
 //
-// It also runs on its own port block, so it can sit alongside `npm run demo` or
-// another checkout's emulators without either of them noticing.
+// It runs on this checkout's emulator ports (see `scripts/emulators/ports.mjs`),
+// so it can sit alongside another worktree's emulators, and on a dev server
+// port of its own.
 //
 // Nothing here reaches a real Firebase project: every port is on 127.0.0.1, the
 // web config is the placeholder set in `.env.demo`, and the snapshot is only
@@ -27,7 +28,8 @@ import path from 'node:path'
 import process from 'node:process'
 import { demoEnv, projectId, repoRoot, snapshotDir } from './config.mjs'
 import { resolveJavaPath } from './java.mjs'
-import { SANDBOX_EMULATORS, SANDBOX_PORTS, sandboxConfig } from './sandboxPorts.mjs'
+import { SANDBOX_EMULATORS, sandboxConfig, sandboxPorts } from './sandboxPorts.mjs'
+import { assertBlockIsFree, clientEmulatorEnv, describeEmulatorPorts, firebaseEnv, resolveEmulatorPorts } from '../emulators/ports.mjs'
 
 const firebaseBin = new URL('../../node_modules/firebase-tools/lib/bin/firebase.js', import.meta.url)
 const viteBin = new URL('../../node_modules/vite/bin/vite.js', import.meta.url)
@@ -39,9 +41,12 @@ const SHUTDOWN_GRACE_MS = 20_000
 /** Where the generated Firebase config lives. Ignored by git; see `.gitignore`. */
 const sandboxConfigPath = path.join(repoRoot, 'firebase.sandbox.json')
 
+const emulatorPorts = resolveEmulatorPorts()
+const SANDBOX_PORTS = sandboxPorts(emulatorPorts)
+
 function writeSandboxConfig() {
   const base = JSON.parse(readFileSync(path.join(repoRoot, 'firebase.json'), 'utf8'))
-  writeFileSync(sandboxConfigPath, `${JSON.stringify(sandboxConfig(base), null, 2)}\n`)
+  writeFileSync(sandboxConfigPath, `${JSON.stringify(sandboxConfig(base, emulatorPorts), null, 2)}\n`)
 }
 
 function parseSnapshotDir() {
@@ -67,7 +72,7 @@ function startEmulators(snapshot, javaPath) {
     {
       cwd: repoRoot,
       detached: true,
-      env: { ...process.env, PATH: javaPath },
+      env: firebaseEnv(emulatorPorts, { ...process.env, PATH: javaPath }),
       stdio: ['ignore', 'inherit', 'inherit'],
     },
   )
@@ -119,6 +124,7 @@ function startApp() {
       env: {
         ...process.env,
         ...demoEnv,
+        ...clientEmulatorEnv(emulatorPorts.ports),
         // Puts the "try it now" link back on the sign-in screen. Without it the
         // link is hidden against the emulators, because the two other builds
         // that run there cannot serve the callable behind it.
@@ -191,8 +197,8 @@ function banner(seedSummary) {
     '  only once the old one has expired.',
     '',
     '  Everything is local. No Firebase project is contacted, and the committed',
-    `  snapshot is only ever read. Ports are the sandbox block (app ${SANDBOX_PORTS.app},`,
-    `  emulators ${SANDBOX_PORTS.auth}/${SANDBOX_PORTS.firestore}/${SANDBOX_PORTS.storage}/${SANDBOX_PORTS.functions}), not the defaults.`,
+    `  snapshot is only ever read. Ports: app ${SANDBOX_PORTS.app}, emulators`,
+    `  ${SANDBOX_PORTS.auth}/${SANDBOX_PORTS.firestore}/${SANDBOX_PORTS.storage}/${SANDBOX_PORTS.functions}.`,
     '',
     '  Press Ctrl+C to stop.',
     '='.repeat(74),
@@ -226,6 +232,8 @@ let javaPath
 
 try {
   ({ snapshot, javaPath } = preflight())
+  console.log(describeEmulatorPorts(emulatorPorts))
+  await assertBlockIsFree(emulatorPorts)
   writeSandboxConfig()
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error))

@@ -3,39 +3,35 @@
 // Kept out of `run-sandbox.mjs` because that module starts emulators the moment
 // it is imported, and this is the part worth reading - and testing - on its own.
 
+import { resolveEmulatorPorts, withEmulatorPorts } from '../emulators/ports.mjs'
+
 /**
- * The emulator ports, which are `firebase.json`'s and cannot be anything else.
+ * The rig's ports: this checkout's emulator ports (see
+ * `scripts/emulators/ports.mjs`), and its own dev server port.
  *
- * This block started out shifted, so the rig could sit alongside another
- * checkout's emulators. It cannot: `src/firebase/index.ts` connects the browser
- * SDK to 9099 / 8080 / 5001 / 9199 as literals, so an emulator on any other port
- * is one the app cannot reach, and the first thing a visitor meets is
- * ERR_CONNECTION_REFUSED on the sandbox callable.
- *
- * Only the dev server moves. That one is safe to move because nothing points at
- * it but the address bar, and it is the port most likely to be taken - 5173 is
- * every Vite project's default, `npm run demo` already claims it, and this rig
- * is a long-running thing somebody leaves open.
- *
- * Making the emulator ports configurable means teaching the client to read them
- * from `VITE_*`; until that happens, running this rig and another checkout's
- * emulators at the same time is not possible, and it should fail loudly on a
- * port clash rather than quietly connect the app to the wrong emulator.
+ * The emulators are the same ones `npm run demo` uses, so the two rigs cannot
+ * run in one checkout at once. The dev server moves, because nothing points at
+ * it but the address bar and it is the port most likely to be taken: 5173 is
+ * every Vite project's default and `npm run demo` already claims it.
  */
-export const SANDBOX_PORTS = {
-  auth: 9099,
-  firestore: 8080,
-  storage: 9199,
-  functions: 5001,
-  ui: 4000,
-  app: 5185,
+export function sandboxPorts(resolved = resolveEmulatorPorts()) {
+  const { ports } = resolved
+  return {
+    auth: ports.auth,
+    firestore: ports.firestore,
+    storage: ports.storage,
+    functions: ports.functions,
+    ui: ports.ui,
+    app: ports.sandboxApp,
+  }
 }
 
 /** The emulators the sandbox rig starts. Unlike `npm run demo`, functions is one of them. */
 export const SANDBOX_EMULATORS = 'auth,firestore,storage,functions'
 
 /**
- * `firebase.json` with the functions emulator and the UI turned on.
+ * `firebase.json` with this checkout's ports, and the functions emulator and
+ * the UI turned on.
  *
  * Generated at run time rather than committed so the rules paths, the functions
  * source and the hosting config keep exactly one definition. The generated file
@@ -43,16 +39,14 @@ export const SANDBOX_EMULATORS = 'auth,firestore,storage,functions'
  * relative path in a config - and the project root itself - from the config
  * file's own directory.
  */
-export function sandboxConfig(baseConfig, ports = SANDBOX_PORTS) {
+export function sandboxConfig(baseConfig, resolved = resolveEmulatorPorts()) {
+  const config = withEmulatorPorts(baseConfig, resolved.ports)
   return {
-    ...baseConfig,
+    ...config,
     emulators: {
-      ...baseConfig.emulators,
-      auth: { port: ports.auth },
-      firestore: { port: ports.firestore },
-      storage: { port: ports.storage },
-      functions: { port: ports.functions },
-      ui: { enabled: true, port: ports.ui },
+      ...config.emulators,
+      functions: { ...config.emulators.functions, port: resolved.ports.functions },
+      ui: { ...config.emulators.ui, enabled: true, port: resolved.ports.ui },
       singleProjectMode: true,
     },
   }
