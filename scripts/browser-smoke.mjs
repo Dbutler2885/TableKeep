@@ -1407,14 +1407,19 @@ async function submitLubecGearForm(page) {
   await waitForNoLubecGearSheet(page)
 }
 
-// The Gear bar's add opens the form at the main pocket; Browse stock opens on the form's kind, a Thing, so the
-// search is widened to every kind before it finds the item, and picking its tile copies it in.
-async function addLubecStockItem(page, name) {
-  await page.locator(`${LUBEC_GEAR_PAGE} .gear-bar .add-top`).click()
+// Browse stock opens on the form's kind, a Thing, so the search is widened to every kind before it finds the
+// item, and picking its tile copies it into the open form.
+async function pickLubecStockItem(page, name) {
   await page.locator(`${LUBEC_GEAR_SHEET} .link-btn`).click()
   await page.locator(`${LUBEC_GEAR_SHEET} .stock-kinds label:first-child`).click()
   await page.locator(`${LUBEC_GEAR_SHEET} .stock-tools input[type="text"]`).fill(name)
   await page.locator(`${LUBEC_GEAR_SHEET} .stock-tile ::-p-text(${name})`).click()
+}
+
+// The Gear bar's add opens the form at the main pocket.
+async function addLubecStockItem(page, name) {
+  await page.locator(`${LUBEC_GEAR_PAGE} .gear-bar .add-top`).click()
+  await pickLubecStockItem(page, name)
   await submitLubecGearForm(page)
 }
 
@@ -1705,6 +1710,42 @@ async function readDroppedItems(path) {
   return { dropped, character: await readDocumentFields(path) }
 }
 
+const LUBEC_GEAR_PROMPT = `${LUBEC_GEAR_PAGE} [role="dialog"][aria-labelledby="lubec-gear-prompt-title"]`
+
+// What a prompt shows: its title, its text, and each button with the line under it, the red one marked.
+const readLubecGearPrompt = (prompt) => ({
+  title: prompt.querySelector('h2')?.textContent,
+  text: prompt.querySelector('.prompt-text')?.textContent,
+  buttons: [...prompt.querySelectorAll('.actions .btn')].map((b) => `${b.textContent}${b.classList.contains('dispensation') ? ' (red)' : ''}`),
+})
+
+const EMPTY_REVOLVER_PROMPT = {
+  title: ".38 revolver isn't loaded",
+  text: 'Your other hand holds Flashlight. It needs to hold the .38 rounds, or be empty to fetch them.',
+  buttons: ['Cancel', 'Reload', 'Reload & fireRequires special dispensation (red)'],
+}
+
+// Step 16: the empty revolver's prompt, with the flashlight in the other hand, says why it can't reload yet.
+export function emptyRevolverPromptProblems(shown) {
+  return JSON.stringify(shown) === JSON.stringify(EMPTY_REVOLVER_PROMPT) ? [] : [`the empty-weapon prompt shows ${JSON.stringify(shown)}`]
+}
+
+// Step 16: the stock revolver goes into the free right hand from its empty slot; Fire on its card stops at the prompt, and Cancel closes it.
+async function fireLubecEmptyRevolver(page) {
+  await page.locator(`${LUBEC_GEAR_PAGE} .hb [data-drop="hands#1"]`).click()
+  await pickLubecStockItem(page, '.38 revolver')
+  await submitLubecGearForm(page)
+  await page.locator(`${LUBEC_GEAR_PAGE} .hb .slot.item ::-p-text(.38 revolver)`).click()
+  await page.locator(`${LUBEC_GEAR_SHEET} .kind-actions .btn ::-p-text(Fire)`).click()
+  const shown = await (await page.waitForSelector(LUBEC_GEAR_PROMPT)).evaluate(readLubecGearPrompt)
+  const problems = emptyRevolverPromptProblems(shown)
+  if (problems.length) throw new Error(problems.join('; '))
+  await page.locator(`${LUBEC_GEAR_PROMPT} .actions .btn ::-p-text(Cancel)`).click()
+  await page.waitForFunction((selector) => !document.querySelector(selector), {}, LUBEC_GEAR_PROMPT)
+  await page.locator(`${LUBEC_GEAR_SHEET} .close`).click()
+  await waitForNoLubecGearSheet(page)
+}
+
 async function lubecGearPageSteps(page, testCase, path) {
   await step('offer the three page tabs: Core sheet, Skills, Gear', () => expectLubecPageTabs(page))
   await step('finalize Tommy with the draft bar\'s Finalize and the dialog\'s Finalize', () => finalizeLubecCharacter(page))
@@ -1737,6 +1778,7 @@ async function lubecGearPageSteps(page, testCase, path) {
     await dropLubecAnvil(page)
     await waitForStored(() => readDroppedItems(path), droppedAnvilProblems)
   })
+  await step('put the stock revolver in a hand and press Fire: the prompt says it isn\'t loaded, with Cancel, Reload and the red "Reload & fire"', () => fireLubecEmptyRevolver(page))
   await page.mouse.move(0, page.viewport().height - 1)
   await step('fit the Gear page without scrolling sideways after the adds', () => expectNoSidewaysScroll(page))
   await lubecGearFitStep(page, testCase)
@@ -1885,6 +1927,7 @@ async function runViewport(browser, testCase) {
       + 'wore two stock hockey helmets on its head and was refused a third, dragged the Flashlight to a hand, '
       + 'rolled Strength for a heavy anvil through the prompt and saw the roll on the Core page, saw the failed anvil take 20 off Speed under "From your gear" '
       + 'and turned that off and on again, dropped the anvil to the GM Items tab, '
+      + 'fired an empty stock revolver into the empty-weapon prompt and cancelled it, '
       + 'and made an NPC a Direct entry sheet on its Character sheet tab and finalized it.',
     )
   } finally {

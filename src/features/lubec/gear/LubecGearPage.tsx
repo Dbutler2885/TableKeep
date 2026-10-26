@@ -22,6 +22,7 @@ import './lubecGear.css'
 import './lubecGearSheet.css'
 import './lubecGearArmor.css'
 import './lubecGearWeapons.css'
+import './lubecGearLoading.css'
 
 /** Saves the character's next gear; null for a viewer who may only look. */
 export type LubecGearChange = ((gear: LubecGear) => void) | null

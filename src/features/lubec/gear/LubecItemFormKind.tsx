@@ -3,9 +3,10 @@ import { HOLD, type LubecHoldWay } from '../../ruleSets/lubec/gear/gearRules'
 import { TABLES, WOUND_KINDS, WOUND_SHORT } from './itemLabels'
 import { lubecBothHandsByRule, lubecWithMode, type LubecItemFields } from './itemForm'
 import { LubecArmorMaker } from './LubecArmorMaker'
+import { LubecSupplyField, type LubecMakeSupply } from './LubecSupplyField'
 import type { LubecFieldsProps } from './LubecItemFormTop'
 
-type KindProps = LubecFieldsProps & { supplies: readonly LubecSupply[] }
+type KindProps = LubecFieldsProps & { supplies: readonly LubecSupply[]; onMakeSupply: LubecMakeSupply }
 
 type ChoiceProps<T extends string> = { name: string; value: T; options: readonly (readonly [T, string, string])[]; onPick: (value: T) => void; className?: string }
 
@@ -24,20 +25,6 @@ type NumberProps = { label: string; value: string; min: number; max: number; onV
 
 function NumberField({ label, value, min, max, onValue, placeholder }: NumberProps) {
   return <label className="field"><span className="label">{label}</span><input type="number" min={min} max={max} inputMode="numeric" placeholder={placeholder} value={value} onChange={(e) => onValue(e.target.value)} /></label>
-}
-
-type SupplyProps = { label: string; value: string; empty: string; supplies: readonly LubecSupply[]; onValue: (value: string) => void }
-
-/** A pick of the supplies (Rule L1): what a gun or holder takes, or what a loose stack goes into. */
-function SupplyField({ label, value, empty, supplies, onValue }: SupplyProps) {
-  return (
-    <label className="field"><span className="label">{label}</span>
-      <select value={value} onChange={(e) => onValue(e.target.value)}>
-        <option value="">{empty}</option>
-        {supplies.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-      </select>
-    </label>
-  )
 }
 
 const MODES = [['melee', 'Melee', 'Strength adds'], ['firearm', 'Firearm', 'no Strength, takes rounds'], ['thrown', 'Thrown', 'Strength adds, from a distance']] as const
@@ -59,7 +46,7 @@ function WoundPick({ fields, onFields }: LubecFieldsProps) {
   )
 }
 
-function FirearmFields({ fields, onFields, supplies }: KindProps) {
+function FirearmFields({ fields, onFields, supplies, onMakeSupply }: KindProps) {
   const set = (changes: Partial<LubecItemFields>) => onFields({ ...fields, ...changes })
   return (
     <div className="stack w-firearm">
@@ -67,7 +54,7 @@ function FirearmFields({ fields, onFields, supplies }: KindProps) {
         <NumberField label="Holds" value={fields.wCapacity} min={1} max={99} onValue={(wCapacity) => set({ wCapacity })} />
         <NumberField label="Loaded" value={fields.wLoaded} min={0} max={99} onValue={(wLoaded) => set({ wLoaded })} />
       </div>
-      <SupplyField label="Takes" value={fields.wTakes} empty="Pick one" supplies={supplies} onValue={(wTakes) => set({ wTakes })} />
+      <LubecSupplyField field="wTakes" label="Takes" value={fields.wTakes} empty="Pick one" placeholder=".45 rounds" supplies={supplies} onValue={(wTakes) => set({ wTakes })} onMake={onMakeSupply} />
     </div>
   )
 }
@@ -129,18 +116,21 @@ function WeaponPage(props: KindProps) {
   )
 }
 
-function ConsumablePage({ fields, onFields, supplies }: KindProps) {
+function ConsumablePage({ fields, onFields, supplies, onMakeSupply }: KindProps) {
   return (
     <div className="kind-block kb-consumable">
       <div className="eyebrow">Consumable</div>
-      <SupplyField label="Goes into a gun or holder?" value={fields.fits} empty="No" supplies={supplies} onValue={(fits) => onFields({ ...fields, fits })} />
+      <LubecSupplyField
+        field="fits" label="Goes into a gun or holder?" value={fields.fits} empty="No" placeholder=".45 rounds, lamp oil" supplies={supplies}
+        onValue={(fits) => onFields({ ...fields, fits })} onMake={onMakeSupply}
+      />
     </div>
   )
 }
 
 const WAYS = (Object.keys(HOLD) as LubecHoldWay[]).map((k) => [k, HOLD[k].name, HOLD[k].like] as const)
 
-function HolderPage({ fields, onFields, supplies }: KindProps) {
+function HolderPage({ fields, onFields, supplies, onMakeSupply }: KindProps) {
   const set = (changes: Partial<LubecItemFields>) => onFields({ ...fields, ...changes })
   return (
     <div className="kind-block kb-holder">
@@ -150,7 +140,7 @@ function HolderPage({ fields, onFields, supplies }: KindProps) {
         <NumberField label="Holds" value={fields.hCapacity} min={1} max={999} onValue={(hCapacity) => set({ hCapacity })} />
         <NumberField label="In it now" value={fields.hLoaded} min={0} max={999} onValue={(hLoaded) => set({ hLoaded })} />
       </div>
-      <SupplyField label="Holds what" value={fields.hTakes} empty="Pick one" supplies={supplies} onValue={(hTakes) => set({ hTakes })} />
+      <LubecSupplyField field="hTakes" label="Holds what" value={fields.hTakes} empty="Pick one" placeholder="lamp oil, film" supplies={supplies} onValue={(hTakes) => set({ hTakes })} onMake={onMakeSupply} />
       <p className="field-note">It stays when it's empty. Load, fill or empty it from its card.</p>
     </div>
   )
