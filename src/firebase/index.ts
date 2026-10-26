@@ -4,6 +4,7 @@ import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore'
 import { connectFunctionsEmulator, getFunctions } from 'firebase/functions'
 import { connectStorageEmulator, getStorage } from 'firebase/storage'
 import { firebaseConfig, useFirebaseEmulators } from './config'
+import { emulatorPortsFromEnv } from './emulatorPorts'
 
 const app = initializeApp(firebaseConfig)
 
@@ -14,9 +15,10 @@ export const storage = getStorage(app)
 
 if (useFirebaseEmulators) {
   const host = '127.0.0.1'
+  const ports = emulatorPortsFromEnv(import.meta.env)
 
-  connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true })
-  connectFirestoreEmulator(db, host, 8080)
-  connectFunctionsEmulator(functions, host, 5001)
-  connectStorageEmulator(storage, host, 9199)
+  connectAuthEmulator(auth, `http://${host}:${ports.auth}`, { disableWarnings: true })
+  connectFirestoreEmulator(db, host, ports.firestore)
+  connectFunctionsEmulator(functions, host, ports.functions)
+  connectStorageEmulator(storage, host, ports.storage)
 }

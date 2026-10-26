@@ -72,6 +72,9 @@ export function keptLubecRoll(dice: readonly number[], advantage: LubecAdvantage
 const failureStress = (sheet: LubecSheet, kind: LubecCheckKind): number =>
   kind === 'stat-check' ? lubecClass(sheet.class.key)?.failedStatCheckStress ?? 1 : 1
 
+/** The Stress a failed Stat Check adds for this character, as the roller adds it. */
+export const lubecFailedCheckStress = (sheet: LubecSheet): number => failureStress(sheet, 'stat-check')
+
 export type LubecCheckRequest = { name: LubecValueName; advantage: LubecAdvantage; skill: string | null }
 
 /** One die of this many sides, or two under Advantage or Disadvantage. */

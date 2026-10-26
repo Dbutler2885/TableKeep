@@ -45,6 +45,13 @@ describe('the card\'s facts', () => {
     expect(weight({ carrier: 'car', check: 'fail' })).toBe('Heavy, so it takes both hands to hold. No effect while it stays here.')
   })
 
+  it('gives a heavy thing on you the Passed and Failed switch, and none to one elsewhere or a normal thing', () => {
+    const weightLine = (item: LubecItem) => lubecCardFacts(gearOf(item), item, LUBEC_SUPPLIES).find((f) => f.term === 'Weight')
+    expect(weightLine(T('Anvil', { weight: 'heavy', carrier: 'worn' }))?.check).toBe(true)
+    expect(weightLine(T('Anvil', { weight: 'heavy', carrier: 'car' }))?.check).toBeUndefined()
+    expect(weightLine(T('Rope'))?.check).toBeUndefined()
+  })
+
   it('says how many fit in a stack, and which of its batch it is (Rule S3)', () => {
     const a = T('a', { kind: 'consumable', name: 'Sandwich', qty: 2, per: 2, batch: 'b' })
     const b = T('b', { kind: 'consumable', name: 'Sandwich', qty: 1, per: 2, batch: 'b', pocket: 1 })

@@ -1,13 +1,15 @@
 import type { LubecGear, LubecItem, LubecSupply } from '../../ruleSets/lubec/gear/gearRecord'
+import type { LubecCheck } from '../../ruleSets/lubec/gear/strengthCheck'
 import { cardEyebrow, cardTitle, lubecCardFacts, type LubecCardFact } from './cardFacts'
 import { LubecCardPicture } from './LubecGearArt'
 import { LubecMovePanel, LUBEC_MOVE_PANEL } from './LubecMovePanel'
 import { LubecSheetHead } from './LubecSheetHead'
 
-/** What the card's buttons do: step a count, use one, open the edit form, open the Move panel, move, drop, or close. */
+/** What the card's buttons do: step a count, use one, record the Strength roll, open the edit form, open the Move panel, move, drop, or close. */
 export type LubecCardActions = {
   onStep: (field: 'qty' | 'loaded', d: number) => void
   onUseOne: () => void
+  onCheck: (check: LubecCheck) => void
   onEdit: () => void
   onToggleMove: () => void
   onMove: (value: string) => void
@@ -38,12 +40,24 @@ function Stepper({ f, onStep }: { f: LubecCardFact; onStep: LubecCardActions['on
   )
 }
 
-function Facts({ facts, onStep }: { facts: LubecCardFact[]; onStep: LubecCardActions['onStep'] }) {
+// The recorded Strength roll, as a switch: the manual override, which never touches Stress.
+function CheckSwitch({ check, onCheck }: { check: LubecItem['check']; onCheck: LubecCardActions['onCheck'] }) {
+  return (
+    <span className="seg" role="group" aria-label="Strength roll, recorded">
+      <button type="button" className="pass" aria-pressed={check === 'pass'} onClick={() => onCheck('pass')}>Passed</button>
+      <button type="button" className="fail" aria-pressed={check === 'fail'} onClick={() => onCheck('fail')}>Failed</button>
+    </span>
+  )
+}
+
+type FactsProps = { facts: LubecCardFact[]; check: LubecItem['check'] } & Pick<LubecCardActions, 'onStep' | 'onCheck'>
+
+function Facts({ facts, check, onStep, onCheck }: FactsProps) {
   return (
     <dl className="facts item-facts">
       {facts.map((f) => [
         <dt key={`${f.term}-t`}>{f.term}</dt>,
-        <dd key={`${f.term}-d`}>{f.step ? <Stepper f={f} onStep={onStep} /> : f.text}</dd>,
+        <dd key={`${f.term}-d`}>{f.step ? <Stepper f={f} onStep={onStep} /> : f.text}{f.check ? <CheckSwitch check={check} onCheck={onCheck} /> : null}</dd>,
       ])}
     </dl>
   )
@@ -89,7 +103,7 @@ export function LubecItemCard({ supplies, ...props }: CardProps) {
         <LubecCardPicture item={item} name={item.name} />
         <p className={`item-note${item.note ? '' : ' empty'}`}>{item.note || 'No description yet. Tap Edit to add one.'}</p>
       </div>
-      <Facts facts={lubecCardFacts(gear, item, supplies)} onStep={actions.onStep} />
+      <Facts facts={lubecCardFacts(gear, item, supplies)} check={item.check} onStep={actions.onStep} onCheck={actions.onCheck} />
       <StockRow item={item} />
       {canUseOne(item) ? <div className="kind-actions"><button type="button" className="btn" onClick={actions.onUseOne}>Use one</button></div> : null}
       <CardFoot {...props} />

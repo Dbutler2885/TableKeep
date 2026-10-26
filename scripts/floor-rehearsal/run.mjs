@@ -21,6 +21,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { repoRoot } from '../demo/config.mjs'
 import { resolveJavaPath } from '../demo/java.mjs'
+import { assertBlockIsFree, describeEmulatorPorts, firebaseEnv, resolveEmulatorPorts } from '../emulators/ports.mjs'
 import { currentCharacterSchemaVersions } from './currentVersions.mjs'
 import { REHEARSAL_RULES_FILE, runRehearsalJob, selectedJobs, writeRehearsalFiles } from './rehearsal.mjs'
 
@@ -28,12 +29,15 @@ const firebaseBin = new URL('../../node_modules/firebase-tools/lib/bin/firebase.
 
 const jobs = selectedJobs(process.argv.slice(2))
 const { scripts } = JSON.parse(readFileSync(path.join(repoRoot, 'package.json'), 'utf8'))
-writeRehearsalFiles(repoRoot, currentCharacterSchemaVersions)
+const emulatorPorts = resolveEmulatorPorts()
+console.log(describeEmulatorPorts(emulatorPorts))
+await assertBlockIsFree(emulatorPorts)
+writeRehearsalFiles(repoRoot, currentCharacterSchemaVersions, emulatorPorts)
 console.log(`Floors raised to ${JSON.stringify(currentCharacterSchemaVersions)} in ${REHEARSAL_RULES_FILE}.`)
 
 const options = {
   scripts,
-  env: { ...process.env, PATH: resolveJavaPath() },
+  env: firebaseEnv(emulatorPorts, { ...process.env, PATH: resolveJavaPath() }),
   root: repoRoot,
   firebaseBin: firebaseBin.pathname,
   spawn: spawnSync,

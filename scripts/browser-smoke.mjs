@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import process from 'node:process'
 import puppeteer, { Locator } from 'puppeteer'
 import { isExpectedFirestoreEmulatorChannelError } from './browser-smoke-errors.mjs'
+import { clientEmulatorEnv, emulatorHostPort, resolveEmulatorPorts } from './emulators/ports.mjs'
 import {
   characterPath,
   listDocumentIds,
@@ -18,8 +19,18 @@ import {
 import { reviveTimestamps } from '../src/features/ruleSets/characterFixtures.ts'
 import { migrateCharacter, oseCharacterVersioning, vtmCharacterVersioning } from '../src/features/ruleSets/characterMigrations.ts'
 
-const APP_URL = 'http://127.0.0.1:4173'
-const AUTH_EMULATOR_URL = 'http://127.0.0.1:9099'
+// This checkout's ports, corrected by what `firebase emulators:exec` says it
+// actually started, so the app and the seeding talk to the same emulators.
+const { ports } = resolveEmulatorPorts()
+const emulatorPorts = {
+  auth: emulatorHostPort(process.env, 'FIREBASE_AUTH_EMULATOR_HOST', ports.auth),
+  firestore: emulatorHostPort(process.env, 'FIRESTORE_EMULATOR_HOST', ports.firestore),
+  storage: emulatorHostPort(process.env, 'FIREBASE_STORAGE_EMULATOR_HOST', ports.storage),
+  functions: ports.functions,
+}
+
+const APP_URL = `http://127.0.0.1:${ports.smokeApp}`
+const AUTH_EMULATOR_URL = `http://127.0.0.1:${emulatorPorts.auth}`
 const API_KEY = 'demo-api-key'
 const PASSWORD = 'table-keep-smoke-password'
 const SCREENSHOT_DIR = 'artifacts/browser-smoke'
@@ -56,7 +67,7 @@ function startApp() {
   const viteBin = new URL('../node_modules/vite/bin/vite.js', import.meta.url)
   return spawn(
     process.execPath,
-    [viteBin.pathname, '--host', '127.0.0.1', '--port', '4173', '--strictPort'],
+    [viteBin.pathname, '--host', '127.0.0.1', '--port', String(ports.smokeApp), '--strictPort'],
     {
       env: {
         ...process.env,
@@ -67,6 +78,7 @@ function startApp() {
         VITE_FIREBASE_MESSAGING_SENDER_ID: '000000000000',
         VITE_FIREBASE_APP_ID: '1:000000000000:web:0000000000000000000000',
         VITE_USE_FIREBASE_EMULATORS: 'true',
+        ...clientEmulatorEnv(emulatorPorts),
       },
       stdio: ['ignore', 'inherit', 'inherit'],
     },
@@ -1388,11 +1400,11 @@ async function pressLubecGearSubmit(page) {
   await page.locator(`${LUBEC_GEAR_SHEET} button[type="submit"]`).click()
 }
 
-const lubecGearSheetClosed = (page) => page.waitForFunction((selector) => !document.querySelector(selector), {}, LUBEC_GEAR_SHEET)
+const waitForNoLubecGearSheet = (page) => page.waitForFunction((selector) => !document.querySelector(selector), {}, LUBEC_GEAR_SHEET)
 
 async function submitLubecGearForm(page) {
   await pressLubecGearSubmit(page)
-  await lubecGearSheetClosed(page)
+  await waitForNoLubecGearSheet(page)
 }
 
 // The Gear bar's add opens the form at the main pocket; Browse stock opens on the form's kind, a Thing, so the
@@ -1463,7 +1475,7 @@ async function expectLubecArmorHead(page, layers) {
 
 async function wearLubecStockHelmet(page, layers) {
   await fillLubecStockHelmet(page)
-  await lubecGearSheetClosed(page)
+  await waitForNoLubecGearSheet(page)
   await expectLubecArmorHead(page, layers)
 }
 
@@ -1473,7 +1485,7 @@ async function expectLubecThirdHelmetRefused(page) {
   const refusal = await page.locator(`${LUBEC_GEAR_SHEET} .form-error`).map((error) => error.textContent).wait()
   if (!refusal.startsWith('No free layer on the head: 2 of 2 taken by ')) throw new Error(`The third helmet is refused with "${refusal}".`)
   await page.locator(`${LUBEC_GEAR_SHEET} .close`).click()
-  await lubecGearSheetClosed(page)
+  await waitForNoLubecGearSheet(page)
 }
 
 // How many columns On you has, and which page tab is current in the top bar, read in the page.
@@ -1530,12 +1542,79 @@ export async function showLubecFormField(page, selector) {
   }
 }
 
+const LUBEC_STRENGTH_PROMPT = `${LUBEC_GEAR_PAGE} .prompt-sheet`
+
+// Step 9: a heavy thing added onto you stops at the Strength prompt before it is added.
 async function addLubecHeavyAnvil(page) {
   await page.locator(`${LUBEC_GEAR_PAGE} .gear-bar .add-top`).click()
   await page.locator(`${LUBEC_GEAR_SHEET} input[role="combobox"]`).fill('Small anvil')
   await showLubecFormField(page, `${LUBEC_GEAR_SHEET} input[name="weight"][value="heavy"]`)
   await page.locator(`${LUBEC_GEAR_SHEET} input[name="weight"][value="heavy"]`).click()
-  await submitLubecGearForm(page)
+  await pressLubecGearSubmit(page)
+  await page.locator(`${LUBEC_STRENGTH_PROMPT} .roll-circle`).wait()
+}
+
+// What a landed roll circle shows: "30/29", and whether it failed.
+const readLubecRollCircle = (circle) => ({ text: circle.textContent, failed: circle.classList.contains('check-failure') })
+
+// The prompt's circle rolls through the Core roller; once the spin lands, Done is its one button, and the anvil is added.
+async function rollLubecStrength(page) {
+  await page.locator(`${LUBEC_STRENGTH_PROMPT} .roll-circle`).click()
+  const circle = await page.waitForSelector(`${LUBEC_STRENGTH_PROMPT} .roll-circle:is(.check-success, .check-failure)`)
+  const shown = await circle.evaluate(readLubecRollCircle)
+  await page.locator(`${LUBEC_STRENGTH_PROMPT} .actions .btn:not([disabled])`).click()
+  await waitForNoLubecGearSheet(page)
+  return shown
+}
+
+const storedLubecFields = (stored) => storedAt(stored, ['lubec', 'mapValue', 'fields'])
+
+/** The Stress stored on a Lubec character. */
+export const storedLubecStress = (stored) => Number(storedAt(storedLubecFields(stored), ['counters', 'mapValue', 'fields', 'stress', 'integerValue']))
+
+const anvilCheckProblems = (stored, failed) => {
+  const check = storedAt(storedGearItem(stored, 'Small anvil'), ['mapValue', 'fields', 'check', 'stringValue'])
+  return check === (failed ? 'fail' : 'pass') ? [] : [`the stored anvil's Strength roll is ${check}`]
+}
+
+const lastRollProblems = (stored) =>
+  (storedAt(storedLubecFields(stored), ['lastRoll', 'mapValue', 'fields', 'against', 'stringValue']) === 'Strength' ? [] : ['the last roll is not the Strength check'])
+
+const stressProblems = (stored, failed, before) => {
+  const expected = before + (failed ? 1 : 0)
+  return storedLubecStress(stored) === expected ? [] : [`Stress is ${storedLubecStress(stored)}, not ${expected}`]
+}
+
+// Step 9: the anvil records the roll's result, the roll is the character's last roll, and a failure added the roller's 1 Stress.
+export function heavyAnvilProblems(stored, { failed, stressBefore }) {
+  return [...anvilCheckProblems(stored, failed), ...lastRollProblems(stored), ...stressProblems(stored, failed, stressBefore)]
+}
+
+// The anvil's card says what its roll does on you.
+async function expectLubecAnvilCard(page, failed) {
+  await page.locator(`${LUBEC_GEAR_PAGE} .pack .slot.item ::-p-text(Small anvil)`).click()
+  await waitForBodyText(page, failed ? 'Strength failed: Speed −20.' : 'Strength passed: no penalty.')
+  await page.locator(`${LUBEC_GEAR_SHEET} .close`).click()
+  await waitForNoLubecGearSheet(page)
+}
+
+// The Core page's Strength circle shows the roll the prompt made, until it is cleared.
+async function expectLubecStrengthOnCore(page, shown) {
+  await page.locator('.lubec-page-tabs ::-p-text(Core sheet)').click()
+  const circle = await page.waitForSelector('.lubec-core .roll-circle[aria-label^="Strength rolled"]')
+  const core = await circle.evaluate(readLubecRollCircle)
+  if (JSON.stringify(core) !== JSON.stringify(shown)) throw new Error(`The Core page's Strength circle shows ${JSON.stringify(core)}, not ${JSON.stringify(shown)}.`)
+  await openLubecGearPage(page)
+}
+
+async function lubecStrengthSteps(page, path) {
+  const stressBefore = storedLubecStress(await readDocumentFields(path))
+  await step('add a heavy Small anvil through the form, which stops at the Strength prompt', () => addLubecHeavyAnvil(page))
+  const shown = await step('roll Strength with the prompt\'s circle and press Done', () => rollLubecStrength(page))
+  await step('store the anvil with its roll, the roll as the last roll, and a failure\'s Stress', () =>
+    waitForStored(() => readDocumentFields(path), (stored) => heavyAnvilProblems(stored, { failed: shown.failed, stressBefore })))
+  await step('say on the anvil\'s card what its roll does', () => expectLubecAnvilCard(page, shown.failed))
+  await step('show the roll on the Core page\'s Strength circle', () => expectLubecStrengthOnCore(page, shown))
 }
 
 async function dropLubecAnvil(page) {
@@ -1591,8 +1670,8 @@ async function lubecGearPageSteps(page, testCase, path) {
     await dragLubecFlashlightToHand(page)
     await waitForStored(() => readDocumentFields(path), draggedToHandProblems)
   })
-  await step('drop a heavy Small anvil from the backpack, which leaves the sheet for a dropped GM item', async () => {
-    await addLubecHeavyAnvil(page)
+  await lubecStrengthSteps(page, path)
+  await step('drop the heavy Small anvil from the backpack, which leaves the sheet for a dropped GM item', async () => {
     await dropLubecAnvil(page)
     await waitForStored(() => readDroppedItems(path), droppedAnvilProblems)
   })
@@ -1742,7 +1821,7 @@ async function runViewport(browser, testCase) {
       + 'gave it a token image from the sheet, saw both again after a reload from their stored paths, opened the imported character\'s Core page and Skills page, '
       + 'finalized it and added a stock Flashlight on its Gear page that was stored by path alone and kept through a reload, '
       + 'wore two stock hockey helmets on its head and was refused a third, dragged the Flashlight to a hand, '
-      + 'dropped a heavy anvil to the GM Items tab, '
+      + 'rolled Strength for a heavy anvil through the prompt and saw the roll on the Core page, dropped the anvil to the GM Items tab, '
       + 'and made an NPC a Direct entry sheet on its Character sheet tab and finalized it.',
     )
   } finally {

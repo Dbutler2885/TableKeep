@@ -16,29 +16,25 @@
 // into the dev server's environment.
 
 import { existsSync, readdirSync } from 'node:fs'
-import { spawn } from 'node:child_process'
 import process from 'node:process'
 import {
   appPort,
   appUrl,
   authEmulatorUrl,
   demoAccounts,
-  demoEmulators,
   demoEnv,
   demoSeatAccounts,
+  emulatorPorts,
   emulatorUiUrl,
   firestoreEmulatorUrl,
-  projectId,
-  repoRoot,
   snapshotArg,
   snapshotDir,
   storageEmulatorUrl,
 } from './config.mjs'
 import { resolveJavaPath } from './java.mjs'
 import { seedDemoAccounts, verifyDemoSignIn } from './seed-accounts.mjs'
-
-const firebaseBin = new URL('../../node_modules/firebase-tools/lib/bin/firebase.js', import.meta.url)
-const viteBin = new URL('../../node_modules/vite/bin/vite.js', import.meta.url)
+import { demoEmulatorArgs, startEmulatorProcess, startViteProcess } from './launch.mjs'
+import { assertBlockIsFree, clientEmulatorEnv, describeEmulatorPorts } from '../emulators/ports.mjs'
 
 const EMULATOR_READY_TIMEOUT_MS = 120_000
 const APP_READY_TIMEOUT_MS = 60_000
@@ -57,47 +53,6 @@ function parseMode() {
 
 function hasSnapshot() {
   return existsSync(snapshotDir) && readdirSync(snapshotDir).length > 0
-}
-
-function startEmulators(mode, javaPath) {
-  const args = [
-    'emulators:start',
-    '--only', demoEmulators,
-    '--project', projectId,
-  ]
-
-  if (hasSnapshot()) {
-    args.push(`--import=${snapshotArg}`)
-  }
-
-  if (mode === 'author') {
-    args.push(`--export-on-exit=${snapshotArg}`)
-  }
-
-  // Detached so an interactive Ctrl+C does not reach the Firebase CLI through
-  // the terminal's process group. This process owns the shutdown order, and in
-  // author mode a second signal arriving mid-export would abandon the export.
-  return spawn(process.execPath, [firebaseBin.pathname, ...args], {
-    cwd: repoRoot,
-    detached: true,
-    env: { ...process.env, PATH: javaPath },
-    stdio: ['ignore', 'inherit', 'inherit'],
-  })
-}
-
-function startApp() {
-  return spawn(
-    process.execPath,
-    [viteBin.pathname, '--host', '127.0.0.1', '--port', String(appPort), '--strictPort'],
-    {
-      cwd: repoRoot,
-      detached: true,
-      // Vite lets `process.env` win over every `.env` file, so injecting the
-      // demo config here beats any real `.env.local` the machine already has.
-      env: { ...process.env, ...demoEnv },
-      stdio: ['ignore', 'inherit', 'inherit'],
-    },
-  )
 }
 
 async function waitForHttp(url, label, timeoutMs, child) {
@@ -206,12 +161,18 @@ let javaPath
 
 try {
   ({ mode, javaPath } = preflight())
+  console.log(describeEmulatorPorts(emulatorPorts))
+  await assertBlockIsFree(emulatorPorts)
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error))
   process.exit(1)
 }
 
-const emulators = startEmulators(mode, javaPath)
+const emulators = startEmulatorProcess({
+  args: demoEmulatorArgs({ mode, hasSnapshot: hasSnapshot(), resolved: emulatorPorts }),
+  javaPath,
+  resolved: emulatorPorts,
+})
 let app = null
 let shuttingDown = false
 
@@ -257,7 +218,7 @@ try {
     await verifyDemoSignIn(account)
   }
 
-  app = startApp()
+  app = startViteProcess({ port: appPort, env: { ...demoEnv, ...clientEmulatorEnv(emulatorPorts.ports) } })
   app.on('exit', (code) => {
     if (shuttingDown) return
     console.error(

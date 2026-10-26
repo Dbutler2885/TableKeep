@@ -1,11 +1,14 @@
 // The item sheet, copied from the inventory prototype (B's one item dialog):
 // one sheet with four modes of the same shape, the card, small stuff, the
-// add and edit form, and the stock picker, and B's "which piece?" prompt. These are its states and its
-// save, pure: gear in, the next gear and B's toast out.
+// add and edit form, and the stock picker, and B's "which piece?" prompt.
+// These are its states and its save, pure: gear in, the next gear and B's
+// toast out. A save that brings a heavy thing onto you carries the Strength
+// roll it asked for (Rule E5).
 
 import { addLubecItem, editLubecItem } from '../../ruleSets/lubec/gear/addItem'
 import type { LubecGear, LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
-import { draftProblem } from '../../ruleSets/lubec/gear/stacks'
+import { draftProblem, type LubecItemDraft } from '../../ruleSets/lubec/gear/stacks'
+import { lubecNeedsStrength, type LubecCheck } from '../../ruleSets/lubec/gear/strengthCheck'
 import { addedToast } from './gearLabels'
 import { selectValue } from './itemLabels'
 import { lubecDraftOf, lubecFieldPage, lubecFieldsOf, lubecNewFields, type LubecItemFields } from './itemForm'
@@ -63,23 +66,40 @@ const destOf = (form: LubecFormSheet) => (form.fields.dest === selectValue(form.
 const savedToast = (name: string, extra: number) =>
   (extra ? `Saved ${name}, and ${extra} more stack${extra > 1 ? 's' : ''}.` : `Saved ${name}.`)
 
-function saveEdit(gear: LubecGear, form: LubecFormSheet, editing: LubecItem, newId: () => string): LubecFormSaved {
-  const draft = lubecDraftOf(form.fields)
+function saveEdit(gear: LubecGear, form: LubecFormSheet, editing: LubecItem, draft: LubecItemDraft, newId: () => string): LubecFormSaved {
   const edited = editLubecItem(gear, editing, destOf(form), draft, newId)
   if (!edited.ok) return edited
   return { ok: true, gear: edited.gear, toast: savedToast(draft.name, edited.extra), next: lubecCardSheet(editing.id) }
 }
 
-function saveNew(gear: LubecGear, form: LubecFormSheet, newId: () => string): LubecFormSaved {
-  const added = addLubecItem(gear, destOf(form), lubecDraftOf(form.fields), newId)
+function saveNew(gear: LubecGear, form: LubecFormSheet, draft: LubecItemDraft, newId: () => string): LubecFormSaved {
+  const added = addLubecItem(gear, destOf(form), draft, newId)
   if (!added.ok) return added
   return { ok: true, gear: added.gear, toast: addedToast(added.first, added.stacks), next: lubecBackSheet(form.back) }
 }
 
-/** The form's Add it or Save: the submit rules first, so a phone turns to the page they point at, then the place. */
-export function lubecSaveForm(gear: LubecGear, form: LubecFormSheet, newId: () => string): LubecFormSaved {
-  const problem = draftProblem(lubecDraftOf(form.fields))
+// A save that asks for a Strength roll records its answer, or none yet, in place of the roll recorded before.
+const unchecked = (i: LubecItem): LubecItem => Object.fromEntries(Object.entries(i).filter(([key]) => key !== 'check')) as LubecItem
+
+// The draft the form saves, with the Strength roll it carries, if any.
+const draftWith = (form: LubecFormSheet, check: LubecCheck | null): LubecItemDraft =>
+  ({ ...lubecDraftOf(form.fields), ...(check ? { check } : {}) })
+
+/**
+ * The form's Add it or Save: the submit rules first, so a phone turns to the page they point at, then the place.
+ * `check` is the Strength roll the save asked for, recorded on every stack it makes.
+ */
+export function lubecSaveForm(gear: LubecGear, form: LubecFormSheet, newId: () => string, check: LubecCheck | null = null): LubecFormSaved {
+  const draft = draftWith(form, check)
+  const problem = draftProblem(draft)
   if (problem) return { ok: false, msg: problem.msg, page: lubecFieldPage(problem.field) }
   const editing = gear.items.find((x) => x.id === form.editId)
-  return editing ? saveEdit(gear, form, editing, newId) : saveNew(gear, form, newId)
+  if (!editing) return saveNew(gear, form, draft, newId)
+  return saveEdit(gear, form, lubecFormNeedsStrength(gear, form) ? unchecked(editing) : editing, draft, newId)
+}
+
+/** Rule E5: whether the form's save brings a heavy thing onto you, or makes one on you heavier, and so asks for a Strength roll first. */
+export function lubecFormNeedsStrength(gear: LubecGear, form: LubecFormSheet): boolean {
+  const was = gear.items.find((x) => x.id === form.editId) ?? null
+  return lubecNeedsStrength(lubecDraftOf(form.fields), destOf(form), was)
 }

@@ -10,7 +10,7 @@
     "replay": "node --env-file-if-exists=.env.local src/replay/run.ts",
     "start": "node --env-file-if-exists=.env.local src/main.ts",
     "test": "node --test \"test/*.test.ts\"",
-    "test:emulator": "cd .. && npx firebase emulators:exec --only firestore,storage \"node --test 'bot/test/emulator/*.test.ts'\"",
+    "test:emulator": "cd .. && node scripts/emulators/firebase.mjs emulators:exec --only firestore,storage \"node --test 'bot/test/emulator/*.test.ts'\"",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

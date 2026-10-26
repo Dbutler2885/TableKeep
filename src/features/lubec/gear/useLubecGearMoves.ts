@@ -6,6 +6,7 @@ import { lubecDragMove } from './gearMoves'
 import type { LubecItemSheetState } from './itemSheet'
 import type { LubecGearDrop } from './lubecGearDrop'
 import { lubecDroppedToast } from './moveLabels'
+import { lubecAskFirst, type LubecStrengthAsk } from './strengthAsk'
 import { useLubecDrag } from './useLubecDrag'
 import { useLubecPackCrop } from './useLubecPackCrop'
 
@@ -19,7 +20,12 @@ export type LubecGearMovesOptions = {
   onDrop: LubecGearDrop
   toast: Toast
   setSheet: (update: (sheet: LubecItemSheetState | null) => LubecItemSheetState | null) => void
+  /** Asks the character's owner for a Strength roll before a heavy thing comes onto them; null when nobody is asked. */
+  onAsk?: ((ask: LubecStrengthAsk) => void) | null
 }
+
+/** Drops a thing; a refusal goes to `refused`, and `said` replaces the drop's own toast. */
+export type LubecDropIt = (item: LubecItem, refused: (msg: string) => void, said?: string) => void
 
 const cannotDrop = (item: LubecItem) => ({ ok: false as const, msg: `Could not drop ${item.name}. Nothing changed.` })
 
@@ -29,29 +35,31 @@ const withoutCardOf = (itemId: string) => (sheet: LubecItemSheetState | null) =>
 
 type DropRun = Pick<LubecGearMovesOptions, 'toast' | 'setSheet'> & { onDrop: Exclude<LubecGearDrop, null>; setBusy: (busy: boolean) => void }
 
-async function runDrop({ onDrop, toast, setSheet, setBusy }: DropRun, item: LubecItem, refused: (msg: string) => void) {
+async function runDrop({ onDrop, toast, setSheet, setBusy }: DropRun, item: LubecItem, refused: (msg: string) => void, said?: string) {
   setBusy(true)
   const r = await onDrop(item).catch(() => cannotDrop(item))
   setBusy(false)
   if (!r.ok) return refused(r.msg)
   setSheet(withoutCardOf(item.id))
-  toast.show(lubecDroppedToast(item))
+  toast.show(said ?? lubecDroppedToast(item))
 }
 
 // A drop crosses two records, so it waits on the transaction, and the page shows "Moving..." and takes no other gear edit.
 function useLubecGearDrop({ onDrop, toast, setSheet }: Pick<LubecGearMovesOptions, 'onDrop' | 'toast' | 'setSheet'>) {
   const [busy, setBusy] = useState(false)
-  const drop = (item: LubecItem, refused: (msg: string) => void) => {
-    if (onDrop && !busy) void runDrop({ onDrop, toast, setSheet, setBusy }, item, refused)
+  const drop: LubecDropIt = (item, refused, said) => {
+    if (onDrop && !busy) void runDrop({ onDrop, toast, setSheet, setBusy }, item, refused, said)
   }
   return { busy, drop }
 }
 
-type LetGo = { gear: LubecGear; change: ((gear: LubecGear) => void) | null; drop: (item: LubecItem, refused: (msg: string) => void) => void; toast: Toast }
+type LetGo = { gear: LubecGear; change: ((gear: LubecGear) => void) | null; drop: LubecDropIt; toast: Toast; onAsk: LubecGearMovesOptions['onAsk'] }
 
 // Letting go of a dragged thing: a drop, a refusal in the toast, or one commit with its toast.
-function letGo({ gear, change, drop, toast }: LetGo, it: LubecItem, hot: LubecDropTarget) {
-  const r = lubecDragMove(gear, it, hot)
+// A heavy thing let go onto you asks its owner first (Rule E5).
+function letGo({ gear, change, drop, toast, onAsk }: LetGo, it: LubecItem, hot: LubecDropTarget) {
+  const r = lubecAskFirst(gear, lubecDragMove(gear, it, hot), onAsk, null)
+  if (!r) return
   if (r.kind === 'drop') return drop(it, toast.show)
   if (r.kind === 'refused') return toast.show(r.msg)
   change?.(r.gear)
@@ -68,12 +76,12 @@ const heldWhile = (busy: boolean, onGearChange: LubecGearMovesOptions['onGearCha
  * every other gear edit until it lands; and drag and drop on the On you view
  * (Rule M7) does either, by what it was let go on.
  */
-export function useLubecGearMoves({ gear, onGearChange, onDrop, toast, setSheet }: LubecGearMovesOptions) {
+export function useLubecGearMoves({ gear, onGearChange, onDrop, toast, setSheet, onAsk = null }: LubecGearMovesOptions) {
   const onYou = useRef<HTMLElement | null>(null)
   const { busy, drop } = useLubecGearDrop({ onDrop, toast, setSheet })
   const change = heldWhile(busy, onGearChange)
   const spots = lubecPackLayout(useLubecPackCrop()).main
-  const onLetGo = (it: LubecItem, hot: LubecDropTarget) => letGo({ gear, change, drop, toast }, it, hot)
+  const onLetGo = (it: LubecItem, hot: LubecDropTarget) => letGo({ gear, change, drop, toast, onAsk }, it, hot)
   const drag = useLubecDrag({ root: onYou, gear, spots, enabled: Boolean(change) && !busy, onStart: toast.hide, onLetGo })
   return { onYou, busy, change, drop, drag }
 }
