@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { LubecDice } from './dice'
 import { describeLubecRecoveryDice, lubecLowestSave, readLubecRecoveryRoll, rollLubecRecovery, type LubecRecoveryRoll } from './recoveryRoll'
+import { emptyLubecGear } from './gear/gearRecord'
 import { lubecCharacterSheet, lubecSheet } from './sheetFixtures'
 
 /** Dice that land on these d100 results, in order. */
@@ -20,6 +21,14 @@ describe('Lubec Recovery Save', () => {
     expect(lubecLowestSave(lubecCharacterSheet({ effects: bruised }))).toEqual({ name: 'Sanity', value: 30 })
     const winded = [{ id: 'e', name: 'Winded', cause: '', steps: [{ modifiers: [{ target: 'Body' as const, amount: -5 }], labels: [] }] }]
     expect(lubecLowestSave(lubecCharacterSheet({ effects: winded }))).toEqual({ name: 'Body', value: 26 })
+  })
+
+  it('reads the Saves through the one list of modifiers, which gear\'s Speed losses never touch', () => {
+    const anvil = { id: 'a', kind: 'thing' as const, name: 'Small anvil', note: '', size: 1 as const, weight: 'heavy' as const, qty: 1, carrier: 'backpack', pocket: 0, check: 'fail' as const }
+    const winded = [{ id: 'e', name: 'Winded', cause: '', steps: [{ modifiers: [{ target: 'Body' as const, amount: -5 }], labels: [] }] }]
+    const sheet = lubecCharacterSheet({ effects: winded, gear: { ...emptyLubecGear(), items: [anvil] } })
+    expect(lubecLowestSave(sheet)).toEqual({ name: 'Body', value: 26 })
+    expect(rollLubecRecovery(sheet, 'normal', rolls(20))).toMatchObject({ against: 'Body', target: 26, outcome: 'success' })
   })
 
   it('cannot be rolled while any Save is a hole', () => {

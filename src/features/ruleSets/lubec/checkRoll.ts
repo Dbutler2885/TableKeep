@@ -2,7 +2,8 @@ import type { LubecCharacterSheet, LubecStoredEntry } from './characterRecord'
 import { lubecClass } from './classes'
 import { lubecCurrentValue } from './derivations'
 import { rollLubecDie, type LubecDice } from './dice'
-import { isLubecValueName, lubecActiveModifiers } from './effects'
+import { isLubecValueName } from './effects'
+import { lubecSheetModifiers } from './modifiers'
 import { areFaces, isCount, isFace, isOneOf, readLubecRollFields, type LubecRollFieldChecks } from './rollFields'
 import { isLubecStat, type LubecSheet, type LubecValueName } from './sheet'
 import { isFightingOrShootingSkill, lubecSkillBonus } from './skills'
@@ -55,7 +56,7 @@ const armedSkill = (sheet: LubecSheet, name: string | null): LubecRollSkill | nu
 
 /** The current value plus the armed skill's bonus; a hole when the value is. */
 export function lubecCheckTarget(sheet: LubecCharacterSheet, name: LubecValueName, skill: string | null): number | null {
-  const current = lubecCurrentValue(sheet, name, lubecActiveModifiers(sheet.effects))
+  const current = lubecCurrentValue(sheet, name, lubecSheetModifiers(sheet))
   return current === null ? null : current + (armedSkill(sheet, skill)?.bonus ?? 0)
 }
 

@@ -6,18 +6,23 @@ import {
   stepDownLubecEffect,
   type LubecEffect,
 } from '../ruleSets/lubec/effects'
+import type { LubecGear } from '../ruleSets/lubec/gear/gearRecord'
 import { LubecEffectEditor } from './LubecEffectEditor'
+import { LubecGearLosses } from './LubecGearLosses'
 
 // The Core page's active effects, each one compact line drawn as the class
 // cards' grey modifier bar: the name, what its current step does, and what it
 // turns into next. The cause is kept but only shown when the effect is opened.
 // Whoever may edit the sheet taps a line to open it and has one Step down
-// button beside it.
+// button beside it. Gear's Speed losses follow, in a group of their own.
 
 type EffectsProps = {
   effects: readonly LubecEffect[]
   /** Absent for a viewer who may not change the character. */
   onChange: ((effects: LubecEffect[]) => void) | null
+  gear: LubecGear
+  /** Saves the character's gear, to turn a loss off or on; absent for a viewer who may not change the character. */
+  onGearChange: ((gear: LubecGear) => void) | null
 }
 
 /** An open editor: an effect's id, or `new` for one being added. */
@@ -77,7 +82,7 @@ function LubecNewEffect({ adding, actions }: { adding: boolean; actions: EffectA
 }
 
 /** The active effects as a section of the Core page, with the owner's and GM's controls when they may change it. */
-export function LubecEffectsPanel({ effects, onChange }: EffectsProps) {
+export function LubecEffectsPanel({ effects, onChange, gear, onGearChange }: EffectsProps) {
   const [open, setOpen] = useState<OpenEffect>(null)
   const editable = onChange !== null
   const change = (next: LubecEffect[]) => {
@@ -102,6 +107,7 @@ export function LubecEffectsPanel({ effects, onChange }: EffectsProps) {
           {effects.map((effect) => <LubecEffectItem key={effect.id} effect={effect} editable={editable} isOpen={open === effect.id} actions={actions} />)}
         </ul>
         {editable ? <LubecNewEffect adding={open === 'new'} actions={actions} /> : null}
+        <LubecGearLosses gear={gear} onGearChange={onGearChange} />
       </div>
     </section>
   )

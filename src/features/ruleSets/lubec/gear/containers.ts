@@ -14,6 +14,7 @@ import { lubecPlacedAt, lubecReceive, type LubecArrival } from './arrival'
 import { lubecDropPlan, type LubecDropFrom, type LubecUnplacedItem } from './drop'
 import type { LubecCarrierRecord, LubecGear, LubecItem } from './gearRecord'
 import { LUBEC_GM_ITEM_FIELDS, type LubecGmItem } from './gmItem'
+import { lubecPrunedOverrides } from '../modifiers'
 import { onYou, place } from './placement'
 
 export const LUBEC_STALE_MOVE = 'Someone moved that first. Nothing changed.'
@@ -88,8 +89,9 @@ const gearOf = (record: GearRecord): LubecGear | null =>
   (isSheet(record) ? record.gear : record.carrier && carrierGear(record.carrier))
 
 // Only ever given a record `gearOf` read gear from, so a carrier record has its carrier.
+// A sheet drops any switched-off Speed loss the move ended (spec 5.3).
 const withGear = (record: GearRecord, gear: LubecGear): GearRecord =>
-  (isSheet(record) ? { ...record, gear } : { ...record, carrier: { ...record.carrier as LubecCarrierRecord, items: gear.items } })
+  (isSheet(record) ? { ...record, gear: lubecPrunedOverrides(gear) } : { ...record, carrier: { ...record.carrier as LubecCarrierRecord, items: gear.items } })
 
 const fieldsWithout = (item: Record<string, unknown>, keys: readonly string[]) =>
   Object.fromEntries(Object.entries(item).filter(([key]) => !keys.includes(key)))

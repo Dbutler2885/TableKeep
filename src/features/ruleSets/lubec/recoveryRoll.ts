@@ -3,7 +3,7 @@ import { LUBEC_ADVANTAGE_MODES, describeLubecDice, keptLubecRoll, rollLubecDice,
 import { lubecStressLoweredBy } from './counters'
 import { lubecCurrentValue } from './derivations'
 import type { LubecDice } from './dice'
-import { lubecActiveModifiers } from './effects'
+import { lubecSheetModifiers } from './modifiers'
 import { areFaces, isCount, isFace, isOneOf, readLubecRollFields, type LubecRollFieldChecks } from './rollFields'
 import { LUBEC_SAVES, type LubecSave } from './sheet'
 
@@ -31,7 +31,7 @@ type LubecLowestSave = { name: LubecSave; value: number }
 
 /** The lowest current Save, the first of a tie; null while any Save is a hole. */
 export function lubecLowestSave(sheet: LubecCharacterSheet): LubecLowestSave | null {
-  const modifiers = lubecActiveModifiers(sheet.effects)
+  const modifiers = lubecSheetModifiers(sheet)
   const saves = LUBEC_SAVES.map((name) => ({ name, value: lubecCurrentValue(sheet, name, modifiers) }))
   if (saves.some((save) => save.value === null)) return null
   return (saves as LubecLowestSave[]).reduce((lowest, save) => (save.value < lowest.value ? save : lowest))

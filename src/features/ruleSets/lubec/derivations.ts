@@ -4,8 +4,11 @@ import type { LubecClassChoices, LubecSheet, LubecValueName } from './sheet'
 // Every derived value is worked out when read, never stored, and `null` (a
 // hole) wherever an input it needs is a hole.
 
-/** One active effect's change to a named Stat or Save. */
-export type LubecModifier = { target: LubecValueName; amount: number }
+/**
+ * One change to a named Stat or Save: an active effect's, or one of gear's
+ * Speed losses. A modifier that names no source is an effect's.
+ */
+export type LubecModifier = { target: LubecValueName; amount: number; source?: 'effect' | 'gear' }
 
 export const LUBEC_EFFECTIVE_HANDLE_CAP = 100
 

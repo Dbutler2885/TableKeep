@@ -1,12 +1,14 @@
 import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
 import type { LubecSheetEdit } from '../ruleSets/lubec/directEntry'
-import { lubecActiveModifiers, type LubecEffect } from '../ruleSets/lubec/effects'
+import type { LubecEffect } from '../ruleSets/lubec/effects'
+import { lubecSheetModifiers } from '../ruleSets/lubec/modifiers'
 import { LubecAbilities } from './LubecAbilities'
 import { lubecShownSheet } from './lubecCircles'
 import { LubecClassSection } from './LubecClassSection'
 import { LubecCountersPanel, type LubecCountersChange } from './LubecCountersPanel'
 import { LubecEffectsPanel } from './LubecEffectsPanel'
 import { LubecFightPanel } from './LubecFightPanel'
+import type { LubecGearChange } from './gear/LubecGearPage'
 import { lubecRollUpActive } from './lubecRollUpCircles'
 import { useLubecCircles } from './useLubecCircles'
 import type { LubecRollUpEdits } from './useLubecRollUp'
@@ -25,6 +27,8 @@ type CorePageProps = {
   onCountersChange: LubecCountersChange | null
   /** Absent for a viewer who may not change the character. */
   onEffectsChange: ((effects: LubecEffect[]) => void) | null
+  /** Turns one of gear's Speed losses off or on; null for a viewer who may not change the character. */
+  onGearChange: LubecGearChange
   /** Changes a draft's base values, class and class choice; absent unless the viewer may type into the draft. */
   onDraftEdit?: LubecSheetEdit | null
   /** Absent for a viewer who may not roll on the character. */
@@ -46,8 +50,8 @@ type CorePageProps = {
  * values. A guided draft's circles roll its dice and settle its scores
  * instead, and its class cards unlock once they are settled.
  */
-export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraftEdit = null, onRolled, guided = null, inPlay }: CorePageProps) {
-  const modifiers = lubecActiveModifiers(sheet.effects)
+export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onGearChange, onDraftEdit = null, onRolled, guided = null, inPlay }: CorePageProps) {
+  const modifiers = lubecSheetModifiers(sheet)
   const roller = useLubecRoller(sheet, onRolled)
   const rollUp = rollUpOf(sheet, guided, onDraftEdit)
   const circles = useLubecCircles(sheet, rollUp ? null : roller)
@@ -65,7 +69,7 @@ export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onDraf
       {onDraftEdit ? classSection : null}
       <div className="lubec-tallies">
         <LubecCountersPanel sheet={lubecShownSheet(sheet, circles.spin)} onChange={onCountersChange} held={circles.spin !== null} />
-        <LubecEffectsPanel effects={sheet.effects} onChange={onEffectsChange} />
+        <LubecEffectsPanel effects={sheet.effects} onChange={onEffectsChange} gear={sheet.gear} onGearChange={onGearChange} />
       </div>
       {inPlay ? <LubecFightPanel sheet={sheet} modifiers={modifiers} /> : null}
       {onDraftEdit ? null : classSection}
