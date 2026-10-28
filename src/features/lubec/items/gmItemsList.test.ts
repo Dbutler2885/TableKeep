@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { parseLubecGmItem } from '../../ruleSets/lubec/gear/gmItem'
-import { lubecDroppedLine, lubecGmItemFacts, lubecItemsGroups, lubecItemsRowLine, lubecItemsRowTags, lubecLibraryStock } from './gmItemsList'
+import { lubecDroppedLine, lubecGmItemById, lubecGmItemFacts, lubecItemsGroups, lubecItemsRowLine, lubecItemsRowTags, lubecLibraryStock } from './gmItemsList'
 
 const at = (seconds: number) => ({ createdAt: { seconds, nanoseconds: 0 } })
 const item = (id: string, fields: Record<string, unknown>) => parseLubecGmItem({ id, kind: 'thing', name: id, size: 1, qty: 1, weight: 'normal', note: '', ...fields }, id)
@@ -73,5 +73,14 @@ describe('the card\'s facts', () => {
 describe('the picker\'s "This campaign"', () => {
   it('is the campaign items only, oldest first, each under its own id', () => {
     expect(lubecLibraryStock([lantern, anvil, rope]).map((x) => [x.sid, x.name])).toEqual([['rope', 'rope'], ['lantern', 'lantern']])
+  })
+})
+
+describe('finding the chosen item', () => {
+  it('finds it by id, and is null while the items load, with none chosen, or once it is gone', () => {
+    expect(lubecGmItemById([rope, anvil], 'anvil')).toBe(anvil)
+    expect(lubecGmItemById(null, 'anvil')).toBeNull()
+    expect(lubecGmItemById([rope], null)).toBeNull()
+    expect(lubecGmItemById([rope], 'anvil')).toBeNull()
   })
 })

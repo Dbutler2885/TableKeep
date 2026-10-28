@@ -5,8 +5,8 @@ import type { LubecGmItem } from '../../ruleSets/lubec/gear/gmItem'
 import type { LubecStockItem } from '../../ruleSets/lubec/gear/stock'
 import { lubecSupplies } from '../../ruleSets/lubec/gear/supplies'
 import { supplyNameIn } from '../gear/gearLabels'
-import { lubecFieldsFromStock, lubecFormPages } from '../gear/itemForm'
-import type { LubecFormSheet } from '../gear/itemSheet'
+import { lubecFieldsFromStock } from '../gear/itemForm'
+import { lubecRefusedForm, type LubecFormSheet } from '../gear/itemSheet'
 import { LubecItemForm } from '../gear/LubecItemForm'
 import { LUBEC_SHEET_TITLE } from '../gear/LubecSheetHead'
 import { LubecStockPicker } from '../gear/LubecStockPicker'
@@ -30,22 +30,23 @@ type FormProps = {
 // A campaign item belongs to no sheet, so a supply cannot be made here; the game's are offered.
 const NO_MADE_SUPPLY = 'A new supply is made on a character\'s sheet. Here, pick one the game has.'
 
-// The form's Add it or Save: written whole, then its card opens. A refusal stays on the form, turning a phone to its page.
+const CANNOT_SAVE = 'Could not save that. Nothing changed.'
+
+// The form's Add it or Save: written whole, then its card opens. A refusal stays on the form.
 async function submitLibraryForm({ form, was, records, onForm, onSaved, toast }: FormProps, paged: boolean, setSaving: (saving: boolean) => void) {
   const saved = lubecSaveLibraryForm(form, was, makeId)
-  if (!saved.ok) {
-    const at = lubecFormPages(form.fields.kind).findIndex(([id]) => id === saved.page)
-    return onForm({ ...form, error: saved.msg, page: paged && at >= 0 ? at : form.page })
-  }
+  if (!saved.ok) return onForm(lubecRefusedForm(form, saved, paged))
   setSaving(true)
-  await saveLubecLibraryItem(records, saved.item)
-    .then(() => {
-      onForm(null)
-      onSaved(saved.item.id)
-      toast(saved.toast)
-    })
-    .catch(() => onForm({ ...form, error: 'Could not save that. Nothing changed.' }))
-    .finally(() => setSaving(false))
+  try {
+    await saveLubecLibraryItem(records, saved.item)
+    onForm(null)
+    onSaved(saved.item.id)
+    toast(saved.toast)
+  } catch {
+    onForm({ ...form, error: CANNOT_SAVE })
+  } finally {
+    setSaving(false)
+  }
 }
 
 function FormBody(props: FormProps & { saving: boolean; setSaving: (saving: boolean) => void }) {

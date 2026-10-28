@@ -229,6 +229,43 @@ describe('the GM Items tab', () => {
     expect(database[`${GM_ITEMS}/lantern`]).toBeDefined()
   })
 
+  it('keeps a refused write on the card it came from, and changes nothing', async () => {
+    await mountItems()
+    mocks.deleteDoc.mockRejectedValueOnce(new Error('permission-denied'))
+
+    const card = openRow('Wool watch cap')
+    fireEvent.click(card.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(within(card.getByText('Delete for good').parentElement as HTMLElement).getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(card.getByRole('alert').textContent).toBe('Could not save that. Nothing changed.'))
+    expect(database[`${GM_ITEMS}/cap`]).toBeDefined()
+    expect(openRow('Small anvil').queryByRole('alert')).toBeNull()
+  })
+
+  it('refuses Give with the arrival rule\'s words when the character has no room, and keeps the item', async () => {
+    const full = Array.from({ length: 5 }, (_, n) => ({ id: `b${n}`, kind: 'thing', name: `Brick ${n}`, size: 1, qty: 1, weight: 'normal', note: '', carrier: 'backpack', pocket: 0 }))
+    database[`${CHARACTERS}/wayne`] = sheet('Wayne Gardner', 'player-1', 'active', [...full, { ...full[0], id: 'f1', pocket: 1 }, { ...full[0], id: 'f2', pocket: 2 }])
+    await mountItems()
+
+    const card = openRow('Small anvil')
+    fireEvent.click(card.getByRole('button', { name: 'Give to...' }))
+    fireEvent.click(card.getByRole('button', { name: 'Give it' }))
+
+    await waitFor(() => expect(card.getByRole('alert').textContent).toBe('Not enough room to accept this item. Make room in your backpack or hands, then accept again.'))
+    expect(database[`${GM_ITEMS}/anvil`]).toBeDefined()
+  })
+
+  it('says so when no character is in play to give an item to', async () => {
+    delete database[`${CHARACTERS}/wayne`]
+    await mountItems()
+
+    const card = openRow('Small anvil')
+    fireEvent.click(card.getByRole('button', { name: 'Give to...' }))
+
+    expect(card.getByText('No finalized characters yet. An item can only arrive on a character in play.')).toBeTruthy()
+    expect(card.queryByRole('button', { name: 'Give it' })).toBeNull()
+  })
+
   it('keeps a dropped item as a campaign item, without who dropped it or where from', async () => {
     await mountItems()
 
@@ -274,6 +311,103 @@ describe('the GM Items tab', () => {
     expect(added).not.toHaveProperty('carrier')
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByRole('article', { name: 'Harbor map' })).toBeTruthy()
+  })
+})
+
+describe('the campaign item form', () => {
+  const openAdd = () => {
+    fireEvent.click(screen.getByRole('button', { name: '+ Add an item' }))
+    return within(screen.getByRole('dialog'))
+  }
+
+  it('keeps the form open with the form\'s own refusal when the item has no name, and writes nothing', async () => {
+    await mountItems()
+
+    const form = openAdd()
+    fireEvent.click(form.getByRole('button', { name: 'Add it' }))
+
+    expect(form.getByRole('alert').textContent).toBeTruthy()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+
+  it('keeps the form and what was typed when the save is refused, and says nothing changed', async () => {
+    await mountItems()
+    mocks.setDoc.mockRejectedValueOnce(new Error('permission-denied'))
+
+    const form = openAdd()
+    fireEvent.change(form.getByRole('combobox', { name: 'Name' }), { target: { value: 'Harbor map' } })
+    fireEvent.click(form.getByRole('button', { name: 'Add it' }))
+
+    await waitFor(() => expect(form.getByRole('alert').textContent).toBe('Could not save that. Nothing changed.'))
+    expect((form.getByRole('combobox', { name: 'Name' }) as HTMLInputElement).value).toBe('Harbor map')
+    expect(Object.values(database).some((data) => data.name === 'Harbor map')).toBe(false)
+  })
+
+  it('edits a campaign item in place, keeping when it was first made, and Cancel writes nothing', async () => {
+    await mountItems()
+
+    fireEvent.click(openRow('Brass storm lantern').getByRole('button', { name: 'Edit' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Back' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('article', { name: 'Brass storm lantern' }).querySelector('.actions button') as HTMLElement)
+    const form = within(screen.getByRole('dialog'))
+    expect(form.getByText('Edit item')).toBeTruthy()
+    fireEvent.click(form.getByRole('radio', { name: 'Heavy' }))
+    fireEvent.click(form.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(database[`${GM_ITEMS}/lantern`]).toMatchObject({ weight: 'heavy', status: 'library', createdAt: { seconds: 1, nanoseconds: 0 } }))
+    expect(screen.getByRole('status').textContent).toBe('Saved Brass storm lantern.')
+  })
+})
+
+describe('the campaign item form\'s stock and supplies', () => {
+  it('copies a stock item in from the picker, which offers the campaign items too, and Escape closes the form', async () => {
+    await mountItems()
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add an item' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Browse stock' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'This campaign' }))
+    expect([...document.querySelectorAll('.stock-tile')].map((t) => t.textContent)).toEqual([expect.stringContaining('Brass storm lantern')])
+    fireEvent.click(screen.getByRole('button', { name: 'Back to the form' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Browse stock' }))
+    fireEvent.click([...document.querySelectorAll<HTMLElement>('.stock-tile')].find((t) => t.textContent?.includes('Coil of rope')) as HTMLElement)
+
+    const form = within(screen.getByRole('dialog'))
+    expect((form.getByRole('combobox', { name: 'Name' }) as HTMLInputElement).value).toBe('Coil of rope')
+    expect(screen.getByRole('status').textContent).toBe('Coil of rope: copied in from stock.')
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('makes no supply for a campaign item, which belongs to no sheet, and says to pick one the game has', async () => {
+    await mountItems()
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add an item' }))
+    const form = within(screen.getByRole('dialog'))
+    fireEvent.click(form.getByRole('radio', { name: /Holder/ }))
+    fireEvent.change(form.getAllByRole('combobox').find((c) => c.tagName === 'SELECT' && within(c).queryByText('+ Make a supply')) as HTMLElement, { target: { value: '__make' } })
+    fireEvent.change(form.getByRole('textbox', { name: 'New supply' }), { target: { value: 'Kerosene' } })
+    fireEvent.click(form.getByRole('button', { name: 'Make it' }))
+
+    expect(form.getByRole('alert').textContent).toBe('A new supply is made on a character\'s sheet. Here, pick one the game has.')
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+  })
+})
+
+describe('on a narrow screen', () => {
+  it('shows the list, then the chosen card alone with a way back', async () => {
+    window.innerWidth = 820
+    await mountItems()
+
+    openRow('Small anvil')
+    expect(screen.queryByRole('region', { name: 'Dropped' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to the items' }))
+
+    expect(screen.getByRole('region', { name: 'Dropped' })).toBeTruthy()
+    expect(screen.queryByRole('article')).toBeNull()
   })
 })
 

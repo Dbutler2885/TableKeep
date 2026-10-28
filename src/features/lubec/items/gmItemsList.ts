@@ -28,6 +28,10 @@ const createdSeconds = (item: LubecGmItem): number => {
 export const lubecGmItemsOldestFirst = (items: readonly LubecGmItem[]): LubecGmItem[] =>
   [...items].sort((a, b) => createdSeconds(a) - createdSeconds(b))
 
+/** The item with `itemId`, or null while the items load, when none is chosen, or once it is gone. */
+export const lubecGmItemById = (items: readonly LubecGmItem[] | null, itemId: string | null): LubecGmItem | null =>
+  items?.find((item) => item.id === itemId) ?? null
+
 /** The lists the chips show, each newest first: the campaign items, then the dropped items. */
 export function lubecItemsGroups(items: readonly LubecGmItem[], filter: LubecItemsFilter): LubecItemsGroup[] {
   const newestFirst = lubecGmItemsOldestFirst(items).reverse()
