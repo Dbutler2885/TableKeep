@@ -5,8 +5,8 @@
  * transaction writes the character and removes the GM item together, as
  * Firestore does. The GM sees the campaign items and what was dropped; Give
  * lands a thing by the arrival rule; Keep moves a dropped one to the campaign
- * items; Delete removes one; and a player's picker offers the campaign items,
- * never a dropped one.
+ * items; Delete removes one; ticked dropped items are deleted together in one
+ * batch; and a player's picker offers the campaign items, never a dropped one.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   listeners: [] as { ref: { path: string; filter?: { field: string; value: unknown } }; next: (snap: unknown) => void }[],
   setDoc: vi.fn(),
   deleteDoc: vi.fn(),
+  commitBatch: vi.fn(),
   runTransaction: vi.fn(),
 }))
 
@@ -45,6 +46,10 @@ vi.mock('firebase/firestore', () => ({
   serverTimestamp: () => ({ sentinel: 'serverTimestamp' }),
   setDoc: mocks.setDoc,
   deleteDoc: mocks.deleteDoc,
+  writeBatch: () => {
+    const deletes: Ref[] = []
+    return { delete: (ref: Ref) => { deletes.push(ref) }, commit: () => mocks.commitBatch(deletes) }
+  },
 }))
 vi.mock('../../common/mediaStorage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../common/mediaStorage')>()),
@@ -150,7 +155,7 @@ async function mountItems(role: Role = 'gm') {
 }
 
 const group = (title: string) => within(screen.getByRole('region', { name: title }))
-const rowNames = (title: string) => group(title).queryAllByRole('button').map((b) => b.querySelector('span:not(.thumb)')?.firstChild?.textContent)
+const rowNames = (title: string) => group(title).queryAllByRole('button').filter((b) => b.classList.contains('row-item')).map((b) => b.querySelector('span:not(.thumb)')?.firstChild?.textContent)
 const openRow = (name: string) => {
   fireEvent.click(screen.getAllByRole('button').find((b) => b.classList.contains('row-item') && b.textContent?.includes(name)) as HTMLElement)
   return within(screen.getByRole('article', { name }))
@@ -168,6 +173,10 @@ beforeEach(() => {
   })
   mocks.deleteDoc.mockImplementation(async (ref: Ref) => {
     delete database[ref.path]
+    emitAll()
+  })
+  mocks.commitBatch.mockImplementation(async (deletes: Ref[]) => {
+    deletes.forEach((ref) => { delete database[ref.path] })
     emitAll()
   })
   mocks.runTransaction.mockImplementation(transaction)
@@ -311,6 +320,120 @@ describe('the GM Items tab', () => {
     expect(added).not.toHaveProperty('carrier')
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByRole('article', { name: 'Harbor map' })).toBeTruthy()
+  })
+})
+
+describe('picking several dropped items', () => {
+  const pick = (name: string) => screen.getByRole('checkbox', { name: `Select ${name}` }) as HTMLInputElement
+  const selectAll = () => screen.getByRole('checkbox', { name: /^(Select|Deselect) all Dropped items$/ }) as HTMLInputElement
+  const askDelete = (count: number) => fireEvent.click(group('Dropped').getByRole('button', { name: `Delete selected (${count})` }))
+  const confirmDelete = () => fireEvent.click(within(group('Dropped').getByText('Delete for good').parentElement as HTMLElement).getByRole('button', { name: 'Delete' }))
+
+  beforeEach(() => {
+    database[`${GM_ITEMS}/rag`] = gmItem('rag', 'Oily rag', { status: 'dropped', droppedByCharacterName: 'Wayne Gardner', createdAt: { seconds: 4, nanoseconds: 0 } })
+  })
+
+  it('puts a checkbox on each dropped item and none on a campaign item', async () => {
+    await mountItems()
+
+    expect(group('Dropped').getAllByRole('checkbox').map((c) => c.getAttribute('aria-label'))).toEqual(['Select all Dropped items', 'Select Oily rag', 'Select Wool watch cap', 'Select Small anvil'])
+    expect(group('Campaign items').queryAllByRole('checkbox')).toEqual([])
+    expect(group('Dropped').queryByRole('button', { name: /Delete selected/ })).toBeNull()
+  })
+
+  it('ticks every dropped item from the top, leaves the rest ticked when one is unticked, and untick all clears them', async () => {
+    await mountItems()
+
+    fireEvent.click(selectAll())
+    expect([pick('Oily rag').checked, pick('Wool watch cap').checked, pick('Small anvil').checked]).toEqual([true, true, true])
+    expect(selectAll().getAttribute('aria-label')).toBe('Deselect all Dropped items')
+    expect(group('Dropped').getByRole('button', { name: 'Delete selected (3)' })).toBeTruthy()
+
+    fireEvent.click(pick('Wool watch cap'))
+    expect([pick('Oily rag').checked, pick('Wool watch cap').checked, pick('Small anvil').checked]).toEqual([true, false, true])
+    expect(selectAll().checked).toBe(false)
+    expect(selectAll().indeterminate).toBe(true)
+    expect(selectAll().getAttribute('aria-label')).toBe('Select all Dropped items')
+
+    fireEvent.click(selectAll())
+    expect(selectAll().checked).toBe(true)
+    fireEvent.click(selectAll())
+    expect([pick('Oily rag').checked, pick('Wool watch cap').checked, pick('Small anvil').checked]).toEqual([false, false, false])
+    expect(selectAll().indeterminate).toBe(false)
+    expect(group('Dropped').queryByRole('button', { name: /Delete selected/ })).toBeNull()
+  })
+
+  it('ticking a row does not open its card', async () => {
+    await mountItems()
+
+    fireEvent.click(pick('Small anvil'))
+
+    expect(screen.queryByRole('article')).toBeNull()
+    expect(screen.getByText('Pick an item to see it.')).toBeTruthy()
+  })
+
+  it('deletes the ticked items in one batch, only once asked, and clears the selection', async () => {
+    await mountItems()
+    fireEvent.click(pick('Oily rag'))
+    fireEvent.click(pick('Small anvil'))
+
+    askDelete(2)
+    expect(group('Dropped').getByText('2 dropped items leave the game. Nobody can get them back.')).toBeTruthy()
+    fireEvent.click(group('Dropped').getByRole('button', { name: 'Keep them' }))
+    expect(mocks.commitBatch).not.toHaveBeenCalled()
+
+    askDelete(2)
+    confirmDelete()
+
+    await waitFor(() => expect(rowNames('Dropped')).toEqual(['Wool watch cap']))
+    expect(mocks.commitBatch).toHaveBeenCalledTimes(1)
+    expect(mocks.commitBatch.mock.calls[0][0].map((ref: Ref) => ref.path).sort()).toEqual([`${GM_ITEMS}/anvil`, `${GM_ITEMS}/rag`])
+    expect(mocks.deleteDoc).not.toHaveBeenCalled()
+    expect(database[`${GM_ITEMS}/lantern`]).toBeDefined()
+    expect(pick('Wool watch cap').checked).toBe(false)
+    expect(group('Dropped').queryByRole('button', { name: /Delete selected/ })).toBeNull()
+    expect(screen.getByRole('status').textContent).toBe('Deleted 2 dropped items.')
+  })
+
+  it('closes the open card when its item is among those deleted', async () => {
+    await mountItems()
+    openRow('Small anvil')
+    fireEvent.click(selectAll())
+
+    askDelete(3)
+    confirmDelete()
+
+    await waitFor(() => expect(screen.getByText('Pick an item to see it.')).toBeTruthy())
+    expect(group('Dropped').getByText('Nothing dropped. What players drop lands here.')).toBeTruthy()
+    expect(group('Dropped').queryAllByRole('checkbox')).toEqual([])
+  })
+
+  it('keeps every ticked item when the batch is refused, and says nothing changed', async () => {
+    await mountItems()
+    mocks.commitBatch.mockRejectedValueOnce(new Error('permission-denied'))
+    fireEvent.click(selectAll())
+
+    askDelete(3)
+    confirmDelete()
+
+    await waitFor(() => expect(group('Dropped').getByRole('alert').textContent).toBe('Could not delete those. Nothing changed.'))
+    expect(rowNames('Dropped')).toEqual(['Oily rag', 'Wool watch cap', 'Small anvil'])
+    expect(selectAll().checked).toBe(true)
+  })
+
+  it('forgets a ticked item that leaves the list, so it never comes back ticked', async () => {
+    await mountItems()
+    fireEvent.click(pick('Small anvil'))
+    fireEvent.click(pick('Oily rag'))
+
+    fireEvent.click(openRow('Small anvil').getByRole('button', { name: 'Keep as a campaign item' }))
+    await waitFor(() => expect(group('Dropped').getByRole('button', { name: 'Delete selected (1)' })).toBeTruthy())
+
+    database[`${GM_ITEMS}/anvil`] = ANVIL
+    emitAll()
+    await waitFor(() => expect(rowNames('Dropped')).toEqual(['Oily rag', 'Wool watch cap', 'Small anvil']))
+    expect(pick('Small anvil').checked).toBe(false)
+    expect(pick('Oily rag').checked).toBe(true)
   })
 })
 
