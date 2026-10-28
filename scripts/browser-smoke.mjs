@@ -1746,6 +1746,41 @@ async function fireLubecEmptyRevolver(page) {
   await waitForNoLubecGearSheet(page)
 }
 
+// Step 20: the given anvil is in the backpack with no Strength roll, and no GM item holds it any more.
+export function givenAnvilProblems({ dropped, character }) {
+  const fields = storedAt(storedGearItem(character, 'Small anvil'), ['mapValue', 'fields'])
+  if (!fields) return ['the anvil is not on the sheet']
+  const problems = dropped.length ? [`the GM items still hold ${dropped.length}`] : []
+  if (storedAt(fields, ['carrier', 'stringValue']) !== 'backpack') problems.push(`the given anvil is in ${storedAt(fields, ['carrier', 'stringValue'])}`)
+  if (fields.check) problems.push('the given anvil carries a Strength roll')
+  return problems
+}
+
+async function openLubecItemsTab(page) {
+  if (!(await page.$('.side-nav.open'))) await roleLocator(page, 'button', 'Open navigation').click()
+  await page.locator('.side-nav .nav-list .tab-button ::-p-text(Items)').click()
+  await closeNavigationDrawer(page)
+  await page.locator('.shell-root[data-theme="lubec"] .lubec-items-tab').wait()
+}
+
+const LUBEC_DROPPED_ROWS = '.lubec-items-tab section[aria-label="Dropped"] .row-item'
+
+// Step 20, as the GM: the dropped anvil is listed with where it was dropped from, and Give to... hands it back to Tommy.
+async function lubecGmItemsSteps(page, path) {
+  await step('open the GM Items tab', () => openLubecItemsTab(page))
+  await step('list the dropped Small anvil under Dropped, from the backpack', async () => {
+    await page.locator(`${LUBEC_DROPPED_ROWS} ::-p-text(Small anvil)`).wait()
+    await page.locator(`${LUBEC_DROPPED_ROWS} ::-p-text(from backpack.)`).wait()
+  })
+  await step('give the anvil to Tommy, where it arrives in the backpack with no Strength roll', async () => {
+    await page.locator(`${LUBEC_DROPPED_ROWS} ::-p-text(Small anvil)`).click()
+    await page.locator('.gm-item-card .actions button ::-p-text(Give to...)').click()
+    await page.locator('#lubec-give-panel button ::-p-text(Give it)').click()
+    await waitForStored(() => readDroppedItems(path), givenAnvilProblems)
+  })
+  await step('fit the GM Items tab without scrolling sideways', () => expectNoSidewaysScroll(page))
+}
+
 async function lubecGearPageSteps(page, testCase, path) {
   await step('offer the three page tabs: Core sheet, Skills, Gear', () => expectLubecPageTabs(page))
   await step('finalize Tommy with the draft bar\'s Finalize and the dialog\'s Finalize', () => finalizeLubecCharacter(page))
@@ -1788,7 +1823,7 @@ async function lubecGearPageSteps(page, testCase, path) {
 async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) {
   const filePath = await lubecImportFile()
   await step('open the Lubec campaign made through the picker', () => openCampaignCard(page, campaignName, LUBEC_TAB))
-  await step('offer the five Lubec tabs', () => expectNavTabs(page, ['Characters', 'Maps', 'NPCs', 'Notes', 'Calendar']))
+  await step('offer the GM the six Lubec tabs, Items among them', () => expectNavTabs(page, ['Characters', 'Maps', 'Items', 'NPCs', 'Notes', 'Calendar']))
   const path = await step('import the Tommy Eves file with a portrait', () => importLubecCharacter(page, charactersPath, filePath))
   await lubecMediaSteps(page, path)
   // Clear of the page tabs, so the review screenshot shows them at rest.
@@ -1805,6 +1840,7 @@ async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) 
   await screenshot(page, `${testCase.name}-lubec-core`)
   await lubecSkillsPageSteps(page, testCase)
   await lubecGearPageSteps(page, testCase, path)
+  await lubecGmItemsSteps(page, path)
   await lubecNpcSheetSteps(page, testCase, charactersPath.replace(/\/characters$/, ''))
 }
 

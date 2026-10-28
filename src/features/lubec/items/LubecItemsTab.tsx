@@ -1,0 +1,156 @@
+// The GM's Items tab for a Lubec campaign (spec 8): the campaign items,
+// which are every picker's "This campaign", and what players dropped, in
+// the NPCs tab's list-and-detail layout, with B's rows, card and form inside.
+// Only the GM sees it; the shell gives a player no Items tab.
+
+import { ChevronLeft } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { db } from '../../../firebase'
+import type { Role } from '../../../types/app'
+import { makeId } from '../../character/characterFactories'
+import { useCharacterStore } from '../../character/characterStore/useCharacterStore'
+import { useResponsiveCharacterLayout } from '../../character/hooks/useResponsiveCharacterLayout'
+import { lubecCharacterStore } from '../../ruleSets/lubec/characterParser'
+import type { LubecGmItem } from '../../ruleSets/lubec/gear/gmItem'
+import { lubecMoveStoreOf } from '../gear/lubecGearDrop'
+import type { LubecFormSheet } from '../gear/itemSheet'
+import { useLubecToast } from '../gear/useLubecToast'
+import { LubecRoughFilter } from '../LubecRoughFilter'
+import { lubecCharacterName } from '../lubecNames'
+import { lubecLibraryEditSheet, lubecLibraryAddSheet } from './gmItemForm'
+import { lubecLibraryStock, type LubecItemsFilter } from './gmItemsList'
+import { deleteLubecGmItem, giveLubecGmItem, keepLubecGmItem, type LubecItemsRecords } from './gmItemWrites'
+import { LubecGmItemCard, type LubecGiveTarget, type LubecGmItemActions } from './LubecGmItemCard'
+import { LubecItemsRoster } from './LubecItemsRoster'
+import { LubecLibraryForm } from './LubecLibraryForm'
+import { useLubecGmItems } from './useLubecGmItems'
+import '../gear/lubecGear.css'
+import '../gear/lubecGearSheet.css'
+import './lubecItemsTab.css'
+
+export type LubecItemsTabProps = {
+  campaignId: string
+  groupId: string
+  role: Role | null
+  currentUserId: string
+  gmUserId: string | null
+  setError: (message: string) => void
+}
+
+// The characters an item can arrive on, which are the ones in play, from the
+// shared store, which also holds each one's waiting save for the move.
+function useGiveTargets({ campaignId, groupId, role, currentUserId, gmUserId, setError }: LubecItemsTabProps) {
+  const store = useCharacterStore({ ruleSet: lubecCharacterStore, campaignId, groupId, userId: currentUserId, role, gmUserId, setError, enabled: true })
+  const targets: LubecGiveTarget[] = store.characters
+    .filter((character) => character.creationStatus === 'active')
+    .map((character) => ({ id: character.id, name: lubecCharacterName(character) }))
+  return { targets, moveStore: lubecMoveStoreOf(store) }
+}
+
+type Refusal = { itemId: string; msg: string }
+
+type ActionsOptions = {
+  records: LubecItemsRecords
+  give: ReturnType<typeof useGiveTargets>
+  toast: (text: string) => void
+  select: (itemId: string | null) => void
+  openForm: (form: LubecFormSheet) => void
+}
+
+const CANNOT_SAVE = 'Could not save that. Nothing changed.'
+
+// One write at a time: a refusal stays on the card it came from, and `done` follows a write that went through.
+function useWriteRunner() {
+  const [busy, setBusy] = useState(false)
+  const [refusal, setRefusal] = useState<Refusal | null>(null)
+  const run = async (item: LubecGmItem, write: () => Promise<{ ok: boolean; msg?: string } | void>, done: () => void) => {
+    setBusy(true)
+    setRefusal(null)
+    const result = await write().catch(() => ({ ok: false, msg: CANNOT_SAVE }))
+    setBusy(false)
+    if (result && !result.ok) setRefusal({ itemId: item.id, msg: result.msg ?? CANNOT_SAVE })
+    else done()
+  }
+  return { busy, refusal, run }
+}
+
+// The card's actions for one item: Give to... lands it by the arrival rule; a dropped item leaves the list when given.
+function itemActions(item: LubecGmItem, { records, give, toast, select, openForm }: ActionsOptions, run: ReturnType<typeof useWriteRunner>['run']): LubecGmItemActions {
+  const library = item.status === 'library'
+  const nameOf = (id: string) => give.targets.find((t) => t.id === id)?.name ?? 'them'
+  return {
+    onEdit: library ? () => openForm(lubecLibraryEditSheet(item)) : null,
+    onGive: (characterId) => void run(item, () => giveLubecGmItem(records, item, characterId, give.moveStore, makeId()), () => {
+      toast(`Gave ${item.name} to ${nameOf(characterId)}. It lands on ${nameOf(characterId)}'s sheet.`)
+      if (!library) select(null)
+    }),
+    onKeep: library ? null : () => void run(item, () => keepLubecGmItem(records, item), () => toast(`${item.name}: kept as a campaign item.`)),
+    onDelete: () => void run(item, () => deleteLubecGmItem(records, item), () => {
+      toast(`Deleted ${item.name}.`)
+      select(null)
+    }),
+  }
+}
+
+type DetailProps = {
+  item: LubecGmItem | null
+  isSinglePane: boolean
+  onBack: () => void
+  card: (item: LubecGmItem) => ReactNode
+}
+
+function Detail({ item, isSinglePane, onBack, card }: DetailProps) {
+  return (
+    <div className="monsters-detail lubec-items-detail">
+      <div className="monsters-detail-inner">
+        {isSinglePane ? (
+          <div className="monster-detail-header-row">
+            <button type="button" className="back-link monster-mobile-back" onClick={onBack} aria-label="Back to the items"><ChevronLeft size={16} /></button>
+          </div>
+        ) : null}
+        {item ? card(item) : <p className="note">Pick an item to see it.</p>}
+      </div>
+    </div>
+  )
+}
+
+/** The GM Items tab: the list on the left, the chosen item's card on the right, and the add and edit form over them. */
+export function LubecItemsTab(props: LubecItemsTabProps) {
+  const records = { db, scope: { campaignId: props.campaignId, groupId: props.groupId } }
+  const items = useLubecGmItems(records.scope, 'all', props.setError)
+  const give = useGiveTargets(props)
+  const [filter, setFilter] = useState<LubecItemsFilter>('all')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [form, setForm] = useState<LubecFormSheet | null>(null)
+  const toast = useLubecToast()
+  const writes = useWriteRunner()
+  const layout = useResponsiveCharacterLayout({ hasOpenDetail: selectedId !== null })
+  const select = (itemId: string | null) => {
+    setSelectedId(itemId)
+    layout.setPaneView(itemId ? 'detail' : 'list')
+  }
+  const selected = items?.find((item) => item.id === selectedId) ?? null
+  const options = { records, give, toast: toast.show, select, openForm: setForm }
+  const card = (item: LubecGmItem) => (
+    <LubecGmItemCard
+      key={item.id} item={item} targets={give.targets} busy={writes.busy}
+      error={writes.refusal?.itemId === item.id ? writes.refusal.msg : null} actions={itemActions(item, options, writes.run)}
+    />
+  )
+  return (
+    <div className="maps-layout monsters-layout lubec-items-tab lubec-gear" aria-busy={writes.busy}>
+      <LubecRoughFilter />
+      {layout.showListPane ? (
+        <LubecItemsRoster items={items} filter={filter} onFilter={setFilter} selectedId={selectedId} onSelect={select} onAdd={() => setForm(lubecLibraryAddSheet())} />
+      ) : null}
+      {layout.showDetailPane ? <Detail item={selected} isSinglePane={layout.isSinglePane} onBack={() => select(null)} card={card} /> : null}
+      {form ? (
+        <LubecLibraryForm
+          form={form} was={items?.find((item) => item.id === form.editId) ?? null} library={lubecLibraryStock(items ?? [])}
+          records={records} onForm={setForm} onSaved={select} toast={toast.show}
+        />
+      ) : null}
+      <div className={`toast${toast.shown ? ' show' : ''}`} role="status" aria-live="polite">{toast.text}</div>
+    </div>
+  )
+}

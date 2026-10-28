@@ -6,6 +6,7 @@ import {
   changedFirestoreFields,
   draggedToHandProblems,
   droppedAnvilProblems,
+  givenAnvilProblems,
   emptyRevolverPromptProblems,
   groupIdFromUrl,
   heavyAnvilProblems,
@@ -425,6 +426,20 @@ describe('the dropped anvil (step 15)', () => {
   it('says when no one is named as having dropped it, and when the anvil is still on the sheet', () => {
     expect(droppedAnvilProblems({ dropped: [anvil({ droppedByUserId: undefined })], character: lubecWith([{ name: 'Small anvil', carrier: 'backpack' }]) }))
       .toEqual(['a dropped GM item names nobody who dropped it', 'the anvil is still on the sheet'])
+  })
+})
+
+describe('the given anvil (step 20)', () => {
+  const dropped = toFirestoreFields({ name: 'Small anvil', status: 'dropped' })
+
+  it('passes when the anvil is in the backpack with no Strength roll and no GM item is left', () => {
+    expect(givenAnvilProblems({ dropped: [], character: lubecWith([{ name: 'Small anvil', carrier: 'backpack', pocket: 0 }]) })).toEqual([])
+  })
+
+  it('says where the anvil is when it is not in the backpack, or carries a roll, or a GM item is left', () => {
+    expect(givenAnvilProblems({ dropped: [dropped], character: lubecWith([{ name: 'Small anvil', carrier: 'hands', check: 'fail' }]) }))
+      .toEqual(['the GM items still hold 1', 'the given anvil is in hands', 'the given anvil carries a Strength roll'])
+    expect(givenAnvilProblems({ dropped: [dropped], character: lubecWith([]) })).toEqual(['the anvil is not on the sheet'])
   })
 })
 

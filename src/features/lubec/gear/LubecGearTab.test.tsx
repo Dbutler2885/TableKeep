@@ -29,6 +29,9 @@ vi.mock('../../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
   doc: (_db: unknown, path: string) => ({ path }),
+  // The campaign items for the stock picker are a filtered list of the collection.
+  query: (ref: unknown) => ref,
+  where: () => null,
   deleteDoc: vi.fn(),
   onSnapshot: (ref: { path: string }, next: Listener['next'], fail: Listener['fail']) => {
     mocks.listeners[ref.path] = { next, fail }

@@ -44,7 +44,7 @@ type SheetContext = {
   onGearChange: (gear: LubecGear) => void
   onSheet: (sheet: LubecItemSheetState | null) => void
   toast: (text: string) => void
-  /** The campaign's own list for the picker; empty until the GM Items tab fills it. */
+  /** The GM Items tab's campaign items, for the picker's "This campaign". */
   campaignStock: readonly LubecStockItem[]
   /** Drops the thing, which goes to the GM's Items tab; a refusal comes back to the card. `said` replaces the drop's own toast. */
   onDrop: (item: LubecItem, refused: (msg: string) => void, said?: string) => void

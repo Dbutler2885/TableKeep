@@ -37,6 +37,7 @@ vi.mock('../maps/components/MapNpcSheetOverlay', () => ({
 }))
 vi.mock('../monsters/MonstersTab', () => ({ MonstersTab: stub('MonstersTab') }))
 vi.mock('../items/ItemsTab', () => ({ ItemsTab: stub('ItemsTab') }))
+vi.mock('../lubec/items/LubecItemsTab', () => ({ LubecItemsTab: stub('LubecItemsTab') }))
 vi.mock('../npcs/NpcsTab', () => ({ NpcsTab: stub('NpcsTab') }))
 vi.mock('../tables/TablesTab', () => ({ TablesTab: stub('TablesTab') }))
 vi.mock('../notes/NotesTab', () => ({ NotesTab: stub('NotesTab') }))
@@ -75,6 +76,32 @@ describe('CampaignTabContent', () => {
     render(<CampaignTabContent activeTab="maps" {...context} />)
 
     expect(mocks.props.MapsTab).toMatchObject({ characterTabProps: undefined })
+  })
+
+  it('gives the OSE GM OSE\'s Items tab, with the shared characters', () => {
+    render(<CampaignTabContent activeTab="items" {...context} />)
+
+    expect(mocks.props.ItemsTab).toMatchObject({ campaignId: 'c1', groupId: 'g1', role: 'gm', characters: [] })
+    expect(mocks.props.LubecItemsTab).toBeUndefined()
+  })
+
+  it('gives the Lubec GM Lubec\'s Items tab, and leaves OSE\'s alone', () => {
+    render(<CampaignTabContent activeTab="items" {...context} gameSystem="lubec" />)
+
+    expect(mocks.props.LubecItemsTab).toMatchObject({ campaignId: 'c1', groupId: 'g1', role: 'gm', currentUserId: 'gm-1', gmUserId: 'gm-1' })
+    expect(mocks.props.ItemsTab).toBeUndefined()
+  })
+
+  it.each(['ose', 'lubec'] as const)('gives a %s player no Items tab', (gameSystem) => {
+    const { container } = render(<CampaignTabContent activeTab="items" {...context} gameSystem={gameSystem} role="player" />)
+
+    expect(container.childElementCount).toBe(0)
+  })
+
+  it('gives a VtM campaign no Items tab', () => {
+    const { container } = render(<CampaignTabContent activeTab="items" {...context} gameSystem="vtm" />)
+
+    expect(container.childElementCount).toBe(0)
   })
 
   it.each(['ose', 'vtm'] as const)('gives everything inside the %s maps tab its rule set', (gameSystem) => {

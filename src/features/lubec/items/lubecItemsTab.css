@@ -1,0 +1,100 @@
+/* The GM Items tab: the NPCs tab's list-and-detail frame, with B's rows,
+   panels, chips and card inside (B's `.row-item` 359-400, the card 312-330
+   and the item sheet 506-696, in the Gear page's ported rules). Only what the
+   frame needs is here: the list scrolls and the page does not, the chosen
+   row is ink on cream as the roster's is, and the card sits in the pane
+   rather than over the page. */
+
+/* The chips: All, Campaign items and Dropped, as B's `#stock-from`. */
+.shell-root[data-theme="lubec"] .lubec-items-tab .items-filter {
+  margin-bottom: 0.8rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-tab .items-filter .choices {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-tab .items-filter .choices span {
+  min-height: 2.3rem;
+  padding: 0.3rem;
+  place-content: center;
+  text-align: center;
+}
+
+/* Only the lists scroll; the heading, Add and the chips stay put. */
+.shell-root[data-theme="lubec"] .lubec-items-tab .items-lists {
+  display: grid;
+  flex: 1;
+  gap: 0.8rem;
+  align-content: start;
+  min-height: 0;
+  padding-bottom: 0.8rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* The panel's colored bar is the list's head, so the list needs no rule of its own under it. */
+.shell-root[data-theme="lubec"] .lubec-items-tab .panel > .row-list {
+  margin-top: 0;
+  border-top: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-tab .panel > .row-list > .row-item:last-child {
+  border-bottom: 0;
+}
+
+/* The chosen row, ink with cream text as the roster's open card; its tags keep their colors. */
+.shell-root[data-theme="lubec"] .lubec-items-tab .row-item.active,
+.shell-root[data-theme="lubec"] .lubec-items-tab .row-item.active:hover {
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-tab .row-item.active small {
+  color: rgba(255, 248, 231, 0.75);
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-tab .row-item.active .tag.ghost {
+  color: var(--lubec-cream);
+  border-color: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-tab .row-item:focus-visible {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: -2px;
+}
+
+/* B's danger button: rust on paper, solid rust once asked for good. */
+.shell-root[data-theme="lubec"] .lubec-items-tab .btn.danger {
+  color: var(--lubec-rust);
+  background: transparent;
+  border-color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-tab .btn.danger:hover {
+  color: var(--lubec-rust);
+  background: rgba(163, 66, 41, 0.08);
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-tab .btn.danger.solid,
+.shell-root[data-theme="lubec"] .lubec-items-tab .btn.danger.solid:hover {
+  color: var(--lubec-cream);
+  background: var(--lubec-rust);
+}
+
+/* The card is the pane's, not a window over the page: B's sheet, without the overlay's shadow or height. */
+.shell-root[data-theme="lubec"] .lubec-items-tab .gm-item-card {
+  width: min(100%, 34rem);
+  max-height: none;
+  min-height: 0;
+  overflow: visible;
+  box-shadow: 4px 4px 0 rgba(18, 22, 24, 0.12);
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-tab .dispensation-box .actions {
+  grid-template-columns: 1fr 1fr;
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-detail .monsters-detail-inner {
+  padding-top: 3rem;
+}

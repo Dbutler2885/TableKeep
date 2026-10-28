@@ -3,7 +3,8 @@
  * against the real `firestore.rules`: it writes both records or neither, two
  * moves into one record at once leave the loser refused for room, a store's
  * waiting save cannot land on top of it, and a drop writes the character and
- * the GM item together.
+ * the GM item together. Deleting a character drops everything it had in the
+ * transaction that deletes it.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, type DocumentData, type Firestore } from 'firebase/firestore'
@@ -13,6 +14,7 @@ import { lubecCharacterVersioning } from '../../ruleSets/characterMigrations'
 import { characterSchemaStamp } from '../../ruleSets/characterSchemaStamp'
 import { LUBEC_NO_ROOM_TO_ACCEPT } from '../../ruleSets/lubec/gear/arrival'
 import { LUBEC_STALE_MOVE } from '../../ruleSets/lubec/gear/containers'
+import { lubecDeleteCharacterDroppingGear } from './lubecDeleteDrop'
 import { lubecMoveBetween, type LubecMoveStore } from './lubecMoveTransaction'
 import { emulatorPort } from '../../../../vitest.emulatorEndpoint'
 import { firestoreRules } from '../../../../vitest.firestoreRules'
@@ -225,6 +227,28 @@ describe('the move between two records', () => {
     stop()
 
     expect(seen).toEqual(['flashlight'])
+  })
+
+  it('deletes a character and drops each of its things to the GM Items tab, for the owner and for the GM', async () => {
+    for (const uid of [playerUid, campaignGmUid]) {
+      await lubecDeleteCharacterDroppingGear(as(uid), scope, { ...droppedBy, userId: uid })
+
+      expect(await character('wayne')).toBeUndefined()
+      expect(await gmItem('anvil')).toMatchObject({ name: 'Small anvil', status: 'dropped', droppedFrom: 'hands', droppedByCharacterName: 'Wayne Gardner', droppedByUserId: uid })
+      expect(await gmItem('flashlight')).toMatchObject({ name: 'Flashlight', status: 'dropped', droppedFrom: 'backpack' })
+      expect(await gmItem('flashlight')).not.toHaveProperty('cells')
+      await testEnv.withSecurityRulesDisabled(async (context) => {
+        await setDoc(campaignDocRef(context.firestore() as unknown as Firestore, scope, 'characters', 'wayne'), sheet('wayne', playerUid, [anvil, flashlight]))
+      })
+    }
+  })
+
+  it('refuses another player\'s delete whole: the character keeps its things and no GM item appears', async () => {
+    await expect(lubecDeleteCharacterDroppingGear(as(otherPlayerUid), scope, { ...droppedBy, userId: otherPlayerUid }))
+      .rejects.toMatchObject({ code: 'permission-denied' })
+
+    expect(itemIds(await character('wayne'))).toEqual(['anvil', 'flashlight'])
+    expect(await gmItem('anvil')).toBeUndefined()
   })
 
   it('refuses a move whose two records are one', async () => {

@@ -13,8 +13,10 @@ import { LubecDraftBar } from './LubecDraftBar'
 import type { LubecGearDrop } from './gear/lubecGearDrop'
 import { LubecGearPage, type LubecGearChange } from './gear/LubecGearPage'
 import { lubecWielder } from '../ruleSets/lubec/gear/minStrength'
+import type { LubecStockItem } from '../ruleSets/lubec/gear/stock'
 import { LubecMissing } from './LubecMissing'
 import { LubecNameBandEditor, type LubecSheetEditing } from './LubecNameBandEditor'
+import { LubecRoughFilter } from './LubecRoughFilter'
 import { LubecSkillsPage } from './LubecSkillsPage'
 import { LubecToken } from './LubecToken'
 import { lubecCharacterName } from './lubecNames'
@@ -131,13 +133,7 @@ function LubecKidMeta({ character }: { character: LubecCharacterRecord }) {
 function LubecMasthead({ character, pages, page, onPage, dot, editing, ...actions }: MastheadProps) {
   return (
     <header className="lubec-masthead">
-      {/* The worn edge of the big lettering, as printed on old paper. */}
-      <svg width="0" height="0" className="lubec-filters" aria-hidden="true" focusable="false">
-        <filter id="lubec-rough" x="-2%" y="-10%" width="104%" height="120%">
-          <feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves={2} seed={7} result="n" />
-          <feDisplacementMap in="SourceGraphic" in2="n" scale={1.8} xChannelSelector="R" yChannelSelector="G" />
-        </filter>
-      </svg>
+      <LubecRoughFilter />
       <div className="lubec-topbar">
         <div className="lubec-wordmark">Lubec 1977</div>
         <LubecPageTabs pages={pages} page={page} onPage={onPage} dot={dot} />
@@ -210,6 +206,8 @@ export type LubecSheetViewProps = {
   onGearDrop: LubecGearDrop
   /** Records the Strength roll for a heavy thing; null unless the viewer owns the character, as only the owner is asked. */
   onGearRolled: LubecRolled | null
+  /** The campaign items, which the stock picker offers as "This campaign"; none unless given. */
+  campaignStock?: readonly LubecStockItem[]
 }
 
 type LockedEdits = Pick<LubecSheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
@@ -218,7 +216,7 @@ type LockedEdits = Pick<LubecSheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
 const lockedEdits = (correcting: boolean, corrections: LubecCorrections | null, edits: LockedEdits): LockedEdits =>
   correcting && corrections ? corrections : edits
 
-type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp' | 'onGearChange' | 'onGearDrop' | 'onGearRolled'> & {
+type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp' | 'onGearChange' | 'onGearDrop' | 'onGearRolled' | 'campaignStock'> & {
   page: LubecPage
   onHideTree: () => void
   /** Brings the Core page's class cards into view once the class is cleared. */
@@ -239,13 +237,17 @@ function changeClassOf(sheet: LubecCharacterRecord['lubec'], onDraftEdit: LubecS
 }
 
 // The Gear page, which asks the owner for a heavy thing's Strength roll on the character's own sheet.
-function LubecSheetGear({ character, onGearChange, onGearDrop, onGearRolled }: Pick<SheetPageProps, 'character' | 'onGearChange' | 'onGearDrop' | 'onGearRolled'>) {
+function LubecSheetGear({ character, onGearChange, onGearDrop, onGearRolled, campaignStock }: Pick<SheetPageProps, 'character' | 'onGearChange' | 'onGearDrop' | 'onGearRolled' | 'campaignStock'>) {
   const strength = onGearRolled && { sheet: character.lubec, onRolled: onGearRolled }
-  return <LubecGearPage gear={character.lubec.gear} wielder={lubecWielder(character.lubec)} onGearChange={onGearChange} onDrop={onGearDrop} strength={strength} />
+  return (
+    <LubecGearPage
+      gear={character.lubec.gear} wielder={lubecWielder(character.lubec)} onGearChange={onGearChange} onDrop={onGearDrop} strength={strength} campaignStock={campaignStock}
+    />
+  )
 }
 
-function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp, onGearChange, onGearDrop, onGearRolled }: SheetPageProps) {
-  if (page === 'gear') return <LubecSheetGear character={character} onGearChange={onGearChange} onGearDrop={onGearDrop} onGearRolled={onGearRolled} />
+function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp, onGearChange, onGearDrop, onGearRolled, campaignStock }: SheetPageProps) {
+  if (page === 'gear') return <LubecSheetGear character={character} onGearChange={onGearChange} onGearDrop={onGearDrop} onGearRolled={onGearRolled} campaignStock={campaignStock} />
   if (page === 'skills') {
     const onChangeClass = changeClassOf(character.lubec, onDraftEdit, onShowClass)
     return <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} onHideTree={onHideTree} onChangeClass={onChangeClass} />
@@ -286,7 +288,7 @@ const identityEditingOf = (editing: LubecSheetEditing | null, identityEditable: 
 
 /** One Lubec character's sheet, in the v4 frame, on its Core, Skills or Gear page. */
 export function LubecSheetView({
-  character, editing, identityEditable, withGear, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearRolled, ...edits
+  character, editing, identityEditable, withGear, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearRolled, campaignStock, ...edits
 }: LubecSheetViewProps) {
   const [page, setPage] = useState<LubecPage>('core')
   const [bandOpen, setBandOpen] = useState(false)
@@ -325,6 +327,7 @@ export function LubecSheetView({
         onGearChange={onGearChange}
         onGearDrop={onGearDrop}
         onGearRolled={onGearRolled}
+        campaignStock={campaignStock}
         {...lockedEdits(correcting, corrections, edits)}
       />
     </article>

@@ -1,6 +1,8 @@
 import type { ComponentType } from 'react'
 import type { RuleSetId } from './registry'
-import { LubecNpcSheet, LubecSheet, OseSheet, VtmSheet, type RuleSetNpcSheetProps, type RuleSetSheetProps } from './RuleSetSheets'
+import {
+  LubecItems, LubecNpcSheet, LubecSheet, OseItems, OseSheet, VtmSheet, type RuleSetItemsProps, type RuleSetNpcSheetProps, type RuleSetSheetProps,
+} from './RuleSetSheets'
 
 // The page each rule set's character tab shows. It sits beside the registry
 // rather than in it, so the registry stays plain data and the shell's routing
@@ -18,4 +20,12 @@ export const ruleSetNpcSheets: { [Id in RuleSetId]: ComponentType<RuleSetNpcShee
   ose: null,
   vtm: null,
   lubec: LubecNpcSheet,
+}
+
+// The GM's Items tab for each rule set that has one: OSE's items and store,
+// or Lubec's dropped and campaign items; null for the rest.
+export const ruleSetItemsTabs: { [Id in RuleSetId]: ComponentType<RuleSetItemsProps> | null } = {
+  ose: OseItems,
+  vtm: null,
+  lubec: LubecItems,
 }

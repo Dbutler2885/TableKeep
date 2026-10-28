@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   listeners: {} as Record<string, { next: (snap: unknown) => void; fail: (error: unknown) => void }>,
   setDoc: vi.fn(async (..._args: unknown[]) => undefined),
   deleteDoc: vi.fn(async (..._args: unknown[]) => undefined),
+  runTransaction: vi.fn(),
   resolveStoragePathUrl: vi.fn(async (path: string): Promise<string | null> => `https://media.test/${path}`),
   uploadEntityImage: vi.fn(async (..._args: unknown[]) => ({ path: 'uploaded/portrait.png', url: 'https://media.test/uploaded/portrait.png' })),
 }))
@@ -36,6 +37,9 @@ vi.mock('../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
   doc: (_db: unknown, path: string) => ({ path }),
+  // The campaign items for the stock picker are a filtered list of the collection.
+  query: (ref: unknown) => ref,
+  where: () => null,
   deleteDoc: mocks.deleteDoc,
   onSnapshot: (ref: { path: string }, next: Listener['next'], fail: Listener['fail']) => {
     mocks.listeners[ref.path] = { next, fail }
@@ -43,6 +47,7 @@ vi.mock('firebase/firestore', () => ({
       if (mocks.listeners[ref.path]?.next === next) delete mocks.listeners[ref.path]
     }
   },
+  runTransaction: mocks.runTransaction,
   serverTimestamp: () => ({ sentinel: 'serverTimestamp' }),
   setDoc: mocks.setDoc,
 }))
@@ -125,6 +130,22 @@ function seedRolls(...rolls: number[]) {
   seededRolls = [...seededRolls, ...rolls]
 }
 
+// A transaction over the stubbed characters: a read sees what is stored, and its writes land together once it returns.
+// A delete's dropped things land in `droppedItems`, by path.
+async function transaction(_db: unknown, run: (tx: unknown) => Promise<unknown>) {
+  const writes: (() => void)[] = []
+  const idOf = (ref: { path: string }) => ref.path.split('/').pop() as string
+  const result = await run({
+    get: async (ref: { path: string }) => ({ exists: () => idOf(ref) in database, data: () => database[idOf(ref)] }),
+    set: (ref: { path: string }, payload: Fields) => { writes.push(() => { droppedItems[ref.path] = payload }) },
+    delete: (ref: { path: string }) => { writes.push(() => { delete database[idOf(ref)] }) },
+  })
+  writes.forEach((w) => w())
+  return result
+}
+
+let droppedItems: Record<string, Fields> = {}
+
 function seed(documents: Record<string, Fields>) {
   database = { ...database, ...documents }
 }
@@ -157,6 +178,9 @@ function reload(role: Role, uid: string) {
 }
 
 const flushMicrotasks = () => act(async () => { await Promise.resolve() })
+
+/** Lets a delete send the sheet's waiting save, wait for it to land, and run its transaction, under fake timers. */
+const settleDelete = () => act(() => vi.advanceTimersByTimeAsync(100))
 
 const rosterNames = () => screen.queryAllByRole('heading', { level: 4 }).map((heading) => heading.textContent)
 
@@ -276,6 +300,8 @@ beforeEach(() => {
     delete database[(args[0] as { path: string }).path.split('/').pop() as string]
     return undefined
   })
+  droppedItems = {}
+  mocks.runTransaction.mockImplementation(transaction)
   window.innerWidth = 1024
   URL.createObjectURL = vi.fn(() => 'blob:chosen-image')
   URL.revokeObjectURL = vi.fn()
@@ -1762,15 +1788,14 @@ describe('New character and Direct entry', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
 
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(mocks.deleteDoc).not.toHaveBeenCalled()
+    expect(mocks.runTransaction).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
     expect(within(screen.getByRole('dialog')).getByText('Delete character?')).toBeTruthy()
     expect(screen.getByText('Are you sure you want to delete Ada Mitchell? This cannot be undone.')).toBeTruthy()
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
-    await flushMicrotasks()
 
-    expect(mocks.deleteDoc).toHaveBeenCalledWith({ path: `${CHARACTERS_PATH}/ada` })
+    await settleDelete()
     expect(database.ada).toBeUndefined()
     expect(rosterNames()).toEqual([])
   })
@@ -1782,8 +1807,8 @@ describe('New character and Direct entry', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
-    await flushMicrotasks()
 
+    await settleDelete()
     expect(database.ada).toBeUndefined()
   })
 
@@ -1796,15 +1821,14 @@ describe('New character and Direct entry', () => {
     fireEvent.click(within(sheet).getByRole('button', { name: 'Delete character' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
 
-    expect(mocks.deleteDoc).not.toHaveBeenCalled()
+    expect(mocks.runTransaction).not.toHaveBeenCalled()
     expect(rosterNames().sort()).toEqual(['Ada Mitchell', 'Tommy Eves'])
 
     fireEvent.click(within(sheet).getByRole('button', { name: 'Delete character' }))
     expect(screen.getByText('Are you sure you want to delete Tommy Eves? This cannot be undone.')).toBeTruthy()
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
-    await flushMicrotasks()
 
-    expect(mocks.deleteDoc).toHaveBeenCalledWith({ path: `${CHARACTERS_PATH}/tommy` })
+    await settleDelete()
     expect(database.tommy).toBeUndefined()
     expect(screen.queryByRole('button', { name: /^Tommy Eves/ })).toBeNull()
     expect(screen.getByRole('article', { name: 'Ada Mitchell character sheet' })).toBeTruthy()
@@ -1818,15 +1842,64 @@ describe('New character and Direct entry', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete Tommy Eves' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
 
-    expect(mocks.deleteDoc).not.toHaveBeenCalled()
+    expect(mocks.runTransaction).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete Tommy Eves' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
-    await flushMicrotasks()
 
+    await settleDelete()
     expect(database.tommy).toBeUndefined()
     expect(rosterNames()).toEqual([])
     expect(screen.getByText('Pick a character to open their sheet.')).toBeTruthy()
+  })
+
+  it('sends a deleted character\'s things to the GM\'s Items tab as dropped, with who and from where, in the transaction that deletes it', async () => {
+    window.innerWidth = 1440
+    const thing = (id: string, name: string, place: Fields) => ({ id, kind: 'thing', name, size: 1, qty: 1, weight: 'normal', note: '', ...place })
+    seed({
+      tommy: withSheet({
+        gear: {
+          items: [
+            thing('lamp', 'Flashlight', { carrier: 'backpack', pocket: 0, cells: [1] }),
+            thing('anvil', 'Small anvil', { carrier: 'hands', slot: 0, weight: 'heavy', check: 'fail', batch: 'b1' }),
+            thing('rope', 'Rope', { carrier: 'duffel', pocket: 0 }),
+          ],
+          carriers: [{ id: 'duffel', name: 'Duffel bag', type: 'duffel', pockets: [{ name: 'Inside', slots: 6, max: 4 }] }],
+          overrides: [],
+          supplies: [],
+        },
+      }),
+    })
+    mountTab('player', 'player-1')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Tommy Eves' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+
+    await settleDelete()
+    expect(database.tommy).toBeUndefined()
+    expect(mocks.runTransaction).toHaveBeenCalledTimes(1)
+    expect(mocks.deleteDoc).not.toHaveBeenCalled()
+    const GM_ITEMS = 'groups/group-1/campaigns/campaign-1/gmItems'
+    expect(Object.keys(droppedItems)).toEqual([`${GM_ITEMS}/lamp`, `${GM_ITEMS}/anvil`, `${GM_ITEMS}/rope`])
+    expect(droppedItems[`${GM_ITEMS}/anvil`]).toEqual({
+      id: 'anvil', kind: 'thing', name: 'Small anvil', size: 1, qty: 1, weight: 'heavy', note: '',
+      status: 'dropped', droppedByCharacterId: 'tommy', droppedByCharacterName: 'Tommy Eves', droppedByUserId: 'player-1', droppedFrom: 'hands',
+      createdAt: { sentinel: 'serverTimestamp' },
+    })
+    expect(Object.values(droppedItems).map((item) => item.droppedFrom)).toEqual(['backpack', 'hands', 'Duffel bag'])
+  })
+
+  it('deletes a character with no things and makes no GM item', async () => {
+    seed({ ada: directDraft() })
+    mountTab('player', 'player-1')
+    openSheet('Ada Mitchell')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete draft' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+
+    await settleDelete()
+    expect(database.ada).toBeUndefined()
+    expect(droppedItems).toEqual({})
   })
 
   it('gives a player a Delete on their own characters and none on anyone else\'s, draft or finalized', () => {

@@ -11,6 +11,10 @@ import type { LubecSheetEditing } from './LubecNameBandEditor'
 import type { LubecGearRecords } from './gear/lubecGearDrop'
 import { lubecNpcSheetRecord, type LubecNpcIdentity } from './lubecNpcSheetRecord'
 import { lubecSheetWiring, type LubecViewer } from './lubecSheetWiring'
+import { lubecLibraryStock } from './items/gmItemsList'
+import { useLubecGmItems } from './items/useLubecGmItems'
+import type { CampaignScope } from '../campaign/firestorePaths'
+import type { LubecGmItem } from '../ruleSets/lubec/gear/gmItem'
 import type { LubecSheetViewProps } from './LubecSheetView'
 
 /** Where the sheets come from: the campaign's characters, all of them, or one NPC's sheet. */
@@ -33,6 +37,14 @@ const gearRecordsOf = (source: LubecSheetSource, character: LubecCharacterRecord
 // The open sheet as shown: a character as stored, an NPC's sheet under the NPC's own name, portrait and token.
 function useOpenRecord(npc: LubecNpcIdentity | null, stored: LubecCharacterRecord | null) {
   return useMemo(() => (npc && stored ? lubecNpcSheetRecord(npc, stored) : stored), [npc, stored])
+}
+
+const NO_ITEMS: readonly LubecGmItem[] = []
+
+// The campaign items, for the stock picker's "This campaign" (spec 8.4); every member may read them.
+function useLubecCampaignStock(scope: CampaignScope, setError: (message: string) => void) {
+  const library = useLubecGmItems(scope, 'library', setError) ?? NO_ITEMS
+  return useMemo(() => lubecLibraryStock(library), [library])
 }
 
 /** The shared character store over Lubec characters: the roster, the selected id, add, update and delete. */
@@ -91,6 +103,7 @@ export function useLubecSheetSession({ source, campaignId, groupId, role, curren
   const editing = useLubecSheetEditing({ character, updateCharacter: store.updateCharacter, campaignId, groupId, role, currentUserId })
   const viewer = { role, userId: currentUserId }
   const records = gearRecordsOf(source, character, { campaignId, groupId })
-  const sheetProps = character ? { character, editing, ...lubecSheetWiring(character, viewer, store, records) } : null
+  const campaignStock = useLubecCampaignStock({ campaignId, groupId }, setError)
+  const sheetProps = character ? { character, editing, campaignStock, ...lubecSheetWiring(character, viewer, store, records) } : null
   return { store, character, viewer, sheetProps }
 }

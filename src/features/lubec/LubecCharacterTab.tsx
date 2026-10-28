@@ -90,7 +90,7 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, cu
     campaignId, groupId, role, currentUserId, currentUsername, setError,
     addCharacter: store.addCharacter, updateCharacter: store.updateCharacter, onCreated: () => layout.setPaneView('detail'),
   })
-  const deletion = useLubecCharacterDelete(store, viewer, () => layout.setPaneView('list'))
+  const deletion = useLubecCharacterDelete(store, viewer, () => layout.setPaneView('list'), setError)
   const assignment = useLubecPlayerAssignment(store, role, gmUserId)
   const selectedName = character ? { name: lubecCharacterName(character) } : null
   return (

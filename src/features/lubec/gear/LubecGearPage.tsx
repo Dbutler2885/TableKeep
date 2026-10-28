@@ -36,7 +36,7 @@ type GearPageProps = {
   onGearChange: LubecGearChange
   /** Drops a thing to the GM's Items tab; null for a viewer who may only look. */
   onDrop?: LubecGearDrop
-  /** The campaign's own list for the stock picker's "This campaign"; empty, and so hidden, until the GM Items tab fills it. */
+  /** The GM Items tab's campaign items, for the stock picker's "This campaign"; while there are none it is hidden. */
   campaignStock?: readonly LubecStockItem[]
   /** The sheet the Strength check rolls on, for the character's owner; null where nobody is asked. */
   strength?: LubecGearStrength
