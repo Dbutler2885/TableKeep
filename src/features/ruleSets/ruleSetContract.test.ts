@@ -162,6 +162,7 @@ describe('side nav tabs per role', () => {
     ['lubec', 'gm', [
       ['character', 'Characters'],
       ['maps', 'Maps'],
+      ['items', 'Items'],
       ['npcs', 'NPCs'],
       ['notes', 'Notes'],
       ['calendar', 'Calendar'],
@@ -185,7 +186,7 @@ describe('side nav tabs per role', () => {
     expect(campaignNavTabs(resolve('vtm'), 'gm', enabled).map((tab) => tab.id))
       .toEqual(['character', 'maps', 'notes'])
     expect(campaignNavTabs(resolve('lubec'), 'gm', enabled).map((tab) => tab.id))
-      .toEqual(['character', 'maps', 'notes'])
+      .toEqual(['character', 'maps', 'items', 'notes'])
   })
 
   it('still hides OSE player tabs that the campaign has enabled', () => {
@@ -193,6 +194,8 @@ describe('side nav tabs per role', () => {
       .toEqual(['character', 'notes'])
     expect(campaignNavTabs(resolve('vtm'), 'player', ['character', 'monsters']).map((tab) => tab.id))
       .toEqual(['character', 'monsters'])
+    expect(campaignNavTabs(resolve('lubec'), 'player', ['character', 'items', 'notes']).map((tab) => tab.id))
+      .toEqual(['character', 'notes'])
   })
 
   it('shows every tab with plain labels before the viewer\'s role is known', () => {
@@ -205,7 +208,7 @@ describe('route gate', () => {
   it.each([
     ['ose', allTabs, []],
     ['vtm', ['character', 'maps', 'monsters', 'npcs', 'notes', 'calendar'], ['items', 'tables', 'rules']],
-    ['lubec', ['character', 'maps', 'npcs', 'notes', 'calendar'], ['monsters', 'items', 'tables', 'rules']],
+    ['lubec', ['character', 'maps', 'items', 'npcs', 'notes', 'calendar'], ['monsters', 'tables', 'rules']],
   ] as const)('%s keeps its own tabs and sends the rest to the character tab', (stored, kept, redirected) => {
     for (const tab of kept) expect(routableTab(resolve(stored), tab)).toBe(tab)
     for (const tab of redirected) expect(routableTab(resolve(stored), tab)).toBe('character')
@@ -235,6 +238,7 @@ describe('campaign settings tabs', () => {
     ['lubec', [
       ['character', 'Character', true],
       ['maps', 'Maps', false],
+      ['items', 'Items', false],
       ['npcs', 'NPCs', false],
       ['notes', 'Notes', false],
       ['calendar', 'Calendar', false],

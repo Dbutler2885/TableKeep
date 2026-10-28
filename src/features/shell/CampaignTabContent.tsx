@@ -4,7 +4,6 @@ import { MapsTab } from '../maps/MapsTab'
 import { MapRuleSetContext } from '../maps/mapRuleSet'
 import { MapNpcSheetProvider } from '../maps/components/MapNpcSheetOverlay'
 import { MonstersTab } from '../monsters/MonstersTab'
-import { ItemsTab } from '../items/ItemsTab'
 import { NpcsTab } from '../npcs/NpcsTab'
 import { TablesTab } from '../tables/TablesTab'
 import { NotesTab } from '../notes/NotesTab'
@@ -12,7 +11,7 @@ import { CalendarTab } from '../notes/CalendarTab'
 import type { GameSystem } from '../navigation/tabs'
 import { ruleSets } from '../ruleSets/registry'
 import type { RuleSetSheetProps } from '../ruleSets/RuleSetSheets'
-import { ruleSetNpcSheets, ruleSetSheets } from '../ruleSets/sheetComponents'
+import { ruleSetItemsTabs, ruleSetNpcSheets, ruleSetSheets } from '../ruleSets/sheetComponents'
 import type { AppTab, CharacterRecord, NpcRecord } from '../../types/app'
 
 export type TabPanelContext = RuleSetSheetProps & {
@@ -77,8 +76,10 @@ function monstersPanel({ campaign, role, gameSystem }: TabPanelContext) {
     : null
 }
 
-function itemsPanel({ campaign, role, characters }: TabPanelContext) {
-  return role === 'gm' ? <ItemsTab campaignId={campaign.id} groupId={campaign.groupId} role={role} characters={characters} /> : null
+// The Items tab is the GM's, and shows whichever the rule set declares.
+function itemsPanel({ gameSystem, role, characterTabProps: _characterTabProps, ...context }: TabPanelContext) {
+  const Items = ruleSetItemsTabs[gameSystem]
+  return Items && role === 'gm' ? <Items role={role} {...context} /> : null
 }
 
 // The GM gets an NPC's character sheet, beside its story and over the map, in a

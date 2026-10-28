@@ -11,7 +11,7 @@ import { draftProblem, type LubecItemDraft } from '../../ruleSets/lubec/gear/sta
 import { lubecNeedsStrength, type LubecCheck } from '../../ruleSets/lubec/gear/strengthCheck'
 import { addedToast } from './gearLabels'
 import { selectValue } from './itemLabels'
-import { lubecDraftOf, lubecFieldPage, lubecFieldsOf, lubecNewFields, type LubecItemFields } from './itemForm'
+import { lubecDraftOf, lubecFieldPage, lubecFieldsOf, lubecFormPages, lubecNewFields, type LubecItemFields } from './itemForm'
 
 /** Where the form's Back (or Cancel) returns: the card it was opened from, the small stuff list, or nowhere. */
 export type LubecSheetBack = { mode: 'view'; itemId: string } | { mode: 'small' } | null
@@ -105,4 +105,10 @@ export function lubecSaveForm(gear: LubecGear, form: LubecFormSheet, newId: () =
 export function lubecFormNeedsStrength(gear: LubecGear, form: LubecFormSheet): boolean {
   const was = gear.items.find((x) => x.id === form.editId) ?? null
   return lubecNeedsStrength(lubecDraftOf(form.fields), destOf(form), was)
+}
+
+/** A refused save: the form keeps what was typed and shows why, and a phone turns to the page the refusal points at. */
+export function lubecRefusedForm(form: LubecFormSheet, refusal: { msg: string; page?: 'top' | 'kind' }, paged: boolean): LubecFormSheet {
+  const at = lubecFormPages(form.fields.kind).findIndex(([id]) => id === refusal.page)
+  return { ...form, error: refusal.msg, page: paged && at >= 0 ? at : form.page }
 }

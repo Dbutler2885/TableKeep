@@ -105,20 +105,25 @@ export async function addCharacterStoreCharacter<Character extends CharacterStor
   await createCharacterStoreDoc(campaign, context.ruleSet, character)
 }
 
+/** Deletes a character's stored record; the store's own deletes the document only. */
+export type CharacterStoreRemove = (campaign: CharacterStoreScope, characterId: string) => Promise<void>
+
 /**
  * Removes the character and deletes its document, dropping any save of it
- * that has not landed. True when it was deleted.
+ * that has not landed. `remove` replaces the document delete for a rule set
+ * that keeps more with a character. True when it was deleted.
  */
 export function deleteCharacterStoreCharacter<Character extends CharacterStoreRecord>(
   context: CharacterStoreActionContext<Character>,
   characterId: string,
+  remove: CharacterStoreRemove = deleteCharacterStoreDoc,
 ): boolean {
   if (!context.campaign) return false
   const target = findCharacterStoreCharacter(context.charactersRef.current, characterId)
   if (!canEditCharacterStoreCharacter(target, context.role, context.userId)) return false
   cancelCharacterStoreSave(context.savesRef.current, characterId)
   context.setCharacters((current) => current.filter((character) => character.id !== characterId))
-  void deleteCharacterStoreDoc(context.campaign, characterId)
+  void remove(context.campaign, characterId)
   return true
 }
 

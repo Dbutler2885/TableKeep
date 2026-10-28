@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { emptyLubecGear, type LubecGear, type LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
 import { lubecWithMode } from './itemForm'
-import { lubecAddSheet, lubecBackSheet, lubecCardSheet, lubecEditSheet, lubecFormNeedsStrength, lubecSaveForm, type LubecFormSheet } from './itemSheet'
+import { lubecAddSheet, lubecBackSheet, lubecCardSheet, lubecEditSheet, lubecFormNeedsStrength, lubecRefusedForm, lubecSaveForm, type LubecFormSheet } from './itemSheet'
 
 const counter = () => {
   let n = 0
@@ -108,5 +108,15 @@ describe('saving a heavy thing onto you (Rule E5)', () => {
     expect(unasked.ok && unasked.gear.items[0]).not.toHaveProperty('check')
     const renamed = lubecSaveForm(gearOf(block), named(lubecEditSheet(block, 'backpack#0'), 'Cinder block'), counter())
     expect(renamed.ok && renamed.gear.items[0].check).toBe('fail')
+  })
+})
+
+describe('a refused save', () => {
+  it('keeps the form with the refusal, turning a phone to the page it points at', () => {
+    const form = { ...lubecAddSheet('backpack#0'), fields: { ...lubecAddSheet('backpack#0').fields, kind: 'weapon' as const }, page: 2 }
+
+    expect(lubecRefusedForm(form, { msg: 'Pick at least one wound.', page: 'kind' }, true)).toMatchObject({ error: 'Pick at least one wound.', page: 1 })
+    expect(lubecRefusedForm(form, { msg: 'Name it.', page: 'top' }, false)).toMatchObject({ error: 'Name it.', page: 2 })
+    expect(lubecRefusedForm(form, { msg: 'No room there.' }, true)).toMatchObject({ error: 'No room there.', page: 2 })
   })
 })

@@ -4,20 +4,34 @@ import { lubecDestinations, WEIGHT_NAMES, weightHint } from './itemLabels'
 import { lubecWithDest } from './itemForm'
 import type { LubecFieldsProps } from './LubecItemFormTop'
 
-type BottomProps = LubecFieldsProps & { gear: LubecGear; editing: LubecItem | undefined }
+type BottomProps = LubecFieldsProps & {
+  gear: LubecGear
+  editing: LubecItem | undefined
+  /** False for an item that has no place, as in the GM's Items tab: "where it goes" is left out. */
+  placed: boolean
+}
 
 const WEIGHTS = Object.keys(WEIGHT_NAMES) as LubecItemWeight[]
 
-/** Where it goes, what moving it there costs when it is being edited, and its weight. */
-export function LubecItemFormBottom({ fields, onFields, gear, editing }: BottomProps) {
+function WhereItGoes({ fields, onFields, gear, editing }: Omit<BottomProps, 'placed'>) {
   return (
-    <div className="form-bottom">
+    <>
       <label className="field"><span className="label">Put it</span>
         <select value={fields.dest} onChange={(e) => onFields(lubecWithDest(fields, e.target.value))}>
           <optgroup label="On you">{lubecDestinations(gear, fields.kind).map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>
         </select>
       </label>
       <p className="cost">{editing ? lubecCostText(editing.carrier, fields.dest) : ''}</p>
+    </>
+  )
+}
+
+/** Where it goes, what moving it there costs when it is being edited, and its weight. */
+export function LubecItemFormBottom({ placed, ...props }: BottomProps) {
+  const { fields, onFields } = props
+  return (
+    <div className="form-bottom">
+      {placed ? <WhereItGoes {...props} /> : null}
       <fieldset className="field weight-pick">
         <legend className="label">Weight</legend>
         <div className="seg-row thirds">

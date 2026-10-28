@@ -36,6 +36,7 @@ vi.mock('../maps/components/MapNpcSheetOverlay', () => ({
 }))
 vi.mock('../monsters/MonstersTab', () => ({ MonstersTab: stub('MonstersTab') }))
 vi.mock('../items/ItemsTab', () => ({ ItemsTab: stub('ItemsTab') }))
+vi.mock('../lubec/items/LubecItemsTab', () => ({ LubecItemsTab: stub('LubecItemsTab') }))
 vi.mock('../npcs/NpcsTab', () => ({ NpcsTab: stub('NpcsTab') }))
 vi.mock('../tables/TablesTab', () => ({ TablesTab: stub('TablesTab') }))
 vi.mock('../notes/NotesTab', () => ({ NotesTab: stub('NotesTab') }))

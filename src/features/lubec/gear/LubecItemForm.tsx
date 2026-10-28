@@ -31,6 +31,8 @@ type FormProps = {
   supplyName: LubecSupplyName
   stock: readonly LubecStockEntry[]
   actions: LubecFormActions
+  /** False for an item that has no place, as in the GM's Items tab: "where it goes" is left out. */
+  placed?: boolean
 }
 
 // On a phone, and in a narrow window, the form is pages, so it never scrolls (captain, round 24).
@@ -38,11 +40,14 @@ const PAGED = '(max-width: 59.99rem)'
 
 const countsUp = (kind: LubecItemKind) => kind !== 'armor' && kind !== 'holder'
 
-function FormSteps({ form, onPage }: { form: LubecFormSheet; onPage: (page: number) => void }) {
+// An item with no place has only its weight on the last page.
+const stepLabel = (id: string, label: string, placed: boolean) => (id === 'bottom' && !placed ? 'Weight' : label)
+
+function FormSteps({ form, placed, onPage }: { form: LubecFormSheet; placed: boolean; onPage: (page: number) => void }) {
   return (
     <div className="form-steps" role="tablist" aria-label="Form pages">
       {lubecFormPages(form.fields.kind).map(([id, label], k) => (
-        <button key={id} type="button" role="tab" aria-selected={k === form.page} onClick={() => onPage(k)}><b>{k + 1}</b>{label}</button>
+        <button key={id} type="button" role="tab" aria-selected={k === form.page} onClick={() => onPage(k)}><b>{k + 1}</b>{stepLabel(id, label, placed)}</button>
       ))}
     </div>
   )
@@ -92,7 +97,7 @@ function FormTop({ form, onFields, stock, supplyName, actions }: Pick<FormProps,
 
 /** The add and edit form: the kind tiles, the item, its kind's own page, and where it goes. One size for every kind, and it never scrolls. */
 export function LubecItemForm(props: FormProps) {
-  const { form, gear, supplies, actions } = props
+  const { form, gear, supplies, actions, placed = true } = props
   const editing = gear.items.find((x) => x.id === form.editId)
   const paged = useLubecMediaQuery(PAGED)
   const onFields = (fields: LubecItemFields) => actions.onForm({ ...form, fields })
@@ -104,13 +109,13 @@ export function LubecItemForm(props: FormProps) {
   return (
     <form className="sheet-form item-form" noValidate onSubmit={submit} data-page={pageId(form, paged)} data-kind={form.fields.kind} data-mode={form.fields.mode}>
       <LubecSheetHead eyebrow={editing ? 'Edit item' : 'New item'} title={editing ? editing.name : 'Add an item'} onClose={actions.onClose} />
-      {paged ? <FormSteps form={form} onPage={onPage} /> : null}
+      {paged ? <FormSteps form={form} placed={placed} onPage={onPage} /> : null}
       <LubecKindTiles fields={form.fields} onKind={(kind) => actions.onForm(withKind(form, kind))} />
       <FormTop {...props} onFields={onFields} />
       <div className="form-kind">
         <LubecItemFormKind fields={form.fields} onFields={onFields} supplies={supplies} onMakeSupply={actions.onMakeSupply} gear={gear} editId={form.editId} />
       </div>
-      <LubecItemFormBottom fields={form.fields} onFields={onFields} gear={gear} editing={editing} />
+      <LubecItemFormBottom fields={form.fields} onFields={onFields} gear={gear} editing={editing} placed={placed} />
       {form.error ? <p className="form-error" role="alert">{form.error}</p> : null}
       <div className="sheet-foot">
         <div className="actions">

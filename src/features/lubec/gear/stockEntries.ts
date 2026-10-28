@@ -1,6 +1,7 @@
 // The picker's sources: the game's stock, and this campaign's list (Rule T1).
-// "This campaign" is the GM Items tab's library, which fills it; until then
-// it is empty and hidden. A third source, a skill's kit, waits for the kits.
+// "This campaign" is the GM Items tab's campaign items (spec 8.4); while
+// there are none its choice is hidden. A third source, a skill's kit, waits
+// for the kits.
 
 import { KIND_NAMES } from '../../ruleSets/lubec/gear/gearRules'
 import type { LubecItemKind } from '../../ruleSets/lubec/gear/gearRecord'

@@ -24,8 +24,8 @@ export type LubecGearDropStore = {
 /** Who drops it: the sheet, by id and name, and the person at the keyboard. */
 export type LubecGearDropper = { characterId: string; characterName: string; userId: string }
 
-// The store sends a sheet's waiting save at once when given an empty edit.
-const moveStoreOf = (store: LubecGearDropStore): LubecMoveStore => ({
+/** The shared store as a move needs it: it sends a sheet's waiting save at once when given an empty edit. */
+export const lubecMoveStoreOf = (store: LubecGearDropStore): LubecMoveStore => ({
   sendSaveNow: (id) => {
     if (store.hasPendingWrite(id)) store.updateCharacterNow(id, {})
   },
@@ -38,7 +38,7 @@ export function lubecGearDrop(records: LubecGearRecords, store: LubecGearDropSto
     scope: records.scope,
     from: records.sheet,
     to: { kind: 'gm-items' },
-    store: moveStoreOf(store),
+    store: lubecMoveStoreOf(store),
     move: { itemId: item.id, seen: { carrier: item.carrier, pocket: item.pocket, slot: item.slot }, droppedBy: dropper },
   })
 }

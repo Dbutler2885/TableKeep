@@ -109,12 +109,15 @@ function takeOutOfGear(record: GearRecord, move: LubecMove): Taken | null {
   return { item, unplaced: plan.item, droppedFrom: plan.droppedFrom, rest: withGear(record, plan.gear) }
 }
 
+// What a GM item's document says about the tab, not the item: its status, the drop, and when it was written.
+const GM_RECORD_FIELDS: readonly string[] = [...LUBEC_GM_ITEM_FIELDS, 'createdAt', 'updatedAt']
+
 // A library item stays and the sheet gets a copy (Rule T2); a dropped item leaves the tab.
 function takeOutOfGmItems(gmItem: LubecGmItem | null, move: LubecMove): Taken | null {
   if (!gmItem || gmItem.id !== move.itemId) return null
   const library = gmItem.status === 'library'
   if (library && !move.copyId) throw new Error('Giving a library item makes a copy, which needs a copyId.')
-  const item = (library ? { ...lubecCopyOf(gmItem), id: move.copyId } : fieldsWithout(gmItem, LUBEC_GM_ITEM_FIELDS)) as LubecItem
+  const item = (library ? { ...lubecCopyOf(gmItem), id: move.copyId } : fieldsWithout(gmItem, GM_RECORD_FIELDS)) as LubecItem
   return { item, unplaced: item, droppedFrom: '', rest: { kind: 'gm-items', item: library ? gmItem : null } }
 }
 
@@ -140,9 +143,11 @@ function movedTo(gear: LubecGear, item: LubecItem, move: LubecMove & { dest: str
 const dropperFields = (by: LubecDropper | undefined) =>
   by && { droppedByCharacterId: by.characterId, droppedByCharacterName: by.characterName, droppedByUserId: by.userId }
 
-// Rule M8: a dropped thing becomes a dropped item in the GM Items tab, with who dropped it and where from.
-const dropped = (taken: Taken, move: LubecMove): LubecGmItem =>
-  ({ ...taken.unplaced, ...dropperFields(move.droppedBy), droppedFrom: taken.droppedFrom, status: 'dropped' }) as LubecGmItem
+/** Rule M8: a dropped thing as a dropped item in the GM Items tab, with who dropped it and where from. */
+export const lubecDroppedGmItem = (unplaced: LubecUnplacedItem, droppedFrom: string, by: LubecDropper | undefined): LubecGmItem =>
+  ({ ...unplaced, ...dropperFields(by), droppedFrom, status: 'dropped' }) as LubecGmItem
+
+const dropped = (taken: Taken, move: LubecMove): LubecGmItem => lubecDroppedGmItem(taken.unplaced, taken.droppedFrom, move.droppedBy)
 
 function putIn(record: LubecMoveRecord, taken: Taken, move: LubecMove): Put {
   if (record.kind === 'gm-items') {

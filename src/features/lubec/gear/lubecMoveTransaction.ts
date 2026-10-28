@@ -101,7 +101,7 @@ async function readRecord(tx: Transaction, doc: Ref, ref: LubecRecordRef, isSour
 }
 
 /** A value as Firestore stores it: no `undefined` anywhere in it. */
-const stored = <T>(value: T): T => JSON.parse(JSON.stringify(value))
+export const stored = <T>(value: T): T => JSON.parse(JSON.stringify(value))
 
 function writeGmItem(tx: Transaction, doc: Ref, before: LubecGmItem | null, after: LubecGmItem | null) {
   if (after && !before) tx.set(doc, { ...stored(after), createdAt: serverTimestamp() })
@@ -133,7 +133,7 @@ async function moveInTransaction(tx: Transaction, docs: readonly [Ref, Ref], req
 const settle = () => new Promise((resolve) => setTimeout(resolve, 25))
 
 /** Sends each sheet's waiting save, and waits until none of them has a save outstanding. */
-async function quietSheets(store: LubecMoveStore, sheetIds: readonly string[]) {
+export async function quietSheets(store: LubecMoveStore, sheetIds: readonly string[]) {
   sheetIds.forEach((id) => store.sendSaveNow(id))
   while (sheetIds.some((id) => store.hasPendingWrite(id))) await settle()
 }

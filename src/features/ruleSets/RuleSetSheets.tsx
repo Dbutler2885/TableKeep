@@ -1,10 +1,12 @@
 import type { User } from 'firebase/auth'
 import { CharacterTab } from '../character/CharacterTab'
 import { VtmCharacterTab } from '../character/VtmCharacterTab'
+import { ItemsTab } from '../items/ItemsTab'
 import { LubecCharacterTab } from '../lubec/LubecCharacterTab'
+import { LubecItemsTab } from '../lubec/items/LubecItemsTab'
 import { LubecNpcSheetTab } from '../lubec/LubecNpcSheetTab'
 import type { CharacterTabProps } from '../shell/characterTabProps'
-import type { Campaign, NpcRecord, Role } from '../../types/app'
+import type { Campaign, CharacterRecord, NpcRecord, Role } from '../../types/app'
 
 // What the shell hands a rule set's sheet: the open campaign, who is viewing
 // it, and the OSE character state the shell shares between the character and
@@ -68,6 +70,29 @@ export function LubecNpcSheet({ npc, campaign, role, user, username, setError }:
       role={role}
       currentUserId={user.uid}
       currentUsername={username}
+      gmUserId={campaign.gmUserId ?? null}
+      setError={setError}
+    />
+  )
+}
+
+// What the shell hands a rule set's Items tab, which only the GM sees: the
+// open campaign, the GM, and the OSE characters the shell shares.
+export type RuleSetItemsProps = Omit<RuleSetSheetProps, 'characterTabProps'> & { characters: CharacterRecord[] }
+
+// OSE's Items tab grants to the characters the shell shares.
+export function OseItems({ campaign, role, characters }: RuleSetItemsProps) {
+  return <ItemsTab campaignId={campaign.id} groupId={campaign.groupId} role={role} characters={characters} />
+}
+
+// Lubec's Items tab holds what players drop and the campaign's items, and loads its own characters to give them to.
+export function LubecItems({ campaign, role, user, setError }: RuleSetItemsProps) {
+  return (
+    <LubecItemsTab
+      campaignId={campaign.id}
+      groupId={campaign.groupId}
+      role={role}
+      currentUserId={user.uid}
       gmUserId={campaign.gmUserId ?? null}
       setError={setError}
     />

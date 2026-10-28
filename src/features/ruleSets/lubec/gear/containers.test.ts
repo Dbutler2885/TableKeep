@@ -180,8 +180,9 @@ describe('a drop to the GM Items tab', () => {
 describe('the GM giving an item', () => {
   const crowbar = { id: 'crowbar', kind: 'thing', name: 'Crowbar', size: 2, qty: 1, weight: 'normal', note: 'Rusty.', engraved: 'J.F.' }
 
-  it('gives a dropped item: it arrives by the arrival rule and leaves the tab', () => {
-    const plan = planned(gmItems({ ...crowbar, status: 'dropped', droppedByUserId: 'u', droppedFrom: 'hands' }), emptySheet(), { itemId: 'crowbar' })
+  it('gives a dropped item: it arrives by the arrival rule and leaves the tab, without the tab\'s own fields', () => {
+    const stored = { ...crowbar, status: 'dropped', droppedByUserId: 'u', droppedFrom: 'hands', createdAt: { seconds: 1 }, updatedAt: { seconds: 2 } }
+    const plan = planned(gmItems(stored), emptySheet(), { itemId: 'crowbar' })
 
     expect(plan.from).toEqual({ kind: 'gm-items', item: null })
     expect(plan.item).toEqual({ ...crowbar, carrier: 'backpack', pocket: 0 })

@@ -162,15 +162,16 @@ export const ruleSets: RuleSetRegistry = {
     // The OSE wandering-monster check never belonged in VtM.
     mapRules: { wanderingMonsters: false },
   },
-  // Lubec 1977: the table tools VtM has, without monsters.
+  // Lubec 1977: the table tools VtM has, without monsters, and the GM's own
+  // Items tab, which holds what players drop and the campaign's items.
   lubec: {
     id: 'lubec',
     label: 'Lubec 1977',
     shortLabel: 'LUBEC',
     selectable: true,
     tabs: {
-      order: ['character', 'maps', 'npcs', 'notes', 'calendar'],
-      hiddenFromPlayers: [],
+      order: ['character', 'maps', 'items', 'npcs', 'notes', 'calendar'],
+      hiddenFromPlayers: ['items'],
     },
     sheet: { embeddable: false, npcSheet: true },
     skin: { theme: 'lubec', tokenColor: '#c08a2e' },

@@ -9,7 +9,7 @@ import { lubecWithCheck, type LubecCheck } from '../../ruleSets/lubec/gear/stren
 import { lubecMakeSupply, lubecSupplies } from '../../ruleSets/lubec/gear/supplies'
 import { supplyNameIn } from './gearLabels'
 import { destOf } from './itemLabels'
-import { lubecFieldsFromStock, lubecFormPages } from './itemForm'
+import { lubecFieldsFromStock } from './itemForm'
 import { lubecCardMove } from './gearMoves'
 import {
   lubecAddSheet,
@@ -17,8 +17,8 @@ import {
   lubecCardSheet,
   lubecEditSheet,
   lubecFormNeedsStrength,
+  lubecRefusedForm,
   lubecSaveForm,
-  type LubecFormSaved,
   type LubecCardSheet,
   type LubecFormSheet,
   type LubecItemSheetState,
@@ -44,7 +44,7 @@ type SheetContext = {
   onGearChange: (gear: LubecGear) => void
   onSheet: (sheet: LubecItemSheetState | null) => void
   toast: (text: string) => void
-  /** The campaign's own list for the picker; empty until the GM Items tab fills it. */
+  /** The GM Items tab's campaign items, for the picker's "This campaign". */
   campaignStock: readonly LubecStockItem[]
   /** Drops the thing, which goes to the GM's Items tab; a refusal comes back to the card. `said` replaces the drop's own toast. */
   onDrop: (item: LubecItem, refused: (msg: string) => void, said?: string) => void
@@ -152,16 +152,11 @@ function CardMode({ sheet, item, ...ctx }: SheetContext & { sheet: CardSheet; it
   )
 }
 
-// A refusal stays on the form, turning a phone to the page it points at.
-function formRefused(ctx: SheetContext, form: LubecFormSheet, saved: Extract<LubecFormSaved, { ok: false }>, paged: boolean) {
-  const at = lubecFormPages(form.fields.kind).findIndex(([id]) => id === saved.page)
-  ctx.onSheet({ ...form, error: saved.msg, page: paged && at >= 0 ? at : form.page })
-}
 
 // The form's Add it or Save. One that brings a heavy thing onto you asks its owner for a Strength roll first, and saves on Done (Rule E5).
 function submitForm(ctx: SheetContext, form: LubecFormSheet, paged: boolean) {
   const saved = lubecSaveForm(ctx.gear, form, makeId)
-  if (!saved.ok) return formRefused(ctx, form, saved, paged)
+  if (!saved.ok) return ctx.onSheet(lubecRefusedForm(form, saved, paged))
   if (ctx.onAsk && lubecFormNeedsStrength(ctx.gear, form)) return ctx.onAsk({ kind: 'form', form })
   ctx.onGearChange(saved.gear)
   ctx.onSheet(saved.next)
