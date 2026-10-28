@@ -23,6 +23,19 @@
   min-height: 0;
 }
 
+/* The picker opens inside the panel header, whose light heading and button
+   colors must give way to the dialog's paper-and-ink styling. */
+.shell-root[data-theme="lubec"] .lubec-gear .pack-picker .sheet-form h2 {
+  color: var(--lubec-ink);
+  filter: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack-picker .actions .btn.line {
+  color: var(--lubec-blue);
+  background: transparent;
+  border-color: var(--lubec-blue);
+}
+
 .shell-root[data-theme="lubec"] .lubec-gear .pack-choices {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
