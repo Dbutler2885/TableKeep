@@ -1445,6 +1445,28 @@ function storedGearProblems(stored, name) {
   return [...gearItemsProblem(storedGearItems(gear), name), ...gearUrlProblem(gear)]
 }
 
+const LUBEC_PACK_PICKER = `${LUBEC_GEAR_PAGE} .pack-picker`
+
+// Step 8: "Change pack" on the Backpack panel's header bar opens the picker, and a pick closes it.
+async function pickLubecPack(page, name) {
+  await page.locator(`${LUBEC_GEAR_PAGE} .panel.rust .section-head ::-p-text(Change pack)`).click()
+  await page.locator(`${LUBEC_PACK_PICKER} .pack-choice ::-p-text(${name})`).click()
+  await page.waitForFunction((selector) => !document.querySelector(selector), {}, LUBEC_PACK_PICKER)
+}
+
+// The pack shows the picture of that name: its file in the dev server, or its hashed file in a build.
+const expectLubecPackArt = (page, name) => page.waitForFunction(
+  (selector, file) => new RegExp(`/${file}[.-]`).test(document.querySelector(selector)?.style.backgroundImage ?? ''),
+  {},
+  `${LUBEC_GEAR_PAGE} .pack-art`,
+  name,
+)
+
+const storedPackArtProblems = (stored, name) => {
+  const art = storedAt(stored, ['lubec', 'mapValue', 'fields', 'gear', 'mapValue', 'fields', 'backpackArt', 'stringValue'])
+  return art === name ? [] : [`the stored backpack picture is ${JSON.stringify(art)}`]
+}
+
 const LUBEC_ARMOR_PANEL = `${LUBEC_GEAR_PAGE} .armor-panel`
 
 // "+ Make armor" opens the form on armor, to be worn, and Browse stock opens on armor, where the helmet's tile copies it in.
@@ -1801,6 +1823,15 @@ async function lubecGearPageSteps(page, testCase, path) {
     await openLubecGearPage(page)
     await expectLubecGearItemInMainPocket(page, 'Flashlight', '2 of 2 loaded')
   })
+  await step('change the pack to teal in the picker, stored by its name and kept through a reload', async () => {
+    await pickLubecPack(page, 'teal')
+    await expectLubecPackArt(page, 'teal')
+    await waitForStored(() => readDocumentFields(path), (stored) => storedPackArtProblems(stored, 'teal'))
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await openLubecSheet(page)
+    await openLubecGearPage(page)
+    await expectLubecPackArt(page, 'teal')
+  })
   await step('wear a stock hockey helmet, shading the head, with its layers and numbers in the readout', () => wearLubecStockHelmet(page, 1))
   await step('wear a second helmet as the head\'s second layer', () => wearLubecStockHelmet(page, 2))
   await step('refuse a third helmet with "No free layer on the head: 2 of 2 taken by ..."', () => expectLubecThirdHelmetRefused(page))
@@ -1960,6 +1991,7 @@ async function runViewport(browser, testCase) {
       + 'and, in the Lubec campaign made through the picker, in its own skin, with its five tabs, imported a character file with a portrait, '
       + 'gave it a token image from the sheet, saw both again after a reload from their stored paths, opened the imported character\'s Core page and Skills page, '
       + 'finalized it and added a stock Flashlight on its Gear page that was stored by path alone and kept through a reload, '
+      + 'changed its backpack picture to teal in the picker and kept it through a reload, '
       + 'wore two stock hockey helmets on its head and was refused a third, dragged the Flashlight to a hand, '
       + 'rolled Strength for a heavy anvil through the prompt and saw the roll on the Core page, saw the failed anvil take 20 off Speed under "From your gear" '
       + 'and turned that off and on again, dropped the anvil to the GM Items tab, '

@@ -7,7 +7,7 @@
  * written.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../../types/app'
 
@@ -48,6 +48,7 @@ vi.mock('../../common/mediaStorage', async (importOriginal) => ({
 }))
 
 const { ruleSetSheets } = await import('../../ruleSets/sheetComponents')
+const { LUBEC_BACKPACK_ARTS } = await import('./backpackArt')
 
 const CHARACTERS_PATH = 'groups/group-1/campaigns/campaign-1/characters'
 const GM = 'gm-1'
@@ -180,7 +181,7 @@ describe('Lubec Gear page', () => {
     expect(screen.getByRole('tab', { name: 'On you' }).getAttribute('aria-selected')).toBe('true')
   })
 
-  it('shows a character with no gear the empty backpack, hands and body, and writes nothing for looking', () => {
+  it('shows a character with no gear the empty backpack, hands and body, and writes nothing for looking', async () => {
     database = { tommy: tommyEves() }
     mountTab('player', 'player-1')
     const gear = openGear('Tommy Eves')
@@ -191,7 +192,7 @@ describe('Lubec Gear page', () => {
     expect(screen.getByRole('button', { name: 'Small stuff: empty' }).textContent).toBe('Small stuff+ Add')
     expect(['Left hand', 'Right hand'].map((hand) => screen.getByRole('button', { name: `${hand}, empty, add an item` }))).toHaveLength(2)
     expect(gear.querySelectorAll('button[aria-label="Body, empty, add an item"]')).toHaveLength(2)
-    expect(gear.querySelector('.pack-art')?.getAttribute('style')).toContain('navy-stripe')
+    await waitFor(() => expect(gear.querySelector('.pack-art')?.getAttribute('style')).toContain('navy-stripe.webp'))
     expect(screen.queryByText('Full inventory / Speed −10')).toBeNull()
     expect(gear.querySelector('.panel.rust .count')?.textContent).toBe('0 of 7 used / 7 free')
 
@@ -401,6 +402,69 @@ describe('Lubec Gear page', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'On you' }))
     expect(document.querySelector('.lubec-gear .pack')).not.toBeNull()
+  })
+})
+
+describe('Lubec Gear page: the backpack picture', () => {
+  const packArt = () => document.querySelector('.lubec-gear .pack-art')?.getAttribute('style') ?? ''
+  const picker = () => within(screen.getByRole('dialog', { name: 'Change pack' }))
+  const storedArt = () => ((database.tommy.lubec as Fields).gear as Fields).backpackArt
+
+  it('offers the owner 18 packs with the current one ringed, and saves a pick at once, kept through a reload', async () => {
+    database = { tommy: tommyEves({ gear: { ...FULL_GEAR, backpackArt: 'olive-band' } }) }
+    mountTab('player', 'player-1')
+    openGear('Tommy Eves')
+    await waitFor(() => expect(packArt()).toContain('olive-band.webp'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change pack' }))
+    const choices = picker().getAllByRole('button').filter((button) => button.classList.contains('pack-choice'))
+    expect(choices.map((choice) => choice.textContent)).toEqual([...LUBEC_BACKPACK_ARTS])
+    const current = choices.filter((choice) => choice.getAttribute('aria-current') === 'true')
+    expect(current.map((choice) => choice.textContent)).toEqual(['olive-band'])
+    expect(document.activeElement).toBe(current[0])
+    await waitFor(() => expect(choices[17].querySelector('.pack-thumb')?.getAttribute('style')).toContain('teal.thumb.webp'))
+
+    fireEvent.click(picker().getByRole('button', { name: 'teal' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(packArt()).toContain('teal.webp'))
+    await waitFor(() => expect(mocks.setDoc).toHaveBeenCalledTimes(1))
+    expect(storedArt()).toBe('teal')
+    expect(((database.tommy.lubec as Fields).gear as Fields).items).toEqual(FULL_GEAR.items)
+
+    reload('player', 'player-1')
+    openGear('Tommy Eves')
+    await waitFor(() => expect(packArt()).toContain('teal.webp'))
+  })
+
+  it('closes on Cancel or Escape with the pack unchanged and nothing written', async () => {
+    database = { tommy: tommyEves() }
+    mountTab('gm', GM)
+    openGear('Tommy Eves')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change pack' }))
+    expect(picker().getByRole('button', { name: 'navy-stripe' }).getAttribute('aria-current')).toBe('true')
+    fireEvent.click(picker().getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change pack' }))
+    fireEvent.keyDown(picker().getByRole('button', { name: 'teal' }), { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(packArt()).toContain('navy-stripe.webp'))
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+  })
+
+  it('shows the default for a name it does not know, and another player the pick with no button', async () => {
+    database = { tommy: tommyEves({ gear: { ...FULL_GEAR, backpackArt: 'tartan' } }), wayne: { ...tommyEves({ gear: { ...FULL_GEAR, backpackArt: 'rust-navy' } }), name: 'Wayne Gardner' } }
+    mountTab('player', 'player-2')
+    openGear('Tommy Eves')
+    await waitFor(() => expect(packArt()).toContain('navy-stripe.webp'))
+    expect(screen.queryByRole('button', { name: 'Change pack' })).toBeNull()
+
+    cleanup()
+    mountTab('player', 'player-2')
+    openGear('Wayne Gardner')
+    await waitFor(() => expect(packArt()).toContain('rust-navy.webp'))
+    expect(screen.queryByRole('button', { name: 'Change pack' })).toBeNull()
   })
 })
 

@@ -1,0 +1,101 @@
+/* The backpack picture picker (spec 6.4). B has no picker, so it is built
+   from B's sheet (B 507-521) and its choice tiles (B 590-608): the sheet's
+   paper and ink border, the tiles' cream ground and ink outline, and the
+   current pack ringed in rust. It is wider than B's 30rem sheet so that all
+   18 packs show at a size worth choosing from, six across, with no scroll at
+   1280x720; on a phone it is three across and the grid scrolls inside it,
+   under its title and over Cancel. */
+.shell-root[data-theme="lubec"] .lubec-gear .pack-picker {
+  display: flex;
+  width: min(100% - 1rem, 40rem);
+  max-height: min(92vh, 46rem);
+  color: var(--lubec-ink);
+  background:
+    repeating-linear-gradient(0deg, rgba(53, 64, 53, 0.025) 0 1px, transparent 1px 4px),
+    var(--lubec-paper);
+  border: 2px solid var(--lubec-ink);
+  box-shadow: 0 24px 64px rgba(7, 20, 23, 0.45);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack-picker .sheet-form {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack-choices {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.45rem;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Room for the ring and the focus outline, which the scroll box would clip. */
+  padding: 4px;
+  margin: -4px;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack-choice {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0.3rem 0.3rem 0.35rem;
+  color: var(--lubec-ink);
+  background: rgba(255, 248, 231, 0.55);
+  border: 1.5px solid var(--lubec-ink);
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack-choice:hover {
+  background: rgba(255, 248, 231, 0.9);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack-choice[aria-current="true"] {
+  border-color: var(--lubec-rust);
+  box-shadow: 0 0 0 2px var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack-choice:focus-visible {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+/* The thumbnail is the panel's own crop, so a pack looks here as it will on the sheet. */
+.shell-root[data-theme="lubec"] .lubec-gear .pack-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: var(--bag-ratio);
+  background-position: var(--bag-pos, 0 0);
+  background-size: var(--bag-size, 100% auto);
+  background-repeat: no-repeat;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack-name {
+  overflow: hidden;
+  font: 800 0.62rem/1.15 var(--lubec-type);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pack-choice[aria-current="true"] .pack-name {
+  color: var(--lubec-rust);
+}
+
+/* Phones: three across, and the sheet at the foot of the screen like the item sheet */
+@media (max-width: 560px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .pack-picker {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92vh;
+    border-width: 2px 0 0;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .pack-choices {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .pack-name {
+    font-size: 0.7rem;
+  }
+}

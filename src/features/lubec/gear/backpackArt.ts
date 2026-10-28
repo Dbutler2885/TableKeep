@@ -25,3 +25,13 @@ export const LUBEC_BACKPACK_ARTS = [
   'slate-red',
   'teal',
 ] as const
+
+export type LubecBackpackArt = (typeof LUBEC_BACKPACK_ARTS)[number]
+
+// Each picture is its own file, fetched only once asked for, so the page
+// downloads the chosen pack alone and the thumbnails only when the picker opens.
+const pictures = import.meta.glob<string>('./assets/backpacks/*.webp', { query: '?url', import: 'default' })
+
+/** The URL of a pack's picture, or of its thumbnail. */
+export const lubecBackpackUrl = (name: LubecBackpackArt, thumb = false): Promise<string> =>
+  pictures[`./assets/backpacks/${name}${thumb ? '.thumb' : ''}.webp`]()

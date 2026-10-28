@@ -23,6 +23,7 @@ import './lubecGearSheet.css'
 import './lubecGearArmor.css'
 import './lubecGearWeapons.css'
 import './lubecGearLoading.css'
+import './lubecPackPicker.css'
 
 /** Saves the character's next gear; null for a viewer who may only look. */
 export type LubecGearChange = ((gear: LubecGear) => void) | null
@@ -69,15 +70,15 @@ function GearBar({ view, onView, full, onAdd }: GearBarProps) {
   )
 }
 
-type OnYouProps = { gear: LubecGear; onAdd: LubecGearAdd; onOpen: LubecGearOpen; sectionRef: RefObject<HTMLElement | null> }
+type OnYouProps = { gear: LubecGear; onAdd: LubecGearAdd; onOpen: LubecGearOpen; onGearChange: LubecGearChange; sectionRef: RefObject<HTMLElement | null> }
 
 // On you: the backpack, the hands, the body and the armor worn, on one screen. Things on it are dragged to move them (Rule M7).
-function OnYou({ gear, onAdd, onOpen, sectionRef }: OnYouProps) {
+function OnYou({ gear, onAdd, onOpen, onGearChange, sectionRef }: OnYouProps) {
   const supplyName = supplyNameIn(lubecSupplies(gear))
   return (
     <section ref={sectionRef} id="lubec-gear-view-on-you" role="tabpanel" aria-labelledby="lubec-gear-tab-on-you">
       <div className="on-you">
-        <LubecGearPack gear={gear} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} />
+        <LubecGearPack gear={gear} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} onGearChange={onGearChange} />
         <div className="side">
           <LubecGearHandsBody gear={gear} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} />
           <LubecGearArmor gear={gear} onAdd={onAdd} onOpen={onOpen} />
@@ -161,7 +162,7 @@ export function LubecGearPage({ gear, wielder, onGearChange, onDrop = null, camp
     <div className="lubec-page lubec-gear" aria-busy={moves.busy}>
       <GearBar view={view} onView={setView} full={inventoryFull(gear)} onAdd={onAdd && (() => onAdd('backpack#0'))} />
       <LubecDragContext value={moves.drag.view}>
-        {view === 'on-you' ? <OnYou gear={gear} onAdd={onAdd} onOpen={onOpen} sectionRef={moves.onYou} /> : <Carriers />}
+        {view === 'on-you' ? <OnYou gear={gear} onAdd={onAdd} onOpen={onOpen} onGearChange={moves.change} sectionRef={moves.onYou} /> : <Carriers />}
       </LubecDragContext>
       {moves.change && sheet ? (
         <LubecItemSheet
