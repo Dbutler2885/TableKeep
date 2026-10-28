@@ -1,12 +1,14 @@
 import type { CSSProperties } from 'react'
 import { capacity, itemsIn, packMain, pocketUsed, used } from '../../ruleSets/lubec/gear/placement'
-import { LUBEC_BACKPACK_POCKETS, type LubecGear, type LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
-import backpackNavy from './assets/backpacks/navy-stripe.webp'
+import { LUBEC_BACKPACK_POCKETS, lubecBackpackArt, type LubecGear, type LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
+import { LUBEC_BACKPACK_ARTS, type LubecBackpackArt } from './backpackArt'
 import { lubecPackLayout, lubecSpotsRect, type LubecPackLayout, type LubecPackSpot } from './backpackSlots'
 import { heavyClass, largeClass, uprightClass, type LubecSupplyName } from './gearLabels'
 import { LubecEmptySlot, LubecItemBox, LubecSlotPic, LubecSlotText } from './LubecGearSlot'
+import { LubecChangePack } from './LubecPackPicker'
 import type { LubecDropTarget } from './dragGeometry'
 import { useLubecDragView, useLubecDropClass } from './lubecDragMarks'
+import { useLubecBackpackUrl } from './useLubecBackpackUrl'
 import { useLubecPackCrop } from './useLubecPackCrop'
 
 /** Opens the add form at a place ("backpack#0", "hands#1", ...); null for a viewer who may only look. */
@@ -122,24 +124,41 @@ function ZoneLabels({ gear, labels }: { gear: LubecGear; labels: LubecPackLayout
   )
 }
 
-/** The Backpack panel: the pack's picture with its five main boxes, the small stuff pill and the two front boxes on it (B's renderPack). */
-export function LubecGearPack({ gear, supplyName, onAdd, onOpen }: PackProps) {
-  const layout = lubecPackLayout(useLubecPackCrop())
+/** Saves the character's next gear; null for a viewer who may only look. */
+type GearChange = ((gear: LubecGear) => void) | null
+
+type HeadProps = { gear: LubecGear; art: LubecBackpackArt; onGearChange: GearChange }
+
+// The header bar: the name, the count, and "Change pack" for the owner and the GM.
+function PackHead({ gear, art, onGearChange }: HeadProps) {
   const cap = capacity(LUBEC_BACKPACK_POCKETS)
   const full = used(gear, 'backpack')
   return (
-    <div className="panel rust">
-      <div className="section-head">
-        <h2>Backpack</h2>
+    <div className="section-head">
+      <h2>Backpack</h2>
+      <span className="head-end">
         <span className="count"><b>{full}</b> of {cap} used / {cap - full} free</span>
-      </div>
+        {onGearChange ? <LubecChangePack art={art} onPick={(name) => onGearChange({ ...gear, backpackArt: name })} /> : null}
+      </span>
+    </div>
+  )
+}
+
+// The chosen pack's picture: the same box on every pack, so the slots never move with it.
+function PackArt({ art }: { art: LubecBackpackArt }) {
+  const url = useLubecBackpackUrl(art)
+  return <span className="pack-art" role="img" aria-label={`Backpack picture: ${art}`} style={url ? { backgroundImage: `url(${url})` } : undefined} />
+}
+
+/** The Backpack panel: the pack's picture with its five main boxes, the small stuff pill and the two front boxes on it (B's renderPack). */
+export function LubecGearPack({ gear, supplyName, onAdd, onOpen, onGearChange }: PackProps & { onGearChange: GearChange }) {
+  const layout = lubecPackLayout(useLubecPackCrop())
+  const art = lubecBackpackArt(gear, LUBEC_BACKPACK_ARTS) as LubecBackpackArt
+  return (
+    <div className="panel rust">
+      <PackHead gear={gear} art={art} onGearChange={onGearChange} />
       <div className="pack" style={layout.style as CSSProperties}>
-        <span
-          className="pack-art"
-          role="img"
-          aria-label="A worn navy canvas backpack with a mustard, red and white stripe, a top handle and two zip front pockets"
-          style={{ backgroundImage: `url(${backpackNavy})` }}
-        />
+        <PackArt art={art} />
         <ZoneLabels gear={gear} labels={layout.labels} />
         <MainPocket gear={gear} spots={layout.main} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} />
         <FrontPockets gear={gear} spots={layout.front} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} />
