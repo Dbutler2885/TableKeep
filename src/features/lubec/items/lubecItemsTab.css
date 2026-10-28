@@ -64,6 +64,70 @@
   outline-offset: -2px;
 }
 
+/* A dropped item's checkbox sits in its own column at the row's left, so the row keeps B's grid. */
+.shell-root[data-theme="lubec"] .lubec-items-tab .row-pick {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr);
+  align-items: center;
+  border-bottom: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-tab .row-pick > .row-item {
+  border-bottom: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-tab .panel > .row-list > .row-pick:last-child {
+  border-bottom: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-tab .row-pick.picked {
+  background: rgba(163, 66, 41, 0.08);
+}
+
+/* The chosen row's ink reaches under its checkbox too. */
+.shell-root[data-theme="lubec"] .lubec-items-tab .row-pick:has(> .row-item.active) {
+  background: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-tab .items-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-tab .items-check input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  cursor: pointer;
+}
+
+/* On the rust bar, the select-all checkbox is ticked in ink, or it would vanish into the bar. */
+.shell-root[data-theme="lubec"] .lubec-items-tab .head-check input {
+  accent-color: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-tab .section-head .head-actions {
+  display: inline-flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+/* Delete selected, and its question, between the bar and the rows. */
+.shell-root[data-theme="lubec"] .lubec-items-tab .items-bulk {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: start;
+  margin-bottom: 0.5rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-items-tab .items-bulk .dispensation-box {
+  justify-self: stretch;
+}
+
 /* B's danger button: rust on paper, solid rust once asked for good. */
 .shell-root[data-theme="lubec"] .lubec-items-tab .btn.danger {
   color: var(--lubec-rust);

@@ -1,6 +1,7 @@
 import type { LubecGmItem, LubecGmItemStatus } from '../../ruleSets/lubec/gear/gmItem'
 import { LubecPicture } from '../gear/LubecGearArt'
 import { lubecItemsGroups, lubecItemsRowLine, lubecItemsRowTags, type LubecItemsFilter, type LubecItemsGroup } from './gmItemsList'
+import { DroppedBulkBar, DroppedRowCheck, DroppedSelectAll, type LubecDroppedPicks } from './LubecDroppedPicks'
 
 type RosterProps = {
   /** The tab's items, or null while they load. */
@@ -10,6 +11,8 @@ type RosterProps = {
   selectedId: string | null
   onSelect: (itemId: string) => void
   onAdd: () => void
+  /** The dropped items' checkboxes; campaign items have none. */
+  picks: LubecDroppedPicks
 }
 
 const FILTERS: readonly (readonly [LubecItemsFilter, string])[] = [['all', 'All'], ['library', 'Campaign items'], ['dropped', 'Dropped']]
@@ -39,8 +42,10 @@ function FilterChips({ filter, onFilter }: { filter: LubecItemsFilter; onFilter:
   )
 }
 
+type RowProps = { item: LubecGmItem; active: boolean; onSelect: (itemId: string) => void }
+
 // B's row: the picture or kind icon, the name with who dropped it or where it came from, and the tags.
-function ItemRow({ item, active, onSelect }: { item: LubecGmItem; active: boolean; onSelect: (itemId: string) => void }) {
+function ItemRow({ item, active, onSelect }: RowProps) {
   return (
     <button type="button" className={`row-item${active ? ' active' : ''}`} aria-current={active || undefined} onClick={() => onSelect(item.id)}>
       <LubecPicture item={item} frame="thumb" />
@@ -50,21 +55,49 @@ function ItemRow({ item, active, onSelect }: { item: LubecGmItem; active: boolea
   )
 }
 
-function Group({ group, selectedId, onSelect }: { group: LubecItemsGroup; selectedId: string | null; onSelect: (itemId: string) => void }) {
+// A dropped item's row, with its checkbox beside it.
+function PickedRow({ picks, ...row }: RowProps & { picks: LubecDroppedPicks }) {
+  const picked = picks.selection.selectedIds.has(row.item.id)
+  return (
+    <div className={`row-pick${picked ? ' picked' : ''}`}>
+      <DroppedRowCheck item={row.item} selection={picks.selection} />
+      <ItemRow {...row} />
+    </div>
+  )
+}
+
+type GroupProps = { group: LubecItemsGroup; selectedId: string | null; onSelect: (itemId: string) => void; picks: LubecDroppedPicks | null }
+
+function GroupHead({ group, picks }: Pick<GroupProps, 'group' | 'picks'>) {
+  return (
+    <div className="section-head">
+      <h2>{group.title}</h2>
+      <span className="head-actions">
+        <span className="count">{group.list.length}</span>
+        {picks && group.list.length ? <DroppedSelectAll title={group.title} selection={picks.selection} /> : null}
+      </span>
+    </div>
+  )
+}
+
+function Group({ group, selectedId, onSelect, picks }: GroupProps) {
+  const row = (item: LubecGmItem) => {
+    const props = { item, active: item.id === selectedId, onSelect }
+    return picks ? <PickedRow key={item.id} {...props} picks={picks} /> : <ItemRow key={item.id} {...props} />
+  }
   return (
     <section className={`panel ${GROUP_TONE[group.status]}`} aria-label={group.title}>
-      <div className="section-head"><h2>{group.title}</h2><span className="count">{group.list.length}</span></div>
+      <GroupHead group={group} picks={picks} />
+      {picks ? <DroppedBulkBar {...picks} /> : null}
       <div className="row-list">
-        {group.list.length
-          ? group.list.map((item) => <ItemRow key={item.id} item={item} active={item.id === selectedId} onSelect={onSelect} />)
-          : <p className="note">{EMPTY[group.status]}</p>}
+        {group.list.length ? group.list.map(row) : <p className="note">{EMPTY[group.status]}</p>}
       </div>
     </section>
   )
 }
 
 /** The tab's list: the chips, and the campaign items and dropped items in B's rows; the list scrolls, the page does not. */
-export function LubecItemsRoster({ items, filter, onFilter, selectedId, onSelect, onAdd }: RosterProps) {
+export function LubecItemsRoster({ items, filter, onFilter, selectedId, onSelect, onAdd, picks }: RosterProps) {
   return (
     <aside className="maps-sidebar monsters-sidebar lubec-items-roster">
       <div className="maps-sidebar-header">
@@ -74,7 +107,13 @@ export function LubecItemsRoster({ items, filter, onFilter, selectedId, onSelect
       <FilterChips filter={filter} onFilter={onFilter} />
       {items === null
         ? <p className="note">Loading items...</p>
-        : <div className="items-lists">{lubecItemsGroups(items, filter).map((group) => <Group key={group.status} group={group} selectedId={selectedId} onSelect={onSelect} />)}</div>}
+        : (
+            <div className="items-lists">
+              {lubecItemsGroups(items, filter).map((group) => (
+                <Group key={group.status} group={group} selectedId={selectedId} onSelect={onSelect} picks={group.status === 'dropped' ? picks : null} />
+              ))}
+            </div>
+          )}
     </aside>
   )
 }

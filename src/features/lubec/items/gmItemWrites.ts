@@ -5,7 +5,7 @@
 // campaign item stays and the character gets a copy (Rule T2). Deleting is
 // the only way an item leaves the game outright.
 
-import { deleteDoc, serverTimestamp, setDoc, type Firestore } from 'firebase/firestore'
+import { deleteDoc, serverTimestamp, setDoc, writeBatch, type Firestore } from 'firebase/firestore'
 import { campaignGmItemRef, type CampaignScope } from '../../campaign/firestorePaths'
 import { LUBEC_GM_ITEM_FIELDS, type LubecGmItem } from '../../ruleSets/lubec/gear/gmItem'
 import { lubecMoveBetween, stored, type LubecMoveResult, type LubecMoveStore } from '../gear/lubecMoveTransaction'
@@ -33,6 +33,13 @@ export const keepLubecGmItem = (records: LubecItemsRecords, item: LubecGmItem) =
   writeGmItem(records, { ...item, status: 'library' }, LUBEC_GM_ITEM_FIELDS.slice(1))
 
 export const deleteLubecGmItem = ({ db, scope }: LubecItemsRecords, item: LubecGmItem) => deleteDoc(campaignGmItemRef(db, scope, item.id))
+
+/** Deletes several items in one batch, so either all of them go or none does. */
+export function deleteLubecGmItems({ db, scope }: LubecItemsRecords, items: readonly LubecGmItem[]) {
+  const batch = writeBatch(db)
+  items.forEach((item) => batch.delete(campaignGmItemRef(db, scope, item.id)))
+  return batch.commit()
+}
 
 /** Gives the item to a character, by the arrival rule. A campaign item is copied under `copyId`. */
 export function giveLubecGmItem(records: LubecItemsRecords, item: LubecGmItem, characterId: string, store: LubecMoveStore, copyId: string): Promise<LubecMoveResult> {

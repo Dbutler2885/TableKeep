@@ -17,12 +17,15 @@ import type { LubecFormSheet } from '../gear/itemSheet'
 import { useLubecToast } from '../gear/useLubecToast'
 import { LubecRoughFilter } from '../LubecRoughFilter'
 import { lubecCharacterName } from '../lubecNames'
+import { lubecBulkDeletedText } from './droppedSelection'
 import { lubecLibraryEditSheet, lubecLibraryAddSheet } from './gmItemForm'
 import { lubecGmItemById, lubecLibraryStock, type LubecItemsFilter } from './gmItemsList'
 import { deleteLubecGmItem, giveLubecGmItem, keepLubecGmItem, type LubecItemsRecords } from './gmItemWrites'
+import type { LubecDroppedPicks } from './LubecDroppedPicks'
 import { LubecGmItemCard, type LubecGiveTarget, type LubecGmItemActions } from './LubecGmItemCard'
 import { LubecItemsRoster } from './LubecItemsRoster'
 import { LubecLibraryForm } from './LubecLibraryForm'
+import { useDroppedBulkDelete, useDroppedSelection } from './useDroppedSelection'
 import { useLubecGmItems } from './useLubecGmItems'
 import '../gear/lubecGear.css'
 import '../gear/lubecGearSheet.css'
@@ -147,15 +150,25 @@ function Toast({ toast }: { toast: ReturnType<typeof useLubecToast> }) {
   return <div className={`toast${toast.shown ? ' show' : ''}`} role="status" aria-live="polite">{toast.text}</div>
 }
 
-type PanesProps = { items: LubecGmItem[] | null; selection: Selection; card: (item: LubecGmItem) => ReactNode; onAdd: () => void }
+// The dropped items' ticks, which outlive the list pane on a narrow screen; deleting the open item closes its card.
+function useDroppedPicks(records: LubecItemsRecords, items: LubecGmItem[] | null, selection: Selection, toast: (text: string) => void): LubecDroppedPicks {
+  const picked = useDroppedSelection(items)
+  const bulk = useDroppedBulkDelete(records, picked, (gone) => {
+    toast(lubecBulkDeletedText(gone))
+    if (gone.some((item) => item.id === selection.selectedId)) selection.select(null)
+  })
+  return { selection: picked, bulk }
+}
+
+type PanesProps = { items: LubecGmItem[] | null; selection: Selection; picks: LubecDroppedPicks; card: (item: LubecGmItem) => ReactNode; onAdd: () => void }
 
 // The list and the chosen item side by side, or one of them on a narrow screen.
-function Panes({ items, selection, card, onAdd }: PanesProps) {
+function Panes({ items, selection, picks, card, onAdd }: PanesProps) {
   const [filter, setFilter] = useState<LubecItemsFilter>('all')
   const { layout, selectedId, select } = selection
   return (
     <>
-      {layout.showListPane ? <LubecItemsRoster items={items} filter={filter} onFilter={setFilter} selectedId={selectedId} onSelect={select} onAdd={onAdd} /> : null}
+      {layout.showListPane ? <LubecItemsRoster items={items} filter={filter} onFilter={setFilter} selectedId={selectedId} onSelect={select} onAdd={onAdd} picks={picks} /> : null}
       {layout.showDetailPane ? <Detail item={selection.selected} isSinglePane={layout.isSinglePane} onBack={() => select(null)} card={card} /> : null}
     </>
   )
@@ -170,11 +183,12 @@ export function LubecItemsTab(props: LubecItemsTabProps) {
   const toast = useLubecToast()
   const writes = useWriteRunner()
   const selection = useItemsSelection(items)
+  const picks = useDroppedPicks(records, items, selection, toast.show)
   const options = { records, give, toast: toast.show, select: selection.select, openForm: setForm }
   return (
-    <div className="maps-layout monsters-layout lubec-items-tab lubec-gear" aria-busy={writes.busy}>
+    <div className="maps-layout monsters-layout lubec-items-tab lubec-gear" aria-busy={writes.busy || picks.bulk.busy}>
       <LubecRoughFilter />
-      <Panes items={items} selection={selection} card={(item) => <CardFor item={item} give={give} writes={writes} options={options} />} onAdd={() => setForm(lubecLibraryAddSheet())} />
+      <Panes items={items} selection={selection} picks={picks} card={(item) => <CardFor item={item} give={give} writes={writes} options={options} />} onAdd={() => setForm(lubecLibraryAddSheet())} />
       <FormOver form={form} items={items} records={records} onForm={setForm} onSaved={selection.select} toast={toast.show} />
       <Toast toast={toast} />
     </div>
