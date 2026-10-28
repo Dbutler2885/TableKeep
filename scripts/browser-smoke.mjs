@@ -1455,7 +1455,7 @@ async function pickLubecPack(page, name) {
 }
 
 // The pack shows the picture of that name: its file in the dev server, or its hashed file in a build.
-const expectLubecPackArt = (page, name) => page.waitForFunction(
+export const expectLubecPackArt = (page, name) => page.waitForFunction(
   (selector, file) => new RegExp(`/${file}[.-]`).test(document.querySelector(selector)?.style.backgroundImage ?? ''),
   {},
   `${LUBEC_GEAR_PAGE} .pack-art`,
