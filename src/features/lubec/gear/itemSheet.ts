@@ -31,8 +31,11 @@ export type LubecFormSheet = {
   browsing: string | null
 }
 
-/** The card, with its Move panel open or not. */
-export type LubecCardSheet = { mode: 'view'; itemId: string; error: string | null; move?: boolean }
+/** A prompt over the card: the empty-weapon prompt or the load picker, with its own refusal line. */
+export type LubecCardPrompt = { kind: 'empty' | 'load-pick'; error: string | null }
+
+/** The card, with its Move panel or a box's "Take some out" panel open or not, and a prompt over it or not. */
+export type LubecCardSheet = { mode: 'view'; itemId: string; error: string | null; move?: boolean; takeout?: boolean; prompt?: LubecCardPrompt | null }
 
 export type LubecItemSheetState =
   | LubecCardSheet

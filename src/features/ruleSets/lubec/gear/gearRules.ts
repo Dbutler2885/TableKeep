@@ -219,3 +219,10 @@ export const MOVE_COST: Readonly<Record<LubecMovePlace, Partial<Record<LubecMove
 }
 // Rule M5: moving a thing to the other hand is a GUESS.
 export const MOVE_GUESS: ReadonlySet<string> = new Set(['hands>hands'])
+
+export type LubecReloadPlace = 'hands' | 'body' | 'backpack'
+
+// Rules L3 and L4. Loading takes 1 action with the supply in your other hand, 2 on the body, 3 in the backpack.
+// The other hand holds the supply, or is empty to fetch it. A supply in a carrier doesn't count.
+export const RELOAD_COST: Readonly<Record<LubecReloadPlace, number>> = { hands: 1, body: 2, backpack: 3 }
+export const RELOAD_FROM: Readonly<Record<LubecReloadPlace, string>> = { hands: 'in your other hand', body: 'on your body', backpack: 'in the backpack' }

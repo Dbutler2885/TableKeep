@@ -8,6 +8,7 @@ import { LubecItemFormKind } from './LubecItemFormKind'
 import { LubecCountPick, LubecKindTiles, LubecPictureField, LubecSizePick } from './LubecItemFormTop'
 import { LubecNameField } from './LubecNameField'
 import { LubecSheetHead } from './LubecSheetHead'
+import type { LubecMakeSupply } from './LubecSupplyField'
 import type { LubecStockEntry } from './stockEntries'
 import { useLubecMediaQuery } from './useLubecMediaQuery'
 
@@ -19,6 +20,8 @@ export type LubecFormActions = {
   onSubmit: (paged: boolean) => void
   onBack: () => void
   onClose: () => void
+  /** "+ Make a supply": makes it and picks it in the field that asked. */
+  onMakeSupply: LubecMakeSupply
 }
 
 type FormProps = {
@@ -105,7 +108,7 @@ export function LubecItemForm(props: FormProps) {
       <LubecKindTiles fields={form.fields} onKind={(kind) => actions.onForm(withKind(form, kind))} />
       <FormTop {...props} onFields={onFields} />
       <div className="form-kind">
-        <LubecItemFormKind fields={form.fields} onFields={onFields} supplies={supplies} gear={gear} editId={form.editId} />
+        <LubecItemFormKind fields={form.fields} onFields={onFields} supplies={supplies} onMakeSupply={actions.onMakeSupply} gear={gear} editId={form.editId} />
       </div>
       <LubecItemFormBottom fields={form.fields} onFields={onFields} gear={gear} editing={editing} />
       {form.error ? <p className="form-error" role="alert">{form.error}</p> : null}

@@ -39,3 +39,22 @@ export const lubecAmountIn = (i: LubecItem): number => (i.kind === 'consumable' 
 /** Everything of `w`'s supply on you, loose or boxed, but not what's already in `w`. */
 export const lubecAmmoOnYou = (gear: LubecGear, w: LubecItem): number =>
   gear.items.filter((i) => i.id !== w.id && onYou(i) && lubecSupplyIn(i) === w.takes).reduce((n, i) => n + lubecAmountIn(i), 0)
+
+/** A supply's name as it is matched: trimmed, single-spaced and in small letters, so ".38 Rounds" is ".38 rounds". */
+export const lubecSupplyKey = (name: string): string => name.trim().replace(/\s+/g, ' ').toLowerCase()
+
+/** The gear with the supply named, and that supply: one already known by that name, or a new one the player made. Or no name. */
+export type LubecSupplyMade = { ok: true; gear: LubecGear; supply: LubecSupply; made: boolean } | { ok: false }
+
+/**
+ * "+ Make a supply" (Rule L1): a supply whose name matches one already known, in any letters, is that
+ * supply; anything else is a new one, stored in the maker's own `gear.supplies`.
+ */
+export function lubecMakeSupply(gear: LubecGear, name: string, newId: () => string): LubecSupplyMade {
+  const key = lubecSupplyKey(name)
+  if (!key) return { ok: false }
+  const known = lubecSupplies(gear).find((s) => lubecSupplyKey(s.name) === key)
+  if (known) return { ok: true, gear, supply: known, made: false }
+  const supply = { id: newId(), name: name.trim() }
+  return { ok: true, gear: { ...gear, supplies: [...gear.supplies, supply] }, supply, made: true }
+}

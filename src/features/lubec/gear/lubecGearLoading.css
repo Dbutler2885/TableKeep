@@ -1,0 +1,147 @@
+/* Supplies, holders and loading, copied from the inventory prototype (B):
+   the red box B 358-363, the prompt's button rows B 640-651, the prompt's
+   eyebrow B 670, the ammo maker B 672-673 and 875-876, and holders and
+   loading B 942-947. Written with the sheet's tokens (spec 1.5). */
+
+/* The red box: anything past the carry limit, or Reload & fire */
+.shell-root[data-theme="lubec"] .lubec-gear .btn.dispensation {
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-failure);
+  border-color: var(--lubec-failure);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .btn.dispensation small {
+  font: 800 0.5rem/1 var(--lubec-type);
+  letter-spacing: 0.08em;
+  opacity: 0.9;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .dispensation-box {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.7rem;
+  border: 2px solid var(--lubec-failure);
+  background: rgba(239, 63, 47, 0.07);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .dispensation-box .head {
+  color: var(--lubec-failure);
+  font: 800 0.62rem/1.2 var(--lubec-type);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .dispensation-box p {
+  margin: 0;
+  font: 700 0.74rem/1.45 var(--lubec-type);
+}
+
+/* A prompt's buttons: a list of pieces to pick from, one a row, each with its line on the right.
+   B's columns are minmax(0, 1fr) auto, which let a long refusal ("Your other hand holds ...") take the
+   whole row and run over the name; the name keeps at least its widest word, and the line wraps beside it. */
+.shell-root[data-theme="lubec"] .lubec-gear .actions .btn.piece:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .actions.list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.45rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .actions.list .btn.piece {
+  display: grid;
+  grid-template-columns: minmax(min-content, 1fr) minmax(0, auto);
+  align-items: center;
+  gap: 0.2rem 1rem;
+  padding: 0.7rem 0.9rem;
+  text-align: left;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .actions.list .btn.piece small {
+  text-align: right;
+}
+
+@media (max-width: 560px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .actions.list .btn.piece {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .actions.list .btn.piece small {
+    text-align: left;
+  }
+}
+
+/* Who sees a prompt: "Only you see this" */
+.shell-root[data-theme="lubec"] .lubec-gear .prompt-who {
+  color: var(--lubec-rust);
+}
+
+/* "+ Make a supply": the new supply's name, Make it and Cancel, in a dashed box under the pick */
+.shell-root[data-theme="lubec"] .lubec-gear .ammo-maker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.45rem;
+  align-items: end;
+  padding: 0.6rem;
+  border: 1.5px dashed var(--lubec-blue);
+  background: rgba(255, 248, 231, 0.6);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .ammo-maker .btn {
+  padding-inline: 0.7rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .w-firearm .ammo-maker {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 560px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .ammo-maker {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .ammo-maker .field {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Holders and loading (Rules K5, L): each button's cost or reason under it, and a box's "Take some out" */
+.shell-root[data-theme="lubec"] .lubec-gear .kind-actions .btn small {
+  display: block;
+  margin-top: 0.2rem;
+  font: 700 0.56rem/1.25 var(--lubec-type);
+  letter-spacing: 0.03em;
+  text-transform: none;
+  opacity: 0.85;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-actions .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-actions .takeout {
+  flex: 1 1 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .kind-actions .takeout .cost {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+/* The supply maker makes a holder's or a consumable's page taller than B's one form size allows, so while it is
+   open "Put it" and the weight go back under the name on the left, as for a firearm (B 917): the form still never scrolls. */
+@media (min-width: 60rem) {
+  .shell-root[data-theme="lubec"] .lubec-gear .item-form[data-kind="consumable"]:has(.ammo-maker),
+  .shell-root[data-theme="lubec"] .lubec-gear .item-form[data-kind="holder"]:has(.ammo-maker) {
+    grid-template-areas: "head head" "kinds kinds" "top kind" "bottom kind" "error error" "foot foot";
+  }
+}

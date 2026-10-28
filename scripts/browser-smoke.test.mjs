@@ -6,6 +6,7 @@ import {
   changedFirestoreFields,
   draggedToHandProblems,
   droppedAnvilProblems,
+  emptyRevolverPromptProblems,
   groupIdFromUrl,
   heavyAnvilProblems,
   interpolatePath,
@@ -319,6 +320,19 @@ describe('the dragged flashlight (step 14)', () => {
   it('names where the flashlight is when it is not in a hand, or that it is gone', () => {
     expect(draggedToHandProblems(lubecWith([{ name: 'Flashlight', carrier: 'backpack', pocket: 0 }]))).toEqual(['the stored flashlight is in backpack'])
     expect(draggedToHandProblems(lubecWith([]))).toEqual(['the stored flashlight is in undefined'])
+  })
+})
+
+describe('the empty revolver\'s prompt (step 16)', () => {
+  const prompt = (buttons) => ({ title: ".38 revolver isn't loaded", text: 'Your other hand holds Flashlight. It needs to hold the .38 rounds, or be empty to fetch them.', buttons })
+
+  it('passes Cancel, Reload and the red Reload & fire with its line', () => {
+    expect(emptyRevolverPromptProblems(prompt(['Cancel', 'Reload', 'Reload & fireRequires special dispensation (red)']))).toEqual([])
+  })
+
+  it('names what it shows when the red button or its line is missing', () => {
+    const shown = prompt(['Cancel', 'Reload', 'Reload & fire'])
+    expect(emptyRevolverPromptProblems(shown)).toEqual([`the empty-weapon prompt shows ${JSON.stringify(shown)}`])
   })
 })
 

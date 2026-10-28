@@ -126,8 +126,8 @@ describe('the attack buttons', () => {
     expect(attackToast(bat)).toBe('Roll it at the table.')
   })
 
-  it('say why an attack stopped', () => {
-    expect(attackRefusalText(revolver, 'empty')).toBe("Grandpa's revolver isn't loaded.")
-    expect(attackRefusalText(bat, 'not-in-hand')).toBe('Take the baseball bat in hand first.')
+  it('say to take the weapon in hand; an empty one stops with the empty-weapon prompt instead', () => {
+    expect(attackRefusalText(bat)).toBe('Take the baseball bat in hand first.')
+    expect(attackRefusalText(revolver)).toBe("Take Grandpa's revolver in hand first.")
   })
 })

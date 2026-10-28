@@ -5,7 +5,6 @@
 // penalty, the weapon's Handle, and the table's own number (spec 5.4).
 
 import type { LubecGear, LubecItem, LubecSupply, LubecWoundKind } from '../../ruleSets/lubec/gear/gearRecord'
-import type { LubecAttackRefusal } from '../../ruleSets/lubec/gear/attack'
 import {
   lubecCannotHandle,
   lubecComputedMinStrengthPenalty,
@@ -14,6 +13,9 @@ import {
   type LubecWielder,
 } from '../../ruleSets/lubec/gear/minStrength'
 import { lubecAmmoOnYou } from '../../ruleSets/lubec/gear/supplies'
+import { lubecReloadPlan } from '../../ruleSets/lubec/gear/loading'
+import { supplyNameIn } from './gearLabels'
+import { lubecReloadText } from './loadLabels'
 import { sgn, TABLES, WOUNDS, woundsOf } from './itemLabels'
 import { theName } from './moveLabels'
 
@@ -60,10 +62,17 @@ function tableFact(w: LubecItem): LubecCardFact[] {
 
 const nameOf = (supplies: readonly LubecSupply[], sid: string | undefined) => supplies.find((s) => s.id === sid)?.name ?? 'no supply'
 
-// Rule K6: a firearm's rounds, stepped by hand, and the rest of its supply on you.
-const firearmFacts = ({ gear, item: w, supplies }: LubecWeaponFacts): LubecCardFact[] => [
-  fact('Loaded', `${w.loaded ?? 0} of ${w.capacity ?? 0}`, { step: 'loaded' }),
-  fact('Takes', `${nameOf(supplies, w.takes)} / ${lubecAmmoOnYou(gear, w)} more on you`),
+// Rule L3: what reloading would take, while it isn't full and can be reloaded.
+function reloadFact({ gear, item: w, supplies }: LubecWeaponFacts): LubecCardFact[] {
+  const p = lubecReloadPlan(gear, w)
+  return p.ok ? [fact('Reload', lubecReloadText(w, p, supplyNameIn(supplies)))] : []
+}
+
+// Rule K6: a firearm's rounds, stepped by hand, the rest of its supply on you, and what reloading takes.
+const firearmFacts = (f: LubecWeaponFacts): LubecCardFact[] => [
+  fact('Loaded', `${f.item.loaded ?? 0} of ${f.item.capacity ?? 0}`, { step: 'loaded' }),
+  fact('Takes', `${nameOf(f.supplies, f.item.takes)} / ${lubecAmmoOnYou(f.gear, f.item)} more on you`),
+  ...reloadFact(f),
 ]
 
 const minStrengthFact = (min: number, { strength }: LubecWielder): LubecCardFact =>
@@ -132,6 +141,5 @@ export function lubecAttackButtons(w: LubecItem): LubecAttackButton[] {
 export const attackToast = (w: LubecItem): string =>
   (w.mode === 'firearm' ? `Fired. ${w.loaded ?? 0} of ${w.capacity ?? 0} left. Roll it at the table.` : 'Roll it at the table.')
 
-/** Why the attack stopped, on the card. An empty firearm's prompt comes with loading (G13). */
-export const attackRefusalText = (w: LubecItem, why: LubecAttackRefusal): string =>
-  (why === 'empty' ? `${w.name} isn't loaded.` : `Take ${theName(w)} in hand first.`)
+/** Why the attack stopped, on the card: the weapon is not in hand. An empty firearm stops with the empty-weapon prompt instead. */
+export const attackRefusalText = (w: LubecItem): string => `Take ${theName(w)} in hand first.`
