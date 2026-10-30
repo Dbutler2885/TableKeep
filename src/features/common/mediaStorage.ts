@@ -1,4 +1,4 @@
-import { onAuthStateChanged } from 'firebase/auth'
+import { onAuthStateChanged, type User } from 'firebase/auth'
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage'
 import { auth, storage } from '../../firebase'
 import { normalizeImageForUpload } from './imageNormalization'
@@ -79,6 +79,39 @@ const waitForAuthReady = async () => {
   await authReadyPromise
 }
 
+// One lookup; an authorization failure is tried once more with a refreshed ID token.
+async function downloadUrlRefreshingAuth(user: User, path: string) {
+  try {
+    return await getDownloadURL(ref(storage, path))
+  } catch (error) {
+    if (!isRetryableAuthError(error)) throw error
+    await user.getIdToken(true)
+    return getDownloadURL(ref(storage, path))
+  }
+}
+
+// A failed lookup is evicted, but nothing asks for that path again until its
+// record changes, so one passing failure would leave the image blank for the
+// session. A lookup is tried again after each of these waits, about six seconds
+// in all; only a missing object is final at once.
+const LOOKUP_RETRY_DELAYS_MS = [500, 1500, 4000]
+
+const isMissingObject = (error: unknown) => storageErrorCode(error) === 'storage/object-not-found'
+
+const pause = (ms: number) => new Promise<void>((resolve) => { setTimeout(resolve, ms) })
+
+async function downloadUrlWithRetries(user: User, path: string) {
+  for (const delay of LOOKUP_RETRY_DELAYS_MS) {
+    try {
+      return await downloadUrlRefreshingAuth(user, path)
+    } catch (error) {
+      if (isMissingObject(error)) throw error
+      await pause(delay)
+    }
+  }
+  return downloadUrlRefreshingAuth(user, path)
+}
+
 export const resolveStoragePathUrl = async (path: string) => {
   if (!path) return null
   const cached = storageUrlCache.get(path)
@@ -90,13 +123,7 @@ export const resolveStoragePathUrl = async (path: string) => {
     if (!user) throw new Error('You must be signed in to load images.')
 
     await user.getIdToken()
-    try {
-      return await getDownloadURL(ref(storage, path))
-    } catch (error) {
-      if (!isRetryableAuthError(error)) throw error
-      await user.getIdToken(true)
-      return getDownloadURL(ref(storage, path))
-    }
+    return downloadUrlWithRetries(user, path)
   })()
 
   storageUrlCache.set(path, pending)

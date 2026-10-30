@@ -45,6 +45,7 @@ describe('entity media storage', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
@@ -70,6 +71,44 @@ describe('entity media storage', () => {
     mocks.getDownloadURL.mockResolvedValueOnce('https://firebasestorage.test/recover.webp?token=good')
     await expect(resolveStoragePathUrl(path)).resolves.toBe('https://firebasestorage.test/recover.webp?token=good')
     expect(mocks.getDownloadURL).toHaveBeenCalledTimes(2)
+  })
+
+  it('tries a lookup that failed in passing again after a wait, so one failure never leaves an image blank', async () => {
+    vi.useFakeTimers()
+    const path = 'groups/group/campaigns/campaign/characters/char/portraits/flaky.webp'
+    mocks.getDownloadURL
+      .mockRejectedValueOnce({ code: 'storage/unknown' })
+      .mockResolvedValueOnce('https://firebasestorage.test/flaky.webp?token=good')
+
+    const url = resolveStoragePathUrl(path)
+    await vi.advanceTimersByTimeAsync(499)
+    expect(mocks.getDownloadURL).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    await expect(url).resolves.toBe('https://firebasestorage.test/flaky.webp?token=good')
+    expect(mocks.getDownloadURL).toHaveBeenCalledTimes(2)
+  })
+
+  it('gives up after four tries about six seconds apart in all, and asks again on the next call', async () => {
+    vi.useFakeTimers()
+    const path = 'groups/group/campaigns/campaign/characters/char/portraits/down.webp'
+    mocks.getDownloadURL.mockRejectedValue({ code: 'storage/unknown' })
+
+    const url = resolveStoragePathUrl(path)
+    const settled = expect(url).rejects.toEqual({ code: 'storage/unknown' })
+    await vi.advanceTimersByTimeAsync(6000)
+    await settled
+    expect(mocks.getDownloadURL).toHaveBeenCalledTimes(4)
+
+    mocks.getDownloadURL.mockReset().mockResolvedValueOnce('https://firebasestorage.test/down.webp?token=good')
+    await expect(resolveStoragePathUrl(path)).resolves.toBe('https://firebasestorage.test/down.webp?token=good')
+  })
+
+  it('does not wait on a missing object', async () => {
+    mocks.getDownloadURL.mockRejectedValueOnce({ code: 'storage/object-not-found' })
+
+    await expect(resolveStoragePathUrl('groups/group/campaigns/campaign/npcs/npc/portraits/gone.webp'))
+      .rejects.toEqual({ code: 'storage/object-not-found' })
+    expect(mocks.getDownloadURL).toHaveBeenCalledTimes(1)
   })
 
   it('returns a reload-safe URL with a successful upload', async () => {
