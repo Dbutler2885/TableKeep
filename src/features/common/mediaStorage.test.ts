@@ -1,13 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({
-  authStateReady: vi.fn(async () => undefined),
-  getIdToken: vi.fn(async () => 'id-token'),
-  getDownloadURL: vi.fn(),
-  normalizeImageForUpload: vi.fn(),
-  ref: vi.fn((_storage: unknown, path: string) => ({ fullPath: path })),
-  uploadBytes: vi.fn(async () => undefined),
-}))
+const mocks = vi.hoisted(() => {
+  const getIdToken = vi.fn(async () => 'id-token')
+  const authStateReady = vi.fn(async () => undefined)
+  return {
+    auth: { authStateReady, currentUser: { getIdToken } as { getIdToken: typeof getIdToken } | null },
+    authStateReady,
+    getIdToken,
+    getDownloadURL: vi.fn(),
+    normalizeImageForUpload: vi.fn(),
+    ref: vi.fn((_storage: unknown, path: string) => ({ fullPath: path })),
+    uploadBytes: vi.fn(async () => undefined),
+  }
+})
 
 vi.mock('firebase/auth', () => ({
   onAuthStateChanged: vi.fn(),
@@ -20,10 +25,7 @@ vi.mock('firebase/storage', () => ({
 }))
 
 vi.mock('../../firebase', () => ({
-  auth: {
-    authStateReady: mocks.authStateReady,
-    currentUser: { getIdToken: mocks.getIdToken },
-  },
+  auth: mocks.auth,
   storage: {},
 }))
 
@@ -45,6 +47,7 @@ describe('entity media storage', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
@@ -70,6 +73,74 @@ describe('entity media storage', () => {
     mocks.getDownloadURL.mockResolvedValueOnce('https://firebasestorage.test/recover.webp?token=good')
     await expect(resolveStoragePathUrl(path)).resolves.toBe('https://firebasestorage.test/recover.webp?token=good')
     expect(mocks.getDownloadURL).toHaveBeenCalledTimes(2)
+  })
+
+  it('tries a lookup that failed in passing again after a wait, so one failure never leaves an image blank', async () => {
+    vi.useFakeTimers()
+    const path = 'groups/group/campaigns/campaign/characters/char/portraits/flaky.webp'
+    mocks.getDownloadURL
+      .mockRejectedValueOnce({ code: 'storage/unknown' })
+      .mockResolvedValueOnce('https://firebasestorage.test/flaky.webp?token=good')
+
+    const url = resolveStoragePathUrl(path)
+    await vi.advanceTimersByTimeAsync(499)
+    expect(mocks.getDownloadURL).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    await expect(url).resolves.toBe('https://firebasestorage.test/flaky.webp?token=good')
+    expect(mocks.getDownloadURL).toHaveBeenCalledTimes(2)
+  })
+
+  it('gives up after four tries about six seconds apart in all, and asks again on the next call', async () => {
+    vi.useFakeTimers()
+    const path = 'groups/group/campaigns/campaign/characters/char/portraits/down.webp'
+    mocks.getDownloadURL.mockRejectedValue({ code: 'storage/unknown' })
+
+    const url = resolveStoragePathUrl(path)
+    const settled = expect(url).rejects.toEqual({ code: 'storage/unknown' })
+    await vi.advanceTimersByTimeAsync(6000)
+    await settled
+    expect(mocks.getDownloadURL).toHaveBeenCalledTimes(4)
+
+    mocks.getDownloadURL.mockReset().mockResolvedValueOnce('https://firebasestorage.test/down.webp?token=good')
+    await expect(resolveStoragePathUrl(path)).resolves.toBe('https://firebasestorage.test/down.webp?token=good')
+  })
+
+  it('does not wait on a missing object', async () => {
+    mocks.getDownloadURL.mockRejectedValueOnce({ code: 'storage/object-not-found' })
+
+    await expect(resolveStoragePathUrl('groups/group/campaigns/campaign/npcs/npc/portraits/gone.webp'))
+      .rejects.toEqual({ code: 'storage/object-not-found' })
+    expect(mocks.getDownloadURL).toHaveBeenCalledTimes(1)
+  })
+
+  it('looks up nothing for an empty path', async () => {
+    await expect(resolveStoragePathUrl('')).resolves.toBeNull()
+    expect(mocks.getDownloadURL).not.toHaveBeenCalled()
+  })
+
+  it('shares one lookup between callers, and answers from it afterwards', async () => {
+    const path = 'groups/group/campaigns/campaign/characters/char/portraits/shared.webp'
+    mocks.getDownloadURL.mockResolvedValueOnce('https://firebasestorage.test/shared.webp?token=good')
+
+    const [first, second] = await Promise.all([resolveStoragePathUrl(path), resolveStoragePathUrl(path)])
+    expect([first, second]).toEqual(['https://firebasestorage.test/shared.webp?token=good', 'https://firebasestorage.test/shared.webp?token=good'])
+    await expect(resolveStoragePathUrl(path)).resolves.toBe('https://firebasestorage.test/shared.webp?token=good')
+    expect(mocks.getDownloadURL).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses to look up an image for nobody signed in, and looks again once someone is', async () => {
+    const path = 'groups/group/campaigns/campaign/characters/char/portraits/signed-out.webp'
+    const signedIn = mocks.auth.currentUser
+    mocks.auth.currentUser = null
+    try {
+      await expect(resolveStoragePathUrl(path)).rejects.toThrow('You must be signed in to load images.')
+    } finally {
+      mocks.auth.currentUser = signedIn
+    }
+    expect(mocks.getDownloadURL).not.toHaveBeenCalled()
+
+    mocks.getDownloadURL.mockResolvedValueOnce('https://firebasestorage.test/signed-out.webp?token=good')
+    await expect(resolveStoragePathUrl(path)).resolves.toBe('https://firebasestorage.test/signed-out.webp?token=good')
   })
 
   it('returns a reload-safe URL with a successful upload', async () => {

@@ -1768,6 +1768,34 @@ async function fireLubecEmptyRevolver(page) {
   await waitForNoLubecGearSheet(page)
 }
 
+const LUBEC_IN_HAND = ['Left hand: Flashlight', 'Right hand: .38 revolver, 0 of 6']
+
+// Step 17: the Fight bar's "In hand" names the flashlight dragged to the left hand and the revolver put in the right, with its rounds.
+export function inHandProblems(chips) {
+  return JSON.stringify(chips) === JSON.stringify(LUBEC_IN_HAND) ? [] : [`"In hand" shows ${JSON.stringify(chips)}`]
+}
+
+// Step 17 fails with what "In hand" showed instead.
+export function expectInHand(chips) {
+  const problems = inHandProblems(chips)
+  if (problems.length) throw new Error(problems.join('; '))
+}
+
+// Each chip's first line: what the hand holds, without a weapon's Handle under it.
+export const readLubecInHand = (row) => [...row.querySelectorAll('.lubec-hand-chip')].map((chip) => chip.firstElementChild?.textContent ?? chip.textContent)
+
+// Step 17: the Core page with its Fight bar opened, and what "In hand" shows.
+async function openLubecFightInHand(page) {
+  await page.locator('.lubec-page-tabs ::-p-text(Core sheet)').click()
+  await page.locator(`${LUBEC_CORE_PAGE} .fight-toggle`).click()
+  return (await page.waitForSelector(`${LUBEC_CORE_PAGE} .lubec-in-hand`)).evaluate(readLubecInHand)
+}
+
+// On a desktop the Core page still fits one screen with the Fight bar open.
+async function lubecFightFitStep(page, testCase) {
+  if (!testCase.viewport.isMobile) await step('fit the Core page on one desktop screen with the Fight bar open', () => expectLubecCoreOnOneScreen(page))
+}
+
 // Step 20: the given anvil is in the backpack with no Strength roll, and no GM item holds it any more.
 export function givenAnvilProblems({ dropped, character }) {
   const fields = storedAt(storedGearItem(character, 'Small anvil'), ['mapValue', 'fields'])
@@ -1845,6 +1873,9 @@ async function lubecGearPageSteps(page, testCase, path) {
     await waitForStored(() => readDroppedItems(path), droppedAnvilProblems)
   })
   await step('put the stock revolver in a hand and press Fire: the prompt says it isn\'t loaded, with Cancel, Reload and the red "Reload & fire"', () => fireLubecEmptyRevolver(page))
+  await step('open the Core page\'s Fight bar and see the flashlight and the revolver "In hand"', async () => expectInHand(await openLubecFightInHand(page)))
+  await lubecFightFitStep(page, testCase)
+  await step('go back to the Gear page', () => openLubecGearPage(page))
   await page.mouse.move(0, page.viewport().height - 1)
   await step('fit the Gear page without scrolling sideways after the adds', () => expectNoSidewaysScroll(page))
   await lubecGearFitStep(page, testCase)

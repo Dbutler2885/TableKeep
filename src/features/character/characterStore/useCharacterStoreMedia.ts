@@ -14,12 +14,24 @@ export const needsCharacterStoreMediaUrls = (character: CharacterStoreRecord) =>
 const resolveOptionalPath = (path: string | undefined) =>
   path ? resolveStoragePathUrl(path) : Promise.resolve<string | null>(null)
 
-async function resolveCharacterStoreMediaUrls(character: CharacterStoreRecord): Promise<ResolvedMedia> {
-  const [portraitUrl, customImageUrl] = await Promise.all([
+const settledUrl = (result: PromiseSettledResult<string | null>) => (result.status === 'fulfilled' ? result.value : null)
+
+const foundAny = ({ portraitUrl, customImageUrl }: ResolvedMedia) => Boolean(portraitUrl || customImageUrl)
+
+/**
+ * The portrait's and the token image's URLs, each null when it has none or its
+ * lookup failed, so one failure never hides the other. Null when a lookup
+ * failed and nothing was found: writing that back would only start the same
+ * failing lookup again.
+ */
+export async function resolveCharacterStoreMediaUrls(character: CharacterStoreRecord): Promise<ResolvedMedia | null> {
+  const results = await Promise.allSettled([
     resolveOptionalPath(character.portraitPath),
     resolveOptionalPath(character.tokenIcon.customImagePath),
   ])
-  return { portraitUrl, customImageUrl }
+  const [portrait, customImage] = results
+  const media = { portraitUrl: settledUrl(portrait), customImageUrl: settledUrl(customImage) }
+  return results.some((result) => result.status === 'rejected') && !foundAny(media) ? null : media
 }
 
 export function withResolvedCharacterStoreMedia<Character extends CharacterStoreRecord>(
@@ -47,6 +59,7 @@ export function useCharacterStoreMedia<Character extends CharacterStoreRecord>(
     if (charactersNeedingMedia.length === 0) return
     void Promise.allSettled(charactersNeedingMedia.map(async (character) => {
       const media = await resolveCharacterStoreMediaUrls(character)
+      if (!media) return
       setCharacters((current) => current.map((entry) =>
         entry.id === character.id ? withResolvedCharacterStoreMedia(entry, media) : entry))
     }))
