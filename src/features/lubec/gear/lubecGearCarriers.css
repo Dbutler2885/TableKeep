@@ -63,6 +63,7 @@
 
 .shell-root[data-theme="lubec"] .lubec-gear .carrier-card h3 {
   margin: 0;
+  color: var(--lubec-ink);
   font: 800 1.1rem/1.1 var(--lubec-display);
   letter-spacing: -0.01em;
   overflow-wrap: anywhere;
@@ -150,6 +151,7 @@
 
 .shell-root[data-theme="lubec"] .lubec-gear .pocket-section h3 {
   margin: 0;
+  color: var(--lubec-ink);
   font: 800 1rem/1.1 var(--lubec-display);
 }
 
@@ -159,10 +161,6 @@
 
 .shell-root[data-theme="lubec"] .lubec-gear .carry-area {
   margin-top: 1.1rem;
-}
-
-.shell-root[data-theme="lubec"] .lubec-gear .carry-area .btn {
-  justify-self: start;
 }
 
 .shell-root[data-theme="lubec"] .lubec-gear .row-item.add {
@@ -180,6 +178,45 @@
 
 .shell-root[data-theme="lubec"] .lubec-gear .panel.ink .row-item {
   min-height: 2.6rem;
+}
+
+/* Desktop: On you stays one screen while something is carried. The Carrying
+   panel's row is as compact as the armor rows, and the body drawing gives
+   the panel its height back from the stage. */
+@media (min-width: 861px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .panel.ink {
+    padding-bottom: 0.2rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .panel.ink > .section-head {
+    margin-bottom: 0.2rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .panel.ink .row-item {
+    min-height: 2.2rem;
+    padding-block: 0.1rem;
+    border-bottom: 0;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .panel.ink .row-item .btn.small {
+    min-height: 1.8rem;
+    padding-block: 0.2rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .side:has(> .panel.ink) .armor-panel .armor-wrap {
+    grid-template-columns: min(10rem, max(3.8rem, calc((var(--stage) - 27rem) * 0.48))) minmax(0, 1fr);
+  }
+
+  /* The narrower drawing keeps its legend's words on one line each. */
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .side:has(> .panel.ink) .armor-panel .map-legend span {
+    white-space: nowrap;
+  }
+}
+
+@media (min-width: 861px) and (max-height: 820px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .on-you .side:has(> .panel.ink) .armor-panel .armor-wrap {
+    grid-template-columns: min(10rem, max(3.8rem, calc((var(--stage) - 26.6rem) * 0.48))) minmax(0, 1fr);
+  }
 }
 
 /* The add-carrier dialog: B's sheet, in the app's overlay */
@@ -203,11 +240,6 @@
 
 .shell-root[data-theme="lubec"] .lubec-gear .carrier-sheet .actions {
   grid-template-columns: minmax(0, 1fr);
-}
-
-.shell-root[data-theme="lubec"] .lubec-gear .carrier-sheet .btn.line.small {
-  justify-self: start;
-  margin-top: 0.45rem;
 }
 
 .shell-root[data-theme="lubec"] .lubec-gear .guess {
@@ -247,11 +279,18 @@
 /* Desktop: the sheet frame stays put and the Carriers view scrolls inside the pane */
 @media (min-width: 1251px) {
   .shell-root[data-theme="lubec"] .lubec-gear .carriers-view {
-    max-height: calc(100vh / var(--lubec-gear-zoom, 1) - var(--lubec-gear-chrome, 18.5rem) + 1.4rem);
+    max-height: calc(100vh / var(--lubec-gear-zoom, 1) - var(--lubec-gear-chrome, 18.5rem) + 1.1rem);
     overflow-y: auto;
     overscroll-behavior: contain;
     padding-right: 0.4rem;
     padding-bottom: 0.4rem;
+  }
+}
+
+/* Tablets and phones: the sheet is a stacked page, so the cards stack in one column, full width */
+@media (max-width: 1250px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .carrier-list {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
