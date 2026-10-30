@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
-import type { CharacterRecord, Role } from '../../types/app'
+import type { CharacterRecord, PendingTransfer, Role } from '../../types/app'
 import { usePendingTransfers } from './usePendingTransfers'
-import { oseCarrying } from '../ruleSets/ose/carrying'
+import { receiverPackedSlots } from './receiverPackedSlots'
+import { useTransferResponse } from './useTransferResponse'
 
 type TransferNotificationProps = {
   campaignId: string
@@ -19,79 +19,65 @@ export function TransferNotification({
   characters,
 }: TransferNotificationProps) {
   const { incomingTransfers, acceptTransfer, declineTransfer } = usePendingTransfers(campaignId, groupId, role, currentUserId)
-  const [busyTransferId, setBusyTransferId] = useState('')
-  const [error, setError] = useState<string | null>(null)
+  const response = useTransferResponse(acceptTransfer, declineTransfer)
 
-  const activeTransfer = incomingTransfers[0] ?? null
-  const receiver = useMemo(
-    () => characters.find((character) => character.id === activeTransfer?.toCharacterId) ?? null,
-    [activeTransfer?.toCharacterId, characters],
-  )
-
+  const activeTransfer = incomingTransfers[0]
   if (!activeTransfer) return null
 
-  const details = receiver?.details ?? null
-  const inventory = Array.isArray(details?.inventory) ? details.inventory : []
-  const packedUsed = inventory.filter((item) => !item.equipped).length
-  const packedAvailable = oseCarrying.packedSlots(details)
+  return (
+    <TransferOfferDialog
+      transfer={activeTransfer}
+      characters={characters}
+      response={response}
+      morePending={incomingTransfers.length - 1}
+    />
+  )
+}
 
-  const handleAccept = async () => {
-    setBusyTransferId(activeTransfer.id)
-    setError(null)
-    try {
-      await acceptTransfer(activeTransfer.id)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to accept transfer.')
-    } finally {
-      setBusyTransferId('')
-    }
-  }
+type TransferOfferDialogProps = {
+  transfer: PendingTransfer
+  characters: CharacterRecord[]
+  response: ReturnType<typeof useTransferResponse>
+  morePending: number
+}
 
-  const handleDecline = async () => {
-    setBusyTransferId(activeTransfer.id)
-    setError(null)
-    try {
-      await declineTransfer(activeTransfer.id)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to decline transfer.')
-    } finally {
-      setBusyTransferId('')
-    }
-  }
+function TransferOfferDialog({ transfer, characters, response, morePending }: TransferOfferDialogProps) {
+  const packedSlots = receiverPackedSlots(characters, transfer.toCharacterId)
+  const busy = response.busyTransferId === transfer.id
 
   return (
     <div className="confirm-overlay" role="dialog" aria-modal="true">
       <div className="confirm-modal">
         <h3>Incoming Transfer</h3>
         <p>
-          <strong>{activeTransfer.fromCharacterName}</strong> wants to give{' '}
-          <strong>{activeTransfer.itemName}</strong> to <strong>{activeTransfer.toCharacterName}</strong>.
+          <strong>{transfer.fromCharacterName}</strong> wants to give{' '}
+          <strong>{transfer.itemName}</strong> to <strong>{transfer.toCharacterName}</strong>.
         </p>
-        <p style={{ fontSize: '0.92em' }}>Type: {activeTransfer.itemKind}</p>
+        <p style={{ fontSize: '0.92em' }}>Type: {transfer.itemKind}</p>
         <p style={{ fontSize: '0.92em' }}>
-          Packed slots: {packedUsed}/{packedAvailable}
+          Packed slots: {packedSlots.used}/{packedSlots.available}
         </p>
-        {error ? <p className="error">{error}</p> : null}
+        {response.error ? <p className="error">{response.error}</p> : null}
         <div className="confirm-actions">
           <button
             type="button"
             className="confirm-danger"
-            onClick={() => void handleDecline()}
-            disabled={busyTransferId === activeTransfer.id}
+            onClick={() => void response.decline(transfer.id)}
+            disabled={busy}
           >
             Decline
           </button>
           <button
             type="button"
-            onClick={() => void handleAccept()}
-            disabled={busyTransferId === activeTransfer.id}
+            onClick={() => void response.accept(transfer.id)}
+            disabled={busy}
           >
             Accept
           </button>
         </div>
-        {incomingTransfers.length > 1 ? (
+        {morePending > 0 ? (
           <p style={{ marginTop: 8, fontSize: '0.85em', opacity: 0.7 }}>
-            +{incomingTransfers.length - 1} more pending
+            +{morePending} more pending
           </p>
         ) : null}
       </div>
