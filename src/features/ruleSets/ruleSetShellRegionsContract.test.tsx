@@ -7,6 +7,8 @@
  * a player or GM, not a refactor. VtM's approval and transfer rows changed on
  * purpose when the registry began declaring them: VtM has neither, so its
  * campaigns stopped subscribing to approvals and showing the transfer notice.
+ * Lubec's transfer row changed on purpose when the transfer callable learned
+ * Lubec's gear: its campaigns show the notice.
  */
 import { createElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -117,7 +119,7 @@ describe('transfers', () => {
   it.each([
     ['ose', true],
     ['vtm', false],
-    ['lubec', false],
+    ['lubec', true],
   ] as const)('%s shows the transfer notice on the character and maps tabs: %s', async (system, shown) => {
     for (const tab of ['character', 'maps'] as const) {
       await openCampaign(system, tab)

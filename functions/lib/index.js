@@ -7,8 +7,7 @@ import { defineSecret, defineString } from 'firebase-functions/params';
 import { logger } from 'firebase-functions';
 import { adminApp, adminFirestore } from './adminApp.js';
 import { isTransferSourceAuthorized } from './transferAuthorization.js';
-import { PACKED_SLOTS_MESSAGE } from './oseCarrying.js';
-import { NO_CARRYING_MESSAGE, resolveTransferCarrying } from './ruleSetCarrying.js';
+import { NO_CARRYING_MESSAGE, droppedOffer, resolveTransferCarrying } from './ruleSetCarrying.js';
 import { campaignPath, groupMemberPath } from './firestorePaths.js';
 import { CHARACTER_BEING_UPDATED_MESSAGE, currentCharacterSchemaVersion, isCharacterAtSchemaVersion, } from './characterSchemaVersions.js';
 import { deleteCampaignSessions } from './campaignSessions.js';
@@ -157,12 +156,6 @@ export const getCampaignNpcs = onRequest({ region: 'us-central1', secrets: [sess
         .filter((n) => n.name.trim().length > 0);
     res.status(200).json({ npcs });
 });
-function asInventory(details) {
-    if (!details || typeof details !== 'object')
-        return [];
-    const inventory = details.inventory;
-    return Array.isArray(inventory) ? inventory : [];
-}
 export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (request) => {
     const uid = request.auth?.uid ?? '';
     if (!uid)
@@ -221,37 +214,18 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
         if (![senderData, receiverData].every((character) => isCharacterAtSchemaVersion(character, schemaVersion))) {
             throw new HttpsError('failed-precondition', CHARACTER_BEING_UPDATED_MESSAGE);
         }
-        const senderDetails = (senderData?.details && typeof senderData.details === 'object') ? senderData.details : {};
-        const receiverDetails = (receiverData?.details && typeof receiverData.details === 'object') ? receiverData.details : {};
-        const senderInventory = asInventory(senderDetails);
-        const receiverInventory = asInventory(receiverDetails);
-        const transferResult = carrying.acceptTransfer(senderInventory, receiverInventory, transfer, carrying.packedSlots(receiverDetails));
-        if (!transferResult.ok && (transferResult.reason === 'missing_item' || transferResult.reason === 'kind_mismatch')) {
-            tx.delete(transferRef);
-            return { code: 'not-found', message: 'Item no longer available.' };
-        }
-        if (!transferResult.ok && transferResult.reason === 'qty_changed') {
-            tx.delete(transferRef);
-            return { code: 'failed-precondition', message: 'Item quantity changed before transfer could be accepted.' };
+        const transferResult = carrying(senderData, receiverData, transfer);
+        // No room keeps the offer, so the receiver can make room and accept again.
+        if (!transferResult.ok && transferResult.reason === 'no_room') {
+            throw new HttpsError('failed-precondition', transferResult.message);
         }
         if (!transferResult.ok) {
-            throw new HttpsError('failed-precondition', PACKED_SLOTS_MESSAGE);
+            tx.delete(transferRef);
+            return droppedOffer(transferResult.reason);
         }
         const schemaStamp = { schemaVersion, schemaWrittenAt: FieldValue.serverTimestamp() };
-        tx.set(senderRef, {
-            details: {
-                ...senderDetails,
-                inventory: transferResult.senderInventory,
-            },
-            ...schemaStamp,
-        }, { merge: true });
-        tx.set(receiverRef, {
-            details: {
-                ...receiverDetails,
-                inventory: transferResult.receiverInventory,
-            },
-            ...schemaStamp,
-        }, { merge: true });
+        tx.set(senderRef, { ...transferResult.sender, ...schemaStamp }, { merge: true });
+        tx.set(receiverRef, { ...transferResult.receiver, ...schemaStamp }, { merge: true });
         tx.delete(transferRef);
         return null;
     });

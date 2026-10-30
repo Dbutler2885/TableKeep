@@ -96,7 +96,10 @@ export type RuleSetDefinition<Id extends RuleSetId = RuleSetId> = {
   // accepts or declines.
   transfers: boolean
   // What a character can carry, and what happens to an add, grant or transfer
-  // that does not fit, or null for a rule set without a carrying limit.
+  // that does not fit, or null for a rule set without a carrying limit counted
+  // in packed slots. Lubec's is null: its pockets are not packed slots, so its
+  // carry limit lives in its Gear module, and the transfer callable has its own
+  // copy of the arrival rule.
   carrying: CarryingRule | null
   shell: RuleSetShell
   // The version its characters are written at, the steps that bring an older
@@ -177,7 +180,7 @@ export const ruleSets: RuleSetRegistry = {
     skin: { theme: 'lubec', tokenColor: '#c08a2e' },
     monsters: null,
     approvals: [],
-    transfers: false,
+    transfers: true,
     carrying: null,
     shell: { campaignStrip: false },
     characters: { ...lubecCharacterVersioning, summary: lubecCharacterSummary, parser: lubecCharacterParser },

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, prettyDOM, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import type { Campaign, CharacterInventoryItem, GroupRecord, ItemApprovalRequest } from './types/app'
+import { oseCarrying } from './features/ruleSets/ose/carrying'
 
 // GroupShell is reached the way a signed-in user reaches it: through App's own
 // routes. Everything GroupShell renders or subscribes through is replaced, so
@@ -1046,6 +1047,7 @@ describe('GroupShell subscriptions', () => {
         currentUserId: GM,
         role: 'gm',
         characters: mocks.characters.characters,
+        carrying: oseCarrying,
       })
       cleanup()
     }

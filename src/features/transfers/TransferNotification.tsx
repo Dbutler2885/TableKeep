@@ -1,4 +1,5 @@
 import type { CharacterRecord, PendingTransfer, Role } from '../../types/app'
+import type { CarryingRule } from '../ruleSets/carrying'
 import { usePendingTransfers } from './usePendingTransfers'
 import { receiverPackedSlots } from './receiverPackedSlots'
 import { useTransferResponse } from './useTransferResponse'
@@ -9,6 +10,9 @@ type TransferNotificationProps = {
   currentUserId: string
   role: Role | null
   characters: CharacterRecord[]
+  // The rule set's packed-slot carrying rule, or null for one without packed
+  // slots, whose modal prints no packed-slots line.
+  carrying: CarryingRule | null
 }
 
 export function TransferNotification({
@@ -17,6 +21,7 @@ export function TransferNotification({
   currentUserId,
   role,
   characters,
+  carrying,
 }: TransferNotificationProps) {
   const { incomingTransfers, acceptTransfer, declineTransfer } = usePendingTransfers(campaignId, groupId, role, currentUserId)
   const response = useTransferResponse(acceptTransfer, declineTransfer)
@@ -28,6 +33,7 @@ export function TransferNotification({
     <TransferOfferDialog
       transfer={activeTransfer}
       characters={characters}
+      carrying={carrying}
       response={response}
       morePending={incomingTransfers.length - 1}
     />
@@ -37,12 +43,22 @@ export function TransferNotification({
 type TransferOfferDialogProps = {
   transfer: PendingTransfer
   characters: CharacterRecord[]
+  carrying: CarryingRule | null
   response: ReturnType<typeof useTransferResponse>
   morePending: number
 }
 
-function TransferOfferDialog({ transfer, characters, response, morePending }: TransferOfferDialogProps) {
-  const packedSlots = receiverPackedSlots(characters, transfer.toCharacterId)
+// The receiver's packed slots, as the rule set counts them.
+function PackedSlotsLine({ carrying, characters, toCharacterId }: { carrying: CarryingRule; characters: CharacterRecord[]; toCharacterId: string }) {
+  const packedSlots = receiverPackedSlots(carrying, characters, toCharacterId)
+  return (
+    <p style={{ fontSize: '0.92em' }}>
+      Packed slots: {packedSlots.used}/{packedSlots.available}
+    </p>
+  )
+}
+
+function TransferOfferDialog({ transfer, characters, carrying, response, morePending }: TransferOfferDialogProps) {
   const busy = response.busyTransferId === transfer.id
 
   return (
@@ -54,9 +70,7 @@ function TransferOfferDialog({ transfer, characters, response, morePending }: Tr
           <strong>{transfer.itemName}</strong> to <strong>{transfer.toCharacterName}</strong>.
         </p>
         <p style={{ fontSize: '0.92em' }}>Type: {transfer.itemKind}</p>
-        <p style={{ fontSize: '0.92em' }}>
-          Packed slots: {packedSlots.used}/{packedSlots.available}
-        </p>
+        {carrying ? <PackedSlotsLine carrying={carrying} characters={characters} toCharacterId={transfer.toCharacterId} /> : null}
         {response.error ? <p className="error">{response.error}</p> : null}
         <div className="confirm-actions">
           <button

@@ -69,7 +69,7 @@ describe('actual transfer callable', () => {
     expect(writes().map(([, fields]) => [fields.schemaVersion, fields.schemaWrittenAt])).toEqual([[1, SERVER_TIME], [1, SERVER_TIME]])
   })
 
-  it.each(['vtm', 'lubec'])('refuses a transfer in a %s campaign, which has no carrying rule, without reading either character or dropping the offer', async (system) => {
+  it.each(['vtm'])('refuses a transfer in a %s campaign, which has no carrying rule, without reading either character or dropping the offer', async (system) => {
     mocks.records.set(path, { gmUserId: 'gm', system })
     await expect(accept(request)).rejects.toMatchObject({
       code: 'failed-precondition', message: 'Items cannot be handed to another character in this campaign.',
@@ -226,6 +226,66 @@ describe('callable carrying boundaries', () => {
     mocks.set.mockImplementationOnce(() => undefined).mockImplementationOnce(() => { throw new Error('write failed') })
     await expect(accept(request)).rejects.toThrow('write failed')
     expect(mocks.set).toHaveBeenCalledTimes(2)
+    expect(mocks.delete).not.toHaveBeenCalled()
+  })
+})
+
+describe('a Lubec campaign', () => {
+  const thing = (id: string, carrier: string, at: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+    ({ id, kind: 'thing', carrier, ...at, name: id, size: 1, qty: 1, weight: 'normal', note: '', ...extra })
+  const rope = thing('rope', 'backpack', { pocket: 1 }, { qty: 4, batch: 'b1', check: 'pass' })
+  const lubecOf = (items: unknown[]) => ({ counters: { stress: 3 }, effects: [{ id: 'e1' }], gear: { items, carriers: [], overrides: [], supplies: [] } })
+  const offerOf = (snapshot: Record<string, unknown>) => ({ ...offer, itemId: snapshot.id, itemSnapshot: snapshot })
+
+  beforeEach(() => {
+    mocks.records.set(path, { gmUserId: 'gm', system: 'lubec' })
+    mocks.records.set(transferPath, offerOf(rope))
+    mocks.records.set(senderPath, { ownerUserId: 'sender-user', schemaVersion: 1, lubec: lubecOf([rope, thing('cup', 'backpack', { pocket: 0 })]) })
+    mocks.records.set(receiverPath, { ownerUserId: 'receiver-user', schemaVersion: 1, lubec: lubecOf([]) })
+  })
+
+  it("lands the item in the receiver's backpack, merging only `lubec.gear` into each character, then deletes the offer", async () => {
+    await expect(accept(request)).resolves.toEqual({ ok: true })
+    const gearWith = (items: unknown[]) => ({ lubec: { gear: { items, carriers: [], overrides: [], supplies: [] } }, ...stamp })
+    expect(writes()).toEqual([
+      [senderPath, gearWith([thing('cup', 'backpack', { pocket: 0 })]), { merge: true }],
+      [receiverPath, gearWith([thing('rope', 'backpack', { pocket: 0 }, { qty: 4 })]), { merge: true }],
+    ])
+    expect(deletes()).toEqual([transferPath])
+  })
+
+  it('puts an 8-slot thing into two empty hands', async () => {
+    const canoe = thing('canoe', 'strap', { pocket: 0 }, { size: 8 })
+    mocks.records.set(transferPath, offerOf(canoe))
+    mocks.records.set(senderPath, { ownerUserId: 'sender-user', schemaVersion: 1, lubec: lubecOf([canoe]) })
+    await expect(accept(request)).resolves.toEqual({ ok: true })
+    expect(writes()[1][1].lubec.gear.items).toEqual([thing('canoe', 'hands', { slot: 0 }, { size: 8 })])
+  })
+
+  it('keeps the offer and both characters untouched when the backpack is full', async () => {
+    const full = [thing('tent', 'backpack', { pocket: 0 }, { size: 4 }), thing('a', 'backpack', { pocket: 0 }), thing('b', 'backpack', { pocket: 1 }), thing('c', 'backpack', { pocket: 2 })]
+    mocks.records.set(receiverPath, { schemaVersion: 1, lubec: lubecOf(full) })
+    await expect(accept(request)).rejects.toMatchObject({
+      code: 'failed-precondition', message: 'Not enough room to accept this item. Make room in your backpack or hands, then accept again.',
+    })
+    expect(mocks.set).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['the sender no longer holds it', [thing('cup', 'backpack', { pocket: 0 })], 'not-found', 'Item no longer available.'],
+    ['its stack shrank below the offer', [{ ...rope, qty: 3 }], 'failed-precondition', 'Item quantity changed before transfer could be accepted.'],
+  ])('discards the offer when %s', async (_name, items, code, message) => {
+    mocks.records.set(senderPath, { ownerUserId: 'sender-user', schemaVersion: 1, lubec: lubecOf(items) })
+    await expect(accept(request)).rejects.toMatchObject({ code, message })
+    expect(mocks.set).not.toHaveBeenCalled()
+    expect(deletes()).toEqual([transferPath])
+  })
+
+  it('refuses a character below the current version, keeping the offer', async () => {
+    mocks.records.set(receiverPath, { schemaVersion: 0, lubec: lubecOf([]) })
+    await expect(accept(request)).rejects.toMatchObject({ code: 'failed-precondition', message: 'This character is being updated. Try again in a minute.' })
+    expect(mocks.set).not.toHaveBeenCalled()
     expect(mocks.delete).not.toHaveBeenCalled()
   })
 })

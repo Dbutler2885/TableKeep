@@ -38,9 +38,9 @@ describe('listensForApprovals', () => {
 })
 
 describe('showsTransferNotification', () => {
-  it('shows in OSE on the visible character and maps tabs only', () => {
-    expect(tabsWhere((tab) => showsTransferNotification('ose', true, tab))).toEqual(['character', 'maps'])
-    expect(tabsWhere((tab) => showsTransferNotification('ose', false, tab))).toEqual([])
+  it.each(['ose', 'lubec'] as const)('shows in %s on the visible character and maps tabs only', (gameSystem) => {
+    expect(tabsWhere((tab) => showsTransferNotification(gameSystem, true, tab))).toEqual(['character', 'maps'])
+    expect(tabsWhere((tab) => showsTransferNotification(gameSystem, false, tab))).toEqual([])
   })
 
   it('never shows for VtM', () => {

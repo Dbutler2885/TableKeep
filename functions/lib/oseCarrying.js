@@ -59,3 +59,29 @@ export function applyAcceptedTransfer(senderInventory, receiverInventory, transf
         receiverInventory: nextReceiverInventory,
     };
 }
+/** A stored character's `details`; a missing or unreadable one reads as empty. */
+function detailsOf(character) {
+    const details = character?.details;
+    return details && typeof details === 'object' ? details : {};
+}
+function asInventory(details) {
+    const inventory = details.inventory;
+    return Array.isArray(inventory) ? inventory : [];
+}
+/**
+ * OSE's entry in the callable's carrying table: `applyAcceptedTransfer` over
+ * the two stored characters, writing each one's `details` whole with its new
+ * inventory, and refusing a receiver with no free packed slot.
+ */
+export function acceptOseTransfer(sender, receiver, offer) {
+    const senderDetails = detailsOf(sender);
+    const receiverDetails = detailsOf(receiver);
+    const result = applyAcceptedTransfer(asInventory(senderDetails), asInventory(receiverDetails), offer, availablePackedSlots(receiverDetails));
+    if (!result.ok)
+        return result.reason === 'packed_slots' ? { ok: false, reason: 'no_room', message: PACKED_SLOTS_MESSAGE } : result;
+    return {
+        ok: true,
+        sender: { details: { ...senderDetails, inventory: result.senderInventory } },
+        receiver: { details: { ...receiverDetails, inventory: result.receiverInventory } },
+    };
+}

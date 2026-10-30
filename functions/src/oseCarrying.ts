@@ -2,6 +2,8 @@
 // from STR, and whether a transferred item fits. The server never spills an item
 // it cannot fit; a transfer that does not fit is refused.
 
+import type { TransferOffer, TransferOutcome } from './ruleSetCarrying.js'
+
 // The app's copy of the rule refuses with the same words.
 export const PACKED_SLOTS_MESSAGE = 'Not enough packed slots to accept this item.'
 
@@ -84,5 +86,40 @@ export function applyAcceptedTransfer(
     ok: true as const,
     senderInventory: senderInventoryAfter(senderInventory, transfer.itemId, sender.senderQty, sender.movedQty),
     receiverInventory: nextReceiverInventory,
+  }
+}
+
+type Details = Record<string, unknown>
+
+/** A stored character's `details`; a missing or unreadable one reads as empty. */
+function detailsOf(character: unknown): Details {
+  const details = (character as { details?: unknown } | undefined)?.details
+  return details && typeof details === 'object' ? details as Details : {}
+}
+
+function asInventory(details: Details): InventoryItem[] {
+  const inventory = details.inventory
+  return Array.isArray(inventory) ? inventory as InventoryItem[] : []
+}
+
+/**
+ * OSE's entry in the callable's carrying table: `applyAcceptedTransfer` over
+ * the two stored characters, writing each one's `details` whole with its new
+ * inventory, and refusing a receiver with no free packed slot.
+ */
+export function acceptOseTransfer(sender: unknown, receiver: unknown, offer: TransferOffer): TransferOutcome {
+  const senderDetails = detailsOf(sender)
+  const receiverDetails = detailsOf(receiver)
+  const result = applyAcceptedTransfer(
+    asInventory(senderDetails),
+    asInventory(receiverDetails),
+    offer as AcceptedTransfer,
+    availablePackedSlots(receiverDetails),
+  )
+  if (!result.ok) return result.reason === 'packed_slots' ? { ok: false, reason: 'no_room', message: PACKED_SLOTS_MESSAGE } : result
+  return {
+    ok: true,
+    sender: { details: { ...senderDetails, inventory: result.senderInventory } },
+    receiver: { details: { ...receiverDetails, inventory: result.receiverInventory } },
   }
 }

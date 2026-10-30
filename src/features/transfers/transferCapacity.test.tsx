@@ -5,6 +5,7 @@ import { TransferNotification } from './TransferNotification'
 import { TransferPickerModal } from '../character/components/TransferPickerModal'
 import { parseOseCharacter } from '../character/lib/storedCharacterRecord'
 import { capacityCases } from '../character/oseCarryingCases'
+import { oseCarrying } from '../ruleSets/ose/carrying'
 import type { PendingTransfer } from '../../types/app'
 
 const mocks = vi.hoisted(() => ({ incomingTransfers: [] as PendingTransfer[], acceptTransfer: vi.fn(), declineTransfer: vi.fn() }))
@@ -12,7 +13,7 @@ vi.mock('./usePendingTransfers', () => ({ usePendingTransfers: () => mocks }))
 vi.mock('../../firebase', () => ({ db: {} }))
 const offer = { id: 'offer', toCharacterId: 'pc', fromCharacterName: 'Borin', toCharacterName: 'Ada', itemName: 'Rope', itemKind: 'general' } as PendingTransfer
 const target = (details: unknown) => parseOseCharacter('pc', { name: 'Ada', details })
-const renderNotice = (details: unknown) => render(<TransferNotification campaignId="c" groupId="g" currentUserId="player" role="player" characters={[target(details)]} />)
+const renderNotice = (details: unknown) => render(<TransferNotification campaignId="c" groupId="g" currentUserId="player" role="player" characters={[target(details)]} carrying={oseCarrying} />)
 beforeEach(() => { vi.resetAllMocks(); mocks.incomingTransfers = [offer] })
 afterEach(cleanup)
 
@@ -47,7 +48,17 @@ describe('transfer capacity displays', () => {
     for (const button of screen.getAllByRole('button')) expect((button as HTMLButtonElement).disabled).toBe(false)
   })
   it('uses empty receiver defaults when the target is absent from the local roster', () => {
-    render(<TransferNotification campaignId="c" groupId="g" currentUserId="player" role="player" characters={[]} />)
+    render(<TransferNotification campaignId="c" groupId="g" currentUserId="player" role="player" characters={[]} carrying={oseCarrying} />)
     expect(screen.getByText('Packed slots: 0/13')).toBeTruthy()
+  })
+  it('prints no packed-slots line for a rule set without packed slots, and shows the callable\'s refusal', async () => {
+    const refusal = 'Not enough room to accept this item. Make room in your backpack or hands, then accept again.'
+    mocks.acceptTransfer.mockRejectedValueOnce(new Error(refusal))
+    render(<TransferNotification campaignId="c" groupId="g" currentUserId="player" role="player" characters={[]} carrying={null} />)
+    expect(screen.getByText('Rope')).toBeTruthy()
+    expect(screen.queryByText(/Packed slots/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Accept' }))
+    await screen.findByText(refusal)
+    expect(screen.queryByText(/Packed slots/)).toBeNull()
   })
 })
