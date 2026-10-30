@@ -26,9 +26,9 @@ export const uploadAuthorityMetadata = (uploadAuthority: UploadAuthority | undef
 type UploadEntityImageParams = {
   campaignId: string
   groupId: string
-  collectionName: 'characters' | 'npcs' | 'monsters' | 'items'
+  collectionName: 'characters' | 'npcs' | 'monsters' | 'items' | 'gmItems'
   entityId: string
-  mediaKind: 'portraits' | 'token-icons'
+  mediaKind: 'portraits' | 'token-icons' | 'item-art'
   file: File
   maxWidth: number
   maxHeight: number

@@ -8,6 +8,7 @@ import { supplyNameIn } from '../gear/gearLabels'
 import { lubecFieldsFromStock } from '../gear/itemForm'
 import { lubecRefusedForm, type LubecFormSheet } from '../gear/itemSheet'
 import { LubecItemForm } from '../gear/LubecItemForm'
+import { lubecLibraryPictureUpload } from '../gear/lubecItemArt'
 import { LUBEC_SHEET_TITLE } from '../gear/LubecSheetHead'
 import { LubecStockPicker } from '../gear/LubecStockPicker'
 import { lubecStockEntries, type LubecStockEntry } from '../gear/stockEntries'
@@ -32,9 +33,12 @@ const NO_MADE_SUPPLY = 'A new supply is made on a character\'s sheet. Here, pick
 
 const CANNOT_SAVE = 'Could not save that. Nothing changed.'
 
+// The id a new item will have, known from the start because its picture is filed under it.
+type BodyProps = FormProps & { newId: string; saving: boolean; setSaving: (saving: boolean) => void }
+
 // The form's Add it or Save: written whole, then its card opens. A refusal stays on the form.
-async function submitLibraryForm({ form, was, records, onForm, onSaved, toast }: FormProps, paged: boolean, setSaving: (saving: boolean) => void) {
-  const saved = lubecSaveLibraryForm(form, was, makeId)
+async function submitLibraryForm({ form, was, records, onForm, onSaved, toast, newId, setSaving }: BodyProps, paged: boolean) {
+  const saved = lubecSaveLibraryForm(form, was, () => newId)
   if (!saved.ok) return onForm(lubecRefusedForm(form, saved, paged))
   setSaving(true)
   try {
@@ -49,8 +53,8 @@ async function submitLibraryForm({ form, was, records, onForm, onSaved, toast }:
   }
 }
 
-function FormBody(props: FormProps & { saving: boolean; setSaving: (saving: boolean) => void }) {
-  const { form, was, library, onForm, toast, saving, setSaving } = props
+function FormBody(props: BodyProps) {
+  const { form, was, library, records, onForm, toast, newId, saving } = props
   const gear = { ...emptyLubecGear(), items: was ? [was as LubecItem] : [] }
   const supplies = lubecSupplies(gear)
   const supplyName = supplyNameIn(supplies)
@@ -69,7 +73,7 @@ function FormBody(props: FormProps & { saving: boolean; setSaving: (saving: bool
     onForm,
     onPickStock,
     onBrowse: (query: string) => onForm({ ...form, browsing: query }),
-    onSubmit: (paged: boolean) => { if (!saving) void submitLibraryForm(props, paged, setSaving) },
+    onSubmit: (paged: boolean) => { if (!saving) void submitLibraryForm(props, paged) },
     onMakeSupply: () => {
       onForm({ ...form, error: NO_MADE_SUPPLY })
       return false
@@ -78,19 +82,20 @@ function FormBody(props: FormProps & { saving: boolean; setSaving: (saving: bool
     onBack: () => onForm(null),
     onClose: () => onForm(null),
   }
-  return <LubecItemForm form={form} gear={gear} supplies={supplies} supplyName={supplyName} stock={stock} actions={actions} placed={false} />
+  return <LubecItemForm form={form} gear={gear} supplies={supplies} supplyName={supplyName} stock={stock} actions={actions} placed={false} pictures={{ upload: lubecLibraryPictureUpload(records.scope, was?.id ?? newId), toast }} />
 }
 
 /** The add and edit form for a campaign item, and the stock picker, in the sheet's overlay: the player's form with no "where it goes". */
 export function LubecLibraryForm(props: FormProps) {
   const [saving, setSaving] = useState(false)
+  const [newId] = useState(makeId)
   const closeOnEscape = (e: KeyboardEvent) => {
     if (e.key === 'Escape') props.onForm(null)
   }
   return (
     <div className="confirm-overlay lubec-gear-overlay" role="dialog" aria-modal="true" aria-labelledby={LUBEC_SHEET_TITLE} onKeyDown={closeOnEscape}>
       <div className={`item-sheet ${props.form.browsing === null ? 'form' : 'stock'}`}>
-        <FormBody {...props} saving={saving} setSaving={setSaving} />
+        <FormBody {...props} newId={newId} saving={saving} setSaving={setSaving} />
       </div>
     </div>
   )

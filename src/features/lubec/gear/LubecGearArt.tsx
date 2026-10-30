@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { LubecItem, LubecItemKind } from '../../ruleSets/lubec/gear/gearRecord'
 import { isLubecArt, lubecPictureShape, type LubecShape } from './gearArt'
+import { useLubecPictureUrl } from './useLubecPictureUrl'
 
 // The item pictures, copied from the inventory prototype (B): the five kind
 // icons, and twelve of its stock drawings. B calls the drawings placeholder
@@ -57,26 +58,36 @@ export function LubecKindGlyph({ kind }: { kind: LubecItemKind }) {
   )
 }
 
-type Pictured = Pick<LubecItem, 'kind' | 'art' | 'shape'>
+type Pictured = Pick<LubecItem, 'kind' | 'art' | 'picturePath' | 'shape'>
+
+// What goes in a picture's frame: an upload, cropped to the frame, with the frame empty until its URL is known, or a drawing. Null when it has neither.
+function useShownPicture({ art, picturePath }: Pictured): ReactNode {
+  const url = useLubecPictureUrl(picturePath)
+  if (url) return <img className="upload" src={url} alt="" />
+  if (picturePath) return <span className="art" />
+  return isLubecArt(art) ? <LubecArt art={art} /> : null
+}
 
 type FrameProps = { item: Pictured; frame: 'slot-pic' | 'thumb' | 'pic-in' | 'pic' }
 
 /** An item's picture in a small frame: on a slot, in a list row, in the form's picture box, or on the picked-up card of a drag. Its kind's icon when it has none. */
 export function LubecPicture({ item, frame }: FrameProps) {
-  if (!isLubecArt(item.art)) return <span className={`${frame} none`} aria-hidden="true"><LubecKindGlyph kind={item.kind} /></span>
-  return <span className={`${frame} ${lubecPictureShape(item)}`} aria-hidden="true"><LubecArt art={item.art} /></span>
+  const shown = useShownPicture(item)
+  if (!shown) return <span className={`${frame} none`} aria-hidden="true"><LubecKindGlyph kind={item.kind} /></span>
+  return <span className={`${frame} ${lubecPictureShape(item)}`} aria-hidden="true">{shown}</span>
 }
 
 /** A stock tile's picture: the drawing at its shape's size, or the kind's icon in a dashed frame. */
 export function LubecTilePicture({ item }: { item: Pictured }) {
-  if (!isLubecArt(item.art)) return <span className="tile-pic" aria-hidden="true"><span className="thumb none"><LubecKindGlyph kind={item.kind} /></span></span>
-  return <span className={`tile-pic ${lubecPictureShape(item)}`} aria-hidden="true"><LubecArt art={item.art} /></span>
+  const shown = useShownPicture(item)
+  if (!shown) return <span className="tile-pic" aria-hidden="true"><span className="thumb none"><LubecKindGlyph kind={item.kind} /></span></span>
+  return <span className={`tile-pic ${lubecPictureShape(item)}`} aria-hidden="true">{shown}</span>
 }
 
-/** The card's picture beside the description, or the kind's icon in a dashed frame. */
-export function LubecCardPicture({ item, name }: { item: Pictured; name: string }) {
-  if (!isLubecArt(item.art)) {
-    return <div className="card-pic none"><LubecKindGlyph kind={item.kind} /><span>No picture</span></div>
-  }
-  return <figure className={`card-pic ${lubecPictureShape(item)}`} role="img" aria-label={name}><LubecArt art={item.art} /></figure>
+/** The card's picture beside the description; with none, the kind's icon in a dashed frame, a button that adds one for a viewer who can (`onAdd`). */
+export function LubecCardPicture({ item, name, onAdd = null }: { item: Pictured; name: string; onAdd?: (() => void) | null }) {
+  const shown = useShownPicture(item)
+  if (shown) return <figure className={`card-pic ${lubecPictureShape(item)}`} role="img" aria-label={name}>{shown}</figure>
+  if (onAdd) return <button type="button" className="card-pic none" onClick={onAdd}><LubecKindGlyph kind={item.kind} /><span>Add a picture</span></button>
+  return <div className="card-pic none"><LubecKindGlyph kind={item.kind} /><span>No picture</span></div>
 }

@@ -16,7 +16,7 @@ import { isBox } from '../../ruleSets/lubec/gear/gearRules'
 import type { LubecLoadAct, LubecLoadButton } from './loadLabels'
 import { LubecLoadButtons, LubecTakeOutPanel } from './LubecLoadActions'
 
-/** What the card's buttons do: step a count, use one, record the Strength roll, attack, load or unload, take some out of a box, set the table's penalty, open the edit form, open the Move panel, move, drop, or close. */
+/** What the card's buttons do: step a count, use one, record the Strength roll, attack, load or unload, take some out of a box, set the table's penalty, open the edit form, add a picture, open the Move panel, move, drop, or close. */
 export type LubecCardActions = {
   onStep: (field: 'qty' | 'loaded', d: number) => void
   onUseOne: () => void
@@ -27,6 +27,8 @@ export type LubecCardActions = {
   onTableSays: (penalty: number | null) => void
   onCheck: (check: LubecCheck) => void
   onEdit: () => void
+  /** Opens the edit form with its file picker; null where no picture can be uploaded. */
+  onAddPicture: (() => void) | null
   onToggleMove: () => void
   onMove: (value: string) => void
   onDrop: () => void
@@ -195,7 +197,7 @@ export function LubecItemCard({ supplies, wielder, load, ...props }: CardProps) 
     <div className="sheet-form">
       <LubecSheetHead eyebrow={cardEyebrow(item, gear)} title={cardTitle(item)} onClose={actions.onClose} />
       <div className="card-top">
-        <LubecCardPicture item={item} name={item.name} />
+        <LubecCardPicture item={item} name={item.name} onAdd={actions.onAddPicture} />
         <p className={`item-note${item.note ? '' : ' empty'}`}>{item.note || 'No description yet. Tap Edit to add one.'}</p>
       </div>
       <Facts facts={lubecCardFacts(gear, item, supplies, wielder)} check={item.check} actions={actions} />

@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../../types/app'
+import { LUBEC_PIC_FILE } from '../gear/useLubecPictureUpload'
 
 // These cases mount large component trees and run role queries over them in jsdom (see LubecGearTab.test.tsx).
 vi.setConfig({ testTimeout: 30_000 })
@@ -207,7 +208,7 @@ describe('the GM Items tab', () => {
     expect(anvil.getByText('Dropped by Wayne Gardner, from backpack.')).toBeTruthy()
     expect(anvil.getAllByRole('button').map((b) => b.textContent)).toEqual(['Give to...', 'Keep as a campaign item', 'Delete'])
 
-    expect(openRow('Brass storm lantern').getAllByRole('button').map((b) => b.textContent)).toEqual(['Edit', 'Give to...', 'Delete'])
+    expect(openRow('Brass storm lantern').getAllByRole('button').map((b) => b.textContent)).toEqual(['Add a picture', 'Edit', 'Give to...', 'Delete'])
   })
 
   it('gives a dropped item to a character in play: it lands in the backpack with no Strength roll and leaves the tab', async () => {
@@ -284,7 +285,7 @@ describe('the GM Items tab', () => {
     const kept = database[`${GM_ITEMS}/anvil`]
     expect(kept).toMatchObject({ id: 'anvil', name: 'Small anvil', weight: 'heavy', status: 'library', createdAt: { seconds: 2, nanoseconds: 0 } })
     for (const field of ['droppedByCharacterId', 'droppedByCharacterName', 'droppedByUserId', 'droppedFrom', 'carrier']) expect(kept).not.toHaveProperty(field)
-    expect(openRow('Small anvil').getAllByRole('button').map((b) => b.textContent)).toEqual(['Edit', 'Give to...', 'Delete'])
+    expect(openRow('Small anvil').getAllByRole('button').map((b) => b.textContent)).toEqual(['Add a picture', 'Edit', 'Give to...', 'Delete'])
   })
 
   it('deletes an item only once asked for good', async () => {
@@ -483,6 +484,18 @@ describe('the campaign item form', () => {
 
     await waitFor(() => expect(database[`${GM_ITEMS}/lantern`]).toMatchObject({ weight: 'heavy', status: 'library', createdAt: { seconds: 1, nanoseconds: 0 } }))
     expect(screen.getByRole('status').textContent).toBe('Saved Brass storm lantern.')
+  })
+
+  it('opens the edit form with its file picker from a campaign item\'s "Add a picture", which a dropped item does not offer', async () => {
+    const clicked = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined)
+    await mountItems()
+
+    expect(openRow('Small anvil').queryByRole('button', { name: 'Add a picture' })).toBeNull()
+    fireEvent.click(openRow('Brass storm lantern').getByRole('button', { name: 'Add a picture' }))
+
+    expect(within(screen.getByRole('dialog')).getByText('Edit item')).toBeTruthy()
+    expect(clicked.mock.contexts[0]).toBe(document.getElementById(LUBEC_PIC_FILE))
+    clicked.mockRestore()
   })
 })
 

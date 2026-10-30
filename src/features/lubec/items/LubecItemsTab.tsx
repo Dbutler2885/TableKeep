@@ -14,6 +14,7 @@ import { lubecCharacterStore } from '../../ruleSets/lubec/characterParser'
 import type { LubecGmItem } from '../../ruleSets/lubec/gear/gmItem'
 import { lubecMoveStoreOf } from '../gear/lubecGearDrop'
 import type { LubecFormSheet } from '../gear/itemSheet'
+import { lubecOpenWithPicker } from '../gear/useLubecPictureUpload'
 import { useLubecToast } from '../gear/useLubecToast'
 import { LubecRoughFilter } from '../LubecRoughFilter'
 import { lubecCharacterName } from '../lubecNames'
@@ -77,12 +78,19 @@ function useWriteRunner() {
   return { busy, refusal, run }
 }
 
+// A campaign item is edited, and given a picture through the same form; a dropped item is neither.
+function editActions(item: LubecGmItem, openForm: ActionsOptions['openForm']): Pick<LubecGmItemActions, 'onEdit' | 'onAddPicture'> {
+  if (item.status !== 'library') return { onEdit: null, onAddPicture: null }
+  const onEdit = () => openForm(lubecLibraryEditSheet(item))
+  return { onEdit, onAddPicture: () => lubecOpenWithPicker(onEdit) }
+}
+
 // The card's actions for one item: Give to... lands it by the arrival rule; a dropped item leaves the list when given.
 function itemActions(item: LubecGmItem, { records, give, toast, select, openForm }: ActionsOptions, run: ReturnType<typeof useWriteRunner>['run']): LubecGmItemActions {
   const library = item.status === 'library'
   const nameOf = (id: string) => give.targets.find((t) => t.id === id)?.name ?? 'them'
   return {
-    onEdit: library ? () => openForm(lubecLibraryEditSheet(item)) : null,
+    ...editActions(item, openForm),
     onGive: (characterId) => void run(item, () => giveLubecGmItem(records, item, characterId, give.moveStore, makeId()), () => {
       toast(`Gave ${item.name} to ${nameOf(characterId)}. It lands on ${nameOf(characterId)}'s sheet.`)
       if (!library) select(null)

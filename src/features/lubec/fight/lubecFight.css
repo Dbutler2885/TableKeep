@@ -385,6 +385,16 @@
   height: 86%;
 }
 
+.shell-root[data-theme="lubec"] .lubec-fight .pic.tall img {
+  width: 66.7%;
+  height: 100%;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pic img.upload {
+  padding: 0;
+  object-fit: cover;
+}
+
 .shell-root[data-theme="lubec"] .lubec-fight .pic.glyph svg,
 .shell-root[data-theme="lubec"] .lubec-fight .pic.none svg {
   width: 2rem;

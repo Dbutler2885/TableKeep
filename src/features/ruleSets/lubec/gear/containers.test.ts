@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest'
 import { parseLubecCarrierRecord, parseLubecGear, type LubecGear, type LubecItem } from './gearRecord'
 import { parseLubecGmItem } from './gmItem'
 import {
+  LUBEC_NO_HIDDEN_PICTURE,
   LUBEC_STALE_MOVE,
   lubecCopyOf,
   lubecMovePlan,
@@ -141,6 +142,34 @@ describe('a move between two records', () => {
 
     expect(plan.to.kind).toBe('npc')
     expect(itemsOf(plan.to)).toEqual([{ ...flashlight, carrier: 'backpack', pocket: 0, cells: undefined }].map(({ cells: _cells, ...rest }) => rest))
+  })
+})
+
+describe('an uploaded picture and a hidden carrier', () => {
+  const pictured = T('mug', 'backpack', 0, 'Lucky mug', 1, { picturePath: 'groups/g/item-art/mug.webp', shape: 'wide' })
+  const sheetWith = (item: ReturnType<typeof T>): LubecMoveRecord => ({ kind: 'character', gear: parseLubecGear({ items: [item] }) })
+
+  it('refuses it from a sheet, in the words the player needs, and changes neither record', () => {
+    const from = sheetWith(pictured)
+    const to = cigarBox()
+    expect(lubecMovePlan(from, to, moveOf(pictured, { dest: 'cigar-box' }))).toEqual({ ok: false, msg: LUBEC_NO_HIDDEN_PICTURE })
+    expect(ids(from)).toEqual(['mug'])
+    expect(ids(to)).toEqual([])
+    expect(LUBEC_NO_HIDDEN_PICTURE).toBe('Pictures you uploaded cannot be hidden. Remove the picture or pick a drawing.')
+  })
+
+  it('refuses it from a shared carrier', () => {
+    const inSkiff = T('mug', 'skiff', 0, 'Lucky mug', 1, { picturePath: 'groups/g/item-art/mug.webp' })
+    expect(lubecMovePlan(skiff([inSkiff]), cigarBox(), moveOf(inSkiff, { dest: 'cigar-box' }))).toEqual({ ok: false, msg: LUBEC_NO_HIDDEN_PICTURE })
+  })
+
+  it('lets it go to a shared carrier, keeping the path', () => {
+    expect(itemsOf(planned(sheetWith(pictured), skiff(), moveOf(pictured, { dest: 'skiff' })).to)[0].picturePath).toBe('groups/g/item-art/mug.webp')
+  })
+
+  it('lets a thing with a stock drawing be hidden', () => {
+    const drawn = T('rope', 'backpack', 0, 'Rope', 1, { art: 'rope', shape: 'square' })
+    expect(ids(planned(sheetWith(drawn), cigarBox(), moveOf(drawn, { dest: 'cigar-box' })).to)).toEqual(['rope'])
   })
 })
 

@@ -15,6 +15,7 @@ import type { LubecGearDrop } from './gear/lubecGearDrop'
 import type { LubecGearGive } from './gear/lubecGive'
 import type { LubecGearHidden } from './gear/lubecHiddenCarrierWrites'
 import { LubecGearPage, type LubecGearChange } from './gear/LubecGearPage'
+import type { LubecPictureUpload } from './gear/lubecPicked'
 import type { LubecSharedSeat } from './gear/lubecSharedSeat'
 import { lubecWielder } from '../ruleSets/lubec/gear/minStrength'
 import type { LubecStockItem } from '../ruleSets/lubec/gear/stock'
@@ -190,6 +191,8 @@ export type LubecSheetViewProps = {
   onGearDrop: LubecGearDrop
   /** The character's hidden carriers, for its owner and the GM. */
   onGearHidden: LubecGearHidden | null
+  /** Uploads an item's picture; null or absent unless the viewer may change the character. */
+  onGearUpload?: LubecPictureUpload | null
   /** Records the Strength roll for a heavy thing; null unless the viewer owns the character, as only the owner is asked. */
   onGearRolled: LubecRolled | null
   /** The campaign items, which the stock picker offers as "This campaign"; none unless given. */
@@ -206,7 +209,7 @@ type LockedEdits = Pick<LubecSheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
 const lockedEdits = (correcting: boolean, corrections: LubecCorrections | null, edits: LockedEdits): LockedEdits =>
   correcting && corrections ? corrections : edits
 
-type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp' | 'onGearChange' | 'onGearDrop' | 'onGearHidden' | 'onGearRolled' | 'campaignStock' | 'carrierKinds' | 'gearGive' | 'shared'> & {
+type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp' | 'onGearChange' | 'onGearDrop' | 'onGearHidden' | 'onGearUpload' | 'onGearRolled' | 'campaignStock' | 'carrierKinds' | 'gearGive' | 'shared'> & {
   page: LubecPage
   onHideTree: () => void
   /** Brings the Core page's class cards into view once the class is cleared. */
@@ -227,17 +230,17 @@ function changeClassOf(sheet: LubecCharacterRecord['lubec'], onDraftEdit: LubecS
 }
 
 // The Gear page, which asks the owner for a heavy thing's Strength roll on the character's own sheet.
-function LubecSheetGear({ character, onGearChange, onGearDrop, onGearHidden, onGearRolled, campaignStock, carrierKinds, gearGive, shared }: Pick<SheetPageProps, 'character' | 'onGearChange' | 'onGearDrop' | 'onGearHidden' | 'onGearRolled' | 'campaignStock' | 'carrierKinds' | 'gearGive' | 'shared'>) {
+function LubecSheetGear({ character, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, carrierKinds, gearGive, shared }: Pick<SheetPageProps, 'character' | 'onGearChange' | 'onGearDrop' | 'onGearHidden' | 'onGearUpload' | 'onGearRolled' | 'campaignStock' | 'carrierKinds' | 'gearGive' | 'shared'>) {
   const strength = onGearRolled && { sheet: character.lubec, onRolled: onGearRolled }
   return (
     <LubecGearPage
-      gear={character.lubec.gear} owner={character.name} wielder={lubecWielder(character.lubec)} onGearChange={onGearChange} onDrop={onGearDrop} strength={strength} campaignStock={campaignStock} kinds={carrierKinds} give={gearGive} shared={shared} hidden={onGearHidden}
+      gear={character.lubec.gear} owner={character.name} wielder={lubecWielder(character.lubec)} onGearChange={onGearChange} onDrop={onGearDrop} strength={strength} campaignStock={campaignStock} kinds={carrierKinds} give={gearGive} shared={shared} hidden={onGearHidden} upload={onGearUpload}
     />
   )
 }
 
-function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp, onGearChange, onGearDrop, onGearHidden, onGearRolled, campaignStock, carrierKinds, gearGive, shared }: SheetPageProps) {
-  if (page === 'gear') return <LubecSheetGear character={character} onGearChange={onGearChange} onGearDrop={onGearDrop} onGearHidden={onGearHidden} onGearRolled={onGearRolled} campaignStock={campaignStock} carrierKinds={carrierKinds} gearGive={gearGive} shared={shared} />
+function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, carrierKinds, gearGive, shared }: SheetPageProps) {
+  if (page === 'gear') return <LubecSheetGear character={character} onGearChange={onGearChange} onGearDrop={onGearDrop} onGearHidden={onGearHidden} onGearUpload={onGearUpload} onGearRolled={onGearRolled} campaignStock={campaignStock} carrierKinds={carrierKinds} gearGive={gearGive} shared={shared} />
   if (page === 'skills') {
     const onChangeClass = changeClassOf(character.lubec, onDraftEdit, onShowClass)
     return <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} onHideTree={onHideTree} onChangeClass={onChangeClass} />
@@ -279,7 +282,7 @@ const identityEditingOf = (editing: LubecSheetEditing | null, identityEditable: 
 
 /** One Lubec character's sheet, in the v4 frame, on its Core, Skills or Gear page. */
 export function LubecSheetView({
-  character, editing, identityEditable, carrierKinds, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearHidden, onGearRolled, campaignStock, gearGive, shared, ...edits
+  character, editing, identityEditable, carrierKinds, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, gearGive, shared, ...edits
 }: LubecSheetViewProps) {
   const [page, setPage] = useState<LubecPage>('core')
   const [bandOpen, setBandOpen] = useState(false)
@@ -317,6 +320,7 @@ export function LubecSheetView({
         onGearChange={onGearChange}
         onGearDrop={onGearDrop}
         onGearHidden={onGearHidden}
+        onGearUpload={onGearUpload}
         onGearRolled={onGearRolled}
         campaignStock={campaignStock}
         carrierKinds={carrierKinds}
