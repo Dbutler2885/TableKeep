@@ -437,10 +437,92 @@ describe('transfer carrying by rule set', () => {
     })
   })
 
-  it.each(['vtm', 'lubec'])('refuses a transfer in a %s campaign, which declares no carrying, leaving both characters and the offer', async (system) => {
+  it.each(['vtm'])('refuses a transfer in a %s campaign, which declares no carrying, leaving both characters and the offer', async (system) => {
     const before = await offerIn(system, { both: { system } })
     await expect(accept()).rejects.toMatchObject({
       code: 'failed-precondition', message: 'Items cannot be handed to another character in this campaign.',
+    })
+    await withAdmin(async (db) => {
+      expect(await bothCharacters(db)).toEqual(before)
+      expect((await getDoc(offerRef(db))).exists()).toBe(true)
+    })
+  })
+})
+
+describe('a Lubec transfer', () => {
+  const campaignDocPath = `groups/${groupId}/campaigns/${campaignId}`
+  const characterRef = (db: Firestore, id: string) => doc(db, `${campaignDocPath}/characters/${id}`)
+  const offerRef = (db: Firestore) => doc(db, `${campaignDocPath}/pendingTransfers/lubec-offer`)
+  const accept = () => acceptPendingTransfer({ auth: { uid: receiverUid }, data: { groupId, campaignId, transferId: 'lubec-offer' } })
+  const bothCharacters = (db: Firestore) =>
+    Promise.all([senderCharacterId, receiverCharacterId].map(async (id) => (await getDoc(characterRef(db, id))).data()))
+  const oldTime = Timestamp.fromDate(new Date('2026-01-01T00:00:00Z'))
+
+  const thing = (id: string, carrier: string, at: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+    ({ id, kind: 'thing', carrier, ...at, name: id, size: 1, qty: 1, weight: 'normal', note: '', ...extra })
+  const rope = thing('rope', 'strap', { pocket: 0 }, { batch: 'b1', check: 'pass' })
+  const cup = thing('cup', 'backpack', { pocket: 0 })
+  // Everything on the sheet besides gear, which the callable must not touch.
+  const restOfSheet = (stress: number) => ({
+    door: 'direct', counters: { stress, minimumStress: 2, trauma: 1 }, effects: [{ id: 'dazed', name: 'Dazed' }], lastRoll: { total: 14 },
+  })
+  const sheet = (stress: number, items: unknown[]) => ({
+    ...restOfSheet(stress),
+    gear: { items, carriers: [{ id: 'strap', name: 'Strap', type: 'strap', pockets: [{ name: 'Strap', slots: 8, max: 8 }] }], overrides: [], supplies: [] },
+  })
+  const gearOf = async (db: Firestore, id: string) => (await getDoc(characterRef(db, id))).data()?.lubec?.gear?.items
+
+  /** Lubec characters on both sides, and the offer written by the sender through the real rules. */
+  const offerIn = async (snapshot: Record<string, unknown>, senderItems: unknown[], receiverItems: unknown[] = []) => {
+    let before: unknown[] = []
+    await withAdmin(async (db) => {
+      await setDoc(doc(db, campaignDocPath), { system: 'lubec' }, { merge: true })
+      await setDoc(characterRef(db, senderCharacterId), { ownerUserId: senderUid, name: 'Sender PC', system: 'lubec', schemaVersion: 1, schemaWrittenAt: oldTime, lubec: sheet(3, senderItems) })
+      await setDoc(characterRef(db, receiverCharacterId), { ownerUserId: receiverUid, name: 'Receiver PC', system: 'lubec', schemaVersion: 1, schemaWrittenAt: oldTime, lubec: sheet(5, receiverItems) })
+    })
+    const senderDb = testEnv.authenticatedContext(senderUid).firestore() as unknown as Firestore
+    await assertSucceeds(setDoc(offerRef(senderDb), transferPayload('lubec-offer', {
+      itemSnapshot: snapshot, itemId: snapshot.id, itemKind: snapshot.kind, itemName: snapshot.name,
+    })))
+    await withAdmin(async (db) => { before = await bothCharacters(db) })
+    return before
+  }
+
+  it("lands an accepted item in the receiver's backpack, leaves the rest of each sheet alone, and stamps both", async () => {
+    await offerIn(rope, [rope, cup])
+    const startedAt = Date.now()
+    await expect(accept()).resolves.toEqual({ ok: true })
+    await withAdmin(async (db) => {
+      expect(await gearOf(db, senderCharacterId)).toEqual([cup])
+      expect(await gearOf(db, receiverCharacterId)).toEqual([thing('rope', 'backpack', { pocket: 0 })])
+      const [sender, receiver] = await bothCharacters(db)
+      expect(sender?.lubec).toMatchObject(restOfSheet(3))
+      expect(receiver?.lubec).toMatchObject(restOfSheet(5))
+      for (const data of [sender, receiver]) {
+        expect(data?.lubec.gear.carriers).toHaveLength(1)
+        expect(data?.schemaVersion).toBe(1)
+        // The emulator's clock is the machine's, so allow it a little skew.
+        expect(data?.schemaWrittenAt.toMillis()).toBeGreaterThan(startedAt - 5_000)
+      }
+      expect((await getDoc(offerRef(db))).exists()).toBe(false)
+    })
+  })
+
+  it('puts an 8-slot thing into two empty hands', async () => {
+    const canoe = thing('canoe', 'strap', { pocket: 0 }, { size: 8 })
+    await offerIn(canoe, [canoe])
+    await expect(accept()).resolves.toEqual({ ok: true })
+    await withAdmin(async (db) => {
+      expect(await gearOf(db, senderCharacterId)).toEqual([])
+      expect(await gearOf(db, receiverCharacterId)).toEqual([thing('canoe', 'hands', { slot: 0 }, { size: 8 })])
+    })
+  })
+
+  it('refuses with a full backpack, leaving both characters and the offer', async () => {
+    const full = [thing('tent', 'backpack', { pocket: 0 }, { size: 4 }), cup, thing('map', 'backpack', { pocket: 1 }), thing('pen', 'backpack', { pocket: 2 })]
+    const before = await offerIn(rope, [rope], full)
+    await expect(accept()).rejects.toMatchObject({
+      code: 'failed-precondition', message: 'Not enough room to accept this item. Make room in your backpack or hands, then accept again.',
     })
     await withAdmin(async (db) => {
       expect(await bothCharacters(db)).toEqual(before)

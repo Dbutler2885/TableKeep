@@ -101,7 +101,7 @@ describe('campaign dialogs and strip', () => {
   it.each([
     ['ose', ['create', 'sell', 'learn_spell', 'ability_reroll'], true],
     ['vtm', [], false],
-    ['lubec', [], false],
+    ['lubec', [], true],
   ] as const)('%s declares approvals %j and transfers %s', (id: RuleSetId, approvals, transfers) => {
     expect(ruleSets[id].approvals).toEqual(approvals)
     expect(ruleSets[id].transfers).toBe(transfers)

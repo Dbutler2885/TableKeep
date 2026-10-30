@@ -2,6 +2,7 @@ import type { User } from 'firebase/auth'
 import { CliffhangerModal } from '../notes/CliffhangerModal'
 import { TransferNotification } from '../transfers/TransferNotification'
 import type { GameSystem } from '../navigation/tabs'
+import { ruleSets } from '../ruleSets/registry'
 import type { Campaign, CharacterRecord, ItemApprovalRequest, Role } from '../../types/app'
 import { ApprovalPrompt } from './ApprovalPrompt'
 import { hasApprovals } from './workspaceListening'
@@ -37,6 +38,7 @@ export function CampaignDialogs(props: CampaignDialogsProps) {
           currentUserId={user.uid}
           role={role}
           characters={characters}
+          carrying={ruleSets[gameSystem].carrying}
         />
       ) : null}
       <CliffhangerModal campaignId={campaign.id} groupId={campaign.groupId} userId={user.uid} enabled={cliffhangerEnabled} />

@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { TransferNotification } from './TransferNotification'
 import { parseOseCharacter } from '../character/lib/storedCharacterRecord'
+import { oseCarrying } from '../ruleSets/ose/carrying'
 import type { CharacterRecord, PendingTransfer } from '../../types/app'
 
 const mocks = vi.hoisted(() => ({ incomingTransfers: [] as PendingTransfer[], acceptTransfer: vi.fn(), declineTransfer: vi.fn() }))
@@ -24,7 +25,7 @@ const ada = parseOseCharacter('pc', {
 })
 const other = parseOseCharacter('other', { name: 'Cole', details: { inventory: [{ id: 'c', kind: 'general', qty: 1, equipped: false }] } })
 const notice = (characters: CharacterRecord[] = [other, ada]) => (
-  <TransferNotification campaignId="c" groupId="g" currentUserId="player" role="player" characters={characters} />
+  <TransferNotification campaignId="c" groupId="g" currentUserId="player" role="player" characters={characters} carrying={oseCarrying} />
 )
 const buttons = () => screen.getAllByRole('button') as HTMLButtonElement[]
 const deferred = () => {
