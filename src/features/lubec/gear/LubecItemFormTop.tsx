@@ -47,18 +47,22 @@ function PicPrompt({ busy }: { busy: boolean }) {
   return <span><span className="plus" aria-hidden="true">+</span>Picture</span>
 }
 
-// The box: it shows the picture, or the kind's icon, and picks a file when an upload can be made.
-function PicBox({ fields, picking }: { fields: LubecItemFields; picking: LubecPicking | null }) {
-  const pic = lubecPictureShown(fields.picture) ? fields.picture : null
-  const shown = pic && <LubecPicture item={{ kind: fields.kind, art: pic.art, picturePath: pic.picturePath, shape: lubecPictureShape(pic) }} frame="pic-in" />
-  if (!picking) return <div className="pic-box">{shown ?? <span className="pic-none" aria-hidden="true"><LubecKindGlyph kind={fields.kind} /></span>}</div>
+// The picture in the form's box, or null when there is none to show.
+function boxPicture({ kind, picture }: LubecItemFields) {
+  if (!lubecPictureShown(picture)) return null
+  return <LubecPicture item={{ kind, art: picture.art, picturePath: picture.picturePath, shape: lubecPictureShape(picture) }} frame="pic-in" />
+}
+
+function PicButton({ fields, picking }: { fields: LubecItemFields; picking: LubecPicking }) {
+  const shown = boxPicture(fields)
   const open = () => document.getElementById(LUBEC_PIC_FILE)?.click()
-  return (
-    <>
-      <button type="button" className="pic-box" aria-label={pic ? 'Change the picture' : 'Add a picture'} disabled={picking.busy} onClick={open}>{shown ?? <PicPrompt busy={picking.busy} />}</button>
-      <PicFile picking={picking} />
-    </>
-  )
+  return <button type="button" className="pic-box" aria-label={shown ? 'Change the picture' : 'Add a picture'} disabled={picking.busy} onClick={open}>{shown ?? <PicPrompt busy={picking.busy} />}</button>
+}
+
+// The box picks a file when an upload can be made; otherwise it only shows the picture, or the kind's icon.
+function PicBox({ fields, picking }: { fields: LubecItemFields; picking: LubecPicking | null }) {
+  if (picking) return <><PicButton fields={fields} picking={picking} /><PicFile picking={picking} /></>
+  return <div className="pic-box">{boxPicture(fields) ?? <span className="pic-none" aria-hidden="true"><LubecKindGlyph kind={fields.kind} /></span>}</div>
 }
 
 /**

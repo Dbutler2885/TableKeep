@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../../types/app'
+import { LUBEC_PIC_FILE } from '../gear/useLubecPictureUpload'
 
 // These cases mount large component trees and run role queries over them in jsdom (see LubecGearTab.test.tsx).
 vi.setConfig({ testTimeout: 30_000 })
@@ -483,6 +484,18 @@ describe('the campaign item form', () => {
 
     await waitFor(() => expect(database[`${GM_ITEMS}/lantern`]).toMatchObject({ weight: 'heavy', status: 'library', createdAt: { seconds: 1, nanoseconds: 0 } }))
     expect(screen.getByRole('status').textContent).toBe('Saved Brass storm lantern.')
+  })
+
+  it('opens the edit form with its file picker from a campaign item\'s "Add a picture", which a dropped item does not offer', async () => {
+    const clicked = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined)
+    await mountItems()
+
+    expect(openRow('Small anvil').queryByRole('button', { name: 'Add a picture' })).toBeNull()
+    fireEvent.click(openRow('Brass storm lantern').getByRole('button', { name: 'Add a picture' }))
+
+    expect(within(screen.getByRole('dialog')).getByText('Edit item')).toBeTruthy()
+    expect(clicked.mock.contexts[0]).toBe(document.getElementById(LUBEC_PIC_FILE))
+    clicked.mockRestore()
   })
 })
 
