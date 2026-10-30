@@ -3,6 +3,7 @@ import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import { LUBEC_NPC_CARRIER_KINDS } from '../ruleSets/lubec/gear/carriers'
 import { makeLubecDirectEntryCharacter, makeLubecGuidedCharacter, type LubecOwner } from '../ruleSets/lubec/directEntry'
 import { makeLubecImportedCharacter, type LubecImportedCharacter } from '../ruleSets/lubec/importFile'
+import { useKeepLubecNpcFightSummary } from './fight/useLubecNpcFightSummary'
 import { LubecNewCharacter, type LubecDoors } from './LubecNewCharacter'
 import type { LubecNpcIdentity } from './lubecNpcSheetRecord'
 import { LubecSheetView } from './LubecSheetView'
@@ -54,7 +55,9 @@ function LubecNpcSheetStart({ npcName, doors }: { npcName: string; doors: LubecD
  * ways a new character comes in.
  */
 export function LubecNpcSheetTab({ npc, currentUsername, ...options }: LubecNpcSheetTabProps) {
-  const { store, sheetProps } = useLubecSheetSession({ source: { kind: 'npc', npc }, ...options })
+  const { store, character, sheetProps } = useLubecSheetSession({ source: { kind: 'npc', npc }, ...options })
+  const scope = { campaignId: options.campaignId, groupId: options.groupId }
+  useKeepLubecNpcFightSummary({ scope, npcId: npc.id, sheet: character?.lubec ?? null, loading: store.charactersLoading, setError: options.setError })
   if (sheetProps) {
     return <LubecSheetView key={sheetProps.character.id} {...sheetProps} identityEditable={false} carrierKinds={LUBEC_NPC_CARRIER_KINDS} onDelete={null} onAssign={null} />
   }

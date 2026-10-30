@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react'
 import type { RuleSetId } from './registry'
 import {
-  LubecItems, LubecNpcSheet, LubecSheet, OseItems, OseSheet, VtmSheet, type RuleSetItemsProps, type RuleSetNpcSheetProps, type RuleSetSheetProps,
+  LubecItems, LubecMapFight, LubecNpcSheet, LubecSheet, OseItems, OseSheet, VtmSheet, type RuleSetItemsProps, type RuleSetMapFightProps, type RuleSetNpcSheetProps, type RuleSetSheetProps,
 } from './RuleSetSheets'
 
 // The page each rule set's character tab shows. It sits beside the registry
@@ -28,4 +28,12 @@ export const ruleSetItemsTabs: { [Id in RuleSetId]: ComponentType<RuleSetItemsPr
   ose: OseItems,
   vtm: null,
   lubec: LubecItems,
+}
+
+// What holds the fight modal over the map, for each rule set that has one; it
+// lives only while the Maps tab is open.
+export const ruleSetMapFights: { [Id in RuleSetId]: ComponentType<RuleSetMapFightProps> | null } = {
+  ose: null,
+  vtm: null,
+  lubec: LubecMapFight,
 }

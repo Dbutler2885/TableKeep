@@ -1,6 +1,7 @@
 import { useId, useState } from 'react'
 import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
 import { lubecWielder } from '../ruleSets/lubec/gear/minStrength'
+import { useLubecFightStart } from './fight/lubecFightStart'
 import type { LubecGearDrop } from './gear/lubecGearDrop'
 import { LubecInHand } from './LubecInHand'
 import { LubecNumber } from './LubecMissing'
@@ -11,12 +12,14 @@ import { LubecNumber } from './LubecMissing'
  * Effective Handle is the character's own: no skill bonus and nobody's evasion
  * lowers it here, but the active effects' modifiers do. "In hand" reads the
  * Gear page's Hands, each weapon with its attack's Handle, in the heading's
- * row so the opened bar keeps the Core page on one desktop screen.
+ * row so the opened bar keeps the Core page on one desktop screen. "Start a
+ * fight" opens the fight modal for a viewer who may fight as the character.
  */
 export function LubecFightPanel({ sheet, onDrop }: { sheet: LubecCharacterSheet; onDrop: LubecGearDrop }) {
   const [expanded, setExpanded] = useState(false)
   const panelId = useId()
   const wielder = lubecWielder(sheet)
+  const start = useLubecFightStart()
   return (
     <section className="fight-region" aria-label="Fight controls">
       <button className="fight-toggle" type="button" aria-expanded={expanded} aria-controls={panelId} onClick={() => setExpanded(!expanded)}>
@@ -29,6 +32,7 @@ export function LubecFightPanel({ sheet, onDrop }: { sheet: LubecCharacterSheet;
           <div><div className="eyebrow">Combat allocation</div><h3>Handle</h3></div>
           <LubecInHand gear={sheet.gear} wielder={wielder} onDrop={onDrop} />
           <div className="effective-handle">Effective Handle <strong className="lubec-effective-handle"><LubecNumber value={wielder.handle} /></strong></div>
+          {start ? <button className="fight-start" type="button" onClick={() => start()}>Start a fight</button> : null}
         </div>
       </div>
     </section>

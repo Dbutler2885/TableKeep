@@ -19,6 +19,7 @@ import { lubecWielder } from '../ruleSets/lubec/gear/minStrength'
 import type { LubecStockItem } from '../ruleSets/lubec/gear/stock'
 import { LubecMissing } from './LubecMissing'
 import { LubecNameBandEditor, type LubecSheetEditing } from './LubecNameBandEditor'
+import { LubecPortrait } from './LubecPortrait'
 import { LubecRoughFilter } from './LubecRoughFilter'
 import { LubecSkillsPage } from './LubecSkillsPage'
 import { LubecToken } from './LubecToken'
@@ -30,20 +31,6 @@ import lubecPines from './lubecPines.svg'
 type LubecPage = 'core' | 'skills' | 'gear'
 
 const LUBEC_PAGES: readonly (readonly [LubecPage, string])[] = [['core', 'Core sheet'], ['skills', 'Skills'], ['gear', 'Gear']]
-
-function LubecPortrait({ character }: { character: LubecCharacterRecord }) {
-  if (!character.portraitUrl) {
-    return <div className="lubec-portrait" role="img" aria-label="No photo yet"><span>Photo</span></div>
-  }
-  return (
-    <img
-      className="lubec-portrait"
-      src={character.portraitUrl}
-      alt={`${lubecCharacterName(character)} portrait`}
-      style={{ objectPosition: `${character.portraitFocusX}% ${character.portraitFocusY}%` }}
-    />
-  )
-}
 
 // The dot on the Gear tab: a heavy thing on the character came with no Strength roll, and the page asks for it when opened.
 const LubecPageDot = () => <span className="lubec-page-dot"><span className="sr-only">, a Strength roll to make</span></span>

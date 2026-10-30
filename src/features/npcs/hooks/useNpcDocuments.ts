@@ -23,8 +23,8 @@ function resolveMissingMedia(npcs: NpcRecord[], setNpcs: SetNpcs) {
   void Promise.allSettled(waiting.map((npc) => resolveMediaFor(npc, setNpcs)))
 }
 
-// The campaign's NPCs as this viewer may see them, kept live.
-export function useNpcDocuments({ campaignId, groupId }: CampaignScope, role: Role | null, queues: NpcWriteQueues) {
+// The campaign's NPCs as this viewer may see them, kept live; none unless `enabled`.
+export function useNpcDocuments({ campaignId, groupId }: CampaignScope, role: Role | null, queues: NpcWriteQueues, enabled = true) {
   const [npcs, setNpcs] = useState<NpcRecord[]>([])
   const npcsRef = useRef<NpcRecord[]>([])
 
@@ -32,9 +32,12 @@ export function useNpcDocuments({ campaignId, groupId }: CampaignScope, role: Ro
     npcsRef.current = npcs
   }, [npcs])
 
-  useEffect(() => subscribeToNpcs({ campaignId, groupId }, role, (docs) => {
-    setNpcs(readNpcSnapshot(docs, npcsRef.current, (npcId) => isNpcDocumentBusy(queues, npcId)))
-  }), [campaignId, groupId, role, queues])
+  useEffect(() => {
+    if (!enabled) return undefined
+    return subscribeToNpcs({ campaignId, groupId }, role, (docs) => {
+      setNpcs(readNpcSnapshot(docs, npcsRef.current, (npcId) => isNpcDocumentBusy(queues, npcId)))
+    })
+  }, [campaignId, groupId, role, queues, enabled])
 
   useEffect(() => resolveMissingMedia(npcs, setNpcs), [npcs])
 

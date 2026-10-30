@@ -1,0 +1,616 @@
+/* The fight modal, copied from the attack prototype (spec 10.5): the panel and
+   section head 145-155, notes 158-159, buttons 171-185, fields 187-194, the
+   stepper and trail 207-223, the weapon cards 226-252, the target grid and the
+   wearing card 374-392. B's dialog 507-521 frames it. The tokens are the sheet's
+   own without the prefix; every rule is scoped to the modal. */
+
+/* The overlay of a Gear prompt, centred; desktop keeps a margin all round. */
+.shell-root[data-theme="lubec"] .lubec-fight-overlay {
+  padding: 1rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight {
+  --c: var(--lubec-rust);
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 50rem);
+  max-height: calc(100dvh - 2rem);
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  color: var(--lubec-ink);
+  background:
+    repeating-linear-gradient(0deg, rgba(53, 64, 53, 0.025) 0 1px, transparent 1px 4px),
+    var(--lubec-paper);
+  border: 2px solid var(--c);
+  box-shadow: inset 0 0 0 2px #eadcbf, inset 0 0 0 3px var(--c), inset 0 0 26px rgba(90, 64, 30, 0.18), 0 24px 64px rgba(7, 20, 23, 0.45);
+  outline: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight button {
+  border-radius: 0;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight button:disabled {
+  cursor: not-allowed;
+}
+
+/* The header bar: the step's name, the stepper and the close */
+.shell-root[data-theme="lubec"] .lubec-fight .section-head {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.8rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 0.6rem 0.16rem;
+  background-color: var(--c);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='260'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75 .05' numOctaves='2' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .95 0 0 0 0 .91 0 0 0 0 .83 2.2 0 0 0 -1.62'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23w)'/%3E%3C/svg%3E");
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .section-head h2 {
+  margin: 0;
+  color: var(--lubec-cream);
+  font: 800 clamp(1.1rem, 2vw, 1.4rem)/1 var(--lubec-display);
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  filter: url(#lubec-rough);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .section-head .close {
+  flex: none;
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0;
+  color: var(--lubec-cream);
+  background: transparent;
+  border: 0;
+  font: 800 1.4rem/1 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .section-head .close:hover {
+  background: rgba(255, 248, 231, 0.14);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .section-head .close:focus-visible {
+  outline: 2px solid var(--lubec-cream);
+  outline-offset: -2px;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .stepper {
+  flex: 1;
+  display: flex;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .stepper li {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+  padding: 0.2rem 0.45rem 0.1rem;
+  color: rgba(255, 248, 231, 0.55);
+  font: 700 0.86rem/1 var(--lubec-condensed);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .stepper li b {
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border: 1.5px solid currentColor;
+  font: 700 0.72rem/1 var(--lubec-condensed);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .stepper li.done {
+  color: rgba(255, 248, 231, 0.85);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .stepper li.done b {
+  color: var(--lubec-ink);
+  background: rgba(255, 248, 231, 0.85);
+  border-color: transparent;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .stepper li.now {
+  color: var(--lubec-cream);
+  background: rgba(255, 248, 231, 0.14);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .stepper li.now b {
+  color: var(--lubec-rust);
+  background: var(--lubec-cream);
+  border-color: var(--lubec-cream);
+}
+
+/* The steps past Target are not built yet */
+.shell-root[data-theme="lubec"] .lubec-fight .stepper li.off {
+  color: rgba(255, 248, 231, 0.38);
+  cursor: not-allowed;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .stepper li.off b {
+  border-style: dashed;
+}
+
+/* The step scrolls only where the window is too small for it */
+.shell-root[data-theme="lubec"] .lubec-fight .fight-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0.55rem 0.7rem 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* What has been decided so far: tap one to go back to it */
+.shell-root[data-theme="lubec"] .lubec-fight .trail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-height: 1.9rem;
+  margin-bottom: 0.2rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .trail button,
+.shell-root[data-theme="lubec"] .lubec-fight .trail .who {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+  padding: 0.3rem 0.5rem;
+  color: var(--lubec-ink);
+  background: var(--lubec-cream);
+  border: 1.5px solid var(--lubec-ink);
+  font: 800 0.64rem/1 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .trail .who {
+  background: transparent;
+  border-color: var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .trail small {
+  color: var(--lubec-muted);
+  font: 800 0.5rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .trail button:hover {
+  background: #fffdf4;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .ask {
+  margin: 0.2rem 0 0.6rem;
+  font: 800 clamp(1.05rem, 2vw, 1.3rem)/1.2 var(--lubec-display);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .note {
+  margin: 0;
+  color: var(--lubec-muted);
+  font: 700 0.66rem/1.45 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .note b {
+  color: var(--lubec-ink);
+}
+
+/* The way on stays in reach at the foot of the modal */
+.shell-root[data-theme="lubec"] .lubec-fight .step-foot {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.8rem;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0.7rem 0.7rem 0;
+  padding: 0.6rem 0 calc(0.7rem + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.4rem;
+  padding: 0.45rem 0.85rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-blue);
+  border: 2px solid var(--lubec-blue);
+  font: 800 0.64rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .btn:hover {
+  background: var(--lubec-blue-alt);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .btn.rust {
+  background: var(--lubec-rust);
+  border-color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .btn.rust:hover {
+  background: #b44c31;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .btn.line {
+  color: var(--lubec-blue);
+  background: transparent;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .btn.line:hover {
+  background: rgba(23, 75, 88, 0.08);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .btn.small {
+  min-height: 2rem;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.58rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .btn:disabled {
+  opacity: 0.45;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .btn:focus-visible,
+.shell-root[data-theme="lubec"] .lubec-fight .pick:focus-visible,
+.shell-root[data-theme="lubec"] .lubec-fight .trail button:focus-visible {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+/* The weapon cards */
+.shell-root[data-theme="lubec"] .lubec-fight .picks {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pick-cell {
+  display: grid;
+  gap: 0.3rem;
+  align-content: start;
+  min-width: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pick-cell.both {
+  grid-column: span 2;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pick {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: center;
+  width: 100%;
+  min-height: 4.6rem;
+  padding: 1.05rem 0.55rem 0.45rem;
+  color: var(--lubec-ink);
+  text-align: left;
+  background: var(--lubec-cream);
+  border: 2px solid var(--lubec-ink);
+  box-shadow: 2px 2px 0 rgba(23, 40, 43, 0.28);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pick:hover:not(:disabled) {
+  background: #fffdf4;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pick[aria-pressed="true"] {
+  border-color: var(--lubec-rust);
+  box-shadow: 0 0 0 1px var(--lubec-rust), 2px 2px 0 rgba(23, 40, 43, 0.28);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pick .where {
+  position: absolute;
+  top: 0.34rem;
+  left: 0.5rem;
+  color: var(--lubec-muted);
+  font: 800 0.5rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pick .name {
+  display: block;
+  font: 800 0.84rem/1.15 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pick small {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--lubec-blue);
+  font: 800 0.6rem/1.25 var(--lubec-type);
+}
+
+/* The chosen weapon's Handle terms, on the same card */
+.shell-root[data-theme="lubec"] .lubec-fight .pick .lubec-handle-terms {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--lubec-muted);
+  font: 700 0.56rem/1.25 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pick:disabled {
+  color: var(--lubec-muted);
+  background: rgba(255, 248, 231, 0.45);
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pick:disabled small {
+  color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pick.empty {
+  color: var(--lubec-muted);
+  background: rgba(255, 248, 231, 0.45);
+  border-style: dashed;
+  box-shadow: none;
+  cursor: default;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pic {
+  display: grid;
+  place-items: center;
+  width: 2.6rem;
+  height: 2.6rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pic img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  padding: 6%;
+  background: var(--lubec-cream);
+  border: 1.5px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pic.wide img {
+  width: 100%;
+  height: 66.7%;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pic.square img {
+  width: 86%;
+  height: 86%;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .pic.glyph svg,
+.shell-root[data-theme="lubec"] .lubec-fight .pic.none svg {
+  width: 2rem;
+  height: 2rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .drop {
+  justify-self: start;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .ground {
+  margin-top: 0.55rem;
+}
+
+/* Who, on the left, what they wear, on the right */
+.shell-root[data-theme="lubec"] .lubec-fight .target-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem 1.1rem;
+  align-items: start;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .f {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .f > span {
+  color: var(--lubec-muted);
+  font: 800 0.52rem/1.2 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight select {
+  min-width: 0;
+  min-height: 2.3rem;
+  padding: 0.3rem 1.7rem 0.3rem 0.45rem;
+  color: var(--lubec-ink);
+  background-color: var(--lubec-cream);
+  background-image: linear-gradient(45deg, transparent 50%, var(--lubec-ink) 50%), linear-gradient(135deg, var(--lubec-ink) 50%, transparent 50%);
+  background-position: calc(100% - 0.95rem) 55%, calc(100% - 0.6rem) 55%;
+  background-size: 0.32rem 0.32rem;
+  background-repeat: no-repeat;
+  border: 1.5px solid var(--lubec-ink);
+  border-radius: 0;
+  font: 800 0.85rem/1.2 var(--lubec-type);
+  appearance: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight select:focus {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 1px;
+}
+
+/* The target card: ink, with the sheet's portrait and token */
+.shell-root[data-theme="lubec"] .lubec-fight .target-card {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+  margin-top: 0.6rem;
+  padding: 0.55rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+  border: 2px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .target-card .lubec-portrait {
+  color: var(--lubec-muted);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .target-words {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .target-words h3 {
+  margin: 0;
+  color: var(--lubec-cream);
+  font: 800 1.15rem/1.05 var(--lubec-display);
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .wound-chip {
+  justify-self: start;
+  padding: 0.2rem 0.4rem;
+  color: var(--lubec-ink);
+  background: var(--lubec-cream);
+  font: 800 0.6rem/1 var(--lubec-type);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .wound-chip.silent {
+  padding: 0;
+  background: none;
+}
+
+/* What the target wears */
+.shell-root[data-theme="lubec"] .lubec-fight .wearing {
+  margin: 0;
+  background: rgba(255, 248, 231, 0.5);
+  border: 1.5px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .wear-head {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+  padding: 0.35rem 0.55rem;
+  color: var(--lubec-muted);
+  border-bottom: 1px solid var(--lubec-line);
+  font: 800 0.52rem/1.2 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .wear-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.7rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.55rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .wear-row + .wear-row {
+  border-top: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .wear-row b {
+  display: block;
+  font: 800 0.74rem/1.25 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .wear-row small {
+  color: var(--lubec-muted);
+  font: 700 0.6rem/1.3 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .nums {
+  display: flex;
+  gap: 0.2rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .nums i {
+  display: grid;
+  min-width: 2.4rem;
+  padding: 0.15rem 0.2rem;
+  color: var(--lubec-ink);
+  background: var(--lubec-cream);
+  border: 1px solid rgba(23, 40, 43, 0.25);
+  font: 800 0.8rem/1.1 var(--lubec-type);
+  font-style: normal;
+  text-align: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .nums i small {
+  font: 800 0.44rem/1.1 var(--lubec-type);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight .wearing .none {
+  margin: 0;
+  padding: 0.45rem 0.55rem;
+  color: var(--lubec-muted);
+  font: 700 0.7rem/1.4 var(--lubec-type);
+}
+
+/* The Fight bar's way in, in its heading row */
+.shell-root[data-theme="lubec"] .fight-start {
+  min-height: 2.4rem;
+  padding: 0.45rem 0.85rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-rust);
+  border: 2px solid var(--lubec-rust);
+  border-radius: 0;
+  font: 800 0.64rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .fight-start:hover {
+  background: #b44c31;
+}
+
+.shell-root[data-theme="lubec"] .fight-start:focus-visible {
+  outline: 2px solid var(--lubec-blue);
+  outline-offset: 2px;
+}
+
+/* Tablet and phone: the whole window, the step scrolling between the head and the foot */
+@media (max-width: 1250px) {
+  .shell-root[data-theme="lubec"] .lubec-fight-overlay {
+    padding: 0;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-fight {
+    width: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+}
+
+@media (max-width: 900px) {
+  .shell-root[data-theme="lubec"] .lubec-fight .stepper li span {
+    display: none;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-fight .stepper li.now span {
+    display: inline;
+  }
+}
+
+@media (max-width: 560px) {
+  .shell-root[data-theme="lubec"] .lubec-fight .picks,
+  .shell-root[data-theme="lubec"] .lubec-fight .target-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-fight .pick-cell.both {
+    grid-column: auto;
+  }
+}

@@ -129,6 +129,7 @@ function MapsMainPane({ model, isGm }: PaneProps) {
             cameraLock={model.viewport.cameraLock}
             onToggleCameraLock={model.viewport.toggleCameraLock}
             presentedNpc={model.scene.presentedNpc}
+            selectedTokens={model.mapData.tokens.filter((token) => model.selection.playerSelectedTokenIds.includes(token.id))}
           />
         </aside>
       ) : null}

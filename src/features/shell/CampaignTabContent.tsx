@@ -11,7 +11,7 @@ import { CalendarTab } from '../notes/CalendarTab'
 import type { GameSystem } from '../navigation/tabs'
 import { ruleSets } from '../ruleSets/registry'
 import type { RuleSetSheetProps } from '../ruleSets/RuleSetSheets'
-import { ruleSetItemsTabs, ruleSetNpcSheets, ruleSetSheets } from '../ruleSets/sheetComponents'
+import { ruleSetItemsTabs, ruleSetMapFights, ruleSetNpcSheets, ruleSetSheets } from '../ruleSets/sheetComponents'
 import type { AppTab, CharacterRecord, NpcRecord } from '../../types/app'
 
 export type TabPanelContext = RuleSetSheetProps & {
@@ -46,24 +46,34 @@ function characterPanel({ gameSystem, ...context }: TabPanelContext) {
 }
 
 // Maps shows the sheet beside the map only when the rule set says it can,
-// gives the rule set to everything inside it, and lets the GM open an NPC's
-// sheet over the map from its token.
+// gives the rule set to everything inside it, lets the GM open an NPC's sheet
+// over the map from its token, and holds the rule set's fight modal over it.
 function mapsPanel(context: TabPanelContext) {
   const { campaign, role, gameSystem, characterTabProps } = context
   const ruleSet = ruleSets[gameSystem]
+  const map = (
+    <MapsTab
+      campaignId={campaign.id}
+      groupId={campaign.groupId}
+      role={role}
+      gmUserId={campaign.gmUserId ?? null}
+      characterTabProps={ruleSet.sheet.embeddable ? characterTabProps ?? undefined : undefined}
+    />
+  )
   return (
     <MapRuleSetContext value={ruleSet}>
       <MapNpcSheetProvider scope={{ campaignId: campaign.id, groupId: campaign.groupId }} sheetFor={npcSheetTabFor(context)}>
-        <MapsTab
-          campaignId={campaign.id}
-          groupId={campaign.groupId}
-          role={role}
-          gmUserId={campaign.gmUserId ?? null}
-          characterTabProps={ruleSet.sheet.embeddable ? characterTabProps ?? undefined : undefined}
-        />
+        {withMapFight(context, map)}
       </MapNpcSheetProvider>
     </MapRuleSetContext>
   )
+}
+
+// The map inside its rule set's fight host, where it has one.
+function withMapFight({ campaign, role, user, username, setError, gameSystem }: TabPanelContext, map: ReactNode) {
+  const MapFight = ruleSetMapFights[gameSystem]
+  if (!MapFight) return map
+  return <MapFight campaign={campaign} role={role} user={user} username={username} setError={setError}>{map}</MapFight>
 }
 
 // A rule set with a statline has a Monsters tab, which its players see unless
