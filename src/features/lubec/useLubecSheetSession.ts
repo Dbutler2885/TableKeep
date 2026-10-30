@@ -9,6 +9,7 @@ import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import type { CharacterStoreCollection } from '../character/characterStore/characterStoreWrites'
 import type { LubecSheetEditing } from './LubecNameBandEditor'
 import type { LubecGearRecords } from './gear/lubecGearDrop'
+import { useLubecGive } from './gear/useLubecGive'
 import { lubecNpcSheetRecord, type LubecNpcIdentity } from './lubecNpcSheetRecord'
 import { lubecSheetWiring, type LubecViewer } from './lubecSheetWiring'
 import { lubecLibraryStock } from './items/gmItemsList'
@@ -104,6 +105,7 @@ export function useLubecSheetSession({ source, campaignId, groupId, role, curren
   const viewer = { role, userId: currentUserId }
   const records = gearRecordsOf(source, character, { campaignId, groupId })
   const campaignStock = useLubecCampaignStock({ campaignId, groupId }, setError)
-  const sheetProps = character ? { character, editing, campaignStock, ...lubecSheetWiring(character, viewer, store, records) } : null
+  const gearGive = useLubecGive({ onCharacters: source.kind === 'characters', character, characters: store.characters, store, campaignId, groupId, role, userId: currentUserId })
+  const sheetProps = character ? { character, editing, campaignStock, gearGive, ...lubecSheetWiring(character, viewer, store, records) } : null
   return { store, character, viewer, sheetProps }
 }

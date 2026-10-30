@@ -36,6 +36,8 @@ import { attackRefusalText, attackToast } from './weaponFacts'
 import { lubecCardLoadAct, lubecTakeOutAct, lubecLoadContext, type LubecLoadContext, type LubecLoadResult } from './loadActs'
 import { LUBEC_SUPPLY_UNNAMED, lubecLoadButtons, lubecSupplyMadeToast, lubecTakeOutCost, type LubecLoadAct } from './loadLabels'
 import type { LubecCardLoad } from './LubecItemCard'
+import type { LubecGearGive } from './lubecGive'
+import { useLubecCardGive } from './useLubecCardGive'
 import { LubecCardPrompt } from './LubecLoadPrompts'
 import type { LubecSupplyFieldKey } from './LubecSupplyField'
 
@@ -54,6 +56,8 @@ type SheetContext = {
   busy: boolean
   /** The character's Strength and Handle, for a weapon's minimum Strength. */
   wielder: LubecWielder
+  /** Gives things to other people's characters; null for a viewer who may not. */
+  give: LubecGearGive | null
 }
 
 type SheetProps = SheetContext & { sheet: LubecItemSheetState }
@@ -113,7 +117,7 @@ function loaded(ctx: SheetContext, sheet: CardSheet, r: LubecLoadResult) {
 // The picker and "Take some out" open something; every other loading button commits at once.
 function loadFromCard(ctx: SheetContext, sheet: CardSheet, item: LubecItem, act: LubecLoadAct) {
   if (act.type === 'load-pick') return ctx.onSheet({ ...sheet, error: null, prompt: { kind: 'load-pick', error: null } })
-  if (act.type === 'takeout') return ctx.onSheet({ ...sheet, error: null, move: false, takeout: !sheet.takeout })
+  if (act.type === 'takeout') return ctx.onSheet({ ...sheet, error: null, move: false, give: false, takeout: !sheet.takeout })
   loaded(ctx, sheet, lubecCardLoadAct(loadContext(ctx.gear), item, act))
 }
 
@@ -127,8 +131,9 @@ function cardLoad(gear: LubecGear, sheet: CardSheet, item: LubecItem): LubecCard
 }
 
 function CardMode({ sheet, item, ...ctx }: SheetContext & { sheet: CardSheet; item: LubecItem }) {
+  const give = useLubecCardGive(ctx.give, { sheet, item, onSheet: ctx.onSheet, toast: ctx.toast })
   const actions = {
-    onToggleMove: () => ctx.onSheet({ ...sheet, error: null, takeout: false, move: !sheet.move }),
+    onToggleMove: () => ctx.onSheet({ ...sheet, error: null, takeout: false, give: false, move: !sheet.move }),
     onMove: (value: string) => moveFromCard(ctx, sheet, item, value),
     onDrop: () => ctx.onDrop(item, (msg) => ctx.onSheet({ ...sheet, error: msg })),
     onStep: (field: 'qty' | 'loaded', d: number) => {
@@ -147,7 +152,7 @@ function CardMode({ sheet, item, ...ctx }: SheetContext & { sheet: CardSheet; it
   return (
     <LubecItemCard
       gear={ctx.gear} item={item} supplies={lubecSupplies(ctx.gear)} wielder={ctx.wielder} error={sheet.error} moveOpen={sheet.move === true} busy={ctx.busy}
-      load={cardLoad(ctx.gear, sheet, item)} actions={actions}
+      load={cardLoad(ctx.gear, sheet, item)} give={give} actions={actions}
     />
   )
 }

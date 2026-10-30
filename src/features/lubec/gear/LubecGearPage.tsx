@@ -10,6 +10,7 @@ import { lubecAddSheet, lubecCardSheet, type LubecItemSheetState } from './itemS
 import { LubecDragLayer } from './LubecDragLayer'
 import { LubecDragContext } from './lubecDragMarks'
 import type { LubecGearDrop } from './lubecGearDrop'
+import type { LubecGearGive } from './lubecGive'
 import { LubecGearArmor } from './LubecGearArmor'
 import { LubecGearHandsBody } from './LubecGearHandsBody'
 import { LubecGearPack, type LubecGearAdd, type LubecGearOpen } from './LubecGearPack'
@@ -48,6 +49,8 @@ type GearPageProps = {
   strength?: LubecGearStrength
   /** The kinds of carrier the add-carrier dialog offers; every kind unless said otherwise. */
   kinds?: readonly LubecCarrierKind[]
+  /** Gives things to other people's characters; null for a viewer who may not. */
+  give?: LubecGearGive | null
 }
 
 const NO_CAMPAIGN_STOCK: readonly LubecStockItem[] = []
@@ -183,7 +186,7 @@ function GearViews({ nav, moves, owner, onNewCarrier, ...props }: ViewsProps) {
 }
 
 /** The Lubec sheet's Gear page: the Gear bar, B's On you view of the backpack, the hands, the body and the armor, the Carriers view, and the item sheet over them. */
-export function LubecGearPage({ gear, owner, wielder, onGearChange, onDrop = null, campaignStock = NO_CAMPAIGN_STOCK, strength = null, kinds = LUBEC_CARRIER_KINDS }: GearPageProps) {
+export function LubecGearPage({ gear, owner, wielder, onGearChange, onDrop = null, campaignStock = NO_CAMPAIGN_STOCK, strength = null, kinds = LUBEC_CARRIER_KINDS, give = null }: GearPageProps) {
   const nav = useLubecGearView()
   const [sheet, setSheet] = useState<LubecItemSheetState | null>(null)
   const toast = useLubecToast()
@@ -204,7 +207,7 @@ export function LubecGearPage({ gear, owner, wielder, onGearChange, onDrop = nul
       {moves.change && sheet ? (
         <LubecItemSheet
           sheet={sheet} gear={gear} onGearChange={moves.change} onSheet={setSheet} toast={toast.show} campaignStock={campaignStock}
-          onDrop={moves.drop} busy={moves.busy} onAsk={asking.onAsk} wielder={wielder}
+          onDrop={moves.drop} busy={moves.busy} onAsk={asking.onAsk} wielder={wielder} give={give}
         />
       ) : null}
       <StrengthAskOver gear={gear} asking={asking} strength={strength} change={moves.change} setSheet={setSheet} toast={toast.show} drop={moves.drop} />

@@ -1566,3 +1566,32 @@
   }
 }
 
+
+/* The card's four buttons (B 640-641), and the offer that is out on a thing.
+   B gives outright, so it has no such row: this is the Give panel's own line
+   and button, on the sheet's tokens. */
+.shell-root[data-theme="lubec"] .lubec-gear .actions.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .actions.four .btn {
+  padding-inline: 0.3rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .offered {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.45rem 0.65rem;
+  border-left: 3px solid var(--lubec-blue);
+  background: rgba(23, 75, 88, 0.05);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .offered p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--lubec-blue);
+  font: 800 0.8rem/1.3 var(--lubec-type);
+}
