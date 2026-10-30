@@ -6,6 +6,7 @@ import { PlayerAssignmentModal } from '../character/components/PlayerAssignmentM
 import { useResponsiveCharacterLayout } from '../character/hooks/useResponsiveCharacterLayout'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import { makeLubecDirectEntryCharacter, makeLubecGuidedCharacter, type LubecOwner } from '../ruleSets/lubec/directEntry'
+import { LubecSheetFightHost } from './fight/LubecSheetFightHost'
 import { importLubecCharacter, type LubecImportContext } from './lubecImport'
 import type { LubecDoors } from './LubecNewCharacter'
 import { LubecRoster } from './LubecRoster'
@@ -106,15 +107,17 @@ export function LubecCharacterTab({ campaignId, groupId, role, currentUserId, cu
           doors={doors}
         />
       ) : null}
-      {layout.showDetailPane ? (
-        <LubecDetail
-          sheetProps={sheetProps}
-          isSinglePane={layout.isSinglePane}
-          onBack={() => layout.setPaneView('list')}
-          onDelete={deletion.deleteFor(character)}
-          onAssign={assignment.onAssign}
-        />
-      ) : null}
+      <LubecSheetFightHost scope={{ campaignId, groupId }} viewer={viewer} gmUserId={gmUserId} store={store} character={character} setError={setError}>
+        {layout.showDetailPane ? (
+          <LubecDetail
+            sheetProps={sheetProps}
+            isSinglePane={layout.isSinglePane}
+            onBack={() => layout.setPaneView('list')}
+            onDelete={deletion.deleteFor(character)}
+            onAssign={assignment.onAssign}
+          />
+        ) : null}
+      </LubecSheetFightHost>
       <CharacterDeleteDialog target={deletion.target} onConfirm={deletion.confirm} onCancel={deletion.cancel} />
       <PlayerAssignmentModal character={selectedName} flow={assignment.flow} />
     </div>

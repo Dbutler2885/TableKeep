@@ -1,6 +1,6 @@
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 
-export const lubecCharacterName = (character: LubecCharacterRecord) => character.name || 'Unnamed kid'
+export const lubecCharacterName = (character: Pick<LubecCharacterRecord, 'name'>) => character.name || 'Unnamed kid'
 
 /** Age as typed: empty clears it, digits set it, and anything else is refused (`undefined`). */
 export function lubecAgeFromInput(text: string): number | null | undefined {

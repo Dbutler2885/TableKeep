@@ -6,6 +6,7 @@ import { TOKEN_SIZE_MAX, TOKEN_SIZE_MIN } from '../lib/constants'
 import { bulkTokenValues, everyTokenHas } from '../lib/selectedTokenSummary'
 import { normalizeTokenRotation } from '../lib/tokenRotation'
 import type { TokenRecord } from '../lib/types'
+import { MapFightAction } from './MapFightAction'
 import { NpcSheetTokenAction } from './NpcSheetTokenAction'
 
 export type TokenFieldUpdates = Partial<
@@ -29,6 +30,8 @@ export type TokenFieldUpdates = Partial<
 
 export type SelectedTokenControlsProps = {
   selectedTokens: TokenRecord[]
+  /** The selected tokens in the order they were picked, which says who attacks whom in a fight. */
+  pickedTokens?: TokenRecord[]
   tokenColor: string
   sameCategory: boolean
   onMakeGroup: () => void
@@ -111,9 +114,9 @@ function TokenFlagToggle({ on, disabled, label, tooltip, onToggle, children }: T
   )
 }
 
-type SelectedTokenTogglesProps = Pick<SelectedTokenControlsProps, 'selectedTokens' | 'onUpdateToken' | 'tokenViewDistanceSliderValue'>
+type SelectedTokenTogglesProps = Pick<SelectedTokenControlsProps, 'selectedTokens' | 'pickedTokens' | 'onUpdateToken' | 'tokenViewDistanceSliderValue'>
 
-function SelectedTokenToggles({ selectedTokens, onUpdateToken, tokenViewDistanceSliderValue }: SelectedTokenTogglesProps) {
+function SelectedTokenToggles({ selectedTokens, pickedTokens = selectedTokens, onUpdateToken, tokenViewDistanceSliderValue }: SelectedTokenTogglesProps) {
   const disabled = selectedTokens.length === 0
   const setFlag = (updates: (token: TokenRecord) => TokenFieldUpdates) => {
     updateEach(selectedTokens, (token) => onUpdateToken(token.id, updates(token)))
@@ -166,6 +169,7 @@ function SelectedTokenToggles({ selectedTokens, onUpdateToken, tokenViewDistance
         <EyeOff size={14} />
       </TokenFlagToggle>
       <NpcSheetTokenAction selectedTokens={selectedTokens} />
+      <MapFightAction tokens={pickedTokens} className="token-toggle-btn map-icon-btn" />
     </div>
   )
 }

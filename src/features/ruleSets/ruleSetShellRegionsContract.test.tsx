@@ -10,7 +10,7 @@
  * Lubec's transfer row changed on purpose when the transfer callable learned
  * Lubec's gear: its campaigns show the notice.
  */
-import { createElement } from 'react'
+import { createElement, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -48,6 +48,7 @@ vi.mock('../auth/DiscordReturnNotice', () => ({ DiscordReturnNotice: stub('Disco
 vi.mock('../character/CharacterTab', () => ({ CharacterTab: stub('CharacterTab') }))
 vi.mock('../character/VtmCharacterTab', () => ({ VtmCharacterTab: stub('VtmCharacterTab') }))
 vi.mock('../lubec/LubecCharacterTab', () => ({ LubecCharacterTab: stub('LubecCharacterTab') }))
+vi.mock('../lubec/fight/LubecMapFightHost', () => ({ LubecMapFightHost: ({ children }: { children: ReactNode }) => children }))
 vi.mock('../maps/MapsTab', () => ({ MapsTab: stub('MapsTab') }))
 vi.mock('../notes/NotesTab', () => ({ NotesTab: stub('NotesTab') }))
 vi.mock('../notes/CliffhangerModal', () => ({ CliffhangerModal: stub('CliffhangerModal') }))

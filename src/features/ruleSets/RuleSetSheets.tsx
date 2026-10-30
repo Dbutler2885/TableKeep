@@ -1,8 +1,10 @@
+import type { ReactNode } from 'react'
 import type { User } from 'firebase/auth'
 import { CharacterTab } from '../character/CharacterTab'
 import { VtmCharacterTab } from '../character/VtmCharacterTab'
 import { ItemsTab } from '../items/ItemsTab'
 import { LubecCharacterTab } from '../lubec/LubecCharacterTab'
+import { LubecMapFightHost } from '../lubec/fight/LubecMapFightHost'
 import { LubecItemsTab } from '../lubec/items/LubecItemsTab'
 import { LubecNpcSheetTab } from '../lubec/LubecNpcSheetTab'
 import type { CharacterTabProps } from '../shell/characterTabProps'
@@ -73,6 +75,25 @@ export function LubecNpcSheet({ npc, campaign, role, user, username, setError }:
       gmUserId={campaign.gmUserId ?? null}
       setError={setError}
     />
+  )
+}
+
+// What the shell hands the host of a rule set's fight modal, which wraps the map.
+export type RuleSetMapFightProps = Omit<RuleSetSheetProps, 'characterTabProps'> & { children: ReactNode }
+
+// Lubec's fight modal over the map loads its own characters for as long as Maps is open.
+export function LubecMapFight({ campaign, role, user, setError, children }: RuleSetMapFightProps) {
+  return (
+    <LubecMapFightHost
+      campaignId={campaign.id}
+      groupId={campaign.groupId}
+      role={role}
+      currentUserId={user.uid}
+      gmUserId={campaign.gmUserId ?? null}
+      setError={setError}
+    >
+      {children}
+    </LubecMapFightHost>
   )
 }
 

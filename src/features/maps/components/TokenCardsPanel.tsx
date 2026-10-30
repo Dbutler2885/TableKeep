@@ -28,6 +28,7 @@ export function TokenCardsPanel({ cards, ...controlProps }: TokenCardsPanelProps
           <SelectedTokenControls
             {...controlProps}
             selectedTokens={cards.selectedTokens}
+            pickedTokens={cards.pickedTokens}
             sameCategory={cards.sameCategory}
             onMakeGroup={cards.grouping.openMakeGroup}
           />

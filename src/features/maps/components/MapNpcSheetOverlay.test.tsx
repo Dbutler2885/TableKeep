@@ -54,11 +54,12 @@ vi.mock('../../common/mediaStorage', async (importOriginal) => ({
 vi.mock('../MapsTab', async () => {
   const { GmTokenItem } = await import('./MapTokenItems')
   const { SelectedTokenControls } = await import('./SelectedTokenControls')
+  const { PlayerMapControls } = await import('./PlayerMapControls')
   const { tokenLivePosition } = await import('../lib/mapTokenDisplay')
   const { renderTokenDimensions } = await import('../lib/tokenRenderGeometry')
   const noop = async () => undefined
   return {
-    MapsTab: () => (
+    MapsTab: ({ role }: { role: Role }) => (
       <>
         {mocks.tokens.map((token, index) => (
           <GmTokenItem
@@ -76,17 +77,25 @@ vi.mock('../MapsTab', async () => {
             onToggleHidden={() => undefined}
           />
         ))}
-        <SelectedTokenControls
-          selectedTokens={mocks.tokens.filter((token) => mocks.selectedTokenIds.includes(token.id))}
-          tokenColor="#2f5bbf"
-          sameCategory={false}
-          onMakeGroup={() => undefined}
-          onRequestDeleteTokens={() => undefined}
-          onUpdateToken={noop}
-          onUpdateTokenSize={noop}
-          onUpdateTokenViewDistance={noop}
-          tokenViewDistanceSliderValue={() => 100}
-        />
+        {role === 'gm' ? (
+          <SelectedTokenControls
+            selectedTokens={mocks.tokens.filter((token) => mocks.selectedTokenIds.includes(token.id))}
+            tokenColor="#2f5bbf"
+            sameCategory={false}
+            onMakeGroup={() => undefined}
+            onRequestDeleteTokens={() => undefined}
+            onUpdateToken={noop}
+            onUpdateTokenSize={noop}
+            onUpdateTokenViewDistance={noop}
+            tokenViewDistanceSliderValue={() => 100}
+          />
+        ) : (
+          <PlayerMapControls
+            cameraLock={false}
+            onToggleCameraLock={() => undefined}
+            selectedTokens={mocks.tokens.filter((token) => mocks.selectedTokenIds.includes(token.id))}
+          />
+        )}
       </>
     ),
   }
@@ -366,5 +375,115 @@ describe('the NPC sheet over the map', () => {
     expect(dialog()).toBeNull()
     expect(listening(SHEETS)).toBe(false)
     expect(listening(RENE)).toBe(false)
+  })
+  describe('the fight modal over the map', () => {
+    const fightButton = () => screen.queryByRole('button', { name: 'Fight' })
+    const fightDialog = () => within(screen.getByRole('dialog', { name: 'Attack' }))
+    const TOMMY = `${BASE}/characters/tommy`
+
+    beforeEach(() => {
+      database[RENE] = npc('Rene Dube')
+      database[RENE_SHEET] = reneSheet()
+      database[TOMMY] = { ...reneSheet(), name: 'Tommy Eves', ownerUserId: 'player-1', lubec: { ...(reneSheet().lubec as Fields), gear: { items: [{ id: 'jk', kind: 'armor', carrier: 'worn', name: 'Leather jacket', size: 1, qty: 1, weight: 'normal', note: '', locs: ['torso'], armor: { cut: 2, pierce: 1, blunt: 1, gun: 0 } }], carriers: [], overrides: [], supplies: [] } } }
+      mocks.tokens = [token('t-tommy', 'Tommy', { characterId: 'tommy' }), token('t-rene', 'Rene Dube', { npcId: 'rene' })]
+    })
+
+    it.each(['gm', 'player'] as const)('shows the %s no Fight action outside Lubec', async (role) => {
+      mocks.selectedTokenIds = ['t-tommy']
+      mountMaps(role, 'ose')
+      await emitAll()
+      expect(fightButton()).toBeNull()
+    })
+
+    it('has the GM\'s first selected token attack the second, with the NPC\'s sheet behind the target', async () => {
+      mocks.selectedTokenIds = ['t-tommy', 't-rene']
+      mountMaps('gm')
+      await emitAll()
+      expect(listening(SHEETS)).toBe(false)
+
+      fireEvent.click(fightButton() as HTMLElement)
+      await emitAll()
+      expect(fightDialog().getByText('Tommy Eves')).toBeTruthy()
+      fireEvent.click(fightDialog().getByRole('button', { name: /Fisticuffs/ }))
+      expect(fightDialog().getByRole('heading', { name: 'Rene Dube' })).toBeTruthy()
+      expect(fightDialog().getByText('Nothing that stops a wound.')).toBeTruthy()
+
+      fireEvent.click(fightDialog().getByRole('button', { name: 'Close' }))
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(listening(SHEETS)).toBe(false)
+      expect(writtenPaths()).toEqual([])
+    })
+
+    it('shows the armor of a character target', async () => {
+      mocks.tokens = [mocks.tokens[1], mocks.tokens[0]]
+      mocks.selectedTokenIds = ['t-rene', 't-tommy']
+      mountMaps('gm')
+      await emitAll()
+      fireEvent.click(fightButton() as HTMLElement)
+      await emitAll()
+      fireEvent.click(fightDialog().getByRole('button', { name: /Fisticuffs/ }))
+      expect(fightDialog().getByText('Leather jacket')).toBeTruthy()
+    })
+
+    describe('for a player', () => {
+      const PUBLIC = { armor: [{ locs: ['torso', 'waist'], armor: { cut: 2, pierce: 1, blunt: 1, gun: 0 } }], woundLevel: null }
+
+      beforeEach(() => {
+        database[TOMMY] = { ...database[TOMMY], creationStatus: 'active' }
+        database[RENE] = npc('Rene Dube', { visibleToPlayers: true, fightSummary: PUBLIC })
+        mocks.selectedTokenIds = ['t-rene']
+      })
+
+      it('attacks as their own character, and sees only the NPC\'s public summary, under the token\'s name', async () => {
+        mountMaps('player')
+        await emitAll()
+        fireEvent.click(fightButton() as HTMLElement)
+        await emitAll()
+        expect(fightDialog().getByText('Tommy Eves')).toBeTruthy()
+        fireEvent.click(fightDialog().getByRole('button', { name: /Fisticuffs/ }))
+        expect(fightDialog().getByRole('heading', { name: 'Someone unknown' })).toBeTruthy()
+        expect(fightDialog().getByText('Torso, Waist')).toBeTruthy()
+        expect(listening(SHEETS)).toBe(false)
+        expect(listening(NPCS + '/rene')).toBe(true)
+
+        fireEvent.click(fightDialog().getByRole('button', { name: 'Close' }))
+        expect(listening(NPCS)).toBe(false)
+        expect(writtenPaths()).toEqual([])
+      })
+
+      it('says the GM has it where the rules refuse the NPC', async () => {
+        mountMaps('player')
+        await emitAll()
+        fireEvent.click(fightButton() as HTMLElement)
+        await flushMicrotasks()
+        act(() => mocks.listeners[RENE].fail(new Error('permission-denied')))
+        fireEvent.click(fightDialog().getByRole('button', { name: /Fisticuffs/ }))
+        expect(fightDialog().getByText('No sheet to read here. The GM says what they are wearing.')).toBeTruthy()
+      })
+    })
+
+    it('keeps the NPC\'s public summary when the sheet\'s gear changes, and writes nothing for opening it', async () => {
+      mocks.selectedTokenIds = ['t-rene']
+      mountMaps('gm')
+      await emitAll()
+      await openFromTokenRow()
+      expect(writtenPaths()).toEqual([])
+
+      const gear = { items: [{ id: 'jk', kind: 'armor', carrier: 'worn', name: 'Secret vest', size: 1, qty: 1, weight: 'normal', note: '', locs: ['torso'], armor: { cut: 2, pierce: 1, blunt: 1, gun: 0 } }], carriers: [], overrides: [], supplies: [] }
+      database[RENE_SHEET] = { ...database[RENE_SHEET], lubec: { ...(database[RENE_SHEET].lubec as Fields), gear } }
+      await emitAll()
+
+      expect(writtenPaths()).toEqual([RENE])
+      expect(mocks.setDoc.mock.calls[0][1]).toEqual({ fightSummary: { armor: [{ locs: ['torso'], armor: { cut: 2, pierce: 1, blunt: 1, gun: 0 } }], woundLevel: null } })
+    })
+
+    it('stops listening to the campaign\'s characters when Maps closes', async () => {
+      mocks.selectedTokenIds = ['t-tommy']
+      mountMaps('gm')
+      await emitAll()
+      expect(listening(`${BASE}/characters`)).toBe(true)
+      cleanup()
+      expect(listening(`${BASE}/characters`)).toBe(false)
+    })
   })
 })

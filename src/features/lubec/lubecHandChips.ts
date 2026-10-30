@@ -16,7 +16,8 @@ export type LubecHandChip =
   | { kind: 'fisticuffs'; attack: LubecAttackHandle }
   | { kind: 'fisticuffs-greyed'; text: string }
 
-const HAND_NAMES: Readonly<Record<LubecHands, string>> = { left: 'Left hand', right: 'Right hand', both: 'Both hands' }
+/** What each hand is called. */
+export const HAND_NAMES: Readonly<Record<LubecHands, string>> = { left: 'Left hand', right: 'Right hand', both: 'Both hands' }
 
 /** "Left hand: Grandpa's revolver, 0 of 6". */
 export const lubecHeldText = (h: LubecHeld): string =>

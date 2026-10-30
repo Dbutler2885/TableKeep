@@ -727,7 +727,7 @@ describe('Lubec Fight panel', () => {
     expect(within(panel).getByText('In hand')).toBeTruthy()
     expect(inHand()).toEqual(['Empty hand', 'Empty hand', 'FisticuffsHandle 55'])
     expect(panel.querySelectorAll('input, textarea, select')).toHaveLength(0)
-    expect(within(panel).getAllByRole('button').map((b) => b.textContent)).toEqual(['FisticuffsHandle 55'])
+    expect(within(panel).getAllByRole('button').map((b) => b.textContent)).toEqual(['FisticuffsHandle 55', 'Start a fight'])
 
     fireEvent.click(fightToggle())
     expect(fightToggle().getAttribute('aria-expanded')).toBe('false')
@@ -738,7 +738,7 @@ describe('Lubec Fight panel', () => {
     const panel = openFight([walkie, revolver])
 
     expect(inHand()).toEqual(["Left hand: Grandpa's revolver, 0 of 6Handle 55", 'Right hand: Walkie-talkie'])
-    expect(panel.getAllByRole('button').map((b) => b.textContent)).toEqual(["Left hand: Grandpa's revolver, 0 of 6Handle 55"])
+    expect(panel.getAllByRole('button').map((b) => b.textContent)).toEqual(["Left hand: Grandpa's revolver, 0 of 6Handle 55", 'Start a fight'])
     expect(panel.queryByRole('button', { name: /Drop/ })).toBeNull()
   })
 
@@ -816,6 +816,140 @@ async function choosePortrait(editor: HTMLElement, file: File) {
 
 const bandPortrait = (name: string) =>
   within(screen.getByRole('article', { name: `${name} character sheet` }).querySelector('.lubec-idband') as HTMLElement)
+
+describe('Lubec fight modal', () => {
+  const fightDialog = () => screen.queryByRole('dialog', { name: 'Attack' })
+  const modal = () => within(fightDialog() as HTMLElement)
+  const held = (id: string, name: string, slot: number, extra: Fields = {}): Fields =>
+    ({ id, kind: 'thing', carrier: 'hands', slot, name, size: 1, qty: 1, weight: 'normal', note: '', ...extra })
+  const knife = held('kn', 'Hunting knife', 0, { kind: 'weapon', mode: 'melee', impact: 1, minStrength: 10 })
+  const jacket: Fields = {
+    id: 'jk', kind: 'armor', carrier: 'worn', name: 'Leather jacket', size: 1, qty: 1, weight: 'normal', note: '',
+    locs: ['torso', 'waist'], armor: { cut: 2, pierce: 1, blunt: 1, gun: 0 },
+  }
+  const gearOf = (...items: Fields[]) => ({ gear: { items, carriers: [], overrides: [], supplies: [] } })
+  const rival = (sheet: Fields) => withSheet(sheet, { name: 'Wayne Gardner', ownerUserId: 'player-2', ownerUsername: 'waynegd' })
+  const startFight = (tommy: Fields[], role: Role = 'player', uid = 'player-1') => {
+    seed({ tommy: withSheet(gearOf(...tommy)), wayne: rival(gearOf(jacket)) })
+    mountTab(role, uid)
+    openSheet('Tommy Eves')
+    fireEvent.click(document.querySelector('.fight-toggle') as HTMLElement)
+  }
+  const opened = () => screen.getByRole('region', { name: 'Fight controls' })
+  const start = () => fireEvent.click(within(opened()).getByRole('button', { name: 'Start a fight' }))
+
+  it('opens over the sheet with the open character as attacker, shows the target\'s armor and the wound-level slot, reads the held weapon from Gear, and closes without writing', async () => {
+    startFight([knife])
+    start()
+
+    expect(modal().getByText('Tommy Eves')).toBeTruthy()
+    expect(modal().getByRole('heading', { name: 'Attack' })).toBeTruthy()
+    const weapon = modal().getByRole('button', { name: /Hunting knife/ })
+    expect(weapon.textContent).toContain('Left hand')
+    expect(weapon.textContent).toContain('Impact +1 · min Str 10')
+    fireEvent.click(weapon)
+
+    fireEvent.change(modal().getByRole('combobox', { name: 'Who' }), { target: { value: 'character:wayne' } })
+    expect(modal().getByRole('heading', { name: 'Wayne Gardner' })).toBeTruthy()
+    expect(modal().getByRole('status', { name: 'Wound level' }).textContent).toBe('')
+    expect(modal().getByText('Wayne Gardner is wearing')).toBeTruthy()
+    const piece = modal().getByText('Leather jacket').closest('.wear-row') as HTMLElement
+    expect(piece.textContent).toContain('Torso, Waist')
+    expect([...piece.querySelectorAll('.nums i')].map((n) => n.textContent)).toEqual(['Cut2', 'Pierce1', 'Blunt1', 'Gun0'])
+
+    mocks.setDoc.mockClear()
+    fireEvent.click(modal().getByRole('button', { name: 'Close' }))
+    await flushMicrotasks()
+    expect(fightDialog()).toBeNull()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+  })
+
+  it('lists six steps with only Weapon and Target live, and stops at Next: attack', () => {
+    startFight([knife])
+    start()
+
+    const steps = [...(fightDialog() as HTMLElement).querySelectorAll('.stepper li')]
+    expect(steps.map((s) => s.textContent)).toEqual(['1Weapon', '2Target', '3Attack', '4Roll', '5Location', '6Result'])
+    expect(steps.map((s) => s.className)).toEqual(['now', '', 'off', 'off', 'off', 'off'])
+    expect(modal().getByRole('button', { name: 'Next: target' })).toHaveProperty('disabled', true)
+
+    fireEvent.click(modal().getByRole('button', { name: /Fisticuffs/ }))
+    expect(modal().getByRole('button', { name: 'Next: attack' })).toHaveProperty('disabled', true)
+    fireEvent.click(modal().getByRole('button', { name: 'Back' }))
+    expect(modal().getByRole('button', { name: /^Fists and feet/ }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(modal().getByRole('button', { name: 'Next: target' }))
+    expect(modal().getByText('Who are you attacking?')).toBeTruthy()
+  })
+
+  it('greys Fisticuffs with both hands full of things, and a drop frees the hand and goes to the GM', async () => {
+    mocks.runTransaction.mockImplementation(transaction)
+    startFight([held('th', 'Thermos', 0), held('wt', 'Walkie-talkie', 1)])
+    start()
+
+    const fists = modal().getByRole('button', { name: /Fisticuffs/ })
+    expect(fists).toHaveProperty('disabled', true)
+    expect(fists.textContent).toContain('Hands full: drop something first')
+    expect(modal().getByRole('button', { name: /^Left hand/ })).toHaveProperty('disabled', true)
+
+    fireEvent.click(modal().getByRole('button', { name: 'Drop Thermos, free' }))
+    for (let round = 0; round < 5; round += 1) await flushMicrotasks()
+    expect(Object.keys(droppedItems).filter((path) => path.includes('/gmItems/'))).toHaveLength(1)
+    // The drop answers once the sheet's own save has come back.
+    const saved = { metadata: { hasPendingWrites: false }, get: () => ({ seconds: 2 ** 40, nanoseconds: 0 }) }
+    await act(async () => mocks.listeners['groups/group-1/campaigns/campaign-1/characters/tommy'].next(saved as never))
+    expect(modal().getByRole('status').textContent).toContain('It goes to the GM.')
+  })
+
+  it('opens on Target with the weapon chosen from a Fight bar chip, and the card\'s "Fight with this"', () => {
+    startFight([knife])
+    fireEvent.click(within(opened()).getByRole('button', { name: /Hunting knife/ }))
+    expect(modal().getByRole('button', { name: /^Weapon/ }).textContent).toBe('WeaponHunting knife')
+    expect(modal().getByText('Who are you attacking?')).toBeTruthy()
+    fireEvent.click(modal().getByRole('button', { name: 'Close' }))
+
+    fireEvent.click(within(opened()).getByRole('button', { name: /^Fisticuffs/ }))
+    expect(modal().getByRole('button', { name: /^Weapon/ }).textContent).toBe('WeaponFisticuffs')
+    fireEvent.click(modal().getByRole('button', { name: 'Close' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Gear' }))
+    fireEvent.click(screen.getAllByRole('button', { name: /Hunting knife/ })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Fight with this' }))
+    expect(modal().getByRole('button', { name: /^Weapon/ }).textContent).toBe('WeaponHunting knife')
+  })
+
+  it('closes on Escape', () => {
+    startFight([knife])
+    start()
+    fireEvent.keyDown(fightDialog() as HTMLElement, { key: 'Escape' })
+    expect(fightDialog()).toBeNull()
+  })
+
+  it('offers no way in to a viewer who may not fight as the character', () => {
+    seed({ tommy: withSheet(gearOf(knife)) })
+    mountTab('player', 'player-2')
+    openSheet('Tommy Eves')
+    fireEvent.click(document.querySelector('.fight-toggle') as HTMLElement)
+    expect(within(opened()).queryByRole('button', { name: 'Start a fight' })).toBeNull()
+    expect(within(opened()).queryByRole('button', { name: /Hunting knife/ })).toBeNull()
+    expect(within(opened()).queryByRole('button', { name: /Fisticuffs/ })).toBeNull()
+  })
+
+  it('reads the NPCs and their sheets only for the GM, and only while the modal is open', () => {
+    const npcsPath = 'groups/group-1/campaigns/campaign-1/npcs'
+    startFight([knife], 'gm', GM)
+    expect(mocks.listeners[npcsPath]).toBeUndefined()
+    start()
+    expect(mocks.listeners[npcsPath]).toBeDefined()
+    fireEvent.click(modal().getByRole('button', { name: 'Close' }))
+    expect(mocks.listeners[npcsPath]).toBeUndefined()
+  })
+
+  it('never reads the NPCs for a player', () => {
+    startFight([knife])
+    start()
+    expect(mocks.listeners['groups/group-1/campaigns/campaign-1/npcs']).toBeUndefined()
+  })
+})
 
 describe('Lubec name band', () => {
   it('lets the owner of a finalized character change its name and age, kept through a reload', () => {

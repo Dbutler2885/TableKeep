@@ -8,6 +8,8 @@ import { LubecGiveFoot, LUBEC_GIVE_PANEL } from './LubecGivePanel'
 import { LubecMovePanel, LUBEC_MOVE_PANEL } from './LubecMovePanel'
 import { LubecSheetHead } from './LubecSheetHead'
 import type { LubecCardGive } from './useLubecCardGive'
+import { useLubecFightStart } from '../fight/lubecFightStart'
+import { lubecHeld } from '../../ruleSets/lubec/gear/held'
 import { lubecAttackButtons } from './weaponFacts'
 import { isBox } from '../../ruleSets/lubec/gear/gearRules'
 import type { LubecLoadAct, LubecLoadButton } from './loadLabels'
@@ -122,14 +124,26 @@ const canUseOne = (i: LubecItem) => i.kind === 'consumable' && i.qty > 0 && !i.f
 // The available count also decides whether the box's "Take some out" panel is visible.
 const takeOutCount = (item: LubecItem, load: LubecCardLoad) => isBox(item) && load.takeoutOpen ? item.loaded ?? 0 : 0
 
-/** The kind's own buttons: a weapon's attacks (B 2787-2793), "Use one", and loading (B 2794-2803). */
-function KindActions({ item, load, actions }: { item: LubecItem; load: LubecCardLoad; actions: LubecCardActions }) {
+// A weapon in hand opens the fight modal with it chosen, for a viewer who may fight; the card closes under it.
+function FightWithThis({ gear, item, onClose }: { gear: LubecGear; item: LubecItem; onClose: () => void }) {
+  const start = useLubecFightStart()
+  if (!start || !lubecHeld(gear).some((h) => h.itemId === item.id && h.weapon)) return null
+  const fight = () => {
+    onClose()
+    start(item.id)
+  }
+  return <button type="button" className="btn" onClick={fight}>Fight with this</button>
+}
+
+/** The kind's own buttons: a weapon's attacks (B 2787-2793), "Fight with this", "Use one", and loading (B 2794-2803). */
+function KindActions({ gear, item, load, actions }: { gear: LubecGear; item: LubecItem; load: LubecCardLoad; actions: LubecCardActions }) {
   const attacks = lubecAttackButtons(item)
   const takeOut = takeOutCount(item, load)
   if (!attacks.length && !canUseOne(item) && !load.buttons.length) return null
   return (
     <div className="kind-actions">
       {attacks.map((b) => <button key={b.label} type="button" className="btn" disabled={b.disabled} onClick={actions.onAttack}>{b.label}</button>)}
+      <FightWithThis gear={gear} item={item} onClose={actions.onClose} />
       {canUseOne(item) ? <button type="button" className="btn" onClick={actions.onUseOne}>Use one</button> : null}
       <LubecLoadButtons buttons={load.buttons} takeoutOpen={load.takeoutOpen} onLoad={actions.onLoad} />
       {takeOut ? <LubecTakeOutPanel key={item.id} loaded={takeOut} costOf={load.takeOutCost} onTakeOut={actions.onTakeOut} /> : null}
@@ -183,7 +197,7 @@ export function LubecItemCard({ supplies, wielder, load, ...props }: CardProps) 
       </div>
       <Facts facts={lubecCardFacts(gear, item, supplies, wielder)} check={item.check} actions={actions} />
       <StockRow item={item} />
-      <KindActions item={item} load={load} actions={actions} />
+      <KindActions gear={gear} item={item} load={load} actions={actions} />
       <CardFoot {...props} />
     </div>
   )

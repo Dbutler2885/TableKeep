@@ -1,6 +1,7 @@
 import { Crosshair } from 'lucide-react'
-import type { NpcSummary } from '../lib/types'
+import type { NpcSummary, TokenRecord } from '../lib/types'
 import { sanitizeRichText } from '../../common/richText'
+import { MapFightAction } from './MapFightAction'
 
 // The NPC the GM is presenting, as the players see it.
 function PresentedNpcPanel({ npc }: { npc: NpcSummary }) {
@@ -37,11 +38,14 @@ export function PlayerMapControls({
   cameraLock,
   onToggleCameraLock,
   presentedNpc,
+  selectedTokens = [],
   dark = false,
 }: {
   cameraLock: boolean
   onToggleCameraLock: () => void
   presentedNpc?: NpcSummary | null
+  /** The tokens the player has selected, which the Fight action reads. */
+  selectedTokens?: readonly TokenRecord[]
   dark?: boolean
 }) {
   return (
@@ -56,6 +60,7 @@ export function PlayerMapControls({
         >
           <Crosshair size={16} />
         </button>
+        <MapFightAction tokens={selectedTokens} className="map-icon-btn" />
       </div>
       {presentedNpc ? <PresentedNpcPanel npc={presentedNpc} /> : null}
     </div>

@@ -125,6 +125,7 @@ export function useTokenCards(tokens: TokenRecord[], selectedTokenIds: string[],
   const collapsedSubgroups = useKeyToggles()
   const selectedIds = useMemo(() => new Set(selectedTokenIds), [selectedTokenIds])
   const selectedTokens = useMemo(() => tokens.filter((token) => selectedIds.has(token.id)), [selectedIds, tokens])
+  const pickedTokens = useMemo(() => selectedTokenIds.flatMap((id) => tokens.filter((token) => token.id === id)), [selectedTokenIds, tokens])
   const sameCategory = shareOneCategory(selectedTokens)
   const selection = useTokenListSelection(tokenGroups, setSelection)
   const names = useTokenNameDrafts(setSelection, onUpdateToken)
@@ -137,6 +138,7 @@ export function useTokenCards(tokens: TokenRecord[], selectedTokenIds: string[],
     collapsedSubgroups,
     selectedIds,
     selectedTokens,
+    pickedTokens,
     sameCategory,
     categoryLabel: selectedCategoryLabel(tokenGroups, selectedIds, sameCategory),
     selection,
