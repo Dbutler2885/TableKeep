@@ -7,7 +7,7 @@
  * written.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../../types/app'
 
@@ -16,6 +16,10 @@ import type { Campaign, Role } from '../../../types/app'
 // machine the same cases ran past Vitest's 5 second default and failed without
 // any assertion failing, as `LubecCharacterTab.test.tsx`'s did.
 vi.setConfig({ testTimeout: 30_000 })
+// A backpack picture, and each of the picker's 18 thumbnails, is a dynamic
+// import that resolves after the render; under coverage on a loaded machine
+// that outlasted waitFor's 1 second default, as LubecGearMoves.test.tsx's drop did.
+configure({ asyncUtilTimeout: 10_000 })
 
 type Fields = Record<string, unknown>
 type Listener = { next: (snap: unknown) => void; fail: (error: unknown) => void }
