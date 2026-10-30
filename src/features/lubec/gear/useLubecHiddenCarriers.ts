@@ -13,6 +13,11 @@ const readCarrier = (snap: QueryDocumentSnapshot<DocumentData>) => parseLubecCar
 
 const carriersOf = (docs: QueryDocumentSnapshot<DocumentData>[]) => docs.map(readCarrier).sort((a, b) => a.name.localeCompare(b.name))
 
+const NOBODY = { db: null, groupId: '', campaignId: '', characterId: '' }
+
+const targetOf = (hidden: LubecGearHidden | null) =>
+  (hidden ? { db: hidden.db, groupId: hidden.scope.groupId, campaignId: hidden.scope.campaignId, characterId: hidden.characterId } : NOBODY)
+
 /**
  * A character's hidden carriers, kept in step with Firestore. With no `hidden`,
  * for anyone but the character's owner and the GM, nothing subscribes at all.
@@ -20,14 +25,11 @@ const carriersOf = (docs: QueryDocumentSnapshot<DocumentData>[]) => docs.map(rea
  * leaves them nothing to see, so it reads as none rather than an error.
  */
 export function useLubecHiddenCarriers(hidden: LubecGearHidden | null): readonly LubecHiddenCarrier[] {
-  const db = hidden?.db
-  const groupId = hidden?.scope.groupId ?? ''
-  const campaignId = hidden?.scope.campaignId ?? ''
-  const characterId = hidden?.characterId ?? ''
-  const key = hidden ? `${groupId}/${campaignId}/${characterId}` : null
+  const { db, groupId, campaignId, characterId } = targetOf(hidden)
+  const key = `${groupId}/${campaignId}/${characterId}`
   const [listened, setListened] = useState<Listened | null>(null)
   useEffect(() => {
-    if (!db || key === null) return undefined
+    if (!db) return undefined
     return onSnapshot(
       characterHiddenCarriersRef(db, { groupId, campaignId }, characterId),
       (snap) => setListened({ key, carriers: carriersOf(snap.docs) }),
