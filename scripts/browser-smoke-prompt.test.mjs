@@ -1,6 +1,6 @@
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { JSDOM } from 'jsdom'
-import { emptyRevolverPromptProblems, inHandProblems, readLubecGearPrompt, readLubecInHand } from './browser-smoke.mjs'
+import { emptyRevolverPromptProblems, expectInHand, inHandProblems, readLubecGearPrompt, readLubecInHand } from './browser-smoke.mjs'
 
 // Keep the smoke module in Node, with its real file URLs, and give only the prompt reader a DOM.
 const dom = new JSDOM()
@@ -45,11 +45,13 @@ describe('reading the Fight bar\'s "In hand" in the browser smoke', () => {
     const chips = readLubecInHand(document.querySelector('.lubec-in-hand'))
     expect(chips).toEqual(['Left hand: Flashlight', 'Right hand: .38 revolver, 0 of 6'])
     expect(inHandProblems(chips)).toEqual([])
+    expect(() => expectInHand(chips)).not.toThrow()
   })
 
   it('reports empty hands as a smoke failure', () => {
     document.body.innerHTML = '<div class="lubec-in-hand"><span class="lubec-hand-chip empty">Empty hand</span></div>'
     const chips = readLubecInHand(document.querySelector('.lubec-in-hand'))
     expect(inHandProblems(chips)).toEqual(['"In hand" shows ["Empty hand"]'])
+    expect(() => expectInHand(chips)).toThrow('"In hand" shows ["Empty hand"]')
   })
 })
