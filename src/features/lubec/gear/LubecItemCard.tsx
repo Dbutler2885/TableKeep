@@ -165,7 +165,7 @@ export function LubecItemCard({ supplies, wielder, load, ...props }: CardProps) 
   const { gear, item, actions } = props
   return (
     <div className="sheet-form">
-      <LubecSheetHead eyebrow={cardEyebrow(item)} title={cardTitle(item)} onClose={actions.onClose} />
+      <LubecSheetHead eyebrow={cardEyebrow(item, gear)} title={cardTitle(item)} onClose={actions.onClose} />
       <div className="card-top">
         <LubecCardPicture item={item} name={item.name} />
         <p className={`item-note${item.note ? '' : ' empty'}`}>{item.note || 'No description yet. Tap Edit to add one.'}</p>

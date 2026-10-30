@@ -3,8 +3,9 @@
 
 import { bothHands } from '../../ruleSets/lubec/gear/placement'
 import { holdWay, locSummary } from '../../ruleSets/lubec/gear/gearRules'
-import { LUBEC_BACKPACK_POCKETS, type LubecItem, type LubecSupply } from '../../ruleSets/lubec/gear/gearRecord'
+import { emptyLubecGear, LUBEC_BACKPACK_POCKETS, lubecHasPlace, type LubecGear, type LubecItem, type LubecSupply } from '../../ruleSets/lubec/gear/gearRecord'
 import { MAX_STACKS, slotsText, stacksOf } from '../../ruleSets/lubec/gear/stacks'
+import { lubecCarrierWhere } from './carrierLabels'
 
 /** A supply's name from its id, or "no supply". */
 export type LubecSupplyName = (id: string | undefined) => string
@@ -54,17 +55,32 @@ function backpackWhere(i: LubecItem): string {
   return `Backpack, ${(LUBEC_BACKPACK_POCKETS[i.pocket]?.name ?? '').toLowerCase()}`
 }
 
-/** Where an item on you is, in words: "Backpack, main pocket", "Left hand", "Body slot", "Worn: head". */
-export function whereText(i: LubecItem): string {
-  if (i.carrier === 'backpack') return backpackWhere(i)
-  if (i.carrier === 'hands') return bothHands(i) ? 'Both hands' : SLOT_NAMES.hands[i.slot ?? 0]
-  if (i.carrier === 'worn') return `Worn: ${locSummary(i.locs ?? []).toLowerCase()}`
-  return 'Body slot'
+/** Where an item is listed when its place cannot be read: no such carrier, or a slot or pocket out of range. */
+export const LUBEC_NEEDS_A_PLACE = 'Needs a place'
+
+const ON_YOU_WHERE: Readonly<Record<string, (i: LubecItem) => string>> = {
+  backpack: backpackWhere,
+  hands: (i) => (bothHands(i) ? 'Both hands' : SLOT_NAMES.hands[i.slot ?? 0]),
+  worn: (i) => `Worn: ${locSummary(i.locs ?? []).toLowerCase()}`,
+  body: () => 'Body slot',
 }
 
-/** B's toast after an add: where the item went, or how many stacks it made. */
-export function addedToast(first: LubecItem, stacks: number): string {
-  const where = whereText(first)
+// A thing on a sheet with no personal carriers can only be on you.
+const NO_CARRIERS = emptyLubecGear()
+
+/**
+ * Where an item is, in words: "Backpack, main pocket", "Left hand", "Body slot", "Worn: head", or in one of
+ * `gear`'s personal carriers, "Duffel bag". An item whose place cannot be read "Needs a place".
+ */
+export function whereText(i: LubecItem, gear: LubecGear = NO_CARRIERS): string {
+  if (!lubecHasPlace(gear, i)) return LUBEC_NEEDS_A_PLACE
+  if (Object.hasOwn(ON_YOU_WHERE, i.carrier)) return ON_YOU_WHERE[i.carrier](i)
+  return lubecCarrierWhere(gear.carriers.find((c) => c.id === i.carrier) as LubecGear['carriers'][number], i.pocket)
+}
+
+/** B's toast after an add: where the item went, or how many stacks it made; `gear` is the gear it went into. */
+export function addedToast(first: LubecItem, stacks: number, gear: LubecGear = NO_CARRIERS): string {
+  const where = whereText(first, gear)
   return stacks > 1 ? `${first.name}: ${stacks} stacks, ${where.toLowerCase()}.` : `${first.name}: ${where}.`
 }
 

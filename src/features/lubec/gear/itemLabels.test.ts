@@ -89,4 +89,9 @@ describe('"Put it"', () => {
       T('a', {}), T('b', { pocket: null, size: 0 }), T('c', { carrier: 'hands', slot: 1 }), T('d', { carrier: 'worn', pocket: undefined }),
     ].map(destOf)).toEqual(['backpack#0', 'backpack#small', 'hands#1', 'worn'])
   })
+
+  it('reads a carrier, or its small stuff, as its first pocket, and a thing in a carrier as its pocket', () => {
+    expect(['duffel', 'duffel#small', 'bag#1'].map(selectValue)).toEqual(['duffel#0', 'duffel#0', 'bag#1'])
+    expect([T('a', { carrier: 'bag', pocket: 1 }), T('b', { carrier: 'bag', pocket: null, size: 0 })].map(destOf)).toEqual(['bag#1', 'bag#small'])
+  })
 })

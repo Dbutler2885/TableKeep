@@ -16,6 +16,9 @@ import { LubecItemSheet } from './LubecItemSheet'
 import { LubecStrengthPrompt } from './LubecStrengthPrompt'
 import { lubecAskedThing, type LubecStrengthAsk } from './strengthAsk'
 import { useLubecGearMoves, type LubecDropIt } from './useLubecGearMoves'
+import type { LubecGearCarry } from './LubecCarrierDetail'
+import { LubecCarrierDialogOver, LubecCarriersView, LubecCarrying } from './LubecGearCarriers'
+import { useLubecCarrierActs, useLubecGearView, type LubecGearView } from './useLubecCarriers'
 import { lubecAnswerStrength, useLubecStrengthAsk, type LubecGearStrength } from './useLubecStrengthAsk'
 import { useLubecToast } from './useLubecToast'
 import './lubecGear.css'
@@ -24,14 +27,15 @@ import './lubecGearArmor.css'
 import './lubecGearWeapons.css'
 import './lubecGearLoading.css'
 import './lubecPackPicker.css'
+import './lubecGearCarriers.css'
 
 /** Saves the character's next gear; null for a viewer who may only look. */
 export type LubecGearChange = ((gear: LubecGear) => void) | null
 
-type LubecGearView = 'on-you' | 'carriers'
-
 type GearPageProps = {
   gear: LubecGear
+  /** The character's name, who owns the personal carriers. */
+  owner: string
   /** The character's Strength and Handle, which a weapon's card reads. */
   wielder: LubecWielder
   onGearChange: LubecGearChange
@@ -45,16 +49,21 @@ type GearPageProps = {
 
 const NO_CAMPAIGN_STOCK: readonly LubecStockItem[] = []
 
-function GearTabs({ view, onView }: { view: LubecGearView; onView: (view: LubecGearView) => void }) {
-  const tab = (id: LubecGearView, label: string) => (
-    <button type="button" role="tab" id={`lubec-gear-tab-${id}`} aria-selected={view === id} aria-controls={`lubec-gear-view-${id}`} onClick={() => onView(id)}>
+type GearTab = 'on-you' | 'carriers'
+
+// A carrier's detail is under the Carriers tab, as in B.
+const tabOf = (view: LubecGearView): GearTab => (view.name === 'on-you' ? 'on-you' : 'carriers')
+
+function GearTabs({ view, onView }: { view: LubecGearView; onView: (tab: GearTab) => void }) {
+  const tab = (id: GearTab, label: string) => (
+    <button type="button" role="tab" id={`lubec-gear-tab-${id}`} aria-selected={tabOf(view) === id} aria-controls={`lubec-gear-view-${id}`} onClick={() => onView(id)}>
       {label}
     </button>
   )
   return <nav className="tabs" role="tablist" aria-label="Gear views">{tab('on-you', 'On you')}{tab('carriers', 'Carriers')}</nav>
 }
 
-type GearBarProps = { view: LubecGearView; onView: (view: LubecGearView) => void; full: boolean; onAdd: (() => void) | null }
+type GearBarProps = { view: LubecGearView; onView: (tab: GearTab) => void; full: boolean; onAdd: (() => void) | null }
 
 // The tab band: On you and Carriers on ink, the full tag and the add button at its end.
 function GearBar({ view, onView, full, onAdd }: GearBarProps) {
@@ -70,10 +79,18 @@ function GearBar({ view, onView, full, onAdd }: GearBarProps) {
   )
 }
 
-type OnYouProps = { gear: LubecGear; onAdd: LubecGearAdd; onOpen: LubecGearOpen; onGearChange: LubecGearChange; sectionRef: RefObject<HTMLElement | null> }
+type OnYouProps = {
+  gear: LubecGear
+  onAdd: LubecGearAdd
+  onOpen: LubecGearOpen
+  onGearChange: LubecGearChange
+  sectionRef: RefObject<HTMLElement | null>
+  onOpenCarrier: (id: string) => void
+  onCarry: LubecGearCarry
+}
 
-// On you: the backpack, the hands, the body and the armor worn, on one screen. Things on it are dragged to move them (Rule M7).
-function OnYou({ gear, onAdd, onOpen, onGearChange, sectionRef }: OnYouProps) {
+// On you: the backpack, the hands, the body, the armor worn and any carrier carried, on one screen. Things on it are dragged to move them (Rule M7).
+function OnYou({ gear, onAdd, onOpen, onGearChange, sectionRef, onOpenCarrier, onCarry }: OnYouProps) {
   const supplyName = supplyNameIn(lubecSupplies(gear))
   return (
     <section ref={sectionRef} id="lubec-gear-view-on-you" role="tabpanel" aria-labelledby="lubec-gear-tab-on-you">
@@ -82,16 +99,9 @@ function OnYou({ gear, onAdd, onOpen, onGearChange, sectionRef }: OnYouProps) {
         <div className="side">
           <LubecGearHandsBody gear={gear} supplyName={supplyName} onAdd={onAdd} onOpen={onOpen} />
           <LubecGearArmor gear={gear} onAdd={onAdd} onOpen={onOpen} />
+          <LubecCarrying gear={gear} onOpenCarrier={onOpenCarrier} onCarry={onCarry} />
         </div>
       </div>
-    </section>
-  )
-}
-
-function Carriers() {
-  return (
-    <section id="lubec-gear-view-carriers" className="carriers-view" role="tabpanel" aria-labelledby="lubec-gear-tab-carriers">
-      <p className="note">Carriers are on the way: a duffel bag, a chest at home, the family car.</p>
     </section>
   )
 }
@@ -150,20 +160,44 @@ function StrengthAskOver({ asking, strength, change, ...ctx }: AskOverProps) {
   return <StrengthAsk key={askKey(asking.ask)} ask={asking.ask} strength={strength} change={change} setAsk={asking.setAsk} {...ctx} />
 }
 
-/** The Lubec sheet's Gear page: the Gear bar, B's On you view of the backpack, the hands, the body and the armor, and the item sheet over it. */
-export function LubecGearPage({ gear, wielder, onGearChange, onDrop = null, campaignStock = NO_CAMPAIGN_STOCK, strength = null }: GearPageProps) {
-  const [view, setView] = useState<LubecGearView>('on-you')
+type ViewsProps = Omit<OnYouProps, 'onGearChange' | 'sectionRef'> & {
+  owner: string
+  nav: ReturnType<typeof useLubecGearView>
+  moves: ReturnType<typeof useLubecGearMoves>
+  onNewCarrier: (() => void) | null
+}
+
+// The view the tabs show: On you, or the Carriers list and a carrier's detail.
+function GearViews({ nav, moves, owner, onNewCarrier, ...props }: ViewsProps) {
+  if (nav.view.name === 'on-you') return <OnYou {...props} onGearChange={moves.change} sectionRef={moves.onYou} />
+  const { gear, onAdd, onOpen, onCarry } = props
+  return (
+    <LubecCarriersView
+      gear={gear} owner={owner} view={nav.view} show={nav.show} openCarrier={nav.openCarrier}
+      onNewCarrier={onNewCarrier} onAdd={onAdd} onOpenItem={onOpen && onOpen.item} onCarry={onCarry}
+    />
+  )
+}
+
+/** The Lubec sheet's Gear page: the Gear bar, B's On you view of the backpack, the hands, the body and the armor, the Carriers view, and the item sheet over them. */
+export function LubecGearPage({ gear, owner, wielder, onGearChange, onDrop = null, campaignStock = NO_CAMPAIGN_STOCK, strength = null }: GearPageProps) {
+  const nav = useLubecGearView()
   const [sheet, setSheet] = useState<LubecItemSheetState | null>(null)
   const toast = useLubecToast()
   const asking = useLubecStrengthAsk(gear, strength)
   const moves = useLubecGearMoves({ gear, onGearChange, onDrop, toast, setSheet, onAsk: asking.onAsk })
   const { onAdd, onOpen } = sheetOpeners(moves.change !== null, setSheet)
+  const carriers = useLubecCarrierActs({ gear, change: moves.change, toast: toast.show })
   return (
     <div className="lubec-page lubec-gear" aria-busy={moves.busy}>
-      <GearBar view={view} onView={setView} full={inventoryFull(gear)} onAdd={onAdd && (() => onAdd('backpack#0'))} />
+      <GearBar view={nav.view} onView={nav.show} full={inventoryFull(gear)} onAdd={onAdd && (() => onAdd('backpack#0'))} />
       <LubecDragContext value={moves.drag.view}>
-        {view === 'on-you' ? <OnYou gear={gear} onAdd={onAdd} onOpen={onOpen} onGearChange={moves.change} sectionRef={moves.onYou} /> : <Carriers />}
+        <GearViews
+          gear={gear} owner={owner} nav={nav} moves={moves} onAdd={onAdd} onOpen={onOpen}
+          onOpenCarrier={nav.openCarrier} onCarry={carriers.onCarry} onNewCarrier={carriers.onNewCarrier}
+        />
       </LubecDragContext>
+      <LubecCarrierDialogOver gear={gear} change={moves.change} toast={toast.show} acts={carriers} />
       {moves.change && sheet ? (
         <LubecItemSheet
           sheet={sheet} gear={gear} onGearChange={moves.change} onSheet={setSheet} toast={toast.show} campaignStock={campaignStock}

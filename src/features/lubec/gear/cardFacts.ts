@@ -20,8 +20,8 @@ const nameOf = (supplies: readonly LubecSupply[], sid: string | undefined) => su
 
 const fact = (term: string, text: string, step?: LubecCardFact['step']): LubecCardFact => (step ? { term, text, step } : { term, text })
 
-/** The card's eyebrow: the kind, and where it is. */
-export const cardEyebrow = (i: LubecItem): string => `${KIND_NAMES[i.kind]} / ${whereText(i)}`
+/** The card's eyebrow: the kind, and where it is in `gear`. */
+export const cardEyebrow = (i: LubecItem, gear?: LubecGear): string => `${KIND_NAMES[i.kind]} / ${whereText(i, gear)}`
 
 /** The card's title: the name, and how many unless it counts down. */
 export const cardTitle = (i: LubecItem): string => `${i.name} ${i.kind === 'consumable' ? '' : qtyText(i)}`.trim()
@@ -106,6 +106,6 @@ export function lubecCardFacts(gear: LubecGear, item: LubecItem, supplies: reado
   const f = { gear, item, supplies, wielder }
   return [
     sizeFact(item), weightFact(item), ...stackFact(f), ...encumberingFact(item), ...countFacts(f),
-    ...(KIND_FACTS[item.kind]?.(f) ?? []), fact('Where', whereText(item)),
+    ...(KIND_FACTS[item.kind]?.(f) ?? []), fact('Where', whereText(item, gear)),
   ]
 }

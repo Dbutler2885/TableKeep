@@ -267,8 +267,8 @@ const HAND_AND_BODY_SLOTS: readonly unknown[] = [0, 1]
 const pocketsOf = (gear: LubecGear, carrierId: string): readonly LubecPocket[] | undefined =>
   carrierId === 'backpack' ? LUBEC_BACKPACK_POCKETS : gear.carriers.find((carrier) => carrier.id === carrierId)?.pockets
 
-// Small stuff sits in a carrier with no pocket; anything else needs one of its pockets.
-function hasPlace(gear: LubecGear, item: LubecItem): boolean {
+/** Whether an item's place can be read: small stuff sits in a carrier with no pocket; anything else needs one of its pockets. */
+export function lubecHasPlace(gear: LubecGear, item: LubecItem): boolean {
   if (item.carrier === 'worn') return true
   if (item.carrier === 'hands' || item.carrier === 'body') return HAND_AND_BODY_SLOTS.includes(item.slot)
   const pockets = pocketsOf(gear, item.carrier)
@@ -278,4 +278,4 @@ function hasPlace(gear: LubecGear, item: LubecItem): boolean {
 
 /** The items whose place cannot be read: no such carrier, or a slot or pocket out of range. They count for nothing on you, and are never dropped or placed for the player. */
 export const lubecItemsNeedingAPlace = (gear: LubecGear): LubecItem[] =>
-  gear.items.filter((item) => !hasPlace(gear, item))
+  gear.items.filter((item) => !lubecHasPlace(gear, item))

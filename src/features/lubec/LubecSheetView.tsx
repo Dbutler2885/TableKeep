@@ -241,7 +241,7 @@ function LubecSheetGear({ character, onGearChange, onGearDrop, onGearRolled, cam
   const strength = onGearRolled && { sheet: character.lubec, onRolled: onGearRolled }
   return (
     <LubecGearPage
-      gear={character.lubec.gear} wielder={lubecWielder(character.lubec)} onGearChange={onGearChange} onDrop={onGearDrop} strength={strength} campaignStock={campaignStock}
+      gear={character.lubec.gear} owner={character.name} wielder={lubecWielder(character.lubec)} onGearChange={onGearChange} onDrop={onGearDrop} strength={strength} campaignStock={campaignStock}
     />
   )
 }

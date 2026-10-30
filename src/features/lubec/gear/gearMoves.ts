@@ -31,7 +31,7 @@ const refused = (msg: string) => ({ kind: 'refused' as const, msg })
 
 function swapped(gear: LubecGear, i: LubecItem, o: LubecItem): LubecGearMove {
   const s = lubecSwapItems(gear, i, o)
-  return s.ok ? { kind: 'done', gear: s.gear, toast: lubecSwappedToast(s.a, s.b, s.cost) } : refused(s.msg)
+  return s.ok ? { kind: 'done', gear: s.gear, toast: lubecSwappedToast(s.a, s.b, s.cost, s.gear) } : refused(s.msg)
 }
 
 // Rule E5: a heavy thing that would come onto you asks first; one that can't go there is refused before anyone rolls.
@@ -39,7 +39,7 @@ function moved(gear: LubecGear, i: LubecItem, dest: string, cells: readonly numb
   const m = lubecMoveItem(gear, i.id, dest, cells)
   if (!m.ok) return refused(m.msg)
   if (lubecNeedsStrength(i, dest, i)) return { kind: 'ask', move: { itemId: i.id, dest, cells } }
-  return { kind: 'done', gear: m.gear, toast: lubecMovedToast(m.item, i.carrier, dest) }
+  return { kind: 'done', gear: m.gear, toast: lubecMovedToast(m.item, i.carrier, dest, m.gear) }
 }
 
 /**
@@ -51,7 +51,7 @@ export function lubecHeavyMove(gear: LubecGear, { itemId, dest, cells }: LubecHe
   const from = gear.items.find((x) => x.id === itemId)?.carrier ?? ''
   const m = lubecMoveItem(gear, itemId, dest, cells)
   if (!m.ok) return refused(m.msg)
-  return { kind: 'done', gear: check ? lubecWithCheck(m.gear, itemId, check) : m.gear, toast: lubecMovedToast(m.item, from, dest) }
+  return { kind: 'done', gear: check ? lubecWithCheck(m.gear, itemId, check) : m.gear, toast: lubecMovedToast(m.item, from, dest, m.gear) }
 }
 
 /** The card's Move it or Swap, for the choice `value` in its Move list. A refused move points at swapping when it could. */

@@ -78,7 +78,7 @@ function saveEdit(gear: LubecGear, form: LubecFormSheet, editing: LubecItem, dra
 function saveNew(gear: LubecGear, form: LubecFormSheet, draft: LubecItemDraft, newId: () => string): LubecFormSaved {
   const added = addLubecItem(gear, destOf(form), draft, newId)
   if (!added.ok) return added
-  return { ok: true, gear: added.gear, toast: addedToast(added.first, added.stacks), next: lubecBackSheet(form.back) }
+  return { ok: true, gear: added.gear, toast: addedToast(added.first, added.stacks, added.gear), next: lubecBackSheet(form.back) }
 }
 
 // A save that asks for a Strength roll records its answer, or none yet, in place of the roll recorded before.

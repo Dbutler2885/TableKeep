@@ -58,6 +58,20 @@ describe('the card\'s Move list', () => {
     expect(groups[0].options.filter((o) => o.value === 'worn')).toHaveLength(1)
   })
 
+  it('offers the personal carriers after the places on you, greying out the pocket it is in', () => {
+    const withBag = parseLubecGear({
+      items: [T('f', 'bag', 1, 'Flashlight', 1)],
+      carriers: [{ id: 'bag', name: 'School bag', type: 'school-bag', pockets: [{ name: 'Main', slots: 4, max: 4 }, { name: 'Outside pocket', slots: 1, max: 1 }] }],
+    })
+    const groups = lubecMoveGroups(withBag, byId(withBag, 'f'))
+    expect(groups.map((g) => g.label)).toEqual(['On you', 'Carriers', 'Elsewhere'])
+    expect(groups[1].options).toEqual([
+      { value: 'bag#0', label: 'School bag: main (4 free)', disabled: false },
+      { value: 'bag#1', label: 'School bag: outside pocket (0 free)', disabled: true },
+    ])
+    expect(lubecMovedToast({ ...byId(withBag, 'f'), pocket: 0 }, 'bag', 'bag#0', withBag)).toBe('Flashlight: School bag, main.')
+  })
+
   it('starts on the first place it can go', () => {
     expect(lubecFirstMove(lubecMoveGroups(gear, byId(gear, 'f')))).toBe('backpack#1')
     expect(lubecFirstMove([{ label: 'On you', options: [{ value: 'hands', label: 'Hands', disabled: true }] }])).toBe('drop')
