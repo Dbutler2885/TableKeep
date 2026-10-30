@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, configure, fireEvent, render, screen, within } from '@testing-library/react'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../../types/app'
+import type { LubecSharedSeat } from './lubecSharedSeat'
 
 // These cases mount large component trees and run role queries over them in jsdom (see LubecGearTab.test.tsx).
 vi.setConfig({ testTimeout: 30_000 })
@@ -457,20 +458,27 @@ describe('a viewer who may only look', () => {
 })
 
 describe('the kinds the add-carrier dialog offers', () => {
+  const seat = { carriers: [], owners: [{ id: 'wayne', name: 'Wayne' }], ownerOf: () => '', mayChange: () => false, acts: {} } as unknown as LubecSharedSeat
   const renderDialog = (kinds: Parameters<typeof LubecCarrierDialog>[0]['kinds']) =>
-    render(<LubecCarrierDialog gear={emptyLubecGear()} kinds={kinds} onAdded={vi.fn()} onClose={vi.fn()} toast={vi.fn()} />)
+    render(<LubecCarrierDialog gear={emptyLubecGear()} kinds={kinds} onAdded={vi.fn()} onClose={vi.fn()} toast={vi.fn()} shared={seat} />)
 
   it('offers a choice of every kind a sheet takes', () => {
     renderDialog(['personal', 'shared', 'hidden'])
 
-    const kind = dialog('Add a carrier').getByRole('combobox', { name: 'Kind' })
-    expect(within(kind).getAllByRole('option').map((option) => option.textContent)).toEqual(['Personal', 'Shared with the table', 'Hidden'])
+    const kinds = within(dialog('Add a carrier').getByRole('group', { name: 'Who gets into it' })).getAllByRole('radio')
+    expect(kinds.map((kind) => kind.closest('label')?.querySelector('span')?.firstChild?.textContent)).toEqual(['Just this character', 'Shared with the table', 'Hidden'])
+  })
+
+  it('offers no shared kind to a viewer with no character to own it', () => {
+    render(<LubecCarrierDialog gear={emptyLubecGear()} kinds={['personal', 'shared']} onAdded={vi.fn()} onClose={vi.fn()} toast={vi.fn()} shared={{ ...seat, owners: [] }} />)
+
+    expect(dialog('Add a carrier').queryByRole('radio')).toBeNull()
   })
 
   it('offers no choice on an NPC\'s sheet, which takes personal carriers only', () => {
     renderDialog(LUBEC_NPC_CARRIER_KINDS)
 
     expect(LUBEC_NPC_CARRIER_KINDS).toEqual(['personal'])
-    expect(dialog('Add a carrier').queryByRole('combobox', { name: 'Kind' })).toBeNull()
+    expect(dialog('Add a carrier').queryByRole('radio')).toBeNull()
   })
 })

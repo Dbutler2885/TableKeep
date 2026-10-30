@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { lubecCarrierTypeLabel } from '../../ruleSets/lubec/gear/carriers'
 import type { LubecCarrier, LubecGear, LubecPocket } from '../../ruleSets/lubec/gear/gearRecord'
 import { itemsIn, pocketUsed } from '../../ruleSets/lubec/gear/placement'
@@ -92,10 +92,14 @@ export type LubecCarrierDetailProps = Opens & {
   owner: string
   onBack: () => void
   onCarry: LubecGearCarry
+  /** True for a shared carrier, which the whole group can get into. */
+  shared?: boolean
+  /** What the carrier's owner may do to it, under its facts. */
+  manage?: ReactNode
 }
 
 /** B's carrier detail: its name and how full it is, each pocket's things, small stuff, and the red box. */
-export function LubecCarrierDetail({ gear, carrier, owner, onBack, onCarry, ...opens }: LubecCarrierDetailProps) {
+export function LubecCarrierDetail({ gear, carrier, owner, onBack, onCarry, shared = false, manage = null, ...opens }: LubecCarrierDetailProps) {
   return (
     <>
       <button className="btn line back" type="button" onClick={onBack}>← All carriers</button>
@@ -103,7 +107,8 @@ export function LubecCarrierDetail({ gear, carrier, owner, onBack, onCarry, ...o
         <div className="eyebrow">{lubecCarrierTypeLabel(carrier.type)}</div>
         <h2>{carrier.name}</h2>
         <div className="count"><LubecCarrierUse gear={gear} carrier={carrier} />{lubecDetailCountRest(gear, carrier)}</div>
-        <LubecCarrierFacts owner={owner} />
+        <LubecCarrierFacts owner={owner} shared={shared} />
+        {manage}
       </div>
       {carrier.pockets.map((p, k) => <PocketSection key={k} gear={gear} carrier={carrier} pocket={p} k={k} {...opens} />)}
       <SmallSection gear={gear} carrier={carrier} {...opens} />

@@ -9,6 +9,8 @@ import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import type { CharacterStoreCollection } from '../character/characterStore/characterStoreWrites'
 import type { LubecSheetEditing } from './LubecNameBandEditor'
 import type { LubecGearRecords } from './gear/lubecGearDrop'
+import { lubecSharedSeat } from './gear/lubecSharedSeat'
+import { useLubecSharedCarriers } from './gear/useLubecSharedCarriers'
 import { useLubecGive } from './gear/useLubecGive'
 import { lubecNpcSheetRecord, type LubecNpcIdentity } from './lubecNpcSheetRecord'
 import { lubecSheetWiring, type LubecViewer } from './lubecSheetWiring'
@@ -105,7 +107,10 @@ export function useLubecSheetSession({ source, campaignId, groupId, role, curren
   const viewer = { role, userId: currentUserId }
   const records = gearRecordsOf(source, character, { campaignId, groupId })
   const campaignStock = useLubecCampaignStock({ campaignId, groupId }, setError)
-  const gearGive = useLubecGive({ onCharacters: source.kind === 'characters', character, characters: store.characters, store, campaignId, groupId, role, userId: currentUserId })
-  const sheetProps = character ? { character, editing, campaignStock, gearGive, ...lubecSheetWiring(character, viewer, store, records) } : null
+  const onCharacters = source.kind === 'characters'
+  const gearGive = useLubecGive({ onCharacters, character, characters: store.characters, store, campaignId, groupId, role, userId: currentUserId })
+  const carriers = useLubecSharedCarriers({ campaignId, groupId }, onCharacters, setError)
+  const shared = onCharacters && character ? lubecSharedSeat({ carriers, characters: store.characters, character, viewer, store, records }) : null
+  const sheetProps = character ? { character, editing, campaignStock, gearGive, shared, ...lubecSheetWiring(character, viewer, store, records) } : null
   return { store, character, viewer, sheetProps }
 }

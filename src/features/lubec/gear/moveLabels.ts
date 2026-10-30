@@ -26,7 +26,7 @@ export type LubecMoveOption = LubecDestination & { disabled: boolean }
 export type LubecMoveGroup = { label: string; options: LubecMoveOption[] }
 
 // The places a thing can go, less the one it is in.
-const awayFrom = (i: LubecItem, places: readonly LubecDestination[]): LubecMoveOption[] => {
+export const lubecAwayFrom = (i: LubecItem, places: readonly LubecDestination[]): LubecMoveOption[] => {
   const here = selectValue(destOf(i))
   return places.map((p) => ({ ...p, disabled: p.value === here }))
 }
@@ -39,13 +39,17 @@ const swapOptions = (gear: LubecGear, i: LubecItem): LubecMoveOption[] =>
     disabled: !lubecSwapItems(gear, i, o).ok,
   }))
 
-/** The card's Move list: the places on you, the personal carriers, dropping it, and the things it can swap with. */
-export function lubecMoveGroups(gear: LubecGear, i: LubecItem): LubecMoveGroup[] {
+/** The Move list's group for dropping the thing. */
+export const LUBEC_ELSEWHERE: LubecMoveGroup = { label: 'Elsewhere', options: [{ value: LUBEC_DROP_DEST, label: 'Drop it', disabled: false }] }
+
+/** The card's Move list: the places on you, the personal carriers, any `further` places, dropping it, and the things it can swap with. */
+export function lubecMoveGroups(gear: LubecGear, i: LubecItem, further: readonly LubecMoveGroup[] = []): LubecMoveGroup[] {
   const swaps = swapOptions(gear, i)
   return [
-    { label: 'On you', options: awayFrom(i, lubecDestinations(gear, i.kind)) },
-    ...(gear.carriers.length ? [{ label: 'Carriers', options: awayFrom(i, lubecCarrierDestinations(gear)) }] : []),
-    { label: 'Elsewhere', options: [{ value: LUBEC_DROP_DEST, label: 'Drop it', disabled: false }] },
+    { label: 'On you', options: lubecAwayFrom(i, lubecDestinations(gear, i.kind)) },
+    ...(gear.carriers.length ? [{ label: 'Carriers', options: lubecAwayFrom(i, lubecCarrierDestinations(gear)) }] : []),
+    ...further,
+    LUBEC_ELSEWHERE,
     ...(swaps.length ? [{ label: 'Swap places', options: swaps }] : []),
   ]
 }

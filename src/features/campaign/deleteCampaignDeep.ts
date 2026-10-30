@@ -29,6 +29,7 @@ export const CAMPAIGN_SUBCOLLECTIONS: SubcollectionSpec[] = [
   { name: 'itemApprovals' },
   { name: 'items' },
   { name: 'gmItems' },
+  { name: 'sharedCarriers' },
   { name: 'tables', children: [{ name: 'history' }] },
   { name: 'pendingTransfers' },
   { name: 'images' },

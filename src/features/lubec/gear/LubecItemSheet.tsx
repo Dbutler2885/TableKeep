@@ -23,6 +23,7 @@ import {
   type LubecFormSheet,
   type LubecItemSheetState,
 } from './itemSheet'
+import type { LubecGearAcross } from './lubecGearWork'
 import { LubecArmorPieces } from './LubecArmorPieces'
 import { LubecItemCard } from './LubecItemCard'
 import { LubecItemForm } from './LubecItemForm'
@@ -58,6 +59,10 @@ type SheetContext = {
   wielder: LubecWielder
   /** Gives things to other people's characters; null for a viewer who may not. */
   give: LubecGearGive | null
+  /** The moves that leave this record; null when there are none. */
+  across?: LubecGearAcross | null
+  /** True while this is a carrier's own record, whose form offers only its pockets. */
+  inCarrier?: boolean
 }
 
 type SheetProps = SheetContext & { sheet: LubecItemSheetState }
@@ -77,6 +82,7 @@ function countChanged(ctx: SheetContext, sheet: CardSheet, item: LubecItem, r: L
 // A heavy thing coming onto you asks its owner first (Rule E5).
 function moveFromCard(ctx: SheetContext, sheet: CardSheet, item: LubecItem, value: string) {
   const refused = (msg: string) => ctx.onSheet({ ...sheet, error: msg })
+  if (ctx.across?.move(item, value, refused)) return
   const r = lubecAskFirst(ctx.gear, lubecCardMove(ctx.gear, item, value), ctx.onAsk, sheet)
   if (!r) return
   if (r.kind === 'drop') return ctx.onDrop(item, refused)
@@ -152,7 +158,7 @@ function CardMode({ sheet, item, ...ctx }: SheetContext & { sheet: CardSheet; it
   return (
     <LubecItemCard
       gear={ctx.gear} item={item} supplies={lubecSupplies(ctx.gear)} wielder={ctx.wielder} error={sheet.error} moveOpen={sheet.move === true} busy={ctx.busy}
-      load={cardLoad(ctx.gear, sheet, item)} give={give} actions={actions}
+      load={cardLoad(ctx.gear, sheet, item)} give={give} actions={actions} moveGroups={ctx.across?.groups(item)}
     />
   )
 }
@@ -206,7 +212,7 @@ function FormMode({ sheet, ...ctx }: SheetContext & { sheet: LubecFormSheet }) {
     onBack: () => ctx.onSheet(lubecBackSheet(sheet.back)),
     onClose: () => ctx.onSheet(null),
   }
-  return <LubecItemForm form={sheet} gear={ctx.gear} supplies={supplies} supplyName={supplyName} stock={stock} actions={actions} />
+  return <LubecItemForm form={sheet} gear={ctx.gear} supplies={supplies} supplyName={supplyName} stock={stock} actions={actions} onYou={!ctx.inCarrier} />
 }
 
 function SheetBody({ sheet, ...ctx }: SheetProps) {
