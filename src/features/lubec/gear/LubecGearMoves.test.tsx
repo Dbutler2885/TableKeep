@@ -316,6 +316,23 @@ describe('the drop (Rule M8)', () => {
     expect(mocks.runTransaction).not.toHaveBeenCalled()
     expect(gmItems()).toEqual([])
   })
+
+  it('frees a hand from the Fight bar\'s "Drop it, free" when both hold things that are not weapons, and Fisticuffs comes back', async () => {
+    database = { [TOMMY]: tommyEves({ items: [T('th', 'hands', 0, 'Thermos', 1), T('w', 'hands', 1, 'Walkie-talkie', 1)] }) }
+    mountTab('player', 'player-1')
+    fireEvent.click(screen.getByRole('button', { name: /^Tommy Eves/ }))
+    const fight = within(screen.getByRole('region', { name: 'Fight controls' }))
+    fireEvent.click(fight.getByRole('button', { name: /^Fight/ }))
+    expect(fight.getByRole('button', { name: /^Fisticuffs/ })).toHaveProperty('disabled', true)
+
+    fireEvent.click(fight.getByRole('button', { name: 'Drop Walkie-talkie, free' }))
+
+    await waitFor(() => expect(fight.getByRole('status').textContent).toBe('Dropped the walkie-talkie. It goes to the GM.'))
+    expect(storedItems().map((i) => i.id)).toEqual(['th'])
+    expect(gmItems().map(([path, data]) => [idOf(path), data.status, data.droppedFrom])).toEqual([['w', 'dropped', 'hands']])
+    expect([...document.querySelectorAll('.lubec-in-hand > *')].map((chip) => chip.textContent)).toEqual(['Left hand: Thermos', 'Empty hand', 'FisticuffsHandle 55'])
+    expect(fight.getByRole('button', { name: /^Fisticuffs/ })).toHaveProperty('disabled', false)
+  })
 })
 
 // The boxes jsdom draws all at 0 by 0, so each one the drag reads is given a box of its own.

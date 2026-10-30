@@ -258,6 +258,7 @@ function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onC
       onCountersChange={onCountersChange}
       onEffectsChange={editing ? (effects) => editing.update({ lubec: { ...character.lubec, effects } }) : null}
       onGearChange={onGearChange}
+      onGearDrop={onGearDrop}
       onDraftEdit={onDraftEdit}
       onRolled={editing ? (lubec) => editing.update({ lubec }) : null}
       guided={guidedOf(character, onRollUp)}

@@ -8,6 +8,7 @@ import { LubecClassSection } from './LubecClassSection'
 import { LubecCountersPanel, type LubecCountersChange } from './LubecCountersPanel'
 import { LubecEffectsPanel } from './LubecEffectsPanel'
 import { LubecFightPanel } from './LubecFightPanel'
+import type { LubecGearDrop } from './gear/lubecGearDrop'
 import type { LubecGearChange } from './gear/LubecGearPage'
 import { lubecRollUpActive } from './lubecRollUpCircles'
 import { useLubecCircles } from './useLubecCircles'
@@ -29,6 +30,8 @@ type CorePageProps = {
   onEffectsChange: ((effects: LubecEffect[]) => void) | null
   /** Turns one of gear's Speed losses off or on; null for a viewer who may not change the character. */
   onGearChange: LubecGearChange
+  /** Drops a thing from a hand to the GM's Items tab, from the Fight bar; null for a viewer who may not change the character. */
+  onGearDrop: LubecGearDrop
   /** Changes a draft's base values, class and class choice; absent unless the viewer may type into the draft. */
   onDraftEdit?: LubecSheetEdit | null
   /** Absent for a viewer who may not roll on the character. */
@@ -50,7 +53,7 @@ type CorePageProps = {
  * values. A guided draft's circles roll its dice and settle its scores
  * instead, and its class cards unlock once they are settled.
  */
-export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onGearChange, onDraftEdit = null, onRolled, guided = null, inPlay }: CorePageProps) {
+export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onGearChange, onGearDrop, onDraftEdit = null, onRolled, guided = null, inPlay }: CorePageProps) {
   const modifiers = lubecSheetModifiers(sheet)
   const roller = useLubecRoller(sheet, onRolled)
   const rollUp = rollUpOf(sheet, guided, onDraftEdit)
@@ -71,7 +74,7 @@ export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onGear
         <LubecCountersPanel sheet={lubecShownSheet(sheet, circles.spin)} onChange={onCountersChange} held={circles.spin !== null} />
         <LubecEffectsPanel effects={sheet.effects} onChange={onEffectsChange} gear={sheet.gear} onGearChange={onGearChange} />
       </div>
-      {inPlay ? <LubecFightPanel sheet={sheet} modifiers={modifiers} /> : null}
+      {inPlay ? <LubecFightPanel sheet={sheet} onDrop={onGearDrop} /> : null}
       {onDraftEdit ? null : classSection}
     </div>
   )

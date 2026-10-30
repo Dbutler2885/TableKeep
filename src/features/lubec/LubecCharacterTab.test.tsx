@@ -691,10 +691,24 @@ describe('Lubec class record', () => {
 
 describe('Lubec Fight panel', () => {
   const fightPanel = () => screen.getByRole('region', { name: 'Fight controls' })
-  const fightToggle = () => within(fightPanel()).getByRole('button')
+  const fightToggle = () => fightPanel().querySelector('.fight-toggle') as HTMLElement
   const effectiveHandle = () => fightPanel().querySelector('.lubec-effective-handle')?.textContent
+  const inHand = () => [...fightPanel().querySelectorAll('.lubec-in-hand > *')].map((chip) => chip.textContent)
+  const openFight = (gear: Fields[]) => {
+    seed({ tommy: withSheet({ gear: { items: gear, carriers: [], overrides: [], supplies: [] } }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    fireEvent.click(fightToggle())
+    return within(fightPanel().querySelector('.fight-panel') as HTMLElement)
+  }
+  const held = (id: string, name: string, slot: number, extra: Fields = {}): Fields =>
+    ({ id, kind: 'thing', carrier: 'hands', slot, name, size: 1, qty: 1, weight: 'normal', note: '', ...extra })
+  const gloves: Fields = { id: 'gl', kind: 'armor', carrier: 'worn', name: 'Leather work gloves', size: 1, qty: 1, weight: 'normal', note: '', locs: ['hand-L', 'hand-R'] }
+  const revolver = held('rev', "Grandpa's revolver", 0, { kind: 'weapon', mode: 'firearm', capacity: 6, loaded: 0 })
+  const walkie = held('wt', 'Walkie-talkie', 1)
+  const bat = (minStrength: number) => held('bat', 'Baseball bat', 0, { kind: 'weapon', mode: 'melee', size: 2, minStrength })
 
-  it('shows the prototype\'s collapsed Fight bar, which opens on Effective Handle and an empty "In hand" line with no input', () => {
+  it('shows the prototype\'s collapsed Fight bar, which opens on Effective Handle and, with no gear, two empty hands and Fisticuffs', () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -711,12 +725,48 @@ describe('Lubec Fight panel', () => {
     expect(within(panel).getByRole('heading', { name: 'Handle' })).toBeTruthy()
     expect(effectiveHandle()).toBe('55')
     expect(within(panel).getByText('In hand')).toBeTruthy()
-    expect(panel.querySelector('.lubec-in-hand')?.textContent).toBe('')
-    expect(panel.querySelectorAll('input, textarea, select, button')).toHaveLength(0)
+    expect(inHand()).toEqual(['Empty hand', 'Empty hand', 'FisticuffsHandle 55'])
+    expect(panel.querySelectorAll('input, textarea, select')).toHaveLength(0)
+    expect(within(panel).getAllByRole('button').map((b) => b.textContent)).toEqual(['FisticuffsHandle 55'])
 
     fireEvent.click(fightToggle())
     expect(fightToggle().getAttribute('aria-expanded')).toBe('false')
     expect(panel.hidden).toBe(true)
+  })
+
+  it('reads the left hand first, with a firearm\'s rounds, and makes only a weapon\'s chip a button; with no free hand there is no Fisticuffs', () => {
+    const panel = openFight([walkie, revolver])
+
+    expect(inHand()).toEqual(["Left hand: Grandpa's revolver, 0 of 6Handle 55", 'Right hand: Walkie-talkie'])
+    expect(panel.getAllByRole('button').map((b) => b.textContent)).toEqual(["Left hand: Grandpa's revolver, 0 of 6Handle 55"])
+    expect(panel.queryByRole('button', { name: /Drop/ })).toBeNull()
+  })
+
+  it('offers Fisticuffs with the free hand, which takes its glove off the Handle', () => {
+    openFight([walkie, gloves])
+
+    expect(inHand()).toEqual(['Empty hand', 'Right hand: Walkie-talkie', 'FisticuffsHandle 55 − 10 gloves = 45'])
+  })
+
+  it('shows a weapon in both hands with its Handle terms: the minimum Strength it lacks and the gloves', () => {
+    openFight([bat(60), gloves])
+
+    expect(inHand()).toEqual(['Both hands: Baseball batHandle 55 − 40 min. Strength − 10 gloves = 5'])
+  })
+
+  it('says "Cannot handle this" when the terms take the Handle to 0 or less', () => {
+    openFight([bat(90)])
+
+    expect(inHand()).toEqual(['Both hands: Baseball batHandle 55 − 70 min. Strength = −15 Cannot handle this'])
+    expect(fightPanel().querySelector('.lubec-cannot-handle')).toBeTruthy()
+  })
+
+  it('greys Fisticuffs with both hands full of things that are not weapons, and offers each a free drop', () => {
+    const panel = openFight([held('th', 'Thermos', 0), walkie])
+
+    expect(inHand()).toEqual(['Left hand: ThermosDrop it, free', 'Right hand: Walkie-talkieDrop it, free', 'FisticuffsHands full: drop something first'])
+    expect(panel.getByRole('button', { name: /^Fisticuffs/ })).toHaveProperty('disabled', true)
+    expect(panel.getAllByRole('button', { name: /, free$/ }).map((b) => b.getAttribute('aria-label'))).toEqual(['Drop Thermos, free', 'Drop Walkie-talkie, free'])
   })
 
   it('has no Fight bar while the character is still a draft, as the prototype shows it only in play', () => {
