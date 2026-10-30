@@ -29,7 +29,7 @@ export const TEMPLATE_CAMPAIGN_ID = 'demo-campaign'
  * which means anything in a template. The test pins the two lists together.
  */
 export const TEMPLATE_SUBCOLLECTIONS = [
-  { name: 'characters' },
+  { name: 'characters', children: [{ name: 'hiddenCarriers' }] },
   { name: 'maps', children: [{ name: 'tokens' }, { name: 'annotations' }, { name: 'fogChunks' }] },
   { name: 'tokenAssets' },
   { name: 'monsters' },
