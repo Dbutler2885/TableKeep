@@ -17,6 +17,13 @@ export const LUBEC_ART_SHAPES: Readonly<Record<string, LubecShape>> = {
 /** Whether `art` names a drawing that ships. An unknown key shows its kind's icon. */
 export const isLubecArt = (art: string | undefined): art is string => art !== undefined && Object.hasOwn(LUBEC_ART_SHAPES, art)
 
+/** An upload's shape, from its proportions (B's `pic-file` change). The three buttons change it. */
+export function lubecShapeOfSize(width: number, height: number): LubecShape {
+  const r = width / height
+  if (r > 1.2) return 'wide'
+  return r < 0.83 ? 'tall' : 'square'
+}
+
 /** The shape a picture is framed in: the one stored with it, else its drawing's. */
 export const lubecPictureShape = (item: Pick<LubecItem, 'art' | 'shape'>): LubecShape =>
   item.shape ?? (isLubecArt(item.art) ? LUBEC_ART_SHAPES[item.art] : 'square')

@@ -29,7 +29,7 @@ function wire(character: LubecCharacterRecord | null, viewer: LubecViewer, withR
 
 const noEdits = {
   onCountersChange: null, onSkillsChange: null, corrections: null, onDraftEdit: null, onRollUp: null, onFinalize: null, onGearChange: null, onGearDrop: null,
-  onGearHidden: null, onGearRolled: null,
+  onGearHidden: null, onGearUpload: null, onGearRolled: null,
 }
 
 const flashlight = { id: 'f1', kind: 'holder', name: 'Flashlight', carrier: 'backpack', pocket: 0 } as LubecItem
@@ -43,6 +43,15 @@ describe('lubecSheetWiring', () => {
   it('offers nothing to a player looking at someone else\'s character', () => {
     expect(wire(draft, otherPlayer).edits).toEqual(noEdits)
     expect(wire(finalized, otherPlayer).edits).toEqual(noEdits)
+  })
+
+  it('lets the owner and the GM upload an item picture on a character, and nobody on an NPC sheet', () => {
+    expect(wire(finalized, owner, true).edits.onGearUpload).toBeTypeOf('function')
+    expect(wire(finalized, gm, true).edits.onGearUpload).toBeTypeOf('function')
+    expect(wire(finalized, otherPlayer, true).edits.onGearUpload).toBeNull()
+    expect(wire(finalized, owner).edits.onGearUpload).toBeNull()
+    const store = { updateCharacter: vi.fn(), updateCharacterNow: vi.fn(), hasPendingWrite: vi.fn(() => false) }
+    expect(lubecSheetWiring(finalized, gm, store, { ...records, sheet: { kind: 'npc', npcId: 'n' } }).onGearUpload).toBeNull()
   })
 
   it('lets the owner type into a draft, roll it up at once and finalize it', () => {

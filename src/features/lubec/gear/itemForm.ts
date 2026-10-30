@@ -12,8 +12,8 @@ import type { LubecHoldWay } from '../../ruleSets/lubec/gear/gearRules'
 import { isLubecArt, type LubecShape } from './gearArt'
 import { armorVs, WOUND_KINDS, woundsOf } from './itemLabels'
 
-/** The form's picture: a drawing's key and the shape it is framed in. */
-export type LubecFormPicture = { art: string; shape: LubecShape }
+/** The form's picture: a drawing's key, or an upload's Storage path, and the shape it is framed in. */
+export type LubecFormPicture = { art?: string; picturePath?: string; shape: LubecShape }
 
 export type LubecWeaponMode = NonNullable<LubecItem['mode']>
 
@@ -66,7 +66,10 @@ export const lubecNewFields = (dest: string): LubecItemFields => ({
 const text = (n: number | undefined, empty: string) => (n === undefined ? empty : String(n))
 const textOr = (raw: string | undefined, empty: string) => (raw === undefined ? empty : raw)
 
-const pictureOf = (x: Partial<LubecItem>): LubecFormPicture | null => (x.art ? { art: x.art, shape: x.shape ?? 'square' } : null)
+function pictureOf({ art, picturePath, shape = 'square' }: Partial<LubecItem>): LubecFormPicture | null {
+  if (picturePath) return { picturePath, shape }
+  return art ? { art, shape } : null
+}
 
 const armorFields = (x: Partial<LubecItem>) => Object.fromEntries(WOUND_KINDS.map((w) => [w, String(armorVs(x, w))])) as Record<LubecWoundKind, string>
 
@@ -196,12 +199,17 @@ function countDraft(f: LubecItemFields): Partial<LubecItem> & { qty: number } {
   return f.size > 0 ? { qty, per } : { qty }
 }
 
+// Only the Storage path of an upload is kept, never a URL.
+function pictureDraft(p: LubecFormPicture | null): Partial<LubecItem> {
+  if (!p) return {}
+  return p.picturePath ? { picturePath: p.picturePath, shape: p.shape } : { art: p.art, shape: p.shape }
+}
+
 /** The draft the form makes, with no field left undefined, since Firestore refuses one. */
 export function lubecDraftOf(f: LubecItemFields): LubecItemDraft {
-  const picture = f.picture ? { art: f.picture.art, shape: f.picture.shape } : {}
   return {
     kind: f.kind, name: f.name.trim(), size: f.size, weight: f.weight, note: f.note.trim(),
-    ...countDraft(f), ...picture, ...(f.stock ? { stock: f.stock } : {}), ...KIND_DRAFTS[f.kind](f),
+    ...countDraft(f), ...pictureDraft(f.picture), ...(f.stock ? { stock: f.stock } : {}), ...KIND_DRAFTS[f.kind](f),
   }
 }
 
@@ -216,5 +224,5 @@ export const lubecFormPages = (kind: LubecItemKind): readonly (readonly ['top' |
 export const lubecFieldPage = (field: LubecDraftField): 'top' | 'kind' =>
   (field === 'wounds' || field === 'takes' || field === 'locs' ? 'kind' : 'top')
 
-/** Whether the form's picture is a drawing that ships; an unknown one is kept but shows as none. */
-export const lubecPictureShown = (p: LubecFormPicture | null): p is LubecFormPicture => p !== null && isLubecArt(p.art)
+/** Whether the form's picture is an upload or a drawing that ships; an unknown drawing is kept but shows as none. */
+export const lubecPictureShown = (p: LubecFormPicture | null): p is LubecFormPicture => p !== null && (Boolean(p.picturePath) || isLubecArt(p.art))

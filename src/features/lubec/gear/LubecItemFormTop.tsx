@@ -1,3 +1,4 @@
+import type { ChangeEvent } from 'react'
 import type { LubecItemKind, LubecItemSize } from '../../ruleSets/lubec/gear/gearRecord'
 import { KIND_NAMES } from '../../ruleSets/lubec/gear/gearRules'
 import { countNote, SIZE_HINT } from './gearLabels'
@@ -5,6 +6,7 @@ import { LUBEC_SHAPES, lubecPictureShape, type LubecShape } from './gearArt'
 import { KIND_TILE } from './itemLabels'
 import { lubecCountOf, lubecPictureShown, lubecWithSize, type LubecItemFields } from './itemForm'
 import { LubecKindGlyph, LubecPicture } from './LubecGearArt'
+import { LUBEC_PIC_FILE, type LubecPicking } from './useLubecPictureUpload'
 import { KIND_IDS } from './stockEntries'
 
 /** Every part of the form takes the fields and hands back the next ones. */
@@ -29,17 +31,48 @@ export function LubecKindTiles({ fields, onKind }: { fields: LubecItemFields; on
 
 const SHAPE_IDS = Object.keys(LUBEC_SHAPES) as LubecShape[]
 
-/** The picture: a stock drawing in its shape, with × to take it off and the three shapes to frame it in. Uploads come later. */
-export function LubecPictureField({ fields, onFields }: LubecFieldsProps) {
+// The file picker B opens from the picture box. The form holds only one, and the card's "Add a picture" opens it too.
+function PicFile({ picking }: { picking: LubecPicking }) {
+  const picked = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (file) picking.onFile(file)
+  }
+  return <input type="file" id={LUBEC_PIC_FILE} accept="image/*" hidden onChange={picked} />
+}
+
+// With nothing picked yet: B's "+ Picture", or the words while one is on its way up.
+function PicPrompt({ busy }: { busy: boolean }) {
+  if (busy) return <span>Uploading...</span>
+  return <span><span className="plus" aria-hidden="true">+</span>Picture</span>
+}
+
+// The box: it shows the picture, or the kind's icon, and picks a file when an upload can be made.
+function PicBox({ fields, picking }: { fields: LubecItemFields; picking: LubecPicking | null }) {
+  const pic = lubecPictureShown(fields.picture) ? fields.picture : null
+  const shown = pic && <LubecPicture item={{ kind: fields.kind, art: pic.art, picturePath: pic.picturePath, shape: lubecPictureShape(pic) }} frame="pic-in" />
+  if (!picking) return <div className="pic-box">{shown ?? <span className="pic-none" aria-hidden="true"><LubecKindGlyph kind={fields.kind} /></span>}</div>
+  const open = () => document.getElementById(LUBEC_PIC_FILE)?.click()
+  return (
+    <>
+      <button type="button" className="pic-box" aria-label={pic ? 'Change the picture' : 'Add a picture'} disabled={picking.busy} onClick={open}>{shown ?? <PicPrompt busy={picking.busy} />}</button>
+      <PicFile picking={picking} />
+    </>
+  )
+}
+
+/**
+ * The picture: a drawing or an upload in its shape, with × to take it off and the three shapes to frame it in.
+ * The box picks a file; with no `picking`, as for a hidden thing, it only shows the picture.
+ */
+export function LubecPictureField({ fields, onFields, picking }: LubecFieldsProps & { picking: LubecPicking | null }) {
   const pic = fields.picture
   const shown = lubecPictureShown(pic)
   const shape = shown ? lubecPictureShape(pic) : 'square'
   return (
     <div className="pic-field">
       <div className="pic-frame">
-        <div className="pic-box">
-          {shown ? <LubecPicture item={{ kind: fields.kind, art: pic.art, shape }} frame="pic-in" /> : <span className="pic-none" aria-hidden="true"><LubecKindGlyph kind={fields.kind} /></span>}
-        </div>
+        <PicBox fields={fields} picking={picking} />
         {shown ? <button type="button" className="pic-x" aria-label="Take the picture off" onClick={() => onFields({ ...fields, picture: null })}>×</button> : null}
       </div>
       <div className="shape-seg" role="radiogroup" aria-label="Picture shape">

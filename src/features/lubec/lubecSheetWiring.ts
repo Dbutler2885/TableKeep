@@ -8,6 +8,8 @@ import type { LubecSkills } from '../ruleSets/lubec/skillPicks'
 import { lubecGearDrop, type LubecGearDrop, type LubecGearRecords } from './gear/lubecGearDrop'
 import type { LubecGearChange } from './gear/LubecGearPage'
 import type { LubecGearHidden } from './gear/lubecHiddenCarrierWrites'
+import { lubecSheetPictureUpload } from './gear/lubecItemArt'
+import type { LubecPictureUpload } from './gear/lubecPicked'
 import { lubecCharacterName } from './lubecNames'
 import type { LubecCountersChange } from './LubecCountersPanel'
 import type { LubecRolled } from './useLubecRoller'
@@ -45,6 +47,7 @@ export type LubecSheetEdits = DraftActions & {
   onGearChange: LubecGearChange
   onGearDrop: LubecGearDrop
   onGearHidden: LubecGearHidden | null
+  onGearUpload: LubecPictureUpload | null
   onGearRolled: LubecRolled | null
 }
 
@@ -99,6 +102,12 @@ function gearHiddenFor(
 ): LubecGearHidden | null {
   if (!character || records?.sheet.kind !== 'character' || !canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) return null
   return { db: records.db, scope: records.scope, characterId: character.id, store, dropper: dropperOf(character, viewer) }
+}
+
+// The owner and the GM upload an item's picture for a character; an NPC's sheet has no owner to file it under, so it takes drawings and campaign items.
+function gearUploadFor(character: LubecCharacterRecord | null, viewer: LubecViewer, records: LubecGearRecords | null): LubecPictureUpload | null {
+  if (!character || records?.sheet.kind !== 'character' || !canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) return null
+  return lubecSheetPictureUpload({ scope: records.scope, characterId: character.id, ownerUserId: character.ownerUserId, userId: viewer.userId })
 }
 
 // Who a heavy thing's Strength roll waits for: a character's owner, and on an NPC's sheet, which has no player to wait for, any GM.
@@ -162,6 +171,7 @@ export function lubecSheetWiring(
     onGearChange: gearChangeFor(character, viewer, store.updateCharacter),
     onGearDrop: gearDropFor(character, viewer, store, records),
     onGearHidden: gearHiddenFor(character, viewer, store, records),
+    onGearUpload: gearUploadFor(character, viewer, records),
     onGearRolled: gearRolledFor(character, viewer, store.updateCharacter, records),
     ...draftActionsFor(character, viewer, store),
   }

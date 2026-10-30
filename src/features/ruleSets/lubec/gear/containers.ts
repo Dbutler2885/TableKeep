@@ -19,6 +19,9 @@ import { onYou, place } from './placement'
 
 export const LUBEC_STALE_MOVE = 'Someone moved that first. Nothing changed.'
 
+/** An upload can't have a private Storage rule, so a hidden thing has only drawings and icons (spec 4.6, question 6). */
+export const LUBEC_NO_HIDDEN_PICTURE = 'Pictures you uploaded cannot be hidden. Remove the picture or pick a drawing.'
+
 // Everything an item copies from stock, or from a GM's library item when it is given (Rule T2).
 // B's `img` is `picturePath` here, and a weapon's `minStrength` and `hands` come along too.
 export const LUBEC_COPY_FIELDS = [
@@ -156,6 +159,7 @@ function putIn(record: LubecMoveRecord, taken: Taken, move: LubecMove): Put {
   }
   const gear = gearOf(record)
   if (!gear) return { ok: false, msg: LUBEC_STALE_MOVE }
+  if (record.kind === 'hidden' && taken.item.picturePath) return { ok: false, msg: LUBEC_NO_HIDDEN_PICTURE }
   const put = move.dest === undefined ? lubecReceive(gear, taken.item) : movedTo(gear, taken.item, { ...move, dest: move.dest })
   return put.ok ? { ok: true, to: withGear(record, put.gear), item: put.item } : put
 }

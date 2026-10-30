@@ -23,6 +23,7 @@ import {
   type LubecFormSheet,
   type LubecItemSheetState,
 } from './itemSheet'
+import type { LubecPictureUpload } from './lubecPicked'
 import type { LubecGearAcross } from './lubecGearWork'
 import { LubecArmorPieces } from './LubecArmorPieces'
 import { LubecItemCard } from './LubecItemCard'
@@ -31,6 +32,7 @@ import { LUBEC_SHEET_TITLE } from './LubecSheetHead'
 import { LubecSmallStuffList } from './LubecSmallStuffList'
 import { LubecStockPicker } from './LubecStockPicker'
 import { lubecStockEntries, type LubecStockEntry } from './stockEntries'
+import { LUBEC_NO_HIDDEN_PICTURE } from '../../ruleSets/lubec/gear/containers'
 import { lubecAskFirst, type LubecStrengthAsk } from './strengthAsk'
 import { lubecTooHeavyDropped } from './strengthLabels'
 import { attackRefusalText, attackToast } from './weaponFacts'
@@ -39,6 +41,7 @@ import { LUBEC_SUPPLY_UNNAMED, lubecLoadButtons, lubecSupplyMadeToast, lubecTake
 import type { LubecCardLoad } from './LubecItemCard'
 import type { LubecGearGive } from './lubecGive'
 import { useLubecCardGive } from './useLubecCardGive'
+import { lubecOpenWithPicker } from './useLubecPictureUpload'
 import { LubecCardPrompt } from './LubecLoadPrompts'
 import type { LubecSupplyFieldKey } from './LubecSupplyField'
 
@@ -63,11 +66,18 @@ type SheetContext = {
   across?: LubecGearAcross | null
   /** True while this is a carrier's own record, whose form offers only its pockets. */
   inCarrier?: boolean
+  /** True while this is a hidden carrier's record, where a thing has no uploaded picture (spec 4.6). */
+  inHidden?: boolean
+  /** Uploads an item's picture; null or absent for a sheet that has none. */
+  upload?: LubecPictureUpload | null
 }
 
 type SheetProps = SheetContext & { sheet: LubecItemSheetState }
 
 type CardSheet = LubecCardSheet
+
+// A hidden thing is never offered an upload.
+const uploadOf = ({ upload = null, inHidden }: SheetContext) => (inHidden ? null : upload)
 
 // Rule K4: a count that reaches 0 on a consumable uses it up, and it leaves the sheet and the card closes.
 function countChanged(ctx: SheetContext, sheet: CardSheet, item: LubecItem, r: LubecCountChange) {
@@ -137,6 +147,7 @@ function cardLoad(gear: LubecGear, sheet: CardSheet, item: LubecItem): LubecCard
 }
 
 function CardMode({ sheet, item, ...ctx }: SheetContext & { sheet: CardSheet; item: LubecItem }) {
+  const onEdit = () => ctx.onSheet(lubecEditSheet(item, destOf(item)))
   const give = useLubecCardGive(ctx.give, { sheet, item, onSheet: ctx.onSheet, toast: ctx.toast })
   const actions = {
     onToggleMove: () => ctx.onSheet({ ...sheet, error: null, takeout: false, give: false, move: !sheet.move }),
@@ -152,7 +163,8 @@ function CardMode({ sheet, item, ...ctx }: SheetContext & { sheet: CardSheet; it
     onLoad: (act: LubecLoadAct) => loadFromCard(ctx, sheet, item, act),
     onTakeOut: (n: number) => loaded(ctx, sheet, lubecTakeOutAct(loadContext(ctx.gear), item, n)),
     onTableSays: (penalty: number | null) => ctx.onGearChange(lubecWithTableSays(ctx.gear, item.id, penalty)),
-    onEdit: () => ctx.onSheet(lubecEditSheet(item, destOf(item))),
+    onEdit,
+    onAddPicture: uploadOf(ctx) ? () => lubecOpenWithPicker(onEdit) : null,
     onClose: () => ctx.onSheet(null),
   }
   return (
@@ -166,6 +178,7 @@ function CardMode({ sheet, item, ...ctx }: SheetContext & { sheet: CardSheet; it
 
 // The form's Add it or Save. One that brings a heavy thing onto you asks its owner for a Strength roll first, and saves on Done (Rule E5).
 function submitForm(ctx: SheetContext, form: LubecFormSheet, paged: boolean) {
+  if (ctx.inHidden && form.fields.picture?.picturePath) return ctx.onSheet(lubecRefusedForm(form, { msg: LUBEC_NO_HIDDEN_PICTURE, page: 'top' }, paged))
   const saved = lubecSaveForm(ctx.gear, form, makeId)
   if (!saved.ok) return ctx.onSheet(lubecRefusedForm(form, saved, paged))
   if (ctx.onAsk && lubecFormNeedsStrength(ctx.gear, form)) return ctx.onAsk({ kind: 'form', form })
@@ -212,7 +225,8 @@ function FormMode({ sheet, ...ctx }: SheetContext & { sheet: LubecFormSheet }) {
     onBack: () => ctx.onSheet(lubecBackSheet(sheet.back)),
     onClose: () => ctx.onSheet(null),
   }
-  return <LubecItemForm form={sheet} gear={ctx.gear} supplies={supplies} supplyName={supplyName} stock={stock} actions={actions} onYou={!ctx.inCarrier} />
+  const upload = uploadOf(ctx)
+  return <LubecItemForm form={sheet} gear={ctx.gear} supplies={supplies} supplyName={supplyName} stock={stock} actions={actions} onYou={!ctx.inCarrier} pictures={upload && { upload, toast: ctx.toast }} />
 }
 
 function SheetBody({ sheet, ...ctx }: SheetProps) {

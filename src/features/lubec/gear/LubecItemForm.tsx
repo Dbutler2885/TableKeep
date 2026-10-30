@@ -8,6 +8,7 @@ import { LubecItemFormKind } from './LubecItemFormKind'
 import { LubecCountPick, LubecKindTiles, LubecPictureField, LubecSizePick } from './LubecItemFormTop'
 import { LubecNameField } from './LubecNameField'
 import { LubecSheetHead } from './LubecSheetHead'
+import { useLubecPictureUpload, type LubecFormPictures, type LubecPicking } from './useLubecPictureUpload'
 import type { LubecMakeSupply } from './LubecSupplyField'
 import type { LubecStockEntry } from './stockEntries'
 import { useLubecMediaQuery } from './useLubecMediaQuery'
@@ -35,6 +36,8 @@ type FormProps = {
   placed?: boolean
   /** False on a carrier's own record, whose "Put it" offers only its pockets. */
   onYou?: boolean
+  /** How a picture is uploaded; null or absent where none can be, as for a hidden thing. */
+  pictures?: LubecFormPictures | null
 }
 
 // On a phone, and in a narrow window, the form is pages, so it never scrolls (captain, round 24).
@@ -55,7 +58,7 @@ function FormSteps({ form, placed, onPage }: { form: LubecFormSheet; placed: boo
   )
 }
 
-type FootProps = { form: LubecFormSheet; paged: boolean; onPage: (page: number) => void; onBack: () => void }
+type FootProps = { form: LubecFormSheet; paged: boolean; onPage: (page: number) => void; onBack: () => void; uploading: boolean }
 
 // Back turns a page back on a phone; on the first page, or a wide screen, it returns where the form came from, or cancels.
 function BackButton({ form, paged, onPage, onBack }: FootProps) {
@@ -63,10 +66,10 @@ function BackButton({ form, paged, onPage, onBack }: FootProps) {
   return <button className="btn line" type="button" onClick={onBack}>{form.back ? 'Back' : 'Cancel'}</button>
 }
 
-// Next turns the page on a phone; the last page, or a wide screen, adds or saves.
-function NextButton({ form, paged, onPage }: FootProps) {
+// Next turns the page on a phone; the last page, or a wide screen, adds or saves, once the picture is up.
+function NextButton({ form, paged, onPage, uploading }: FootProps) {
   if (paged && form.page < lubecFormPages(form.fields.kind).length - 1) return <button className="btn" type="button" onClick={() => onPage(form.page + 1)}>Next</button>
-  return <button className="btn" type="submit">{form.editId ? 'Save' : 'Add it'}</button>
+  return <button className="btn" type="submit" disabled={uploading}>{form.editId ? 'Save' : 'Add it'}</button>
 }
 
 /** The page a phone shows, by its id, or '' when every part shows at once. */
@@ -76,12 +79,12 @@ const pageId = (form: LubecFormSheet, paged: boolean) => (paged ? lubecFormPages
 const withKind = (form: LubecFormSheet, kind: LubecItemKind): LubecFormSheet =>
   ({ ...form, fields: lubecWithKind(form.fields, kind), page: Math.min(form.page, lubecFormPages(kind).length - 1) })
 
-function FormTop({ form, onFields, stock, supplyName, actions }: Pick<FormProps, 'form' | 'stock' | 'supplyName' | 'actions'> & { onFields: (fields: LubecItemFields) => void }) {
+function FormTop({ form, onFields, stock, supplyName, actions, picking }: Pick<FormProps, 'form' | 'stock' | 'supplyName' | 'actions'> & { onFields: (fields: LubecItemFields) => void; picking: LubecPicking | null }) {
   const { fields } = form
   return (
     <div className="form-top">
       <div className="name-pic">
-        <LubecPictureField fields={fields} onFields={onFields} />
+        <LubecPictureField fields={fields} onFields={onFields} picking={picking} />
         <div className="name-col">
           <LubecNameField fields={fields} onName={(name) => onFields({ ...fields, name })} stock={form.editId ? null : stock} supplyName={supplyName} onPick={actions.onPickStock} onBrowse={actions.onBrowse} />
           <div className="stock-line">
@@ -99,9 +102,10 @@ function FormTop({ form, onFields, stock, supplyName, actions }: Pick<FormProps,
 
 /** The add and edit form: the kind tiles, the item, its kind's own page, and where it goes. One size for every kind, and it never scrolls. */
 export function LubecItemForm(props: FormProps) {
-  const { form, gear, supplies, actions, placed = true, onYou = true } = props
+  const { form, gear, supplies, actions, placed = true, onYou = true, pictures = null } = props
   const editing = gear.items.find((x) => x.id === form.editId)
   const paged = useLubecMediaQuery(PAGED)
+  const picking = useLubecPictureUpload(form, actions.onForm, pictures)
   const onFields = (fields: LubecItemFields) => actions.onForm({ ...form, fields })
   const onPage = (page: number) => actions.onForm({ ...form, page })
   const submit = (e: FormEvent) => {
@@ -113,7 +117,7 @@ export function LubecItemForm(props: FormProps) {
       <LubecSheetHead eyebrow={editing ? 'Edit item' : 'New item'} title={editing ? editing.name : 'Add an item'} onClose={actions.onClose} />
       {paged ? <FormSteps form={form} placed={placed} onPage={onPage} /> : null}
       <LubecKindTiles fields={form.fields} onKind={(kind) => actions.onForm(withKind(form, kind))} />
-      <FormTop {...props} onFields={onFields} />
+      <FormTop {...props} onFields={onFields} picking={picking} />
       <div className="form-kind">
         <LubecItemFormKind fields={form.fields} onFields={onFields} supplies={supplies} onMakeSupply={actions.onMakeSupply} gear={gear} editId={form.editId} />
       </div>
@@ -121,8 +125,8 @@ export function LubecItemForm(props: FormProps) {
       {form.error ? <p className="form-error" role="alert">{form.error}</p> : null}
       <div className="sheet-foot">
         <div className="actions">
-          <BackButton form={form} paged={paged} onPage={onPage} onBack={actions.onBack} />
-          <NextButton form={form} paged={paged} onPage={onPage} onBack={actions.onBack} />
+          <BackButton form={form} paged={paged} onPage={onPage} onBack={actions.onBack} uploading={false} />
+          <NextButton form={form} paged={paged} onPage={onPage} onBack={actions.onBack} uploading={picking?.busy === true} />
         </div>
       </div>
     </form>

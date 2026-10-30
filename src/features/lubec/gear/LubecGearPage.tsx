@@ -24,6 +24,7 @@ import { useLubecGearMoves, type LubecDropIt } from './useLubecGearMoves'
 import type { LubecGearCarry } from './LubecCarrierDetail'
 import { LubecCarrierDialogOver, LubecCarriersView, LubecCarrying } from './LubecGearCarriers'
 import { lubecGearWork, lubecOpenHidden, lubecOpenShared, type LubecGearWork } from './lubecGearWork'
+import type { LubecPictureUpload } from './lubecPicked'
 import type { LubecSharedSeat } from './lubecSharedSeat'
 import { useLubecCarrierActs, useLubecGearView, type LubecGearView } from './useLubecCarriers'
 import { useLubecHiddenCarriers } from './useLubecHiddenCarriers'
@@ -61,6 +62,8 @@ type GearPageProps = {
   shared?: LubecSharedSeat | null
   /** The character's hidden carriers, for its owner and the GM; anyone else's page never asks for them. */
   hidden?: LubecGearHidden | null
+  /** Uploads an item's picture; null or absent for a viewer or a sheet that has none. */
+  upload?: LubecPictureUpload | null
 }
 
 const NO_CAMPAIGN_STOCK: readonly LubecStockItem[] = []
@@ -211,6 +214,8 @@ type SheetOverProps = {
   onAsk: ReturnType<typeof useLubecStrengthAsk>['onAsk']
   wielder: LubecWielder
   give: LubecGearGive | null
+  inHidden: boolean
+  upload?: LubecPictureUpload | null
 }
 
 // A card stays open only while its thing is in the record: another player can take it out of a shared carrier.
@@ -230,7 +235,7 @@ function ItemSheetOver({ work, sheet, setSheet, toast, onAsk, give, ...ctx }: Sh
 }
 
 /** The Lubec sheet's Gear page: the Gear bar, B's On you view of the backpack, the hands, the body and the armor, the Carriers view, and the item sheet over them. */
-export function LubecGearPage({ gear, owner, wielder, onGearChange, onDrop = null, campaignStock = NO_CAMPAIGN_STOCK, strength = null, kinds = LUBEC_CARRIER_KINDS, give = null, shared = null, hidden = null }: GearPageProps) {
+export function LubecGearPage({ gear, owner, wielder, onGearChange, onDrop = null, campaignStock = NO_CAMPAIGN_STOCK, strength = null, kinds = LUBEC_CARRIER_KINDS, give = null, shared = null, hidden = null, upload }: GearPageProps) {
   const nav = useLubecGearView()
   const [sheet, setSheet] = useState<LubecItemSheetState | null>(null)
   const toast = useLubecToast()
@@ -252,7 +257,7 @@ export function LubecGearPage({ gear, owner, wielder, onGearChange, onDrop = nul
         />
       </LubecDragContext>
       <LubecCarrierDialogOver gear={gear} change={moves.change} toast={toast.show} acts={carriers} kinds={kinds} shared={shared} onHide={lubecHiddenAdder(hidden, toast.show)} />
-      <ItemSheetOver work={work} sheet={sheet} setSheet={setSheet} toast={toast.show} campaignStock={campaignStock} busy={moves.busy} onAsk={asking.onAsk} wielder={wielder} give={give} />
+      <ItemSheetOver work={work} sheet={sheet} setSheet={setSheet} toast={toast.show} campaignStock={campaignStock} busy={moves.busy} onAsk={asking.onAsk} wielder={wielder} give={give} inHidden={stash !== null} upload={upload} />
       <StrengthAskOver gear={gear} asking={asking} strength={strength} change={moves.change} setSheet={setSheet} toast={toast.show} drop={moves.drop} />
       <LubecDragLayer view={moves.drag.view} item={gear.items.find((x) => x.id === moves.drag.view?.itemId)} ghost={moves.drag.ghost} dropZone={moves.drag.dropZone} />
       <Toast text={toast.text} shown={toast.shown} busy={moves.busy} />

@@ -8,9 +8,10 @@ import { LUBEC_ITEMS_GROUPS, lubecDroppedLine, lubecGmItemFacts } from './gmItem
 /** A character the GM may give an item to. */
 export type LubecGiveTarget = { id: string; name: string }
 
-/** What the card's buttons do; Edit is a campaign item's, Keep a dropped item's. */
+/** What the card's buttons do; Edit and adding a picture are a campaign item's, Keep a dropped item's. */
 export type LubecGmItemActions = {
   onEdit: (() => void) | null
+  onAddPicture: (() => void) | null
   onGive: (characterId: string) => void
   onKeep: (() => void) | null
   onDelete: () => void
@@ -105,7 +106,7 @@ export function LubecGmItemCard({ item, targets, busy, error, actions }: CardPro
       <div className="sheet-form">
         <header><div><div className="eyebrow">{`${KIND_NAMES[item.kind]} / ${LUBEC_ITEMS_GROUPS[item.status]}`}</div><h2 id="lubec-gm-item-title">{cardTitle(item)}</h2></div></header>
         <div className="card-top">
-          <LubecCardPicture item={item} name={item.name} />
+          <LubecCardPicture item={item} name={item.name} onAdd={actions.onAddPicture} />
           <p className={`item-note${item.note ? '' : ' empty'}`}>{item.note || 'No description.'}</p>
         </div>
         <Facts item={item} />

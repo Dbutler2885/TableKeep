@@ -243,6 +243,24 @@ service firebase.storage {
         && (mediaKind == 'portraits' || mediaKind == 'token-icons');
     }
 
+    // A Lubec item's own picture on a character. Reads, counted by hand because
+    // the emulator does not enforce the production limit of two documents:
+    // read: 1 (the member document). Owner claim: 2 (the member document, then
+    // the character document). No claim: 2 (the member document, then the
+    // campaign document for a GM who is not a group admin).
+    match /groups/{groupId}/campaigns/{campaignId}/characters/{characterId}/item-art/{assetName} {
+      allow read: if isGroupMember(groupId);
+      allow write: if withinVisitorObjectLimit() && canWriteGroupCharacterMedia(groupId, campaignId, characterId);
+    }
+
+    // A Lubec campaign item's picture, which every member sees in the picker.
+    // Reads: read 1 (the member document); write 2 (the member document, then
+    // the campaign document for a GM who is not a group admin).
+    match /groups/{groupId}/campaigns/{campaignId}/gmItems/{itemId}/item-art/{assetName} {
+      allow read: if isGroupMember(groupId);
+      allow write: if withinVisitorObjectLimit() && isGroupCampaignGM(groupId, campaignId);
+    }
+
     match /campaigns/{campaignId}/maps/{mapId} {
       allow read: if canReadMapAsset(campaignId, mapId);
       allow write: if isCampaignGM(campaignId);

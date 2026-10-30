@@ -198,7 +198,7 @@ describe('the card\'s Move panel', () => {
     openGear()
 
     const card = openCard('Walkie-talkie')
-    expect(card.getAllByRole('button').map((b) => b.textContent)).toEqual(['×', 'Edit', 'Move', 'Give', 'Drop / free'])
+    expect(card.getAllByRole('button').map((b) => b.textContent)).toEqual(['×', 'Add a picture', 'Edit', 'Move', 'Give', 'Drop / free'])
     fireEvent.click(card.getByRole('button', { name: 'Move' }))
     expect(card.getByRole('button', { name: 'Move' }).getAttribute('aria-expanded')).toBe('true')
     const select = card.getByRole('combobox', { name: 'Move to' }) as HTMLSelectElement

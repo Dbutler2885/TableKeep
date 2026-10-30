@@ -207,7 +207,7 @@ describe('the GM Items tab', () => {
     expect(anvil.getByText('Dropped by Wayne Gardner, from backpack.')).toBeTruthy()
     expect(anvil.getAllByRole('button').map((b) => b.textContent)).toEqual(['Give to...', 'Keep as a campaign item', 'Delete'])
 
-    expect(openRow('Brass storm lantern').getAllByRole('button').map((b) => b.textContent)).toEqual(['Edit', 'Give to...', 'Delete'])
+    expect(openRow('Brass storm lantern').getAllByRole('button').map((b) => b.textContent)).toEqual(['Add a picture', 'Edit', 'Give to...', 'Delete'])
   })
 
   it('gives a dropped item to a character in play: it lands in the backpack with no Strength roll and leaves the tab', async () => {
@@ -284,7 +284,7 @@ describe('the GM Items tab', () => {
     const kept = database[`${GM_ITEMS}/anvil`]
     expect(kept).toMatchObject({ id: 'anvil', name: 'Small anvil', weight: 'heavy', status: 'library', createdAt: { seconds: 2, nanoseconds: 0 } })
     for (const field of ['droppedByCharacterId', 'droppedByCharacterName', 'droppedByUserId', 'droppedFrom', 'carrier']) expect(kept).not.toHaveProperty(field)
-    expect(openRow('Small anvil').getAllByRole('button').map((b) => b.textContent)).toEqual(['Edit', 'Give to...', 'Delete'])
+    expect(openRow('Small anvil').getAllByRole('button').map((b) => b.textContent)).toEqual(['Add a picture', 'Edit', 'Give to...', 'Delete'])
   })
 
   it('deletes an item only once asked for good', async () => {

@@ -196,3 +196,29 @@ describe('the form\'s pages on a phone', () => {
     expect(['name', 'qty', 'per', 'wounds', 'takes', 'locs'].map((f) => lubecFieldPage(f as never))).toEqual(['top', 'top', 'top', 'kind', 'kind', 'kind'])
   })
 })
+
+describe("the form's uploaded picture", () => {
+  const upload = { picturePath: 'groups/g/item-art/mug.webp', shape: 'wide' as const }
+  const item = { id: 'mug', kind: 'thing', name: 'Mug', note: '', size: 1, weight: 'normal', qty: 1, carrier: 'backpack', pocket: 0, ...upload } as LubecItem
+
+  it('comes from the item and shows', () => {
+    const { picture } = lubecFieldsOf(item, 'backpack#0')
+    expect(picture).toEqual(upload)
+    expect(lubecPictureShown(picture)).toBe(true)
+  })
+
+  it('goes to the draft as the path alone, with no art and no URL field', () => {
+    const draft = lubecDraftOf({ ...lubecNewFields('backpack#0'), name: 'Mug', picture: upload })
+    expect(draft).toMatchObject(upload)
+    expect(Object.keys(draft)).not.toContain('art')
+    expect(Object.keys(draft).filter((key) => /url/i.test(key))).toEqual([])
+  })
+
+  it('copies in from a campaign item', () => {
+    expect(lubecFieldsFromStock(lubecNewFields('backpack#0'), item).picture).toEqual(upload)
+  })
+
+  it('reads a shape left unstored as square', () => {
+    expect(lubecFieldsOf({ ...item, shape: undefined }, 'backpack#0').picture).toEqual({ picturePath: upload.picturePath, shape: 'square' })
+  })
+})

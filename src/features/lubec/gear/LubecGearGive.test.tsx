@@ -136,7 +136,7 @@ describe('the card\'s Give', () => {
     openGear('Tommy')
     const card = openCard('Flashlight')
 
-    expect(card.getAllByRole('button').map((b) => b.textContent)).toEqual(['×', 'Edit', 'Move', 'Give', 'Drop'])
+    expect(card.getAllByRole('button').map((b) => b.textContent)).toEqual(['×', 'Add a picture', 'Edit', 'Move', 'Give', 'Drop'])
     fireEvent.click(card.getByRole('button', { name: 'Give' }))
 
     expect(card.getByRole('button', { name: 'Give' }).getAttribute('aria-expanded')).toBe('true')
@@ -275,6 +275,6 @@ describe('the card\'s Give', () => {
     openGear('Tommy')
     const card = openCard('Flashlight')
 
-    expect(card.getAllByRole('button').map((b) => b.textContent)).toEqual(['×', 'Edit', 'Move', 'Drop'])
+    expect(card.getAllByRole('button').map((b) => b.textContent)).toEqual(['×', 'Add a picture', 'Edit', 'Move', 'Drop'])
   })
 })

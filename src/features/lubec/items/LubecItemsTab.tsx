@@ -14,6 +14,7 @@ import { lubecCharacterStore } from '../../ruleSets/lubec/characterParser'
 import type { LubecGmItem } from '../../ruleSets/lubec/gear/gmItem'
 import { lubecMoveStoreOf } from '../gear/lubecGearDrop'
 import type { LubecFormSheet } from '../gear/itemSheet'
+import { lubecOpenWithPicker } from '../gear/useLubecPictureUpload'
 import { useLubecToast } from '../gear/useLubecToast'
 import { LubecRoughFilter } from '../LubecRoughFilter'
 import { lubecCharacterName } from '../lubecNames'
@@ -81,8 +82,10 @@ function useWriteRunner() {
 function itemActions(item: LubecGmItem, { records, give, toast, select, openForm }: ActionsOptions, run: ReturnType<typeof useWriteRunner>['run']): LubecGmItemActions {
   const library = item.status === 'library'
   const nameOf = (id: string) => give.targets.find((t) => t.id === id)?.name ?? 'them'
+  const onEdit = library ? () => openForm(lubecLibraryEditSheet(item)) : null
   return {
-    onEdit: library ? () => openForm(lubecLibraryEditSheet(item)) : null,
+    onEdit,
+    onAddPicture: onEdit && (() => lubecOpenWithPicker(onEdit)),
     onGive: (characterId) => void run(item, () => giveLubecGmItem(records, item, characterId, give.moveStore, makeId()), () => {
       toast(`Gave ${item.name} to ${nameOf(characterId)}. It lands on ${nameOf(characterId)}'s sheet.`)
       if (!library) select(null)
