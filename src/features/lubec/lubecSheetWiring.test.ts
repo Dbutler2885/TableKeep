@@ -117,6 +117,16 @@ describe('lubecSheetWiring', () => {
     expect(wire({ ...finalized, ownerUserId: 'gm-1' }, gm).edits.onGearRolled).not.toBeNull()
   })
 
+  it('asks any GM for a heavy thing\'s Strength roll on an NPC\'s sheet in play, which has no player to wait for', () => {
+    const npc = { ...records, sheet: { kind: 'npc', npcId: 'tommy' } } as const
+    const store = { updateCharacter: vi.fn(), updateCharacterNow: vi.fn(), hasPendingWrite: vi.fn(() => false) }
+    const heldByAnotherGm = { ...finalized, ownerUserId: 'gm-2' }
+
+    expect(lubecSheetWiring(heldByAnotherGm, gm, store, npc).onGearRolled).not.toBeNull()
+    expect(lubecSheetWiring({ ...heldByAnotherGm, creationStatus: 'established_draft' }, gm, store, npc).onGearRolled).toBeNull()
+    expect(lubecSheetWiring(heldByAnotherGm, otherPlayer, store, npc).onGearRolled).toBeNull()
+  })
+
   it('offers no drop to another player, or where the records are not known', () => {
     expect(wire(finalized, otherPlayer, true).edits.onGearDrop).toBeNull()
     expect(wire(finalized, owner).edits.onGearDrop).toBeNull()

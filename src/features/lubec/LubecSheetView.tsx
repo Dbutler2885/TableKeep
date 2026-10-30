@@ -4,6 +4,7 @@ import { flushSync } from 'react-dom'
 import { lubecClass } from '../ruleSets/lubec/classes'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
 import { withLubecClass, type LubecSheetEdit } from '../ruleSets/lubec/directEntry'
+import type { LubecCarrierKind } from '../ruleSets/lubec/gear/carriers'
 import { lubecStrengthPending } from '../ruleSets/lubec/gear/strengthCheck'
 import type { LubecSkills } from '../ruleSets/lubec/skillPicks'
 import { LubecCorePage, type LubecGuided } from './LubecCorePage'
@@ -26,13 +27,7 @@ import lubecPines from './lubecPines.svg'
 
 type LubecPage = 'core' | 'skills' | 'gear'
 
-type LubecPages = readonly (readonly [LubecPage, string])[]
-
-const LUBEC_PAGES: LubecPages = [['core', 'Core sheet'], ['skills', 'Skills'], ['gear', 'Gear']]
-
-// Every page, or every page but Gear where the sheet has no Gear page yet.
-const pagesOf = (withGear: boolean | undefined): LubecPages =>
-  (withGear === false ? LUBEC_PAGES.filter(([id]) => id !== 'gear') : LUBEC_PAGES)
+const LUBEC_PAGES: readonly (readonly [LubecPage, string])[] = [['core', 'Core sheet'], ['skills', 'Skills'], ['gear', 'Gear']]
 
 function LubecPortrait({ character }: { character: LubecCharacterRecord }) {
   if (!character.portraitUrl) {
@@ -51,12 +46,12 @@ function LubecPortrait({ character }: { character: LubecCharacterRecord }) {
 // The dot on the Gear tab: a heavy thing on the character came with no Strength roll, and the page asks for it when opened.
 const LubecPageDot = () => <span className="lubec-page-dot"><span className="sr-only">, a Strength roll to make</span></span>
 
-type PageTabsProps = { pages: LubecPages; page: LubecPage; onPage: (page: LubecPage) => void; dot: LubecPage | null }
+type PageTabsProps = { page: LubecPage; onPage: (page: LubecPage) => void; dot: LubecPage | null }
 
-function LubecPageTabs({ pages, page, onPage, dot }: PageTabsProps) {
+function LubecPageTabs({ page, onPage, dot }: PageTabsProps) {
   return (
     <nav className="lubec-page-tabs" aria-label="Character sheet pages">
-      {pages.map(([id, label]) => (
+      {LUBEC_PAGES.map(([id, label]) => (
         <button key={id} type="button" aria-current={id === page ? 'page' : undefined} onClick={() => onPage(id)}>
           {label}{id === dot ? <LubecPageDot /> : null}
         </button>
@@ -67,7 +62,6 @@ function LubecPageTabs({ pages, page, onPage, dot }: PageTabsProps) {
 
 type MastheadProps = {
   character: LubecCharacterRecord
-  pages: LubecPages
   page: LubecPage
   onPage: (page: LubecPage) => void
   /** The page whose tab carries a dot, or null. */
@@ -130,13 +124,13 @@ function LubecKidMeta({ character }: { character: LubecCharacterRecord }) {
 // rust and mustard stripe, then the name band with the portrait and the token
 // at the left and the stamp at the right, with a stand of pines rising behind
 // the stamp.
-function LubecMasthead({ character, pages, page, onPage, dot, editing, ...actions }: MastheadProps) {
+function LubecMasthead({ character, page, onPage, dot, editing, ...actions }: MastheadProps) {
   return (
     <header className="lubec-masthead">
       <LubecRoughFilter />
       <div className="lubec-topbar">
         <div className="lubec-wordmark">Lubec 1977</div>
-        <LubecPageTabs pages={pages} page={page} onPage={onPage} dot={dot} />
+        <LubecPageTabs page={page} onPage={onPage} dot={dot} />
       </div>
       <div className="lubec-idband">
         <div className="lubec-id-art">
@@ -182,8 +176,8 @@ export type LubecSheetViewProps = {
   editing: LubecSheetEditing | null
   /** False where the name, portrait and token are edited elsewhere: the band has no Edit and the token is only a picture. */
   identityEditable?: boolean
-  /** False where the sheet has no Gear page yet, as on an NPC's sheet; offered unless said otherwise. */
-  withGear?: boolean
+  /** The kinds of carrier the Carriers view offers; every kind unless said otherwise. */
+  carrierKinds?: readonly LubecCarrierKind[]
   /** Null for a viewer who may not change the character. */
   onCountersChange: LubecCountersChange | null
   /** Null unless the viewer may change the character's skills, which is only in creation. */
@@ -216,7 +210,7 @@ type LockedEdits = Pick<LubecSheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
 const lockedEdits = (correcting: boolean, corrections: LubecCorrections | null, edits: LockedEdits): LockedEdits =>
   correcting && corrections ? corrections : edits
 
-type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp' | 'onGearChange' | 'onGearDrop' | 'onGearRolled' | 'campaignStock'> & {
+type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp' | 'onGearChange' | 'onGearDrop' | 'onGearRolled' | 'campaignStock' | 'carrierKinds'> & {
   page: LubecPage
   onHideTree: () => void
   /** Brings the Core page's class cards into view once the class is cleared. */
@@ -237,17 +231,17 @@ function changeClassOf(sheet: LubecCharacterRecord['lubec'], onDraftEdit: LubecS
 }
 
 // The Gear page, which asks the owner for a heavy thing's Strength roll on the character's own sheet.
-function LubecSheetGear({ character, onGearChange, onGearDrop, onGearRolled, campaignStock }: Pick<SheetPageProps, 'character' | 'onGearChange' | 'onGearDrop' | 'onGearRolled' | 'campaignStock'>) {
+function LubecSheetGear({ character, onGearChange, onGearDrop, onGearRolled, campaignStock, carrierKinds }: Pick<SheetPageProps, 'character' | 'onGearChange' | 'onGearDrop' | 'onGearRolled' | 'campaignStock' | 'carrierKinds'>) {
   const strength = onGearRolled && { sheet: character.lubec, onRolled: onGearRolled }
   return (
     <LubecGearPage
-      gear={character.lubec.gear} owner={character.name} wielder={lubecWielder(character.lubec)} onGearChange={onGearChange} onDrop={onGearDrop} strength={strength} campaignStock={campaignStock}
+      gear={character.lubec.gear} owner={character.name} wielder={lubecWielder(character.lubec)} onGearChange={onGearChange} onDrop={onGearDrop} strength={strength} campaignStock={campaignStock} kinds={carrierKinds}
     />
   )
 }
 
-function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp, onGearChange, onGearDrop, onGearRolled, campaignStock }: SheetPageProps) {
-  if (page === 'gear') return <LubecSheetGear character={character} onGearChange={onGearChange} onGearDrop={onGearDrop} onGearRolled={onGearRolled} campaignStock={campaignStock} />
+function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp, onGearChange, onGearDrop, onGearRolled, campaignStock, carrierKinds }: SheetPageProps) {
+  if (page === 'gear') return <LubecSheetGear character={character} onGearChange={onGearChange} onGearDrop={onGearDrop} onGearRolled={onGearRolled} campaignStock={campaignStock} carrierKinds={carrierKinds} />
   if (page === 'skills') {
     const onChangeClass = changeClassOf(character.lubec, onDraftEdit, onShowClass)
     return <LubecSkillsPage sheet={character.lubec} onChange={onSkillsChange} onHideTree={onHideTree} onChangeClass={onChangeClass} />
@@ -289,7 +283,7 @@ const identityEditingOf = (editing: LubecSheetEditing | null, identityEditable: 
 
 /** One Lubec character's sheet, in the v4 frame, on its Core, Skills or Gear page. */
 export function LubecSheetView({
-  character, editing, identityEditable, withGear, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearRolled, campaignStock, ...edits
+  character, editing, identityEditable, carrierKinds, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearRolled, campaignStock, ...edits
 }: LubecSheetViewProps) {
   const [page, setPage] = useState<LubecPage>('core')
   const [bandOpen, setBandOpen] = useState(false)
@@ -300,7 +294,6 @@ export function LubecSheetView({
     <article ref={sheetRef} className="lubec-sheet" aria-label={`${lubecCharacterName(character)} character sheet`}>
       <LubecMasthead
         character={character}
-        pages={pagesOf(withGear)}
         page={page}
         onPage={setPage}
         dot={gearDotOf(character, onGearRolled)}
@@ -329,6 +322,7 @@ export function LubecSheetView({
         onGearDrop={onGearDrop}
         onGearRolled={onGearRolled}
         campaignStock={campaignStock}
+        carrierKinds={carrierKinds}
         {...lockedEdits(correcting, corrections, edits)}
       />
     </article>

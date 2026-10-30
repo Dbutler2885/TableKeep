@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { lubecCarried } from '../../ruleSets/lubec/gear/carriers'
+import { lubecCarried, type LubecCarrierKind } from '../../ruleSets/lubec/gear/carriers'
 import type { LubecCarrier, LubecGear } from '../../ruleSets/lubec/gear/gearRecord'
 import { lubecCarrierAddedToast } from './carrierLabels'
 import { LubecCarrierDetail, type LubecGearCarry } from './LubecCarrierDetail'
@@ -80,15 +80,15 @@ export function LubecCarriersView(props: ViewProps) {
   )
 }
 
-type DialogOverProps = LubecCarrierActsOptions & { acts: LubecCarrierActs }
+type DialogOverProps = LubecCarrierActsOptions & { acts: LubecCarrierActs; kinds: readonly LubecCarrierKind[] }
 
 /** The add-carrier dialog over the page, while it is open for a viewer who may change the gear. The new carrier is one commit. */
-export function LubecCarrierDialogOver({ gear, change, toast, acts }: DialogOverProps) {
+export function LubecCarrierDialogOver({ gear, change, toast, acts, kinds }: DialogOverProps) {
   if (!acts.adding || !change) return null
   const onAdded = (next: LubecGear, carrier: LubecCarrier) => {
     change(next)
     acts.close()
     toast(lubecCarrierAddedToast(carrier))
   }
-  return <LubecCarrierDialog gear={gear} onAdded={onAdded} onClose={acts.close} toast={toast} />
+  return <LubecCarrierDialog gear={gear} kinds={kinds} onAdded={onAdded} onClose={acts.close} toast={toast} />
 }

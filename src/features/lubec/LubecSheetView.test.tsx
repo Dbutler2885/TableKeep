@@ -63,10 +63,4 @@ describe('LubecSheetView pages', () => {
 
     expect(pageTabs()).toEqual(['Core sheet', 'Skills', 'Gear'])
   })
-
-  it('leaves the Gear page out where the sheet has none yet, as on an NPC\'s sheet', () => {
-    renderSheet({ withGear: false })
-
-    expect(pageTabs()).toEqual(['Core sheet', 'Skills'])
-  })
 })

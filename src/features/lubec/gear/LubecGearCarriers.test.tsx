@@ -50,6 +50,9 @@ vi.mock('../../common/mediaStorage', async (importOriginal) => ({
 }))
 
 const { ruleSetSheets } = await import('../../ruleSets/sheetComponents')
+const { LubecCarrierDialog } = await import('./LubecCarrierDialog')
+const { LUBEC_NPC_CARRIER_KINDS } = await import('../../ruleSets/lubec/gear/carriers')
+const { emptyLubecGear } = await import('../../ruleSets/lubec/gear/gearRecord')
 
 const CHARACTERS_PATH = 'groups/group-1/campaigns/campaign-1/characters'
 const GM = 'gm-1'
@@ -450,5 +453,24 @@ describe('a viewer who may only look', () => {
     expect(rowNames(pocketOf('Main'))).toEqual(['Coil of rope'])
     expect(document.querySelectorAll('.pocket-section button')).toHaveLength(0)
     expect(document.querySelector('.carry-area')).toBeNull()
+  })
+})
+
+describe('the kinds the add-carrier dialog offers', () => {
+  const renderDialog = (kinds: Parameters<typeof LubecCarrierDialog>[0]['kinds']) =>
+    render(<LubecCarrierDialog gear={emptyLubecGear()} kinds={kinds} onAdded={vi.fn()} onClose={vi.fn()} toast={vi.fn()} />)
+
+  it('offers a choice of every kind a sheet takes', () => {
+    renderDialog(['personal', 'shared', 'hidden'])
+
+    const kind = dialog('Add a carrier').getByRole('combobox', { name: 'Kind' })
+    expect(within(kind).getAllByRole('option').map((option) => option.textContent)).toEqual(['Personal', 'Shared with the table', 'Hidden'])
+  })
+
+  it('offers no choice on an NPC\'s sheet, which takes personal carriers only', () => {
+    renderDialog(LUBEC_NPC_CARRIER_KINDS)
+
+    expect(LUBEC_NPC_CARRIER_KINDS).toEqual(['personal'])
+    expect(dialog('Add a carrier').queryByRole('combobox', { name: 'Kind' })).toBeNull()
   })
 })

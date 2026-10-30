@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
   listeners: {} as Record<string, { next: (snap: unknown) => void; fail?: (error: unknown) => void }>,
   setDoc: vi.fn(async (..._args: unknown[]) => undefined),
   deleteDoc: vi.fn(async (..._args: unknown[]) => undefined),
+  runTransaction: vi.fn(),
   resolveStoragePathUrl: vi.fn(async (path: string): Promise<string | null> => `https://media.test/${path}`),
   uploadEntityImage: vi.fn(),
 }))
@@ -49,6 +50,7 @@ vi.mock('firebase/firestore', () => ({
       if (mocks.listeners[ref.path]?.next === next) delete mocks.listeners[ref.path]
     }
   },
+  runTransaction: mocks.runTransaction,
   serverTimestamp: () => ({ sentinel: 'serverTimestamp' }),
   setDoc: mocks.setDoc,
 }))
@@ -75,6 +77,7 @@ const { CampaignTabContent } = await import('../shell/CampaignTabContent')
 const { parseLubecCharacter } = await import('../ruleSets/lubec/characterParser')
 const { LubecDiceContext } = await import('./useLubecRoller')
 const { LUBEC_NPC_PORTRAIT_NOTE } = await import('./LubecNpcSheetTab')
+const { lubecArmorAt } = await import('../ruleSets/lubec/gear/armorAt')
 
 const GM = 'gm-1'
 const BASE = 'groups/group-1/campaigns/campaign-1'
@@ -222,12 +225,27 @@ const storedSheet = (path = RENE_SHEET) => parseLubecCharacter(path.split('/').p
 const circleOf = (name: string) =>
   (screen.getByText(name, { selector: '.ability-name' }).closest('.ability') as HTMLElement).querySelector('.roll-circle') as HTMLElement
 
+// A transaction's writes land together when it ends, and the listeners then hear them.
+async function transaction(_db: unknown, run: (tx: unknown) => Promise<unknown>) {
+  const writes: (() => void)[] = []
+  const tx = {
+    get: async ({ path }: { path: string }) => snapshotOf(path),
+    set: (...args: unknown[]) => { writes.push(() => writeToDatabase(...args)) },
+    delete: ({ path }: { path: string }) => { writes.push(() => { delete database[path] }) },
+  }
+  const result = await run(tx)
+  writes.forEach((write) => write())
+  emitDatabase()
+  return result
+}
+
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   database = {}
   seededRolls = []
   mocks.setDoc.mockReset().mockImplementation(async (...args: unknown[]) => writeToDatabase(...args))
   mocks.deleteDoc.mockReset().mockResolvedValue(undefined)
+  mocks.runTransaction.mockReset().mockImplementation(transaction)
   seed({ [`${NPCS}/rene`]: npc('Rene Dube', { sortOrder: 0 }), [`${NPCS}/hollis`]: npc('Hollis Varney', { sortOrder: 1 }) })
 })
 
@@ -371,6 +389,115 @@ describe('an NPC\'s sheet', () => {
     expect(database[RENE_SHEET].creationStatus).toBe('active')
     expect(writtenPaths()).toEqual([RENE_SHEET])
     expect(document.querySelector('.lubec-draft-bar')).toBeNull()
+  })
+})
+
+describe('an NPC\'s Gear page', () => {
+  const thing = (id: string, name: string, pocket: number, fields: Fields = {}): Fields => ({
+    id, kind: 'thing', carrier: 'backpack', pocket, name, size: 1, qty: 1, weight: 'normal', note: '', ...fields,
+  })
+  const helmet: Fields = {
+    id: 'helmet', kind: 'armor', carrier: 'worn', name: 'Hockey helmet', size: 2, qty: 1, weight: 'normal', note: '', locs: ['head'], armor: { cut: 1, pierce: 1, blunt: 2, gun: 0 },
+  }
+  const reneWith = (items: Fields[]) => reneSheet({}, { gear: { items, carriers: [], overrides: [], supplies: [] } })
+
+  const pageTabs = () => within(screen.getByRole('navigation', { name: 'Character sheet pages' }))
+  const gearTab = () => pageTabs().getByRole('button', { name: /^Gear/ })
+  const openGear = () => fireEvent.click(gearTab())
+  const dialog = (name: string | RegExp) => within(screen.getByRole('dialog', { name }))
+  const slotOf = (name: string) => [...document.querySelectorAll<HTMLElement>('.lubec-gear .slot.item')].find((el) => el.textContent?.includes(name)) as HTMLElement
+  const storedGear = () => storedSheet().lubec.gear
+
+  function openSheet(items: Fields[]) {
+    seed({ [RENE_SHEET]: reneWith(items) })
+    mountNpcs('gm', GM)
+    openSheetTab('Rene Dube')
+  }
+
+  it('has the same three pages as a player\'s sheet, and is empty for a sheet with no gear', () => {
+    seed({ [RENE_SHEET]: reneSheet() })
+    mountNpcs('gm', GM)
+    openSheetTab('Rene Dube')
+
+    expect(pageTabs().getAllByRole('button').map((tab) => tab.textContent)).toEqual(['Core sheet', 'Skills', 'Gear'])
+    openGear()
+    expect(document.querySelector('.lubec-gear .slot.item')).toBeNull()
+    expect(screen.getByRole('button', { name: '+ Add an item' })).toBeTruthy()
+  })
+
+  it('adds a carrier with personal the only kind, saved to npcSheets and nowhere else, kept through a reload', async () => {
+    openSheet([])
+    openGear()
+    fireEvent.click(screen.getByRole('tab', { name: 'Carriers' }))
+    fireEvent.click(screen.getByRole('button', { name: '+ New carrier' }))
+
+    const form = dialog('Add a carrier')
+    expect(form.queryByRole('combobox', { name: 'Kind' })).toBeNull()
+    fireEvent.change(form.getByRole('textbox', { name: 'Name' }), { target: { value: 'Tackle box' } })
+    fireEvent.click(form.getByRole('button', { name: 'Add carrier' }))
+    await settle()
+
+    expect(writtenPaths()).toEqual([RENE_SHEET])
+    expect(storedGear()?.carriers.map(({ name }) => name)).toEqual(['Tackle box'])
+
+    reload('gm', GM)
+    openSheetTab('Rene Dube')
+    openGear()
+    fireEvent.click(screen.getByRole('tab', { name: 'Carriers' }))
+    expect(screen.getByText('Tackle box')).toBeTruthy()
+  })
+
+  it('changes the backpack picture as on a player\'s sheet', async () => {
+    openSheet([])
+    openGear()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Change pack' }))
+    fireEvent.click(dialog('Change pack').getByRole('button', { name: 'teal' }))
+    await settle()
+
+    expect(writtenPaths()).toEqual([RENE_SHEET])
+    expect(storedGear()?.backpackArt).toBe('teal')
+  })
+
+  it('shows worn armor on the body drawing, and it counts for the location', () => {
+    openSheet([helmet])
+    openGear()
+
+    expect(screen.getByRole('button', { name: /^Head: .*\(Hockey helmet\)$/ })).toBeTruthy()
+    const gear = storedGear()
+    expect(gear && lubecArmorAt(gear, 'head', 'blunt')).toBe(2)
+  })
+
+  it('asks the GM for a heavy thing\'s Strength roll, rolled on the NPC\'s own sheet and stored in npcSheets', async () => {
+    openSheet([thing('anvil', 'Small anvil', 0, { weight: 'heavy' })])
+    expect(gearTab().textContent).toBe('Gear, a Strength roll to make')
+    openGear()
+
+    const ask = screen.getByRole('dialog', { name: 'Small anvil is heavy' })
+    seededRolls = [60]
+    fireEvent.click(ask.querySelector('.ability .roll-circle') as HTMLElement)
+    fireEvent.click(within(ask).getByRole('button', { name: 'Done' }))
+    await settle()
+
+    expect(writtenPaths()).toEqual([RENE_SHEET])
+    expect(storedSheet().lubec.gear?.items).toMatchObject([{ id: 'anvil', check: 'fail' }])
+    expect(storedSheet().lubec.counters.stress).toBe(3)
+    expect(gearTab().querySelector('.lubec-page-dot')).toBeNull()
+  })
+
+  it('drops a thing to the GM Items tab like any drop, out of npcSheets, and offers nothing that needs a player', async () => {
+    openSheet([thing('rope', 'Coil of rope', 0)])
+    openGear()
+
+    fireEvent.click(slotOf('Coil of rope'))
+    const card = dialog('Coil of rope')
+    expect(card.getAllByRole('button').map((button) => button.textContent)).toEqual(['×', 'Edit', 'Move', 'Drop'])
+    fireEvent.click(card.getByRole('button', { name: 'Drop' }))
+    await settle()
+
+    expect(storedGear()?.items).toEqual([])
+    const dropped = Object.entries(database).filter(([path]) => path.startsWith(`${BASE}/gmItems/`)).map(([, data]) => data)
+    expect(dropped).toMatchObject([{ name: 'Coil of rope', status: 'dropped', droppedByCharacterId: 'rene', droppedByCharacterName: 'Rene Dube', droppedByUserId: GM }])
   })
 })
 
