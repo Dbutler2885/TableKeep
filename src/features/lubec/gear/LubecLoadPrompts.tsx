@@ -10,7 +10,7 @@ import { lubecEmptyText, lubecEmptyTitle, lubecPickRow, lubecPickText } from './
 const PROMPT_TITLE = 'lubec-gear-prompt-title'
 
 /** One of a prompt's buttons: its label, the line under it, its look, and what it does. */
-type PromptButton = { label: string; sub?: string; cls?: string; disabled?: boolean; onPress: () => void }
+export type PromptButton = { label: string; sub?: string; cls?: string; disabled?: boolean; onPress: () => void }
 
 type PromptProps = {
   eyebrow: ReactNode
@@ -29,7 +29,7 @@ const actionsClass = (list: boolean, n: number) => {
 }
 
 /** B's prompt (B 1625-1635), in the sheet's overlay: an eyebrow, a title, a line of text, a refusal, and its buttons. */
-function LubecPrompt({ eyebrow, title, text, error, buttons, list = false, onClose }: PromptProps) {
+export function LubecPrompt({ eyebrow, title, text, error, buttons, list = false, onClose }: PromptProps) {
   const closeOnEscape = (e: KeyboardEvent) => {
     if (e.key === 'Escape') onClose()
   }

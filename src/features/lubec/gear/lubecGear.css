@@ -585,10 +585,6 @@
   border-color: rgba(242, 234, 215, 0.45);
 }
 
-.shell-root[data-theme="lubec"] .lubec-gear .carriers-view {
-  margin-top: 0.8rem;
-}
-
 /* The toast: one line after an action */
 .shell-root[data-theme="lubec"] .lubec-gear .toast {
   position: fixed;

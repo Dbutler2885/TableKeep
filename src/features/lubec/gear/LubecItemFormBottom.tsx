@@ -1,6 +1,7 @@
 import type { LubecGear, LubecItem, LubecItemWeight } from '../../ruleSets/lubec/gear/gearRecord'
 import { lubecCostText } from '../../ruleSets/lubec/gear/moveCost'
-import { lubecDestinations, WEIGHT_NAMES, weightHint } from './itemLabels'
+import { lubecCarrierDestinations } from './carrierLabels'
+import { lubecDestinations, WEIGHT_NAMES, weightHint, type LubecDestination } from './itemLabels'
 import { lubecWithDest } from './itemForm'
 import type { LubecFieldsProps } from './LubecItemFormTop'
 
@@ -13,12 +14,18 @@ type BottomProps = LubecFieldsProps & {
 
 const WEIGHTS = Object.keys(WEIGHT_NAMES) as LubecItemWeight[]
 
+// One group of "Put it": the places on you, or the personal carriers' pockets.
+function Places({ label, places }: { label: string; places: readonly LubecDestination[] }) {
+  return <optgroup label={label}>{places.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>
+}
+
 function WhereItGoes({ fields, onFields, gear, editing }: Omit<BottomProps, 'placed'>) {
   return (
     <>
       <label className="field"><span className="label">Put it</span>
         <select value={fields.dest} onChange={(e) => onFields(lubecWithDest(fields, e.target.value))}>
-          <optgroup label="On you">{lubecDestinations(gear, fields.kind).map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>
+          <Places label="On you" places={lubecDestinations(gear, fields.kind)} />
+          {gear.carriers.length ? <Places label="Carriers" places={lubecCarrierDestinations(gear)} /> : null}
         </select>
       </label>
       <p className="cost">{editing ? lubecCostText(editing.carrier, fields.dest) : ''}</p>

@@ -1,6 +1,6 @@
 /** The words the On you view shows, as B's subLine, whereText, syncCount and toast write them. */
 import { describe, expect, it } from 'vitest'
-import type { LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
+import { emptyLubecGear, type LubecGear, type LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
 import { addedToast, countNote, heavyClass, largeClass, qtyText, subLine, supplyNameIn, uprightClass, weightTagText, whereText } from './gearLabels'
 
 const item = (extra: Partial<LubecItem>): LubecItem => ({ id: 'i', kind: 'thing', name: 'Rope', note: '', size: 1, weight: 'normal', qty: 1, carrier: 'backpack', pocket: 0, ...extra })
@@ -41,9 +41,26 @@ describe('the On you words', () => {
     expect(whereText(item({ carrier: 'hands', slot: 1 }))).toBe('Right hand')
     expect(whereText(item({ carrier: 'hands', slot: 0, size: 2 }))).toBe('Both hands')
     expect(whereText(item({ carrier: 'body', slot: 0 }))).toBe('Body slot')
-    expect(whereText(item({ carrier: 'hands' }))).toBe('Left hand')
+    expect(whereText(item({ carrier: 'hands' }))).toBe('Needs a place')
     expect(whereText(item({ carrier: 'worn', locs: ['head', 'hand-L', 'hand-R'] }))).toBe('Worn: head, hands')
     expect(whereText(item({ carrier: 'worn' }))).toBe('Worn: ')
+  })
+
+  it('say where an item in a personal carrier is, by its name and pocket', () => {
+    const gear: LubecGear = {
+      ...emptyLubecGear(),
+      carriers: [
+        { id: 'duffel', name: 'Duffel bag', type: 'duffel', pockets: [{ name: 'Main', slots: 8, max: 8 }] },
+        { id: 'bag', name: 'School bag', type: 'school-bag', pockets: [{ name: 'Main', slots: 4, max: 4 }, { name: 'Outside pocket', slots: 1, max: 1 }] },
+      ],
+    }
+    expect(whereText(item({ carrier: 'duffel', pocket: 0 }), gear)).toBe('Duffel bag')
+    expect(whereText(item({ carrier: 'bag', pocket: 1 }), gear)).toBe('School bag, outside pocket')
+    expect(whereText(item({ carrier: 'bag', pocket: null, size: 0 }), gear)).toBe('School bag, small stuff')
+    expect(whereText(item({ carrier: 'bag', pocket: 2 }), gear)).toBe('Needs a place')
+    expect(whereText(item({ carrier: 'gone', pocket: 0 }), gear)).toBe('Needs a place')
+    expect(whereText(item({ carrier: 'duffel', pocket: 0 }))).toBe('Needs a place')
+    expect(addedToast(item({ carrier: 'duffel', pocket: 0 }), 1, gear)).toBe('Rope: Duffel bag.')
   })
 
   it('confirm an add in one line', () => {

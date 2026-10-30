@@ -1,0 +1,269 @@
+/* The Carriers view, copied from the inventory prototype (B): the list of
+   carrier cards with their meters, a carrier's detail, the add-carrier
+   dialog and its pocket rows. B's tokens are the sheet's own without the
+   prefix. B's lines: carriers and the detail 435-505 (less the "Seen by"
+   switch and the viewer note), the add row 383, the dialog 507-521, the
+   pocket rows 674-677 and 874, the guess line 176-183. The red box is in
+   lubecGearLoading.css. */
+
+.shell-root[data-theme="lubec"] .lubec-gear .carriers-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem 1rem;
+  align-items: end;
+  justify-content: space-between;
+  margin-top: 1.1rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .carriers-top h2 {
+  margin: 0 0 0.3rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .carrier-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: 0.8rem;
+  margin-top: 0.9rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .carrier-card {
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+  width: 100%;
+  min-width: 0;
+  padding: 0.8rem 0.85rem 0.85rem;
+  color: var(--lubec-ink);
+  text-align: left;
+  background: rgba(255, 248, 231, 0.55);
+  border: 1px solid var(--lubec-ink);
+  box-shadow: 3px 3px 0 rgba(23, 40, 43, 0.16);
+  font: inherit;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .carrier-card:hover {
+  background: var(--lubec-cream);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .carrier-card:focus-visible {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .carrier-card.locked {
+  cursor: default;
+  background: transparent;
+  border-style: dashed;
+  box-shadow: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .carrier-card.personal {
+  border-width: 2px;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .carrier-card h3 {
+  margin: 0;
+  font: 800 1.1rem/1.1 var(--lubec-display);
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .carrier-card .type {
+  margin-top: 0.2rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .card-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: start;
+  justify-content: space-between;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .card-head .tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 0.3rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .meter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .meter i {
+  display: block;
+  width: 0.78rem;
+  height: 0.78rem;
+  border: 1.5px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .meter i.on {
+  background: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .meter i.on.heavy {
+  background: var(--lubec-rust);
+  border-color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .meter i.gap {
+  width: 0.4rem;
+  border: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .vast {
+  color: var(--lubec-blue);
+  font: 700 0.68rem/1.4 var(--lubec-type);
+}
+
+/* Carrier detail */
+.shell-root[data-theme="lubec"] .lubec-gear .back {
+  margin-top: 1rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .detail-head {
+  margin-top: 0.9rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .detail-head .eyebrow {
+  margin-bottom: 0.35rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .detail-head h2 {
+  margin: 0 0 0.3rem;
+  color: var(--lubec-ink);
+  font-size: clamp(1.35rem, 5vw, 1.9rem);
+  text-transform: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .detail-head .facts {
+  margin-top: 0.6rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pocket-section {
+  margin-top: 1.1rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pocket-section h3 {
+  margin: 0;
+  font: 800 1rem/1.1 var(--lubec-display);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pocket-section > .note {
+  margin-top: 0.4rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .carry-area {
+  margin-top: 1.1rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .carry-area .btn {
+  justify-self: start;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .row-item.add {
+  color: var(--lubec-blue);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* The Carrying panel on On you: B's ink panel, its rows' buttons side by side */
+.shell-root[data-theme="lubec"] .lubec-gear .panel.ink .row-list {
+  margin-top: 0;
+  border-top: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .panel.ink .row-item {
+  min-height: 2.6rem;
+}
+
+/* The add-carrier dialog: B's sheet, in the app's overlay */
+.shell-root[data-theme="lubec"] .lubec-gear .carrier-sheet {
+  width: min(100% - 1rem, 30rem);
+  max-height: min(92vh, 46rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: var(--lubec-ink);
+  background:
+    repeating-linear-gradient(0deg, rgba(53, 64, 53, 0.025) 0 1px, transparent 1px 4px),
+    var(--lubec-paper);
+  border: 2px solid var(--lubec-ink);
+  box-shadow: 0 24px 64px rgba(7, 20, 23, 0.45);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .carrier-sheet .sheet-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .carrier-sheet .actions {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .carrier-sheet .btn.line.small {
+  justify-self: start;
+  margin-top: 0.45rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .guess {
+  margin: 0.55rem 0 0;
+  padding-left: 0.55rem;
+  color: var(--lubec-muted);
+  border-left: 2px solid var(--lubec-gray);
+  font: 700 0.64rem/1.45 var(--lubec-type);
+  letter-spacing: 0.02em;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pocket-edit {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pocket-edit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.6rem 5.6rem 2.85rem;
+  gap: 0.4rem;
+  align-items: end;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pocket-edit-row .field .label {
+  font-size: 0.5rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .pocket-edit-row .x {
+  height: 2.85rem;
+  padding: 0;
+  color: var(--lubec-ink);
+  background: transparent;
+  border: 1.5px solid var(--lubec-ink);
+  font: 400 1.2rem/1 var(--lubec-display);
+}
+
+/* Desktop: the sheet frame stays put and the Carriers view scrolls inside the pane */
+@media (min-width: 1251px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .carriers-view {
+    max-height: calc(100vh / var(--lubec-gear-zoom, 1) - var(--lubec-gear-chrome, 18.5rem) + 1.4rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 0.4rem;
+    padding-bottom: 0.4rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .shell-root[data-theme="lubec"] .lubec-gear .carrier-sheet {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92vh;
+    border-width: 2px 0 0;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-gear .pocket-edit-row {
+    grid-template-columns: minmax(0, 1fr) 4rem 4.8rem 2.85rem;
+  }
+}

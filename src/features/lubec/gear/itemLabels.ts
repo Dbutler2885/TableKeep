@@ -97,15 +97,21 @@ export function lubecDestinations(gear: LubecGear, kind: LubecItemKind): LubecDe
   ]
 }
 
-/** The "Put it" choice a place reads as: "hands", not "hands#1". */
+const ONE_CHOICE_PLACES: readonly string[] = ['hands', 'body', 'worn']
+
+/**
+ * The "Put it" choice a place reads as: "hands", not "hands#1". A carrier's choices are its pockets,
+ * so a carrier, or its small stuff, reads as its first pocket (B's `selectValue`).
+ */
 export const selectValue = (dest: string): string => {
   const [cid, sub] = dest.split('#')
+  if (ONE_CHOICE_PLACES.includes(cid)) return cid
   if (cid === 'backpack') return sub === undefined ? 'backpack#0' : dest
-  return cid
+  return sub === undefined || sub === 'small' ? `${cid}#0` : dest
 }
 
-/** Where an item is, as a place the form and the placement rule read: "backpack#small", "backpack#1", "hands#1". */
+/** Where an item is, as a place the form and the placement rule read: "backpack#small", "backpack#1", "hands#1", "duffel#0". */
 export function destOf(i: LubecItem): string {
-  if (i.carrier === 'backpack') return i.pocket == null ? 'backpack#small' : `backpack#${i.pocket}`
-  return i.slot === undefined ? i.carrier : `${i.carrier}#${i.slot}`
+  if (ONE_CHOICE_PLACES.includes(i.carrier)) return i.slot === undefined ? i.carrier : `${i.carrier}#${i.slot}`
+  return `${i.carrier}#${i.pocket == null ? 'small' : i.pocket}`
 }
