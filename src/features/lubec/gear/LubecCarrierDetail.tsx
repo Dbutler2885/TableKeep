@@ -94,12 +94,14 @@ export type LubecCarrierDetailProps = Opens & {
   onCarry: LubecGearCarry
   /** True for a shared carrier, which the whole group can get into. */
   shared?: boolean
+  /** True for a hidden carrier. */
+  hidden?: boolean
   /** What the carrier's owner may do to it, under its facts. */
   manage?: ReactNode
 }
 
 /** B's carrier detail: its name and how full it is, each pocket's things, small stuff, and the red box. */
-export function LubecCarrierDetail({ gear, carrier, owner, onBack, onCarry, shared = false, manage = null, ...opens }: LubecCarrierDetailProps) {
+export function LubecCarrierDetail({ gear, carrier, owner, onBack, onCarry, shared = false, hidden = false, manage = null, ...opens }: LubecCarrierDetailProps) {
   return (
     <>
       <button className="btn line back" type="button" onClick={onBack}>← All carriers</button>
@@ -107,7 +109,7 @@ export function LubecCarrierDetail({ gear, carrier, owner, onBack, onCarry, shar
         <div className="eyebrow">{lubecCarrierTypeLabel(carrier.type)}</div>
         <h2>{carrier.name}</h2>
         <div className="count"><LubecCarrierUse gear={gear} carrier={carrier} />{lubecDetailCountRest(gear, carrier)}</div>
-        <LubecCarrierFacts owner={owner} shared={shared} />
+        <LubecCarrierFacts owner={owner} shared={shared} hidden={hidden} />
         {manage}
       </div>
       {carrier.pockets.map((p, k) => <PocketSection key={k} gear={gear} carrier={carrier} pocket={p} k={k} {...opens} />)}

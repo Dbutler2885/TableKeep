@@ -432,7 +432,7 @@ describe('an NPC\'s Gear page', () => {
     fireEvent.click(screen.getByRole('button', { name: '+ New carrier' }))
 
     const form = dialog('Add a carrier')
-    expect(form.queryByRole('combobox', { name: 'Kind' })).toBeNull()
+    expect(form.queryByRole('radio')).toBeNull()
     fireEvent.change(form.getByRole('textbox', { name: 'Name' }), { target: { value: 'Tackle box' } })
     fireEvent.click(form.getByRole('button', { name: 'Add carrier' }))
     await settle()

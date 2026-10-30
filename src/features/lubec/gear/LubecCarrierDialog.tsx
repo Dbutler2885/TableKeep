@@ -8,8 +8,10 @@ import {
   LUBEC_LAST_POCKET,
   LUBEC_POCKET_MAX_SIZES,
   lubecCarrierDraftOf,
+  lubecCarrierFormAt,
   lubecCarrierFormOf,
   lubecNewPocketRow,
+  lubecOfferedKind,
   lubecPocketNote,
   type LubecCarrierForm,
   type LubecPocketRow,
@@ -64,7 +66,7 @@ function NameField({ form, setForm }: Pick<FormProps, 'form' | 'setForm'>) {
 function TypeField({ form, setForm }: Pick<FormProps, 'form' | 'setForm'>) {
   return (
     <label className="field"><span className="label">What is it?</span>
-      <select value={form.type} onChange={(e) => setForm(lubecCarrierFormOf(e.target.value))}>
+      <select value={form.type} onChange={(e) => setForm(lubecCarrierFormAt(form, e.target.value))}>
         {LUBEC_CARRIER_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
       </select>
     </label>
@@ -159,8 +161,8 @@ export type LubecCarrierDialogProps = {
   gear: LubecGear
   /** The kinds of carrier this sheet offers. */
   kinds: readonly LubecCarrierKind[]
-  /** Commits the gear with the new carrier. */
-  onAdded: (gear: LubecGear, carrier: LubecCarrier) => void
+  /** Commits the new carrier: the gear with it on, or kept apart when it is hidden. */
+  onAdded: (gear: LubecGear, carrier: LubecCarrier, kind: LubecCarrierKind) => void
   onClose: () => void
   toast: (text: string) => void
   /** The seat that can add a shared carrier; null where only a personal one can be added. */
@@ -187,13 +189,14 @@ const firstOwnerOf = (shared: LubecSharedSeat | null) => shared?.owners[0]?.id ?
 /** The add-carrier form, and the write its kind calls for: the sheet's own commit, or the shared carrier's document. */
 function useAddCarrier({ gear, kinds, onAdded, onClose, toast, shared = null }: LubecCarrierDialogProps) {
   const [form, setForm] = useState(() => lubecCarrierFormOf(LUBEC_CARRIER_TYPES[0].id))
-  const [kind, setKind] = useState<LubecCarrierKind>('personal')
   const [ownerId, setOwnerId] = useState(() => firstOwnerOf(shared))
   const { busy, error, setError, write } = useCarrierWrite()
   const acts = sharedActsOf(shared)
+  const offered = kinds.filter((k) => canOffer(k, acts))
+  const kind = lubecOfferedKind(form, offered)
   const addPersonal = () => {
     const r = lubecAddCarrier(gear, lubecCarrierDraftOf(form), makeId())
-    if (r.ok) onAdded(r.gear, r.carrier)
+    if (r.ok) onAdded(r.gear, r.carrier, kind)
     else setError(r.msg)
   }
   const onSubmit = () => {
@@ -201,7 +204,8 @@ function useAddCarrier({ gear, kinds, onAdded, onClose, toast, shared = null }: 
     if (sharing) void write(() => addShared({ acts: sharing, ownerId, onClose, toast }, form))
     else addPersonal()
   }
-  return { form, setForm, kind, setKind, ownerId, setOwnerId, busy, error, offered: kinds.filter((k) => canOffer(k, acts)), onSubmit }
+  const setKind = (next: LubecCarrierKind) => setForm({ ...form, kind: next })
+  return { form, setForm, kind, setKind, ownerId, setOwnerId, busy, error, offered, onSubmit }
 }
 
 /** B's add-carrier dialog: the kind, a preset, its name, its pockets, and who owns a shared one. */

@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { lubecCarried, type LubecCarrierKind } from '../../ruleSets/lubec/gear/carriers'
 import type { LubecCarrier, LubecGear } from '../../ruleSets/lubec/gear/gearRecord'
+import type { LubecHiddenCarrier } from '../../ruleSets/lubec/gear/hiddenCarrier'
+import { lubecCarrierGear } from '../../ruleSets/lubec/gear/containers'
 import { lubecCarrierAddedToast } from './carrierLabels'
 import { LubecCarrierDetail, type LubecGearCarry } from './LubecCarrierDetail'
 import { LubecCarrierDialog } from './LubecCarrierDialog'
 import { LubecCarrierUse, LubecCarriersList } from './LubecCarriersList'
-import { lubecOpenShared } from './lubecGearWork'
+import { lubecOpenHidden, lubecOpenShared } from './lubecGearWork'
 import type { LubecSharedSeat } from './lubecSharedSeat'
 import { LubecSharedDetail } from './LubecSharedDetail'
 import type { LubecGearAdd } from './LubecGearPack'
@@ -56,6 +58,8 @@ export function LubecCarrying(props: CarryingProps) {
 
 type ViewProps = {
   gear: LubecGear
+  /** The hidden carriers this viewer may see. */
+  hidden: readonly LubecHiddenCarrier[]
   owner: string
   view: Exclude<LubecGearView, { name: 'on-you' }>
   show: (name: 'on-you' | 'carriers') => void
@@ -68,14 +72,16 @@ type ViewProps = {
   toast: (text: string) => void
 }
 
-// The open carrier, or the list when it is gone (deleted, or never there).
-function CarriersBody({ gear, owner, view, show, openCarrier, onNewCarrier, onAdd, onOpenItem, onCarry, shared, toast }: ViewProps) {
+// The open carrier, or the list when it is gone (deleted, or never there). A hidden one is never carried: it is not on anyone.
+function CarriersBody({ gear, hidden, owner, view, show, openCarrier, onNewCarrier, onAdd, onOpenItem, onCarry, shared, toast }: ViewProps) {
   const onBack = () => show('carriers')
   const carrier = view.name === 'carrier' ? gear.carriers.find((c) => c.id === view.carrierId) : undefined
   if (carrier) return <LubecCarrierDetail gear={gear} carrier={carrier} owner={owner} onBack={onBack} onCarry={onCarry} onAdd={onAdd} onOpenItem={onOpenItem} />
   const open = lubecOpenShared(view, shared)
   if (open && shared) return <LubecSharedDetail carrier={open} seat={shared} onBack={onBack} onAdd={onAdd} onOpenItem={onOpenItem} toast={toast} />
-  return <LubecCarriersList gear={gear} owner={owner} onOnYou={() => show('on-you')} onOpenCarrier={openCarrier} onNewCarrier={onNewCarrier} onOpenItem={onOpenItem} shared={shared} />
+  const stash = lubecOpenHidden(view, hidden)
+  if (stash) return <LubecCarrierDetail gear={lubecCarrierGear(stash)} carrier={stash} owner={owner} onBack={onBack} onCarry={null} hidden onAdd={onAdd} onOpenItem={onOpenItem} />
+  return <LubecCarriersList gear={gear} hidden={hidden} owner={owner} onOnYou={() => show('on-you')} onOpenCarrier={openCarrier} onNewCarrier={onNewCarrier} onOpenItem={onOpenItem} shared={shared} />
 }
 
 /** The Carriers tab's panel: B's list of carriers, or one carrier's detail. On a desktop it scrolls inside the pane. */
@@ -88,15 +94,22 @@ export function LubecCarriersView(props: ViewProps) {
   )
 }
 
-type DialogOverProps = LubecCarrierActsOptions & { acts: LubecCarrierActs; kinds: readonly LubecCarrierKind[]; shared: LubecSharedSeat | null }
+type DialogOverProps = LubecCarrierActsOptions & {
+  acts: LubecCarrierActs
+  kinds: readonly LubecCarrierKind[]
+  shared: LubecSharedSeat | null
+  /** Keeps a new hidden carrier apart from the sheet; null where a carrier cannot be hidden. */
+  onHide: ((carrier: LubecCarrier) => void) | null
+}
 
-/** The add-carrier dialog over the page, while it is open for a viewer who may change the gear. The new carrier is one commit. */
-export function LubecCarrierDialogOver({ gear, change, toast, acts, kinds, shared }: DialogOverProps) {
+/** The add-carrier dialog over the page, while it is open for a viewer who may change the gear. The new carrier is one commit, on the sheet or apart from it. */
+export function LubecCarrierDialogOver({ gear, change, toast, acts, kinds, shared, onHide }: DialogOverProps) {
   if (!acts.adding || !change) return null
-  const onAdded = (next: LubecGear, carrier: LubecCarrier) => {
-    change(next)
+  const onAdded = (next: LubecGear, carrier: LubecCarrier, kind: LubecCarrierKind) => {
+    if (kind === 'hidden') onHide?.(carrier)
+    else change(next)
     acts.close()
     toast(lubecCarrierAddedToast(carrier))
   }
-  return <LubecCarrierDialog gear={gear} kinds={kinds} onAdded={onAdded} onClose={acts.close} toast={toast} shared={shared} />
+  return <LubecCarrierDialog gear={gear} kinds={onHide ? kinds : kinds.filter((k) => k !== 'hidden')} onAdded={onAdded} onClose={acts.close} toast={toast} shared={shared} />
 }

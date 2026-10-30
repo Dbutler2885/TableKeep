@@ -50,6 +50,10 @@ export function campaignSharedCarrierRef(db: Firestore, scope: CampaignScope, ca
 }
 
 // A Lubec carrier only its character's owner and the GM may see, kept under the character so it follows its id.
+export function characterHiddenCarriersRef(db: Firestore, scope: CampaignScope, characterId: string) {
+  return campaignCollectionRef(db, scope, 'characters', characterId, 'hiddenCarriers')
+}
+
 export function characterHiddenCarrierRef(db: Firestore, scope: CampaignScope, characterId: string, carrierId: string) {
   return campaignDocRef(db, scope, 'characters', characterId, 'hiddenCarriers', carrierId)
 }

@@ -7,6 +7,7 @@ import { lubecPrunedOverrides } from '../ruleSets/lubec/modifiers'
 import type { LubecSkills } from '../ruleSets/lubec/skillPicks'
 import { lubecGearDrop, type LubecGearDrop, type LubecGearRecords } from './gear/lubecGearDrop'
 import type { LubecGearChange } from './gear/LubecGearPage'
+import type { LubecGearHidden } from './gear/lubecHiddenCarrierWrites'
 import { lubecCharacterName } from './lubecNames'
 import type { LubecCountersChange } from './LubecCountersPanel'
 import type { LubecRolled } from './useLubecRoller'
@@ -43,6 +44,7 @@ export type LubecSheetEdits = DraftActions & {
   corrections: LubecCorrections | null
   onGearChange: LubecGearChange
   onGearDrop: LubecGearDrop
+  onGearHidden: LubecGearHidden | null
   onGearRolled: LubecRolled | null
 }
 
@@ -74,6 +76,9 @@ function gearChangeFor(character: LubecCharacterRecord | null, viewer: LubecView
   return (gear: LubecGear) => update(character.id, { lubec: { ...character.lubec, gear: lubecPrunedOverrides(gear) } })
 }
 
+const dropperOf = (character: LubecCharacterRecord, viewer: LubecViewer) =>
+  ({ characterId: character.id, characterName: lubecCharacterName(character), userId: viewer.userId })
+
 // The owner and the GM drop a character's things to the GM's Items tab; anyone else only sees them.
 function gearDropFor(
   character: LubecCharacterRecord | null,
@@ -82,7 +87,18 @@ function gearDropFor(
   records: LubecGearRecords | null,
 ): LubecGearDrop {
   if (!character || !records || !canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) return null
-  return lubecGearDrop(records, store, { characterId: character.id, characterName: lubecCharacterName(character), userId: viewer.userId })
+  return lubecGearDrop(records, store, dropperOf(character, viewer))
+}
+
+// A character's hidden carriers are for its owner and the GM; an NPC's sheet has none.
+function gearHiddenFor(
+  character: LubecCharacterRecord | null,
+  viewer: LubecViewer,
+  store: LubecSheetWiringStore,
+  records: LubecGearRecords | null,
+): LubecGearHidden | null {
+  if (!character || records?.sheet.kind !== 'character' || !canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) return null
+  return { db: records.db, scope: records.scope, characterId: character.id, store, dropper: dropperOf(character, viewer) }
 }
 
 // Who a heavy thing's Strength roll waits for: a character's owner, and on an NPC's sheet, which has no player to wait for, any GM.
@@ -145,6 +161,7 @@ export function lubecSheetWiring(
     corrections: correctionsFor(character, viewer, store.updateCharacter),
     onGearChange: gearChangeFor(character, viewer, store.updateCharacter),
     onGearDrop: gearDropFor(character, viewer, store, records),
+    onGearHidden: gearHiddenFor(character, viewer, store, records),
     onGearRolled: gearRolledFor(character, viewer, store.updateCharacter, records),
     ...draftActionsFor(character, viewer, store),
   }

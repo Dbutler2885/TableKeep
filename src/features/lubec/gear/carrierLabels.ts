@@ -7,6 +7,9 @@ import { LUBEC_LIST_MODE_OVER } from '../../ruleSets/lubec/gear/carriers'
 import type { LubecCarrier, LubecGear, LubecPocket } from '../../ruleSets/lubec/gear/gearRecord'
 import { capacity, itemsIn, pocketUsed, used } from '../../ruleSets/lubec/gear/placement'
 
+/** All a label may say about a hidden carrier (spec 14.1, R4). */
+export const LUBEC_HIDDEN_NOTE = 'Only you and the GM can see this'
+
 /** A carrier as the view reads it: the built-in backpack, or a personal carrier. */
 export type LubecCarrierShown = { id: string; pockets: readonly LubecPocket[] }
 

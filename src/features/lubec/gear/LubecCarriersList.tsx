@@ -1,7 +1,8 @@
 import { lubecCarrierTypeLabel } from '../../ruleSets/lubec/gear/carriers'
 import { lubecCarrierGear } from '../../ruleSets/lubec/gear/containers'
 import { LUBEC_BACKPACK_POCKETS, lubecItemsNeedingAPlace, type LubecCarrier, type LubecGear } from '../../ruleSets/lubec/gear/gearRecord'
-import { lubecCarrierUse, lubecMeterCells, lubecPocketsText, type LubecCarrierShown } from './carrierLabels'
+import type { LubecHiddenCarrier } from '../../ruleSets/lubec/gear/hiddenCarrier'
+import { LUBEC_HIDDEN_NOTE, lubecCarrierUse, lubecMeterCells, lubecPocketsText, type LubecCarrierShown } from './carrierLabels'
 import { LubecCarrierRow } from './LubecCarrierRow'
 import type { LubecSharedSeat } from './lubecSharedSeat'
 import { LUBEC_SHARED_ACCESS } from './sharedCarrierLabels'
@@ -24,33 +25,34 @@ export function LubecCarrierUse({ gear, carrier }: { gear: LubecGear; carrier: L
   return <><b>{u.used}</b> of {u.capacity} used</>
 }
 
-type FactsProps = { owner: string; pockets?: string; shared?: boolean }
+type FactsProps = { owner: string; pockets?: string; shared?: boolean; hidden?: boolean }
 
-/** A carrier's owner, who can get into it and who knows of it (B's facts): the character, and everyone. A shared carrier's access is the whole group. */
-export function LubecCarrierFacts({ owner, pockets, shared = false }: FactsProps) {
+/** A carrier's owner, who can get into it and who knows of it (B's facts): the character, and everyone. A shared carrier's access is the whole group; a hidden one's is the character and the GM. */
+export function LubecCarrierFacts({ owner, pockets, shared = false, hidden = false }: FactsProps) {
+  const access = hidden ? `${owner} and the GM` : owner
   return (
     <dl className="facts">
       {pockets === undefined ? null : <><dt>Pockets</dt><dd>{pockets}</dd></>}
       <dt>Owner</dt><dd className={shared ? 'owner-line' : undefined}>{owner}</dd>
-      <dt>Access</dt><dd>{shared ? LUBEC_SHARED_ACCESS : owner}</dd>
-      <dt>Known</dt><dd>Known to all</dd>
+      <dt>Access</dt><dd>{shared ? LUBEC_SHARED_ACCESS : access}</dd>
+      <dt>Known</dt><dd>{hidden ? LUBEC_HIDDEN_NOTE : 'Known to all'}</dd>
     </dl>
   )
 }
 
-type CardProps = { gear: LubecGear; carrier: LubecCarrierShown & { name: string; carried?: boolean }; type: string; owner: string; onOpen: () => void; shared?: boolean }
+type CardProps = { gear: LubecGear; carrier: LubecCarrierShown & { name: string; carried?: boolean }; type: string; owner: string; onOpen: () => void; shared?: boolean; hidden?: boolean }
 
 // One card of the list (B's `renderCarriers`); B's `personal` class is the built-in backpack's heavier border.
-function CarrierCard({ gear, carrier, type, owner, onOpen, shared = false }: CardProps) {
+function CarrierCard({ gear, carrier, type, owner, onOpen, shared = false, hidden = false }: CardProps) {
   return (
     <button type="button" className={`carrier-card${carrier.id === BACKPACK.id ? ' personal' : ''}`} onClick={onOpen}>
       <div className="card-head">
         <div><h3>{carrier.name}</h3><div className="type label">{type}</div></div>
-        <span className="tags">{carrier.carried ? <span className="tag red">Carried</span> : null}{shared ? <span className="tag blue">Shared</span> : null}<span className="tag ghost">Known to all</span></span>
+        <span className="tags">{carrier.carried ? <span className="tag red">Carried</span> : null}{shared ? <span className="tag blue">Shared</span> : null}<span className="tag ghost">{hidden ? 'Hidden' : 'Known to all'}</span></span>
       </div>
       <div className="count"><LubecCarrierUse gear={gear} carrier={carrier} /></div>
       <LubecCarrierMeter gear={gear} carrier={carrier} />
-      <LubecCarrierFacts owner={owner} pockets={lubecPocketsText(carrier.pockets)} shared={shared} />
+      <LubecCarrierFacts owner={owner} pockets={lubecPocketsText(carrier.pockets)} shared={shared} hidden={hidden} />
     </button>
   )
 }
@@ -72,6 +74,8 @@ function NeedsAPlace({ gear, onOpenItem }: { gear: LubecGear; onOpenItem: ((item
 
 export type LubecCarriersListProps = {
   gear: LubecGear
+  /** The hidden carriers this viewer may see: none for anyone but the owner and the GM. */
+  hidden: readonly LubecHiddenCarrier[]
   /** The character, who owns every personal carrier. */
   owner: string
   onOnYou: () => void
@@ -83,8 +87,8 @@ export type LubecCarriersListProps = {
   shared: LubecSharedSeat | null
 }
 
-/** B's Carriers list: the backpack's card first, then each personal carrier, each shared carrier, and anything that needs a place. */
-export function LubecCarriersList({ gear, owner, onOnYou, onOpenCarrier, onNewCarrier, onOpenItem, shared }: LubecCarriersListProps) {
+/** B's Carriers list: the backpack's card first, then each personal carrier, each shared carrier, each hidden one, and anything that needs a place. */
+export function LubecCarriersList({ gear, owner, onOnYou, onOpenCarrier, onNewCarrier, onOpenItem, shared, hidden }: LubecCarriersListProps) {
   return (
     <>
       <div className="carriers-top">
@@ -98,6 +102,9 @@ export function LubecCarriersList({ gear, owner, onOnYou, onOpenCarrier, onNewCa
         ))}
         {shared?.carriers.map((c) => (
           <CarrierCard key={c.id} gear={lubecCarrierGear(c)} carrier={c} type={lubecCarrierTypeLabel(c.type)} owner={shared.ownerOf(c)} onOpen={() => onOpenCarrier(c.id)} shared />
+        ))}
+        {hidden.map((c) => (
+          <CarrierCard key={c.id} gear={lubecCarrierGear(c)} carrier={c} type={lubecCarrierTypeLabel(c.type)} owner={owner} hidden onOpen={() => onOpenCarrier(c.id)} />
         ))}
       </div>
       <NeedsAPlace gear={gear} onOpenItem={onOpenItem} />

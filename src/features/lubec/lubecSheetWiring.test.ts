@@ -29,7 +29,7 @@ function wire(character: LubecCharacterRecord | null, viewer: LubecViewer, withR
 
 const noEdits = {
   onCountersChange: null, onSkillsChange: null, corrections: null, onDraftEdit: null, onRollUp: null, onFinalize: null, onGearChange: null, onGearDrop: null,
-  onGearRolled: null,
+  onGearHidden: null, onGearRolled: null,
 }
 
 const flashlight = { id: 'f1', kind: 'holder', name: 'Flashlight', carrier: 'backpack', pocket: 0 } as LubecItem
@@ -130,6 +130,13 @@ describe('lubecSheetWiring', () => {
   it('offers no drop to another player, or where the records are not known', () => {
     expect(wire(finalized, otherPlayer, true).edits.onGearDrop).toBeNull()
     expect(wire(finalized, owner).edits.onGearDrop).toBeNull()
+  })
+
+  it('hands the hidden carriers to the owner and the GM only', () => {
+    expect(wire(finalized, owner, true).edits.onGearHidden).toMatchObject({ characterId: 'tommy' })
+    expect(wire(finalized, gm, true).edits.onGearHidden).toMatchObject({ characterId: 'tommy' })
+    expect(wire(finalized, otherPlayer, true).edits.onGearHidden).toBeNull()
+    expect(wire(finalized, owner).edits.onGearHidden).toBeNull()
   })
 
   it('sends the sheet\'s waiting save before a drop, and nothing when none waits', async () => {
