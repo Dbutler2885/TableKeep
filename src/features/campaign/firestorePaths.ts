@@ -40,7 +40,11 @@ export function campaignGmItemRef(db: Firestore, scope: CampaignScope, itemId: s
   return campaignDocRef(db, scope, 'gmItems', itemId)
 }
 
-// A Lubec carrier any member of the group may put things into.
+// The Lubec carriers any member of the group may put things into.
+export function campaignSharedCarriersRef(db: Firestore, scope: CampaignScope) {
+  return campaignCollectionRef(db, scope, 'sharedCarriers')
+}
+
 export function campaignSharedCarrierRef(db: Firestore, scope: CampaignScope, carrierId: string) {
   return campaignDocRef(db, scope, 'sharedCarriers', carrierId)
 }

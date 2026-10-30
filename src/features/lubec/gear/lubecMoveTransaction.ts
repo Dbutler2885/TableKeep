@@ -148,7 +148,7 @@ const isLater = (at: unknown, before: unknown): boolean =>
   isStamp(at) && (!isStamp(before) || at.seconds > before.seconds || (at.seconds === before.seconds && at.nanoseconds > before.nanoseconds))
 
 /** Resolves on the first snapshot of `doc` that carries a save later than `before`. */
-function snapshotAfter(doc: Ref, before: unknown): Promise<void> {
+export function snapshotAfter(doc: Ref, before: unknown): Promise<void> {
   return new Promise((resolve, reject) => {
     const stop = onSnapshot(doc, (snap) => {
       if (snap.metadata.hasPendingWrites || !isLater(snap.get('updatedAt'), before)) return

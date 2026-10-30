@@ -82,11 +82,11 @@ type GearRecord = Exclude<LubecMoveRecord, { kind: 'gm-items' }>
 const isSheet = (record: GearRecord): record is Extract<LubecMoveRecord, { gear: unknown }> =>
   record.kind === 'character' || record.kind === 'npc'
 
-// A carrier record read as gear: its items, and itself as the one carrier they are in.
-const carrierGear = (carrier: LubecCarrierRecord): LubecGear => ({ items: carrier.items, carriers: [carrier], overrides: [], supplies: [] })
+/** A carrier record read as gear: its items, and itself as the one carrier they are in. */
+export const lubecCarrierGear = (carrier: LubecCarrierRecord): LubecGear => ({ items: carrier.items, carriers: [carrier], overrides: [], supplies: [] })
 
 const gearOf = (record: GearRecord): LubecGear | null =>
-  (isSheet(record) ? record.gear : record.carrier && carrierGear(record.carrier))
+  (isSheet(record) ? record.gear : record.carrier && lubecCarrierGear(record.carrier))
 
 // Only ever given a record `gearOf` read gear from, so a carrier record has its carrier.
 // A sheet drops any switched-off Speed loss the move ended (spec 5.3).

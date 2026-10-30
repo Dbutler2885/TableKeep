@@ -6,6 +6,7 @@ import { cardEyebrow, cardTitle, lubecCardFacts, type LubecCardFact } from './ca
 import { LubecCardPicture } from './LubecGearArt'
 import { LubecGiveFoot, LUBEC_GIVE_PANEL } from './LubecGivePanel'
 import { LubecMovePanel, LUBEC_MOVE_PANEL } from './LubecMovePanel'
+import type { LubecMoveGroup } from './moveLabels'
 import { LubecSheetHead } from './LubecSheetHead'
 import type { LubecCardGive } from './useLubecCardGive'
 import { lubecAttackButtons } from './weaponFacts'
@@ -45,6 +46,8 @@ type CardProps = {
   /** The card's Give; null for a viewer who may not give the thing away. */
   give: LubecCardGive | null
   actions: LubecCardActions
+  /** The Move list, when the thing can leave its record. */
+  moveGroups?: readonly LubecMoveGroup[]
 }
 
 /** The card's loading buttons, whether a box's "Take some out" panel is open, and its cost line for a count. */
@@ -155,10 +158,10 @@ function GiveButton({ give }: { give: LubecCardGive }) {
 }
 
 // Only a viewer who may give the thing away has the fourth button.
-function CardFoot({ gear, item, error, moveOpen, busy, give, actions }: FootProps) {
+function CardFoot({ gear, item, error, moveOpen, busy, give, actions, moveGroups }: FootProps) {
   return (
     <div className="sheet-foot">
-      {moveOpen ? <LubecMovePanel key={item.id} gear={gear} item={item} busy={busy} onMove={actions.onMove} /> : null}
+      {moveOpen ? <LubecMovePanel key={item.id} gear={gear} item={item} busy={busy} onMove={actions.onMove} groups={moveGroups} /> : null}
       {give ? <LubecGiveFoot item={item} give={give} /> : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
       <div className={`actions ${give ? 'four' : 'three'}`}>

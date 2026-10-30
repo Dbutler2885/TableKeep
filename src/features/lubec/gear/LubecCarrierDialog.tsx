@@ -1,9 +1,10 @@
-import { useState, type FormEvent, type KeyboardEvent } from 'react'
+import { useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import { makeId } from '../../character/characterFactories'
 import { lubecAddCarrier, LUBEC_CARRIER_TYPES, type LubecCarrierKind } from '../../ruleSets/lubec/gear/carriers'
 import type { LubecCarrier, LubecGear } from '../../ruleSets/lubec/gear/gearRecord'
 import {
   LUBEC_CARRIER_KIND_LABELS,
+  LUBEC_CARRIER_KIND_NOTES,
   LUBEC_LAST_POCKET,
   LUBEC_POCKET_MAX_SIZES,
   lubecCarrierDraftOf,
@@ -13,6 +14,8 @@ import {
   type LubecCarrierForm,
   type LubecPocketRow,
 } from './carrierForm'
+import type { LubecCarrierOwner, LubecSharedActs, LubecSharedSeat } from './lubecSharedSeat'
+import { lubecSharedAddedToast } from './sharedCarrierLabels'
 
 const TITLE = 'lubec-gear-carrier-title'
 
@@ -34,10 +37,10 @@ function PocketRow({ row, onRow, onRemove }: RowProps) {
   )
 }
 
-type PocketsProps = { form: LubecCarrierForm; setForm: (form: LubecCarrierForm) => void; toast: (text: string) => void }
+type FormProps = { form: LubecCarrierForm; setForm: (form: LubecCarrierForm) => void; toast: (text: string) => void }
 
 // The pockets, "+ Add a pocket", and the line that totals them. The last pocket stays.
-function Pockets({ form, setForm, toast }: PocketsProps) {
+function Pockets({ form, setForm, toast }: FormProps) {
   const setRows = (pockets: LubecPocketRow[]) => setForm({ ...form, pockets })
   const remove = (k: number) => (form.pockets.length === 1 ? toast(LUBEC_LAST_POCKET) : setRows(form.pockets.filter((_, n) => n !== k)))
   return (
@@ -54,14 +57,102 @@ function Pockets({ form, setForm, toast }: PocketsProps) {
   )
 }
 
-// The kind of carrier, where the sheet offers more than one.
-function KindField({ kinds }: { kinds: readonly LubecCarrierKind[] }) {
-  if (kinds.length < 2) return null
+function NameField({ form, setForm }: Pick<FormProps, 'form' | 'setForm'>) {
+  return <label className="field"><span className="label">Name</span><input type="text" value={form.name} autoComplete="off" required onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
+}
+
+function TypeField({ form, setForm }: Pick<FormProps, 'form' | 'setForm'>) {
   return (
-    <label className="field"><span className="label">Kind</span>
-      <select name="kind">{kinds.map((k) => <option key={k} value={k}>{LUBEC_CARRIER_KIND_LABELS[k]}</option>)}</select>
+    <label className="field"><span className="label">What is it?</span>
+      <select value={form.type} onChange={(e) => setForm(lubecCarrierFormOf(e.target.value))}>
+        {LUBEC_CARRIER_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+      </select>
     </label>
   )
+}
+
+type KindProps = { kinds: readonly LubecCarrierKind[]; kind: LubecCarrierKind; onKind: (kind: LubecCarrierKind) => void }
+
+// B's choice tiles, as the kind choice, where the sheet offers more than one.
+function KindChoice({ kinds, kind, onKind }: KindProps) {
+  if (kinds.length < 2) return null
+  return (
+    <fieldset className="field">
+      <legend className="label">Who gets into it</legend>
+      <div className="choices">
+        {kinds.map((k) => (
+          <label key={k}>
+            <input type="radio" name="carrier-kind" checked={kind === k} onChange={() => onKind(k)} />
+            <span>{LUBEC_CARRIER_KIND_LABELS[k]}<small>{LUBEC_CARRIER_KIND_NOTES[k]}</small></span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  )
+}
+
+type OwnerProps = { owners: readonly LubecCarrierOwner[]; ownerId: string; onOwner: (id: string) => void }
+
+function OwnerField({ owners, ownerId, onOwner }: OwnerProps) {
+  return (
+    <label className="field"><span className="label">Owner</span>
+      <select value={ownerId} onChange={(e) => onOwner(e.target.value)}>
+        {owners.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+      </select>
+    </label>
+  )
+}
+
+type FrameProps = {
+  eyebrow: string
+  title: string
+  button: string
+  /** True while the form's write is in flight. */
+  busy: boolean
+  error: string | null
+  onSubmit: () => void
+  onClose: () => void
+  children: ReactNode
+}
+
+// B's carrier dialog around its fields.
+function CarrierFrame({ eyebrow, title, button, busy, error, onSubmit, onClose, children }: FrameProps) {
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    onSubmit()
+  }
+  const closeOnEscape = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') onClose()
+  }
+  return (
+    <div className="confirm-overlay lubec-gear-overlay" role="dialog" aria-modal="true" aria-labelledby={TITLE} onKeyDown={closeOnEscape}>
+      <div className="carrier-sheet">
+        <form className="sheet-form" noValidate onSubmit={submit}>
+          <header>
+            <div><div className="eyebrow">{eyebrow}</div><h2 id={TITLE}>{title}</h2></div>
+            <button className="close" type="button" aria-label="Close" onClick={onClose}>×</button>
+          </header>
+          {children}
+          {error ? <p className="form-error" role="alert">{error}</p> : null}
+          <div className="actions"><button className="btn" type="submit" disabled={busy}>{button}</button></div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+/** Runs a dialog's write once at a time; what it returns, or a failure, is the dialog's error. */
+function useCarrierWrite() {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const write = async (task: () => Promise<string | null>) => {
+    if (busy) return
+    setBusy(true)
+    const msg = await task().catch(() => 'Could not save that. Nothing changed.')
+    setBusy(false)
+    setError(msg)
+  }
+  return { busy, error, setError, write }
 }
 
 export type LubecCarrierDialogProps = {
@@ -72,40 +163,81 @@ export type LubecCarrierDialogProps = {
   onAdded: (gear: LubecGear, carrier: LubecCarrier) => void
   onClose: () => void
   toast: (text: string) => void
+  /** The seat that can add a shared carrier; null where only a personal one can be added. */
+  shared?: LubecSharedSeat | null
 }
 
-/** B's add-carrier dialog: a preset, its name, and its pockets. This one adds a personal carrier, kept on the character's own record. */
-export function LubecCarrierDialog({ gear, kinds, onAdded, onClose, toast }: LubecCarrierDialogProps) {
+type SharedAdd = { acts: LubecSharedActs; ownerId: string; onClose: () => void; toast: (text: string) => void }
+
+async function addShared({ acts, ownerId, onClose, toast }: SharedAdd, form: LubecCarrierForm): Promise<string | null> {
+  const added = await acts.add(lubecCarrierDraftOf(form), ownerId)
+  if (!added.ok) return added.msg
+  onClose()
+  toast(lubecSharedAddedToast(added.carrier))
+  return null
+}
+
+// A shared carrier needs a character to own it, so a viewer with none to name adds only a personal one.
+const sharedActsOf = (shared: LubecSharedSeat | null) => (shared?.owners.length ? shared.acts : null)
+
+const canOffer = (kind: LubecCarrierKind, acts: LubecSharedActs | null) => kind !== 'shared' || acts !== null
+
+const firstOwnerOf = (shared: LubecSharedSeat | null) => shared?.owners[0]?.id ?? ''
+
+/** The add-carrier form, and the write its kind calls for: the sheet's own commit, or the shared carrier's document. */
+function useAddCarrier({ gear, kinds, onAdded, onClose, toast, shared = null }: LubecCarrierDialogProps) {
   const [form, setForm] = useState(() => lubecCarrierFormOf(LUBEC_CARRIER_TYPES[0].id))
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
+  const [kind, setKind] = useState<LubecCarrierKind>('personal')
+  const [ownerId, setOwnerId] = useState(() => firstOwnerOf(shared))
+  const { busy, error, setError, write } = useCarrierWrite()
+  const acts = sharedActsOf(shared)
+  const addPersonal = () => {
     const r = lubecAddCarrier(gear, lubecCarrierDraftOf(form), makeId())
     if (r.ok) onAdded(r.gear, r.carrier)
-    else setForm({ ...form, error: r.msg })
+    else setError(r.msg)
   }
-  const closeOnEscape = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') onClose()
+  const onSubmit = () => {
+    const sharing = kind === 'shared' ? acts : null
+    if (sharing) void write(() => addShared({ acts: sharing, ownerId, onClose, toast }, form))
+    else addPersonal()
   }
+  return { form, setForm, kind, setKind, ownerId, setOwnerId, busy, error, offered: kinds.filter((k) => canOffer(k, acts)), onSubmit }
+}
+
+/** B's add-carrier dialog: the kind, a preset, its name, its pockets, and who owns a shared one. */
+export function LubecCarrierDialog(props: LubecCarrierDialogProps) {
+  const { onClose, toast, shared } = props
+  const { form, setForm, kind, setKind, ownerId, setOwnerId, busy, error, offered, onSubmit } = useAddCarrier(props)
   return (
-    <div className="confirm-overlay lubec-gear-overlay" role="dialog" aria-modal="true" aria-labelledby={TITLE} onKeyDown={closeOnEscape}>
-      <div className="carrier-sheet">
-        <form className="sheet-form" noValidate onSubmit={submit}>
-          <header>
-            <div><div className="eyebrow">New carrier</div><h2 id={TITLE}>Add a carrier</h2></div>
-            <button className="close" type="button" aria-label="Close" onClick={onClose}>×</button>
-          </header>
-          <KindField kinds={kinds} />
-          <label className="field"><span className="label">What is it?</span>
-            <select value={form.type} onChange={(e) => setForm(lubecCarrierFormOf(e.target.value))}>
-              {LUBEC_CARRIER_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-            </select>
-          </label>
-          <label className="field"><span className="label">Name</span><input type="text" value={form.name} autoComplete="off" required onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-          <Pockets form={form} setForm={setForm} toast={toast} />
-          {form.error ? <p className="form-error" role="alert">{form.error}</p> : null}
-          <div className="actions"><button className="btn" type="submit">Add carrier</button></div>
-        </form>
+    <CarrierFrame eyebrow="New carrier" title="Add a carrier" button="Add carrier" busy={busy} error={error} onSubmit={onSubmit} onClose={onClose}>
+      <KindChoice kinds={offered} kind={kind} onKind={setKind} />
+      <div className="field-pair">
+        <TypeField form={form} setForm={setForm} />
+        <NameField form={form} setForm={setForm} />
       </div>
-    </div>
+      <Pockets form={form} setForm={setForm} toast={toast} />
+      {kind === 'shared' && shared ? <OwnerField owners={shared.owners} ownerId={ownerId} onOwner={setOwnerId} /> : null}
+    </CarrierFrame>
+  )
+}
+
+type ChangeProps = {
+  /** The carrier as it stands, as the form. */
+  start: LubecCarrierForm
+  /** Saves the change; a refusal comes back as the dialog's error. */
+  onSave: (form: LubecCarrierForm) => Promise<string | null>
+  onClose: () => void
+  toast: (text: string) => void
+}
+
+/** The same dialog for a carrier that exists: its name and pockets. */
+export function LubecCarrierChangeDialog({ start, onSave, onClose, toast }: ChangeProps) {
+  const [form, setForm] = useState(start)
+  const { busy, error, write } = useCarrierWrite()
+  return (
+    <CarrierFrame eyebrow="Shared carrier" title={`Change ${start.name}`} button="Save" busy={busy} error={error} onSubmit={() => void write(() => onSave(form))} onClose={onClose}>
+      <NameField form={form} setForm={setForm} />
+      <Pockets form={form} setForm={setForm} toast={toast} />
+    </CarrierFrame>
   )
 }

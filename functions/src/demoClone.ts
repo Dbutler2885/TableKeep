@@ -67,6 +67,7 @@ export const DEMO_CLONED_SUBCOLLECTIONS: SubcollectionSpec[] = [
   { name: 'npcSheets' },
   { name: 'items' },
   { name: 'gmItems' },
+  { name: 'sharedCarriers' },
   { name: 'tables', children: [{ name: 'history' }] },
   { name: 'images' },
   { name: 'referenceDocs' },

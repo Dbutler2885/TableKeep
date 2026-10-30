@@ -5,6 +5,9 @@ import { lubecCarrierAddedToast } from './carrierLabels'
 import { LubecCarrierDetail, type LubecGearCarry } from './LubecCarrierDetail'
 import { LubecCarrierDialog } from './LubecCarrierDialog'
 import { LubecCarrierUse, LubecCarriersList } from './LubecCarriersList'
+import { lubecOpenShared } from './lubecGearWork'
+import type { LubecSharedSeat } from './lubecSharedSeat'
+import { LubecSharedDetail } from './LubecSharedDetail'
 import type { LubecGearAdd } from './LubecGearPack'
 import { lubecMarkOf, useLubecDropClass } from './lubecDragMarks'
 import type { LubecCarrierActs, LubecCarrierActsOptions, LubecGearView } from './useLubecCarriers'
@@ -61,13 +64,18 @@ type ViewProps = {
   onAdd: LubecGearAdd
   onOpenItem: ((itemId: string) => void) | null
   onCarry: LubecGearCarry
+  shared: LubecSharedSeat | null
+  toast: (text: string) => void
 }
 
 // The open carrier, or the list when it is gone (deleted, or never there).
-function CarriersBody({ gear, owner, view, show, openCarrier, onNewCarrier, onAdd, onOpenItem, onCarry }: ViewProps) {
+function CarriersBody({ gear, owner, view, show, openCarrier, onNewCarrier, onAdd, onOpenItem, onCarry, shared, toast }: ViewProps) {
+  const onBack = () => show('carriers')
   const carrier = view.name === 'carrier' ? gear.carriers.find((c) => c.id === view.carrierId) : undefined
-  if (carrier) return <LubecCarrierDetail gear={gear} carrier={carrier} owner={owner} onBack={() => show('carriers')} onCarry={onCarry} onAdd={onAdd} onOpenItem={onOpenItem} />
-  return <LubecCarriersList gear={gear} owner={owner} onOnYou={() => show('on-you')} onOpenCarrier={openCarrier} onNewCarrier={onNewCarrier} onOpenItem={onOpenItem} />
+  if (carrier) return <LubecCarrierDetail gear={gear} carrier={carrier} owner={owner} onBack={onBack} onCarry={onCarry} onAdd={onAdd} onOpenItem={onOpenItem} />
+  const open = lubecOpenShared(view, shared)
+  if (open && shared) return <LubecSharedDetail carrier={open} seat={shared} onBack={onBack} onAdd={onAdd} onOpenItem={onOpenItem} toast={toast} />
+  return <LubecCarriersList gear={gear} owner={owner} onOnYou={() => show('on-you')} onOpenCarrier={openCarrier} onNewCarrier={onNewCarrier} onOpenItem={onOpenItem} shared={shared} />
 }
 
 /** The Carriers tab's panel: B's list of carriers, or one carrier's detail. On a desktop it scrolls inside the pane. */
@@ -80,15 +88,15 @@ export function LubecCarriersView(props: ViewProps) {
   )
 }
 
-type DialogOverProps = LubecCarrierActsOptions & { acts: LubecCarrierActs; kinds: readonly LubecCarrierKind[] }
+type DialogOverProps = LubecCarrierActsOptions & { acts: LubecCarrierActs; kinds: readonly LubecCarrierKind[]; shared: LubecSharedSeat | null }
 
 /** The add-carrier dialog over the page, while it is open for a viewer who may change the gear. The new carrier is one commit. */
-export function LubecCarrierDialogOver({ gear, change, toast, acts, kinds }: DialogOverProps) {
+export function LubecCarrierDialogOver({ gear, change, toast, acts, kinds, shared }: DialogOverProps) {
   if (!acts.adding || !change) return null
   const onAdded = (next: LubecGear, carrier: LubecCarrier) => {
     change(next)
     acts.close()
     toast(lubecCarrierAddedToast(carrier))
   }
-  return <LubecCarrierDialog gear={gear} kinds={kinds} onAdded={onAdded} onClose={acts.close} toast={toast} />
+  return <LubecCarrierDialog gear={gear} kinds={kinds} onAdded={onAdded} onClose={acts.close} toast={toast} shared={shared} />
 }

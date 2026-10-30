@@ -242,6 +242,13 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* What it is and its name share a row, so the kind and the owner fit the dialog on one screen at 1280x720 */
+.shell-root[data-theme="lubec"] .lubec-gear .carrier-sheet .field-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
 .shell-root[data-theme="lubec"] .lubec-gear .guess {
   margin: 0.55rem 0 0;
   padding-left: 0.55rem;
@@ -302,7 +309,23 @@
     border-width: 2px 0 0;
   }
 
+  .shell-root[data-theme="lubec"] .lubec-gear .carrier-sheet .field-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .shell-root[data-theme="lubec"] .lubec-gear .pocket-edit-row {
     grid-template-columns: minmax(0, 1fr) 4rem 4.8rem 2.85rem;
   }
+}
+
+/* A shared carrier: its owner's line, and what its owner may do to it */
+.shell-root[data-theme="lubec"] .lubec-gear .facts dd.owner-line {
+  color: var(--lubec-muted);
+}
+
+.shell-root[data-theme="lubec"] .lubec-gear .detail-acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
 }

@@ -10,6 +10,8 @@ type BottomProps = LubecFieldsProps & {
   editing: LubecItem | undefined
   /** False for an item that has no place, as in the GM's Items tab: "where it goes" is left out. */
   placed: boolean
+  /** False on a carrier's own record, whose "Put it" offers only its pockets. */
+  onYou: boolean
 }
 
 const WEIGHTS = Object.keys(WEIGHT_NAMES) as LubecItemWeight[]
@@ -19,12 +21,12 @@ function Places({ label, places }: { label: string; places: readonly LubecDestin
   return <optgroup label={label}>{places.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}</optgroup>
 }
 
-function WhereItGoes({ fields, onFields, gear, editing }: Omit<BottomProps, 'placed'>) {
+function WhereItGoes({ fields, onFields, gear, editing, onYou }: Omit<BottomProps, 'placed'>) {
   return (
     <>
       <label className="field"><span className="label">Put it</span>
         <select value={fields.dest} onChange={(e) => onFields(lubecWithDest(fields, e.target.value))}>
-          <Places label="On you" places={lubecDestinations(gear, fields.kind)} />
+          {onYou ? <Places label="On you" places={lubecDestinations(gear, fields.kind)} /> : null}
           {gear.carriers.length ? <Places label="Carriers" places={lubecCarrierDestinations(gear)} /> : null}
         </select>
       </label>

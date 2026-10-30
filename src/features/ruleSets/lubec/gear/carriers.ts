@@ -11,7 +11,7 @@ import type { LubecCarrier, LubecGear, LubecPocket } from './gearRecord'
 export type LubecCarrierKind = 'personal' | 'shared' | 'hidden'
 
 /** The kinds a character's sheet offers, as each comes to be stored somewhere. */
-export const LUBEC_CARRIER_KINDS: readonly LubecCarrierKind[] = ['personal']
+export const LUBEC_CARRIER_KINDS: readonly LubecCarrierKind[] = ['personal', 'shared']
 
 /** An NPC's sheet is the GM's alone, and an NPC shares no car with the players: only personal carriers (spec 9.6). */
 export const LUBEC_NPC_CARRIER_KINDS: readonly LubecCarrierKind[] = ['personal']

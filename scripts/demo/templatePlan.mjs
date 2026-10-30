@@ -38,6 +38,7 @@ export const TEMPLATE_SUBCOLLECTIONS = [
   { name: 'npcSheets' },
   { name: 'items' },
   { name: 'gmItems' },
+  { name: 'sharedCarriers' },
   { name: 'tables', children: [{ name: 'history' }] },
   { name: 'images' },
   { name: 'referenceDocs' },

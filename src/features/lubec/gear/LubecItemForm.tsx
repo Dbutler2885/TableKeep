@@ -33,6 +33,8 @@ type FormProps = {
   actions: LubecFormActions
   /** False for an item that has no place, as in the GM's Items tab: "where it goes" is left out. */
   placed?: boolean
+  /** False on a carrier's own record, whose "Put it" offers only its pockets. */
+  onYou?: boolean
 }
 
 // On a phone, and in a narrow window, the form is pages, so it never scrolls (captain, round 24).
@@ -97,7 +99,7 @@ function FormTop({ form, onFields, stock, supplyName, actions }: Pick<FormProps,
 
 /** The add and edit form: the kind tiles, the item, its kind's own page, and where it goes. One size for every kind, and it never scrolls. */
 export function LubecItemForm(props: FormProps) {
-  const { form, gear, supplies, actions, placed = true } = props
+  const { form, gear, supplies, actions, placed = true, onYou = true } = props
   const editing = gear.items.find((x) => x.id === form.editId)
   const paged = useLubecMediaQuery(PAGED)
   const onFields = (fields: LubecItemFields) => actions.onForm({ ...form, fields })
@@ -115,7 +117,7 @@ export function LubecItemForm(props: FormProps) {
       <div className="form-kind">
         <LubecItemFormKind fields={form.fields} onFields={onFields} supplies={supplies} onMakeSupply={actions.onMakeSupply} gear={gear} editId={form.editId} />
       </div>
-      <LubecItemFormBottom fields={form.fields} onFields={onFields} gear={gear} editing={editing} placed={placed} />
+      <LubecItemFormBottom fields={form.fields} onFields={onFields} gear={gear} editing={editing} placed={placed} onYou={onYou} />
       {form.error ? <p className="form-error" role="alert">{form.error}</p> : null}
       <div className="sheet-foot">
         <div className="actions">

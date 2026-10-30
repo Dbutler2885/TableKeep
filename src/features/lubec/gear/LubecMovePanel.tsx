@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { LubecGear, LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
-import { lubecFirstMove, lubecMoveCostLine, lubecMoveGroups, lubecSwapOf } from './moveLabels'
+import { lubecFirstMove, lubecMoveCostLine, lubecMoveGroups, lubecSwapOf, type LubecMoveGroup } from './moveLabels'
 
 export const LUBEC_MOVE_PANEL = 'lubec-move-panel'
 
@@ -10,6 +10,8 @@ type MovePanelProps = {
   /** True while a move is being saved. */
   busy: boolean
   onMove: (value: string) => void
+  /** The Move list; the thing's own record's places unless given. */
+  groups?: readonly LubecMoveGroup[]
 }
 
 /**
@@ -17,8 +19,7 @@ type MovePanelProps = {
  * to swap it with, the button that does it, and the cost line under them.
  * It opens on the first place the thing can go.
  */
-export function LubecMovePanel({ gear, item, busy, onMove }: MovePanelProps) {
-  const groups = lubecMoveGroups(gear, item)
+export function LubecMovePanel({ gear, item, busy, onMove, groups = lubecMoveGroups(gear, item) }: MovePanelProps) {
   const [value, setValue] = useState(() => lubecFirstMove(groups))
   return (
     <div className="stack" id={LUBEC_MOVE_PANEL}>
