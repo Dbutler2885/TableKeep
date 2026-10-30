@@ -5,7 +5,7 @@ import type { LubecSupplyName } from './gearLabels'
 import { KIND_BLURB, stockLine } from './itemLabels'
 import { LubecTilePicture } from './LubecGearArt'
 import { LubecSheetHead } from './LubecSheetHead'
-import { hasCampaignStock, KIND_IDS, lubecStockSections, STOCK_FROM_NAMES, type LubecStockEntry, type LubecStockFilter, type LubecStockFrom } from './stockEntries'
+import { hasCampaignStock, KIND_IDS, lubecStockSections, lubecStockSources, STOCK_FROM_NAMES, type LubecStockEntry, type LubecStockFilter, type LubecStockFrom } from './stockEntries'
 
 type PickerProps = {
   entries: readonly LubecStockEntry[]
@@ -32,7 +32,8 @@ function RadioRow<T extends string>({ legend, name, value, options, onPick, clas
 }
 
 const KIND_OPTIONS: readonly (readonly [LubecItemKind | '', string])[] = [['', 'All'], ...KIND_IDS.map((k) => [k, KIND_NAMES[k]] as const)]
-const FROM_OPTIONS: readonly (readonly [LubecStockFrom | '', string])[] = [['', 'All'], ['game', STOCK_FROM_NAMES.game], ['campaign', STOCK_FROM_NAMES.campaign]]
+// The source choice lists only the sources with something in them, and shows only when there is more than the game's.
+const fromOptions = (sources: readonly LubecStockFrom[]): (readonly [LubecStockFrom | '', string])[] => [['', 'All'], ...sources.map((from) => [from, STOCK_FROM_NAMES[from]] as const)]
 
 function Tile({ x, supplyName, onPick }: { x: LubecStockEntry; supplyName: LubecSupplyName; onPick: () => void }) {
   return (
@@ -66,6 +67,7 @@ export function LubecStockPicker({ entries, query, kind, supplyName, onPick, onB
   const [filter, setFilter] = useState<LubecStockFilter>({ query, kind: query ? '' : kind, from: '' })
   const set = (changes: Partial<LubecStockFilter>) => setFilter((now) => ({ ...now, ...changes }))
   const campaign = hasCampaignStock(entries)
+  const sources = lubecStockSources(entries)
   return (
     <div className="sheet-form stock-mode">
       <LubecSheetHead eyebrow="Stock items" title="Pick from stock" onClose={onClose} />
@@ -73,7 +75,7 @@ export function LubecStockPicker({ entries, query, kind, supplyName, onPick, onB
       <div className="stock-tools">
         <label className="field"><span className="label">Search</span><input type="text" autoComplete="off" placeholder="bat, rounds, helmet" value={filter.query} onChange={(e) => set({ query: e.target.value })} /></label>
         <RadioRow legend="Kind" name="stock-kind" value={filter.kind} options={KIND_OPTIONS} onPick={(k) => set({ kind: k })} className="choices six stock-kinds" />
-        {campaign ? <RadioRow legend="From" name="stock-from" value={filter.from} options={FROM_OPTIONS} onPick={(from) => set({ from })} className="choices stock-from" /> : null}
+        {sources.length > 1 ? <RadioRow legend="From" name="stock-from" value={filter.from} options={fromOptions(sources)} onPick={(from) => set({ from })} className="choices stock-from" /> : null}
       </div>
       <div className="stack"><Sections entries={entries} filter={filter} supplyName={supplyName} onPick={onPick} /></div>
       <div className="sheet-foot"><button className="btn line wide" type="button" onClick={onBack}>Back to the form</button></div>
