@@ -279,7 +279,7 @@
 /* Desktop: the sheet frame stays put and the Carriers view scrolls inside the pane */
 @media (min-width: 1251px) {
   .shell-root[data-theme="lubec"] .lubec-gear .carriers-view {
-    max-height: calc(100vh / var(--lubec-gear-zoom, 1) - var(--lubec-gear-chrome, 18.5rem) + 1.1rem);
+    max-height: calc(var(--lubec-gear-window, 100vh) / var(--lubec-gear-zoom, 1) - var(--lubec-gear-chrome, 18.5rem) + 1.1rem);
     overflow-y: auto;
     overscroll-behavior: contain;
     padding-right: 0.4rem;

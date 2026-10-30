@@ -1,4 +1,5 @@
 import { useState, type RefObject } from 'react'
+import { LUBEC_CARRIER_KINDS, type LubecCarrierKind } from '../../ruleSets/lubec/gear/carriers'
 import { inventoryFull } from '../../ruleSets/lubec/gear/placement'
 import type { LubecGear } from '../../ruleSets/lubec/gear/gearRecord'
 import type { LubecWielder } from '../../ruleSets/lubec/gear/minStrength'
@@ -45,6 +46,8 @@ type GearPageProps = {
   campaignStock?: readonly LubecStockItem[]
   /** The sheet the Strength check rolls on, for the character's owner; null where nobody is asked. */
   strength?: LubecGearStrength
+  /** The kinds of carrier the add-carrier dialog offers; every kind unless said otherwise. */
+  kinds?: readonly LubecCarrierKind[]
 }
 
 const NO_CAMPAIGN_STOCK: readonly LubecStockItem[] = []
@@ -180,7 +183,7 @@ function GearViews({ nav, moves, owner, onNewCarrier, ...props }: ViewsProps) {
 }
 
 /** The Lubec sheet's Gear page: the Gear bar, B's On you view of the backpack, the hands, the body and the armor, the Carriers view, and the item sheet over them. */
-export function LubecGearPage({ gear, owner, wielder, onGearChange, onDrop = null, campaignStock = NO_CAMPAIGN_STOCK, strength = null }: GearPageProps) {
+export function LubecGearPage({ gear, owner, wielder, onGearChange, onDrop = null, campaignStock = NO_CAMPAIGN_STOCK, strength = null, kinds = LUBEC_CARRIER_KINDS }: GearPageProps) {
   const nav = useLubecGearView()
   const [sheet, setSheet] = useState<LubecItemSheetState | null>(null)
   const toast = useLubecToast()
@@ -197,7 +200,7 @@ export function LubecGearPage({ gear, owner, wielder, onGearChange, onDrop = nul
           onOpenCarrier={nav.openCarrier} onCarry={carriers.onCarry} onNewCarrier={carriers.onNewCarrier}
         />
       </LubecDragContext>
-      <LubecCarrierDialogOver gear={gear} change={moves.change} toast={toast.show} acts={carriers} />
+      <LubecCarrierDialogOver gear={gear} change={moves.change} toast={toast.show} acts={carriers} kinds={kinds} />
       {moves.change && sheet ? (
         <LubecItemSheet
           sheet={sheet} gear={gear} onGearChange={moves.change} onSheet={setSheet} toast={toast.show} campaignStock={campaignStock}

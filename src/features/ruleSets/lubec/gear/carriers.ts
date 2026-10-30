@@ -7,6 +7,15 @@
 
 import type { LubecCarrier, LubecGear, LubecPocket } from './gearRecord'
 
+/** The three kinds of storage object (spec 4). Which kind a carrier is follows from where it is stored. */
+export type LubecCarrierKind = 'personal' | 'shared' | 'hidden'
+
+/** The kinds a character's sheet offers, as each comes to be stored somewhere. */
+export const LUBEC_CARRIER_KINDS: readonly LubecCarrierKind[] = ['personal']
+
+/** An NPC's sheet is the GM's alone, and an NPC shares no car with the players: only personal carriers (spec 9.6). */
+export const LUBEC_NPC_CARRIER_KINDS: readonly LubecCarrierKind[] = ['personal']
+
 /** Rule C4: a carrier bigger than this has "plenty of room" rather than boxes. */
 export const LUBEC_LIST_MODE_OVER = 24
 

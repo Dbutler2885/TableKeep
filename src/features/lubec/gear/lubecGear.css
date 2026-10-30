@@ -1031,6 +1031,7 @@ body.lubec-dragging * {
      margin below them. The sheet's fit zoom scales the window's height with
      everything else, so the stage divides it back out. */
   .shell-root[data-theme="lubec"] .lubec-gear {
+    --lubec-gear-window: 100vh;
     --lubec-gear-chrome: 18.5rem;
     --lubec-gear-zoom: min(var(--lubec-fit-width, 1), var(--lubec-fit-height, 1));
   }
@@ -1040,8 +1041,18 @@ body.lubec-dragging * {
     --lubec-gear-chrome: 21rem;
   }
 
+  /* An NPC's tabs stand above its sheet, outside the fit zoom, so they come off the window itself. */
+  .shell-root[data-theme="lubec"] .npc-detail-tabs .lubec-gear {
+    --lubec-gear-window: calc(100vh - 2.75rem);
+  }
+
+  /* So do the bar and the margins of the overlay an NPC's sheet opens in over the map. */
+  .shell-root[data-theme="lubec"] .map-npc-sheet-overlay .lubec-gear {
+    --lubec-gear-window: calc(100vh - 81px);
+  }
+
   .shell-root[data-theme="lubec"] .lubec-gear .on-you {
-    --stage: clamp(28rem, 100vh / var(--lubec-gear-zoom) - var(--lubec-gear-chrome), 40rem);
+    --stage: clamp(28rem, var(--lubec-gear-window) / var(--lubec-gear-zoom) - var(--lubec-gear-chrome), 40rem);
     grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
     margin-top: 0.6rem;
     align-items: stretch;

@@ -1,5 +1,6 @@
 import type { Role } from '../../types/app'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
+import { LUBEC_NPC_CARRIER_KINDS } from '../ruleSets/lubec/gear/carriers'
 import { makeLubecDirectEntryCharacter, makeLubecGuidedCharacter, type LubecOwner } from '../ruleSets/lubec/directEntry'
 import { makeLubecImportedCharacter, type LubecImportedCharacter } from '../ruleSets/lubec/importFile'
 import { LubecNewCharacter, type LubecDoors } from './LubecNewCharacter'
@@ -55,7 +56,7 @@ function LubecNpcSheetStart({ npcName, doors }: { npcName: string; doors: LubecD
 export function LubecNpcSheetTab({ npc, currentUsername, ...options }: LubecNpcSheetTabProps) {
   const { store, sheetProps } = useLubecSheetSession({ source: { kind: 'npc', npc }, ...options })
   if (sheetProps) {
-    return <LubecSheetView key={sheetProps.character.id} {...sheetProps} identityEditable={false} withGear={false} onDelete={null} onAssign={null} />
+    return <LubecSheetView key={sheetProps.character.id} {...sheetProps} identityEditable={false} carrierKinds={LUBEC_NPC_CARRIER_KINDS} onDelete={null} onAssign={null} />
   }
   if (store.charactersLoading) return <p className="lubec-sheet-none">Opening the sheet…</p>
   const owner = { userId: options.currentUserId, username: currentUsername }

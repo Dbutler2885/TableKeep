@@ -85,10 +85,15 @@ function gearDropFor(
   return lubecGearDrop(records, store, { characterId: character.id, characterName: lubecCharacterName(character), userId: viewer.userId })
 }
 
-// Only the owner of a character in play is asked for a heavy thing's Strength roll, which is recorded as any roll is.
+// Who a heavy thing's Strength roll waits for: a character's owner, and on an NPC's sheet, which has no player to wait for, any GM.
+function isAskedToRoll(character: LubecCharacterRecord, viewer: LubecViewer, records: LubecGearRecords | null): boolean {
+  return records?.sheet.kind === 'npc' ? viewer.role === 'gm' : character.ownerUserId === viewer.userId
+}
+
+// Only that person is asked for a heavy thing's Strength roll on a character in play, which is recorded as any roll is.
 // A heavy thing the GM gives, or one packed while the character is a draft, arrives with none, for the owner to roll in play.
-function gearRolledFor(character: LubecCharacterRecord | null, viewer: LubecViewer, update: CharacterUpdate): LubecRolled | null {
-  if (!character || character.creationStatus !== 'active' || character.ownerUserId !== viewer.userId) return null
+function gearRolledFor(character: LubecCharacterRecord | null, viewer: LubecViewer, update: CharacterUpdate, records: LubecGearRecords | null): LubecRolled | null {
+  if (!character || character.creationStatus !== 'active' || !isAskedToRoll(character, viewer, records)) return null
   return (lubec) => update(character.id, { lubec })
 }
 
@@ -140,7 +145,7 @@ export function lubecSheetWiring(
     corrections: correctionsFor(character, viewer, store.updateCharacter),
     onGearChange: gearChangeFor(character, viewer, store.updateCharacter),
     onGearDrop: gearDropFor(character, viewer, store, records),
-    onGearRolled: gearRolledFor(character, viewer, store.updateCharacter),
+    onGearRolled: gearRolledFor(character, viewer, store.updateCharacter, records),
     ...draftActionsFor(character, viewer, store),
   }
 }

@@ -3,13 +3,16 @@
 // back from its inputs; here what the player typed is kept as typed, and read
 // as a carrier only when it is added.
 
-import { LUBEC_CARRIER_TYPES, LUBEC_LIST_MODE_OVER, type LubecCarrierDraft } from '../../ruleSets/lubec/gear/carriers'
+import { LUBEC_CARRIER_TYPES, LUBEC_LIST_MODE_OVER, type LubecCarrierDraft, type LubecCarrierKind } from '../../ruleSets/lubec/gear/carriers'
 import type { LubecPocket } from '../../ruleSets/lubec/gear/gearRecord'
 
 /** A pocket row as typed: its name, its slots as written, and the largest thing it takes. */
 export type LubecPocketRow = { name: string; slots: string; max: number }
 
 export type LubecCarrierForm = { type: string; name: string; pockets: LubecPocketRow[]; error: string | null }
+
+/** What the dialog calls each kind of carrier. */
+export const LUBEC_CARRIER_KIND_LABELS: Record<LubecCarrierKind, string> = { personal: 'Personal', shared: 'Shared with the table', hidden: 'Hidden' }
 
 /** The sizes "Up to" offers. */
 export const LUBEC_POCKET_MAX_SIZES = [1, 2, 4, 8] as const

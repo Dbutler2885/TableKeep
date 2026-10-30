@@ -1,8 +1,9 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react'
 import { makeId } from '../../character/characterFactories'
-import { lubecAddCarrier, LUBEC_CARRIER_TYPES } from '../../ruleSets/lubec/gear/carriers'
+import { lubecAddCarrier, LUBEC_CARRIER_TYPES, type LubecCarrierKind } from '../../ruleSets/lubec/gear/carriers'
 import type { LubecCarrier, LubecGear } from '../../ruleSets/lubec/gear/gearRecord'
 import {
+  LUBEC_CARRIER_KIND_LABELS,
   LUBEC_LAST_POCKET,
   LUBEC_POCKET_MAX_SIZES,
   lubecCarrierDraftOf,
@@ -53,8 +54,20 @@ function Pockets({ form, setForm, toast }: PocketsProps) {
   )
 }
 
+// The kind of carrier, where the sheet offers more than one.
+function KindField({ kinds }: { kinds: readonly LubecCarrierKind[] }) {
+  if (kinds.length < 2) return null
+  return (
+    <label className="field"><span className="label">Kind</span>
+      <select name="kind">{kinds.map((k) => <option key={k} value={k}>{LUBEC_CARRIER_KIND_LABELS[k]}</option>)}</select>
+    </label>
+  )
+}
+
 export type LubecCarrierDialogProps = {
   gear: LubecGear
+  /** The kinds of carrier this sheet offers. */
+  kinds: readonly LubecCarrierKind[]
   /** Commits the gear with the new carrier. */
   onAdded: (gear: LubecGear, carrier: LubecCarrier) => void
   onClose: () => void
@@ -62,7 +75,7 @@ export type LubecCarrierDialogProps = {
 }
 
 /** B's add-carrier dialog: a preset, its name, and its pockets. This one adds a personal carrier, kept on the character's own record. */
-export function LubecCarrierDialog({ gear, onAdded, onClose, toast }: LubecCarrierDialogProps) {
+export function LubecCarrierDialog({ gear, kinds, onAdded, onClose, toast }: LubecCarrierDialogProps) {
   const [form, setForm] = useState(() => lubecCarrierFormOf(LUBEC_CARRIER_TYPES[0].id))
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -81,6 +94,7 @@ export function LubecCarrierDialog({ gear, onAdded, onClose, toast }: LubecCarri
             <div><div className="eyebrow">New carrier</div><h2 id={TITLE}>Add a carrier</h2></div>
             <button className="close" type="button" aria-label="Close" onClick={onClose}>×</button>
           </header>
+          <KindField kinds={kinds} />
           <label className="field"><span className="label">What is it?</span>
             <select value={form.type} onChange={(e) => setForm(lubecCarrierFormOf(e.target.value))}>
               {LUBEC_CARRIER_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
