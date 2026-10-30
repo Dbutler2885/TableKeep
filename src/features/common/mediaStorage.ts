@@ -112,20 +112,22 @@ async function downloadUrlWithRetries(user: User, path: string) {
   return downloadUrlRefreshingAuth(user, path)
 }
 
+// A lookup as the signed-in user, once the session has been restored.
+async function lookUpDownloadUrl(path: string) {
+  await waitForAuthReady()
+  const user = auth.currentUser
+  if (!user) throw new Error('You must be signed in to load images.')
+
+  await user.getIdToken()
+  return downloadUrlWithRetries(user, path)
+}
+
 export const resolveStoragePathUrl = async (path: string) => {
   if (!path) return null
   const cached = storageUrlCache.get(path)
   if (cached) return cached
 
-  const pending = (async () => {
-    await waitForAuthReady()
-    const user = auth.currentUser
-    if (!user) throw new Error('You must be signed in to load images.')
-
-    await user.getIdToken()
-    return downloadUrlWithRetries(user, path)
-  })()
-
+  const pending = lookUpDownloadUrl(path)
   storageUrlCache.set(path, pending)
   try {
     return await pending
