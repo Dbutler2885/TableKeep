@@ -9,7 +9,7 @@ import type { Request } from 'express'
 import { adminApp, adminFirestore } from './adminApp.js'
 import { isTransferSourceAuthorized } from './transferAuthorization.js'
 import type { InventoryItem } from './oseCarrying.js'
-import { NO_CARRYING_MESSAGE, resolveTransferCarrying, type TransferOutcome } from './ruleSetCarrying.js'
+import { NO_CARRYING_MESSAGE, droppedOffer, resolveTransferCarrying, type TransferRejection } from './ruleSetCarrying.js'
 import { campaignPath, groupMemberPath } from './firestorePaths.js'
 import {
   CHARACTER_BEING_UPDATED_MESSAGE,
@@ -223,18 +223,6 @@ type TransferDoc = {
   toCharacterId: string
   toCharacterName: string
   toUserId: string
-}
-
-type TransferRejection = {
-  code: 'not-found' | 'failed-precondition' | 'permission-denied'
-  message: string
-}
-
-/** Why an offer that no longer matches the sender's item is dropped. */
-function droppedOffer(reason: Exclude<Extract<TransferOutcome, { ok: false }>['reason'], 'no_room'>): TransferRejection {
-  return reason === 'qty_changed'
-    ? { code: 'failed-precondition', message: 'Item quantity changed before transfer could be accepted.' }
-    : { code: 'not-found', message: 'Item no longer available.' }
 }
 
 export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (request) => {

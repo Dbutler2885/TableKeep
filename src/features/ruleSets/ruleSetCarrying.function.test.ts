@@ -32,6 +32,14 @@ describe.each([
     expect(carrying.resolveTransferCarrying(system) !== null)
       .toBe(resolveRuleSet(system as string | null | undefined).transfers)
   })
+
+  it.each([
+    ['missing_item', { code: 'not-found', message: 'Item no longer available.' }],
+    ['kind_mismatch', { code: 'not-found', message: 'Item no longer available.' }],
+    ['qty_changed', { code: 'failed-precondition', message: 'Item quantity changed before transfer could be accepted.' }],
+  ] as const)('drops an offer refused as %s with the words the player is shown', (reason, rejection) => {
+    expect(carrying.droppedOffer(reason)).toEqual(rejection)
+  })
 })
 
 // The adapter writes exactly what `applyAcceptedTransfer` decides, into each

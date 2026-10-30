@@ -7,7 +7,7 @@ import { defineSecret, defineString } from 'firebase-functions/params';
 import { logger } from 'firebase-functions';
 import { adminApp, adminFirestore } from './adminApp.js';
 import { isTransferSourceAuthorized } from './transferAuthorization.js';
-import { NO_CARRYING_MESSAGE, resolveTransferCarrying } from './ruleSetCarrying.js';
+import { NO_CARRYING_MESSAGE, droppedOffer, resolveTransferCarrying } from './ruleSetCarrying.js';
 import { campaignPath, groupMemberPath } from './firestorePaths.js';
 import { CHARACTER_BEING_UPDATED_MESSAGE, currentCharacterSchemaVersion, isCharacterAtSchemaVersion, } from './characterSchemaVersions.js';
 import { deleteCampaignSessions } from './campaignSessions.js';
@@ -156,12 +156,6 @@ export const getCampaignNpcs = onRequest({ region: 'us-central1', secrets: [sess
         .filter((n) => n.name.trim().length > 0);
     res.status(200).json({ npcs });
 });
-/** Why an offer that no longer matches the sender's item is dropped. */
-function droppedOffer(reason) {
-    return reason === 'qty_changed'
-        ? { code: 'failed-precondition', message: 'Item quantity changed before transfer could be accepted.' }
-        : { code: 'not-found', message: 'Item no longer available.' };
-}
 export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (request) => {
     const uid = request.auth?.uid ?? '';
     if (!uid)

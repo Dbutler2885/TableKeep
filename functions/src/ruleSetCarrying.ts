@@ -30,6 +30,19 @@ export const transferCarryingByRuleSet: Record<CharacterRuleSet, TransferCarryin
 
 export const NO_CARRYING_MESSAGE = 'Items cannot be handed to another character in this campaign.'
 
+/** What the callable throws once its transaction has settled. */
+export type TransferRejection = {
+  code: 'not-found' | 'failed-precondition' | 'permission-denied'
+  message: string
+}
+
+/** Why an offer that no longer matches the sender's item is dropped. */
+export function droppedOffer(reason: Exclude<Extract<TransferOutcome, { ok: false }>['reason'], 'no_room'>): TransferRejection {
+  return reason === 'qty_changed'
+    ? { code: 'failed-precondition', message: 'Item quantity changed before transfer could be accepted.' }
+    : { code: 'not-found', message: 'Item no longer available.' }
+}
+
 /** The carrying rule a campaign's transfers are accepted under, from its stored `system`. */
 export function resolveTransferCarrying(system: unknown): TransferCarrying | null {
   return transferCarryingByRuleSet[resolveCharacterRuleSet(system)]
