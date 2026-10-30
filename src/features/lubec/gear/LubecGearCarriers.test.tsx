@@ -231,7 +231,7 @@ describe('the Carriers list', () => {
       expect(form.getAllByRole('textbox', { name: 'Pocket' }).map((x) => (x as HTMLInputElement).value)).toEqual(t.pockets.map(([name]) => name))
       if (!t.name) fireEvent.change(form.getByRole('textbox', { name: 'Name' }), { target: { value: 'Crate' } })
       // The stash preset offers Hidden first; this case keeps every preset on the sheet.
-      fireEvent.click(form.getByRole('radio', { name: /Known to all/ }))
+      fireEvent.click(form.getByRole('radio', { name: /Just this character/ }))
       fireEvent.click(form.getByRole('button', { name: 'Add carrier' }))
       expect(screen.queryByRole('dialog')).toBeNull()
       expect(toastText()).toBe(`${t.name || 'Crate'} added to your carriers.`)

@@ -12,10 +12,12 @@ import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestE
 import { campaignDocRef, campaignGmItemRef, characterHiddenCarrierRef, characterHiddenCarriersRef } from '../../campaign/firestorePaths'
 import { lubecCharacterVersioning } from '../../ruleSets/characterMigrations'
 import { characterSchemaStamp } from '../../ruleSets/characterSchemaStamp'
-import { LUBEC_STALE_MOVE } from '../../ruleSets/lubec/gear/containers'
+import { LUBEC_STALE_MOVE, type LubecRecordRef } from '../../ruleSets/lubec/gear/containers'
 import { parseLubecCarrierRecord, type LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
 import { lubecDeleteCharacterDroppingGear } from './lubecDeleteDrop'
-import { lubecAddHiddenCarrier, lubecHiddenDrop, lubecMoveAcross, lubecSaveHiddenItems, type LubecGearHidden } from './lubecHiddenCarrierWrites'
+import { lubecMoveStoreOf } from './lubecGearDrop'
+import { lubecAddHiddenCarrier, lubecHiddenDrop, lubecSaveHiddenItems, type LubecGearHidden } from './lubecHiddenCarrierWrites'
+import { lubecMoveBetween } from './lubecMoveTransaction'
 import { emulatorPort } from '../../../../vitest.emulatorEndpoint'
 import { firestoreRules } from '../../../../vitest.firestoreRules'
 
@@ -149,38 +151,74 @@ describe('hidden carriers', () => {
   })
 
   describe('moves in and out', () => {
-    it('takes a thing from the character into the carrier, and the character keeps no trace of it', async () => {
-      const seen = await storedStash()
-      const moved = await lubecMoveAcross(hiddenFor(ownerUid), [seen], flashlight as LubecItem, 'stash#0')
+    const wayne: LubecRecordRef = { kind: 'character', characterId: 'wayne' }
+    const box: LubecRecordRef = { kind: 'hidden', characterId: 'wayne', carrierId: 'stash' }
+    const tinBox: LubecRecordRef = { kind: 'hidden', characterId: 'wayne', carrierId: 'tin' }
+    const skiff: LubecRecordRef = { kind: 'shared', carrierId: 'skiff' }
+    const skiffDoc = (db: Firestore) => doc(db, 'groups', scope.groupId, 'campaigns', scope.campaignId, 'sharedCarriers', 'skiff')
+    const oars = { ...flashlight, id: 'oars', carrier: 'skiff', name: 'Oars' }
+    const storedSkiff = async () => (await withoutRules((db) => getDoc(skiffDoc(db)))).data()
+    const withSkiff = () => withoutRules((db) => setDoc(skiffDoc(db), { name: 'Skiff', type: 'skiff', ownerCharacterId: 'other-character', pockets: [{ name: 'Hull', slots: 4, max: 4 }], items: [oars] }))
 
-      expect(moved).toMatchObject({ ok: true, item: { id: 'flashlight', carrier: 'stash', pocket: 0 } })
+    const moveAs = (uid: string, item: object, from: LubecRecordRef, to: LubecRecordRef, dest: string) => {
+      const { db, store } = hiddenFor(uid)
+      const { id, carrier: at, pocket } = item as LubecItem
+      return lubecMoveBetween(db, { scope, from, to, store: lubecMoveStoreOf(store), move: { itemId: id, seen: { carrier: at, pocket }, dest } })
+    }
+
+    it('takes a thing from the character into the carrier, and the character keeps no trace of it', async () => {
+      expect(await moveAs(ownerUid, flashlight, wayne, box, 'stash#0')).toEqual({ ok: true })
+
       expect((await storedStash()).items.map((i) => i.id)).toEqual(['letter', 'flashlight'])
       expect((await storedGear()).items).toEqual([])
     })
 
     it('takes a thing out onto the character, and the GM can do it too', async () => {
-      const seen = await storedStash()
-      const moved = await lubecMoveAcross(hiddenFor(campaignGmUid), [seen], letter as LubecItem, 'backpack#0')
+      expect(await moveAs(campaignGmUid, letter, box, wayne, 'backpack#0')).toEqual({ ok: true })
 
-      expect(moved).toMatchObject({ ok: true })
       expect((await storedStash()).items).toEqual([])
       expect((await storedGear()).items.map((i: { id: string }) => i.id)).toEqual(['flashlight', 'letter'])
     })
 
     it('moves a thing from one hidden carrier to another', async () => {
       await withoutRules((db) => setDoc(carrier(db, 'tin'), { name: 'Tin', type: 'stash', pockets: [{ name: 'Box', slots: 1, max: 1 }], items: [] }))
-      const seen = [await storedStash(), parseLubecCarrierRecord({ name: 'Tin', pockets: [{ name: 'Box', slots: 1, max: 1 }] }, 'tin')]
-      expect(await lubecMoveAcross(hiddenFor(ownerUid), seen, letter as LubecItem, 'tin#0')).toMatchObject({ ok: true })
+      expect(await moveAs(ownerUid, letter, box, tinBox, 'tin#0')).toEqual({ ok: true })
 
       expect((await storedStash()).items).toEqual([])
       const tin = (await withoutRules((db) => getDoc(carrier(db, 'tin')))).data()
       expect(tin?.items).toMatchObject([{ id: 'letter', carrier: 'tin', pocket: 0 }])
     })
 
+    it('takes a thing from a shared carrier into the carrier, and the character is not touched', async () => {
+      await withSkiff()
+      expect(await moveAs(ownerUid, oars, skiff, box, 'stash#0')).toEqual({ ok: true })
+
+      expect((await storedSkiff())?.items).toEqual([])
+      expect((await storedStash()).items.map((i) => i.id)).toEqual(['letter', 'oars'])
+      expect((await storedGear()).items.map((i: { id: string }) => i.id)).toEqual(['flashlight'])
+    })
+
+    it('sends a thing back to a shared carrier, and the GM can do it too', async () => {
+      await withSkiff()
+      expect(await moveAs(campaignGmUid, letter, box, skiff, 'skiff#0')).toEqual({ ok: true })
+
+      expect((await storedStash()).items).toEqual([])
+      expect((await storedSkiff())?.items).toMatchObject([{ id: 'oars' }, { id: 'letter', carrier: 'skiff', pocket: 0 }])
+    })
+
+    it('writes neither record when another member tries to reach it from a shared carrier', async () => {
+      await withSkiff()
+      await expect(moveAs(otherUid, oars, skiff, box, 'stash#0')).rejects.toBeDefined()
+
+      expect((await storedSkiff())?.items).toMatchObject([{ id: 'oars' }])
+      expect((await storedStash()).items.map((i) => i.id)).toEqual(['letter'])
+    })
+
     it('writes neither record when another member tries it', async () => {
-      const seen = await storedStash()
-      await expect(lubecMoveAcross(hiddenFor(otherUid), [seen], letter as LubecItem, 'backpack#0')).rejects.toBeDefined()
-      expect((await storedStash()).items).toHaveLength(1)
+      await expect(moveAs(otherUid, letter, box, wayne, 'backpack#0')).rejects.toBeDefined()
+
+      expect((await storedStash()).items.map((i) => i.id)).toEqual(['letter'])
+      expect((await storedGear()).items.map((i: { id: string }) => i.id)).toEqual(['flashlight'])
     })
 
     it('drops a thing to the GM with where it came from', async () => {

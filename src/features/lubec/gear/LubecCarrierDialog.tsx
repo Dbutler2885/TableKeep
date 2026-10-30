@@ -8,6 +8,7 @@ import {
   LUBEC_LAST_POCKET,
   LUBEC_POCKET_MAX_SIZES,
   lubecCarrierDraftOf,
+  lubecCarrierFormAt,
   lubecCarrierFormOf,
   lubecNewPocketRow,
   lubecOfferedKind,
@@ -65,7 +66,7 @@ function NameField({ form, setForm }: Pick<FormProps, 'form' | 'setForm'>) {
 function TypeField({ form, setForm }: Pick<FormProps, 'form' | 'setForm'>) {
   return (
     <label className="field"><span className="label">What is it?</span>
-      <select value={form.type} onChange={(e) => setForm(lubecCarrierFormOf(e.target.value))}>
+      <select value={form.type} onChange={(e) => setForm(lubecCarrierFormAt(form, e.target.value))}>
         {LUBEC_CARRIER_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
       </select>
     </label>

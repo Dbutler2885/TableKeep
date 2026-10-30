@@ -29,6 +29,12 @@ export function lubecCarrierFormOf(type: string): LubecCarrierForm {
   return { type: t.id, name: t.name, pockets: t.pockets.map(rowOf), kind: t.kind ?? 'personal', error: null }
 }
 
+/** The form moved to preset `type`: the preset says whether it is hidden, and a choice to share it stays unless the preset is a hidden one. */
+export function lubecCarrierFormAt(form: LubecCarrierForm, type: string): LubecCarrierForm {
+  const next = lubecCarrierFormOf(type)
+  return { ...next, kind: form.kind === 'shared' && next.kind === 'personal' ? 'shared' : next.kind }
+}
+
 /** The kind the form stands on: the one its preset chose, or the first offered where that one is not. */
 export const lubecOfferedKind = (form: LubecCarrierForm, kinds: readonly LubecCarrierKind[]): LubecCarrierKind =>
   (kinds.includes(form.kind) ? form.kind : kinds[0])

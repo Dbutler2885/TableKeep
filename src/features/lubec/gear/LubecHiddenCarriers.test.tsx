@@ -59,6 +59,7 @@ const CAMPAIGN_PATH = 'groups/group-1/campaigns/campaign-1'
 const CHARACTERS_PATH = `${CAMPAIGN_PATH}/characters`
 const TOMMY = `${CHARACTERS_PATH}/tommy`
 const HIDDEN_PATH = `${TOMMY}/hiddenCarriers`
+const SKIFF = `${CAMPAIGN_PATH}/sharedCarriers/skiff`
 const GM = 'gm-1'
 const OWNER = 'player-1'
 const OTHER = 'player-2'
@@ -278,7 +279,7 @@ describe('adding a hidden carrier', () => {
   })
 
   const hiddenChoice = (form: ReturnType<typeof dialog>) => form.getByRole('radio', { name: /^Hidden/ }) as HTMLInputElement
-  const knownChoice = (form: ReturnType<typeof dialog>) => form.getByRole('radio', { name: /^Known to all/ }) as HTMLInputElement
+  const knownChoice = (form: ReturnType<typeof dialog>) => form.getByRole('radio', { name: /^Just this character/ }) as HTMLInputElement
 
   it('offers Hidden first for the stash preset, and known to all for the rest', async () => {
     await openCarriers('player', OWNER)
@@ -345,13 +346,13 @@ describe('inside a hidden carrier', () => {
     database = { [TOMMY]: tommyEves({ items: [T('cap', 'backpack', 0, 'Wool watch cap')] }), [`${HIDDEN_PATH}/stash`]: STASH }
   })
 
-  it('adds a thing to the carrier\'s record, with no "Put it" that could send it elsewhere', async () => {
+  it('adds a thing to the carrier\'s record, whose "Put it" offers only its pockets', async () => {
     await openCarriers('player', OWNER)
     fireEvent.click(cardOf('Cigar box') as HTMLElement)
     fireEvent.click(screen.getByRole('button', { name: '+ Put something in' }))
     const form = dialog('Add an item')
 
-    expect(form.queryByRole('combobox', { name: 'Put it' })).toBeNull()
+    expect(within(form.getByRole('combobox', { name: 'Put it' })).getAllByRole('option').map((o) => o.textContent)).toEqual(['Cigar box (1 free)'])
     fireEvent.change(form.getByRole('combobox', { name: 'Name' }), { target: { value: 'Spare key' } })
     fireEvent.click(form.getByRole('button', { name: 'Add it' }))
 
@@ -392,12 +393,41 @@ describe('inside a hidden carrier', () => {
   it('moves a thing out onto the character in one transaction', async () => {
     await openCarriers('player', OWNER)
     const card = await openStashItem('Burnt letter')
-    moveTo(card, 'backpack#1')
+    moveTo(card, 'sheet:backpack#1')
 
     await waitFor(() => expect(stashItems()).toEqual([]))
     expect((storedGear().items as Fields[]).map((i) => i.id)).toEqual(['cap', 'letter'])
     await waitFor(() => expect(toastText()).toContain('Burnt letter: '))
     expect(screen.queryByRole('dialog', { name: 'Burnt letter' })).toBeNull()
+  })
+
+  it('takes a thing in from a shared carrier and sends one back, in the two records and never the character', async () => {
+    database[SKIFF] = { name: 'Skiff', type: 'skiff', ownerCharacterId: 'tommy', pockets: [{ name: 'Hull', slots: 4, max: 4 }], items: [T('oars', 'skiff', 0, 'Oars')] }
+    const before = JSON.stringify(storedGear().items)
+    await openCarriers('player', OWNER)
+    fireEvent.click(cardOf('Skiff') as HTMLElement)
+    fireEvent.click(screen.getByRole('button', { name: /Oars/ }))
+    moveTo(dialog('Oars'), 'hidden:stash#0')
+
+    await waitFor(() => expect(stashItems().map((i) => i.id)).toEqual(['letter', 'oars']))
+    expect(database[SKIFF].items).toEqual([])
+    await waitFor(() => expect(toastText()).toBe('Oars: Cigar box.'))
+
+    fireEvent.click(screen.getByRole('button', { name: '← All carriers' }))
+    const card = await openStashItem('Burnt letter')
+    moveTo(card, 'shared:skiff#0')
+
+    await waitFor(() => expect(stashItems().map((i) => i.id)).toEqual(['oars']))
+    expect(database[SKIFF].items).toMatchObject([{ id: 'letter', carrier: 'skiff', pocket: 0 }])
+    expect(JSON.stringify(storedGear().items)).toBe(before)
+  })
+
+  it('is no choice on a shared carrier\'s things for another member', async () => {
+    database[SKIFF] = { name: 'Skiff', type: 'skiff', ownerCharacterId: 'tommy', pockets: [{ name: 'Hull', slots: 4, max: 4 }], items: [T('oars', 'skiff', 0, 'Oars')] }
+    await openCarriers('player', OTHER)
+    fireEvent.click(cardOf('Skiff') as HTMLElement)
+
+    expect(document.querySelector('.lubec-gear')?.textContent).not.toContain('Cigar box')
   })
 
   it('offers no Give inside it, as an offer is accepted from the character\'s own record', async () => {
@@ -420,7 +450,7 @@ describe('inside a hidden carrier', () => {
     const card = dialog('Wool watch cap')
     fireEvent.click(card.getByRole('button', { name: 'Move' }))
     expect(card.getByRole('option', { name: 'Cigar box (1 free)' })).toBeTruthy()
-    fireEvent.change(card.getByRole('combobox', { name: 'Move to' }), { target: { value: 'stash#0' } })
+    fireEvent.change(card.getByRole('combobox', { name: 'Move to' }), { target: { value: 'hidden:stash#0' } })
     fireEvent.click(card.getByRole('button', { name: 'Move it' }))
 
     await waitFor(() => expect(stashItems().map((i) => i.id)).toEqual(['letter', 'cap']))
@@ -435,7 +465,7 @@ describe('inside a hidden carrier', () => {
     fireEvent.click([...document.querySelectorAll<HTMLElement>('.lubec-gear .slot.item')].find((el) => el.textContent?.includes('Wool watch cap')) as HTMLElement)
     const card = dialog('Wool watch cap')
     fireEvent.click(card.getByRole('button', { name: 'Move' }))
-    fireEvent.change(card.getByRole('combobox', { name: 'Move to' }), { target: { value: 'stash#0' } })
+    fireEvent.change(card.getByRole('combobox', { name: 'Move to' }), { target: { value: 'hidden:stash#0' } })
     fireEvent.click(card.getByRole('button', { name: 'Move it' }))
 
     expect((await card.findByRole('alert')).textContent).toBeTruthy()
@@ -447,7 +477,7 @@ describe('inside a hidden carrier', () => {
     database[`${HIDDEN_PATH}/stash`] = { ...STASH, items: [T('anvil', 'stash', 0, 'Small anvil', { weight: 'heavy' })] }
     await openCarriers('player', OWNER)
     const card = await openStashItem('Small anvil')
-    moveTo(card, 'backpack#1')
+    moveTo(card, 'sheet:backpack#1')
 
     await waitFor(() => expect(stashItems()).toEqual([]))
     expect(await screen.findByRole('dialog', { name: /Small anvil/ })).toBeTruthy()

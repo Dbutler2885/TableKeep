@@ -1,7 +1,7 @@
 /** The add-carrier dialog's state, as B's `applyType`, `readPockets` and `pocketNote` work. */
 import { describe, expect, it } from 'vitest'
 import { LUBEC_CARRIER_TYPES } from '../../ruleSets/lubec/gear/carriers'
-import { lubecCarrierDraftOf, lubecCarrierFormOf, lubecNewPocketRow, lubecOfferedKind, lubecPocketNote, lubecReadPockets } from './carrierForm'
+import { lubecCarrierDraftOf, lubecCarrierFormAt, lubecCarrierFormOf, lubecNewPocketRow, lubecOfferedKind, lubecPocketNote, lubecReadPockets } from './carrierForm'
 
 describe('the add-carrier form', () => {
   it('takes a preset\'s name and pockets, and starts on the first preset for an unknown one', () => {
@@ -14,6 +14,13 @@ describe('the add-carrier form', () => {
   it('offers Hidden first for the stash preset, and only that one', () => {
     expect(lubecCarrierFormOf('stash').kind).toBe('hidden')
     expect(LUBEC_CARRIER_TYPES.filter((t) => lubecCarrierFormOf(t.id).kind === 'hidden').map((t) => t.id)).toEqual(['stash'])
+  })
+
+  it('moves between presets as B does, and keeps a choice to share', () => {
+    const stash = lubecCarrierFormOf('stash')
+    expect(lubecCarrierFormAt(stash, 'duffel').kind).toBe('personal')
+    expect(lubecCarrierFormAt({ ...stash, kind: 'shared' }, 'duffel').kind).toBe('shared')
+    expect(lubecCarrierFormAt({ ...stash, kind: 'shared' }, 'stash').kind).toBe('hidden')
   })
 
   it('stands on the first kind offered where its preset\'s kind is not offered, as on an NPC', () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { emptyLubecGear, type LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
 import type { LubecSharedCarrier } from '../../ruleSets/lubec/gear/sharedCarrier'
-import { lubecCrossDest, lubecCrossToast, lubecFromCarrierGroups, lubecSharedDeleteText, lubecSharedMoveGroups } from './sharedCarrierLabels'
+import { lubecCrossDest, lubecCrossToast, lubecFromCarrierGroups, lubecHiddenMoveGroups, lubecSharedDeleteText, lubecSharedMoveGroups } from './sharedCarrierLabels'
 
 const carrier = (id: string, name: string, pockets = [{ name: 'Hull', slots: 3, max: 2 }]): LubecSharedCarrier =>
   ({ id, name, type: 'skiff', pockets, ownerCharacterId: 'wayne', items: [] })
@@ -12,6 +12,7 @@ describe('lubecCrossDest', () => {
   it('reads which record a Move-list choice names', () => {
     expect(lubecCrossDest('sheet:backpack#0')).toEqual({ to: 'sheet', dest: 'backpack#0' })
     expect(lubecCrossDest('shared:skiff#1')).toEqual({ to: 'shared', carrierId: 'skiff', dest: 'skiff#1' })
+    expect(lubecCrossDest('hidden:stash#0')).toEqual({ to: 'hidden', carrierId: 'stash', dest: 'stash#0' })
   })
 
   it('leaves a place in the same record alone', () => {
@@ -49,6 +50,32 @@ describe('lubecFromCarrierGroups', () => {
     const sheet = { ...emptyLubecGear(), carriers: [{ id: 'bag', name: 'Bag', type: 'duffel', pockets: [{ name: 'Main', slots: 8, max: 8 }] }] }
     const groups = lubecFromCarrierGroups({ ...from, sheet }, thing())
     expect(groups[1]).toMatchObject({ label: 'Carriers', options: [{ value: 'sheet:bag#0' }] })
+  })
+})
+
+describe('a hidden carrier in the Move list', () => {
+  const stash = carrier('stash', 'Cigar box', [{ name: 'Box', slots: 2, max: 1 }, { name: 'Lid', slots: 1, max: 1 }])
+  const tin = carrier('tin', 'Tin')
+
+  it('is no group for a viewer with none, and each pocket for one who can see it', () => {
+    expect(lubecHiddenMoveGroups([])).toEqual([])
+    expect(lubecHiddenMoveGroups([stash])).toEqual([{ label: 'Hidden carriers', options: [
+      { value: 'hidden:stash#0', label: 'Cigar box: box (2 free)', disabled: false },
+      { value: 'hidden:stash#1', label: 'Cigar box: lid (1 free)', disabled: false },
+    ] }])
+  })
+
+  it('joins a shared carrier\'s list, for a viewer who can see it', () => {
+    const groups = lubecFromCarrierGroups({ sheet: emptyLubecGear(), open: skiff, others: [], stashes: [stash] }, thing())
+    expect(groups.map((g) => g.label)).toEqual(['On you', 'Shared carriers', 'Hidden carriers', 'Elsewhere'])
+    expect(groups[2].options.map((o) => o.value)).toEqual(['hidden:stash#0', 'hidden:stash#1'])
+  })
+
+  it('lists its own pockets as a place in the same record, and the shared and other hidden carriers as across', () => {
+    const groups = lubecFromCarrierGroups({ sheet: emptyLubecGear(), open: stash, others: [skiff], stashes: [tin], hidden: true }, thing({ carrier: 'stash', pocket: 0 }))
+    expect(groups.map((g) => g.label)).toEqual(['On you', 'Shared carriers', 'Hidden carriers', 'Elsewhere'])
+    expect(groups[1].options.map((o) => o.value)).toEqual(['shared:skiff#0'])
+    expect(groups[2].options.map((o) => [o.value, o.disabled])).toEqual([['stash#0', true], ['stash#1', false], ['hidden:tin#0', false]])
   })
 })
 
