@@ -35,6 +35,9 @@ const isOnYou = (carrier: string): carrier is LubecMovePlace => (LUBEC_ON_YOU as
 const fieldsWhere = (item: LubecItem, keep: (key: string) => boolean) =>
   Object.fromEntries(Object.entries(item).filter(([key]) => keep(key)))
 
+/** `item` with its place taken away: every other field is kept. */
+export const lubecUnplaced = (item: LubecItem) => fieldsWhere(item, (key) => !placeFields.includes(key)) as LubecUnplacedItem
+
 const droppedFromText = (gear: LubecGear, carrier: string): string =>
   (isOnYou(carrier) ? carrier : gear.carriers.find((c) => c.id === carrier)?.name || carrier)
 
@@ -43,7 +46,7 @@ export function lubecDropPlan(gear: LubecGear, itemId: string): LubecDropPlan | 
   const item = gear.items.find((x) => x.id === itemId)
   if (!item) return null
   return {
-    item: fieldsWhere(item, (key) => !placeFields.includes(key)) as LubecUnplacedItem,
+    item: lubecUnplaced(item),
     from: fieldsWhere(item, (key) => fromFields.includes(key)) as LubecDropFrom,
     droppedFrom: droppedFromText(gear, item.carrier),
     // Rule M4: dropping from a hand or the body is free, from the backpack 2.

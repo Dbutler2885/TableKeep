@@ -4,8 +4,10 @@ import { LubecMissing } from '../LubecMissing'
 import type { LubecCheck } from '../../ruleSets/lubec/gear/strengthCheck'
 import { cardEyebrow, cardTitle, lubecCardFacts, type LubecCardFact } from './cardFacts'
 import { LubecCardPicture } from './LubecGearArt'
+import { LubecGiveFoot, LUBEC_GIVE_PANEL } from './LubecGivePanel'
 import { LubecMovePanel, LUBEC_MOVE_PANEL } from './LubecMovePanel'
 import { LubecSheetHead } from './LubecSheetHead'
+import type { LubecCardGive } from './useLubecCardGive'
 import { lubecAttackButtons } from './weaponFacts'
 import { isBox } from '../../ruleSets/lubec/gear/gearRules'
 import type { LubecLoadAct, LubecLoadButton } from './loadLabels'
@@ -40,6 +42,8 @@ type CardProps = {
   /** True while a move is being saved. */
   busy: boolean
   load: LubecCardLoad
+  /** The card's Give; null for a viewer who may not give the thing away. */
+  give: LubecCardGive | null
   actions: LubecCardActions
 }
 
@@ -145,22 +149,29 @@ const dropLabel = (i: LubecItem, busy: boolean) => {
 
 type FootProps = Omit<CardProps, 'supplies' | 'wielder' | 'load'>
 
-// Give is the transfer's button (G28), so the row is Edit, Move and Drop for now.
-function CardFoot({ gear, item, error, moveOpen, busy, actions }: FootProps) {
+// While an offer is out there is nothing more to give, so the button rests and the row above it says who has been offered it.
+function GiveButton({ give }: { give: LubecCardGive }) {
+  return <button className="btn line" type="button" aria-expanded={give.open && !give.offered} aria-controls={LUBEC_GIVE_PANEL} disabled={give.offered !== null} onClick={give.onToggle}>Give</button>
+}
+
+// Only a viewer who may give the thing away has the fourth button.
+function CardFoot({ gear, item, error, moveOpen, busy, give, actions }: FootProps) {
   return (
     <div className="sheet-foot">
       {moveOpen ? <LubecMovePanel key={item.id} gear={gear} item={item} busy={busy} onMove={actions.onMove} /> : null}
+      {give ? <LubecGiveFoot item={item} give={give} /> : null}
       {error ? <p className="form-error" role="alert">{error}</p> : null}
-      <div className="actions three">
+      <div className={`actions ${give ? 'four' : 'three'}`}>
         <button className="btn line" type="button" onClick={actions.onEdit}>Edit</button>
         <button className="btn line" type="button" aria-expanded={moveOpen} aria-controls={LUBEC_MOVE_PANEL} onClick={actions.onToggleMove}>Move</button>
+        {give ? <GiveButton give={give} /> : null}
         <button className="btn line" type="button" disabled={busy} onClick={actions.onDrop}>{dropLabel(item, busy)}</button>
       </div>
     </div>
   )
 }
 
-/** The item card: its picture beside its description, its facts, and Edit, Move and Drop (B's card mode of the item sheet). */
+/** The item card: its picture beside its description, its facts, and Edit, Move, Give and Drop (B's card mode of the item sheet). */
 export function LubecItemCard({ supplies, wielder, load, ...props }: CardProps) {
   const { gear, item, actions } = props
   return (
