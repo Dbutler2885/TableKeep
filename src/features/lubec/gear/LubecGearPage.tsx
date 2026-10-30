@@ -2,6 +2,7 @@ import { useState, type RefObject } from 'react'
 import { LUBEC_CARRIER_KINDS, type LubecCarrierKind } from '../../ruleSets/lubec/gear/carriers'
 import { inventoryFull } from '../../ruleSets/lubec/gear/placement'
 import type { LubecGear } from '../../ruleSets/lubec/gear/gearRecord'
+import type { LubecHiddenCarrier } from '../../ruleSets/lubec/gear/hiddenCarrier'
 import type { LubecWielder } from '../../ruleSets/lubec/gear/minStrength'
 import type { LubecSharedCarrier } from '../../ruleSets/lubec/gear/sharedCarrier'
 import type { LubecStockItem } from '../../ruleSets/lubec/gear/stock'
@@ -12,6 +13,7 @@ import { LubecDragLayer } from './LubecDragLayer'
 import { LubecDragContext } from './lubecDragMarks'
 import type { LubecGearDrop } from './lubecGearDrop'
 import type { LubecGearGive } from './lubecGive'
+import { lubecHiddenAdder, type LubecGearHidden } from './lubecHiddenCarrierWrites'
 import { LubecGearArmor } from './LubecGearArmor'
 import { LubecGearHandsBody } from './LubecGearHandsBody'
 import { LubecGearPack, type LubecGearAdd, type LubecGearOpen } from './LubecGearPack'
@@ -21,9 +23,10 @@ import { lubecAskedThing, type LubecStrengthAsk } from './strengthAsk'
 import { useLubecGearMoves, type LubecDropIt } from './useLubecGearMoves'
 import type { LubecGearCarry } from './LubecCarrierDetail'
 import { LubecCarrierDialogOver, LubecCarriersView, LubecCarrying } from './LubecGearCarriers'
-import { lubecGearWork, lubecOpenShared, type LubecGearWork } from './lubecGearWork'
+import { lubecGearWork, lubecOpenHidden, lubecOpenShared, type LubecGearWork } from './lubecGearWork'
 import type { LubecSharedSeat } from './lubecSharedSeat'
 import { useLubecCarrierActs, useLubecGearView, type LubecGearView } from './useLubecCarriers'
+import { useLubecHiddenCarriers } from './useLubecHiddenCarriers'
 import { lubecAnswerStrength, useLubecStrengthAsk, type LubecGearStrength } from './useLubecStrengthAsk'
 import { useLubecToast } from './useLubecToast'
 import './lubecGear.css'
@@ -56,12 +59,14 @@ type GearPageProps = {
   give?: LubecGearGive | null
   /** The viewer's seat at the campaign's shared carriers; null on a sheet that has none. */
   shared?: LubecSharedSeat | null
+  /** The character's hidden carriers, for its owner and the GM; anyone else's page never asks for them. */
+  hidden?: LubecGearHidden | null
 }
 
 const NO_CAMPAIGN_STOCK: readonly LubecStockItem[] = []
 
-// "+ Add an item" adds to the shared carrier that is open, or else the backpack.
-const addPlaceOf = (open: LubecSharedCarrier | null) => (open ? `${open.id}#0` : 'backpack#0')
+// "+ Add an item" adds to the shared or hidden carrier that is open, or else the backpack.
+const addPlaceOf = (open: Pick<LubecSharedCarrier, 'id'> | null) => (open ? `${open.id}#0` : 'backpack#0')
 
 type GearTab = 'on-you' | 'carriers'
 
@@ -175,6 +180,7 @@ function StrengthAskOver({ asking, strength, change, ...ctx }: AskOverProps) {
 }
 
 type ViewsProps = Omit<OnYouProps, 'onGearChange' | 'sectionRef'> & {
+  hidden: readonly LubecHiddenCarrier[]
   owner: string
   nav: ReturnType<typeof useLubecGearView>
   moves: ReturnType<typeof useLubecGearMoves>
@@ -184,12 +190,12 @@ type ViewsProps = Omit<OnYouProps, 'onGearChange' | 'sectionRef'> & {
 }
 
 // The view the tabs show: On you, or the Carriers list and a carrier's detail.
-function GearViews({ nav, moves, owner, onNewCarrier, shared, toast, ...props }: ViewsProps) {
+function GearViews({ nav, moves, hidden, owner, onNewCarrier, shared, toast, ...props }: ViewsProps) {
   if (nav.view.name === 'on-you') return <OnYou {...props} onGearChange={moves.change} sectionRef={moves.onYou} />
   const { gear, onAdd, onOpen, onCarry } = props
   return (
     <LubecCarriersView
-      gear={gear} owner={owner} view={nav.view} show={nav.show} openCarrier={nav.openCarrier}
+      gear={gear} hidden={hidden} owner={owner} view={nav.view} show={nav.show} openCarrier={nav.openCarrier}
       onNewCarrier={onNewCarrier} onAdd={onAdd} onOpenItem={onOpen && onOpen.item} onCarry={onCarry} shared={shared} toast={toast}
     />
   )
@@ -224,7 +230,7 @@ function ItemSheetOver({ work, sheet, setSheet, toast, onAsk, give, ...ctx }: Sh
 }
 
 /** The Lubec sheet's Gear page: the Gear bar, B's On you view of the backpack, the hands, the body and the armor, the Carriers view, and the item sheet over them. */
-export function LubecGearPage({ gear, owner, wielder, onGearChange, onDrop = null, campaignStock = NO_CAMPAIGN_STOCK, strength = null, kinds = LUBEC_CARRIER_KINDS, give = null, shared = null }: GearPageProps) {
+export function LubecGearPage({ gear, owner, wielder, onGearChange, onDrop = null, campaignStock = NO_CAMPAIGN_STOCK, strength = null, kinds = LUBEC_CARRIER_KINDS, give = null, shared = null, hidden = null }: GearPageProps) {
   const nav = useLubecGearView()
   const [sheet, setSheet] = useState<LubecItemSheetState | null>(null)
   const toast = useLubecToast()
@@ -232,18 +238,20 @@ export function LubecGearPage({ gear, owner, wielder, onGearChange, onDrop = nul
   const moves = useLubecGearMoves({ gear, onGearChange, onDrop, toast, setSheet, onAsk: asking.onAsk })
   const { onAdd, onOpen } = sheetOpeners(moves.change !== null, setSheet)
   const carriers = useLubecCarrierActs({ gear, change: moves.change, toast: toast.show })
+  const stashes = useLubecHiddenCarriers(hidden)
   const open = lubecOpenShared(nav.view, shared)
-  const work = lubecGearWork({ gear, shared, open, moves, toast: toast.show })
+  const stash = lubecOpenHidden(nav.view, stashes)
+  const work = lubecGearWork({ gear, shared, open, hidden, stashes, stash, moves, onAsk: asking.onAsk, toast: toast.show })
   return (
     <div className="lubec-page lubec-gear" aria-busy={moves.busy}>
-      <GearBar view={nav.view} onView={nav.show} full={inventoryFull(gear)} onAdd={onAdd && (() => onAdd(addPlaceOf(open)))} />
+      <GearBar view={nav.view} onView={nav.show} full={inventoryFull(gear)} onAdd={onAdd && (() => onAdd(addPlaceOf(open ?? stash)))} />
       <LubecDragContext value={moves.drag.view}>
         <GearViews
-          gear={gear} owner={owner} nav={nav} moves={moves} onAdd={onAdd} onOpen={onOpen}
+          gear={gear} hidden={stashes} owner={owner} nav={nav} moves={moves} onAdd={onAdd} onOpen={onOpen}
           onOpenCarrier={nav.openCarrier} onCarry={carriers.onCarry} onNewCarrier={carriers.onNewCarrier} shared={shared} toast={toast.show}
         />
       </LubecDragContext>
-      <LubecCarrierDialogOver gear={gear} change={moves.change} toast={toast.show} acts={carriers} kinds={kinds} shared={shared} />
+      <LubecCarrierDialogOver gear={gear} change={moves.change} toast={toast.show} acts={carriers} kinds={kinds} shared={shared} onHide={lubecHiddenAdder(hidden, toast.show)} />
       <ItemSheetOver work={work} sheet={sheet} setSheet={setSheet} toast={toast.show} campaignStock={campaignStock} busy={moves.busy} onAsk={asking.onAsk} wielder={wielder} give={give} />
       <StrengthAskOver gear={gear} asking={asking} strength={strength} change={moves.change} setSheet={setSheet} toast={toast.show} drop={moves.drop} />
       <LubecDragLayer view={moves.drag.view} item={gear.items.find((x) => x.id === moves.drag.view?.itemId)} ghost={moves.drag.ghost} dropZone={moves.drag.dropZone} />

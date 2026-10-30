@@ -3,7 +3,7 @@
 // submit rules, and carrying one by special dispensation. Each is pure: gear
 // in, the next gear out. A carrier's owner, who else can get into it and
 // whether it is hidden are not fields here: the record a carrier is stored in
-// says that, and this one is the character's own.
+// says that. These are the character's own; a hidden one is `hiddenCarrier.ts`.
 
 import type { LubecCarrier, LubecGear, LubecPocket } from './gearRecord'
 
@@ -11,7 +11,7 @@ import type { LubecCarrier, LubecGear, LubecPocket } from './gearRecord'
 export type LubecCarrierKind = 'personal' | 'shared' | 'hidden'
 
 /** The kinds a character's sheet offers, as each comes to be stored somewhere. */
-export const LUBEC_CARRIER_KINDS: readonly LubecCarrierKind[] = ['personal', 'shared']
+export const LUBEC_CARRIER_KINDS: readonly LubecCarrierKind[] = ['personal', 'shared', 'hidden']
 
 /** An NPC's sheet is the GM's alone, and an NPC shares no car with the players: only personal carriers (spec 9.6). */
 export const LUBEC_NPC_CARRIER_KINDS: readonly LubecCarrierKind[] = ['personal']
@@ -19,10 +19,10 @@ export const LUBEC_NPC_CARRIER_KINDS: readonly LubecCarrierKind[] = ['personal']
 /** Rule C4: a carrier bigger than this has "plenty of room" rather than boxes. */
 export const LUBEC_LIST_MODE_OVER = 24
 
-/** A preset: its id, the label the dialog lists, the name it starts with, and its pockets as [name, slots, largest item]. */
-export type LubecCarrierType = { id: string; label: string; name: string; pockets: readonly (readonly [name: string, slots: number, max: number])[] }
+/** A preset: its id, the label the dialog lists, the name it starts with, its pockets as [name, slots, largest item], and the kind it offers first. */
+export type LubecCarrierType = { id: string; label: string; name: string; pockets: readonly (readonly [name: string, slots: number, max: number])[]; kind?: LubecCarrierKind }
 
-/** The presets, agreed with the captain in round 20 (B 1965-1978). The stash box is hidden in B; the kind choice comes with hidden carriers. */
+/** The presets, agreed with the captain in round 20 (B 1965-1978). */
 export const LUBEC_CARRIER_TYPES: readonly LubecCarrierType[] = [
   { id: 'school-bag', label: 'School bag', name: 'School bag', pockets: [['Main', 4, 4], ['Outside pocket', 1, 1]] },
   { id: 'duffel', label: 'Duffel bag', name: 'Duffel bag', pockets: [['Main', 8, 8]] },
@@ -30,7 +30,7 @@ export const LUBEC_CARRIER_TYPES: readonly LubecCarrierType[] = [
   { id: 'bike-basket', label: 'Bike basket', name: 'Bike basket', pockets: [['Basket', 2, 2]] },
   { id: 'locker', label: 'School locker', name: 'School locker', pockets: [['Locker', 6, 4], ['Top shelf', 2, 1]] },
   { id: 'chest', label: 'Bedroom chest', name: 'Bedroom chest', pockets: [['Chest', 12, 8]] },
-  { id: 'stash', label: 'Hidden stash box', name: 'Stash box', pockets: [['Box', 2, 1]] },
+  { id: 'stash', label: 'Hidden stash box', name: 'Stash box', pockets: [['Box', 2, 1]], kind: 'hidden' },
   { id: 'car', label: 'Family car', name: 'Family car', pockets: [['Trunk and back seat', 200, 8], ['Glove box', 2, 1]] },
   { id: 'skiff', label: 'Boat or skiff', name: 'Skiff', pockets: [['Hull', 40, 8]] },
   { id: 'shed', label: 'Shed or garage', name: 'Shed', pockets: [['Shed', 100, 8]] },

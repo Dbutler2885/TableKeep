@@ -16,7 +16,7 @@ export type SubcollectionSpec = {
 
 export const CAMPAIGN_SUBCOLLECTIONS: SubcollectionSpec[] = [
   { name: 'userState' },
-  { name: 'characters' },
+  { name: 'characters', children: [{ name: 'hiddenCarriers' }] },
   {
     name: 'maps',
     children: [{ name: 'tokens' }, { name: 'annotations' }, { name: 'fogChunks' }],

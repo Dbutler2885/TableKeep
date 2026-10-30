@@ -5,32 +5,37 @@
 
 import { LUBEC_CARRIER_TYPES, LUBEC_LIST_MODE_OVER, type LubecCarrierDraft, type LubecCarrierKind } from '../../ruleSets/lubec/gear/carriers'
 import type { LubecCarrier, LubecPocket } from '../../ruleSets/lubec/gear/gearRecord'
+import { LUBEC_HIDDEN_NOTE } from './carrierLabels'
 
 /** A pocket row as typed: its name, its slots as written, and the largest thing it takes. */
 export type LubecPocketRow = { name: string; slots: string; max: number }
 
-export type LubecCarrierForm = { type: string; name: string; pockets: LubecPocketRow[]; error: string | null }
+export type LubecCarrierForm = { type: string; name: string; pockets: LubecPocketRow[]; kind: LubecCarrierKind; error: string | null }
 
 /** What the dialog calls each kind of carrier. */
 export const LUBEC_CARRIER_KIND_LABELS: Record<LubecCarrierKind, string> = { personal: 'Just this character', shared: 'Shared with the table', hidden: 'Hidden' }
 
 /** The line under each kind's tile. */
-export const LUBEC_CARRIER_KIND_NOTES: Record<LubecCarrierKind, string> = { personal: 'Kept on this sheet', shared: 'Every player can put things in', hidden: 'Only people with access know' }
+export const LUBEC_CARRIER_KIND_NOTES: Record<LubecCarrierKind, string> = { personal: 'Kept on this sheet', shared: 'Every player can put things in', hidden: LUBEC_HIDDEN_NOTE }
 
 /** The sizes "Up to" offers. */
 export const LUBEC_POCKET_MAX_SIZES = [1, 2, 4, 8] as const
 
 const rowOf = ([name, slots, max]: readonly [string, number, number]): LubecPocketRow => ({ name, slots: String(slots), max })
 
-/** The form with preset `type` applied: its name and pockets (B's `applyType`). The first preset when `type` is unknown. */
+/** The form with preset `type` applied: its name, pockets and kind (B's `applyType`). The first preset when `type` is unknown. */
 export function lubecCarrierFormOf(type: string): LubecCarrierForm {
   const t = LUBEC_CARRIER_TYPES.find((x) => x.id === type) ?? LUBEC_CARRIER_TYPES[0]
-  return { type: t.id, name: t.name, pockets: t.pockets.map(rowOf), error: null }
+  return { type: t.id, name: t.name, pockets: t.pockets.map(rowOf), kind: t.kind ?? 'personal', error: null }
 }
+
+/** The kind the form stands on: the one its preset chose, or the first offered where that one is not. */
+export const lubecOfferedKind = (form: LubecCarrierForm, kinds: readonly LubecCarrierKind[]): LubecCarrierKind =>
+  (kinds.includes(form.kind) ? form.kind : kinds[0])
 
 /** The form for a carrier that exists: what it is called and its pockets as they stand. */
 export const lubecCarrierFormOfRecord = (c: Pick<LubecCarrier, 'type' | 'name' | 'pockets'>): LubecCarrierForm =>
-  ({ type: c.type, name: c.name, pockets: c.pockets.map((p) => rowOf([p.name, p.slots, p.max])), error: null })
+  ({ type: c.type, name: c.name, pockets: c.pockets.map((p) => rowOf([p.name, p.slots, p.max])), kind: 'personal', error: null })
 
 /** The row "+ Add a pocket" adds. */
 export const lubecNewPocketRow = (): LubecPocketRow => rowOf(['Pocket', 2, 1])

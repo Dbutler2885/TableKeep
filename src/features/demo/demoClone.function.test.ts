@@ -41,6 +41,7 @@ describe('what a sandbox copies', () => {
     const nestedIn = (specs: typeof CAMPAIGN_SUBCOLLECTIONS, name: string) =>
       (specs.find((spec) => spec.name === name)?.children ?? []).map((child) => child.name).sort()
 
+    expect(nestedIn(DEMO_CLONED_SUBCOLLECTIONS, 'characters')).toEqual(nestedIn(CAMPAIGN_SUBCOLLECTIONS, 'characters'))
     expect(nestedIn(DEMO_CLONED_SUBCOLLECTIONS, 'maps')).toEqual(nestedIn(CAMPAIGN_SUBCOLLECTIONS, 'maps'))
     expect(nestedIn(DEMO_CLONED_SUBCOLLECTIONS, 'tables')).toEqual(nestedIn(CAMPAIGN_SUBCOLLECTIONS, 'tables'))
   })

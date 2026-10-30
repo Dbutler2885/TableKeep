@@ -268,6 +268,17 @@ service cloud.firestore {
           allow update: if (isCampaignGm(groupId, campaignId) || isCharacterOwner())
             && meetsCharacterSchemaFloor(groupId, campaignId);
           allow delete: if isCampaignGm(groupId, campaignId) || isCharacterOwner();
+
+          // A Lubec hidden carrier: only the character's owner and the GM know of
+          // it. The owner is read off the character when the rule runs, so a
+          // character given to another player takes its hidden carriers along.
+          // Distinct documents read on any path: the caller's member document,
+          // the campaign document (the GM check) and the character. That is 3.
+          match /hiddenCarriers/{carrierId} {
+            allow read, write: if isCampaignGm(groupId, campaignId)
+              || (isGroupMember(groupId)
+                  && get(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)/characters/$(characterId)).data.ownerUserId == request.auth.uid);
+          }
         }
 
         match /maps/{mapId} {

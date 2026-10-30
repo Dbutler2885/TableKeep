@@ -41,6 +41,8 @@ vi.mock('firebase/firestore', () => ({
   query: (ref: unknown) => ref,
   where: () => null,
   deleteDoc: mocks.deleteDoc,
+  // A delete lists the character's hidden carriers; these characters have none.
+  getDocs: async () => ({ docs: [] }),
   onSnapshot: (ref: { path: string }, next: Listener['next'], fail: Listener['fail']) => {
     mocks.listeners[ref.path] = { next, fail }
     return () => {

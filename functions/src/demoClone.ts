@@ -58,7 +58,7 @@ export type DocumentData = Record<string, unknown>
  * the expiry sweep deletes.
  */
 export const DEMO_CLONED_SUBCOLLECTIONS: SubcollectionSpec[] = [
-  { name: 'characters' },
+  { name: 'characters', children: [{ name: 'hiddenCarriers' }] },
   { name: 'maps', children: [{ name: 'tokens' }, { name: 'annotations' }, { name: 'fogChunks' }] },
   { name: 'tokenAssets' },
   { name: 'monsters' },

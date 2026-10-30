@@ -49,7 +49,7 @@ import { DEMO_SESSION_TTL_MS } from './demoConstants.js';
  * the expiry sweep deletes.
  */
 export const DEMO_CLONED_SUBCOLLECTIONS = [
-    { name: 'characters' },
+    { name: 'characters', children: [{ name: 'hiddenCarriers' }] },
     { name: 'maps', children: [{ name: 'tokens' }, { name: 'annotations' }, { name: 'fogChunks' }] },
     { name: 'tokenAssets' },
     { name: 'monsters' },
