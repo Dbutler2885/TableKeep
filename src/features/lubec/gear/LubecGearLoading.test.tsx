@@ -8,6 +8,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { sheetFixtureDoc, sheetProtocol } from '../../character/characterStore/__tests__/sheetProtocol'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../../types/app'
 
@@ -25,12 +26,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
-  doc: (_db: unknown, path: string) => ({ path }),
+  doc: sheetFixtureDoc,
+  getDocFromServer: (ref: { path: string; id: string }) => Promise.resolve(protocol.snapshot(ref)),
   // The campaign items for the stock picker are a filtered list of the collection.
   query: (ref: unknown) => ref,
   where: () => null,
   deleteDoc: vi.fn(),
-  onSnapshot: (ref: { path: string }, next: Listener['next'], fail: Listener['fail']) => {
+  onSnapshot: (ref: { path: string }, options: Listener['next'] | object, nextOrFail: Listener['next'] | Listener['fail'], finalFail?: Listener['fail']) => {
+    const next = (typeof options === 'function' ? options : nextOrFail) as Listener['next']
+    const fail = (typeof options === 'function' ? nextOrFail : finalFail) as Listener['fail']
     mocks.listeners[ref.path] = { next, fail }
     return () => {
       if (mocks.listeners[ref.path]?.next === next) delete mocks.listeners[ref.path]
@@ -38,6 +42,12 @@ vi.mock('firebase/firestore', () => ({
   },
   serverTimestamp: () => ({ sentinel: 'serverTimestamp' }),
   setDoc: mocks.setDoc,
+}))
+vi.mock('../../character/characterStore/sheetIntentionTransaction', async (original) => ({
+  ...await original<object>(), saveSheetIntention: (...args: Parameters<typeof protocol.save>) => protocol.save(...args),
+}))
+vi.mock('../../character/characterStore/sheetIntentionCreate', () => ({
+  createRevisionedSheet: (...args: Parameters<typeof protocol.create>) => protocol.create(...args),
 }))
 vi.mock('../../common/mediaStorage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../common/mediaStorage')>()),
@@ -51,6 +61,7 @@ const CHARACTERS_PATH = 'groups/group-1/campaigns/campaign-1/characters'
 const campaign: Campaign = { id: 'campaign-1', name: 'Lubec', status: 'active', groupId: 'group-1', gmUserId: 'gm-1', system: 'lubec' }
 
 let database: Record<string, Fields> = {}
+const protocol = sheetProtocol((path) => path.includes('/writeReceipts/') ? undefined : database[path.split('/').at(-1)!], (ref, fields) => mocks.setDoc(ref, fields))
 
 const isMap = (value: unknown): value is Fields => typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -128,10 +139,12 @@ const openCard = (name: string) => {
 }
 const storedItems = () => ((database.tommy.lubec as Fields).gear as Fields).items as Fields[]
 const stored = (name: string) => storedItems().find((i) => i.name === name)
-const save = () => act(() => vi.advanceTimersByTime(500))
+const save = async () => await act(async () => { await vi.advanceTimersByTimeAsync(500) })
 const buttonTexts = (scope: ReturnType<typeof dialog>) => scope.getAllByRole('button').map((b) => b.textContent)
 
 beforeEach(() => {
+  protocol.clear()
+  window.sessionStorage.clear()
   vi.clearAllMocks()
   mocks.listeners = {}
   database = {}
@@ -148,7 +161,7 @@ afterEach(() => {
 })
 
 describe('the empty-weapon prompt', () => {
-  it('stops Fire on an empty firearm with three buttons, the red one requiring special dispensation, and only the player sees it', () => {
+  it('stops Fire on an empty firearm with three buttons, the red one requiring special dispensation, and only the player sees it', async () => {
     openGear(ITEMS)
     fireEvent.click(openCard("Grandpa's revolver").getByRole('button', { name: 'Fire' }))
     const prompt = dialog("Grandpa's revolver isn't loaded")
@@ -161,7 +174,7 @@ describe('the empty-weapon prompt', () => {
     expect(screen.getByRole('dialog', { name: "Grandpa's revolver isn't loaded" }).querySelector('.actions')?.className).toBe('actions three')
   })
 
-  it('loads, fires and uses a round in one action with Reload & fire, and keeps it through a reload', () => {
+  it('loads, fires and uses a round in one action with Reload & fire, and keeps it through a reload', async () => {
     vi.useFakeTimers()
     openGear(ITEMS)
     fireEvent.click(openCard("Grandpa's revolver").getByRole('button', { name: 'Fire' }))
@@ -169,23 +182,25 @@ describe('the empty-weapon prompt', () => {
     expect(screen.queryByRole('dialog', { name: "Grandpa's revolver isn't loaded" })).toBeNull()
     expect(status()).toBe('Reloaded and fired. Roll it at the table.')
     expect(dialog("Grandpa's revolver").getByText('5 of 6')).toBeTruthy()
-    save()
+    await save()
     expect(mocks.setDoc).toHaveBeenCalledTimes(1)
     expect([stored("Grandpa's revolver")?.loaded, stored('Box of .38 rounds')?.loaded]).toEqual([5, 6])
     cleanup()
     mountTab('player', 'player-1')
+    await act(async () => {})
+    act(() => emitDatabase())
     fireEvent.click(screen.getByRole('button', { name: /^Tommy Eves/ }))
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Character sheet pages' })).getByRole('button', { name: 'Gear' }))
     expect(openCard("Grandpa's revolver").getByText('5 of 6')).toBeTruthy()
   })
 
-  it('reloads with Reload, and Cancel changes nothing', () => {
+  it('reloads with Reload, and Cancel changes nothing', async () => {
     vi.useFakeTimers()
     openGear(ITEMS)
     fireEvent.click(openCard("Grandpa's revolver").getByRole('button', { name: 'Fire' }))
     fireEvent.click(dialog("Grandpa's revolver isn't loaded").getByRole('button', { name: 'Cancel' }))
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
-    save()
+    await save()
     expect(mocks.setDoc).not.toHaveBeenCalled()
     fireEvent.click(dialog("Grandpa's revolver").getByRole('button', { name: 'Fire' }))
     fireEvent.click(dialog("Grandpa's revolver isn't loaded").getByRole('button', { name: 'Reload' }))
@@ -193,7 +208,7 @@ describe('the empty-weapon prompt', () => {
     expect(dialog("Grandpa's revolver").getByText('6 of 6')).toBeTruthy()
   })
 
-  it('keeps a refusal on the prompt, in B\'s words, and closes on Escape', () => {
+  it('keeps a refusal on the prompt, in B\'s words, and closes on Escape', async () => {
     openGear([...ITEMS, WALKIE])
     fireEvent.click(openCard("Grandpa's revolver").getByRole('button', { name: 'Fire' }))
     const prompt = dialog("Grandpa's revolver isn't loaded")
@@ -207,7 +222,7 @@ describe('the empty-weapon prompt', () => {
 })
 
 describe('loading from the card', () => {
-  it('loads the one gun from the box, says what reloading takes on the gun, and unloads it', () => {
+  it('loads the one gun from the box, says what reloading takes on the gun, and unloads it', async () => {
     openGear(ITEMS)
     const gun = openCard("Grandpa's revolver")
     expect(document.querySelector('.item-facts')?.textContent).toContain('Reload3 actions, .38 rounds in the backpack')
@@ -221,7 +236,7 @@ describe('loading from the card', () => {
     expect(status()).toBe("Grandpa's revolver: unloaded.")
   })
 
-  it('asks which to load when more than one thing on you takes the supply, and the card keeps its size', () => {
+  it('asks which to load when more than one thing on you takes the supply, and the card keeps its size', async () => {
     const derringer = T('i90', 'backpack', null, 'Derringer', 0, { kind: 'weapon', mode: 'firearm', wounds: ['gun'], capacity: 2, loaded: 0, takes: 'a38' })
     openGear([...ITEMS, derringer])
     const box = openCard('Box of .38 rounds')
@@ -237,7 +252,7 @@ describe('loading from the card', () => {
     expect(dialog('Box of .38 rounds').getByText('6 of 50')).toBeTruthy()
   })
 
-  it('takes some out of a box and puts the loose ones back', () => {
+  it('takes some out of a box and puts the loose ones back', async () => {
     openGear(ITEMS)
     const box = openCard('Box of .38 rounds')
     const open = box.getByRole('button', { name: 'Take some out' })
@@ -256,14 +271,14 @@ describe('loading from the card', () => {
     expect(status()).toBe('Box of .38 rounds: 12 of 50.')
   })
 
-  it('gives a loose supply a Load button and no "Use one" (Rule L10)', () => {
+  it('gives a loose supply a Load button and no "Use one" (Rule L10)', async () => {
     openGear(ITEMS)
     const batteries = openCard('D batteries')
     expect(buttonTexts(batteries)).toContain('LoadTake the flashlight in hand first.')
     expect(batteries.queryByRole('button', { name: 'Use one' })).toBeNull()
   })
 
-  it('uses one of a canteen, empties it, and fills it at the table', () => {
+  it('uses one of a canteen, empties it, and fills it at the table', async () => {
     openGear([...ITEMS, T('c', 'body', 0, 'Canteen', 1, { kind: 'holder', hold: 'fill', takes: 'water', capacity: 4, loaded: 4 })])
     const canteen = openCard('Canteen')
     fireEvent.click(canteen.getByRole('button', { name: 'Use one' }))
@@ -284,7 +299,7 @@ describe('making a supply (Rule L1)', () => {
     return form
   }
 
-  it('makes a supply stored on the maker\'s sheet, picks it, and saves the holder with it', () => {
+  it('makes a supply stored on the maker\'s sheet, picks it, and saves the holder with it', async () => {
     vi.useFakeTimers()
     openGear([])
     const form = openHolderForm()
@@ -301,14 +316,14 @@ describe('making a supply (Rule L1)', () => {
     expect(holds.selectedOptions[0].textContent).toBe('Film')
     expect(form.queryByRole('textbox', { name: 'New supply' })).toBeNull()
     fireEvent.click(form.getByRole('button', { name: 'Add it' }))
-    save()
+    await save()
     const gear = (database.tommy.lubec as Fields).gear as Fields
     const [film] = gear.supplies as Fields[]
     expect(film).toMatchObject({ name: 'Film' })
     expect(stored('Camera')).toMatchObject({ kind: 'holder', takes: film.id })
   })
 
-  it('picks the supply already known by a name in other letters, and Escape closes the maker but not the form', () => {
+  it('picks the supply already known by a name in other letters, and Escape closes the maker but not the form', async () => {
     vi.useFakeTimers()
     openGear([])
     const form = openHolderForm()
@@ -324,7 +339,7 @@ describe('making a supply (Rule L1)', () => {
     fireEvent.change(holds, { target: { value: '__make' } })
     fireEvent.click(within(document.querySelector('.ammo-maker') as HTMLElement).getByRole('button', { name: 'Cancel' }))
     expect(form.queryByRole('textbox', { name: 'New supply' })).toBeNull()
-    save()
+    await save()
     expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 })

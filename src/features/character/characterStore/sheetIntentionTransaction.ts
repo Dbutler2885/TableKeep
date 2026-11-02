@@ -3,6 +3,7 @@ import { planSheetIntention, type SheetWritePlan } from './sheetIntention'
 import { sheetPayload } from './sheetIntentionEdits'
 import { validateSheetIntention } from './sheetIntentionValidation'
 import { SheetRepair, type SheetIntention, type SheetWriteReceipt } from './sheetIntentionTypes'
+import { withSheetRevisionRetry } from './sheetIntentionRetry'
 
 export type PreparedSheetIntention = SheetWritePlan & {
   sheetRef: DocumentReference
@@ -41,12 +42,23 @@ function assertPrepared(prepared: PreparedSheetIntention) {
   if (prepared.outcome.status === 'repair') throw new SheetRepair(prepared.outcome.code, prepared.outcome.path)
 }
 
-/** Opt-in save path beside the legacy delayed store save. Rules authorization is introduced in ticket 07. */
+async function commitSheetIntention(db: Firestore, sheetRef: DocumentReference, intention: SheetIntention) {
+  let nextRevision: number | undefined
+  const write = () => runTransaction(db, async (tx) => {
+    nextRevision = undefined
+    const prepared = await prepareSheetIntention(tx, sheetRef, intention)
+    nextRevision = prepared.mutation?.receipt.outcome.revision
+    return writePreparedSheetIntention(tx, prepared)
+  })
+  return withSheetRevisionRetry(sheetRef, write, () => nextRevision)
+}
+
+/** Shared Lubec save path, with bounded revision contention recovery. */
 export async function saveSheetIntention(db: Firestore, sheetRef: DocumentReference, intention: SheetIntention) {
   try {
     validateSheetIntention(intention)
     const snapshot = JSON.parse(sheetPayload(intention)) as SheetIntention
-    return await runTransaction(db, async (tx) => writePreparedSheetIntention(tx, await prepareSheetIntention(tx, sheetRef, snapshot)))
+    return await commitSheetIntention(db, sheetRef, snapshot)
   } catch (error) {
     if (!(error instanceof SheetRepair)) throw error
     return { status: 'repair', code: error.code, path: error.path } as const

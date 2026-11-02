@@ -1,6 +1,7 @@
 import { useEffect, type Dispatch, type SetStateAction } from 'react'
 import { isRenderableImageUrl, resolveStoragePathUrl } from '../../common/mediaStorage'
 import type { CharacterStoreRecord } from './characterStoreRecord'
+import { copySheetRecordBase } from './sheetRecordBase'
 
 type ResolvedMedia = { portraitUrl: string | null; customImageUrl: string | null }
 
@@ -39,11 +40,11 @@ export function withResolvedCharacterStoreMedia<Character extends CharacterStore
   media: ResolvedMedia,
 ): Character {
   const { portraitUrl, customImageUrl } = media
-  return {
+  return copySheetRecordBase(character, {
     ...character,
     ...(portraitUrl ? { portraitUrl } : {}),
     ...(customImageUrl ? { tokenIcon: { ...character.tokenIcon, customImageUrl } } : {}),
-  }
+  })
 }
 
 /**

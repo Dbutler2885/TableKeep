@@ -81,6 +81,48 @@ service cloud.firestore {
       );
     }
 
+    // Missing legacy revisions start at zero; corrupt values are not legacy.
+    function incrementsSheetRevision() {
+      let previous = resource.data.get("sheetRevision", 0);
+      let next = request.resource.data.get("sheetRevision", null);
+      return previous is int && previous >= 0
+        && next is int && next == previous + 1;
+    }
+
+    // Only Lubec uses this protocol. Other systems retain their existing
+    // authority and write compatibility, including their schema stamp fence.
+    function meetsSheetRevision(groupId, campaignId) {
+      return campaignRuleSet(groupId, campaignId) != "lubec"
+        || (isGroupMember(groupId) && incrementsSheetRevision());
+    }
+
+    function preservesCharacterSchema(system) {
+      let written = request.resource.data;
+      return written.get("schemaVersion", null) is int
+        && written.schemaVersion >= characterSchemaFloors()[system]
+        && written.get("schemaWrittenAt", null) == resource.data.get("schemaWrittenAt", null);
+    }
+
+    // Revisioned Lubec intentions preserve canonical schema stamps. Imports
+    // and repairs may instead supply a fresh stamp, never below the floor.
+    function meetsCharacterUpdateSchemaFloor(groupId, campaignId) {
+      let system = campaignRuleSet(groupId, campaignId);
+      return meetsCharacterSchemaFloor(groupId, campaignId)
+        || (system == "lubec" && preservesCharacterSchema(system));
+    }
+
+    function isLiveCombatParticipant(groupId, fight) {
+      return isGroupMember(groupId)
+        && fight.status == "live"
+        && request.auth.uid in fight.participantUserIds;
+    }
+
+    function canAppendCombatEntry(groupId, campaignId, fightId) {
+      return isCampaignGm(groupId, campaignId)
+        || isLiveCombatParticipant(groupId,
+          get(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)/combats/$(fightId)).data);
+    }
+
     function campaignMemberPath(campaignId) {
       return /databases/$(database)/documents/campaigns/$(campaignId)/members/$(request.auth.uid);
     }
@@ -266,8 +308,19 @@ service cloud.firestore {
             && request.resource.data.ownerUserId == request.auth.uid
             && meetsCharacterSchemaFloor(groupId, campaignId);
           allow update: if (isCampaignGm(groupId, campaignId) || isCharacterOwner())
-            && meetsCharacterSchemaFloor(groupId, campaignId);
+            && meetsCharacterUpdateSchemaFloor(groupId, campaignId)
+            && meetsSheetRevision(groupId, campaignId);
           allow delete: if isCampaignGm(groupId, campaignId) || isCharacterOwner();
+
+          match /writeReceipts/{operationId} {
+            allow read, delete: if isCampaignGm(groupId, campaignId)
+              || ownsCharacter(groupId, campaignId, characterId);
+            // An initial create writes the sheet and its receipt together.
+            allow create: if isCampaignGm(groupId, campaignId)
+              || (isGroupMember(groupId)
+                  && getAfter(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)/characters/$(characterId)).data.ownerUserId == request.auth.uid);
+            allow update: if false;
+          }
 
           // A Lubec hidden carrier: only the character's owner and the GM know of
           // it. The owner is read off the character when the rule runs, so a
@@ -342,7 +395,43 @@ service cloud.firestore {
         // document. Only the GM ever sees it, whether or not the NPC is shown
         // to players.
         match /npcSheets/{npcId} {
-          allow read, write: if isCampaignGm(groupId, campaignId);
+          allow read, create, delete: if isCampaignGm(groupId, campaignId);
+          allow update: if isCampaignGm(groupId, campaignId)
+            && meetsSheetRevision(groupId, campaignId);
+
+          match /writeReceipts/{operationId} {
+            allow read, create, delete: if isCampaignGm(groupId, campaignId);
+            allow update: if false;
+          }
+        }
+
+        match /combatControl/current {
+          allow read: if isGroupMember(groupId);
+          allow write: if isCampaignGm(groupId, campaignId);
+        }
+
+        // State and dice remain trusted table data. Participants cannot change
+        // the authority envelope, end a fight, or append after it has ended.
+        match /combats/{fightId} {
+          allow read: if isGroupMember(groupId);
+          allow create, delete: if isCampaignGm(groupId, campaignId);
+          allow update: if isCampaignGm(groupId, campaignId)
+            || (isLiveCombatParticipant(groupId, resource.data)
+                && onlyChanges(['state', 'updatedAt']));
+
+          match /log/{entryId} {
+            allow read: if isGroupMember(groupId);
+            allow create: if canAppendCombatEntry(groupId, campaignId, fightId);
+            allow update: if false;
+            allow delete: if isCampaignGm(groupId, campaignId);
+          }
+
+          match /commands/{commandId} {
+            allow read: if isGroupMember(groupId);
+            allow create: if canAppendCombatEntry(groupId, campaignId, fightId);
+            allow update: if false;
+            allow delete: if isCampaignGm(groupId, campaignId);
+          }
         }
 
         match /itemApprovals/{approvalId} {

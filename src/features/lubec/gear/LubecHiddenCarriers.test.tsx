@@ -7,6 +7,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { sheetFixtureDoc, sheetProtocol } from '../../character/characterStore/__tests__/sheetProtocol'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../../types/app'
 
@@ -30,12 +31,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
-  doc: (_db: unknown, path: string) => ({ path }),
+  doc: sheetFixtureDoc,
+  getDocFromServer: (ref: { path: string; id: string }) => Promise.resolve(protocol.snapshot(ref)),
   query: (ref: unknown) => ref,
   where: () => null,
   deleteDoc: mocks.deleteDoc,
   getDocs: mocks.getDocs,
-  onSnapshot: (ref: Ref, next: Listener['next'], fail: Listener['fail']) => {
+  onSnapshot: (ref: Ref, options: Listener['next'] | object, nextOrFail: Listener['next'] | Listener['fail'], finalFail?: Listener['fail']) => {
+    const next = (typeof options === 'function' ? options : nextOrFail) as Listener['next']
+    const fail = (typeof options === 'function' ? nextOrFail : finalFail) as Listener['fail']
     mocks.subscribed.push(ref.path)
     mocks.listeners[ref.path] = { next, fail }
     if (isDocPath(ref.path)) queueMicrotask(() => next(docSnap(ref.path)))
@@ -47,6 +51,12 @@ vi.mock('firebase/firestore', () => ({
   runTransaction: mocks.runTransaction,
   serverTimestamp: () => ({ sentinel: 'serverTimestamp' }),
   setDoc: mocks.setDoc,
+}))
+vi.mock('../../character/characterStore/sheetIntentionTransaction', async (original) => ({
+  ...await original<object>(), saveSheetIntention: (...args: Parameters<typeof protocol.save>) => protocol.save(...args),
+}))
+vi.mock('../../character/characterStore/sheetIntentionCreate', () => ({
+  createRevisionedSheet: (...args: Parameters<typeof protocol.create>) => protocol.create(...args),
 }))
 vi.mock('../../common/mediaStorage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../common/mediaStorage')>()),
@@ -68,6 +78,7 @@ const campaign: Campaign = { id: 'campaign-1', name: 'Lubec', status: 'active', 
 
 /** Every stored document, by path. */
 let database: Record<string, Fields> = {}
+const protocol = sheetProtocol((path) => path.includes('/writeReceipts/') ? undefined : database[path], (ref, fields) => mocks.setDoc(ref, fields))
 let clock = 0
 
 const isDocPath = (path: string) => path.split('/').length % 2 === 0
@@ -183,6 +194,8 @@ const moveTo = (card: ReturnType<typeof within>, value: string) => {
 }
 
 beforeEach(() => {
+  protocol.clear()
+  window.sessionStorage.clear()
   vi.clearAllMocks()
   mocks.listeners = {}
   mocks.subscribed = []

@@ -1,3 +1,4 @@
+import { rememberSheetRecordBase } from './sheetRecordBase'
 // What the shared character store takes from a rule set, and how it reads a
 // stored character. Nothing here touches Firebase, so a parser test can read
 // through the store without the SDK singleton.
@@ -71,5 +72,5 @@ export function readCharacterStoreDoc<Character extends CharacterStoreRecord>(
   local: Character | undefined,
 ): Character | null {
   if (ruleSet.system && readCharacterIdentity(id, data).system !== ruleSet.system) return null
-  return withLocalMedia(ruleSet.parser.parse(id, data), local)
+  return rememberSheetRecordBase(withLocalMedia(ruleSet.parser.parse(id, data), local), data)
 }

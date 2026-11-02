@@ -1,3 +1,5 @@
+import { createRevisionedSheet } from './sheetIntentionCreate'
+import { flushSheetQueue, sheetQueueOutstanding, type RevisionedSheetQueue } from './revisionedSheetQueue'
 import { deleteDoc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { db } from '../../../firebase'
 import { campaignDocRef, campaignUserStateRef, type CampaignScope } from '../../campaign/firestorePaths'
@@ -19,6 +21,9 @@ type WaitingCharacterStoreSave = {
 export type CharacterStoreSaves = {
   pending: Record<string, WaitingCharacterStoreSave>
   inFlight: Record<string, boolean>
+  revisioned?: Record<string, RevisionedSheetQueue>
+  userId?: string
+  notify?: () => void
 }
 
 export const emptyCharacterStoreSaves = (): CharacterStoreSaves => ({ pending: {}, inFlight: {} })
@@ -43,11 +48,17 @@ const characterRef = (campaign: CharacterStoreScope, characterId: string) =>
   campaignDocRef(db, campaign, campaign.collection ?? 'characters', characterId)
 
 export function isCharacterStoreSaveOutstanding(saves: CharacterStoreSaves, characterId: string): boolean {
-  return Boolean(saves.pending[characterId] || saves.inFlight[characterId])
+  return Boolean(saves.pending[characterId] || saves.inFlight[characterId] || revisionedOutstanding(saves, characterId))
+}
+
+function revisionedOutstanding(saves: CharacterStoreSaves, id: string) {
+  const queue = saves.revisioned?.[id]
+  return queue !== undefined && sheetQueueOutstanding(queue)
 }
 
 /** Sends every waiting save now, to the campaign it was made in, instead of when its delay runs out. */
 export function sendCharacterStoreSavesNow(saves: CharacterStoreSaves) {
+  Object.values(saves.revisioned ?? {}).forEach((queue) => { void flushSheetQueue(queue) })
   Object.values(saves.pending).forEach(({ timer, send }) => {
     clearTimeout(timer)
     send()
@@ -65,6 +76,8 @@ export function sendCharacterStoreSaveNow<Character extends CharacterStoreRecord
   characterId: string,
   readCharacter: (characterId: string) => Character | undefined,
 ) {
+  const queue = saves.revisioned?.[characterId]
+  if (queue) { void flushSheetQueue(queue); return }
   const pending = saves.pending[characterId]
   if (pending) clearTimeout(pending.timer)
   sendCharacterStoreSave(saves, campaign, ruleSet, characterId, readCharacter)
@@ -78,6 +91,7 @@ export function cancelCharacterStoreSave(saves: CharacterStoreSaves, characterId
     delete saves.pending[characterId]
   }
   delete saves.inFlight[characterId]
+  delete saves.revisioned?.[characterId]
 }
 
 /** What a save writes: the serialized record, stamped with the current version and the save time. */
@@ -85,6 +99,7 @@ export function characterStoreSaveFields<Character extends CharacterStoreRecord>
   ruleSet: CharacterStoreRuleSet<Character>,
   character: Character,
 ) {
+  if (ruleSet.system === 'lubec') throw new Error('Lubec saves require an edit intention, not a replacement sheet.')
   return { ...ruleSet.parser.serialize(character), ...characterSchemaStamp(ruleSet.versioning), updatedAt: serverTimestamp() }
 }
 
@@ -93,7 +108,7 @@ export function newCharacterStoreFields<Character extends CharacterStoreRecord>(
   ruleSet: CharacterStoreRuleSet<Character>,
   character: Character,
 ) {
-  return { ...characterStoreSaveFields(ruleSet, character), createdAt: serverTimestamp() }
+  return { ...ruleSet.parser.serialize(character), ...characterSchemaStamp(ruleSet.versioning), updatedAt: serverTimestamp(), createdAt: serverTimestamp() }
 }
 
 /** Creates the character under the id it already carries, so a retried create writes the same document. */
@@ -102,7 +117,10 @@ export function createCharacterStoreDoc<Character extends CharacterStoreRecord>(
   ruleSet: CharacterStoreRuleSet<Character>,
   character: Character,
 ) {
-  return setDoc(characterRef(campaign, character.id), newCharacterStoreFields(ruleSet, character))
+  const ref = characterRef(campaign, character.id)
+  const fields = newCharacterStoreFields(ruleSet, character)
+  if (ruleSet.system === 'lubec') return createRevisionedSheet(db, ref, fields, ruleSet.parser.serialize(character))
+  return setDoc(ref, fields)
 }
 
 /** Deletes the character document only; nothing stored under or beside it is touched. */

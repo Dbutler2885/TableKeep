@@ -8,6 +8,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { sheetFixtureDoc, sheetProtocol } from '../../character/characterStore/__tests__/sheetProtocol'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../../types/app'
 import type { LubecDice } from '../../ruleSets/lubec/dice'
@@ -30,12 +31,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
-  doc: (_db: unknown, path: string) => ({ path }),
+  doc: sheetFixtureDoc,
+  getDocFromServer: (ref: { path: string; id: string }) => Promise.resolve(protocol.snapshot(ref)),
   // The campaign items for the stock picker are a filtered list of the collection.
   query: (ref: unknown) => ref,
   where: () => null,
   deleteDoc: vi.fn(),
-  onSnapshot: (ref: Ref, next: Listener['next'], fail: Listener['fail']) => {
+  onSnapshot: (ref: Ref, options: Listener['next'] | object, nextOrFail: Listener['next'] | Listener['fail'], finalFail?: Listener['fail']) => {
+    const next = (typeof options === 'function' ? options : nextOrFail) as Listener['next']
+    const fail = (typeof options === 'function' ? nextOrFail : finalFail) as Listener['fail']
     mocks.listeners[ref.path] = { next, fail }
     if (ref.path.split('/').length % 2 === 0) queueMicrotask(() => next(docSnap(ref.path)))
     return () => {
@@ -46,12 +50,19 @@ vi.mock('firebase/firestore', () => ({
   serverTimestamp: () => ({ sentinel: 'serverTimestamp' }),
   setDoc: mocks.setDoc,
 }))
+vi.mock('../../character/characterStore/sheetIntentionTransaction', async (original) => ({
+  ...await original<object>(), saveSheetIntention: (...args: Parameters<typeof protocol.save>) => protocol.save(...args),
+}))
+vi.mock('../../character/characterStore/sheetIntentionCreate', () => ({
+  createRevisionedSheet: (...args: Parameters<typeof protocol.create>) => protocol.create(...args),
+}))
 vi.mock('../../common/mediaStorage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../common/mediaStorage')>()),
   resolveStoragePathUrl: vi.fn(async () => null),
 }))
 
 const { ruleSetSheets } = await import('../../ruleSets/sheetComponents')
+const { parseLubecCharacter } = await import('../../ruleSets/lubec/characterParser')
 const { LubecDiceContext } = await import('../useLubecRoller')
 
 const CHARACTERS_PATH = 'groups/group-1/campaigns/campaign-1/characters'
@@ -63,6 +74,7 @@ const campaign: Campaign = { id: 'campaign-1', name: 'Lubec', status: 'active', 
 
 /** Every stored document, by path. */
 let database: Record<string, Fields> = {}
+const protocol = sheetProtocol((path) => path.includes('/writeReceipts/') ? undefined : database[path], (ref, fields) => mocks.setDoc(ref, fields))
 let clock = 0
 
 const isMap = (value: unknown): value is Fields => typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -177,17 +189,20 @@ function addThing(name: string, weight: 'Heavy' | 'Extra heavy') {
   return form
 }
 
-const stored = () => database[TOMMY].lubec as Fields
+// Unchanged defaults remain absent in storage; reloads parse them as the real sheet does.
+const stored = () => parseLubecCharacter('tommy', database[TOMMY]).lubec as unknown as Fields
 const storedItems = () => (stored().gear as Fields).items as Fields[]
 const storedStress = () => (stored().counters as Fields | undefined)?.stress
 const gmItems = () => Object.entries(database).filter(([path]) => path.startsWith(`${GM_ITEMS_PATH}/`))
 
-function saveNow() {
-  act(() => vi.advanceTimersByTime(500))
+async function saveNow() {
+  await act(async () => { await vi.advanceTimersByTimeAsync(500) })
   act(() => emitCharacters())
 }
 
 beforeEach(() => {
+  protocol.clear()
+  window.sessionStorage.clear()
   vi.clearAllMocks()
   mocks.listeners = {}
   database = {}
@@ -208,7 +223,7 @@ afterEach(() => {
 })
 
 describe('the Strength prompt for a heavy thing added onto you', () => {
-  it('shows Strength from the sheet, a Strength effect counted, with the Core page\'s circle, and Cancel changes nothing', () => {
+  it('shows Strength from the sheet, a Strength effect counted, with the Core page\'s circle, and Cancel changes nothing', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves({ effects: [sprain] }) }
     mountTab('player', 'player-1')
@@ -229,11 +244,11 @@ describe('the Strength prompt for a heavy thing added onto you', () => {
     fireEvent.keyDown(prompt() as HTMLElement, { key: 'Escape' })
     expect(prompt()).toBeNull()
 
-    saveNow()
+    await saveNow()
     expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
-  it('rolls a failure through the Core roller: no Cancel after it, and Done adds the anvil failed, with the Stress, and the roll on the Core page', () => {
+  it('rolls a failure through the Core roller: no Cancel after it, and Done adds the anvil failed, with the Stress, and the roll on the Core page', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves() }
     mountTab('player', 'player-1')
@@ -255,7 +270,7 @@ describe('the Strength prompt for a heavy thing added onto you', () => {
     expect(screen.queryByRole('dialog', { name: 'Add an item' })).toBeNull()
     expect(screen.getAllByRole('status').at(-1)?.textContent).toBe('Small anvil: Backpack, main pocket.')
 
-    saveNow()
+    await saveNow()
     expect(storedItems()).toMatchObject([{ name: 'Small anvil', weight: 'heavy', check: 'fail', carrier: 'backpack', pocket: 0 }])
     expect(storedStress()).toBe(3)
     expect(stored().lastRoll).toMatchObject({ kind: 'stat-check', against: 'Strength', target: 29, result: 30, outcome: 'failure', stressAdded: 1 })
@@ -273,7 +288,7 @@ describe('the Strength prompt for a heavy thing added onto you', () => {
     expect(strengthCircle(core).classList).toContain('check-failure')
   })
 
-  it('adds no Stress for a pass, and records it passed', () => {
+  it('adds no Stress for a pass, and records it passed', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves() }
     mountTab('player', 'player-1')
@@ -285,13 +300,13 @@ describe('the Strength prompt for a heavy thing added onto you', () => {
     expect(strengthCircle(prompt() as HTMLElement).classList).toContain('check-success')
     fireEvent.click(inPrompt().getByRole('button', { name: 'Done' }))
 
-    saveNow()
+    await saveNow()
     expect(storedItems()).toMatchObject([{ name: 'Small anvil', check: 'pass' }])
     expect(storedStress()).toBe(2)
     expect(stored().lastRoll).toMatchObject({ against: 'Strength', outcome: 'success', stressAdded: 0 })
   })
 
-  it('keeps the form open with B\'s words when an extra heavy thing fails, adding nothing, and the Stress stays', () => {
+  it('keeps the form open with B\'s words when an extra heavy thing fails, adding nothing, and the Stress stays', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves() }
     mountTab('player', 'player-1')
@@ -304,12 +319,12 @@ describe('the Strength prompt for a heavy thing added onto you', () => {
     fireEvent.click(inPrompt().getByRole('button', { name: 'Done' }))
 
     expect(form.getByRole('alert').textContent).toBe("Strength failed: you can't carry Mushroom anchor. Pick a carrier.")
-    saveNow()
+    await saveNow()
     expect(storedItems()).toEqual([])
     expect(storedStress()).toBe(3)
   })
 
-  it('asks the GM about a heavy thing for their own character, and not for a player\'s, whose page then asks its owner', () => {
+  it('asks the GM about a heavy thing for their own character, and not for a player\'s, whose page then asks its owner', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves() }
     mountTab('gm', GM)
@@ -319,20 +334,22 @@ describe('the Strength prompt for a heavy thing added onto you', () => {
     addThing('Small anvil', 'Heavy')
     expect(prompt()).toBeNull()
     expect(screen.queryByRole('dialog')).toBeNull()
-    saveNow()
+    await saveNow()
     expect(storedItems()).toEqual([expect.not.objectContaining({ check: expect.anything() })])
     expect(gearTab().querySelector('.lubec-page-dot')).toBeNull()
 
     cleanup()
     database[TOMMY] = { ...database[TOMMY], ownerUserId: GM }
     mountTab('gm', GM)
+    await act(async () => {})
+    act(() => emitCharacters())
     openGear()
     expect(prompt()).not.toBeNull()
   })
 })
 
 describe('a heavy thing that came with no roll', () => {
-  it('puts a dot on the owner\'s Gear tab and asks when the page opens; Cancel leaves it waiting, and Done records it', () => {
+  it('puts a dot on the owner\'s Gear tab and asks when the page opens; Cancel leaves it waiting, and Done records it', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: withItems(T('a', 'backpack', 0, 'Small anvil', { weight: 'heavy' })) }
     mountTab('player', 'player-1')
@@ -355,12 +372,12 @@ describe('a heavy thing that came with no roll', () => {
     fireEvent.click(inPrompt().getByRole('button', { name: 'Done' }))
     expect(prompt()).toBeNull()
 
-    saveNow()
+    await saveNow()
     expect(storedItems()).toMatchObject([{ id: 'a', check: 'pass' }])
     expect(gearTab().querySelector('.lubec-page-dot')).toBeNull()
   })
 
-  it('shows another viewer no dot and asks them nothing', () => {
+  it('shows another viewer no dot and asks them nothing', async () => {
     database = { [TOMMY]: withItems(T('a', 'backpack', 0, 'Small anvil', { weight: 'heavy' })) }
     mountTab('gm', GM)
     openGear()
@@ -371,7 +388,7 @@ describe('a heavy thing that came with no roll', () => {
 })
 
 describe('the card\'s Passed and Failed switch', () => {
-  it('overrides the recorded roll and never touches Stress', () => {
+  it('overrides the recorded roll and never touches Stress', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: withItems(T('a', 'hands', 0, 'Small anvil', { weight: 'heavy', check: 'fail' })) }
     mountTab('player', 'player-1')
@@ -385,7 +402,7 @@ describe('the card\'s Passed and Failed switch', () => {
     expect(card.getByRole('button', { name: 'Passed' }).getAttribute('aria-pressed')).toBe('true')
     expect(card.getByText(/Strength passed: no penalty\./)).toBeTruthy()
 
-    saveNow()
+    await saveNow()
     expect(storedItems()).toMatchObject([{ id: 'a', check: 'pass' }])
     expect(storedStress()).toBe(2)
     expect(stored().lastRoll).toBeNull()

@@ -7,6 +7,7 @@ type Listener = { next: (snap: unknown) => void; fail: (error: unknown) => void 
 
 const mocks = vi.hoisted(() => ({
   listeners: {} as Record<string, { next: (snap: unknown) => void; fail: (error: unknown) => void }>,
+  save: vi.fn(async () => ({ status: 'committed', operationId: 'test', revision: 1 })),
   setDoc: vi.fn(async (..._args: unknown[]) => undefined),
 }))
 
@@ -18,13 +19,17 @@ vi.mock('firebase/firestore', () => ({
   query: (ref: unknown) => ref,
   where: () => null,
   deleteDoc: vi.fn(),
-  onSnapshot: (ref: { path: string }, next: Listener['next'], fail: Listener['fail']) => {
+  onSnapshot: (ref: { path: string }, options: Listener['next'] | object, nextOrFail: Listener['next'] | Listener['fail'], finalFail?: Listener['fail']) => {
+    const next = typeof options === 'function' ? options : nextOrFail as Listener['next']
+    const fail = typeof options === 'function' ? nextOrFail as Listener['fail'] : finalFail!
     mocks.listeners[ref.path] = { next, fail }
     return () => undefined
   },
   serverTimestamp: () => 'now',
   setDoc: mocks.setDoc,
 }))
+
+vi.mock('../character/characterStore/sheetIntentionTransaction', () => ({ saveSheetIntention: mocks.save }))
 
 const { useLubecSheetSession } = await import('./useLubecSheetSession')
 
@@ -51,6 +56,7 @@ function renderSession(role: Role, userId: string) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  sessionStorage.clear()
   vi.useFakeTimers()
   mocks.listeners = {}
 })
@@ -83,9 +89,10 @@ describe('useLubecSheetSession over the campaign\'s characters', () => {
     act(() => sheetProps?.onCountersChange?.({ stress: 5, minimumStress: 2, trauma: 0 }))
     act(() => vi.advanceTimersByTime(500))
 
-    const [ref, payload] = mocks.setDoc.mock.calls[0] as [{ path: string }, { lubec: { counters: unknown } }]
+    const [, ref, intention] = mocks.save.mock.calls[0] as unknown as [unknown, { path: string }, { edits: unknown[] }]
     expect(ref).toEqual({ path: `${CHARACTERS_PATH}/tommy` })
-    expect(payload.lubec.counters).toEqual({ stress: 5, minimumStress: 2, trauma: 0 })
+    expect(intention.edits).toEqual([{ kind: 'delta', path: ['lubec', 'counters', 'stress'], base: 2, amount: 3 }])
+    expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
   it('saves the name band\'s edits through the store', () => {

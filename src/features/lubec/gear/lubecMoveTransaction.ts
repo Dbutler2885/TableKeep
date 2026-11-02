@@ -1,3 +1,4 @@
+import { hasMoveReceipt, prepareMovedSheet, withMoveSheetRetries, writeMovedSheets } from './lubecMoveSheets'
 // The safe move between two records (spec 4.7): one Firestore transaction that
 // reads both records, plans the move with the pure rules against what it read
 // (`lubecMovePlan`), and writes both, or nothing. Two players moving things
@@ -28,7 +29,7 @@ import {
   type CampaignScope,
 } from '../../campaign/firestorePaths'
 import { lubecCharacterVersioning } from '../../ruleSets/characterMigrations'
-import { assertCharacterAtCurrentVersion, characterSchemaStamp } from '../../ruleSets/characterSchemaStamp'
+import { assertCharacterAtCurrentVersion } from '../../ruleSets/characterSchemaStamp'
 import type { StoredCharacter } from '../../ruleSets/storedCharacter'
 import {
   lubecMovePlan,
@@ -53,6 +54,8 @@ export type LubecMoveRequest = {
   to: LubecRecordRef
   move: LubecMove
   store: LubecMoveStore
+  /** Retain the same id when retrying an uncertain acknowledgement. */
+  operationId?: string
 }
 
 export type LubecMoveResult = { ok: true } | { ok: false; msg: string }
@@ -60,7 +63,7 @@ export type LubecMoveResult = { ok: true } | { ok: false; msg: string }
 type Ref = DocumentReference<DocumentData>
 
 /** A record as the transaction read it, and the save time it carried. */
-type Read = { record: LubecMoveRecord; updatedAt: unknown }
+type Read = { record: LubecMoveRecord; updatedAt: unknown; raw: DocumentData }
 
 type Moved = { ok: true; sheets: { ref: Ref; updatedAt: unknown }[] } | { ok: false; msg: string }
 
@@ -94,10 +97,10 @@ function recordFrom(ref: LubecRecordRef, data: DocumentData | null, id: string):
 
 // A drop is never read first: a member may not read a dropped item, and the document it makes is new.
 async function readRecord(tx: Transaction, doc: Ref, ref: LubecRecordRef, isSource: boolean): Promise<Read> {
-  if (ref.kind === 'gm-items' && !isSource) return { record: { kind: 'gm-items', item: null }, updatedAt: null }
+  if (ref.kind === 'gm-items' && !isSource) return { record: { kind: 'gm-items', item: null }, updatedAt: null, raw: {} }
   const snap = await tx.get(doc)
   const data = snap.exists() ? snap.data() : null
-  return { record: recordFrom(ref, data, snap.id), updatedAt: data?.updatedAt }
+  return { record: recordFrom(ref, data, snap.id), updatedAt: data?.updatedAt, raw: data ?? {} }
 }
 
 /** A value as Firestore stores it: no `undefined` anywhere in it. */
@@ -112,7 +115,7 @@ function writeGmItem(tx: Transaction, doc: Ref, before: LubecGmItem | null, afte
 function writeRecord(tx: Transaction, doc: Ref, before: LubecMoveRecord, after: LubecMoveRecord) {
   const at = serverTimestamp()
   if ('gear' in after) {
-    tx.set(doc, { lubec: { gear: stored(after.gear) }, ...characterSchemaStamp(lubecCharacterVersioning), updatedAt: at }, { merge: true })
+    return // Sheet intentions are prepared and written together before the non-sheet records.
   } else if ('carrier' in after) {
     tx.set(doc, { items: stored((after.carrier as LubecCarrierRecord).items), updatedAt: at }, { merge: true })
   } else {
@@ -120,10 +123,18 @@ function writeRecord(tx: Transaction, doc: Ref, before: LubecMoveRecord, after: 
   }
 }
 
-async function moveInTransaction(tx: Transaction, docs: readonly [Ref, Ref], request: LubecMoveRequest): Promise<Moved> {
+async function moveInTransaction(tx: Transaction, docs: readonly [Ref, Ref], request: LubecMoveRequest, revisions: Map<string, number>): Promise<Moved> {
+  revisions.clear()
+  if (await hasMoveReceipt(tx, docs, request)) return { ok: true, sheets: [] }
   const reads = await Promise.all([readRecord(tx, docs[0], request.from, true), readRecord(tx, docs[1], request.to, false)])
   const plan = lubecMovePlan(reads[0].record, reads[1].record, request.move)
   if (!plan.ok) return plan
+  const prepared = await Promise.all([
+    prepareMovedSheet(docs[0], reads[0].raw, plan.from, request),
+    prepareMovedSheet(docs[1], reads[1].raw, plan.to, request),
+  ])
+  prepared.forEach((entry) => { if (entry?.mutation) revisions.set(entry.sheetRef.path, entry.mutation.receipt.outcome.revision) })
+  writeMovedSheets(tx, prepared)
   writeRecord(tx, docs[0], reads[0].record, plan.from)
   writeRecord(tx, docs[1], reads[1].record, plan.to)
   const sheets = [request.from, request.to].flatMap((ref, n) => (sheetIdOf(ref) ? [{ ref: docs[n], updatedAt: reads[n].updatedAt }] : []))
@@ -164,11 +175,13 @@ export function snapshotAfter(doc: Ref, before: unknown): Promise<void> {
  * written. Rejects when Firestore refuses a write, which also writes nothing.
  */
 export async function lubecMoveBetween(db: Firestore, request: LubecMoveRequest): Promise<LubecMoveResult> {
+  request.operationId ??= crypto.randomUUID()
   const { scope, from, to, move } = request
   const docs = [recordRef(db, scope, from, move.itemId), recordRef(db, scope, to, move.itemId)] as const
   if (docs[0].path === docs[1].path) throw new Error('A move between records needs two records.')
   await quietSheets(request.store, [from, to].flatMap((ref) => sheetIdOf(ref) ?? []))
-  const moved = await runTransaction(db, (tx) => moveInTransaction(tx, docs, request))
+  const revisions = new Map<string, number>()
+  const moved = await withMoveSheetRetries(docs, () => runTransaction(db, (tx) => moveInTransaction(tx, docs, request, revisions)), revisions)
   if (!moved.ok) return moved
   await Promise.all(moved.sheets.map(({ ref, updatedAt }) => snapshotAfter(ref, updatedAt)))
   return { ok: true }

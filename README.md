@@ -287,6 +287,7 @@ The split is deliberate.
 ### Test layers
 
 - **Unit** (`npm test`). Vitest covers the pure logic: spell catalogs and spellbook rules, inventory synchronization, VtM creation, roll and XP rules, item-transfer resolution, and the map tool-state and token-placement machines.
+  Callable unit tests exercise the real Functions entrypoint with a mocked database boundary; the unit CI job installs `functions/` dependencies for these tests, so ordinary coverage includes Admin sheet writers.
 - **Component** (`npm test`). The `.test.tsx` suites opt into a jsdom environment per file with a docblock, so the rest of the run stays in Node. The sign-in screen's seat picker is covered here.
 - **Rules** (`npm run test:emulator`). Every `src/**/*.emulator.test.ts` runs against a live Firestore and Storage emulator with the repository's real `firestore.rules` and `storage.rules` loaded, so the suite exercises authorization as deployed, not as intended.
   The demo sandbox lives or dies here: one suite proves a visitor can read the template and not write it, can reach only their own sandbox, and cannot touch another visitor's or any real user's data; another drives the real clone and expiry code against the emulator.
@@ -347,6 +348,63 @@ The checked-in [`vercel.json`](vercel.json) supplies the SPA rewrite that routes
 Firebase Hosting remains a supported self-deployment alternative: [`firebase.json`](firebase.json) serves `dist`, and `npm run deploy:hosting` deploys it.
 Character and NPC media also requires the production bucket to use [`storage.cors.json`](storage.cors.json), which permits only the Table Keep production origin and the Firebase browser SDK's GET and POST requests.
 Firebase deploys Storage Rules but does not apply bucket CORS, so that reviewed policy must be applied separately with `gcloud storage buckets update gs://homeboyshouse-dev.firebasestorage.app --cors-file=storage.cors.json`.
+
+### Lubec sheet writer inventory
+
+Every supported character and NPC-sheet mutation now uses transactional edit intentions, revisions and immutable receipts.
+The pure planner lives in `functions/src/sheets/`; browser exports in `characterStore/` preserve the public API and keep the browser and Admin SDK on one protocol.
+A missing legacy revision is zero, initial creation is revision zero, and each applied mutation increments once.
+Unknown canonical fields and schema stamps survive; counter edits stay deltas and gear/effect edits address stable record ids and fields.
+
+| Producer | Transactional route | Focused regression evidence |
+| --- | --- | --- |
+| Delayed/immediate editors and overlapping hook stores | `characterStoreActions` captures the rendered base; `revisionedStoreAdapter` diffs only the user's edits and queues `saveSheetIntention` | `revisionedStore.emulator.test.ts`, shared store unit suites |
+| Direct entry, guided creation, character imports and new NPC sheets | `createCharacterStoreDoc` uses `createRevisionedSheet`, with one stable creation receipt and no replacement of an existing sheet | `combatRules.emulator.test.ts`, `npcSheets.emulator.test.ts`, browser smoke |
+| Activation, roll-up, class/skills, counters, effects and GM corrections | `lubecSheetWiring` binds each rendered base into the same queue; numeric counters are deltas | `sheetOptimistic.test.ts`, `revisionedStore.emulator.test.ts`, sheet session and map NPC overlay suites |
+| Character name/media, import portraits, token changes and player assignment | The metadata editors and import/assignment helpers send partial updates through that store | Sheet session/parser suites, hidden-carrier assignment regression, browser smoke |
+| Local item edits, placement, loading, spending and Strength outcomes | Gear callbacks capture stable item fields through the store's intention diff | Gear rules/transaction unit suites, browser smoke |
+| Moves between sheets, hidden/shared carriers and GM Items, including drop and give | `lubecMoveBetween` reads command receipts and current records, prepares every affected sheet, then writes sheets/receipts and non-sheet records atomically | `lubecMove.emulator.test.ts`, hidden/shared carrier emulator suites |
+| Existing callable item transfers | `acceptTransfer` validates active membership and both schemas; `writeAdminSheetChanges` applies the shared planner to both sheets, writes both receipts and deletes the offer in one transaction | Callable characterization and `acceptPendingTransfer.emulator.test.ts`, including concurrent/lost-ack retries |
+| Uncertain transfer acknowledgements | The client retains the source/receiver identity; the callable returns committed sheet receipts after the offer disappears | Transfer hook/identity suites and callable emulator retry regression |
+| Existing GM repairs | Corrections use the same editor route and retain conflicts for review | Store conflict/vanished-record regressions and save-notice component tests |
+
+Hidden/shared-carrier documents, GM Items and public NPC metadata are separate records and retain their existing authorization and transaction checks.
+NPC name/art are authored on the NPC record and displayed on its sheet; these are not writes to `npcSheets`.
+The generic character migration CLI has no Lubec migration steps and does not rewrite current Lubec documents.
+The hosted demo template is OSE and does not author live Lubec sheets.
+
+Each hook keeps confirmed server snapshots separate from optimistic intentions and probes receipts before replaying a snapshot.
+Unsaved intentions survive in a user-and-sheet-scoped session journal until acknowledged or explicitly discarded.
+Conflicts and vanished items remain reviewable in the real sheet; a permission denial shows a refresh message and keeps the journal.
+The obsolete Lubec whole-sheet save helper refuses calls, while OSE/VtM use their existing save path.
+
+### Lubec combat rules rollout hold
+
+Tickets 07 and 08 prepare the combat paths, immutable sheet write receipts, Lubec revision fence and every supported sheet writer locally; they do not deploy them.
+Older deployed Lubec clients without revisioned intentions deliberately fail against this fence.
+The writers in this checkout use the new protocol; shared combat remains disabled until ticket 29 records explicit release authorization and executes the coordinated rollout.
+Rules trust engine state and reported dice; they enforce membership, participant envelopes and sheet ownership, not combat outcomes.
+
+The ticket 29 operator must complete this checklist during an agreed off-hours window:
+
+1. Record the captain's go-ahead, the window, target project `homeboyshouse-dev`, reviewed web/functions/rules commit ids and the previous deployed rules artifact for rollback.
+   Confirm there are no active Lubec sessions and keep the combat feature gate disabled throughout this rollout.
+2. Verify ticket 08 has migrated ordinary and overlapping sheet stores, gear moves, effects/counters, imports/repairs, player assignment and callable transfers for both character and NPC sheets.
+   Every update must read canonical data and increment `sheetRevision` once; missing legacy revisions start at zero, with no bulk migration.
+   Verify real rules/adapter regressions, retained operation ids, immutable receipts, stale-save refusal and refresh messaging against emulators before shipping anything.
+3. Release the reviewed updated web and callable writers together using their separately approved release procedures, and confirm their deployed versions before installing the fence.
+   Verify the user-facing compatibility message is present: "Your version of Table Keep is out of date. Refresh to keep editing."
+   Preserve pending edits for repair/retry; do not silently discard an edit or automatically replay a stale whole-sheet replacement.
+   Ask every connected client to refresh and confirm the new version; an old tab's saves will be refused after the fence lands.
+4. From the reviewed release checkout run `npx firebase deploy --project homeboyshouse-dev --only firestore:rules`.
+   This is a rules-only step: do not deploy indexes, Storage Rules, hosting or functions as part of this command.
+   Record the deployed rules release and time; this checklist alone does not authorize executing it.
+5. On the hosted app with the new writers, verify owner and both GM roles can save a Lubec character/NPC and retry one acknowledged operation without another increment.
+   Verify an unchanged-revision old save is denied and shows the refresh message, OSE/VtM saves still work, and a spectator can read a fight but cannot mutate it.
+   Use hosted production sessions only for this separately authorized verification, never a loopback browser connected to production.
+6. If the writers or refresh path fail, keep combat disabled, pause Lubec editing and restore the recorded previous rules artifact with `npx firebase deploy --project homeboyshouse-dev --config <reviewed-rollback-config.json> --only firestore:rules`, using a reviewed config that points to that artifact.
+   Record the rollback release and verify restored save behavior before reopening editing; do not roll back web/callable writers independently while the revision fence remains active.
+7. Record all versions, checks and any rollback in ticket 29 and obtain its separate combat-release go-ahead before enabling any player-facing combat UI.
 
 ## Self-deploying with Firebase
 

@@ -9,6 +9,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { sheetFixtureDoc, sheetProtocol } from '../../character/characterStore/__tests__/sheetProtocol'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../../types/app'
 import type { LubecDice } from '../../ruleSets/lubec/dice'
@@ -29,12 +30,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
-  doc: (_db: unknown, path: string) => ({ path }),
+  doc: sheetFixtureDoc,
+  getDocFromServer: (ref: { path: string; id: string }) => Promise.resolve(protocol.snapshot(ref)),
   // The campaign items for the stock picker are a filtered list of the collection.
   query: (ref: unknown) => ref,
   where: () => null,
   deleteDoc: vi.fn(),
-  onSnapshot: (ref: Ref, next: Listener['next'], fail: Listener['fail']) => {
+  onSnapshot: (ref: Ref, options: Listener['next'] | object, nextOrFail: Listener['next'] | Listener['fail'], finalFail?: Listener['fail']) => {
+    const next = (typeof options === 'function' ? options : nextOrFail) as Listener['next']
+    const fail = (typeof options === 'function' ? nextOrFail : finalFail) as Listener['fail']
     mocks.listeners[ref.path] = { next, fail }
     if (ref.path.split('/').length % 2 === 0) queueMicrotask(() => next(docSnap(ref.path)))
     return () => {
@@ -44,6 +48,12 @@ vi.mock('firebase/firestore', () => ({
   runTransaction: mocks.runTransaction,
   serverTimestamp: () => ({ sentinel: 'serverTimestamp' }),
   setDoc: mocks.setDoc,
+}))
+vi.mock('../../character/characterStore/sheetIntentionTransaction', async (original) => ({
+  ...await original<object>(), saveSheetIntention: (...args: Parameters<typeof protocol.save>) => protocol.save(...args),
+}))
+vi.mock('../../character/characterStore/sheetIntentionCreate', () => ({
+  createRevisionedSheet: (...args: Parameters<typeof protocol.create>) => protocol.create(...args),
 }))
 vi.mock('../../common/mediaStorage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../common/mediaStorage')>()),
@@ -61,6 +71,7 @@ const campaign: Campaign = { id: 'campaign-1', name: 'Lubec', status: 'active', 
 
 /** Every stored document, by path. */
 let database: Record<string, Fields> = {}
+const protocol = sheetProtocol((path) => path.includes('/writeReceipts/') ? undefined : database[path], (ref, fields) => mocks.setDoc(ref, fields))
 let clock = 0
 
 const isMap = (value: unknown): value is Fields => typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -179,12 +190,14 @@ const stored = () => database[TOMMY].lubec as Fields
 const storedItems = () => (stored().gear as Fields).items as Fields[]
 const storedOverrides = () => (stored().gear as Fields).overrides as string[]
 
-function saveNow() {
-  act(() => vi.advanceTimersByTime(500))
+async function saveNow() {
+  await act(async () => { await vi.advanceTimersByTimeAsync(500) })
   act(() => emitCharacters())
 }
 
 beforeEach(() => {
+  protocol.clear()
+  window.sessionStorage.clear()
   vi.clearAllMocks()
   mocks.listeners = {}
   database = {}
@@ -229,7 +242,7 @@ const FULL = [
 ]
 
 describe('a heavy thing\'s Strength roll on the Core page\'s Speed', () => {
-  it('lowers Speed by 20 for a failed anvil, notes it as gear, lists it under "From your gear", and Turn off restores it through a remount', () => {
+  it('lowers Speed by 20 for a failed anvil, notes it as gear, lists it under "From your gear", and Turn off restores it through a remount', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves() }
     mountTab('player', 'player-1')
@@ -238,7 +251,7 @@ describe('a heavy thing\'s Strength roll on the Core page\'s Speed', () => {
     seededRolls = [30]
     fireEvent.click(strengthCircle(prompt() as HTMLElement))
     fireEvent.click(inPrompt().getByRole('button', { name: 'Done' }))
-    saveNow()
+    await saveNow()
     const key = `heavy:${storedItems()[0].id as string}`
 
     openCore()
@@ -250,20 +263,22 @@ describe('a heavy thing\'s Strength roll on the Core page\'s Speed', () => {
     expect(speedTarget()).toBe('Roll Speed at or under 56')
     expect(speedNote()).toBe('51 +5 class')
     expect(gearLines()).toEqual(['Small anvil: heavy, Strength failedSpeed -20turned off'])
-    saveNow()
+    await saveNow()
     expect(storedOverrides()).toEqual([key])
 
     cleanup()
     mountTab('player', 'player-1')
+    await act(async () => {})
+    act(() => emitCharacters())
     openTommy()
     expect(speedTarget()).toBe('Roll Speed at or under 56')
     fireEvent.click(within(fromGear() as HTMLElement).getByRole('button', { name: 'Turn on Small anvil: heavy, Strength failed' }))
     expect(speedTarget()).toBe('Roll Speed at or under 36')
-    saveNow()
+    await saveNow()
     expect(storedOverrides()).toEqual([])
   })
 
-  it('changes no Speed for a passed anvil, and shows no "From your gear"', () => {
+  it('changes no Speed for a passed anvil, and shows no "From your gear"', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves() }
     mountTab('player', 'player-1')
@@ -272,7 +287,7 @@ describe('a heavy thing\'s Strength roll on the Core page\'s Speed', () => {
     seededRolls = [12]
     fireEvent.click(strengthCircle(prompt() as HTMLElement))
     fireEvent.click(inPrompt().getByRole('button', { name: 'Done' }))
-    saveNow()
+    await saveNow()
 
     openCore()
     expect(speedTarget()).toBe('Roll Speed at or under 56')
@@ -280,7 +295,7 @@ describe('a heavy thing\'s Strength roll on the Core page\'s Speed', () => {
     expect(fromGear()).toBeNull()
   })
 
-  it('offers the switch to the GM, and shows another player the losses with no switch', () => {
+  it('offers the switch to the GM, and shows another player the losses with no switch', async () => {
     database = { [TOMMY]: withGear([anvil]) }
     mountTab('gm', GM)
     openTommy()
@@ -288,12 +303,14 @@ describe('a heavy thing\'s Strength roll on the Core page\'s Speed', () => {
 
     cleanup()
     mountTab('player', 'player-2')
+    await act(async () => {})
+    act(() => emitCharacters())
     openTommy()
     expect(gearLines()).toEqual(['Small anvil: heavy, Strength failedSpeed -20'])
     expect(within(fromGear() as HTMLElement).queryByRole('button')).toBeNull()
   })
 
-  it('forgets a switched-off loss once it stops being true, so it counts again when it comes back', () => {
+  it('forgets a switched-off loss once it stops being true, so it counts again when it comes back', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: withGear([{ ...anvil, carrier: 'hands', slot: 0, pocket: undefined }], {}, ['heavy:a']) }
     mountTab('player', 'player-1')
@@ -301,11 +318,11 @@ describe('a heavy thing\'s Strength roll on the Core page\'s Speed', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Both hands.*Small anvil/ }))
     const card = within(screen.getByRole('dialog', { name: 'Small anvil' }))
     fireEvent.click(card.getByRole('button', { name: 'Passed' }))
-    saveNow()
+    await saveNow()
     expect(storedOverrides()).toEqual([])
 
     fireEvent.click(card.getByRole('button', { name: 'Failed' }))
-    saveNow()
+    await saveNow()
     expect(storedItems()).toMatchObject([{ id: 'a', check: 'fail' }])
     fireEvent.click(card.getByRole('button', { name: 'Close' }))
     openCore()
@@ -314,7 +331,7 @@ describe('a heavy thing\'s Strength roll on the Core page\'s Speed', () => {
 })
 
 describe('an 8-slot thing and a full inventory', () => {
-  it('lowers Speed by 20 for an 8-slot thing on you', () => {
+  it('lowers Speed by 20 for an 8-slot thing on you', async () => {
     database = { [TOMMY]: withGear([T('b', 'hands', 0, 'Buster', { size: 8 })]) }
     mountTab('player', 'player-1')
     openTommy()
@@ -323,7 +340,7 @@ describe('an 8-slot thing and a full inventory', () => {
     expect(gearLines()).toEqual(['Buster: 8 slots, encumbering' + 'Speed -20'])
   })
 
-  it('lowers Speed by 10 for a full inventory, with the tag on the Gear bar', () => {
+  it('lowers Speed by 10 for a full inventory, with the tag on the Gear bar', async () => {
     database = { [TOMMY]: withGear(FULL) }
     mountTab('player', 'player-1')
     openTommy()
@@ -337,7 +354,7 @@ describe('an 8-slot thing and a full inventory', () => {
 })
 
 describe('Speed at 0', () => {
-  it('reads immobile, with one part that adds up where the floor clips', () => {
+  it('reads immobile, with one part that adds up where the floor clips', async () => {
     database = { [TOMMY]: withGear([anvil], { effects: [ankle] }) }
     mountTab('player', 'player-1')
     openTommy()
@@ -347,6 +364,8 @@ describe('Speed at 0', () => {
     cleanup()
     database = { [TOMMY]: withGear([anvil, T('b', 'hands', 0, 'Buster', { size: 8 })], { effects: [ankle] }) }
     mountTab('player', 'player-1')
+    await act(async () => {})
+    act(() => emitCharacters())
     openTommy()
     expect(speedNote()).toBe('51 +5 class -56 effect and gear, immobile')
   })

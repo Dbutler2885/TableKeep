@@ -10,6 +10,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { sheetFixtureDoc, sheetProtocol } from '../../character/characterStore/__tests__/sheetProtocol'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../../types/app'
 import { LUBEC_PIC_FILE } from '../gear/useLubecPictureUpload'
@@ -34,10 +35,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
-  doc: (_db: unknown, path: string) => ({ path }),
+  doc: sheetFixtureDoc,
+  getDocFromServer: (ref: { path: string; id: string }) => Promise.resolve(protocol.snapshot(ref)),
   query: (ref: Ref, filter: Ref['filter']) => ({ ...ref, filter }),
   where: (field: string, _op: string, value: unknown) => ({ field, value }),
-  onSnapshot: (ref: Ref, next: Listener['next']) => {
+  onSnapshot: (ref: Ref, options: Listener['next'] | object, nextCallback?: Listener['next']) => {
+    const next = (typeof options === 'function' ? options : nextCallback) as Listener['next']
     const listener = { ref, next }
     mocks.listeners.push(listener)
     queueMicrotask(() => emit(listener))
@@ -51,6 +54,12 @@ vi.mock('firebase/firestore', () => ({
     const deletes: Ref[] = []
     return { delete: (ref: Ref) => { deletes.push(ref) }, commit: () => mocks.commitBatch(deletes) }
   },
+}))
+vi.mock('../../character/characterStore/sheetIntentionTransaction', async (original) => ({
+  ...await original<object>(), saveSheetIntention: (...args: Parameters<typeof protocol.save>) => protocol.save(...args),
+}))
+vi.mock('../../character/characterStore/sheetIntentionCreate', () => ({
+  createRevisionedSheet: (...args: Parameters<typeof protocol.create>) => protocol.create(...args),
 }))
 vi.mock('../../common/mediaStorage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../common/mediaStorage')>()),
@@ -68,6 +77,7 @@ const campaign: Campaign = { id: 'campaign-1', name: 'Lubec', status: 'active', 
 
 /** Every stored document, by path. */
 let database: Record<string, Fields> = {}
+const protocol = sheetProtocol((path) => path.includes('/writeReceipts/') ? undefined : database[path], (ref, fields) => mocks.setDoc(ref, fields))
 let clock = 0
 
 const isDocPath = (path: string) => path.split('/').length % 2 === 0
@@ -164,6 +174,8 @@ const openRow = (name: string) => {
 const storedItems = (characterId: string) => (((database[`${CHARACTERS}/${characterId}`].lubec as Fields).gear as Fields).items as Fields[])
 
 beforeEach(() => {
+  protocol.clear()
+  window.sessionStorage.clear()
   vi.clearAllMocks()
   mocks.listeners = []
   clock = 10
