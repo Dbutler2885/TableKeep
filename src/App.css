@@ -19385,72 +19385,105 @@ button:disabled {
 }
 
 /* The opened Fight bar's panel, with "In hand" on as many rows as its chips
-   take, is about one step's height too, so a Core page with it open takes
-   the next step down, and one listing gear's losses as well the step after.
-   The opened panel's own steps lose to an NPC sheet's ladder. */
-@media (min-width: 1251px) and (max-height: 929px) {
+   and the allocation bar under them, adds about 300px to the 850px page, so
+   a Core page with it open needs a sheet about 1150px tall, and one listing
+   gear's losses as well about 1190px. Each step below keeps the relation the
+   850px page's own steps keep: a scale applies up to the window height of
+   the next scale up, times the sheet's height, plus 37px. The opened panel's
+   own steps lose to an NPC sheet's ladder. */
+@media (min-width: 1251px) and (max-height: 1187px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.95;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 887px) {
+@media (min-width: 1251px) and (max-height: 1129px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.9;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 845px) {
+@media (min-width: 1251px) and (max-height: 1072px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.85;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 802px) {
+@media (min-width: 1251px) and (max-height: 1014px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.8;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 760px) {
+@media (min-width: 1251px) and (max-height: 957px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.75;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 971px) {
+@media (min-width: 1251px) and (max-height: 899px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet:has(:where(.fight-panel:not([hidden]))) {
+    --lubec-fit-height: 0.7;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 842px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet:has(:where(.fight-panel:not([hidden]))) {
+    --lubec-fit-height: 0.65;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 784px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet:has(:where(.fight-panel:not([hidden]))) {
+    --lubec-fit-height: 0.6;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 1229px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses):has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.95;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 929px) {
+@media (min-width: 1251px) and (max-height: 1169px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses):has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.9;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 887px) {
+@media (min-width: 1251px) and (max-height: 1109px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses):has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.85;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 845px) {
+@media (min-width: 1251px) and (max-height: 1050px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses):has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.8;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 802px) {
+@media (min-width: 1251px) and (max-height: 990px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses):has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.75;
   }
 }
 
-@media (min-width: 1251px) and (max-height: 760px) {
+@media (min-width: 1251px) and (max-height: 931px) {
   .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses):has(:where(.fight-panel:not([hidden]))) {
     --lubec-fit-height: 0.7;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 871px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses):has(:where(.fight-panel:not([hidden]))) {
+    --lubec-fit-height: 0.65;
+  }
+}
+
+@media (min-width: 1251px) and (max-height: 811px) {
+  .shell-root[data-theme="lubec"] .lubec-sheet:has(.lubec-gear-losses):has(:where(.fight-panel:not([hidden]))) {
+    --lubec-fit-height: 0.6;
   }
 }
 
