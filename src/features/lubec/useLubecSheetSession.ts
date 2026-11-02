@@ -110,7 +110,12 @@ export function useLubecSheetSession({ source, campaignId, groupId, role, curren
   const onCharacters = source.kind === 'characters'
   const gearGive = useLubecGive({ onCharacters, character, characters: store.characters, store, campaignId, groupId, role, userId: currentUserId })
   const carriers = useLubecSharedCarriers({ campaignId, groupId }, onCharacters, setError)
-  const shared = onCharacters && character ? lubecSharedSeat({ carriers, characters: store.characters, character, viewer, store, records }) : null
+  const shared = sharedSeatForCharacter(onCharacters, character, { carriers, characters: store.characters, viewer, store, records })
   const sheetProps = character ? { character, editing, campaignStock, gearGive, shared, ...lubecSheetWiring(character, viewer, store, records) } : null
   return { store, character, viewer, sheetProps }
+}
+
+function sharedSeatForCharacter(onCharacters: boolean, character: LubecCharacterRecord | null, options: Omit<Parameters<typeof lubecSharedSeat>[0], 'character'>) {
+  if (!onCharacters || !character) return null
+  return lubecSharedSeat({ ...options, character })
 }
