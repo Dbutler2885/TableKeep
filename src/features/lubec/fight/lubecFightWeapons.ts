@@ -20,13 +20,15 @@ export type LubecFightFists = { offered: true; attack: LubecAttackHandle } | { o
 
 const signed = (n: number) => (n < 0 ? `−${-n}` : `+${n}`)
 
+const minimumLine = (item: LubecItem): string[] => item.minStrength ? [`min Str ${item.minStrength}`] : []
+
+const roundsLine = (item: LubecItem): string[] =>
+  item.mode === 'firearm' ? [`${item.loaded ?? 0} of ${item.capacity ?? 0} loaded`] : []
+
 /** B's weaponLine: "Impact +1 · min Str 40 · 3 of 6 loaded", and "Not a weapon" for anything else. */
 export function lubecWeaponLine(item: LubecItem): string {
   if (item.kind !== 'weapon') return 'Not a weapon'
-  const bits = [`Impact ${signed(item.impact ?? 0)}`]
-  if (item.minStrength) bits.push(`min Str ${item.minStrength}`)
-  if (item.mode === 'firearm') bits.push(`${item.loaded ?? 0} of ${item.capacity ?? 0} loaded`)
-  return bits.join(' · ')
+  return [`Impact ${signed(item.impact ?? 0)}`, ...minimumLine(item), ...roundsLine(item)].join(' · ')
 }
 
 type Reading = { gear: LubecGear; wielder: LubecWielder; droppable: boolean }
