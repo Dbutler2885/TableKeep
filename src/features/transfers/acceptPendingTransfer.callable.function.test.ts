@@ -1,7 +1,7 @@
 /**
  * Unit characterization of the real callable, with its database boundary mocked.
- * Lives in the emulator job because importing functions/src/index.ts requires
- * functions/node_modules, which the ordinary web unit-test job does not install.
+ * Standard unit discovery includes these Admin writers in ordinary coverage.
+ * The unit-test job installs functions/node_modules for their runtime imports.
  */
 import { capacityCases } from '../character/oseCarryingCases'
 import { beforeEach, describe, expect, it, vi } from 'vitest'

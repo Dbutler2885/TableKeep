@@ -287,6 +287,7 @@ The split is deliberate.
 ### Test layers
 
 - **Unit** (`npm test`). Vitest covers the pure logic: spell catalogs and spellbook rules, inventory synchronization, VtM creation, roll and XP rules, item-transfer resolution, and the map tool-state and token-placement machines.
+  Callable unit tests exercise the real Functions entrypoint with a mocked database boundary; the unit CI job installs `functions/` dependencies for these tests, so ordinary coverage includes Admin sheet writers.
 - **Component** (`npm test`). The `.test.tsx` suites opt into a jsdom environment per file with a docblock, so the rest of the run stays in Node. The sign-in screen's seat picker is covered here.
 - **Rules** (`npm run test:emulator`). Every `src/**/*.emulator.test.ts` runs against a live Firestore and Storage emulator with the repository's real `firestore.rules` and `storage.rules` loaded, so the suite exercises authorization as deployed, not as intended.
   The demo sandbox lives or dies here: one suite proves a visitor can read the template and not write it, can reach only their own sandbox, and cannot touch another visitor's or any real user's data; another drives the real clone and expiry code against the emulator.

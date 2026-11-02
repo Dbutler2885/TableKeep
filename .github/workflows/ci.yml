@@ -58,8 +58,13 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
       - run: npm ci
+      # Callable unit tests mock their database boundary and import the real
+      # Functions entrypoint, whose runtime dependencies belong to that package.
+      - run: npm ci --prefix functions
       - run: npm test
 
   build:
