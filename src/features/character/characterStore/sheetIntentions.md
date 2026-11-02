@@ -39,6 +39,11 @@ Sets and removals compare base values even when the revision has not changed.
 Deltas validate that the current value is numeric and apply the original amount to it, preserving other concurrent deltas.
 A record collision, missing record, changed base value, deleted sheet or invalid revision returns a structured `repair` outcome with a code and path.
 Network and authorization errors reject so the caller can retain the pending intention for retry.
+A revision fence can return `permission-denied` before Firestore reports optimistic transaction contention.
+After a prepared write receives that error, the standalone save checks the canonical revision with a server-only read and restarts only if it advanced beyond the revision that attempt read.
+It retains the same captured intention and operation id for at most two restarts (three transactions total), rebasing each time and checking the immutable receipt first.
+An unchanged revision, deleted sheet, revoked read authority, read-stage denial or other transport error surfaces without another transaction.
+This recovery does not weaken rules or grant write authority; continuing contention after the bound still rejects for caller-managed retry.
 No refused edit creates a receipt or advances the revision.
 
 Successful mutations increment `sheetRevision` once per envelope and commit a `writeReceipts/{operationId}` document containing the intention and committed outcome in the same transaction.
@@ -55,4 +60,4 @@ The singular writer returns a repair outcome without writing and is intended for
 Do not generate operation ids, sample dice, or mutate intentions inside a transaction callback.
 
 The emulator protocol suite uses an isolated project with rules disabled and proves actual transaction behavior only.
-Real owner/GM authorization, immutable receipt rules and the revision compatibility fence are ticket 07 work.
+The real owner/GM authorization, immutable receipts, revision fence and two-user concurrent saves are exercised in `../../lubec/combatRules.emulator.test.ts`.
