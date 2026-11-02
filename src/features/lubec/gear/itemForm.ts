@@ -3,6 +3,9 @@
 // Pure: the fields in, the next fields or the draft out. Numbers are kept as
 // typed, so a half-typed field never jumps; the draft reads them as B does.
 
+import { newThrowableFields, throwableFieldsOf, throwableDraft } from './throwableFields'
+import type { LubecRangeFields } from './throwableFields'
+import { lubecUneditedFields } from '../../ruleSets/lubec/gear/addItem'
 import { KIND_NAMES, LOC_KEYS } from '../../ruleSets/lubec/gear/gearRules'
 import type { LubecItem, LubecItemKind, LubecItemSize, LubecItemWeight, LubecWoundKind } from '../../ruleSets/lubec/gear/gearRecord'
 import { lubecCopyOf } from '../../ruleSets/lubec/gear/stock'
@@ -18,6 +21,7 @@ export type LubecFormPicture = { art?: string; picturePath?: string; shape: Lube
 export type LubecWeaponMode = NonNullable<LubecItem['mode']>
 
 export type LubecItemFields = {
+  retained: Partial<LubecItem>
   kind: LubecItemKind
   name: string
   note: string
@@ -32,6 +36,12 @@ export type LubecItemFields = {
   stock: string | null
   mode: LubecWeaponMode
   impact: string
+  canThrow: boolean
+  thrownImpact: string
+  thrownWound: LubecWoundKind
+  catchChance: string
+  catchPutsThrowerOut: boolean
+  ranges: LubecRangeFields[]
   table: string
   wounds: LubecWoundKind[]
   reach: 'long' | 'short'
@@ -59,6 +69,7 @@ const ZERO_ARMOR = { cut: '0', pierce: '0', blunt: '0', gun: '0' }
 /** A new item's form, opened at `dest`: a Thing of one slot, Small when opened from small stuff, or armor to wear. */
 export const lubecNewFields = (dest: string): LubecItemFields => ({
   kind: dest === 'worn' ? 'armor' : 'thing', name: '', note: '', size: dest.endsWith('#small') ? 0 : 1, weight: 'normal', qty: '1', per: '1', dest, picture: null, stock: null,
+  retained: {}, ...newThrowableFields(),
   mode: 'melee', impact: '0', table: 'blunt', wounds: ['blunt'], reach: 'long', minStrength: '', hands: 1, wCapacity: '6', wLoaded: '0', wTakes: '',
   armor: { ...ZERO_ARMOR }, locs: [], exclusive: false, bothSides: false, fits: '', hold: 'load', hCapacity: '2', hLoaded: '2', hTakes: '',
 })
@@ -75,6 +86,7 @@ const armorFields = (x: Partial<LubecItem>) => Object.fromEntries(WOUND_KINDS.ma
 
 // Each kind's page reads what the item or entry carries; a field it doesn't carry keeps the form's own value.
 const weaponFields = (f: LubecItemFields, x: Partial<LubecItem>): Partial<LubecItemFields> => ({
+  ...throwableFieldsOf(x),
   mode: x.mode ?? 'melee', impact: text(x.impact, f.impact), table: textOr(x.table, f.table), wounds: woundsOf(x),
   reach: x.reach === 'short' ? 'short' : 'long', minStrength: text(x.minStrength, ''), hands: x.hands === 2 ? 2 : 1,
   wCapacity: text(x.capacity, f.wCapacity), wLoaded: text(x.loaded, '0'), wTakes: textOr(x.takes, ''),
@@ -89,6 +101,7 @@ const holderFields = (f: LubecItemFields, x: Partial<LubecItem>): Partial<LubecI
 
 // Its name, words, size, weight and count, which every item and stock entry has.
 const topFields = (x: LubecItemDraft): Partial<LubecItemFields> => ({
+  retained: lubecUneditedFields(lubecCopyOf(x) as LubecItem),
   kind: x.kind, name: x.name, note: x.note, size: x.size, weight: x.weight,
   qty: String(x.qty), per: String(perOf(x)), picture: pictureOf(x),
 })
@@ -128,9 +141,11 @@ export function lubecWithDest(f: LubecItemFields, dest: string): LubecItemFields
   return { ...f, dest, size: dest.startsWith('backpack#') && f.size === 0 ? 1 : f.size }
 }
 
+const MODE_TABLE = { melee: 'blunt', firearm: 'gunshot', thrown: 'thrown' } as const
+
 /** The form after the player picks melee, firearm or thrown: the table and the wound follow. */
 export const lubecWithMode = (f: LubecItemFields, mode: LubecWeaponMode): LubecItemFields =>
-  ({ ...f, mode, table: mode === 'firearm' ? 'gunshot' : 'blunt', wounds: [mode === 'firearm' ? 'gun' : 'blunt'] })
+  ({ ...f, mode, table: MODE_TABLE[mode], wounds: [mode === 'firearm' ? 'gun' : 'blunt'] })
 
 /** Whether the hands rule already gives the thing both hands (Rule W3), so the form's Hands can't say one. */
 export const lubecBothHandsByRule = (f: Pick<LubecItemFields, 'size' | 'weight'>): boolean => bothHands({ ...f, hands: 1 })
@@ -164,11 +179,11 @@ const minStrengthDraft = (f: LubecItemFields): Partial<LubecItem> => (f.minStren
 const handsDraft = (f: LubecItemFields): Partial<LubecItem> => (f.hands === 2 && !lubecBothHandsByRule(f) ? { hands: 2 } : {})
 
 function weaponDraft(f: LubecItemFields): Partial<LubecItem> {
-  const base = { mode: f.mode, impact: whole(f.impact), table: f.table, wounds: [...f.wounds], ...minStrengthDraft(f), ...handsDraft(f) }
-  if (f.mode === 'melee') return { ...base, reach: f.reach }
-  if (f.mode === 'thrown') return base
+  const base = { mode: f.mode, impact: whole(f.impact), table: f.table, wounds: f.mode === 'thrown' ? f.wounds.slice(0, 1) : [...f.wounds], ...minStrengthDraft(f), ...handsDraft(f) }
+  if (f.mode === 'melee') return { ...base, reach: f.reach, ...throwableDraft(f) }
+  if (f.mode === 'thrown') return { ...base, ...throwableDraft(f) }
   const capacity = atLeastOne(f.wCapacity)
-  return { ...base, capacity, loaded: between(whole(f.wLoaded), 0, capacity), ...(f.wTakes ? { takes: f.wTakes } : {}) }
+  return { ...base, ...throwableDraft(f), capacity, loaded: between(whole(f.wLoaded), 0, capacity), ...(f.wTakes ? { takes: f.wTakes } : {}) }
 }
 
 const armorDraft = (f: LubecItemFields): Partial<LubecItem> => ({
@@ -208,7 +223,7 @@ function pictureDraft(p: LubecFormPicture | null): Partial<LubecItem> {
 /** The draft the form makes, with no field left undefined, since Firestore refuses one. */
 export function lubecDraftOf(f: LubecItemFields): LubecItemDraft {
   return {
-    kind: f.kind, name: f.name.trim(), size: f.size, weight: f.weight, note: f.note.trim(),
+    ...f.retained, kind: f.kind, name: f.name.trim(), size: f.size, weight: f.weight, note: f.note.trim(),
     ...countDraft(f), ...pictureDraft(f.picture), ...(f.stock ? { stock: f.stock } : {}), ...KIND_DRAFTS[f.kind](f),
   }
 }

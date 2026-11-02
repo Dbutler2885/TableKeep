@@ -8,7 +8,7 @@ const sled = { sid: 'm-1', kind: 'thing' as const, name: 'Sled', note: '', size:
 describe('the picker\'s entries', () => {
   it('offers the game\'s stock alone until the campaign has its own', () => {
     const entries = lubecStockEntries([])
-    expect(entries).toHaveLength(20)
+    expect(entries).toHaveLength(22)
     expect(entries.every((x) => x.from === 'game')).toBe(true)
     expect(hasCampaignStock(entries)).toBe(false)
     expect(lubecStockSources(entries)).toEqual(['game'])
@@ -24,7 +24,7 @@ describe('the picker\'s entries', () => {
   it('adds a skill kit\'s last, as its own source, with nothing by default (spec 7.4)', () => {
     expect(lubecStockEntries([sled]).some((x) => x.from === 'kit')).toBe(false)
     const entries = lubecStockEntries([], [LUBEC_STOCK[7]])
-    expect(entries.slice(20).map((x) => [x.from, x.name])).toEqual([['kit', 'Baseball bat']])
+    expect(entries.slice(22).map((x) => [x.from, x.name])).toEqual([['kit', 'Baseball bat']])
     expect(hasCampaignStock(entries)).toBe(false)
     expect(lubecStockSources(entries)).toEqual(['game', 'kit'])
     expect(lubecStockSections(entries, { query: '', kind: '', from: 'kit' }).map((s) => [s.kind, s.list.map((x) => x.name)])).toEqual([['weapon', ['Baseball bat']]])
@@ -37,7 +37,7 @@ describe('the picker\'s sections', () => {
     lubecStockSections(entries, { query: '', kind: '', from: '', ...filter }).map((s) => [s.kind, s.list.map((x) => x.name)])
 
   it('shows every kind with something in it, in the kinds\' order', () => {
-    expect(sections({}).map(([kind, list]) => [kind, list.length])).toEqual([['thing', 6], ['weapon', 4], ['armor', 4], ['consumable', 3], ['holder', 4]])
+    expect(sections({}).map(([kind, list]) => [kind, list.length])).toEqual([['thing', 6], ['weapon', 6], ['armor', 4], ['consumable', 3], ['holder', 4]])
   })
 
   it('searches the name and the search words, leaving out a kind with nothing found', () => {

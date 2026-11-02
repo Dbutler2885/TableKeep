@@ -120,3 +120,17 @@ describe('a refused save', () => {
     expect(lubecRefusedForm(form, { msg: 'No room there.' }, true)).toMatchObject({ error: 'No room there.', page: 2 })
   })
 })
+
+it('creates, saves and reopens negative thrown damage, then removes form-owned data after a mode change', () => {
+  const added = lubecSaveForm(gearOf(), named(lubecAddSheet('hands#0'), 'Kitchen knife', { kind: 'weapon', impact: '1', wounds: ['cut', 'pierce'], canThrow: true, thrownImpact: '-1', thrownWound: 'pierce', catchChance: '10', catchPutsThrowerOut: true, ranges: [{ band: 'long', distance: '', modifier: '', stored: { band: 'long' } }] }), counter())
+  expect(added.ok).toBe(true)
+  if (!added.ok) return
+  const first = added.gear.items[0]
+  const reopened = lubecEditSheet({ ...first, makerData: { initials: 'WG' } }, 'hands#0')
+  expect(reopened.fields).toMatchObject({ thrownImpact: '-1', thrownWound: 'pierce', ranges: [{ band: 'long', modifier: '' }] })
+  const saved = lubecSaveForm(gearOf({ ...first, makerData: { initials: 'WG' } }), { ...reopened, fields: { ...reopened.fields, canThrow: false } }, counter())
+  expect(saved.ok).toBe(true)
+  if (!saved.ok) return
+  expect(saved.gear.items[0]).toHaveProperty('makerData', { initials: 'WG' })
+  for (const key of ['canThrow', 'thrownImpact', 'thrownWound', 'catchChance', 'catchPutsThrowerOut', 'ranges']) expect(saved.gear.items[0]).not.toHaveProperty(key)
+})

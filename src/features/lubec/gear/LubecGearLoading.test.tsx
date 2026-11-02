@@ -163,7 +163,7 @@ afterEach(() => {
 describe('the empty-weapon prompt', () => {
   it('stops Fire on an empty firearm with three buttons, the red one requiring special dispensation, and only the player sees it', async () => {
     openGear(ITEMS)
-    fireEvent.click(openCard("Grandpa's revolver").getByRole('button', { name: 'Fire' }))
+    fireEvent.click(openCard("Grandpa's revolver").getByRole('button', { name: 'Shoot' }))
     const prompt = dialog("Grandpa's revolver isn't loaded")
     expect(prompt.getByText('Only you see this').className).toBe('prompt-who')
     expect(prompt.getByText('Reloading takes 3 actions, .38 rounds in the backpack.')).toBeTruthy()
@@ -177,7 +177,7 @@ describe('the empty-weapon prompt', () => {
   it('loads, fires and uses a round in one action with Reload & fire, and keeps it through a reload', async () => {
     vi.useFakeTimers()
     openGear(ITEMS)
-    fireEvent.click(openCard("Grandpa's revolver").getByRole('button', { name: 'Fire' }))
+    fireEvent.click(openCard("Grandpa's revolver").getByRole('button', { name: 'Shoot' }))
     fireEvent.click(dialog("Grandpa's revolver isn't loaded").getByRole('button', { name: /^Reload & fire/ }))
     expect(screen.queryByRole('dialog', { name: "Grandpa's revolver isn't loaded" })).toBeNull()
     expect(status()).toBe('Reloaded and fired. Roll it at the table.')
@@ -197,12 +197,12 @@ describe('the empty-weapon prompt', () => {
   it('reloads with Reload, and Cancel changes nothing', async () => {
     vi.useFakeTimers()
     openGear(ITEMS)
-    fireEvent.click(openCard("Grandpa's revolver").getByRole('button', { name: 'Fire' }))
+    fireEvent.click(openCard("Grandpa's revolver").getByRole('button', { name: 'Shoot' }))
     fireEvent.click(dialog("Grandpa's revolver isn't loaded").getByRole('button', { name: 'Cancel' }))
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
     await save()
     expect(mocks.setDoc).not.toHaveBeenCalled()
-    fireEvent.click(dialog("Grandpa's revolver").getByRole('button', { name: 'Fire' }))
+    fireEvent.click(dialog("Grandpa's revolver").getByRole('button', { name: 'Shoot' }))
     fireEvent.click(dialog("Grandpa's revolver isn't loaded").getByRole('button', { name: 'Reload' }))
     expect(status()).toBe('Reloaded.')
     expect(dialog("Grandpa's revolver").getByText('6 of 6')).toBeTruthy()
@@ -210,7 +210,7 @@ describe('the empty-weapon prompt', () => {
 
   it('keeps a refusal on the prompt, in B\'s words, and closes on Escape', async () => {
     openGear([...ITEMS, WALKIE])
-    fireEvent.click(openCard("Grandpa's revolver").getByRole('button', { name: 'Fire' }))
+    fireEvent.click(openCard("Grandpa's revolver").getByRole('button', { name: 'Shoot' }))
     const prompt = dialog("Grandpa's revolver isn't loaded")
     const busy = 'Your other hand holds Walkie-talkie. It needs to hold the .38 rounds, or be empty to fetch them.'
     expect(prompt.getByText(busy, { selector: '.prompt-text' })).toBeTruthy()

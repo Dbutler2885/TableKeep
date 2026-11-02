@@ -70,3 +70,9 @@ describe('lubecChosenWeaponName', () => {
     expect(lubecChosenWeaponName(full, null)).toBeNull()
   })
 })
+
+it('reads the mock-up Dodgeball line with its catch chance', () => {
+  expect(lubecWeaponLine(weapon('ball', 0, { mode: 'thrown', impact: 0, catchChance: 50, catchPutsThrowerOut: true }))).toBe('Impact +0 · Thrown · catch 50%')
+  expect(lubecWeaponLine(weapon('rock', 0, { mode: 'thrown', catchChance: 0 }))).toBe('Impact +1 · Thrown')
+  expect(lubecWeaponLine(weapon('knife', 0, { mode: 'melee', canThrow: true, catchChance: 10 }))).toBe('Impact +1 · catch 10%')
+})

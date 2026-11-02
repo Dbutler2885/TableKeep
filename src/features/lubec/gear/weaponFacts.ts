@@ -4,7 +4,7 @@
 // (spec 5.7, D4). The minimum Strength lines are the carrying plan's: the
 // penalty, the weapon's Handle, and the table's own number (spec 5.4).
 
-import type { LubecGear, LubecItem, LubecSupply, LubecWoundKind } from '../../ruleSets/lubec/gear/gearRecord'
+import type { LubecGear, LubecItem, LubecSupply } from '../../ruleSets/lubec/gear/gearRecord'
 import {
   lubecCannotHandle,
   lubecComputedMinStrengthPenalty,
@@ -12,6 +12,8 @@ import {
   lubecWeaponHandle,
   type LubecWielder,
 } from '../../ruleSets/lubec/gear/minStrength'
+import { lubecWeaponAttacks } from '../../ruleSets/lubec/gear/weaponAttacks'
+import { lubecThrowableFacts } from './throwableFacts'
 import { lubecAmmoOnYou } from '../../ruleSets/lubec/gear/supplies'
 import { lubecReloadPlan } from '../../ruleSets/lubec/gear/loading'
 import { supplyNameIn } from './gearLabels'
@@ -117,13 +119,9 @@ export function lubecWeaponFacts(f: LubecWeaponFacts): LubecCardFact[] {
   const w = f.item
   return [
     fact('Type', typeText(w)), fact('Impact', impactText(w)), fact('Wounds', woundsText(w)), ...tableFact(w),
-    ...handlingFacts(w, f.wielder), ...(w.mode === 'firearm' ? firearmFacts(f) : []),
+    ...lubecThrowableFacts(w), ...handlingFacts(w, f.wielder), ...(w.mode === 'firearm' ? firearmFacts(f) : []),
   ]
 }
-
-// A weapon wounds one way or several; how it is used picks the armor number (captain, round 20).
-const WOUND_USE: Readonly<Record<LubecWoundKind, string>> = { cut: 'Slash', pierce: 'Stab', blunt: 'Hit', gun: 'Fire' }
-const ATTACK_WORD: Readonly<Record<NonNullable<LubecItem['mode']>, string>> = { melee: 'Attack', firearm: 'Fire', thrown: 'Throw' }
 
 /** One of the card's attack buttons: its label, or a disabled one saying why not. */
 export type LubecAttackButton = { label: string; disabled: boolean }
@@ -132,9 +130,7 @@ export type LubecAttackButton = { label: string; disabled: boolean }
 export function lubecAttackButtons(w: LubecItem): LubecAttackButton[] {
   if (w.kind !== 'weapon') return []
   if (w.carrier !== 'hands') return [{ label: 'Attack: take it in hand first', disabled: true }]
-  const uses = woundsOf(w)
-  if (uses.length > 1) return uses.map((u) => ({ label: WOUND_USE[u], disabled: false }))
-  return [{ label: ATTACK_WORD[w.mode ?? 'melee'], disabled: false }]
+  return lubecWeaponAttacks(w).map((attack) => ({ label: attack.name, disabled: false }))
 }
 
 /** The toast after an attack: Gear rolls no die and logs nothing, so the table rolls it. */

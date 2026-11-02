@@ -3,6 +3,7 @@
 // each card's line (B's weaponLine). Fisticuffs needs a free hand. With both
 // hands full it is greyed and each thing held can be dropped, which is free.
 
+import { lubecCatchLine } from '../gear/catchLabels'
 import type { LubecGear, LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
 import { lubecAttackHandle, type LubecAttackHandle } from '../../ruleSets/lubec/gear/handPenalty'
 import { lubecFisticuffsHands, lubecFreeHands, lubecHeld, type LubecHands, type LubecHeld } from '../../ruleSets/lubec/gear/held'
@@ -28,8 +29,10 @@ const roundsLine = (item: LubecItem): string[] =>
 /** B's weaponLine: "Impact +1 · min Str 40 · 3 of 6 loaded", and "Not a weapon" for anything else. */
 export function lubecWeaponLine(item: LubecItem): string {
   if (item.kind !== 'weapon') return 'Not a weapon'
-  return [`Impact ${signed(item.impact ?? 0)}`, ...minimumLine(item), ...roundsLine(item)].join(' · ')
+  return [`Impact ${signed(item.impact ?? 0)}`, ...minimumLine(item), ...roundsLine(item), ...thrownLine(item)].join(' · ')
 }
+
+const thrownLine = (item: LubecItem): string[] => item.mode === 'thrown' ? ['Thrown', ...lubecCatchLine(item)] : lubecCatchLine(item)
 
 type Reading = { gear: LubecGear; wielder: LubecWielder; droppable: boolean }
 

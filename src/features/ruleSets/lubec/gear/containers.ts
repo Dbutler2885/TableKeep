@@ -15,23 +15,14 @@ import { lubecDropPlan, type LubecDropFrom, type LubecUnplacedItem } from './dro
 import type { LubecCarrierRecord, LubecGear, LubecItem } from './gearRecord'
 import { LUBEC_GM_ITEM_FIELDS, type LubecGmItem } from './gmItem'
 import { lubecPrunedOverrides } from '../modifiers'
+import { lubecCopyOf } from './stock'
+export { lubecCopyOf, LUBEC_COPY_FIELDS } from './stock'
 import { onYou, place } from './placement'
 
 export const LUBEC_STALE_MOVE = 'Someone moved that first. Nothing changed.'
 
 /** An upload can't have a private Storage rule, so a hidden thing has only drawings and icons (spec 4.6, question 6). */
 export const LUBEC_NO_HIDDEN_PICTURE = 'Pictures you uploaded cannot be hidden. Remove the picture or pick a drawing.'
-
-// Everything an item copies from stock, or from a GM's library item when it is given (Rule T2).
-// B's `img` is `picturePath` here, and a weapon's `minStrength` and `hands` come along too.
-export const LUBEC_COPY_FIELDS = [
-  'kind', 'name', 'size', 'weight', 'qty', 'note', 'mode', 'impact', 'table', 'reach', 'wounds', 'capacity', 'loaded', 'takes', 'hold',
-  'locs', 'exclusive', 'armor', 'fits', 'per', 'art', 'picturePath', 'shape', 'minStrength', 'hands',
-] as const
-
-/** A copy of the fields an item copies, which never follows later changes to `src`. */
-export const lubecCopyOf = (src: Partial<LubecItem>): Partial<LubecItem> =>
-  JSON.parse(JSON.stringify(Object.fromEntries(LUBEC_COPY_FIELDS.filter((k) => src[k] !== undefined).map((k) => [k, src[k]]))))
 
 /** The five records an item can live in. */
 export type LubecRecordRef =

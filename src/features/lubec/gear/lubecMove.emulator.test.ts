@@ -278,4 +278,19 @@ describe('the move between two records', () => {
     await expect(lubecMoveBetween(as(playerUid), { scope, from: wayne, to: wayne, store: quietStore, move: { itemId: 'anvil', dest: 'body' } }))
       .rejects.toThrow('A move between records needs two records.')
   })
+  it('moves a negative-Impact throwable from GM Items onto a sheet and back without losing data', async () => {
+    const extra = { canThrow: true, thrownImpact: -1, thrownWound: 'pierce', catchChance: 10, catchPutsThrowerOut: true, ranges: [{ band: 'short', distance: 'Across the kitchen', modifier: -13 }], unknown: { initials: 'WG' } }
+    const knife = { id: 'knife', kind: 'weapon', name: 'Kitchen knife', size: 1, qty: 1, weight: 'normal', note: '', mode: 'melee', wounds: ['cut', 'pierce'], impact: 1, status: 'library', ...extra }
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(campaignGmItemRef(context.firestore() as unknown as Firestore, scope, 'knife'), knife)
+    })
+    expect(await lubecMoveBetween(as(campaignGmUid), { scope, from: gmItems, to: stephen, store: quietStore, move: { itemId: 'knife', copyId: 'knife-copy' } })).toEqual({ ok: true })
+    expect(await gmItem('knife')).toMatchObject({ status: 'library', ...extra })
+    const arrived = (await character('stephen'))?.lubec.gear.items[0]
+    expect(arrived).toMatchObject({ id: 'knife-copy', carrier: 'backpack', ...extra })
+    expect(await lubecMoveBetween(as(otherPlayerUid), { scope, from: stephen, to: gmItems, store: quietStore, move: { itemId: 'knife-copy', seen: { carrier: arrived.carrier, pocket: arrived.pocket }, droppedBy: { characterId: 'stephen', characterName: 'Stephen', userId: otherPlayerUid } } })).toEqual({ ok: true })
+    expect(await gmItem('knife')).toMatchObject({ id: 'knife', status: 'library', ...extra })
+    expect(itemIds(await character('stephen'))).toEqual([])
+  })
+
 })
