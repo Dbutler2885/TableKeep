@@ -1,0 +1,21 @@
+{
+  "class": "Fighter",
+  "level": 1,
+  "hpCurrent": 8,
+  "hpMax": 8,
+  "creationStatus": "active",
+  "schemaVersion": 1,
+  "creationModeExplicit": false,
+  "portraitPath": "",
+  "ac": 9,
+  "creationMode": "new",
+  "portraitFocusX": 50,
+  "xp": 0,
+  "details": null,
+  "tokenIcon": {
+    "color": "#bf2f2a",
+    "size": 34,
+    "icon": "pawn"
+  },
+  "portraitFocusY": 50
+}

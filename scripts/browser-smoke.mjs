@@ -732,7 +732,10 @@ async function seedOseCampaign({ uid, groupId, testCase, label }) {
   const campaignName = `${testCase.label} OSE ${label}`
   const characterName = `${label} Fighter`
   const campaignId = await seedCampaign({ groupId, gmUserId: uid, fields: { name: campaignName, system: 'ose' } })
-  const fields = oseCharacterFields({ uid, username: testCase.username, name: characterName })
+  // Opening a sparse OSE sheet has always initialized its derived saves, THAC0 and AC.
+  // Start with that settled shape so exact equality detects a late save crossing campaigns.
+  const initialized = JSON.parse(await readFile(new URL('./fixtures/ose-last-edit-character.json', import.meta.url), 'utf8'))
+  const fields = { ...initialized, ...oseCharacterFields({ uid, username: testCase.username, name: characterName }) }
   await seedCharacter({ groupId, campaignId, characterId: OSE_SHARED_CHARACTER_ID, fields })
   return { campaignId, campaignName, characterName, fields, path: characterPath({ groupId, campaignId, characterId: OSE_SHARED_CHARACTER_ID }) }
 }
