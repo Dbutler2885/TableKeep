@@ -1,19 +1,17 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useRef, type KeyboardEvent } from 'react'
 import type { LubecGearDrop } from '../gear/lubecGearDrop'
 import { LubecRoughFilter } from '../LubecRoughFilter'
 import { useLubecHandDrop } from '../useLubecHandDrop'
 import { LubecFightTargetStep } from './LubecFightTargetStep'
 import { LubecFightWeaponStep } from './LubecFightWeaponStep'
-import { lubecChosenWeaponName } from './lubecFightWeapons'
-import { lubecCombatantFace, lubecCombatantGear, lubecCombatantKey, lubecTargetChoices, type LubecCombatant, type LubecFightRequest } from './lubecFightRequest'
+import { TARGET_STEP, WEAPON_STEP, useLubecFightFlow } from './useLubecFightFlow'
+import { lubecCombatantFace, type LubecCombatant, type LubecFightRequest } from './lubecFightRequest'
 import './lubecFight.css'
 
 const TITLE = 'lubec-fight-title'
 
 // The attack steps past Target wait for the rules still open (G26).
 const STEPS = ['Weapon', 'Target', 'Attack', 'Roll', 'Location', 'Result'] as const
-const WEAPON_STEP = 0
-const TARGET_STEP = 1
 
 const stepClass = (i: number, step: number) => {
   if (i === step) return 'now'
@@ -64,25 +62,6 @@ function StepFoot({ step, canGoOn, onStep }: FootProps) {
       <button type="button" className="btn rust" disabled title="Not yet available">Next: attack</button>
     </div>
   )
-}
-
-// Which step, weapon and target are chosen. A weapon that has left the hands is no longer chosen.
-function useLubecFightFlow(request: LubecFightRequest, targets: readonly LubecCombatant[]) {
-  const gear = lubecCombatantGear(request.attacker)
-  const [weaponId, setWeaponId] = useState(request.weaponItemId ?? null)
-  const [step, setStep] = useState(() => (lubecChosenWeaponName(gear, request.weaponItemId ?? null) ? TARGET_STEP : WEAPON_STEP))
-  const [targetKey, setTargetKey] = useState(() => (request.target ? lubecCombatantKey(request.target) : ''))
-  const choices = lubecTargetChoices(request, targets)
-  const weaponName = lubecChosenWeaponName(gear, weaponId)
-  const chooseWeapon = (id: string) => {
-    setWeaponId(id)
-    setStep(TARGET_STEP)
-  }
-  return {
-    gear, weaponId, weaponName, choices, chooseWeapon, setStep, setTargetKey,
-    step: weaponName ? step : WEAPON_STEP,
-    target: choices.find((c) => lubecCombatantKey(c) === targetKey) ?? null,
-  }
 }
 
 type FightModalProps = {
