@@ -4,12 +4,19 @@ import { oseCharacterStore, readStoredCharacter } from '../lib/storedCharacterRe
 import { makeVtmCharacter } from '../vtmDefaults'
 
 vi.mock('../../../firebase', () => ({ db: { name: 'db-stub' } }))
+const writes = vi.hoisted(() => ({ setDoc: vi.fn(async () => {}) }))
+vi.mock('firebase/firestore', async (original) => ({
+  ...await original<typeof import('firebase/firestore')>(),
+  doc: (_db: unknown, path: string) => ({ path }),
+  setDoc: writes.setDoc,
+}))
 
 const {
   canChooseCharacterStoreCharacter,
   canEditCharacterStoreCharacter,
   syncCharacterStoreCharacterLocal,
   updateCharacterStoreCharacter,
+  chooseCharacterStoreCurrentCharacter,
 } = await import('./characterStoreActions')
 const { emptyCharacterStoreSaves } = await import('./characterStoreWrites')
 
@@ -48,6 +55,20 @@ describe('editing a character', () => {
     setCurrentCharacterId: vi.fn(),
   })
   const pc = readStoredCharacter('a', { ownerUserId: 'user-1', hpCurrent: 6, hpMax: 10 }, viewer)
+
+  it('keeps current-character selection in userState and refuses another player or an unavailable campaign', async () => {
+    writes.setDoc.mockClear()
+    const context = { ...contextFor([pc]), campaign: { groupId: 'group-1', campaignId: 'campaign-1' } }
+    await chooseCharacterStoreCurrentCharacter(context, 'a')
+    expect(context.setCurrentCharacterId).toHaveBeenCalledWith('a')
+    expect(writes.setDoc).toHaveBeenCalledExactlyOnceWith(
+      { path: 'groups/group-1/campaigns/campaign-1/userState/user-1' },
+      { currentCharacterId: 'a', updatedAt: expect.anything() }, { merge: true },
+    )
+    await chooseCharacterStoreCurrentCharacter({ ...context, userId: 'someone-else' }, 'a')
+    await chooseCharacterStoreCurrentCharacter({ ...context, campaign: null }, 'a')
+    expect(writes.setDoc).toHaveBeenCalledTimes(1)
+  })
 
   it('applies an edit as the rule set adjusts it, but saves nothing without a campaign', () => {
     vi.useFakeTimers()

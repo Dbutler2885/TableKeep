@@ -1,3 +1,4 @@
+import { createRevisionedSheet } from '../character/characterStore/sheetIntentionCreate'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, setDoc, updateDoc, writeBatch, type Firestore } from 'firebase/firestore'
@@ -236,4 +237,17 @@ describe('sheet and gear authority stays scoped', () => {
     await assertFails(deleteDoc(ref(db, 'gmItems/ball')))
     await assertFails(setDoc(ref(db, 'gmItems/new-library'), { status: 'library' }))
   })
+})
+
+it('creates a sheet and its receipt together, deduplicates concurrent creation and never replaces later edits', async () => {
+  const db = as('player')
+  const sheet = ref(db, 'characters/new')
+  const fields = { ...storedSheet, schemaWrittenAt: serverTimestamp() }
+  await Promise.all([createRevisionedSheet(db, sheet, fields, storedSheet), createRevisionedSheet(db, sheet, fields, storedSheet)])
+  expect((await getDoc(sheet)).data()).toMatchObject({ sheetRevision: 0, name: 'Wayne' })
+  expect((await getDoc(doc(sheet, 'writeReceipts', 'create-new'))).data()?.outcome).toEqual({ status: 'committed', operationId: 'create-new', revision: 0 })
+  await saveSheetIntention(db, sheet, intention)
+  await createRevisionedSheet(db, sheet, fields, storedSheet)
+  expect((await getDoc(sheet)).data()).toMatchObject({ sheetRevision: 1, lubec: { counters: { stress: 3 } } })
+  await expect(createRevisionedSheet(db, sheet, fields, { ...storedSheet, name: 'Different' })).rejects.toThrow('value-conflict')
 })

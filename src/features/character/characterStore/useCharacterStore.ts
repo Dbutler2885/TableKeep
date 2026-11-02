@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, type RefObject } from 'react'
+import { revisionedSaveControls } from './revisionedStoreAdapter'
+import { useEffect, useMemo, useReducer, useRef, type RefObject } from 'react'
 import type { Role } from '../../../types/app'
 import {
   addCharacterStoreCharacter,
@@ -34,6 +35,7 @@ function useSendCharacterStoreSavesOnLeave(
   savesRef: RefObject<CharacterStoreSaves>,
   campaignId: string | null,
   groupId: string | null,
+  userId: string,
 ) {
   useEffect(() => {
     const saves = savesRef.current
@@ -41,7 +43,7 @@ function useSendCharacterStoreSavesOnLeave(
       sendCharacterStoreSavesNow(saves)
       savesRef.current = emptyCharacterStoreSaves()
     }
-  }, [savesRef, campaignId, groupId])
+  }, [savesRef, campaignId, groupId, userId])
 }
 
 export type CharacterStoreOptions<Character extends CharacterStoreRecord> = {
@@ -66,6 +68,7 @@ export type CharacterStoreOptions<Character extends CharacterStoreRecord> = {
  */
 export function useCharacterStore<Character extends CharacterStoreRecord>(options: CharacterStoreOptions<Character>) {
   const { ruleSet, campaignId, groupId, userId, role, gmUserId, setError, enabled, collection = 'characters', onlyId } = options
+  const [, notifySaves] = useReducer((value: number) => value + 1, 0)
   const savesRef = useRef<CharacterStoreSaves>(emptyCharacterStoreSaves())
   const [currentCharacterId, setCurrentCharacterId] = useCharacterStoreCurrentCharacterId(campaignId, groupId, userId, enabled, setError)
   const roster = useCharacterStoreRoster({
@@ -73,7 +76,7 @@ export function useCharacterStore<Character extends CharacterStoreRecord>(option
   })
   const { characters, setCharacters, selectedCharacterId, setSelectedCharacterId } = roster
   useCharacterStoreMedia(characters, setCharacters)
-  useSendCharacterStoreSavesOnLeave(savesRef, campaignId, groupId)
+  useSendCharacterStoreSavesOnLeave(savesRef, campaignId, groupId, userId)
 
   const context: CharacterStoreActionContext<Character> = {
     ruleSet,
@@ -85,7 +88,10 @@ export function useCharacterStore<Character extends CharacterStoreRecord>(option
     setCharacters,
     setSelectedCharacterId,
     setCurrentCharacterId,
+    notifySaves,
   }
+
+  useEffect(() => { savesRef.current.userId = userId; savesRef.current.notify = notifySaves }, [userId, campaignId, groupId])
 
   const selectedCharacter = useMemo(
     () => findCharacterStoreCharacter(characters, selectedCharacterId) ?? null,
@@ -95,17 +101,18 @@ export function useCharacterStore<Character extends CharacterStoreRecord>(option
   return {
     characters,
     charactersLoading: roster.charactersLoading,
+    saveControls: (id: string) => revisionedSaveControls(savesRef.current, id),
     currentCharacterId,
     setCurrentCharacter: (characterId: string) => chooseCharacterStoreCurrentCharacter(context, characterId),
     selectedCharacterId,
     setSelectedCharacterId,
     selectedCharacter,
     addCharacter: (character: Character) => addCharacterStoreCharacter(context, character),
-    updateCharacter: (characterId: string, updates: Partial<Character>) =>
-      updateCharacterStoreCharacter(context, characterId, updates),
+    updateCharacter: (characterId: string, updates: Partial<Character>, base?: Character) =>
+      updateCharacterStoreCharacter(context, characterId, updates, base),
     /** Like `updateCharacter`, but saves at once rather than after the delay. */
-    updateCharacterNow: (characterId: string, updates: Partial<Character>) =>
-      updateCharacterStoreCharacterNow(context, characterId, updates),
+    updateCharacterNow: (characterId: string, updates: Partial<Character>, base?: Character) =>
+      updateCharacterStoreCharacterNow(context, characterId, updates, base),
     syncCharacterLocal: (characterId: string, updates: Partial<Character>) =>
       syncCharacterStoreCharacterLocal(context, characterId, updates),
     deleteCharacter: (characterId: string, remove?: CharacterStoreRemove) => deleteCharacterStoreCharacter(context, characterId, remove),

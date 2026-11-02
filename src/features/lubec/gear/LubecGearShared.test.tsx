@@ -8,6 +8,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { sheetFixtureDoc, sheetProtocol } from '../../character/characterStore/__tests__/sheetProtocol'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../../types/app'
 
@@ -29,12 +30,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
-  doc: (_db: unknown, path: string) => ({ path }),
+  doc: sheetFixtureDoc,
+  getDocFromServer: (ref: { path: string; id: string }) => Promise.resolve(protocol.snapshot(ref)),
   // The campaign items for the stock picker are a filtered list of the collection.
   query: (ref: unknown) => ref,
   where: () => null,
   deleteDoc: vi.fn(async () => undefined),
-  onSnapshot: (ref: Ref, next: Listener['next'], fail: Listener['fail']) => {
+  onSnapshot: (ref: Ref, options: Listener['next'] | object, nextOrFail: Listener['next'] | Listener['fail'], finalFail?: Listener['fail']) => {
+    const next = (typeof options === 'function' ? options : nextOrFail) as Listener['next']
+    const fail = (typeof options === 'function' ? nextOrFail : finalFail) as Listener['fail']
     mocks.listeners[ref.path] = { next, fail }
     if (isDocPath(ref.path)) queueMicrotask(() => next(docSnap(ref.path)))
     return () => {
@@ -44,6 +48,12 @@ vi.mock('firebase/firestore', () => ({
   runTransaction: mocks.runTransaction,
   serverTimestamp: () => ({ sentinel: 'serverTimestamp' }),
   setDoc: mocks.setDoc,
+}))
+vi.mock('../../character/characterStore/sheetIntentionTransaction', async (original) => ({
+  ...await original<object>(), saveSheetIntention: (...args: Parameters<typeof protocol.save>) => protocol.save(...args),
+}))
+vi.mock('../../character/characterStore/sheetIntentionCreate', () => ({
+  createRevisionedSheet: (...args: Parameters<typeof protocol.create>) => protocol.create(...args),
 }))
 vi.mock('../../common/mediaStorage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../common/mediaStorage')>()),
@@ -61,6 +71,7 @@ const campaign: Campaign = { id: 'campaign-1', name: 'Lubec', status: 'active', 
 
 /** Every stored document, by path. */
 let database: Record<string, Fields> = {}
+const protocol = sheetProtocol((path) => path.includes('/writeReceipts/') ? undefined : database[path], (ref, fields) => mocks.setDoc(ref, fields))
 let clock = 0
 
 const isDocPath = (path: string) => path.split('/').length % 2 === 0
@@ -154,6 +165,8 @@ function openGear(name: RegExp = /^Tommy Eves/) {
 }
 
 beforeEach(() => {
+  protocol.clear()
+  window.sessionStorage.clear()
   vi.clearAllMocks()
   mocks.listeners = {}
   database = {}
@@ -209,7 +222,7 @@ const openSkiff = () => {
 const optionGroups = (select: HTMLElement) => [...select.querySelectorAll('optgroup')].map((g) => g.label)
 
 describe('the Carriers list', () => {
-  it('shows every member the shared carrier, tagged and labelled with its owner character, and writes nothing for looking', () => {
+  it('shows every member the shared carrier, tagged and labelled with its owner character, and writes nothing for looking', async () => {
     vi.useFakeTimers()
     party(skiff([ROPE]))
     mountTab('player', 'player-2')
@@ -222,12 +235,12 @@ describe('the Carriers list', () => {
     expect(card.querySelector('.count')?.textContent).toBe('1 of 3 used')
     expect(card.querySelector('.facts')?.textContent).toBe('PocketsHull 2 (up to 2); Bow locker 1 (up to 1)OwnerTommy EvesAccessThe whole groupKnownKnown to all')
     expect(card.querySelector('.owner-line')?.textContent).toBe('Tommy Eves')
-    act(() => vi.advanceTimersByTime(2000))
+    await act(async () => { await vi.advanceTimersByTimeAsync(2000) })
     expect(mocks.setDoc).not.toHaveBeenCalled()
     expect(mocks.runTransaction).not.toHaveBeenCalled()
   })
 
-  it('shows another player\'s sheet read-only: they see the carrier and what is in it, with no button', () => {
+  it('shows another player\'s sheet read-only: they see the carrier and what is in it, with no button', async () => {
     party(skiff([ROPE]))
     mountTab('player', 'player-2')
     openGear()
@@ -239,7 +252,7 @@ describe('the Carriers list', () => {
     expect(screen.queryByRole('button', { name: 'Rope' })).toBeNull()
   })
 
-  it('labels a carrier whose owner the player cannot see, and shows no red box: it is on nobody\'s body', () => {
+  it('labels a carrier whose owner the player cannot see, and shows no red box: it is on nobody\'s body', async () => {
     party(skiff([], { ownerCharacterId: 'gm-owned' }))
     mountTab('player', 'player-2')
     openGear(STEPHEN_NAME)
@@ -249,7 +262,7 @@ describe('the Carriers list', () => {
     expect(document.querySelector('.dispensation-box')).toBeNull()
   })
 
-  it('never affects Speed: a full carrier shows no tag on the sheet', () => {
+  it('never affects Speed: a full carrier shows no tag on the sheet', async () => {
     party(skiff([T('anvil', 'skiff', 0, 'Anvil', 2, { weight: 'heavy' }), T('tin', 'skiff', 1, 'Tin', 1)]))
     mountTab('player', 'player-1')
     openGear()
@@ -276,7 +289,7 @@ describe('moves between a sheet and a shared carrier', () => {
 
     expect(itemIds(gearOf(STEPHEN).items)).toEqual([])
     expect(storedItems(SKIFF).map((i) => [i.id, i.carrier, i.pocket])).toEqual([['rope', 'skiff', 0], ['flashlight', 'skiff', 1]])
-    expect(toastText()).toBe('Flashlight: Skiff, bow locker.')
+    await waitFor(() => expect(toastText()).toBe('Flashlight: Skiff, bow locker.'))
 
     openSkiff()
     fireEvent.click(within(pocketOf('Hull')).getByRole('button', { name: /Rope/ }))
@@ -381,7 +394,7 @@ describe('moves between a sheet and a shared carrier', () => {
     expect(toastText()).toBe('Dropped the rope. It goes to the GM.')
   })
 
-  it('gives a thing from the sheet, not from inside a shared carrier', () => {
+  it('gives a thing from the sheet, not from inside a shared carrier', async () => {
     party(skiff([ROPE]), {}, { items: [{ ...FLASHLIGHT }] })
     mountTab('player', 'player-2')
     openGear(STEPHEN_NAME)
@@ -428,7 +441,7 @@ describe('things in the carrier\'s own record', () => {
     expect(document.querySelector('.lubec-gear')?.getAttribute('aria-busy')).toBe('false')
   })
 
-  it('"+ Add an item" adds to the open carrier, not the backpack', () => {
+  it('"+ Add an item" adds to the open carrier, not the backpack', async () => {
     party(skiff())
     mountTab('player', 'player-2')
     openGear(STEPHEN_NAME)
@@ -494,7 +507,7 @@ describe('adding a shared carrier', () => {
     expect(toastText()).toBe('Skiff is shared with the table.')
   })
 
-  it('offers the GM every character as owner', () => {
+  it('offers the GM every character as owner', async () => {
     party(null)
     mountTab('gm', GM)
     openGear()

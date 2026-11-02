@@ -1,9 +1,11 @@
-# Opt-in revisioned sheet writes
+# Revisioned Lubec sheet writes
 
-`saveSheetIntention(db, sheetRef, intention)` is the new transactional path beside the legacy delayed save in `characterStoreWrites.ts`.
-It accepts character or NPC sheet references and removes any Firestore converter before reading canonical data.
-It does not migrate existing callers, local optimistic stores, rules, teardown, or callable transfers.
-Those changes belong to tickets 07 and 08; this expansion alone does not make existing saves safe or authorize receipt writes under production rules.
+`saveSheetIntention(db, sheetRef, intention)` is the transactional mutation path for Lubec characters and NPC sheets.
+It removes any Firestore converter before reading canonical data.
+The shared store, gear transactions and transfer callable use the same pure planner in `functions/src/sheets/`, re-exported here for browser callers.
+The former Lubec replacement-save route now refuses calls; OSE and VtM retain their existing serializer path.
+Creation uses `createRevisionedSheet`, which atomically writes revision zero and a stable creation receipt and refuses to overwrite a later edit.
+Teardown remains a separate release prerequisite.
 
 Create an operation id once, retain the entire intention while awaiting acknowledgement, and retry that exact envelope after a network failure.
 Operation ids use 1-128 ASCII letters, digits, underscores or hyphens.
@@ -61,3 +63,17 @@ Do not generate operation ids, sample dice, or mutate intentions inside a transa
 
 The emulator protocol suite uses an isolated project with rules disabled and proves actual transaction behavior only.
 The real owner/GM authorization, immutable receipts, revision fence and two-user concurrent saves are exercised in `../../lubec/combatRules.emulator.test.ts`.
+
+## Confirmed and optimistic state
+
+Each hook instance keeps confirmed server data apart from its pending intentions.
+A Lubec subscription waits for a server-backed snapshot and includes metadata changes so a local write's confirmation is observed.
+Before rendering a newer snapshot, it checks pending receipts and replays only operations not already represented in that snapshot.
+Pending edits are stored in a user-and-sheet-scoped session journal before sending.
+A network failure retains the same operation id for retry; a genuine conflict or vanished record remains visible for review and explicit discard.
+A rules denial offers refresh messaging without discarding the journal.
+Callbacks that were rendered before a newer snapshot pass their rendered base into the store, so copying a containing map cannot convert an unrelated remote wound into an edit.
+An asynchronous snapshot from an unsubscribed campaign cannot replace the next campaign's roster.
+
+The reviewed producer inventory and off-hours release checklist are in the root README.
+No rule deployment or combat release follows from passing local tests.

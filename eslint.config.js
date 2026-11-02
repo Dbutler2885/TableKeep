@@ -75,7 +75,6 @@ export default defineConfig([
       'src/features/tables/TablesTab.tsx',
       'src/features/tables/useTables.ts',
       'src/features/tokens/TokenIconEditor.tsx',
-      'src/features/transfers/usePendingTransfers.ts',
     ],
     rules: { 'react-hooks/set-state-in-effect': 'warn' },
   },

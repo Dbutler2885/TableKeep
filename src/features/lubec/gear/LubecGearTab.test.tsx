@@ -8,6 +8,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { sheetFixtureDoc, sheetProtocol } from '../../character/characterStore/__tests__/sheetProtocol'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../../types/app'
 
@@ -32,12 +33,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
-  doc: (_db: unknown, path: string) => ({ path }),
+  doc: sheetFixtureDoc,
+  getDocFromServer: (ref: { path: string; id: string }) => Promise.resolve(protocol.snapshot(ref)),
   // The campaign items for the stock picker are a filtered list of the collection.
   query: (ref: unknown) => ref,
   where: () => null,
   deleteDoc: vi.fn(),
-  onSnapshot: (ref: { path: string }, next: Listener['next'], fail: Listener['fail']) => {
+  onSnapshot: (ref: { path: string }, options: Listener['next'] | object, nextOrFail: Listener['next'] | Listener['fail'], finalFail?: Listener['fail']) => {
+    const next = (typeof options === 'function' ? options : nextOrFail) as Listener['next']
+    const fail = (typeof options === 'function' ? nextOrFail : finalFail) as Listener['fail']
     mocks.listeners[ref.path] = { next, fail }
     return () => {
       if (mocks.listeners[ref.path]?.next === next) delete mocks.listeners[ref.path]
@@ -45,6 +49,12 @@ vi.mock('firebase/firestore', () => ({
   },
   serverTimestamp: () => ({ sentinel: 'serverTimestamp' }),
   setDoc: mocks.setDoc,
+}))
+vi.mock('../../character/characterStore/sheetIntentionTransaction', async (original) => ({
+  ...await original<object>(), saveSheetIntention: (...args: Parameters<typeof protocol.save>) => protocol.save(...args),
+}))
+vi.mock('../../character/characterStore/sheetIntentionCreate', () => ({
+  createRevisionedSheet: (...args: Parameters<typeof protocol.create>) => protocol.create(...args),
 }))
 vi.mock('../../common/mediaStorage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../common/mediaStorage')>()),
@@ -60,6 +70,7 @@ const GM = 'gm-1'
 const campaign: Campaign = { id: 'campaign-1', name: 'Lubec', status: 'active', groupId: 'group-1', gmUserId: GM, system: 'lubec' }
 
 let database: Record<string, Fields> = {}
+const protocol = sheetProtocol((path) => path.includes('/writeReceipts/') ? undefined : database[path.split('/').at(-1)!], (ref, fields) => mocks.setDoc(ref, fields))
 
 const isMap = (value: unknown): value is Fields => typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -134,9 +145,12 @@ function mountTab(role: Role, uid: string) {
   return view
 }
 
-function reload(role: Role, uid: string) {
+async function reload(role: Role, uid: string) {
   cleanup()
-  return mountTab(role, uid)
+  let view!: ReturnType<typeof mountTab>
+  await act(async () => { view = mountTab(role, uid) })
+  await act(async () => { emitDatabase() })
+  return view
 }
 
 function openSheet(name: string) {
@@ -155,6 +169,8 @@ function openGear(name: string) {
 const lastPayload = () => (mocks.setDoc.mock.calls.at(-1) as [{ path: string }, Fields])[1]
 
 beforeEach(() => {
+  protocol.clear()
+  window.sessionStorage.clear()
   vi.clearAllMocks()
   mocks.listeners = {}
   database = {}
@@ -171,7 +187,7 @@ afterEach(() => {
 })
 
 describe('Lubec Gear page', () => {
-  it('is the third page tab, and the sheet still opens on the Core page', () => {
+  it('is the third page tab, and the sheet still opens on the Core page', async () => {
     database = { tommy: tommyEves() }
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -200,12 +216,12 @@ describe('Lubec Gear page', () => {
     expect(screen.queryByText('Full inventory / Speed −10')).toBeNull()
     expect(gear.querySelector('.panel.rust .count')?.textContent).toBe('0 of 7 used / 7 free')
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openGear('Tommy Eves')
     expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
-  it('saves a Thing the owner adds as one item with no URL, after the delay, and keeps it through a reload', () => {
+  it('saves a Thing the owner adds as one item with no URL, after the delay, and keeps it through a reload', async () => {
     vi.useFakeTimers()
     database = { tommy: tommyEves() }
     mountTab('player', 'player-1')
@@ -223,7 +239,7 @@ describe('Lubec Gear page', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByRole('status').textContent).toBe('Coil of rope: Backpack, main pocket.')
     expect(mocks.setDoc).not.toHaveBeenCalled()
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     expect(mocks.setDoc).toHaveBeenCalledTimes(1)
     const items = ((lastPayload().lubec as Fields).gear as Fields).items as Fields[]
     expect(items).toEqual([{
@@ -231,13 +247,13 @@ describe('Lubec Gear page', () => {
     }])
     expect(JSON.stringify(items)).not.toMatch(/http|Url"/)
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     const gear = openGear('Tommy Eves')
     expect(gear.querySelector('.pack .slot.item')?.textContent).toBe('Coil of rope')
     expect(gear.querySelector('.panel.rust .count')?.textContent).toBe('1 of 7 used / 6 free')
   })
 
-  it('adds where it was opened from: a small thing at the small stuff pill, and a hand from its empty slot', () => {
+  it('adds where it was opened from: a small thing at the small stuff pill, and a hand from its empty slot', async () => {
     vi.useFakeTimers()
     database = { tommy: tommyEves() }
     mountTab('gm', GM)
@@ -263,11 +279,11 @@ describe('Lubec Gear page', () => {
 
     expect(screen.getByRole('status').textContent).toBe('Oar: Both hands.')
     expect(document.querySelector('.hb .slot.item.both')?.textContent).toBe('Both hands / 2 slotsOar')
-    act(() => vi.advanceTimersByTime(500))
-    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
+    expect(mocks.setDoc).toHaveBeenCalledTimes(2)
   })
 
-  it('adds a stock flashlight the owner picks as one item with no URL, after the delay, and keeps it through a reload', () => {
+  it('adds a stock flashlight the owner picks as one item with no URL, after the delay, and keeps it through a reload', async () => {
     vi.useFakeTimers()
     database = { tommy: tommyEves() }
     mountTab('player', 'player-1')
@@ -284,7 +300,7 @@ describe('Lubec Gear page', () => {
 
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(mocks.setDoc).not.toHaveBeenCalled()
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     expect(mocks.setDoc).toHaveBeenCalledTimes(1)
     const items = ((lastPayload().lubec as Fields).gear as Fields).items as Fields[]
     expect(items).toEqual([{
@@ -293,13 +309,13 @@ describe('Lubec Gear page', () => {
     }])
     expect(JSON.stringify(items)).not.toMatch(/http|Url"/)
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     const gear = openGear('Tommy Eves')
     expect(gear.querySelector('.pack .slot.item')?.textContent).toBe('Flashlight2 of 2 loaded')
     expect(gear.querySelector('.pack .slot.item .slot-pic.tall svg.lubec-art')).not.toBeNull()
   })
 
-  it('takes a used-up consumable off the sheet, and keeps an empty box', () => {
+  it('takes a used-up consumable off the sheet, and keeps an empty box', async () => {
     vi.useFakeTimers()
     const lastRound = FULL_GEAR.items.map((i) => (i.id === 'i6' ? { ...i, loaded: 1 } : i))
     database = { tommy: tommyEves({ gear: { ...FULL_GEAR, items: lastRound } }) }
@@ -320,13 +336,13 @@ describe('Lubec Gear page', () => {
     expect(card.getByText('0 of 50')).toBeTruthy()
     fireEvent.click(card.getByRole('button', { name: 'Close' }))
 
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     const items = ((lastPayload().lubec as Fields).gear as Fields).items as Fields[]
     expect(items.map((i) => i.name)).not.toContain('Peanut butter sandwich')
     expect(items.find((i) => i.name === 'Box of .38 rounds')).toMatchObject({ loaded: 0 })
   })
 
-  it('keeps the form open with the refusal when the place is full', () => {
+  it('keeps the form open with the refusal when the place is full', async () => {
     database = { tommy: tommyEves({ gear: FULL_GEAR }) }
     mountTab('player', 'player-1')
     openGear('Tommy Eves')
@@ -341,7 +357,7 @@ describe('Lubec Gear page', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('closes the add form on Escape without adding', () => {
+  it('closes the add form on Escape without adding', async () => {
     database = { tommy: tommyEves() }
     mountTab('player', 'player-1')
     openGear('Tommy Eves')
@@ -357,7 +373,7 @@ describe('Lubec Gear page', () => {
     expect(document.querySelector('.lubec-gear .pack .slot.item')).toBeNull()
   })
 
-  it('shows a full inventory with its tag, and another player the page with no buttons', () => {
+  it('shows a full inventory with its tag, and another player the page with no buttons', async () => {
     database = { tommy: tommyEves({ gear: FULL_GEAR }) }
     mountTab('player', 'player-2')
     const gear = openGear('Tommy Eves')
@@ -371,7 +387,7 @@ describe('Lubec Gear page', () => {
     ])
   })
 
-  it('draws a 4-slot thing large across the block, and a 2-slot thing arranged one above the other upright', () => {
+  it('draws a 4-slot thing large across the block, and a 2-slot thing arranged one above the other upright', async () => {
     database = { tommy: tommyEves({ gear: { ...FULL_GEAR, items: [
       T('a', 'backpack', 0, 'Toolbox', 4),
       T('b', 'backpack', 0, 'Wool watch cap', 1),
@@ -383,10 +399,12 @@ describe('Lubec Gear page', () => {
 
     cleanup()
     mountTab('player', 'player-2')
+    await act(async () => {})
+    act(() => emitDatabase())
     expect(openGear('Wayne Gardner').querySelector('.pack .slot.item.upright')?.textContent).toBe('OarBulky / 2 slots')
   })
 
-  it('shows stored gear that breaks the main pocket\'s rules as an empty main pocket rather than failing', () => {
+  it('shows stored gear that breaks the main pocket\'s rules as an empty main pocket rather than failing', async () => {
     database = { tommy: tommyEves({ gear: { ...FULL_GEAR, items: [T('a', 'backpack', 0, 'Toolbox', 4), T('b', 'backpack', 0, 'Crate', 4)] } }) }
     mountTab('player', 'player-2')
     const gear = openGear('Tommy Eves')
@@ -395,7 +413,7 @@ describe('Lubec Gear page', () => {
     expect(gear.querySelector('.pack .slot.item')).toBeNull()
   })
 
-  it('lets anyone switch to Carriers and back', () => {
+  it('lets anyone switch to Carriers and back', async () => {
     database = { tommy: tommyEves() }
     mountTab('player', 'player-2')
     openGear('Tommy Eves')
@@ -435,7 +453,7 @@ describe('Lubec Gear page: the backpack picture', () => {
     expect(storedArt()).toBe('teal')
     expect(((database.tommy.lubec as Fields).gear as Fields).items).toEqual(FULL_GEAR.items)
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openGear('Tommy Eves')
     await waitFor(() => expect(packArt()).toContain('teal.webp'))
   })
@@ -466,6 +484,8 @@ describe('Lubec Gear page: the backpack picture', () => {
 
     cleanup()
     mountTab('player', 'player-2')
+    await act(async () => {})
+    act(() => emitDatabase())
     openGear('Wayne Gardner')
     await waitFor(() => expect(packArt()).toContain('rust-navy.webp'))
     expect(screen.queryByRole('button', { name: 'Change pack' })).toBeNull()
@@ -490,7 +510,7 @@ describe('Lubec Gear page: armor', () => {
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Add an item' })).getByRole('button', { name: 'Add it' }))
   }
 
-  it('wears a stock helmet, shades the head, and fills the readout while the head is pointed at', () => {
+  it('wears a stock helmet, shades the head, and fills the readout while the head is pointed at', async () => {
     vi.useFakeTimers()
     database = { tommy: tommyEves() }
     mountTab('player', 'player-1')
@@ -513,12 +533,12 @@ describe('Lubec Gear page: armor', () => {
     fireEvent.focus(part(/^Neck:/))
     expect(readout()).toBe('Neck0 of 2 layersCut0Pierce0Blunt0Gun0Nothing worn here.')
 
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     const items = ((lastPayload().lubec as Fields).gear as Fields).items as Fields[]
     expect(items).toEqual([expect.objectContaining({ kind: 'armor', name: 'Hockey helmet', carrier: 'worn', locs: ['head'], armor: { cut: 1, pierce: 1, blunt: 2, gun: 0 } })])
   })
 
-  it('wears a second helmet as the head\'s second layer', () => {
+  it('wears a second helmet as the head\'s second layer', async () => {
     database = { tommy: tommyEves({ gear: { items: [wornHelmet('h1')] } }) }
     mountTab('player', 'player-1')
     openGear('Tommy Eves')
@@ -529,7 +549,7 @@ describe('Lubec Gear page: armor', () => {
     expect(part(/^Head:/).getAttribute('aria-label')).toBe('Head: 2 of 2 layers, armor Cut −2, Pierce −2, Blunt −4 (Hockey helmet, Hockey helmet)')
   })
 
-  it('refuses a third helmet with the plain message, and keeps the form open saying the head is full', () => {
+  it('refuses a third helmet with the plain message, and keeps the form open saying the head is full', async () => {
     database = { tommy: tommyEves({ gear: { items: [wornHelmet('h1'), wornHelmet('h2')] } }) }
     mountTab('player', 'player-1')
     openGear('Tommy Eves')
@@ -542,7 +562,7 @@ describe('Lubec Gear page: armor', () => {
     expect(document.querySelector('.armor-panel .count')?.textContent).toBe('2 worn / takes no slots')
   })
 
-  it('asks which piece to open when two cover the part tapped, and opens the one picked', () => {
+  it('asks which piece to open when two cover the part tapped, and opens the one picked', async () => {
     database = { tommy: tommyEves({ gear: { items: [wornHelmet('h1'), wornHelmet('h2')] } }) }
     mountTab('player', 'player-1')
     openGear('Tommy Eves')
@@ -555,7 +575,7 @@ describe('Lubec Gear page: armor', () => {
     expect(screen.getByRole('dialog', { name: 'Hockey helmet' })).toBeTruthy()
   })
 
-  it('picks a pair with "Both sides at once", and lights a worn piece\'s parts from its row and the pieces on a part from the body', () => {
+  it('picks a pair with "Both sides at once", and lights a worn piece\'s parts from its row and the pieces on a part from the body', async () => {
     database = { tommy: tommyEves() }
     mountTab('gm', GM)
     openGear('Tommy Eves')
@@ -582,7 +602,7 @@ describe('Lubec Gear page: armor', () => {
     expect(screen.getByRole('dialog', { name: 'Mittens' })).toBeTruthy()
   })
 
-  it('shows another player the armor worn with no button to open it', () => {
+  it('shows another player the armor worn with no button to open it', async () => {
     database = { tommy: tommyEves({ gear: { items: [wornHelmet('h')] } }) }
     mountTab('player', 'player-2')
     const gear = openGear('Tommy Eves')

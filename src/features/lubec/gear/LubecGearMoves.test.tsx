@@ -9,6 +9,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { sheetFixtureDoc, sheetProtocol } from '../../character/characterStore/__tests__/sheetProtocol'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../../types/app'
 
@@ -30,12 +31,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
-  doc: (_db: unknown, path: string) => ({ path }),
+  doc: sheetFixtureDoc,
+  getDocFromServer: (ref: { path: string; id: string }) => Promise.resolve(protocol.snapshot(ref)),
   // The campaign items for the stock picker are a filtered list of the collection.
   query: (ref: unknown) => ref,
   where: () => null,
   deleteDoc: vi.fn(),
-  onSnapshot: (ref: Ref, next: Listener['next'], fail: Listener['fail']) => {
+  onSnapshot: (ref: Ref, options: Listener['next'] | object, nextOrFail: Listener['next'] | Listener['fail'], finalFail?: Listener['fail']) => {
+    const next = (typeof options === 'function' ? options : nextOrFail) as Listener['next']
+    const fail = (typeof options === 'function' ? nextOrFail : finalFail) as Listener['fail']
     mocks.listeners[ref.path] = { next, fail }
     if (isDocPath(ref.path)) queueMicrotask(() => next(docSnap(ref.path)))
     return () => {
@@ -45,6 +49,12 @@ vi.mock('firebase/firestore', () => ({
   runTransaction: mocks.runTransaction,
   serverTimestamp: () => ({ sentinel: 'serverTimestamp' }),
   setDoc: mocks.setDoc,
+}))
+vi.mock('../../character/characterStore/sheetIntentionTransaction', async (original) => ({
+  ...await original<object>(), saveSheetIntention: (...args: Parameters<typeof protocol.save>) => protocol.save(...args),
+}))
+vi.mock('../../character/characterStore/sheetIntentionCreate', () => ({
+  createRevisionedSheet: (...args: Parameters<typeof protocol.create>) => protocol.create(...args),
 }))
 vi.mock('../../common/mediaStorage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../common/mediaStorage')>()),
@@ -61,6 +71,7 @@ const campaign: Campaign = { id: 'campaign-1', name: 'Lubec', status: 'active', 
 
 /** Every stored document, by path. */
 let database: Record<string, Fields> = {}
+const protocol = sheetProtocol((path) => path.includes('/writeReceipts/') ? undefined : database[path], (ref, fields) => mocks.setDoc(ref, fields))
 let clock = 0
 
 const isDocPath = (path: string) => path.split('/').length % 2 === 0
@@ -172,6 +183,8 @@ const storedItem = (id: string) => storedItems().find((i) => i.id === id)
 const gmItems = () => Object.entries(database).filter(([path]) => path.startsWith(`${GM_ITEMS_PATH}/`))
 
 beforeEach(() => {
+  protocol.clear()
+  window.sessionStorage.clear()
   vi.clearAllMocks()
   mocks.listeners = {}
   database = {}
@@ -191,7 +204,7 @@ afterEach(() => {
 })
 
 describe('the card\'s Move panel', () => {
-  it('moves a thing in one commit, with B\'s cost line and toast, and closes the panel', () => {
+  it('moves a thing in one commit, with B\'s cost line and toast, and closes the panel', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves({ items: [T('w', 'hands', 1, 'Walkie-talkie', 1)] }) }
     mountTab('player', 'player-1')
@@ -212,12 +225,12 @@ describe('the card\'s Move panel', () => {
     expect(screen.getByRole('status').textContent).toBe('Walkie-talkie: Body slot. 1 action.')
     expect(card.queryByRole('combobox', { name: 'Move to' })).toBeNull()
     expect(card.getByText('Body slot')).toBeTruthy()
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     expect(mocks.setDoc).toHaveBeenCalledTimes(1)
     expect(storedItem('w')).toMatchObject({ carrier: 'body', slot: 0 })
   })
 
-  it('refuses a move when everything is full, pointing at swapping, and swaps through the list', () => {
+  it('refuses a move when everything is full, pointing at swapping, and swaps through the list', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves({ items: FULL }) }
     mountTab('player', 'player-1')
@@ -237,7 +250,7 @@ describe('the card\'s Move panel', () => {
     fireEvent.click(card.getByRole('button', { name: 'Swap' }))
 
     expect(screen.getByRole('status').textContent).toBe("Grandpa's revolver: Backpack, main pocket. Flashlight: Left hand. 4 actions (a guess).")
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     expect(mocks.setDoc).toHaveBeenCalledTimes(1)
     expect([storedItem('i8')?.carrier, storedItem('i1')?.carrier]).toEqual(['backpack', 'hands'])
   })
@@ -264,10 +277,11 @@ describe('the drop (Rule M8)', () => {
       status: 'dropped', droppedByCharacterId: 'tommy', droppedByCharacterName: 'Tommy Eves', droppedByUserId: 'player-1', droppedFrom: 'backpack',
       createdAt: expect.objectContaining({ seconds: expect.any(Number) }),
     }]])
-    expect(database[TOMMY].schemaWrittenAt).toBeDefined()
+    expect(database[TOMMY]).not.toHaveProperty('schemaWrittenAt')
+    expect(database[TOMMY].sheetRevision).toBe(1)
   })
 
-  it('says a drop from a hand is free on its button', () => {
+  it('says a drop from a hand is free on its button', async () => {
     database = { [TOMMY]: tommyEves({ items: FULL }) }
     mountTab('gm', GM)
     openGear()
@@ -304,7 +318,7 @@ describe('the drop (Rule M8)', () => {
     expect(database[TOMMY]).toBe(moved)
   })
 
-  it('uses up a consumable at 0 without making a GM item (Rule K4)', () => {
+  it('uses up a consumable at 0 without making a GM item (Rule K4)', async () => {
     database = { [TOMMY]: tommyEves({ items: FULL }) }
     mountTab('player', 'player-1')
     openGear()
@@ -352,7 +366,7 @@ const press = (type: string, el: Element | Document, at: { clientX: number; clie
   fireEvent(el, new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 7, pointerType, isPrimary: true, button: 0, ...at }))
 
 describe('drag and drop (Rule M7)', () => {
-  it('picks a thing up after a few pixels, lights where it can go, and moves it where it is let go, as the Move button would', () => {
+  it('picks a thing up after a few pixels, lights where it can go, and moves it where it is let go, as the Move button would', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves({ items: [T('w', 'hands', 1, 'Walkie-talkie', 1), T('c', 'body', 0, 'Rain slicker', 1)] }) }
     mountTab('player', 'player-1')
@@ -381,11 +395,11 @@ describe('drag and drop (Rule M7)', () => {
     expect(screen.getByRole('status').textContent).toBe('Walkie-talkie: Body slot. 1 action.')
     fireEvent.click(slotOf('Walkie-talkie'))
     expect(screen.queryByRole('dialog')).toBeNull()
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     expect(storedItem('w')).toMatchObject({ carrier: 'body', slot: 1 })
   })
 
-  it('swaps two things when one is let go on the other', () => {
+  it('swaps two things when one is let go on the other', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves({ items: FULL }) }
     mountTab('player', 'player-1')
@@ -400,7 +414,7 @@ describe('drag and drop (Rule M7)', () => {
     expect(screen.getByRole('status').textContent).toBe('Walkie-talkie: Body slot. Rain slicker: Right hand. 1 action (a guess).')
   })
 
-  it('says why when a thing is let go where it can\'t go, and leaves it', () => {
+  it('says why when a thing is let go where it can\'t go, and leaves it', async () => {
     database = { [TOMMY]: tommyEves({ items: FULL }) }
     mountTab('player', 'player-1')
     const centre = layOut(openGear())
@@ -435,7 +449,7 @@ describe('drag and drop (Rule M7)', () => {
     expect(gmItems().map(([, data]) => [data.name, data.droppedFrom])).toEqual([['Walkie-talkie', 'hands']])
   })
 
-  it('needs a finger to hold still before it picks a thing up, so a swipe still scrolls', () => {
+  it('needs a finger to hold still before it picks a thing up, so a swipe still scrolls', async () => {
     vi.useFakeTimers()
     database = { [TOMMY]: tommyEves({ items: FULL }) }
     mountTab('player', 'player-1')
@@ -444,18 +458,18 @@ describe('drag and drop (Rule M7)', () => {
 
     press('pointerdown', walkie, centre(walkie), 'touch')
     press('pointermove', document, { clientX: centre(walkie).clientX, clientY: centre(walkie).clientY + 30 }, 'touch')
-    act(() => vi.advanceTimersByTime(300))
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
     expect(document.querySelector('.drag-ghost')).toBeNull()
     press('pointerup', document, centre(walkie), 'touch')
 
     press('pointerdown', walkie, centre(walkie), 'touch')
-    act(() => vi.advanceTimersByTime(300))
+    await act(async () => { await vi.advanceTimersByTimeAsync(300) })
     expect(document.querySelector('.drag-ghost')).not.toBeNull()
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(document.querySelector('.drag-ghost')).toBeNull()
   })
 
-  it('keeps the page from scrolling or opening its menu under a drag, and lets a cancelled pointer drop nothing', () => {
+  it('keeps the page from scrolling or opening its menu under a drag, and lets a cancelled pointer drop nothing', async () => {
     database = { [TOMMY]: tommyEves({ items: FULL }) }
     mountTab('player', 'player-1')
     const centre = layOut(openGear())
@@ -499,7 +513,7 @@ describe('drag and drop (Rule M7)', () => {
     press('pointerup', document, { clientX: 10, clientY: window.innerHeight / 2 })
   })
 
-  it('offers another player nothing to drag', () => {
+  it('offers another player nothing to drag', async () => {
     database = { [TOMMY]: tommyEves({ items: FULL }) }
     mountTab('player', 'player-2')
     const centre = layOut(openGear())

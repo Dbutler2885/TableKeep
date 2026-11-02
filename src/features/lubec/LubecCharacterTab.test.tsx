@@ -10,6 +10,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { sheetFixtureDoc, sheetProtocol } from '../character/characterStore/__tests__/sheetProtocol'
 import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../types/app'
 import type { LubecDice } from '../ruleSets/lubec/dice'
@@ -36,14 +37,17 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
-  doc: (_db: unknown, path: string) => ({ path }),
+  doc: sheetFixtureDoc,
+  getDocFromServer: (ref: { path: string; id: string }) => Promise.resolve(protocol.snapshot(ref)),
   // The campaign items for the stock picker are a filtered list of the collection.
   query: (ref: unknown) => ref,
   where: () => null,
   deleteDoc: mocks.deleteDoc,
   // A delete lists the character's hidden carriers; these characters have none.
   getDocs: async () => ({ docs: [] }),
-  onSnapshot: (ref: { path: string }, next: Listener['next'], fail: Listener['fail']) => {
+  onSnapshot: (ref: { path: string }, options: Listener['next'] | object, nextOrFail: Listener['next'] | Listener['fail'], finalFail?: Listener['fail']) => {
+    const next = (typeof options === 'function' ? options : nextOrFail) as Listener['next']
+    const fail = (typeof options === 'function' ? nextOrFail : finalFail) as Listener['fail']
     mocks.listeners[ref.path] = { next, fail }
     return () => {
       if (mocks.listeners[ref.path]?.next === next) delete mocks.listeners[ref.path]
@@ -52,6 +56,12 @@ vi.mock('firebase/firestore', () => ({
   runTransaction: mocks.runTransaction,
   serverTimestamp: () => ({ sentinel: 'serverTimestamp' }),
   setDoc: mocks.setDoc,
+}))
+vi.mock('../character/characterStore/sheetIntentionTransaction', async (original) => ({
+  ...await original<object>(), saveSheetIntention: (...args: Parameters<typeof protocol.save>) => protocol.save(...args),
+}))
+vi.mock('../character/characterStore/sheetIntentionCreate', () => ({
+  createRevisionedSheet: (...args: Parameters<typeof protocol.create>) => protocol.create(...args),
 }))
 vi.mock('../common/mediaStorage', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../common/mediaStorage')>()),
@@ -79,6 +89,7 @@ const campaign: Campaign = { id: 'campaign-1', name: 'Lubec', status: 'active', 
 // The documents as stored, by id. Every write the store makes lands here, so a
 // remount can be fed what was last written.
 let database: Record<string, Fields> = {}
+const protocol = sheetProtocol((path) => path.includes('/writeReceipts/') ? undefined : database[path.split('/').at(-1)!], (ref, fields) => mocks.setDoc(ref, fields))
 
 const isMap = (value: unknown): value is Fields => typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -174,9 +185,12 @@ function mountTab(role: Role, uid: string) {
   return view
 }
 
-function reload(role: Role, uid: string) {
+async function reload(role: Role, uid: string) {
   cleanup()
-  return mountTab(role, uid)
+  let view!: ReturnType<typeof mountTab>
+  await act(async () => { view = mountTab(role, uid) })
+  await act(async () => { emitDatabase() })
+  return view
 }
 
 const flushMicrotasks = () => act(async () => { await Promise.resolve() })
@@ -287,9 +301,11 @@ const detailLines = () => [...(document.querySelector('.skill-detail [aria-live]
 const storedSkills = (id: string) => (database[id].lubec as Fields).skills
 
 /** Lets the store's half-second debounce send its save. */
-const sendSaves = () => act(() => { vi.advanceTimersByTime(500) })
+const sendSaves = async () => await act(async () => { await vi.advanceTimersByTimeAsync(500) })
 
 beforeEach(() => {
+  protocol.clear()
+  window.sessionStorage.clear()
   vi.clearAllMocks()
   mocks.listeners = {}
   database = {}
@@ -328,7 +344,7 @@ describe('Lubec character tab', () => {
     expect(rosterNames()).toEqual([])
   })
 
-  it('shows a seeded character\'s Stats and Saves as roll circles, each with its base and class modifier under it', () => {
+  it('shows a seeded character\'s Stats and Saves as roll circles, each with its base and class modifier under it', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
 
@@ -346,7 +362,7 @@ describe('Lubec character tab', () => {
     expect(screen.getByRole('region', { name: 'Saves' })).toBeTruthy()
   })
 
-  it('opens the sheet in the v4 frame, with Core sheet, Skills and Gear page tabs', () => {
+  it('opens the sheet in the v4 frame, with Core sheet, Skills and Gear page tabs', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
 
@@ -385,7 +401,7 @@ describe('Lubec character tab', () => {
     expect(mocks.resolveStoragePathUrl).toHaveBeenCalledWith('portraits/tommy.png')
   })
 
-  it('shows a missing base value as missing, never 0, in its circle', () => {
+  it('shows a missing base value as missing, never 0, in its circle', async () => {
     seed({ tommy: withSheet({ base: { Strength: 24, Speed: null, Intellect: 38, Handle: 50, Charm: 48, Sanity: 20, Fear: 24 } }) })
     mountTab('player', 'player-1')
 
@@ -397,7 +413,7 @@ describe('Lubec character tab', () => {
     expect(valuesOf('Strength')).toEqual(['29', '24 +5 class'])
   })
 
-  it('shows every circle as missing when the class is missing, with the base alone under it', () => {
+  it('shows every circle as missing when the class is missing, with the base alone under it', async () => {
     seed({ tommy: withSheet({ class: { key: null } }) })
     mountTab('player', 'player-1')
 
@@ -408,7 +424,7 @@ describe('Lubec character tab', () => {
     expect(sheet.querySelector('.lubec-kid-meta .lubec-missing')?.textContent).toBe('missing')
   })
 
-  it('shows the circles a missing class choice could touch as missing', () => {
+  it('shows the circles a missing class choice could touch as missing', async () => {
     seed({ tommy: withSheet({ class: { key: 'nerd', choices: { statPenalty: null } } }) })
     mountTab('player', 'player-1')
 
@@ -419,19 +435,19 @@ describe('Lubec character tab', () => {
     expect(valuesOf('Sanity')).toEqual(['50', '20 +30 class'])
   })
 
-  it('keeps a hole through a reload, and writes nothing for viewing a sheet', () => {
+  it('keeps a hole through a reload, and writes nothing for viewing a sheet', async () => {
     seed({ tommy: withSheet({ base: { Strength: null } }) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Tommy Eves')
 
     expect(valuesOf('Strength')).toEqual(['missing', ''])
     expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
-  it('shows the GM every Lubec character in the campaign, and no other system\'s', () => {
+  it('shows the GM every Lubec character in the campaign, and no other system\'s', async () => {
     seed({
       tommy: tommyEves(),
       ada: tommyEves({ name: 'Ada Mitchell', ownerUserId: 'player-2', ownerUsername: 'adamitc' }),
@@ -443,7 +459,7 @@ describe('Lubec character tab', () => {
     expect(rosterNames().sort()).toEqual(['Ada Mitchell', 'Tommy Eves', 'Wayne Gardner'])
   })
 
-  it('shows a player the characters the shared store shows them, with their own marked', () => {
+  it('shows a player the characters the shared store shows them, with their own marked', async () => {
     seed({
       tommy: tommyEves(),
       ada: tommyEves({ name: 'Ada Mitchell', ownerUserId: 'player-2', ownerUsername: null, lubec: {} }),
@@ -461,7 +477,7 @@ describe('Lubec character tab', () => {
     expect(within(other).getByText('Unassigned')).toBeTruthy()
   })
 
-  it('names a character with no name an unnamed kid', () => {
+  it('names a character with no name an unnamed kid', async () => {
     seed({ tommy: tommyEves({ name: '' }) })
     mountTab('player', 'player-1')
 
@@ -469,7 +485,7 @@ describe('Lubec character tab', () => {
     expect(openSheet('Unnamed kid')).toBeTruthy()
   })
 
-  it('goes back to the roster from an open sheet on a narrow screen', () => {
+  it('goes back to the roster from an open sheet on a narrow screen', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -491,7 +507,7 @@ describe('Lubec character tab', () => {
     expect(screen.queryByRole('button', { name: 'Back to character list' })).toBeNull()
   })
 
-  it('asks for a pick on a wide screen when there is no character to open', () => {
+  it('asks for a pick on a wide screen when there is no character to open', async () => {
     window.innerWidth = 1440
     mountTab('gm', GM)
 
@@ -517,10 +533,10 @@ function lastWritten() {
   return parseLubecCharacter(ref.path.split('/').pop() as string, payload)
 }
 
-const afterSaveDelay = () => act(() => vi.advanceTimersByTime(500))
+const afterSaveDelay = async () => await act(async () => { await vi.advanceTimersByTimeAsync(500) })
 
 describe('Lubec counters', () => {
-  it('start at the rules\' starting values, and the owner\'s changes save after the debounce and survive a reload', () => {
+  it('start at the rules\' starting values, and the owner\'s changes save after the debounce and survive a reload', async () => {
     vi.useFakeTimers()
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
@@ -536,30 +552,30 @@ describe('Lubec counters', () => {
 
     expect(shownCounters()).toEqual({ stress: '4', minimumStress: '3', trauma: '1' })
     expect(mocks.setDoc).not.toHaveBeenCalled()
-    afterSaveDelay()
-    expect(mocks.setDoc).toHaveBeenCalledTimes(1)
+    await afterSaveDelay()
+    expect(mocks.setDoc).toHaveBeenCalledTimes(6)
     expect(lastWritten().lubec.counters).toEqual({ stress: 4, minimumStress: 3, trauma: 1 })
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Tommy Eves')
 
     expect(shownCounters()).toEqual({ stress: '4', minimumStress: '3', trauma: '1' })
   })
 
-  it('let the GM change a player\'s counters', () => {
+  it('let the GM change a player\'s counters', async () => {
     vi.useFakeTimers()
     seed({ tommy: tommyEves() })
     mountTab('gm', GM)
     openSheet('Tommy Eves')
 
     press('Lower Minimum Stress')
-    afterSaveDelay()
+    await afterSaveDelay()
 
     expect(lastWritten().lubec.counters).toEqual({ stress: 2, minimumStress: 1, trauma: 0 })
     expect(lastWritten().ownerUserId).toBe('player-1')
   })
 
-  it('show a player someone else\'s counters with no way to change them', () => {
+  it('show a player someone else\'s counters with no way to change them', async () => {
     seed({ ada: tommyEves({ name: 'Ada Mitchell', ownerUserId: 'player-2', lubec: { counters: { stress: 5, minimumStress: 3, trauma: 2 } } }) })
     mountTab('player', 'player-1')
     openSheet('Ada Mitchell')
@@ -568,7 +584,7 @@ describe('Lubec counters', () => {
     expect(within(screen.getByRole('region', { name: 'Stress' })).queryAllByRole('button')).toEqual([])
   })
 
-  it('never go below 0: minus on a counter at 0 does nothing and writes nothing', () => {
+  it('never go below 0: minus on a counter at 0 does nothing and writes nothing', async () => {
     vi.useFakeTimers()
     seed({ tommy: withSheet({ counters: { stress: 0, minimumStress: 0, trauma: 0 } }) })
     mountTab('player', 'player-1')
@@ -579,13 +595,13 @@ describe('Lubec counters', () => {
       expect((minus as HTMLButtonElement).disabled).toBe(true)
       fireEvent.click(minus)
     }
-    afterSaveDelay()
+    await afterSaveDelay()
 
     expect(shownCounters()).toEqual({ stress: '0', minimumStress: '0', trauma: '0' })
     expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
-  it('let minus take Stress below Minimum Stress, down to 0', () => {
+  it('let minus take Stress below Minimum Stress, down to 0', async () => {
     vi.useFakeTimers()
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
@@ -596,11 +612,11 @@ describe('Lubec counters', () => {
 
     expect(shownCounters()).toEqual({ stress: '0', minimumStress: '2', trauma: '0' })
     expect((screen.getByRole('button', { name: 'Lower Stress' }) as HTMLButtonElement).disabled).toBe(true)
-    afterSaveDelay()
+    await afterSaveDelay()
     expect(lastWritten().lubec.counters).toEqual({ stress: 0, minimumStress: 2, trauma: 0 })
   })
 
-  it('call for a Death Save at Trauma 4, or 5 for a Tough, and not below', () => {
+  it('call for a Death Save at Trauma 4, or 5 for a Tough, and not below', async () => {
     const reminder = () => document.querySelector('.lubec-death-save p')?.textContent
     seed({
       tommy: withSheet({ counters: { trauma: 3 } }),
@@ -620,7 +636,7 @@ describe('Lubec counters', () => {
     expect(reminder()).toBe('Trauma has reached 5.')
   })
 
-  it('call for no Death Save while the class is missing', () => {
+  it('call for no Death Save while the class is missing', async () => {
     seed({ tommy: withSheet({ class: { key: null }, counters: { trauma: 9 } }) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -636,7 +652,7 @@ describe('Lubec class record', () => {
   const withStrength = (Strength: number | null, effects: Fields[] = []) =>
     withSheet({ base: { ...((tommyEves().lubec as Fields).base as Fields), Strength }, effects })
 
-  it('shows the class under its name: description, Trauma Response and Melee Strength Mod', () => {
+  it('shows the class under its name: description, Trauma Response and Melee Strength Mod', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -652,7 +668,7 @@ describe('Lubec class record', () => {
     expect(meleeStrengthMod(record)).toBe('+1 Impact')
   })
 
-  it('shows the Class Rule beside the Trauma Response when the class has one', () => {
+  it('shows the Class Rule beside the Trauma Response when the class has one', async () => {
     seed({ tommy: withSheet({ class: { key: 'scout', choices: { statBonus: 'Speed' } } }) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -663,7 +679,7 @@ describe('Lubec class record', () => {
     expect(within(record).getByText('Failed Stat Checks give +2 Stress instead of +1.')).toBeTruthy()
   })
 
-  it('works the Melee Strength Mod out from current Strength, effects included', () => {
+  it('works the Melee Strength Mod out from current Strength, effects included', async () => {
     const training = { id: 'training', name: 'Summer training', cause: 'Hauling traps', steps: [{ modifiers: [{ target: 'Strength', amount: 5 }] }] }
     seed({ tommy: withStrength(35, [training]) })
     mountTab('player', 'player-1')
@@ -673,7 +689,7 @@ describe('Lubec class record', () => {
     expect(meleeStrengthMod(classRecord('Working Kid'))).toBe('+2 Impact')
   })
 
-  it('marks the Melee Strength Mod missing while Strength is a hole', () => {
+  it('marks the Melee Strength Mod missing while Strength is a hole', async () => {
     seed({ tommy: withStrength(null) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -681,7 +697,7 @@ describe('Lubec class record', () => {
     expect(meleeStrengthMod(classRecord('Working Kid'))).toBe('missing')
   })
 
-  it('shows nothing when the class is missing', () => {
+  it('shows nothing when the class is missing', async () => {
     seed({ tommy: withSheet({ class: { key: null } }) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -710,7 +726,7 @@ describe('Lubec Fight panel', () => {
   const walkie = held('wt', 'Walkie-talkie', 1)
   const bat = (minStrength: number) => held('bat', 'Baseball bat', 0, { kind: 'weapon', mode: 'melee', size: 2, minStrength })
 
-  it('shows the prototype\'s collapsed Fight bar, which opens on Effective Handle and, with no gear, two empty hands and Fisticuffs', () => {
+  it('shows the prototype\'s collapsed Fight bar, which opens on Effective Handle and, with no gear, two empty hands and Fisticuffs', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -736,7 +752,7 @@ describe('Lubec Fight panel', () => {
     expect(panel.hidden).toBe(true)
   })
 
-  it('reads the left hand first, with a firearm\'s rounds, and makes only a weapon\'s chip a button; with no free hand there is no Fisticuffs', () => {
+  it('reads the left hand first, with a firearm\'s rounds, and makes only a weapon\'s chip a button; with no free hand there is no Fisticuffs', async () => {
     const panel = openFight([walkie, revolver])
 
     expect(inHand()).toEqual(["Left hand: Grandpa's revolver, 0 of 6Handle 55", 'Right hand: Walkie-talkie'])
@@ -744,26 +760,26 @@ describe('Lubec Fight panel', () => {
     expect(panel.queryByRole('button', { name: /Drop/ })).toBeNull()
   })
 
-  it('offers Fisticuffs with the free hand, which takes its glove off the Handle', () => {
+  it('offers Fisticuffs with the free hand, which takes its glove off the Handle', async () => {
     openFight([walkie, gloves])
 
     expect(inHand()).toEqual(['Empty hand', 'Right hand: Walkie-talkie', 'FisticuffsHandle 55 − 10 gloves = 45'])
   })
 
-  it('shows a weapon in both hands with its Handle terms: the minimum Strength it lacks and the gloves', () => {
+  it('shows a weapon in both hands with its Handle terms: the minimum Strength it lacks and the gloves', async () => {
     openFight([bat(60), gloves])
 
     expect(inHand()).toEqual(['Both hands: Baseball batHandle 55 − 40 min. Strength − 10 gloves = 5'])
   })
 
-  it('says "Cannot handle this" when the terms take the Handle to 0 or less', () => {
+  it('says "Cannot handle this" when the terms take the Handle to 0 or less', async () => {
     openFight([bat(90)])
 
     expect(inHand()).toEqual(['Both hands: Baseball batHandle 55 − 70 min. Strength = −15 Cannot handle this'])
     expect(fightPanel().querySelector('.lubec-cannot-handle')).toBeTruthy()
   })
 
-  it('greys Fisticuffs with both hands full of things that are not weapons, and offers each a free drop', () => {
+  it('greys Fisticuffs with both hands full of things that are not weapons, and offers each a free drop', async () => {
     const panel = openFight([held('th', 'Thermos', 0), walkie])
 
     expect(inHand()).toEqual(['Left hand: ThermosDrop it, free', 'Right hand: Walkie-talkieDrop it, free', 'FisticuffsHands full: drop something first'])
@@ -771,7 +787,7 @@ describe('Lubec Fight panel', () => {
     expect(panel.getAllByRole('button', { name: /, free$/ }).map((b) => b.getAttribute('aria-label'))).toEqual(['Drop Thermos, free', 'Drop Walkie-talkie, free'])
   })
 
-  it('has no Fight bar while the character is still a draft, as the prototype shows it only in play', () => {
+  it('has no Fight bar while the character is still a draft, as the prototype shows it only in play', async () => {
     seed({ tommy: tommyEves({ creationStatus: 'established_draft' }) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -779,7 +795,7 @@ describe('Lubec Fight panel', () => {
     expect(screen.queryByRole('region', { name: 'Fight controls' })).toBeNull()
   })
 
-  it('caps Effective Handle at 100', () => {
+  it('caps Effective Handle at 100', async () => {
     seed({ tommy: withSheet({ base: { ...((tommyEves().lubec as Fields).base as Fields), Handle: 120 } }) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -788,7 +804,7 @@ describe('Lubec Fight panel', () => {
     expect(effectiveHandle()).toBe('100')
   })
 
-  it('shows Effective Handle as missing when Handle is a hole', () => {
+  it('shows Effective Handle as missing when Handle is a hole', async () => {
     seed({ tommy: withSheet({ base: { ...((tommyEves().lubec as Fields).base as Fields), Handle: null } }) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -866,7 +882,7 @@ describe('Lubec fight modal', () => {
     expect(mocks.setDoc).not.toHaveBeenCalled()
   })
 
-  it('lists six steps with only Weapon and Target live, and stops at Next: attack', () => {
+  it('lists six steps with only Weapon and Target live, and stops at Next: attack', async () => {
     startFight([knife])
     start()
 
@@ -902,7 +918,7 @@ describe('Lubec fight modal', () => {
     expect(modal().getByRole('status').textContent).toContain('It goes to the GM.')
   })
 
-  it('opens on Target with the weapon chosen from a Fight bar chip, and the card\'s "Fight with this"', () => {
+  it('opens on Target with the weapon chosen from a Fight bar chip, and the card\'s "Fight with this"', async () => {
     startFight([knife])
     fireEvent.click(within(opened()).getByRole('button', { name: /Hunting knife/ }))
     expect(modal().getByRole('button', { name: /^Weapon/ }).textContent).toBe('WeaponHunting knife')
@@ -919,14 +935,14 @@ describe('Lubec fight modal', () => {
     expect(modal().getByRole('button', { name: /^Weapon/ }).textContent).toBe('WeaponHunting knife')
   })
 
-  it('closes on Escape', () => {
+  it('closes on Escape', async () => {
     startFight([knife])
     start()
     fireEvent.keyDown(fightDialog() as HTMLElement, { key: 'Escape' })
     expect(fightDialog()).toBeNull()
   })
 
-  it('offers no way in to a viewer who may not fight as the character', () => {
+  it('offers no way in to a viewer who may not fight as the character', async () => {
     seed({ tommy: withSheet(gearOf(knife)) })
     mountTab('player', 'player-2')
     openSheet('Tommy Eves')
@@ -936,7 +952,7 @@ describe('Lubec fight modal', () => {
     expect(within(opened()).queryByRole('button', { name: /Fisticuffs/ })).toBeNull()
   })
 
-  it('reads the NPCs and their sheets only for the GM, and only while the modal is open', () => {
+  it('reads the NPCs and their sheets only for the GM, and only while the modal is open', async () => {
     const npcsPath = 'groups/group-1/campaigns/campaign-1/npcs'
     startFight([knife], 'gm', GM)
     expect(mocks.listeners[npcsPath]).toBeUndefined()
@@ -946,7 +962,7 @@ describe('Lubec fight modal', () => {
     expect(mocks.listeners[npcsPath]).toBeUndefined()
   })
 
-  it('never reads the NPCs for a player', () => {
+  it('never reads the NPCs for a player', async () => {
     startFight([knife])
     start()
     expect(mocks.listeners['groups/group-1/campaigns/campaign-1/npcs']).toBeUndefined()
@@ -954,7 +970,7 @@ describe('Lubec fight modal', () => {
 })
 
 describe('Lubec name band', () => {
-  it('lets the owner of a finalized character change its name and age, kept through a reload', () => {
+  it('lets the owner of a finalized character change its name and age, kept through a reload', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     const editor = openNameBand('Tommy Eves')
@@ -963,7 +979,7 @@ describe('Lubec name band', () => {
     typeInto(editor, 'Age', '13')
 
     expect(screen.getByRole('heading', { level: 2, name: 'Tom Eves' })).toBeTruthy()
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     const sheet = openSheet('Tom Eves')
     expect(database.tommy.name).toBe('Tom Eves')
     expect((database.tommy.lubec as Fields).age).toBe(13)
@@ -971,21 +987,21 @@ describe('Lubec name band', () => {
     expect(sheet.querySelector('.lubec-kid-age')?.textContent).toBe('Age 13')
   })
 
-  it('keeps the player name inside the stored sheet, kept through a reload', () => {
+  it('keeps the player name inside the stored sheet, kept through a reload', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     const editor = openNameBand('Tommy Eves')
 
     typeInto(editor, 'Player name', 'Eves')
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     const reopened = openNameBand('Tommy Eves')
     expect((within(reopened).getByLabelText('Player name') as HTMLInputElement).value).toBe('Eves')
     expect((database.tommy.lubec as Fields).playerName).toBe('Eves')
     expect(database.tommy).not.toHaveProperty('playerName')
   })
 
-  it('keeps age a whole number or empty', () => {
+  it('keeps age a whole number or empty', async () => {
     seed({ tommy: withSheet({ age: 12 }) })
     mountTab('player', 'player-1')
     const editor = openNameBand('Tommy Eves')
@@ -996,25 +1012,25 @@ describe('Lubec name band', () => {
     typeInto(editor, 'Age', '')
 
     expect(age.value).toBe('')
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     const sheet = openSheet('Tommy Eves')
     expect((database.tommy.lubec as Fields).age).toBeNull()
     expect(sheet.querySelector('.lubec-kid-age')).toBeNull()
   })
 
-  it('lets the GM change a player\'s character\'s name', () => {
+  it('lets the GM change a player\'s character\'s name', async () => {
     seed({ tommy: tommyEves() })
     mountTab('gm', GM)
     const editor = openNameBand('Tommy Eves')
 
     typeInto(editor, 'Character name', 'Thomas Eves')
 
-    reload('gm', GM)
+    await reload('gm', GM)
     expect(database.tommy.name).toBe('Thomas Eves')
     expect(database.tommy.ownerUserId).toBe('player-1')
   })
 
-  it('offers a player no edits on someone else\'s character', () => {
+  it('offers a player no edits on someone else\'s character', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-2')
 
@@ -1024,7 +1040,7 @@ describe('Lubec name band', () => {
     expect(within(sheet).queryByRole('region', { name: 'Character identity' })).toBeNull()
   })
 
-  it('closes the edits with Done', () => {
+  it('closes the edits with Done', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     const editor = openNameBand('Tommy Eves')
@@ -1046,7 +1062,7 @@ describe('Lubec name band', () => {
       file, collectionName: 'characters', entityId: 'tommy', mediaKind: 'portraits', uploadAuthority: 'owner',
     }))
     expect(bandPortrait('Tommy Eves').getByRole('img', { name: 'Tommy Eves portrait' }).getAttribute('src')).toBe('https://media.test/uploaded/portrait.png')
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     await flushMicrotasks()
     openSheet('Tommy Eves')
     expect(database.tommy.portraitPath).toBe('uploaded/portrait.png')
@@ -1065,7 +1081,7 @@ describe('Lubec name band', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
 
     expect(bandPortrait('Tommy Eves').getByRole('img', { name: 'No photo yet' })).toBeTruthy()
-    reload('gm', GM)
+    await reload('gm', GM)
     expect(database.tommy.portraitPath).toBe('')
 
     const reopened = openNameBand('Tommy Eves')
@@ -1073,7 +1089,7 @@ describe('Lubec name band', () => {
     await choosePortrait(reopened, imageFile('replacement.png'))
 
     expect(mocks.uploadEntityImage).toHaveBeenCalledWith(expect.objectContaining({ mediaKind: 'portraits', uploadAuthority: undefined }))
-    reload('gm', GM)
+    await reload('gm', GM)
     expect(database.tommy.portraitPath).toBe('uploaded/replacement.png')
     expect(database.tommy).not.toHaveProperty('portraitUrl')
   })
@@ -1092,7 +1108,7 @@ describe('Lubec name band', () => {
     fireEvent.click(within(picker).getByRole('button', { name: 'Confirm' }))
 
     expect(mocks.uploadEntityImage).toHaveBeenCalledWith(expect.objectContaining({ mediaKind: 'token-icons', uploadAuthority: 'owner' }))
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     expect(database.tommy.tokenIcon).toEqual({ icon: 'custom', color: '#c08a2e', size: 34, customImagePath: 'uploaded/token.png', customImageName: 'token' })
   })
 })
@@ -1115,7 +1131,7 @@ async function setTokenImage(name: string, file: File) {
 }
 
 describe('Lubec map token', () => {
-  it('shows a viewer the token in its colour beside the portrait, with nothing to edit', () => {
+  it('shows a viewer the token in its colour beside the portrait, with nothing to edit', async () => {
     seed({ tommy: tommyEves({ tokenIcon: { icon: 'pawn', color: '#174b58', size: 34 } }) })
     mountTab('player', 'player-2')
     openSheet('Tommy Eves')
@@ -1126,7 +1142,7 @@ describe('Lubec map token', () => {
     expect(bandToken('Tommy Eves').queryByRole('button')).toBeNull()
   })
 
-  it('gives a character with no stored token the Lubec pawn', () => {
+  it('gives a character with no stored token the Lubec pawn', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-2')
     openSheet('Tommy Eves')
@@ -1157,14 +1173,14 @@ describe('Lubec map token', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(mocks.uploadEntityImage).toHaveBeenCalledWith(expect.objectContaining({ entityId: 'tommy', mediaKind: 'token-icons', uploadAuthority: 'owner' }))
     expect(tokenImageSrc('Tommy Eves')).toBe('https://media.test/uploaded/token.png')
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     await flushMicrotasks()
     openSheet('Tommy Eves')
     expect(database.tommy.tokenIcon).toEqual({ icon: 'custom', color: '#c08a2e', size: 34, customImagePath: 'uploaded/token.png', customImageName: 'token' })
     expect(tokenImageSrc('Tommy Eves')).toBe('https://media.test/uploaded/token.png')
   })
 
-  it('lets the GM recolour a player\'s token from the sheet', () => {
+  it('lets the GM recolour a player\'s token from the sheet', async () => {
     seed({ tommy: tommyEves() })
     mountTab('gm', GM)
     openSheet('Tommy Eves')
@@ -1173,12 +1189,12 @@ describe('Lubec map token', () => {
     fireEvent.change(within(screen.getByRole('dialog')).getByLabelText('Token color'), { target: { value: '#a34229' } })
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm' }))
 
-    reload('gm', GM)
+    await reload('gm', GM)
     expect(database.tommy.tokenIcon).toEqual({ icon: 'pawn', color: '#a34229', size: 34 })
     expect(database.tommy.ownerUserId).toBe('player-1')
   })
 
-  it('keeps the token as it was when the picker is cancelled', () => {
+  it('keeps the token as it was when the picker is cancelled', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -1189,7 +1205,7 @@ describe('Lubec map token', () => {
 
     expect(screen.queryByRole('dialog')).toBeNull()
     expect((sheetToken('Tommy Eves').querySelector('.token-pawn-preview') as HTMLElement).style.color).toBe('rgb(192, 138, 46)')
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     expect(database.tommy).not.toHaveProperty('tokenIcon')
   })
 })
@@ -1222,7 +1238,7 @@ describe('Lubec active effects', () => {
   const writtenEffects = (id = 'tommy') => parseLubecCharacter(id, database[id]).lubec.effects
 
   async function flushSave() {
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     await flushMicrotasks()
   }
 
@@ -1275,7 +1291,7 @@ describe('Lubec active effects', () => {
     expect(new Set(writtenEffects().map((effect) => effect.id)).size).toBe(2)
   })
 
-  it('floors a value at 0 under a large penalty, and keeps a hole a hole whatever the effects', () => {
+  it('floors a value at 0 under a large penalty, and keeps a hole a hole whatever the effects', async () => {
     const crushed = { id: 'crushed', name: 'Crushed hand', cause: 'Boat winch', steps: [{ modifiers: [{ target: 'Handle', amount: -80 }, { target: 'Speed', amount: -10 }] }] }
     seed({ tommy: withSheet({ base: { Strength: 24, Speed: null, Intellect: 38, Handle: 50, Charm: 48, Sanity: 20, Fear: 24, Body: 21 }, effects: [crushed] }) })
     mountTab('player', 'player-1')
@@ -1288,7 +1304,7 @@ describe('Lubec active effects', () => {
     expect(valuesOf('Strength')).toEqual(['29', '24 +5 class'])
   })
 
-  it('shows a stored effect with no steps by its name alone, and an empty next step as nothing', () => {
+  it('shows a stored effect with no steps by its name alone, and an empty next step as nothing', async () => {
     const note = { id: 'note', name: 'Owes Wayne a favour', cause: 'Borrowed his bike', steps: [] }
     const fading = { id: 'fading', name: 'Sunburn', cause: 'Fell asleep on the dock', steps: [{ labels: ['Sore'] }, {}] }
     seed({ tommy: withSheet({ effects: [note, fading] }) })
@@ -1316,7 +1332,7 @@ describe('Lubec active effects', () => {
       cause: 'Severe Concussion (failed Body Save)',
       steps: [{ modifiers: [{ target: 'Handle', amount: -40 }], labels: ['Dazed'] }, { modifiers: [{ target: 'Handle', amount: -10 }], labels: [] }],
     }])
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Tommy Eves')
     expect(effectLines()).toEqual([['Severe Concussion', 'Handle -40, Dazed', 'then Handle -10']])
     expect(valuesOf('Handle')).toEqual(['15', '50 +5 class -40 effect'])
@@ -1328,7 +1344,7 @@ describe('Lubec active effects', () => {
     await flushSave()
     expect(writtenEffects()[0].steps).toEqual([{ modifiers: [{ target: 'Handle', amount: -10 }], labels: [] }])
     expect(writtenEffects()[0].cause).toBe('Severe Concussion (failed Body Save)')
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Tommy Eves')
     expect(effectLines()).toEqual([['Severe Concussion', 'Handle -10']])
 
@@ -1338,7 +1354,7 @@ describe('Lubec active effects', () => {
     expect(valuesOf('Handle')).toEqual(['55', '50 +5 class'])
     await flushSave()
     expect(writtenEffects()).toEqual([])
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Tommy Eves')
     expect(within(effectsRegion()).getByText('No active effects.')).toBeTruthy()
   })
@@ -1398,7 +1414,7 @@ describe('Lubec active effects', () => {
     expect(writtenEffects().map((effect) => effect.id)).toEqual(['bruise'])
   })
 
-  it('cannot add an effect without a name', () => {
+  it('cannot add an effect without a name', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -1452,7 +1468,7 @@ describe('Lubec Skills page', () => {
     vi.useRealTimers()
   })
 
-  it('shows all 27 Trained and 27 Expert skills as the prototype\'s tree to read, with the character\'s skills filled in', () => {
+  it('shows all 27 Trained and 27 Expert skills as the prototype\'s tree to read, with the character\'s skills filled in', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
 
@@ -1471,7 +1487,7 @@ describe('Lubec Skills page', () => {
     expect(packageProgress()).toBe('Your skills are filled in')
   })
 
-  it('reads a skill from its name: the detail bar, its wires\' ends lit, and a second click puts the hint back', () => {
+  it('reads a skill from its name: the detail bar, its wires\' ends lit, and a second click puts the hint back', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSkillsPage('Tommy Eves')
@@ -1505,7 +1521,7 @@ describe('Lubec Skills page', () => {
     expect(detailLines()).toEqual(['Click a name to read it and see its connections.'])
   })
 
-  it('wires each Trained skill to the Experts it unlocks, and lights the focused skill\'s wires on top', () => {
+  it('wires each Trained skill to the Experts it unlocks, and lights the focused skill\'s wires on top', async () => {
     const observed: Element[] = []
     vi.stubGlobal('ResizeObserver', class {
       constructor(private readonly draw: () => void) {}
@@ -1532,13 +1548,13 @@ describe('Lubec Skills page', () => {
     expect(hot.map((wire) => wire.getAttribute('marker-end'))).toEqual(['url(#lubec-skill-arrow-hot)', 'url(#lubec-skill-arrow-hot)'])
   })
 
-  it('offers no skill choices on a finalized character, even to its owner and the GM', () => {
+  it('offers no skill choices on a finalized character, even to its owner and the GM', async () => {
     seed({ tommy: tommyEves() })
     mountTab('gm', GM)
 
     openSkillsPage('Tommy Eves')
     fireEvent.click(skillDot('Hunting'))
-    sendSaves()
+    await sendSaves()
 
     expect(choosableDots()).toEqual([])
     expect(freeChips()).toEqual([])
@@ -1546,7 +1562,7 @@ describe('Lubec Skills page', () => {
     expect(treeMarks()).toEqual([['Swimming', 'on'], ['Diving', 'on'], ['Boatwork', 'on']])
   })
 
-  it('goes back to the Core page from the detail bar, bringing the skill strip into view', () => {
+  it('goes back to the Core page from the detail bar, bringing the skill strip into view', async () => {
     const scrollIntoView = vi.fn()
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
     Element.prototype.scrollIntoView = scrollIntoView
@@ -1565,7 +1581,7 @@ describe('Lubec Skills page', () => {
     expect(scrollIntoView.mock.contexts[0]).toBe(strip)
   })
 
-  it('lets the owner choose the free class skill from its chips and add or remove picks with the dots, storing names only', () => {
+  it('lets the owner choose the free class skill from its chips and add or remove picks with the dots, storing names only', async () => {
     seed({ tommy: draft({ skills: { free: null, picked: [] } }) })
     mountTab('player', 'player-1')
     openSkillsPage('Tommy Eves')
@@ -1586,7 +1602,7 @@ describe('Lubec Skills page', () => {
     fireEvent.click(skillDot('Diving'))
     fireEvent.click(skillDot('Swimming'))
     fireEvent.click(skillDot('Foraging'))
-    sendSaves()
+    await sendSaves()
 
     expect(storedSkills('tommy')).toEqual({ free: 'Tides & Flats', picked: ['Diving', 'Foraging'] })
     expect(skillDot('Diving').getAttribute('aria-pressed')).toBe('true')
@@ -1602,28 +1618,28 @@ describe('Lubec Skills page', () => {
     expect(detailLines()[0]).toBe('ForagingExpert +15Chosen')
   })
 
-  it('takes the first dot from the class\'s free list as the free class skill, and clears it from its dot or its chip', () => {
+  it('takes the first dot from the class\'s free list as the free class skill, and clears it from its dot or its chip', async () => {
     seed({ tommy: draft({ skills: { free: null, picked: ['Swimming'] } }) })
     mountTab('player', 'player-1')
     openSkillsPage('Tommy Eves')
 
     fireEvent.click(skillDot('Boatwork'))
-    sendSaves()
+    await sendSaves()
     expect(storedSkills('tommy')).toEqual({ free: 'Boatwork', picked: ['Swimming'] })
     expect(detailLines()[0]).toBe('BoatworkTrained +10Class skill')
 
     fireEvent.click(skillDot('Jury-Rigging'))
     fireEvent.click(skillDot('Boatwork'))
-    sendSaves()
+    await sendSaves()
     expect(storedSkills('tommy')).toEqual({ free: null, picked: ['Swimming', 'Jury-Rigging'] })
 
     fireEvent.click(freeChip('Tides & Flats'))
     fireEvent.click(freeChip('Tides & Flats'))
-    sendSaves()
+    await sendSaves()
     expect(storedSkills('tommy')).toEqual({ free: null, picked: ['Swimming', 'Jury-Rigging'] })
   })
 
-  it('lets the GM change the skills on a player\'s draft, and no other player', () => {
+  it('lets the GM change the skills on a player\'s draft, and no other player', async () => {
     seed({ tommy: draft({}, { creationMode: 'established', creationStatus: 'established_draft' }) })
     mountTab('gm', GM)
     openSkillsPage('Tommy Eves')
@@ -1631,11 +1647,11 @@ describe('Lubec Skills page', () => {
 
     fireEvent.click(skillDot('Diving'))
     fireEvent.click(skillDot('Driving'))
-    sendSaves()
+    await sendSaves()
 
     expect(storedSkills('tommy')).toEqual({ free: 'Boatwork', picked: ['Swimming', 'Driving'] })
 
-    reload('player', 'player-2')
+    await reload('player', 'player-2')
     openSkillsPage('Tommy Eves')
 
     expect(freeChips()).toEqual([])
@@ -1643,7 +1659,7 @@ describe('Lubec Skills page', () => {
     expect(treeMarks()).toEqual([['Swimming', 'on'], ['Boatwork', 'on'], ['Driving', 'on']])
   })
 
-  it('takes the Nerd package as the free skill, 1 Trained and 2 Expert with one Expert off the chosen Trained skill, and keeps it through a reload', () => {
+  it('takes the Nerd package as the free skill, 1 Trained and 2 Expert with one Expert off the chosen Trained skill, and keeps it through a reload', async () => {
     seed({ ada: draft({ class: { key: 'nerd', choices: { statPenalty: 'Charm' } }, skills: { free: null, picked: [] } }, { name: 'Ada Mitchell' }) })
     mountTab('player', 'player-1')
     openSkillsPage('Ada Mitchell')
@@ -1655,14 +1671,14 @@ describe('Lubec Skills page', () => {
     fireEvent.click(skillDot('Art'))
     fireEvent.click(skillDot('Science Fair Champ'))
     fireEvent.click(skillDot('Forgery'))
-    sendSaves()
+    await sendSaves()
 
     expect(storedSkills('ada')).toEqual({ free: 'Science', picked: ['Art', 'Science Fair Champ', 'Forgery'] })
     const skillWarnings = lubecRuleWarnings(parseLubecCharacter('ada', database.ada).lubec)
       .filter((warning) => ['free-skill', 'package', 'prerequisite'].includes(warning.code))
     expect(skillWarnings).toEqual([])
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSkillsPage('Ada Mitchell')
 
     expect(freeChips()).toEqual([['Electronics & Radio', 'false'], ['Science', 'true'], ['History & Geography', 'false']])
@@ -1674,7 +1690,7 @@ describe('Lubec Skills page', () => {
     expect(packageProgress()).toBe('Package complete')
   })
 
-  it('names a stored skill the tree does not have, counting for nothing, and keeps it through a save', () => {
+  it('names a stored skill the tree does not have, counting for nothing, and keeps it through a save', async () => {
     seed({ tommy: draft({ skills: { free: 'Knot Tying', picked: ['Swimming', 'Whittling'] } }) })
     mountTab('player', 'player-1')
     openSkillsPage('Tommy Eves')
@@ -1689,16 +1705,16 @@ describe('Lubec Skills page', () => {
     expect(freeChips().map(([, pressed]) => pressed)).toEqual(['false', 'false', 'false'])
 
     fireEvent.click(skillDot('Diving'))
-    sendSaves()
+    await sendSaves()
 
     expect(storedSkills('tommy')).toEqual({ free: 'Knot Tying', picked: ['Swimming', 'Whittling', 'Diving'] })
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSkillsPage('Tommy Eves')
     expect(document.querySelector('.skill-detail .msg')?.textContent).toBe('Not on the tree, counting for nothing: Knot Tying, Whittling')
     expect(treeMarks()).toEqual([['Swimming', 'on'], ['Diving', 'on']])
   })
 
-  it('shows no package panel or progress while the class is a hole, and the dots still choose', () => {
+  it('shows no package panel or progress while the class is a hole, and the dots still choose', async () => {
     seed({ tommy: draft({ class: { key: null, choices: {} }, skills: { free: null, picked: [] } }) })
     mountTab('player', 'player-1')
     openSkillsPage('Tommy Eves')
@@ -1708,7 +1724,7 @@ describe('Lubec Skills page', () => {
     expect(nodesWith('suggested')).toEqual([])
 
     fireEvent.click(skillDot('Boatwork'))
-    sendSaves()
+    await sendSaves()
 
     expect(storedSkills('tommy')).toEqual({ free: null, picked: ['Boatwork'] })
   })
@@ -1733,7 +1749,7 @@ const backToRoster = () => fireEvent.click(screen.getByRole('button', { name: 'B
 
 /** Lets the store's half-second save come due and land. */
 async function settleSaves() {
-  act(() => { vi.advanceTimersByTime(500) })
+  await act(async () => { await vi.advanceTimersByTimeAsync(500) })
   await flushMicrotasks()
 }
 
@@ -1754,7 +1770,7 @@ describe('New character and Direct entry', () => {
     vi.useRealTimers()
   })
 
-  it('offers only the doors that exist when a player starts a new character', () => {
+  it('offers only the doors that exist when a player starts a new character', async () => {
     mountTab('player', 'player-1')
 
     fireEvent.click(screen.getByRole('button', { name: 'New character' }))
@@ -1806,7 +1822,7 @@ describe('New character and Direct entry', () => {
     expect(database[id]).toMatchObject({ ownerUserId: GM, creationStatus: 'established_draft', lubec: { door: 'direct' } })
   })
 
-  it('offers no New character to a viewer with no role in the campaign', () => {
+  it('offers no New character to a viewer with no role in the campaign', async () => {
     const LubecSheet = ruleSetSheets.lubec
     render(<LubecSheet campaign={campaign} role={null} user={{ uid: 'stranger' } as User} username="viewer1" setError={vi.fn()} characterTabProps={null} />)
 
@@ -1833,7 +1849,7 @@ describe('New character and Direct entry', () => {
     expect(stored('ada').lubec.class.key).toBe('working')
   })
 
-  it('offers the five class cards, each with its modifiers, free skill, description and its own choice, and no Trauma Response yet', () => {
+  it('offers the five class cards, each with its modifiers, free skill, description and its own choice, and no Trauma Response yet', async () => {
     seed({ ada: directDraft() })
     mountTab('player', 'player-1')
     openSheet('Ada Mitchell')
@@ -1908,7 +1924,7 @@ describe('New character and Direct entry', () => {
     expect(valuesOf('Speed')).toEqual(['', ''])
     expect(valuesOf('Handle')).toEqual(['12.5', ''])
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Ada Mitchell')
 
     expect(valuesOf('Speed')).toEqual(['', ''])
@@ -1944,13 +1960,13 @@ describe('New character and Direct entry', () => {
 
     expect(stored('ada').lubec.base.Body).toBe(21)
 
-    database.ada = { ...database.ada, lubec: { ...(directDraft().lubec as Fields), base: { Body: 33 } } }
-    emitDatabase()
+    database.ada = { ...database.ada, sheetRevision: Number(database.ada.sheetRevision) + 1, lubec: { ...(directDraft().lubec as Fields), base: { Body: 33 } } }
+    await act(async () => { emitDatabase() })
 
     expect(baseInput('Body').value).toBe('33')
   })
 
-  it('gives a player no fields on someone else\'s draft, and nobody fields on a finalized character', () => {
+  it('gives a player no fields on someone else\'s draft, and nobody fields on a finalized character', async () => {
     seed({ ada: directDraft({ ownerUserId: 'player-2' }), tommy: tommyEves() })
     mountTab('player', 'player-1')
 
@@ -2088,7 +2104,7 @@ describe('New character and Direct entry', () => {
     expect(droppedItems).toEqual({})
   })
 
-  it('gives a player a Delete on their own characters and none on anyone else\'s, draft or finalized', () => {
+  it('gives a player a Delete on their own characters and none on anyone else\'s, draft or finalized', async () => {
     seed({
       tommy: tommyEves(),
       ada: directDraft({ ownerUserId: 'player-2' }),
@@ -2131,7 +2147,7 @@ describe('Give to Player', () => {
     window.innerWidth = 1440
   })
 
-  it('gives the GM a Give to Player on every sheet, draft or finalized, their own included, and a player none', () => {
+  it('gives the GM a Give to Player on every sheet, draft or finalized, their own included, and a player none', async () => {
     seed({
       tommy: tommyEves(),
       ada: directDraft({ ownerUserId: 'player-2', ownerUsername: 'adamitc' }),
@@ -2144,14 +2160,14 @@ describe('Give to Player', () => {
       expect(giveButton()).toBeTruthy()
     }
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     for (const name of ['Tommy Eves', 'Ada Mitchell']) {
       openSheet(name)
       expect(giveButton()).toBeNull()
     }
   })
 
-  it('lets the GM give a draft they made to a player, who then sees it, can type into it and delete it, and writes nothing on Cancel', () => {
+  it('lets the GM give a draft they made to a player, who then sees it, can type into it and delete it, and writes nothing on Cancel', async () => {
     vi.useFakeTimers()
     seed({
       tommy: tommyEves(),
@@ -2165,7 +2181,7 @@ describe('Give to Player', () => {
     expect(within(screen.getByRole('dialog')).getByText('Wayne Gardner')).toBeTruthy()
     expect(offeredPlayers()).toEqual([['adamitc', true], ['tommyev', false]])
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
-    sendSaves()
+    await sendSaves()
 
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(mocks.setDoc).not.toHaveBeenCalled()
@@ -2173,20 +2189,20 @@ describe('Give to Player', () => {
     fireEvent.click(giveButton() as HTMLElement)
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('radio', { name: 'tommyev' }))
     confirmGive()
-    sendSaves()
+    await sendSaves()
 
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(database.wayne).toMatchObject({ ownerUserId: 'player-1', ownerUsername: 'tommyev', creationStatus: 'established_draft' })
     expect(ownerOnCard('Wayne Gardner')).toBe('tommyev')
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     expect(rosterNames()).toContain('Wayne Gardner')
     openSheet('Wayne Gardner')
     expect(baseInput('Strength')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Delete draft' })).toBeTruthy()
   })
 
-  it('hands a finalized character over: the new owner can edit and delete it, and the old owner no longer can', () => {
+  it('hands a finalized character over: the new owner can edit and delete it, and the old owner no longer can', async () => {
     vi.useFakeTimers()
     seed({ tommy: tommyEves(), ada: directDraft({ ownerUserId: 'player-2', ownerUsername: 'adamitc' }) })
     mountTab('gm', GM)
@@ -2195,18 +2211,18 @@ describe('Give to Player', () => {
     fireEvent.click(giveButton() as HTMLElement)
     expect(offeredPlayers()).toEqual([['adamitc', true]])
     confirmGive()
-    sendSaves()
+    await sendSaves()
 
     expect(database.tommy).toMatchObject({ ownerUserId: 'player-2', ownerUsername: 'adamitc', creationStatus: 'active' })
     expect(ownerOnCard('Tommy Eves')).toBe('adamitc')
 
-    reload('player', 'player-2')
+    await reload('player', 'player-2')
     let sheet = openSheet('Tommy Eves')
     expect(within(sheet).getByRole('button', { name: 'Edit name band' })).toBeTruthy()
     expect(within(sheet).getByRole('button', { name: 'Delete character' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Delete Tommy Eves' })).toBeTruthy()
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     sheet = openSheet('Tommy Eves')
     expect(within(sheet).queryByRole('button', { name: 'Edit name band' })).toBeNull()
     expect(within(sheet).queryByRole('button', { name: 'Delete character' })).toBeNull()
@@ -2233,7 +2249,7 @@ describe('Lubec roller', () => {
   const shownStatus = () => document.querySelector('.abilities .status')?.textContent
 
   async function flushSave() {
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     await flushMicrotasks()
   }
 
@@ -2318,7 +2334,7 @@ describe('Lubec roller', () => {
   const pressedMode = () => within(screen.getByLabelText('Advantage')).getAllByRole('button')
     .filter((button) => button.getAttribute('aria-pressed') === 'true').map((button) => button.textContent)
 
-  it('puts Advantage and Disadvantage back to Normal once a Stat Check or Save is rolled with it', () => {
+  it('puts Advantage and Disadvantage back to Normal once a Stat Check or Save is rolled with it', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -2341,7 +2357,7 @@ describe('Lubec roller', () => {
     expect(pressedMode()).toEqual(['Normal'])
   })
 
-  it('turns the mode off when it is pressed again before a roll', () => {
+  it('turns the mode off when it is pressed again before a roll', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -2358,7 +2374,7 @@ describe('Lubec roller', () => {
     expect(shownStatus()).toBe('Speed: 40 vs 56 - success.')
   })
 
-  it('keeps the mode set when a result is only cleared, and never brings it back after a reload', () => {
+  it('keeps the mode set when a result is only cleared, and never brings it back after a reload', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -2370,7 +2386,7 @@ describe('Lubec roller', () => {
     expect(shownStatus()).toBe('Speed check cleared. Score unchanged.')
     expect(pressedMode()).toEqual(['Advantage'])
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Tommy Eves')
     expect(pressedMode()).toEqual(['Normal'])
   })
@@ -2406,7 +2422,7 @@ describe('Lubec roller', () => {
     expect(shownStatus()).toBe('Intellect: 50 vs 43 - failure, +1 Stress.')
   })
 
-  it('keeps the strip under the Saves to arming skills, leaving the Skills tab to open the tree', () => {
+  it('keeps the strip under the Saves to arming skills, leaving the Skills tab to open the tree', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     const sheet = openSheet('Tommy Eves')
@@ -2422,7 +2438,7 @@ describe('Lubec roller', () => {
     expect(within(sheet).getByRole('region', { name: 'Skill tree' })).toBeTruthy()
   })
 
-  it('disarms a skill tapped a second time', () => {
+  it('disarms a skill tapped a second time', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -2498,7 +2514,7 @@ describe('Lubec roller', () => {
     seedRolls(33)
     roll('Strength')
     await flushSave()
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Tommy Eves')
 
     expect(shownCounters().stress).toBe('3')
@@ -2507,7 +2523,7 @@ describe('Lubec roller', () => {
     expect(shownStatus()).toBe('Strength: 33 vs 29 - critical failure, +1 Stress.')
   })
 
-  it('spins the circle before it shows the result, where motion is allowed, with every circle held until it lands', () => {
+  it('spins the circle before it shows the result, where motion is allowed, with every circle held until it lands', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
@@ -2523,9 +2539,9 @@ describe('Lubec roller', () => {
     expect([...document.querySelectorAll('button.roll-circle')].every((circle) => (circle as HTMLButtonElement).disabled)).toBe(true)
 
     // Each preview's timer is set once the last one has shown, so the spin is let run a step at a time.
-    for (let step = 0; step < 11; step += 1) act(() => vi.advanceTimersByTime(500))
+    for (let step = 0; step < 11; step += 1) await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     expect(circleOf('Strength').className).toBe('roll-circle rolling')
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
 
     expect(valuesOf('Strength')).toEqual(['12/29', '24 +5 class'])
     expect(circleOf('Strength').className).toBe('roll-circle has-value check-success')
@@ -2533,7 +2549,7 @@ describe('Lubec roller', () => {
     expect(circleOf('Speed').disabled).toBe(false)
   })
 
-  it('adds a failed check\'s Stress only as its number lands, with the Stress buttons shut while it spins', () => {
+  it('adds a failed check\'s Stress only as its number lands, with the Stress buttons shut while it spins', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
@@ -2547,7 +2563,7 @@ describe('Lubec roller', () => {
       expect(circleOf('Strength').className).toBe('roll-circle rolling')
       expect(shownCounters().stress).toBe('2')
       expect((screen.getByRole('button', { name: 'Raise Stress' }) as HTMLButtonElement).disabled).toBe(true)
-      act(() => vi.advanceTimersByTime(500))
+      await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     }
 
     expect(valuesOf('Strength')).toEqual(['30/29', '24 +5 class'])
@@ -2555,7 +2571,7 @@ describe('Lubec roller', () => {
     expect((screen.getByRole('button', { name: 'Raise Stress' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('spins a ghost for the second die under Disadvantage, shows "done" once both settle, then merges it into the kept die', () => {
+  it('spins a ghost for the second die under Disadvantage, shows "done" once both settle, then merges it into the kept die', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
@@ -2573,21 +2589,21 @@ describe('Lubec roller', () => {
       expect(ghostOf('Speed')?.textContent).toMatch(/^\d+\/56$/)
       expect(ghostOf('Speed')?.getAttribute('aria-hidden')).toBe('true')
       expect(doneOf('Speed')).toBeNull()
-      act(() => vi.advanceTimersByTime(500))
+      await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     }
 
     expect(circleOf('Speed').className).toBe('roll-circle rolling')
     expect([circleNumberOf('Speed'), ghostOf('Speed')?.textContent, doneOf('Speed')?.textContent]).toEqual(['23/56', '71/56', 'done'])
     expect(shownStatus()).toBe('Rolling Speed check... done')
     expect(shownCounters().stress).toBe('2')
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
 
     expect(circleNumberOf('Speed')).toBe('71/56')
     expect(ghostOf('Speed')?.className).toBe('roll-circle rolling lubec-roll-ghost merging')
     expect(doneOf('Speed')).toBeNull()
     expect(shownCounters().stress).toBe('2')
     expect(pressedMode()).toEqual(['Disadvantage'])
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
 
     expect(pressedMode()).toEqual(['Normal'])
     expect((rollerButton('Normal') as HTMLButtonElement).disabled).toBe(false)
@@ -2598,7 +2614,7 @@ describe('Lubec roller', () => {
     expect(shownCounters().stress).toBe('3')
   })
 
-  it('marks a double that succeeds a critical success', () => {
+  it('marks a double that succeeds a critical success', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -2686,7 +2702,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
   const effectiveHandle = () => document.querySelector('.lubec-effective-handle')?.textContent
 
   async function flushSave() {
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     await flushMicrotasks()
   }
 
@@ -2757,7 +2773,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect(writtenSheet().effects).toEqual([expect.objectContaining({ name: 'OVERWHEMED', cause: 'Panic Check (rolled 4)' })])
     expect(writtenSheet().counters.minimumStress).toBe(3)
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Tommy Eves')
     expect(panicResult()).toBeNull()
     expect(shownCounters()).toEqual({ stress: '4', minimumStress: '3', trauma: '0' })
@@ -2783,7 +2799,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     await flushSave()
     expect(writtenSheet()).toMatchObject({ counters: { stress: 4, minimumStress: 2 }, effects: [], lastRoll: { result: 2, effectRolls: null, dismissed: true } })
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Tommy Eves')
     expect(panicResult()).toBeNull()
     expect(shownStatus()).toBe('Panic Check: 2 vs Stress 4 - failure.')
@@ -2805,12 +2821,12 @@ describe('Lubec Panic Check and Recovery Save', () => {
     await flushSave()
     expect(writtenSheet().lastRoll).toMatchObject({ result: 5, dismissed: false })
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Tommy Eves')
     expect(shownPanicResult()[0]).toBe('05 COWARD')
   })
 
-  it('keeps a cleared Panic number cleared when its row is then added or dismissed', () => {
+  it('keeps a cleared Panic number cleared when its row is then added or dismissed', async () => {
     seed({ tommy: stressed(6) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -2869,7 +2885,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect(writtenSheet().effects).toEqual([])
   })
 
-  it('spins a d20 on the Panic circle before it lands, where motion is allowed, and clears it with a tap', () => {
+  it('spins a d20 on the Panic circle before it lands, where motion is allowed, and clears it with a tap', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
     seed({ tommy: stressed(5) })
     mountTab('player', 'player-1')
@@ -2883,7 +2899,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect(panicCircle().textContent).toMatch(/\/5$/)
     expect(shownStatus()).toBe('Rolling Panic Check...')
     expect([...document.querySelectorAll('button.roll-circle')].every((circle) => (circle as HTMLButtonElement).disabled)).toBe(true)
-    for (let step = 0; step < 12; step += 1) act(() => vi.advanceTimersByTime(500))
+    for (let step = 0; step < 12; step += 1) await act(async () => { await vi.advanceTimersByTimeAsync(500) })
 
     expect(panicCircle().textContent).toBe('4/5')
     expect(panicCircle().className).toBe('roll-circle has-value check-failure')
@@ -2895,14 +2911,14 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect(shownPanicResult()[0]).toBe('04 OVERWHEMED')
   })
 
-  it('shows a failed Panic Check\'s row only as its number lands, holding the last row back while it spins', () => {
+  it('shows a failed Panic Check\'s row only as its number lands, holding the last row back while it spins', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
     seed({ tommy: stressed(5) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
     seedFace(20, 4)
     fireEvent.click(panicButton())
-    for (let step = 0; step < 12; step += 1) act(() => vi.advanceTimersByTime(500))
+    for (let step = 0; step < 12; step += 1) await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     expect(shownPanicResult()[0]).toBe('04 OVERWHEMED')
     fireEvent.click(panicCircle())
 
@@ -2913,7 +2929,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     for (let step = 0; step < 12; step += 1) {
       expect(panicCircle().className).toBe('roll-circle rolling')
       expect(panicResult()).toBeNull()
-      act(() => vi.advanceTimersByTime(500))
+      await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     }
 
     expect(panicCircle().textContent).toBe('5/5')
@@ -2921,7 +2937,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect(shownPanicResult()[0]).toBe('05 COWARD')
   })
 
-  it('holds Stress, and the Panic circle\'s Stress, at their values before a Recovery Save until its number lands', () => {
+  it('holds Stress, and the Panic circle\'s Stress, at their values before a Recovery Save until its number lands', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
     seed({ tommy: stressed(9) })
     mountTab('player', 'player-1')
@@ -2935,7 +2951,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
       expect(shownCounters().stress).toBe('9')
       expect(panicButton().textContent).toBe('9')
       expect((screen.getByRole('button', { name: 'Lower Stress' }) as HTMLButtonElement).disabled).toBe(true)
-      act(() => vi.advanceTimersByTime(500))
+      await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     }
 
     expect(recoveryButton().textContent).toBe('23/30')
@@ -2944,7 +2960,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect((screen.getByRole('button', { name: 'Lower Stress' }) as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('spins a ghost d20 under Advantage and shows a failed check\'s row only once the ghost has merged into the kept die', () => {
+  it('spins a ghost d20 under Advantage and shows a failed check\'s row only once the ghost has merged into the kept die', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
     seed({ tommy: stressed(5) })
     mountTab('player', 'player-1')
@@ -2957,15 +2973,15 @@ describe('Lubec Panic Check and Recovery Save', () => {
 
     for (let step = 0; step < 12; step += 1) {
       expect(ghostOf('Panic Check')?.textContent).toMatch(/^\d+\/5$/)
-      act(() => vi.advanceTimersByTime(500))
+      await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     }
     expect([circleNumberOf('Panic Check'), ghostOf('Panic Check')?.textContent, doneOf('Panic Check')?.textContent]).toEqual(['2/5', '4/5', 'done'])
     expect(panicResult()).toBeNull()
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     expect(circleNumberOf('Panic Check')).toBe('4/5')
     expect(panicResult()).toBeNull()
     expect(modePressed('Advantage')).toBe(true)
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
 
     expect(modePressed('Normal')).toBe(true)
     expect(panicCircle().className).toBe('roll-circle has-value check-failure')
@@ -2973,7 +2989,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect(shownPanicResult()[0]).toBe('04 OVERWHEMED')
   })
 
-  it('keeps the higher d20 under Advantage, then puts the switch back to Normal', () => {
+  it('keeps the higher d20 under Advantage, then puts the switch back to Normal', async () => {
     seed({ tommy: stressed(5) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -2987,7 +3003,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect(modePressed('Normal')).toBe(true)
   })
 
-  it('puts the switch back to Normal after a Recovery Save rolled with Disadvantage', () => {
+  it('puts the switch back to Normal after a Recovery Save rolled with Disadvantage', async () => {
     seed({ tommy: stressed(9) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -3000,7 +3016,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect(modePressed('Normal')).toBe(true)
   })
 
-  it('leaves the mode set when a Panic row is added as an effect, which is not a roll it counts for', () => {
+  it('leaves the mode set when a Panic row is added as an effect, which is not a roll it counts for', async () => {
     seed({ tommy: stressed(4) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -3053,7 +3069,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect(writtenSheet().counters.stress).toBe(4)
   })
 
-  it('disables the Recovery Save while any Save is a hole, and still rolls the Panic Check', () => {
+  it('disables the Recovery Save while any Save is a hole, and still rolls the Panic Check', async () => {
     seed({ tommy: withSheet({ base: { Strength: 24, Speed: 51, Intellect: 38, Handle: 50, Charm: 48, Sanity: 20, Fear: null, Body: 21 } }) })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
@@ -3077,7 +3093,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     fireEvent.click(panicButton())
     await flushSave()
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Tommy Eves')
     expect(shownStatus()).toBe('Panic Check: 2 vs Stress 6 - failure.')
     expect(shownPanicResult()).toEqual(['02 NERVOUS', 'Gain 1 Stress.', 'Increase Stress by 1', 'Add effect'])
@@ -3085,14 +3101,14 @@ describe('Lubec Panic Check and Recovery Save', () => {
     seedRolls(14)
     fireEvent.click(recoveryButton())
     await flushSave()
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Tommy Eves')
     expect(shownStatus()).toBe('Recovery Save on Sanity: 14 vs 30 - success, -4 Stress.')
     expect(panicResult()).toBeNull()
     expect(shownCounters().stress).toBe('2')
   })
 
-  it('shows a player someone else\'s Panic roll and row, with the Panic and Recovery circles shut and no "Add effect"', () => {
+  it('shows a player someone else\'s Panic roll and row, with the Panic and Recovery circles shut and no "Add effect"', async () => {
     const lastRoll = { kind: 'panic', target: 6, dice: [2], result: 2, advantage: 'normal', outcome: 'failure', stressAdded: 0, effectRolls: null }
     seed({ tommy: withSheet({ lastRoll }) })
     mountTab('player', 'player-2')
@@ -3169,7 +3185,7 @@ describe('Finalize, locked values and the Correct switch', () => {
     vi.useRealTimers()
   })
 
-  it('offers Finalize to the owner and the GM on a draft, to no other player, and never on a finalized character', () => {
+  it('offers Finalize to the owner and the GM on a draft, to no other player, and never on a finalized character', async () => {
     seed({ ada: directDraft(), bea: directDraft({ name: 'Bea Lowell', ownerUserId: 'player-2' }), tommy: tommyEves() })
     mountTab('player', 'player-1')
 
@@ -3182,7 +3198,7 @@ describe('Finalize, locked values and the Correct switch', () => {
     openSheet('Tommy Eves')
     expect(finalizeButton()).toBeNull()
 
-    reload('gm', GM)
+    await reload('gm', GM)
     openSheet('Bea Lowell')
     expect(finalizeButton()).toBeTruthy()
     backToRoster()
@@ -3250,7 +3266,7 @@ describe('Finalize, locked values and the Correct switch', () => {
 
     expect(database.ada).toMatchObject({ creationStatus: 'active', lubec: { class: { key: null }, base: { Handle: null } } })
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Ada Mitchell')
 
     expect(valuesOf('Handle')).toEqual(['missing', ''])
@@ -3306,24 +3322,24 @@ describe('Finalize, locked values and the Correct switch', () => {
     fireEvent.click(correctSwitch() as HTMLElement)
     expect(choosableDots()).toEqual([])
 
-    reload('gm', GM)
+    await reload('gm', GM)
     openSheet('Tommy Eves')
     expect(correcting()).toBe('false')
     expect(screen.queryByLabelText('Handle base')).toBeNull()
     expect(valuesOf('Handle')).toEqual(['55', '50 +5 class'])
   })
 
-  it('never shows a player the Correct switch, and shows the GM none on a draft', () => {
+  it('never shows a player the Correct switch, and shows the GM none on a draft', async () => {
     seed({ tommy: tommyEves(), ada: directDraft() })
     mountTab('player', 'player-1')
     openSheet('Tommy Eves')
     expect(correctSwitch()).toBeNull()
 
-    reload('player', 'player-2')
+    await reload('player', 'player-2')
     openSheet('Tommy Eves')
     expect(correctSwitch()).toBeNull()
 
-    reload('gm', GM)
+    await reload('gm', GM)
     openSheet('Ada Mitchell')
     expect(correctSwitch()).toBeNull()
   })
@@ -3420,7 +3436,7 @@ describe('Guided roll-up', () => {
     expect(document.querySelector('.class-lock')?.textContent).toMatch(/unlock after all eight abilities are rolled/)
     expect(document.querySelector('.class-grid')).toBeNull()
 
-    reload('gm', GM)
+    await reload('gm', GM)
     startGuided()
     await flushMicrotasks()
 
@@ -3428,7 +3444,7 @@ describe('Guided roll-up', () => {
       .toEqual([['player-1', 'draft'], [GM, 'draft']])
   })
 
-  it('writes each Stat and Save die from its circle before the debounce comes due, shows the same numbers after a remount, and offers no re-roll', () => {
+  it('writes each Stat and Save die from its circle before the debounce comes due, shows the same numbers after a remount, and offers no re-roll', async () => {
     seed({ gus: guidedDraft() })
     mountTab('player', 'player-1')
     openSheet('Gus Pike')
@@ -3452,12 +3468,13 @@ describe('Guided roll-up', () => {
       ['Fear', face(10, 10), face(1, 10)],
       ['Body', face(5, 10), face(6, 10)],
     ]
-    rolls.forEach(([name, ...dice], index) => {
+    for (const [index, [name, ...dice]] of rolls.entries()) {
       seedRolls(...dice)
       rollUp(name)
+      await flushMicrotasks()
       expect(mocks.setDoc).toHaveBeenCalledTimes(index + 2)
       expect((writtenSheet().base as Fields)[name]).toEqual(stored('gus').lubec.base[name as 'Strength'])
-    })
+    }
 
     expect(stored('gus').lubec.base).toEqual({ Strength: 47, Speed: 33, Intellect: 24, Handle: 52, Charm: 41, Sanity: 17, Fear: 21, Body: 21 })
     expect(stored('gus').lubec.rollUp).toEqual({
@@ -3474,7 +3491,7 @@ describe('Guided roll-up', () => {
     const shown = rolledValues()
     expect(rollUpButtons()).toHaveLength(0)
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Gus Pike')
 
     expect(rolledValues()).toEqual(shown)
@@ -3483,7 +3500,7 @@ describe('Guided roll-up', () => {
     expect(screen.queryByText(/re-?roll/i, { selector: 'button' })).toBeNull()
   })
 
-  it('spins each circle rolled where motion is allowed, leaving the values not rolled yet to roll while it spins', () => {
+  it('spins each circle rolled where motion is allowed, leaving the values not rolled yet to roll while it spins', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
     seed({ gus: guidedDraft() })
     mountTab('player', 'player-1')
@@ -3498,7 +3515,7 @@ describe('Guided roll-up', () => {
     expect(statusLine()).toBe('Rolling Strength...')
     expect(rollUpButtons()).toHaveLength(7)
 
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     seedRolls(face(3, 4), face(3, 10))
     rollUp('Speed')
 
@@ -3509,15 +3526,15 @@ describe('Guided roll-up', () => {
     expect(rollUpButtons()).toHaveLength(6)
 
     // Each preview's timer is set once the last one has shown, so the spin is let run a step at a time.
-    for (let step = 1; step < 11; step += 1) act(() => vi.advanceTimersByTime(500))
+    for (let step = 1; step < 11; step += 1) await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     expect(circleOf('Strength').className).toBe('roll-circle rolling')
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
 
     expect(valuesOf('Strength')).toEqual(['47', '40 + 7'])
     expect(circleOf('Strength').className).toBe('roll-circle has-value awaiting-class landed')
     expect(circleOf('Speed').className).toBe('roll-circle rolling')
     expect(statusLine()).toBe('Rolling Speed...')
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
 
     expect(valuesOf('Speed')).toEqual(['33', '30 + 3'])
     expect(circleOf('Speed').className).toBe('roll-circle has-value awaiting-class landed')
@@ -3525,11 +3542,11 @@ describe('Guided roll-up', () => {
     expect(statusLine()).toBe('Speed generated at 33.')
     expect(rollUpButtons()).toHaveLength(6)
 
-    act(() => vi.advanceTimersByTime(500))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     expect(circleOf('Speed').className).toBe('roll-circle has-value awaiting-class')
   })
 
-  it('rolls every value left at once from the tray, in one write, each with its own dice, and spins them all together', () => {
+  it('rolls every value left at once from the tray, in one write, each with its own dice, and spins them all together', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query }))
     seed({ gus: guidedDraft({ base: { ...allRolledSheet().base as Fields }, rollUp: { stats: { Strength: { tens: 40, d10: 7 } } } }) })
     mountTab('player', 'player-1')
@@ -3550,7 +3567,7 @@ describe('Guided roll-up', () => {
     expect((trayButton('Roll all remaining') as HTMLButtonElement).disabled).toBe(true)
     expect(trayButton('Swap lowest stat')).toBeNull()
 
-    for (let step = 0; step < 12; step += 1) act(() => vi.advanceTimersByTime(500))
+    for (let step = 0; step < 12; step += 1) await act(async () => { await vi.advanceTimersByTimeAsync(500) })
 
     expect(rolledValues()).toEqual([
       ['Strength', '47', '40 + 7'],
@@ -3567,23 +3584,23 @@ describe('Guided roll-up', () => {
     expect(trayButton('Roll all remaining')).toBeNull()
   })
 
-  it('offers rolling every value left only to whoever may roll, and only while values are left', () => {
+  it('offers rolling every value left only to whoever may roll, and only while values are left', async () => {
     seed({ gus: guidedDraft({ ...allRolledSheet(), rollUp: { ...allRolledSheet().rollUp as Fields, saves: { Sanity: [3, 4] } } }) })
     mountTab('gm', GM)
     openSheet('Gus Pike')
     expect(trayButton('Roll all remaining')).toBeTruthy()
 
-    reload('player', 'player-2')
+    await reload('player', 'player-2')
     openSheet('Gus Pike')
     expect(document.querySelector('.decision-tray')).toBeNull()
 
     seed({ gus: guidedDraft(allRolledSheet()) })
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Gus Pike')
     expect(trayButton('Roll all remaining')).toBeNull()
   })
 
-  it('never lets the owner or the GM type over a base value on a guided draft, rolled or not', () => {
+  it('never lets the owner or the GM type over a base value on a guided draft, rolled or not', async () => {
     seed({ gus: guidedDraft({ base: { ...tommyBase, Charm: null }, rollUp: { stats: { Strength: { tens: 20, d10: 4 } } } }) })
     mountTab('player', 'player-1')
     openSheet('Gus Pike')
@@ -3593,7 +3610,7 @@ describe('Guided roll-up', () => {
     expect(rollUpButtons()).not.toContain('Strength')
     expect(rollUpButtons()).toContain('Charm')
 
-    reload('gm', GM)
+    await reload('gm', GM)
     openSheet('Gus Pike')
 
     expect(screen.queryByLabelText('Strength base')).toBeNull()
@@ -3601,7 +3618,7 @@ describe('Guided roll-up', () => {
     expect(rollUpButtons()).toContain('Charm')
   })
 
-  it('shows the GM every roll on a player\'s draft, and another player the rolls with no way to make one', () => {
+  it('shows the GM every roll on a player\'s draft, and another player the rolls with no way to make one', async () => {
     seed({ gus: guidedDraft({ ...allRolledSheet(), rollUp: { ...allRolledSheet().rollUp as Fields, saves: { Sanity: [3, 4] } } }) })
     mountTab('gm', GM)
     openSheet('Gus Pike')
@@ -3618,7 +3635,7 @@ describe('Guided roll-up', () => {
     ])
     expect(rollUpButtons()).toEqual(['Fear', 'Body'])
 
-    reload('player', 'player-2')
+    await reload('player', 'player-2')
     openSheet('Gus Pike')
 
     expect(rolledValues().slice(-3)).toEqual([['Sanity', '17', '10 + 3 + 4'], ['Fear', 'Roll', ''], ['Body', 'Roll', '']])
@@ -3626,7 +3643,7 @@ describe('Guided roll-up', () => {
     expect(rollUpButtons()).toHaveLength(0)
   })
 
-  it('makes the Swap on the circles once every value is rolled, from the lowest Stat to any but the highest, and writes it only when confirmed', () => {
+  it('makes the Swap on the circles once every value is rolled, from the lowest Stat to any but the highest, and writes it only when confirmed', async () => {
     seed({ gus: guidedDraft(allRolledSheet()) })
     mountTab('player', 'player-1')
     openSheet('Gus Pike')
@@ -3663,7 +3680,7 @@ describe('Guided roll-up', () => {
       rollUp: { swap: { lowest: 'Intellect', other: 'Strength' }, stats: { Intellect: { tens: 20, d10: 4 } } },
     })
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Gus Pike')
 
     expect(statusLine()).toBe('Intellect and Strength swapped. Now choose a class.')
@@ -3674,7 +3691,7 @@ describe('Guided roll-up', () => {
     expect(classCard('Nerd')).toBeTruthy()
   })
 
-  it('lets a tie for lowest pick which Stat moves, and Cancel puts the scores back as they were', () => {
+  it('lets a tie for lowest pick which Stat moves, and Cancel puts the scores back as they were', async () => {
     seed({ gus: guidedDraft({ ...allRolledSheet(), base: { ...allRolledSheet().base as Fields, Speed: 24 } }) })
     mountTab('player', 'player-1')
     openSheet('Gus Pike')
@@ -3703,14 +3720,14 @@ describe('Guided roll-up', () => {
     expect(trayButton('Keep these scores')).toBeNull()
 
     seed({ gus: guidedDraft(allRolledSheet()) })
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Gus Pike')
     expect(document.querySelector('.class-lock')).toBeTruthy()
     fireEvent.click(trayButton('Keep these scores') as HTMLElement)
     await settleSaves()
 
     expect(stored('gus').lubec.rollUp).toMatchObject({ kept: true })
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Gus Pike')
     expect(statusLine()).toBe('Scores settled. Now choose a class.')
     expect(document.querySelector('.decision-tray')).toBeNull()
@@ -3718,7 +3735,7 @@ describe('Guided roll-up', () => {
     expect(circleOf('Strength').className).toBe('roll-circle has-value awaiting-class')
   })
 
-  it('takes more skills than the class package without a warning, a block or a GM\'s say-so', () => {
+  it('takes more skills than the class package without a warning, a block or a GM\'s say-so', async () => {
     const working = { class: { key: 'working', choices: { statPenalty: null, statBonus: null } } }
     seed({ gus: guidedDraft({ ...keptSheet(), ...working, skills: { free: 'Boatwork', picked: ['Swimming', 'Diving'] } }) })
     mountTab('player', 'player-1')
@@ -3728,7 +3745,7 @@ describe('Guided roll-up', () => {
     fireEvent.click(skillDot('Driving'))
     fireEvent.click(skillDot('Art'))
     fireEvent.click(skillDot('Forgery'))
-    sendSaves()
+    await sendSaves()
 
     expect(storedSkills('gus')).toEqual({ free: 'Boatwork', picked: ['Swimming', 'Diving', 'Driving', 'Art', 'Forgery'] })
     expect(treeMarks()).toEqual([['Swimming', 'on'], ['Diving', 'on'], ['Boatwork', 'fixed'], ['Driving', 'on'], ['Art', 'on'], ['Forgery', 'on']])
@@ -3791,7 +3808,7 @@ describe('Guided roll-up', () => {
 
     expect(database.gus).toMatchObject({ creationMode: 'new', creationStatus: 'active' })
 
-    reload('gm', GM)
+    await reload('gm', GM)
     openSheet('Gus Pike')
     expect(document.querySelector('.decision-tray, .class-grid, .class-lock')).toBeNull()
     expect(screen.queryByLabelText('Strength base')).toBeNull()
@@ -3976,7 +3993,7 @@ describe('Import a character file', () => {
     expect(JSON.stringify(database[id])).not.toContain('futureField')
     expect(noticesIn(openFinalize(), 'Import notes')).toEqual([note])
 
-    reload('player', 'player-1')
+    await reload('player', 'player-1')
     openSheet('Tommy')
 
     expect(valuesOf('Speed')).toEqual(['51', '+5 class = 56'])

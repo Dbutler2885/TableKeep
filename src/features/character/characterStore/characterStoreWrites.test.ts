@@ -3,6 +3,8 @@ import type { CharacterRecord } from '../../../types/app'
 import { oseCharacterStore, readStoredCharacter } from '../lib/storedCharacterRecord'
 import { vtmCharacterStore } from '../vtmCharacterRecord'
 import { makeVtmCharacter } from '../vtmDefaults'
+import { lubecCharacterStore } from '../../ruleSets/lubec/characterParser'
+import fixture from '../../ruleSets/lubec/fixtures/stored-character.json'
 
 const mocks = vi.hoisted(() => ({
   setDoc: vi.fn(async (..._args: unknown[]) => undefined),
@@ -52,6 +54,11 @@ describe('characterStoreCampaign', () => {
 })
 
 describe('newCharacterStoreFields', () => {
+  it('refuses the retired whole-sheet Lubec save while initial creation still serializes and stamps it', () => {
+    const character = lubecCharacterStore.parser.parse('hero', fixture.data)
+    expect(() => characterStoreSaveFields(lubecCharacterStore, character)).toThrow('Lubec saves require an edit intention, not a replacement sheet.')
+    expect(newCharacterStoreFields(lubecCharacterStore, character)).toMatchObject({ system: 'lubec', schemaVersion: 1, schemaWrittenAt: 'now' })
+  })
   it('stores a missing owner username as null', () => {
     expect(newCharacterStoreFields(vtmCharacterStore, { ...stored, ownerUsername: undefined }).ownerUsername).toBeNull()
   })

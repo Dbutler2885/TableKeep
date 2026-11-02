@@ -1,3 +1,4 @@
+import { LubecSaveNotice, type LubecSaveControls } from './LubecSaveNotice'
 import { Pencil, Trash2, UserPlus } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
@@ -162,6 +163,7 @@ function LubecStageBar({ character, correcting, onCorrecting, onDelete, onFinali
 }
 
 export type LubecSheetViewProps = {
+  saveControls?: LubecSaveControls
   character: LubecCharacterRecord
   /** The viewer's edits, or null when they may only look. */
   editing: LubecSheetEditing | null
@@ -282,7 +284,7 @@ const identityEditingOf = (editing: LubecSheetEditing | null, identityEditable: 
 
 /** One Lubec character's sheet, in the v4 frame, on its Core, Skills or Gear page. */
 export function LubecSheetView({
-  character, editing, identityEditable, carrierKinds, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, gearGive, shared, ...edits
+  character, editing, saveControls, identityEditable, carrierKinds, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, gearGive, shared, ...edits
 }: LubecSheetViewProps) {
   const [page, setPage] = useState<LubecPage>('core')
   const [bandOpen, setBandOpen] = useState(false)
@@ -301,6 +303,7 @@ export function LubecSheetView({
         onDelete={bandDeleteOf(character, onDelete)}
         onAssign={onAssign}
       />
+      <LubecSaveNotice controls={saveControls} />
       {identityEditing && bandOpen ? <LubecNameBandEditor character={character} editing={identityEditing} onDone={() => setBandOpen(false)} /> : null}
       <LubecStageBar
         character={character}

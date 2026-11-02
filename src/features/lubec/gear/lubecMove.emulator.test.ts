@@ -7,15 +7,14 @@
  * transaction that deletes it.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, type DocumentData, type Firestore } from 'firebase/firestore'
+import { doc, getDoc, onSnapshot, setDoc, type DocumentData, type Firestore } from 'firebase/firestore'
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { campaignDocRef, campaignGmItemRef, npcSheetRef } from '../../campaign/firestorePaths'
-import { lubecCharacterVersioning } from '../../ruleSets/characterMigrations'
-import { characterSchemaStamp } from '../../ruleSets/characterSchemaStamp'
+import { saveSheetIntention } from '../../character/characterStore/sheetIntentionTransaction'
 import { LUBEC_NO_ROOM_TO_ACCEPT } from '../../ruleSets/lubec/gear/arrival'
 import { LUBEC_STALE_MOVE } from '../../ruleSets/lubec/gear/containers'
 import { lubecDeleteCharacterDroppingGear } from './lubecDeleteDrop'
-import { lubecMoveBetween, type LubecMoveStore } from './lubecMoveTransaction'
+import { lubecMoveBetween, type LubecMoveRequest, type LubecMoveStore } from './lubecMoveTransaction'
 import { emulatorPort } from '../../../../vitest.emulatorEndpoint'
 import { firestoreRules } from '../../../../vitest.firestoreRules'
 
@@ -46,7 +45,7 @@ const quietStore: LubecMoveStore = { sendSaveNow: () => {}, hasPendingWrite: () 
 /**
  * A store that holds one save for half a second, as `useCharacterStore` does:
  * a pending save waiting out its delay, then in flight until Firestore settles
- * it, writing the whole `lubec` map of its local copy with a merge.
+ * it, retaining the counter delta in an edit intention.
  */
 function storeHoldingASave(db: Firestore, characterId: string, localLubec: object) {
   let pending: ReturnType<typeof setTimeout> | null = null
@@ -54,8 +53,11 @@ function storeHoldingASave(db: Firestore, characterId: string, localLubec: objec
   const send = () => {
     pending = null
     inFlight = true
-    const fields = { lubec: localLubec, ...characterSchemaStamp(lubecCharacterVersioning), updatedAt: serverTimestamp() }
-    void setDoc(campaignDocRef(db, scope, 'characters', characterId), fields, { merge: true }).finally(() => { inFlight = false })
+    const stress = (localLubec as { counters: { stress: number } }).counters.stress
+    void saveSheetIntention(db, campaignDocRef(db, scope, 'characters', characterId), {
+      operationId: 'held-counter', baseRevision: 0,
+      edits: [{ kind: 'delta', path: ['lubec', 'counters', 'stress'], base: 2, amount: stress - 2 }],
+    }).finally(() => { inFlight = false })
   }
   pending = setTimeout(send, 500)
   const store: LubecMoveStore = {
@@ -249,6 +251,27 @@ describe('the move between two records', () => {
 
     expect(itemIds(await character('wayne'))).toEqual(['anvil', 'flashlight'])
     expect(await gmItem('anvil')).toBeUndefined()
+  })
+
+  it('replays one retained drop after an uncertain acknowledgement and rejects changed payload reuse', async () => {
+    const request: LubecMoveRequest = { scope, from: wayne, to: gmItems, store: quietStore, operationId: 'retained-drop', move: { itemId: 'anvil', seen: { carrier: 'hands', slot: 0 }, droppedBy } }
+    expect(await lubecMoveBetween(as(playerUid), request)).toEqual({ ok: true })
+    expect(await lubecMoveBetween(as(playerUid), request)).toEqual({ ok: true })
+    expect((await character('wayne'))?.sheetRevision).toBe(1)
+    expect(itemIds(await character('wayne'))).toEqual(['flashlight'])
+    expect(await gmItem('anvil')).toMatchObject({ qty: 1, status: 'dropped' })
+    await expect(lubecMoveBetween(as(playerUid), { ...request, move: { ...request.move, seen: { carrier: 'hands', slot: 1 } } })).rejects.toThrow('operation-id-reused')
+  })
+
+  it('refuses a partially present multi-sheet receipt without making any more writes', async () => {
+    const request: LubecMoveRequest = { scope, from: wayne, to: stephen, store: quietStore, operationId: 'partial-command', move: { itemId: 'flashlight', seen: { carrier: 'backpack', pocket: 0 }, dest: 'backpack' } }
+    await testEnv.withSecurityRulesDisabled(async (context) => {
+      await setDoc(doc(campaignDocRef(context.firestore() as unknown as Firestore, scope, 'characters', 'wayne'), 'writeReceipts', request.operationId!), { command: {} })
+    })
+    await expect(lubecMoveBetween(as(campaignGmUid), request)).rejects.toThrow('invalid-intention')
+    expect(itemIds(await character('wayne'))).toEqual(['anvil', 'flashlight'])
+    expect(itemIds(await character('stephen'))).toEqual([])
+    expect((await character('wayne'))?.sheetRevision).toBeUndefined()
   })
 
   it('refuses a move whose two records are one', async () => {

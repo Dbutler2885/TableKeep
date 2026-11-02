@@ -56,3 +56,14 @@ it('surfaces callable failures and refuses writes when the campaign is not ready
   await empty.result.current.cancelTransfer('offer')
   expect(empty.result.current.allTransfers).toEqual([])
 })
+
+it('retains offer identity for a player retry after the accepted offer disappears from the listener', async () => {
+  const view = render()
+  act(() => mocks.next?.({ docs: [{ id: 'retained-offer', data: () => offer }] }))
+  await view.result.current.acceptTransfer('retained-offer')
+  act(() => mocks.next?.({ docs: [] }))
+  await view.result.current.acceptTransfer('retained-offer')
+  const expected = { groupId: 'g', campaignId: 'c', transferId: 'retained-offer', fromCharacterId: 'sender', toCharacterId: 'receiver' }
+  expect(mocks.callable).toHaveBeenNthCalledWith(1, expected)
+  expect(mocks.callable).toHaveBeenNthCalledWith(2, expected)
+})

@@ -1,3 +1,4 @@
+import { retainTransferIdentity } from './transferRetryIdentity'
 import { deleteDoc, serverTimestamp, setDoc } from 'firebase/firestore'
 import { httpsCallable } from 'firebase/functions'
 import { db, functions } from '../../firebase'
@@ -34,11 +35,11 @@ export async function createPendingTransfer(scope: CampaignScope | null, transfe
   })
 }
 
-export async function acceptPendingTransfer(scope: CampaignScope | null, transferId: string) {
+export async function acceptPendingTransfer(scope: CampaignScope | null, transferId: string, identity?: { fromCharacterId: string; toCharacterId: string }) {
   const ready = readyScope(scope)
-  const callable = httpsCallable<{ groupId: string; campaignId: string; transferId: string }, { ok: boolean }>(functions, 'acceptPendingTransfer')
+  const callable = httpsCallable<{ groupId: string; campaignId: string; transferId: string; fromCharacterId?: string; toCharacterId?: string }, { ok: boolean }>(functions, 'acceptPendingTransfer')
   try {
-    await callable({ ...ready, transferId })
+    await callable({ ...ready, transferId, ...retainTransferIdentity(ready, transferId, identity) })
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : 'Failed to accept transfer.')
   }

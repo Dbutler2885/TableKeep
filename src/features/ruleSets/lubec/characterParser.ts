@@ -105,7 +105,7 @@ export function parseLubecSheet(raw: unknown): LubecCharacterSheet {
 const LUBEC_CHARACTER_FIELDS: ReadonlySet<string> = new Set([
   'system', 'name', 'ownerUserId', 'ownerUsername', 'creationMode', 'creationStatus',
   'portraitPath', 'portraitUrl', 'portraitFocusX', 'portraitFocusY', 'tokenIcon', 'lubec',
-  'createdAt', 'updatedAt', 'schemaVersion', 'schemaWrittenAt',
+  'createdAt', 'updatedAt', 'schemaVersion', 'schemaWrittenAt', 'sheetRevision',
 ])
 
 function unknownFieldsOf(data: StoredCharacter): Pick<LubecCharacterRecord, 'unknownFields'> {

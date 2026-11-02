@@ -30,8 +30,13 @@ export function usePendingTransfers(campaignId: string | null, groupId: string |
   return {
     incomingTransfers, outgoingTransfers, allTransfers,
     createTransfer: (item: TransferableInventoryItem, id: string, from: TransferCharacter, to: TransferCharacter) => createPendingTransfer(scope, transfers, item, id, from, to),
-    acceptTransfer: (id: string) => acceptPendingTransfer(scope, id),
+    acceptTransfer: (id: string) => acceptPendingTransfer(scope, id, identityOf(transfers, id)),
     declineTransfer: (id: string) => removePendingTransfer(scope, id),
     cancelTransfer: (id: string) => removePendingTransfer(scope, id),
   }
+}
+
+function identityOf(transfers: PendingTransfer[], id: string) {
+  const transfer = transfers.find((entry) => entry.id === id)
+  return transfer && { fromCharacterId: transfer.fromCharacterId, toCharacterId: transfer.toCharacterId }
 }

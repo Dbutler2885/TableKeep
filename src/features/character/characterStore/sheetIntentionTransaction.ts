@@ -53,7 +53,7 @@ async function commitSheetIntention(db: Firestore, sheetRef: DocumentReference, 
   return withSheetRevisionRetry(sheetRef, write, () => nextRevision)
 }
 
-/** Opt-in save path beside the legacy delayed store save, with bounded revision contention recovery. */
+/** Shared Lubec save path, with bounded revision contention recovery. */
 export async function saveSheetIntention(db: Firestore, sheetRef: DocumentReference, intention: SheetIntention) {
   try {
     validateSheetIntention(intention)

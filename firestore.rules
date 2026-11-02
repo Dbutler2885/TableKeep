@@ -313,8 +313,12 @@ service cloud.firestore {
           allow delete: if isCampaignGm(groupId, campaignId) || isCharacterOwner();
 
           match /writeReceipts/{operationId} {
-            allow read, create, delete: if isCampaignGm(groupId, campaignId)
+            allow read, delete: if isCampaignGm(groupId, campaignId)
               || ownsCharacter(groupId, campaignId, characterId);
+            // An initial create writes the sheet and its receipt together.
+            allow create: if isCampaignGm(groupId, campaignId)
+              || (isGroupMember(groupId)
+                  && getAfter(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)/characters/$(characterId)).data.ownerUserId == request.auth.uid);
             allow update: if false;
           }
 

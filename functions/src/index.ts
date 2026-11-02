@@ -1,5 +1,4 @@
 import { acceptTransfer } from './acceptTransfer.js'
-import { FieldValue } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { HttpsError, onCall, onRequest } from 'firebase-functions/v2/https'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
@@ -205,6 +204,11 @@ export const getCampaignNpcs = onRequest(
   },
 )
 
+function transferIdentity(data: { fromCharacterId?: unknown; toCharacterId?: unknown }) {
+  if (typeof data.fromCharacterId !== 'string' || typeof data.toCharacterId !== 'string') return undefined
+  return { fromCharacterId: data.fromCharacterId, toCharacterId: data.toCharacterId }
+}
+
 export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (request) => {
   const uid = request.auth?.uid ?? ''
   if (!uid) throw new HttpsError('unauthenticated', 'Authentication required.')
@@ -215,7 +219,7 @@ export const acceptPendingTransfer = onCall({ region: 'us-central1' }, async (re
     throw new HttpsError('invalid-argument', 'groupId, campaignId and transferId are required.')
   }
 
-  return acceptTransfer({ db, campaign: campaignRef(groupId, campaignId), member: groupMemberRef(groupId, uid), uid, transferId })
+  return acceptTransfer({ db, campaign: campaignRef(groupId, campaignId), member: groupMemberRef(groupId, uid), uid, transferId, identity: transferIdentity(request.data) })
 })
 
 // ── Try-it-now demo sandboxes ────────────────────────────────────────────────

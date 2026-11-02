@@ -3,6 +3,7 @@ import { FirebaseError } from 'firebase/app'
 import { doc, getDocFromServer, runTransaction, type DocumentReference, type Firestore, type Transaction } from 'firebase/firestore'
 import fixture from '../../ruleSets/lubec/fixtures/stored-character.json'
 import { prepareSheetIntention, saveSheetIntention, writePreparedSheetIntentions } from './sheetIntentionTransaction'
+import { validateSheetIntention } from './sheetIntentionValidation'
 import type { SheetIntention } from './sheetIntentionTypes'
 
 vi.mock('firebase/firestore', () => ({
@@ -233,4 +234,10 @@ describe('opt-in transactional save adapter', () => {
     expect(() => writePreparedSheetIntentions(tx, [first, second])).toThrow('sheet-deleted')
     expect(tx.set).not.toHaveBeenCalled()
   })
+})
+
+it('rejects malformed path and edit bases at validation, before any storage read', () => {
+  for (const path of [[], [{ recordId: 'row' }], ['items', { recordId: ['row'] }]]) expect(() => validateSheetIntention({ ...intention(), edits: [{ kind: 'set', path, base: { exists: false }, value: 'new' }] } as never)).toThrow('invalid-path')
+  expect(() => validateSheetIntention({ ...intention(), edits: [{ kind: 'delta', path: ['counter'], base: NaN, amount: 1 }] })).toThrow('invalid-intention')
+  expect(() => validateSheetIntention({ ...intention(), edits: [{ kind: 'set', path: ['name'], base: { exists: true, value: undefined }, value: 'new' }] } as never)).toThrow('invalid-intention')
 })

@@ -8,9 +8,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const records = new Map<string, Record<string, unknown>>()
-  type Ref = { path: string; collection: (name: string) => { doc: (id: string) => Ref } }
+  type Ref = { path: string; id: string; collection: (name: string) => { doc: (id: string) => Ref } }
   const ref = (path: string): Ref => ({
-    path, collection: (name) => ({ doc: (id) => ref(`${path}/${name}/${id}`) }),
+    path, id: path.split('/').at(-1)!, collection: (name) => ({ doc: (id) => ref(`${path}/${name}/${id}`) }),
   })
   return { records, ref, get: vi.fn(), set: vi.fn(), delete: vi.fn(), runTransaction: vi.fn() }
 })
@@ -246,10 +246,15 @@ describe('a Lubec campaign', () => {
 
   it("lands the item in the receiver's backpack, merging only `lubec.gear` into each character, then deletes the offer", async () => {
     await expect(accept(request)).resolves.toEqual({ ok: true })
-    const gearWith = (items: unknown[]) => ({ lubec: { gear: { items, carriers: [], overrides: [], supplies: [] } }, ...stamp })
-    expect(writes()).toEqual([
-      [senderPath, gearWith([thing('cup', 'backpack', { pocket: 0 })]), { merge: true }],
-      [receiverPath, gearWith([thing('rope', 'backpack', { pocket: 0 }, { qty: 4 })]), { merge: true }],
+    const changed = writes().filter(([path]) => [senderPath, receiverPath].includes(path))
+    expect(changed).toEqual([
+      [senderPath, { ...mocks.records.get(senderPath), lubec: lubecOf([thing('cup', 'backpack', { pocket: 0 })]), sheetRevision: 1, updatedAt: SERVER_TIME }, undefined],
+      [receiverPath, { ...mocks.records.get(receiverPath), lubec: lubecOf([thing('rope', 'backpack', { pocket: 0 }, { qty: 4 })]), sheetRevision: 1, updatedAt: SERVER_TIME }, undefined],
+    ])
+    const receipts = writes().filter(([path]) => path.endsWith('/writeReceipts/transfer-offer'))
+    expect(receipts.map(([path, data]) => [path, data.outcome])).toEqual([
+      [`${senderPath}/writeReceipts/transfer-offer`, { status: 'committed', operationId: 'transfer-offer', revision: 1 }],
+      [`${receiverPath}/writeReceipts/transfer-offer`, { status: 'committed', operationId: 'transfer-offer', revision: 1 }],
     ])
     expect(deletes()).toEqual([transferPath])
   })
@@ -259,7 +264,7 @@ describe('a Lubec campaign', () => {
     mocks.records.set(transferPath, offerOf(canoe))
     mocks.records.set(senderPath, { ownerUserId: 'sender-user', schemaVersion: 1, lubec: lubecOf([canoe]) })
     await expect(accept(request)).resolves.toEqual({ ok: true })
-    expect(writes()[1][1].lubec.gear.items).toEqual([thing('canoe', 'hands', { slot: 0 }, { size: 8 })])
+    expect(writes().find(([path]) => path === receiverPath)![1].lubec.gear.items).toEqual([thing('canoe', 'hands', { slot: 0 }, { size: 8 })])
   })
 
   it('keeps the offer and both characters untouched when the backpack is full', async () => {

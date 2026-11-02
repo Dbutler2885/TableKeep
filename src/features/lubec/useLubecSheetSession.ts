@@ -77,7 +77,7 @@ export type LubecSheetSessionOptions = {
 
 type EditingOptions = Pick<LubecSheetSessionOptions, 'campaignId' | 'groupId' | 'role' | 'currentUserId'> & {
   character: LubecCharacterRecord | null
-  updateCharacter: (characterId: string, updates: Partial<LubecCharacterRecord>) => void
+  updateCharacter: (characterId: string, updates: Partial<LubecCharacterRecord>, base?: LubecCharacterRecord) => void
 }
 
 // The open sheet's edits for its owner and the GM, saved through the shared
@@ -87,7 +87,7 @@ function useLubecSheetEditing({ character, updateCharacter, role, currentUserId,
   const media = useCharacterMedia({ ...campaign, currentUserId, effectiveSelected: character, canEditSelected: canEdit })
   if (!character || !canEdit) return null
   return {
-    update: (updates) => updateCharacter(character.id, updates),
+    update: (updates) => updateCharacter(character.id, updates, character),
     uploadPortrait: media.uploadCharacterPortraitImage,
     uploadToken: media.uploadCharacterTokenImage,
   }
@@ -111,11 +111,21 @@ export function useLubecSheetSession({ source, campaignId, groupId, role, curren
   const gearGive = useLubecGive({ onCharacters, character, characters: store.characters, store, campaignId, groupId, role, userId: currentUserId })
   const carriers = useLubecSharedCarriers({ campaignId, groupId }, onCharacters, setError)
   const shared = sharedSeatForCharacter(onCharacters, character, { carriers, characters: store.characters, viewer, store, records })
-  const sheetProps = character ? { character, editing, campaignStock, gearGive, shared, ...lubecSheetWiring(character, viewer, store, records) } : null
+  const viewStore = viewStoreForCharacter(store, character)
+  const sheetProps = character ? { character, editing, saveControls: store.saveControls?.(character.id), campaignStock, gearGive, shared, ...lubecSheetWiring(character, viewer, viewStore, records) } : null
   return { store, character, viewer, sheetProps }
 }
 
 function sharedSeatForCharacter(onCharacters: boolean, character: LubecCharacterRecord | null, options: Omit<Parameters<typeof lubecSharedSeat>[0], 'character'>) {
   if (!onCharacters || !character) return null
   return lubecSharedSeat({ ...options, character })
+}
+
+function viewStoreForCharacter(store: LubecStore, character: LubecCharacterRecord | null) {
+  const base = character ?? undefined
+  return {
+    ...store,
+    updateCharacter: (id: string, updates: Partial<LubecCharacterRecord>) => store.updateCharacter(id, updates, base),
+    updateCharacterNow: (id: string, updates: Partial<LubecCharacterRecord>) => store.updateCharacterNow(id, updates, base),
+  }
 }

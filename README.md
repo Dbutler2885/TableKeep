@@ -348,11 +348,40 @@ Firebase Hosting remains a supported self-deployment alternative: [`firebase.jso
 Character and NPC media also requires the production bucket to use [`storage.cors.json`](storage.cors.json), which permits only the Table Keep production origin and the Firebase browser SDK's GET and POST requests.
 Firebase deploys Storage Rules but does not apply bucket CORS, so that reviewed policy must be applied separately with `gcloud storage buckets update gs://homeboyshouse-dev.firebasestorage.app --cors-file=storage.cors.json`.
 
+### Lubec sheet writer inventory
+
+Every supported character and NPC-sheet mutation now uses transactional edit intentions, revisions and immutable receipts.
+The pure planner lives in `functions/src/sheets/`; browser exports in `characterStore/` preserve the public API and keep the browser and Admin SDK on one protocol.
+A missing legacy revision is zero, initial creation is revision zero, and each applied mutation increments once.
+Unknown canonical fields and schema stamps survive; counter edits stay deltas and gear/effect edits address stable record ids and fields.
+
+| Producer | Transactional route | Focused regression evidence |
+| --- | --- | --- |
+| Delayed/immediate editors and overlapping hook stores | `characterStoreActions` captures the rendered base; `revisionedStoreAdapter` diffs only the user's edits and queues `saveSheetIntention` | `revisionedStore.emulator.test.ts`, shared store unit suites |
+| Direct entry, guided creation, character imports and new NPC sheets | `createCharacterStoreDoc` uses `createRevisionedSheet`, with one stable creation receipt and no replacement of an existing sheet | `combatRules.emulator.test.ts`, `npcSheets.emulator.test.ts`, browser smoke |
+| Activation, roll-up, class/skills, counters, effects and GM corrections | `lubecSheetWiring` binds each rendered base into the same queue; numeric counters are deltas | `sheetOptimistic.test.ts`, `revisionedStore.emulator.test.ts`, sheet session suites |
+| Character name/media, import portraits, token changes and player assignment | The metadata editors and import/assignment helpers send partial updates through that store | Sheet session/parser suites, hidden-carrier assignment regression, browser smoke |
+| Local item edits, placement, loading, spending and Strength outcomes | Gear callbacks capture stable item fields through the store's intention diff | Gear rules/transaction unit suites, browser smoke |
+| Moves between sheets, hidden/shared carriers and GM Items, including drop and give | `lubecMoveBetween` reads command receipts and current records, prepares every affected sheet, then writes sheets/receipts and non-sheet records atomically | `lubecMove.emulator.test.ts`, hidden/shared carrier emulator suites |
+| Existing callable item transfers | `acceptTransfer` validates active membership and both schemas; `writeAdminSheetChanges` applies the shared planner to both sheets, writes both receipts and deletes the offer in one transaction | Callable characterization and `acceptPendingTransfer.emulator.test.ts`, including concurrent/lost-ack retries |
+| Uncertain transfer acknowledgements | The client retains the source/receiver identity; the callable returns committed sheet receipts after the offer disappears | Transfer hook/identity suites and callable emulator retry regression |
+| Existing GM repairs | Corrections use the same editor route and retain conflicts for review | Store conflict/vanished-record regressions and save-notice component tests |
+
+Hidden/shared-carrier documents, GM Items and public NPC metadata are separate records and retain their existing authorization and transaction checks.
+NPC name/art are authored on the NPC record and displayed on its sheet; these are not writes to `npcSheets`.
+The generic character migration CLI has no Lubec migration steps and does not rewrite current Lubec documents.
+The hosted demo template is OSE and does not author live Lubec sheets.
+
+Each hook keeps confirmed server snapshots separate from optimistic intentions and probes receipts before replaying a snapshot.
+Unsaved intentions survive in a user-and-sheet-scoped session journal until acknowledged or explicitly discarded.
+Conflicts and vanished items remain reviewable in the real sheet; a permission denial shows a refresh message and keeps the journal.
+The obsolete Lubec whole-sheet save helper refuses calls, while OSE/VtM use their existing save path.
+
 ### Lubec combat rules rollout hold
 
-Ticket 07 prepares the combat paths, immutable sheet write receipts and Lubec revision fence locally; it does not deploy them.
-Existing Lubec writers without revision increments deliberately fail against this fence.
-Shared combat must remain disabled until ticket 08 migrates every writer and ticket 29 records explicit release authorization.
+Tickets 07 and 08 prepare the combat paths, immutable sheet write receipts, Lubec revision fence and every supported sheet writer locally; they do not deploy them.
+Older deployed Lubec clients without revisioned intentions deliberately fail against this fence.
+The writers in this checkout use the new protocol; shared combat remains disabled until ticket 29 records explicit release authorization and executes the coordinated rollout.
 Rules trust engine state and reported dice; they enforce membership, participant envelopes and sheet ownership, not combat outcomes.
 
 The ticket 29 operator must complete this checklist during an agreed off-hours window:

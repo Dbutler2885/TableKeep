@@ -1,3 +1,4 @@
+import { saveSheetIntention } from '../character/characterStore/sheetIntentionTransaction'
 /**
  * End-to-end coverage for the `acceptPendingTransfer` callable.
  *
@@ -42,7 +43,7 @@ const receiverCharacterId = 'receiver-character'
 const sword = { id: 'sword-1', kind: 'weapon' as const, equipped: false, qty: 1 }
 
 type AcceptRequest = {
-  data: { groupId?: string; campaignId?: string; transferId?: string }
+  data: { groupId?: string; campaignId?: string; transferId?: string; fromCharacterId?: string; toCharacterId?: string }
   auth?: { uid: string }
 }
 type AcceptCallable = (request: AcceptRequest) => Promise<{ ok: boolean }>
@@ -488,7 +489,7 @@ describe('a Lubec transfer', () => {
     return before
   }
 
-  it("lands an accepted item in the receiver's backpack, leaves the rest of each sheet alone, and stamps both", async () => {
+  it("lands an accepted item in the receiver's backpack, leaves the rest of each sheet alone, and revisions both without changing schema stamps", async () => {
     await offerIn(rope, [rope, cup])
     const startedAt = Date.now()
     await expect(accept()).resolves.toEqual({ ok: true })
@@ -502,9 +503,39 @@ describe('a Lubec transfer', () => {
         expect(data?.lubec.gear.carriers).toHaveLength(1)
         expect(data?.schemaVersion).toBe(1)
         // The emulator's clock is the machine's, so allow it a little skew.
-        expect(data?.schemaWrittenAt.toMillis()).toBeGreaterThan(startedAt - 5_000)
+        expect(data?.schemaWrittenAt).toEqual(oldTime)
+        expect(data?.updatedAt.toMillis()).toBeGreaterThan(startedAt - 5_000)
+        expect(data?.sheetRevision).toBe(1)
       }
       expect((await getDoc(offerRef(db))).exists()).toBe(false)
+    })
+  })
+
+  it('deduplicates simultaneous accepts and lost-acknowledgement retries after newer sheet edits', async () => {
+    await offerIn(rope, [rope, cup])
+    const request = { auth: { uid: receiverUid }, data: { groupId, campaignId, transferId: 'lubec-offer', fromCharacterId: senderCharacterId, toCharacterId: receiverCharacterId } }
+    expect(await Promise.all([acceptPendingTransfer(request), acceptPendingTransfer(request)])).toEqual([{ ok: true }, { ok: true }])
+    const receiverDb = testEnv.authenticatedContext(receiverUid).firestore() as unknown as Firestore
+    await saveSheetIntention(receiverDb, characterRef(receiverDb, receiverCharacterId), { operationId: 'later-edit', baseRevision: 1, edits: [{ kind: 'set', path: ['name'], base: { exists: true, value: 'Receiver PC' }, value: 'Renamed' }] })
+    await expect(acceptPendingTransfer(request)).resolves.toEqual({ ok: true })
+    await withAdmin(async (db) => {
+      const [sender, receiver] = await bothCharacters(db)
+      expect(sender?.sheetRevision).toBe(1)
+      expect(receiver).toMatchObject({ name: 'Renamed', sheetRevision: 2 })
+      expect(await gearOf(db, senderCharacterId)).toEqual([cup])
+      expect(await gearOf(db, receiverCharacterId)).toEqual([thing('rope', 'backpack', { pocket: 0 })])
+      for (const id of [senderCharacterId, receiverCharacterId]) expect((await getDoc(doc(characterRef(db, id), 'writeReceipts', 'transfer-lubec-offer'))).data()?.outcome.revision).toBe(1)
+    })
+    await expect(acceptPendingTransfer({ ...request, auth: { uid: senderUid } })).rejects.toMatchObject({ code: 'permission-denied' })
+  })
+
+  it('keeps a self-transfer offer and the inventory untouched rather than writing the same sheet twice', async () => {
+    await offerIn(rope, [rope, cup])
+    await withAdmin(async (db) => { await setDoc(offerRef(db), { toCharacterId: senderCharacterId, toUserId: senderUid }, { merge: true }) })
+    await expect(acceptPendingTransfer({ auth: { uid: senderUid }, data: { groupId, campaignId, transferId: 'lubec-offer' } })).rejects.toMatchObject({ code: 'failed-precondition' })
+    await withAdmin(async (db) => {
+      expect(await gearOf(db, senderCharacterId)).toEqual([rope, cup])
+      expect((await getDoc(offerRef(db))).exists()).toBe(true)
     })
   })
 
