@@ -74,7 +74,7 @@ export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onGear
         <LubecCountersPanel sheet={lubecShownSheet(sheet, circles.spin)} onChange={onCountersChange} held={circles.spin !== null} />
         <LubecEffectsPanel effects={sheet.effects} onChange={onEffectsChange} gear={sheet.gear} onGearChange={onGearChange} />
       </div>
-      {inPlay ? <LubecFightPanel sheet={sheet} onDrop={onGearDrop} /> : null}
+      {inPlay ? <LubecFightPanel sheet={sheet} onDrop={onGearDrop} roller={roller} /> : null}
       {onDraftEdit ? null : classSection}
     </div>
   )

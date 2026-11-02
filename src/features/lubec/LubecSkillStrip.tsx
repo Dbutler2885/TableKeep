@@ -16,9 +16,12 @@ function stripHint(skills: readonly LubecRollSkill[], armed: string | null): str
   return skills.length > 0 ? 'Tap a skill, then roll a Stat or Save' : ''
 }
 
-function LubecSkillChips({ skills, roller }: { skills: readonly LubecRollSkill[]; roller: LubecRoller }) {
+type ChipsProps = { skills: readonly LubecRollSkill[]; roller: LubecRoller; label?: string }
+
+/** A chip for each skill, pressed while it is armed; the Fight bar shows them too, armed the same way. */
+export function LubecSkillChips({ skills, roller, label = 'Arm a skill' }: ChipsProps) {
   return (
-    <div className="skill-chips" role="group" aria-label="Arm a skill">
+    <div className="skill-chips" role="group" aria-label={label}>
       {skills.map((skill) => (
         <button
           key={skill.name}

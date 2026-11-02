@@ -729,7 +729,7 @@ describe('Lubec Fight panel', () => {
     expect(within(panel).getByText('In hand')).toBeTruthy()
     expect(inHand()).toEqual(['Empty hand', 'Empty hand', 'FisticuffsHandle 55'])
     expect(panel.querySelectorAll('input, textarea, select')).toHaveLength(0)
-    expect(within(panel).getAllByRole('button').map((b) => b.textContent)).toEqual(['FisticuffsHandle 55', 'Start a fight'])
+    expect(within(panel.querySelector('.fight-heading') as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['FisticuffsHandle 55', 'Start a fight'])
 
     fireEvent.click(fightToggle())
     expect(fightToggle().getAttribute('aria-expanded')).toBe('false')
@@ -740,7 +740,8 @@ describe('Lubec Fight panel', () => {
     const panel = openFight([walkie, revolver])
 
     expect(inHand()).toEqual(["Left hand: Grandpa's revolver, 0 of 6Handle 55", 'Right hand: Walkie-talkie'])
-    expect(panel.getAllByRole('button').map((b) => b.textContent)).toEqual(["Left hand: Grandpa's revolver, 0 of 6Handle 55", 'Start a fight'])
+    const heading = within(fightPanel().querySelector('.fight-heading') as HTMLElement)
+    expect(heading.getAllByRole('button').map((b) => b.textContent)).toEqual(["Left hand: Grandpa's revolver, 0 of 6Handle 55", 'Start a fight'])
     expect(panel.queryByRole('button', { name: /Drop/ })).toBeNull()
   })
 
@@ -795,6 +796,225 @@ describe('Lubec Fight panel', () => {
 
     expect(effectiveHandle()).toBe('missing')
     expect(fightPanel().querySelector('.lubec-missing')).toBeTruthy()
+  })
+})
+
+describe('Lubec Fight bar allocation', () => {
+  const fight = () => within(screen.getByRole('region', { name: 'Fight controls' }))
+  const bar = () => document.querySelector('.allocation-bar') as HTMLElement
+  const labels = () => [...document.querySelectorAll('.allocation-label')].map((label) => [label.className, label.textContent])
+  const parts = () => [...document.querySelectorAll('.allocation-bar .segment')].map((part) => [part.className, (part as HTMLElement).style.left, (part as HTMLElement).style.width])
+  const rollButtons = () => fight().queryAllByRole('button', { name: /^Roll / }).map((b) => [b.getAttribute('aria-label'), (b as HTMLElement).style.left])
+  const dividers = () => fight().queryAllByRole('button', { name: /^Defense divider/ })
+  const tool = (name: string) => fight().getByRole('button', { name })
+  const toolStatus = () => document.querySelector('.tool-status')?.textContent
+  const effectiveHandle = () => document.querySelector('.effective-handle')?.textContent
+  const fightChips = () => within(fight().getByRole('group', { name: 'Add a skill to the fight' }))
+  const stripChip = (name: string) => within(screen.getByRole('group', { name: 'Arm a skill' })).getByRole('button', { name: new RegExp(`^${name}`) })
+
+  const openBar = (sheet: Fields = {}, uid = 'player-1') => {
+    seed({ tommy: withSheet(sheet) })
+    mountTab('player', uid)
+    openSheet('Tommy Eves')
+    fireEvent.click(document.querySelector('.fight-toggle') as HTMLElement)
+    // The bar is 100 pixels wide from the left edge, so a pointer's x is its place on the bar.
+    bar().getBoundingClientRect = () => ({ left: 0, width: 100, top: 0, right: 100, bottom: 0, height: 0, x: 0, y: 0, toJSON: () => null })
+  }
+  const placeLines = (...positions: number[]) => {
+    fireEvent.click(tool('+ Defense line'))
+    positions.forEach((clientX) => fireEvent.click(bar(), { clientX }))
+    fireEvent.click(tool('+ Defense line'))
+  }
+  const roll = (name: string) => fireEvent.click(fight().getByRole('button', { name: `Roll ${name}` }))
+
+  it('opens on the prototype\'s tools, scale and bar: all Effective Handle on the attack, the rest of the 100 unused', () => {
+    openBar()
+
+    expect(fight().getAllByRole('button', { name: /line|Reset/ }).map((b) => [b.textContent, b.getAttribute('aria-pressed')])).toEqual([
+      ['+ Defense line', 'false'], ['Remove line', 'false'], ['Reset', null],
+    ])
+    expect(toolStatus()).toBe('Tools off')
+    expect([...document.querySelectorAll('.allocation-scale span')].map((mark) => mark.textContent)).toEqual(['0', '10', '20', '30', '40', '50', '60', '70', '80', '90', '100'])
+    expect(parts()).toEqual([['segment attack', '0%', '55%'], ['segment unused', '55%', '45%']])
+    expect((document.querySelector('.effective-edge') as HTMLElement).style.left).toBe('55%')
+    expect(labels()).toEqual([['allocation-label attack', 'ATK55']])
+    expect(rollButtons()).toEqual([['Roll ATK', '27.5%']])
+    expect(document.querySelector('.combat-instruction')?.textContent).toBe('Place or remove lines. Drag any divider to redivide the bar.')
+  })
+
+  it('places Defense lines with the tool, each part labelled and rolled on its own', () => {
+    openBar()
+    fireEvent.click(tool('+ Defense line'))
+    expect(tool('+ Defense line').getAttribute('aria-pressed')).toBe('true')
+    expect(tool('+ Defense line').className).toBe('combat-tool active')
+    expect(bar().className).toBe('allocation-bar placing')
+    expect(toolStatus()).toBe('Click the bar to place')
+
+    fireEvent.pointerMove(bar(), { clientX: 20 })
+    expect((document.querySelector('.preview') as HTMLElement).className).toBe('preview visible')
+    expect((document.querySelector('.preview') as HTMLElement).style.left).toBe('20%')
+    fireEvent.pointerLeave(bar())
+    expect((document.querySelector('.preview') as HTMLElement).className).toBe('preview')
+
+    fireEvent.click(bar(), { clientX: 35 })
+    fireEvent.click(bar(), { clientX: 20 })
+    fireEvent.click(bar(), { clientX: 20 })
+    fireEvent.click(bar(), { clientX: 90 })
+
+    expect(dividers().map((d) => d.getAttribute('aria-label'))).toEqual(['Defense divider at 20', 'Defense divider at 35', 'Defense divider at 55'])
+    expect(labels()).toEqual([['allocation-label defense', 'DEF 120'], ['allocation-label defense', 'DEF 215'], ['allocation-label defense', 'DEF 320']])
+    expect(parts().map(([className]) => className)).toEqual(['segment defense', 'segment defense alt', 'segment defense', 'segment unused'])
+
+    // Over a divider the tool neither previews nor places another line.
+    fireEvent.pointerMove(dividers()[0], { clientX: 20 })
+    expect((document.querySelector('.preview') as HTMLElement).className).toBe('preview')
+    fireEvent.click(dividers()[0], { clientX: 21 })
+    expect(dividers()).toHaveLength(3)
+
+    fireEvent.click(tool('+ Defense line'))
+    expect(bar().className).toBe('allocation-bar')
+    fireEvent.click(bar(), { clientX: 10 })
+    expect(dividers()).toHaveLength(3)
+  })
+
+  it('rolls a d100 for a part, a success under its size and a double flashing either way, as the prototype does', () => {
+    openBar()
+    placeLines(20)
+
+    seedRolls(19, 22)
+    roll('DEF 1')
+    roll('ATK')
+
+    expect(labels()).toEqual([['allocation-label defense', 'DEF 119/20'], ['allocation-label attack', 'ATK22/35']])
+    expect(parts().map(([className]) => className)).toEqual(['segment defense success', 'segment attack double success', 'segment unused'])
+
+    seedRolls(20, 99)
+    roll('DEF 1')
+    roll('ATK')
+    expect(labels().map(([, text]) => text)).toEqual(['DEF 120/20', 'ATK99/35'])
+    expect(parts().map(([className]) => className)).toEqual(['segment defense failure', 'segment attack double failure', 'segment unused'])
+  })
+
+  it('redivides the bar when a divider is dragged, between its neighbours, and drops the rolls made on the old one', () => {
+    openBar()
+    placeLines(20, 35)
+    seedRolls(10)
+    roll('DEF 1')
+
+    fireEvent.pointerDown(dividers()[0])
+    fireEvent.pointerMove(document, { clientX: 50 })
+    expect(dividers().map((d) => d.getAttribute('aria-label'))).toEqual(['Defense divider at 34', 'Defense divider at 35'])
+    expect(labels().map(([, text]) => text)).toEqual(['DEF 134', 'DEF 21', 'ATK20'])
+    fireEvent.pointerUp(document)
+    fireEvent.pointerMove(document, { clientX: 5 })
+    expect(dividers()[0].getAttribute('aria-label')).toBe('Defense divider at 34')
+  })
+
+  it('removes a line with the tool or the Delete key, and Reset clears the lines and the rolls', () => {
+    openBar()
+    placeLines(10, 20, 30)
+
+    fireEvent.click(tool('Remove line'))
+    expect(toolStatus()).toBe('Click a line to remove')
+    expect(bar().className).toBe('allocation-bar removing')
+    fireEvent.pointerDown(dividers()[1])
+    expect(dividers().map((d) => d.getAttribute('aria-label'))).toEqual(['Defense divider at 10', 'Defense divider at 30'])
+
+    fireEvent.keyDown(dividers()[0], { key: 'Enter' })
+    fireEvent.keyDown(dividers()[0], { key: 'Delete' })
+    expect(dividers().map((d) => d.getAttribute('aria-label'))).toEqual(['Defense divider at 30'])
+
+    seedRolls(5)
+    roll('ATK')
+    fireEvent.click(tool('Reset'))
+    expect(dividers()).toHaveLength(0)
+    expect(toolStatus()).toBe('Tools off')
+    expect(labels()).toEqual([['allocation-label attack', 'ATK55']])
+  })
+
+  it('adds an armed skill\'s bonus to the bar, as it adds to a Stat Check, and Reset spends it', () => {
+    openBar()
+    placeLines(20)
+
+    expect(fightChips().getAllByRole('button').map((chip) => chip.textContent)).toEqual(['Boatwork +10', 'Swimming +10', 'Diving +15'])
+    fireEvent.click(stripChip('Diving'))
+    expect(fightChips().getByRole('button', { name: /^Diving/ }).getAttribute('aria-pressed')).toBe('true')
+    expect(effectiveHandle()).toBe('Effective Handle 70+15 Diving')
+    expect(labels().map(([, text]) => text)).toEqual(['DEF 120', 'ATK50'])
+
+    fireEvent.click(fightChips().getByRole('button', { name: /^Boatwork/ }))
+    expect(stripChip('Boatwork').getAttribute('aria-pressed')).toBe('true')
+    expect(effectiveHandle()).toBe('Effective Handle 65+10 Boatwork')
+
+    fireEvent.click(tool('Reset'))
+    expect(stripChip('Boatwork').getAttribute('aria-pressed')).toBe('false')
+    expect(effectiveHandle()).toBe('Effective Handle 55')
+  })
+
+  it('takes a fighting skill, which the skill strip does not offer', () => {
+    openBar({ skills: { free: 'Boatwork', picked: ['Scrapping'] } })
+
+    expect(within(screen.getByRole('group', { name: 'Arm a skill' })).queryByRole('button', { name: /Scrapping/ })).toBeNull()
+    fireEvent.click(fightChips().getByRole('button', { name: /^Scrapping/ }))
+    expect(effectiveHandle()).toBe('Effective Handle 65+10 Scrapping')
+  })
+
+  it('drops the rolls when the Handle changes, and leaves a line past it off the bar until it reaches it again', () => {
+    openBar()
+    fireEvent.click(stripChip('Diving'))
+    placeLines(65)
+    seedRolls(30)
+    roll('DEF 1')
+    expect(labels().map(([, text]) => text)).toEqual(['DEF 130/65', 'ATK5'])
+
+    fireEvent.click(stripChip('Diving'))
+    expect(dividers()).toHaveLength(0)
+    expect(labels().map(([, text]) => text)).toEqual(['ATK55'])
+
+    fireEvent.click(stripChip('Diving'))
+    expect(labels().map(([, text]) => text)).toEqual(['DEF 165', 'ATK5'])
+    expect(parts().map(([className]) => className)).toEqual(['segment defense', 'segment attack', 'segment unused'])
+  })
+
+  it('spins the number on its part before it lands, with the Roll held, when motion is allowed', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    onTestFinished(() => { vi.useRealTimers() })
+    vi.stubGlobal('matchMedia', () => ({ matches: false }))
+    onTestFinished(() => { vi.unstubAllGlobals() })
+    openBar()
+
+    seedRolls(40)
+    roll('ATK')
+    expect(fight().getByRole('button', { name: 'Roll ATK' })).toHaveProperty('disabled', true)
+    expect(parts()[0][0]).toBe('segment attack')
+
+    act(() => { vi.runAllTimers() })
+    expect(labels().map(([, text]) => text)).toEqual(['ATK40/55'])
+    expect(parts()[0][0]).toBe('segment attack success')
+    expect(fight().getByRole('button', { name: 'Roll ATK' })).toHaveProperty('disabled', false)
+  })
+
+  it('stops a spin that a Reset has undone', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    onTestFinished(() => { vi.useRealTimers() })
+    vi.stubGlobal('matchMedia', () => ({ matches: false }))
+    onTestFinished(() => { vi.unstubAllGlobals() })
+    openBar()
+
+    seedRolls(40)
+    roll('ATK')
+    fireEvent.click(tool('Reset'))
+    act(() => { vi.runAllTimers() })
+    expect(labels().map(([, text]) => text)).toEqual(['ATK55'])
+  })
+
+  it('divides the bar but rolls nothing and offers no skill for a viewer who may not roll on the character', () => {
+    openBar({}, 'player-2')
+
+    expect(rollButtons()).toEqual([])
+    expect(fight().queryByRole('group', { name: 'Add a skill to the fight' })).toBeNull()
+    placeLines(20)
+    expect(labels().map(([, text]) => text)).toEqual(['DEF 120', 'ATK35'])
   })
 })
 
