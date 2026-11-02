@@ -244,6 +244,28 @@ describe('a Lubec campaign', () => {
     mocks.records.set(receiverPath, { ownerUserId: 'receiver-user', schemaVersion: 1, lubec: lubecOf([]) })
   })
 
+  it('acknowledges a committed transfer after the offer was deleted without writing either sheet again', async () => {
+    mocks.records.delete(transferPath)
+    const receipt = { transfer: { ...offerOf(rope), id: 'offer' } }
+    const receiptPaths = [senderPath, receiverPath].map((characterPath) => `${characterPath}/writeReceipts/transfer-offer`)
+    for (const receiptPath of receiptPaths) mocks.records.set(receiptPath, receipt)
+    await expect(accept({ ...request, data: { ...request.data, fromCharacterId: 'sender', toCharacterId: 'receiver' } })).resolves.toEqual({ ok: true })
+    expect(mocks.get.mock.calls.map(([ref]) => ref.path)).toEqual([
+      'groups/g/members/receiver-user', path, transferPath, ...receiptPaths,
+    ])
+    expect(mocks.set).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
+  })
+
+  it.each([senderPath, receiverPath])('keeps the offer and both sheets when %s has a malformed revision', async (characterPath) => {
+    mocks.records.set(characterPath, { ...mocks.records.get(characterPath), sheetRevision: -1 })
+    await expect(accept(request)).rejects.toMatchObject({
+      code: 'failed-precondition', message: 'This character needs repair before the transfer can be accepted. The offer has been kept.',
+    })
+    expect(mocks.set).not.toHaveBeenCalled()
+    expect(mocks.delete).not.toHaveBeenCalled()
+  })
+
   it("lands the item in the receiver's backpack, merging only `lubec.gear` into each character, then deletes the offer", async () => {
     await expect(accept(request)).resolves.toEqual({ ok: true })
     const changed = writes().filter(([path]) => [senderPath, receiverPath].includes(path))
