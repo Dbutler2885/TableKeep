@@ -865,6 +865,12 @@ describe('Lubec Fight bar allocation', () => {
     expect(labels()).toEqual([['allocation-label defense', 'DEF 120'], ['allocation-label defense', 'DEF 215'], ['allocation-label defense', 'DEF 320']])
     expect(parts().map(([className]) => className)).toEqual(['segment defense', 'segment defense alt', 'segment defense', 'segment unused'])
 
+    // Over a divider the tool neither previews nor places another line.
+    fireEvent.pointerMove(dividers()[0], { clientX: 20 })
+    expect((document.querySelector('.preview') as HTMLElement).className).toBe('preview')
+    fireEvent.click(dividers()[0], { clientX: 21 })
+    expect(dividers()).toHaveLength(3)
+
     fireEvent.click(tool('+ Defense line'))
     expect(bar().className).toBe('allocation-bar')
     fireEvent.click(bar(), { clientX: 10 })

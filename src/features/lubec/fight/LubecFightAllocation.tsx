@@ -99,28 +99,53 @@ function LubecAllocationLabels({ segments, rolls }: PartsProps) {
   )
 }
 
+const BAR_CLASSES: Readonly<Record<'place' | 'remove' | 'off', string>> =
+  { place: 'allocation-bar placing', remove: 'allocation-bar removing', off: 'allocation-bar' }
+
+// Where a click or a hover over the bar would place a line: nowhere on a divider, or with the place tool off.
+function placeablePosition(bar: RefObject<HTMLDivElement | null>, event: MouseEvent<HTMLDivElement>, handle: number, placing: boolean): number | null {
+  return placing && !onDivider(event) ? pointerPosition(bar, event.clientX, handle) : null
+}
+
+// Each part of the bar, then the hatched rest of the 100 past the Handle.
+function LubecAllocationParts({ segments, rolls, handle }: PartsProps & { handle: number }) {
+  return (
+    <div>
+      {segments.map((segment) => (
+        <span key={segment.index} className={segmentClass(segment, rolls[segment.index])} style={{ left: percent(segment.start), width: percent(segment.size) }} />
+      ))}
+      {handle < 100 ? <span className="segment unused" style={{ left: percent(handle), width: percent(100 - handle) }} /> : null}
+    </div>
+  )
+}
+
+// The faint line where a click would place one, shown only while the place tool hovers the bar.
+function LubecAllocationPreview({ position }: { position: number | null }) {
+  if (position === null) return <div className="preview" />
+  return <div className="preview visible" style={{ left: percent(position) }} />
+}
+
 type BarProps = PartsProps & { allocation: LubecFightAllocation; handle: number }
 
 function LubecAllocationBar({ segments, rolls, allocation, handle }: BarProps) {
   const bar = useRef<HTMLDivElement>(null)
   const [preview, setPreview] = useState<number | null>(null)
   const placing = allocation.mode === 'place' && handle >= 1
-  const onPointerMove = (event: PointerEvent<HTMLDivElement>) =>
-    setPreview(placing && !onDivider(event) ? pointerPosition(bar, event.clientX, handle) : null)
   const onClick = (event: MouseEvent<HTMLDivElement>) => {
-    if (placing && !onDivider(event)) allocation.place(pointerPosition(bar, event.clientX, handle))
+    const position = placeablePosition(bar, event, handle, placing)
+    if (position !== null) allocation.place(position)
   }
-  const modeClass = allocation.mode === 'place' ? ' placing' : allocation.mode === 'remove' ? ' removing' : ''
   return (
-    <div ref={bar} className={`allocation-bar${modeClass}`} onPointerMove={onPointerMove} onPointerLeave={() => setPreview(null)} onClick={onClick}>
-      <div>
-        {segments.map((segment) => (
-          <span key={segment.index} className={segmentClass(segment, rolls[segment.index])} style={{ left: percent(segment.start), width: percent(segment.size) }} />
-        ))}
-        {handle < 100 ? <span className="segment unused" style={{ left: percent(handle), width: percent(100 - handle) }} /> : null}
-      </div>
+    <div
+      ref={bar}
+      className={BAR_CLASSES[allocation.mode ?? 'off']}
+      onPointerMove={(event) => setPreview(placeablePosition(bar, event, handle, placing))}
+      onPointerLeave={() => setPreview(null)}
+      onClick={onClick}
+    >
+      <LubecAllocationParts segments={segments} rolls={rolls} handle={handle} />
       <div className="effective-edge" style={{ left: percent(handle) }} />
-      <div className={placing && preview !== null ? 'preview visible' : 'preview'} style={preview === null ? undefined : { left: percent(preview) }} />
+      <LubecAllocationPreview position={placing ? preview : null} />
       <LubecAllocationDividers bar={bar} allocation={allocation} handle={handle} />
     </div>
   )
