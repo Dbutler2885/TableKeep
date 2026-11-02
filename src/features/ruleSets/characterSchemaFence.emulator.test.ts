@@ -367,13 +367,13 @@ describe('character writes into a Lubec campaign, with only the Lubec floor at 1
 
   it('refuses a version 0 write with a fresh write time', async () => {
     await assertFails(create(testEnv, 'lubec', { ...lubecCreateFields(), schemaVersion: 0 }))
-    await assertFails(save(testEnv, 'lubec', stamped({ name: 'Ilse Brandt' }, 0)))
+    await assertFails(save(testEnv, 'lubec', stamped({ name: 'Ilse Brandt', sheetRevision: 1 }, 0)))
   })
 
-  it('allows a current create and a stamped merge save', async () => {
+  it('allows a current create and revisioned stamped merge saves', async () => {
     await assertSucceeds(create(testEnv, 'lubec', lubecCreateFields()))
-    await assertSucceeds(save(testEnv, 'lubec', stamped({ name: 'Ilse Brandt' })))
-    await assertSucceeds(save(testEnv, 'lubec', stamped({ name: 'Ilse Brandt' }), gmUid))
+    await assertSucceeds(save(testEnv, 'lubec', stamped({ name: 'Ilse Brandt', sheetRevision: 1 })))
+    await assertSucceeds(save(testEnv, 'lubec', stamped({ name: 'Ilse Brandt', sheetRevision: 2 }), gmUid))
   })
 
   it("still passes the old OSE create and merge save in an OSE campaign", async () => {

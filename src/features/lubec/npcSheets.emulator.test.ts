@@ -71,7 +71,7 @@ describe('npcSheets', () => {
     await assertSucceeds(setDoc(npcSheetRef(db, scope, npcId), sheetFields(adminUid)))
     const read = await assertSucceeds(getDoc(npcSheetRef(db, scope, npcId)))
     expect(read.data()).toMatchObject({ system: 'lubec', ownerUserId: adminUid, creationStatus: 'established_draft' })
-    await assertSucceeds(setDoc(npcSheetRef(db, scope, npcId), { creationStatus: 'active' }, { merge: true }))
+    await assertSucceeds(setDoc(npcSheetRef(db, scope, npcId), { creationStatus: 'active', sheetRevision: 1 }, { merge: true }))
     await assertSucceeds(deleteDoc(npcSheetRef(db, scope, npcId)))
   })
 

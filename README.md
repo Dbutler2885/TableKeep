@@ -348,6 +348,34 @@ Firebase Hosting remains a supported self-deployment alternative: [`firebase.jso
 Character and NPC media also requires the production bucket to use [`storage.cors.json`](storage.cors.json), which permits only the Table Keep production origin and the Firebase browser SDK's GET and POST requests.
 Firebase deploys Storage Rules but does not apply bucket CORS, so that reviewed policy must be applied separately with `gcloud storage buckets update gs://homeboyshouse-dev.firebasestorage.app --cors-file=storage.cors.json`.
 
+### Lubec combat rules rollout hold
+
+Ticket 07 prepares the combat paths, immutable sheet write receipts and Lubec revision fence locally; it does not deploy them.
+Existing Lubec writers without revision increments deliberately fail against this fence.
+Shared combat must remain disabled until ticket 08 migrates every writer and ticket 29 records explicit release authorization.
+Rules trust engine state and reported dice; they enforce membership, participant envelopes and sheet ownership, not combat outcomes.
+
+The ticket 29 operator must complete this checklist during an agreed off-hours window:
+
+1. Record the captain's go-ahead, the window, target project `homeboyshouse-dev`, reviewed web/functions/rules commit ids and the previous deployed rules artifact for rollback.
+   Confirm there are no active Lubec sessions and keep the combat feature gate disabled throughout this rollout.
+2. Verify ticket 08 has migrated ordinary and overlapping sheet stores, gear moves, effects/counters, imports/repairs, player assignment and callable transfers for both character and NPC sheets.
+   Every update must read canonical data and increment `sheetRevision` once; missing legacy revisions start at zero, with no bulk migration.
+   Verify real rules/adapter regressions, retained operation ids, immutable receipts, stale-save refusal and refresh messaging against emulators before shipping anything.
+3. Release the reviewed updated web and callable writers together using their separately approved release procedures, and confirm their deployed versions before installing the fence.
+   Verify the user-facing compatibility message is present: "Your version of Table Keep is out of date. Refresh to keep editing."
+   Preserve pending edits for repair/retry; do not silently discard an edit or automatically replay a stale whole-sheet replacement.
+   Ask every connected client to refresh and confirm the new version; an old tab's saves will be refused after the fence lands.
+4. From the reviewed release checkout run `npx firebase deploy --project homeboyshouse-dev --only firestore:rules`.
+   This is a rules-only step: do not deploy indexes, Storage Rules, hosting or functions as part of this command.
+   Record the deployed rules release and time; this checklist alone does not authorize executing it.
+5. On the hosted app with the new writers, verify owner and both GM roles can save a Lubec character/NPC and retry one acknowledged operation without another increment.
+   Verify an unchanged-revision old save is denied and shows the refresh message, OSE/VtM saves still work, and a spectator can read a fight but cannot mutate it.
+   Use hosted production sessions only for this separately authorized verification, never a loopback browser connected to production.
+6. If the writers or refresh path fail, keep combat disabled, pause Lubec editing and restore the recorded previous rules artifact with `npx firebase deploy --project homeboyshouse-dev --config <reviewed-rollback-config.json> --only firestore:rules`, using a reviewed config that points to that artifact.
+   Record the rollback release and verify restored save behavior before reopening editing; do not roll back web/callable writers independently while the revision fence remains active.
+7. Record all versions, checks and any rollback in ticket 29 and obtain its separate combat-release go-ahead before enabling any player-facing combat UI.
+
 ## Self-deploying with Firebase
 
 The demo needs none of this.
