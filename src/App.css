@@ -17599,6 +17599,7 @@ button:disabled {
   gap: 0.6rem 0.8rem;
   align-items: end;
   justify-content: space-between;
+  margin-bottom: 0.75rem;
 }
 
 .shell-root[data-theme="lubec"] .fight-heading .eyebrow {
@@ -17628,6 +17629,322 @@ button:disabled {
 .shell-root[data-theme="lubec"] .effective-handle strong {
   color: var(--lubec-ink);
   font: 800 1.4rem/1 var(--lubec-display);
+}
+
+/* The armed skill's bonus beside Effective Handle, as a roll circle's note names it. */
+.shell-root[data-theme="lubec"] .effective-handle-skill {
+  margin-left: 0.35rem;
+  color: var(--lubec-rust);
+}
+
+/* The prototype's allocation tools, bar, labels and rolls under the heading. */
+.shell-root[data-theme="lubec"] .fight-panel .combat-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin: 1rem 0;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .combat-tool {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem 0.7rem;
+  color: var(--lubec-blue);
+  background: transparent;
+  border: 1px solid var(--lubec-blue);
+  border-radius: 0;
+  cursor: pointer;
+  font: 800 0.64rem/1 var(--lubec-type);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .combat-tool.active {
+  color: var(--lubec-cream);
+  background: var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .combat-tool:focus-visible {
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .tool-status {
+  color: var(--lubec-muted);
+  font: 700 0.6rem/1.3 var(--lubec-type);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* The skills a fight can take, at the toolbar's far end. */
+.shell-root[data-theme="lubec"] .fight-panel .combat-toolbar .skill-chips {
+  margin-left: auto;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-stage {
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .roll-controls {
+  position: relative;
+  width: 100%;
+  height: 2.35rem;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment-roll {
+  position: absolute;
+  bottom: 0.4rem;
+  transform: translateX(-50%);
+  padding: 0.32rem 0.5rem;
+  color: var(--lubec-ink);
+  background: var(--lubec-paper-deep);
+  border: 1px solid rgba(23, 40, 43, 0.55);
+  border-radius: 0;
+  cursor: pointer;
+  font: 800 0.55rem/1 var(--lubec-type);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment-roll:hover,
+.shell-root[data-theme="lubec"] .fight-panel .segment-roll:focus-visible {
+  color: var(--lubec-cream);
+  background: var(--lubec-blue);
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment-roll:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-scale {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.3rem;
+  color: var(--lubec-muted);
+  font: 700 0.52rem/1 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar {
+  position: relative;
+  width: 100%;
+  height: var(--lubec-circle);
+  overflow: hidden;
+  touch-action: none;
+  background: var(--lubec-gray);
+  border: 2px solid var(--lubec-ink);
+  border-radius: 999px;
+  box-shadow: inset 0 2px 5px rgba(23, 40, 43, 0.25);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar.placing {
+  cursor: crosshair;
+}
+
+/* The tens ticks along the bar's top and bottom edges. */
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar::before,
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar::after {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  height: 0.6rem;
+  pointer-events: none;
+  background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), rgba(23, 40, 43, 0.78) calc(10% - 1px) 10%);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar::before {
+  top: 0;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar::after {
+  bottom: 0;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment.defense {
+  background: var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment.defense.alt {
+  background: var(--lubec-blue-alt);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment.attack {
+  background: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment.unused {
+  background: repeating-linear-gradient(135deg, #b3b5af 0 6px, #9b9e99 6px 12px);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment.success {
+  background: var(--lubec-success);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment.failure {
+  background: var(--lubec-failure);
+}
+
+/* A double flashes its stripes, red for a failure and green for a success. */
+.shell-root[data-theme="lubec"] .fight-panel .segment.double {
+  --critical-color: #ef2f2f;
+  background: repeating-linear-gradient(-45deg, var(--critical-color) 0 10px, var(--lubec-cream) 10px 20px);
+  animation: lubec-handle-double-flash 0.7s steps(1, end) infinite;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .segment.double.success {
+  --critical-color: var(--lubec-success);
+}
+
+@keyframes lubec-handle-double-flash {
+  0%,
+  49% {
+    background: repeating-linear-gradient(-45deg, var(--critical-color) 0 10px, var(--lubec-cream) 10px 20px);
+  }
+
+  50%,
+  100% {
+    background: repeating-linear-gradient(-45deg, var(--lubec-cream) 0 10px, var(--critical-color) 10px 20px);
+  }
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .effective-edge {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--lubec-ink);
+  pointer-events: none;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .preview,
+.shell-root[data-theme="lubec"] .fight-panel .divider {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  bottom: 0;
+  width: 1.75rem;
+  margin-left: -0.875rem;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  touch-action: none;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .preview {
+  display: none;
+  pointer-events: none;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar.placing .preview.visible {
+  display: block;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .preview::before,
+.shell-root[data-theme="lubec"] .fight-panel .divider::before {
+  content: "";
+  position: absolute;
+  top: 0.15rem;
+  bottom: 0.15rem;
+  left: 50%;
+  width: 4px;
+  transform: translateX(-50%);
+  background: var(--lubec-cream);
+  border: 1px solid var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .preview::before {
+  opacity: 0.48;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .divider {
+  cursor: ew-resize;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .divider:hover::before,
+.shell-root[data-theme="lubec"] .fight-panel .divider:focus-visible::before {
+  width: 6px;
+  background: #f6cc72;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar.removing .divider {
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-bar.removing .divider:hover::before {
+  width: 7px;
+  background: #ffb19c;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-labels {
+  position: relative;
+  width: 100%;
+  height: 1.75rem;
+  margin-top: 0.35rem;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-label {
+  position: absolute;
+  top: 0;
+  display: flex;
+  gap: 0.3rem;
+  align-items: baseline;
+  transform: translateX(-50%);
+  color: var(--lubec-blue);
+  font: 800 0.56rem/1 var(--lubec-type);
+  letter-spacing: 0.05em;
+  pointer-events: none;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-label.attack {
+  color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-label.at-start {
+  transform: none;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-label.at-end {
+  transform: translateX(-100%);
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .allocation-label strong {
+  font: 800 1.15rem/1 var(--lubec-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .roll-result {
+  display: inline-block;
+  min-width: 3ch;
+  text-align: right;
+}
+
+.shell-root[data-theme="lubec"] .fight-panel .combat-instruction {
+  margin: 0.7rem 0 0;
+  color: var(--lubec-muted);
+  font: 700 0.58rem/1.35 var(--lubec-type);
+  text-align: center;
+  text-transform: uppercase;
 }
 
 .shell-root[data-theme="lubec"] .lubec-hands {
@@ -17748,6 +18065,10 @@ button:disabled {
   .shell-root[data-theme="lubec"] .fight-toggle .caret {
     transition: none;
   }
+
+  .shell-root[data-theme="lubec"] .fight-panel .segment.double {
+    animation: none;
+  }
 }
 
 @media (max-width: 580px) {
@@ -17774,6 +18095,14 @@ button:disabled {
 
   .shell-root[data-theme="lubec"] .lubec-in-hand {
     align-self: stretch;
+  }
+
+  .shell-root[data-theme="lubec"] .fight-panel .allocation-scale {
+    font-size: 0.4rem;
+  }
+
+  .shell-root[data-theme="lubec"] .fight-panel .allocation-label small {
+    display: none;
   }
 }
 
