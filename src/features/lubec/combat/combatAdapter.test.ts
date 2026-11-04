@@ -11,6 +11,9 @@ import { lubecDetachedItem } from '../../ruleSets/lubec/gear/detachedItems'
 import { parseLubecGmItem } from '../../ruleSets/lubec/gear/gmItem'
 import type { CombatFight, CombatHandler } from './engine/types'
 
+const { defaultDrain } = vi.hoisted(() => ({ defaultDrain: vi.fn() }))
+vi.mock('./woundDelivery', () => ({ drainCombatWounds: defaultDrain }))
+
 type Ref = { path: string; id: string }
 type Data = Record<string, unknown>
 type Listener = { path: string; next: (snap: unknown) => void; error: (error: Error) => void; active: boolean }
@@ -81,6 +84,7 @@ const commit = (command: ReturnType<typeof start>, settings = options()) => comm
 const writesBeforeLastRead = () => events.findIndex((event) => !event.startsWith('get')) < events.findLastIndex((event) => event.startsWith('get'))
 
 beforeEach(() => {
+  defaultDrain.mockReset().mockRejectedValue(new Error('fixture delivery unavailable'))
   store.clear()
   events.length = 0
   listeners.length = 0
@@ -201,14 +205,15 @@ describe('commands on a live fight', () => {
 
   it('drains due wounds and retries End, and stops retrying when delivery cannot clear them', async () => {
     const live = fight()
-    put('combats/fight-start', { ...live, state: { ...live.state, woundOutbox: [{ id: 'wound' }] } })
-    expect(await commit(action('end'))).toEqual({ ok: false, reason: 'Wounds must be delivered before combat can end.' })
+    put('combats/fight-start', { ...live, state: { ...live.state, woundOutbox: [{ id: 'wound', target: { kind: 'character', sheetId: 'hero' }, originatingRound: 0, effectiveRound: 1, traumaDelta: 1, stressDelta: 0, effect: { id: 'injury', name: 'Bruise', cause: 'Bruise row', steps: [] } }] } })
+    expect(await commit(action('end'))).toEqual({ ok: false, reason: 'Wound delivery is pending: Error: fixture delivery unavailable. Combat remains live; retry End.' })
+    expect(defaultDrain).toHaveBeenCalledWith(db, expect.objectContaining({ fightId: 'fight-start' }), 'gm')
     const stuck = vi.fn(async () => undefined)
     expect(await commit(action('end', 'stuck'), options('gm', { drainWounds: stuck }))).toEqual({ ok: false, reason: 'Wound delivery is still pending. Combat remains live; retry End.' })
     expect(stuck).toHaveBeenCalledTimes(5)
     const drain = vi.fn(async (fightId: string) => {
       const current = read(`combats/${fightId}`) as unknown as CombatFight
-      put(`combats/${fightId}`, { ...current, state: { ...current.state, woundOutbox: [], woundAcknowledgements: ['wound'] } })
+      put(`combats/${fightId}`, { ...current, state: { ...current.state, woundOutbox: [], woundAcknowledgements: [{ id: 'wound', target: { kind: 'character', sheetId: 'hero' }, targetRevision: 1, originatingRound: 0, effectiveRound: 1, operationId: 'wound_op' }] } })
     })
     expect(await commit(action('end', 'drained'), options('gm', { drainWounds: drain }))).toMatchObject({ ok: true })
     expect(drain).toHaveBeenCalledOnce()

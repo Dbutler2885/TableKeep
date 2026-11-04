@@ -296,7 +296,7 @@ describe('atomic End and interruption', () => {
         callbacks++
         if (callbacks === 1) {
           const fresh = await readFight(as('admin'))
-          fresh.state.woundOutbox.push({ id: 'racing-wound', amount: 1 })
+          fresh.state.woundOutbox.push({ id: 'racing-wound', target: { kind: 'character', sheetId: 'hero' }, originatingRound: 0, effectiveRound: 1, traumaDelta: 1, stressDelta: 0, effect: { id: 'injury', name: 'Bruise', cause: 'Bruise row', steps: [] } })
           await updateDoc(ref(as('admin'), 'combats/fight-start'), { state: fresh.state })
         }
         return outcome
@@ -304,7 +304,7 @@ describe('atomic End and interruption', () => {
       drainWounds: async () => {
         drained++
         const fresh = await readFight(db)
-        fresh.state.woundAcknowledgements.push(...fresh.state.woundOutbox.map((wound) => wound.id))
+        fresh.state.woundAcknowledgements.push(...fresh.state.woundOutbox.map((wound) => ({ id: wound.id, target: wound.target, targetRevision: 1, originatingRound: 0, effectiveRound: 1, operationId: 'fixture_op' })))
         fresh.state.woundOutbox = []
         await updateDoc(ref(db, 'combats/fight-start'), { state: fresh.state })
       },
@@ -312,16 +312,16 @@ describe('atomic End and interruption', () => {
     expect(await commit(db, await action(db, 'end'), settings)).toMatchObject({ ok: true })
     expect(callbacks).toBeGreaterThan(2)
     expect(drained).toBe(1)
-    expect(await readFight(db)).toMatchObject({ status: 'ended', state: { woundOutbox: [], woundAcknowledgements: ['racing-wound'] } })
+    expect(await readFight(db)).toMatchObject({ status: 'ended', state: { woundOutbox: [], woundAcknowledgements: [{ id: 'racing-wound', targetRevision: 1 }] } })
     const oldEnd = await action(db, 'end')
     await commit(db, oldEnd, settings)
     expect(drained).toBe(1)
     await commit(db, start('second', []))
     const second = await readFight(db, 'fight-second')
-    second.state.woundOutbox = [{ id: 'undeliverable' }]
+    second.state.woundOutbox = [{ id: 'undeliverable', target: { kind: 'character', sheetId: 'missing' }, originatingRound: 0, effectiveRound: 1, traumaDelta: 1, stressDelta: 0, effect: { id: 'injury', name: 'Bruise', cause: 'Bruise row', steps: [] } }]
     await updateDoc(ref(db, 'combats/fight-second'), { state: second.state })
     const endSecond = { ...oldEnd, envelope: { ...oldEnd.envelope, id: 'end-second', fightId: 'fight-second', stageInstanceId: second.state.stageInstanceId } }
-    expect(await commit(db, endSecond)).toMatchObject({ ok: false, reason: expect.stringContaining('Wounds must be delivered') })
+    expect(await commit(db, endSecond)).toMatchObject({ ok: false, reason: expect.stringContaining('Wound delivery is pending') })
     expect(await commit(db, endSecond, { ...options(), drainWounds: async () => {} })).toMatchObject({ ok: false, reason: expect.stringContaining('still pending') })
     expect(await control(db)).toBe('fight-second')
   })
