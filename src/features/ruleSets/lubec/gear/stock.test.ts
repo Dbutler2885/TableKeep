@@ -62,8 +62,9 @@ describe('the starter stock', () => {
 })
 
 describe('picking from stock (Rule T2)', () => {
-  it('copies what the item is, never its stock id, its search words or a place', () => {
-    const copy = lubecCopyOf({ ...stock('flashlight'), id: 'x', carrier: 'hands', slot: 1, check: 'pass' })
+  it('copies what the item is, never its picker source, stock id, search words or a place', () => {
+    const source = { ...stock('flashlight'), from: 'game', id: 'x', carrier: 'hands', slot: 1, check: 'pass' as const }
+    const copy = lubecCopyOf(source)
     expect(copy).toEqual({
       kind: 'holder', name: 'Flashlight', size: 1, weight: 'normal', qty: 1, note: 'Two D batteries. About four hours of light.',
       capacity: 2, loaded: 2, takes: 'dcell', hold: 'load', art: 'flashlight', shape: 'tall',

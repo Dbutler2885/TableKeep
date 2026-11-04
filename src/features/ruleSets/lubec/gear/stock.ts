@@ -60,7 +60,7 @@ export const LUBEC_COPY_FIELDS = [
   'hold', 'locs', 'exclusive', 'armor', 'fits', 'per', 'art', 'picturePath', 'shape',
 ] as const
 
-const COPY_EXCLUDED: readonly string[] = [...LUBEC_PLACE_FIELDS, ...LUBEC_GM_ITEM_FIELDS, 'id', 'sid', 'tags', 'stock', 'createdAt', 'updatedAt']
+const COPY_EXCLUDED: readonly string[] = [...LUBEC_PLACE_FIELDS, ...LUBEC_GM_ITEM_FIELDS, 'id', 'sid', 'tags', 'stock', 'from', 'createdAt', 'updatedAt']
 
 /** Rule T2: a deep copy of what an item is, never of where it is or which stock it came from. */
 export function lubecCopyOf(src: Partial<LubecItem>): Partial<LubecItem> {

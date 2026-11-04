@@ -1755,13 +1755,13 @@ export function emptyRevolverPromptProblems(shown) {
   return JSON.stringify(shown) === JSON.stringify(EMPTY_REVOLVER_PROMPT) ? [] : [`the empty-weapon prompt shows ${JSON.stringify(shown)}`]
 }
 
-// Step 16: the stock revolver goes into the free right hand from its empty slot; Fire on its card stops at the prompt, and Cancel closes it.
+// Step 16: the stock revolver goes into the free right hand from its empty slot; Shoot on its card stops at the prompt, and Cancel closes it.
 async function fireLubecEmptyRevolver(page) {
   await page.locator(`${LUBEC_GEAR_PAGE} .hb [data-drop="hands#1"]`).click()
   await pickLubecStockItem(page, '.38 revolver')
   await submitLubecGearForm(page)
   await page.locator(`${LUBEC_GEAR_PAGE} .hb .slot.item ::-p-text(.38 revolver)`).click()
-  await page.locator(`${LUBEC_GEAR_SHEET} .kind-actions .btn ::-p-text(Fire)`).click()
+  await page.locator(`${LUBEC_GEAR_SHEET} .kind-actions .btn ::-p-text(Shoot)`).click()
   const shown = await (await page.waitForSelector(LUBEC_GEAR_PROMPT)).evaluate(readLubecGearPrompt)
   const problems = emptyRevolverPromptProblems(shown)
   if (problems.length) throw new Error(problems.join('; '))
@@ -1875,7 +1875,7 @@ async function lubecGearPageSteps(page, testCase, path) {
     await dropLubecAnvil(page)
     await waitForStored(() => readDroppedItems(path), droppedAnvilProblems)
   })
-  await step('put the stock revolver in a hand and press Fire: the prompt says it isn\'t loaded, with Cancel, Reload and the red "Reload & fire"', () => fireLubecEmptyRevolver(page))
+  await step('put the stock revolver in a hand and press Shoot: the prompt says it isn\'t loaded, with Cancel, Reload and the red "Reload & fire"', () => fireLubecEmptyRevolver(page))
   await step('open the Core page\'s Fight bar and see the flashlight and the revolver "In hand"', async () => expectInHand(await openLubecFightInHand(page)))
   await lubecFightFitStep(page, testCase)
   await step('go back to the Gear page', () => openLubecGearPage(page))
