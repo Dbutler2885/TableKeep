@@ -7,6 +7,7 @@ import type { CombatCommand, CombatHandler, CombatOutcome, CombatPlan } from './
 import type { CombatJournal } from './commandJournal'
 import { combatRef, readCombatAuthority, readCombatRecords } from './combatReads'
 import { writeCombatPlan } from './combatWrites'
+import { drainEndWounds } from './endWoundDrain'
 
 export type CombatTransactionOptions = {
   userId: string
@@ -14,7 +15,7 @@ export type CombatTransactionOptions = {
   /** Shared seam for later engine actions; only built-in lifecycle commands ship in this slice. */
   handlers?: Readonly<Record<string, CombatHandler>>
   transact?: (callback: (tx: Transaction) => Promise<CombatOutcome>) => Promise<CombatOutcome>
-  /** GM wound delivery service, supplied by the wound slice. Must finish acknowledged delivery. */
+  /** Optional override for tests; End otherwise uses the real atomic wound delivery service. */
   drainWounds?: (fightId: string) => Promise<void>
 }
 
@@ -52,8 +53,9 @@ async function sendCommand(db: Firestore, command: CombatCommand, options: Comba
   const transact = options.transact ?? ((callback) => runTransaction(db, callback))
   for (let attempt = 0; attempt < 5; attempt++) {
     const outcome = await transact((tx) => applyCommand(db, tx, command, options))
-    if (!dueWounds(outcome) || !options.drainWounds) return outcome
-    await options.drainWounds(command.envelope.fightId)
+    if (!dueWounds(outcome)) return outcome
+    const failure = await drainEndWounds(db, command, options.userId, options.drainWounds)
+    if (failure) return failure
   }
   return { ok: false, reason: 'Wound delivery is still pending. Combat remains live; retry End.' }
 }

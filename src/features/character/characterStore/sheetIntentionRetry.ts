@@ -7,13 +7,19 @@ function canCheckRevision(error: unknown, nextRevision: number | undefined, retr
     && error instanceof FirebaseError && error.code === 'permission-denied'
 }
 
-async function revisionAdvanced(sheetRef: DocumentReference, nextRevision: number) {
-  const current = await getDocFromServer(sheetRef.withConverter(null))
+type AttemptedSheetRef = DocumentReference | (() => DocumentReference | undefined)
+
+async function revisionAdvanced(sheetRef: AttemptedSheetRef, nextRevision: number) {
+  const ref = typeof sheetRef === 'function' ? sheetRef() : sheetRef
+  if (!ref) return false
+  const current = await getDocFromServer(ref.withConverter(null))
   return current.exists() && readSheetRevision(current.data()) >= nextRevision
 }
 
-/** Rules may reject a stale revision before Firestore reports transaction contention. */
-export async function withSheetRevisionRetry<T>(sheetRef: DocumentReference, write: () => Promise<T>, attemptedRevision: () => number | undefined, retries = 2): Promise<T> {
+/** Rules may reject a stale revision before Firestore reports transaction contention.
+ * A getter supports targets discovered by the write transaction itself.
+ */
+export async function withSheetRevisionRetry<T>(sheetRef: AttemptedSheetRef, write: () => Promise<T>, attemptedRevision: () => number | undefined, retries = 2): Promise<T> {
   try {
     return await write()
   } catch (error) {
