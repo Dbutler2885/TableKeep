@@ -18,6 +18,8 @@ import { lubecPrunedOverrides } from '../modifiers'
 import { lubecCopyOf } from './stock'
 export { lubecCopyOf, LUBEC_COPY_FIELDS } from './stock'
 import { onYou, place } from './placement'
+import { lubecPhysicalMovePlan } from './physicalMove'
+import type { LubecItemCommand } from './itemIdentity'
 
 export const LUBEC_STALE_MOVE = 'Someone moved that first. Nothing changed.'
 
@@ -46,6 +48,10 @@ export type LubecDropper = { characterId: string; characterName: string; userId:
 
 export type LubecMove = {
   itemId: string
+  /** Opt into lossless combat identity rules; created by lubecMovePhysicalBetween. */
+  physical?: LubecItemCommand
+  /** Quantity detached by a physical move; omitted means the whole record. */
+  qty?: number
   /** Where the player saw it. A GM item has no place, so it has none. */
   seen?: LubecSeenPlace
   /** Where it goes: "carrier", "carrier#pocket" or "hands#slot". Missing, it arrives by the arrival rule. A drop has none. */
@@ -160,9 +166,12 @@ function putInGear(record: GearRecord, taken: Taken, move: LubecMove): Put {
   const gear = gearOf(record)
   if (!gear) return { ok: false, msg: LUBEC_STALE_MOVE }
   if (record.kind === 'hidden' && taken.item.picturePath) return { ok: false, msg: LUBEC_NO_HIDDEN_PICTURE }
-  const put = move.dest === undefined ? lubecReceive(gear, taken.item) : movedTo(gear, taken.item, { ...move, dest: move.dest })
+  const put = arrive(gear, taken.item, move)
   return put.ok ? { ok: true, to: withGear(record, put.gear), item: put.item } : put
 }
+
+const arrive = (gear: LubecGear, item: LubecItem, move: LubecMove) =>
+  move.dest === undefined ? lubecReceive(gear, item) : movedTo(gear, item, { ...move, dest: move.dest })
 
 /**
  * The move of `move.itemId` from one record to another, planned against both
@@ -172,6 +181,7 @@ function putInGear(record: GearRecord, taken: Taken, move: LubecMove): Put {
  * room for it now.
  */
 export function lubecMovePlan(from: LubecMoveRecord, to: LubecMoveRecord, move: LubecMove): LubecMovePlan {
+  if (move.physical) return lubecPhysicalMovePlan(from, to, move, move.physical)
   const taken = takeOut(from, move)
   if (!taken) return { ok: false, msg: LUBEC_STALE_MOVE }
   const put = putIn(to, taken, move)
