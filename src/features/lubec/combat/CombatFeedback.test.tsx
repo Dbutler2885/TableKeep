@@ -37,6 +37,13 @@ beforeEach(() => { mocks.subscriptions = []; vi.clearAllMocks(); vi.useFakeTimer
 afterEach(() => { cleanup(); vi.useRealTimers() })
 
 describe('workspace roll feedback', () => {
+  it('renders only workspace content when combat is disabled, even if stale fight state remains', () => {
+    render(tree('notes', { ...watch, enabled: false }))
+    expect(screen.getByLabelText('Keep editing')).toBeTruthy()
+    expect(document.querySelector('.combat-cards')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Your turn/ })).toBeNull()
+    expect(mocks.subscriptions).toHaveLength(0)
+  })
   it('keeps one listener across tabs, shows committed cards without taking focus, and opens the full newest-first ticker', () => {
     const view = render(tree())
     const input = screen.getByLabelText('Keep editing')

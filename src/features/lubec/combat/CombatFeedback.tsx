@@ -28,6 +28,7 @@ function feedbackScope(enabled: boolean, campaign: Campaign | null): CampaignSco
 export function CombatFeedback({ campaign, setError, children, ...viewer }: FeedbackProps) {
   const { enabled, live } = useLubecCombat()
   const log = useCombatLog(feedbackScope(enabled, campaign), live?.id ?? null, setError)
+  if (!enabled) return children
   return (
     <CombatLogContext value={log}>
       {children}

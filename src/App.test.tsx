@@ -1084,6 +1084,7 @@ describe('GroupShell subscriptions', () => {
       child.getAttribute('data-testid') ?? child.className
     ))
     expect(order).toEqual(['menu-toggle', 'shell-layout', 'confirm-overlay', 'TransferNotification', 'CliffhangerModal', 'CampaignSettingsModal'])
+    expect(document.querySelector('.combat-cards')).toBeNull()
   })
 })
 
