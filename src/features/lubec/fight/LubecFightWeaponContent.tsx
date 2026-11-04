@@ -1,6 +1,6 @@
 import './lubecFight.css'
 import type { LubecAttackHandle } from '../../ruleSets/lubec/gear/handPenalty'
-import { LubecPicture } from '../gear/LubecGearArt'
+import { LubecFightPicture } from './LubecFightPicture'
 import { LubecHandleTerms } from '../LubecInHand'
 import { LUBEC_FISTICUFFS_ID, lubecCombatantFightingTraining, lubecCombatantGear, lubecCombatantWielder, type LubecCombatant } from './lubecFightRequest'
 import { lubecFightCells, lubecFightFists, type LubecFightCell } from './lubecFightWeapons'
@@ -41,7 +41,7 @@ function HeldCard({ cell, chosen, onChoose, drop, busy }: Choosing & { cell: Ext
     <div className={`pick-cell${held.hands === 'both' ? ' both' : ''}`}>
       <button type="button" className="pick" disabled={!held.weapon} aria-pressed={chosen === held.itemId} onClick={() => onChoose(held.itemId)}>
         <span className="where">{cell.where}</span>
-        <LubecPicture item={item} frame="pic" />
+        <LubecFightPicture item={item} />
         <LubecFightCardWords name={held.name} line={cell.line} attack={cell.attack} />
       </button>
       {cell.droppable && drop ? (

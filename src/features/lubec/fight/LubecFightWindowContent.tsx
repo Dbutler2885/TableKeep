@@ -1,7 +1,7 @@
 import type { LubecAttackChoice } from '../../ruleSets/lubec/gear/weaponAttacks'
 import type { LubecHands } from '../../ruleSets/lubec/gear/held'
 import { lubecCatchRule } from '../gear/catchLabels'
-import { LubecPicture } from '../gear/LubecGearArt'
+import { LubecFightPicture } from './LubecFightPicture'
 import { LubecFightCardWords, LubecFightGlyph } from './LubecFightWeaponContent'
 import { LubecFightWearingContent } from './LubecFightTargetContent'
 import { lubecFightAttacks, lubecFightCells, lubecFightFists, type LubecFightCell } from './lubecFightWeapons'
@@ -40,7 +40,7 @@ function WindowHand({ cell, onInventory, readOnly, selected, hands }: { cell: Lu
   const held = cell.kind === 'held'
   return <button type="button" className={`pick${held ? '' : ' empty'}`} data-selected={selected} data-weapon={weaponCell(cell)} disabled={readOnly} onClick={() => onInventory(hands)}>
     <span className="where">{cell.where}{selected ? ' · attacking with' : ''}</span>
-    {held ? <LubecPicture item={cell.item} frame="pic" /> : <LubecFightGlyph d={FREE_GLYPH} />}
+    {held ? <LubecFightPicture item={cell.item} /> : <LubecFightGlyph d={FREE_GLYPH} />}
     {held ? <WindowHeldWords cell={cell} /> : <span><span className="name">Empty</span><small>A free hand</small></span>}
   </button>
 }
