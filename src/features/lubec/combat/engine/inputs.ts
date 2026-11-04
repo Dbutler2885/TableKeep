@@ -25,13 +25,21 @@ export function combatSetupIssues(selections: CombatantSelection[], sheets: Comb
   })
 }
 
+export type CombatPublicSummary = Pick<Combatant, 'name' | 'portraitPath' | 'armor'> & { speed: number | null }
+
+/** What everyone may see of a combatant's sheet: name, face, current Speed and worn armor, nothing else. */
+export const combatPublicSummary = (record: CombatSheet): CombatPublicSummary => ({
+  name: record.name, portraitPath: record.portraitPath,
+  speed: lubecCurrentValue(record.sheet, 'Speed', lubecSheetModifiers(record.sheet)),
+  armor: lubecNpcFightSummary(record.sheet).armor,
+})
+
 /** Only explicit public fields cross the private-sheet boundary. */
 export function publicCombatant(record: CombatSheet): Combatant {
-  const speed = lubecCurrentValue(record.sheet, 'Speed', lubecSheetModifiers(record.sheet))
+  const { speed, ...summary } = combatPublicSummary(record)
   if (speed === null) throw new Error('Speed is missing.')
   return {
     kind: record.kind, sheetId: record.sheetId, key: combatantKey(record),
-    ownerUserId: record.ownerUserId, name: record.name, portraitPath: record.portraitPath,
-    speed, armor: lubecNpcFightSummary(record.sheet).armor, interactionSequence: 0, outReason: null,
+    ownerUserId: record.ownerUserId, ...summary, speed, interactionSequence: 0, outReason: null,
   }
 }

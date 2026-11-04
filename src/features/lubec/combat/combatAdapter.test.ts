@@ -166,6 +166,19 @@ describe('commands on a live fight', () => {
     expect(await commit(action('place', 'empty-place', { floor: [] }))).toMatchObject({ ok: true })
   })
 
+  it('refreshes public summaries from every combatant\'s current sheet and public NPC record, and only for the GM', async () => {
+    put('npcs/roy', { name: 'Roy the Bull', portraitPath: 'roy-art-2', story: 'private' })
+    events.length = 0
+    expect(await commit(action('refresh', 'refresh-player'), options('player'))).toEqual({ ok: false, reason: 'Only the GM can do that.' })
+    expect(events.some((event) => event.includes('npcSheets') || event.includes('characters/'))).toBe(false)
+    expect(await commit(action('refresh'))).toMatchObject({ ok: true })
+    expect(events).toEqual(expect.arrayContaining([`get ${root}/characters/hero`, `get ${root}/npcSheets/roy`, `get ${root}/npcs/roy`]))
+    expect(writesBeforeLastRead()).toBe(false)
+    expect(fight().state.combatants[1]).toMatchObject({ key: 'npc:roy', name: 'Roy the Bull', portraitPath: 'roy-art-2' })
+    expect(JSON.stringify(fight())).not.toMatch(/private|Sheet name/)
+    expect(await commit(action('refresh', 'refresh-again'))).toEqual({ ok: false, reason: 'Public summaries are current.' })
+  })
+
   it('replaces state whole, so a field the engine removed does not survive', async () => {
     const live = fight()
     put('combats/fight-start', { ...live, state: { ...live.state, scratch: 'stale' } })

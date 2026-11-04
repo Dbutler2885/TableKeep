@@ -11,7 +11,7 @@ import { CalendarTab } from '../notes/CalendarTab'
 import type { GameSystem } from '../navigation/tabs'
 import { ruleSets } from '../ruleSets/registry'
 import type { RuleSetSheetProps } from '../ruleSets/RuleSetSheets'
-import { ruleSetItemsTabs, ruleSetMapFights, ruleSetNpcSheets, ruleSetSheets } from '../ruleSets/sheetComponents'
+import { ruleSetCombatTabs, ruleSetItemsTabs, ruleSetMapFights, ruleSetNpcSheets, ruleSetSheets } from '../ruleSets/sheetComponents'
 import type { AppTab, CharacterRecord, NpcRecord } from '../../types/app'
 
 export type TabPanelContext = RuleSetSheetProps & {
@@ -25,6 +25,7 @@ type CampaignTabContentProps = TabPanelContext & { activeTab: AppTab }
 // not the panel, keeps a campaign off the tabs its system lacks.
 const TAB_PANELS: Record<AppTab, (context: TabPanelContext) => ReactNode> = {
   character: characterPanel,
+  combat: combatPanel,
   maps: mapsPanel,
   monsters: monstersPanel,
   items: itemsPanel,
@@ -43,6 +44,12 @@ export function CampaignTabContent({ activeTab, ...context }: CampaignTabContent
 function characterPanel({ gameSystem, ...context }: TabPanelContext) {
   const Sheet = ruleSetSheets[gameSystem]
   return <Sheet {...context} />
+}
+
+// The live-fight tab, in a rule set that has one.
+function combatPanel({ gameSystem, ...context }: TabPanelContext) {
+  const Combat = ruleSetCombatTabs[gameSystem]
+  return Combat ? <Combat {...context} /> : null
 }
 
 // Maps shows the sheet beside the map only when the rule set says it can,

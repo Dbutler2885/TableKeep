@@ -13,6 +13,7 @@ interface ImportMetaEnv {
   readonly VITE_FIRESTORE_EMULATOR_PORT?: string
   readonly VITE_STORAGE_EMULATOR_PORT?: string
   readonly VITE_FUNCTIONS_EMULATOR_PORT?: string
+  readonly VITE_LUBEC_MAPLESS_COMBAT?: string
 }
 
 interface ImportMeta {

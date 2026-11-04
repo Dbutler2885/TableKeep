@@ -1,0 +1,96 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, render, waitFor } from '@testing-library/react'
+import type { Campaign, Role } from '../../../types/app'
+import { lubecCharacterSheet } from '../../ruleSets/lubec/sheetFixtures'
+import { LubecCombatContext } from './combatWatch'
+import { planCombatCommand } from './engine/lifecycle'
+import type { CombatCommand, CombatOutcome, CombatSheet } from './engine/types'
+
+const mocks = vi.hoisted(() => ({
+  listeners: new Map<string, (snap: { data: () => unknown }) => void>(),
+  sent: [] as CombatCommand[],
+  outcome: { ok: true } as CombatOutcome,
+}))
+
+vi.mock('../../../firebase', () => ({ db: {} }))
+vi.mock('firebase/firestore', () => ({
+  doc: (_db: unknown, path: string) => path,
+  onSnapshot: (path: string, next: (snap: { data: () => unknown }) => void) => {
+    mocks.listeners.set(path, next)
+    return () => mocks.listeners.delete(path)
+  },
+}))
+vi.mock('./useLubecCombatSend', () => ({
+  useLubecCombatSend: () => async (_key: string, make: () => CombatCommand) => {
+    mocks.sent.push(make())
+    return mocks.outcome
+  },
+}))
+
+const { LubecCombatServices } = await import('./LubecCombatServices')
+
+const campaign = { id: 'gym', groupId: 'school', name: 'Gym', status: 'active' } as Campaign
+const root = 'groups/school/campaigns/gym'
+const stored = (name: string) => ({ system: 'lubec', schemaVersion: 1, name, ownerUserId: 'gm', portraitPath: '', lubec: lubecCharacterSheet() })
+const roy: CombatSheet = { kind: 'npc', sheetId: 'roy', name: 'Roy Carver', ownerUserId: 'gm', portraitPath: '', sheet: lubecCharacterSheet() }
+
+function liveFight() {
+  const command = { envelope: { id: 'start', groupId: 'school', campaignId: 'gym', fightId: 'fight', round: 0, phase: 'setup', stageInstanceId: 'setup', actorKey: null, interactionSequence: 0 }, seed: 's', payload: { type: 'start', combatants: [{ kind: 'npc', sheetId: 'roy' }], floor: [], dodgeball: true } } as CombatCommand
+  return { id: 'fight', fight: planCombatCommand(command, { activeFightId: null, fight: null, sheets: [roy], items: new Map() }, { userId: 'gm', isGm: true }).fight }
+}
+
+function show(role: Role, setError = vi.fn()) {
+  render(<LubecCombatContext value={{ enabled: true, ready: true, live: liveFight() }}><LubecCombatServices campaign={campaign} role={role} userId="gm" setError={setError} /></LubecCombatContext>)
+  return setError
+}
+
+const read = (path: string, data: unknown) => act(() => { mocks.listeners.get(`${root}/${path}`)?.({ data: () => data }) })
+
+beforeEach(() => {
+  mocks.listeners.clear()
+  mocks.sent = []
+  mocks.outcome = { ok: true, fightId: 'fight', generatedIds: [], rolls: [] }
+})
+afterEach(cleanup)
+
+describe('the GM\'s public summary refresher', () => {
+  it('waits for every document, sends one refresh when a summary changed, and not again for the same change', async () => {
+    show('gm')
+    read('npcSheets/roy', stored('Roy'))
+    expect(mocks.sent).toEqual([])
+    read('npcs/roy', { name: 'Roy the Bull' })
+    await waitFor(() => expect(mocks.sent).toHaveLength(1))
+    expect(mocks.sent[0].payload).toEqual({ type: 'refresh' })
+    expect(mocks.sent[0].envelope).toMatchObject({ fightId: 'fight', phase: 'before-initiative', actorKey: null })
+    read('npcs/roy', { name: 'Roy the Bull' })
+    expect(mocks.sent).toHaveLength(1)
+  })
+
+  it('reads a missing NPC record as no public face, falling back to the sheet', async () => {
+    show('gm')
+    read('npcSheets/roy', stored('Roy from the sheet'))
+    read('npcs/roy', undefined)
+    await waitFor(() => expect(mocks.sent).toHaveLength(1))
+  })
+
+  it('sends nothing while the published summary is current', () => {
+    show('gm')
+    read('npcSheets/roy', stored('Roy'))
+    read('npcs/roy', { name: 'Roy Carver' })
+    expect(mocks.sent).toEqual([])
+  })
+
+  it('reports a refusal other than an already-current summary', async () => {
+    mocks.outcome = { ok: false, reason: 'That fight stage is stale.' }
+    const setError = show('gm')
+    read('npcSheets/roy', stored('Roy'))
+    read('npcs/roy', { name: 'Changed' })
+    await waitFor(() => expect(setError).toHaveBeenCalledWith('That fight stage is stale.'))
+  })
+
+  it('is the GM\'s alone', () => {
+    show('player')
+    expect(mocks.listeners.size).toBe(0)
+  })
+})

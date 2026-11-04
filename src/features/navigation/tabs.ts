@@ -5,6 +5,7 @@ export type { RuleSetId as GameSystem } from '../ruleSets/registry'
 
 export const tabs: Array<{ id: AppTab; label: string }> = [
   { id: 'character', label: 'Character' },
+  { id: 'combat', label: 'Combat' },
   { id: 'maps', label: 'Maps' },
   { id: 'monsters', label: 'Monsters' },
   { id: 'items', label: 'Items' },
@@ -17,6 +18,7 @@ export const tabs: Array<{ id: AppTab; label: string }> = [
 
 export const tabPaths: Record<AppTab, string> = {
   character: '/character',
+  combat: '/combat',
   maps: '/maps',
   monsters: '/monsters',
   items: '/items',
