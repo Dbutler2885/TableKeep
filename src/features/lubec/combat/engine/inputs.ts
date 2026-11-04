@@ -1,0 +1,37 @@
+import { lubecCurrentValue, lubecEffectiveHandle } from '../../../ruleSets/lubec/derivations'
+import { lubecHoles } from '../../../ruleSets/lubec/holes'
+import { lubecSheetModifiers } from '../../../ruleSets/lubec/modifiers'
+import { lubecNpcFightSummary } from '../../fight/lubecNpcFightSummary'
+import type { Combatant, CombatantSelection, CombatSheet } from './types'
+
+export const combatantKey = (selection: CombatantSelection) => `${selection.kind}:${selection.sheetId}`
+
+function missingInputs(record: CombatSheet, dodgeball: boolean) {
+  const modifiers = lubecSheetModifiers(record.sheet)
+  const values = {
+    Speed: lubecCurrentValue(record.sheet, 'Speed', modifiers),
+    'attack/Check Handle': lubecEffectiveHandle(record.sheet, modifiers),
+    Strength: lubecCurrentValue(record.sheet, 'Strength', modifiers),
+    ...(dodgeball ? { 'Dodgeball Body': lubecCurrentValue(record.sheet, 'Body', modifiers) } : {}),
+  }
+  return Object.entries(values).filter(([, value]) => value === null).map(([name]) => name)
+}
+
+export function combatSetupIssues(selections: CombatantSelection[], sheets: CombatSheet[], dodgeball: boolean): string[] {
+  return selections.flatMap((selection) => {
+    const record = sheets.find((sheet) => combatantKey(sheet) === combatantKey(selection))
+    if (!record) return [`${combatantKey(selection)}: sheet is missing or unreadable.`]
+    return missingInputs(record, dodgeball).map((name) => `${record.name}: missing ${name}; repair ${lubecHoles(record.sheet).join(', ')}.`)
+  })
+}
+
+/** Only explicit public fields cross the private-sheet boundary. */
+export function publicCombatant(record: CombatSheet): Combatant {
+  const speed = lubecCurrentValue(record.sheet, 'Speed', lubecSheetModifiers(record.sheet))
+  if (speed === null) throw new Error('Speed is missing.')
+  return {
+    kind: record.kind, sheetId: record.sheetId, key: combatantKey(record),
+    ownerUserId: record.ownerUserId, name: record.name, portraitPath: record.portraitPath,
+    speed, armor: lubecNpcFightSummary(record.sheet).armor, interactionSequence: 0, outReason: null,
+  }
+}
