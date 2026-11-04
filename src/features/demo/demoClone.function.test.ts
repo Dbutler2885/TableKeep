@@ -19,14 +19,15 @@ import { DEMO_SESSION_TTL_MS } from '../../../functions/src/demoConstants'
 const VISITOR = 'anon-visitor-uid'
 
 describe('what a sandbox copies', () => {
-  it('covers every campaign subcollection except the three that are per-user scratch', () => {
+  it('covers every campaign subcollection except per-user scratch, in-flight requests and fights', () => {
     const cloned = DEMO_CLONED_SUBCOLLECTIONS.map((spec) => spec.name).sort()
     const known = CAMPAIGN_SUBCOLLECTIONS.map((spec) => spec.name).sort()
     const skipped = known.filter((name) => !cloned.includes(name))
 
-    // userState is one visitor's UI scratch; the other two are in-flight
-    // requests between two players a fresh sandbox has neither of.
-    expect(skipped).toEqual(['itemApprovals', 'pendingTransfers', 'userState'])
+    // userState is one visitor's UI scratch; itemApprovals and pendingTransfers
+    // are in-flight requests between two players a fresh sandbox has neither
+    // of; the template carries no fights to clone.
+    expect(skipped).toEqual(['combatControl', 'combats', 'itemApprovals', 'pendingTransfers', 'userState'])
     expect(cloned.filter((name) => !known.includes(name))).toEqual([])
   })
 
@@ -37,13 +38,28 @@ describe('what a sandbox copies', () => {
     expect(CAMPAIGN_SUBCOLLECTIONS.map((spec) => spec.name)).toContain('sharedCarriers')
   })
 
-  it('carries the nested subcollections the campaign schema declares', () => {
-    const nestedIn = (specs: typeof CAMPAIGN_SUBCOLLECTIONS, name: string) =>
-      (specs.find((spec) => spec.name === name)?.children ?? []).map((child) => child.name).sort()
+  const nestedIn = (specs: typeof CAMPAIGN_SUBCOLLECTIONS, name: string) =>
+    (specs.find((spec) => spec.name === name)?.children ?? []).map((child) => child.name).sort()
 
-    expect(nestedIn(DEMO_CLONED_SUBCOLLECTIONS, 'characters')).toEqual(nestedIn(CAMPAIGN_SUBCOLLECTIONS, 'characters'))
+  it('carries the nested subcollections the campaign schema declares, except sheet write receipts', () => {
+    const withoutReceipts = (name: string) => nestedIn(CAMPAIGN_SUBCOLLECTIONS, name).filter((child) => child !== 'writeReceipts')
+
+    expect(nestedIn(DEMO_CLONED_SUBCOLLECTIONS, 'characters')).toEqual(withoutReceipts('characters'))
+    expect(nestedIn(DEMO_CLONED_SUBCOLLECTIONS, 'npcSheets')).toEqual(withoutReceipts('npcSheets'))
     expect(nestedIn(DEMO_CLONED_SUBCOLLECTIONS, 'maps')).toEqual(nestedIn(CAMPAIGN_SUBCOLLECTIONS, 'maps'))
     expect(nestedIn(DEMO_CLONED_SUBCOLLECTIONS, 'tables')).toEqual(nestedIn(CAMPAIGN_SUBCOLLECTIONS, 'tables'))
+  })
+
+  it('leaves sheet write receipts behind, which the campaign deletes with each sheet', () => {
+    expect(nestedIn(CAMPAIGN_SUBCOLLECTIONS, 'characters')).toContain('writeReceipts')
+    expect(nestedIn(CAMPAIGN_SUBCOLLECTIONS, 'npcSheets')).toEqual(['writeReceipts'])
+    expect(nestedIn(DEMO_CLONED_SUBCOLLECTIONS, 'characters')).not.toContain('writeReceipts')
+    expect(nestedIn(DEMO_CLONED_SUBCOLLECTIONS, 'npcSheets')).toEqual([])
+  })
+
+  it('deletes a fight with its log and command receipts, and the campaign\'s fight control', () => {
+    expect(nestedIn(CAMPAIGN_SUBCOLLECTIONS, 'combats')).toEqual(['commands', 'log'])
+    expect(CAMPAIGN_SUBCOLLECTIONS.map((spec) => spec.name)).toContain('combatControl')
   })
 })
 

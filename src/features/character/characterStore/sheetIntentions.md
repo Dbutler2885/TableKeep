@@ -5,7 +5,7 @@ It removes any Firestore converter before reading canonical data.
 The shared store, gear transactions and transfer callable use the same pure planner in `functions/src/sheets/`, re-exported here for browser callers.
 The former Lubec replacement-save route now refuses calls; OSE and VtM retain their existing serializer path.
 Creation uses `createRevisionedSheet`, which atomically writes revision zero and a stable creation receipt and refuses to overwrite a later edit.
-Teardown remains a separate release prerequisite.
+Deletion uses `deleteSheetWithReceipts` (`sheetTeardown.ts`), which deletes the sheet and its `writeReceipts` in one transaction, relisting when the revision moved after the listing, so a save that lands meanwhile leaves no receipt and a later save finds no sheet to bring back.
 
 Create an operation id once, retain the entire intention while awaiting acknowledgement, and retry that exact envelope after a network failure.
 Operation ids use 1-128 ASCII letters, digits, underscores or hyphens.
