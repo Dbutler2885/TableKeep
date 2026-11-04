@@ -23,6 +23,8 @@ export type LubecFightRequest = {
   target: LubecCombatant | null
   /** Set when a Gear card's "Fight with this" or a Fight bar chip opened it. */
   weaponItemId?: string
+  /** Optional attack use, retained by in-page hosts alongside the weapon. */
+  attackId?: string
 }
 
 export type LubecFightHost = {
@@ -59,6 +61,13 @@ export const lubecCombatantGear = (c: LubecCombatant): LubecGear => lubecCombata
 export function lubecCombatantWielder(c: LubecCombatant): LubecWielder {
   const record = lubecCombatantRecord(c)
   return record ? lubecWielder(record.lubec) : { strength: null, handle: null }
+}
+
+/** Scrapping and Boxing are the trained and expert fighting skills. */
+export function lubecCombatantFightingTraining(c: LubecCombatant): boolean {
+  const skills = lubecCombatantRecord(c)?.lubec.skills
+  if (!skills) return false
+  return [skills.free, ...skills.picked].some((name) => name === 'Scrapping' || name === 'Boxing')
 }
 
 /** A row of the "wearing" card: a piece and what it covers, or for a player's NPC target only the parts. */

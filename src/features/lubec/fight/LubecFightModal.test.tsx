@@ -161,3 +161,49 @@ describe('fight flow through the modal', () => {
     expect(who().value).toBe('')
   })
 })
+
+describe('trained Kick in the existing modal', () => {
+  function trained(items: LubecItem[], skill = 'Scrapping'): LubecCombatant {
+    const combatant = kid('Tommy', items)
+    if (combatant.kind !== 'character') throw new Error('Expected a character')
+    combatant.character.lubec.skills = { free: skill, picked: [] }
+    return combatant
+  }
+
+  it.each(['Scrapping', 'Boxing'])('permits full-hands Kick with %s and revalidates training changes', (skill) => {
+    const selected = { attacker: trained([knife, thermos], skill), target: null, weaponItemId: LUBEC_FISTICUFFS_ID, attackId: 'kick' }
+    const view = render(<LubecFightModal {...props} request={selected} />)
+    expect(currentStep()).toBe('2Target')
+    fireEvent.click(weaponTrail() as HTMLElement)
+    const fists = screen.getByRole('button', { name: /Fists and feet.*Fisticuffs/ })
+    expect(fists).toHaveProperty('disabled', false)
+    expect(fists.textContent).toContain('Kick')
+    expect(fists.textContent).not.toContain('Punch')
+    fireEvent.click(fists)
+    expect(currentStep()).toBe('2Target')
+    view.rerender(<LubecFightModal {...props} request={{ ...selected, attacker: kid('Tommy', [knife, thermos]) }} />)
+    expect(currentStep()).toBe('1Weapon')
+    expect(weaponTrail()).toBeNull()
+  })
+
+  it('refuses a preselected full-hands Punch even for a trained fighter', () => {
+    render(<LubecFightModal {...props} request={{ attacker: trained([knife, thermos]), target: null, weaponItemId: LUBEC_FISTICUFFS_ID, attackId: 'punch' }} />)
+    expect(currentStep()).toBe('1Weapon')
+    expect(weaponTrail()).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Fisticuffs/ }))
+    expect(currentStep()).toBe('2Target')
+  })
+
+  it('focuses the modal and preserves Escape and close-button behavior', () => {
+    let closed = 0
+    const view = render(<LubecFightModal {...props} onClose={() => { closed += 1 }} />)
+    expect(document.activeElement?.classList.contains('lubec-fight')).toBe(true)
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Enter' })
+    expect(closed).toBe(0)
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+    expect(closed).toBe(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(closed).toBe(2)
+    view.unmount()
+  })
+})

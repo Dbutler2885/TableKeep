@@ -1,3 +1,4 @@
+import './lubecFight.css'
 import { WOUND_KINDS, WOUND_SHORT } from '../gear/itemLabels'
 import { LubecPortrait } from '../LubecPortrait'
 import { LubecTokenFace } from '../LubecToken'
@@ -34,7 +35,7 @@ function WornRow({ row }: { row: LubecWornRow }) {
 }
 
 // B's wearingCard. A sheet the viewer cannot read says so rather than say they wear nothing.
-function WearingCard({ target }: { target: LubecCombatant }) {
+export function LubecFightWearingContent({ target }: { target: LubecCombatant }) {
   const worn = lubecCombatantWorn(target)
   const nothing = worn ? 'Nothing that stops a wound.' : 'No sheet to read here. The GM says what they are wearing.'
   return (
@@ -52,9 +53,9 @@ type TargetStepProps = {
 }
 
 /** The Target step (B's targetBlock): who, on the left, what they wear, on the right. */
-export function LubecFightTargetStep({ target, choices, onTarget }: TargetStepProps) {
+export function LubecFightTargetContent({ target, choices, onTarget }: TargetStepProps) {
   return (
-    <div className="target-grid">
+    <div className="lubec-fight-content target-grid">
       <div>
         <p className="ask">Who are you attacking?</p>
         <label className="f"><span>Who</span>
@@ -65,7 +66,8 @@ export function LubecFightTargetStep({ target, choices, onTarget }: TargetStepPr
         </label>
         {target ? <TargetCard target={target} /> : null}
       </div>
-      {target ? <WearingCard target={target} /> : <p className="note">Pick who you are attacking to see what they are wearing.</p>}
+      {target ? <LubecFightWearingContent target={target} /> : <p className="note">Pick who you are attacking to see what they are wearing.</p>}
     </div>
   )
 }
+
