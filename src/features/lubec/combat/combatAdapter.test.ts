@@ -112,7 +112,7 @@ describe('Start through the adapter', () => {
     expect(fight()).toMatchObject({ status: 'live', participantUserIds: ['player'], updatedAt: 'server-time', state: { phase: 'before-initiative', round: 0 } })
     expect(fight().state.combatants.map((actor) => [actor.name, actor.portraitPath])).toEqual([['Tommy', ''], ['Roy', 'roy-art']])
     expect(JSON.stringify(fight())).not.toContain('private')
-    expect(read('combats/fight-start/log/start:log:0')).toEqual({ event: 'Combat started. Before initiative.', actor: null, at: 'server-time' })
+    expect(read('combats/fight-start/log/start:log:0')).toEqual({ event: 'Combat started. Before initiative.', actor: null, ordinal: 0, at: 'server-time' })
     expect(read('combats/fight-start/commands/start')).toMatchObject({ outcome, at: 'server-time', command: { seed: 'seed' } })
   })
 

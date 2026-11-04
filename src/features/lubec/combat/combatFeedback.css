@@ -1,0 +1,42 @@
+/* Roll cards, ticker and notice copied from the approved combat mock-up. */
+.shell-root[data-theme="lubec"] .combat-cards { position: fixed; top: .6rem; right: 1rem; z-index: 380; display: grid; gap: .5rem; width: 17rem; pointer-events: none; }
+.shell-root[data-theme="lubec"] .rcard { padding: .55rem .7rem .6rem; color: var(--lubec-cream); background: var(--lubec-ink); border: 2px solid var(--lubec-mustard); box-shadow: 0 10px 28px rgba(7, 20, 23, .45); animation: cardin .25s ease-out; transition: opacity .5s, transform .5s; }
+.shell-root[data-theme="lubec"] .rcard.gone { opacity: 0; transform: translateY(1.2rem) scale(.96); }
+.shell-root[data-theme="lubec"] .rcard .rw { color: #e9b98f; font: 800 .58rem/1.3 var(--lubec-type); letter-spacing: .1em; text-transform: uppercase; }
+.shell-root[data-theme="lubec"] .rcard .rn { display: flex; gap: .6rem; align-items: baseline; margin: .15rem 0; }
+.shell-root[data-theme="lubec"] .rcard .rn b { font: 700 2.6rem/.9 var(--lubec-condensed); }
+.shell-root[data-theme="lubec"] .rcard .rn span { font: 800 .8rem/1.2 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .rcard .rr { display: inline-block; padding: .15rem .35rem; font: 800 .62rem/1 var(--lubec-type); letter-spacing: .08em; text-transform: uppercase; }
+.shell-root[data-theme="lubec"] .rcard.ok .rr { background: var(--lubec-success); } .shell-root[data-theme="lubec"] .rcard.bad .rr { background: var(--lubec-failure); } .shell-root[data-theme="lubec"] .rcard.neutral .rr { background: var(--lubec-blue-alt); }
+.shell-root[data-theme="lubec"] .rcard .rx { margin: .25rem 0 0; color: rgba(255, 248, 231, .8); font: 700 .66rem/1.35 var(--lubec-type); }
+@keyframes cardin { from { opacity: 0; transform: translateY(-.6rem); } to { opacity: 1; transform: none; } }
+.shell-root[data-theme="lubec"] .ctick { grid-column: 1 / -1; }
+.shell-root[data-theme="lubec"] .ctick .ticker { background: var(--lubec-ink); }
+.shell-root[data-theme="lubec"] .ctick .ticker-list { background: #0f2226; }
+.shell-root[data-theme="lubec"] .ctick { margin-top: .2rem; }
+.shell-root[data-theme="lubec"] .yourturn { position: fixed; right: 1rem; bottom: 1rem; z-index: 370; display: grid; gap: .3rem; width: 16rem; padding: .6rem .75rem; color: var(--lubec-ink); background: var(--lubec-cream); border: 2px solid var(--lubec-ink); border-left: 8px solid var(--lubec-rust); box-shadow: 0 10px 28px rgba(7, 20, 23, .4); }
+.shell-root[data-theme="lubec"] .yourturn b { font: 700 1.25rem/1 var(--lubec-condensed); letter-spacing: .1em; text-transform: uppercase; color: var(--lubec-rust); }
+.shell-root[data-theme="lubec"] .yourturn span { font: 700 .7rem/1.4 var(--lubec-type); }
+
+.shell-root[data-theme="lubec"] .ticker {
+display: flex; gap: .7rem; align-items: center; width: 100%; min-height: 2.6rem; padding: .5rem .75rem;
+text-align: left; color: var(--lubec-cream); background: rgba(7, 20, 23, .55); border: 1px solid rgba(255, 248, 231, .28);
+font: 700 .74rem/1.3 var(--lubec-type);
+}
+.shell-root[data-theme="lubec"] .ticker .label { flex: none; color: #e9b98f; }
+.shell-root[data-theme="lubec"] .ticker .text { flex: 1; min-width: 0; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
+.shell-root[data-theme="lubec"] .ticker .more { flex: none; color: #e9b98f; font-weight: 800; }
+.shell-root[data-theme="lubec"] .ticker:focus-visible { outline: 2px solid #e9b98f; outline-offset: 2px; }
+.shell-root[data-theme="lubec"] .ticker-list { margin: 0; padding: .2rem .75rem; list-style: none; background: rgba(7, 20, 23, .8); border: 1px solid rgba(255, 248, 231, .28); border-top: 0; }
+.shell-root[data-theme="lubec"] .ticker-list li { display: grid; grid-template-columns: 3.4rem minmax(0, 1fr); gap: .5rem; padding: .45rem 0; border-bottom: 1px solid rgba(255, 248, 231, .14); font: 700 .74rem/1.4 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .ticker-list li:last-child { border-bottom: 0; }
+.shell-root[data-theme="lubec"] .ticker-list time { color: rgba(255, 248, 231, .6); font-weight: 800; }
+.shell-root[data-theme="lubec"] .ctick { color: var(--lubec-cream); }
+.shell-root[data-theme="lubec"] .lubec-combat .ctick .ticker .label { color: #e9b98f; }
+.shell-root[data-theme="lubec"] .yourturn { border-radius: 0; cursor: pointer; }
+.shell-root[data-theme="lubec"] .combat-action { display: block; }
+.shell-root[data-theme="lubec"] .tab-button { position: relative; }
+.shell-root[data-theme="lubec"] .combat-nav-mark { position: absolute; right: .6rem; top: .5rem; width: .6rem; height: .6rem; background: var(--lubec-mustard); border-radius: 50%; box-shadow: 0 0 0 2px var(--lubec-ink); }
+@media (max-width: 760px) {
+  .shell-root[data-theme="lubec"] .combat-cards, .shell-root[data-theme="lubec"] .yourturn { width: calc(100vw - 2rem); }
+}

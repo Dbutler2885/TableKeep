@@ -10,6 +10,7 @@ import { commitCombatCommand, type CombatTransactionOptions } from './combatTran
 import { combatCommandJournal, createCombatCommand, type CombatJournalStorage } from './commandJournal'
 import { combatLifecycleHandlers } from './engine/lifecycle'
 import type { CombatCommand, CombatFight, CombatHandler, CombatOutcome } from './engine/types'
+import { subscribeCombatLog, type CombatLogUpdate } from './combatLog'
 import { subscribeCombat } from './combatSubscription'
 
 const scope = { groupId: 'lifecycle', campaignId: 'lubec' }
@@ -374,4 +375,35 @@ it('subscribes by control id, follows replacement fights, and cleans up both lis
     await seed('combatControl/current', { activeFightId: 'missing-fight' })
     await vi.waitFor(() => expect(seen.slice(-2)).toEqual(['fight-next', null]), { timeout: 5000 })
   } finally { stop() }
+})
+
+describe('committed roll feedback through the real adapter and rules', () => {
+  it('publishes one complete ordered roll log to a participant and a spectator, without replay on attachment', async () => {
+    const db = as()
+    await commit(db, start())
+    const updates: CombatLogUpdate[][] = [[], []]
+    const errors: Error[] = []
+    const stops = ['player', 'spectator'].map((uid, index) => subscribeCombatLog(as(uid), scope, 'fight-start', (update) => updates[index].push(update), (error) => errors.push(error)))
+    try {
+      await vi.waitFor(() => expect(updates.every((viewer) => viewer.at(-1)?.entries.length === 1)).toBe(true), { timeout: 10_000 })
+      expect(updates.flatMap((viewer) => viewer.flatMap(({ arriving }) => arriving))).toEqual([])
+      const roll = { who: 'Tommy', what: 'Attack roll', roll: '27', target: 'against 36', result: 'Hit · Quality 2', tone: 'ok' as const, extra: 'Dodgeball thrown at Roy.' }
+      const logs = Array.from({ length: 12 }, (_, ordinal) => ({ event: `Result ${ordinal}`, actor: 'character:hero', roll: { ...roll, what: `Roll ${ordinal}` } }))
+      const publish: CombatHandler = (_command, records) => ({ fight: records.fight!, items: [], logs })
+      const command = await action(db, 'publish')
+      const settings = { ...options(), handlers: { publish } }
+      expect(await commit(db, command, settings)).toMatchObject({ ok: true })
+      expect(await commit(db, command, settings)).toMatchObject({ ok: true })
+      await vi.waitFor(() => expect(updates.every((viewer) => viewer.flatMap(({ arriving }) => arriving).length === 12)).toBe(true), { timeout: 10_000 })
+      for (const viewer of updates) {
+        const arriving = viewer.flatMap((update) => update.arriving)
+        expect(arriving.map(({ ordinal }) => ordinal)).toEqual(Array.from({ length: 12 }, (_, ordinal) => ordinal))
+        expect(arriving[0]).toMatchObject({ actor: 'character:hero', roll: { ...roll, what: 'Roll 0' } })
+        expect(viewer.at(-1)?.entries).toHaveLength(13)
+      }
+      expect(errors).toEqual([])
+    } finally {
+      stops.forEach((stop) => stop())
+    }
+  })
 })

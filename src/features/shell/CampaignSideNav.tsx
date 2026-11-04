@@ -8,6 +8,8 @@ import type { NavigateFunction } from 'react-router-dom'
 import tablekeepLogo from '../../../logo/Tower Keep.svg'
 import { DiscordConnection } from '../auth/DiscordConnection'
 import { DiscordReturnNotice } from '../auth/DiscordReturnNotice'
+import { useLubecCombat } from '../lubec/combat/combatWatch'
+import { pendingCombatActions } from '../lubec/combat/pendingActions'
 import { campaignTabPath, groupHomePath } from '../navigation/tabs'
 import type { Campaign, GroupRecord, Role } from '../../types/app'
 import type { CampaignNavTab } from './shellTabs'
@@ -71,6 +73,8 @@ export function CampaignSideNav({
             groupId={group.id}
             campaignId={campaign.id}
             onChoose={() => setDrawerOpen(false)}
+            role={role}
+            userId={user.uid}
           />
         ))}
       </div>
@@ -95,10 +99,12 @@ type CampaignNavLinkProps = {
   groupId: string
   campaignId: string
   onChoose: () => void
+  role: Role | null
+  userId: string
 }
 
 // The rules tab is a link out to the OSE SRD rather than a route.
-function CampaignNavLink({ tab, groupId, campaignId, onChoose }: CampaignNavLinkProps) {
+function CampaignNavLink({ tab, groupId, campaignId, onChoose, role, userId }: CampaignNavLinkProps) {
   if (tab.id === 'rules') {
     return (
       <a
@@ -120,6 +126,7 @@ function CampaignNavLink({ tab, groupId, campaignId, onChoose }: CampaignNavLink
       className={({ isActive }) => (isActive ? 'tab-button active' : 'tab-button')}
     >
       {tab.label}
+      {tab.id === 'combat' ? <CombatNavMark role={role} userId={userId} /> : null}
     </NavLink>
   )
 }
@@ -159,4 +166,11 @@ function AccountPanel({ user, username, role, isDemoVisitor, onOpenSettings, onS
       </button>
     </div>
   )
+}
+
+/** Uses the same owner selector as the notice; spectators and Out viewers have no mark. */
+function CombatNavMark({ role, userId }: { role: Role | null; userId: string }) {
+  const { live } = useLubecCombat()
+  const actions = live ? pendingCombatActions(live.fight.state, role, userId) : []
+  return actions.length > 0 ? <i className="combat-nav-mark" role="img" aria-label="Your turn" /> : null
 }

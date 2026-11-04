@@ -2,6 +2,7 @@ import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecor
 import type { LubecDetachedItem } from '../../../ruleSets/lubec/gear/detachedItems'
 import type { LubecGmItem } from '../../../ruleSets/lubec/gear/gmItem'
 import type { LubecArmorZone } from '../../fight/lubecNpcFightSummary'
+import type { CombatLog, CombatPendingAction } from './combatFeedback'
 import type { CombatEntropy } from './commandEntropy'
 import type { CombatWound, CombatWoundAcknowledgement } from '../woundTypes'
 
@@ -34,6 +35,7 @@ export type CombatState = {
   attack: CombatAttack | null
   woundOutbox: CombatWound[]
   woundAcknowledgements: CombatWoundAcknowledgement[]
+  pendingActions?: CombatPendingAction[]
 }
 export type CombatFight = { status: 'live' | 'ended'; participantUserIds: string[]; state: CombatState }
 export type CombatEnvelope = {
@@ -76,6 +78,6 @@ export type CombatPlan = {
   fight: CombatFight
   control?: string | null
   items: { id: string; value: LubecGmItem | null }[]
-  logs: { event: string; actor: string | null }[]
+  logs: CombatLog[]
 }
 export type CombatHandler = (command: CombatCommand, records: CombatRecords, authority: CombatAuthority, entropy: CombatEntropy) => CombatPlan
