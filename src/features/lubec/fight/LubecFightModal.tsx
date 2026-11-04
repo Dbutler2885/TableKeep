@@ -2,8 +2,8 @@ import { useEffect, useRef, type KeyboardEvent } from 'react'
 import type { LubecGearDrop } from '../gear/lubecGearDrop'
 import { LubecRoughFilter } from '../LubecRoughFilter'
 import { useLubecHandDrop } from '../useLubecHandDrop'
-import { LubecFightTargetStep } from './LubecFightTargetStep'
-import { LubecFightWeaponStep } from './LubecFightWeaponStep'
+import { LubecFightTargetContent } from './LubecFightTargetContent'
+import { LubecFightWeaponContent } from './LubecFightWeaponContent'
 import { TARGET_STEP, WEAPON_STEP, useLubecFightFlow } from './useLubecFightFlow'
 import { lubecCombatantFace, type LubecCombatant, type LubecFightRequest } from './lubecFightRequest'
 import './lubecFight.css'
@@ -98,8 +98,8 @@ export function LubecFightModal({ request, targets, onDrop, onClose }: FightModa
         <div className="fight-body">
           <Trail attacker={request.attacker} weaponName={flow.weaponName} target={flow.target} onStep={flow.setStep} />
           {flow.step === WEAPON_STEP
-            ? <LubecFightWeaponStep attacker={request.attacker} chosen={flow.weaponId} onChoose={flow.chooseWeapon} drop={drop} busy={busy} said={said} />
-            : <LubecFightTargetStep target={flow.target} choices={flow.choices} onTarget={flow.setTargetKey} />}
+            ? <LubecFightWeaponContent attacker={request.attacker} chosen={flow.weaponId} onChoose={flow.chooseWeapon} drop={drop} busy={busy} said={said} />
+            : <LubecFightTargetContent target={flow.target} choices={flow.choices} onTarget={flow.setTargetKey} />}
         </div>
         <StepFoot step={flow.step} canGoOn={flow.weaponName !== null} onStep={flow.setStep} />
       </section>

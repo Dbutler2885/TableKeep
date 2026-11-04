@@ -1,0 +1,104 @@
+/* The mock-up's in-page window, limited to shared Target, Weapon and Attack content. */
+.shell-root[data-theme="lubec"] .lubec-fight.inpage {
+  width: 100%;
+  margin: 0;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight.inpage .fight-body {
+  overflow: visible;
+  padding: .6rem .8rem .2rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-fight-content.win-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, .8fr);
+  gap: .8rem;
+  margin: .2rem 0 .8rem;
+}
+
+.shell-root[data-theme="lubec"] .win-grid > div > .label {
+  display: block;
+  margin-bottom: .3rem;
+  color: var(--lubec-muted);
+  font: 800 .59rem/1.2 var(--lubec-type);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .win-grid .tlist {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .3rem;
+}
+
+.shell-root[data-theme="lubec"] .win-grid .tcell { display: grid; }
+
+.shell-root[data-theme="lubec"] .win-grid .trow {
+  display: flex;
+  gap: .4rem;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: .4rem .5rem;
+  text-align: left;
+  color: var(--lubec-ink);
+  background: var(--lubec-cream);
+  border: 2px solid var(--lubec-ink);
+  box-shadow: 2px 2px 0 rgba(23, 40, 43, .28);
+  font: 800 .78rem/1.15 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .win-grid .trow small {
+  color: var(--lubec-muted);
+  font: 700 .58rem/1.2 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .win-grid .trow[aria-checked="true"] {
+  color: var(--lubec-cream);
+  background: var(--lubec-pine);
+  border-color: var(--lubec-pine);
+}
+
+.shell-root[data-theme="lubec"] .win-grid .trow[aria-checked="true"] small { color: rgba(255, 248, 231, .8); }
+.shell-root[data-theme="lubec"] .win-grid .trow:hover:not(:disabled):not([aria-checked="true"]) { background: #fffdf4; }
+.shell-root[data-theme="lubec"] .win-grid .picks { grid-template-columns: 1fr; }
+.shell-root[data-theme="lubec"] .win-grid .pick.empty { cursor: pointer; }
+.shell-root[data-theme="lubec"] .win-grid .pick[data-selected="true"] { border-color: var(--lubec-pine); box-shadow: 2px 2px 0 var(--lubec-pine); }
+.shell-root[data-theme="lubec"] .win-grid .inventory-hint { margin-top: .4rem; }
+.shell-root[data-theme="lubec"] .win-grid .weapon-choice { display: flex; gap: .3rem; margin-top: .4rem; }
+.shell-root[data-theme="lubec"] .win-grid .modes { display: grid; grid-template-columns: 1fr; gap: .5rem; }
+
+.shell-root[data-theme="lubec"] .win-grid .mode {
+  display: grid;
+  gap: .25rem;
+  padding: .65rem .7rem;
+  text-align: left;
+  color: var(--lubec-ink);
+  background: var(--lubec-cream);
+  border: 2px solid var(--lubec-ink);
+  box-shadow: 2px 2px 0 rgba(23, 40, 43, .28);
+}
+
+.shell-root[data-theme="lubec"] .win-grid .mode b { display: block; font: 800 .95rem/1.1 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .win-grid .mode small { display: block; color: var(--lubec-muted); font: 700 .6rem/1.3 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .win-grid .mode[aria-checked="true"] { color: var(--lubec-cream); background: var(--lubec-pine); border-color: var(--lubec-pine); }
+.shell-root[data-theme="lubec"] .win-grid .mode[aria-checked="true"] small { color: rgba(255, 248, 231, .8); }
+
+@media (max-width: 900px) {
+  .shell-root[data-theme="lubec"] .lubec-fight-content.win-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+.shell-root[data-theme="lubec"] .win-grid .mode:hover:not(:disabled):not([aria-checked="true"]) { background: #fffdf4; }
+.shell-root[data-theme="lubec"] .win-grid .mode:disabled { opacity: .45; cursor: not-allowed; }
+
+.shell-root[data-theme="lubec"] .win-grid .pick { align-items: start; min-height: 5.1rem; }
+.shell-root[data-theme="lubec"] .win-grid .pick .where { color: var(--lubec-ink); }
+.shell-root[data-theme="lubec"] .win-grid .pick small { margin-top: .36rem; font: 800 .78rem/1.25 var(--lubec-type); text-wrap: balance; }
+.shell-root[data-theme="lubec"] .win-grid .pick .catch-rule { color: var(--lubec-muted); margin-top: .15rem; }
+.shell-root[data-theme="lubec"] .win-grid .pick[data-weapon="false"] { color: var(--lubec-muted); }
+.shell-root[data-theme="lubec"] .win-grid .wearing { margin-top: .5rem; }
+.shell-root[data-theme="lubec"] .win-grid .weapon-choice { flex-wrap: wrap; }
+.shell-root[data-theme="lubec"] .win-grid .weapon-choice:empty { display: none; margin: 0; }

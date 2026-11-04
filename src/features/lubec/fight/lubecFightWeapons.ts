@@ -1,13 +1,14 @@
 // The Weapon step, from Gear (spec 10.6), copied from the attack prototype's
 // renderStep0: a cell for each hand or one for both, Fisticuffs after them, and
-// each card's line (B's weaponLine). Fisticuffs needs a free hand. With both
-// hands full it is greyed and each thing held can be dropped, which is free.
+// each card's line (B's weaponLine). Trained fighters may Kick with full hands;
+// otherwise Fisticuffs needs a free hand. Dropping a held thing is free.
 
 import { lubecCatchLine } from '../gear/catchLabels'
 import type { LubecGear, LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
 import { lubecAttackHandle, type LubecAttackHandle } from '../../ruleSets/lubec/gear/handPenalty'
 import { lubecFisticuffsHands, lubecFreeHands, lubecHeld, type LubecHands, type LubecHeld } from '../../ruleSets/lubec/gear/held'
 import type { LubecWielder } from '../../ruleSets/lubec/gear/minStrength'
+import { lubecWeaponAttacks, type LubecAttackChoice } from '../../ruleSets/lubec/gear/weaponAttacks'
 import { HAND_NAMES } from '../lubecHandChips'
 import { LUBEC_FISTICUFFS_ID } from './lubecFightRequest'
 
@@ -17,7 +18,7 @@ export type LubecFightCell =
   | { kind: 'free'; where: string }
 
 /** The Fisticuffs card: offered with what it comes to, or greyed with why. */
-export type LubecFightFists = { offered: true; attack: LubecAttackHandle } | { offered: false }
+export type LubecFightFists = { offered: true; attack: LubecAttackHandle; line: string } | { offered: false }
 
 const signed = (n: number) => (n < 0 ? `−${-n}` : `+${n}`)
 
@@ -55,13 +56,38 @@ export function lubecFightCells(gear: LubecGear, wielder: LubecWielder): LubecFi
   return (['left', 'right'] as const).map((hands) => handCell(r, held.find((h) => h.hands === hands), hands))
 }
 
-export function lubecFightFists(gear: LubecGear, wielder: LubecWielder): LubecFightFists {
-  const hands = lubecFisticuffsHands(gear)
-  return hands ? { offered: true, attack: lubecAttackHandle(wielder, gear, { weapon: null, hands }) } : { offered: false }
+/** The same legal uses drive the card, attack choices and selected-weapon validation. */
+export function lubecFightAttacks(gear: LubecGear, weaponId: string | null, trained = false): LubecAttackChoice[] {
+  if (weaponId === LUBEC_FISTICUFFS_ID) return fisticuffsAttacks(gear, trained)
+  const held = lubecHeld(gear).find((entry) => entry.itemId === weaponId)
+  const item = gear.items.find((item) => item.id === held?.itemId)
+  return item ? lubecWeaponAttacks(item) : []
 }
 
-/** The weapon chosen, as the trail names it, while it can still be fought with; null once it has left the hands or the hands fill up. */
-export function lubecChosenWeaponName(gear: LubecGear, weaponId: string | null): string | null {
-  if (weaponId === LUBEC_FISTICUFFS_ID) return lubecFreeHands(gear) > 0 ? 'Fisticuffs' : null
-  return lubecHeld(gear).find((h) => h.itemId === weaponId && h.weapon)?.name ?? null
+function fisticuffsAttacks(gear: LubecGear, trained: boolean): LubecAttackChoice[] {
+  const attacks = lubecWeaponAttacks(null)
+  if (lubecFreeHands(gear) > 0) return attacks
+  return trained ? attacks.filter((attack) => attack.feet) : []
 }
+
+export function lubecFightFists(gear: LubecGear, wielder: LubecWielder, trained = false): LubecFightFists {
+  const attacks = fisticuffsAttacks(gear, trained)
+  if (!attacks.length) return { offered: false }
+  const hands = lubecFisticuffsHands(gear) ?? 'both'
+  return { offered: true, attack: lubecAttackHandle(wielder, gear, { weapon: null, hands }), line: fistsLine(attacks) }
+}
+
+/** Resolve an explicit use without silently replacing a now-illegal Punch with Kick. */
+export function lubecFightAttack(gear: LubecGear, weaponId: string | null, trained = false, attackId: string | null = null): LubecAttackChoice | null {
+  const attacks = lubecFightAttacks(gear, weaponId, trained)
+  return attackId === null ? attacks[0] ?? null : attacks.find((attack) => attack.id === attackId) ?? null
+}
+
+/** The selected weapon remains valid only while it has a legal use. */
+export function lubecChosenWeaponName(gear: LubecGear, weaponId: string | null, trained = false, attackId: string | null = null): string | null {
+  if (!lubecFightAttack(gear, weaponId, trained, attackId)) return null
+  if (weaponId === LUBEC_FISTICUFFS_ID) return 'Fisticuffs'
+  return lubecHeld(gear).find((held) => held.itemId === weaponId)?.name ?? null
+}
+
+const fistsLine = (attacks: readonly LubecAttackChoice[]): string => attacks.length === 1 ? 'Kick' : 'Punch or kick'
