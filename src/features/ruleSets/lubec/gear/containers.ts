@@ -106,12 +106,17 @@ function takeOutOfGear(record: GearRecord, move: LubecMove): Taken | null {
 // What a GM item's document says about the tab, not the item: its status, the drop, and when it was written.
 const GM_RECORD_FIELDS: readonly string[] = [...LUBEC_GM_ITEM_FIELDS, 'createdAt', 'updatedAt']
 
+function takenGmItem(gmItem: LubecGmItem, move: LubecMove): LubecItem {
+  if (gmItem.status !== 'library') return fieldsWithout(gmItem, GM_RECORD_FIELDS) as LubecItem
+  if (!move.copyId) throw new Error('Giving a library item makes a copy, which needs a copyId.')
+  return { ...lubecCopyOf(gmItem), id: move.copyId } as LubecItem
+}
+
 // A library item stays and the sheet gets a copy (Rule T2); a dropped item leaves the tab.
 function takeOutOfGmItems(gmItem: LubecGmItem | null, move: LubecMove): Taken | null {
   if (!gmItem || gmItem.id !== move.itemId) return null
   const library = gmItem.status === 'library'
-  if (library && !move.copyId) throw new Error('Giving a library item makes a copy, which needs a copyId.')
-  const item = (library ? { ...lubecCopyOf(gmItem), id: move.copyId } : fieldsWithout(gmItem, GM_RECORD_FIELDS)) as LubecItem
+  const item = takenGmItem(gmItem, move)
   return { item, unplaced: item, droppedFrom: '', rest: { kind: 'gm-items', item: library ? gmItem : null } }
 }
 
@@ -148,6 +153,10 @@ function putIn(record: LubecMoveRecord, taken: Taken, move: LubecMove): Put {
     const item = dropped(taken, move)
     return { ok: true, to: { kind: 'gm-items', item }, item }
   }
+  return putInGear(record, taken, move)
+}
+
+function putInGear(record: GearRecord, taken: Taken, move: LubecMove): Put {
   const gear = gearOf(record)
   if (!gear) return { ok: false, msg: LUBEC_STALE_MOVE }
   if (record.kind === 'hidden' && taken.item.picturePath) return { ok: false, msg: LUBEC_NO_HIDDEN_PICTURE }
