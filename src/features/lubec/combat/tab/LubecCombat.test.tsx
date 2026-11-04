@@ -172,7 +172,7 @@ describe('the live fight, moment 2', () => {
     show('player', 'wayne-uid', live())
     expect(screen.getByText('The fight is waiting on the GM')).toBeTruthy()
     expect(screen.getByText('You · Speed 56')).toBeTruthy()
-    expect(screen.queryAllByRole('button')).toEqual([])
+    expect(screen.getAllByRole('button')).toEqual([screen.getByRole('button', { name: /Table.*All 0/ })])
     expect(screen.queryByText('Grant Sneak Attack')).toBeNull()
   })
 
@@ -180,7 +180,7 @@ describe('the live fight, moment 2', () => {
     show('player', 'marcy-uid', live())
     expect(screen.getByText('The fight is waiting on the GM')).toBeTruthy()
     expect(screen.getByText('Player · Speed 56')).toBeTruthy()
-    expect(screen.queryAllByRole('button')).toEqual([])
+    expect(screen.getAllByRole('button')).toEqual([screen.getByRole('button', { name: /Table.*All 0/ })])
   })
 
   it('shows a player nothing without a live fight', () => {

@@ -18,7 +18,7 @@ export function writeCombatPlan(db: Firestore, tx: Transaction, command: CombatC
     else tx.set(ref, { ...json(value), updatedAt: serverTimestamp() })
   })
   plan.logs.forEach((log, ordinal) => {
-    tx.set(combatRef(db, command, 'combats', command.envelope.fightId, 'log', entropy.id('log', ordinal)), { ...log, at: serverTimestamp() })
+    tx.set(combatRef(db, command, 'combats', command.envelope.fightId, 'log', entropy.id('log', ordinal)), { ...log, ordinal, at: serverTimestamp() })
   })
   const generatedIds = [...new Set([...entropy.generatedIds, command.envelope.fightId, plan.fight.state.stageInstanceId, ...plan.fight.state.floor.map((record) => record.item.id), ...plan.items.map((item) => item.id)])]
   const outcome: CombatOutcome = { ok: true, fightId: command.envelope.fightId, generatedIds, rolls: entropy.rolls }

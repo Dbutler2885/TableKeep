@@ -6,6 +6,7 @@ import { campaignTabPath } from '../../../navigation/tabs'
 import { requestOpen } from '../../../navigation/openRequest'
 import type { LubecGmItem } from '../../../ruleSets/lubec/gear/gmItem'
 import type { RuleSetSheetProps } from '../../../ruleSets/RuleSetSheets'
+import { CombatTicker } from '../CombatMessages'
 import { gmCommandKey, gmEnvelope, startEnvelope } from '../combatEnvelopes'
 import { useLubecCombat, type LubecLiveFight } from '../combatWatch'
 import { createCombatCommand } from '../commandJournal'
@@ -34,6 +35,7 @@ function CombatLayout({ state, userId, stage, tools = null, middle, onPlace = nu
         <div className="rail"><InFightPanel combatants={state.combatants} userId={userId} /></div>
         <div className="mid">{tools}{middle}</div>
         <div className="rail"><CombatFloorPanel floor={state.floor} onPlace={onPlace} /></div>
+        <CombatTicker />
       </div>
     </>
   )
