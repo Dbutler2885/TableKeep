@@ -3,6 +3,7 @@ import type { LubecDetachedItem } from '../../../ruleSets/lubec/gear/detachedIte
 import type { LubecGmItem } from '../../../ruleSets/lubec/gear/gmItem'
 import type { LubecArmorZone } from '../../fight/lubecNpcFightSummary'
 import type { CombatEntropy } from './commandEntropy'
+import type { CombatWound, CombatWoundAcknowledgement } from '../woundTypes'
 
 export type CombatantSelection = { kind: 'character' | 'npc'; sheetId: string }
 export type FloorSelection = { itemId: string; status: 'library' | 'dropped'; qty: number }
@@ -31,8 +32,8 @@ export type CombatState = {
   combatants: Combatant[]
   floor: LubecDetachedItem[]
   attack: CombatAttack | null
-  woundOutbox: { id: string; [key: string]: unknown }[]
-  woundAcknowledgements: string[]
+  woundOutbox: CombatWound[]
+  woundAcknowledgements: CombatWoundAcknowledgement[]
 }
 export type CombatFight = { status: 'live' | 'ended'; participantUserIds: string[]; state: CombatState }
 export type CombatEnvelope = {

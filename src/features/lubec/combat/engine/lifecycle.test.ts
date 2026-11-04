@@ -139,7 +139,7 @@ describe('atomic lifecycle intentions', () => {
 
   it('refuses End with due wounds and interruption until the attacker is Out', () => {
     const current = live()
-    stateOf(current).woundOutbox.push({ id: 'wound' })
+    stateOf(current).woundOutbox.push({ id: 'wound', target: { kind: 'character', sheetId: 'hero' }, originatingRound: 0, effectiveRound: 1, traumaDelta: 1, stressDelta: 0, effect: { id: 'injury', name: 'Bruise', cause: 'Bruise row', steps: [] } })
     expect(() => act('end', current)).toThrow('Wounds must be delivered')
     expect(() => act('interrupt', current)).toThrow('has not gone Out')
     stateOf(current).attack = { id: 'attack', grantId: null, attackerKey: 'character:hero', step: 'defense', detached: [lubecDetachedItem(ball('air'), [])], closed: false }
