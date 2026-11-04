@@ -12,6 +12,7 @@ import { hasMoveReceipt, prepareMovedSheet, withMoveSheetRetries, writeMovedShee
 // has it before the page takes another edit.
 
 import {
+  doc as childDoc,
   onSnapshot,
   runTransaction,
   serverTimestamp,
@@ -39,6 +40,7 @@ import {
 } from '../../ruleSets/lubec/gear/containers'
 import { parseLubecCarrierRecord, parseLubecGear, type LubecCarrierRecord } from '../../ruleSets/lubec/gear/gearRecord'
 import { parseLubecGmItem, type LubecGmItem } from '../../ruleSets/lubec/gear/gmItem'
+import { sheetPayload } from '../../character/characterStore/sheetIntentionEdits'
 
 /** The store that saves the sheets a move writes, as `useCharacterStore` gives it. */
 export type LubecMoveStore = {
@@ -95,9 +97,11 @@ function recordFrom(ref: LubecRecordRef, data: DocumentData | null, id: string):
   return { kind: ref.kind, carrier: data && parseLubecCarrierRecord(data, id) }
 }
 
-// A drop is never read first: a member may not read a dropped item, and the document it makes is new.
-async function readRecord(tx: Transaction, doc: Ref, ref: LubecRecordRef, isSource: boolean): Promise<Read> {
-  if (ref.kind === 'gm-items' && !isSource) return { record: { kind: 'gm-items', item: null }, updatedAt: null, raw: {} }
+// Legacy player drops cannot read GM Items. Physical combat exports are GM commands and check conflicts.
+const unreadDrop = (ref: LubecRecordRef, isSource: boolean, physical: boolean) => ref.kind === 'gm-items' && !isSource && !physical
+
+async function readRecord(tx: Transaction, doc: Ref, ref: LubecRecordRef, isSource: boolean, physical = false): Promise<Read> {
+  if (unreadDrop(ref, isSource, physical)) return { record: { kind: 'gm-items', item: null }, updatedAt: null, raw: {} }
   const snap = await tx.get(doc)
   const data = snap.exists() ? snap.data() : null
   return { record: recordFrom(ref, data, snap.id), updatedAt: data?.updatedAt, raw: data ?? {} }
@@ -107,8 +111,25 @@ async function readRecord(tx: Transaction, doc: Ref, ref: LubecRecordRef, isSour
 export const stored = <T>(value: T): T => JSON.parse(JSON.stringify(value))
 
 function writeGmItem(tx: Transaction, doc: Ref, before: LubecGmItem | null, after: LubecGmItem | null) {
-  if (after && !before) tx.set(doc, { ...stored(after), createdAt: serverTimestamp() })
-  if (before && !after) tx.delete(doc)
+  if (!after) {
+    if (before) tx.delete(doc)
+    return
+  }
+  if (!before) tx.set(doc, { ...stored(after), createdAt: serverTimestamp() })
+  else if (sheetPayload(before) !== sheetPayload(after)) tx.set(doc, { ...stored(after), updatedAt: serverTimestamp() })
+}
+
+function physicalDestination(doc: Ref, source: LubecMoveRecord, request: LubecMoveRequest): Ref {
+  if (!request.move.physical || request.to.kind !== 'gm-items') return doc
+  const plan = lubecMovePlan(source, { kind: 'gm-items', item: null }, request.move)
+  return plan.ok ? childDoc(doc.parent, plan.item.id) : doc
+}
+
+async function readMoveRecords(tx: Transaction, docs: readonly [Ref, Ref], request: LubecMoveRequest) {
+  const source = await readRecord(tx, docs[0], request.from, true)
+  const targetDoc = physicalDestination(docs[1], source.record, request)
+  const target = await readRecord(tx, targetDoc, request.to, false, Boolean(request.move.physical))
+  return { docs: [docs[0], targetDoc] as const, reads: [source, target] as const }
 }
 
 // A sheet's write carries the version stamp and merges, so the rest of `lubec` is left alone and the arrays go whole.
@@ -126,17 +147,18 @@ function writeRecord(tx: Transaction, doc: Ref, before: LubecMoveRecord, after: 
 async function moveInTransaction(tx: Transaction, docs: readonly [Ref, Ref], request: LubecMoveRequest, revisions: Map<string, number>): Promise<Moved> {
   revisions.clear()
   if (await hasMoveReceipt(tx, docs, request)) return { ok: true, sheets: [] }
-  const reads = await Promise.all([readRecord(tx, docs[0], request.from, true), readRecord(tx, docs[1], request.to, false)])
+  const read = await readMoveRecords(tx, docs, request)
+  const { reads } = read
   const plan = lubecMovePlan(reads[0].record, reads[1].record, request.move)
   if (!plan.ok) return plan
   const prepared = await Promise.all([
-    prepareMovedSheet(docs[0], reads[0].raw, plan.from, request),
-    prepareMovedSheet(docs[1], reads[1].raw, plan.to, request),
+    prepareMovedSheet(read.docs[0], reads[0].raw, plan.from, request),
+    prepareMovedSheet(read.docs[1], reads[1].raw, plan.to, request),
   ])
   prepared.forEach((entry) => { if (entry?.mutation) revisions.set(entry.sheetRef.path, entry.mutation.receipt.outcome.revision) })
   writeMovedSheets(tx, prepared)
-  writeRecord(tx, docs[0], reads[0].record, plan.from)
-  writeRecord(tx, docs[1], reads[1].record, plan.to)
+  writeRecord(tx, read.docs[0], reads[0].record, plan.from)
+  writeRecord(tx, read.docs[1], reads[1].record, plan.to)
   const sheets = [request.from, request.to].flatMap((ref, n) => (sheetIdOf(ref) ? [{ ref: docs[n], updatedAt: reads[n].updatedAt }] : []))
   return { ok: true, sheets }
 }
