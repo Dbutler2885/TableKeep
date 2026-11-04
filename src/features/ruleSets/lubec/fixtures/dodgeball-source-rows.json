@@ -1,0 +1,290 @@
+[
+  {
+    "group": "head-neck",
+    "impact": 1,
+    "name": "Bonk",
+    "text": "Out. Next roll at Disadvantage while your ears ring.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "head-neck",
+    "impact": 2,
+    "name": "Glasses or hat knocked flying",
+    "text": "Out. Gain 1 Stress as the gym laughs.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "head-neck",
+    "impact": 3,
+    "name": "Headshot",
+    "text": "Out, but Coach calls it: the thrower is out too.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "head-neck",
+    "impact": 4,
+    "name": "Smacked in the face",
+    "text": "Out. Dazed.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "head-neck",
+    "impact": 5,
+    "name": "Bloody nose",
+    "text": "Out. Dazed. Sent to the nurse.",
+    "severity": "Serious",
+    "trauma": 1
+  },
+  {
+    "group": "head-neck",
+    "impact": 6,
+    "name": "Bell rung",
+    "text": "Out. Minor Concussion. Body Save. Success: only Dazed, and 0 Trauma instead of +1. Failure: Minor Concussion, which is Dazed and -10 Handle until a Long Rest.",
+    "severity": "Serious",
+    "trauma": 1
+  },
+  {
+    "group": "torso-waist",
+    "impact": 1,
+    "name": "Trapped against the chest",
+    "text": "Handle Check: success catches it, and the thrower is out instead. Failure: out.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "torso-waist",
+    "impact": 2,
+    "name": "Thud",
+    "text": "Out.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "torso-waist",
+    "impact": 3,
+    "name": "Stung",
+    "text": "Out. A red welt in the ball's pattern lasts the rest of the day.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "torso-waist",
+    "impact": 4,
+    "name": "Winded",
+    "text": "Out. Next relevant physical Check at Disadvantage.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "torso-waist",
+    "impact": 5,
+    "name": "Knocked down",
+    "text": "Out.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "torso-waist",
+    "impact": 6,
+    "name": "Breath knocked out",
+    "text": "Out. Dazed. Gain 1 Stress.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "groin",
+    "impact": 1,
+    "name": "Everyone winces",
+    "text": "Out. Gain 1 Stress.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "groin",
+    "impact": 2,
+    "name": "Doubled over",
+    "text": "Out. Lose the next Movement Stage.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "groin",
+    "impact": 3,
+    "name": "Down",
+    "text": "Out. Knocked down.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "groin",
+    "impact": 4,
+    "name": "Down and out",
+    "text": "Out. Knocked down. Dazed.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "groin",
+    "impact": 5,
+    "name": "Down and out",
+    "text": "Out. Knocked down. Dazed. Gain 1 Stress.",
+    "severity": "Serious",
+    "trauma": 1
+  },
+  {
+    "group": "groin",
+    "impact": 6,
+    "name": "Nobody will forget this",
+    "text": "Out. Knocked down. Dazed. Gain 2 Stress.",
+    "severity": "Serious",
+    "trauma": 1
+  },
+  {
+    "group": "arms",
+    "impact": 1,
+    "name": "Brushed the sleeve",
+    "text": "Out, though you swear it missed. Gain 1 Stress.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "arms",
+    "impact": 2,
+    "name": "Thwack",
+    "text": "Out.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "arms",
+    "impact": 3,
+    "name": "Stinging arm",
+    "text": "Out. Next roll with that arm at Disadvantage.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "arms",
+    "impact": 4,
+    "name": "Knocked loose",
+    "text": "Out. Whatever that hand holds is dropped.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "arms",
+    "impact": 5,
+    "name": "Dead arm",
+    "text": "Out. Rolls with that arm at Disadvantage for the rest of the scene.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "arms",
+    "impact": 6,
+    "name": "Dead arm",
+    "text": "Out. Rolls with that arm at Disadvantage for the rest of the scene. Gain 1 Stress.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "hand",
+    "impact": 1,
+    "name": "Caught it!",
+    "text": "Handle Check: success, the thrower is out instead and you stay in. Failure: out.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "hand",
+    "impact": 2,
+    "name": "Fumbled catch",
+    "text": "Handle Check at Disadvantage to hold on: success, the thrower is out instead. Failure: out.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "hand",
+    "impact": 3,
+    "name": "Jammed finger",
+    "text": "Out. Next roll with that hand at Disadvantage.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "hand",
+    "impact": 4,
+    "name": "Bent-back fingers",
+    "text": "Out. Rolls with that hand at Disadvantage until a Long Rest.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "hand",
+    "impact": 5,
+    "name": "Bent-back fingers",
+    "text": "Out. Rolls with that hand at Disadvantage until a Long Rest. Gain 1 Stress.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "hand",
+    "impact": 6,
+    "name": "Sprained wrist",
+    "text": "Out. Hand / wrist injury: -20 Handle (dominant) or -10 (other) on actions with that hand.",
+    "severity": "Serious",
+    "trauma": 1
+  },
+  {
+    "group": "legs",
+    "impact": 1,
+    "name": "Tagged at the ankle",
+    "text": "Out.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "legs",
+    "impact": 2,
+    "name": "Clipped",
+    "text": "Out. Lose the next Movement Stage.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "legs",
+    "impact": 3,
+    "name": "Charley horse",
+    "text": "Out. Next Speed Check at Disadvantage.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "legs",
+    "impact": 4,
+    "name": "Legs taken out",
+    "text": "Out. Knocked down.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "legs",
+    "impact": 5,
+    "name": "Tripped flat",
+    "text": "Out. Knocked down. Gain 1 Stress.",
+    "severity": "Minor",
+    "trauma": 0
+  },
+  {
+    "group": "legs",
+    "impact": 6,
+    "name": "Dead leg",
+    "text": "Out. Speed Checks at Disadvantage for the rest of the scene.",
+    "severity": "Minor",
+    "trauma": 0
+  }
+]
