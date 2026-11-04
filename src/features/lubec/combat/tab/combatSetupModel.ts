@@ -62,3 +62,9 @@ export function combatFloorSelections(picks: readonly FloorSelection[], items: r
     return source?.status === 'library' && pick.status === 'library' ? librarySelections(pick, Math.max(1, source.qty)) : [pick]
   })
 }
+
+/** A setup row's small line: who they are and their Speed once picked; otherwise that they are not fighting, in the mock-up's words. */
+export function pickRowNote(on: boolean, title: string, speed: number | null): string {
+  if (!on) return title ? `${title}, not fighting` : 'Not in this fight'
+  return `${title ? `${title} · ` : ''}Speed ${speed ?? 'missing'}`
+}

@@ -4,7 +4,7 @@ import type { LubecGmItem } from '../../../ruleSets/lubec/gear/gmItem'
 import { combatPublicSummary } from '../engine/inputs'
 import type { CombatantSelection, CombatSheet, FloorSelection } from '../engine/types'
 import { combatCatchLine, combatCountWords } from './combatFloorRows'
-import { addFloorPick, adjustFloorPick, combatSetupProblems, isSelected, setupFloorRows, toggleCombatant, type CombatSetupIssue } from './combatSetupModel'
+import { addFloorPick, adjustFloorPick, combatSetupProblems, isSelected, pickRowNote, setupFloorRows, toggleCombatant, type CombatSetupIssue } from './combatSetupModel'
 import { CombatItemPicker } from './CombatItemPicker'
 import { CombatFloorIcon, CombatHead, CombatPanel, CombatStepper, CombatWindow } from './CombatParts'
 
@@ -19,15 +19,13 @@ type SetupProps = {
   onRepair: (issue: CombatSetupIssue) => void
 }
 
-const speedText = (sheet: CombatSheet) => combatPublicSummary(sheet).speed ?? 'missing'
+type PickRowProps = { sheet: CombatSheet; title: string; on: boolean; onToggle: () => void }
 
-type PickRowProps = { sheet: CombatSheet; note: string; on: boolean; onToggle: () => void }
-
-function PickRow({ sheet, note, on, onToggle }: PickRowProps) {
+function PickRow({ sheet, title, on, onToggle }: PickRowProps) {
   return (
     <li className={on ? '' : 'off'}>
       <button type="button" className={`chk ${on ? 'on' : ''}`} onClick={onToggle} aria-pressed={on} aria-label={`${sheet.name} fights`}>{on ? '✓' : ''}</button>
-      {sheet.name}<small>{note}Speed {speedText(sheet)}</small>
+      {sheet.name}<small>{pickRowNote(on, title, combatPublicSummary(sheet).speed)}</small>
     </li>
   )
 }
@@ -78,15 +76,19 @@ type RostersProps = Pick<SetupProps, 'characters' | 'npcs'> & { selected: readon
 
 type RowsProps = { sheets: readonly { sheet: CombatSheet | null; npc?: NpcRecord }[]; empty: string } & Pick<RostersProps, 'selected' | 'onToggle'>
 
-const noteOf = (npc?: NpcRecord) => (npc?.title ? `${npc.title} · ` : '')
+type RosterEntry = RowsProps['sheets'][number]
 
-/** One roster: everyone who can fight picks with a box; an NPC without a sheet is listed but cannot be picked. */
+/** One roster row: a box for anyone with a sheet; an NPC without one is listed but cannot be picked. */
+function RosterRow({ entry: { sheet, npc }, selected, onToggle }: { entry: RosterEntry } & Pick<RostersProps, 'selected' | 'onToggle'>) {
+  if (!sheet) return <li className="off"><span className="chk" />{npc?.name}<small>No sheet to fight with</small></li>
+  return <PickRow sheet={sheet} title={npc?.title ?? ''} on={isSelected(selected, sheet)} onToggle={() => onToggle({ kind: sheet.kind, sheetId: sheet.sheetId })} />
+}
+
+/** One roster, with a line saying so when nobody is in it. */
 function RosterRows({ sheets, empty, selected, onToggle }: RowsProps) {
   return (
     <ul className="roster spaced">
-      {sheets.map(({ sheet, npc }) => (sheet
-        ? <PickRow key={sheet.sheetId} sheet={sheet} note={noteOf(npc)} on={isSelected(selected, sheet)} onToggle={() => onToggle({ kind: sheet.kind, sheetId: sheet.sheetId })} />
-        : <li key={npc?.id} className="off"><span className="chk" />{npc?.name}<small>No sheet to fight with</small></li>))}
+      {sheets.map((entry) => <RosterRow key={entry.sheet?.sheetId ?? entry.npc?.id} entry={entry} selected={selected} onToggle={onToggle} />)}
       {sheets.length ? null : <li className="off">{empty}</li>}
     </ul>
   )

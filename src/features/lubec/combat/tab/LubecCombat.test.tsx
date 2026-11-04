@@ -124,7 +124,10 @@ describe('GM setup, moment 1', () => {
 
   it('lists NPCs with their titles, and an NPC without a sheet cannot be picked', () => {
     show('gm', 'gm', idle)
-    expect(button('Roy Carver fights').closest('li')?.textContent).toBe('Roy CarverLinebacker · Speed 56')
+    expect(button('Roy Carver fights').closest('li')?.textContent).toBe('Roy CarverLinebacker, not fighting')
+    expect(button('Wayne Gardner fights').closest('li')?.textContent).toBe('Wayne GardnerNot in this fight')
+    fireEvent.click(button('Roy Carver fights'))
+    expect(button('Roy Carver fights').closest('li')?.textContent).toBe('✓Roy CarverLinebacker · Speed 56')
     expect(screen.getByText('No sheet to fight with')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Coach Ballard fights' })).toBeNull()
   })
@@ -296,8 +299,8 @@ describe('less common states', () => {
     mocks.data = { characters: [], npcs: [{ npc: npc('dale', 'Dale Ricker', ''), sheet: sheet('npc', 'dale', 'Dale Ricker', 'gm', { Speed: null }) }], items: [] }
     show('gm', 'gm', idle)
     expect(screen.getByText('No characters in play.')).toBeTruthy()
-    expect(button('Dale Ricker fights').closest('li')?.textContent).toBe('Dale RickerSpeed missing')
     fireEvent.click(button('Dale Ricker fights'))
+    expect(button('Dale Ricker fights').closest('li')?.textContent).toBe('✓Dale RickerSpeed missing')
     fireEvent.click(screen.getAllByRole('button', { name: 'Repair Dale Ricker' })[0])
     expect(screen.getByTestId('where').textContent).toBe('/groups/school/campaigns/gym/npcs')
     expect(takeOpenRequest('npc')).toBe('dale')

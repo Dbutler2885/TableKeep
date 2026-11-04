@@ -5,7 +5,7 @@ import { lubecCharacterSheet } from '../../../ruleSets/lubec/sheetFixtures'
 import type { Combatant, CombatSheet, CombatState } from '../engine/types'
 import { combatCatchLine, combatCountWords, combatFloorRows, combatItemOptions, endedFloor } from './combatFloorRows'
 import { combatantRole, combatPhaseView } from './combatPhases'
-import { addFloorPick, adjustFloorPick, combatFloorSelections, combatSetupProblems, floorPickLimit, isSelected, setupFloorRows, toggleCombatant } from './combatSetupModel'
+import { addFloorPick, adjustFloorPick, combatFloorSelections, combatSetupProblems, floorPickLimit, isSelected, pickRowNote, setupFloorRows, toggleCombatant } from './combatSetupModel'
 
 const ball = (id: string, fields: Record<string, unknown> = {}): LubecGmItem =>
   parseLubecGmItem({ name: 'Dodgeball', kind: 'weapon', mode: 'thrown', table: 'dodgeball', size: 1, qty: 1, impact: 0, catchChance: 50, catchPutsThrowerOut: true, status: 'library', ...fields }, id)
@@ -68,6 +68,14 @@ describe('local setup', () => {
       ['Kid hole', 'Kid hole: missing Dodgeball Body; repair Speed, Body.'],
       ['npc:gone', 'npc:gone: sheet is missing or unreadable.'],
     ])
+  })
+
+  it('words a row as the mock-up does: Speed once picked, not fighting otherwise', () => {
+    expect(pickRowNote(true, '', 52)).toBe('Speed 52')
+    expect(pickRowNote(true, 'Linebacker', 30)).toBe('Linebacker · Speed 30')
+    expect(pickRowNote(true, '', null)).toBe('Speed missing')
+    expect(pickRowNote(false, '', 52)).toBe('Not in this fight')
+    expect(pickRowNote(false, 'Referee', 40)).toBe('Referee, not fighting')
   })
 
   it('caps a dropped pick at its record, lets library counts grow, and drops a pick at zero', () => {
