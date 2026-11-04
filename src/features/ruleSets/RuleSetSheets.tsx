@@ -4,6 +4,7 @@ import { CharacterTab } from '../character/CharacterTab'
 import { VtmCharacterTab } from '../character/VtmCharacterTab'
 import { ItemsTab } from '../items/ItemsTab'
 import { LubecCharacterTab } from '../lubec/LubecCharacterTab'
+import { LubecCombat as LubecCombatTab } from '../lubec/combat/tab/LubecCombat'
 import { LubecMapFightHost } from '../lubec/fight/LubecMapFightHost'
 import { LubecItemsTab } from '../lubec/items/LubecItemsTab'
 import { LubecNpcSheetTab } from '../lubec/LubecNpcSheetTab'
@@ -118,4 +119,9 @@ export function LubecItems({ campaign, role, user, setError }: RuleSetItemsProps
       setError={setError}
     />
   )
+}
+
+// Lubec's Combat tab, which reads the workspace's one fight listener.
+export function LubecCombat(props: RuleSetSheetProps) {
+  return <LubecCombatTab {...props} />
 }

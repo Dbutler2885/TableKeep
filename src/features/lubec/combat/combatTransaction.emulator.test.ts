@@ -252,6 +252,21 @@ describe('durable command protocol', () => {
   })
 })
 
+describe('public fight summaries', () => {
+  it('the GM republishes a changed NPC name and face from current records; a participant cannot', async () => {
+    const db = as()
+    expect(await commit(db, start())).toMatchObject({ ok: true })
+    await setDoc(ref(db, 'npcs/npc'), { name: 'Roy the Bull', portraitPath: 'npc-art-2', secretStory: 'private' })
+    const refused = await commit(as('player'), await action(as('player'), 'refresh', 'refresh-player'), options('player'))
+    expect(refused).toEqual({ ok: false, reason: 'Only the GM can do that.' })
+    expect(await commit(db, await action(db, 'refresh'))).toMatchObject({ ok: true })
+    const fight = await readFight(db)
+    expect(fight.state.combatants[2]).toMatchObject({ key: 'npc:npc', name: 'Roy the Bull', portraitPath: 'npc-art-2' })
+    expect(JSON.stringify(fight)).not.toMatch(/secretInput|secretStory/)
+    expect(await commit(db, await action(db, 'refresh', 'refresh-again'))).toEqual({ ok: false, reason: 'Public summaries are current.' })
+  })
+})
+
 describe('atomic End and interruption', () => {
   it.each(['defense', 'catch', 'repair'])('settles %s, closes retained state and clears control in one commit', async (step) => {
     const db = as()

@@ -25,6 +25,7 @@ function stub(name: string) {
 vi.mock('../character/CharacterTab', () => ({ CharacterTab: stub('CharacterTab') }))
 vi.mock('../character/VtmCharacterTab', () => ({ VtmCharacterTab: stub('VtmCharacterTab') }))
 vi.mock('../lubec/LubecCharacterTab', () => ({ LubecCharacterTab: stub('LubecCharacterTab') }))
+vi.mock('../lubec/combat/tab/LubecCombat', () => ({ LubecCombat: stub('LubecCombat') }))
 vi.mock('../lubec/fight/LubecMapFightHost', () => ({ LubecMapFightHost: ({ children }: { children: ReactNode }) => children }))
 vi.mock('../lubec/LubecNpcSheetTab', () => ({ LubecNpcSheetTab: stub('LubecNpcSheetTab') }))
 vi.mock('../common/RulesTab', () => ({ RulesTab: stub('RulesTab') }))

@@ -1,0 +1,171 @@
+/* The Combat tab, copied from the combat tab mock-up (lubec-combat-tab-mockup-m1):
+   its page head, the three-column layout, the rails, the in-page attack window,
+   the waiting middle, setup rosters and the end banners. The fight window's own
+   head, stepper, body, foot, buttons and fields come from lubecFight.css; the
+   tokens are the sheet's own without the prefix. */
+
+.shell-root[data-theme="lubec"] .lubec-combat {
+  --c: var(--lubec-rust);
+  min-width: 0;
+  min-height: 100%;
+  padding: 0 0 1.4rem;
+  color: var(--lubec-ink);
+  background:
+    radial-gradient(ellipse at 50% 40%, transparent 55%, rgba(74, 52, 26, 0.16) 100%),
+    repeating-linear-gradient(0deg, rgba(53, 64, 53, 0.025) 0 1px, transparent 1px 4px),
+    var(--lubec-paper);
+}
+
+.shell-root[data-theme="lubec"] .lubec-combat > * { margin-left: 1.2rem; margin-right: 1.2rem; }
+.shell-root[data-theme="lubec"] .lubec-combat > .chead { margin-left: 0; margin-right: 0; }
+
+.shell-root[data-theme="lubec"] .lubec-combat button { border-radius: 0; touch-action: manipulation; cursor: pointer; }
+.shell-root[data-theme="lubec"] .lubec-combat button:disabled { cursor: not-allowed; }
+
+.shell-root[data-theme="lubec"] .lubec-combat .label {
+  color: var(--lubec-muted);
+  font: 800 0.59rem/1.2 var(--lubec-type);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-combat .note { margin: 0; color: var(--lubec-muted); font: 700 0.66rem/1.45 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .note b { color: var(--lubec-ink); }
+
+.shell-root[data-theme="lubec"] .lubec-combat .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  min-height: 2.4rem; padding: 0.45rem 0.85rem;
+  color: var(--lubec-cream); background: var(--lubec-blue); border: 2px solid var(--lubec-blue);
+  font: 800 0.64rem/1 var(--lubec-type); letter-spacing: 0.1em; text-transform: uppercase;
+}
+.shell-root[data-theme="lubec"] .lubec-combat .btn:hover { background: var(--lubec-blue-alt); }
+.shell-root[data-theme="lubec"] .lubec-combat .btn.rust { background: var(--lubec-rust); border-color: var(--lubec-rust); }
+.shell-root[data-theme="lubec"] .lubec-combat .btn.rust:hover { background: #b44c31; }
+.shell-root[data-theme="lubec"] .lubec-combat .btn.line { color: var(--lubec-blue); background: transparent; }
+.shell-root[data-theme="lubec"] .lubec-combat .btn.line:hover { background: rgba(23, 75, 88, 0.08); }
+.shell-root[data-theme="lubec"] .lubec-combat .btn.small { min-height: 2rem; padding: 0.3rem 0.55rem; font-size: 0.58rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.shell-root[data-theme="lubec"] .lubec-combat :is(.btn, .linkish):focus-visible { outline: 2px solid var(--lubec-rust); outline-offset: 2px; }
+.shell-root[data-theme="lubec"] .lubec-combat .linkish {
+  padding: 0; color: var(--lubec-blue); background: none; border: 0;
+  font: 800 0.62rem/1.3 var(--lubec-type); letter-spacing: 0.06em; text-decoration: underline; text-underline-offset: 2px; text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-combat select {
+  min-width: 0; min-height: 2.3rem; padding: 0.3rem 1.7rem 0.3rem 0.45rem;
+  color: var(--lubec-ink); background-color: var(--lubec-cream); border: 1.5px solid var(--lubec-ink); border-radius: 0;
+  font: 800 0.85rem/1.2 var(--lubec-type);
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--lubec-ink) 50%), linear-gradient(135deg, var(--lubec-ink) 50%, transparent 50%);
+  background-position: calc(100% - 0.95rem) 55%, calc(100% - 0.6rem) 55%;
+  background-size: 0.32rem 0.32rem;
+  background-repeat: no-repeat;
+}
+.shell-root[data-theme="lubec"] .lubec-combat select:focus { outline: 2px solid var(--lubec-rust); outline-offset: 1px; }
+
+/* The page head: title, round and stage, stage pips */
+.shell-root[data-theme="lubec"] .lubec-combat .chead {
+  display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; justify-content: space-between;
+  /* The shell's fixed menu button sits over the head's left end, so the title starts clear of it. */
+  margin: 0 0 1rem; padding: 0.35rem 1.2rem 0.35rem 3rem;
+  background-color: var(--lubec-ink); border-bottom: 5px solid #8f3a22; box-shadow: 0 4px 0 #b98327;
+}
+.shell-root[data-theme="lubec"] .lubec-combat .chead .title { padding: 0.5rem 1rem 0.35rem; color: var(--lubec-cream); background: var(--lubec-rust); font: 700 1.1rem/1 var(--lubec-condensed); letter-spacing: 0.08em; text-transform: uppercase; }
+.shell-root[data-theme="lubec"] .lubec-combat .chead .rnd { color: var(--lubec-cream); font: 700 1.25rem/1 var(--lubec-condensed); letter-spacing: 0.1em; text-transform: uppercase; }
+.shell-root[data-theme="lubec"] .lubec-combat .chead .rnd small { margin-left: 0.6rem; color: #e9b98f; font: 700 0.95rem/1 var(--lubec-condensed); letter-spacing: 0.1em; }
+
+/* The three columns: turn order, what to do now, declarations and Floor */
+.shell-root[data-theme="lubec"] .lubec-combat .ct { display: grid; grid-template-columns: 15rem minmax(0, 1fr) 17rem; gap: 1rem; align-items: start; }
+.shell-root[data-theme="lubec"] .lubec-combat .ct.two { grid-template-columns: minmax(0, 1fr) 17rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .mid { min-width: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .rail { display: grid; gap: 0.8rem; min-width: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .panel { background: rgba(255, 248, 231, 0.55); border: 2px solid var(--lubec-ink); box-shadow: 3px 3px 0 rgba(23, 40, 43, 0.22); }
+.shell-root[data-theme="lubec"] .lubec-combat .panel > h3 {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; margin: 0; padding: 0.35rem 0.6rem 0.25rem;
+  color: var(--lubec-cream); background: var(--lubec-ink); font: 700 0.95rem/1 var(--lubec-condensed); letter-spacing: 0.12em; text-transform: uppercase;
+}
+.shell-root[data-theme="lubec"] .lubec-combat .panel > h3 small { color: #e9b98f; font: 700 0.8rem/1 var(--lubec-condensed); letter-spacing: 0.08em; }
+.shell-root[data-theme="lubec"] .lubec-combat .panel .pb { padding: 0.45rem 0.55rem 0.55rem; }
+.shell-root[data-theme="lubec"] .lubec-combat :is(.turns, .floor) { margin: 0; padding: 0; list-style: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .turns li { display: grid; grid-template-columns: 1.4rem minmax(0, 1fr) auto; gap: 0.4rem; align-items: center; padding: 0.38rem 0.5rem; border-bottom: 1px solid var(--lubec-line); font: 800 0.78rem/1.15 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .turns li:last-child { border-bottom: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .turns .n { display: grid; place-items: center; width: 1.3rem; height: 1.3rem; color: var(--lubec-cream); background: var(--lubec-ink); font: 700 0.8rem/1 var(--lubec-condensed); }
+.shell-root[data-theme="lubec"] .lubec-combat .turns small { display: block; color: var(--lubec-muted); font: 700 0.6rem/1.3 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .turns li.out { color: var(--lubec-muted); }
+.shell-root[data-theme="lubec"] .lubec-combat .turns li.out .nm { text-decoration: line-through; }
+.shell-root[data-theme="lubec"] .lubec-combat .badge { display: inline-block; padding: 0.14rem 0.3rem; color: var(--lubec-cream); background: var(--lubec-ink); font: 800 0.5rem/1 var(--lubec-type); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .badge.rust { background: var(--lubec-rust); }
+.shell-root[data-theme="lubec"] .lubec-combat .badge.must { color: var(--lubec-ink); background: var(--lubec-mustard); }
+.shell-root[data-theme="lubec"] .lubec-combat .floor li { display: flex; align-items: center; gap: 0.55rem; padding: 0.4rem 0.55rem; border-bottom: 1px solid var(--lubec-line); font: 800 0.78rem/1.2 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .floor li:last-child { border-bottom: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .ball { flex: none; display: grid; place-items: center; width: 1.7rem; height: 1.7rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .ball svg { display: block; width: 100%; height: 100%; }
+.shell-root[data-theme="lubec"] .lubec-combat .floor small { display: block; color: var(--lubec-muted); font: 700 0.6rem/1.3 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .floor .cnt { margin-left: auto; font: 800 1.1rem/1 var(--lubec-display); }
+
+/* The fight window, placed in the page (no overlay) */
+.shell-root[data-theme="lubec"] .lubec-combat .lubec-fight.inpage { width: 100%; max-height: none; margin: 0; overflow: visible; }
+.shell-root[data-theme="lubec"] .lubec-combat .lubec-fight.inpage .fight-body { overflow: visible; padding: 0.6rem 0.8rem 0.2rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .lubec-fight.inpage .step-foot { margin: 0.5rem 0.8rem 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .notice { display: flex; gap: 0.6rem; align-items: flex-start; margin: 0 0 0.8rem; padding: 0.5rem 0.7rem; color: var(--lubec-ink); background: #fbe3b4; border: 2px solid var(--lubec-mustard); font: 700 0.74rem/1.45 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .notice.hot { background: #f6d3c7; border-color: var(--lubec-rust); }
+.shell-root[data-theme="lubec"] .lubec-combat .notice b { font-weight: 800; }
+.shell-root[data-theme="lubec"] .lubec-combat .notice ul { margin: 0.2rem 0 0; padding-left: 1rem; }
+
+/* Setup, rosters and the GM's tools */
+.shell-root[data-theme="lubec"] .lubec-combat .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .roster { margin: 0; padding: 0; list-style: none; border: 1.5px solid var(--lubec-ink); background: var(--lubec-cream); }
+.shell-root[data-theme="lubec"] .lubec-combat .roster li { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.55rem; border-bottom: 1px solid var(--lubec-line); font: 800 0.8rem/1.2 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .roster li:last-child { border-bottom: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .roster li.off { color: var(--lubec-muted); }
+.shell-root[data-theme="lubec"] .lubec-combat .roster li small { margin-left: auto; color: var(--lubec-muted); font: 700 0.6rem/1 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .roster li .row-line small { margin: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .roster .rowbtn { margin-left: auto; }
+.shell-root[data-theme="lubec"] .lubec-combat .chk { flex: none; display: grid; place-items: center; width: 1.2rem; height: 1.2rem; padding: 0; color: var(--lubec-ink); background: var(--lubec-cream); border: 2px solid var(--lubec-ink); font: 800 0.8rem/1 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .chk.on { color: var(--lubec-cream); background: var(--lubec-pine); border-color: var(--lubec-pine); }
+.shell-root[data-theme="lubec"] .lubec-combat .stepper-q { display: inline-flex; align-items: center; gap: 0.3rem; margin-left: auto; }
+.shell-root[data-theme="lubec"] .lubec-combat .stepper-q button { width: 1.7rem; min-height: 1.7rem; padding: 0; color: var(--lubec-blue); background: var(--lubec-cream); border: 1.5px solid var(--lubec-blue); font: 800 0.9rem/1 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .stepper-q b { min-width: 1.6rem; text-align: center; font: 800 1.1rem/1 var(--lubec-display); }
+.shell-root[data-theme="lubec"] .lubec-combat .item-pick { display: flex; gap: 0.4rem; margin: 0.3rem 0 0.5rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .item-pick select { flex: 1; }
+.shell-root[data-theme="lubec"] .lubec-combat .gmtools { display: flex; flex-wrap: wrap; gap: 0.4rem 0.6rem; align-items: center; margin: 0 0 0.9rem; padding: 0.4rem 0.6rem; border: 2px dashed var(--lubec-blue); background: rgba(23, 75, 88, 0.07); }
+.shell-root[data-theme="lubec"] .lubec-combat .gmtools .item-pick { flex: 1 1 18rem; margin: 0; }
+
+/* The middle when the fight is waiting on someone else */
+.shell-root[data-theme="lubec"] .lubec-combat .bigwait { padding: 1.4rem 1rem 1.2rem; text-align: center; }
+.shell-root[data-theme="lubec"] .lubec-combat .bigwait h3 { margin: 0.2rem 0 0.3rem; color: var(--lubec-blue); font: 800 clamp(1.5rem, 3vw, 2.3rem)/1 var(--lubec-display); text-transform: uppercase; }
+.shell-root[data-theme="lubec"] .lubec-combat .bigwait p { margin: 0.2rem 0; font: 700 0.8rem/1.5 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .bigwait .dots::after { content: ""; animation: lubec-combat-dots 1.4s steps(4, end) infinite; }
+@keyframes lubec-combat-dots { 0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75%, 100% { content: "..."; } }
+@media (prefers-reduced-motion: reduce) { .shell-root[data-theme="lubec"] .lubec-combat .bigwait .dots::after { animation: none; content: "..."; } }
+
+/* The end of a fight */
+.shell-root[data-theme="lubec"] .lubec-combat .outcome { margin: 0; padding: 0.7rem 0.8rem; border: 2px solid var(--lubec-ink); background: var(--lubec-cream); }
+.shell-root[data-theme="lubec"] .lubec-combat .outcome h4 { margin: 0 0 0.2rem; font: 800 1.35rem/1.1 var(--lubec-display); text-transform: uppercase; }
+.shell-root[data-theme="lubec"] .lubec-combat .outcome p { margin: 0; font: 700 0.78rem/1.5 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .outcome.safe { border-color: var(--lubec-success); }
+.shell-root[data-theme="lubec"] .lubec-combat .outcome.safe h4 { color: var(--lubec-success); }
+
+@media (max-width: 1150px) {
+  .shell-root[data-theme="lubec"] .lubec-combat :is(.ct, .ct.two, .two-col) { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Narrow window: everything stacks */
+@media (max-width: 760px) {
+  .shell-root[data-theme="lubec"] .lubec-combat > * { margin-left: 0.7rem; margin-right: 0.7rem; }
+  .shell-root[data-theme="lubec"] .lubec-combat > .chead { margin-left: 0; margin-right: 0; padding: 0.35rem 0.7rem 0.35rem 3rem; }
+  .shell-root[data-theme="lubec"] .lubec-combat .chead .rnd small { display: block; margin: 0.2rem 0 0; }
+  .shell-root[data-theme="lubec"] .lubec-combat .gmtools { align-items: stretch; }
+  .shell-root[data-theme="lubec"] .lubec-combat .lubec-fight .section-head { padding-right: 0.4rem; }
+}
+
+/* lubecFight.css gives the modal the whole window on narrow screens; in the page it keeps its own height. */
+@media (max-width: 1250px) {
+  .shell-root[data-theme="lubec"] .lubec-combat .lubec-fight.inpage { height: auto; max-height: none; }
+}
+.shell-root[data-theme="lubec"] .lubec-combat .roster.spaced { margin-top: 0.3rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .label.block { display: block; margin-top: 0.8rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .roster .ball { width: 1.8rem; height: 1.8rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .roster .ball.sm { width: 1.6rem; height: 1.6rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .note.after { margin-top: 0.4rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .roster li .row-line small { display: inline; margin: 0; color: var(--lubec-muted); font: 700 0.6rem var(--lubec-type); }

@@ -173,7 +173,7 @@ export const ruleSets: RuleSetRegistry = {
     shortLabel: 'LUBEC',
     selectable: true,
     tabs: {
-      order: ['character', 'maps', 'items', 'npcs', 'notes', 'calendar'],
+      order: ['character', 'combat', 'maps', 'items', 'npcs', 'notes', 'calendar'],
       hiddenFromPlayers: ['items'],
     },
     sheet: { embeddable: false, npcSheet: true },

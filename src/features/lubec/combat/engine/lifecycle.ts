@@ -4,6 +4,7 @@ import { combatEntropy } from './commandEntropy'
 import { requireGm, requireLiveContext } from './context'
 import { placeCombatFloor } from './floor'
 import { combatantKey, combatSetupIssues, publicCombatant } from './inputs'
+import { combatSummaryHandlers } from './summaries'
 import type { CombatCommand, CombatHandler, CombatPlan, CombatRecords, CombatState, StartPayload } from './types'
 
 function requireStartInputs(payload: StartPayload, records: CombatRecords): void {
@@ -72,7 +73,7 @@ const interrupt: CombatHandler = (command, records, authority) => {
   return { fight: { ...fight, state: settleCombatAttack(fight.state) }, items: [], logs: [{ event: 'Attack interrupted: attacker Out.', actor: attacker.key }] }
 }
 
-export const combatLifecycleHandlers: Readonly<Record<string, CombatHandler>> = { start, end, place, interrupt }
+export const combatLifecycleHandlers: Readonly<Record<string, CombatHandler>> = { start, end, place, interrupt, ...combatSummaryHandlers }
 
 export function planCombatCommand(command: CombatCommand, records: CombatRecords, authority: Parameters<CombatHandler>[2], handlers = combatLifecycleHandlers, entropy = combatEntropy(command)): CombatPlan {
   const handler = handlers[command.payload.type]

@@ -4,14 +4,18 @@ import type { AppTab } from '../../types/app'
 
 export type SettingsTab = { id: AppTab; label: string; locked: boolean }
 
+// The live-fight tab follows the fight, not the campaign's settings, so it is
+// never offered or saved here.
+const settableTabs = (gameSystem: GameSystem) => ruleSetTabs(gameSystem).filter((tab) => tab.id !== 'combat')
+
 // Every tab the rule set has, in display order, the rules link included.
 // Saving keeps this order.
-const systemTabIds = (gameSystem: GameSystem): AppTab[] => ruleSetTabs(gameSystem).map((tab) => tab.id)
+const systemTabIds = (gameSystem: GameSystem): AppTab[] => settableTabs(gameSystem).map((tab) => tab.id)
 
 // The tabs campaign settings offer: the rule set's own, except the rules link,
 // with the character tab always on.
 export const campaignSettingsTabs = (gameSystem: GameSystem): SettingsTab[] =>
-  ruleSetTabs(gameSystem)
+  settableTabs(gameSystem)
     .filter((tab) => tab.id !== 'rules')
     .map((tab) => ({ id: tab.id, label: tab.label, locked: tab.id === 'character' }))
 
