@@ -107,8 +107,11 @@ async function readRecord(tx: Transaction, doc: Ref, ref: LubecRecordRef, isSour
 export const stored = <T>(value: T): T => JSON.parse(JSON.stringify(value))
 
 function writeGmItem(tx: Transaction, doc: Ref, before: LubecGmItem | null, after: LubecGmItem | null) {
-  if (after && !before) tx.set(doc, { ...stored(after), createdAt: serverTimestamp() })
-  if (before && !after) tx.delete(doc)
+  if (!after) {
+    if (before) tx.delete(doc)
+    return
+  }
+  if (!before) tx.set(doc, { ...stored(after), createdAt: serverTimestamp() })
 }
 
 // A sheet's write carries the version stamp and merges, so the rest of `lubec` is left alone and the arrays go whole.
