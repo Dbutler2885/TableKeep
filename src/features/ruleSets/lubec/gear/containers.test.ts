@@ -223,7 +223,7 @@ describe('the GM giving an item', () => {
 
     expect(plan.from).toEqual(library)
     expect(plan.item).toEqual({ ...lubecCopyOf(crowbar as Partial<LubecItem>), id: 'crowbar-copy', carrier: 'backpack', pocket: 0 })
-    expect(plan.item).not.toHaveProperty('engraved')
+    expect(plan.item).toHaveProperty('engraved', 'J.F.')
   })
 
   it('needs a copy id to give a library item', () => {
@@ -302,4 +302,12 @@ describe('copying an item', () => {
     src.armor!.cut = 9
     expect(copy.armor?.cut).toBe(1)
   })
+})
+
+it('copies throwable and unknown transferable data from a GM library item onto a sheet', () => {
+  const fields = { canThrow: true, thrownImpact: -1, thrownWound: 'pierce', catchChance: 10, catchPutsThrowerOut: true, ranges: [{ band: 'short', distance: 'Across the kitchen', modifier: -13 }], unknown: { initials: 'WG' } }
+  const source = gmItems({ id: 'knife', kind: 'weapon', mode: 'melee', name: 'Knife', size: 1, qty: 1, weight: 'normal', note: '', status: 'library', ...fields })
+  const result = planned(source, emptySheet(), { itemId: 'knife', copyId: 'knife-copy' })
+  expect(result.item).toMatchObject({ id: 'knife-copy', ...fields })
+  expect(result.from).toEqual(source)
 })

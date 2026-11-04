@@ -1,4 +1,4 @@
-// The game's stock, copied from the inventory prototype (B): its 20 items as
+// The game's stock, copied from the inventory prototype (B): its starter items as
 // typed data, with the baseball bat's Impact at +1 (the captain's feedback,
 // spec 7.1). There is no weapon catalog here, and none goes in code: every
 // item is one of the five kinds, written by hand.
@@ -7,6 +7,8 @@
 // changes. Rule T3: one entry stands for each design, so unchanged copies of
 // the game's stock and exact repeats are left out of "This campaign".
 
+import { LUBEC_PLACE_FIELDS } from './drop'
+import { LUBEC_GM_ITEM_FIELDS } from './gmItem'
 import type { LubecItem } from './gearRecord'
 import type { LubecItemDraft } from './stacks'
 
@@ -23,7 +25,7 @@ const SHAPE_OF: Readonly<Record<string, NonNullable<LubecItem['shape']>>> = {
 }
 
 const S = (sid: string, kind: LubecItem['kind'], name: string, size: LubecItem['size'], art: string, extra: Extra = {}): LubecStockItem =>
-  ({ sid, kind, name, size, art, shape: SHAPE_OF[art], weight: 'normal', qty: 1, note: '', ...extra })
+  ({ sid, kind, name, size, art, shape: SHAPE_OF[art] ?? 'square', weight: 'normal', qty: 1, note: '', ...extra })
 
 /** The game's stock, in the game's rules settings. */
 export const LUBEC_STOCK: readonly LubecStockItem[] = [
@@ -38,6 +40,8 @@ export const LUBEC_STOCK: readonly LubecStockItem[] = [
   S('knife', 'weapon', 'Pocketknife', 0, 'knife', { mode: 'melee', impact: 0, table: 'none', reach: 'short', wounds: ['cut', 'pierce'], note: 'One folding blade.' }),
   S('revolver', 'weapon', '.38 revolver', 1, 'revolver', { mode: 'firearm', impact: 1, table: 'gunshot', wounds: ['gun'], capacity: 6, loaded: 0, takes: 'a38', note: 'Six shots, double action.', tags: 'gun pistol' }),
   S('shotgun', 'weapon', "Dad's shotgun", 4, 'shotgun', { mode: 'firearm', impact: 2, table: 'gunshot', wounds: ['gun'], capacity: 2, loaded: 0, takes: 'a12g', note: 'Double-barrel 12-gauge. From the Firearms kit.', tags: 'gun' }),
+  S('dodgeball', 'weapon', 'Dodgeball', 1, 'weapon', { mode: 'thrown', impact: 0, wounds: ['blunt'], table: 'dodgeball', catchChance: 50, catchPutsThrowerOut: true, note: '' }),
+  S('rock', 'weapon', 'Fist-sized rock', 1, 'weapon', { mode: 'thrown', impact: 1, minStrength: 20, wounds: ['blunt'], table: 'thrown', catchChance: 10, note: '' }),
   S('helmet', 'armor', 'Hockey helmet', 2, 'helmet', { armor: { cut: 1, pierce: 1, blunt: 2, gun: 0 }, locs: ['head'], note: 'Hard shell, foam inside.' }),
   S('gloves', 'armor', 'Leather work gloves', 1, 'gloves', { armor: { cut: 1, pierce: 0, blunt: 1, gun: 0 }, locs: ['hand-L', 'hand-R'], note: 'Stiff cowhide.' }),
   S('pads', 'armor', 'Football shoulder pads', 2, 'pads', { armor: { cut: 1, pierce: 0, blunt: 2, gun: 0 }, locs: ['torso', 'upperarm-L', 'upperarm-R'], note: 'High school hand-me-downs.' }),
@@ -52,12 +56,15 @@ export const LUBEC_STOCK: readonly LubecStockItem[] = [
 /** Everything an item copies from stock, or gives to the campaign's list. B's uploaded `img` is `picturePath` here. */
 export const LUBEC_COPY_FIELDS = [
   'kind', 'name', 'size', 'weight', 'qty', 'note', 'mode', 'impact', 'table', 'reach', 'wounds', 'capacity', 'loaded', 'takes',
+  'canThrow', 'thrownImpact', 'thrownWound', 'catchChance', 'catchPutsThrowerOut', 'ranges', 'minStrength', 'hands',
   'hold', 'locs', 'exclusive', 'armor', 'fits', 'per', 'art', 'picturePath', 'shape',
 ] as const
 
+const COPY_EXCLUDED: readonly string[] = [...LUBEC_PLACE_FIELDS, ...LUBEC_GM_ITEM_FIELDS, 'id', 'sid', 'tags', 'stock', 'from', 'createdAt', 'updatedAt']
+
 /** Rule T2: a deep copy of what an item is, never of where it is or which stock it came from. */
 export function lubecCopyOf(src: Partial<LubecItem>): Partial<LubecItem> {
-  const fields = LUBEC_COPY_FIELDS.filter((k) => src[k] !== undefined).map((k) => [k, src[k]])
+  const fields = Object.entries(src).filter(([key, value]) => value !== undefined && !COPY_EXCLUDED.includes(key))
   return structuredClone(Object.fromEntries(fields)) as Partial<LubecItem>
 }
 

@@ -2,6 +2,7 @@
 // the inventory prototype (B): the wound and table names, a stock entry's
 // one line, the kinds' blurbs, the weight hint and the "Put it" choices.
 
+import { lubecCatchLine, lubecCatchRule } from './catchLabels'
 import { bodyTaken, handsTaken, pocketUsed } from '../../ruleSets/lubec/gear/placement'
 import { HOLD, KIND_NAMES, locSummary, RULES } from '../../ruleSets/lubec/gear/gearRules'
 import { LUBEC_BACKPACK_POCKETS, type LubecGear, type LubecItem, type LubecItemKind, type LubecItemWeight, type LubecWoundKind } from '../../ruleSets/lubec/gear/gearRecord'
@@ -24,7 +25,7 @@ export const armorSome = (get: (w: LubecWoundKind) => number): string[] =>
 /** Every kind's number, for the card: "Cutting −1, Piercing 0, ...". */
 export const armorAll = (a: Pick<LubecItem, 'armor'>): string => WOUND_KINDS.map((w) => `${WOUNDS[w]} ${armorText(armorVs(a, w))}`).join(', ')
 
-export const TABLES: Readonly<Record<string, string>> = { blunt: 'Blunt Force', gunshot: 'Gunshot', fisticuffs: 'Fisticuffs', none: 'No table yet' }
+export const TABLES: Readonly<Record<string, string>> = { blunt: 'Blunt Force', gunshot: 'Gunshot', fisticuffs: 'Fisticuffs', none: 'No table yet', thrown: 'Thrown Objects', dodgeball: 'Dodgeball' }
 export const WEIGHT_NAMES: Readonly<Record<LubecItemWeight, string>> = { normal: 'Normal', heavy: 'Heavy', extra: 'Extra heavy' }
 
 /** A signed number as B writes it in a sum: "+ 1", "− 1". */
@@ -66,7 +67,8 @@ const STOCK_LINES: Readonly<Record<LubecItemKind, (x: LubecStockItem, supplyName
 }
 
 /** A stock entry's one line: its size and what makes it that kind. */
-export const stockLine = (x: LubecStockItem, supplyName: LubecSupplyName): string => STOCK_LINES[x.kind](x, supplyName)
+export const stockLine = (x: LubecStockItem, supplyName: LubecSupplyName): string =>
+  [STOCK_LINES[x.kind](x, supplyName), ...lubecCatchLine(x), ...lubecCatchRule(x)].join(' · ')
 
 /** The line under the weight: what each weight does on you (Rules E1, E2 and W3). */
 export function weightHint(w: LubecItemWeight): string {

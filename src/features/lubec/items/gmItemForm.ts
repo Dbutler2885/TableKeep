@@ -3,6 +3,8 @@
 // Its save is pure: the form in, the campaign item to write out, or the
 // form's own refusal.
 
+import { lubecUneditedFields } from '../../ruleSets/lubec/gear/addItem'
+import { lubecUnplaced } from '../../ruleSets/lubec/gear/drop'
 import type { LubecItem } from '../../ruleSets/lubec/gear/gearRecord'
 import type { LubecGmItem } from '../../ruleSets/lubec/gear/gmItem'
 import { draftProblem } from '../../ruleSets/lubec/gear/stacks'
@@ -21,13 +23,13 @@ export const lubecLibraryEditSheet = (item: LubecGmItem): LubecFormSheet => lube
 export type LubecLibrarySaved = { ok: true; item: LubecGmItem; toast: string } | { ok: false; msg: string; page: 'top' | 'kind' }
 
 // An edit keeps when the item was first made, so it keeps its place in the picker's order.
-const madeAt = (was: LubecGmItem | null) => (was && 'createdAt' in was ? { createdAt: was.createdAt } : {})
+const keptFields = (was: LubecGmItem | null) => was ? lubecUneditedFields(lubecUnplaced(was) as LubecItem) : {}
 
 /** The form's Add it or Save: the form's own rules first, then the campaign item, a new one or `was` as edited. */
 export function lubecSaveLibraryForm(form: LubecFormSheet, was: LubecGmItem | null, newId: () => string): LubecLibrarySaved {
   const draft = lubecDraftOf(form.fields)
   const problem = draftProblem(draft)
   if (problem) return { ok: false, msg: problem.msg, page: lubecFieldPage(problem.field) }
-  const item = { ...draft, id: was?.id ?? newId(), status: 'library', ...madeAt(was) } as LubecGmItem & LubecItem
+  const item = { ...keptFields(was), ...draft, id: was?.id ?? newId(), status: 'library' } as LubecGmItem & LubecItem
   return { ok: true, item, toast: was ? `Saved ${draft.name}.` : `${draft.name}: added to the campaign items.` }
 }

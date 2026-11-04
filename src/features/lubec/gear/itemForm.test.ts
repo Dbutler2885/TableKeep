@@ -96,7 +96,7 @@ describe('the form\'s own rules', () => {
   it('sets the table and the wound with melee, firearm or thrown', () => {
     expect(lubecWithMode(lubecNewFields('hands'), 'firearm')).toMatchObject({ mode: 'firearm', table: 'gunshot', wounds: ['gun'] })
     expect(lubecWithMode(lubecNewFields('hands'), 'melee')).toMatchObject({ mode: 'melee', table: 'blunt', wounds: ['blunt'] })
-    expect(lubecWithMode(lubecNewFields('hands'), 'thrown')).toMatchObject({ mode: 'thrown', table: 'blunt', wounds: ['blunt'] })
+    expect(lubecWithMode(lubecNewFields('hands'), 'thrown')).toMatchObject({ mode: 'thrown', table: 'thrown', wounds: ['blunt'] })
   })
 
   it('gives both hands by the hands rule to anything bigger than one slot or heavier than normal', () => {
@@ -143,7 +143,7 @@ describe('the draft', () => {
 
   it('makes a thrown weapon with neither reach nor rounds', () => {
     const rock = lubecDraftOf({ ...lubecWithMode({ ...base, kind: 'weapon', name: 'Rock', impact: '1' }, 'thrown'), reach: 'short', wTakes: 'a38' })
-    expect(rock).toEqual({ kind: 'weapon', name: 'Rock', note: '', size: 1, weight: 'normal', qty: 1, per: 1, mode: 'thrown', impact: 1, table: 'blunt', wounds: ['blunt'] })
+    expect(rock).toEqual({ kind: 'weapon', name: 'Rock', note: '', size: 1, weight: 'normal', qty: 1, per: 1, mode: 'thrown', impact: 1, table: 'thrown', wounds: ['blunt'] })
   })
 
   it('writes a minimum Strength only when one is typed, never below 0', () => {
@@ -220,5 +220,32 @@ describe("the form's uploaded picture", () => {
 
   it('reads a shape left unstored as square', () => {
     expect(lubecFieldsOf({ ...item, shape: undefined }, 'backpack#0').picture).toEqual({ picturePath: upload.picturePath, shape: 'square' })
+  })
+})
+
+describe('throwable item form fields', () => {
+  it('reopens negative thrown Impact, one thrown wound and partial maker-worded ranges', () => {
+    const item: LubecItem = { ...stock('knife'), id: 'knife', carrier: 'hands', slot: 0, canThrow: true, thrownImpact: -1, thrownWound: 'pierce', catchChance: 10, catchPutsThrowerOut: true, ranges: [{ band: 'short', distance: 'Across the kitchen', modifier: 13 }, { band: 'long', future: 'kept' }] }
+    const fields = lubecFieldsOf(item, 'hands')
+    expect(fields).toMatchObject({ canThrow: true, thrownImpact: '-1', thrownWound: 'pierce', catchChance: '10', catchPutsThrowerOut: true, ranges: [{ band: 'short', modifier: '13' }, { band: 'long', distance: '', modifier: '' }] })
+    expect(lubecDraftOf(fields)).toMatchObject({ canThrow: true, thrownImpact: -1, thrownWound: 'pierce', catchChance: 10, catchPutsThrowerOut: true, ranges: item.ranges })
+  })
+
+  it('clears stale throwable values when a new stock entry is picked', () => {
+    const fields = { ...lubecNewFields('hands'), canThrow: true, thrownImpact: '-3', catchChance: '50', catchPutsThrowerOut: true }
+    expect(lubecFieldsFromStock(fields, stock('bat'))).toMatchObject({ canThrow: false, thrownImpact: '', thrownWound: 'blunt', catchChance: '', catchPutsThrowerOut: false, ranges: [] })
+  })
+
+  it('uses ordinary damage in thrown mode and omits fields owned by other modes', () => {
+    const fields = { ...lubecNewFields('hands'), kind: 'weapon' as const, name: 'Rock', impact: '-2', canThrow: true, thrownImpact: '5', thrownWound: 'cut' as const, catchChance: '110', catchPutsThrowerOut: true, ranges: [{ band: 'medium' as const, distance: '  Over the fence  ', modifier: '-17', stored: { band: 'medium' as const } }] }
+    const thrown = lubecDraftOf({ ...fields, mode: 'thrown' })
+    expect(thrown).toMatchObject({ impact: -2, catchChance: 100, ranges: [{ band: 'medium', distance: 'Over the fence', modifier: -17 }] })
+    for (const key of ['canThrow', 'thrownImpact', 'thrownWound']) expect(thrown).not.toHaveProperty(key)
+    const gun = lubecDraftOf({ ...fields, mode: 'firearm' })
+    expect(gun).toHaveProperty('ranges')
+    for (const key of ['canThrow', 'thrownImpact', 'thrownWound', 'catchChance', 'catchPutsThrowerOut']) expect(gun).not.toHaveProperty(key)
+    const melee = lubecDraftOf({ ...fields, canThrow: false })
+    for (const key of ['canThrow', 'thrownImpact', 'thrownWound', 'catchChance', 'catchPutsThrowerOut', 'ranges']) expect(melee).not.toHaveProperty(key)
+    expect(lubecDraftOf({ ...fields, catchChance: '-5' })).toHaveProperty('catchChance', 0)
   })
 })

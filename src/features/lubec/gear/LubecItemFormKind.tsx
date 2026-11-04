@@ -1,3 +1,4 @@
+import { LubecRangeFields, LubecThrowableFields } from './LubecThrowableFields'
 import type { LubecGear, LubecSupply, LubecWoundKind } from '../../ruleSets/lubec/gear/gearRecord'
 import { HOLD, type LubecHoldWay } from '../../ruleSets/lubec/gear/gearRules'
 import { TABLES, WOUND_KINDS, WOUND_SHORT } from './itemLabels'
@@ -36,10 +37,10 @@ const toggled = (list: readonly LubecWoundKind[], w: LubecWoundKind) => (list.in
 function WoundPick({ fields, onFields }: LubecFieldsProps) {
   return (
     <fieldset className="field wound-pick">
-      <legend className="label">Wounds by <small>pick each way it can be used</small></legend>
+      <legend className="label">Wounds by <small>{fields.mode === 'thrown' ? 'pick one damage type' : 'pick each way it can be used'}</small></legend>
       <div className="seg-row fours">
         {WOUND_KINDS.map((w) => (
-          <label key={w}><input type="checkbox" name="wound" value={w} checked={fields.wounds.includes(w)} onChange={() => onFields({ ...fields, wounds: toggled(fields.wounds, w) })} /><span>{WOUND_SHORT[w]}</span></label>
+          <label key={w}><input type={fields.mode === 'thrown' ? 'radio' : 'checkbox'} name="wound" value={w} checked={fields.wounds.includes(w)} onChange={() => onFields({ ...fields, wounds: fields.mode === 'thrown' ? [w] : toggled(fields.wounds, w) })} /><span>{WOUND_SHORT[w]}</span></label>
         ))}
       </div>
     </fieldset>
@@ -112,6 +113,8 @@ function WeaponPage(props: KindProps) {
       <WoundPick {...props} />
       <HandlingFields {...props} />
       <ModeFields {...props} />
+      <LubecThrowableFields {...props} />
+      <LubecRangeFields {...props} />
     </div>
   )
 }

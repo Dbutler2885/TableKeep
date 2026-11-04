@@ -146,7 +146,7 @@ describe('a weapon\'s card', () => {
     const card = dialog("Grandpa's revolver")
     expect(facts()).toContain('Impact: Quality + 1 base')
     expect(facts()).toContain('Loaded: −6 of 6+')
-    fireEvent.click(card.getByRole('button', { name: 'Fire' }))
+    fireEvent.click(card.getByRole('button', { name: 'Shoot' }))
     expect(latest.items[0].loaded).toBe(5)
     expect(status()).toBe('Fired. 5 of 6 left. Roll it at the table.')
     expect(facts()).toContain('Loaded: −5 of 6+')
@@ -155,7 +155,7 @@ describe('a weapon\'s card', () => {
   it("stops an empty firearm with the empty-weapon prompt, and uses no round of a melee weapon", () => {
     mount({ ...revolver, loaded: 0 }, W('bat', { name: 'Baseball bat', slot: 1, impact: 1, table: 'blunt', reach: 'long' }))
     fireEvent.click(screen.getByRole('button', { name: /Grandpa's revolver/ }))
-    fireEvent.click(dialog("Grandpa's revolver").getByRole('button', { name: 'Fire' }))
+    fireEvent.click(dialog("Grandpa's revolver").getByRole('button', { name: 'Shoot' }))
     const prompt = dialog("Grandpa's revolver isn't loaded")
     expect(prompt.getByText('Your other hand holds Baseball bat. It needs to hold the .38 rounds, or be empty to fetch them.')).toBeTruthy()
     fireEvent.click(prompt.getByRole('button', { name: 'Cancel' }))
@@ -163,7 +163,7 @@ describe('a weapon\'s card', () => {
     fireEvent.click(dialog("Grandpa's revolver").getByRole('button', { name: 'Close' }))
     fireEvent.click(screen.getByRole('button', { name: /Baseball bat/ }))
     const before = latest
-    fireEvent.click(dialog('Baseball bat').getByRole('button', { name: 'Attack' }))
+    fireEvent.click(dialog('Baseball bat').getByRole('button', { name: 'Blunt swing' }))
     expect(latest).toBe(before)
     expect(status()).toBe('Roll it at the table.')
   })

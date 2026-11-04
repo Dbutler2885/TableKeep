@@ -43,12 +43,16 @@ export type LubecEdited =
 
 // What the form sets, which an edit clears before it writes the draft back; and where it was, which the placement replaces.
 const FORM_FIELDS = [
+  'canThrow', 'thrownImpact', 'thrownWound', 'catchChance', 'catchPutsThrowerOut', 'ranges',
   'mode', 'impact', 'table', 'reach', 'wounds', 'minStrength', 'hands', 'capacity', 'loaded', 'takes', 'hold', 'locs', 'exclusive', 'armor', 'fits', 'per',
   'art', 'picturePath', 'shape', 'stock', 'batch', 'cells', 'carrier', 'pocket', 'slot',
 ] as const
 
 const without = (i: LubecItem, keys: readonly string[]): Partial<LubecItem> =>
   Object.fromEntries(Object.entries(i).filter(([key]) => !keys.includes(key)))
+
+/** Fields an edit does not own, including future transferable data. */
+export const lubecUneditedFields = (item: LubecItem): Partial<LubecItem> => without(item, FORM_FIELDS)
 
 // A recorded Strength roll counts only for a heavy or extra heavy thing on you.
 const settleCheck = (i: LubecItem): LubecItem =>
@@ -66,7 +70,7 @@ export function editLubecItem(gear: LubecGear, editing: LubecItem, dest: string,
   if (!spots.ok) return spots
   const batchId = qtys.length > 1 ? editing.batch || newId() : editing.batch
   const batch = batchId ? { batch: batchId } : {}
-  const item = settleCheck({ ...without(editing, FORM_FIELDS), ...draft, id: editing.id, qty: qtys[0], ...batch, ...spotOf(spots.list[0]) } as LubecItem)
+  const item = settleCheck({ ...lubecUneditedFields(editing), ...draft, id: editing.id, qty: qtys[0], ...batch, ...spotOf(spots.list[0]) } as LubecItem)
   const extra = spots.list.slice(1).map((spot, k) => ({ ...draft, id: newId(), qty: qtys[k + 1], ...batch, ...spotOf(spot) }) as LubecItem)
   return { ok: true, gear: { ...gear, items: [...gear.items.map((x) => (x.id === item.id ? item : x)), ...extra] }, item, extra: extra.length }
 }

@@ -1,5 +1,5 @@
 /**
- * The game's stock (spec 7.1): exactly the prototype's 20 items, the bat at
+ * The game's stock (spec 7.1): exactly the prototype's 22 items, the bat at
  * +1, no catalog, and picking makes a copy that never follows the stock
  * (Rule T2). "This campaign" keeps one entry for each design (Rule T3).
  */
@@ -22,16 +22,16 @@ import { LUBEC_SUPPLIES } from './supplies'
 const stock = (sid: string) => LUBEC_STOCK.find((x) => x.sid === sid) as LubecStockItem
 
 describe('the starter stock', () => {
-  it('is exactly the prototype\'s 20 items, by kind', () => {
+  it('is exactly the prototype\'s 22 items, by kind', () => {
     expect(LUBEC_STOCK.map((x) => x.name)).toEqual([
       'Flashlight', 'Canteen', 'Walkie-talkie', 'Multimeter', 'Instamatic camera', 'Coil of rope', 'Pocket compass',
-      'Baseball bat', 'Pocketknife', '.38 revolver', "Dad's shotgun",
+      'Baseball bat', 'Pocketknife', '.38 revolver', "Dad's shotgun", 'Dodgeball', 'Fist-sized rock',
       'Hockey helmet', 'Leather work gloves', 'Football shoulder pads', 'Snowmobile suit',
       'Box of .38 rounds', 'Box of 12-gauge shells', 'D batteries', 'Peanut butter sandwich', 'Bottle of Moxie',
     ])
     const count = (kind: string) => LUBEC_STOCK.filter((x) => x.kind === kind).length
-    expect(['holder', 'thing', 'weapon', 'armor', 'consumable'].map(count)).toEqual([4, 5, 4, 4, 3])
-    expect(new Set(LUBEC_STOCK.map((x) => x.sid)).size).toBe(20)
+    expect(['holder', 'thing', 'weapon', 'armor', 'consumable'].map(count)).toEqual([4, 5, 6, 4, 3])
+    expect(new Set(LUBEC_STOCK.map((x) => x.sid)).size).toBe(22)
   })
 
   it('has the baseball bat at Impact 1, and every other number as the prototype has it', () => {
@@ -54,7 +54,7 @@ describe('the starter stock', () => {
     }
   })
 
-  it('holds no catalog: the module offers the 20 and nothing else to pick from', () => {
+  it('holds no catalog: the module offers the 22 and nothing else to pick from', () => {
     const lists = Object.entries(stockModule).filter(([, value]) => Array.isArray(value))
     expect(lists.map(([name]) => name).sort()).toEqual(['LUBEC_COPY_FIELDS', 'LUBEC_STOCK'])
     expect(LUBEC_COPY_FIELDS.every((f) => typeof f === 'string')).toBe(true)
@@ -62,8 +62,9 @@ describe('the starter stock', () => {
 })
 
 describe('picking from stock (Rule T2)', () => {
-  it('copies what the item is, never its stock id, its search words or a place', () => {
-    const copy = lubecCopyOf({ ...stock('flashlight'), id: 'x', carrier: 'hands', slot: 1, check: 'pass' })
+  it('copies what the item is, never its picker source, stock id, search words or a place', () => {
+    const source = { ...stock('flashlight'), from: 'game', id: 'x', carrier: 'hands', slot: 1, check: 'pass' as const }
+    const copy = lubecCopyOf(source)
     expect(copy).toEqual({
       kind: 'holder', name: 'Flashlight', size: 1, weight: 'normal', qty: 1, note: 'Two D batteries. About four hours of light.',
       capacity: 2, loaded: 2, takes: 'dcell', hold: 'load', art: 'flashlight', shape: 'tall',
@@ -103,7 +104,7 @@ describe('finding stock', () => {
   it('matches the name or the search words, in any case, and every entry for a blank search', () => {
     expect(lubecStockMatching(LUBEC_STOCK, 'TORCH').map((x) => x.sid)).toEqual(['flashlight'])
     expect(lubecStockMatching(LUBEC_STOCK, ' ammo ').map((x) => x.sid)).toEqual(['rounds38', 'shells'])
-    expect(lubecStockMatching(LUBEC_STOCK, '  ')).toHaveLength(20)
+    expect(lubecStockMatching(LUBEC_STOCK, '  ')).toHaveLength(22)
   })
 
   it('suggests up to six, those of the kind being made first, and none for a blank name', () => {
@@ -112,4 +113,22 @@ describe('finding stock', () => {
     expect(lubecStockSuggestions(LUBEC_STOCK, 'flash', 'consumable').map((x) => x.sid)).toEqual(['dcell', 'flashlight'])
     expect(lubecStockSuggestions(LUBEC_STOCK, 'flash', 'holder').map((x) => x.sid)).toEqual(['flashlight', 'dcell'])
   })
+})
+
+
+it('ships the catchable thrown stock without inventing range bands', () => {
+  expect(stock('dodgeball')).toMatchObject({ mode: 'thrown', impact: 0, wounds: ['blunt'], table: 'dodgeball', catchChance: 50, catchPutsThrowerOut: true })
+  expect(stock('dodgeball')).not.toHaveProperty('ranges')
+  expect(stock('rock')).toMatchObject({ mode: 'thrown', impact: 1, table: 'thrown', catchChance: 10 })
+})
+
+it('copies ranges deeply and preserves unknown transferable data from GM Items', () => {
+  const source = { ...stock('knife'), canThrow: true, thrownImpact: -1, thrownWound: 'pierce' as const, catchChance: 10, catchPutsThrowerOut: false, ranges: [{ band: 'short' as const, distance: 'Across a room', modifier: 7 }], engraving: { initials: 'WG' }, status: 'library', createdAt: 1 }
+  const copy = lubecCopyOf(source)
+  expect(copy).toMatchObject({ canThrow: true, thrownImpact: -1, thrownWound: 'pierce', catchChance: 10, catchPutsThrowerOut: false, ranges: source.ranges, engraving: source.engraving })
+  expect(copy).not.toHaveProperty('status')
+  expect(copy).not.toHaveProperty('createdAt')
+  source.ranges[0].modifier = 9
+  source.engraving.initials = 'DH'
+  expect(copy).toMatchObject({ ranges: [{ modifier: 7 }], engraving: { initials: 'WG' } })
 })

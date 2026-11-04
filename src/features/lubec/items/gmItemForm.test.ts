@@ -38,3 +38,18 @@ describe('saving the form as a campaign item', () => {
     expect(lubecSaveLibraryForm(form, null, () => 'x')).toEqual({ ok: false, msg: expect.any(String), page: 'top' })
   })
 })
+
+it('saves, parses and reopens a negative-Impact throwable, preserving unknown data and clearing obsolete fields', () => {
+  const original = parseLubecGmItem({ kind: 'weapon', name: 'Kitchen knife', mode: 'melee', impact: 1, wounds: ['cut', 'pierce'], canThrow: true, thrownImpact: -1, thrownWound: 'pierce', catchChance: 10, catchPutsThrowerOut: true, ranges: [{ band: 'short', distance: 'Across the kitchen', modifier: 12 }], inscription: { text: 'WG' }, status: 'library', createdAt: { seconds: 5 } }, 'knife')
+  const saved = lubecSaveLibraryForm(lubecLibraryEditSheet(original), original, () => 'unused')
+  expect(saved.ok).toBe(true)
+  if (!saved.ok) return
+  const reopened = lubecLibraryEditSheet(parseLubecGmItem(saved.item, 'knife'))
+  expect(reopened.fields).toMatchObject({ thrownImpact: '-1', thrownWound: 'pierce', catchChance: '10', ranges: [{ distance: 'Across the kitchen', modifier: '12' }] })
+  expect(saved.item).toMatchObject({ inscription: { text: 'WG' }, createdAt: { seconds: 5 } })
+  const disabled = lubecSaveLibraryForm({ ...reopened, fields: { ...reopened.fields, canThrow: false } }, saved.item, () => 'unused')
+  expect(disabled.ok).toBe(true)
+  if (!disabled.ok) return
+  for (const key of ['canThrow', 'thrownImpact', 'thrownWound', 'catchChance', 'catchPutsThrowerOut', 'ranges']) expect(disabled.item).not.toHaveProperty(key)
+  expect(disabled.item).toHaveProperty('inscription', { text: 'WG' })
+})

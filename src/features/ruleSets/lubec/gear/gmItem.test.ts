@@ -37,3 +37,9 @@ describe('reading a GM item', () => {
     expect(LUBEC_GM_ITEM_FIELDS).toEqual(['status', 'droppedByCharacterId', 'droppedByCharacterName', 'droppedByUserId', 'droppedFrom'])
   })
 })
+
+it('reads optional catch and range data through the normal item parser', () => {
+  const fields = { canThrow: true, thrownImpact: -1, thrownWound: 'cut', catchChance: 50, catchPutsThrowerOut: true, ranges: [{ band: 'medium', distance: 'Half a gym', modifier: -3 }], unknown: 'kept' }
+  expect(parseLubecGmItem({ ...fields, kind: 'weapon', mode: 'melee', status: 'library' }, 'knife')).toMatchObject(fields)
+  expect(parseLubecGmItem({ catchChance: 101, thrownImpact: 'bad', ranges: [{}] }, 'bad')).not.toHaveProperty('catchChance')
+})
