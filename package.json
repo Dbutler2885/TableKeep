@@ -33,7 +33,8 @@
     "rehearse:floors": "node scripts/floor-rehearsal/run.mjs",
     "deploy:hosting": "firebase deploy --only hosting",
     "deploy:functions": "firebase deploy --only functions",
-    "test:mutation:character": "stryker run"
+    "test:mutation:character": "stryker run",
+    "test:mutation:combat": "stryker run stryker.combat.config.json"
   },
   "dependencies": {
     "@iconify-json/game-icons": "^1.2.4",

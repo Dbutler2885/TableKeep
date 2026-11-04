@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "vitest": { "configFile": "vitest.combat-mutation.config.ts", "related": false },
+  "mutate": ["src/features/lubec/combat/engine/**/*.ts", "!src/features/lubec/combat/engine/**/*.test.ts", "!src/features/lubec/combat/engine/types.ts"],
+  "concurrency": 2,
+  "coverageAnalysis": "perTest",
+  "reporters": ["progress", "clear-text", "json", "html"],
+  "jsonReporter": { "fileName": "artifacts/combat-mutation/mutation.json" },
+  "htmlReporter": { "fileName": "artifacts/combat-mutation/index.html" },
+  "tempDirName": "artifacts/combat-stryker-tmp",
+  "ignorePatterns": ["emulator-data/**", "data/**"],
+  "thresholds": { "high": 100, "low": 100, "break": 100 }
+}
