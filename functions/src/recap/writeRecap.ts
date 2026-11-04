@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto'
 import type { Firestore } from 'firebase-admin/firestore'
 import { Agent, fetch } from 'undici'
 import { campaignPath } from '../firestorePaths.js'
+import { OPENAI_RESPONSES_URL, postToResponsesApi } from './modelRequest.js'
 import { calendarState, eventsToDayObjects } from './recapCalendar.js'
 import { buildRecapPrompt, type NpcRosterEntry, type PreviousRecap } from './recapPrompt.js'
 import { extractRecap, recapToolSchema, type RecapToolSchema } from './recapSchema.js'
@@ -213,28 +214,12 @@ export async function draftSessionRecap(
 }
 
 /**
- * Asks OpenAI's Responses API. A high-effort recap of a long session can take several minutes.
- *
- * The Responses API sends nothing, not even headers, until the whole answer is
- * ready. Node's built-in fetch gives up after 300 seconds without headers or
- * body data, whatever its abort signal allows, so the request goes through
- * undici's fetch with a dispatcher whose own limits are `timeoutMs` as well.
- * `endpoint` exists so a test can point the request at a local server.
+ * Asks OpenAI's Responses API. A high-effort recap of a long session can take several minutes,
+ * which `postToResponsesApi` allows for. `endpoint` exists so a test can point the request at a local server.
  */
 export function callOpenAi(
   apiKey: string,
-  { endpoint = 'https://api.openai.com/v1/responses', timeoutMs = 15 * 60 * 1000 }: { endpoint?: string; timeoutMs?: number } = {},
+  { endpoint = OPENAI_RESPONSES_URL, timeoutMs = 15 * 60 * 1000 }: { endpoint?: string; timeoutMs?: number } = {},
 ): RecapDependencies['callModel'] {
-  const dispatcher = new Agent({ headersTimeout: timeoutMs, bodyTimeout: timeoutMs })
-  return async (request) => {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-      body: JSON.stringify(request),
-      signal: AbortSignal.timeout(timeoutMs),
-      dispatcher,
-    })
-    if (!response.ok) throw new Error(`The model request failed (${response.status}): ${(await response.text()).slice(0, 500)}`)
-    return (await response.json()) as RecapModelResponse
-  }
+  return postToResponsesApi<RecapModelRequest, RecapModelResponse>({ Agent, fetch }, { apiKey, endpoint, timeoutMs })
 }

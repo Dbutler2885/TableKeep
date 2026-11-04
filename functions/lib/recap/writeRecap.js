@@ -12,6 +12,7 @@
 import { createHash } from 'node:crypto';
 import { Agent, fetch } from 'undici';
 import { campaignPath } from '../firestorePaths.js';
+import { OPENAI_RESPONSES_URL, postToResponsesApi } from './modelRequest.js';
 import { calendarState, eventsToDayObjects } from './recapCalendar.js';
 import { buildRecapPrompt } from './recapPrompt.js';
 import { extractRecap, recapToolSchema } from './recapSchema.js';
@@ -155,26 +156,9 @@ export async function draftSessionRecap(db, session, dependencies, overrides = {
     };
 }
 /**
- * Asks OpenAI's Responses API. A high-effort recap of a long session can take several minutes.
- *
- * The Responses API sends nothing, not even headers, until the whole answer is
- * ready. Node's built-in fetch gives up after 300 seconds without headers or
- * body data, whatever its abort signal allows, so the request goes through
- * undici's fetch with a dispatcher whose own limits are `timeoutMs` as well.
- * `endpoint` exists so a test can point the request at a local server.
+ * Asks OpenAI's Responses API. A high-effort recap of a long session can take several minutes,
+ * which `postToResponsesApi` allows for. `endpoint` exists so a test can point the request at a local server.
  */
-export function callOpenAi(apiKey, { endpoint = 'https://api.openai.com/v1/responses', timeoutMs = 15 * 60 * 1000 } = {}) {
-    const dispatcher = new Agent({ headersTimeout: timeoutMs, bodyTimeout: timeoutMs });
-    return async (request) => {
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-            body: JSON.stringify(request),
-            signal: AbortSignal.timeout(timeoutMs),
-            dispatcher,
-        });
-        if (!response.ok)
-            throw new Error(`The model request failed (${response.status}): ${(await response.text()).slice(0, 500)}`);
-        return (await response.json());
-    };
+export function callOpenAi(apiKey, { endpoint = OPENAI_RESPONSES_URL, timeoutMs = 15 * 60 * 1000 } = {}) {
+    return postToResponsesApi({ Agent, fetch }, { apiKey, endpoint, timeoutMs });
 }
