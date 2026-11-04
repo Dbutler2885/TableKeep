@@ -268,7 +268,7 @@ Vitest for tests, ESLint for linting.
 
 Every pull request, and every push to `main`, runs [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 The workflow only ever reads the repository, holds no secrets, and deploys nothing.
-It runs seven jobs in parallel, each one a command you can reproduce locally:
+It runs nine jobs in parallel, each one a command you can reproduce locally:
 
 | Check | Command |
 | --- | --- |
@@ -277,10 +277,12 @@ It runs seven jobs in parallel, each one a command you can reproduce locally:
 | Unit tests (web app) | `npm test` |
 | Production build (web app) | `npm run build` |
 | Emulator tests (Firestore + Storage rules) | `npm run test:emulator` |
+| Slow tests (model request timeouts) | `npm run test:slow` |
 | Browser smoke (desktop + mobile) | `npm run test:browser-smoke` |
 | Cloud Functions (lint + build) | `npm run lint` and `npm run build` in `functions/` |
+| Session bot (lint + typecheck + unit tests) | `npm run lint`, `npm run typecheck` and `npm test` in `bot/` |
 
-The web app jobs run on Node 24, matching the prerequisites above.
+The web app, slow test and session bot jobs run on Node 24, matching the prerequisites above.
 The Cloud Functions job runs on Node 22, matching `engines.node` in `functions/package.json` and the deployed function runtime.
 The split is deliberate.
 
@@ -291,6 +293,8 @@ The split is deliberate.
 - **Rules** (`npm run test:emulator`). Every `src/**/*.emulator.test.ts` runs against a live Firestore and Storage emulator with the repository's real `firestore.rules` and `storage.rules` loaded, so the suite exercises authorization as deployed, not as intended.
   The demo sandbox lives or dies here: one suite proves a visitor can read the template and not write it, can reach only their own sandbox, and cannot touch another visitor's or any real user's data; another drives the real clone and expiry code against the emulator.
   Needs JDK 21+.
+- **Slow** (`npm run test:slow`). Every `src/**/*.slow.test.ts` waits out a real timer against a real local socket.
+  The recap's model request is checked here: it has to outlast Node's 300-second fetch limits, so the suite takes over five minutes.
 - **Browser smoke** (`npm run test:browser-smoke`). Puppeteer against local services only.
   It starts Vite inside `firebase emulators:exec`, creates isolated emulator users, completes email verification through the emulator's OOB API, claims a handle, and creates a group at both desktop and mobile viewports.
   It fails on page errors and console errors, and uploads review-only screenshots even when the run fails.
@@ -322,6 +326,7 @@ The split is deliberate.
 | `npm test` | Unit tests |
 | `npm run test:watch` | Unit tests in watch mode |
 | `npm run test:emulator` | Firestore/Storage rules tests against live emulators |
+| `npm run test:slow` | Slow suites, such as the model request outlasting Node's 300-second fetch limits |
 | `npm run test:browser-smoke` | Desktop + mobile Puppeteer smoke flow |
 | `npm run preview` | Build, then preview locally against empty Auth/Firestore/Storage emulators |
 | `npm run demo` | Visitor demo: emulators from the committed snapshot plus the dev server, snapshot never written |

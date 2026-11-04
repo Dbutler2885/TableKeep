@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:emulator": "node scripts/emulators/firebase.mjs emulators:exec --only firestore,storage \"vitest run --config vitest.emulator.config.ts\"",
+    "test:slow": "vitest run --config vitest.slow.config.ts",
     "test:browser-smoke": "node scripts/emulators/firebase.mjs emulators:exec --only auth,firestore,storage \"node scripts/browser-smoke.mjs\"",
     "preview": "VITE_USE_FIREBASE_EMULATORS=true node scripts/emulators/firebase.mjs emulators:exec --only auth,firestore,storage \"npm run build && vite preview\"",
     "ose:monsters:fetch-raw": "node scripts/fetch-ose-monsters-raw.mjs",
