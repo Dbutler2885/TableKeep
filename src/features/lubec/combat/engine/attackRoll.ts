@@ -7,10 +7,10 @@ import { lubecFightAttack } from '../../fight/lubecFightWeapons'
 import { readCombatAim, repairPlan } from './attackAim'
 import { combatAttackResult, combatFightingTraining, type CombatAttackResult } from './attackMath'
 import { attackAt, attackRepair, combatantOf, combatSheetOf, requireOpponent } from './attackParty'
-import type { CombatLog, CombatPendingAction } from './combatFeedback'
+import type { CombatLog } from './combatFeedback'
 import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
-import { settleCombatAttack } from './settlement'
+import { closeAttack, stepRequest, toLocation } from './attackFlow'
 import type { CombatAttack, CombatCommand, Combatant, CombatFight, CombatFrozenAim, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
 
 type Spent = { gear: LubecGear | null; detached: LubecDetachedItem[] }
@@ -68,26 +68,19 @@ function rollLog(state: CombatState, attacker: Combatant, target: Combatant, fro
   }
 }
 
-/** What follows a hit: Defense against melee and thrown attacks, the location against a firearm. */
-const hitStep = (frozen: CombatFrozenAim): 'defense' | 'location' => (frozen.choice.firearm ? 'location' : 'defense')
-
-function nextRequests(attack: CombatAttack, frozen: CombatFrozenAim, result: CombatAttackResult): CombatPendingAction[] {
-  if (!result.hit) return []
-  const step = hitStep(frozen)
-  return [{ combatantKey: step === 'defense' ? attack.aim!.targetKey : attack.attackerKey, action: step }]
-}
-
 const spentOnce = (state: CombatState, key: string) =>
   state.combatants.map((entry) => (entry.key === key ? { ...entry, interactionSequence: entry.interactionSequence + 1 } : entry))
 
-function rolledState(state: CombatState, attack: CombatAttack, frozen: CombatFrozenAim, result: CombatAttackResult, detached: LubecDetachedItem[]): CombatState {
-  const step = result.hit ? hitStep(frozen) : 'done'
-  const next: CombatState = {
-    ...state, combatants: spentOnce(state, attack.attackerKey), pendingActions: nextRequests(attack, frozen, result),
-    attack: { ...attack, step, roll: result, detached, repair: null },
-  }
-  // A miss completes the attack: its thrown object lands on the Floor.
-  return result.hit ? next : settleCombatAttack(next)
+/**
+ * What follows the roll: a miss completes the attack and its object lands on the Floor; a hit asks the
+ * target for Defense against melee and thrown attacks, and lands a firearm's hit at once.
+ */
+function rolledState(state: CombatState, attack: CombatAttack, result: CombatAttackResult, detached: LubecDetachedItem[], entropy: CombatEntropy): CombatState {
+  const spent = { ...state, combatants: spentOnce(state, attack.attackerKey) }
+  const rolled = { ...attack, roll: result, detached, repair: null }
+  if (!result.hit) return closeAttack(spent, rolled, 'miss')
+  if (attack.frozen!.choice.firearm) return toLocation(spent, rolled, result.quality!, entropy)
+  return { ...spent, attack: { ...rolled, step: 'defense' }, pendingActions: stepRequest(attack.aim!.targetKey, 'defense') }
 }
 
 function rollPlan(fight: CombatFight, attack: CombatAttack, record: CombatSheet, command: CombatCommand, entropy: CombatEntropy): CombatPlan {
@@ -99,7 +92,7 @@ function rollPlan(fight: CombatFight, attack: CombatAttack, record: CombatSheet,
   const spent = spend(record.sheet.gear, attack.aim!.weaponItemId, frozen.choice, command.envelope.id)
   const result = combatAttackResult(entropy.die('attack', 100), frozen.attack + (attack.range?.modifier ?? 0))
   return {
-    fight: { ...fight, state: rolledState(state, attack, frozen, result, spent.detached) }, items: [],
+    fight: { ...fight, state: rolledState(state, attack, result, spent.detached, entropy) }, items: [],
     logs: [rollLog(state, attacker, target, frozen, result)],
     sheets: spent.gear ? [{ selection: { kind: attacker.kind, sheetId: attacker.sheetId }, gear: spent.gear }] : [],
   }

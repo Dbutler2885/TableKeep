@@ -54,23 +54,26 @@ type SheetDependency = (command: CombatCommand, fight: CombatFight | null, autho
 
 const gmOnly = (authority: CombatAuthority, selections: CombatantSelection[]) => (authority.isGm ? selections : [])
 
-/** The attacker's own sheet: the owner reads their character, the GM any sheet; nobody else reads one. */
 const readsSheet = (attacker: Combatant, authority: CombatAuthority) =>
   authority.isGm || (attacker.kind === 'character' && attacker.ownerUserId === authority.userId)
 
-const attackerOf = (fight: CombatFight | null): Combatant | undefined =>
-  fight?.state.combatants.find((combatant) => combatant.key === fight.state.attack?.attackerKey)
+const actorOf = (command: CombatCommand, fight: CombatFight | null): Combatant | undefined =>
+  fight?.state.combatants.find((combatant) => combatant.key === command.envelope.actorKey)
 
-const attackerSheet: SheetDependency = (_command, fight, authority) => {
-  const attacker = attackerOf(fight)
-  return attacker && readsSheet(attacker, authority) ? [{ kind: attacker.kind, sheetId: attacker.sheetId }] : []
+/** The acting combatant's own sheet: the owner reads their character, the GM any sheet; nobody else reads one. */
+const actorSheet: SheetDependency = (command, fight, authority) => {
+  const actor = actorOf(command, fight)
+  return actor && readsSheet(actor, authority) ? [{ kind: actor.kind, sheetId: actor.sheetId }] : []
 }
 
 const SHEET_DEPENDENCIES: Readonly<Record<string, SheetDependency>> = {
   start: (command, _fight, authority) => gmOnly(authority, (command.payload as StartPayload).combatants),
   refresh: (_command, fight, authority) => gmOnly(authority, (fight?.state.combatants ?? []).map(({ kind, sheetId }) => ({ kind, sheetId }))),
-  aim: attackerSheet,
-  roll: attackerSheet,
+  aim: actorSheet,
+  roll: actorSheet,
+  defend: actorSheet,
+  catch: actorSheet,
+  strength: actorSheet,
 }
 
 function sheetDependencies(command: CombatCommand, fight: CombatFight | null, authority: CombatAuthority): CombatantSelection[] {

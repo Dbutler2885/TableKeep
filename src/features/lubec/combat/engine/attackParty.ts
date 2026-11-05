@@ -22,12 +22,17 @@ export function requireOpponent(state: CombatState, attacker: Combatant, key: st
   return other
 }
 
-/** The open attack at `step`, answered by its own attacker (or the GM acting for them). */
-export function attackAt(state: CombatState, command: CombatCommand, step: string): CombatAttack {
+const attackerOf = (attack: CombatAttack): string => attack.attackerKey
+
+/** The defender answers Defense and the catch: the target the attack aimed at. */
+export const defenderOf = (attack: CombatAttack): string => attack.aim!.targetKey
+
+/** The open attack at `step`, answered by whoever owns that step (or the GM acting for them). */
+export function attackAt(state: CombatState, command: CombatCommand, step: string, ownerOf = attackerOf): CombatAttack {
   const attack = state.attack
   if (!attack || attack.closed) throw new Error('There is no attack waiting.')
   if (attack.step !== step) throw new Error('That attack step is stale.')
-  if (command.envelope.actorKey !== attack.attackerKey) throw new Error('That attack belongs to someone else.')
+  if (command.envelope.actorKey !== ownerOf(attack)) throw new Error('That attack step belongs to someone else.')
   return attack
 }
 

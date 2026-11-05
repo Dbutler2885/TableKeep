@@ -37,7 +37,7 @@ const withAttack = (fight: CombatFight, attack: CombatAttack, state: Partial<Com
 /** A pending step that cannot go on: the same attack and step, waiting on the named repair. */
 export function repairPlan(fight: CombatFight, attack: CombatAttack, attacker: Combatant, repair: string): CombatPlan {
   const logs = attack.repair === repair ? [] : [{ event: `${attacker.name}'s attack waits for a repair. ${repair}`, actor: attacker.key }]
-  return { fight: withAttack(fight, { ...attack, repair }), items: [], logs }
+  return { fight: { ...fight, state: { ...fight.state, attack: { ...attack, repair } } }, items: [], logs }
 }
 
 export const aimDefense = (aim: Pick<CombatAim, 'defense'>): number => aim.defense?.amount ?? 0
