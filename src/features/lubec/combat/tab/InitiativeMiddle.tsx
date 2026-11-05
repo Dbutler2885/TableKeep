@@ -1,29 +1,15 @@
-import { useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type { Combatant, CombatState } from '../engine/types'
 import { SegmentRoll } from './AttackBar'
 import type { AttackAct, AttackCommands } from './attackCommands'
+import { CombatRefusal as Refusal } from './CombatParts'
+import { useCombatRun as useRun } from './useCombatRun'
 import type { CombatViewer } from './attackWords'
 import { CombatStepper, CombatWindow } from './CombatParts'
 import { RollBar } from './RollBar'
 
 const pad = (value: number) => String(value).padStart(2, '0')
 const inFight = (state: CombatState) => state.combatants.filter((entry) => entry.outReason === null)
-
-/** One Roll at a time: pressed, it waits on the table and shows a refusal. */
-function useRun() {
-  const [busy, setBusy] = useState(false)
-  const [refusal, setRefusal] = useState<string | null>(null)
-  const run = async (act: () => AttackAct) => {
-    setBusy(true)
-    setRefusal(await act())
-    setBusy(false)
-  }
-  return { busy, refusal, run: (act: () => AttackAct) => void run(act) }
-}
-
-function Refusal({ refusal }: { refusal: string | null }) {
-  return refusal ? <div className="notice hot" role="alert"><span>{refusal}</span></div> : null
-}
 
 function Verdict({ combatant }: { combatant: Combatant }) {
   const rolled = combatant.initiative!

@@ -9,7 +9,7 @@ import { useLubecCombat, type LubecLiveFight } from './combatWatch'
 import type { CombatState } from './engine/types'
 import { createCombatCommand } from './commandJournal'
 import { combatSummariesStale } from './engine/summaries'
-import { useLubecCombatSend } from './useLubecCombatSend'
+import { COMBAT_UNCERTAIN, useLubecCombatSend } from './useLubecCombatSend'
 import { drainCombatWounds } from './woundDelivery'
 import { combatWoundDrainService, type CombatWoundDeliveryStatus } from './woundDrainService'
 import { WOUND_WAIT } from './woundTypes'
@@ -87,6 +87,51 @@ function WoundDeliverer({ scope, live, userId, setError }: DelivererProps) {
   return null
 }
 
+/** The settle command to send for this fight, once per Movement stage whose choices are all in; null otherwise. */
+function settleAttempt(live: LubecLiveFight, tried: string | null): string | null {
+  const { state } = live.fight
+  if (state.phase !== 'movement' || !state.movementComplete) return null
+  return state.stageInstanceId === tried ? null : state.stageInstanceId
+}
+
+/** Another GM tab already settled this stage: not worth reporting. */
+const SETTLED_ELSEWHERE = ['That fight stage is stale.', 'Movement is not ready to settle.']
+
+type SettlerProps = { scope: CampaignScope; live: LubecLiveFight; userId: string; setError: (message: string) => void }
+
+/** A count that moves on each time the browser comes back online. */
+function useReconnects(): number {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    const again = () => setCount((value) => value + 1)
+    window.addEventListener('online', again)
+    return () => window.removeEventListener('online', again)
+  }, [])
+  return count
+}
+
+/**
+ * The GM's client settles Movement by itself once every choice is in. An unanswered send is tried again,
+ * with the same command, when the connection comes back; a refusal another GM tab caused is not an error.
+ */
+function MovementSettler({ scope, live, userId, setError }: SettlerProps) {
+  const send = useLubecCombatSend(userId)
+  const tried = useRef<string | null>(null)
+  const reconnects = useReconnects()
+  useEffect(() => {
+    const attempt = settleAttempt(live, tried.current)
+    if (!attempt) return
+    tried.current = attempt
+    const payload = { type: 'settleMovement' }
+    void send(gmCommandKey(live, payload), () => createCombatCommand(gmEnvelope(scope, crypto.randomUUID(), live), payload)).then((outcome) => {
+      if (outcome.ok || SETTLED_ELSEWHERE.includes(outcome.reason)) return
+      if (outcome.reason === COMBAT_UNCERTAIN) tried.current = null
+      else setError(outcome.reason)
+    })
+  }, [live, scope, send, setError, reconnects])
+  return null
+}
+
 type ServicesProps = { campaign: Campaign | null; role: Role | null; userId: string; setError: (message: string) => void }
 
 /** The fight work the GM's workspace does by itself, on whichever tab is open. */
@@ -98,6 +143,7 @@ export function LubecCombatServices({ campaign, role, userId, setError }: Servic
     <>
       <SummaryRefresher scope={scope} live={live} userId={userId} setError={setError} />
       <WoundDeliverer scope={scope} live={live} userId={userId} setError={setError} />
+      <MovementSettler scope={scope} live={live} userId={userId} setError={setError} />
     </>
   )
 }

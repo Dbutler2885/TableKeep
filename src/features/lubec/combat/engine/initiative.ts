@@ -2,6 +2,7 @@ import { lubecCurrentValue } from '../../../ruleSets/lubec/derivations'
 import { pad, stepRequest } from './attackFlow'
 import { attackRepair, combatantOf, combatSheetOf } from './attackParty'
 import type { CombatLog } from './combatFeedback'
+import { withMovementRequests } from './movement'
 import type { CombatEntropy } from './commandEntropy'
 import { requireGm, requireLiveContext } from './context'
 import { combatantKey } from './inputs'
@@ -28,13 +29,14 @@ const begin: CombatHandler = (command, records, authority, entropy) => {
   return { fight: { ...fight, state }, items: [], logs: [{ event: 'The GM pressed Roll Initiative.', actor: null }] }
 }
 
-/** Canonical Speed with this fight's pre-initiative wounds in, once their delivery revision is on the sheet. */
-function requireDelivered(state: CombatState, record: CombatSheet) {
+/** A sheet read below its newest wound delivery revision is an old copy: wait for the delivered one. */
+export function requireDelivered(state: CombatState, record: CombatSheet) {
   const acknowledged = state.woundAcknowledgements.filter((ack) => combatantKey(ack.target) === combatantKey(record))
   const newest = Math.max(0, ...acknowledged.map((ack) => ack.targetRevision))
   if ((record.revision ?? 0) < newest) throw new Error('Waiting for wounds to reach the sheet')
 }
 
+/** Canonical Speed with this fight's pre-initiative wounds in, once their delivery revision is on the sheet. */
 function speedOf(state: CombatState, record: CombatSheet, fightId: string): number {
   requireDelivered(state, record)
   return lubecCurrentValue(record.sheet, 'Speed', combatInputModifiers(record.sheet, { fightId, round: 1 }))!
@@ -100,7 +102,7 @@ function afterRoll(state: CombatState, entropy: CombatEntropy): { state: CombatS
   const rolled = inFight(state)
   const settled = settleInitiative(rolled, entropy)
   const combatants = state.combatants.map((entry) => settled.combatants.find((done) => done.key === entry.key) ?? entry)
-  const next: CombatState = { ...state, combatants, order: settled.order, phase: 'movement', round: 1, stageInstanceId: entropy.id('stage', 1), pendingActions: [] }
+  const next = withMovementRequests({ ...state, combatants, order: settled.order, phase: 'movement', round: 1, stageInstanceId: entropy.id('stage', 1) })
   return { state: next, logs: [...settled.logs, { event: 'Initiative is set. Round 1, Movement.', actor: null }] }
 }
 

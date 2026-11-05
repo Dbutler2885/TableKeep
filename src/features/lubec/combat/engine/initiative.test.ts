@@ -90,7 +90,7 @@ describe('rolling initiative', () => {
     const records = act(begun(), 'initiative', { actor: HERO, by: player, dice: [38] }).records
     const { plan } = act(records, 'npcInitiative', { dice: [12, 83] })
     expect(plan.logs.map((log) => log.roll?.what ?? log.event)).toEqual(['Initiative (GM)', 'Initiative (GM)', 'Initiative is set. Round 1, Movement.'])
-    expect(plan.fight.state).toMatchObject({ phase: 'movement', round: 1, pendingActions: [], order: [HERO, 'npc:roy', 'npc:dale'] })
+    expect(plan.fight.state).toMatchObject({ phase: 'movement', round: 1, movementComplete: false, pendingActions: [HERO, 'npc:roy', 'npc:dale'].map((combatantKey) => ({ combatantKey, action: 'movement' })), order: [HERO, 'npc:roy', 'npc:dale'] })
     expect(() => act({ ...records, fight: plan.fight }, 'npcInitiative', { dice: [] })).toThrow('No NPC is waiting')
     expect(() => act(records, 'npcInitiative', { by: player })).toThrow('Only the GM')
   })

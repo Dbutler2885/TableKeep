@@ -21,15 +21,18 @@ import { useCombatPlayerRoster } from './useCombatPlayerRoster'
 import { combatPhaseView } from './combatPhases'
 import { CombatFloorPanel } from './CombatRails'
 import { TurnOrderPanel } from './TurnOrder'
+import type { CombatViewer } from './attackWords'
+import { DeclarationsPanel } from './DeclarationsPanel'
+import { viewerHands } from './movementModel'
 import { CombatSetup, type CombatSetupStart } from './CombatSetup'
 import { combatFloorSelections, type CombatSetupIssue } from './combatSetupModel'
 import { useCombatGmData } from './useCombatGmData'
 import './lubecCombat.css'
 
-type LayoutProps = { state: CombatState; userId: string; stage?: string; tools?: ReactNode; middle: ReactNode; onPlace?: (() => void) | null }
+type LayoutProps = { state: CombatState; userId: string; role?: CombatViewer['role']; stage?: string; tools?: ReactNode; middle: ReactNode; onPlace?: (() => void) | null; hands?: readonly string[] }
 
-/** The live tab: everyone in the fight on the left, what to do now in the middle, the Floor on the right. */
-function CombatLayout({ state, userId, stage, tools = null, middle, onPlace = null }: LayoutProps) {
+/** The live tab: everyone in the fight on the left, what to do now in the middle, the declarations and the Floor on the right. */
+function CombatLayout({ state, userId, role = 'gm', stage, tools = null, middle, onPlace = null, hands = [] }: LayoutProps) {
   const view = combatPhaseView(state)
   return (
     <>
@@ -37,7 +40,7 @@ function CombatLayout({ state, userId, stage, tools = null, middle, onPlace = nu
       <div className="ct">
         <div className="rail"><TurnOrderPanel state={state} userId={userId} /></div>
         <div className="mid">{tools}{middle}</div>
-        <div className="rail"><CombatFloorPanel floor={state.floor} onPlace={onPlace} /></div>
+        <div className="rail"><DeclarationsPanel state={state} viewer={{ role, userId, actingFor: null }} /><CombatFloorPanel floor={state.floor} onPlace={onPlace} hands={hands} /></div>
         <CombatTicker />
       </div>
     </>
@@ -91,11 +94,11 @@ function CombatClosing({ shown, userId, onEnd, onPlaceInstead }: ClosingProps) {
   return <CombatLayout state={state} userId={userId} stage="Ending" middle={<CombatEndConfirm state={state} onEnd={onEnd} />} onPlace={onPlaceInstead} />
 }
 
-type ActingFor = { attackId: string | null; key: string }
+type ActingFor = { attackId: string | null; stage: string; key: string }
 
-/** Acting for an absent player lasts for the one attack it was chosen for. */
-const actingNow = (actingFor: ActingFor | null, attackId: string | null): string | null =>
-  (actingFor?.attackId === attackId ? actingFor.key : null)
+/** Acting for an absent player lasts for the one attack or stage it was chosen for. */
+const actingNow = (actingFor: ActingFor | null, attackId: string | null, stage: string): string | null =>
+  (actingFor?.attackId === attackId && actingFor.stage === stage ? actingFor.key : null)
 
 type GmLiveProps = {
   campaign: Campaign
@@ -125,8 +128,8 @@ function CombatGmLive({ campaign, live, userId, roster, send, tool, onTool, item
   }
   const tools = <CombatGmTools tool={tool} onTool={onTool} items={items} placing={placing} onPlace={(item, qty) => void placeOnFloor(item, qty)} onEnd={onEnd} />
   const attackId = state.attack?.id ?? null
-  const viewer = { role: 'gm' as const, userId, actingFor: actingNow(actingFor, attackId) }
-  const middle = <CombatPhaseMiddle campaign={campaign} live={live} viewer={viewer} roster={roster} send={send} onActFor={(key) => setActingFor({ attackId, key })} />
+  const viewer = { role: 'gm' as const, userId, actingFor: actingNow(actingFor, attackId, state.stageInstanceId) }
+  const middle = <CombatPhaseMiddle campaign={campaign} live={live} viewer={viewer} roster={roster} send={send} onActFor={(key) => setActingFor({ attackId, stage: state.stageInstanceId, key })} />
   return <CombatLayout state={state} userId={userId} tools={tools} middle={middle} onPlace={() => onTool('place')} />
 }
 
@@ -166,7 +169,7 @@ function CombatPlayer({ campaign, userId, setError }: ViewerProps) {
   if (!live) return null
   const viewer = { role: 'player' as const, userId, actingFor: null }
   const middle = <CombatPhaseMiddle campaign={campaign} live={live} viewer={viewer} roster={inFight ? roster : NO_ROSTER} send={send} onActFor={() => undefined} />
-  return <CombatLayout state={live.fight.state} userId={userId} middle={middle} />
+  return <CombatLayout state={live.fight.state} userId={userId} role="player" middle={middle} hands={viewerHands(live.fight.state, viewer, roster)} />
 }
 
 /** Lubec's Combat tab. Players have it only while a fight is live; the route gate sends them away otherwise. */

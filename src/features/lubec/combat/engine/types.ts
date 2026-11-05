@@ -12,6 +12,30 @@ export type CombatantSelection = { kind: 'character' | 'npc'; sheetId: string }
 export type FloorSelection = { itemId: string; status: 'library' | 'dropped'; qty: number }
 /** A combatant's initiative: d100 strictly under Speed, frozen once per fight, with any tie rerolls the app made. */
 export type CombatInitiative = { roll: number; speed: number; success: boolean; sourceRevision: number; ties: number[] }
+/** A Movement choice. Moving or staying is the default and needs no thought; Run, Pick up and Leave are the choices. */
+export type CombatMovementChoice = 'stay' | 'run' | 'pickup' | 'leave'
+/** One exact Floor record and quantity a pickup claims. */
+export type CombatPickupClaim = { itemId: string; qty: number }
+/**
+ * A confirmed Movement choice, private to its owner and the GM until the stage closes.
+ * A Leave is `asked` until the GM confirms it; a refusal clears the choice so the player chooses again.
+ */
+export type CombatMovement = { choice: CombatMovementChoice; pickup: CombatPickupClaim | null; leave: 'asked' | 'confirmed' | null }
+/** One named Defense line: who it guards against, and how much of the Handle pool it holds. */
+export type CombatDefenseLine = { against: string; amount: number }
+/**
+ * What a combatant declared this round, frozen from the canonical sheet it was read from.
+ * A runner's declaration is empty: no attack and no Defense. Full Defense has no attack and one line over the whole pool.
+ */
+export type CombatDeclaration = {
+  ran: boolean
+  full: boolean
+  aim: CombatAim | null
+  frozen: CombatFrozenAim | null
+  total: number
+  lines: CombatDefenseLine[]
+  sourceRevision: number
+}
 export type Combatant = CombatantSelection & {
   key: string
   ownerUserId: string
@@ -22,6 +46,10 @@ export type Combatant = CombatantSelection & {
   interactionSequence: number
   outReason: string | null
   initiative?: CombatInitiative | null
+  /** This round's Movement choice, once confirmed. */
+  movement?: CombatMovement | null
+  /** This round's declaration, once made. */
+  declaration?: CombatDeclaration | null
 }
 /** What the attacker picked: target, weapon and use, and at most one named Defense line from the same Handle pool. */
 export type CombatAim = {
@@ -109,6 +137,8 @@ export type CombatState = {
   pendingActions?: CombatPendingAction[]
   /** Keys fastest first, set once every initiative is in. */
   order?: string[]
+  /** Every Movement choice is in; the GM's workspace settles the stage by itself. */
+  movementComplete?: boolean
   /** The GM's last range band per attacker, offered again but never applied without a press. */
   lastRanges?: Record<string, LubecRangeBand>
 }

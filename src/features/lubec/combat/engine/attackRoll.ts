@@ -71,15 +71,19 @@ function rollLog(state: CombatState, attacker: Combatant, target: Combatant, fro
 const spentOnce = (state: CombatState, key: string) =>
   state.combatants.map((entry) => (entry.key === key ? { ...entry, interactionSequence: entry.interactionSequence + 1 } : entry))
 
+/** Defense never answers a firearm, nor comes from a target who Ran this round: Run costs their Defense and its catch. */
+const skipsDefense = (state: CombatState, attack: CombatAttack): boolean =>
+  attack.frozen!.choice.firearm === true || combatantOf(state, attack.aim!.targetKey).declaration?.ran === true
+
 /**
  * What follows the roll: a miss completes the attack and its object lands on the Floor; a hit asks the
- * target for Defense against melee and thrown attacks, and lands a firearm's hit at once.
+ * target for Defense against melee and thrown attacks, and lands a firearm's hit, or a hit on a runner, at once.
  */
 function rolledState(state: CombatState, attack: CombatAttack, result: CombatAttackResult, detached: LubecDetachedItem[], entropy: CombatEntropy): CombatState {
   const spent = { ...state, combatants: spentOnce(state, attack.attackerKey) }
   const rolled = { ...attack, roll: result, detached, repair: null }
   if (!result.hit) return closeAttack(spent, rolled, 'miss')
-  if (attack.frozen!.choice.firearm) return toLocation(spent, rolled, result.quality!, entropy)
+  if (skipsDefense(state, attack)) return toLocation(spent, rolled, result.quality!, entropy)
   return { ...spent, attack: { ...rolled, step: 'defense' }, pendingActions: stepRequest(attack.aim!.targetKey, 'defense') }
 }
 

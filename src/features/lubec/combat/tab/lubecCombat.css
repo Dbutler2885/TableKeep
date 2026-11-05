@@ -334,3 +334,41 @@
   .shell-root[data-theme="lubec"] .lubec-combat .pips li span { display: none; }
   .shell-root[data-theme="lubec"] .lubec-combat .pips li.now span { display: inline; }
 }
+
+/* Rounds: Movement's four cards, the declarations rail and its mini bars, and Full Defense's dimmed choices */
+.shell-root[data-theme="lubec"] .lubec-combat .moves { display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); gap: .5rem; margin-bottom: .8rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .moves .mode { display: grid; gap: .25rem; padding: .65rem .7rem; color: var(--lubec-ink); text-align: left; background: var(--lubec-cream); border: 2px solid var(--lubec-ink); box-shadow: 2px 2px 0 rgba(23, 40, 43, .28); cursor: pointer; }
+.shell-root[data-theme="lubec"] .lubec-combat .moves .mode b { font: 800 .95rem/1.1 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .moves .mode small { color: var(--lubec-muted); font: 700 .6rem/1.3 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .moves .mode:hover:not(:disabled) { background: #fffdf4; }
+.shell-root[data-theme="lubec"] .lubec-combat .moves .mode[aria-checked="true"] { color: var(--lubec-cream); background: var(--lubec-pine); border-color: var(--lubec-pine); }
+.shell-root[data-theme="lubec"] .lubec-combat .moves .mode[aria-checked="true"] small { color: rgba(255, 248, 231, .8); }
+.shell-root[data-theme="lubec"] .lubec-combat .moves .mode:disabled { opacity: .45; cursor: not-allowed; }
+.shell-root[data-theme="lubec"] .lubec-combat .roster li small.inline { margin-left: .4rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .leave-asks { margin-top: .8rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .leave-asks:empty { margin-top: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .decls { margin: 0; padding: 0; list-style: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .decls li { padding: .45rem .55rem; border-bottom: 1px solid var(--lubec-line); font: 700 .72rem/1.35 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .decls li:last-child { border-bottom: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .decls li.you { background: rgba(214, 154, 45, .22); }
+.shell-root[data-theme="lubec"] .lubec-combat .decls li.atyou { box-shadow: inset 4px 0 0 var(--lubec-rust); }
+.shell-root[data-theme="lubec"] .lubec-combat .decls li.pend { color: var(--lubec-muted); border-left: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .decls .dn { display: flex; justify-content: space-between; gap: .4rem; align-items: baseline; font: 800 .78rem/1.2 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .decls .dn span.k { color: var(--lubec-muted); font: 800 .55rem/1 var(--lubec-type); letter-spacing: .1em; }
+.shell-root[data-theme="lubec"] .lubec-combat .decls .txt b { color: var(--lubec-rust); }
+.shell-root[data-theme="lubec"] .lubec-combat .decls .txt.own { font: 700 .78rem/1.5 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .decls .stopped { text-decoration: line-through; color: var(--lubec-muted); }
+.shell-root[data-theme="lubec"] .lubec-combat .mini { position: relative; display: flex; height: .7rem; margin: .3rem 0 .15rem; overflow: hidden; border: 1.5px solid var(--lubec-ink); border-radius: 999px; background: var(--lubec-gray); }
+.shell-root[data-theme="lubec"] .lubec-combat .mini i { display: block; height: 100%; }
+.shell-root[data-theme="lubec"] .lubec-combat .mini i.d { background: var(--lubec-blue); }
+.shell-root[data-theme="lubec"] .lubec-combat .mini i.d.alt { background: var(--lubec-blue-alt); }
+.shell-root[data-theme="lubec"] .lubec-combat .mini i.a { background: var(--lubec-rust); }
+.shell-root[data-theme="lubec"] .lubec-combat .mini i.u { background: repeating-linear-gradient(135deg, #b3b5af 0 4px, #9b9e99 4px 8px); }
+.shell-root[data-theme="lubec"] .lubec-combat .mini i.f { background: repeating-linear-gradient(135deg, var(--lubec-blue) 0 6px, var(--lubec-blue-alt) 6px 12px); }
+.shell-root[data-theme="lubec"] .lubec-combat .dim { opacity: .4; pointer-events: none; filter: grayscale(.5); }
+.shell-root[data-theme="lubec"] .lubec-combat .hand { padding: .4rem .55rem; border-top: 2px solid var(--lubec-ink); font: 800 .72rem/1.3 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .hand .label { display: block; margin-bottom: .15rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .hand .line { display: block; }
+@media (max-width: 760px) {
+  .shell-root[data-theme="lubec"] .lubec-combat .moves { grid-template-columns: minmax(0, 1fr); }
+}

@@ -42,14 +42,15 @@ function AddDefenseLine({ draft, segments, total, onDraft }: DefenseProps) {
   return <p className="note defense-add"><button type="button" className="linkish" onClick={() => onDraft(withDefense(draft, 20, total, draft.targetKey!))}>Add a Defense line</button></p>
 }
 
-type LineProps = { draft: AttackDraft; defense: NonNullable<AttackDraft['defense']>; opponents: readonly Combatant[]; onDraft: (draft: AttackDraft) => void }
+type SelectProps = { against: string; opponents: readonly Combatant[]; onAgainst: (key: string) => void }
 
-function DefenseLine({ draft, defense, opponents, onDraft }: LineProps) {
+/** The one Defense line: its chip and the person it guards against. */
+export function DefenseLineSelect({ against, opponents, onAgainst }: SelectProps) {
   return (
     <div className="defense-lines">
       <div className="defrow">
         <span className="defchip">DEF 1</span><span className="label">against</span>
-        <select aria-label="Defense against" value={defense.against} onChange={(event) => onDraft({ ...draft, defense: { ...defense, against: event.target.value } })}>
+        <select aria-label="Defense against" value={against} onChange={(event) => onAgainst(event.target.value)}>
           {opponents.map((entry) => <option key={entry.key} value={entry.key}>{entry.name}</option>)}
         </select>
       </div>
@@ -60,5 +61,6 @@ function DefenseLine({ draft, defense, opponents, onDraft }: LineProps) {
 /** One named Defense line, or the link that adds it. */
 export function AttackDefenseLine(props: DefenseProps) {
   const defense = props.draft.defense
-  return defense ? <DefenseLine draft={props.draft} defense={defense} opponents={props.opponents} onDraft={props.onDraft} /> : <AddDefenseLine {...props} />
+  if (!defense) return <AddDefenseLine {...props} />
+  return <DefenseLineSelect against={defense.against} opponents={props.opponents} onAgainst={(against) => props.onDraft({ ...props.draft, defense: { ...defense, against } })} />
 }

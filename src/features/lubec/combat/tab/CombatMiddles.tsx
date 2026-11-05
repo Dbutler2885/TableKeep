@@ -61,7 +61,7 @@ const WAITS: Readonly<Record<string, (state: CombatState) => { label: string; wo
   'before-initiative': () => ({ label: 'Before initiative', words: 'The GM may grant a Sneak Attack before rolling initiative.' }),
 }
 
-const roundWait = (state: CombatState) => ({ label: `Round ${state.round} · ${combatPhaseView(state).stage}`, words: 'Movement opens here when it is built; for now the GM runs the round at the table.' })
+const roundWait = (state: CombatState) => ({ label: `Round ${state.round} · ${combatPhaseView(state).stage}`, words: 'Attacks open here when they are built; for now the GM runs the attacks at the table.' })
 
 export function CombatWaiting({ state }: { state: CombatState }) {
   const wait = (WAITS[state.phase] ?? roundWait)(state)

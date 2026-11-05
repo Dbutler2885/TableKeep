@@ -268,7 +268,7 @@ describe('less common states', () => {
 
   it('shows the GM a wait in a phase this slice does not run yet', () => {
     const fight = liveFight()
-    fight.fight.state.phase = 'movement'
+    fight.fight.state.phase = 'attack'
     show('gm', 'gm', live(fight))
     expect(screen.getByText('The fight is waiting on the GM')).toBeTruthy()
   })

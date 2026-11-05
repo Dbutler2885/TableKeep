@@ -17,10 +17,10 @@ export function CombatFloorRowView({ row }: { row: Pick<CombatFloorRow, 'item' |
 
 const itemCount = (rows: readonly CombatFloorRow[]) => rows.reduce((total, row) => total + row.count, 0)
 
-type FloorPanelProps = { floor: readonly LubecDetachedItem[]; onPlace: (() => void) | null }
+type FloorPanelProps = { floor: readonly LubecDetachedItem[]; onPlace: (() => void) | null; hands?: readonly string[] }
 
 /** The right rail's Floor: grouped counts over distinct records, and the GM's way to place more. */
-export function CombatFloorPanel({ floor, onPlace }: FloorPanelProps) {
+export function CombatFloorPanel({ floor, onPlace, hands = [] }: FloorPanelProps) {
   const rows = combatFloorRows(floor)
   const total = itemCount(rows)
   return (
@@ -29,6 +29,7 @@ export function CombatFloorPanel({ floor, onPlace }: FloorPanelProps) {
         {rows.map((row) => <CombatFloorRowView key={row.key} row={row} />)}
         {rows.length ? null : <li>Nothing on the Floor.</li>}
       </ul>
+      {hands.length ? <div className="hand"><span className="label">In hands</span>{hands.map((line) => <span key={line} className="line">{line}</span>)}</div> : null}
       {onPlace ? <div className="pb"><button className="btn line small" type="button" onClick={onPlace}>+ Place an item</button></div> : null}
     </CombatPanel>
   )

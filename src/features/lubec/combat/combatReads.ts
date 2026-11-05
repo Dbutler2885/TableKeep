@@ -66,9 +66,13 @@ const actorSheet: SheetDependency = (command, fight, authority) => {
   return actor && readsSheet(actor, authority) ? [{ kind: actor.kind, sheetId: actor.sheetId }] : []
 }
 
+const selectionsOf = (combatants: readonly Combatant[]): CombatantSelection[] => combatants.map(({ kind, sheetId }) => ({ kind, sheetId }))
+
+const npcSelections = (fight: CombatFight | null) => selectionsOf((fight?.state.combatants ?? []).filter((entry) => entry.kind === 'npc'))
+
 const SHEET_DEPENDENCIES: Readonly<Record<string, SheetDependency>> = {
   start: (command, _fight, authority) => gmOnly(authority, (command.payload as StartPayload).combatants),
-  refresh: (_command, fight, authority) => gmOnly(authority, (fight?.state.combatants ?? []).map(({ kind, sheetId }) => ({ kind, sheetId }))),
+  refresh: (_command, fight, authority) => gmOnly(authority, selectionsOf(fight?.state.combatants ?? [])),
   aim: actorSheet,
   roll: actorSheet,
   split: actorSheet,
@@ -77,7 +81,11 @@ const SHEET_DEPENDENCIES: Readonly<Record<string, SheetDependency>> = {
   strength: actorSheet,
   check: actorSheet,
   initiative: actorSheet,
-  npcInitiative: (_command, fight, authority) => gmOnly(authority, (fight?.state.combatants ?? []).filter((entry) => entry.kind === 'npc').map(({ kind, sheetId }) => ({ kind, sheetId }))),
+  npcInitiative: (_command, fight, authority) => gmOnly(authority, npcSelections(fight)),
+  move: actorSheet,
+  npcMovement: (_command, fight, authority) => gmOnly(authority, npcSelections(fight)),
+  settleMovement: (_command, fight, authority) => gmOnly(authority, selectionsOf((fight?.state.combatants ?? []).filter((entry) => entry.movement?.pickup))),
+  declare: actorSheet,
 }
 
 function sheetDependencies(command: CombatCommand, fight: CombatFight | null, authority: CombatAuthority): CombatantSelection[] {
