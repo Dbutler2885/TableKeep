@@ -120,6 +120,32 @@ describe('Defense after a hit', () => {
     await waitFor(() => expect(sentOf('defend').at(-1)!.payload).toEqual({ type: 'defend', split: { amount: 46, full: true } }))
   })
 
+  it('shows the table the split the GM is choosing for Roy, before the roll', async () => {
+    show('gm', 'gm', fightAfter(...hit(27)))
+    await waitFor(() => expect(sentOf('split')[0]).toMatchObject({ envelope: { actorKey: ROY, step: 'defense' }, payload: { split: { amount: 40, full: false } } }))
+    fireEvent.keyDown(button('Defense line at 40'), { key: 'ArrowLeft' })
+    await waitFor(() => expect(sentOf('split').at(-1)!.payload).toEqual({ type: 'split', split: { amount: 30, full: false } }))
+  })
+
+  it('shows a waiting seat what Roy keeps for Defense on its bar, or that he is still choosing', () => {
+    show('player', 'wayne-uid', fightAfter(...hit(27)))
+    expect(screen.getByText(/is choosing what to keep for Defense against/)).toBeTruthy()
+    cleanup()
+    show('player', 'wayne-uid', fightAfter(...hit(27), { type: 'split', actor: ROY, split: { amount: 20 } }))
+    expect(screen.getByText(/kept 20 for Defense against/).closest('p')!.textContent).toBe('Roy Carver kept 20 for Defense against Wayne Gardner.')
+    expect(document.querySelector('.st.active .allocation-label strong')!.textContent).toBe('20')
+    expect(within(document.querySelector('.st.active .roll-controls') as HTMLElement).getByText("Waiting for the GM to roll Roy Carver's defense")).toBeTruthy()
+    cleanup()
+    show('player', 'wayne-uid', fightAfter(...hit(27), { type: 'split', actor: ROY, split: { full: true } }))
+    expect(screen.getByText(/kept 46 for Full Defense against/)).toBeTruthy()
+  })
+
+  it('reopens the GM\'s split where the table holds it', () => {
+    show('gm', 'gm', fightAfter(...hit(27), { type: 'split', actor: ROY, split: { full: true } }))
+    expect((screen.getByRole('checkbox', { name: /Full Defense/ }) as HTMLInputElement).checked).toBe(true)
+    expect(sentOf('split')).toEqual([])
+  })
+
   it('offers No Defense at 0, and shows a refusal', async () => {
     mocks.outcome = { ok: false, reason: 'Keep Defense in tens, within your Handle.' }
     show('gm', 'gm', fightAfter(...hit(27)))

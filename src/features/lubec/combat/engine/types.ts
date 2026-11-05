@@ -63,6 +63,8 @@ export type CombatAttack = {
   roll?: CombatAttackRoll | null
   /** The exact input a pending step waits on; the same attack, step and rolls resume once it is repaired. */
   repair?: string | null
+  /** The defender's grant-local split while they choose it, shown to the table before the roll. */
+  defenseSplit?: { amount: number; full: boolean } | null
   defense?: CombatDefenseRoll | null
   /** Quality left after Defense; the hit's reach. */
   net?: number | null

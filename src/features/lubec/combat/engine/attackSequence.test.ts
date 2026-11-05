@@ -110,6 +110,17 @@ describe('the defender\'s grant-local Defense', () => {
     expect(() => defend(thrown(27).records, { amount: 60 }, {})).toThrow('within your Handle')
   })
 
+  it('shows the table the split being chosen, without rolling or binding it', () => {
+    const records = thrown(27).records
+    const { plan, rolls } = act(records, { type: 'split', actor: ROY, split: { amount: 30 } })
+    expect(rolls).toEqual([])
+    expect(plan.fight.state.attack).toMatchObject({ step: 'defense', defenseSplit: { amount: 30, full: false } })
+    expect(act(records, { type: 'split', actor: ROY, split: { full: true } }).plan.fight.state.attack!.defenseSplit).toEqual({ amount: 50, full: true })
+    expect(() => act(records, { type: 'split', actor: ROY, split: { amount: 35 } })).toThrow('in tens')
+    expect(() => act(records, { type: 'split', actor: HERO, by: player, split: { amount: 30 } })).toThrow('belongs to someone else')
+    expect(act({ ...records, sheets: [hero()] }, { type: 'split', actor: ROY, split: { amount: 30 } }).plan.fight.state.attack).toMatchObject({ step: 'defense', repair: expect.any(String) })
+  })
+
   it('is the target\'s to roll, and keeps the step for a missing sheet', () => {
     const records = thrown(27).records
     expect(() => act(records, { type: 'defend', actor: HERO, by: player, split: { amount: 0 } })).toThrow('belongs to someone else')

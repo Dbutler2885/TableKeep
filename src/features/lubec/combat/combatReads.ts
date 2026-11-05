@@ -71,6 +71,7 @@ const SHEET_DEPENDENCIES: Readonly<Record<string, SheetDependency>> = {
   refresh: (_command, fight, authority) => gmOnly(authority, (fight?.state.combatants ?? []).map(({ kind, sheetId }) => ({ kind, sheetId }))),
   aim: actorSheet,
   roll: actorSheet,
+  split: actorSheet,
   defend: actorSheet,
   catch: actorSheet,
   strength: actorSheet,

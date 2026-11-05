@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { lubecCurrentValue, lubecEffectiveHandle } from '../../../ruleSets/lubec/derivations'
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
 import { lubecCombatantRecord, type LubecCombatant } from '../../fight/lubecFightRequest'
@@ -33,15 +33,21 @@ const half = (value: number) => Math.max(8, Math.min(92, value / 2))
 const working = (props: StepProps, key: string): props is StepProps & { controls: StepControls } => props.active && props.controls !== null && props.controls.owns(key)
 
 /** "Waiting for the GM to roll Roy's defense", as the mock-up says it, with the GM's way to act for an absent player. */
-function Waiting({ state, controls, owner, what }: { state: CombatState; controls: StepControls | null; owner: string; what: string }) {
+type WaitProps = { state: CombatState; controls: StepControls | null; owner: string; what: string }
+
+function WaitWords({ state, owner, what }: Omit<WaitProps, 'controls'>) {
   const combatant = combatantOf(state, owner)
-  const words = combatant.kind === 'npc' ? `Waiting for the GM to roll ${combatant.name}'s ${what}` : `Waiting for ${combatant.name} to roll`
-  return (
-    <>
-      <span className="plain-roll">{words}</span>
-      {controls?.isGm && combatant.kind === 'character' ? <p className="note"><button type="button" className="linkish" onClick={() => controls.onActFor(owner)}>Away from the table? Roll for {combatant.name}</button></p> : null}
-    </>
-  )
+  return <span className="plain-roll">{combatant.kind === 'npc' ? `Waiting for the GM to roll ${combatant.name}'s ${what}` : `Waiting for ${combatant.name} to roll`}</span>
+}
+
+function ActFor({ state, controls, owner }: Omit<WaitProps, 'what'>) {
+  const combatant = combatantOf(state, owner)
+  if (!controls?.isGm || combatant.kind !== 'character') return null
+  return <p className="note"><button type="button" className="linkish" onClick={() => controls.onActFor(owner)}>Away from the table? Roll for {combatant.name}</button></p>
+}
+
+function Waiting(props: WaitProps) {
+  return <><WaitWords {...props} /><ActFor {...props} /></>
 }
 
 /** A step's Roll button: pressed once, it waits on the table and shows a refusal. */
@@ -76,14 +82,36 @@ const handlePool = (state: CombatState, key: string, controls: StepControls): nu
 type SplitProps = { state: CombatState; attack: CombatAttack; controls: StepControls; pool: number }
 
 /** The defender's grant-local split: Defense in tens on their own Handle, or Full Defense, naming this attacker. */
+/** Show the table the split being chosen, so every seat sees what the defender keeps before the roll. */
+function useSplitSync(attack: CombatAttack, split: { amount: number; full: boolean }, send: (split: { amount: number; full: boolean }) => AttackAct) {
+  const sent = useRef<string | null>(null)
+  const key = JSON.stringify([split.amount, split.full])
+  const held = JSON.stringify([attack.defenseSplit?.amount, attack.defenseSplit?.full])
+  useEffect(() => {
+    if (key === held || sent.current === key) return
+    sent.current = key
+    const [amount, full] = JSON.parse(key) as [number, boolean]
+    void send({ amount, full })
+  }, [key, held, send])
+}
+
+const tensOf = (pool: number) => Math.floor(pool / 10) * 10
+
+/** The defender's draft: what the table already holds, or every whole ten of their Handle. */
+function useDefenseDraft(attack: CombatAttack, pool: number) {
+  const held = attack.defenseSplit
+  const [amount, setAmount] = useState(held ? held.amount : tensOf(pool))
+  const [full, setFull] = useState(held?.full === true)
+  const move = (next: number) => setAmount(Math.max(0, Math.min(tensOf(pool), Math.round(next / 10) * 10)))
+  return { split: { amount: full ? pool : amount, full }, value: full ? Math.min(100, pool + 10) : amount, full, setFull, move }
+}
+
 function DefenseSplit({ state, attack, controls, pool }: SplitProps) {
-  const [amount, setAmount] = useState(Math.floor(pool / 10) * 10)
-  const [full, setFull] = useState(false)
+  const { split, value, full, setFull, move } = useDefenseDraft(attack, pool)
   const act = useAct()
   const defender = attack.aim!.targetKey
-  const value = full ? Math.min(100, pool + 10) : amount
-  const move = (next: number) => setAmount(Math.max(0, Math.min(Math.floor(pool / 10) * 10, Math.round(next / 10) * 10)))
-  const roll = <SegmentRoll at={half(value)} label={value ? 'Roll Defense' : 'No Defense'} disabled={act.busy} onRoll={() => act.run(() => controls.commands.defend(defender, { amount: full ? pool : amount, full }))} />
+  useSplitSync(attack, split, useCallback((next) => controls.commands.split(defender, next), [controls.commands, defender]))
+  const roll = <SegmentRoll at={half(value)} label={value ? 'Roll Defense' : 'No Defense'} disabled={act.busy} onRoll={() => act.run(() => controls.commands.defend(defender, split))} />
   return (
     <>
       <Refusal refusal={act.refusal} />
@@ -126,11 +154,28 @@ function DefenseResult({ state, attack }: Pick<StepProps, 'state' | 'attack'>) {
   return <p className="say"><b>{nameOf(state, attack.aim!.targetKey)}</b> kept no Defense against {nameOf(state, attack.attackerKey)}.</p>
 }
 
+/** What the table sees while the defender chooses: what they keep against this attacker, on its bar, and who rolls it. */
+function DefensePending(props: StepProps) {
+  const defender = props.attack.aim!.targetKey
+  const split = props.attack.defenseSplit
+  const wait = <WaitWords state={props.state} owner={defender} what="defense" />
+  const actFor = <ActFor state={props.state} controls={props.controls} owner={defender} />
+  if (!split) return <><p className="say"><b>{nameOf(props.state, defender)}</b> is choosing what to keep for Defense against {nameOf(props.state, props.attack.attackerKey)}.</p><div className="roll-controls">{wait}</div>{actFor}</>
+  const value = split.full ? Math.min(100, split.amount + 10) : split.amount
+  return (
+    <>
+      <p className="say"><b>{nameOf(props.state, defender)}</b> kept {split.amount} for {split.full ? 'Full ' : ''}Defense against {nameOf(props.state, props.attack.attackerKey)}.</p>
+      <RollBar value={value} tag="DEF" bonus={split.full} controls={wait} />
+      {actFor}
+    </>
+  )
+}
+
 export function DefenseStep(props: StepProps) {
   const defender = props.attack.aim!.targetKey
   if (props.attack.defense !== undefined || props.attack.step !== 'defense') return <DefenseResult state={props.state} attack={props.attack} />
   if (working(props, defender)) return <DefenseLive {...props} controls={props.controls} />
-  return <div className="roll-controls step-wait"><Waiting state={props.state} controls={props.controls} owner={defender} what="defense" /></div>
+  return <DefensePending {...props} />
 }
 
 function CatchChecks({ attack }: { attack: CombatAttack }) {

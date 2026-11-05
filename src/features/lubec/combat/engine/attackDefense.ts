@@ -66,10 +66,12 @@ function afterDefense(state: CombatState, attack: CombatAttack, record: CombatSh
   return { ...state, attack: { ...attack, step: 'catch', net, catchChance: chance, catchItem }, pendingActions: stepRequest(defenderOf(attack), 'catch') }
 }
 
+const handlePool = (fight: CombatFight, record: CombatSheet, command: CombatCommand): number =>
+  lubecEffectiveHandle(record.sheet, combatInputModifiers(record.sheet, { fightId: command.envelope.fightId, round: fight.state.round }))!
+
 function defended(fight: CombatFight, attack: CombatAttack, record: CombatSheet, command: CombatCommand, entropy: CombatEntropy): CombatPlan {
   const defender = combatantOf(fight.state, defenderOf(attack))
-  const pool = lubecEffectiveHandle(record.sheet, combatInputModifiers(record.sheet, { fightId: command.envelope.fightId, round: fight.state.round }))!
-  const split = readSplit(command.payload.split, pool)
+  const split = readSplit(command.payload.split, handlePool(fight, record, command))
   if (split.amount === 0) return { fight: { ...fight, state: toLocation(fight.state, { ...attack, defense: null }, attack.roll!.quality!, entropy) }, items: [], logs: [{ event: `${defender.name} kept no Defense.`, actor: defender.key }] }
   const defense = rollDefense(split, entropy)
   const net = attack.roll!.quality! - defense.removes
@@ -142,4 +144,16 @@ const catchRoll: CombatHandler = (command, records, authority, entropy) => {
   return caughtOrDropped(fight, attack, record!, command, entropy)
 }
 
-export const combatDefenseHandlers: Readonly<Record<string, CombatHandler>> = { defend, catch: catchRoll }
+/** The defender shows the table the split they are choosing; it binds nothing until they roll. */
+const split: CombatHandler = (command, records, authority) => {
+  const fight = requireLiveContext(command, records, authority)
+  const attack = attackAt(fight.state, command, 'defense', defenderOf)
+  const defender = combatantOf(fight.state, defenderOf(attack))
+  const record = combatSheetOf(records, defender)
+  const repair = attackRepair(defender, record)
+  if (repair) return repairPlan(fight, attack, defender, repair)
+  const defenseSplit = readSplit(command.payload.split, handlePool(fight, record!, command))
+  return { fight: { ...fight, state: { ...fight.state, attack: { ...attack, defenseSplit, repair: null } } }, items: [], logs: [] }
+}
+
+export const combatDefenseHandlers: Readonly<Record<string, CombatHandler>> = { split, defend, catch: catchRoll }
