@@ -35,6 +35,8 @@ export type CombatDeclaration = {
   total: number
   lines: CombatDefenseLine[]
   sourceRevision: number
+  /** Its maker went Out after declaring, or came back after Declare: no attack and no Defense from it this round. */
+  stopped?: boolean
 }
 export type Combatant = CombatantSelection & {
   key: string
@@ -80,7 +82,7 @@ export type CombatStrengthRoll = { roll: number; strength: number; success: bool
 /** Impact built from its parts; the table it is read on and what happens next. */
 export type CombatImpact = { quality: number; base: number; strength: number | null; moved: number; armor: number; total: number; table: string }
 /** How a closed or waiting attack ended, for the outcome banner. */
-export type CombatAttackOutcome = 'miss' | 'dodged' | 'caught' | 'dropped' | 'no-wound' | 'manual' | 'pending-wound' | 'wounded' | 'row-caught'
+export type CombatAttackOutcome = 'miss' | 'dodged' | 'caught' | 'dropped' | 'no-wound' | 'manual' | 'pending-wound' | 'wounded' | 'row-caught' | 'passed' | 'picked-up' | 'interrupted'
 /** The wound table row a hit reached, and the Check or Save it asks the target for. */
 export type CombatWoundRow = {
   group: string
@@ -137,6 +139,10 @@ export type CombatState = {
   pendingActions?: CombatPendingAction[]
   /** Keys fastest first, set once every initiative is in. */
   order?: string[]
+  /** Who has had their attack this round, fastest first. */
+  attacked?: string[]
+  /** The round's last finished attack, kept in view after the next one opens or the next round begins. */
+  lastAttack?: CombatAttack | null
   /** Every Movement choice is in; the GM's workspace settles the stage by itself. */
   movementComplete?: boolean
   /** The GM's last range band per attacker, offered again but never applied without a press. */

@@ -22,7 +22,7 @@ export const combatDeclarers = (state: CombatState): Combatant[] =>
 
 /** Attack runs fastest first, for everyone in the fight whose declaration has an attack. */
 export const combatAttackers = (state: CombatState): Combatant[] =>
-  combatOrdered(state).filter((entry) => entry.outReason === null && entry.declaration?.aim)
+  combatOrdered(state).filter((entry) => entry.outReason === null && entry.declaration?.aim && !entry.declaration.stopped)
 
 const attackWords = (state: CombatState): string => {
   const names = combatAttackers(state).map((entry) => entry.name)
@@ -46,7 +46,7 @@ function requireDeclarer(state: CombatState, command: CombatCommand): Combatant 
 }
 
 /** Every wound due by this round is on the sheet, and this transaction read that sheet at or after its delivery. */
-function requireDue(state: CombatState, declarer: Combatant, record: CombatSheet) {
+export function requireDue(state: CombatState, declarer: Combatant, record: CombatSheet) {
   const due = state.woundOutbox.some((wound) => combatantKey(wound.target) === declarer.key && wound.effectiveRound <= state.round)
   if (due) throw new Error('Waiting for wounds to reach the sheet')
   requireDelivered(state, record)

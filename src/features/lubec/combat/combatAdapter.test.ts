@@ -370,7 +370,7 @@ describe('Movement and Declare through the adapter', () => {
     moveTo((state) => ({ phase: 'declare', combatants: state.combatants.map((entry) => (entry.kind === 'npc' ? { ...entry, declaration: { ran: true, full: false, aim: null, frozen: null, total: 0, lines: [], sourceRevision: 0 } } : entry)) }))
     expect(await commit(asActor('character:hero', 'declare', 'declare', { full: true, against: 'npc:roy' }), options('player'))).toMatchObject({ ok: true })
     expect(sheetReads()).toEqual([`get ${root}/characters/hero`])
-    expect(fight().state.phase).toBe('attack')
+    expect(fight().state).toMatchObject({ phase: 'movement', round: 2 })
   })
 })
 

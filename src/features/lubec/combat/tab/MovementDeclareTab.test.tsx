@@ -305,11 +305,14 @@ describe('Declare', () => {
   })
 
   it('marks a declaration aimed at the viewer, a runner and Full Defense in the rail', () => {
-    show('player', 'wayne-uid', fightAfter(...declaring({ choice: 'run' }), { type: 'declare', actor: ROY, full: true, against: WAYNE }))
+    // Roy's Full Defense as it stands in the rail before the round moves on by itself.
+    const live = fightAfter(...declaring({ choice: 'run' }))
+    live.fight.state.combatants[1].declaration = { ran: false, full: true, aim: null, frozen: null, total: 46, lines: [{ against: WAYNE, amount: 46 }], sourceRevision: 1 }
+    live.fight.state.phase = 'attack'
+    show('player', 'wayne-uid', live)
     expect(document.querySelector('.decls li.atyou .txt')!.textContent).toBe('Full Defense: no attack. Defense 46 Full against Wayne Gardner.')
     expect(document.querySelector('.decls li.you .txt')!.textContent).toBe('Ran: no attack and no Defense this round.')
     expect(screen.getByText('AT YOU')).toBeTruthy()
-    expect(screen.getByText('Attacks open here when they are built; for now the GM runs the attacks at the table.')).toBeTruthy()
   })
 
   it('picks the weapon, target and use in the window, and guards Full Defense against the person chosen', async () => {

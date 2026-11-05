@@ -6,6 +6,7 @@ import { place } from '../../../ruleSets/lubec/gear/placement'
 import { repairPlan } from './attackAim'
 import { closeAttack, pad, stepRequest, tens, toLocation } from './attackFlow'
 import { attackAt, attackRepair, combatantOf, combatSheetOf, defenderOf } from './attackParty'
+import { declaredLine, isRoundAttack } from './roundAttacks'
 import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
 import { combatInputModifiers } from './inputModifiers'
@@ -66,12 +67,20 @@ function afterDefense(state: CombatState, attack: CombatAttack, record: CombatSh
   return { ...state, attack: { ...attack, step: 'catch', net, catchChance: chance, catchItem }, pendingActions: stepRequest(defenderOf(attack), 'catch') }
 }
 
+/** In a round the declared line rolls as declared; a Sneak Attack's defender splits now, grant-local. */
+function defenseSplit(fight: CombatFight, attack: CombatAttack, record: CombatSheet, command: CombatCommand): Split {
+  // A round's hit asks for Defense only when the target declared a line against this attacker, so it has one here.
+  const line = isRoundAttack(fight.state, attack) ? declaredLine(fight.state, attack) : null
+  if (line) return { amount: line.amount, full: line.full }
+  return readSplit(command.payload.split, handlePool(fight, record, command))
+}
+
 const handlePool = (fight: CombatFight, record: CombatSheet, command: CombatCommand): number =>
   lubecEffectiveHandle(record.sheet, combatInputModifiers(record.sheet, { fightId: command.envelope.fightId, round: fight.state.round }))!
 
 function defended(fight: CombatFight, attack: CombatAttack, record: CombatSheet, command: CombatCommand, entropy: CombatEntropy): CombatPlan {
   const defender = combatantOf(fight.state, defenderOf(attack))
-  const split = readSplit(command.payload.split, handlePool(fight, record, command))
+  const split = defenseSplit(fight, attack, record, command)
   if (split.amount === 0) return { fight: { ...fight, state: toLocation(fight.state, { ...attack, defense: null }, attack.roll!.quality!, entropy) }, items: [], logs: [{ event: `${defender.name} kept no Defense.`, actor: defender.key }] }
   const defense = rollDefense(split, entropy)
   const net = attack.roll!.quality! - defense.removes

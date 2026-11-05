@@ -3,14 +3,15 @@ import { lubecSpendRound } from '../../../ruleSets/lubec/gear/attack'
 import { lubecDetachFromGear, type LubecDetachedItem } from '../../../ruleSets/lubec/gear/detachedItems'
 import type { LubecGear } from '../../../ruleSets/lubec/gear/gearRecord'
 import type { LubecAttackChoice } from '../../../ruleSets/lubec/gear/weaponAttacks'
-import { lubecFightAttack } from '../../fight/lubecFightWeapons'
 import { readCombatAim, repairPlan } from './attackAim'
-import { combatAttackResult, combatFightingTraining, type CombatAttackResult } from './attackMath'
+import { combatAttackResult, type CombatAttackResult } from './attackMath'
 import { attackAt, attackRepair, combatantOf, combatSheetOf, requireOpponent } from './attackParty'
 import type { CombatLog } from './combatFeedback'
 import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
 import { closeAttack, stepRequest, toLocation } from './attackFlow'
+import { declaredLine, isRoundAttack } from './roundAttacks'
+import { weaponInHand } from './chooseAgain'
 import type { CombatAttack, CombatCommand, Combatant, CombatFight, CombatFrozenAim, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
 
 type Spent = { gear: LubecGear | null; detached: LubecDetachedItem[] }
@@ -32,9 +33,7 @@ function spend(gear: LubecGear, weaponItemId: string, choice: LubecAttackChoice,
 }
 
 function requireStillLegal(record: CombatSheet, attack: CombatAttack) {
-  const aim = attack.aim!
-  const legal = lubecFightAttack(record.sheet.gear, aim.weaponItemId, combatFightingTraining(record.sheet), aim.attackId)
-  if (!legal) throw new Error('That weapon is no longer in hand. Choose again.')
+  if (!weaponInHand(record, attack.aim!)) throw new Error('That weapon is no longer in hand. Choose again.')
 }
 
 function requireAimed(attack: CombatAttack): CombatFrozenAim {
@@ -71,9 +70,14 @@ function rollLog(state: CombatState, attacker: Combatant, target: Combatant, fro
 const spentOnce = (state: CombatState, key: string) =>
   state.combatants.map((entry) => (entry.key === key ? { ...entry, interactionSequence: entry.interactionSequence + 1 } : entry))
 
-/** Defense never answers a firearm, nor comes from a target who Ran this round: Run costs their Defense and its catch. */
-const skipsDefense = (state: CombatState, attack: CombatAttack): boolean =>
-  attack.frozen!.choice.firearm === true || combatantOf(state, attack.aim!.targetKey).declaration?.ran === true
+/**
+ * Whether the target rolls Defense against this hit (the Roll has already refused a target who is Out): in a round
+ * only on a declared line naming this attacker, so a runner, whose Run cost their Defense, and anyone guarding elsewhere take it undefended.
+ */
+const defends = (state: CombatState, attack: CombatAttack): boolean => !isRoundAttack(state, attack) || declaredLine(state, attack) !== null
+
+/** Defense never answers a firearm. */
+const skipsDefense = (state: CombatState, attack: CombatAttack): boolean => attack.frozen!.choice.firearm === true || !defends(state, attack)
 
 /**
  * What follows the roll: a miss completes the attack and its object lands on the Floor; a hit asks the
