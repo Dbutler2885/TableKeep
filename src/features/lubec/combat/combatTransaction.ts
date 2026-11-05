@@ -7,6 +7,7 @@ import type { CombatCommand, CombatHandler, CombatOutcome, CombatPlan } from './
 import type { CombatJournal } from './commandJournal'
 import { combatRef, readCombatAuthority, readCombatRecords } from './combatReads'
 import { writeCombatPlan } from './combatWrites'
+import { prepareCombatSheets, writeCombatSheets } from './combatSheetWrites'
 import { drainEndWounds } from './endWoundDrain'
 
 export type CombatTransactionOptions = {
@@ -44,6 +45,8 @@ async function applyCommand(db: Firestore, tx: Transaction, command: CombatComma
   } catch (error) {
     return refusal(error)
   }
+  const sheets = await prepareCombatSheets(db, command, plan, records.raws)
+  writeCombatSheets(tx, sheets)
   return writeCombatPlan(db, tx, command, plan, entropy)
 }
 

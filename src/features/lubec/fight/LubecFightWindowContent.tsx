@@ -17,16 +17,20 @@ type WindowProps = {
   onInventory: (hands: LubecHands) => void
   onWeapon: (id: string) => void
   readOnly?: boolean
+  /** The words under a target's name; the Combat tab adds Speed, as the mock-up does. */
+  targetNote?: (target: LubecCombatant) => string
 }
 
-function WindowTarget({ request, targets, onTarget, readOnly }: WindowProps) {
+const kindNote = (target: LubecCombatant): string => (target.kind === 'npc' ? 'NPC' : 'Character')
+
+function WindowTarget({ request, targets, onTarget, readOnly, targetNote = kindNote }: WindowProps) {
   const choices = lubecTargetChoices(request, targets)
   return <div>
     <span className="label">Target</span>
     <div className="tlist" role="radiogroup" aria-label="Target">
       {choices.map((target) => <div className="tcell" key={lubecCombatantKey(target)}>
         <button type="button" className="trow" role="radio" aria-checked={request.target !== null && lubecCombatantKey(request.target) === lubecCombatantKey(target)} disabled={readOnly} onClick={() => onTarget(lubecCombatantKey(target))}>
-          <span>{lubecCombatantFace(target).name}<br /><small>{target.kind === 'npc' ? 'NPC' : 'Character'}</small></span>
+          <span>{lubecCombatantFace(target).name}<br /><small>{targetNote(target)}</small></span>
         </button>
       </div>)}
     </div>

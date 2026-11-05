@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { lubecCharacterSheet } from '../../ruleSets/lubec/sheetFixtures'
 import { combatantPaths, combatantSheets } from './combatantSheets'
-import { gmCommandKey, gmEnvelope, startEnvelope } from './combatEnvelopes'
+import { actorEnvelope, attackCommandKey, gmCommandKey, gmEnvelope, startEnvelope } from './combatEnvelopes'
 import { resolveLubecCombatEnabled } from './combatGate'
 import { combatSheetRecord } from './combatSheetRecord'
 import type { LubecLiveFight } from './combatWatch'
@@ -34,6 +34,24 @@ describe('command envelopes', () => {
   it('keys one logical action by fight, stage and payload', () => {
     expect(gmCommandKey(live(), { type: 'end' })).toBe(gmCommandKey(live(), { type: 'end' }))
     expect(gmCommandKey(live('stage-2'), { type: 'end' })).not.toBe(gmCommandKey(live(), { type: 'end' }))
+  })
+
+  it('binds a combatant\'s act to its interaction sequence and the open attack\'s id and step', () => {
+    const attacking = live()
+    Object.assign(attacking.fight.state, { combatants: [{ key: 'character:wayne', interactionSequence: 3 }], attack: { id: 'attack-1', step: 'aim' } })
+    expect(actorEnvelope(scope, 'cmd', attacking, 'character:wayne')).toMatchObject({ actorKey: 'character:wayne', interactionSequence: 3, attackId: 'attack-1', step: 'aim' })
+    const idle = live()
+    Object.assign(idle.fight.state, { combatants: [], attack: null })
+    expect(actorEnvelope(scope, 'cmd', idle, 'character:gone')).toEqual({ ...gmEnvelope(scope, 'cmd', idle), actorKey: 'character:gone', interactionSequence: 0 })
+  })
+
+  it('keys an attack act by its attack and step, so the next step is a new action', () => {
+    const before = live()
+    Object.assign(before.fight.state, { attack: { id: 'attack-1', step: 'aim' } })
+    const after = live()
+    Object.assign(after.fight.state, { attack: { id: 'attack-1', step: 'defense' } })
+    expect(attackCommandKey(before, 'character:wayne', { type: 'roll' })).not.toBe(attackCommandKey(after, 'character:wayne', { type: 'roll' }))
+    expect(attackCommandKey(live(), null, { type: 'grant' })).toBe(attackCommandKey(live(), null, { type: 'grant' }))
   })
 })
 

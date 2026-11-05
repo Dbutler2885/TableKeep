@@ -169,3 +169,82 @@
 .shell-root[data-theme="lubec"] .lubec-combat .roster .ball.sm { width: 1.6rem; height: 1.6rem; }
 .shell-root[data-theme="lubec"] .lubec-combat .note.after { margin-top: 0.4rem; }
 .shell-root[data-theme="lubec"] .lubec-combat .roster li .row-line small { display: inline; margin: 0; color: var(--lubec-muted); font: 700 0.6rem var(--lubec-type); }
+/* The attack window's split bar, its Roll button and the quality call, copied from the mock-up (the attack prototype's bar) */
+.shell-root[data-theme="lubec"] .lubec-combat .roll-controls { position: relative; width: 100%; height: 2.35rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .segment-roll { position: absolute; bottom: .4rem; transform: translateX(-50%); padding: .4rem .65rem; color: var(--lubec-cream); background: var(--lubec-rust); border: 1px solid var(--lubec-rust); font: 800 .6rem/1 var(--lubec-type); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .segment-roll:hover, .shell-root[data-theme="lubec"] .lubec-combat .segment-roll:focus-visible { background: #b44c31; outline: 2px solid var(--lubec-blue); outline-offset: 2px; }
+.shell-root[data-theme="lubec"] .lubec-combat .segment-roll:disabled { cursor: wait; opacity: .65; }
+.shell-root[data-theme="lubec"] .lubec-combat .quality-call { position: absolute; bottom: .4rem; transform: translateX(-50%); color: var(--lubec-success); font: 800 .95rem/1 var(--lubec-type); white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .quality-call .q { margin-inline: .05em 0; font: 700 2.1rem/.9 var(--lubec-condensed); }
+.shell-root[data-theme="lubec"] .lubec-combat .allocation-scale { display: flex; justify-content: space-between; margin-bottom: .3rem; color: var(--lubec-muted); font: 700 .52rem/1 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .allocation-bar { position: relative; width: 100%; height: 4.4rem; overflow: hidden; touch-action: none; background: var(--lubec-gray); border: 2px solid var(--lubec-ink); border-radius: 999px; box-shadow: inset 0 2px 5px rgba(23, 40, 43, .25); }
+.shell-root[data-theme="lubec"] .lubec-combat .allocation-bar::before, .shell-root[data-theme="lubec"] .lubec-combat .allocation-bar::after { content: ""; position: absolute; z-index: 3; left: 0; right: 0; height: .6rem; pointer-events: none; background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 1px), rgba(23, 40, 43, .78) calc(10% - 1px) 10%); }
+.shell-root[data-theme="lubec"] .lubec-combat .allocation-bar::before { top: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .allocation-bar::after { bottom: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .segment { position: absolute; z-index: 1; top: 0; bottom: 0; overflow: hidden; }
+.shell-root[data-theme="lubec"] .lubec-combat .segment.defense { background: var(--lubec-blue); }
+.shell-root[data-theme="lubec"] .lubec-combat .segment.attack { background: var(--lubec-rust); }
+.shell-root[data-theme="lubec"] .lubec-combat .segment.unused { background: repeating-linear-gradient(135deg, #b3b5af 0 6px, #9b9e99 6px 12px); }
+.shell-root[data-theme="lubec"] .lubec-combat .segment.attack.success { background: #278153; }
+.shell-root[data-theme="lubec"] .lubec-combat .segment.attack.failure { background: #ef3f2f; }
+.shell-root[data-theme="lubec"] .lubec-combat .segment.attack.double { --critical-color: #ef2f2f; background: repeating-linear-gradient(-45deg, var(--critical-color) 0 10px, #fff8e7 10px 20px); animation: lubec-combat-double .7s steps(1, end) infinite; }
+.shell-root[data-theme="lubec"] .lubec-combat .segment.attack.double.success { --critical-color: #278153; }
+.shell-root[data-theme="lubec"] .lubec-combat .effective-edge { position: absolute; z-index: 4; top: 0; bottom: 0; width: 2px; background: var(--lubec-ink); pointer-events: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .divider { position: absolute; z-index: 5; top: 0; bottom: 0; width: 1.75rem; margin-left: -.875rem; padding: 0; background: transparent; border: 0; touch-action: none; cursor: ew-resize; }
+.shell-root[data-theme="lubec"] .lubec-combat .divider::before { content: ""; position: absolute; top: .15rem; bottom: .15rem; left: 50%; width: 4px; transform: translateX(-50%); background: var(--lubec-cream); border: 1px solid var(--lubec-ink); }
+.shell-root[data-theme="lubec"] .lubec-combat .divider:hover::before, .shell-root[data-theme="lubec"] .lubec-combat .divider:focus-visible::before { width: 6px; background: #f6cc72; }
+.shell-root[data-theme="lubec"] .lubec-combat .divider:disabled { cursor: default; }
+.shell-root[data-theme="lubec"] .lubec-combat .divider.locked::before { background: #e9dcc0; }
+.shell-root[data-theme="lubec"] .lubec-combat .allocation-labels { position: relative; width: 100%; height: 1.75rem; margin-top: .35rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .allocation-label { position: absolute; top: 0; display: flex; gap: .3rem; align-items: baseline; transform: translateX(-50%); color: var(--lubec-blue); font: 800 .56rem/1 var(--lubec-type); letter-spacing: .05em; pointer-events: none; text-transform: uppercase; white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .allocation-label.attack { color: var(--lubec-rust); }
+.shell-root[data-theme="lubec"] .lubec-combat .allocation-label.at-start { transform: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .allocation-label.at-end { transform: translateX(-100%); }
+.shell-root[data-theme="lubec"] .lubec-combat .allocation-label strong { font: 800 1.15rem/1 var(--lubec-display); font-variant-numeric: tabular-nums; }
+.shell-root[data-theme="lubec"] .lubec-combat .ask-row { display: flex; flex-wrap: wrap; gap: .3rem 1rem; align-items: baseline; justify-content: space-between; }
+.shell-root[data-theme="lubec"] .lubec-combat .effective { display: flex; flex-wrap: wrap; gap: .3rem .9rem; align-items: baseline; justify-content: space-between; margin-bottom: .3rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .effective .sum { color: var(--lubec-muted); font: 700 .84rem/1.4 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .effective .sum b { color: var(--lubec-ink); }
+.shell-root[data-theme="lubec"] .lubec-combat .notice.cool { background: #d8e6e3; border-color: var(--lubec-blue); }
+.shell-root[data-theme="lubec"] .lubec-combat .alts { display: flex; flex-wrap: wrap; gap: .35rem; margin: .2rem 0 .7rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .alts button { padding: .35rem .5rem; color: var(--lubec-blue); background: var(--lubec-cream); border: 1.5px solid var(--lubec-blue); font: 800 .64rem/1 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .alts button[aria-pressed="true"] { color: var(--lubec-cream); background: var(--lubec-rust); border-color: var(--lubec-rust); }
+.shell-root[data-theme="lubec"] .lubec-combat .alts button:hover:not(:disabled) { background: #fffdf4; }
+.shell-root[data-theme="lubec"] .lubec-combat .alts button[aria-pressed="true"]:hover:not(:disabled) { background: var(--lubec-rust); }
+.shell-root[data-theme="lubec"] .lubec-combat .range-row { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; margin: .3rem 0 .6rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .range-row .alts { margin: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .range-row .alts button:disabled { cursor: default; }
+.shell-root[data-theme="lubec"] .lubec-combat .range-typed { display: inline-flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.shell-root[data-theme="lubec"] .lubec-combat .range-typed input { width: 4.5rem; min-height: 1.9rem; padding: .2rem .35rem; border: 1.5px solid var(--lubec-ink); background: var(--lubec-cream); font: 800 .85rem/1 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .defense-lines { margin-top: .5rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .defense-add { margin-top: .3rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .defrow { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; margin: .15rem 0; font: 800 .74rem/1.2 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .defrow .label { min-width: 4.8rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .defrow select { min-height: 1.9rem; border-width: 2px; border-color: var(--lubec-blue); }
+.shell-root[data-theme="lubec"] .lubec-combat .defchip { display: inline-block; min-width: 3.4rem; padding: .3rem .5rem; color: var(--lubec-cream); background: var(--lubec-blue); text-align: center; font: 800 .62rem/1 var(--lubec-type); letter-spacing: .1em; border: 2px solid var(--lubec-ink); }
+
+/* The result sequence: one card per step, the step in play in rust */
+.shell-root[data-theme="lubec"] .lubec-combat .seq { display: grid; gap: .6rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .st { border: 2px solid var(--lubec-ink); background: rgba(255, 248, 231, .7); }
+.shell-root[data-theme="lubec"] .lubec-combat .st > .sh { display: flex; flex-wrap: wrap; gap: .3rem .7rem; align-items: center; justify-content: space-between; padding: .35rem .6rem; color: var(--lubec-cream); background: var(--lubec-ink); font: 800 .62rem/1.2 var(--lubec-type); letter-spacing: .08em; text-transform: uppercase; }
+.shell-root[data-theme="lubec"] .lubec-combat .st > .sh .no { display: inline-grid; place-items: center; width: 1.3rem; height: 1.3rem; margin-right: .4rem; color: var(--lubec-ink); background: var(--lubec-cream); font: 700 .85rem/1 var(--lubec-condensed); }
+.shell-root[data-theme="lubec"] .lubec-combat .st.active { border-color: var(--lubec-rust); box-shadow: 0 0 0 3px rgba(163, 66, 41, .25); }
+.shell-root[data-theme="lubec"] .lubec-combat .st.active > .sh { background: var(--lubec-rust); }
+.shell-root[data-theme="lubec"] .lubec-combat .st .sb { padding: .55rem .7rem .6rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .st .verdict { margin: .4rem 0 0; font: 800 clamp(1rem, 1.8vw, 1.25rem)/1.2 var(--lubec-display); }
+.shell-root[data-theme="lubec"] .lubec-combat .st .verdict.ok { color: var(--lubec-success); }
+.shell-root[data-theme="lubec"] .lubec-combat .st .verdict.bad { color: var(--lubec-failure); }
+.shell-root[data-theme="lubec"] .lubec-combat .later { margin: 0; color: var(--lubec-muted); font: 800 .62rem/1.4 var(--lubec-type); letter-spacing: .08em; text-transform: uppercase; }
+.shell-root[data-theme="lubec"] .lubec-combat .mid > .lubec-fight + .lubec-fight { margin-top: .9rem; }
+
+@keyframes lubec-combat-double {
+  0%, 49% { background: repeating-linear-gradient(-45deg, var(--critical-color) 0 10px, #fff8e7 10px 20px); }
+  50%, 100% { background: repeating-linear-gradient(-45deg, #fff8e7 0 10px, var(--critical-color) 10px 20px); }
+}
+@media (prefers-reduced-motion: reduce) { .shell-root[data-theme="lubec"] .lubec-combat .segment.double { animation: none; } }
+@media (max-width: 760px) {
+  .shell-root[data-theme="lubec"] .lubec-combat .st > .sh { font-size: .56rem; }
+  .shell-root[data-theme="lubec"] .lubec-combat .allocation-label { font-size: .5rem; }
+  .shell-root[data-theme="lubec"] .lubec-combat .allocation-label strong { font-size: .95rem; }
+}
+.shell-root[data-theme="lubec"] .lubec-combat .range-row .alts button:disabled { opacity: 1; }

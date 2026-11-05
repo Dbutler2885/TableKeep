@@ -24,6 +24,7 @@ vi.mock('../useLubecCombatSend', () => ({
   },
 }))
 vi.mock('./useCombatGmData', () => ({ useCombatGmData: () => mocks.data }))
+vi.mock('./useCombatPlayerRoster', () => ({ useCombatPlayerRoster: () => ({ characters: [], npcs: [] }) }))
 
 const { LubecCombat } = await import('./LubecCombat')
 
@@ -67,7 +68,7 @@ const live = (fight = liveFight()): LubecCombatWatch => ({ enabled: true, ready:
 beforeEach(() => {
   mocks.sent = []
   mocks.outcome = { ok: true, fightId: 'fight', generatedIds: [], rolls: [] }
-  mocks.data = { characters: [wayne, joseph], npcs: [{ npc: npc('roy', 'Roy Carver', 'Linebacker'), sheet: roy }, { npc: npc('coach', 'Coach Ballard', 'Referee'), sheet: null }], items }
+  mocks.data = { characters: [wayne, joseph], npcs: [{ npc: npc('roy', 'Roy Carver', 'Linebacker'), sheet: roy }, { npc: npc('coach', 'Coach Ballard', 'Referee'), sheet: null }], items, roster: { characters: [], npcs: [] } }
   window.sessionStorage.clear()
 })
 afterEach(cleanup)
@@ -143,12 +144,12 @@ describe('GM setup, moment 1', () => {
 })
 
 describe('the live fight, moment 2', () => {
-  it('gives the GM every combatant beside Grant Sneak Attack, unoffered until that slice, and the grouped Floor', () => {
+  it('gives the GM every combatant beside Grant Sneak Attack, initiative still unoffered, and the grouped Floor', () => {
     show('gm', 'gm', live())
     expect(screen.getByText("Grant a Sneak Attack and that person's attack runs at once.")).toBeTruthy()
     const grants = screen.getAllByRole('button', { name: 'Grant Sneak Attack' })
     expect(grants).toHaveLength(2)
-    expect(grants.every((grant) => (grant as HTMLButtonElement).disabled)).toBe(true)
+    expect(grants.every((grant) => !(grant as HTMLButtonElement).disabled)).toBe(true)
     expect((button('Begin Combat - Roll Initiative') as HTMLButtonElement).disabled).toBe(true)
     const floor = screen.getByText('Floor').closest('.panel') as HTMLElement
     expect(floor.textContent).toContain('3 items')

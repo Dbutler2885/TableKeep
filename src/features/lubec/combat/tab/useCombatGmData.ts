@@ -13,7 +13,7 @@ const NO_NPC_WRITES = createNpcWriteQueues()
 
 type GmDataOptions = { campaign: Campaign; userId: string; setError: (message: string) => void }
 
-/** What the GM sets a fight up from: characters in play, NPCs with their sheets, and every GM item. GM-only reads. */
+/** What the GM sets a fight up from and runs it with: characters in play, NPCs with their sheets, every GM item, and the sheets themselves. GM-only reads. */
 export function useCombatGmData({ campaign, userId, setError }: GmDataOptions) {
   const scope = { campaignId: campaign.id, groupId: campaign.groupId }
   const store = { ...scope, userId, role: 'gm' as const, gmUserId: campaign.gmUserId ?? null, setError, enabled: true, ruleSet: lubecCharacterStore }
@@ -28,5 +28,6 @@ export function useCombatGmData({ campaign, userId, setError }: GmDataOptions) {
       return { npc, sheet: sheet ? npcCombatSheet(npc, sheet) : null }
     }),
     items: lubecGmItemsOldestFirst(items ?? []),
+    roster: { characters, npcs: npcs.map((npc) => ({ npc, sheet: npcSheets.find((candidate) => candidate.id === npc.id) ?? null })) },
   }), [characters, npcSheets, npcs, items])
 }

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Combatant, CombatState } from '../engine/types'
 import { combatPhaseView } from './combatPhases'
 import { CombatStepper, CombatWindow } from './CombatParts'
@@ -10,23 +11,41 @@ export function PhaseStepper({ state }: { state: CombatState }) {
 
 const NOT_YET = 'Not available in this build yet.'
 
-/** Moment 2 for the GM: everyone not Out beside the Grant Sneak Attack button, and the way on to initiative. */
-export function BeforeInitiativeGm({ state }: { state: CombatState }) {
+type GrantRowProps = { combatant: Combatant; running: boolean; open: boolean; busy: boolean; onGrant: (key: string) => void }
+
+function GrantRow({ combatant, running, open, busy, onGrant }: GrantRowProps) {
+  return (
+    <li>
+      <span className="row-line">{combatant.name}<br /><small>{combatant.kind === 'npc' ? 'NPC' : 'Player'} · Speed {combatant.speed}</small></span>
+      {running ? <span className="badge must">Attack running on their screen</span> : null}
+      <button type="button" className="btn line small rowbtn" disabled={open || busy} onClick={() => onGrant(combatant.key)}>Grant Sneak Attack</button>
+    </li>
+  )
+}
+
+type BeforeProps = { state: CombatState; onGrant: (key: string) => Promise<string | null> }
+
+/** Moment 2 for the GM: everyone not Out beside the Grant Sneak Attack button, one grant at a time, and the way on to initiative. */
+export function BeforeInitiativeGm({ state, onGrant }: BeforeProps) {
+  const [busy, setBusy] = useState(false)
+  const [refusal, setRefusal] = useState<string | null>(null)
   const inFight = state.combatants.filter((combatant: Combatant) => combatant.outReason === null)
+  const open = state.attack !== null && !state.attack.closed
+  const grant = async (key: string) => {
+    setBusy(true)
+    setRefusal(await onGrant(key))
+    setBusy(false)
+  }
   return (
     <CombatWindow
       title="Before initiative"
       stepper={<PhaseStepper state={state} />}
       foot={<><span className="note">Nobody is in the turn order yet.</span><button type="button" className="btn rust" disabled title={NOT_YET}>Begin Combat - Roll Initiative</button></>}
     >
-      <p className="ask">Grant a Sneak Attack and that person's attack runs at once.</p>
+      {refusal ? <div className="notice hot" role="alert"><span>{refusal}</span></div> : null}
+      <p className="ask">Grant a Sneak Attack and that person&apos;s attack runs at once.</p>
       <ul className="roster">
-        {inFight.map((combatant) => (
-          <li key={combatant.key}>
-            <span className="row-line">{combatant.name}<br /><small>{combatant.kind === 'npc' ? 'NPC' : 'Player'} · Speed {combatant.speed}</small></span>
-            <button type="button" className="btn line small rowbtn" disabled title={NOT_YET}>Grant Sneak Attack</button>
-          </li>
-        ))}
+        {inFight.map((combatant) => <GrantRow key={combatant.key} combatant={combatant} running={open && state.attack?.attackerKey === combatant.key} open={open} busy={busy} onGrant={(key) => void grant(key)} />)}
       </ul>
     </CombatWindow>
   )

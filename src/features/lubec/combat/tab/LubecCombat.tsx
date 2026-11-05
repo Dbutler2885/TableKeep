@@ -14,8 +14,10 @@ import type { CombatOutcome, CombatState } from '../engine/types'
 import { useLubecCombatSend, type CombatSend } from '../useLubecCombatSend'
 import { CombatEnded, CombatEndConfirm } from './CombatEnd'
 import { CombatGmTools, type CombatGmTool } from './CombatGmTools'
-import { BeforeInitiativeGm, CombatWaiting } from './CombatMiddles'
 import { CombatHead } from './CombatParts'
+import { NO_ROSTER, type CombatRosterRecords } from './combatFightCombatants'
+import { CombatPhaseMiddle } from './CombatPhaseMiddle'
+import { useCombatPlayerRoster } from './useCombatPlayerRoster'
 import { combatPhaseView } from './combatPhases'
 import { CombatFloorPanel, InFightPanel } from './CombatRails'
 import { CombatSetup, type CombatSetupStart } from './CombatSetup'
@@ -76,7 +78,7 @@ function useGmCombat({ campaign, userId, setError }: GmProps) {
     requestOpen(issue.selection.kind, issue.selection.sheetId)
     void navigate(campaignTabPath(campaign.groupId, campaign.id, issue.selection.kind === 'npc' ? 'npcs' : 'character'))
   }
-  return { commands, repair, data }
+  return { commands, repair, data, send }
 }
 
 type ClosingProps = { shown: Closing; userId: string; onEnd: () => Promise<string | null>; onPlaceInstead: () => void }
@@ -88,9 +90,18 @@ function CombatClosing({ shown, userId, onEnd, onPlaceInstead }: ClosingProps) {
   return <CombatLayout state={state} userId={userId} stage="Ending" middle={<CombatEndConfirm state={state} onEnd={onEnd} />} onPlace={onPlaceInstead} />
 }
 
+type ActingFor = { attackId: string | null; key: string }
+
+/** Acting for an absent player lasts for the one attack it was chosen for. */
+const actingNow = (actingFor: ActingFor | null, attackId: string | null): string | null =>
+  (actingFor?.attackId === attackId ? actingFor.key : null)
+
 type GmLiveProps = {
+  campaign: Campaign
   live: LubecLiveFight
   userId: string
+  roster: CombatRosterRecords
+  send: CombatSend
   tool: CombatGmTool
   onTool: (tool: CombatGmTool) => void
   items: readonly LubecGmItem[]
@@ -100,8 +111,9 @@ type GmLiveProps = {
 }
 
 /** The GM's live fight: tools over the middle, Before initiative's grants, and placement onto the Floor. */
-function CombatGmLive({ live, userId, tool, onTool, items, place, onEnd, setError }: GmLiveProps) {
+function CombatGmLive({ campaign, live, userId, roster, send, tool, onTool, items, place, onEnd, setError }: GmLiveProps) {
   const [placing, setPlacing] = useState(false)
+  const [actingFor, setActingFor] = useState<ActingFor | null>(null)
   const { state } = live.fight
   const placeOnFloor = async (item: LubecGmItem, qty: number) => {
     setPlacing(true)
@@ -111,14 +123,16 @@ function CombatGmLive({ live, userId, tool, onTool, items, place, onEnd, setErro
     else onTool('')
   }
   const tools = <CombatGmTools tool={tool} onTool={onTool} items={items} placing={placing} onPlace={(item, qty) => void placeOnFloor(item, qty)} onEnd={onEnd} />
-  const middle = state.phase === 'before-initiative' ? <BeforeInitiativeGm state={state} /> : <CombatWaiting state={state} />
+  const attackId = state.attack?.id ?? null
+  const viewer = { role: 'gm' as const, userId, actingFor: actingNow(actingFor, attackId) }
+  const middle = <CombatPhaseMiddle campaign={campaign} live={live} viewer={viewer} roster={roster} send={send} onActFor={(key) => setActingFor({ attackId, key })} />
   return <CombatLayout state={state} userId={userId} tools={tools} middle={middle} onPlace={() => onTool('place')} />
 }
 
 /** The GM's tab: set up a fight, run Before initiative and place items, and end it. */
 function CombatGm(props: GmProps) {
   const { live } = useLubecCombat()
-  const { commands, repair, data } = useGmCombat(props)
+  const { commands, repair, data, send } = useGmCombat(props)
   const [closing, setClosing] = useState<Closing | null>(null)
   const [tool, setTool] = useState<CombatGmTool>('')
   const shown = shownClosing(closing, live)
@@ -133,25 +147,32 @@ function CombatGm(props: GmProps) {
   if (!live) return <CombatSetup {...data} onStart={commands.start} onRepair={repair} />
   return (
     <CombatGmLive
-      live={live} userId={props.userId} tool={tool} onTool={setTool} items={data.items} setError={props.setError}
+      campaign={props.campaign} live={live} userId={props.userId} roster={data.roster} send={send} tool={tool} onTool={setTool} items={data.items} setError={props.setError}
       place={(item, qty) => commands.place(live, item, qty)}
       onEnd={() => { setTool(''); setClosing({ live, done: false }) }}
     />
   )
 }
 
-/** A player's tab, in the fight or watching it: the rails and who the fight is waiting on. */
-function CombatViewer({ userId }: { userId: string }) {
+type ViewerProps = { campaign: Campaign; userId: string; setError: (message: string) => void }
+
+/** A player's tab, in the fight or watching it: the rails, their own controls when something waits on them, and who the fight is waiting on. */
+function CombatPlayer({ campaign, userId, setError }: ViewerProps) {
   const { live } = useLubecCombat()
+  const send = useLubecCombatSend(userId)
+  const inFight = Boolean(live?.fight.state.combatants.some((combatant) => combatant.ownerUserId === userId))
+  const roster = useCombatPlayerRoster({ campaign, userId, setError, enabled: inFight })
   if (!live) return null
-  return <CombatLayout state={live.fight.state} userId={userId} middle={<CombatWaiting state={live.fight.state} />} />
+  const viewer = { role: 'player' as const, userId, actingFor: null }
+  const middle = <CombatPhaseMiddle campaign={campaign} live={live} viewer={viewer} roster={inFight ? roster : NO_ROSTER} send={send} onActFor={() => undefined} />
+  return <CombatLayout state={live.fight.state} userId={userId} middle={middle} />
 }
 
 /** Lubec's Combat tab. Players have it only while a fight is live; the route gate sends them away otherwise. */
 export function LubecCombat({ campaign, role, user, setError }: RuleSetSheetProps) {
   return (
     <div className="lubec-combat">
-      {role === 'gm' ? <CombatGm campaign={campaign} userId={user.uid} setError={setError} /> : <CombatViewer userId={user.uid} />}
+      {role === 'gm' ? <CombatGm campaign={campaign} userId={user.uid} setError={setError} /> : <CombatPlayer campaign={campaign} userId={user.uid} setError={setError} />}
     </div>
   )
 }
