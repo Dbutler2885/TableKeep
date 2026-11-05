@@ -9,8 +9,12 @@ import type { CombatAim, CombatAttack, Combatant, CombatState } from '../engine/
 import { AttackBar, SegmentRoll } from './AttackBar'
 import type { AttackAct, AttackCommands } from './attackCommands'
 import { initialDraft, sameAim, segmentMiddle, withDefense, withWeapon, type AttackDraft } from './attackDraft'
-import { attackWindowModel, type AttackWindowModel } from './attackWindowModel'
-import { AttackAsk, AttackDefenseLine, AttackNotices, AttackTrail } from './AttackWindowParts'
+import { attackGone, attackWindowModel, type AttackGone, type AttackWindowModel } from './attackWindowModel'
+import { AttackAsk, AttackDefenseLine, AttackNotices, AttackTrail, LockedDefenseLine, RoundNotices } from './AttackWindowParts'
+import { combatantName } from './attackWords'
+import { combatFloorRows } from './combatFloorRows'
+import { CombatFloorIcon } from './CombatParts'
+import { isRoundAttack } from '../engine/roundAttacks'
 import { combatFightCombatant, type CombatRosterRecords } from './combatFightCombatants'
 import { CombatStepper, CombatWindow } from './CombatParts'
 import { RangeRow, type DeclareRange } from './RangeRow'
@@ -74,6 +78,7 @@ const targetNote = (state: CombatState) => (target: LubecCombatant): string => {
 
 type ChoicesProps = { body: BodyProps; draft: AttackDraft; setDraft: (draft: AttackDraft) => void; model: AttackWindowModel }
 
+/** The choices look as the mock-up draws them in every window; a declared attack's engine refuses a change to what has not gone, and says so. */
 function WindowChoices({ body, draft, setDraft, model }: ChoicesProps) {
   return (
     <LubecFightWindowContent
@@ -99,32 +104,79 @@ function WindowRange({ body, model, refuse }: { body: BodyProps; model: AttackWi
   return <RangeRow attack={body.attack} remembered={body.state.lastRanges?.[body.attacker.key]} onDeclare={rangeDeclare(body, refuse)} />
 }
 
-type SplitProps = { model: AttackWindowModel; draft: AttackDraft; setDraft: (draft: AttackDraft) => void; busy: boolean; onRoll: () => void }
+type SplitProps = { model: AttackWindowModel; draft: AttackDraft; setDraft: (draft: AttackDraft) => void; busy: boolean; onRoll: () => void; state: CombatState; declared: boolean }
+
+/** A Sneak Attack's split moves and names its line here; a declared split is locked as it was declared. */
+function SplitLine({ model, draft, setDraft, state, declared }: Omit<SplitProps, 'busy' | 'onRoll'>) {
+  const { segments, reading } = model.split!
+  if (declared) return <LockedDefenseLine against={draft.defense ? combatantName(state, draft.defense.against) : null} />
+  return <AttackDefenseLine draft={draft} segments={segments} opponents={model.opponents} total={reading.total} onDraft={setDraft} />
+}
 
 /** The bar with Roll over the attack, and the one named Defense line under it. */
-function WindowSplit({ model, draft, setDraft, busy, onRoll }: SplitProps) {
+function WindowSplit(props: SplitProps) {
+  const { model, draft, setDraft, busy, onRoll, declared } = props
   if (!model.split) return null
   const { segments, reading, target } = model.split
-  const moveDefense = (amount: number) => setDraft(withDefense(draft, amount, reading.total, draft.targetKey!))
+  const moveDefense = declared ? undefined : (amount: number) => setDraft(withDefense(draft, amount, reading.total, draft.targetKey!))
   const roll = <SegmentRoll at={segmentMiddle(segments.attackFrom, segments.attackWidth)} label="Roll" disabled={!model.ready || busy} onRoll={onRoll} />
   return (
     <>
       <AttackAsk target={target} reading={reading} range={model.range} segments={segments} />
       <AttackBar segments={segments} onDefense={moveDefense} controls={roll} />
-      <AttackDefenseLine draft={draft} segments={segments} opponents={model.opponents} total={reading.total} onDraft={setDraft} />
+      <SplitLine {...props} />
     </>
   )
 }
 
-function WindowBody(body: BodyProps) {
-  const { draft, setDraft, refusal, refuse, model, roll } = useAttackWindow(body)
+type AgainProps = { body: BodyProps; gone: AttackGone; refuse: Refuse }
+
+/** With the weapon gone, each Floor row can be taken up here, which uses the action. */
+function FloorAgain({ body, refuse }: Omit<AgainProps, 'gone'>) {
+  const rows = combatFloorRows(body.state.floor)
+  if (!rows.length) return null
+  return (
+    <div className="win-grid again">
+      <div className="picks">
+        {rows.map((row) => (
+          <button key={row.key} type="button" className="pick" onClick={() => void body.commands.floorPickup(body.attacker.key, row.recordIds[0]).then(refuse)}>
+            <span className="where">On the Floor</span><CombatFloorIcon item={row.item} /><span><span className="name">{row.item.name}</span><small>Pick up here: costs the action</small></span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Choosing again: the Floor when the weapon has gone, and Pass when nothing is left to choose. */
+function ChooseAgain({ body, gone, refuse }: AgainProps) {
+  if (!gone.target && !gone.weapon) return null
   return (
     <>
-      <AttackNotices attacker={body.attacker} attack={body.attack} refusal={refusal} gm={body.gm} />
-      <AttackTrail attacker={body.attacker} />
+      {gone.weapon ? <FloorAgain body={body} refuse={refuse} /> : null}
+      <p className="note pass-line"><button type="button" className="linkish" onClick={() => void body.commands.pass(body.attacker.key).then(refuse)}>Pass</button> Nothing left to choose? Give up this turn.</p>
+    </>
+  )
+}
+
+/** Why this attack runs now: a Sneak Attack's grant, or a declared attack with whatever has gone since. */
+function WindowNotices({ body, refusal, gone }: { body: BodyProps; refusal: string | null; gone: AttackGone }) {
+  if (!isRoundAttack(body.state, body.attack)) return <AttackNotices attacker={body.attacker} attack={body.attack} refusal={refusal} gm={body.gm} />
+  return <RoundNotices attack={body.attack} targetName={combatantName(body.state, body.attack.aim!.targetKey)} gone={gone} refusal={refusal} />
+}
+
+function WindowBody(body: BodyProps) {
+  const { draft, setDraft, refusal, refuse, model, roll } = useAttackWindow(body)
+  const declared = isRoundAttack(body.state, body.attack)
+  const gone = attackGone(body.state, body.attack, body.sheet)
+  return (
+    <>
+      <WindowNotices body={body} refusal={refusal} gone={gone} />
+      <AttackTrail attacker={body.attacker} round={body.state.round} />
       <WindowChoices body={body} draft={draft} setDraft={setDraft} model={model} />
+      <ChooseAgain body={body} gone={gone} refuse={refuse} />
       <WindowRange body={body} model={model} refuse={refuse} />
-      <WindowSplit model={model} draft={draft} setDraft={setDraft} busy={roll.busy} onRoll={roll.roll} />
+      <WindowSplit model={model} draft={draft} setDraft={setDraft} busy={roll.busy} onRoll={roll.roll} state={body.state} declared={declared} />
     </>
   )
 }
@@ -137,8 +189,9 @@ function WindowBody(body: BodyProps) {
 export function SneakAttackWindow(props: WindowProps) {
   const fighter = combatFightCombatant(props.attacker, props.roster)
   const sheet = fighter ? lubecCombatantRecord(fighter)?.lubec : undefined
+  const foot = isRoundAttack(props.state, props.attack) ? 'Your declared split is locked. Only Roll is left.' : 'No declaration before initiative: this attack goes now.'
   return (
-    <CombatWindow title="Attack" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Roll']} now={3} />} foot={<span className="note">No declaration before initiative: this attack goes now.</span>}>
+    <CombatWindow title="Attack" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Roll']} now={3} />} foot={<span className="note">{foot}</span>}>
       {sheet ? <WindowBody key={props.attack.id} {...props} fighter={fighter!} sheet={sheet} /> : <p className="note">Reading {props.attacker.name}&apos;s sheet...</p>}
     </CombatWindow>
   )

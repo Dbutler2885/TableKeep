@@ -4,6 +4,8 @@ import { attackAt, attackRepair, combatantOf, combatSheetOf, requireOpponent } f
 import type { CombatPendingAction } from './combatFeedback'
 import { requireGm, requireLiveContext } from './context'
 import { combatInputModifiers } from './inputModifiers'
+import { requireChooseAgain } from './chooseAgain'
+import { isRoundAttack } from './roundAttacks'
 import type { CombatAim, CombatAttack, CombatCommand, Combatant, CombatFight, CombatFrozenAim, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
 
 const isText = (value: unknown): value is string => typeof value === 'string' && value.length > 0
@@ -72,17 +74,35 @@ export function requireAimPeople(state: CombatState, attacker: Combatant, aim: C
   if (aim.defense) requireOpponent(state, attacker, aim.defense.against)
 }
 
+/** The aim a command asks for. A round's Defense line was declared and stands, so only its target is checked now. */
+function requestedAim(state: CombatState, attack: CombatAttack, attacker: Combatant, raw: unknown): CombatAim {
+  const next = readCombatAim(raw)
+  if (!isRoundAttack(state, attack)) {
+    requireAimPeople(state, attacker, next)
+    return next
+  }
+  requireOpponent(state, attacker, next.targetKey)
+  return { ...next, defense: attack.aim!.defense }
+}
+
+/** Fresh numbers from the sheet; in a round only what has gone may change, and the declared split stays with the new use. */
+function frozenAim(fight: CombatFight, attack: CombatAttack, record: CombatSheet, next: CombatAim, fightId: string): CombatFrozenAim {
+  const round = isRoundAttack(fight.state, attack)
+  if (round) requireChooseAgain(fight.state, attack, record, next)
+  const fresh = freeze(record, next, readingFor(record, next, fight, fightId))
+  return round ? { ...attack.frozen!, choice: fresh.choice, weaponName: fresh.weaponName, ranges: fresh.ranges } : fresh
+}
+
 /** Pick target, weapon, use and split; the numbers freeze from the current sheet, and a changed use clears the range. */
 const aim: CombatHandler = (command, records, authority) => {
   const fight = requireLiveContext(command, records, authority)
   const attack = attackAt(fight.state, command, 'aim')
   const attacker = combatantOf(fight.state, attack.attackerKey)
-  const next = readCombatAim(command.payload.aim)
-  requireAimPeople(fight.state, attacker, next)
+  const next = requestedAim(fight.state, attack, attacker, command.payload.aim)
   const record = combatSheetOf(records, attacker)
   const repair = attackRepair(attacker, record)
   if (repair) return repairPlan(fight, attack, attacker, repair)
-  const frozen = freeze(record!, next, readingFor(record!, next, fight, command.envelope.fightId))
+  const frozen = frozenAim(fight, attack, record!, next, command.envelope.fightId)
   const range = sameUse(attack.aim, next) ? attack.range ?? null : null
   return { fight: withAttack(fight, { ...attack, aim: next, frozen, range, repair: null }), items: [], logs: [] }
 }

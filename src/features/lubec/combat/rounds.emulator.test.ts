@@ -14,6 +14,7 @@ import { firestoreRules } from '../../../../vitest.firestoreRules'
 import { lubecCharacterSheet } from '../../ruleSets/lubec/sheetFixtures'
 import { commitCombatCommand, type CombatTransactionOptions } from './combatTransaction'
 import { combatCommandJournal, createCombatCommand, type CombatJournalStorage } from './commandJournal'
+import { combatEntropy } from './engine/commandEntropy'
 import type { CombatCommand, CombatFight, CombatOutcome, CombatState } from './engine/types'
 import { drainCombatWounds } from './woundDelivery'
 import type { CombatWound } from './woundTypes'
@@ -190,7 +191,108 @@ describe('Declare between the GM and two players', () => {
     expect(await act('player', 'hero', HERO, { type: 'declare', full: true, against: ROY })).toMatchObject({ ok: true })
     expect(await act('gm', 'for-dottie', DOTTIE, { type: 'declare', full: true, against: ROY })).toMatchObject({ ok: true })
     const { state } = await readFight(as('spectator'))
-    expect(state).toMatchObject({ phase: 'attack', pendingActions: [] })
+    expect(state).toMatchObject({ phase: 'attack', attack: { attackerKey: ROY, step: 'aim' } })
     expect(state.stageInstanceId).not.toBe('declare-1')
+  })
+})
+
+/** The seed whose command-bound dice give each purpose's first die what `wants` asks of it. */
+function seedWith(id: string, wants: Record<string, (die: number) => boolean>): string {
+  for (let attempt = 0; ; attempt++) {
+    const text = `seed-${attempt}`
+    const probe = combatEntropy({ envelope: { id } as CombatCommand['envelope'], seed: text, payload: { type: 'probe' } })
+    if (Object.entries(wants).every(([purpose, want]) => want(probe.die(purpose, purpose === 'side' ? 10 : 100)))) return text
+  }
+}
+
+async function seeded(uid: string, id: string, actorKey: string | null, payload: CombatCommand['payload'], wants: Record<string, (die: number) => boolean>) {
+  const plain = await command(as(uid), id, actorKey, payload)
+  return { ...plain, seed: seedWith(id, wants) }
+}
+
+const heroThrow = { targetKey: ROY, weaponItemId: 'hero-ball', attackId: 'throw', defense: { against: ROY, amount: 20 } }
+
+/** Everyone stayed and declared: Wayne throws at Roy guarding Roy, Roy throws at Wayne guarding Wayne, Dottie takes Full Defense: Wayne attacks first, then Roy. */
+async function toAttack(heroChoice: object = { aim: heroThrow }) {
+  await seed('characters/hero', { ...sheet('Wayne', 'player', [ball('hero-ball', 0)]) })
+  await toDeclare()
+  expect(await act('gm', 'd-roy', ROY, { type: 'declare', aim: royThrow })).toMatchObject({ ok: true })
+  expect(await act('player', 'd-hero', HERO, { type: 'declare', ...heroChoice })).toMatchObject({ ok: true })
+  expect(await act('player2', 'd-dottie', DOTTIE, { type: 'declare', full: true, against: ROY })).toMatchObject({ ok: true })
+  expect(await act('gm', 'range-1', null, { type: 'range', band: 'medium', modifier: 0 })).toMatchObject({ ok: true })
+}
+
+describe('an ordinary round between the GM and two players', () => {
+  it('misses once on a retried Roll, opens the next attacker by itself, and refuses the closed attack\'s commands', async () => {
+    await toAttack()
+    expect((await readFight(as('spectator'))).state.attack).toMatchObject({ attackerKey: HERO, grantId: null, aim: heroThrow })
+    expect(await act('player2', 'not-mine', HERO, { type: 'roll', aim: heroThrow })).toEqual({ ok: false, reason: 'That combatant belongs to someone else.' })
+    const roll = await seeded('player', 'roll-miss', HERO, { type: 'roll', aim: heroThrow }, { attack: (die) => die >= 45 })
+    const outcome = await commit(as('player'), roll, 'player')
+    expect(outcome).toMatchObject({ ok: true, rolls: [{ purpose: 'attack' }] })
+    expect(await commit(as('player'), structuredClone(roll), 'player')).toEqual(outcome)
+    const { state } = await readFight(as('spectator'))
+    expect(state.lastAttack).toMatchObject({ attackerKey: HERO, outcome: 'miss' })
+    expect(state.attack).toMatchObject({ attackerKey: ROY, step: 'aim', range: null })
+    expect(state.floor.map((record) => record.item.id)).toEqual(['floor-ball', 'hero-ball'])
+    expect((await readSheet(as('gm'), 'characters/hero')).sheetRevision).toBe(3)
+    const stale = createCombatCommand({ ...scope, id: 'old-range', fightId: FIGHT, round: 1, phase: 'attack', stageInstanceId: state.stageInstanceId, actorKey: null, interactionSequence: 0, attackId: state.lastAttack!.id }, { type: 'range', band: 'short', modifier: 0 }, () => 's')
+    expect(await commit(as('gm'), stale, 'gm')).toEqual({ ok: false, reason: 'That attack step is stale.' })
+  })
+
+  it('has the defender roll the declared line from their own client, and a catch puts the thrower Out', async () => {
+    await toAttack()
+    expect(await commit(as('player'), await seeded('player', 'roll-hit', HERO, { type: 'roll', aim: heroThrow }, { attack: (die) => die >= 10 && die < 20 }), 'player')).toMatchObject({ ok: true })
+    expect(await act('player', 'defend-roy', ROY, { type: 'defend', split: { amount: 0 } })).toEqual({ ok: false, reason: 'That combatant belongs to someone else.' })
+    const defend = await seeded('gm', 'defend', ROY, { type: 'defend', split: { amount: 0 } }, { defense: (die) => die < 10 })
+    expect(await commit(as('gm'), defend, 'gm')).toMatchObject({ ok: true })
+    expect((await readFight(as('player'))).state.attack).toMatchObject({ step: 'catch', defense: { amount: 20, success: true } })
+    expect(await commit(as('gm'), await seeded('gm', 'catch', ROY, { type: 'catch' }, { catch: (die) => die < 50 }), 'gm')).toMatchObject({ ok: true })
+    const { state } = await readFight(as('spectator'))
+    expect(state.lastAttack).toMatchObject({ attackerKey: HERO, outcome: 'caught' })
+    expect(state.combatants.find((entry) => entry.key === HERO)!.outReason).toBe('caught')
+    expect(state.attack).toMatchObject({ attackerKey: ROY, step: 'aim' })
+    expect((await readSheet(as('gm'), 'npcSheets/roy')).lubec.gear.items.map((item) => item.id)).toEqual(['roy-ball', 'hero-ball'])
+    expect(await act('gm', 'roy-pass', ROY, { type: 'pass' })).toMatchObject({ ok: true })
+    expect((await readFight(as('spectator'))).state).toMatchObject({ phase: 'movement', round: 2 })
+  })
+
+  it('stops the attack at once when the GM takes the thrower Out mid-attack, and returns them with no attack this round', async () => {
+    await toAttack()
+    expect(await commit(as('player'), await seeded('player', 'roll-hit', HERO, { type: 'roll', aim: heroThrow }, { attack: (die) => die < 45 }), 'player')).toMatchObject({ ok: true })
+    expect(await act('gm', 'out', null, { type: 'takeOut', combatantKey: HERO })).toMatchObject({ ok: true })
+    let { state } = await readFight(as('spectator'))
+    expect(state.lastAttack).toMatchObject({ attackerKey: HERO, outcome: 'interrupted', detached: [] })
+    expect(state.floor.map((record) => record.item.id)).toEqual(['floor-ball', 'hero-ball'])
+    expect(await act('gm', 'back', null, { type: 'return', combatantKey: HERO })).toMatchObject({ ok: true })
+    state = (await readFight(as('spectator'))).state
+    expect(state.combatants.find((entry) => entry.key === HERO)).toMatchObject({ outReason: null, declaration: { stopped: true } })
+    expect(state.attack).toMatchObject({ attackerKey: ROY, step: 'aim' })
+  })
+
+  it('lands a hit on a runner at once, with no Defense and no catch', async () => {
+    await seed('characters/hero', { ...sheet('Wayne', 'player', [ball('hero-ball', 0)]) })
+    expect(await act('player', 'run', HERO, { type: 'move', choice: 'run' })).toMatchObject({ ok: true })
+    expect(await act('player2', 'stay', DOTTIE, { type: 'move', ...stay })).toMatchObject({ ok: true })
+    expect(await act('gm', 'npcs', null, { type: 'npcMovement', choices: { [ROY]: stay } })).toMatchObject({ ok: true })
+    expect(await act('gm', 'settle', null, { type: 'settleMovement' })).toMatchObject({ ok: true })
+    expect(await act('gm', 'd-roy', ROY, { type: 'declare', aim: royThrow })).toMatchObject({ ok: true })
+    expect(await act('player2', 'd-dottie', DOTTIE, { type: 'declare', full: true, against: ROY })).toMatchObject({ ok: true })
+    expect(await act('gm', 'range', null, { type: 'range', band: 'medium', modifier: 0 })).toMatchObject({ ok: true })
+    expect(await commit(as('gm'), await seeded('gm', 'roy-hit', ROY, { type: 'roll', aim: royThrow }, { attack: (die) => die < 45 }), 'gm')).toMatchObject({ ok: true })
+    const { attack } = (await readFight(as('player'))).state
+    expect(attack).toMatchObject({ attackerKey: ROY, step: 'location' })
+    expect(attack!.defense ?? null).toBeNull()
+  })
+
+  it('ends the fight during Defense, settling the ball in flight to the GM\'s Items once', async () => {
+    await toAttack()
+    expect(await commit(as('player'), await seeded('player', 'roll-hit', HERO, { type: 'roll', aim: heroThrow }, { attack: (die) => die < 45 }), 'player')).toMatchObject({ ok: true })
+    expect(await act('gm', 'end', null, { type: 'end' })).toMatchObject({ ok: true })
+    const fight = await readFight(as('spectator'))
+    expect(fight.status).toBe('ended')
+    const dropped = (await getDocs(collection(as('gm'), root, 'gmItems'))).docs.filter((entry) => entry.data().status === 'dropped').map((entry) => entry.id)
+    expect(dropped.sort()).toEqual(['floor-ball', 'hero-ball'])
+    expect(await act('gm', 'late-defend', ROY, { type: 'defend', split: { amount: 0 } })).toMatchObject({ ok: false })
   })
 })

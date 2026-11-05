@@ -214,10 +214,11 @@ describe('settling Movement', () => {
     expect(plan.logs.map((entry) => entry.event)).toEqual(['Roy moved or stayed.', 'Wayne moved or stayed.', 'Round 1, Declare. Slowest first.'])
   })
 
-  it('goes straight on to Attack when nobody is left to declare', () => {
+  it('goes through Attack to the next round by itself when nobody is left to declare', () => {
     const { plan } = settled(confirmed(movement(), { choice: 'run' }, { [ROY]: { choice: 'run' }, [DALE]: { choice: 'run' } }))
-    expect(plan.fight.state).toMatchObject({ phase: 'attack', pendingActions: [] })
-    expect(plan.logs.at(-1)!.event).toBe('Round 1, Attack. Nobody declared an attack.')
+    expect(plan.fight.state).toMatchObject({ phase: 'movement', round: 2, movementComplete: false })
+    expect(plan.fight.state.combatants.every((entry) => entry.movement === null && entry.declaration === null)).toBe(true)
+    expect(plan.logs.slice(-2).map((entry) => entry.event)).toEqual(['Round 1, Attack. Nobody declared an attack.', 'Round 2, Movement.'])
   })
 })
 
@@ -284,23 +285,9 @@ describe('Declare, slowest first', () => {
     expect(state(current).pendingActions).toEqual([{ combatantKey: ROY, action: 'declare' }])
     const last = act(current, { type: 'declare', actor: ROY, aim: throwAt(HERO) })
     current = last.records
-    expect(state(current)).toMatchObject({ phase: 'attack', pendingActions: [] })
+    expect(state(current)).toMatchObject({ phase: 'attack', attacked: [ROY], attack: { attackerKey: ROY, grantId: null, step: 'aim' } })
+    expect(state(current).pendingActions).toEqual([{ combatantKey: ROY, action: 'attack' }, { combatantKey: ROY, action: 'range' }])
     expect(state(current).stageInstanceId).not.toBe(state(records).stageInstanceId)
-    expect(last.plan.logs.map((entry) => entry.event)).toEqual(['Roy declared: Throw at Wayne, ATK 65, no Defense.', 'Round 1, Attack. Fastest first: Roy.'])
-  })
-})
-
-describe('Run across incoming attacks', () => {
-  it('lands a hit on a runner at once: no Defense and no catch', () => {
-    let records = movement([hero(), roy()])
-    records.fight!.state = { ...records.fight!.state, phase: 'before-initiative', round: 0 }
-    records.fight!.state.combatants[1].declaration = RAN
-    const aim = { targetKey: ROY, weaponItemId: 'hero-ball', attackId: 'throw', defense: null }
-    records = act(records, { type: 'grant', combatantKey: HERO }).records
-    records = act(records, { type: 'aim', actor: HERO, by: player, aim }).records
-    records = act(records, { type: 'range', band: 'medium', modifier: 0 }).records
-    const { plan } = act(records, { type: 'roll', actor: HERO, by: player, aim, dice: [27, 40, 3] })
-    expect(plan.fight.state.attack).toMatchObject({ step: 'location', net: 2 })
-    expect(plan.fight.state.pendingActions).toEqual([{ combatantKey: HERO, action: 'location' }])
+    expect(last.plan.logs.map((entry) => entry.event)).toEqual(['Roy declared: Throw at Wayne, ATK 65, no Defense.', 'Round 1, Attack. Fastest first: Roy.', "Roy's turn to attack."])
   })
 })

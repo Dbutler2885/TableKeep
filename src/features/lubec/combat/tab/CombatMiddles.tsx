@@ -55,24 +55,15 @@ export function BeforeInitiativeGm({ state, onGrant, onBegin }: BeforeProps) {
   )
 }
 
-/** The middle for anyone the fight is not waiting on: who it waits on, with the rails still in view. */
-/** What the middle says while the fight waits: Before initiative on the GM's grants, a round on its stage. */
-const WAITS: Readonly<Record<string, (state: CombatState) => { label: string; words: string }>> = {
-  'before-initiative': () => ({ label: 'Before initiative', words: 'The GM may grant a Sneak Attack before rolling initiative.' }),
-}
-
-const roundWait = (state: CombatState) => ({ label: `Round ${state.round} · ${combatPhaseView(state).stage}`, words: 'Attacks open here when they are built; for now the GM runs the attacks at the table.' })
-
+/** Before initiative, for anyone the fight is not waiting on: the GM's grants, with the rails still in view. */
 export function CombatWaiting({ state }: { state: CombatState }) {
-  const wait = (WAITS[state.phase] ?? roundWait)(state)
   return (
     <CombatWindow title="Waiting" stepper={<PhaseStepper state={state} />} foot={<span className="note">The turn order and the Floor stay in view on either side.</span>}>
       <div className="bigwait">
-        <span className="label">{wait.label}</span>
+        <span className="label">Before initiative</span>
         <h3>The fight is waiting on the GM<span className="dots" /></h3>
-        <p>{wait.words}</p>
+        <p>The GM may grant a Sneak Attack before rolling initiative.</p>
       </div>
     </CombatWindow>
   )
 }
-

@@ -106,6 +106,11 @@ function afterRoll(state: CombatState, entropy: CombatEntropy): { state: CombatS
   return { state: next, logs: [...settled.logs, { event: 'Initiative is set. Round 1, Movement.', actor: null }] }
 }
 
+/** Everyone in the fight without a roll is asked for one; once nobody is, the order is set. */
+export function withInitiativeRequests(state: CombatState, entropy: CombatEntropy): { state: CombatState; logs: CombatLog[] } {
+  return afterRoll({ ...state, pendingActions: unrolled(state).flatMap((entry) => stepRequest(entry.key, 'initiative')) }, entropy)
+}
+
 function withRoll(state: CombatState, combatant: Combatant, rolled: CombatInitiative): CombatState {
   const combatants = state.combatants.map((entry) => (entry.key === combatant.key ? { ...entry, speed: rolled.speed, initiative: rolled } : entry))
   // Begin set every request, so the list is there to take this roll's off.

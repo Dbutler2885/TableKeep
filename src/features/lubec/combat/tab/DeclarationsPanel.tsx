@@ -38,19 +38,23 @@ function PendingRow({ place, combatant, mine, now }: { place: number; combatant:
 
 const rowTag = (mine: boolean, atYou: boolean): string => (mine ? 'YOU' : atYou ? 'AT YOU' : '')
 
-const Stopped = ({ out }: { out: boolean }) => (out ? <> <span className="badge rust">Stopped: Out</span></> : null)
+/** A declaration that will not run: its maker went Out, or came back after Declare. */
+const Stopped = ({ combatant }: { combatant: Combatant }) => <> <span className="badge rust">{combatant.outReason === null ? 'Stopped' : 'Stopped: Out'}</span></>
+
+/** A declaration that will not run any more is struck through. */
+const struck = (combatant: Combatant, declaration: CombatDeclaration): boolean => combatant.outReason !== null || declaration.stopped === true
 
 type RowProps = { state: CombatState; place: number; combatant: Combatant; declaration: CombatDeclaration; mine: readonly string[] }
 
 function DeclaredRow({ state, place, combatant, declaration, mine }: RowProps) {
   const own = mine.includes(combatant.key)
   const atYou = !own && declaredAt(declaration, mine)
-  const out = combatant.outReason !== null
+  const out = struck(combatant, declaration)
   return (
     <li className={`${own ? 'you' : ''} ${atYou ? 'atyou' : ''}`}>
       <div className="dn"><span>{place} {combatant.name}</span><span className="k">{rowTag(own, atYou)}</span></div>
       <DeclarationMini declaration={declaration} />
-      <div className={`txt ${out ? 'stopped' : ''}`}><DeclarationWords state={state} declaration={declaration} /><Stopped out={out} /></div>
+      <div className={`txt ${out ? 'stopped' : ''}`}><DeclarationWords state={state} declaration={declaration} />{out ? <Stopped combatant={combatant} /> : null}</div>
     </li>
   )
 }

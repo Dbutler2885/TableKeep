@@ -1,30 +1,12 @@
 import type { ReactNode } from 'react'
-import type { LubecHands } from '../../../ruleSets/lubec/gear/held'
 import type { CombatAttack, Combatant, CombatState } from '../engine/types'
-import type { AttackCommands } from './attackCommands'
 import { AttackResult } from './AttackResult'
 import { AttackGmWaiting, AttackWaiting } from './AttackWaiting'
-import { controlsAttacker, type CombatViewer } from './attackWords'
-import type { CombatRosterRecords } from './combatFightCombatants'
+import { controlsAttacker } from './attackWords'
+import { stepControls, type MiddleProps } from './stepControls'
 import { BeforeInitiativeGm, CombatWaiting } from './CombatMiddles'
-import type { StepControls } from './ResultSteps'
 import { SneakAttackWindow } from './SneakAttackWindow'
 
-type MiddleProps = {
-  state: CombatState
-  fightId: string
-  viewer: CombatViewer
-  roster: CombatRosterRecords
-  commands: AttackCommands
-  onActFor: (key: string) => void
-  onInventory: (attacker: Combatant, hands: LubecHands) => void
-}
-
-/** The result sequence's controls for this viewer: the steps of the combatants they control. */
-const stepControls = ({ state, viewer, commands, onActFor, roster, fightId }: MiddleProps): StepControls => ({
-  owns: (key) => controlsAttacker(state.combatants.find((entry) => entry.key === key)!, viewer),
-  isGm: viewer.role === 'gm', commands, onActFor, roster, fightId,
-})
 
 const openAttack = (state: CombatState): CombatAttack | null => (state.attack && !state.attack.closed ? state.attack : null)
 

@@ -86,6 +86,9 @@ const SHEET_DEPENDENCIES: Readonly<Record<string, SheetDependency>> = {
   npcMovement: (_command, fight, authority) => gmOnly(authority, npcSelections(fight)),
   settleMovement: (_command, fight, authority) => gmOnly(authority, selectionsOf((fight?.state.combatants ?? []).filter((entry) => entry.movement?.pickup))),
   declare: actorSheet,
+  pass: actorSheet,
+  floorPickup: actorSheet,
+  return: (command, fight, authority) => gmOnly(authority, selectionsOf((fight?.state.combatants ?? []).filter((entry) => entry.key === command.payload.combatantKey))),
 }
 
 function sheetDependencies(command: CombatCommand, fight: CombatFight | null, authority: CombatAuthority): CombatantSelection[] {

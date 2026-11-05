@@ -22,7 +22,7 @@ export function AttackGmWaiting({ state, attack, attacker, onRange, onActFor }: 
   return (
     <CombatWindow title="Attack" stepper={<PhaseStepper state={state} />} foot={<span className="note">Their roll lands on every screen as a card, then settles into the ticker.</span>}>
       <div className="bigwait">
-        <span className="label">Before initiative · Sneak Attack</span>
+        <span className="label">{state.round ? 'Stage 3, Attack, fastest first' : 'Before initiative · Sneak Attack'}</span>
         <h3>{gmHeading(attack, attacker)}<span className="dots" /></h3>
         <p>{attackLine(state, attack)}</p>
         <RepairWords repair={attack.repair} />

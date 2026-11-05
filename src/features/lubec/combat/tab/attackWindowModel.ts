@@ -3,6 +3,9 @@ import { lubecCombatantKey, type LubecCombatant } from '../../fight/lubecFightRe
 import { combatAttackReading, type CombatAttackSkill } from '../engine/attackMath'
 import { combatOpponents } from '../engine/attackParty'
 import { combatInputModifiers } from '../engine/inputModifiers'
+import { lubecFightAttack } from '../../fight/lubecFightWeapons'
+import { combatFightingTraining } from '../engine/attackMath'
+import { isRoundAttack } from '../engine/roundAttacks'
 import type { CombatAim, CombatAttack, CombatAttackRange, Combatant, CombatFrozenAim, CombatState } from '../engine/types'
 import { attackSegments, completeAim, sameAim, type AttackDraft, type AttackSegments } from './attackDraft'
 import { combatFightCombatant, type CombatRosterRecords } from './combatFightCombatants'
@@ -79,4 +82,17 @@ export function attackWindowModel({ state, fightId, attack, attacker, roster, sh
   const targets = opponents.map((entry) => combatFightCombatant(entry, roster)).filter(readable)
   const target = windowTarget(targets, draft.targetKey)
   return { aim, held, reading, range, opponents, targets, target, ready: rollReady(attack, aim, reading), split: windowSplit(reading, target, draft, range) }
+}
+
+/** What has gone since Declare, which is all a round's attacker may choose again. */
+export type AttackGone = { target: boolean; weapon: boolean }
+
+const NOTHING_GONE: AttackGone = { target: false, weapon: false }
+
+/** A Sneak Attack is chosen fresh; a declared attack opens only for an Out target or a weapon no longer in hand. */
+export function attackGone(state: CombatState, attack: CombatAttack, sheet: LubecCharacterSheet): AttackGone {
+  if (!isRoundAttack(state, attack)) return NOTHING_GONE
+  const aim = attack.aim!
+  const target = state.combatants.find((entry) => entry.key === aim.targetKey)!.outReason !== null
+  return { target, weapon: !lubecFightAttack(sheet.gear, aim.weaponItemId, combatFightingTraining(sheet), aim.attackId) }
 }

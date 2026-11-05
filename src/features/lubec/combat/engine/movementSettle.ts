@@ -63,7 +63,7 @@ const settleMovement: CombatHandler = (command, records, authority, entropy) => 
   const start: Settling = { floor: fight.state.floor, sheets: [], logs: [] }
   const settled = moversInOrder(fight.state).reduce((settling, combatant) => settleOne(settling, combatant, fight.state, records, command), start)
   const combatants = fight.state.combatants.map(closed)
-  const declaring: CombatState = { ...fight.state, combatants, floor: settled.floor, phase: 'declare', stageInstanceId: entropy.id('stage', 0), movementComplete: false }
+  const declaring: CombatState = { ...fight.state, combatants, floor: settled.floor, phase: 'declare', stageInstanceId: entropy.id('stage', 0), movementComplete: false, lastAttack: null }
   const next = withDeclareRequests(declaring, entropy)
   return { fight: { ...fight, state: next.state }, items: [], logs: [...settled.logs, { event: `Round ${fight.state.round}, Declare. Slowest first.`, actor: null }, ...next.logs], sheets: settled.sheets }
 }
