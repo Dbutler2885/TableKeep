@@ -8,11 +8,13 @@ import type { CombatAim, CombatAttack, CombatCommand, Combatant, CombatFight, Co
 
 const isText = (value: unknown): value is string => typeof value === 'string' && value.length > 0
 
+const isTens = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) > 0 && (value as number) % 10 === 0
+
 function readDefense(raw: unknown): CombatAim['defense'] {
   if (raw === null || raw === undefined) return null
   const { against, amount } = raw as Record<string, unknown>
-  if (!isText(against) || !Number.isSafeInteger(amount) || (amount as number) <= 0 || (amount as number) % 10 !== 0) throw new Error('A Defense line names one person and splits Handle in tens.')
-  return { against, amount: amount as number }
+  if (!isText(against) || !isTens(amount)) throw new Error('A Defense line names one person and splits Handle in tens.')
+  return { against, amount }
 }
 
 /** The aim a command carries, in its stored shape. */
@@ -38,16 +40,19 @@ export function repairPlan(fight: CombatFight, attack: CombatAttack, attacker: C
   return { fight: withAttack(fight, { ...attack, repair }), items: [], logs }
 }
 
-function weaponName(record: CombatSheet, aim: CombatAim, reading: CombatAttackReading): string {
-  return record.sheet.gear.items.find((item) => item.id === aim.weaponItemId)?.name ?? reading.choice.name
+export const aimDefense = (aim: Pick<CombatAim, 'defense'>): number => aim.defense?.amount ?? 0
+
+/** The weapon's name and its own range bands; Fisticuffs is no item, so it is named by its use and has none. */
+function weaponOf(record: CombatSheet, aim: CombatAim, reading: CombatAttackReading) {
+  const weapon = record.sheet.gear.items.find((item) => item.id === aim.weaponItemId)
+  return weapon ? { weaponName: weapon.name, ranges: weapon.ranges ?? [] } : { weaponName: reading.choice.name, ranges: [] }
 }
 
 function freeze(record: CombatSheet, aim: CombatAim, reading: CombatAttackReading): CombatFrozenAim {
-  const defense = aim.defense?.amount ?? 0
+  const defense = aimDefense(aim)
   if (defense >= reading.total) throw new Error('Leave some of your Handle for the attack.')
-  const weapon = record.sheet.gear.items.find((item) => item.id === aim.weaponItemId)
   return {
-    choice: reading.choice, weaponName: weaponName(record, aim, reading), ranges: weapon?.ranges ?? [],
+    choice: reading.choice, ...weaponOf(record, aim, reading),
     handle: reading.handle, skill: reading.skill, total: reading.total, attack: reading.total - defense, sourceRevision: record.revision ?? 0,
   }
 }
@@ -99,10 +104,12 @@ const BAND_NAMES: Readonly<Record<LubecRangeBand, string>> = { short: 'Short', m
 export const combatBandName = (band: LubecRangeBand): string => BAND_NAMES[band]
 export const combatSigned = (value: number): string => (value < 0 ? `−${-value}` : `+${value}`)
 
+const aiming = (attack: CombatAttack | null): attack is CombatAttack => attack !== null && !attack.closed && attack.step === 'aim'
+
 function rangedFrozen(attack: CombatAttack | null): { attack: CombatAttack; frozen: CombatFrozenAim } {
-  const frozen = attack?.frozen
-  if (!attack || attack.closed || attack.step !== 'aim' || !frozen?.choice.ranged) throw new Error('No ranged attack is waiting for a range.')
-  return { attack, frozen }
+  const frozen = aiming(attack) ? attack.frozen : null
+  if (!frozen?.choice.ranged) throw new Error('No ranged attack is waiting for a range.')
+  return { attack: attack!, frozen }
 }
 
 /** The GM declares the range from this weapon's own bands; it changes only the attack number, until the Roll. */

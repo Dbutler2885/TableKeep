@@ -4,7 +4,7 @@ import { parseLubecGmItem } from '../../ruleSets/lubec/gear/gmItem'
 import { readSheetRevision } from '../../character/characterStore/sheetIntention'
 import { combatSheetCollection, combatSheetRecord } from './combatSheetRecord'
 import { combatantKey } from './engine/inputs'
-import type { CombatAuthority, CombatCommand, CombatantSelection, CombatFight, CombatRecords, CombatSheet, FloorSelection, StartPayload } from './engine/types'
+import type { CombatAuthority, CombatCommand, Combatant, CombatantSelection, CombatFight, CombatRecords, CombatSheet, FloorSelection, StartPayload } from './engine/types'
 
 export const combatRef = (db: Firestore, command: CombatCommand, ...segments: string[]) => campaignDocRef(db, command.envelope, ...segments)
 
@@ -55,11 +55,15 @@ type SheetDependency = (command: CombatCommand, fight: CombatFight | null, autho
 const gmOnly = (authority: CombatAuthority, selections: CombatantSelection[]) => (authority.isGm ? selections : [])
 
 /** The attacker's own sheet: the owner reads their character, the GM any sheet; nobody else reads one. */
+const readsSheet = (attacker: Combatant, authority: CombatAuthority) =>
+  authority.isGm || (attacker.kind === 'character' && attacker.ownerUserId === authority.userId)
+
+const attackerOf = (fight: CombatFight | null): Combatant | undefined =>
+  fight?.state.combatants.find((combatant) => combatant.key === fight.state.attack?.attackerKey)
+
 const attackerSheet: SheetDependency = (_command, fight, authority) => {
-  const attacker = fight?.state.combatants.find((combatant) => combatant.key === fight.state.attack?.attackerKey)
-  if (!attacker) return []
-  const owned = authority.isGm || (attacker.kind === 'character' && attacker.ownerUserId === authority.userId)
-  return owned ? [{ kind: attacker.kind, sheetId: attacker.sheetId }] : []
+  const attacker = attackerOf(fight)
+  return attacker && readsSheet(attacker, authority) ? [{ kind: attacker.kind, sheetId: attacker.sheetId }] : []
 }
 
 const SHEET_DEPENDENCIES: Readonly<Record<string, SheetDependency>> = {

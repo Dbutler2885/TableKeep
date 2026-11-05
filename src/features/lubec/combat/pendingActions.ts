@@ -40,5 +40,5 @@ export function combatActionNotice(action: ViewerCombatAction, round: number, ro
   if (action.action === 'leave') return `${noticeActor(action)} asks to Leave.`
   if (action.action === 'range') return `Declare range for ${noticeActor(action)}.`
   if (role === 'gm') return `It is ${noticeActor(action)}'s turn to ${ACTION_LABELS[action.action].toLowerCase()}.`
-  return `Round ${round}, ${NOTICE_STAGES[action.action]}: it is your turn.`
+  return `${round > 0 ? `Round ${round}` : 'Before initiative'}, ${NOTICE_STAGES[action.action]}: it is your turn.`
 }

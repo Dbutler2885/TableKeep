@@ -306,6 +306,12 @@ describe('a Sneak Attack through the adapter', () => {
     expect(fight().state.attack).toMatchObject({ step: 'aim', repair: expect.stringContaining('missing or unreadable') })
   })
 
+  it('refuses to write a sheet the transaction never read, and writes nothing', async () => {
+    const unread: CombatHandler = (_command, records) => ({ fight: records.fight!, items: [], logs: [], sheets: [{ selection: { kind: 'npc', sheetId: 'roy' }, gear: { items: [] } as never }] })
+    await expect(commit(action('unread'), options('gm', { handlers: { unread } }))).rejects.toThrow('That sheet was not read; nothing was spent.')
+    expect(events.every((event) => event.startsWith('get'))).toBe(true)
+  })
+
   it('lets Firestore failures reading the sheet reject, keeping the command for a retry', async () => {
     const failing = { name: 'FirebaseError', code: 'unavailable', message: 'offline' }
     const settings = options('player', { transact: async (run: (tx: unknown) => Promise<unknown>) => run({ get: async (ref: { path: string }) => { if (ref.path.includes('characters/hero')) throw failing; return snapOf(ref) } }) })

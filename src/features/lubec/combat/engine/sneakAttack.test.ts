@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseLubecGear } from '../../../ruleSets/lubec/gear/gearRecord'
 import { lubecCharacterSheet } from '../../../ruleSets/lubec/sheetFixtures'
+import { combatAttackReading, combatAttackSkill } from './attackMath'
 import { combatEntropy } from './commandEntropy'
 import { planCombatCommand } from './lifecycle'
 import type { CombatAuthority, CombatCommand, CombatPlan, CombatRecords, CombatSheet, CombatState } from './types'
@@ -249,5 +250,54 @@ describe('a missing input at an owned step', () => {
     const records = granted()
     const { plan } = act({ ...records, sheets: [rival(), roy()] }, { type: 'aim', actor: HERO, by: player, aim: throwAtRoy })
     expect(plan.fight.state.attack).toMatchObject({ aim: null, frozen: null, repair: expect.stringContaining('missing or unreadable') })
+  })
+})
+
+describe('reading an attack from a sheet', () => {
+  const kickSheet = (picked: string[]) => lubecCharacterSheet({ skills: { free: 'Athletics', picked }, gear: parseLubecGear({ items: [inHand('a', 'Radio', 0, { kind: 'thing' }), inHand('b', 'Radio', 1, { kind: 'thing' })] }) })
+
+  it('lets only a trained fighter Kick with both hands full, adding the fighting skill', () => {
+    expect(combatAttackReading(kickSheet([]), [], 'fisticuffs', 'kick')).toBeNull()
+    expect(combatAttackReading(kickSheet(['Scrapping']), [], 'fisticuffs', 'kick')).toMatchObject({ choice: { id: 'kick' }, skill: { name: 'Scrapping', bonus: 10 } })
+    expect(combatAttackReading(kickSheet(['Scrapping']), [], 'fisticuffs', 'punch')).toBeNull()
+  })
+
+  it('reads nothing while the attack Handle is a hole, and adds no skill the sheet lacks', () => {
+    const heavy = lubecCharacterSheet({ base: { ...lubecCharacterSheet().base, Strength: null }, gear: parseLubecGear({ items: [inHand('rock', 'Rock', 0, { mode: 'thrown', minStrength: 40 })] }) })
+    expect(combatAttackReading(heavy, [], 'rock', 'throw')).toBeNull()
+    expect(combatAttackSkill(lubecCharacterSheet(), 'shooting')).toBeNull()
+  })
+})
+
+describe('refusing stale or misdirected acts', () => {
+  it('refuses an act on no attack, an unknown person, and a missing aim', () => {
+    expect(() => act(fight(), { type: 'aim', actor: HERO, by: player, aim: throwAtRoy })).toThrow('There is no attack waiting.')
+    expect(() => act(fight(), { type: 'grant', combatantKey: 'npc:nobody' })).toThrow('That person is not in this fight.')
+    expect(() => act(granted(), { type: 'aim', actor: HERO, by: player })).toThrow('Pick a target, a weapon and an attack.')
+    expect(() => act(rolled(ranged(), 27).records, { type: 'roll', actor: HERO, by: player, aim: throwAtRoy })).toThrow('That attack step is stale.')
+  })
+
+  it("refuses the GM answering one combatant's attack as another", () => {
+    expect(() => act(granted(), { type: 'aim', actor: ROY, aim: throwAtRoy })).toThrow('That attack belongs to someone else.')
+  })
+
+  it('refuses an aim once the attack has completed, and a range with no attack aiming', () => {
+    expect(() => act(rolled(ranged(), 90).records, { type: 'aim', actor: HERO, by: player, aim: throwAtRoy })).toThrow('There is no attack waiting.')
+    expect(() => act(fight(), { type: 'range', band: 'short', modifier: 0 })).toThrow('No ranged attack')
+  })
+
+  it('reads a sheet with no stored revision as revision 0, and an attack stored before ranges as unranged', () => {
+    const legacy = granted()
+    legacy.sheets = [sheet({ revision: undefined }), rival(), roy()]
+    const { range: _range, ...unranged } = legacy.fight!.state.attack!
+    legacy.fight!.state.attack = { ...unranged, aim: throwAtRoy }
+    const attack = state(aimed(throwAtRoy, legacy)).attack!
+    expect(attack).toMatchObject({ frozen: { sourceRevision: 0 }, range: null })
+  })
+
+  it('calls an attack roll in a round by its plain name', () => {
+    const later = ranged()
+    later.fight!.state.round = 1
+    expect(rolled(later, 90).plan.logs[0].roll!.what).toBe('Attack roll')
   })
 })

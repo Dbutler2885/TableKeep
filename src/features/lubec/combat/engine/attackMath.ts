@@ -22,7 +22,8 @@ const ownedSkills = (sheet: Pick<LubecCharacterSheet, 'skills'>): string[] => [s
 export function combatAttackSkill(sheet: Pick<LubecCharacterSheet, 'skills'>, skill: LubecAttackChoice['skill']): CombatAttackSkill | null {
   const owned = ownedSkills(sheet)
   const name = ATTACK_SKILLS[skill].find((candidate) => owned.includes(candidate))
-  return name ? { name, bonus: lubecSkillBonus(name) ?? 0 } : null
+  // Every listed name is in the skill data, so its bonus is known.
+  return name ? { name, bonus: lubecSkillBonus(name)! } : null
 }
 
 /** Scrapping and Boxing are the trained and expert fighting skills. */
@@ -32,7 +33,8 @@ export const combatFightingTraining = (sheet: Pick<LubecCharacterSheet, 'skills'
 /** The hands an attack is made with: the weapon's own, or Fisticuffs' free hands. */
 function attackHands(sheet: LubecCharacterSheet, weaponItemId: string): LubecHands {
   if (weaponItemId === LUBEC_FISTICUFFS_ID) return lubecFisticuffsHands(sheet.gear) ?? 'both'
-  return lubecHeld(sheet.gear).find((held) => held.itemId === weaponItemId)?.hands ?? 'both'
+  // Only a held weapon has a legal use, so it is always found here.
+  return lubecHeld(sheet.gear).find((held) => held.itemId === weaponItemId)!.hands
 }
 
 const weaponOf = (sheet: LubecCharacterSheet, weaponItemId: string) =>

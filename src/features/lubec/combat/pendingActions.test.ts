@@ -38,4 +38,8 @@ describe('turn notice wording', () => {
     expect(combatActionNotice({ ...a, action: 'leave' }, 1, 'gm')).toBe('Roy Carver asks to Leave.')
     expect(combatActionNotice({ ...a, action: 'range' }, 1, 'gm')).toBe('Declare range for Roy Carver.')
   })
+
+  it('names Before initiative rather than a round 0 for a granted Sneak Attack', () => {
+    expect(combatActionNotice({ combatantKey: 'a', name: 'Wayne', action: 'attack' }, 0, 'player')).toBe('Before initiative, Attack: it is your turn.')
+  })
 })

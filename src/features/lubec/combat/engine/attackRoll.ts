@@ -37,11 +37,16 @@ function requireStillLegal(record: CombatSheet, attack: CombatAttack) {
   if (!legal) throw new Error('That weapon is no longer in hand. Choose again.')
 }
 
-function requireReady(attack: CombatAttack, raw: unknown): CombatFrozenAim {
+function requireAimed(attack: CombatAttack): CombatFrozenAim {
   if (!attack.aim || !attack.frozen) throw new Error('Pick a target, a weapon and an attack first.')
-  if (sheetPayload(readCombatAim(raw)) !== sheetPayload(attack.aim)) throw new Error('Your choices changed. Press Roll again.')
-  if (attack.frozen.choice.ranged && !attack.range) throw new Error('Waiting for the GM to declare the range.')
   return attack.frozen
+}
+
+function requireReady(attack: CombatAttack, raw: unknown): CombatFrozenAim {
+  const frozen = requireAimed(attack)
+  if (sheetPayload(readCombatAim(raw)) !== sheetPayload(attack.aim)) throw new Error('Your choices changed. Press Roll again.')
+  if (frozen.choice.ranged && !attack.range) throw new Error('Waiting for the GM to declare the range.')
+  return frozen
 }
 
 const pad = (value: number): string => String(value).padStart(2, '0')
