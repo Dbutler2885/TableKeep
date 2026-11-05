@@ -48,7 +48,7 @@ function weaponOf(record: CombatSheet, aim: CombatAim, reading: CombatAttackRead
   return weapon ? { weaponName: weapon.name, ranges: weapon.ranges ?? [] } : { weaponName: reading.choice.name, ranges: [] }
 }
 
-function freeze(record: CombatSheet, aim: CombatAim, reading: CombatAttackReading): CombatFrozenAim {
+export function freeze(record: CombatSheet, aim: CombatAim, reading: CombatAttackReading): CombatFrozenAim {
   const defense = aimDefense(aim)
   if (defense >= reading.total) throw new Error('Leave some of your Handle for the attack.')
   return {
@@ -60,14 +60,14 @@ function freeze(record: CombatSheet, aim: CombatAim, reading: CombatAttackReadin
 const sameUse = (before: CombatAim | null | undefined, after: CombatAim) =>
   before?.targetKey === after.targetKey && before.weaponItemId === after.weaponItemId && before.attackId === after.attackId
 
-function readingFor(record: CombatSheet, aim: CombatAim, fight: CombatFight, fightId: string): CombatAttackReading {
+export function readingFor(record: CombatSheet, aim: CombatAim, fight: CombatFight, fightId: string): CombatAttackReading {
   const modifiers = combatInputModifiers(record.sheet, { fightId, round: fight.state.round })
   const reading = combatAttackReading(record.sheet, modifiers, aim.weaponItemId, aim.attackId)
   if (!reading) throw new Error('That weapon cannot make that attack now. Choose again.')
   return reading
 }
 
-function requireAimPeople(state: CombatState, attacker: Combatant, aim: CombatAim) {
+export function requireAimPeople(state: CombatState, attacker: Combatant, aim: CombatAim) {
   requireOpponent(state, attacker, aim.targetKey)
   if (aim.defense) requireOpponent(state, attacker, aim.defense.against)
 }

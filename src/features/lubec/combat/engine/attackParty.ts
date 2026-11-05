@@ -7,6 +7,9 @@ export function combatantOf(state: CombatState, key: string): Combatant {
   return combatant
 }
 
+/** Everyone not Out takes part in the round's stages. */
+export const combatantsIn = (state: CombatState): Combatant[] => state.combatants.filter((entry) => entry.outReason === null)
+
 /** Players never target or defend against players; nobody targets themselves or someone Out. */
 export function combatOpponent(attacker: Combatant, other: Combatant): boolean {
   if (other.key === attacker.key || other.outReason !== null) return false

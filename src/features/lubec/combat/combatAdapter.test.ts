@@ -320,6 +320,60 @@ describe('a Sneak Attack through the adapter', () => {
   })
 })
 
+describe('Movement and Declare through the adapter', () => {
+  const sheetReads = () => events.filter((event) => event.startsWith('get') && /characters|npcSheets/.test(event))
+  const moveTo = (changes: (state: CombatFight['state']) => Partial<CombatFight['state']>) => {
+    const stored = fight()
+    put('combats/fight-start', { ...stored, state: { ...stored.state, round: 1, phase: 'movement', order: ['npc:roy', 'character:hero'], ...changes(stored.state) } })
+  }
+  const asActor = (key: string, type: string, id: string, payload = {}) => {
+    const command = action(type, id, payload)
+    return { ...command, envelope: { ...command.envelope, actorKey: key } }
+  }
+
+  beforeEach(async () => {
+    await commit(start())
+    events.length = 0
+  })
+
+  it('reads no sheet for Movement on a fight that does not exist', async () => {
+    for (const type of ['npcMovement', 'settleMovement']) {
+      const ghost = action(type, `ghost-${type}`)
+      expect(await commit({ ...ghost, envelope: { ...ghost.envelope, fightId: 'ghost' } })).toEqual({ ok: false, reason: 'That fight is not live.' })
+    }
+    expect(sheetReads()).toEqual([])
+  })
+
+  it("reads every NPC's sheet for the GM's NPC choices", async () => {
+    moveTo(() => ({}))
+    expect(await commit(action('npcMovement', 'npcs', { choices: { 'npc:roy': { choice: 'stay' } } }))).toMatchObject({ ok: true })
+    expect(sheetReads()).toEqual([`get ${root}/npcSheets/roy`])
+  })
+
+  it("reads only the claimants' sheets to settle, writes the winner's hands and Floor together, and is the GM's alone", async () => {
+    moveTo((state) => ({
+      movementComplete: true,
+      combatants: state.combatants.map((entry) => ({ ...entry, movement: entry.kind === 'character' ? { choice: 'pickup', pickup: { itemId: state.floor[0].item.id, qty: 1 }, leave: null } : { choice: 'stay', pickup: null, leave: null } })),
+    }))
+    expect(await commit(action('settleMovement', 'settle-player'), options('player'))).toEqual({ ok: false, reason: 'Only the GM can do that.' })
+    expect(sheetReads()).toEqual([])
+    expect(await commit(action('settleMovement', 'settle'))).toMatchObject({ ok: true })
+    expect(sheetReads()).toEqual([`get ${root}/characters/hero`])
+    expect(writesBeforeLastRead()).toBe(false)
+    const hero = read('characters/hero') as { sheetRevision: number; lubec: { gear: { items: { name: string; carrier: string; qty: number }[] } } }
+    expect(hero.sheetRevision).toBe(1)
+    expect(hero.lubec.gear.items).toEqual([expect.objectContaining({ name: 'Dodgeball', carrier: 'hands', qty: 1 })])
+    expect(fight().state).toMatchObject({ phase: 'declare', floor: [expect.objectContaining({ item: expect.objectContaining({ qty: 1 }) })] })
+  })
+
+  it("reads the declarer's own sheet", async () => {
+    moveTo((state) => ({ phase: 'declare', combatants: state.combatants.map((entry) => (entry.kind === 'npc' ? { ...entry, declaration: { ran: true, full: false, aim: null, frozen: null, total: 0, lines: [], sourceRevision: 0 } } : entry)) }))
+    expect(await commit(asActor('character:hero', 'declare', 'declare', { full: true, against: 'npc:roy' }), options('player'))).toMatchObject({ ok: true })
+    expect(sheetReads()).toEqual([`get ${root}/characters/hero`])
+    expect(fight().state.phase).toBe('attack')
+  })
+})
+
 describe('control listener', () => {
   const emit = (path: string) => listeners.filter((listener) => listener.active && listener.path === `${root}/${path}`)
     .forEach((listener) => listener.next(snapOf({ path: listener.path, id: path.split('/').at(-1)! })))
