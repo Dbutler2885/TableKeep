@@ -18,7 +18,8 @@ import {
 } from './characterSchemaVersions.js'
 import { deleteCampaignSessions } from './campaignSessions.js'
 import { recapIsDue, requestRecapRerun, runSessionRecap } from './recap/sessionRecap.js'
-import { callOpenAi, transcriptObjectPath } from './recap/writeRecap.js'
+import { callOpenAi } from './recap/modelRequest.js'
+import { transcriptObjectPath } from './recap/writeRecap.js'
 import {
   saveGeneratedSummary,
   type SummaryCalendarDay,

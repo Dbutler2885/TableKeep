@@ -58,8 +58,13 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
-          cache-dependency-path: package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
       - run: npm ci
+      # The recap's model request suite imports functions/src and
+      # functions/lib, which load that package's own undici.
+      - run: npm ci --prefix functions
       - run: npm test
 
   build:
@@ -116,6 +121,26 @@ jobs:
       # here because this job already has the JDK and the emulator binaries.
       - run: npm ci --prefix bot
       - run: npm run test:emulator --prefix bot
+
+  slow-tests:
+    name: Slow tests (model request timeouts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+      - run: npm ci
+      # The suite drives the recap's real model request out of functions/src,
+      # which needs that package's own undici.
+      - run: npm ci --prefix functions
+      # Waits out Node's 300-second fetch limits against a local server, so it
+      # takes over five minutes and runs here rather than in `npm test`.
+      - run: npm run test:slow
 
   browser-smoke:
     name: Browser smoke (desktop + mobile)

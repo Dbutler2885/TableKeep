@@ -14,7 +14,7 @@ export default defineConfig({
     // typecheck gate behind it, so its suites are the only thing holding its
     // shape.
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'scripts/**/*.test.mjs'],
-    exclude: ['src/**/*.emulator.test.ts'],
+    exclude: ['src/**/*.emulator.test.ts', 'src/**/*.slow.test.ts'],
     // The jsdom suites mount whole tabs and run role queries over them. Under
     // coverage on a loaded machine they ran past Vitest's 5 second default and
     // failed with no assertion failing, one suite after another.
