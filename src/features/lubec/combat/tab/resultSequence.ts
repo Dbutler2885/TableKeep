@@ -1,16 +1,23 @@
 import { signed } from '../engine/attackFlow'
+import { lubecAdvantageName } from '../../../ruleSets/lubec/checkRoll'
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
 import type { CombatAttack, CombatCatchRoll, CombatDefenseRoll, CombatImpact, CombatStrengthRoll } from '../engine/types'
 
 /** One card of the result sequence, in the mock-up's order. */
-export type ResultStep = 'attack' | 'defense' | 'catch' | 'location' | 'wound'
+export type ResultStep = 'attack' | 'defense' | 'catch' | 'location' | 'wound' | 'check'
 
 export const STEP_NAMES: Readonly<Record<ResultStep, string>> = {
-  attack: 'Attack roll', defense: 'Defense roll', catch: 'Catch roll', location: 'Where it lands', wound: 'The wound',
+  attack: 'Attack roll', defense: 'Defense roll', catch: 'Catch roll', location: 'Where it lands', wound: 'The wound', check: 'Check',
+}
+
+/** A card's heading: the row's own "Body Save" or "Handle Check" for its roll, otherwise the step's name. */
+export function cardName(attack: CombatAttack, card: ResultStep): string {
+  const check = card === 'check' ? attack.row!.check! : null
+  return check ? `${check.against} ${check.kind === 'save' ? 'Save' : 'Check'}` : STEP_NAMES[card]
 }
 
 /** The card the attack's persisted step belongs to; Strength is the wound card's first roll. */
-const CARD_OF: Readonly<Record<string, ResultStep>> = { defense: 'defense', catch: 'catch', location: 'location', strength: 'wound', wound: 'wound' }
+const CARD_OF: Readonly<Record<string, ResultStep>> = { defense: 'defense', catch: 'catch', location: 'location', strength: 'wound', wound: 'wound', check: 'check' }
 export const activeCard = (attack: CombatAttack): ResultStep | null => (attack.closed ? null : CARD_OF[attack.step])
 
 const SHOWN: Readonly<Record<ResultStep, (attack: CombatAttack) => boolean>> = {
@@ -19,6 +26,7 @@ const SHOWN: Readonly<Record<ResultStep, (attack: CombatAttack) => boolean>> = {
   catch: (attack) => attack.catchChance != null,
   location: (attack) => attack.landing != null,
   wound: (attack) => attack.strength != null || attack.impact != null || attack.step === 'strength',
+  check: (attack) => attack.row?.check != null,
 }
 
 /** The cards reached so far: every step that happened or is waiting now. */
@@ -31,6 +39,7 @@ const LATER: Readonly<Record<string, readonly string[]>> = {
   catch: ['the result'],
   location: [STEP_NAMES.wound],
   strength: ['the result'],
+  check: ['the result'],
 }
 
 export function stillToCome(attack: CombatAttack): string | null {
@@ -39,7 +48,7 @@ export function stillToCome(attack: CombatAttack): string | null {
 }
 
 /** The stepper over the result: throw, Defense, catch or location, wound. */
-const STEPPER_NOW: Readonly<Record<string, number>> = { aim: 0, defense: 1, catch: 2, location: 2, strength: 3, wound: 3, done: 4 }
+const STEPPER_NOW: Readonly<Record<string, number>> = { aim: 0, defense: 1, catch: 2, location: 2, strength: 3, wound: 3, check: 3, done: 4 }
 export const resultStepperNow = (attack: CombatAttack): number => STEPPER_NOW[attack.step]
 
 const pad = (value: number): string => String(value).padStart(2, '0')
@@ -89,12 +98,41 @@ export function strengthTitle(rolled: CombatStrengthRoll | null | undefined): st
   return rolled.success ? `Strength roll: adds ${signed(rolled.bonus)} to Impact` : 'Strength roll: adds nothing'
 }
 
-/** The wound box: no wound at 0 or less, the Dodgeball row still to read, or a wound the GM records by hand. */
-export function woundBox(attack: CombatAttack, target: string): { head: string; tag: string | null; body: string } {
+const GROUP_NAMES: Readonly<Record<string, string>> = {
+  'head-neck': 'Head and neck', 'torso-waist': 'Torso and waist', groin: 'Groin', arms: 'Arms', hand: 'Hand', legs: 'Legs',
+}
+
+export type WoundBoxWords = { head: string; tag: string | null; severity: { cls: string; name: string } | null; trauma: string | null; title: string | null; body: string }
+
+/** The Dodgeball row, as the mock-up's wound box shows it: group, Impact (6+ at the top), severity and Trauma. */
+function rowBox(row: NonNullable<CombatAttack['row']>, total: number): WoundBoxWords {
+  return {
+    head: `Dodgeball · ${GROUP_NAMES[row.group]} · Impact ${total > 6 ? '6+' : total}`, tag: null,
+    severity: { cls: row.severity === 'Serious' ? 'se' : 'mi', name: row.severity }, trauma: `Trauma ${row.trauma ? '+1' : '0'}`, title: `${row.name}.`, body: row.text,
+  }
+}
+
+const plainBox = (head: string, tag: string | null, body: string): WoundBoxWords => ({ head, tag, severity: null, trauma: null, title: null, body })
+
+/** The wound box: no wound at 0 or less, the row a Dodgeball hit reached, or a wound the GM records by hand. */
+export function woundBox(attack: CombatAttack, target: string): WoundBoxWords {
   const impact = attack.impact!
   const table = tableName(impact.table)
-  if (impact.total <= 0) return { head: table, tag: 'No wound', body: `Impact ${impact.total}: a hit with no effect.` }
+  if (impact.total <= 0) return plainBox(table, 'No wound', `Impact ${impact.total}: a hit with no effect.`)
+  // Every Dodgeball hit with positive Impact on one of the 17 parts has its row.
+  if (attack.row) return rowBox(attack.row, impact.total)
   const head = `${table} · ${locName(attack.landing!.part!).toLowerCase()} · Impact ${impact.total}`
-  if (attack.outcome === 'pending-wound') return { head, tag: null, body: `The wound is read on the ${table} table next.` }
-  return { head, tag: null, body: `The GM records this wound on ${target}'s sheet. Nothing was changed automatically.` }
+  return plainBox(head, null, `The GM records this wound on ${target}'s sheet. Nothing was changed automatically.`)
+}
+
+/** "Success. 12 is at or under 30.", saying which die was kept under Advantage or Disadvantage. */
+export function checkVerdict(rolled: NonNullable<CombatAttack['check']>): string {
+  const kept = rolled.dice.length > 1 ? ` ${lubecAdvantageName(rolled.advantage)} kept ${pad(rolled.result)} of ${rolled.dice.map(pad).join(' and ')}.` : ''
+  return rolled.success ? `Success. ${pad(rolled.result)} is at or under ${rolled.target}.${kept}` : `Failure. ${pad(rolled.result)} is over ${rolled.target}.${kept}`
+}
+
+/** "Handle Check at Disadvantage: at or under Handle". */
+export function checkAsk(check: NonNullable<NonNullable<CombatAttack['row']>['check']>): string {
+  const mode = check.advantage === 'normal' ? '' : ` at ${lubecAdvantageName(check.advantage)}`
+  return `${check.against} ${check.kind === 'save' ? 'Save' : 'Check'}${mode}: at or under ${check.against}`
 }

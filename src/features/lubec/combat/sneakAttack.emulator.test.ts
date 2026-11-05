@@ -14,6 +14,7 @@ import { commitCombatCommand, type CombatTransactionOptions } from './combatTran
 import { combatCommandJournal, createCombatCommand, type CombatJournalStorage } from './commandJournal'
 import { combatEntropy } from './engine/commandEntropy'
 import type { CombatAim, CombatCommand, CombatFight, CombatOutcome } from './engine/types'
+import { drainCombatWounds } from './woundDelivery'
 
 const scope = { groupId: 'sneak', campaignId: 'gym' }
 const root = 'groups/sneak/campaigns/gym'
@@ -228,7 +229,7 @@ describe('Defense, the catch and the landing between two clients', () => {
     expect(await commit(gm, await command(gm, 'late-catch', 'npc:roy', { type: 'catch' }), 'gm')).toMatchObject({ ok: false })
   })
 
-  it('lands an undefended hit, moves nothing, rolls Strength once, and leaves the Dodgeball wound pending', async () => {
+  it('lands an undefended hit, moves nothing, rolls Strength once, and reads the Dodgeball row', async () => {
     const gm = as('gm')
     const player = as('player')
     await grantAndAim(gm, player)
@@ -240,7 +241,87 @@ describe('Defense, the catch and the landing between two clients', () => {
     const first = await commit(player, strength, 'player')
     expect(await commit(player, structuredClone(strength), 'player')).toEqual(first)
     const { attack } = (await readFight(as('spectator'))).state
-    expect(attack).toMatchObject({ step: 'wound', outcome: 'pending-wound', landing: { part: landing.start, moved: 0 }, strength: { roll: first.ok ? first.rolls[0].value : 0 } })
-    expect(attack!.detached).toHaveLength(1)
+    // Impact is read on its Dodgeball row at once: applied, or waiting on Roy's Check or Save.
+    expect(attack).toMatchObject({ landing: { part: landing.start, moved: 0 }, strength: { roll: first.ok ? first.rolls[0].value : 0 }, row: { group: expect.any(String) } })
+  })
+})
+
+/** A seed whose command-bound dice satisfy each purpose's want, in the order the command rolls them. */
+function seedWith(id: string, wants: Record<string, (die: number) => boolean>): string {
+  for (let attempt = 0; ; attempt++) {
+    const text = `seed-${attempt}`
+    const probe = combatEntropy({ envelope: { id } as CombatCommand['envelope'], seed: text, payload: { type: 'probe' } })
+    if (Object.entries(wants).every(([purpose, want]) => want(probe.die(purpose, 100)))) return text
+  }
+}
+
+/** Wayne's throw hits with quality from `attack`, lands undefended where `landing` says, and rolls Strength as `strength` wants. */
+async function hitAndLand(gm: Firestore, player: Firestore, wants: { attack: (die: number) => boolean; landing: (die: number) => boolean; strength: (die: number) => boolean }) {
+  await grantAndAim(gm, player)
+  expect(await commit(player, await command(player, 'w-roll', HERO, { type: 'roll', aim }, seedWith('w-roll', { attack: wants.attack })), 'player')).toMatchObject({ ok: true })
+  expect(await commit(gm, await command(gm, 'w-defend', 'npc:roy', { type: 'defend', split: { amount: 0 } }, seedWith('w-defend', { landing: wants.landing })), 'gm')).toMatchObject({ ok: true })
+  const landing = (await readFight(player)).state.attack!.landing!
+  expect(await commit(player, await command(player, 'w-land', HERO, { type: 'land', part: landing.start }), 'player')).toMatchObject({ ok: true })
+  expect(await commit(player, await command(player, 'w-strength', HERO, { type: 'strength' }, seedWith('w-strength', { strength: wants.strength })), 'player')).toMatchObject({ ok: true })
+}
+
+describe('Dodgeball wounds and initiative between two clients', () => {
+  it('queues the player\'s wound on Roy, and the GM\'s delivery alone writes it to his sheet once', async () => {
+    const gm = as('gm')
+    const player = as('player')
+    // Quality 2 to the head with no Strength bonus: Glasses or hat knocked flying, 1 Stress.
+    await hitAndLand(gm, player, { attack: (die) => die >= 20 && die < 30, landing: (die) => die <= 11, strength: (die) => die > 29 })
+    const queued = (await readFight(player)).state
+    expect(queued.attack).toMatchObject({ outcome: 'wounded', row: { name: 'Glasses or hat knocked flying' } })
+    expect(queued.combatants.find((entry) => entry.key === 'npc:roy')!.outReason).toBe('wound')
+    expect(queued.woundOutbox).toHaveLength(1)
+    const stressBefore = (await getDoc(ref(gm, 'npcSheets/roy'))).data()!.lubec.counters.stress as number
+    await drainCombatWounds(gm, { ...scope, fightId: FIGHT }, 'gm')
+    await drainCombatWounds(as('gm'), { ...scope, fightId: FIGHT }, 'gm')
+    const roy = (await getDoc(ref(gm, 'npcSheets/roy'))).data()!
+    expect(roy.lubec.counters.stress).toBe(stressBefore + 1)
+    expect(roy.lubec.effects).toEqual([expect.objectContaining({ name: 'Glasses or hat knocked flying', combatOrigin: expect.objectContaining({ effectiveRound: 1 }) })])
+    const delivered = (await readFight(player)).state
+    expect(delivered.woundOutbox).toEqual([])
+    expect(delivered.woundAcknowledgements).toHaveLength(1)
+    expect(await commit(gm, await command(gm, 'begin', null, { type: 'begin' }), 'gm')).toMatchObject({ ok: true })
+  })
+
+  it('waits on the GM\'s Handle Check for Roy, names a missing Handle, and on repair catches the ball into his hand', async () => {
+    const gm = as('gm')
+    const player = as('player')
+    // Quality 1 to the torso or waist with no Strength bonus: Trapped against the chest.
+    await hitAndLand(gm, player, { attack: (die) => die >= 10 && die < 20, landing: (die) => die >= 14 && die <= 44, strength: (die) => die > 29 })
+    const waiting = (await readFight(player)).state
+    expect(waiting.attack).toMatchObject({ step: 'check', row: { name: 'Trapped against the chest' } })
+    expect(waiting.pendingActions).toEqual([{ combatantKey: 'npc:roy', action: 'check' }])
+    expect(await commit(player, await command(player, 'not-mine', 'npc:roy', { type: 'check' }), 'player')).toMatchObject({ ok: false })
+    const roy = (await getDoc(ref(gm, 'npcSheets/roy'))).data()!
+    await seed('npcSheets/roy', { ...roy, lubec: { ...roy.lubec, base: { ...roy.lubec.base, Handle: null } } })
+    expect(await commit(gm, await command(gm, 'check-holed', 'npc:roy', { type: 'check' }), 'gm')).toMatchObject({ ok: true, rolls: [] })
+    expect((await readFight(player)).state.attack).toMatchObject({ step: 'check', repair: expect.stringContaining('attack/Check Handle') })
+    await seed('npcSheets/roy', roy)
+    const check = await command(gm, 'check', 'npc:roy', { type: 'check' }, seedWith('check', { check: (die) => die <= 30 }))
+    expect(await commit(gm, check, 'gm')).toMatchObject({ ok: true, rolls: [{ purpose: 'check' }] })
+    const { state } = await readFight(player)
+    expect(state.attack).toMatchObject({ outcome: 'row-caught', closed: true, detached: [] })
+    expect(state.combatants.find((entry) => entry.key === HERO)!.outReason).toBe('caught')
+    expect((await getDoc(ref(gm, 'npcSheets/roy'))).data()!.lubec.gear.items).toEqual([expect.objectContaining({ name: 'Dodgeball', carrier: 'hands' })])
+  })
+
+  it('rolls initiative once from each client and starts round 1 Movement, the same on a retry', async () => {
+    const gm = as('gm')
+    const player = as('player')
+    expect(await commit(gm, await command(gm, 'begin', null, { type: 'begin' }), 'gm')).toMatchObject({ ok: true })
+    const mine = await command(player, 'init-hero', HERO, { type: 'initiative' })
+    const first = await commit(player, mine, 'player')
+    expect(first).toMatchObject({ ok: true, rolls: [{ purpose: 'initiative' }] })
+    expect(await commit(player, structuredClone(mine), 'player')).toEqual(first)
+    expect(await commit(player, await command(player, 'init-roy', 'npc:roy', { type: 'initiative' }), 'player')).toMatchObject({ ok: false })
+    expect(await commit(gm, await command(gm, 'init-npcs', null, { type: 'npcInitiative' }), 'gm')).toMatchObject({ ok: true })
+    const { state } = await readFight(as('spectator'))
+    expect(state).toMatchObject({ phase: 'movement', round: 1 })
+    expect(state.order).toHaveLength(2)
+    expect(state.combatants.every((entry) => entry.initiative?.sourceRevision === 2)).toBe(true)
   })
 })

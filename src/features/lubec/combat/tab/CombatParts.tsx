@@ -2,13 +2,20 @@ import type { ReactNode } from 'react'
 import { LubecKindGlyph } from '../../gear/LubecGearArt'
 import type { CombatFloorItem } from './combatFloorRows'
 
+const PIPS = ['Movement', 'Declare', 'Attack'] as const
+
+function Pips({ now }: { now: number }) {
+  const at = (index: number) => (index < now ? 'done' : index === now ? 'now' : '')
+  return <ol className="pips">{PIPS.map((pip, index) => <li key={pip} className={at(index)}><b>{index + 1}</b><span>{pip}</span></li>)}</ol>
+}
+
 /** The page head: the tab's title, the round and the stage under it, and the round's stage pips once rounds begin. */
-export function CombatHead({ round, stage }: { round: string; stage: string }) {
+export function CombatHead({ round, stage, pips = null }: { round: string; stage: string; pips?: number | null }) {
   return (
     <div className="chead">
       <span className="title">Combat</span>
       <span className="rnd">{round}<small>{stage}</small></span>
-      <span />
+      {pips === null ? <span /> : <Pips now={pips} />}
     </div>
   )
 }

@@ -38,7 +38,7 @@ function AimMiddle({ attack, attacker, ...props }: MiddleProps & { attack: Comba
     // Moment 2 stays in view, its badge on the attacker, above who the grant waits on.
     return (
       <>
-        <BeforeInitiativeGm state={state} onGrant={commands.grant} />
+        <BeforeInitiativeGm state={state} onGrant={commands.grant} onBegin={commands.begin} />
         <AttackGmWaiting state={state} attack={attack} attacker={attacker} onRange={(band, modifier) => void commands.range(band, modifier)} onActFor={() => props.onActFor(attacker.key)} />
       </>
     )
@@ -51,7 +51,7 @@ function MainMiddle(props: MiddleProps) {
   const attack = openAttack(state)
   if (attack?.step === 'aim') return <AimMiddle {...props} attack={attack} attacker={state.combatants.find((entry) => entry.key === attack.attackerKey)!} />
   if (attack) return <AttackResult state={state} attack={attack} controls={stepControls(props)} />
-  return viewer.role === 'gm' ? <BeforeInitiativeGm state={state} onGrant={props.commands.grant} /> : <CombatWaiting state={state} />
+  return viewer.role === 'gm' ? <BeforeInitiativeGm state={state} onGrant={props.commands.grant} onBegin={props.commands.begin} /> : <CombatWaiting state={state} />
 }
 
 /** Moment 2 with its grants: the last finished attack's result stays in view above the next choice. */

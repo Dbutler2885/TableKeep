@@ -257,7 +257,9 @@ describe('the doll, Strength and the wound', () => {
     show('player', 'marcy-uid', fightAfter(...placed, { type: 'strength', actor: WAYNE, dice: { strength: 31 } }))
     expect(screen.getByText('Strength roll: adds +3 to Impact')).toBeTruthy()
     expect([...document.querySelectorAll('.impact:not(.roll-chips) .chip dt')].map((term) => term.textContent)).toEqual(['Quality', 'Base', 'Strength 31', 'Moved', 'Impact'])
-    expect(screen.getByText('The wound is read on the Dodgeball table next.')).toBeTruthy()
+    expect(screen.getByText('Dodgeball · Torso and waist · Impact 5')).toBeTruthy()
+    expect(screen.getByText('Knocked down.').closest('.wb')!.textContent).toBe('Knocked down. Out.')
+    expect(screen.getByRole('heading', { name: 'Roy Carver is Out' })).toBeTruthy()
   })
 
   it('shows a failed Strength roll, armor as its own chip, and Impact of 0 or less as no wound', () => {

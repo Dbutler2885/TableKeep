@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Combatant, CombatState } from '../engine/types'
-import { combatPhaseView } from './combatPhases'
+import { beginBlocked, combatPhaseView } from './combatPhases'
 import { CombatStepper, CombatWindow } from './CombatParts'
 
 /** The fight window's stepper for the fight's phase. */
@@ -8,8 +8,6 @@ export function PhaseStepper({ state }: { state: CombatState }) {
   const view = combatPhaseView(state)
   return <CombatStepper steps={view.steps} now={view.now} />
 }
-
-const NOT_YET = 'Not available in this build yet.'
 
 type GrantRowProps = { combatant: Combatant; running: boolean; open: boolean; busy: boolean; onGrant: (key: string) => void }
 
@@ -23,24 +21,30 @@ function GrantRow({ combatant, running, open, busy, onGrant }: GrantRowProps) {
   )
 }
 
-type BeforeProps = { state: CombatState; onGrant: (key: string) => Promise<string | null> }
+type BeforeProps = { state: CombatState; onGrant: (key: string) => Promise<string | null>; onBegin: () => Promise<string | null> }
+
+function BeginButton({ state, onBegin, busy, run }: { state: CombatState; onBegin: () => Promise<string | null>; busy: boolean; run: (act: () => Promise<string | null>) => void }) {
+  const blocked = beginBlocked(state)
+  return <button type="button" className="btn rust" disabled={busy || blocked !== null} title={blocked ?? undefined} onClick={() => run(onBegin)}>Begin Combat - Roll Initiative</button>
+}
 
 /** Moment 2 for the GM: everyone not Out beside the Grant Sneak Attack button, one grant at a time, and the way on to initiative. */
-export function BeforeInitiativeGm({ state, onGrant }: BeforeProps) {
+export function BeforeInitiativeGm({ state, onGrant, onBegin }: BeforeProps) {
   const [busy, setBusy] = useState(false)
   const [refusal, setRefusal] = useState<string | null>(null)
   const inFight = state.combatants.filter((combatant: Combatant) => combatant.outReason === null)
   const open = state.attack !== null && !state.attack.closed
-  const grant = async (key: string) => {
+  const run = async (act: () => Promise<string | null>) => {
     setBusy(true)
-    setRefusal(await onGrant(key))
+    setRefusal(await act())
     setBusy(false)
   }
+  const grant = (key: string) => run(() => onGrant(key))
   return (
     <CombatWindow
       title="Before initiative"
       stepper={<PhaseStepper state={state} />}
-      foot={<><span className="note">Nobody is in the turn order yet.</span><button type="button" className="btn rust" disabled title={NOT_YET}>Begin Combat - Roll Initiative</button></>}
+      foot={<><span className="note">Nobody is in the turn order yet.</span><BeginButton state={state} onBegin={onBegin} busy={busy} run={(act) => void run(act)} /></>}
     >
       {refusal ? <div className="notice hot" role="alert"><span>{refusal}</span></div> : null}
       <p className="ask">Grant a Sneak Attack and that person&apos;s attack runs at once.</p>
@@ -52,13 +56,21 @@ export function BeforeInitiativeGm({ state, onGrant }: BeforeProps) {
 }
 
 /** The middle for anyone the fight is not waiting on: who it waits on, with the rails still in view. */
+/** What the middle says while the fight waits: Before initiative on the GM's grants, a round on its stage. */
+const WAITS: Readonly<Record<string, (state: CombatState) => { label: string; words: string }>> = {
+  'before-initiative': () => ({ label: 'Before initiative', words: 'The GM may grant a Sneak Attack before rolling initiative.' }),
+}
+
+const roundWait = (state: CombatState) => ({ label: `Round ${state.round} · ${combatPhaseView(state).stage}`, words: 'Movement opens here when it is built; for now the GM runs the round at the table.' })
+
 export function CombatWaiting({ state }: { state: CombatState }) {
+  const wait = (WAITS[state.phase] ?? roundWait)(state)
   return (
     <CombatWindow title="Waiting" stepper={<PhaseStepper state={state} />} foot={<span className="note">The turn order and the Floor stay in view on either side.</span>}>
       <div className="bigwait">
-        <span className="label">Before initiative</span>
+        <span className="label">{wait.label}</span>
         <h3>The fight is waiting on the GM<span className="dots" /></h3>
-        <p>The GM may grant a Sneak Attack before rolling initiative.</p>
+        <p>{wait.words}</p>
       </div>
     </CombatWindow>
   )

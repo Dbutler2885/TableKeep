@@ -1,29 +1,7 @@
 import type { LubecDetachedItem } from '../../../ruleSets/lubec/gear/detachedItems'
-import type { Combatant } from '../engine/types'
 import { combatCatchLine, combatFloorRows, type CombatFloorRow } from './combatFloorRows'
-import { combatantRole } from './combatPhases'
 import { CombatFloorIcon, CombatPanel } from './CombatParts'
 
-
-function InFightRow({ combatant, userId }: { combatant: Combatant; userId: string }) {
-  const out = combatant.outReason !== null
-  return (
-    <li className={out ? 'out' : ''}>
-      <span className="n">·</span>
-      <span><span className="nm">{combatant.name}</span><small>{combatantRole(combatant, userId)} · Speed {combatant.speed}</small></span>
-      <span>{out ? <span className="badge rust">Out</span> : null}</span>
-    </li>
-  )
-}
-
-/** Before initiative the left rail lists everyone in the fight, in no order yet. */
-export function InFightPanel({ combatants, userId }: { combatants: readonly Combatant[]; userId: string }) {
-  return (
-    <CombatPanel title="In the fight" sub="no order yet">
-      <ul className="turns">{combatants.map((combatant) => <InFightRow key={combatant.key} combatant={combatant} userId={userId} />)}</ul>
-    </CombatPanel>
-  )
-}
 
 /** One Floor row: the item's mark, its name and catch words, and how many. */
 export function CombatFloorRowView({ row }: { row: Pick<CombatFloorRow, 'item' | 'count'> }) {

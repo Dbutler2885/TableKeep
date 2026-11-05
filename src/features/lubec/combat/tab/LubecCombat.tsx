@@ -19,7 +19,8 @@ import { NO_ROSTER, type CombatRosterRecords } from './combatFightCombatants'
 import { CombatPhaseMiddle } from './CombatPhaseMiddle'
 import { useCombatPlayerRoster } from './useCombatPlayerRoster'
 import { combatPhaseView } from './combatPhases'
-import { CombatFloorPanel, InFightPanel } from './CombatRails'
+import { CombatFloorPanel } from './CombatRails'
+import { TurnOrderPanel } from './TurnOrder'
 import { CombatSetup, type CombatSetupStart } from './CombatSetup'
 import { combatFloorSelections, type CombatSetupIssue } from './combatSetupModel'
 import { useCombatGmData } from './useCombatGmData'
@@ -32,9 +33,9 @@ function CombatLayout({ state, userId, stage, tools = null, middle, onPlace = nu
   const view = combatPhaseView(state)
   return (
     <>
-      <CombatHead round={view.round} stage={stage ?? view.stage} />
+      <CombatHead round={view.round} stage={stage ?? view.stage} pips={view.pips} />
       <div className="ct">
-        <div className="rail"><InFightPanel combatants={state.combatants} userId={userId} /></div>
+        <div className="rail"><TurnOrderPanel state={state} userId={userId} /></div>
         <div className="mid">{tools}{middle}</div>
         <div className="rail"><CombatFloorPanel floor={state.floor} onPlace={onPlace} /></div>
         <CombatTicker />
