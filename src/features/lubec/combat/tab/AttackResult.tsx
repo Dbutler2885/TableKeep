@@ -65,7 +65,7 @@ export function AttackResult({ state, attack, controls = null }: { state: Combat
   if (!rolled(attack)) return null
   const attacker = combatantName(state, attack.attackerKey)
   return (
-    <CombatWindow title="Result" stepper={<CombatStepper steps={STEPPER} now={resultStepperNow(attack)} />} foot={<span className="note">{resultFoot(attack)}</span>}>
+    <CombatWindow title="Result" stepper={<CombatStepper steps={STEPPER} now={resultStepperNow(attack)} />} foot={<span className="note">{resultFoot(attack, state.round)}</span>}>
       <div className="trail">
         <span className="who"><small>{isThrow(attack.frozen) ? 'Thrower' : 'Attacker'}</small>{attacker}</span>
         <span className="who"><small>Target</small>{combatantName(state, attack.aim?.targetKey)}</span>

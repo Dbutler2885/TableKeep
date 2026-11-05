@@ -76,13 +76,14 @@ const targetNote = (state: CombatState) => (target: LubecCombatant): string => {
   return `${combatant.kind === 'npc' ? 'NPC' : 'Player'} · Speed ${combatant.speed}`
 }
 
-type ChoicesProps = { body: BodyProps; draft: AttackDraft; setDraft: (draft: AttackDraft) => void; model: AttackWindowModel; locked: boolean }
+type ChoicesProps = { body: BodyProps; draft: AttackDraft; setDraft: (draft: AttackDraft) => void; model: AttackWindowModel }
 
-function WindowChoices({ body, draft, setDraft, model, locked }: ChoicesProps) {
+/** The choices look as the mock-up draws them in every window; a declared attack's engine refuses a change to what has not gone, and says so. */
+function WindowChoices({ body, draft, setDraft, model }: ChoicesProps) {
   return (
     <LubecFightWindowContent
       request={{ attacker: body.fighter, target: model.target, weaponItemId: draft.weaponItemId ?? undefined, attackId: draft.attackId ?? undefined }}
-      targets={model.targets} targetNote={targetNote(body.state)} onInventory={body.onInventory} readOnly={locked}
+      targets={model.targets} targetNote={targetNote(body.state)} onInventory={body.onInventory}
       onTarget={(key) => setDraft({ ...draft, targetKey: key })}
       onWeapon={(id) => setDraft(withWeapon(draft, body.sheet, id))}
       onAttack={(id) => setDraft({ ...draft, attackId: id })}
@@ -172,7 +173,7 @@ function WindowBody(body: BodyProps) {
     <>
       <WindowNotices body={body} refusal={refusal} gone={gone} />
       <AttackTrail attacker={body.attacker} round={body.state.round} />
-      <WindowChoices body={body} draft={draft} setDraft={setDraft} model={model} locked={declared && !gone.target && !gone.weapon} />
+      <WindowChoices body={body} draft={draft} setDraft={setDraft} model={model} />
       <ChooseAgain body={body} gone={gone} refuse={refuse} />
       <WindowRange body={body} model={model} refuse={refuse} />
       <WindowSplit model={model} draft={draft} setDraft={setDraft} busy={roll.busy} onRoll={roll.roll} state={body.state} declared={declared} />
