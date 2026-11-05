@@ -1,4 +1,5 @@
 import { lubecEffectiveHandle } from '../../../ruleSets/lubec/derivations'
+import type { LubecArrival } from '../../../ruleSets/lubec/gear/arrival'
 import { lubecPlaceDetached, type LubecDetachedItem } from '../../../ruleSets/lubec/gear/detachedItems'
 import type { LubecItem } from '../../../ruleSets/lubec/gear/gearRecord'
 import { place } from '../../../ruleSets/lubec/gear/placement'
@@ -13,11 +14,14 @@ import type { CombatAttack, CombatCommand, Combatant, CombatDefenseRoll, CombatF
 type Split = { amount: number; full: boolean }
 
 /** The defender's grant-local split: whole tens of their own Handle, or Full Defense's whole pool. */
+const isSplitAmount = (amount: unknown, pool: number): amount is number =>
+  Number.isSafeInteger(amount) && (amount as number) >= 0 && (amount as number) % 10 === 0 && (amount as number) <= pool
+
 function readSplit(raw: unknown, pool: number): Split {
   const { amount, full } = (raw ?? {}) as Record<string, unknown>
   if (full === true) return { amount: pool, full: true }
-  if (!Number.isSafeInteger(amount) || (amount as number) < 0 || (amount as number) % 10 !== 0 || (amount as number) > pool) throw new Error('Keep Defense in tens, within your Handle.')
-  return { amount: amount as number, full: false }
+  if (!isSplitAmount(amount, pool)) throw new Error('Keep Defense in tens, within your Handle.')
+  return { amount, full: false }
 }
 
 /** Strictly under its number; a success takes off its tens digit plus 1, a failure nothing. Full Defense adds 10, capped at 100. */
@@ -31,11 +35,15 @@ function rollDefense(split: Split, entropy: CombatEntropy): CombatDefenseRoll {
 const caughtItem = (attack: CombatAttack): LubecItem | null => (attack.detached[0]?.item as LubecItem | undefined) ?? null
 
 /** A catch needs a stopped throw, an item with a chance above 0 and a free hand for it; 10 more per point below 0, capped at 100. */
-export function catchChance(attack: CombatAttack, sheet: CombatSheet, net: number): number {
+const catchable = (attack: CombatAttack): LubecItem | null => {
   const item = caughtItem(attack)
-  const base = item?.catchChance ?? 0
-  if (!item || base <= 0 || !place(sheet.sheet.gear, 'hands', item).ok) return 0
-  return Math.min(100, base + 10 * -net)
+  return (item?.catchChance ?? 0) > 0 ? item : null
+}
+
+export function catchChance(attack: CombatAttack, sheet: CombatSheet, net: number): number {
+  const item = catchable(attack)
+  if (!item || !place(sheet.sheet.gear, 'hands', item).ok) return 0
+  return Math.min(100, item.catchChance! + 10 * -net)
 }
 
 function defenseLog(defender: Combatant, attack: CombatAttack, defense: CombatDefenseRoll, net: number) {
@@ -53,7 +61,9 @@ function afterDefense(state: CombatState, attack: CombatAttack, record: CombatSh
   if (!attack.defense?.success || net > 0) return toLocation(state, attack, net, entropy)
   const chance = catchChance(attack, record, net)
   if (chance <= 0) return closeAttack(state, attack, 'dodged')
-  return { ...state, attack: { ...attack, step: 'catch', net, catchChance: chance }, pendingActions: stepRequest(defenderOf(attack), 'catch') }
+  const item = caughtItem(attack)!
+  const catchItem = { name: item.name, chance: item.catchChance! }
+  return { ...state, attack: { ...attack, step: 'catch', net, catchChance: chance, catchItem }, pendingActions: stepRequest(defenderOf(attack), 'catch') }
 }
 
 function defended(fight: CombatFight, attack: CombatAttack, record: CombatSheet, command: CombatCommand, entropy: CombatEntropy): CombatPlan {
@@ -97,9 +107,8 @@ const outOnCatch = (state: CombatState, attack: CombatAttack, item: LubecItem) =
 
 /** A success puts the object in the catcher's first free hand, and the thrower Out when the item says so. */
 function caught(fight: CombatFight, attack: CombatAttack, record: CombatSheet, detached: LubecDetachedItem, command: CombatCommand): CombatPlan {
-  const arrival = lubecPlaceDetached(record.sheet.gear, detached, { commandId: command.envelope.id, role: 'catch' }, 'hands')
-  // The free hand was checked in this same transaction before the roll.
-  if (!arrival.ok) throw new Error(arrival.msg)
+  // The free hand was checked in this same transaction before the roll, so the placement succeeds.
+  const arrival = lubecPlaceDetached(record.sheet.gear, detached, { commandId: command.envelope.id, role: 'catch' }, 'hands') as Extract<LubecArrival, { ok: true }>
   const item = detached.item as LubecItem
   const state = closeAttack({ ...fight.state, combatants: outOnCatch(fight.state, attack, item) }, { ...attack, detached: [] }, 'caught')
   return { fight: { ...fight, state }, items: [], logs: [], sheets: [{ selection: { kind: record.kind, sheetId: record.sheetId }, gear: arrival.gear }] }

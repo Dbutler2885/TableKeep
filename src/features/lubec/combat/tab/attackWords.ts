@@ -51,12 +51,6 @@ export function attackVerdict(roll: CombatAttackRoll): string {
   return `A hit${roll.critical ? ', a critical' : ''}. Attack Quality ${roll.quality}.`
 }
 
-/** What a hit leaves for the next steps, as the mock-up lists them. */
-export function laterSteps(frozen: CombatFrozenAim): string {
-  const steps = frozen.choice.firearm ? ['Where it lands', 'The wound'] : ['Defense roll', 'Where it lands', 'The wound']
-  return `Still to come: ${steps.join(', ')}`
-}
-
 export function missWords(attacker: string, frozen: CombatFrozenAim): string {
   if (!isThrow(frozen)) return `${attacker}'s attack misses.`
   return `${attacker}'s throw goes wide. The ${frozen.weaponName.toLowerCase()} left the hand at the Roll and lands on the Floor.`

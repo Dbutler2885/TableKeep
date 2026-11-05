@@ -69,6 +69,8 @@ export type CombatAttack = {
   catch?: CombatCatchRoll | null
   /** The catch chance once Defense stopped a catchable throw. */
   catchChance?: number | null
+  /** The thrown item's name and own chance, kept for the catch card after the object has moved on. */
+  catchItem?: { name: string; chance: number } | null
   landing?: CombatLanding | null
   strength?: CombatStrengthRoll | null
   impact?: CombatImpact | null

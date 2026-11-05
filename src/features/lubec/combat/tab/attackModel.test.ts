@@ -11,7 +11,7 @@ import { LUBEC_FISTICUFFS_ID } from '../../fight/lubecFightRequest'
 import type { CombatAttack, Combatant, CombatFrozenAim, CombatState } from '../engine/types'
 import { attackSegments, attackSum, barPercent, completeAim, defaultAttack, defaultWeapon, initialDraft, labelPlace, outcomeClass, rollText, sameAim, segmentMiddle, withDefense, withWeapon } from './attackDraft'
 import { attackWindowModel, heldAim, rollReady, windowReading } from './attackWindowModel'
-import { attackLine, attackVerdict, bandLabel, combatantName, controlsAttacker, isThrow, laterSteps, missWords, pressedBand, resultFoot, waitsOnGm } from './attackWords'
+import { attackLine, attackVerdict, bandLabel, combatantName, controlsAttacker, isThrow, missWords, pressedBand, resultFoot, waitsOnGm } from './attackWords'
 import { combatFightCombatant, NO_ROSTER } from './combatFightCombatants'
 
 const inHand = (id: string, slot: number, extra: Record<string, unknown> = {}) =>
@@ -158,7 +158,6 @@ describe('the words', () => {
     expect(attackVerdict({ roll: 22, attackNumber: 36, hit: true, critical: true, quality: 3 })).toBe('A hit, a critical. Attack Quality 3.')
     expect(attackVerdict({ roll: 7, attackNumber: 36, hit: true, critical: false, quality: 0 })).toBe('A hit. Attack Quality 0.')
     expect(attackVerdict({ roll: 90, attackNumber: 36, hit: false, critical: false, quality: null })).toBe('A miss: 90 is not under 36.')
-    expect([laterSteps(frozen()), laterSteps(gun)]).toEqual(['Still to come: Defense roll, Where it lands, The wound', 'Still to come: Where it lands, The wound'])
     expect(missWords('Wayne', punch)).toBe("Wayne's attack misses.")
     expect(missWords('Wayne', frozen())).toBe("Wayne's throw goes wide. The dodgeball left the hand at the Roll and lands on the Floor.")
     expect([resultFoot(attack({ closed: true })), resultFoot(attack())]).toEqual(['The GM may grant another Sneak Attack, or roll initiative.', 'Every roll lands on every screen as a card, then settles into the ticker.'])
@@ -172,5 +171,12 @@ describe('combatants as the fight modal reads them', () => {
     expect(combatFightCombatant(roy, { characters: [], npcs: [{ npc, sheet }] })).toMatchObject({ kind: 'npc', npc: { name: 'Roy Carver' }, sheet })
     expect(combatFightCombatant(roy, NO_ROSTER)).toMatchObject({ kind: 'npc', npc: { id: 'roy', name: 'Roy' }, sheet: null, summary: { armor: [], woundLevel: null } })
     expect(combatFightCombatant(wayne, NO_ROSTER)).toBeNull()
+  })
+})
+
+describe('result sequence words', () => {
+  it('names a wound table it does not know by its key', async () => {
+    const { tableName } = await import('./resultSequence')
+    expect([tableName('dodgeball'), tableName('mystery')]).toEqual(['Dodgeball', 'mystery'])
   })
 })

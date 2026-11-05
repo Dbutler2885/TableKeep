@@ -17,10 +17,9 @@ function readPart(attack: CombatAttack, raw: unknown): { part: string; moved: nu
   return { part: String(raw), moved }
 }
 
-const impactLog = (fight: CombatFight, attacker: string): CombatLog[] => {
-  const impact = fight.state.attack?.impact
-  return impact ? [{ event: impactWords(impact), actor: attacker }] : []
-}
+/** Every finished hit has its Impact on the attack, waiting or closed. */
+const impactLog = (fight: CombatFight, attacker: string): CombatLog[] =>
+  [{ event: impactWords(fight.state.attack!.impact!), actor: attacker }]
 
 /** The attacker keeps or moves the landing; a firearm skips Strength straight to Impact. */
 const land: CombatHandler = (command, records, authority) => {

@@ -106,6 +106,7 @@ describe('the defender\'s grant-local Defense', () => {
     expect(rolls.map((roll) => (roll as { purpose: string }).purpose)).toEqual(['landing'])
     expect(plan.fight.state.attack).toMatchObject({ step: 'location', net: 2, defense: null })
     expect(() => defend(thrown(27).records, { amount: 25 }, {})).toThrow('in tens')
+    expect(() => act(thrown(27).records, { type: 'defend', actor: ROY })).toThrow('in tens')
     expect(() => defend(thrown(27).records, { amount: 60 }, {})).toThrow('within your Handle')
   })
 
@@ -122,7 +123,7 @@ describe('the defender\'s grant-local Defense', () => {
 describe('the catch', () => {
   it('drops a ball Defense took to 0 when the catch fails: still a dodge, the ball on the Floor', () => {
     const stopped = defend(thrown(14).records, { amount: 20 }, { defense: 5 }).records
-    expect(state(stopped).attack).toMatchObject({ step: 'catch', net: 0, catchChance: 50 })
+    expect(state(stopped).attack).toMatchObject({ step: 'catch', net: 0, catchChance: 50, catchItem: { name: 'Dodgeball', chance: 50 } })
     expect(state(stopped).pendingActions).toEqual([{ combatantKey: ROY, action: 'catch' }])
     const { plan } = act(stopped, { type: 'catch', actor: ROY, dice: { catch: 71 } })
     expect(plan.fight.state.attack).toMatchObject({ step: 'done', closed: true, outcome: 'dropped', catch: { chance: 50, roll: 71, success: false } })
@@ -270,6 +271,18 @@ describe('hit location data', () => {
   it('reads armor on a part from the public summary, and Impact from its parts', () => {
     expect(armorAtPart([{ locs: ['torso'], armor: { blunt: 2, cut: 1, pierce: 0, gun: 0 } }], 'torso', 'cut')).toBe(1)
     expect(armorAtPart([], 'torso', 'cut')).toBe(0)
+  })
+})
+
+describe('a thrown blade', () => {
+  it('uses its own thrown Impact, which may be negative, and words it with a minus', () => {
+    const thrownKnife = inHand('knife', 'Knife', 1, { mode: 'melee', impact: 1, wounds: ['cut'], canThrow: true, thrownImpact: -1, thrownWound: 'cut' })
+    const records = fight([hero([ball(), thrownKnife]), roy()])
+    const aim = { targetKey: ROY, weaponItemId: 'knife', attackId: 'throw', defense: null }
+    const placed = act(defend(thrown(37, records, aim).records, { amount: 0 }, { landing: 30 }).records, { type: 'land', actor: HERO, by: player, part: 'waist' }).records
+    const { plan } = act(placed, { type: 'strength', actor: HERO, by: player, dice: { strength: 99 } })
+    expect(plan.fight.state.attack!.impact).toMatchObject({ base: -1, total: 2, table: 'cutting' })
+    expect(plan.logs.at(-1)!.event).toBe('Impact 2 = quality 3 −1 base +0 Strength − 0 moved − 0 armor.')
   })
 })
 
