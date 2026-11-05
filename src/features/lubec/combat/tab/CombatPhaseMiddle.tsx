@@ -51,7 +51,7 @@ export function CombatPhaseMiddle({ campaign, live, viewer, roster, send, onActF
   const { state } = live.fight
   // Tapping a hand opens that sheet's inventory: the character's own, or for the GM an NPC's sheet.
   const onInventory = (attacker: { kind: 'character' | 'npc'; sheetId: string }) => {
-    requestOpen(attacker.kind, attacker.sheetId)
+    requestOpen(attacker.kind, attacker.sheetId, 'gear')
     void navigate(campaignTabPath(campaign.groupId, campaign.id, attacker.kind === 'npc' ? 'npcs' : 'character'))
   }
   const props = { state, fightId: live.id, viewer, roster, commands, onActFor, onInventory }
