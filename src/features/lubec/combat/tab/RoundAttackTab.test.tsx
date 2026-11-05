@@ -201,10 +201,11 @@ describe('a declared attack on its turn', () => {
     expect(button('Pass')).toBeTruthy()
   })
 
-  it('keeps the round\'s last result in view when the next round begins', () => {
+  it('gives the finished result way to the next round, keeping only its outcome in view', () => {
     show('player', 'wayne-uid', fightAfter(...wayneTurn, range, { type: 'roll', actor: WAYNE, aim: wayneThrow, dice: { attack: 99 } }))
     expect(screen.getByText('What do you do this round?')).toBeTruthy()
-    expect(screen.getByRole('region', { name: 'Result' })).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Result' })).toBeNull()
+    expect(screen.getByRole('heading', { name: 'A miss' })).toBeTruthy()
   })
 
   it('says Out stopped an attack already rolled, and strikes the stopped declaration', () => {

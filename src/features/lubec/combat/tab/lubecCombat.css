@@ -379,3 +379,4 @@
 .shell-root[data-theme="lubec"] .lubec-combat .gmtools .who-pick > span { color: var(--lubec-muted); font: 800 .52rem/1.2 var(--lubec-type); letter-spacing: .1em; text-transform: uppercase; }
 .shell-root[data-theme="lubec"] .lubec-combat .win-grid.again { grid-template-columns: minmax(0, 1fr); margin: .6rem 0 0; }
 .shell-root[data-theme="lubec"] .lubec-combat .pass-line { margin: .4rem 0 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .last-outcome { margin: 0 0 .9rem; }

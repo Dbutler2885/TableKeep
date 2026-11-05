@@ -3,6 +3,7 @@ import { combatAttackers } from '../engine/declare'
 import type { CombatAttack, Combatant, CombatState } from '../engine/types'
 import { AttackResult } from './AttackResult'
 import { AttackGmWaiting } from './AttackWaiting'
+import { OutcomeBanner } from './OutcomeBanner'
 import { combatantName, controlsAttacker, waitsOnGm, type CombatViewer } from './attackWords'
 import { PhaseStepper } from './CombatMiddles'
 import { CombatWindow } from './CombatParts'
@@ -50,9 +51,12 @@ function OpenAttack({ attack, ...props }: MiddleProps & { attack: CombatAttack }
   return <AttackTurnWaiting state={state} attack={attack} attacker={attacker} viewer={viewer} />
 }
 
-/** The round's last finished attack, kept in view while the next turn or the next round begins. */
+/**
+ * When the next turn or round opens, the finished result gives way to it: only its outcome banner stays above,
+ * so one main panel shows at a time and the turn order and the rail show the rest.
+ */
 export function LastResult({ state }: { state: CombatState }): ReactNode {
-  return state.lastAttack ? <AttackResult state={state} attack={state.lastAttack} /> : null
+  return state.lastAttack ? <div className="last-outcome"><OutcomeBanner state={state} attack={state.lastAttack} /></div> : null
 }
 
 /** Moments 6 to 10 in a round: the last result, then the attack whose turn it is. */
