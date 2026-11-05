@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { Fragment, useState, type ReactNode } from 'react'
 import { lubecCurrentValue, lubecEffectiveHandle } from '../../../ruleSets/lubec/derivations'
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
 import { lubecCombatantRecord, type LubecCombatant } from '../../fight/lubecFightRequest'
@@ -190,7 +190,7 @@ function LocationLayout({ landing, part, distances, reach, target, onPick, child
     <div className="doll-step">
       <div>
         <CombatDoll start={landing} chosen={part} distances={distances} reach={reach} onPick={onPick} />
-        <p className="map-legend"><span><i className="reach-key" />In reach</span><span><i className="chosen-key" />Chosen</span></p>
+        <p className="map-legend"><span><i className="cross-key"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true"><circle cx="12" cy="12" r="6" /><path d="M1 12h22M12 1v22" /></svg></i>Landed</span><span><i className="reach-key" />In reach</span><span><i className="chosen-key" />Chosen</span></p>
       </div>
       <div>
         <p className="ask">It lands on {target}&apos;s {lower(landing)}.</p>
@@ -241,7 +241,9 @@ function StrengthBar(props: StepProps) {
 function ImpactChips({ attack }: { attack: CombatAttack }) {
   return (
     <div className="impact">
-      {impactChips(attack.impact!).map((chip) => <span key={chip.term} className="impact-term">{chip.op ? <span className="op">{chip.op}</span> : null}<dl className={`chip ${chip.cls}`}><dt>{chip.term}</dt><dd>{chip.value}</dd></dl></span>)}
+      {impactChips(attack.impact!, attack.strength?.roll ?? null).map((chip) => (
+        <Fragment key={chip.term}>{chip.op ? <span className="op">{chip.op}</span> : null}<dl className={`chip ${chip.cls}`}><dt>{chip.term}</dt><dd>{chip.value}</dd></dl></Fragment>
+      ))}
     </div>
   )
 }

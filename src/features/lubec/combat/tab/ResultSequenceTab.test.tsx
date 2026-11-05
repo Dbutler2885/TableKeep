@@ -186,6 +186,13 @@ describe('the catch', () => {
     expect(screen.getByText('Dropped. 71 is not under 60: still a dodge.')).toBeTruthy()
   })
 
+  it('shows no banner for an attack interrupted before it ended', () => {
+    const live = stopped()
+    live.fight.state.attack = { ...live.fight.state.attack!, closed: true, detached: [] }
+    show('player', 'marcy-uid', live)
+    expect(document.querySelector('.outcome')).toBeNull()
+  })
+
   it('ends a stop with no catch possible as a dodge', () => {
     show('player', 'marcy-uid', fightAfter(...defended(14, { amount: 20 }, { defense: 5 }, slashAt)))
     expect(screen.getByRole('heading', { name: 'Dodged' }).nextSibling!.textContent).toBe('Roy Carver stops it. Wayne Gardner is not Out.')
@@ -223,7 +230,7 @@ describe('the doll, Strength and the wound', () => {
     cleanup()
     show('player', 'marcy-uid', fightAfter(...placed, { type: 'strength', actor: WAYNE, dice: { strength: 31 } }))
     expect(screen.getByText('Strength roll: adds +3 to Impact')).toBeTruthy()
-    expect([...document.querySelectorAll('.impact:not(.roll-chips) .chip dt')].map((term) => term.textContent)).toEqual(['Quality', 'Base', 'Strength', 'Moved', 'Impact'])
+    expect([...document.querySelectorAll('.impact:not(.roll-chips) .chip dt')].map((term) => term.textContent)).toEqual(['Quality', 'Base', 'Strength 31', 'Moved', 'Impact'])
     expect(screen.getByText('The wound is read on the Dodgeball table next.')).toBeTruthy()
   })
 

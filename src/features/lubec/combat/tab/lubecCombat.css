@@ -305,3 +305,6 @@
   .shell-root[data-theme="lubec"] .lubec-combat :is(.doll-step) { grid-template-columns: minmax(0, 1fr); }
   .shell-root[data-theme="lubec"] .lubec-combat .impact { flex-wrap: wrap; }
 }
+.shell-root[data-theme="lubec"] .lubec-combat .chips .op.cap { margin-left: .4rem; font-size: .7rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .map-legend i.cross-key { width: .8rem; height: .8rem; border: 0; background: none; vertical-align: -.15rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .map-legend i.cross-key svg { display: block; width: 100%; height: 100%; }

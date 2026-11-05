@@ -28,7 +28,9 @@ export const shownCards = (attack: CombatAttack): ResultStep[] =>
 /** What is still to come after the waiting card, while the attack is open. */
 const LATER: Readonly<Record<string, readonly string[]>> = {
   defense: [STEP_NAMES.location, STEP_NAMES.wound],
+  catch: ['the result'],
   location: [STEP_NAMES.wound],
+  strength: ['the result'],
 }
 
 export function stillToCome(attack: CombatAttack): string | null {
@@ -40,6 +42,8 @@ export function stillToCome(attack: CombatAttack): string | null {
 const STEPPER_NOW: Readonly<Record<string, number>> = { aim: 0, defense: 1, catch: 2, location: 2, strength: 3, wound: 3, done: 4 }
 export const resultStepperNow = (attack: CombatAttack): number => STEPPER_NOW[attack.step]
 
+const pad = (value: number): string => String(value).padStart(2, '0')
+
 /** Named wound tables; the rest read as their key. */
 const TABLE_NAMES: Readonly<Record<string, string>> = {
   dodgeball: 'Dodgeball', thrown: 'Thrown Objects', cutting: 'Cutting', piercing: 'Piercing', blunt: 'Blunt', fisticuffs: 'Fisticuffs', gunshot: 'Gunshot',
@@ -48,18 +52,17 @@ export const tableName = (table: string): string => TABLE_NAMES[table] ?? table
 
 
 /** Impact's chips in the mock-up's order: Quality + Base + Strength − Moved − armor (only when there is some) = Impact. */
-export function impactChips(impact: CombatImpact): { term: string; value: string; op: string; cls: string }[] {
+export function impactChips(impact: CombatImpact, strengthRoll: number | null): { term: string; value: string; op: string; cls: string }[] {
   return [
     { term: 'Quality', value: String(impact.quality), op: '', cls: '' },
     { term: 'Base', value: signed(impact.base), op: '+', cls: '' },
-    ...(impact.strength === null ? [] : [{ term: 'Strength', value: signed(impact.strength), op: '+', cls: '' }]),
+    ...(impact.strength === null ? [] : [{ term: `Strength ${pad(strengthRoll!)}`, value: signed(impact.strength), op: '+', cls: '' }]),
     { term: 'Moved', value: String(impact.moved), op: '−', cls: 'armor' },
     ...(impact.armor > 0 ? [{ term: 'Armor', value: String(impact.armor), op: '−', cls: 'armor' }] : []),
     { term: 'Impact', value: String(impact.total), op: '=', cls: 'on' },
   ]
 }
 
-const pad = (value: number): string => String(value).padStart(2, '0')
 
 export const defenseVerdict = (defense: CombatDefenseRoll): string =>
   (defense.success ? `Defense holds. It takes off ${Math.floor(defense.roll / 10)} + 1 = ${defense.removes}.` : 'Defense fails. It takes off nothing.')
