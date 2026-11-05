@@ -6,6 +6,7 @@ import { combatantKey } from './engine/inputs'
 import type { CombatFight } from './engine/types'
 import { combatWoundIntention, combatWoundOperationId } from './woundIntention'
 import { readWoundFight, readWoundSheet, requireWoundFightLive, requireWoundGm } from './woundRecords'
+import { requireFreshWoundRead, retryStaleWoundRead } from './woundStaleRead'
 import type { CombatWound, CombatWoundAcknowledgement, CombatWoundScope } from './woundTypes'
 
 type WoundAttempt = { ref: DocumentReference; revision: number }
@@ -22,6 +23,7 @@ async function applyWound(db: Firestore, tx: Transaction, scope: CombatWoundScop
   const { ref, raw } = await readWoundSheet(db, tx, scope, wound.target)
   const operationId = await combatWoundOperationId(scope.fightId, wound.id)
   const prepared = await prepareSheetIntention(tx, ref, combatWoundIntention(raw, wound, scope.fightId, operationId))
+  requireFreshWoundRead(prepared)
   if (prepared.outcome.status === 'repair') throw new Error(`Wound delivery needs sheet repair: ${prepared.outcome.code}`)
   recordAttempt({ ref, revision: prepared.outcome.revision })
   const acknowledgement: CombatWoundAcknowledgement = {
@@ -52,10 +54,10 @@ async function deliver(db: Firestore, tx: Transaction, scope: CombatWoundScope, 
 /** The sheet, receipt, queue removal and retained revision acknowledgement commit together. */
 export function deliverCombatWound(db: Firestore, scope: CombatWoundScope, userId: string, woundId?: string) {
   let attempt: WoundAttempt | undefined
-  const write = () => runTransaction(db, (tx) => {
+  const write = () => retryStaleWoundRead(() => runTransaction(db, (tx) => {
     attempt = undefined
     return deliver(db, tx, scope, userId, woundId, (value) => { attempt = value })
-  })
+  }))
   return withSheetRevisionRetry(() => attempt?.ref, write, () => attempt?.revision)
 }
 
