@@ -24,7 +24,7 @@ vi.mock('./combatSubscription', () => ({
   },
 }))
 
-const { useLubecCombatShell } = await import('./useLubecCombatShell')
+const { combatPath, useLubecCombatShell } = await import('./useLubecCombatShell')
 
 const root = '/groups/school/campaigns/gym'
 const campaign = (enabledTabs?: AppTab[]): Campaign => ({ id: 'gym', name: 'Gym', status: 'active', groupId: 'school', gmUserId: 'gm', enabledTabs })
@@ -43,7 +43,7 @@ function renderShell(path: string, initialProps: Props) {
     const open = campaign(enabledTabs)
     const combat = useLubecCombatShell({ campaign: open, gameSystem, role, userId, navigate, setError: () => undefined })
     const tabs = useCampaignNav(open, gameSystem, role, tabFromPathname(location.pathname), navigate, combat.access)
-    return { path: location.pathname, tabs: tabs.map((tab) => tab.id), navigate }
+    return { path: location.pathname, tabs: tabs.map((tab) => tab.id), navigate, openCombat: combat.watch.openCombat }
   }, { wrapper, initialProps })
 }
 
@@ -74,6 +74,16 @@ describe('the Combat tab in the workspace', () => {
     send(fight('one'))
     expect(result.current.path).toBe(`${root}/notes`)
     send(fight('two'))
+    expect(result.current.path).toBe(`${root}/combat`)
+  })
+
+  it('has no Combat tab outside a campaign', () => {
+    expect(combatPath(null)).toBe('')
+  })
+
+  it('gives sheets the way to the Combat tab', () => {
+    const { result } = renderShell(`${root}/notes`, { role: 'player', userId: 'marcy' })
+    act(() => result.current.openCombat!())
     expect(result.current.path).toBe(`${root}/combat`)
   })
 

@@ -30,6 +30,8 @@ import { lubecCharacterName } from './lubecNames'
 import { lubecMotionAllowed } from './useLubecCircles'
 import type { LubecRolled } from './useLubecRoller'
 import lubecPines from './lubecPines.svg'
+import { useTakeOpenPage } from '../navigation/openRequest'
+import { LubecCombatGearNotice } from './combat/LubecCombatGearNotice'
 
 type LubecPage = 'core' | 'skills' | 'gear'
 
@@ -282,11 +284,22 @@ const gearDotOf = (character: LubecCharacterRecord, onGearRolled: LubecRolled | 
 const identityEditingOf = (editing: LubecSheetEditing | null, identityEditable: boolean | undefined) =>
   (identityEditable === false ? null : editing)
 
+/** The page a sheet opens on: Core, or Gear when the Combat tab sent it there. */
+function useSheetPage(id: string) {
+  const landed = useTakeOpenPage(id)
+  const [page, setPage] = useState<LubecPage>(landed ?? 'core')
+  return { landed, page, setPage }
+}
+
+/** The way back to the fight, over the Gear page a hand tap in the Combat tab opened. */
+const SheetCombatReturn = ({ landed, page, sheetId }: { landed: LubecPage | null; page: LubecPage; sheetId: string }) =>
+  (landed === 'gear' && page === 'gear' ? <LubecCombatGearNotice sheetId={sheetId} /> : null)
+
 /** One Lubec character's sheet, in the v4 frame, on its Core, Skills or Gear page. */
 export function LubecSheetView({
   character, editing, saveControls, identityEditable, carrierKinds, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, gearGive, shared, ...edits
 }: LubecSheetViewProps) {
-  const [page, setPage] = useState<LubecPage>('core')
+  const { landed, page, setPage } = useSheetPage(character.id)
   const [bandOpen, setBandOpen] = useState(false)
   const [correcting, setCorrecting] = useState(false)
   const sheetRef = useRef<HTMLElement>(null)
@@ -312,6 +325,7 @@ export function LubecSheetView({
         onDelete={onDelete}
         onFinalize={onFinalize}
       />
+      <SheetCombatReturn landed={landed} page={page} sheetId={character.id} />
       <LubecSheetPage
         page={page}
         onHideTree={() => hideLubecTree(sheetRef.current, setPage)}

@@ -10,7 +10,13 @@ export type LubecLiveFight = { id: string; fight: CombatFight }
  * campaign follow fights at all, whether the first read has arrived, and the
  * live fight, if there is one.
  */
-export type LubecCombatWatch = { enabled: boolean; ready: boolean; live: LubecLiveFight | null }
+export type LubecCombatWatch = {
+  enabled: boolean
+  ready: boolean
+  live: LubecLiveFight | null
+  /** Goes to this campaign's Combat tab; the workspace sets it, so sheets reach the fight without knowing its route. */
+  openCombat?: () => void
+}
 
 export const LUBEC_COMBAT_OFF: LubecCombatWatch = { enabled: false, ready: true, live: null }
 
@@ -18,6 +24,10 @@ export const LUBEC_COMBAT_OFF: LubecCombatWatch = { enabled: false, ready: true,
 export const LubecCombatContext = createContext<LubecCombatWatch>(LUBEC_COMBAT_OFF)
 
 export const useLubecCombat = () => use(LubecCombatContext)
+
+/** Whether the live fight has this sheet in it. */
+export const combatHasSheet = (live: LubecLiveFight | null, sheetId: string | undefined): boolean =>
+  live !== null && live.fight.state.combatants.some((entry) => entry.sheetId === sheetId)
 
 /** Only a live fight is offered; an ended document is history, which has no view yet. */
 export const liveFightOf = (seen: LubecLiveFight | null): LubecLiveFight | null => (seen?.fight.status === 'live' ? seen : null)

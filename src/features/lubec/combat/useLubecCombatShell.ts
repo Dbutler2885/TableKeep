@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useMemo, useEffect, useRef, useState } from 'react'
 import type { NavigateFunction } from 'react-router-dom'
 import { db } from '../../../firebase'
 import type { CampaignScope } from '../../campaign/firestorePaths'
@@ -56,11 +56,14 @@ const followed = (campaign: Campaign | null, gameSystem: GameSystem): CampaignSc
   (campaign && gameSystem === 'lubec' && lubecCombatEnabled ? { groupId: campaign.groupId, campaignId: campaign.id } : null)
 
 /** The workspace's fight: the shared watch, what the nav offers, and the once-per-fight move to the Combat tab. */
+/** Where the Combat tab is for this campaign; nowhere outside one. */
+export const combatPath = (campaign: Campaign | null): string => (campaign ? campaignTabPath(campaign.groupId, campaign.id, 'combat') : '')
+
 export function useLubecCombatShell({ campaign, gameSystem, role, userId, navigate, setError }: ShellOptions) {
   const watch = useLubecCombatWatch(followed(campaign, gameSystem), setError)
-  const groupId = campaign?.groupId ?? ''
-  const campaignId = campaign?.id ?? ''
-  const arrive = useCallback(() => { void navigate(campaignTabPath(groupId, campaignId, 'combat')) }, [navigate, groupId, campaignId])
+  const path = combatPath(campaign)
+  const arrive = useCallback(() => { void navigate(path) }, [navigate, path])
   useLubecCombatArrival(watch.live, userId, arrive)
-  return { watch, access: lubecCombatTabAccess(watch, role) }
+  const shared = useMemo(() => ({ ...watch, openCombat: arrive }), [watch, arrive])
+  return { watch: shared, access: lubecCombatTabAccess(watch, role) }
 }

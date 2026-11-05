@@ -15,6 +15,7 @@ import type { User } from 'firebase/auth'
 import type { Campaign, Role } from '../../types/app'
 import type { LubecDice } from '../ruleSets/lubec/dice'
 import tommyEvesFile from '../ruleSets/lubec/fixtures/tommy-eves.lubec-character.json'
+import { LUBEC_COMBAT_OFF, LubecCombatContext, type LubecCombatWatch } from './combat/combatWatch'
 
 type Fields = Record<string, unknown>
 type Listener = { next: (snap: unknown) => void; fail: (error: unknown) => void }
@@ -168,19 +169,21 @@ function emitDatabase() {
   act(() => mocks.listeners[CHARACTERS_PATH]?.next({ docs }))
 }
 
-// The tab as the shell mounts it, for the given viewer.
-function renderTab(role: Role, uid: string) {
+// The tab as the shell mounts it, for the given viewer, inside the workspace's fight when one is given.
+function renderTab(role: Role, uid: string, combat: LubecCombatWatch = LUBEC_COMBAT_OFF) {
   const LubecSheet = ruleSetSheets.lubec
   return render(
-    <LubecDiceContext.Provider value={seededDice}>
-      <LubecSheet campaign={campaign} role={role} user={{ uid } as User} username="viewer1" setError={vi.fn()} characterTabProps={null} />
-    </LubecDiceContext.Provider>,
+    <LubecCombatContext value={combat}>
+      <LubecDiceContext.Provider value={seededDice}>
+        <LubecSheet campaign={campaign} role={role} user={{ uid } as User} username="viewer1" setError={vi.fn()} characterTabProps={null} />
+      </LubecDiceContext.Provider>
+    </LubecCombatContext>,
   )
 }
 
 /** The tab, fed the stored documents. */
-function mountTab(role: Role, uid: string) {
-  const view = renderTab(role, uid)
+function mountTab(role: Role, uid: string, combat?: LubecCombatWatch) {
+  const view = renderTab(role, uid, combat)
   emitDatabase()
   return view
 }
@@ -847,9 +850,9 @@ describe('Lubec fight modal', () => {
   }
   const gearOf = (...items: Fields[]) => ({ gear: { items, carriers: [], overrides: [], supplies: [] } })
   const rival = (sheet: Fields) => withSheet(sheet, { name: 'Wayne Gardner', ownerUserId: 'player-2', ownerUsername: 'waynegd' })
-  const startFight = (tommy: Fields[], role: Role = 'player', uid = 'player-1') => {
+  const startFight = (tommy: Fields[], role: Role = 'player', uid = 'player-1', combat?: LubecCombatWatch) => {
     seed({ tommy: withSheet(gearOf(...tommy)), wayne: rival(gearOf(jacket)) })
-    mountTab(role, uid)
+    mountTab(role, uid, combat)
     openSheet('Tommy Eves')
     fireEvent.click(document.querySelector('.fight-toggle') as HTMLElement)
   }
@@ -916,6 +919,16 @@ describe('Lubec fight modal', () => {
     const saved = { metadata: { hasPendingWrites: false }, get: () => ({ seconds: 2 ** 40, nanoseconds: 0 }) }
     await act(async () => mocks.listeners['groups/group-1/campaigns/campaign-1/characters/tommy'].next(saved as never))
     expect(modal().getByRole('status').textContent).toContain('It goes to the GM.')
+  })
+
+  it('goes to the Combat tab instead while a live fight has this character in it', async () => {
+    const openCombat = vi.fn()
+    const live = { id: 'fight', fight: { status: 'live', participantUserIds: [], state: { combatants: [{ kind: 'character', sheetId: 'tommy', key: 'character:tommy' }] } } } as never
+    startFight([knife], 'player', 'player-1', { enabled: true, ready: true, live, openCombat })
+    start()
+    fireEvent.click(within(opened()).getByRole('button', { name: /Hunting knife/ }))
+    expect(openCombat).toHaveBeenCalledTimes(2)
+    expect(fightDialog()).toBeNull()
   })
 
   it('opens on Target with the weapon chosen from a Fight bar chip, and the card\'s "Fight with this"', async () => {
