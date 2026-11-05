@@ -9,10 +9,10 @@ import { attackCommands, type AttackCommands } from './attackCommands'
 import type { CombatViewer } from './attackWords'
 import { BeforeInitiativeMiddle } from './BeforeInitiativeMiddle'
 import type { CombatRosterRecords } from './combatFightCombatants'
-import { CombatWaiting } from './CombatMiddles'
 import { DeclareMiddle } from './DeclareMiddle'
 import { InitiativeMiddle } from './InitiativeMiddle'
 import { MovementMiddle } from './MovementMiddle'
+import { LastResult, RoundAttackMiddle } from './RoundAttackMiddle'
 import type { Combatant, CombatState } from '../engine/types'
 
 type MiddleProps = {
@@ -25,12 +25,13 @@ type MiddleProps = {
   onInventory: (attacker: Combatant) => void
 }
 
-/** Each phase's middle; Attack arrives with its own slice. */
+/** Each phase's middle. */
 const PHASE_MIDDLES: Readonly<Record<string, (props: MiddleProps) => ReactNode>> = {
   'before-initiative': (props) => <BeforeInitiativeMiddle {...props} />,
   initiative: (props) => <InitiativeMiddle state={props.state} viewer={props.viewer} commands={props.commands} />,
-  movement: (props) => <MovementMiddle {...props} />,
+  movement: (props) => <><LastResult state={props.state} /><MovementMiddle {...props} /></>,
   declare: (props) => <DeclareMiddle {...props} />,
+  attack: (props) => <RoundAttackMiddle {...props} />,
 }
 
 type PhaseProps = {
@@ -54,6 +55,5 @@ export function CombatPhaseMiddle({ campaign, live, viewer, roster, send, onActF
     void navigate(campaignTabPath(campaign.groupId, campaign.id, attacker.kind === 'npc' ? 'npcs' : 'character'))
   }
   const props = { state, fightId: live.id, viewer, roster, commands, onActFor, onInventory }
-  const middle = PHASE_MIDDLES[state.phase] ?? CombatWaiting
-  return middle(props)
+  return PHASE_MIDDLES[state.phase](props)
 }

@@ -11,6 +11,7 @@ import { combatFightCombatant, type CombatRosterRecords } from './combatFightCom
 import { CombatDoll } from './CombatDoll'
 import { catchFacts, catchVerdict, checkAsk, checkVerdict, defenseVerdict, impactChips, stopWords, strengthTitle, woundBox, type WoundBoxWords } from './resultSequence'
 import { RollBar } from './RollBar'
+import { declaredLine, isRoundAttack } from '../engine/roundAttacks'
 
 /** What this viewer may do in the sequence: the steps they own, the GM's way to act for an absent player, and the commands. */
 export type StepControls = {
@@ -171,9 +172,42 @@ function DefensePending(props: StepProps) {
   )
 }
 
+/** The defender's Roll on their declared line. */
+function RollDeclared({ props, line }: { props: StepProps & { controls: StepControls }; line: DeclaredLine }) {
+  const act = useAct()
+  const defender = props.attack.aim!.targetKey
+  const value = declaredValue(line)
+  return (
+    <>
+      <SegmentRoll at={half(value)} label="Roll Defense" disabled={act.busy} onRoll={() => act.run(() => props.controls.commands.defend(defender, { amount: line.amount, full: line.full }))} />
+      <Refusal refusal={act.refusal} />
+    </>
+  )
+}
+
+type DeclaredLine = NonNullable<ReturnType<typeof declaredLine>>
+const declaredValue = (line: DeclaredLine): number => (line.full ? Math.min(100, line.amount + 10) : line.amount)
+
+/** In a round the line was declared: the defender only rolls it, and everyone else sees it waiting. */
+function DeclaredDefense(props: StepProps) {
+  // A round's hit reaches Defense only when the target declared a line against this attacker.
+  const line = declaredLine(props.state, props.attack)!
+  const defender = props.attack.aim!.targetKey
+  const live = working(props, defender)
+  const controls = live ? <RollDeclared props={props} line={line} /> : <WaitWords state={props.state} owner={defender} what="defense" />
+  return (
+    <>
+      <p className="say"><b>{nameOf(props.state, defender)}</b> kept {line.amount} for {line.full ? 'Full ' : ''}Defense against {nameOf(props.state, props.attack.attackerKey)}.</p>
+      <RollBar value={declaredValue(line)} tag="DEF" bonus={line.full} controls={controls} />
+      {live ? null : <ActFor state={props.state} controls={props.controls} owner={defender} />}
+    </>
+  )
+}
+
 export function DefenseStep(props: StepProps) {
   const defender = props.attack.aim!.targetKey
   if (props.attack.defense !== undefined || props.attack.step !== 'defense') return <DefenseResult state={props.state} attack={props.attack} />
+  if (isRoundAttack(props.state, props.attack)) return <DeclaredDefense {...props} />
   if (working(props, defender)) return <DefenseLive {...props} controls={props.controls} />
   return <DefensePending {...props} />
 }

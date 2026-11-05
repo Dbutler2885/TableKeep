@@ -226,7 +226,7 @@ describe('less common states', () => {
     const fight = liveFight([{ itemId: 'library-ball', status: 'library', qty: 1 }])
     fight.fight.state.combatants[1].outReason = 'wound'
     show('gm', 'gm', live(fight))
-    expect(document.querySelector('.turns li.out')?.textContent).toBe('·Roy CarverNPC · Speed 56Out')
+    expect(document.querySelector('.turns li.out')?.textContent).toBe('·Roy CarverNPC · Speed 56 · Out: woundedOut')
     expect(screen.getByText('Floor').closest('.panel')?.textContent).toContain('1 item')
     fireEvent.change(screen.getByRole('combobox', { name: 'GM tools' }), { target: { value: 'end' } })
     fireEvent.click(button('End combat'))
@@ -264,13 +264,6 @@ describe('less common states', () => {
     await waitFor(() => expect(setError).toHaveBeenCalledWith('Floor selection rock is stale; nothing was consumed.'))
     expect(mocks.sent[0].payload).toEqual({ type: 'place', floor: [{ itemId: 'rock', status: 'library', qty: 1 }] })
     expect(document.querySelector('.gmtools .item-pick')).not.toBeNull()
-  })
-
-  it('shows the GM a wait in a phase this slice does not run yet', () => {
-    const fight = liveFight()
-    fight.fight.state.phase = 'attack'
-    show('gm', 'gm', live(fight))
-    expect(screen.getByText('The fight is waiting on the GM')).toBeTruthy()
   })
 
   it('lists an uncatchable item on the Floor rail with no catch words', () => {

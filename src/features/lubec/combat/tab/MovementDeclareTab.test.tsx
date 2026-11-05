@@ -309,6 +309,7 @@ describe('Declare', () => {
     const live = fightAfter(...declaring({ choice: 'run' }))
     live.fight.state.combatants[1].declaration = { ran: false, full: true, aim: null, frozen: null, total: 46, lines: [{ against: WAYNE, amount: 46 }], sourceRevision: 1 }
     live.fight.state.phase = 'attack'
+    live.fight.state.attack = { id: 'shown', grantId: null, attackerKey: ROY, step: 'done', detached: [], closed: true }
     show('player', 'wayne-uid', live)
     expect(document.querySelector('.decls li.atyou .txt')!.textContent).toBe('Full Defense: no attack. Defense 46 Full against Wayne Gardner.')
     expect(document.querySelector('.decls li.you .txt')!.textContent).toBe('Ran: no attack and no Defense this round.')

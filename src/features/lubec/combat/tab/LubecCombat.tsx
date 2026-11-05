@@ -10,7 +10,8 @@ import { CombatTicker } from '../CombatMessages'
 import { gmCommandKey, gmEnvelope, startEnvelope } from '../combatEnvelopes'
 import { useLubecCombat, type LubecLiveFight } from '../combatWatch'
 import { createCombatCommand } from '../commandJournal'
-import type { CombatOutcome, CombatState } from '../engine/types'
+import type { Combatant, CombatOutcome, CombatState } from '../engine/types'
+import { attackCommands } from './attackCommands'
 import { useLubecCombatSend, type CombatSend } from '../useLubecCombatSend'
 import { CombatEnded, CombatEndConfirm } from './CombatEnd'
 import { CombatGmTools, type CombatGmTool } from './CombatGmTools'
@@ -114,6 +115,15 @@ type GmLiveProps = {
   setError: (message: string) => void
 }
 
+/** Take out or return: whichever way round the combatant stands now, with the table's refusal shown. */
+function useOutTool(campaign: Campaign, live: LubecLiveFight, send: CombatSend, setError: (message: string) => void) {
+  const commands = attackCommands({ groupId: campaign.groupId, campaignId: campaign.id }, live, send)
+  return (combatant: Combatant) => {
+    const act = combatant.outReason === null ? commands.takeOut : commands.returnIn
+    void act(combatant.key).then((refusal) => { if (refusal) setError(refusal) })
+  }
+}
+
 /** The GM's live fight: tools over the middle, Before initiative's grants, and placement onto the Floor. */
 function CombatGmLive({ campaign, live, userId, roster, send, tool, onTool, items, place, onEnd, setError }: GmLiveProps) {
   const [placing, setPlacing] = useState(false)
@@ -126,10 +136,12 @@ function CombatGmLive({ campaign, live, userId, roster, send, tool, onTool, item
     if (refusal) setError(refusal)
     else onTool('')
   }
-  const tools = <CombatGmTools tool={tool} onTool={onTool} items={items} placing={placing} onPlace={(item, qty) => void placeOnFloor(item, qty)} onEnd={onEnd} />
   const attackId = state.attack?.id ?? null
   const viewer = { role: 'gm' as const, userId, actingFor: actingNow(actingFor, attackId, state.stageInstanceId) }
-  const middle = <CombatPhaseMiddle campaign={campaign} live={live} viewer={viewer} roster={roster} send={send} onActFor={(key) => setActingFor({ attackId, stage: state.stageInstanceId, key })} />
+  const actFor = (key: string) => setActingFor({ attackId, stage: state.stageInstanceId, key })
+  const people = useOutTool(campaign, live, send, setError)
+  const tools = <CombatGmTools tool={tool} onTool={onTool} items={items} placing={placing} onPlace={(item, qty) => void placeOnFloor(item, qty)} onEnd={onEnd} combatants={state.combatants} actingFor={viewer.actingFor} onActFor={actFor} onOut={people} />
+  const middle = <CombatPhaseMiddle campaign={campaign} live={live} viewer={viewer} roster={roster} send={send} onActFor={actFor} />
   return <CombatLayout state={state} userId={userId} tools={tools} middle={middle} onPlace={() => onTool('place')} />
 }
 

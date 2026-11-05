@@ -27,6 +27,10 @@ export type AttackCommands = {
   npcMovement: (choices: Record<string, MovementPick>) => AttackAct
   answerLeave: (combatantKey: string, confirm: boolean) => AttackAct
   declare: (actorKey: string, declaration: DeclarePick) => AttackAct
+  pass: (actorKey: string) => AttackAct
+  floorPickup: (actorKey: string, itemId: string) => AttackAct
+  takeOut: (combatantKey: string) => AttackAct
+  returnIn: (combatantKey: string) => AttackAct
 }
 
 /** A Movement choice as sent: Pick up names the exact Floor record and quantity it claims. */
@@ -61,5 +65,9 @@ export function attackCommands(scope: CampaignScope, live: LubecLiveFight, send:
     npcMovement: (choices) => act(null, { type: 'npcMovement', choices }),
     answerLeave: (combatantKey, confirm) => act(null, { type: 'answerLeave', combatantKey, confirm }),
     declare: (actorKey, declaration) => act(actorKey, { type: 'declare', ...declaration }),
+    pass: (actorKey) => act(actorKey, { type: 'pass' }),
+    floorPickup: (actorKey, itemId) => act(actorKey, { type: 'floorPickup', itemId }),
+    takeOut: (combatantKey) => act(null, { type: 'takeOut', combatantKey }),
+    returnIn: (combatantKey) => act(null, { type: 'return', combatantKey }),
   }
 }

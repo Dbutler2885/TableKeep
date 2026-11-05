@@ -1,6 +1,7 @@
 import { lubecCombatantFace, type LubecCombatant } from '../../fight/lubecFightRequest'
 import type { CombatAttack, CombatAttackRange, Combatant } from '../engine/types'
 import { attackSum, withDefense, type AttackDraft, type AttackSegments, type AttackSum } from './attackDraft'
+import type { AttackGone } from './attackWindowModel'
 
 type NoticeProps = { attacker: Combatant; attack: CombatAttack; refusal: string | null; gm: boolean }
 
@@ -10,15 +11,38 @@ export function AttackNotices({ attacker, attack, refusal, gm }: NoticeProps) {
   return (
     <>
       <div className="notice cool"><span><b>{granted}</b> This attack runs now, before initiative. Pick, split and Roll in one go.</span></div>
-      {attack.repair ? <div className="notice hot" role="alert"><span><b>Waiting for a repair.</b> {attack.repair} Nothing has been spent or rolled.</span></div> : null}
+      <RepairNotice attack={attack} />
       {refusal ? <div className="notice hot" role="alert"><span>{refusal}</span></div> : null}
     </>
   )
 }
 
 /** The trail over the window: who attacks, and when. */
-export function AttackTrail({ attacker }: { attacker: Combatant }) {
-  return <div className="trail"><span className="who"><small>Attacker</small>{attacker.name}</span><span className="who"><small>Round 0</small>Before initiative</span></div>
+export function AttackTrail({ attacker, round }: { attacker: Combatant; round: number }) {
+  return <div className="trail"><span className="who"><small>Attacker</small>{attacker.name}</span><span className="who"><small>Round {round}</small>{round ? 'Stage 3, Attack' : 'Before initiative'}</span></div>
+}
+
+type RoundNoticeProps = { attack: CombatAttack; targetName: string; gone: AttackGone; refusal: string | null }
+
+/** What has gone before this declared attack's turn, and that choosing again wastes nothing. */
+export function RoundNotices({ attack, targetName, gone, refusal }: RoundNoticeProps) {
+  return (
+    <>
+      {gone.target ? <div className="notice hot"><span><b>{targetName} is Out.</b> Your target has gone before your turn. Choose again; your declared split stays and nothing is wasted.</span></div> : null}
+      {gone.weapon ? <div className="notice hot"><span><b>The {attack.frozen!.weaponName.toLowerCase()} is no longer in your hand.</b> Choose a weapon again; your declared split stays and nothing is wasted.</span></div> : null}
+      <RepairNotice attack={attack} />
+      {refusal ? <div className="notice hot" role="alert"><span>{refusal}</span></div> : null}
+    </>
+  )
+}
+
+const RepairNotice = ({ attack }: { attack: CombatAttack }) =>
+  (attack.repair ? <div className="notice hot" role="alert"><span><b>Waiting for a repair.</b> {attack.repair} Nothing has been spent or rolled.</span></div> : null)
+
+/** A declared line on the locked split: who it guards against, named, not chosen. */
+export function LockedDefenseLine({ against }: { against: string | null }) {
+  if (!against) return null
+  return <div className="defense-lines"><div className="defrow"><span className="defchip">DEF 1</span><span className="label">against</span><b>{against}</b></div></div>
 }
 
 type AskProps = { target: LubecCombatant; reading: AttackSum; range: CombatAttackRange | null; segments: AttackSegments }

@@ -5,11 +5,16 @@ import { CombatPanel } from './CombatParts'
 
 const pad = (value: number) => String(value).padStart(2, '0')
 
-/** "Player · Speed 52 · rolled 38 under", once a combatant has rolled. */
+const OUT_WORDS: Readonly<Record<string, string>> = { wound: 'wounded', caught: 'caught', left: 'left the fight', gm: 'taken out by the GM' }
+
+/** "Out: caught", why someone is Out. */
+const outWords = (combatant: Combatant): string => (combatant.outReason === null ? '' : ` · Out: ${OUT_WORDS[combatant.outReason]}`)
+
+/** "Player · Speed 52 · rolled 38 under", once a combatant has rolled, and why they are Out. */
 function rowWords(combatant: Combatant, userId: string): string {
   const rolled = combatant.initiative
   const roll = rolled ? ` · rolled ${pad(rolled.roll)} ${rolled.success ? 'under' : 'over'}` : ''
-  return `${combatantRole(combatant, userId)} · Speed ${combatant.speed}${roll}`
+  return `${combatantRole(combatant, userId)} · Speed ${combatant.speed}${roll}${outWords(combatant)}`
 }
 
 function RowBadge({ out, now }: { out: boolean; now: boolean }) {
@@ -30,9 +35,13 @@ function TurnRow({ combatant, place, userId, now }: RowProps) {
   )
 }
 
-/** Who acts now in the turn order: the declarer during Declare. */
-const actingKey = (state: CombatState): string | undefined =>
-  (state.phase === 'declare' ? state.pendingActions?.find((action) => action.action === 'declare')?.combatantKey : undefined)
+/** Who acts now in the turn order: the declarer during Declare, the attacker whose turn it is during Attack. */
+const ACTING: Readonly<Record<string, (state: CombatState) => string | undefined>> = {
+  declare: (state) => state.pendingActions?.find((action) => action.action === 'declare')?.combatantKey,
+  attack: (state) => state.attack?.attackerKey,
+}
+
+const actingKey = (state: CombatState): string | undefined => ACTING[state.phase]?.(state)
 
 type Ordered = { title: string; sub: string; rows: { combatant: Combatant; place: number | null }[]; note: boolean }
 

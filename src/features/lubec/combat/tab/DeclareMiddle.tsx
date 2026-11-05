@@ -11,7 +11,7 @@ import { gmDeclareWords, nextDeclarerWords, viewerKeys } from './declarationsMod
 import { DeclareWindow } from './DeclareWindow'
 
 /** The viewer's own declarations, kept in view while they wait. */
-function OwnDeclarations({ state, viewer }: { state: CombatState; viewer: CombatViewer }) {
+export function OwnDeclarations({ state, viewer }: { state: CombatState; viewer: CombatViewer }) {
   const mine = viewerKeys(state, viewer).map((key) => state.combatants.find((entry) => entry.key === key)!).filter((entry) => entry.declaration)
   return (
     <>

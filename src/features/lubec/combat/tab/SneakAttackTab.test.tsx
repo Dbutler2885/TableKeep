@@ -373,12 +373,4 @@ describe('less common states', () => {
     expect(screen.queryByText('Result')).toBeNull()
     expect(screen.getAllByRole('button', { name: 'Grant Sneak Attack' }).length).toBeGreaterThan(0)
   })
-
-  it('keeps the waiting middle for a phase this slice does not build', () => {
-    const later = fightAfter()
-    later.fight.state.phase = 'attack'
-    later.fight.state.round = 1
-    show('player', 'wayne-uid', later)
-    expect(screen.getByText(/The fight is waiting on the GM/)).toBeTruthy()
-  })
 })
