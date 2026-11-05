@@ -23,15 +23,16 @@ import { CombatFloorPanel } from './CombatRails'
 import { TurnOrderPanel } from './TurnOrder'
 import type { CombatViewer } from './attackWords'
 import { DeclarationsPanel } from './DeclarationsPanel'
+import { viewerHands } from './movementModel'
 import { CombatSetup, type CombatSetupStart } from './CombatSetup'
 import { combatFloorSelections, type CombatSetupIssue } from './combatSetupModel'
 import { useCombatGmData } from './useCombatGmData'
 import './lubecCombat.css'
 
-type LayoutProps = { state: CombatState; userId: string; role?: CombatViewer['role']; stage?: string; tools?: ReactNode; middle: ReactNode; onPlace?: (() => void) | null }
+type LayoutProps = { state: CombatState; userId: string; role?: CombatViewer['role']; stage?: string; tools?: ReactNode; middle: ReactNode; onPlace?: (() => void) | null; hands?: readonly string[] }
 
 /** The live tab: everyone in the fight on the left, what to do now in the middle, the declarations and the Floor on the right. */
-function CombatLayout({ state, userId, role = 'gm', stage, tools = null, middle, onPlace = null }: LayoutProps) {
+function CombatLayout({ state, userId, role = 'gm', stage, tools = null, middle, onPlace = null, hands = [] }: LayoutProps) {
   const view = combatPhaseView(state)
   return (
     <>
@@ -39,7 +40,7 @@ function CombatLayout({ state, userId, role = 'gm', stage, tools = null, middle,
       <div className="ct">
         <div className="rail"><TurnOrderPanel state={state} userId={userId} /></div>
         <div className="mid">{tools}{middle}</div>
-        <div className="rail"><DeclarationsPanel state={state} viewer={{ role, userId, actingFor: null }} /><CombatFloorPanel floor={state.floor} onPlace={onPlace} /></div>
+        <div className="rail"><DeclarationsPanel state={state} viewer={{ role, userId, actingFor: null }} /><CombatFloorPanel floor={state.floor} onPlace={onPlace} hands={hands} /></div>
         <CombatTicker />
       </div>
     </>
@@ -168,7 +169,7 @@ function CombatPlayer({ campaign, userId, setError }: ViewerProps) {
   if (!live) return null
   const viewer = { role: 'player' as const, userId, actingFor: null }
   const middle = <CombatPhaseMiddle campaign={campaign} live={live} viewer={viewer} roster={inFight ? roster : NO_ROSTER} send={send} onActFor={() => undefined} />
-  return <CombatLayout state={live.fight.state} userId={userId} role="player" middle={middle} />
+  return <CombatLayout state={live.fight.state} userId={userId} role="player" middle={middle} hands={viewerHands(live.fight.state, viewer, roster)} />
 }
 
 /** Lubec's Combat tab. Players have it only while a fight is live; the route gate sends them away otherwise. */

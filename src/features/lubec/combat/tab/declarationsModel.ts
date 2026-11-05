@@ -59,3 +59,12 @@ export function gmDeclareWords(state: CombatState, waiting: readonly Combatant[]
   const [now, ...rest] = waiting
   return `${declared} ${now.name} is next${rest.length ? `, then ${thenNames(rest)}` : ''}.`
 }
+
+/** "Throws at you" on the target list for someone who declared an attack at this declarer; a blow or a shot "Attacks you". */
+export function attackBadge(state: CombatState, targetKey: string, mine: string): string | null {
+  const declaration = state.combatants.find((entry) => entry.key === targetKey)!.declaration
+  if (declaration?.aim?.targetKey !== mine) return null
+  return attackVerb(declaration.frozen!)
+}
+
+const attackVerb = (frozen: CombatFrozenAim): string => (frozen.choice.ranged && !frozen.choice.firearm ? 'Throws at you' : 'Attacks you')

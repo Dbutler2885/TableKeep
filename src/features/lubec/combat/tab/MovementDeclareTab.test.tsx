@@ -118,6 +118,7 @@ describe('Movement for a player', () => {
     fireEvent.click(button('Confirm movement'))
     await waitFor(() => expect(sentOf('move')[0]).toMatchObject({ envelope: { actorKey: WAYNE, phase: 'movement' }, payload: { choice: 'run', pickup: null } }))
     expect(rail('Declarations').getByText('Nobody has declared. Slowest declares first; everyone sees every split.')).toBeTruthy()
+    expect(document.querySelector('.hand')).toBeNull()
   })
 
   it('says why Pick up cannot take the ball with both hands full, and waits for a pick before Confirm', () => {
@@ -288,6 +289,7 @@ describe('Declare', () => {
     show('gm', 'gm', fightAfter(...declaring(), { type: 'declare', actor: WAYNE, aim: throwAt }))
     expect(screen.getByText(/Wayne Gardner/, { selector: '.notice b' })).toBeTruthy()
     expect(screen.getByText(/has declared a throw at you \(ATK 61\)/)).toBeTruthy()
+    expect(screen.getByRole('radio', { name: /^Wayne Gardner/ }).querySelector('.badge')!.textContent).toBe('Throws at you')
   })
 
   it('shows the waiting declarer their own declaration and everyone every split', () => {
@@ -295,6 +297,7 @@ describe('Declare', () => {
     expect(screen.getByText('The fight is waiting on Roy Carver')).toBeTruthy()
     expect(screen.getByText('Roy Carver is the last to declare. Then the attacks begin, fastest first.')).toBeTruthy()
     expect(screen.getByText('Your declaration')).toBeTruthy()
+    expect(screen.getByText('Wayne Gardner: a Dodgeball in the left hand and a Knife in the right hand.')).toBeTruthy()
     const declarations = rail('Declarations')
     expect(declarations.getByText('YOU')).toBeTruthy()
     expect(declarations.getByText('Declaring now...')).toBeTruthy()
@@ -331,6 +334,7 @@ describe('Declare', () => {
     expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
     fireEvent.click(screen.getByRole('checkbox', { name: 'Full Defense' }))
     expect(screen.getByText('Handle 46 =')).toBeTruthy()
+    expect(screen.getByText('Wayne Gardner: a Walkie-talkie in the left hand and a Box in the right hand.')).toBeTruthy()
     fireEvent.click(button('Declare Full Defense'))
     await waitFor(() => expect(sentOf('declare')[0].payload).toEqual({ type: 'declare', full: true, against: ROY, aim: null }))
   })
@@ -343,6 +347,7 @@ describe('Declare', () => {
     mocks.roster = { characters: [], npcs: [] }
     show('player', 'wayne-uid', fightAfter(...declaring()))
     expect(screen.getByText("Reading Wayne Gardner's sheet...")).toBeTruthy()
+    expect(document.querySelector('.hand')).toBeNull()
   })
 
   it('strikes through a declaration whose maker went Out', () => {

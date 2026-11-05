@@ -17,7 +17,7 @@ import { combatFightCombatant, type CombatRosterRecords } from './combatFightCom
 import { CombatStepper, CombatWindow } from './CombatParts'
 import { CombatRefusal } from './CombatParts'
 import { useCombatRun, type CombatRun } from './useCombatRun'
-import { aimedText, declaredAt } from './declarationsModel'
+import { aimedText, attackBadge, declaredAt } from './declarationsModel'
 
 type WindowProps = {
   state: CombatState
@@ -57,7 +57,7 @@ function DeclareChoices({ body, draft, setDraft, model, full }: ChoicesProps) {
     <div className={full ? 'dim' : ''}>
       <LubecFightWindowContent
         request={{ attacker: body.fighter, target: model.target, weaponItemId: draft.weaponItemId ?? undefined, attackId: draft.attackId ?? undefined }}
-        targets={model.targets} targetNote={targetNote(body.state)} onInventory={body.onInventory} readOnly={full}
+        targets={model.targets} targetNote={targetNote(body.state)} targetBadge={(target) => attackBadge(body.state, lubecCombatantKey(target), body.declarer.key)} onInventory={body.onInventory} readOnly={full}
         onTarget={(key) => setDraft({ ...draft, targetKey: key })}
         onWeapon={(id) => setDraft(withWeapon(draft, body.sheet, id))}
         onAttack={(id) => setDraft({ ...draft, attackId: id })}

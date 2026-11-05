@@ -19,11 +19,17 @@ type WindowProps = {
   readOnly?: boolean
   /** The words under a target's name; the Combat tab adds Speed, as the mock-up does. */
   targetNote?: (target: LubecCombatant) => string
+  /** A badge beside a target's name, such as the Combat tab's "Throws at you". */
+  targetBadge?: (target: LubecCombatant) => string | null
 }
 
 const kindNote = (target: LubecCombatant): string => (target.kind === 'npc' ? 'NPC' : 'Character')
 
-function WindowTarget({ request, targets, onTarget, readOnly, targetNote = kindNote }: WindowProps) {
+const TargetBadge = ({ words }: { words: string | null }) => (words ? <span className="badge must">{words}</span> : null)
+
+const noBadge = (): null => null
+
+function WindowTarget({ request, targets, onTarget, readOnly, targetNote = kindNote, targetBadge = noBadge }: WindowProps) {
   const choices = lubecTargetChoices(request, targets)
   return <div>
     <span className="label">Target</span>
@@ -31,6 +37,7 @@ function WindowTarget({ request, targets, onTarget, readOnly, targetNote = kindN
       {choices.map((target) => <div className="tcell" key={lubecCombatantKey(target)}>
         <button type="button" className="trow" role="radio" aria-checked={request.target !== null && lubecCombatantKey(request.target) === lubecCombatantKey(target)} disabled={readOnly} onClick={() => onTarget(lubecCombatantKey(target))}>
           <span>{lubecCombatantFace(target).name}<br /><small>{targetNote(target)}</small></span>
+          <TargetBadge words={targetBadge(target)} />
         </button>
       </div>)}
     </div>

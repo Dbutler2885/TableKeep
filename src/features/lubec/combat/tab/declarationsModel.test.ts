@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { Combatant, CombatDeclaration, CombatFrozenAim, CombatState } from '../engine/types'
-import { aimedText, declaredAt, declaredUse, gmDeclareWords, miniParts, nextDeclarerWords, slowestFirst } from './declarationsModel'
+import { aimedText, attackBadge, declaredAt, declaredUse, gmDeclareWords, miniParts, nextDeclarerWords, slowestFirst } from './declarationsModel'
 
 const person = (key: string, name: string, declaration: CombatDeclaration | null = null): Combatant =>
   ({ key, name, kind: 'npc', sheetId: key, ownerUserId: 'gm', portraitPath: '', speed: 50, armor: [], interactionSequence: 0, outReason: null, declaration })
@@ -42,6 +42,18 @@ describe('who a declaration is aimed at', () => {
     expect(aimedText(table, attack('wayne', [{ against: 'wayne', amount: 20 }]), 'wayne')).toBe('has declared a throw at you (ATK 36, Defense 20 against you).')
     expect(aimedText(table, attack('dale', [{ against: 'wayne', amount: 20 }]), 'wayne')).toBe('has declared Defense against you (ATK 36, Defense 20 against you).')
     expect(aimedText(table, attack('wayne', [{ against: 'dale', amount: 10 }]), 'wayne')).toBe('has declared a throw at you (ATK 36, Defense 10 against Dale Ricker).')
+  })
+})
+
+describe('attackBadge', () => {
+  it('marks a target who declared an attack at the declarer', () => {
+    const thrown = { ...frozen(), choice: { name: 'Throw', ranged: true } } as unknown as CombatFrozenAim
+    const shot = { ...frozen(), choice: { name: 'Shoot', ranged: true, firearm: true } } as unknown as CombatFrozenAim
+    const table = state([person('roy', 'Roy', attack('wayne', [], thrown)), person('dale', 'Dale', attack('wayne', [], shot)), person('tommy', 'Tommy', attack('dottie')), person('ann', 'Ann')])
+    expect(attackBadge(table, 'roy', 'wayne')).toBe('Throws at you')
+    expect(attackBadge(table, 'dale', 'wayne')).toBe('Attacks you')
+    expect(attackBadge(table, 'tommy', 'wayne')).toBeNull()
+    expect(attackBadge(table, 'ann', 'wayne')).toBeNull()
   })
 })
 
