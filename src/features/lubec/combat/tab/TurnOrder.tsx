@@ -12,16 +12,27 @@ function rowWords(combatant: Combatant, userId: string): string {
   return `${combatantRole(combatant, userId)} · Speed ${combatant.speed}${roll}`
 }
 
-function TurnRow({ combatant, place, userId }: { combatant: Combatant; place: number | null; userId: string }) {
+function RowBadge({ out, now }: { out: boolean; now: boolean }) {
+  if (out) return <span className="badge rust">Out</span>
+  return now ? <span className="badge must">Now</span> : null
+}
+
+type RowProps = { combatant: Combatant; place: number | null; userId: string; now: boolean }
+
+function TurnRow({ combatant, place, userId, now }: RowProps) {
   const out = combatant.outReason !== null
   return (
-    <li className={out ? 'out' : ''}>
+    <li className={out ? 'out' : now ? 'now' : ''}>
       <span className="n">{place ?? '·'}</span>
       <span><span className="nm">{combatant.name}</span><small>{rowWords(combatant, userId)}</small></span>
-      <span>{out ? <span className="badge rust">Out</span> : null}</span>
+      <span><RowBadge out={out} now={now} /></span>
     </li>
   )
 }
+
+/** Who acts now in the turn order: the declarer during Declare. */
+const actingKey = (state: CombatState): string | undefined =>
+  (state.phase === 'declare' ? state.pendingActions?.find((action) => action.action === 'declare')?.combatantKey : undefined)
 
 type Ordered = { title: string; sub: string; rows: { combatant: Combatant; place: number | null }[]; note: boolean }
 
@@ -41,9 +52,10 @@ function ordered(state: CombatState): Ordered {
 /** The left rail: everyone in the fight, then the turn order as it builds and once it is set. */
 export function TurnOrderPanel({ state, userId }: { state: CombatState; userId: string }) {
   const view = ordered(state)
+  const now = actingKey(state)
   return (
     <CombatPanel title={view.title} sub={view.sub}>
-      <ul className="turns">{view.rows.map(({ combatant, place }) => <TurnRow key={combatant.key} combatant={combatant} place={place} userId={userId} />)}</ul>
+      <ul className="turns">{view.rows.map(({ combatant, place }) => <TurnRow key={combatant.key} combatant={combatant} place={place} userId={userId} now={combatant.key === now} />)}</ul>
       {view.note ? <div className="pb"><p className="note">Successes go before failures: higher successes first, lower failures first.</p></div> : null}
     </CombatPanel>
   )

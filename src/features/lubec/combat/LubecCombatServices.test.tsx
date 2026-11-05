@@ -23,6 +23,7 @@ vi.mock('firebase/firestore', () => ({
   },
 }))
 vi.mock('./useLubecCombatSend', () => ({
+  COMBAT_UNCERTAIN: 'The table did not answer. Press again to retry the same action.',
   useLubecCombatSend: () => async (_key: string, make: () => CombatCommand) => {
     mocks.sent.push(make())
     return mocks.outcome
@@ -32,6 +33,7 @@ vi.mock('./useLubecCombatSend', () => ({
 vi.mock('./woundDelivery', () => ({ drainCombatWounds: (...args: unknown[]) => mocks.drain(...args) }))
 
 const { LubecCombatServices } = await import('./LubecCombatServices')
+const { COMBAT_UNCERTAIN } = await import('./useLubecCombatSend')
 
 const campaign = { id: 'gym', groupId: 'school', name: 'Gym', status: 'active' } as Campaign
 const root = 'groups/school/campaigns/gym'
@@ -127,5 +129,48 @@ describe('the GM\'s wound delivery', () => {
   it('leaves delivery to the GM', () => {
     show('player', vi.fn(), wounded())
     expect(mocks.drain).not.toHaveBeenCalled()
+  })
+})
+
+describe('the GM\'s Movement settlement', () => {
+  const settling = (complete = true) => {
+    const live = liveFight()
+    live.fight.state = { ...live.fight.state, round: 1, phase: 'movement', stageInstanceId: 'movement-1', movementComplete: complete }
+    return live
+  }
+  const settles = () => mocks.sent.filter((command) => command.payload.type === 'settleMovement')
+
+  it('settles a Movement stage once every choice is in, once', async () => {
+    show('gm', vi.fn(), settling())
+    await waitFor(() => expect(settles()).toHaveLength(1))
+    expect(settles()[0].envelope).toMatchObject({ phase: 'movement', stageInstanceId: 'movement-1', actorKey: null })
+  })
+
+  it('waits while a choice is still to come', () => {
+    show('gm', vi.fn(), settling(false))
+    expect(settles()).toEqual([])
+  })
+
+  it('says nothing when another GM tab settled the stage first, and reports any other refusal', async () => {
+    mocks.outcome = { ok: false, reason: 'That fight stage is stale.' }
+    const quiet = show('gm', vi.fn(), settling())
+    await waitFor(() => expect(settles()).toHaveLength(1))
+    expect(quiet).not.toHaveBeenCalled()
+    cleanup()
+    mocks.outcome = { ok: false, reason: 'An item already has an owner.' }
+    const loud = show('gm', vi.fn(), settling())
+    await waitFor(() => expect(loud).toHaveBeenCalledWith('An item already has an owner.'))
+  })
+
+  it('tries the same stage again when the connection comes back after an unanswered send', async () => {
+    mocks.outcome = { ok: false, reason: COMBAT_UNCERTAIN }
+    const setError = show('gm', vi.fn(), settling())
+    await waitFor(() => expect(settles()).toHaveLength(1))
+    mocks.outcome = { ok: true, fightId: 'fight', generatedIds: [], rolls: [] }
+    act(() => { window.dispatchEvent(new Event('online')) })
+    await waitFor(() => expect(settles()).toHaveLength(2))
+    act(() => { window.dispatchEvent(new Event('online')) })
+    expect(settles()).toHaveLength(2)
+    expect(setError).not.toHaveBeenCalled()
   })
 })

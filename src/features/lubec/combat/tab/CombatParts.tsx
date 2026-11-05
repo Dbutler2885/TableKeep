@@ -59,3 +59,8 @@ export function CombatFloorIcon({ item, small = false }: { item: CombatFloorItem
   const mark = item.table === 'dodgeball' ? BALL : item.mode === 'thrown' ? ROCK : <LubecKindGlyph kind={item.kind} />
   return <span className={small ? 'ball sm' : 'ball'}>{mark}</span>
 }
+
+/** The table's reason for refusing the last act, if it did. */
+export function CombatRefusal({ refusal }: { refusal: string | null }) {
+  return refusal ? <div className="notice hot" role="alert"><span>{refusal}</span></div> : null
+}

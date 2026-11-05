@@ -3,7 +3,7 @@ import type { LubecRangeBand } from '../../../ruleSets/lubec/gear/gearRecord'
 import { actorEnvelope, attackCommandKey, gmEnvelope } from '../combatEnvelopes'
 import type { LubecLiveFight } from '../combatWatch'
 import { createCombatCommand } from '../commandJournal'
-import type { CombatAim, CombatCommand } from '../engine/types'
+import type { CombatAim, CombatCommand, CombatMovementChoice, CombatPickupClaim } from '../engine/types'
 import type { CombatSend } from '../useLubecCombatSend'
 
 /** Null when the table accepted the act; otherwise its reason. */
@@ -23,7 +23,16 @@ export type AttackCommands = {
   begin: () => AttackAct
   initiative: (actorKey: string) => AttackAct
   npcInitiative: () => AttackAct
+  move: (actorKey: string, movement: MovementPick) => AttackAct
+  npcMovement: (choices: Record<string, MovementPick>) => AttackAct
+  answerLeave: (combatantKey: string, confirm: boolean) => AttackAct
+  declare: (actorKey: string, declaration: DeclarePick) => AttackAct
 }
+
+/** A Movement choice as sent: Pick up names the exact Floor record and quantity it claims. */
+export type MovementPick = { choice: CombatMovementChoice; pickup: CombatPickupClaim | null }
+/** A declaration as sent: an attack with at most one named Defense line, or Full Defense naming one person. */
+export type DeclarePick = { full: false; aim: CombatAim } | { full: true; against: string; aim: Pick<CombatAim, 'weaponItemId' | 'attackId'> | null }
 
 type Payload = CombatCommand['payload']
 
@@ -48,5 +57,9 @@ export function attackCommands(scope: CampaignScope, live: LubecLiveFight, send:
     begin: () => act(null, { type: 'begin' }),
     initiative: (actorKey) => act(actorKey, { type: 'initiative' }),
     npcInitiative: () => act(null, { type: 'npcInitiative' }),
+    move: (actorKey, movement) => act(actorKey, { type: 'move', ...movement }),
+    npcMovement: (choices) => act(null, { type: 'npcMovement', choices }),
+    answerLeave: (combatantKey, confirm) => act(null, { type: 'answerLeave', combatantKey, confirm }),
+    declare: (actorKey, declaration) => act(actorKey, { type: 'declare', ...declaration }),
   }
 }
