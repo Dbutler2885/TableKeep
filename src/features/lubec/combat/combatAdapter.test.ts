@@ -26,8 +26,8 @@ const snapOf = (ref: Ref) => {
 }
 
 vi.mock('firebase/firestore', () => ({
-  doc: (_db: unknown, ...segments: string[]) => {
-    const path = segments.join('/')
+  doc: (base: { path?: string }, ...segments: string[]) => {
+    const path = [base.path, ...segments].filter(Boolean).join('/')
     return { path, id: path.split('/').at(-1) }
   },
   serverTimestamp: () => 'server-time',
@@ -243,6 +243,74 @@ describe('commands on a live fight', () => {
     const transact = vi.fn(async () => ({ ok: false as const, reason: 'transport refused' }))
     expect(await commit(action('end', 'custom'), options('gm', { transact }))).toEqual({ ok: false, reason: 'transport refused' })
     expect(transact).toHaveBeenCalledOnce()
+  })
+})
+
+describe('a Sneak Attack through the adapter', () => {
+  const heldBall = { id: 'held', kind: 'weapon', mode: 'thrown', name: 'Dodgeball', carrier: 'hands', slot: 0, size: 1, qty: 2, weight: 'normal', note: '', impact: 0, wounds: ['blunt'] }
+  const aim = { targetKey: 'npc:roy', weaponItemId: 'held', attackId: 'throw', defense: null }
+  const asHero = (type: string, id: string, payload = {}) => {
+    const command = action(type, id, payload)
+    const hero = fight().state.combatants.find((actor) => actor.key === 'character:hero')!
+    return { ...command, envelope: { ...command.envelope, actorKey: hero.key, interactionSequence: hero.interactionSequence } }
+  }
+  const sheetWrites = () => events.filter((event) => !event.startsWith('get') && /characters|npcSheets/.test(event))
+
+  beforeEach(async () => {
+    put('characters/hero', { ...sheet('player'), sheetRevision: 3, lubec: { ...lubecCharacterSheet(), gear: { items: [heldBall] } } })
+    await commit(start())
+    await commit(action('grant', 'grant', { combatantKey: 'character:hero' }))
+    events.length = 0
+  })
+
+  it("reads only the owner's own sheet, and the Roll writes the spent ball with the next revision and a receipt", async () => {
+    expect(await commit(asHero('aim', 'aim', { aim }), options('player'))).toMatchObject({ ok: true })
+    expect(events.filter((event) => /characters|npcSheets|npcs\//.test(event))).toEqual([`get ${root}/characters/hero`])
+    expect(fight().state.attack).toMatchObject({ frozen: { sourceRevision: 3 } })
+    expect(await commit(action('range', 'range', { band: 'short', modifier: 0 }))).toMatchObject({ ok: true })
+    events.length = 0
+    const roll = asHero('roll', 'roll', { aim })
+    const outcome = await commit(roll, options('player'))
+    expect(outcome).toMatchObject({ ok: true, rolls: [{ purpose: 'attack', ordinal: 0 }] })
+    expect(writesBeforeLastRead()).toBe(false)
+    const stored = read('characters/hero') as { sheetRevision: number; lubec: { gear: { items: { qty: number }[] } } }
+    expect(stored.sheetRevision).toBe(4)
+    expect(stored.lubec.gear.items[0].qty).toBe(1)
+    const receipts = [...store.keys()].filter((path) => path.startsWith(`${root}/characters/hero/writeReceipts/combat_`))
+    expect(receipts).toHaveLength(1)
+    events.length = 0
+    expect(await commit(roll, options('player'))).toEqual(outcome)
+    expect(sheetWrites()).toEqual([])
+    expect((read('characters/hero') as { sheetRevision: number }).sheetRevision).toBe(4)
+  })
+
+  it('reads no sheet for someone answering another person\'s attack', async () => {
+    store.set('groups/g/members/other', { status: 'active', role: 'member' })
+    expect(await commit(asHero('aim', 'aim', { aim }), options('other'))).toEqual({ ok: false, reason: 'That combatant belongs to someone else.' })
+    expect(events.some((event) => /characters|npcSheets/.test(event))).toBe(false)
+  })
+
+  it('turns an unreadable sheet into a named repair instead of a failed transaction', async () => {
+    put('characters/hero', { ...sheet('player'), schemaVersion: 99 })
+    expect(await commit(asHero('aim', 'aim', { aim }), options('player'))).toMatchObject({ ok: true, rolls: [] })
+    expect(fight().state.attack).toMatchObject({ step: 'aim', repair: "Tommy's sheet is missing or unreadable; restore it, then try again." })
+  })
+
+  it('names a sheet with an unreadable revision as a repair, and writes no sheet', async () => {
+    await commit(asHero('aim', 'aim', { aim }), options('player'))
+    await commit(action('range', 'range', { band: 'short', modifier: 0 }))
+    put('characters/hero', { ...sheet('player'), sheetRevision: 'broken', lubec: { ...lubecCharacterSheet(), gear: { items: [heldBall] } } })
+    events.length = 0
+    expect(await commit(asHero('roll', 'roll', { aim }), options('player'))).toMatchObject({ ok: true, rolls: [] })
+    expect(sheetWrites()).toEqual([])
+    expect(fight().state.attack).toMatchObject({ step: 'aim', repair: expect.stringContaining('missing or unreadable') })
+  })
+
+  it('lets Firestore failures reading the sheet reject, keeping the command for a retry', async () => {
+    const failing = { name: 'FirebaseError', code: 'unavailable', message: 'offline' }
+    const settings = options('player', { transact: async (run: (tx: unknown) => Promise<unknown>) => run({ get: async (ref: { path: string }) => { if (ref.path.includes('characters/hero')) throw failing; return snapOf(ref) } }) })
+    await expect(commit(asHero('aim', 'aim', { aim }), settings)).rejects.toBe(failing)
+    expect(settings.journal.pending()).toHaveLength(1)
   })
 })
 

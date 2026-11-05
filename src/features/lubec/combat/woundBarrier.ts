@@ -1,33 +1,18 @@
 import type { DocumentSnapshot, Firestore, Transaction } from 'firebase/firestore'
 import { readSheetRevision } from '../../character/characterStore/sheetIntention'
 import { parseLubecCharacter } from '../../ruleSets/lubec/characterParser'
-import type { LubecCharacterSheet } from '../../ruleSets/lubec/characterRecord'
-import type { LubecEffect } from '../../ruleSets/lubec/effects'
-import { lubecSheetModifiers } from '../../ruleSets/lubec/modifiers'
 import { combatantKey } from './engine/inputs'
 import type { CombatantSelection, CombatState } from './engine/types'
 import { readWoundFight, readWoundSheet, requireWoundFightLive } from './woundRecords'
-import { WOUND_WAIT, type CombatWoundOrigin, type CombatWoundScope } from './woundTypes'
+import { combatInputModifiers } from './engine/inputModifiers'
+import { WOUND_WAIT, type CombatWoundScope } from './woundTypes'
 
-export type CombatInputRound = { fightId: string; round: number }
+export { combatInputModifiers, type CombatInputRound } from './engine/inputModifiers'
 
 /** Pass a confirmed server snapshot, never an optimistic store revision. */
 export function confirmedCombatRevision(snapshot: DocumentSnapshot): number | null {
   if (!snapshot.exists() || snapshot.metadata.hasPendingWrites || snapshot.metadata.fromCache) return null
   return readSheetRevision(snapshot.data())
-}
-
-function deferredEffect(effect: LubecEffect, context: CombatInputRound): boolean {
-  const origin = effect.combatOrigin as CombatWoundOrigin | undefined
-  return origin?.fightId === context.fightId && context.round < origin.effectiveRound
-}
-
-/** Labels and counters remain immediate; only this fight's premature numeric modifiers are filtered. */
-export function combatInputModifiers(sheet: LubecCharacterSheet, context: CombatInputRound | null) {
-  if (!context) return lubecSheetModifiers(sheet)
-  const effects = sheet.effects.map((effect) => deferredEffect(effect, context)
-    ? { ...effect, steps: effect.steps.map((step) => ({ ...step, modifiers: [] })) } : effect)
-  return lubecSheetModifiers({ ...sheet, effects })
 }
 
 function dueTo(target: CombatantSelection, round: number) {
