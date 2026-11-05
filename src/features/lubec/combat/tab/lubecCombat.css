@@ -247,3 +247,4 @@
   .shell-root[data-theme="lubec"] .lubec-combat .allocation-label { font-size: .5rem; }
   .shell-root[data-theme="lubec"] .lubec-combat .allocation-label strong { font-size: .95rem; }
 }
+.shell-root[data-theme="lubec"] .lubec-combat .range-row .alts button:disabled { opacity: 1; }
