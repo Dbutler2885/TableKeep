@@ -40,8 +40,8 @@ export const combatSheetOf = (records: CombatRecords, combatant: Combatant): Com
   records.sheets.find((sheet) => combatantKey(sheet) === combatant.key) ?? null
 
 /** What the GM must repair before this attacker's step can go on; null when the sheet and its inputs are readable. */
-export function attackRepair(attacker: Combatant, record: CombatSheet | null): string | null {
+export function attackRepair(attacker: Combatant, record: CombatSheet | null, body = false): string | null {
   if (!record) return `${attacker.name}'s sheet is missing or unreadable; restore it, then try again.`
-  const issues = combatSetupIssues([record], [record], false)
+  const issues = combatSetupIssues([record], [record], body)
   return issues.length ? issues.join(' ') : null
 }

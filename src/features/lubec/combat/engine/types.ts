@@ -10,6 +10,8 @@ import type { CombatWound, CombatWoundAcknowledgement } from '../woundTypes'
 
 export type CombatantSelection = { kind: 'character' | 'npc'; sheetId: string }
 export type FloorSelection = { itemId: string; status: 'library' | 'dropped'; qty: number }
+/** A combatant's initiative: d100 strictly under Speed, frozen once per fight, with any tie rerolls the app made. */
+export type CombatInitiative = { roll: number; speed: number; success: boolean; sourceRevision: number; ties: number[] }
 export type Combatant = CombatantSelection & {
   key: string
   ownerUserId: string
@@ -19,6 +21,7 @@ export type Combatant = CombatantSelection & {
   armor: LubecArmorZone[]
   interactionSequence: number
   outReason: string | null
+  initiative?: CombatInitiative | null
 }
 /** What the attacker picked: target, weapon and use, and at most one named Defense line from the same Handle pool. */
 export type CombatAim = {
@@ -49,7 +52,19 @@ export type CombatStrengthRoll = { roll: number; strength: number; success: bool
 /** Impact built from its parts; the table it is read on and what happens next. */
 export type CombatImpact = { quality: number; base: number; strength: number | null; moved: number; armor: number; total: number; table: string }
 /** How a closed or waiting attack ended, for the outcome banner. */
-export type CombatAttackOutcome = 'miss' | 'dodged' | 'caught' | 'dropped' | 'no-wound' | 'manual' | 'pending-wound'
+export type CombatAttackOutcome = 'miss' | 'dodged' | 'caught' | 'dropped' | 'no-wound' | 'manual' | 'pending-wound' | 'wounded' | 'row-caught'
+/** The wound table row a hit reached, and the Check or Save it asks the target for. */
+export type CombatWoundRow = {
+  group: string
+  impact: number
+  name: string
+  text: string
+  severity: 'Minor' | 'Serious'
+  trauma: number
+  check: { kind: 'stat-check' | 'save'; against: 'Handle' | 'Body'; advantage: 'advantage' | 'normal' | 'disadvantage' } | null
+}
+/** The target's ordinary core roll: at or under its number, with failure Stress as the core roller adds it. */
+export type CombatCheckRoll = NonNullable<CombatWoundRow['check']> & { target: number; dice: number[]; result: number; success: boolean; stress: number }
 export type CombatAttack = {
   id: string
   grantId: string | null
@@ -77,6 +92,10 @@ export type CombatAttack = {
   strength?: CombatStrengthRoll | null
   impact?: CombatImpact | null
   outcome?: CombatAttackOutcome | null
+  row?: CombatWoundRow | null
+  check?: CombatCheckRoll | null
+  /** The row's words for what happened, once applied. */
+  rowOutcome?: string | null
 }
 export type CombatState = {
   round: number
@@ -88,6 +107,8 @@ export type CombatState = {
   woundOutbox: CombatWound[]
   woundAcknowledgements: CombatWoundAcknowledgement[]
   pendingActions?: CombatPendingAction[]
+  /** Keys fastest first, set once every initiative is in. */
+  order?: string[]
   /** The GM's last range band per attacker, offered again but never applied without a press. */
   lastRanges?: Record<string, LubecRangeBand>
 }

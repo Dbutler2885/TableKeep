@@ -75,6 +75,9 @@ const SHEET_DEPENDENCIES: Readonly<Record<string, SheetDependency>> = {
   defend: actorSheet,
   catch: actorSheet,
   strength: actorSheet,
+  check: actorSheet,
+  initiative: actorSheet,
+  npcInitiative: (_command, fight, authority) => gmOnly(authority, (fight?.state.combatants ?? []).filter((entry) => entry.kind === 'npc').map(({ kind, sheetId }) => ({ kind, sheetId }))),
 }
 
 function sheetDependencies(command: CombatCommand, fight: CombatFight | null, authority: CombatAuthority): CombatantSelection[] {

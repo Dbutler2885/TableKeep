@@ -3,6 +3,7 @@ import type { LubecArmorZone } from '../../fight/lubecNpcFightSummary'
 import type { CombatPendingAction } from './combatFeedback'
 import type { CombatEntropy } from './commandEntropy'
 import { lubecLandingPart, lubecPairedRegion, lubecStartRegion } from './hitLocation'
+import { readDodgeballRow } from './attackRow'
 import { settleCombatAttack } from './settlement'
 import type { CombatAttack, CombatAttackOutcome, CombatFight, CombatFrozenAim, CombatImpact, CombatLanding, CombatState } from './types'
 
@@ -51,14 +52,13 @@ function impactOutcome(impact: CombatImpact): CombatAttackOutcome {
   return impact.table === 'dodgeball' ? 'pending-wound' : 'manual'
 }
 
-export function finishImpact(fight: CombatFight, attack: CombatAttack, strength: number | null): CombatFight {
+export function finishImpact(fight: CombatFight, attack: CombatAttack, strength: number | null, entropy: CombatEntropy): CombatFight {
   const target = fight.state.combatants.find((entry) => entry.key === attack.aim!.targetKey)!
   const impact = combatImpact(attack, target.armor, strength)
   const outcome = impactOutcome(impact)
   const done = { ...attack, impact, outcome }
   if (outcome !== 'pending-wound') return { ...fight, state: closeAttack(fight.state, done, outcome) }
-  // The Dodgeball row resolves on its own step; the object stays in flight until then.
-  return { ...fight, state: { ...fight.state, attack: { ...done, step: 'wound' }, pendingActions: [] } }
+  return readDodgeballRow(fight, done, entropy)
 }
 
 export const impactWords = (impact: CombatImpact): string =>

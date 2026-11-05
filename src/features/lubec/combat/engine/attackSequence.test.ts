@@ -212,11 +212,13 @@ describe('the landing, Strength and Impact', () => {
     expect(over.logs[0].roll!.result).toBe('Adds nothing')
   })
 
-  it('leaves a positive Dodgeball Impact pending its table, with the ball still in flight', () => {
+  it('reads a positive Dodgeball Impact on its row: Winded puts Roy Out and queues the wound for the GM', () => {
     const placed = act(landed(), { type: 'land', actor: HERO, by: player, part: 'waist' }).records
     const { plan } = act(placed, { type: 'strength', actor: HERO, by: player, dice: { strength: 24 } })
-    expect(plan.fight.state.attack).toMatchObject({ step: 'wound', outcome: 'pending-wound', closed: false, impact: { quality: 2, base: 0, strength: 2, moved: 0, armor: 0, total: 4, table: 'dodgeball' } })
-    expect(plan.fight.state.attack!.detached).toHaveLength(1)
+    expect(plan.fight.state.attack).toMatchObject({ step: 'done', closed: true, outcome: 'wounded', impact: { quality: 2, base: 0, strength: 2, moved: 0, armor: 0, total: 4, table: 'dodgeball' }, row: { group: 'torso-waist', impact: 4, name: 'Winded', check: null } })
+    expect(plan.fight.state.combatants.find((entry) => entry.key === ROY)!.outReason).toBe('wound')
+    expect(plan.fight.state.woundOutbox).toEqual([expect.objectContaining({ target: { kind: 'npc', sheetId: 'roy' }, originatingRound: 0, effectiveRound: 1, traumaDelta: 0, stressDelta: 0, effect: expect.objectContaining({ name: 'Winded', cause: 'Dodgeball, torso-waist, Impact 4: Winded' }) })])
+    expect(plan.fight.state.floor).toHaveLength(1)
     expect(plan.logs.at(-1)!.event).toBe('Impact 4 = quality 2 +0 base +2 Strength − 0 moved − 0 armor.')
   })
 

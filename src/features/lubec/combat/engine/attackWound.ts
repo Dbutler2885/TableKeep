@@ -22,7 +22,7 @@ const impactLog = (fight: CombatFight, attacker: string): CombatLog[] =>
   [{ event: impactWords(fight.state.attack!.impact!), actor: attacker }]
 
 /** The attacker keeps or moves the landing; a firearm skips Strength straight to Impact. */
-const land: CombatHandler = (command, records, authority) => {
+const land: CombatHandler = (command, records, authority, entropy) => {
   const fight = requireLiveContext(command, records, authority)
   const attack = attackAt(fight.state, command, 'location')
   const { part, moved } = readPart(attack, command.payload.part)
@@ -30,7 +30,7 @@ const land: CombatHandler = (command, records, authority) => {
   const placed = { ...attack, landing: { ...attack.landing!, part, moved } }
   const log: CombatLog = { event: `It hits ${target.name}'s ${locName(part).toLowerCase()}${moved ? `, moved ${moved}` : ''}.`, actor: attack.attackerKey }
   if (!attack.frozen!.choice.str) {
-    const finished = finishImpact(fight, placed, null)
+    const finished = finishImpact(fight, placed, null, entropy)
     return { fight: finished, items: [], logs: [log, ...impactLog(finished, attack.attackerKey)] }
   }
   return { fight: { ...fight, state: { ...fight.state, attack: { ...placed, step: 'strength' }, pendingActions: stepRequest(attack.attackerKey, 'strength') } }, items: [], logs: [log] }
@@ -54,7 +54,7 @@ function strengthPlan(fight: CombatFight, attack: CombatAttack, record: CombatSh
   const modifiers = combatInputModifiers(record.sheet, { fightId: command.envelope.fightId, round: fight.state.round })
   const strength = lubecCurrentValue(record.sheet, 'Strength', modifiers)!
   const rolled = rollStrength(strength, entropy)
-  const finished = finishImpact(fight, { ...attack, strength: rolled, repair: null }, rolled.bonus)
+  const finished = finishImpact(fight, { ...attack, strength: rolled, repair: null }, rolled.bonus, entropy)
   return { fight: finished, items: [], logs: [strengthLog(record.name, attack.attackerKey, rolled), ...impactLog(finished, attack.attackerKey)] }
 }
 
