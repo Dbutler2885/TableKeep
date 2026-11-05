@@ -376,7 +376,8 @@ describe('less common states', () => {
 
   it('keeps the waiting middle for a phase this slice does not build', () => {
     const later = fightAfter()
-    later.fight.state.phase = 'initiative'
+    later.fight.state.phase = 'movement'
+    later.fight.state.round = 1
     show('player', 'wayne-uid', later)
     expect(screen.getByText(/The fight is waiting on the GM/)).toBeTruthy()
   })

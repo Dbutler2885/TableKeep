@@ -7,10 +7,14 @@ import { combatWoundHandlers } from './attackWound'
 import { requireGm, requireLiveContext } from './context'
 import type { CombatAttack, CombatHandler, CombatState } from './types'
 
-function requireGrantable(state: CombatState, key: unknown) {
-  if (state.phase !== 'before-initiative') throw new Error('A Sneak Attack is granted only before initiative.')
+function requireNothingOpen(state: CombatState) {
   if (state.attack && !state.attack.closed) throw new Error('Finish the granted attack first.')
   if (state.woundOutbox.length) throw new Error('Wounds must reach the sheet first.')
+}
+
+function requireGrantable(state: CombatState, key: unknown) {
+  if (state.phase !== 'before-initiative') throw new Error('A Sneak Attack is granted only before initiative.')
+  requireNothingOpen(state)
   const attacker = combatantOf(state, String(key))
   if (attacker.outReason !== null) throw new Error(`${attacker.name} is Out.`)
   return attacker

@@ -10,6 +10,7 @@ import type { CombatViewer } from './attackWords'
 import { BeforeInitiativeMiddle } from './BeforeInitiativeMiddle'
 import type { CombatRosterRecords } from './combatFightCombatants'
 import { CombatWaiting } from './CombatMiddles'
+import { InitiativeMiddle } from './InitiativeMiddle'
 
 type PhaseProps = {
   campaign: Campaign
@@ -26,6 +27,7 @@ export function CombatPhaseMiddle({ campaign, live, viewer, roster, send, onActF
   const scope = useMemo(() => ({ groupId: campaign.groupId, campaignId: campaign.id }), [campaign.groupId, campaign.id])
   const commands = useMemo(() => attackCommands(scope, live, send), [scope, live, send])
   const { state } = live.fight
+  if (state.phase === 'initiative') return <InitiativeMiddle state={state} viewer={viewer} commands={commands} />
   if (state.phase !== 'before-initiative') return <CombatWaiting state={state} />
   // Tapping a hand opens that sheet's inventory: the character's own, or for the GM an NPC's sheet.
   const onInventory = (attacker: { kind: 'character' | 'npc'; sheetId: string }) => {

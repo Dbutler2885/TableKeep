@@ -19,6 +19,10 @@ export type AttackCommands = {
   catchRoll: (actorKey: string) => AttackAct
   land: (actorKey: string, part: string) => AttackAct
   strength: (actorKey: string) => AttackAct
+  check: (actorKey: string) => AttackAct
+  begin: () => AttackAct
+  initiative: (actorKey: string) => AttackAct
+  npcInitiative: () => AttackAct
 }
 
 type Payload = CombatCommand['payload']
@@ -40,5 +44,9 @@ export function attackCommands(scope: CampaignScope, live: LubecLiveFight, send:
     catchRoll: (actorKey) => act(actorKey, { type: 'catch' }),
     land: (actorKey, part) => act(actorKey, { type: 'land', part }),
     strength: (actorKey) => act(actorKey, { type: 'strength' }),
+    check: (actorKey) => act(actorKey, { type: 'check' }),
+    begin: () => act(null, { type: 'begin' }),
+    initiative: (actorKey) => act(actorKey, { type: 'initiative' }),
+    npcInitiative: () => act(null, { type: 'npcInitiative' }),
   }
 }

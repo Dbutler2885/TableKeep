@@ -107,8 +107,12 @@ describe('local setup', () => {
 
 describe('phase view', () => {
   it('names Before initiative and its stepper, and any later round by number', () => {
-    expect(combatPhaseView({ phase: 'before-initiative', round: 0 } as CombatState)).toEqual({ round: 'Before initiative', stage: 'attacks run at once', steps: ['Pre-initiative attacks', 'Roll Initiative'], now: 0 })
-    expect(combatPhaseView({ phase: 'movement', round: 2 } as CombatState)).toMatchObject({ round: 'Round 2', steps: ['Movement', 'Declare', 'Attack'] })
+    expect(combatPhaseView({ phase: 'before-initiative', round: 0 } as CombatState)).toEqual({ round: 'Before initiative', stage: 'attacks run at once', steps: ['Pre-initiative attacks', 'Roll Initiative'], now: 0, pips: null })
+    expect(combatPhaseView({ phase: 'initiative', round: 0 } as CombatState)).toEqual({ round: 'Initiative', stage: 'once per fight', steps: ['Roll', 'Order'], now: 0, pips: null })
+    expect(combatPhaseView({ phase: 'movement', round: 2 } as CombatState)).toEqual({ round: 'Round 2', stage: 'Stage 1 · Movement', steps: ['Movement', 'Declare', 'Attack'], now: 0, pips: 0 })
+    expect(combatPhaseView({ phase: 'declare', round: 1 } as CombatState)).toMatchObject({ stage: 'Stage 2 · Declare · slowest first', now: 1, pips: 1 })
+    expect(combatPhaseView({ phase: 'attack', round: 1 } as CombatState)).toMatchObject({ stage: 'Stage 3 · Attack · fastest first', now: 2 })
+    expect(combatPhaseView({ phase: 'mystery', round: 1 } as CombatState)).toMatchObject({ stage: 'mystery', now: 0 })
   })
 
   it('tells the viewer which row is theirs', () => {

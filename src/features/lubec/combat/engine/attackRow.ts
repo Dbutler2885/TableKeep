@@ -2,6 +2,7 @@ import { keptLubecRoll, lubecFailedCheckStress, type LubecAdvantage, type LubecC
 import { lubecCurrentValue, lubecEffectiveHandle } from '../../../ruleSets/lubec/derivations'
 import type { LubecDodgeballOutcome } from '../../../ruleSets/lubec/dodgeballTable'
 import { lubecDodgeballRow, type LubecDodgeballEffect, type LubecLocatedDodgeballRow } from '../../../ruleSets/lubec/dodgeballWound'
+import type { LubecArrival } from '../../../ruleSets/lubec/gear/arrival'
 import { lubecPlaceDetached } from '../../../ruleSets/lubec/gear/detachedItems'
 import type { LubecItem } from '../../../ruleSets/lubec/gear/gearRecord'
 import { place } from '../../../ruleSets/lubec/gear/placement'
@@ -44,10 +45,13 @@ function rowWound(state: CombatState, attack: CombatAttack, row: CombatWoundRow,
   }]
 }
 
+const isOut = (entry: Combatant, attack: CombatAttack, outcome: Outcome): boolean =>
+  (entry.key === defenderOf(attack) && outcome.targetOut) || (entry.key === attack.attackerKey && outcome.throwerOut)
+
+/** The target Out on a wound; the thrower Out when the row says so: caught by the target, or Coach's call. */
 function outReason(entry: Combatant, attack: CombatAttack, outcome: Outcome): string | null {
-  if (entry.key === defenderOf(attack) && outcome.targetOut) return 'wound'
-  if (entry.key === attack.attackerKey && outcome.throwerOut) return outcome.caught ? 'caught' : 'wound'
-  return entry.outReason
+  if (!isOut(entry, attack, outcome)) return entry.outReason
+  return outcome.caught ? 'caught' : 'wound'
 }
 
 /** The row's result: Out applies at once, the wound queues for the GM, and the attack closes. */
@@ -96,8 +100,9 @@ function checkLog(target: Combatant, row: CombatWoundRow, rolled: CombatCheckRol
 function caughtByRow(attack: CombatAttack, record: CombatSheet, command: CombatCommand) {
   const detached = attack.detached[0]
   if (!detached || !place(record.sheet.gear, 'hands', detached.item as LubecItem).ok) return { attack, sheets: [] }
-  const arrival = lubecPlaceDetached(record.sheet.gear, detached, { commandId: command.envelope.id, role: 'catch' }, 'hands')
-  return arrival.ok ? { attack: { ...attack, detached: [] }, sheets: [{ selection: { kind: record.kind, sheetId: record.sheetId }, gear: arrival.gear }] } : { attack, sheets: [] }
+  // The free hand was checked just above, in this same transaction, so the placement succeeds.
+  const arrival = lubecPlaceDetached(record.sheet.gear, detached, { commandId: command.envelope.id, role: 'catch' }, 'hands') as Extract<LubecArrival, { ok: true }>
+  return { attack: { ...attack, detached: [] }, sheets: [{ selection: { kind: record.kind, sheetId: record.sheetId }, gear: arrival.gear }] }
 }
 
 function checked(fight: CombatFight, attack: CombatAttack, record: CombatSheet, command: CombatCommand, entropy: CombatEntropy): CombatPlan {

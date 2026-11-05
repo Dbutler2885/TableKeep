@@ -11,3 +11,11 @@ describe('the fight window stepper', () => {
     expect([...container.querySelectorAll('li')].map((step) => step.className)).toEqual(['done', 'now', ''])
   })
 })
+
+describe('the page head', () => {
+  it('marks stages before the current one done in the round pips', async () => {
+    const { CombatHead } = await import('./CombatParts')
+    const { container } = render(<CombatHead round="Round 1" stage="Stage 2 · Declare · slowest first" pips={1} />)
+    expect([...container.querySelectorAll('.pips li')].map((pip) => pip.className)).toEqual(['done', 'now', ''])
+  })
+})

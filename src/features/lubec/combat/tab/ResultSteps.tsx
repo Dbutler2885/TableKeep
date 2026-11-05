@@ -9,7 +9,7 @@ import { SegmentRoll } from './AttackBar'
 import type { AttackAct, AttackCommands } from './attackCommands'
 import { combatFightCombatant, type CombatRosterRecords } from './combatFightCombatants'
 import { CombatDoll } from './CombatDoll'
-import { catchFacts, catchVerdict, defenseVerdict, impactChips, stopWords, strengthTitle, woundBox } from './resultSequence'
+import { catchFacts, catchVerdict, checkAsk, checkVerdict, defenseVerdict, impactChips, stopWords, strengthTitle, woundBox, type WoundBoxWords } from './resultSequence'
 import { RollBar } from './RollBar'
 
 /** What this viewer may do in the sequence: the steps they own, the GM's way to act for an absent player, and the commands. */
@@ -293,9 +293,60 @@ function ImpactChips({ attack }: { attack: CombatAttack }) {
   )
 }
 
+function WoundTags({ box }: { box: WoundBoxWords }) {
+  if (box.severity) return <span><span className={`sev ${box.severity.cls}`}>{box.severity.name}</span> <span className="tag ink">{box.trauma}</span></span>
+  return box.tag ? <span className="sev mi">{box.tag}</span> : null
+}
+
 function WoundBox({ state, attack }: Pick<StepProps, 'state' | 'attack'>) {
   const box = woundBox(attack, nameOf(state, attack.aim!.targetKey))
-  return <div className="wound"><div className="wh"><span>{box.head}</span>{box.tag ? <span className="sev mi">{box.tag}</span> : null}</div><div className="wb">{box.body}</div></div>
+  return <div className="wound"><div className="wh"><span>{box.head}</span><WoundTags box={box} /></div><div className="wb">{box.title ? <><b>{box.title}</b> </> : null}{box.body}</div></div>
+}
+
+/** The number the target's ordinary roll is made against, as this viewer can read it: the roll's own once made. */
+function checkNumber(props: StepProps): number | null {
+  const rolled = props.attack.check
+  if (rolled) return rolled.target
+  // Before the roll the attack is open, so the result shows with this viewer's controls.
+  const read = sheetOf(props.state, props.attack.aim!.targetKey, props.controls!)
+  return read && checkValue(read, props.attack.row!.check!.against)
+}
+
+const checkValue = (read: NonNullable<ReturnType<typeof sheetOf>>, against: 'Handle' | 'Body') =>
+  (against === 'Handle' ? lubecEffectiveHandle(read.sheet, read.modifiers) : lubecCurrentValue(read.sheet, against, read.modifiers))
+
+function CheckControl({ at, ...props }: StepProps & { at: number }) {
+  const act = useAct()
+  const target = props.attack.aim!.targetKey
+  const what = props.attack.row!.check!.kind === 'save' ? 'Save' : 'Check'
+  if (!working(props, target)) return <WaitWords state={props.state} owner={target} what={what} />
+  return <><SegmentRoll at={at} label={`Roll ${what}`} disabled={act.busy} onRoll={() => act.run(() => props.controls.commands.check(target))} /><Refusal refusal={act.refusal} /></>
+}
+
+function CheckBar(props: StepProps) {
+  const rolled = props.attack.check
+  const value = checkNumber(props)
+  const control = rolled ? null : <CheckControl {...props} at={half(value ?? 100)} />
+  if (value === null) return <div className="roll-controls">{control}</div>
+  return <RollBar value={value} tag={props.attack.row!.check!.against.toUpperCase()} roll={rolled && { roll: rolled.result, success: rolled.success }} controls={control} />
+}
+
+function CheckVerdict({ attack }: { attack: CombatAttack }) {
+  const rolled = attack.check
+  return rolled ? <p className={`verdict ${rolled.success ? 'ok' : 'bad'}`}>{checkVerdict(rolled)}</p> : null
+}
+
+/** The target's own Check or Save the row calls for: an ordinary roll at or under the number, with the row's Advantage. */
+export function CheckStep(props: StepProps) {
+  const target = props.attack.aim!.targetKey
+  return (
+    <>
+      <p className="say"><b>{nameOf(props.state, target)}</b> rolls a {checkAsk(props.attack.row!.check!)}.</p>
+      <CheckBar {...props} />
+      <CheckVerdict attack={props.attack} />
+      <ActFor state={props.state} controls={props.controls} owner={target} />
+    </>
+  )
 }
 
 function WoundResult({ state, attack }: Pick<StepProps, 'state' | 'attack'>) {

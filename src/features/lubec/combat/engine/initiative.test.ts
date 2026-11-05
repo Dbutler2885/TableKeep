@@ -127,6 +127,18 @@ describe('rolling initiative', () => {
   })
 })
 
+describe('the last roll', () => {
+  it('reads a sheet with no stored revision as revision 0, and leaves someone Out out of the order', () => {
+    const sheets = [{ ...sheetOf('hero', 'character', 'player'), revision: undefined }, sheetOf('roy', 'npc', 'gm', 31)]
+    const records = fight(sheets)
+    records.fight!.state.combatants[1].outReason = 'gm'
+    const { plan } = act(begun(records), 'initiative', { actor: HERO, by: player, dice: [10] })
+    expect(plan.fight.state.combatants[0].initiative!.sourceRevision).toBe(0)
+    expect(plan.fight.state).toMatchObject({ phase: 'movement', order: [HERO] })
+    expect(plan.fight.state.combatants[1].initiative).toBeUndefined()
+  })
+})
+
 describe('settling the order', () => {
   it('stops rerolling after a bounded number of rounds and keeps the order it has', () => {
     const tied = (key: string): Combatant => ({ key, kind: 'npc', sheetId: key, name: key, ownerUserId: 'gm', portraitPath: '', speed: 40, armor: [], interactionSequence: 0, outReason: null, initiative: { roll: 10, speed: 40, success: true, sourceRevision: 0, ties: [] } })

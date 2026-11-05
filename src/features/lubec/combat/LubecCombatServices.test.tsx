@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   listeners: new Map<string, (snap: { data: () => unknown }) => void>(),
   sent: [] as CombatCommand[],
   outcome: { ok: true } as CombatOutcome,
+  drain: vi.fn(async () => undefined),
 }))
 
 vi.mock('../../../firebase', () => ({ db: {} }))
@@ -28,6 +29,8 @@ vi.mock('./useLubecCombatSend', () => ({
   },
 }))
 
+vi.mock('./woundDelivery', () => ({ drainCombatWounds: (...args: unknown[]) => mocks.drain(...args) }))
+
 const { LubecCombatServices } = await import('./LubecCombatServices')
 
 const campaign = { id: 'gym', groupId: 'school', name: 'Gym', status: 'active' } as Campaign
@@ -40,9 +43,15 @@ function liveFight() {
   return { id: 'fight', fight: planCombatCommand(command, { activeFightId: null, fight: null, sheets: [roy], items: new Map() }, { userId: 'gm', isGm: true }).fight }
 }
 
-function show(role: Role, setError = vi.fn()) {
-  render(<LubecCombatContext value={{ enabled: true, ready: true, live: liveFight() }}><LubecCombatServices campaign={campaign} role={role} userId="gm" setError={setError} /></LubecCombatContext>)
+function show(role: Role, setError = vi.fn(), live = liveFight()) {
+  render(<LubecCombatContext value={{ enabled: true, ready: true, live }}><LubecCombatServices campaign={campaign} role={role} userId="gm" setError={setError} /></LubecCombatContext>)
   return setError
+}
+
+const wounded = () => {
+  const live = liveFight()
+  live.fight.state.woundOutbox = [{ id: 'w', target: { kind: 'npc', sheetId: 'roy' }, originatingRound: 0, effectiveRound: 1, traumaDelta: 1, stressDelta: 0, effect: { id: 'e', name: 'Winded', cause: 'row', steps: [] } }]
+  return live
 }
 
 const read = (path: string, data: unknown) => act(() => { mocks.listeners.get(`${root}/${path}`)?.({ data: () => data }) })
@@ -51,6 +60,7 @@ beforeEach(() => {
   mocks.listeners.clear()
   mocks.sent = []
   mocks.outcome = { ok: true, fightId: 'fight', generatedIds: [], rolls: [] }
+  mocks.drain.mockReset().mockResolvedValue(undefined)
 })
 afterEach(cleanup)
 
@@ -92,5 +102,30 @@ describe('the GM\'s public summary refresher', () => {
   it('is the GM\'s alone', () => {
     show('player')
     expect(mocks.listeners.size).toBe(0)
+  })
+})
+
+describe('the GM\'s wound delivery', () => {
+  it('delivers queued wounds to their sheets from whichever tab is open', async () => {
+    const setError = show('gm', vi.fn(), wounded())
+    await waitFor(() => expect(mocks.drain).toHaveBeenCalledWith({}, { groupId: 'school', campaignId: 'gym', fightId: 'fight' }, 'gm'))
+    expect(setError).not.toHaveBeenCalled()
+  })
+
+  it('keeps a failed delivery queued and says why', async () => {
+    mocks.drain.mockRejectedValue(new Error('sheet missing'))
+    const setError = show('gm', vi.fn(), wounded())
+    await waitFor(() => expect(setError).toHaveBeenCalledWith('Waiting for wounds to reach the sheet: Error: sheet missing'))
+  })
+
+  it('does nothing outside a campaign', () => {
+    render(<LubecCombatContext value={{ enabled: true, ready: true, live: wounded() }}><LubecCombatServices campaign={null} role="gm" userId="gm" setError={vi.fn()} /></LubecCombatContext>)
+    expect(mocks.drain).not.toHaveBeenCalled()
+    expect(mocks.listeners.size).toBe(0)
+  })
+
+  it('leaves delivery to the GM', () => {
+    show('player', vi.fn(), wounded())
+    expect(mocks.drain).not.toHaveBeenCalled()
   })
 })

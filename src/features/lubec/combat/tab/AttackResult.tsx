@@ -6,8 +6,8 @@ import { attackSegments, segmentMiddle } from './attackDraft'
 import { attackVerdict, combatantName, isThrow, resultFoot } from './attackWords'
 import { CombatStepper, CombatWindow } from './CombatParts'
 import { OutcomeBanner } from './OutcomeBanner'
-import { CatchStep, DefenseStep, LocationStep, WoundStep, type StepControls, type StepProps } from './ResultSteps'
-import { activeCard, resultStepperNow, shownCards, stillToCome, STEP_NAMES, type ResultStep } from './resultSequence'
+import { CatchStep, CheckStep, DefenseStep, LocationStep, WoundStep, type StepControls, type StepProps } from './ResultSteps'
+import { activeCard, cardName, resultStepperNow, shownCards, stillToCome, type ResultStep } from './resultSequence'
 
 type Rolled = CombatAttack & { frozen: CombatFrozenAim; roll: CombatAttackRoll }
 
@@ -28,11 +28,12 @@ function AttackRollBody({ attack }: { attack: Rolled }) {
 }
 
 const STEP_BODIES: Readonly<Record<Exclude<ResultStep, 'attack'>, (props: StepProps) => ReactNode>> = {
-  defense: DefenseStep, catch: CatchStep, location: LocationStep, wound: WoundStep,
+  defense: DefenseStep, catch: CatchStep, location: LocationStep, wound: WoundStep, check: CheckStep,
 }
 
 /** Who each card belongs to: the defender for Defense and the catch, otherwise the attacker. */
-const ownerOf = (attack: CombatAttack, card: ResultStep): string => (card === 'defense' || card === 'catch' ? attack.aim!.targetKey : attack.attackerKey)
+const TARGET_CARDS: readonly ResultStep[] = ['defense', 'catch', 'check']
+const ownerOf = (attack: CombatAttack, card: ResultStep): string => (TARGET_CARDS.includes(card) ? attack.aim!.targetKey : attack.attackerKey)
 
 type CardProps = { state: CombatState; attack: Rolled; card: ResultStep; index: number; controls: StepControls | null }
 
@@ -41,7 +42,7 @@ function StepCard({ state, attack, card, index, controls }: CardProps) {
   const Body = card === 'attack' ? null : STEP_BODIES[card]
   return (
     <div className={`st${active ? ' active' : ''}`}>
-      <div className="sh"><span><span className="no">{index + 1}</span>{STEP_NAMES[card]}</span><span>{combatantName(state, ownerOf(attack, card))}</span></div>
+      <div className="sh"><span><span className="no">{index + 1}</span>{cardName(attack, card)}</span><span>{combatantName(state, ownerOf(attack, card))}</span></div>
       <div className="sb">{Body ? <Body state={state} attack={attack} controls={controls} active={active} /> : <AttackRollBody attack={attack} />}</div>
     </div>
   )

@@ -67,6 +67,10 @@ function compareRanks(a: number[], b: number[]): number {
 
 const sameRank = (a: Combatant, b: Combatant) => compareRanks(rankKey(a), rankKey(b)) === 0
 
+/** Rolled combatants in the order their rolls so far give, as the table watches it build. */
+export const byInitiative = (combatants: readonly Combatant[]): Combatant[] =>
+  combatants.filter((entry) => entry.initiative).sort((a, b) => compareRanks(rankKey(a), rankKey(b)))
+
 /** Everyone still tied with someone else rerolls; a reroll ranks after every earlier roll. */
 function rerollTies(combatants: Combatant[], entropy: CombatEntropy): { combatants: Combatant[]; rerolled: Combatant[] } {
   const tied = combatants.filter((entry) => combatants.some((other) => other !== entry && sameRank(entry, other)))
@@ -102,7 +106,8 @@ function afterRoll(state: CombatState, entropy: CombatEntropy): { state: CombatS
 
 function withRoll(state: CombatState, combatant: Combatant, rolled: CombatInitiative): CombatState {
   const combatants = state.combatants.map((entry) => (entry.key === combatant.key ? { ...entry, speed: rolled.speed, initiative: rolled } : entry))
-  return { ...state, combatants, pendingActions: (state.pendingActions ?? []).filter((action) => action.combatantKey !== combatant.key) }
+  // Begin set every request, so the list is there to take this roll's off.
+  return { ...state, combatants, pendingActions: state.pendingActions!.filter((action) => action.combatantKey !== combatant.key) }
 }
 
 type Rolled = { state: CombatState; logs: CombatLog[] }

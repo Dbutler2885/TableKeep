@@ -10,6 +10,9 @@ import type { CombatState } from './engine/types'
 import { createCombatCommand } from './commandJournal'
 import { combatSummariesStale } from './engine/summaries'
 import { useLubecCombatSend } from './useLubecCombatSend'
+import { drainCombatWounds } from './woundDelivery'
+import { combatWoundDrainService, type CombatWoundDeliveryStatus } from './woundDrainService'
+import { WOUND_WAIT } from './woundTypes'
 
 type Docs = Map<string, Record<string, unknown> | null>
 type Seen = { key: string; docs: Docs }
@@ -69,6 +72,21 @@ function SummaryRefresher({ scope, live, userId, setError }: RefresherProps) {
   return null
 }
 
+type DelivererProps = { scope: CampaignScope; live: LubecLiveFight; userId: string; setError: (message: string) => void }
+
+/** The GM's client delivers every queued wound to its target's sheet, from whichever tab is open; a failure stays queued with its reason. */
+function WoundDeliverer({ scope, live, userId, setError }: DelivererProps) {
+  const service = useRef<ReturnType<typeof combatWoundDrainService> | null>(null)
+  useEffect(() => {
+    const report = (status: CombatWoundDeliveryStatus) => { if (status.reason && status.reason !== WOUND_WAIT) setError(status.reason) }
+    const next = combatWoundDrainService((fightId) => drainCombatWounds(db, { ...scope, fightId }, userId), report)
+    service.current = next
+    return () => next.stop()
+  }, [scope, userId, setError])
+  useEffect(() => { service.current?.observe(live) }, [live])
+  return null
+}
+
 type ServicesProps = { campaign: Campaign | null; role: Role | null; userId: string; setError: (message: string) => void }
 
 /** The fight work the GM's workspace does by itself, on whichever tab is open. */
@@ -76,5 +94,10 @@ export function LubecCombatServices({ campaign, role, userId, setError }: Servic
   const { live } = useLubecCombat()
   const scope = useMemo(() => (campaign ? { groupId: campaign.groupId, campaignId: campaign.id } : null), [campaign])
   if (!scope || role !== 'gm' || !live) return null
-  return <SummaryRefresher scope={scope} live={live} userId={userId} setError={setError} />
+  return (
+    <>
+      <SummaryRefresher scope={scope} live={live} userId={userId} setError={setError} />
+      <WoundDeliverer scope={scope} live={live} userId={userId} setError={setError} />
+    </>
+  )
 }
