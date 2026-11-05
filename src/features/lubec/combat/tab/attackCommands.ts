@@ -14,6 +14,11 @@ export type AttackCommands = {
   aim: (actorKey: string, aim: CombatAim) => AttackAct
   roll: (actorKey: string, aim: CombatAim) => AttackAct
   range: (band: LubecRangeBand, modifier: number | null) => AttackAct
+  split: (actorKey: string, split: { amount: number; full: boolean }) => AttackAct
+  defend: (actorKey: string, split: { amount: number; full: boolean }) => AttackAct
+  catchRoll: (actorKey: string) => AttackAct
+  land: (actorKey: string, part: string) => AttackAct
+  strength: (actorKey: string) => AttackAct
 }
 
 type Payload = CombatCommand['payload']
@@ -30,5 +35,10 @@ export function attackCommands(scope: CampaignScope, live: LubecLiveFight, send:
     aim: (actorKey, aim) => act(actorKey, { type: 'aim', aim }),
     roll: (actorKey, aim) => act(actorKey, { type: 'roll', aim }),
     range: (band, modifier) => act(null, { type: 'range', band, ...(modifier === null ? {} : { modifier }) }),
+    split: (actorKey, split) => act(actorKey, { type: 'split', split }),
+    defend: (actorKey, split) => act(actorKey, { type: 'defend', split }),
+    catchRoll: (actorKey) => act(actorKey, { type: 'catch' }),
+    land: (actorKey, part) => act(actorKey, { type: 'land', part }),
+    strength: (actorKey) => act(actorKey, { type: 'strength' }),
   }
 }

@@ -278,7 +278,7 @@ describe('refusing stale or misdirected acts', () => {
   })
 
   it("refuses the GM answering one combatant's attack as another", () => {
-    expect(() => act(granted(), { type: 'aim', actor: ROY, aim: throwAtRoy })).toThrow('That attack belongs to someone else.')
+    expect(() => act(granted(), { type: 'aim', actor: ROY, aim: throwAtRoy })).toThrow('That attack step belongs to someone else.')
   })
 
   it('refuses an aim once the attack has completed, and a range with no attack aiming', () => {

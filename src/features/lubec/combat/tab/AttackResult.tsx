@@ -1,9 +1,13 @@
-import type { CombatAttack, CombatAttackRoll, CombatFrozenAim, CombatState } from '../engine/types'
+import type { ReactNode } from 'react'
 import { aimDefense } from '../engine/attackAim'
+import type { CombatAttack, CombatAttackRoll, CombatFrozenAim, CombatState } from '../engine/types'
 import { AttackBar, QualityCall } from './AttackBar'
 import { attackSegments, segmentMiddle } from './attackDraft'
-import { attackVerdict, combatantName, isThrow, laterSteps, missWords, resultFoot } from './attackWords'
+import { attackVerdict, combatantName, isThrow, resultFoot } from './attackWords'
 import { CombatStepper, CombatWindow } from './CombatParts'
+import { OutcomeBanner } from './OutcomeBanner'
+import { CatchStep, DefenseStep, LocationStep, WoundStep, type StepControls, type StepProps } from './ResultSteps'
+import { activeCard, resultStepperNow, shownCards, stillToCome, STEP_NAMES, type ResultStep } from './resultSequence'
 
 type Rolled = CombatAttack & { frozen: CombatFrozenAim; roll: CombatAttackRoll }
 
@@ -12,47 +16,63 @@ function RollQuality({ roll, at }: { roll: CombatAttackRoll; at: number }) {
 }
 
 /** The result sequence's first step: the locked split, the roll on it, and what it means. */
-function AttackRollStep({ attack, attacker }: { attack: Rolled; attacker: string }) {
+function AttackRollBody({ attack }: { attack: Rolled }) {
   const segments = attackSegments(attack.frozen.total, aimDefense(attack.aim!), attack.range)
   const at = segmentMiddle(segments.attackFrom, segments.attackWidth)
   return (
-    <div className="st">
-      <div className="sh"><span><span className="no">1</span>Attack roll</span><span>{attacker}</span></div>
-      <div className="sb">
-        <AttackBar segments={segments} roll={attack.roll} controls={<RollQuality roll={attack.roll} at={at} />} />
-        <p className={`verdict ${attack.roll.hit ? 'ok' : 'bad'}`}>{attackVerdict(attack.roll)}</p>
-      </div>
+    <>
+      <AttackBar segments={segments} roll={attack.roll} controls={<RollQuality roll={attack.roll} at={at} />} />
+      <p className={`verdict ${attack.roll.hit ? 'ok' : 'bad'}`}>{attackVerdict(attack.roll)}</p>
+    </>
+  )
+}
+
+const STEP_BODIES: Readonly<Record<Exclude<ResultStep, 'attack'>, (props: StepProps) => ReactNode>> = {
+  defense: DefenseStep, catch: CatchStep, location: LocationStep, wound: WoundStep,
+}
+
+/** Who each card belongs to: the defender for Defense and the catch, otherwise the attacker. */
+const ownerOf = (attack: CombatAttack, card: ResultStep): string => (card === 'defense' || card === 'catch' ? attack.aim!.targetKey : attack.attackerKey)
+
+type CardProps = { state: CombatState; attack: Rolled; card: ResultStep; index: number; controls: StepControls | null }
+
+function StepCard({ state, attack, card, index, controls }: CardProps) {
+  const active = activeCard(attack) === card
+  const Body = card === 'attack' ? null : STEP_BODIES[card]
+  return (
+    <div className={`st${active ? ' active' : ''}`}>
+      <div className="sh"><span><span className="no">{index + 1}</span>{STEP_NAMES[card]}</span><span>{combatantName(state, ownerOf(attack, card))}</span></div>
+      <div className="sb">{Body ? <Body state={state} attack={attack} controls={controls} active={active} /> : <AttackRollBody attack={attack} />}</div>
     </div>
   )
 }
 
-/** A hit names what is still to come; a miss closes with the mock-up's banner. */
-function ResultEnd({ attack, attacker }: { attack: Rolled; attacker: string }) {
-  if (attack.roll.hit) return <p className="later">{laterSteps(attack.frozen)}</p>
-  return <div className="outcome"><h4>A miss</h4><p>{missWords(attacker, attack.frozen)}</p></div>
+function ResultEnd({ state, attack }: { state: CombatState; attack: Rolled }) {
+  const later = stillToCome(attack)
+  if (later) return <p className="later">{later}</p>
+  return <OutcomeBanner state={state} attack={attack} />
 }
 
-const STEP_NAMES = ['Throw', 'Defense', 'Catch / Location', 'Wound']
+const STEPPER = ['Throw', 'Defense', 'Catch / Location', 'Wound']
 const rolled = (attack: CombatAttack): attack is Rolled => attack.frozen != null && attack.roll != null
 
 /**
- * Moment 8, watched by everyone: the attack roll lands, then a miss closes the
- * attack and a hit names the steps still to come. Nobody but the step's owner
- * has a control here.
+ * Moment 8, watched by everyone: one card per step reached, the step waiting now in rust with its
+ * controls only for whoever owns it, and the outcome once the attack completes.
  */
-export function AttackResult({ state, attack }: { state: CombatState; attack: CombatAttack }) {
+export function AttackResult({ state, attack, controls = null }: { state: CombatState; attack: CombatAttack; controls?: StepControls | null }) {
   if (!rolled(attack)) return null
   const attacker = combatantName(state, attack.attackerKey)
   return (
-    <CombatWindow title="Result" stepper={<CombatStepper steps={STEP_NAMES} now={attack.closed ? STEP_NAMES.length : 1} />} foot={<span className="note">{resultFoot(attack)}</span>}>
+    <CombatWindow title="Result" stepper={<CombatStepper steps={STEPPER} now={resultStepperNow(attack)} />} foot={<span className="note">{resultFoot(attack)}</span>}>
       <div className="trail">
         <span className="who"><small>{isThrow(attack.frozen) ? 'Thrower' : 'Attacker'}</small>{attacker}</span>
         <span className="who"><small>Target</small>{combatantName(state, attack.aim?.targetKey)}</span>
         <span className="who"><small>{attack.frozen.choice.name}</small>{attack.frozen.weaponName}</span>
       </div>
       <div className="seq">
-        <AttackRollStep attack={attack} attacker={attacker} />
-        <ResultEnd attack={attack} attacker={attacker} />
+        {shownCards(attack).map((card, index) => <StepCard key={card} state={state} attack={attack} card={card} index={index} controls={controls} />)}
+        <ResultEnd state={state} attack={attack} />
       </div>
     </CombatWindow>
   )

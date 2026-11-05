@@ -1,6 +1,8 @@
 import { aimRequests, combatAimHandlers } from './attackAim'
 import { combatantOf } from './attackParty'
+import { combatDefenseHandlers } from './attackDefense'
 import { combatRollHandlers } from './attackRoll'
+import { combatWoundHandlers } from './attackWound'
 import { requireGm, requireLiveContext } from './context'
 import type { CombatAttack, CombatHandler, CombatState } from './types'
 
@@ -27,4 +29,4 @@ const grant: CombatHandler = (command, records, authority, entropy) => {
   }
 }
 
-export const combatSneakAttackHandlers: Readonly<Record<string, CombatHandler>> = { grant, ...combatAimHandlers, ...combatRollHandlers }
+export const combatSneakAttackHandlers: Readonly<Record<string, CombatHandler>> = { grant, ...combatAimHandlers, ...combatRollHandlers, ...combatDefenseHandlers, ...combatWoundHandlers }

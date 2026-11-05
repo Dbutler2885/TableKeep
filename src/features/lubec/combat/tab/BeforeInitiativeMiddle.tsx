@@ -7,6 +7,7 @@ import { AttackGmWaiting, AttackWaiting } from './AttackWaiting'
 import { controlsAttacker, type CombatViewer } from './attackWords'
 import type { CombatRosterRecords } from './combatFightCombatants'
 import { BeforeInitiativeGm, CombatWaiting } from './CombatMiddles'
+import type { StepControls } from './ResultSteps'
 import { SneakAttackWindow } from './SneakAttackWindow'
 
 type MiddleProps = {
@@ -18,6 +19,12 @@ type MiddleProps = {
   onActFor: (key: string) => void
   onInventory: (attacker: Combatant, hands: LubecHands) => void
 }
+
+/** The result sequence's controls for this viewer: the steps of the combatants they control. */
+const stepControls = ({ state, viewer, commands, onActFor, roster, fightId }: MiddleProps): StepControls => ({
+  owns: (key) => controlsAttacker(state.combatants.find((entry) => entry.key === key)!, viewer),
+  isGm: viewer.role === 'gm', commands, onActFor, roster, fightId,
+})
 
 const openAttack = (state: CombatState): CombatAttack | null => (state.attack && !state.attack.closed ? state.attack : null)
 
@@ -43,7 +50,7 @@ function MainMiddle(props: MiddleProps) {
   const { state, viewer } = props
   const attack = openAttack(state)
   if (attack?.step === 'aim') return <AimMiddle {...props} attack={attack} attacker={state.combatants.find((entry) => entry.key === attack.attackerKey)!} />
-  if (attack) return <AttackResult state={state} attack={attack} />
+  if (attack) return <AttackResult state={state} attack={attack} controls={stepControls(props)} />
   return viewer.role === 'gm' ? <BeforeInitiativeGm state={state} onGrant={props.commands.grant} /> : <CombatWaiting state={state} />
 }
 

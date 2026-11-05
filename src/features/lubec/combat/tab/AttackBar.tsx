@@ -25,7 +25,7 @@ function startDrag(bar: HTMLElement, onMove: (amount: number) => void) {
 type DividerProps = { at: number; onMove: (amount: number) => void }
 
 /** The Defense line's divider: dragged along the bar, or moved with the arrow keys, in tens. */
-function LiveDivider({ at, onMove }: DividerProps) {
+export function LiveDivider({ at, onMove }: DividerProps) {
   const down = (event: PointerEvent<HTMLButtonElement>) => {
     event.preventDefault()
     startDrag(event.currentTarget.parentElement!, onMove)

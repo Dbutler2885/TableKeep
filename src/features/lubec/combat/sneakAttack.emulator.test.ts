@@ -22,7 +22,7 @@ const HERO = 'character:hero'
 let env: RulesTestEnvironment
 const as = (uid: string): Firestore => env.authenticatedContext(uid).firestore()
 const ref = (db: Firestore, path: string) => doc(db, root, path)
-const ball = { id: 'ball', kind: 'weapon', mode: 'thrown', name: 'Dodgeball', carrier: 'hands', slot: 0, size: 1, qty: 2, weight: 'normal', note: '', impact: 0, wounds: ['blunt'], table: 'dodgeball', catchChance: 50 }
+const ball = { id: 'ball', kind: 'weapon', mode: 'thrown', name: 'Dodgeball', carrier: 'hands', slot: 0, size: 1, qty: 2, weight: 'normal', note: '', impact: 0, wounds: ['blunt'], table: 'dodgeball', catchChance: 50, catchPutsThrowerOut: true }
 // A Working Kid's class adds 5 Handle: base 45 reads as 50, and Throwing Arm adds 15.
 const heroSheet = () => ({
   system: 'lubec', name: 'Wayne', ownerUserId: 'player', creationStatus: 'active', schemaVersion: 1, sheetRevision: 2, schemaWrittenAt: new Date(123),
@@ -171,5 +171,76 @@ describe('a Sneak Attack between a GM client and a player client', () => {
     const spectator = as('spectator')
     await expect(commit(spectator, await command(spectator, 'spectate', HERO, { type: 'aim', aim }), 'spectator')).resolves.toMatchObject({ ok: false })
     expect((await readFight(gm)).state.attack).toMatchObject({ attackerKey: 'npc:roy', aim: null })
+  })
+})
+
+/** The seed whose command-bound `purpose` die satisfies `want`. */
+function seedForDie(id: string, purpose: string, want: (die: number) => boolean): string {
+  for (let attempt = 0; ; attempt++) {
+    const text = `seed-${attempt}`
+    if (want(combatEntropy({ envelope: { id } as CombatCommand['envelope'], seed: text, payload: { type: purpose } }).die(purpose, 100))) return text
+  }
+}
+
+const readRoy = async (db: Firestore) => (await getDoc(ref(db, 'npcSheets/roy'))).data() as { sheetRevision: number; lubec: { gear: { items: { id: string; name: string; qty: number; carrier: string }[] } } }
+
+/** Wayne hits Roy with quality 0 or 1 (a 1-digit roll under 45), so Roy's Defense of 20 can stop it. */
+async function lowHit(gm: Firestore, player: Firestore) {
+  await grantAndAim(gm, player)
+  const roll = await command(player, 'roll-low', HERO, { type: 'roll', aim }, seedFor('roll-low', (die) => die < 10))
+  expect(await commit(player, roll, 'player')).toMatchObject({ ok: true })
+  expect((await readFight(gm)).state.attack).toMatchObject({ step: 'defense' })
+}
+
+describe('Defense, the catch and the landing between two clients', () => {
+  it('stops a throw with Roy\'s Defense and catches it into his hand, Wayne Out, the object owned once', async () => {
+    const gm = as('gm')
+    const player = as('player')
+    await lowHit(gm, player)
+    const defendSeed = seedForDie('defend', 'defense', (die) => die < 10)
+    expect(await commit(gm, await command(gm, 'defend', 'npc:roy', { type: 'defend', split: { amount: 20 } }, defendSeed), 'gm')).toMatchObject({ ok: true })
+    const atCatch = (await readFight(player)).state.attack!
+    expect(atCatch).toMatchObject({ step: 'catch', defense: { success: true } })
+    const catchCommand = await command(gm, 'catch', 'npc:roy', { type: 'catch' }, seedForDie('catch', 'catch', (die) => die < atCatch.catchChance!))
+    const outcome = await commit(gm, catchCommand, 'gm')
+    expect(outcome).toMatchObject({ ok: true })
+    expect(await commit(gm, structuredClone(catchCommand), 'gm')).toEqual(outcome)
+    const roy = await readRoy(gm)
+    expect(roy.sheetRevision).toBe(3)
+    expect(roy.lubec.gear.items).toEqual([expect.objectContaining({ name: 'Dodgeball', qty: 1, carrier: 'hands' })])
+    const wayne = await readHero(gm)
+    expect(wayne.lubec.gear.items).toEqual([expect.objectContaining({ id: 'ball', qty: 1 })])
+    expect(roy.lubec.gear.items[0].id).not.toBe('ball')
+    const { state } = await readFight(player)
+    expect(state.attack).toMatchObject({ outcome: 'caught', closed: true, detached: [] })
+    expect(state.floor).toEqual([])
+    expect(state.combatants.find((entry) => entry.key === HERO)!.outReason).toBe('caught')
+  })
+
+  it('ends the fight during the catch with the in-flight ball dropped to the GM\'s Items exactly once', async () => {
+    const gm = as('gm')
+    const player = as('player')
+    await lowHit(gm, player)
+    await commit(gm, await command(gm, 'defend', 'npc:roy', { type: 'defend', split: { amount: 20 } }, seedForDie('defend', 'defense', (die) => die < 10)), 'gm')
+    const thrownId = (await readFight(gm)).state.attack!.detached[0].item.id
+    expect(await commit(gm, await command(gm, 'end', null, { type: 'end' }), 'gm')).toMatchObject({ ok: true })
+    expect((await getDoc(ref(gm, `gmItems/${thrownId}`))).data()).toMatchObject({ status: 'dropped', qty: 1, name: 'Dodgeball' })
+    expect(await commit(gm, await command(gm, 'late-catch', 'npc:roy', { type: 'catch' }), 'gm')).toMatchObject({ ok: false })
+  })
+
+  it('lands an undefended hit, moves nothing, rolls Strength once, and leaves the Dodgeball wound pending', async () => {
+    const gm = as('gm')
+    const player = as('player')
+    await grantAndAim(gm, player)
+    expect(await commit(player, await command(player, 'roll-hit', HERO, { type: 'roll', aim }, seedFor('roll-hit', (die) => die < 35)), 'player')).toMatchObject({ ok: true })
+    expect(await commit(gm, await command(gm, 'no-defense', 'npc:roy', { type: 'defend', split: { amount: 0 } }), 'gm')).toMatchObject({ ok: true })
+    const landing = (await readFight(player)).state.attack!.landing!
+    expect(await commit(player, await command(player, 'land', HERO, { type: 'land', part: landing.start }), 'player')).toMatchObject({ ok: true })
+    const strength = await command(player, 'strength', HERO, { type: 'strength' })
+    const first = await commit(player, strength, 'player')
+    expect(await commit(player, structuredClone(strength), 'player')).toEqual(first)
+    const { attack } = (await readFight(as('spectator'))).state
+    expect(attack).toMatchObject({ step: 'wound', outcome: 'pending-wound', landing: { part: landing.start, moved: 0 }, strength: { roll: first.ok ? first.rolls[0].value : 0 } })
+    expect(attack!.detached).toHaveLength(1)
   })
 })

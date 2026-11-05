@@ -40,6 +40,16 @@ export type CombatFrozenAim = {
 }
 export type CombatAttackRange = { band: LubecRangeBand; modifier: number }
 export type CombatAttackRoll = { roll: number; attackNumber: number; hit: boolean; critical: boolean; quality: number | null }
+/** The defender's grant-local split and its roll: what it kept, rolled under, and took off the quality. */
+export type CombatDefenseRoll = { amount: number; full: boolean; value: number; roll: number; success: boolean; removes: number }
+export type CombatCatchRoll = { chance: number; roll: number; success: boolean }
+/** Where the hit landed (d100 on the start table, d10 for a paired part's side) and where the attacker moved it. */
+export type CombatLanding = { table: string; startRoll: number; sideRoll: number | null; start: string; part: string | null; moved: number }
+export type CombatStrengthRoll = { roll: number; strength: number; success: boolean; bonus: number }
+/** Impact built from its parts; the table it is read on and what happens next. */
+export type CombatImpact = { quality: number; base: number; strength: number | null; moved: number; armor: number; total: number; table: string }
+/** How a closed or waiting attack ended, for the outcome banner. */
+export type CombatAttackOutcome = 'miss' | 'dodged' | 'caught' | 'dropped' | 'no-wound' | 'manual' | 'pending-wound'
 export type CombatAttack = {
   id: string
   grantId: string | null
@@ -53,6 +63,20 @@ export type CombatAttack = {
   roll?: CombatAttackRoll | null
   /** The exact input a pending step waits on; the same attack, step and rolls resume once it is repaired. */
   repair?: string | null
+  /** The defender's grant-local split while they choose it, shown to the table before the roll. */
+  defenseSplit?: { amount: number; full: boolean } | null
+  defense?: CombatDefenseRoll | null
+  /** Quality left after Defense; the hit's reach. */
+  net?: number | null
+  catch?: CombatCatchRoll | null
+  /** The catch chance once Defense stopped a catchable throw. */
+  catchChance?: number | null
+  /** The thrown item's name and own chance, kept for the catch card after the object has moved on. */
+  catchItem?: { name: string; chance: number } | null
+  landing?: CombatLanding | null
+  strength?: CombatStrengthRoll | null
+  impact?: CombatImpact | null
+  outcome?: CombatAttackOutcome | null
 }
 export type CombatState = {
   round: number
