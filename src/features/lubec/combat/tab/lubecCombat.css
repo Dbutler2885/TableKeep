@@ -322,7 +322,6 @@
 .shell-root[data-theme="lubec"] .lubec-combat .badge.gray { color: var(--lubec-ink); background: var(--lubec-gray); }
 .shell-root[data-theme="lubec"] .lubec-combat .roster li .roster-speed { margin-left: 0; display: inline; }
 .shell-root[data-theme="lubec"] .lubec-combat .roster li .badge + .rowbtn { margin-left: .4rem; }
-.shell-root[data-theme="lubec"] .lubec-combat .roster li .badge { margin-left: auto; }
 .shell-root[data-theme="lubec"] .lubec-combat .roll-npcs { margin-top: .6rem; }
 .shell-root[data-theme="lubec"] .lubec-combat .initiative-roll + .initiative-roll { margin-top: 1rem; }
 .shell-root[data-theme="lubec"] .lubec-combat .verdict.init { margin: .5rem 0 0; font: 800 1.2rem var(--lubec-display); }

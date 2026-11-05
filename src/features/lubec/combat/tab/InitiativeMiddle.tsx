@@ -55,7 +55,7 @@ function InitiativeRoll({ combatant, named, commands }: RollProps) {
 }
 
 const RollWindow = ({ children }: { children: ReactNode }) => (
-  <CombatWindow title="Roll initiative" stepper={<CombatStepper steps={['Roll', 'Order']} now={0} />} foot={<span className="note">Waiting for everyone to roll. The order fills in on the left.</span>}>{children}</CombatWindow>
+  <CombatWindow title="Roll initiative" stepper={<CombatStepper steps={['Roll', 'Order']} now={0} />} foot={<span className="note">Waiting for everyone to roll.</span>}>{children}</CombatWindow>
 )
 
 /** Moment 3 for a player in the fight: each of their combatants rolls on their own Speed bar. */
