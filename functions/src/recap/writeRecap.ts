@@ -11,9 +11,7 @@
  */
 import { createHash } from 'node:crypto'
 import type { Firestore } from 'firebase-admin/firestore'
-import { Agent, fetch } from 'undici'
 import { campaignPath } from '../firestorePaths.js'
-import { OPENAI_RESPONSES_URL, postToResponsesApi } from './modelRequest.js'
 import { calendarState, eventsToDayObjects } from './recapCalendar.js'
 import { buildRecapPrompt, type NpcRosterEntry, type PreviousRecap } from './recapPrompt.js'
 import { extractRecap, recapToolSchema, type RecapToolSchema } from './recapSchema.js'
@@ -211,15 +209,4 @@ export async function draftSessionRecap(
       },
     },
   }
-}
-
-/**
- * Asks OpenAI's Responses API. A high-effort recap of a long session can take several minutes,
- * which `postToResponsesApi` allows for. `endpoint` exists so a test can point the request at a local server.
- */
-export function callOpenAi(
-  apiKey: string,
-  { endpoint = OPENAI_RESPONSES_URL, timeoutMs = 15 * 60 * 1000 }: { endpoint?: string; timeoutMs?: number } = {},
-): RecapDependencies['callModel'] {
-  return postToResponsesApi<RecapModelRequest, RecapModelResponse>({ Agent, fetch }, { apiKey, endpoint, timeoutMs })
 }

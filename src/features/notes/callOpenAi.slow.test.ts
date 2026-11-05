@@ -12,7 +12,8 @@
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { describe, expect, it, type TestContext } from 'vitest'
-import { callOpenAi, type RecapModelRequest } from '../../../functions/src/recap/writeRecap'
+import { callOpenAi } from '../../../functions/src/recap/modelRequest'
+import type { RecapModelRequest } from '../../../functions/src/recap/writeRecap'
 
 /** Just past the 300 seconds at which Node's own fetch gives up. */
 const SLOW_MS = 310_000

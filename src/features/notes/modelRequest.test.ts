@@ -2,15 +2,20 @@
  * How the recap's model request is put together: the undici dispatcher whose
  * limits match the caller's timeout, and what is posted and returned.
  *
- * undici is replaced by stand-ins here. `callOpenAi.slow.test.ts` sends the
- * real request to a real server that is slower than Node's 300-second limits.
+ * `postToResponsesApi` is given stand-ins for undici, and `callOpenAi` sends a
+ * real request to a quick local server. `callOpenAi.slow.test.ts` sends it to
+ * one slower than Node's 300-second limits.
+ *
+ * Every case runs twice: against the TypeScript source, and against the
+ * compiled `functions/lib` file that is committed and deployed as it is, so a
+ * stale build fails here too.
  */
-import { describe, expect, it } from 'vitest'
-import {
-  OPENAI_RESPONSES_URL,
-  postToResponsesApi,
-  type Undici,
-} from '../../../functions/src/recap/modelRequest'
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
+import { describe, expect, it, type TestContext } from 'vitest'
+import * as compiled from '../../../functions/lib/recap/modelRequest.js'
+import * as source from '../../../functions/src/recap/modelRequest'
+import type { Undici } from '../../../functions/src/recap/modelRequest'
 
 type FetchCall = { url: string; init: RequestInit & { dispatcher?: unknown } }
 
@@ -39,7 +44,43 @@ function fakeUndici(answer: { ok: boolean; status?: number; body: string }) {
 
 const options = { apiKey: 'test-key', endpoint: 'http://127.0.0.1:1/v1/responses', timeoutMs: 480_000 }
 
-describe('postToResponsesApi', () => {
+type Received = { method?: string; authorization?: string; contentType?: string; body: string }
+
+/** Starts a local server for one test, closed with any connection still open when the test ends. */
+async function listen(onTestFinished: TestContext['onTestFinished'], handle: http.RequestListener): Promise<string> {
+  const server = http.createServer(handle)
+  onTestFinished(async () => {
+    server.closeAllConnections()
+    await new Promise((resolve) => server.close(resolve))
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  return `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1/responses`
+}
+
+/** A server that records the request it gets and answers at once. */
+async function answeringServer(onTestFinished: TestContext['onTestFinished'], status: number, body: string) {
+  const received: Received[] = []
+  const endpoint = await listen(onTestFinished, (req, res) => {
+    const chunks: Buffer[] = []
+    req.on('data', (chunk: Buffer) => chunks.push(chunk))
+    req.on('end', () => {
+      received.push({
+        method: req.method,
+        authorization: req.headers.authorization,
+        contentType: req.headers['content-type'],
+        body: Buffer.concat(chunks).toString('utf8'),
+      })
+      res.writeHead(status, { 'content-type': 'application/json' })
+      res.end(body)
+    })
+  })
+  return { endpoint, received }
+}
+
+describe.each([
+  ['source', source],
+  ['compiled', compiled as typeof source],
+])('postToResponsesApi (%s)', (_build, { OPENAI_RESPONSES_URL, postToResponsesApi }) => {
   it('waits for headers and for body data as long as the whole request may take', () => {
     const { undici, agents } = fakeUndici({ ok: true, body: '{}' })
 
@@ -90,5 +131,40 @@ describe('postToResponsesApi', () => {
 
   it("points at OpenAI's Responses API by default", () => {
     expect(OPENAI_RESPONSES_URL).toBe('https://api.openai.com/v1/responses')
+  })
+})
+
+describe.each([
+  ['source', source],
+  ['compiled', compiled as typeof source],
+])('callOpenAi (%s)', (_build, { callOpenAi }) => {
+  it('posts the recap request with the API key and returns the parsed answer', async ({ onTestFinished }) => {
+    const { endpoint, received } = await answeringServer(onTestFinished, 200, '{"id":"resp_local","output":[]}')
+
+    const response = await callOpenAi('test-key', { endpoint, timeoutMs: 5_000 })({ model: 'gpt-test' } as never)
+
+    expect(response).toEqual({ id: 'resp_local', output: [] })
+    expect(received).toEqual([
+      { method: 'POST', authorization: 'Bearer test-key', contentType: 'application/json', body: '{"model":"gpt-test"}' },
+    ])
+  })
+
+  it('reports an error answer with its status', async ({ onTestFinished }) => {
+    const { endpoint } = await answeringServer(onTestFinished, 500, 'server trouble')
+
+    await expect(callOpenAi('test-key', { endpoint, timeoutMs: 5_000 })({} as never)).rejects.toThrow(
+      'The model request failed (500): server trouble',
+    )
+  })
+
+  it('gives up at the timeout it was given', async ({ onTestFinished }) => {
+    const endpoint = await listen(onTestFinished, (req) => {
+      req.resume()
+    })
+    const startedAt = Date.now()
+
+    await expect(callOpenAi('test-key', { endpoint, timeoutMs: 200 })({} as never)).rejects.toThrow()
+
+    expect(Date.now() - startedAt).toBeLessThan(5_000)
   })
 })

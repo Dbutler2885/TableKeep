@@ -9,10 +9,11 @@
  * through undici's fetch with a dispatcher whose own limits are the caller's
  * timeout as well.
  *
- * undici is passed in rather than imported, so this module loads, and is
- * unit-tested, without the Cloud Functions package's dependencies installed.
+ * `postToResponsesApi` takes undici as an argument, so its unit test can watch
+ * what it is given; `callOpenAi` hands it the real one.
  */
-import type { Agent, fetch } from 'undici'
+import { Agent, fetch } from 'undici'
+import type { RecapDependencies, RecapModelRequest, RecapModelResponse } from './writeRecap.js'
 
 export const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses'
 
@@ -43,4 +44,15 @@ export function postToResponsesApi<Request, Response>(
     if (!response.ok) throw new Error(`The model request failed (${response.status}): ${(await response.text()).slice(0, 500)}`)
     return (await response.json()) as Response
   }
+}
+
+/**
+ * Asks OpenAI's Responses API for a recap, waiting as long as `timeoutMs` allows.
+ * `endpoint` exists so a test can point the request at a local server.
+ */
+export function callOpenAi(
+  apiKey: string,
+  { endpoint = OPENAI_RESPONSES_URL, timeoutMs = 15 * 60 * 1000 }: { endpoint?: string; timeoutMs?: number } = {},
+): RecapDependencies['callModel'] {
+  return postToResponsesApi<RecapModelRequest, RecapModelResponse>({ Agent, fetch }, { apiKey, endpoint, timeoutMs })
 }
