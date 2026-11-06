@@ -270,7 +270,7 @@ describe('moment 6 for everyone else, and moment 8 for everyone', () => {
     expect(hit.fight.state.attack!.roll!.hit).toBe(true)
     show('player', 'wayne-uid', hit)
     expect(screen.getByText(/^A hit/)).toBeTruthy()
-    expect(screen.getByText('Still to come: Where it lands, The wound')).toBeTruthy()
+    expect(screen.getByText('Still to come: the result')).toBeTruthy()
     expect(screen.getByText("Waiting for the GM to roll Roy Carver's defense")).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Roll' })).toBeNull()
     cleanup()

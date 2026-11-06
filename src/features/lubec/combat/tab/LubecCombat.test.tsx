@@ -97,7 +97,7 @@ describe('GM setup, moment 1', () => {
     await waitFor(() => expect(mocks.sent).toHaveLength(1))
     expect(mocks.sent[0].envelope).toMatchObject({ groupId: 'school', campaignId: 'gym', round: 0, phase: 'setup', actorKey: null })
     expect(mocks.sent[0].payload).toEqual({
-      type: 'start', dodgeball: true,
+      type: 'start', requireBody: true,
       combatants: [{ kind: 'character', sheetId: 'wayne' }, { kind: 'npc', sheetId: 'roy' }],
       floor: [{ itemId: 'library-ball', status: 'library', qty: 1 }, { itemId: 'library-ball', status: 'library', qty: 1 }, { itemId: 'lost-balls', status: 'dropped', qty: 1 }],
     })
@@ -116,7 +116,7 @@ describe('GM setup, moment 1', () => {
   it('names each missing input and repairs it from a link to that sheet', () => {
     show('gm', 'gm', idle)
     fireEvent.click(button('Joseph Pelkey fights'))
-    expect(screen.getByRole('alert').textContent).toContain('Joseph Pelkey: missing Dodgeball Body; repair Body.')
+    expect(screen.getByRole('alert').textContent).toContain('Joseph Pelkey: missing Body Save; repair Body.')
     expect((button('Start Combat') as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(button('Repair Joseph Pelkey'))
     expect(screen.getByTestId('where').textContent).toBe('/groups/school/campaigns/gym/character')

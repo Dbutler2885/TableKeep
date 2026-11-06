@@ -16,7 +16,7 @@ export const isSelected = (selected: readonly CombatantSelection[], selection: C
 /** One missing-input line per selected combatant, with the sheet a repair link opens. */
 export type CombatSetupIssue = { selection: CombatantSelection; name: string; text: string }
 
-/** The selected combatants' missing required inputs, each worded as Start would refuse it. Dodgeball's Body Save is always required. */
+/** The selected combatants' missing required inputs, each worded as Start would refuse it, including Body Save. */
 export function combatSetupProblems(selected: readonly CombatantSelection[], sheets: readonly CombatSheet[]): CombatSetupIssue[] {
   return selected.flatMap((selection) => {
     const name = sheets.find((sheet) => combatantKey(sheet) === combatantKey(selection))?.name ?? combatantKey(selection)

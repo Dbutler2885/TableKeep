@@ -56,7 +56,7 @@ function gmCommands(scope: CampaignScope, send: CombatSend, items: readonly Lube
     refusalOf(await send(gmCommandKey(fight, payload), () => createCombatCommand(gmEnvelope(scope, crypto.randomUUID(), fight), payload)))
   return {
     start: async (setup: CombatSetupStart) => {
-      const payload = { type: 'start', combatants: setup.combatants, floor: combatFloorSelections(setup.floor, items), dodgeball: true }
+      const payload = { type: 'start', combatants: setup.combatants, floor: combatFloorSelections(setup.floor, items), requireBody: true }
       return refusalOf(await send(JSON.stringify(payload), () => createCombatCommand(startEnvelope(scope, crypto.randomUUID(), crypto.randomUUID()), payload)))
     },
     place: (fight: LubecLiveFight, item: LubecGmItem, qty: number) =>

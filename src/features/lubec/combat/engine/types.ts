@@ -168,7 +168,14 @@ export type CombatCommand = {
   seed: string
   payload: { type: string; [key: string]: unknown }
 }
-export type StartPayload = { type: 'start'; combatants: CombatantSelection[]; floor: FloorSelection[]; dodgeball: boolean }
+export type StartPayload = {
+  type: 'start'
+  combatants: CombatantSelection[]
+  floor: FloorSelection[]
+  requireBody?: boolean
+  /** Older queued commands used this field for the Body Save requirement, not a combat mode. */
+  dodgeball?: boolean
+}
 export type CombatSheet = CombatantSelection & {
   name: string
   ownerUserId: string

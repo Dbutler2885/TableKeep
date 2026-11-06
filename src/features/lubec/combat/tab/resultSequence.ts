@@ -2,6 +2,7 @@ import { signed } from '../engine/attackFlow'
 import { lubecAdvantageName } from '../../../ruleSets/lubec/checkRoll'
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
 import type { CombatAttack, CombatCatchRoll, CombatDefenseRoll, CombatImpact, CombatStrengthRoll } from '../engine/types'
+import { isThrow } from './attackWords'
 
 /** One card of the result sequence, in the mock-up's order. */
 export type ResultStep = 'attack' | 'defense' | 'catch' | 'location' | 'wound' | 'check'
@@ -35,7 +36,7 @@ export const shownCards = (attack: CombatAttack): ResultStep[] =>
 
 /** What is still to come after the waiting card, while the attack is open. */
 const LATER: Readonly<Record<string, readonly string[]>> = {
-  defense: [STEP_NAMES.location, STEP_NAMES.wound],
+  defense: ['the result'],
   catch: ['the result'],
   location: [STEP_NAMES.wound],
   strength: ['the result'],
@@ -47,9 +48,17 @@ export function stillToCome(attack: CombatAttack): string | null {
   return later ? `Still to come: ${later.join(', ')}` : null
 }
 
-/** The stepper over the result: throw, Defense, catch or location, wound. */
-const STEPPER_NOW: Readonly<Record<string, number>> = { aim: 0, defense: 1, catch: 2, location: 2, strength: 3, wound: 3, check: 3, done: 4 }
-export const resultStepperNow = (attack: CombatAttack): number => STEPPER_NOW[attack.step]
+const PROGRESS_NAMES: Readonly<Record<ResultStep, string>> = {
+  attack: 'Attack', defense: 'Defense', catch: 'Catch', location: 'Location', wound: 'Wound', check: 'Check',
+}
+
+/** Progress follows the same reached steps as the cards, including a catch or table check only when needed. */
+export function resultProgress(attack: CombatAttack): { cards: ResultStep[]; steps: string[]; now: number } {
+  const cards = shownCards(attack)
+  const current = activeCard(attack)
+  const steps = cards.map((card) => (card === 'check' ? cardName(attack, card) : PROGRESS_NAMES[card]))
+  return { cards, steps, now: current === null ? cards.length : cards.indexOf(current) }
+}
 
 const pad = (value: number): string => String(value).padStart(2, '0')
 
@@ -80,7 +89,7 @@ export const defenseVerdict = (defense: CombatDefenseRoll): string =>
 export function stopWords(attack: CombatAttack): { title: string; text: string } | null {
   const net = attack.net!
   if (net > 0) return null
-  const what = attack.frozen!.choice.ranged ? 'throw' : 'attack'
+  const what = isThrow(attack.frozen!) ? 'throw' : 'attack'
   return { title: net === 0 ? 'Down to 0.' : 'Below 0.', text: `The ${what} is dodged.${net < 0 ? ` That is ${-net} below 0.` : ''}` }
 }
 
@@ -104,10 +113,10 @@ const GROUP_NAMES: Readonly<Record<string, string>> = {
 
 export type WoundBoxWords = { head: string; tag: string | null; severity: { cls: string; name: string } | null; trauma: string | null; title: string | null; body: string }
 
-/** The Dodgeball row, as the mock-up's wound box shows it: group, Impact (6+ at the top), severity and Trauma. */
-function rowBox(row: NonNullable<CombatAttack['row']>, total: number): WoundBoxWords {
+/** A resolved table row: its table, group, row Impact, severity and Trauma. */
+function rowBox(row: NonNullable<CombatAttack['row']>, table: string, total: number): WoundBoxWords {
   return {
-    head: `Dodgeball · ${GROUP_NAMES[row.group]} · Impact ${total > 6 ? '6+' : total}`, tag: null,
+    head: `${table} · ${GROUP_NAMES[row.group]} · Impact ${total > row.impact ? `${row.impact}+` : total}`, tag: null,
     severity: { cls: row.severity === 'Serious' ? 'se' : 'mi', name: row.severity }, trauma: `Trauma ${row.trauma ? '+1' : '0'}`, title: `${row.name}.`, body: row.text,
   }
 }
@@ -119,8 +128,7 @@ export function woundBox(attack: CombatAttack, target: string): WoundBoxWords {
   const impact = attack.impact!
   const table = tableName(impact.table)
   if (impact.total <= 0) return plainBox(table, 'No wound', `Impact ${impact.total}: a hit with no effect.`)
-  // Every Dodgeball hit with positive Impact on one of the 17 parts has its row.
-  if (attack.row) return rowBox(attack.row, impact.total)
+  if (attack.row) return rowBox(attack.row, table, impact.total)
   const head = `${table} · ${locName(attack.landing!.part!).toLowerCase()} · Impact ${impact.total}`
   return plainBox(head, null, `The GM records this wound on ${target}'s sheet. Nothing was changed automatically.`)
 }
