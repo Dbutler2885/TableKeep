@@ -7,7 +7,7 @@ import { attackVerdict, combatantName, isThrow, resultFoot } from './attackWords
 import { CombatStepper, CombatWindow } from './CombatParts'
 import { OutcomeBanner } from './OutcomeBanner'
 import { CatchStep, CheckStep, DefenseStep, LocationStep, WoundStep, type StepControls, type StepProps } from './ResultSteps'
-import { activeCard, cardName, resultStepperNow, shownCards, stillToCome, type ResultStep } from './resultSequence'
+import { activeCard, cardName, resultProgress, stillToCome, type ResultStep } from './resultSequence'
 
 type Rolled = CombatAttack & { frozen: CombatFrozenAim; roll: CombatAttackRoll }
 
@@ -54,7 +54,6 @@ function ResultEnd({ state, attack }: { state: CombatState; attack: Rolled }) {
   return <OutcomeBanner state={state} attack={attack} />
 }
 
-const STEPPER = ['Throw', 'Defense', 'Catch / Location', 'Wound']
 const rolled = (attack: CombatAttack): attack is Rolled => attack.frozen != null && attack.roll != null
 
 /**
@@ -64,15 +63,16 @@ const rolled = (attack: CombatAttack): attack is Rolled => attack.frozen != null
 export function AttackResult({ state, attack, controls = null }: { state: CombatState; attack: CombatAttack; controls?: StepControls | null }) {
   if (!rolled(attack)) return null
   const attacker = combatantName(state, attack.attackerKey)
+  const progress = resultProgress(attack)
   return (
-    <CombatWindow title="Result" stepper={<CombatStepper steps={STEPPER} now={resultStepperNow(attack)} />} foot={<span className="note">{resultFoot(attack, state.round)}</span>}>
+    <CombatWindow title="Result" stepper={<CombatStepper steps={progress.steps} now={progress.now} />} foot={<span className="note">{resultFoot(attack, state.round)}</span>}>
       <div className="trail">
         <span className="who"><small>{isThrow(attack.frozen) ? 'Thrower' : 'Attacker'}</small>{attacker}</span>
         <span className="who"><small>Target</small>{combatantName(state, attack.aim?.targetKey)}</span>
         <span className="who"><small>{attack.frozen.choice.name}</small>{attack.frozen.weaponName}</span>
       </div>
       <div className="seq">
-        {shownCards(attack).map((card, index) => <StepCard key={card} state={state} attack={attack} card={card} index={index} controls={controls} />)}
+        {progress.cards.map((card, index) => <StepCard key={card} state={state} attack={attack} card={card} index={index} controls={controls} />)}
         <ResultEnd state={state} attack={attack} />
       </div>
     </CombatWindow>

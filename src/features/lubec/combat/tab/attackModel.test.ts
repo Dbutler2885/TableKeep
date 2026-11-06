@@ -175,6 +175,12 @@ describe('combatants as the fight modal reads them', () => {
 })
 
 describe('result sequence words', () => {
+  it('does not call a ranged firearm a throw in a stopped-attack message', async () => {
+    const { stopWords } = await import('./resultSequence')
+    const gun = frozen({ choice: { ...frozen().choice, id: 'shoot', name: 'Shoot', firearm: true }, weaponName: 'Revolver' })
+    expect(stopWords(attack({ frozen: gun, net: 0 }))).toEqual({ title: 'Down to 0.', text: 'The attack is dodged.' })
+  })
+
   it('names a wound table it does not know by its key', async () => {
     const { tableName } = await import('./resultSequence')
     expect([tableName('dodgeball'), tableName('mystery')]).toEqual(['Dodgeball', 'mystery'])
