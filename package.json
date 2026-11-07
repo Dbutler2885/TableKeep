@@ -42,6 +42,7 @@
     "firebase": "^12.9.0",
     "konva": "^10.3.0",
     "lucide-react": "^0.575.0",
+    "pdfjs-dist": "^6.5.438",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-konva": "^19.2.5",

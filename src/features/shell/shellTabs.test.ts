@@ -33,28 +33,29 @@ describe('campaignNavTabs', () => {
       { id: 'npcs', label: 'NPCs' },
       { id: 'tables', label: 'Tables' },
       { id: 'notes', label: 'Notes' },
+      { id: 'handouts', label: 'Handouts' },
       { id: 'calendar', label: 'Calendar' },
       { id: 'rules', label: 'OSE SRD' },
     ])
   })
 
   it('hides items, monsters and tables from an OSE player', () => {
-    expect(ids(campaignNavTabs('ose', 'player', undefined))).toEqual(['character', 'maps', 'npcs', 'notes', 'calendar', 'rules'])
+    expect(ids(campaignNavTabs('ose', 'player', undefined))).toEqual(['character', 'maps', 'npcs', 'notes', 'handouts', 'calendar', 'rules'])
   })
 
   it('hides nothing from a VtM player', () => {
-    expect(ids(campaignNavTabs('vtm', 'player', undefined))).toEqual(['character', 'maps', 'monsters', 'npcs', 'notes', 'calendar'])
+    expect(ids(campaignNavTabs('vtm', 'player', undefined))).toEqual(['character', 'maps', 'monsters', 'npcs', 'notes', 'handouts', 'calendar'])
   })
 
   it('hides nothing without a role', () => {
-    expect(ids(campaignNavTabs('ose', null, undefined))).toEqual(['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'calendar', 'rules'])
+    expect(ids(campaignNavTabs('ose', null, undefined))).toEqual(['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'handouts', 'calendar', 'rules'])
   })
 
   it('keeps only the enabled tabs the system has, in system order', () => {
-    expect(ids(campaignNavTabs('ose', 'gm', ['rules', 'notes', 'items', 'maps']))).toEqual(['maps', 'items', 'notes', 'rules'])
-    expect(ids(campaignNavTabs('vtm', 'gm', ['items', 'rules', 'npcs']))).toEqual(['npcs'])
-    expect(ids(campaignNavTabs('ose', 'player', ['items', 'tables', 'npcs']))).toEqual(['npcs'])
-    expect(campaignNavTabs('ose', 'gm', [])).toEqual([])
+    expect(ids(campaignNavTabs('ose', 'gm', ['rules', 'notes', 'items', 'maps']))).toEqual(['maps', 'items', 'notes', 'handouts', 'rules'])
+    expect(ids(campaignNavTabs('vtm', 'gm', ['items', 'rules', 'npcs']))).toEqual(['npcs', 'handouts'])
+    expect(ids(campaignNavTabs('ose', 'player', ['items', 'tables', 'npcs']))).toEqual(['npcs', 'handouts'])
+    expect(campaignNavTabs('ose', 'gm', [])).toEqual([{ id: 'handouts', label: 'Handouts' }])
   })
 })
 

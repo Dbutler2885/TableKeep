@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import { RulesTab } from '../common/RulesTab'
 import { MapsTab } from '../maps/MapsTab'
 import { MapRuleSetContext } from '../maps/mapRuleSet'
@@ -13,6 +13,8 @@ import { ruleSets } from '../ruleSets/registry'
 import type { RuleSetSheetProps } from '../ruleSets/RuleSetSheets'
 import { ruleSetItemsTabs, ruleSetMapFights, ruleSetNpcSheets, ruleSetSheets } from '../ruleSets/sheetComponents'
 import type { AppTab, CharacterRecord, NpcRecord } from '../../types/app'
+
+const HandoutsTab = lazy(async () => ({ default: (await import('../handouts/HandoutsTab')).HandoutsTab }))
 
 export type TabPanelContext = RuleSetSheetProps & {
   gameSystem: GameSystem
@@ -31,6 +33,7 @@ const TAB_PANELS: Record<AppTab, (context: TabPanelContext) => ReactNode> = {
   npcs: npcsPanel,
   tables: tablesPanel,
   notes: notesPanel,
+  handouts: handoutsPanel,
   calendar: calendarPanel,
   rules: rulesPanel,
 }
@@ -119,4 +122,8 @@ function calendarPanel({ campaign, role }: TabPanelContext) {
 
 function rulesPanel() {
   return <RulesTab />
+}
+
+function handoutsPanel({ campaign, role, user }: TabPanelContext) {
+  return <Suspense fallback={<p role="status">Loading handouts...</p>}><HandoutsTab key={`${campaign.groupId}/${campaign.id}/${user.uid}/${role}`} campaignId={campaign.id} groupId={campaign.groupId} role={role} userId={user.uid} gmUserId={campaign.gmUserId ?? ''} /></Suspense>
 }

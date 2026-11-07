@@ -1,0 +1,178 @@
+// @vitest-environment jsdom
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { emptyHandout, type Handout } from './handoutModel'
+
+const mocks = vi.hoisted(() => ({
+  data: { handouts: [] as Handout[], folders: [] as { id: string; name: string; parentId: string }[], characters: [] as { id: string; name: string; ownerUserId: string }[], loading: false, error: '', setError: vi.fn() },
+  saveHandout: vi.fn(), saveHandoutFolder: vi.fn(), deleteHandout: vi.fn(), deleteHandoutFolder: vi.fn(), loadHandoutFile: vi.fn(),
+}))
+vi.mock('./useHandouts', () => ({ useHandouts: () => mocks.data, saveHandout: mocks.saveHandout, saveHandoutFolder: mocks.saveHandoutFolder, deleteHandout: mocks.deleteHandout, deleteHandoutFolder: mocks.deleteHandoutFolder }))
+vi.mock('./handoutStorage', () => ({ loadHandoutFile: mocks.loadHandoutFile }))
+import { HandoutsTab } from './HandoutsTab'
+import { HandoutEditor } from './HandoutEditor'
+import { HandoutFolderEditor } from './HandoutFolderEditor'
+import { HandoutViewer } from './HandoutViewer'
+
+const props = { groupId: 'g', campaignId: 'c', gmUserId: 'gm', userId: 'gm', role: 'gm' as const }
+const letter = (): Handout => ({ ...emptyHandout('letters', 'gm'), id: 'letter', title: 'Old letter', text: 'Look beneath the lighthouse.' })
+const folders = [ { id: 'evidence', name: 'Evidence', parentId: '' }, { id: 'letters', name: 'Letters', parentId: 'evidence' }, { id: 'empty', name: 'Empty folder', parentId: '' } ]
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  mocks.data = { handouts: [letter()], folders, characters: [{ id: 'm', name: 'Mirelda', ownerUserId: 'alice' }], loading: false, error: '', setError: vi.fn() }
+  mocks.saveHandout.mockResolvedValue(undefined)
+  mocks.saveHandoutFolder.mockResolvedValue(undefined)
+  mocks.deleteHandout.mockResolvedValue(undefined)
+  mocks.deleteHandoutFolder.mockResolvedValue(undefined)
+})
+afterEach(cleanup)
+
+describe('Handouts campaign tab', () => {
+  it('browses nested folders and switches to a flat list with folder paths', () => {
+    render(<HandoutsTab {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Old letter' }))
+    expect(screen.getByText('Look beneath the lighthouse.')).toBeTruthy()
+    expect(screen.getByText('Hidden from players')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'All handouts' }))
+    expect(screen.queryByRole('button', { name: 'Evidence' })).toBeNull()
+    expect(screen.getAllByText('Evidence / Letters')).toHaveLength(2)
+    fireEvent.click(screen.getByRole('button', { name: 'Folders', exact: true }))
+    expect(screen.getByRole('button', { name: 'Evidence' })).toBeTruthy()
+  })
+  it('hides empty folder branches and GM controls from players', () => {
+    render(<HandoutsTab {...props} role="player" userId="alice" />)
+    expect(screen.queryByRole('button', { name: 'Empty folder' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Add handout' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Old letter' }))
+    expect(screen.queryByRole('button', { name: 'Edit handout' })).toBeNull()
+    expect(screen.queryByText('Hidden from players')).toBeNull()
+  })
+  it('creates a hidden handout inside the selected folder and recomputes chosen owners', async () => {
+    render(<HandoutsTab {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Letters', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add handout' }))
+    expect((screen.getByLabelText('Visibility') as HTMLSelectElement).value).toBe('hidden')
+    expect((screen.getByLabelText('Folder') as HTMLSelectElement).value).toBe('letters')
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: '  Secret clue  ' } })
+    fireEvent.change(screen.getByLabelText('Text extract'), { target: { value: 'A clean extract.' } })
+    fireEvent.change(screen.getByLabelText('Visibility'), { target: { value: 'some' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mirelda' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save handout' }))
+    await waitFor(() => expect(mocks.saveHandout).toHaveBeenCalledWith({ groupId: 'g', campaignId: 'c' }, expect.objectContaining({ title: 'Secret clue', folderId: 'letters', viewerUids: ['alice'], characterIds: ['m'] }), null))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+  it('creates, renames, moves and deletes an empty folder', async () => {
+    render(<HandoutsTab {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Evidence', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add folder' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Photographs' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save folder' }))
+    await waitFor(() => expect(mocks.saveHandoutFolder).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ name: 'Photographs', parentId: 'evidence' })))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Empty folder', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Rename or move folder' }))
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed' } })
+    fireEvent.change(screen.getByLabelText('Folder'), { target: { value: 'evidence' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save folder' }))
+    await waitFor(() => expect(mocks.saveHandoutFolder).toHaveBeenLastCalledWith(expect.anything(), { id: 'empty', name: 'Renamed', parentId: 'evidence' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Delete empty folder' }))
+    await waitFor(() => expect(mocks.deleteHandoutFolder).toHaveBeenCalledWith(expect.anything(), 'empty'))
+  })
+  it('keeps a populated folder from being deleted and confirms handout deletion', async () => {
+    render(<HandoutsTab {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Letters', exact: true }))
+    expect((screen.getByRole('button', { name: 'Delete empty folder' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Old letter' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(mocks.deleteHandout).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete handout', exact: true }))
+    await waitFor(() => expect(mocks.deleteHandout).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ id: 'letter' })))
+  })
+  it('edits visibility, moves a handout and clears previous viewer grants', async () => {
+    mocks.data.handouts = [{ ...letter(), visibility: 'some', characterIds: ['m'], viewerUids: ['alice'] }]
+    render(<HandoutsTab {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Old letter' }))
+    expect(screen.getByText('Revealed to 1 chosen character(s)')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit handout' }))
+    fireEvent.change(screen.getByLabelText('Visibility'), { target: { value: 'hidden' } })
+    fireEvent.change(screen.getByLabelText('Folder'), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save handout' }))
+    await waitFor(() => expect(mocks.saveHandout).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ visibility: 'hidden', viewerUids: [], folderId: '' }), null))
+  })
+  it('shows empty, loading and subscription error states', () => {
+    mocks.data.handouts = []; mocks.data.loading = true; mocks.data.error = 'Permission denied'
+    const view = render(<HandoutsTab {...props} role="player" />)
+    expect(screen.getByRole('status').textContent).toBe('Loading handouts...')
+    expect(screen.getByRole('alert').textContent).toBe('Permission denied')
+    mocks.data.loading = false
+    view.rerender(<HandoutsTab {...props} role="player" />)
+    expect(screen.getByText('No handouts have been revealed to you yet.')).toBeTruthy()
+  })
+})
+
+describe('handout editing validation', () => {
+  it('requires a selected character and reports persistence failures without closing', async () => {
+    const onSave = vi.fn().mockRejectedValue(new Error('Upload interrupted'))
+    render(<HandoutEditor handout={letter()} folders={folders} characters={mocks.data.characters} onSave={onSave} onClose={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Visibility'), { target: { value: 'some' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save handout' }))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Choose at least one'))
+    expect(onSave).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Mirelda' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save handout' }))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Upload interrupted'))
+  })
+  it('accepts a PDF upload and rejects unsupported files', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined)
+    render(<HandoutEditor handout={letter()} folders={folders} characters={[]} onSave={onSave} onClose={vi.fn()} />)
+    fireEvent.change(screen.getByLabelText('Content'), { target: { value: 'file' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save handout' }))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Choose a file'))
+    fireEvent.change(screen.getByLabelText('Image or PDF'), { target: { files: [new File(['bad'], 'bad.html', { type: 'text/html' })] } })
+    expect(screen.getByRole('alert').textContent).toContain('Choose a PDF')
+    const pdf = new File(['pdf'], 'letter.pdf', { type: 'application/pdf' })
+    fireEvent.change(screen.getByLabelText('Image or PDF'), { target: { files: [pdf] } })
+    fireEvent.change(screen.getByLabelText('Visibility'), { target: { value: 'all' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save handout' }))
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ kind: 'pdf', visibility: 'all', viewerUids: [] }), pdf))
+  })
+  it('removes descendant destinations and reports folder save errors', async () => {
+    render(<HandoutFolderEditor folder={folders[0]} folders={folders} onSave={vi.fn().mockRejectedValue(new Error('Offline'))} onClose={vi.fn()} />)
+    const options = within(screen.getByLabelText('Folder')).getAllByRole('option').map((option) => option.textContent)
+    expect(options).toEqual(['Handouts (top level)', 'Empty folder'])
+    fireEvent.click(screen.getByRole('button', { name: 'Save folder' }))
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toBe('Offline'))
+  })
+})
+
+describe('authenticated image viewer', () => {
+  it('shows fit and original size and revokes its local URL on unmount', async () => {
+    mocks.loadHandoutFile.mockResolvedValue(new Blob(['image'], { type: 'image/png' }))
+    URL.createObjectURL = vi.fn().mockReturnValue('blob:local-image')
+    URL.revokeObjectURL = vi.fn()
+    const view = render(<HandoutViewer handout={{ ...letter(), kind: 'image', storagePath: 'path', fileName: 'clue.png' }} />)
+    expect(screen.getByRole('status')).toBeTruthy()
+    const image = await screen.findByRole('img')
+    expect(image.getAttribute('src')).toBe('blob:local-image')
+    fireEvent.click(screen.getByRole('button', { name: 'Full size' }))
+    expect(image.className).toContain('full-size')
+    fireEvent.click(screen.getByRole('button', { name: 'Fit width' }))
+    expect(image.className).not.toContain('full-size')
+    expect(screen.getByRole('link', { name: 'Download original' }).getAttribute('download')).toBe('clue.png')
+    view.unmount()
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:local-image')
+  })
+  it('shows a read error instead of retaining an inaccessible image', async () => {
+    mocks.loadHandoutFile.mockRejectedValue(new Error('Permission denied'))
+    render(<HandoutViewer handout={{ ...letter(), kind: 'image', storagePath: 'forbidden' }} />)
+    expect((await screen.findByRole('alert')).textContent).toContain('Permission denied')
+    mocks.loadHandoutFile.mockResolvedValueOnce(new Blob(['image'], { type: 'image/png' }))
+    URL.createObjectURL = vi.fn().mockReturnValue('blob:retried')
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect((await screen.findByRole('img')).getAttribute('src')).toBe('blob:retried')
+  })
+})
