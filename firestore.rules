@@ -118,7 +118,8 @@ service cloud.firestore {
         && data.text is string && data.text.size() <= 200000
         && data.fileName is string
         && data.storagePath is string
-        && (data.storagePath == '' || data.storagePath.matches(prefix + '[^/]+'))
+        && (data.storagePath == '' || data.storagePath.matches(prefix + '[^/]+')
+          || data.storagePath.matches('groups/demo-template/campaigns/demo-campaign/handouts/' + handoutId + '/[^/]+'))
         && data.visibility in ['hidden', 'all', 'some']
         && data.characterIds is list && data.characterIds.size() <= 100
         && data.viewerUids is list && data.viewerUids.size() <= 100

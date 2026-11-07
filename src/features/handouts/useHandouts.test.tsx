@@ -16,6 +16,7 @@ vi.mock('./handoutStorage', () => ({ uploadHandoutFile: mocks.upload, removeHand
 import { deleteHandout, deleteHandoutFolder, saveHandout, saveHandoutFolder, useHandouts } from './useHandouts'
 import { emptyHandout } from './handoutModel'
 const scope = { groupId: 'g', campaignId: 'c' }
+const oldPath = 'groups/g/campaigns/c/handouts/h/old.pdf'
 beforeEach(() => { vi.clearAllMocks(); mocks.subscriptions = []; mocks.setDoc.mockResolvedValue(undefined); mocks.remove.mockResolvedValue(undefined) })
 afterEach(cleanup)
 
@@ -45,13 +46,13 @@ describe('campaign handout subscription', () => {
 
 describe('handout persistence and file cleanup', () => {
   it('saves a new uploaded file and deletes the replaced file only after persistence', async () => {
-    const handout = { ...emptyHandout('', 'gm'), kind: 'pdf' as const, storagePath: 'old', text: 'stale extract' }
+    const handout = { ...emptyHandout('', 'gm'), kind: 'pdf' as const, storagePath: oldPath, text: 'stale extract' }
     mocks.upload.mockResolvedValue({ kind: 'pdf', storagePath: 'new', fileName: 'new.pdf' })
     const file = {} as File
     const saved = await saveHandout(scope, handout, file)
     expect(saved.text).toBe('')
     expect(mocks.setDoc).toHaveBeenCalledWith(`groups/g/campaigns/c/handouts/${handout.id}`, expect.objectContaining({ storagePath: 'new', text: '' }))
-    expect(mocks.remove).toHaveBeenCalledWith('old')
+    expect(mocks.remove).toHaveBeenCalledWith(oldPath)
     expect(mocks.setDoc.mock.invocationCallOrder[0]).toBeLessThan(mocks.remove.mock.invocationCallOrder[0])
   })
   it('cleans a newly uploaded orphan if the document write fails', async () => {
@@ -61,9 +62,9 @@ describe('handout persistence and file cleanup', () => {
     expect(mocks.remove).toHaveBeenCalledWith('orphan')
   })
   it('removes old file references and bytes when switching to pasted text', async () => {
-    const saved = await saveHandout(scope, { ...emptyHandout('', 'gm'), storagePath: 'old', fileName: 'old.pdf' }, null)
+    const saved = await saveHandout(scope, { ...emptyHandout('', 'gm'), storagePath: oldPath, fileName: 'old.pdf' }, null)
     expect(saved).toMatchObject({ storagePath: '', fileName: '' })
-    expect(mocks.remove).toHaveBeenCalledWith('old')
+    expect(mocks.remove).toHaveBeenCalledWith(oldPath)
   })
   it('persists plain text and folder changes, and deletes handout metadata before its bytes', async () => {
     const handout = emptyHandout('', 'gm')
@@ -73,7 +74,17 @@ describe('handout persistence and file cleanup', () => {
     expect(mocks.setDoc).toHaveBeenLastCalledWith('groups/g/campaigns/c/handoutFolders/f', { name: 'Letters', parentId: '' })
     await deleteHandoutFolder(scope, 'f')
     expect(mocks.deleteDoc).toHaveBeenLastCalledWith('groups/g/campaigns/c/handoutFolders/f')
-    await deleteHandout(scope, { ...handout, storagePath: 'bytes' })
-    expect(mocks.remove).toHaveBeenLastCalledWith('bytes')
+    await deleteHandout(scope, { ...handout, storagePath: oldPath })
+    expect(mocks.remove).toHaveBeenLastCalledWith(oldPath)
   })
+  it('preserves shared template art when a cloned handout is edited or deleted', async () => {
+    const handout = { ...emptyHandout('', 'gm'), kind: 'pdf' as const, storagePath: 'groups/demo-template/campaigns/demo-campaign/handouts/h/original.pdf' }
+    await saveHandout(scope, handout, null)
+    await deleteHandout(scope, handout)
+    expect(mocks.remove).not.toHaveBeenCalled()
+    mocks.upload.mockResolvedValue({ kind: 'pdf', storagePath: 'groups/g/campaigns/c/handouts/h/replacement.pdf', fileName: 'replacement.pdf' })
+    await saveHandout(scope, handout, {} as File)
+    expect(mocks.remove).not.toHaveBeenCalled()
+  })
+
 })

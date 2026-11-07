@@ -43,6 +43,20 @@ describe('the template plan agrees with everything else that names the template'
   })
 })
 
+describe('handout files in the template', () => {
+  it('rewrites an original file path without changing its folder or visibility', () => {
+    expect(rewriteFields({
+      storagePath: { stringValue: from('handouts/h/letter.pdf') },
+      folderId: { stringValue: 'letters' },
+      visibility: { stringValue: 'hidden' },
+    }, prefixes)).toEqual({
+      storagePath: { stringValue: to('handouts/h/letter.pdf') },
+      folderId: { stringValue: 'letters' },
+      visibility: { stringValue: 'hidden' },
+    })
+  })
+})
+
 describe('moving Storage paths', () => {
   it('swaps the campaign prefix and leaves the rest of the path alone', () => {
     expect(rewriteStoragePath(from('maps/m1/fog/17.png'), prefixes)).toBe(to('maps/m1/fog/17.png'))
@@ -118,6 +132,19 @@ describe('rewriting a document', () => {
 })
 
 describe('collecting the objects to copy', () => {
+  it('collects handout files and nested typed references without copying unrelated values', () => {
+    const file = from('handouts/h/letter.pdf')
+    expect(collectStorageObjects([
+      { fields: { storagePath: { stringValue: file }, optional: null, number: { integerValue: '3' } } },
+      { fields: { nested: { mapValue: { fields: { pages: { arrayValue: { values: [{ stringValue: file }, { stringValue: from('handouts/i/clue.png') }] } } } } } } },
+      { fields: { emptyMap: { mapValue: {} }, emptyArray: { arrayValue: {} } } },
+      {},
+    ], prefixes)).toEqual([
+      { from: file, to: to('handouts/h/letter.pdf') },
+      { from: from('handouts/i/clue.png'), to: to('handouts/i/clue.png') },
+    ])
+  })
+
   it('lists each referenced object once, deduplicated and sorted', () => {
     const objects = collectStorageObjects(
       [

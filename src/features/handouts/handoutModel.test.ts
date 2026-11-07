@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emptyHandout, folderAncestors, folderDestinationAllowed, folderLabel, handoutFileKind, viewerUidsFor, visibleFolders } from './handoutModel'
+import { emptyHandout, folderAncestors, folderDestinationAllowed, folderLabel, handoutFileBelongsTo, handoutFileKind, viewerUidsFor, visibleFolders } from './handoutModel'
 
 const folders = [
   { id: 'evidence', name: 'Evidence', parentId: '' },
@@ -40,4 +40,12 @@ describe('handout folders and audience', () => {
     expect(() => handoutFileKind({ type: 'image/svg+xml', size: 100 })).toThrow('Choose a PDF')
     expect(() => handoutFileKind({ type: 'application/pdf', size: 21 * 1024 * 1024 })).toThrow('20 MB')
   })
+  it('owns only files under the current campaign handout prefix', () => {
+    const scope = { groupId: 'g', campaignId: 'c' }
+    expect(handoutFileBelongsTo(scope, 'groups/g/campaigns/c/handouts/h/file.pdf')).toBe(true)
+    expect(handoutFileBelongsTo(scope, 'groups/demo-template/campaigns/demo-campaign/handouts/h/file.pdf')).toBe(false)
+    expect(handoutFileBelongsTo(scope, 'groups/g/campaigns/other/handouts/h/file.pdf')).toBe(false)
+    expect(handoutFileBelongsTo(scope, '')).toBe(false)
+  })
+
 })

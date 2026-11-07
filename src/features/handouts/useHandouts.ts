@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { deleteDoc, onSnapshot, or, query, setDoc, where } from 'firebase/firestore'
 import { db } from '../../firebase'
 import { campaignCollectionRef, campaignDocRef, type CampaignScope } from '../campaign/firestorePaths'
-import type { Handout, HandoutCharacter, HandoutFolder } from './handoutModel'
+import { handoutFileBelongsTo, type Handout, type HandoutCharacter, type HandoutFolder } from './handoutModel'
 import { removeHandoutFile, uploadHandoutFile } from './handoutStorage'
 
 export function useHandouts(scope: CampaignScope, isGm: boolean, userId: string) {
@@ -44,13 +44,13 @@ export async function saveHandout(scope: CampaignScope, handout: Handout, file: 
     if (uploaded) await removeHandoutFile(uploaded.storagePath)
     throw error
   }
-  if (handout.storagePath && handout.storagePath !== saved.storagePath) await removeHandoutFile(handout.storagePath)
+  if (handoutFileBelongsTo(scope, handout.storagePath) && handout.storagePath !== saved.storagePath) await removeHandoutFile(handout.storagePath)
   return saved
 }
 
 export async function deleteHandout(scope: CampaignScope, handout: Handout) {
   await deleteDoc(campaignDocRef(db, scope, 'handouts', handout.id))
-  await removeHandoutFile(handout.storagePath)
+  if (handoutFileBelongsTo(scope, handout.storagePath)) await removeHandoutFile(handout.storagePath)
 }
 
 export async function saveHandoutFolder(scope: CampaignScope, folder: HandoutFolder) {

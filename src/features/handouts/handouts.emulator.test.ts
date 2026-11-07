@@ -104,4 +104,12 @@ describe('handout visibility in Firestore and Storage', () => {
   it('limits uploaded content types', async () => {
     await assertFails(uploadBytes(file('gm', 'all'), bytes, { contentType: 'text/html' }))
   })
+  it('lets a cloned handout keep shared template art when the GM re-saves it', async () => {
+    const original = { ...makeHandout('hidden'), kind: 'pdf', storagePath: 'groups/demo-template/campaigns/demo-campaign/handouts/cloned/letter.pdf', fileName: 'letter.pdf' }
+    await assertSucceeds(setDoc(record('gm', 'cloned'), original))
+    await assertSucceeds(updateDoc(record('gm', 'cloned'), { title: 'My copy', visibility: 'all' }))
+    await assertSucceeds(getDoc(record('alice', 'cloned')))
+    await assertFails(setDoc(record('gm', 'foreign'), { ...original, storagePath: 'groups/elsewhere/campaigns/private/handouts/foreign/letter.pdf' }))
+  })
+
 })

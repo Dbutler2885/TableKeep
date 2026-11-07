@@ -60,3 +60,8 @@ export function handoutFileKind(file: Pick<File, 'type' | 'size'>): 'image' | 'p
   if (IMAGE_TYPES.includes(file.type)) return 'image'
   throw new Error('Choose a PDF, PNG, JPEG, WebP, GIF, or AVIF file.')
 }
+
+// Template art is shared by demo sandboxes and must survive a clone's edit/delete.
+export function handoutFileBelongsTo(scope: { groupId: string; campaignId: string }, path: string): boolean {
+  return path.startsWith(`groups/${scope.groupId}/campaigns/${scope.campaignId}/handouts/`)
+}
