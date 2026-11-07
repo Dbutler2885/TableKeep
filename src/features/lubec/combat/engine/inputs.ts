@@ -6,22 +6,22 @@ import type { Combatant, CombatantSelection, CombatSheet } from './types'
 
 export const combatantKey = (selection: CombatantSelection) => `${selection.kind}:${selection.sheetId}`
 
-function missingInputs(record: CombatSheet, dodgeball: boolean) {
+function missingInputs(record: CombatSheet, requireBody: boolean) {
   const modifiers = lubecSheetModifiers(record.sheet)
   const values = {
     Speed: lubecCurrentValue(record.sheet, 'Speed', modifiers),
     'attack/Check Handle': lubecEffectiveHandle(record.sheet, modifiers),
     Strength: lubecCurrentValue(record.sheet, 'Strength', modifiers),
-    ...(dodgeball ? { 'Dodgeball Body': lubecCurrentValue(record.sheet, 'Body', modifiers) } : {}),
+    ...(requireBody ? { 'Body Save': lubecCurrentValue(record.sheet, 'Body', modifiers) } : {}),
   }
   return Object.entries(values).filter(([, value]) => value === null).map(([name]) => name)
 }
 
-export function combatSetupIssues(selections: CombatantSelection[], sheets: CombatSheet[], dodgeball: boolean): string[] {
+export function combatSetupIssues(selections: CombatantSelection[], sheets: CombatSheet[], requireBody: boolean): string[] {
   return selections.flatMap((selection) => {
     const record = sheets.find((sheet) => combatantKey(sheet) === combatantKey(selection))
     if (!record) return [`${combatantKey(selection)}: sheet is missing or unreadable.`]
-    return missingInputs(record, dodgeball).map((name) => `${record.name}: missing ${name}; repair ${lubecHoles(record.sheet).join(', ')}.`)
+    return missingInputs(record, requireBody).map((name) => `${record.name}: missing ${name}; repair ${lubecHoles(record.sheet).join(', ')}.`)
   })
 }
 

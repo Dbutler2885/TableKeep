@@ -65,7 +65,7 @@ describe('local setup', () => {
     const problems = combatSetupProblems([{ kind: 'character', sheetId: 'hole' }, { kind: 'character', sheetId: 'fine' }, { kind: 'npc', sheetId: 'gone' }], [sheet('hole', { Speed: null, Body: null }), sheet('fine')])
     expect(problems.map((problem) => [problem.name, problem.text])).toEqual([
       ['Kid hole', 'Kid hole: missing Speed; repair Speed, Body.'],
-      ['Kid hole', 'Kid hole: missing Dodgeball Body; repair Speed, Body.'],
+      ['Kid hole', 'Kid hole: missing Body Save; repair Speed, Body.'],
       ['npc:gone', 'npc:gone: sheet is missing or unreadable.'],
     ])
   })

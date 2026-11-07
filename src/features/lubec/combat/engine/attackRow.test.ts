@@ -160,6 +160,6 @@ describe('a row\'s Check or Save, rolled by the target', () => {
     const holed = { ...records, sheets: [hero(), { ...roy(), sheet: roySheet([], { Body: null }) }] }
     const { plan, rolls } = check(holed, [])
     expect(rolls).toEqual([])
-    expect(plan.fight.state.attack).toMatchObject({ step: 'check', repair: expect.stringContaining('Dodgeball Body') })
+    expect(plan.fight.state.attack).toMatchObject({ step: 'check', repair: expect.stringContaining('Body Save') })
   })
 })

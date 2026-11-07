@@ -20,7 +20,7 @@ function requireStartInputs(payload: StartPayload, records: CombatRecords): void
   if (payload.combatants.length === 0) throw new Error('Select at least one combatant.')
   const keys = payload.combatants.map(combatantKey)
   if (new Set(keys).size !== keys.length) throw new Error('A combatant was selected twice.')
-  const issues = combatSetupIssues(payload.combatants, records.sheets, payload.dodgeball)
+  const issues = combatSetupIssues(payload.combatants, records.sheets, payload.requireBody ?? payload.dodgeball ?? false)
   if (issues.length) throw new Error(issues.join('\n'))
 }
 

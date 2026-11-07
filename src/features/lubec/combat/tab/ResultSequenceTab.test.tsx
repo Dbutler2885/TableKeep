@@ -104,6 +104,23 @@ beforeEach(() => {
 })
 afterEach(cleanup)
 
+const progressSteps = () => [...document.querySelectorAll('[aria-label="Result"] .section-head .stepper li')].map((step) => step.textContent)
+
+describe('attack-specific result progress', () => {
+  it('ends a missed melee attack at Attack without offering irrelevant steps', () => {
+    show('player', 'wayne-uid', fightAfter(...hit(90, slashAt)))
+    expect(progressSteps()).toEqual(['1Attack'])
+    expect(document.querySelectorAll('[aria-label="Result"] .section-head .stepper li.done')).toHaveLength(1)
+    expect(document.querySelector('[aria-label="Result"] .section-head .stepper li.now')).toBeNull()
+  })
+
+  it('shows the location reached by a melee hit without a catch stage', () => {
+    show('player', 'wayne-uid', fightAfter(...landed(slashAt)))
+    expect(progressSteps()).toEqual(['1Attack', '2Defense', '3Location'])
+    expect(document.querySelector('[aria-label="Result"] .section-head .stepper li.now')?.textContent).toBe('3Location')
+  })
+})
+
 describe('Defense after a hit', () => {
   it('asks the GM for Roy\'s grant-local split and sends it, with Full Defense\'s +10 only on the bar', async () => {
     show('gm', 'gm', fightAfter(...hit(27)))
@@ -180,6 +197,8 @@ describe('the catch', () => {
 
   it('shows the GM why Roy may catch, the chance built from its parts, and sends the roll', async () => {
     show('gm', 'gm', stopped())
+    expect(progressSteps()).toEqual(['1Attack', '2Defense', '3Catch'])
+    expect(document.querySelector('[aria-label="Result"] .section-head .stepper li.now')?.textContent).toBe('3Catch')
     expect(screen.getByText('Defense holds. It takes off 1 + 1 = 2.')).toBeTruthy()
     expect(screen.getByText(/Below 0\./).closest('p')!.textContent).toContain('That is 1 below 0.')
     expect(within(document.querySelector('.st.active')!).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['It hit', 'Defense took it to -1 (below 0)', 'A free hand', 'A catchable item: dodgeball, 50%'])
@@ -226,6 +245,16 @@ describe('the catch', () => {
 })
 
 describe('the doll, Strength and the wound', () => {
+  it('uses the resolved table and its capped row impact when describing a wound', () => {
+    const live = fightAfter(...landed(), { type: 'land', actor: WAYNE, part: 'waist' }, { type: 'strength', actor: WAYNE, dice: { strength: 20 } })
+    const attack = live.fight.state.attack!
+    attack.impact = { ...attack.impact!, table: 'blunt', total: 8 }
+    attack.row = { ...attack.row!, impact: 6 }
+    show('player', 'wayne-uid', live)
+    expect(screen.getByText('Blunt · Torso and waist · Impact 6+')).toBeTruthy()
+    expect(screen.queryByText(/^Dodgeball ·/)).toBeNull()
+  })
+
   it('lets Wayne keep or move the hit within reach and sends where it hits', async () => {
     show('player', 'wayne-uid', fightAfter(...landed()))
     expect(screen.getByText("It lands on Roy Carver's waist.")).toBeTruthy()
@@ -315,6 +344,7 @@ describe('the doll, Strength and the wound', () => {
       records = { ...records, activeFightId: 'fight', fight: planCombatCommand(command, records, { userId: 'gm', isGm: true }, undefined, { ...entropy, die: (purpose, sides) => dice[purpose] ?? entropy.die(purpose, sides) }).fight }
     })
     show('player', 'wayne-uid', { id: 'fight', fight: records.fight! })
+    expect(progressSteps()).toEqual(['1Attack', '2Location', '3Wound'])
     expect(screen.queryByText(/Strength roll/)).toBeNull()
     expect([...document.querySelectorAll('.impact:not(.roll-chips) .chip dt')].map((term) => term.textContent)).toEqual(['Quality', 'Base', 'Moved', 'Impact'])
     expect(screen.getByRole('heading', { name: 'The GM records this wound' }).nextSibling!.textContent).toBe('Gunshot table, waist, Impact 3.')

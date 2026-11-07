@@ -165,10 +165,17 @@ describe('atomic lifecycle intentions', () => {
 })
 
 describe('current required inputs', () => {
+  it('validates Body Save through the general setup option, while respecting an explicit opt-out', () => {
+    const current = records()
+    current.sheets[0].sheet.base.Body = null
+    expect(() => planCombatCommand(command('start', { requireBody: true, dodgeball: false }), current, gm)).toThrow('missing Body Save; repair Body.')
+    expect(planCombatCommand(command('start', { requireBody: false }), current, gm).fight.status).toBe('live')
+  })
+
   it.each(['Speed', 'Handle', 'Strength', 'Body'] as const)('names a missing %s and the repair cause', (name) => {
     const current = records()
     current.sheets[0].sheet.base[name] = null
-    const input = name === 'Body' ? 'Dodgeball Body' : name
+    const input = name === 'Body' ? 'Body Save' : name
     expect(() => planCombatCommand(command(), current, gm)).toThrow(new RegExp(`Tommy: missing .*${input}; repair ${name}`))
   })
 
@@ -188,7 +195,7 @@ describe('current required inputs', () => {
     current.sheet.class.key = null
     expect(combatSetupIssues([current], [current], true)).toEqual([
       'Tommy: missing Speed; repair Class.', 'Tommy: missing attack/Check Handle; repair Class.',
-      'Tommy: missing Strength; repair Class.', 'Tommy: missing Dodgeball Body; repair Class.',
+      'Tommy: missing Strength; repair Class.', 'Tommy: missing Body Save; repair Class.',
     ])
     expect(() => publicCombatant(current)).toThrow('Speed is missing')
     current.sheet = lubecCharacterSheet({ base: { ...lubecCharacterSheet().base, Body: null } })
