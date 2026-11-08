@@ -44,8 +44,12 @@ export async function saveHandout(scope: CampaignScope, handout: Handout, file: 
     if (uploaded) await removeHandoutFile(uploaded.storagePath)
     throw error
   }
-  if (handoutFileBelongsTo(scope, handout.storagePath) && handout.storagePath !== saved.storagePath) await removeHandoutFile(handout.storagePath)
+  await removeReplacedHandoutFile(scope, handout.storagePath, saved.storagePath)
   return saved
+}
+
+async function removeReplacedHandoutFile(scope: CampaignScope, previous: string, current: string) {
+  if (handoutFileBelongsTo(scope, previous) && previous !== current) await removeHandoutFile(previous)
 }
 
 export async function deleteHandout(scope: CampaignScope, handout: Handout) {

@@ -4,10 +4,10 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HandoutLightbox } from './HandoutLightbox'
 
-function Host({ resetKey = 'image' }: { resetKey?: string }) {
+function Host({ resetKey = 'image', hideTrigger = false }: { resetKey?: string; hideTrigger?: boolean }) {
   const [open, setOpen] = useState(false)
   const close = useCallback(() => setOpen(false), [])
-  return <><button type="button" onClick={() => setOpen(true)}>Open clue</button>
+  return <>{hideTrigger ? null : <button type="button" onClick={() => setOpen(true)}>Open clue</button>}
     {open ? <HandoutLightbox title="Old map" width={2000} height={1600} onClose={close} resetKey={resetKey}>{() => <img src="blob:clue" alt="Old map" />}</HandoutLightbox> : null}</>
 }
 
@@ -33,6 +33,20 @@ function open() {
 }
 
 describe('full-size handout viewer', () => {
+  it('closes safely when its original trigger has disappeared', () => {
+    const view = render(<Host />)
+    const trigger = screen.getByRole('button', { name: 'Open clue' })
+    trigger.focus()
+    const { controls } = open()
+    view.rerender(<Host hideTrigger />)
+    expect(trigger.isConnected).toBe(false)
+    const restoreFocus = vi.spyOn(trigger, 'focus')
+    fireEvent.click(controls.getByRole('button', { name: 'Close full-size viewer' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(restoreFocus).not.toHaveBeenCalled()
+    expect(document.body.inert).not.toBe(true)
+  })
+
   it('opens at original size, zooms with buttons, resets, and restores focus on close', () => {
     render(<Host />)
     const trigger = screen.getByRole('button', { name: 'Open clue' })

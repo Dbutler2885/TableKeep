@@ -1,15 +1,24 @@
 import { useEffect, type RefObject } from 'react'
 
+function isTabBoundary(event: KeyboardEvent, dialog: HTMLElement, first: HTMLElement | undefined, last: HTMLElement | undefined) {
+  const boundary = event.shiftKey ? first : last
+  return document.activeElement === boundary || !dialog.contains(document.activeElement)
+}
+
 function trapDialogTab(event: KeyboardEvent, dialog: HTMLElement) {
   const controls = [...dialog.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], [tabindex="0"]')]
   const first = controls[0]
   const last = controls.at(-1)
   const wrapBack = event.shiftKey && document.activeElement === first
-  const wrapForward = !event.shiftKey && document.activeElement === last
-  if (wrapBack || wrapForward || !dialog.contains(document.activeElement)) {
+  if (isTabBoundary(event, dialog, first, last)) {
     event.preventDefault()
     ;(wrapBack ? last : first)?.focus()
   }
+}
+
+function handleDialogKey(event: KeyboardEvent, dialog: HTMLElement, onClose: () => void) {
+  if (event.key === 'Escape') { event.preventDefault(); onClose() }
+  if (event.key === 'Tab') trapDialogTab(event, dialog)
 }
 
 function suspendDialogSiblings(dialog: HTMLElement): () => void {
@@ -27,10 +36,7 @@ export function useHandoutDialog(ref: RefObject<HTMLElement | null>, onClose: ()
     const previous = document.activeElement as HTMLElement | null
     const restoreSiblings = suspendDialogSiblings(dialog)
     dialog.querySelector<HTMLElement>('[data-handout-close]')?.focus()
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); onClose() }
-      if (event.key === 'Tab') trapDialogTab(event, dialog)
-    }
+    const onKeyDown = (event: KeyboardEvent) => handleDialogKey(event, dialog, onClose)
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)

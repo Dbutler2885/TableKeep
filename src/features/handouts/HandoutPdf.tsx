@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useRef, useState, type ReactNode } from 'react'
 import { getDocument, GlobalWorkerOptions, type PDFDocumentProxy, type PDFPageProxy } from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { HandoutPdfCanvas } from './HandoutPdfCanvas'
@@ -43,15 +43,31 @@ function PdfReader({ document, url, title, fileName }: Required<Props> & { docum
   const { page, error } = usePdfPage(document, number)
   const close = useCallback(() => setOpen(false), [])
   const navigation = <PdfNavigation number={number} count={document.numPages} onPage={setNumber} />
-  const size = page?.getViewport({ scale: 1 }) ?? { width: 600, height: 800 }
   return <div className="handout-media-reader handout-pdf">
     <HandoutMediaActions url={url} fileName={fileName} onOpen={() => setOpen(true)} disabled={!page}>{navigation}</HandoutMediaActions>
-    {error ? <p role="alert">{error}</p> : null}
-    {page ? <PdfPreview page={page} title={title} onOpen={() => setOpen(true)} /> : error ? null : <p role="status">Loading PDF page...</p>}
-    {open ? <HandoutLightbox title={title} width={size.width} height={size.height} onClose={close} navigation={navigation} resetKey={number}>
-      {(scale) => page ? <FullPdfPage page={page} scale={scale} /> : <p className="handout-full-message" role={error ? 'alert' : 'status'}>{error || 'Loading PDF page...'}</p>}
-    </HandoutLightbox> : null}
+    <PdfPagePreview page={page} error={error} title={title} onOpen={() => setOpen(true)} />
+    {open ? <PdfLightbox page={page} error={error} title={title} onClose={close} navigation={navigation} number={number} /> : null}
   </div>
+}
+
+function PdfPagePreview({ page, error, title, onOpen }: { page: PDFPageProxy | null; error: string; title: string; onOpen: () => void }) {
+  if (error) return <p role="alert">{error}</p>
+  if (!page) return <p role="status">Loading PDF page...</p>
+  return <PdfPreview page={page} title={title} onOpen={onOpen} />
+}
+
+function PdfLightbox({ page, error, title, onClose, navigation, number }: {
+  page: PDFPageProxy | null; error: string; title: string; onClose: () => void; navigation: ReactNode; number: number
+}) {
+  const size = page?.getViewport({ scale: 1 }) ?? { width: 600, height: 800 }
+  return <HandoutLightbox title={title} width={size.width} height={size.height} onClose={onClose} navigation={navigation} resetKey={number}>
+    {(scale) => <PdfFullContent page={page} error={error} scale={scale} />}
+  </HandoutLightbox>
+}
+
+function PdfFullContent({ page, error, scale }: { page: PDFPageProxy | null; error: string; scale: number }) {
+  if (page) return <FullPdfPage page={page} scale={scale} />
+  return <p className="handout-full-message" role={error ? 'alert' : 'status'}>{error || 'Loading PDF page...'}</p>
 }
 
 function PdfNavigation({ number, count, onPage }: { number: number; count: number; onPage: (number: number) => void }) {

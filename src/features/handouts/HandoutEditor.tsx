@@ -10,6 +10,19 @@ type Props = {
   onClose: () => void
 }
 
+function handoutViewers(draft: Handout, characters: HandoutCharacter[]) {
+  if (draft.visibility !== 'some') return []
+  const viewers = viewerUidsFor(draft.characterIds, characters)
+  if (!viewers.length) throw new Error('Choose at least one character with an owner.')
+  return viewers
+}
+
+function prepareHandout(draft: Handout, characters: HandoutCharacter[], file: File | null) {
+  const viewerUids = handoutViewers(draft, characters)
+  if (draft.kind !== 'text' && !file && !draft.storagePath) throw new Error('Choose a file to upload.')
+  return { ...draft, title: draft.title.trim(), viewerUids }
+}
+
 function useHandoutEditor({ handout, characters, onSave }: Props) {
   const [draft, setDraft] = useState(handout)
   const [file, setFile] = useState<File | null>(null)
@@ -21,10 +34,7 @@ function useHandoutEditor({ handout, characters, onSave }: Props) {
     setBusy(true)
     setError('')
     try {
-      const viewerUids = draft.visibility === 'some' ? viewerUidsFor(draft.characterIds, characters) : []
-      if (draft.visibility === 'some' && !viewerUids.length) throw new Error('Choose at least one character with an owner.')
-      if (draft.kind !== 'text' && !file && !draft.storagePath) throw new Error('Choose a file to upload.')
-      await onSave({ ...draft, title: draft.title.trim(), viewerUids }, file)
+      await onSave(prepareHandout(draft, characters, file), file)
     } catch (reason) { setError((reason as Error).message) }
     finally { setBusy(false) }
   }
@@ -65,9 +75,15 @@ function HandoutContentFields({ draft, file, update, chooseFile, clearFile }: {
         </select></label>
         {draft.kind === 'text'
           ? <label>Text extract<textarea required rows={10} maxLength={200000} value={draft.text} onChange={(event) => update({ text: event.target.value })} /></label>
-          : <label>Image or PDF<input type="file" aria-label="Image or PDF" accept="image/png,image/jpeg,image/webp,image/gif,image/avif,application/pdf" onChange={(event) => chooseFile(event.target.files?.[0])} />
-            <small>{file?.name || draft.fileName || 'Choose a file up to 20 MB.'}</small></label>}
+          : <HandoutFileField file={file} fileName={draft.fileName} chooseFile={chooseFile} />}
   </>
+}
+
+function HandoutFileField({ file, fileName, chooseFile }: {
+  file: File | null; fileName: string; chooseFile: (file: File | undefined) => void
+}) {
+  return <label>Image or PDF<input type="file" aria-label="Image or PDF" accept="image/png,image/jpeg,image/webp,image/gif,image/avif,application/pdf" onChange={(event) => chooseFile(event.target.files?.[0])} />
+    <small>{file?.name || fileName || 'Choose a file up to 20 MB.'}</small></label>
 }
 
 function VisibilityFields({ visibility, characterIds, characters, onChange }: {

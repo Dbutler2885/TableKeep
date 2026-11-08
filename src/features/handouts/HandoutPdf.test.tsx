@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { StrictMode } from 'react'
+import type { PDFPageProxy } from 'pdfjs-dist'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({ getDocument: vi.fn(), getPage: vi.fn(), destroy: vi.fn(), cancel: vi.fn(), render: vi.fn() }))
 vi.mock('pdfjs-dist', () => ({ getDocument: mocks.getDocument, GlobalWorkerOptions: {} }))
 import HandoutPdf from './HandoutPdf'
+import { HandoutPdfCanvas } from './HandoutPdfCanvas'
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -19,6 +22,36 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 describe('PDF handout pages', () => {
+  it('cancels pending renders and ignores late results from previous pages', async () => {
+    const tasks = [Promise.withResolvers<void>(), Promise.withResolvers<void>(), Promise.withResolvers<void>()]
+    const cancels = [vi.fn(), vi.fn(), vi.fn()]
+    tasks.forEach((task, index) => mocks.render.mockImplementationOnce(() => ({ promise: task.promise, cancel: cancels[index] })))
+    const pages = await Promise.all([1, 2, 3].map((number) => mocks.getPage(number) as Promise<PDFPageProxy>))
+    const view = render(<HandoutPdfCanvas page={pages[0]} displayScale={1} />)
+    await waitFor(() => expect(mocks.render).toHaveBeenCalledTimes(1))
+    view.rerender(<HandoutPdfCanvas page={pages[1]} displayScale={1} />)
+    await waitFor(() => expect(mocks.render).toHaveBeenCalledTimes(2))
+    expect(cancels[0]).toHaveBeenCalledTimes(1)
+    view.rerender(<HandoutPdfCanvas page={pages[2]} displayScale={1} />)
+    await waitFor(() => expect(mocks.render).toHaveBeenCalledTimes(3))
+    expect(cancels[1]).toHaveBeenCalledTimes(1)
+    await act(async () => { tasks[0].resolve(); tasks[1].reject(new Error('Rendering cancelled')) })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByLabelText('PDF page 3').getAttribute('aria-busy')).toBe('true')
+    await act(async () => tasks[2].resolve())
+    expect(screen.getByLabelText('PDF page 3').getAttribute('aria-busy')).toBe('false')
+    view.unmount()
+    expect(cancels[2]).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not start queued rendering after the viewer closes, including StrictMode cleanup', async () => {
+    const page = await mocks.getPage(1) as PDFPageProxy
+    const view = render(<StrictMode><HandoutPdfCanvas page={page} displayScale={1} /></StrictMode>)
+    view.unmount()
+    await act(async () => { await Promise.resolve() })
+    expect(mocks.render).not.toHaveBeenCalled()
+  })
+
   it('fits both dimensions, navigates pages, and zooms in a full-size viewer without fetching another document', async () => {
     const view = render(<HandoutPdf url="blob:pdf" title="Harbour records" />)
     expect(screen.getByRole('status').textContent).toBe('Loading PDF...')

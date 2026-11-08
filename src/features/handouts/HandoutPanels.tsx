@@ -14,15 +14,24 @@ export function HandoutSidebar(props: SidebarProps) {
       <button type="button" aria-label="Add folder" title="Add folder" onClick={props.onAddFolder}><FolderPlus size={17} /></button>
       <button type="button" aria-label="Add handout" title="Add handout" onClick={props.onAddHandout}><Plus size={17} /></button>
     </div> : null}</div>
-    <div className="table-mode-toggle" role="group" aria-label="Handout view">
-      <button className={props.flat ? 'table-mode-btn' : 'table-mode-btn active'} type="button" aria-pressed={!props.flat} onClick={() => props.onFlat(false)}>Folders</button>
-      <button className={props.flat ? 'table-mode-btn active' : 'table-mode-btn'} type="button" aria-pressed={props.flat} onClick={() => props.onFlat(true)}>All handouts</button>
-    </div>
+    <HandoutViewToggle flat={props.flat} onFlat={props.onFlat} />
     {!props.flat ? <button type="button" className="handout-root" onClick={() => props.onFolder('')}>Handouts /</button> : null}
     <HandoutLibrary {...props} />
-    {props.loading ? <p role="status" className="handout-empty">Loading handouts...</p> : null}
-    {!props.loading && !props.handouts.length ? <p className="handout-empty">{props.isGm ? 'Add a handout to share a clue, document, or image.' : 'No handouts have been revealed to you yet.'}</p> : null}
+    <HandoutLibraryStatus loading={props.loading} empty={!props.handouts.length} isGm={props.isGm} />
   </aside>
+}
+
+function HandoutViewToggle({ flat, onFlat }: Pick<SidebarProps, 'flat' | 'onFlat'>) {
+  return <div className="table-mode-toggle" role="group" aria-label="Handout view">
+    <button className={flat ? 'table-mode-btn' : 'table-mode-btn active'} type="button" aria-pressed={!flat} onClick={() => onFlat(false)}>Folders</button>
+    <button className={flat ? 'table-mode-btn active' : 'table-mode-btn'} type="button" aria-pressed={flat} onClick={() => onFlat(true)}>All handouts</button>
+  </div>
+}
+
+function HandoutLibraryStatus({ loading, empty, isGm }: { loading: boolean; empty: boolean; isGm: boolean }) {
+  if (loading) return <p role="status" className="handout-empty">Loading handouts...</p>
+  if (!empty) return null
+  return <p className="handout-empty">{isGm ? 'Add a handout to share a clue, document, or image.' : 'No handouts have been revealed to you yet.'}</p>
 }
 
 export function HandoutDetail({ handout, folders, isGm, onEdit, onDelete }: {
