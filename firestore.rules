@@ -110,8 +110,9 @@ service cloud.firestore {
     function validHandout(groupId, campaignId, handoutId) {
       let data = request.resource.data;
       let prefix = 'groups/' + groupId + '/campaigns/' + campaignId + '/handouts/' + handoutId + '/';
-      return data.keys().hasOnly(['title', 'folderId', 'kind', 'text', 'storagePath', 'fileName', 'visibility', 'characterIds', 'viewerUids', 'gmUserId'])
+      return data.keys().hasOnly(['title', 'description', 'folderId', 'kind', 'text', 'storagePath', 'fileName', 'visibility', 'characterIds', 'viewerUids', 'gmUserId'])
         && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.get('description', '') is string && data.get('description', '').size() <= 2000
         && data.folderId is string
         && (data.folderId == '' || exists(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)/handoutFolders/$(data.folderId)))
         && data.kind in ['text', 'image', 'pdf']

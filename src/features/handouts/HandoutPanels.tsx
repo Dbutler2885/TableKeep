@@ -30,6 +30,7 @@ export function HandoutDetail({ handout, folders, isGm, onEdit, onDelete }: {
 }) {
   return <>
     <header className="handout-detail-header"><div><p className="handout-breadcrumb">{folderLabel(handout.folderId, folders)}</p><h2>{handout.title}</h2>
+      {handout.description ? <p className="handout-description">{handout.description}</p> : null}
       {isGm ? <p className="handout-visibility">{visibilityLabel(handout)}</p> : null}</div>
       {isGm ? <div className="handout-actions"><button type="button" onClick={onEdit}>Edit handout</button><button type="button" onClick={onDelete}>Delete</button></div> : null}
     </header><HandoutViewer key={handout.id} handout={handout} />

@@ -54,3 +54,6 @@
   color: var(--lubec-ink, var(--vtm-bone, #33291e));
 }
 .handout-view-controls a { color: var(--lubec-blue, var(--vtm-gold, #2f5bbf)); text-underline-offset: 3px; }
+
+.handout-description { max-width: 72ch; margin: 10px 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; font-size: 14px; }
+.handout-row-description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; font-size: 12px; line-height: 1.5; opacity: .8; margin-top: 4px; }

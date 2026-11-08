@@ -44,6 +44,7 @@ export function HandoutEditor(props: Props) {
       <h3 id="handout-editor-title">{handout.title ? 'Edit handout' : 'Add handout'}</h3>
       <fieldset disabled={busy}>
         <label>Title<input autoFocus required maxLength={200} value={draft.title} onChange={(event) => update({ title: event.target.value })} /></label>
+        <label>Description (optional)<textarea rows={3} maxLength={2000} value={draft.description ?? ''} onChange={(event) => update({ description: event.target.value })} /></label>
         <FolderSelect value={draft.folderId} folders={folders} onChange={(folderId) => update({ folderId })} />
         <HandoutContentFields draft={draft} file={file} update={update} chooseFile={chooseFile} clearFile={() => setFile(null)} />
         <VisibilityFields visibility={draft.visibility} characterIds={draft.characterIds} characters={characters} onChange={update} />

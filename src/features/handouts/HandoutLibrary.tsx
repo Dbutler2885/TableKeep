@@ -30,6 +30,6 @@ function FolderBranch(props: Props & { parentId: string; visited: string[] }) {
 
 function HandoutRow({ handout, selectedId, onSelect, folders, showFolder }: Props & { handout: Handout; showFolder?: boolean }) {
   return <button type="button" className={selectedId === handout.id ? 'handout-row active' : 'handout-row'} onClick={() => onSelect(handout.id)}>
-    <FileText size={16} /><span><strong>{handout.title}</strong>{showFolder ? <small>{folderLabel(handout.folderId, folders)}</small> : null}</span>
+    <FileText size={16} /><span><strong>{handout.title}</strong>{handout.description ? <span className="handout-row-description">{handout.description}</span> : null}{showFolder ? <small>{folderLabel(handout.folderId, folders)}</small> : null}</span>
   </button>
 }

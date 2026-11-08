@@ -112,4 +112,23 @@ describe('handout visibility in Firestore and Storage', () => {
     await assertFails(setDoc(record('gm', 'foreign'), { ...original, storagePath: 'groups/elsewhere/campaigns/private/handouts/foreign/letter.pdf' }))
   })
 
+  it('keeps descriptions behind the same reveal and GM-edit permissions', async () => {
+    const description = 'A water-stained letter from the harbour office.'
+    await assertSucceeds(setDoc(record('gm', 'described'), { ...makeHandout('hidden'), description }))
+    await assertFails(getDoc(record('alice', 'described')))
+    await assertSucceeds(updateDoc(record('gm', 'described'), { visibility: 'some', viewerUids: ['alice'] }))
+    expect((await assertSucceeds(getDoc(record('alice', 'described')))).data()?.description).toBe(description)
+    await assertFails(getDoc(record('bob', 'described')))
+    await assertFails(updateDoc(record('alice', 'described'), { description: 'Player edit' }))
+    await assertSucceeds(updateDoc(record('gm', 'described'), { visibility: 'all', viewerUids: [] }))
+    expect((await assertSucceeds(getDoc(record('bob', 'described')))).data()?.description).toBe(description)
+  })
+  it('accepts an omitted or empty description and validates its size and type', async () => {
+    await assertSucceeds(setDoc(record('gm', 'legacy-description'), makeHandout('hidden')))
+    await assertSucceeds(updateDoc(record('gm', 'legacy-description'), { description: '' }))
+    await assertSucceeds(updateDoc(record('gm', 'legacy-description'), { description: 'x'.repeat(2000) }))
+    await assertFails(updateDoc(record('gm', 'legacy-description'), { description: 'x'.repeat(2001) }))
+    await assertFails(updateDoc(record('gm', 'legacy-description'), { description: 7 }))
+  })
+
 })

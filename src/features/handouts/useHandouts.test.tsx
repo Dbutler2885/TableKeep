@@ -46,11 +46,12 @@ describe('campaign handout subscription', () => {
 
 describe('handout persistence and file cleanup', () => {
   it('saves a new uploaded file and deletes the replaced file only after persistence', async () => {
-    const handout = { ...emptyHandout('', 'gm'), kind: 'pdf' as const, storagePath: oldPath, text: 'stale extract' }
+    const handout = { ...emptyHandout('', 'gm'), kind: 'pdf' as const, storagePath: oldPath, text: 'stale extract', description: 'An original document.' }
     mocks.upload.mockResolvedValue({ kind: 'pdf', storagePath: 'new', fileName: 'new.pdf' })
     const file = {} as File
     const saved = await saveHandout(scope, handout, file)
     expect(saved.text).toBe('')
+    expect(saved.description).toBe('An original document.')
     expect(mocks.setDoc).toHaveBeenCalledWith(`groups/g/campaigns/c/handouts/${handout.id}`, expect.objectContaining({ storagePath: 'new', text: '' }))
     expect(mocks.remove).toHaveBeenCalledWith(oldPath)
     expect(mocks.setDoc.mock.invocationCallOrder[0]).toBeLessThan(mocks.remove.mock.invocationCallOrder[0])

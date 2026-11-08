@@ -5,6 +5,7 @@ export type HandoutCharacter = { id: string; name: string; ownerUserId: string }
 export type Handout = {
   id: string
   title: string
+  description?: string
   folderId: string
   kind: HandoutKind
   text: string
@@ -17,7 +18,7 @@ export type Handout = {
 }
 
 export const emptyHandout = (folderId: string, gmUserId: string): Handout => ({
-  id: crypto.randomUUID(), title: '', folderId, kind: 'text', text: '', storagePath: '',
+  id: crypto.randomUUID(), title: '', description: '', folderId, kind: 'text', text: '', storagePath: '',
   fileName: '', visibility: 'hidden', characterIds: [], viewerUids: [], gmUserId,
 })
 

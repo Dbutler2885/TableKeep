@@ -227,6 +227,7 @@ Sign-in is Google or email and password, gated on email verification, with a one
 
 Every campaign also has a Handouts tab for original images, page-by-page PDFs, and pasted text extracts.
 The GM organizes handouts in nested folders, while a toggle switches between the folder tree and a list of all handouts.
+Each handout can have an optional description, shown with the handout and in both library views.
 New handouts start hidden; the GM can reveal them to all players or chosen characters, and hide them again.
 Players see only their revealed handouts, with empty folder branches hidden.
 Folder deletion requires moving or deleting its contents first.
