@@ -20,17 +20,17 @@ describe('toggleEnabledTab', () => {
 
 describe('initialEnabledTabs', () => {
   it('turns on every tab of the system, rules link included, when nothing is saved', () => {
-    expect([...initialEnabledTabs('ose', undefined)]).toEqual(['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'calendar', 'rules'])
-    expect([...initialEnabledTabs('vtm', [])]).toEqual(['character', 'maps', 'monsters', 'npcs', 'notes', 'calendar'])
+    expect([...initialEnabledTabs('ose', undefined)]).toEqual(['character', 'maps', 'monsters', 'items', 'npcs', 'tables', 'notes', 'handouts', 'calendar', 'rules'])
+    expect([...initialEnabledTabs('vtm', [])]).toEqual(['character', 'maps', 'monsters', 'npcs', 'notes', 'handouts', 'calendar'])
   })
 
-  it('keeps a saved list as it is', () => {
-    expect([...initialEnabledTabs('vtm', ['notes', 'items'])]).toEqual(['notes', 'items'])
+  it('adds Handouts to a saved list from before the feature', () => {
+    expect([...initialEnabledTabs('vtm', ['notes', 'items'])]).toEqual(['notes', 'items', 'handouts'])
   })
 })
 
 describe('enabledTabsToSave', () => {
   it('saves only the tabs the system has, in its order', () => {
-    expect(enabledTabsToSave('vtm', new Set<AppTab>(['notes', 'items', 'character', 'rules']))).toEqual(['character', 'notes'])
+    expect(enabledTabsToSave('vtm', new Set<AppTab>(['notes', 'items', 'character', 'rules']))).toEqual(['character', 'notes', 'handouts'])
   })
 })

@@ -52,27 +52,28 @@ describe('CampaignSettingsModal', () => {
   it('offers an OSE campaign its own tabs, without the rules link, all on by default', () => {
     renderModal({ system: 'ose' })
 
-    expect(shownTabs()).toEqual(['Character', 'Maps', 'Monsters', 'Items', 'NPCs', 'Tables', 'Notes', 'Calendar'])
+    expect(shownTabs()).toEqual(['Character', 'Maps', 'Monsters', 'Items', 'NPCs', 'Tables', 'Notes', 'Handouts', 'Calendar'])
     expect(checkedTabs()).toEqual(shownTabs())
   })
 
   it('offers a VtM campaign only the tabs VtM has', () => {
     renderModal({ system: 'vtm' })
 
-    expect(shownTabs()).toEqual(['Character', 'Maps', 'Monsters', 'NPCs', 'Notes', 'Calendar'])
+    expect(shownTabs()).toEqual(['Character', 'Maps', 'Monsters', 'NPCs', 'Notes', 'Handouts', 'Calendar'])
   })
 
   it('keeps the character tab on and marks it required', () => {
     renderModal()
 
     expect(checkbox('Character').disabled).toBe(true)
-    expect(screen.getByText('required').closest('label')).toBe(checkbox('Character').closest('label'))
+    expect(checkbox('Handouts').disabled).toBe(true)
+    expect(screen.getAllByText('required')).toHaveLength(2)
   })
 
   it('starts from the tabs the campaign has saved', () => {
     renderModal({ enabledTabs: ['character', 'notes'] })
 
-    expect(checkedTabs()).toEqual(['Character', 'Notes'])
+    expect(checkedTabs()).toEqual(['Character', 'Notes', 'Handouts'])
   })
 
   it('starts with every tab on when the saved list is empty', () => {
@@ -91,7 +92,7 @@ describe('CampaignSettingsModal', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     })
 
-    const enabledTabs: AppTab[] = ['character', 'maps', 'monsters', 'items', 'npcs', 'notes', 'calendar', 'rules']
+    const enabledTabs: AppTab[] = ['character', 'maps', 'monsters', 'items', 'npcs', 'notes', 'handouts', 'calendar', 'rules']
     expect(mocks.updateDoc).toHaveBeenCalledWith(
       { path: 'groups/g1/campaigns/c1' },
       { enabledTabs, updatedAt: SERVER_TIMESTAMP },

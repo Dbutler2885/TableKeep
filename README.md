@@ -225,6 +225,15 @@ Item, spell and re-roll requests land in a GM queue with live notifications, and
 The rest: groups with email invites, per-campaign settings including which tabs are enabled, reusable random tables with entity pickers, shared notes with a rich-text editor, an in-campaign calendar, and session summaries with an importer, a detail view and a cliffhanger highlight modal.
 Sign-in is Google or email and password, gated on email verification, with a one-time username claim.
 
+Every campaign also has a Handouts tab for original images, page-by-page PDFs, and pasted text extracts.
+The GM organizes handouts in nested folders, while a toggle switches between the folder tree and a list of all handouts.
+Each handout can have an optional description, shown with the handout and in both library views.
+Images and PDF pages fit the viewing area; click one to open a full-size viewer with zoom controls, wheel or pinch zoom, and drag to pan.
+New handouts start hidden; the GM can reveal them to all players or chosen characters, and hide them again.
+Players see only their revealed handouts, with empty folder branches hidden.
+Folder deletion requires moving or deleting its contents first.
+When a character changes owners, save that handout's visibility again to update access.
+
 ## AI-generated session recaps
 
 The session recaps and the NPC auto-notes above are not typed by hand.

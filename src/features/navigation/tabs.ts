@@ -11,6 +11,7 @@ export const tabs: Array<{ id: AppTab; label: string }> = [
   { id: 'npcs', label: 'NPCs' },
   { id: 'tables', label: 'Tables' },
   { id: 'notes', label: 'Notes' },
+  { id: 'handouts', label: 'Handouts' },
   { id: 'calendar', label: 'Calendar' },
   { id: 'rules', label: 'Rules' },
 ]
@@ -23,6 +24,7 @@ export const tabPaths: Record<AppTab, string> = {
   npcs: '/npcs',
   tables: '/tables',
   notes: '/notes',
+  handouts: '/handouts',
   calendar: '/calendar',
   rules: '/rules',
 }

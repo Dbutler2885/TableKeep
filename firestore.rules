@@ -107,6 +107,27 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)/characters/$(characterId)).data.ownerUserId == request.auth.uid;
     }
 
+    function validHandout(groupId, campaignId, handoutId) {
+      let data = request.resource.data;
+      let prefix = 'groups/' + groupId + '/campaigns/' + campaignId + '/handouts/' + handoutId + '/';
+      return data.keys().hasOnly(['title', 'description', 'folderId', 'kind', 'text', 'storagePath', 'fileName', 'visibility', 'characterIds', 'viewerUids', 'gmUserId'])
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 200
+        && data.get('description', '') is string && data.get('description', '').size() <= 2000
+        && data.folderId is string
+        && (data.folderId == '' || exists(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)/handoutFolders/$(data.folderId)))
+        && data.kind in ['text', 'image', 'pdf']
+        && data.text is string && data.text.size() <= 200000
+        && data.fileName is string
+        && data.storagePath is string
+        && (data.storagePath == '' || data.storagePath.matches(prefix + '[^/]+')
+          || data.storagePath.matches('groups/demo-template/campaigns/demo-campaign/handouts/' + handoutId + '/[^/]+'))
+        && data.visibility in ['hidden', 'all', 'some']
+        && data.characterIds is list && data.characterIds.size() <= 100
+        && data.viewerUids is list && data.viewerUids.size() <= 100
+        && (data.visibility == 'some' || data.viewerUids.size() == 0)
+        && data.gmUserId == get(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)).data.gmUserId;
+    }
+
     function onlyChanges(allowedKeys) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys);
     }
@@ -424,6 +445,32 @@ service cloud.firestore {
           allow read: if isCampaignGm(groupId, campaignId)
             || (isGroupMember(groupId) && resource.data.revealed == true);
           allow write: if isCampaignGm(groupId, campaignId);
+        }
+
+        // Character owners are captured when the GM saves visibility. Membership
+        // remains live; an inactive member cannot use an old visibility grant.
+        match /handouts/{handoutId} {
+          allow read: if isCampaignGm(groupId, campaignId)
+            || (isGroupMember(groupId) && (
+              resource.data.visibility == 'all' || request.auth.uid in resource.data.viewerUids
+            ));
+          allow create, update: if isCampaignGm(groupId, campaignId)
+            && validHandout(groupId, campaignId, handoutId);
+          allow delete: if isCampaignGm(groupId, campaignId);
+        }
+
+        match /handoutFolders/{folderId} {
+          allow read: if isGroupMember(groupId);
+          allow create, update: if isCampaignGm(groupId, campaignId)
+            && request.resource.data.keys().hasOnly(['name', 'parentId'])
+            && request.resource.data.name is string
+            && request.resource.data.name.size() > 0
+            && request.resource.data.name.size() <= 200
+            && request.resource.data.parentId is string
+            && request.resource.data.parentId != folderId
+            && (request.resource.data.parentId == ''
+              || exists(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)/handoutFolders/$(request.resource.data.parentId)));
+          allow delete: if isCampaignGm(groupId, campaignId);
         }
 
         match /referenceDocs/{docId} {

@@ -34,6 +34,8 @@ export const CAMPAIGN_SUBCOLLECTIONS: SubcollectionSpec[] = [
   { name: 'pendingTransfers' },
   { name: 'images' },
   { name: 'referenceDocs' },
+  { name: 'handouts' },
+  { name: 'handoutFolders' },
   { name: 'sessionSummaries' },
   { name: 'sharedNotes' },
 ]

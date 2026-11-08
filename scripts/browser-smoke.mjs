@@ -1885,7 +1885,7 @@ async function lubecGearPageSteps(page, testCase, path) {
 async function lubecSheetCase(page, testCase, { campaignName, charactersPath }) {
   const filePath = await lubecImportFile()
   await step('open the Lubec campaign made through the picker', () => openCampaignCard(page, campaignName, LUBEC_TAB))
-  await step('offer the GM the six Lubec tabs, Items among them', () => expectNavTabs(page, ['Characters', 'Maps', 'Items', 'NPCs', 'Notes', 'Calendar']))
+  await step('offer the GM the seven Lubec tabs, including Items and Handouts', () => expectNavTabs(page, ['Characters', 'Maps', 'Items', 'NPCs', 'Notes', 'Handouts', 'Calendar']))
   const path = await step('import the Tommy Eves file with a portrait', () => importLubecCharacter(page, charactersPath, filePath))
   await lubecMediaSteps(page, path)
   // Clear of the page tabs, so the review screenshot shows them at rest.

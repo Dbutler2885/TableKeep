@@ -37,6 +37,10 @@ describe('what a sandbox copies', () => {
     expect(CAMPAIGN_SUBCOLLECTIONS.map((spec) => spec.name)).toContain('sharedCarriers')
   })
 
+  it('carries handouts and their folders into a sandbox', () => {
+    expect(DEMO_CLONED_SUBCOLLECTIONS.map((spec) => spec.name)).toEqual(expect.arrayContaining(['handouts', 'handoutFolders']))
+  })
+
   it('carries the nested subcollections the campaign schema declares', () => {
     const nestedIn = (specs: typeof CAMPAIGN_SUBCOLLECTIONS, name: string) =>
       (specs.find((spec) => spec.name === name)?.children ?? []).map((child) => child.name).sort()

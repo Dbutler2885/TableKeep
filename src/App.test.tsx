@@ -633,6 +633,13 @@ describe('GroupShell side navigation', () => {
           <a
             class="tab-button"
             data-discover="true"
+            href="/groups/g1/campaigns/c1/handouts"
+          >
+            Handouts
+          </a>
+          <a
+            class="tab-button"
+            data-discover="true"
             href="/groups/g1/campaigns/c1/calendar"
           >
             Calendar
@@ -718,6 +725,7 @@ describe('GroupShell side navigation', () => {
       ['Maps', '/groups/g1/campaigns/c1/maps', 'tab-button'],
       ['NPCs', '/groups/g1/campaigns/c1/npcs', 'tab-button'],
       ['Notes', '/groups/g1/campaigns/c1/notes', 'tab-button'],
+      ['Handouts', '/groups/g1/campaigns/c1/handouts', 'tab-button'],
       ['Calendar', '/groups/g1/campaigns/c1/calendar', 'tab-button'],
       ['OSE SRD', SRD, 'tab-button'],
     ])
@@ -730,21 +738,21 @@ describe('GroupShell side navigation', () => {
     mocks.access.groups = [vtmGroup()]
     await renderAt('/groups/g1/campaigns/c1/character')
 
-    expect(navLinks().map(([label]) => label)).toEqual(['Character', 'Maps', 'Monsters', 'NPCs', 'Notes', 'Calendar'])
+    expect(navLinks().map(([label]) => label)).toEqual(['Character', 'Maps', 'Monsters', 'NPCs', 'Notes', 'Handouts', 'Calendar'])
   })
 
   it('shows the VtM tabs to the GM', async () => {
     mocks.access.groups = [vtmGroup()]
     await renderAt('/groups/g1/campaigns/c1/character')
 
-    expect(navLinks().map(([label]) => label)).toEqual(['Characters', 'Maps', 'Monsters', 'NPCs', 'Notes', 'Calendar'])
+    expect(navLinks().map(([label]) => label)).toEqual(['Characters', 'Maps', 'Monsters', 'NPCs', 'Notes', 'Handouts', 'Calendar'])
   })
 
   it('shows only the enabled tabs, in system order', async () => {
     mocks.access.groups = [group({ activeCampaign: campaign({ enabledTabs: ['rules', 'notes', 'items', 'maps'] }) })]
     await renderAt('/groups/g1/campaigns/c1/notes')
 
-    expect(navLinks().map(([label]) => label)).toEqual(['Maps', 'Items', 'Notes', 'OSE SRD'])
+    expect(navLinks().map(([label]) => label)).toEqual(['Maps', 'Items', 'Notes', 'Handouts', 'OSE SRD'])
   })
 
   it('applies the player filter after the enabled tabs', async () => {
@@ -752,21 +760,21 @@ describe('GroupShell side navigation', () => {
     mocks.access.groups = [group({ activeCampaign: campaign({ enabledTabs: ['items', 'tables', 'npcs'] }) })]
     await renderAt('/groups/g1/campaigns/c1/npcs')
 
-    expect(navLinks().map(([label]) => label)).toEqual(['NPCs'])
+    expect(navLinks().map(([label]) => label)).toEqual(['NPCs', 'Handouts'])
   })
 
   it('drops enabled tabs the VtM system does not have', async () => {
     mocks.access.groups = [group({ activeCampaign: campaign({ system: 'vtm', enabledTabs: ['items', 'rules', 'npcs'] }) })]
     await renderAt('/groups/g1/campaigns/c1/npcs')
 
-    expect(navLinks().map(([label]) => label)).toEqual(['NPCs'])
+    expect(navLinks().map(([label]) => label)).toEqual(['NPCs', 'Handouts'])
   })
 
-  it('shows no tabs for an empty enabled list', async () => {
+  it('keeps the required Handouts tab for an empty enabled list', async () => {
     mocks.access.groups = [group({ activeCampaign: campaign({ enabledTabs: [] }) })]
     await renderAt('/groups/g1/campaigns/c1/notes')
 
-    expect(navLinks()).toEqual([])
+    expect(navLinks()).toEqual([['Handouts', '/groups/g1/campaigns/c1/handouts', 'tab-button']])
   })
 
   it('opens and closes the drawer from the menu toggle and the backdrop', async () => {

@@ -9,19 +9,19 @@ export type SettingsTab = { id: AppTab; label: string; locked: boolean }
 const systemTabIds = (gameSystem: GameSystem): AppTab[] => ruleSetTabs(gameSystem).map((tab) => tab.id)
 
 // The tabs campaign settings offer: the rule set's own, except the rules link,
-// with the character tab always on.
+// with Character and Handouts always on.
 export const campaignSettingsTabs = (gameSystem: GameSystem): SettingsTab[] =>
   ruleSetTabs(gameSystem)
     .filter((tab) => tab.id !== 'rules')
-    .map((tab) => ({ id: tab.id, label: tab.label, locked: tab.id === 'character' }))
+    .map((tab) => ({ id: tab.id, label: tab.label, locked: tab.id === 'character' || tab.id === 'handouts' }))
 
 // A campaign that has never saved its tabs starts with every tab on.
 export const initialEnabledTabs = (gameSystem: GameSystem, enabledTabs: AppTab[] | undefined): Set<AppTab> =>
-  new Set(enabledTabs && enabledTabs.length > 0 ? enabledTabs : systemTabIds(gameSystem))
+  new Set([...(enabledTabs && enabledTabs.length > 0 ? enabledTabs : systemTabIds(gameSystem)), 'handouts'])
 
-// The character tab cannot be turned off.
+// Character and Handouts are available in every campaign.
 export function toggleEnabledTab(enabled: Set<AppTab>, tab: AppTab): Set<AppTab> {
-  if (tab === 'character') return enabled
+  if (tab === 'character' || tab === 'handouts') return enabled
   const next = new Set(enabled)
   if (next.has(tab)) next.delete(tab)
   else next.add(tab)
@@ -31,4 +31,4 @@ export function toggleEnabledTab(enabled: Set<AppTab>, tab: AppTab): Set<AppTab>
 // Only tabs the rule set has are saved, so a GM can't enable a tab that the
 // rule set later hides (which would leave confusing stored state).
 export const enabledTabsToSave = (gameSystem: GameSystem, enabled: Set<AppTab>): AppTab[] =>
-  systemTabIds(gameSystem).filter((id) => enabled.has(id))
+  systemTabIds(gameSystem).filter((id) => id === 'handouts' || enabled.has(id))

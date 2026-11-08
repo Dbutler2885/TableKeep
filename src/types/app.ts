@@ -54,7 +54,7 @@ export type SessionNote = {
   editedBy: string | null
 }
 
-export type AppTab = 'character' | 'maps' | 'monsters' | 'items' | 'npcs' | 'tables' | 'notes' | 'calendar' | 'rules'
+export type AppTab = 'character' | 'maps' | 'monsters' | 'items' | 'npcs' | 'tables' | 'notes' | 'handouts' | 'calendar' | 'rules'
 
 // --- Tables system types ---
 
