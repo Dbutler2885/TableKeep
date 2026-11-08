@@ -1,4 +1,4 @@
-.handouts-layout { min-height: 65vh; }
+.handouts-layout { min-height: 0; }
 .handouts-sidebar { min-width: 270px; }
 .handout-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .handout-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
@@ -16,19 +16,14 @@
 .handout-row span { min-width: 0; }
 .handout-row strong { display: block; font-weight: 500; overflow-wrap: anywhere; }
 .handout-row small { display: block; opacity: .7; font-size: 11px; margin-top: 3px; }
-.handout-detail { min-width: 0; flex: 1; overflow: auto; padding: 24px; }
-.handout-detail-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.handout-detail { display: flex; flex-direction: column; min-width: 0; min-height: 0; flex: 1; overflow: hidden; padding: 24px; }
+.handout-detail-header { flex-shrink: 0; display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
 .handout-detail-header h2 { margin: 4px 0 8px; overflow-wrap: anywhere; }
 .handout-breadcrumb, .handout-visibility { font-size: 12px; opacity: .75; margin: 0; }
 .handout-empty, .handout-welcome { padding: 20px; opacity: .8; }
-.handout-text { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 72ch; margin: 0 auto; line-height: 1.8; font-size: 17px; }
+.handout-text { min-height: 0; overflow: auto; width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 72ch; margin: 0 auto; line-height: 1.8; font-size: 17px; }
 .handout-view-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
 .handout-view-controls label { display: flex; gap: 8px; align-items: center; }
-.handout-image-scroll, .handout-page-scroll { overflow: auto; max-width: 100%; }
-.handout-image { display: block; max-width: 100%; height: auto; margin: auto; }
-.handout-image.full-size { max-width: none; margin: 0; }
-.handout-page-scroll { background: #dedbd4; padding: 12px 0; }
-.handout-page-scroll canvas { display: block; margin: auto; box-shadow: 0 2px 10px #0003; }
 .handout-editor { width: min(620px, calc(100vw - 32px)); max-height: 90vh; overflow: auto; }
 .handout-editor fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .handout-editor label { display: flex; flex-direction: column; gap: 6px; margin: 14px 0; font-size: 13px; }
@@ -57,3 +52,33 @@
 
 .handout-description { max-width: 72ch; margin: 10px 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; font-size: 14px; }
 .handout-row-description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; font-size: 12px; line-height: 1.5; opacity: .8; margin-top: 4px; }
+
+.handout-media, .handout-media-reader { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.handout-media .handout-view-controls { flex-shrink: 0; }
+.handout-view-controls button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.handout-detail:has(.handout-media) .handout-description { max-height: 18vh; overflow: auto; }
+.handouts-layout button.handout-media-preview { display: grid; place-items: center; flex: 1; width: 100%; min-height: 0; padding: 0; overflow: hidden; border: 0; border-radius: 0; background: transparent; cursor: zoom-in; }
+.handout-media-preview .handout-image { width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; pointer-events: none; }
+.handouts-layout button.handout-pdf-preview { background: #dedbd4; }
+.handout-pdf-preview canvas { display: block; pointer-events: none; box-shadow: 0 2px 10px #0003; }
+.handout-lightbox-overlay { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 16px; background: #000b; }
+.handout-lightbox { display: flex; flex-direction: column; width: 100%; height: 100%; min-width: 0; min-height: 0; background: var(--lubec-paper, var(--vtm-pitch, #fff)); color: inherit; border: 1px solid var(--lubec-line, var(--vtm-rule, #ccc)); box-shadow: 0 12px 40px #0007; }
+.handout-lightbox-header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 16px; flex-shrink: 0; }
+.handout-lightbox-header h3 { margin: 0; overflow-wrap: anywhere; }
+.handout-lightbox-header .handout-view-controls { margin: 0; gap: 8px; }
+.handout-lightbox-header output { min-width: 4ch; text-align: center; font-variant-numeric: tabular-nums; }
+.handout-lightbox-stage { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; touch-action: none; cursor: grab; background: #242424; outline-offset: -3px; }
+.handout-lightbox-stage:active { cursor: grabbing; }
+.handout-lightbox-media { position: absolute; left: 50%; top: 50%; transform-origin: center; user-select: none; }
+.handout-lightbox-media img, .handout-lightbox-media canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
+.handout-lightbox-help { margin: 0; padding: 8px 16px; font-size: 12px; flex-shrink: 0; }
+@media (max-width: 768px) {
+  .handouts-layout { gap: 0; }
+  .handouts-sidebar { flex: 0 1 30vh; }
+  .handout-lightbox-overlay { padding: 0; }
+  .handout-lightbox-header { padding: 8px; }
+  .handout-lightbox-header h3 { font-size: 16px; }
+  .handout-lightbox-header button { min-height: 36px; }
+}
+
+.handout-lightbox-media > p { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; color: #fff; z-index: 1; }

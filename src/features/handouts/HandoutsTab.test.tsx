@@ -26,7 +26,7 @@ beforeEach(() => {
   mocks.deleteHandout.mockResolvedValue(undefined)
   mocks.deleteHandoutFolder.mockResolvedValue(undefined)
 })
-afterEach(cleanup)
+afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 describe('Handouts campaign tab', () => {
   it('browses nested folders and switches to a flat list with folder paths', () => {
@@ -158,10 +158,15 @@ describe('authenticated image viewer', () => {
     expect(screen.getByRole('status')).toBeTruthy()
     const image = await screen.findByRole('img')
     expect(image.getAttribute('src')).toBe('blob:local-image')
-    fireEvent.click(screen.getByRole('button', { name: 'Full size' }))
-    expect(image.className).toContain('full-size')
-    fireEvent.click(screen.getByRole('button', { name: 'Fit width' }))
-    expect(image.className).not.toContain('full-size')
+    vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
+    Object.defineProperty(image, 'naturalWidth', { value: 1600 })
+    Object.defineProperty(image, 'naturalHeight', { value: 1200 })
+    fireEvent.load(image)
+    fireEvent.click(screen.getByRole('button', { name: 'Open full size' }))
+    expect(within(screen.getByRole('dialog')).getByRole('img').getAttribute('src')).toBe('blob:local-image')
+    fireEvent.click(screen.getByRole('button', { name: 'Close full-size viewer' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled()
     expect(screen.getByRole('link', { name: 'Download original' }).getAttribute('download')).toBe('clue.png')
     view.unmount()
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:local-image')
