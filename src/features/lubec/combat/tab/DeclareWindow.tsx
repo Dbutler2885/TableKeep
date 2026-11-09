@@ -154,6 +154,7 @@ function DeclareBody(body: BodyProps) {
   return (
     <>
       <AimedNotice state={state} declarer={declarer} />
+      {declarer.declarationRejected ? <div className="notice hot" role="status"><span>The GM rejected your declaration. Choose again; it is still your turn to declare.</span></div> : null}
       <CombatRefusal refusal={run.refusal} />
       <div className="trail"><span className="who"><small>Attacker</small>{declarer.name}</span><span className="who"><small>Round {state.round}</small>Stage 2, Declare</span></div>
       <DeclareChoices body={body} draft={draft} setDraft={setDraft} model={model} full={full} />
@@ -167,7 +168,7 @@ export function DeclareWindow(props: WindowProps) {
   const fighter = combatFightCombatant(props.declarer, props.roster)
   const sheet = fighter ? lubecCombatantRecord(fighter)?.lubec : undefined
   return (
-    <CombatWindow title="Declare" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Declare']} now={3} />} foot={<span className="note">Once you declare, everyone can see your split. You roll on your turn.</span>}>
+    <CombatWindow title="Declare" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Declare']} now={3} />} foot={<span className="note">Submit your choice for GM approval. The next person waits until it is approved.</span>}>
       {sheet ? <DeclareBody key={props.state.stageInstanceId} {...props} fighter={fighter!} sheet={sheet} /> : <p className="note">Reading {props.declarer.name}&apos;s sheet...</p>}
     </CombatWindow>
   )

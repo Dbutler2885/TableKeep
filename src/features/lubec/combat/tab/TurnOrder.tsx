@@ -37,7 +37,7 @@ function TurnRow({ combatant, place, userId, now }: RowProps) {
 
 /** Who acts now in the turn order: the declarer during Declare, the attacker whose turn it is during Attack. */
 const ACTING: Readonly<Record<string, (state: CombatState) => string | undefined>> = {
-  declare: (state) => state.pendingActions?.find((action) => action.action === 'declare')?.combatantKey,
+  declare: (state) => state.pendingActions?.find((action) => action.action === 'declare' || action.action === 'reviewDeclaration')?.combatantKey,
   attack: (state) => state.attack?.attackerKey,
 }
 

@@ -45,7 +45,7 @@ const thenNames = (combatants: readonly Combatant[]): string => combatants.map((
 /** "Roy Carver is declaring now. Then Dale Ricker." or the last declarer's words. */
 export function nextDeclarerWords(waiting: readonly Combatant[]): string {
   const [now, ...rest] = waiting
-  if (!rest.length) return `${now.name} is the last to declare. Then the attacks begin, fastest first.`
+  if (!rest.length) return `${now.name} is the last to declare. After GM approval, the attacks begin, fastest first.`
   return `${now.name} is declaring now. Then ${thenNames(rest)}.`
 }
 

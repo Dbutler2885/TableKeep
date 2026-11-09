@@ -21,7 +21,7 @@ function opened(state: CombatState, attacker: Combatant, entropy: CombatEntropy)
   return { ...state, attack, lastAttack: finished(state), attacked: [...(state.attacked ?? []), attacker.key], pendingActions: aimRequests(attack) }
 }
 
-const freshFighter = (entry: Combatant): Combatant => ({ ...entry, movement: null, declaration: null })
+const freshFighter = (entry: Combatant): Combatant => ({ ...entry, movement: null, declaration: null, proposedDeclaration: null, declarationRejected: false })
 
 /** The round is over: the next one begins at Movement by itself, with the last result still in view. */
 function nextRound(state: CombatState, entropy: CombatEntropy): CombatState {

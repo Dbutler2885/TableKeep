@@ -50,8 +50,12 @@ export type Combatant = CombatantSelection & {
   initiative?: CombatInitiative | null
   /** This round's Movement choice, once confirmed. */
   movement?: CombatMovement | null
-  /** This round's declaration, once made. */
+  /** This round's approved declaration, or the automatic no-attack declaration. */
   declaration?: CombatDeclaration | null
+  /** A submitted choice awaiting the GM; it does not advance the declaration order. */
+  proposedDeclaration?: CombatDeclaration | null
+  /** The GM returned this choice; the same combatant must choose again. */
+  declarationRejected?: boolean
 }
 /** What the attacker picked: target, weapon and use, and at most one named Defense line from the same Handle pool. */
 export type CombatAim = {

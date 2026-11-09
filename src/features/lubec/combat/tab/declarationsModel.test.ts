@@ -62,7 +62,7 @@ describe('the Declare waits', () => {
   const dottie = person('dottie', 'Dottie Haskell')
 
   it('says who declares now and who follows', () => {
-    expect(nextDeclarerWords([wayne])).toBe('Wayne Gardner is the last to declare. Then the attacks begin, fastest first.')
+    expect(nextDeclarerWords([wayne])).toBe('Wayne Gardner is the last to declare. After GM approval, the attacks begin, fastest first.')
     expect(nextDeclarerWords([wayne, dottie])).toBe('Wayne Gardner is declaring now. Then Dottie Haskell.')
   })
 

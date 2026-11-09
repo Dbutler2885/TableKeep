@@ -9,6 +9,7 @@ import { CombatWindow } from './CombatParts'
 import { DeclarationMini, DeclarationWords } from './DeclarationsPanel'
 import { gmDeclareWords, nextDeclarerWords, viewerKeys } from './declarationsModel'
 import { DeclareWindow } from './DeclareWindow'
+import { DeclarationReview } from './DeclarationReview'
 
 /** The viewer's own declarations, kept in view while they wait. */
 export function OwnDeclarations({ state, viewer }: { state: CombatState; viewer: CombatViewer }) {
@@ -69,9 +70,10 @@ export type DeclareProps = {
 
 /** Moment 5: the declarer's window for whoever controls them, and a wait for everyone else. */
 export function DeclareMiddle({ state, fightId, viewer, roster, commands, onActFor, onInventory }: DeclareProps) {
-  // Declare is open only while someone has yet to declare; the last declaration moves the round on.
+  // A submitted choice holds this turn until the GM approves it.
   const waiting = combatDeclarers(state)
   const declarer = waiting[0]
+  if (declarer.proposedDeclaration) return <DeclarationReview key={state.stageInstanceId} state={state} declarer={declarer} gm={viewer.role === 'gm'} commands={commands} />
   if (controlsAttacker(declarer, viewer)) {
     return <DeclareWindow key={declarer.key} state={state} fightId={fightId} declarer={declarer} roster={roster} commands={commands} gm={viewer.role === 'gm'} onInventory={(hands) => onInventory(declarer, hands)} />
   }

@@ -57,14 +57,14 @@ const sheetOf = (record: ReturnType<typeof kid>, kind: 'character' | 'npc'): Com
   ({ kind, sheetId: record.id, name: record.name, ownerUserId: record.ownerUserId, portraitPath: '', sheet: record.lubec, revision: 1 })
 const royNpc = { id: 'roy', name: 'Roy Carver', portraitUrl: null, portraitFocusX: 50, portraitFocusY: 50, tokenIcon: { icon: 'pawn', color: '#555555', size: 34 } } as NpcRecord
 
-type Step = { type: string; actor?: string | null; dice?: Record<string, number>; [key: string]: unknown }
+type Step = { type: string; actor?: string | null; awaitReview?: boolean; dice?: Record<string, number>; [key: string]: unknown }
 
 /** A fight played through the engine with each purpose's die scripted. */
 function fightAfter(...steps: Step[]): LubecLiveFight {
   const sheets = [sheetOf(currentWayne(), 'character'), sheetOf(royRecord(), 'npc')]
   let records: CombatRecords = { activeFightId: null, fight: null, sheets, items: new Map() }
   const all: Step[] = [{ type: 'start', combatants: [{ kind: 'character', sheetId: 'wayne' }, { kind: 'npc', sheetId: 'roy' }], floor: [], dodgeball: true }, ...steps]
-  all.forEach(({ actor = null, dice = {}, ...payload }, index) => {
+  all.forEach(({ actor = null, dice = {}, awaitReview = false, ...payload }, index) => {
     const state = records.fight?.state
     const command: CombatCommand = {
       envelope: { id: `step-${index}`, groupId: 'school', campaignId: 'gym', fightId: 'fight', round: state?.round ?? 0, phase: state?.phase ?? 'setup', stageInstanceId: state?.stageInstanceId ?? 'setup', actorKey: actor, interactionSequence: state?.combatants.find((entry) => entry.key === actor)?.interactionSequence ?? 0 },
@@ -73,6 +73,12 @@ function fightAfter(...steps: Step[]): LubecLiveFight {
     const entropy = combatEntropy(command)
     const scripted = { ...entropy, die: (purpose: string, sides: number) => dice[purpose] ?? entropy.die(purpose, sides) }
     records = { ...records, activeFightId: 'fight', fight: planCombatCommand(command, records, { userId: 'gm', isGm: true }, undefined, scripted).fight }
+    // Ordinary fixtures include GM approval; review-specific cases stop at submission.
+    if (payload.type === 'declare' && !awaitReview) {
+      const current = records.fight!.state
+      const approval: CombatCommand = { ...command, envelope: { ...command.envelope, id: `approval-${index}`, actorKey: null, interactionSequence: 0, stageInstanceId: current.stageInstanceId }, payload: { type: 'answerDeclaration', combatantKey: actor, approve: true } }
+      records = { ...records, fight: planCombatCommand(approval, records, { userId: 'gm', isGm: true }).fight }
+    }
     if (index === 0) records.fight!.state.floor = [floorBall()]
   })
   return { id: 'fight', fight: records.fight! }
@@ -254,13 +260,59 @@ describe('Movement for the GM', () => {
   })
 })
 
+describe('declaration approval', () => {
+  const proposal: Step = { type: 'declare', actor: WAYNE, aim: throwAt, awaitReview: true }
+
+  it('gives the GM approve and reject controls for the submitted choice', async () => {
+    show('gm', 'gm', fightAfter(...declaring(), proposal))
+    expect(screen.getByRole('region', { name: 'Review declaration' })).toBeTruthy()
+    expect(rail('Declarations').getByText('Awaiting GM approval')).toBeTruthy()
+    expect(rail('Turn order').getByText('Now')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
+    fireEvent.click(button('Reject declaration'))
+    await waitFor(() => expect(sentOf('answerDeclaration')[0]).toMatchObject({ envelope: { actorKey: null, phase: 'declare' }, payload: { type: 'answerDeclaration', combatantKey: WAYNE, approve: false } }))
+    fireEvent.click(button('Approve declaration'))
+    await waitFor(() => expect(sentOf('answerDeclaration')[1].payload).toEqual({ type: 'answerDeclaration', combatantKey: WAYNE, approve: true }))
+  })
+
+  it.each(['wayne-uid', 'marcy-uid'])('keeps player %s waiting without declaration or approval controls', (uid) => {
+    show('player', uid, fightAfter(...declaring(), proposal))
+    expect(screen.getByRole('region', { name: 'Waiting for GM approval' })).toBeTruthy()
+    expect(screen.getByText('The next person declares after the GM approves this choice.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Approve declaration' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Reject declaration' })).toBeNull()
+  })
+
+  it('returns the choice to the same player after rejection, then holds their revised choice for approval', () => {
+    const rejected: Step = { type: 'answerDeclaration', combatantKey: WAYNE, approve: false }
+    show('player', 'wayne-uid', fightAfter(...declaring(), proposal, rejected))
+    expect(screen.getByText('The GM rejected your declaration. Choose again; it is still your turn to declare.')).toBeTruthy()
+    expect(button('Declare')).toBeTruthy()
+    cleanup()
+    show('gm', 'gm', fightAfter(...declaring(), proposal, rejected, { type: 'declare', actor: WAYNE, full: true, against: ROY, awaitReview: true }))
+    expect(screen.getByRole('region', { name: 'Review declaration' })).toBeTruthy()
+    expect(screen.getAllByText(/Full Defense/).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
+  })
+
+  it('holds the last NPC declaration before Attack and shows a failed GM decision', async () => {
+    mocks.outcome = { ok: false, reason: 'That fight stage is stale.' }
+    show('gm', 'gm', fightAfter(...declaring(), { type: 'declare', actor: WAYNE, aim: throwAt }, { type: 'declare', actor: ROY, full: true, against: WAYNE, awaitReview: true }))
+    expect(screen.getByRole('region', { name: 'Review declaration' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Roll' })).toBeNull()
+    fireEvent.click(button('Approve declaration'))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+  })
+})
+
 describe('Declare', () => {
   it('opens the attack window with Declare where Roll sits, and sends the split', async () => {
     show('player', 'wayne-uid', fightAfter(...declaring()))
     expect(screen.getByRole('region', { name: 'Declare' })).toBeTruthy()
     expect(screen.getByText('Stage 2, Declare')).toBeTruthy()
     expect(screen.getByText('Split your Handle against Roy Carver.')).toBeTruthy()
-    expect(screen.getByText('Once you declare, everyone can see your split. You roll on your turn.')).toBeTruthy()
+    expect(screen.getByText('Submit your choice for GM approval. The next person waits until it is approved.')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Add a Defense line' }))
     fireEvent.click(button('Declare'))
     await waitFor(() => expect(sentOf('declare')[0]).toMatchObject({ envelope: { actorKey: WAYNE, phase: 'declare' }, payload: { full: false, aim: { ...throwAt, defense: { against: ROY, amount: 20 } } } }))
@@ -295,7 +347,7 @@ describe('Declare', () => {
   it('shows the waiting declarer their own declaration and everyone every split', () => {
     show('player', 'wayne-uid', fightAfter(...declaring(), { type: 'declare', actor: WAYNE, aim: { ...throwAt, defense: { against: ROY, amount: 20 } } }))
     expect(screen.getByText('The fight is waiting on Roy Carver')).toBeTruthy()
-    expect(screen.getByText('Roy Carver is the last to declare. Then the attacks begin, fastest first.')).toBeTruthy()
+    expect(screen.getByText('Roy Carver is the last to declare. After GM approval, the attacks begin, fastest first.')).toBeTruthy()
     expect(screen.getByText('Your declaration')).toBeTruthy()
     expect(screen.getByText('Wayne Gardner: a Dodgeball in the left hand and a Knife in the right hand.')).toBeTruthy()
     const declarations = rail('Declarations')

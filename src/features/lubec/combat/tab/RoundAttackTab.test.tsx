@@ -57,14 +57,14 @@ const sheetOf = (record: ReturnType<typeof kid>, kind: 'character' | 'npc'): Com
   ({ kind, sheetId: record.id, name: record.name, ownerUserId: record.ownerUserId, portraitPath: '', sheet: record.lubec, revision: 1 })
 const royNpc = { id: 'roy', name: 'Roy Carver', portraitUrl: null, portraitFocusX: 50, portraitFocusY: 50, tokenIcon: { icon: 'pawn', color: '#555555', size: 34 } } as NpcRecord
 
-type Step = { type: string; actor?: string | null; dice?: Record<string, number>; [key: string]: unknown }
+type Step = { type: string; actor?: string | null; awaitReview?: boolean; dice?: Record<string, number>; [key: string]: unknown }
 
 /** A fight played through the engine with each purpose's die scripted. */
 function fightAfter(...steps: Step[]): LubecLiveFight {
   const sheets = [sheetOf(currentWayne(), 'character'), sheetOf(royRecord(), 'npc')]
   let records: CombatRecords = { activeFightId: null, fight: null, sheets, items: new Map() }
   const all: Step[] = [{ type: 'start', combatants: [{ kind: 'character', sheetId: 'wayne' }, { kind: 'npc', sheetId: 'roy' }], floor: [], dodgeball: true }, ...steps]
-  all.forEach(({ actor = null, dice = {}, ...payload }, index) => {
+  all.forEach(({ actor = null, dice = {}, awaitReview = false, ...payload }, index) => {
     const state = records.fight?.state
     const command: CombatCommand = {
       envelope: { id: `step-${index}`, groupId: 'school', campaignId: 'gym', fightId: 'fight', round: state?.round ?? 0, phase: state?.phase ?? 'setup', stageInstanceId: state?.stageInstanceId ?? 'setup', actorKey: actor, interactionSequence: state?.combatants.find((entry) => entry.key === actor)?.interactionSequence ?? 0 },
@@ -73,6 +73,12 @@ function fightAfter(...steps: Step[]): LubecLiveFight {
     const entropy = combatEntropy(command)
     const scripted = { ...entropy, die: (purpose: string, sides: number) => dice[purpose] ?? entropy.die(purpose, sides) }
     records = { ...records, activeFightId: 'fight', fight: planCombatCommand(command, records, { userId: 'gm', isGm: true }, undefined, scripted).fight }
+    // Ordinary fixtures include GM approval; review-specific cases stop at submission.
+    if (payload.type === 'declare' && !awaitReview) {
+      const current = records.fight!.state
+      const approval: CombatCommand = { ...command, envelope: { ...command.envelope, id: `approval-${index}`, actorKey: null, interactionSequence: 0, stageInstanceId: current.stageInstanceId }, payload: { type: 'answerDeclaration', combatantKey: actor, approve: true } }
+      records = { ...records, fight: planCombatCommand(approval, records, { userId: 'gm', isGm: true }).fight }
+    }
     if (index === 0) records.fight!.state.floor = [floorBall()]
   })
   return { id: 'fight', fight: records.fight! }
