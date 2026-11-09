@@ -50,10 +50,12 @@ function DeclaredRow({ state, place, combatant, declaration, mine }: RowProps) {
   const own = mine.includes(combatant.key)
   const atYou = !own && declaredAt(declaration, mine)
   const out = struck(combatant, declaration)
+  // DeclarationRow supplies the proposal only when there is no approved declaration.
+  const pending = !combatant.declaration
   return (
     <li className={`${own ? 'you' : ''} ${atYou ? 'atyou' : ''}`}>
       <div className="dn"><span>{place} {combatant.name}</span><span className="k">{rowTag(own, atYou)}</span></div>
-      {combatant.proposedDeclaration && !combatant.declaration ? <span className="badge must">Awaiting GM approval</span> : null}
+      {pending ? <span className="badge must">Awaiting GM approval</span> : null}
       <DeclarationMini declaration={declaration} />
       <div className={`txt ${out ? 'stopped' : ''}`}><DeclarationWords state={state} declaration={declaration} />{out ? <Stopped combatant={combatant} /> : null}</div>
     </li>
