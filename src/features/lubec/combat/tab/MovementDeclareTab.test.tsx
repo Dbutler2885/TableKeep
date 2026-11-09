@@ -15,6 +15,7 @@ import { lubecDetachedItem } from '../../../ruleSets/lubec/gear/detachedItems'
 import type { LubecItem } from '../../../ruleSets/lubec/gear/gearRecord'
 import { LubecCombatContext, type LubecLiveFight } from '../combatWatch'
 import { combatEntropy } from '../engine/commandEntropy'
+import { DeclarationReviewModal } from '../DeclarationReviewModal'
 import { planCombatCommand } from '../engine/lifecycle'
 import type { CombatCommand, CombatOutcome, CombatRecords, CombatSheet } from '../engine/types'
 
@@ -97,6 +98,7 @@ const throwAt = { targetKey: ROY, weaponItemId: 'ball', attackId: 'throw', defen
 const show = (role: Role, userId: string, live: LubecLiveFight) => render(
   <MemoryRouter initialEntries={['/groups/school/campaigns/gym/combat']}>
     <LubecCombatContext value={{ enabled: true, ready: true, live }}>
+      {role === 'gm' ? <DeclarationReviewModal scope={{ groupId: 'school', campaignId: 'gym' }} live={live} userId={userId} /> : null}
       <Routes><Route path="*" element={<LubecCombat campaign={campaign} role={role} user={{ uid: userId } as User} username="someone" setError={() => undefined} characterTabProps={null} />} /></Routes>
     </LubecCombatContext>
   </MemoryRouter>,
@@ -107,6 +109,8 @@ const sentOf = (type: string) => mocks.sent.filter((command) => command.payload.
 const rail = (title: string) => within(screen.getByRole('heading', { name: new RegExp(`^${title}`) }).closest('.panel') as HTMLElement)
 
 beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.open = true }
+  HTMLDialogElement.prototype.close = function () { this.open = false }
   mocks.sent = []
   mocks.outcome = { ok: true, fightId: 'fight', generatedIds: [], rolls: [] }
   currentWayne = wayne

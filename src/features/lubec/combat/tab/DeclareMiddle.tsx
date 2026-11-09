@@ -73,7 +73,7 @@ export function DeclareMiddle({ state, fightId, viewer, roster, commands, onActF
   // A submitted choice holds this turn until the GM approves it.
   const waiting = combatDeclarers(state)
   const declarer = waiting[0]
-  if (declarer.proposedDeclaration) return <DeclarationReview key={state.stageInstanceId} state={state} declarer={declarer} gm={viewer.role === 'gm'} commands={commands} />
+  if (declarer.proposedDeclaration) return <DeclarationReview key={state.stageInstanceId} state={state} declarer={declarer} gm={false} commands={commands} />
   if (controlsAttacker(declarer, viewer)) {
     return <DeclareWindow key={declarer.key} state={state} fightId={fightId} declarer={declarer} roster={roster} commands={commands} gm={viewer.role === 'gm'} onInventory={(hands) => onInventory(declarer, hands)} />
   }
