@@ -366,10 +366,18 @@ describe('Movement and Declare through the adapter', () => {
     expect(fight().state).toMatchObject({ phase: 'declare', floor: [expect.objectContaining({ item: expect.objectContaining({ qty: 1 }) })] })
   })
 
-  it("reads the declarer's own sheet", async () => {
+  it("reads the declarer's own sheet and waits for GM approval before advancing the round", async () => {
     moveTo((state) => ({ phase: 'declare', combatants: state.combatants.map((entry) => (entry.kind === 'npc' ? { ...entry, declaration: { ran: true, full: false, aim: null, frozen: null, total: 0, lines: [], sourceRevision: 0 } } : entry)) }))
     expect(await commit(asActor('character:hero', 'declare', 'declare', { full: true, against: 'npc:roy' }), options('player'))).toMatchObject({ ok: true })
     expect(sheetReads()).toEqual([`get ${root}/characters/hero`])
+    expect(fight().state).toMatchObject({ phase: 'declare', round: 1, pendingActions: [{ combatantKey: 'character:hero', action: 'reviewDeclaration' }] })
+    const hero = fight().state.combatants.find((entry) => entry.key === 'character:hero')!
+    expect(hero.declaration).toBeUndefined()
+    expect(hero.proposedDeclaration).toMatchObject({ full: true, lines: [{ against: 'npc:roy' }] })
+    events.length = 0
+    expect(await commit(action('answerDeclaration', 'approve', { combatantKey: 'character:hero', approve: true }))).toMatchObject({ ok: true })
+    expect(sheetReads()).toEqual([])
+    expect(writesBeforeLastRead()).toBe(false)
     expect(fight().state).toMatchObject({ phase: 'movement', round: 2 })
   })
 })
