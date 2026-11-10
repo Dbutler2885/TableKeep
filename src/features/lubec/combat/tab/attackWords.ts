@@ -59,5 +59,5 @@ export function missWords(attacker: string, frozen: CombatFrozenAim): string {
 /** What follows a result: more cards while it runs; then the next turn, or before initiative the GM's next grant. */
 export function resultFoot(attack: CombatAttack, round: number): string {
   if (!attack.closed) return 'Every roll lands on every screen as a card, then settles into the ticker.'
-  return round ? 'The next turn opens by itself.' : 'The GM may grant another Sneak Attack, or roll initiative.'
+  return round ? 'The GM moves the fight on from here.' : 'The GM may grant another Sneak Attack, or roll initiative.'
 }

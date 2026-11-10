@@ -3,7 +3,9 @@ import type { LubecArmorZone } from '../../fight/lubecNpcFightSummary'
 import type { CombatPendingAction } from './combatFeedback'
 import type { CombatEntropy } from './commandEntropy'
 import { lubecLandingPart, lubecPairedRegion, lubecStartRegion } from './hitLocation'
+import { lubecWoundTable } from '../../../ruleSets/lubec/woundTables'
 import { readDodgeballRow } from './attackRow'
+import { readTableRow } from './attackTableRow'
 import { settleCombatAttack } from './settlement'
 import type { CombatAttack, CombatAttackOutcome, CombatFight, CombatFrozenAim, CombatImpact, CombatLanding, CombatState } from './types'
 
@@ -46,10 +48,10 @@ export function combatImpact(attack: CombatAttack, armor: readonly LubecArmorZon
   return { quality: attack.net!, base: choice.impact, strength, moved: landing.moved, armor: worn, total, table: choice.wound }
 }
 
-/** Where Impact leaves the attack: no wound at 0 or less, Dodgeball waits on its table, any other table is the GM's to record. */
+/** Where Impact leaves the attack: no wound at 0 or less, a table the app has reads its row, any other is the GM's to record. */
 function impactOutcome(impact: CombatImpact): CombatAttackOutcome {
   if (impact.total <= 0) return 'no-wound'
-  return impact.table === 'dodgeball' ? 'pending-wound' : 'manual'
+  return impact.table === 'dodgeball' || lubecWoundTable(impact.table) ? 'pending-wound' : 'manual'
 }
 
 export function finishImpact(fight: CombatFight, attack: CombatAttack, strength: number | null, entropy: CombatEntropy): CombatFight {
@@ -58,7 +60,7 @@ export function finishImpact(fight: CombatFight, attack: CombatAttack, strength:
   const outcome = impactOutcome(impact)
   const done = { ...attack, impact, outcome }
   if (outcome !== 'pending-wound') return { ...fight, state: closeAttack(fight.state, done, outcome) }
-  return readDodgeballRow(fight, done, entropy)
+  return impact.table === 'dodgeball' ? readDodgeballRow(fight, done, entropy) : readTableRow(fight, done, entropy)
 }
 
 export const impactWords = (impact: CombatImpact): string =>

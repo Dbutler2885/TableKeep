@@ -1,3 +1,4 @@
+import type { LubecWoundSeverity } from '../../../ruleSets/lubec/woundTables/types'
 import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecord'
 import type { LubecDetachedItem } from '../../../ruleSets/lubec/gear/detachedItems'
 import type { LubecAttackChoice } from '../../../ruleSets/lubec/gear/weaponAttacks'
@@ -95,9 +96,17 @@ export type CombatWoundRow = {
   impact: number
   name: string
   text: string
-  severity: 'Minor' | 'Serious'
+  severity: LubecWoundSeverity
   trauma: number
   check: { kind: 'stat-check' | 'save'; against: 'Handle' | 'Body'; advantage: 'advantage' | 'normal' | 'disadvantage' } | null
+  /** A located table's key; absent on a Dodgeball row, which keeps its own table. */
+  table?: string
+  /** The lasting injury the wound leaves. */
+  injury?: string | null
+  /** The d2 a two-wound row rolled, and so which wound it is. */
+  choice?: number | null
+  /** The wound puts the target Out (knocked unconscious). */
+  out?: boolean
 }
 /** The target's ordinary core roll: at or under its number, with failure Stress as the core roller adds it. */
 export type CombatCheckRoll = NonNullable<CombatWoundRow['check']> & { target: number; dice: number[]; result: number; success: boolean; stress: number }
@@ -132,6 +141,10 @@ export type CombatAttack = {
   check?: CombatCheckRoll | null
   /** The row's words for what happened, once applied. */
   rowOutcome?: string | null
+  /** The Trauma the wound gave, once applied: a passed Body Save can lower the row's. */
+  rowTrauma?: number | null
+  /** A round attack's Results stay on screen until the GM moves the fight on. */
+  continued?: boolean
 }
 export type CombatState = {
   round: number

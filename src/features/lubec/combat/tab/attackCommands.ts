@@ -32,6 +32,8 @@ export type AttackCommands = {
   floorPickup: (actorKey: string, itemId: string) => AttackAct
   takeOut: (combatantKey: string) => AttackAct
   returnIn: (combatantKey: string) => AttackAct
+  /** The GM moves the fight on from an attack's Results. */
+  continueResults: () => AttackAct
 }
 
 /** A Movement choice as sent: Pick up names the exact Floor record and quantity it claims. */
@@ -71,5 +73,6 @@ export function attackCommands(scope: CampaignScope, live: LubecLiveFight, send:
     floorPickup: (actorKey, itemId) => act(actorKey, { type: 'floorPickup', itemId }),
     takeOut: (combatantKey) => act(null, { type: 'takeOut', combatantKey }),
     returnIn: (combatantKey) => act(null, { type: 'return', combatantKey }),
+    continueResults: () => act(null, { type: 'continue' }),
   }
 }

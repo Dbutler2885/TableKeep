@@ -112,7 +112,7 @@ describe('a Dodgeball row\'s Check or Save', () => {
   it('asks the GM to roll Roy\'s Body Save on Bell rung, with the row in view, and sends it', async () => {
     show('gm', 'gm', fightAfter(...rowAt(60, 5, 4, 99)))
     expect(document.querySelector('[aria-label="Result"] .stepper .now')?.textContent).toBe('5Body Save')
-    expect([...document.querySelectorAll('[aria-label="Result"] .stepper li')].map((step) => step.textContent)).toEqual(['1Attack', '2Defense', '3Location', '4Wound', '5Body Save'])
+    expect([...document.querySelectorAll('[aria-label="Result"] .stepper li')].map((step) => step.textContent)).toEqual(['1Attack', '2Defense', '3Location', '4Wound', '5Body Save', '6Results'])
     expect(screen.getByText('Dodgeball · Head and neck · Impact 6')).toBeTruthy()
     expect(screen.getByText('Serious')).toBeTruthy()
     expect(screen.getByText('Trauma +1')).toBeTruthy()
@@ -170,8 +170,11 @@ describe('a Dodgeball row\'s Check or Save', () => {
   it('puts both out on a Headshot, and shows a Minor row with no Trauma', () => {
     show('player', 'marcy-uid', fightAfter(...rowAt(30, 5, 4, 99)))
     expect(screen.getByRole('heading', { name: 'Roy Carver and Wayne Gardner are Out' })).toBeTruthy()
-    expect(screen.getByText('Minor')).toBeTruthy()
-    expect(screen.getByText('Trauma 0')).toBeTruthy()
+    const wound = document.querySelector('.results-wound')!
+    expect(wound.className).toBe('results-wound mi')
+    expect(within(wound as HTMLElement).getByText('Minor')).toBeTruthy()
+    expect(within(wound as HTMLElement).getByText('Trauma 0')).toBeTruthy()
+    expect(within(wound as HTMLElement).getByText('Out of the fight')).toBeTruthy()
   })
 })
 

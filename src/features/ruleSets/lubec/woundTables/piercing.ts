@@ -1,0 +1,141 @@
+import type { LubecWoundTable } from './types'
+
+// Generated once from lubec-hit-location-tables/report.md, section 3, "Piercing" (PROVISIONAL DRAFT).
+// This file is now the source: edit a row here to change the game.
+export const LUBEC_PIERCING_TABLE: LubecWoundTable = {
+  key: 'piercing',
+  name: 'Piercing',
+  locations: [
+    {
+      parts: ["head"],
+      rows: [
+        {"impact": 1, "severity": "Minor", "trauma": 0, "name": "Point skids off the skull", "text": "Blood runs into the eyes. Next attack at Disadvantage."},
+        {"impact": 2, "severity": "Minor", "trauma": 0, "name": "Point across the brow", "text": "Blood runs into the eyes. Next attack and next Check at Disadvantage."},
+        {"impact": 3, "severity": "Minor", "trauma": 0, "name": "Point catches the jaw", "text": "Lose the next Movement Stage. Next attack at Disadvantage."},
+        {"impact": 4, "severity": "Serious", "trauma": 1, "name": "Stab through the cheek", "text": "Speech impaired. Bleeding timer."},
+        {"impact": 5, "severity": "Serious", "trauma": 1, "name": "Point glances off the eye socket", "text": "Dazed. -20 Handle on ranged and visually precise actions until recovered."},
+        {"impact": 6, "severity": "Severe", "trauma": 2, "name": "Eye put out", "text": "Lose the next Action Stage. -20 Handle on ranged and visually precise actions until real medical care.", "injury": "Lost eye"},
+        {"impact": 7, "severity": "Severe", "trauma": 2, "name": "Point lodged in the skull", "text": "Dazed. Bleeding timer. -20 Handle on all actions until real medical care removes it; First Aid stabilizes but cannot remove it.", "injury": "Lodged object"},
+        {"impact": 8, "severity": "Critical", "trauma": 2, "name": "Stab through the temple", "text": "Lose the next Action Stage. Death Save in d4 turns unless stabilized."},
+        {"impact": 9, "severity": "Critical", "trauma": 2, "name": "Stab through the eye socket", "text": "Knocked down. Lose the next Action Stage. Death Save in d4 turns unless stabilized."},
+        {"impact": 10, "orMore": true, "severity": "Catastrophic", "trauma": 4, "name": "Into the brain", "text": "Immediate Death Save."},
+      ],
+    },
+    {
+      parts: ["neck"],
+      rows: [
+        {"impact": 1, "severity": "Minor", "trauma": 0, "name": "Nick", "text": "Next attack at Disadvantage."},
+        {"impact": 2, "severity": "Minor", "trauma": 0, "name": "Grazing jab", "text": "Lose the next Movement Stage."},
+        {"impact": 3, "severity": "Serious", "trauma": 1, "name": "Bleeding puncture", "text": "Bleeding timer."},
+        {"impact": 4, "severity": "Serious", "trauma": 1, "name": "Stab beside the windpipe", "text": "Lose the next Action Stage. Bleeding timer."},
+        {"impact": 5, "severity": "Severe", "trauma": 2, "name": "Windpipe punctured", "text": "Whisper only. Disadvantage on all physical Checks. Bleeding timer; after stabilization, physical Checks stay at Disadvantage until a Long Rest.", "injury": "Damaged throat"},
+        {"impact": 6, "severity": "Severe", "trauma": 2, "name": "Stab through the throat, choking on blood", "text": "Lose the next Action Stage. Whisper only. Disadvantage on all physical Checks until real medical care. Bleeding timer.", "injury": "Damaged throat"},
+        {"impact": 7, "severity": "Critical", "trauma": 2, "name": "Neck vein opened", "text": "Lose the next Action Stage. Death Save in d4 turns unless stabilized."},
+        {"impact": 8, "severity": "Critical", "trauma": 2, "name": "Neck artery opened", "text": "Knocked down. Lose the next Action Stage. Death Save in d4 turns unless stabilized."},
+        {"impact": 9, "orMore": true, "severity": "Catastrophic", "trauma": 4, "name": "Blade into the spine", "text": "Immediate Death Save."},
+      ],
+    },
+    {
+      parts: ["torso"],
+      rows: [
+        {"impact": 1, "severity": "Minor", "trauma": 0, "name": "Jab turned by a rib", "text": "Disadvantage on the next physical roll."},
+        {"impact": 2, "severity": "Minor", "trauma": 0, "name": "Point in the chest muscle", "text": "Next attack at Disadvantage."},
+        {"impact": 3, "severity": "Serious", "trauma": 1, "name": "Puncture between the ribs", "text": "Bleeding timer."},
+        {"impact": 4, "severity": "Serious", "trauma": 1, "name": "Stab stopped by a rib or Point lodged (blade tip, glass or nail left in)", "text": "", "choices": [{"name": "Stab stopped by a rib", "text": "Disadvantage on Strength and Speed Checks involving exertion; half Movement and no Evasive Movement."}, {"name": "Point lodged (blade tip, glass or nail left in)", "text": "-20 Strength and Speed for exertion until proper medical treatment; First Aid stabilizes but cannot remove it.", "injury": "Lodged object"}]},
+        {"impact": 5, "severity": "Severe", "trauma": 2, "name": "Stab into the chest", "text": "Half Movement. Disadvantage on Strength Checks and Body Saves. Strenuous exertion impossible.", "injury": "Chest wound"},
+        {"impact": 6, "severity": "Severe", "trauma": 2, "name": "Lung nicked", "text": "Lose the next Action Stage. Half Movement. No Evasive Movement. Disadvantage on all physical Checks. Bleeding timer.", "injury": "Chest wound"},
+        {"impact": 7, "severity": "Critical", "trauma": 2, "name": "Lung punctured", "text": "Lose the next Action Stage. Death Save in d4 turns unless stabilized."},
+        {"impact": 8, "severity": "Critical", "trauma": 2, "name": "Major vessel in the chest", "text": "Knocked down. Lose the next Action Stage. Death Save in d4 turns unless stabilized."},
+        {"impact": 9, "orMore": true, "severity": "Catastrophic", "trauma": 4, "name": "Heart", "text": "Immediate Death Save."},
+      ],
+    },
+    {
+      parts: ["waist"],
+      rows: [
+        {"impact": 1, "severity": "Minor", "trauma": 0, "name": "Jab into the side", "text": "Disadvantage on the next physical roll."},
+        {"impact": 2, "severity": "Minor", "trauma": 0, "name": "Point skids off the hip bone", "text": "Lose the next Movement Stage."},
+        {"impact": 3, "severity": "Serious", "trauma": 1, "name": "Shallow gut stab", "text": "Disadvantage on physical Checks involving exertion. Bleeding timer."},
+        {"impact": 4, "severity": "Serious", "trauma": 1, "name": "Stab into the side muscles or Point lodged (blade tip, glass or nail left in)", "text": "", "choices": [{"name": "Stab into the side muscles", "text": "Disadvantage on physical Checks; half Movement and no Evasive Movement."}, {"name": "Point lodged (blade tip, glass or nail left in)", "text": "-20 Strength and Speed for exertion until proper medical treatment; First Aid stabilizes but cannot remove it.", "injury": "Lodged object"}]},
+        {"impact": 5, "severity": "Severe", "trauma": 2, "name": "Deep gut stab, bleeding inside", "text": "Disadvantage on all physical Checks. Bleeding timer.", "injury": "Internal injury"},
+        {"impact": 6, "severity": "Severe", "trauma": 2, "name": "Kidney stab", "text": "Dazed. Disadvantage on all physical Checks. Bleeding timer.", "injury": "Internal injury"},
+        {"impact": 7, "severity": "Critical", "trauma": 2, "name": "Bowel or kidney", "text": "Lose the next Action Stage. Death Save in d4 turns unless stabilized."},
+        {"impact": 8, "severity": "Critical", "trauma": 2, "name": "Liver", "text": "Knocked down. Lose the next Action Stage. Death Save in d4 turns unless stabilized."},
+        {"impact": 9, "orMore": true, "severity": "Catastrophic", "trauma": 4, "name": "Main artery or spine", "text": "Immediate Death Save."},
+      ],
+    },
+    {
+      parts: ["groin"],
+      rows: [
+        {"impact": 1, "severity": "Minor", "trauma": 0, "name": "Jab", "text": "Disadvantage on the next physical roll."},
+        {"impact": 2, "severity": "Minor", "trauma": 0, "name": "Jab at the hip", "text": "Lose the next Movement Stage."},
+        {"impact": 3, "severity": "Minor", "trauma": 0, "name": "Point glances off the pelvis", "text": "Lose the next Movement Stage. Next Speed Check at Disadvantage."},
+        {"impact": 4, "severity": "Serious", "trauma": 1, "name": "Puncture at the hip", "text": "Half Movement until treated and recovered."},
+        {"impact": 5, "severity": "Serious", "trauma": 1, "name": "Inner-thigh stab, heavy bleeding", "text": "Bleeding timer."},
+        {"impact": 6, "severity": "Severe", "trauma": 2, "name": "Deep groin stab", "text": "Half Movement. Bleeding timer; after stabilization, physical Checks stay at Disadvantage until a Long Rest."},
+        {"impact": 7, "severity": "Severe", "trauma": 2, "name": "Stab into the hip joint", "text": "Knocked down. Crawl only without help until real medical care.", "injury": "Damaged hip"},
+        {"impact": 8, "severity": "Critical", "trauma": 2, "name": "Big artery at the groin", "text": "Lose the next Action Stage. Death Save in d4 turns unless stabilized."},
+        {"impact": 9, "severity": "Critical", "trauma": 2, "name": "Big artery at the groin, opened wide", "text": "Knocked down. Lose the next Action Stage. Death Save in d4 turns unless stabilized."},
+        {"impact": 10, "orMore": true, "severity": "Catastrophic", "trauma": 4, "name": "Pelvic artery opened", "text": "Immediate Death Save."},
+      ],
+    },
+    {
+      parts: ["upperarm"],
+      rows: [
+        {"impact": 1, "severity": "Minor", "trauma": 0, "name": "Jab into the arm", "text": "Next roll with that arm at Disadvantage."},
+        {"impact": 2, "severity": "Minor", "trauma": 0, "name": "Point in the shoulder", "text": "Whatever that hand holds is dropped unless a Handle Check succeeds."},
+        {"impact": 3, "severity": "Minor", "trauma": 0, "name": "Jab into the biceps", "text": "Next roll with that arm at Disadvantage, and whatever that hand holds is dropped unless a Handle Check succeeds."},
+        {"impact": 4, "severity": "Serious", "trauma": 1, "name": "Puncture through the arm muscle", "text": "-20 Handle with that arm until treated and recovered."},
+        {"impact": 5, "severity": "Serious", "trauma": 1, "name": "Shoulder stab", "text": "-20 Handle with that arm. Strenuous use impossible until treated."},
+        {"impact": 6, "severity": "Severe", "trauma": 2, "name": "Stab into the shoulder joint", "text": "Arm unusable for force or precision; if forced, -40 Handle.", "injury": "Damaged shoulder"},
+        {"impact": 7, "severity": "Severe", "trauma": 2, "name": "Stab under the collarbone", "text": "Lose the next Action Stage. Arm unusable for force or precision; if forced, -40 Handle. Bleeding timer.", "injury": "Damaged shoulder"},
+        {"impact": 8, "orMore": true, "severity": "Critical", "trauma": 2, "name": "Armpit artery, or into the chest under the shoulder", "text": "Lose the next Action Stage. Death Save in d4 turns unless stabilized."},
+      ],
+    },
+    {
+      parts: ["forearm"],
+      rows: [
+        {"impact": 1, "severity": "Minor", "trauma": 0, "name": "Jab caught on the arm", "text": "Next roll with that arm at Disadvantage."},
+        {"impact": 2, "severity": "Minor", "trauma": 0, "name": "Point skids along the bone", "text": "Whatever that hand holds is dropped unless a Handle Check succeeds."},
+        {"impact": 3, "severity": "Minor", "trauma": 0, "name": "Shallow puncture", "text": "Next roll with that arm at Disadvantage, and whatever that hand holds is dropped unless a Handle Check succeeds."},
+        {"impact": 4, "severity": "Serious", "trauma": 1, "name": "Puncture through the forearm", "text": "-20 Handle with that hand until treated and recovered."},
+        {"impact": 5, "severity": "Serious", "trauma": 1, "name": "Stab between the forearm bones", "text": "-20 Handle with that hand. Bleeding timer."},
+        {"impact": 6, "orMore": true, "severity": "Severe", "trauma": 2, "name": "Stab through the wrist", "text": "Hand cannot grip until real medical care. Bleeding timer.", "injury": "Cut tendons"},
+      ],
+    },
+    {
+      parts: ["hand"],
+      rows: [
+        {"impact": 1, "severity": "Minor", "trauma": 0, "name": "Jab to the knuckles", "text": "Next roll with that hand at Disadvantage."},
+        {"impact": 2, "severity": "Minor", "trauma": 0, "name": "Nicked fingers", "text": "Whatever that hand holds is dropped unless a Handle Check succeeds."},
+        {"impact": 3, "severity": "Minor", "trauma": 0, "name": "Point between the knuckles", "text": "Next roll with that hand at Disadvantage, and whatever it holds is dropped unless a Handle Check succeeds."},
+        {"impact": 4, "severity": "Serious", "trauma": 1, "name": "Puncture in the palm", "text": "-20 Handle with that hand until treated and recovered."},
+        {"impact": 5, "severity": "Serious", "trauma": 1, "name": "Stab through the hand", "text": "-40 Handle with that hand. No heavy grip or precise work with it until treated."},
+        {"impact": 6, "orMore": true, "severity": "Severe", "trauma": 2, "name": "Hand bones split", "text": "Hand unusable until real medical care. Bleeding timer.", "injury": "Broken hand"},
+      ],
+    },
+    {
+      parts: ["thigh"],
+      rows: [
+        {"impact": 1, "severity": "Minor", "trauma": 0, "name": "Jab into the thigh", "text": "Disadvantage on the next physical roll."},
+        {"impact": 2, "severity": "Minor", "trauma": 0, "name": "Point in the outer thigh", "text": "Lose the next Movement Stage."},
+        {"impact": 3, "severity": "Minor", "trauma": 0, "name": "Stab glances off the thighbone", "text": "Lose the next Movement Stage. Next Speed Check at Disadvantage."},
+        {"impact": 4, "severity": "Serious", "trauma": 1, "name": "Thigh stab", "text": "Half Movement until treated and recovered."},
+        {"impact": 5, "severity": "Serious", "trauma": 1, "name": "Thigh stab, bleeding", "text": "Half Movement. Bleeding timer."},
+        {"impact": 6, "severity": "Severe", "trauma": 2, "name": "Major bleeding", "text": "Half Movement. Bleeding timer; after stabilization, physical Checks stay at Disadvantage until a Long Rest."},
+        {"impact": 7, "severity": "Severe", "trauma": 2, "name": "Stab to the bone through the thigh muscle", "text": "Knocked down. Half Movement. No Evasive Movement. Bleeding timer.", "injury": "Cut muscle"},
+        {"impact": 8, "orMore": true, "severity": "Critical", "trauma": 2, "name": "Thigh artery", "text": "Lose the next Action Stage. Death Save in d4 turns unless stabilized."},
+      ],
+    },
+    {
+      parts: ["shin", "feet"],
+      rows: [
+        {"impact": 1, "severity": "Minor", "trauma": 0, "name": "Jab", "text": "Next Speed Check at Disadvantage."},
+        {"impact": 2, "severity": "Minor", "trauma": 0, "name": "Point in the calf or the top of the foot", "text": "Lose the next Movement Stage."},
+        {"impact": 3, "severity": "Minor", "trauma": 0, "name": "Stab glances off the shinbone", "text": "Lose the next Movement Stage. Next Speed Check at Disadvantage."},
+        {"impact": 4, "severity": "Serious", "trauma": 1, "name": "Calf or foot puncture", "text": "Half Movement until treated and recovered."},
+        {"impact": 5, "severity": "Serious", "trauma": 1, "name": "Stab through the calf or foot", "text": "Half Movement. No Evasive Movement."},
+        {"impact": 6, "orMore": true, "severity": "Severe", "trauma": 2, "name": "Point into the knee or ankle joint", "text": "Knocked down. Crawl only without help until real medical care.", "injury": "Damaged knee or ankle"},
+      ],
+    },
+  ],
+}

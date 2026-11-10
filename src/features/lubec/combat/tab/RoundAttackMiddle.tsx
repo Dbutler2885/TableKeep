@@ -65,9 +65,10 @@ export function LastResult({ state }: { state: CombatState }): ReactNode {
 export function RoundAttackMiddle(props: MiddleProps) {
   // During Attack the engine always opens the next turn, or begins the next round, after every command.
   const attack = props.state.attack!
+  // While an attack's Results are up they are the whole story; the one before it gives way.
   return (
     <>
-      <LastResult state={props.state} />
+      {attack.closed ? null : <LastResult state={props.state} />}
       <OpenAttack {...props} attack={attack} />
     </>
   )

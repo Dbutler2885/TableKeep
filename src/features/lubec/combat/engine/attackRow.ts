@@ -7,6 +7,7 @@ import { place } from '../../../ruleSets/lubec/gear/placement'
 import type { CombatWound } from '../woundTypes'
 import { repairPlan } from './attackAim'
 import { closeAttack, stepRequest } from './attackFlow'
+import { tableChecked } from './attackTableRow'
 import { attackAt, attackRepair, combatantOf, combatSheetOf, defenderOf } from './attackParty'
 import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
@@ -56,7 +57,7 @@ function applyRow(state: CombatState, attack: CombatAttack, outcome: Outcome, st
   const row = attack.row!
   const combatants = state.combatants.map((entry) => ({ ...entry, outReason: outReason(entry, attack, outcome) }))
   const woundOutbox = [...state.woundOutbox, ...rowWound(state, attack, row, outcome, stress, entropy)]
-  return closeAttack({ ...state, combatants, woundOutbox }, { ...attack, rowOutcome: outcome.text }, outcome.caught ? 'row-caught' : 'wounded')
+  return closeAttack({ ...state, combatants, woundOutbox }, { ...attack, rowOutcome: outcome.text, rowTrauma: outcome.trauma }, outcome.caught ? 'row-caught' : 'wounded')
 }
 
 /** A positive Dodgeball Impact reads its row: an automatic row applies now, a Check or Save waits on the target. */
@@ -95,7 +96,7 @@ const check: CombatHandler = (command, records, authority, entropy) => {
   const record = combatSheetOf(records, target)
   const repair = attackRepair(target, record, true)
   if (repair) return repairPlan(fight, attack, target, repair)
-  return checked(fight, attack, record!, command, entropy)
+  return attack.row!.table ? tableChecked(fight, attack, record!, command, entropy) : checked(fight, attack, record!, command, entropy)
 }
 
 export const combatRowHandlers: Readonly<Record<string, CombatHandler>> = { check }

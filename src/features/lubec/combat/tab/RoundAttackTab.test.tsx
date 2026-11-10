@@ -98,7 +98,8 @@ const attacking: Step[] = [
 ]
 const range: Step = { type: 'range', band: 'medium', modifier: 0 }
 /** Roy misses: Wayne's turn opens, Roy's miss still in view. */
-const wayneTurn: Step[] = [...attacking, range, { type: 'roll', actor: ROY, aim: royThrow, dice: { attack: 99 } }]
+const royMissed: Step[] = [...attacking, range, { type: 'roll', actor: ROY, aim: royThrow, dice: { attack: 99 } }]
+const wayneTurn: Step[] = [...royMissed, { type: 'continue' }]
 
 const show = (role: Role, userId: string, live: LubecLiveFight) => render(
   <MemoryRouter initialEntries={['/groups/school/campaigns/gym/combat']}>
@@ -240,8 +241,24 @@ describe('a declared attack on its turn', () => {
     expect(button('Pass')).toBeTruthy()
   })
 
+  it('stops on the Results until the GM moves on: the table waits, and the GM sees what Continue opens', async () => {
+    show('player', 'wayne-uid', fightAfter(...royMissed))
+    const results = screen.getByRole('region', { name: 'Results' })
+    expect(within(results).getByRole('heading', { name: 'A miss' })).toBeTruthy()
+    expect(within(results).getByText('Waiting on the GM to move on')).toBeTruthy()
+    expect(within(results).queryByRole('button')).toBeNull()
+    expect(screen.getByText('The GM moves the fight on from here.')).toBeTruthy()
+    cleanup()
+    show('gm', 'gm', fightAfter(...royMissed))
+    fireEvent.click(button("Continue: Wayne Gardner's turn"))
+    await waitFor(() => expect(sentOf('continue')).toHaveLength(1))
+    cleanup()
+    show('gm', 'gm', fightAfter(...wayneTurn, range, { type: 'roll', actor: WAYNE, aim: wayneThrow, dice: { attack: 99 } }))
+    expect(button('Continue: Round 2')).toBeTruthy()
+  })
+
   it('gives the finished result way to the next round, keeping only its outcome in view', () => {
-    show('player', 'wayne-uid', fightAfter(...wayneTurn, range, { type: 'roll', actor: WAYNE, aim: wayneThrow, dice: { attack: 99 } }))
+    show('player', 'wayne-uid', fightAfter(...wayneTurn, range, { type: 'roll', actor: WAYNE, aim: wayneThrow, dice: { attack: 99 } }, { type: 'continue' }))
     expect(screen.getByText('What do you do this round?')).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Result' })).toBeNull()
     expect(screen.getByRole('heading', { name: 'A miss' })).toBeTruthy()

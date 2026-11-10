@@ -171,7 +171,7 @@ describe('the words', () => {
     expect(attackVerdict({ roll: 90, attackNumber: 36, hit: false, critical: false, quality: null })).toBe('A miss: 90 is not under 36.')
     expect(missWords('Wayne', punch)).toBe("Wayne's attack misses.")
     expect(missWords('Wayne', frozen())).toBe("Wayne's throw goes wide. The dodgeball left the hand at the Roll and lands on the Floor.")
-    expect([resultFoot(attack({ closed: true }), 0), resultFoot(attack({ closed: true }), 1), resultFoot(attack(), 1)]).toEqual(['The GM may grant another Sneak Attack, or roll initiative.', 'The next turn opens by itself.', 'Every roll lands on every screen as a card, then settles into the ticker.'])
+    expect([resultFoot(attack({ closed: true }), 0), resultFoot(attack({ closed: true }), 1), resultFoot(attack(), 1)]).toEqual(['The GM may grant another Sneak Attack, or roll initiative.', 'The GM moves the fight on from here.', 'Every roll lands on every screen as a card, then settles into the ticker.'])
   })
 })
 

@@ -11,6 +11,7 @@ import { combatFightCombatant, type CombatRosterRecords } from './combatFightCom
 import { CombatDoll } from './CombatDoll'
 import { catchFacts, catchVerdict, checkAsk, checkVerdict, defenseVerdict, impactChips, stopWords, strengthTitle, woundBox, type WoundBoxWords } from './resultSequence'
 import { RollBar } from './RollBar'
+import { useAct } from './useAct'
 import { declaredLine, isRoundAttack } from '../engine/roundAttacks'
 
 /** What this viewer may do in the sequence: the steps they own, the GM's way to act for an absent player, and the commands. */
@@ -52,18 +53,7 @@ function Waiting(props: WaitProps) {
 }
 
 /** A step's Roll button: pressed once, it waits on the table and shows a refusal. */
-function useAct() {
-  const [busy, setBusy] = useState(false)
-  const [refusal, setRefusal] = useState<string | null>(null)
-  const run = async (act: () => AttackAct) => {
-    setBusy(true)
-    setRefusal(await act())
-    setBusy(false)
-  }
-  return { busy, refusal, run: (act: () => AttackAct) => void run(act) }
-}
-
-function Refusal({ refusal }: { refusal: string | null }) {
+export function Refusal({ refusal }: { refusal: string | null }) {
   return refusal ? <div className="notice hot" role="alert"><span>{refusal}</span></div> : null
 }
 

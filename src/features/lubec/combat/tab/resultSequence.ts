@@ -52,11 +52,11 @@ const PROGRESS_NAMES: Readonly<Record<ResultStep, string>> = {
   attack: 'Attack', defense: 'Defense', catch: 'Catch', location: 'Location', wound: 'Wound', check: 'Check',
 }
 
-/** Progress follows the same reached steps as the cards, including a catch or table check only when needed. */
+/** Progress follows the same reached steps as the cards, including a catch or table check only when needed, and ends at Results. */
 export function resultProgress(attack: CombatAttack): { cards: ResultStep[]; steps: string[]; now: number } {
   const cards = shownCards(attack)
   const current = activeCard(attack)
-  const steps = cards.map((card) => (card === 'check' ? cardName(attack, card) : PROGRESS_NAMES[card]))
+  const steps = [...cards.map((card) => (card === 'check' ? cardName(attack, card) : PROGRESS_NAMES[card])), 'Results']
   return { cards, steps, now: current === null ? cards.length : cards.indexOf(current) }
 }
 
@@ -113,11 +113,16 @@ const GROUP_NAMES: Readonly<Record<string, string>> = {
 
 export type WoundBoxWords = { head: string; tag: string | null; severity: { cls: string; name: string } | null; trauma: string | null; title: string | null; body: string }
 
-/** A resolved table row: its table, group, row Impact, severity and Trauma. */
-function rowBox(row: NonNullable<CombatAttack['row']>, table: string, total: number): WoundBoxWords {
+const SEVERITY_CLASSES: Readonly<Record<string, string>> = { Minor: 'mi', Serious: 'se', Severe: 'sv', Critical: 'cr', Catastrophic: 'ca' }
+
+/** A resolved table row: its table, where it struck, row Impact, severity and Trauma. */
+function rowBox(attack: CombatAttack, table: string): WoundBoxWords {
+  const row = attack.row!
+  const total = attack.impact!.total
+  const where = row.table ? locName(attack.landing!.part!) : GROUP_NAMES[row.group]
   return {
-    head: `${table} · ${GROUP_NAMES[row.group]} · Impact ${total > row.impact ? `${row.impact}+` : total}`, tag: null,
-    severity: { cls: row.severity === 'Serious' ? 'se' : 'mi', name: row.severity }, trauma: `Trauma ${row.trauma ? '+1' : '0'}`, title: `${row.name}.`, body: row.text,
+    head: `${table} · ${where} · Impact ${total > row.impact ? `${row.impact}+` : total}`, tag: null,
+    severity: { cls: SEVERITY_CLASSES[row.severity], name: row.severity }, trauma: `Trauma ${row.trauma ? `+${row.trauma}` : '0'}`, title: `${row.name}.`, body: row.text,
   }
 }
 
@@ -128,7 +133,7 @@ export function woundBox(attack: CombatAttack, target: string): WoundBoxWords {
   const impact = attack.impact!
   const table = tableName(impact.table)
   if (impact.total <= 0) return plainBox(table, 'No wound', `Impact ${impact.total}: a hit with no effect.`)
-  if (attack.row) return rowBox(attack.row, table, impact.total)
+  if (attack.row) return rowBox(attack, table)
   const head = `${table} · ${locName(attack.landing!.part!).toLowerCase()} · Impact ${impact.total}`
   return plainBox(head, null, `The GM records this wound on ${target}'s sheet. Nothing was changed automatically.`)
 }

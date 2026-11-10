@@ -6,10 +6,10 @@ import { attackSegments, segmentMiddle } from './attackDraft'
 import { attackVerdict, combatantName, resultFoot } from './attackWords'
 import { AttackMatchup } from './AttackMatchup'
 import { CombatStepper, CombatWindow } from './CombatParts'
-import { OutcomeBanner } from './OutcomeBanner'
 import { CatchStep, CheckStep, DefenseStep, LocationStep, WoundStep, type StepControls, type StepProps } from './ResultSteps'
 import { activeCard, cardName, resultProgress, stillToCome, type ResultStep } from './resultSequence'
 import { completedResultText } from './completedResultText'
+import { ResultsCard } from './ResultsCard'
 
 type Rolled = CombatAttack & { frozen: CombatFrozenAim; roll: CombatAttackRoll }
 
@@ -59,10 +59,11 @@ function StepCard({ state, attack, card, index, controls }: CardProps) {
   )
 }
 
-function ResultEnd({ state, attack }: { state: CombatState; attack: Rolled }) {
+/** What is still to come while the attack is open; once it closes, the Results stop. */
+function ResultEnd({ state, attack, controls }: { state: CombatState; attack: Rolled; controls: StepControls | null }) {
   const later = stillToCome(attack)
   if (later) return <p className="later">{later}</p>
-  return <OutcomeBanner state={state} attack={attack} />
+  return attack.closed ? <ResultsCard state={state} attack={attack} controls={controls} /> : null
 }
 
 const rolled = (attack: CombatAttack): attack is Rolled => attack.frozen != null && attack.roll != null
@@ -81,7 +82,7 @@ export function AttackResult({ state, attack, controls = null }: { state: Combat
       <p className="matchup-context">{attack.frozen.choice.name} · {attack.frozen.weaponName}</p>
       <div className="seq">
         {progress.cards.map((card, index) => <StepCard key={card} state={state} attack={attack} card={card} index={index} controls={controls} />)}
-        <ResultEnd state={state} attack={attack} />
+        <ResultEnd state={state} attack={attack} controls={controls} />
       </div>
     </CombatWindow>
   )
