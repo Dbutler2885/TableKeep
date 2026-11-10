@@ -1,20 +1,34 @@
 /* Shared roll presentation, table history and turn notices. */
 .shell-root[data-theme="lubec"] .combat-cards { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 380; width: 28rem; max-width: calc(100vw - 2rem); pointer-events: none; }
-.shell-root[data-theme="lubec"] .rcard { padding: 1rem 1.2rem; text-align: center; color: var(--lubec-cream); background: var(--lubec-ink); border: 3px solid var(--lubec-mustard); box-shadow: 0 10px 28px rgba(7, 20, 23, .45); animation: cardin .25s ease-out; transition: opacity .5s, transform .5s; }
+.shell-root[data-theme="lubec"] .rcard { position: relative; isolation: isolate; padding: 1rem 1.2rem; text-align: center; color: var(--lubec-cream); background: var(--lubec-ink); border: 3px solid var(--lubec-mustard); box-shadow: 7px 7px 0 rgba(7, 20, 23, .7), 0 14px 36px rgba(7, 20, 23, .4); animation: cardin .25s ease-out; transition: opacity .5s, transform .5s; }
+.shell-root[data-theme="lubec"] .rcard::before { content: ''; position: absolute; inset: -9px; z-index: -1; border: 2px solid var(--lubec-mustard); opacity: 0; pointer-events: none; }
+.shell-root[data-theme="lubec"] .rcard.settled::before { animation: combat-impact-ring .55s ease-out both; }
 .shell-root[data-theme="lubec"] .rcard.gone { opacity: 0; transform: translateY(1.2rem) scale(.96); }
 .shell-root[data-theme="lubec"] .rcard .rw { color: #e9b98f; font: 800 .7rem/1.4 var(--lubec-type); letter-spacing: .08em; text-transform: uppercase; }
-.shell-root[data-theme="lubec"] .rcard .rn { display: flex; justify-content: center; gap: .65rem; align-items: baseline; margin: .5rem 0; }
+.shell-root[data-theme="lubec"] .rcard .rn { display: flex; justify-content: center; gap: .65rem; align-items: baseline; min-height: 6rem; margin: .85rem 0 .5rem; }
 .shell-root[data-theme="lubec"] .rcard .rn :is(b, strong) { font: 700 clamp(2.4rem, 7vw, 3.5rem)/1 var(--lubec-condensed); font-variant-numeric: tabular-nums; }
+.shell-root[data-theme="lubec"] .rcard .rn b { display: inline-block; min-width: 2.5ch; padding: .02em .12em; color: var(--lubec-ink); background: var(--lubec-cream); border-bottom: 4px solid var(--lubec-mustard); font-size: clamp(3.5rem, 10vw, 5rem); }
+.shell-root[data-theme="lubec"] .rcard.rolling .rn b { animation: combat-number-tick .12s ease-out; }
+.shell-root[data-theme="lubec"] .rcard.settled .rn b { animation: combat-number-land .3s ease-out both; }
 .shell-root[data-theme="lubec"] .rcard .rn span { font: 800 .85rem/1.2 var(--lubec-type); }
 .shell-root[data-theme="lubec"] .rcard .rn .relation { color: #e9b98f; }
 .shell-root[data-theme="lubec"] .rcard .rr { display: grid; align-items: center; min-height: 5.2rem; margin: .35rem 0; font: 800 clamp(2.2rem, 8vw, 4.5rem)/1.05 var(--lubec-display); letter-spacing: .03em; text-transform: uppercase; }
 .shell-root[data-theme="lubec"] .rcard.ok .rr { color: #8cdbac; } .shell-root[data-theme="lubec"] .rcard.bad .rr { color: #ffab94; } .shell-root[data-theme="lubec"] .rcard.neutral .rr { color: var(--lubec-cream); }
+.shell-root[data-theme="lubec"] .rcard.settled .rr { width: fit-content; max-width: 100%; margin: .35rem auto; padding: 0 .18em; border: 3px solid currentColor; transform: rotate(-2deg); animation: combat-result-stamp .4s cubic-bezier(.2, .8, .3, 1) both; }
+.shell-root[data-theme="lubec"] .rcard.settled[data-outcome="Miss"] .rr { transform: rotate(2deg); animation-name: combat-miss-stamp; }
 .shell-root[data-theme="lubec"] .rcard.rolling .rr { color: #e9b98f; font-size: 1.4rem; }
+.shell-root[data-theme="lubec"] .rcard.rolling .roll-details { visibility: hidden; }
 .shell-root[data-theme="lubec"] .rcard .roll-detail { margin: .25rem 0; color: var(--lubec-cream); font: 800 .85rem/1.4 var(--lubec-type); }
 .shell-root[data-theme="lubec"] .rcard .rx { margin: .4rem 0 0; color: rgba(255, 248, 231, .8); font: 700 .75rem/1.45 var(--lubec-type); }
 @keyframes cardin { from { opacity: 0; transform: translateY(-.6rem); } to { opacity: 1; transform: none; } }
+@keyframes combat-number-tick { from { opacity: .45; transform: translateY(-.1em); } to { opacity: 1; transform: translateY(0); } }
+@keyframes combat-number-land { 0% { transform: scale(1.15); } 55% { transform: scale(.96); } 100% { transform: scale(1); } }
+@keyframes combat-result-stamp { 0% { opacity: 0; transform: scale(1.35) rotate(-8deg); } 65% { opacity: 1; transform: scale(.96) rotate(-1deg); } 100% { transform: scale(1) rotate(-2deg); } }
+@keyframes combat-miss-stamp { 0% { opacity: 0; transform: translateX(-.35em) rotate(-4deg); } 65% { opacity: 1; transform: translateX(.05em) rotate(3deg); } 100% { transform: translateX(0) rotate(2deg); } }
+@keyframes combat-impact-ring { 0% { opacity: .7; transform: scale(.97); } 100% { opacity: 0; transform: scale(1.08); } }
 @media (prefers-reduced-motion: reduce) {
   .shell-root[data-theme="lubec"] .rcard { animation: none; transition: opacity .5s; }
+  .shell-root[data-theme="lubec"] .rcard.settled::before, .shell-root[data-theme="lubec"] .rcard.settled .rr, .shell-root[data-theme="lubec"] .rcard.settled .rn b { animation: none; }
   .shell-root[data-theme="lubec"] .rcard.gone { transform: none; }
 }
 .shell-root[data-theme="lubec"] .ctick { grid-column: 1 / -1; }

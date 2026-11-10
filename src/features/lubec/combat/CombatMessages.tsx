@@ -11,7 +11,7 @@ function RollNumbers({ roll, value, rolling }: { roll: CombatRoll; value: string
   const comparison = combatRollComparison(roll)
   return (
     <div className="rn" aria-hidden={rolling}>
-      <b>{value}</b>
+      <b key={value}>{value}</b>
       {comparison ? <><span className="relation">{rolling ? 'TARGET' : comparison.relation}</span><strong>{comparison.target}</strong></> : <span>{roll.target}</span>}
     </div>
   )
@@ -34,11 +34,11 @@ function CombatRollCard({ entry, roll, onDone }: { entry: CombatLogEntry; roll: 
     return () => { clearTimeout(fade); clearTimeout(remove) }
   }, [entry.id, onDone])
   return (
-    <div className={`rcard ${roll.tone} ${phase} ${spin.rolling ? 'rolling' : 'settled'}`}>
+    <div className={`rcard ${roll.tone} ${phase} ${spin.rolling ? 'rolling' : 'settled'}`} data-outcome={verdict.headline}>
       <div className="rw">{roll.who} · {roll.what}</div>
       <h2 className="rr">{spin.rolling ? 'Rolling...' : verdict.headline}</h2>
       <RollNumbers roll={roll} value={spin.value} rolling={spin.rolling} />
-      {spin.rolling ? null : <RollDetails roll={roll} detail={verdict.detail} />}
+      <div className="roll-details" aria-hidden={spin.rolling}><RollDetails roll={roll} detail={verdict.detail} /></div>
     </div>
   )
 }
