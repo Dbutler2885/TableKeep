@@ -119,13 +119,34 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('a declared attack on its turn', () => {
+  it('keeps a declared kick selected and rolls it instead of offering an invalid punch', async () => {
+    currentWayne = () => kid('wayne', 'Wayne Gardner', 'wayne-uid', [])
+    mocks.roster.characters = [currentWayne()]
+    const kick = { targetKey: ROY, weaponItemId: 'fisticuffs', attackId: 'kick', defense: null }
+    const steps: Step[] = [...rolled, { type: 'move', actor: WAYNE, ...stay }, { type: 'npcMovement', choices: { [ROY]: stay } }, { type: 'settleMovement' },
+      { type: 'declare', actor: WAYNE, aim: kick }, { type: 'declare', actor: ROY, full: true, against: WAYNE }]
+    show('player', 'wayne-uid', fightAfter(...steps))
+    const punch = screen.getByRole('radio', { name: /^Punch/ }) as HTMLButtonElement
+    const selectedKick = screen.getByRole('radio', { name: /^Kick/ }) as HTMLButtonElement
+    expect(punch.disabled).toBe(true)
+    expect(selectedKick.disabled).toBe(true)
+    expect(selectedKick.getAttribute('aria-checked')).toBe('true')
+    expect((screen.getByRole('radio', { name: /^Roy Carver/ }) as HTMLButtonElement).disabled).toBe(true)
+    expect((button(/Left hand/) as HTMLButtonElement).disabled).toBe(true)
+    expect((button('Inventory') as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(punch)
+    fireEvent.click(button('Roll'))
+    await waitFor(() => expect(sentOf('roll')[0].payload).toEqual({ type: 'roll', aim: kick }))
+    expect(sentOf('aim')).toHaveLength(0)
+  })
+
   it('locks the declared split for the attacker, with Roll live once the GM ranges it', async () => {
     show('player', 'wayne-uid', fightAfter(...wayneTurn, range))
     expect(screen.getByText('Round 1 · Stage 3, Attack')).toBeTruthy()
     const matchup = screen.getByRole('group', { name: 'Current attack' })
     expect(matchup.querySelector('.matchup-attacker')?.textContent).toBe('AttackerWayne Gardner')
     expect(matchup.querySelector('.matchup-target')?.textContent).toBe('TargetRoy Carver')
-    expect(screen.getByText('Your declared split is locked. Only Roll is left.')).toBeTruthy()
+    expect(screen.getByText('Your declared attack and split are locked. Roll when ready; choose again only if your target or weapon has gone.')).toBeTruthy()
     expect(document.querySelector('.defense-lines b')!.textContent).toBe('Roy Carver')
     expect(screen.queryByRole('button', { name: 'Add a Defense line' })).toBeNull()
     expect((document.querySelector('.divider') as HTMLButtonElement).disabled).toBe(true)
@@ -143,6 +164,8 @@ describe('a declared attack on its turn', () => {
     expect(document.querySelector('.defense-lines')).toBeNull()
     fireEvent.click(button('Roll'))
     expect(await screen.findByText('That attack step is stale.')).toBeTruthy()
+    const alert = screen.getByRole('alert')
+    expect(alert.nextElementSibling?.classList.contains('ask-row')).toBe(true)
   })
 
   it('rolls a Full Defense line at +10', () => {
@@ -205,6 +228,8 @@ describe('a declared attack on its turn', () => {
     mocks.roster = { characters: [unarmed()], npcs: [{ npc: royNpc, sheet: royRecord() }] }
     show('player', 'wayne-uid', fightAfter(...wayneTurn))
     expect(screen.getByText('The dodgeball is no longer in your hand.')).toBeTruthy()
+    expect((button(/Left hand/) as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByRole('radio', { name: /^Roy Carver/ }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: /Pick up here: costs the action/ }))
     await waitFor(() => expect(sentOf('floorPickup')[0].payload).toEqual({ type: 'floorPickup', itemId: 'floor-ball' }))
     cleanup()
@@ -250,10 +275,10 @@ describe('the GM\'s tools', () => {
     show('gm', 'gm', fightAfter(...wayneTurn))
     tool('actfor')
     fireEvent.click(button('Act for Wayne Gardner'))
-    expect(screen.getByText('Your declared split is locked. Only Roll is left.')).toBeTruthy()
+    expect(screen.getByText('Your declared attack and split are locked. Roll when ready; choose again only if your target or weapon has gone.')).toBeTruthy()
     expect(screen.getByText('Acting for Wayne Gardner')).toBeTruthy()
     fireEvent.click(button('Stop acting'))
-    expect(screen.queryByText('Your declared split is locked. Only Roll is left.')).toBeNull()
+    expect(screen.queryByText('Your declared attack and split are locked. Roll when ready; choose again only if your target or weapon has gone.')).toBeNull()
     expect(button('Act for a player')).toBeTruthy()
   })
 

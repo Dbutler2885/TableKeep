@@ -81,7 +81,8 @@ export function attackWindowModel({ state, fightId, attack, attacker, roster, sh
   const opponents = combatOpponents(state, attacker)
   const targets = opponents.map((entry) => combatFightCombatant(entry, roster)).filter(readable)
   const target = windowTarget(targets, draft.targetKey)
-  return { aim, held, reading, range, opponents, targets, target, ready: rollReady(attack, aim, reading), split: windowSplit(reading, target, draft, range) }
+  const ready = rollReady(attack, aim, reading) && (!isRoundAttack(state, attack) || held)
+  return { aim, held, reading, range, opponents, targets, target, ready, split: windowSplit(reading, target, draft, range) }
 }
 
 /** What has gone since Declare, which is all a round's attacker may choose again. */

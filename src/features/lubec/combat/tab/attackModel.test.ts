@@ -116,6 +116,17 @@ describe('the window model', () => {
     expect(rollReady(attack(), aim, { ...reading, ranged: false })).toBe(true)
   })
 
+  it('waits for a round replacement aim to be accepted before enabling its Roll', () => {
+    const punch = { targetKey: roy.key, weaponItemId: 'fisticuffs', attackId: 'punch', defense: null }
+    const kick = { ...punch, attackId: 'kick' }
+    const current = attack({ grantId: null, aim: kick, frozen: frozen({ choice: { ...frozen().choice, id: 'kick', ranged: false } }) })
+    const round = { ...state(current), round: 1, phase: 'attack' as const }
+    const modelInput = { ...input(current), state: round, sheet: sheetWith(), draft: punch }
+    expect(attackWindowModel(modelInput).ready).toBe(false)
+    expect(attackWindowModel({ ...modelInput, attack: { ...current, aim: punch } }).ready).toBe(true)
+    expect(attackWindowModel({ ...modelInput, state: state(current) }).ready).toBe(true)
+  })
+
   it('names targets from public summaries and the range only for the held aim', () => {
     const model = attackWindowModel(input(attack({ range: { band: 'short', modifier: 10 } })))
     expect(model).toMatchObject({ held: true, range: { band: 'short' }, ready: true, split: { segments: { attackNumber: 36 } } })

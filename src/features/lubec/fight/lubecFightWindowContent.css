@@ -92,7 +92,8 @@
 }
 
 .shell-root[data-theme="lubec"] .win-grid .mode:hover:not(:disabled):not([aria-checked="true"]) { background: #fffdf4; }
-.shell-root[data-theme="lubec"] .win-grid .mode:disabled { opacity: .45; cursor: not-allowed; }
+.shell-root[data-theme="lubec"] .win-grid .mode:disabled { cursor: not-allowed; }
+.shell-root[data-theme="lubec"] .win-grid .mode:disabled:not([aria-checked="true"]) { opacity: .45; }
 
 .shell-root[data-theme="lubec"] .win-grid .pick { align-items: start; min-height: 5.1rem; }
 .shell-root[data-theme="lubec"] .win-grid .pick .where { color: var(--lubec-ink); }

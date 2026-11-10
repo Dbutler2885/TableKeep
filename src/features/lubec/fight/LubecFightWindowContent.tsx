@@ -15,6 +15,9 @@ type WindowProps = {
   onInventory: (hands: LubecHands) => void
   onWeapon: (id: string) => void
   readOnly?: boolean
+  /** A declared attack can change only a target or weapon that has gone. */
+  targetLocked?: boolean
+  weaponLocked?: boolean
   /** Put target selection across the page before weapon and attack choices. */
   focusTarget?: boolean
   /** The words under a target's name; the Combat tab adds Speed, as the mock-up does. */
@@ -29,13 +32,13 @@ const TargetBadge = ({ words }: { words: string | null }) => (words ? <span clas
 
 const noBadge = (): null => null
 
-function WindowTarget({ request, targets, onTarget, readOnly, targetNote = kindNote, targetBadge = noBadge }: WindowProps) {
+function WindowTarget({ request, targets, onTarget, readOnly, targetLocked, targetNote = kindNote, targetBadge = noBadge }: WindowProps) {
   const choices = lubecTargetChoices(request, targets)
   return <div className="target-section">
     <div className="target-heading"><span className="label">Target</span><p className="target-prompt">Who are you attacking?</p><span className="target-count">{choices.length} available</span></div>
     <div className="target-layout"><div className="tlist" role="radiogroup" aria-label="Target">
       {choices.map((target) => <div className="tcell" key={lubecCombatantKey(target)}>
-        <button type="button" className="trow" role="radio" aria-checked={request.target !== null && lubecCombatantKey(request.target) === lubecCombatantKey(target)} disabled={readOnly} onClick={() => onTarget(lubecCombatantKey(target))}>
+        <button type="button" className="trow" role="radio" aria-checked={request.target !== null && lubecCombatantKey(request.target) === lubecCombatantKey(target)} disabled={readOnly || targetLocked} onClick={() => onTarget(lubecCombatantKey(target))}>
           <span className="target-words"><b className="target-name">{lubecCombatantFace(target).name}</b><small>{targetNote(target)}</small></span>
           <span className="target-status" aria-hidden="true">✓ Selected</span>
           <TargetBadge words={targetBadge(target)} />
@@ -47,12 +50,12 @@ function WindowTarget({ request, targets, onTarget, readOnly, targetNote = kindN
   </div>
 }
 
-function WindowAttacks({ request, onAttack, readOnly }: WindowProps) {
+function WindowAttacks({ request, onAttack, readOnly, weaponLocked }: WindowProps) {
   const attacks = lubecFightAttacks(lubecCombatantGear(request.attacker), request.weaponItemId ?? null, lubecCombatantFightingTraining(request.attacker))
   return <div>
     <span className="label">Attack</span>
     <div className="modes" role="radiogroup" aria-label="Attack">
-      {attacks.map((attack) => <button className="mode" type="button" role="radio" key={attack.id} aria-checked={attackChecked(request, attacks, attack.id)} disabled={readOnly} onClick={() => onAttack(attack.id)}>
+      {attacks.map((attack) => <button className="mode" type="button" role="radio" key={attack.id} aria-checked={attackChecked(request, attacks, attack.id)} disabled={readOnly || weaponLocked} onClick={() => onAttack(attack.id)}>
         <b>{attack.name}</b><small>{attackWords(attack)}</small>
       </button>)}
     </div>
