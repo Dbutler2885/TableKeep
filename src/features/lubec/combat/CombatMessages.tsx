@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useCombatLogView } from './CombatLogContext'
 import { combatLogText, combatLogTime, type CombatLogEntry } from './combatLog'
 import type { Role } from '../../../types/app'
@@ -6,6 +6,7 @@ import { combatActionNotice, combatActionText, type ViewerCombatAction } from '.
 import type { CombatRoll } from './engine/combatFeedback'
 import { combatRollComparison, combatRollVerdict } from './combatRollPresentation'
 import { useCombatRollSpin } from './useCombatRollSpin'
+import { useCombatRollDismiss } from './useCombatRollDismiss'
 
 function RollNumbers({ roll, value, rolling }: { roll: CombatRoll; value: string; rolling: boolean }) {
   const comparison = combatRollComparison(roll)
@@ -25,16 +26,11 @@ function RollDetails({ roll, detail }: { roll: CombatRoll; detail: string }) {
 }
 
 function CombatRollCard({ entry, roll, onDone }: { entry: CombatLogEntry; roll: CombatRoll; onDone: (id: string) => void }) {
-  const [phase, setPhase] = useState('')
+  const { card, gone } = useCombatRollDismiss(entry.id, onDone)
   const spin = useCombatRollSpin(entry.id, roll.roll)
   const verdict = combatRollVerdict(roll.result)
-  useEffect(() => {
-    const fade = setTimeout(() => setPhase('gone'), 6500)
-    const remove = setTimeout(() => onDone(entry.id), 7100)
-    return () => { clearTimeout(fade); clearTimeout(remove) }
-  }, [entry.id, onDone])
   return (
-    <div className={`rcard ${roll.tone} ${phase} ${spin.rolling ? 'rolling' : 'settled'}`} data-outcome={verdict.headline}>
+    <div ref={card} className={`rcard ${roll.tone} ${gone ? 'gone' : ''} ${spin.rolling ? 'rolling' : 'settled'}`} data-outcome={verdict.headline}>
       <div className="rw">{roll.who} · {roll.what}</div>
       <h2 className="rr">{spin.rolling ? 'Rolling...' : verdict.headline}</h2>
       <RollNumbers roll={roll} value={spin.value} rolling={spin.rolling} />

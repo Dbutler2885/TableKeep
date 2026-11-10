@@ -3,7 +3,7 @@ import { sheetPayload } from '../../../character/characterStore/sheetIntentionEd
 import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecord'
 import type { LubecHands } from '../../../ruleSets/lubec/gear/held'
 import { LubecFightWindowContent } from '../../fight/LubecFightWindowContent'
-import { lubecCombatantKey, lubecCombatantRecord, type LubecCombatant } from '../../fight/lubecFightRequest'
+import { lubecCombatantFace, lubecCombatantKey, lubecCombatantRecord, type LubecCombatant } from '../../fight/lubecFightRequest'
 import { combatOpponents } from '../engine/attackParty'
 import type { CombatAim, CombatAttack, Combatant, CombatState } from '../engine/types'
 import { AttackBar, SegmentRoll } from './AttackBar'
@@ -172,7 +172,7 @@ function WindowBody(body: BodyProps) {
   return (
     <>
       <WindowNotices body={body} refusal={refusal} gone={gone} />
-      <AttackTrail attacker={body.attacker} round={body.state.round} />
+      <AttackTrail attacker={body.attacker} target={model.target ? lubecCombatantFace(model.target).name : null} round={body.state.round} />
       <WindowChoices body={body} draft={draft} setDraft={setDraft} model={model} />
       <ChooseAgain body={body} gone={gone} refuse={refuse} />
       <WindowRange body={body} model={model} refuse={refuse} />

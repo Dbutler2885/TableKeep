@@ -2,7 +2,8 @@ import type { CombatAttack, Combatant, CombatState } from '../engine/types'
 import { PhaseStepper } from './CombatMiddles'
 import { CombatWindow } from './CombatParts'
 import { RangeRow, type DeclareRange } from './RangeRow'
-import { attackLine, waitsOnGm } from './attackWords'
+import { attackLine, combatantName, waitsOnGm } from './attackWords'
+import { AttackMatchup } from './AttackMatchup'
 
 type GmWaitProps = { state: CombatState; attack: CombatAttack; attacker: Combatant; onRange: DeclareRange; onActFor: () => void }
 
@@ -21,6 +22,7 @@ const gmHeading = (attack: CombatAttack, attacker: Combatant): string => (waitsO
 export function AttackGmWaiting({ state, attack, attacker, onRange, onActFor }: GmWaitProps) {
   return (
     <CombatWindow title="Attack" stepper={<PhaseStepper state={state} />} foot={<span className="note">Their roll lands on every screen as a card, then settles into the ticker.</span>}>
+      <AttackMatchup attacker={attacker.name} target={attack.aim ? combatantName(state, attack.aim.targetKey) : null} />
       <div className="bigwait">
         <span className="label">{state.round ? 'Stage 3, Attack, fastest first' : 'Before initiative · Sneak Attack'}</span>
         <h3>{gmHeading(attack, attacker)}<span className="dots" /></h3>
@@ -38,6 +40,7 @@ export function AttackWaiting({ state, attack, attacker }: { state: CombatState;
   const who = waitsOnGm(attack) ? 'the GM' : attacker.name
   return (
     <CombatWindow title="Waiting" stepper={<PhaseStepper state={state} />} foot={<span className="note">The turn order and the Floor stay in view on either side.</span>}>
+      <AttackMatchup attacker={attacker.name} target={attack.aim ? combatantName(state, attack.aim.targetKey) : null} />
       <div className="bigwait">
         <span className="label">Before initiative</span>
         <h3>The fight is waiting on {who}<span className="dots" /></h3>

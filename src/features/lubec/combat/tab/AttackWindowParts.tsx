@@ -2,6 +2,7 @@ import { lubecCombatantFace, type LubecCombatant } from '../../fight/lubecFightR
 import type { CombatAttack, CombatAttackRange, Combatant } from '../engine/types'
 import { attackSum, withDefense, type AttackDraft, type AttackSegments, type AttackSum } from './attackDraft'
 import type { AttackGone } from './attackWindowModel'
+import { AttackMatchup } from './AttackMatchup'
 
 type NoticeProps = { attacker: Combatant; attack: CombatAttack; refusal: string | null; gm: boolean }
 
@@ -17,9 +18,12 @@ export function AttackNotices({ attacker, attack, refusal, gm }: NoticeProps) {
   )
 }
 
-/** The trail over the window: who attacks, and when. */
-export function AttackTrail({ attacker, round }: { attacker: Combatant; round: number }) {
-  return <div className="trail"><span className="who"><small>Attacker</small>{attacker.name}</span><span className="who"><small>Round {round}</small>{round ? 'Stage 3, Attack' : 'Before initiative'}</span></div>
+/** The current matchup above the choices, with round metadata kept secondary. */
+export function AttackTrail({ attacker, target, round }: { attacker: Combatant; target: string | null; round: number }) {
+  return <>
+    <AttackMatchup attacker={attacker.name} target={target} />
+    <p className="matchup-context">{round ? `Round ${round} · Stage 3, Attack` : 'Before initiative'}</p>
+  </>
 }
 
 type RoundNoticeProps = { attack: CombatAttack; targetName: string; gone: AttackGone; refusal: string | null }

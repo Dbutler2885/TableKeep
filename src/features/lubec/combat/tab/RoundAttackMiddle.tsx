@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { combatAttackers } from '../engine/declare'
 import type { CombatAttack, Combatant, CombatState } from '../engine/types'
 import { AttackResult } from './AttackResult'
+import { AttackMatchup } from './AttackMatchup'
 import { AttackGmWaiting } from './AttackWaiting'
 import { OutcomeBanner } from './OutcomeBanner'
 import { combatantName, controlsAttacker, waitsOnGm, type CombatViewer } from './attackWords'
@@ -29,6 +30,7 @@ type WaitProps = { state: CombatState; attack: CombatAttack; attacker: Combatant
 function AttackTurnWaiting({ state, attack, attacker, viewer }: WaitProps) {
   return (
     <CombatWindow title="Waiting" stepper={<PhaseStepper state={state} />} foot={<span className="note">Declarations and the Floor stay in view on either side.</span>}>
+      <AttackMatchup attacker={attacker.name} target={combatantName(state, attack.aim!.targetKey)} />
       <div className="bigwait">
         <span className="label">Stage 3, Attack, fastest first</span>
         <h3>The fight is waiting on {waitsOnGm(attack) ? 'the GM' : attacker.name}<span className="dots" /></h3>

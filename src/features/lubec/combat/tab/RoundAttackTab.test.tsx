@@ -121,7 +121,10 @@ afterEach(cleanup)
 describe('a declared attack on its turn', () => {
   it('locks the declared split for the attacker, with Roll live once the GM ranges it', async () => {
     show('player', 'wayne-uid', fightAfter(...wayneTurn, range))
-    expect(screen.getByText('Stage 3, Attack')).toBeTruthy()
+    expect(screen.getByText('Round 1 · Stage 3, Attack')).toBeTruthy()
+    const matchup = screen.getByRole('group', { name: 'Current attack' })
+    expect(matchup.querySelector('.matchup-attacker')?.textContent).toBe('AttackerWayne Gardner')
+    expect(matchup.querySelector('.matchup-target')?.textContent).toBe('TargetRoy Carver')
     expect(screen.getByText('Your declared split is locked. Only Roll is left.')).toBeTruthy()
     expect(document.querySelector('.defense-lines b')!.textContent).toBe('Roy Carver')
     expect(screen.queryByRole('button', { name: 'Add a Defense line' })).toBeNull()
@@ -155,6 +158,7 @@ describe('a declared attack on its turn', () => {
     expect((button('Roll') as HTMLButtonElement).disabled).toBe(true)
     cleanup()
     show('gm', 'gm', fightAfter(...wayneTurn))
+    expect(screen.getByRole('group', { name: 'Current attack' }).textContent).toContain('Wayne Gardner→TargetRoy Carver')
     expect(screen.getByText('Stage 3, Attack, fastest first')).toBeTruthy()
     expect(screen.getByText('Declare the range')).toBeTruthy()
     expect(button('Away from the table? Roll for Wayne Gardner')).toBeTruthy()
@@ -163,17 +167,20 @@ describe('a declared attack on its turn', () => {
   it('tells everyone else who the fight is waiting on, and whether they are next', () => {
     show('player', 'wayne-uid', fightAfter(...attacking, range))
     expect(screen.getByText('The fight is waiting on Roy Carver')).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Current attack' }).textContent).toContain('Roy Carver→TargetWayne Gardner')
     expect(screen.getByText('Roy Carver is about to throw at Wayne Gardner. You are next.')).toBeTruthy()
     expect(screen.getByText('Your declaration')).toBeTruthy()
     cleanup()
     show('player', 'marcy-uid', fightAfter(...attacking))
     expect(screen.getByText('The fight is waiting on the GM')).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Current attack' }).textContent).toContain('Roy Carver→TargetWayne Gardner')
     expect(screen.getByText('Roy Carver is about to throw at Wayne Gardner.')).toBeTruthy()
   })
 
   it('has the defender roll the declared line, with no split to choose', async () => {
     const hit = fightAfter(...attacking, range, { type: 'roll', actor: ROY, aim: royThrow, dice: { attack: 10 } })
     show('player', 'wayne-uid', hit)
+    expect(screen.getByRole('group', { name: 'Current attack' }).textContent).toContain('Roy Carver→TargetWayne Gardner')
     expect(screen.getByText(/kept 20 for Defense against Roy Carver/).textContent).toBe('Wayne Gardner kept 20 for Defense against Roy Carver.')
     expect(screen.queryByRole('checkbox', { name: 'Full Defense' })).toBeNull()
     fireEvent.click(button('Roll Defense'))
@@ -187,6 +194,7 @@ describe('a declared attack on its turn', () => {
   it('reopens the target when it has gone, with Pass for nothing left to choose', async () => {
     show('player', 'wayne-uid', fightAfter(...wayneTurn, { type: 'takeOut', combatantKey: ROY }))
     expect(screen.getByText('Roy Carver is Out.')).toBeTruthy()
+    expect(within(screen.getByRole('group', { name: 'Current attack' })).getByText('Choose a target')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Roll' })).toBeNull()
     fireEvent.click(button('Pass'))
     await waitFor(() => expect(sentOf('pass')[0]).toMatchObject({ envelope: { actorKey: WAYNE } }))

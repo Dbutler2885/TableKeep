@@ -1,9 +1,9 @@
 /* Shared roll presentation, table history and turn notices. */
 .shell-root[data-theme="lubec"] .combat-cards { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 380; width: 28rem; max-width: calc(100vw - 2rem); pointer-events: none; }
-.shell-root[data-theme="lubec"] .rcard { position: relative; isolation: isolate; padding: 1rem 1.2rem; text-align: center; color: var(--lubec-cream); background: var(--lubec-ink); border: 3px solid var(--lubec-mustard); box-shadow: 7px 7px 0 rgba(7, 20, 23, .7), 0 14px 36px rgba(7, 20, 23, .4); animation: cardin .25s ease-out; transition: opacity .5s, transform .5s; }
+.shell-root[data-theme="lubec"] .rcard { position: relative; isolation: isolate; padding: 1rem 1.2rem; text-align: center; color: var(--lubec-cream); background: var(--lubec-ink); border: 3px solid var(--lubec-mustard); box-shadow: 7px 7px 0 rgba(7, 20, 23, .7), 0 14px 36px rgba(7, 20, 23, .4); animation: cardin .25s ease-out; transition: opacity .5s, transform .5s; pointer-events: auto; }
 .shell-root[data-theme="lubec"] .rcard::before { content: ''; position: absolute; inset: -9px; z-index: -1; border: 2px solid var(--lubec-mustard); opacity: 0; pointer-events: none; }
 .shell-root[data-theme="lubec"] .rcard.settled::before { animation: combat-impact-ring .55s ease-out both; }
-.shell-root[data-theme="lubec"] .rcard.gone { opacity: 0; transform: translateY(1.2rem) scale(.96); }
+.shell-root[data-theme="lubec"] .rcard.gone { opacity: 0; transform: translateY(1.2rem) scale(.96); pointer-events: none; }
 .shell-root[data-theme="lubec"] .rcard .rw { color: #e9b98f; font: 800 .7rem/1.4 var(--lubec-type); letter-spacing: .08em; text-transform: uppercase; }
 .shell-root[data-theme="lubec"] .rcard .rn { display: flex; justify-content: center; gap: .65rem; align-items: baseline; min-height: 6rem; margin: .85rem 0 .5rem; }
 .shell-root[data-theme="lubec"] .rcard .rn :is(b, strong) { font: 700 clamp(2.4rem, 7vw, 3.5rem)/1 var(--lubec-condensed); font-variant-numeric: tabular-nums; }
