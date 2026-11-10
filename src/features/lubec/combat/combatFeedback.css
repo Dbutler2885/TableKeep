@@ -1,5 +1,5 @@
 /* Shared roll presentation, table history and turn notices. */
-.shell-root[data-theme="lubec"] .combat-cards { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 380; display: grid; gap: .75rem; width: 32rem; max-width: calc(100vw - 1rem); max-height: calc(100dvh - 1rem); padding: .75rem; overflow-x: hidden; overflow-y: auto; pointer-events: none; }
+.shell-root[data-theme="lubec"] .combat-cards { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 380; display: grid; gap: .75rem; width: 32rem; max-width: calc(100vw - 1rem); padding: .75rem; overflow: visible; pointer-events: none; }
 .shell-root[data-theme="lubec"] .rcard { position: relative; isolation: isolate; padding: 1rem 1.2rem; text-align: center; color: var(--lubec-cream); background: var(--lubec-ink); border: 3px solid var(--lubec-mustard); box-shadow: 7px 7px 0 rgba(7, 20, 23, .7), 0 14px 36px rgba(7, 20, 23, .4); animation: cardin .25s ease-out; transition: opacity .5s, transform .5s; pointer-events: auto; }
 .shell-root[data-theme="lubec"] .rcard::before { content: ''; position: absolute; inset: -9px; z-index: -1; border: 2px solid var(--lubec-mustard); opacity: 0; pointer-events: none; }
 .shell-root[data-theme="lubec"] .rcard.settled::before { animation: combat-impact-ring .55s ease-out both; }
