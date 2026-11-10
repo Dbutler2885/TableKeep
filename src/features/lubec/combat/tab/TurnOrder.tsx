@@ -33,7 +33,7 @@ function ManageCombatant({ combatant, onOut }: Pick<RowProps, 'combatant' | 'onO
 function TurnRow({ combatant, place, userId, now, onOut }: RowProps) {
   const out = combatant.outReason !== null
   return (
-    <li className={out ? 'out' : now ? 'now' : ''}>
+    <li className={`${combatant.kind === 'npc' ? 'npc' : 'pc'}${out ? ' out' : now ? ' now' : ''}`}>
       <span className="n">{place ?? '·'}</span>
       <span><span className="nm">{combatant.name}</span><small>{rowWords(combatant, userId)}</small></span>
       <span><RowBadge out={out} now={now} /></span>

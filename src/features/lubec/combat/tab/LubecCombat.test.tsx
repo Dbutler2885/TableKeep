@@ -257,6 +257,7 @@ describe('less common states', () => {
     fight.fight.state.combatants[1].outReason = 'wound'
     show('gm', 'gm', live(fight))
     expect(document.querySelector('.turns li.out')?.textContent).toBe('·Roy CarverNPC · Speed 56 · Out: woundedOut')
+    expect([...document.querySelectorAll('.turns li')].map((row) => `${row.className} ${row.querySelector('.nm')?.textContent}`)).toEqual(['pc Wayne Gardner', 'npc out Roy Carver'])
     expect(screen.getByText('Floor').closest('.panel')?.textContent).toContain('1 item')
     fireEvent.click(button('End combat'))
     expect(screen.getByText('Who is Out').nextElementSibling?.textContent).toBe('Roy CarverOut')
