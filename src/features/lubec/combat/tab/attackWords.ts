@@ -7,6 +7,9 @@ import { rollText } from './attackDraft'
 /** A combatant's name as the fight publishes it. */
 export const combatantName = (state: CombatState, key: string | undefined) => state.combatants.find((entry) => entry.key === key)?.name ?? ''
 
+/** "Dodgeball · Throw", or just "Punch" when an unarmed attack and its weapon share the name. */
+export const pairWords = (first: string, second: string): string => (first === second ? first : `${first} · ${second}`)
+
 /** "Throw with Dodgeball at Roy Carver. ATK 36; Defense 20 against Roy Carver." from what the table holds. */
 const defenseWords = (state: CombatState, defense: CombatAim['defense']): string =>
   (defense ? `; Defense ${defense.amount} against ${combatantName(state, defense.against)}` : '')

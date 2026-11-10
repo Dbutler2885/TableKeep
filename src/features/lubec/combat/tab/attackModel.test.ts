@@ -11,7 +11,7 @@ import { LUBEC_FISTICUFFS_ID } from '../../fight/lubecFightRequest'
 import type { CombatAttack, Combatant, CombatFrozenAim, CombatState } from '../engine/types'
 import { attackSegments, attackSum, barPercent, completeAim, defaultAttack, defaultWeapon, initialDraft, labelPlace, outcomeClass, rollText, sameAim, segmentMiddle, withDefense, withWeapon } from './attackDraft'
 import { attackWindowModel, heldAim, rollReady, windowReading } from './attackWindowModel'
-import { attackLine, attackVerdict, bandLabel, combatantName, controlsAttacker, isThrow, missWords, pressedBand, resultFoot, waitsOnGm } from './attackWords'
+import { attackLine, attackVerdict, bandLabel, combatantName, controlsAttacker, isThrow, missWords, pairWords, pressedBand, resultFoot, waitsOnGm } from './attackWords'
 import { combatFightCombatant, NO_ROSTER } from './combatFightCombatants'
 
 const inHand = (id: string, slot: number, extra: Record<string, unknown> = {}) =>
@@ -195,5 +195,11 @@ describe('result sequence words', () => {
   it('names a wound table it does not know by its key', async () => {
     const { tableName } = await import('./resultSequence')
     expect([tableName('dodgeball'), tableName('mystery')]).toEqual(['Dodgeball', 'mystery'])
+  })
+})
+
+describe('naming a weapon and its attack', () => {
+  it('names both, or one when an unarmed attack and its weapon share the name', () => {
+    expect([pairWords('Dodgeball', 'Throw'), pairWords('Punch', 'Punch')]).toEqual(['Dodgeball · Throw', 'Punch'])
   })
 })

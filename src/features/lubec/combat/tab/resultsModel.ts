@@ -1,7 +1,7 @@
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
 import { combatAttackers } from '../engine/declare'
 import type { CombatAttack, CombatState } from '../engine/types'
-import { combatantName } from './attackWords'
+import { combatantName, pairWords } from './attackWords'
 import { tableName } from './resultSequence'
 
 /** The report's severity shades, lightest to darkest. */
@@ -35,7 +35,7 @@ export function woundParts(text: string): WoundPart[] {
 export function resultsFacts(state: CombatState, attack: CombatAttack): ResultsFact[] {
   const facts = [
     { term: 'Who', value: `${combatantName(state, attack.attackerKey)} → ${combatantName(state, attack.aim?.targetKey)}` },
-    { term: 'With', value: `${attack.frozen!.weaponName} · ${attack.frozen!.choice.name}` },
+    { term: 'With', value: pairWords(attack.frozen!.weaponName, attack.frozen!.choice.name) },
   ]
   const landing = attack.landing
   if (landing?.part) facts.push({ term: 'Where', value: `${locName(landing.part)}${landing.moved ? `, moved ${landing.moved}` : ''}` })

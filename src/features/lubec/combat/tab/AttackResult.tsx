@@ -3,7 +3,7 @@ import { aimDefense } from '../engine/attackAim'
 import type { CombatAttack, CombatAttackRoll, CombatFrozenAim, CombatState } from '../engine/types'
 import { AttackBar, QualityCall } from './AttackBar'
 import { attackSegments, segmentMiddle } from './attackDraft'
-import { attackVerdict, combatantName, resultFoot } from './attackWords'
+import { attackVerdict, combatantName, pairWords, resultFoot } from './attackWords'
 import { AttackMatchup } from './AttackMatchup'
 import { CombatStepper, CombatWindow } from './CombatParts'
 import { CatchStep, CheckStep, DefenseStep, LocationStep, WoundStep, type StepControls, type StepProps } from './ResultSteps'
@@ -79,7 +79,7 @@ export function AttackResult({ state, attack, controls = null }: { state: Combat
   return (
     <CombatWindow title="Result" stepper={<CombatStepper steps={progress.steps} now={progress.now} />} foot={<span className="note">{resultFoot(attack, state.round)}</span>}>
       <AttackMatchup attacker={attacker} target={combatantName(state, attack.aim?.targetKey)} />
-      <p className="matchup-context">{attack.frozen.choice.name} · {attack.frozen.weaponName}</p>
+      <p className="matchup-context">{pairWords(attack.frozen.choice.name, attack.frozen.weaponName)}</p>
       <div className="seq">
         {progress.cards.map((card, index) => <StepCard key={card} state={state} attack={attack} card={card} index={index} controls={controls} />)}
         <ResultEnd state={state} attack={attack} controls={controls} />
