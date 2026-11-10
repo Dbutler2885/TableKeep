@@ -74,7 +74,7 @@ function fightAfter(...steps: Step[]): LubecLiveFight {
     const scripted = { ...entropy, die: (purpose: string, sides: number) => dice[purpose] ?? entropy.die(purpose, sides) }
     records = { ...records, activeFightId: 'fight', fight: planCombatCommand(command, records, { userId: 'gm', isGm: true }, undefined, scripted).fight }
     // Ordinary fixtures include GM approval; review-specific cases stop at submission.
-    if (payload.type === 'declare' && !awaitReview) {
+    if (payload.type === 'declare' && actor?.startsWith('character:') && !awaitReview) {
       const current = records.fight!.state
       const approval: CombatCommand = { ...command, envelope: { ...command.envelope, id: `approval-${index}`, actorKey: null, interactionSequence: 0, stageInstanceId: current.stageInstanceId }, payload: { type: 'answerDeclaration', combatantKey: actor, approve: true } }
       records = { ...records, fight: planCombatCommand(approval, records, { userId: 'gm', isGm: true }).fight }

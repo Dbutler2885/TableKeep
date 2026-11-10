@@ -75,7 +75,7 @@ function fightAfter(...steps: Step[]): LubecLiveFight {
     const scripted = { ...entropy, die: (purpose: string, sides: number) => dice[purpose] ?? entropy.die(purpose, sides) }
     records = { ...records, activeFightId: 'fight', fight: planCombatCommand(command, records, { userId: 'gm', isGm: true }, undefined, scripted).fight }
     // Ordinary fixtures include GM approval; review-specific cases stop at submission.
-    if (payload.type === 'declare' && !awaitReview) {
+    if (payload.type === 'declare' && actor?.startsWith('character:') && !awaitReview) {
       const current = records.fight!.state
       const approval: CombatCommand = { ...command, envelope: { ...command.envelope, id: `approval-${index}`, actorKey: null, interactionSequence: 0, stageInstanceId: current.stageInstanceId }, payload: { type: 'answerDeclaration', combatantKey: actor, approve: true } }
       records = { ...records, fight: planCombatCommand(approval, records, { userId: 'gm', isGm: true }).fight }
@@ -300,13 +300,22 @@ describe('declaration approval', () => {
     expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
   })
 
-  it('holds the last NPC declaration before Attack and shows a failed GM decision', async () => {
+  it('shows a failed GM decision for a pending player declaration', async () => {
     mocks.outcome = { ok: false, reason: 'That fight stage is stale.' }
-    show('gm', 'gm', fightAfter(...declaring(), { type: 'declare', actor: WAYNE, aim: throwAt }, { type: 'declare', actor: ROY, full: true, against: WAYNE, awaitReview: true }))
+    show('gm', 'gm', fightAfter(...declaring(), proposal))
     expect(screen.getByRole('region', { name: 'Review declaration' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Roll' })).toBeNull()
     fireEvent.click(button('Approve declaration'))
     expect(await screen.findByRole('alert')).toBeTruthy()
+  })
+
+  it('advances after the GM submits the final NPC declaration without opening review', () => {
+    const live = fightAfter(...declaring(), { type: 'declare', actor: WAYNE, aim: throwAt }, { type: 'declare', actor: ROY, full: true, against: WAYNE })
+    expect(live.fight.state.phase).toBe('attack')
+    show('gm', 'gm', live)
+    expect(screen.queryByRole('dialog', { name: 'Review declaration' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Approve declaration' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Reject declaration' })).toBeNull()
   })
 })
 
@@ -343,6 +352,7 @@ describe('Declare', () => {
     expect(screen.getByRole('region', { name: 'Declare' })).toBeTruthy()
     cleanup()
     show('gm', 'gm', fightAfter(...declaring(), { type: 'declare', actor: WAYNE, aim: throwAt }))
+    expect(screen.getByText('Your NPC declaration takes effect when submitted. The next turn begins automatically.')).toBeTruthy()
     expect(screen.getByText(/Wayne Gardner/, { selector: '.notice b' })).toBeTruthy()
     expect(screen.getByText(/has declared a throw at you \(ATK 61\)/)).toBeTruthy()
     expect(screen.getByRole('radio', { name: /^Wayne Gardner/ }).querySelector('.badge')!.textContent).toBe('Throws at you')

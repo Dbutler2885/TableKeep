@@ -81,9 +81,7 @@ function attacking(records = movement(), wayne: object = { aim: heroThrow }, roy
   let current = act(everyone(records), { type: 'declare', actor: HERO, by: player, ...wayne }).records
   current = act(current, { type: 'answerDeclaration', combatantKey: HERO, approve: true }).records
   current = act(current, { type: 'declare', actor: ROY, ...roy }).records
-  current = act(current, { type: 'answerDeclaration', combatantKey: ROY, approve: true }).records
-  current = act(current, { type: 'declare', actor: DALE, full: true, against: HERO }).records
-  return act(current, { type: 'answerDeclaration', combatantKey: DALE, approve: true }).records
+  return act(current, { type: 'declare', actor: DALE, full: true, against: HERO }).records
 }
 const ranged = (records: CombatRecords) => act(records, { type: 'range', band: 'medium', modifier: 0 }).records
 const roll = (records: CombatRecords, actor: string, aim: object, dice: number[], by = actor === HERO ? player : gm) => act(records, { type: 'roll', actor, by, aim, dice })

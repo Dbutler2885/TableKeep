@@ -288,14 +288,23 @@ describe('Declare, slowest first', () => {
     let current = act(records, { type: 'declare', actor: HERO, by: player, full: true, against: ROY }).records
     current = act(current, { type: 'answerDeclaration', combatantKey: HERO, approve: true }).records
     expect(state(current).pendingActions).toEqual([{ combatantKey: ROY, action: 'declare' }])
-    const proposed = act(current, { type: 'declare', actor: ROY, aim: throwAt(HERO) }).records
-    expect(state(proposed)).toMatchObject({ phase: 'declare', attack: null, pendingActions: [{ combatantKey: ROY, action: 'reviewDeclaration' }] })
-    const last = act(proposed, { type: 'answerDeclaration', combatantKey: ROY, approve: true })
+    const last = act(current, { type: 'declare', actor: ROY, aim: throwAt(HERO) })
     current = last.records
     expect(state(current)).toMatchObject({ phase: 'attack', attacked: [ROY], attack: { attackerKey: ROY, grantId: null, step: 'aim' } })
     expect(state(current).pendingActions).toEqual([{ combatantKey: ROY, action: 'attack' }, { combatantKey: ROY, action: 'range' }])
     expect(state(current).stageInstanceId).not.toBe(state(records).stageInstanceId)
     expect(last.plan.logs.map((entry) => entry.event)).toEqual(['Roy declared: Throw at Wayne, ATK 65, no Defense.', 'Round 1, Attack. Fastest first: Roy.', "Roy's turn to attack."])
+    expect(who(current, ROY)).toMatchObject({ proposedDeclaration: null, declaration: { aim: throwAt(HERO) } })
+  })
+
+  it('accepts the GM\'s NPC Full Defense directly, while a player declaration made by the GM still needs approval', () => {
+    const pending = act(declaring(), { type: 'declare', actor: HERO, full: true, against: ROY }).records
+    expect(state(pending).pendingActions).toEqual([{ combatantKey: HERO, action: 'reviewDeclaration' }])
+    const approved = act(pending, { type: 'answerDeclaration', combatantKey: HERO, approve: true }).records
+    expect(() => act(approved, { type: 'declare', actor: ROY, full: true, against: HERO, by: { userId: 'gm', isGm: false } })).toThrow('Only the GM')
+    const npc = act(approved, { type: 'declare', actor: ROY, full: true, against: HERO }).records
+    expect(who(npc, ROY)).toMatchObject({ proposedDeclaration: null, declaration: { full: true, lines: [{ against: HERO, amount: 50 }] } })
+    expect(state(npc).pendingActions).toEqual([{ combatantKey: DALE, action: 'declare' }])
   })
 
   it('holds the order for GM review, rejects forged decisions and returns a rejected choice to the same player', () => {

@@ -167,8 +167,11 @@ function DeclareBody(body: BodyProps) {
 export function DeclareWindow(props: WindowProps) {
   const fighter = combatFightCombatant(props.declarer, props.roster)
   const sheet = fighter ? lubecCombatantRecord(fighter)?.lubec : undefined
+  const foot = props.declarer.kind === 'npc'
+    ? 'Your NPC declaration takes effect when submitted. The next turn begins automatically.'
+    : 'Submit your choice for GM approval. The next person waits until it is approved.'
   return (
-    <CombatWindow title="Declare" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Declare']} now={3} />} foot={<span className="note">Submit your choice for GM approval. The next person waits until it is approved.</span>}>
+    <CombatWindow title="Declare" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Declare']} now={3} />} foot={<span className="note">{foot}</span>}>
       {sheet ? <DeclareBody key={props.state.stageInstanceId} {...props} fighter={fighter!} sheet={sheet} /> : <p className="note">Reading {props.declarer.name}&apos;s sheet...</p>}
     </CombatWindow>
   )

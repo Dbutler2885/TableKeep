@@ -100,12 +100,16 @@ function declaredLog(state: CombatState, declarer: Combatant, declaration: Comba
   return { event: `${declarer.name} declared: ${frozen!.choice.name} at ${nameOf(state, aim!.targetKey)}, ATK ${frozen!.attack}, ${defense}.`, actor: declarer.key }
 }
 
-/** Freeze the proposed choice and wait for the GM, keeping the same declarer's turn. */
+/** The GM's NPC choice is final; player choices keep their turn while awaiting approval. */
 const declare: CombatHandler = (command, records, authority, entropy) => {
   const fight = requireLiveContext(command, records, authority)
   const declarer = requireDeclarer(fight.state, command)
   const record = canonicalSheet(fight.state, declarer, records)
   const declaration = command.payload.full === true ? fullDefense(fight, declarer, record, command) : attackDeclaration(fight, declarer, record, command)
+  if (declarer.kind === 'npc') {
+    requireGm(authority)
+    return finishDeclaration(fight, declarer, declaration, entropy)
+  }
   const combatants = fight.state.combatants.map((entry) => (entry.key === declarer.key ? { ...entry, proposedDeclaration: declaration, declarationRejected: false } : entry))
   const next = withDeclareRequests({ ...fight.state, combatants, stageInstanceId: entropy.id('declaration-stage', 0) }, entropy)
   return { fight: { ...fight, state: next.state }, items: [], logs: [{ event: `${declarer.name} submitted a declaration for GM approval.`, actor: declarer.key }] }
@@ -119,18 +123,22 @@ function requireProposal(state: CombatState, command: CombatCommand): Combatant 
   return declarer
 }
 
-/** Only approval advances the order; rejection returns the current choice to its owner. */
-const answerDeclaration: CombatHandler = (command, records, authority, entropy) => {
-  requireGm(authority)
-  const fight = requireLiveContext(command, records, authority)
-  const declarer = requireProposal(fight.state, command)
-  const declaration = command.payload.approve ? declarer.proposedDeclaration! : null
+/** Accept the chosen action or return it to its owner, then ask whoever the order still waits on. */
+function finishDeclaration(fight: CombatFight, declarer: Combatant, declaration: CombatDeclaration | null, entropy: CombatEntropy) {
   const combatants = fight.state.combatants.map((entry) => (entry.key === declarer.key
-    ? { ...entry, declaration, proposedDeclaration: null, declarationRejected: !command.payload.approve }
+    ? { ...entry, declaration, proposedDeclaration: null, declarationRejected: declaration === null }
     : entry))
   const next = withDeclareRequests({ ...fight.state, combatants, stageInstanceId: entropy.id('declaration-stage', 0) }, entropy)
   const log = declaration ? declaredLog(fight.state, declarer, declaration) : { event: `The GM rejected ${declarer.name}'s declaration. Choose again.`, actor: declarer.key }
   return { fight: { ...fight, state: next.state }, items: [], logs: [log, ...next.logs] }
+}
+
+/** Only GM approval advances a player's turn; rejection returns that same choice. */
+const answerDeclaration: CombatHandler = (command, records, authority, entropy) => {
+  requireGm(authority)
+  const fight = requireLiveContext(command, records, authority)
+  const declarer = requireProposal(fight.state, command)
+  return finishDeclaration(fight, declarer, command.payload.approve ? declarer.proposedDeclaration! : null, entropy)
 }
 
 export const combatDeclareHandlers: Readonly<Record<string, CombatHandler>> = { declare, answerDeclaration }
