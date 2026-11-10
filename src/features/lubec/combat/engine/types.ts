@@ -47,6 +47,8 @@ export type Combatant = CombatantSelection & {
   armor: LubecArmorZone[]
   interactionSequence: number
   outReason: string | null
+  /** An NPC the GM put on the players' side at setup. A label for the turn order only: who can target whom is unchanged. */
+  ally?: true
   initiative?: CombatInitiative | null
   /** This round's Movement choice, once confirmed. */
   movement?: CombatMovement | null
@@ -176,6 +178,8 @@ export type StartPayload = {
   type: 'start'
   combatants: CombatantSelection[]
   floor: FloorSelection[]
+  /** Keys of selected NPCs fighting on the players' side. */
+  allies?: string[]
   requireBody?: boolean
   /** Older queued commands used this field for the Body Save requirement, not a combat mode. */
   dodgeball?: boolean

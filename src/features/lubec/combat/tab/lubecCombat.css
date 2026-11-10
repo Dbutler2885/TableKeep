@@ -91,11 +91,11 @@
 .shell-root[data-theme="lubec"] .lubec-combat .turns li:last-child { border-bottom: 0; }
 .shell-root[data-theme="lubec"] .lubec-combat .turns .n { display: grid; place-items: center; width: 1.3rem; height: 1.3rem; color: var(--lubec-cream); background: var(--lubec-ink); font: 700 0.8rem/1 var(--lubec-condensed); }
 .shell-root[data-theme="lubec"] .lubec-combat .turns small { display: block; color: var(--lubec-muted); font: 700 0.6rem/1.3 var(--lubec-type); }
-/* Player characters read green and NPCs red down the turn order; Now's highlight, later in this file, still wins. */
-.shell-root[data-theme="lubec"] .lubec-combat .turns li.pc { background: rgba(45, 87, 69, 0.1); }
-.shell-root[data-theme="lubec"] .lubec-combat .turns li.npc { background: rgba(163, 66, 41, 0.08); }
-.shell-root[data-theme="lubec"] .lubec-combat .turns li.pc .n { background: var(--lubec-pine); }
-.shell-root[data-theme="lubec"] .lubec-combat .turns li.npc .n { background: var(--lubec-rust); }
+/* The players' side (characters and allied NPCs) reads green and everyone else red down the turn order; Now's highlight, later in this file, still wins. */
+.shell-root[data-theme="lubec"] .lubec-combat .turns li.friend { background: rgba(45, 87, 69, 0.1); }
+.shell-root[data-theme="lubec"] .lubec-combat .turns li.foe { background: rgba(163, 66, 41, 0.08); }
+.shell-root[data-theme="lubec"] .lubec-combat .turns li.friend .n { background: var(--lubec-pine); }
+.shell-root[data-theme="lubec"] .lubec-combat .turns li.foe .n { background: var(--lubec-rust); }
 .shell-root[data-theme="lubec"] .lubec-combat .turns li.out { color: var(--lubec-muted); }
 .shell-root[data-theme="lubec"] .lubec-combat .turns li.out .nm { text-decoration: line-through; }
 .shell-root[data-theme="lubec"] .lubec-combat .badge { display: inline-block; padding: 0.14rem 0.3rem; color: var(--lubec-cream); background: var(--lubec-ink); font: 800 0.5rem/1 var(--lubec-type); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
@@ -126,6 +126,8 @@
 .shell-root[data-theme="lubec"] .lubec-combat .roster li small { margin-left: auto; color: var(--lubec-muted); font: 700 0.6rem/1 var(--lubec-type); }
 .shell-root[data-theme="lubec"] .lubec-combat .roster li .row-line small { margin: 0; }
 .shell-root[data-theme="lubec"] .lubec-combat .roster .rowbtn { margin-left: auto; }
+.shell-root[data-theme="lubec"] .lubec-combat .roster .side-toggle { flex: none; padding: 0.2rem 0.45rem; color: var(--lubec-muted); background: transparent; border: 1.5px dashed var(--lubec-line); font: 800 0.58rem/1.2 var(--lubec-type); letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; }
+.shell-root[data-theme="lubec"] .lubec-combat .roster .side-toggle.on { color: var(--lubec-cream); background: var(--lubec-pine); border: 1.5px solid var(--lubec-pine); }
 .shell-root[data-theme="lubec"] .lubec-combat .chk { flex: none; display: grid; place-items: center; width: 1.2rem; height: 1.2rem; padding: 0; color: var(--lubec-ink); background: var(--lubec-cream); border: 2px solid var(--lubec-ink); font: 800 0.8rem/1 var(--lubec-type); }
 .shell-root[data-theme="lubec"] .lubec-combat .chk.on { color: var(--lubec-cream); background: var(--lubec-pine); border-color: var(--lubec-pine); }
 .shell-root[data-theme="lubec"] .lubec-combat .stepper-q { display: inline-flex; align-items: center; gap: 0.3rem; margin-left: auto; }

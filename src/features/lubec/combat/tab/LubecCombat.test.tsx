@@ -97,10 +97,29 @@ describe('GM setup, moment 1', () => {
     await waitFor(() => expect(mocks.sent).toHaveLength(1))
     expect(mocks.sent[0].envelope).toMatchObject({ groupId: 'school', campaignId: 'gym', round: 0, phase: 'setup', actorKey: null })
     expect(mocks.sent[0].payload).toEqual({
-      type: 'start', requireBody: true,
+      type: 'start', requireBody: true, allies: [],
       combatants: [{ kind: 'character', sheetId: 'wayne' }, { kind: 'npc', sheetId: 'roy' }],
       floor: [{ itemId: 'library-ball', status: 'library', qty: 1 }, { itemId: 'library-ball', status: 'library', qty: 1 }, { itemId: 'lost-balls', status: 'dropped', qty: 1 }],
     })
+  })
+
+  it('puts a picked NPC on the players\' side, offers it to NPCs only, and drops it with the NPC', async () => {
+    show('gm', 'gm', idle)
+    fireEvent.click(button('Wayne Gardner fights'))
+    expect(screen.queryByRole('button', { name: 'Wayne Gardner fights with the players' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Roy Carver fights with the players' })).toBeNull()
+    fireEvent.click(button('Roy Carver fights'))
+    const side = () => button('Roy Carver fights with the players')
+    expect(side().getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(side())
+    expect(side().getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(button('Roy Carver fights'))
+    fireEvent.click(button('Roy Carver fights'))
+    expect(side().getAttribute('aria-pressed')).toBe('false')
+    fireEvent.click(side())
+    fireEvent.click(button('Start Combat'))
+    await waitFor(() => expect(mocks.sent).toHaveLength(1))
+    expect(mocks.sent[0].payload).toMatchObject({ allies: ['npc:roy'] })
   })
 
   it('caps a dropped pick at its record and lets the count fall back to nothing', () => {
@@ -128,7 +147,7 @@ describe('GM setup, moment 1', () => {
     expect(button('Roy Carver fights').closest('li')?.textContent).toBe('Roy CarverLinebacker, not fighting')
     expect(button('Wayne Gardner fights').closest('li')?.textContent).toBe('Wayne GardnerNot in this fight')
     fireEvent.click(button('Roy Carver fights'))
-    expect(button('Roy Carver fights').closest('li')?.textContent).toBe('✓Roy CarverLinebacker · Speed 56')
+    expect(button('Roy Carver fights').closest('li')?.textContent).toBe('✓Roy CarverLinebacker · Speed 56With the players')
     expect(screen.getByText('No sheet to fight with')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Coach Ballard fights' })).toBeNull()
   })
@@ -252,12 +271,19 @@ describe('ending a fight, moment 12', () => {
 describe('less common states', () => {
   const bat = item('bat', { name: 'Baseball bat', mode: 'melee', table: 'blunt', catchChance: 0, catchPutsThrowerOut: false, status: 'library' })
 
+  it('shows an allied NPC on the players\' side of the turn order', () => {
+    const fight = liveFight()
+    fight.fight.state.combatants[1].ally = true
+    show('gm', 'gm', live(fight))
+    expect([...document.querySelectorAll('.turns li')].map((row) => `${row.className}: ${row.querySelector('small')?.textContent}`)).toEqual(['friend: Player · Speed 56', 'friend: Ally · Speed 56'])
+  })
+
   it('marks someone Out in the rail and at End, and writes one item in the singular', () => {
     const fight = liveFight([{ itemId: 'library-ball', status: 'library', qty: 1 }])
     fight.fight.state.combatants[1].outReason = 'wound'
     show('gm', 'gm', live(fight))
     expect(document.querySelector('.turns li.out')?.textContent).toBe('·Roy CarverNPC · Speed 56 · Out: woundedOut')
-    expect([...document.querySelectorAll('.turns li')].map((row) => `${row.className} ${row.querySelector('.nm')?.textContent}`)).toEqual(['pc Wayne Gardner', 'npc out Roy Carver'])
+    expect([...document.querySelectorAll('.turns li')].map((row) => `${row.className} ${row.querySelector('.nm')?.textContent}`)).toEqual(['friend Wayne Gardner', 'foe out Roy Carver'])
     expect(screen.getByText('Floor').closest('.panel')?.textContent).toContain('1 item')
     fireEvent.click(button('End combat'))
     expect(screen.getByText('Who is Out').nextElementSibling?.textContent).toBe('Roy CarverOut')
@@ -322,7 +348,7 @@ describe('less common states', () => {
     show('gm', 'gm', idle)
     expect(screen.getByText('No characters in play.')).toBeTruthy()
     fireEvent.click(button('Dale Ricker fights'))
-    expect(button('Dale Ricker fights').closest('li')?.textContent).toBe('✓Dale RickerSpeed missing')
+    expect(button('Dale Ricker fights').closest('li')?.textContent).toBe('✓Dale RickerSpeed missingWith the players')
     fireEvent.click(screen.getAllByRole('button', { name: 'Repair Dale Ricker' })[0])
     expect(screen.getByTestId('where').textContent).toBe('/groups/school/campaigns/gym/npcs')
     expect(takeOpenRequest('npc')).toBe('dale')
