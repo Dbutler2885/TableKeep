@@ -128,8 +128,6 @@
 .shell-root[data-theme="lubec"] .lubec-combat .stepper-q b { min-width: 1.6rem; text-align: center; font: 800 1.1rem/1 var(--lubec-display); }
 .shell-root[data-theme="lubec"] .lubec-combat .item-pick { display: flex; gap: 0.4rem; margin: 0.3rem 0 0.5rem; }
 .shell-root[data-theme="lubec"] .lubec-combat .item-pick select { flex: 1; }
-.shell-root[data-theme="lubec"] .lubec-combat .gmtools { display: flex; flex-wrap: wrap; gap: 0.4rem 0.6rem; align-items: center; margin: 0 0 0.9rem; padding: 0.4rem 0.6rem; border: 2px dashed var(--lubec-blue); background: rgba(23, 75, 88, 0.07); }
-.shell-root[data-theme="lubec"] .lubec-combat .gmtools .item-pick { flex: 1 1 18rem; margin: 0; }
 
 /* The middle when the fight is waiting on someone else */
 .shell-root[data-theme="lubec"] .lubec-combat .bigwait { padding: 1.4rem 1rem 1.2rem; text-align: center; }
@@ -155,7 +153,6 @@
   .shell-root[data-theme="lubec"] .lubec-combat > * { margin-left: 0.7rem; margin-right: 0.7rem; }
   .shell-root[data-theme="lubec"] .lubec-combat > .chead { margin-left: 0; margin-right: 0; padding: 0.35rem 0.7rem 0.35rem 3rem; }
   .shell-root[data-theme="lubec"] .lubec-combat .chead .rnd small { display: block; margin: 0.2rem 0 0; }
-  .shell-root[data-theme="lubec"] .lubec-combat .gmtools { align-items: stretch; }
   .shell-root[data-theme="lubec"] .lubec-combat .lubec-fight .section-head { padding-right: 0.4rem; }
 }
 
@@ -386,8 +383,21 @@
 @media (max-width: 760px) {
   .shell-root[data-theme="lubec"] .lubec-combat .moves { grid-template-columns: minmax(0, 1fr); }
 }
-.shell-root[data-theme="lubec"] .lubec-combat .gmtools .who-pick { display: grid; grid-auto-flow: column; gap: .4rem; align-items: center; min-width: 0; }
-.shell-root[data-theme="lubec"] .lubec-combat .gmtools .who-pick > span { color: var(--lubec-muted); font: 800 .52rem/1.2 var(--lubec-type); letter-spacing: .1em; text-transform: uppercase; }
 .shell-root[data-theme="lubec"] .lubec-combat .win-grid.again { grid-template-columns: minmax(0, 1fr); margin: .6rem 0 0; }
 .shell-root[data-theme="lubec"] .lubec-combat .pass-line { margin: .4rem 0 0; }
 .shell-root[data-theme="lubec"] .lubec-combat .last-outcome { margin: 0 0 .9rem; }
+
+/* Visible GM controls live beside the thing they affect. */
+.shell-root[data-theme="lubec"] .lubec-combat .gm-action-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .75rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .acting-label { flex: 1; min-width: 0; color: var(--lubec-blue); font: 800 .75rem/1.4 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .gm-player-picker { margin-bottom: .8rem; padding: .7rem; background: var(--lubec-cream); border: 2px solid var(--lubec-blue); }
+.shell-root[data-theme="lubec"] .lubec-combat .gm-player-picker > .label { display: block; margin-bottom: .5rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .gm-player-list { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .5rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .panel-actions { padding: .5rem; border-bottom: 1px solid var(--lubec-line); }
+.shell-root[data-theme="lubec"] .lubec-combat .panel-actions .btn { width: 100%; }
+.shell-root[data-theme="lubec"] .lubec-combat .turns .combatant-action { grid-column: 2 / -1; padding: .15rem 0 .1rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .chead .end-combat { color: var(--lubec-cream); border-color: var(--lubec-cream); }
+.shell-root[data-theme="lubec"] .lubec-combat .chead .end-combat:hover { background: var(--lubec-rust); }
+.shell-root[data-theme="lubec"] .lubec-combat .floor-placement { display: grid; gap: .5rem; padding: .5rem; border-top: 1px solid var(--lubec-line); }
+.shell-root[data-theme="lubec"] .lubec-combat .floor-placement .item-pick { flex-wrap: wrap; margin: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .floor-placement select { width: 100%; min-width: 0; flex-basis: 100%; }

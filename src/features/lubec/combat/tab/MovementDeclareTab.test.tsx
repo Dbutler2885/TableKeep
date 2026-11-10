@@ -384,7 +384,7 @@ describe('Declare', () => {
 
   it('picks the weapon, target and use in the window, and guards Full Defense against the person chosen', async () => {
     show('player', 'wayne-uid', fightAfter(...declaring()))
-    fireEvent.click(screen.getByRole('button', { name: 'Right hand' }))
+    fireEvent.click(screen.getByRole('button', { name: /Right hand.*Knife/ }))
     fireEvent.click(screen.getByRole('radio', { name: /^Roy Carver/ }))
     const uses = within(document.querySelector('.win-grid') as HTMLElement).queryAllByRole('radio').filter((entry) => entry.classList.contains('mode'))
     if (uses[0]) fireEvent.click(uses[0])

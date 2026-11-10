@@ -235,35 +235,51 @@ describe('a declared attack on its turn', () => {
 })
 
 describe('the GM\'s tools', () => {
-  const tool = (value: string) => fireEvent.change(screen.getByRole('combobox', { name: 'GM tools' }), { target: { value } })
+  const tool = (value: string) => fireEvent.click(button(value === 'actfor' ? 'Act for a player' : 'Manage combatants'))
 
   it('offers exactly the mock-up\'s four tools', () => {
     show('gm', 'gm', fightAfter(...rolled))
-    expect([...screen.getByRole('combobox', { name: 'GM tools' }).querySelectorAll('option')].map((option) => option.textContent)).toEqual([
-      'GM tools...', 'A player is away from the table: act for them', 'Take someone out of the fight, or return them', 'Place an item on the Floor', 'End combat',
-    ])
+    expect(screen.queryByRole('combobox', { name: 'GM tools' })).toBeNull()
+    expect(button('Act for a player')).toBeTruthy()
+    expect(button('Manage combatants').closest('.rail')).toBeTruthy()
+    expect(button('+ Place an item').closest('.rail')).toBeTruthy()
+    expect(button('End combat').closest('.chead')).toBeTruthy()
   })
 
   it('acts for an away player in their own window', () => {
     show('gm', 'gm', fightAfter(...wayneTurn))
     tool('actfor')
-    fireEvent.change(screen.getByRole('combobox', { name: 'Who' }), { target: { value: WAYNE } })
+    fireEvent.click(button('Act for Wayne Gardner'))
     expect(screen.getByText('Your declared split is locked. Only Roll is left.')).toBeTruthy()
+    expect(screen.getByText('Acting for Wayne Gardner')).toBeTruthy()
+    fireEvent.click(button('Stop acting'))
+    expect(screen.queryByText('Your declared split is locked. Only Roll is left.')).toBeNull()
+    expect(button('Act for a player')).toBeTruthy()
   })
 
   it('takes someone out of the fight and returns them', async () => {
     show('gm', 'gm', fightAfter(...rolled))
     tool('out')
-    fireEvent.change(screen.getByRole('combobox', { name: 'Who' }), { target: { value: ROY } })
     fireEvent.click(button('Take out Roy Carver'))
     await waitFor(() => expect(sentOf('takeOut')[0].payload).toEqual({ type: 'takeOut', combatantKey: ROY }))
+    fireEvent.click(button('Done managing'))
+    expect(screen.queryByRole('button', { name: 'Take out Roy Carver' })).toBeNull()
     cleanup()
     mocks.outcome = { ok: false, reason: 'Waiting for wounds to reach the sheet' }
     show('gm', 'gm', fightAfter(...rolled, { type: 'takeOut', combatantKey: ROY }))
     tool('out')
-    fireEvent.change(screen.getByRole('combobox', { name: 'Who' }), { target: { value: ROY } })
-    expect(screen.getByRole('option', { name: 'Roy Carver (Out)' })).toBeTruthy()
+    expect(button('Return Roy Carver')).toBeTruthy()
     fireEvent.click(button('Return Roy Carver'))
     await waitFor(() => expect(sentOf('return')[0].payload).toEqual({ type: 'return', combatantKey: ROY }))
+  })
+
+  it('can cancel the player picker without changing who the GM controls', () => {
+    show('gm', 'gm', fightAfter(...wayneTurn))
+    fireEvent.click(button('Act for a player'))
+    expect(screen.getByRole('region', { name: 'Act for a player' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Act for Roy Carver' })).toBeNull()
+    fireEvent.click(button('Cancel'))
+    expect(screen.queryByRole('region', { name: 'Act for a player' })).toBeNull()
+    expect(screen.queryByText('Acting for Wayne Gardner')).toBeNull()
   })
 })

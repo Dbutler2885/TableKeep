@@ -22,15 +22,22 @@ function RowBadge({ out, now }: { out: boolean; now: boolean }) {
   return now ? <span className="badge must">Now</span> : null
 }
 
-type RowProps = { combatant: Combatant; place: number | null; userId: string; now: boolean }
+type RowProps = { combatant: Combatant; place: number | null; userId: string; now: boolean; onOut?: (combatant: Combatant) => void }
 
-function TurnRow({ combatant, place, userId, now }: RowProps) {
+function ManageCombatant({ combatant, onOut }: Pick<RowProps, 'combatant' | 'onOut'>) {
+  if (!onOut) return null
+  const label = combatant.outReason === null ? 'Take out' : 'Return'
+  return <span className="combatant-action"><button type="button" className="btn line small" aria-label={`${label} ${combatant.name}`} onClick={() => onOut(combatant)}>{label}</button></span>
+}
+
+function TurnRow({ combatant, place, userId, now, onOut }: RowProps) {
   const out = combatant.outReason !== null
   return (
     <li className={out ? 'out' : now ? 'now' : ''}>
       <span className="n">{place ?? '·'}</span>
       <span><span className="nm">{combatant.name}</span><small>{rowWords(combatant, userId)}</small></span>
       <span><RowBadge out={out} now={now} /></span>
+      <ManageCombatant combatant={combatant} onOut={onOut} />
     </li>
   )
 }
@@ -59,13 +66,17 @@ function ordered(state: CombatState): Ordered {
 }
 
 /** The left rail: everyone in the fight, then the turn order as it builds and once it is set. */
-export function TurnOrderPanel({ state, userId }: { state: CombatState; userId: string }) {
+export function TurnOrderPanel({ state, userId, onOut }: { state: CombatState; userId: string; onOut?: (combatant: Combatant) => void }) {
+  const [managing, setManaging] = useState(false)
+  const id = useId()
   const view = ordered(state)
   const now = actingKey(state)
   return (
     <CombatPanel title={view.title} sub={view.sub}>
-      <ul className="turns">{view.rows.map(({ combatant, place }) => <TurnRow key={combatant.key} combatant={combatant} place={place} userId={userId} now={combatant.key === now} />)}</ul>
+      {onOut ? <div className="panel-actions"><button type="button" className="btn line small" aria-expanded={managing} aria-controls={id} onClick={() => setManaging(!managing)}>{managing ? 'Done managing' : 'Manage combatants'}</button></div> : null}
+      <ul className="turns" id={id}>{view.rows.map(({ combatant, place }) => <TurnRow key={combatant.key} combatant={combatant} place={place} userId={userId} now={combatant.key === now} onOut={managing ? onOut : undefined} />)}</ul>
       {view.note ? <div className="pb"><p className="note">Successes go before failures: higher successes first, lower failures first.</p></div> : null}
     </CombatPanel>
   )
 }
+import { useId, useState } from 'react'

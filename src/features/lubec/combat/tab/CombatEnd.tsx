@@ -4,10 +4,10 @@ import { combatFloorRows, endedFloor } from './combatFloorRows'
 import { PhaseStepper } from './CombatMiddles'
 import { CombatFloorIcon, CombatWindow } from './CombatParts'
 
-type ConfirmProps = { state: CombatState; onEnd: () => Promise<string | null> }
+type ConfirmProps = { state: CombatState; onEnd: () => Promise<string | null>; onCancel: () => void }
 
 /** Moment 12 for the GM: who is Out and what is left on the Floor, before the only way a fight ends. */
-export function CombatEndConfirm({ state, onEnd }: ConfirmProps) {
+export function CombatEndConfirm({ state, onEnd, onCancel }: ConfirmProps) {
   const [busy, setBusy] = useState(false)
   const [refusal, setRefusal] = useState<string | null>(null)
   const outs = state.combatants.filter((combatant) => combatant.outReason !== null)
@@ -21,7 +21,7 @@ export function CombatEndConfirm({ state, onEnd }: ConfirmProps) {
     <CombatWindow
       title="End combat"
       stepper={<PhaseStepper state={state} />}
-      foot={<><span className="note">Rounds advance by themselves; only you end combat.</span><button type="button" className="btn rust" disabled={busy} onClick={() => void end()}>End combat</button></>}
+      foot={<><span className="note">Rounds advance by themselves; only you end combat.</span><button type="button" className="btn line" disabled={busy} onClick={onCancel}>Cancel</button><button type="button" className="btn rust" disabled={busy} onClick={() => void end()}>End combat</button></>}
     >
       {refusal ? <div className="notice hot" role="alert"><span><b>Combat is still running.</b> {refusal}</span></div> : null}
       <p className="ask">End combat?</p>

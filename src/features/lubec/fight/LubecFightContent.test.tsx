@@ -49,9 +49,12 @@ describe('host-neutral content', () => {
     fireEvent.click(screen.getByRole('radio', { name: /Stab/ }))
     expect(props.onAttack).toHaveBeenCalledWith('stab')
     fireEvent.click(screen.getByRole('button', { name: /Left hand/ }))
-    expect(props.onInventory).toHaveBeenCalledWith('left')
+    expect(props.onWeapon).toHaveBeenCalledWith('knife')
+    expect(props.onInventory).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole('button', { name: /Right hand/ }))
-    expect(props.onInventory).toHaveBeenLastCalledWith('right')
+    expect(screen.getByRole('button', { name: /Right hand/ })).toHaveProperty('disabled', true)
+    fireEvent.click(screen.getByRole('button', { name: 'Inventory' }))
+    expect(props.onInventory).toHaveBeenCalledWith('left')
     expect(screen.getByRole('radio', { name: /Slash/ }).getAttribute('aria-checked')).toBe('true')
   })
 
@@ -63,7 +66,7 @@ describe('host-neutral content', () => {
 
   it('offers only Kick for trained full hands and nothing to an untrained fighter', () => {
     const view = render(<LubecFightWindowContent {...props} request={{ ...request, attacker: kid([knife, thing], null, ['Boxing']), weaponItemId: LUBEC_FISTICUFFS_ID, attackId: 'kick' }} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Fisticuffs · Kick' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Kick with full hands' }))
     expect(props.onWeapon).toHaveBeenCalledWith(LUBEC_FISTICUFFS_ID)
     const attacks = () => within(screen.getByRole('radiogroup', { name: 'Attack' }))
     expect(attacks().getAllByRole('radio').map((button) => button.textContent)).toEqual(['KickDefense works in a fight up close'])
@@ -75,13 +78,14 @@ describe('host-neutral content', () => {
 
   it('offers Punch and Kick with a free hand and does not select an invalid prior Punch', () => {
     const view = render(<LubecFightWindowContent {...props} request={{ ...request, attacker: kid(), weaponItemId: LUBEC_FISTICUFFS_ID, attackId: undefined }} />)
-    expect(screen.getByRole('button', { name: /Fisticuffs.*Punch or kick/ })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Fisticuffs/ })).toBeNull()
     expect(screen.getByRole('radio', { name: /^Punch/ }).getAttribute('aria-checked')).toBe('false')
     expect(screen.getByRole('radio', { name: /^Kick/ }).getAttribute('aria-checked')).toBe('false')
     fireEvent.click(screen.getByRole('button', { name: /Left hand.*Empty/ }))
-    expect(props.onInventory).toHaveBeenCalledWith('left')
+    expect(props.onWeapon).toHaveBeenCalledWith(LUBEC_FISTICUFFS_ID)
     fireEvent.click(screen.getByRole('button', { name: /Right hand.*Empty/ }))
-    expect(props.onInventory).toHaveBeenLastCalledWith('right')
+    expect(props.onWeapon).toHaveBeenLastCalledWith(LUBEC_FISTICUFFS_ID)
+    expect(props.onInventory).not.toHaveBeenCalled()
     view.rerender(<LubecFightWindowContent {...props} request={{ ...request, attacker: kid([knife, thing], 'Scrapping'), weaponItemId: LUBEC_FISTICUFFS_ID, attackId: 'punch' }} />)
     expect(screen.queryByRole('radio', { name: /^Punch/ })).toBeNull()
     expect(screen.getByRole('radio', { name: /^Kick/ }).getAttribute('aria-checked')).toBe('false')
@@ -91,6 +95,9 @@ describe('host-neutral content', () => {
     const bat = { ...knife, size: 2, mode: 'thrown' as const, catchPutsThrowerOut: true }
     render(<LubecFightWindowContent {...props} request={{ ...request, attacker: kid([bat]), attackId: undefined }} />)
     fireEvent.click(screen.getByRole('button', { name: /Both hands/ }))
+    expect(props.onWeapon).toHaveBeenCalledWith(knife.id)
+    expect(props.onInventory).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Inventory' }))
     expect(props.onInventory).toHaveBeenCalledWith('both')
     expect(screen.getByRole('radio', { name: /Throw/ }).getAttribute('aria-checked')).toBe('true')
     expect(screen.getByText('A thrown object: Defense works against it')).toBeTruthy()
@@ -100,7 +107,7 @@ describe('host-neutral content', () => {
   it('lets the host choose between two held weapons and offers firearm metadata', () => {
     const gun = { ...knife, id: 'gun', name: 'Pistol', slot: 1, mode: 'firearm' as const }
     render(<LubecFightWindowContent {...props} request={{ ...request, attacker: kid([knife, gun]), weaponItemId: gun.id, attackId: 'shoot' }} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Left hand' }))
+    fireEvent.click(screen.getByRole('button', { name: /Left hand.*Knife/ }))
     expect(props.onWeapon).toHaveBeenCalledWith(knife.id)
     expect(screen.getByText('A firearm: no Defense')).toBeTruthy()
   })
@@ -145,6 +152,32 @@ describe('host-neutral content', () => {
     expect(screen.getByText('1 available')).toBeTruthy()
     expect(choices().getAllByRole('radio')).toHaveLength(1)
     expect(choices().getByRole('radio', { name: /Roy Carver/ }).getAttribute('aria-checked')).toBe('true')
+  })
+
+  it('selects an individual free hand for unarmed attacks without opening Inventory', () => {
+    const unarmed = { ...request, attacker: kid(), weaponItemId: LUBEC_FISTICUFFS_ID }
+    const view = render(<LubecFightWindowContent {...props} request={unarmed} />)
+    expect(screen.getByRole('button', { name: /Left hand.*Empty/ }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(screen.getByRole('button', { name: /Right hand.*Empty/ }))
+    expect(props.onWeapon).toHaveBeenLastCalledWith(LUBEC_FISTICUFFS_ID)
+    expect(screen.getByRole('button', { name: /Right hand.*Empty/ }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: /Left hand.*Empty/ }).getAttribute('aria-pressed')).toBe('false')
+    expect(props.onInventory).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Inventory' }))
+    expect(props.onInventory).toHaveBeenCalledWith('right')
+    view.rerender(<LubecFightWindowContent {...props} request={{ ...unarmed, attacker: kid([knife]) }} />)
+    expect(screen.getByRole('button', { name: /Right hand.*Empty/ }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('keeps the armor region beside the target list as selected armor changes', () => {
+    const view = render(<LubecFightWindowContent {...props} focusTarget />)
+    const pane = screen.getByRole('region', { name: 'Target armor' })
+    expect(pane.parentElement?.className).toBe('target-layout')
+    expect(within(pane).getByText('Torso')).toBeTruthy()
+    const unarmored = kid()
+    view.rerender(<LubecFightWindowContent {...props} focusTarget request={{ ...request, target: unarmored }} targets={[unarmored, roy]} />)
+    expect(screen.getByRole('region', { name: 'Target armor' })).toBe(pane)
+    expect(within(pane).getByText('Nothing that stops a wound.')).toBeTruthy()
   })
 })
 

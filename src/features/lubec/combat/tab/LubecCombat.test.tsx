@@ -160,7 +160,7 @@ describe('the live fight, moment 2', () => {
   it('places more on the Floor from the GM tools with a count', async () => {
     show('gm', 'gm', live())
     fireEvent.click(button('+ Place an item'))
-    const tools = document.querySelector('.gmtools') as HTMLElement
+    const tools = document.querySelector('.floor-placement') as HTMLElement
     chooseItem('Fist-sized rock (catch 10%)', tools)
     fireEvent.click(within(tools).getByRole('button', { name: 'More' }))
     fireEvent.click(within(tools).getByRole('button', { name: 'Place on Floor' }))
@@ -191,10 +191,28 @@ describe('the live fight, moment 2', () => {
 })
 
 describe('ending a fight, moment 12', () => {
+  it('opens End confirmation directly and can cancel without ending the fight', () => {
+    show('gm', 'gm', live())
+    fireEvent.click(button('End combat'))
+    expect(screen.getByText('End combat?')).toBeTruthy()
+    expect(mocks.sent).toEqual([])
+    fireEvent.click(button('Cancel'))
+    expect(screen.queryByText('End combat?')).toBeNull()
+    expect(button('Begin Combat - Roll Initiative')).toBeTruthy()
+    expect(mocks.sent).toEqual([])
+  })
+
+  it('can cancel Floor placement without issuing a command', () => {
+    show('gm', 'gm', live())
+    fireEvent.click(button('+ Place an item'))
+    expect(screen.getByRole('combobox', { name: 'Your Items' })).toBeTruthy()
+    fireEvent.click(button('Cancel placement'))
+    expect(screen.queryByRole('combobox', { name: 'Your Items' })).toBeNull()
+    expect(mocks.sent).toEqual([])
+  })
+
   it('confirms who is Out and what is left, ends, and reports where the Floor went', async () => {
     const view = show('gm', 'gm', live())
-    const tools = screen.getByRole('combobox', { name: 'GM tools' })
-    fireEvent.change(tools, { target: { value: 'end' } })
     fireEvent.click(button('End combat'))
     expect(screen.getByText('End combat?')).toBeTruthy()
     expect(screen.getByText('Nobody')).toBeTruthy()
@@ -210,7 +228,6 @@ describe('ending a fight, moment 12', () => {
   it('keeps the fight running and says why when End is refused, and can go back to placing', async () => {
     mocks.outcome = { ok: false, reason: 'Wounds must be delivered before combat can end.' }
     show('gm', 'gm', live())
-    fireEvent.change(screen.getByRole('combobox', { name: 'GM tools' }), { target: { value: 'end' } })
     fireEvent.click(button('End combat'))
     fireEvent.click(within(document.querySelector('.step-foot') as HTMLElement).getByRole('button', { name: 'End combat' }))
     expect((await screen.findByRole('alert')).textContent).toBe('Combat is still running. Wounds must be delivered before combat can end.')
@@ -228,7 +245,6 @@ describe('less common states', () => {
     show('gm', 'gm', live(fight))
     expect(document.querySelector('.turns li.out')?.textContent).toBe('·Roy CarverNPC · Speed 56 · Out: woundedOut')
     expect(screen.getByText('Floor').closest('.panel')?.textContent).toContain('1 item')
-    fireEvent.change(screen.getByRole('combobox', { name: 'GM tools' }), { target: { value: 'end' } })
     fireEvent.click(button('End combat'))
     expect(screen.getByText('Who is Out').nextElementSibling?.textContent).toBe('Roy CarverOut')
   })
@@ -236,7 +252,6 @@ describe('less common states', () => {
   it('says nothing was left when End empties no Floor', async () => {
     show('gm', 'gm', live(liveFight([])))
     expect(screen.getByText('Nothing on the Floor.')).toBeTruthy()
-    fireEvent.change(screen.getByRole('combobox', { name: 'GM tools' }), { target: { value: 'end' } })
     fireEvent.click(button('End combat'))
     expect(screen.getByText('Left on the Floor').nextElementSibling?.textContent).toBe('Nothing')
     fireEvent.click(within(document.querySelector('.step-foot') as HTMLElement).getByRole('button', { name: 'End combat' }))
@@ -245,7 +260,6 @@ describe('less common states', () => {
 
   it('says one dropped item "is" in Items', async () => {
     show('gm', 'gm', live(liveFight([{ itemId: 'rock', status: 'library', qty: 1 }])))
-    fireEvent.change(screen.getByRole('combobox', { name: 'GM tools' }), { target: { value: 'end' } })
     fireEvent.click(button('End combat'))
     fireEvent.click(within(document.querySelector('.step-foot') as HTMLElement).getByRole('button', { name: 'End combat' }))
     await waitFor(() => expect(document.querySelector('.outcome p')?.textContent).toBe('Players were returned to their sheets. 1 fist-sized rock from the Floor is now in your Items as dropped.'))
@@ -255,15 +269,15 @@ describe('less common states', () => {
     mocks.outcome = { ok: false, reason: 'Floor selection rock is stale; nothing was consumed.' }
     const setError = vi.fn()
     show('gm', 'gm', live(), setError)
-    fireEvent.change(screen.getByRole('combobox', { name: 'GM tools' }), { target: { value: 'place' } })
-    const tools = document.querySelector('.gmtools') as HTMLElement
+    fireEvent.click(button('+ Place an item'))
+    const tools = document.querySelector('.floor-placement') as HTMLElement
     chooseItem('Fist-sized rock (catch 10%)', tools)
     fireEvent.click(within(tools).getByRole('button', { name: 'More' }))
     fireEvent.click(within(tools).getByRole('button', { name: 'Fewer' }))
     fireEvent.click(within(tools).getByRole('button', { name: 'Place on Floor' }))
     await waitFor(() => expect(setError).toHaveBeenCalledWith('Floor selection rock is stale; nothing was consumed.'))
     expect(mocks.sent[0].payload).toEqual({ type: 'place', floor: [{ itemId: 'rock', status: 'library', qty: 1 }] })
-    expect(document.querySelector('.gmtools .item-pick')).not.toBeNull()
+    expect(document.querySelector('.floor-placement .item-pick')).not.toBeNull()
   })
 
   it('lists an uncatchable item on the Floor rail with no catch words', () => {

@@ -128,3 +128,19 @@
 .shell-root[data-theme="lubec"] .declaration-stage { margin-left: auto; color: var(--lubec-muted); font: 700 .7rem/1.3 var(--lubec-type); }
 @media (max-width: 900px) { .shell-root[data-theme="lubec"] .focus-target.win-grid { grid-template-columns: minmax(0, 1fr); } }
 .shell-root[data-theme="lubec"] .lubec-combat .focus-target.win-grid .trow > .target-words { white-space: normal; }
+
+/* Two target columns beside armor; selecting armor never resizes this pane. */
+.shell-root[data-theme="lubec"] .focus-target .target-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.shell-root[data-theme="lubec"] .focus-target .target-layout .tlist { grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+.shell-root[data-theme="lubec"] .focus-target .target-armor { height: 14rem; min-width: 0; overflow: auto; scrollbar-gutter: stable; overscroll-behavior: contain; border: 2px solid var(--lubec-ink); background: rgba(255, 248, 231, .55); }
+.shell-root[data-theme="lubec"] .focus-target .target-armor > .wearing { margin: 0; border: 0; }
+.shell-root[data-theme="lubec"] .focus-target .target-armor > .note { padding: .8rem; }
+.shell-root[data-theme="lubec"] .pick.empty[data-selected="true"] { color: var(--lubec-ink); border-color: var(--lubec-pine); box-shadow: 3px 3px 0 var(--lubec-pine); }
+.shell-root[data-theme="lubec"] .pick:disabled { cursor: not-allowed; }
+@media (max-width: 700px) { .shell-root[data-theme="lubec"] .focus-target .target-layout { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 440px) { .shell-root[data-theme="lubec"] .focus-target .target-layout .tlist { grid-template-columns: minmax(0, 1fr); } }
+
+.shell-root[data-theme="lubec"] .focus-target .trow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: start; align-items: start; }
+.shell-root[data-theme="lubec"] .focus-target .trow > .target-words { grid-column: 1 / -1; }
+.shell-root[data-theme="lubec"] .focus-target .trow > .target-status { grid-column: 1; justify-self: start; }
+.shell-root[data-theme="lubec"] .focus-target .trow > .badge { grid-column: 2; align-self: center; max-width: 100%; white-space: normal; }
