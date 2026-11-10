@@ -31,7 +31,7 @@ function CombatRollCard({ entry, roll, onDone }: { entry: CombatLogEntry; roll: 
   const verdict = combatRollVerdict(roll.result)
   return (
     <div ref={card} className={`rcard ${roll.tone} ${gone ? 'gone' : ''} ${spin.rolling ? 'rolling' : 'settled'}`} data-outcome={verdict.headline}>
-      <div className="rw">{roll.who} · {roll.what}</div>
+      <div className="rw"><strong className="roll-who">{roll.who}</strong><span className="roll-what"> · {roll.what}</span></div>
       <h2 className="rr">{spin.rolling ? 'Rolling...' : verdict.headline}</h2>
       <RollNumbers roll={roll} value={spin.value} rolling={spin.rolling} />
       <div className="roll-details" aria-hidden={spin.rolling}><RollDetails roll={roll} detail={verdict.detail} /></div>
@@ -41,8 +41,8 @@ function CombatRollCard({ entry, roll, onDone }: { entry: CombatLogEntry; roll: 
 
 export function CombatRollCards() {
   const { cards, sessionKey, finishCard } = useCombatLogView()
-  const entry = cards[0]
-  return <div className="combat-cards" role="status" aria-live="polite" aria-atomic="true">{entry?.roll ? <CombatRollCard key={JSON.stringify([sessionKey, entry.id])} entry={entry} roll={entry.roll} onDone={finishCard} /> : null}</div>
+  const shown = cards.slice(0, 3)
+  return <div className="combat-cards" data-count={shown.length} role="status" aria-live="polite" aria-atomic="true">{shown.map((entry) => entry.roll ? <CombatRollCard key={JSON.stringify([sessionKey, entry.id])} entry={entry} roll={entry.roll} onDone={finishCard} /> : null)}</div>
 }
 
 /** The latest entry stays visible; the whole immutable log opens newest first, as in the mock-up. */

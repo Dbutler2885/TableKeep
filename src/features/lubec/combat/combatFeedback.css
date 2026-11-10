@@ -1,10 +1,14 @@
 /* Shared roll presentation, table history and turn notices. */
-.shell-root[data-theme="lubec"] .combat-cards { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 380; width: 28rem; max-width: calc(100vw - 2rem); pointer-events: none; }
+.shell-root[data-theme="lubec"] .combat-cards { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 380; display: grid; gap: .75rem; width: 32rem; max-width: calc(100vw - 1rem); max-height: calc(100dvh - 1rem); padding: .75rem; overflow-x: hidden; overflow-y: auto; pointer-events: none; }
 .shell-root[data-theme="lubec"] .rcard { position: relative; isolation: isolate; padding: 1rem 1.2rem; text-align: center; color: var(--lubec-cream); background: var(--lubec-ink); border: 3px solid var(--lubec-mustard); box-shadow: 7px 7px 0 rgba(7, 20, 23, .7), 0 14px 36px rgba(7, 20, 23, .4); animation: cardin .25s ease-out; transition: opacity .5s, transform .5s; pointer-events: auto; }
 .shell-root[data-theme="lubec"] .rcard::before { content: ''; position: absolute; inset: -9px; z-index: -1; border: 2px solid var(--lubec-mustard); opacity: 0; pointer-events: none; }
 .shell-root[data-theme="lubec"] .rcard.settled::before { animation: combat-impact-ring .55s ease-out both; }
 .shell-root[data-theme="lubec"] .rcard.gone { opacity: 0; transform: translateY(1.2rem) scale(.96); pointer-events: none; }
 .shell-root[data-theme="lubec"] .rcard .rw { color: #e9b98f; font: 800 .7rem/1.4 var(--lubec-type); letter-spacing: .08em; text-transform: uppercase; }
+.shell-root[data-theme="lubec"] .rcard .rw { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: .2rem .5rem; }
+.shell-root[data-theme="lubec"] .rcard .roll-who { color: var(--lubec-cream); font: 800 clamp(1.1rem, 2vw, 1.4rem)/1.15 var(--lubec-display); letter-spacing: 0; text-transform: none; }
+.shell-root[data-theme="lubec"] .rcard .roll-what { font-size: .65rem; }
+.shell-root[data-theme="lubec"] .combat-cards:not([data-count="1"]) .rcard .rw { justify-content: flex-start; }
 .shell-root[data-theme="lubec"] .rcard .rn { display: flex; justify-content: center; gap: .65rem; align-items: baseline; min-height: 6rem; margin: .85rem 0 .5rem; }
 .shell-root[data-theme="lubec"] .rcard .rn :is(b, strong) { font: 700 clamp(2.4rem, 7vw, 3.5rem)/1 var(--lubec-condensed); font-variant-numeric: tabular-nums; }
 .shell-root[data-theme="lubec"] .rcard .rn b { display: inline-block; min-width: 2.5ch; padding: .02em .12em; color: var(--lubec-ink); background: var(--lubec-cream); border-bottom: 4px solid var(--lubec-mustard); font-size: clamp(3.5rem, 10vw, 5rem); }
@@ -31,6 +35,16 @@
   .shell-root[data-theme="lubec"] .rcard.settled::before, .shell-root[data-theme="lubec"] .rcard.settled .rr, .shell-root[data-theme="lubec"] .rcard.settled .rn b { animation: none; }
   .shell-root[data-theme="lubec"] .rcard.gone { transform: none; }
 }
+
+.shell-root[data-theme="lubec"] .combat-cards:not([data-count="1"]) .rcard { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: .15rem .8rem; padding: .65rem 1rem; }
+.shell-root[data-theme="lubec"] .combat-cards:not([data-count="1"]) .rcard .rw { grid-column: 1 / -1; text-align: left; }
+.shell-root[data-theme="lubec"] .combat-cards:not([data-count="1"]) .rcard .rr { min-height: 3.2rem; font-size: clamp(1.6rem, 5vw, 2.6rem); }
+.shell-root[data-theme="lubec"] .combat-cards:not([data-count="1"]) .rcard.rolling .rr { font-size: 1.2rem; }
+.shell-root[data-theme="lubec"] .combat-cards:not([data-count="1"]) .rcard .rn { min-height: 0; margin: .35rem 0; gap: .35rem; }
+.shell-root[data-theme="lubec"] .combat-cards:not([data-count="1"]) .rcard .rn b { font-size: 3.4rem; }
+.shell-root[data-theme="lubec"] .combat-cards:not([data-count="1"]) .rcard .rn strong { font-size: 2.2rem; }
+.shell-root[data-theme="lubec"] .combat-cards:not([data-count="1"]) .rcard .rn span { font-size: .7rem; }
+.shell-root[data-theme="lubec"] .combat-cards:not([data-count="1"]) .rcard .roll-details { grid-column: 1 / -1; }
 .shell-root[data-theme="lubec"] .ctick { grid-column: 1 / -1; }
 .shell-root[data-theme="lubec"] .ctick .ticker { background: var(--lubec-ink); }
 .shell-root[data-theme="lubec"] .ctick .ticker-list { background: #0f2226; }
