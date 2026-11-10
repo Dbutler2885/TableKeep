@@ -8,6 +8,7 @@ import type { CombatLogEntry, CombatLogUpdate } from './combatLog'
 import { LubecCombatContext, type LubecCombatWatch } from './combatWatch'
 import { CombatFeedback } from './CombatFeedback'
 import { CombatTicker, CombatTurnNotice } from './CombatMessages'
+import { LUBEC_SPIN_STEPS, lubecSpinDelay } from '../lubecCircles'
 
 const mocks = vi.hoisted(() => ({ subscriptions: [] as { scope: unknown; id: string; receive: (update: CombatLogUpdate) => void; error: () => void; stop: ReturnType<typeof vi.fn> }[] }))
 vi.mock('../../../firebase', () => ({ db: {} }))
@@ -33,7 +34,10 @@ const tree = (activeTab: 'notes' | 'combat' = 'notes', value = watch, selected: 
   </LubecCombatContext>
 )
 const send = (entries: CombatLogEntry[], arriving: CombatLogEntry[] = []) => act(() => mocks.subscriptions.at(-1)!.receive({ entries, arriving }))
-beforeEach(() => { mocks.subscriptions = []; vi.clearAllMocks(); vi.useFakeTimers() })
+beforeEach(() => {
+  mocks.subscriptions = []; vi.clearAllMocks(); vi.useFakeTimers()
+  Object.defineProperty(window, 'matchMedia', { configurable: true, writable: true, value: vi.fn(() => ({ matches: true })) })
+})
 afterEach(() => { cleanup(); vi.useRealTimers() })
 
 describe('workspace roll feedback', () => {
@@ -53,7 +57,9 @@ describe('workspace roll feedback', () => {
     expect(document.querySelectorAll('.rcard')).toHaveLength(0)
     send([a, b], [b])
     expect(document.activeElement).toBe(input)
-    expect(document.querySelector('.rcard')?.textContent).toBe('Roy · Attack roll27against 36Hit · Quality 2Dodgeball thrown at Roy Carver.')
+    expect(screen.getByRole('heading', { name: 'Hit' })).toBeTruthy()
+    expect(document.querySelector('.rcard .rn')?.textContent).toBe('27UNDER36')
+    expect(screen.getByText('Quality 2')).toBeTruthy()
     expect(screen.getByRole('button', { name: /Your turn/ })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /Your turn/ }))
     expect(navigate).toHaveBeenCalledWith('/groups/g/campaigns/c/combat')
@@ -72,7 +78,7 @@ describe('workspace roll feedback', () => {
     expect(document.querySelectorAll('.rcard')).toHaveLength(0)
     expect(mocks.subscriptions).toHaveLength(1)
   })
-  it('caps bursts at three, times each card independently, and leaves ticker history intact', () => {
+  it('queues every roll in a burst, shows one at a time, and leaves ticker history intact', () => {
     render(tree())
     const a = entry('one'), b = entry('two'), c = entry('three'), d = entry('four')
     send([a], [a])
@@ -80,11 +86,17 @@ describe('workspace roll feedback', () => {
     send([a, b], [b])
     act(() => vi.advanceTimersByTime(1000))
     send([a, b, c, d], [c, d])
-    expect([...document.querySelectorAll('.rcard .rw')].map((node) => node.textContent)).toEqual(['two · Attack roll', 'three · Attack roll', 'four · Attack roll'])
-    act(() => vi.advanceTimersByTime(5500))
+    expect([...document.querySelectorAll('.rcard .rw')].map((node) => node.textContent)).toEqual(['one · Attack roll'])
+    act(() => vi.advanceTimersByTime(4500))
     expect(document.querySelectorAll('.rcard.gone')).toHaveLength(1)
     act(() => vi.advanceTimersByTime(600))
-    expect(document.querySelectorAll('.rcard')).toHaveLength(2)
+    expect(document.querySelector('.rcard .rw')?.textContent).toBe('two · Attack roll')
+    act(() => vi.advanceTimersByTime(7100))
+    expect(document.querySelector('.rcard .rw')?.textContent).toBe('three · Attack roll')
+    act(() => vi.advanceTimersByTime(7100))
+    expect(document.querySelector('.rcard .rw')?.textContent).toBe('four · Attack roll')
+    act(() => vi.advanceTimersByTime(7100))
+    expect(document.querySelectorAll('.rcard')).toHaveLength(0)
     expect(screen.getByText('All 4')).toBeTruthy()
   })
   it('does not replay after remount, follows a final End entry, and cleans timers and subscriptions', () => {
@@ -95,7 +107,8 @@ describe('workspace roll feedback', () => {
     expect(document.querySelectorAll('.rcard')).toHaveLength(0)
     const ended = { ...entry('ended'), roll: undefined }
     send([entry('old'), ended], [ended])
-    expect(document.querySelector('.rcard')?.textContent).toBe('Tableended')
+    expect(document.querySelector('.rcard')).toBeNull()
+    expect(screen.getByText('All 2')).toBeTruthy()
     view.unmount()
     expect(mocks.subscriptions[0].stop).toHaveBeenCalledOnce()
     expect(vi.getTimerCount()).toBe(0)
@@ -138,7 +151,77 @@ describe('workspace roll feedback', () => {
     send([a, b], [a, b])
     expect(document.querySelectorAll('.rcard .rx')).toHaveLength(0)
     expect(document.querySelector('.rcard.bad')).toBeTruthy()
+    act(() => vi.advanceTimersByTime(7100))
     expect(document.querySelector('.rcard.neutral')).toBeTruthy()
+  })
+  it('keeps routine phase changes in history without competing with the roll', () => {
+    render(tree())
+    const result = entry('Tommy')
+    const movement = { ...entry('movement'), roll: undefined, event: 'Round 5, Movement.' }
+    send([result, movement], [result, movement])
+    expect(document.querySelectorAll('.rcard')).toHaveLength(1)
+    expect(document.querySelector('.rcard .rw')?.textContent).toBe('Tommy · Attack roll')
+    act(() => vi.advanceTimersByTime(7100))
+    expect(document.querySelectorAll('.rcard')).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: /Table/ }))
+    expect(screen.getByText('Round 5, Movement.')).toBeTruthy()
+  })
+  it('shows the sheet\'s slowing number animation before revealing the committed outcome', async () => {
+    vi.mocked(window.matchMedia).mockReturnValue({ matches: false } as MediaQueryList)
+    render(tree())
+    const result = entry('Tommy')
+    result.roll = { ...result.roll!, roll: '54', target: 'against 64', result: 'Hit · Quality 5' }
+    send([result], [result])
+    expect(screen.getByRole('heading', { name: 'Rolling...' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Hit' })).toBeNull()
+    expect(document.querySelector('.rcard .rn')?.getAttribute('aria-hidden')).toBe('true')
+    const first = document.querySelector('.rcard .rn b')!.textContent
+    await act(async () => { await vi.advanceTimersByTimeAsync(lubecSpinDelay(0)) })
+    expect(document.querySelector('.rcard .rn b')!.textContent).not.toBe(first)
+    for (let step = 1; step < LUBEC_SPIN_STEPS; step++) {
+      await act(async () => { await vi.advanceTimersByTimeAsync(lubecSpinDelay(step)) })
+    }
+    expect(screen.getByRole('heading', { name: 'Hit' })).toBeTruthy()
+    expect(document.querySelector('.rcard .rn')?.textContent).toBe('54UNDER64')
+    expect(screen.getByText('Quality 5')).toBeTruthy()
+    expect(document.querySelector('.rcard .rn')?.getAttribute('aria-hidden')).toBe('false')
+  })
+  it('shows equality honestly while retaining the committed miss or save success', () => {
+    render(tree())
+    const miss = entry('Miss'), save = entry('Save')
+    miss.roll = { ...miss.roll!, roll: '45', target: 'against 45', result: 'Miss', tone: 'bad' }
+    save.roll = { ...save.roll!, roll: '45', target: 'under 45', result: 'Success' }
+    send([miss, save], [miss, save])
+    expect(screen.getByRole('heading', { name: 'Miss' })).toBeTruthy()
+    expect(document.querySelector('.rcard .rn')?.textContent).toBe('45EQUAL TO45')
+    act(() => vi.advanceTimersByTime(7100))
+    expect(screen.getByRole('heading', { name: 'Success' })).toBeTruthy()
+    expect(document.querySelector('.rcard .rn')?.textContent).toBe('45EQUAL TO45')
+  })
+  it('starts a fresh roll when a new fight reuses an entry id and cancels old timers', () => {
+    const view = render(tree())
+    const old = entry('same-id')
+    send([old], [old])
+    act(() => vi.advanceTimersByTime(4000))
+    view.rerender(tree('combat', { ...watch, live: { ...watch.live!, id: 'next-fight' } }))
+    const next = entry('same-id')
+    next.roll = { ...next.roll!, who: 'New fight' }
+    send([next], [next])
+    act(() => vi.advanceTimersByTime(3100))
+    expect(document.querySelector('.rcard .rw')?.textContent).toBe('New fight · Attack roll')
+    expect(document.querySelector('.rcard.gone')).toBeNull()
+    act(() => vi.advanceTimersByTime(4000))
+    expect(document.querySelector('.rcard')).toBeNull()
+  })
+  it('cancels the animation and dismissal timers when feedback unmounts', () => {
+    vi.mocked(window.matchMedia).mockReturnValue({ matches: false } as MediaQueryList)
+    const view = render(tree())
+    const result = entry('Tommy')
+    send([result], [result])
+    expect(screen.getByRole('heading', { name: 'Rolling...' })).toBeTruthy()
+    expect(vi.getTimerCount()).toBe(3)
+    view.unmount()
+    expect(vi.getTimerCount()).toBe(0)
   })
   it('renders every owned request without another actor controls, including GM requests', () => {
     const onReturn = vi.fn()
