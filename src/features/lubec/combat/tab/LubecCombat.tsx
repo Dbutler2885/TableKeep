@@ -87,12 +87,12 @@ function useGmCombat({ campaign, userId, setError }: GmProps) {
   return { commands, repair, data, send }
 }
 
-type ClosingProps = { shown: Closing; userId: string; onEnd: () => Promise<string | null>; onPlaceInstead: () => void; onCancel: () => void }
+type ClosingProps = { shown: Closing; userId: string; onEnd: () => Promise<string | null>; onPlaceInstead: () => void; onCancel: () => void; onNew: (() => void) | null }
 
 /** Moment 12: the End confirmation, then its result once End has committed. */
-function CombatClosing({ shown, userId, onEnd, onPlaceInstead, onCancel }: ClosingProps) {
+function CombatClosing({ shown, userId, onEnd, onPlaceInstead, onCancel, onNew }: ClosingProps) {
   const { state } = shown.live.fight
-  if (shown.done) return <CombatLayout state={state} userId={userId} stage="Ending" middle={<CombatEnded state={state} />} />
+  if (shown.done) return <CombatLayout state={state} userId={userId} stage="Ending" middle={<CombatEnded state={state} onNew={onNew} />} />
   return <CombatLayout state={state} userId={userId} stage="Ending" middle={<CombatEndConfirm state={state} onEnd={onEnd} onCancel={onCancel} />} onPlace={onPlaceInstead} />
 }
 
@@ -161,7 +161,9 @@ function CombatGm(props: GmProps) {
       if (!refusal) setClosing({ live: shown.live, done: true })
       return refusal
     }
-    return <CombatClosing shown={shown} userId={props.userId} onEnd={end} onPlaceInstead={() => { setClosing(null); setTool('place') }} onCancel={() => setClosing(null)} />
+    // Setup opens once the watch has dropped the ended fight, so the old fight can never reappear behind it.
+    const onNew = live ? null : () => setClosing(null)
+    return <CombatClosing shown={shown} userId={props.userId} onEnd={end} onPlaceInstead={() => { setClosing(null); setTool('place') }} onCancel={() => setClosing(null)} onNew={onNew} />
   }
   if (!live) return <CombatSetup {...data} onStart={commands.start} onRepair={repair} />
   return (

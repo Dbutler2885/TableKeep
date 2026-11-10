@@ -48,10 +48,13 @@ function EndedFloorWords({ state }: { state: CombatState }) {
   return <>{words} from the Floor {total === 1 ? 'is' : 'are'} now in your Items as <b>dropped</b>.</>
 }
 
-/** The GM's last screen of a fight: it has ended, and where the Floor went. */
-export function CombatEnded({ state }: { state: CombatState }) {
+type EndedProps = { state: CombatState; onNew: (() => void) | null }
+
+/** The GM's last screen of a fight: it has ended, where the Floor went, and the way to set up the next one. */
+export function CombatEnded({ state, onNew }: EndedProps) {
+  const foot = <><span className="note">The Combat tab is gone for players.</span><button type="button" className="btn rust" disabled={!onNew} onClick={onNew ?? undefined}>Set up new combat</button></>
   return (
-    <CombatWindow title="End combat" stepper={<PhaseStepper state={state} />} foot={<span className="note">The Combat tab is gone for players.</span>}>
+    <CombatWindow title="End combat" stepper={<PhaseStepper state={state} />} foot={foot}>
       <div className="outcome safe"><h4>Combat ended</h4><p>Players were returned to their sheets. <EndedFloorWords state={state} /></p></div>
     </CombatWindow>
   )

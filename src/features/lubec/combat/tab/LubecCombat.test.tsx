@@ -225,6 +225,19 @@ describe('ending a fight, moment 12', () => {
     expect(document.querySelector('.outcome p')?.textContent).toBe('Players were returned to their sheets. 3 dodgeballs from the Floor are now in your Items as dropped.')
   })
 
+  it('goes from the ended fight back to setting up a new one without a reload', async () => {
+    const view = show('gm', 'gm', live())
+    fireEvent.click(button('End combat'))
+    fireEvent.click(within(document.querySelector('.step-foot') as HTMLElement).getByRole('button', { name: 'End combat' }))
+    await waitFor(() => expect(screen.getByText('Combat ended')).toBeTruthy())
+    expect((button('Set up new combat') as HTMLButtonElement).disabled).toBe(true)
+    view.rerender(tree('gm', 'gm', idle))
+    fireEvent.click(button('Set up new combat'))
+    expect(screen.queryByText('Combat ended')).toBeNull()
+    expect(screen.getByRole('region', { name: 'Set up combat' })).toBeTruthy()
+    expect(button('Start Combat')).toBeTruthy()
+  })
+
   it('keeps the fight running and says why when End is refused, and can go back to placing', async () => {
     mocks.outcome = { ok: false, reason: 'Wounds must be delivered before combat can end.' }
     show('gm', 'gm', live())
