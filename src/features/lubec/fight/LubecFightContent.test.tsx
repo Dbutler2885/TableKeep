@@ -126,6 +126,26 @@ describe('host-neutral content', () => {
     expect(within(screen.getByRole('radiogroup', { name: 'Attack' })).queryAllByRole('radio')).toEqual([])
     expect(screen.getByRole('radio', { name: /Roy Carver/ }).getAttribute('aria-checked')).toBe('false')
   })
+
+  it('offers several prominent target choices, retains exactly one selection, and supports a sole target', () => {
+    const dale: LubecCombatant = { ...roy, npc: { ...roy.npc, id: 'dale', name: 'Dale Ricker' } }
+    const tommy: LubecCombatant = { ...roy, npc: { ...roy.npc, id: 'tommy', name: 'Tommy Lyle' } }
+    const view = render(<LubecFightWindowContent {...props} focusTarget targets={[roy, dale, tommy]} />)
+    expect(screen.getByText('Who are you attacking?')).toBeTruthy()
+    expect(screen.getByText('3 available')).toBeTruthy()
+    const choices = () => within(screen.getByRole('radiogroup', { name: 'Target' }))
+    expect(choices().getAllByRole('radio')).toHaveLength(3)
+    expect(choices().getAllByRole('radio', { checked: true })).toHaveLength(1)
+    fireEvent.click(choices().getByRole('radio', { name: /Dale Ricker/ }))
+    expect(props.onTarget).toHaveBeenCalledWith('npc:dale')
+    view.rerender(<LubecFightWindowContent {...props} focusTarget targets={[roy, dale, tommy]} request={{ ...request, target: dale }} />)
+    expect(choices().getByRole('radio', { name: /Dale Ricker/ }).getAttribute('aria-checked')).toBe('true')
+    expect(choices().getByRole('radio', { name: /Roy Carver/ }).getAttribute('aria-checked')).toBe('false')
+    view.rerender(<LubecFightWindowContent {...props} focusTarget />)
+    expect(screen.getByText('1 available')).toBeTruthy()
+    expect(choices().getAllByRole('radio')).toHaveLength(1)
+    expect(choices().getByRole('radio', { name: /Roy Carver/ }).getAttribute('aria-checked')).toBe('true')
+  })
 })
 
 describe('fighting training reads', () => {

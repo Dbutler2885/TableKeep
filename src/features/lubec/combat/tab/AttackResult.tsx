@@ -9,6 +9,7 @@ import { CombatStepper, CombatWindow } from './CombatParts'
 import { OutcomeBanner } from './OutcomeBanner'
 import { CatchStep, CheckStep, DefenseStep, LocationStep, WoundStep, type StepControls, type StepProps } from './ResultSteps'
 import { activeCard, cardName, resultProgress, stillToCome, type ResultStep } from './resultSequence'
+import { completedResultText } from './completedResultText'
 
 type Rolled = CombatAttack & { frozen: CombatFrozenAim; roll: CombatAttackRoll }
 
@@ -41,10 +42,19 @@ type CardProps = { state: CombatState; attack: Rolled; card: ResultStep; index: 
 function StepCard({ state, attack, card, index, controls }: CardProps) {
   const active = activeCard(attack) === card
   const Body = card === 'attack' ? null : STEP_BODIES[card]
+  const heading = <span><span className="no">{index + 1}</span>{cardName(attack, card)}</span>
+  const owner = combatantName(state, ownerOf(attack, card))
+  const body = <div className="sb">{Body ? <Body state={state} attack={attack} controls={controls} active={active} /> : <AttackRollBody attack={attack} />}</div>
+  if (!active) return (
+    <details className="st completed">
+      <summary className="sh">{heading}<span className="step-result">{completedResultText(attack, card)}</span><span className="step-owner">{owner}</span><span className="step-reveal">Details <i aria-hidden="true" /></span></summary>
+      {body}
+    </details>
+  )
   return (
-    <div className={`st${active ? ' active' : ''}`}>
-      <div className="sh"><span><span className="no">{index + 1}</span>{cardName(attack, card)}</span><span>{combatantName(state, ownerOf(attack, card))}</span></div>
-      <div className="sb">{Body ? <Body state={state} attack={attack} controls={controls} active={active} /> : <AttackRollBody attack={attack} />}</div>
+    <div className="st active">
+      <div className="sh">{heading}<span>{owner}</span></div>
+      {body}
     </div>
   )
 }
@@ -58,8 +68,8 @@ function ResultEnd({ state, attack }: { state: CombatState; attack: Rolled }) {
 const rolled = (attack: CombatAttack): attack is Rolled => attack.frozen != null && attack.roll != null
 
 /**
- * Moment 8, watched by everyone: one card per step reached, the step waiting now in rust with its
- * controls only for whoever owns it, and the outcome once the attack completes.
+ * Watched by everyone: completed steps collapse, and the current step stays expanded in rust
+ * with controls only for its owner. Earlier details remain available without repeating their controls.
  */
 export function AttackResult({ state, attack, controls = null }: { state: CombatState; attack: CombatAttack; controls?: StepControls | null }) {
   if (!rolled(attack)) return null

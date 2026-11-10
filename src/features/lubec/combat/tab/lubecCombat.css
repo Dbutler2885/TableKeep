@@ -231,6 +231,17 @@
 .shell-root[data-theme="lubec"] .lubec-combat .st.active { border-color: var(--lubec-rust); box-shadow: 0 0 0 3px rgba(163, 66, 41, .25); }
 .shell-root[data-theme="lubec"] .lubec-combat .st.active > .sh { background: var(--lubec-rust); }
 .shell-root[data-theme="lubec"] .lubec-combat .st .sb { padding: .55rem .7rem .6rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .st.completed > summary.sh { justify-content: flex-start; padding: .5rem .6rem; color: var(--lubec-ink); background: var(--lubec-cream); letter-spacing: 0; text-transform: none; cursor: pointer; list-style: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .st.completed > summary.sh::-webkit-details-marker { display: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .st.completed > summary.sh::marker { content: ''; }
+.shell-root[data-theme="lubec"] .lubec-combat .st.completed > summary.sh > span:first-child { font: 800 .65rem/1.3 var(--lubec-type); text-transform: uppercase; }
+.shell-root[data-theme="lubec"] .lubec-combat .st.completed .step-result { flex: 1; min-width: 8rem; font: 800 .8rem/1.4 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .st.completed .step-owner { color: var(--lubec-muted); }
+.shell-root[data-theme="lubec"] .lubec-combat .st.completed .step-reveal { display: inline-flex; align-items: center; gap: .4rem; margin-left: auto; color: var(--lubec-blue); font: 800 .65rem/1.3 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .st.completed .step-reveal i::after { content: '+'; font: 700 1.2rem/1 var(--lubec-condensed); }
+.shell-root[data-theme="lubec"] .lubec-combat .st.completed[open] .step-reveal i::after { content: '−'; }
+.shell-root[data-theme="lubec"] .lubec-combat .st.completed > summary.sh:hover { background: #fffdf4; }
+.shell-root[data-theme="lubec"] .lubec-combat .st.completed > summary.sh:focus-visible { outline: 3px solid var(--lubec-rust); outline-offset: 2px; }
 .shell-root[data-theme="lubec"] .lubec-combat .st .verdict { margin: .4rem 0 0; font: 800 clamp(1rem, 1.8vw, 1.25rem)/1.2 var(--lubec-display); }
 .shell-root[data-theme="lubec"] .lubec-combat .st .verdict.ok { color: var(--lubec-success); }
 .shell-root[data-theme="lubec"] .lubec-combat .st .verdict.bad { color: var(--lubec-failure); }

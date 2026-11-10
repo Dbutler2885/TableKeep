@@ -56,6 +56,7 @@ function DeclareChoices({ body, draft, setDraft, model, full }: ChoicesProps) {
   return (
     <div className={full ? 'dim' : ''}>
       <LubecFightWindowContent
+        focusTarget
         request={{ attacker: body.fighter, target: model.target, weaponItemId: draft.weaponItemId ?? undefined, attackId: draft.attackId ?? undefined }}
         targets={model.targets} targetNote={targetNote(body.state)} targetBadge={(target) => attackBadge(body.state, lubecCombatantKey(target), body.declarer.key)} onInventory={body.onInventory} readOnly={full}
         onTarget={(key) => setDraft({ ...draft, targetKey: key })}
@@ -156,7 +157,7 @@ function DeclareBody(body: BodyProps) {
       <AimedNotice state={state} declarer={declarer} />
       {declarer.declarationRejected ? <div className="notice hot" role="status"><span>The GM rejected your declaration. Choose again; it is still your turn to declare.</span></div> : null}
       <CombatRefusal refusal={run.refusal} />
-      <div className="trail"><span className="who"><small>Attacker</small>{declarer.name}</span><span className="who"><small>Round {state.round}</small>Stage 2, Declare</span></div>
+      <div className="declaration-actor"><small>Declaring now</small><strong>{declarer.name}</strong><span className="declaration-stage">Round {state.round} · <span>Stage 2, Declare</span></span></div>
       <DeclareChoices body={body} draft={draft} setDraft={setDraft} model={model} full={full} />
       {full ? <FullDefense {...parts} against={guarded} onAgainst={setAgainst} /> : <Split {...parts} />}
     </>

@@ -119,6 +119,41 @@ describe('attack-specific result progress', () => {
     expect(progressSteps()).toEqual(['1Attack', '2Defense', '3Location'])
     expect(document.querySelector('[aria-label="Result"] .section-head .stepper li.now')?.textContent).toBe('3Location')
   })
+
+  it('collapses completed rolls while keeping the location decision expanded and earlier details accessible', () => {
+    show('player', 'wayne-uid', fightAfter(...landed(slashAt)))
+    const earlier = [...document.querySelectorAll<HTMLDetailsElement>('.seq > details.completed')]
+    expect(earlier).toHaveLength(2)
+    expect(earlier.every((step) => !step.open)).toBe(true)
+    expect(earlier[0].querySelector('summary')?.textContent).toContain('27 / 46 · A hit. Attack Quality 2.')
+    expect(document.querySelector('.seq > .st.active > .sh')?.textContent).toContain('Where it lands')
+    expect(button('Hit the torso')).toBeTruthy()
+    fireEvent.click(earlier[0].querySelector('summary')!)
+    expect(earlier[0].open).toBe(true)
+    expect(within(earlier[0]).getByText('A hit. Attack Quality 2.')).toBeTruthy()
+    expect(within(earlier[0]).queryByRole('button', { name: 'Roll' })).toBeNull()
+    fireEvent.click(earlier[0].querySelector('summary')!)
+    expect(earlier[0].open).toBe(false)
+  })
+
+  it('shows other players the shared landing without the attacker\'s location controls, then the committed location', () => {
+    show('player', 'marcy-uid', fightAfter(...landed()))
+    expect(screen.getByRole('group', { name: 'Current attack' }).textContent).toContain('Wayne Gardner→TargetRoy Carver')
+    expect(screen.getByText("It lands on Roy Carver's waist.")).toBeTruthy()
+    expect(screen.getByText('Waiting for Wayne Gardner to roll')).toBeTruthy()
+    expect(document.querySelector('.doll-step .cross')).toBeTruthy()
+    const doll = screen.getByRole('radiogroup', { name: 'Where it lands' })
+    expect(within(doll).getAllByRole('radio').every((part) => part.getAttribute('aria-disabled') === 'true' && part.getAttribute('tabindex') === '-1')).toBe(true)
+    fireEvent.click(within(doll).getByRole('radio', { name: 'Waist: quality 2' }))
+    expect(sentOf('land')).toEqual([])
+    expect(screen.queryByRole('button', { name: /^Hit the/ })).toBeNull()
+    cleanup()
+    show('player', 'marcy-uid', fightAfter(...landed(), { type: 'land', actor: WAYNE, part: 'torso' }))
+    expect(document.querySelector('.st.completed .step-result')?.textContent).toContain('27 / 61')
+    expect(screen.getByText('Hits the torso.')).toBeTruthy()
+    expect(document.querySelector('.st.active .sh')?.textContent).toContain('The wound')
+    expect(screen.queryByRole('button', { name: /^Hit the/ })).toBeNull()
+  })
 })
 
 describe('Defense after a hit', () => {
