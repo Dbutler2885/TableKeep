@@ -55,7 +55,7 @@ export function LubecFightHands({ request, onInventory, onWeapon, readOnly }: Ha
   const pick = (option: HandOption) => {
     if (option.weaponId === null) return
     setPickedHand(option.hands)
-    onWeapon(option.weaponId)
+    if (option.weaponId !== request.weaponItemId) onWeapon(option.weaponId)
   }
   return <div>
     <span className="label">Weapon</span>

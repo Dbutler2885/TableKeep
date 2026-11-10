@@ -144,3 +144,9 @@
 .shell-root[data-theme="lubec"] .focus-target .trow > .target-words { grid-column: 1 / -1; }
 .shell-root[data-theme="lubec"] .focus-target .trow > .target-status { grid-column: 1; justify-self: start; }
 .shell-root[data-theme="lubec"] .focus-target .trow > .badge { grid-column: 2; align-self: center; max-width: 100%; white-space: normal; }
+
+/* Choice cards keep a readable, consistent selected state while hovered or focused. */
+.shell-root[data-theme="lubec"] :is(.win-grid, .moves) :is(.mode, .trow)[aria-checked="true"], .shell-root[data-theme="lubec"] .win-grid .pick[aria-pressed="true"] { color: var(--lubec-cream); background: var(--lubec-pine); border-color: var(--lubec-pine); }
+.shell-root[data-theme="lubec"] :is(.win-grid, .moves) :is(.mode, .trow)[aria-checked="true"] small, .shell-root[data-theme="lubec"] .win-grid .pick[aria-pressed="true"] :is(.where, .name, small) { color: var(--lubec-cream); }
+.shell-root[data-theme="lubec"] :is(.win-grid, .moves) :is(.mode, .trow)[aria-checked="true"]:hover:not(:disabled), .shell-root[data-theme="lubec"] .win-grid .pick[aria-pressed="true"]:hover:not(:disabled) { color: var(--lubec-cream); background: var(--lubec-pine); border-color: var(--lubec-pine); box-shadow: inset 0 0 0 2px rgba(255, 248, 231, .35), 3px 3px 0 rgba(23, 40, 43, .28); }
+.shell-root[data-theme="lubec"] :is(.win-grid, .moves) :is(.mode, .trow):focus-visible, .shell-root[data-theme="lubec"] .win-grid .pick:focus-visible { outline: 3px solid var(--lubec-mustard); outline-offset: 3px; }
