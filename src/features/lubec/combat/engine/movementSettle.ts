@@ -3,9 +3,11 @@ import { combatSheetOf } from './attackParty'
 import type { CombatLog } from './combatFeedback'
 import { requireGm, requireLiveContext } from './context'
 import { combatOrdered, RAN, withDeclareRequests } from './declare'
-import type { CombatCommand, Combatant, CombatHandler, CombatPlan, CombatRecords, CombatState } from './types'
+import type { CombatEntropy } from './commandEntropy'
+import { evasionLog, rollEvasion } from './evasion'
+import type { CombatCommand, Combatant, CombatEvasion, CombatHandler, CombatPlan, CombatRecords, CombatState } from './types'
 
-type Settling = { floor: LubecDetachedItem[]; sheets: NonNullable<CombatPlan['sheets']>; logs: CombatLog[] }
+type Settling = { floor: LubecDetachedItem[]; sheets: NonNullable<CombatPlan['sheets']>; logs: CombatLog[]; evasions: ReadonlyMap<string, CombatEvasion> }
 
 const lost = (settling: Settling, claimant: Combatant, event: string): Settling =>
   ({ ...settling, logs: [...settling.logs, { event, actor: claimant.key }] })
@@ -22,7 +24,7 @@ function pickUp(settling: Settling, claimant: Combatant, item: string, records: 
   const arrival = lubecPlaceDetached(record.sheet.gear, taken.detached, itemCommand, 'hands')
   if (!arrival.ok) return lost(settling, claimant, `${claimant.name} could not pick up the ${item}: no free hand.`)
   const sheets = [...settling.sheets, { selection: { kind: claimant.kind, sheetId: claimant.sheetId }, gear: arrival.gear }]
-  return { floor: taken.records, sheets, logs: [...settling.logs, { event: `${claimant.name} picked up the ${item}.`, actor: claimant.key }] }
+  return { ...settling, floor: taken.records, sheets, logs: [...settling.logs, { event: `${claimant.name} picked up the ${item}.`, actor: claimant.key }] }
 }
 
 const REVEALED: Readonly<Record<string, (name: string) => string>> = {
@@ -31,9 +33,19 @@ const REVEALED: Readonly<Record<string, (name: string) => string>> = {
   leave: (name) => `${name} left the fight.`,
 }
 
+/** An evader rolls Speed as their choice is revealed; the roll sets the penalty to ranged attacks at them this round. */
+function evade(settling: Settling, combatant: Combatant, state: CombatState, records: CombatRecords, context: SettleContext): Settling {
+  const evasion = rollEvasion(combatant, combatSheetOf(records, combatant), { fightId: context.command.envelope.fightId, round: state.round }, context.entropy)
+  return { ...settling, evasions: new Map(settling.evasions).set(combatant.key, evasion), logs: [...settling.logs, evasionLog(combatant, evasion)] }
+}
+
+type SettleContext = { command: CombatCommand; entropy: CombatEntropy }
+
 /** Each choice is revealed in initiative order; a pickup is settled against what is left when its turn comes. */
-function settleOne(settling: Settling, combatant: Combatant, state: CombatState, records: CombatRecords, command: CombatCommand): Settling {
+function settleOne(settling: Settling, combatant: Combatant, state: CombatState, records: CombatRecords, context: SettleContext): Settling {
   const { choice, pickup } = combatant.movement!
+  const command = context.command
+  if (choice === 'evade') return evade(settling, combatant, state, records, context)
   if (!pickup) return { ...settling, logs: [...settling.logs, { event: REVEALED[choice](combatant.name), actor: combatant.key }] }
   // A claim names a record that was on the Floor when it was confirmed, and nothing but settlement takes from the Floor during Movement.
   const item = state.floor.find((entry) => entry.item.id === pickup.itemId)!.item.name
@@ -49,6 +61,10 @@ function closed(combatant: Combatant): Combatant {
   return choice === 'run' ? { ...combatant, declaration: RAN } : combatant
 }
 
+/** An evader keeps their Speed roll on their Movement for the rest of the round. */
+const withEvasion = (combatant: Combatant, evasion: CombatEvasion | undefined): Combatant =>
+  (evasion ? { ...combatant, movement: { ...combatant.movement!, evasion } } : combatant)
+
 function requireSettleable(state: CombatState) {
   if (state.phase !== 'movement' || !state.movementComplete) throw new Error('Movement is not ready to settle.')
 }
@@ -60,9 +76,9 @@ const settleMovement: CombatHandler = (command, records, authority, entropy) => 
   requireGm(authority)
   const fight = requireLiveContext(command, records, authority)
   requireSettleable(fight.state)
-  const start: Settling = { floor: fight.state.floor, sheets: [], logs: [] }
-  const settled = moversInOrder(fight.state).reduce((settling, combatant) => settleOne(settling, combatant, fight.state, records, command), start)
-  const combatants = fight.state.combatants.map(closed)
+  const start: Settling = { floor: fight.state.floor, sheets: [], logs: [], evasions: new Map() }
+  const settled = moversInOrder(fight.state).reduce((settling, combatant) => settleOne(settling, combatant, fight.state, records, { command, entropy }), start)
+  const combatants = fight.state.combatants.map((entry) => withEvasion(closed(entry), settled.evasions.get(entry.key)))
   const declaring: CombatState = { ...fight.state, combatants, floor: settled.floor, phase: 'declare', stageInstanceId: entropy.id('stage', 0), movementComplete: false, lastAttack: null }
   const next = withDeclareRequests(declaring, entropy)
   return { fight: { ...fight, state: next.state }, items: [], logs: [...settled.logs, { event: `Round ${fight.state.round}, Declare. Slowest first.`, actor: null }, ...next.logs], sheets: settled.sheets }

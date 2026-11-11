@@ -1,0 +1,23 @@
+.shell-root[data-theme="lubec"] .declaration-review-modal {
+  width: min(52rem, calc(100vw - 2rem));
+  max-width: none;
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: auto;
+  box-shadow: 0 24px 64px rgba(7, 20, 23, 0.45);
+}
+
+.shell-root[data-theme="lubec"] .declaration-review-modal::backdrop {
+  background: rgba(7, 20, 23, 0.65);
+}
+
+.shell-root[data-theme="lubec"] .declaration-review-modal .lubec-combat {
+  min-height: 0;
+  padding: 0;
+}
+
+.shell-root[data-theme="lubec"] .declaration-review-modal .lubec-combat > * {
+  margin: 0;
+}

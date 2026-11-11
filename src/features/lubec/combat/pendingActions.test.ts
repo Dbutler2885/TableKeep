@@ -17,7 +17,7 @@ describe('pending combat action authority', () => {
     expect(pendingCombatActions(state(action), null, 'stranger')).toEqual([])
     expect(combatActionText(pendingCombatActions(state(action), 'player', 'player')[0])).toMatch(/^Wayne: .+/)
   })
-  it.each(['leave', 'range'] as const)('sends %s to the GM even for a player actor', (action) => {
+  it.each(['leave', 'range', 'reviewDeclaration'] as const)('sends %s to the GM even for a player actor', (action) => {
     expect(pendingCombatActions(state(action), 'player', 'player')).toEqual([])
     expect(pendingCombatActions(state(action), 'gm', 'gm').map(({ name }) => name)).toEqual(['Wayne', 'Joseph', 'Dottie', 'Roy'])
   })
@@ -37,6 +37,7 @@ describe('turn notice wording', () => {
     expect(combatActionNotice({ ...a, kind: 'npc' }, 2, 'gm')).toBe("It is Roy Carver (NPC)'s turn to attack.")
     expect(combatActionNotice({ ...a, action: 'leave' }, 1, 'gm')).toBe('Roy Carver asks to Leave.')
     expect(combatActionNotice({ ...a, action: 'range' }, 1, 'gm')).toBe('Declare range for Roy Carver.')
+    expect(combatActionNotice({ ...a, action: 'reviewDeclaration' }, 1, 'gm')).toBe("Review Roy Carver's declaration.")
   })
 
   it('names Before initiative rather than a round 0 for a granted Sneak Attack', () => {

@@ -109,15 +109,50 @@ const progressSteps = () => [...document.querySelectorAll('[aria-label="Result"]
 describe('attack-specific result progress', () => {
   it('ends a missed melee attack at Attack without offering irrelevant steps', () => {
     show('player', 'wayne-uid', fightAfter(...hit(90, slashAt)))
-    expect(progressSteps()).toEqual(['1Attack'])
+    expect(progressSteps()).toEqual(['1Attack', '2Results'])
     expect(document.querySelectorAll('[aria-label="Result"] .section-head .stepper li.done')).toHaveLength(1)
-    expect(document.querySelector('[aria-label="Result"] .section-head .stepper li.now')).toBeNull()
+    expect(document.querySelector('[aria-label="Result"] .section-head .stepper li.now')?.textContent).toBe('2Results')
   })
 
   it('shows the location reached by a melee hit without a catch stage', () => {
     show('player', 'wayne-uid', fightAfter(...landed(slashAt)))
-    expect(progressSteps()).toEqual(['1Attack', '2Defense', '3Location'])
+    expect(progressSteps()).toEqual(['1Attack', '2Defense', '3Location', '4Results'])
     expect(document.querySelector('[aria-label="Result"] .section-head .stepper li.now')?.textContent).toBe('3Location')
+  })
+
+  it('collapses completed rolls while keeping the location decision expanded and earlier details accessible', () => {
+    show('player', 'wayne-uid', fightAfter(...landed(slashAt)))
+    const earlier = [...document.querySelectorAll<HTMLDetailsElement>('.seq > details.completed')]
+    expect(earlier).toHaveLength(2)
+    expect(earlier.every((step) => !step.open)).toBe(true)
+    expect(earlier[0].querySelector('summary')?.textContent).toContain('27 / 46 · A hit. Attack Quality 2.')
+    expect(document.querySelector('.seq > .st.active > .sh')?.textContent).toContain('Where it lands')
+    expect(button('Hit the torso')).toBeTruthy()
+    fireEvent.click(earlier[0].querySelector('summary')!)
+    expect(earlier[0].open).toBe(true)
+    expect(within(earlier[0]).getByText('A hit. Attack Quality 2.')).toBeTruthy()
+    expect(within(earlier[0]).queryByRole('button', { name: 'Roll' })).toBeNull()
+    fireEvent.click(earlier[0].querySelector('summary')!)
+    expect(earlier[0].open).toBe(false)
+  })
+
+  it('shows other players the shared landing without the attacker\'s location controls, then the committed location', () => {
+    show('player', 'marcy-uid', fightAfter(...landed()))
+    expect(screen.getByRole('group', { name: 'Current attack' }).textContent).toContain('Wayne Gardner→TargetRoy Carver')
+    expect(screen.getByText("It lands on Roy Carver's waist.")).toBeTruthy()
+    expect(screen.getByText('Waiting for Wayne Gardner to roll')).toBeTruthy()
+    expect(document.querySelector('.doll-step .cross')).toBeTruthy()
+    const doll = screen.getByRole('radiogroup', { name: 'Where it lands' })
+    expect(within(doll).getAllByRole('radio').every((part) => part.getAttribute('aria-disabled') === 'true' && part.getAttribute('tabindex') === '-1')).toBe(true)
+    fireEvent.click(within(doll).getByRole('radio', { name: 'Waist: quality 2' }))
+    expect(sentOf('land')).toEqual([])
+    expect(screen.queryByRole('button', { name: /^Hit the/ })).toBeNull()
+    cleanup()
+    show('player', 'marcy-uid', fightAfter(...landed(), { type: 'land', actor: WAYNE, part: 'torso' }))
+    expect(document.querySelector('.st.completed .step-result')?.textContent).toContain('27 / 61')
+    expect(screen.getByText('Hits the torso.')).toBeTruthy()
+    expect(document.querySelector('.st.active .sh')?.textContent).toContain('The wound')
+    expect(screen.queryByRole('button', { name: /^Hit the/ })).toBeNull()
   })
 })
 
@@ -197,7 +232,7 @@ describe('the catch', () => {
 
   it('shows the GM why Roy may catch, the chance built from its parts, and sends the roll', async () => {
     show('gm', 'gm', stopped())
-    expect(progressSteps()).toEqual(['1Attack', '2Defense', '3Catch'])
+    expect(progressSteps()).toEqual(['1Attack', '2Defense', '3Catch', '4Results'])
     expect(document.querySelector('[aria-label="Result"] .section-head .stepper li.now')?.textContent).toBe('3Catch')
     expect(screen.getByText('Defense holds. It takes off 1 + 1 = 2.')).toBeTruthy()
     expect(screen.getByText(/Below 0\./).closest('p')!.textContent).toContain('That is 1 below 0.')
@@ -252,7 +287,7 @@ describe('the doll, Strength and the wound', () => {
     attack.row = { ...attack.row!, impact: 6 }
     show('player', 'wayne-uid', live)
     expect(screen.getByText('Blunt · Torso and waist · Impact 6+')).toBeTruthy()
-    expect(screen.queryByText(/^Dodgeball ·/)).toBeNull()
+    expect(document.querySelector('.wound .wh')!.textContent).not.toMatch(/^Dodgeball/)
   })
 
   it('lets Wayne keep or move the hit within reach and sends where it hits', async () => {
@@ -311,10 +346,18 @@ describe('the doll, Strength and the wound', () => {
     expect(screen.getByText('Impact -7: a hit with no effect.')).toBeTruthy()
   })
 
-  it('leaves a table not wired yet for the GM to record', () => {
+  it('reads a located table: the wound box says where and how bad, and Results show the wound bound for the sheet', () => {
     show('gm', 'gm', fightAfter(...landed(slashAt), { type: 'land', actor: WAYNE, part: 'torso' }, { type: 'strength', actor: WAYNE, dice: { strength: 10 } }))
-    expect(screen.getByRole('heading', { name: 'The GM records this wound' }).nextSibling!.textContent).toBe('Cutting table, torso, Impact 4.')
-    expect(screen.getByText(/The GM records this wound on Roy Carver's sheet\./)).toBeTruthy()
+    expect(document.querySelector('.wound .wh')!.textContent).toBe('Cutting · Torso · Impact 4Serious Trauma +1')
+    const results = screen.getByRole('region', { name: 'Results' })
+    expect(within(results).getByRole('heading', { level: 3 }).textContent).toBe('Roy Carver: Serious wound')
+    // A melee wound's words appear once, in the wound panel, not again under the headline.
+    expect(results.querySelector('.results-head p')).toBeNull()
+    expect([...results.querySelectorAll('.results-facts > div')].map((fact) => fact.textContent)).toEqual(['WhoWayne Gardner → Roy Carver', 'WithKnife · Slash', 'WhereTorso', 'How hardImpact 4 on Cutting'])
+    expect(within(results).getByRole('heading', { level: 4 }).textContent).toBe('Long chest cut')
+    expect(results.querySelector('.results-wound')!.className).toBe('results-wound se')
+    expect([...results.querySelectorAll('.results-parts > div')].map((part) => part.textContent)).toEqual(['What it doesBleeding timer.'])
+    expect(within(results).getByText("Goes on Roy Carver's sheet next round.")).toBeTruthy()
   })
 
   it('marks a small part\'s landing with the small crosshair', () => {
@@ -331,7 +374,8 @@ describe('the doll, Strength and the wound', () => {
   })
 
   it('takes a firearm\'s hit straight to Impact, with no Strength roll', () => {
-    const gun: LubecItem = { id: 'gun', kind: 'weapon', mode: 'firearm', name: 'Revolver', carrier: 'hands', slot: 1, size: 1, qty: 1, weight: 'normal', note: '', impact: 2, capacity: 6, loaded: 1 }
+    // A table the app has no rows for still goes to the GM to record.
+    const gun: LubecItem = { id: 'gun', kind: 'weapon', mode: 'firearm', name: 'Revolver', carrier: 'hands', slot: 1, size: 1, qty: 1, weight: 'normal', note: '', impact: 2, capacity: 6, loaded: 1, table: 'homebrew' }
     mocks.roster = { characters: [kid('wayne', 'Wayne Gardner', 'wayne-uid', [ball, gun])], npcs: [] }
     const shoot = { targetKey: ROY, weaponItemId: 'gun', attackId: 'shoot', defense: null }
     const sheets = [sheetOf(kid('wayne', 'Wayne Gardner', 'wayne-uid', [ball, gun]), 'character'), sheetOf(royRecord(), 'npc')]
@@ -344,10 +388,10 @@ describe('the doll, Strength and the wound', () => {
       records = { ...records, activeFightId: 'fight', fight: planCombatCommand(command, records, { userId: 'gm', isGm: true }, undefined, { ...entropy, die: (purpose, sides) => dice[purpose] ?? entropy.die(purpose, sides) }).fight }
     })
     show('player', 'wayne-uid', { id: 'fight', fight: records.fight! })
-    expect(progressSteps()).toEqual(['1Attack', '2Location', '3Wound'])
+    expect(progressSteps()).toEqual(['1Attack', '2Location', '3Wound', '4Results'])
     expect(screen.queryByText(/Strength roll/)).toBeNull()
     expect([...document.querySelectorAll('.impact:not(.roll-chips) .chip dt')].map((term) => term.textContent)).toEqual(['Quality', 'Base', 'Moved', 'Impact'])
-    expect(screen.getByRole('heading', { name: 'The GM records this wound' }).nextSibling!.textContent).toBe('Gunshot table, waist, Impact 3.')
+    expect(screen.getByRole('heading', { name: 'The GM records this wound' }).nextSibling!.textContent).toBe('homebrew table, waist, Impact 3.')
   })
 
   it('waits on the GM for an NPC attacker\'s Strength, and on a sheet the viewer has not read', () => {

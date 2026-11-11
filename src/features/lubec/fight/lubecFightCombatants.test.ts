@@ -133,8 +133,11 @@ describe('reading a request', () => {
     expect(lubecLiveRequest({ attacker: a, target: null }, [a]).target).toBeNull()
   })
 
-  it('offers everyone but the attacker, with the request\'s own target first', () => {
-    expect(lubecTargetChoices({ attacker: a, target: stub }, [a, b, loaded]).map(lubecCombatantKey)).toEqual(['npc:rene', 'character:b'])
+  it('keeps host order when a target is selected, retains its reading, and appends an absent target', () => {
+    const choices = lubecTargetChoices({ attacker: a, target: stub }, [a, b, loaded])
+    expect(choices.map(lubecCombatantKey)).toEqual(['character:b', 'npc:rene'])
+    expect(choices[1]).toBe(stub)
+    expect(lubecTargetChoices({ attacker: a, target: stub }, [a, b]).map(lubecCombatantKey)).toEqual(['character:b', 'npc:rene'])
     expect(lubecTargetChoices({ attacker: a, target: null }, [a, b]).map(lubecCombatantKey)).toEqual(['character:b'])
   })
 

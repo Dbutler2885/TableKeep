@@ -15,6 +15,7 @@ import { attackCommands } from './attackCommands'
 import { useLubecCombatSend, type CombatSend } from '../useLubecCombatSend'
 import { CombatEnded, CombatEndConfirm } from './CombatEnd'
 import { CombatGmTools, type CombatGmTool } from './CombatGmTools'
+import { CombatItemPicker } from './CombatItemPicker'
 import { CombatHead } from './CombatParts'
 import { NO_ROSTER, type CombatRosterRecords } from './combatFightCombatants'
 import { CombatPhaseMiddle } from './CombatPhaseMiddle'
@@ -30,18 +31,18 @@ import { combatFloorSelections, type CombatSetupIssue } from './combatSetupModel
 import { useCombatGmData } from './useCombatGmData'
 import './lubecCombat.css'
 
-type LayoutProps = { state: CombatState; userId: string; role?: CombatViewer['role']; stage?: string; tools?: ReactNode; middle: ReactNode; onPlace?: (() => void) | null; hands?: readonly string[] }
+type LayoutProps = { state: CombatState; userId: string; role?: CombatViewer['role']; stage?: string; tools?: ReactNode; middle: ReactNode; onPlace?: (() => void) | null; hands?: readonly string[]; headerActions?: ReactNode; onOut?: (combatant: Combatant) => void; placement?: ReactNode }
 
 /** The live tab: everyone in the fight on the left, what to do now in the middle, the declarations and the Floor on the right. */
-function CombatLayout({ state, userId, role = 'gm', stage, tools = null, middle, onPlace = null, hands = [] }: LayoutProps) {
+function CombatLayout({ state, userId, role = 'gm', stage, tools = null, middle, onPlace = null, hands = [], headerActions, onOut, placement }: LayoutProps) {
   const view = combatPhaseView(state)
   return (
     <>
-      <CombatHead round={view.round} stage={stage ?? view.stage} pips={view.pips} />
+      <CombatHead round={view.round} stage={stage ?? view.stage} pips={view.pips} actions={headerActions} />
       <div className="ct">
-        <div className="rail"><TurnOrderPanel state={state} userId={userId} /></div>
+        <div className="rail"><TurnOrderPanel state={state} userId={userId} onOut={onOut} /></div>
         <div className="mid">{tools}{middle}</div>
-        <div className="rail"><DeclarationsPanel state={state} viewer={{ role, userId, actingFor: null }} /><CombatFloorPanel floor={state.floor} onPlace={onPlace} hands={hands} /></div>
+        <div className="rail"><DeclarationsPanel state={state} viewer={{ role, userId, actingFor: null }} /><CombatFloorPanel floor={state.floor} onPlace={onPlace} hands={hands} placement={placement} /></div>
         <CombatTicker />
       </div>
     </>
@@ -56,7 +57,7 @@ function gmCommands(scope: CampaignScope, send: CombatSend, items: readonly Lube
     refusalOf(await send(gmCommandKey(fight, payload), () => createCombatCommand(gmEnvelope(scope, crypto.randomUUID(), fight), payload)))
   return {
     start: async (setup: CombatSetupStart) => {
-      const payload = { type: 'start', combatants: setup.combatants, floor: combatFloorSelections(setup.floor, items), requireBody: true }
+      const payload = { type: 'start', combatants: setup.combatants, floor: combatFloorSelections(setup.floor, items), allies: setup.allies, requireBody: true }
       return refusalOf(await send(JSON.stringify(payload), () => createCombatCommand(startEnvelope(scope, crypto.randomUUID(), crypto.randomUUID()), payload)))
     },
     place: (fight: LubecLiveFight, item: LubecGmItem, qty: number) =>
@@ -86,13 +87,13 @@ function useGmCombat({ campaign, userId, setError }: GmProps) {
   return { commands, repair, data, send }
 }
 
-type ClosingProps = { shown: Closing; userId: string; onEnd: () => Promise<string | null>; onPlaceInstead: () => void }
+type ClosingProps = { shown: Closing; userId: string; onEnd: () => Promise<string | null>; onPlaceInstead: () => void; onCancel: () => void; onNew: (() => void) | null }
 
 /** Moment 12: the End confirmation, then its result once End has committed. */
-function CombatClosing({ shown, userId, onEnd, onPlaceInstead }: ClosingProps) {
+function CombatClosing({ shown, userId, onEnd, onPlaceInstead, onCancel, onNew }: ClosingProps) {
   const { state } = shown.live.fight
-  if (shown.done) return <CombatLayout state={state} userId={userId} stage="Ending" middle={<CombatEnded state={state} />} />
-  return <CombatLayout state={state} userId={userId} stage="Ending" middle={<CombatEndConfirm state={state} onEnd={onEnd} />} onPlace={onPlaceInstead} />
+  if (shown.done) return <CombatLayout state={state} userId={userId} stage="Ending" middle={<CombatEnded state={state} onNew={onNew} />} />
+  return <CombatLayout state={state} userId={userId} stage="Ending" middle={<CombatEndConfirm state={state} onEnd={onEnd} onCancel={onCancel} />} onPlace={onPlaceInstead} />
 }
 
 type ActingFor = { attackId: string | null; stage: string; key: string }
@@ -140,9 +141,11 @@ function CombatGmLive({ campaign, live, userId, roster, send, tool, onTool, item
   const viewer = { role: 'gm' as const, userId, actingFor: actingNow(actingFor, attackId, state.stageInstanceId) }
   const actFor = (key: string) => setActingFor({ attackId, stage: state.stageInstanceId, key })
   const people = useOutTool(campaign, live, send, setError)
-  const tools = <CombatGmTools tool={tool} onTool={onTool} items={items} placing={placing} onPlace={(item, qty) => void placeOnFloor(item, qty)} onEnd={onEnd} combatants={state.combatants} actingFor={viewer.actingFor} onActFor={actFor} onOut={people} />
+  const tools = <CombatGmTools tool={tool} onTool={onTool} combatants={state.combatants} actingFor={viewer.actingFor} onActFor={actFor} onStopActing={() => setActingFor(null)} />
   const middle = <CombatPhaseMiddle campaign={campaign} live={live} viewer={viewer} roster={roster} send={send} onActFor={actFor} />
-  return <CombatLayout state={state} userId={userId} tools={tools} middle={middle} onPlace={() => onTool('place')} />
+  const placement = tool === 'place' ? <div className="floor-placement"><CombatItemPicker items={items} onPlace={(item, qty) => void placeOnFloor(item, qty)} withCount busy={placing} /><button type="button" className="btn line small" disabled={placing} onClick={() => onTool('')}>Cancel placement</button></div> : null
+  const endButton = <button type="button" className="btn line small end-combat" onClick={onEnd}>End combat</button>
+  return <CombatLayout state={state} userId={userId} tools={tools} middle={middle} onPlace={() => onTool('place')} placement={placement} onOut={people} headerActions={endButton} />
 }
 
 /** The GM's tab: set up a fight, run Before initiative and place items, and end it. */
@@ -158,7 +161,9 @@ function CombatGm(props: GmProps) {
       if (!refusal) setClosing({ live: shown.live, done: true })
       return refusal
     }
-    return <CombatClosing shown={shown} userId={props.userId} onEnd={end} onPlaceInstead={() => { setClosing(null); setTool('place') }} />
+    // Setup opens once the watch has dropped the ended fight, so the old fight can never reappear behind it.
+    const onNew = live ? null : () => setClosing(null)
+    return <CombatClosing shown={shown} userId={props.userId} onEnd={end} onPlaceInstead={() => { setClosing(null); setTool('place') }} onCancel={() => setClosing(null)} onNew={onNew} />
   }
   if (!live) return <CombatSetup {...data} onStart={commands.start} onRepair={repair} />
   return (

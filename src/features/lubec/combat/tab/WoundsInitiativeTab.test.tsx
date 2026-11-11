@@ -112,7 +112,7 @@ describe('a Dodgeball row\'s Check or Save', () => {
   it('asks the GM to roll Roy\'s Body Save on Bell rung, with the row in view, and sends it', async () => {
     show('gm', 'gm', fightAfter(...rowAt(60, 5, 4, 99)))
     expect(document.querySelector('[aria-label="Result"] .stepper .now')?.textContent).toBe('5Body Save')
-    expect([...document.querySelectorAll('[aria-label="Result"] .stepper li')].map((step) => step.textContent)).toEqual(['1Attack', '2Defense', '3Location', '4Wound', '5Body Save'])
+    expect([...document.querySelectorAll('[aria-label="Result"] .stepper li')].map((step) => step.textContent)).toEqual(['1Attack', '2Defense', '3Location', '4Wound', '5Body Save', '6Results'])
     expect(screen.getByText('Dodgeball · Head and neck · Impact 6')).toBeTruthy()
     expect(screen.getByText('Serious')).toBeTruthy()
     expect(screen.getByText('Trauma +1')).toBeTruthy()
@@ -128,7 +128,9 @@ describe('a Dodgeball row\'s Check or Save', () => {
     cleanup()
     show('player', 'wayne-uid', fightAfter(...rowAt(60, 5, 4, 99), { type: 'check', actor: ROY, dice: { check: 99 } }))
     expect(screen.getByText(/^Failure\. 99 is over/)).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Roy Carver is Out' }).nextSibling!.textContent).toBe('Bell rung: Minor Concussion, which is Dazed and -10 Handle until a Long Rest. The dodgeball lands on the Floor.')
+    // The wound's words are in the panel below, so the headline's line keeps only where the ball went.
+    expect(screen.getByRole('heading', { name: 'Roy Carver is Out' }).nextSibling!.textContent).toBe('The dodgeball lands on the Floor.')
+    expect([...document.querySelectorAll('.results-parts > div')].map((part) => part.textContent)).toEqual(['What it doesMinor Concussion, which is Dazed and -10 Handle until a Long Rest.'])
     expect(screen.getAllByText('Out', { selector: '.badge' })).toHaveLength(1)
   })
 
@@ -170,8 +172,11 @@ describe('a Dodgeball row\'s Check or Save', () => {
   it('puts both out on a Headshot, and shows a Minor row with no Trauma', () => {
     show('player', 'marcy-uid', fightAfter(...rowAt(30, 5, 4, 99)))
     expect(screen.getByRole('heading', { name: 'Roy Carver and Wayne Gardner are Out' })).toBeTruthy()
-    expect(screen.getByText('Minor')).toBeTruthy()
-    expect(screen.getByText('Trauma 0')).toBeTruthy()
+    const wound = document.querySelector('.results-wound')!
+    expect(wound.className).toBe('results-wound mi')
+    expect(within(wound as HTMLElement).getByText('Minor')).toBeTruthy()
+    expect(within(wound as HTMLElement).getByText('Trauma 0')).toBeTruthy()
+    expect(within(wound as HTMLElement).getByText('Out of the fight')).toBeTruthy()
   })
 })
 

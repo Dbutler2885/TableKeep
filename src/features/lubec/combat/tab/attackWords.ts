@@ -1,20 +1,31 @@
 import type { Role } from '../../../../types/app'
 import type { LubecRangeBand, LubecWeaponRange } from '../../../ruleSets/lubec/gear/gearRecord'
 import { combatBandName, combatSigned } from '../engine/attackAim'
-import type { CombatAim, CombatAttack, CombatAttackRoll, Combatant, CombatFrozenAim, CombatState } from '../engine/types'
+import { evasionFor } from '../engine/evasion'
+import type { CombatAim, CombatAttack, CombatAttackRoll, Combatant, CombatEvasion, CombatFrozenAim, CombatState } from '../engine/types'
 import { rollText } from './attackDraft'
 
 /** A combatant's name as the fight publishes it. */
 export const combatantName = (state: CombatState, key: string | undefined) => state.combatants.find((entry) => entry.key === key)?.name ?? ''
 
+/** "−20 to hit: Speed 23 under 52." What a target's Evasive Movement took off a ranged attack, and the roll that earned it. */
+export const evasionWords = (evasion: CombatEvasion): string => `−${evasion.penalty} to hit: Speed ${String(evasion.roll).padStart(2, '0')} under ${evasion.speed}.`
+
+/** "Dodgeball · Throw", or just "Punch" when an unarmed attack and its weapon share the name. */
+export const pairWords = (first: string, second: string): string => (first === second ? first : `${first} · ${second}`)
+
 /** "Throw with Dodgeball at Roy Carver. ATK 36; Defense 20 against Roy Carver." from what the table holds. */
 const defenseWords = (state: CombatState, defense: CombatAim['defense']): string =>
   (defense ? `; Defense ${defense.amount} against ${combatantName(state, defense.against)}` : '')
 
+/** The number the Roll will be made against: the frozen attack, the GM's range, and the target's Evasive Movement. */
+const rollNumber = (state: CombatState, aim: CombatAim, frozen: CombatFrozenAim, range: CombatAttack['range']): number =>
+  frozen.attack + (range?.modifier ?? 0) - (evasionFor(state, aim.targetKey, frozen.choice)?.penalty ?? 0)
+
 export function attackLine(state: CombatState, attack: CombatAttack): string {
   const { aim, frozen } = attack
   if (!aim || !frozen) return 'Choosing a target and a weapon.'
-  const number = frozen.attack + (attack.range?.modifier ?? 0)
+  const number = rollNumber(state, aim, frozen, attack.range)
   return `${frozen.choice.name} with ${frozen.weaponName} at ${combatantName(state, aim.targetKey)}. ATK ${number}${defenseWords(state, aim.defense)}.`
 }
 
@@ -59,5 +70,5 @@ export function missWords(attacker: string, frozen: CombatFrozenAim): string {
 /** What follows a result: more cards while it runs; then the next turn, or before initiative the GM's next grant. */
 export function resultFoot(attack: CombatAttack, round: number): string {
   if (!attack.closed) return 'Every roll lands on every screen as a card, then settles into the ticker.'
-  return round ? 'The next turn opens by itself.' : 'The GM may grant another Sneak Attack, or roll initiative.'
+  return round ? 'The GM moves the fight on from here.' : 'The GM may grant another Sneak Attack, or roll initiative.'
 }

@@ -12,5 +12,5 @@ export type CombatRoll = {
 export type CombatLog = { event: string; actor: string | null; roll?: CombatRoll }
 
 /** Engine-owned requests. Later phase handlers publish these with their state change. */
-export type CombatAction = 'initiative' | 'movement' | 'declare' | 'attack' | 'defense' | 'catch' | 'check' | 'save' | 'location' | 'strength' | 'leave' | 'range'
+export type CombatAction = 'initiative' | 'movement' | 'declare' | 'reviewDeclaration' | 'attack' | 'defense' | 'catch' | 'check' | 'save' | 'location' | 'strength' | 'leave' | 'range'
 export type CombatPendingAction = { combatantKey: string; action: CombatAction }

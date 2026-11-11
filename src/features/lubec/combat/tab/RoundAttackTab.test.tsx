@@ -57,14 +57,14 @@ const sheetOf = (record: ReturnType<typeof kid>, kind: 'character' | 'npc'): Com
   ({ kind, sheetId: record.id, name: record.name, ownerUserId: record.ownerUserId, portraitPath: '', sheet: record.lubec, revision: 1 })
 const royNpc = { id: 'roy', name: 'Roy Carver', portraitUrl: null, portraitFocusX: 50, portraitFocusY: 50, tokenIcon: { icon: 'pawn', color: '#555555', size: 34 } } as NpcRecord
 
-type Step = { type: string; actor?: string | null; dice?: Record<string, number>; [key: string]: unknown }
+type Step = { type: string; actor?: string | null; awaitReview?: boolean; dice?: Record<string, number>; [key: string]: unknown }
 
 /** A fight played through the engine with each purpose's die scripted. */
 function fightAfter(...steps: Step[]): LubecLiveFight {
   const sheets = [sheetOf(currentWayne(), 'character'), sheetOf(royRecord(), 'npc')]
   let records: CombatRecords = { activeFightId: null, fight: null, sheets, items: new Map() }
   const all: Step[] = [{ type: 'start', combatants: [{ kind: 'character', sheetId: 'wayne' }, { kind: 'npc', sheetId: 'roy' }], floor: [], dodgeball: true }, ...steps]
-  all.forEach(({ actor = null, dice = {}, ...payload }, index) => {
+  all.forEach(({ actor = null, dice = {}, awaitReview = false, ...payload }, index) => {
     const state = records.fight?.state
     const command: CombatCommand = {
       envelope: { id: `step-${index}`, groupId: 'school', campaignId: 'gym', fightId: 'fight', round: state?.round ?? 0, phase: state?.phase ?? 'setup', stageInstanceId: state?.stageInstanceId ?? 'setup', actorKey: actor, interactionSequence: state?.combatants.find((entry) => entry.key === actor)?.interactionSequence ?? 0 },
@@ -73,6 +73,12 @@ function fightAfter(...steps: Step[]): LubecLiveFight {
     const entropy = combatEntropy(command)
     const scripted = { ...entropy, die: (purpose: string, sides: number) => dice[purpose] ?? entropy.die(purpose, sides) }
     records = { ...records, activeFightId: 'fight', fight: planCombatCommand(command, records, { userId: 'gm', isGm: true }, undefined, scripted).fight }
+    // Ordinary fixtures include GM approval; review-specific cases stop at submission.
+    if (payload.type === 'declare' && actor?.startsWith('character:') && !awaitReview) {
+      const current = records.fight!.state
+      const approval: CombatCommand = { ...command, envelope: { ...command.envelope, id: `approval-${index}`, actorKey: null, interactionSequence: 0, stageInstanceId: current.stageInstanceId }, payload: { type: 'answerDeclaration', combatantKey: actor, approve: true } }
+      records = { ...records, fight: planCombatCommand(approval, records, { userId: 'gm', isGm: true }).fight }
+    }
     if (index === 0) records.fight!.state.floor = [floorBall()]
   })
   return { id: 'fight', fight: records.fight! }
@@ -92,7 +98,8 @@ const attacking: Step[] = [
 ]
 const range: Step = { type: 'range', band: 'medium', modifier: 0 }
 /** Roy misses: Wayne's turn opens, Roy's miss still in view. */
-const wayneTurn: Step[] = [...attacking, range, { type: 'roll', actor: ROY, aim: royThrow, dice: { attack: 99 } }]
+const royMissed: Step[] = [...attacking, range, { type: 'roll', actor: ROY, aim: royThrow, dice: { attack: 99 } }]
+const wayneTurn: Step[] = [...royMissed, { type: 'continue' }]
 
 const show = (role: Role, userId: string, live: LubecLiveFight) => render(
   <MemoryRouter initialEntries={['/groups/school/campaigns/gym/combat']}>
@@ -113,10 +120,34 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('a declared attack on its turn', () => {
+  it('keeps a declared kick selected and rolls it instead of offering an invalid punch', async () => {
+    currentWayne = () => kid('wayne', 'Wayne Gardner', 'wayne-uid', [])
+    mocks.roster.characters = [currentWayne()]
+    const kick = { targetKey: ROY, weaponItemId: 'fisticuffs', attackId: 'kick', defense: null }
+    const steps: Step[] = [...rolled, { type: 'move', actor: WAYNE, ...stay }, { type: 'npcMovement', choices: { [ROY]: stay } }, { type: 'settleMovement' },
+      { type: 'declare', actor: WAYNE, aim: kick }, { type: 'declare', actor: ROY, full: true, against: WAYNE }]
+    show('player', 'wayne-uid', fightAfter(...steps))
+    const punch = screen.getByRole('radio', { name: /^Punch/ }) as HTMLButtonElement
+    const selectedKick = screen.getByRole('radio', { name: /^Kick/ }) as HTMLButtonElement
+    expect(punch.disabled).toBe(true)
+    expect(selectedKick.disabled).toBe(true)
+    expect(selectedKick.getAttribute('aria-checked')).toBe('true')
+    expect((screen.getByRole('radio', { name: /^Roy Carver/ }) as HTMLButtonElement).disabled).toBe(true)
+    expect((button(/Left hand/) as HTMLButtonElement).disabled).toBe(true)
+    expect((button('Inventory') as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(punch)
+    fireEvent.click(button('Roll'))
+    await waitFor(() => expect(sentOf('roll')[0].payload).toEqual({ type: 'roll', aim: kick }))
+    expect(sentOf('aim')).toHaveLength(0)
+  })
+
   it('locks the declared split for the attacker, with Roll live once the GM ranges it', async () => {
     show('player', 'wayne-uid', fightAfter(...wayneTurn, range))
-    expect(screen.getByText('Stage 3, Attack')).toBeTruthy()
-    expect(screen.getByText('Your declared split is locked. Only Roll is left.')).toBeTruthy()
+    expect(screen.getByText('Round 1 · Stage 3, Attack')).toBeTruthy()
+    const matchup = screen.getByRole('group', { name: 'Current attack' })
+    expect(matchup.querySelector('.matchup-attacker')?.textContent).toBe('AttackerWayne Gardner')
+    expect(matchup.querySelector('.matchup-target')?.textContent).toBe('TargetRoy Carver')
+    expect(screen.getByText('Your declared attack and split are locked. Roll when ready; choose again only if your target or weapon has gone.')).toBeTruthy()
     expect(document.querySelector('.defense-lines b')!.textContent).toBe('Roy Carver')
     expect(screen.queryByRole('button', { name: 'Add a Defense line' })).toBeNull()
     expect((document.querySelector('.divider') as HTMLButtonElement).disabled).toBe(true)
@@ -134,6 +165,8 @@ describe('a declared attack on its turn', () => {
     expect(document.querySelector('.defense-lines')).toBeNull()
     fireEvent.click(button('Roll'))
     expect(await screen.findByText('That attack step is stale.')).toBeTruthy()
+    const alert = screen.getByRole('alert')
+    expect(alert.nextElementSibling?.classList.contains('ask-row')).toBe(true)
   })
 
   it('rolls a Full Defense line at +10', () => {
@@ -149,6 +182,7 @@ describe('a declared attack on its turn', () => {
     expect((button('Roll') as HTMLButtonElement).disabled).toBe(true)
     cleanup()
     show('gm', 'gm', fightAfter(...wayneTurn))
+    expect(screen.getByRole('group', { name: 'Current attack' }).textContent).toContain('Wayne Gardner→TargetRoy Carver')
     expect(screen.getByText('Stage 3, Attack, fastest first')).toBeTruthy()
     expect(screen.getByText('Declare the range')).toBeTruthy()
     expect(button('Away from the table? Roll for Wayne Gardner')).toBeTruthy()
@@ -157,17 +191,20 @@ describe('a declared attack on its turn', () => {
   it('tells everyone else who the fight is waiting on, and whether they are next', () => {
     show('player', 'wayne-uid', fightAfter(...attacking, range))
     expect(screen.getByText('The fight is waiting on Roy Carver')).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Current attack' }).textContent).toContain('Roy Carver→TargetWayne Gardner')
     expect(screen.getByText('Roy Carver is about to throw at Wayne Gardner. You are next.')).toBeTruthy()
     expect(screen.getByText('Your declaration')).toBeTruthy()
     cleanup()
     show('player', 'marcy-uid', fightAfter(...attacking))
     expect(screen.getByText('The fight is waiting on the GM')).toBeTruthy()
+    expect(screen.getByRole('group', { name: 'Current attack' }).textContent).toContain('Roy Carver→TargetWayne Gardner')
     expect(screen.getByText('Roy Carver is about to throw at Wayne Gardner.')).toBeTruthy()
   })
 
   it('has the defender roll the declared line, with no split to choose', async () => {
     const hit = fightAfter(...attacking, range, { type: 'roll', actor: ROY, aim: royThrow, dice: { attack: 10 } })
     show('player', 'wayne-uid', hit)
+    expect(screen.getByRole('group', { name: 'Current attack' }).textContent).toContain('Roy Carver→TargetWayne Gardner')
     expect(screen.getByText(/kept 20 for Defense against Roy Carver/).textContent).toBe('Wayne Gardner kept 20 for Defense against Roy Carver.')
     expect(screen.queryByRole('checkbox', { name: 'Full Defense' })).toBeNull()
     fireEvent.click(button('Roll Defense'))
@@ -181,6 +218,7 @@ describe('a declared attack on its turn', () => {
   it('reopens the target when it has gone, with Pass for nothing left to choose', async () => {
     show('player', 'wayne-uid', fightAfter(...wayneTurn, { type: 'takeOut', combatantKey: ROY }))
     expect(screen.getByText('Roy Carver is Out.')).toBeTruthy()
+    expect(within(screen.getByRole('group', { name: 'Current attack' })).getByText('Choose a target')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Roll' })).toBeNull()
     fireEvent.click(button('Pass'))
     await waitFor(() => expect(sentOf('pass')[0]).toMatchObject({ envelope: { actorKey: WAYNE } }))
@@ -191,6 +229,8 @@ describe('a declared attack on its turn', () => {
     mocks.roster = { characters: [unarmed()], npcs: [{ npc: royNpc, sheet: royRecord() }] }
     show('player', 'wayne-uid', fightAfter(...wayneTurn))
     expect(screen.getByText('The dodgeball is no longer in your hand.')).toBeTruthy()
+    expect((button(/Left hand/) as HTMLButtonElement).disabled).toBe(false)
+    expect((screen.getByRole('radio', { name: /^Roy Carver/ }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: /Pick up here: costs the action/ }))
     await waitFor(() => expect(sentOf('floorPickup')[0].payload).toEqual({ type: 'floorPickup', itemId: 'floor-ball' }))
     cleanup()
@@ -201,8 +241,24 @@ describe('a declared attack on its turn', () => {
     expect(button('Pass')).toBeTruthy()
   })
 
+  it('stops on the Results until the GM moves on: the table waits, and the GM sees what Continue opens', async () => {
+    show('player', 'wayne-uid', fightAfter(...royMissed))
+    const results = screen.getByRole('region', { name: 'Results' })
+    expect(within(results).getByRole('heading', { name: 'A miss' })).toBeTruthy()
+    expect(within(results).getByText('Waiting on the GM to move on')).toBeTruthy()
+    expect(within(results).queryByRole('button')).toBeNull()
+    expect(screen.getByText('The GM moves the fight on from here.')).toBeTruthy()
+    cleanup()
+    show('gm', 'gm', fightAfter(...royMissed))
+    fireEvent.click(button("Continue: Wayne Gardner's turn"))
+    await waitFor(() => expect(sentOf('continue')).toHaveLength(1))
+    cleanup()
+    show('gm', 'gm', fightAfter(...wayneTurn, range, { type: 'roll', actor: WAYNE, aim: wayneThrow, dice: { attack: 99 } }))
+    expect(button('Continue: Round 2')).toBeTruthy()
+  })
+
   it('gives the finished result way to the next round, keeping only its outcome in view', () => {
-    show('player', 'wayne-uid', fightAfter(...wayneTurn, range, { type: 'roll', actor: WAYNE, aim: wayneThrow, dice: { attack: 99 } }))
+    show('player', 'wayne-uid', fightAfter(...wayneTurn, range, { type: 'roll', actor: WAYNE, aim: wayneThrow, dice: { attack: 99 } }, { type: 'continue' }))
     expect(screen.getByText('What do you do this round?')).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Result' })).toBeNull()
     expect(screen.getByRole('heading', { name: 'A miss' })).toBeTruthy()
@@ -221,35 +277,51 @@ describe('a declared attack on its turn', () => {
 })
 
 describe('the GM\'s tools', () => {
-  const tool = (value: string) => fireEvent.change(screen.getByRole('combobox', { name: 'GM tools' }), { target: { value } })
+  const tool = (value: string) => fireEvent.click(button(value === 'actfor' ? 'Act for a player' : 'Manage combatants'))
 
   it('offers exactly the mock-up\'s four tools', () => {
     show('gm', 'gm', fightAfter(...rolled))
-    expect([...screen.getByRole('combobox', { name: 'GM tools' }).querySelectorAll('option')].map((option) => option.textContent)).toEqual([
-      'GM tools...', 'A player is away from the table: act for them', 'Take someone out of the fight, or return them', 'Place an item on the Floor', 'End combat',
-    ])
+    expect(screen.queryByRole('combobox', { name: 'GM tools' })).toBeNull()
+    expect(button('Act for a player')).toBeTruthy()
+    expect(button('Manage combatants').closest('.rail')).toBeTruthy()
+    expect(button('+ Place an item').closest('.rail')).toBeTruthy()
+    expect(button('End combat').closest('.chead')).toBeTruthy()
   })
 
   it('acts for an away player in their own window', () => {
     show('gm', 'gm', fightAfter(...wayneTurn))
     tool('actfor')
-    fireEvent.change(screen.getByRole('combobox', { name: 'Who' }), { target: { value: WAYNE } })
-    expect(screen.getByText('Your declared split is locked. Only Roll is left.')).toBeTruthy()
+    fireEvent.click(button('Act for Wayne Gardner'))
+    expect(screen.getByText('Your declared attack and split are locked. Roll when ready; choose again only if your target or weapon has gone.')).toBeTruthy()
+    expect(screen.getByText('Acting for Wayne Gardner')).toBeTruthy()
+    fireEvent.click(button('Stop acting'))
+    expect(screen.queryByText('Your declared attack and split are locked. Roll when ready; choose again only if your target or weapon has gone.')).toBeNull()
+    expect(button('Act for a player')).toBeTruthy()
   })
 
   it('takes someone out of the fight and returns them', async () => {
     show('gm', 'gm', fightAfter(...rolled))
     tool('out')
-    fireEvent.change(screen.getByRole('combobox', { name: 'Who' }), { target: { value: ROY } })
     fireEvent.click(button('Take out Roy Carver'))
     await waitFor(() => expect(sentOf('takeOut')[0].payload).toEqual({ type: 'takeOut', combatantKey: ROY }))
+    fireEvent.click(button('Done managing'))
+    expect(screen.queryByRole('button', { name: 'Take out Roy Carver' })).toBeNull()
     cleanup()
     mocks.outcome = { ok: false, reason: 'Waiting for wounds to reach the sheet' }
     show('gm', 'gm', fightAfter(...rolled, { type: 'takeOut', combatantKey: ROY }))
     tool('out')
-    fireEvent.change(screen.getByRole('combobox', { name: 'Who' }), { target: { value: ROY } })
-    expect(screen.getByRole('option', { name: 'Roy Carver (Out)' })).toBeTruthy()
+    expect(button('Return Roy Carver')).toBeTruthy()
     fireEvent.click(button('Return Roy Carver'))
     await waitFor(() => expect(sentOf('return')[0].payload).toEqual({ type: 'return', combatantKey: ROY }))
+  })
+
+  it('can cancel the player picker without changing who the GM controls', () => {
+    show('gm', 'gm', fightAfter(...wayneTurn))
+    fireEvent.click(button('Act for a player'))
+    expect(screen.getByRole('region', { name: 'Act for a player' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Act for Roy Carver' })).toBeNull()
+    fireEvent.click(button('Cancel'))
+    expect(screen.queryByRole('region', { name: 'Act for a player' })).toBeNull()
+    expect(screen.queryByText('Acting for Wayne Gardner')).toBeNull()
   })
 })

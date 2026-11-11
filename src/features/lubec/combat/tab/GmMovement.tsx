@@ -15,7 +15,7 @@ const PICKUP = 'pickup:'
 function npcOptions(state: CombatState): (readonly [string, string])[] {
   const rows = combatFloorRows(state.floor)
   const pickups = rows.map((row) => [`${PICKUP}${row.recordIds[0]}`, rows.length === 1 ? 'Pick up' : `Pick up: ${row.item.name}`] as const)
-  return [['stay', MOVEMENT_NAMES.stay], ['run', MOVEMENT_NAMES.run], ...pickups, ['leave', MOVEMENT_NAMES.leave]]
+  return [['stay', MOVEMENT_NAMES.stay], ['run', MOVEMENT_NAMES.run], ['evade', MOVEMENT_NAMES.evade], ...pickups, ['leave', MOVEMENT_NAMES.leave]]
 }
 
 const npcPick = (value: string): MovementPick =>
@@ -90,7 +90,7 @@ const choosingNpcs = (state: CombatState): Combatant[] => state.combatants.filte
 function GmFoot({ state, run, onConfirm }: { state: CombatState; run: CombatRun; onConfirm: () => void }) {
   return (
     <>
-      <span className="note">Pick up uses movement, Run costs the attack and Defense, Leaving needs your confirmation. Declaring starts by itself once everyone has confirmed.</span>
+      <span className="note">Pick up uses movement, Run costs the attack and Defense, Evasive costs the attack and rolls Speed, Leaving needs your confirmation. Declaring starts by itself once everyone has confirmed.</span>
       <button type="button" className="btn rust" disabled={run.busy || choosingNpcs(state).length === 0} onClick={onConfirm}>Confirm the NPCs&apos; movement</button>
     </>
   )

@@ -2,6 +2,7 @@ import { lubecCombatantFace, type LubecCombatant } from '../../fight/lubecFightR
 import type { CombatAttack, CombatAttackRange, Combatant } from '../engine/types'
 import { attackSum, withDefense, type AttackDraft, type AttackSegments, type AttackSum } from './attackDraft'
 import type { AttackGone } from './attackWindowModel'
+import { AttackMatchup } from './AttackMatchup'
 
 type NoticeProps = { attacker: Combatant; attack: CombatAttack; refusal: string | null; gm: boolean }
 
@@ -17,9 +18,12 @@ export function AttackNotices({ attacker, attack, refusal, gm }: NoticeProps) {
   )
 }
 
-/** The trail over the window: who attacks, and when. */
-export function AttackTrail({ attacker, round }: { attacker: Combatant; round: number }) {
-  return <div className="trail"><span className="who"><small>Attacker</small>{attacker.name}</span><span className="who"><small>Round {round}</small>{round ? 'Stage 3, Attack' : 'Before initiative'}</span></div>
+/** The current matchup above the choices, with round metadata kept secondary. */
+export function AttackTrail({ attacker, target, round }: { attacker: Combatant; target: string | null; round: number }) {
+  return <>
+    <AttackMatchup attacker={attacker.name} target={target} />
+    <p className="matchup-context">{round ? `Round ${round} · Stage 3, Attack` : 'Before initiative'}</p>
+  </>
 }
 
 type RoundNoticeProps = { attack: CombatAttack; targetName: string; gone: AttackGone; refusal: string | null }
@@ -45,14 +49,14 @@ export function LockedDefenseLine({ against }: { against: string | null }) {
   return <div className="defense-lines"><div className="defrow"><span className="defchip">DEF 1</span><span className="label">against</span><b>{against}</b></div></div>
 }
 
-type AskProps = { target: LubecCombatant; reading: AttackSum; range: CombatAttackRange | null; segments: AttackSegments }
+type AskProps = { target: LubecCombatant; reading: AttackSum; range: CombatAttackRange | null; evasion?: number; segments: AttackSegments }
 
 /** "Roll to hit Roy Carver." beside the pool's sum, as the mock-up's ask row has them. */
-export function AttackAsk({ target, reading, range, segments }: AskProps) {
+export function AttackAsk({ target, reading, range, evasion = 0, segments }: AskProps) {
   return (
     <div className="ask-row">
       <p className="ask">Roll to hit {lubecCombatantFace(target).name}.</p>
-      <span className="effective"><span className="sum">{attackSum(reading, range)} <b>{segments.defense + segments.attackNumber}</b></span></span>
+      <span className="effective"><span className="sum">{attackSum(reading, range, evasion)} <b>{segments.defense + segments.attackNumber}</b></span></span>
     </div>
   )
 }

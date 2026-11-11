@@ -3,9 +3,10 @@ import { place } from '../../../ruleSets/lubec/gear/placement'
 import { attackRepair, combatantOf, combatantsIn as inRound, combatSheetOf } from './attackParty'
 import type { CombatPendingAction } from './combatFeedback'
 import { requireGm, requireLiveContext } from './context'
+import { evasionBlocked } from './evasion'
 import type { Combatant, CombatFight, CombatHandler, CombatMovement, CombatMovementChoice, CombatPickupClaim, CombatPlan, CombatRecords, CombatState } from './types'
 
-const CHOICES: readonly CombatMovementChoice[] = ['stay', 'run', 'pickup', 'leave']
+const CHOICES: readonly CombatMovementChoice[] = ['stay', 'run', 'evade', 'pickup', 'leave']
 
 function requireChoosing(state: CombatState) {
   if (state.phase !== 'movement') throw new Error('Movement is not open.')
@@ -13,7 +14,7 @@ function requireChoosing(state: CombatState) {
 }
 
 function readChoice(raw: unknown): CombatMovementChoice {
-  if (!CHOICES.includes(raw as CombatMovementChoice)) throw new Error('Choose Move or stay, Run, Pick up or Leave the fight.')
+  if (!CHOICES.includes(raw as CombatMovementChoice)) throw new Error('Choose Move or stay, Run, Evasive, Pick up or Leave the fight.')
   return raw as CombatMovementChoice
 }
 
@@ -43,10 +44,18 @@ const leaveOf = (combatant: Combatant, choice: CombatMovementChoice): CombatMove
   return combatant.kind === 'npc' ? 'confirmed' : 'asked'
 }
 
+/** A wound that says No Evasive Movement refuses it while the wound is on the sheet. */
+function requireCanEvade(combatant: Combatant, records: CombatRecords) {
+  const record = combatSheetOf(records, combatant)
+  const blocked = record && evasionBlocked(record.sheet)
+  if (blocked) throw new Error(`${combatant.name} cannot move evasively: ${blocked}`)
+}
+
 function chosen(state: CombatState, combatant: Combatant, raw: Record<string, unknown>, records: CombatRecords): CombatMovement {
   if (combatant.outReason !== null) throw new Error(`${combatant.name} is Out.`)
   if (combatant.movement) throw new Error(`${combatant.name} has already confirmed Movement.`)
   const choice = readChoice(raw.choice)
+  if (choice === 'evade') requireCanEvade(combatant, records)
   if (choice !== 'pickup') return { choice, pickup: null, leave: leaveOf(combatant, choice) }
   const { claim, item } = readClaim(state, raw.pickup)
   requireFreeHand(combatant, records, item)

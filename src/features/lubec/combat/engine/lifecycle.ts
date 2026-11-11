@@ -13,8 +13,8 @@ import { combatMovementSettleHandlers } from './movementSettle'
 import { combatSneakAttackHandlers } from './sneakAttack'
 import { combatChooseAgainHandlers } from './chooseAgain'
 import { combatOutHandlers } from './outReturn'
-import { withRoundFlow } from './roundAttacks'
-import type { CombatCommand, CombatHandler, CombatPlan, CombatRecords, CombatState, StartPayload } from './types'
+import { combatResultsHandlers, withRoundFlow } from './roundAttacks'
+import type { Combatant, CombatCommand, CombatHandler, CombatPlan, CombatRecords, CombatState, StartPayload } from './types'
 
 function requireStartInputs(payload: StartPayload, records: CombatRecords): void {
   if (payload.combatants.length === 0) throw new Error('Select at least one combatant.')
@@ -22,6 +22,13 @@ function requireStartInputs(payload: StartPayload, records: CombatRecords): void
   if (new Set(keys).size !== keys.length) throw new Error('A combatant was selected twice.')
   const issues = combatSetupIssues(payload.combatants, records.sheets, payload.requireBody ?? payload.dodgeball ?? false)
   if (issues.length) throw new Error(issues.join('\n'))
+}
+
+/** Marks the NPCs the GM put on the players' side; anyone else named there is refused. */
+function withAllies(combatants: Combatant[], allies: readonly string[] = []): Combatant[] {
+  const npcs = new Set(combatants.filter((combatant) => combatant.kind === 'npc').map((combatant) => combatant.key))
+  if (allies.some((key) => !npcs.has(key))) throw new Error('Only an NPC in the fight can be on the players\' side.')
+  return combatants.map((combatant) => (allies.includes(combatant.key) ? { ...combatant, ally: true } : combatant))
 }
 
 const start: CombatHandler = (command, records, authority, entropy) => {
@@ -32,7 +39,7 @@ const start: CombatHandler = (command, records, authority, entropy) => {
   requireStartInputs(payload, records)
   const placed = placeCombatFloor(payload.floor, records.items, command.envelope.id)
   assertLubecItemOwnership(placed.floor.map((record) => record.item))
-  const combatants = records.sheets.map(publicCombatant)
+  const combatants = withAllies(records.sheets.map(publicCombatant), payload.allies)
   const state: CombatState = {
     round: 0, phase: 'before-initiative', stageInstanceId: entropy.id('stage', 0),
     combatants, floor: placed.floor, attack: null, woundOutbox: [], woundAcknowledgements: [],
@@ -76,7 +83,7 @@ const interrupt: CombatHandler = (command, records, authority) => {
   return { fight: { ...fight, state: settleCombatAttack(fight.state) }, items: [], logs: [{ event: 'Attack interrupted: attacker Out.', actor: attacker.key }] }
 }
 
-export const combatLifecycleHandlers: Readonly<Record<string, CombatHandler>> = { start, end, place, interrupt, ...combatSummaryHandlers, ...combatSneakAttackHandlers, ...combatInitiativeHandlers, ...combatMovementHandlers, ...combatMovementSettleHandlers, ...combatDeclareHandlers, ...combatChooseAgainHandlers, ...combatOutHandlers }
+export const combatLifecycleHandlers: Readonly<Record<string, CombatHandler>> = { start, end, place, interrupt, ...combatSummaryHandlers, ...combatSneakAttackHandlers, ...combatInitiativeHandlers, ...combatMovementHandlers, ...combatMovementSettleHandlers, ...combatDeclareHandlers, ...combatChooseAgainHandlers, ...combatOutHandlers, ...combatResultsHandlers }
 
 export function planCombatCommand(command: CombatCommand, records: CombatRecords, authority: Parameters<CombatHandler>[2], handlers = combatLifecycleHandlers, entropy = combatEntropy(command)): CombatPlan {
   const handler = handlers[command.payload.type]

@@ -8,7 +8,7 @@ import { controlsAttacker, type CombatViewer } from './attackWords'
 import { combatFightCombatant, type CombatRosterRecords } from './combatFightCombatants'
 import type { CombatFloorRow } from './combatFloorRows'
 
-export const MOVEMENT_NAMES: Readonly<Record<CombatMovementChoice, string>> = { stay: 'Move or stay', run: 'Run', pickup: 'Pick up', leave: 'Leave the fight' }
+export const MOVEMENT_NAMES: Readonly<Record<CombatMovementChoice, string>> = { stay: 'Move or stay', run: 'Run', evade: 'Evasive', pickup: 'Pick up', leave: 'Leave the fight' }
 
 /** The sheet in hand for a combatant this viewer controls. */
 export const movementSheetOf = (combatant: Combatant, roster: CombatRosterRecords): LubecCharacterSheet | null => {

@@ -56,6 +56,7 @@ function DeclareChoices({ body, draft, setDraft, model, full }: ChoicesProps) {
   return (
     <div className={full ? 'dim' : ''}>
       <LubecFightWindowContent
+        focusTarget
         request={{ attacker: body.fighter, target: model.target, weaponItemId: draft.weaponItemId ?? undefined, attackId: draft.attackId ?? undefined }}
         targets={model.targets} targetNote={targetNote(body.state)} targetBadge={(target) => attackBadge(body.state, lubecCombatantKey(target), body.declarer.key)} onInventory={body.onInventory} readOnly={full}
         onTarget={(key) => setDraft({ ...draft, targetKey: key })}
@@ -145,7 +146,10 @@ const guardedKey = (picked: string | null, draft: AttackDraft): string => picked
 function DeclareBody(body: BodyProps) {
   const { state, declarer, sheet } = body
   const [draft, setDraft] = useState<AttackDraft>(() => initialDraft(draftAttack(declarer), sheet, combatOpponents(state, declarer).map((entry) => entry.key)))
-  const [full, setFull] = useState(false)
+  // Evasive Movement used this round's action: Full Defense is all that is left to declare.
+  const evading = declarer.movement?.choice === 'evade'
+  const [fullChosen, setFull] = useState(false)
+  const full = evading || fullChosen
   const [against, setAgainst] = useState<string | null>(null)
   const run = useCombatRun()
   const model = attackWindowModel({ state, attack: draftAttack(declarer), attacker: declarer, sheet, draft, fightId: body.fightId, roster: body.roster })
@@ -154,8 +158,10 @@ function DeclareBody(body: BodyProps) {
   return (
     <>
       <AimedNotice state={state} declarer={declarer} />
+      {declarer.declarationRejected ? <div className="notice hot" role="status"><span>The GM rejected your declaration. Choose again; it is still your turn to declare.</span></div> : null}
       <CombatRefusal refusal={run.refusal} />
-      <div className="trail"><span className="who"><small>Attacker</small>{declarer.name}</span><span className="who"><small>Round {state.round}</small>Stage 2, Declare</span></div>
+      {evading ? <div className="notice cool" role="status"><span><b>{declarer.name} moved evasively.</b> That uses the action, so there is no attack this round: declare Full Defense against one person.</span></div> : null}
+      <div className="declaration-actor"><small>Declaring now</small><strong>{declarer.name}</strong><span className="declaration-stage">Round {state.round} · <span>Stage 2, Declare</span></span></div>
       <DeclareChoices body={body} draft={draft} setDraft={setDraft} model={model} full={full} />
       {full ? <FullDefense {...parts} against={guarded} onAgainst={setAgainst} /> : <Split {...parts} />}
     </>
@@ -166,8 +172,11 @@ function DeclareBody(body: BodyProps) {
 export function DeclareWindow(props: WindowProps) {
   const fighter = combatFightCombatant(props.declarer, props.roster)
   const sheet = fighter ? lubecCombatantRecord(fighter)?.lubec : undefined
+  const foot = props.declarer.kind === 'npc'
+    ? 'Your NPC declaration takes effect when submitted. The next turn begins automatically.'
+    : 'Submit your choice for GM approval. The next person waits until it is approved.'
   return (
-    <CombatWindow title="Declare" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Declare']} now={3} />} foot={<span className="note">Once you declare, everyone can see your split. You roll on your turn.</span>}>
+    <CombatWindow title="Declare" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Declare']} now={3} />} foot={<span className="note">{foot}</span>}>
       {sheet ? <DeclareBody key={props.state.stageInstanceId} {...props} fighter={fighter!} sheet={sheet} /> : <p className="note">Reading {props.declarer.name}&apos;s sheet...</p>}
     </CombatWindow>
   )

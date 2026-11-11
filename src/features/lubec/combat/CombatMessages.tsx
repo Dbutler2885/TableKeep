@@ -1,32 +1,48 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useCombatLogView } from './CombatLogContext'
 import { combatLogText, combatLogTime, type CombatLogEntry } from './combatLog'
 import type { Role } from '../../../types/app'
 import { combatActionNotice, combatActionText, type ViewerCombatAction } from './pendingActions'
+import type { CombatRoll } from './engine/combatFeedback'
+import { combatRollComparison, combatRollVerdict } from './combatRollPresentation'
+import { useCombatRollSpin } from './useCombatRollSpin'
+import { useCombatRollDismiss } from './useCombatRollDismiss'
 
-function CombatRollCard({ entry }: { entry: CombatLogEntry }) {
-  const [phase, setPhase] = useState('')
-  useEffect(() => {
-    const fade = setTimeout(() => setPhase('gone'), 6500)
-    const remove = setTimeout(() => setPhase('removed'), 7100)
-    return () => { clearTimeout(fade); clearTimeout(remove) }
-  }, [])
-  if (phase === 'removed') return null
-  const roll = entry.roll
-  if (!roll) return <div className={`rcard neutral ${phase}`}><div className="rw">Table</div><p className="rx">{entry.event}</p></div>
+function RollNumbers({ roll, value, rolling }: { roll: CombatRoll; value: string; rolling: boolean }) {
+  const comparison = combatRollComparison(roll)
   return (
-    <div className={`rcard ${roll.tone} ${phase}`}>
-      <div className="rw">{roll.who} · {roll.what}</div>
-      <div className="rn"><b>{roll.roll}</b><span>{roll.target}</span></div>
-      <span className="rr">{roll.result}</span>
-      {roll.extra ? <p className="rx">{roll.extra}</p> : null}
+    <div className="rn" aria-hidden={rolling}>
+      <b key={value}>{value}</b>
+      {comparison ? <><span className="relation">{rolling ? 'TARGET' : comparison.relation}</span><strong>{comparison.target}</strong></> : <span>{roll.target}</span>}
+    </div>
+  )
+}
+
+function RollDetails({ roll, detail }: { roll: CombatRoll; detail: string }) {
+  return <>
+    {detail ? <p className="roll-detail">{detail}</p> : null}
+    {roll.extra ? <p className="rx">{roll.extra}</p> : null}
+  </>
+}
+
+function CombatRollCard({ entry, roll, onDone }: { entry: CombatLogEntry; roll: CombatRoll; onDone: (id: string) => void }) {
+  const { card, gone } = useCombatRollDismiss(entry.id, onDone)
+  const spin = useCombatRollSpin(entry.id, roll.roll)
+  const verdict = combatRollVerdict(roll.result)
+  return (
+    <div ref={card} className={`rcard ${roll.tone} ${gone ? 'gone' : ''} ${spin.rolling ? 'rolling' : 'settled'}`} data-outcome={verdict.headline}>
+      <div className="rw"><strong className="roll-who">{roll.who}</strong><span className="roll-what"> · {roll.what}</span></div>
+      <h2 className="rr">{spin.rolling ? 'Rolling...' : verdict.headline}</h2>
+      <RollNumbers roll={roll} value={spin.value} rolling={spin.rolling} />
+      <div className="roll-details" aria-hidden={spin.rolling}><RollDetails roll={roll} detail={verdict.detail} /></div>
     </div>
   )
 }
 
 export function CombatRollCards() {
-  const { cards } = useCombatLogView()
-  return <div className="combat-cards" role="status" aria-live="polite" aria-relevant="additions">{cards.map((entry) => <CombatRollCard key={entry.id} entry={entry} />)}</div>
+  const { cards, sessionKey, finishCard } = useCombatLogView()
+  const shown = cards.slice(0, 3)
+  return <div className="combat-cards" data-count={shown.length} role="status" aria-live="polite" aria-atomic="true">{shown.map((entry) => entry.roll ? <CombatRollCard key={JSON.stringify([sessionKey, entry.id])} entry={entry} roll={entry.roll} onDone={finishCard} /> : null)}</div>
 }
 
 /** The latest entry stays visible; the whole immutable log opens newest first, as in the mock-up. */
