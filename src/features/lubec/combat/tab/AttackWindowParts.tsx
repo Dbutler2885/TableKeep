@@ -49,14 +49,14 @@ export function LockedDefenseLine({ against }: { against: string | null }) {
   return <div className="defense-lines"><div className="defrow"><span className="defchip">DEF 1</span><span className="label">against</span><b>{against}</b></div></div>
 }
 
-type AskProps = { target: LubecCombatant; reading: AttackSum; range: CombatAttackRange | null; segments: AttackSegments }
+type AskProps = { target: LubecCombatant; reading: AttackSum; range: CombatAttackRange | null; evasion?: number; segments: AttackSegments }
 
 /** "Roll to hit Roy Carver." beside the pool's sum, as the mock-up's ask row has them. */
-export function AttackAsk({ target, reading, range, segments }: AskProps) {
+export function AttackAsk({ target, reading, range, evasion = 0, segments }: AskProps) {
   return (
     <div className="ask-row">
       <p className="ask">Roll to hit {lubecCombatantFace(target).name}.</p>
-      <span className="effective"><span className="sum">{attackSum(reading, range)} <b>{segments.defense + segments.attackNumber}</b></span></span>
+      <span className="effective"><span className="sum">{attackSum(reading, range, evasion)} <b>{segments.defense + segments.attackNumber}</b></span></span>
     </div>
   )
 }

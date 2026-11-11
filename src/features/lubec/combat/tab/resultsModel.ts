@@ -1,7 +1,7 @@
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
 import { combatAttackers } from '../engine/declare'
 import type { CombatAttack, CombatState } from '../engine/types'
-import { combatantName, pairWords } from './attackWords'
+import { combatantName, evasionWords, pairWords } from './attackWords'
 import type { Banner } from './outcomeWords'
 import { tableName } from './resultSequence'
 
@@ -32,16 +32,25 @@ export function woundParts(text: string): WoundPart[] {
   return parts
 }
 
-/** Who against whom, with what, where it struck and how hard: only what this attack reached. */
+function whereFact(attack: CombatAttack): ResultsFact | null {
+  const landing = attack.landing
+  return landing?.part ? { term: 'Where', value: `${locName(landing.part)}${landing.moved ? `, moved ${landing.moved}` : ''}` } : null
+}
+
+const hardFact = (attack: CombatAttack): ResultsFact | null =>
+  (attack.impact ? { term: 'How hard', value: `Impact ${attack.impact.total} on ${tableName(attack.impact.table)}` } : null)
+
+const evasiveFact = (attack: CombatAttack): ResultsFact | null =>
+  (attack.evasion ? { term: 'Evasive', value: evasionWords(attack.evasion) } : null)
+
+/** Who against whom, with what, where it struck, how hard and any Evasive Movement: only what this attack reached. */
 export function resultsFacts(state: CombatState, attack: CombatAttack): ResultsFact[] {
   const facts = [
     { term: 'Who', value: `${combatantName(state, attack.attackerKey)} → ${combatantName(state, attack.aim?.targetKey)}` },
     { term: 'With', value: pairWords(attack.frozen!.weaponName, attack.frozen!.choice.name) },
+    whereFact(attack), hardFact(attack), evasiveFact(attack),
   ]
-  const landing = attack.landing
-  if (landing?.part) facts.push({ term: 'Where', value: `${locName(landing.part)}${landing.moved ? `, moved ${landing.moved}` : ''}` })
-  if (attack.impact) facts.push({ term: 'How hard', value: `Impact ${attack.impact.total} on ${tableName(attack.impact.table)}` })
-  return facts
+  return facts.filter((fact): fact is ResultsFact => fact !== null)
 }
 
 /** The roll that picked the wound's version: a Save or Check, or a two-wound row's d2. */

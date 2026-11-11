@@ -5,6 +5,7 @@ import type { AttackCommands, MovementPick } from './attackCommands'
 import type { CombatViewer } from './attackWords'
 import type { CombatRosterRecords } from './combatFightCombatants'
 import { pickupBlocked } from './movementModel'
+import { evasionBlocked } from '../engine/evasion'
 import { combatCatchLine, combatFloorRows, type CombatFloorRow } from './combatFloorRows'
 import { PhaseStepper } from './CombatMiddles'
 import { CombatFloorIcon, CombatWindow } from './CombatParts'
@@ -15,6 +16,7 @@ import { useCombatRun, type CombatRun } from './useCombatRun'
 const CHOICES: readonly (readonly [CombatMovementChoice, string, string])[] = [
   ['stay', 'Move or stay', 'Nothing to choose. The GM describes where everyone is in words; it is not tracked.'],
   ['run', 'Run', 'Costs your attack and your Defense this round.'],
+  ['evade', 'Evasive', 'Uses your action: no attack this round. Roll Speed; a success makes ranged attacks at you harder.'],
   ['pickup', 'Pick up', 'Uses your movement.'],
   ['leave', 'Leave the fight', 'You go Out once the GM confirms you can get away.'],
 ]
@@ -77,11 +79,14 @@ export type MovementProps = { state: CombatState; viewer: CombatViewer; roster: 
 
 export type MoveProps = { state: CombatState; combatant: Combatant; sheet: LubecCharacterSheet | null; commands: AttackCommands; named: boolean }
 
-function MoveCards({ shown, live, onChoose }: { shown: Draft; live: boolean; onChoose: (choice: CombatMovementChoice) => void }) {
+type CardsProps = { shown: Draft; live: boolean; evadeBlocked: string | null; onChoose: (choice: CombatMovementChoice) => void }
+
+function MoveCards({ shown, live, evadeBlocked, onChoose }: CardsProps) {
+  const blocked = (choice: CombatMovementChoice) => (choice === 'evade' ? evadeBlocked : null)
   return (
     <div className="moves" role="radiogroup" aria-label="Movement">
       {CHOICES.map(([choice, name, words]) => (
-        <button key={choice} type="button" className="mode" role="radio" aria-checked={shown.choice === choice} disabled={!live} onClick={() => onChoose(choice)}><b>{name}</b><small>{words}</small></button>
+        <button key={choice} type="button" className="mode" role="radio" aria-checked={shown.choice === choice} disabled={!live || blocked(choice) !== null} title={blocked(choice) ?? undefined} onClick={() => onChoose(choice)}><b>{name}</b><small>{blocked(choice) ?? words}</small></button>
       ))}
     </div>
   )
@@ -121,7 +126,7 @@ export function MoveWindow({ state, combatant, sheet, commands, named }: MovePro
     <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />} foot={<MoveFoot combatant={combatant} draft={draft} run={run} onConfirm={() => run.run(() => commands.move(combatant.key, pickOf(draft)))} />}>
       <CombatRefusal refusal={run.refusal} />
       <p className="ask">{askWords(combatant, named)}</p>
-      <MoveCards shown={shown} live={live} onChoose={(choice) => setDraft({ choice, picked: null })} />
+      <MoveCards shown={shown} live={live} evadeBlocked={sheet ? evasionBlocked(sheet) : null} onChoose={(choice) => setDraft({ choice, picked: null })} />
       <span className="label">On the Floor</span>
       <FloorPicks state={state} shown={shown} draft={draft} live={live} sheet={sheet} onDraft={setDraft} />
     </CombatWindow>

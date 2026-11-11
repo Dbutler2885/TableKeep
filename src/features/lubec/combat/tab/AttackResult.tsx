@@ -3,7 +3,7 @@ import { aimDefense } from '../engine/attackAim'
 import type { CombatAttack, CombatAttackRoll, CombatFrozenAim, CombatState } from '../engine/types'
 import { AttackBar, QualityCall } from './AttackBar'
 import { attackSegments, segmentMiddle } from './attackDraft'
-import { attackVerdict, combatantName, pairWords, resultFoot } from './attackWords'
+import { attackVerdict, combatantName, evasionWords, pairWords, resultFoot } from './attackWords'
 import { AttackMatchup } from './AttackMatchup'
 import { CombatStepper, CombatWindow } from './CombatParts'
 import { CatchStep, CheckStep, DefenseStep, LocationStep, WoundStep, type StepControls, type StepProps } from './ResultSteps'
@@ -19,11 +19,12 @@ function RollQuality({ roll, at }: { roll: CombatAttackRoll; at: number }) {
 
 /** The result sequence's first step: the locked split, the roll on it, and what it means. */
 function AttackRollBody({ attack }: { attack: Rolled }) {
-  const segments = attackSegments(attack.frozen.total, aimDefense(attack.aim!), attack.range)
+  const segments = attackSegments(attack.frozen.total, aimDefense(attack.aim!), attack.range, attack.evasion?.penalty ?? 0)
   const at = segmentMiddle(segments.attackFrom, segments.attackWidth)
   return (
     <>
       <AttackBar segments={segments} roll={attack.roll} controls={<RollQuality roll={attack.roll} at={at} />} />
+      {attack.evasion ? <p className="say">{evasionWords(attack.evasion)}</p> : null}
       <p className={`verdict ${attack.roll.hit ? 'ok' : 'bad'}`}>{attackVerdict(attack.roll)}</p>
     </>
   )

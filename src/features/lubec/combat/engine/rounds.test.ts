@@ -96,7 +96,7 @@ describe('Movement', () => {
 
   it('refuses an unknown choice, a second confirmation, someone else\'s combatant and a previous stage', () => {
     const records = movement()
-    expect(() => act(records, { type: 'move', actor: HERO, by: player, choice: 'evade' })).toThrow('Choose Move or stay, Run, Pick up or Leave the fight.')
+    expect(() => act(records, { type: 'move', actor: HERO, by: player, choice: 'fly' })).toThrow('Choose Move or stay, Run, Evasive, Pick up or Leave the fight.')
     const moved = act(records, { type: 'move', actor: HERO, by: player, ...stay }).records
     expect(() => act(moved, { type: 'move', actor: HERO, by: player, ...stay })).toThrow('Wayne has already confirmed Movement.')
     expect(() => act(records, { type: 'move', actor: ROY, by: player, ...stay })).toThrow('belongs to someone else')

@@ -10,11 +10,18 @@ const OUT_WORDS: Readonly<Record<string, string>> = { wound: 'wounded', caught: 
 /** "Out: caught", why someone is Out. */
 const outWords = (combatant: Combatant): string => (combatant.outReason === null ? '' : ` · Out: ${OUT_WORDS[combatant.outReason]}`)
 
-/** "Player · Speed 52 · rolled 38 under", once a combatant has rolled, and why they are Out. */
+/** " · Evasive −20" for this round once the Speed roll is in, or that it failed. */
+function evasiveWords(combatant: Combatant): string {
+  const evasion = combatant.movement?.evasion
+  if (!evasion) return ''
+  return evasion.success ? ` · Evasive −${evasion.penalty}` : ' · Evasive failed'
+}
+
+/** "Player · Speed 52 · rolled 38 under", once a combatant has rolled, any Evasive Movement, and why they are Out. */
 function rowWords(combatant: Combatant, userId: string): string {
   const rolled = combatant.initiative
   const roll = rolled ? ` · rolled ${pad(rolled.roll)} ${rolled.success ? 'under' : 'over'}` : ''
-  return `${combatantRole(combatant, userId)} · Speed ${combatant.speed}${roll}${outWords(combatant)}`
+  return `${combatantRole(combatant, userId)} · Speed ${combatant.speed}${roll}${evasiveWords(combatant)}${outWords(combatant)}`
 }
 
 function RowBadge({ out, now }: { out: boolean; now: boolean }) {

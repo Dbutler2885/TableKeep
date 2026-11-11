@@ -14,14 +14,16 @@ export type FloorSelection = { itemId: string; status: 'library' | 'dropped'; qt
 /** A combatant's initiative: d100 strictly under Speed, frozen once per fight, with any tie rerolls the app made. */
 export type CombatInitiative = { roll: number; speed: number; success: boolean; sourceRevision: number; ties: number[] }
 /** A Movement choice. Moving or staying is the default and needs no thought; Run, Pick up and Leave are the choices. */
-export type CombatMovementChoice = 'stay' | 'run' | 'pickup' | 'leave'
+export type CombatMovementChoice = 'stay' | 'run' | 'evade' | 'pickup' | 'leave'
 /** One exact Floor record and quantity a pickup claims. */
 export type CombatPickupClaim = { itemId: string; qty: number }
 /**
  * A confirmed Movement choice, private to its owner and the GM until the stage closes.
  * A Leave is `asked` until the GM confirms it; a refusal clears the choice so the player chooses again.
  */
-export type CombatMovement = { choice: CombatMovementChoice; pickup: CombatPickupClaim | null; leave: 'asked' | 'confirmed' | null }
+/** An evader's Speed roll as Movement settled, and what it takes off ranged attacks at them this round. */
+export type CombatEvasion = { roll: number; speed: number; success: boolean; penalty: number }
+export type CombatMovement = { choice: CombatMovementChoice; pickup: CombatPickupClaim | null; leave: 'asked' | 'confirmed' | null; evasion?: CombatEvasion | null }
 /** One named Defense line: who it guards against, and how much of the Handle pool it holds. */
 export type CombatDefenseLine = { against: string; amount: number }
 /**
@@ -145,6 +147,8 @@ export type CombatAttack = {
   rowTrauma?: number | null
   /** A round attack's Results stay on screen until the GM moves the fight on. */
   continued?: boolean
+  /** The target's Evasive Movement, when it took a penalty off this ranged attack. */
+  evasion?: CombatEvasion | null
 }
 export type CombatState = {
   round: number

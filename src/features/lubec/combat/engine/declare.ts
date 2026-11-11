@@ -84,6 +84,7 @@ function fullDefense(fight: CombatFight, declarer: Combatant, record: CombatShee
 
 /** An attack and at most one named Defense line, split from the same pool in tens and frozen now. */
 function attackDeclaration(fight: CombatFight, declarer: Combatant, record: CombatSheet, command: CombatCommand): CombatDeclaration {
+  if (declarer.movement?.choice === 'evade') throw new Error(`${declarer.name} moved evasively, which uses the action: no attack this round. Declare Full Defense instead.`)
   const aim = readCombatAim(command.payload.aim)
   requireAimPeople(fight.state, declarer, aim)
   const frozen = freeze(record, aim, readingFor(record, aim, fight, command.envelope.fightId))

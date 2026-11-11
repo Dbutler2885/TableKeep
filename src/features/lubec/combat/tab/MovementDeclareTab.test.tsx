@@ -228,7 +228,7 @@ describe('Movement for the GM', () => {
     live.fight.state.floor = [...live.fight.state.floor, lubecDetachedItem({ ...knife, id: 'floor-knife' }, [])]
     show('gm', 'gm', live)
     const select = screen.getByRole('combobox', { name: 'Roy Carver movement' })
-    expect([...select.querySelectorAll('option')].map((option) => option.textContent)).toEqual(['Move or stay', 'Run', 'Pick up: Dodgeball', 'Pick up: Knife', 'Leave the fight'])
+    expect([...select.querySelectorAll('option')].map((option) => option.textContent)).toEqual(['Move or stay', 'Run', 'Evasive', 'Pick up: Dodgeball', 'Pick up: Knife', 'Leave the fight'])
     expect(screen.getByText(/^Knife ×1$/)).toBeTruthy()
     cleanup()
     const bare = fightAfter(...rolled)
@@ -427,3 +427,32 @@ describe('Declare', () => {
     expect(screen.getByText('Stopped: Out')).toBeTruthy()
   })
 })
+
+describe('Evasive Movement', () => {
+  const evade = { choice: 'evade', pickup: null }
+
+  it('offers Evasive with its cost, and sends it', async () => {
+    show('player', 'wayne-uid', fightAfter(...rolled))
+    expect(radio(/^Evasive/).textContent).toBe('EvasiveUses your action: no attack this round. Roll Speed; a success makes ranged attacks at you harder.')
+    fireEvent.click(radio(/^Evasive/))
+    fireEvent.click(button('Confirm movement'))
+    await waitFor(() => expect(sentOf('move')[0].payload).toMatchObject({ choice: 'evade', pickup: null }))
+  })
+
+  it('closes Evasive, and says why, while a wound on the sheet says No Evasive Movement', () => {
+    const hurt = () => { const record = wayne(); record.lubec.effects = [{ id: 'w', name: 'Damaged hip', cause: 'Blunt Force, groin, Impact 5', steps: [{ modifiers: [], labels: ['Half Movement. No Evasive Movement.'] }] }]; return record }
+    mocks.roster = { characters: [hurt()], npcs: [{ npc: royNpc, sheet: royRecord() }] }
+    show('player', 'wayne-uid', fightAfter(...rolled))
+    expect((radio(/^Evasive/) as HTMLButtonElement).disabled).toBe(true)
+    expect(radio(/^Evasive/).textContent).toBe('EvasiveDamaged hip says No Evasive Movement.')
+  })
+
+  it('shows the Speed roll in the turn order, and keeps the evader to Full Defense when they declare', () => {
+    show('player', 'wayne-uid', fightAfter(...moved(evade), { type: 'settleMovement', dice: { evasion: 47 } }))
+    expect(rail('Turn order').getByText(/Evasive −20/)).toBeTruthy()
+    expect(screen.getByText(/That uses the action, so there is no attack this round/)).toBeTruthy()
+    expect(button('Declare Full Defense')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
+  })
+})
+

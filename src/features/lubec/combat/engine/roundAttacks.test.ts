@@ -280,3 +280,68 @@ describe('Out and Return', () => {
     expect(who(records, ROY).outReason).toBeNull()
   })
 })
+
+describe('Evasive Movement', () => {
+  // A thrown rock is a ranged attack on the Thrown Objects table, so Evasive answers it; a dodgeball keeps to Defense.
+  const rock = inHand('hero-rock', 'Fist-sized rock', 0, { mode: 'thrown', impact: 1, wounds: ['blunt'], table: 'thrown' })
+  const rockAt = { targetKey: ROY, weaponItemId: 'hero-rock', attackId: 'throw', defense: null }
+  const evade = { choice: 'evade', pickup: null }
+
+  /** Roy moves evasively and rolls `speedRoll` as Movement settles; Wayne and Dale stay. */
+  function evaded(speedRoll: number, sheets = [hero([rock, knife]), roy(), dale()]) {
+    const moved = act(movement(sheets), { type: 'move', actor: HERO, by: player, ...stay }).records
+    const npcs = act(moved, { type: 'npcMovement', choices: { [ROY]: evade, [DALE]: stay } }).records
+    return act(npcs, { type: 'settleMovement', dice: [speedRoll] })
+  }
+
+  /** Wayne declares `aim` at Roy; Roy, who evaded, can only guard; Dale guards too. Wayne then attacks alone. */
+  function declared(records: CombatRecords, aim: object = rockAt) {
+    let current = act(records, { type: 'declare', actor: HERO, by: player, aim }).records
+    current = act(current, { type: 'answerDeclaration', combatantKey: HERO, approve: true }).records
+    current = act(current, { type: 'declare', actor: ROY, full: true, against: HERO }).records
+    return act(current, { type: 'declare', actor: DALE, full: true, against: HERO }).records
+  }
+
+  it('rolls Speed as Movement settles: a success sets the penalty for the round, shown to the whole table', () => {
+    const { plan } = evaded(47)
+    // Roy's Speed 51 reads 56 with his class; 47 is a success, and half its tens digit is 2, so ranged attacks take 20.
+    expect(plan.fight.state.combatants.find((entry) => entry.key === ROY)!.movement).toMatchObject({ choice: 'evade', evasion: { roll: 47, speed: 56, success: true, penalty: 20 } })
+    expect(plan.logs.find((log) => log.event === 'Roy moved evasively.')!.roll).toMatchObject({ what: 'Evasive Movement · Speed', roll: '47', target: 'under 56', tone: 'ok', result: 'Ranged attacks −20' })
+  })
+
+  it('gives nothing for a failed Speed roll', () => {
+    const { records } = evaded(80)
+    expect(who(records, ROY).movement!.evasion).toEqual({ roll: 80, speed: 56, success: false, penalty: 0 })
+  })
+
+  it('spends the evader\'s action: no attack, but Full Defense still guards', () => {
+    const settled = evaded(47).records
+    const wayne = act(act(settled, { type: 'declare', actor: HERO, by: player, aim: rockAt }).records, { type: 'answerDeclaration', combatantKey: HERO, approve: true }).records
+    expect(() => act(wayne, { type: 'declare', actor: ROY, aim: royThrow })).toThrow('Roy moved evasively, which uses the action: no attack this round. Declare Full Defense instead.')
+    expect(who(act(wayne, { type: 'declare', actor: ROY, full: true, against: HERO }).records, ROY).declaration).toMatchObject({ full: true, lines: [{ against: HERO }] })
+  })
+
+  it('takes the penalty off a ranged attack at the evader, beside the range, and keeps it on the attack', () => {
+    const attack = ranged(declared(evaded(47).records))
+    const frozen = state(attack).attack!.frozen!
+    const rolled = roll(attack, HERO, rockAt, [frozen.attack - 20 + 1])
+    expect(state(rolled.records).attack).toMatchObject({ evasion: { penalty: 20, roll: 47 }, roll: { attackNumber: frozen.attack - 20, hit: false } })
+    expect(rolled.plan.logs[0].roll).toMatchObject({ target: `against ${frozen.attack - 20}`, extra: expect.stringContaining('Roy is moving evasively: −20 to hit.') })
+  })
+
+  it('leaves a dodgeball to Defense, and a failed Speed roll to nothing', () => {
+    const ballAt = { ...heroThrow, defense: null }
+    const thrown = ranged(declared(evaded(47, [hero(), roy(), dale()]).records, ballAt))
+    expect(state(roll(thrown, HERO, ballAt, [99]).records).attack).toMatchObject({ evasion: null, roll: { attackNumber: state(thrown).attack!.frozen!.attack } })
+    const missedEvasion = ranged(declared(evaded(80).records))
+    expect(state(roll(missedEvasion, HERO, rockAt, [99]).records).attack!.evasion).toBeNull()
+  })
+
+  it('is refused while a wound on the sheet says No Evasive Movement', () => {
+    const hurt = roy()
+    hurt.sheet = { ...hurt.sheet, effects: [{ id: 'w', name: 'Damaged hip', cause: 'Blunt Force, groin, Impact 5', steps: [{ modifiers: [], labels: ['Half Movement. No Evasive Movement. After 1 Long Rest: healed.'] }] }] }
+    const moved = act(movement([hero([rock, knife]), hurt, dale()]), { type: 'move', actor: HERO, by: player, ...stay }).records
+    expect(() => act(moved, { type: 'npcMovement', choices: { [ROY]: evade, [DALE]: stay } })).toThrow('Roy cannot move evasively: Damaged hip says No Evasive Movement.')
+  })
+})
+

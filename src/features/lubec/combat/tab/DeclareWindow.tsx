@@ -146,7 +146,10 @@ const guardedKey = (picked: string | null, draft: AttackDraft): string => picked
 function DeclareBody(body: BodyProps) {
   const { state, declarer, sheet } = body
   const [draft, setDraft] = useState<AttackDraft>(() => initialDraft(draftAttack(declarer), sheet, combatOpponents(state, declarer).map((entry) => entry.key)))
-  const [full, setFull] = useState(false)
+  // Evasive Movement used this round's action: Full Defense is all that is left to declare.
+  const evading = declarer.movement?.choice === 'evade'
+  const [fullChosen, setFull] = useState(false)
+  const full = evading || fullChosen
   const [against, setAgainst] = useState<string | null>(null)
   const run = useCombatRun()
   const model = attackWindowModel({ state, attack: draftAttack(declarer), attacker: declarer, sheet, draft, fightId: body.fightId, roster: body.roster })
@@ -157,6 +160,7 @@ function DeclareBody(body: BodyProps) {
       <AimedNotice state={state} declarer={declarer} />
       {declarer.declarationRejected ? <div className="notice hot" role="status"><span>The GM rejected your declaration. Choose again; it is still your turn to declare.</span></div> : null}
       <CombatRefusal refusal={run.refusal} />
+      {evading ? <div className="notice cool" role="status"><span><b>{declarer.name} moved evasively.</b> That uses the action, so there is no attack this round: declare Full Defense against one person.</span></div> : null}
       <div className="declaration-actor"><small>Declaring now</small><strong>{declarer.name}</strong><span className="declaration-stage">Round {state.round} · <span>Stage 2, Declare</span></span></div>
       <DeclareChoices body={body} draft={draft} setDraft={setDraft} model={model} full={full} />
       {full ? <FullDefense {...parts} against={guarded} onAgainst={setAgainst} /> : <Split {...parts} />}

@@ -5,6 +5,7 @@ import { combatOpponents } from '../engine/attackParty'
 import { combatInputModifiers } from '../engine/inputModifiers'
 import { lubecFightAttack } from '../../fight/lubecFightWeapons'
 import { combatFightingTraining } from '../engine/attackMath'
+import { evasionFor } from '../engine/evasion'
 import { isRoundAttack } from '../engine/roundAttacks'
 import type { CombatAim, CombatAttack, CombatAttackRange, Combatant, CombatFrozenAim, CombatState } from '../engine/types'
 import { attackSegments, completeAim, sameAim, type AttackDraft, type AttackSegments } from './attackDraft'
@@ -53,6 +54,8 @@ export type AttackWindowModel = {
   held: boolean
   reading: AttackReading | null
   range: CombatAttackRange | null
+  /** What the target's Evasive Movement takes off this attack. */
+  evasion: number
   split: AttackSplit | null
   ready: boolean
   opponents: Combatant[]
@@ -64,10 +67,14 @@ const readable = (entry: LubecCombatant | null): entry is LubecCombatant => entr
 
 const heldRange = (attack: CombatAttack, held: boolean): CombatAttackRange | null => (held ? attack.range ?? null : null)
 
-function windowSplit(reading: AttackReading | null, target: LubecCombatant | null, draft: AttackDraft, range: CombatAttackRange | null): AttackSplit | null {
+function windowSplit(reading: AttackReading | null, target: LubecCombatant | null, draft: AttackDraft, range: CombatAttackRange | null, evasion: number): AttackSplit | null {
   if (!reading || !target) return null
-  return { reading, target, segments: attackSegments(reading.total, draft.defense?.amount ?? 0, range) }
+  return { reading, target, segments: attackSegments(reading.total, draft.defense?.amount ?? 0, range, evasion) }
 }
+
+/** A held ranged aim at an evader takes the evasion penalty, which the Roll will take too. */
+const heldEvasion = (state: CombatState, attack: CombatAttack, held: boolean): number =>
+  (held ? evasionFor(state, attack.aim?.targetKey, attack.frozen?.choice)?.penalty ?? 0 : 0)
 
 const windowTarget = (targets: readonly LubecCombatant[], key: string | null): LubecCombatant | null =>
   targets.find((entry) => lubecCombatantKey(entry) === key) ?? null
@@ -82,7 +89,8 @@ export function attackWindowModel({ state, fightId, attack, attacker, roster, sh
   const targets = opponents.map((entry) => combatFightCombatant(entry, roster)).filter(readable)
   const target = windowTarget(targets, draft.targetKey)
   const ready = rollReady(attack, aim, reading) && (!isRoundAttack(state, attack) || held)
-  return { aim, held, reading, range, opponents, targets, target, ready, split: windowSplit(reading, target, draft, range) }
+  const evasion = heldEvasion(state, attack, held)
+  return { aim, held, reading, range, evasion, opponents, targets, target, ready, split: windowSplit(reading, target, draft, range, evasion) }
 }
 
 /** What has gone since Declare, which is all a round's attacker may choose again. */
