@@ -1,13 +1,12 @@
 // The clock writes. Anyone in the campaign may make, edit, fill, empty and
-// delete a clock; the rules hold only the shape. Filling and emptying are
-// plain updates, so the press shows at once on this screen and reaches the
-// others' straight after. A one-piece step is an increment, so two people
-// stepping the same clock at once both count, and the rules refuse the one
-// that would run past full or below empty.
+// delete a clock; the rules hold only the shape. A piece is filled or emptied
+// on its own, as an array union or removal of its index, so the press shows at
+// once on this screen, and two people pressing different pieces of the same
+// clock at the same moment both count.
 
-import { deleteDoc, doc, increment, serverTimestamp, setDoc, updateDoc, type Firestore } from 'firebase/firestore'
+import { arrayRemove, arrayUnion, deleteDoc, doc, serverTimestamp, setDoc, updateDoc, type Firestore } from 'firebase/firestore'
 import { campaignClockRef, campaignClocksRef, type CampaignScope } from '../../campaign/firestorePaths'
-import { lubecFillForPieces, type LubecClock, type LubecClockFields } from './lubecClock'
+import { lubecFilledWithin, type LubecClock, type LubecClockFields } from './lubecClock'
 
 /** Where a campaign's clocks are. */
 export type LubecClockRecords = { db: Firestore; scope: CampaignScope }
@@ -15,26 +14,25 @@ export type LubecClockRecords = { db: Firestore; scope: CampaignScope }
 /** Makes a clock, empty, at the end of the list. Resolves with its id. */
 export async function createLubecClock({ db, scope }: LubecClockRecords, fields: LubecClockFields): Promise<string> {
   const ref = doc(campaignClocksRef(db, scope))
-  await setDoc(ref, { ...fields, filled: 0, started: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
+  await setDoc(ref, { ...fields, filled: [], started: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
   return ref.id
 }
 
-// The fill is written only when the clock is cut to fewer pieces than it has
-// filled, so a save does not undo a fill someone made while the form was open.
-const fillThatFits = (clock: LubecClock, pieces: number) => (clock.filled > pieces ? { filled: lubecFillForPieces(clock.filled, pieces) } : {})
+// The filled pieces are written only when the clock is cut to fewer pieces than
+// one of them, so a save does not undo a piece someone filled while the form was open.
+function piecesThatFit(clock: LubecClock, pieces: number) {
+  const kept = lubecFilledWithin(clock.filled, pieces)
+  return kept.length < clock.filled.length ? { filled: kept } : {}
+}
 
-/** Saves the form's fields; a clock cut to fewer pieces than it has filled keeps only as many as fit. */
+/** Saves the form's fields; filled pieces past the clock's new size go with them. */
 export const saveLubecClock = ({ db, scope }: LubecClockRecords, clock: LubecClock, fields: LubecClockFields) =>
-  updateDoc(campaignClockRef(db, scope, clock.id), { ...fields, ...fillThatFits(clock, fields.pieces), updatedAt: serverTimestamp() })
+  updateDoc(campaignClockRef(db, scope, clock.id), { ...fields, ...piecesThatFit(clock, fields.pieces), updatedAt: serverTimestamp() })
 
-const startedOnce = (filled: number) => (filled > 0 ? { started: true } : {})
-
-/** Fills the clock to exactly `filled` pieces. */
-export const setLubecClockFill = ({ db, scope }: LubecClockRecords, clock: LubecClock, filled: number) =>
-  updateDoc(campaignClockRef(db, scope, clock.id), { filled, ...startedOnce(filled), updatedAt: serverTimestamp() })
-
-/** Fills or empties one piece. */
-export const stepLubecClock = ({ db, scope }: LubecClockRecords, clock: LubecClock, step: 1 | -1) =>
-  updateDoc(campaignClockRef(db, scope, clock.id), { filled: increment(step), ...startedOnce(step), updatedAt: serverTimestamp() })
+/** Fills one piece, or empties it. */
+export const setLubecClockPiece = ({ db, scope }: LubecClockRecords, clock: LubecClock, index: number, filled: boolean) =>
+  updateDoc(campaignClockRef(db, scope, clock.id), filled
+    ? { filled: arrayUnion(index), started: true, updatedAt: serverTimestamp() }
+    : { filled: arrayRemove(index), updatedAt: serverTimestamp() })
 
 export const deleteLubecClock = ({ db, scope }: LubecClockRecords, clock: LubecClock) => deleteDoc(campaignClockRef(db, scope, clock.id))

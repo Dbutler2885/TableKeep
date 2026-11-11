@@ -237,7 +237,8 @@ When a character changes owners, save that handout's visibility again to update 
 Lubec 1977 campaigns have a Clocks tab the whole table shares live.
 A clock is a named pie of 1 to 10 pieces with an optional description, what fills it, what empties it, and what happens when it is full and when it is empty.
 Anyone in the campaign can make, edit, fill, empty and delete a clock, with no GM approval step.
-Click a piece to fill up to it, click the last filled piece to take it back, or step one piece with the minus and plus buttons.
+Pieces have no order: click any piece to fill it, and click it again to empty it.
+The count and the results follow how many pieces are filled.
 A full clock shows its full result on a band across the card, and a clock that has been filled and drained again shows its empty result.
 
 ## AI-generated session recaps

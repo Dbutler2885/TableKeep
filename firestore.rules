@@ -129,9 +129,9 @@ service cloud.firestore {
     }
 
     // A Lubec clock. The text limits match `LUBEC_CLOCK_LIMITS` in
-    // `src/features/lubec/clocks/lubecClock.ts`; the fill never runs past the
-    // pieces or below empty, which is what refuses the second of two
-    // simultaneous one-piece steps on an almost-full clock.
+    // `src/features/lubec/clocks/lubecClock.ts`. `filled` lists the filled
+    // pieces' indexes, in any order: each one a whole number below the clock's
+    // piece count, and none twice.
     function validLubecClock() {
       let data = request.resource.data;
       return data.keys().hasOnly(['name', 'description', 'pieces', 'filled', 'started', 'increase', 'decrease', 'whenFull', 'whenEmpty', 'createdAt', 'updatedAt'])
@@ -139,7 +139,9 @@ service cloud.firestore {
         && data.name is string && data.name.size() > 0 && data.name.size() <= 100
         && data.description is string && data.description.size() <= 1000
         && data.pieces is int && data.pieces >= 1 && data.pieces <= 10
-        && data.filled is int && data.filled >= 0 && data.filled <= data.pieces
+        && data.filled is list
+        && data.filled.hasOnly([0, 1, 2, 3, 4, 5, 6, 7, 8, 9][0:data.pieces])
+        && data.filled.toSet().size() == data.filled.size()
         && data.started is bool
         && data.increase is string && data.increase.size() <= 500
         && data.decrease is string && data.decrease.size() <= 500

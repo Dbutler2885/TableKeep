@@ -1,10 +1,9 @@
-import { Minus, Pencil, Plus } from 'lucide-react'
+import { Pencil } from 'lucide-react'
 import { lubecClockState, type LubecClock, type LubecClockState } from './lubecClock'
 import { LubecClockPie } from './LubecClockPie'
 
 export type LubecClockCardActions = {
-  onFill: (clock: LubecClock, filled: number) => void
-  onStep: (clock: LubecClock, step: 1 | -1) => void
+  onToggle: (clock: LubecClock, index: number, filled: boolean) => void
   onEdit: (clock: LubecClock) => void
 }
 
@@ -44,21 +43,16 @@ function Result({ clock, state }: { clock: LubecClock; state: LubecClockState })
 }
 
 function Dial({ clock, actions }: { clock: LubecClock; actions: LubecClockCardActions }) {
+  const count = clock.filled.length
   return (
     <div className="clock-dial">
-      <LubecClockPie pieces={clock.pieces} filled={clock.filled} name={clock.name} onPress={(filled) => actions.onFill(clock, filled)} />
-      <div className="clock-steps">
-        <button type="button" className="clock-step" aria-label={`${clock.name}: empty one piece`} title="Empty one piece"
-          disabled={clock.filled <= 0} onClick={() => actions.onStep(clock, -1)}><Minus size={16} aria-hidden="true" /></button>
-        <span className="clock-count" aria-label={`${clock.filled} of ${clock.pieces} filled`}><b>{clock.filled}</b> / {clock.pieces}</span>
-        <button type="button" className="clock-step" aria-label={`${clock.name}: fill one piece`} title="Fill one piece"
-          disabled={clock.filled >= clock.pieces} onClick={() => actions.onStep(clock, 1)}><Plus size={16} aria-hidden="true" /></button>
-      </div>
+      <LubecClockPie pieces={clock.pieces} filled={clock.filled} name={clock.name} onToggle={(index, filled) => actions.onToggle(clock, index, filled)} />
+      <span className="clock-count" aria-label={`${count} of ${clock.pieces} filled`}><b>{count}</b> / {clock.pieces}</span>
     </div>
   )
 }
 
-/** One clock: its face and steppers, its name and notes, and its result once it is full or empty. */
+/** One clock: its face and count, its name and notes, and its result once it is full or empty. */
 export function LubecClockCard({ clock, actions }: { clock: LubecClock; actions: LubecClockCardActions }) {
   const state = lubecClockState(clock)
   return (

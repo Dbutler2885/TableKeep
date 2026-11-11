@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
-  cleanLubecClockFields, emptyLubecClockFields, lubecClockFieldsOf, lubecClockState, lubecFillAfterPress, lubecFillForPieces,
+  cleanLubecClockFields, emptyLubecClockFields, lubecClockFieldsOf, lubecClockState, lubecFilledWithin,
   lubecPiePaths, lubecPiecesLabel, parseLubecClock, sortLubecClocks, type LubecClock,
 } from './lubecClock'
 
 const clock = (over: Partial<LubecClock> = {}): LubecClock => ({
-  id: 'c1', name: 'Sheriff', description: '', pieces: 6, filled: 0, started: false,
+  id: 'c1', name: 'Sheriff', description: '', pieces: 6, filled: [], started: false,
   increase: '', decrease: '', whenFull: '', whenEmpty: '', createdAtMs: 0, ...over,
 })
 
@@ -14,16 +14,16 @@ const stamp = (ms: number) => ({ toMillis: () => ms })
 describe('parseLubecClock', () => {
   it('reads a stored clock', () => {
     expect(parseLubecClock({
-      name: 'Sheriff', description: 'He is watching.', pieces: 6, filled: 2, started: true,
+      name: 'Sheriff', description: 'He is watching.', pieces: 6, filled: [4, 1], started: true,
       increase: 'Seen sneaking', decrease: 'Lie low', whenFull: 'He comes', whenEmpty: 'He forgets', createdAt: stamp(5),
     }, 'c1')).toEqual(clock({
-      description: 'He is watching.', filled: 2, started: true, increase: 'Seen sneaking', decrease: 'Lie low', whenFull: 'He comes', whenEmpty: 'He forgets', createdAtMs: 5,
+      description: 'He is watching.', filled: [1, 4], started: true, increase: 'Seen sneaking', decrease: 'Lie low', whenFull: 'He comes', whenEmpty: 'He forgets', createdAtMs: 5,
     }))
   })
 
   it('keeps a damaged clock usable', () => {
-    expect(parseLubecClock({ pieces: 40, filled: -3, name: 7, createdAt: 'yesterday' }, 'c2')).toEqual(clock({ id: 'c2', name: 'Unnamed clock', pieces: 10, filled: 0 }))
-    expect(parseLubecClock({ name: 'X', pieces: 3, filled: 9 }, 'c3')).toMatchObject({ pieces: 3, filled: 3, started: true })
+    expect(parseLubecClock({ pieces: 40, filled: 3, name: 7, createdAt: 'yesterday' }, 'c2')).toEqual(clock({ id: 'c2', name: 'Unnamed clock', pieces: 10, filled: [] }))
+    expect(parseLubecClock({ name: 'X', pieces: 3, filled: [2, 2, 7, -1, 0.5, '1', 0] }, 'c3')).toMatchObject({ pieces: 3, filled: [0, 2], started: true })
     expect(parseLubecClock({ name: 'X', pieces: Number.NaN }, 'c4')).toMatchObject({ pieces: 1 })
     expect(parseLubecClock({ name: 'X', createdAt: { toMillis: () => 'soon' } }, 'c5')).toMatchObject({ createdAtMs: 0 })
   })
@@ -52,29 +52,27 @@ describe('cleanLubecClockFields', () => {
   })
 })
 
-describe('filling', () => {
-  it('fills up to a pressed piece, and a press on the last filled piece takes it back', () => {
-    expect(lubecFillAfterPress(0, 3)).toBe(4)
-    expect(lubecFillAfterPress(4, 1)).toBe(2)
-    expect(lubecFillAfterPress(4, 3)).toBe(3)
-    expect(lubecFillAfterPress(1, 0)).toBe(0)
-  })
-
-  it('keeps only the pieces that fit when the clock shrinks', () => {
-    expect(lubecFillForPieces(5, 3)).toBe(3)
-    expect(lubecFillForPieces(2, 8)).toBe(2)
+describe('lubecFilledWithin', () => {
+  it('keeps only the pieces that fit when the clock shrinks, in order and once each', () => {
+    expect(lubecFilledWithin([5, 0, 2], 3)).toEqual([0, 2])
+    expect(lubecFilledWithin([7, 1, 1], 8)).toEqual([1, 7])
   })
 })
 
 describe('lubecClockState', () => {
   it('is full when every piece is filled', () => {
-    expect(lubecClockState({ filled: 4, pieces: 4, started: true })).toBe('full')
+    expect(lubecClockState({ filled: [0, 1, 2, 3], pieces: 4, started: true })).toBe('full')
+  })
+
+  it('counts pieces filled in any order', () => {
+    expect(lubecClockState({ filled: [3], pieces: 4, started: true })).toBe('running')
+    expect(lubecClockState({ filled: [2, 0, 1], pieces: 3, started: true })).toBe('full')
   })
 
   it('is empty only once a filled clock has drained', () => {
-    expect(lubecClockState({ filled: 0, pieces: 4, started: false })).toBe('running')
-    expect(lubecClockState({ filled: 0, pieces: 4, started: true })).toBe('empty')
-    expect(lubecClockState({ filled: 2, pieces: 4, started: true })).toBe('running')
+    expect(lubecClockState({ filled: [], pieces: 4, started: false })).toBe('running')
+    expect(lubecClockState({ filled: [], pieces: 4, started: true })).toBe('empty')
+    expect(lubecClockState({ filled: [1, 3], pieces: 4, started: true })).toBe('running')
   })
 })
 
@@ -92,6 +90,6 @@ describe('the pie', () => {
   })
 
   it('gives the form a clock\'s own fields', () => {
-    expect(lubecClockFieldsOf(clock({ filled: 3, whenFull: 'He comes' }))).toEqual({ ...emptyLubecClockFields(), name: 'Sheriff', pieces: 6, whenFull: 'He comes' })
+    expect(lubecClockFieldsOf(clock({ filled: [0, 2, 5], whenFull: 'He comes' }))).toEqual({ ...emptyLubecClockFields(), name: 'Sheriff', pieces: 6, whenFull: 'He comes' })
   })
 })

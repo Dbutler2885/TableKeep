@@ -1,7 +1,8 @@
 // A Lubec clock: a named pie of 1 to 10 pieces that the table fills and empties
 // by hand. It says in plain words what fills it and what empties it, and what
-// happens when it is full and when it is empty. Pieces fill in order from the
-// top, clockwise, so a clock's state is how many are filled.
+// happens when it is full and when it is empty. The pieces have no order: any
+// one may be filled or emptied on its own, so a clock's state is which pieces
+// are filled, and whether it is full or empty follows from how many.
 
 export const LUBEC_CLOCK_MIN_PIECES = 1
 export const LUBEC_CLOCK_MAX_PIECES = 10
@@ -29,7 +30,8 @@ export type LubecClockFields = {
 
 export type LubecClock = LubecClockFields & {
   id: string
-  filled: number
+  // The filled pieces, by index from the top piece clockwise, ascending and without repeats.
+  filled: number[]
   // Whether a piece has ever been filled. A new clock starts empty without
   // having become empty, so its empty result waits until it has been filled.
   started: boolean
@@ -74,17 +76,21 @@ const millisOf = (value: unknown): number => {
 
 export const clampLubecClockPieces = (pieces: number) => clampInt(pieces, LUBEC_CLOCK_MIN_PIECES, LUBEC_CLOCK_MAX_PIECES)
 
+/** The filled pieces that exist on a clock of `pieces` pieces, ascending and without repeats. */
+export const lubecFilledWithin = (filled: readonly unknown[], pieces: number): number[] =>
+  [...new Set(filled.filter((index): index is number => Number.isInteger(index) && (index as number) >= 0 && (index as number) < pieces))].sort((a, b) => a - b)
+
 /** Reads a stored clock, keeping a damaged one usable rather than dropping it. */
 export function parseLubecClock(data: Record<string, unknown>, id: string): LubecClock {
   const pieces = clampLubecClockPieces(numberOr(data.pieces, LUBEC_CLOCK_MIN_PIECES))
-  const filled = clampInt(numberOr(data.filled, 0), 0, pieces)
+  const filled = lubecFilledWithin(Array.isArray(data.filled) ? data.filled : [], pieces)
   return {
     id,
     name: textOf(data.name, LUBEC_CLOCK_LIMITS.name) || 'Unnamed clock',
     description: textOf(data.description, LUBEC_CLOCK_LIMITS.description),
     pieces,
     filled,
-    started: data.started === true || filled > 0,
+    started: data.started === true || filled.length > 0,
     increase: textOf(data.increase, LUBEC_CLOCK_LIMITS.increase),
     decrease: textOf(data.decrease, LUBEC_CLOCK_LIMITS.decrease),
     whenFull: textOf(data.whenFull, LUBEC_CLOCK_LIMITS.whenFull),
@@ -111,22 +117,12 @@ export function cleanLubecClockFields(fields: LubecClockFields): { ok: true; fie
   return { ok: true, fields: cleaned }
 }
 
-/**
- * How full the clock is after a piece is pressed: up to and including that
- * piece, or, when it is the last filled piece, one fewer. So any level is one
- * press away, and pressing the edge again takes it back.
- */
-export const lubecFillAfterPress = (filled: number, pieceIndex: number) => (pieceIndex + 1 === filled ? pieceIndex : pieceIndex + 1)
-
-/** A clock whose piece count shrinks below its fill keeps only as many as fit. */
-export const lubecFillForPieces = (filled: number, pieces: number) => Math.min(filled, clampLubecClockPieces(pieces))
-
 export type LubecClockState = 'full' | 'empty' | 'running'
 
-/** Full when every piece is filled; empty only once it has been filled and drained again. */
+/** Full when every piece is filled, whichever order they were filled in; empty only once it has been filled and drained again. */
 export function lubecClockState(clock: Pick<LubecClock, 'filled' | 'pieces' | 'started'>): LubecClockState {
-  if (clock.filled >= clock.pieces) return 'full'
-  if (clock.filled === 0 && clock.started) return 'empty'
+  if (clock.filled.length >= clock.pieces) return 'full'
+  if (clock.filled.length === 0 && clock.started) return 'empty'
   return 'running'
 }
 

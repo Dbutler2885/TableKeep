@@ -2,9 +2,9 @@
 /**
  * The Clocks tab, over `firebase/firestore` stubbed with documents kept by
  * path and every listener told of each write, as Firestore's own snapshots
- * are. A clock is made through the form, filled by its pie and its steppers,
- * shows its result when full and once drained, is edited through the same
- * form and deleted from it.
+ * are. A clock is made through the form, its pieces filled and emptied one at
+ * a time in any order, shows its result when full and once drained, is edited
+ * through the same form and deleted from it.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -21,16 +21,18 @@ const mocks = vi.hoisted(() => ({
 
 const isSentinel = (value: unknown, kind: string) => typeof value === 'object' && value !== null && (value as Fields).sentinel === kind
 
-// A write as the server applies it: stamps for timestamps, sums for increments.
-function applied(was: Fields, payload: Fields): Fields {
-  const next = { ...was }
-  for (const [key, value] of Object.entries(payload)) {
-    if (isSentinel(value, 'serverTimestamp')) next[key] = { toMillis: () => ++mocks.nextId }
-    else if (isSentinel(value, 'increment')) next[key] = Number(was[key] ?? 0) + Number((value as Fields).by)
-    else next[key] = value
-  }
-  return next
+const listOf = (value: unknown) => (Array.isArray(value) ? value : [])
+
+// One field as the server writes it: a stamp for a timestamp, a union or removal for an array change.
+function appliedField(was: unknown, value: unknown): unknown {
+  if (isSentinel(value, 'serverTimestamp')) return { toMillis: () => ++mocks.nextId }
+  if (isSentinel(value, 'arrayUnion')) return [...new Set([...listOf(was), (value as Fields).item])]
+  if (isSentinel(value, 'arrayRemove')) return listOf(was).filter((item) => item !== (value as Fields).item)
+  return value
 }
+
+const applied = (was: Fields, payload: Fields): Fields =>
+  ({ ...was, ...Object.fromEntries(Object.entries(payload).map(([key, value]) => [key, appliedField(was[key], value)])) })
 
 function emitAll() {
   for (const listener of mocks.listeners) {
@@ -59,7 +61,8 @@ vi.mock('firebase/firestore', () => ({
     return () => { mocks.listeners = mocks.listeners.filter((l) => l !== listener) }
   },
   serverTimestamp: () => ({ sentinel: 'serverTimestamp' }),
-  increment: (by: number) => ({ sentinel: 'increment', by }),
+  arrayUnion: (item: unknown) => ({ sentinel: 'arrayUnion', item }),
+  arrayRemove: (item: unknown) => ({ sentinel: 'arrayRemove', item }),
   setDoc: (ref: Ref, data: Fields) => write(ref.path, () => { mocks.database[ref.path] = applied({}, data) }),
   updateDoc: (ref: Ref, data: Fields) => write(ref.path, () => {
     if (!mocks.database[ref.path]) throw new Error('not-found')
@@ -75,7 +78,7 @@ const setError = vi.fn()
 
 const stored = (id: string, over: Fields = {}) => {
   mocks.database[`${CLOCKS}/${id}`] = {
-    name: 'Sheriff', description: '', pieces: 4, filled: 0, started: false, increase: '', decrease: '', whenFull: '', whenEmpty: '',
+    name: 'Sheriff', description: '', pieces: 4, filled: [], started: false, increase: '', decrease: '', whenFull: '', whenEmpty: '',
     createdAt: { toMillis: () => 1 }, ...over,
   }
 }
@@ -120,7 +123,7 @@ describe('the Clocks tab', () => {
     expect(within(sheriff).getByText('He stops watching')).toBeTruthy()
     expect(within(sheriff).getByLabelText('0 of 6 filled')).toBeTruthy()
     expect(within(sheriff).queryByText('Empty')).toBeNull()
-    expect(Object.values(mocks.database)[0]).toMatchObject({ name: 'The Sheriff', pieces: 6, filled: 0, started: false, whenFull: 'He calls the parents' })
+    expect(Object.values(mocks.database)[0]).toMatchObject({ name: 'The Sheriff', pieces: 6, filled: [], started: false, whenFull: 'He calls the parents' })
   })
 
   it('refuses a clock without a name and keeps the form open', async () => {
@@ -142,52 +145,57 @@ describe('the Clocks tab', () => {
     expect(Object.keys(mocks.database)).toEqual([])
   })
 
-  it('fills to a pressed piece and empties back from the last one, by click and by key', async () => {
+  it('fills and empties any piece on its own, in any order, by click and by key', async () => {
     stored('c1')
     mount()
     const sheriff = await screen.findByRole('article', { name: 'Sheriff' })
-    await act(async () => { fireEvent.click(within(sheriff).getByRole('button', { name: 'Sheriff: fill to piece 3' })) })
-    expect(docOf('c1')).toMatchObject({ filled: 3, started: true })
-    await act(async () => { fireEvent.keyDown(within(sheriff).getByRole('button', { name: 'Sheriff: empty after piece 2' }), { key: 'Enter' }) })
-    expect(docOf('c1').filled).toBe(2)
-    await act(async () => { fireEvent.keyDown(within(sheriff).getByRole('button', { name: 'Sheriff: empty piece 2' }), { key: ' ' }) })
-    expect(docOf('c1').filled).toBe(1)
-    fireEvent.keyDown(within(sheriff).getByRole('button', { name: 'Sheriff: fill to piece 4' }), { key: 'a' })
-    expect(docOf('c1').filled).toBe(1)
+    const piece = (label: string) => within(sheriff).getByRole('button', { name: `Sheriff: ${label}` })
+    await act(async () => { fireEvent.click(piece('fill piece 3')) })
+    expect(docOf('c1')).toMatchObject({ filled: [2], started: true })
+    expect(piece('empty piece 3').getAttribute('aria-pressed')).toBe('true')
+    expect(piece('fill piece 1').getAttribute('aria-pressed')).toBe('false')
+    await act(async () => { fireEvent.keyDown(piece('fill piece 1'), { key: 'Enter' }) })
+    expect(docOf('c1').filled).toEqual([2, 0])
+    expect(within(sheriff).getByLabelText('2 of 4 filled')).toBeTruthy()
+    await act(async () => { fireEvent.keyDown(piece('empty piece 3'), { key: ' ' }) })
+    expect(docOf('c1').filled).toEqual([0])
+    fireEvent.keyDown(piece('fill piece 4'), { key: 'a' })
+    expect(docOf('c1').filled).toEqual([0])
   })
 
-  it('steps one piece at a time, and shows the full result, then the empty one once drained', async () => {
-    stored('c1', { pieces: 2, whenFull: 'He calls the parents', whenEmpty: 'He stops watching' })
+  it('shows the full result whatever order the pieces were filled in, then the empty one once drained', async () => {
+    stored('c1', { pieces: 3, whenFull: 'He calls the parents', whenEmpty: 'He stops watching' })
     mount()
     const sheriff = await screen.findByRole('article', { name: 'Sheriff' })
-    const less = within(sheriff).getByRole('button', { name: 'Sheriff: empty one piece' }) as HTMLButtonElement
-    const more = within(sheriff).getByRole('button', { name: 'Sheriff: fill one piece' }) as HTMLButtonElement
-    expect(less.disabled).toBe(true)
-    await act(async () => { fireEvent.click(more) })
-    await act(async () => { fireEvent.click(more) })
-    expect(docOf('c1')).toMatchObject({ filled: 2, started: true })
-    expect(more.disabled).toBe(true)
+    const press = async (label: string) => act(async () => { fireEvent.click(within(sheriff).getByRole('button', { name: `Sheriff: ${label}` })) })
+    expect(within(sheriff).queryByText('Empty')).toBeNull()
+    await press('fill piece 3')
+    await press('fill piece 1')
+    expect(within(sheriff).queryByText('Full')).toBeNull()
+    await press('fill piece 2')
+    expect(docOf('c1')).toMatchObject({ filled: [2, 0, 1], started: true })
     expect(within(sheriff).getByText('Full')).toBeTruthy()
     expect(within(sheriff).getAllByText('He calls the parents')).toHaveLength(1)
-    await act(async () => { fireEvent.click(less) })
-    await act(async () => { fireEvent.click(less) })
+    await press('empty piece 2')
     expect(within(sheriff).queryByText('Full')).toBeNull()
+    await press('empty piece 1')
+    await press('empty piece 3')
     expect(within(sheriff).getByText('Empty')).toBeTruthy()
     expect(within(sheriff).getAllByText('He stops watching')).toHaveLength(1)
   })
 
-  it('says so when a fill is refused, and leaves the clock as it was', async () => {
+  it('says so when a piece is refused, and leaves the clock as it was', async () => {
     stored('c1')
     mocks.refuse = `${CLOCKS}/c1`
     mount()
     const sheriff = await screen.findByRole('article', { name: 'Sheriff' })
-    await act(async () => { fireEvent.click(within(sheriff).getByRole('button', { name: 'Sheriff: fill one piece' })) })
+    await act(async () => { fireEvent.click(within(sheriff).getByRole('button', { name: 'Sheriff: fill piece 2' })) })
     expect((await screen.findByRole('alert')).textContent).toBe('Could not save that. Nothing changed.')
-    expect(docOf('c1').filled).toBe(0)
+    expect(docOf('c1').filled).toEqual([])
   })
 
   it('edits a clock through the same form and keeps only the pieces that fit', async () => {
-    stored('c1', { pieces: 6, filled: 5, started: true })
+    stored('c1', { pieces: 6, filled: [0, 2, 4, 5], started: true })
     mount()
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Sheriff' }))
     const dialog = screen.getByRole('dialog', { name: 'Edit clock' })
@@ -195,20 +203,20 @@ describe('the Clocks tab', () => {
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Deputy' } })
     fireEvent.click(within(dialog).getByLabelText('3 pieces'))
     await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Save' })) })
-    expect(docOf('c1')).toMatchObject({ name: 'Deputy', pieces: 3, filled: 3 })
+    expect(docOf('c1')).toMatchObject({ name: 'Deputy', pieces: 3, filled: [0, 2] })
     expect(card('Deputy')).toBeTruthy()
   })
 
-  it('saves an edit without undoing a fill made while the form was open', async () => {
-    stored('c1', { pieces: 6, filled: 1 })
+  it('saves an edit without undoing a piece filled while the form was open', async () => {
+    stored('c1', { pieces: 6, filled: [1] })
     mount()
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Sheriff' }))
     await act(async () => {
-      mocks.database[`${CLOCKS}/c1`] = { ...docOf('c1'), filled: 4 }
+      mocks.database[`${CLOCKS}/c1`] = { ...docOf('c1'), filled: [1, 4] }
       emitAll()
     })
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
-    expect(docOf('c1').filled).toBe(4)
+    expect(docOf('c1').filled).toEqual([1, 4])
   })
 
   it('keeps the form open with an error when the save is refused', async () => {

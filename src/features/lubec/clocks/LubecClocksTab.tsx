@@ -9,7 +9,7 @@ import { LubecRoughFilter } from '../LubecRoughFilter'
 import type { LubecClock, LubecClockFields } from './lubecClock'
 import { LubecClockCard, type LubecClockCardActions } from './LubecClockCard'
 import { LubecClockForm } from './LubecClockForm'
-import { createLubecClock, deleteLubecClock, saveLubecClock, setLubecClockFill, stepLubecClock, type LubecClockRecords } from './lubecClockWrites'
+import { createLubecClock, deleteLubecClock, saveLubecClock, setLubecClockPiece, type LubecClockRecords } from './lubecClockWrites'
 import { useLubecClocks } from './useLubecClocks'
 import './lubecClocks.css'
 
@@ -44,7 +44,7 @@ function ClockList({ clocks, actions }: { clocks: LubecClock[] | null; actions: 
   )
 }
 
-// A fill or a step that the rules refuse, say because someone else filled the last piece first, leaves the clock as it is and says so.
+// A piece the rules refuse to fill or empty, say because someone cut the clock smaller meanwhile, stays as it was, and the tab says so.
 function useFillActions(records: LubecClockRecords, onEdit: (clock: LubecClock) => void) {
   const [error, setError] = useState<string | null>(null)
   const attempt = (write: Promise<void>) => {
@@ -52,14 +52,13 @@ function useFillActions(records: LubecClockRecords, onEdit: (clock: LubecClock) 
     write.catch(() => setError(CANNOT_SAVE))
   }
   const actions: LubecClockCardActions = {
-    onFill: (clock, filled) => attempt(setLubecClockFill(records, clock, filled)),
-    onStep: (clock, step) => attempt(stepLubecClock(records, clock, step)),
+    onToggle: (clock, index, filled) => attempt(setLubecClockPiece(records, clock, index, filled)),
     onEdit,
   }
   return { error, actions }
 }
 
-// The clock as it is now, so an edit saved after someone filled it keeps their fill; the opened copy if it has gone.
+// The clock as it is now, so an edit saved after someone filled a piece keeps it; the opened copy if it has gone.
 const liveClock = (clocks: LubecClock[] | null, opened: LubecClock) => clocks?.find((clock) => clock.id === opened.id) ?? opened
 
 // The open form and its writes; each closes the form once it goes through.

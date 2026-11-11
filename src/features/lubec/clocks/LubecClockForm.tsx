@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import {
-  cleanLubecClockFields, emptyLubecClockFields, LUBEC_CLOCK_LIMITS, LUBEC_CLOCK_MAX_PIECES, lubecClockFieldsOf, lubecFillForPieces, lubecPiecesLabel,
+  cleanLubecClockFields, emptyLubecClockFields, LUBEC_CLOCK_LIMITS, LUBEC_CLOCK_MAX_PIECES, lubecClockFieldsOf, lubecFilledWithin, lubecPiecesLabel,
   type LubecClock, type LubecClockFields,
 } from './lubecClock'
 import { LubecClockPie } from './LubecClockPie'
@@ -108,11 +108,11 @@ function FormFoot({ clock, write, onDelete, onClose }: Pick<LubecClockFormProps,
   )
 }
 
-/** The pie as the clock will look, at the fill it keeps when its pieces change. */
+/** The pie as the clock will look, with the filled pieces it keeps when its size changes. */
 function Preview({ clock, pieces }: { clock: LubecClock | null; pieces: number }) {
   return (
     <div className="clock-preview" aria-hidden="true">
-      <LubecClockPie pieces={pieces} filled={lubecFillForPieces(clock?.filled ?? 0, pieces)} />
+      <LubecClockPie pieces={pieces} filled={lubecFilledWithin(clock?.filled ?? [], pieces)} />
       <span className="clock-count">{lubecPiecesLabel(pieces)}</span>
     </div>
   )
