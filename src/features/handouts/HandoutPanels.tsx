@@ -5,7 +5,7 @@ import { HandoutViewer } from './HandoutViewer'
 
 type SidebarProps = {
   isGm: boolean; flat: boolean; folders: HandoutFolder[]; handouts: Handout[]; loading: boolean
-  folderId: string; selectedId: string; onFlat: (value: boolean) => void; onSelect: (id: string) => void
+  folderId: string; selectedId: string; expandedFolderIds: string[]; onFlat: (value: boolean) => void; onSelect: (id: string) => void
   onFolder: (id: string) => void; onAddFolder: () => void; onAddHandout: () => void
 }
 export function HandoutSidebar(props: SidebarProps) {

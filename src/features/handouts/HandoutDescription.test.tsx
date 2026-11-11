@@ -36,7 +36,7 @@ describe('optional handout descriptions', () => {
 
   it.each(kinds)('shows a revealed %s description in details and both library views', (kind) => {
     const handout = { ...original(kind), visibility: 'all' as const, description: 'A faded clue recovered from the harbour office.' }
-    const libraryProps = { folders, handouts: [handout], selectedId: handout.id, folderId: '', onSelect: vi.fn(), onFolder: vi.fn() }
+    const libraryProps = { folders, handouts: [handout], selectedId: handout.id, folderId: '', expandedFolderIds: ['letters'], onSelect: vi.fn(), onFolder: vi.fn() }
     const details = <section aria-label="Handout details"><HandoutDetail handout={handout} folders={folders} isGm={false} onEdit={vi.fn()} onDelete={vi.fn()} /></section>
     const view = render(<><HandoutLibrary {...libraryProps} flat={false} />{details}</>)
     expect(within(screen.getByRole('region', { name: 'Handout details' })).getByText(handout.description)).toBeTruthy()

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Role } from '../../types/app'
 import type { CampaignScope } from '../campaign/firestorePaths'
-import { emptyHandout, visibleFolders, type Handout, type HandoutFolder } from './handoutModel'
+import { emptyHandout, folderAncestors, foldersExpandedByClick, visibleFolders, type Handout, type HandoutFolder } from './handoutModel'
 import { deleteHandout, deleteHandoutFolder, saveHandout, saveHandoutFolder, useHandouts } from './useHandouts'
 import { HandoutEditor } from './HandoutEditor'
 import { HandoutFolderEditor } from './HandoutFolderEditor'
@@ -15,13 +15,20 @@ function useHandoutSelection(data: HandoutData, isGm: boolean) {
   const [flat, setFlat] = useState(false)
   const [selectedId, setSelectedId] = useState('')
   const [folderId, setFolderId] = useState('')
+  const [expandedFolderIds, setExpandedFolderIds] = useState<string[]>([])
   const selected = data.handouts.find((handout) => handout.id === selectedId)
   const folders = isGm ? data.folders : visibleFolders(data.folders, data.handouts)
   const currentFolder = folders.find((folder) => folder.id === folderId)
   const destinationFolderId = currentFolder?.id ?? ''
   const folderEmpty = !data.handouts.some((handout) => handout.folderId === folderId) && !data.folders.some((folder) => folder.parentId === folderId)
   const chooseFolder = (id: string) => { setFolderId(id); setSelectedId('') }
-  return { flat, setFlat, selectedId, setSelectedId, folderId, setFolderId, selected, folders, currentFolder, destinationFolderId, folderEmpty, chooseFolder }
+  const clickFolder = (id: string) => {
+    if (id) setExpandedFolderIds((current) => foldersExpandedByClick(current, id, folderId))
+    chooseFolder(id)
+  }
+  // Opens every folder on the path to a saved item, so it is visible where it landed.
+  const revealFolders = (ids: string[]) => setExpandedFolderIds((current) => [...new Set([...current, ...ids.filter(Boolean)])])
+  return { flat, setFlat, selectedId, setSelectedId, folderId, setFolderId, expandedFolderIds, selected, folders, currentFolder, destinationFolderId, folderEmpty, chooseFolder, clickFolder, revealFolders }
 }
 
 type Selection = ReturnType<typeof useHandoutSelection>
@@ -37,10 +44,12 @@ function useHandoutActions(scope: CampaignScope, gmUserId: string, selection: Se
   }
   const save = async (handout: Handout, file: File | null) => {
     await saveHandout(scope, { ...handout, gmUserId }, file)
+    selection.revealFolders(folderAncestors(handout.folderId, selection.folders))
     selection.setSelectedId(handout.id); setEditing(null)
   }
   const saveFolder = async (folder: HandoutFolder) => {
     await saveHandoutFolder(scope, folder)
+    selection.revealFolders([folder.id, ...folderAncestors(folder.parentId, selection.folders)])
     selection.chooseFolder(folder.id); setEditingFolder(null)
   }
   const remove = (handout: Handout) => run(async () => {
@@ -75,7 +84,7 @@ export function HandoutsTab({ groupId, campaignId, gmUserId, userId, role }: Pro
   const { selected, currentFolder } = selection
   return <div className="maps-layout handouts-layout">
     <HandoutSidebar isGm={isGm} flat={selection.flat} folders={selection.folders} handouts={data.handouts} loading={data.loading} folderId={selection.folderId} selectedId={selection.selectedId}
-      onFlat={selection.setFlat} onSelect={selection.setSelectedId} onFolder={selection.chooseFolder} onAddFolder={actions.addFolder} onAddHandout={actions.addHandout} />
+      expandedFolderIds={selection.expandedFolderIds} onFlat={selection.setFlat} onSelect={selection.setSelectedId} onFolder={selection.clickFolder} onAddFolder={actions.addFolder} onAddHandout={actions.addHandout} />
     <section className="handout-detail" aria-label="Handout details">
       {data.error ? <p className="error" role="alert">{data.error}</p> : null}
       {selected

@@ -38,6 +38,13 @@ export function folderAncestors(folderId: string, folders: HandoutFolder[]): str
   return result
 }
 
+// One click both opens a folder and makes it the target for new items.
+// Only a click on the folder that is already selected and open closes it again.
+export function foldersExpandedByClick(expandedIds: string[], clickedId: string, selectedFolderId: string): string[] {
+  if (clickedId === selectedFolderId && expandedIds.includes(clickedId)) return expandedIds.filter((id) => id !== clickedId)
+  return expandedIds.includes(clickedId) ? expandedIds : [...expandedIds, clickedId]
+}
+
 export function visibleFolders(folders: HandoutFolder[], handouts: Handout[]): HandoutFolder[] {
   const ids = new Set(handouts.flatMap((handout) => folderAncestors(handout.folderId, folders)))
   return folders.filter((folder) => ids.has(folder.id))

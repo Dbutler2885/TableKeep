@@ -5,10 +5,8 @@
 .handout-library { padding: 8px; overflow: auto; }
 .handout-root { margin: 8px 12px; text-align: left; }
 .handout-folder { margin: 3px 0; }
-.handout-folder summary { display: flex; align-items: center; }
-.handout-folder summary::before { content: '▸'; font-size: 12px; cursor: pointer; }
-.handout-folder[open] > summary::before { content: '▾'; }
-.handout-folder-button { display: flex; align-items: center; gap: 6px; border: 0; background: transparent; text-align: left; padding: 7px; min-width: 0; overflow-wrap: anywhere; }
+.handout-folder-button { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; border-radius: 4px; background: transparent; text-align: left; padding: 7px 8px; min-width: 0; overflow-wrap: anywhere; }
+.handout-folder-button svg { flex-shrink: 0; }
 .handout-folder-button.active, .handout-row.active { background: var(--active-bg, #efe2c7); color: var(--text-primary, #33291e); }
 .handout-folder-children { margin-left: 15px; padding-left: 8px; border-left: 1px solid var(--border-color, #d5c8af); }
 .handout-row { display: flex; align-items: flex-start; gap: 8px; width: 100%; text-align: left; background: transparent; border: 0; padding: 10px 8px; border-radius: 4px; }
