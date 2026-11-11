@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
-  cleanLubecClockFields, emptyLubecClockFields, lubecClockFieldsOf, lubecClockState, lubecFilledWithin,
+  cleanLubecClockFields, cleanLubecClockSharing, emptyLubecClockFields, hiddenLubecClockSharing, lubecClockAudience, lubecClockFieldsOf, lubecClockSharingOf,
+  lubecClockViewerUids, sharedLubecClockSharing, type LubecClockCharacter, lubecClockState, lubecFilledWithin,
   lubecPiePaths, lubecPiecesLabel, parseLubecClock, sortLubecClocks, type LubecClock,
 } from './lubecClock'
 
 const clock = (over: Partial<LubecClock> = {}): LubecClock => ({
-  id: 'c1', name: 'Sheriff', description: '', pieces: 6, filled: [], started: false,
+  id: 'c1', name: 'Sheriff', description: '', pieces: 6, filled: [], started: false, visibility: 'hidden', characterIds: [], viewerUids: [],
   increase: '', decrease: '', whenFull: '', whenEmpty: '', createdAtMs: 0, ...over,
 })
 
@@ -16,8 +17,10 @@ describe('parseLubecClock', () => {
     expect(parseLubecClock({
       name: 'Sheriff', description: 'He is watching.', pieces: 6, filled: [4, 1], started: true,
       increase: 'Seen sneaking', decrease: 'Lie low', whenFull: 'He comes', whenEmpty: 'He forgets', createdAt: stamp(5),
+      visibility: 'some', characterIds: ['wayne', 7], viewerUids: ['alice'],
     }, 'c1')).toEqual(clock({
       description: 'He is watching.', filled: [1, 4], started: true, increase: 'Seen sneaking', decrease: 'Lie low', whenFull: 'He comes', whenEmpty: 'He forgets', createdAtMs: 5,
+      visibility: 'some', characterIds: ['wayne'], viewerUids: ['alice'],
     }))
   })
 
@@ -26,6 +29,7 @@ describe('parseLubecClock', () => {
     expect(parseLubecClock({ name: 'X', pieces: 3, filled: [2, 2, 7, -1, 0.5, '1', 0] }, 'c3')).toMatchObject({ pieces: 3, filled: [0, 2], started: true })
     expect(parseLubecClock({ name: 'X', pieces: Number.NaN }, 'c4')).toMatchObject({ pieces: 1 })
     expect(parseLubecClock({ name: 'X', createdAt: { toMillis: () => 'soon' } }, 'c5')).toMatchObject({ createdAtMs: 0 })
+    expect(parseLubecClock({ name: 'X', visibility: 'everyone', viewerUids: 'alice' }, 'c6')).toMatchObject({ visibility: 'hidden', viewerUids: [] })
   })
 })
 
@@ -91,5 +95,39 @@ describe('the pie', () => {
 
   it('gives the form a clock\'s own fields', () => {
     expect(lubecClockFieldsOf(clock({ filled: [0, 2, 5], whenFull: 'He comes' }))).toEqual({ ...emptyLubecClockFields(), name: 'Sheriff', pieces: 6, whenFull: 'He comes' })
+  })
+})
+
+const characters: LubecClockCharacter[] = [
+  { id: 'wayne', name: 'Wayne Gardner', ownerUserId: 'alice', ownerUsername: 'alice77' },
+  { id: 'tommy', name: 'Tommy Eves', ownerUserId: 'bob', ownerUsername: '' },
+  { id: 'dot', name: 'Dot Eves', ownerUserId: 'bob', ownerUsername: '' },
+]
+
+describe('who sees a clock', () => {
+  it('starts a GM\'s clock hidden and a player\'s shown to everyone', () => {
+    expect(hiddenLubecClockSharing()).toEqual({ visibility: 'hidden', characterIds: [], viewerUids: [] })
+    expect(sharedLubecClockSharing()).toEqual({ visibility: 'all', characterIds: [], viewerUids: [] })
+    expect(lubecClockSharingOf(clock({ visibility: 'all', name: 'X' }))).toEqual(sharedLubecClockSharing())
+  })
+
+  it('shows a clock to the owners of the chosen characters, once each', () => {
+    expect(lubecClockViewerUids(['tommy', 'dot', 'wayne', 'gone'], characters)).toEqual(['alice', 'bob'])
+  })
+
+  it('captures the viewers only for chosen players, and needs at least one', () => {
+    expect(cleanLubecClockSharing({ visibility: 'some', characterIds: ['tommy'], viewerUids: [] }, characters))
+      .toEqual({ ok: true, sharing: { visibility: 'some', characterIds: ['tommy'], viewerUids: ['bob'] } })
+    expect(cleanLubecClockSharing({ visibility: 'all', characterIds: ['tommy'], viewerUids: ['bob'] }, characters))
+      .toEqual({ ok: true, sharing: { visibility: 'all', characterIds: ['tommy'], viewerUids: [] } })
+    expect(cleanLubecClockSharing({ visibility: 'some', characterIds: [], viewerUids: [] }, characters))
+      .toEqual({ ok: false, error: 'Choose at least one player to show it to.' })
+  })
+
+  it('says who sees a clock, for the GM', () => {
+    expect(lubecClockAudience(hiddenLubecClockSharing(), characters)).toBe('Hidden')
+    expect(lubecClockAudience(sharedLubecClockSharing(), characters)).toBe('Everyone')
+    expect(lubecClockAudience({ visibility: 'some', characterIds: ['wayne', 'tommy'], viewerUids: [] }, characters)).toBe('Wayne Gardner, Tommy Eves')
+    expect(lubecClockAudience({ visibility: 'some', characterIds: ['gone'], viewerUids: [] }, characters)).toBe('Chosen players')
   })
 })

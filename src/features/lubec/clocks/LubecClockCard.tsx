@@ -1,4 +1,4 @@
-import { Pencil } from 'lucide-react'
+import { Eye, EyeOff, Pencil } from 'lucide-react'
 import { lubecClockState, type LubecClock, type LubecClockState } from './lubecClock'
 import { LubecClockPie } from './LubecClockPie'
 
@@ -52,8 +52,17 @@ function Dial({ clock, actions }: { clock: LubecClock; actions: LubecClockCardAc
   )
 }
 
-/** One clock: its face and count, its name and notes, and its result once it is full or empty. */
-export function LubecClockCard({ clock, actions }: { clock: LubecClock; actions: LubecClockCardActions }) {
+/** Who sees the clock, which only the GM is shown. */
+function Audience({ clock, audience }: { clock: LubecClock; audience: string | null }) {
+  if (audience === null) return null
+  const Icon = clock.visibility === 'hidden' ? EyeOff : Eye
+  return <p className={`clock-audience audience-${clock.visibility}`}><Icon size={13} aria-hidden="true" /><span className="sr-only">Seen by: </span>{audience}</p>
+}
+
+type CardProps = { clock: LubecClock; actions: LubecClockCardActions; audience: string | null }
+
+/** One clock: its face and count, its name and notes, who sees it for the GM, and its result once it is full or empty. */
+export function LubecClockCard({ clock, actions, audience }: CardProps) {
   const state = lubecClockState(clock)
   return (
     <article className={`lubec-clock is-${state}`} aria-label={clock.name}>
@@ -65,6 +74,7 @@ export function LubecClockCard({ clock, actions }: { clock: LubecClock; actions:
             <Pencil size={14} aria-hidden="true" /><span>Edit</span>
           </button>
         </header>
+        <Audience clock={clock} audience={audience} />
         {clock.description ? <p className="clock-description">{clock.description}</p> : null}
         <Notes notes={notesOf(clock, state)} />
       </div>

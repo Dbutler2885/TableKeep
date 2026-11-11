@@ -1,9 +1,10 @@
 import { useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import {
-  cleanLubecClockFields, emptyLubecClockFields, LUBEC_CLOCK_LIMITS, LUBEC_CLOCK_MAX_PIECES, lubecClockFieldsOf, lubecFilledWithin, lubecPiecesLabel,
-  type LubecClock, type LubecClockFields,
+  cleanLubecClockFields, cleanLubecClockSharing, emptyLubecClockFields, hiddenLubecClockSharing, LUBEC_CLOCK_LIMITS, LUBEC_CLOCK_MAX_PIECES, lubecClockFieldsOf,
+  lubecClockSharingOf, lubecFilledWithin, lubecPiecesLabel, type LubecClock, type LubecClockCharacter, type LubecClockFields, type LubecClockSharing,
 } from './lubecClock'
 import { LubecClockPie } from './LubecClockPie'
+import { LubecClockSharingFields } from './LubecClockSharingFields'
 
 const TITLE = 'lubec-clock-form-title'
 const CANNOT_SAVE = 'Could not save that. Nothing changed.'
@@ -12,7 +13,10 @@ const CANNOT_DELETE = 'Could not delete that. Nothing changed.'
 export type LubecClockFormProps = {
   /** The clock being edited, or null for a new one. */
   clock: LubecClock | null
-  onSubmit: (fields: LubecClockFields) => Promise<void>
+  /** The players' characters the GM can show the clock to; null for a player, who cannot choose who sees a clock. */
+  characters: readonly LubecClockCharacter[] | null
+  /** Called with the checked fields, and who sees the clock when the GM is choosing. */
+  onSubmit: (fields: LubecClockFields, sharing: LubecClockSharing | null) => Promise<void>
   onDelete: (clock: LubecClock) => Promise<void>
   onClose: () => void
 }
@@ -118,24 +122,42 @@ function Preview({ clock, pieces }: { clock: LubecClock | null; pieces: number }
   )
 }
 
-// The fields as they stand, and the submit that checks them before they are written.
-function useClockFields(clock: LubecClock | null, write: Write, onSubmit: LubecClockFormProps['onSubmit']) {
+// The fields and who sees the clock as they stand, checked before they are written.
+type Checked = { ok: true; fields: LubecClockFields; sharing: LubecClockSharing | null } | { ok: false; error: string }
+
+function checked(fields: LubecClockFields, sharing: LubecClockSharing, characters: LubecClockFormProps['characters']): Checked {
+  const cleaned = cleanLubecClockFields(fields)
+  if (!cleaned.ok) return cleaned
+  if (!characters) return { ok: true, fields: cleaned.fields, sharing: null }
+  const shared = cleanLubecClockSharing(sharing, characters)
+  return shared.ok ? { ok: true, fields: cleaned.fields, sharing: shared.sharing } : shared
+}
+
+function useClockFields({ clock, characters, onSubmit }: Pick<LubecClockFormProps, 'clock' | 'characters' | 'onSubmit'>, write: Write) {
   const [fields, setFields] = useState<LubecClockFields>(() => (clock ? lubecClockFieldsOf(clock) : emptyLubecClockFields()))
+  const [sharing, setSharing] = useState<LubecClockSharing>(() => (clock ? lubecClockSharingOf(clock) : hiddenLubecClockSharing()))
   const submit = (e: FormEvent) => {
     e.preventDefault()
     if (write.busy) return
-    const cleaned = cleanLubecClockFields(fields)
-    if (!cleaned.ok) return write.setError(cleaned.error)
-    void write.run(() => onSubmit(cleaned.fields), CANNOT_SAVE)
+    const result = checked(fields, sharing, characters)
+    if (!result.ok) return write.setError(result.error)
+    void write.run(() => onSubmit(result.fields, result.sharing), CANNOT_SAVE)
   }
   const set = (patch: Partial<LubecClockFields>) => setFields((was) => ({ ...was, ...patch }))
-  return { fields, set, submit }
+  const share = (patch: Partial<LubecClockSharing>) => setSharing((was) => ({ ...was, ...patch }))
+  return { fields, set, sharing, share, submit }
+}
+
+/** Who sees the clock: the GM's choice, or, for a player, a word on who will. */
+function Sharing({ clock, characters, sharing, share }: { clock: LubecClock | null; characters: LubecClockFormProps['characters']; sharing: LubecClockSharing; share: (patch: Partial<LubecClockSharing>) => void }) {
+  if (characters) return <LubecClockSharingFields sharing={sharing} characters={characters} onChange={share} />
+  return clock ? null : <p className="clock-sharing-note">Everyone in the campaign sees the clocks you make.</p>
 }
 
 /** Making a clock and editing one: the same form, with Delete when editing. */
-export function LubecClockForm({ clock, onSubmit, onDelete, onClose }: LubecClockFormProps) {
+export function LubecClockForm({ clock, characters, onSubmit, onDelete, onClose }: LubecClockFormProps) {
   const write = useFormWrite()
-  const { fields, set, submit } = useClockFields(clock, write, onSubmit)
+  const { fields, set, sharing, share, submit } = useClockFields({ clock, characters, onSubmit }, write)
   const field = { fields, onChange: (name: TextKey, value: string) => set({ [name]: value }) }
   return (
     <Frame title={clock ? 'Edit clock' : 'Create a clock'} onClose={onClose}>
@@ -154,6 +176,7 @@ export function LubecClockForm({ clock, onSubmit, onDelete, onClose }: LubecCloc
           <TextField id="lubec-clock-full" label="When full" placeholder="What happens then" name="whenFull" rows={2} {...field} />
           <TextField id="lubec-clock-empty" label="When empty" placeholder="What happens then" name="whenEmpty" rows={2} {...field} />
         </div>
+        <Sharing clock={clock} characters={characters} sharing={sharing} share={share} />
         {write.error ? <p className="clock-form-error" role="alert">{write.error}</p> : null}
         <FormFoot clock={clock} write={write} onDelete={onDelete} onClose={onClose} />
       </form>

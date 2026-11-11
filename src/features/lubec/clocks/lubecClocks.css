@@ -540,6 +540,127 @@
   border-top: 1px solid var(--lubec-line);
 }
 
+/* Who sees it: three choices as one segmented row, the chosen one ink, as the piece stops */
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-sharing {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 1rem 0 0;
+  border: 0;
+  border-top: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-sharing legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 0.45rem;
+  padding: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-seg {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-seg label {
+  position: relative;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-seg input,
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-player input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-seg span {
+  display: grid;
+  min-height: 2.6rem;
+  padding: 0.3rem;
+  place-items: center;
+  color: var(--lubec-blue);
+  border: 1.5px solid var(--lubec-ink);
+  font: 800 0.68rem/1.2 var(--lubec-type);
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-seg label + label span {
+  border-left: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-seg label:hover span,
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-player:hover span {
+  background: var(--lubec-paper-deep);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-seg input:checked + span,
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-player input:checked + span {
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-seg input:focus-visible + span,
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-player input:focus-visible + span {
+  position: relative;
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+/* The players: one chip per character, inked when the clock is shown to it */
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-player {
+  position: relative;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-player span {
+  display: inline-flex;
+  min-height: 2.4rem;
+  align-items: center;
+  padding: 0.35rem 0.7rem;
+  color: var(--lubec-ink);
+  border: 1.5px solid var(--lubec-ink);
+  font: 700 0.8rem/1.2 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-sharing-note {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--lubec-muted);
+  font: 700 0.66rem/1.4 var(--lubec-type);
+}
+
+/* Who sees a clock, on its card, for the GM: muted when hidden, blue when shown */
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-audience {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  margin: -0.2rem 0 0;
+  color: var(--lubec-blue);
+  font: 800 0.6rem/1.3 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-audience.audience-hidden {
+  color: var(--lubec-muted);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-audience svg {
+  flex: none;
+}
+
 .shell-root[data-theme="lubec"] .lubec-clocks .clock-form-foot {
   display: flex;
   flex-wrap: wrap;

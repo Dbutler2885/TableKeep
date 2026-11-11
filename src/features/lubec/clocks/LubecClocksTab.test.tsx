@@ -2,19 +2,22 @@
 /**
  * The Clocks tab, over `firebase/firestore` stubbed with documents kept by
  * path and every listener told of each write, as Firestore's own snapshots
- * are. A clock is made through the form, its pieces filled and emptied one at
- * a time in any order, shows its result when full and once drained, is edited
- * through the same form and deleted from it.
+ * are, and a filtered query keeping only the documents it matches. A clock is
+ * made through the form, its pieces filled and emptied one at a time in any
+ * order, shows its result when full and once drained, is edited through the
+ * same form and deleted from it. The GM chooses who sees each clock; a player
+ * sees only the clocks shown to them and cannot change who sees one.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 type Fields = Record<string, unknown>
-type Ref = { path: string }
+type Where = { field: string; op: string; value: unknown }
+type Ref = { path: string; anyOf?: Where[] }
 
 const mocks = vi.hoisted(() => ({
   database: {} as Record<string, Record<string, unknown>>,
-  listeners: [] as { path: string; next: (snap: unknown) => void }[],
+  listeners: [] as { ref: { path: string; anyOf?: { field: string; op: string; value: unknown }[] }; next: (snap: unknown) => void }[],
   refuse: null as null | string,
   nextId: 0,
 }))
@@ -34,13 +37,17 @@ function appliedField(was: unknown, value: unknown): unknown {
 const applied = (was: Fields, payload: Fields): Fields =>
   ({ ...was, ...Object.fromEntries(Object.entries(payload).map(([key, value]) => [key, appliedField(was[key], value)])) })
 
+const matches = (data: Fields, { field, op, value }: Where) =>
+  op === 'array-contains' ? listOf(data[field]).includes(value) : data[field] === value
+
 function emitAll() {
-  for (const listener of mocks.listeners) {
-    const prefix = `${listener.path}/`
+  for (const { ref, next } of mocks.listeners) {
+    const prefix = `${ref.path}/`
     const docs = Object.entries(mocks.database)
       .filter(([path]) => path.startsWith(prefix) && !path.slice(prefix.length).includes('/'))
+      .filter(([, data]) => !ref.anyOf || ref.anyOf.some((where) => matches(data, where)))
       .map(([path, data]) => ({ id: path.slice(prefix.length), data: () => data }))
-    listener.next({ docs })
+    next({ docs })
   }
 }
 
@@ -54,8 +61,11 @@ vi.mock('../../../firebase', () => ({ db: { name: 'db-stub' } }))
 vi.mock('firebase/firestore', () => ({
   collection: (_db: unknown, path: string) => ({ path }),
   doc: (parent: unknown, path?: string) => (path === undefined ? { path: `${(parent as Ref).path}/new-${++mocks.nextId}` } : { path }),
+  query: (ref: Ref, filter: { anyOf: Where[] }) => ({ ...ref, anyOf: filter.anyOf }),
+  or: (...anyOf: Where[]) => ({ anyOf }),
+  where: (field: string, op: string, value: unknown) => ({ field, op, value }),
   onSnapshot: (ref: Ref, next: (snap: unknown) => void) => {
-    const listener = { path: ref.path, next }
+    const listener = { ref, next }
     mocks.listeners.push(listener)
     queueMicrotask(emitAll)
     return () => { mocks.listeners = mocks.listeners.filter((l) => l !== listener) }
@@ -73,17 +83,27 @@ vi.mock('firebase/firestore', () => ({
 
 const { LubecClocksTab } = await import('./LubecClocksTab')
 
-const CLOCKS = 'groups/group-1/campaigns/campaign-1/clocks'
+const CAMPAIGN = 'groups/group-1/campaigns/campaign-1'
+const CLOCKS = `${CAMPAIGN}/clocks`
 const setError = vi.fn()
 
 const stored = (id: string, over: Fields = {}) => {
   mocks.database[`${CLOCKS}/${id}`] = {
     name: 'Sheriff', description: '', pieces: 4, filled: [], started: false, increase: '', decrease: '', whenFull: '', whenEmpty: '',
-    createdAt: { toMillis: () => 1 }, ...over,
+    visibility: 'all', characterIds: [], viewerUids: [], createdAt: { toMillis: () => 1 }, ...over,
   }
 }
 
-const mount = () => render(<div className="shell-root" data-theme="lubec"><LubecClocksTab campaignId="campaign-1" groupId="group-1" setError={setError} /></div>)
+const character = (id: string, name: string, ownerUserId: string, ownerUsername = '') => {
+  mocks.database[`${CAMPAIGN}/characters/${id}`] = { name, ownerUserId, ownerUsername }
+}
+
+// The GM by default; a player is `alice`, who owns Wayne.
+const mount = (role: 'gm' | 'player' = 'gm', userId = role === 'gm' ? 'gm-1' : 'alice') => render(
+  <div className="shell-root" data-theme="lubec">
+    <LubecClocksTab campaignId="campaign-1" groupId="group-1" role={role} userId={userId} gmUserId="gm-1" setError={setError} />
+  </div>,
+)
 const card = (name: string) => screen.getByRole('article', { name })
 const docOf = (id: string) => mocks.database[`${CLOCKS}/${id}`]
 
@@ -123,7 +143,10 @@ describe('the Clocks tab', () => {
     expect(within(sheriff).getByText('He stops watching')).toBeTruthy()
     expect(within(sheriff).getByLabelText('0 of 6 filled')).toBeTruthy()
     expect(within(sheriff).queryByText('Empty')).toBeNull()
-    expect(Object.values(mocks.database)[0]).toMatchObject({ name: 'The Sheriff', pieces: 6, filled: [], started: false, whenFull: 'He calls the parents' })
+    expect(Object.values(mocks.database)[0]).toMatchObject({
+      name: 'The Sheriff', pieces: 6, filled: [], started: false, whenFull: 'He calls the parents', visibility: 'hidden', characterIds: [], viewerUids: [],
+    })
+    expect(within(sheriff).getByText('Hidden')).toBeTruthy()
   })
 
   it('refuses a clock without a name and keeps the form open', async () => {
@@ -251,5 +274,68 @@ describe('the Clocks tab', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Yes, delete' })) })
     expect(screen.getByRole('alert').textContent).toBe('Could not delete that. Nothing changed.')
+  })
+
+  it('lets the GM show a clock to chosen players, by their characters, and then to everyone', async () => {
+    stored('c1', { visibility: 'hidden' })
+    character('wayne', 'Wayne Gardner', 'alice', 'alice77')
+    character('tommy', 'Tommy Eves', 'bob')
+    character('npc', 'Sheriff Dow', 'gm-1')
+    mount()
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Sheriff' }))
+    const dialog = screen.getByRole('dialog', { name: 'Edit clock' })
+    expect(within(dialog).getByText('Only you see it.')).toBeTruthy()
+    fireEvent.click(within(dialog).getByLabelText('Chosen players'))
+    expect(within(dialog).queryByLabelText('Sheriff Dow')).toBeNull()
+    await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Save' })) })
+    expect(within(dialog).getByRole('alert').textContent).toBe('Choose at least one player to show it to.')
+    fireEvent.click(within(dialog).getByLabelText('Wayne Gardner (alice77)'))
+    await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Save' })) })
+    expect(docOf('c1')).toMatchObject({ visibility: 'some', characterIds: ['wayne'], viewerUids: ['alice'] })
+    expect(within(card('Sheriff')).getByText('Wayne Gardner')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Sheriff' }))
+    fireEvent.click(screen.getByLabelText('Everyone'))
+    expect(screen.getByText('Everyone in the campaign sees it.')).toBeTruthy()
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
+    expect(docOf('c1')).toMatchObject({ visibility: 'all', viewerUids: [] })
+    expect(within(card('Sheriff')).getByText('Everyone')).toBeTruthy()
+  })
+
+  it('says when no player has a character to show a clock to', async () => {
+    stored('c1')
+    mount()
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Sheriff' }))
+    fireEvent.click(screen.getByLabelText('Chosen players'))
+    expect(screen.getByText('No player has a character in this campaign yet.')).toBeTruthy()
+  })
+
+  it('shows a player only the clocks shown to everyone or to them, without saying who sees them', async () => {
+    stored('everyone', { name: 'Fog' })
+    stored('mine', { name: 'Sheriff', visibility: 'some', characterIds: ['wayne'], viewerUids: ['alice'] })
+    stored('theirs', { name: 'Mill Fire', visibility: 'some', characterIds: ['tommy'], viewerUids: ['bob'] })
+    stored('hidden', { name: 'Secret', visibility: 'hidden' })
+    mount('player')
+    await screen.findByRole('article', { name: 'Fog' })
+    expect(screen.getAllByRole('article').map((article) => article.getAttribute('aria-label'))).toEqual(['Fog', 'Sheriff'])
+    expect(screen.queryByText('Everyone')).toBeNull()
+    expect(mocks.listeners.some(({ ref }) => ref.path.endsWith('/characters'))).toBe(false)
+  })
+
+  it('lets a player make a clock for the whole table, and edit one without changing who sees it', async () => {
+    stored('mine', { name: 'Sheriff', visibility: 'some', characterIds: ['wayne'], viewerUids: ['alice'] })
+    mount('player')
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Sheriff' }))
+    expect(screen.queryByText('Who sees it')).toBeNull()
+    expect(screen.queryByText('Everyone in the campaign sees the clocks you make.')).toBeNull()
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Deputy' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save' })) })
+    expect(docOf('mine')).toMatchObject({ name: 'Deputy', visibility: 'some', viewerUids: ['alice'] })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create a clock' }))
+    expect(screen.getByText('Everyone in the campaign sees the clocks you make.')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Bike Race' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Create clock' })) })
+    expect(Object.values(mocks.database).find((data) => data.name === 'Bike Race')).toMatchObject({ visibility: 'all', characterIds: [], viewerUids: [] })
   })
 })

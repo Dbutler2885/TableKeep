@@ -131,6 +131,11 @@ function handoutsPanel({ campaign, role, user }: TabPanelContext) {
 }
 
 // Clocks are Lubec's; only its rule set lists the tab, so the route gate keeps every other campaign off it.
-function clocksPanel({ campaign, setError }: TabPanelContext) {
-  return <Suspense fallback={<p role="status">Loading clocks...</p>}><LubecClocksTab key={`${campaign.groupId}/${campaign.id}`} campaignId={campaign.id} groupId={campaign.groupId} setError={setError} /></Suspense>
+function clocksPanel({ campaign, role, user, setError }: TabPanelContext) {
+  return (
+    <Suspense fallback={<p role="status">Loading clocks...</p>}>
+      <LubecClocksTab key={`${campaign.groupId}/${campaign.id}/${user.uid}/${role}`} campaignId={campaign.id} groupId={campaign.groupId}
+        role={role} userId={user.uid} gmUserId={campaign.gmUserId ?? ''} setError={setError} />
+    </Suspense>
+  )
 }

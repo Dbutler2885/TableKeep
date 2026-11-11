@@ -28,7 +28,24 @@ export type LubecClockFields = {
   whenEmpty: string
 }
 
-export type LubecClock = LubecClockFields & {
+/** Who sees a clock besides the GM: nobody, the whole group, or the owners of chosen characters. */
+export type LubecClockVisibility = 'hidden' | 'all' | 'some'
+
+/**
+ * Who sees a clock, which only the GM sets. `viewerUids` are the chosen
+ * characters' owners when the GM saved, as a handout's are; it is what the
+ * rules read, so a character changing hands needs the clock saved again.
+ */
+export type LubecClockSharing = {
+  visibility: LubecClockVisibility
+  characterIds: string[]
+  viewerUids: string[]
+}
+
+/** A player's character the GM can show a clock to. */
+export type LubecClockCharacter = { id: string; name: string; ownerUserId: string; ownerUsername: string }
+
+export type LubecClock = LubecClockFields & LubecClockSharing & {
   id: string
   // The filled pieces, by index from the top piece clockwise, ascending and without repeats.
   filled: number[]
@@ -37,6 +54,46 @@ export type LubecClock = LubecClockFields & {
   started: boolean
   createdAtMs: number
 }
+
+/** A GM's new clock starts hidden, as a new handout does. */
+export const hiddenLubecClockSharing = (): LubecClockSharing => ({ visibility: 'hidden', characterIds: [], viewerUids: [] })
+
+/** A player's new clock is the whole table's, since a player cannot choose who sees one. */
+export const sharedLubecClockSharing = (): LubecClockSharing => ({ visibility: 'all', characterIds: [], viewerUids: [] })
+
+export const lubecClockSharingOf = (clock: LubecClockSharing): LubecClockSharing =>
+  ({ visibility: clock.visibility, characterIds: clock.characterIds, viewerUids: clock.viewerUids })
+
+/** The owners of the chosen characters, once each. */
+export const lubecClockViewerUids = (characterIds: readonly string[], characters: readonly LubecClockCharacter[]): string[] =>
+  [...new Set(characters.filter((character) => characterIds.includes(character.id)).map((character) => character.ownerUserId).filter(Boolean))]
+
+/** The sharing as it is saved: viewers only for chosen characters, or the reason it cannot be. */
+export function cleanLubecClockSharing(sharing: LubecClockSharing, characters: readonly LubecClockCharacter[]): { ok: true; sharing: LubecClockSharing } | { ok: false; error: string } {
+  if (sharing.visibility !== 'some') return { ok: true, sharing: { ...sharing, viewerUids: [] } }
+  const viewerUids = lubecClockViewerUids(sharing.characterIds, characters)
+  if (viewerUids.length === 0) return { ok: false, error: 'Choose at least one player to show it to.' }
+  return { ok: true, sharing: { ...sharing, viewerUids } }
+}
+
+/** Who sees a clock, as the GM reads it on the card. */
+export function lubecClockAudience(clock: LubecClockSharing, characters: readonly LubecClockCharacter[]): string {
+  if (clock.visibility === 'hidden') return 'Hidden'
+  if (clock.visibility === 'all') return 'Everyone'
+  const names = characters.filter((character) => clock.characterIds.includes(character.id)).map((character) => character.name)
+  return names.length > 0 ? names.join(', ') : 'Chosen players'
+}
+
+const VISIBILITIES: readonly LubecClockVisibility[] = ['hidden', 'all', 'some']
+
+const stringsOf = (value: unknown) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [])
+
+/** A stored clock's sharing; anything unreadable is hidden, so a damaged clock is never shown by mistake. */
+const parseSharing = (data: Record<string, unknown>): LubecClockSharing => ({
+  visibility: VISIBILITIES.includes(data.visibility as LubecClockVisibility) ? data.visibility as LubecClockVisibility : 'hidden',
+  characterIds: stringsOf(data.characterIds),
+  viewerUids: stringsOf(data.viewerUids),
+})
 
 export const LUBEC_CLOCK_TEXT_FIELDS = ['description', 'increase', 'decrease', 'whenFull', 'whenEmpty'] as const
 
@@ -95,6 +152,7 @@ export function parseLubecClock(data: Record<string, unknown>, id: string): Lube
     decrease: textOf(data.decrease, LUBEC_CLOCK_LIMITS.decrease),
     whenFull: textOf(data.whenFull, LUBEC_CLOCK_LIMITS.whenFull),
     whenEmpty: textOf(data.whenEmpty, LUBEC_CLOCK_LIMITS.whenEmpty),
+    ...parseSharing(data),
     createdAtMs: millisOf(data.createdAt),
   }
 }
