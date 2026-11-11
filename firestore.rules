@@ -128,6 +128,27 @@ service cloud.firestore {
         && data.gmUserId == get(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)).data.gmUserId;
     }
 
+    // A Lubec clock. The text limits match `LUBEC_CLOCK_LIMITS` in
+    // `src/features/lubec/clocks/lubecClock.ts`; the fill never runs past the
+    // pieces or below empty, which is what refuses the second of two
+    // simultaneous one-piece steps on an almost-full clock.
+    function validLubecClock() {
+      let data = request.resource.data;
+      return data.keys().hasOnly(['name', 'description', 'pieces', 'filled', 'started', 'increase', 'decrease', 'whenFull', 'whenEmpty', 'createdAt', 'updatedAt'])
+        && data.keys().hasAll(['name', 'description', 'pieces', 'filled', 'started', 'increase', 'decrease', 'whenFull', 'whenEmpty', 'createdAt', 'updatedAt'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.description is string && data.description.size() <= 1000
+        && data.pieces is int && data.pieces >= 1 && data.pieces <= 10
+        && data.filled is int && data.filled >= 0 && data.filled <= data.pieces
+        && data.started is bool
+        && data.increase is string && data.increase.size() <= 500
+        && data.decrease is string && data.decrease.size() <= 500
+        && data.whenFull is string && data.whenFull.size() <= 500
+        && data.whenEmpty is string && data.whenEmpty.size() <= 500
+        && data.createdAt is timestamp
+        && data.updatedAt == request.time;
+    }
+
     function onlyChanges(allowedKeys) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys);
     }
@@ -457,6 +478,16 @@ service cloud.firestore {
           allow create, update: if isCampaignGm(groupId, campaignId)
             && validHandout(groupId, campaignId, handoutId);
           allow delete: if isCampaignGm(groupId, campaignId);
+        }
+
+        // Lubec clocks belong to the whole table: any member may make, edit,
+        // fill, empty and delete one, with no GM gate.
+        match /clocks/{clockId} {
+          allow read, delete: if isGroupMember(groupId);
+          allow create: if isGroupMember(groupId) && validLubecClock()
+            && request.resource.data.createdAt == request.time;
+          allow update: if isGroupMember(groupId) && validLubecClock()
+            && request.resource.data.createdAt == resource.data.createdAt;
         }
 
         match /handoutFolders/{folderId} {
