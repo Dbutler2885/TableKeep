@@ -37,12 +37,14 @@ function ContinueBar({ state, attack, controls }: { state: CombatState; attack: 
   )
 }
 
-function ResultsHead({ banner }: { banner: Banner | null }) {
+/** The headline, and one line under it that the wound panel below does not already say. */
+function ResultsHead({ banner, wound }: { banner: Banner | null; wound: boolean }) {
+  const line = wound ? banner?.aside ?? banner?.text : banner?.text
   return (
     <header className="results-head">
       <span className="label">Results</span>
       <h3>{banner?.title ?? 'Done'}</h3>
-      {banner ? <p>{banner.text}</p> : null}
+      {line ? <p>{line}</p> : null}
     </header>
   )
 }
@@ -53,7 +55,7 @@ export function ResultsCard({ state, attack, controls }: { state: CombatState; a
   const wound = resultsWound(state, attack)
   return (
     <section className={`results ${banner?.tone ?? ''}`.trim()} aria-label="Results">
-      <ResultsHead banner={banner} />
+      <ResultsHead banner={banner} wound={wound !== null} />
       <dl className="results-facts">
         {resultsFacts(state, attack).map((fact) => <div key={fact.term}><dt>{fact.term}</dt><dd>{fact.value}</dd></div>)}
       </dl>

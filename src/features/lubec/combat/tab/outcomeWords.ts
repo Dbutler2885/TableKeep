@@ -4,7 +4,8 @@ import { isThrow, missWords } from './attackWords'
 import { tableName } from './resultSequence'
 
 type Words = { attacker: string; target: string; item: string; thrown: boolean; out: boolean; targetOut: boolean; attack: CombatAttack }
-export type Banner = { tone: string; title: string; text: string }
+/** `aside` is what the Results card says under its headline when the wound panel already gives the wound's words. */
+export type Banner = { tone: string; title: string; text: string; aside?: string }
 
 const lands = (words: Words) => (words.thrown ? ` The ${words.item} lands on the Floor.` : '')
 
@@ -17,7 +18,7 @@ const BANNERS: Readonly<Record<string, (words: Words) => Banner>> = {
     ? { tone: 'out', title: `Caught: ${w.attacker} is Out`, text: `The ${w.item} goes to ${w.target}'s hand. Catching it puts the thrower out, so ${w.attacker} is Out.` }
     : { tone: 'safe', title: 'Caught', text: `The ${w.item} goes to ${w.target}'s hand.` }),
   'no-wound': (w) => ({ tone: '', title: 'No effect', text: `The hit did nothing.${lands(w)}` }),
-  wounded: (w) => ({ tone: w.targetOut || w.out ? 'out' : 'hit', title: woundedTitle(w), text: `${w.attack.row!.name}: ${w.attack.rowOutcome}${lands(w)}` }),
+  wounded: (w) => ({ tone: w.targetOut || w.out ? 'out' : 'hit', title: woundedTitle(w), text: `${w.attack.row!.name}: ${w.attack.rowOutcome}${lands(w)}`, aside: lands(w).trim() }),
   'row-caught': (w) => ({ tone: 'out', title: `Caught it: ${w.attacker} is Out`, text: `${w.attack.row!.name}: ${w.target} holds on and stays in, and ${w.attacker} is Out instead.` }),
   interrupted: (w) => ({ tone: 'out', title: `Stopped: ${w.attacker} is Out`, text: `Out stops the attack at once.${lands(w)}` }),
   manual: (w) => ({ tone: '', title: 'The GM records this wound', text: `${tableName(w.attack.impact!.table)} table, ${locName(w.attack.landing!.part!).toLowerCase()}, Impact ${w.attack.impact!.total}.${lands(w)}` }),

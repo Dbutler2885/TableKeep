@@ -351,6 +351,8 @@ describe('the doll, Strength and the wound', () => {
     expect(document.querySelector('.wound .wh')!.textContent).toBe('Cutting · Torso · Impact 4Serious Trauma +1')
     const results = screen.getByRole('region', { name: 'Results' })
     expect(within(results).getByRole('heading', { level: 3 }).textContent).toBe('Roy Carver: Serious wound')
+    // A melee wound's words appear once, in the wound panel, not again under the headline.
+    expect(results.querySelector('.results-head p')).toBeNull()
     expect([...results.querySelectorAll('.results-facts > div')].map((fact) => fact.textContent)).toEqual(['WhoWayne Gardner → Roy Carver', 'WithKnife · Slash', 'WhereTorso', 'How hardImpact 4 on Cutting'])
     expect(within(results).getByRole('heading', { level: 4 }).textContent).toBe('Long chest cut')
     expect(results.querySelector('.results-wound')!.className).toBe('results-wound se')

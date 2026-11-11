@@ -128,7 +128,9 @@ describe('a Dodgeball row\'s Check or Save', () => {
     cleanup()
     show('player', 'wayne-uid', fightAfter(...rowAt(60, 5, 4, 99), { type: 'check', actor: ROY, dice: { check: 99 } }))
     expect(screen.getByText(/^Failure\. 99 is over/)).toBeTruthy()
-    expect(screen.getByRole('heading', { name: 'Roy Carver is Out' }).nextSibling!.textContent).toBe('Bell rung: Minor Concussion, which is Dazed and -10 Handle until a Long Rest. The dodgeball lands on the Floor.')
+    // The wound's words are in the panel below, so the headline's line keeps only where the ball went.
+    expect(screen.getByRole('heading', { name: 'Roy Carver is Out' }).nextSibling!.textContent).toBe('The dodgeball lands on the Floor.')
+    expect([...document.querySelectorAll('.results-parts > div')].map((part) => part.textContent)).toEqual(['What it doesMinor Concussion, which is Dazed and -10 Handle until a Long Rest.'])
     expect(screen.getAllByText('Out', { selector: '.badge' })).toHaveLength(1)
   })
 
