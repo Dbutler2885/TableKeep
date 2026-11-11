@@ -1,9 +1,9 @@
 import { awaitingContinue } from '../engine/roundAttacks'
 import type { CombatAttack, CombatState } from '../engine/types'
-import { outcomeBanner, type Banner } from './outcomeWords'
+import { outcomeBanner } from './outcomeWords'
 import { Refusal, type StepControls } from './ResultSteps'
 import { useAct } from './useAct'
-import { continueWords, resultsFacts, resultsWound, type ResultsWound } from './resultsModel'
+import { continueWords, headWords, resultsFacts, resultsWound, type ResultsWound } from './resultsModel'
 
 function WoundPanel({ wound }: { wound: ResultsWound }) {
   return (
@@ -37,13 +37,11 @@ function ContinueBar({ state, attack, controls }: { state: CombatState; attack: 
   )
 }
 
-/** The headline, and one line under it that the wound panel below does not already say. */
-function ResultsHead({ banner, wound }: { banner: Banner | null; wound: boolean }) {
-  const line = wound ? banner?.aside ?? banner?.text : banner?.text
+function ResultsHead({ title, line }: { title: string; line: string | null }) {
   return (
     <header className="results-head">
       <span className="label">Results</span>
-      <h3>{banner?.title ?? 'Done'}</h3>
+      <h3>{title}</h3>
       {line ? <p>{line}</p> : null}
     </header>
   )
@@ -55,7 +53,7 @@ export function ResultsCard({ state, attack, controls }: { state: CombatState; a
   const wound = resultsWound(state, attack)
   return (
     <section className={`results ${banner?.tone ?? ''}`.trim()} aria-label="Results">
-      <ResultsHead banner={banner} wound={wound !== null} />
+      <ResultsHead {...headWords(banner, wound !== null)} />
       <dl className="results-facts">
         {resultsFacts(state, attack).map((fact) => <div key={fact.term}><dt>{fact.term}</dt><dd>{fact.value}</dd></div>)}
       </dl>

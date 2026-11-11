@@ -2,6 +2,7 @@ import { locName } from '../../../ruleSets/lubec/gear/gearRules'
 import { combatAttackers } from '../engine/declare'
 import type { CombatAttack, CombatState } from '../engine/types'
 import { combatantName, pairWords } from './attackWords'
+import type { Banner } from './outcomeWords'
 import { tableName } from './resultSequence'
 
 /** The report's severity shades, lightest to darkest. */
@@ -68,6 +69,13 @@ export function resultsWound(state: CombatState, attack: CombatAttack): ResultsW
     name: row.name, parts: woundParts(attack.rowOutcome || `${row.name}.`), injury: row.injury ?? null, notes: woundNotes(attack),
     out: target.outReason !== null, sheet: `Goes on ${target.name}'s sheet next round.`,
   }
+}
+
+/** The Results headline, and the one line under it that the wound panel does not already say. */
+export function headWords(banner: Banner | null, wound: boolean): { title: string; line: string | null } {
+  if (!banner) return { title: 'Done', line: null }
+  const line = wound ? banner.aside ?? banner.text : banner.text
+  return { title: banner.title, line: line || null }
 }
 
 /** What the GM's Continue opens: the next attacker's turn, or the next round. */

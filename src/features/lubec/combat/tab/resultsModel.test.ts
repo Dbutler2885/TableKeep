@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CombatAttack, CombatState } from '../engine/types'
-import { continueWords, resultsWound, woundParts } from './resultsModel'
+import { continueWords, headWords, resultsWound, woundParts } from './resultsModel'
 
 describe('the wound\'s words', () => {
   it('labels the parts the wound standard names, and calls bare words what it does', () => {
@@ -41,3 +41,16 @@ describe('the Results wound panel', () => {
     expect(continueWords({ ...state, attacked: ['a', 'b'] })).toBe('Continue: Round 2')
   })
 })
+
+describe('the Results headline', () => {
+  const banner = { tone: 'hit', title: 'Roy: Serious wound', text: 'Long chest cut: Bleeding timer. The dodgeball lands on the Floor.', aside: 'The dodgeball lands on the Floor.' }
+
+  it('keeps under a wound only what the wound panel does not say, and the whole line otherwise', () => {
+    expect(headWords(banner, true)).toEqual({ title: 'Roy: Serious wound', line: 'The dodgeball lands on the Floor.' })
+    expect(headWords({ ...banner, aside: '' }, true)).toEqual({ title: 'Roy: Serious wound', line: null })
+    expect(headWords({ tone: 'safe', title: 'Dodged', text: 'Roy stops it.' }, true)).toEqual({ title: 'Dodged', line: 'Roy stops it.' })
+    expect(headWords(banner, false).line).toBe(banner.text)
+    expect(headWords(null, false)).toEqual({ title: 'Done', line: null })
+  })
+})
+
