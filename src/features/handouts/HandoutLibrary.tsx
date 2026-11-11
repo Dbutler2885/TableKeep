@@ -2,7 +2,7 @@ import { FileText, Folder, FolderOpen } from 'lucide-react'
 import { folderLabel, type Handout, type HandoutFolder } from './handoutModel'
 
 type Props = {
-  folders: HandoutFolder[]; handouts: Handout[]; flat: boolean; folderId: string; selectedId: string
+  folders: HandoutFolder[]; handouts: Handout[]; flat: boolean; folderId: string; selectedId: string; expandedFolderIds: string[]
   onSelect: (id: string) => void; onFolder: (id: string) => void
 }
 
@@ -18,12 +18,15 @@ function FolderBranch(props: Props & { parentId: string; visited: string[] }) {
   const children = props.folders.filter((folder) => folder.parentId === props.parentId).sort((a, b) => a.name.localeCompare(b.name))
   const handouts = props.handouts.filter((handout) => handout.folderId === props.parentId).sort((a, b) => a.title.localeCompare(b.title))
   return <>
-    {children.filter((folder) => !props.visited.includes(folder.id)).map((folder) => <details key={folder.id} open className="handout-folder">
-      <summary><button type="button" className={props.folderId === folder.id ? 'handout-folder-button active' : 'handout-folder-button'} onClick={() => props.onFolder(folder.id)}>
-        {props.folderId === folder.id ? <FolderOpen size={16} /> : <Folder size={16} />} {folder.name}
-      </button></summary>
-      <div className="handout-folder-children"><FolderBranch {...props} parentId={folder.id} visited={[...props.visited, folder.id]} /></div>
-    </details>)}
+    {children.filter((folder) => !props.visited.includes(folder.id)).map((folder) => {
+      const open = props.expandedFolderIds.includes(folder.id)
+      return <div key={folder.id} className="handout-folder">
+        <button type="button" aria-expanded={open} className={props.folderId === folder.id ? 'handout-folder-button active' : 'handout-folder-button'} onClick={() => props.onFolder(folder.id)}>
+          {open ? <FolderOpen size={16} /> : <Folder size={16} />} {folder.name}
+        </button>
+        {open ? <div className="handout-folder-children"><FolderBranch {...props} parentId={folder.id} visited={[...props.visited, folder.id]} /></div> : null}
+      </div>
+    })}
     {handouts.map((handout) => <HandoutRow key={handout.id} {...props} handout={handout} />)}
   </>
 }

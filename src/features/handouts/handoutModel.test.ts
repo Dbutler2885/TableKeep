@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emptyHandout, folderAncestors, folderDestinationAllowed, folderLabel, handoutFileBelongsTo, handoutFileKind, viewerUidsFor, visibleFolders } from './handoutModel'
+import { emptyHandout, folderAncestors, folderDestinationAllowed, foldersExpandedByClick, folderLabel, handoutFileBelongsTo, handoutFileKind, viewerUidsFor, visibleFolders } from './handoutModel'
 
 const folders = [
   { id: 'evidence', name: 'Evidence', parentId: '' },
@@ -23,6 +23,12 @@ describe('handout folders and audience', () => {
     expect(folderDestinationAllowed('evidence', 'evidence', folders)).toBe(false)
     expect(folderDestinationAllowed('letters', '', folders)).toBe(true)
     expect(folderDestinationAllowed('letters', 'empty', folders)).toBe(true)
+  })
+  it('opens a clicked folder and closes only the selected open folder', () => {
+    expect(foldersExpandedByClick([], 'evidence', '')).toEqual(['evidence'])
+    expect(foldersExpandedByClick(['evidence'], 'evidence', '')).toEqual(['evidence'])
+    expect(foldersExpandedByClick(['evidence', 'letters'], 'evidence', 'evidence')).toEqual(['letters'])
+    expect(foldersExpandedByClick(['letters'], 'evidence', 'evidence')).toEqual(['letters', 'evidence'])
   })
   it('terminates malformed cycles and missing parents', () => {
     expect(folderAncestors('a', [{ id: 'a', name: 'A', parentId: 'b' }, { id: 'b', name: 'B', parentId: 'a' }])).toEqual(['a', 'b'])
