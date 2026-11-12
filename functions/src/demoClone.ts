@@ -73,6 +73,7 @@ export const DEMO_CLONED_SUBCOLLECTIONS: SubcollectionSpec[] = [
   { name: 'referenceDocs' },
   { name: 'handouts' },
   { name: 'handoutFolders' },
+  { name: 'clocks' },
   { name: 'sessionSummaries' },
   { name: 'sharedNotes' },
 ]

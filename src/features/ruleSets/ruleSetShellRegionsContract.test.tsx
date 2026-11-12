@@ -8,7 +8,8 @@
  * purpose when the registry began declaring them: VtM has neither, so its
  * campaigns stopped subscribing to approvals and showing the transfer notice.
  * Lubec's transfer row changed on purpose when the transfer callable learned
- * Lubec's gear: its campaigns show the notice.
+ * Lubec's gear: its campaigns show the notice. Clock alerts arrived with Lubec's
+ * Clocks tab, so only Lubec has them.
  */
 import { createElement, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -53,6 +54,7 @@ vi.mock('../maps/MapsTab', () => ({ MapsTab: stub('MapsTab') }))
 vi.mock('../notes/NotesTab', () => ({ NotesTab: stub('NotesTab') }))
 vi.mock('../notes/CliffhangerModal', () => ({ CliffhangerModal: stub('CliffhangerModal') }))
 vi.mock('../transfers/TransferNotification', () => ({ TransferNotification: stub('TransferNotification') }))
+vi.mock('../lubec/clocks/LubecClockAlerts', () => ({ LubecClockAlerts: stub('LubecClockAlerts') }))
 vi.mock('../campaign/CampaignSettingsModal', () => ({ CampaignSettingsModal: stub('CampaignSettingsModal') }))
 
 const { GroupShell } = await import('../shell/GroupShell')
@@ -135,6 +137,25 @@ describe('cliffhanger dialog', () => {
     await openCampaign(system, 'maps')
 
     expect(mocks.props.CliffhangerModal).toEqual({ campaignId: 'c1', groupId: 'g1', userId: GM, enabled: true })
+  })
+})
+
+describe('clock alerts', () => {
+  it.each([
+    ['ose', false],
+    ['vtm', false],
+    ['lubec', true],
+  ] as const)('%s shows clock changes over every tab: %s', async (system, shown) => {
+    for (const tab of ['character', 'maps', 'notes'] as const) {
+      await openCampaign(system, tab)
+      if (shown) {
+        expect(await screen.findByTestId('LubecClockAlerts')).toBeTruthy()
+        expect(mocks.props.LubecClockAlerts).toEqual({ campaignId: 'c1', groupId: 'g1', role: 'gm', userId: GM })
+      } else {
+        expect(screen.queryByTestId('LubecClockAlerts')).toBeNull()
+      }
+      cleanup()
+    }
   })
 })
 

@@ -41,6 +41,7 @@ type CampaignWorkspaceProps = {
   onReject: (request: ItemApprovalRequest) => Promise<void>
   showTransferNotification: boolean
   cliffhangerEnabled: boolean
+  clockAlertsEnabled: boolean
 }
 
 // A group's campaign route: the menu toggle, the campaign (or why there is

@@ -128,6 +128,35 @@ service cloud.firestore {
         && data.gmUserId == get(/databases/$(database)/documents/groups/$(groupId)/campaigns/$(campaignId)).data.gmUserId;
     }
 
+    // A Lubec clock. The text limits match `LUBEC_CLOCK_LIMITS` in
+    // `src/features/lubec/clocks/lubecClock.ts`. `filled` lists the filled
+    // pieces' indexes, in any order: each one a whole number below the clock's
+    // piece count, and none twice. Who sees it is a handout's shape:
+    // `viewerUids` holds the chosen characters' owners only when shown to some.
+    function validLubecClock() {
+      let data = request.resource.data;
+      let fields = ['name', 'description', 'pieces', 'filled', 'started', 'increase', 'decrease', 'whenFull', 'whenEmpty',
+        'visibility', 'characterIds', 'viewerUids', 'createdAt', 'updatedAt'];
+      return data.keys().hasOnly(fields) && data.keys().hasAll(fields)
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 100
+        && data.description is string && data.description.size() <= 1000
+        && data.pieces is int && data.pieces >= 1 && data.pieces <= 10
+        && data.filled is list
+        && data.filled.hasOnly([0, 1, 2, 3, 4, 5, 6, 7, 8, 9][0:data.pieces])
+        && data.filled.toSet().size() == data.filled.size()
+        && data.started is bool
+        && data.increase is string && data.increase.size() <= 500
+        && data.decrease is string && data.decrease.size() <= 500
+        && data.whenFull is string && data.whenFull.size() <= 500
+        && data.whenEmpty is string && data.whenEmpty.size() <= 500
+        && data.visibility in ['hidden', 'all', 'some']
+        && data.characterIds is list && data.characterIds.size() <= 100
+        && data.viewerUids is list && data.viewerUids.size() <= 100
+        && (data.visibility == 'some' || data.viewerUids.size() == 0)
+        && data.createdAt is timestamp
+        && data.updatedAt == request.time;
+    }
+
     function onlyChanges(allowedKeys) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys);
     }
@@ -457,6 +486,30 @@ service cloud.firestore {
           allow create, update: if isCampaignGm(groupId, campaignId)
             && validHandout(groupId, campaignId, handoutId);
           allow delete: if isCampaignGm(groupId, campaignId);
+        }
+
+        // Lubec clocks. The GM sees every clock and alone chooses who else
+        // sees one, as with handouts. A member sees a clock shown to everyone
+        // or to them, and may fill, empty, edit and delete it with no GM gate,
+        // but never change who sees it; a clock a member makes is shown to
+        // everyone. Viewers are captured when the GM saves; membership stays live.
+        match /clocks/{clockId} {
+          function seesClock() {
+            return isGroupMember(groupId)
+              && (resource.data.visibility == 'all' || request.auth.uid in resource.data.viewerUids);
+          }
+          allow read, delete: if isCampaignGm(groupId, campaignId) || seesClock();
+          allow create: if validLubecClock()
+            && request.resource.data.createdAt == request.time
+            && (isCampaignGm(groupId, campaignId)
+              || (isGroupMember(groupId)
+                && request.resource.data.visibility == 'all'
+                && request.resource.data.characterIds.size() == 0));
+          allow update: if validLubecClock()
+            && request.resource.data.createdAt == resource.data.createdAt
+            && (isCampaignGm(groupId, campaignId)
+              || (seesClock()
+                && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['visibility', 'characterIds', 'viewerUids'])));
         }
 
         match /handoutFolders/{folderId} {

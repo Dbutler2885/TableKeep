@@ -1,0 +1,889 @@
+/* The Clocks tab, from the clocks prototype ("Lubec Clocks: creation first",
+   2026-10-19): the section head with its +, the dashed empty circle, the clock
+   cards with their pies, and the create form with its pie preview and numbered
+   stops. The prototype's tokens are the theme's own with the `--lubec-` prefix;
+   every rule is scoped to the tab. */
+
+.shell-root[data-theme="lubec"] .lubec-clocks.clocks-page {
+  /* The tab scrolls itself: on a narrow screen the shell's content panel does not. */
+  height: 100%;
+  min-height: 0;
+  padding: 0 0 1.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks button {
+  border-radius: 0;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clocks-section {
+  margin: 0;
+  padding: 0;
+}
+
+/* The head: the name with a rule running to the +. */
+.shell-root[data-theme="lubec"] .lubec-clocks .clocks-head {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin: 0.25rem 0 1.25rem;
+}
+
+/* On a wide screen it starts below the shell's menu button, which stays over
+   the page's top left corner, where the other tabs' headings start; on a
+   narrow one the shell already leaves that room above the page. */
+@media (min-width: 901px) {
+  .shell-root[data-theme="lubec"] .lubec-clocks .clocks-head {
+    margin-top: 3.1rem;
+  }
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clocks-head h2 {
+  display: flex;
+  flex: 1;
+  gap: 0.8rem;
+  align-items: center;
+  margin: 0;
+  color: var(--lubec-blue);
+  font: 800 1.15rem/1.1 var(--lubec-display);
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  filter: url(#lubec-rough);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clocks-head h2::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clocks-add {
+  display: grid;
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  padding: 0;
+  color: var(--lubec-cream);
+  background: var(--lubec-blue);
+  border: 1px solid var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clocks-add:hover {
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clocks-empty {
+  padding: 2rem 0.75rem 3rem;
+  color: var(--lubec-muted);
+  text-align: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clocks-empty svg {
+  width: 4rem;
+  height: 4rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clocks-empty circle {
+  fill: none;
+  stroke: var(--lubec-line);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 4;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clocks-empty p {
+  margin: 0.8rem 0 0;
+  font: 700 0.9rem/1.4 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clocks-empty .clocks-empty-hint {
+  margin-top: 0.3rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clocks-loading {
+  color: var(--lubec-muted);
+  font: 700 0.8rem/1.4 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clocks-error,
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-form-error {
+  margin: 0 0 1rem;
+  padding: 0.55rem 0.65rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-rust);
+  font: 800 0.72rem/1.4 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-form-error {
+  margin: 0;
+}
+
+/* The cards: as many across as fit, one on a phone, and every card the same
+   size whatever it holds. Every row is as tall as the tallest card, and each
+   card fills its cell, so a short card has more paper rather than less height. */
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr));
+  grid-auto-rows: 1fr;
+  gap: 0.9rem;
+  align-items: stretch;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  /* The clock fills the card's height, and a result band keeps to its foot. */
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0 1rem;
+  align-items: start;
+  min-width: 0;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.24);
+  border: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock.is-full {
+  border-color: var(--lubec-rust);
+  box-shadow: inset 5px 0 0 var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock.is-empty {
+  border-color: var(--lubec-blue);
+  box-shadow: inset 5px 0 0 var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-dial {
+  display: grid;
+  gap: 0.45rem;
+  justify-items: center;
+}
+
+/* The pie: paper-deep pieces, rust when filled, an ink rim */
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie {
+  display: block;
+  width: 100%;
+  max-width: 7.5rem;
+  height: auto;
+  overflow: visible;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie .piece {
+  fill: var(--lubec-paper-deep);
+  stroke: var(--lubec-paper);
+  stroke-width: 2;
+  transition: fill 120ms ease;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie .piece.filled {
+  fill: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie [role="button"] {
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie [role="button"]:hover {
+  filter: brightness(1.12);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie [role="button"]:focus {
+  outline: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie [role="button"]:focus-visible {
+  stroke: var(--lubec-ink);
+  stroke-width: 3;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie .rim {
+  fill: none;
+  stroke: var(--lubec-ink);
+  stroke-width: 1.4;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie .piece {
+    transition: none;
+  }
+}
+
+/* How many pieces are filled, under the pie */
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-count {
+  color: var(--lubec-blue);
+  font: 800 0.78rem/1.2 var(--lubec-type);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-count b {
+  color: var(--lubec-rust);
+  font-size: 0.95rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-body {
+  display: grid;
+  gap: 0.55rem;
+  align-content: start;
+  min-width: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: start;
+  justify-content: space-between;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-head h3 {
+  margin: 0.2rem 0 0;
+  color: var(--lubec-ink);
+  font: 800 1.1rem/1.2 var(--lubec-display);
+  letter-spacing: 0;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-edit {
+  display: inline-flex;
+  flex: none;
+  gap: 0.35rem;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.3rem 0.55rem;
+  color: var(--lubec-blue);
+  background: transparent;
+  border: 1px solid var(--lubec-line);
+  font: 800 0.6rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-edit:hover {
+  color: var(--lubec-ink);
+  background: var(--lubec-paper-deep);
+  border-color: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-description {
+  margin: 0;
+  font: 500 0.85rem/1.45 Georgia, serif;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The notes: what fills it, what empties it, and what each end means */
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-notes {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-note {
+  display: grid;
+  grid-template-columns: 6.6rem minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: baseline;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-note dt {
+  color: var(--lubec-muted);
+  font: 800 0.58rem/1.3 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-note.increase dt {
+  color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-note.decrease dt {
+  color: var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-note dd {
+  margin: 0;
+  font: 600 0.78rem/1.4 var(--lubec-type);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The result band across the foot of a full or empty clock */
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-result {
+  display: flex;
+  grid-column: 1 / -1;
+  align-self: end;
+  gap: 0.75rem;
+  align-items: baseline;
+  margin-top: 0.9rem;
+  padding: 0.6rem 0.75rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-result.empty {
+  background: var(--lubec-blue);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-result-label {
+  flex: none;
+  padding: 0.15rem 0.4rem;
+  border: 1.5px solid currentColor;
+  font: 800 0.66rem/1.2 var(--lubec-type);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-result p {
+  margin: 0;
+  font: 700 0.85rem/1.4 var(--lubec-type);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The form: the prototype's sheet, in the app's overlay */
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-overlay {
+  background: rgba(16, 43, 49, 0.62);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-sheet {
+  width: min(100% - 1.5rem, 38rem);
+  color: var(--lubec-ink);
+  background:
+    radial-gradient(circle at 95% 0, rgba(163, 66, 41, 0.05), transparent 20rem),
+    repeating-linear-gradient(0deg, rgba(53, 64, 53, 0.025) 0 1px, transparent 1px 4px),
+    var(--lubec-paper);
+  border: 2px solid var(--lubec-ink);
+  box-shadow: 0 24px 64px rgba(7, 20, 23, 0.45);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-sheet-head {
+  display: flex;
+  gap: 0.7rem;
+  align-items: start;
+  justify-content: space-between;
+  margin: 0 1.1rem;
+  padding: 0.9rem 0 0.65rem;
+  border-bottom: 5px double var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-eyebrow,
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-label {
+  color: var(--lubec-muted);
+  font: 800 0.62rem/1.3 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-sheet-head h2 {
+  margin: 0.3rem 0 0;
+  color: var(--lubec-ink);
+  font: 800 1.35rem/1.1 var(--lubec-display);
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-close {
+  display: grid;
+  flex: none;
+  width: 2.6rem;
+  height: 2.6rem;
+  place-items: center;
+  padding: 0;
+  color: var(--lubec-ink);
+  background: transparent;
+  border: 1px solid var(--lubec-ink);
+  font: 400 1.4rem/1 var(--lubec-display);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-form {
+  display: grid;
+  gap: 1.1rem;
+  padding: 1.1rem 1.1rem calc(1rem + env(safe-area-inset-bottom));
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-form-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9rem;
+  gap: 1.4rem;
+  align-items: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-form-fields {
+  display: grid;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-preview {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-preview .lubec-clock-pie {
+  max-width: 8.5rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-field {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-label small {
+  margin-left: 0.15rem;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: lowercase;
+  opacity: 0.85;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-field input,
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-field textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.55rem;
+  color: var(--lubec-ink);
+  background: var(--lubec-cream);
+  border: 1.5px solid var(--lubec-ink);
+  border-radius: 0;
+  font: 700 0.9rem/1.4 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-field input {
+  min-height: 2.75rem;
+  font-size: 1rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-field textarea {
+  resize: vertical;
+}
+
+/* The pieces: ten numbered stops in a row, the chosen one ink */
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-pieces {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  margin: 0;
+  padding: 1rem 0 0;
+  border: 0;
+  border-top: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-pieces legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 0.45rem;
+  padding: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .piece-stops {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .piece-stops label {
+  position: relative;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .piece-stops input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .piece-stops span {
+  display: grid;
+  height: 2.6rem;
+  place-items: center;
+  color: var(--lubec-blue);
+  border: 1.5px solid var(--lubec-ink);
+  font: 800 0.85rem/1 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .piece-stops label + label span {
+  border-left: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .piece-stops label:hover span {
+  background: var(--lubec-paper-deep);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .piece-stops input:checked + span {
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .piece-stops input:focus-visible + span {
+  position: relative;
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-form-notes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--lubec-line);
+}
+
+/* Who sees it: three choices as one segmented row, the chosen one ink, as the piece stops */
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-sharing {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin: 0;
+  padding: 1rem 0 0;
+  border: 0;
+  border-top: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-sharing legend {
+  float: left;
+  width: 100%;
+  margin-bottom: 0.45rem;
+  padding: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-seg {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-seg label {
+  position: relative;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-seg input,
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-player input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-seg span {
+  display: grid;
+  min-height: 2.6rem;
+  padding: 0.3rem;
+  place-items: center;
+  color: var(--lubec-blue);
+  border: 1.5px solid var(--lubec-ink);
+  font: 800 0.68rem/1.2 var(--lubec-type);
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-seg label + label span {
+  border-left: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-seg label:hover span,
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-player:hover span {
+  background: var(--lubec-paper-deep);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-seg input:checked + span,
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-player input:checked + span {
+  color: var(--lubec-cream);
+  background: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-seg input:focus-visible + span,
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-player input:focus-visible + span {
+  position: relative;
+  outline: 2px solid var(--lubec-rust);
+  outline-offset: 2px;
+}
+
+/* The players: one chip per character, inked when the clock is shown to it */
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-player {
+  position: relative;
+  cursor: pointer;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-player span {
+  display: inline-flex;
+  min-height: 2.4rem;
+  align-items: center;
+  padding: 0.35rem 0.7rem;
+  color: var(--lubec-ink);
+  border: 1.5px solid var(--lubec-ink);
+  font: 700 0.8rem/1.2 var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-sharing-note {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--lubec-muted);
+  font: 700 0.66rem/1.4 var(--lubec-type);
+}
+
+/* Who sees a clock, on its card, for the GM: muted when hidden, blue when shown */
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-audience {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  margin: -0.2rem 0 0;
+  color: var(--lubec-blue);
+  font: 800 0.6rem/1.3 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-audience.audience-hidden {
+  color: var(--lubec-muted);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-audience svg {
+  flex: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-form-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--lubec-line);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-form-gap {
+  flex: 1;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-btn {
+  min-height: 2.75rem;
+  padding: 0.55rem 1rem;
+  color: var(--lubec-cream);
+  background: var(--lubec-blue);
+  border: 2px solid var(--lubec-blue);
+  font: 800 0.7rem/1 var(--lubec-type);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-btn:hover:not(:disabled) {
+  color: var(--lubec-cream);
+  background: var(--lubec-blue-alt);
+  border-color: var(--lubec-blue-alt);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-btn.line {
+  color: var(--lubec-blue);
+  background: transparent;
+  border-color: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-btn.line:hover:not(:disabled) {
+  color: var(--lubec-ink);
+  background: var(--lubec-paper-deep);
+  border-color: var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-btn.danger {
+  background: var(--lubec-rust);
+  border-color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-btn.line.danger {
+  color: var(--lubec-rust);
+  background: transparent;
+  border-color: var(--lubec-rust);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-btn.danger:hover:not(:disabled) {
+  color: var(--lubec-cream);
+  background: #8f3a22;
+  border-color: #8f3a22;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .clock-confirm > span {
+  color: var(--lubec-rust);
+  font: 800 0.72rem/1.3 var(--lubec-type);
+}
+
+/* The popup when someone else fills or empties a piece: the clock's card over
+   the page, the piece popping in rust or draining back to paper, then the
+   whole thing fading away. Its fade is what ends it, so its length is the
+   popup's time on screen. */
+.shell-root[data-theme="lubec"] .lubec-clock-alert {
+  position: fixed;
+  inset: 0;
+  z-index: 330;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(16, 43, 49, 0.42);
+  cursor: pointer;
+  animation: lubec-clock-alert-life 3.6s ease forwards;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clock-alert .clock-alert-card {
+  width: min(100%, 30rem);
+  color: var(--lubec-ink);
+  background:
+    repeating-linear-gradient(0deg, rgba(53, 64, 53, 0.025) 0 1px, transparent 1px 4px),
+    var(--lubec-paper);
+  border: 2px solid var(--lubec-ink);
+  box-shadow: 0 24px 64px rgba(7, 20, 23, 0.45);
+  animation: lubec-clock-alert-rise 3.6s ease forwards;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clock-alert .clock-alert-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  margin: 0;
+  padding: 0.7rem 1rem 0.55rem;
+  border-bottom: 5px double var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clock-alert .clock-alert-text {
+  color: var(--lubec-rust);
+  font: 800 0.8rem/1.3 var(--lubec-type);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clock-alert .lubec-clock {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+/* The changed pieces, after a beat so the eye finds the card first */
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie .piece.arriving {
+  transform-box: view-box;
+  transform-origin: 50px 50px;
+  animation: lubec-piece-arrive 0.9s cubic-bezier(0.2, 0.9, 0.3, 1.25) 0.45s both;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie .piece.leaving {
+  transform-box: view-box;
+  transform-origin: 50px 50px;
+  animation: lubec-piece-leave 0.9s ease-in 0.45s both;
+}
+
+@keyframes lubec-clock-alert-life {
+  0% { opacity: 0; }
+  8% { opacity: 1; }
+  84% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes lubec-clock-alert-rise {
+  0% { transform: translateY(12px) scale(0.97); }
+  10% { transform: none; }
+  100% { transform: none; }
+}
+
+@keyframes lubec-piece-arrive {
+  0% { fill: var(--lubec-paper-deep); transform: scale(1); }
+  45% { fill: var(--lubec-rust); transform: scale(1.12); }
+  100% { fill: var(--lubec-rust); transform: scale(1); }
+}
+
+@keyframes lubec-piece-leave {
+  0% { fill: var(--lubec-rust); transform: scale(1); }
+  35% { fill: var(--lubec-rust); transform: scale(0.9); }
+  100% { fill: var(--lubec-paper-deep); transform: scale(1); }
+}
+
+/* Without motion the popup still comes and goes, as a plain fade, and the pieces simply show their new state. */
+@media (prefers-reduced-motion: reduce) {
+  .shell-root[data-theme="lubec"] .lubec-clock-alert .clock-alert-card,
+  .shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie .piece.arriving,
+  .shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie .piece.leaving {
+    animation: none;
+  }
+}
+
+/* Phones: one column, the pie beside the name, the form at the foot of the screen */
+@media (max-width: 560px) {
+  .shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock {
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+    gap: 0 0.8rem;
+    padding: 0.8rem;
+  }
+
+  /* Edit keeps its pencil and its name for screen readers, and gives the clock's name the row. */
+  .shell-root[data-theme="lubec"] .lubec-clocks .clock-edit {
+    width: 2.2rem;
+    min-height: 2.2rem;
+    justify-content: center;
+    padding: 0;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-clocks .clock-edit span {
+    display: none;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-clocks .clock-note {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.1rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-overlay {
+    align-content: end;
+    padding-bottom: 0;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-sheet {
+    width: 100%;
+    max-width: 100%;
+    border-width: 2px 0 0;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-clocks .clock-form-top {
+    grid-template-columns: minmax(0, 1fr) 6.5rem;
+    gap: 0.8rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-clocks .clock-form-notes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-clocks .clock-sheet-head {
+    margin: 0 1rem;
+  }
+
+  .shell-root[data-theme="lubec"] .lubec-clocks .clock-form {
+    padding-inline: 1rem;
+  }
+}

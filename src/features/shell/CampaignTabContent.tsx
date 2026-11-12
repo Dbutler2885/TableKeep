@@ -15,6 +15,7 @@ import { ruleSetItemsTabs, ruleSetMapFights, ruleSetNpcSheets, ruleSetSheets } f
 import type { AppTab, CharacterRecord, NpcRecord } from '../../types/app'
 
 const HandoutsTab = lazy(async () => ({ default: (await import('../handouts/HandoutsTab')).HandoutsTab }))
+const LubecClocksTab = lazy(async () => ({ default: (await import('../lubec/clocks/LubecClocksTab')).LubecClocksTab }))
 
 export type TabPanelContext = RuleSetSheetProps & {
   gameSystem: GameSystem
@@ -34,6 +35,7 @@ const TAB_PANELS: Record<AppTab, (context: TabPanelContext) => ReactNode> = {
   tables: tablesPanel,
   notes: notesPanel,
   handouts: handoutsPanel,
+  clocks: clocksPanel,
   calendar: calendarPanel,
   rules: rulesPanel,
 }
@@ -126,4 +128,14 @@ function rulesPanel() {
 
 function handoutsPanel({ campaign, role, user }: TabPanelContext) {
   return <Suspense fallback={<p role="status">Loading handouts...</p>}><HandoutsTab key={`${campaign.groupId}/${campaign.id}/${user.uid}/${role}`} campaignId={campaign.id} groupId={campaign.groupId} role={role} userId={user.uid} gmUserId={campaign.gmUserId ?? ''} /></Suspense>
+}
+
+// Clocks are Lubec's; only its rule set lists the tab, so the route gate keeps every other campaign off it.
+function clocksPanel({ campaign, role, user, setError }: TabPanelContext) {
+  return (
+    <Suspense fallback={<p role="status">Loading clocks...</p>}>
+      <LubecClocksTab key={`${campaign.groupId}/${campaign.id}/${user.uid}/${role}`} campaignId={campaign.id} groupId={campaign.groupId}
+        role={role} userId={user.uid} gmUserId={campaign.gmUserId ?? ''} setError={setError} />
+    </Suspense>
+  )
 }
