@@ -54,7 +54,7 @@ describe('hidden carriers', () => {
     db: as(uid),
     scope,
     characterId: 'wayne',
-    store: { updateCharacterNow: () => {}, hasPendingWrite: () => false },
+    store: { settleSaves: async () => {} },
     dropper: { characterId: 'wayne', characterName: 'Wayne', userId: uid },
   })
 

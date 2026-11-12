@@ -31,7 +31,7 @@ const skiff = (items: object[] = [T('rope', 'skiff', 0, 'Rope')]) => ({
   name: 'Skiff', type: 'skiff', pockets: [{ name: 'Hull', slots: 2, max: 2 }, { name: 'Locker', slots: 1, max: 1 }], ownerCharacterId: 'wayne', items,
 })
 
-const quietStore: LubecMoveStore = { sendSaveNow: () => {}, hasPendingWrite: () => false }
+const quietStore: LubecMoveStore = { settleSaves: async () => {} }
 const shared = { kind: 'shared', carrierId: 'skiff' } as const
 const character = (characterId: string) => ({ kind: 'character', characterId }) as const
 const seenRope = { carrier: 'skiff', pocket: 0 }

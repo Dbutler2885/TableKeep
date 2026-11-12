@@ -23,7 +23,7 @@ const db = { name: 'db-stub' } as unknown as Firestore
 const records = { db, scope: { groupId: 'group-1', campaignId: 'campaign-1' }, sheet: { kind: 'character', characterId: 'tommy' } } as const
 
 function wire(character: LubecCharacterRecord | null, viewer: LubecViewer, withRecords = false) {
-  const store = { updateCharacter: vi.fn(), updateCharacterNow: vi.fn(), hasPendingWrite: vi.fn(() => false) }
+  const store = { updateCharacter: vi.fn(), updateCharacterNow: vi.fn(), settleSaves: vi.fn(async () => undefined) }
   return { store, edits: lubecSheetWiring(character, viewer, store, withRecords ? records : null) }
 }
 
@@ -50,7 +50,7 @@ describe('lubecSheetWiring', () => {
     expect(wire(finalized, gm, true).edits.onGearUpload).toBeTypeOf('function')
     expect(wire(finalized, otherPlayer, true).edits.onGearUpload).toBeNull()
     expect(wire(finalized, owner).edits.onGearUpload).toBeNull()
-    const store = { updateCharacter: vi.fn(), updateCharacterNow: vi.fn(), hasPendingWrite: vi.fn(() => false) }
+    const store = { updateCharacter: vi.fn(), updateCharacterNow: vi.fn(), settleSaves: vi.fn(async () => undefined) }
     expect(lubecSheetWiring(finalized, gm, store, { ...records, sheet: { kind: 'npc', npcId: 'n' } }).onGearUpload).toBeNull()
   })
 
@@ -128,7 +128,7 @@ describe('lubecSheetWiring', () => {
 
   it('asks any GM for a heavy thing\'s Strength roll on an NPC\'s sheet in play, which has no player to wait for', () => {
     const npc = { ...records, sheet: { kind: 'npc', npcId: 'tommy' } } as const
-    const store = { updateCharacter: vi.fn(), updateCharacterNow: vi.fn(), hasPendingWrite: vi.fn(() => false) }
+    const store = { updateCharacter: vi.fn(), updateCharacterNow: vi.fn(), settleSaves: vi.fn(async () => undefined) }
     const heldByAnotherGm = { ...finalized, ownerUserId: 'gm-2' }
 
     expect(lubecSheetWiring(heldByAnotherGm, gm, store, npc).onGearRolled).not.toBeNull()
@@ -148,15 +148,13 @@ describe('lubecSheetWiring', () => {
     expect(wire(finalized, owner).edits.onGearHidden).toBeNull()
   })
 
-  it('sends the sheet\'s waiting save before a drop, and nothing when none waits', async () => {
+  it('hands a drop the store\'s own settling of the sheet\'s saves', async () => {
     const { store, edits } = wire(finalized, owner, true)
     await edits.onGearDrop?.(flashlight)
-    const { store: moveStore } = moves.lubecMoveBetween.mock.lastCall?.[1] as { store: { sendSaveNow: (id: string) => void } }
-    moveStore.sendSaveNow('tommy')
+    const { store: moveStore } = moves.lubecMoveBetween.mock.lastCall?.[1] as { store: { settleSaves: (id: string) => Promise<void> } }
+    await moveStore.settleSaves('tommy')
+    expect(store.settleSaves).toHaveBeenCalledExactlyOnceWith('tommy')
     expect(store.updateCharacterNow).not.toHaveBeenCalled()
-    store.hasPendingWrite.mockReturnValue(true)
-    moveStore.sendSaveNow('tommy')
-    expect(store.updateCharacterNow).toHaveBeenCalledExactlyOnceWith('tommy', {})
   })
 
   it('gives the GM corrections to a finalized character\'s locked values', () => {
