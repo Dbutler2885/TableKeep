@@ -18,7 +18,7 @@ import { useGroupNavigation } from './useGroupNavigation'
 import { useRootRedirect } from './useRootRedirect'
 import { useSelectedCampaign } from './useSelectedCampaign'
 import { useShellRoute } from './useShellRoute'
-import { listensForApprovals, listensForCharacters, showsCliffhangerModal, showsTransferNotification } from './workspaceListening'
+import { listensForApprovals, listensForCharacters, showsClockAlerts, showsCliffhangerModal, showsTransferNotification } from './workspaceListening'
 
 // The signed-in app: the group picker, a group's home, or one of its campaigns,
 // chosen by the route.
@@ -122,6 +122,7 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
           onReject={handleReject}
           showTransferNotification={showsTransferNotification(gameSystem, documentVisible, activeTab)}
           cliffhangerEnabled={showsCliffhangerModal(documentVisible, activeTab)}
+          clockAlertsEnabled={showsClockAlerts(gameSystem, documentVisible)}
         />
       )}
       {isDemoVisitor ? <DemoBanner expiresAtMs={demoExpiresAt} onLeave={handleSignOut} /> : null}

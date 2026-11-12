@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   cleanLubecClockFields, cleanLubecClockSharing, emptyLubecClockFields, hiddenLubecClockSharing, lubecClockAudience, lubecClockFieldsOf, lubecClockSharingOf,
-  lubecClockViewerUids, sharedLubecClockSharing, type LubecClockCharacter, lubecClockState, lubecFilledWithin,
+  lubecClockChanges, lubecClockChangeText, lubecClockViewerUids, mergeLubecClockChange, sharedLubecClockSharing, type LubecClockCharacter, lubecClockState, lubecFilledWithin,
   lubecPiePaths, lubecPiecesLabel, parseLubecClock, sortLubecClocks, type LubecClock,
 } from './lubecClock'
 
@@ -129,5 +129,43 @@ describe('who sees a clock', () => {
     expect(lubecClockAudience(sharedLubecClockSharing(), characters)).toBe('Everyone')
     expect(lubecClockAudience({ visibility: 'some', characterIds: ['wayne', 'tommy'], viewerUids: [] }, characters)).toBe('Wayne Gardner, Tommy Eves')
     expect(lubecClockAudience({ visibility: 'some', characterIds: ['gone'], viewerUids: [] }, characters)).toBe('Chosen players')
+  })
+})
+
+describe('the changes to announce', () => {
+  const seen = new Map([['c1', [0]], ['c2', [1, 2]]])
+
+  it('announces nothing on the first read', () => {
+    expect(lubecClockChanges(null, [{ clock: clock({ filled: [0, 1] }), local: false }])).toEqual([])
+  })
+
+  it('announces pieces someone else filled or emptied, in any order', () => {
+    expect(lubecClockChanges(seen, [
+      { clock: clock({ id: 'c1', filled: [0, 3] }), local: false },
+      { clock: clock({ id: 'c2', filled: [2] }), local: false },
+    ])).toEqual([
+      { clock: clock({ id: 'c1', filled: [0, 3] }), before: [0], added: [3], removed: [] },
+      { clock: clock({ id: 'c2', filled: [2] }), before: [1, 2], added: [], removed: [1] },
+    ])
+  })
+
+  it('announces neither this browser\'s own change, an unchanged clock, nor one that just came into view', () => {
+    expect(lubecClockChanges(seen, [
+      { clock: clock({ id: 'c1', filled: [0, 3] }), local: true },
+      { clock: clock({ id: 'c2', filled: [1, 2] }), local: false },
+      { clock: clock({ id: 'new', filled: [0] }), local: false },
+    ])).toEqual([])
+  })
+
+  it('folds a later change into one waiting, measured from what the table last saw', () => {
+    const waiting = { clock: clock({ filled: [0, 3] }), before: [0], added: [3], removed: [] }
+    const later = { clock: clock({ filled: [3, 4] }), before: [0, 3], added: [4], removed: [0] }
+    expect(mergeLubecClockChange(waiting, later)).toEqual({ clock: clock({ filled: [3, 4] }), before: [0], added: [3, 4], removed: [0] })
+  })
+
+  it('says which pieces changed', () => {
+    expect(lubecClockChangeText({ added: [2], removed: [] })).toBe('Piece 3 filled')
+    expect(lubecClockChangeText({ added: [], removed: [4, 0] })).toBe('Pieces 1 and 5 emptied')
+    expect(lubecClockChangeText({ added: [0, 1, 5], removed: [3] })).toBe('Pieces 1, 2 and 6 filled; Piece 4 emptied')
   })
 })

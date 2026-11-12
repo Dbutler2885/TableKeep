@@ -4,7 +4,7 @@
    stops. The prototype's tokens are the theme's own with the `--lubec-` prefix;
    every rule is scoped to the tab. */
 
-.shell-root[data-theme="lubec"] .lubec-clocks {
+.shell-root[data-theme="lubec"] .lubec-clocks.clocks-page {
   /* The tab scrolls itself: on a narrow screen the shell's content panel does not. */
   height: 100%;
   min-height: 0;
@@ -131,17 +131,22 @@
   margin: 0;
 }
 
-/* The cards: two across on a desktop, one on a phone */
+/* The cards: as many across as fit, one on a phone, and every card the same
+   size whatever it holds. Every row is as tall as the tallest card, and each
+   card fills its cell, so a short card has more paper rather than less height. */
 .shell-root[data-theme="lubec"] .lubec-clocks .clock-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 24rem), 1fr));
+  grid-auto-rows: 1fr;
   gap: 0.9rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock {
   display: grid;
   grid-template-columns: 7.5rem minmax(0, 1fr);
+  /* The clock fills the card's height, and a result band keeps to its foot. */
+  grid-template-rows: minmax(0, 1fr) auto;
   gap: 0 1rem;
   align-items: start;
   min-width: 0;
@@ -322,6 +327,7 @@
 .shell-root[data-theme="lubec"] .lubec-clocks .clock-result {
   display: flex;
   grid-column: 1 / -1;
+  align-self: end;
   gap: 0.75rem;
   align-items: baseline;
   margin-top: 0.9rem;
@@ -730,6 +736,102 @@
 .shell-root[data-theme="lubec"] .lubec-clocks .clock-confirm > span {
   color: var(--lubec-rust);
   font: 800 0.72rem/1.3 var(--lubec-type);
+}
+
+/* The popup when someone else fills or empties a piece: the clock's card over
+   the page, the piece popping in rust or draining back to paper, then the
+   whole thing fading away. Its fade is what ends it, so its length is the
+   popup's time on screen. */
+.shell-root[data-theme="lubec"] .lubec-clock-alert {
+  position: fixed;
+  inset: 0;
+  z-index: 330;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(16, 43, 49, 0.42);
+  cursor: pointer;
+  animation: lubec-clock-alert-life 3.6s ease forwards;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clock-alert .clock-alert-card {
+  width: min(100%, 30rem);
+  color: var(--lubec-ink);
+  background:
+    repeating-linear-gradient(0deg, rgba(53, 64, 53, 0.025) 0 1px, transparent 1px 4px),
+    var(--lubec-paper);
+  border: 2px solid var(--lubec-ink);
+  box-shadow: 0 24px 64px rgba(7, 20, 23, 0.45);
+  animation: lubec-clock-alert-rise 3.6s ease forwards;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clock-alert .clock-alert-head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  margin: 0;
+  padding: 0.7rem 1rem 0.55rem;
+  border-bottom: 5px double var(--lubec-ink);
+}
+
+.shell-root[data-theme="lubec"] .lubec-clock-alert .clock-alert-text {
+  color: var(--lubec-rust);
+  font: 800 0.8rem/1.3 var(--lubec-type);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clock-alert .lubec-clock {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+/* The changed pieces, after a beat so the eye finds the card first */
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie .piece.arriving {
+  transform-box: view-box;
+  transform-origin: 50px 50px;
+  animation: lubec-piece-arrive 0.9s cubic-bezier(0.2, 0.9, 0.3, 1.25) 0.45s both;
+}
+
+.shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie .piece.leaving {
+  transform-box: view-box;
+  transform-origin: 50px 50px;
+  animation: lubec-piece-leave 0.9s ease-in 0.45s both;
+}
+
+@keyframes lubec-clock-alert-life {
+  0% { opacity: 0; }
+  8% { opacity: 1; }
+  84% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes lubec-clock-alert-rise {
+  0% { transform: translateY(12px) scale(0.97); }
+  10% { transform: none; }
+  100% { transform: none; }
+}
+
+@keyframes lubec-piece-arrive {
+  0% { fill: var(--lubec-paper-deep); transform: scale(1); }
+  45% { fill: var(--lubec-rust); transform: scale(1.12); }
+  100% { fill: var(--lubec-rust); transform: scale(1); }
+}
+
+@keyframes lubec-piece-leave {
+  0% { fill: var(--lubec-rust); transform: scale(1); }
+  35% { fill: var(--lubec-rust); transform: scale(0.9); }
+  100% { fill: var(--lubec-paper-deep); transform: scale(1); }
+}
+
+/* Without motion the popup still comes and goes, as a plain fade, and the pieces simply show their new state. */
+@media (prefers-reduced-motion: reduce) {
+  .shell-root[data-theme="lubec"] .lubec-clock-alert .clock-alert-card,
+  .shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie .piece.arriving,
+  .shell-root[data-theme="lubec"] .lubec-clocks .lubec-clock-pie .piece.leaving {
+    animation: none;
+  }
 }
 
 /* Phones: one column, the pie beside the name, the form at the foot of the screen */

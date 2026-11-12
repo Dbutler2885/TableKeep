@@ -124,7 +124,7 @@ export function LubecClocksTab(props: LubecClocksTabProps) {
   const clockForm = useClockForm(records, clocks)
   const fills = useFillActions(records, clockForm.open)
   return (
-    <div className="lubec-clocks">
+    <div className="lubec-clocks clocks-page">
       <LubecRoughFilter />
       <section className="clocks-section" aria-labelledby="lubec-clocks-heading">
         <ClocksHead onAdd={() => clockForm.open(null)} />

@@ -10,7 +10,7 @@ type Listened<T> = { key: string; value: T }
 export type LubecClockReader = { isGm: boolean; userId: string }
 
 // A player's list must carry the visibility filter, or the rules cannot prove the query and refuse it.
-const clocksQuery = (scope: CampaignScope, { isGm, userId }: LubecClockReader) => {
+export const clocksQuery = (scope: CampaignScope, { isGm, userId }: LubecClockReader) => {
   const all = campaignClocksRef(db, scope)
   return isGm ? all : query(all, or(where('visibility', '==', 'all'), where('viewerUids', 'array-contains', userId)))
 }

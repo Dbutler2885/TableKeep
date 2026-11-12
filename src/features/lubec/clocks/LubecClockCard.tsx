@@ -42,11 +42,17 @@ function Result({ clock, state }: { clock: LubecClock; state: LubecClockState })
   )
 }
 
-function Dial({ clock, actions }: { clock: LubecClock; actions: LubecClockCardActions }) {
+/** The pieces a popup animates: the ones just filled and the ones just emptied. */
+export type LubecClockPiecesChanged = { added: readonly number[]; removed: readonly number[] }
+
+type DialProps = { clock: LubecClock; actions: LubecClockCardActions | null; changed: LubecClockPiecesChanged | null }
+
+function Dial({ clock, actions, changed }: DialProps) {
   const count = clock.filled.length
+  const onToggle = actions ? (index: number, filled: boolean) => actions.onToggle(clock, index, filled) : undefined
   return (
     <div className="clock-dial">
-      <LubecClockPie pieces={clock.pieces} filled={clock.filled} name={clock.name} onToggle={(index, filled) => actions.onToggle(clock, index, filled)} />
+      <LubecClockPie pieces={clock.pieces} filled={clock.filled} name={clock.name} onToggle={onToggle} changed={changed} />
       <span className="clock-count" aria-label={`${count} of ${clock.pieces} filled`}><b>{count}</b> / {clock.pieces}</span>
     </div>
   )
@@ -59,20 +65,28 @@ function Audience({ clock, audience }: { clock: LubecClock; audience: string | n
   return <p className={`clock-audience audience-${clock.visibility}`}><Icon size={13} aria-hidden="true" /><span className="sr-only">Seen by: </span>{audience}</p>
 }
 
-type CardProps = { clock: LubecClock; actions: LubecClockCardActions; audience: string | null }
+type CardProps = {
+  clock: LubecClock
+  /** What the card's pieces and Edit do; null shows the clock to look at only, as the popup does. */
+  actions: LubecClockCardActions | null
+  audience: string | null
+  changed?: LubecClockPiecesChanged | null
+}
 
 /** One clock: its face and count, its name and notes, who sees it for the GM, and its result once it is full or empty. */
-export function LubecClockCard({ clock, actions, audience }: CardProps) {
+export function LubecClockCard({ clock, actions, audience, changed = null }: CardProps) {
   const state = lubecClockState(clock)
   return (
     <article className={`lubec-clock is-${state}`} aria-label={clock.name}>
-      <Dial clock={clock} actions={actions} />
+      <Dial clock={clock} actions={actions} changed={changed} />
       <div className="clock-body">
         <header className="clock-head">
           <h3>{clock.name}</h3>
-          <button type="button" className="clock-edit" aria-label={`Edit ${clock.name}`} onClick={() => actions.onEdit(clock)}>
-            <Pencil size={14} aria-hidden="true" /><span>Edit</span>
-          </button>
+          {actions ? (
+            <button type="button" className="clock-edit" aria-label={`Edit ${clock.name}`} onClick={() => actions.onEdit(clock)}>
+              <Pencil size={14} aria-hidden="true" /><span>Edit</span>
+            </button>
+          ) : null}
         </header>
         <Audience clock={clock} audience={audience} />
         {clock.description ? <p className="clock-description">{clock.description}</p> : null}

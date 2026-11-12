@@ -9,6 +9,17 @@ type LubecClockPieProps = {
   name?: string
   /** Called with a pressed piece's index and whether it should now be filled. */
   onToggle?: (index: number, filled: boolean) => void
+  /** Pieces just filled or emptied, which animate in or out. */
+  changed?: { added: readonly number[]; removed: readonly number[] } | null
+}
+
+// A piece's classes: filled or not, and arriving or leaving when it has just changed.
+function pieceClass(index: number, filled: readonly number[], changed: LubecClockPieProps['changed']) {
+  const classes = ['piece']
+  if (filled.includes(index)) classes.push('filled')
+  if (changed?.added.includes(index)) classes.push('arriving')
+  if (changed?.removed.includes(index)) classes.push('leaving')
+  return classes.join(' ')
 }
 
 type PiePieceProps = { path: string; index: number; isFilled: boolean; name: string; onToggle: NonNullable<LubecClockPieProps['onToggle']> }
@@ -29,13 +40,13 @@ function PiePiece({ path, index, isFilled, name, onToggle }: PiePieceProps) {
 }
 
 /** The clock's face: its pieces from the top, clockwise, the filled ones in rust. */
-export function LubecClockPie({ pieces, filled, name, onToggle }: LubecClockPieProps) {
+export function LubecClockPie({ pieces, filled, name, onToggle, changed = null }: LubecClockPieProps) {
   const paths = lubecPiePaths(pieces)
   return (
     <svg className="lubec-clock-pie" viewBox="0 0 100 100" role="group" aria-label={`${lubecPiecesLabel(pieces)}, ${filled.length} filled`}>
       {paths.map((path, index) => onToggle && name !== undefined
         ? <PiePiece key={index} path={path} index={index} isFilled={filled.includes(index)} name={name} onToggle={onToggle} />
-        : <path key={index} d={path} className={filled.includes(index) ? 'piece filled' : 'piece'} />)}
+        : <path key={index} d={path} className={pieceClass(index, filled, changed)} />)}
       <circle className="rim" cx="50" cy="50" r="45" />
     </svg>
   )

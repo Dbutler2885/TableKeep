@@ -20,5 +20,9 @@ export const listensForApprovals = (gameSystem: GameSystem, documentVisible: boo
 export const showsTransferNotification = (gameSystem: GameSystem, documentVisible: boolean, activeTab: AppTab) =>
   ruleSets[gameSystem].transfers && documentVisible && TRANSFER_TABS.includes(activeTab)
 
+// A rule set with clocks announces their changes over every tab of the campaign.
+export const showsClockAlerts = (gameSystem: GameSystem, documentVisible: boolean) =>
+  ruleSets[gameSystem].tabs.order.includes('clocks') && documentVisible
+
 export const showsCliffhangerModal = (documentVisible: boolean, activeTab: AppTab) =>
   documentVisible && activeTab !== 'notes'

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import type { User } from 'firebase/auth'
 import { CliffhangerModal } from '../notes/CliffhangerModal'
 import { TransferNotification } from '../transfers/TransferNotification'
@@ -6,6 +7,8 @@ import { ruleSets } from '../ruleSets/registry'
 import type { Campaign, CharacterRecord, ItemApprovalRequest, Role } from '../../types/app'
 import { ApprovalPrompt } from './ApprovalPrompt'
 import { hasApprovals } from './workspaceListening'
+
+const LubecClockAlerts = lazy(async () => ({ default: (await import('../lubec/clocks/LubecClockAlerts')).LubecClockAlerts }))
 
 type CampaignDialogsProps = {
   campaign: Campaign
@@ -19,11 +22,13 @@ type CampaignDialogsProps = {
   onReject: (request: ItemApprovalRequest) => Promise<void>
   showTransferNotification: boolean
   cliffhangerEnabled: boolean
+  clockAlertsEnabled: boolean
 }
 
 // The campaign dialog region: the dialogs that can appear over any tab of an
-// open campaign. Approvals show only for a rule set that has them; the
-// cliffhanger dialog shows for every rule set.
+// open campaign. Approvals show only for a rule set that has them, and clock
+// changes only for one with clocks; the cliffhanger dialog shows for every
+// rule set.
 export function CampaignDialogs(props: CampaignDialogsProps) {
   const { campaign, user, role, gameSystem, characters, showTransferNotification, cliffhangerEnabled } = props
   return (
@@ -42,6 +47,11 @@ export function CampaignDialogs(props: CampaignDialogsProps) {
         />
       ) : null}
       <CliffhangerModal campaignId={campaign.id} groupId={campaign.groupId} userId={user.uid} enabled={cliffhangerEnabled} />
+      {props.clockAlertsEnabled ? (
+        <Suspense fallback={null}>
+          <LubecClockAlerts key={`${campaign.groupId}/${campaign.id}/${user.uid}/${role}`} campaignId={campaign.id} groupId={campaign.groupId} role={role} userId={user.uid} />
+        </Suspense>
+      ) : null}
     </>
   )
 }

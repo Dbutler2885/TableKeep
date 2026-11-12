@@ -198,3 +198,46 @@ export function lubecPiePaths(pieces: number, c = 50, r = 44): string[] {
 }
 
 const round = (value: number) => Math.round(value * 100) / 100
+
+/** A clock whose pieces someone else filled or emptied: the clock as it is now, and which pieces changed since it was last seen. */
+export type LubecClockChange = { clock: LubecClock; before: number[]; added: number[]; removed: number[] }
+
+/** A clock as one read delivers it, and whether the change in it is this browser's own write. */
+export type LubecClockReading = { clock: LubecClock; local: boolean }
+
+const changeOf = (clock: LubecClock, before: readonly number[]): LubecClockChange => ({
+  clock,
+  before: [...before],
+  added: clock.filled.filter((index) => !before.includes(index)),
+  removed: before.filter((index) => !clock.filled.includes(index)),
+})
+
+/**
+ * The fills to announce between two reads: each clock seen both times whose
+ * filled pieces differ, unless the change is this browser's own. The first
+ * read announces nothing, and neither does a clock that has just come into
+ * view, so nobody is told about a clock they could not see a moment ago.
+ */
+export function lubecClockChanges(previous: ReadonlyMap<string, readonly number[]> | null, readings: readonly LubecClockReading[]): LubecClockChange[] {
+  if (!previous) return []
+  return readings.flatMap(({ clock, local }) => {
+    const before = previous.get(clock.id)
+    if (local || !before) return []
+    const change = changeOf(clock, before)
+    return change.added.length + change.removed.length > 0 ? [change] : []
+  })
+}
+
+/** A later change to a clock already waiting to be announced, folded into it, measured from what the table last saw. */
+export const mergeLubecClockChange = (waiting: LubecClockChange, later: LubecClockChange): LubecClockChange => changeOf(later.clock, waiting.before)
+
+/** What happened, in words: which pieces were filled and which emptied. */
+export function lubecClockChangeText({ added, removed }: Pick<LubecClockChange, 'added' | 'removed'>): string {
+  const pieces = (indexes: readonly number[]) => {
+    const numbers = indexes.map((index) => index + 1).sort((a, b) => a - b)
+    const list = numbers.length > 1 ? `${numbers.slice(0, -1).join(', ')} and ${numbers.at(-1)}` : `${numbers[0]}`
+    return `${numbers.length > 1 ? 'Pieces' : 'Piece'} ${list}`
+  }
+  const parts = [added.length ? `${pieces(added)} filled` : '', removed.length ? `${pieces(removed)} emptied` : ''].filter(Boolean)
+  return parts.join('; ')
+}
