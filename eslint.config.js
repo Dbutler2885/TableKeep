@@ -70,7 +70,6 @@ export default defineConfig([
       'src/features/maps/hooks/useTokenSelection.ts',
       'src/features/notes/CliffhangerModal.tsx',
       'src/features/notes/NotesTab.tsx',
-      'src/features/notes/SessionNoteDetail.tsx',
       'src/features/notes/useSessionNotes.ts',
       'src/features/tables/TablesTab.tsx',
       'src/features/tables/useTables.ts',
