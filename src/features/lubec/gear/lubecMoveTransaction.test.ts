@@ -28,7 +28,7 @@ const db = {} as Firestore
 const scope = { groupId: 'g', campaignId: 'c' }
 const base = 'groups/g/campaigns/c'
 const at = (seconds: number, nanoseconds = 0) => ({ seconds, nanoseconds })
-const quietStore = { sendSaveNow: vi.fn(), hasPendingWrite: vi.fn(() => false) }
+const quietStore = { settleSaves: vi.fn(async () => undefined) }
 const stamp = { schemaVersion: 1, schemaWrittenAt: 'server-time' }
 
 const anvil = { id: 'anvil', kind: 'thing', carrier: 'hands', slot: 0, name: 'Small anvil', size: 1, qty: 1, weight: 'normal', note: '' }
@@ -48,7 +48,7 @@ const drop = { itemId: 'anvil', seen: { carrier: 'hands', slot: 0 }, droppedBy: 
 
 beforeEach(() => {
   vi.resetAllMocks()
-  quietStore.hasPendingWrite.mockReturnValue(false)
+  quietStore.settleSaves.mockResolvedValue(undefined)
   tx.get.mockResolvedValue(exists(wayneDoc))
   snapshotsWill(snap(at(11)))
 })
@@ -145,14 +145,28 @@ describe('the move transaction', () => {
 })
 
 describe('the store around the move', () => {
-  it('sends each sheet\'s waiting save and waits until none is outstanding before reading', async () => {
-    let outstanding = 3
-    const store = { sendSaveNow: vi.fn(), hasPendingWrite: vi.fn(() => outstanding-- > 0) }
+  it('settles each sheet\'s saves, and reads nothing until every one of them has settled', async () => {
+    const settled: Record<string, () => void> = {}
+    const store = { settleSaves: vi.fn((id: string) => new Promise<void>((resolve) => { settled[id] = resolve })) }
+    const ferryman = { kind: 'npc', npcId: 'ferryman' } as const
 
-    await lubecMoveBetween(db, { scope, from: wayne, to: gmItems, store, move: drop })
+    const moving = lubecMoveBetween(db, { scope, from: wayne, to: ferryman, store, move: { ...drop, dest: 'hands' } })
+    expect(store.settleSaves.mock.calls).toEqual([['wayne'], ['ferryman']])
+    settled.wayne()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(tx.get).not.toHaveBeenCalled()
 
-    expect(store.sendSaveNow).toHaveBeenCalledExactlyOnceWith('wayne')
-    expect(store.hasPendingWrite.mock.invocationCallOrder.at(-1)).toBeLessThan(tx.get.mock.invocationCallOrder[0])
+    settled.ferryman()
+    await moving
+    expect(tx.get).toHaveBeenCalledTimes(2)
+  })
+
+  it('waits on no store for a move between a GM item and a shared carrier, which are not sheets', async () => {
+    const store = { settleSaves: vi.fn(async () => undefined) }
+    tx.get.mockResolvedValue({ ...exists({ name: 'Skiff', pockets: [{ name: 'Hull', slots: 2, max: 2 }], items: [] }), id: 'skiff' })
+
+    await lubecMoveBetween(db, { scope, from: gmItems, to: { kind: 'shared', carrierId: 'skiff' }, store, move: { itemId: 'tent' } })
+    expect(store.settleSaves).not.toHaveBeenCalled()
   })
 
   it('resolves on the first settled snapshot saved after the one it read, and stops listening', async () => {

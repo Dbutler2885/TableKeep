@@ -14,11 +14,13 @@ type WaitingCharacterStoreSave = {
 
 /**
  * Saves that have not landed yet, by character id: `pending` holds a save
- * still waiting out its delay, `inFlight` a save sent but not settled.
+ * still waiting out its delay, `inFlight` every save sent but not settled.
+ * Saves of one character can overlap, so a character's entry in `inFlight`
+ * goes only when the last of its saves settles.
  */
 export type CharacterStoreSaves = {
   pending: Record<string, WaitingCharacterStoreSave>
-  inFlight: Record<string, boolean>
+  inFlight: Record<string, Set<Promise<void>>>
 }
 
 export const emptyCharacterStoreSaves = (): CharacterStoreSaves => ({ pending: {}, inFlight: {} })
@@ -46,6 +48,25 @@ export function isCharacterStoreSaveOutstanding(saves: CharacterStoreSaves, char
   return Boolean(saves.pending[characterId] || saves.inFlight[characterId])
 }
 
+/**
+ * Sends the character's waiting save now, to the campaign it was made in, and
+ * resolves once no save of the character is outstanding: every save sent
+ * before or during the wait has settled, landed or failed. An edit made during
+ * the wait is sent at once and waited for too.
+ */
+export async function settleCharacterStoreSaves(saves: CharacterStoreSaves, characterId: string) {
+  for (;;) {
+    const waiting = saves.pending[characterId]
+    if (waiting) {
+      clearTimeout(waiting.timer)
+      waiting.send()
+    }
+    const landing = saves.inFlight[characterId]
+    if (!landing) return
+    await Promise.allSettled(landing)
+  }
+}
+
 /** Sends every waiting save now, to the campaign it was made in, instead of when its delay runs out. */
 export function sendCharacterStoreSavesNow(saves: CharacterStoreSaves) {
   Object.values(saves.pending).forEach(({ timer, send }) => {
@@ -70,7 +91,7 @@ export function sendCharacterStoreSaveNow<Character extends CharacterStoreRecord
   sendCharacterStoreSave(saves, campaign, ruleSet, characterId, readCharacter)
 }
 
-/** Drops one character's waiting save without sending it, and forgets its save in flight. */
+/** Drops one character's waiting save without sending it, and forgets its saves in flight. */
 export function cancelCharacterStoreSave(saves: CharacterStoreSaves, characterId: string) {
   const pending = saves.pending[characterId]
   if (pending) {
@@ -126,15 +147,18 @@ function sendCharacterStoreSave<Character extends CharacterStoreRecord>(
   readCharacter: (characterId: string) => Character | undefined,
 ) {
   delete saves.pending[characterId]
-  saves.inFlight[characterId] = true
   const character = readCharacter(characterId)
-  if (!character) {
-    delete saves.inFlight[characterId]
-    return
-  }
-  void setDoc(characterRef(campaign, characterId), characterStoreSaveFields(ruleSet, character), { merge: true }).finally(() => {
-    delete saves.inFlight[characterId]
-  })
+  if (!character) return
+  const landing: Promise<void> = setDoc(characterRef(campaign, characterId), characterStoreSaveFields(ruleSet, character), { merge: true })
+    .finally(() => forgetCharacterStoreSave(saves, characterId, landing))
+  saves.inFlight[characterId] = (saves.inFlight[characterId] ?? new Set()).add(landing)
+}
+
+// A cancelled character's saves are already forgotten, and a later save of it is tracked in a new set.
+function forgetCharacterStoreSave(saves: CharacterStoreSaves, characterId: string, landing: Promise<void>) {
+  const landings = saves.inFlight[characterId]
+  if (!landings?.delete(landing)) return
+  if (landings.size === 0) delete saves.inFlight[characterId]
 }
 
 /**

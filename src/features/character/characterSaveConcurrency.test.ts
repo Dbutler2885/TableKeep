@@ -21,11 +21,16 @@ const adapters = [
 ]
 
 beforeEach(() => { vi.resetAllMocks(); vi.useFakeTimers() })
+
+/** Lets settled writes run their callbacks, without moving the fake clock. */
+const flush = async () => {
+  for (let i = 0; i < 5; i += 1) await Promise.resolve()
+}
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers() })
 
 for (const adapter of adapters) {
-  describe(`${adapter.name} existing save concurrency`, () => {
-    it('tracks a pending edit while an older write settles, but forgets an overlapping second in-flight write', async () => {
+  describe(`${adapter.name} save concurrency`, () => {
+    it('stays outstanding until both of two overlapping in-flight writes have settled', async () => {
       let firstDone: () => void = () => undefined
       let secondDone: () => void = () => undefined
       mocks.setDoc.mockReturnValueOnce(new Promise<void>((resolve) => { firstDone = resolve }))
@@ -37,14 +42,16 @@ for (const adapter of adapters) {
       expect(adapter.outstanding(saves, 'pc')).toBe(true)
       vi.advanceTimersByTime(500)
       expect(mocks.setDoc).toHaveBeenCalledTimes(2)
-      expect(saves).toEqual({ pending: {}, inFlight: { pc: true } })
+      expect(saves.pending).toEqual({})
+      expect(saves.inFlight.pc?.size).toBe(2)
       firstDone()
-      await Promise.resolve()
-      // A boolean rather than a count: the first completion clears the flag
-      // although the second write is still unresolved.
-      expect(adapter.outstanding(saves, 'pc')).toBe(false)
+      await flush()
+      expect(saves.inFlight.pc?.size).toBe(1)
+      // The second write is still unresolved, so the character is still busy.
+      expect(adapter.outstanding(saves, 'pc')).toBe(true)
       secondDone()
-      await Promise.resolve()
+      await flush()
+      expect(adapter.outstanding(saves, 'pc')).toBe(false)
       expect(saves).toEqual({ pending: {}, inFlight: {} })
     })
 
@@ -56,14 +63,14 @@ for (const adapter of adapters) {
       vi.advanceTimersByTime(500)
       adapter.schedule(saves)
       firstDone()
-      await Promise.resolve()
+      await flush()
       expect(saves.inFlight).toEqual({})
       expect(adapter.outstanding(saves, 'pc')).toBe(true)
       vi.advanceTimersByTime(499)
       expect(mocks.setDoc).toHaveBeenCalledTimes(1)
       vi.advanceTimersByTime(1)
-      await Promise.resolve()
       expect(mocks.setDoc).toHaveBeenCalledTimes(2)
+      await flush()
       expect(adapter.outstanding(saves, 'pc')).toBe(false)
     })
   })

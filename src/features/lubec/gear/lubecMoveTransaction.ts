@@ -4,11 +4,18 @@
 // into one carrier at once cannot both pass the same room check, because
 // Firestore retries the loser against the new contents.
 //
-// A sheet's store keeps a local copy and holds a save for half a second, so a
-// transaction behind it could be overwritten by that save. The move first
-// sends the sheet's waiting save and waits for it to land, and afterwards
-// waits for the sheet's snapshot that carries the move, so the store's copy
-// has it before the page takes another edit.
+// A sheet's store keeps a local copy and holds a save for half a second, and
+// a save is a merge of the whole local copy, so a save that lands after the
+// transaction would put back what the move took away. The move first sends
+// the sheet's waiting save and waits until every save of the sheet the store
+// has sent has settled, not only the latest: two saves can be in flight at
+// once, and a transaction that went ahead when the first of them settled could
+// be overwritten by the second. A save that fails counts as settled. The wait
+// covers this page's store only: a save another tab or device sends is not
+// waited for, and Firestore retries the transaction only when such a save
+// lands between its read and its commit. Afterwards the move waits for the
+// sheet's snapshot that carries it, so the store's copy has it before the
+// page takes another edit.
 
 import {
   onSnapshot,
@@ -41,10 +48,8 @@ import { parseLubecGmItem, type LubecGmItem } from '../../ruleSets/lubec/gear/gm
 
 /** The store that saves the sheets a move writes, as `useCharacterStore` gives it. */
 export type LubecMoveStore = {
-  /** Sends the sheet's waiting save now: the store's `updateCharacterNow`. */
-  sendSaveNow: (sheetId: string) => void
-  /** True while a save of the sheet waits out its delay or is in flight. */
-  hasPendingWrite: (sheetId: string) => boolean
+  /** Sends the sheet's waiting save now, and resolves once every save of the sheet has settled. */
+  settleSaves: (sheetId: string) => Promise<void>
 }
 
 export type LubecMoveRequest = {
@@ -130,12 +135,9 @@ async function moveInTransaction(tx: Transaction, docs: readonly [Ref, Ref], req
   return { ok: true, sheets }
 }
 
-const settle = () => new Promise((resolve) => setTimeout(resolve, 25))
-
-/** Sends each sheet's waiting save, and waits until none of them has a save outstanding. */
+/** Sends each sheet's waiting save, and waits until every save of each sheet has settled. */
 export async function quietSheets(store: LubecMoveStore, sheetIds: readonly string[]) {
-  sheetIds.forEach((id) => store.sendSaveNow(id))
-  while (sheetIds.some((id) => store.hasPendingWrite(id))) await settle()
+  await Promise.all(sheetIds.map((id) => store.settleSaves(id)))
 }
 
 type Stamp = { seconds: number; nanoseconds: number }

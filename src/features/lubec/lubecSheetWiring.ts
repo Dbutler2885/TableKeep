@@ -25,8 +25,8 @@ export type LubecSheetWiringStore = {
   updateCharacter: CharacterUpdate
   /** Saves at once rather than after the delay. */
   updateCharacterNow: CharacterUpdate
-  /** True while a save of the character waits out its delay or is in flight. */
-  hasPendingWrite: (characterId: string) => boolean
+  /** Sends the character's waiting save now, and resolves once every save of it has settled. */
+  settleSaves: (characterId: string) => Promise<void>
 }
 
 type LubecSkillsChange = (skills: LubecSkills) => void

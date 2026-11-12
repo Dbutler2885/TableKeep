@@ -3,6 +3,7 @@ import type { CharacterRecord } from '../../../types/app'
 import { oseCharacterStore, readStoredCharacter } from '../lib/storedCharacterRecord'
 import { vtmCharacterStore } from '../vtmCharacterRecord'
 import { makeVtmCharacter } from '../vtmDefaults'
+import type { CharacterStoreSaves } from './characterStoreWrites'
 
 const mocks = vi.hoisted(() => ({
   setDoc: vi.fn(async (..._args: unknown[]) => undefined),
@@ -27,11 +28,16 @@ const {
   newCharacterStoreFields,
   scheduleCharacterStoreSave,
   sendCharacterStoreSavesNow,
+  settleCharacterStoreSaves,
   characterStoreCampaign,
 } = await import('./characterStoreWrites')
 
 const campaign = { campaignId: 'campaign-1', groupId: 'group-1' }
 const stored = { ...makeVtmCharacter('user-1', 'player1'), id: 'a' }
+
+/** How many saves of each character are in flight. */
+const inFlightCounts = (saves: CharacterStoreSaves) =>
+  Object.fromEntries(Object.entries(saves.inFlight).map(([id, landing]) => [id, landing.size]))
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -66,7 +72,8 @@ describe('scheduleCharacterStoreSave', () => {
     scheduleCharacterStoreSave(saves, campaign, vtmCharacterStore, 'a', () => stored)
     expect(isCharacterStoreSaveOutstanding(saves, 'a')).toBe(true)
     vi.advanceTimersByTime(500)
-    expect(saves).toEqual({ pending: {}, inFlight: { a: true } })
+    expect(saves.pending).toEqual({})
+    expect(inFlightCounts(saves)).toEqual({ a: 1 })
 
     settle()
     await vi.waitFor(() => expect(isCharacterStoreSaveOutstanding(saves, 'a')).toBe(false))
@@ -118,17 +125,19 @@ describe('sendCharacterStoreSavesNow', () => {
       ['groups/group-1/campaigns/campaign-1/characters/a', 'Edited A'],
       ['groups/group-1/campaigns/campaign-2/characters/b', 'Edited B'],
     ])
-    expect(saves).toEqual({ pending: {}, inFlight: { a: true, b: true } })
+    expect(saves.pending).toEqual({})
+    expect(inFlightCounts(saves)).toEqual({ a: 1, b: 1 })
   })
 
   it('sends nothing when no save is waiting, and leaves saves in flight alone', () => {
     const saves = emptyCharacterStoreSaves()
-    saves.inFlight.a = true
+    const landing = new Set([new Promise<void>(() => undefined)])
+    saves.inFlight.a = landing
 
     sendCharacterStoreSavesNow(saves)
 
     expect(mocks.setDoc).not.toHaveBeenCalled()
-    expect(saves).toEqual({ pending: {}, inFlight: { a: true } })
+    expect(saves).toEqual({ pending: {}, inFlight: { a: landing } })
   })
 })
 
@@ -176,7 +185,7 @@ describe('VtM write fields', () => {
 })
 
 describe('VtM save failure', () => {
-  it('clears the in-flight flag on rejection and never retries or reports the error', async () => {
+  it('forgets the save in flight on rejection and never retries or reports the error', async () => {
     let fail: (error: Error) => void = () => undefined
     const write = new Promise<undefined>((_resolve, reject) => { fail = reject })
     const finalization = vi.spyOn(write, 'finally')
@@ -198,23 +207,156 @@ describe('VtM save failure', () => {
 
 
 describe('overlapping character saves', () => {
-  it('sends a second edit while the first is in flight, and the first completion clears the shared flag early', async () => {
-    const finishes: Array<() => void> = []
-    mocks.setDoc.mockImplementation(() => new Promise<undefined>((resolve) => { finishes.push(() => resolve(undefined)) }))
+  /** Makes every save wait until the test finishes it, by its place in sending order. */
+  function holdSaves() {
+    const finishes: Array<{ resolve: () => void; reject: (error: Error) => void }> = []
+    mocks.setDoc.mockImplementation(() => new Promise<undefined>((resolve, reject) => {
+      finishes.push({ resolve: () => resolve(undefined), reject })
+    }))
+    return finishes
+  }
+
+  /** Sends two saves of character `a`, the second while the first is in flight. */
+  function sendTwoSaves() {
     const saves = emptyCharacterStoreSaves()
     scheduleCharacterStoreSave(saves, campaign, vtmCharacterStore, 'a', () => ({ ...stored, name: 'First' }))
     sendCharacterStoreSavesNow(saves)
     scheduleCharacterStoreSave(saves, campaign, vtmCharacterStore, 'a', () => ({ ...stored, name: 'Second' }))
     sendCharacterStoreSavesNow(saves)
-    expect(mocks.setDoc.mock.calls.map(([, fields]) => (fields as { name: string }).name)).toEqual(['First', 'Second'])
-    expect(isCharacterStoreSaveOutstanding(saves, 'a')).toBe(true)
-    finishes[0]()
-    await Promise.resolve()
-    // Characterization: inFlight is a boolean, so it forgets the second write.
+    return saves
+  }
+
+  it('keeps the character outstanding until the last of two overlapping saves settles, whichever finishes first', async () => {
+    for (const order of [[0, 1], [1, 0]]) {
+      mocks.setDoc.mockClear()
+      const finishes = holdSaves()
+      const saves = sendTwoSaves()
+      expect(mocks.setDoc.mock.calls.map(([, fields]) => (fields as { name: string }).name)).toEqual(['First', 'Second'])
+      expect(inFlightCounts(saves)).toEqual({ a: 2 })
+
+      finishes[order[0]].resolve()
+      await vi.waitFor(() => expect(inFlightCounts(saves)).toEqual({ a: 1 }))
+      expect(isCharacterStoreSaveOutstanding(saves, 'a')).toBe(true)
+
+      finishes[order[1]].resolve()
+      await vi.waitFor(() => expect(isCharacterStoreSaveOutstanding(saves, 'a')).toBe(false))
+      expect(saves).toEqual({ pending: {}, inFlight: {} })
+    }
+  })
+
+  it('counts a failed save as settled, and still waits for the other', async () => {
+    const finishes = holdSaves()
+    const saves = sendTwoSaves()
+    const landing = [...saves.inFlight.a]
+    landing.forEach((save) => save.catch(() => undefined))
+
+    finishes[0].reject(new Error('permission denied'))
+    await vi.waitFor(() => expect(inFlightCounts(saves)).toEqual({ a: 1 }))
+    finishes[1].resolve()
+    await vi.waitFor(() => expect(saves.inFlight).toEqual({}))
+  })
+
+  it('forgets every save in flight when the character is cancelled, and tracks a later save on its own', async () => {
+    const finishes = holdSaves()
+    const saves = sendTwoSaves()
+
+    cancelCharacterStoreSave(saves, 'a')
     expect(isCharacterStoreSaveOutstanding(saves, 'a')).toBe(false)
-    finishes[1]()
+    scheduleCharacterStoreSave(saves, campaign, vtmCharacterStore, 'a', () => stored)
+    sendCharacterStoreSavesNow(saves)
+    finishes[0].resolve()
+    finishes[1].resolve()
+    await vi.waitFor(() => expect(mocks.setDoc).toHaveBeenCalledTimes(3))
     await Promise.resolve()
-    expect(saves).toEqual({ pending: {}, inFlight: {} })
+    expect(inFlightCounts(saves)).toEqual({ a: 1 })
+    finishes[2].resolve()
+    await vi.waitFor(() => expect(saves.inFlight).toEqual({}))
+  })
+})
+
+describe('settleCharacterStoreSaves', () => {
+  const flush = async () => {
+    for (let i = 0; i < 10; i += 1) await Promise.resolve()
+  }
+
+  it('resolves at once for a character with no save outstanding', async () => {
+    await expect(settleCharacterStoreSaves(emptyCharacterStoreSaves(), 'a')).resolves.toBeUndefined()
+    expect(mocks.setDoc).not.toHaveBeenCalled()
+  })
+
+  it('sends the waiting save now, to the campaign it was made in, and resolves when it has landed', async () => {
+    let finish: () => void = () => undefined
+    mocks.setDoc.mockImplementationOnce(() => new Promise<undefined>((resolve) => { finish = () => resolve(undefined) }))
+    const saves = emptyCharacterStoreSaves()
+    const otherCampaign = { campaignId: 'campaign-2', groupId: 'group-1' }
+    scheduleCharacterStoreSave(saves, otherCampaign, vtmCharacterStore, 'a', () => ({ ...stored, name: 'Edited' }))
+    let settled = false
+
+    void settleCharacterStoreSaves(saves, 'a').then(() => { settled = true })
+    expect(mocks.setDoc).toHaveBeenCalledExactlyOnceWith(
+      { path: 'groups/group-1/campaigns/campaign-2/characters/a' }, expect.objectContaining({ name: 'Edited' }), { merge: true },
+    )
+    await flush()
+    expect(settled).toBe(false)
+
+    finish()
+    await flush()
+    expect(settled).toBe(true)
+    vi.advanceTimersByTime(500)
+    expect(mocks.setDoc).toHaveBeenCalledOnce()
+  })
+
+  it('waits for every overlapping save, not only the first to settle', async () => {
+    const finishes: Array<() => void> = []
+    mocks.setDoc.mockImplementation(() => new Promise<undefined>((resolve) => { finishes.push(() => resolve(undefined)) }))
+    const saves = emptyCharacterStoreSaves()
+    scheduleCharacterStoreSave(saves, campaign, vtmCharacterStore, 'a', () => stored)
+    sendCharacterStoreSavesNow(saves)
+    scheduleCharacterStoreSave(saves, campaign, vtmCharacterStore, 'a', () => stored)
+    let settled = false
+
+    void settleCharacterStoreSaves(saves, 'a').then(() => { settled = true })
+    expect(mocks.setDoc).toHaveBeenCalledTimes(2)
+    finishes[0]()
+    await flush()
+    expect(settled).toBe(false)
+
+    finishes[1]()
+    await flush()
+    expect(settled).toBe(true)
+  })
+
+  it('also sends and waits for an edit made while it waits', async () => {
+    const finishes: Array<() => void> = []
+    mocks.setDoc.mockImplementation(() => new Promise<undefined>((resolve) => { finishes.push(() => resolve(undefined)) }))
+    const saves = emptyCharacterStoreSaves()
+    scheduleCharacterStoreSave(saves, campaign, vtmCharacterStore, 'a', () => stored)
+    let settled = false
+
+    void settleCharacterStoreSaves(saves, 'a').then(() => { settled = true })
+    scheduleCharacterStoreSave(saves, campaign, vtmCharacterStore, 'a', () => ({ ...stored, name: 'Later' }))
+    finishes[0]()
+    await flush()
+    expect(mocks.setDoc).toHaveBeenCalledTimes(2)
+    expect(mocks.setDoc.mock.calls[1][1]).toMatchObject({ name: 'Later' })
+    expect(settled).toBe(false)
+
+    finishes[1]()
+    await flush()
+    expect(settled).toBe(true)
+  })
+
+  it('resolves when a save fails, without reporting the failure', async () => {
+    let fail: (error: Error) => void = () => undefined
+    mocks.setDoc.mockImplementationOnce(() => new Promise<undefined>((_resolve, reject) => { fail = reject }))
+    const saves = emptyCharacterStoreSaves()
+    scheduleCharacterStoreSave(saves, campaign, vtmCharacterStore, 'a', () => stored)
+    const settling = settleCharacterStoreSaves(saves, 'a')
+    ;[...saves.inFlight.a].forEach((save) => save.catch(() => undefined))
+
+    fail(new Error('permission denied'))
+    await expect(settling).resolves.toBeUndefined()
+    expect(saves.inFlight).toEqual({})
   })
 })
 
