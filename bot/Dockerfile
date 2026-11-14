@@ -24,6 +24,8 @@ RUN apt-get update \
 COPY bot/src ./src
 COPY bot/assets ./assets
 COPY functions/src/firestorePaths.ts /app/functions/src/firestorePaths.ts
+# The rules document the bot answers rules questions from, where src/main.ts looks for it.
+COPY docs/lubec/rules.md /app/docs/lubec/rules.md
 
 # The journal lives on a disk that outlives the container.
 ENV JOURNAL_DIR=/data/journals

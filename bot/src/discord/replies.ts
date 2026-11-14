@@ -4,9 +4,10 @@
  * An answer to a command is shown only to the person who typed it. What the
  * whole table should know is posted in the channel by the bot itself: one
  * status message that is edited in place, one message when the session is
- * saved, and one more only when something goes wrong. Nothing here is ever
- * about the recap.
+ * saved, one more only when something goes wrong, and the answer to a rules
+ * question someone at the table asked. Nothing here is ever about the recap.
  */
+import type { RulesAnswer } from '../rules/answer.ts'
 import type { JoinReply, NoteReply, StopReply } from './runner.ts'
 
 const REFUSALS = {
@@ -110,4 +111,69 @@ const ALARMS = {
 
 export function alarmMessage(problem: keyof typeof ALARMS): string {
   return ALARMS[problem]
+}
+
+/** Discord refuses a message longer than this. */
+const MAX_MESSAGE_CHARS = 2_000
+
+function clip(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  return flat.length <= max ? flat : `${flat.slice(0, max - 1).trimEnd()}…`
+}
+
+/** Who asked what, after the heading, or nothing when the model did not say what was asked. */
+function askedPart(reply: RulesAnswer): string {
+  if (!reply.question) return ''
+  const who = reply.askedBy ? `${clip(reply.askedBy, 60)} asked` : 'asked'
+  return ` - ${who}: "${clip(reply.question, 300)}"`
+}
+
+/** Where the answer comes from in the rules document. */
+function sourceLine(reply: RulesAnswer): string {
+  const section = reply.section ? clip(reply.section, 120) : ''
+  if (reply.kind === 'not_covered') return 'Not covered by the rules document'
+  if (reply.kind === 'not_decided') return `Not decided yet in the rules document${section ? ` (${section})` : ''}`
+  return `From the rules document${section ? `: ${section}` : ''}`
+}
+
+/** A line too long for one message, cut between words where it can be. */
+function wrapLine(line: string, max: number): string[] {
+  const pieces: string[] = []
+  let rest = line
+  while (rest.length > max) {
+    const space = rest.lastIndexOf(' ', max)
+    const at = space > 0 ? space : max
+    pieces.push(rest.slice(0, at))
+    rest = rest.slice(at).trimStart()
+  }
+  pieces.push(rest)
+  return pieces
+}
+
+/** Text cut into messages Discord will take, between lines wherever it can be. */
+export function splitMessages(text: string, max = MAX_MESSAGE_CHARS): string[] {
+  const messages: string[] = []
+  let current = ''
+  for (const piece of text.split('\n').flatMap((line) => wrapLine(line, max))) {
+    const joined = current ? `${current}\n${piece}` : piece
+    if (joined.length <= max) {
+      current = joined
+    } else {
+      messages.push(current)
+      current = piece
+    }
+  }
+  if (current.trim()) messages.push(current)
+  return messages
+}
+
+/**
+ * The bot's answer to a rules question it heard, as the messages to post, or
+ * none when the model found no question to answer. It says it is the bot's
+ * answer from the rules document, which question it answers, and where in the
+ * document it looked. A long answer is posted in parts, in order.
+ */
+export function rulesAnswerMessages(reply: RulesAnswer): string[] {
+  if (reply.kind === 'no_question' || !reply.answer) return []
+  return splitMessages([`**Rules answer**${askedPart(reply)}`, reply.answer.trim(), `-# ${sourceLine(reply)}`].join('\n'))
 }

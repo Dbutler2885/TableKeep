@@ -13,6 +13,8 @@ import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { joinReply, noteReply, stopReply } from '../../src/discord/replies.ts'
 import { SessionRunner, type CommandCaller, type JoinReply } from '../../src/discord/runner.ts'
+import type { TranscriptLine } from '../../src/rules/transcriptWindow.ts'
+import type { RulesAnswering } from '../../src/rules/watcher.ts'
 import { FirestoreSessionStore, sessionPath, type SessionLocation } from '../../src/store/sessionStore.ts'
 import { recoverSessions } from '../../src/session/recover.ts'
 import type { RecorderOptions } from '../../src/session/recorder.ts'
@@ -90,7 +92,7 @@ beforeEach(async () => {
   runner = newRunner()
 })
 
-const newRunner = () => new SessionRunner({ voice, messages: board, now: () => clock, recorder: recorderOptions })
+const newRunner = (rules?: RulesAnswering) => new SessionRunner({ voice, messages: board, now: () => clock, recorder: recorderOptions, rules })
 
 const asJem: CommandCaller = { serverId: SERVER, userId: JEM.id, voiceChannelId: CHANNEL, textChannelId: TEXT }
 const sessions = async () => (await db.collection(`groups/${GROUP}/campaigns/${CAMPAIGN}/sessions`).get()).docs
@@ -327,6 +329,61 @@ test('an ordinary session leaves two messages in the channel: how it went, and t
   )
 })
 
+test('a rules question heard at the table is answered in the channel while the session records, and never after it ends', async () => {
+  const windows: (readonly TranscriptLine[])[] = []
+  const postedQuestions: string[][] = []
+  const failures: string[] = []
+  runner = newRunner({
+    askJev: async (window, posted) => {
+      windows.push(window)
+      postedQuestions.push(posted.map((answer) => answer.question))
+      if (windows.length === 1) throw new Error('TypeSafe answered 503')
+      return windows.length === 2 ? 0.95 : 0.05
+    },
+    answer: async () => ({ kind: 'answered', question: 'do I add strength?', askedBy: 'mapman', answer: 'Yes, to hit and to damage.', section: 'Attacks' }),
+    log: (message) => failures.push(message),
+  })
+  const location = await started(await runner.join(asJem))
+
+  // Each look runs in the background, so it is let finish before time moves on.
+  const looked = () => new Promise((resolve) => setImmediate(resolve))
+  // The first look fails, which changes nothing for the recording; the second, after Peter speaks, is flagged.
+  speak(JEM.id, 1)
+  await looked()
+  speak(PETER.id, 1)
+  await looked()
+  pass(5_000)
+  await until(async () => board.messages.some((message) => message.text.startsWith('**Rules answer**')))
+  // With no pause after a flag, the next line is looked at as soon as it arrives, beside the answer given.
+  speak(JEM.id, 1)
+  await looked()
+
+  assert.equal((await runner.stop(asJem)).status, 'saved')
+  assert.equal((await session(location)).state, 'ended')
+  assert.deepEqual(
+    windows.map((window) => window.map((line) => line.speaker)),
+    [['mapman'], ['mapman', 'Peter'], ['mapman', 'Peter', 'mapman']],
+    'each look was at the last stretch of the session, with speakers named',
+  )
+  assert.deepEqual(postedQuestions, [[], [], ['do I add strength?']])
+  assert.deepEqual(
+    board.messages.map((message) => message.text),
+    [
+      'Session 1 ended after 0:14.\nmapman: 2 lines\nPeter: 1 line',
+      '**Rules answer** - mapman asked: "do I add strength?"\nYes, to hit and to damage.\n-# From the rules document: Attacks',
+      'Session 1 is saved.',
+    ],
+  )
+  assert.deepEqual(failures, ['rules check failed', 'rules checks working again', 'rules question heard', 'rules answer written', 'rules answer posted'])
+
+  // The next session starts with none of the last one's answers, so the same question can be answered again.
+  await started(await runner.join(asJem))
+  speak(PETER.id, 1)
+  await looked()
+  assert.deepEqual(postedQuestions.at(-1), [])
+  assert.equal((await runner.stop(asJem)).status, 'saved')
+})
+
 test('/note marks the moment the command arrived, with who wrote it', async () => {
   const location = await started(await runner.join(asJem))
   pass(75_000)
@@ -427,6 +484,15 @@ test('a bot that restarts mid-session rejoins the channel, says so, and carries 
   assert.equal((await sessions()).length, 1)
   assert.deepEqual((await store.transcript(location)).map((utterance) => utterance.speakerId), [JEM.id, PETER.id])
   assert.equal((await db.collection(sessionPath(location, 'gaps')).get()).size, 1)
+})
+
+test('a runner given nowhere to post records just the same, on the real clock, and says nothing', async () => {
+  runner = new SessionRunner({ voice, recorder: recorderOptions })
+  const location = await started(await runner.join(asJem))
+
+  assert.equal((await runner.stop(asJem)).status, 'saved')
+  assert.equal((await session(location)).state, 'ended')
+  assert.equal(board.messages.length, 0)
 })
 
 test('a channel the bot may not write in does not stop the session being recorded', async () => {
