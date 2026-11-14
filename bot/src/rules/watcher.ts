@@ -98,8 +98,7 @@ export class RulesWatcher {
 
   /** Call several times a second. Starts a look at the transcript when one is due. */
   tick(nowMs: number): void {
-    if (this.#stopped || this.#working || !this.#fresh) return
-    if (nowMs < this.#nextCheckAtMs || nowMs < this.#quietUntilMs) return
+    if (!this.#due(nowMs)) return
     const nowSamples = Math.round(((nowMs - this.#options.sessionStartedAtMs) / 1000) * SESSION_SAMPLE_RATE)
     const window = this.#window.at(nowSamples)
     this.#fresh = false
@@ -108,6 +107,12 @@ export class RulesWatcher {
     this.#working = this.#look(window, nowMs).finally(() => {
       this.#working = null
     })
+  }
+
+  /** Whether to look now: something new has been said, nothing is under way, and no wait is still running. */
+  #due(nowMs: number): boolean {
+    if (this.#stopped || this.#working || !this.#fresh) return false
+    return nowMs >= Math.max(this.#nextCheckAtMs, this.#quietUntilMs)
   }
 
   /** The session has ended: nothing more is looked at, and an answer still on its way is not posted. */

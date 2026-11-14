@@ -95,6 +95,28 @@ test('Jev is asked about the latest stretch at most every few seconds while peop
   assert.deepEqual(asked, [['one'], ['one', 'two', 'three']])
 })
 
+test('nothing more is asked of Jev once the session has ended, whatever is still heard', async () => {
+  const { watcher, asked, say, pass } = setUp()
+  watcher.stop()
+  say('Peter', 'Does a shield count against arrows?')
+  watcher.heard([{ speaker: 'Ann', text: 'Hello?', startSamples: 0, endSamples: RATE }])
+  await pass(10_000)
+  assert.equal(asked.length, 0)
+})
+
+test('lines caught up from long ago, as after a restart, are never put to Jev', async () => {
+  const { watcher, asked, pass } = setUp()
+  await pass(10 * 60 * 1000)
+  watcher.heard([{ speaker: 'Peter', text: 'Does a shield count against arrows?', startSamples: 0, endSamples: 2 * RATE }])
+  await pass(10_000)
+  assert.equal(asked.length, 0)
+
+  // The stale lines were dropped, not saved up: what is said next is put to Jev alone.
+  watcher.heard([{ speaker: 'Ann', text: 'Okay.', startSamples: 610 * RATE, endSamples: 611 * RATE }])
+  await pass(5_000)
+  assert.deepEqual(asked, [['Okay.']])
+})
+
 test('below the threshold nothing is answered or posted', async () => {
   const { answered, posted, say, pass } = setUp({ probabilities: [0.7] })
   say('Ann', 'Can I climb it?')
