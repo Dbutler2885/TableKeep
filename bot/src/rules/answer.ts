@@ -7,7 +7,8 @@
  * service can reuse it. The answer comes back in a fixed shape, so the bot
  * decides how it reads in Discord and can tell when there was no question.
  */
-import { transcriptText, type TranscriptLine } from './transcriptWindow.ts'
+import { postJson } from './http.ts'
+import { recentAnswersText, transcriptText, type RecentAnswer, type TranscriptLine } from './transcriptWindow.ts'
 
 export const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses'
 export const RULES_ANSWER_MODEL = 'gpt-6-luna'
@@ -17,16 +18,16 @@ const MAX_OUTPUT_TOKENS = 4_000
 
 const GUIDANCE = `You answer rules questions for a group playing a tabletop role-playing game, while they play.
 
-You are given the group's rules document, below, and a stretch of the live transcript of the table. The transcript is speech-to-text and imperfect: words may be misheard. Each line starts with the speaker's name.
+You are given the group's rules document, below, a stretch of the live transcript of the table, and the rules answers you have already posted in the last few minutes. The transcript is speech-to-text and imperfect: words may be misheard. Each line starts with the speaker's name. Your earlier answers were posted in the text chat, so they are not in the transcript.
 
-Find the most recent rules question in the transcript that nobody has answered yet, and answer it from the rules document alone.
+Find the most recent rules question in the transcript that nobody has answered yet and that your earlier answers do not already cover, and answer it from the rules document alone. A follow-up that asks something your earlier answers did not cover is a new question. A player asking the GM whether their character may do something in the story ("can I climb it?", "can I open the door?") is a request to the GM, not a rules question.
 
 - Answer in at most three short sentences of plain text, the way you would say it across the table.
 - In "section", name the section of the rules document your answer comes from, as the document titles it.
 - If the document does not cover the question, set "kind" to "not_covered" and say plainly that the rules document does not cover it.
 - If the document says the rule is not decided yet (for example it is marked as undecided, to be decided, TBD or an open question), set "kind" to "not_decided" and say that the rule is not decided yet, with whatever the document does say about it.
 - Never guess beyond the document. Do not fill a gap from other games, editions or general knowledge.
-- If nobody in the transcript is asking a rules question that is still unanswered, set "kind" to "no_question" and leave the other fields empty.
+- If nobody in the transcript is asking a rules question that is still unanswered, or your earlier answers already answer it, even asked again in other words, set "kind" to "no_question" and leave the other fields empty.
 
 # The rules document
 
@@ -64,12 +65,17 @@ export type AnswerRequest = {
   store: false
 }
 
-/** The request for one rules question: the document in the instructions, the window as the input. */
-export function answerRequest(rulesDocument: string, window: readonly TranscriptLine[], model = RULES_ANSWER_MODEL): AnswerRequest {
+/** The request for one rules question: the document in the instructions, the earlier answers and the window as the input. */
+export function answerRequest(
+  rulesDocument: string,
+  window: readonly TranscriptLine[],
+  recent: readonly RecentAnswer[],
+  model = RULES_ANSWER_MODEL,
+): AnswerRequest {
   return {
     model,
     instructions: `${GUIDANCE}${rulesDocument.trim()}\n`,
-    input: `The transcript, oldest line first:\n\n${transcriptText(window)}`,
+    input: `Your rules answers from the last few minutes, oldest first:\n\n${recentAnswersText(recent)}\n\nThe transcript, oldest line first:\n\n${transcriptText(window)}`,
     text: { format: { type: 'json_schema', name: 'rules_answer', strict: true, schema: ANSWER_SCHEMA } },
     max_output_tokens: MAX_OUTPUT_TOKENS,
     store: false,
@@ -82,21 +88,28 @@ type ResponsesBody = {
   output?: { type?: string; content?: { type?: string; text?: string; refusal?: string }[] }[]
 }
 
+/** Why a reply holds no text. */
+function whyNoText(reply: ResponsesBody): string {
+  if (reply.status !== 'incomplete') return 'it wrote no text'
+  return `it stopped early (${reply.incomplete_details?.reason ?? 'no reason given'})`
+}
+
+/** The text of a reply's message, or why there is none. */
+function answerText(reply: ResponsesBody): string {
+  const content = (reply.output ?? []).filter((item) => item.type === 'message').flatMap((item) => item.content ?? [])
+  if (content.some((part) => part.type === 'refusal')) throw new Error('The model refused to answer.')
+  const text = content.find((part) => part.type === 'output_text')?.text
+  if (!text) throw new Error(`The model gave no answer: ${whyNoText(reply)}.`)
+  return text
+}
+
+const KINDS: readonly string[] = ['answered', 'not_covered', 'not_decided', 'no_question']
+
 /** Reads the answer out of a Responses API reply. */
 export function readAnswer(body: unknown): RulesAnswer {
-  const reply = body as ResponsesBody
-  const content = (reply.output ?? []).filter((item) => item.type === 'message').flatMap((item) => item.content ?? [])
-  const refusal = content.find((part) => part.type === 'refusal')
-  if (refusal) throw new Error('The model refused to answer.')
-  const text = content.find((part) => part.type === 'output_text')?.text
-  if (!text) {
-    const why = reply.status === 'incomplete' ? `it stopped early (${reply.incomplete_details?.reason ?? 'no reason given'})` : 'it wrote no text'
-    throw new Error(`The model gave no answer: ${why}.`)
-  }
-  const parsed = JSON.parse(text) as Record<string, unknown>
-  const kinds = ['answered', 'not_covered', 'not_decided', 'no_question']
-  if (typeof parsed.kind !== 'string' || !kinds.includes(parsed.kind)) throw new Error('The model gave an answer of no known kind.')
-  const field = (name: string) => (typeof parsed[name] === 'string' ? (parsed[name] as string).trim() : '')
+  const parsed = JSON.parse(answerText(body as ResponsesBody)) as Record<string, unknown>
+  if (!KINDS.includes(parsed.kind as string)) throw new Error('The model gave an answer of no known kind.')
+  const field = (name: string) => (typeof parsed[name] === 'string' ? parsed[name].trim() : '')
   return {
     kind: parsed.kind as RulesAnswer['kind'],
     question: field('question'),
@@ -106,37 +119,22 @@ export function readAnswer(body: unknown): RulesAnswer {
   }
 }
 
-export type AnswerRulesQuestion = (window: readonly TranscriptLine[]) => Promise<RulesAnswer>
+export type AnswerRulesQuestion = (window: readonly TranscriptLine[], recent: readonly RecentAnswer[]) => Promise<RulesAnswer>
 
 /** Answers through OpenAI's Responses API. */
 export function openAiRulesAnswerer({
   apiKey,
   rulesDocument,
   model = RULES_ANSWER_MODEL,
-  fetch: request = fetch,
+  fetch,
 }: {
   apiKey: string
   rulesDocument: string
   model?: string
-  fetch?: typeof fetch
+  fetch?: typeof globalThis.fetch
 }): AnswerRulesQuestion {
-  return async (window) => {
-    let response: Response
-    try {
-      response = await request(OPENAI_RESPONSES_URL, {
-        method: 'POST',
-        headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
-        body: JSON.stringify(answerRequest(rulesDocument, window, model)),
-        signal: AbortSignal.timeout(ANSWER_TIMEOUT_MS),
-      })
-    } catch (error) {
-      throw new Error(`OpenAI could not be reached (${(error as Error)?.name === 'TimeoutError' ? 'no answer in time' : 'connection failed'}).`)
-    }
-    if (!response.ok) {
-      // A refused key is named in part in the reply, so a refusal is reported without it.
-      const detail = response.status === 401 || response.status === 403 ? '' : (await response.text().catch(() => '')).slice(0, 300)
-      throw new Error(`OpenAI answered ${response.status}${detail ? `: ${detail}` : ''}`)
-    }
-    return readAnswer(await response.json())
+  return async (window, recent) => {
+    const body = answerRequest(rulesDocument, window, recent, model)
+    return readAnswer(await postJson({ service: 'OpenAI', url: OPENAI_RESPONSES_URL, apiKey, body, timeoutMs: ANSWER_TIMEOUT_MS, fetch }))
   }
 }

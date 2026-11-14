@@ -331,10 +331,12 @@ test('an ordinary session leaves two messages in the channel: how it went, and t
 
 test('a rules question heard at the table is answered in the channel while the session records, and never after it ends', async () => {
   const windows: (readonly TranscriptLine[])[] = []
+  const recentQuestions: string[][] = []
   const failures: string[] = []
   runner = newRunner({
-    askJev: async (window) => {
+    askJev: async (window, recent) => {
       windows.push(window)
+      recentQuestions.push(recent.map((answer) => answer.question))
       if (windows.length === 1) throw new Error('TypeSafe answered 503')
       return windows.length === 2 ? 0.95 : 0.05
     },
@@ -352,22 +354,23 @@ test('a rules question heard at the table is answered in the channel while the s
   await looked()
   pass(5_000)
   await until(async () => board.messages.some((message) => message.text.startsWith('**Rules answer**')))
-  // Once the cooldown is over, only what was said after the answered stretch is looked at.
+  // After the short gap that follows a flag, the next look sees the same stretch and more, beside the answer given.
   speak(JEM.id, 1)
-  pass(45_000)
+  pass(25_000)
   await looked()
 
   assert.equal((await runner.stop(asJem)).status, 'saved')
   assert.equal((await session(location)).state, 'ended')
   assert.deepEqual(
     windows.map((window) => window.map((line) => line.speaker)),
-    [['mapman'], ['mapman', 'Peter'], ['mapman']],
-    'each look was at the stretch since the last answered one, with speakers named',
+    [['mapman'], ['mapman', 'Peter'], ['mapman', 'Peter', 'mapman']],
+    'each look was at the last stretch of the session, with speakers named',
   )
+  assert.deepEqual(recentQuestions, [[], [], ['do I add strength?']])
   assert.deepEqual(
     board.messages.map((message) => message.text),
     [
-      'Session 1 ended after 0:59.\nmapman: 2 lines\nPeter: 1 line',
+      'Session 1 ended after 0:39.\nmapman: 2 lines\nPeter: 1 line',
       '**Rules answer** - mapman asked: "do I add strength?"\nYes, to hit and to damage.\n-# From the rules document: Attacks',
       'Session 1 is saved.',
     ],
@@ -475,6 +478,15 @@ test('a bot that restarts mid-session rejoins the channel, says so, and carries 
   assert.equal((await sessions()).length, 1)
   assert.deepEqual((await store.transcript(location)).map((utterance) => utterance.speakerId), [JEM.id, PETER.id])
   assert.equal((await db.collection(sessionPath(location, 'gaps')).get()).size, 1)
+})
+
+test('a runner given nowhere to post records just the same, on the real clock, and says nothing', async () => {
+  runner = new SessionRunner({ voice, recorder: recorderOptions })
+  const location = await started(await runner.join(asJem))
+
+  assert.equal((await runner.stop(asJem)).status, 'saved')
+  assert.equal((await session(location)).state, 'ended')
+  assert.equal(board.messages.length, 0)
 })
 
 test('a channel the bot may not write in does not stop the session being recorded', async () => {

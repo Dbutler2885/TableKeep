@@ -121,6 +121,21 @@ function clip(text: string, max: number): string {
   return flat.length <= max ? flat : `${flat.slice(0, max - 1).trimEnd()}…`
 }
 
+/** Who asked what, after the heading, or nothing when the model did not say what was asked. */
+function askedPart(reply: RulesAnswer): string {
+  if (!reply.question) return ''
+  const who = reply.askedBy ? `${clip(reply.askedBy, 60)} asked` : 'asked'
+  return ` - ${who}: "${clip(reply.question, 300)}"`
+}
+
+/** Where the answer comes from in the rules document. */
+function sourceLine(reply: RulesAnswer): string {
+  const section = reply.section ? clip(reply.section, 120) : ''
+  if (reply.kind === 'not_covered') return 'Not covered by the rules document'
+  if (reply.kind === 'not_decided') return `Not decided yet in the rules document${section ? ` (${section})` : ''}`
+  return `From the rules document${section ? `: ${section}` : ''}`
+}
+
 /**
  * The bot's answer to a rules question it heard, or nothing when the model
  * found no question to answer. It says it is the bot's answer from the rules
@@ -128,17 +143,8 @@ function clip(text: string, max: number): string {
  */
 export function rulesAnswerMessage(reply: RulesAnswer): string | null {
   if (reply.kind === 'no_question' || !reply.answer) return null
-  const question = reply.question ? clip(reply.question, 300) : ''
-  const asked = question ? ` - ${reply.askedBy ? `${clip(reply.askedBy, 60)} asked` : 'asked'}: "${question}"` : ''
-  const section = reply.section ? clip(reply.section, 120) : ''
-  const source =
-    reply.kind === 'not_covered'
-      ? 'Not covered by the rules document'
-      : reply.kind === 'not_decided'
-        ? `Not decided yet in the rules document${section ? ` (${section})` : ''}`
-        : `From the rules document${section ? `: ${section}` : ''}`
-  const head = `**Rules answer**${asked}`
-  const foot = `-# ${source}`
+  const head = `**Rules answer**${askedPart(reply)}`
+  const foot = `-# ${sourceLine(reply)}`
   const room = MAX_MESSAGE_CHARS - head.length - foot.length - 2
   return [head, clip(reply.answer, room), foot].join('\n')
 }

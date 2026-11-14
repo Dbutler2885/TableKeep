@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { TranscriptWindow, transcriptText, type TranscriptLine } from '../src/rules/transcriptWindow.ts'
+import { recentAnswersText, TranscriptWindow, transcriptText, type TranscriptLine } from '../src/rules/transcriptWindow.ts'
 
 const RATE = 48_000
 
@@ -36,24 +36,13 @@ test('lines replayed from long ago, as after a restart, are never in the window'
   assert.deepEqual(window.at(3_600 * RATE), [])
 })
 
-test('a window that has been dealt with is not offered again; only what was said after it is', () => {
+test('windows overlap: a line stays in each window until it is too old, so a follow-up is seen with what it follows', () => {
   const window = new TranscriptWindow({ windowSeconds: 90, maxChars: 4_000 })
-  window.add([said('Peter', 'Does a shield count against arrows?', 10), said('Ann', 'Good question', 13)])
-  window.settle(window.at(20 * RATE))
+  window.add([said('Peter', 'Does a shield count against arrows?', 10)])
+  assert.deepEqual(texts(window.at(15 * RATE)), ['Does a shield count against arrows?'])
 
-  assert.deepEqual(window.at(25 * RATE), [])
-  window.add([said('Jem', 'Can I reload and shoot?', 26)])
-  assert.deepEqual(texts(window.at(30 * RATE)), ['Can I reload and shoot?'])
-})
-
-test('a line still being said when the window was settled, but ending after it, is offered again', () => {
-  const window = new TranscriptWindow({ windowSeconds: 90, maxChars: 4_000 })
-  window.add([said('Peter', 'question', 10, 12)])
-  window.settle(window.at(13 * RATE))
-  // Ann started talking before Peter finished, but her line ended later and only arrived now.
-  window.add([said('Ann', 'overlapping', 11, 15)])
-
-  assert.deepEqual(texts(window.at(16 * RATE)), ['overlapping'])
+  window.add([said('Peter', 'And can I bash with it?', 30)])
+  assert.deepEqual(texts(window.at(35 * RATE)), ['Does a shield count against arrows?', 'And can I bash with it?'])
 })
 
 test('a window with more text than it may hold keeps the most recent lines, and always the latest', () => {
@@ -71,4 +60,15 @@ test('empty lines are dropped, and a window reads as one line per speaker turn',
   window.add([said('Ann', '  ', 5), said('Ann', ' I attack. ', 10), said('Dave', 'Roll it.', 12)])
 
   assert.equal(transcriptText(window.at(20 * RATE)), 'Ann: I attack.\nDave: Roll it.')
+})
+
+test("the bot's recent answers read as who asked what and what the bot said, or as none", () => {
+  assert.equal(recentAnswersText([]), 'The bot has not answered any rules question in the last few minutes.')
+  assert.equal(
+    recentAnswersText([
+      { askedBy: 'Peter', question: 'does a shield count against arrows?', answer: 'No, melee only.' },
+      { askedBy: '', question: 'two weapons?', answer: 'Not decided yet.' },
+    ]),
+    'Peter asked: does a shield count against arrows?\nThe bot answered: No, melee only.\n\nSomeone asked: two weapons?\nThe bot answered: Not decided yet.',
+  )
 })

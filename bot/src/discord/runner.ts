@@ -88,7 +88,7 @@ export class SessionRunner {
   #messages: MessageBoard | null
   #emptyStopMs: number
   #recorderOptions: RecorderOptions
-  #rules: RulesAnswering | null
+  #rules: RulesAnswering | undefined
   #now: () => number
   /** The session being recorded in each server, by server. */
   #running = new Map<string, Running>()
@@ -101,7 +101,7 @@ export class SessionRunner {
     this.#messages = options.messages ?? null
     this.#emptyStopMs = options.emptyStopMs ?? DEFAULT_EMPTY_STOP_MS
     this.#recorderOptions = options.recorder
-    this.#rules = options.rules ?? null
+    this.#rules = options.rules
     this.#now = options.now ?? Date.now
   }
 
@@ -225,16 +225,21 @@ export class SessionRunner {
         void this.#finish(serverId, running, 'the voice channel was empty').catch(() => undefined)
         continue
       }
-      try {
-        running.rules?.tick(nowMs)
-      } catch (error) {
-        this.#rules?.log('rules check could not start', { error: String(error) })
-      }
+      this.#tickRules(running, nowMs)
       if (running.statusMessageId && nowMs - running.statusAtMs >= STATUS_EVERY_MS) {
         running.statusAtMs = nowMs
         const { textChannelId, statusMessageId } = running
         void this.#messages?.edit(textChannelId!, statusMessageId, this.#status(running, nowMs)).catch(() => undefined)
       }
+    }
+  }
+
+  /** Moves the rules watcher on, if there is one. Nothing it does can stop the session's own tick. */
+  #tickRules(running: Running, nowMs: number): void {
+    try {
+      running.rules?.tick(nowMs)
+    } catch (error) {
+      this.#rules!.log('rules check could not start', { error: String(error) })
     }
   }
 

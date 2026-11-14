@@ -7,10 +7,8 @@
  * order they were said, and the window is the last stretch of them, measured
  * on the session's own timeline rather than by when they arrived. Anything
  * replayed from long ago, as after a restart, is therefore never in it.
- *
- * A window that has been answered is not looked at again: everything up to
- * its last line is behind a floor, and only what was said after it can raise
- * a new question.
+ * Windows overlap: what keeps a question from being answered twice is the
+ * bot's own recent answers, which are looked at alongside each window.
  */
 
 /** Utterance times are counted in samples at this rate from the start of the session. */
@@ -34,8 +32,6 @@ export type TranscriptWindowOptions = {
 export class TranscriptWindow {
   #options: TranscriptWindowOptions
   #lines: TranscriptLine[] = []
-  /** Lines that ended at or before this point have been dealt with. */
-  #floorSamples = -Infinity
 
   constructor(options: TranscriptWindowOptions) {
     this.#options = options
@@ -50,15 +46,11 @@ export class TranscriptWindow {
     this.#lines.sort((a, b) => a.startSamples - b.startSamples || a.endSamples - b.endSamples)
   }
 
-  /**
-   * The lines of the last stretch of the session, oldest first, that are past
-   * the floor. `nowSamples` is the session's current position.
-   */
+  /** The lines of the last stretch of the session, oldest first. `nowSamples` is the session's current position. */
   at(nowSamples: number): TranscriptLine[] {
     const fromSamples = nowSamples - this.#options.windowSeconds * SESSION_SAMPLE_RATE
     // Anything that ended before the window could open can never be in one again.
-    this.#lines = this.#lines.filter((line) => line.endSamples >= fromSamples)
-    const lines = this.#lines.filter((line) => line.endSamples > this.#floorSamples)
+    const lines = (this.#lines = this.#lines.filter((line) => line.endSamples >= fromSamples))
     let chars = 0
     let first = lines.length
     while (first > 0) {
@@ -70,15 +62,18 @@ export class TranscriptWindow {
     }
     return lines.slice(first)
   }
-
-  /** Marks everything up to the end of this window as dealt with. */
-  settle(window: readonly TranscriptLine[]): void {
-    const end = Math.max(...window.map((line) => line.endSamples))
-    if (end > this.#floorSamples) this.#floorSamples = end
-  }
 }
 
 /** A window as text, one line per stretch of speech: `Name: what they said`. */
 export function transcriptText(window: readonly TranscriptLine[]): string {
   return window.map((line) => `${line.speaker}: ${line.text.trim()}`).join('\n')
+}
+
+/** A rules answer the bot has posted in this session: what was asked, by whom, and what it said. */
+export type RecentAnswer = { askedBy: string; question: string; answer: string }
+
+/** The bot's recent answers as text, oldest first, or a line saying there are none. */
+export function recentAnswersText(answers: readonly RecentAnswer[]): string {
+  if (answers.length === 0) return 'The bot has not answered any rules question in the last few minutes.'
+  return answers.map((recent) => `${recent.askedBy || 'Someone'} asked: ${recent.question}\nThe bot answered: ${recent.answer}`).join('\n\n')
 }
