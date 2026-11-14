@@ -713,8 +713,6 @@ Dropping something you are holding is free.
 
 A weapon must be in your hand to attack with it.
 Each hand holds one small or 1-slot thing.
-Using your non-dominant hand for an action that needs your good hand costs -20 Handle.
-If that hand is also injured, the penalties do not stack: you choose which impaired option you are using.
 Anything bigger, and anything heavy or extra heavy, takes both hands.
 
 What moving things costs, in actions (you get one action a round):
