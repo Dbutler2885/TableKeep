@@ -8,7 +8,7 @@
  * decides how it reads in Discord and can tell when there was no question.
  */
 import { postJson } from './http.ts'
-import { recentAnswersText, transcriptText, type RecentAnswer, type TranscriptLine } from './transcriptWindow.ts'
+import { postedAnswersText, transcriptText, type PostedAnswer, type TranscriptLine } from './transcriptWindow.ts'
 
 export const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses'
 export const RULES_ANSWER_MODEL = 'gpt-6-luna'
@@ -25,9 +25,9 @@ const MAX_OUTPUT_TOKENS = 12_000
 
 const GUIDANCE = `You answer rules questions for a group playing a tabletop role-playing game, while they play.
 
-You are given the group's rules document, below, a stretch of the live transcript of the table, and the rules answers you have already posted in the last few minutes. The transcript is speech-to-text and imperfect: words may be misheard. Each line starts with the speaker's name. Your earlier answers were posted in the text chat, so they are not in the transcript.
+You are given the group's rules document, below, a stretch of the live transcript of the table, and every rules answer you have already posted in this session. The transcript is speech-to-text and imperfect: words may be misheard. Each line starts with the speaker's name. Your earlier answers were posted in the text chat, so they are not in the transcript.
 
-Find the most recent rules question in the transcript that nobody has answered yet and that your earlier answers do not already cover, and answer it from the rules document alone. A follow-up that asks something your earlier answers did not cover is a new question. A player asking the GM whether their character may do something in the story ("can I climb it?", "can I open the door?") is a request to the GM, not a rules question.
+Find the latest rules question in the transcript that nobody has answered yet and that your earlier answers do not already cover, and answer it from the rules document alone. A follow-up that asks something your earlier answers did not cover is a new question. A player asking the GM whether their character may do something in the story ("can I climb it?", "can I open the door?") is a request to the GM, not a rules question.
 
 - Give the whole procedure the rules document sets out for the question: every step, in order, with every number it uses (dice, targets, modifiers, distances, limits) and every condition or exception that applies, and the document's worked example when it has one.
 - Word it concisely, but never summarise in a way that drops a step, a number or a condition. A short answer that leaves the table unable to play it out is wrong.
@@ -37,7 +37,7 @@ Find the most recent rules question in the transcript that nobody has answered y
 - If the document does not cover the question, set "kind" to "not_covered" and say plainly that the rules document does not cover it.
 - If the document says the rule is not decided yet (for example it is marked as undecided, to be decided, TBD or an open question), set "kind" to "not_decided" and say that the rule is not decided yet, with whatever the document does say about it.
 - Never guess beyond the document. Do not fill a gap from other games, editions or general knowledge.
-- If nobody in the transcript is asking a rules question that is still unanswered, or your earlier answers already answer it, even asked again in other words, set "kind" to "no_question" and leave the other fields empty.
+- If nobody in the transcript is asking a rules question that is still unanswered, or your earlier answers in this session already answer it, even asked again in other words or much later, set "kind" to "no_question" and leave the other fields empty.
 
 # The rules document
 
@@ -83,13 +83,13 @@ export type AnswerRequest = {
 export function answerRequest(
   rulesDocument: string,
   window: readonly TranscriptLine[],
-  recent: readonly RecentAnswer[],
+  posted: readonly PostedAnswer[],
   model = RULES_ANSWER_MODEL,
 ): AnswerRequest {
   return {
     model,
     instructions: `${GUIDANCE}${rulesDocument.trim()}\n`,
-    input: `Your rules answers from the last few minutes, oldest first:\n\n${recentAnswersText(recent)}\n\nThe transcript, oldest line first:\n\n${transcriptText(window)}`,
+    input: `Your rules answers in this session, oldest first:\n\n${postedAnswersText(posted)}\n\nThe transcript, oldest line first:\n\n${transcriptText(window)}`,
     text: { format: { type: 'json_schema', name: 'rules_answer', strict: true, schema: ANSWER_SCHEMA } },
     max_output_tokens: MAX_OUTPUT_TOKENS,
     reasoning: { effort: ANSWER_REASONING },
@@ -134,7 +134,7 @@ export function readAnswer(body: unknown): RulesAnswer {
   }
 }
 
-export type AnswerRulesQuestion = (window: readonly TranscriptLine[], recent: readonly RecentAnswer[]) => Promise<RulesAnswer>
+export type AnswerRulesQuestion = (window: readonly TranscriptLine[], posted: readonly PostedAnswer[]) => Promise<RulesAnswer>
 
 /** Answers through OpenAI's Responses API. */
 export function openAiRulesAnswerer({
@@ -148,8 +148,8 @@ export function openAiRulesAnswerer({
   model?: string
   fetch?: typeof globalThis.fetch
 }): AnswerRulesQuestion {
-  return async (window, recent) => {
-    const body = answerRequest(rulesDocument, window, recent, model)
+  return async (window, posted) => {
+    const body = answerRequest(rulesDocument, window, posted, model)
     return readAnswer(await postJson({ service: 'OpenAI', url: OPENAI_RESPONSES_URL, apiKey, body, timeoutMs: ANSWER_TIMEOUT_MS, fetch }))
   }
 }

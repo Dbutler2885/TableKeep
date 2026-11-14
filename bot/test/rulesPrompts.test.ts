@@ -4,14 +4,14 @@ import { test } from 'node:test'
 import { rulesAnswerMessages, splitMessages } from '../src/discord/replies.ts'
 import { answerRequest, openAiRulesAnswerer, readAnswer, RULES_ANSWER_MODEL } from '../src/rules/answer.ts'
 import { jevProbability, jevRequest, typesafeJev } from '../src/rules/jev.ts'
-import type { RecentAnswer, TranscriptLine } from '../src/rules/transcriptWindow.ts'
+import type { PostedAnswer, TranscriptLine } from '../src/rules/transcriptWindow.ts'
 
 const RULES = readFileSync(new URL('./fixtures/rules-stand-in.md', import.meta.url), 'utf8')
 const WINDOW: TranscriptLine[] = [
   { speaker: 'Dave', text: 'Roll it.', startSamples: 0, endSamples: 48_000 },
   { speaker: 'Peter', text: 'Wait, do I add strength to the attack roll?', startSamples: 96_000, endSamples: 192_000 },
 ]
-const RECENT: RecentAnswer[] = [{ askedBy: 'Ann', question: 'does a shield count against arrows?', answer: 'No, melee only.' }]
+const POSTED: PostedAnswer[] = [{ askedBy: 'Ann', question: 'does a shield count against arrows?', answer: 'No, melee only.' }]
 
 /** A stand-in for `fetch` that records what it was sent and answers with `body`. */
 function fakeFetch(body: unknown, status = 200) {
@@ -23,16 +23,17 @@ function fakeFetch(body: unknown, status = 200) {
   return { sent, request }
 }
 
-test("Jev is asked one yes-or-no question about the transcript, with speakers named, beside the bot's recent answers", () => {
-  const request = jevRequest(WINDOW, RECENT)
+test("Jev is asked one yes-or-no question about the transcript, with speakers named, beside every answer posted in the session", () => {
+  const request = jevRequest(WINDOW, POSTED)
   assert.equal(request.model, 'jev-latest')
   assert.equal(request.state.transcript, 'Dave: Roll it.\nPeter: Wait, do I add strength to the attack roll?')
-  assert.equal(request.state.recent_rules_answers, 'Ann asked: does a shield count against arrows?\nThe bot answered: No, melee only.')
+  assert.equal(request.state.rules_answers_this_session, 'Ann asked: does a shield count against arrows?\nThe bot answered: No, melee only.')
   assert.deepEqual(Object.keys(request.questions), ['rules_question'])
   assert.equal(request.questions.rules_question.type, 'noul')
-  assert.match(request.questions.rules_question.instructions, /new question about the game's rules that the bot's recent rules answers do not already cover/)
+  assert.match(request.questions.rules_question.instructions, /new question about the game's rules that the bot's rules answers this session do not already cover/)
   assert.match(request.questions.rules_question.criteria.true, /follow-up/)
-  assert.ok(request.questions.rules_question.criteria.true && request.questions.rules_question.criteria.false)
+  assert.ok(request.questions.rules_question.criteria.true)
+  assert.match(request.questions.rules_question.criteria.false, /the bot's rules answers this session already cover: that is not a new rules question/)
 })
 
 test("Jev's answer is read as the probability of yes, and anything else is refused", () => {
@@ -46,7 +47,7 @@ test('the call to TypeSafe carries the key, and a refusal is reported without th
   assert.equal(await typesafeJev({ apiKey: 'secret-key', fetch: ok.request })(WINDOW, []), 0.88)
   assert.equal(ok.sent[0]!.url, 'https://api.typesafe.ai/v1/systemone')
   assert.equal((ok.sent[0]!.init.headers as Record<string, string>).authorization, 'Bearer secret-key')
-  assert.match(JSON.parse(String(ok.sent[0]!.init.body)).state.recent_rules_answers, /has not answered any/)
+  assert.match(JSON.parse(String(ok.sent[0]!.init.body)).state.rules_answers_this_session, /has not answered any/)
 
   const refused = fakeFetch({ detail: { error_type: 'authentication_error' } }, 401)
   await assert.rejects(typesafeJev({ apiKey: 'secret-key', fetch: refused.request })(WINDOW, []), (error: Error) => {
@@ -56,8 +57,8 @@ test('the call to TypeSafe carries the key, and a refusal is reported without th
   })
 })
 
-test("the answering model gets the whole rules document as instructions, and its recent answers and the transcript as input", () => {
-  const request = answerRequest(RULES, WINDOW, RECENT)
+test("the answering model gets the whole rules document as instructions, and the session's answers and the transcript as input", () => {
+  const request = answerRequest(RULES, WINDOW, POSTED)
   assert.equal(request.model, RULES_ANSWER_MODEL)
   assert.equal(request.model, 'gpt-6-luna')
   assert.ok(request.instructions.endsWith(`${RULES.trim()}\n`), 'the rules document is the tail of the instructions')
@@ -71,11 +72,12 @@ test("the answering model gets the whole rules document as instructions, and its
   assert.match(request.instructions, /not decided yet/)
   assert.match(request.instructions, /Never guess beyond the document/)
   assert.match(request.instructions, /follow-up that asks something your earlier answers did not cover is a new question/)
-  assert.match(request.instructions, /your earlier answers already answer it, even asked again in other words, set "kind" to "no_question"/)
+  assert.match(request.instructions, /every rules answer you have already posted in this session/)
+  assert.match(request.instructions, /your earlier answers in this session already answer it, even asked again in other words or much later, set "kind" to "no_question"/)
   assert.match(request.instructions, /"can I climb it\?".*is a request to the GM, not a rules question/)
   assert.equal(
     request.input,
-    'Your rules answers from the last few minutes, oldest first:\n\nAnn asked: does a shield count against arrows?\nThe bot answered: No, melee only.\n\n' +
+    'Your rules answers in this session, oldest first:\n\nAnn asked: does a shield count against arrows?\nThe bot answered: No, melee only.\n\n' +
       'The transcript, oldest line first:\n\nDave: Roll it.\nPeter: Wait, do I add strength to the attack roll?',
   )
   assert.equal(request.text.format.type, 'json_schema')
@@ -84,7 +86,7 @@ test("the answering model gets the whole rules document as instructions, and its
 
 test('every request in a session starts with the same instructions, so the document can be reused', () => {
   const later: TranscriptLine[] = [{ speaker: 'Ann', text: 'Can I use two swords?', startSamples: 0, endSamples: 48_000 }]
-  assert.equal(answerRequest(RULES, WINDOW, []).instructions, answerRequest(RULES, later, RECENT).instructions)
+  assert.equal(answerRequest(RULES, WINDOW, []).instructions, answerRequest(RULES, later, POSTED).instructions)
 })
 
 const reply = (fields: Record<string, string>) => ({

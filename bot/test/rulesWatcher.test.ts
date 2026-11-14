@@ -30,9 +30,9 @@ const NO_QUESTION: RulesAnswer = { kind: 'no_question', question: '', askedBy: '
 function setUp(options: { probabilities?: number[]; answers?: (RulesAnswer | Error)[]; jevFails?: boolean } = {}) {
   const asked: string[][] = []
   const answered: string[][] = []
-  /** The questions of the bot's recent answers that Jev, and the answering model, were shown each time. */
-  const jevRecent: string[][] = []
-  const answerRecent: string[][] = []
+  /** The questions of the session's posted answers that Jev, and the answering model, were shown each time. */
+  const jevPosted: string[][] = []
+  const answerPosted: string[][] = []
   const answers = [...(options.answers ?? [])]
   const posted: string[] = []
   const logged: { message: string; detail?: Record<string, unknown> }[] = []
@@ -40,15 +40,15 @@ function setUp(options: { probabilities?: number[]; answers?: (RulesAnswer | Err
   const jev = { failing: options.jevFails ?? false }
   const watcher = new RulesWatcher({
     sessionStartedAtMs: START,
-    askJev: async (window, recent) => {
+    askJev: async (window, posted) => {
       asked.push(window.map((line) => line.text))
-      jevRecent.push(recent.map((answer) => answer.question))
+      jevPosted.push(posted.map((answer) => answer.question))
       if (jev.failing) throw new Error('TypeSafe answered 503')
       return probabilities.shift() ?? 0.05
     },
-    answer: async (window, recent) => {
+    answer: async (window, posted) => {
       answered.push(window.map((line) => line.text))
-      answerRecent.push(recent.map((answer) => answer.question))
+      answerPosted.push(posted.map((answer) => answer.question))
       const next = answers.shift() ?? ANSWERED
       if (next instanceof Error) throw next
       return next
@@ -73,7 +73,7 @@ function setUp(options: { probabilities?: number[]; answers?: (RulesAnswer | Err
       await watcher.idle()
     }
   }
-  return { watcher, jev, asked, answered, jevRecent, answerRecent, posted, logged, say, pass }
+  return { watcher, jev, asked, answered, jevPosted, answerPosted, posted, logged, say, pass }
 }
 
 test('nothing is asked of Jev until someone has said something', async () => {
@@ -200,61 +200,97 @@ test('a long answer is posted in order, in as many messages as it takes', async 
   assert.equal(posted.join('\n'), `**Rules answer** - Peter asked: "does a shield count against arrows?"\n${long.answer}\n-# From the rules document: Shields`)
 })
 
-test("the bot's own recent answers are shown to Jev and the answering model, so a question is not answered twice", async () => {
-  const { asked, answered, jevRecent, answerRecent, posted, say, pass } = setUp({ probabilities: [0.95] })
+test("every answer posted in the session is shown to Jev and the answering model, so a question is not answered twice", async () => {
+  const { asked, answered, jevPosted, answerPosted, posted, say, pass } = setUp({ probabilities: [0.95] })
   say('Peter', 'Does a shield count against arrows?')
-  await pass(5_000)
-  assert.deepEqual(jevRecent, [[]])
-  assert.deepEqual(answerRecent, [[]])
+  await pass(2_000)
+  assert.deepEqual(jevPosted, [[]])
+  assert.deepEqual(answerPosted, [[]])
 
   say('Ann', 'Huh, melee only then.')
-  await pass(30_000)
+  await pass(2_000)
   // The windows overlap, so the answered question is still there, beside the bot's answer to it.
   assert.deepEqual(asked.at(-1), ['Does a shield count against arrows?', 'Huh, melee only then.'])
-  assert.deepEqual(jevRecent.at(-1), ['does a shield count against arrows?'])
+  assert.deepEqual(jevPosted.at(-1), ['does a shield count against arrows?'])
   assert.equal(answered.length, 1)
   assert.equal(posted.length, 1)
 })
 
-test('only a short gap follows a flag, against overlapping windows firing on the same words', async () => {
-  const { asked, say, pass } = setUp({ probabilities: [0.95] })
-  say('Peter', 'Does a shield count against arrows?')
-  await pass(1_000)
-  say('Ann', 'Hmm.')
-  await pass(18_000)
-  assert.equal(asked.length, 1)
+test('there is no pause after a flag: the next line is looked at as soon as the answer is posted, and that look already sees it', async () => {
+  let release: () => void = () => undefined
+  const asked: string[][] = []
+  const seen: number[] = []
+  let clock = START
+  const watcher = new RulesWatcher({
+    sessionStartedAtMs: START,
+    askJev: async (window, posted) => {
+      asked.push(window.map((line) => line.text))
+      seen.push(posted.length)
+      return asked.length === 1 ? 0.95 : 0.05
+    },
+    // The answer takes a while; nothing else is looked at meanwhile.
+    answer: () => new Promise((resolve) => (release = () => resolve(ANSWERED))),
+    post: async () => undefined,
+    log: () => undefined,
+    now: () => clock,
+  })
+  const line = (text: string, endSeconds: number): TranscriptLine => ({ speaker: 'Peter', text, startSamples: (endSeconds - 1) * RATE, endSamples: endSeconds * RATE })
+  watcher.heard([line('Does a shield count against arrows?', 2)])
+  clock = START + 3_000
+  watcher.tick(clock)
+  await new Promise((resolve) => setImmediate(resolve))
+  watcher.heard([line('And what about bolts?', 4)])
+  clock += 1_500
+  watcher.tick(clock)
+  assert.equal(asked.length, 1, 'one look at a time: the second waits for the answer')
 
-  await pass(3_000)
-  assert.equal(asked.length, 2)
+  release()
+  await watcher.idle()
+  clock += 100
+  watcher.tick(clock)
+  await watcher.idle()
+  assert.deepEqual(asked, [['Does a shield count against arrows?'], ['Does a shield count against arrows?', 'And what about bolts?']])
+  assert.deepEqual(seen, [0, 1])
 })
 
 test('a different follow-up is still answered, with the earlier answer beside it', async () => {
-  const { answered, answerRecent, posted, say, pass } = setUp({ probabilities: [0.95, 0.95], answers: [ANSWERED, FOLLOW_UP] })
+  const { answered, answerPosted, posted, say, pass } = setUp({ probabilities: [0.95, 0.95], answers: [ANSWERED, FOLLOW_UP] })
   say('Peter', 'Does a shield count against arrows?')
-  await pass(25_000)
+  await pass(2_000)
   say('Peter', 'Okay, and can I bash someone with the shield?')
-  await pass(5_000)
+  await pass(2_000)
 
   assert.deepEqual(answered.at(-1), ['Does a shield count against arrows?', 'Okay, and can I bash someone with the shield?'])
-  assert.deepEqual(answerRecent, [[], ['does a shield count against arrows?']])
+  assert.deepEqual(answerPosted, [[], ['does a shield count against arrows?']])
   assert.equal(posted.length, 2)
   assert.match(posted[1]!, /can I bash with the shield\?/)
 })
 
-test('recent answers are forgotten after a few minutes, and only answers that were posted are remembered', async () => {
-  const { jevRecent, say, pass } = setUp({ probabilities: [0.95, 0.95, 0.95], answers: [NO_QUESTION, new Error('OpenAI answered 500'), ANSWERED] })
+test('answers are kept for the whole session, and only answers that were posted are remembered', async () => {
+  const { watcher, jevPosted, say, pass } = setUp({ probabilities: [0.95, 0.95, 0.95], answers: [NO_QUESTION, new Error('OpenAI answered 500'), ANSWERED] })
   for (const line of ['Can I climb it?', 'Does a shield count?', 'Does a shield count against arrows?']) {
     say('Peter', line)
-    await pass(25_000)
+    await pass(2_000)
   }
   say('Ann', 'Okay.')
-  await pass(5_000)
-  assert.deepEqual(jevRecent, [[], [], [], ['does a shield count against arrows?']])
+  await pass(2_000)
+  assert.deepEqual(jevPosted, [[], [], [], ['does a shield count against arrows?']])
 
-  await pass(5 * 60 * 1000)
-  say('Ann', 'Much later.')
-  await pass(5_000)
-  assert.deepEqual(jevRecent.at(-1), [])
+  await pass(3 * 60 * 60 * 1000)
+  say('Ann', 'Three hours later.')
+  await pass(2_000)
+  assert.deepEqual(jevPosted.at(-1), ['does a shield count against arrows?'])
+  assert.deepEqual(watcher.posted.map((answer) => answer.question), ['does a shield count against arrows?'])
+})
+
+test("ending the session lets its answers go, so a later session can ask the same thing again", async () => {
+  const { watcher, say, pass } = setUp({ probabilities: [0.95] })
+  say('Peter', 'Does a shield count against arrows?')
+  await pass(2_000)
+  assert.equal(watcher.posted.length, 1)
+
+  watcher.stop()
+  assert.deepEqual(watcher.posted, [])
 })
 
 test('when the answering model finds no question, nothing is posted', async () => {

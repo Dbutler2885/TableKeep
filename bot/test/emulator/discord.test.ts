@@ -331,12 +331,12 @@ test('an ordinary session leaves two messages in the channel: how it went, and t
 
 test('a rules question heard at the table is answered in the channel while the session records, and never after it ends', async () => {
   const windows: (readonly TranscriptLine[])[] = []
-  const recentQuestions: string[][] = []
+  const postedQuestions: string[][] = []
   const failures: string[] = []
   runner = newRunner({
-    askJev: async (window, recent) => {
+    askJev: async (window, posted) => {
       windows.push(window)
-      recentQuestions.push(recent.map((answer) => answer.question))
+      postedQuestions.push(posted.map((answer) => answer.question))
       if (windows.length === 1) throw new Error('TypeSafe answered 503')
       return windows.length === 2 ? 0.95 : 0.05
     },
@@ -354,9 +354,8 @@ test('a rules question heard at the table is answered in the channel while the s
   await looked()
   pass(5_000)
   await until(async () => board.messages.some((message) => message.text.startsWith('**Rules answer**')))
-  // After the short gap that follows a flag, the next look sees the same stretch and more, beside the answer given.
+  // With no pause after a flag, the next line is looked at as soon as it arrives, beside the answer given.
   speak(JEM.id, 1)
-  pass(25_000)
   await looked()
 
   assert.equal((await runner.stop(asJem)).status, 'saved')
@@ -366,16 +365,23 @@ test('a rules question heard at the table is answered in the channel while the s
     [['mapman'], ['mapman', 'Peter'], ['mapman', 'Peter', 'mapman']],
     'each look was at the last stretch of the session, with speakers named',
   )
-  assert.deepEqual(recentQuestions, [[], [], ['do I add strength?']])
+  assert.deepEqual(postedQuestions, [[], [], ['do I add strength?']])
   assert.deepEqual(
     board.messages.map((message) => message.text),
     [
-      'Session 1 ended after 0:39.\nmapman: 2 lines\nPeter: 1 line',
+      'Session 1 ended after 0:14.\nmapman: 2 lines\nPeter: 1 line',
       '**Rules answer** - mapman asked: "do I add strength?"\nYes, to hit and to damage.\n-# From the rules document: Attacks',
       'Session 1 is saved.',
     ],
   )
   assert.deepEqual(failures, ['rules check failed', 'rules checks working again', 'rules question heard', 'rules answer written', 'rules answer posted'])
+
+  // The next session starts with none of the last one's answers, so the same question can be answered again.
+  await started(await runner.join(asJem))
+  speak(PETER.id, 1)
+  await looked()
+  assert.deepEqual(postedQuestions.at(-1), [])
+  assert.equal((await runner.stop(asJem)).status, 'saved')
 })
 
 test('/note marks the moment the command arrived, with who wrote it', async () => {

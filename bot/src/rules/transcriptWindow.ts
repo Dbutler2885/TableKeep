@@ -8,7 +8,8 @@
  * on the session's own timeline rather than by when they arrived. Anything
  * replayed from long ago, as after a restart, is therefore never in it.
  * Windows overlap: what keeps a question from being answered twice is the
- * bot's own recent answers, which are looked at alongside each window.
+ * rules answers the bot has posted in the session, which are looked at
+ * alongside each window.
  */
 
 /** Utterance times are counted in samples at this rate from the start of the session. */
@@ -70,10 +71,10 @@ export function transcriptText(window: readonly TranscriptLine[]): string {
 }
 
 /** A rules answer the bot has posted in this session: what was asked, by whom, and what it said. */
-export type RecentAnswer = { askedBy: string; question: string; answer: string }
+export type PostedAnswer = { askedBy: string; question: string; answer: string }
 
-/** The bot's recent answers as text, oldest first, or a line saying there are none. */
-export function recentAnswersText(answers: readonly RecentAnswer[]): string {
-  if (answers.length === 0) return 'The bot has not answered any rules question in the last few minutes.'
-  return answers.map((recent) => `${recent.askedBy || 'Someone'} asked: ${recent.question}\nThe bot answered: ${recent.answer}`).join('\n\n')
+/** The answers the bot has posted in the session as text, oldest first, or a line saying there are none. */
+export function postedAnswersText(answers: readonly PostedAnswer[]): string {
+  if (answers.length === 0) return 'The bot has not answered any rules question in this session yet.'
+  return answers.map((posted) => `${posted.askedBy || 'Someone'} asked: ${posted.question}\nThe bot answered: ${posted.answer}`).join('\n\n')
 }

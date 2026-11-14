@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { recentAnswersText, TranscriptWindow, transcriptText, type TranscriptLine } from '../src/rules/transcriptWindow.ts'
+import { postedAnswersText, TranscriptWindow, transcriptText, type TranscriptLine } from '../src/rules/transcriptWindow.ts'
 
 const RATE = 48_000
 
@@ -62,10 +62,10 @@ test('empty lines are dropped, and a window reads as one line per speaker turn',
   assert.equal(transcriptText(window.at(20 * RATE)), 'Ann: I attack.\nDave: Roll it.')
 })
 
-test("the bot's recent answers read as who asked what and what the bot said, or as none", () => {
-  assert.equal(recentAnswersText([]), 'The bot has not answered any rules question in the last few minutes.')
+test("the session's posted answers read as who asked what and what the bot said, or as none", () => {
+  assert.equal(postedAnswersText([]), 'The bot has not answered any rules question in this session yet.')
   assert.equal(
-    recentAnswersText([
+    postedAnswersText([
       { askedBy: 'Peter', question: 'does a shield count against arrows?', answer: 'No, melee only.' },
       { askedBy: '', question: 'two weapons?', answer: 'Not decided yet.' },
     ]),
