@@ -1625,16 +1625,17 @@ Once declaring has started, they make no attack and roll no Defense for the rest
 
 ### Racing someone to a place
 
-When two or more characters race to the same place, everyone racing makes an opposed Speed roll each round.
+A race to an object or a place is one opposed Speed check: each runner rolls d100 at or under their Speed.
 
-- A successful roll (at or under your Speed) moves you as many units as the roll's tens digit: Speed 65 rolling `40` gives 4 units, 40 meters. A failed roll gives 0 units.
-- Track each runner's distance left to the finish, so a head start counts without a bonus.
-- If more than one runner finishes in the same round, whoever needs the smallest share of their units that round arrives first.
-- A finish does not have to land on a whole unit: 25 meters on 4 units arrives 0.625 of the way through the round.
+- If one runner succeeds and the other fails, the one who succeeded gets there first.
+- If both succeed, the higher roll gets there first.
+- If both fail, they get there at the same time.
 
-Example: you are 30 meters away and roll 4 units, so you arrive three quarters of the way into the round.
-I am 50 meters away and roll 5 units, so I need the whole round.
-You win.
+Being closer or further away is handled at the table, for example with Advantage or Disadvantage on the roll.
+
+Example: Mirelda (Speed 58) and Rex (Speed 45) both dive for a dropped bat.
+Mirelda rolls `31` and Rex rolls `40`.
+Both succeed, and Rex's roll is higher, so Rex gets to the bat first.
 
 ### Chases
 
@@ -1642,7 +1643,7 @@ A chase is run on a **clock**: a track of segments that fills up and empties.
 
 1. The GM sets the clock's size by the terrain, at most 10 segments: an open field is 10, hilly woods with cover nearby might be 5.
 2. Each segment is one unit (10 meters) of gap between pursuer and quarry. The clock starts at the actual gap.
-3. Each round both sides make an opposed Speed roll. Each side's roll gives units as in a race (the tens digit of a success; a failed roll counts as 0).
+3. Each round both sides make an opposed Speed roll. A successful roll gives as many units as its tens digit (Speed 65 rolling `40` gives 4 units); a failed roll counts as 0.
 4. The gap moves by the difference: quarry 5 units, pursuer 3 units opens the gap by 2.
 5. At 0 the pursuer catches the quarry. When the clock is full, the quarry escapes.
 
