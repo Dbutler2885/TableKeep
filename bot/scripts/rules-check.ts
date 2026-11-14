@@ -12,7 +12,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { rulesAnswerMessage } from '../src/discord/replies.ts'
+import { rulesAnswerMessages } from '../src/discord/replies.ts'
 import { openAiRulesAnswerer } from '../src/rules/answer.ts'
 import { typesafeJev } from '../src/rules/jev.ts'
 import { RULES_DOCUMENT } from '../src/rules/setup.ts'
@@ -33,8 +33,9 @@ const window: TranscriptLine[] = [
 
 // As at the start of a session: the bot has answered nothing yet.
 const probability = await typesafeJev({ apiKey: typesafeKey })(window, [])
-console.log(`Jev: ${probability.toFixed(2)} that a rules question is waiting for an answer (the bot answers at 0.85 or more).`)
+console.log(`Jev: ${probability.toFixed(2)} that a rules question is waiting for an answer (the bot answers at 0.80 or more).`)
 const started = Date.now()
 const answer = await openAiRulesAnswerer({ apiKey: openAiKey, rulesDocument: readFileSync(rulesPath, 'utf8') })(window, [])
 console.log(`Answered in ${((Date.now() - started) / 1000).toFixed(1)}s, from ${rulesPath}. The bot would post:\n`)
-console.log(rulesAnswerMessage(answer) ?? '(nothing: the model found no question to answer)')
+const messages = rulesAnswerMessages(answer)
+console.log(messages.length > 0 ? messages.join('\n\n--- next message ---\n\n') : '(nothing: the model found no question to answer)')
