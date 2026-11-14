@@ -7,7 +7,7 @@
  *   TYPESAFE_API_KEY=... OPENAI_API_KEY=... node scripts/rules-check.ts ["the question to ask"]
  *
  * It reads the rules document from RULES_DOCUMENT_PATH, or the repository's
- * docs/lubec/combat-rules.md. Each run makes one call to each service.
+ * docs/lubec/rules.md. Each run makes one call to each service.
  */
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -15,10 +15,11 @@ import { fileURLToPath } from 'node:url'
 import { rulesAnswerMessage } from '../src/discord/replies.ts'
 import { openAiRulesAnswerer } from '../src/rules/answer.ts'
 import { typesafeJev } from '../src/rules/jev.ts'
+import { RULES_DOCUMENT } from '../src/rules/setup.ts'
 import { SESSION_SAMPLE_RATE, type TranscriptLine } from '../src/rules/transcriptWindow.ts'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const rulesPath = process.env.RULES_DOCUMENT_PATH ?? path.join(here, '../../docs/lubec/combat-rules.md')
+const rulesPath = process.env.RULES_DOCUMENT_PATH ?? path.join(here, '../..', RULES_DOCUMENT)
 const typesafeKey = process.env.TYPESAFE_API_KEY
 const openAiKey = process.env.OPENAI_API_KEY
 if (!typesafeKey || !openAiKey) throw new Error('Set TYPESAFE_API_KEY and OPENAI_API_KEY.')

@@ -6,7 +6,7 @@
  * Needs DISCORD_BOT_TOKEN and DEEPGRAM_API_KEY, from the environment or, on
  * the server, from the project's secrets. With TYPESAFE_API_KEY and
  * OPENAI_API_KEY as well, and the rules document at RULES_DOCUMENT_PATH (the
- * repository's docs/lubec/combat-rules.md unless set), it also answers rules
+ * repository's docs/lubec/rules.md unless set), it also answers rules
  * questions it hears; without any of them it records just the same.
  *
  * It writes to the emulators, and refuses to start without them. Only the
@@ -20,7 +20,7 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { DiscordBot } from './discord/dysnomia.ts'
 import { SessionRunner } from './discord/runner.ts'
-import { rulesAnswering } from './rules/setup.ts'
+import { RULES_DOCUMENT, rulesAnswering } from './rules/setup.ts'
 import { recoverSessions } from './session/recover.ts'
 import type { RecorderOptions } from './session/recorder.ts'
 import { connectDeepgram } from './speech/deepgram.ts'
@@ -80,7 +80,7 @@ const discord = new DiscordBot({
   log,
 })
 const rules = await rulesAnswering({
-  rulesPath: process.env.RULES_DOCUMENT_PATH ?? path.join(here, '../../docs/lubec/combat-rules.md'),
+  rulesPath: process.env.RULES_DOCUMENT_PATH ?? path.join(here, '../..', RULES_DOCUMENT),
   env: process.env,
   live,
   projectSecret,

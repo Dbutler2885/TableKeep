@@ -35,7 +35,7 @@ BUCKET="gs://$PROJECT.firebasestorage.app"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 ENV_FILE="$ROOT/bot/.env.live.local"
-RULES_DOCUMENT="docs/lubec/combat-rules.md"
+RULES_DOCUMENT="docs/lubec/rules.md"
 gc() { gcloud --project "$PROJECT" --quiet "$@"; }
 
 # Stores a secret from bot/.env.live.local and lets the bot read it.

@@ -1,6 +1,6 @@
 # Stand-in combat rules
 
-A small stand-in for `docs/lubec/combat-rules.md`, used only by the bot's tests.
+A small stand-in for `docs/lubec/rules.md`, used only by the bot's tests.
 
 ## Attacks
 

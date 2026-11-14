@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
-import { rulesAnswering, type RulesSetup } from '../src/rules/setup.ts'
+import { RULES_DOCUMENT, rulesAnswering, type RulesSetup } from '../src/rules/setup.ts'
 
 const RULES = new URL('./fixtures/rules-stand-in.md', import.meta.url).pathname
 const KEYS = { TYPESAFE_API_KEY: 'ts-key', OPENAI_API_KEY: 'sk-key' }
@@ -33,7 +33,7 @@ test('with the rules document and both keys, rules questions are answered, and i
   assert.ok(rules)
   assert.equal(typeof rules.askJev, 'function')
   assert.equal(typeof rules.answer, 'function')
-  assert.deepEqual(logged, [{ message: 'rules answers on', detail: { rulesDocument: RULES, characters: 351 } }])
+  assert.deepEqual(logged, [{ message: 'rules answers on', detail: { rulesDocument: RULES, characters: readFileSync(RULES, 'utf8').length } }])
 })
 
 test('without the rules document, or with an empty one, nothing is answered and it says why', async () => {
@@ -76,4 +76,13 @@ test('a project secret that cannot be read turns answering off without stopping 
       ['rules answers off', 'OPENAI_API_KEY not set'],
     ],
   )
+})
+
+test('the rules document is docs/lubec/rules.md, and the image, its build context and the deploy all name the same file', () => {
+  assert.equal(RULES_DOCUMENT, 'docs/lubec/rules.md')
+  const repo = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), 'utf8')
+  assert.match(repo('bot/Dockerfile'), new RegExp(`^COPY ${RULES_DOCUMENT} /app/${RULES_DOCUMENT}$`, 'm'))
+  assert.match(repo('.dockerignore'), new RegExp(`^!${RULES_DOCUMENT}$`, 'm'))
+  assert.match(repo('bot/deploy/deploy.sh'), new RegExp(`^RULES_DOCUMENT="${RULES_DOCUMENT}"$`, 'm'))
+  assert.match(repo('bot/.env.example'), new RegExp(`Defaults to the repository's ${RULES_DOCUMENT}\\.`))
 })

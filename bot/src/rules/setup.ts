@@ -10,6 +10,12 @@ import { openAiRulesAnswerer } from './answer.ts'
 import { typesafeJev } from './jev.ts'
 import type { Log, RulesAnswering } from './watcher.ts'
 
+/**
+ * Where the rules document is, from the repository root. The bot's image
+ * keeps it at the same place under /app, so this one path serves both.
+ */
+export const RULES_DOCUMENT = 'docs/lubec/rules.md'
+
 export type RulesSetup = {
   /** Where the rules document is. */
   rulesPath: string
