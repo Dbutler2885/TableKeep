@@ -5,3 +5,4 @@
 !bot/src/**
 !bot/assets/**
 !functions/src/firestorePaths.ts
+!docs/lubec/combat-rules.md

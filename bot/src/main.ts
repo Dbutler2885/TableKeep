@@ -4,12 +4,16 @@
  *   node --env-file-if-exists=.env.local src/main.ts
  *
  * Needs DISCORD_BOT_TOKEN and DEEPGRAM_API_KEY, from the environment or, on
- * the server, from the project's secrets.
+ * the server, from the project's secrets. With TYPESAFE_API_KEY and
+ * OPENAI_API_KEY as well, and the rules document at RULES_DOCUMENT_PATH (the
+ * repository's docs/lubec/combat-rules.md unless set), it also answers rules
+ * questions it hears; without any of them it records just the same.
  *
  * It writes to the emulators, and refuses to start without them. Only the
  * deployed bot writes to the real project, and it says so with
  * TABLEKEEP_WRITE_LIVE=yes: nothing run from a checkout can do it by accident.
  */
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { initializeApp } from 'firebase-admin/app'
@@ -17,6 +21,9 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { DiscordBot } from './discord/dysnomia.ts'
 import { SessionRunner } from './discord/runner.ts'
+import { openAiRulesAnswerer } from './rules/answer.ts'
+import { typesafeJev } from './rules/jev.ts'
+import type { RulesAnswering } from './rules/watcher.ts'
 import { recoverSessions } from './session/recover.ts'
 import type { RecorderOptions } from './session/recorder.ts'
 import { connectDeepgram } from './speech/deepgram.ts'
@@ -57,7 +64,45 @@ async function required(name: string): Promise<string> {
 const log = (message: string, detail: Record<string, unknown> = {}) =>
   console.log(JSON.stringify({ at: new Date().toISOString(), message, ...detail }))
 
+/** A secret the bot can do without. One that is missing or cannot be read is empty. */
+async function optional(name: string): Promise<string> {
+  try {
+    return process.env[name] ?? (live ? await projectSecret(name) : '')
+  } catch (error) {
+    log('secret unavailable', { name, error: String(error) })
+    return ''
+  }
+}
+
 const here = path.dirname(fileURLToPath(import.meta.url))
+
+/** Answering rules questions, if the bot has the rules document and the keys it needs. */
+async function rulesAnswering(): Promise<RulesAnswering | undefined> {
+  const rulesPath = process.env.RULES_DOCUMENT_PATH ?? path.join(here, '../../docs/lubec/combat-rules.md')
+  let rulesDocument: string
+  try {
+    rulesDocument = readFileSync(rulesPath, 'utf8')
+  } catch {
+    log('rules answers off', { reason: `there is no rules document at ${rulesPath}` })
+    return undefined
+  }
+  if (!rulesDocument.trim()) {
+    log('rules answers off', { reason: `the rules document at ${rulesPath} is empty` })
+    return undefined
+  }
+  const [typesafeKey, openAiKey] = await Promise.all([optional('TYPESAFE_API_KEY'), optional('OPENAI_API_KEY')])
+  const missing = [!typesafeKey && 'TYPESAFE_API_KEY', !openAiKey && 'OPENAI_API_KEY'].filter(Boolean)
+  if (missing.length > 0) {
+    log('rules answers off', { reason: `${missing.join(' and ')} not set` })
+    return undefined
+  }
+  log('rules answers on', { rulesDocument: rulesPath, characters: rulesDocument.length })
+  return {
+    askJev: typesafeJev({ apiKey: typesafeKey }),
+    answer: openAiRulesAnswerer({ apiKey: openAiKey, rulesDocument }),
+    log,
+  }
+}
 const app = initializeApp({ projectId })
 const store = new FirestoreSessionStore(
   getFirestore(app),
@@ -75,7 +120,7 @@ const discord = new DiscordBot({
   announcementPath: path.join(here, '../assets/now-recording.ogg'),
   log,
 })
-const runner = new SessionRunner({ voice: discord, messages: discord, recorder })
+const runner = new SessionRunner({ voice: discord, messages: discord, recorder, rules: await rulesAnswering() })
 
 /** Finishes or resumes whatever an earlier run of the bot left on the disk. */
 async function recover(): Promise<void> {

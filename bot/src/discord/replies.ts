@@ -4,9 +4,10 @@
  * An answer to a command is shown only to the person who typed it. What the
  * whole table should know is posted in the channel by the bot itself: one
  * status message that is edited in place, one message when the session is
- * saved, and one more only when something goes wrong. Nothing here is ever
- * about the recap.
+ * saved, one more only when something goes wrong, and the answer to a rules
+ * question someone at the table asked. Nothing here is ever about the recap.
  */
+import type { RulesAnswer } from '../rules/answer.ts'
 import type { JoinReply, NoteReply, StopReply } from './runner.ts'
 
 const REFUSALS = {
@@ -110,4 +111,34 @@ const ALARMS = {
 
 export function alarmMessage(problem: keyof typeof ALARMS): string {
   return ALARMS[problem]
+}
+
+/** Discord refuses a message longer than this. */
+const MAX_MESSAGE_CHARS = 2_000
+
+function clip(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  return flat.length <= max ? flat : `${flat.slice(0, max - 1).trimEnd()}…`
+}
+
+/**
+ * The bot's answer to a rules question it heard, or nothing when the model
+ * found no question to answer. It says it is the bot's answer from the rules
+ * document, which question it answers, and where in the document it looked.
+ */
+export function rulesAnswerMessage(reply: RulesAnswer): string | null {
+  if (reply.kind === 'no_question' || !reply.answer) return null
+  const question = reply.question ? clip(reply.question, 300) : ''
+  const asked = question ? ` - ${reply.askedBy ? `${clip(reply.askedBy, 60)} asked` : 'asked'}: "${question}"` : ''
+  const section = reply.section ? clip(reply.section, 120) : ''
+  const source =
+    reply.kind === 'not_covered'
+      ? 'Not covered by the rules document'
+      : reply.kind === 'not_decided'
+        ? `Not decided yet in the rules document${section ? ` (${section})` : ''}`
+        : `From the rules document${section ? `: ${section}` : ''}`
+  const head = `**Rules answer**${asked}`
+  const foot = `-# ${source}`
+  const room = MAX_MESSAGE_CHARS - head.length - foot.length - 2
+  return [head, clip(reply.answer, room), foot].join('\n')
 }

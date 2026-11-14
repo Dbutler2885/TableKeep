@@ -3,15 +3,22 @@
 # Google Cloud project.
 #
 #   bot/deploy/deploy.sh setup     once: the machine, its disk, its identity and its secrets
+#   bot/deploy/deploy.sh rules     once: only the secrets for answering rules questions
 #   bot/deploy/deploy.sh deploy    each time: build the image and switch the machine to it
 #   bot/deploy/deploy.sh status    is it running, and is it recording
 #   bot/deploy/deploy.sh logs      what it has been saying
 #
-# `setup` reads the live bot's Discord token and the Deepgram key from
-# bot/.env.live.local, which is git-ignored and must never be committed:
+# `setup` reads the live bot's Discord token, the Deepgram key and the
+# TypeSafe key from bot/.env.live.local, which is git-ignored and must never
+# be committed; `rules` reads only the TypeSafe key:
 #
 #   DISCORD_BOT_TOKEN=...
 #   DEEPGRAM_API_KEY=...
+#   TYPESAFE_API_KEY=...
+#
+# The OpenAI key the bot answers rules questions with is the one the Cloud
+# Functions write recaps with: the OPENAI_API_KEY secret Firebase keeps in this
+# project. Both commands only let the bot read it.
 #
 # Everything here is safe to run twice.
 set -euo pipefail
@@ -27,7 +34,29 @@ REGISTRY="$REGION-docker.pkg.dev/$PROJECT/tablekeep"
 BUCKET="gs://$PROJECT.firebasestorage.app"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
+ENV_FILE="$ROOT/bot/.env.live.local"
+RULES_DOCUMENT="docs/lubec/combat-rules.md"
 gc() { gcloud --project "$PROJECT" --quiet "$@"; }
+
+# Stores a secret from bot/.env.live.local and lets the bot read it.
+store_secret() {
+  local name="$1" value
+  value="$(grep -E "^$name=" "$ENV_FILE" | head -1 | cut -d= -f2-)"
+  [[ -n "$value" ]] || { echo "$name is missing from $ENV_FILE." >&2; exit 1; }
+  gc secrets describe "$name" >/dev/null 2>&1 || gc secrets create "$name" --replication-policy automatic
+  printf '%s' "$value" | gc secrets versions add "$name" --data-file=- >/dev/null
+  gc secrets add-iam-policy-binding "$name" --member "serviceAccount:$ACCOUNT_EMAIL" --role roles/secretmanager.secretAccessor >/dev/null
+}
+
+# What answering rules questions needs: Jev's key, and the Functions' OpenAI key.
+rules() {
+  [[ -f "$ENV_FILE" ]] || { echo "Create $ENV_FILE with TYPESAFE_API_KEY first." >&2; exit 1; }
+  store_secret TYPESAFE_API_KEY
+  gc secrets describe OPENAI_API_KEY >/dev/null 2>&1 \
+    || { echo "There is no OPENAI_API_KEY secret in $PROJECT. Set it for the Cloud Functions first: firebase functions:secrets:set OPENAI_API_KEY" >&2; exit 1; }
+  gc secrets add-iam-policy-binding OPENAI_API_KEY --member "serviceAccount:$ACCOUNT_EMAIL" --role roles/secretmanager.secretAccessor >/dev/null
+  echo "The bot can now answer rules questions. It reads its secrets when it starts: run bot/deploy/deploy.sh deploy."
+}
 
 # Whether any server is being recorded right now, asked of the database itself.
 recording_now() {
@@ -41,8 +70,7 @@ recording_now() {
 }
 
 setup() {
-  local env_file="$ROOT/bot/.env.live.local"
-  [[ -f "$env_file" ]] || { echo "Create $env_file with DISCORD_BOT_TOKEN and DEEPGRAM_API_KEY first." >&2; exit 1; }
+  [[ -f "$ENV_FILE" ]] || { echo "Create $ENV_FILE with DISCORD_BOT_TOKEN, DEEPGRAM_API_KEY and TYPESAFE_API_KEY first." >&2; exit 1; }
 
   gc services enable compute.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com cloudbuild.googleapis.com logging.googleapis.com
 
@@ -55,14 +83,9 @@ setup() {
   # Storage is granted on the one bucket, not across the project.
   gc storage buckets add-iam-policy-binding "$BUCKET" --member "serviceAccount:$ACCOUNT_EMAIL" --role roles/storage.objectAdmin >/dev/null
 
-  for name in DISCORD_BOT_TOKEN DEEPGRAM_API_KEY; do
-    local value
-    value="$(grep -E "^$name=" "$env_file" | head -1 | cut -d= -f2-)"
-    [[ -n "$value" ]] || { echo "$name is missing from $env_file." >&2; exit 1; }
-    gc secrets describe "$name" >/dev/null 2>&1 || gc secrets create "$name" --replication-policy automatic
-    printf '%s' "$value" | gc secrets versions add "$name" --data-file=- >/dev/null
-    gc secrets add-iam-policy-binding "$name" --member "serviceAccount:$ACCOUNT_EMAIL" --role roles/secretmanager.secretAccessor >/dev/null
-  done
+  store_secret DISCORD_BOT_TOKEN
+  store_secret DEEPGRAM_API_KEY
+  rules
 
   gc artifacts repositories describe tablekeep --location "$REGION" >/dev/null 2>&1 \
     || gc artifacts repositories create tablekeep --location "$REGION" --repository-format docker
@@ -85,6 +108,8 @@ setup() {
 }
 
 deploy() {
+  # The rules document is built into the image; without it the bot could not answer rules questions.
+  [[ -f "$ROOT/$RULES_DOCUMENT" ]] || { echo "There is no $RULES_DOCUMENT in this checkout. Deploy from a commit that has it." >&2; exit 1; }
   if recording_now; then
     echo 'A session is being recorded right now. Deploying would interrupt it; try again when it has been stopped.' >&2
     exit 1
@@ -108,8 +133,9 @@ logs() {
 
 case "${1:-}" in
   setup) setup ;;
+  rules) rules ;;
   deploy) deploy ;;
   status) status ;;
   logs) shift; logs "$@" ;;
-  *) sed -n '2,18p' "$0"; exit 1 ;;
+  *) sed -n '2,27p' "$0"; exit 1 ;;
 esac

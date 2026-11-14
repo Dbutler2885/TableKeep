@@ -6,6 +6,7 @@
  * session has started, its group and campaign are fixed: unlinking the server
  * or changing the current campaign does not move it.
  */
+import { RulesWatcher, type RulesAnswering } from '../rules/watcher.ts'
 import type { FinaliseResult } from '../session/finalise.ts'
 import { SessionRecorder, type RecorderOptions } from '../session/recorder.ts'
 import type { CommandAccess, SessionLocation } from '../store/sessionStore.ts'
@@ -67,6 +68,8 @@ type Running = {
   occupiedAtMs: number
   /** What has already been reported as wrong, so that it is said once. */
   reported: Set<string>
+  /** Listens for rules questions, when the bot answers them and has a channel to answer in. */
+  rules: RulesWatcher | null
 }
 
 export type RunnerOptions = {
@@ -74,6 +77,8 @@ export type RunnerOptions = {
   /** Where the bot says how a session is going. Without it, it says nothing. */
   messages?: MessageBoard
   recorder: RecorderOptions
+  /** How to answer rules questions heard at the table. Without it, none are listened for. */
+  rules?: RulesAnswering
   emptyStopMs?: number
   now?: () => number
 }
@@ -83,6 +88,7 @@ export class SessionRunner {
   #messages: MessageBoard | null
   #emptyStopMs: number
   #recorderOptions: RecorderOptions
+  #rules: RulesAnswering | null
   #now: () => number
   /** The session being recorded in each server, by server. */
   #running = new Map<string, Running>()
@@ -95,6 +101,7 @@ export class SessionRunner {
     this.#messages = options.messages ?? null
     this.#emptyStopMs = options.emptyStopMs ?? DEFAULT_EMPTY_STOP_MS
     this.#recorderOptions = options.recorder
+    this.#rules = options.rules ?? null
     this.#now = options.now ?? Date.now
   }
 
@@ -218,6 +225,11 @@ export class SessionRunner {
         void this.#finish(serverId, running, 'the voice channel was empty').catch(() => undefined)
         continue
       }
+      try {
+        running.rules?.tick(nowMs)
+      } catch (error) {
+        this.#rules?.log('rules check could not start', { error: String(error) })
+      }
       if (running.statusMessageId && nowMs - running.statusAtMs >= STATUS_EVERY_MS) {
         running.statusAtMs = nowMs
         const { textChannelId, statusMessageId } = running
@@ -279,8 +291,27 @@ export class SessionRunner {
       speakers: new Map(),
       occupiedAtMs: nowMs,
       reported: new Set(),
+      rules: null,
     }
     this.#running.set(serverId, running)
+    if (this.#rules && this.#messages && textChannelId) {
+      const rules = new RulesWatcher({
+        ...this.#rules,
+        sessionStartedAtMs: recorder.startedAtMs,
+        post: (text) => void this.#say(running, text),
+      })
+      running.rules = rules
+      // Each line is put under the name the table knows its speaker by.
+      recorder.onUtterances = (utterances) =>
+        rules.heard(
+          utterances.map((utterance) => ({
+            speaker: running.speakers.get(utterance.speakerId)?.name ?? 'Someone',
+            startSamples: utterance.startSamples,
+            endSamples: utterance.endSamples,
+            text: utterance.text,
+          })),
+        )
+    }
     const { store } = this.#recorderOptions
     const bots = new Set<string>()
 
@@ -341,6 +372,8 @@ export class SessionRunner {
     // Gone from here first, so that a second `/stop` finds nothing to stop.
     this.#running.delete(serverId)
     running.link.onPacket = null
+    running.recorder.onUtterances = null
+    running.rules?.stop()
     running.link.leave()
     const stoppedAtMs = this.#now()
     // Anyone still being looked up is recorded before the journal closes.

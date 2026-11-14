@@ -13,6 +13,8 @@ import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { joinReply, noteReply, stopReply } from '../../src/discord/replies.ts'
 import { SessionRunner, type CommandCaller, type JoinReply } from '../../src/discord/runner.ts'
+import type { TranscriptLine } from '../../src/rules/transcriptWindow.ts'
+import type { RulesAnswering } from '../../src/rules/watcher.ts'
 import { FirestoreSessionStore, sessionPath, type SessionLocation } from '../../src/store/sessionStore.ts'
 import { recoverSessions } from '../../src/session/recover.ts'
 import type { RecorderOptions } from '../../src/session/recorder.ts'
@@ -90,7 +92,7 @@ beforeEach(async () => {
   runner = newRunner()
 })
 
-const newRunner = () => new SessionRunner({ voice, messages: board, now: () => clock, recorder: recorderOptions })
+const newRunner = (rules?: RulesAnswering) => new SessionRunner({ voice, messages: board, now: () => clock, recorder: recorderOptions, rules })
 
 const asJem: CommandCaller = { serverId: SERVER, userId: JEM.id, voiceChannelId: CHANNEL, textChannelId: TEXT }
 const sessions = async () => (await db.collection(`groups/${GROUP}/campaigns/${CAMPAIGN}/sessions`).get()).docs
@@ -325,6 +327,52 @@ test('an ordinary session leaves two messages in the channel: how it went, and t
     board.messages.map((message) => message.text),
     ['Session 1 ended after 0:51.\nmapman: 1 line\nPeter: 1 line', 'Session 1 is saved.'],
   )
+})
+
+test('a rules question heard at the table is answered in the channel while the session records, and never after it ends', async () => {
+  const windows: (readonly TranscriptLine[])[] = []
+  const failures: string[] = []
+  runner = newRunner({
+    askJev: async (window) => {
+      windows.push(window)
+      if (windows.length === 1) throw new Error('TypeSafe answered 503')
+      return windows.length === 2 ? 0.95 : 0.05
+    },
+    answer: async () => ({ kind: 'answered', question: 'do I add strength?', askedBy: 'mapman', answer: 'Yes, to hit and to damage.', section: 'Attacks' }),
+    log: (message) => failures.push(message),
+  })
+  const location = await started(await runner.join(asJem))
+
+  // Each look runs in the background, so it is let finish before time moves on.
+  const looked = () => new Promise((resolve) => setImmediate(resolve))
+  // The first look fails, which changes nothing for the recording; the second, after Peter speaks, is flagged.
+  speak(JEM.id, 1)
+  await looked()
+  speak(PETER.id, 1)
+  await looked()
+  pass(5_000)
+  await until(async () => board.messages.some((message) => message.text.startsWith('**Rules answer**')))
+  // Once the cooldown is over, only what was said after the answered stretch is looked at.
+  speak(JEM.id, 1)
+  pass(45_000)
+  await looked()
+
+  assert.equal((await runner.stop(asJem)).status, 'saved')
+  assert.equal((await session(location)).state, 'ended')
+  assert.deepEqual(
+    windows.map((window) => window.map((line) => line.speaker)),
+    [['mapman'], ['mapman', 'Peter'], ['mapman']],
+    'each look was at the stretch since the last answered one, with speakers named',
+  )
+  assert.deepEqual(
+    board.messages.map((message) => message.text),
+    [
+      'Session 1 ended after 0:59.\nmapman: 2 lines\nPeter: 1 line',
+      '**Rules answer** - mapman asked: "do I add strength?"\nYes, to hit and to damage.\n-# From the rules document: Attacks',
+      'Session 1 is saved.',
+    ],
+  )
+  assert.deepEqual(failures, ['rules check failed', 'rules checks working again', 'rules question heard', 'rules answer posted'])
 })
 
 test('/note marks the moment the command arrived, with who wrote it', async () => {
