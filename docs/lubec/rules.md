@@ -1,12 +1,49 @@
-# Lubec combat rules
+# Lubec rules
 
-These are the rules for running a fight in Lubec.
-They cover everything from the moment a fight starts to the moment the last kid is down, gone or done.
-A group can run a whole fight from this document with pen, paper and dice.
+These are the rules of Lubec, the tabletop game the group plays.
+They cover the core dice procedure, Stats and Saves, classes, skills, Stress and Panic, Trauma and death, and a complete set of combat rules.
+A group can play the whole game, including any fight, from this document with pen, paper and dice.
+
+The document has two parts.
+The first part is the rules for everything: "Core procedure" through "Effects, time and clocks".
+The second part is combat: "What a character brings to a fight" through "Worked examples".
 
 Every section has its own heading, so a rule can be cited by the name of its heading.
 Where a rule is still being decided, the section says so in a note headed **Not yet decided**.
 Until it is decided, the GM rules on it at the table.
+
+## Core procedure
+
+### When to roll
+
+Roll only when an action is risky, consequential and genuinely uncertain.
+Good questions, useful tools, sound plans or a strong position in the story can remove the need for a roll.
+
+### Stat Checks
+
+A **Stat Check** tests one of the five Stats.
+Roll d100: equal to or under the Stat succeeds.
+A failed Stat Check normally gives +1 Stress (+2 for an Overachiever).
+
+### Saves
+
+A **Save** tests one of the three Saves.
+Roll d100: equal to or under the Save succeeds.
+A failed Save gives +1 Stress.
+
+### Opposed Checks
+
+When two characters work against each other, both make the same kind of Check:
+
+- Both roll d100 equal to or under the relevant Stat.
+- If only one succeeds, that character wins.
+- If both succeed, the higher successful roll wins.
+- If both succeed on the same number, the higher Stat wins.
+- If both fail, nothing changes.
+- If the rolls and the Stats are both tied, the existing position or possession holds.
+
+Grapples and takedowns use opposed Strength, and disarms use opposed Handle (see "Grappling, takedowns and disarming").
+A race to a place has its own rule (see "Racing someone to a place").
 
 ## Dice and rolls
 
@@ -62,6 +99,331 @@ On any other roll it is only a critical: it changes nothing else.
 The GM may add a one-off adjustment to any roll for the situation, and says why: "-20, you are swinging in the dark."
 Common adjustments are -10 and -20, but any number is allowed.
 It lasts for that one roll unless the GM says otherwise.
+
+## Stats and Saves
+
+### The five Stats
+
+| Stat | Covers |
+|---|---|
+| **Strength** | Force, lifting, carrying, pushing, pulling, dragging, forcing, wrestling and bodily control. |
+| **Speed** | Running, sneaking, pursuit, balance, evasion, reaction and whole-body quickness. |
+| **Intellect** | Understanding, research, memory, deduction, repair, technical work and figuring out systems. |
+| **Handle** | Aiming, throwing, catching, striking, grabbing, sleight of hand and controlled physical action under pressure. |
+| **Charm** | The fifth Stat. See the note below. |
+
+> **Not yet decided:** what Charm covers.
+> The rules name it as a Stat, and classes raise or lower it, but they do not yet say which actions it is rolled for.
+
+### The three Saves
+
+| Save | Covers |
+|---|---|
+| **Sanity** | Facing the impossible or reality-breaking. |
+| **Fear** | Immediate terror, pressure, pursuit, entrapment and shock. |
+| **Body** | Cold, exhaustion, poison, illness, drowning, concussion and other bodily threats. |
+
+A failed Save adds Stress (+1).
+Fear is a Save; it is not rolled to resist Panic (see "Panic Check").
+
+### Rolling up a character
+
+1. Roll 4d20 separately for each Stat. The range is 4 to 80 and the average is 42. The wide spread is deliberate: strong natural strengths and strong natural weaknesses are what Lubec wants.
+2. Roll 2d10 + 10 separately for each Save.
+3. Choose a class after rolling: pick the class that best fits the kid you rolled. Class is never assigned at random.
+4. Apply the class's Stat and Save modifiers, and take its starting skills (see "Classes").
+5. Start with 2 Stress, 2 Minimum Stress and 0 Trauma.
+
+No Stat or Save goes below 0.
+
+> **Not yet decided:** how adult NPCs' Stats are rolled.
+
+## Classes
+
+### Family and class
+
+Family supplies a kid's pressures, relationships, access, resources, inherited secrets and reasons to care about Lubec.
+Family does not decide class.
+
+Class is a broad posture for how a kid tends to face problems.
+Skills are where specific competence comes from.
+Class does not dictate personality.
+
+### The five classes
+
+| Class | Who they are | Stat and Save modifiers | Class rules |
+|---|---|---|---|
+| **Working Kid** | Your family's work is your work. You play a major role in the family business or family labor, especially all summer, but also evenings and weekends. You have had to grow up a little faster than most kids. | +5 every Stat; +10 every Save | Trauma response: **Steady Under Pressure.** Once per session, you may take Advantage on a Panic Check. |
+| **Nerd** | Tape on your glasses, adenoids, wall-eyed, and mental math. Maybe you live in the library, run the projector, build radios, do science experiments, know history, or all of the above. | +20 Intellect; +30 Sanity; -10 to one of Strength, Speed, Handle or Charm (your choice) | Trauma response: **Failed Sanity Spreads Stress.** Whenever you fail a Sanity Save, every Close Group friend who witnesses it gains 1 Stress. |
+| **Tough** | For whatever reason, it was advantageous for you to look tough, act tough, and become tough. Maybe you learned to scrap, stare somebody down, hide pain, and never let anyone see you flinch. | +10 Strength; +10 Body; +20 Fear | You roll on the Death Table at 5 Trauma instead of 4. Trauma response: **Your Panic Triggers Fear.** Whenever you Panic, every Close Group friend who witnesses it must make a Fear Save. |
+| **Overachiever** | You are prepared, capable, and used to being right. Maybe you are a Scout, honor-roll kid, student leader, church volunteer, athlete, or the one adults always trust. | +10 Intellect; +60 Fear; +5 to one of Strength, Speed, Handle or Charm (your choice) | Failed Stat Checks give +2 Stress instead of +1. Trauma response: **Your Success Raises the Stakes.** When you and Close Group friends make Fear Saves against the same threat, each friend who fails gains 2 Stress instead of 1 if you succeed. |
+| **Popular Kid** | Everybody knows your name. Maybe you're good-looking, the star of the team, the funniest kid in class, or you just have a way with people. Kids want to be around you, and adults let you get away with things. | +20 Charm; +20 Fear; -10 to one of Strength, Speed, Intellect or Handle (your choice) | Trauma response: **Everyone Looks to You.** Whenever you fail a Fear Save, every Close Group friend who witnesses it gains 1 Stress. |
+
+### Class starting skills
+
+Each class gives one free skill from its own short list, and then a number of picks.
+An Expert pick needs one of its listed skills already on the character (see "Expert skills").
+
+| Class | Free skill, one of | Then pick |
+|---|---|---|
+| Working Kid | Boatwork, Jury-Rigging, Tides & Flats | 1 Trained and 1 Expert |
+| Nerd | Electronics & Radio, Science, History & Geography | 1 Trained and 2 Expert |
+| Tough | Scrapping, Athletics, Tough Talk | 1 Expert, or 2 Trained |
+| Overachiever | Campcraft, First Aid, Teacher's Pet | 1 Expert, or 2 Trained |
+| Popular Kid | Athletics, Art, Music, Class Clown, Teacher's Pet | 1 Expert, or 2 Trained |
+
+## Skills
+
+### How skills work
+
+A skill is the knowledge, craft, technique or training a kid has in one field.
+When you make a Stat Check or Save and you have a skill that fits, add its bonus to the number you roll under.
+
+- A **Trained** skill adds +10.
+- An **Expert** skill adds +15, and needs at least one of its listed skills first.
+- Skill bonuses never stack: if two of your skills fit, use the better one.
+- Scrapping, Boxing, Firearms and Slingshot / Archery are fighting and shooting skills: they count only in a fight (see "Fighting and shooting skills").
+
+### No skill
+
+Having no skill that fits does not mean you know nothing, and it usually does not stop you trying.
+It means you get no bonus.
+Depending on how hard the task is, the GM may have you roll with Disadvantage, or rule that you cannot attempt it at all.
+
+### Trained skills
+
+Each Trained skill adds +10.
+
+| Skill | What it covers |
+|---|---|
+| **Animal Friend** | Calming, handling, befriending, and understanding animals, including recognizing what their behavior is telling you. |
+| **Art** | Sketching, painting, lettering and signs, model-making, drawing usable maps and diagrams, reproducing symbols, copying visual material accurately, and other practical work of making things look right by hand. |
+| **Athletics** | Sports, running, jumping, physical conditioning, and practiced whole-body athletic ability. |
+| **Bike Riding** | Exceptional bicycle handling: riding fast or rough, carrying awkward loads, jumping obstacles, taking shortcuts, and controlling a bike under pressure. |
+| **Boatwork** | Operating and working from small boats: skiffs, outboards, anchoring, towing, lines, traps, hauling, and understanding what boats are doing on the water. |
+| **Campcraft** | Fire, shelter, knots, simple tools, basic woodcraft, and practical competence outdoors. The sort of things learned from Scouts, family, or spending a lot of time in the woods. |
+| **Class Clown** | Getting a laugh, distracting a room, defusing tension, making yourself seem harmless, teasing someone off balance, and turning embarrassment into a joke. |
+| **Electronics & Radio** | Hands-on competence with wiring, circuits, components, radios, televisions, tape equipment, antennas, and basic electrical troubleshooting or modification. |
+| **Fibbing** | Cover stories, alibis, playing dumb, lying straight-faced, and maintaining a false story when somebody starts asking questions. |
+| **First Aid** | Treating cuts, burns, bleeding, sprains, broken bones, and other ordinary injuries well enough to stabilize someone and know when the situation is serious. |
+| **History & Geography** | American and world history, maps, places, borders, historical context, and knowing where information about the past is likely to be recorded. |
+| **Home Ec** | Cooking, sewing, mending, canning, household materials, clothing repair, and the practical domestic skills that keep a home running. |
+| **Hunting** | Hunting game, reading sign, staying concealed from animals, playing the wind, fieldcraft, and competent use of your familiar hunting rifle. |
+| **Jury-Rigging** | Making something work with inadequate tools, spare parts, improvised materials, and whatever happens to be lying around. |
+| **Light on Your Feet** | Climbing and moving quietly through difficult spaces: roofs, drainpipes, fences, windows, creaky houses, ledges, and similar places. |
+| **Local Lore** | Local history, customs, families, stories, landmarks, rumors, and knowledge of the community - who is related to whom, who used to live where, and what people around town remember. |
+| **Music** | Playing an instrument, singing, recognizing music, remembering songs, and understanding basic musical structure. Also performing: holding a room's attention and knowing the songs people grew up with. |
+| **Religion** | Scripture, Christian traditions, liturgy, church practices, religious symbolism, theological vocabulary, and some familiarity with Latin or older religious material where appropriate. |
+| **Science** | What school teaches about how the world works, and being good at it: living things, the body, rocks, weather, the sky, chemicals and reactions, basic laboratory technique, and the measuring, estimating, and calculating that go with them. Knowing what the natural explanation would be, and noticing when something doesn't fit it. |
+| **Scrapping** | Rough-and-tumble fighting learned from actual fights rather than formal training. Counts only in a fight. |
+| **Scrounging** | You poke around where nobody else goes: the dump, the wrack line, the boatyard scrap pile, closed canneries, old wharves, and sheds nobody has opened in years. You know what was left where, which places stand empty, and what is still good, and you can usually come up with the part, the material, or the odd object somebody needs without buying it new. |
+| **Sleight of Hand** | Palming, planting, switching, lifting, concealing, and otherwise doing small things with your hands without attracting attention. |
+| **Swimming** | Strong swimming ability, including difficult or cold-water swimming and keeping yourself or someone else afloat under pressure. |
+| **Teacher's Pet** | Knowing how to be the kind of kid adults approve of: polite, trustworthy, helpful, respectable, and worth giving the benefit of the doubt. |
+| **Tides & Flats** | Intimate knowledge of the shore, mudflats, tides, currents, seaweed, exposed ground, and when the water is coming back. Also applies to moving safely and effectively through the intertidal environment. |
+| **Tough Talk** | Threatening, intimidating, staring someone down, and convincing them that continuing to push you may be a bad idea. |
+| **Woodworking & Metalwork** | Measuring, cutting, drilling, shaping, fastening, and constructing useful things from wood or basic metal stock using ordinary hand and shop tools. |
+
+### Expert skills
+
+Each Expert skill adds +15 and needs at least one of the listed skills first.
+
+| Skill | Needs one of | What it covers |
+|---|---|---|
+| **A/V Club** | Electronics & Radio | Advanced use and modification of 1970s communications and media technology: reel-to-reel and cassette tape, splicing, microphones, PA systems, projectors, telephones, antennas, transmitters, hidden microphones, radio signals, and related equipment. |
+| **Boxing** | Scrapping, Athletics | Formal fighting technique: stance, footwork, defense, combinations, timing, and disciplined striking. Counts only in a fight. |
+| **Breaking & Entering** | Light on Your Feet, Tough Talk, Sleight of Hand | Locks, latches, windows, doors, simple security measures, and getting into or out of places without making a conspicuous mess. |
+| **Daredevil** | Athletics, Bike Riding, Light on Your Feet | The movie-kid stunt skill: dangerous jumps, bicycle tricks, rope swings, rooftop leaps, hanging onto moving vehicles, controlled falls, and other spectacular physical actions that would be unreasonable for an ordinary freshman to attempt. |
+| **Diving** | Swimming, Tides & Flats | Breath-hold diving, working underwater in cold or murky conditions, and using actual diving equipment when it becomes available. |
+| **Driving** | Bike Riding, Boatwork | Unusually advanced vehicle competence for a teenager: cars, trucks, tractors, and other motor vehicles, including difficult maneuvering and driving under pressure. |
+| **Field Medicine** | First Aid | Serious emergency treatment under pressure: controlling major bleeding, treating dangerous wounds, recognizing shock, stabilizing injuries, and keeping somebody alive until real medical care is possible. |
+| **Firearms** | Hunting | Safe, practiced use of firearms beyond the familiar hunting rifle: aiming, handling, loading, clearing problems, and shooting effectively under pressure. Counts only in a fight. |
+| **Five-Finger Discount** | Sleight of Hand, Fibbing | Advanced shoplifting, pickpocketing, concealing stolen objects, and taking something from under somebody's nose without being caught. |
+| **Foraging** | Campcraft, Tides & Flats | Identifying edible, medicinal, poisonous, or otherwise useful plants, mushrooms, berries, seaweeds, shellfish, and other naturally available resources. |
+| **Forgery** | Art, Fibbing | Copying signatures and handwriting, producing convincing notes, passes, labels, letterheads, and other false documents. |
+| **Gadgets** | Electronics & Radio, Jury-Rigging, Woodworking & Metalwork, Scrounging | Building improbable but intelligible contraptions from parts and junk: alarms, triggers, timers, trip mechanisms, remote releases, simple surveillance devices, and whatever ridiculous machine the plan requires. |
+| **Into Weird Shit** | History & Geography, Religion | You've spent an unreasonable amount of time reading about UFOs, Bigfoot, ghosts, ESP, the Bermuda Triangle, sea monsters, and every other unexplained thing in paperbacks, magazines, and late-night television. You can recall claims and make connections other kids would miss, though what you know is a mixture of history, folklore, fraud, speculation, and occasionally something dangerously true. |
+| **Library Rat** | History & Geography, Local Lore | Serious archival competence with card catalogs, microfilm, newspapers, deeds, old maps, municipal records, cross-references, and obscure collections. Ordinary research never requires this skill; Library Rat lets you conduct unusually difficult or sophisticated research efficiently. |
+| **Mechanical Repair** | Jury-Rigging, Boatwork, Woodworking & Metalwork | Diagnosing and properly repairing engines, outboards, pumps, winches, vehicles, and other mechanical systems. |
+| **Old-Timers** | Local Lore, Teacher's Pet | Getting elderly locals to open up by knowing how to listen, what to ask, which names and memories matter, and when to let somebody tell the story their own way. |
+| **Photography** | Art, Science | Cameras, lenses, exposure, flash, darkroom work, developing film, enlarging details, photographing documents, timed shots, and concealed or improvised photographic setups. |
+| **Politician** | Teacher's Pet, Fibbing, Tough Talk, Class Clown | Working a group rather than simply persuading one person: remembering names, making people feel included, smoothing over conflict, building consensus, presenting a plan respectably, and getting a room moving in the same direction. |
+| **Pyrotechnics** | Science, Jury-Rigging | Fireworks, fuses, smoke, flashes, timed ignition, and other small-scale controlled pyrotechnic effects. |
+| **Science Fair Champ** | Science, Electronics & Radio | Exceptional scientific competence for a freshman: designing experiments, controlling variables, using laboratory equipment, taking precise measurements, testing samples, interpreting results, and applying unusually advanced scientific reasoning to practical problems. |
+| **Slingshot / Archery** | Campcraft, Hunting | Skilled use of bows, slingshots, and similar practical ranged weapons a woods kid might realistically practice with. Counts only in a fight. |
+| **Spelunking** | Athletics, Campcraft, Light on Your Feet | Moving through caves, tight passages, shafts, unstable ground, darkness, and confusing underground spaces without getting yourself killed or hopelessly lost. |
+| **Throwing Arm** | Athletics | Exceptional throwing ability with baseballs, rocks, bottles, tools, or whatever else needs to hit a particular place hard and accurately. |
+| **Tracking** | Hunting, Animal Friend | Following animals or people from footprints, broken vegetation, disturbed ground, scat, hair, blood, and other sign, and interpreting what that sign means. |
+| **Trapping** | Campcraft, Hunting | Snares, deadfalls, trap lines, bait, placement, and understanding how animals move well enough to catch them deliberately. |
+| **Treasure Hunting** | Local Lore, Electronics & Radio, Tides & Flats, Scrounging | Metal detecting, cellar holes, old foundations, buried objects, reading old maps against the modern landscape, and recognizing where people would actually have hidden or lost things. |
+| **Wilderness Survival** | Campcraft | Finding food and water, choosing safe ground, building serious shelter, reading terrain, staying oriented, and surviving outdoors when ordinary camping competence is no longer enough. |
+
+## Stress, Panic, Trauma and death
+
+### Stress
+
+**Stress** is built-up pressure, and it drives Panic.
+A character starts with 2 Stress and 2 Minimum Stress, and Stress never falls below their **Minimum Stress**.
+
+Stress comes from:
+
+- a failed Save: +1 Stress;
+- a failed Stat Check: +1 Stress (+2 for an Overachiever);
+- injuries, and witnessing injuries: a wound row can give Stress ("Gain 1 Stress");
+- Panic table rows;
+- class trauma responses, which can give Stress to friends who witness something (see "The five classes").
+
+Stress does not decide a player character's considered choices.
+Players decide whether their characters keep fighting, flee, surrender, confess or do anything else, whenever they are still able to choose.
+Panic can force involuntary reactions.
+
+> **Not yet decided:** what to do when Minimum Stress rises above current Stress.
+> The recommendation is to lift Stress up to the new Minimum Stress, since Stress may never be below it.
+
+### Stress in combat
+
+In a fight, Stress comes from injuries and from witnessing injuries, not from failed swings:
+
+- Failed attack, Defense, catch, Strength, initiative and Evasive Movement rolls give no Stress.
+- A wound row can give Stress ("Gain 1 Stress").
+- The Checks and Saves that wound rows call for give Stress like any other failed Check or Save.
+
+### Panic Check
+
+Panic is for very severe events.
+The GM decides at the table when to call for a Panic Check.
+
+Panic is its own roll, separate from Fear: a Panic Check is not a Fear Save, and Fear is not rolled to resist Panic.
+Failing a Fear Save adds Stress, which makes a later Panic Check harder, but it does not make you Panic by itself.
+
+To make a **Panic Check**, roll d20 against your current Stress:
+
+- Higher than your current Stress: you hold it together.
+- Equal to or lower than your current Stress: you Panic, and the same d20 picks your row on the Panic table.
+
+A failed Panic Check gives no Stress by itself; any Stress on the Panic row still applies.
+
+### Panic table
+
+This is Mothership's Panic table, used unchanged for now.
+
+| d20 | Panic effect |
+|---:|---|
+| 1 | **ADRENALINE RUSH.** Advantage on all rolls for the next 2d10 minutes. Reduce Stress by 1d5. |
+| 2 | **NERVOUS.** Gain 1 Stress. |
+| 3 | **JUMPY.** Gain 1 Stress. All Close crewmembers gain 2 Stress. |
+| 4 | **OVERWHELMED.** Disadvantage on all rolls for the next 1d10 minutes. Increase Minimum Stress by 1. |
+| 5 | **COWARD.** Gain a new Condition: You must make a Fear Save to engage in violence, otherwise you flee. |
+| 6 | **FRIGHTENED.** Gain a new Condition: When encountering what frightened you, make a Fear Save at Disadvantage or gain 1d5 Stress. |
+| 7 | **NIGHTMARES.** Gain a new Condition: Sleep is difficult; Rest Saves are at Disadvantage. |
+| 8 | **LOSS OF CONFIDENCE.** Gain a new Condition: Choose one Skill and lose that Skill's bonus. |
+| 9 | **DEFLATED.** Gain a new Condition: Whenever a Close crewmember fails a Save, gain 1 Stress. |
+| 10 | **DOOMED.** Gain a new Condition: You feel cursed and unlucky. All Critical Successes are instead Critical Failures. |
+| 11 | **SUSPICIOUS.** For the next week, whenever someone joins the crew (even if they only left for a short period), make a Fear Save or gain 1 Stress. |
+| 12 | **HAUNTED.** Gain a new Condition: Something starts visiting the character at night. In their dreams. Out of the corner of their eye. And soon it will start making demands. |
+| 13 | **DEATH WISH.** For the next 24 hours, whenever encountering a stranger or known enemy, make a Sanity Save or immediately attack them. |
+| 14 | **PROPHETIC VISION.** Character immediately experiences an intense hallucination or vision of an impending terror or horrific event. Increase Minimum Stress by 2. |
+| 15 | **CATATONIC.** Become unresponsive and unmoving for 2d10 minutes. Reduce Stress by 1d10. |
+| 16 | **RAGE.** Advantage on all Damage rolls for the next 1d10 hours. All crewmembers gain 1 Stress. |
+| 17 | **SPIRALING.** Gain a new Condition: Panic Checks are at Disadvantage. |
+| 18 | **COMPOUNDING PROBLEMS.** Roll twice on this table. Increase your Minimum Stress by 1. |
+| 19 | **HEART ATTACK / SHORT CIRCUIT (ANDROIDS).** Reduce Maximum Wounds by 1. Disadvantage on all rolls for 1d10 hours. Increase Minimum Stress by 1. |
+| 20 | **RETIRE.** Roll up a new character to play. |
+
+In Lubec, "crew" and "crewmembers" mean the kid's group.
+
+How to run the rows:
+
+- A lasting row (a Condition, or Loss of Confidence) stays on the character as an effect until it is removed.
+- When a row calls for a Fear Save and it fails, the row's Stress counts on top of the usual +1 Stress for a failed Save.
+- Rows that trigger a later check (Coward, Frightened, Suspicious, Death Wish) are run by the player: the row text is enough, and the player makes the check when it comes up.
+- Doomed is handled by the player, as written.
+- Rows that give Stress to the group (Jumpy, Rage, Deflated) are applied to the whole group by the GM.
+- Reduce and increase Stress and Minimum Stress as the row says; Stress never drops below Minimum Stress.
+
+### Stress Recovery
+
+After a full night's sleep somewhere reasonably safe (a Long Rest), make one Recovery Save against your lowest Save.
+
+- On a success, reduce Stress by the ones digit of the roll.
+- On a failure, Stress does not change.
+- Make at most one Recovery Save a night.
+- Ordinary recovery never takes Stress below 2, or below Minimum Stress if that is higher.
+
+Recovery is deliberately procedural.
+The game does not reduce Stress for self-care, altruism, solidarity, truth-telling or other roleplayed virtues.
+
+### Trauma and the Death Table
+
+A character rolls on the **Death Table** when:
+
+- their Trauma reaches 4 (5 for a Tough); or
+- a wound calls for it: an Immediate Death Save, or a Death Save countdown that runs out.
+
+The GM rolls the d10 hidden: they shake it in a cup and leave it face down.
+It is revealed only when someone spends a turn checking the character's vitals.
+
+### Death Table
+
+| d10 | Result |
+|---:|---|
+| 0 | You are unconscious. You wake up in 2d10 minutes. Add 1d5 to your Minimum Stress. |
+| 1-2 | You are unconscious and dying. You die in 1d5 rounds without intervention. |
+| 3-4 | You are comatose. Only extraordinary measures can return you to the waking world. |
+| 5-9 | You have died. Roll up a new character. |
+
+Unconsciousness can come from a wound row (knocked unconscious) or from the Death Table.
+Either way, the character is Out of the fight.
+
+> **Not yet decided:** whether to keep this table (Mothership's Death Table, with 1d5 Minimum Stress in place of lost maximum Health, since Lubec has no Health), soften it, or replace it.
+
+### Morale
+
+Morale is for NPCs.
+Player characters always decide for themselves whether to keep fighting, flee or surrender, and players can always choose to stop.
+
+A living NPC checks Morale as soon as it reaches 2 Trauma.
+Undead do not check Morale.
+Roll d10:
+
+| d10 | Morale result |
+|---:|---|
+| 1-3 | Flee |
+| 4-6 | Surrender |
+| 7-8 | Keep fighting |
+| 9-10 | Call for help |
+
+Calling for help is free: it costs the NPC nothing in the round.
+Fleeing or surrendering does not have to end the fight; cruelty is possible.
+A Morale check is what usually stops a fistfight from becoming lethal.
+A kid who cannot do real damage stops by roleplay; there is no stalemate rule.
+
+## Effects, time and clocks
+
+### Effects and how long they last
+
+A wound, a Panic result or anything else that changes a character for a while is an **effect** on the character, and each effect notes what caused it.
+Effects stack.
+
+The game tracks what happens in fights, not how many days pass.
+When an effect changes after a Long Rest (for example, a Severe Concussion stepping down from -40 Handle to -10), the player makes that change at the table.
+A duration that is rolled (such as "2d10 minutes") is rolled when the effect starts and written on it; nobody counts it down.
+
+### Long Rest
+
+A **Long Rest** is a full night's sleep somewhere reasonably safe.
+It is the same night that allows a Recovery Save (see "Stress Recovery").
+
+### Clocks
+
+A **clock** tracks something that builds up or wears down: a track of 1 to 10 pieces, moved up or down by hand.
+A clock has a name, a description, what makes it go up, what makes it go down, what happens when it fills, and what happens when it empties.
+A chase is run on a clock (see "Chases").
+
+Injuries are effects, not clocks: an effect with only one or two steps of recovery is not worth a clock.
+
+> **Not yet decided:** where the line between an effect and a clock falls, for example clocks only for recoveries of three or more steps.
+
 
 ## What a character brings to a fight
 
@@ -351,6 +713,8 @@ Dropping something you are holding is free.
 
 A weapon must be in your hand to attack with it.
 Each hand holds one small or 1-slot thing.
+Using your non-dominant hand for an action that needs your good hand costs -20 Handle.
+If that hand is also injured, the penalties do not stack: you choose which impaired option you are using.
 Anything bigger, and anything heavy or extra heavy, takes both hands.
 
 What moving things costs, in actions (you get one action a round):
@@ -438,7 +802,7 @@ For a ranged attack (a shot or a throw), the GM declares the range band when the
 Each ranged weapon has its own bands and its own Handle modifier for each band; the modifier is added to the attack number.
 
 > **Not yet decided:** the distance limits of each band and the Handle modifier for each band, for each weapon.
-> Until a weapon has its numbers, the GM sets the modifier for the band.
+> Until a weapon has its numbers, the GM sets the modifier for the band; the current playtest values for firearms are +10 at close range and +0 at Medium.
 
 ### Firearms and ammunition
 
@@ -513,6 +877,9 @@ Quality is both how hard you hit and how far you can move where the hit lands, s
 A Quality 0 hit is still a hit.
 
 Failing an attack roll never gives Stress.
+
+> **Not yet decided:** whether a roll of 90-99 always misses, as in Mothership.
+> Whether a missed melee attack should still give a small glancing result instead of a pure miss.
 
 ### Criticals on attack
 
@@ -1622,6 +1989,43 @@ Their wounds, effects and initiative stay as they were.
 If they come back before declaring starts, they declare as normal.
 Once declaring has started, they make no attack and roll no Defense for the rest of that round.
 
+## Grappling, takedowns and disarming
+
+### Takedowns
+
+A takedown is an opposed Strength Check (see "Opposed Checks").
+The winner puts the opponent on the ground and starts on top.
+
+If someone tries to grapple you or take you down while you attack them, your attack roll is at Advantage, but your Strength roll against the takedown is at Disadvantage.
+The grappler rolls Strength normally.
+The strike and the takedown happen at the same time.
+
+### Ground position
+
+- On top, your Handle attacks are at Advantage.
+- On the bottom, your Handle attacks are at Disadvantage.
+- The character on the bottom may attack with fists or try a Strength reversal.
+- If the top character attacks while the bottom character tries a reversal, the top character rolls the opposed Strength Check at Disadvantage; the bottom character rolls normally.
+- If the top character gives up their attack only to keep control, they roll the opposed Strength Check at Advantage.
+- The attack and the reversal happen at the same time: a top character can land a hit and still lose the position.
+- If both opposed Strength rolls fail, the position holds.
+
+Being knocked down is not a ground fight: nobody holds you down unless they declared a grapple.
+
+### Weapons in a ground fight
+
+- Long weapons such as bats cannot normally be used while fighting on the ground.
+- Short weapons such as knives can be used in a ground grapple.
+- The character on the bottom cannot use weapons, but can still attack with fists.
+
+### Disarming
+
+Declare a Disarm: give up your attack to try to take a held weapon away.
+The weapon-holder still resolves the attack they declared.
+The disarm is an opposed Handle Check (see "Opposed Checks").
+A successful weapon attack still lands even if the weapon is disarmed in the same exchange.
+If the rolls and Handle are exactly tied, the weapon-holder keeps the weapon.
+
 ## Races and chases
 
 ### Racing someone to a place
@@ -1647,113 +2051,6 @@ A chase is run on a **clock**: a track of segments that fills up and empties.
 3. Each round both sides make an opposed Speed roll. A successful roll gives as many units as its tens digit (Speed 65 rolling `40` gives 4 units); a failed roll counts as 0.
 4. The gap moves by the difference: quarry 5 units, pursuer 3 units opens the gap by 2.
 5. At 0 the pursuer catches the quarry. When the clock is full, the quarry escapes.
-
-## Stress, Panic, Trauma and death
-
-### Stress in combat
-
-**Stress** is built-up pressure, and it drives Panic.
-A character starts with 2 Stress, and Stress never falls below their **Minimum Stress**.
-
-In a fight, Stress comes from injuries and from witnessing injuries, not from failed swings:
-
-- Failed attack, Defense, catch, Strength, initiative and Evasive Movement rolls give no Stress.
-- A wound row can give Stress ("Gain 1 Stress").
-- A failed Save gives +1 Stress, and a failed Stat Check gives +1 Stress (+2 for an Overachiever), including the Checks and Saves wound rows call for.
-- Class trauma responses can give Stress to friends who witness something (see "Classes in combat").
-
-> **Not yet decided:** what to do when Minimum Stress rises above current Stress.
-> The recommendation is to lift Stress up to the new Minimum Stress, since Stress may never be below it.
-
-### Panic Check
-
-Panic is for very severe events, and the GM calls for it.
-To make a **Panic Check**, roll d20:
-
-- Higher than your current Stress: you hold it together.
-- Equal to or lower than your current Stress: you Panic, and the same d20 picks your row on the Panic table.
-
-A failed Panic Check gives no Stress by itself; any Stress on the Panic row still applies.
-
-> **Not yet decided:** what triggers a Panic Check in a fight.
-
-### Panic table
-
-| d20 | Panic effect |
-|---:|---|
-| 1 | **ADRENALINE RUSH.** Advantage on all rolls for the next 2d10 minutes. Reduce Stress by 1d5. |
-| 2 | **NERVOUS.** Gain 1 Stress. |
-| 3 | **JUMPY.** Gain 1 Stress. All Close Group members gain 2 Stress. |
-| 4 | **OVERWHELMED.** Disadvantage on all rolls for the next 1d10 minutes. Increase Minimum Stress by 1. |
-| 5 | **COWARD.** Gain a new Condition: you must make a Fear Save to engage in violence, otherwise you flee. |
-| 6 | **FRIGHTENED.** Gain a new Condition: when encountering what frightened you, make a Fear Save at Disadvantage or gain 1d5 Stress. |
-| 7 | **NIGHTMARES.** Gain a new Condition: sleep is difficult; Rest Saves are at Disadvantage. |
-| 8 | **LOSS OF CONFIDENCE.** Gain a new Condition: choose one Skill and lose that Skill's bonus. |
-| 9 | **DEFLATED.** Gain a new Condition: whenever a Close Group member fails a Save, gain 1 Stress. |
-| 10 | **DOOMED.** Gain a new Condition: you feel cursed and unlucky. All Critical Successes are instead Critical Failures. |
-| 11 | **SUSPICIOUS.** Whenever you talk to an adult outside of your family, make a Fear Save or gain 1 Stress. |
-| 12 | **HAUNTED.** Gain a new Condition: something starts visiting the character at night. In their dreams. Out of the corner of their eye. And soon it will start making demands. |
-| 13 | **DEATH WISH.** For the next 24 hours, whenever encountering a stranger or known enemy, make a Sanity Save or immediately attack them. |
-| 14 | **PROPHETIC VISION.** The character immediately experiences an intense hallucination or vision of an impending terror or horrific event. Increase Minimum Stress by 2. |
-| 15 | **CATATONIC.** Become unresponsive and unmoving for 2d10 minutes. Reduce Stress by 1d10. |
-| 16 | **RAGE.** Advantage on all Damage rolls for the next 1d10 hours. All Group members gain 1 Stress. |
-| 17 | **SPIRALING.** Gain a new Condition: Panic Checks are at Disadvantage. |
-| 18 | **COMPOUNDING PROBLEMS.** Roll twice on this table. Increase your Minimum Stress by 1. |
-| 19 | **HEART ATTACK.** Reduce Maximum Wounds by 1. Disadvantage on all rolls for 1d10 hours. Increase Minimum Stress by 1. |
-| 20 | **MIND IN TATTERS.** You have stopped making sense and you are no longer able to live in this world. |
-
-How to run the rows:
-
-- A lasting row (a Condition, or Loss of Confidence) stays on the character as an effect until it is removed.
-- When a row calls for a Fear Save and it fails, the row's Stress counts on top of the usual +1 Stress for a failed Save.
-- Rows that trigger a later check (Coward, Frightened, Suspicious, Death Wish) are run by the player: the row text is enough, and the player makes the check when it comes up.
-- Doomed is handled by the player, as written.
-- Rows that give Stress to the group (Jumpy, Rage, Deflated) are applied to the whole group by the GM.
-- Reduce and increase Stress and Minimum Stress as the row says; Stress never drops below Minimum Stress.
-
-### Trauma and the Death Table
-
-A character rolls on the **Death Table** when:
-
-- their Trauma reaches 4 (5 for a Tough); or
-- a wound calls for it: an Immediate Death Save, or a Death Save countdown that runs out.
-
-The GM rolls the d10 hidden: they shake it in a cup and leave it face down.
-It is revealed only when someone spends a turn checking the character's vitals.
-
-### Death Table
-
-| d10 | Result |
-|---:|---|
-| 0 | You are unconscious. You wake up in 2d10 minutes. Add 1d5 to your Minimum Stress. |
-| 1-2 | You are unconscious and dying. You die in 1d5 rounds without intervention. |
-| 3-4 | You are comatose. Only extraordinary measures can return you to the waking world. |
-| 5-9 | You have died. Roll up a new character. |
-
-Unconsciousness can come from a wound row (knocked unconscious) or from the Death Table.
-Either way, the character is Out of the fight.
-
-> **Not yet decided:** whether to keep this table (Mothership's Death Table, with 1d5 Minimum Stress in place of lost maximum Health, since Lubec has no Health), soften it, or replace it.
-
-### Morale
-
-Morale is for NPCs.
-Player characters always decide for themselves whether to keep fighting, flee or surrender, and players can always choose to stop.
-
-A living NPC checks Morale as soon as it reaches 2 Trauma.
-Roll d10:
-
-| d10 | Morale result |
-|---:|---|
-| 1-3 | Flee |
-| 4-6 | Surrender |
-| 7-8 | Keep fighting |
-| 9-10 | Call for help |
-
-Calling for help is free: it costs the NPC nothing in the round.
-Fleeing or surrendering does not have to end the fight; cruelty is possible.
-A Morale check is what usually stops a fistfight from becoming lethal.
-A kid who cannot do real damage stops by roleplay; there is no stalemate rule.
 
 ## Worked examples
 
@@ -1805,8 +2102,30 @@ Mirelda (Strength 31) picks up an axe, which has Minimum Strength 35.
 31 is below 35, so she takes -10 Handle: any shortfall costs at least -10, and 31 is still in the 30s.
 With Strength 19 she would take -20, and with Strength 8, -30.
 
-## What this document does not cover
+## Design principles
 
-Grappling, takedowns, fighting on the ground and disarming are not covered by these rules yet.
-Monsters stay in the game, but how they fight is not decided.
+These are the ideas the rules are built on.
+When the rules do not cover something, rule in their spirit.
+
+- Keep the system lean, with enough texture that character abilities matter.
+- Wide Stats and strong weaknesses are desirable. A naturally weak, untrained kid should be clearly different from a trained adult fighter.
+- Low ability should matter without long runs of boring, empty combat rounds.
+- High Handle should give more than accuracy: it should give room to attack while defending.
+- Movement should change tactical options. Injuries such as half Movement can decide whether a melee attacker can close with a ranged opponent.
+- Defense and Evasion make clean contact harder; they do not reduce the consequence of a bullet that already hit.
+- Physical Stats should show in the story of a fight: a character's body matters to how violence unfolds.
+- Successful attacks produce concrete consequences, not abstract hit points.
+- Serious and Severe wounds change the fight at once and keep mattering afterward.
+- Use a roll-twice condition for brief impairment, and fixed penalties for real, ongoing injury.
+- Teenage fistfights can be dramatic, painful and consequential without routinely becoming lethal.
+- Escalating to a dangerous weapon makes lethal wounds possible at once.
+- Rare combat can carry some crunch, as long as it stays easy to remember after several sessions without a fight.
+- Family supplies stakes and connections; class supplies a broad posture; skills supply specific competence.
+- Class does not dictate personality, and Family does not dictate class.
+- A player character's courage and surrender are the player's choice, unless something involuntary such as Panic or unconsciousness takes over.
+- Mechanics serve the story; roleplay is not scorekeeping for rewards.
+
+## What these rules do not cover
+
+Monsters stay in the game, but how they work, including how they fight, is not decided.
 For anything not covered here, the GM rules at the table.
