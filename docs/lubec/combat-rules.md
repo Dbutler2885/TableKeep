@@ -203,19 +203,19 @@ Initiative order does not change from round to round.
 On your turn to declare, say:
 
 - **Your movement:** move or stay, run (full or partial), Evasive Movement, stand up, pick up an item, or leave the fight (see "Movement").
-- **Your action:** an attack (target, weapon and attack) with any Defense lines, or no attack and only Defense (see "Splitting Handle between Attack and Defense").
+- **Your action:** an attack (target, weapon and attack) with any Defense lines, or no attack and only Defense (see "Splitting Handle between Attack and Defense"). Attack and Defense are both part of your action: a round gives you your movement and your action, and nothing else.
 
 Everyone can see each declaration, including how much Defense is on each line and who it names, and who is going for which item on the ground.
 
-Some movement uses up your action, and then you cannot also attack:
+Some movement uses up your action, and then you have no attack and no Defense that round:
 
 | Movement | Attack this round? | Defense this round? |
 |---|---|---|
 | Move or stay | Yes | Yes |
 | Partial run | Yes | Yes |
 | Full run | No | No |
-| Evasive Movement | No | Yes, Defense only |
-| Standing up (failed or no Speed roll) | No | Yes, Defense only |
+| Evasive Movement | No | No |
+| Standing up (failed or no Speed roll) | No | No |
 | Standing up (successful Speed roll) | Yes | Yes |
 | Pick up an item | Yes | Yes |
 | Leave the fight | No | No: you are Out |
@@ -264,7 +264,7 @@ Wounds that limit movement give **half Movement**: halve the distance you can wa
 
 **Evasive Movement** is ducking, weaving and diving for cover so you are harder to hit from a distance.
 
-- It uses your action for the round: you cannot shoot, attack, reload or use a skill that round. You can still declare Defense lines.
+- It uses your action for the round: you cannot shoot, attack, reload, use a skill or declare Defense that round.
 - You move at half speed.
 - When movement resolves, roll Speed (d100 at or under your Speed).
 - On a success, anyone making a ranged attack at you this round takes a Handle penalty from your roll: 10 times half the roll's tens digit, rounded down.
@@ -290,6 +290,7 @@ It succeeds; the tens digit is 4, half of 4 is 2, so ranged attacks at her this 
 
 Standing up after being knocked down takes your movement and your action for the round.
 Roll Speed first (d100 at or under your Speed): on a success, standing up takes only your movement and you keep your action.
+On a failure you have no attack and no Defense that round, because both are part of your action.
 
 Knocked down means you fell down.
 Nobody holds you down unless they declared a grapple.
@@ -428,7 +429,8 @@ When you declare an attack, you split your Handle pool between your attack and *
 - A line only protects you against the person it names. If they never attack you, it is wasted, but it still came off your attack.
 - Everyone can see the split.
 
-If you make **no attack** this round, you can put your whole pool on Defense, and every Defense line you roll gets +10 (see "Full Defense").
+If you use your action for Defense alone, with **no attack**, you can put your whole pool on Defense, and every Defense line you roll gets +10 (see "Full Defense").
+If your movement used up your action, you have no Defense lines at all that round.
 
 ### Ranged attacks and range
 
@@ -533,10 +535,9 @@ If someone you have no line against attacks you, you take the hit with no Defens
 
 ### Full Defense
 
-A character who makes **no attack** this round can put their whole Handle pool on Defense, and rolls **every** Defense line at +10, to a top of 100.
-The same goes for someone whose movement used up their action, such as Evasive Movement.
+A character who uses their action for Defense alone, with **no attack**, can put their whole Handle pool on Defense, and rolls **every** Defense line at +10, to a top of 100.
 
-A character on a full run has no Defense at all that round.
+A character whose movement used up their action (a full run, Evasive Movement, or standing up without a successful Speed roll) has no Defense at all that round.
 
 ### Rolling Defense
 
@@ -701,7 +702,7 @@ The last row of each part covers every higher Impact too.
 |---|---|
 | **Now / Lasting** | "Now" effects last a round or less. "Lasting" effects start the next round and stay until the wound heals. |
 | **Lose the next Movement Stage** | You cannot move next round. |
-| **Lose the next Action Stage** | No attack, reload or other action next round. |
+| **Lose the next Action Stage** | No attack, no Defense, no reload and no other action next round. |
 | **Dazed** | Lasts one round: you lose the next Movement Stage and the next Action Stage. Dazed alone has no lasting penalty and no Trauma. |
 | **Knocked down** | You fall down. See "Standing up from prone". |
 | **Knocked unconscious** | You are Out of the fight. |
@@ -1776,7 +1777,7 @@ Initiative put Tommy first and Rex second, so Rex declares first.
 12. **Strength Roll:** Rex has Strength 40 and rolls `18`, adding 1.
 13. **Impact** = 2 + 0 (pocketknife) + 1 = 3. **Wound:** Piercing, torso, Impact 3: Puncture between the ribs, Serious, +1 Trauma, with a bleeding timer. This is round 1 and the timer's d4 comes up 2: unless someone stabilizes Tommy with First Aid before the end of round 3, he takes another +1 Trauma.
 
-Next round, Rex is Dazed: he cannot move and makes no attack.
+Next round, Rex is Dazed: he cannot move, and he has no attack and no Defense.
 
 ### Example: a dodgeball caught
 
@@ -1790,7 +1791,7 @@ Mirelda declared a 30 Defense line against Rex and has a free hand.
 
 ### Example: shooting at someone moving evasively
 
-Mirelda (Speed 58) declares Evasive Movement and Full Defense; Rex (Handle 45, no Firearms) declares a shot at her with a .38 revolver.
+Mirelda (Speed 58) declares Evasive Movement, which uses her action, so she has no attack and no Defense this round; Rex (Handle 45, no Firearms) declares a shot at her with a .38 revolver.
 
 1. **Movement resolves:** Mirelda rolls Speed, `47`, a success: ranged attacks at her this round take -20.
 2. **Rex's turn:** the GM calls Medium range and, since the revolver has no range numbers yet, sets the modifier at +0. His attack number is 45 + 0 - 20 = 25.
