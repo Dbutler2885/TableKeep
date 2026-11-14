@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { rulesAnswerMessage } from '../src/discord/replies.ts'
+import { rulesAnswerMessages, splitMessages } from '../src/discord/replies.ts'
 import { answerRequest, openAiRulesAnswerer, readAnswer, RULES_ANSWER_MODEL } from '../src/rules/answer.ts'
 import { jevProbability, jevRequest, typesafeJev } from '../src/rules/jev.ts'
 import type { RecentAnswer, TranscriptLine } from '../src/rules/transcriptWindow.ts'
@@ -61,7 +61,11 @@ test("the answering model gets the whole rules document as instructions, and its
   assert.equal(request.model, RULES_ANSWER_MODEL)
   assert.equal(request.model, 'gpt-6-luna')
   assert.ok(request.instructions.endsWith(`${RULES.trim()}\n`), 'the rules document is the tail of the instructions')
-  assert.match(request.instructions, /at most three short sentences/)
+  assert.match(request.instructions, /Give the whole procedure the rules document sets out/)
+  assert.match(request.instructions, /never summarise in a way that drops a step, a number or a condition/)
+  assert.match(request.instructions, /the document's worked example after the steps, in full/)
+  assert.doesNotMatch(request.instructions, /short sentences|briefly/)
+  assert.deepEqual(request.reasoning, { effort: 'none' })
   assert.match(request.instructions, /name the section of the rules document/)
   assert.match(request.instructions, /does not cover the question/)
   assert.match(request.instructions, /not decided yet/)
@@ -122,36 +126,48 @@ test('the call to OpenAI sends the request and reads the answer', async () => {
 
 test('the Discord message says it is the rules answer, what was asked, and where in the document it came from', () => {
   const base = { question: 'do I add strength to the attack roll?', askedBy: 'Peter', answer: 'Yes, add your Strength to hit.', section: 'Attacks' }
-  assert.equal(
-    rulesAnswerMessage({ kind: 'answered', ...base }),
-    '**Rules answer** - Peter asked: "do I add strength to the attack roll?"\nYes, add your Strength to hit.\n-# From the rules document: Attacks',
+  assert.deepEqual(
+    rulesAnswerMessages({ kind: 'answered', ...base }),
+    ['**Rules answer** - Peter asked: "do I add strength to the attack roll?"\nYes, add your Strength to hit.\n-# From the rules document: Attacks'],
   )
-  assert.equal(
-    rulesAnswerMessage({ kind: 'not_covered', ...base, answer: "The rules document doesn't cover that.", section: '' }),
-    '**Rules answer** - Peter asked: "do I add strength to the attack roll?"\nThe rules document doesn\'t cover that.\n-# Not covered by the rules document',
+  assert.deepEqual(
+    rulesAnswerMessages({ kind: 'not_covered', ...base, answer: "The rules document doesn't cover that.", section: '' }),
+    ['**Rules answer** - Peter asked: "do I add strength to the attack roll?"\nThe rules document doesn\'t cover that.\n-# Not covered by the rules document'],
   )
-  assert.equal(
-    rulesAnswerMessage({ kind: 'not_decided', ...base, answer: "That rule isn't decided yet.", section: 'Two weapons' }),
-    '**Rules answer** - Peter asked: "do I add strength to the attack roll?"\nThat rule isn\'t decided yet.\n-# Not decided yet in the rules document (Two weapons)',
+  assert.deepEqual(
+    rulesAnswerMessages({ kind: 'not_decided', ...base, answer: "That rule isn't decided yet.", section: 'Two weapons' }),
+    ['**Rules answer** - Peter asked: "do I add strength to the attack roll?"\nThat rule isn\'t decided yet.\n-# Not decided yet in the rules document (Two weapons)'],
   )
-  assert.equal(rulesAnswerMessage({ kind: 'no_question', question: '', askedBy: '', answer: '', section: '' }), null)
-  assert.equal(rulesAnswerMessage({ kind: 'answered', ...base, answer: '' }), null)
+  assert.deepEqual(rulesAnswerMessages({ kind: 'no_question', question: '', askedBy: '', answer: '', section: '' }), [])
+  assert.deepEqual(rulesAnswerMessages({ kind: 'answered', ...base, answer: '' }), [])
 })
 
 test('a rules answer that leaves out who asked, what, or the section still reads plainly', () => {
   const answer = 'Yes, add your Strength to hit.'
-  assert.equal(
-    rulesAnswerMessage({ kind: 'answered', question: 'strength to hit?', askedBy: '', answer, section: '' }),
-    '**Rules answer** - asked: "strength to hit?"\nYes, add your Strength to hit.\n-# From the rules document',
+  assert.deepEqual(
+    rulesAnswerMessages({ kind: 'answered', question: 'strength to hit?', askedBy: '', answer, section: '' }),
+    ['**Rules answer** - asked: "strength to hit?"\nYes, add your Strength to hit.\n-# From the rules document'],
   )
-  assert.equal(
-    rulesAnswerMessage({ kind: 'not_decided', question: '', askedBy: 'Peter', answer, section: '' }),
-    '**Rules answer**\nYes, add your Strength to hit.\n-# Not decided yet in the rules document',
+  assert.deepEqual(
+    rulesAnswerMessages({ kind: 'not_decided', question: '', askedBy: 'Peter', answer, section: '' }),
+    ['**Rules answer**\nYes, add your Strength to hit.\n-# Not decided yet in the rules document'],
   )
 })
 
-test('a long answer is cut to fit in one Discord message', () => {
-  const text = rulesAnswerMessage({ kind: 'answered', question: 'q', askedBy: 'Peter', answer: 'word '.repeat(1_000), section: 'Attacks' })!
-  assert.ok(text.length <= 2_000)
-  assert.match(text, /…\n-# From the rules document: Attacks$/)
+test('an answer keeps its own lines, steps and markdown', () => {
+  const answer = '1. Everyone rolls **Speed**.\n2. Move the tens digit in units.\n\nExample: 30 meters on 4 units.'
+  assert.deepEqual(rulesAnswerMessages({ kind: 'answered', question: 'race?', askedBy: 'DLB', answer, section: 'Racing' }), [
+    `**Rules answer** - DLB asked: "race?"\n${answer}\n-# From the rules document: Racing`,
+  ])
+})
+
+test('text too long for one Discord message is split between lines, and a line too long for one between words', () => {
+  assert.deepEqual(splitMessages('aaaa\nbbbb\ncccc', 9), ['aaaa\nbbbb', 'cccc'])
+  assert.deepEqual(splitMessages('one two three four', 9), ['one two', 'three', 'four'])
+  assert.deepEqual(splitMessages('x'.repeat(20), 8), ['xxxxxxxx', 'xxxxxxxx', 'xxxx'])
+  assert.deepEqual(splitMessages('\nfirst\n\nsecond', 100), ['first\n\nsecond'])
+  assert.deepEqual(splitMessages('  ', 100), [])
+  const parts = splitMessages(Array.from({ length: 100 }, () => 'y'.repeat(50)).join('\n'))
+  assert.ok(parts.length === 3 && parts.every((part) => part.length <= 2_000))
+  assert.equal(parts.join('\n'), Array.from({ length: 100 }, () => 'y'.repeat(50)).join('\n'))
 })

@@ -303,7 +303,7 @@ export class SessionRunner {
       const rules = new RulesWatcher({
         ...this.#rules,
         sessionStartedAtMs: recorder.startedAtMs,
-        post: (text) => void this.#say(running, text),
+        post: (text) => this.#say(running, text),
       })
       running.rules = rules
       // Each line is put under the name the table knows its speaker by.

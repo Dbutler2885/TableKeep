@@ -375,7 +375,7 @@ test('a rules question heard at the table is answered in the channel while the s
       'Session 1 is saved.',
     ],
   )
-  assert.deepEqual(failures, ['rules check failed', 'rules checks working again', 'rules question heard', 'rules answer posted'])
+  assert.deepEqual(failures, ['rules check failed', 'rules checks working again', 'rules question heard', 'rules answer written', 'rules answer posted'])
 })
 
 test('/note marks the moment the command arrived, with who wrote it', async () => {

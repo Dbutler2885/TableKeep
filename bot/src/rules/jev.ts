@@ -30,7 +30,8 @@ const CRITERIA = {
   true:
     'Someone asks how a rule of the game works or what the rules allow: combat, actions, attacks, dice rolls and what to add to them, damage, wounds, healing, movement, conditions, equipment, or other game mechanics. ' +
     'Nobody has answered it later in the transcript, and the recent rules answers do not already answer it. ' +
-    'Wondering aloud about a rule counts as asking, and so does a follow-up that asks something the recent answers did not cover.',
+    'It need not be phrased as a question: wondering aloud about a rule counts as asking, and so does the GM or a player saying they forget, ' +
+    'do not know or are not sure how the rules handle the situation at hand. A follow-up that asks something the recent answers did not cover counts too.',
   false:
     'Nobody is asking about the rules. In-character talk, the story, planning what to do, asking someone what they want to do, ' +
     'the GM asking for a roll, small talk and anything outside the game are not rules questions. ' +

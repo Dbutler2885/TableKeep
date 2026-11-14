@@ -53,8 +53,9 @@ function setUp(options: { probabilities?: number[]; answers?: (RulesAnswer | Err
       if (next instanceof Error) throw next
       return next
     },
-    post: (text) => posted.push(text),
+    post: async (text) => posted.push(text),
     log: (message, detail) => logged.push({ message, detail }),
+    now: () => clock,
   })
   let clock = START
   /** Someone says something that ends now, and it arrives transcribed. */
@@ -81,18 +82,18 @@ test('nothing is asked of Jev until someone has said something', async () => {
   assert.equal(asked.length, 0)
 })
 
-test('Jev is asked about the latest stretch at most every few seconds while people talk, and not while they are quiet', async () => {
+test('Jev is asked as each line arrives, at most once a second, and not while people are quiet', async () => {
   const { asked, say, pass } = setUp()
   await pass(10_000)
   say('Ann', 'one')
   await pass(1_000)
   say('Peter', 'two')
-  await pass(1_000)
+  await pass(400)
   say('Ann', 'three')
   await pass(30_000)
 
-  // The first line is looked at as soon as it arrives; the next two together, once a few seconds have passed.
-  assert.deepEqual(asked, [['one'], ['one', 'two', 'three']])
+  // Each line is looked at as it arrives, but one that comes within a second of the last look waits out the second.
+  assert.deepEqual(asked, [['one'], ['one', 'two'], ['one', 'two', 'three']])
 })
 
 test('nothing more is asked of Jev once the session has ended, whatever is still heard', async () => {
@@ -137,8 +138,66 @@ test('a flagged question is answered from the stretch Jev saw, and posted as the
   ])
   assert.deepEqual(
     logged.map((entry) => entry.message),
-    ['rules question heard', 'rules answer posted'],
+    ['rules question heard', 'rules answer written', 'rules answer posted'],
   )
+})
+
+test('how long each part took is logged, from the end of the question to the answer in the channel', async () => {
+  let clock = START
+  const logged: { message: string; detail?: Record<string, unknown> }[] = []
+  const watcher = new RulesWatcher({
+    sessionStartedAtMs: START,
+    now: () => clock,
+    askJev: async () => {
+      clock += 250
+      return 0.95
+    },
+    answer: async () => {
+      clock += 2_600
+      return ANSWERED
+    },
+    post: async () => {
+      clock += 300
+    },
+    log: (message, detail) => logged.push({ message, detail }),
+  })
+  // The question ended 10 seconds in, and arrived transcribed a second and a quarter later.
+  watcher.heard([{ speaker: 'Peter', text: 'Does a shield count against arrows?', startSamples: 8 * RATE, endSamples: 10 * RATE }])
+  clock = START + 11_250
+  watcher.tick(clock)
+  await watcher.idle()
+
+  assert.deepEqual(
+    logged.map((entry) => [entry.message, entry.detail]),
+    [
+      ['rules question heard', { probability: 0.95, lines: 1, jevMs: 250, sinceSpeechMs: 1_500 }],
+      ['rules answer written', { kind: 'answered', answerMs: 2_600, characters: ANSWERED.answer.length }],
+      ['rules answer posted', { kind: 'answered', section: 'Shields', messages: 1, postMs: 300, sinceSpeechMs: 4_400 }],
+    ],
+  )
+})
+
+test('a long answer is posted in order, in as many messages as it takes', async () => {
+  const posted: string[] = []
+  const long: RulesAnswer = { ...ANSWERED, answer: Array.from({ length: 60 }, (_, step) => `${step + 1}. ${'x'.repeat(60)}`).join('\n') }
+  const watcher = new RulesWatcher({
+    sessionStartedAtMs: START,
+    askJev: async () => 0.95,
+    answer: async () => long,
+    // A slow first post must not let the second overtake it.
+    post: (text) => new Promise((resolve) => setTimeout(() => resolve(posted.push(text)), posted.length === 0 ? 20 : 0)),
+    log: () => undefined,
+  })
+  watcher.heard([{ speaker: 'Peter', text: 'How does a race work?', startSamples: 0, endSamples: 2 * RATE }])
+  watcher.tick(START + 3_000)
+  await watcher.idle()
+
+  assert.equal(posted.length, 3)
+  assert.ok(posted.every((message) => message.length <= 2_000))
+  assert.match(posted[0]!, /^\*\*Rules answer\*\*.*\n1\. x+/)
+  assert.match(posted[2]!, /(^|\n)60\. x+\n-# From the rules document: Shields$/)
+  // Nothing is lost or repeated across the parts.
+  assert.equal(posted.join('\n'), `**Rules answer** - Peter asked: "does a shield count against arrows?"\n${long.answer}\n-# From the rules document: Shields`)
 })
 
 test("the bot's own recent answers are shown to Jev and the answering model, so a question is not answered twice", async () => {
@@ -242,7 +301,7 @@ test('an answer that arrives after the session has ended is not posted', async (
     sessionStartedAtMs: START,
     askJev: async () => 0.95,
     answer: () => new Promise((resolve) => (release = resolve)),
-    post: (text) => posted.push(text),
+    post: async (text) => posted.push(text),
     log: () => undefined,
   })
   watcher.heard([{ speaker: 'Peter', text: 'Does a shield count?', startSamples: 0, endSamples: 2 * RATE }])
