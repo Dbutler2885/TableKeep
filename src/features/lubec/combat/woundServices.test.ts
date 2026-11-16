@@ -73,7 +73,7 @@ it('keeps a pre-initiative penalty out of the grant and includes it in round one
 it.each([
   [{ id: '' }, 'identity'], [{ effect: { ...wound().effect, id: '' } }, 'identity'],
   [{ originatingRound: -1 }, 'round'], [{ originatingRound: 1.5 }, 'round'],
-  [{ effectiveRound: 1 }, 'effective round'], [{ stressDelta: NaN }, 'counter'], [{ traumaDelta: 0.5 }, 'counter'],
+  [{ effectiveRound: 3 }, 'effective round'], [{ effectiveRound: 0 }, 'effective round'], [{ stressDelta: NaN }, 'counter'], [{ traumaDelta: 0.5 }, 'counter'],
 ] as const)('refuses invalid wound data atomically: %j', (changes, message) => {
   expect(() => combatWoundIntention({}, wound(changes), 'fight', 'op')).toThrow(message)
 })

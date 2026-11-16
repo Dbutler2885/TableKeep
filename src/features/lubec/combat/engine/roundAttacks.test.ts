@@ -390,3 +390,35 @@ describe('repairing a split the sheet no longer fits', () => {
     expect(who(rolled.records, ROY).declaration!.repaired).toBeUndefined()
   })
 })
+
+describe('a wound that lands before its target acts', () => {
+  /** Wayne's turn, after Roy missed him. */
+  const waynesTurn = () => ranged(onward(roll(ranged(attacking()), ROY, royThrow, [99]).records))
+  const wound = (round: number) => ({
+    id: 'w1', target: { kind: 'character' as const, sheetId: 'hero' }, originatingRound: round, effectiveRound: round, traumaDelta: 1, stressDelta: 0,
+    effect: { id: 'injury', name: 'Forearm injury', cause: 'Blunt Force', steps: [{ modifiers: [{ target: 'Handle' as const, amount: -40 }], labels: [] }] },
+  })
+  const withState = (records: CombatRecords, change: Partial<CombatState>): CombatRecords => ({ ...records, fight: { ...records.fight!, state: { ...state(records), ...change } } })
+
+  it('holds every roll by the wounded combatant until the wound is on the sheet they read', () => {
+    const records = waynesTurn()
+    const round = state(records).round
+    const pending = withState(records, { woundOutbox: [wound(round)] })
+    expect(() => roll(pending, HERO, heroThrow, [10])).toThrow('Waiting for wounds to reach the sheet')
+    const acknowledged = withState(records, { woundAcknowledgements: [{ id: 'w1', target: { kind: 'character', sheetId: 'hero' }, targetRevision: 5, originatingRound: round, effectiveRound: round, operationId: 'op' }] })
+    expect(() => roll(acknowledged, HERO, heroThrow, [10])).toThrow('Waiting for wounds to reach the sheet')
+  })
+
+  it('reads the delivered card on the next roll: a split that no longer fits is repaired first', () => {
+    const records = waynesTurn()
+    const round = state(records).round
+    const delivered: CombatRecords = {
+      ...withState(records, { woundAcknowledgements: [{ id: 'w1', target: { kind: 'character', sheetId: 'hero' }, targetRevision: 5, originatingRound: round, effectiveRound: round, operationId: 'op' }] }),
+      sheets: records.sheets.map((sheet) => (sheet.sheetId === 'hero'
+        ? { ...sheet, revision: 5, sheet: { ...sheet.sheet, effects: [{ ...wound(round).effect, combatOrigin: { fightId: 'fight', woundId: 'w1', originatingRound: round, effectiveRound: round } }] } }
+        : sheet)),
+    }
+    const held = roll(delivered, HERO, heroThrow, [10])
+    expect(state(held.records).attack).toMatchObject({ roll: null, splitRepair: { combatantKey: HERO, was: 65, pool: 25 } })
+  })
+})

@@ -360,7 +360,7 @@ describe('the doll, Strength and the wound', () => {
       'The table saysGain +1 Trauma in d4 turns unless a Body Save succeeds.',
       'NowTimer prevented: the Body Save stopped every countdown',
     ])
-    expect(within(results).getByText("Goes on Roy Carver's sheet next round.")).toBeTruthy()
+    expect(within(results).getByText("Goes on Roy Carver's sheet now: it counts for every roll Roy Carver has not made yet this round.")).toBeTruthy()
   })
 
   it('marks a small part\'s landing with the small crosshair', () => {

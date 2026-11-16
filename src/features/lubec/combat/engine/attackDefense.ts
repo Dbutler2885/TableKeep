@@ -9,6 +9,7 @@ import { attackAt, attackRepair, combatantOf, combatSheetOf, defenderOf } from '
 import { declaredLine, isRoundAttack } from './roundAttacks'
 import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
+import { requireDue } from './declare'
 import { checkSplit } from './splitRepair'
 import { combatRollMode, modeRecord, modeWords, rollWithMode, successThenHigher, type CombatMode } from './combatModes'
 import { combatInputModifiers } from './inputModifiers'
@@ -109,6 +110,7 @@ const defend: CombatHandler = (command, records, authority, entropy) => {
   const record = combatSheetOf(records, defender)
   const repair = attackRepair(defender, record)
   if (repair) return repairPlan(fight, attack, defender, repair)
+  requireDue(fight.state, defender, record!)
   if (attack.splitRepair) throw new Error('Waiting for the split to be repaired.')
   if (!isRoundAttack(fight.state, attack) || !declaredLine(fight.state, attack)) return defended(fight, attack, record!, command, entropy)
   // A declared Defense line rolls only once the split it came from still fits the pool, or has been split again.

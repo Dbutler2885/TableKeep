@@ -5,6 +5,7 @@ import { finishImpact, impactWords, pad, signed, stepRequest, tens } from './att
 import { attackAt, attackRepair, combatantOf, combatSheetOf } from './attackParty'
 import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
+import { requireDue } from './declare'
 import { lubecPartDistances } from './hitLocation'
 import { combatRollMode, modeRecord, modeWords, rollWithMode, successThenHigher, type CombatMode } from './combatModes'
 import { combatInputModifiers } from './inputModifiers'
@@ -73,6 +74,7 @@ const strength: CombatHandler = (command, records, authority, entropy) => {
   const record = combatSheetOf(records, attacker)
   const repair = attackRepair(attacker, record)
   if (repair) return repairPlan(fight, attack, attacker, repair)
+  requireDue(fight.state, attacker, record!)
   return strengthPlan(fight, attack, record!, command, entropy)
 }
 

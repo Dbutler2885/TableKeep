@@ -9,6 +9,7 @@ import { attackAt, attackRepair, combatantOf, combatSheetOf, requireOpponent } f
 import type { CombatLog } from './combatFeedback'
 import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
+import { requireDue } from './declare'
 import { closeAttack, stepRequest, toLocation } from './attackFlow'
 import { declaredLine, isRoundAttack } from './roundAttacks'
 import { weaponInHand } from './chooseAgain'
@@ -138,6 +139,8 @@ const roll: CombatHandler = (command, records, authority, entropy) => {
   const record = combatSheetOf(records, attacker)
   const repair = attackRepair(attacker, record)
   if (repair) return repairPlan(fight, attack, attacker, repair)
+  // A wound that landed on the attacker this round must be on their sheet before they roll.
+  requireDue(fight.state, attacker, record!)
   if (attack.splitRepair) throw new Error('Waiting for the split to be repaired.')
   if (!isRoundAttack(fight.state, attack)) return rollPlan(fight, attack, record!, command, entropy)
   // A declared attack rolls only once its split still fits the pool, or has been split again.

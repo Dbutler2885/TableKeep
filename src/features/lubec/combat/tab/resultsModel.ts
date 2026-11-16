@@ -84,6 +84,10 @@ function traumaWords(attack: CombatAttack): string {
   return parts.join(', ')
 }
 
+/** A located wound counts at once, for every roll the target has not made yet; Dodgeball's from next round. */
+const sheetWords = (table: string | undefined, name: string): string =>
+  (table ? `Goes on ${name}'s sheet now: it counts for every roll ${name} has not made yet this round.` : `Goes on ${name}'s sheet next round.`)
+
 /** The wound the hit left, once its row is applied; nothing before then or without one. */
 export function resultsWound(state: CombatState, attack: CombatAttack): ResultsWound | null {
   const row = attack.row
@@ -93,7 +97,7 @@ export function resultsWound(state: CombatState, attack: CombatAttack): ResultsW
     severity: row.severity, cls: SEVERITY_CLASS[row.severity], trauma: traumaWords(attack),
     name: row.name, parts: row.final ? [{ label: 'The table says', text: lubecPlainProse(attack.rowOutcome || `${row.name}.`) }] : woundParts(lubecPlainProse(attack.rowOutcome || `${row.name}.`)), injury: row.injury ?? null, notes: woundNotes(attack),
     sections: attack.rowSections ?? [],
-    out: target.outReason !== null, sheet: `Goes on ${target.name}'s sheet next round.`,
+    out: target.outReason !== null, sheet: sheetWords(row.table, target.name),
   }
 }
 

@@ -12,7 +12,8 @@ export async function combatWoundOperationId(fightId: string, woundId: string): 
 
 function requireWoundRound(wound: CombatWound) {
   if (!Number.isSafeInteger(wound.originatingRound) || wound.originatingRound < 0) throw new Error('Invalid wound round.')
-  if (wound.effectiveRound !== wound.originatingRound + 1) throw new Error('Invalid wound effective round.')
+  // A located wound is effective in the round it lands; Dodgeball, and any wound queued before that, the next round.
+  if (wound.effectiveRound !== wound.originatingRound && wound.effectiveRound !== wound.originatingRound + 1) throw new Error('Invalid wound effective round.')
 }
 
 const CARD_KEY = /^[A-Za-z0-9_-]{1,40}$/

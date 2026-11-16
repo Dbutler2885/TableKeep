@@ -28,7 +28,7 @@ describe('the Results wound panel', () => {
   it('shows the Trauma the wound gave, the rolls that picked it, and where it goes', () => {
     expect(resultsWound(state, attack)).toMatchObject({
       severity: 'Severe', cls: 'sv', trauma: 'Trauma 0', name: 'Skull hit', out: false,
-      notes: ['Body Save 07 against 40: passed', 'd2 rolled 2', 'Resolved by hand: the sheet gets these words, and the table applies them.'], sheet: "Goes on Roy's sheet next round.",
+      notes: ['Body Save 07 against 40: passed', 'd2 rolled 2', 'Resolved by hand: the sheet gets these words, and the table applies them.'], sheet: "Goes on Roy's sheet now: it counts for every roll Roy has not made yet this round.",
     })
   })
 

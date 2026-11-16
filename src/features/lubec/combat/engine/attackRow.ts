@@ -11,6 +11,7 @@ import { tableChecked } from './attackTableRow'
 import { attackAt, attackRepair, combatantOf, combatSheetOf, defenderOf } from './attackParty'
 import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
+import { requireDue } from './declare'
 import type { CombatAttack, CombatCommand, Combatant, CombatFight, CombatHandler, CombatPlan, CombatSheet, CombatState, CombatWoundRow } from './types'
 import { checkLog, rollRowCheck } from './woundCheck'
 
@@ -96,6 +97,8 @@ const check: CombatHandler = (command, records, authority, entropy) => {
   const record = combatSheetOf(records, target)
   const repair = attackRepair(target, record, true)
   if (repair) return repairPlan(fight, attack, target, repair)
+  // An earlier wound on the target must be on their sheet before this wound's Save or Check reads it.
+  requireDue(fight.state, target, record!)
   return attack.row!.table ? tableChecked(fight, attack, record!, command, entropy) : checked(fight, attack, record!, command, entropy)
 }
 

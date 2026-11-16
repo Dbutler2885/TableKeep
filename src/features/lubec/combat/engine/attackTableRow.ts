@@ -81,13 +81,13 @@ const target = (state: CombatState, attack: CombatAttack) => {
   return { kind: entry.kind, sheetId: entry.sheetId }
 }
 
-/** A provisional row: its words go to the target's sheet, effective next round, with its Trauma and any Save's Stress; an unconscious target is Out at once. */
+/** A provisional row: its words go to the target's sheet, effective at once, with its Trauma and any Save's Stress; an unconscious target is Out at once. */
 function applyProvisional(state: CombatState, attack: CombatAttack, applied: Applied, stress: number, entropy: CombatEntropy): CombatState {
   const located = locatedOf(attack)
   const targetKey = defenderOf(attack)
   const combatants = state.combatants.map((entry) => (entry.key === targetKey && attack.row!.out && entry.outReason === null ? { ...entry, outReason: 'wound' } : entry))
   const wound: CombatWound = {
-    id: entropy.id('wound', 0), target: target(state, attack), originatingRound: state.round, effectiveRound: state.round + 1,
+    id: entropy.id('wound', 0), target: target(state, attack), originatingRound: state.round, effectiveRound: state.round,
     traumaDelta: applied.trauma, stressDelta: stress, effect: woundEffect(attack, attack.row!, applied, located.table.name, entropy),
   }
   return closeAttack({ ...state, combatants, woundOutbox: [...state.woundOutbox, wound] }, { ...attack, rowOutcome: applied.text, rowTrauma: applied.trauma }, 'wounded')
@@ -98,7 +98,7 @@ const snapshotCheck = (check: CombatCheckRoll): LubecWoundRolledCheck => ({
   kind: check.kind, against: check.against, mode: check.advantage, target: check.target, dice: check.dice, result: check.result, success: check.success, stress: check.stress,
 })
 
-/** A final row: its cards, Trauma, Stress and Minimum Stress go to the target's sheet, effective next round. A missed fist catch gives nothing at all. */
+/** A final row: its cards, Trauma, Stress and Minimum Stress go to the target's sheet, effective at once: every roll the target has not made yet this round reads it. A missed fist catch gives nothing at all. */
 function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatCheckRoll[], entropy: CombatEntropy): CombatState {
   const located = locatedOf(attack)
   const row = attack.row!
@@ -121,7 +121,7 @@ function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatChec
   }
   const cards = lubecWoundCards(landed.outcome, { source, cause: causeOf(attack, row, located.table.name), rolled })
   const wound: CombatWound = {
-    id: entropy.id('wound', 0), target: target(state, attack), originatingRound: state.round, effectiveRound: state.round + 1,
+    id: entropy.id('wound', 0), target: target(state, attack), originatingRound: state.round, effectiveRound: state.round,
     traumaDelta: landed.trauma, stressDelta: landed.stress, ...(minimumStress ? { minimumStressDelta: minimumStress } : {}),
     ...(cards.length ? { effect: cards[0] } : {}), effects: cards,
   }

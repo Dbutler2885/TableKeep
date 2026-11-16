@@ -55,7 +55,7 @@ async function delivered(stored: Record<string, unknown> = { lubec: lubecCharact
 describe('a final Blunt Force forearm 4 wound', () => {
   it('lands as one Long Rest card of -20 Handle, with +1 Trauma and nothing resolved by hand', () => {
     const wound = landed()
-    expect(wound).toMatchObject({ traumaDelta: 1, stressDelta: 0, originatingRound: 2, effectiveRound: 3 })
+    expect(wound).toMatchObject({ traumaDelta: 1, stressDelta: 0, originatingRound: 2, effectiveRound: 2 })
     expect(wound.effects).toHaveLength(1)
     expect(wound.effects![0]).toMatchObject({
       cardKey: 'injury', name: 'Forearm injury', part: 'Forearm',
@@ -72,7 +72,7 @@ describe('a final Blunt Force forearm 4 wound', () => {
     expect(planned.outcome).toMatchObject({ status: 'committed', revision: 4 })
     expect(lubec.counters.trauma).toBe(1)
     expect(lubec.effects).toHaveLength(1)
-    expect(lubec.effects[0]).toMatchObject({ id: `${operationId}_injury`, combatOrigin: { fightId: 'fight', effectiveRound: 3 } })
+    expect(lubec.effects[0]).toMatchObject({ id: `${operationId}_injury`, combatOrigin: { fightId: 'fight', effectiveRound: 2 } })
     expect(lubecEffectWound(lubec.effects[0])?.groupId).toBe(operationId)
   })
 
@@ -90,11 +90,11 @@ describe('a final Blunt Force forearm 4 wound', () => {
     expect(lubec.effects.map((effect) => effect.id)).toEqual(['note', expect.stringMatching(/_injury$/)])
   })
 
-  it('lowers Handle by 20 in Core at once and in combat from the next round, and Step down restores it without touching Trauma', async () => {
+  it('lowers Handle by 20 in Core and in combat the round it lands, and Step down restores it without touching Trauma', async () => {
     const { lubec } = await delivered()
     expect(lubecCurrentValue(lubec, 'Handle', lubecSheetModifiers(lubec))).toBe(35)
     expect(lubecCheckTarget(lubec, 'Handle', null)).toBe(35)
-    expect(lubecEffectiveHandle(lubec, combatInputModifiers(lubec, { fightId: 'fight', round: 2 }))).toBe(55)
+    expect(lubecEffectiveHandle(lubec, combatInputModifiers(lubec, { fightId: 'fight', round: 2 }))).toBe(35)
     expect(lubecEffectiveHandle(lubec, combatInputModifiers(lubec, { fightId: 'fight', round: 3 }))).toBe(35)
     const rested: LubecCharacterSheet = { ...lubec, effects: stepDownLubecEffect(lubec.effects, lubec.effects[0].id) }
     expect(rested.effects).toEqual([])
