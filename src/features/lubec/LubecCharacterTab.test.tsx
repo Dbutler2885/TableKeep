@@ -2404,6 +2404,29 @@ describe('Lubec roller', () => {
     expect(pressedMode()).toEqual(['Normal'])
   })
 
+  it('preselects the mode a wound card sets, names the card, and lets the switch override it for one roll', async () => {
+    const ribs = { id: 'ribs', name: 'Broken rib(s)', cause: 'Blunt Force', part: 'Ribs', wound: { row: 'Broken rib(s)', table: 'blunt', groupId: 'w' }, steps: [{ modifiers: [], labels: [], until: 'long-rest', rolls: [{ scope: 'physical', mode: 'disadvantage' }] }] }
+    seed({ tommy: withSheet({ effects: [ribs] }) })
+    mountTab('player', 'player-1')
+    openSheet('Tommy Eves')
+    expect(pressedMode()).toEqual([])
+    expect([...screen.getByLabelText('Modes from effects').querySelectorAll('li')].map((line) => line.textContent)).toEqual(['Strength, Speed, Handle: Disadvantage from Broken rib(s) (Ribs)'])
+
+    seedRolls(23, 71)
+    roll('Speed')
+    expect(shownStatus()).toBe('Speed (Disadvantage from Broken rib(s) (Ribs), 23 and 71): 71 vs 56 - failure, +1 Stress.')
+    seedRolls(40)
+    roll('Intellect')
+    expect(shownStatus()).toBe('Intellect: 40 vs 43 - success.')
+
+    fireEvent.click(rollerButton('Normal'))
+    expect(pressedMode()).toEqual(['Normal'])
+    seedRolls(40)
+    roll('Speed')
+    expect(shownStatus()).toBe('Speed: 40 vs 56 - success.')
+    expect(pressedMode()).toEqual([])
+  })
+
   it('applies an armed skill\'s bonus to the next roll only, then disarms it', async () => {
     seed({ tommy: tommyEves() })
     mountTab('player', 'player-1')

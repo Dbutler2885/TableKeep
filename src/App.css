@@ -17860,6 +17860,31 @@ button:disabled {
 }
 
 /* A consequence the app does not play yet: the table applies it. */
+.shell-root[data-theme="lubec"] .lubec-card-modes {
+  display: grid;
+  gap: 0.15rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.78rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.shell-root[data-theme="lubec"] .lubec-roll-action {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.shell-root[data-theme="lubec"] .lubec-roll-action select {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .shell-root[data-theme="lubec"] .lubec-effect-manual {
   padding: 0 0.35rem;
   font-size: 0.68rem;

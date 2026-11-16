@@ -51,7 +51,8 @@ export type LubecSpin = {
  * but the switch keeps showing the mode a roll spins with until its ghost has
  * merged, and goes back to Normal only once the result lands.
  */
-export const lubecShownAdvantage = (spin: LubecSpin | null, mode: LubecAdvantage): LubecAdvantage =>
+/** The mode the switch shows: the spinning roll's, or the one set by hand; null while the cards decide. */
+export const lubecShownAdvantage = (spin: LubecSpin | null, mode: LubecAdvantage | null): LubecAdvantage | null =>
   spin?.advantage ?? mode
 
 /**
@@ -188,8 +189,11 @@ function statusParts(roll: LubecLastRoll): StatusParts {
 }
 
 // Both dice under Advantage or Disadvantage, so anyone viewing sees which one was kept.
-const advantageNote = (roll: LubecLastRoll): string =>
-  (roll.advantage === 'normal' ? '' : ` (${lubecAdvantageName(roll.advantage)}, ${roll.dice.join(' and ')})`)
+const advantageNote = (roll: LubecLastRoll): string => {
+  const because = 'because' in roll && typeof roll.because === 'string' ? roll.because : null
+  if (roll.advantage === 'normal') return because ? ` (${because})` : ''
+  return ` (${because ?? lubecAdvantageName(roll.advantage)}, ${roll.dice.join(' and ')})`
+}
 
 /** "Handle + Boatwork: 32 vs 65 - success.", with both dice under Advantage and any Stress the roll changed. */
 export function lubecRollStatus(roll: LubecLastRoll): string {
