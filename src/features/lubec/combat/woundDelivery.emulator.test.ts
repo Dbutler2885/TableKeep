@@ -528,3 +528,46 @@ describe('a wound drop through real rules', () => {
     expect(stored.sheetRevision).toBe(2)
   })
 })
+
+describe('the delayed speech-recovery Save through real rules', () => {
+  const speech = {
+    id: 'speech', name: 'Windpipe opened', part: 'Speech', cause: 'Cutting Neck 5', cardKey: 'speech', wound: { groupId: 'original', trauma: 2 },
+    steps: [
+      { modifiers: [], labels: [], until: 'long-rest', restrictions: [{ kind: 'speech', words: 'Whisper only' }] },
+      { modifiers: [], labels: ['Body Save'], until: 'by-hand', onReach: { save: 'Body', failure: 'Speech damaged' } },
+    ],
+  }
+  const bleed = { id: 'bleed', name: 'Windpipe opened', part: 'Bleeding', cause: 'Cutting Neck 5', steps: [{ modifiers: [], labels: ['Keep'], until: 'rounds' }] }
+  const quiet = { updateCharacterNow: () => undefined, hasPendingWrite: () => false }
+  const recover = (uid: string, selection: CombatantSelection) => lubecEffectRecovery({ db: as(uid), scope, sheet: selection.kind === 'npc' ? { kind: 'npc', npcId: selection.sheetId } : { kind: 'character', characterId: selection.sheetId } }, quiet, selection.sheetId)
+
+  it.each([target, { kind: 'npc', sheetId: 'roy' } as const])('resolves a $kind card once across racing Step downs and a replay, keeping the sibling and the landing charges', async (selection) => {
+    const path = selection.kind === 'character' ? 'characters/hero' : 'npcSheets/roy'
+    const raw = sheet(selection.kind === 'character' ? 'player' : 'gm')
+    await seed(path, { ...raw, lubec: { ...raw.lubec, base: { ...raw.lubec.base, Body: 100 }, counters: { stress: 3, minimumStress: 3, trauma: 2 }, effects: [speech, bleed] } })
+    const uid = selection.kind === 'character' ? 'player' : 'gm'
+    const results = await Promise.all([recover(uid, selection)('speech', 'reach'), recover('second-gm', selection)('speech', 'reach')])
+    expect(results[0]).toMatchObject({ status: 'committed', revision: 1 })
+    expect(results[1]).toEqual(results[0])
+    const current = await storedSheet(as(), path)
+    expect(current.lubec.counters).toEqual({ stress: 3, minimumStress: 3, trauma: 2 })
+    expect(current.lubec.effects).toEqual([bleed])
+    expect(current.lubec.lastRoll).toMatchObject({ against: 'Body', outcome: 'success' })
+    expect(await recover(uid, selection)('speech', 'reach')).toEqual(results[0])
+    expect((await storedSheet(as(), path)).sheetRevision).toBe(1)
+  })
+
+  it('charges a failed Save once, and refuses another player or a player resolving an NPC', async () => {
+    const raw = sheet()
+    await seed('characters/hero', { ...raw, lubec: { ...raw.lubec, base: { ...raw.lubec.base, Body: 0 }, counters: { stress: 3, minimumStress: 3, trauma: 2 }, effects: [speech, bleed] } })
+    await seed('npcSheets/roy', { ...raw, ownerUserId: 'gm', lubec: { ...raw.lubec, effects: [speech] } })
+    await expect(recover('other', target)('speech', 'reach')).rejects.toThrow()
+    await expect(recover('player', { kind: 'npc', sheetId: 'roy' })('speech', 'reach')).rejects.toThrow()
+    const result = await recover('player', target)('speech', 'reach')
+    expect(result).toMatchObject({ status: 'committed', revision: 1 })
+    expect(await recover('gm', target)('speech', 'reach')).toEqual(result)
+    const current = await storedSheet()
+    expect(current.lubec.counters).toEqual({ stress: 4, minimumStress: 3, trauma: 2 })
+    expect(current.lubec.effects).toEqual([bleed, expect.objectContaining({ id: 'speech_recovered', steps: [expect.objectContaining({ labels: ['Speech damaged'], until: 'lasting', charmReminder: true })], recoveryRoll: expect.objectContaining({ outcome: 'failure' }) })])
+  })
+})

@@ -107,6 +107,28 @@ it('offers a waking Save before clearing Head 9 and sends it once without an ord
   fireEvent.click(submit)
   fireEvent.click(submit)
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Waking Save' })).toBeNull())
-  expect(recover).toHaveBeenCalledExactlyOnceWith('head9')
+  expect(recover).toHaveBeenCalledExactlyOnceWith('head9', 'wake')
+  expect(change).not.toHaveBeenCalled()
+})
+
+it('offers the speech card\'s recovery Save at its Step down, sends it once, and steps no sibling down', async () => {
+  const card = {
+    ...forearm, id: 'speech', name: 'Windpipe opened', part: 'Speech',
+    steps: [
+      { modifiers: [], labels: [], until: 'long-rest' as const, restrictions: [{ kind: 'speech' as const, words: 'Whisper only' }] },
+      { modifiers: [], labels: ['Body Save'], until: 'by-hand' as const, onReach: { save: 'Body', failure: 'Speech damaged' } },
+    ],
+  }
+  const change = vi.fn()
+  const recover = vi.fn(async () => ({ status: 'committed' as const, operationId: 'reach', revision: 3 }))
+  render(<LubecEffectsPanel effects={[card, forearm]} counters={lubecCharacterSheet().counters} onChange={change} onRecover={recover} gear={lubecCharacterSheet().gear} onGearChange={null} />)
+  fireEvent.click(screen.getAllByRole('button', { name: /Step down Windpipe opened/ })[0])
+  const dialog = screen.getByRole('dialog', { name: 'Recovery Save' })
+  expect(dialog.textContent).toContain('Stepping Speech down reaches its recovery point: roll a Body Save once. Failure leaves Speech damaged')
+  const submit = screen.getByRole('button', { name: 'Step down and roll Body Save' })
+  fireEvent.click(submit)
+  fireEvent.click(submit)
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Recovery Save' })).toBeNull())
+  expect(recover).toHaveBeenCalledExactlyOnceWith('speech', 'reach')
   expect(change).not.toHaveBeenCalled()
 })

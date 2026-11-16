@@ -248,7 +248,7 @@ export const LUBEC_AUTOMATED = {
   /** Rest-of-combat steps ending when the fight ends. */
   closing: true,
   /** A delayed speech-recovery Body Save offered by the Step down that reaches its step. */
-  speechSave: false,
+  speechSave: true,
 }
 
 const STAGE_CARDS = ['movement', 'action', 'dazed', 'down', 'unconscious']
