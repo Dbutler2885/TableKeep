@@ -153,3 +153,61 @@ describe('a final row that lands at once', () => {
     expect(asked.state.attack!.row!.final).toBeUndefined()
   })
 })
+
+describe('a final Cutting wound with a countdown', () => {
+  it('makes one landing Body Save: success prevents the timer and runs none', () => {
+    const done = landed('cutting', 'neck', 3, { check: [10] })
+    expect(attackOf(done).checks).toMatchObject([{ purpose: 'prevention', success: true, stress: 0 }])
+    expect(outboxOf(done)).toMatchObject({ traumaDelta: 1, stressDelta: 0, effects: [] })
+    expect(attackOf(done).rowSections).toEqual([{ label: 'Now', items: ['Timer prevented: the Body Save stopped every countdown'] }])
+  })
+
+  it('failure adds the Save\'s Stress once and rolls the d4 once, keeping it on a bleeding card', () => {
+    const done = landed('cutting', 'neck', 3, { check: [99], 'timer-bleed': [3] })
+    expect(outboxOf(done)).toMatchObject({ traumaDelta: 1, stressDelta: 1 })
+    const bleed = outboxOf(done).effects![0]
+    expect(bleed).toMatchObject({ cardKey: 'bleed', part: 'Bleeding', countdown: { kind: 'bleed', rounds: 3 }, steps: [{ until: 'rounds', labels: ['+1 Trauma in d4 = 3 rounds'] }] })
+    expect(lubecEffectWound(bleed)!.dice).toEqual({ 'Bleeding d4': [3] })
+  })
+
+  it('a Critical countdown keeps its own d4', () => {
+    const done = landed('cutting', 'thigh-L', 8, { check: [99], 'timer-critical': [1] })
+    expect(outboxOf(done).effects!.map((card) => [card.cardKey, card.countdown])).toEqual([['action', undefined], ['critical', { kind: 'critical', rounds: 1 }]])
+  })
+})
+
+describe('final Cutting lasting amounts', () => {
+  it('rolls 1d5 fingers once, records them at once, and holds -5 Handle per finger for the last step', () => {
+    const done = landed('cutting', 'hand-L', 6, { check: [10], fingers: [3] })
+    const [fingers, hand] = outboxOf(done).effects!
+    expect(fingers).toMatchObject({ cardKey: 'fingers', steps: [{ until: 'lasting', labels: ['3 fingers lost from the left hand'] }] })
+    expect(hand.steps.map((step) => [step.until, step.modifiers, step.setTo])).toEqual([
+      ['long-rest', [], [{ target: 'Handle', value: 10 }]],
+      ['long-rest', [{ target: 'Handle', amount: -20 }], undefined],
+      ['lasting', [{ target: 'Handle', amount: -15 }], undefined],
+    ])
+    expect(lubecEffectWound(hand)!.dice).toMatchObject({ 'Fingers 1d5': [3] })
+  })
+
+  it('rolls a lasting -1d10 Body and -1d20 Handle once when the wound lands', () => {
+    const back = landed('cutting', 'torso', 7, { check: [10], 'amount-body-2-Body': [7] })
+    expect(outboxOf(back).effects!.find((card) => card.cardKey === 'body')!.steps[2]).toMatchObject({ until: 'lasting', modifiers: [{ target: 'Body', amount: -7 }] })
+    const shoulder = landed('cutting', 'upperarm-R', 7, { check: [10], 'amount-arm-2-Handle': [13] })
+    const arm = outboxOf(shoulder).effects!.find((card) => card.cardKey === 'arm')!
+    expect(arm.steps[2]).toMatchObject({ until: 'lasting', modifiers: [{ target: 'Handle', amount: -13 }], labels: ['Cut muscle'] })
+    expect(arm.steps[0]).toMatchObject({ restrictions: [{ kind: 'arm-unusable', side: 'R' }] })
+  })
+
+  it('applies an "if survived" lasting loss at once, with no survival gate', () => {
+    const done = landed('cutting', 'waist', 8, { check: [10] })
+    expect(outboxOf(done).effects!.map((card) => [card.cardKey, card.steps[0].until, card.steps[0].modifiers])).toEqual([
+      ['dazed', 'rounds', []],
+      ['lasting', 'lasting', [{ target: 'Body', amount: -10 }]],
+    ])
+  })
+
+  it('keeps the windpipe\'s later Body Save as a visible step resolved by hand', () => {
+    const speech = outboxOf(landed('cutting', 'neck', 5, { check: [10] })).effects!.find((card) => card.cardKey === 'speech')!
+    expect(speech.steps[1]).toMatchObject({ until: 'by-hand', onReach: { save: 'Body', failure: 'Speech damaged' } })
+  })
+})

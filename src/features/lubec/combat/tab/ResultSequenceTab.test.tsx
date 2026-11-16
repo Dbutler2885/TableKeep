@@ -347,7 +347,7 @@ describe('the doll, Strength and the wound', () => {
   })
 
   it('reads a located table: the wound box says where and how bad, and Results show the wound bound for the sheet', () => {
-    show('gm', 'gm', fightAfter(...landed(slashAt), { type: 'land', actor: WAYNE, part: 'torso' }, { type: 'strength', actor: WAYNE, dice: { strength: 10 } }))
+    show('gm', 'gm', fightAfter(...landed(slashAt), { type: 'land', actor: WAYNE, part: 'torso' }, { type: 'strength', actor: WAYNE, dice: { strength: 10 } }, { type: 'check', actor: ROY, dice: { check: 10 } }))
     expect(document.querySelector('.wound .wh')!.textContent).toBe('Cutting · Torso · Impact 4Serious Trauma +1')
     const results = screen.getByRole('region', { name: 'Results' })
     expect(within(results).getByRole('heading', { level: 3 }).textContent).toBe('Roy Carver: Serious wound')
@@ -356,7 +356,10 @@ describe('the doll, Strength and the wound', () => {
     expect([...results.querySelectorAll('.results-facts > div')].map((fact) => fact.textContent)).toEqual(['WhoWayne Gardner → Roy Carver', 'WithKnife · Slash', 'WhereTorso', 'How hardImpact 4 on Cutting'])
     expect(within(results).getByRole('heading', { level: 4 }).textContent).toBe('Long chest cut')
     expect(results.querySelector('.results-wound')!.className).toBe('results-wound se')
-    expect([...results.querySelectorAll('.results-parts > div')].map((part) => part.textContent)).toEqual(['What it doesBleeding timer.'])
+    expect([...results.querySelectorAll('.results-parts > div')].map((part) => part.textContent)).toEqual([
+      'The table saysGain +1 Trauma in d4 turns unless a Body Save succeeds.',
+      'NowTimer prevented: the Body Save stopped every countdown',
+    ])
     expect(within(results).getByText("Goes on Roy Carver's sheet next round.")).toBeTruthy()
   })
 

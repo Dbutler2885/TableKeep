@@ -230,18 +230,21 @@ describe('the landing, Strength and Impact', () => {
     expect(plan.fight.state.floor).toHaveLength(1)
   })
 
-  it('reads a located table and queues its wound, with its Trauma and words, for the target\'s sheet', () => {
+  it('reads a final located table, asks the target for its landing Body Save, and queues its cards for the target\'s sheet', () => {
     const slash = { targetKey: ROY, weaponItemId: 'knife', attackId: 'slash', defense: null }
     // A slash's d100 of 30 lands on the torso.
     const placed = act(defend(thrown(27, fight(), slash, false).records, { amount: 0 }, { landing: 30 }).records, { type: 'land', actor: HERO, by: player, part: 'torso' }).records
-    const { plan } = act(placed, { type: 'strength', actor: HERO, by: player, dice: { strength: 10 } })
-    expect(plan.fight.state.attack).toMatchObject({
-      outcome: 'wounded', closed: true, impact: { total: 4, table: 'cutting' }, rowOutcome: 'Bleeding timer.', rowTrauma: 1,
-      row: { table: 'cutting', group: 'torso', impact: 4, name: 'Long chest cut', severity: 'Serious', trauma: 1, check: null, injury: null, choice: null, out: false },
+    const struck = act(placed, { type: 'strength', actor: HERO, by: player, dice: { strength: 10 } })
+    expect(struck.plan.fight.state.attack).toMatchObject({
+      step: 'check', closed: false, impact: { total: 4, table: 'cutting' },
+      row: { table: 'cutting', group: 'torso', impact: 4, name: 'Long chest cut', severity: 'Serious', trauma: 1, final: true, check: { kind: 'save', against: 'Body' } },
     })
+    expect(struck.plan.fight.state.pendingActions).toEqual([{ combatantKey: ROY, action: 'save' }])
+    const { plan } = act(struck.records, { type: 'check', actor: ROY, by: gm, dice: { check: 99, 'timer-bleed': 2 } })
+    expect(plan.fight.state.attack).toMatchObject({ outcome: 'wounded', closed: true, rowTrauma: 1, rowStress: 1, checks: [{ purpose: 'prevention', success: false }] })
     expect(plan.fight.state.woundOutbox).toEqual([expect.objectContaining({
-      target: { kind: 'npc', sheetId: 'roy' }, traumaDelta: 1, stressDelta: 0,
-      effect: expect.objectContaining({ name: 'Long chest cut', cause: 'Cutting, torso, Impact 4: Serious Long chest cut', struckLocation: 'torso', steps: [{ modifiers: [], labels: ['Bleeding timer.'] }] }),
+      target: { kind: 'npc', sheetId: 'roy' }, traumaDelta: 1, stressDelta: 1,
+      effects: [expect.objectContaining({ name: 'Long chest cut', cardKey: 'bleed', cause: 'Cutting, torso, Impact 4: Serious Long chest cut', struckLocation: 'torso', countdown: { kind: 'bleed', rounds: 2 } })],
     })])
     expect(plan.fight.state.combatants.find((entry) => entry.key === ROY)!.outReason).toBeNull()
     expect(plan.sheets).toBeUndefined()

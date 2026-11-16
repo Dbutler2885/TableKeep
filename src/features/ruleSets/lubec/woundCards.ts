@@ -56,7 +56,12 @@ export type LubecWoundRolled = {
   fingers?: number
   /** Countdowns the prevention Save did not stop, with the d4 each rolled. */
   timers?: { kind: LubecWoundTimer; rounds: number }[]
+  /** Losses rolled once, by `card.step.target`. */
+  amounts?: Record<string, number>
 }
+
+/** Where a rolled loss is kept: the card, the step and the value it lowers. */
+export const lubecRolledKey = (card: string, step: number, target: string) => `${card}.${step}.${target}`
 
 /** What the card builder needs beyond the row: the snapshot, the one-line cause, and the rolled amounts. */
 export type LubecWoundCardContext = { source: Omit<LubecWoundSource, 'groupId'>; cause: string; rolled?: LubecWoundRolled; fingers?: number }
@@ -78,12 +83,22 @@ const struckSide = (part: string): 'L' | 'R' => (part.endsWith('-L') ? 'L' : 'R'
 const restrictionOf = (spec: LubecRestrictionSpec, part: string): LubecRestriction =>
   ('side' in spec && spec.side === 'struck' ? { kind: spec.kind, side: struckSide(part) } : spec as LubecRestriction)
 
-function stepOf(spec: LubecWoundStepSpec, context: LubecWoundCardContext): LubecEffectStep {
+const SIDES = { L: 'left', R: 'right' } as const
+
+function labelsOf(spec: LubecWoundStepSpec, context: LubecWoundCardContext): string[] {
+  const fingers = context.rolled?.fingers ?? context.fingers ?? 0
+  return (spec.labels ?? []).map((label) => label
+    .replace('{fingers}', `${fingers} finger${fingers === 1 ? '' : 's'}`)
+    .replace('{side}', SIDES[struckSide(context.source.part)]))
+}
+
+function stepOf(spec: LubecWoundStepSpec, context: LubecWoundCardContext, at: { card: string; step: number }): LubecEffectStep {
   const fingerCount = context.rolled?.fingers ?? context.fingers ?? 0
   const fingers = spec.perFinger && fingerCount ? [{ target: 'Handle' as const, amount: spec.perFinger * fingerCount }] : []
+  const rolled = (spec.rolled ?? []).map(({ target }) => ({ target, amount: -(context.rolled?.amounts?.[lubecRolledKey(at.card, at.step, target)] ?? 0) }))
   return {
-    modifiers: mergedModifiers([...(spec.modifiers ?? []), ...fingers]),
-    labels: spec.labels ?? [],
+    modifiers: mergedModifiers([...(spec.modifiers ?? []), ...fingers, ...rolled]).filter((modifier) => modifier.amount !== 0),
+    labels: labelsOf(spec, context),
     until: spec.until,
     ...(spec.fractions?.length ? { fractions: spec.fractions } : {}),
     ...(spec.setTo?.length ? { setTo: spec.setTo } : {}),
@@ -99,7 +114,7 @@ function stepOf(spec: LubecWoundStepSpec, context: LubecWoundCardContext): Lubec
 function cardOf(spec: LubecWoundCardSpec, context: LubecWoundCardContext): LubecEffect {
   return {
     id: spec.key, cardKey: spec.key, name: context.source.row, part: spec.part, cause: context.cause,
-    steps: spec.steps.map((step) => stepOf(step, context)),
+    steps: spec.steps.map((step, index) => stepOf(step, context, { card: spec.key, step: index })),
     struckLocation: context.source.part,
     wound: { ...context.source, groupId: '' },
   }
@@ -180,6 +195,8 @@ export const LUBEC_AUTOMATED = {
   rounds: false,
   /** Rest-of-combat steps ending when the fight ends. */
   closing: false,
+  /** A delayed speech-recovery Body Save offered by the Step down that reaches its step. */
+  speechSave: false,
 }
 
 const STAGE_CARDS = ['movement', 'action', 'dazed', 'down', 'unconscious']
@@ -194,6 +211,7 @@ export function lubecStepByHand(effect: LubecEffect, step: LubecEffectStep | und
     || (!LUBEC_AUTOMATED.stages && STAGE_CARDS.includes(String(effect.cardKey)))
     || (!LUBEC_AUTOMATED.rounds && (until === 'rounds' || until === 'next-round-end'))
     || (!LUBEC_AUTOMATED.closing && until === 'combat-end')
+    || (!LUBEC_AUTOMATED.speechSave && typeof step.onReach === 'object' && step.onReach !== null)
 }
 
 const UNTIL_WORDS = {

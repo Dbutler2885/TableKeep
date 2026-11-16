@@ -103,7 +103,7 @@ describe('a final Blunt Force forearm 4 wound', () => {
   })
 
   it('still lands an older provisional row as words resolved by hand', () => {
-    const cut = { ...swing('forearm-L', 3), impact: { ...swing('forearm-L', 3).impact!, table: 'cutting' } }
+    const cut = { ...swing('forearm-L', 3), impact: { ...swing('forearm-L', 3).impact!, table: 'thrown' } }
     const wound = readTableRow(fight(), cut, combatEntropy(command)).state.woundOutbox[0]
     expect(wound.effects).toBeUndefined()
     expect(wound.effect).toMatchObject({ steps: [{ modifiers: [] }] })
@@ -167,6 +167,34 @@ describe('final Blunt Force recovery schedules', () => {
     const dazed = keyed(hurt, 'dazed')
     expect(lubecEffectWound(dazed)!.dice['Dazed 1d4']).toHaveLength(1)
     expect(keyed(hurt, 'body').steps[2]).toMatchObject({ until: 'lasting', minimumStress: 4, modifiers: [{ target: 'Body', amount: -20 }, { target: 'Intellect', amount: -10 }] })
+  })
+})
+
+describe('final Cutting fractions', () => {
+  async function cutOnSheet(part: string, impact: number) {
+    const cut = { ...swing(part, impact), impact: { ...swing(part, impact).impact!, table: 'cutting' } }
+    const wound = readTableRow(fight(), cut, combatEntropy(command)).state.woundOutbox[0]
+    const stored = { lubec: lubecCharacterSheet(), sheetRevision: 0 }
+    const planned = planSheetIntention(stored, combatWoundIntention(stored, wound, 'fight', await combatWoundOperationId('fight', wound.id)))
+    return parseLubecCharacter('roy', planned.mutation!.sheet as never).lubec
+  }
+
+  it('halves Handle from the uninjured value, then takes flat losses, the same in Core and in combat', async () => {
+    const hurt = await cutOnSheet('upperarm-L', 10)
+    const core = lubecSheetModifiers(hurt)
+    const combat = combatInputModifiers(hurt, { fightId: 'fight', round: 3 })
+    for (const modifiers of [core, combat]) {
+      expect(lubecCurrentValue(hurt, 'Handle', modifiers)).toBe(27)
+      expect(lubecCurrentValue(hurt, 'Speed', modifiers)).toBe(46)
+      expect(lubecCurrentValue(hurt, 'Charm', modifiers)).toBe(43)
+    }
+    expect(lubecCheckTarget(hurt, 'Handle', 'Diving')).toBe(42)
+  })
+
+  it('takes a missing leg\'s Speed to one quarter, rounded down', async () => {
+    const hurt = await cutOnSheet('thigh-R', 10)
+    expect(lubecCurrentValue(hurt, 'Speed', lubecSheetModifiers(hurt))).toBe(14)
+    expect(lubecCurrentValue(hurt, 'Speed', combatInputModifiers(hurt, { fightId: 'fight', round: 3 }))).toBe(14)
   })
 })
 

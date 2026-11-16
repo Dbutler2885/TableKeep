@@ -1,4 +1,5 @@
 import type { LubecModifier } from '../derivations'
+import type { LubecValueName } from '../sheet'
 import type { LubecFraction, LubecRestriction, LubecRollRule, LubecSetTo, LubecStepUntil, LubecTaskModifier } from '../effects'
 
 // What a final wound row does, as data the app can play: what happens the
@@ -22,7 +23,9 @@ export type LubecWoundStepSpec = {
   charmReminder?: true
   /** Minimum Stress the step adds, once, when it is reached by Step down ("lasting +4 minimum Stress"). */
   minimumStress?: number
-  /** What the sheet shows for the step but does not compute. */
+  /** A loss rolled once when the wound lands ("lasting -1d10 Body (roll once)"), then fixed on the card. */
+  rolled?: { target: LubecValueName; sides: number; what: string }[]
+  /** What the sheet shows for the step but does not compute; `{fingers}` and `{side}` read the rolled finger count and the struck side. */
   labels?: string[]
   /** A Handle loss for each finger the wound took, added to the step's flat modifiers. */
   perFinger?: number

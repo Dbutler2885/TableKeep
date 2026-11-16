@@ -1,6 +1,6 @@
 import type { LubecEffect } from '../../../ruleSets/lubec/effects'
 import { describeLubecEffectStep } from '../../../ruleSets/lubec/effects'
-import { lubecStepByHand, lubecStepTrigger, type LubecWoundRolled } from '../../../ruleSets/lubec/woundCards'
+import { lubecRolledKey, lubecStepByHand, lubecStepTrigger, type LubecWoundRolled } from '../../../ruleSets/lubec/woundCards'
 import { lubecConcussionOutcome, lubecConcussionTraumaRelief } from '../../../ruleSets/lubec/woundTables/concussion'
 import type { LubecWoundNow, LubecWoundOutcome } from '../../../ruleSets/lubec/woundTables/outcome'
 import type { LubecWoundTableRow } from '../../../ruleSets/lubec/woundTables/types'
@@ -74,6 +74,15 @@ export function lubecRollAmounts(outcome: LubecWoundOutcome, entropy: CombatEntr
   if (outcome.fingers) {
     rolled.fingers = 'count' in outcome.fingers ? outcome.fingers.count : entropy.die('fingers', outcome.fingers.sides)
     if ('sides' in outcome.fingers) dice[`Fingers 1d${outcome.fingers.sides}`] = [rolled.fingers]
+  }
+  for (const card of outcome.cards) {
+    card.steps.forEach((step, index) => {
+      for (const loss of step.rolled ?? []) {
+        const amount = entropy.die(`amount-${card.key}-${index}-${loss.target}`, loss.sides)
+        rolled.amounts = { ...rolled.amounts, [lubecRolledKey(card.key, index, loss.target)]: amount }
+        dice[`${loss.what} 1d${loss.sides}`] = [amount]
+      }
+    })
   }
   const timers = (outcome.timers ?? []).map((kind) => ({ kind, rounds: entropy.die(`timer-${kind}`, 4) }))
   if (timers.length) {
