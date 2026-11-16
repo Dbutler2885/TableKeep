@@ -15716,20 +15716,23 @@ button:disabled {
   outline-offset: 1px;
 }
 
-/* Buttons take the skin's colours and type and keep their own sizes. */
-.shell-root[data-theme="lubec"] button {
+/* Buttons take the skin's colours and type and keep their own sizes.
+   A map token is a button too, but it is only its cut-out image on the map:
+   the skin's cream would draw it as a tile. :where() keeps these rules'
+   specificity, so every other Lubec button rule still wins as before. */
+.shell-root[data-theme="lubec"] button:where(:not(.map-token)) {
   background: var(--lubec-cream);
   color: var(--lubec-blue);
   border-color: var(--lubec-ink);
   font-family: var(--lubec-type);
 }
 
-.shell-root[data-theme="lubec"] button:hover {
+.shell-root[data-theme="lubec"] button:where(:not(.map-token)):hover {
   background: var(--lubec-paper-deep);
   color: var(--lubec-ink);
 }
 
-.shell-root[data-theme="lubec"] button:focus-visible {
+.shell-root[data-theme="lubec"] button:where(:not(.map-token)):focus-visible {
   outline: 2px solid var(--lubec-rust);
   outline-offset: 2px;
 }
