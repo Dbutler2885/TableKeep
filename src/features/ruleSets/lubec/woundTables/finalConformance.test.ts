@@ -20,7 +20,7 @@ const SOURCE_OF: Readonly<Record<string, LubecFinalSource>> = {
 }
 
 /** The tables whose every row is final so far; the rest still carry provisional rows resolved by hand. */
-const COMPLETE: readonly string[] = ['fisticuffs', 'blunt', 'cutting']
+const COMPLETE: readonly string[] = ['fisticuffs', 'blunt', 'cutting', 'piercing']
 
 type AppRow = { key: string; parts: string[]; row: LubecWoundTableRow }
 

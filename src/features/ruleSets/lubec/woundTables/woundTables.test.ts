@@ -25,7 +25,8 @@ describe('the wound tables as data', () => {
   it.each(tables)('%s gives each severity its Trauma, names every wound, and leaves only listed injuries', (_, table) => {
     for (const row of table.locations.flatMap((location) => location.rows)) {
       expect(row.trauma).toBe(TRAUMA[row.severity])
-      expect(row.name).not.toBe('')
+      // A final d2 row with no shared name lands under the name of the branch it rolled.
+      expect(row.name || (row.choices ?? []).every((choice) => choice.name)).toBeTruthy()
       for (const injury of [row.injury, ...(row.choices ?? []).map((choice) => choice.injury)]) {
         if (injury) expect(isLubecLastingInjury(injury)).toBe(true)
       }
@@ -52,6 +53,7 @@ describe('reading a row', () => {
 
   it('carries a concussion, a d2\'s two wounds, unconsciousness and a final row\'s severity', () => {
     expect(lubecWoundTableRow('blunt', 'head', 4)?.row.concussion).toEqual({ kind: 'minor' })
+    expect(lubecWoundTableRow('piercing', 'torso', 4)?.row.choices?.map((choice) => choice.name)).toEqual(['Stab stopped by a rib', 'Point lodged'])
     expect(lubecWoundTableRow('gunshot', 'torso', 3)?.row.choices).toEqual([
       { name: 'Bullet along the ribs', text: 'Disadvantage on physical Checks; half Movement and no Evasive Movement.' },
       { name: 'Lodged bullet', text: '-20 Strength and Speed for exertion until proper medical treatment; First Aid stabilizes but cannot remove it.', injury: 'Lodged object' },

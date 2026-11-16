@@ -211,3 +211,29 @@ describe('final Cutting lasting amounts', () => {
     expect(speech.steps[1]).toMatchObject({ until: 'by-hand', onReach: { save: 'Body', failure: 'Speech damaged' } })
   })
 })
+
+describe('final Piercing', () => {
+  it.each([[1, 'Stab stopped by a rib', 'ribs'], [2, 'Point lodged', 'lodged']] as const)('rolls the d2 once and keeps only branch %i\'s cards and dice', (pick, name, key) => {
+    const done = landed('piercing', 'torso', 4, { 'wound-choice': [pick] })
+    expect(attackOf(done).row).toMatchObject({ name, choice: pick, final: true })
+    const cards = outboxOf(done).effects!
+    expect(cards.map((card) => card.cardKey)).toEqual([key])
+    expect(lubecEffectWound(cards[0])).toMatchObject({ row: name, branch: pick, dice: { d2: [pick] } })
+  })
+
+  it('stops a bleed and a Critical countdown with one Save, keeping a d4 for each, and rolls no Save for 1d4 Dazed', () => {
+    const done = landed('piercing', 'thigh-L', 8, { check: [99], 'timer-bleed': [2], 'timer-critical': [4] })
+    expect(attackOf(done).checks).toHaveLength(1)
+    expect(outboxOf(done)).toMatchObject({ traumaDelta: 2, stressDelta: 1 })
+    expect(outboxOf(done).effects!.filter((card) => card.countdown).map((card) => card.countdown)).toEqual([{ kind: 'bleed', rounds: 2 }, { kind: 'critical', rounds: 4 }])
+    const temple = landed('piercing', 'head', 8, { check: [10], dazed: [3] })
+    expect(attackOf(temple).checks!.map((check) => check.purpose)).toEqual(['prevention'])
+    expect(outboxOf(temple).effects!.map((card) => card.cardKey)).toEqual(['dazed', 'lasting'])
+    expect(outboxOf(temple).effects![0].steps[0].labels).toEqual(['Lose the next 3 Movement and 3 Action Stages (1d4 = 3)'])
+  })
+
+  it('records a lost eye as a lasting card from the moment it lands', () => {
+    const cards = outboxOf(landed('piercing', 'head', 9, { check: [10] })).effects!
+    expect(cards.find((card) => card.cardKey === 'eye')!.steps).toMatchObject([{ until: 'lasting', labels: ['Lost eye; the eye remains lost'], taskModifiers: [{ target: 'Handle', amount: -10, task: 'ranged-visual' }] }])
+  })
+})
