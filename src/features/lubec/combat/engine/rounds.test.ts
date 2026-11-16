@@ -351,3 +351,45 @@ it('plays an entirely skipped round without player choices or declaration approv
   expect(plan.fight.state.pendingActions).toHaveLength(3)
   expect(plan.logs.map((entry) => entry.event)).toContain('Round 3, Attack. Nobody declared an attack.')
 })
+
+
+const downEffect = { id: 'down', name: 'Knocked down', cause: 'Sweep', steps: [{ modifiers: [], labels: [], until: 'combat-end' as const, restrictions: [{ kind: 'down' as const }] }] }
+function downMovement(extra: object = {}) {
+  const injured = hero()
+  const records = movement([injured, roy(), dale()])
+  injured.sheet = { ...injured.sheet, ...extra, effects: [downEffect, ...((extra as { effects?: typeof injured.sheet.effects }).effects ?? [])] }
+  return records
+}
+
+describe('standing during Movement', () => {
+  it('offers staying, pickup and standing, refuses Run/Evasive, and requires a down card for Stand', () => {
+    const records = downMovement()
+    for (const choice of ['run', 'evade']) expect(() => act(records, { type: 'move', actor: HERO, by: player, choice })).toThrow('knocked down')
+    expect(act(records, { type: 'move', actor: HERO, by: player, choice: 'stay' }).plan.sheetEffects).toEqual([])
+    expect(() => act(movement(), { type: 'move', actor: HERO, by: player, choice: 'stand' })).toThrow('not knocked down')
+  })
+  it('stands on a successful Speed Check with active numeric penalties and mode, keeping both dice', () => {
+    const effect = { id: 'speed', name: 'Bad knee', cause: '', steps: [{ modifiers: [{ target: 'Speed' as const, amount: -20 }], labels: [], rolls: [{ scope: 'physical' as const, mode: 'disadvantage' as const }] }] }
+    const records = downMovement({ effects: [effect] })
+    const { plan } = act(records, { type: 'move', actor: HERO, by: player, choice: 'stand', dice: [10, 30] })
+    expect(plan.fight.state.combatants[0].movement).toMatchObject({ choice: 'stand', stand: { target: 36, dice: [10, 30], result: 30, success: true, stress: 0, mode: 'disadvantage' } })
+    expect(plan.sheetEffects).toEqual([{ selection: { kind: 'character', sheetId: 'hero' }, removeEffects: ['down'], stressDelta: 0 }])
+    expect(plan.fight.state.lost).toBeUndefined()
+  })
+  it('a failure stays down, charges ordinary Check Stress and automatically skips Action and Defense', () => {
+    let records = downMovement()
+    const failed = act(records, { type: 'move', actor: HERO, by: player, choice: 'stand', dice: [99] })
+    expect(failed.plan.sheetEffects).toEqual([{ selection: { kind: 'character', sheetId: 'hero' }, removeEffects: [], stressDelta: 1 }])
+    expect(who(failed.records, HERO).movement?.stand).toMatchObject({ success: false, result: 99 })
+    records = act(failed.records, npcs({ [ROY]: stay, [DALE]: stay })).records
+    const declared = settled(records).records
+    expect(who(declared, HERO).declaration).toMatchObject({ lost: true, stopped: true, lines: [] })
+    expect(state(declared).pendingActions).toEqual([{ combatantKey: ROY, action: 'declare' }])
+  })
+  it('a separately lost Movement never grants a free Stand', () => {
+    const records = downMovement()
+    records.fight!.state = withMovementRequests(withLostStages(state(records), HERO, { movement: [1], action: [1] }, 'Dazed'))
+    expect(() => act(records, { type: 'move', actor: HERO, by: player, choice: 'stand', dice: [1] })).toThrow('already confirmed')
+    expect(who(records, HERO).movement?.stand).toBeUndefined()
+  })
+})

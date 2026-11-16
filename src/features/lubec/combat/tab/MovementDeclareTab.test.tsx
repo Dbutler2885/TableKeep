@@ -456,3 +456,17 @@ describe('Evasive Movement', () => {
   })
 })
 
+
+
+it('offers a down player Stay down and Stand, disables Run/Evasive, and sends the Stand choice', async () => {
+  currentWayne = () => { const record = wayne(); record.lubec.effects = [{ id: 'down', name: 'Knocked down', cause: 'Sweep', steps: [{ modifiers: [], labels: [], until: 'combat-end', restrictions: [{ kind: 'down' }] }] }]; return record }
+  const live = fightAfter(...rolled)
+  mocks.roster.characters = [currentWayne()]
+  show('player', 'wayne-uid', live)
+  expect(screen.getByRole('radio', { name: /^Stay down/ })).toBeTruthy()
+  expect((screen.getByRole('radio', { name: /^Run/ }) as HTMLButtonElement).disabled).toBe(true)
+  expect((screen.getByRole('radio', { name: /^Evasive/ }) as HTMLButtonElement).disabled).toBe(true)
+  fireEvent.click(screen.getByRole('radio', { name: /^Stand/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Confirm movement' }))
+  await waitFor(() => expect(mocks.sent.at(-1)?.payload).toMatchObject({ type: 'move', choice: 'stand' }))
+})

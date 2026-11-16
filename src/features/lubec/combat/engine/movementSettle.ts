@@ -28,6 +28,7 @@ function pickUp(settling: Settling, claimant: Combatant, item: string, records: 
 }
 
 const REVEALED: Readonly<Record<string, (name: string) => string>> = {
+  stand: (name) => `${name} attempted to stand.`,
   stay: (name) => `${name} moved or stayed.`,
   run: (name) => `${name} ran.`,
   leave: (name) => `${name} left the fight.`,

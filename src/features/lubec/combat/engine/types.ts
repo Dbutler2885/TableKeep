@@ -14,7 +14,7 @@ export type FloorSelection = { itemId: string; status: 'library' | 'dropped'; qt
 /** A combatant's initiative: d100 strictly under Speed, frozen once per fight, with any tie rerolls the app made. */
 export type CombatInitiative = { roll: number; speed: number; success: boolean; sourceRevision: number; ties: number[] } & CombatRollDice
 /** A Movement choice. Moving or staying is the default and needs no thought; Run, Pick up and Leave are the choices. */
-export type CombatMovementChoice = 'stay' | 'run' | 'evade' | 'pickup' | 'leave'
+export type CombatMovementChoice = 'stay' | 'run' | 'evade' | 'pickup' | 'leave' | 'stand'
 /** One exact Floor record and quantity a pickup claims. */
 export type CombatPickupClaim = { itemId: string; qty: number }
 /**
@@ -23,7 +23,8 @@ export type CombatPickupClaim = { itemId: string; qty: number }
  */
 /** An evader's Speed roll as Movement settled, and what it takes off ranged attacks at them this round. */
 export type CombatEvasion = { roll: number; speed: number; success: boolean; penalty: number } & CombatRollDice
-export type CombatMovement = { choice: CombatMovementChoice; pickup: CombatPickupClaim | null; leave: 'asked' | 'confirmed' | null; evasion?: CombatEvasion | null; lost?: true }
+export type CombatStand = { target: number; dice: number[]; result: number; success: boolean; stress: number; mode: 'normal' | 'advantage' | 'disadvantage'; because: string | null }
+export type CombatMovement = { choice: CombatMovementChoice; pickup: CombatPickupClaim | null; leave: 'asked' | 'confirmed' | null; evasion?: CombatEvasion | null; stand?: CombatStand; lost?: true }
 /** One named Defense line: who it guards against, and how much of the Handle pool it holds. */
 export type CombatDefenseLine = { against: string; amount: number }
 /**
@@ -260,5 +261,7 @@ export type CombatPlan = {
   logs: CombatLog[]
   /** Gear the actor's own sheet ends with; written under the sheet revision contract with the command. */
   sheets?: { selection: CombatantSelection; gear: LubecGear }[]
+  /** Keyed card removals and counter changes, committed atomically with the fight and any gear changes. */
+  sheetEffects?: { selection: CombatantSelection; removeEffects: string[]; stressDelta: number }[]
 }
 export type CombatHandler = (command: CombatCommand, records: CombatRecords, authority: CombatAuthority, entropy: CombatEntropy) => CombatPlan

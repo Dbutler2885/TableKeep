@@ -125,7 +125,7 @@ describe('a final row that lands at once', () => {
   it('keeps separately recovering schedules on separate linked cards', () => {
     const done = landed('fisticuffs', 'shin-L', 8)
     expect(outboxOf(done).effects!.map((card) => [card.cardKey, card.part, card.steps.map((step) => step.until)])).toEqual([
-      ['down', 'Knocked down', ['by-hand']],
+      ['down', 'Knocked down', ['combat-end']],
       ['leg', 'Leg', ['long-rest', 'lasting']],
       ['evasive', 'No Evasive Movement', ['treated']],
     ])
@@ -298,4 +298,17 @@ describe('a countdown that lands', () => {
     const done = landed('cutting', 'neck', 3, { check: [99], 'timer-bleed': [1] })
     expect(done.fight.state).toMatchObject({ roundWatch: { [ROY]: 2 }, countdowns: [{ key: ROY, wound: 'Bleeding cut', kind: 'bleed', dueRound: 2 }] })
   })
+})
+
+
+it('knockdown only stops an Action that has not opened, preserving earlier rolls', () => {
+  for (const acted of [false, true]) {
+    const current = fight()
+    current.state.round = 3
+    current.state.attacked = acted ? [ROY] : []
+    const landed = readTableRow(current, hit('fisticuffs', 'shin-L', 8), dice({}))
+    expect(landed.state.lost?.[ROY]?.action ?? []).toEqual(acted ? [] : [3])
+    expect(landed.state.combatants[1].outReason).toBeNull()
+    expect(landed.state.woundOutbox[0].effects!.find((card) => card.cardKey === 'down')).toMatchObject({ steps: [{ until: 'combat-end', restrictions: [{ kind: 'down' }] }] })
+  }
 })

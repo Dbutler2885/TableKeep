@@ -1,3 +1,4 @@
+import { downCards } from '../engine/down'
 import { StageLossNotice } from './StageLossNotice'
 import { useState } from 'react'
 import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecord'
@@ -16,6 +17,7 @@ import { useCombatRun, type CombatRun } from './useCombatRun'
 /** Each choice's name and what it costs. Run's words follow the settled rule: it costs the attack and Defense. */
 const CHOICES: readonly (readonly [CombatMovementChoice, string, string])[] = [
   ['stay', 'Move or stay', 'Nothing to choose. The GM describes where everyone is in words; it is not tracked.'],
+  ['stand', 'Stand', 'Roll Speed. Success spends Movement only; failure also loses Action and Defense.'],
   ['run', 'Run', 'Costs your attack and your Defense this round.'],
   ['evade', 'Evasive', 'Uses your action: no attack this round. Roll Speed; a success makes ranged attacks at you harder.'],
   ['pickup', 'Pick up', 'Uses your movement.'],
@@ -80,14 +82,14 @@ export type MovementProps = { state: CombatState; viewer: CombatViewer; roster: 
 
 export type MoveProps = { state: CombatState; combatant: Combatant; sheet: LubecCharacterSheet | null; commands: AttackCommands; named: boolean }
 
-type CardsProps = { shown: Draft; live: boolean; evadeBlocked: string | null; onChoose: (choice: CombatMovementChoice) => void }
+type CardsProps = { down: boolean; shown: Draft; live: boolean; evadeBlocked: string | null; onChoose: (choice: CombatMovementChoice) => void }
 
-function MoveCards({ shown, live, evadeBlocked, onChoose }: CardsProps) {
-  const blocked = (choice: CombatMovementChoice) => (choice === 'evade' ? evadeBlocked : null)
+function MoveCards({ down, shown, live, evadeBlocked, onChoose }: CardsProps) {
+  const blocked = (choice: CombatMovementChoice) => (down && (choice === 'run' || choice === 'evade') ? 'Knocked down: Stay down or Stand.' : choice === 'evade' ? evadeBlocked : null)
   return (
     <div className="moves" role="radiogroup" aria-label="Movement">
-      {CHOICES.map(([choice, name, words]) => (
-        <button key={choice} type="button" className="mode" role="radio" aria-checked={shown.choice === choice} disabled={!live || blocked(choice) !== null} title={blocked(choice) ?? undefined} onClick={() => onChoose(choice)}><b>{name}</b><small>{blocked(choice) ?? words}</small></button>
+      {CHOICES.filter(([choice]) => choice !== 'stand' || down).map(([choice, name, words]) => (
+        <button key={choice} type="button" className="mode" role="radio" aria-checked={shown.choice === choice} disabled={!live || blocked(choice) !== null} title={blocked(choice) ?? undefined} onClick={() => onChoose(choice)}><b>{down && choice === 'stay' ? 'Stay down' : name}</b><small>{blocked(choice) ?? words}</small></button>
       ))}
     </div>
   )
@@ -123,12 +125,14 @@ export function MoveWindow({ state, combatant, sheet, commands, named }: MovePro
   const run = useCombatRun()
   const live = !combatant.movement
   const shown = shownChoice(combatant, draft)
+  const down = Boolean(sheet && downCards(sheet, null).length)
   return (
     <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />} foot={<MoveFoot combatant={combatant} draft={draft} run={run} onConfirm={() => run.run(() => commands.move(combatant.key, pickOf(draft)))} />}>
       <CombatRefusal refusal={run.refusal} />
       <StageLossNotice state={state} combatantKey={combatant.key} />
       <p className="ask">{askWords(combatant, named)}</p>
-      <MoveCards shown={shown} live={live} evadeBlocked={sheet ? evasionBlocked(sheet) : null} onChoose={(choice) => setDraft({ choice, picked: null })} />
+      {combatant.movement?.stand ? <p role="status">{combatant.movement.stand.success ? 'Standing: Movement spent.' : 'Still down: Movement, Action and Defense spent.'} Speed {combatant.movement.stand.target}, rolled {combatant.movement.stand.dice.join(', ')}.</p> : null}
+      <MoveCards down={down} shown={shown} live={live} evadeBlocked={sheet ? evasionBlocked(sheet) : null} onChoose={(choice) => setDraft({ choice, picked: null })} />
       <span className="label">On the Floor</span>
       <FloorPicks state={state} shown={shown} draft={draft} live={live} sheet={sheet} onDraft={setDraft} />
     </CombatWindow>

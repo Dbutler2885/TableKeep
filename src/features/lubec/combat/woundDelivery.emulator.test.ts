@@ -9,6 +9,7 @@ import { lubecCurrentValue, lubecEffectiveHandle } from '../../ruleSets/lubec/de
 import type { LubecStepUntil } from '../../ruleSets/lubec/effects'
 import { createCombatCommand } from './commandJournal'
 import { commitCombatCommand } from './combatTransaction'
+import { combatEntropy } from './engine/commandEntropy'
 import { combatLifecycleHandlers } from './engine/lifecycle'
 import { combatInputModifiers, confirmedCombatRevision, readCombatInputs } from './woundBarrier'
 import { deliverCombatWound, drainCombatWounds } from './woundDelivery'
@@ -405,5 +406,48 @@ describe('saved lost stages through real rules', () => {
     const receipt = await deliverCombatWound(as(), scope, 'gm', close.id)
     expect(receipt.targetRevision).toBe(2)
     expect((await storedSheet(as(), path)).sheetRevision).toBe(2)
+  })
+})
+
+
+describe('standing through real rules and command receipts', () => {
+  it.each([target, { kind: 'npc', sheetId: 'roy' } as const])('clears only down on a successful Stand for $kind and replays without rerolling', async (selection) => {
+    const path = selection.kind === 'character' ? 'characters/hero' : 'npcSheets/roy'
+    const raw = sheet(selection.kind === 'character' ? 'player' : 'gm')
+    const down = { id: 'down', name: 'Knocked down', cause: 'Sweep', steps: [{ modifiers: [], labels: [], until: 'combat-end', restrictions: [{ kind: 'down' }] }] }
+    const sibling = { id: 'sibling', name: 'Dazed', cause: 'Concussion', steps: [{ modifiers: [], labels: ['Action lost'], until: 'rounds' }] }
+    await seed(path, { ...raw, lubec: { ...raw.lubec, base: { ...raw.lubec.base, Speed: 100 }, effects: [down, sibling] } })
+    const fight = await readFight()
+    await updateDoc(ref(as(), 'combats/fight'), { state: { ...fight.state, phase: 'movement', round: 3, order: ['character:hero', 'npc:roy'], pendingActions: [] } })
+    const actorKey = `${selection.kind}:${selection.sheetId}`
+    const move = { ...await command('move', 'stand', actorKey), payload: { type: 'move', choice: 'stand' } }
+    const uid = selection.kind === 'character' ? 'player' : 'gm'
+    const [one, two] = await Promise.all([commitCombatCommand(as(uid), move, settings(uid)), commitCombatCommand(as(), move, settings())])
+    expect(one).toMatchObject({ ok: true })
+    expect(two).toEqual(one)
+    expect((await storedSheet(as(), path))).toMatchObject({ sheetRevision: 1, lubec: { effects: [sibling], counters: raw.lubec.counters } })
+    expect((await readFight()).state.combatants.find((entry) => entry.key === actorKey)?.movement).toMatchObject({ choice: 'stand', stand: { success: true } })
+    expect(await commitCombatCommand(as(uid), move, settings(uid))).toEqual(one)
+    expect((await storedSheet(as(), path)).sheetRevision).toBe(1)
+  })
+
+  it('charges failed Stand Stress once and keeps the down card, then closing clears it', async () => {
+    const raw = sheet()
+    const down = { id: 'down', name: 'Knocked down', cause: 'Sweep', combatOrigin: { fightId: 'fight', woundId: 'knock', originatingRound: 1, effectiveRound: 1 }, steps: [{ modifiers: [], labels: [], until: 'combat-end', restrictions: [{ kind: 'down' }] }] }
+    await seed('characters/hero', { ...raw, lubec: { ...raw.lubec, base: { ...raw.lubec.base, Speed: 0 }, effects: [down] } })
+    const fight = await readFight()
+    await updateDoc(ref(as(), 'combats/fight'), { state: { ...fight.state, phase: 'movement', round: 3, order: ['character:hero', 'npc:roy'], pendingActions: [] } })
+    let move = { ...await command('move', 'stand', 'character:hero'), payload: { type: 'move', choice: 'stand' } }
+    for (let i = 0; combatEntropy(move).die('stand:character:hero', 100) <= 50; i++) move = { ...move, seed: `failed-stand-${i}` }
+    const result = await commitCombatCommand(as('player'), move, settings('player'))
+    expect(result).toMatchObject({ ok: true })
+    expect(await commitCombatCommand(as('player'), move, settings('player'))).toEqual(result)
+    const current = await storedSheet()
+    expect(current.lubec.counters.stress).toBe(raw.lubec.counters.stress + 1)
+    expect(current.lubec.effects).toEqual([down])
+    expect((await readFight()).state.lost?.['character:hero'].action).toEqual([3])
+    expect(await commitCombatCommand(as(), await command('end'), settings())).toMatchObject({ ok: true })
+    expect((await storedSheet()).lubec.effects).toEqual([])
+    expect((await storedSheet()).lubec.counters.stress).toBe(raw.lubec.counters.stress + 1)
   })
 })

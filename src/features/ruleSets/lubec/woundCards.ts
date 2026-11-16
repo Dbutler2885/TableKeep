@@ -156,7 +156,7 @@ function nowCard(now: LubecWoundNow, rolled: LubecWoundRolled): LubecWoundCardSp
       return { key, part, steps: [{ until: 'rounds', labels: [(lost ? lostWords(lost) : fallbackWords(now.kind, turns)) + rolledWords] }] }
     }
     case 'knocked-down':
-      return { key: 'down', part: 'Knocked down', steps: [{ until: 'by-hand', restrictions: [{ kind: 'down' }], labels: ['Standing uses Movement and Action unless a Speed Check succeeds'] }] }
+      return { key: 'down', part: 'Knocked down', steps: [{ until: 'combat-end', restrictions: [{ kind: 'down' }], labels: ['Standing uses Movement and Action unless a Speed Check succeeds'] }] }
     case 'unconscious': {
       const minutes = rolled.minutes ?? []
       const sum = minutes.reduce((total, die) => total + die, 0)
@@ -223,15 +223,15 @@ export const LUBEC_AUTOMATED = {
   speechSave: false,
 }
 
-/** Lost stages and Dazed are played by the fight; knocked down and unconscious are still the table's. */
-const STAGE_CARDS = ['down', 'unconscious']
+/** Unconscious stage blocking is still the table's until its combat integration lands. */
+const STAGE_CARDS = ['unconscious']
 
 /** Whether any part of a card's current step is still resolved by hand. */
 export function lubecStepByHand(effect: LubecEffect, step: LubecEffectStep | undefined = effect.steps[0]): boolean {
   if (!step || !lubecEffectWound(effect)) return false
   const until = step.until
   return (!LUBEC_AUTOMATED.rolls && lubecStepRolls(step).length > 0)
-    || (!LUBEC_AUTOMATED.restrictions && lubecStepRestrictions(step).length > 0)
+    || (!LUBEC_AUTOMATED.restrictions && lubecStepRestrictions(step).some((restriction) => restriction.kind !== 'down'))
     || (!LUBEC_AUTOMATED.taskModifiers && lubecStepTaskModifiers(step).length > 0)
     || (!LUBEC_AUTOMATED.stages && STAGE_CARDS.includes(String(effect.cardKey)))
     || (!LUBEC_AUTOMATED.rounds && until === 'rounds' && !effect.countdown && !effect.lost)

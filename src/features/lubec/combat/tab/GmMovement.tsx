@@ -1,3 +1,4 @@
+import { downCards } from '../engine/down'
 import { useState } from 'react'
 import type { Combatant, CombatMovement, CombatState } from '../engine/types'
 import type { MovementPick } from './attackCommands'
@@ -12,10 +13,10 @@ import { MovementFloor, MoveWindow, type MovementProps } from './MovementParts'
 const PICKUP = 'pickup:'
 
 /** The GM's choices for an NPC: Pick up names its Floor row when there is more than one. */
-function npcOptions(state: CombatState): (readonly [string, string])[] {
+function npcOptions(state: CombatState, down = false): (readonly [string, string])[] {
   const rows = combatFloorRows(state.floor)
   const pickups = rows.map((row) => [`${PICKUP}${row.recordIds[0]}`, rows.length === 1 ? 'Pick up' : `Pick up: ${row.item.name}`] as const)
-  return [['stay', MOVEMENT_NAMES.stay], ['run', MOVEMENT_NAMES.run], ['evade', MOVEMENT_NAMES.evade], ...pickups, ['leave', MOVEMENT_NAMES.leave]]
+  return down ? [['stay', 'Stay down'], ['stand', 'Stand'], ...pickups, ['leave', MOVEMENT_NAMES.leave]] : [['stay', MOVEMENT_NAMES.stay], ['run', MOVEMENT_NAMES.run], ['evade', MOVEMENT_NAMES.evade], ...pickups, ['leave', MOVEMENT_NAMES.leave]]
 }
 
 const npcPick = (value: string): MovementPick =>
@@ -73,13 +74,14 @@ function LeaveAsk({ combatant, run, onAnswer }: LeaveProps) {
   )
 }
 
-type RowsProps = { state: CombatState; choices: Record<string, string>; onChoose: (key: string, value: string) => void; onActFor: (key: string) => void }
+type RowsProps = { roster: MovementProps['roster']; state: CombatState; choices: Record<string, string>; onChoose: (key: string, value: string) => void; onActFor: (key: string) => void }
 
-function MovementRows({ state, choices, onChoose, onActFor }: RowsProps) {
-  const options = npcOptions(state)
+function MovementRows({ roster, state, choices, onChoose, onActFor }: RowsProps) {
   const row = (combatant: Combatant) => {
     if (combatant.outReason !== null) return <OutRow key={combatant.key} combatant={combatant} />
     if (combatant.kind === 'character') return <PlayerRow key={combatant.key} combatant={combatant} onActFor={onActFor} />
+    const sheet = movementSheetOf(combatant, roster)
+    const options = npcOptions(state, Boolean(sheet && downCards(sheet, null).length))
     return <NpcRow key={combatant.key} combatant={combatant} options={options} value={choices[combatant.key] ?? 'stay'} onChoose={(value) => onChoose(combatant.key, value)} />
   }
   return <ul className="roster">{state.combatants.map(row)}</ul>
@@ -97,7 +99,7 @@ function GmFoot({ state, run, onConfirm }: { state: CombatState; run: CombatRun;
 }
 
 /** Moment 4 for the GM: everyone's choice, each NPC's choice to set, and every Leave to answer. */
-function GmMovementList({ state, commands, onActFor }: MovementProps) {
+function GmMovementList({ state, commands, onActFor, roster }: MovementProps) {
   const [choices, setChoices] = useState<Record<string, string>>({})
   const run = useCombatRun()
   const confirmNpcs = () => run.run(() => commands.npcMovement(Object.fromEntries(choosingNpcs(state).map((npc) => [npc.key, npcPick(choices[npc.key] ?? 'stay')]))))
@@ -106,7 +108,7 @@ function GmMovementList({ state, commands, onActFor }: MovementProps) {
     <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />} foot={<GmFoot state={state} run={run} onConfirm={confirmNpcs} />}>
       <CombatRefusal refusal={run.refusal} />
       <p className="ask">Players choose on their own screens. You choose for the NPCs.</p>
-      <MovementRows state={state} choices={choices} onChoose={(key, value) => setChoices({ ...choices, [key]: value })} onActFor={onActFor} />
+      <MovementRows roster={roster} state={state} choices={choices} onChoose={(key, value) => setChoices({ ...choices, [key]: value })} onActFor={onActFor} />
       <div className="leave-asks">{asking.map((combatant) => <LeaveAsk key={combatant.key} combatant={combatant} run={run} onAnswer={(confirm) => run.run(() => commands.answerLeave(combatant.key, confirm))} />)}</div>
       <MovementFloor state={state} />
     </CombatWindow>

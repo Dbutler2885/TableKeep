@@ -2,7 +2,7 @@ import type { LubecEffect } from '../../../ruleSets/lubec/effects'
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
 import { lubecWoundCards, type LubecWoundRolled, type LubecWoundRolledCheck } from '../../../ruleSets/lubec/woundCards'
 import type { LubecWoundNow } from '../../../ruleSets/lubec/woundTables/outcome'
-import { lostRoundsOf, withLostStages } from './stages'
+import { actionResolved, lostRoundsOf, withLostStages } from './stages'
 import { lubecWoundTableRow, type LubecLocatedWoundRow, type LubecWoundTableRow } from '../../../ruleSets/lubec/woundTables'
 import { lubecBriefWindowEnd, lubecCountdownDue } from '../roundTick'
 import type { CombatWound } from '../woundTypes'
@@ -137,7 +137,10 @@ function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatChec
   }
   const roundWatch = watchedThrough(state, wound.target, cards)
   const countdowns = [...(state.countdowns ?? []), ...countdownsOf(state, wound, cards)]
-  const staged = Object.entries(lost).reduce<CombatState>((current, [kind, rounds]) => withLostStages(current, targetKey, rounds, kind === 'dazed' ? 'Dazed' : kind === 'movement' ? 'Movement lost' : 'Action lost', row.name), state)
+  let staged = Object.entries(lost).reduce<CombatState>((current, [kind, rounds]) => withLostStages(current, targetKey, rounds, kind === 'dazed' ? 'Dazed' : kind === 'movement' ? 'Movement lost' : 'Action lost', row.name), state)
+  if (landed.outcome.now?.some((now) => now.kind === 'knocked-down') && state.round >= 1 && !actionResolved(state, targetKey)) {
+    staged = withLostStages(staged, targetKey, { movement: [], action: [state.round] }, 'Knocked down', row.name)
+  }
   return closeAttack({ ...staged, woundOutbox: [...state.woundOutbox, wound], roundWatch, countdowns }, closed, 'wounded')
 }
 

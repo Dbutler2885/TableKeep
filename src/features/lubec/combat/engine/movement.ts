@@ -4,10 +4,13 @@ import { attackRepair, combatantOf, combatantsIn as inRound, combatSheetOf } fro
 import type { CombatPendingAction } from './combatFeedback'
 import { requireGm, requireLiveContext } from './context'
 import { evasionBlocked } from './evasion'
-import { withLostMovements } from './stages'
+import { downCards, rollStand } from './down'
+import type { CombatEntropy } from './commandEntropy'
+import { requireDue } from './declare'
+import { movementLost, withLostStages, withLostMovements } from './stages'
 import type { Combatant, CombatFight, CombatHandler, CombatMovement, CombatMovementChoice, CombatPickupClaim, CombatPlan, CombatRecords, CombatState } from './types'
 
-const CHOICES: readonly CombatMovementChoice[] = ['stay', 'run', 'evade', 'pickup', 'leave']
+const CHOICES: readonly CombatMovementChoice[] = ['stay', 'run', 'evade', 'pickup', 'leave', 'stand']
 
 function requireChoosing(state: CombatState) {
   if (state.phase !== 'movement') throw new Error('Movement is not open.')
@@ -55,7 +58,12 @@ function requireCanEvade(combatant: Combatant, records: CombatRecords) {
 function chosen(state: CombatState, combatant: Combatant, raw: Record<string, unknown>, records: CombatRecords): CombatMovement {
   if (combatant.outReason !== null) throw new Error(`${combatant.name} is Out.`)
   if (combatant.movement) throw new Error(`${combatant.name} has already confirmed Movement.`)
+  if (movementLost(state, combatant.key)) throw new Error(`${combatant.name}'s Movement Stage is lost.`)
   const choice = readChoice(raw.choice)
+  const record = combatSheetOf(records, combatant)
+  const down = record ? downCards(record.sheet, null).length > 0 : false
+  if (down && (choice === 'run' || choice === 'evade')) throw new Error(`${combatant.name} is knocked down: Stay down or Stand.`)
+  if (choice === 'stand' && !down) throw new Error(`${combatant.name} is not knocked down.`)
   if (choice === 'evade') requireCanEvade(combatant, records)
   if (choice !== 'pickup') return { choice, pickup: null, leave: leaveOf(combatant, choice) }
   const { claim, item } = readClaim(state, raw.pickup)
@@ -83,21 +91,46 @@ function withMovement(fight: CombatFight, moved: ReadonlyMap<string, CombatMovem
   return { ...fight, state: withMovementRequests({ ...fight.state, combatants }) }
 }
 
+/** Roll a Stand and change its sheet in the same command receipt as the Movement choice. */
+function finishMovements(fight: CombatFight, moved: Map<string, CombatMovement>, records: CombatRecords, fightId: string, entropy: CombatEntropy): CombatPlan {
+  let state = fight.state
+  const sheetEffects: NonNullable<CombatPlan['sheetEffects']> = []
+  const logs: CombatPlan['logs'] = []
+  for (const [key, movement] of moved) {
+    const combatant = combatantOf(state, key)
+    if (movement.choice !== 'stand') { logs.push(confirmedLog(combatant)); continue }
+    const record = combatSheetOf(records, combatant)
+    const repair = attackRepair(combatant, record)
+    if (repair) throw new Error(repair)
+    requireDue(state, combatant, record!)
+    const context = { fightId, round: state.round }
+    const down = downCards(record!.sheet, context)
+    if (!down.length) throw new Error(`${combatant.name} is not knocked down.`)
+    const stand = rollStand(record!, context, entropy)
+    moved.set(key, { ...movement, stand })
+    if (!stand.success) state = withLostStages(state, key, { movement: [], action: [state.round] }, 'Failed Stand')
+    if (stand.success || stand.stress) sheetEffects.push({ selection: { kind: combatant.kind, sheetId: combatant.sheetId }, removeEffects: stand.success ? down.map((card) => card.id) : [], stressDelta: stand.stress })
+    logs.push({ event: `${combatant.name} ${stand.success ? 'stood, spending Movement only' : `failed to stand: Action + Defense lost, +${stand.stress} Stress`}.`, actor: key,
+      roll: { who: combatant.name, what: 'Stand - Speed Check', roll: String(stand.result).padStart(2, '0'), target: `at or under ${stand.target}`, tone: stand.success ? 'ok' : 'bad', result: stand.success ? 'Standing' : 'Still down', extra: [stand.because, `Dice: ${stand.dice.join(', ')}`].filter(Boolean).join('. ') } })
+  }
+  return { fight: withMovement({ ...fight, state }, moved), items: [], logs, sheetEffects }
+}
+
 const confirmedLog = (combatant: Combatant) => ({ event: `${combatant.name} confirmed Movement.`, actor: combatant.key })
 
 /** A player confirms their own combatant's choice; the GM may confirm it for an absent player. Others see only that it is in. */
-const move: CombatHandler = (command, records, authority) => {
+const move: CombatHandler = (command, records, authority, entropy) => {
   const fight = requireLiveContext(command, records, authority)
   requireChoosing(fight.state)
   const combatant = combatantOf(fight.state, String(command.envelope.actorKey))
   const movement = chosen(fight.state, combatant, command.payload, records)
-  return { fight: withMovement(fight, new Map([[combatant.key, movement]])), items: [], logs: [confirmedLog(combatant)] }
+  return finishMovements(fight, new Map([[combatant.key, movement]]), records, command.envelope.fightId, entropy)
 }
 
 const npcsChoosing = (state: CombatState): Combatant[] => inRound(state).filter((entry) => entry.kind === 'npc' && !entry.movement)
 
 /** The GM confirms every NPC's choice at once. */
-const npcMovement: CombatHandler = (command, records, authority) => {
+const npcMovement: CombatHandler = (command, records, authority, entropy) => {
   requireGm(authority)
   const fight = requireLiveContext(command, records, authority)
   requireChoosing(fight.state)
@@ -105,7 +138,7 @@ const npcMovement: CombatHandler = (command, records, authority) => {
   if (!npcs.length) throw new Error('No NPC is waiting to choose Movement.')
   const choices = (command.payload.choices ?? {}) as Record<string, Record<string, unknown>>
   const moved = new Map(npcs.map((npc) => [npc.key, chosen(fight.state, npc, choices[npc.key] ?? {}, records)]))
-  return { fight: withMovement(fight, moved), items: [], logs: npcs.map(confirmedLog) }
+  return finishMovements(fight, moved, records, command.envelope.fightId, entropy)
 }
 
 function asking(state: CombatState, key: unknown): Combatant {
