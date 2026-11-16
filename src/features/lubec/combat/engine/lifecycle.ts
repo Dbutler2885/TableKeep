@@ -14,6 +14,7 @@ import { combatSneakAttackHandlers } from './sneakAttack'
 import { combatChooseAgainHandlers } from './chooseAgain'
 import { combatOutHandlers } from './outReturn'
 import { combatResultsHandlers, withRoundFlow } from './roundAttacks'
+import { combatSplitRepairHandlers } from './splitRepair'
 import type { Combatant, CombatCommand, CombatHandler, CombatPlan, CombatRecords, CombatState, StartPayload } from './types'
 
 function requireStartInputs(payload: StartPayload, records: CombatRecords): void {
@@ -83,7 +84,7 @@ const interrupt: CombatHandler = (command, records, authority) => {
   return { fight: { ...fight, state: settleCombatAttack(fight.state) }, items: [], logs: [{ event: 'Attack interrupted: attacker Out.', actor: attacker.key }] }
 }
 
-export const combatLifecycleHandlers: Readonly<Record<string, CombatHandler>> = { start, end, place, interrupt, ...combatSummaryHandlers, ...combatSneakAttackHandlers, ...combatInitiativeHandlers, ...combatMovementHandlers, ...combatMovementSettleHandlers, ...combatDeclareHandlers, ...combatChooseAgainHandlers, ...combatOutHandlers, ...combatResultsHandlers }
+export const combatLifecycleHandlers: Readonly<Record<string, CombatHandler>> = { start, end, place, interrupt, ...combatSummaryHandlers, ...combatSneakAttackHandlers, ...combatInitiativeHandlers, ...combatMovementHandlers, ...combatMovementSettleHandlers, ...combatDeclareHandlers, ...combatChooseAgainHandlers, ...combatOutHandlers, ...combatResultsHandlers, ...combatSplitRepairHandlers }
 
 export function planCombatCommand(command: CombatCommand, records: CombatRecords, authority: Parameters<CombatHandler>[2], handlers = combatLifecycleHandlers, entropy = combatEntropy(command)): CombatPlan {
   const handler = handlers[command.payload.type]

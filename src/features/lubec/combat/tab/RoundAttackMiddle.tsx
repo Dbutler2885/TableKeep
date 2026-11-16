@@ -11,6 +11,7 @@ import { CombatWindow } from './CombatParts'
 import { OwnDeclarations } from './DeclareMiddle'
 import { viewerKeys } from './declarationsModel'
 import { SneakAttackWindow } from './SneakAttackWindow'
+import { SplitRepairPanel } from './SplitRepairPanel'
 import { stepControls, type MiddleProps } from './stepControls'
 
 /** Who attacks after the one whose turn it is. */
@@ -65,6 +66,15 @@ export function LastResult({ state }: { state: CombatState }): ReactNode {
 export function RoundAttackMiddle(props: MiddleProps) {
   // During Attack the engine always opens the next turn, or begins the next round, after every command.
   const attack = props.state.attack!
+  // A split that no longer fits holds the roll until its owner chooses again.
+  if (attack.splitRepair) {
+    return (
+      <>
+        <LastResult state={props.state} />
+        <SplitRepairPanel state={props.state} repair={attack.splitRepair} controls={stepControls(props)} />
+      </>
+    )
+  }
   // While an attack's Results are up they are the whole story; the one before it gives way.
   return (
     <>

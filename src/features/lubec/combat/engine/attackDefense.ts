@@ -9,6 +9,7 @@ import { attackAt, attackRepair, combatantOf, combatSheetOf, defenderOf } from '
 import { declaredLine, isRoundAttack } from './roundAttacks'
 import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
+import { checkSplit } from './splitRepair'
 import { combatRollMode, modeRecord, modeWords, rollWithMode, successThenHigher, type CombatMode } from './combatModes'
 import { combatInputModifiers } from './inputModifiers'
 import type { CombatAttack, CombatCommand, Combatant, CombatDefenseRoll, CombatFight, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
@@ -108,8 +109,27 @@ const defend: CombatHandler = (command, records, authority, entropy) => {
   const record = combatSheetOf(records, defender)
   const repair = attackRepair(defender, record)
   if (repair) return repairPlan(fight, attack, defender, repair)
-  return defended(fight, attack, record!, command, entropy)
+  if (attack.splitRepair) throw new Error('Waiting for the split to be repaired.')
+  if (!isRoundAttack(fight.state, attack) || !declaredLine(fight.state, attack)) return defended(fight, attack, record!, command, entropy)
+  // A declared Defense line rolls only once the split it came from still fits the pool, or has been split again.
+  const split = checkSplit(fight, defender.key, records, command.envelope.fightId)
+  if (split.kind === 'choose') return { fight: { ...fight, state: split.state }, items: [], logs: [split.log] }
+  const current = split.kind === 'repaired' ? { ...fight, state: split.state } : fight
+  // A repair that leaves no Defense: the hit goes on undefended.
+  if (!declaredLine(current.state, current.state.attack!)) {
+    const state = toLocation(current.state, { ...current.state.attack!, defense: null }, attack.roll!.quality!, entropy)
+    return { fight: { ...current, state }, items: [], logs: [...(split.kind === 'repaired' ? [split.log] : []), { event: `${defender.name} has no Defense left.`, actor: defender.key }] }
+  }
+  const plan = defended(current, current.state.attack!, record!, command, entropy)
+  const spent = markDefenseRolled(plan.fight.state, defender.key)
+  return { ...plan, fight: { ...plan.fight, state: spent }, logs: split.kind === 'repaired' ? [split.log, ...plan.logs] : plan.logs }
 }
+
+/** A declared Defense line once rolled is a spent part of the split. */
+const markDefenseRolled = (state: CombatState, key: string): CombatState => ({
+  ...state,
+  combatants: state.combatants.map((entry) => (entry.key === key && entry.declaration ? { ...entry, declaration: { ...entry.declaration, defenseRolled: true } } : entry)),
+})
 
 function catchLog(defender: Combatant, attack: CombatAttack, chance: number, roll: number, success: boolean) {
   const below = -attack.net!

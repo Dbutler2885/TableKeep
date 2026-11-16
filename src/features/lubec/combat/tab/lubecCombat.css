@@ -445,3 +445,8 @@
 @media (max-width: 560px) {
   .shell-root[data-theme="lubec"] .lubec-combat .results-parts > div { grid-template-columns: minmax(0, 1fr); gap: 0.1rem; }
 }
+
+.shell-root[data-theme="lubec"] .lubec-combat .split-repair-choice { display: grid; gap: 0.6rem; justify-items: start; padding: 0.85rem 0.95rem 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .split-repair-choice label { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; font: 800 0.8rem/1.4 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .split-repair-sum { margin: 0; font: 800 0.95rem/1.3 var(--lubec-display); }
+.shell-root[data-theme="lubec"] .lubec-combat .split-repair-wait { margin: 0; padding: 0.85rem 0.95rem 0; color: var(--lubec-muted); font: 800 0.8rem/1.4 var(--lubec-type); }

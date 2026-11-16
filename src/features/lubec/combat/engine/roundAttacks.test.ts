@@ -345,3 +345,48 @@ describe('Evasive Movement', () => {
   })
 })
 
+
+describe('repairing a split the sheet no longer fits', () => {
+  /** Roy's sheet with a hand-made -30 Handle effect: his throw's pool falls from 65 to 35. */
+  const weakened = (records: CombatRecords): CombatRecords => ({
+    ...records,
+    sheets: records.sheets.map((sheet) => (sheet.sheetId === 'roy'
+      ? { ...sheet, sheet: { ...sheet.sheet, effects: [{ id: 'cramp', name: 'Cramp', cause: 'by hand', steps: [{ modifiers: [{ target: 'Handle', amount: -30 }], labels: [] }] }] } }
+      : sheet)),
+  })
+
+  it('holds the roll until the owner chooses a new Defense, then rolls with the attack the rest of the new pool', () => {
+    const records = weakened(ranged(attacking()))
+    const held = roll(records, ROY, royThrow, [10])
+    expect(state(held.records).attack).toMatchObject({ step: 'aim', roll: null, splitRepair: { combatantKey: ROY, pool: 35, was: 65, against: HERO } })
+    expect(state(held.records).pendingActions).toEqual([{ combatantKey: ROY, action: 'repairSplit' }])
+    expect(held.plan.logs[0].event).toBe("Roy's Handle pool fell from 65 to 35. They choose a new Defense before the next roll.")
+    expect(() => roll(held.records, ROY, royThrow, [10])).toThrow('Waiting for the split to be repaired.')
+    expect(() => act(held.records, { type: 'repairSplit', actor: ROY, defense: 40 })).toThrow('Keep Defense in tens, below 35')
+    expect(() => act(held.records, { type: 'repairSplit', actor: ROY, by: player, defense: 10 })).toThrow('That combatant belongs to someone else.')
+    const repaired = act(held.records, { type: 'repairSplit', actor: ROY, defense: 10 }).records
+    const roy = who(repaired, ROY)
+    expect(roy.declaration).toMatchObject({ total: 35, lines: [{ against: HERO, amount: 10 }], frozen: { attack: 25, total: 35 }, repaired: true })
+    expect(state(repaired).attack).toMatchObject({ splitRepair: null, aim: { ...royThrow, defense: { against: HERO, amount: 10 } }, frozen: { attack: 25 } })
+    const rolled = roll(repaired, ROY, { ...royThrow, defense: { against: HERO, amount: 10 } }, [10])
+    expect(state(rolled.records).attack!.roll).toMatchObject({ roll: 10, attackNumber: 25, hit: true })
+  })
+
+  it('locks a spent attack and leaves Defense only what remains, or none', () => {
+    let records = ranged(attacking())
+    records = onward(roll(records, ROY, royThrow, [99]).records)
+    records = ranged(weakened(records))
+    const thrown = roll(records, HERO, heroThrow, [10, 40, 3])
+    expect(state(thrown.records).attack).toMatchObject({ attackerKey: HERO, step: 'defense' })
+    const defended = act(thrown.records, { type: 'defend', actor: ROY, dice: [40, 3] })
+    expect(who(defended.records, ROY).declaration).toMatchObject({ lines: [], frozen: { attack: 45 }, repaired: true })
+    expect(defended.plan.logs.map((log) => log.event)).toEqual(expect.arrayContaining(["Roy's Handle pool fell from 65 to 35: the split is now no Defense, ATK 45.", 'Roy has no Defense left.']))
+  })
+
+  it('keeps a declaration that still fits exactly as frozen', () => {
+    const records = ranged(attacking())
+    const rolled = roll(records, ROY, royThrow, [10])
+    expect(state(rolled.records).attack!.roll).toMatchObject({ attackNumber: 45 })
+    expect(who(rolled.records, ROY).declaration!.repaired).toBeUndefined()
+  })
+})

@@ -34,6 +34,8 @@ export type AttackCommands = {
   returnIn: (combatantKey: string) => AttackAct
   /** The GM moves the fight on from an attack's Results. */
   continueResults: () => AttackAct
+  /** The owner (the GM for an NPC) chooses a new Defense for a split that no longer fits its pool. */
+  repairSplit: (actorKey: string, defense: number) => AttackAct
 }
 
 /** A Movement choice as sent: Pick up names the exact Floor record and quantity it claims. */
@@ -74,5 +76,6 @@ export function attackCommands(scope: CampaignScope, live: LubecLiveFight, send:
     takeOut: (combatantKey) => act(null, { type: 'takeOut', combatantKey }),
     returnIn: (combatantKey) => act(null, { type: 'return', combatantKey }),
     continueResults: () => act(null, { type: 'continue' }),
+    repairSplit: (actorKey, defense) => act(actorKey, { type: 'repairSplit', defense }),
   }
 }

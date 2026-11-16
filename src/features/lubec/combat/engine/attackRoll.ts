@@ -13,6 +13,7 @@ import { closeAttack, stepRequest, toLocation } from './attackFlow'
 import { declaredLine, isRoundAttack } from './roundAttacks'
 import { weaponInHand } from './chooseAgain'
 import { evasionFor } from './evasion'
+import { checkSplit } from './splitRepair'
 import { combatAttackActions, combatRollMode, combatTaskPenalty, modeRecord, modeWords, rollWithMode } from './combatModes'
 import type { CombatAttack, CombatCommand, Combatant, CombatEvasion, CombatFight, CombatFrozenAim, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
 
@@ -137,7 +138,15 @@ const roll: CombatHandler = (command, records, authority, entropy) => {
   const record = combatSheetOf(records, attacker)
   const repair = attackRepair(attacker, record)
   if (repair) return repairPlan(fight, attack, attacker, repair)
-  return rollPlan(fight, attack, record!, command, entropy)
+  if (attack.splitRepair) throw new Error('Waiting for the split to be repaired.')
+  if (!isRoundAttack(fight.state, attack)) return rollPlan(fight, attack, record!, command, entropy)
+  // A declared attack rolls only once its split still fits the pool, or has been split again.
+  const split = checkSplit(fight, attacker.key, records, command.envelope.fightId)
+  if (split.kind === 'choose') return { fight: { ...fight, state: split.state }, items: [], logs: [split.log] }
+  if (split.kind === 'fits') return rollPlan(fight, attack, record!, command, entropy)
+  const current = { ...fight, state: split.state }
+  const plan = rollPlan(current, current.state.attack!, record!, command, entropy)
+  return { ...plan, logs: [split.log, ...plan.logs] }
 }
 
 export const combatRollHandlers: Readonly<Record<string, CombatHandler>> = { roll }

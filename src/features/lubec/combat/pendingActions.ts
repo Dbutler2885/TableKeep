@@ -28,12 +28,12 @@ const ACTION_LABELS = {
   initiative: 'roll initiative', movement: 'choose Movement', declare: 'Declare', attack: 'Attack',
   defense: 'roll Defense', catch: 'try a catch', check: 'roll a Check', save: 'roll a Save',
   location: 'place the hit', strength: 'roll Strength', leave: 'confirm Leave', range: 'declare range',
-  reviewDeclaration: 'review declaration',
+  reviewDeclaration: 'review declaration', repairSplit: 'choose a new Defense split',
 } as const
 
 export const combatActionText = (action: ViewerCombatAction): string => `${action.name}: ${ACTION_LABELS[action.action]}`
 
-const NOTICE_STAGES = { initiative: 'Initiative', movement: 'Movement', declare: 'Declare', reviewDeclaration: 'Declaration review', attack: 'Attack', defense: 'Defense', catch: 'Catch', check: 'Check', save: 'Save', location: 'Hit location', strength: 'Strength', leave: 'Leave', range: 'Range' } as const
+const NOTICE_STAGES = { initiative: 'Initiative', movement: 'Movement', declare: 'Declare', reviewDeclaration: 'Declaration review', attack: 'Attack', defense: 'Defense', catch: 'Catch', check: 'Check', save: 'Save', location: 'Hit location', strength: 'Strength', leave: 'Leave', range: 'Range', repairSplit: 'Split repair' } as const
 
 const noticeActor = (action: ViewerCombatAction): string => action.kind === 'npc' ? `${action.name} (NPC)` : action.name
 

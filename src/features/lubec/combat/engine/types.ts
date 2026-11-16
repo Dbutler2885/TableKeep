@@ -40,6 +40,10 @@ export type CombatDeclaration = {
   sourceRevision: number
   /** Its maker went Out after declaring, or came back after Declare: no attack and no Defense from it this round. */
   stopped?: boolean
+  /** Its Defense line has been rolled this round, so that part of the split is spent. */
+  defenseRolled?: boolean
+  /** A sheet change made the frozen split too big for the pool, and it was split again. */
+  repaired?: boolean
 }
 export type Combatant = CombatantSelection & {
   key: string
@@ -167,6 +171,8 @@ export type CombatAttack = {
   continued?: boolean
   /** The target's Evasive Movement, when it took a penalty off this ranged attack. */
   evasion?: CombatEvasion | null
+  /** A declared split that no longer fits its pool, held until its owner chooses a new Defense. */
+  splitRepair?: { combatantKey: string; pool: number; was: number; against: string; attackSpent: boolean } | null
 }
 export type CombatState = {
   round: number
