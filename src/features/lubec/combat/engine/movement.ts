@@ -1,5 +1,5 @@
 import type { LubecItem } from '../../../ruleSets/lubec/gear/gearRecord'
-import { place } from '../../../ruleSets/lubec/gear/placement'
+import { lubecNoHandWhy, place } from '../../../ruleSets/lubec/gear/placement'
 import { attackRepair, combatantOf, combatantsIn as inRound, combatSheetOf } from './attackParty'
 import type { CombatPendingAction } from './combatFeedback'
 import { requireGm, requireLiveContext } from './context'
@@ -9,6 +9,7 @@ import type { CombatEntropy } from './commandEntropy'
 import { requireDue } from './declare'
 import { movementLost, withLostStages, withLostMovements } from './stages'
 import type { Combatant, CombatFight, CombatHandler, CombatMovement, CombatMovementChoice, CombatPickupClaim, CombatPlan, CombatRecords, CombatState } from './types'
+import { combatHands } from './inputModifiers'
 
 const CHOICES: readonly CombatMovementChoice[] = ['stay', 'run', 'evade', 'pickup', 'leave', 'stand']
 
@@ -39,7 +40,8 @@ function requireFreeHand(combatant: Combatant, records: CombatRecords, item: Lub
   const record = combatSheetOf(records, combatant)
   const repair = attackRepair(combatant, record)
   if (repair) throw new Error(repair)
-  if (!place(record!.sheet.gear, 'hands', item).ok) throw new Error(`${combatant.name} has no free hand for the ${item.name}.`)
+  const placed = place(record!.sheet.gear, 'hands', item, null, combatHands(record!.sheet, null))
+  if (!placed.ok) throw new Error(`${combatant.name} has no free hand for the ${item.name}.${lubecNoHandWhy(placed.msg)}`)
 }
 
 /** A player's Leave waits for the GM; the GM's own choice for an NPC needs no answer. */

@@ -1,6 +1,7 @@
 import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecord'
 import type { LubecEffect } from '../../../ruleSets/lubec/effects'
 import { lubecSheetModifiers } from '../../../ruleSets/lubec/modifiers'
+import { lubecHandLimits, type LubecHandLimits } from '../../../ruleSets/lubec/handLimits'
 import { lubecBriefWindowEnd } from '../roundTick'
 import type { CombatWoundOrigin } from '../woundTypes'
 
@@ -30,3 +31,7 @@ export function combatInputModifiers(sheet: LubecCharacterSheet, context: Combat
 export function combatActiveEffects(sheet: LubecCharacterSheet, context: CombatInputRound | null): LubecEffect[] {
   return context ? sheet.effects.filter((effect) => !deferredEffect(effect, context)) : [...sheet.effects]
 }
+
+/** The hands the sheet can use in this round of this fight, by the one hand reader Gear also asks. */
+export const combatHands = (sheet: LubecCharacterSheet, context: CombatInputRound | null): LubecHandLimits =>
+  lubecHandLimits(combatActiveEffects(sheet, context))

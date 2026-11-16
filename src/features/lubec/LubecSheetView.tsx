@@ -1,7 +1,7 @@
 import type { LubecEffectRecovery } from './effectRecovery'
 import { LubecSaveNotice, type LubecSaveControls } from './LubecSaveNotice'
 import { Pencil, Trash2, UserPlus } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { lubecClass } from '../ruleSets/lubec/classes'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
@@ -17,6 +17,8 @@ import type { LubecGearDrop } from './gear/lubecGearDrop'
 import type { LubecGearGive } from './gear/lubecGive'
 import type { LubecGearHidden } from './gear/lubecHiddenCarrierWrites'
 import { LubecGearPage, type LubecGearChange } from './gear/LubecGearPage'
+import { LubecHandsContext } from './gear/lubecHandsContext'
+import { lubecHandLimits } from '../ruleSets/lubec/handLimits'
 import type { LubecPictureUpload } from './gear/lubecPicked'
 import type { LubecSharedSeat } from './gear/lubecSharedSeat'
 import { lubecWielder } from '../ruleSets/lubec/gear/minStrength'
@@ -238,10 +240,14 @@ function changeClassOf(sheet: LubecCharacterRecord['lubec'], onDraftEdit: LubecS
 // The Gear page, which asks the owner for a heavy thing's Strength roll on the character's own sheet.
 function LubecSheetGear({ character, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, carrierKinds, gearGive, shared }: Pick<SheetPageProps, 'character' | 'onGearChange' | 'onGearDrop' | 'onGearHidden' | 'onGearUpload' | 'onGearRolled' | 'campaignStock' | 'carrierKinds' | 'gearGive' | 'shared'>) {
   const strength = onGearRolled && { sheet: character.lubec, onRolled: onGearRolled }
+  // An unusable arm, a hand that cannot grip, or no two-handed actions, from the active cards.
+  const hands = useMemo(() => lubecHandLimits(character.lubec.effects), [character.lubec.effects])
   return (
-    <LubecGearPage
-      gear={character.lubec.gear} owner={character.name} wielder={lubecWielder(character.lubec)} onGearChange={onGearChange} onDrop={onGearDrop} strength={strength} campaignStock={campaignStock} kinds={carrierKinds} give={gearGive} shared={shared} hidden={onGearHidden} upload={onGearUpload}
-    />
+    <LubecHandsContext.Provider value={hands}>
+      <LubecGearPage
+        gear={character.lubec.gear} owner={character.name} wielder={lubecWielder(character.lubec)} onGearChange={onGearChange} onDrop={onGearDrop} strength={strength} campaignStock={campaignStock} kinds={carrierKinds} give={gearGive} shared={shared} hidden={onGearHidden} upload={onGearUpload}
+      />
+    </LubecHandsContext.Provider>
   )
 }
 

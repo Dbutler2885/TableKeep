@@ -50,6 +50,7 @@ export function lubecReloadRefusalText(w: LubecItem, r: Refusal, supplyName: Lub
   if (r.why === 'full') return `${cap1(theName(w))} is full: ${w.loaded ?? 0} of ${w.capacity ?? 0} loaded.`
   if (r.why === 'busy-hand') return `Your other hand holds ${r.holds.name}. It needs to hold the ${supplyName(w.takes)}, or be empty to fetch them.`
   if (r.why === 'none-on-you') return `No ${supplyName(w.takes)} on you. A carrier doesn't count.`
+  if (r.why === 'hand-unusable') return `Loading takes both hands. ${r.because}.`
   return `Take ${theName(w)} in hand first.`
 }
 

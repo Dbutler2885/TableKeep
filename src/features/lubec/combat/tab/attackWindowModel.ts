@@ -10,6 +10,7 @@ import { isRoundAttack } from '../engine/roundAttacks'
 import type { CombatAim, CombatAttack, CombatAttackRange, Combatant, CombatFrozenAim, CombatState } from '../engine/types'
 import { attackSegments, completeAim, sameAim, type AttackDraft, type AttackSegments } from './attackDraft'
 import { combatFightCombatant, type CombatRosterRecords } from './combatFightCombatants'
+import { lubecHandLimits } from '../../../ruleSets/lubec/handLimits'
 
 export type AttackReading = { handle: number; skill: CombatAttackSkill | null; total: number; ranged: boolean }
 
@@ -103,5 +104,5 @@ export function attackGone(state: CombatState, attack: CombatAttack, sheet: Lube
   if (!isRoundAttack(state, attack)) return NOTHING_GONE
   const aim = attack.aim!
   const target = state.combatants.find((entry) => entry.key === aim.targetKey)!.outReason !== null
-  return { target, weapon: !lubecFightAttack(sheet.gear, aim.weaponItemId, combatFightingTraining(sheet), aim.attackId) }
+  return { target, weapon: !lubecFightAttack(sheet.gear, aim.weaponItemId, combatFightingTraining(sheet), aim.attackId, lubecHandLimits(sheet.effects)) }
 }

@@ -12,7 +12,7 @@ import { requireLiveContext } from './context'
 import { requireDue } from './declare'
 import { checkSplit } from './splitRepair'
 import { combatRollMode, modeRecord, modeWords, rollWithMode, successThenHigher, type CombatMode } from './combatModes'
-import { combatInputModifiers } from './inputModifiers'
+import { combatHands, combatInputModifiers } from './inputModifiers'
 import type { CombatAttack, CombatCommand, Combatant, CombatDefenseRoll, CombatFight, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
 
 type Split = { amount: number; full: boolean }
@@ -52,7 +52,7 @@ const catchable = (attack: CombatAttack): LubecItem | null => {
 
 export function catchChance(attack: CombatAttack, sheet: CombatSheet, net: number): number {
   const item = catchable(attack)
-  if (!item || !place(sheet.sheet.gear, 'hands', item).ok) return 0
+  if (!item || !place(sheet.sheet.gear, 'hands', item, null, combatHands(sheet.sheet, null)).ok) return 0
   return Math.min(100, item.catchChance! + 10 * -net)
 }
 
@@ -151,7 +151,7 @@ const outOnCatch = (state: CombatState, attack: CombatAttack, item: LubecItem) =
 /** A success puts the object in the catcher's first free hand, and the thrower Out when the item says so. */
 function caught(fight: CombatFight, attack: CombatAttack, record: CombatSheet, detached: LubecDetachedItem, command: CombatCommand): CombatPlan {
   // The free hand was checked in this same transaction before the roll, so the placement succeeds.
-  const arrival = lubecPlaceDetached(record.sheet.gear, detached, { commandId: command.envelope.id, role: 'catch' }, 'hands') as Extract<LubecArrival, { ok: true }>
+  const arrival = lubecPlaceDetached(record.sheet.gear, detached, { commandId: command.envelope.id, role: 'catch' }, 'hands', combatHands(record.sheet, null)) as Extract<LubecArrival, { ok: true }>
   const item = detached.item as LubecItem
   const state = closeAttack({ ...fight.state, combatants: outOnCatch(fight.state, attack, item) }, { ...attack, detached: [] }, 'caught')
   return { fight: { ...fight, state }, items: [], logs: [], sheets: [{ selection: { kind: record.kind, sheetId: record.sheetId }, gear: arrival.gear }] }
@@ -165,7 +165,7 @@ function handsFull(fight: CombatFight, attack: CombatAttack, defender: Combatant
 
 function caughtOrDropped(fight: CombatFight, attack: CombatAttack, record: CombatSheet, command: CombatCommand, entropy: CombatEntropy): CombatPlan {
   const defender = combatantOf(fight.state, defenderOf(attack))
-  if (!place(record.sheet.gear, 'hands', caughtItem(attack)!).ok) return handsFull(fight, attack, defender)
+  if (!place(record.sheet.gear, 'hands', caughtItem(attack)!, null, combatHands(record.sheet, null)).ok) return handsFull(fight, attack, defender)
   const chance = attack.catchChance!
   const roll = entropy.die('catch', 100)
   const rolled = { ...attack, catch: { chance, roll, success: roll < chance }, repair: null }

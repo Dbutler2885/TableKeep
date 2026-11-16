@@ -11,6 +11,7 @@ import { lubecHeavyMove, type LubecGearMove, type LubecHeavyMove } from './gearM
 import { lubecDraftOf } from './itemForm'
 import { lubecSaveForm, type LubecCardSheet, type LubecFormSheet, type LubecItemSheetState } from './itemSheet'
 import { lubecTooHeavyDropped, lubecTooHeavyToAdd, lubecTooHeavyToMove } from './strengthLabels'
+import { LUBEC_FREE_HANDS, type LubecHandLimits } from '../../ruleSets/lubec/handLimits'
 
 /**
  * What the prompt asks for: the add or edit form's save, a move (from the
@@ -48,10 +49,10 @@ export function lubecAskedThing(gear: LubecGear, ask: LubecStrengthAsk): Pick<Lu
  * to ask, it moves with no roll recorded, for its owner to make. Any other move is as it came.
  */
 export function lubecAskFirst(
-  gear: LubecGear, r: LubecGearMove, onAsk: ((ask: LubecStrengthAsk) => void) | null | undefined, card: LubecCardSheet | null,
+  gear: LubecGear, r: LubecGearMove, onAsk: ((ask: LubecStrengthAsk) => void) | null | undefined, card: LubecCardSheet | null, hands: LubecHandLimits = LUBEC_FREE_HANDS,
 ): Exclude<LubecGearMove, { kind: 'ask' }> | null {
   if (r.kind !== 'ask') return r
-  if (!onAsk) return lubecHeavyMove(gear, r.move, null)
+  if (!onAsk) return lubecHeavyMove(gear, r.move, null, hands)
   onAsk({ kind: 'move', move: r.move, card })
   return null
 }
@@ -71,9 +72,9 @@ function formAnswer(gear: LubecGear, form: LubecFormSheet, check: LubecCheck | n
 }
 
 // The move goes ahead with the roll; the card it was asked on shows where the thing is now, or why it could not go.
-function moveAnswer(gear: LubecGear, ask: Extract<LubecStrengthAsk, { kind: 'move' }>, item: LubecItem, check: LubecCheck | null): LubecStrengthAnswer {
+function moveAnswer(gear: LubecGear, ask: Extract<LubecStrengthAsk, { kind: 'move' }>, item: LubecItem, check: LubecCheck | null, hands: LubecHandLimits): LubecStrengthAnswer {
   if (!check) return { toast: lubecTooHeavyToMove(item) }
-  const r = lubecHeavyMove(gear, ask.move, check)
+  const r = lubecHeavyMove(gear, ask.move, check, hands)
   const card = ask.card
   if (r.kind === 'refused') return card ? { sheet: { ...card, error: r.msg } } : { toast: r.msg }
   return { gear: r.gear, toast: r.toast, sheet: card ? { ...card, error: null, move: false } : undefined }
@@ -87,11 +88,11 @@ function pendingAnswer(gear: LubecGear, item: LubecItem, check: LubecCheck | nul
 }
 
 /** Done, after a roll that came out `outcome`: what the page commits and shows. Nothing, when the thing has gone. */
-export function lubecStrengthDone(gear: LubecGear, ask: LubecStrengthAsk, outcome: 'success' | 'failure', newId: () => string): LubecStrengthAnswer {
+export function lubecStrengthDone(gear: LubecGear, ask: LubecStrengthAsk, outcome: 'success' | 'failure', newId: () => string, hands: LubecHandLimits = LUBEC_FREE_HANDS): LubecStrengthAnswer {
   const thing = lubecAskedThing(gear, ask)
   if (!thing) return { next: null }
   const check = lubecCheckOf(thing, outcome)
   if (ask.kind === 'form') return formAnswer(gear, ask.form, check, newId)
   const item = thing as LubecItem
-  return ask.kind === 'move' ? moveAnswer(gear, ask, item, check) : pendingAnswer(gear, item, check)
+  return ask.kind === 'move' ? moveAnswer(gear, ask, item, check, hands) : pendingAnswer(gear, item, check)
 }

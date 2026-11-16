@@ -6,6 +6,7 @@
 
 import type { LubecGear, LubecItem } from './gearRecord'
 import { onYou, place } from './placement'
+import { LUBEC_FREE_HANDS, type LubecHandLimits } from '../handLimits'
 import type { LubecPlacement } from './stacks'
 
 export type LubecMoved = { ok: true; gear: LubecGear; item: LubecItem } | { ok: false; msg: string }
@@ -49,10 +50,10 @@ const keptCheck = (moved: LubecItem): LubecItem => (onYou(moved) ? moved : witho
  * say why not. `cells` are the main-pocket boxes a dragged thing was dropped
  * on (Rule W2); a thing moved any other way is packed by the sheet.
  */
-export function lubecMoveItem(gear: LubecGear, itemId: string, dest: string, cells: readonly number[] | null = null): LubecMoved {
+export function lubecMoveItem(gear: LubecGear, itemId: string, dest: string, cells: readonly number[] | null = null, hands: LubecHandLimits = LUBEC_FREE_HANDS): LubecMoved {
   const i = findItem(gear, itemId)
   if (!i) return { ok: false, msg: GONE }
-  const pl = place(gear, dest, i, i.id)
+  const pl = place(gear, dest, i, i.id, hands)
   if (!pl.ok) return pl
   const at = lubecAt(i, pl)
   const moved = keptCheck(cells && lubecInMain(at) ? { ...at, cells: [...cells] } : at)

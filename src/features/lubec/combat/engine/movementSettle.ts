@@ -6,6 +6,7 @@ import { combatOrdered, RAN, withDeclareRequests } from './declare'
 import type { CombatEntropy } from './commandEntropy'
 import { evasionLog, rollEvasion } from './evasion'
 import type { CombatCommand, Combatant, CombatEvasion, CombatHandler, CombatPlan, CombatRecords, CombatState } from './types'
+import { combatHands } from './inputModifiers'
 
 type Settling = { floor: LubecDetachedItem[]; sheets: NonNullable<CombatPlan['sheets']>; logs: CombatLog[]; evasions: ReadonlyMap<string, CombatEvasion> }
 
@@ -21,7 +22,7 @@ function pickUp(settling: Settling, claimant: Combatant, item: string, records: 
   if (!source || source.item.qty < claim.qty) return lost(settling, claimant, `${claimant.name} reached for the ${item}, but someone faster took it.`)
   const itemCommand = { commandId: command.envelope.id, role: `pickup:${claimant.key}` }
   const taken = lubecTakeDetached(settling.floor, claim.itemId, claim.qty, itemCommand)
-  const arrival = lubecPlaceDetached(record.sheet.gear, taken.detached, itemCommand, 'hands')
+  const arrival = lubecPlaceDetached(record.sheet.gear, taken.detached, itemCommand, 'hands', combatHands(record.sheet, { fightId: command.envelope.fightId, round: command.envelope.round }))
   if (!arrival.ok) return lost(settling, claimant, `${claimant.name} could not pick up the ${item}: no free hand.`)
   const sheets = [...settling.sheets, { selection: { kind: claimant.kind, sheetId: claimant.sheetId }, gear: arrival.gear }]
   return { ...settling, floor: taken.records, sheets, logs: [...settling.logs, { event: `${claimant.name} picked up the ${item}.`, actor: claimant.key }] }

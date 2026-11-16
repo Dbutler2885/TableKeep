@@ -1,12 +1,13 @@
 import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecord'
 import type { LubecItem } from '../../../ruleSets/lubec/gear/gearRecord'
-import { place } from '../../../ruleSets/lubec/gear/placement'
+import { lubecNoHandWhy, place } from '../../../ruleSets/lubec/gear/placement'
 import { lubecCombatantRecord } from '../../fight/lubecFightRequest'
 import { lubecHeld, type LubecHands } from '../../../ruleSets/lubec/gear/held'
 import type { Combatant, CombatMovementChoice, CombatState } from '../engine/types'
 import { controlsAttacker, type CombatViewer } from './attackWords'
 import { combatFightCombatant, type CombatRosterRecords } from './combatFightCombatants'
 import type { CombatFloorRow } from './combatFloorRows'
+import { lubecHandLimits } from '../../../ruleSets/lubec/handLimits'
 
 export const MOVEMENT_NAMES: Readonly<Record<CombatMovementChoice, string>> = { stand: 'Stand', stay: 'Move or stay', run: 'Run', evade: 'Evasive', pickup: 'Pick up', leave: 'Leave the fight' }
 
@@ -19,7 +20,8 @@ export const movementSheetOf = (combatant: Combatant, roster: CombatRosterRecord
 /** One of a row's items fits a free hand now; settlement checks the hands again. */
 export function pickupBlocked(sheet: LubecCharacterSheet | null, row: CombatFloorRow): string | null {
   if (!sheet) return null
-  return place(sheet.gear, 'hands', { ...row.item, qty: 1 } as LubecItem).ok ? null : `No free hand for the ${row.item.name}.`
+  const placed = place(sheet.gear, 'hands', { ...row.item, qty: 1 } as LubecItem, null, lubecHandLimits(sheet.effects))
+  return placed.ok ? null : `No free hand for the ${row.item.name}.${lubecNoHandWhy(placed.msg)}`
 }
 
 

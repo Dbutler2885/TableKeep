@@ -9,6 +9,7 @@ import type { LubecGear, LubecItem, LubecItemSize, LubecSupply } from './gearRec
 import { holds, isBox, RELOAD_COST, type LubecReloadPlace } from './gearRules'
 import { lubecMoveCost, type LubecMoveCost } from './moveCost'
 import { carrierOf, itemsIn, onYou, place } from './placement'
+import { LUBEC_FREE_HANDS, lubecBothHandsRefusal, type LubecHandLimits } from '../handLimits'
 import { lubecPlacedAt } from './arrival'
 import { isUsedUp, perOf, type LubecItemDraft, type LubecPlacement } from './stacks'
 import { lubecAmountIn, lubecLooseOf, lubecSupplyIn } from './supplies'
@@ -33,6 +34,8 @@ export type LubecReloadRefusal =
   | { why: 'full' }
   | { why: 'busy-hand'; holds: LubecItem }
   | { why: 'none-on-you' }
+  /** Loading takes both hands, and an active card takes one of them out or forbids two-handed actions. */
+  | { why: 'hand-unusable'; because: string }
 
 /** What loading `w` draws, nearest first, and what it costs: the farthest place drawn from sets it. */
 export type LubecReloadPlan =
@@ -43,10 +46,12 @@ const fitsInto = (w: LubecItem) => (i: LubecItem): boolean => i.id !== w.id && l
 
 const isFull = (i: LubecItem): boolean => (i.loaded ?? 0) >= (i.capacity ?? 0)
 
-// Rules L3 and L4: the thing is in hand, and the other hand holds the supply or is empty to fetch it.
-function reloadRefusal(gear: LubecGear, w: LubecItem): LubecReloadRefusal | null {
+// Rules L3 and L4: the thing is in hand, and the other hand holds the supply or is empty to fetch it, so both hands must be usable.
+function reloadRefusal(gear: LubecGear, w: LubecItem, hands: LubecHandLimits): LubecReloadRefusal | null {
   if (w.carrier !== 'hands') return { why: 'not-in-hand' }
   if (isFull(w)) return { why: 'full' }
+  const unusable = lubecBothHandsRefusal(hands)
+  if (unusable) return { why: 'hand-unusable', because: unusable }
   const fits = fitsInto(w)
   const busy = itemsIn(gear, 'hands').find((i) => i.id !== w.id && !fits(i))
   return busy ? { why: 'busy-hand', holds: busy } : null
@@ -80,8 +85,8 @@ const farthest = (take: readonly LubecDraw[]): LubecReloadPlace =>
   }, 'hands')
 
 /** Rules L3 and L4: what loading `w` to full would draw and cost, or why it can't be loaded. */
-export function lubecReloadPlan(gear: LubecGear, w: LubecItem, firstId: string | null = null): LubecReloadPlan {
-  const no = reloadRefusal(gear, w)
+export function lubecReloadPlan(gear: LubecGear, w: LubecItem, firstId: string | null = null, hands: LubecHandLimits = LUBEC_FREE_HANDS): LubecReloadPlan {
+  const no = reloadRefusal(gear, w, hands)
   if (no) return { ok: false, ...no }
   const sources = nearestFirst(gear, w, firstId)
   const have = sources.reduce((n, i) => n + lubecAmountIn(i), 0)
@@ -108,8 +113,8 @@ function drawn(items: readonly LubecItem[], take: readonly LubecDraw[]): Drawn {
 export type LubecReloaded = { ok: true; gear: LubecGear; item: LubecItem; plan: Extract<LubecReloadPlan, { ok: true }>; gone: LubecItem[] }
 
 /** Rules L3 to L5: loads `w` to full from the supply on you, nearest first, or from `firstId` first. */
-export function lubecReload(gear: LubecGear, w: LubecItem, firstId: string | null = null): LubecReloaded | Extract<LubecReloadPlan, { ok: false }> {
-  const plan = lubecReloadPlan(gear, w, firstId)
+export function lubecReload(gear: LubecGear, w: LubecItem, firstId: string | null = null, hands: LubecHandLimits = LUBEC_FREE_HANDS): LubecReloaded | Extract<LubecReloadPlan, { ok: false }> {
+  const plan = lubecReloadPlan(gear, w, firstId, hands)
   if (!plan.ok) return plan
   const item = { ...w, loaded: (w.loaded ?? 0) + plan.put }
   const { items, gone } = drawn(gear.items.map((x) => (x.id === w.id ? item : x)), plan.take)
@@ -123,8 +128,8 @@ export type LubecReloadFireRefusal = Extract<LubecReloadPlan, { ok: false }> | {
  * Rule L9: Reload and fire, by special dispensation. It loads, fires and uses a round in one action.
  * There is no popup for the GM to approve, now or ever.
  */
-export function lubecReloadAndFire(gear: LubecGear, w: LubecItem): LubecReloaded | LubecReloadFireRefusal {
-  const loaded = lubecReload(gear, w)
+export function lubecReloadAndFire(gear: LubecGear, w: LubecItem, hands: LubecHandLimits = LUBEC_FREE_HANDS): LubecReloaded | LubecReloadFireRefusal {
+  const loaded = lubecReload(gear, w, null, hands)
   if (!loaded.ok) return loaded
   const fired = lubecSpendRound(loaded.gear, w.id)
   return fired.ok ? { ...loaded, gear: fired.gear, item: fired.weapon } : { ok: false, why: fired.why }
@@ -175,21 +180,21 @@ function newStackPlaces(gear: LubecGear, src: LubecItem, small: boolean): string
   return [...own, 'hands', 'body', pack]
 }
 
-function newStackOptions(gear: LubecGear, src: LubecItem, n: number, draft: LubecItemDraft): LandOption[] {
+function newStackOptions(gear: LubecGear, src: LubecItem, n: number, draft: LubecItemDraft, hands: LubecHandLimits): LandOption[] {
   if (!(draft.size === 0 || n <= (draft.per ?? 1))) return []
   const cost = costFrom(src.carrier)
   return newStackPlaces(gear, src, draft.size === 0).flatMap((dest) => {
-    const placed = place(gear, dest, draft, null)
+    const placed = place(gear, dest, draft, null, hands)
     return placed.ok ? [{ ok: true as const, n, pour: false as const, cost: cost(dest), draft, placed }] : []
   })
 }
 
 /** Rule L6: where `n` unloaded from `src`, or taken out of a box, would land, at what moving them there costs (M). */
-export function lubecLandPlan(gear: LubecGear, src: LubecItem, n: number, supplies: readonly LubecSupply[]): LubecLandPlan {
+export function lubecLandPlan(gear: LubecGear, src: LubecItem, n: number, supplies: readonly LubecSupply[], hands: LubecHandLimits = LUBEC_FREE_HANDS): LubecLandPlan {
   const loose = lubecLooseOf(supplies, src.takes)
   if (!loose) return { ok: true, n, pour: true }
   const draft = looseDraft(supplies, src.takes as string, loose, n)
-  const opts = [...intoOptions(gear, src, n), ...newStackOptions(gear, src, n, draft)]
+  const opts = [...intoOptions(gear, src, n), ...newStackOptions(gear, src, n, draft, hands)]
   if (!opts.length) return { ok: false, n, why: 'no-room' }
   return opts.reduce((a, b) => (b.cost < a.cost ? b : a))
 }
@@ -207,8 +212,8 @@ function landed(gear: LubecGear, plan: Extract<LubecLandPlan, { ok: true }>, new
 export type LubecUnloaded = { ok: true; gear: LubecGear; plan: Extract<LubecLandPlan, { ok: true }> } | Extract<LubecLandPlan, { ok: false }>
 
 /** Rule L6: unloads `n` from `src`, or takes `n` out of a box. What can't be loose is poured out. */
-export function lubecUnload(gear: LubecGear, src: LubecItem, n: number, supplies: readonly LubecSupply[], newId: () => string): LubecUnloaded {
-  const plan = lubecLandPlan(gear, src, n, supplies)
+export function lubecUnload(gear: LubecGear, src: LubecItem, n: number, supplies: readonly LubecSupply[], newId: () => string, hands: LubecHandLimits = LUBEC_FREE_HANDS): LubecUnloaded {
+  const plan = lubecLandPlan(gear, src, n, supplies, hands)
   if (!plan.ok) return plan
   const left = { ...src, loaded: (src.loaded ?? 0) - n }
   const items = landed(gear, plan, newId).map((x) => (x.id === src.id ? left : x))

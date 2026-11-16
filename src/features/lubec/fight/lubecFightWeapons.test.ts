@@ -111,3 +111,32 @@ describe('shared attack eligibility and chosen-weapon validation', () => {
     for (const id of ['packed', 'thing', 'missing', 'unslotted', null]) expect(lubecFightAttacks(gear, id)).toEqual([])
   })
 })
+
+describe('weapon choices under hand limits', () => {
+  const out = (why: string, slot: 0 | 1) => ({ unusable: [{ slot, why }], noTwoHanded: null })
+
+  it('gives a weapon in an unusable hand no use, keeps the other hand\'s, and says why on the card', () => {
+    const gear = gearOf(weapon('knife', 1), weapon('club', 0))
+    const limits = out('Right arm unusable (Shoulder)', 1)
+    expect(lubecFightAttacks(gear, 'knife', false, limits)).toEqual([])
+    expect(lubecFightAttack(gear, 'club', false, null, limits)).not.toBeNull()
+    expect(lubecChosenWeaponName(gear, 'knife', false, null, limits)).toBeNull()
+    const cells = lubecFightCells(gear, wielder, limits)
+    expect(cells.map((cell) => [cell.where, cell.unusable])).toEqual([['Left hand', null], ['Right hand', 'Right arm unusable (Shoulder)']])
+    expect(cells[1]).toMatchObject({ attack: null })
+  })
+
+  it('takes a two-handed weapon out when two-handed actions are impossible', () => {
+    const gear = gearOf(weapon('bat', 0, { size: 2 }))
+    expect(lubecFightAttacks(gear, 'bat', false, { unusable: [], noTwoHanded: 'Two-handed actions impossible (Crushed hand)' })).toEqual([])
+    expect(lubecFightAttacks(gear, 'bat', false)).not.toEqual([])
+  })
+
+  it('offers Fisticuffs only from a free usable hand, and Kick to the trained when none is', () => {
+    const gear = gearOf(weapon('knife', 0))
+    const limits = out('Right hand cannot grip (Grip)', 1)
+    expect(lubecFightFists(gear, wielder, false, limits)).toEqual({ offered: false })
+    expect(lubecFightAttacks(gear, LUBEC_FISTICUFFS_ID, true, limits).map((attack) => attack.feet)).toEqual([true])
+    expect(lubecFightCells(gear, wielder, limits)[1]).toEqual({ kind: 'free', where: 'Right hand', unusable: 'Right hand cannot grip (Grip)' })
+  })
+})

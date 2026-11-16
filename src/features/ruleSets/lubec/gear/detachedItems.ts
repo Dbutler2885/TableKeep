@@ -6,6 +6,7 @@ import { LUBEC_GM_ITEM_FIELDS, type LubecGmItem } from './gmItem'
 import { assertLubecItemOwnership, lubecSplitItem, type LubecItemCommand } from './itemIdentity'
 import { lubecImportItemSupplies, lubecReferencedSupplies } from './itemSupplyTransfer'
 import { place } from './placement'
+import { LUBEC_FREE_HANDS, type LubecHandLimits } from '../handLimits'
 
 /** Floor and current-attack records keep one unplaced stack and its custom definitions. */
 export type LubecDetachedItem = { item: LubecUnplacedItem; supplies: LubecSupply[] }
@@ -37,11 +38,11 @@ export function lubecDetachFromGear(gear: LubecGear, itemId: string, qty: number
 }
 
 /** Pickup/catch changes placement without coalescing with a remainder or a same-name item. */
-export function lubecPlaceDetached(gear: LubecGear, detached: LubecDetachedItem, command: LubecItemCommand, dest?: string): LubecArrival {
+export function lubecPlaceDetached(gear: LubecGear, detached: LubecDetachedItem, command: LubecItemCommand, dest?: string, hands: LubecHandLimits = LUBEC_FREE_HANDS): LubecArrival {
   assertLubecItemOwnership([...gear.items, detached.item])
   const imported = lubecImportItemSupplies(detached.item as LubecItem, gear.supplies, detached.supplies, command)
-  if (dest === undefined) return lubecReceive({ ...gear, supplies: imported.supplies }, imported.item)
-  const at = place(gear, dest, imported.item)
+  if (dest === undefined) return lubecReceive({ ...gear, supplies: imported.supplies }, imported.item, [], hands)
+  const at = place(gear, dest, imported.item, null, hands)
   if (!at.ok) return at
   const item = lubecPlacedAt(imported.item, at)
   return { ok: true, item, gear: { ...gear, supplies: imported.supplies, items: [...gear.items, item] } }

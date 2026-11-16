@@ -14,6 +14,7 @@ import { requireLiveContext } from './context'
 import { requireDue } from './declare'
 import type { CombatAttack, CombatCommand, Combatant, CombatFight, CombatHandler, CombatPlan, CombatSheet, CombatState, CombatWoundRow } from './types'
 import { checkLog, rollRowCheck } from './woundCheck'
+import { combatHands } from './inputModifiers'
 
 type Outcome = LubecDodgeballOutcome<LubecDodgeballEffect>
 
@@ -73,9 +74,10 @@ export function readDodgeballRow(fight: CombatFight, attack: CombatAttack, entro
 /** A row's catch success puts the ball in the target's first free hand; with none free it lands on the Floor. */
 function caughtByRow(attack: CombatAttack, record: CombatSheet, command: CombatCommand) {
   const detached = attack.detached[0]
-  if (!detached || !place(record.sheet.gear, 'hands', detached.item as LubecItem).ok) return { attack, sheets: [] }
+  const hands = combatHands(record.sheet, null)
+  if (!detached || !place(record.sheet.gear, 'hands', detached.item as LubecItem, null, hands).ok) return { attack, sheets: [] }
   // The free hand was checked just above, in this same transaction, so the placement succeeds.
-  const arrival = lubecPlaceDetached(record.sheet.gear, detached, { commandId: command.envelope.id, role: 'catch' }, 'hands') as Extract<LubecArrival, { ok: true }>
+  const arrival = lubecPlaceDetached(record.sheet.gear, detached, { commandId: command.envelope.id, role: 'catch' }, 'hands', hands) as Extract<LubecArrival, { ok: true }>
   return { attack: { ...attack, detached: [] }, sheets: [{ selection: { kind: record.kind, sheetId: record.sheetId }, gear: arrival.gear }] }
 }
 

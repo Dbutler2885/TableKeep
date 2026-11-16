@@ -19,6 +19,7 @@ import {
   type LubecRect,
 } from './dragGeometry'
 import { lubecMarkOf, type LubecDragView, type LubecDropMark } from './lubecDragMarks'
+import type { LubecHandLimits } from '../../ruleSets/lubec/handLimits'
 
 // A finger holds still this long before a thing is picked up (B's DRAG_HOLD_MS).
 export const LUBEC_DRAG_HOLD_MS = 260
@@ -58,6 +59,8 @@ export type LubecDragOptions = {
   /** The On you view, whose boxes are marked `data-item` and `data-drop`. */
   root: RefObject<HTMLElement | null>
   gear: LubecGear
+  /** The hands the sheet's active cards leave usable. */
+  hands: LubecHandLimits
   /** The main pocket's five boxes, in percent of the pack box. */
   spots: readonly LubecPackSpot[]
   /** False for a viewer who may only look, and while a move is being saved. */
@@ -224,7 +227,7 @@ function startDrag(d: Drag) {
   const p = d.press, root = d.opts.root.current
   if (!p || !root) return
   p.started = true
-  p.targets = lubecDropTargets(d.opts.gear, p.it, surfaceOf(root, d.dropZone, d.opts.spots))
+  p.targets = lubecDropTargets(d.opts.gear, p.it, surfaceOf(root, d.dropZone, d.opts.spots), d.opts.hands)
   const src = lubecMarkOf(p.src.dataset.drop, p.src.dataset.item)
   d.setView({ itemId: p.it.id, src, ...marksOf(p.targets), hot: null, layer: root.closest<HTMLElement>('.shell-root') })
   document.body.classList.add('lubec-dragging')

@@ -36,8 +36,8 @@ function spend(gear: LubecGear, weaponItemId: string, choice: LubecAttackChoice,
   return { gear: thrown.gear, detached: [thrown.detached] }
 }
 
-function requireStillLegal(record: CombatSheet, attack: CombatAttack) {
-  if (!weaponInHand(record, attack.aim!)) throw new Error('That weapon is no longer in hand. Choose again.')
+function requireStillLegal(record: CombatSheet, attack: CombatAttack, context: { fightId: string; round: number }) {
+  if (!weaponInHand(record, attack.aim!, context)) throw new Error('That weapon is no longer in hand. Choose again.')
 }
 
 function requireAimed(attack: CombatAttack): CombatFrozenAim {
@@ -113,7 +113,7 @@ function rollPlan(fight: CombatFight, attack: CombatAttack, record: CombatSheet,
   const frozen = attack.frozen!
   const attacker = combatantOf(state, attack.attackerKey)
   const target = requireOpponent(state, attacker, attack.aim!.targetKey)
-  requireStillLegal(record, attack)
+  requireStillLegal(record, attack, { fightId: command.envelope.fightId, round: state.round })
   const spent = spend(record.sheet.gear, attack.aim!.weaponItemId, frozen.choice, command.envelope.id)
   // A ranged attack at an evader takes the evasion penalty off the attack number, beside the GM's range.
   const evasion = evasionFor(state, target.key, frozen.choice)

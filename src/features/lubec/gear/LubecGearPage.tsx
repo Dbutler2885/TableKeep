@@ -37,6 +37,7 @@ import './lubecGearWeapons.css'
 import './lubecGearLoading.css'
 import './lubecPackPicker.css'
 import './lubecGearCarriers.css'
+import { useLubecHands } from './lubecHandsContext'
 
 /** Saves the character's next gear; null for a viewer who may only look. */
 export type LubecGearChange = ((gear: LubecGear) => void) | null
@@ -157,12 +158,13 @@ type AskProps = {
 
 // The Strength prompt over the page, for the thing it asks about while that is still on the sheet; Done answers from the gear as it is then.
 function StrengthAsk({ gear, ask, strength, setAsk, ...ctx }: AskProps) {
+  const hands = useLubecHands()
   const thing = lubecAskedThing(gear, ask)
   if (!thing) return null
   return (
     <LubecStrengthPrompt
       sheet={strength.sheet} onRolled={strength.onRolled} thing={thing} onCancel={() => setAsk(null)}
-      onDone={(outcome) => lubecAnswerStrength({ ...ctx, setAsk }, gear, ask, outcome)}
+      onDone={(outcome) => lubecAnswerStrength({ ...ctx, setAsk }, gear, ask, outcome, hands)}
     />
   )
 }

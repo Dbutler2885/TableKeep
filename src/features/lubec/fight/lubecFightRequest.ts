@@ -11,6 +11,7 @@ import { armorVs, WOUND_KINDS } from '../gear/itemLabels'
 import { lubecCharacterName } from '../lubecNames'
 import { lubecNpcSheetRecord, type LubecNpcIdentity } from '../lubecNpcSheetRecord'
 import type { LubecArmorNumbers, LubecNpcFightSummary } from './lubecNpcFightSummary'
+import { lubecHandLimits, type LubecHandLimits } from '../../ruleSets/lubec/handLimits'
 
 /** Someone in a fight: a player's character, or an NPC on a map token. */
 export type LubecCombatant =
@@ -56,6 +57,9 @@ export function lubecCombatantFace(c: LubecCombatant): LubecCombatantFace {
 
 /** What a combatant carries; nothing without a sheet to read. */
 export const lubecCombatantGear = (c: LubecCombatant): LubecGear => lubecCombatantRecord(c)?.lubec.gear ?? emptyLubecGear()
+
+/** The hands a combatant can use, from their sheet's active cards; both, without a sheet to read. */
+export const lubecCombatantHands = (c: LubecCombatant): LubecHandLimits => lubecHandLimits(lubecCombatantRecord(c)?.lubec.effects ?? [])
 
 /** A combatant's Strength and Handle; holes without a sheet to read. */
 export function lubecCombatantWielder(c: LubecCombatant): LubecWielder {

@@ -117,6 +117,13 @@ describe('Movement', () => {
     expect(() => act(freeHand, { type: 'move', actor: HERO, by: player, choice: 'pickup', pickup: { itemId: 'floor-ball', qty: 2 } })).toThrow('no longer on the Floor')
   })
 
+  it('refuses a forged pickup into a hand an active card takes out, even an empty one', () => {
+    const armOut = { id: 'arm', name: 'Dislocated shoulder', cause: '', steps: [{ modifiers: [], labels: [], until: 'put-back', restrictions: [{ kind: 'arm-unusable', side: 'R' }] }] }
+    const oneHand = { ...hero([ball('hero-ball')]), sheet: { ...hero([ball('hero-ball')]).sheet, effects: [armOut as never] } }
+    expect(() => act(movement([oneHand, roy(), dale()]), { type: 'move', actor: HERO, by: player, ...claim() }))
+      .toThrow('Wayne has no free hand for the Dodgeball. Right arm unusable (Dislocated shoulder), and no other hand is free.')
+  })
+
   it('names the sheet to repair when a pickup cannot read it', () => {
     const records = movement()
     expect(() => act({ ...records, sheets: records.sheets.filter((sheet) => sheet.sheetId !== 'dale') }, npcs({ [ROY]: stay, [DALE]: claim() }))).toThrow("Dale's sheet is missing or unreadable")
