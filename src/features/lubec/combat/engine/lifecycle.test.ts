@@ -38,7 +38,7 @@ describe('atomic lifecycle intentions', () => {
     const plan = planCombatCommand(command(), source, gm)
     expect(plan.control).toBe('fight')
     expect(plan.fight).toMatchObject({ status: 'live', participantUserIds: ['player'], state: { round: 0, phase: 'before-initiative', stageInstanceId: 'command:stage:0', attack: null, woundOutbox: [], woundAcknowledgements: [] } })
-    expect(plan.fight.state.combatants).toEqual([{ key: 'character:hero', kind: 'character', sheetId: 'hero', name: 'Tommy', ownerUserId: 'player', portraitPath: 'art/hero', speed: 56, armor: [], interactionSequence: 0, outReason: null }])
+    expect(plan.fight.state.combatants).toEqual([{ unconscious: false, key: 'character:hero', kind: 'character', sheetId: 'hero', name: 'Tommy', ownerUserId: 'player', portraitPath: 'art/hero', speed: 56, armor: [], interactionSequence: 0, outReason: null }])
     expect(plan.items).toEqual([{ id: 'ball', value: { ...ball(), qty: 4 } }])
     expect(plan.fight.state.floor[0].item).toMatchObject({ id: 'item:command:floor%3Aball:0', qty: 2, impact: 2, future: { preserved: true } })
     expect(source.items.get('ball')?.qty).toBe(6)
