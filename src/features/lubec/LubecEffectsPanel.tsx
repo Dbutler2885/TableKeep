@@ -7,7 +7,7 @@ import {
   type LubecEffect,
 } from '../ruleSets/lubec/effects'
 import type { LubecGear } from '../ruleSets/lubec/gear/gearRecord'
-import { lubecEffectGroups, lubecEffectWound, lubecStepTrigger } from '../ruleSets/lubec/woundCards'
+import { lubecEffectGroups, lubecEffectWound, lubecStepByHand, lubecStepTrigger } from '../ruleSets/lubec/woundCards'
 import { LubecEffectEditor } from './LubecEffectEditor'
 import { LubecGearLosses } from './LubecGearLosses'
 import { LubecWoundDetail } from './LubecWoundDetail'
@@ -52,6 +52,7 @@ function LubecEffectSummary({ effect, grouped }: { effect: LubecEffect; grouped:
       {now ? <span className="lubec-effect-now">{describeLubecEffectStep(now)}</span> : null}
       {trigger ? <span className="lubec-effect-until">{trigger}</span> : null}
       {next ? <span className="lubec-effect-next">{next}</span> : null}
+      {lubecStepByHand(effect) ? <span className="lubec-effect-manual">Resolved by hand</span> : null}
     </>
   )
 }

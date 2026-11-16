@@ -109,6 +109,22 @@ describe('a final Blunt Force forearm 4 wound', () => {
   })
 })
 
+describe('a final Fisticuffs knock-out', () => {
+  it('reaches the sheet with its Trauma and its rolled Minimum Stress once, and a replay adds neither again', async () => {
+    const punch = { ...swing('head', 9), impact: { ...swing('head', 9).impact!, table: 'fisticuffs' } }
+    const wound = readTableRow(fight(), punch, combatEntropy(command)).state.woundOutbox[0]
+    const rolled = wound.minimumStressDelta!
+    expect(rolled).toBeGreaterThanOrEqual(1)
+    expect(rolled).toBeLessThanOrEqual(5)
+    const stored = { lubec: { ...lubecCharacterSheet(), counters: { stress: 2, minimumStress: 1, trauma: 0 } }, sheetRevision: 0 }
+    const operationId = await combatWoundOperationId('fight', wound.id)
+    const intention = combatWoundIntention(stored, wound, 'fight', operationId)
+    const planned = planSheetIntention(stored, intention)
+    expect((planned.mutation!.sheet.lubec as LubecCharacterSheet).counters).toEqual({ stress: 2, minimumStress: 1 + rolled, trauma: 2 })
+    expect(planSheetIntention(planned.mutation!.sheet, { ...intention, baseRevision: 1 }).outcome).toMatchObject({ status: 'repair', code: 'record-exists' })
+  })
+})
+
 describe('a wound queued before cards', () => {
   it('still delivers its one text effect under the operation id', async () => {
     const old: CombatWound = { id: 'old', target: { kind: 'npc', sheetId: 'roy' }, originatingRound: 1, effectiveRound: 2, traumaDelta: 1, stressDelta: 0, effect: { id: 'e', name: 'Bell rung', cause: 'row', steps: [{ modifiers: [], labels: ['Dazed'] }] } }

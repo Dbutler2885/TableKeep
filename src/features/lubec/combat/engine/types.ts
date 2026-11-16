@@ -111,9 +111,16 @@ export type CombatWoundRow = {
   out?: boolean
   /** A final row, landing as cards the app plays; a row without it is a provisional one resolved by hand. */
   final?: boolean
+  /** Every Save or Check a final row asks the target for, in the order they are rolled; `check` is the first. */
+  rolls?: CombatLandingRollSpec[]
 }
+/** What a landing roll decides. */
+export type CombatLandingPurpose = 'fist-catch' | 'concussion' | 'prevention'
+export type CombatLandingRollSpec = NonNullable<CombatWoundRow['check']> & { purpose: CombatLandingPurpose }
 /** The target's ordinary core roll: at or under its number, with failure Stress as the core roller adds it. */
-export type CombatCheckRoll = NonNullable<CombatWoundRow['check']> & { target: number; dice: number[]; result: number; success: boolean; stress: number }
+export type CombatCheckRoll = NonNullable<CombatWoundRow['check']> & { target: number; dice: number[]; result: number; success: boolean; stress: number; purpose?: CombatLandingPurpose }
+/** One part of a landed final wound's Results: Now, Next round, Recovery or Lasting, each a list of plain lines. */
+export type CombatWoundSection = { label: string; items: string[] }
 export type CombatAttack = {
   id: string
   grantId: string | null
@@ -147,6 +154,13 @@ export type CombatAttack = {
   rowOutcome?: string | null
   /** The Trauma the wound gave, once applied: a passed Body Save can lower the row's. */
   rowTrauma?: number | null
+  /** Every landing Save and Check a final row made, in order; `check` is the first. */
+  checks?: CombatCheckRoll[] | null
+  /** A landed final wound's Results, by when each consequence happens. */
+  rowSections?: CombatWoundSection[] | null
+  /** The Stress the wound's landing rolls charged, and the Minimum Stress it rolled. */
+  rowStress?: number | null
+  rowMinimumStress?: number | null
   /** A round attack's Results stay on screen until the GM moves the fight on. */
   continued?: boolean
   /** The target's Evasive Movement, when it took a penalty off this ranged attack. */

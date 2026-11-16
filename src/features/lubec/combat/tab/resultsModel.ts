@@ -1,7 +1,7 @@
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
 import { lubecPlainProse } from '../../../ruleSets/lubec/woundCards'
 import { combatAttackers } from '../engine/declare'
-import type { CombatAttack, CombatState } from '../engine/types'
+import type { CombatAttack, CombatState, CombatWoundSection } from '../engine/types'
 import { combatantName, evasionWords, pairWords } from './attackWords'
 import type { Banner } from './outcomeWords'
 import { tableName } from './resultSequence'
@@ -19,6 +19,8 @@ export type ResultsWound = {
   parts: WoundPart[]
   injury: string | null
   notes: string[]
+  /** A final row's consequences by when they happen: Now, Next round, Recovery, Lasting. */
+  sections: CombatWoundSection[]
   out: boolean
   sheet: string
 }
@@ -54,20 +56,32 @@ export function resultsFacts(state: CombatState, attack: CombatAttack): ResultsF
   return facts.filter((fact): fact is ResultsFact => fact !== null)
 }
 
-/** The roll that picked the wound's version: a Save or Check, or a two-wound row's d2. */
+const PURPOSE_WORDS = { 'fist-catch': 'Catch their fist', concussion: 'Concussion', prevention: 'Countdown' } as const
+
+const rollNote = (rolled: NonNullable<CombatAttack['check']>) => {
+  const purpose = rolled.purpose ? `${PURPOSE_WORDS[rolled.purpose]}: ` : ''
+  const dice = (rolled.dice?.length ?? 0) > 1 ? ` (${rolled.dice.map((die) => String(die).padStart(2, '0')).join(' and ')})` : ''
+  const stress = rolled.stress ? `, +${rolled.stress} Stress` : ''
+  return `${purpose}${rolled.against} ${rolled.kind === 'save' ? 'Save' : 'Check'} ${String(rolled.result).padStart(2, '0')}${dice} against ${rolled.target}: ${rolled.success ? 'passed' : 'failed'}${stress}`
+}
+
+/** The rolls that picked the wound's version: every landing Save or Check, or a two-wound row's d2. */
 function woundNotes(attack: CombatAttack): string[] {
   const notes: string[] = []
-  const rolled = attack.check
-  if (rolled) notes.push(`${rolled.against} ${rolled.kind === 'save' ? 'Save' : 'Check'} ${String(rolled.result).padStart(2, '0')} against ${rolled.target}: ${rolled.success ? 'passed' : 'failed'}`)
+  const rolls = attack.checks?.length ? attack.checks : attack.check ? [attack.check] : []
+  for (const rolled of rolls) notes.push(rollNote(rolled))
   if (attack.row?.choice) notes.push(`d2 rolled ${attack.row.choice}`)
   if (attack.row?.table && !attack.row.final) notes.push('Resolved by hand: the sheet gets these words, and the table applies them.')
   return notes
 }
 
-/** The Trauma the wound gave: a passed Body Save can make it less than the row prints. */
+/** What the wound charged: its Trauma (a passed Body Save can make it less than the row prints), and any Stress and Minimum Stress. */
 function traumaWords(attack: CombatAttack): string {
   const trauma = attack.rowTrauma ?? attack.row!.trauma
-  return trauma > 0 ? `Trauma +${trauma}` : 'Trauma 0'
+  const parts = [trauma > 0 ? `Trauma +${trauma}` : 'Trauma 0']
+  if (attack.rowStress) parts.push(`Stress +${attack.rowStress}`)
+  if (attack.rowMinimumStress) parts.push(`Minimum Stress +${attack.rowMinimumStress}`)
+  return parts.join(', ')
 }
 
 /** The wound the hit left, once its row is applied; nothing before then or without one. */
@@ -77,7 +91,8 @@ export function resultsWound(state: CombatState, attack: CombatAttack): ResultsW
   const target = state.combatants.find((entry) => entry.key === attack.aim!.targetKey)!
   return {
     severity: row.severity, cls: SEVERITY_CLASS[row.severity], trauma: traumaWords(attack),
-    name: row.name, parts: woundParts(lubecPlainProse(attack.rowOutcome || `${row.name}.`)), injury: row.injury ?? null, notes: woundNotes(attack),
+    name: row.name, parts: row.final ? [{ label: 'The table says', text: lubecPlainProse(attack.rowOutcome || `${row.name}.`) }] : woundParts(lubecPlainProse(attack.rowOutcome || `${row.name}.`)), injury: row.injury ?? null, notes: woundNotes(attack),
+    sections: attack.rowSections ?? [],
     out: target.outReason !== null, sheet: `Goes on ${target.name}'s sheet next round.`,
   }
 }

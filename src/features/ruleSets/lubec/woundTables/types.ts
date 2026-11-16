@@ -1,4 +1,4 @@
-import type { LubecWoundContentVersion, LubecWoundOutcome } from './outcome'
+import type { LubecWoundConcussion, LubecWoundContentVersion, LubecWoundOutcome } from './outcome'
 
 // The Lubec wound tables by hit location, as data. Rows with an `outcome` are transcribed from the
 // final tables (`final/`), with their source's content version; the rest are still the provisional
@@ -8,8 +8,8 @@ import type { LubecWoundContentVersion, LubecWoundOutcome } from './outcome'
 
 export type LubecWoundSeverity = 'Minor' | 'Serious' | 'Severe' | 'Critical' | 'Catastrophic'
 
-/** One of the two wounds a d2 row names. */
-export type LubecWoundChoice = { name: string; text: string; injury?: string }
+/** One of the two wounds a d2 row names; a final row's carries what it does. */
+export type LubecWoundChoice = { name: string; text: string; injury?: string; outcome?: LubecWoundOutcome }
 
 /** A Body Save that picks the row's version: success uses its own words and Trauma, failure the row as printed. */
 export type LubecWoundSave = { successTrauma: number; success: string; failure: string }
@@ -31,8 +31,12 @@ export type LubecWoundTableRow = {
   choices?: [LubecWoundChoice, LubecWoundChoice]
   /** The target is Out of the fight (knocked unconscious). */
   out?: true
-  /** A final row: what it does, as cards. Its `text` is then the final file's prose. */
+  /** A final row: what it does, as cards. Its `text` is then the final file's prose. A d2 row's branches add to it. */
   outcome?: LubecWoundOutcome
+  /** A concussion the terms define, decided by a Body Save when the wound lands. */
+  concussion?: LubecWoundConcussion
+  /** Fisticuffs' "Catch their fist": a Handle Check whose failure gives no wound and no Stress. */
+  fistCatch?: true
   /** The final source the row was transcribed from. */
   contentVersion?: LubecWoundContentVersion
 }

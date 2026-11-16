@@ -56,16 +56,17 @@ describe('reading a row', () => {
       { name: 'Bullet along the ribs', text: 'Disadvantage on physical Checks; half Movement and no Evasive Movement.' },
       { name: 'Lodged bullet', text: '-20 Strength and Speed for exertion until proper medical treatment; First Aid stabilizes but cannot remove it.', injury: 'Lodged object' },
     ])
-    expect(lubecWoundTableRow('fisticuffs', 'neck', 8)?.row).toMatchObject({ name: 'Blow to the side of the neck', out: true })
+    expect(lubecWoundTableRow('fisticuffs', 'neck', 9)?.row).toMatchObject({ name: 'Blow to the side of the neck', outcome: { now: [{ kind: 'unconscious' }] } })
+    expect(lubecWoundTableRow('fisticuffs', 'head', 5)?.row.name).toBe('Broken jaw or cheekbone')
+    expect(lubecWoundTableRow('fisticuffs', 'head', 8)?.row.concussion).toEqual({ kind: 'severe' })
     expect(lubecWoundTableRow('blunt', 'torso', 4)?.row).toMatchObject({ name: 'Broken rib(s)', injury: 'Broken ribs' })
   })
 
-  it('splits a grouped Fisticuffs row by the part it struck', () => {
-    expect(lubecWoundTableRow('fisticuffs', 'upperarm-L', 7)?.row).toMatchObject({ name: 'Dislocated shoulder', injury: 'Dislocated shoulder' })
-    expect(lubecWoundTableRow('fisticuffs', 'forearm-L', 7)?.row).toMatchObject({ name: 'Broken forearm', injury: 'Broken arm' })
-    expect(lubecWoundTableRow('fisticuffs', 'hand-R', 9)?.row).toMatchObject({ name: 'Fractured hand / wrist', injury: 'Broken hand' })
-    expect(lubecWoundTableRow('fisticuffs', 'waist', 6)?.row.name).toBe('Body injury')
-    expect(lubecWoundTableRow('fisticuffs', 'torso', 6)?.row.name).toBe('Rib injury')
+  it('reads Fisticuffs shin and foot as rows of their own, and caps each location at its last row', () => {
+    expect(lubecWoundTableRow('fisticuffs', 'shin-L', 8)?.row.name).toBe('Fractured shin or knee')
+    expect(lubecWoundTableRow('fisticuffs', 'feet-R', 8)?.row.name).toBe('Sprained ankle')
+    expect(lubecWoundTableRow('fisticuffs', 'feet-R', 8)?.location.parts).toEqual(['feet'])
+    expect(lubecWoundTableRow('fisticuffs', 'hand-R', 9)?.row).toMatchObject({ name: 'Badly bruised hand', severity: 'Serious' })
     expect(lubecWoundTableRow('fisticuffs', 'groin', 1)?.location.parts).toEqual(['groin'])
   })
 })

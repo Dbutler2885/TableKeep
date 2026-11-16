@@ -34,7 +34,21 @@ describe('the Results wound panel', () => {
 
   it('plays a final row as cards, without the resolved-by-hand note, and shows its words without the table\'s marks', () => {
     const final = { ...attack, check: null, rowOutcome: '`-20 Handle` until 1 Long Rest.', row: { name: 'Forearm injury', severity: 'Serious', trauma: 1, injury: null, choice: null, table: 'blunt', final: true } } as unknown as CombatAttack
-    expect(resultsWound(state, final)).toMatchObject({ notes: [], parts: [{ label: 'What it does', text: '-20 Handle until 1 Long Rest.' }] })
+    expect(resultsWound(state, final)).toMatchObject({ notes: [], parts: [{ label: 'The table says', text: '-20 Handle until 1 Long Rest.' }] })
+  })
+
+  it('lists a final wound\'s landing rolls with their purpose, both dice and Stress, its sections, and every counter it charged', () => {
+    const final = {
+      ...attack, rowOutcome: 'Body Save.', rowTrauma: 2, rowStress: 1, rowMinimumStress: 3, check: null,
+      row: { name: 'Severe Concussion', severity: 'Severe', trauma: 2, injury: null, choice: null, table: 'fisticuffs', final: true },
+      checks: [{ purpose: 'concussion', kind: 'save', against: 'Body', advantage: 'disadvantage', dice: [12, 88], result: 88, target: 31, success: false, stress: 1 }],
+      rowSections: [{ label: 'Now', items: ['Dazed'] }],
+    } as unknown as CombatAttack
+    expect(resultsWound(state, final)).toMatchObject({
+      trauma: 'Trauma +2, Stress +1, Minimum Stress +3',
+      notes: ['Concussion: Body Save 88 (12 and 88) against 31: failed, +1 Stress'],
+      sections: [{ label: 'Now', items: ['Dazed'] }],
+    })
   })
 
   it('has nothing to show before the row lands', () => {

@@ -17859,6 +17859,16 @@ button:disabled {
   opacity: 0.85;
 }
 
+/* A consequence the app does not play yet: the table applies it. */
+.shell-root[data-theme="lubec"] .lubec-effect-manual {
+  padding: 0 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+}
+
 /* A wound's linked cards sit under its name, each line then named by its part. */
 .shell-root[data-theme="lubec"] .lubec-effect-group {
   margin-top: 0.2rem;

@@ -11,8 +11,10 @@ export type CombatWound = {
   effectiveRound: number
   traumaDelta: number
   stressDelta: number
-  /** The wound's first card, or the whole of an older text wound; kept so a wound queued before cards still reads. */
-  effect: LubecEffect
+  /** Minimum Stress the wound rolled when it landed ("Increase minimum Stress by 1d5"); absent when none. */
+  minimumStressDelta?: number
+  /** The wound's first card, or the whole of an older text wound; kept so a wound queued before cards still reads. Absent when a final wound leaves no card. */
+  effect?: LubecEffect
   /** Every card a final row's wound makes, each with a key unique within the wound; absent on an older text wound. */
   effects?: LubecEffect[]
 }

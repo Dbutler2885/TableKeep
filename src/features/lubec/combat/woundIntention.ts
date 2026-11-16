@@ -19,6 +19,7 @@ const CARD_KEY = /^[A-Za-z0-9_-]{1,40}$/
 
 function requireCards(wound: CombatWound) {
   if (!wound.effects) return
+  if (!wound.effects.length) return
   const keys = wound.effects.map((card) => card.cardKey)
   if (!keys.length || !keys.every((key) => typeof key === 'string' && CARD_KEY.test(key)) || new Set(keys).size !== keys.length) {
     throw new Error('Wound cards need distinct keys.')
@@ -26,10 +27,10 @@ function requireCards(wound: CombatWound) {
 }
 
 function requireWound(wound: CombatWound) {
-  if (!wound.id || !wound.effect.id) throw new Error('Wound identity is missing.')
+  if (!wound.id || (!wound.effects && !wound.effect?.id)) throw new Error('Wound identity is missing.')
   requireWoundRound(wound)
   requireCards(wound)
-  if (![wound.traumaDelta, wound.stressDelta].every(Number.isSafeInteger)) throw new Error('Invalid wound counter delta.')
+  if (![wound.traumaDelta, wound.stressDelta, wound.minimumStressDelta ?? 0].every(Number.isSafeInteger)) throw new Error('Invalid wound counter delta.')
 }
 
 type Insertable = { id: string; [key: string]: SheetValue }
@@ -42,7 +43,7 @@ type Insertable = { id: string; [key: string]: SheetValue }
 function storedCards(wound: CombatWound, fightId: string, operationId: string): LubecEffect[] {
   const origin: CombatWoundOrigin = { fightId, woundId: wound.id, originatingRound: wound.originatingRound, effectiveRound: wound.effectiveRound }
   const stamp = (card: LubecEffect, id: string): LubecEffect => ({ ...card, id, cause: `Fight ${fightId}: ${card.cause}`, combatOrigin: origin })
-  if (!wound.effects) return [stamp(wound.effect, operationId)]
+  if (!wound.effects) return [stamp(wound.effect!, operationId)]
   return wound.effects.map((card) => {
     const stamped = stamp(card, `${operationId}_${String(card.cardKey)}`)
     return card.wound && typeof card.wound === 'object' ? { ...stamped, wound: { ...card.wound, groupId: operationId } } : stamped
@@ -58,6 +59,7 @@ export function combatWoundIntention(raw: Record<string, unknown>, wound: Combat
     edits: [
       { kind: 'delta', path: ['lubec', 'counters', 'trauma'], base: 0, amount: wound.traumaDelta },
       { kind: 'delta', path: ['lubec', 'counters', 'stress'], base: 0, amount: wound.stressDelta },
+      ...(wound.minimumStressDelta ? [{ kind: 'delta' as const, path: ['lubec', 'counters', 'minimumStress'], base: 0, amount: wound.minimumStressDelta }] : []),
       ...inserts,
     ],
   }

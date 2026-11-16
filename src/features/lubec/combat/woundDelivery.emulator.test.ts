@@ -322,6 +322,15 @@ describe('a final wound\'s linked cards through real rules', () => {
     expect((await effectsOf(path)).length).toBe(2)
   })
 
+  it('charges a knock-out\'s rolled Minimum Stress once, across racing drains and a replay', async () => {
+    const knockOut = { ...linked(), minimumStressDelta: 3, effects: [card('unconscious', 0, 'by-hand')], effect: card('unconscious', 0, 'by-hand') }
+    await fixture([knockOut])
+    await Promise.all([drainCombatWounds(as(), scope, 'gm'), drainCombatWounds(as('second-gm'), scope, 'second-gm')])
+    await deliverCombatWound(as(), scope, 'gm', 'wound')
+    expect((await storedSheet()).lubec.counters).toMatchObject({ trauma: 2, minimumStress: 5 })
+    expect(await effectsOf('characters/hero')).toHaveLength(1)
+  })
+
   it('lets the GM step down an NPC card', async () => {
     await fixture([linked({ kind: 'npc', sheetId: 'roy' })])
     await drainCombatWounds(as(), scope, 'gm')

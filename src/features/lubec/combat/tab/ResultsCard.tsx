@@ -17,6 +17,12 @@ function WoundPanel({ wound }: { wound: ResultsWound }) {
       <dl className="results-parts">
         {wound.parts.map((part) => <div key={part.label}><dt>{part.label}</dt><dd>{part.text}</dd></div>)}
         {wound.injury ? <div><dt>Lasting injury</dt><dd>{wound.injury}</dd></div> : null}
+        {wound.sections.map((section) => (
+          <div key={section.label} className="results-section">
+            <dt>{section.label}</dt>
+            <dd><ul>{section.items.map((item) => <li key={item}>{item}</li>)}</ul></dd>
+          </div>
+        ))}
       </dl>
       {wound.notes.map((note) => <p key={note} className="note">{note}</p>)}
       <p className="note">{wound.sheet}</p>
