@@ -7,7 +7,8 @@ import type { AttackCommands, MovementPick } from './attackCommands'
 import type { CombatViewer } from './attackWords'
 import type { CombatRosterRecords } from './combatFightCombatants'
 import { pickupBlocked } from './movementModel'
-import { evasionBlocked } from '../engine/evasion'
+import { combatMovementLimits } from '../engine/inputModifiers'
+import { LUBEC_FREE_MOVEMENT, type LubecMovementLimits } from '../../../ruleSets/lubec/movementLimits'
 import { combatCatchLine, combatFloorRows, type CombatFloorRow } from './combatFloorRows'
 import { PhaseStepper } from './CombatMiddles'
 import { CombatFloorIcon, CombatWindow } from './CombatParts'
@@ -82,10 +83,16 @@ export type MovementProps = { state: CombatState; viewer: CombatViewer; roster: 
 
 export type MoveProps = { state: CombatState; combatant: Combatant; sheet: LubecCharacterSheet | null; commands: AttackCommands; named: boolean }
 
-type CardsProps = { down: boolean; shown: Draft; live: boolean; evadeBlocked: string | null; onChoose: (choice: CombatMovementChoice) => void }
+type CardsProps = { down: boolean; shown: Draft; live: boolean; limits: LubecMovementLimits; onChoose: (choice: CombatMovementChoice) => void }
 
-function MoveCards({ down, shown, live, evadeBlocked, onChoose }: CardsProps) {
-  const blocked = (choice: CombatMovementChoice) => (down && (choice === 'run' || choice === 'evade') ? 'Knocked down: Stay down or Stand.' : choice === 'evade' ? evadeBlocked : null)
+/** Why a choice is unavailable: knocked down, or the card that forbids Run or Evasive; null when it can be chosen. */
+function blockedWords(choice: CombatMovementChoice, down: boolean, limits: LubecMovementLimits): string | null {
+  if (choice !== 'run' && choice !== 'evade') return null
+  return down ? 'Knocked down: Stay down or Stand.' : limits[choice]
+}
+
+function MoveCards({ down, shown, live, limits, onChoose }: CardsProps) {
+  const blocked = (choice: CombatMovementChoice) => blockedWords(choice, down, limits)
   return (
     <div className="moves" role="radiogroup" aria-label="Movement">
       {CHOICES.filter(([choice]) => choice !== 'stand' || down).map(([choice, name, words]) => (
@@ -132,7 +139,7 @@ export function MoveWindow({ state, combatant, sheet, commands, named }: MovePro
       <StageLossNotice state={state} combatantKey={combatant.key} />
       <p className="ask">{askWords(combatant, named)}</p>
       {combatant.movement?.stand ? <p role="status">{combatant.movement.stand.success ? 'Standing: Movement spent.' : 'Still down: Movement, Action and Defense spent.'} Speed {combatant.movement.stand.target}, rolled {combatant.movement.stand.dice.join(', ')}.</p> : null}
-      <MoveCards down={down} shown={shown} live={live} evadeBlocked={sheet ? evasionBlocked(sheet) : null} onChoose={(choice) => setDraft({ choice, picked: null })} />
+      <MoveCards down={down} shown={shown} live={live} limits={sheet ? combatMovementLimits(sheet, null) : LUBEC_FREE_MOVEMENT} onChoose={(choice) => setDraft({ choice, picked: null })} />
       <span className="label">On the Floor</span>
       <FloorPicks state={state} shown={shown} draft={draft} live={live} sheet={sheet} onDraft={setDraft} />
     </CombatWindow>

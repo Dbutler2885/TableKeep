@@ -96,11 +96,17 @@ const skipsDefense = (state: CombatState, attack: CombatAttack): boolean => atta
  * target for Defense against melee and thrown attacks, and lands a firearm's hit, or a hit on a runner, at once.
  */
 function rolledState(state: CombatState, attack: CombatAttack, result: CombatAttackResult, detached: LubecDetachedItem[], entropy: CombatEntropy): CombatState {
-  const spent = { ...state, combatants: spentOnce(state, attack.attackerKey) }
+  const spent = { ...state, combatants: spentOnce(state, attack.attackerKey), ...reachSpent(state, attack) }
   const rolled = { ...attack, roll: result, detached, repair: null }
   if (!result.hit) return closeAttack(spent, rolled, 'miss')
   if (skipsDefense(state, attack)) return toLocation(spent, rolled, result.quality!, entropy)
   return { ...spent, attack: { ...rolled, step: 'defense' }, pendingActions: stepRequest(attack.aim!.targetKey, 'defense') }
+}
+
+/** The out-of-reach reminder is for the attacker's next melee attack at that target; rolling one uses it up. */
+function reachSpent(state: CombatState, attack: CombatAttack): Partial<CombatState> {
+  if (!state.outOfReach?.length || attack.frozen!.choice.ranged) return {}
+  return { outOfReach: state.outOfReach.filter((entry) => entry.attackerKey !== attack.attackerKey || entry.targetKey !== attack.aim!.targetKey) }
 }
 
 /** A hit beats a miss; between two hits the higher quality, then the higher roll. On an attack at Disadvantage that is "fails if either fails, the lower roll if both succeed". */

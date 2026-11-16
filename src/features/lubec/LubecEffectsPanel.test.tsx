@@ -65,10 +65,10 @@ describe('a wound card', () => {
   })
 
   it('marks a consequence the app does not play yet as resolved by hand, and only that', () => {
-    const brief: LubecEffect = { ...forearm, id: 'wound_1_brief', cardKey: 'brief', part: 'Off guard', steps: [{ modifiers: [], labels: [], until: 'long-rest', restrictions: [{ kind: 'no-run' }] }] }
+    const brief: LubecEffect = { ...forearm, id: 'wound_1_brief', cardKey: 'brief', part: 'Off guard', steps: [{ modifiers: [], labels: [], until: 'rounds', restrictions: [{ kind: 'no-run' }] }] }
     mount([brief, { ...forearm, wound: { ...wound, groupId: 'two' } }], null)
     expect(lineTexts()).toEqual([
-      ['Forearm injury', 'Cannot run', 'Step down after 1 Long Rest', 'then healed', 'Resolved by hand'],
+      ['Forearm injury', 'Cannot run', 'Counts down by round', 'then healed', 'Resolved by hand'],
       ['Forearm injury', 'Handle -20', 'Step down after 1 Long Rest', 'then healed'],
     ])
   })

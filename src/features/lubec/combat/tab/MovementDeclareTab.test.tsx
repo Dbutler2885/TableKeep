@@ -439,12 +439,22 @@ describe('Evasive Movement', () => {
     await waitFor(() => expect(sentOf('move')[0].payload).toMatchObject({ choice: 'evade', pickup: null }))
   })
 
-  it('closes Evasive, and says why, while a wound on the sheet says No Evasive Movement', () => {
-    const hurt = () => { const record = wayne(); record.lubec.effects = [{ id: 'w', name: 'Damaged hip', cause: 'Blunt Force, groin, Impact 5', steps: [{ modifiers: [], labels: ['Half Movement. No Evasive Movement.'] }] }]; return record }
+  it('closes Run and Evasive, and names the card, while a current card says crawl only', () => {
+    const hurt = () => { const record = wayne(); record.lubec.effects = [{ id: 'w', name: 'Broken leg', cause: 'Blunt Force, thigh, Impact 5', steps: [{ modifiers: [], labels: [], until: 'long-rest', restrictions: [{ kind: 'crawl-only' }] }] }]; return record }
     mocks.roster = { characters: [hurt()], npcs: [{ npc: royNpc, sheet: royRecord() }] }
     show('player', 'wayne-uid', fightAfter(...rolled))
     expect((radio(/^Evasive/) as HTMLButtonElement).disabled).toBe(true)
-    expect(radio(/^Evasive/).textContent).toBe('EvasiveDamaged hip says No Evasive Movement.')
+    expect(radio(/^Evasive/).textContent).toBe('EvasiveCrawl only without help (Broken leg)')
+    expect((radio(/^Run/) as HTMLButtonElement).disabled).toBe(true)
+    expect((radio(/^Move or stay/) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('leaves Evasive open under Speed at Disadvantage alone', () => {
+    const slowed = () => { const record = wayne(); record.lubec.effects = [{ id: 'w', name: 'Sore leg', cause: '', steps: [{ modifiers: [], labels: [], until: 'long-rest', rolls: [{ scope: 'speed', mode: 'disadvantage' }] }] }]; return record }
+    mocks.roster = { characters: [slowed()], npcs: [{ npc: royNpc, sheet: royRecord() }] }
+    show('player', 'wayne-uid', fightAfter(...rolled))
+    expect((radio(/^Evasive/) as HTMLButtonElement).disabled).toBe(false)
+    expect((radio(/^Run/) as HTMLButtonElement).disabled).toBe(false)
   })
 
   it('shows the Speed roll in the turn order, and keeps the evader to Full Defense when they declare', () => {

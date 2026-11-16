@@ -3,13 +3,12 @@ import { lubecNoHandWhy, place } from '../../../ruleSets/lubec/gear/placement'
 import { attackRepair, combatantOf, combatantsIn as inRound, combatSheetOf } from './attackParty'
 import type { CombatPendingAction } from './combatFeedback'
 import { requireGm, requireLiveContext } from './context'
-import { evasionBlocked } from './evasion'
 import { downCards, rollStand } from './down'
 import type { CombatEntropy } from './commandEntropy'
 import { requireDue } from './declare'
 import { movementLost, withLostStages, withLostMovements } from './stages'
-import type { Combatant, CombatFight, CombatHandler, CombatMovement, CombatMovementChoice, CombatPickupClaim, CombatPlan, CombatRecords, CombatState } from './types'
-import { combatHands } from './inputModifiers'
+import type { Combatant, CombatFight, CombatHandler, CombatMovement, CombatMovementChoice, CombatPickupClaim, CombatPlan, CombatRecords, CombatSheet, CombatState } from './types'
+import { combatHands, combatMovementLimits, type CombatInputRound } from './inputModifiers'
 
 const CHOICES: readonly CombatMovementChoice[] = ['stay', 'run', 'evade', 'pickup', 'leave', 'stand']
 
@@ -50,14 +49,14 @@ const leaveOf = (combatant: Combatant, choice: CombatMovementChoice): CombatMove
   return combatant.kind === 'npc' ? 'confirmed' : 'asked'
 }
 
-/** A wound that says No Evasive Movement refuses it while the wound is on the sheet. */
-function requireCanEvade(combatant: Combatant, records: CombatRecords) {
-  const record = combatSheetOf(records, combatant)
-  const blocked = record && evasionBlocked(record.sheet)
-  if (blocked) throw new Error(`${combatant.name} cannot move evasively: ${blocked}`)
+/** A current card that forbids Run or Evasive refuses it while that step lasts. */
+function requireAllowed(combatant: Combatant, record: CombatSheet | null, choice: CombatMovementChoice, context: CombatInputRound) {
+  if (!record || (choice !== 'run' && choice !== 'evade')) return
+  const blocked = combatMovementLimits(record.sheet, context)[choice]
+  if (blocked) throw new Error(`${combatant.name} cannot ${choice === 'run' ? 'run' : 'move evasively'}: ${blocked}.`)
 }
 
-function chosen(state: CombatState, combatant: Combatant, raw: Record<string, unknown>, records: CombatRecords): CombatMovement {
+function chosen(state: CombatState, combatant: Combatant, raw: Record<string, unknown>, records: CombatRecords, context: CombatInputRound): CombatMovement {
   if (combatant.outReason !== null) throw new Error(`${combatant.name} is Out.`)
   if (combatant.unconscious) throw new Error(`${combatant.name} is unconscious: unresolved stages are skipped.`)
   if (combatant.movement) throw new Error(`${combatant.name} has already confirmed Movement.`)
@@ -67,7 +66,7 @@ function chosen(state: CombatState, combatant: Combatant, raw: Record<string, un
   const down = record ? downCards(record.sheet, null).length > 0 : false
   if (down && (choice === 'run' || choice === 'evade')) throw new Error(`${combatant.name} is knocked down: Stay down or Stand.`)
   if (choice === 'stand' && !down) throw new Error(`${combatant.name} is not knocked down.`)
-  if (choice === 'evade') requireCanEvade(combatant, records)
+  requireAllowed(combatant, record, choice, context)
   if (choice !== 'pickup') return { choice, pickup: null, leave: leaveOf(combatant, choice) }
   const { claim, item } = readClaim(state, raw.pickup)
   requireFreeHand(combatant, records, item)
@@ -126,7 +125,7 @@ const move: CombatHandler = (command, records, authority, entropy) => {
   const fight = requireLiveContext(command, records, authority)
   requireChoosing(fight.state)
   const combatant = combatantOf(fight.state, String(command.envelope.actorKey))
-  const movement = chosen(fight.state, combatant, command.payload, records)
+  const movement = chosen(fight.state, combatant, command.payload, records, { fightId: command.envelope.fightId, round: fight.state.round })
   return finishMovements(fight, new Map([[combatant.key, movement]]), records, command.envelope.fightId, entropy)
 }
 
@@ -140,7 +139,8 @@ const npcMovement: CombatHandler = (command, records, authority, entropy) => {
   const npcs = npcsChoosing(fight.state)
   if (!npcs.length) throw new Error('No NPC is waiting to choose Movement.')
   const choices = (command.payload.choices ?? {}) as Record<string, Record<string, unknown>>
-  const moved = new Map(npcs.map((npc) => [npc.key, chosen(fight.state, npc, choices[npc.key] ?? {}, records)]))
+  const context = { fightId: command.envelope.fightId, round: fight.state.round }
+  const moved = new Map(npcs.map((npc) => [npc.key, chosen(fight.state, npc, choices[npc.key] ?? {}, records, context)]))
   return finishMovements(fight, moved, records, command.envelope.fightId, entropy)
 }
 

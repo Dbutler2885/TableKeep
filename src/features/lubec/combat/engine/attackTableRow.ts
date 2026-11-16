@@ -158,7 +158,14 @@ function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatChec
     staged = withLostStages(staged, targetKey, { movement: [], action: [state.round] }, 'Knocked down', row.name)
   }
   if (landed.outcome.now?.some((now) => now.kind === 'unconscious')) staged = { ...staged, combatants: staged.combatants.map((entry) => entry.key === targetKey ? { ...entry, unconscious: true } : entry) }
+  if (landed.outcome.now?.some((now) => now.kind === 'out-of-reach')) staged = withOutOfReach(staged, attack.attackerKey, targetKey)
   return closeAttack({ ...staged, woundOutbox: [...state.woundOutbox, wound], roundWatch, countdowns }, closed, 'wounded')
+}
+
+/** Knocked out of striking reach: remembered for the attacker's next melee aim at the target, as a reminder only. */
+function withOutOfReach(state: CombatState, attackerKey: string, targetKey: string): CombatState {
+  const others = (state.outOfReach ?? []).filter((entry) => entry.attackerKey !== attackerKey || entry.targetKey !== targetKey)
+  return { ...state, outOfReach: [...others, { attackerKey, targetKey, round: state.round }] }
 }
 
 /** The rounds each stage-losing consequence of the outcome takes from the target, worked out now. */

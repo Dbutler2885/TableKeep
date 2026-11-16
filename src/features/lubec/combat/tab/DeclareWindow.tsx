@@ -163,6 +163,7 @@ function DeclareBody(body: BodyProps) {
       {evading ? <div className="notice cool" role="status"><span><b>{declarer.name} moved evasively.</b> That uses the action, so there is no attack this round: declare Full Defense against one person.</span></div> : null}
       <div className="declaration-actor"><small>Declaring now</small><strong>{declarer.name}</strong><span className="declaration-stage">Round {state.round} · <span>Stage 2, Declare</span></span></div>
       <DeclareChoices body={body} draft={draft} setDraft={setDraft} model={model} full={full} />
+      {model.reach && !full ? <div className="notice cool" role="status"><span>{model.reach}</span></div> : null}
       {full ? <FullDefense {...parts} against={guarded} onAgainst={setAgainst} /> : <Split {...parts} />}
     </>
   )

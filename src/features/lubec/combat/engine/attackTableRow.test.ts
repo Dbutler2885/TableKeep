@@ -399,3 +399,12 @@ describe('a drop from the struck hand', () => {
     expect(attackOf(done).rowSections![0].items).toContain('The Knife drops from the right hand onto the Floor')
   })
 })
+
+describe('knocked out of striking reach', () => {
+  it('remembers the hit for the attacker\'s next melee aim at the target, and never puts the target out', () => {
+    const done = landed('fisticuffs', 'torso', 1)
+    expect(done.fight.state.outOfReach).toEqual([{ attackerKey: HERO, targetKey: ROY, round: 1 }])
+    expect(done.fight.state.combatants.find((entry) => entry.key === ROY)!.outReason).toBeNull()
+    expect(attackOf(done).rowSections![0].items).toContain('Knocked out of striking reach: the GM rules it, as combat here has no reach')
+  })
+})

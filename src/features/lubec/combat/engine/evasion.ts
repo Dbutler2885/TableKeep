@@ -1,4 +1,3 @@
-import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecord'
 import { lubecCurrentValue } from '../../../ruleSets/lubec/derivations'
 import type { LubecAttackChoice } from '../../../ruleSets/lubec/gear/weaponAttacks'
 import type { CombatLog } from './combatFeedback'
@@ -11,14 +10,6 @@ import type { Combatant, CombatEvasion, CombatSheet, CombatState } from './types
 // choice that uses the round's action. The evader rolls Speed; only a success counts, and anyone
 // making a ranged attack at them that round takes a Handle penalty of 10 x half its tens digit,
 // rounded down, so 0 to -40. Dodgeballs stay answered by Defense, not Evasive.
-
-const NO_EVASIVE = /no evasive movement/i
-
-/** A wound or effect that says No Evasive Movement stops its bearer choosing it while it lasts. */
-export function evasionBlocked(sheet: LubecCharacterSheet): string | null {
-  const effect = sheet.effects.find((entry) => entry.steps.some((step) => step.labels.some((label) => NO_EVASIVE.test(label))))
-  return effect ? `${effect.name} says No Evasive Movement.` : null
-}
 
 /** 10 x half the successful roll's tens digit, rounded down; a failed roll gives nothing. */
 export const evasionPenalty = (roll: number, success: boolean): number =>

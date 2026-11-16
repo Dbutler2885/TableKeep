@@ -2,6 +2,7 @@ import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecor
 import type { LubecEffect } from '../../../ruleSets/lubec/effects'
 import { lubecSheetModifiers } from '../../../ruleSets/lubec/modifiers'
 import { lubecHandLimits, type LubecHandLimits } from '../../../ruleSets/lubec/handLimits'
+import { lubecMovementLimits, type LubecMovementLimits } from '../../../ruleSets/lubec/movementLimits'
 import { lubecBriefWindowEnd } from '../roundTick'
 import type { CombatWoundOrigin } from '../woundTypes'
 
@@ -35,3 +36,7 @@ export function combatActiveEffects(sheet: LubecCharacterSheet, context: CombatI
 /** The hands the sheet can use in this round of this fight, by the one hand reader Gear also asks. */
 export const combatHands = (sheet: LubecCharacterSheet, context: CombatInputRound | null): LubecHandLimits =>
   lubecHandLimits(combatActiveEffects(sheet, context))
+
+/** The Movement choices the sheet's cards forbid in this round of this fight, by the one reader the Movement window also asks. */
+export const combatMovementLimits = (sheet: LubecCharacterSheet, context: CombatInputRound | null): LubecMovementLimits =>
+  lubecMovementLimits(combatActiveEffects(sheet, context))

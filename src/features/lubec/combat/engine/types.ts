@@ -208,6 +208,8 @@ export type CombatState = {
   countdowns?: { key: string; wound: string; kind: 'bleed' | 'critical'; dueRound: number }[]
   /** End has begun: every combatant's closing change is queued, and the fight ends once they are delivered. */
   closing?: boolean
+  /** A hit that knocked its target out of striking reach: a reminder on that attacker's next melee aim at them, never a reach rule. */
+  outOfReach?: { attackerKey: string; targetKey: string; round: number }[]
   /** Per combatant, the Movement and Action Stages wounds took, by round, and the latest card's name. */
   lost?: Record<string, { movement: number[]; action: number[]; reason: string; wound?: string }>
 }

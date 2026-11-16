@@ -114,6 +114,12 @@ describe('declared attacks, fastest first', () => {
     expect(() => act(moved.records, { type: 'range', band: 'medium', modifier: 0, stage: 'the-first-attack' })).toThrow('That fight stage is stale.')
   })
 
+  it('keeps an out-of-reach reminder through a ranged attack, for the next melee aim', () => {
+    const records = ranged(attacking())
+    const reminded = { ...records, fight: { ...records.fight!, state: { ...state(records), outOfReach: [{ attackerKey: ROY, targetKey: HERO, round: 1 }] } } }
+    expect(state(roll(reminded, ROY, royThrow, [99]).records).outOfReach).toEqual([{ attackerKey: ROY, targetKey: HERO, round: 1 }])
+  })
+
   it('rolls Defense with the declared line naming the attacker, whatever split is sent', () => {
     const hit = roll(ranged(attacking()), ROY, royThrow, [10]).records
     expect(state(hit).attack).toMatchObject({ attackerKey: ROY, step: 'defense' })
@@ -337,11 +343,26 @@ describe('Evasive Movement', () => {
     expect(state(roll(missedEvasion, HERO, rockAt, [99]).records).attack!.evasion).toBeNull()
   })
 
-  it('is refused while a wound on the sheet says No Evasive Movement', () => {
+  it('is refused while a current card forbids it, and never by a card\'s words or a later step', () => {
     const hurt = roy()
-    hurt.sheet = { ...hurt.sheet, effects: [{ id: 'w', name: 'Damaged hip', cause: 'Blunt Force, groin, Impact 5', steps: [{ modifiers: [], labels: ['Half Movement. No Evasive Movement. After 1 Long Rest: healed.'] }] }] }
+    const knee = { id: 'w', name: 'Knee injury', cause: 'Blunt Force, shin, Impact 5', steps: [{ modifiers: [], labels: [], until: 'long-rest' as const, restrictions: [{ kind: 'no-evasive' as const }] }] }
+    hurt.sheet = { ...hurt.sheet, effects: [knee] }
     const moved = act(movement([hero([rock, knife]), hurt, dale()]), { type: 'move', actor: HERO, by: player, ...stay }).records
-    expect(() => act(moved, { type: 'npcMovement', choices: { [ROY]: evade, [DALE]: stay } })).toThrow('Roy cannot move evasively: Damaged hip says No Evasive Movement.')
+    expect(() => act(moved, { type: 'npcMovement', choices: { [ROY]: evade, [DALE]: stay } })).toThrow('Roy cannot move evasively: No Evasive Movement (Knee injury).')
+    const legacy = roy()
+    const later = { ...knee, steps: [{ modifiers: [], labels: [] }, knee.steps[0]] }
+    legacy.sheet = { ...legacy.sheet, effects: [{ id: 'old', name: 'Damaged hip', cause: 'by hand', steps: [{ modifiers: [], labels: ['Half Movement. No Evasive Movement.'] }] }, later] }
+    const free = act(movement([hero([rock, knife]), legacy, dale()]), { type: 'move', actor: HERO, by: player, ...stay }).records
+    expect(state(act(free, { type: 'npcMovement', choices: { [ROY]: evade, [DALE]: stay } }).records).combatants.find((entry) => entry.key === ROY)!.movement).toMatchObject({ choice: 'evade' })
+  })
+
+  it('refuses Run for cannot-run, and both for crawl only, leaving Move or stay', () => {
+    const crawling = roy()
+    crawling.sheet = { ...crawling.sheet, effects: [{ id: 'w', name: 'Broken leg', cause: '', steps: [{ modifiers: [], labels: [], until: 'long-rest' as const, restrictions: [{ kind: 'crawl-only' as const }] }] }] }
+    const moved = act(movement([hero([rock, knife]), crawling, dale()]), { type: 'move', actor: HERO, by: player, ...stay }).records
+    expect(() => act(moved, { type: 'npcMovement', choices: { [ROY]: { choice: 'run', pickup: null }, [DALE]: stay } })).toThrow('Roy cannot run: Crawl only without help (Broken leg).')
+    expect(() => act(moved, { type: 'npcMovement', choices: { [ROY]: evade, [DALE]: stay } })).toThrow('Roy cannot move evasively: Crawl only without help (Broken leg).')
+    expect(state(act(moved, { type: 'npcMovement', choices: { [ROY]: stay, [DALE]: stay } }).records).combatants.find((entry) => entry.key === ROY)!.movement).toMatchObject({ choice: 'stay' })
   })
 })
 

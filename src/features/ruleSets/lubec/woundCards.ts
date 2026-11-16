@@ -236,7 +236,8 @@ export function lubecEffectWound(effect: LubecEffect): LubecWoundSource | null {
  */
 export const LUBEC_AUTOMATED = {
   rolls: true,
-  restrictions: false,
+  /** Hands, two-handed actions, Run, Evasive and crawling; speech is shown as its words, for the table to play. */
+  restrictions: true,
   taskModifiers: true,
   /** Lost stages, Dazed, knocked down, unconscious. */
   stages: true,
@@ -252,15 +253,12 @@ export const LUBEC_AUTOMATED = {
 
 const STAGE_CARDS = ['movement', 'action', 'dazed', 'down', 'unconscious']
 
-/** Restrictions the app already plays while the rest still wait on `LUBEC_AUTOMATED.restrictions`: stages, and the hands. */
-const PLAYED_RESTRICTIONS: readonly string[] = ['down', 'unconscious', 'arm-unusable', 'no-grip', 'no-two-handed']
-
 /** Whether any part of a card's current step is still resolved by hand. */
 export function lubecStepByHand(effect: LubecEffect, step: LubecEffectStep | undefined = effect.steps[0]): boolean {
   if (!step || !lubecEffectWound(effect)) return false
   const until = step.until
   return (!LUBEC_AUTOMATED.rolls && lubecStepRolls(step).length > 0)
-    || (!LUBEC_AUTOMATED.restrictions && lubecStepRestrictions(step).some((restriction) => !PLAYED_RESTRICTIONS.includes(restriction.kind)))
+    || (!LUBEC_AUTOMATED.restrictions && lubecStepRestrictions(step).some((restriction) => restriction.kind !== 'down' && restriction.kind !== 'unconscious'))
     || (!LUBEC_AUTOMATED.taskModifiers && lubecStepTaskModifiers(step).length > 0)
     || (!LUBEC_AUTOMATED.stages && STAGE_CARDS.includes(String(effect.cardKey)))
     || (!LUBEC_AUTOMATED.rounds && until === 'rounds' && !effect.countdown && !effect.lost)

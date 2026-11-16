@@ -9,14 +9,18 @@ import { CombatRefusal } from './CombatParts'
 import { useCombatRun, type CombatRun } from './useCombatRun'
 import { MOVEMENT_NAMES, movementSheetOf } from './movementModel'
 import { MovementFloor, MoveWindow, type MovementProps } from './MovementParts'
+import { combatMovementLimits } from '../engine/inputModifiers'
+import { LUBEC_FREE_MOVEMENT, type LubecMovementLimits } from '../../../ruleSets/lubec/movementLimits'
 
 const PICKUP = 'pickup:'
 
-/** The GM's choices for an NPC: Pick up names its Floor row when there is more than one. */
-function npcOptions(state: CombatState, down = false): (readonly [string, string])[] {
+/** The GM's choices for an NPC: Pick up names its Floor row when there is more than one; a card that forbids Run or Evasive takes it off the list. */
+function npcOptions(state: CombatState, down = false, limits: LubecMovementLimits = LUBEC_FREE_MOVEMENT): (readonly [string, string])[] {
   const rows = combatFloorRows(state.floor)
   const pickups = rows.map((row) => [`${PICKUP}${row.recordIds[0]}`, rows.length === 1 ? 'Pick up' : `Pick up: ${row.item.name}`] as const)
-  return down ? [['stay', 'Stay down'], ['stand', 'Stand'], ...pickups, ['leave', MOVEMENT_NAMES.leave]] : [['stay', MOVEMENT_NAMES.stay], ['run', MOVEMENT_NAMES.run], ['evade', MOVEMENT_NAMES.evade], ...pickups, ['leave', MOVEMENT_NAMES.leave]]
+  if (down) return [['stay', 'Stay down'], ['stand', 'Stand'], ...pickups, ['leave', MOVEMENT_NAMES.leave]]
+  const moving = (['run', 'evade'] as const).filter((choice) => !limits[choice]).map((choice) => [choice, MOVEMENT_NAMES[choice]] as const)
+  return [['stay', MOVEMENT_NAMES.stay], ...moving, ...pickups, ['leave', MOVEMENT_NAMES.leave]]
 }
 
 const npcPick = (value: string): MovementPick =>
@@ -81,7 +85,7 @@ function MovementRows({ roster, state, choices, onChoose, onActFor }: RowsProps)
     if (combatant.outReason !== null) return <OutRow key={combatant.key} combatant={combatant} />
     if (combatant.kind === 'character') return <PlayerRow key={combatant.key} combatant={combatant} onActFor={onActFor} />
     const sheet = movementSheetOf(combatant, roster)
-    const options = npcOptions(state, Boolean(sheet && downCards(sheet, null).length))
+    const options = npcOptions(state, Boolean(sheet && downCards(sheet, null).length), sheet ? combatMovementLimits(sheet, null) : LUBEC_FREE_MOVEMENT)
     return <NpcRow key={combatant.key} combatant={combatant} options={options} value={choices[combatant.key] ?? 'stay'} onChoose={(value) => onChoose(combatant.key, value)} />
   }
   return <ul className="roster">{state.combatants.map(row)}</ul>

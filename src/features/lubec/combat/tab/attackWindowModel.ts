@@ -62,6 +62,8 @@ export type AttackWindowModel = {
   opponents: Combatant[]
   targets: LubecCombatant[]
   target: LubecCombatant | null
+  /** The out-of-reach reminder for this melee aim, or null. */
+  reach: string | null
 }
 
 const readable = (entry: LubecCombatant | null): entry is LubecCombatant => entry !== null
@@ -91,7 +93,15 @@ export function attackWindowModel({ state, fightId, attack, attacker, roster, sh
   const target = windowTarget(targets, draft.targetKey)
   const ready = rollReady(attack, aim, reading) && (!isRoundAttack(state, attack) || held)
   const evasion = heldEvasion(state, attack, held)
-  return { aim, held, reading, range, evasion, opponents, targets, target, ready, split: windowSplit(reading, target, draft, range, evasion) }
+  return { aim, held, reading, range, evasion, opponents, targets, target, ready, split: windowSplit(reading, target, draft, range, evasion), reach: reachReminder(state, attacker.key, draft.targetKey, reading) }
+}
+
+/** The attacker's own last hit knocked this target out of striking reach, and this aim is a melee one: a reminder, never a block. */
+export function reachReminder(state: CombatState, attackerKey: string, targetKey: string | null, reading: AttackReading | null): string | null {
+  if (!targetKey || !reading || reading.ranged) return null
+  if (!state.outOfReach?.some((entry) => entry.attackerKey === attackerKey && entry.targetKey === targetKey)) return null
+  const name = state.combatants.find((entry) => entry.key === targetKey)?.name ?? 'Your target'
+  return `${name} was knocked out of striking reach by your last hit. The GM rules whether this melee attack can reach them.`
 }
 
 /** What has gone since Declare, which is all a round's attacker may choose again. */

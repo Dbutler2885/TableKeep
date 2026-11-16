@@ -125,6 +125,7 @@ function WindowSplit(props: SplitProps) {
   const roll = <SegmentRoll at={segmentMiddle(segments.attackFrom, segments.attackWidth)} label="Roll" disabled={!model.ready || busy} onRoll={onRoll} />
   return (
     <>
+      {model.reach ? <div className="notice cool" role="status"><span>{model.reach}</span></div> : null}
       <AttackAsk target={target} reading={reading} range={model.range} evasion={model.evasion} segments={segments} />
       <AttackBar segments={segments} onDefense={moveDefense} controls={roll} />
       <SplitLine {...props} />
