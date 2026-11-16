@@ -23,7 +23,7 @@ export type CombatPickupClaim = { itemId: string; qty: number }
  */
 /** An evader's Speed roll as Movement settled, and what it takes off ranged attacks at them this round. */
 export type CombatEvasion = { roll: number; speed: number; success: boolean; penalty: number } & CombatRollDice
-export type CombatMovement = { choice: CombatMovementChoice; pickup: CombatPickupClaim | null; leave: 'asked' | 'confirmed' | null; evasion?: CombatEvasion | null }
+export type CombatMovement = { choice: CombatMovementChoice; pickup: CombatPickupClaim | null; leave: 'asked' | 'confirmed' | null; evasion?: CombatEvasion | null; lost?: true }
 /** One named Defense line: who it guards against, and how much of the Handle pool it holds. */
 export type CombatDefenseLine = { against: string; amount: number }
 /**
@@ -44,6 +44,8 @@ export type CombatDeclaration = {
   defenseRolled?: boolean
   /** A sheet change made the frozen split too big for the pool, and it was split again. */
   repaired?: boolean
+  /** A wound took this round's Action Stage: no attack and no Defense. */
+  lost?: true
 }
 export type Combatant = CombatantSelection & {
   key: string
@@ -200,6 +202,8 @@ export type CombatState = {
   countdowns?: { key: string; wound: string; kind: 'bleed' | 'critical'; dueRound: number }[]
   /** End has begun: every combatant's closing change is queued, and the fight ends once they are delivered. */
   closing?: boolean
+  /** Per combatant, the Movement and Action Stages wounds took, by round, and the latest card's name. */
+  lost?: Record<string, { movement: number[]; action: number[]; reason: string; wound?: string }>
 }
 export type CombatFight = { status: 'live' | 'ended'; participantUserIds: string[]; state: CombatState }
 export type CombatEnvelope = {

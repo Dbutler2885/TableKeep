@@ -58,6 +58,8 @@ export type LubecWoundRolled = {
   timers?: { kind: LubecWoundTimer; rounds: number }[]
   /** Losses rolled once, by `card.step.target`. */
   amounts?: Record<string, number>
+  /** The rounds each stage-losing consequence takes, worked out when the wound lands. */
+  lost?: Partial<Record<'movement' | 'action' | 'dazed', { movement: number[]; action: number[] }>>
 }
 
 /** Where a rolled loss is kept: the card, the step and the value it lowers. */
@@ -122,18 +124,36 @@ function cardOf(spec: LubecWoundCardSpec, context: LubecWoundCardContext): Lubec
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
 
+const roundsWords = (rounds: readonly number[]) => `round${rounds.length === 1 ? '' : 's'} ${rounds.join(', ')}`
+
+/** "Action + Defense lost in round 3; Movement lost in round 4". */
+function lostWords(lost: { movement: number[]; action: number[] }): string {
+  const parts = [
+    ...(lost.action.length ? [`Action + Defense lost in ${roundsWords(lost.action)}`] : []),
+    ...(lost.movement.length ? [`Movement lost in ${roundsWords(lost.movement)}`] : []),
+  ]
+  return parts.join('; ')
+}
+
+/** The words for a loss whose rounds were not worked out (a wound outside a fight's rounds). */
+function fallbackWords(kind: 'lose-movement' | 'lose-action' | 'dazed', turns: number): string {
+  if (kind === 'lose-movement') return 'Lose the next Movement Stage'
+  if (kind === 'lose-action') return 'Lose the next Action Stage, Defense with it'
+  return turns === 1 ? 'Lose the next Movement and Action Stages' : `Lose the next ${turns} Movement and ${turns} Action Stages`
+}
+
 /** The card a stage-losing or downing consequence makes, carrying how many stages it takes. */
 function nowCard(now: LubecWoundNow, rolled: LubecWoundRolled): LubecWoundCardSpec | null {
   switch (now.kind) {
     case 'lose-movement':
-      return { key: 'movement', part: 'Movement lost', steps: [{ until: 'rounds', labels: ['Lose the next Movement Stage'] }] }
     case 'lose-action':
-      return { key: 'action', part: 'Action lost', steps: [{ until: 'rounds', labels: ['Lose the next Action Stage, Defense with it'] }] }
     case 'dazed': {
-      const turns = now.turns === 1 ? 1 : rolled.dazed ?? 1
-      const stages = turns === 1 ? 'the next Movement and Action Stages' : `the next ${turns} Movement and ${turns} Action Stages`
-      const rolledWords = now.turns === 1 ? '' : ` (1d4 = ${turns})`
-      return { key: 'dazed', part: 'Dazed', steps: [{ until: 'rounds', labels: [`Lose ${stages}${rolledWords}`] }] }
+      const key = now.kind === 'lose-movement' ? 'movement' : now.kind === 'lose-action' ? 'action' : 'dazed'
+      const part = { movement: 'Movement lost', action: 'Action lost', dazed: 'Dazed' }[key]
+      const lost = rolled.lost?.[key]
+      const turns = now.kind === 'dazed' ? (now.turns === 1 ? 1 : rolled.dazed ?? 1) : 1
+      const rolledWords = now.kind === 'dazed' && now.turns !== 1 ? ` (1d4 = ${turns})` : ''
+      return { key, part, steps: [{ until: 'rounds', labels: [(lost ? lostWords(lost) : fallbackWords(now.kind, turns)) + rolledWords] }] }
     }
     case 'knocked-down':
       return { key: 'down', part: 'Knocked down', steps: [{ until: 'by-hand', restrictions: [{ kind: 'down' }], labels: ['Standing uses Movement and Action unless a Speed Check succeeds'] }] }
@@ -170,7 +190,9 @@ export function lubecWoundCards(outcome: LubecWoundOutcome, context: LubecWoundC
   return specs.map((spec) => {
     const card = cardOf(spec, context)
     const timer = rolled.timers?.find((entry) => entry.kind === spec.key)
-    return timer ? { ...card, countdown: { kind: timer.kind, rounds: timer.rounds } } : card
+    const lost = rolled.lost?.[spec.key as 'movement' | 'action' | 'dazed']
+    if (timer) return { ...card, countdown: { kind: timer.kind, rounds: timer.rounds } }
+    return lost ? { ...card, lost } : card
   })
 }
 
@@ -201,7 +223,8 @@ export const LUBEC_AUTOMATED = {
   speechSave: false,
 }
 
-const STAGE_CARDS = ['movement', 'action', 'dazed', 'down', 'unconscious']
+/** Lost stages and Dazed are played by the fight; knocked down and unconscious are still the table's. */
+const STAGE_CARDS = ['down', 'unconscious']
 
 /** Whether any part of a card's current step is still resolved by hand. */
 export function lubecStepByHand(effect: LubecEffect, step: LubecEffectStep | undefined = effect.steps[0]): boolean {
@@ -211,7 +234,7 @@ export function lubecStepByHand(effect: LubecEffect, step: LubecEffectStep | und
     || (!LUBEC_AUTOMATED.restrictions && lubecStepRestrictions(step).length > 0)
     || (!LUBEC_AUTOMATED.taskModifiers && lubecStepTaskModifiers(step).length > 0)
     || (!LUBEC_AUTOMATED.stages && STAGE_CARDS.includes(String(effect.cardKey)))
-    || (!LUBEC_AUTOMATED.rounds && until === 'rounds' && !effect.countdown)
+    || (!LUBEC_AUTOMATED.rounds && until === 'rounds' && !effect.countdown && !effect.lost)
     || (!LUBEC_AUTOMATED.windows && until === 'next-round-end')
     || (!LUBEC_AUTOMATED.closing && until === 'combat-end')
     || (!LUBEC_AUTOMATED.speechSave && typeof step.onReach === 'object' && step.onReach !== null)
@@ -239,6 +262,10 @@ export function lubecEffectTrigger(effect: LubecEffect): string | null {
   const step = effect.steps[0]
   const origin = effect.combatOrigin as { originatingRound?: unknown } | undefined
   if (step?.until === 'next-round-end' && Number.isInteger(origin?.originatingRound)) return `Ends with round ${(origin!.originatingRound as number) + 1}`
+  const lost = effect.lost as { movement?: unknown; action?: unknown } | undefined
+  if (step?.until === 'rounds' && lost && Array.isArray(lost.movement) && Array.isArray(lost.action)) {
+    return `Ends after round ${Math.max(...(lost.movement as number[]), ...(lost.action as number[]))}`
+  }
   const countdown = effect.countdown as { rounds?: unknown; fired?: unknown } | undefined
   if (step?.until === 'rounds' && countdown && !countdown.fired && Number.isInteger(countdown.rounds) && Number.isInteger(origin?.originatingRound)) {
     return `Due at the end of round ${(origin!.originatingRound as number) + (countdown.rounds as number)}`

@@ -1,3 +1,4 @@
+import { StageLossNotice } from './StageLossNotice'
 import { byInitiative } from '../engine/initiative'
 import type { Combatant, CombatState } from '../engine/types'
 import { combatantRole } from './combatPhases'
@@ -29,7 +30,7 @@ function RowBadge({ out, now }: { out: boolean; now: boolean }) {
   return now ? <span className="badge must">Now</span> : null
 }
 
-type RowProps = { combatant: Combatant; place: number | null; userId: string; now: boolean; onOut?: (combatant: Combatant) => void }
+type RowProps = { state: CombatState; combatant: Combatant; place: number | null; userId: string; now: boolean; onOut?: (combatant: Combatant) => void }
 
 function ManageCombatant({ combatant, onOut }: Pick<RowProps, 'combatant' | 'onOut'>) {
   if (!onOut) return null
@@ -37,12 +38,12 @@ function ManageCombatant({ combatant, onOut }: Pick<RowProps, 'combatant' | 'onO
   return <span className="combatant-action"><button type="button" className="btn line small" aria-label={`${label} ${combatant.name}`} onClick={() => onOut(combatant)}>{label}</button></span>
 }
 
-function TurnRow({ combatant, place, userId, now, onOut }: RowProps) {
+function TurnRow({ state, combatant, place, userId, now, onOut }: RowProps) {
   const out = combatant.outReason !== null
   return (
     <li className={`${combatant.kind === 'character' || combatant.ally ? 'friend' : 'foe'}${out ? ' out' : now ? ' now' : ''}`}>
       <span className="n">{place ?? '·'}</span>
-      <span><span className="nm">{combatant.name}</span><small>{rowWords(combatant, userId)}</small></span>
+      <span><span className="nm">{combatant.name}</span><small>{rowWords(combatant, userId)}</small><StageLossNotice state={state} combatantKey={combatant.key} /></span>
       <span><RowBadge out={out} now={now} /></span>
       <ManageCombatant combatant={combatant} onOut={onOut} />
     </li>
@@ -81,7 +82,7 @@ export function TurnOrderPanel({ state, userId, onOut }: { state: CombatState; u
   return (
     <CombatPanel title={view.title} sub={view.sub}>
       {onOut ? <div className="panel-actions"><button type="button" className="btn line small" aria-expanded={managing} aria-controls={id} onClick={() => setManaging(!managing)}>{managing ? 'Done managing' : 'Manage combatants'}</button></div> : null}
-      <ul className="turns" id={id}>{view.rows.map(({ combatant, place }) => <TurnRow key={combatant.key} combatant={combatant} place={place} userId={userId} now={combatant.key === now} onOut={managing ? onOut : undefined} />)}</ul>
+      <ul className="turns" id={id}>{view.rows.map(({ combatant, place }) => <TurnRow key={combatant.key} state={state} combatant={combatant} place={place} userId={userId} now={combatant.key === now} onOut={managing ? onOut : undefined} />)}</ul>
       {view.note ? <div className="pb"><p className="note">Successes go before failures: higher successes first, lower failures first.</p></div> : null}
     </CombatPanel>
   )

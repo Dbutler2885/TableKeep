@@ -1,3 +1,4 @@
+import { StageLossNotice } from './StageLossNotice'
 import { useState } from 'react'
 import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecord'
 import type { Combatant, CombatMovementChoice, CombatState } from '../engine/types'
@@ -125,6 +126,7 @@ export function MoveWindow({ state, combatant, sheet, commands, named }: MovePro
   return (
     <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />} foot={<MoveFoot combatant={combatant} draft={draft} run={run} onConfirm={() => run.run(() => commands.move(combatant.key, pickOf(draft)))} />}>
       <CombatRefusal refusal={run.refusal} />
+      <StageLossNotice state={state} combatantKey={combatant.key} />
       <p className="ask">{askWords(combatant, named)}</p>
       <MoveCards shown={shown} live={live} evadeBlocked={sheet ? evasionBlocked(sheet) : null} onChoose={(choice) => setDraft({ choice, picked: null })} />
       <span className="label">On the Floor</span>

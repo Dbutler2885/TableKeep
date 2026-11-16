@@ -149,3 +149,20 @@ describe('closing the fight for one combatant', () => {
     expect(lubecRollMode(record.sheet.effects, { kind: 'attack', stat: 'Handle' }).mode).toBe('disadvantage')
   })
 })
+
+
+describe('lost stage cards through ticks and closing', () => {
+  const card = { id: 'dazed', name: 'Dazed', cause: 'Concussion', combatOrigin: origin(3), lost: { movement: [4, 5], action: [3, 4] }, steps: [{ modifiers: [], labels: [], until: 'rounds' }] }
+  it('keeps Dazed until its last lost stage passes, then expires once', () => {
+    const raw = sheet([card])
+    expect(roundTickIntention(raw, tick(4), 'fight', 'tick4')).toBeNull()
+    const after = planSheetIntention(raw, roundTickIntention(raw, tick(5), 'fight', 'tick5')!).mutation!.sheet as ReturnType<typeof sheet>
+    expect(after.lubec.effects).toEqual([])
+    expect(roundTickIntention(after, tick(5), 'fight', 'retry')).toBeNull()
+  })
+  it('suggests the larger remaining stage count as minutes on closing', () => {
+    const raw = sheet([card])
+    const after = planSheetIntention(raw, closingIntention(raw, { ...tick(4), kind: 'close' }, 'fight', 'close')!).mutation!.sheet as ReturnType<typeof sheet>
+    expect(after.lubec.effects).toMatchObject([{ afterCombat: { suggestedMinutes: 2 }, steps: [{ until: 'by-hand' }] }])
+  })
+})

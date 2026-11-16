@@ -66,12 +66,26 @@ function firedEdits(effect: Raw, round: number): SheetEdit[] {
   ]
 }
 
-/** What the end of the tick's round does for this combatant: windows that end, and countdowns that fall due. */
+type Lost = { movement: number[]; action: number[] }
+
+const lostOf = (effect: Raw): Lost | null => {
+  const lost = effect.lost
+  return isRecord(lost) && Array.isArray(lost.movement) && Array.isArray(lost.action) ? lost as unknown as Lost : null
+}
+
+/** Whether this stored card's lost stages from this fight have all passed by the end of `round`. */
+function stagesPassed(effect: Raw, fightId: string, round: number): boolean {
+  const lost = lostOf(effect)
+  if (!lost || originOf(effect)?.fightId !== fightId || effect.afterCombat !== undefined) return false
+  return Math.max(...lost.movement, ...lost.action) <= round
+}
+
+/** What the end of the tick's round does for this combatant: windows that end, stage losses that have all passed, and countdowns that fall due. */
 export function roundTickEdits(raw: Raw, tick: CombatWound, fightId: string): SheetEdit[] {
   const lubec = isRecord(raw.lubec) ? raw.lubec : {}
   const effects = (Array.isArray(lubec.effects) ? lubec.effects.filter(isRecord) : []).filter((effect) => typeof effect.id === 'string')
   const round = tick.tickRound!
-  const ended = effects.filter((effect) => windowEnded(effect, fightId, round)).map(stepDownEdit)
+  const ended = effects.filter((effect) => windowEnded(effect, fightId, round) || stagesPassed(effect, fightId, round)).map(stepDownEdit)
   const due = effects.filter((effect) => countdownDue(effect, fightId, round))
   const bleeds = due.filter((effect) => countdownOf(effect)!.kind === 'bleed').length
   const trauma: SheetEdit[] = bleeds ? [{ kind: 'delta', path: ['lubec', 'counters', 'trauma'], base: 0, amount: bleeds }] : []
@@ -120,6 +134,12 @@ function closingEditsOf(effect: Raw, closeRound: number): SheetEdit[] {
   if (countdown && !countdown.fired) {
     const count = remaining(lubecCountdownDue(origin.originatingRound, countdown.rounds), closeRound)
     return afterCombatEdits(effect, count, AFTER_WORDS[countdown.kind](), { countdown: countdown.kind })
+  }
+  const lost = lostOf(effect)
+  if (lost) {
+    // Dazed suggests the larger of its Movement and Action Stages still to come, one round a minute.
+    const count = Math.max(lost.movement.filter((round) => round >= closeRound).length, lost.action.filter((round) => round >= closeRound).length)
+    return count ? afterCombatEdits(effect, count, AFTER_WORDS.window()) : [stepDownEdit(effect)]
   }
   if (first.until === 'next-round-end') return afterCombatEdits(effect, remaining(lubecBriefWindowEnd(origin.originatingRound), closeRound), AFTER_WORDS.window())
   if (first.until === 'combat-end') return [stepDownEdit(effect)]

@@ -1,3 +1,4 @@
+import { StageLossNotice } from './StageLossNotice'
 import type { ReactNode } from 'react'
 import type { Combatant, CombatDeclaration, CombatState } from '../engine/types'
 import { combatantName, type CombatViewer } from './attackWords'
@@ -6,7 +7,7 @@ import { CombatPanel } from './CombatParts'
 
 /** A runner has no split to show. */
 export function DeclarationMini({ declaration }: { declaration: CombatDeclaration }) {
-  if (declaration.ran) return null
+  if (declaration.ran || declaration.lost) return null
   return <div className="mini">{miniParts(declaration).map((part, index) => <i key={index} className={part.kind} style={{ width: `${part.width}%` }} />)}</div>
 }
 
@@ -20,6 +21,7 @@ function lineWords(state: CombatState, declaration: CombatDeclaration): ReactNod
 
 /** "Throw with the Dodgeball at Roy Carver. ATK 36; Defense 20 against Roy Carver." as every screen shows a declaration. */
 export function DeclarationWords({ state, declaration }: { state: CombatState; declaration: CombatDeclaration }) {
+  if (declaration.lost) return <>Action + Defense lost: no actions this round.</>
   if (declaration.ran) return <><b>Ran</b>: no attack and no Defense this round.</>
   if (declaration.full) return <><b>Full Defense</b>: no attack. {lineWords(state, declaration)}.</>
   const { frozen, aim } = declaration
@@ -56,6 +58,7 @@ function DeclaredRow({ state, place, combatant, declaration, mine }: RowProps) {
     <li className={`${own ? 'you' : ''} ${atYou ? 'atyou' : ''}`}>
       <div className="dn"><span>{place} {combatant.name}</span><span className="k">{rowTag(own, atYou)}</span></div>
       {pending ? <span className="badge must">Awaiting GM approval</span> : null}
+      <StageLossNotice state={state} combatantKey={combatant.key} />
       <DeclarationMini declaration={declaration} />
       <div className={`txt ${out ? 'stopped' : ''}`}><DeclarationWords state={state} declaration={declaration} />{out ? <Stopped combatant={combatant} /> : null}</div>
     </li>

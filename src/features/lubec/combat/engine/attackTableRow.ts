@@ -1,6 +1,8 @@
 import type { LubecEffect } from '../../../ruleSets/lubec/effects'
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
-import { lubecWoundCards, type LubecWoundRolledCheck } from '../../../ruleSets/lubec/woundCards'
+import { lubecWoundCards, type LubecWoundRolled, type LubecWoundRolledCheck } from '../../../ruleSets/lubec/woundCards'
+import type { LubecWoundNow } from '../../../ruleSets/lubec/woundTables/outcome'
+import { lostRoundsOf, withLostStages } from './stages'
 import { lubecWoundTableRow, type LubecLocatedWoundRow, type LubecWoundTableRow } from '../../../ruleSets/lubec/woundTables'
 import { lubecBriefWindowEnd, lubecCountdownDue } from '../roundTick'
 import type { CombatWound } from '../woundTypes'
@@ -109,7 +111,10 @@ function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatChec
   if (!landed.wound) {
     return closeAttack(state, { ...withChecks, rowOutcome: 'Failure: no effect, no wound and no Stress from this Check.', rowTrauma: 0, rowStress: 0, rowSections: [] }, 'no-wound')
   }
-  const { rolled, dice } = lubecRollAmounts(landed.outcome, entropy)
+  const { rolled: amounts, dice } = lubecRollAmounts(landed.outcome, entropy)
+  const targetKey = defenderOf(attack)
+  const lost = stageRounds(landed.outcome, state, targetKey, amounts.dazed ?? 1)
+  const rolled = { ...amounts, lost }
   // "+1d5 Minimum Stress" rolled at once, and any lasting Minimum Stress that starts the moment the wound lands
   // ("if survived, lasting +4 minimum Stress"); one a later step names waits for the Step down that reaches it.
   const fromStart = landed.outcome.cards.reduce((sum, card) => sum + (card.steps[0]?.minimumStress ?? 0), 0)
@@ -132,7 +137,19 @@ function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatChec
   }
   const roundWatch = watchedThrough(state, wound.target, cards)
   const countdowns = [...(state.countdowns ?? []), ...countdownsOf(state, wound, cards)]
-  return closeAttack({ ...state, woundOutbox: [...state.woundOutbox, wound], roundWatch, countdowns }, closed, 'wounded')
+  const staged = Object.entries(lost).reduce<CombatState>((current, [kind, rounds]) => withLostStages(current, targetKey, rounds, kind === 'dazed' ? 'Dazed' : kind === 'movement' ? 'Movement lost' : 'Action lost', row.name), state)
+  return closeAttack({ ...staged, woundOutbox: [...state.woundOutbox, wound], roundWatch, countdowns }, closed, 'wounded')
+}
+
+/** The rounds each stage-losing consequence of the outcome takes from the target, worked out now. */
+function stageRounds(outcome: { now?: LubecWoundNow[] }, state: CombatState, key: string, dazed: number): NonNullable<LubecWoundRolled['lost']> {
+  const lost: NonNullable<LubecWoundRolled['lost']> = {}
+  for (const now of outcome.now ?? []) {
+    const rounds = lostRoundsOf(now, state, key, dazed)
+    const slot = now.kind === 'lose-movement' ? 'movement' : now.kind === 'lose-action' ? 'action' : now.kind === 'dazed' ? 'dazed' : null
+    if (rounds && slot) lost[slot] = rounds
+  }
+  return lost
 }
 
 type Countdown = { kind: 'bleed' | 'critical'; rounds: number }
@@ -152,6 +169,8 @@ function watchedThrough(state: CombatState, target: CombatWound['target'], cards
   const ends = cards.flatMap((card) => {
     const countdown = countdownOfCard(card)
     if (countdown) return [lubecCountdownDue(state.round, countdown.rounds)]
+    const lost = card.lost as { movement: number[]; action: number[] } | undefined
+    if (lost) return [Math.max(...lost.movement, ...lost.action)]
     return card.steps[0]?.until === 'next-round-end' ? [lubecBriefWindowEnd(state.round)] : []
   })
   if (!ends.length) return state.roundWatch

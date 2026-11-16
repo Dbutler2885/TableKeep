@@ -8,6 +8,8 @@ import { lubecDetachedItem } from '../../../ruleSets/lubec/gear/detachedItems'
 import { parseLubecGear, type LubecItem } from '../../../ruleSets/lubec/gear/gearRecord'
 import { lubecCharacterSheet } from '../../../ruleSets/lubec/sheetFixtures'
 import { combatEntropy } from './commandEntropy'
+import { withLostStages } from './stages'
+import { withMovementRequests } from './movement'
 import { RAN } from './declare'
 import { planCombatCommand } from './lifecycle'
 import type { CombatAuthority, CombatCommand, Combatant, CombatPlan, CombatRecords, CombatSheet, CombatState } from './types'
@@ -335,4 +337,17 @@ describe('Declare, slowest first', () => {
     expect(state(removed).pendingActions).toEqual([{ combatantKey: ROY, action: 'declare' }])
     expect(() => act(removed, { type: 'answerDeclaration', combatantKey: HERO, approve: true })).toThrow('not waiting for approval')
   })
+})
+
+
+it('plays an entirely skipped round without player choices or declaration approvals', () => {
+  const records = movement()
+  let current = { ...state(records), round: 3 }
+  for (const combatant of current.combatants) current = withLostStages(current, combatant.key, { movement: [3], action: [3] }, 'Dazed')
+  records.fight = { ...records.fight!, state: withMovementRequests(current) }
+  expect(state(records).pendingActions).toEqual([])
+  const { plan } = settled(records)
+  expect(plan.fight.state).toMatchObject({ phase: 'movement', round: 4 })
+  expect(plan.fight.state.pendingActions).toHaveLength(3)
+  expect(plan.logs.map((entry) => entry.event)).toContain('Round 3, Attack. Nobody declared an attack.')
 })

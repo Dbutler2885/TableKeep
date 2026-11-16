@@ -4,6 +4,7 @@ import { attackRepair, combatantOf, combatantsIn as inRound, combatSheetOf } fro
 import type { CombatPendingAction } from './combatFeedback'
 import { requireGm, requireLiveContext } from './context'
 import { evasionBlocked } from './evasion'
+import { withLostMovements } from './stages'
 import type { Combatant, CombatFight, CombatHandler, CombatMovement, CombatMovementChoice, CombatPickupClaim, CombatPlan, CombatRecords, CombatState } from './types'
 
 const CHOICES: readonly CombatMovementChoice[] = ['stay', 'run', 'evade', 'pickup', 'leave']
@@ -71,8 +72,10 @@ function movementRequests(state: CombatState): CombatPendingAction[] {
 
 /** The requests that remain; with none, and someone still in the fight, the stage is complete and waits for the GM to settle it. */
 export function withMovementRequests(state: CombatState): CombatState {
-  const pendingActions = movementRequests(state)
-  return { ...state, pendingActions, movementComplete: pendingActions.length === 0 && inRound(state).length > 0 }
+  // A lost Movement Stage is staying put, filled in unasked.
+  const filled = withLostMovements(state)
+  const pendingActions = movementRequests(filled)
+  return { ...filled, pendingActions, movementComplete: pendingActions.length === 0 && inRound(filled).length > 0 }
 }
 
 function withMovement(fight: CombatFight, moved: ReadonlyMap<string, CombatMovement>): CombatFight {

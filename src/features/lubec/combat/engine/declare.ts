@@ -6,6 +6,7 @@ import type { CombatLog } from './combatFeedback'
 import type { CombatEntropy } from './commandEntropy'
 import { requireGm, requireLiveContext } from './context'
 import { requireDelivered } from './initiative'
+import { withLostActions } from './stages'
 import { combatantKey } from './inputs'
 import { combatInputModifiers } from './inputModifiers'
 import type { CombatCommand, Combatant, CombatDeclaration, CombatFight, CombatHandler, CombatSheet, CombatState } from './types'
@@ -30,7 +31,9 @@ const attackWords = (state: CombatState): string => {
 }
 
 /** The current choice must be approved before the next declarer or Attack can begin. */
-export function withDeclareRequests(state: CombatState, entropy: CombatEntropy): { state: CombatState; logs: CombatLog[] } {
+export function withDeclareRequests(unfilled: CombatState, entropy: CombatEntropy): { state: CombatState; logs: CombatLog[] } {
+  // A lost Action Stage is a stopped declaration, recorded unasked.
+  const state = withLostActions(unfilled)
   const next = combatDeclarers(state)[0]
   if (next) {
     const action = next.proposedDeclaration ? 'reviewDeclaration' : 'declare'

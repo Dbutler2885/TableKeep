@@ -87,7 +87,7 @@ describe('a final Fisticuffs concussion', () => {
       ['lasting', [{ target: 'Intellect', amount: -10 }]],
     ])
     expect(attackOf(done).rowSections).toEqual([
-      { label: 'Now', items: ['Dazed: Lose the next Movement and Action Stages, counts down by round (resolved by hand)'] },
+      { label: 'Now', items: ['Dazed: Action + Defense lost in round 1; Movement lost in round 2, counts down by round'] },
       { label: 'Recovery', items: ['Concussion: Handle -30, step down after 1 Long Rest', 'then Concussion: Handle -10, step down after 1 Long Rest'] },
       { label: 'Lasting', items: ['then Concussion: Intellect -10, Persistent concussion'] },
     ])
@@ -229,7 +229,7 @@ describe('final Piercing', () => {
     const temple = landed('piercing', 'head', 8, { check: [10], dazed: [3] })
     expect(attackOf(temple).checks!.map((check) => check.purpose)).toEqual(['prevention'])
     expect(outboxOf(temple).effects!.map((card) => card.cardKey)).toEqual(['dazed', 'lasting'])
-    expect(outboxOf(temple).effects![0].steps[0].labels).toEqual(['Lose the next 3 Movement and 3 Action Stages (1d4 = 3)'])
+    expect(outboxOf(temple).effects![0].steps[0].labels).toEqual(['Action + Defense lost in rounds 1, 2, 3; Movement lost in rounds 2, 3, 4 (1d4 = 3)'])
   })
 
   it('records a lost eye as a lasting card from the moment it lands', () => {
