@@ -57,6 +57,7 @@ function requireCanEvade(combatant: Combatant, records: CombatRecords) {
 
 function chosen(state: CombatState, combatant: Combatant, raw: Record<string, unknown>, records: CombatRecords): CombatMovement {
   if (combatant.outReason !== null) throw new Error(`${combatant.name} is Out.`)
+  if (combatant.unconscious) throw new Error(`${combatant.name} is unconscious: unresolved stages are skipped.`)
   if (combatant.movement) throw new Error(`${combatant.name} has already confirmed Movement.`)
   if (movementLost(state, combatant.key)) throw new Error(`${combatant.name}'s Movement Stage is lost.`)
   const choice = readChoice(raw.choice)

@@ -1,3 +1,4 @@
+import type { LubecEffectRecovery } from './effectRecovery'
 import { useState } from 'react'
 import {
   describeLubecEffectStep,
@@ -23,6 +24,7 @@ import { LubecWoundDetail } from './LubecWoundDetail'
 // in a group of their own.
 
 type EffectsProps = {
+  onRecover?: LubecEffectRecovery
   effects: readonly LubecEffect[]
   /** The counters a Step down may add Minimum Stress to. */
   counters: LubecCounters
@@ -116,9 +118,24 @@ function LubecNewEffect({ adding, actions }: { adding: boolean; actions: EffectA
 }
 
 /** The active effects as a section of the Core page, with the owner's and GM's controls when they may change it. */
-export function LubecEffectsPanel({ effects, counters, onChange, gear, onGearChange }: EffectsProps) {
+export function LubecEffectsPanel({ effects, counters, onChange, onRecover, gear, onGearChange }: EffectsProps) {
   const [open, setOpen] = useState<OpenEffect>(null)
+  const [recovering, setRecovering] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [recoveryError, setRecoveryError] = useState<string | null>(null)
   const editable = onChange !== null
+  const needsWaking = (id: string) => effects.find((effect) => effect.id === id)?.wakeSave === 'severe-concussion'
+  const wake = async () => {
+    if (!onRecover || !recovering || busy) return
+    setBusy(true)
+    setRecoveryError(null)
+    try {
+      const result = await onRecover(recovering)
+      if (result.status === 'repair') setRecoveryError('The sheet changed. Refresh it before retrying the same waking Save.')
+      else setRecovering(null)
+    } catch (error) { setRecoveryError(error instanceof Error ? error.message : 'The waking Save could not be saved. Retry to recover its receipt.') }
+    finally { setBusy(false) }
+  }
   const change = (next: LubecEffect[]) => {
     onChange?.(next)
     setOpen(null)
@@ -126,8 +143,9 @@ export function LubecEffectsPanel({ effects, counters, onChange, gear, onGearCha
   const actions: EffectActions = {
     open: setOpen,
     save: (effect) => change(putLubecEffect(effects, effect)),
-    remove: (id) => change(removeLubecEffect(effects, id)),
+    remove: (id) => { if (needsWaking(id)) setRecovering(id); else change(removeLubecEffect(effects, id)) },
     stepDown: (id) => {
+      if (needsWaking(id)) { setRecovering(id); return }
       const next = stepDownLubecSheet({ effects, counters }, id)
       if (next.counters === counters) onChange?.(next.effects)
       else onChange?.(next.effects, next.counters)
@@ -141,6 +159,12 @@ export function LubecEffectsPanel({ effects, counters, onChange, gear, onGearCha
         <span className="dice-formula">Active</span>
       </div>
       <div className="lubec-effects-body">
+        {recovering ? <div className="notice" role="dialog" aria-label="Waking Save">
+          <p>Waking requires one Severe Concussion Body Save at Disadvantage, combined with active card modes. Long Rests count from the original injury.</p>
+          {recoveryError ? <p role="alert">{recoveryError}</p> : null}
+          <button type="button" className="action-button" disabled={busy || !onRecover} onClick={() => void wake()}>{busy ? 'Saving waking Save...' : 'Wake and roll Body Save'}</button>
+          <button type="button" className="secondary-button" disabled={busy} onClick={() => setRecovering(null)}>Keep unconscious</button>
+        </div> : null}
         {effects.length === 0 && open !== 'new' ? <p className="skill-strip-hint">No active effects.</p> : null}
         <ul className="modifier-list lubec-effect-list">
           {groups.flatMap((group) => {

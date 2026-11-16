@@ -146,6 +146,13 @@ describe('the GM\'s Movement settlement', () => {
     expect(settles()[0].envelope).toMatchObject({ phase: 'movement', stageInstanceId: 'movement-1', actorKey: null })
   })
 
+  it('leaves an all-unconscious skipped round for the GM instead of advancing indefinitely', () => {
+    const live = settling()
+    live.fight.state.combatants.forEach((entry) => { entry.unconscious = true })
+    show('gm', vi.fn(), live)
+    expect(settles()).toEqual([])
+  })
+
   it('waits while a choice is still to come', () => {
     show('gm', vi.fn(), settling(false))
     expect(settles()).toEqual([])

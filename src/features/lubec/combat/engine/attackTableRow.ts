@@ -141,6 +141,7 @@ function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatChec
   if (landed.outcome.now?.some((now) => now.kind === 'knocked-down') && state.round >= 1 && !actionResolved(state, targetKey)) {
     staged = withLostStages(staged, targetKey, { movement: [], action: [state.round] }, 'Knocked down', row.name)
   }
+  if (landed.outcome.now?.some((now) => now.kind === 'unconscious')) staged = { ...staged, combatants: staged.combatants.map((entry) => entry.key === targetKey ? { ...entry, unconscious: true } : entry) }
   return closeAttack({ ...staged, woundOutbox: [...state.woundOutbox, wound], roundWatch, countdowns }, closed, 'wounded')
 }
 

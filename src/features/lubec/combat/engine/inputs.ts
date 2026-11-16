@@ -1,4 +1,5 @@
 import { lubecCurrentValue, lubecEffectiveHandle } from '../../../ruleSets/lubec/derivations'
+import { lubecUnconsciousCards } from '../../../ruleSets/lubec/stageRestrictions'
 import { lubecHoles } from '../../../ruleSets/lubec/holes'
 import { lubecSheetModifiers } from '../../../ruleSets/lubec/modifiers'
 import { lubecNpcFightSummary } from '../../fight/lubecNpcFightSummary'
@@ -25,10 +26,11 @@ export function combatSetupIssues(selections: CombatantSelection[], sheets: Comb
   })
 }
 
-export type CombatPublicSummary = Pick<Combatant, 'name' | 'portraitPath' | 'armor'> & { speed: number | null }
+export type CombatPublicSummary = Pick<Combatant, 'name' | 'portraitPath' | 'armor' | 'unconscious'> & { speed: number | null }
 
 /** What everyone may see of a combatant's sheet: name, face, current Speed and worn armor, nothing else. */
 export const combatPublicSummary = (record: CombatSheet): CombatPublicSummary => ({
+  unconscious: lubecUnconsciousCards(record.sheet.effects).length > 0,
   name: record.name, portraitPath: record.portraitPath,
   speed: lubecCurrentValue(record.sheet, 'Speed', lubecSheetModifiers(record.sheet)),
   armor: lubecNpcFightSummary(record.sheet).armor,

@@ -63,21 +63,29 @@ export const LOST_MOVEMENT: CombatMovement = { choice: 'stay', pickup: null, lea
 /** Everyone whose Movement this round is lost has it filled in as staying, unasked. */
 export const withLostMovements = (state: CombatState): CombatState => ({
   ...state,
-  combatants: state.combatants.map((entry) => (!entry.movement && movementLost(state, entry.key) && combatantsIn(state).includes(entry) ? { ...entry, movement: LOST_MOVEMENT } : entry)),
+  combatants: state.combatants.map((entry) => (!entry.movement && (movementLost(state, entry.key) || entry.unconscious) && combatantsIn(state).includes(entry) ? { ...entry, movement: entry.unconscious ? { ...LOST_MOVEMENT, unconscious: true as const } : LOST_MOVEMENT } : entry)),
 })
 
 /** Everyone whose Action this round is lost has a stopped declaration recorded, unasked. */
 export const withLostActions = (state: CombatState): CombatState => ({
   ...state,
-  combatants: state.combatants.map((entry) => (!entry.declaration && entry.outReason === null && actionLost(state, entry.key) ? { ...entry, declaration: LOST_ACTION, proposedDeclaration: null } : entry)),
+  combatants: state.combatants.map((entry) => (!entry.declaration && entry.outReason === null && (actionLost(state, entry.key) || entry.unconscious) ? { ...entry, declaration: entry.unconscious ? { ...LOST_ACTION, unconscious: true as const } : LOST_ACTION, proposedDeclaration: null } : entry)),
 })
 
 /** "Action + Defense lost - Dazed", "Movement lost - Dazed": what this round takes from a combatant, and why. */
 export function lostStageWords(state: CombatState, key: string): string[] {
   const lost = state.lost?.[key]
-  if (!lost) return []
+  const unconscious = state.combatants.find((entry) => entry.key === key)?.unconscious
   return [
-    ...(lost.movement.includes(state.round) ? [`Movement lost - ${lost.reason}`] : []),
-    ...(lost.action.includes(state.round) ? [`Action + Defense lost - ${lost.reason}`] : []),
+    ...(unconscious ? ['Unresolved stages lost - Unconscious'] : []),
+    ...(lost?.movement.includes(state.round) ? [`Movement lost - ${lost.reason}`] : []),
+    ...(lost?.action.includes(state.round) ? [`Action + Defense lost - ${lost.reason}`] : []),
   ]
+}
+
+
+/** With nobody able to answer, the GM advances rounds explicitly instead of an unbounded automatic loop. */
+export function allUnconscious(state: CombatState): boolean {
+  const active = state.combatants.filter((entry) => entry.outReason === null)
+  return active.length > 0 && active.every((entry) => entry.unconscious)
 }

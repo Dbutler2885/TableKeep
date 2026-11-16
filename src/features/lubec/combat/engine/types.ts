@@ -24,7 +24,7 @@ export type CombatPickupClaim = { itemId: string; qty: number }
 /** An evader's Speed roll as Movement settled, and what it takes off ranged attacks at them this round. */
 export type CombatEvasion = { roll: number; speed: number; success: boolean; penalty: number } & CombatRollDice
 export type CombatStand = { target: number; dice: number[]; result: number; success: boolean; stress: number; mode: 'normal' | 'advantage' | 'disadvantage'; because: string | null }
-export type CombatMovement = { choice: CombatMovementChoice; pickup: CombatPickupClaim | null; leave: 'asked' | 'confirmed' | null; evasion?: CombatEvasion | null; stand?: CombatStand; lost?: true }
+export type CombatMovement = { choice: CombatMovementChoice; pickup: CombatPickupClaim | null; leave: 'asked' | 'confirmed' | null; evasion?: CombatEvasion | null; stand?: CombatStand; unconscious?: true; lost?: true }
 /** One named Defense line: who it guards against, and how much of the Handle pool it holds. */
 export type CombatDefenseLine = { against: string; amount: number }
 /**
@@ -47,8 +47,11 @@ export type CombatDeclaration = {
   repaired?: boolean
   /** A wound took this round's Action Stage: no attack and no Defense. */
   lost?: true
+  unconscious?: true
 }
 export type Combatant = CombatantSelection & {
+  /** Public eligibility projection of the sheet's active unconscious cards. */
+  unconscious?: boolean
   key: string
   ownerUserId: string
   name: string

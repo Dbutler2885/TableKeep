@@ -24,6 +24,7 @@ export type AttackCommands = {
   initiative: (actorKey: string) => AttackAct
   npcInitiative: () => AttackAct
   move: (actorKey: string, movement: MovementPick) => AttackAct
+  settleMovement?: () => AttackAct
   npcMovement: (choices: Record<string, MovementPick>) => AttackAct
   answerLeave: (combatantKey: string, confirm: boolean) => AttackAct
   declare: (actorKey: string, declaration: DeclarePick) => AttackAct
@@ -67,6 +68,7 @@ export function attackCommands(scope: CampaignScope, live: LubecLiveFight, send:
     initiative: (actorKey) => act(actorKey, { type: 'initiative' }),
     npcInitiative: () => act(null, { type: 'npcInitiative' }),
     move: (actorKey, movement) => act(actorKey, { type: 'move', ...movement }),
+    settleMovement: () => act(null, { type: 'settleMovement' }),
     npcMovement: (choices) => act(null, { type: 'npcMovement', choices }),
     answerLeave: (combatantKey, confirm) => act(null, { type: 'answerLeave', combatantKey, confirm }),
     declare: (actorKey, declaration) => act(actorKey, { type: 'declare', ...declaration }),

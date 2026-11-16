@@ -28,6 +28,7 @@ function wire(character: LubecCharacterRecord | null, viewer: LubecViewer, withR
 }
 
 const noEdits = {
+  onEffectRecovery: null,
   onCountersChange: null, onSkillsChange: null, corrections: null, onDraftEdit: null, onRollUp: null, onFinalize: null, onGearChange: null, onGearDrop: null,
   onGearHidden: null, onGearUpload: null, onGearRolled: null,
 }

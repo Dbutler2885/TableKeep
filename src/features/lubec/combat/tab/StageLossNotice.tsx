@@ -5,5 +5,5 @@ import type { CombatState } from '../engine/types'
 export function StageLossNotice({ state, combatantKey }: { state: CombatState; combatantKey: string }) {
   const words = lostStageWords(state, combatantKey)
   if (!words.length) return null
-  return <details className="note"><summary>{words.join('; ')}</summary><p>Effect card: {state.lost?.[combatantKey]?.wound ?? state.lost?.[combatantKey]?.reason}. Open the character sheet to inspect its recovery.</p></details>
+  return <details className="note"><summary>{words.join('; ')}</summary><p>Effect card: {state.lost?.[combatantKey]?.wound ?? state.lost?.[combatantKey]?.reason ?? 'Unconscious'}. Open the character sheet to inspect its recovery.</p></details>
 }

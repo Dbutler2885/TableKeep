@@ -1,3 +1,4 @@
+import type { LubecEffectRecovery } from './effectRecovery'
 import { LubecSaveNotice, type LubecSaveControls } from './LubecSaveNotice'
 import { Pencil, Trash2, UserPlus } from 'lucide-react'
 import { useRef, useState } from 'react'
@@ -165,6 +166,7 @@ function LubecStageBar({ character, correcting, onCorrecting, onDelete, onFinali
 }
 
 export type LubecSheetViewProps = {
+  onEffectRecovery?: LubecEffectRecovery
   saveControls?: LubecSaveControls
   character: LubecCharacterRecord
   /** The viewer's edits, or null when they may only look. */
@@ -213,7 +215,7 @@ type LockedEdits = Pick<LubecSheetViewProps, 'onDraftEdit' | 'onSkillsChange'>
 const lockedEdits = (correcting: boolean, corrections: LubecCorrections | null, edits: LockedEdits): LockedEdits =>
   correcting && corrections ? corrections : edits
 
-type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onCountersChange' | 'onRollUp' | 'onGearChange' | 'onGearDrop' | 'onGearHidden' | 'onGearUpload' | 'onGearRolled' | 'campaignStock' | 'carrierKinds' | 'gearGive' | 'shared'> & {
+type SheetPageProps = LockedEdits & Pick<LubecSheetViewProps, 'character' | 'editing' | 'onEffectRecovery' | 'onCountersChange' | 'onRollUp' | 'onGearChange' | 'onGearDrop' | 'onGearHidden' | 'onGearUpload' | 'onGearRolled' | 'campaignStock' | 'carrierKinds' | 'gearGive' | 'shared'> & {
   page: LubecPage
   onHideTree: () => void
   /** Brings the Core page's class cards into view once the class is cleared. */
@@ -243,7 +245,7 @@ function LubecSheetGear({ character, onGearChange, onGearDrop, onGearHidden, onG
   )
 }
 
-function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onCountersChange, onDraftEdit, onSkillsChange, onRollUp, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, carrierKinds, gearGive, shared }: SheetPageProps) {
+function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onEffectRecovery, onCountersChange, onDraftEdit, onSkillsChange, onRollUp, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, carrierKinds, gearGive, shared }: SheetPageProps) {
   if (page === 'gear') return <LubecSheetGear character={character} onGearChange={onGearChange} onGearDrop={onGearDrop} onGearHidden={onGearHidden} onGearUpload={onGearUpload} onGearRolled={onGearRolled} campaignStock={campaignStock} carrierKinds={carrierKinds} gearGive={gearGive} shared={shared} />
   if (page === 'skills') {
     const onChangeClass = changeClassOf(character.lubec, onDraftEdit, onShowClass)
@@ -253,6 +255,7 @@ function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onC
     <LubecCorePage
       sheet={character.lubec}
       onCountersChange={onCountersChange}
+      onEffectRecovery={onEffectRecovery}
       onEffectsChange={editing ? (effects, counters) => editing.update({ lubec: { ...character.lubec, effects, ...(counters ? { counters } : {}) } }) : null}
       onGearChange={onGearChange}
       onGearDrop={onGearDrop}
@@ -297,7 +300,7 @@ const SheetCombatReturn = ({ landed, page, sheetId }: { landed: LubecPage | null
 
 /** One Lubec character's sheet, in the v4 frame, on its Core, Skills or Gear page. */
 export function LubecSheetView({
-  character, editing, saveControls, identityEditable, carrierKinds, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, gearGive, shared, ...edits
+  character, editing, onEffectRecovery, saveControls, identityEditable, carrierKinds, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, gearGive, shared, ...edits
 }: LubecSheetViewProps) {
   const { landed, page, setPage } = useSheetPage(character.id)
   const [bandOpen, setBandOpen] = useState(false)
@@ -333,6 +336,7 @@ export function LubecSheetView({
         character={character}
         editing={editing}
         onCountersChange={onCountersChange}
+        onEffectRecovery={onEffectRecovery}
         onRollUp={onRollUp}
         onGearChange={onGearChange}
         onGearDrop={onGearDrop}

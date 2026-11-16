@@ -166,3 +166,14 @@ describe('lost stage cards through ticks and closing', () => {
     expect(after.lubec.effects).toMatchObject([{ afterCombat: { suggestedMinutes: 2 }, steps: [{ until: 'by-hand' }] }])
   })
 })
+
+
+it('continues countdowns while unconscious and leaves manual unconsciousness on closing', () => {
+  const unconscious = { id: 'sleep', name: 'Unconscious', cause: 'Head 9', combatOrigin: origin(3), steps: [{ modifiers: [], labels: ['13 minutes'], until: 'by-hand', restrictions: [{ kind: 'unconscious' }] }] }
+  const bleed = { id: 'bleed', name: 'Bleeding', cause: 'Cut', combatOrigin: origin(3), countdown: { kind: 'bleed', rounds: 1 }, steps: [{ modifiers: [], labels: [], until: 'rounds' }] }
+  const raw = sheet([unconscious, bleed])
+  const after = planSheetIntention(raw, roundTickIntention(raw, tick(4), 'fight', 'tick')!).mutation!.sheet as ReturnType<typeof sheet>
+  expect(after.lubec.effects[0]).toEqual(unconscious)
+  expect(after.lubec.counters.trauma).toBe(raw.lubec.counters.trauma + 1)
+  expect(closingIntention(after, { ...tick(4), kind: 'close' }, 'fight', 'close')).toBeNull()
+})

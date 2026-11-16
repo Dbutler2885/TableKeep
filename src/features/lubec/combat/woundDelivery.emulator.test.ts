@@ -9,6 +9,7 @@ import { lubecCurrentValue, lubecEffectiveHandle } from '../../ruleSets/lubec/de
 import type { LubecStepUntil } from '../../ruleSets/lubec/effects'
 import { createCombatCommand } from './commandJournal'
 import { commitCombatCommand } from './combatTransaction'
+import { lubecEffectRecovery } from '../effectRecovery'
 import { combatEntropy } from './engine/commandEntropy'
 import { combatLifecycleHandlers } from './engine/lifecycle'
 import { combatInputModifiers, confirmedCombatRevision, readCombatInputs } from './woundBarrier'
@@ -449,5 +450,45 @@ describe('standing through real rules and command receipts', () => {
     expect(await commitCombatCommand(as(), await command('end'), settings())).toMatchObject({ ok: true })
     expect((await storedSheet()).lubec.effects).toEqual([])
     expect((await storedSheet()).lubec.counters.stress).toBe(raw.lubec.counters.stress + 1)
+  })
+})
+
+
+describe('waking Head 9 through real rules', () => {
+  const card = { id: 'wake', name: 'Knocked out', cause: 'Fisticuffs Head 9', cardKey: 'unconscious', wakeSave: 'severe-concussion', wound: { groupId: 'original', trauma: 2, minimumStress: 3, dice: { minutes: [4, 9] } }, steps: [{ modifiers: [], labels: ['13 minutes'], until: 'by-hand', restrictions: [{ kind: 'unconscious' }] }] }
+  const sibling = { id: 'sibling', name: 'Dazed', cause: 'Another wound', steps: [{ modifiers: [], labels: ['Keep'], until: 'rounds' }] }
+  const quiet = { updateCharacterNow: () => undefined, hasPendingWrite: () => false }
+  const recover = (uid: string, selection: CombatantSelection) => lubecEffectRecovery({ db: as(uid), scope, sheet: selection.kind === 'npc' ? { kind: 'npc', npcId: selection.sheetId } : { kind: 'character', characterId: selection.sheetId } }, quiet, selection.sheetId)
+
+  it.each([target, { kind: 'npc', sheetId: 'roy' } as const])('resolves $kind once across racing clears and reload, preserving landing charges and siblings', async (selection) => {
+    const path = selection.kind === 'character' ? 'characters/hero' : 'npcSheets/roy'
+    const raw = sheet(selection.kind === 'character' ? 'player' : 'gm')
+    await seed(path, { ...raw, lubec: { ...raw.lubec, base: { ...raw.lubec.base, Body: 100 }, counters: { stress: 3, minimumStress: 3, trauma: 2 }, effects: [card, sibling] } })
+    const uid = selection.kind === 'character' ? 'player' : 'gm'
+    const first = recover(uid, selection)
+    const results = await Promise.all([first('wake'), recover('second-gm', selection)('wake')])
+    expect(results[0]).toMatchObject({ status: 'committed', revision: 1 })
+    expect(results[1]).toEqual(results[0])
+    const current = await storedSheet(as(), path)
+    expect(current.lubec.counters).toEqual({ stress: 3, minimumStress: 3, trauma: 2 })
+    expect(current.lubec.effects).toHaveLength(2)
+    expect(current.lubec.effects[0]).toEqual(sibling)
+    expect(current.lubec.effects[1]).toMatchObject({ id: 'wake_aftermath', wound: card.wound, steps: [{ modifiers: [{ target: 'Handle', amount: -10 }] }], recoveryRoll: { outcome: 'success', advantage: 'disadvantage' } })
+    expect(await recover(uid, selection)('wake')).toEqual(results[0])
+    expect((await storedSheet(as(), path)).sheetRevision).toBe(1)
+  })
+
+  it('charges a failed waking Save once and refuses another player or a player resolving an NPC', async () => {
+    const raw = sheet()
+    await seed('characters/hero', { ...raw, lubec: { ...raw.lubec, base: { ...raw.lubec.base, Body: 0 }, counters: { stress: 3, minimumStress: 3, trauma: 2 }, effects: [card, sibling] } })
+    await seed('npcSheets/roy', { ...raw, ownerUserId: 'gm', lubec: { ...raw.lubec, effects: [card] } })
+    await expect(recover('other', target)('wake')).rejects.toThrow()
+    await expect(recover('player', { kind: 'npc', sheetId: 'roy' })('wake')).rejects.toThrow()
+    const result = await recover('player', target)('wake')
+    expect(result).toMatchObject({ status: 'committed', revision: 1 })
+    expect(await recover('gm', target)('wake')).toEqual(result)
+    const current = await storedSheet()
+    expect(current.lubec.counters).toEqual({ stress: 4, minimumStress: 3, trauma: 2 })
+    expect(current.lubec.effects[1]).toMatchObject({ recoveryRoll: { outcome: 'failure' }, steps: [{ modifiers: [{ target: 'Handle', amount: -30 }] }, { modifiers: [{ target: 'Handle', amount: -10 }] }, { modifiers: [{ target: 'Intellect', amount: -10 }] }] })
   })
 })

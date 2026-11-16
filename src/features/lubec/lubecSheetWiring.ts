@@ -1,3 +1,4 @@
+import { lubecEffectRecovery, type LubecEffectRecovery } from './effectRecovery'
 import type { Role } from '../../types/app'
 import { canEditCharacterStoreCharacter } from '../character/characterStore/characterStoreActions'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
@@ -41,6 +42,7 @@ type DraftActions = {
 
 /** The sheet's edits for one viewer; each is null when the viewer may not make it. */
 export type LubecSheetEdits = DraftActions & {
+  onEffectRecovery: LubecEffectRecovery
   onCountersChange: LubecCountersChange | null
   onSkillsChange: LubecSkillsChange | null
   corrections: LubecCorrections | null
@@ -165,6 +167,7 @@ export function lubecSheetWiring(
   records: LubecGearRecords | null = null,
 ): LubecSheetEdits {
   return {
+    onEffectRecovery: character && records && canEditCharacterStoreCharacter(character, viewer.role, viewer.userId) ? lubecEffectRecovery(records, store, character.id) : null,
     onCountersChange: countersChangeFor(character, viewer, store.updateCharacter),
     onSkillsChange: skillsChangeFor(character, viewer, store.updateCharacter),
     corrections: correctionsFor(character, viewer, store.updateCharacter),

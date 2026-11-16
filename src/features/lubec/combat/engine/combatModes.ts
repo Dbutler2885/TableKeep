@@ -24,11 +24,8 @@ const NORMAL: CombatMode = { mode: 'normal', because: null }
  */
 export function combatRollMode(record: CombatSheet | null, request: LubecRollRequest, context: CombatInputRound | null, fixed: LubecModeSource[] = []): CombatMode {
   if (!record && !fixed.length) return NORMAL
-  const resolved = lubecRollMode(record ? combatActiveEffects(record.sheet, context) : [], request)
-  const sources = [...resolved.sources, ...fixed]
-  const advantage = sources.some((source) => source.mode === 'advantage')
-  const disadvantage = sources.some((source) => source.mode === 'disadvantage')
-  const mode: LubecAdvantage = advantage === disadvantage ? 'normal' : advantage ? 'advantage' : 'disadvantage'
+  const resolved = lubecRollMode(record ? combatActiveEffects(record.sheet, context) : [], request, fixed)
+  const { mode, sources } = resolved
   return { mode, because: lubecModeReason({ mode, sources }) }
 }
 

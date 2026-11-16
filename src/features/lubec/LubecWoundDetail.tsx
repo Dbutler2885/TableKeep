@@ -1,3 +1,5 @@
+import { describeLubecCheckDice, describeLubecCheckOutcome, readLubecCheckRoll } from '../ruleSets/lubec/checkRoll'
+import type { LubecStoredEntry } from '../ruleSets/lubec/characterRecord'
 import type { LubecEffect } from '../ruleSets/lubec/effects'
 import { locName } from '../ruleSets/lubec/gear/gearRules'
 import { lubecPlainProse, type LubecWoundRolledCheck, type LubecWoundSource } from '../ruleSets/lubec/woundCards'
@@ -31,6 +33,7 @@ function chargedWords(wound: LubecWoundSource): string {
 type DetailProps = { effect: LubecEffect; wound: LubecWoundSource; onEdit: (() => void) | null }
 
 export function LubecWoundDetail({ effect, wound, onEdit }: DetailProps) {
+  const recovered = readLubecCheckRoll(effect.recoveryRoll as LubecStoredEntry ?? null)
   const facts: [string, string][] = [
     ['Table', wound.tableName],
     ['Struck', locName(wound.part)],
@@ -41,6 +44,7 @@ export function LubecWoundDetail({ effect, wound, onEdit }: DetailProps) {
     ...(wound.branch === null ? [] : [['d2', String(wound.branch)] as [string, string]]),
     ...diceWords(wound.dice ?? {}).map((words): [string, string] => ['Rolled', words]),
     ...(wound.checks ?? []).map((check): [string, string] => ['Roll', checkWords(check)]),
+    ...(recovered ? [['Recovery Save', `${describeLubecCheckDice(recovered)}: ${describeLubecCheckOutcome(recovered)}. ${recovered.because ?? ''}`] as [string, string]] : []),
     ['Charged', chargedWords(wound)],
     ['Source', wound.contentVersion],
   ]

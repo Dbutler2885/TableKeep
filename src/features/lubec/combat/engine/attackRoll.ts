@@ -89,7 +89,7 @@ const spentOnce = (state: CombatState, key: string) =>
 const defends = (state: CombatState, attack: CombatAttack): boolean => !isRoundAttack(state, attack) || declaredLine(state, attack) !== null
 
 /** Defense never answers a firearm. */
-const skipsDefense = (state: CombatState, attack: CombatAttack): boolean => attack.frozen!.choice.firearm === true || !defends(state, attack)
+const skipsDefense = (state: CombatState, attack: CombatAttack): boolean => attack.frozen!.choice.firearm === true || state.combatants.find((entry) => entry.key === attack.aim!.targetKey)?.unconscious === true || !defends(state, attack)
 
 /**
  * What follows the roll: a miss completes the attack and its object lands on the Floor; a hit asks the
@@ -108,6 +108,7 @@ const betterAttack = (a: CombatAttackResult, b: CombatAttackResult): boolean =>
   (a.hit && !b.hit) || (a.hit && b.hit && ((a.quality ?? 0) > (b.quality ?? 0) || (a.quality === b.quality && a.roll > b.roll)))
 
 function rollPlan(fight: CombatFight, attack: CombatAttack, record: CombatSheet, command: CombatCommand, entropy: CombatEntropy): CombatPlan {
+  if (fight.state.combatants.find((entry) => entry.key === attack.attackerKey)?.unconscious) throw new Error('An unconscious combatant cannot attack.')
   const { state } = fight
   const frozen = attack.frozen!
   const attacker = combatantOf(state, attack.attackerKey)

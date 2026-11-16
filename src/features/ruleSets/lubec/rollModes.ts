@@ -55,8 +55,8 @@ export function lubecScopeCovers(scope: LubecRollScope, request: LubecRollReques
 const sourceName = (effect: LubecEffect) => (typeof effect.part === 'string' && effect.part && effect.part !== effect.name ? `${effect.name} (${effect.part})` : effect.name)
 
 /** The mode the active cards set for this roll, and every card that sets one. */
-export function lubecRollMode(effects: readonly LubecEffect[], request: LubecRollRequest): LubecResolvedMode {
-  const sources: LubecModeSource[] = []
+export function lubecRollMode(effects: readonly LubecEffect[], request: LubecRollRequest, fixed: readonly LubecModeSource[] = []): LubecResolvedMode {
+  const sources: LubecModeSource[] = [...fixed]
   for (const effect of effects) {
     const step = effect.steps[0]
     if (!step) continue

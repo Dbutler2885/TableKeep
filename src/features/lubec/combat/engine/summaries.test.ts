@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { lubecCharacterSheet } from '../../../ruleSets/lubec/sheetFixtures'
+import { combatOpponents } from './attackParty'
 import { emptyLubecGear } from '../../../ruleSets/lubec/gear/gearRecord'
 import { planCombatCommand } from './lifecycle'
 import { combatSummariesStale, refreshedCombatant } from './summaries'
@@ -55,4 +56,25 @@ describe('refreshing public fight summaries', () => {
     const missing = roy({ sheet: lubecCharacterSheet({ base: { ...lubecCharacterSheet().base, Speed: null } }) })
     expect(refreshedCombatant(combatant, [missing], 'before-initiative').speed).toBe(combatant.speed)
   })
+})
+
+
+it('skips unconscious Movement without Out, remains targetable, and resumes only when the last card is cleared', () => {
+  const current = live()
+  const state = current.fight!.state
+  Object.assign(state, { round: 3, phase: 'movement', order: ['npc:roy'], movementComplete: false })
+  const card = (id: string) => ({ id, name: 'Unconscious', cause: '', steps: [{ modifiers: [], labels: ['13 minutes'], restrictions: [{ kind: 'unconscious' as const }] }] })
+  current.sheets[0].sheet.effects = [card('one'), card('two')]
+  const refresh = { ...command('refresh', 'movement'), envelope: { ...command('refresh', 'movement').envelope, round: 3 } }
+  let plan = planCombatCommand(refresh, current, gm)
+  expect(plan.fight.state.combatants[0]).toMatchObject({ unconscious: true, outReason: null, movement: { choice: 'stay', unconscious: true } })
+  expect(plan.fight.state).toMatchObject({ pendingActions: [], movementComplete: true })
+  expect(combatOpponents(plan.fight.state, { ...state.combatants[0], key: 'character:hero', kind: 'character' })).toHaveLength(1)
+  current.fight = plan.fight
+  current.sheets[0].sheet.effects = [card('two')]
+  expect(combatSummariesStale(current.fight.state, current.sheets)).toBe(false)
+  current.sheets[0].sheet.effects = []
+  plan = planCombatCommand(refresh, current, gm)
+  expect(plan.fight.state.combatants[0]).toMatchObject({ unconscious: false, outReason: null, movement: null })
+  expect(plan.fight.state.pendingActions).toEqual([{ combatantKey: 'npc:roy', action: 'movement' }])
 })

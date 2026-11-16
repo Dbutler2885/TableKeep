@@ -19,11 +19,11 @@ export const combatOrdered = (state: CombatState): Combatant[] => state.order!.m
 
 /** Declare runs slowest first: whoever is still in the fight with nothing declared yet. */
 export const combatDeclarers = (state: CombatState): Combatant[] =>
-  combatOrdered(state).reverse().filter((entry) => entry.outReason === null && !entry.declaration)
+  combatOrdered(state).reverse().filter((entry) => entry.outReason === null && !entry.unconscious && !entry.declaration)
 
 /** Attack runs fastest first, for everyone in the fight whose declaration has an attack. */
 export const combatAttackers = (state: CombatState): Combatant[] =>
-  combatOrdered(state).filter((entry) => entry.outReason === null && entry.declaration?.aim && !entry.declaration.stopped)
+  combatOrdered(state).filter((entry) => entry.outReason === null && !entry.unconscious && entry.declaration?.aim && !entry.declaration.stopped)
 
 const attackWords = (state: CombatState): string => {
   const names = combatAttackers(state).map((entry) => entry.name)

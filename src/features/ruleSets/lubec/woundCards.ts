@@ -189,6 +189,7 @@ export function lubecWoundCards(outcome: LubecWoundOutcome, context: LubecWoundC
   ]
   return specs.map((spec) => {
     const card = cardOf(spec, context)
+    if (spec.key === 'unconscious' && outcome.now?.some((now) => now.kind === 'unconscious' && now.aftermath === 'severe-concussion')) card.wakeSave = 'severe-concussion'
     const timer = rolled.timers?.find((entry) => entry.kind === spec.key)
     const lost = rolled.lost?.[spec.key as 'movement' | 'action' | 'dazed']
     if (timer) return { ...card, countdown: { kind: timer.kind, rounds: timer.rounds } }
@@ -212,7 +213,7 @@ export const LUBEC_AUTOMATED = {
   restrictions: false,
   taskModifiers: true,
   /** Lost stages, Dazed, knocked down, unconscious. */
-  stages: false,
+  stages: true,
   /** "Until the end of the next round": the round tick ends it. */
   windows: true,
   /** Round countdowns and stage counts: "in d4 rounds", Dazed. */
@@ -223,15 +224,14 @@ export const LUBEC_AUTOMATED = {
   speechSave: false,
 }
 
-/** Unconscious stage blocking is still the table's until its combat integration lands. */
-const STAGE_CARDS = ['unconscious']
+const STAGE_CARDS = ['movement', 'action', 'dazed', 'down', 'unconscious']
 
 /** Whether any part of a card's current step is still resolved by hand. */
 export function lubecStepByHand(effect: LubecEffect, step: LubecEffectStep | undefined = effect.steps[0]): boolean {
   if (!step || !lubecEffectWound(effect)) return false
   const until = step.until
   return (!LUBEC_AUTOMATED.rolls && lubecStepRolls(step).length > 0)
-    || (!LUBEC_AUTOMATED.restrictions && lubecStepRestrictions(step).some((restriction) => restriction.kind !== 'down'))
+    || (!LUBEC_AUTOMATED.restrictions && lubecStepRestrictions(step).some((restriction) => restriction.kind !== 'down' && restriction.kind !== 'unconscious'))
     || (!LUBEC_AUTOMATED.taskModifiers && lubecStepTaskModifiers(step).length > 0)
     || (!LUBEC_AUTOMATED.stages && STAGE_CARDS.includes(String(effect.cardKey)))
     || (!LUBEC_AUTOMATED.rounds && until === 'rounds' && !effect.countdown && !effect.lost)

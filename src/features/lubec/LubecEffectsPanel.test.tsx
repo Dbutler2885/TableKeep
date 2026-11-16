@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { LubecEffect } from '../ruleSets/lubec/effects'
 import { lubecCharacterSheet } from '../ruleSets/lubec/sheetFixtures'
 import { LubecEffectsPanel } from './LubecEffectsPanel'
@@ -93,4 +93,20 @@ describe('a wound card', () => {
     fireEvent.click(region().querySelector('button.lubec-effect-line')!)
     expect(region().querySelector('.lubec-effect-editor')).not.toBeNull()
   })
+})
+
+
+it('offers a waking Save before clearing Head 9 and sends it once without an ordinary whole-list edit', async () => {
+  const card = { ...forearm, id: 'head9', name: 'Knocked out', wakeSave: 'severe-concussion', steps: [{ modifiers: [], labels: ['13 minutes'], until: 'by-hand' as const, restrictions: [{ kind: 'unconscious' as const }] }] }
+  const change = vi.fn()
+  const recover = vi.fn(async () => ({ status: 'committed' as const, operationId: 'wake', revision: 3 }))
+  render(<LubecEffectsPanel effects={[card]} counters={lubecCharacterSheet().counters} onChange={change} onRecover={recover} gear={lubecCharacterSheet().gear} onGearChange={null} />)
+  fireEvent.click(screen.getByRole('button', { name: /Step down Knocked out/ }))
+  expect(screen.getByRole('dialog', { name: 'Waking Save' })).toBeTruthy()
+  const submit = screen.getByRole('button', { name: 'Wake and roll Body Save' })
+  fireEvent.click(submit)
+  fireEvent.click(submit)
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Waking Save' })).toBeNull())
+  expect(recover).toHaveBeenCalledExactlyOnceWith('head9')
+  expect(change).not.toHaveBeenCalled()
 })

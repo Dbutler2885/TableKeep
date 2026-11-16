@@ -102,7 +102,9 @@ export const combatResultsHandlers: Readonly<Record<string, CombatHandler>> = { 
 /** In a round, the target's declared line against this attacker, if it still stands: what Defense rolls with, or nothing to roll. */
 export function declaredLine(state: CombatState, attack: CombatAttack): (CombatDefenseLine & { full: boolean }) | null {
   // Everyone in the fight during Attack has a declaration: made, Ran, or the empty one a Return gives.
-  const declaration = state.combatants.find((entry) => entry.key === attack.aim!.targetKey)!.declaration!
+  const defender = state.combatants.find((entry) => entry.key === attack.aim!.targetKey)!
+  if (defender.unconscious) return null
+  const declaration = defender.declaration!
   const line = declaration.stopped ? undefined : declaration.lines.find((entry) => entry.against === attack.attackerKey)
   return line ? { ...line, full: declaration.full } : null
 }

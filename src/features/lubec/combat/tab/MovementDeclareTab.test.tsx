@@ -470,3 +470,14 @@ it('offers a down player Stay down and Stand, disables Run/Evasive, and sends th
   fireEvent.click(screen.getByRole('button', { name: 'Confirm movement' }))
   await waitFor(() => expect(mocks.sent.at(-1)?.payload).toMatchObject({ type: 'move', choice: 'stand' }))
 })
+
+
+it('lets the GM advance an all-unconscious skipped round explicitly', async () => {
+  const live = fightAfter(...rolled)
+  live.fight.state.combatants.forEach((entry) => { entry.unconscious = true; entry.movement = { choice: 'stay', pickup: null, leave: null, lost: true, unconscious: true } })
+  live.fight.state.movementComplete = true
+  show('gm', 'gm', live)
+  expect(screen.getByText('Everyone is unconscious')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Advance skipped round' }))
+  await waitFor(() => expect(sentOf('settleMovement')).toHaveLength(1))
+})

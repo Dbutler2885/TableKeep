@@ -312,3 +312,12 @@ it('knockdown only stops an Action that has not opened, preserving earlier rolls
     expect(landed.state.woundOutbox[0].effects!.find((card) => card.cardKey === 'down')).toMatchObject({ steps: [{ until: 'combat-end', restrictions: [{ kind: 'down' }] }] })
   }
 })
+
+
+it('marks only Head 9 for a waking Save and leaves unconscious targets in combat', () => {
+  const head = landed('fisticuffs', 'head', 9, { unconscious: [4, 9], 'minimum-stress': [3] })
+  expect(outboxOf(head).effects![0]).toMatchObject({ wakeSave: 'severe-concussion' })
+  expect(head.fight.state.combatants[1]).toMatchObject({ unconscious: true, outReason: null })
+  const neck = landed('fisticuffs', 'neck', 9, { unconscious: [4, 9], 'minimum-stress': [3] })
+  expect(outboxOf(neck).effects![0].wakeSave).toBeUndefined()
+})
