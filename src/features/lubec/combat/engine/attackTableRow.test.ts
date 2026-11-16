@@ -292,3 +292,10 @@ describe('final Gunshot branches and fingers', () => {
     expect(hand.steps.map((step) => step.modifiers)).toEqual([[], [{ target: 'Handle', amount: -30 }], [{ target: 'Handle', amount: -20 }]])
   })
 })
+
+describe('a countdown that lands', () => {
+  it('watches the target through the round it falls due, and lists it for that round\'s log', () => {
+    const done = landed('cutting', 'neck', 3, { check: [99], 'timer-bleed': [1] })
+    expect(done.fight.state).toMatchObject({ roundWatch: { [ROY]: 2 }, countdowns: [{ key: ROY, wound: 'Bleeding cut', kind: 'bleed', dueRound: 2 }] })
+  })
+})

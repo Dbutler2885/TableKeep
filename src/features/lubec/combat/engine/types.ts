@@ -196,6 +196,8 @@ export type CombatState = {
   lastRanges?: Record<string, LubecRangeBand>
   /** Per combatant, the last round whose end still has a round window or countdown of theirs from this fight to process. */
   roundWatch?: Record<string, number>
+  /** Every countdown a wound started this fight and the round whose end it falls due at, for the combat log. */
+  countdowns?: { key: string; wound: string; kind: 'bleed' | 'critical'; dueRound: number }[]
 }
 export type CombatFight = { status: 'live' | 'ended'; participantUserIds: string[]; state: CombatState }
 export type CombatEnvelope = {

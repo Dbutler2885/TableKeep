@@ -33,11 +33,49 @@ function stepDownEdit(effect: Raw): SheetEdit {
   return { kind: 'remove', path: ['lubec', 'effects', { recordId: id }], base: { exists: true, value: effect as SheetValue } }
 }
 
-/** What ends for this combatant at the end of the tick's round; empty when nothing does. */
+/** A countdown of N rolled in round R is due at the end of round R+N: the landing round never uses one up. */
+export const lubecCountdownDue = (landed: number, rounds: number): number => landed + rounds
+
+type Countdown = { kind: 'bleed' | 'critical'; rounds: number; fired?: boolean; firedRound?: number }
+
+const countdownOf = (effect: Raw): Countdown | null => {
+  const countdown = effect.countdown
+  return isRecord(countdown) && (countdown.kind === 'bleed' || countdown.kind === 'critical') && Number.isInteger(countdown.rounds) ? countdown as unknown as Countdown : null
+}
+
+/** Whether this stored card is a countdown from this fight that falls due by the end of `round` and has not fired. */
+function countdownDue(effect: Raw, fightId: string, round: number): boolean {
+  const origin = originOf(effect)
+  const countdown = countdownOf(effect)
+  return origin?.fightId === fightId && countdown !== null && !countdown.fired && lubecCountdownDue(origin.originatingRound, countdown.rounds) <= round
+}
+
+const FIRED_WORDS = {
+  bleed: (round: number) => `Fired at the end of round ${round}: +1 Trauma added. Clear by hand.`,
+  critical: (round: number) => `Due at the end of round ${round}: a Death Save, which the GM resolves privately. Clear by hand.`,
+} as const
+
+/** A countdown firing: it is marked fired, with the round, and its card says what happened, in the same write. */
+function firedEdits(effect: Raw, round: number): SheetEdit[] {
+  const id = String(effect.id)
+  const countdown = countdownOf(effect)!
+  const steps = effect.steps as SheetValue[]
+  return [
+    { kind: 'set', path: ['lubec', 'effects', { recordId: id }, 'countdown'], base: { exists: true, value: countdown as unknown as SheetValue }, value: { ...countdown, fired: true, firedRound: round } as unknown as SheetValue },
+    { kind: 'set', path: ['lubec', 'effects', { recordId: id }, 'steps'], base: { exists: true, value: steps }, value: [{ modifiers: [], labels: [FIRED_WORDS[countdown.kind](round)], until: 'by-hand' }] },
+  ]
+}
+
+/** What the end of the tick's round does for this combatant: windows that end, and countdowns that fall due. */
 export function roundTickEdits(raw: Raw, tick: CombatWound, fightId: string): SheetEdit[] {
   const lubec = isRecord(raw.lubec) ? raw.lubec : {}
-  const effects = Array.isArray(lubec.effects) ? lubec.effects.filter(isRecord) : []
-  return effects.filter((effect) => typeof effect.id === 'string' && windowEnded(effect, fightId, tick.tickRound!)).map(stepDownEdit)
+  const effects = (Array.isArray(lubec.effects) ? lubec.effects.filter(isRecord) : []).filter((effect) => typeof effect.id === 'string')
+  const round = tick.tickRound!
+  const ended = effects.filter((effect) => windowEnded(effect, fightId, round)).map(stepDownEdit)
+  const due = effects.filter((effect) => countdownDue(effect, fightId, round))
+  const bleeds = due.filter((effect) => countdownOf(effect)!.kind === 'bleed').length
+  const trauma: SheetEdit[] = bleeds ? [{ kind: 'delta', path: ['lubec', 'counters', 'trauma'], base: 0, amount: bleeds }] : []
+  return [...ended, ...due.flatMap((effect) => firedEdits(effect, round)), ...trauma]
 }
 
 /** The tick as a revision-checked intention, or null when nothing on the sheet ends with this round. */

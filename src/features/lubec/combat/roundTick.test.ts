@@ -62,3 +62,43 @@ describe('reading a window that has passed', () => {
     expect(combatRollMode(record, attack, { fightId: 'fight', round: 4 }).mode).toBe('normal')
   })
 })
+
+describe('a saved countdown', () => {
+  const countdown = (id: string, kind: 'bleed' | 'critical', round: number, rounds: number) => ({
+    id, name: 'Long chest cut', cause: 'Cutting', combatOrigin: origin(round), countdown: { kind, rounds },
+    steps: [{ modifiers: [], labels: [`+1 Trauma in d4 = ${rounds} rounds`], until: 'rounds' }],
+  })
+  const arm = { id: 'arm', name: 'Long chest cut', cause: 'Cutting', combatOrigin: origin(3), steps: [{ modifiers: [{ target: 'Handle', amount: -20 }], labels: [], until: 'long-rest' }] }
+  const run = (raw: ReturnType<typeof sheet>, round: number) => {
+    const intention = roundTickIntention(raw, tick(round), 'fight', 'op')
+    return intention ? planSheetIntention(raw, intention).mutation!.sheet as ReturnType<typeof sheet> : null
+  }
+
+  it('with a d4 of 1 rolled in round 3 fires at the end of round 4, adds +1 Trauma once, and marks itself fired', () => {
+    const raw = sheet([countdown('bleed', 'bleed', 3, 1), arm])
+    expect(run(raw, 3)).toBeNull()
+    const fired = run(raw, 4)!
+    expect(fired.lubec.counters.trauma).toBe(raw.lubec.counters.trauma + 1)
+    expect(fired.lubec.effects[0]).toMatchObject({ countdown: { kind: 'bleed', rounds: 1, fired: true, firedRound: 4 }, steps: [{ until: 'by-hand', labels: ['Fired at the end of round 4: +1 Trauma added. Clear by hand.'] }] })
+    expect(fired.lubec.effects[1]).toEqual(arm)
+    expect(run(fired, 4)).toBeNull()
+    expect(run(fired, 5)).toBeNull()
+  })
+
+  it('makes a Critical countdown one due event with no Trauma, and keeps two countdowns from one Save apart', () => {
+    const raw = sheet([countdown('bleed', 'bleed', 2, 2), countdown('critical', 'critical', 2, 1)])
+    const third = run(raw, 3)!
+    expect(third.lubec.counters.trauma).toBe(raw.lubec.counters.trauma)
+    expect(third.lubec.effects.map((effect) => (effect as { countdown: { fired?: boolean } }).countdown.fired ?? false)).toEqual([false, true])
+    expect(third.lubec.effects[1]).toMatchObject({ steps: [{ labels: ['Due at the end of round 3: a Death Save, which the GM resolves privately. Clear by hand.'] }] })
+    const fourth = run(third, 4)!
+    expect(fourth.lubec.counters.trauma).toBe(raw.lubec.counters.trauma + 1)
+  })
+
+  it('adds its Trauma as a change, keeping a manual Trauma change made since', () => {
+    const raw = sheet([countdown('bleed', 'bleed', 1, 1)])
+    const intention = roundTickIntention(raw, tick(2), 'fight', 'op')!
+    const changed = { ...raw, sheetRevision: 5, lubec: { ...raw.lubec, counters: { ...raw.lubec.counters, trauma: 3 } } }
+    expect((planSheetIntention(changed, { ...intention, baseRevision: 5 }).mutation!.sheet.lubec as typeof raw.lubec).counters.trauma).toBe(4)
+  })
+})

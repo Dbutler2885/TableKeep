@@ -211,7 +211,7 @@ export function lubecStepByHand(effect: LubecEffect, step: LubecEffectStep | und
     || (!LUBEC_AUTOMATED.restrictions && lubecStepRestrictions(step).length > 0)
     || (!LUBEC_AUTOMATED.taskModifiers && lubecStepTaskModifiers(step).length > 0)
     || (!LUBEC_AUTOMATED.stages && STAGE_CARDS.includes(String(effect.cardKey)))
-    || (!LUBEC_AUTOMATED.rounds && until === 'rounds')
+    || (!LUBEC_AUTOMATED.rounds && until === 'rounds' && !effect.countdown)
     || (!LUBEC_AUTOMATED.windows && until === 'next-round-end')
     || (!LUBEC_AUTOMATED.closing && until === 'combat-end')
     || (!LUBEC_AUTOMATED.speechSave && typeof step.onReach === 'object' && step.onReach !== null)
@@ -239,6 +239,10 @@ export function lubecEffectTrigger(effect: LubecEffect): string | null {
   const step = effect.steps[0]
   const origin = effect.combatOrigin as { originatingRound?: unknown } | undefined
   if (step?.until === 'next-round-end' && Number.isInteger(origin?.originatingRound)) return `Ends with round ${(origin!.originatingRound as number) + 1}`
+  const countdown = effect.countdown as { rounds?: unknown; fired?: unknown } | undefined
+  if (step?.until === 'rounds' && countdown && !countdown.fired && Number.isInteger(countdown.rounds) && Number.isInteger(origin?.originatingRound)) {
+    return `Due at the end of round ${(origin!.originatingRound as number) + (countdown.rounds as number)}`
+  }
   return lubecStepTrigger(step)
 }
 

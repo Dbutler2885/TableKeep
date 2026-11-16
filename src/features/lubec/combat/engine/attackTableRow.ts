@@ -2,7 +2,7 @@ import type { LubecEffect } from '../../../ruleSets/lubec/effects'
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
 import { lubecWoundCards, type LubecWoundRolledCheck } from '../../../ruleSets/lubec/woundCards'
 import { lubecWoundTableRow, type LubecLocatedWoundRow, type LubecWoundTableRow } from '../../../ruleSets/lubec/woundTables'
-import { lubecBriefWindowEnd } from '../roundTick'
+import { lubecBriefWindowEnd, lubecCountdownDue } from '../roundTick'
 import type { CombatWound } from '../woundTypes'
 import { closeAttack, stepRequest } from './attackFlow'
 import { combatantOf, defenderOf } from './attackParty'
@@ -131,12 +131,29 @@ function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatChec
     rowSections: lubecWoundSections(landed.outcome, cards, rolled, landed.prevented),
   }
   const roundWatch = watchedThrough(state, wound.target, cards)
-  return closeAttack({ ...state, woundOutbox: [...state.woundOutbox, wound], roundWatch }, closed, 'wounded')
+  const countdowns = [...(state.countdowns ?? []), ...countdownsOf(state, wound, cards)]
+  return closeAttack({ ...state, woundOutbox: [...state.woundOutbox, wound], roundWatch, countdowns }, closed, 'wounded')
 }
 
-/** The last round whose end must be processed for these cards: a brief window ends with the next round. */
+type Countdown = { kind: 'bleed' | 'critical'; rounds: number }
+const countdownOfCard = (card: LubecEffect): Countdown | null => (card.countdown as Countdown | undefined) ?? null
+
+/** Each countdown the wound started, with the round it falls due, for the combat log at that round's end. */
+function countdownsOf(state: CombatState, wound: CombatWound, cards: readonly LubecEffect[]): NonNullable<CombatState['countdowns']> {
+  return cards.flatMap((card) => {
+    const countdown = countdownOfCard(card)
+    if (!countdown) return []
+    return [{ key: `${wound.target.kind}:${wound.target.sheetId}`, wound: card.name, kind: countdown.kind, dueRound: lubecCountdownDue(state.round, countdown.rounds) }]
+  })
+}
+
+/** The last round whose end must be processed for these cards: a brief window ends with the next round, a countdown with its due round. */
 function watchedThrough(state: CombatState, target: CombatWound['target'], cards: readonly LubecEffect[]): CombatState['roundWatch'] {
-  const ends = cards.flatMap((card) => (card.steps[0]?.until === 'next-round-end' ? [lubecBriefWindowEnd(state.round)] : []))
+  const ends = cards.flatMap((card) => {
+    const countdown = countdownOfCard(card)
+    if (countdown) return [lubecCountdownDue(state.round, countdown.rounds)]
+    return card.steps[0]?.until === 'next-round-end' ? [lubecBriefWindowEnd(state.round)] : []
+  })
   if (!ends.length) return state.roundWatch
   const key = `${target.kind}:${target.sheetId}`
   return { ...state.roundWatch, [key]: Math.max(state.roundWatch?.[key] ?? 0, ...ends) }

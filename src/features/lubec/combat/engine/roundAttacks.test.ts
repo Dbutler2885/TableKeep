@@ -426,10 +426,14 @@ describe('a wound that lands before its target acts', () => {
 describe('the end of a round', () => {
   it('queues one identified tick for each combatant with a window still to process, once, and the next round waits for it', () => {
     const records = ranged(attacking())
-    const watched = { ...records, fight: { ...records.fight!, state: { ...state(records), roundWatch: { [HERO]: 2, [ROY]: 1 } } } }
+    const countdowns = [{ key: ROY, wound: 'Long chest cut', kind: 'critical' as const, dueRound: 1 }, { key: HERO, wound: 'Gut shot', kind: 'bleed' as const, dueRound: 2 }]
+    const watched = { ...records, fight: { ...records.fight!, state: { ...state(records), roundWatch: { [HERO]: 2, [ROY]: 1 }, countdowns } } }
     let current = onward(roll(watched, ROY, royThrow, [99]).records)
-    current = onward(roll(ranged(current), HERO, heroThrow, [99]).records)
+    const last = act(roll(ranged(current), HERO, heroThrow, [99]).records, { type: 'continue' })
+    expect(last.plan.logs.map((log) => log.event)).toEqual(["Roy's Critical countdown from Long chest cut is due: a Death Save, which the GM resolves privately.", 'Round 2, Movement.'])
+    current = last.records
     const next = state(current)
+    expect(next.countdowns).toEqual([countdowns[1]])
     expect(next).toMatchObject({ round: 2, phase: 'movement', roundWatch: { [HERO]: 2 } })
     expect(next.woundOutbox.map((entry) => [entry.kind, entry.id, entry.tickRound, entry.effectiveRound])).toEqual([
       ['tick', `round-1:${HERO}`, 1, 2], ['tick', `round-1:${ROY}`, 1, 2],
