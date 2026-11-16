@@ -1294,7 +1294,7 @@ describe('Lubec active effects', () => {
     addEffect('Bruised knuckles', 'Punched a locker', [{ modifiers: [['Handle', '-40']] }])
     addEffect('Sprained wrist', 'Fell off a bike', [{ modifiers: [['Handle', '-10']] }])
 
-    expect(valuesOf('Handle')).toEqual(['5', '50 +5 class -50 effect'])
+    expect(valuesOf('Handle')).toEqual(['10', '50 +5 class -45 effect'])
     expect(effectLines()).toEqual([['Bruised knuckles', 'Handle -40'], ['Sprained wrist', 'Handle -10']])
     await flushSave()
     expect(writtenEffects().map(({ name, cause, steps }) => ({ name, cause, steps }))).toEqual([
@@ -1304,16 +1304,16 @@ describe('Lubec active effects', () => {
     expect(new Set(writtenEffects().map((effect) => effect.id)).size).toBe(2)
   })
 
-  it('floors a value at 0 under a large penalty, and keeps a hole a hole whatever the effects', async () => {
+  it('floors a core Stat at 10 under a large penalty, and keeps a hole a hole whatever the effects', async () => {
     const crushed = { id: 'crushed', name: 'Crushed hand', cause: 'Boat winch', steps: [{ modifiers: [{ target: 'Handle', amount: -80 }, { target: 'Speed', amount: -10 }] }] }
     seed({ tommy: withSheet({ base: { Strength: 24, Speed: null, Intellect: 38, Handle: 50, Charm: 48, Sanity: 20, Fear: 24, Body: 21 }, effects: [crushed] }) })
     mountTab('player', 'player-1')
 
     openSheet('Tommy Eves')
 
-    expect(valuesOf('Handle')).toEqual(['0', '50 +5 class -55 effect'])
+    expect(valuesOf('Handle')).toEqual(['10', '50 +5 class -45 effect'])
     expect(valuesOf('Speed')).toEqual(['missing', ''])
-    expect(document.querySelector('.lubec-effective-handle')?.textContent).toBe('0')
+    expect(document.querySelector('.lubec-effective-handle')?.textContent).toBe('10')
     expect(valuesOf('Strength')).toEqual(['29', '24 +5 class'])
   })
 
@@ -3134,7 +3134,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect([panicCircle().disabled, recoveryButton().disabled]).toEqual([true, true])
   })
 
-  it('lowers the Fight panel\'s Effective Handle by both Handle effects, capped at 100 and floored at 0, and restores it when one is removed', async () => {
+  it('lowers the Fight panel\'s Effective Handle by both Handle effects, capped at 100 and floored at 10, and restores it when one is removed', async () => {
     const handleEffect = (id: string, amount: number) =>
       ({ id, name: `Hurt ${amount}`, cause: 'Fell', steps: [{ modifiers: [{ target: 'Handle', amount }], labels: [] }] })
     const hurt = [handleEffect('concussion', -40), handleEffect('bruise', -10)]
@@ -3148,7 +3148,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
 
     openSheet('Tommy Eves')
     expect(effectLines()).toEqual([['Hurt -40', 'Handle -40'], ['Hurt -10', 'Handle -10']])
-    expect(effectiveHandle()).toBe('5')
+    expect(effectiveHandle()).toBe('10')
     fireEvent.click(effectsRegion().querySelector('button.lubec-effect-line') as HTMLElement)
     fireEvent.click(within(effectsRegion()).getByText('Remove effect', { selector: 'button' }))
     expect(effectiveHandle()).toBe('45')
@@ -3161,7 +3161,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     expect(effectiveHandle()).toBe('100')
     backToRoster()
     openSheet('Cal Pike')
-    expect(effectiveHandle()).toBe('0')
+    expect(effectiveHandle()).toBe('10')
   })
 })
 

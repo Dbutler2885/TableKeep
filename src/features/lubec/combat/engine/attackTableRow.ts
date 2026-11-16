@@ -1,4 +1,6 @@
+import type { LubecEffect } from '../../../ruleSets/lubec/effects'
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
+import { lubecWoundCards } from '../../../ruleSets/lubec/woundCards'
 import { lubecWoundTableRow, type LubecLocatedWoundRow, type LubecWoundTableRow } from '../../../ruleSets/lubec/woundTables'
 import type { CombatWound } from '../woundTypes'
 import { closeAttack, stepRequest } from './attackFlow'
@@ -27,6 +29,7 @@ function storedRow({ table, location, row }: LubecLocatedWoundRow, pick: number 
   return {
     group: location.parts.join('+'), impact: row.impact, ...woundOf(row, pick), severity: row.severity, trauma: row.trauma,
     check: row.save ? { ...BODY_SAVE } : null, table: table.key, choice: pick, out: row.out === true,
+    ...(row.outcome ? { final: true } : {}),
   }
 }
 
@@ -40,24 +43,42 @@ function appliedRow(row: CombatWoundRow, located: LubecLocatedWoundRow, saved: b
   return { text: [row.text, version].filter(Boolean).join(' '), trauma: saved ? save.successTrauma : row.trauma }
 }
 
-/** The sheet effect: the wound's words, and the lasting injury it leaves. */
-function woundEffect(attack: CombatAttack, row: CombatWoundRow, applied: Applied, tableName: string, entropy: CombatEntropy) {
+const causeOf = (attack: CombatAttack, row: CombatWoundRow, tableName: string) =>
+  `${tableName}, ${locName(attack.landing!.part!).toLowerCase()}, Impact ${attack.impact!.total}: ${row.severity} ${row.name}`
+
+/** A provisional row's sheet effect: the wound's words, and the lasting injury it leaves, resolved by hand. */
+function woundEffect(attack: CombatAttack, row: CombatWoundRow, applied: Applied, tableName: string, entropy: CombatEntropy): LubecEffect {
   const part = attack.landing!.part!
   const labels = [applied.text || `${row.name}.`, ...(row.injury ? [`Lasting injury: ${row.injury}`] : [])]
   return {
     id: entropy.id('effect', 0), name: row.name, duration: null, struckLocation: part,
-    cause: `${tableName}, ${locName(part).toLowerCase()}, Impact ${attack.impact!.total}: ${row.severity} ${row.name}`,
+    cause: causeOf(attack, row, tableName),
     steps: [{ modifiers: [], labels }],
     source: { table: row.table, group: row.group, impact: row.impact, name: row.name, severity: row.severity, injury: row.injury ?? null },
   }
 }
 
+/** A final row's cards: one per consequence that recovers on its own schedule, each with the wound's snapshot. */
+function woundCards(attack: CombatAttack, applied: Applied, stress: number, located: LubecLocatedWoundRow): LubecEffect[] | null {
+  const outcome = located.row.outcome
+  if (!outcome) return null
+  const row = attack.row!
+  const source = {
+    table: located.table.key, tableName: located.table.name, location: row.group, part: attack.landing!.part!, impact: attack.impact!.total,
+    severity: row.severity, row: row.name, prose: located.row.text, branch: row.choice ?? null, contentVersion: located.row.contentVersion ?? '',
+    dice: {}, checks: [], trauma: applied.trauma, stress, minimumStress: 0,
+  }
+  return lubecWoundCards(outcome, { source, cause: causeOf(attack, row, located.table.name) })
+}
+
 /** Every located row is a wound: it goes to the target's sheet, effective next round, with its Trauma and any Save's Stress. */
 function tableWound(state: CombatState, attack: CombatAttack, applied: Applied, stress: number, located: LubecLocatedWoundRow, entropy: CombatEntropy): CombatWound {
   const target = combatantOf(state, defenderOf(attack))
+  const cards = woundCards(attack, applied, stress, located)
   return {
     id: entropy.id('wound', 0), target: { kind: target.kind, sheetId: target.sheetId }, originatingRound: state.round, effectiveRound: state.round + 1,
-    traumaDelta: applied.trauma, stressDelta: stress, effect: woundEffect(attack, attack.row!, applied, located.table.name, entropy),
+    traumaDelta: applied.trauma, stressDelta: stress,
+    ...(cards ? { effect: cards[0], effects: cards } : { effect: woundEffect(attack, attack.row!, applied, located.table.name, entropy) }),
   }
 }
 

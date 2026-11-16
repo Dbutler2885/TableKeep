@@ -1,4 +1,5 @@
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
+import { lubecPlainProse } from '../../../ruleSets/lubec/woundCards'
 import { combatAttackers } from '../engine/declare'
 import type { CombatAttack, CombatState } from '../engine/types'
 import { combatantName, evasionWords, pairWords } from './attackWords'
@@ -59,6 +60,7 @@ function woundNotes(attack: CombatAttack): string[] {
   const rolled = attack.check
   if (rolled) notes.push(`${rolled.against} ${rolled.kind === 'save' ? 'Save' : 'Check'} ${String(rolled.result).padStart(2, '0')} against ${rolled.target}: ${rolled.success ? 'passed' : 'failed'}`)
   if (attack.row?.choice) notes.push(`d2 rolled ${attack.row.choice}`)
+  if (attack.row?.table && !attack.row.final) notes.push('Resolved by hand: the sheet gets these words, and the table applies them.')
   return notes
 }
 
@@ -75,7 +77,7 @@ export function resultsWound(state: CombatState, attack: CombatAttack): ResultsW
   const target = state.combatants.find((entry) => entry.key === attack.aim!.targetKey)!
   return {
     severity: row.severity, cls: SEVERITY_CLASS[row.severity], trauma: traumaWords(attack),
-    name: row.name, parts: woundParts(attack.rowOutcome || `${row.name}.`), injury: row.injury ?? null, notes: woundNotes(attack),
+    name: row.name, parts: woundParts(lubecPlainProse(attack.rowOutcome || `${row.name}.`)), injury: row.injury ?? null, notes: woundNotes(attack),
     out: target.outReason !== null, sheet: `Goes on ${target.name}'s sheet next round.`,
   }
 }

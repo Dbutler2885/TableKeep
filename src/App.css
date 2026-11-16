@@ -17853,6 +17853,67 @@ button:disabled {
   opacity: 0.72;
 }
 
+/* What ends the step ("Step down after 1 Long Rest"), between the step and what follows it. */
+.shell-root[data-theme="lubec"] .lubec-effect-until {
+  font-style: italic;
+  opacity: 0.85;
+}
+
+/* A wound's linked cards sit under its name, each line then named by its part. */
+.shell-root[data-theme="lubec"] .lubec-effect-group {
+  margin-top: 0.2rem;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lubec-muted);
+}
+
+/* An opened wound card: its line, its Step down, then the wound it came from across the full width. */
+.shell-root[data-theme="lubec"] .lubec-effect.is-open {
+  flex-wrap: wrap;
+}
+
+.shell-root[data-theme="lubec"] .lubec-wound-detail {
+  display: grid;
+  flex: 1 1 100%;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.7rem 0.8rem;
+  background: rgba(255, 255, 255, 0.25);
+  border: 1px solid var(--lubec-line);
+  font-size: 0.8rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-wound-detail dl {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+}
+
+.shell-root[data-theme="lubec"] .lubec-wound-fact {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-wound-fact dt {
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.7rem;
+  opacity: 0.8;
+}
+
+.shell-root[data-theme="lubec"] .lubec-wound-fact dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.shell-root[data-theme="lubec"] .lubec-wound-detail > .secondary-button {
+  justify-self: end;
+}
+
 /* "From your gear": gear's Speed losses in a group of their own under the
    stored effects, in the same grey bar. One turned off stays listed in
    outline, in the muted ink, because it counts for nothing. */

@@ -60,12 +60,40 @@ describe('Lubec current values', () => {
   })
 
   it('add every modifier on that value and ignore modifiers on others', () => {
-    expect(lubecCurrentValue(tommyEves(), 'Handle', [handle(-40), handle(-10), { target: 'Body', amount: -30 }])).toBe(5)
+    expect(lubecCurrentValue(tommyEves(), 'Handle', [handle(-40), handle(-5), { target: 'Body', amount: -30 }])).toBe(10)
+    expect(lubecCurrentValue(tommyEves(), 'Handle', [handle(-30), { target: 'Body', amount: -30 }])).toBe(25)
     expect(lubecCurrentValue(tommyEves(), 'Speed', [{ target: 'Speed', amount: 7 }])).toBe(63)
   })
 
-  it('never drop below 0', () => {
-    expect(lubecCurrentValue(tommyEves(), 'Handle', [handle(-40), handle(-40)])).toBe(0)
+  it('never take a core Stat below 10, gear\'s Speed losses included', () => {
+    expect(lubecCurrentValue(tommyEves(), 'Handle', [handle(-40), handle(-40)])).toBe(10)
+    expect(lubecCurrentValue(tommyEves(), 'Speed', [{ target: 'Speed', amount: -60, source: 'gear' }])).toBe(10)
+    for (const name of ['Strength', 'Speed', 'Handle', 'Intellect', 'Charm', 'Body'] as const) {
+      expect(lubecCurrentValue(tommyEves(), name, [{ target: name, amount: -200 }])).toBe(10)
+    }
+  })
+
+  it('keep Sanity and Fear at a floor of 0, and never raise a Stat already below 10', () => {
+    expect(lubecCurrentValue(tommyEves(), 'Sanity', [{ target: 'Sanity', amount: -200 }])).toBe(0)
+    expect(lubecCurrentValue(tommyEves(), 'Fear', [{ target: 'Fear', amount: -200 }])).toBe(0)
+    const weak = lubecSheet({ base: { ...tommyBase, Handle: 2 } })
+    expect(lubecFinalValue(weak, 'Handle')).toBe(7)
+    expect(lubecCurrentValue(weak, 'Handle', [handle(-20)])).toBe(7)
+    expect(lubecCurrentValue(weak, 'Handle', [{ target: 'Handle', amount: 0, setTo: 10 }])).toBe(7)
+  })
+
+  it('take fractions of the uninjured value first, multiplied and rounded down, then flat amounts, then "drops to"', () => {
+    const half = { target: 'Handle', amount: 0, factor: 0.5 } as const
+    const quarterOff = { target: 'Handle', amount: 0, factor: 0.75 } as const
+    expect(lubecCurrentValue(tommyEves(), 'Handle', [half])).toBe(27)
+    expect(lubecCurrentValue(tommyEves(), 'Handle', [half, quarterOff, handle(-5)])).toBe(15)
+    expect(lubecCurrentValue(tommyEves(), 'Handle', [half, handle(-30)])).toBe(10)
+    expect(lubecCurrentValue(tommyEves(), 'Handle', [{ target: 'Handle', amount: 0, setTo: 10 }, handle(5)])).toBe(10)
+  })
+
+  it('keep the Effective Handle cap and add skill bonuses only on top of the floor', () => {
+    expect(lubecEffectiveHandle(tommyEves(), [handle(200)])).toBe(100)
+    expect(lubecEffectiveHandle(tommyEves(), [handle(-200)])).toBe(10)
   })
 
   it('are a hole when the final value is', () => {

@@ -1,7 +1,11 @@
+import { lubecContentVersion } from './finalSources'
 import type { LubecWoundTable } from './types'
 
 // Generated once from lubec-hit-location-tables/report.md, section 3, "Blunt Force" (PROVISIONAL DRAFT).
-// This file is now the source: edit a row here to change the game.
+// This file is now the source: edit a row here to change the game. Rows carrying an outcome are the
+// final table's (`final/blunt-force.md`), checked by the conformance test.
+
+const BLUNT_FINAL = lubecContentVersion('blunt-force.md')
 export const LUBEC_BLUNT_TABLE: LubecWoundTable = {
   key: 'blunt',
   name: 'Blunt Force',
@@ -80,7 +84,10 @@ export const LUBEC_BLUNT_TABLE: LubecWoundTable = {
         {"impact": 1, "severity": "Minor", "trauma": 0, "name": "Stinger", "text": "Next attack with that arm at Disadvantage."},
         {"impact": 2, "severity": "Minor", "trauma": 0, "name": "Knocked loose", "text": "Whatever that hand holds is dropped unless a Handle Check succeeds."},
         {"impact": 3, "severity": "Serious", "trauma": 1, "name": "Forearm injury", "text": "Lasting: -20 Handle (dominant side) or -10 (other side) on actions with that hand. After 1 Long Rest: healed."},
-        {"impact": 4, "severity": "Serious", "trauma": 1, "name": "Forearm injury", "text": "Lasting: -20 Handle (dominant side) or -10 (other side) on actions with that hand. After 1 Long Rest: healed."},
+        {
+          impact: 4, severity: 'Serious', trauma: 1, name: 'Forearm injury', text: '`-20 Handle` until 1 Long Rest.', contentVersion: BLUNT_FINAL,
+          outcome: { cards: [{ key: 'injury', part: 'Forearm', steps: [{ until: 'long-rest', modifiers: [{ target: 'Handle', amount: -20 }] }] }] },
+        },
         {"impact": 5, "severity": "Serious", "trauma": 1, "name": "Broken forearm", "text": "Lasting (Broken arm): Arm unusable for fighting, climbing, carrying or heavy work. After 1 Long Rest: healed.", "injury": "Broken arm"},
         {"impact": 6, "orMore": true, "severity": "Severe", "trauma": 2, "name": "Shattered forearm (bone through skin)", "text": "Now: Bleeding timer: +1 Trauma in d4 turns unless First Aid. Lasting (Broken arm): Arm unusable; if forced, -40 Handle. After 1 Long Rest: as Broken forearm at Impact 5. After 2 Long Rests: healed.", "injury": "Broken arm"},
       ],

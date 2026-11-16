@@ -13,7 +13,7 @@ function deferredEffect(effect: LubecEffect, context: CombatInputRound): boolean
 /** Labels and counters remain immediate; only this fight's premature numeric modifiers are filtered. */
 export function combatInputModifiers(sheet: LubecCharacterSheet, context: CombatInputRound | null) {
   if (!context) return lubecSheetModifiers(sheet)
-  const effects = sheet.effects.map((effect) => deferredEffect(effect, context)
-    ? { ...effect, steps: effect.steps.map((step) => ({ ...step, modifiers: [] })) } : effect)
+  // A deferred card counts for nothing yet: its flat amounts, fractions and "drops to" all wait together.
+  const effects = sheet.effects.filter((effect) => !deferredEffect(effect, context))
   return lubecSheetModifiers({ ...sheet, effects })
 }

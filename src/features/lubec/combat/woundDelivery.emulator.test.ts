@@ -6,6 +6,7 @@ import { firestoreRules } from '../../../../vitest.firestoreRules'
 import { saveSheetIntention } from '../../character/characterStore/sheetIntentionTransaction'
 import { lubecCharacterSheet } from '../../ruleSets/lubec/sheetFixtures'
 import { lubecCurrentValue, lubecEffectiveHandle } from '../../ruleSets/lubec/derivations'
+import type { LubecStepUntil } from '../../ruleSets/lubec/effects'
 import { createCombatCommand } from './commandJournal'
 import { commitCombatCommand } from './combatTransaction'
 import { combatLifecycleHandlers } from './engine/lifecycle'
@@ -271,4 +272,60 @@ it('End exposes a failed delivery reason and remains live until the same End com
   await seed('characters/hero', sheet())
   expect(await commitCombatCommand(as(), end, settings())).toMatchObject({ ok: true })
   expect((await storedSheet()).sheetRevision).toBe(1)
+})
+
+describe('a final wound\'s linked cards through real rules', () => {
+  const step = (amount: number, until: LubecStepUntil) => ({ modifiers: [{ target: 'Handle' as const, amount }], labels: [], until })
+  const card = (cardKey: string, amount: number, until: LubecStepUntil = 'long-rest') =>
+    ({ id: cardKey, cardKey, name: 'Shattered forearm', part: cardKey, cause: 'Blunt Force, left forearm, Impact 6', wound: { row: 'Shattered forearm', table: 'blunt', groupId: '' }, steps: [step(amount, until)] })
+  const linked = (selection: CombatantSelection = target) => {
+    const cards = [card('bleed', 0, 'treated'), card('arm', -20)]
+    return wound({ target: selection, effect: cards[0], effects: cards, traumaDelta: 2, stressDelta: 0 })
+  }
+  const pathOf = (selection: CombatantSelection) => (selection.kind === 'character' ? 'characters/hero' : 'npcSheets/roy')
+  const effectsOf = async (path: string) => (await storedSheet(as(), path)).lubec.effects as { id: string; wound: { groupId: string } }[]
+
+  it.each([target, { kind: 'npc', sheetId: 'roy' } as const])('lands every card once under one wound identity for $kind, across racing drains and a replay', async (selection) => {
+    await fixture([linked(selection)])
+    await Promise.all([drainCombatWounds(as(), scope, 'gm'), drainCombatWounds(as('second-gm'), scope, 'second-gm')])
+    const acknowledgement = (await readFight()).state.woundAcknowledgements[0]
+    expect(await deliverCombatWound(as(), scope, 'gm', 'wound')).toEqual(acknowledgement)
+    const effects = await effectsOf(pathOf(selection))
+    expect(effects.map((effect) => effect.id)).toEqual([`${acknowledgement.operationId}_bleed`, `${acknowledgement.operationId}_arm`])
+    expect(new Set(effects.map((effect) => effect.wound.groupId))).toEqual(new Set([acknowledgement.operationId]))
+    expect((await storedSheet(as(), pathOf(selection))).lubec.counters.trauma).toBe(2)
+  })
+
+  async function steppedDown(uid: string, path: string) {
+    const db = as(uid)
+    const stored = await storedSheet(db, path)
+    const [bleed] = stored.lubec.effects as { id: string }[]
+    return saveSheetIntention(db, ref(db, path), {
+      operationId: `step_${uid}`, baseRevision: stored.sheetRevision,
+      edits: [{ kind: 'remove', path: ['lubec', 'effects', { recordId: bleed.id }], base: { exists: true, value: bleed as never } }],
+    })
+  }
+
+  it.each(['player', 'gm'])('lets %s step down one PC card, leaving its sibling and the Trauma', async (uid) => {
+    await fixture([linked()])
+    await drainCombatWounds(as(), scope, 'gm')
+    expect(await steppedDown(uid, 'characters/hero')).toMatchObject({ status: 'committed', revision: 2 })
+    const after = await storedSheet()
+    expect((after.lubec.effects as { id: string }[]).map((effect) => effect.id)).toEqual([expect.stringMatching(/_arm$/)])
+    expect(after.lubec.counters.trauma).toBe(2)
+  })
+
+  it.each([['other', 'characters/hero'], ['spectator', 'characters/hero'], ['player', 'npcSheets/roy']])('refuses %s stepping down a card on %s', async (uid, path) => {
+    await fixture([linked(path === 'characters/hero' ? target : { kind: 'npc', sheetId: 'roy' })])
+    await drainCombatWounds(as(), scope, 'gm')
+    await expect(steppedDown(uid, path)).rejects.toThrow()
+    expect((await effectsOf(path)).length).toBe(2)
+  })
+
+  it('lets the GM step down an NPC card', async () => {
+    await fixture([linked({ kind: 'npc', sheetId: 'roy' })])
+    await drainCombatWounds(as(), scope, 'gm')
+    expect(await steppedDown('gm', 'npcSheets/roy')).toMatchObject({ status: 'committed' })
+    expect((await effectsOf('npcSheets/roy')).length).toBe(1)
+  })
 })

@@ -11,7 +11,10 @@ export type CombatWound = {
   effectiveRound: number
   traumaDelta: number
   stressDelta: number
+  /** The wound's first card, or the whole of an older text wound; kept so a wound queued before cards still reads. */
   effect: LubecEffect
+  /** Every card a final row's wound makes, each with a key unique within the wound; absent on an older text wound. */
+  effects?: LubecEffect[]
 }
 export type CombatWoundAcknowledgement = {
   id: string

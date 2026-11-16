@@ -28,8 +28,13 @@ describe('the Results wound panel', () => {
   it('shows the Trauma the wound gave, the rolls that picked it, and where it goes', () => {
     expect(resultsWound(state, attack)).toMatchObject({
       severity: 'Severe', cls: 'sv', trauma: 'Trauma 0', name: 'Skull hit', out: false,
-      notes: ['Body Save 07 against 40: passed', 'd2 rolled 2'], sheet: "Goes on Roy's sheet next round.",
+      notes: ['Body Save 07 against 40: passed', 'd2 rolled 2', 'Resolved by hand: the sheet gets these words, and the table applies them.'], sheet: "Goes on Roy's sheet next round.",
     })
+  })
+
+  it('plays a final row as cards, without the resolved-by-hand note, and shows its words without the table\'s marks', () => {
+    const final = { ...attack, check: null, rowOutcome: '`-20 Handle` until 1 Long Rest.', row: { name: 'Forearm injury', severity: 'Serious', trauma: 1, injury: null, choice: null, table: 'blunt', final: true } } as unknown as CombatAttack
+    expect(resultsWound(state, final)).toMatchObject({ notes: [], parts: [{ label: 'What it does', text: '-20 Handle until 1 Long Rest.' }] })
   })
 
   it('has nothing to show before the row lands', () => {

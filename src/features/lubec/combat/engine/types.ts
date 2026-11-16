@@ -109,6 +109,8 @@ export type CombatWoundRow = {
   choice?: number | null
   /** The wound puts the target Out (knocked unconscious). */
   out?: boolean
+  /** A final row, landing as cards the app plays; a row without it is a provisional one resolved by hand. */
+  final?: boolean
 }
 /** The target's ordinary core roll: at or under its number, with failure Stress as the core roller adds it. */
 export type CombatCheckRoll = NonNullable<CombatWoundRow['check']> & { target: number; dice: number[]; result: number; success: boolean; stress: number }

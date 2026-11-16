@@ -123,7 +123,7 @@ function sourceTotals(name: LubecValueName, modifiers: readonly LubecModifier[])
 
 const SOURCES = ['effect', 'gear'] as const
 
-// "-10 effect -20 gear"; where the floor at 0 clips the total, one part that
+// "-10 effect -20 gear"; where a floor (10 for a core Stat) clips the total, one part that
 // adds up, rather than numbers that do not: "-15 effect and gear".
 function modifierParts(request: ValueRequest, final: number, current: number): string[] {
   const totals = sourceTotals(request.name, request.modifiers)

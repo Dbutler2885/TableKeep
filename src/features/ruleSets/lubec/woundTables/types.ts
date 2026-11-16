@@ -1,6 +1,10 @@
-// The Lubec wound tables by hit location, as data. Source: lubec-hit-location-tables/report.md,
-// section 3 (PROVISIONAL DRAFT). Severity sets Trauma; a row's words are what the GM and the
-// player read. Nothing here rolls dice or touches a sheet.
+import type { LubecWoundContentVersion, LubecWoundOutcome } from './outcome'
+
+// The Lubec wound tables by hit location, as data. Rows with an `outcome` are transcribed from the
+// final tables (`final/`), with their source's content version; the rest are still the provisional
+// draft (lubec-hit-location-tables/report.md, section 3) and land as words resolved by hand.
+// Severity sets Trauma; a row's words are what the GM and the player read. Nothing here rolls dice
+// or touches a sheet.
 
 export type LubecWoundSeverity = 'Minor' | 'Serious' | 'Severe' | 'Critical' | 'Catastrophic'
 
@@ -27,6 +31,10 @@ export type LubecWoundTableRow = {
   choices?: [LubecWoundChoice, LubecWoundChoice]
   /** The target is Out of the fight (knocked unconscious). */
   out?: true
+  /** A final row: what it does, as cards. Its `text` is then the final file's prose. */
+  outcome?: LubecWoundOutcome
+  /** The final source the row was transcribed from. */
+  contentVersion?: LubecWoundContentVersion
 }
 
 /** The rows for one or more body regions that read alike. */
