@@ -20,7 +20,7 @@ const SOURCE_OF: Readonly<Record<string, LubecFinalSource>> = {
 }
 
 /** The tables whose every row is final so far; the rest still carry provisional rows resolved by hand. */
-const COMPLETE: readonly string[] = ['fisticuffs', 'blunt', 'cutting', 'piercing']
+const COMPLETE: readonly string[] = ['fisticuffs', 'blunt', 'cutting', 'piercing', 'gunshot']
 
 type AppRow = { key: string; parts: string[]; row: LubecWoundTableRow }
 
@@ -75,7 +75,9 @@ describe('every transcribed final row agrees with its source', () => {
   it('lists each override against a row the source really has', () => {
     for (const override of LUBEC_FINAL_OVERRIDES) {
       const source = readLubecFinalTable(read(SOURCE_OF[override.table]).toString('utf8'))
-      expect(source.some((row) => sameParts(row.parts, override.parts) && row.impact === override.impact), `${override.table} ${override.parts.join('+')} ${override.impact}`).toBe(true)
+      const row = source.find((entry) => sameParts(entry.parts, override.parts) && entry.impact === override.impact)
+      expect(row, `${override.table} ${override.parts.join('+')} ${override.impact}`).toBeDefined()
+      expect(override.text, 'an override that changes nothing').not.toBe(row!.prose)
     }
   })
 })

@@ -109,7 +109,10 @@ function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatChec
     return closeAttack(state, { ...withChecks, rowOutcome: 'Failure: no effect, no wound and no Stress from this Check.', rowTrauma: 0, rowStress: 0, rowSections: [] }, 'no-wound')
   }
   const { rolled, dice } = lubecRollAmounts(landed.outcome, entropy)
-  const minimumStress = rolled.minimumStress ?? 0
+  // "+1d5 Minimum Stress" rolled at once, and any lasting Minimum Stress that starts the moment the wound lands
+  // ("if survived, lasting +4 minimum Stress"); one a later step names waits for the Step down that reaches it.
+  const fromStart = landed.outcome.cards.reduce((sum, card) => sum + (card.steps[0]?.minimumStress ?? 0), 0)
+  const minimumStress = (rolled.minimumStress ?? 0) + fromStart
   const source = {
     table: located.table.key, tableName: located.table.name, location: row.group, part: attack.landing!.part!, impact: attack.impact!.total,
     severity: row.severity, row: row.name, prose: located.row.text, branch: pick, contentVersion: located.row.contentVersion ?? '',

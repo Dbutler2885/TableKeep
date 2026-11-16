@@ -2,11 +2,10 @@
 // because a settled term or the captain's decisions override what the row
 // says. The conformance test allows exactly these and no other difference.
 //
-// Known settled overrides, added to this list as each table lands:
-// - Gunshot Head 3: the concussion success is the terms' Severe Concussion success (no temporary -10 Intellect).
-// - Gunshot Head 4 and 5+: -10 / -20 Intellect is the wound's whole lasting Intellect penalty, without the concussion's further -10.
-// - Every crushed or destroyed hand's "-60 Handle" reads "Handle drops to 10".
-// - Discretionary Charm becomes the situational Charm reminder.
+// Overrides that change what a row does but not its words are not listed here, because the words already say
+// it; they are pinned by the landing tests instead:
+// - Discretionary Charm ("-10 Charm at GM discretion") is the situational Charm reminder, never a Charm change.
+// - Every crushed or destroyed hand reads "Handle drops to 10" (the final files already print it).
 // - Thrown's slow bleed uses the slow-bleed card, although the terms say Blunt Force only.
 
 export type LubecFinalOverride = {
@@ -19,4 +18,23 @@ export type LubecFinalOverride = {
   why: string
 }
 
-export const LUBEC_FINAL_OVERRIDES: readonly LubecFinalOverride[] = []
+const SKULL_HIT_FILE = 'Severe Concussion. Body Save. Success: Minor Concussion—Dazed, with `-10 Handle` and `-10 Intellect` until 1 Long Rest; +1 Trauma instead of +2.'
+const WHOLE_INTELLECT = ' The concussion adds no lasting Intellect of its own: this is the wound\'s whole lasting Intellect loss.'
+
+export const LUBEC_FINAL_OVERRIDES: readonly LubecFinalOverride[] = [
+  {
+    table: 'gunshot', parts: ['head'], impact: 3,
+    text: 'Severe Concussion. Body Save. Success: Minor Concussion—Dazed, with `-10 Handle` until 1 Long Rest; +1 Trauma instead of +2. Failure: Dazed and `-30 Handle`. After 1 Long Rest: `-10 Handle`. After 2 Long Rests: the Handle penalty clears; *Persistent concussion*, lasting `-10 Intellect`.',
+    why: `The terms' Severe Concussion success is a Minor Concussion with no Intellect penalty; the file says "${SKULL_HIT_FILE}"`,
+  },
+  {
+    table: 'gunshot', parts: ['head'], impact: 4,
+    text: `Apply the Skull hit concussion effects at Impact 3, including Dazed, its concussion Body Save, penalties and recovery. Retain +2 Trauma regardless of the concussion Save. Death Save in d4 turns unless a separate Body Save succeeds. If survived, lasting: \`-10 Intellect\`, \`-10 Body\`, and \`+4 minimum Stress\`.${WHOLE_INTELLECT}`,
+    why: 'The row\'s lasting -10 Intellect is the whole lasting Intellect loss, without the embedded concussion failure\'s further -10.',
+  },
+  {
+    table: 'gunshot', parts: ['head'], impact: 5,
+    text: `Immediate Death Save. If survived: apply the Skull hit concussion effects at Impact 3, including Dazed, its concussion Body Save, penalties and recovery. Retain +4 Trauma regardless of the concussion Save. If survived, lasting: \`-20 Intellect\`, \`-20 Body\`, and \`+8 minimum Stress\`.${WHOLE_INTELLECT}`,
+    why: 'The row\'s lasting -20 Intellect is the whole lasting Intellect loss, without the embedded concussion failure\'s further -10.',
+  },
+]

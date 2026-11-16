@@ -264,13 +264,13 @@ describe('the landing, Strength and Impact', () => {
     const records = fight([hero([ball(), revolver]), roy()])
     const { plan } = thrown(13, records, shoot)
     expect(plan.fight.state.attack).toMatchObject({ step: 'location', net: 1, landing: { table: 'firearm', startRoll: 40, start: 'waist' } })
-    const { plan: hit } = act({ ...records, fight: plan.fight }, { type: 'land', actor: HERO, by: player, part: 'waist', dice: { 'wound-choice': 2 } })
-    // Gunshot waist 3 names two wounds; the d2 of 2 is the lodged bullet, which leaves a lasting injury.
+    const { plan: hit } = act({ ...records, fight: plan.fight }, { type: 'land', actor: HERO, by: player, part: 'waist', dice: { 'wound-choice': 1 } })
+    // Gunshot waist 3 rolls a d2; on a 1 there is no bleed, so the wound lands at once without a Save.
     expect(hit.fight.state.attack).toMatchObject({
       outcome: 'wounded', impact: { strength: null, total: 3, table: 'gunshot' },
-      row: { name: 'Lodged bullet', text: '-20 Strength and Speed for exertion until proper medical treatment; First Aid stabilizes but cannot remove it.', choice: 2, injury: 'Lodged object', severity: 'Serious' },
+      row: { name: 'Bullet through the side muscles', choice: 1, severity: 'Serious', final: true },
     })
-    expect(hit.fight.state.woundOutbox[0].effect.steps).toEqual([{ modifiers: [], labels: ['-20 Strength and Speed for exertion until proper medical treatment; First Aid stabilizes but cannot remove it.', 'Lasting injury: Lodged object'] }])
+    expect(hit.fight.state.woundOutbox[0].effects!.map((card) => [card.cardKey, card.steps.map((step) => step.until)])).toEqual([['body', ['long-rest', 'long-rest']]])
   })
 
   it('lands a quality 0 hit with no Defense, with no reach to move it', () => {

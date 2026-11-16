@@ -237,3 +237,58 @@ describe('final Piercing', () => {
     expect(cards.find((card) => card.cardKey === 'eye')!.steps).toMatchObject([{ until: 'lasting', labels: ['Lost eye; the eye remains lost'], taskModifiers: [{ target: 'Handle', amount: -10, task: 'ranged-visual' }] }])
   })
 })
+
+describe('final Gunshot head wounds', () => {
+  const concussionOf = (done: ReturnType<typeof landed>) => outboxOf(done).effects!.find((card) => card.cardKey === 'concussion')!
+
+  it('Head 3 success follows the terms: Dazed, -10 Handle until one rest and +1 Trauma, with no Intellect penalty', () => {
+    const done = landed('gunshot', 'head', 3, { check: [10] })
+    expect(outboxOf(done)).toMatchObject({ traumaDelta: 1, stressDelta: 0 })
+    expect(concussionOf(done).steps).toEqual([{ modifiers: [{ target: 'Handle', amount: -10 }], labels: [], until: 'long-rest' }])
+  })
+
+  it('Head 4 rolls the concussion Save and the countdown Save apart, keeps +2 Trauma and charges each failure\'s Stress once', () => {
+    const done = landed('gunshot', 'head', 4, { check: [10, 99], 'timer-critical': [2] })
+    expect(attackOf(done).checks!.map((check) => [check.purpose, check.success, check.stress])).toEqual([['concussion', true, 0], ['prevention', false, 1]])
+    expect(outboxOf(done)).toMatchObject({ traumaDelta: 2, stressDelta: 1, minimumStressDelta: 4 })
+    const failed = landed('gunshot', 'head', 4, { check: [99, 99] })
+    expect(outboxOf(failed)).toMatchObject({ traumaDelta: 2, stressDelta: 2, minimumStressDelta: 4 })
+    const intellect = outboxOf(failed).effects!.flatMap((card) => card.steps.flatMap((step) => step.modifiers)).filter((modifier) => modifier.target === 'Intellect')
+    expect(intellect).toEqual([{ target: 'Intellect', amount: -10 }])
+  })
+
+  it('Head 5 keeps +4 Trauma, asks for the Immediate Death Save, and takes -20 Intellect as the whole lasting loss', () => {
+    const done = landed('gunshot', 'head', 5, { check: [99] })
+    expect(outboxOf(done)).toMatchObject({ traumaDelta: 4, stressDelta: 1, minimumStressDelta: 8 })
+    expect(attackOf(done).rowSections![0].items).toContain('Immediate Death Save: the GM resolves it privately')
+    const intellect = outboxOf(done).effects!.flatMap((card) => card.steps.flatMap((step) => step.modifiers)).filter((modifier) => modifier.target === 'Intellect')
+    expect(intellect).toEqual([{ target: 'Intellect', amount: -20 }])
+  })
+})
+
+describe('final Gunshot branches and fingers', () => {
+  it('a torso flesh wound bleeds only on a d2 of 2', () => {
+    const one = landed('gunshot', 'torso', 2, { 'wound-choice': [1] })
+    expect(attackOf(one).checks).toEqual([])
+    expect(outboxOf(one).effects!.map((card) => card.cardKey)).toEqual(['body'])
+    const two = landed('gunshot', 'torso', 2, { 'wound-choice': [2], check: [99], 'timer-bleed': [1] })
+    expect(attackOf(two).row).toMatchObject({ name: 'Flesh wound', choice: 2 })
+    expect(outboxOf(two).effects!.map((card) => card.cardKey)).toEqual(['bleed', 'body'])
+  })
+
+  it('a thigh wound near the hip or knee picks a knockdown or a bleed', () => {
+    expect(outboxOf(landed('gunshot', 'thigh-L', 3, { 'wound-choice': [1] })).effects!.map((card) => card.cardKey)).toEqual(['down', 'leg'])
+    expect(outboxOf(landed('gunshot', 'thigh-L', 3, { 'wound-choice': [2], check: [99], 'timer-bleed': [4] })).effects!.map((card) => card.cardKey)).toEqual(['movement', 'bleed', 'leg'])
+  })
+
+  it('Hand 3\'s finger shot off loses one finger, lasting -5 Handle after one rest', () => {
+    const cards = outboxOf(landed('gunshot', 'hand-R', 3, { 'wound-choice': [2] })).effects!
+    expect(cards.find((card) => card.cardKey === 'fingers')!.steps[0].labels).toEqual(['1 finger lost from the right hand'])
+    expect(cards.find((card) => card.cardKey === 'finger')!.steps.map((step) => [step.until, step.modifiers])).toEqual([['long-rest', []], ['lasting', [{ target: 'Handle', amount: -5 }]]])
+  })
+
+  it('Hand 4 rolls 1d3 fingers once: -30 Handle after one rest, then lasting -10 and -5 a finger', () => {
+    const hand = outboxOf(landed('gunshot', 'hand-L', 4, { fingers: [2] })).effects!.find((card) => card.cardKey === 'hand')!
+    expect(hand.steps.map((step) => step.modifiers)).toEqual([[], [{ target: 'Handle', amount: -30 }], [{ target: 'Handle', amount: -20 }]])
+  })
+})
