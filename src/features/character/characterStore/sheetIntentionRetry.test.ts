@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { FirebaseError } from 'firebase/app'
 import { getDocFromServer, type DocumentReference } from 'firebase/firestore'
-import { withSheetRevisionRetry } from './sheetIntentionRetry'
+import { withSheetRevisionRetries, withSheetRevisionRetry } from './sheetIntentionRetry'
 
 vi.mock('firebase/firestore', () => ({ getDocFromServer: vi.fn() }))
 const reference = (path: string) => ({ path, withConverter() { return this } }) as DocumentReference
@@ -24,4 +24,23 @@ it('does not guess a reference or retry when a failed callback no longer has an 
   await expect(withSheetRevisionRetry(() => undefined, write, () => 7)).rejects.toBe(denied)
   expect(write).toHaveBeenCalledOnce()
   expect(getDocFromServer).not.toHaveBeenCalled()
+})
+
+
+it('retries an atomic command when either target advanced, and preserves its acknowledgement', async () => {
+  const denied = new FirebaseError('permission-denied', 'revision fence')
+  const first = reference('characters/hero')
+  const second = reference('npcSheets/roy')
+  const write = vi.fn().mockRejectedValueOnce(denied).mockResolvedValue('same-command-receipt')
+  vi.mocked(getDocFromServer).mockImplementation(async (ref) => ({ exists: () => true, data: () => ({ sheetRevision: ref.path === first.path ? 1 : 3 }) }) as never)
+  expect(await withSheetRevisionRetries(write, () => [{ ref: first, nextRevision: 2 }, { ref: second, nextRevision: 3 }])).toBe('same-command-receipt')
+  expect(write).toHaveBeenCalledTimes(2)
+})
+
+it('preserves a real permission denial when no target revision advanced', async () => {
+  const denied = new FirebaseError('permission-denied', 'not the owner')
+  const write = vi.fn().mockRejectedValue(denied)
+  vi.mocked(getDocFromServer).mockResolvedValue({ exists: () => true, data: () => ({ sheetRevision: 1 }) } as never)
+  await expect(withSheetRevisionRetries(write, () => [{ ref: reference('characters/hero'), nextRevision: 2 }])).rejects.toBe(denied)
+  expect(write).toHaveBeenCalledOnce()
 })

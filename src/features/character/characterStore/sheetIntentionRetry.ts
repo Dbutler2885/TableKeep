@@ -29,3 +29,19 @@ export async function withSheetRevisionRetry<T>(sheetRef: AttemptedSheetRef, wri
     return withSheetRevisionRetry(sheetRef, write, attemptedRevision, retries - 1)
   }
 }
+
+
+export type AttemptedSheetRevision = { ref: DocumentReference; nextRevision: number }
+
+/** A combat command can update several sheets atomically; retry only when a rejected write's revision has advanced. */
+export async function withSheetRevisionRetries<T>(write: () => Promise<T>, attempted: () => readonly AttemptedSheetRevision[], retries = 2): Promise<T> {
+  try {
+    return await write()
+  } catch (error) {
+    const sheets = attempted()
+    if (!sheets.length || !canCheckRevision(error, sheets[0].nextRevision, retries)) throw error
+    const advanced = await Promise.all(sheets.map(({ ref, nextRevision }) => revisionAdvanced(ref, nextRevision)))
+    if (!advanced.some(Boolean)) throw error
+    return withSheetRevisionRetries(write, attempted, retries - 1)
+  }
+}

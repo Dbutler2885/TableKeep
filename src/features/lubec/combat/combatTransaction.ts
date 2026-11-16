@@ -1,4 +1,5 @@
 import { runTransaction, type Firestore, type Transaction } from 'firebase/firestore'
+import { withSheetRevisionRetries, type AttemptedSheetRevision } from '../../character/characterStore/sheetIntentionRetry'
 import { sheetPayload } from '../../character/characterStore/sheetIntentionEdits'
 import { combatEntropy } from './engine/commandEntropy'
 import { requireLiveContext } from './engine/context'
@@ -30,7 +31,7 @@ function refusal(error: unknown): CombatOutcome {
   return { ok: false, reason: error.message }
 }
 
-async function applyCommand(db: Firestore, tx: Transaction, command: CombatCommand, options: CombatTransactionOptions): Promise<CombatOutcome> {
+async function applyCommand(db: Firestore, tx: Transaction, command: CombatCommand, options: CombatTransactionOptions, attempted: AttemptedSheetRevision[]): Promise<CombatOutcome> {
   const receipt = await tx.get(combatRef(db, command, 'combats', command.envelope.fightId, 'commands', command.envelope.id))
   if (receipt.exists()) {
     return replay(command, receipt.data() as { command: unknown; outcome: CombatOutcome })
@@ -46,6 +47,7 @@ async function applyCommand(db: Firestore, tx: Transaction, command: CombatComma
     return refusal(error)
   }
   const sheets = await prepareCombatSheets(db, command, plan, records.raws)
+  attempted.push(...sheets.flatMap((entry) => entry.mutation ? [{ ref: entry.sheetRef, nextRevision: entry.mutation.receipt.outcome.revision }] : []))
   writeCombatSheets(tx, sheets)
   return writeCombatPlan(db, tx, command, plan, entropy)
 }
@@ -57,13 +59,20 @@ const closingOf = (command: CombatCommand): CombatCommand => ({ ...command, enve
 
 async function sendCommand(db: Firestore, command: CombatCommand, options: CombatTransactionOptions): Promise<CombatOutcome> {
   const transact = options.transact ?? ((callback) => runTransaction(db, callback))
+  const commit = (next: CombatCommand) => {
+    let attempted: AttemptedSheetRevision[] = []
+    return withSheetRevisionRetries(() => transact((tx) => {
+      attempted = []
+      return applyCommand(db, tx, next, options, attempted)
+    }), () => attempted)
+  }
   if (command.payload.type === 'end') {
     // Closing first queues every combatant's closing change; End then drains them before it ends the fight.
-    const closed = await transact((tx) => applyCommand(db, tx, closingOf(command), options))
+    const closed = await commit(closingOf(command))
     if (!closed.ok) return closed
   }
   for (let attempt = 0; attempt < 5; attempt++) {
-    const outcome = await transact((tx) => applyCommand(db, tx, command, options))
+    const outcome = await commit(command)
     if (!dueWounds(outcome)) return outcome
     const failure = await drainEndWounds(db, command, options.userId, options.drainWounds)
     if (failure) return failure
