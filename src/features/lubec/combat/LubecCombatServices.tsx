@@ -13,6 +13,7 @@ import { COMBAT_UNCERTAIN, useLubecCombatSend } from './useLubecCombatSend'
 import { drainCombatWounds } from './woundDelivery'
 import { combatWoundDrainService, type CombatWoundDeliveryStatus } from './woundDrainService'
 import { WOUND_WAIT } from './woundTypes'
+import { DeclarationReviewModal } from './DeclarationReviewModal'
 
 type Docs = Map<string, Record<string, unknown> | null>
 type Seen = { key: string; docs: Docs }
@@ -144,6 +145,7 @@ export function LubecCombatServices({ campaign, role, userId, setError }: Servic
       <SummaryRefresher scope={scope} live={live} userId={userId} setError={setError} />
       <WoundDeliverer scope={scope} live={live} userId={userId} setError={setError} />
       <MovementSettler scope={scope} live={live} userId={userId} setError={setError} />
+      <DeclarationReviewModal scope={scope} live={live} userId={userId} />
     </>
   )
 }

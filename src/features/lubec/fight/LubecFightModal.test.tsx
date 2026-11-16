@@ -68,10 +68,10 @@ describe('fight flow through the modal', () => {
     expect(who().value).toBe('character:Wayne')
   })
 
-  it('offers the named target first even outside the roster, excludes the attacker and distinguishes NPCs from characters', () => {
+  it('keeps roster order when a target is named, excludes the attacker and distinguishes NPCs from characters', () => {
     const sameId = kid('Rene')
     render(<LubecFightModal {...props} request={{ ...request, target: rene, weaponItemId: knife.id }} targets={[attacker, wayne, sameId, rene]} />)
-    expect([...who().options].map((option) => option.value)).toEqual(['', 'npc:Rene', 'character:Wayne', 'character:Rene'])
+    expect([...who().options].map((option) => option.value)).toEqual(['', 'character:Wayne', 'character:Rene', 'npc:Rene'])
     fireEvent.change(who(), { target: { value: 'character:Rene' } })
     expect(who().value).toBe('character:Rene')
     expect(screen.getByText('Nothing that stops a wound.')).toBeTruthy()

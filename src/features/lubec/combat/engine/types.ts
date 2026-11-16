@@ -1,3 +1,4 @@
+import type { LubecWoundSeverity } from '../../../ruleSets/lubec/woundTables/types'
 import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecord'
 import type { LubecDetachedItem } from '../../../ruleSets/lubec/gear/detachedItems'
 import type { LubecAttackChoice } from '../../../ruleSets/lubec/gear/weaponAttacks'
@@ -13,14 +14,16 @@ export type FloorSelection = { itemId: string; status: 'library' | 'dropped'; qt
 /** A combatant's initiative: d100 strictly under Speed, frozen once per fight, with any tie rerolls the app made. */
 export type CombatInitiative = { roll: number; speed: number; success: boolean; sourceRevision: number; ties: number[] }
 /** A Movement choice. Moving or staying is the default and needs no thought; Run, Pick up and Leave are the choices. */
-export type CombatMovementChoice = 'stay' | 'run' | 'pickup' | 'leave'
+export type CombatMovementChoice = 'stay' | 'run' | 'evade' | 'pickup' | 'leave'
 /** One exact Floor record and quantity a pickup claims. */
 export type CombatPickupClaim = { itemId: string; qty: number }
 /**
  * A confirmed Movement choice, private to its owner and the GM until the stage closes.
  * A Leave is `asked` until the GM confirms it; a refusal clears the choice so the player chooses again.
  */
-export type CombatMovement = { choice: CombatMovementChoice; pickup: CombatPickupClaim | null; leave: 'asked' | 'confirmed' | null }
+/** An evader's Speed roll as Movement settled, and what it takes off ranged attacks at them this round. */
+export type CombatEvasion = { roll: number; speed: number; success: boolean; penalty: number }
+export type CombatMovement = { choice: CombatMovementChoice; pickup: CombatPickupClaim | null; leave: 'asked' | 'confirmed' | null; evasion?: CombatEvasion | null }
 /** One named Defense line: who it guards against, and how much of the Handle pool it holds. */
 export type CombatDefenseLine = { against: string; amount: number }
 /**
@@ -47,11 +50,17 @@ export type Combatant = CombatantSelection & {
   armor: LubecArmorZone[]
   interactionSequence: number
   outReason: string | null
+  /** An NPC the GM put on the players' side at setup. A label for the turn order only: who can target whom is unchanged. */
+  ally?: true
   initiative?: CombatInitiative | null
   /** This round's Movement choice, once confirmed. */
   movement?: CombatMovement | null
-  /** This round's declaration, once made. */
+  /** This round's approved declaration, or the automatic no-attack declaration. */
   declaration?: CombatDeclaration | null
+  /** A submitted choice awaiting the GM; it does not advance the declaration order. */
+  proposedDeclaration?: CombatDeclaration | null
+  /** The GM returned this choice; the same combatant must choose again. */
+  declarationRejected?: boolean
 }
 /** What the attacker picked: target, weapon and use, and at most one named Defense line from the same Handle pool. */
 export type CombatAim = {
@@ -89,9 +98,17 @@ export type CombatWoundRow = {
   impact: number
   name: string
   text: string
-  severity: 'Minor' | 'Serious'
+  severity: LubecWoundSeverity
   trauma: number
   check: { kind: 'stat-check' | 'save'; against: 'Handle' | 'Body'; advantage: 'advantage' | 'normal' | 'disadvantage' } | null
+  /** A located table's key; absent on a Dodgeball row, which keeps its own table. */
+  table?: string
+  /** The lasting injury the wound leaves. */
+  injury?: string | null
+  /** The d2 a two-wound row rolled, and so which wound it is. */
+  choice?: number | null
+  /** The wound puts the target Out (knocked unconscious). */
+  out?: boolean
 }
 /** The target's ordinary core roll: at or under its number, with failure Stress as the core roller adds it. */
 export type CombatCheckRoll = NonNullable<CombatWoundRow['check']> & { target: number; dice: number[]; result: number; success: boolean; stress: number }
@@ -126,6 +143,12 @@ export type CombatAttack = {
   check?: CombatCheckRoll | null
   /** The row's words for what happened, once applied. */
   rowOutcome?: string | null
+  /** The Trauma the wound gave, once applied: a passed Body Save can lower the row's. */
+  rowTrauma?: number | null
+  /** A round attack's Results stay on screen until the GM moves the fight on. */
+  continued?: boolean
+  /** The target's Evasive Movement, when it took a penalty off this ranged attack. */
+  evasion?: CombatEvasion | null
 }
 export type CombatState = {
   round: number
@@ -172,6 +195,8 @@ export type StartPayload = {
   type: 'start'
   combatants: CombatantSelection[]
   floor: FloorSelection[]
+  /** Keys of selected NPCs fighting on the players' side. */
+  allies?: string[]
   requireBody?: boolean
   /** Older queued commands used this field for the Body Save requirement, not a combat mode. */
   dodgeball?: boolean

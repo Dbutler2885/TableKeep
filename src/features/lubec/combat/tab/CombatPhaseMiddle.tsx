@@ -49,7 +49,7 @@ export function CombatPhaseMiddle({ campaign, live, viewer, roster, send, onActF
   const scope = useMemo(() => ({ groupId: campaign.groupId, campaignId: campaign.id }), [campaign.groupId, campaign.id])
   const commands = useMemo(() => attackCommands(scope, live, send), [scope, live, send])
   const { state } = live.fight
-  // Tapping a hand opens that sheet's inventory: the character's own, or for the GM an NPC's sheet.
+  // Inventory opens the active fighter's Gear page; hand cards select the attack source in place.
   const onInventory = (attacker: { kind: 'character' | 'npc'; sheetId: string }) => {
     requestOpen(attacker.kind, attacker.sheetId, 'gear')
     void navigate(campaignTabPath(campaign.groupId, campaign.id, attacker.kind === 'npc' ? 'npcs' : 'character'))

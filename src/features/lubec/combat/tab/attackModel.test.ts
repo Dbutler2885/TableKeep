@@ -11,7 +11,7 @@ import { LUBEC_FISTICUFFS_ID } from '../../fight/lubecFightRequest'
 import type { CombatAttack, Combatant, CombatFrozenAim, CombatState } from '../engine/types'
 import { attackSegments, attackSum, barPercent, completeAim, defaultAttack, defaultWeapon, initialDraft, labelPlace, outcomeClass, rollText, sameAim, segmentMiddle, withDefense, withWeapon } from './attackDraft'
 import { attackWindowModel, heldAim, rollReady, windowReading } from './attackWindowModel'
-import { attackLine, attackVerdict, bandLabel, combatantName, controlsAttacker, isThrow, missWords, pressedBand, resultFoot, waitsOnGm } from './attackWords'
+import { attackLine, attackVerdict, bandLabel, combatantName, controlsAttacker, isThrow, missWords, pairWords, pressedBand, resultFoot, waitsOnGm } from './attackWords'
 import { combatFightCombatant, NO_ROSTER } from './combatFightCombatants'
 
 const inHand = (id: string, slot: number, extra: Record<string, unknown> = {}) =>
@@ -116,6 +116,17 @@ describe('the window model', () => {
     expect(rollReady(attack(), aim, { ...reading, ranged: false })).toBe(true)
   })
 
+  it('waits for a round replacement aim to be accepted before enabling its Roll', () => {
+    const punch = { targetKey: roy.key, weaponItemId: 'fisticuffs', attackId: 'punch', defense: null }
+    const kick = { ...punch, attackId: 'kick' }
+    const current = attack({ grantId: null, aim: kick, frozen: frozen({ choice: { ...frozen().choice, id: 'kick', ranged: false } }) })
+    const round = { ...state(current), round: 1, phase: 'attack' as const }
+    const modelInput = { ...input(current), state: round, sheet: sheetWith(), draft: punch }
+    expect(attackWindowModel(modelInput).ready).toBe(false)
+    expect(attackWindowModel({ ...modelInput, attack: { ...current, aim: punch } }).ready).toBe(true)
+    expect(attackWindowModel({ ...modelInput, state: state(current) }).ready).toBe(true)
+  })
+
   it('names targets from public summaries and the range only for the held aim', () => {
     const model = attackWindowModel(input(attack({ range: { band: 'short', modifier: 10 } })))
     expect(model).toMatchObject({ held: true, range: { band: 'short' }, ready: true, split: { segments: { attackNumber: 36 } } })
@@ -160,7 +171,7 @@ describe('the words', () => {
     expect(attackVerdict({ roll: 90, attackNumber: 36, hit: false, critical: false, quality: null })).toBe('A miss: 90 is not under 36.')
     expect(missWords('Wayne', punch)).toBe("Wayne's attack misses.")
     expect(missWords('Wayne', frozen())).toBe("Wayne's throw goes wide. The dodgeball left the hand at the Roll and lands on the Floor.")
-    expect([resultFoot(attack({ closed: true }), 0), resultFoot(attack({ closed: true }), 1), resultFoot(attack(), 1)]).toEqual(['The GM may grant another Sneak Attack, or roll initiative.', 'The next turn opens by itself.', 'Every roll lands on every screen as a card, then settles into the ticker.'])
+    expect([resultFoot(attack({ closed: true }), 0), resultFoot(attack({ closed: true }), 1), resultFoot(attack(), 1)]).toEqual(['The GM may grant another Sneak Attack, or roll initiative.', 'The GM moves the fight on from here.', 'Every roll lands on every screen as a card, then settles into the ticker.'])
   })
 })
 
@@ -184,5 +195,11 @@ describe('result sequence words', () => {
   it('names a wound table it does not know by its key', async () => {
     const { tableName } = await import('./resultSequence')
     expect([tableName('dodgeball'), tableName('mystery')]).toEqual(['Dodgeball', 'mystery'])
+  })
+})
+
+describe('naming a weapon and its attack', () => {
+  it('names both, or one when an unarmed attack and its weapon share the name', () => {
+    expect([pairWords('Dodgeball', 'Throw'), pairWords('Punch', 'Punch')]).toEqual(['Dodgeball · Throw', 'Punch'])
   })
 })

@@ -225,9 +225,11 @@ describe('moments 5 and 7: the owner picks, splits and rolls in one window', () 
     expect((await screen.findByText('That weapon is no longer in hand. Choose again.'))).toBeTruthy()
   })
 
-  it('opens the sheet for a tapped hand', () => {
+  it('opens the sheet only through Inventory', () => {
     show('player', 'wayne-uid', ranged())
     fireEvent.click(button(/Left hand.*Dodgeball/))
+    expect(screen.getByTestId('where').textContent).toBe('/groups/school/campaigns/gym/combat')
+    fireEvent.click(button('Inventory'))
     expect(screen.getByTestId('where').textContent).toBe('/groups/school/campaigns/gym/character')
     expect(takeOpenRequest('character')).toBe('wayne')
   })
@@ -308,13 +310,15 @@ describe('less common states', () => {
     await waitFor(() => expect(sentOf('aim')).toHaveLength(1))
     expect(sentOf('aim')[0].envelope.actorKey).toBe('npc:roy')
     fireEvent.click(button(/Left hand.*Dodgeball/))
+    expect(screen.getByTestId('where').textContent).toBe('/groups/school/campaigns/gym/combat')
+    fireEvent.click(button('Inventory'))
     expect(screen.getByTestId('where').textContent).toBe('/groups/school/campaigns/gym/npcs')
     expect(takeOpenRequest('npc')).toBe('roy')
   })
 
   it('persists a changed aim before rolling a blow up close', async () => {
     show('player', 'wayne-uid', aimed())
-    fireEvent.click(button(/^Fisticuffs/))
+    fireEvent.click(button(/Right hand.*Empty/))
     fireEvent.click(screen.getByRole('radio', { name: /Punch/ }))
     mocks.sent = []
     fireEvent.click(button('Roll'))
@@ -325,7 +329,7 @@ describe('less common states', () => {
   it('stops a refused aim from rolling', async () => {
     mocks.outcome = { ok: false, reason: 'That weapon cannot make that attack now. Choose again.' }
     show('player', 'wayne-uid', aimed())
-    fireEvent.click(button(/^Fisticuffs/))
+    fireEvent.click(button(/Right hand.*Empty/))
     fireEvent.click(screen.getByRole('radio', { name: /Punch/ }))
     fireEvent.click(button('Roll'))
     expect(await screen.findByText('That weapon cannot make that attack now. Choose again.')).toBeTruthy()

@@ -51,9 +51,9 @@ export function withDefense(draft: AttackDraft, amount: number, total: number, a
 
 export type AttackSegments = { defense: number; attackFrom: number; attackWidth: number; edge: number; attackNumber: number }
 
-/** The bar: Defense from 0, the attack after it, the range moving only the attack's end, and the unused rest. */
-export function attackSegments(total: number, defense: number, range: CombatAttackRange | null | undefined): AttackSegments {
-  const attackNumber = total - defense + (range?.modifier ?? 0)
+/** The bar: Defense from 0, the attack after it, the range and a target's Evasive Movement moving only the attack's end, and the unused rest. */
+export function attackSegments(total: number, defense: number, range: CombatAttackRange | null | undefined, evasion = 0): AttackSegments {
+  const attackNumber = total - defense + (range?.modifier ?? 0) - evasion
   const edge = clampHandle(Math.max(defense, defense + attackNumber))
   return { defense, attackFrom: defense, attackWidth: edge - defense, edge, attackNumber }
 }
@@ -72,8 +72,10 @@ function rangeTerm(range: CombatAttackRange | null): string[] {
   return [`${modifier < 0 ? '−' : '+'} Range ${Math.abs(modifier)}`]
 }
 
-export function attackSum({ handle, skill }: AttackSum, range: CombatAttackRange | null): string {
-  return `${[`Handle ${handle}`, ...skillTerm(skill), ...rangeTerm(range)].join(' ')} =`
+const evasionTerm = (evasion: number): string[] => (evasion ? [`− Evasive ${evasion}`] : [])
+
+export function attackSum({ handle, skill }: AttackSum, range: CombatAttackRange | null, evasion = 0): string {
+  return `${[`Handle ${handle}`, ...skillTerm(skill), ...rangeTerm(range), ...evasionTerm(evasion)].join(' ')} =`
 }
 
 /** Where on the bar, 0 to 100, a pointer at `clientX` sits. */

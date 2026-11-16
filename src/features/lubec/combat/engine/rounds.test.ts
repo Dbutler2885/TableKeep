@@ -96,7 +96,7 @@ describe('Movement', () => {
 
   it('refuses an unknown choice, a second confirmation, someone else\'s combatant and a previous stage', () => {
     const records = movement()
-    expect(() => act(records, { type: 'move', actor: HERO, by: player, choice: 'evade' })).toThrow('Choose Move or stay, Run, Pick up or Leave the fight.')
+    expect(() => act(records, { type: 'move', actor: HERO, by: player, choice: 'fly' })).toThrow('Choose Move or stay, Run, Evasive, Pick up or Leave the fight.')
     const moved = act(records, { type: 'move', actor: HERO, by: player, ...stay }).records
     expect(() => act(moved, { type: 'move', actor: HERO, by: player, ...stay })).toThrow('Wayne has already confirmed Movement.')
     expect(() => act(records, { type: 'move', actor: ROY, by: player, ...stay })).toThrow('belongs to someone else')
@@ -236,9 +236,13 @@ describe('Declare, slowest first', () => {
   it('freezes the aim, the pool and its revision, and one named Defense line, for everyone to see', () => {
     const afterWayne = act(declaring(), { type: 'declare', actor: HERO, by: player, aim: { targetKey: ROY, weaponItemId: 'hero-ball', attackId: 'throw', defense: { against: DALE, amount: 20 } } })
     const wayne = afterWayne.plan.fight.state.combatants[0]
-    expect(wayne.declaration).toMatchObject({ ran: false, full: false, aim: { targetKey: ROY, weaponItemId: 'hero-ball' }, total: 65, lines: [{ against: DALE, amount: 20 }], sourceRevision: 1, frozen: { attack: 45, total: 65 } })
-    expect(afterWayne.plan.logs).toEqual([{ event: 'Wayne declared: Throw at Roy, ATK 45, Defense 20 against Dale.', actor: HERO }])
-    expect(afterWayne.plan.fight.state.pendingActions).toEqual([{ combatantKey: ROY, action: 'declare' }])
+    expect(wayne.declaration).toBeUndefined()
+    expect(wayne.proposedDeclaration).toMatchObject({ ran: false, full: false, aim: { targetKey: ROY, weaponItemId: 'hero-ball' }, total: 65, lines: [{ against: DALE, amount: 20 }], sourceRevision: 1, frozen: { attack: 45, total: 65 } })
+    expect(afterWayne.plan.fight.state.pendingActions).toEqual([{ combatantKey: HERO, action: 'reviewDeclaration' }])
+    const approved = act(afterWayne.records, { type: 'answerDeclaration', combatantKey: HERO, approve: true })
+    expect(who(approved.records, HERO).declaration).toEqual(wayne.proposedDeclaration)
+    expect(approved.plan.logs).toEqual([{ event: 'Wayne declared: Throw at Roy, ATK 45, Defense 20 against Dale.', actor: HERO }])
+    expect(state(approved.records).pendingActions).toEqual([{ combatantKey: ROY, action: 'declare' }])
   })
 
   it('keeps Defense in tens, leaves the attack something, and only aims at an opponent', () => {
@@ -253,12 +257,12 @@ describe('Declare, slowest first', () => {
     const records = declaring()
     expect(() => act(records, { type: 'declare', actor: HERO, by: player, full: true })).toThrow('Full Defense names the one person you guard against.')
     const withWeapon = act(records, { type: 'declare', actor: HERO, by: player, full: true, against: ROY, aim: { weaponItemId: 'hero-ball', attackId: 'throw' } })
-    expect(withWeapon.plan.fight.state.combatants[0].declaration).toEqual({ ran: false, full: true, aim: null, frozen: null, total: 65, lines: [{ against: ROY, amount: 65 }], sourceRevision: 1 })
-    expect(withWeapon.plan.logs[0].event).toBe('Wayne declared Full Defense, no attack: Defense 65 against Roy.')
+    expect(withWeapon.plan.fight.state.combatants[0].proposedDeclaration).toEqual({ ran: false, full: true, aim: null, frozen: null, total: 65, lines: [{ against: ROY, amount: 65 }], sourceRevision: 1 })
+    expect(state(withWeapon.records).pendingActions).toEqual([{ combatantKey: HERO, action: 'reviewDeclaration' }])
     const bare = act(records, { type: 'declare', actor: HERO, by: player, full: true, against: ROY })
-    expect(bare.plan.fight.state.combatants[0].declaration!.total).toBe(50)
+    expect(bare.plan.fight.state.combatants[0].proposedDeclaration!.total).toBe(50)
     const unrevised = { ...records, sheets: records.sheets.map((sheet) => ({ ...sheet, revision: undefined })) }
-    expect(act(unrevised, { type: 'declare', actor: HERO, by: player, full: true, against: ROY }).plan.fight.state.combatants[0].declaration!.sourceRevision).toBe(0)
+    expect(act(unrevised, { type: 'declare', actor: HERO, by: player, full: true, against: ROY }).plan.fight.state.combatants[0].proposedDeclaration!.sourceRevision).toBe(0)
   })
 
   it('waits for every wound due by this round to reach the sheet, and reads the sheet at that delivery', () => {
@@ -268,7 +272,7 @@ describe('Declare, slowest first', () => {
     records.fight!.state.woundOutbox = [wound]
     expect(() => act(records, { type: 'declare', actor: HERO, by: player, aim })).toThrow('Waiting for wounds to reach the sheet')
     records.fight!.state.woundOutbox = [{ ...wound, originatingRound: 1, effectiveRound: 2 }]
-    expect(act(records, { type: 'declare', actor: HERO, by: player, aim }).plan.fight.state.combatants[0].declaration).toBeTruthy()
+    expect(act(records, { type: 'declare', actor: HERO, by: player, aim }).plan.fight.state.combatants[0].proposedDeclaration).toBeTruthy()
     records.fight!.state.woundOutbox = []
     records.fight!.state.woundAcknowledgements = [{ id: 'w', target: wound.target, targetRevision: 2, originatingRound: 0, effectiveRound: 1, operationId: 'op' }]
     expect(() => act(records, { type: 'declare', actor: HERO, by: player, aim })).toThrow('Waiting for wounds to reach the sheet')
@@ -282,6 +286,7 @@ describe('Declare, slowest first', () => {
   it('skips runners and moves on to Attack, fastest first, after the last declaration', () => {
     const records = settled(confirmed(movement(), stay, { [ROY]: stay, [DALE]: { choice: 'run' } })).records
     let current = act(records, { type: 'declare', actor: HERO, by: player, full: true, against: ROY }).records
+    current = act(current, { type: 'answerDeclaration', combatantKey: HERO, approve: true }).records
     expect(state(current).pendingActions).toEqual([{ combatantKey: ROY, action: 'declare' }])
     const last = act(current, { type: 'declare', actor: ROY, aim: throwAt(HERO) })
     current = last.records
@@ -289,5 +294,45 @@ describe('Declare, slowest first', () => {
     expect(state(current).pendingActions).toEqual([{ combatantKey: ROY, action: 'attack' }, { combatantKey: ROY, action: 'range' }])
     expect(state(current).stageInstanceId).not.toBe(state(records).stageInstanceId)
     expect(last.plan.logs.map((entry) => entry.event)).toEqual(['Roy declared: Throw at Wayne, ATK 65, no Defense.', 'Round 1, Attack. Fastest first: Roy.', "Roy's turn to attack."])
+    expect(who(current, ROY)).toMatchObject({ proposedDeclaration: null, declaration: { aim: throwAt(HERO) } })
+  })
+
+  it('accepts the GM\'s NPC Full Defense directly, while a player declaration made by the GM still needs approval', () => {
+    const pending = act(declaring(), { type: 'declare', actor: HERO, full: true, against: ROY }).records
+    expect(state(pending).pendingActions).toEqual([{ combatantKey: HERO, action: 'reviewDeclaration' }])
+    const approved = act(pending, { type: 'answerDeclaration', combatantKey: HERO, approve: true }).records
+    expect(() => act(approved, { type: 'declare', actor: ROY, full: true, against: HERO, by: { userId: 'gm', isGm: false } })).toThrow('Only the GM')
+    const npc = act(approved, { type: 'declare', actor: ROY, full: true, against: HERO }).records
+    expect(who(npc, ROY)).toMatchObject({ proposedDeclaration: null, declaration: { full: true, lines: [{ against: HERO, amount: 50 }] } })
+    expect(state(npc).pendingActions).toEqual([{ combatantKey: DALE, action: 'declare' }])
+  })
+
+  it('holds the order for GM review, rejects forged decisions and returns a rejected choice to the same player', () => {
+    const original = declaring()
+    const pending = act(original, { type: 'declare', actor: HERO, by: player, full: true, against: ROY }).records
+    expect(() => act(pending, { type: 'declare', actor: ROY, aim: throwAt(HERO) })).toThrow("It is Wayne's turn to declare.")
+    expect(() => act(pending, { type: 'declare', actor: HERO, by: player, full: true, against: DALE })).toThrow('Waiting for the GM')
+    expect(() => act(pending, { type: 'answerDeclaration', combatantKey: HERO, approve: true, by: player })).toThrow('Only the GM')
+    expect(() => act(pending, { type: 'answerDeclaration', combatantKey: HERO, approve: 'yes' })).toThrow('Approve or reject')
+    expect(() => act(pending, { type: 'answerDeclaration', combatantKey: ROY, approve: true })).toThrow('not waiting for approval')
+    expect(() => act(original, { type: 'answerDeclaration', combatantKey: HERO, approve: true })).toThrow('not waiting for approval')
+    const rejected = act(pending, { type: 'answerDeclaration', combatantKey: HERO, approve: false }).records
+    expect(state(rejected).pendingActions).toEqual([{ combatantKey: HERO, action: 'declare' }])
+    expect(who(rejected, HERO)).toMatchObject({ declaration: null, proposedDeclaration: null, declarationRejected: true })
+    const replacement = act(rejected, { type: 'declare', actor: HERO, by: player, full: true, against: DALE }).records
+    expect(who(replacement, HERO)).toMatchObject({ declarationRejected: false, proposedDeclaration: { lines: [{ against: DALE, amount: 50 }] } })
+    expect(() => act(replacement, { type: 'answerDeclaration', combatantKey: HERO, approve: true, stage: state(pending).stageInstanceId })).toThrow('stage is stale')
+    expect(() => act(replacement, { type: 'declare', actor: HERO, by: player, full: true, against: ROY, stage: state(original).stageInstanceId })).toThrow('stage is stale')
+    const approved = act(replacement, { type: 'answerDeclaration', combatantKey: HERO, approve: true }).records
+    expect(who(approved, HERO).declaration!.lines).toEqual([{ against: DALE, amount: 50 }])
+    expect(() => act(approved, { type: 'answerDeclaration', combatantKey: HERO, approve: false })).toThrow('not waiting for approval')
+    expect(() => act(movement(), { type: 'answerDeclaration', combatantKey: HERO, approve: true })).toThrow('Declaring is not open')
+  })
+
+  it('moves past a pending review if the GM takes its declarer Out', () => {
+    const pending = act(declaring(), { type: 'declare', actor: HERO, full: true, against: ROY }).records
+    const removed = act(pending, { type: 'takeOut', combatantKey: HERO }).records
+    expect(state(removed).pendingActions).toEqual([{ combatantKey: ROY, action: 'declare' }])
+    expect(() => act(removed, { type: 'answerDeclaration', combatantKey: HERO, approve: true })).toThrow('not waiting for approval')
   })
 })

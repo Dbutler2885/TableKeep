@@ -3,7 +3,7 @@ import { sheetPayload } from '../../../character/characterStore/sheetIntentionEd
 import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecord'
 import type { LubecHands } from '../../../ruleSets/lubec/gear/held'
 import { LubecFightWindowContent } from '../../fight/LubecFightWindowContent'
-import { lubecCombatantKey, lubecCombatantRecord, type LubecCombatant } from '../../fight/lubecFightRequest'
+import { lubecCombatantFace, lubecCombatantKey, lubecCombatantRecord, type LubecCombatant } from '../../fight/lubecFightRequest'
 import { combatOpponents } from '../engine/attackParty'
 import type { CombatAim, CombatAttack, Combatant, CombatState } from '../engine/types'
 import { AttackBar, SegmentRoll } from './AttackBar'
@@ -78,12 +78,15 @@ const targetNote = (state: CombatState) => (target: LubecCombatant): string => {
 
 type ChoicesProps = { body: BodyProps; draft: AttackDraft; setDraft: (draft: AttackDraft) => void; model: AttackWindowModel }
 
-/** The choices look as the mock-up draws them in every window; a declared attack's engine refuses a change to what has not gone, and says so. */
+/** A round keeps the declaration fixed, reopening only the choices that have gone. */
 function WindowChoices({ body, draft, setDraft, model }: ChoicesProps) {
+  const declared = isRoundAttack(body.state, body.attack)
+  const gone = attackGone(body.state, body.attack, body.sheet)
   return (
     <LubecFightWindowContent
       request={{ attacker: body.fighter, target: model.target, weaponItemId: draft.weaponItemId ?? undefined, attackId: draft.attackId ?? undefined }}
       targets={model.targets} targetNote={targetNote(body.state)} onInventory={body.onInventory}
+      targetLocked={declared && !gone.target} weaponLocked={declared && !gone.weapon}
       onTarget={(key) => setDraft({ ...draft, targetKey: key })}
       onWeapon={(id) => setDraft(withWeapon(draft, body.sheet, id))}
       onAttack={(id) => setDraft({ ...draft, attackId: id })}
@@ -122,7 +125,7 @@ function WindowSplit(props: SplitProps) {
   const roll = <SegmentRoll at={segmentMiddle(segments.attackFrom, segments.attackWidth)} label="Roll" disabled={!model.ready || busy} onRoll={onRoll} />
   return (
     <>
-      <AttackAsk target={target} reading={reading} range={model.range} segments={segments} />
+      <AttackAsk target={target} reading={reading} range={model.range} evasion={model.evasion} segments={segments} />
       <AttackBar segments={segments} onDefense={moveDefense} controls={roll} />
       <SplitLine {...props} />
     </>
@@ -160,9 +163,9 @@ function ChooseAgain({ body, gone, refuse }: AgainProps) {
 }
 
 /** Why this attack runs now: a Sneak Attack's grant, or a declared attack with whatever has gone since. */
-function WindowNotices({ body, refusal, gone }: { body: BodyProps; refusal: string | null; gone: AttackGone }) {
-  if (!isRoundAttack(body.state, body.attack)) return <AttackNotices attacker={body.attacker} attack={body.attack} refusal={refusal} gm={body.gm} />
-  return <RoundNotices attack={body.attack} targetName={combatantName(body.state, body.attack.aim!.targetKey)} gone={gone} refusal={refusal} />
+function WindowNotices({ body, gone }: { body: BodyProps; gone: AttackGone }) {
+  if (!isRoundAttack(body.state, body.attack)) return <AttackNotices attacker={body.attacker} attack={body.attack} refusal={null} gm={body.gm} />
+  return <RoundNotices attack={body.attack} targetName={combatantName(body.state, body.attack.aim!.targetKey)} gone={gone} refusal={null} />
 }
 
 function WindowBody(body: BodyProps) {
@@ -171,11 +174,12 @@ function WindowBody(body: BodyProps) {
   const gone = attackGone(body.state, body.attack, body.sheet)
   return (
     <>
-      <WindowNotices body={body} refusal={refusal} gone={gone} />
-      <AttackTrail attacker={body.attacker} round={body.state.round} />
+      <WindowNotices body={body} gone={gone} />
+      <AttackTrail attacker={body.attacker} target={model.target ? lubecCombatantFace(model.target).name : null} round={body.state.round} />
       <WindowChoices body={body} draft={draft} setDraft={setDraft} model={model} />
       <ChooseAgain body={body} gone={gone} refuse={refuse} />
       <WindowRange body={body} model={model} refuse={refuse} />
+      {refusal ? <div className="notice hot" role="alert"><span>{refusal}</span></div> : null}
       <WindowSplit model={model} draft={draft} setDraft={setDraft} busy={roll.busy} onRoll={roll.roll} state={body.state} declared={declared} />
     </>
   )
@@ -189,7 +193,7 @@ function WindowBody(body: BodyProps) {
 export function SneakAttackWindow(props: WindowProps) {
   const fighter = combatFightCombatant(props.attacker, props.roster)
   const sheet = fighter ? lubecCombatantRecord(fighter)?.lubec : undefined
-  const foot = isRoundAttack(props.state, props.attack) ? 'Your declared split is locked. Only Roll is left.' : 'No declaration before initiative: this attack goes now.'
+  const foot = isRoundAttack(props.state, props.attack) ? 'Your declared attack and split are locked. Roll when ready; choose again only if your target or weapon has gone.' : 'No declaration before initiative: this attack goes now.'
   return (
     <CombatWindow title="Attack" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Roll']} now={3} />} foot={<span className="note">{foot}</span>}>
       {sheet ? <WindowBody key={props.attack.id} {...props} fighter={fighter!} sheet={sheet} /> : <p className="note">Reading {props.attacker.name}&apos;s sheet...</p>}

@@ -10,12 +10,13 @@ function Pips({ now }: { now: number }) {
 }
 
 /** The page head: the tab's title, the round and the stage under it, and the round's stage pips once rounds begin. */
-export function CombatHead({ round, stage, pips = null }: { round: string; stage: string; pips?: number | null }) {
+export function CombatHead({ round, stage, pips = null, actions = null }: { round: string; stage: string; pips?: number | null; actions?: ReactNode }) {
   return (
     <div className="chead">
       <span className="title">Combat</span>
       <span className="rnd">{round}<small>{stage}</small></span>
       {pips === null ? <span /> : <Pips now={pips} />}
+      {actions}
     </div>
   )
 }

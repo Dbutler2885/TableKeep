@@ -27,7 +27,7 @@ export const combatPhaseView = (state: CombatState): CombatPhaseView => (PHASE_V
 
 /** Who a row is to this viewer: their own character, another player's, or an NPC. */
 export const combatantRole = (combatant: Combatant, userId: string): string =>
-  (combatant.kind === 'npc' ? 'NPC' : combatant.ownerUserId === userId ? 'You' : 'Player')
+  (combatant.kind === 'npc' ? (combatant.ally ? 'Ally' : 'NPC') : combatant.ownerUserId === userId ? 'You' : 'Player')
 
 /** Why initiative cannot begin yet, or null when it can. */
 export function beginBlocked(state: CombatState): string | null {

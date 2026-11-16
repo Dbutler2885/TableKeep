@@ -42,7 +42,7 @@ function fight(sheets: CombatSheet[] = [hero(), roy()], armor: { locs: string[];
   return { activeFightId: 'fight', fight: plan.fight, sheets, items: new Map() }
 }
 
-type Dice = Partial<Record<'attack' | 'defense' | 'catch' | 'landing' | 'side' | 'strength', number>>
+type Dice = Partial<Record<'attack' | 'defense' | 'catch' | 'landing' | 'side' | 'strength' | 'wound-choice' | 'check', number>>
 
 /** Command-bound dice with each purpose scripted; an unscripted purpose fails the test. */
 function scripted(command: CombatCommand, values: Dice) {
@@ -230,13 +230,30 @@ describe('the landing, Strength and Impact', () => {
     expect(plan.fight.state.floor).toHaveLength(1)
   })
 
-  it('records a table not wired yet for the GM, changing no sheet', () => {
+  it('reads a located table and queues its wound, with its Trauma and words, for the target\'s sheet', () => {
     const slash = { targetKey: ROY, weaponItemId: 'knife', attackId: 'slash', defense: null }
     // A slash's d100 of 30 lands on the torso.
     const placed = act(defend(thrown(27, fight(), slash, false).records, { amount: 0 }, { landing: 30 }).records, { type: 'land', actor: HERO, by: player, part: 'torso' }).records
     const { plan } = act(placed, { type: 'strength', actor: HERO, by: player, dice: { strength: 10 } })
-    expect(plan.fight.state.attack).toMatchObject({ outcome: 'manual', closed: true, impact: { total: 4, table: 'cutting' } })
+    expect(plan.fight.state.attack).toMatchObject({
+      outcome: 'wounded', closed: true, impact: { total: 4, table: 'cutting' }, rowOutcome: 'Bleeding timer.', rowTrauma: 1,
+      row: { table: 'cutting', group: 'torso', impact: 4, name: 'Long chest cut', severity: 'Serious', trauma: 1, check: null, injury: null, choice: null, out: false },
+    })
+    expect(plan.fight.state.woundOutbox).toEqual([expect.objectContaining({
+      target: { kind: 'npc', sheetId: 'roy' }, traumaDelta: 1, stressDelta: 0,
+      effect: expect.objectContaining({ name: 'Long chest cut', cause: 'Cutting, torso, Impact 4: Serious Long chest cut', struckLocation: 'torso', steps: [{ modifiers: [], labels: ['Bleeding timer.'] }] }),
+    })])
+    expect(plan.fight.state.combatants.find((entry) => entry.key === ROY)!.outReason).toBeNull()
     expect(plan.sheets).toBeUndefined()
+  })
+
+  it('leaves a table the app has no rows for to the GM, changing no sheet', () => {
+    const shoot = { targetKey: ROY, weaponItemId: 'gun', attackId: 'shoot', defense: null }
+    const records = fight([hero([ball(), { ...revolver, table: 'homebrew' }]), roy()])
+    const { plan } = thrown(13, records, shoot)
+    const { plan: hit } = act({ ...records, fight: plan.fight }, { type: 'land', actor: HERO, by: player, part: 'waist' })
+    expect(hit.fight.state.attack).toMatchObject({ outcome: 'manual', closed: true, impact: { table: 'homebrew' } })
+    expect(hit.fight.state.woundOutbox).toEqual([])
   })
 
   it('lands a firearm hit at once, skips Defense and Strength, and goes to the table', () => {
@@ -244,8 +261,13 @@ describe('the landing, Strength and Impact', () => {
     const records = fight([hero([ball(), revolver]), roy()])
     const { plan } = thrown(13, records, shoot)
     expect(plan.fight.state.attack).toMatchObject({ step: 'location', net: 1, landing: { table: 'firearm', startRoll: 40, start: 'waist' } })
-    const { plan: hit } = act({ ...records, fight: plan.fight }, { type: 'land', actor: HERO, by: player, part: 'waist' })
-    expect(hit.fight.state.attack).toMatchObject({ outcome: 'manual', impact: { strength: null, total: 3, table: 'gunshot' } })
+    const { plan: hit } = act({ ...records, fight: plan.fight }, { type: 'land', actor: HERO, by: player, part: 'waist', dice: { 'wound-choice': 2 } })
+    // Gunshot waist 3 names two wounds; the d2 of 2 is the lodged bullet, which leaves a lasting injury.
+    expect(hit.fight.state.attack).toMatchObject({
+      outcome: 'wounded', impact: { strength: null, total: 3, table: 'gunshot' },
+      row: { name: 'Lodged bullet', text: '-20 Strength and Speed for exertion until proper medical treatment; First Aid stabilizes but cannot remove it.', choice: 2, injury: 'Lodged object', severity: 'Serious' },
+    })
+    expect(hit.fight.state.woundOutbox[0].effect.steps).toEqual([{ modifiers: [], labels: ['-20 Strength and Speed for exertion until proper medical treatment; First Aid stabilizes but cannot remove it.', 'Lasting injury: Lodged object'] }])
   })
 
   it('lands a quality 0 hit with no Defense, with no reach to move it', () => {

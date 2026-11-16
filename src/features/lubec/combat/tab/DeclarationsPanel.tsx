@@ -50,9 +50,12 @@ function DeclaredRow({ state, place, combatant, declaration, mine }: RowProps) {
   const own = mine.includes(combatant.key)
   const atYou = !own && declaredAt(declaration, mine)
   const out = struck(combatant, declaration)
+  // DeclarationRow supplies the proposal only when there is no approved declaration.
+  const pending = !combatant.declaration
   return (
     <li className={`${own ? 'you' : ''} ${atYou ? 'atyou' : ''}`}>
       <div className="dn"><span>{place} {combatant.name}</span><span className="k">{rowTag(own, atYou)}</span></div>
+      {pending ? <span className="badge must">Awaiting GM approval</span> : null}
       <DeclarationMini declaration={declaration} />
       <div className={`txt ${out ? 'stopped' : ''}`}><DeclarationWords state={state} declaration={declaration} />{out ? <Stopped combatant={combatant} /> : null}</div>
     </li>
@@ -61,14 +64,19 @@ function DeclaredRow({ state, place, combatant, declaration, mine }: RowProps) {
 
 type PanelProps = { state: CombatState; viewer: CombatViewer }
 
+function DeclarationRow({ state, combatant, place, mine, now }: Omit<RowProps, 'declaration'> & { now: string | undefined }) {
+  const declaration = combatant.declaration ?? combatant.proposedDeclaration
+  return declaration
+    ? <DeclaredRow state={state} place={place} combatant={combatant} declaration={declaration} mine={mine} />
+    : <PendingRow place={place} combatant={combatant} mine={mine.includes(combatant.key)} now={combatant.key === now} />
+}
+
 function DeclarationRows({ state, viewer }: PanelProps) {
   const mine = viewerKeys(state, viewer)
   const now = state.pendingActions?.find((action) => action.action === 'declare')?.combatantKey
   return (
     <ul className="decls">
-      {slowestFirst(state).map((combatant, index) => (combatant.declaration
-        ? <DeclaredRow key={combatant.key} state={state} place={index + 1} combatant={combatant} declaration={combatant.declaration} mine={mine} />
-        : <PendingRow key={combatant.key} place={index + 1} combatant={combatant} mine={mine.includes(combatant.key)} now={combatant.key === now} />))}
+      {slowestFirst(state).map((combatant, index) => <DeclarationRow key={combatant.key} state={state} place={index + 1} combatant={combatant} mine={mine} now={now} />)}
     </ul>
   )
 }

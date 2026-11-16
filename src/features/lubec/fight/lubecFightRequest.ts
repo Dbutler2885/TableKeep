@@ -114,9 +114,10 @@ export const lubecSummaryNpcId = (request: LubecFightRequest | null, isGm: boole
 export const lubecWithSummary = (request: LubecFightRequest, summary: LubecNpcFightSummary | null): LubecFightRequest =>
   (request.target?.kind === 'npc' && summary ? { ...request, target: { ...request.target, summary } } : request)
 
-/** Who may be picked as a target: everyone the host offers but the attacker, and the request's own target. */
+/** Keep the host's target order; a selected target updates its reading in place, or joins the end if absent. */
 export function lubecTargetChoices(request: LubecFightRequest, targets: readonly LubecCombatant[]): LubecCombatant[] {
-  const named = request.target ? [request.target] : []
-  const seen = new Set([lubecCombatantKey(request.attacker), ...named.map(lubecCombatantKey)])
-  return [...named, ...targets.filter((t) => !seen.has(lubecCombatantKey(t)))]
+  const choices = new Map(targets.map((target) => [lubecCombatantKey(target), target] as const))
+  choices.delete(lubecCombatantKey(request.attacker))
+  if (request.target) choices.set(lubecCombatantKey(request.target), request.target)
+  return [...choices.values()]
 }

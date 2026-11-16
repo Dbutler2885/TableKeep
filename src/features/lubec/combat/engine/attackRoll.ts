@@ -12,7 +12,8 @@ import { requireLiveContext } from './context'
 import { closeAttack, stepRequest, toLocation } from './attackFlow'
 import { declaredLine, isRoundAttack } from './roundAttacks'
 import { weaponInHand } from './chooseAgain'
-import type { CombatAttack, CombatCommand, Combatant, CombatFight, CombatFrozenAim, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
+import { evasionFor } from './evasion'
+import type { CombatAttack, CombatCommand, Combatant, CombatEvasion, CombatFight, CombatFrozenAim, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
 
 type Spent = { gear: LubecGear | null; detached: LubecDetachedItem[] }
 
@@ -55,14 +56,21 @@ function resultWords(result: CombatAttackResult): string {
   return `Hit · Quality ${result.quality}${result.critical ? ' (critical)' : ''}`
 }
 
-function rollLog(state: CombatState, attacker: Combatant, target: Combatant, frozen: CombatFrozenAim, result: CombatAttackResult): CombatLog {
-  const thrown = frozen.choice.ranged && !frozen.choice.firearm
+/** What the roll card adds under the result: a thrown object leaving the hand, and the target's Evasive Movement. */
+function rollExtra(attacker: Combatant, target: Combatant, frozen: CombatFrozenAim, evasion: CombatEvasion | null): string | null {
+  const thrown = frozen.choice.ranged && !frozen.choice.firearm ? `${frozen.weaponName} thrown at ${target.name}; it has left ${attacker.name}'s hand.` : null
+  const evaded = evasion ? `${target.name} is moving evasively: −${evasion.penalty} to hit.` : null
+  return [thrown, evaded].filter(Boolean).join(' ') || null
+}
+
+function rollLog(state: CombatState, attacker: Combatant, target: Combatant, frozen: CombatFrozenAim, result: CombatAttackResult, evasion: CombatEvasion | null): CombatLog {
+  const extra = rollExtra(attacker, target, frozen, evasion)
   return {
     event: `${attacker.name} attacked ${target.name}.`, actor: attacker.key,
     roll: {
       who: attacker.name, what: state.round === 0 ? 'Attack roll (before initiative)' : 'Attack roll',
       roll: pad(result.roll), target: `against ${result.attackNumber}`, tone: result.hit ? 'ok' : 'bad', result: resultWords(result),
-      ...(thrown ? { extra: `${frozen.weaponName} thrown at ${target.name}; it has left ${attacker.name}'s hand.` } : {}),
+      ...(extra ? { extra } : {}),
     },
   }
 }
@@ -98,10 +106,12 @@ function rollPlan(fight: CombatFight, attack: CombatAttack, record: CombatSheet,
   const target = requireOpponent(state, attacker, attack.aim!.targetKey)
   requireStillLegal(record, attack)
   const spent = spend(record.sheet.gear, attack.aim!.weaponItemId, frozen.choice, command.envelope.id)
-  const result = combatAttackResult(entropy.die('attack', 100), frozen.attack + (attack.range?.modifier ?? 0))
+  // A ranged attack at an evader takes the evasion penalty off the attack number, beside the GM's range.
+  const evasion = evasionFor(state, target.key, frozen.choice)
+  const result = combatAttackResult(entropy.die('attack', 100), frozen.attack + (attack.range?.modifier ?? 0) - (evasion?.penalty ?? 0))
   return {
-    fight: { ...fight, state: rolledState(state, attack, result, spent.detached, entropy) }, items: [],
-    logs: [rollLog(state, attacker, target, frozen, result)],
+    fight: { ...fight, state: rolledState(state, { ...attack, evasion }, result, spent.detached, entropy) }, items: [],
+    logs: [rollLog(state, attacker, target, frozen, result, evasion)],
     sheets: spent.gear ? [{ selection: { kind: attacker.kind, sheetId: attacker.sheetId }, gear: spent.gear }] : [],
   }
 }

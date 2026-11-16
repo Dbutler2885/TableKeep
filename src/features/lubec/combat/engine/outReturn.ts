@@ -48,7 +48,7 @@ const takeOut: CombatHandler = (command, records, authority, entropy) => {
   const fight = requireLiveContext(command, records, authority)
   const combatant = combatantOf(fight.state, String(command.payload.combatantKey))
   requireIn(combatant)
-  const combatants = fight.state.combatants.map((entry) => (entry.key === combatant.key ? { ...entry, outReason: 'gm', declaration: stopped(entry.declaration) } : entry))
+  const combatants = fight.state.combatants.map((entry) => (entry.key === combatant.key ? { ...entry, outReason: 'gm', declaration: stopped(entry.declaration), proposedDeclaration: null, declarationRejected: false } : entry))
   const next = withRequests(stopAttack({ ...fight.state, combatants }, combatant.key, entropy), entropy)
   return { fight: { ...fight, state: next.state }, items: [], logs: [{ event: `The GM took ${combatant.name} out of the fight.`, actor: null }, ...next.logs] }
 }

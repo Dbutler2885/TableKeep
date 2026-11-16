@@ -51,6 +51,18 @@ describe('atomic lifecycle intentions', () => {
     expect(plan.fight.state.combatants.map((actor) => actor.key)).toEqual(['character:hero', 'character:rival', 'npc:roy'])
   })
 
+  it('marks the NPCs put on the players\' side and nobody else', () => {
+    const current = { ...records(), sheets: [sheet(), rival(), npc()] }
+    const plan = planCombatCommand(command('start', { ...crowd, allies: ['npc:roy'] }), current, gm)
+    expect(plan.fight.state.combatants.map((actor) => [actor.key, actor.ally])).toEqual([['character:hero', undefined], ['character:rival', undefined], ['npc:roy', true]])
+    expect('ally' in plan.fight.state.combatants[0]).toBe(false)
+  })
+
+  it.each([['a character', 'character:hero'], ['an NPC outside the fight', 'npc:dale']])('refuses to put %s on the players\' side', (_, key) => {
+    const current = { ...records(), sheets: [sheet(), rival(), npc()] }
+    expect(() => planCombatCommand(command('start', { ...crowd, allies: [key] }), current, gm)).toThrow("Only an NPC in the fight can be on the players' side.")
+  })
+
   it('copies a whole library stack under a new lineage id and keeps the library record unwritten', () => {
     const current = records()
     current.items.set('ball', ball('ball', { status: 'library' }))

@@ -15,6 +15,7 @@ import { lubecDetachedItem } from '../../../ruleSets/lubec/gear/detachedItems'
 import type { LubecItem } from '../../../ruleSets/lubec/gear/gearRecord'
 import { LubecCombatContext, type LubecLiveFight } from '../combatWatch'
 import { combatEntropy } from '../engine/commandEntropy'
+import { DeclarationReviewModal } from '../DeclarationReviewModal'
 import { planCombatCommand } from '../engine/lifecycle'
 import type { CombatCommand, CombatOutcome, CombatRecords, CombatSheet } from '../engine/types'
 
@@ -57,14 +58,14 @@ const sheetOf = (record: ReturnType<typeof kid>, kind: 'character' | 'npc'): Com
   ({ kind, sheetId: record.id, name: record.name, ownerUserId: record.ownerUserId, portraitPath: '', sheet: record.lubec, revision: 1 })
 const royNpc = { id: 'roy', name: 'Roy Carver', portraitUrl: null, portraitFocusX: 50, portraitFocusY: 50, tokenIcon: { icon: 'pawn', color: '#555555', size: 34 } } as NpcRecord
 
-type Step = { type: string; actor?: string | null; dice?: Record<string, number>; [key: string]: unknown }
+type Step = { type: string; actor?: string | null; awaitReview?: boolean; dice?: Record<string, number>; [key: string]: unknown }
 
 /** A fight played through the engine with each purpose's die scripted. */
 function fightAfter(...steps: Step[]): LubecLiveFight {
   const sheets = [sheetOf(currentWayne(), 'character'), sheetOf(royRecord(), 'npc')]
   let records: CombatRecords = { activeFightId: null, fight: null, sheets, items: new Map() }
   const all: Step[] = [{ type: 'start', combatants: [{ kind: 'character', sheetId: 'wayne' }, { kind: 'npc', sheetId: 'roy' }], floor: [], dodgeball: true }, ...steps]
-  all.forEach(({ actor = null, dice = {}, ...payload }, index) => {
+  all.forEach(({ actor = null, dice = {}, awaitReview = false, ...payload }, index) => {
     const state = records.fight?.state
     const command: CombatCommand = {
       envelope: { id: `step-${index}`, groupId: 'school', campaignId: 'gym', fightId: 'fight', round: state?.round ?? 0, phase: state?.phase ?? 'setup', stageInstanceId: state?.stageInstanceId ?? 'setup', actorKey: actor, interactionSequence: state?.combatants.find((entry) => entry.key === actor)?.interactionSequence ?? 0 },
@@ -73,6 +74,12 @@ function fightAfter(...steps: Step[]): LubecLiveFight {
     const entropy = combatEntropy(command)
     const scripted = { ...entropy, die: (purpose: string, sides: number) => dice[purpose] ?? entropy.die(purpose, sides) }
     records = { ...records, activeFightId: 'fight', fight: planCombatCommand(command, records, { userId: 'gm', isGm: true }, undefined, scripted).fight }
+    // Ordinary fixtures include GM approval; review-specific cases stop at submission.
+    if (payload.type === 'declare' && actor?.startsWith('character:') && !awaitReview) {
+      const current = records.fight!.state
+      const approval: CombatCommand = { ...command, envelope: { ...command.envelope, id: `approval-${index}`, actorKey: null, interactionSequence: 0, stageInstanceId: current.stageInstanceId }, payload: { type: 'answerDeclaration', combatantKey: actor, approve: true } }
+      records = { ...records, fight: planCombatCommand(approval, records, { userId: 'gm', isGm: true }).fight }
+    }
     if (index === 0) records.fight!.state.floor = [floorBall()]
   })
   return { id: 'fight', fight: records.fight! }
@@ -91,6 +98,7 @@ const throwAt = { targetKey: ROY, weaponItemId: 'ball', attackId: 'throw', defen
 const show = (role: Role, userId: string, live: LubecLiveFight) => render(
   <MemoryRouter initialEntries={['/groups/school/campaigns/gym/combat']}>
     <LubecCombatContext value={{ enabled: true, ready: true, live }}>
+      {role === 'gm' ? <DeclarationReviewModal scope={{ groupId: 'school', campaignId: 'gym' }} live={live} userId={userId} /> : null}
       <Routes><Route path="*" element={<LubecCombat campaign={campaign} role={role} user={{ uid: userId } as User} username="someone" setError={() => undefined} characterTabProps={null} />} /></Routes>
     </LubecCombatContext>
   </MemoryRouter>,
@@ -101,6 +109,8 @@ const sentOf = (type: string) => mocks.sent.filter((command) => command.payload.
 const rail = (title: string) => within(screen.getByRole('heading', { name: new RegExp(`^${title}`) }).closest('.panel') as HTMLElement)
 
 beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.open = true }
+  HTMLDialogElement.prototype.close = function () { this.open = false }
   mocks.sent = []
   mocks.outcome = { ok: true, fightId: 'fight', generatedIds: [], rolls: [] }
   currentWayne = wayne
@@ -218,7 +228,7 @@ describe('Movement for the GM', () => {
     live.fight.state.floor = [...live.fight.state.floor, lubecDetachedItem({ ...knife, id: 'floor-knife' }, [])]
     show('gm', 'gm', live)
     const select = screen.getByRole('combobox', { name: 'Roy Carver movement' })
-    expect([...select.querySelectorAll('option')].map((option) => option.textContent)).toEqual(['Move or stay', 'Run', 'Pick up: Dodgeball', 'Pick up: Knife', 'Leave the fight'])
+    expect([...select.querySelectorAll('option')].map((option) => option.textContent)).toEqual(['Move or stay', 'Run', 'Evasive', 'Pick up: Dodgeball', 'Pick up: Knife', 'Leave the fight'])
     expect(screen.getByText(/^Knife ×1$/)).toBeTruthy()
     cleanup()
     const bare = fightAfter(...rolled)
@@ -254,13 +264,68 @@ describe('Movement for the GM', () => {
   })
 })
 
+describe('declaration approval', () => {
+  const proposal: Step = { type: 'declare', actor: WAYNE, aim: throwAt, awaitReview: true }
+
+  it('gives the GM approve and reject controls for the submitted choice', async () => {
+    show('gm', 'gm', fightAfter(...declaring(), proposal))
+    expect(screen.getByRole('region', { name: 'Review declaration' })).toBeTruthy()
+    expect(rail('Declarations').getByText('Awaiting GM approval')).toBeTruthy()
+    expect(rail('Turn order').getByText('Now')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
+    fireEvent.click(button('Reject declaration'))
+    await waitFor(() => expect(sentOf('answerDeclaration')[0]).toMatchObject({ envelope: { actorKey: null, phase: 'declare' }, payload: { type: 'answerDeclaration', combatantKey: WAYNE, approve: false } }))
+    fireEvent.click(button('Approve declaration'))
+    await waitFor(() => expect(sentOf('answerDeclaration')[1].payload).toEqual({ type: 'answerDeclaration', combatantKey: WAYNE, approve: true }))
+  })
+
+  it.each(['wayne-uid', 'marcy-uid'])('keeps player %s waiting without declaration or approval controls', (uid) => {
+    show('player', uid, fightAfter(...declaring(), proposal))
+    expect(screen.getByRole('region', { name: 'Waiting for GM approval' })).toBeTruthy()
+    expect(screen.getByText('The next person declares after the GM approves this choice.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Approve declaration' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Reject declaration' })).toBeNull()
+  })
+
+  it('returns the choice to the same player after rejection, then holds their revised choice for approval', () => {
+    const rejected: Step = { type: 'answerDeclaration', combatantKey: WAYNE, approve: false }
+    show('player', 'wayne-uid', fightAfter(...declaring(), proposal, rejected))
+    expect(screen.getByText('The GM rejected your declaration. Choose again; it is still your turn to declare.')).toBeTruthy()
+    expect(button('Declare')).toBeTruthy()
+    cleanup()
+    show('gm', 'gm', fightAfter(...declaring(), proposal, rejected, { type: 'declare', actor: WAYNE, full: true, against: ROY, awaitReview: true }))
+    expect(screen.getByRole('region', { name: 'Review declaration' })).toBeTruthy()
+    expect(screen.getAllByText(/Full Defense/).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
+  })
+
+  it('shows a failed GM decision for a pending player declaration', async () => {
+    mocks.outcome = { ok: false, reason: 'That fight stage is stale.' }
+    show('gm', 'gm', fightAfter(...declaring(), proposal))
+    expect(screen.getByRole('region', { name: 'Review declaration' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Roll' })).toBeNull()
+    fireEvent.click(button('Approve declaration'))
+    expect(await screen.findByRole('alert')).toBeTruthy()
+  })
+
+  it('advances after the GM submits the final NPC declaration without opening review', () => {
+    const live = fightAfter(...declaring(), { type: 'declare', actor: WAYNE, aim: throwAt }, { type: 'declare', actor: ROY, full: true, against: WAYNE })
+    expect(live.fight.state.phase).toBe('attack')
+    show('gm', 'gm', live)
+    expect(screen.queryByRole('dialog', { name: 'Review declaration' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Approve declaration' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Reject declaration' })).toBeNull()
+  })
+})
+
 describe('Declare', () => {
   it('opens the attack window with Declare where Roll sits, and sends the split', async () => {
     show('player', 'wayne-uid', fightAfter(...declaring()))
     expect(screen.getByRole('region', { name: 'Declare' })).toBeTruthy()
     expect(screen.getByText('Stage 2, Declare')).toBeTruthy()
     expect(screen.getByText('Split your Handle against Roy Carver.')).toBeTruthy()
-    expect(screen.getByText('Once you declare, everyone can see your split. You roll on your turn.')).toBeTruthy()
+    expect(screen.getByText('Submit your choice for GM approval. The next person waits until it is approved.')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Add a Defense line' }))
     fireEvent.click(button('Declare'))
     await waitFor(() => expect(sentOf('declare')[0]).toMatchObject({ envelope: { actorKey: WAYNE, phase: 'declare' }, payload: { full: false, aim: { ...throwAt, defense: { against: ROY, amount: 20 } } } }))
@@ -287,6 +352,7 @@ describe('Declare', () => {
     expect(screen.getByRole('region', { name: 'Declare' })).toBeTruthy()
     cleanup()
     show('gm', 'gm', fightAfter(...declaring(), { type: 'declare', actor: WAYNE, aim: throwAt }))
+    expect(screen.getByText('Your NPC declaration takes effect when submitted. The next turn begins automatically.')).toBeTruthy()
     expect(screen.getByText(/Wayne Gardner/, { selector: '.notice b' })).toBeTruthy()
     expect(screen.getByText(/has declared a throw at you \(ATK 61\)/)).toBeTruthy()
     expect(screen.getByRole('radio', { name: /^Wayne Gardner/ }).querySelector('.badge')!.textContent).toBe('Throws at you')
@@ -295,7 +361,7 @@ describe('Declare', () => {
   it('shows the waiting declarer their own declaration and everyone every split', () => {
     show('player', 'wayne-uid', fightAfter(...declaring(), { type: 'declare', actor: WAYNE, aim: { ...throwAt, defense: { against: ROY, amount: 20 } } }))
     expect(screen.getByText('The fight is waiting on Roy Carver')).toBeTruthy()
-    expect(screen.getByText('Roy Carver is the last to declare. Then the attacks begin, fastest first.')).toBeTruthy()
+    expect(screen.getByText('Roy Carver is the last to declare. After GM approval, the attacks begin, fastest first.')).toBeTruthy()
     expect(screen.getByText('Your declaration')).toBeTruthy()
     expect(screen.getByText('Wayne Gardner: a Dodgeball in the left hand and a Knife in the right hand.')).toBeTruthy()
     const declarations = rail('Declarations')
@@ -318,7 +384,7 @@ describe('Declare', () => {
 
   it('picks the weapon, target and use in the window, and guards Full Defense against the person chosen', async () => {
     show('player', 'wayne-uid', fightAfter(...declaring()))
-    fireEvent.click(screen.getByRole('button', { name: 'Right hand' }))
+    fireEvent.click(screen.getByRole('button', { name: /Right hand.*Knife/ }))
     fireEvent.click(screen.getByRole('radio', { name: /^Roy Carver/ }))
     const uses = within(document.querySelector('.win-grid') as HTMLElement).queryAllByRole('radio').filter((entry) => entry.classList.contains('mode'))
     if (uses[0]) fireEvent.click(uses[0])
@@ -361,3 +427,32 @@ describe('Declare', () => {
     expect(screen.getByText('Stopped: Out')).toBeTruthy()
   })
 })
+
+describe('Evasive Movement', () => {
+  const evade = { choice: 'evade', pickup: null }
+
+  it('offers Evasive with its cost, and sends it', async () => {
+    show('player', 'wayne-uid', fightAfter(...rolled))
+    expect(radio(/^Evasive/).textContent).toBe('EvasiveUses your action: no attack this round. Roll Speed; a success makes ranged attacks at you harder.')
+    fireEvent.click(radio(/^Evasive/))
+    fireEvent.click(button('Confirm movement'))
+    await waitFor(() => expect(sentOf('move')[0].payload).toMatchObject({ choice: 'evade', pickup: null }))
+  })
+
+  it('closes Evasive, and says why, while a wound on the sheet says No Evasive Movement', () => {
+    const hurt = () => { const record = wayne(); record.lubec.effects = [{ id: 'w', name: 'Damaged hip', cause: 'Blunt Force, groin, Impact 5', steps: [{ modifiers: [], labels: ['Half Movement. No Evasive Movement.'] }] }]; return record }
+    mocks.roster = { characters: [hurt()], npcs: [{ npc: royNpc, sheet: royRecord() }] }
+    show('player', 'wayne-uid', fightAfter(...rolled))
+    expect((radio(/^Evasive/) as HTMLButtonElement).disabled).toBe(true)
+    expect(radio(/^Evasive/).textContent).toBe('EvasiveDamaged hip says No Evasive Movement.')
+  })
+
+  it('shows the Speed roll in the turn order, and keeps the evader to Full Defense when they declare', () => {
+    show('player', 'wayne-uid', fightAfter(...moved(evade), { type: 'settleMovement', dice: { evasion: 47 } }))
+    expect(rail('Turn order').getByText(/Evasive −20/)).toBeTruthy()
+    expect(screen.getByText(/That uses the action, so there is no attack this round/)).toBeTruthy()
+    expect(button('Declare Full Defense')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
+  })
+})
+
