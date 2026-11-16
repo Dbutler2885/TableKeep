@@ -4,6 +4,9 @@ import { prepareSheetIntention, writePreparedSheetIntention } from '../../charac
 import { withSheetRevisionRetry } from '../../character/characterStore/sheetIntentionRetry'
 import { combatantKey } from './engine/inputs'
 import type { CombatFight } from './engine/types'
+import { readSheetRevision } from '../../character/characterStore/sheetIntention'
+import type { SheetIntention } from '../../character/characterStore/sheetIntentionTypes'
+import { roundTickIntention } from './roundTick'
 import { combatWoundIntention, combatWoundOperationId } from './woundIntention'
 import { readWoundFight, readWoundSheet, requireWoundFightLive, requireWoundGm } from './woundRecords'
 import { requireFreshWoundRead, retryStaleWoundRead } from './woundStaleRead'
@@ -18,16 +21,25 @@ function requireTarget(fight: CombatFight, wound: CombatWound) {
   if (fight.state.woundOutbox.filter((entry) => entry.id === wound.id).length !== 1) throw new Error('Duplicate wound identity; repair the outbox.')
 }
 
+/** The sheet change an outbox entry makes: a wound's cards and counters, or a round tick's endings, or nothing for a tick with nothing to end. */
+const intentionOf = (raw: Record<string, unknown>, wound: CombatWound, fightId: string, operationId: string): SheetIntention | null =>
+  (wound.kind === 'tick' ? roundTickIntention(raw, wound, fightId, operationId) : combatWoundIntention(raw, wound, fightId, operationId))
+
 async function applyWound(db: Firestore, tx: Transaction, scope: CombatWoundScope, fight: CombatFight, wound: CombatWound, recordAttempt: RecordAttempt) {
   requireTarget(fight, wound)
   const { ref, raw } = await readWoundSheet(db, tx, scope, wound.target)
   const operationId = await combatWoundOperationId(scope.fightId, wound.id)
-  const prepared = await prepareSheetIntention(tx, ref, combatWoundIntention(raw, wound, scope.fightId, operationId))
-  requireFreshWoundRead(prepared)
-  if (prepared.outcome.status === 'repair') throw new Error(`Wound delivery needs sheet repair: ${prepared.outcome.code}`)
-  recordAttempt({ ref, revision: prepared.outcome.revision })
+  const intention = intentionOf(raw, wound, scope.fightId, operationId)
+  const prepared = intention ? await prepareSheetIntention(tx, ref, intention) : null
+  if (prepared) {
+    requireFreshWoundRead(prepared)
+    if (prepared.outcome.status === 'repair') throw new Error(`Wound delivery needs sheet repair: ${prepared.outcome.code}`)
+  }
+  // A tick that ends nothing writes no sheet: the revision it read is the one the next roll must read.
+  const revision = prepared ? (prepared.outcome as { revision: number }).revision : readSheetRevision(raw)
+  recordAttempt({ ref, revision })
   const acknowledgement: CombatWoundAcknowledgement = {
-    id: wound.id, target: wound.target, targetRevision: prepared.outcome.revision,
+    id: wound.id, target: wound.target, targetRevision: revision,
     originatingRound: wound.originatingRound, effectiveRound: wound.effectiveRound, operationId,
   }
   const state = {
@@ -35,7 +47,7 @@ async function applyWound(db: Firestore, tx: Transaction, scope: CombatWoundScop
     woundOutbox: fight.state.woundOutbox.filter((entry) => entry.id !== wound.id),
     woundAcknowledgements: [...fight.state.woundAcknowledgements, acknowledgement],
   }
-  writePreparedSheetIntention(tx, prepared)
+  if (prepared) writePreparedSheetIntention(tx, prepared)
   tx.update(campaignDocRef(db, scope, 'combats', scope.fightId), { state, updatedAt: serverTimestamp() })
   return acknowledgement
 }

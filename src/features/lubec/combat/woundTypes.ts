@@ -5,6 +5,12 @@ import type { CombatantSelection } from './engine/types'
 export type CombatWoundScope = CampaignScope & { fightId: string }
 export type CombatWoundOrigin = { fightId: string; woundId: string; originatingRound: number; effectiveRound: number }
 export type CombatWound = {
+  /**
+   * A wound landing, or a round tick: the end of `tickRound` for one combatant, which expires their round windows
+   * from this fight. Absent on a wound queued before ticks existed, which is a wound.
+   */
+  kind?: 'wound' | 'tick'
+  tickRound?: number
   id: string
   target: CombatantSelection
   originatingRound: number

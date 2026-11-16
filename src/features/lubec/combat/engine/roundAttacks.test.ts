@@ -422,3 +422,19 @@ describe('a wound that lands before its target acts', () => {
     expect(state(held.records).attack).toMatchObject({ roll: null, splitRepair: { combatantKey: HERO, was: 65, pool: 25 } })
   })
 })
+
+describe('the end of a round', () => {
+  it('queues one identified tick for each combatant with a window still to process, once, and the next round waits for it', () => {
+    const records = ranged(attacking())
+    const watched = { ...records, fight: { ...records.fight!, state: { ...state(records), roundWatch: { [HERO]: 2, [ROY]: 1 } } } }
+    let current = onward(roll(watched, ROY, royThrow, [99]).records)
+    current = onward(roll(ranged(current), HERO, heroThrow, [99]).records)
+    const next = state(current)
+    expect(next).toMatchObject({ round: 2, phase: 'movement', roundWatch: { [HERO]: 2 } })
+    expect(next.woundOutbox.map((entry) => [entry.kind, entry.id, entry.tickRound, entry.effectiveRound])).toEqual([
+      ['tick', `round-1:${HERO}`, 1, 2], ['tick', `round-1:${ROY}`, 1, 2],
+    ])
+    const moved = everyone(current)
+    expect(() => act(moved, { type: 'declare', actor: HERO, by: player, aim: heroThrow })).toThrow('Waiting for wounds to reach the sheet')
+  })
+})

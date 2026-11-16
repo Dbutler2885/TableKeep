@@ -191,7 +191,9 @@ export const LUBEC_AUTOMATED = {
   taskModifiers: true,
   /** Lost stages, Dazed, knocked down, unconscious. */
   stages: false,
-  /** Round windows and countdowns: "until the end of the next round", "in d4 rounds". */
+  /** "Until the end of the next round": the round tick ends it. */
+  windows: true,
+  /** Round countdowns and stage counts: "in d4 rounds", Dazed. */
   rounds: false,
   /** Rest-of-combat steps ending when the fight ends. */
   closing: false,
@@ -209,7 +211,8 @@ export function lubecStepByHand(effect: LubecEffect, step: LubecEffectStep | und
     || (!LUBEC_AUTOMATED.restrictions && lubecStepRestrictions(step).length > 0)
     || (!LUBEC_AUTOMATED.taskModifiers && lubecStepTaskModifiers(step).length > 0)
     || (!LUBEC_AUTOMATED.stages && STAGE_CARDS.includes(String(effect.cardKey)))
-    || (!LUBEC_AUTOMATED.rounds && (until === 'rounds' || until === 'next-round-end'))
+    || (!LUBEC_AUTOMATED.rounds && until === 'rounds')
+    || (!LUBEC_AUTOMATED.windows && until === 'next-round-end')
     || (!LUBEC_AUTOMATED.closing && until === 'combat-end')
     || (!LUBEC_AUTOMATED.speechSave && typeof step.onReach === 'object' && step.onReach !== null)
 }
@@ -229,6 +232,14 @@ const UNTIL_WORDS = {
 export function lubecStepTrigger(step: LubecEffectStep | undefined): string | null {
   const until = step?.until
   return typeof until === 'string' && Object.hasOwn(UNTIL_WORDS, until) ? UNTIL_WORDS[until as keyof typeof UNTIL_WORDS] : null
+}
+
+/** What ends a card's current step, naming the round a fight's window ends with ("Ends with round 3"). */
+export function lubecEffectTrigger(effect: LubecEffect): string | null {
+  const step = effect.steps[0]
+  const origin = effect.combatOrigin as { originatingRound?: unknown } | undefined
+  if (step?.until === 'next-round-end' && Number.isInteger(origin?.originatingRound)) return `Ends with round ${(origin!.originatingRound as number) + 1}`
+  return lubecStepTrigger(step)
 }
 
 /** A final row's prose as the sheet shows it: the table's `amounts`, *names* and line breaks without their marks. */

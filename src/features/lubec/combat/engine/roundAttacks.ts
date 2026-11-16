@@ -4,6 +4,7 @@ import type { CombatEntropy } from './commandEntropy'
 import { requireGm, requireLiveContext } from './context'
 import { combatAttackers } from './declare'
 import { withMovementRequests } from './movement'
+import type { CombatWound } from '../woundTypes'
 import type { CombatAttack, Combatant, CombatDefenseLine, CombatHandler, CombatPlan, CombatState } from './types'
 
 /** An attack of the round, as against a Sneak Attack granted before initiative. */
@@ -24,11 +25,29 @@ function opened(state: CombatState, attacker: Combatant, entropy: CombatEntropy)
 
 const freshFighter = (entry: Combatant): Combatant => ({ ...entry, movement: null, declaration: null, proposedDeclaration: null, declarationRejected: false })
 
-/** The round is over: the next one begins at Movement by itself, with the last result still in view. */
+/**
+ * The end of the round, once: every combatant with a round window or countdown from this fight still to process gets
+ * one identified tick, which the delivery service turns into sheet changes. The next round's rolls wait for it.
+ */
+function endOfRound(state: CombatState): Pick<CombatState, 'woundOutbox' | 'roundWatch'> {
+  const watched = Object.entries(state.roundWatch ?? {}).filter(([, through]) => through >= state.round)
+  const ticks: CombatWound[] = watched.flatMap(([key]) => {
+    const combatant = state.combatants.find((entry) => entry.key === key)
+    if (!combatant) return []
+    return [{
+      kind: 'tick' as const, tickRound: state.round, id: `round-${state.round}:${key}`, target: { kind: combatant.kind, sheetId: combatant.sheetId },
+      originatingRound: state.round, effectiveRound: state.round + 1, traumaDelta: 0, stressDelta: 0,
+    }]
+  })
+  const roundWatch = Object.fromEntries(watched.filter(([, through]) => through > state.round))
+  return { woundOutbox: [...state.woundOutbox, ...ticks], roundWatch }
+}
+
+/** The round is over: its end is processed, and the next one begins at Movement by itself, with the last result still in view. */
 function nextRound(state: CombatState, entropy: CombatEntropy): CombatState {
   const round = state.round + 1
   return withMovementRequests({
-    ...state, round, phase: 'movement', stageInstanceId: entropy.id('round-stage', 0), combatants: state.combatants.map(freshFighter),
+    ...state, ...endOfRound(state), round, phase: 'movement', stageInstanceId: entropy.id('round-stage', 0), combatants: state.combatants.map(freshFighter),
     attack: null, lastAttack: finished(state), attacked: [], movementComplete: false,
   })
 }

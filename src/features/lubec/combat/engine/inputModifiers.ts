@@ -1,13 +1,19 @@
 import type { LubecCharacterSheet } from '../../../ruleSets/lubec/characterRecord'
 import type { LubecEffect } from '../../../ruleSets/lubec/effects'
 import { lubecSheetModifiers } from '../../../ruleSets/lubec/modifiers'
+import { lubecBriefWindowEnd } from '../roundTick'
 import type { CombatWoundOrigin } from '../woundTypes'
 
 export type CombatInputRound = { fightId: string; round: number }
 
+/** A card from this fight whose round window has passed: inactive to every reader at once, before the tick's write removes it. */
+function expiredWindow(effect: LubecEffect, context: CombatInputRound, origin: CombatWoundOrigin | undefined): boolean {
+  return origin?.fightId === context.fightId && effect.steps[0]?.until === 'next-round-end' && context.round > lubecBriefWindowEnd(origin.originatingRound)
+}
+
 function deferredEffect(effect: LubecEffect, context: CombatInputRound): boolean {
   const origin = effect.combatOrigin as CombatWoundOrigin | undefined
-  return origin?.fightId === context.fightId && context.round < origin.effectiveRound
+  return (origin?.fightId === context.fightId && context.round < origin.effectiveRound) || expiredWindow(effect, context, origin)
 }
 
 /** Labels and counters remain immediate; only this fight's premature numeric modifiers are filtered. */

@@ -2,6 +2,7 @@ import type { LubecEffect } from '../../../ruleSets/lubec/effects'
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
 import { lubecWoundCards, type LubecWoundRolledCheck } from '../../../ruleSets/lubec/woundCards'
 import { lubecWoundTableRow, type LubecLocatedWoundRow, type LubecWoundTableRow } from '../../../ruleSets/lubec/woundTables'
+import { lubecBriefWindowEnd } from '../roundTick'
 import type { CombatWound } from '../woundTypes'
 import { closeAttack, stepRequest } from './attackFlow'
 import { combatantOf, defenderOf } from './attackParty'
@@ -129,7 +130,16 @@ function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatChec
     ...withChecks, rowOutcome: located.row.text, rowTrauma: landed.trauma, rowStress: landed.stress, rowMinimumStress: minimumStress,
     rowSections: lubecWoundSections(landed.outcome, cards, rolled, landed.prevented),
   }
-  return closeAttack({ ...state, woundOutbox: [...state.woundOutbox, wound] }, closed, 'wounded')
+  const roundWatch = watchedThrough(state, wound.target, cards)
+  return closeAttack({ ...state, woundOutbox: [...state.woundOutbox, wound], roundWatch }, closed, 'wounded')
+}
+
+/** The last round whose end must be processed for these cards: a brief window ends with the next round. */
+function watchedThrough(state: CombatState, target: CombatWound['target'], cards: readonly LubecEffect[]): CombatState['roundWatch'] {
+  const ends = cards.flatMap((card) => (card.steps[0]?.until === 'next-round-end' ? [lubecBriefWindowEnd(state.round)] : []))
+  if (!ends.length) return state.roundWatch
+  const key = `${target.kind}:${target.sheetId}`
+  return { ...state.roundWatch, [key]: Math.max(state.roundWatch?.[key] ?? 0, ...ends) }
 }
 
 /** A positive Impact on a located table reads its row: a d2 picks between two wounds, any Save or Check waits on the target. */

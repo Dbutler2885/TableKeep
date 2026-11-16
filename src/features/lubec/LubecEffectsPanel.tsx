@@ -8,7 +8,7 @@ import {
 import type { LubecCounters } from '../ruleSets/lubec/characterRecord'
 import { stepDownLubecSheet } from '../ruleSets/lubec/stepDown'
 import type { LubecGear } from '../ruleSets/lubec/gear/gearRecord'
-import { lubecEffectGroups, lubecEffectWound, lubecStepByHand, lubecStepTrigger } from '../ruleSets/lubec/woundCards'
+import { lubecEffectGroups, lubecEffectTrigger, lubecEffectWound, lubecStepByHand, lubecStepTrigger } from '../ruleSets/lubec/woundCards'
 import { LubecEffectEditor } from './LubecEffectEditor'
 import { LubecGearLosses } from './LubecGearLosses'
 import { LubecWoundDetail } from './LubecWoundDetail'
@@ -47,7 +47,7 @@ function nextWords(effect: LubecEffect): string | null {
 function LubecEffectSummary({ effect, grouped }: { effect: LubecEffect; grouped: boolean }) {
   const now = effect.steps[0]
   const part = typeof effect.part === 'string' && effect.part ? effect.part : null
-  const trigger = lubecStepTrigger(now)
+  const trigger = lubecEffectTrigger(effect)
   const next = nextWords(effect)
   return (
     <>

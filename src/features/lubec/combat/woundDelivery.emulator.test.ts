@@ -358,3 +358,26 @@ describe('a final wound\'s linked cards through real rules', () => {
     expect((await effectsOf('npcSheets/roy')).length).toBe(1)
   })
 })
+
+describe('round ticks through real rules', () => {
+  const brief = { id: 'clipped', name: 'Clipped', cause: 'Blunt Force', combatOrigin: { fightId: 'fight', woundId: 'w', originatingRound: 1, effectiveRound: 1 }, steps: [{ modifiers: [], labels: [], until: 'next-round-end', rolls: [{ scope: 'attacks', mode: 'disadvantage' }] }] }
+  const tick = (round: number): CombatWound => ({ kind: 'tick', tickRound: round, id: `round-${round}:character:hero`, target, originatingRound: round, effectiveRound: round + 1, traumaDelta: 0, stressDelta: 0 })
+
+  it('ends a brief window once at the end of the next round, across racing drains and a replay', async () => {
+    await seed('characters/hero', { ...sheet(), lubec: { ...lubecCharacterSheet(), effects: [brief] } })
+    await fixture([tick(2)], 2)
+    await Promise.all([drainCombatWounds(as(), scope, 'gm'), drainCombatWounds(as('second-gm'), scope, 'second-gm')])
+    const acknowledgement = (await readFight()).state.woundAcknowledgements[0]
+    expect(acknowledgement).toMatchObject({ id: 'round-2:character:hero', targetRevision: 1 })
+    expect(await deliverCombatWound(as(), scope, 'gm', 'round-2:character:hero')).toEqual(acknowledgement)
+    expect((await storedSheet()).lubec.effects).toEqual([])
+    expect((await storedSheet()).sheetRevision).toBe(1)
+  })
+
+  it('acknowledges a tick with nothing to end at the revision it read, writing no sheet', async () => {
+    await fixture([tick(1)], 1)
+    await drainCombatWounds(as(), scope, 'gm')
+    expect((await readFight()).state.woundAcknowledgements[0]).toMatchObject({ targetRevision: 0 })
+    expect((await storedSheet()).sheetRevision).toBe(0)
+  })
+})

@@ -194,6 +194,8 @@ export type CombatState = {
   movementComplete?: boolean
   /** The GM's last range band per attacker, offered again but never applied without a press. */
   lastRanges?: Record<string, LubecRangeBand>
+  /** Per combatant, the last round whose end still has a round window or countdown of theirs from this fight to process. */
+  roundWatch?: Record<string, number>
 }
 export type CombatFight = { status: 'live' | 'ended'; participantUserIds: string[]; state: CombatState }
 export type CombatEnvelope = {
