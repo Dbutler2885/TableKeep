@@ -9,7 +9,8 @@ export type CombatWound = {
    * A wound landing, or a round tick: the end of `tickRound` for one combatant, which expires their round windows
    * from this fight. Absent on a wound queued before ticks existed, which is a wound.
    */
-  kind?: 'wound' | 'tick'
+  kind?: 'wound' | 'tick' | 'close'
+  /** A tick's round, or the round the fight closed in. */
   tickRound?: number
   id: string
   target: CombatantSelection

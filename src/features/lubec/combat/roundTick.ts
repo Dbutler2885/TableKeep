@@ -83,3 +83,58 @@ export function roundTickIntention(raw: Raw, tick: CombatWound, fightId: string,
   const edits = roundTickEdits(raw, tick, fightId)
   return edits.length ? { operationId, baseRevision: readSheetRevision(raw), edits } : null
 }
+
+// Ending a fight, for one combatant: rest-of-combat steps end, and a round
+// window or countdown still running becomes an after-combat card that suggests
+// the rounds left as minutes, for the table to resolve by hand. Such a card
+// never ticks and no later fight reads it. Long Rest, treatment, minute and
+// lasting cards are left alone, and nothing is healed or applied.
+
+const AFTER_WORDS = {
+  window: () => 'Then Step down to clear this card.',
+  bleed: () => 'Then add +1 Trauma with the Trauma counter, and Step down to clear this card.',
+  critical: () => 'Then the GM resolves a Death Save privately, with the Death table; Step down to clear this card.',
+} as const
+
+const minutes = (count: number) => `Suggested ${count} minute${count === 1 ? '' : 's'} - resolve by hand`
+
+/** The rounds still to run, the round End is pressed in counting as one, never fewer than one. */
+const remaining = (lastRound: number, closeRound: number) => Math.max(1, lastRound - closeRound + 1)
+
+function afterCombatEdits(effect: Raw, count: number, instruction: string, extra: Raw = {}): SheetEdit[] {
+  const id = String(effect.id)
+  const steps = effect.steps as SheetValue[]
+  const afterCombat = { suggestedMinutes: count, instruction }
+  return [
+    { kind: 'set', path: ['lubec', 'effects', { recordId: id }, 'steps'], base: { exists: true, value: steps }, value: [{ modifiers: [], labels: [minutes(count), instruction], until: 'by-hand' }] },
+    { kind: 'set', path: ['lubec', 'effects', { recordId: id }, 'afterCombat'], base: { exists: false }, value: { ...afterCombat, ...extra } as SheetValue },
+  ]
+}
+
+/** What closing the fight does to one stored card of this fight; nothing for a card it leaves alone. */
+function closingEditsOf(effect: Raw, closeRound: number): SheetEdit[] {
+  const origin = originOf(effect)!
+  const first = Array.isArray(effect.steps) && isRecord(effect.steps[0]) ? effect.steps[0] : null
+  if (!first || effect.afterCombat !== undefined) return []
+  const countdown = countdownOf(effect)
+  if (countdown && !countdown.fired) {
+    const count = remaining(lubecCountdownDue(origin.originatingRound, countdown.rounds), closeRound)
+    return afterCombatEdits(effect, count, AFTER_WORDS[countdown.kind](), { countdown: countdown.kind })
+  }
+  if (first.until === 'next-round-end') return afterCombatEdits(effect, remaining(lubecBriefWindowEnd(origin.originatingRound), closeRound), AFTER_WORDS.window())
+  if (first.until === 'combat-end') return [stepDownEdit(effect)]
+  return []
+}
+
+/** Every closing change for one combatant's cards from this fight. */
+export function closingEdits(raw: Raw, fightId: string, closeRound: number): SheetEdit[] {
+  const lubec = isRecord(raw.lubec) ? raw.lubec : {}
+  const effects = (Array.isArray(lubec.effects) ? lubec.effects.filter(isRecord) : []).filter((effect) => typeof effect.id === 'string' && originOf(effect)?.fightId === fightId)
+  return effects.flatMap((effect) => closingEditsOf(effect, closeRound))
+}
+
+/** The closing as a revision-checked intention, or null when nothing on the sheet changes. */
+export function closingIntention(raw: Raw, entry: CombatWound, fightId: string, operationId: string): SheetIntention | null {
+  const edits = closingEdits(raw, fightId, entry.tickRound!)
+  return edits.length ? { operationId, baseRevision: readSheetRevision(raw), edits } : null
+}

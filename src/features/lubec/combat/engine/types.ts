@@ -198,6 +198,8 @@ export type CombatState = {
   roundWatch?: Record<string, number>
   /** Every countdown a wound started this fight and the round whose end it falls due at, for the combat log. */
   countdowns?: { key: string; wound: string; kind: 'bleed' | 'critical'; dueRound: number }[]
+  /** End has begun: every combatant's closing change is queued, and the fight ends once they are delivered. */
+  closing?: boolean
 }
 export type CombatFight = { status: 'live' | 'ended'; participantUserIds: string[]; state: CombatState }
 export type CombatEnvelope = {

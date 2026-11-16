@@ -3,7 +3,8 @@ import { planSheetIntention } from '../../character/characterStore/sheetIntentio
 import { lubecCharacterSheet } from '../../ruleSets/lubec/sheetFixtures'
 import { combatRollMode } from './engine/combatModes'
 import type { CombatSheet } from './engine/types'
-import { roundTickIntention } from './roundTick'
+import { closingIntention, roundTickIntention } from './roundTick'
+import { lubecRollMode } from '../../ruleSets/lubec/rollModes'
 import type { CombatWound } from './woundTypes'
 
 const origin = (round: number, fightId = 'fight') => ({ fightId, woundId: `w${round}`, originatingRound: round, effectiveRound: round })
@@ -100,5 +101,51 @@ describe('a saved countdown', () => {
     const intention = roundTickIntention(raw, tick(2), 'fight', 'op')!
     const changed = { ...raw, sheetRevision: 5, lubec: { ...raw.lubec, counters: { ...raw.lubec.counters, trauma: 3 } } }
     expect((planSheetIntention(changed, { ...intention, baseRevision: 5 }).mutation!.sheet.lubec as typeof raw.lubec).counters.trauma).toBe(4)
+  })
+})
+
+describe('closing the fight for one combatant', () => {
+  const close = (raw: ReturnType<typeof sheet>, round: number) => {
+    const entry: CombatWound = { ...tick(round), kind: 'close', id: 'close:character:hero' }
+    const intention = closingIntention(raw, entry, 'fight', 'op')
+    return intention ? planSheetIntention(raw, intention).mutation!.sheet as ReturnType<typeof sheet> : null
+  }
+  const card = (id: string, steps: object[], extra: object = {}) => ({ id, name: 'Wound', cause: '', combatOrigin: origin(3), steps, ...extra })
+  const step = (until: string, extra: object = {}) => ({ modifiers: [], labels: [], until, ...extra })
+
+  it('ends rest-of-combat steps, stepping to an explicit next step, and leaves rest, treatment, minute and lasting cards alone', () => {
+    const fightOnly = card('fight', [step('combat-end', { rolls: [{ scope: 'speed', mode: 'disadvantage' }] })])
+    const thenRest = card('then', [step('combat-end'), step('long-rest')])
+    const kept = ['long-rest', 'treated', 'by-hand', 'lasting', 'put-back'].map((until) => card(until, [step(until)]))
+    const after = close(sheet([fightOnly, thenRest, ...kept, handMade]), 4)!
+    expect(after.lubec.effects.map((effect) => (effect as { id: string }).id)).toEqual(['then', ...kept.map((entry) => entry.id), 'note'])
+    expect((after.lubec.effects[0] as { steps: { until: string }[] }).steps).toEqual([step('long-rest')])
+    expect(after.lubec.counters).toEqual(sheet([]).lubec.counters)
+  })
+
+  it('turns a running window or countdown into an after-combat card suggesting the rounds left as minutes', () => {
+    const window = card('window', [step('next-round-end')], { combatOrigin: origin(4) })
+    const bleed = card('bleed', [step('rounds')], { countdown: { kind: 'bleed', rounds: 3 } })
+    const critical = card('critical', [step('rounds')], { countdown: { kind: 'critical', rounds: 4 } })
+    const after = close(sheet([window, bleed, critical]), 4)!
+    const [w, b, c] = after.lubec.effects as { steps: { labels: string[]; until: string }[]; afterCombat: object }[]
+    expect(w).toMatchObject({ afterCombat: { suggestedMinutes: 2 }, steps: [{ until: 'by-hand', labels: ['Suggested 2 minutes - resolve by hand', 'Then Step down to clear this card.'] }] })
+    expect(b).toMatchObject({ afterCombat: { suggestedMinutes: 3, countdown: 'bleed' }, steps: [{ labels: ['Suggested 3 minutes - resolve by hand', 'Then add +1 Trauma with the Trauma counter, and Step down to clear this card.'] }] })
+    expect(c).toMatchObject({ afterCombat: { suggestedMinutes: 4, countdown: 'critical' }, steps: [{ labels: ['Suggested 4 minutes - resolve by hand', 'Then the GM resolves a Death Save privately, with the Death table; Step down to clear this card.'] }] })
+    expect(after.lubec.counters.trauma).toBe(sheet([]).lubec.counters.trauma)
+    expect(close(after, 4)).toBeNull()
+  })
+
+  it('leaves a fired countdown and another fight\'s cards alone', () => {
+    const fired = card('fired', [step('by-hand')], { countdown: { kind: 'bleed', rounds: 1, fired: true } })
+    const other = card('other', [step('combat-end')], { combatOrigin: origin(1, 'elsewhere') })
+    expect(close(sheet([fired, other]), 4)).toBeNull()
+  })
+
+  it('makes an after-combat card count in Core until cleared, and in no later fight', () => {
+    const converted = { ...brief('a', 4), afterCombat: { suggestedMinutes: 2, instruction: '' } }
+    const record: CombatSheet = { kind: 'character', sheetId: 'hero', name: 'Wayne', ownerUserId: 'p', portraitPath: '', sheet: lubecCharacterSheet({ effects: [converted as never] }) }
+    expect(combatRollMode(record, { kind: 'attack', stat: 'Handle' }, { fightId: 'next', round: 1 }).mode).toBe('normal')
+    expect(lubecRollMode(record.sheet.effects, { kind: 'attack', stat: 'Handle' }).mode).toBe('disadvantage')
   })
 })

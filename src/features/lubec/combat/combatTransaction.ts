@@ -52,8 +52,16 @@ async function applyCommand(db: Firestore, tx: Transaction, command: CombatComma
 
 const dueWounds = (outcome: CombatOutcome) => !outcome.ok && outcome.reason === 'Wounds must be delivered before combat can end.'
 
+/** End's own closing step, derived from it so a resent End closes once: same envelope, its own receipt. */
+const closingOf = (command: CombatCommand): CombatCommand => ({ ...command, envelope: { ...command.envelope, id: `${command.envelope.id}.close` }, payload: { type: 'close' } })
+
 async function sendCommand(db: Firestore, command: CombatCommand, options: CombatTransactionOptions): Promise<CombatOutcome> {
   const transact = options.transact ?? ((callback) => runTransaction(db, callback))
+  if (command.payload.type === 'end') {
+    // Closing first queues every combatant's closing change; End then drains them before it ends the fight.
+    const closed = await transact((tx) => applyCommand(db, tx, closingOf(command), options))
+    if (!closed.ok) return closed
+  }
   for (let attempt = 0; attempt < 5; attempt++) {
     const outcome = await transact((tx) => applyCommand(db, tx, command, options))
     if (!dueWounds(outcome)) return outcome

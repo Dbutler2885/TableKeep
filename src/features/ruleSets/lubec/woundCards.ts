@@ -196,7 +196,7 @@ export const LUBEC_AUTOMATED = {
   /** Round countdowns and stage counts: "in d4 rounds", Dazed. */
   rounds: false,
   /** Rest-of-combat steps ending when the fight ends. */
-  closing: false,
+  closing: true,
   /** A delayed speech-recovery Body Save offered by the Step down that reaches its step. */
   speechSave: false,
 }

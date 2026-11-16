@@ -13,6 +13,8 @@ function expiredWindow(effect: LubecEffect, context: CombatInputRound, origin: C
 
 function deferredEffect(effect: LubecEffect, context: CombatInputRound): boolean {
   const origin = effect.combatOrigin as CombatWoundOrigin | undefined
+  // An after-combat card is the table's to resolve: Core Checks still read it until it is cleared, no fight does.
+  if (effect.afterCombat !== undefined) return true
   return (origin?.fightId === context.fightId && context.round < origin.effectiveRound) || expiredWindow(effect, context, origin)
 }
 

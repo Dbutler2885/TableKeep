@@ -6,7 +6,7 @@ import { combatantKey } from './engine/inputs'
 import type { CombatFight } from './engine/types'
 import { readSheetRevision } from '../../character/characterStore/sheetIntention'
 import type { SheetIntention } from '../../character/characterStore/sheetIntentionTypes'
-import { roundTickIntention } from './roundTick'
+import { closingIntention, roundTickIntention } from './roundTick'
 import { combatWoundIntention, combatWoundOperationId } from './woundIntention'
 import { readWoundFight, readWoundSheet, requireWoundFightLive, requireWoundGm } from './woundRecords'
 import { requireFreshWoundRead, retryStaleWoundRead } from './woundStaleRead'
@@ -22,8 +22,11 @@ function requireTarget(fight: CombatFight, wound: CombatWound) {
 }
 
 /** The sheet change an outbox entry makes: a wound's cards and counters, or a round tick's endings, or nothing for a tick with nothing to end. */
-const intentionOf = (raw: Record<string, unknown>, wound: CombatWound, fightId: string, operationId: string): SheetIntention | null =>
-  (wound.kind === 'tick' ? roundTickIntention(raw, wound, fightId, operationId) : combatWoundIntention(raw, wound, fightId, operationId))
+function intentionOf(raw: Record<string, unknown>, wound: CombatWound, fightId: string, operationId: string): SheetIntention | null {
+  if (wound.kind === 'tick') return roundTickIntention(raw, wound, fightId, operationId)
+  if (wound.kind === 'close') return closingIntention(raw, wound, fightId, operationId)
+  return combatWoundIntention(raw, wound, fightId, operationId)
+}
 
 async function applyWound(db: Firestore, tx: Transaction, scope: CombatWoundScope, fight: CombatFight, wound: CombatWound, recordAttempt: RecordAttempt) {
   requireTarget(fight, wound)
