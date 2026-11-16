@@ -384,3 +384,26 @@ describe('round ticks through real rules', () => {
     expect((await storedSheet()).sheetRevision).toBe(0)
   })
 })
+
+
+describe('saved lost stages through real rules', () => {
+  it.each([target, { kind: 'npc', sheetId: 'roy' } as const])('delivers and closes Dazed once for $kind while preserving sibling cards', async (selection) => {
+    const path = selection.kind === 'character' ? 'characters/hero' : 'npcSheets/roy'
+    const lost = { movement: [4, 5], action: [3, 4] }
+    const card = { id: 'dazed', cardKey: 'dazed', name: 'Concussion', cause: 'Fisticuffs', lost, steps: [{ modifiers: [], labels: ['Dazed'], until: 'rounds' as const }] }
+    const sibling = { id: 'lasting', cardKey: 'lasting', name: 'Concussion', cause: 'Fisticuffs', steps: [{ modifiers: [{ target: 'Intellect' as const, amount: -10 }], labels: [], until: 'lasting' as const }] }
+    await fixture([wound({ target: selection, originatingRound: 3, effectiveRound: 3, effects: [card, sibling], traumaDelta: 0, stressDelta: 0 })], 3)
+    await drainCombatWounds(as(), scope, 'gm')
+    const delivered = (await storedSheet(as(), path)).lubec.effects
+    expect(delivered[0].lost).toEqual(lost)
+    const close: CombatWound = { kind: 'close', tickRound: 4, id: `close:${selection.kind}:${selection.sheetId}`, target: selection, originatingRound: 4, effectiveRound: 5, traumaDelta: 0, stressDelta: 0 }
+    await fixture([close], 4)
+    await Promise.all([drainCombatWounds(as(), scope, 'gm'), drainCombatWounds(as('second-gm'), scope, 'second-gm')])
+    const after = await storedSheet(as(), path)
+    expect(after.lubec.effects[0]).toMatchObject({ lost, afterCombat: { suggestedMinutes: 2 }, steps: [{ until: 'by-hand' }] })
+    expect(after.lubec.effects[1]).toEqual(delivered[1])
+    const receipt = await deliverCombatWound(as(), scope, 'gm', close.id)
+    expect(receipt.targetRevision).toBe(2)
+    expect((await storedSheet(as(), path)).sheetRevision).toBe(2)
+  })
+})
