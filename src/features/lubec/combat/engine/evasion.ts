@@ -3,6 +3,7 @@ import { lubecCurrentValue } from '../../../ruleSets/lubec/derivations'
 import type { LubecAttackChoice } from '../../../ruleSets/lubec/gear/weaponAttacks'
 import type { CombatLog } from './combatFeedback'
 import type { CombatEntropy } from './commandEntropy'
+import { combatRollMode, modeRecord, modeWords, rollWithMode, successThenHigher } from './combatModes'
 import { combatInputModifiers } from './inputModifiers'
 import type { Combatant, CombatEvasion, CombatSheet, CombatState } from './types'
 
@@ -32,9 +33,14 @@ function speedOf(combatant: Combatant, record: CombatSheet | null, context: { fi
 /** The evader's Speed roll, at or under Speed, as Movement settles. */
 export function rollEvasion(combatant: Combatant, record: CombatSheet | null, context: { fightId: string; round: number }, entropy: CombatEntropy): CombatEvasion {
   const speed = speedOf(combatant, record, context)
-  const roll = entropy.die('evasion', 100)
-  const success = roll <= speed
-  return { roll, speed, success, penalty: evasionPenalty(roll, success) }
+  // A Speed Check: a card's Speed or Physical mode rolls two dice, a success beating a failure and the higher success taking off more.
+  const mode = combatRollMode(record, { kind: 'evasion', stat: 'Speed' }, context)
+  const evaluate = (roll: number) => {
+    const success = roll <= speed
+    return { roll, speed, success, penalty: evasionPenalty(roll, success) }
+  }
+  const rolled = rollWithMode(entropy, 'evasion', mode.mode, evaluate, successThenHigher)
+  return { ...rolled.kept, ...modeRecord(mode, rolled.dice) }
 }
 
 const pad = (value: number): string => String(value).padStart(2, '0')
@@ -45,7 +51,7 @@ export function evasionLog(combatant: Combatant, evasion: CombatEvasion): Combat
     roll: {
       who: combatant.name, what: 'Evasive Movement · Speed', roll: pad(evasion.roll), target: `under ${evasion.speed}`,
       tone: evasion.success ? 'ok' : 'bad', result: evasion.success ? `Ranged attacks −${evasion.penalty}` : 'No penalty',
-      extra: 'Uses the action: no attack this round.',
+      extra: [evasion.dice ? modeWords({ mode: evasion.mode!, because: evasion.because ?? null }, evasion.dice) : null, 'Uses the action: no attack this round.'].filter(Boolean).join(' '),
     },
   }
 }

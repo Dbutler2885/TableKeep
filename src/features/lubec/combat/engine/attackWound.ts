@@ -6,6 +6,7 @@ import { attackAt, attackRepair, combatantOf, combatSheetOf } from './attackPart
 import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
 import { lubecPartDistances } from './hitLocation'
+import { combatRollMode, modeRecord, modeWords, rollWithMode, successThenHigher, type CombatMode } from './combatModes'
 import { combatInputModifiers } from './inputModifiers'
 import type { CombatLog } from './combatFeedback'
 import type { CombatAttack, CombatCommand, CombatFight, CombatHandler, CombatPlan, CombatSheet, CombatStrengthRoll } from './types'
@@ -36,24 +37,30 @@ const land: CombatHandler = (command, records, authority, entropy) => {
   return { fight: { ...fight, state: { ...fight.state, attack: { ...placed, step: 'strength' }, pendingActions: stepRequest(attack.attackerKey, 'strength') } }, items: [], logs: [log] }
 }
 
-/** At or under current Strength; a success adds its tens digit to Impact. */
-function rollStrength(strength: number, entropy: CombatEntropy): CombatStrengthRoll {
-  const roll = entropy.die('strength', 100)
-  const success = roll <= strength
-  return { roll, strength, success, bonus: success ? tens(roll % 100) : 0 }
+/** At or under current Strength; a success adds its tens digit to Impact. Under a card-set mode, a success beats a failure and the higher success adds more. */
+function rollStrength(strength: number, mode: CombatMode, entropy: CombatEntropy): CombatStrengthRoll {
+  const evaluate = (roll: number) => {
+    const success = roll <= strength
+    return { roll, strength, success, bonus: success ? tens(roll % 100) : 0 }
+  }
+  const rolled = rollWithMode(entropy, 'strength', mode.mode, evaluate, successThenHigher)
+  return { ...rolled.kept, ...modeRecord(mode, rolled.dice) }
 }
 
 function strengthLog(attacker: string, key: string, rolled: CombatStrengthRoll): CombatLog {
   return {
     event: `${attacker} rolled Strength.`, actor: key,
-    roll: { who: attacker, what: 'Strength roll', roll: pad(rolled.roll), target: `under ${rolled.strength}`, tone: rolled.success ? 'ok' : 'bad', result: rolled.success ? `Adds ${signed(rolled.bonus)} Impact` : 'Adds nothing' },
+    roll: {
+      who: attacker, what: 'Strength roll', roll: pad(rolled.roll), target: `under ${rolled.strength}`, tone: rolled.success ? 'ok' : 'bad', result: rolled.success ? `Adds ${signed(rolled.bonus)} Impact` : 'Adds nothing',
+      ...(rolled.dice ? { extra: modeWords({ mode: rolled.mode!, because: rolled.because ?? null }, rolled.dice)! } : {}),
+    },
   }
 }
 
 function strengthPlan(fight: CombatFight, attack: CombatAttack, record: CombatSheet, command: CombatCommand, entropy: CombatEntropy): CombatPlan {
-  const modifiers = combatInputModifiers(record.sheet, { fightId: command.envelope.fightId, round: fight.state.round })
-  const strength = lubecCurrentValue(record.sheet, 'Strength', modifiers)!
-  const rolled = rollStrength(strength, entropy)
+  const context = { fightId: command.envelope.fightId, round: fight.state.round }
+  const strength = lubecCurrentValue(record.sheet, 'Strength', combatInputModifiers(record.sheet, context))!
+  const rolled = rollStrength(strength, combatRollMode(record, { kind: 'strength-impact', stat: 'Strength' }, context), entropy)
   const finished = finishImpact(fight, { ...attack, strength: rolled, repair: null }, rolled.bonus, entropy)
   return { fight: finished, items: [], logs: [strengthLog(record.name, attack.attackerKey, rolled), ...impactLog(finished, attack.attackerKey)] }
 }

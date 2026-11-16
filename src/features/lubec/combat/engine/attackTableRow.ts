@@ -10,7 +10,7 @@ import type { CombatEntropy } from './commandEntropy'
 import { combatInputModifiers } from './inputModifiers'
 import type { CombatAttack, CombatCheckRoll, CombatCommand, CombatFight, CombatPlan, CombatSheet, CombatState, CombatWoundRow } from './types'
 import { lubecLanded, lubecLandingRolls, lubecRollAmounts, lubecWoundSections } from './woundLanding'
-import { checkLog, checkTarget, rollCheck, rollRowCheck } from './woundCheck'
+import { checkLog, checkTarget, landingCheckMode, rollCheck, rollRowCheck } from './woundCheck'
 
 // Blunt Force, Gunshot, Piercing, Cutting, Thrown Objects and Fisticuffs: the located tables.
 // A final row lands as Effect cards after the Saves and Checks it asks the target for; a
@@ -152,7 +152,8 @@ function rollLanding(record: CombatSheet, row: CombatWoundRow, fightId: string, 
   const checks: CombatCheckRoll[] = []
   for (const spec of row.rolls ?? []) {
     const { purpose, ...check } = spec
-    const rolled = rollCheck(record, check, checkTarget(record, check.against, modifiers), entropy)
+    const mode = landingCheckMode(record, check, row.name, { fightId, round })
+    const rolled = rollCheck(record, { ...check, advantage: mode.mode }, checkTarget(record, check.against, modifiers), entropy, mode.because)
     // A missed fist catch is "no effect, no wound and no Stress from this Check".
     checks.push({ ...rolled, purpose, ...(purpose === 'fist-catch' ? { stress: 0 } : {}) })
     if (purpose === 'fist-catch' && !rolled.success) break

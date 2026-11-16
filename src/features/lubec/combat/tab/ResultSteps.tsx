@@ -10,6 +10,7 @@ import type { AttackAct, AttackCommands } from './attackCommands'
 import { combatFightCombatant, type CombatRosterRecords } from './combatFightCombatants'
 import { CombatDoll } from './CombatDoll'
 import { catchFacts, catchVerdict, checkAsk, checkVerdict, defenseVerdict, impactChips, stopWords, strengthTitle, woundBox, type WoundBoxWords } from './resultSequence'
+import { RollModeNote } from './RollModeNote'
 import { RollBar } from './RollBar'
 import { useAct } from './useAct'
 import { declaredLine, isRoundAttack } from '../engine/roundAttacks'
@@ -127,6 +128,7 @@ function DefenseRolled({ state, attack }: Pick<StepProps, 'state' | 'attack'>) {
     <>
       <p className="say"><b>{nameOf(state, attack.aim!.targetKey)}</b> kept {defense.amount} for {defense.full ? 'Full ' : ''}Defense against {nameOf(state, attack.attackerKey)}.</p>
       <RollBar value={defense.value} tag="DEF" bonus={defense.full} roll={defense} controls={null} />
+      <RollModeNote roll={defense} kept={defense.roll} />
       <p className={`verdict ${defense.success ? 'ok' : 'bad'}`}>{defenseVerdict(defense)}</p>
       <div className="chips"><dl className="chip"><dt>Attack Quality</dt><dd>{attack.roll!.quality}</dd></dl><span className="op">−</span><dl className="chip armor"><dt>Defense</dt><dd>{defense.removes}</dd></dl><span className="op">=</span><dl className="chip on"><dt>Left</dt><dd>{net}</dd></dl></div>
       <StopWords attack={attack} />
@@ -303,6 +305,7 @@ function StrengthBar(props: StepProps) {
     <>
       <p className="say"><b>{strengthTitle(rolled)}</b></p>
       {value === null ? <div className="roll-controls">{control}</div> : <RollBar value={value} tag="STR" roll={rolled} controls={control} />}
+      <RollModeNote roll={rolled} kept={rolled?.roll} />
     </>
   )
 }
@@ -357,7 +360,14 @@ function CheckBar(props: StepProps) {
 
 function CheckVerdict({ attack }: { attack: CombatAttack }) {
   const rolled = attack.check
-  return rolled ? <p className={`verdict ${rolled.success ? 'ok' : 'bad'}`}>{checkVerdict(rolled)}</p> : null
+  if (!rolled) return null
+  const twoDice = rolled.advantage === 'normal' ? null : { dice: rolled.dice, mode: rolled.advantage, because: rolled.because ?? null }
+  return (
+    <>
+      <RollModeNote roll={twoDice} kept={rolled.result} />
+      <p className={`verdict ${rolled.success ? 'ok' : 'bad'}`}>{checkVerdict(rolled)}</p>
+    </>
+  )
 }
 
 /** The target's own Check or Save the row calls for: an ordinary roll at or under the number, with the row's Advantage. */

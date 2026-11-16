@@ -9,6 +9,7 @@ import { attackAt, attackRepair, combatantOf, combatSheetOf, defenderOf } from '
 import { declaredLine, isRoundAttack } from './roundAttacks'
 import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
+import { combatRollMode, modeRecord, modeWords, rollWithMode, successThenHigher, type CombatMode } from './combatModes'
 import { combatInputModifiers } from './inputModifiers'
 import type { CombatAttack, CombatCommand, Combatant, CombatDefenseRoll, CombatFight, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
 
@@ -25,12 +26,18 @@ function readSplit(raw: unknown, pool: number): Split {
   return { amount, full: false }
 }
 
-/** Strictly under its number; a success takes off its tens digit plus 1, a failure nothing. Full Defense adds 10, capped at 100. */
-function rollDefense(split: Split, entropy: CombatEntropy): CombatDefenseRoll {
+/**
+ * Strictly under its number; a success takes off its tens digit plus 1, a failure nothing. Full Defense adds 10, capped at 100.
+ * Under a card-set mode two dice are rolled: a success beats a failure, and the higher success takes off more.
+ */
+function rollDefense(split: Split, mode: CombatMode, entropy: CombatEntropy): CombatDefenseRoll {
   const value = split.full ? Math.min(100, split.amount + 10) : split.amount
-  const roll = entropy.die('defense', 100)
-  const success = roll < value
-  return { ...split, value, roll, success, removes: success ? tens(roll) + 1 : 0 }
+  const evaluate = (roll: number) => {
+    const success = roll < value
+    return { ...split, value, roll, success, removes: success ? tens(roll) + 1 : 0 }
+  }
+  const rolled = rollWithMode(entropy, 'defense', mode.mode, evaluate, successThenHigher)
+  return { ...rolled.kept, ...modeRecord(mode, rolled.dice) }
 }
 
 const caughtItem = (attack: CombatAttack): LubecItem | null => (attack.detached[0]?.item as LubecItem | undefined) ?? null
@@ -52,7 +59,8 @@ function defenseLog(defender: Combatant, attack: CombatAttack, defense: CombatDe
     event: `${defender.name} defended.`, actor: defender.key,
     roll: {
       who: defender.name, what: 'Defense roll', roll: pad(defense.roll), target: `under ${defense.value}`, tone: defense.success ? 'bad' as const : 'ok' as const,
-      result: defense.success ? `Holds · takes off ${defense.removes}` : 'Fails · takes off nothing', extra: `Quality ${attack.roll!.quality} − ${defense.removes} = ${net}`,
+      result: defense.success ? `Holds · takes off ${defense.removes}` : 'Fails · takes off nothing',
+      extra: [defense.dice ? modeWords({ mode: defense.mode!, because: defense.because ?? null }, defense.dice) : null, `Quality ${attack.roll!.quality} − ${defense.removes} = ${net}`].filter(Boolean).join(' '),
     },
   }
 }
@@ -82,7 +90,8 @@ function defended(fight: CombatFight, attack: CombatAttack, record: CombatSheet,
   const defender = combatantOf(fight.state, defenderOf(attack))
   const split = defenseSplit(fight, attack, record, command)
   if (split.amount === 0) return { fight: { ...fight, state: toLocation(fight.state, { ...attack, defense: null }, attack.roll!.quality!, entropy) }, items: [], logs: [{ event: `${defender.name} kept no Defense.`, actor: defender.key }] }
-  const defense = rollDefense(split, entropy)
+  const mode = combatRollMode(record, { kind: 'defense', stat: 'Handle' }, { fightId: command.envelope.fightId, round: fight.state.round })
+  const defense = rollDefense(split, mode, entropy)
   const net = attack.roll!.quality! - defense.removes
   const state = afterDefense(fight.state, { ...attack, defense, net, repair: null }, record, net, entropy)
   return { fight: { ...fight, state }, items: [], logs: [defenseLog(defender, attack, defense, net)] }

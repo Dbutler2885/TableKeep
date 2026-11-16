@@ -6,6 +6,7 @@ import { withMovementRequests } from './movement'
 import type { CombatEntropy } from './commandEntropy'
 import { requireGm, requireLiveContext } from './context'
 import { combatantKey } from './inputs'
+import { combatRollMode, modeRecord, modeWords, rollWithMode } from './combatModes'
 import { combatInputModifiers } from './inputModifiers'
 import type { Combatant, CombatCommand, CombatFight, CombatHandler, CombatInitiative, CombatPlan, CombatRecords, CombatSheet, CombatState } from './types'
 
@@ -42,16 +43,28 @@ function speedOf(state: CombatState, record: CombatSheet, fightId: string): numb
   return lubecCurrentValue(record.sheet, 'Speed', combatInputModifiers(record.sheet, { fightId, round: 1 }))!
 }
 
-/** d100 strictly under Speed, frozen with the sheet revision it was read from. */
-function rollInitiative(speed: number, record: CombatSheet, entropy: CombatEntropy): CombatInitiative {
-  const roll = entropy.die('initiative', 100)
-  return { roll, speed, success: roll < speed, sourceRevision: record.revision ?? 0, ties: [] }
+/** A better initiative roll by the order initiative already ranks: a success first, a higher success, a lower failure. */
+const betterInitiative = (a: CombatInitiative, b: CombatInitiative): boolean =>
+  (a.success && !b.success) || (a.success && b.success && a.roll > b.roll) || (!a.success && !b.success && a.roll < b.roll)
+
+/**
+ * d100 strictly under Speed, frozen with the sheet revision it was read from. Initiative is a Speed Check, so a
+ * card's Speed or Physical mode rolls two dice, kept by the order above; it is rolled once a fight.
+ */
+function rollInitiative(speed: number, record: CombatSheet, fightId: string, entropy: CombatEntropy): CombatInitiative {
+  const mode = combatRollMode(record, { kind: 'initiative', stat: 'Speed' }, { fightId, round: 1 })
+  const evaluate = (roll: number): CombatInitiative => ({ roll, speed, success: roll < speed, sourceRevision: record.revision ?? 0, ties: [] })
+  const rolled = rollWithMode(entropy, 'initiative', mode.mode, evaluate, betterInitiative)
+  return { ...rolled.kept, ...modeRecord(mode, rolled.dice) }
 }
 
 function initiativeLog(combatant: Combatant, rolled: CombatInitiative, by: string): CombatLog {
   return {
     event: `${combatant.name} rolled initiative.`, actor: combatant.key,
-    roll: { who: combatant.name, what: by, roll: pad(rolled.roll), target: `under Speed ${rolled.speed}`, tone: rolled.success ? 'ok' : 'bad', result: rolled.success ? 'Success' : 'Failure' },
+    roll: {
+      who: combatant.name, what: by, roll: pad(rolled.roll), target: `under Speed ${rolled.speed}`, tone: rolled.success ? 'ok' : 'bad', result: rolled.success ? 'Success' : 'Failure',
+      ...(rolled.dice ? { extra: modeWords({ mode: rolled.mode!, because: rolled.because ?? null }, rolled.dice)! } : {}),
+    },
   }
 }
 
@@ -123,7 +136,7 @@ function rollFor(state: CombatState, combatant: Combatant, records: CombatRecord
   const record = combatSheetOf(records, combatant)
   const repair = attackRepair(combatant, record)
   if (repair) throw new Error(repair)
-  const rolled = rollInitiative(speedOf(state, record!, command.envelope.fightId), record!, entropy)
+  const rolled = rollInitiative(speedOf(state, record!, command.envelope.fightId), record!, command.envelope.fightId, entropy)
   return { state: withRoll(state, combatant, rolled), logs: [initiativeLog(combatant, rolled, by)] }
 }
 

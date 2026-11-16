@@ -61,7 +61,7 @@ export function combatAttackReading(sheet: LubecCharacterSheet, modifiers: reado
   return { choice, handle, skill, total: clampHandle(handle + (skill?.bonus ?? 0)) }
 }
 
-export type CombatAttackResult = { roll: number; attackNumber: number; hit: boolean; critical: boolean; quality: number | null }
+export type CombatAttackResult = { roll: number; attackNumber: number; hit: boolean; critical: boolean; quality: number | null; dice?: number[]; mode?: 'advantage' | 'disadvantage'; because?: string | null }
 
 const tens = (value: number): number => Math.floor(value / 10)
 

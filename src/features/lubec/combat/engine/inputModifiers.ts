@@ -17,3 +17,8 @@ export function combatInputModifiers(sheet: LubecCharacterSheet, context: Combat
   const effects = sheet.effects.filter((effect) => !deferredEffect(effect, context))
   return lubecSheetModifiers({ ...sheet, effects })
 }
+
+/** The cards a combat roll reads this round: every card but this fight's wounds that are not effective yet. */
+export function combatActiveEffects(sheet: LubecCharacterSheet, context: CombatInputRound | null): LubecEffect[] {
+  return context ? sheet.effects.filter((effect) => !deferredEffect(effect, context)) : [...sheet.effects]
+}

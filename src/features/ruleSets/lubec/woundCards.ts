@@ -186,9 +186,9 @@ export function lubecEffectWound(effect: LubecEffect): LubecWoundSource | null {
  * card and the Results say so; as each is automated its switch turns on, for every card old or new.
  */
 export const LUBEC_AUTOMATED = {
-  rolls: false,
+  rolls: true,
   restrictions: false,
-  taskModifiers: false,
+  taskModifiers: true,
   /** Lost stages, Dazed, knocked down, unconscious. */
   stages: false,
   /** Round windows and countdowns: "until the end of the next round", "in d4 rounds". */

@@ -13,6 +13,7 @@ import { closeAttack, stepRequest, toLocation } from './attackFlow'
 import { declaredLine, isRoundAttack } from './roundAttacks'
 import { weaponInHand } from './chooseAgain'
 import { evasionFor } from './evasion'
+import { combatAttackActions, combatRollMode, combatTaskPenalty, modeRecord, modeWords, rollWithMode } from './combatModes'
 import type { CombatAttack, CombatCommand, Combatant, CombatEvasion, CombatFight, CombatFrozenAim, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
 
 type Spent = { gear: LubecGear | null; detached: LubecDetachedItem[] }
@@ -64,7 +65,8 @@ function rollExtra(attacker: Combatant, target: Combatant, frozen: CombatFrozenA
 }
 
 function rollLog(state: CombatState, attacker: Combatant, target: Combatant, frozen: CombatFrozenAim, result: CombatAttackResult, evasion: CombatEvasion | null): CombatLog {
-  const extra = rollExtra(attacker, target, frozen, evasion)
+  const both = result.dice ? modeWords({ mode: result.mode!, because: result.because ?? null }, result.dice) : null
+  const extra = [both, rollExtra(attacker, target, frozen, evasion)].filter(Boolean).join(' ') || null
   return {
     event: `${attacker.name} attacked ${target.name}.`, actor: attacker.key,
     roll: {
@@ -99,6 +101,10 @@ function rolledState(state: CombatState, attack: CombatAttack, result: CombatAtt
   return { ...spent, attack: { ...rolled, step: 'defense' }, pendingActions: stepRequest(attack.aim!.targetKey, 'defense') }
 }
 
+/** A hit beats a miss; between two hits the higher quality, then the higher roll. On an attack at Disadvantage that is "fails if either fails, the lower roll if both succeed". */
+const betterAttack = (a: CombatAttackResult, b: CombatAttackResult): boolean =>
+  (a.hit && !b.hit) || (a.hit && b.hit && ((a.quality ?? 0) > (b.quality ?? 0) || (a.quality === b.quality && a.roll > b.roll)))
+
 function rollPlan(fight: CombatFight, attack: CombatAttack, record: CombatSheet, command: CombatCommand, entropy: CombatEntropy): CombatPlan {
   const { state } = fight
   const frozen = attack.frozen!
@@ -108,7 +114,13 @@ function rollPlan(fight: CombatFight, attack: CombatAttack, record: CombatSheet,
   const spent = spend(record.sheet.gear, attack.aim!.weaponItemId, frozen.choice, command.envelope.id)
   // A ranged attack at an evader takes the evasion penalty off the attack number, beside the GM's range.
   const evasion = evasionFor(state, target.key, frozen.choice)
-  const result = combatAttackResult(entropy.die('attack', 100), frozen.attack + (attack.range?.modifier ?? 0) - (evasion?.penalty ?? 0))
+  const context = { fightId: command.envelope.fightId, round: state.round }
+  const actions = combatAttackActions(frozen.choice)
+  // A task-only Handle penalty ("-20 Handle on ranged actions") comes off the attack number for an attack that is that action.
+  const attackNumber = frozen.attack + (attack.range?.modifier ?? 0) - (evasion?.penalty ?? 0) + combatTaskPenalty(record, actions, context, 'Handle')
+  const mode = combatRollMode(record, { kind: 'attack', stat: 'Handle', actions }, context)
+  const rolled = rollWithMode(entropy, 'attack', mode.mode, (die) => combatAttackResult(die, attackNumber), betterAttack)
+  const result: CombatAttackResult = { ...rolled.kept, ...modeRecord(mode, rolled.dice) }
   return {
     fight: { ...fight, state: rolledState(state, { ...attack, evasion }, result, spent.detached, entropy) }, items: [],
     logs: [rollLog(state, attacker, target, frozen, result, evasion)],

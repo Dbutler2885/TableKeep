@@ -60,7 +60,7 @@ const PURPOSE_WORDS = { 'fist-catch': 'Catch their fist', concussion: 'Concussio
 
 const rollNote = (rolled: NonNullable<CombatAttack['check']>) => {
   const purpose = rolled.purpose ? `${PURPOSE_WORDS[rolled.purpose]}: ` : ''
-  const dice = (rolled.dice?.length ?? 0) > 1 ? ` (${rolled.dice.map((die) => String(die).padStart(2, '0')).join(' and ')})` : ''
+  const dice = (rolled.dice?.length ?? 0) > 1 ? ` (${rolled.because ? `${rolled.because}: ` : ''}${rolled.dice.map((die) => String(die).padStart(2, '0')).join(' and ')})` : ''
   const stress = rolled.stress ? `, +${rolled.stress} Stress` : ''
   return `${purpose}${rolled.against} ${rolled.kind === 'save' ? 'Save' : 'Check'} ${String(rolled.result).padStart(2, '0')}${dice} against ${rolled.target}: ${rolled.success ? 'passed' : 'failed'}${stress}`
 }

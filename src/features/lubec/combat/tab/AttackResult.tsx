@@ -1,3 +1,4 @@
+import { RollModeNote } from './RollModeNote'
 import type { ReactNode } from 'react'
 import { aimDefense } from '../engine/attackAim'
 import type { CombatAttack, CombatAttackRoll, CombatFrozenAim, CombatState } from '../engine/types'
@@ -25,6 +26,7 @@ function AttackRollBody({ attack }: { attack: Rolled }) {
     <>
       <AttackBar segments={segments} roll={attack.roll} controls={<RollQuality roll={attack.roll} at={at} />} />
       {attack.evasion ? <p className="say">{evasionWords(attack.evasion)}</p> : null}
+      <RollModeNote roll={attack.roll} kept={attack.roll.roll} />
       <p className={`verdict ${attack.roll.hit ? 'ok' : 'bad'}`}>{attackVerdict(attack.roll)}</p>
     </>
   )

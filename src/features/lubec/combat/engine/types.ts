@@ -12,7 +12,7 @@ import type { CombatWound, CombatWoundAcknowledgement } from '../woundTypes'
 export type CombatantSelection = { kind: 'character' | 'npc'; sheetId: string }
 export type FloorSelection = { itemId: string; status: 'library' | 'dropped'; qty: number }
 /** A combatant's initiative: d100 strictly under Speed, frozen once per fight, with any tie rerolls the app made. */
-export type CombatInitiative = { roll: number; speed: number; success: boolean; sourceRevision: number; ties: number[] }
+export type CombatInitiative = { roll: number; speed: number; success: boolean; sourceRevision: number; ties: number[] } & CombatRollDice
 /** A Movement choice. Moving or staying is the default and needs no thought; Run, Pick up and Leave are the choices. */
 export type CombatMovementChoice = 'stay' | 'run' | 'evade' | 'pickup' | 'leave'
 /** One exact Floor record and quantity a pickup claims. */
@@ -22,7 +22,7 @@ export type CombatPickupClaim = { itemId: string; qty: number }
  * A Leave is `asked` until the GM confirms it; a refusal clears the choice so the player chooses again.
  */
 /** An evader's Speed roll as Movement settled, and what it takes off ranged attacks at them this round. */
-export type CombatEvasion = { roll: number; speed: number; success: boolean; penalty: number }
+export type CombatEvasion = { roll: number; speed: number; success: boolean; penalty: number } & CombatRollDice
 export type CombatMovement = { choice: CombatMovementChoice; pickup: CombatPickupClaim | null; leave: 'asked' | 'confirmed' | null; evasion?: CombatEvasion | null }
 /** One named Defense line: who it guards against, and how much of the Handle pool it holds. */
 export type CombatDefenseLine = { against: string; amount: number }
@@ -81,13 +81,15 @@ export type CombatFrozenAim = {
   sourceRevision: number
 }
 export type CombatAttackRange = { band: LubecRangeBand; modifier: number }
-export type CombatAttackRoll = { roll: number; attackNumber: number; hit: boolean; critical: boolean; quality: number | null }
+/** Under a card-set mode, both dice and why; absent on a single die. */
+export type CombatRollDice = { dice?: number[]; mode?: 'advantage' | 'disadvantage'; because?: string | null }
+export type CombatAttackRoll = { roll: number; attackNumber: number; hit: boolean; critical: boolean; quality: number | null } & CombatRollDice
 /** The defender's grant-local split and its roll: what it kept, rolled under, and took off the quality. */
-export type CombatDefenseRoll = { amount: number; full: boolean; value: number; roll: number; success: boolean; removes: number }
+export type CombatDefenseRoll = { amount: number; full: boolean; value: number; roll: number; success: boolean; removes: number } & CombatRollDice
 export type CombatCatchRoll = { chance: number; roll: number; success: boolean }
 /** Where the hit landed (d100 on the start table, d10 for a paired part's side) and where the attacker moved it. */
 export type CombatLanding = { table: string; startRoll: number; sideRoll: number | null; start: string; part: string | null; moved: number }
-export type CombatStrengthRoll = { roll: number; strength: number; success: boolean; bonus: number }
+export type CombatStrengthRoll = { roll: number; strength: number; success: boolean; bonus: number } & CombatRollDice
 /** Impact built from its parts; the table it is read on and what happens next. */
 export type CombatImpact = { quality: number; base: number; strength: number | null; moved: number; armor: number; total: number; table: string }
 /** How a closed or waiting attack ended, for the outcome banner. */
@@ -118,7 +120,7 @@ export type CombatWoundRow = {
 export type CombatLandingPurpose = 'fist-catch' | 'concussion' | 'prevention'
 export type CombatLandingRollSpec = NonNullable<CombatWoundRow['check']> & { purpose: CombatLandingPurpose }
 /** The target's ordinary core roll: at or under its number, with failure Stress as the core roller adds it. */
-export type CombatCheckRoll = NonNullable<CombatWoundRow['check']> & { target: number; dice: number[]; result: number; success: boolean; stress: number; purpose?: CombatLandingPurpose }
+export type CombatCheckRoll = NonNullable<CombatWoundRow['check']> & { target: number; dice: number[]; result: number; success: boolean; stress: number; purpose?: CombatLandingPurpose; because?: string }
 /** One part of a landed final wound's Results: Now, Next round, Recovery or Lasting, each a list of plain lines. */
 export type CombatWoundSection = { label: string; items: string[] }
 export type CombatAttack = {
