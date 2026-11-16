@@ -1,7 +1,7 @@
 import type { LubecModifier } from '../derivations'
 import type { LubecRestriction, LubecRollRule, LubecRollScope, LubecRollTask, LubecStepUntil } from '../effects'
 import type { LubecValueName } from '../sheet'
-import type { LubecWoundCardSpec, LubecWoundConcussion, LubecWoundNow, LubecWoundOutcome, LubecWoundStepSpec, LubecWoundTimer } from './outcome'
+import type { LubecRestrictionSpec, LubecWoundCardSpec, LubecWoundConcussion, LubecWoundNow, LubecWoundOutcome, LubecWoundStepSpec, LubecWoundTimer } from './outcome'
 import type { LubecWoundSeverity, LubecWoundTableRow } from './types'
 
 // Small builders the final tables are written with, so each row reads close to
@@ -19,6 +19,12 @@ export const NO_EVASIVE: LubecRestriction = { kind: 'no-evasive' }
 export const CRAWL: LubecRestriction = { kind: 'crawl-only' }
 export const NO_TWO_HANDS: LubecRestriction = { kind: 'no-two-handed' }
 export const speech = (words: string): LubecRestriction => ({ kind: 'speech', words })
+/** The struck arm cannot hold, attack or work. */
+export const ARM_UNUSABLE: LubecRestrictionSpec = { kind: 'arm-unusable', side: 'struck' }
+/** The struck hand cannot grip. */
+export const NO_GRIP: LubecRestrictionSpec = { kind: 'no-grip', side: 'struck' }
+/** "+1 Trauma every 30 minutes until Basic First Aid": the table adds it with the Trauma counter; no clock runs. */
+export const slowBleed = () => ({ key: 'slow-bleed', part: 'Slow bleed', steps: [step('treated', { labels: ['+1 Trauma every 30 minutes until Basic First Aid; add it with the Trauma counter'] })] })
 
 export const step = (until: LubecStepUntil, parts: Omit<LubecWoundStepSpec, 'until'> = {}): LubecWoundStepSpec => ({ until, ...parts })
 export const card = (key: string, part: string, ...steps: LubecWoundStepSpec[]): LubecWoundCardSpec => ({ key, part, steps })

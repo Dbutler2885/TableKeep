@@ -103,9 +103,10 @@ describe('a final Blunt Force forearm 4 wound', () => {
   })
 
   it('still lands an older provisional row as words resolved by hand', () => {
-    const wound = readTableRow(fight(), swing('forearm-L', 3), combatEntropy(command)).state.woundOutbox[0]
+    const cut = { ...swing('forearm-L', 3), impact: { ...swing('forearm-L', 3).impact!, table: 'cutting' } }
+    const wound = readTableRow(fight(), cut, combatEntropy(command)).state.woundOutbox[0]
     expect(wound.effects).toBeUndefined()
-    expect(wound.effect).toMatchObject({ name: 'Forearm injury', steps: [{ modifiers: [] }] })
+    expect(wound.effect).toMatchObject({ steps: [{ modifiers: [] }] })
   })
 })
 
@@ -122,6 +123,50 @@ describe('a final Fisticuffs knock-out', () => {
     const planned = planSheetIntention(stored, intention)
     expect((planned.mutation!.sheet.lubec as LubecCharacterSheet).counters).toEqual({ stress: 2, minimumStress: 1 + rolled, trauma: 2 })
     expect(planSheetIntention(planned.mutation!.sheet, { ...intention, baseRevision: 1 }).outcome).toMatchObject({ status: 'repair', code: 'record-exists' })
+  })
+})
+
+describe('final Blunt Force recovery schedules', () => {
+  async function onSheet(part: string, impact: number) {
+    const wound = readTableRow(fight(), swing(part, impact), combatEntropy(command)).state.woundOutbox[0]
+    const stored = { lubec: lubecCharacterSheet(), sheetRevision: 0 }
+    const planned = planSheetIntention(stored, combatWoundIntention(stored, wound, 'fight', await combatWoundOperationId('fight', wound.id)))
+    return parseLubecCharacter('roy', planned.mutation!.sheet as never).lubec
+  }
+  const keyed = (sheet: LubecCharacterSheet, key: string) => sheet.effects.find((effect) => effect.cardKey === key)!
+
+  it('splits a shattered forearm into a slow bleed First Aid clears and an arm a Long Rest steps to lasting -10 Handle', async () => {
+    const hurt = await onSheet('forearm-R', 6)
+    expect(hurt.counters.trauma).toBe(2)
+    expect(hurt.effects.map((effect) => effect.cardKey)).toEqual(['slow-bleed', 'arm'])
+    expect(keyed(hurt, 'slow-bleed').steps).toEqual([{ modifiers: [], labels: ['+1 Trauma every 30 minutes until Basic First Aid; add it with the Trauma counter'], until: 'treated' }])
+    expect(keyed(hurt, 'arm').steps[0]).toMatchObject({ until: 'long-rest', restrictions: [{ kind: 'arm-unusable', side: 'R' }] })
+    const aided: LubecCharacterSheet = { ...hurt, effects: stepDownLubecEffect(hurt.effects, keyed(hurt, 'slow-bleed').id) }
+    expect(aided.effects.map((effect) => effect.cardKey)).toEqual(['arm'])
+    expect(aided.counters.trauma).toBe(2)
+    const rested: LubecCharacterSheet = { ...hurt, effects: stepDownLubecEffect(hurt.effects, keyed(hurt, 'arm').id) }
+    expect(rested.effects.map((effect) => effect.cardKey)).toEqual(['slow-bleed', 'arm'])
+    expect(lubecCurrentValue(rested, 'Handle', lubecSheetModifiers(rested))).toBe(45)
+  })
+
+  it('sets a crushed hand\'s Handle to 10 with skill bonuses on top, then -40 after one rest and lasting -10 after two', async () => {
+    const hurt = await onSheet('hand-L', 6)
+    const hand = keyed(hurt, 'hand')
+    expect(hand.steps.map((step) => step.until)).toEqual(['long-rest', 'long-rest', 'lasting'])
+    expect(lubecCurrentValue(hurt, 'Handle', lubecSheetModifiers(hurt))).toBe(10)
+    expect(lubecCheckTarget(hurt, 'Handle', 'Diving')).toBe(25)
+    const once: LubecCharacterSheet = { ...hurt, effects: stepDownLubecEffect(hurt.effects, hand.id) }
+    expect(lubecCurrentValue(once, 'Handle', lubecSheetModifiers(once))).toBe(15)
+    const twice: LubecCharacterSheet = { ...once, effects: stepDownLubecEffect(once.effects, hand.id) }
+    expect(lubecCurrentValue(twice, 'Handle', lubecSheetModifiers(twice))).toBe(45)
+  })
+
+  it('rolls a Catastrophic wound\'s 1d4 Dazed once and saves it, and holds its +4 Minimum Stress for the last step', async () => {
+    const hurt = await onSheet('head', 6)
+    expect(hurt.counters).toMatchObject({ trauma: 4, minimumStress: 2 })
+    const dazed = keyed(hurt, 'dazed')
+    expect(lubecEffectWound(dazed)!.dice['Dazed 1d4']).toHaveLength(1)
+    expect(keyed(hurt, 'body').steps[2]).toMatchObject({ until: 'lasting', minimumStress: 4, modifiers: [{ target: 'Body', amount: -20 }, { target: 'Intellect', amount: -10 }] })
   })
 })
 

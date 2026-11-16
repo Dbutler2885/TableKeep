@@ -331,6 +331,26 @@ describe('a final wound\'s linked cards through real rules', () => {
     expect(await effectsOf('characters/hero')).toHaveLength(1)
   })
 
+  it('keeps both of two concurrent sibling Step downs, and a retried Step down applies once', async () => {
+    const twoSteps = { ...card('arm', -20), steps: [step(-20, 'long-rest'), step(-10, 'lasting')] }
+    await fixture([{ ...linked(), effects: [card('bleed', 0, 'treated'), twoSteps], effect: card('bleed', 0, 'treated') }])
+    await drainCombatWounds(as(), scope, 'gm')
+    const stored = await storedSheet()
+    const [bleed, arm] = stored.lubec.effects as { id: string; steps: unknown[] }[]
+    const aid = { operationId: 'first_aid', baseRevision: 1, edits: [{ kind: 'remove' as const, path: ['lubec', 'effects', { recordId: bleed.id }], base: { exists: true as const, value: bleed as never } }] }
+    const rest = {
+      operationId: 'long_rest', baseRevision: 1,
+      edits: [{ kind: 'set' as const, path: ['lubec', 'effects', { recordId: arm.id }, 'steps'], base: { exists: true as const, value: arm.steps as never }, value: arm.steps.slice(1) as never }],
+    }
+    const player = as('player')
+    await Promise.all([saveSheetIntention(player, ref(player, 'characters/hero'), aid), saveSheetIntention(as(), ref(as(), 'characters/hero'), rest)])
+    expect(await saveSheetIntention(as(), ref(as(), 'characters/hero'), rest)).toMatchObject({ status: 'committed' })
+    const after = await storedSheet()
+    expect(after.sheetRevision).toBe(3)
+    expect((after.lubec.effects as { id: string; steps: unknown[] }[]).map((effect) => [effect.id, effect.steps.length])).toEqual([[arm.id, 1]])
+    expect(after.lubec.counters.trauma).toBe(2)
+  })
+
   it('lets the GM step down an NPC card', async () => {
     await fixture([linked({ kind: 'npc', sheetId: 'roy' })])
     await drainCombatWounds(as(), scope, 'gm')

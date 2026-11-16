@@ -15,7 +15,7 @@ export type LubecWoundStepSpec = {
   setTo?: LubecSetTo[]
   /** Roll modes the step imposes, each on a scope of rolls. */
   rolls?: LubecRollRule[]
-  restrictions?: LubecRestriction[]
+  restrictions?: LubecRestrictionSpec[]
   /** A penalty only on one kind of action ("-20 Handle on ranged and visually precise actions"). */
   taskModifiers?: LubecTaskModifier[]
   /** The GM may call for Disadvantage on a relevant Charm Check; Charm itself never changes. */
@@ -29,6 +29,9 @@ export type LubecWoundStepSpec = {
   /** Reaching this step by Step down offers a Body Save once; failing it leaves the step's `failure` words as a lasting step. */
   onReach?: { save: 'Body'; failure: string }
 }
+
+/** A restriction as a table writes it: an arm or hand restriction names the struck side, which the hit decides. */
+export type LubecRestrictionSpec = LubecRestriction | { kind: 'arm-unusable' | 'no-grip'; side: 'struck' }
 
 /** One separately recovering consequence: its sub-name under the wound, and its steps from landing on. */
 export type LubecWoundCardSpec = {

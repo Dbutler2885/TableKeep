@@ -1,6 +1,6 @@
 import type { LubecModifier } from './derivations'
-import { lubecStepRestrictions, lubecStepRolls, lubecStepTaskModifiers, type LubecEffect, type LubecEffectStep } from './effects'
-import type { LubecWoundCardSpec, LubecWoundNow, LubecWoundOutcome, LubecWoundStepSpec, LubecWoundTimer } from './woundTables/outcome'
+import { lubecStepRestrictions, lubecStepRolls, lubecStepTaskModifiers, type LubecEffect, type LubecEffectStep, type LubecRestriction } from './effects'
+import type { LubecRestrictionSpec, LubecWoundCardSpec, LubecWoundNow, LubecWoundOutcome, LubecWoundStepSpec, LubecWoundTimer } from './woundTables/outcome'
 import type { LubecWoundSeverity } from './woundTables/types'
 
 // A landed final wound as Effect cards on the target's sheet: one card per
@@ -72,6 +72,12 @@ function mergedModifiers(list: readonly FlatModifier[]): FlatModifier[] {
   return [...sums.values()]
 }
 
+/** The struck part's side: "forearm-L" is the left. A part without one reads as the right, as a hit location without a side cannot name an arm. */
+const struckSide = (part: string): 'L' | 'R' => (part.endsWith('-L') ? 'L' : 'R')
+
+const restrictionOf = (spec: LubecRestrictionSpec, part: string): LubecRestriction =>
+  ('side' in spec && spec.side === 'struck' ? { kind: spec.kind, side: struckSide(part) } : spec as LubecRestriction)
+
 function stepOf(spec: LubecWoundStepSpec, context: LubecWoundCardContext): LubecEffectStep {
   const fingerCount = context.rolled?.fingers ?? context.fingers ?? 0
   const fingers = spec.perFinger && fingerCount ? [{ target: 'Handle' as const, amount: spec.perFinger * fingerCount }] : []
@@ -82,7 +88,7 @@ function stepOf(spec: LubecWoundStepSpec, context: LubecWoundCardContext): Lubec
     ...(spec.fractions?.length ? { fractions: spec.fractions } : {}),
     ...(spec.setTo?.length ? { setTo: spec.setTo } : {}),
     ...(spec.rolls?.length ? { rolls: spec.rolls } : {}),
-    ...(spec.restrictions?.length ? { restrictions: spec.restrictions } : {}),
+    ...(spec.restrictions?.length ? { restrictions: spec.restrictions.map((restriction) => restrictionOf(restriction, context.source.part)) } : {}),
     ...(spec.taskModifiers?.length ? { taskModifiers: spec.taskModifiers } : {}),
     ...(spec.charmReminder ? { charmReminder: true } : {}),
     ...(spec.minimumStress ? { minimumStress: spec.minimumStress } : {}),

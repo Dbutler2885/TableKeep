@@ -148,8 +148,8 @@ describe('a final row that lands at once', () => {
   })
 
   it('still reads a provisional row as words with its Body Save, until its table lands', () => {
-    const asked = readTableRow(fight(), hit('blunt', 'head', 2), combatEntropy(command))
-    expect(asked.state.attack!.row).toMatchObject({ name: 'Minor Concussion', check: { kind: 'save' } })
+    const asked = readTableRow(fight(), hit('thrown', 'head', 2), combatEntropy(command))
+    expect(asked.state.attack!.row).toMatchObject({ name: 'Rock to the head, Minor Concussion', check: { kind: 'save' } })
     expect(asked.state.attack!.row!.final).toBeUndefined()
   })
 })

@@ -1,4 +1,4 @@
-import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
+import type { LubecCharacterSheet, LubecCounters } from '../ruleSets/lubec/characterRecord'
 import type { LubecSheetEdit } from '../ruleSets/lubec/directEntry'
 import type { LubecEffect } from '../ruleSets/lubec/effects'
 import { lubecSheetModifiers } from '../ruleSets/lubec/modifiers'
@@ -27,7 +27,8 @@ type CorePageProps = {
   /** Absent for a viewer who may not change the character. */
   onCountersChange: LubecCountersChange | null
   /** Absent for a viewer who may not change the character. */
-  onEffectsChange: ((effects: LubecEffect[]) => void) | null
+  /** Saves the effects; a Step down that reaches a step adding Minimum Stress passes the counters with it. */
+  onEffectsChange: ((effects: LubecEffect[], counters?: LubecCounters) => void) | null
   /** Turns one of gear's Speed losses off or on; null for a viewer who may not change the character. */
   onGearChange: LubecGearChange
   /** Drops a thing from a hand to the GM's Items tab, from the Fight bar; null for a viewer who may not change the character. */
@@ -72,7 +73,7 @@ export function LubecCorePage({ sheet, onCountersChange, onEffectsChange, onGear
       {onDraftEdit ? classSection : null}
       <div className="lubec-tallies">
         <LubecCountersPanel sheet={lubecShownSheet(sheet, circles.spin)} onChange={onCountersChange} held={circles.spin !== null} />
-        <LubecEffectsPanel effects={sheet.effects} onChange={onEffectsChange} gear={sheet.gear} onGearChange={onGearChange} />
+        <LubecEffectsPanel effects={sheet.effects} counters={sheet.counters} onChange={onEffectsChange} gear={sheet.gear} onGearChange={onGearChange} />
       </div>
       {inPlay ? <LubecFightPanel sheet={sheet} onDrop={onGearDrop} /> : null}
       {onDraftEdit ? null : classSection}

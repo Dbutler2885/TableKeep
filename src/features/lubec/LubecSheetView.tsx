@@ -253,7 +253,7 @@ function LubecSheetPage({ page, onHideTree, onShowClass, character, editing, onC
     <LubecCorePage
       sheet={character.lubec}
       onCountersChange={onCountersChange}
-      onEffectsChange={editing ? (effects) => editing.update({ lubec: { ...character.lubec, effects } }) : null}
+      onEffectsChange={editing ? (effects, counters) => editing.update({ lubec: { ...character.lubec, effects, ...(counters ? { counters } : {}) } }) : null}
       onGearChange={onGearChange}
       onGearDrop={onGearDrop}
       onDraftEdit={onDraftEdit}

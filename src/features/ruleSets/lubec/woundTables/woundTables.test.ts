@@ -50,8 +50,8 @@ describe('reading a row', () => {
     },
   )
 
-  it('carries a concussion\'s Body Save, a d2\'s two wounds, unconsciousness and the lasting injury', () => {
-    expect(lubecWoundTableRow('blunt', 'head', 2)?.row.save).toEqual({ successTrauma: 0, success: 'Only Dazed, and 0 Trauma instead of +1.', failure: 'Now: Dazed. Lasting: -10 Handle. After 1 Long Rest: healed.' })
+  it('carries a concussion, a d2\'s two wounds, unconsciousness and a final row\'s severity', () => {
+    expect(lubecWoundTableRow('blunt', 'head', 4)?.row.concussion).toEqual({ kind: 'minor' })
     expect(lubecWoundTableRow('gunshot', 'torso', 3)?.row.choices).toEqual([
       { name: 'Bullet along the ribs', text: 'Disadvantage on physical Checks; half Movement and no Evasive Movement.' },
       { name: 'Lodged bullet', text: '-20 Strength and Speed for exertion until proper medical treatment; First Aid stabilizes but cannot remove it.', injury: 'Lodged object' },
@@ -59,7 +59,7 @@ describe('reading a row', () => {
     expect(lubecWoundTableRow('fisticuffs', 'neck', 9)?.row).toMatchObject({ name: 'Blow to the side of the neck', outcome: { now: [{ kind: 'unconscious' }] } })
     expect(lubecWoundTableRow('fisticuffs', 'head', 5)?.row.name).toBe('Broken jaw or cheekbone')
     expect(lubecWoundTableRow('fisticuffs', 'head', 8)?.row.concussion).toEqual({ kind: 'severe' })
-    expect(lubecWoundTableRow('blunt', 'torso', 4)?.row).toMatchObject({ name: 'Broken rib(s)', injury: 'Broken ribs' })
+    expect(lubecWoundTableRow('blunt', 'torso', 4)?.row).toMatchObject({ name: 'Broken rib(s)', severity: 'Serious' })
   })
 
   it('reads Fisticuffs shin and foot as rows of their own, and caps each location at its last row', () => {

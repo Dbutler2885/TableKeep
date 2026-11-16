@@ -22,7 +22,7 @@ const lasting: LubecEffect = { id: 'wound_1_scar', cardKey: 'scar', name: 'Forea
 const handMade: LubecEffect = { id: 'note', name: 'Sunburn', cause: 'Beach', steps: [{ modifiers: [], labels: ['Sore'] }] }
 
 const mount = (effects: LubecEffect[], onChange: ((effects: LubecEffect[]) => void) | null) =>
-  render(<div className="shell-root" data-theme="lubec"><LubecEffectsPanel effects={effects} onChange={onChange} gear={lubecCharacterSheet().gear} onGearChange={null} /></div>)
+  render(<div className="shell-root" data-theme="lubec"><LubecEffectsPanel effects={effects} counters={lubecCharacterSheet().counters} onChange={onChange} gear={lubecCharacterSheet().gear} onGearChange={null} /></div>)
 
 const region = () => screen.getByLabelText('Active effects')
 const lineTexts = () => [...region().querySelectorAll('.lubec-effect-line')].map((line) => [...line.children].map((part) => part.textContent))
@@ -71,6 +71,15 @@ describe('a wound card', () => {
       ['Forearm injury', 'Attacks at Disadvantage', 'Until the end of the next round', 'then healed', 'Resolved by hand'],
       ['Forearm injury', 'Handle -20', 'Step down after 1 Long Rest', 'then healed'],
     ])
+  })
+
+  it('adds a lasting step\'s Minimum Stress with the Step down that reaches it, and only then', () => {
+    const onChange = vi.fn()
+    const lastStep = { modifiers: [{ target: 'Body' as const, amount: -20 }], labels: [], until: 'lasting' as const, minimumStress: 4 }
+    const body: LubecEffect = { ...forearm, id: 'wound_1_body', cardKey: 'body', part: 'Body', steps: [{ modifiers: [], labels: [], until: 'long-rest' }, lastStep] }
+    mount([body], onChange)
+    fireEvent.click(within(region()).getByRole('button', { name: 'Step down Forearm injury' }))
+    expect(onChange).toHaveBeenCalledWith([{ ...body, steps: [lastStep] }], { ...lubecCharacterSheet().counters, minimumStress: lubecCharacterSheet().counters.minimumStress + 4 })
   })
 
   it('keeps a hand-made effect opening straight into its editor', () => {

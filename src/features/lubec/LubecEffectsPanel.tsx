@@ -3,9 +3,10 @@ import {
   describeLubecEffectStep,
   putLubecEffect,
   removeLubecEffect,
-  stepDownLubecEffect,
   type LubecEffect,
 } from '../ruleSets/lubec/effects'
+import type { LubecCounters } from '../ruleSets/lubec/characterRecord'
+import { stepDownLubecSheet } from '../ruleSets/lubec/stepDown'
 import type { LubecGear } from '../ruleSets/lubec/gear/gearRecord'
 import { lubecEffectGroups, lubecEffectWound, lubecStepByHand, lubecStepTrigger } from '../ruleSets/lubec/woundCards'
 import { LubecEffectEditor } from './LubecEffectEditor'
@@ -23,8 +24,10 @@ import { LubecWoundDetail } from './LubecWoundDetail'
 
 type EffectsProps = {
   effects: readonly LubecEffect[]
-  /** Absent for a viewer who may not change the character. */
-  onChange: ((effects: LubecEffect[]) => void) | null
+  /** The counters a Step down may add Minimum Stress to. */
+  counters: LubecCounters
+  /** Absent for a viewer who may not change the character; a Step down that adds Minimum Stress passes the counters too. */
+  onChange: ((effects: LubecEffect[], counters?: LubecCounters) => void) | null
   gear: LubecGear
   /** Saves the character's gear, to turn a loss off or on; absent for a viewer who may not change the character. */
   onGearChange: ((gear: LubecGear) => void) | null
@@ -113,7 +116,7 @@ function LubecNewEffect({ adding, actions }: { adding: boolean; actions: EffectA
 }
 
 /** The active effects as a section of the Core page, with the owner's and GM's controls when they may change it. */
-export function LubecEffectsPanel({ effects, onChange, gear, onGearChange }: EffectsProps) {
+export function LubecEffectsPanel({ effects, counters, onChange, gear, onGearChange }: EffectsProps) {
   const [open, setOpen] = useState<OpenEffect>(null)
   const editable = onChange !== null
   const change = (next: LubecEffect[]) => {
@@ -124,7 +127,11 @@ export function LubecEffectsPanel({ effects, onChange, gear, onGearChange }: Eff
     open: setOpen,
     save: (effect) => change(putLubecEffect(effects, effect)),
     remove: (id) => change(removeLubecEffect(effects, id)),
-    stepDown: (id) => onChange?.(stepDownLubecEffect(effects, id)),
+    stepDown: (id) => {
+      const next = stepDownLubecSheet({ effects, counters }, id)
+      if (next.counters === counters) onChange?.(next.effects)
+      else onChange?.(next.effects, next.counters)
+    },
   }
   const groups = lubecEffectGroups(effects)
   return (
