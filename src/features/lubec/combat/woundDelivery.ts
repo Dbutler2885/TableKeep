@@ -8,6 +8,7 @@ import { readSheetRevision } from '../../character/characterStore/sheetIntention
 import type { SheetIntention } from '../../character/characterStore/sheetIntentionTypes'
 import { closingIntention, roundTickIntention } from './roundTick'
 import { combatWoundIntention, combatWoundOperationId } from './woundIntention'
+import { planWoundDrop, withWoundDrop, type CombatPlannedDrop } from './woundDrop'
 import { readWoundFight, readWoundSheet, requireWoundFightLive, requireWoundGm } from './woundRecords'
 import { requireFreshWoundRead, retryStaleWoundRead } from './woundStaleRead'
 import type { CombatWound, CombatWoundAcknowledgement, CombatWoundScope } from './woundTypes'
@@ -22,17 +23,22 @@ function requireTarget(fight: CombatFight, wound: CombatWound) {
 }
 
 /** The sheet change an outbox entry makes: a wound's cards and counters, or a round tick's endings, or nothing for a tick with nothing to end. */
-function intentionOf(raw: Record<string, unknown>, wound: CombatWound, fightId: string, operationId: string): SheetIntention | null {
+function intentionOf(raw: Record<string, unknown>, wound: CombatWound, fightId: string, operationId: string, drop: CombatPlannedDrop | null): SheetIntention | null {
   if (wound.kind === 'tick') return roundTickIntention(raw, wound, fightId, operationId)
   if (wound.kind === 'close') return closingIntention(raw, wound, fightId, operationId)
-  return combatWoundIntention(raw, wound, fightId, operationId)
+  return combatWoundIntention(raw, wound, fightId, operationId, drop)
 }
+
+/** A wound's drop reads the struck hand on the sheet this delivery read; ticks and closings never drop. */
+const dropOf = (raw: Record<string, unknown>, wound: CombatWound): CombatPlannedDrop | null =>
+  (wound.kind === 'tick' || wound.kind === 'close' || !wound.drop ? null : planWoundDrop(raw, wound.drop.hand))
 
 async function applyWound(db: Firestore, tx: Transaction, scope: CombatWoundScope, fight: CombatFight, wound: CombatWound, recordAttempt: RecordAttempt) {
   requireTarget(fight, wound)
   const { ref, raw } = await readWoundSheet(db, tx, scope, wound.target)
   const operationId = await combatWoundOperationId(scope.fightId, wound.id)
-  const intention = intentionOf(raw, wound, scope.fightId, operationId)
+  const drop = dropOf(raw, wound)
+  const intention = intentionOf(raw, wound, scope.fightId, operationId, drop)
   const prepared = intention ? await prepareSheetIntention(tx, ref, intention) : null
   if (prepared) {
     requireFreshWoundRead(prepared)
@@ -45,8 +51,10 @@ async function applyWound(db: Firestore, tx: Transaction, scope: CombatWoundScop
     id: wound.id, target: wound.target, targetRevision: revision,
     originatingRound: wound.originatingRound, effectiveRound: wound.effectiveRound, operationId,
   }
+  // The dropped item leaves the sheet and reaches the Floor in this one commit.
+  const dropped = drop ? withWoundDrop(fight.state, wound, drop) : fight.state
   const state = {
-    ...fight.state,
+    ...dropped,
     woundOutbox: fight.state.woundOutbox.filter((entry) => entry.id !== wound.id),
     woundAcknowledgements: [...fight.state.woundAcknowledgements, acknowledgement],
   }

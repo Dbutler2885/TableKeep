@@ -1,5 +1,6 @@
 import type { CampaignScope } from '../../campaign/firestorePaths'
 import type { LubecEffect } from '../../ruleSets/lubec/effects'
+import type { LubecWoundDrop } from '../../ruleSets/lubec/woundCards'
 import type { CombatantSelection } from './engine/types'
 
 export type CombatWoundScope = CampaignScope & { fightId: string }
@@ -24,6 +25,8 @@ export type CombatWound = {
   effect?: LubecEffect
   /** Every card a final row's wound makes, each with a key unique within the wound; absent on an older text wound. */
   effects?: LubecEffect[]
+  /** The struck hand lets go of what it holds when the wound reaches the sheet: an automatic drop, or a failed retention Check. */
+  drop?: LubecWoundDrop
 }
 export type CombatWoundAcknowledgement = {
   id: string

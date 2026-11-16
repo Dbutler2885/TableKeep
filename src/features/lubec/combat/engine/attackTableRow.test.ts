@@ -37,10 +37,10 @@ function dice(script: Record<string, number[]>): CombatEntropy {
 }
 
 /** Roy's Body is 31 and Handle 55: 10 passes either, 99 fails either. */
-const landed = (table: string, part: string, impact: number, script: Record<string, number[]> = {}) => {
+const landed = (table: string, part: string, impact: number, script: Record<string, number[]> = {}, target: CombatSheet = roy) => {
   const asked = readTableRow(fight(), hit(table, part, impact), dice(script))
   if (asked.state.attack?.step !== 'check') return { fight: asked, logs: [] }
-  const plan = tableChecked(asked, asked.state.attack, roy, command, dice(script))
+  const plan = tableChecked(asked, asked.state.attack, target, command, dice(script))
   return { fight: plan.fight, logs: plan.logs }
 }
 const outboxOf = (done: { fight: CombatFight }) => done.fight.state.woundOutbox[0]
@@ -142,8 +142,7 @@ describe('a final row that lands at once', () => {
     expect(outboxOf(done).effects![0]).toMatchObject({ cause: 'Fisticuffs, left thigh, Impact 4: Minor Legs kicked out', struckLocation: 'thigh-L' })
   })
 
-  it('says a drop and an Immediate Death Save are the table\'s to resolve', () => {
-    expect(attackOf(landed('fisticuffs', 'forearm-R', 6)).rowSections![0].items).toContain('Whatever the struck hand holds is dropped (resolved by hand)')
+  it('says an Immediate Death Save is the GM\'s to resolve', () => {
     expect(attackOf(landed('fisticuffs', 'head', 10))).toMatchObject({ rowTrauma: 4, rowSections: [{ label: 'Now', items: ['Immediate Death Save: the GM resolves it privately'] }] })
   })
 
@@ -326,4 +325,77 @@ it('marks only Head 9 for a waking Save and leaves unconscious targets in combat
 it('keeps even a provisional located Thrown unconscious result in the fight rather than automatically Out', () => {
   const done = landed('thrown', 'head', 10, { check: [99] })
   expect(done.fight.state.combatants[1].outReason).toBeNull()
+})
+
+/** Roy holding things: a knife in the right hand and a lantern in the left, or one two-handed spear. */
+const inHand = (id: string, name: string, slot: number, extra: Record<string, unknown> = {}) =>
+  ({ id, kind: 'thing', carrier: 'hands', slot, name, size: 1, qty: 1, weight: 'normal', note: '', ...extra })
+const holding = (...items: ReturnType<typeof inHand>[]): CombatSheet =>
+  ({ ...roy, sheet: lubecCharacterSheet({ gear: { ...lubecCharacterSheet().gear, items: items as never } }) })
+const knifeAndLantern = holding(inHand('knife', 'Knife', 1), inHand('lantern', 'Lantern', 0))
+
+describe('a drop from the struck hand', () => {
+  it('drops automatically: no roll, and the wound carries the struck hand to the sheet', () => {
+    const done = landed('fisticuffs', 'forearm-R', 6)
+    expect(attackOf(done).checks).toEqual([])
+    expect(outboxOf(done)).toMatchObject({ drop: { hand: 'right' }, stressDelta: 0, traumaDelta: 1 })
+    expect(attackOf(done)).toMatchObject({ woundId: outboxOf(done).id })
+    expect(attackOf(done).rowSections![0]).toEqual({ label: 'Now', items: ['Whatever the right hand holds drops onto the Floor'] })
+    expect(lubecEffectWound(outboxOf(done).effects![0])!.drop).toEqual({ hand: 'right' })
+  })
+
+  it('reads the left hand from a left part', () => {
+    expect(outboxOf(landed('fisticuffs', 'forearm-L', 6)).drop).toEqual({ hand: 'left' })
+  })
+
+  it('asks the target for a Handle Check to keep hold', () => {
+    const asked = readTableRow(fight(), hit('fisticuffs', 'hand-R', 2), combatEntropy(command))
+    expect(asked.state.attack).toMatchObject({ step: 'check', row: { rolls: [{ purpose: 'retention', kind: 'stat-check', against: 'Handle', advantage: 'normal' }] } })
+    expect(asked.state.pendingActions).toEqual([{ combatantKey: ROY, action: 'check' }])
+  })
+
+  it('keeps hold on a success: nothing drops and no Stress', () => {
+    const done = landed('fisticuffs', 'hand-R', 2, { check: [10] }, knifeAndLantern)
+    expect(attackOf(done)).toMatchObject({ rowStress: 0, checks: [{ purpose: 'retention', success: true, stress: 0 }] })
+    expect(outboxOf(done).drop).toBeUndefined()
+    expect(attackOf(done).rowSections).toEqual([{ label: 'Now', items: ['Kept hold of the Knife in the right hand'] }])
+  })
+
+  it('drops on a failure, with the ordinary failed-Check Stress once', () => {
+    const done = landed('fisticuffs', 'hand-L', 2, { check: [99] }, knifeAndLantern)
+    expect(attackOf(done).checks).toMatchObject([{ purpose: 'retention', success: false, stress: 1 }])
+    expect(outboxOf(done)).toMatchObject({ stressDelta: 1, drop: { hand: 'left', kept: false, held: 'Lantern' } })
+    expect(attackOf(done).rowSections).toEqual([{ label: 'Now', items: ['The Lantern drops from the left hand onto the Floor'] }])
+    expect(done.logs[0].event).toBe('Roy rolled a Handle Check.')
+  })
+
+  it('rolls nothing for an empty hand: no Check, no Stress, nothing to drop', () => {
+    const done = landed('fisticuffs', 'hand-R', 2, { check: [99] }, holding(inHand('lantern', 'Lantern', 0)))
+    expect(attackOf(done)).toMatchObject({ rowStress: 0, checks: [] })
+    expect(outboxOf(done).drop).toBeUndefined()
+    expect(attackOf(done).rowSections).toEqual([{ label: 'Now', items: ['The right hand held nothing to drop'] }])
+  })
+
+  it('holds a two-handed thing in the struck hand, whichever side', () => {
+    const spear = holding(inHand('spear', 'Spear', 0, { size: 2 }))
+    expect(outboxOf(landed('fisticuffs', 'hand-R', 2, { check: [99] }, spear)).drop).toMatchObject({ hand: 'right', held: 'Spear' })
+  })
+
+  it('rolls the retention Check against the sheet before this wound: its own Disadvantage does not apply, an earlier card does', () => {
+    // Piercing upper arm 3: "Handle rolls at Disadvantage until the end of the next round. Whatever that hand holds is dropped unless a Handle Check succeeds."
+    const own = landed('piercing', 'upperarm-R', 3, { check: [10] }, knifeAndLantern)
+    expect(attackOf(own).checks).toMatchObject([{ purpose: 'retention', advantage: 'normal', dice: [10] }])
+    const old = { id: 'old', name: 'Old wound', cause: '', steps: [{ modifiers: [], labels: [], until: 'long-rest', rolls: [{ scope: 'handle', mode: 'disadvantage' }] } as never] }
+    const shaky = { ...knifeAndLantern, sheet: { ...knifeAndLantern.sheet, effects: [old] } }
+    const earlier = landed('piercing', 'upperarm-R', 3, { check: [10, 99] }, shaky)
+    expect(attackOf(earlier).checks).toMatchObject([{ purpose: 'retention', advantage: 'disadvantage', dice: [10, 99], success: false }])
+    expect(outboxOf(earlier).drop).toMatchObject({ hand: 'right', held: 'Knife', kept: false })
+  })
+
+  it('names the item on an automatic drop when the target\'s own roll read the sheet', () => {
+    // Piercing hand 6: an automatic drop with a prevention Body Save.
+    const done = landed('piercing', 'hand-R', 6, { check: [10] }, knifeAndLantern)
+    expect(outboxOf(done).drop).toEqual({ hand: 'right', held: 'Knife' })
+    expect(attackOf(done).rowSections![0].items).toContain('The Knife drops from the right hand onto the Floor')
+  })
 })

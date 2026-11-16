@@ -56,7 +56,7 @@ export function resultsFacts(state: CombatState, attack: CombatAttack): ResultsF
   return facts.filter((fact): fact is ResultsFact => fact !== null)
 }
 
-const PURPOSE_WORDS = { 'fist-catch': 'Catch their fist', concussion: 'Concussion', prevention: 'Countdown' } as const
+const PURPOSE_WORDS = { 'fist-catch': 'Catch their fist', concussion: 'Concussion', prevention: 'Countdown', retention: 'Keep hold' } as const
 
 const rollNote = (rolled: NonNullable<CombatAttack['check']>) => {
   const purpose = rolled.purpose ? `${PURPOSE_WORDS[rolled.purpose]}: ` : ''

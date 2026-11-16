@@ -1,6 +1,9 @@
 import { readSheetRevision } from '../../character/characterStore/sheetIntention'
 import type { SheetIntention, SheetValue } from '../../character/characterStore/sheetIntentionTypes'
 import type { LubecEffect } from '../../ruleSets/lubec/effects'
+import type { LubecWoundDrop } from '../../ruleSets/lubec/woundCards'
+import type { CombatPlannedDrop } from './woundDrop'
+import { deliveredDrop } from './woundDrop'
 import type { CombatWound, CombatWoundOrigin } from './woundTypes'
 
 /** Fight-local wound ids also remain distinct across fights on the same sheet. */
@@ -27,10 +30,15 @@ function requireCards(wound: CombatWound) {
   }
 }
 
+function requireDrop(drop: LubecWoundDrop | undefined) {
+  if (drop !== undefined && drop.hand !== 'left' && drop.hand !== 'right') throw new Error('A wound drop needs a hand.')
+}
+
 function requireWound(wound: CombatWound) {
   if (!wound.id || (!wound.effects && !wound.effect?.id)) throw new Error('Wound identity is missing.')
   requireWoundRound(wound)
   requireCards(wound)
+  requireDrop(wound.drop)
   if (![wound.traumaDelta, wound.stressDelta, wound.minimumStressDelta ?? 0].every(Number.isSafeInteger)) throw new Error('Invalid wound counter delta.')
 }
 
@@ -41,20 +49,22 @@ type Insertable = { id: string; [key: string]: SheetValue }
  * row's cards are each named by the operation and their key, and share the operation as their wound's identity,
  * so a retry or a second drain finds the same ids and the receipt, never a second copy.
  */
-function storedCards(wound: CombatWound, fightId: string, operationId: string): LubecEffect[] {
+function storedCards(wound: CombatWound, fightId: string, operationId: string, drop: CombatPlannedDrop | null): LubecEffect[] {
   const origin: CombatWoundOrigin = { fightId, woundId: wound.id, originatingRound: wound.originatingRound, effectiveRound: wound.effectiveRound }
   const stamp = (card: LubecEffect, id: string): LubecEffect => ({ ...card, id, cause: `Fight ${fightId}: ${card.cause}`, combatOrigin: origin })
   if (!wound.effects) return [stamp(wound.effect!, operationId)]
+  // The wound detail names what the struck hand actually dropped.
+  const dropped = drop ? { drop: deliveredDrop(drop, wound.drop) } : {}
   return wound.effects.map((card) => {
     const stamped = stamp(card, `${operationId}_${String(card.cardKey)}`)
-    return card.wound && typeof card.wound === 'object' ? { ...stamped, wound: { ...card.wound, groupId: operationId } } : stamped
+    return card.wound && typeof card.wound === 'object' ? { ...stamped, wound: { ...card.wound, groupId: operationId, ...dropped } } : stamped
   })
 }
 
-/** Deltas and stable card insertions rebase through the ordinary sheet protocol. */
-export function combatWoundIntention(raw: Record<string, unknown>, wound: CombatWound, fightId: string, operationId: string): SheetIntention {
+/** Deltas, stable card insertions and the dropped item's keyed removal rebase through the ordinary sheet protocol. */
+export function combatWoundIntention(raw: Record<string, unknown>, wound: CombatWound, fightId: string, operationId: string, drop: CombatPlannedDrop | null = null): SheetIntention {
   requireWound(wound)
-  const inserts = storedCards(wound, fightId, operationId).map((card) => ({ kind: 'insert' as const, path: ['lubec', 'effects'], record: card as unknown as Insertable }))
+  const inserts = storedCards(wound, fightId, operationId, drop).map((card) => ({ kind: 'insert' as const, path: ['lubec', 'effects'], record: card as unknown as Insertable }))
   return {
     operationId, baseRevision: readSheetRevision(raw),
     edits: [
@@ -62,6 +72,7 @@ export function combatWoundIntention(raw: Record<string, unknown>, wound: Combat
       { kind: 'delta', path: ['lubec', 'counters', 'stress'], base: 0, amount: wound.stressDelta },
       ...(wound.minimumStressDelta ? [{ kind: 'delta' as const, path: ['lubec', 'counters', 'minimumStress'], base: 0, amount: wound.minimumStressDelta }] : []),
       ...inserts,
+      ...(drop?.edits ?? []),
     ],
   }
 }

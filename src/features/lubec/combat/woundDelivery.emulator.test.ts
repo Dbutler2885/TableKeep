@@ -492,3 +492,39 @@ describe('waking Head 9 through real rules', () => {
     expect(current.lubec.effects[1]).toMatchObject({ recoveryRoll: { outcome: 'failure' }, steps: [{ modifiers: [{ target: 'Handle', amount: -30 }] }, { modifiers: [{ target: 'Handle', amount: -10 }] }, { modifiers: [{ target: 'Intellect', amount: -10 }] }] })
   })
 })
+
+describe('a wound drop through real rules', () => {
+  const inHand = (id: string, name: string, slot: number, extra: Record<string, unknown> = {}) =>
+    ({ id, kind: 'thing', carrier: 'hands', slot, name, size: 1, qty: 1, weight: 'normal', note: '', ...extra })
+  const holding = (ownerUserId: string, ...items: object[]) => {
+    const raw = sheet(ownerUserId)
+    return { ...raw, lubec: { ...raw.lubec, gear: { ...raw.lubec.gear, items } } }
+  }
+
+  it.each([target, { kind: 'npc', sheetId: 'roy' } as const])('moves the struck hand\'s item from the $kind sheet to the Floor once, across racing drains, a replay and End', async (selection) => {
+    const path = selection.kind === 'character' ? 'characters/hero' : 'npcSheets/roy'
+    await seed(path, holding(selection.kind === 'character' ? 'player' : 'gm', inHand('knife', 'Knife', 1), inHand('lantern', 'Lantern', 0)))
+    await fixture([wound({ target: selection, effectiveRound: 1, drop: { hand: 'right' } })])
+    await Promise.all([drainCombatWounds(as(), scope, 'gm'), drainCombatWounds(as('second-gm'), scope, 'second-gm')])
+    const fight = await readFight()
+    expect(fight.state.floor.map((record) => record.item.id)).toEqual(['knife'])
+    expect(fight.state.floor[0].item).not.toHaveProperty('slot')
+    const stored = await storedSheet(as(), path)
+    expect(stored.lubec.gear.items.map((item: { id: string }) => item.id)).toEqual(['lantern'])
+    expect(stored).toMatchObject({ sheetRevision: 1, lubec: { counters: { trauma: 1 } } })
+    expect(await deliverCombatWound(as(), scope, 'gm', 'wound')).toEqual(fight.state.woundAcknowledgements[0])
+    expect((await readFight()).state.floor).toHaveLength(1)
+    expect(await commitCombatCommand(as(), await command('end'), settings())).toMatchObject({ ok: true })
+    expect((await getDoc(ref(as(), 'gmItems/knife'))).data()).toMatchObject({ id: 'knife', name: 'Knife', status: 'dropped' })
+  })
+
+  it('drops a two-handed item held through the struck hand as one item, and an empty hand drops nothing', async () => {
+    await seed('characters/hero', holding('player', inHand('spear', 'Spear', 0, { size: 2 })))
+    await fixture([wound({ effectiveRound: 1, drop: { hand: 'right' } }), wound({ id: 'again', effectiveRound: 1, drop: { hand: 'left' } })])
+    await drainCombatWounds(as(), scope, 'gm')
+    expect((await readFight()).state.floor.map((record) => record.item.id)).toEqual(['spear'])
+    const stored = await storedSheet()
+    expect(stored.lubec.gear.items).toEqual([])
+    expect(stored.sheetRevision).toBe(2)
+  })
+})

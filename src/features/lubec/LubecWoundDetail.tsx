@@ -2,7 +2,7 @@ import { describeLubecCheckDice, describeLubecCheckOutcome, readLubecCheckRoll }
 import type { LubecStoredEntry } from '../ruleSets/lubec/characterRecord'
 import type { LubecEffect } from '../ruleSets/lubec/effects'
 import { locName } from '../ruleSets/lubec/gear/gearRules'
-import { lubecPlainProse, type LubecWoundRolledCheck, type LubecWoundSource } from '../ruleSets/lubec/woundCards'
+import { lubecDropWords, lubecPlainProse, type LubecWoundRolledCheck, type LubecWoundSource } from '../ruleSets/lubec/woundCards'
 
 // A wound card opened: the wound it came from, as it landed. The table, the
 // struck part, the Impact and severity, the row's words, the d2, every die and
@@ -44,6 +44,7 @@ export function LubecWoundDetail({ effect, wound, onEdit }: DetailProps) {
     ...(wound.branch === null ? [] : [['d2', String(wound.branch)] as [string, string]]),
     ...diceWords(wound.dice ?? {}).map((words): [string, string] => ['Rolled', words]),
     ...(wound.checks ?? []).map((check): [string, string] => ['Roll', checkWords(check)]),
+    ...(wound.drop ? [['Drop', lubecDropWords(wound.drop)] as [string, string]] : []),
     ...(recovered ? [['Recovery Save', `${describeLubecCheckDice(recovered)}: ${describeLubecCheckOutcome(recovered)}. ${recovered.because ?? ''}`] as [string, string]] : []),
     ['Charged', chargedWords(wound)],
     ['Source', wound.contentVersion],

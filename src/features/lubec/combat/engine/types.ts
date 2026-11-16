@@ -127,7 +127,7 @@ export type CombatWoundRow = {
   rolls?: CombatLandingRollSpec[]
 }
 /** What a landing roll decides. */
-export type CombatLandingPurpose = 'fist-catch' | 'concussion' | 'prevention'
+export type CombatLandingPurpose = 'fist-catch' | 'concussion' | 'prevention' | 'retention'
 export type CombatLandingRollSpec = NonNullable<CombatWoundRow['check']> & { purpose: CombatLandingPurpose }
 /** The target's ordinary core roll: at or under its number, with failure Stress as the core roller adds it. */
 export type CombatCheckRoll = NonNullable<CombatWoundRow['check']> & { target: number; dice: number[]; result: number; success: boolean; stress: number; purpose?: CombatLandingPurpose; because?: string }
@@ -173,6 +173,8 @@ export type CombatAttack = {
   /** The Stress the wound's landing rolls charged, and the Minimum Stress it rolled. */
   rowStress?: number | null
   rowMinimumStress?: number | null
+  /** The wound this attack queued, so its delivery can say what the struck hand dropped. */
+  woundId?: string | null
   /** A round attack's Results stay on screen until the GM moves the fight on. */
   continued?: boolean
   /** The target's Evasive Movement, when it took a penalty off this ranged attack. */

@@ -1,7 +1,9 @@
 import type { LubecEffect } from '../../../ruleSets/lubec/effects'
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
-import { lubecWoundCards, type LubecWoundRolled, type LubecWoundRolledCheck } from '../../../ruleSets/lubec/woundCards'
-import type { LubecWoundNow } from '../../../ruleSets/lubec/woundTables/outcome'
+import type { LubecGear } from '../../../ruleSets/lubec/gear/gearRecord'
+import { lubecHeldIn } from '../../../ruleSets/lubec/gear/held'
+import { lubecDropPending, lubecStruckHand, lubecWoundCards, type LubecWoundDrop, type LubecWoundRolled, type LubecWoundRolledCheck } from '../../../ruleSets/lubec/woundCards'
+import type { LubecWoundNow, LubecWoundOutcome } from '../../../ruleSets/lubec/woundTables/outcome'
 import { actionResolved, lostRoundsOf, withLostStages } from './stages'
 import { lubecWoundTableRow, type LubecLocatedWoundRow, type LubecWoundTableRow } from '../../../ruleSets/lubec/woundTables'
 import { lubecBriefWindowEnd, lubecCountdownDue } from '../roundTick'
@@ -95,12 +97,27 @@ function applyProvisional(state: CombatState, attack: CombatAttack, applied: App
 }
 
 const snapshotCheck = (check: CombatCheckRoll): LubecWoundRolledCheck => ({
-  purpose: { 'fist-catch': 'Catch their fist', concussion: 'Concussion', prevention: 'Prevent the countdown' }[check.purpose ?? 'concussion'],
+  purpose: { 'fist-catch': 'Catch their fist', concussion: 'Concussion', prevention: 'Prevent the countdown', retention: 'Keep hold' }[check.purpose ?? 'concussion'],
   kind: check.kind, against: check.against, mode: check.advantage, target: check.target, dice: check.dice, result: check.result, success: check.success, stress: check.stress,
 })
 
-/** A final row: its cards, Trauma, Stress and Minimum Stress go to the target's sheet, effective at once: every roll the target has not made yet this round reads it. A missed fist catch gives nothing at all. */
-function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatCheckRoll[], entropy: CombatEntropy): CombatState {
+/**
+ * The struck hand's drop, when the outcome has one: what the hand held, when the target's own sheet was read for a
+ * landing roll, and whether a retention Check kept hold. An empty hand drops nothing and is never rolled for.
+ */
+function dropOf(outcome: LubecWoundOutcome, part: string, gear: LubecGear | null, checks: readonly CombatCheckRoll[]): LubecWoundDrop | null {
+  if (!outcome.now?.some((now) => now.kind === 'drop')) return null
+  const hand = lubecStruckHand(part)
+  const retention = checks.find((check) => check.purpose === 'retention')
+  const held = gear ? (lubecHeldIn(gear, hand)?.name ?? null) : undefined
+  return { hand, ...(retention ? { kept: retention.success } : {}), ...(held === undefined ? {} : { held }) }
+}
+
+/**
+ * A final row: its cards, Trauma, Stress and Minimum Stress go to the target's sheet, effective at once: every roll the target has not made yet this round reads it.
+ * A drop goes with the wound and leaves the hand when the wound reaches the sheet. A missed fist catch gives nothing at all.
+ */
+function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatCheckRoll[], entropy: CombatEntropy, gear: LubecGear | null = null): CombatState {
   const located = locatedOf(attack)
   const row = attack.row!
   const pick = row.choice ?? null
@@ -109,6 +126,7 @@ function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatChec
   if (!landed.wound) {
     return closeAttack(state, { ...withChecks, rowOutcome: 'Failure: no effect, no wound and no Stress from this Check.', rowTrauma: 0, rowStress: 0, rowSections: [] }, 'no-wound')
   }
+  const drop = dropOf(landed.outcome, attack.landing!.part!, gear, checks)
   const { rolled: amounts, dice } = lubecRollAmounts(landed.outcome, entropy)
   const targetKey = defenderOf(attack)
   const lost = stageRounds(landed.outcome, state, targetKey, amounts.dazed ?? 1)
@@ -121,17 +139,17 @@ function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatChec
     table: located.table.key, tableName: located.table.name, location: row.group, part: attack.landing!.part!, impact: attack.impact!.total,
     severity: row.severity, row: row.name, prose: located.row.text, branch: pick, contentVersion: located.row.contentVersion ?? '',
     dice: { ...(pick === null ? {} : { d2: [pick] }), ...dice }, checks: checks.map(snapshotCheck),
-    trauma: landed.trauma, stress: landed.stress, minimumStress,
+    trauma: landed.trauma, stress: landed.stress, minimumStress, ...(drop ? { drop } : {}),
   }
   const cards = lubecWoundCards(landed.outcome, { source, cause: causeOf(attack, row, located.table.name), rolled })
   const wound: CombatWound = {
     id: entropy.id('wound', 0), target: target(state, attack), originatingRound: state.round, effectiveRound: state.round,
     traumaDelta: landed.trauma, stressDelta: landed.stress, ...(minimumStress ? { minimumStressDelta: minimumStress } : {}),
-    ...(cards.length ? { effect: cards[0] } : {}), effects: cards,
+    ...(cards.length ? { effect: cards[0] } : {}), effects: cards, ...(lubecDropPending(drop) ? { drop } : {}),
   }
   const closed = {
     ...withChecks, rowOutcome: located.row.text, rowTrauma: landed.trauma, rowStress: landed.stress, rowMinimumStress: minimumStress,
-    rowSections: lubecWoundSections(landed.outcome, cards, rolled, landed.prevented),
+    rowSections: lubecWoundSections(landed.outcome, cards, rolled, landed.prevented, drop), woundId: wound.id,
   }
   const roundWatch = watchedThrough(state, wound.target, cards)
   const countdowns = [...(state.countdowns ?? []), ...countdownsOf(state, wound, cards)]
@@ -194,12 +212,16 @@ export function readTableRow(fight: CombatFight, attack: CombatAttack, entropy: 
   return { ...fight, state: { ...fight.state, attack: { ...withRow, step: 'check' }, pendingActions: stepRequest(defenderOf(attack), action) } }
 }
 
-/** Every landing roll a final row asks for, in order, against the target's sheet as it stands; a missed fist catch stops there. */
-function rollLanding(record: CombatSheet, row: CombatWoundRow, fightId: string, round: number, entropy: CombatEntropy): CombatCheckRoll[] {
+/**
+ * Every landing roll a final row asks for, in order, against the target's sheet as it stands, before this wound;
+ * a missed fist catch stops there, and an empty struck hand has nothing to keep hold of.
+ */
+function rollLanding(record: CombatSheet, row: CombatWoundRow, part: string, fightId: string, round: number, entropy: CombatEntropy): CombatCheckRoll[] {
   const modifiers = combatInputModifiers(record.sheet, { fightId, round })
   const checks: CombatCheckRoll[] = []
   for (const spec of row.rolls ?? []) {
     const { purpose, ...check } = spec
+    if (purpose === 'retention' && !lubecHeldIn(record.sheet.gear, lubecStruckHand(part))) continue
     const mode = landingCheckMode(record, check, row.name, { fightId, round })
     const rolled = rollCheck(record, { ...check, advantage: mode.mode }, checkTarget(record, check.against, modifiers), entropy, mode.because)
     // A missed fist catch is "no effect, no wound and no Stress from this Check".
@@ -217,8 +239,8 @@ function landingLogs(fight: CombatFight, attack: CombatAttack, checks: readonly 
 /** The target's Saves and Checks pick the row's version; failing a Save adds its Stress too. */
 export function tableChecked(fight: CombatFight, attack: CombatAttack, record: CombatSheet, command: CombatCommand, entropy: CombatEntropy): CombatPlan {
   if (attack.row!.final) {
-    const checks = rollLanding(record, attack.row!, command.envelope.fightId, fight.state.round, entropy)
-    const state = applyFinal(fight.state, { ...attack, repair: null }, checks, entropy)
+    const checks = rollLanding(record, attack.row!, attack.landing!.part!, command.envelope.fightId, fight.state.round, entropy)
+    const state = applyFinal(fight.state, { ...attack, repair: null }, checks, entropy, record.sheet.gear)
     return { fight: { ...fight, state }, items: [], logs: landingLogs(fight, attack, checks) }
   }
   const rolled = rollRowCheck(record, attack.row!, command.envelope.fightId, fight.state.round, entropy)

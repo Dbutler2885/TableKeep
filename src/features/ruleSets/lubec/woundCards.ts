@@ -45,7 +45,30 @@ export type LubecWoundSource = {
   trauma: number
   stress: number
   minimumStress: number
+  /** The struck hand's drop, when the row has one; absent on a wound without a drop or saved before drops were played. */
+  drop?: LubecWoundDrop
 }
+
+/** A hand a wound can strike: the side of the struck part. */
+export type LubecHand = 'left' | 'right'
+
+/**
+ * A wound's drop from the struck hand: which hand, the Handle Check that may have kept hold, and what the hand held.
+ * `kept` is absent on an automatic drop; `held` is null for an empty hand and absent until the sheet has been read.
+ */
+export type LubecWoundDrop = { hand: LubecHand; kept?: boolean; held?: string | null }
+
+/** The drop as the Results and the wound detail say it. */
+export function lubecDropWords(drop: LubecWoundDrop): string {
+  if (drop.held === null) return `The ${drop.hand} hand held nothing to drop`
+  if (drop.kept === true) return `Kept hold of the ${drop.held ?? 'item'} in the ${drop.hand} hand`
+  if (drop.held === undefined) return `Whatever the ${drop.hand} hand holds drops onto the Floor`
+  return `The ${drop.held} drops from the ${drop.hand} hand onto the Floor`
+}
+
+/** Whether the drop still has to take something out of the hand: not kept, and not already known to be empty. */
+export const lubecDropPending = (drop: LubecWoundDrop | null | undefined): drop is LubecWoundDrop =>
+  Boolean(drop) && drop!.kept !== true && drop!.held !== null
 
 /** The amounts the wound rolled once when it landed, which its cards carry from then on. */
 export type LubecWoundRolled = {
@@ -81,6 +104,9 @@ function mergedModifiers(list: readonly FlatModifier[]): FlatModifier[] {
 
 /** The struck part's side: "forearm-L" is the left. A part without one reads as the right, as a hit location without a side cannot name an arm. */
 const struckSide = (part: string): 'L' | 'R' => (part.endsWith('-L') ? 'L' : 'R')
+
+/** The hand on the struck part's side, as a drop or a hand restriction reads it. */
+export const lubecStruckHand = (part: string): LubecHand => (struckSide(part) === 'L' ? 'left' : 'right')
 
 const restrictionOf = (spec: LubecRestrictionSpec, part: string): LubecRestriction =>
   ('side' in spec && spec.side === 'struck' ? { kind: spec.kind, side: struckSide(part) } : spec as LubecRestriction)

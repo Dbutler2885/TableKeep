@@ -55,3 +55,9 @@ export function lubecFisticuffsHands(gear: LubecGear): LubecHands | null {
 /** Both hands are full and neither holds a weapon: there is nothing to fight with until something is dropped. */
 export const lubecHandsFullOfThings = (gear: LubecGear): boolean =>
   !lubecFisticuffsOffered(gear) && lubecHeld(gear).every((h) => !h.weapon)
+
+/** The one thing a hand holds: the thing in that hand's slot, or a thing that takes both hands; undefined for an empty hand. */
+export function lubecHeldIn(gear: LubecGear, hand: 'left' | 'right'): LubecItem | undefined {
+  const slot = hand === 'left' ? 0 : 1
+  return itemsIn(gear, 'hands').find((i) => bothHands(i) || i.slot === slot)
+}

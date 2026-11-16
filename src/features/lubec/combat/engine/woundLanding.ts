@@ -1,6 +1,6 @@
 import type { LubecEffect } from '../../../ruleSets/lubec/effects'
 import { describeLubecEffectStep } from '../../../ruleSets/lubec/effects'
-import { lubecRolledKey, lubecStepByHand, lubecStepTrigger, type LubecWoundRolled } from '../../../ruleSets/lubec/woundCards'
+import { lubecDropWords, lubecRolledKey, lubecStepByHand, lubecStepTrigger, type LubecWoundDrop, type LubecWoundRolled } from '../../../ruleSets/lubec/woundCards'
 import { lubecConcussionOutcome, lubecConcussionTraumaRelief } from '../../../ruleSets/lubec/woundTables/concussion'
 import type { LubecWoundNow, LubecWoundOutcome } from '../../../ruleSets/lubec/woundTables/outcome'
 import type { LubecWoundTableRow } from '../../../ruleSets/lubec/woundTables/types'
@@ -36,7 +36,10 @@ export function lubecLandingRolls(row: LubecWoundTableRow, pick: number | null):
   const rolls: CombatLandingRollSpec[] = []
   if (row.fistCatch) rolls.push({ purpose: 'fist-catch', kind: 'stat-check', against: 'Handle', advantage: 'normal' })
   if (row.concussion) rolls.push({ purpose: 'concussion', kind: 'save', against: 'Body', advantage: row.concussion.mode ?? 'normal' })
-  if (lubecRowOutcome(row, pick).timers?.length) rolls.push({ purpose: 'prevention', kind: 'save', against: 'Body', advantage: 'normal' })
+  const outcome = lubecRowOutcome(row, pick)
+  if (outcome.timers?.length) rolls.push({ purpose: 'prevention', kind: 'save', against: 'Body', advantage: 'normal' })
+  // "Dropped unless a Handle Check succeeds": the target rolls it now, against the sheet as it stood before this wound.
+  if (outcome.now?.some((now) => now.kind === 'drop' && now.check)) rolls.push({ purpose: 'retention', kind: 'stat-check', against: 'Handle', advantage: 'normal' })
   return rolls
 }
 
@@ -94,9 +97,9 @@ export function lubecRollAmounts(outcome: LubecWoundOutcome, entropy: CombatEntr
 
 const BY_HAND = ' (resolved by hand)'
 
-function nowWords(now: LubecWoundNow, rolled: LubecWoundRolled): string | null {
+function nowWords(now: LubecWoundNow, rolled: LubecWoundRolled, drop: LubecWoundDrop | null): string | null {
   switch (now.kind) {
-    case 'drop': return `Whatever the struck hand holds is dropped${now.check ? ' unless a Handle Check succeeds' : ''}${BY_HAND}`
+    case 'drop': return drop ? lubecDropWords(drop) : 'Whatever the struck hand holds drops onto the Floor'
     case 'immediate-death-save': return 'Immediate Death Save: the GM resolves it privately'
     case 'out-of-reach': return 'Knocked out of striking reach: the GM rules it, as combat here has no reach'
     case 'unconscious': return rolled.minimumStress ? `Minimum Stress +${rolled.minimumStress} (1d5)` : null
@@ -115,7 +118,7 @@ function cardLine(card: LubecEffect, stepIndex: number): string {
 }
 
 /** A landed wound's Results, by when each consequence happens: Now, Next round, Recovery and Lasting. */
-export function lubecWoundSections(outcome: LubecWoundOutcome, cards: readonly LubecEffect[], rolled: LubecWoundRolled, prevented: boolean): CombatWoundSection[] {
+export function lubecWoundSections(outcome: LubecWoundOutcome, cards: readonly LubecEffect[], rolled: LubecWoundRolled, prevented: boolean, drop: LubecWoundDrop | null = null): CombatWoundSection[] {
   const now: string[] = []
   const next: string[] = []
   const recovery: string[] = []
@@ -129,7 +132,7 @@ export function lubecWoundSections(outcome: LubecWoundOutcome, cards: readonly L
     card.steps.slice(1).forEach((step, index) => (step.until === 'lasting' ? lasting : recovery).push(`then ${cardLine(card, index + 1)}`))
   }
   for (const item of outcome.now ?? []) {
-    const words = nowWords(item, rolled)
+    const words = nowWords(item, rolled, drop)
     if (words) now.push(words)
   }
   if (prevented) now.push('Timer prevented: the Body Save stopped every countdown')
