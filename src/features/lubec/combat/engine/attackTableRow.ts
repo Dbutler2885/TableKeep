@@ -84,16 +84,14 @@ const target = (state: CombatState, attack: CombatAttack) => {
   return { kind: entry.kind, sheetId: entry.sheetId }
 }
 
-/** A provisional row: its words go to the target's sheet, effective at once, with its Trauma and any Save's Stress; an unconscious target is Out at once. */
+/** A provisional row: its words go to the target's sheet, effective at once, with its Trauma and any Save's Stress; stage consequences remain manual until that table is final. */
 function applyProvisional(state: CombatState, attack: CombatAttack, applied: Applied, stress: number, entropy: CombatEntropy): CombatState {
   const located = locatedOf(attack)
-  const targetKey = defenderOf(attack)
-  const combatants = state.combatants.map((entry) => (entry.key === targetKey && attack.row!.out && entry.outReason === null ? { ...entry, outReason: 'wound' } : entry))
   const wound: CombatWound = {
     id: entropy.id('wound', 0), target: target(state, attack), originatingRound: state.round, effectiveRound: state.round,
     traumaDelta: applied.trauma, stressDelta: stress, effect: woundEffect(attack, attack.row!, applied, located.table.name, entropy),
   }
-  return closeAttack({ ...state, combatants, woundOutbox: [...state.woundOutbox, wound] }, { ...attack, rowOutcome: applied.text, rowTrauma: applied.trauma }, 'wounded')
+  return closeAttack({ ...state, woundOutbox: [...state.woundOutbox, wound] }, { ...attack, rowOutcome: applied.text, rowTrauma: applied.trauma }, 'wounded')
 }
 
 const snapshotCheck = (check: CombatCheckRoll): LubecWoundRolledCheck => ({

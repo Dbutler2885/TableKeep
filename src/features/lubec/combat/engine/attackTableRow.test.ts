@@ -321,3 +321,9 @@ it('marks only Head 9 for a waking Save and leaves unconscious targets in combat
   const neck = landed('fisticuffs', 'neck', 9, { unconscious: [4, 9], 'minimum-stress': [3] })
   expect(outboxOf(neck).effects![0].wakeSave).toBeUndefined()
 })
+
+
+it('keeps even a provisional located Thrown unconscious result in the fight rather than automatically Out', () => {
+  const done = landed('thrown', 'head', 10, { check: [99] })
+  expect(done.fight.state.combatants[1].outReason).toBeNull()
+})
