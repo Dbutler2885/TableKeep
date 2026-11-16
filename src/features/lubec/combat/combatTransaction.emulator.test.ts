@@ -178,7 +178,7 @@ describe('durable command protocol', () => {
     expect(callbacks).toBeGreaterThan(1)
     expect(outcome).toMatchObject({ ok: true, generatedIds: expect.arrayContaining(['item:start:floor%3Aball:0']) })
     expect((await readFight(db)).state.floor[0].item).toMatchObject({ impact: 7, qty: 2 })
-    expect((await getDocs(collection(db, root, 'combats/fight-start/commands'))).size).toBe(2)
+    expect((await getDocs(collection(db, root, 'combats/fight-start/commands'))).size).toBe(1)
     expect((await getDocs(collection(db, root, 'combats/fight-start/log'))).size).toBe(1)
   })
 
