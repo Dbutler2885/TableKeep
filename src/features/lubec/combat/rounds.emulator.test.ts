@@ -251,7 +251,7 @@ async function toAttack(heroChoice: object = { aim: heroThrow }) {
 }
 
 describe('an ordinary round between the GM and two players', () => {
-  it('misses once on a retried Roll, opens the next attacker by itself, and refuses the closed attack\'s commands', async () => {
+  it('misses once on a retried Roll, holds the Results until the GM moves on, then opens the next attacker and refuses the closed attack\'s commands', async () => {
     await toAttack()
     expect((await readFight(as('spectator'))).state.attack).toMatchObject({ attackerKey: HERO, grantId: null, aim: heroThrow })
     expect(await act('player2', 'not-mine', HERO, { type: 'roll', aim: heroThrow })).toEqual({ ok: false, reason: 'That combatant belongs to someone else.' })
@@ -259,8 +259,12 @@ describe('an ordinary round between the GM and two players', () => {
     const outcome = await commit(as('player'), roll, 'player')
     expect(outcome).toMatchObject({ ok: true, rolls: [{ purpose: 'attack' }] })
     expect(await commit(as('player'), structuredClone(roll), 'player')).toEqual(outcome)
+    // The finished attack's Results hold the table until the GM, and only the GM, moves on.
+    expect((await readFight(as('spectator'))).state.attack).toMatchObject({ attackerKey: HERO, outcome: 'miss', closed: true })
+    expect(await act('player', 'continue-player', null, { type: 'continue' })).toEqual({ ok: false, reason: 'Only the GM can do that.' })
+    expect(await act('gm', 'continue', null, { type: 'continue' })).toMatchObject({ ok: true })
     const { state } = await readFight(as('spectator'))
-    expect(state.lastAttack).toMatchObject({ attackerKey: HERO, outcome: 'miss' })
+    expect(state.lastAttack).toMatchObject({ attackerKey: HERO, outcome: 'miss', continued: true })
     expect(state.attack).toMatchObject({ attackerKey: ROY, step: 'aim', range: null })
     expect(state.floor.map((record) => record.item.id)).toEqual(['floor-ball', 'hero-ball'])
     expect((await readSheet(as('gm'), 'characters/hero')).sheetRevision).toBe(3)
@@ -276,6 +280,7 @@ describe('an ordinary round between the GM and two players', () => {
     expect(await commit(as('gm'), defend, 'gm')).toMatchObject({ ok: true })
     expect((await readFight(as('player'))).state.attack).toMatchObject({ step: 'catch', defense: { amount: 20, success: true } })
     expect(await commit(as('gm'), await seeded('gm', 'catch', ROY, { type: 'catch' }, { catch: (die) => die < 50 }), 'gm')).toMatchObject({ ok: true })
+    expect(await act('gm', 'continue', null, { type: 'continue' })).toMatchObject({ ok: true })
     const { state } = await readFight(as('spectator'))
     expect(state.lastAttack).toMatchObject({ attackerKey: HERO, outcome: 'caught' })
     expect(state.combatants.find((entry) => entry.key === HERO)!.outReason).toBe('caught')
