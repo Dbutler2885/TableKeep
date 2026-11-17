@@ -102,11 +102,21 @@ describe('a final Blunt Force forearm 4 wound', () => {
     expect(lubecCurrentValue(rested, 'Handle', lubecSheetModifiers(rested))).toBe(55)
   })
 
-  it('still lands an older provisional row as words resolved by hand', () => {
-    const cut = { ...swing('forearm-L', 3), impact: { ...swing('forearm-L', 3).impact!, table: 'thrown' } }
-    const wound = readTableRow(fight(), cut, combatEntropy(command)).state.woundOutbox[0]
-    expect(wound.effects).toBeUndefined()
-    expect(wound.effect).toMatchObject({ steps: [{ modifiers: [] }] })
+  it('delivers an already queued legacy Thrown wound without rereading the final table', async () => {
+    const text = '-20 Handle (dominant side) or -10 (other side) on actions with that hand.'
+    const wound: CombatWound = {
+      id: 'old-thrown', target: { kind: 'npc', sheetId: 'roy' }, originatingRound: 2, effectiveRound: 3, traumaDelta: 1, stressDelta: 0,
+      effect: { id: 'old-effect', name: 'Forearm injury', cause: 'Original Thrown row', steps: [{ modifiers: [], labels: [text] }], source: { table: 'thrown', impact: 3, originalDice: [4] } },
+    }
+    const stored = { lubec: lubecCharacterSheet(), sheetRevision: 0 }
+    const operationId = await combatWoundOperationId('fight', wound.id)
+    const planned = planSheetIntention(stored, combatWoundIntention(stored, wound, 'fight', operationId))
+    const lubec = parseLubecCharacter('roy', planned.mutation!.sheet as never).lubec
+    expect(lubec.effects).toHaveLength(1)
+    expect(lubec.effects[0]).toMatchObject({ name: 'Forearm injury', steps: [{ modifiers: [], labels: [text] }], source: { table: 'thrown', impact: 3, originalDice: [4] } })
+    expect(lubec.effects[0].wound).toBeUndefined()
+    expect(lubec.counters.trauma).toBe(1)
+    expect(lubecCurrentValue(lubec, 'Handle', lubecSheetModifiers(lubec))).toBe(55)
   })
 })
 
