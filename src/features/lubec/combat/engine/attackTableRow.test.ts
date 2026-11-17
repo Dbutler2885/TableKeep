@@ -146,10 +146,10 @@ describe('a final row that lands at once', () => {
     expect(attackOf(landed('fisticuffs', 'head', 10))).toMatchObject({ rowTrauma: 4, rowSections: [{ label: 'Now', items: ['Immediate Death Save: the GM resolves it privately'] }] })
   })
 
-  it('still reads a provisional row as words with its Body Save, until its table lands', () => {
+  it('reads a final Thrown concussion with the shared Body Save', () => {
     const asked = readTableRow(fight(), hit('thrown', 'head', 2), combatEntropy(command))
-    expect(asked.state.attack!.row).toMatchObject({ name: 'Rock to the head, Minor Concussion', check: { kind: 'save' } })
-    expect(asked.state.attack!.row!.final).toBeUndefined()
+    expect(asked.state.attack!.row).toMatchObject({ name: 'Rock to the head', check: { kind: 'save' } })
+    expect(asked.state.attack!.row!.final).toBe(true)
   })
 })
 
@@ -322,7 +322,7 @@ it('marks only Head 9 for a waking Save and leaves unconscious targets in combat
 })
 
 
-it('keeps even a provisional located Thrown unconscious result in the fight rather than automatically Out', () => {
+it('keeps a final Thrown Catastrophic target in the fight rather than automatically Out', () => {
   const done = landed('thrown', 'head', 10, { check: [99] })
   expect(done.fight.state.combatants[1].outReason).toBeNull()
 })
@@ -406,5 +406,66 @@ describe('knocked out of striking reach', () => {
     expect(done.fight.state.outOfReach).toEqual([{ attackerKey: HERO, targetKey: ROY, round: 1 }])
     expect(done.fight.state.combatants.find((entry) => entry.key === ROY)!.outReason).toBeNull()
     expect(attackOf(done).rowSections![0].items).toContain('Knocked out of striking reach: the GM rules it, as combat here has no reach')
+  })
+})
+
+describe('the final Thrown table through landing and sheet cards', () => {
+  it.each([[2, 10, 0, 0], [2, 99, 1, 1], [5, 10, 1, 0], [5, 99, 2, 1]])('Head %s, Save %s charges the settled concussion Trauma and Stress once', (impact, check, traumaDelta, stressDelta) => {
+    const done = landed('thrown', 'head', impact, { check: [check] })
+    expect(outboxOf(done)).toMatchObject({ traumaDelta, stressDelta })
+    expect(outboxOf(done).effects!.filter((card) => card.cardKey === 'dazed')).toHaveLength(1)
+    const concussion = outboxOf(done).effects!.find((card) => card.cardKey === 'concussion')
+    if (impact === 5 && check === 99) expect(concussion!.steps.map((step) => step.modifiers)).toEqual([[{ target: 'Handle', amount: -30 }], [{ target: 'Handle', amount: -10 }], [{ target: 'Intellect', amount: -10 }]])
+  })
+
+  it('records a Catastrophic d4 Dazed and lasting aftermath without making the target Out', () => {
+    const done = landed('thrown', 'head', 6, { dazed: [3] })
+    const wound = outboxOf(done)
+    expect(wound).toMatchObject({ traumaDelta: 4, immediateDeathSave: 'Skull fracture' })
+    expect(wound.effects!.find((card) => card.cardKey === 'dazed')!.lost).toEqual({ movement: [2, 3, 4], action: [1, 2, 3] })
+    expect(lubecEffectWound(wound.effects![0])!.dice).toMatchObject({ 'Dazed 1d4': [3] })
+    expect(wound.effects!.find((card) => card.cardKey === 'body')!.steps).toMatchObject([
+      { until: 'long-rest', rolls: [{ scope: 'physical', mode: 'disadvantage' }] },
+      { until: 'long-rest' },
+      { until: 'lasting', modifiers: [{ target: 'Body', amount: -20 }, { target: 'Intellect', amount: -10 }], minimumStress: 4 },
+    ])
+    expect(done.fight.state.combatants[1].outReason).toBeNull()
+  })
+
+  it('keeps the slow bleed manual, with no invented landing Save or d4 timer', () => {
+    const done = landed('thrown', 'waist', 6)
+    expect(attackOf(done).checks ?? []).toEqual([])
+    const cards = outboxOf(done).effects!
+    expect(cards.find((card) => card.cardKey === 'slow-bleed')!).toMatchObject({ steps: [{ until: 'treated', labels: ['+1 Trauma every 30 minutes until Basic First Aid; add it with the Trauma counter'] }] })
+    expect(cards.every((card) => !card.countdown)).toBe(true)
+  })
+
+  it('drops a dislocated shoulder item, unlike Blunt Force, and recovers to its lasting Handle loss', () => {
+    const thrown = outboxOf(landed('thrown', 'upperarm-R', 5, {}, knifeAndLantern))
+    const blunt = outboxOf(landed('blunt', 'upperarm-R', 5, {}, knifeAndLantern))
+    expect(thrown.drop).toEqual({ hand: 'right' })
+    expect(blunt.drop).toBeUndefined()
+    expect(thrown.effects!.find((card) => card.cardKey === 'shoulder')!.steps).toMatchObject([
+      { until: 'put-back', restrictions: [{ kind: 'arm-unusable', side: 'R' }] },
+      { until: 'lasting', modifiers: [{ target: 'Handle', amount: -10 }] },
+    ])
+  })
+
+  it('keeps the two-rest Thrown ribs schedule and visually precise scope distinct', () => {
+    expect(outboxOf(landed('thrown', 'torso', 4)).effects![0].steps.map((step) => step.until)).toEqual(['long-rest', 'long-rest'])
+    expect(outboxOf(landed('blunt', 'torso', 4)).effects![0].steps.map((step) => step.until)).toEqual(['long-rest'])
+    const face = outboxOf(landed('thrown', 'head', 4)).effects!.find((card) => card.cardKey === 'face')!
+    expect(face.steps).toMatchObject([{ rolls: [{ scope: { task: 'visually-precise' }, mode: 'disadvantage' }] }, { until: 'lasting', charmReminder: true, modifiers: [] }])
+  })
+
+  it('retains exactly the printed crushed-hand steps without adding a lost limb or extra drop Check', () => {
+    const done = landed('thrown', 'hand-L', 6, {}, knifeAndLantern)
+    expect(attackOf(done).checks ?? []).toEqual([])
+    expect(outboxOf(done).drop).toEqual({ hand: 'left' })
+    expect(outboxOf(done).effects![0].steps).toMatchObject([
+      { until: 'long-rest', restrictions: [{ kind: 'no-two-handed' }], setTo: [{ target: 'Handle', value: 10 }] },
+      { until: 'long-rest', modifiers: [{ target: 'Handle', amount: -40 }] },
+      { until: 'lasting', modifiers: [{ target: 'Handle', amount: -10 }] },
+    ])
   })
 })

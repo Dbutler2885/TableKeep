@@ -6,7 +6,7 @@
 // it; they are pinned by the landing tests instead:
 // - Discretionary Charm ("-10 Charm at GM discretion") is the situational Charm reminder, never a Charm change.
 // - Every crushed or destroyed hand reads "Handle drops to 10" (the final files already print it).
-// - Thrown's slow bleed uses the slow-bleed card, although the terms say Blunt Force only.
+// - Thrown Waist 6 uses the final table's manual +1 Trauma every 30 minutes until Basic First Aid; this later final row overrides the older terms' Blunt-Force-only scope.
 
 export type LubecFinalOverride = {
   table: string
