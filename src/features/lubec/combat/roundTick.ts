@@ -1,6 +1,7 @@
 import { readSheetRevision } from '../../character/characterStore/sheetIntention'
 import type { SheetEdit, SheetIntention, SheetValue } from '../../character/characterStore/sheetIntentionTypes'
 import type { CombatWound, CombatWoundOrigin } from './woundTypes'
+import { lubecDeathReasons, lubecDeathReminder, lubecDeathReminderEdits, lubecStoredDeathThreshold, lubecStoredTrauma } from '../../ruleSets/lubec/deathReminders'
 
 // The end of a round for one combatant, as a sheet change. It reads the sheet
 // as it stands in the delivery transaction and ends what this fight's round
@@ -92,9 +93,29 @@ export function roundTickEdits(raw: Raw, tick: CombatWound, fightId: string): Sh
   return [...ended, ...due.flatMap((effect) => firedEdits(effect, round)), ...trauma]
 }
 
+/**
+ * The tick's Death Save reminders: firing bleeds that add Trauma at or past the threshold give one, and each Critical
+ * countdown falling due gives its own; each is named by the tick's operation, so a redelivered tick finds its receipt.
+ */
+function tickDeathEdits(raw: Raw, tick: CombatWound, fightId: string, operationId: string): SheetEdit[] {
+  const lubec = isRecord(raw.lubec) ? raw.lubec : {}
+  const effects = (Array.isArray(lubec.effects) ? lubec.effects.filter(isRecord) : []).filter((effect) => typeof effect.id === 'string')
+  const round = tick.tickRound!
+  const due = effects.filter((effect) => countdownDue(effect, fightId, round))
+  const bleeds = due.filter((effect) => countdownOf(effect)!.kind === 'bleed')
+  const threshold = lubecStoredDeathThreshold(raw.lubec)
+  const bleeding = lubecDeathReasons({ threshold, before: lubecStoredTrauma(raw.lubec), added: bleeds.length })
+  const named = (effect: Raw) => String(effect.name ?? 'A wound')
+  return lubecDeathReminderEdits(raw.lubec, [
+    ...lubecDeathReminder(`${operationId}_death`, bleeding, `Bleeding from ${bleeds.map(named).join(', ')} at the end of round ${round}`),
+    ...due.filter((effect) => countdownOf(effect)!.kind === 'critical').flatMap((effect) =>
+      lubecDeathReminder(`${operationId}_critical_${String(effect.id)}`, ['A Critical countdown ran out: Death Save due'], `${named(effect)} at the end of round ${round}`)),
+  ])
+}
+
 /** The tick as a revision-checked intention, or null when nothing on the sheet ends with this round. */
 export function roundTickIntention(raw: Raw, tick: CombatWound, fightId: string, operationId: string): SheetIntention | null {
-  const edits = roundTickEdits(raw, tick, fightId)
+  const edits = [...roundTickEdits(raw, tick, fightId), ...tickDeathEdits(raw, tick, fightId, operationId)]
   return edits.length ? { operationId, baseRevision: readSheetRevision(raw), edits } : null
 }
 

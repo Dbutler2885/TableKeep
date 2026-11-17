@@ -35,6 +35,8 @@ import type { LubecRolled } from './useLubecRoller'
 import lubecPines from './lubecPines.svg'
 import { useTakeOpenPage } from '../navigation/openRequest'
 import { LubecCombatGearNotice } from './combat/LubecCombatGearNotice'
+import { LubecDeathReminders } from './LubecDeathReminders'
+import { lubecPendingDeathReminders } from '../ruleSets/lubec/deathReminders'
 
 type LubecPage = 'core' | 'skills' | 'gear'
 
@@ -169,6 +171,8 @@ function LubecStageBar({ character, correcting, onCorrecting, onDelete, onFinali
 
 export type LubecSheetViewProps = {
   onEffectRecovery?: LubecEffectRecovery
+  /** The GM's handle on the sheet's Death Save reminders; absent or null for anyone else, who never sees them. */
+  onDeathHandled?: ((id: string) => Promise<unknown>) | null
   saveControls?: LubecSaveControls
   character: LubecCharacterRecord
   /** The viewer's edits, or null when they may only look. */
@@ -306,7 +310,7 @@ const SheetCombatReturn = ({ landed, page, sheetId }: { landed: LubecPage | null
 
 /** One Lubec character's sheet, in the v4 frame, on its Core, Skills or Gear page. */
 export function LubecSheetView({
-  character, editing, onEffectRecovery, saveControls, identityEditable, carrierKinds, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, gearGive, shared, ...edits
+  character, editing, onEffectRecovery, onDeathHandled = null, saveControls, identityEditable, carrierKinds, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, gearGive, shared, ...edits
 }: LubecSheetViewProps) {
   const { landed, page, setPage } = useSheetPage(character.id)
   const [bandOpen, setBandOpen] = useState(false)
@@ -355,6 +359,7 @@ export function LubecSheetView({
         shared={shared}
         {...lockedEdits(correcting, corrections, edits)}
       />
+      {onDeathHandled ? <LubecDeathReminders entries={lubecPendingDeathReminders(character.lubec.deathReminders).map((reminder) => ({ key: reminder.id, who: null, reminder, onHandled: () => onDeathHandled(reminder.id) }))} /> : null}
     </article>
   )
 }

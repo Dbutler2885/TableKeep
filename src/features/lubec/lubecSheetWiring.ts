@@ -15,6 +15,9 @@ import { lubecCharacterName } from './lubecNames'
 import type { LubecCountersChange } from './LubecCountersPanel'
 import type { LubecRolled } from './useLubecRoller'
 import type { LubecCorrections } from './LubecSheetView'
+import { lubecWithTraumaEvent } from '../ruleSets/lubec/deathReminders'
+import { acknowledgeLubecDeathReminder, type LubecReminderSheet } from './deathReminderAck'
+import type { LubecGearRecords as LubecReminderRecords } from './gear/lubecGearDrop'
 
 /** Who is looking at the sheet. */
 export type LubecViewer = { role: Role | null; userId: string }
@@ -43,6 +46,8 @@ type DraftActions = {
 /** The sheet's edits for one viewer; each is null when the viewer may not make it. */
 export type LubecSheetEdits = DraftActions & {
   onEffectRecovery: LubecEffectRecovery
+  /** The GM marks one of the sheet's Death Save reminders handled; null for everyone else. */
+  onDeathHandled: ((id: string) => Promise<unknown>) | null
   onCountersChange: LubecCountersChange | null
   onSkillsChange: LubecSkillsChange | null
   corrections: LubecCorrections | null
@@ -60,7 +65,7 @@ function countersChangeFor(
   update: CharacterUpdate,
 ): LubecCountersChange | null {
   if (!character || (viewer.role !== 'gm' && character.ownerUserId !== viewer.userId)) return null
-  return (counters) => update(character.id, { lubec: { ...character.lubec, counters } })
+  return (counters) => update(character.id, { lubec: lubecWithTraumaEvent(character.lubec, counters, crypto.randomUUID()) })
 }
 
 // The owner and the GM change a character's skills until it is finalized; anyone else only sees them.
@@ -154,6 +159,9 @@ function draftActionsFor(
   }
 }
 
+const reminderSheetOf = (records: LubecReminderRecords, sheetId: string): LubecReminderSheet =>
+  ({ kind: records.sheet.kind === 'npc' ? 'npc' : 'character', sheetId })
+
 /**
  * The open sheet's edits for this viewer, saved through the shared store.
  * Every tab that shows a Lubec sheet takes its edits from here, so a new edit
@@ -168,6 +176,7 @@ export function lubecSheetWiring(
 ): LubecSheetEdits {
   return {
     onEffectRecovery: character && records && canEditCharacterStoreCharacter(character, viewer.role, viewer.userId) ? lubecEffectRecovery(records, store, character.id) : null,
+    onDeathHandled: character && records && viewer.role === 'gm' ? (id) => acknowledgeLubecDeathReminder(records.db, records.scope, reminderSheetOf(records, character.id), id) : null,
     onCountersChange: countersChangeFor(character, viewer, store.updateCharacter),
     onSkillsChange: skillsChangeFor(character, viewer, store.updateCharacter),
     corrections: correctionsFor(character, viewer, store.updateCharacter),

@@ -96,6 +96,18 @@ describe('a saved countdown', () => {
     expect(fourth.lubec.counters.trauma).toBe(raw.lubec.counters.trauma + 1)
   })
 
+  it('raises a Death Save reminder for a due Critical, and one for a bleed at the threshold, each once', () => {
+    const atThree = (effects: object[]) => { const raw = sheet(effects); return { ...raw, lubec: { ...raw.lubec, counters: { ...raw.lubec.counters, trauma: 3 } } } }
+    const third = run(atThree([countdown('bleed', 'bleed', 2, 1), countdown('critical', 'critical', 2, 1)]), 3)!
+    expect((third.lubec as { deathReminders?: unknown }).deathReminders).toEqual([
+      { id: 'op_death', reasons: ['Trauma reached 4, the Death Save threshold of 4'], event: 'Bleeding from Long chest cut at the end of round 3' },
+      { id: 'op_critical_critical', reasons: ['A Critical countdown ran out: Death Save due'], event: 'Long chest cut at the end of round 3' },
+    ])
+    expect(run(third, 3)).toBeNull()
+    const below = run(sheet([countdown('bleed', 'bleed', 2, 1)]), 3)!
+    expect((below.lubec as { deathReminders?: unknown }).deathReminders).toBeUndefined()
+  })
+
   it('adds its Trauma as a change, keeping a manual Trauma change made since', () => {
     const raw = sheet([countdown('bleed', 'bleed', 1, 1)])
     const intention = roundTickIntention(raw, tick(2), 'fight', 'op')!

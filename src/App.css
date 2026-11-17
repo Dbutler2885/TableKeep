@@ -17229,6 +17229,88 @@ button:disabled {
   width: min(100%, 34rem);
 }
 
+/* The GM's private Death Save prompt sits in the corner, never over the fight. */
+.shell-root[data-theme="lubec"] .lubec-death-reminders {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 40;
+  display: grid;
+  gap: 0.6rem;
+  width: min(calc(100vw - 2rem), 26rem);
+  max-height: min(80vh, 40rem);
+  overflow-y: auto;
+  padding: 0.9rem 1rem;
+  border: 2px solid var(--lubec-rust);
+  border-radius: 6px;
+  background: var(--lubec-cream);
+  color: var(--lubec-ink);
+  box-shadow: 4px 4px 0 rgba(163, 66, 41, 0.35);
+  font-family: var(--lubec-type);
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-reminders h3 {
+  margin: 0;
+  color: var(--lubec-rust);
+  font-family: var(--lubec-display);
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-reminders p {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-reminders > ul,
+.shell-root[data-theme="lubec"] .lubec-death-reminder ul {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-reminder {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--lubec-line);
+  border-radius: 4px;
+  background: var(--lubec-paper);
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-reminder small {
+  color: var(--lubec-muted);
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-reminder button {
+  justify-self: start;
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-table caption {
+  margin-bottom: 0.25rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-table th,
+.shell-root[data-theme="lubec"] .lubec-death-table td {
+  padding: 0.3rem 0.4rem;
+  border-top: 1px solid var(--lubec-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.shell-root[data-theme="lubec"] .lubec-death-table th {
+  width: 3rem;
+  white-space: nowrap;
+}
+
 @media (max-width: 580px) {
   .shell-root[data-theme="lubec"] .lubec-panic-body,
   .shell-root[data-theme="lubec"] .lubec-counters-body {

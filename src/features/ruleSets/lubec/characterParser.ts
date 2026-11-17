@@ -16,6 +16,7 @@ import { lubecCharacterSummary } from './characterSummary'
 import { parseLubecEffects } from './effects'
 import { parseLubecGear } from './gear/gearRecord'
 import { LUBEC_VALUE_NAMES, type LubecSheet } from './sheet'
+import { parseLubecDeathReminders } from './deathReminders'
 
 // Reads a stored Lubec character into the sheet's record and writes it back.
 // Every stored field the record does not model, at the top level and inside
@@ -92,6 +93,7 @@ export function parseLubecSheet(raw: unknown): LubecCharacterSheet {
     counters: parseCounters(stored.counters),
     effects: parseLubecEffects(stored.effects),
     lastRoll: entryOrNone(stored.lastRoll),
+    ...(Array.isArray(stored.deathReminders) ? { deathReminders: parseLubecDeathReminders(stored.deathReminders) } : {}),
     importNotes: listOf(stored.importNotes).filter(isText),
     gear: parseLubecGear(stored.gear),
   }

@@ -10,6 +10,7 @@ import type { LubecStepUntil } from '../../ruleSets/lubec/effects'
 import { createCombatCommand } from './commandJournal'
 import { commitCombatCommand } from './combatTransaction'
 import { lubecEffectRecovery } from '../effectRecovery'
+import { acknowledgeLubecDeathReminder } from '../deathReminderAck'
 import { combatEntropy } from './engine/commandEntropy'
 import { combatLifecycleHandlers } from './engine/lifecycle'
 import { combatInputModifiers, confirmedCombatRevision, readCombatInputs } from './woundBarrier'
@@ -569,5 +570,35 @@ describe('the delayed speech-recovery Save through real rules', () => {
     const current = await storedSheet()
     expect(current.lubec.counters).toEqual({ stress: 4, minimumStress: 3, trauma: 2 })
     expect(current.lubec.effects).toEqual([bleed, expect.objectContaining({ id: 'speech_recovered', steps: [expect.objectContaining({ labels: ['Speech damaged'], until: 'lasting', charmReminder: true })], recoveryRoll: expect.objectContaining({ outcome: 'failure' }) })])
+  })
+})
+
+describe('Death Save reminders through real rules', () => {
+  const classed = (trauma: number) => {
+    const raw = sheet()
+    return { ...raw, lubec: { ...raw.lubec, class: { key: 'working', choices: {} }, counters: { stress: 0, minimumStress: 2, trauma } } }
+  }
+
+  it('raises one reminder for a wound across racing drains and a replay, and the GM marks it handled once', async () => {
+    await seed('characters/hero', classed(2))
+    await fixture([wound({ effectiveRound: 1, traumaDelta: 2, immediateDeathSave: 'Shot through the heart' })])
+    await Promise.all([drainCombatWounds(as(), scope, 'gm'), drainCombatWounds(as('second-gm'), scope, 'second-gm')])
+    await deliverCombatWound(as(), scope, 'gm', 'wound')
+    const stored = await storedSheet()
+    expect(stored.lubec.counters.trauma).toBe(4)
+    expect(stored.lubec.deathReminders).toEqual([expect.objectContaining({ reasons: ['Immediate Death Save: Shot through the heart', 'Trauma reached 4, the Death Save threshold of 4'] })])
+    const id = stored.lubec.deathReminders[0].id
+    const handled = await Promise.all([acknowledgeLubecDeathReminder(as(), scope, target, id), acknowledgeLubecDeathReminder(as('second-gm'), scope, target, id)])
+    expect(handled[1]).toEqual(handled[0])
+    const after = await storedSheet()
+    expect(after.lubec.deathReminders).toEqual([expect.objectContaining({ id, handled: true })])
+    expect(after.lubec.counters).toEqual(stored.lubec.counters)
+  })
+
+  it('raises none for a wound below the threshold', async () => {
+    await seed('characters/hero', classed(0))
+    await fixture([wound({ effectiveRound: 1, traumaDelta: 1 })])
+    await drainCombatWounds(as(), scope, 'gm')
+    expect((await storedSheet()).lubec.deathReminders).toBeUndefined()
   })
 })

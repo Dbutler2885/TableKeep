@@ -4,6 +4,7 @@ import type { LubecEffect } from '../../ruleSets/lubec/effects'
 import type { LubecWoundDrop } from '../../ruleSets/lubec/woundCards'
 import type { CombatPlannedDrop } from './woundDrop'
 import { deliveredDrop } from './woundDrop'
+import { lubecDeathReasons, lubecDeathReminder, lubecDeathReminderEdits, lubecStoredDeathThreshold, lubecStoredTrauma } from '../../ruleSets/lubec/deathReminders'
 import type { CombatWound, CombatWoundOrigin } from './woundTypes'
 
 /** Fight-local wound ids also remain distinct across fights on the same sheet. */
@@ -61,6 +62,14 @@ function storedCards(wound: CombatWound, fightId: string, operationId: string, d
   })
 }
 
+const woundName = (wound: CombatWound) => wound.effects?.[0]?.name ?? wound.effect?.name ?? 'A wound'
+
+/** One Death Save reminder for the wound, its Immediate and threshold reasons together, named by the wound's operation. */
+function woundDeathEdits(raw: Record<string, unknown>, wound: CombatWound, operationId: string) {
+  const event = { threshold: lubecStoredDeathThreshold(raw.lubec), before: lubecStoredTrauma(raw.lubec), added: wound.traumaDelta, immediate: wound.immediateDeathSave ?? null }
+  return lubecDeathReminderEdits(raw.lubec, lubecDeathReminder(`${operationId}_death`, lubecDeathReasons(event), `${woundName(wound)} landed in round ${wound.originatingRound}`))
+}
+
 /** Deltas, stable card insertions and the dropped item's keyed removal rebase through the ordinary sheet protocol. */
 export function combatWoundIntention(raw: Record<string, unknown>, wound: CombatWound, fightId: string, operationId: string, drop: CombatPlannedDrop | null = null): SheetIntention {
   requireWound(wound)
@@ -73,6 +82,7 @@ export function combatWoundIntention(raw: Record<string, unknown>, wound: Combat
       ...(wound.minimumStressDelta ? [{ kind: 'delta' as const, path: ['lubec', 'counters', 'minimumStress'], base: 0, amount: wound.minimumStressDelta }] : []),
       ...inserts,
       ...(drop?.edits ?? []),
+      ...woundDeathEdits(raw, wound, operationId),
     ],
   }
 }

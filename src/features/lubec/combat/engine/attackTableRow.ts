@@ -146,6 +146,7 @@ function applyFinal(state: CombatState, attack: CombatAttack, checks: CombatChec
     id: entropy.id('wound', 0), target: target(state, attack), originatingRound: state.round, effectiveRound: state.round,
     traumaDelta: landed.trauma, stressDelta: landed.stress, ...(minimumStress ? { minimumStressDelta: minimumStress } : {}),
     ...(cards.length ? { effect: cards[0] } : {}), effects: cards, ...(lubecDropPending(drop) ? { drop } : {}),
+    ...(landed.outcome.now?.some((now) => now.kind === 'immediate-death-save') ? { immediateDeathSave: row.name } : {}),
   }
   const closed = {
     ...withChecks, rowOutcome: located.row.text, rowTrauma: landed.trauma, rowStress: landed.stress, rowMinimumStress: minimumStress,

@@ -25,6 +25,8 @@ export type CombatWound = {
   effect?: LubecEffect
   /** Every card a final row's wound makes, each with a key unique within the wound; absent on an older text wound. */
   effects?: LubecEffect[]
+  /** The wound's name when its row calls for an Immediate Death Save: the GM is reminded when it reaches the sheet. */
+  immediateDeathSave?: string
   /** The struck hand lets go of what it holds when the wound reaches the sheet: an automatic drop, or a failed retention Check. */
   drop?: LubecWoundDrop
 }

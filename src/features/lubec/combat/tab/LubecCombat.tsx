@@ -29,6 +29,7 @@ import { viewerHands } from './movementModel'
 import { CombatSetup, type CombatSetupStart } from './CombatSetup'
 import { combatFloorSelections, type CombatSetupIssue } from './combatSetupModel'
 import { useCombatGmData } from './useCombatGmData'
+import { CombatDeathReminders } from './CombatDeathReminders'
 import './lubecCombat.css'
 
 type LayoutProps = { state: CombatState; userId: string; role?: CombatViewer['role']; stage?: string; tools?: ReactNode; middle: ReactNode; onPlace?: (() => void) | null; hands?: readonly string[]; headerActions?: ReactNode; onOut?: (combatant: Combatant) => void; placement?: ReactNode }
@@ -145,7 +146,12 @@ function CombatGmLive({ campaign, live, userId, roster, send, tool, onTool, item
   const middle = <CombatPhaseMiddle campaign={campaign} live={live} viewer={viewer} roster={roster} send={send} onActFor={actFor} />
   const placement = tool === 'place' ? <div className="floor-placement"><CombatItemPicker items={items} onPlace={(item, qty) => void placeOnFloor(item, qty)} withCount busy={placing} /><button type="button" className="btn line small" disabled={placing} onClick={() => onTool('')}>Cancel placement</button></div> : null
   const endButton = <button type="button" className="btn line small end-combat" onClick={onEnd}>End combat</button>
-  return <CombatLayout state={state} userId={userId} tools={tools} middle={middle} onPlace={() => onTool('place')} placement={placement} onOut={people} headerActions={endButton} />
+  return (
+    <>
+      <CombatLayout state={state} userId={userId} tools={tools} middle={middle} onPlace={() => onTool('place')} placement={placement} onOut={people} headerActions={endButton} />
+      <CombatDeathReminders combatants={state.combatants} roster={roster} scope={{ groupId: campaign.groupId, campaignId: campaign.id }} />
+    </>
+  )
 }
 
 /** The GM's tab: set up a fight, run Before initiative and place items, and end it. */

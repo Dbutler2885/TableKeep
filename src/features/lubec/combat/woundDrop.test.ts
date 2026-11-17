@@ -76,3 +76,17 @@ describe('the wound\'s sheet change with its drop', () => {
     expect(() => combatWoundIntention(raw(), wound({ drop: { hand: 'up' as 'left' } }), 'fight', 'op')).toThrow('A wound drop needs a hand.')
   })
 })
+
+describe('a wound\'s Death Save reminder', () => {
+  const at = (trauma: number) => ({ ...raw(), lubec: { ...raw().lubec, counters: { stress: 0, minimumStress: 2, trauma } } })
+  const reminders = (intention: ReturnType<typeof combatWoundIntention>) => intention.edits.filter((edit) => edit.path[1] === 'deathReminders')
+
+  it('merges an Immediate Death Save and the threshold into one reminder named by the wound\'s operation', () => {
+    const intention = combatWoundIntention(at(1), wound({ traumaDelta: 4, immediateDeathSave: 'Shot through the heart', drop: undefined }), 'fight', 'op')
+    expect(reminders(intention)).toEqual([{ kind: 'set', path: ['lubec', 'deathReminders'], base: { exists: false }, value: [{ id: 'op_death', reasons: ['Immediate Death Save: Shot through the heart', 'Trauma reached 5, the Death Save threshold of 4'], event: 'Hand landed in round 1' }] }])
+  })
+
+  it('raises none for a wound that stays below the threshold', () => {
+    expect(reminders(combatWoundIntention(at(0), wound({ traumaDelta: 2, drop: undefined }), 'fight', 'op'))).toEqual([])
+  })
+})
