@@ -3339,6 +3339,14 @@ button.character-item-add-btn:disabled {
   background: #fafaf8;
 }
 
+.lubec-portrait-frame {
+  position: relative;
+  width: fit-content;
+  flex-shrink: 0;
+}
+
+.lubec-portrait-frame .lubec-portrait { display: block; }
+
 .character-dead-overlay {
   position: absolute;
   inset: 0;
@@ -19397,3 +19405,7 @@ button:disabled {
     --lubec-fit-height: 0.7;
   }
 }
+
+.lubec-condition-control { padding: 0.5rem 1rem; }
+.lubec-condition-control:empty { display: none; }
+.lubec-condition-control label { display: flex; gap: 0.5rem; align-items: center; }

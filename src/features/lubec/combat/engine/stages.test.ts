@@ -4,7 +4,7 @@ import { publicCombatant } from './inputs'
 import { combatEntropy } from './commandEntropy'
 import { withDeclareRequests, combatAttackers, RAN } from './declare'
 import { withMovementRequests } from './movement'
-import { actionResolved, lostRoundsOf, withLostStages } from './stages'
+import { lostStageWords, actionResolved, lostRoundsOf, withLostStages } from './stages'
 import type { CombatCommand, CombatState } from './types'
 
 const key = 'character:hero'
@@ -55,4 +55,15 @@ describe('stage loss at landing', () => {
     expect(combatAttackers(declared)).toEqual([])
     expect(JSON.parse(JSON.stringify(declared)).lost).toEqual(declared.lost)
   })
+})
+
+it.each(['comatose', 'dead'] as const)('skips Movement, Action and Defense for %s without Out or changing completed rolls', (condition) => {
+  const current = { ...state(), phase: 'movement' }
+  current.combatants[0].condition = condition
+  const moved = withMovementRequests(current)
+  expect(moved).toMatchObject({ pendingActions: [], movementComplete: true, combatants: [{ condition, outReason: null, movement: { lost: true } }] })
+  const declared = withDeclareRequests({ ...moved, phase: 'declare' }, combatEntropy(command)).state
+  expect(declared.combatants[0].declaration).toMatchObject({ stopped: true, lines: [] })
+  expect(combatAttackers(declared)).toEqual([])
+  expect(lostStageWords(declared, key)).toEqual([`Unresolved stages lost - ${condition === 'dead' ? 'Dead' : 'Comatose'}`])
 })

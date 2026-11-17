@@ -1,3 +1,4 @@
+import { combatSkipsStages } from './inputs'
 import { aimRequests } from './attackAim'
 import type { CombatLog } from './combatFeedback'
 import type { CombatEntropy } from './commandEntropy'
@@ -103,7 +104,7 @@ export const combatResultsHandlers: Readonly<Record<string, CombatHandler>> = { 
 export function declaredLine(state: CombatState, attack: CombatAttack): (CombatDefenseLine & { full: boolean }) | null {
   // Everyone in the fight during Attack has a declaration: made, Ran, or the empty one a Return gives.
   const defender = state.combatants.find((entry) => entry.key === attack.aim!.targetKey)!
-  if (defender.unconscious) return null
+  if (combatSkipsStages(defender)) return null
   const declaration = defender.declaration!
   const line = declaration.stopped ? undefined : declaration.lines.find((entry) => entry.against === attack.attackerKey)
   return line ? { ...line, full: declaration.full } : null

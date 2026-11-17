@@ -3,7 +3,7 @@ import { withDeclareRequests } from './declare'
 import { withMovementRequests } from './movement'
 import { actionLost, movementLost } from './stages'
 import { requireGm, requireLiveContext } from './context'
-import { combatantKey, combatPublicSummary } from './inputs'
+import { combatantKey, combatPublicSummary, combatSkipsStages } from './inputs'
 import type { Combatant, CombatHandler, CombatSheet, CombatState } from './types'
 
 // Speed is shown live until initiative; a later ticket freezes it there.
@@ -15,7 +15,10 @@ export function refreshedCombatant(combatant: Combatant, sheets: readonly Combat
   const record = sheets.find((sheet) => combatantKey(sheet) === combatant.key)
   if (!record) return combatant
   const { speed, ...summary } = combatPublicSummary(record)
-  return { ...combatant, ...summary, speed: speedOf(combatant, speed, phase) }
+  // A cleared condition leaves the summary; it must leave the combatant too.
+  const rest = { ...combatant }
+  delete rest.condition
+  return { ...rest, ...summary, speed: speedOf(combatant, speed, phase) }
 }
 
 const refreshedCombatants = (state: CombatState, sheets: readonly CombatSheet[]) =>
@@ -23,7 +26,7 @@ const refreshedCombatants = (state: CombatState, sheets: readonly CombatSheet[])
     const refreshed = refreshedCombatant(combatant, sheets, state.phase)
     // Landing eligibility cannot be cleared by a refresh that precedes its sheet delivery.
     if (state.woundOutbox.some((wound) => combatantKey(wound.target) === combatant.key && wound.effects?.some((card) => card.cardKey === 'unconscious'))) return { ...refreshed, unconscious: true }
-    if (combatant.unconscious && !refreshed.unconscious) {
+    if (combatSkipsStages(combatant) && !combatSkipsStages(refreshed)) {
       if (state.phase === 'movement' && combatant.movement?.unconscious && !movementLost(state, combatant.key)) return { ...refreshed, movement: null }
       if (state.phase === 'declare' && combatant.declaration?.unconscious && !actionLost(state, combatant.key)) return { ...refreshed, declaration: null }
     }
@@ -41,7 +44,8 @@ const refresh: CombatHandler = (command, records, authority, entropy) => {
   if (!combatSummariesStale(fight.state, records.sheets)) throw new Error('Public summaries are current.')
   let state = { ...fight.state, combatants: refreshedCombatants(fight.state, records.sheets) }
   for (const combatant of state.combatants) {
-    if (combatant.unconscious && !fight.state.combatants.find((entry) => entry.key === combatant.key)?.unconscious) state = stopAttack(state, combatant.key, entropy)
+    const before = fight.state.combatants.find((entry) => entry.key === combatant.key)
+    if (combatSkipsStages(combatant) && !(before && combatSkipsStages(before))) state = stopAttack(state, combatant.key, entropy)
   }
   if (state.phase === 'movement') state = withMovementRequests(state)
   const next = state.phase === 'declare' ? withDeclareRequests(state, entropy) : { state, logs: [] }

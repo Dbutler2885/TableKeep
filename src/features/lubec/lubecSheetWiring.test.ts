@@ -28,6 +28,7 @@ function wire(character: LubecCharacterRecord | null, viewer: LubecViewer, withR
 }
 
 const noEdits = {
+  onConditionChange: null,
   onEffectRecovery: null,
   onDeathHandled: null,
   onCountersChange: null, onSkillsChange: null, corrections: null, onDraftEdit: null, onRollUp: null, onFinalize: null, onGearChange: null, onGearDrop: null,
@@ -193,4 +194,12 @@ describe('lubecSheetWiring', () => {
     expect(edits.onFinalize).not.toBeNull()
     expect(edits.corrections).toBeNull()
   })
+})
+
+it('offers condition changes only to the GM, independent of the Correct switch', () => {
+  expect(wire(finalized, owner).edits.onConditionChange).toBeNull()
+  const { store, edits } = wire(finalized, gm)
+  edits.onConditionChange!('comatose')
+  edits.onConditionChange!(undefined)
+  expect(store.updateCharacterNow.mock.calls.map((call) => call[1].lubec.condition)).toEqual(['comatose', undefined])
 })

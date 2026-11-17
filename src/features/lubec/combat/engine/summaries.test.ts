@@ -78,3 +78,33 @@ it('skips unconscious Movement without Out, remains targetable, and resumes only
   expect(plan.fight.state.combatants[0]).toMatchObject({ unconscious: false, outReason: null, movement: null })
   expect(plan.fight.state.pendingActions).toEqual([{ combatantKey: 'npc:roy', action: 'movement' }])
 })
+
+it.each(['comatose', 'dead'] as const)('publishes %s, skips unresolved stages, keeps targeting and restores eligibility on GM clearing', (condition) => {
+  const current = live()
+  Object.assign(current.fight!.state, { round: 3, phase: 'movement', order: ['npc:roy'], movementComplete: false })
+  current.sheets[0].sheet.condition = condition
+  const refresh = { ...command('refresh', 'movement'), envelope: { ...command('refresh', 'movement').envelope, round: 3 } }
+  let plan = planCombatCommand(refresh, current, gm)
+  expect(plan.fight.state.combatants[0]).toMatchObject({ condition, outReason: null, movement: { choice: 'stay', lost: true } })
+  expect(plan.fight.state).toMatchObject({ pendingActions: [], movementComplete: true })
+  expect(combatOpponents(plan.fight.state, { ...plan.fight.state.combatants[0], key: 'character:hero', kind: 'character' })).toHaveLength(1)
+  expect(JSON.stringify(plan.fight)).not.toMatch(/counters|base|effects/)
+  current.fight = plan.fight
+  delete current.sheets[0].sheet.condition
+  plan = planCombatCommand(refresh, current, gm)
+  expect(plan.fight.state.combatants[0]).not.toHaveProperty('condition')
+  expect(plan.fight.state.combatants[0].movement).toBeNull()
+  expect(plan.fight.state.pendingActions).toEqual([{ combatantKey: 'npc:roy', action: 'movement' }])
+})
+
+it('keeps completed Movement and an active unconscious card when the GM clears a condition', () => {
+  const current = live()
+  Object.assign(current.fight!.state, { round: 3, phase: 'movement', order: ['npc:roy'], movementComplete: true })
+  const fighter = current.fight!.state.combatants[0]
+  fighter.condition = 'dead'
+  fighter.movement = { choice: 'stay', pickup: null, leave: null }
+  current.sheets[0].sheet.effects = [{ id: 'sleep', name: 'Unconscious', cause: '', steps: [{ modifiers: [], labels: [], restrictions: [{ kind: 'unconscious' }] }] }]
+  const refresh = { ...command('refresh', 'movement'), envelope: { ...command('refresh', 'movement').envelope, round: 3 } }
+  const plan = planCombatCommand(refresh, current, gm)
+  expect(plan.fight.state.combatants[0]).toMatchObject({ unconscious: true, movement: fighter.movement, outReason: null })
+})

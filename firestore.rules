@@ -302,12 +302,27 @@ service cloud.firestore {
 
         // Creates and updates are fenced by the schema floor; deletes are not,
         // because a delete leaves no old-shaped data behind.
+        function lubecCondition(data) {
+          return data.get('lubec', {}).get('condition', null);
+        }
+        function validLubecCondition(data) {
+          return lubecCondition(data) in [null, 'comatose', 'dead'];
+        }
+        // Whole-map replacements and deletions must preserve the GM's condition too.
+        function maySetLubecCondition(groupId, campaignId, creating) {
+          return validLubecCondition(request.resource.data)
+            && (isCampaignGm(groupId, campaignId)
+                || (creating ? lubecCondition(request.resource.data) == null
+                    : lubecCondition(request.resource.data) == lubecCondition(resource.data)));
+        }
         match /characters/{characterId} {
           allow read: if isGroupMember(groupId);
           allow create: if isGroupMember(groupId)
             && request.resource.data.ownerUserId == request.auth.uid
+            && maySetLubecCondition(groupId, campaignId, true)
             && meetsCharacterSchemaFloor(groupId, campaignId);
           allow update: if (isCampaignGm(groupId, campaignId) || isCharacterOwner())
+            && maySetLubecCondition(groupId, campaignId, false)
             && meetsCharacterUpdateSchemaFloor(groupId, campaignId)
             && meetsSheetRevision(groupId, campaignId);
           allow delete: if isCampaignGm(groupId, campaignId) || isCharacterOwner();

@@ -21,7 +21,7 @@ function SettleWaiting({ state, commands, viewer }: MovementProps) {
     return (
       <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />} foot={advance}>
         <div className="bigwait">
-          <h3>Everyone is unconscious</h3>
+          <h3>{state.combatants.some((entry) => entry.condition) ? 'Everyone’s stages are skipped' : 'Everyone is unconscious'}</h3>
           <p>Unresolved stages are skipped. The GM can advance a round to process countdowns or end combat.</p>
           {run.refusal ? <p role="alert">{run.refusal}</p> : null}
         </div>

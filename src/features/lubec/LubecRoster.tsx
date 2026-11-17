@@ -1,3 +1,4 @@
+import { LubecConditionOverlay } from './LubecConditionOverlay'
 import { Trash2, UserRound } from 'lucide-react'
 import { lubecClass } from '../ruleSets/lubec/classes'
 import type { LubecCharacterRecord } from '../ruleSets/lubec/characterRecord'
@@ -36,7 +37,7 @@ function LubecRosterCard({ character, selected, own, onSelect, onDelete }: CardP
   return (
     <div className="character-list-item-wrap">
       <button type="button" className={selected ? 'monster-list-item active' : 'monster-list-item'} onClick={() => onSelect(character.id)}>
-        <div className="monster-card-portrait"><LubecRosterThumb character={character} /></div>
+        <div className="monster-card-portrait"><LubecRosterThumb character={character} /><LubecConditionOverlay condition={character.lubec.condition} /></div>
         <div className="monster-card-main">
           <div className="character-card-title-row">
             <h4>{lubecCharacterName(character)}</h4>

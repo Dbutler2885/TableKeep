@@ -1,3 +1,4 @@
+import { combatIncapacity, combatSkipsStages } from '../engine/inputs'
 import { StageLossNotice } from './StageLossNotice'
 import type { ReactNode } from 'react'
 import type { Combatant, CombatDeclaration, CombatState } from '../engine/types'
@@ -41,10 +42,10 @@ function PendingRow({ place, combatant, mine, now }: { place: number; combatant:
 const rowTag = (mine: boolean, atYou: boolean): string => (mine ? 'YOU' : atYou ? 'AT YOU' : '')
 
 /** A declaration that will not run: its maker went Out, or came back after Declare. */
-const Stopped = ({ combatant }: { combatant: Combatant }) => <> <span className="badge rust">{combatant.outReason === null ? (combatant.unconscious ? 'Stopped: Unconscious' : 'Stopped') : 'Stopped: Out'}</span></>
+const Stopped = ({ combatant }: { combatant: Combatant }) => <> <span className="badge rust">{combatant.outReason === null ? (combatIncapacity(combatant) ? `Stopped: ${combatIncapacity(combatant)}` : 'Stopped') : 'Stopped: Out'}</span></>
 
 /** A declaration that will not run any more is struck through. */
-const struck = (combatant: Combatant, declaration: CombatDeclaration): boolean => combatant.outReason !== null || combatant.unconscious === true || declaration.stopped === true
+const struck = (combatant: Combatant, declaration: CombatDeclaration): boolean => combatant.outReason !== null || combatSkipsStages(combatant) || declaration.stopped === true
 
 type RowProps = { state: CombatState; place: number; combatant: Combatant; declaration: CombatDeclaration; mine: readonly string[] }
 

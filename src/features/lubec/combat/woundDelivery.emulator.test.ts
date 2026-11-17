@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { collection, deleteDoc, doc, getDoc, getDocFromServer, getDocs, runTransaction, setDoc, updateDoc, type Firestore } from 'firebase/firestore'
+import { assertFails, assertSucceeds } from '@firebase/rules-unit-testing'
+import { collection, deleteField, deleteDoc, doc, getDoc, getDocFromServer, getDocs, runTransaction, setDoc, updateDoc, type Firestore } from 'firebase/firestore'
 import { emulatorPort } from '../../../../vitest.emulatorEndpoint'
 import { firestoreRules } from '../../../../vitest.firestoreRules'
 import { saveSheetIntention } from '../../character/characterStore/sheetIntentionTransaction'
@@ -600,5 +601,38 @@ describe('Death Save reminders through real rules', () => {
     await fixture([wound({ effectiveRound: 1, traumaDelta: 1 })])
     await drainCombatWounds(as(), scope, 'gm')
     expect((await storedSheet()).lubec.deathReminders).toBeUndefined()
+  })
+})
+
+describe('GM-only Lubec conditions through real rules', () => {
+  it('denies owner creation with a condition, including alongside ordinary edits', async () => {
+    for (const condition of ['comatose', 'dead']) {
+      await assertFails(setDoc(ref(as('player'), `characters/new-${condition}`), { ...sheet(), lubec: { ...sheet().lubec, condition } }))
+    }
+    await assertSucceeds(setDoc(ref(as('player'), 'characters/new-none'), sheet()))
+  })
+  it('denies owner set, change, clear and nested deletion/replacement but allows unchanged conditions', async () => {
+    await assertFails(updateDoc(ref(as('player'), 'characters/hero'), { 'lubec.condition': 'dead', name: 'Changed', sheetRevision: 1 }))
+    await assertSucceeds(updateDoc(ref(as(), 'characters/hero'), { 'lubec.condition': 'comatose', sheetRevision: 1 }))
+    for (const update of [
+      { 'lubec.condition': 'dead' }, { 'lubec.condition': deleteField() }, { lubec: deleteField() },
+      { lubec: sheet().lubec }, { lubec: { ...sheet().lubec, condition: 'dead' } },
+    ]) await assertFails(updateDoc(ref(as('player'), 'characters/hero'), { ...update, name: 'Changed', sheetRevision: 2 }))
+    await assertSucceeds(updateDoc(ref(as('player'), 'characters/hero'), { name: 'Ordinary edit', sheetRevision: 2 }))
+    await assertSucceeds(updateDoc(ref(as('player'), 'characters/hero'), { lubec: { ...sheet().lubec, condition: 'comatose', age: 15 }, sheetRevision: 3 }))
+    await assertSucceeds(updateDoc(ref(as(), 'characters/hero'), { 'lubec.condition': 'dead', sheetRevision: 4 }))
+    await assertSucceeds(updateDoc(ref(as(), 'characters/hero'), { 'lubec.condition': deleteField(), sheetRevision: 5 }))
+  })
+  it('rebases a stale owner edit without erasing a newer GM condition', async () => {
+    await saveSheetIntention(as(), ref(as(), 'characters/hero'), { operationId: 'gm-condition', baseRevision: 0, edits: [{ kind: 'set', path: ['lubec', 'condition'], base: { exists: false }, value: 'dead' }] })
+    await saveSheetIntention(as('player'), ref(as('player'), 'characters/hero'), { operationId: 'owner-age', baseRevision: 0, edits: [{ kind: 'set', path: ['lubec', 'age'], base: { exists: true, value: null }, value: 15 }] })
+    expect(await storedSheet()).toMatchObject({ lubec: { condition: 'dead', age: 15 } })
+  })
+  it.each(['characters/hero', 'npcSheets/roy'])('continues wounds and countdowns on a Dead %s', async (path) => {
+    await seed(path, { ...sheet(), lubec: { ...sheet().lubec, condition: 'dead' } })
+    const selection = path.startsWith('npcSheets') ? { kind: 'npc' as const, sheetId: 'roy' } : target
+    await fixture([wound({ target: selection })])
+    await deliverCombatWound(as(), scope, 'gm', 'wound')
+    expect(await storedSheet(as(), path)).toMatchObject({ lubec: { condition: 'dead', counters: { trauma: 1 }, effects: [expect.anything()] } })
   })
 })

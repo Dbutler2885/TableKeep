@@ -4,6 +4,7 @@ import { lubecHoles } from '../../../ruleSets/lubec/holes'
 import { lubecSheetModifiers } from '../../../ruleSets/lubec/modifiers'
 import { lubecNpcFightSummary } from '../../fight/lubecNpcFightSummary'
 import type { Combatant, CombatantSelection, CombatSheet } from './types'
+import { LUBEC_CONDITION_NAMES } from '../../../ruleSets/lubec/condition'
 
 export const combatantKey = (selection: CombatantSelection) => `${selection.kind}:${selection.sheetId}`
 
@@ -26,11 +27,12 @@ export function combatSetupIssues(selections: CombatantSelection[], sheets: Comb
   })
 }
 
-export type CombatPublicSummary = Pick<Combatant, 'name' | 'portraitPath' | 'armor' | 'unconscious'> & { speed: number | null }
+export type CombatPublicSummary = Pick<Combatant, 'name' | 'portraitPath' | 'armor' | 'unconscious' | 'condition'> & { speed: number | null }
 
-/** What everyone may see of a combatant's sheet: name, face, current Speed and worn armor, nothing else. */
+/** What everyone may see of a combatant's sheet: name, face, current Speed, worn armor and the GM's condition, nothing else. */
 export const combatPublicSummary = (record: CombatSheet): CombatPublicSummary => ({
   unconscious: lubecUnconsciousCards(record.sheet.effects).length > 0,
+  ...(record.sheet.condition ? { condition: record.sheet.condition } : {}),
   name: record.name, portraitPath: record.portraitPath,
   speed: lubecCurrentValue(record.sheet, 'Speed', lubecSheetModifiers(record.sheet)),
   armor: lubecNpcFightSummary(record.sheet).armor,
@@ -44,4 +46,14 @@ export function publicCombatant(record: CombatSheet): Combatant {
     kind: record.kind, sheetId: record.sheetId, key: combatantKey(record),
     ownerUserId: record.ownerUserId, ...summary, speed, interactionSequence: 0, outReason: null,
   }
+}
+
+/** Whether a combatant's unresolved stages are skipped: unconscious, or the GM's Comatose or Dead condition. */
+export const combatSkipsStages = (combatant: Pick<Combatant, 'unconscious' | 'condition'>): boolean =>
+  Boolean(combatant.unconscious || combatant.condition)
+
+/** Why a combatant's stages are skipped, as the table shows it; null when they are not. */
+export function combatIncapacity(combatant: Pick<Combatant, 'unconscious' | 'condition'>): string | null {
+  if (combatant.condition) return LUBEC_CONDITION_NAMES[combatant.condition]
+  return combatant.unconscious ? 'Unconscious' : null
 }

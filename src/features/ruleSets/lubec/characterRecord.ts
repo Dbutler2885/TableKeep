@@ -4,6 +4,7 @@ import type { LubecEffect } from './effects'
 import type { LubecGear } from './gear/gearRecord'
 import type { LubecSheet } from './sheet'
 import type { LubecDeathReminder } from './deathReminders'
+import type { LubecCondition } from './condition'
 
 // A Lubec character as the sheet reads it: the identity every rule set shares
 // at the top level, and everything Lubec's own under `lubec`. Derived values
@@ -26,6 +27,8 @@ export type LubecCharacterSheet = LubecSheet & {
   lastRoll: LubecStoredEntry | null
   /** Death Save reminders for the GM, once any has been raised; absent on a sheet that never had one. */
   deathReminders?: readonly LubecDeathReminder[]
+  /** The GM's Comatose or Dead condition; absent for none. */
+  condition?: LubecCondition
   /** The notices only an import can know, kept for the Finalize dialog. */
   importNotes: readonly string[]
   /** What the character carries: items, personal carriers and the choices about them. */

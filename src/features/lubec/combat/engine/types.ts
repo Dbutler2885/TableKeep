@@ -8,6 +8,7 @@ import type { LubecArmorZone } from '../../fight/lubecNpcFightSummary'
 import type { CombatLog, CombatPendingAction } from './combatFeedback'
 import type { CombatEntropy } from './commandEntropy'
 import type { CombatWound, CombatWoundAcknowledgement } from '../woundTypes'
+import type { LubecCondition } from '../../../ruleSets/lubec/condition'
 
 export type CombatantSelection = { kind: 'character' | 'npc'; sheetId: string }
 export type FloorSelection = { itemId: string; status: 'library' | 'dropped'; qty: number }
@@ -52,6 +53,8 @@ export type CombatDeclaration = {
 export type Combatant = CombatantSelection & {
   /** Public eligibility projection of the sheet's active unconscious cards. */
   unconscious?: boolean
+  /** The GM's Comatose or Dead condition, published from the sheet; absent for none. */
+  condition?: LubecCondition
   key: string
   ownerUserId: string
   name: string

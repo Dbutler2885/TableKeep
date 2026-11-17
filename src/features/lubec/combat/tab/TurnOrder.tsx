@@ -1,3 +1,4 @@
+import { LUBEC_CONDITION_NAMES } from '../../../ruleSets/lubec/condition'
 import { StageLossNotice } from './StageLossNotice'
 import { byInitiative } from '../engine/initiative'
 import type { Combatant, CombatState } from '../engine/types'
@@ -22,7 +23,7 @@ function evasiveWords(combatant: Combatant): string {
 function rowWords(combatant: Combatant, userId: string): string {
   const rolled = combatant.initiative
   const roll = rolled ? ` · rolled ${pad(rolled.roll)} ${rolled.success ? 'under' : 'over'}` : ''
-  return `${combatantRole(combatant, userId)} · Speed ${combatant.speed}${roll}${evasiveWords(combatant)}${outWords(combatant)}`
+  return `${combatantRole(combatant, userId)} · Speed ${combatant.speed}${roll}${evasiveWords(combatant)}${outWords(combatant)}${combatant.condition ? ` · ${LUBEC_CONDITION_NAMES[combatant.condition]}` : ''}`
 }
 
 function RowBadge({ out, now }: { out: boolean; now: boolean }) {

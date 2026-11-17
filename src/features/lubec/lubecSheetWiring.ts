@@ -1,3 +1,4 @@
+import type { LubecCondition } from '../ruleSets/lubec/condition'
 import { lubecEffectRecovery, type LubecEffectRecovery } from './effectRecovery'
 import type { Role } from '../../types/app'
 import { canEditCharacterStoreCharacter } from '../character/characterStore/characterStoreActions'
@@ -45,6 +46,7 @@ type DraftActions = {
 
 /** The sheet's edits for one viewer; each is null when the viewer may not make it. */
 export type LubecSheetEdits = DraftActions & {
+  onConditionChange: ((condition: LubecCondition | undefined) => void) | null
   onEffectRecovery: LubecEffectRecovery
   /** The GM marks one of the sheet's Death Save reminders handled; null for everyone else. */
   onDeathHandled: ((id: string) => Promise<unknown>) | null
@@ -175,6 +177,7 @@ export function lubecSheetWiring(
   records: LubecGearRecords | null = null,
 ): LubecSheetEdits {
   return {
+    onConditionChange: character && viewer.role === 'gm' ? (condition) => store.updateCharacterNow(character.id, { lubec: { ...character.lubec, condition } }) : null,
     onEffectRecovery: character && records && canEditCharacterStoreCharacter(character, viewer.role, viewer.userId) ? lubecEffectRecovery(records, store, character.id) : null,
     onDeathHandled: character && records && viewer.role === 'gm' ? (id) => acknowledgeLubecDeathReminder(records.db, records.scope, reminderSheetOf(records, character.id), id) : null,
     onCountersChange: countersChangeFor(character, viewer, store.updateCharacter),

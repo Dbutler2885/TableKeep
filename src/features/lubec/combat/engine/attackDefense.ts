@@ -1,3 +1,4 @@
+import { combatSkipsStages, combatIncapacity } from './inputs'
 import { lubecEffectiveHandle } from '../../../ruleSets/lubec/derivations'
 import type { LubecArrival } from '../../../ruleSets/lubec/gear/arrival'
 import { lubecPlaceDetached, type LubecDetachedItem } from '../../../ruleSets/lubec/gear/detachedItems'
@@ -108,7 +109,7 @@ const defend: CombatHandler = (command, records, authority, entropy) => {
   const attack = attackAt(fight.state, command, 'defense', defenderOf)
   const defender = combatantOf(fight.state, defenderOf(attack))
   const record = combatSheetOf(records, defender)
-  if (defender.unconscious) throw new Error(`${defender.name} is unconscious and cannot defend or catch.`)
+  if (combatSkipsStages(defender)) throw new Error(`${defender.name} is ${combatIncapacity(defender)} and cannot defend or catch.`)
   const repair = attackRepair(defender, record)
   if (repair) return repairPlan(fight, attack, defender, repair)
   requireDue(fight.state, defender, record!)
@@ -180,7 +181,7 @@ const catchRoll: CombatHandler = (command, records, authority, entropy) => {
   const attack = attackAt(fight.state, command, 'catch', defenderOf)
   const defender = combatantOf(fight.state, defenderOf(attack))
   const record = combatSheetOf(records, defender)
-  if (defender.unconscious) throw new Error(`${defender.name} is unconscious and cannot defend or catch.`)
+  if (combatSkipsStages(defender)) throw new Error(`${defender.name} is ${combatIncapacity(defender)} and cannot defend or catch.`)
   const repair = attackRepair(defender, record)
   if (repair) return repairPlan(fight, attack, defender, repair)
   return caughtOrDropped(fight, attack, record!, command, entropy)
@@ -192,7 +193,7 @@ const split: CombatHandler = (command, records, authority) => {
   const attack = attackAt(fight.state, command, 'defense', defenderOf)
   const defender = combatantOf(fight.state, defenderOf(attack))
   const record = combatSheetOf(records, defender)
-  if (defender.unconscious) throw new Error(`${defender.name} is unconscious and cannot defend or catch.`)
+  if (combatSkipsStages(defender)) throw new Error(`${defender.name} is ${combatIncapacity(defender)} and cannot defend or catch.`)
   const repair = attackRepair(defender, record)
   if (repair) return repairPlan(fight, attack, defender, repair)
   const defenseSplit = readSplit(command.payload.split, handlePool(fight, record!, command))

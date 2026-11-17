@@ -1,3 +1,4 @@
+import { LUBEC_CONDITION_NAMES, type LubecCondition } from '../ruleSets/lubec/condition'
 import type { LubecEffectRecovery } from './effectRecovery'
 import { LubecSaveNotice, type LubecSaveControls } from './LubecSaveNotice'
 import { Pencil, Trash2, UserPlus } from 'lucide-react'
@@ -170,6 +171,7 @@ function LubecStageBar({ character, correcting, onCorrecting, onDelete, onFinali
 }
 
 export type LubecSheetViewProps = {
+  onConditionChange?: ((condition: LubecCondition | undefined) => void) | null
   onEffectRecovery?: LubecEffectRecovery
   /** The GM's handle on the sheet's Death Save reminders; absent or null for anyone else, who never sees them. */
   onDeathHandled?: ((id: string) => Promise<unknown>) | null
@@ -310,7 +312,7 @@ const SheetCombatReturn = ({ landed, page, sheetId }: { landed: LubecPage | null
 
 /** One Lubec character's sheet, in the v4 frame, on its Core, Skills or Gear page. */
 export function LubecSheetView({
-  character, editing, onEffectRecovery, onDeathHandled = null, saveControls, identityEditable, carrierKinds, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, gearGive, shared, ...edits
+  character, editing, onEffectRecovery, onConditionChange = null, onDeathHandled = null, saveControls, identityEditable, carrierKinds, onCountersChange, onDelete, onAssign, onFinalize, onRollUp, corrections, onGearChange, onGearDrop, onGearHidden, onGearUpload, onGearRolled, campaignStock, gearGive, shared, ...edits
 }: LubecSheetViewProps) {
   const { landed, page, setPage } = useSheetPage(character.id)
   const [bandOpen, setBandOpen] = useState(false)
@@ -330,6 +332,9 @@ export function LubecSheetView({
         onAssign={onAssign}
       />
       <LubecSaveNotice controls={saveControls} />
+      <div className="lubec-condition-control">
+        {onConditionChange ? <label>Condition <select aria-label="Condition" value={character.lubec.condition ?? ''} onChange={(event) => onConditionChange(event.target.value ? event.target.value as LubecCondition : undefined)}><option value="">None</option><option value="comatose">Comatose</option><option value="dead">Dead</option></select></label> : character.lubec.condition ? <p role="status">{LUBEC_CONDITION_NAMES[character.lubec.condition]}</p> : null}
+      </div>
       {identityEditing && bandOpen ? <LubecNameBandEditor character={character} editing={identityEditing} onDone={() => setBandOpen(false)} /> : null}
       <LubecStageBar
         character={character}
