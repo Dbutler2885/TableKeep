@@ -1216,6 +1216,11 @@ async function expectNoSidewaysScroll(page) {
 // Beside the roster on a desktop, the whole page fits its pane without scrolling.
 async function expectLubecPageOnOneScreen(page, name) {
   const [height, visible] = await page.$eval(`${LUBEC_TAB} .characters-detail`, (pane) => [pane.scrollHeight, pane.clientHeight])
+  const row = await page.$eval(`${LUBEC_TAB} .lubec-band-actions`, (element) => {
+    const bounds = element.getBoundingClientRect()
+    return { right: bounds.right, children: [...element.children].map((child) => { const box = child.getBoundingClientRect(); return { top: box.top, right: box.right } }) }
+  })
+  if (row.children.some((child) => Math.abs(child.top - row.children[0].top) > 1 || child.right > row.right + 1)) throw new Error(`The name-band actions wrap or overflow at the desktop smoke width.`)
   if (height > visible) throw new Error(`The ${name} page is ${height}px tall in a ${visible}px pane.`)
 }
 

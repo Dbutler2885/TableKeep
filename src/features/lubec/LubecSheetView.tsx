@@ -1,3 +1,4 @@
+import { LubecConditionControl } from './LubecConditionControl'
 import { LUBEC_CONDITION_NAMES, type LubecCondition } from '../ruleSets/lubec/condition'
 import type { LubecEffectRecovery } from './effectRecovery'
 import { LubecSaveNotice, type LubecSaveControls } from './LubecSaveNotice'
@@ -61,6 +62,7 @@ function LubecPageTabs({ page, onPage, dot }: PageTabsProps) {
 }
 
 type MastheadProps = {
+  onConditionChange: LubecSheetViewProps['onConditionChange']
   character: LubecCharacterRecord
   page: LubecPage
   onPage: (page: LubecPage) => void
@@ -76,7 +78,7 @@ type MastheadProps = {
   onAssign: (() => void) | null
 }
 
-type BandActionsProps = Pick<MastheadProps, 'onEdit' | 'onDelete' | 'onAssign'>
+type BandActionsProps = Pick<MastheadProps, 'onEdit' | 'onDelete' | 'onAssign' | 'onConditionChange' | 'character'>
 
 type BandAction = {
   onClick: (() => void) | null
@@ -98,7 +100,7 @@ const bandActionsOf = ({ onEdit, onDelete, onAssign }: BandActionsProps): BandAc
 // The name band's Edit, Give to Player and Delete buttons, for those who may.
 function LubecBandActions(props: BandActionsProps) {
   const actions = bandActionsOf(props).filter((action): action is ShownBandAction => action.onClick !== null)
-  if (actions.length === 0) return null
+  if (actions.length === 0 && !props.onConditionChange) return null
   return (
     <div className="lubec-band-actions">
       {actions.map(({ onClick, label, ariaLabel, Icon, className }) => (
@@ -106,6 +108,7 @@ function LubecBandActions(props: BandActionsProps) {
           <Icon size={12} aria-hidden="true" /> {label}
         </button>
       ))}
+      <LubecConditionControl condition={props.character.lubec.condition} onChange={props.onConditionChange ?? null} />
     </div>
   )
 }
@@ -116,6 +119,7 @@ function LubecKidMeta({ character }: { character: LubecCharacterRecord }) {
     <div className="lubec-kid-meta">
       <span>{lubecClass(character.lubec.class.key)?.name ?? <LubecMissing />}</span>
       {age === null ? null : <span className="lubec-kid-age">Age {age}</span>}
+      {character.lubec.condition ? <span role="status" aria-label="Condition">{LUBEC_CONDITION_NAMES[character.lubec.condition]}</span> : null}
     </div>
   )
 }
@@ -140,7 +144,7 @@ function LubecMasthead({ character, page, onPage, dot, editing, ...actions }: Ma
         <div className="lubec-id-text">
           <h2 className="lubec-kid-name">{lubecCharacterName(character)}</h2>
           <LubecKidMeta character={character} />
-          <LubecBandActions {...actions} />
+          <LubecBandActions character={character} {...actions} />
         </div>
         <div className="lubec-stamp" aria-hidden="true">Lubec<br />Maine<br />1977</div>
       </div>
@@ -330,11 +334,9 @@ export function LubecSheetView({
         onEdit={identityEditing ? () => setBandOpen(true) : null}
         onDelete={bandDeleteOf(character, onDelete)}
         onAssign={onAssign}
+        onConditionChange={onConditionChange}
       />
       <LubecSaveNotice controls={saveControls} />
-      {page === 'core' ? <div className="lubec-condition-control">
-        {onConditionChange ? <label>Condition <select aria-label="Condition" value={character.lubec.condition ?? ''} onChange={(event) => onConditionChange(event.target.value ? event.target.value as LubecCondition : undefined)}><option value="">None</option><option value="comatose">Comatose</option><option value="dead">Dead</option></select></label> : character.lubec.condition ? <p role="status">{LUBEC_CONDITION_NAMES[character.lubec.condition]}</p> : null}
-      </div> : null}
       {identityEditing && bandOpen ? <LubecNameBandEditor character={character} editing={identityEditing} onDone={() => setBandOpen(false)} /> : null}
       <LubecStageBar
         character={character}

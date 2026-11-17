@@ -19406,6 +19406,17 @@ button:disabled {
   }
 }
 
-.lubec-condition-control { padding: 0.5rem 1rem; }
-.lubec-condition-control:empty { display: none; }
-.lubec-condition-control label { display: flex; gap: 0.5rem; align-items: center; }
+.lubec-condition-control { position: relative; display: inline-flex; }
+.shell-root[data-theme="lubec"] .lubec-condition-popover {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  width: 12rem;
+  padding: 0.6rem;
+  border: 2px solid var(--lubec-ink);
+  background: var(--lubec-paper);
+  box-shadow: 3px 3px 0 rgba(23, 40, 43, 0.25);
+}
+.lubec-condition-popover label { display: grid; gap: 0.35rem; }
+.lubec-condition-popover select { width: 100%; }

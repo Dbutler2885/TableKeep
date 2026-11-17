@@ -88,12 +88,23 @@ describe('LubecSheetView sent from the Combat tab', () => {
   })
 })
 
-it('keeps GM condition controls on Core, and keeps the overlay on Gear', () => {
+it('keeps the GM condition picker in the name band and the condition visible on every page', () => {
   const change = vi.fn()
   renderSheet({ character: { ...character, lubec: { ...character.lubec, condition: 'comatose' } }, onConditionChange: change })
+  expect(screen.queryByRole('combobox', { name: 'Condition' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Set condition' }))
   fireEvent.change(screen.getByRole('combobox', { name: 'Condition' }), { target: { value: 'dead' } })
   expect(change).toHaveBeenCalledWith('dead')
   fireEvent.click(screen.getByRole('button', { name: 'Gear' }))
   expect(screen.queryByRole('combobox', { name: 'Condition' })).toBeNull()
   expect(screen.getByRole('img', { name: 'Comatose' })).toBeTruthy()
+  expect(screen.getByRole('status', { name: 'Condition' }).textContent).toBe('Comatose')
+  expect(screen.getByRole('button', { name: 'Set condition' }).closest('.lubec-band-actions')).toBeTruthy()
+})
+
+it('shows non-GMs the condition label and overlay without a picker', () => {
+  renderSheet({ character: { ...character, lubec: { ...character.lubec, condition: 'dead' } }, onConditionChange: null })
+  expect(screen.getByRole('status', { name: 'Condition' }).textContent).toBe('Dead')
+  expect(screen.getByRole('img', { name: 'Dead' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Set condition' })).toBeNull()
 })
