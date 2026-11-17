@@ -87,3 +87,13 @@ describe('LubecSheetView sent from the Combat tab', () => {
     expect(screen.queryByRole('button', { name: 'Back to Combat' })).toBeNull()
   })
 })
+
+it('keeps GM condition controls on Core, and keeps the overlay on Gear', () => {
+  const change = vi.fn()
+  renderSheet({ character: { ...character, lubec: { ...character.lubec, condition: 'comatose' } }, onConditionChange: change })
+  fireEvent.change(screen.getByRole('combobox', { name: 'Condition' }), { target: { value: 'dead' } })
+  expect(change).toHaveBeenCalledWith('dead')
+  fireEvent.click(screen.getByRole('button', { name: 'Gear' }))
+  expect(screen.queryByRole('combobox', { name: 'Condition' })).toBeNull()
+  expect(screen.getByRole('img', { name: 'Comatose' })).toBeTruthy()
+})

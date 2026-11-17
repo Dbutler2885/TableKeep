@@ -332,9 +332,9 @@ export function LubecSheetView({
         onAssign={onAssign}
       />
       <LubecSaveNotice controls={saveControls} />
-      <div className="lubec-condition-control">
+      {page === 'core' ? <div className="lubec-condition-control">
         {onConditionChange ? <label>Condition <select aria-label="Condition" value={character.lubec.condition ?? ''} onChange={(event) => onConditionChange(event.target.value ? event.target.value as LubecCondition : undefined)}><option value="">None</option><option value="comatose">Comatose</option><option value="dead">Dead</option></select></label> : character.lubec.condition ? <p role="status">{LUBEC_CONDITION_NAMES[character.lubec.condition]}</p> : null}
-      </div>
+      </div> : null}
       {identityEditing && bandOpen ? <LubecNameBandEditor character={character} editing={identityEditing} onDone={() => setBandOpen(false)} /> : null}
       <LubecStageBar
         character={character}
