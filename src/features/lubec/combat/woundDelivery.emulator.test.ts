@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { assertFails, assertSucceeds } from '@firebase/rules-unit-testing'
-import { collection, deleteField, deleteDoc, doc, getDoc, getDocFromServer, getDocs, runTransaction, setDoc, updateDoc, type Firestore } from 'firebase/firestore'
+import { collection, deleteField, deleteDoc, doc, getDoc, getDocFromServer, getDocs, runTransaction, serverTimestamp, setDoc, updateDoc, type Firestore } from 'firebase/firestore'
 import { emulatorPort } from '../../../../vitest.emulatorEndpoint'
 import { firestoreRules } from '../../../../vitest.firestoreRules'
 import { saveSheetIntention } from '../../character/characterStore/sheetIntentionTransaction'
@@ -607,9 +607,9 @@ describe('Death Save reminders through real rules', () => {
 describe('GM-only Lubec conditions through real rules', () => {
   it('denies owner creation with a condition, including alongside ordinary edits', async () => {
     for (const condition of ['comatose', 'dead']) {
-      await assertFails(setDoc(ref(as('player'), `characters/new-${condition}`), { ...sheet(), lubec: { ...sheet().lubec, condition } }))
+      await assertFails(setDoc(ref(as('player'), `characters/new-${condition}`), { ...sheet(), schemaWrittenAt: serverTimestamp(), lubec: { ...sheet().lubec, condition } }))
     }
-    await assertSucceeds(setDoc(ref(as('player'), 'characters/new-none'), sheet()))
+    await assertSucceeds(setDoc(ref(as('player'), 'characters/new-none'), { ...sheet(), schemaWrittenAt: serverTimestamp() }))
   })
   it('denies owner set, change, clear and nested deletion/replacement but allows unchanged conditions', async () => {
     await assertFails(updateDoc(ref(as('player'), 'characters/hero'), { 'lubec.condition': 'dead', name: 'Changed', sheetRevision: 1 }))
