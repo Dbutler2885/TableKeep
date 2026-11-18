@@ -20,6 +20,7 @@
     "ose:cleric:fetch": "node scripts/fetch-ose-cleric-spells.mjs",
     "ose:magic-user:fetch": "node scripts/fetch-ose-magic-user-spells.mjs",
     "ose:magic-user:import": "node scripts/import-ose-magic-user-spells.mjs",
+    "ose:rules:fetch": "node scripts/ose/fetch-rules.mjs",
     "firebase:login": "firebase login",
     "emulators": "node scripts/emulators/firebase.mjs emulators:start",
     "emulators:import": "node scripts/emulators/firebase.mjs emulators:start --import ./emulator-data --export-on-exit",
