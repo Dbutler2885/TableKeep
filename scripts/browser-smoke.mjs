@@ -1198,7 +1198,7 @@ async function expectLubecPage(page, expected) {
   if (current !== expected) throw new Error(`The sheet shows its ${current} page, not ${expected}.`)
 }
 
-async function expectNoSidewaysScroll(page) {
+export async function expectNoSidewaysScroll(page) {
   const widths = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth])
   if (widths[0] > widths[1]) throw new Error(`The page is ${widths[0]}px wide in a ${widths[1]}px viewport.`)
   const cutOff = await page.$eval('.shell-layout > .content-panel', readPageCutOff)

@@ -1,6 +1,6 @@
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { JSDOM } from 'jsdom'
-import { readPageCutOff } from './browser-smoke.mjs'
+import { expectNoSidewaysScroll, readPageCutOff } from './browser-smoke.mjs'
 
 // Keep the smoke module in Node and give only the reader a DOM. JSDOM lays
 // nothing out, so each element's right edge comes from its `data-right`.
@@ -39,5 +39,31 @@ describe('finding what is cut off at the page edge in the browser smoke', () => 
       <div data-right="1000"><span class="past" data-right="1020"></span></div>`)
 
     expect(readPageCutOff(panel)).toEqual({ element: 'span.past', right: 1020, edge: 1000 })
+  })
+})
+
+// A page that reports its document and viewport widths and what is cut off at its edge.
+const pageShowing = ({ widths = [1440, 1440], cutOff = null } = {}) => ({
+  evaluate: async () => widths,
+  $eval: async (selector, reader) => {
+    expect(selector).toBe('.shell-layout > .content-panel')
+    expect(reader).toBe(readPageCutOff)
+    return cutOff
+  },
+})
+
+describe('the browser smoke\'s sideways check', () => {
+  it('passes a page that neither scrolls sideways nor is cut off', async () => {
+    await expect(expectNoSidewaysScroll(pageShowing())).resolves.toBeUndefined()
+  })
+
+  it('fails a page wider than the window', async () => {
+    await expect(expectNoSidewaysScroll(pageShowing({ widths: [1520, 1440] }))).rejects.toThrow('The page is 1520px wide in a 1440px viewport.')
+  })
+
+  it('fails a page cut off at its edge, naming what runs past it', async () => {
+    const cutOff = { element: 'div.lubec-sheet', right: 1518, edge: 1424 }
+
+    await expect(expectNoSidewaysScroll(pageShowing({ cutOff }))).rejects.toThrow("The page is cut off: div.lubec-sheet ends at 1518px, past the page's edge at 1424px.")
   })
 })
