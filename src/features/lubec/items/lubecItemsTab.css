@@ -158,7 +158,3 @@
 .shell-root[data-theme="lubec"] .lubec-items-tab .dispensation-box .actions {
   grid-template-columns: 1fr 1fr;
 }
-
-.shell-root[data-theme="lubec"] .lubec-items-detail .monsters-detail-inner {
-  padding-top: 3rem;
-}

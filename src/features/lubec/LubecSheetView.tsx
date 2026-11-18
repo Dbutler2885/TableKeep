@@ -29,6 +29,7 @@ import { lubecCharacterName } from './lubecNames'
 import { lubecMotionAllowed } from './useLubecCircles'
 import type { LubecRolled } from './useLubecRoller'
 import lubecPines from './lubecPines.svg'
+import { useLubecFitWidth } from './lubecFitWidth'
 
 type LubecPage = 'core' | 'skills' | 'gear'
 
@@ -288,6 +289,7 @@ export function LubecSheetView({
   const [bandOpen, setBandOpen] = useState(false)
   const [correcting, setCorrecting] = useState(false)
   const sheetRef = useRef<HTMLElement>(null)
+  useLubecFitWidth(sheetRef)
   const identityEditing = identityEditingOf(editing, identityEditable)
   return (
     <article ref={sheetRef} className="lubec-sheet" aria-label={`${lubecCharacterName(character)} character sheet`}>

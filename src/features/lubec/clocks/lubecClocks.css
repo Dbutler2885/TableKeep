@@ -37,15 +37,6 @@
   margin: 0.25rem 0 1.25rem;
 }
 
-/* On a wide screen it starts below the shell's menu button, which stays over
-   the page's top left corner, where the other tabs' headings start; on a
-   narrow one the shell already leaves that room above the page. */
-@media (min-width: 901px) {
-  .shell-root[data-theme="lubec"] .lubec-clocks .clocks-head {
-    margin-top: 3.1rem;
-  }
-}
-
 .shell-root[data-theme="lubec"] .lubec-clocks .clocks-head h2 {
   display: flex;
   flex: 1;

@@ -111,7 +111,8 @@ Groups and campaigns hold everything else.
 
 Everything lives in Firestore and Firebase Storage under `groups/{groupId}/campaigns/{campaignId}/...`, and everything reads through Firestore listeners.
 When the GM erases a patch of fog, moves a token, or publishes an NPC, it is on the players' screens before they look up.
-The player UI is mobile-friendly with drawer navigation; the GM UI is desktop-oriented with a left sidebar.
+A campaign's navigation is a narrow sidebar beside the page; on a phone it becomes a bar across the top that opens the same sidebar as a drawer.
+The player UI is mobile-friendly; the GM UI is desktop-oriented.
 
 ## A guided tour
 

@@ -25,7 +25,6 @@ import { listensForApprovals, listensForCharacters, showsClockAlerts, showsCliff
 export function GroupShell({ user, username, isDemoVisitor }: { user: User, username: string, isDemoVisitor: boolean }) {
   const { pathname, navigate, activeTab, selectedGroupId, selectedCampaignId } = useShellRoute()
   const documentVisible = useDocumentVisibility()
-  const [drawerOpen, setDrawerOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const { groups, loading, error, createCampaign, createGroup, setActiveCampaign, deactivateCampaign, deleteInactiveCampaign, deleteDraftCampaign, deleteGroup, setError } = useGroupAccess(user)
@@ -40,7 +39,6 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
     groups,
     navigate,
     selectedGroupId,
-    setDrawerOpen,
     createGroup,
     createCampaign,
     deleteGroup,
@@ -107,8 +105,6 @@ export function GroupShell({ user, username, isDemoVisitor }: { user: User, user
           gameSystem={gameSystem}
           activeTab={activeTab}
           visibleTabs={visibleTabs}
-          drawerOpen={drawerOpen}
-          setDrawerOpen={setDrawerOpen}
           settingsOpen={settingsOpen}
           setSettingsOpen={setSettingsOpen}
           navigate={navigate}

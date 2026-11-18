@@ -199,22 +199,18 @@ export function groupIdFromUrl(page) {
 // still hold the browser's few HTTP/1.1 connections to it.
 async function backToGroupHome(page, testCase) {
   const backButton = `[aria-label=${JSON.stringify(`Back to ${testCase.groupName}`)}]`
-  if (!(await page.$('.side-nav.open'))) {
-    await roleLocator(page, 'button', 'Open navigation').click()
-  }
+  await openCampaignNav(page)
   await page.locator(backButton).click()
   await roleLocator(page, 'button', 'Create new draft').wait()
 }
 
-// The back button does not close the drawer it sits in, so the next campaign
-// opens with the drawer over its character tab. Close it as a user would.
-async function closeNavigationDrawer(page) {
-  if (await page.$('.side-nav.open')) {
-    await step('close the navigation drawer', async () => {
-      await roleLocator(page, 'button', 'Open navigation').click()
-      // The class drops at once; wait for the slide-out to finish too.
-      await page.waitForFunction(() => document.querySelector('.side-nav').getBoundingClientRect().right <= 0)
-    })
+// Brings a campaign's navigation to hand as a user would. Beside the page it
+// is a sidebar that is always open; on a phone it opens as a drawer from the
+// bar across the top, and choosing anything in it closes it again.
+async function openCampaignNav(page) {
+  if ((await page.$('.phone-nav-bar')) && !(await page.$('.side-drawer[open]'))) {
+    await roleLocator(page, 'button', 'Open navigation').click()
+    await page.locator('.side-drawer[open] .side-nav').wait()
   }
 }
 
@@ -241,7 +237,6 @@ async function createAndOpenCampaign(page, testCase, ruleSet) {
     await page.locator(`.group-home-card ::-p-text(${JSON.stringify(campaignName)})`).click()
     await page.locator(ruleSet.characterTab).wait()
   })
-  await closeNavigationDrawer(page)
   await step(`show the empty ${ruleSet.label} character list`, () => waitForBodyText(page, ruleSet.emptyList))
   await screenshot(page, `${testCase.name}-${ruleSet.system}-character`)
   return campaignIdFromUrl(page)
@@ -341,7 +336,6 @@ async function seedVtmCampaign({ uid, groupId, testCase, label }) {
 async function openCampaignCard(page, campaignName, characterTab = '.vtm-character-tab') {
   await page.locator(`.group-home-card ::-p-text(${JSON.stringify(campaignName)})`).click()
   await page.locator(characterTab).wait()
-  await closeNavigationDrawer(page)
 }
 
 // The open sheet's Concept field, once the sheet shows `characterName`. A
@@ -372,9 +366,9 @@ async function expectStoredUnchanged(seeded) {
   }
 }
 
-// Clicks a control in the closed navigation drawer straight away, as the
-// quickest tap a user could make, rather than waiting out the drawer's slide-in.
-async function clickInDrawer(page, selector) {
+// Clicks a control in the campaign navigation straight away, as the quickest
+// tap a user could make; on a phone that is before the drawer has slid in.
+async function clickInNav(page, selector) {
   await page.$eval(selector, (element) => element.click())
 }
 
@@ -389,7 +383,7 @@ async function vtmLeaveSheetCase(page, testCase, seeded) {
   await step('open the VtM campaign', () => openCampaignCard(page, seeded.campaignName))
   await step('edit the VtM Concept', () => editVtmConcept(page, seeded))
   await step('open Notes at once', async () => {
-    await clickInDrawer(page, '.side-nav a[href$="/notes"]')
+    await clickInNav(page, '.side-nav a[href$="/notes"]')
     await page.waitForFunction(() => !document.querySelector('.vtm-character-tab'))
   })
   await settle()
@@ -403,7 +397,7 @@ async function vtmSwitchCampaignCase(page, testCase, { origin, destination }) {
   await step('open the original VtM campaign', () => openCampaignCard(page, origin.campaignName))
   await step('edit the VtM Concept', () => editVtmConcept(page, origin))
   await step('switch campaign at once', async () => {
-    await clickInDrawer(page, `[aria-label=${JSON.stringify(`Back to ${testCase.groupName}`)}]`)
+    await clickInNav(page, `[aria-label=${JSON.stringify(`Back to ${testCase.groupName}`)}]`)
     await openCampaignCard(page, destination.campaignName)
   })
   await settle()
@@ -425,7 +419,7 @@ async function vtmSwitchCampaignCase(page, testCase, { origin, destination }) {
 async function vtmBackButtonCase(page, testCase, { origin, destination }) {
   await step('open the destination VtM campaign', () => openCampaignCard(page, destination.campaignName))
   await step('open the original VtM campaign after it', async () => {
-    await clickInDrawer(page, '.side-nav a[href$="/notes"]')
+    await clickInNav(page, '.side-nav a[href$="/notes"]')
     await page.waitForFunction(() => !document.querySelector('.vtm-character-tab'))
     await backToGroupHome(page, testCase)
     await openCampaignCard(page, origin.campaignName)
@@ -767,7 +761,7 @@ async function oseLeaveForNotesCase(page, testCase, seeded) {
   await step('open the OSE campaign', () => openCampaignCard(page, seeded.campaignName, oseCharacterTab))
   await step('edit the OSE Name', () => editOseName(page, seeded))
   await step('open Notes at once', async () => {
-    await clickInDrawer(page, '.side-nav a[href$="/notes"]')
+    await clickInNav(page, '.side-nav a[href$="/notes"]')
     await page.waitForFunction((tab) => !document.querySelector(tab), {}, oseCharacterTab)
   })
   await settle()
@@ -802,7 +796,7 @@ async function oseSwitchCampaignCase(page, testCase, { origin, destination }) {
   await step('open the original OSE campaign', () => openCampaignCard(page, origin.campaignName, oseCharacterTab))
   await step('edit the OSE Name', () => editOseName(page, origin))
   await step('switch campaign at once', async () => {
-    await clickInDrawer(page, `[aria-label=${JSON.stringify(`Back to ${testCase.groupName}`)}]`)
+    await clickInNav(page, `[aria-label=${JSON.stringify(`Back to ${testCase.groupName}`)}]`)
     await openCampaignCard(page, destination.campaignName, oseCharacterTab)
   })
   await settle()
@@ -1208,6 +1202,22 @@ async function expectLubecPage(page, expected) {
 async function expectNoSidewaysScroll(page) {
   const widths = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth])
   if (widths[0] > widths[1]) throw new Error(`The page is ${widths[0]}px wide in a ${widths[1]}px viewport.`)
+  // The page beside the campaign sidebar hides what overflows it, so a sheet
+  // too wide for it is cut off at its right edge rather than scrolling the window.
+  const cutOff = await page.evaluate(() => {
+    const panel = document.querySelector('.shell-layout > .content-panel')
+    if (!panel) return null
+    const edge = panel.getBoundingClientRect().right
+    const scrollsSideways = (element) => {
+      for (let node = element.parentElement; node && node !== panel; node = node.parentElement) {
+        if (/auto|scroll/.test(node.ownerDocument.defaultView.getComputedStyle(node).overflowX)) return true
+      }
+      return false
+    }
+    const past = [...panel.querySelectorAll('*')].find((element) => element.checkVisibility() && element.getBoundingClientRect().right > edge + 1 && !scrollsSideways(element))
+    return past ? `${past.tagName.toLowerCase()}.${String(past.className).split(' ')[0]} ends at ${Math.round(past.getBoundingClientRect().right)}px, past the page's edge at ${Math.round(edge)}px` : null
+  })
+  if (cutOff) throw new Error(`The page is cut off: ${cutOff}.`)
 }
 
 // Beside the roster on a desktop, the whole page fits its pane without scrolling.
@@ -1299,9 +1309,8 @@ const LUBEC_NPC_SHEET = '.shell-root[data-theme="lubec"] .npc-detail-tabs .lubec
 const LUBEC_NPC_PANE = '.shell-root[data-theme="lubec"] .monsters-layout .monsters-detail'
 
 async function openLubecNpcsTab(page) {
-  if (!(await page.$('.side-nav.open'))) await roleLocator(page, 'button', 'Open navigation').click()
+  await openCampaignNav(page)
   await page.locator('.side-nav .nav-list .tab-button ::-p-text(NPCs)').click()
-  await closeNavigationDrawer(page)
   await page.locator('.shell-root[data-theme="lubec"] .monsters-layout').wait()
 }
 
@@ -1807,9 +1816,8 @@ export function givenAnvilProblems({ dropped, character }) {
 }
 
 async function openLubecItemsTab(page) {
-  if (!(await page.$('.side-nav.open'))) await roleLocator(page, 'button', 'Open navigation').click()
+  await openCampaignNav(page)
   await page.locator('.side-nav .nav-list .tab-button ::-p-text(Items)').click()
-  await closeNavigationDrawer(page)
   await page.locator('.shell-root[data-theme="lubec"] .lubec-items-tab').wait()
 }
 
