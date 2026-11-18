@@ -208,10 +208,9 @@ async function backToGroupHome(page, testCase) {
 // is a sidebar that is always open; on a phone it opens as a drawer from the
 // bar across the top, and choosing anything in it closes it again.
 async function openCampaignNav(page) {
-  if ((await page.$('.phone-nav-bar')) && !(await page.$('.side-drawer[open]'))) {
-    await roleLocator(page, 'button', 'Open navigation').click()
-    await page.locator('.side-drawer[open] .side-nav').wait()
-  }
+  if (!(await page.$('.phone-nav-bar + .side-drawer:not([open])'))) return
+  await roleLocator(page, 'button', 'Open navigation').click()
+  await page.locator('.side-drawer[open] .side-nav').wait()
 }
 
 // The picker offers exactly the rule sets the smoke creates, so a hidden one
@@ -1202,22 +1201,24 @@ async function expectLubecPage(page, expected) {
 async function expectNoSidewaysScroll(page) {
   const widths = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth])
   if (widths[0] > widths[1]) throw new Error(`The page is ${widths[0]}px wide in a ${widths[1]}px viewport.`)
-  // The page beside the campaign sidebar hides what overflows it, so a sheet
-  // too wide for it is cut off at its right edge rather than scrolling the window.
-  const cutOff = await page.evaluate(() => {
-    const panel = document.querySelector('.shell-layout > .content-panel')
-    if (!panel) return null
-    const edge = panel.getBoundingClientRect().right
-    const scrollsSideways = (element) => {
-      for (let node = element.parentElement; node && node !== panel; node = node.parentElement) {
-        if (/auto|scroll/.test(node.ownerDocument.defaultView.getComputedStyle(node).overflowX)) return true
-      }
-      return false
+  const cutOff = await page.$eval('.shell-layout > .content-panel', readPageCutOff)
+  if (cutOff) throw new Error(`The page is cut off: ${cutOff.element} ends at ${cutOff.right}px, past the page's edge at ${cutOff.edge}px.`)
+}
+
+// The page beside the campaign sidebar hides what overflows it, so a sheet too
+// wide for it is cut off at its right edge rather than scrolling the window.
+// Reads, in the page, the first shown element past that edge that is not inside
+// something scrolling sideways, or null. Self-contained, as Puppeteer sends its source.
+export function readPageCutOff(panel) {
+  const edge = panel.getBoundingClientRect().right
+  const scrollsSideways = (element) => {
+    for (let node = element.parentElement; node !== panel; node = node.parentElement) {
+      if (/auto|scroll/.test(node.ownerDocument.defaultView.getComputedStyle(node).overflowX)) return true
     }
-    const past = [...panel.querySelectorAll('*')].find((element) => element.checkVisibility() && element.getBoundingClientRect().right > edge + 1 && !scrollsSideways(element))
-    return past ? `${past.tagName.toLowerCase()}.${String(past.className).split(' ')[0]} ends at ${Math.round(past.getBoundingClientRect().right)}px, past the page's edge at ${Math.round(edge)}px` : null
-  })
-  if (cutOff) throw new Error(`The page is cut off: ${cutOff}.`)
+    return false
+  }
+  const past = [...panel.querySelectorAll('*')].find((element) => element.checkVisibility() && element.getBoundingClientRect().right > edge + 1 && !scrollsSideways(element))
+  return past ? { element: `${past.tagName.toLowerCase()}.${String(past.className).split(' ')[0]}`, right: Math.round(past.getBoundingClientRect().right), edge: Math.round(edge) } : null
 }
 
 // Beside the roster on a desktop, the whole page fits its pane without scrolling.
