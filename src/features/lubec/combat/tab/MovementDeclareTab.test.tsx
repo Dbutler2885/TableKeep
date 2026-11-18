@@ -31,7 +31,7 @@ vi.mock('../useLubecCombatSend', () => ({
   },
 }))
 vi.mock('./useCombatGmData', () => ({ useCombatGmData: () => ({ characters: [], npcs: [], items: [], roster: mocks.roster }) }))
-vi.mock('./useCombatPlayerRoster', () => ({ useCombatPlayerRoster: () => mocks.roster }))
+vi.mock('./useCombatPlayerRoster', () => ({ useCombatPlayerRoster: () => ({ roster: mocks.roster, writer: null }) }))
 
 const { LubecCombat } = await import('./LubecCombat')
 
