@@ -183,7 +183,10 @@ const signed = (amount: number) => (amount < 0 ? `${amount}` : `+${amount}`)
 
 const FRACTION_WORDS: Readonly<Record<string, string>> = { '0.5': 'halved', '0.25': 'to one quarter', '0.75': 'less one quarter' }
 
-const fractionWords = ({ target, factor }: LubecFraction) => `${target} ${FRACTION_WORDS[String(factor)] ?? `x${factor}`}`
+/** "halved", "to one quarter": what a fraction does to the value it names. */
+export const lubecFactorWords = (factor: number): string => FRACTION_WORDS[String(factor)] ?? `x${factor}`
+
+const fractionWords = ({ target, factor }: LubecFraction) => `${target} ${lubecFactorWords(factor)}`
 
 const SCOPE_WORDS: Readonly<Record<string, string>> = {
   checks: 'Checks', saves: 'Saves', rolls: 'Rolls', physical: 'Physical Checks', strength: 'Strength Checks', speed: 'Speed Checks',

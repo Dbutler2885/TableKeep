@@ -170,7 +170,13 @@ describe('rolling the granted attack', () => {
     expect(plan.fight.state).toMatchObject({ round: 0, phase: 'before-initiative' })
     expect(plan.logs).toEqual([{
       event: 'Wayne attacked Roy.', actor: HERO,
-      roll: { who: 'Wayne', what: 'Attack roll (before initiative)', roll: '40', target: 'against 35', tone: 'bad', result: 'Miss', extra: "Dodgeball thrown at Roy; it has left Wayne's hand." },
+      roll: {
+        who: 'Wayne', what: 'Attack roll (before initiative)', roll: '40', target: 'against 35', tone: 'bad', result: 'Miss', extra: "Dodgeball thrown at Roy; it has left Wayne's hand.",
+        breakdown: {
+          name: 'Attack number', target: 35,
+          parts: [{ label: 'Handle at Declare', value: '50' }, { label: 'Throwing Arm', value: '+15' }, { label: 'Kept for Defense', value: '-20' }, { label: 'Range', value: '-10' }],
+        },
+      },
     }])
   })
 

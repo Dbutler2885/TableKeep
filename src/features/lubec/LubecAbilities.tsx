@@ -1,3 +1,4 @@
+import { LubecShownRoll } from './LubecShownRoll'
 import { Fragment, type ReactNode } from 'react'
 import type { LubecCharacterSheet } from '../ruleSets/lubec/characterRecord'
 import { lubecCurrentValue, type LubecModifier } from '../ruleSets/lubec/derivations'
@@ -149,6 +150,7 @@ export function LubecAbilities({ rollUp: rollUpEdits, circles, ...values }: Abil
       {values.roller ? <LubecSkillStrip sheet={values.sheet} roller={values.roller} spin={circles.spin} /> : null}
       {rollUp ? null : <LubecPanicSection sheet={lubecShownSheet(values.sheet, circles.spin)} roller={values.roller} circles={circles} />}
       <p className="status" role="status" aria-live="polite">{rollUp ? rollUp.status : circles.status}</p>
+      {rollUp ? null : <LubecShownRoll sheet={values.sheet} roll={circles.shown} />}
     </div>
   )
 }

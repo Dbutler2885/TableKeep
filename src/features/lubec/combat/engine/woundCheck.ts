@@ -1,7 +1,8 @@
+import { rollDiceOf } from './rollBreakdown'
 import { keptLubecRoll, lubecFailedCheckStress, type LubecAdvantage, type LubecCheckKind } from '../../../ruleSets/lubec/checkRoll'
 import { lubecCurrentValue, lubecEffectiveHandle } from '../../../ruleSets/lubec/derivations'
 import { pad } from './attackFlow'
-import type { CombatLog } from './combatFeedback'
+import type { CombatLog, CombatRoll } from './combatFeedback'
 import type { CombatEntropy } from './commandEntropy'
 import { combatRollMode, type CombatMode } from './combatModes'
 import { combatInputModifiers, type CombatInputRound } from './inputModifiers'
@@ -34,10 +35,11 @@ export function landingCheckMode(record: CombatSheet, check: NonNullable<CombatW
 
 const CHECK_NAMES = { 'stat-check': 'Check', save: 'Save' } as const
 
-export function checkLog(target: Combatant, row: CombatWoundRow, rolled: CombatCheckRoll): CombatLog {
+export function checkLog(target: Combatant, row: CombatWoundRow, rolled: CombatCheckRoll, breakdown: Pick<CombatRoll, 'breakdown'> = {}): CombatLog {
   return {
     event: `${target.name} rolled a ${rolled.against} ${CHECK_NAMES[rolled.kind]}.`, actor: target.key,
-    roll: { who: target.name, what: `${rolled.against} ${CHECK_NAMES[rolled.kind]}`, roll: pad(rolled.result), target: `under ${rolled.target}`, tone: rolled.success ? 'ok' : 'bad', result: rolled.success ? 'Success' : 'Failure', extra: row.name },
+    roll: { who: target.name, what: `${rolled.against} ${CHECK_NAMES[rolled.kind]}`, roll: pad(rolled.result), target: `under ${rolled.target}`, tone: rolled.success ? 'ok' : 'bad', result: rolled.success ? 'Success' : 'Failure', extra: row.name,
+      ...rollDiceOf({ ...rolled, mode: rolled.advantage }), ...breakdown },
   }
 }
 

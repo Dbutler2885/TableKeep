@@ -1,3 +1,4 @@
+import { valueBreakdownOf } from './rollBreakdown'
 import type { LubecDodgeballOutcome } from '../../../ruleSets/lubec/dodgeballTable'
 import { lubecDodgeballRow, type LubecDodgeballEffect, type LubecLocatedDodgeballRow } from '../../../ruleSets/lubec/dodgeballWound'
 import type { LubecArrival } from '../../../ruleSets/lubec/gear/arrival'
@@ -88,7 +89,8 @@ function checked(fight: CombatFight, attack: CombatAttack, record: CombatSheet, 
   const outcome = rolled.success ? located.success : located.failure
   const held = outcome.caught ? caughtByRow(attack, record, command) : { attack, sheets: [] }
   const state = applyRow(fight.state, { ...held.attack, check: rolled, repair: null }, outcome, outcome.stress + rolled.stress, entropy)
-  return { fight: { ...fight, state }, items: [], logs: [checkLog(combatantOf(fight.state, defenderOf(attack)), row, rolled)], sheets: held.sheets }
+  const breakdown = valueBreakdownOf(record, rolled.against, rolled.target, { fightId: command.envelope.fightId, round: fight.state.round })
+  return { fight: { ...fight, state }, items: [], logs: [checkLog(combatantOf(fight.state, defenderOf(attack)), row, rolled, breakdown)], sheets: held.sheets }
 }
 
 /** The target rolls the row's Check or Save themselves: an ordinary core roll at or under its number. */

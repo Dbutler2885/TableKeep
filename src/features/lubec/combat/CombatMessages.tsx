@@ -7,6 +7,7 @@ import type { CombatRoll } from './engine/combatFeedback'
 import { combatRollComparison, combatRollVerdict } from './combatRollPresentation'
 import { useCombatRollSpin } from './useCombatRollSpin'
 import { useCombatRollDismiss } from './useCombatRollDismiss'
+import { LubecRollBreakdown } from '../LubecRollBreakdown'
 
 function RollNumbers({ roll, value, rolling }: { roll: CombatRoll; value: string; rolling: boolean }) {
   const comparison = combatRollComparison(roll)
@@ -18,9 +19,18 @@ function RollNumbers({ roll, value, rolling }: { roll: CombatRoll; value: string
   )
 }
 
+const NO_BREAKDOWN = { name: '', target: 0, parts: null }
+
+/** Both dice under a mode with the kept one marked, and how the number the roll was made under was reached. */
+function CombatRollBreakdown({ roll }: { roll: CombatRoll }) {
+  const { name, target, parts } = roll.breakdown ?? NO_BREAKDOWN
+  return <LubecRollBreakdown dice={roll.dice ? { ...roll.dice, kept: Number(roll.roll) } : null} parts={parts} name={name} target={target} />
+}
+
 function RollDetails({ roll, detail }: { roll: CombatRoll; detail: string }) {
   return <>
     {detail ? <p className="roll-detail">{detail}</p> : null}
+    <CombatRollBreakdown roll={roll} />
     {roll.extra ? <p className="rx">{roll.extra}</p> : null}
   </>
 }

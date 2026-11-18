@@ -78,6 +78,17 @@ describe('workspace roll feedback', () => {
     expect(document.querySelectorAll('.rcard')).toHaveLength(0)
     expect(mocks.subscriptions).toHaveLength(1)
   })
+  it('shows a roll under a mode as both dice with the kept one marked, and how the attack number was reached', () => {
+    render(tree())
+    const rolled = { ...entry('Wayne'), roll: { ...entry('Wayne').roll!, dice: { values: [27, 64], mode: 'advantage' as const, because: 'Advantage from Pep talk' }, breakdown: { name: 'Attack number', target: 36, parts: [{ label: 'Handle at Declare', value: '46' }, { label: 'Range', value: '-10' }] } } }
+    send([rolled], [rolled])
+    const card = document.querySelector('.rcard')!
+    expect(card.querySelector('.lubec-roll-mode')!.textContent).toBe('Advantage from Pep talk: keep the better')
+    expect([...card.querySelectorAll('.lubec-roll-dice li')].map((die) => [die.className, die.textContent])).toEqual([['kept', '27kept'], ['set-aside', '64set aside']])
+    expect(card.querySelector('.lubec-roll-parts')!.textContent).toBe('Handle at Declare46Range-10Attack number36')
+    expect(card.querySelector('.rx')!.textContent).toBe('Dodgeball thrown at Roy Carver.')
+  })
+
   it('shows at most three rolls, fills free slots, and keeps each visible card on its own timer', () => {
     render(tree())
     const a = entry('one'), b = entry('two'), c = entry('three'), d = entry('four')

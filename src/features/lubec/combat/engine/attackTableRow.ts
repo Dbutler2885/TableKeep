@@ -1,3 +1,4 @@
+import { valueBreakdownOf } from './rollBreakdown'
 import type { LubecEffect } from '../../../ruleSets/lubec/effects'
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
 import type { LubecGear } from '../../../ruleSets/lubec/gear/gearRecord'
@@ -289,9 +290,11 @@ function rollLandingCheck(record: CombatSheet, spec: NonNullable<CombatWoundRow[
   return { ...rolled, purpose, ...(purpose === 'fist-catch' ? { stress: 0 } : {}) }
 }
 
-function landingLogs(fight: CombatFight, attack: CombatAttack, checks: readonly CombatCheckRoll[]): CombatLog[] {
+/** Each landing roll's card, with how the number it was made under was reached on the target's sheet this round. */
+function landingLogs(fight: CombatFight, attack: CombatAttack, checks: readonly CombatCheckRoll[], record: CombatSheet, fightId: string): CombatLog[] {
   const who = combatantOf(fight.state, defenderOf(attack))
-  return checks.map((check) => checkLog(who, attack.row!, check))
+  const round = { fightId, round: fight.state.round }
+  return checks.map((check) => checkLog(who, attack.row!, check, valueBreakdownOf(record, check.against, check.target, round)))
 }
 
 /** The target's Saves and Checks pick the row's version; failing a Save adds its Stress too. */
@@ -299,10 +302,10 @@ export function tableChecked(fight: CombatFight, attack: CombatAttack, record: C
   if (attack.row!.final) {
     const checks = rollLanding(record, attack.row!, attack.landing!.part!, command.envelope.fightId, fight.state.round, entropy)
     const state = applyFinal(fight.state, { ...attack, repair: null }, checks, entropy, record.sheet.gear)
-    return { fight: { ...fight, state }, items: [], logs: landingLogs(fight, attack, checks) }
+    return { fight: { ...fight, state }, items: [], logs: landingLogs(fight, attack, checks, record, command.envelope.fightId) }
   }
   const rolled = rollRowCheck(record, attack.row!, command.envelope.fightId, fight.state.round, entropy)
   const applied = appliedRow(attack.row!, locatedOf(attack), rolled.success)
   const state = applyProvisional(fight.state, { ...attack, check: rolled, repair: null }, applied, rolled.stress, entropy)
-  return { fight: { ...fight, state }, items: [], logs: [checkLog(combatantOf(fight.state, defenderOf(attack)), attack.row!, rolled)] }
+  return { fight: { ...fight, state }, items: [], logs: landingLogs(fight, attack, [rolled], record, command.envelope.fightId) }
 }

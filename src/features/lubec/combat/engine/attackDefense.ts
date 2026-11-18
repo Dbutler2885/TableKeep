@@ -1,3 +1,4 @@
+import { rollDiceOf } from './rollBreakdown'
 import { combatSkipsStages, combatIncapacity } from './inputs'
 import { lubecEffectiveHandle } from '../../../ruleSets/lubec/derivations'
 import type { LubecArrival } from '../../../ruleSets/lubec/gear/arrival'
@@ -12,7 +13,7 @@ import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
 import { requireDue } from './declare'
 import { checkSplit } from './splitRepair'
-import { combatRollMode, modeRecord, modeWords, rollWithMode, successThenHigher, type CombatMode } from './combatModes'
+import { combatRollMode, modeRecord, rollWithMode, successThenHigher, type CombatMode } from './combatModes'
 import { combatHands, combatInputModifiers } from './inputModifiers'
 import type { CombatAttack, CombatCommand, Combatant, CombatDefenseRoll, CombatFight, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
 
@@ -63,7 +64,7 @@ function defenseLog(defender: Combatant, attack: CombatAttack, defense: CombatDe
     roll: {
       who: defender.name, what: 'Defense roll', roll: pad(defense.roll), target: `under ${defense.value}`, tone: defense.success ? 'bad' as const : 'ok' as const,
       result: defense.success ? `Holds · takes off ${defense.removes}` : 'Fails · takes off nothing',
-      extra: [defense.dice ? modeWords({ mode: defense.mode!, because: defense.because ?? null }, defense.dice) : null, `Quality ${attack.roll!.quality} − ${defense.removes} = ${net}`].filter(Boolean).join(' '),
+      extra: `Quality ${attack.roll!.quality} − ${defense.removes} = ${net}`, ...rollDiceOf(defense),
     },
   }
 }

@@ -1,12 +1,13 @@
 import { lubecCurrentValue } from '../../../ruleSets/lubec/derivations'
 import { pad, stepRequest } from './attackFlow'
 import { attackRepair, combatantOf, combatSheetOf } from './attackParty'
-import type { CombatLog } from './combatFeedback'
+import type { CombatLog, CombatRoll } from './combatFeedback'
+import { rollDiceOf, valueBreakdownOf } from './rollBreakdown'
 import { withMovementRequests } from './movement'
 import type { CombatEntropy } from './commandEntropy'
 import { requireGm, requireLiveContext } from './context'
 import { combatantKey } from './inputs'
-import { betterInitiative, combatRollMode, modeRecord, modeWords, rollWithMode } from './combatModes'
+import { betterInitiative, combatRollMode, modeRecord, rollWithMode } from './combatModes'
 import { combatInputModifiers } from './inputModifiers'
 import type { Combatant, CombatCommand, CombatFight, CombatHandler, CombatInitiative, CombatPlan, CombatRecords, CombatSheet, CombatState } from './types'
 
@@ -54,12 +55,12 @@ function rollInitiative(speed: number, record: CombatSheet, fightId: string, ent
   return { ...rolled.kept, ...modeRecord(mode, rolled.dice) }
 }
 
-function initiativeLog(combatant: Combatant, rolled: CombatInitiative, by: string): CombatLog {
+function initiativeLog(combatant: Combatant, rolled: CombatInitiative, by: string, breakdown: Pick<CombatRoll, 'breakdown'>): CombatLog {
   return {
     event: `${combatant.name} rolled initiative.`, actor: combatant.key,
     roll: {
       who: combatant.name, what: by, roll: pad(rolled.roll), target: `under Speed ${rolled.speed}`, tone: rolled.success ? 'ok' : 'bad', result: rolled.success ? 'Success' : 'Failure',
-      ...(rolled.dice ? { extra: modeWords({ mode: rolled.mode!, because: rolled.because ?? null }, rolled.dice)! } : {}),
+      ...rollDiceOf(rolled), ...breakdown,
     },
   }
 }
@@ -133,7 +134,8 @@ function rollFor(state: CombatState, combatant: Combatant, records: CombatRecord
   const repair = attackRepair(combatant, record)
   if (repair) throw new Error(repair)
   const rolled = rollInitiative(speedOf(state, record!, command.envelope.fightId), record!, command.envelope.fightId, entropy)
-  return { state: withRoll(state, combatant, rolled), logs: [initiativeLog(combatant, rolled, by)] }
+  const breakdown = valueBreakdownOf(record, 'Speed', rolled.speed, { fightId: command.envelope.fightId, round: 1 })
+  return { state: withRoll(state, combatant, rolled), logs: [initiativeLog(combatant, rolled, by, breakdown)] }
 }
 
 function requireRollable(state: CombatState, key: string | null): Combatant {

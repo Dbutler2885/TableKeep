@@ -1,8 +1,9 @@
 import { lubecCurrentValue } from '../../../ruleSets/lubec/derivations'
 import type { LubecAttackChoice } from '../../../ruleSets/lubec/gear/weaponAttacks'
-import type { CombatLog } from './combatFeedback'
+import type { CombatLog, CombatRoll } from './combatFeedback'
+import { rollDiceOf } from './rollBreakdown'
 import type { CombatEntropy } from './commandEntropy'
-import { combatRollMode, modeRecord, modeWords, rollWithMode, successThenHigher } from './combatModes'
+import { combatRollMode, modeRecord, rollWithMode, successThenHigher } from './combatModes'
 import { combatInputModifiers } from './inputModifiers'
 import type { Combatant, CombatEvasion, CombatSheet, CombatState } from './types'
 
@@ -36,13 +37,13 @@ export function rollEvasion(combatant: Combatant, record: CombatSheet | null, co
 
 const pad = (value: number): string => String(value).padStart(2, '0')
 
-export function evasionLog(combatant: Combatant, evasion: CombatEvasion): CombatLog {
+export function evasionLog(combatant: Combatant, evasion: CombatEvasion, breakdown: Pick<CombatRoll, 'breakdown'> = {}): CombatLog {
   return {
     event: `${combatant.name} moved evasively.`, actor: combatant.key,
     roll: {
       who: combatant.name, what: 'Evasive Movement · Speed', roll: pad(evasion.roll), target: `under ${evasion.speed}`,
       tone: evasion.success ? 'ok' : 'bad', result: evasion.success ? `Ranged attacks −${evasion.penalty}` : 'No penalty',
-      extra: [evasion.dice ? modeWords({ mode: evasion.mode!, because: evasion.because ?? null }, evasion.dice) : null, 'Uses the action: no attack this round.'].filter(Boolean).join(' '),
+      extra: 'Uses the action: no attack this round.', ...rollDiceOf(evasion), ...breakdown,
     },
   }
 }

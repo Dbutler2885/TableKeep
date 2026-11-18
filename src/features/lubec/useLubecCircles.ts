@@ -11,6 +11,8 @@ export type LubecCircles = {
   result: (name: LubecCircleName) => LubecLastRoll | null
   spin: LubecSpin | null
   status: string
+  /** The last roll while it is still shown and not spinning: what the breakdown under the status line explains. */
+  shown: LubecLastRoll | null
   /** Rolls on the circle, or clears the result it shows. */
   click: (name: LubecCircleName) => void
 }
@@ -111,6 +113,7 @@ export function useLubecCircles(sheet: LubecCharacterSheet, roller: LubecRoller 
     result: (name) => shownOn(last, name),
     spin: spinner.spin,
     status: lubecCirclesStatus(spinner.spin, last.cleared ? last.roll : null, last.roll),
+    shown: spinner.spin ? null : last.shown,
     click: (name) => clickLubecCircle({ sheet, roller, last, spinner }, name),
   }
 }

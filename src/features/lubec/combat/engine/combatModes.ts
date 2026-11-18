@@ -70,12 +70,6 @@ export const betterInitiative = (a: CombatInitiative, b: CombatInitiative): bool
   return a.success ? a.roll > b.roll : a.roll < b.roll
 }
 
-/** "Disadvantage from Broken rib(s): 72 and 89", for a roll's card; null for a single die. */
-const modeLabel = (mode: CombatMode) => mode.because ?? (mode.mode === 'advantage' ? 'Advantage' : 'Disadvantage')
-
-export const modeWords = (mode: CombatMode, dice: readonly number[]): string | null =>
-  (dice.length > 1 ? `${modeLabel(mode)}: ${dice.map((die) => String(die).padStart(2, '0')).join(' and ')}` : null)
-
 /** What a roll record keeps of its mode: both dice and the reason, or nothing for a single die. */
 export const modeRecord = (mode: CombatMode, dice: readonly number[]) =>
   (dice.length > 1 && mode.mode !== 'normal' ? { dice: [...dice], mode: mode.mode, because: mode.because } : {})

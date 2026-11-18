@@ -1,3 +1,4 @@
+import { rollDiceOf, valueBreakdownOf } from './rollBreakdown'
 import { lubecCurrentValue } from '../../../ruleSets/lubec/derivations'
 import { locName } from '../../../ruleSets/lubec/gear/gearRules'
 import { repairPlan } from './attackAim'
@@ -7,9 +8,9 @@ import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
 import { requireDue } from './declare'
 import { lubecPartDistances } from './hitLocation'
-import { combatRollMode, modeRecord, modeWords, rollWithMode, successThenHigher, type CombatMode } from './combatModes'
+import { combatRollMode, modeRecord, rollWithMode, successThenHigher, type CombatMode } from './combatModes'
 import { combatInputModifiers } from './inputModifiers'
-import type { CombatLog } from './combatFeedback'
+import type { CombatLog, CombatRoll } from './combatFeedback'
 import type { CombatAttack, CombatCommand, CombatFight, CombatHandler, CombatPlan, CombatSheet, CombatStrengthRoll } from './types'
 
 /** Reach is the quality left: the hit may move along the body tree that many steps, one quality a step. */
@@ -48,12 +49,12 @@ function rollStrength(strength: number, mode: CombatMode, entropy: CombatEntropy
   return { ...rolled.kept, ...modeRecord(mode, rolled.dice) }
 }
 
-function strengthLog(attacker: string, key: string, rolled: CombatStrengthRoll): CombatLog {
+function strengthLog(attacker: string, key: string, rolled: CombatStrengthRoll, breakdown: Pick<CombatRoll, 'breakdown'>): CombatLog {
   return {
     event: `${attacker} rolled Strength.`, actor: key,
     roll: {
       who: attacker, what: 'Strength roll', roll: pad(rolled.roll), target: `under ${rolled.strength}`, tone: rolled.success ? 'ok' : 'bad', result: rolled.success ? `Adds ${signed(rolled.bonus)} Impact` : 'Adds nothing',
-      ...(rolled.dice ? { extra: modeWords({ mode: rolled.mode!, because: rolled.because ?? null }, rolled.dice)! } : {}),
+      ...rollDiceOf(rolled), ...breakdown,
     },
   }
 }
@@ -63,7 +64,8 @@ function strengthPlan(fight: CombatFight, attack: CombatAttack, record: CombatSh
   const strength = lubecCurrentValue(record.sheet, 'Strength', combatInputModifiers(record.sheet, context))!
   const rolled = rollStrength(strength, combatRollMode(record, { kind: 'strength-impact', stat: 'Strength' }, context), entropy)
   const finished = finishImpact(fight, { ...attack, strength: rolled, repair: null }, rolled.bonus, entropy)
-  return { fight: finished, items: [], logs: [strengthLog(record.name, attack.attackerKey, rolled), ...impactLog(finished, attack.attackerKey)] }
+  const breakdown = valueBreakdownOf(record, 'Strength', strength, context)
+  return { fight: finished, items: [], logs: [strengthLog(record.name, attack.attackerKey, rolled, breakdown), ...impactLog(finished, attack.attackerKey)] }
 }
 
 /** The attacker rolls Strength on its own bar at the wound step, for melee and hand-thrown attacks. */

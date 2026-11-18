@@ -1,3 +1,4 @@
+import { valueBreakdownOf } from './rollBreakdown'
 import { lubecPlaceDetached, lubecTakeDetached, type LubecDetachedItem } from '../../../ruleSets/lubec/gear/detachedItems'
 import { combatSheetOf } from './attackParty'
 import type { CombatLog } from './combatFeedback'
@@ -37,8 +38,11 @@ const REVEALED: Readonly<Record<string, (name: string) => string>> = {
 
 /** An evader rolls Speed as their choice is revealed; the roll sets the penalty to ranged attacks at them this round. */
 function evade(settling: Settling, combatant: Combatant, state: CombatState, records: CombatRecords, context: SettleContext): Settling {
-  const evasion = rollEvasion(combatant, combatSheetOf(records, combatant), { fightId: context.command.envelope.fightId, round: state.round }, context.entropy)
-  return { ...settling, evasions: new Map(settling.evasions).set(combatant.key, evasion), logs: [...settling.logs, evasionLog(combatant, evasion)] }
+  const record = combatSheetOf(records, combatant)
+  const round = { fightId: context.command.envelope.fightId, round: state.round }
+  const evasion = rollEvasion(combatant, record, round, context.entropy)
+  const log = evasionLog(combatant, evasion, valueBreakdownOf(record, 'Speed', evasion.speed, round))
+  return { ...settling, evasions: new Map(settling.evasions).set(combatant.key, evasion), logs: [...settling.logs, log] }
 }
 
 type SettleContext = { command: CombatCommand; entropy: CombatEntropy }

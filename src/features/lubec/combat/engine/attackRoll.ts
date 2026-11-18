@@ -7,7 +7,9 @@ import type { LubecAttackChoice } from '../../../ruleSets/lubec/gear/weaponAttac
 import { readCombatAim, repairPlan } from './attackAim'
 import { combatAttackResult, type CombatAttackResult } from './attackMath'
 import { attackAt, attackRepair, combatantOf, combatSheetOf, requireOpponent } from './attackParty'
-import type { CombatLog } from './combatFeedback'
+import type { CombatLog, CombatRollBreakdown } from './combatFeedback'
+import { rollDiceOf } from './rollBreakdown'
+import type { LubecTargetPart } from '../../../ruleSets/lubec/valueParts'
 import type { CombatEntropy } from './commandEntropy'
 import { requireLiveContext } from './context'
 import { requireDue } from './declare'
@@ -16,7 +18,7 @@ import { declaredLine, isRoundAttack } from './roundAttacks'
 import { weaponInHand } from './chooseAgain'
 import { evasionFor } from './evasion'
 import { checkSplit } from './splitRepair'
-import { betterAttack, combatAttackActions, combatRollMode, combatTaskPenalty, modeRecord, modeWords, rollWithMode } from './combatModes'
+import { betterAttack, combatAttackActions, combatRollMode, combatTaskPenalty, modeRecord, rollWithMode } from './combatModes'
 import type { CombatAttack, CombatCommand, Combatant, CombatEvasion, CombatFight, CombatFrozenAim, CombatHandler, CombatPlan, CombatSheet, CombatState } from './types'
 
 type Spent = { gear: LubecGear | null; detached: LubecDetachedItem[] }
@@ -67,21 +69,41 @@ function rollExtra(attacker: Combatant, target: Combatant, frozen: CombatFrozenA
   return [thrown, evaded].filter(Boolean).join(' ') || null
 }
 
-function rollLog(state: CombatState, attacker: Combatant, target: Combatant, frozen: CombatFrozenAim, result: CombatAttackResult, evasion: CombatEvasion | null): CombatLog {
-  const extra = attackRollExtra(result, rollExtra(attacker, target, frozen, evasion))
+type Rolled = { result: CombatAttackResult; evasion: CombatEvasion | null; breakdown: CombatRollBreakdown }
+
+function rollLog(state: CombatState, attacker: Combatant, target: Combatant, frozen: CombatFrozenAim, { result, evasion, breakdown }: Rolled): CombatLog {
+  const extra = rollExtra(attacker, target, frozen, evasion)
   return {
     event: `${attacker.name} attacked ${target.name}.`, actor: attacker.key,
     roll: {
       who: attacker.name, what: state.round === 0 ? 'Attack roll (before initiative)' : 'Attack roll',
       roll: pad(result.roll), target: `against ${result.attackNumber}`, tone: result.hit ? 'ok' : 'bad', result: resultWords(result),
-      ...(extra ? { extra } : {}),
+      ...(extra ? { extra } : {}), ...rollDiceOf(result), breakdown,
     },
   }
 }
 
-function attackRollExtra(result: CombatAttackResult, other: string | null): string | null {
-  const both = result.dice ? modeWords({ mode: result.mode!, because: result.because ?? null }, result.dice) : null
-  return [both, other].filter(Boolean).join(' ') || null
+const signedWords = (amount: number): string => (amount < 0 ? `${amount}` : `+${amount}`)
+
+/** The attack number as Declare froze it: the Handle and skill read then, any cap, and the share split off for Defense. */
+function frozenParts(frozen: CombatFrozenAim): LubecTargetPart[] {
+  const bonus = frozen.skill?.bonus ?? 0
+  return [
+    { label: 'Handle at Declare', value: String(frozen.handle) },
+    ...(frozen.skill ? [{ label: frozen.skill.name, value: signedWords(bonus) }] : []),
+    ...(frozen.total < frozen.handle + bonus ? [{ label: 'Cap', value: `no higher than ${frozen.total}` }] : []),
+    ...(frozen.attack < frozen.total ? [{ label: 'Kept for Defense', value: String(frozen.attack - frozen.total) }] : []),
+  ]
+}
+
+/** What this roll changes on top: the GM's range, the target's Evasive Movement, and cards on this kind of attack. */
+function rollParts(attack: CombatAttack, evasion: CombatEvasion | null, task: number): LubecTargetPart[] {
+  const range = attack.range?.modifier ?? 0
+  return [
+    ...(range ? [{ label: 'Range', value: signedWords(range) }] : []),
+    ...(evasion ? [{ label: 'Evasive Movement', value: `-${evasion.penalty}` }] : []),
+    ...(task ? [{ label: 'Cards on this attack', value: signedWords(task) }] : []),
+  ]
 }
 
 const spentOnce = (state: CombatState, key: string) =>
@@ -130,13 +152,14 @@ function rollPlan(fight: CombatFight, attack: CombatAttack, record: CombatSheet,
   const context = { fightId: command.envelope.fightId, round: state.round }
   const actions = combatAttackActions(frozen.choice)
   // A task-only Handle penalty ("-20 Handle on ranged actions") comes off the attack number for an attack that is that action.
-  const attackNumber = adjustedAttackNumber(attack, evasion) + combatTaskPenalty(record, actions, context, 'Handle')
+  const task = combatTaskPenalty(record, actions, context, 'Handle')
+  const attackNumber = adjustedAttackNumber(attack, evasion) + task
   const mode = combatRollMode(record, { kind: 'attack', stat: 'Handle', actions }, context)
   const rolled = rollWithMode(entropy, 'attack', mode.mode, (die) => combatAttackResult(die, attackNumber), betterAttack)
   const result: CombatAttackResult = { ...rolled.kept, ...modeRecord(mode, rolled.dice) }
   return {
     fight: { ...fight, state: rolledState(state, { ...attack, evasion }, result, spent.detached, entropy) }, items: [],
-    logs: [rollLog(state, attacker, target, frozen, result, evasion)],
+    logs: [rollLog(state, attacker, target, frozen, { result, evasion, breakdown: { name: 'Attack number', target: attackNumber, parts: [...frozenParts(frozen), ...rollParts(attack, evasion, task)] } })],
     sheets: spent.gear ? [{ selection: { kind: attacker.kind, sheetId: attacker.sheetId }, gear: spent.gear }] : [],
   }
 }

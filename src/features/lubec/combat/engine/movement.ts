@@ -1,3 +1,5 @@
+import type { CombatRoll } from './combatFeedback'
+import { rollDiceOf, valueBreakdownOf } from './rollBreakdown'
 import { combatSkipsStages, combatIncapacity } from './inputs'
 import type { LubecItem } from '../../../ruleSets/lubec/gear/gearRecord'
 import { lubecNoHandWhy, place } from '../../../ruleSets/lubec/gear/placement'
@@ -114,16 +116,16 @@ function finishMovements(fight: CombatFight, moved: Map<string, CombatMovement>,
     state = standing.state
     moved.set(key, { ...movement, stand: standing.stand })
     sheetEffects.push(...standing.sheetEffects)
-    logs.push(standLog(combatant, standing.stand))
+    logs.push(standLog(combatant, standing.stand, standing.breakdown))
   }
   return { fight: withMovement({ ...fight, state }, moved), items: [], logs, sheetEffects }
 }
 
 type Standing = ReturnType<typeof rollStand>
 
-function standLog(combatant: Combatant, stand: Standing): CombatPlan['logs'][number] {
+function standLog(combatant: Combatant, stand: Standing, breakdown: Pick<CombatRoll, 'breakdown'>): CombatPlan['logs'][number] {
   return { event: `${combatant.name} ${stand.success ? 'stood, spending Movement only' : `failed to stand: Action + Defense lost, +${stand.stress} Stress`}.`, actor: combatant.key,
-    roll: { who: combatant.name, what: 'Stand - Speed Check', roll: String(stand.result).padStart(2, '0'), target: `at or under ${stand.target}`, tone: stand.success ? 'ok' : 'bad', result: stand.success ? 'Standing' : 'Still down', extra: [stand.because, `Dice: ${stand.dice.join(', ')}`].filter(Boolean).join('. ') } }
+    roll: { who: combatant.name, what: 'Stand - Speed Check', roll: String(stand.result).padStart(2, '0'), target: `at or under ${stand.target}`, tone: stand.success ? 'ok' : 'bad', result: stand.success ? 'Standing' : 'Still down', ...rollDiceOf(stand), ...breakdown } }
 }
 
 function standSheetEffects(combatant: Combatant, down: ReturnType<typeof downCards>, stand: Standing): NonNullable<CombatPlan['sheetEffects']> {
@@ -142,7 +144,7 @@ function finishStand(state: CombatState, combatant: Combatant, records: CombatRe
   if (!down.length) throw new Error(`${combatant.name} is not knocked down.`)
   const stand = rollStand(record!, context, entropy)
   const next = stand.success ? state : withLostStages(state, combatant.key, { movement: [], action: [state.round] }, 'Failed Stand')
-  return { state: next, stand, sheetEffects: standSheetEffects(combatant, down, stand) }
+  return { state: next, stand, sheetEffects: standSheetEffects(combatant, down, stand), breakdown: valueBreakdownOf(record, 'Speed', stand.target, context) }
 }
 
 const confirmedLog = (combatant: Combatant) => ({ event: `${combatant.name} confirmed Movement.`, actor: combatant.key })

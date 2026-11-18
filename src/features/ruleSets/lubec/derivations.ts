@@ -52,13 +52,22 @@ const floorOf = (name: LubecValueName, final: number): number =>
 export function lubecCurrentValue(sheet: LubecSheet, name: LubecValueName, modifiers: readonly LubecModifier[]): number | null {
   const final = lubecFinalValue(sheet, name)
   if (final === null) return null
+  return Math.max(floorOf(name, final), valueBeforeFloor(final, name, modifiers))
+}
+
+function valueBeforeFloor(final: number, name: LubecValueName, modifiers: readonly LubecModifier[]): number {
   const mine = modifiers.filter((modifier) => modifier.target === name)
   const factor = mine.reduce((product, modifier) => product * (modifier.factor ?? 1), 1)
   const flat = mine.reduce((sum, modifier) => sum + modifier.amount, 0)
   const setTo = mine.flatMap((modifier) => (modifier.setTo === undefined ? [] : [modifier.setTo]))
   // "Drops to" never raises a value that is already lower.
-  const value = Math.min(Math.floor(final * factor) + flat, ...setTo)
-  return Math.max(floorOf(name, final), value)
+  return Math.min(Math.floor(final * factor) + flat, ...setTo)
+}
+
+/** Whether the floor held the value up: the modifiers would have taken it lower than the floor lets them. */
+export function lubecFloorHolds(sheet: LubecSheet, name: LubecValueName, modifiers: readonly LubecModifier[]): boolean {
+  const final = lubecFinalValue(sheet, name)
+  return final !== null && valueBeforeFloor(final, name, modifiers) < floorOf(name, final)
 }
 
 /** Current Handle capped at 100; a fighting or shooting skill's bonus belongs to the combat roller, not here. */
