@@ -1613,7 +1613,8 @@ button:hover {
   background: rgba(98, 115, 96, 0.16);
 }
 
-.side-drawer > .side-nav {
+/* Room above the sidebar for the close button, over each skin's own padding. */
+.shell-root .shell-layout .side-drawer > .side-nav {
   height: 100%;
   padding-top: calc(3.6rem + env(safe-area-inset-top, 0px));
   padding-left: calc(0.85rem + env(safe-area-inset-left, 0px));
@@ -1624,7 +1625,8 @@ button:hover {
   position: absolute;
   top: calc(0.5rem + env(safe-area-inset-top, 0px));
   left: calc(0.75rem + env(safe-area-inset-left, 0px));
-  z-index: 70;
+  /* Over the sidebar it closes, which the VtM and Lubec skins raise to 210. */
+  z-index: 220;
 }
 
 @keyframes side-drawer-in {
