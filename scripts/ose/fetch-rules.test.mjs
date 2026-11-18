@@ -1,10 +1,33 @@
 import { readFileSync } from 'node:fs'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, sep } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { importRules, parseRulesPage } from './fetch-rules.mjs'
+import { generateRules, importRules, parseRulesPage } from './fetch-rules.mjs'
 
 const directory = new URL('../../docs/rules/ose-classic/', import.meta.url)
 const corpus = JSON.parse(readFileSync(new URL('corpus.json', directory), 'utf8'))
 const license = readFileSync(new URL('OGL.txt', directory), 'utf8')
+const WEAPON_RULES_PATH = '3. Equipment & Services/3. Weapons and Armor.md'
+const ADVANCEMENT_PATH = '1. Characters/6. Advancement.md'
+const CHARACTER_CREATION_PATH = '1. Characters/2. Creating a Character.md'
+const SOURCE_NOTICE = 'Old-School Essentials System Reference Document © 2019 Gavin Norman. Author Gavin Norman.'
+const SOURCE_LICENSE = [
+  'All text and tables not declared as product identity are Open Game Content.',
+  '',
+  '### OPEN GAME LICENSE Version 1.0a',
+  '',
+  '15 COPYRIGHT NOTICE',
+  '',
+  SOURCE_NOTICE,
+  '',
+  '## Creative Commons Attribution 4.0 International',
+].join('\n')
+
+function markdownTable(header, ...rows) {
+  return [header, header.map(() => '---'), ...rows].map(row => `| ${row.join(' | ')} |`).join('\n')
+}
 
 function page(title) {
   const match = corpus.pages.find(page => page.title === title)
@@ -125,11 +148,157 @@ describe('the importer', () => {
   it('rejects malformed tables and unlicensed input before generation', async () => {
     expect(() => parseRulesPage('# Sample\n\n| Roll | Effect |\n| --- | --- |\n| 12 |', 'Sample.md', 'adventuring'))
       .toThrow('Malformed table')
+    expect(() => parseRulesPage('# Sample\n\n| Roll | Effect |\n| --- | --- |\n| 12 | Reroll', 'Sample.md', 'adventuring'))
+      .toThrow('Incomplete table row')
+    expect(() => parseRulesPage('# Sample\n\n| Roll | Effect |', 'Sample.md', 'adventuring'))
+      .toThrow('Malformed table')
     const fetched = []
     await expect(importRules(async path => {
       fetched.push(path)
       return 'No license'
     })).rejects.toThrow('Open Game Content designation and license')
     expect(fetched).toEqual(['License.md'])
+    await expect(importRules(async () => SOURCE_LICENSE.replace('15 COPYRIGHT NOTICE', '')))
+      .rejects.toThrow('copyright notice does not match')
+    await expect(importRules(async () => SOURCE_LICENSE.replace(SOURCE_NOTICE, 'Other copyright notice')))
+      .rejects.toThrow('copyright notice does not match')
+  })
+
+  it('flattens grouped column labels while preserving the source values', () => {
+    const source = [
+      '# Sample',
+      '',
+      markdownTable(
+        ['', 'Saving Throws', 'Spells', '', '', '', '', '', '', ''],
+        ['Level', 'XP', 'HD', 'THAC0', 'D', 'W', 'P', 'B', 'S', '1'],
+        ['1', '0', '1d8', '19 [0]', '12', '13', '14', '15', '16', '1'],
+      ),
+      '',
+      markdownTable(['', 'Hit Dice of Monster Type†', ''], ['Level', '1', '2*'], ['1', '7', '11']),
+      '',
+      markdownTable(['', 'Retainers', '', ''], ['CHA', 'NPC Reactions', 'Max #', 'Loyalty'], ['3', '-2', '1', '4']),
+      '',
+      markdownTable(['', 'Wage per Month', '', ''], ['Type', 'AC', 'Morale', 'Human'], ['Archer', '6 [13]', '8', '5gp']),
+      '',
+      markdownTable(['', 'Movement Rate', ''], ['Armor Worn', 'Without Treasure', 'Carrying Treasure'], ['Unarmored', '120’', '90’']),
+      '',
+      markdownTable(['Encumbrance', 'Movement Rate'], ['Up to 400 coins', '120’']),
+    ].join('\n')
+    const [result] = parseRulesPage(source, 'Sample.md', 'adventuring').sections
+    expect(result.markdownLines).toEqual([
+      '| Level | XP | HD | THAC0 | Save D | Save W | Save P | Save B | Save S | Spells (level 1) |',
+      '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+      '| 1 | 0 | 1d8 | 19 [0] | 12 | 13 | 14 | 15 | 16 | 1 |',
+      '',
+      '| Level | HD 1† | HD 2*† |',
+      '| --- | --- | --- |',
+      '| 1 | 7 | 11 |',
+      '',
+      '| CHA | NPC Reactions | Max Retainers | Retainer Loyalty |',
+      '| --- | --- | --- | --- |',
+      '| 3 | -2 | 1 | 4 |',
+      '',
+      '| Type | AC | Morale | Human Wage per Month |',
+      '| --- | --- | --- | --- |',
+      '| Archer | 6 [13] | 8 | 5gp |',
+      '',
+      '| Armor Worn | Movement Rate (Without Treasure) | Movement Rate (Carrying Treasure) |',
+      '| --- | --- | --- |',
+      '| Unarmored | 120’ | 90’ |',
+      '',
+      '| Encumbrance | Movement Rate |',
+      '| --- | --- |',
+      '| Up to 400 coins | 120’ |',
+    ])
+  })
+
+  it('rejects turning or attack matrices missing their expected second header row', () => {
+    const turning = markdownTable(['', 'Hit Dice of Monster Type†'], ['1', '7'])
+    expect(() => parseRulesPage(`# Cleric\n\n${turning}`, 'Cleric.md', 'classes'))
+      .toThrow('Turning table is missing its column labels')
+    const attack = markdownTable(['', 'Attack Roll to Hit AC'])
+    expect(() => parseRulesPage(`# Combat Tables\n\n${attack}`, 'Combat Tables.md', 'adventuring'))
+      .toThrow('Attack matrix is missing its column labels')
+  })
+
+  it('restores both missing captions and guards the high-level correction against source drift', () => {
+    const advancement = [
+      '# Advancement', '', '# High-Level Play (Optional Rule)', '', '## Thieves', '', 'Thief rules.', '',
+      markdownTable(
+        ['Class and Level', 'Attack Roll to Hit AC', '', '', ''],
+        ['Fighter', 'Cleric, Thief', 'Magic-User', '-3', '-2'],
+        ['13–15', '17–20', '21–25', '13', '13'],
+      ),
+    ].join('\n')
+    const result = parseRulesPage(advancement, ADVANCEMENT_PATH, 'characters')
+    expect(result.sections.map(({ title, level }) => [title, level])).toEqual([
+      ['Advancement', 1], ['High-Level Play (Optional Rule)', 2], ['Thieves', 3], ['High-Level Attack Table', 3],
+    ])
+    expect(result.sections[2].markdownLines).toEqual(['Thief rules.'])
+    expect(result.sections[3].markdownLines).toEqual([
+      '| Fighter | Cleric, Thief | Magic-User | AC -3 | AC -2 |',
+      '| --- | --- | --- | --- | --- |',
+      '| 13–15 | 17–20 | 21–25 | 13 | 12 |',
+    ])
+    expect(result.sections[3].sourceUrl).toMatch(/#L9$/)
+    expect(() => parseRulesPage(advancement.replace('13 | 13 |', '13 | 12 |'), ADVANCEMENT_PATH, 'characters'))
+      .toThrow('no longer matches the transcription')
+
+    const creation = [
+      '# Creating a Character', '', '## 5. Note Attack Values', '', '### Ascending AC (Optional Rule)', '',
+      'Record the attack bonus.', '', markdownTable(['Attack Roll', '10'], ['AC Hit', '9']),
+    ].join('\n')
+    const [, , ascending, starting] = parseRulesPage(creation, CHARACTER_CREATION_PATH, 'characters').sections
+    expect(ascending.markdownLines).toEqual(['Record the attack bonus.'])
+    expect(starting).toMatchObject({
+      title: '1st Level PC Attack Values', level: 3,
+      markdownLines: ['| Attack Roll | 10 |', '| --- | --- |', '| AC Hit | 9 |'],
+    })
+  })
+
+  it('keeps the weapon rules section and discards the catalog before parsing its body', () => {
+    const source = [
+      '# Weapons And Armor', '', '## Weapons', '', 'Catalog <table> layout.', '',
+      '### Weapon Qualities', '', 'A slow weapon acts last.', '', '## Ammunition', '', 'Ammunition prices.',
+    ].join('\n')
+    const selected = parseRulesPage(source, WEAPON_RULES_PATH, 'services').sections
+    expect(selected).toHaveLength(2)
+    expect(selected[1]).toMatchObject({ title: 'Weapon Qualities', level: 2, markdownLines: ['A slow weapon acts last.'] })
+    expect(() => parseRulesPage('# Weapons And Armor\n\n## Weapons\n\nCatalog only.', WEAPON_RULES_PATH, 'services'))
+      .toThrow('Weapon Qualities section is missing')
+  })
+
+  it('rejects pages with unsupported content or a missing title', () => {
+    for (const source of ['## Sample\n\nRules.', 'Intro\n\n# Sample\n\nRules.', 'Rules only.']) {
+      expect(() => parseRulesPage(source, 'Sample.md', 'adventuring')).toThrow('Missing top-level rules title')
+    }
+    for (const source of ['# Sample', '# Sample\n\n![Image](art.png)', '# Sample\n\n<span>Non-rule markup.</span>']) {
+      expect(() => parseRulesPage(source, 'Sample.md', 'adventuring')).toThrow('Unexpected content')
+    }
+  })
+
+  it('generates licensed data and verifies both outputs without modifying them', async () => {
+    const outputPath = await mkdtemp(join(tmpdir(), 'ose-rules-'))
+    const outputDirectory = pathToFileURL(outputPath + sep)
+    const readSource = async path => {
+      if (path === 'License.md') return SOURCE_LICENSE
+      if (path === WEAPON_RULES_PATH) return '# Weapons And Armor\n\n### Weapon Qualities\n\nA slow weapon acts last.'
+      return '# Sample\n\nRules.'
+    }
+    const options = { readSource, outputDirectory }
+    try {
+      await expect(generateRules(options)).resolves.toBe('Imported 43 pages and 44 sections')
+      const generated = JSON.parse(await readFile(new URL('corpus.json', outputDirectory), 'utf8'))
+      expect(generated.pages).toHaveLength(43)
+      expect(generated.pages[0].sections[0].markdownLines).toEqual(['Rules.'])
+      const generatedLicense = new URL('OGL.txt', outputDirectory)
+      expect(await readFile(generatedLicense, 'utf8')).toContain(SOURCE_NOTICE)
+      await expect(generateRules({ ...options, check: true })).resolves.toBe('Verified 43 pages and 44 sections')
+      await writeFile(generatedLicense, 'Changed license')
+      await expect(generateRules({ ...options, check: true })).rejects.toThrow('OGL.txt differs')
+      expect(await readFile(generatedLicense, 'utf8')).toBe('Changed license')
+    } finally {
+      await rm(outputPath, { recursive: true, force: true })
+    }
   })
 })
