@@ -1,7 +1,7 @@
 import { combatSkipsStages, combatIncapacity } from './inputs'
 import type { LubecWoundNow } from '../../../ruleSets/lubec/woundTables/outcome'
 import { combatantsIn } from './attackParty'
-import type { CombatDeclaration, CombatMovement, CombatState } from './types'
+import type { Combatant, CombatDeclaration, CombatMovement, CombatState } from './types'
 
 // Lost stages, resolved into round numbers the moment the wound lands, from
 // the target's state at that moment. A combatant's Action Stage is resolved
@@ -41,6 +41,9 @@ const union = (a: readonly number[], b: readonly number[]) => [...new Set([...a,
 /** The stopped declaration a lost Action gives: no attack, no Defense. */
 export const LOST_ACTION: CombatDeclaration = { ran: false, full: false, aim: null, frozen: null, total: 0, lines: [], sourceRevision: 0, stopped: true, lost: true }
 
+const stopDeclaration = (entry: Combatant, key: string): Combatant =>
+  entry.key === key && entry.declaration && !entry.declaration.stopped ? { ...entry, declaration: { ...entry.declaration, stopped: true, lost: true as const } } : entry
+
 /**
  * The fight with these losses added for `key`. An Action lost this round, still unresolved, stops the declaration
  * at once: no attack turn and no Defense lines from it. Rolls already made stay as they were.
@@ -50,7 +53,7 @@ export function withLostStages(state: CombatState, key: string, lost: { movement
   const merged = { movement: union(before.movement, lost.movement), action: union(before.action, lost.action), reason, ...(wound ? { wound } : {}) }
   const stopsNow = state.round >= 1 && merged.action.includes(state.round)
   const combatants = stopsNow
-    ? state.combatants.map((entry) => (entry.key === key && entry.declaration && !entry.declaration.stopped ? { ...entry, declaration: { ...entry.declaration, stopped: true, lost: true as const } } : entry))
+    ? state.combatants.map((entry) => stopDeclaration(entry, key))
     : state.combatants
   return { ...state, combatants, lost: { ...state.lost, [key]: merged } }
 }
@@ -77,11 +80,11 @@ export const withLostActions = (state: CombatState): CombatState => ({
 export function lostStageWords(state: CombatState, key: string): string[] {
   const lost = state.lost?.[key]
   const combatant = state.combatants.find((entry) => entry.key === key)
-  const reason = combatant && combatIncapacity(combatant)
+  const reason = combatant ? combatIncapacity(combatant) : null
   return [
     ...(reason ? [`Unresolved stages lost - ${reason}`] : []),
-    ...(lost?.movement.includes(state.round) ? [`Movement lost - ${lost.reason}`] : []),
-    ...(lost?.action.includes(state.round) ? [`Action + Defense lost - ${lost.reason}`] : []),
+    ...(movementLost(state, key) ? [`Movement lost - ${lost!.reason}`] : []),
+    ...(actionLost(state, key) ? [`Action + Defense lost - ${lost!.reason}`] : []),
   ]
 }
 

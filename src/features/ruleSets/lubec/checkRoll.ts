@@ -103,12 +103,19 @@ function checkOutcome(sheet: LubecSheet, name: LubecValueName, target: number, r
 }
 
 /** A Stat Check or Save rolled with the dice; null when the value it needs is a hole. */
+const checkRequestMode = (sheet: LubecCharacterSheet, request: LubecCheckRequest, actions: readonly LubecRollAction[]) =>
+  request.advantage === null ? lubecCoreRollMode(sheet, request.name, actions) : { mode: request.advantage, because: null }
+
+const checkContextFields = (because: string | null, actions: readonly LubecRollAction[]) => ({
+  ...(because ? { because } : {}), ...(actions.length ? { actions: [...actions] } : {}),
+})
+
 export function rollLubecCheck(sheet: LubecCharacterSheet, request: LubecCheckRequest, dice: LubecDice): LubecCheckRoll | null {
   const actions = request.actions ?? []
   const target = lubecCheckTarget(sheet, request.name, request.skill, actions)
   if (target === null) return null
-  const fromCards = request.advantage === null ? lubecCoreRollMode(sheet, request.name, actions) : null
-  const advantage = request.advantage ?? fromCards!.mode
+  const resolved = checkRequestMode(sheet, request, actions)
+  const advantage = resolved.mode
   const rolled = rollLubecDice(100, advantage, dice)
   const result = keptLubecRoll(rolled, advantage)
   return {
@@ -119,8 +126,7 @@ export function rollLubecCheck(sheet: LubecCharacterSheet, request: LubecCheckRe
     advantage,
     skill: armedSkill(sheet, request.skill)?.name ?? null,
     ...checkOutcome(sheet, request.name, target, result),
-    ...(fromCards?.because ? { because: fromCards.because } : {}),
-    ...(actions.length ? { actions: [...actions] } : {}),
+    ...checkContextFields(resolved.because, actions),
   }
 }
 

@@ -120,22 +120,34 @@ function labelsOf(spec: LubecWoundStepSpec, context: LubecWoundCardContext): str
     .replace('{side}', SIDES[struckSide(context.source.part)]))
 }
 
-function stepOf(spec: LubecWoundStepSpec, context: LubecWoundCardContext, at: { card: string; step: number }): LubecEffectStep {
+function fingerModifiers(spec: LubecWoundStepSpec, context: LubecWoundCardContext): FlatModifier[] {
   const fingerCount = context.rolled?.fingers ?? context.fingers ?? 0
-  const fingers = spec.perFinger && fingerCount ? [{ target: 'Handle' as const, amount: spec.perFinger * fingerCount }] : []
-  const rolled = (spec.rolled ?? []).map(({ target }) => ({ target, amount: -(context.rolled?.amounts?.[lubecRolledKey(at.card, at.step, target)] ?? 0) }))
+  return spec.perFinger && fingerCount ? [{ target: 'Handle', amount: spec.perFinger * fingerCount }] : []
+}
+
+function rolledModifiers(spec: LubecWoundStepSpec, context: LubecWoundCardContext, at: { card: string; step: number }): FlatModifier[] {
+  const amounts = context.rolled?.amounts ?? {}
+  return (spec.rolled ?? []).map(({ target }) => ({ target, amount: -(amounts[lubecRolledKey(at.card, at.step, target)] ?? 0) }))
+}
+
+/** Optional step rules retain their source data; an absent or empty rule is not persisted. */
+function stepRules(spec: LubecWoundStepSpec): Partial<LubecEffectStep> {
+  const arrays = ['fractions', 'setTo', 'rolls', 'taskModifiers'] as const
+  const values = ['charmReminder', 'minimumStress', 'onReach'] as const
+  return Object.fromEntries([
+    ...arrays.filter((key) => spec[key]?.length).map((key) => [key, spec[key]]),
+    ...values.filter((key) => spec[key]).map((key) => [key, spec[key]]),
+  ])
+}
+
+function stepOf(spec: LubecWoundStepSpec, context: LubecWoundCardContext, at: { card: string; step: number }): LubecEffectStep {
+  const modifiers = [...(spec.modifiers ?? []), ...fingerModifiers(spec, context), ...rolledModifiers(spec, context, at)]
   return {
-    modifiers: mergedModifiers([...(spec.modifiers ?? []), ...fingers, ...rolled]).filter((modifier) => modifier.amount !== 0),
+    ...stepRules(spec),
+    modifiers: mergedModifiers(modifiers).filter((modifier) => modifier.amount !== 0),
     labels: labelsOf(spec, context),
     until: spec.until,
-    ...(spec.fractions?.length ? { fractions: spec.fractions } : {}),
-    ...(spec.setTo?.length ? { setTo: spec.setTo } : {}),
-    ...(spec.rolls?.length ? { rolls: spec.rolls } : {}),
     ...(spec.restrictions?.length ? { restrictions: spec.restrictions.map((restriction) => restrictionOf(restriction, context.source.part)) } : {}),
-    ...(spec.taskModifiers?.length ? { taskModifiers: spec.taskModifiers } : {}),
-    ...(spec.charmReminder ? { charmReminder: true } : {}),
-    ...(spec.minimumStress ? { minimumStress: spec.minimumStress } : {}),
-    ...(spec.onReach ? { onReach: spec.onReach } : {}),
   }
 }
 
@@ -168,30 +180,34 @@ function fallbackWords(kind: 'lose-movement' | 'lose-action' | 'dazed', turns: n
   return turns === 1 ? 'Lose the next Movement and Action Stages' : `Lose the next ${turns} Movement and ${turns} Action Stages`
 }
 
-/** The card a stage-losing or downing consequence makes, carrying how many stages it takes. */
+type StageLoss = Extract<LubecWoundNow, { kind: 'lose-movement' | 'lose-action' | 'dazed' }>
+const STAGE_KEYS = { 'lose-movement': 'movement', 'lose-action': 'action', dazed: 'dazed' } as const
+
+const dazedTurns = (now: Extract<StageLoss, { kind: 'dazed' }>, rolled: LubecWoundRolled) =>
+  now.turns === 1 ? 1 : rolled.dazed ?? 1
+
+function stageCard(now: StageLoss, rolled: LubecWoundRolled): LubecWoundCardSpec {
+  const key = STAGE_KEYS[now.kind]
+  const part = { movement: 'Movement lost', action: 'Action lost', dazed: 'Dazed' }[key]
+  const lost = rolled.lost?.[key]
+  const turns = now.kind === 'dazed' ? dazedTurns(now, rolled) : 1
+  const rolledWords = now.kind === 'dazed' && now.turns !== 1 ? ` (1d4 = ${turns})` : ''
+  return { key, part, steps: [{ until: 'rounds', labels: [(lost ? lostWords(lost) : fallbackWords(now.kind, turns)) + rolledWords] }] }
+}
+
+function unconsciousCard(now: Extract<LubecWoundNow, { kind: 'unconscious' }>, rolled: LubecWoundRolled): LubecWoundCardSpec {
+  const minutes = rolled.minutes ?? []
+  const sum = minutes.reduce((total, die) => total + die, 0)
+  const aftermath = now.aftermath ? ['On waking: Severe Concussion Body Save at Disadvantage'] : []
+  return { key: 'unconscious', part: 'Unconscious', steps: [{ until: 'by-hand', restrictions: [{ kind: 'unconscious' }], labels: [`Clear by hand: 2d10 = ${minutes.join(' + ')} = ${sum} minutes`, ...aftermath] }] }
+}
+
+/** Immediate consequences select their own card builder; drops and Death Saves do not create a stage card. */
 function nowCard(now: LubecWoundNow, rolled: LubecWoundRolled): LubecWoundCardSpec | null {
-  switch (now.kind) {
-    case 'lose-movement':
-    case 'lose-action':
-    case 'dazed': {
-      const key = now.kind === 'lose-movement' ? 'movement' : now.kind === 'lose-action' ? 'action' : 'dazed'
-      const part = { movement: 'Movement lost', action: 'Action lost', dazed: 'Dazed' }[key]
-      const lost = rolled.lost?.[key]
-      const turns = now.kind === 'dazed' ? (now.turns === 1 ? 1 : rolled.dazed ?? 1) : 1
-      const rolledWords = now.kind === 'dazed' && now.turns !== 1 ? ` (1d4 = ${turns})` : ''
-      return { key, part, steps: [{ until: 'rounds', labels: [(lost ? lostWords(lost) : fallbackWords(now.kind, turns)) + rolledWords] }] }
-    }
-    case 'knocked-down':
-      return { key: 'down', part: 'Knocked down', steps: [{ until: 'combat-end', restrictions: [{ kind: 'down' }], labels: ['Standing uses Movement and Action unless a Speed Check succeeds'] }] }
-    case 'unconscious': {
-      const minutes = rolled.minutes ?? []
-      const sum = minutes.reduce((total, die) => total + die, 0)
-      const aftermath = now.aftermath ? ['On waking: Severe Concussion Body Save at Disadvantage'] : []
-      return { key: 'unconscious', part: 'Unconscious', steps: [{ until: 'by-hand', restrictions: [{ kind: 'unconscious' }], labels: [`Clear by hand: 2d10 = ${minutes.join(' + ')} = ${sum} minutes`, ...aftermath] }] }
-    }
-    default:
-      return null
-  }
+  if (now.kind in STAGE_KEYS) return stageCard(now as StageLoss, rolled)
+  if (now.kind === 'unconscious') return unconsciousCard(now, rolled)
+  if (now.kind !== 'knocked-down') return null
+  return { key: 'down', part: 'Knocked down', steps: [{ until: 'combat-end', restrictions: [{ kind: 'down' }], labels: ['Standing uses Movement and Action unless a Speed Check succeeds'] }] }
 }
 
 const TIMER_CARDS: Readonly<Record<LubecWoundTimer, { part: string; words: (rounds: number) => string }>> = {
@@ -213,14 +229,24 @@ export function lubecWoundCards(outcome: LubecWoundOutcome, context: LubecWoundC
     ...(rolled.timers ?? []).map(timerCard),
     ...outcome.cards,
   ]
-  return specs.map((spec) => {
-    const card = cardOf(spec, context)
-    if (spec.key === 'unconscious' && outcome.now?.some((now) => now.kind === 'unconscious' && now.aftermath === 'severe-concussion')) card.wakeSave = 'severe-concussion'
-    const timer = rolled.timers?.find((entry) => entry.kind === spec.key)
-    const lost = rolled.lost?.[spec.key as 'movement' | 'action' | 'dazed']
-    if (timer) return { ...card, countdown: { kind: timer.kind, rounds: timer.rounds } }
-    return lost ? { ...card, lost } : card
-  })
+  return specs.map((spec) => contextualCard(spec, context, outcome))
+}
+
+const hasWakingSave = (outcome: LubecWoundOutcome) =>
+  outcome.now?.some((now) => now.kind === 'unconscious' && now.aftermath === 'severe-concussion')
+
+/** Snapshot, waking procedure and round metadata travel together on each independently recovering card. */
+function contextualCard(spec: LubecWoundCardSpec, context: LubecWoundCardContext, outcome: LubecWoundOutcome): LubecEffect {
+  const card = cardOf(spec, context)
+  if (spec.key === 'unconscious' && hasWakingSave(outcome)) card.wakeSave = 'severe-concussion'
+  return cardRoundMetadata(card, context.rolled ?? {})
+}
+
+function cardRoundMetadata(card: LubecEffect, rolled: LubecWoundRolled): LubecEffect {
+  const timer = rolled.timers?.find((entry) => entry.kind === card.cardKey)
+  const lost = rolled.lost?.[card.cardKey as 'movement' | 'action' | 'dazed']
+  if (timer) return { ...card, countdown: { kind: timer.kind, rounds: timer.rounds } }
+  return lost ? { ...card, lost } : card
 }
 
 /** The wound snapshot a card carries, when it carries one the sheet can read. */
@@ -253,18 +279,23 @@ export const LUBEC_AUTOMATED = {
 
 const STAGE_CARDS = ['movement', 'action', 'dazed', 'down', 'unconscious']
 
+type StepFeature = (effect: LubecEffect, step: LubecEffectStep) => boolean
+const STEP_FEATURES: Record<keyof typeof LUBEC_AUTOMATED, StepFeature> = {
+  rolls: (_, step) => lubecStepRolls(step).length > 0,
+  restrictions: (_, step) => lubecStepRestrictions(step).some((restriction) => restriction.kind !== 'down' && restriction.kind !== 'unconscious'),
+  taskModifiers: (_, step) => lubecStepTaskModifiers(step).length > 0,
+  stages: (effect) => STAGE_CARDS.includes(String(effect.cardKey)),
+  rounds: (effect, step) => step.until === 'rounds' && !effect.countdown && !effect.lost,
+  windows: (_, step) => step.until === 'next-round-end',
+  closing: (_, step) => step.until === 'combat-end',
+  speechSave: (_, step) => typeof step.onReach === 'object' && step.onReach !== null,
+}
+
 /** Whether any part of a card's current step is still resolved by hand. */
 export function lubecStepByHand(effect: LubecEffect, step: LubecEffectStep | undefined = effect.steps[0]): boolean {
   if (!step || !lubecEffectWound(effect)) return false
-  const until = step.until
-  return (!LUBEC_AUTOMATED.rolls && lubecStepRolls(step).length > 0)
-    || (!LUBEC_AUTOMATED.restrictions && lubecStepRestrictions(step).some((restriction) => restriction.kind !== 'down' && restriction.kind !== 'unconscious'))
-    || (!LUBEC_AUTOMATED.taskModifiers && lubecStepTaskModifiers(step).length > 0)
-    || (!LUBEC_AUTOMATED.stages && STAGE_CARDS.includes(String(effect.cardKey)))
-    || (!LUBEC_AUTOMATED.rounds && until === 'rounds' && !effect.countdown && !effect.lost)
-    || (!LUBEC_AUTOMATED.windows && until === 'next-round-end')
-    || (!LUBEC_AUTOMATED.closing && until === 'combat-end')
-    || (!LUBEC_AUTOMATED.speechSave && typeof step.onReach === 'object' && step.onReach !== null)
+  return (Object.keys(STEP_FEATURES) as (keyof typeof STEP_FEATURES)[])
+    .some((feature) => !LUBEC_AUTOMATED[feature] && STEP_FEATURES[feature](effect, step))
 }
 
 const UNTIL_WORDS = {
@@ -285,30 +316,51 @@ export function lubecStepTrigger(step: LubecEffectStep | undefined): string | nu
 }
 
 /** What ends a card's current step, naming the round a fight's window ends with ("Ends with round 3"). */
-export function lubecEffectTrigger(effect: LubecEffect): string | null {
-  const step = effect.steps[0]
+function windowTrigger(effect: LubecEffect): string | null {
   const origin = effect.combatOrigin as { originatingRound?: unknown } | undefined
-  if (step?.until === 'next-round-end' && Number.isInteger(origin?.originatingRound)) return `Ends with round ${(origin!.originatingRound as number) + 1}`
+  return Number.isInteger(origin?.originatingRound) ? `Ends with round ${(origin!.originatingRound as number) + 1}` : null
+}
+
+function lostTrigger(effect: LubecEffect): string | null {
   const lost = effect.lost as { movement?: unknown; action?: unknown } | undefined
-  if (step?.until === 'rounds' && lost && Array.isArray(lost.movement) && Array.isArray(lost.action)) {
+  if (lost && Array.isArray(lost.movement) && Array.isArray(lost.action)) {
     return `Ends after round ${Math.max(...(lost.movement as number[]), ...(lost.action as number[]))}`
   }
+  return null
+}
+
+function countdownTrigger(effect: LubecEffect): string | null {
+  const origin = effect.combatOrigin as { originatingRound?: unknown } | undefined
   const countdown = effect.countdown as { rounds?: unknown; fired?: unknown } | undefined
-  if (step?.until === 'rounds' && countdown && !countdown.fired && Number.isInteger(countdown.rounds) && Number.isInteger(origin?.originatingRound)) {
+  if (countdown && !countdown.fired && Number.isInteger(countdown.rounds) && Number.isInteger(origin?.originatingRound)) {
     return `Due at the end of round ${(origin!.originatingRound as number) + (countdown.rounds as number)}`
   }
-  return lubecStepTrigger(step)
+  return null
+}
+
+const ROUND_TRIGGERS: Partial<Record<string, (effect: LubecEffect) => string | null>> = {
+  'next-round-end': windowTrigger,
+  rounds: (effect) => lostTrigger(effect) ?? countdownTrigger(effect),
+}
+
+export function lubecEffectTrigger(effect: LubecEffect): string | null {
+  const step = effect.steps[0]
+  return ROUND_TRIGGERS[step?.until ?? '']?.(effect) ?? lubecStepTrigger(step)
 }
 
 /** A final row's prose as the sheet shows it: the table's `amounts`, *names* and line breaks without their marks. */
 export const lubecPlainProse = (text: string): string => text.replace(/<br>/g, ' ').replace(/[`*]/g, '').replace(/\s+/g, ' ').trim()
+
+type EffectGroup = { key: string; wound: LubecWoundSource | null; effects: LubecEffect[] }
+const existingGroup = (groups: EffectGroup[], wound: LubecWoundSource | null) =>
+  wound?.groupId ? groups.find((group) => group.wound?.groupId === wound.groupId) : undefined
 
 /** The effects in their order, with each wound's linked cards gathered under the first of them. */
 export function lubecEffectGroups(effects: readonly LubecEffect[]): { key: string; wound: LubecWoundSource | null; effects: LubecEffect[] }[] {
   const groups: { key: string; wound: LubecWoundSource | null; effects: LubecEffect[] }[] = []
   for (const effect of effects) {
     const wound = lubecEffectWound(effect)
-    const existing = wound?.groupId ? groups.find((group) => group.wound?.groupId === wound.groupId) : undefined
+    const existing = existingGroup(groups, wound)
     if (existing) existing.effects.push(effect)
     else groups.push({ key: wound?.groupId || effect.id, wound, effects: [effect] })
   }

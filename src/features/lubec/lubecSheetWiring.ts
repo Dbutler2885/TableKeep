@@ -164,6 +164,21 @@ function draftActionsFor(
 const reminderSheetOf = (records: LubecReminderRecords, sheetId: string): LubecReminderSheet =>
   ({ kind: records.sheet.kind === 'npc' ? 'npc' : 'character', sheetId })
 
+function conditionChangeFor(character: LubecCharacterRecord | null, viewer: LubecViewer, store: LubecSheetWiringStore): LubecSheetEdits['onConditionChange'] {
+  if (!character || viewer.role !== 'gm') return null
+  return (condition) => store.updateCharacterNow(character.id, { lubec: { ...character.lubec, condition } })
+}
+
+function effectRecoveryFor(character: LubecCharacterRecord | null, viewer: LubecViewer, store: LubecSheetWiringStore, records: LubecGearRecords | null): LubecEffectRecovery {
+  if (!character || !records || !canEditCharacterStoreCharacter(character, viewer.role, viewer.userId)) return null
+  return lubecEffectRecovery(records, store, character.id)
+}
+
+function deathHandledFor(character: LubecCharacterRecord | null, viewer: LubecViewer, records: LubecGearRecords | null): LubecSheetEdits['onDeathHandled'] {
+  if (!character || !records || viewer.role !== 'gm') return null
+  return (id) => acknowledgeLubecDeathReminder(records.db, records.scope, reminderSheetOf(records, character.id), id)
+}
+
 /**
  * The open sheet's edits for this viewer, saved through the shared store.
  * Every tab that shows a Lubec sheet takes its edits from here, so a new edit
@@ -177,9 +192,9 @@ export function lubecSheetWiring(
   records: LubecGearRecords | null = null,
 ): LubecSheetEdits {
   return {
-    onConditionChange: character && viewer.role === 'gm' ? (condition) => store.updateCharacterNow(character.id, { lubec: { ...character.lubec, condition } }) : null,
-    onEffectRecovery: character && records && canEditCharacterStoreCharacter(character, viewer.role, viewer.userId) ? lubecEffectRecovery(records, store, character.id) : null,
-    onDeathHandled: character && records && viewer.role === 'gm' ? (id) => acknowledgeLubecDeathReminder(records.db, records.scope, reminderSheetOf(records, character.id), id) : null,
+    onConditionChange: conditionChangeFor(character, viewer, store),
+    onEffectRecovery: effectRecoveryFor(character, viewer, store, records),
+    onDeathHandled: deathHandledFor(character, viewer, records),
     onCountersChange: countersChangeFor(character, viewer, store.updateCharacter),
     onSkillsChange: skillsChangeFor(character, viewer, store.updateCharacter),
     corrections: correctionsFor(character, viewer, store.updateCharacter),

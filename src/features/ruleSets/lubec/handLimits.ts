@@ -1,4 +1,5 @@
-import { lubecRestrictionWords, lubecStepRestrictions, type LubecEffect } from './effects'
+import type { LubecEffect, LubecRestriction } from './effects'
+import { lubecRestrictionSources } from './activeRestrictions'
 
 // Which hands a character can use, read from the active cards' current steps:
 // an unusable arm or a hand that cannot grip takes that hand out even when it
@@ -17,24 +18,20 @@ export const LUBEC_FREE_HANDS: LubecHandLimits = { unusable: [], noTwoHanded: nu
 
 const SLOTS = { L: 0, R: 1 } as const
 
-const cardName = (effect: LubecEffect) => (typeof effect.part === 'string' && effect.part && effect.part !== effect.name ? `${effect.name}, ${effect.part}` : effect.name)
+const takesHand = (restriction: LubecRestriction): restriction is Extract<LubecRestriction, { side: string }> =>
+  restriction.kind === 'arm-unusable' || restriction.kind === 'no-grip'
 
 /** The hand limits the cards set, from each card's current step only. */
 export function lubecHandLimits(effects: readonly LubecEffect[]): LubecHandLimits {
-  const unusable: LubecHandLimit[] = []
-  let noTwoHanded: string | null = null
-  for (const effect of effects) {
-    if (effect.afterCombat !== undefined || !effect.steps[0]) continue
-    for (const restriction of lubecStepRestrictions(effect.steps[0])) {
-      const why = `${lubecRestrictionWords(restriction)} (${cardName(effect)})`
-      if (restriction.kind === 'arm-unusable' || restriction.kind === 'no-grip') {
-        const slot = SLOTS[restriction.side]
-        if (!unusable.some((limit) => limit.slot === slot)) unusable.push({ slot, why })
-      }
-      if (restriction.kind === 'no-two-handed') noTwoHanded ??= why
-    }
+  const sources = lubecRestrictionSources(effects)
+  const unusable = new Map<0 | 1, LubecHandLimit>()
+  for (const { restriction, why } of sources) {
+    if (!takesHand(restriction)) continue
+    const slot = SLOTS[restriction.side]
+    if (!unusable.has(slot)) unusable.set(slot, { slot, why })
   }
-  return { unusable: unusable.sort((a, b) => a.slot - b.slot), noTwoHanded }
+  const noTwoHanded = sources.find(({ restriction }) => restriction.kind === 'no-two-handed')?.why ?? null
+  return { unusable: [...unusable.values()].sort((a, b) => a.slot - b.slot), noTwoHanded }
 }
 
 /** Why a hand cannot be used, or null when it can. */

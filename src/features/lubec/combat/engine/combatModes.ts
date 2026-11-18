@@ -3,7 +3,8 @@ import { lubecModeReason, lubecRollMode, lubecTaskModifiers, type LubecModeSourc
 import type { LubecAttackChoice } from '../../../ruleSets/lubec/gear/weaponAttacks'
 import type { CombatEntropy } from './commandEntropy'
 import { combatActiveEffects, type CombatInputRound } from './inputModifiers'
-import type { CombatSheet } from './types'
+import type { CombatAttackResult } from './attackMath'
+import type { CombatInitiative, CombatSheet } from './types'
 
 // Card-set modes in combat. Every combat roll asks the same reader the Core
 // roller does, with no manual switch; a roll under a mode rolls two dice, keeps
@@ -55,9 +56,25 @@ export function rollWithMode<Roll>(entropy: CombatEntropy, purpose: string, mode
 export const successThenHigher = <Roll extends { success: boolean; roll: number }>(a: Roll, b: Roll): boolean =>
   (a.success && !b.success) || (a.success && b.success && a.roll > b.roll)
 
+/** A hit beats a miss; between two hits the higher quality, then the higher roll. On an attack at Disadvantage that is "fails if either fails, the lower roll if both succeed". */
+export const betterAttack = (a: CombatAttackResult, b: CombatAttackResult): boolean => {
+  if (a.hit !== b.hit) return a.hit
+  if (!a.hit) return false
+  if (a.quality === b.quality) return a.roll > b.roll
+  return (a.quality ?? 0) > (b.quality ?? 0)
+}
+
+/** A better initiative roll by the order initiative already ranks: a success first, a higher success, a lower failure. */
+export const betterInitiative = (a: CombatInitiative, b: CombatInitiative): boolean => {
+  if (a.success !== b.success) return a.success
+  return a.success ? a.roll > b.roll : a.roll < b.roll
+}
+
 /** "Disadvantage from Broken rib(s): 72 and 89", for a roll's card; null for a single die. */
+const modeLabel = (mode: CombatMode) => mode.because ?? (mode.mode === 'advantage' ? 'Advantage' : 'Disadvantage')
+
 export const modeWords = (mode: CombatMode, dice: readonly number[]): string | null =>
-  (dice.length > 1 ? `${mode.because ?? (mode.mode === 'advantage' ? 'Advantage' : 'Disadvantage')}: ${dice.map((die) => String(die).padStart(2, '0')).join(' and ')}` : null)
+  (dice.length > 1 ? `${modeLabel(mode)}: ${dice.map((die) => String(die).padStart(2, '0')).join(' and ')}` : null)
 
 /** What a roll record keeps of its mode: both dice and the reason, or nothing for a single die. */
 export const modeRecord = (mode: CombatMode, dice: readonly number[]) =>

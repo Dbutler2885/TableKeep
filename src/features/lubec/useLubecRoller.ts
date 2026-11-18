@@ -40,6 +40,20 @@ export type LubecRoller = {
 /** A switch's next value: the one pressed, or `off` when it was already on. */
 const lubecToggled = <Value>(current: Value, pressed: Value, off: Value): Value => (current === pressed ? off : pressed)
 
+const recordIfPresent = (next: LubecCharacterSheet | null, onRolled: LubecRolled) => { if (next) onRolled(next) }
+
+/** Only a roll actually made consumes the one-roll overrides. */
+function rollRecorder(sheet: LubecCharacterSheet, onRolled: LubecRolled, reset: () => void) {
+  return (roll: LubecLastRoll | null) => {
+    if (!roll) return
+    reset()
+    onRolled(withLubecLastRoll(sheet, roll))
+  }
+}
+
+const modeForRoll = (sheet: LubecCharacterSheet, name: LubecValueName, actions: LubecRollAction[], advantage: LubecAdvantage | null) =>
+  advantage === null ? lubecCoreRollMode(sheet, name, actions) : { mode: advantage, because: null }
+
 /** The Core page's roller for a viewer who may roll on the character; null for anyone else. */
 export function useLubecRoller(sheet: LubecCharacterSheet, onRolled: LubecRolled | null): LubecRoller | null {
   const dice = useContext(LubecDiceContext)
@@ -48,20 +62,13 @@ export function useLubecRoller(sheet: LubecCharacterSheet, onRolled: LubecRolled
   const [action, setAction] = useState<LubecRollAction | null>(null)
   const actions = action ? [action] : []
   if (!onRolled) return null
-  const record = (next: LubecCharacterSheet | null) => {
-    if (next) onRolled(next)
-  }
-  // A roll made with the mode uses it up; one that was never made leaves it set.
-  const recordRoll = (roll: LubecLastRoll | null) => {
-    if (!roll) return
-    setAdvantage(null)
-    setAction(null)
-    onRolled(withLubecLastRoll(sheet, roll))
-  }
+  const record = (next: LubecCharacterSheet | null) => recordIfPresent(next, onRolled)
+  const recordRoll = rollRecorder(sheet, onRolled, () => { setAdvantage(null); setAction(null) })
+  const plainMode = advantage ?? 'normal'
   return {
     advantage,
     toggleAdvantage: (mode) => setAdvantage((current) => lubecToggled<LubecAdvantage | null>(current, mode, null)),
-    modeFor: (name) => (advantage === null ? lubecCoreRollMode(sheet, name, actions) : { mode: advantage, because: null }),
+    modeFor: (name) => modeForRoll(sheet, name, actions, advantage),
     action,
     setAction,
     armed,
@@ -71,8 +78,8 @@ export function useLubecRoller(sheet: LubecCharacterSheet, onRolled: LubecRolled
       if (roll) setArmed(null)
       recordRoll(roll)
     },
-    panic: () => recordRoll(rollLubecPanic(sheet, advantage ?? 'normal', dice)),
-    recover: () => recordRoll(rollLubecRecovery(sheet, advantage ?? 'normal', dice)),
+    panic: () => recordRoll(rollLubecPanic(sheet, plainMode, dice)),
+    recover: () => recordRoll(rollLubecRecovery(sheet, plainMode, dice)),
     addPanicEffect: () => record(withLubecPanicEffect(sheet, dice, crypto.randomUUID())),
     dismissPanicResult: () => record(withLubecPanicDismissed(sheet)),
   }

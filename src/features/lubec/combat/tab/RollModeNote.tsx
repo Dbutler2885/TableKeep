@@ -5,8 +5,11 @@ import type { CombatRollDice } from '../engine/types'
 
 const pad = (value: number) => String(value).padStart(2, '0')
 
+const hasKeptPair = (roll: CombatRollDice | null | undefined, kept: number | undefined): roll is CombatRollDice & { dice: number[] } =>
+  Boolean(roll?.dice && roll.dice.length >= 2 && kept !== undefined)
+
 export function RollModeNote({ roll, kept }: { roll: CombatRollDice | null | undefined; kept: number | undefined }) {
-  if (!roll?.dice || roll.dice.length < 2 || kept === undefined) return null
+  if (!hasKeptPair(roll, kept)) return null
   const mode = roll.mode === 'advantage' ? 'Advantage' : 'Disadvantage'
-  return <p className="note roll-mode">{roll.because ?? mode}: rolled {roll.dice.map(pad).join(' and ')}, kept {pad(kept)}</p>
+  return <p className="note roll-mode">{roll.because ?? mode}: rolled {roll.dice.map(pad).join(' and ')}, kept {pad(kept!)}</p>
 }

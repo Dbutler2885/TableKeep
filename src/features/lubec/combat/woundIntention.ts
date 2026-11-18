@@ -21,12 +21,13 @@ function requireWoundRound(wound: CombatWound) {
 }
 
 const CARD_KEY = /^[A-Za-z0-9_-]{1,40}$/
+const distinctCardKeys = (keys: unknown[]) => keys.every((key) => typeof key === 'string' && CARD_KEY.test(key)) && new Set(keys).size === keys.length
 
 function requireCards(wound: CombatWound) {
   if (!wound.effects) return
   if (!wound.effects.length) return
   const keys = wound.effects.map((card) => card.cardKey)
-  if (!keys.length || !keys.every((key) => typeof key === 'string' && CARD_KEY.test(key)) || new Set(keys).size !== keys.length) {
+  if (!keys.length || !distinctCardKeys(keys)) {
     throw new Error('Wound cards need distinct keys.')
   }
 }
@@ -62,7 +63,8 @@ function storedCards(wound: CombatWound, fightId: string, operationId: string, d
   })
 }
 
-const woundName = (wound: CombatWound) => wound.effects?.[0]?.name ?? wound.effect?.name ?? 'A wound'
+const firstCardName = (wound: CombatWound) => wound.effects?.[0]?.name
+const woundName = (wound: CombatWound) => firstCardName(wound) ?? wound.effect?.name ?? 'A wound'
 
 /** One Death Save reminder for the wound, its Immediate and threshold reasons together, named by the wound's operation. */
 function woundDeathEdits(raw: Record<string, unknown>, wound: CombatWound, operationId: string) {

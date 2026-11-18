@@ -23,6 +23,26 @@ describe('the GM\'s Death Save prompt', () => {
     expect(second).not.toHaveBeenCalled()
   })
 
+  it('shows Saving while the mark is on its way, and the reason it failed so the GM can try again', async () => {
+    let fail: (cause: unknown) => void = () => undefined
+    const onHandled = vi.fn(() => new Promise((_, reject) => { fail = reject }))
+    const reminder = { id: 'a', reasons: ['A Critical countdown ran out: Death Save due'], event: 'Gut shot at the end of round 3' }
+    render(<LubecDeathReminders entries={[{ key: 'a', who: null, reminder, onHandled }]} />)
+    expect(screen.getByRole('dialog').querySelector('strong')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Mark handled' }))
+    expect((screen.getByRole('button', { name: 'Saving...' }) as HTMLButtonElement).disabled).toBe(true)
+    fail(new Error('You are offline.'))
+    expect((await screen.findByRole('alert')).textContent).toBe('You are offline.')
+    expect((screen.getByRole('button', { name: 'Mark handled' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('says plainly that the mark did not save when the failure gives no reason', async () => {
+    const reminder = { id: 'a', reasons: ['Trauma reached 4, the Death Save threshold of 4'], event: 'Shot landed in round 2' }
+    render(<LubecDeathReminders entries={[{ key: 'a', who: 'Roy', reminder, onHandled: () => Promise.reject('nope') }]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Mark handled' }))
+    expect((await screen.findByRole('alert')).textContent).toBe('Could not mark it handled. Try again.')
+  })
+
   it('shows nothing when no reminder waits', () => {
     render(<LubecDeathReminders entries={[]} />)
     expect(screen.queryByRole('dialog')).toBeNull()

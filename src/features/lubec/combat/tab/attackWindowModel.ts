@@ -97,10 +97,14 @@ export function attackWindowModel({ state, fightId, attack, attacker, roster, sh
 }
 
 /** The attacker's own last hit knocked this target out of striking reach, and this aim is a melee one: a reminder, never a block. */
+const wasOutOfReach = (state: CombatState, attackerKey: string, targetKey: string) =>
+  state.outOfReach?.some((entry) => entry.attackerKey === attackerKey && entry.targetKey === targetKey)
+
 export function reachReminder(state: CombatState, attackerKey: string, targetKey: string | null, reading: AttackReading | null): string | null {
   if (!targetKey || !reading || reading.ranged) return null
-  if (!state.outOfReach?.some((entry) => entry.attackerKey === attackerKey && entry.targetKey === targetKey)) return null
-  const name = state.combatants.find((entry) => entry.key === targetKey)?.name ?? 'Your target'
+  if (!wasOutOfReach(state, attackerKey, targetKey)) return null
+  const target = state.combatants.find((entry) => entry.key === targetKey)
+  const name = target ? target.name : 'Your target'
   return `${name} was knocked out of striking reach by your last hit. The GM rules whether this melee attack can reach them.`
 }
 

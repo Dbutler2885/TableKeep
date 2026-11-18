@@ -211,20 +211,20 @@ function rollWords(rules: readonly LubecRollRule[]): string[] {
 }
 
 const SIDE_WORDS = { L: 'Left', R: 'Right' } as const
+const RESTRICTION_WORDS = {
+  'no-two-handed': 'Two-handed actions impossible',
+  'no-run': 'Cannot run',
+  'no-evasive': 'No Evasive Movement',
+  'crawl-only': 'Crawl only without help',
+  down: 'Knocked down',
+  unconscious: 'Unconscious',
+} as const
 
 /** A restriction as the sheet says it. */
 export function lubecRestrictionWords(restriction: LubecRestriction): string {
-  switch (restriction.kind) {
-    case 'arm-unusable': return `${SIDE_WORDS[restriction.side]} arm unusable`
-    case 'no-grip': return `${SIDE_WORDS[restriction.side]} hand cannot grip`
-    case 'no-two-handed': return 'Two-handed actions impossible'
-    case 'no-run': return 'Cannot run'
-    case 'no-evasive': return 'No Evasive Movement'
-    case 'crawl-only': return 'Crawl only without help'
-    case 'down': return 'Knocked down'
-    case 'unconscious': return 'Unconscious'
-    case 'speech': return restriction.words
-  }
+  if (restriction.kind === 'speech') return restriction.words
+  if ('side' in restriction) return `${SIDE_WORDS[restriction.side]} ${restriction.kind === 'arm-unusable' ? 'arm unusable' : 'hand cannot grip'}`
+  return RESTRICTION_WORDS[restriction.kind]
 }
 
 export const LUBEC_CHARM_REMINDER = 'GM may call for Disadvantage on a relevant Charm Check'

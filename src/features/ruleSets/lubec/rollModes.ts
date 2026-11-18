@@ -36,20 +36,27 @@ const TASK_ACTIONS: Readonly<Record<LubecRollTask, readonly LubecRollAction[]>> 
 
 const isCheck = (request: LubecRollRequest) => request.kind !== 'save'
 
+const physicalRoll = (request: LubecRollRequest) =>
+  isCheck(request) && (PHYSICAL.includes(request.stat) || request.kind === 'attack' || request.kind === 'defense')
+
+const statCheck = (stat: LubecValueName) => (request: LubecRollRequest) => isCheck(request) && request.stat === stat
+
+const SCOPE_COVERS: Record<Extract<LubecRollScope, string>, (request: LubecRollRequest) => boolean> = {
+  rolls: () => true,
+  checks: isCheck,
+  saves: (request) => request.kind === 'save',
+  physical: physicalRoll,
+  strength: statCheck('Strength'),
+  speed: statCheck('Speed'),
+  handle: statCheck('Handle'),
+  attacks: (request) => request.kind === 'attack',
+  defense: (request) => request.kind === 'defense',
+}
+
 /** Whether a scope covers this roll. */
 export function lubecScopeCovers(scope: LubecRollScope, request: LubecRollRequest): boolean {
   if (typeof scope !== 'string') return TASK_ACTIONS[scope.task].some((action) => request.actions?.includes(action))
-  switch (scope) {
-    case 'rolls': return true
-    case 'checks': return isCheck(request)
-    case 'saves': return request.kind === 'save'
-    case 'physical': return isCheck(request) && (PHYSICAL.includes(request.stat) || request.kind === 'attack' || request.kind === 'defense')
-    case 'strength': return isCheck(request) && request.stat === 'Strength'
-    case 'speed': return isCheck(request) && request.stat === 'Speed'
-    case 'handle': return isCheck(request) && request.stat === 'Handle'
-    case 'attacks': return request.kind === 'attack'
-    case 'defense': return request.kind === 'defense'
-  }
+  return SCOPE_COVERS[scope](request)
 }
 
 const sourceName = (effect: LubecEffect) => (typeof effect.part === 'string' && effect.part && effect.part !== effect.name ? `${effect.name} (${effect.part})` : effect.name)

@@ -34,8 +34,12 @@ function HandCard({ option, selected, readOnly, onPick }: { option: HandOption; 
   return <button type="button" className={`pick${held ? '' : ' empty'}`} aria-pressed={selected} data-selected={selected} data-weapon={heldWeapon(cell)} disabled={readOnly || option.weaponId === null} onClick={() => onPick(option)}>
     <span className="where">{cell.where}{selected ? ' · attacking with' : ''}</span>
     {held ? <LubecFightPicture item={cell.item} /> : <LubecFightGlyph d={FREE_GLYPH} />}
-    {held ? <HeldWords cell={cell} /> : <span><span className="name">{cell.unusable ? 'Out of use' : 'Empty'}</span><small>{cell.unusable ?? 'Unarmed · Punch or kick'}</small></span>}
+    {held ? <HeldWords cell={cell} /> : <EmptyHandWords cell={cell} />}
   </button>
+}
+
+function EmptyHandWords({ cell }: { cell: LubecFightCell }) {
+  return <span><span className="name">{cell.unusable ? 'Out of use' : 'Empty'}</span><small>{cell.unusable ?? 'Unarmed · Punch or kick'}</small></span>
 }
 
 /** A trained fighter's existing Kick remains available even when no hand can select unarmed. */

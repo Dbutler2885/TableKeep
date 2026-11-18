@@ -14,6 +14,7 @@ import { lubecEffectGroups, lubecEffectTrigger, lubecEffectWound, lubecStepByHan
 import { LubecEffectEditor } from './LubecEffectEditor'
 import { LubecGearLosses } from './LubecGearLosses'
 import { LubecWoundDetail } from './LubecWoundDetail'
+import { useLubecEffectRecovery, type RecoveringEffect } from './useLubecEffectRecovery'
 
 // The Core page's active effects, each one compact line drawn as the class
 // cards' grey modifier bar: the name, what its current step does, what ends
@@ -49,18 +50,26 @@ function nextWords(effect: LubecEffect): string | null {
 
 function LubecEffectSummary({ effect, grouped }: { effect: LubecEffect; grouped: boolean }) {
   const now = effect.steps[0]
-  const part = typeof effect.part === 'string' && effect.part ? effect.part : null
   const trigger = lubecEffectTrigger(effect)
   const next = nextWords(effect)
   return (
     <>
-      <span className="lubec-effect-name">{grouped && part ? part : effect.name}</span>
-      {now ? <span className="lubec-effect-now">{describeLubecEffectStep(now)}</span> : null}
-      {trigger ? <span className="lubec-effect-until">{trigger}</span> : null}
-      {next ? <span className="lubec-effect-next">{next}</span> : null}
-      {lubecStepByHand(effect) ? <span className="lubec-effect-manual">Resolved by hand</span> : null}
+      <span className="lubec-effect-name">{effectLineName(effect, grouped)}</span>
+      <EffectWords kind="now" words={now ? describeLubecEffectStep(now) : null} />
+      <EffectWords kind="until" words={trigger} />
+      <EffectWords kind="next" words={next} />
+      <EffectWords kind="manual" words={lubecStepByHand(effect) ? 'Resolved by hand' : null} />
     </>
   )
+}
+
+function EffectWords({ kind, words }: { kind: string; words: string | null }) {
+  return words === null ? null : <span className={`lubec-effect-${kind}`}>{words}</span>
+}
+
+function effectLineName(effect: LubecEffect, grouped: boolean): string {
+  const part = typeof effect.part === 'string' && effect.part ? effect.part : null
+  return grouped && part ? part : effect.name
 }
 
 type LineProps = { effect: LubecEffect; grouped: boolean; editable: boolean; onOpen: (() => void) | null; onStepDown: () => void }
@@ -104,21 +113,28 @@ function LubecEffectItem({ effect, grouped, editable, open, actions }: ItemProps
   }
   const detail = isOpen(open, effect.id, 'detail')
   const view = wound ? 'detail' : 'editor'
-  const onOpen = wound || editable ? () => actions.open(detail ? null : { id: effect.id, view }) : null
+  const onOpen = effectOpener(effect.id, Boolean(wound) || editable, detail, view, actions)
   return (
     <li className={`lubec-effect${detail ? ' is-open' : ''}`}>
       <LubecEffectLine effect={effect} grouped={grouped} editable={editable} onOpen={onOpen} onStepDown={() => actions.stepDown(effect.id)} />
-      {detail && wound ? <LubecWoundDetail effect={effect} wound={wound} onEdit={editable ? () => actions.open({ id: effect.id, view: 'editor' }) : null} /> : null}
+      <EffectDetail effect={effect} visible={detail} editable={editable} actions={actions} />
     </li>
   )
+}
+
+const effectOpener = (id: string, allowed: boolean, detail: boolean, view: 'editor' | 'detail', actions: EffectActions) =>
+  allowed ? () => actions.open(detail ? null : { id, view }) : null
+
+function EffectDetail({ effect, visible, editable, actions }: { effect: LubecEffect; visible: boolean; editable: boolean; actions: EffectActions }) {
+  const wound = lubecEffectWound(effect)
+  if (!visible || !wound) return null
+  return <LubecWoundDetail effect={effect} wound={wound} onEdit={editable ? () => actions.open({ id: effect.id, view: 'editor' }) : null} />
 }
 
 function LubecNewEffect({ adding, actions }: { adding: boolean; actions: EffectActions }) {
   if (adding) return <LubecEffectEditor effect={null} onSave={actions.save} onCancel={() => actions.open(null)} onRemove={null} />
   return <button type="button" className="action-button lubec-effect-add" onClick={() => actions.open('new')}>Add effect</button>
 }
-
-type Recovering = { id: string; kind: LubecRecoveryKind }
 
 const RECOVERY_WORDS: Readonly<Record<LubecRecoveryKind, { name: string; roll: string; rolling: string; keep: string }>> = {
   wake: { name: 'Waking Save', roll: 'Wake and roll Body Save', rolling: 'Saving waking Save...', keep: 'Keep unconscious' },
@@ -132,48 +148,60 @@ function recoveryOf(effects: readonly LubecEffect[], id: string): LubecRecoveryK
   return lubecReachSavePending(effect) ? 'reach' : null
 }
 
-function recoveryText(effects: readonly LubecEffect[], recovering: Recovering): string {
+function recoveryText(effects: readonly LubecEffect[], recovering: RecoveringEffect): string {
   if (recovering.kind === 'wake') return 'Waking requires one Severe Concussion Body Save at Disadvantage, combined with active card modes. Long Rests count from the original injury.'
   const effect = effects.find((entry) => entry.id === recovering.id)
   return effect ? lubecReachSaveWords(effect) : 'This card has already been resolved.'
 }
 
+function stepDownChange(effects: readonly LubecEffect[], counters: LubecCounters, id: string, onChange: EffectsProps['onChange']) {
+  const next = stepDownLubecSheet({ effects, counters }, id)
+  if (next.counters === counters) onChange?.(next.effects)
+  else onChange?.(next.effects, next.counters)
+}
+
+function effectActions(effects: readonly LubecEffect[], counters: LubecCounters, onChange: EffectsProps['onChange'], controls: {
+  open: (open: OpenEffect) => void; recovering: (next: RecoveringEffect) => void; error: (text: string | null) => void
+}): EffectActions {
+  const change = (next: LubecEffect[]) => { onChange?.(next); controls.open(null) }
+  return {
+    open: controls.open,
+    save: (effect) => change(putLubecEffect(effects, effect)),
+    remove: (id) => { if (recoveryOf(effects, id) === 'wake') controls.recovering({ id, kind: 'wake' }); else change(removeLubecEffect(effects, id)) },
+    stepDown: (id) => {
+      const kind = recoveryOf(effects, id)
+      if (kind) { controls.error(null); controls.recovering({ id, kind }); return }
+      stepDownChange(effects, counters, id, onChange)
+    },
+  }
+}
+
+function EffectGroups({ effects, editable, open, actions }: { effects: readonly LubecEffect[]; editable: boolean; open: OpenEffect; actions: EffectActions }) {
+  return lubecEffectGroups(effects).flatMap((group) => {
+    const grouped = group.effects.length > 1
+    const items = group.effects.map((effect) => <LubecEffectItem key={effect.id} effect={effect} grouped={grouped} editable={editable} open={open} actions={actions} />)
+    return grouped ? [<li key={`${group.key}-name`} className="lubec-effect-group">{group.effects[0].name}</li>, ...items] : items
+  })
+}
+
+function RecoveryDialog({ effects, recovery, enabled }: { effects: readonly LubecEffect[]; recovery: ReturnType<typeof useLubecEffectRecovery>; enabled: boolean }) {
+  const { recovering, busy, error, recover, setRecovering } = recovery
+  if (!recovering) return null
+  const words = RECOVERY_WORDS[recovering.kind]
+  return <div className="notice" role="dialog" aria-label={words.name}>
+    <p>{recoveryText(effects, recovering)}</p>
+    {error ? <p role="alert">{error}</p> : null}
+    <button type="button" className="action-button" disabled={busy || !enabled} onClick={() => void recover()}>{busy ? words.rolling : words.roll}</button>
+    <button type="button" className="secondary-button" disabled={busy} onClick={() => setRecovering(null)}>{words.keep}</button>
+  </div>
+}
+
 /** The active effects as a section of the Core page, with the owner's and GM's controls when they may change it. */
 export function LubecEffectsPanel({ effects, counters, onChange, onRecover, gear, onGearChange }: EffectsProps) {
   const [open, setOpen] = useState<OpenEffect>(null)
-  const [recovering, setRecovering] = useState<Recovering | null>(null)
-  const [busy, setBusy] = useState(false)
-  const [recoveryError, setRecoveryError] = useState<string | null>(null)
+  const recovery = useLubecEffectRecovery(onRecover)
   const editable = onChange !== null
-  const recover = async () => {
-    if (!onRecover || !recovering || busy) return
-    setBusy(true)
-    setRecoveryError(null)
-    const words = RECOVERY_WORDS[recovering.kind].name.toLowerCase()
-    try {
-      const result = await onRecover(recovering.id, recovering.kind)
-      if (result.status === 'repair') setRecoveryError(`The sheet changed. Refresh it before retrying the same ${words}.`)
-      else setRecovering(null)
-    } catch (error) { setRecoveryError(error instanceof Error ? error.message : `The ${words} could not be saved. Retry to recover its receipt.`) }
-    finally { setBusy(false) }
-  }
-  const change = (next: LubecEffect[]) => {
-    onChange?.(next)
-    setOpen(null)
-  }
-  const actions: EffectActions = {
-    open: setOpen,
-    save: (effect) => change(putLubecEffect(effects, effect)),
-    remove: (id) => { if (recoveryOf(effects, id) === 'wake') setRecovering({ id, kind: 'wake' }); else change(removeLubecEffect(effects, id)) },
-    stepDown: (id) => {
-      const kind = recoveryOf(effects, id)
-      if (kind) { setRecoveryError(null); setRecovering({ id, kind }); return }
-      const next = stepDownLubecSheet({ effects, counters }, id)
-      if (next.counters === counters) onChange?.(next.effects)
-      else onChange?.(next.effects, next.counters)
-    },
-  }
-  const groups = lubecEffectGroups(effects)
+  const actions = effectActions(effects, counters, onChange, { open: setOpen, recovering: recovery.setRecovering, error: recovery.setError })
   return (
     <section className="ability-section lubec-effects" aria-label="Active effects">
       <div className="section-heading">
@@ -181,19 +209,10 @@ export function LubecEffectsPanel({ effects, counters, onChange, onRecover, gear
         <span className="dice-formula">Active</span>
       </div>
       <div className="lubec-effects-body">
-        {recovering ? <div className="notice" role="dialog" aria-label={RECOVERY_WORDS[recovering.kind].name}>
-          <p>{recoveryText(effects, recovering)}</p>
-          {recoveryError ? <p role="alert">{recoveryError}</p> : null}
-          <button type="button" className="action-button" disabled={busy || !onRecover} onClick={() => void recover()}>{busy ? RECOVERY_WORDS[recovering.kind].rolling : RECOVERY_WORDS[recovering.kind].roll}</button>
-          <button type="button" className="secondary-button" disabled={busy} onClick={() => setRecovering(null)}>{RECOVERY_WORDS[recovering.kind].keep}</button>
-        </div> : null}
+        <RecoveryDialog effects={effects} recovery={recovery} enabled={Boolean(onRecover)} />
         {effects.length === 0 && open !== 'new' ? <p className="skill-strip-hint">No active effects.</p> : null}
         <ul className="modifier-list lubec-effect-list">
-          {groups.flatMap((group) => {
-            const grouped = group.effects.length > 1
-            const items = group.effects.map((effect) => <LubecEffectItem key={effect.id} effect={effect} grouped={grouped} editable={editable} open={open} actions={actions} />)
-            return grouped ? [<li key={`${group.key}-name`} className="lubec-effect-group">{group.effects[0].name}</li>, ...items] : items
-          })}
+          <EffectGroups effects={effects} editable={editable} open={open} actions={actions} />
         </ul>
         {editable ? <LubecNewEffect adding={open === 'new'} actions={actions} /> : null}
         <LubecGearLosses gear={gear} onGearChange={onGearChange} />

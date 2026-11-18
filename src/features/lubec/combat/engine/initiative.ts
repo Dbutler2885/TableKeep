@@ -6,7 +6,7 @@ import { withMovementRequests } from './movement'
 import type { CombatEntropy } from './commandEntropy'
 import { requireGm, requireLiveContext } from './context'
 import { combatantKey } from './inputs'
-import { combatRollMode, modeRecord, modeWords, rollWithMode } from './combatModes'
+import { betterInitiative, combatRollMode, modeRecord, modeWords, rollWithMode } from './combatModes'
 import { combatInputModifiers } from './inputModifiers'
 import type { Combatant, CombatCommand, CombatFight, CombatHandler, CombatInitiative, CombatPlan, CombatRecords, CombatSheet, CombatState } from './types'
 
@@ -42,10 +42,6 @@ function speedOf(state: CombatState, record: CombatSheet, fightId: string): numb
   requireDelivered(state, record)
   return lubecCurrentValue(record.sheet, 'Speed', combatInputModifiers(record.sheet, { fightId, round: 1 }))!
 }
-
-/** A better initiative roll by the order initiative already ranks: a success first, a higher success, a lower failure. */
-const betterInitiative = (a: CombatInitiative, b: CombatInitiative): boolean =>
-  (a.success && !b.success) || (a.success && b.success && a.roll > b.roll) || (!a.success && !b.success && a.roll < b.roll)
 
 /**
  * d100 strictly under Speed, frozen with the sheet revision it was read from. Initiative is a Speed Check, so a

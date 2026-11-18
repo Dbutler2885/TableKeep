@@ -115,6 +115,11 @@ const defend: CombatHandler = (command, records, authority, entropy) => {
   requireDue(fight.state, defender, record!)
   if (attack.splitRepair) throw new Error('Waiting for the split to be repaired.')
   if (!isRoundAttack(fight.state, attack) || !declaredLine(fight.state, attack)) return defended(fight, attack, record!, command, entropy)
+  return defendDeclared(fight, attack, defender, record!, records, command, entropy)
+}
+
+/** A declared Defense is repaired and spent as one transition; an exhausted line lets the hit continue undefended. */
+function defendDeclared(fight: CombatFight, attack: CombatAttack, defender: Combatant, record: CombatSheet, records: Parameters<CombatHandler>[1], command: CombatCommand, entropy: CombatEntropy): CombatPlan {
   // A declared Defense line rolls only once the split it came from still fits the pool, or has been split again.
   const split = checkSplit(fight, defender.key, records, command.envelope.fightId)
   if (split.kind === 'choose') return { fight: { ...fight, state: split.state }, items: [], logs: [split.log] }
@@ -124,7 +129,7 @@ const defend: CombatHandler = (command, records, authority, entropy) => {
     const state = toLocation(current.state, { ...current.state.attack!, defense: null }, attack.roll!.quality!, entropy)
     return { fight: { ...current, state }, items: [], logs: [...(split.kind === 'repaired' ? [split.log] : []), { event: `${defender.name} has no Defense left.`, actor: defender.key }] }
   }
-  const plan = defended(current, current.state.attack!, record!, command, entropy)
+  const plan = defended(current, current.state.attack!, record, command, entropy)
   const spent = markDefenseRolled(plan.fight.state, defender.key)
   return { ...plan, fight: { ...plan.fight, state: spent }, logs: split.kind === 'repaired' ? [split.log, ...plan.logs] : plan.logs }
 }

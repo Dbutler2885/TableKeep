@@ -1,7 +1,8 @@
 import type { SheetIntention, SheetValue } from '../../character/characterStore/sheetIntentionTypes'
 import { readSheetRevision } from '../../character/characterStore/sheetIntention'
 import { parseLubecSheet } from './characterParser'
-import { rollLubecCheck } from './checkRoll'
+import { rollLubecCheck, type LubecCheckRoll } from './checkRoll'
+import type { LubecCharacterSheet } from './characterRecord'
 import type { LubecDice } from './dice'
 import type { LubecEffect, LubecEffectStep } from './effects'
 import { lubecModeReason, lubecRollMode } from './rollModes'
@@ -38,12 +39,24 @@ function stepsAfter(effect: LubecEffect, reach: ReachSave, success: boolean): Lu
   return [{ modifiers: [], labels: [reach.failure], until: 'lasting', charmReminder: true } as LubecEffectStep, ...later]
 }
 
-/** The reached step's Save, its card's next steps and its Stress, as one intention under a stable operation. */
-export function lubecReachSaveIntention(raw: Record<string, unknown>, id: string, operationId: string, dice: LubecDice): SheetIntention {
-  const sheet = parseLubecSheet(raw.lubec)
+function pendingReach(sheet: LubecCharacterSheet, id: string): { effect: LubecEffect; reach: ReachSave } {
   const effect = sheet.effects.find((entry) => entry.id === id)
   const reach = effect && lubecReachSavePending(effect) ? reachOf(effect.steps[1]) : null
   if (!effect || !reach) throw new Error('That card has no recovery Save pending.')
+  return { effect, reach }
+}
+
+/** Record the reached Save on Core even when success removes the recovery card. */
+function lastRecoveryRollEdit(raw: Record<string, unknown>, roll: LubecCheckRoll, because: string | null): SheetIntention['edits'][number] {
+  const lastRoll = (raw.lubec as { lastRoll?: unknown }).lastRoll
+  const shown = because ? { ...roll, because } : roll
+  return { kind: 'set', path: ['lubec', 'lastRoll'], base: lastRoll === undefined ? { exists: false } : { exists: true, value: lastRoll as SheetValue }, value: JSON.parse(JSON.stringify(shown)) as SheetValue }
+}
+
+/** The reached step's Save, its card's next steps and its Stress, as one intention under a stable operation. */
+export function lubecReachSaveIntention(raw: Record<string, unknown>, id: string, operationId: string, dice: LubecDice): SheetIntention {
+  const sheet = parseLubecSheet(raw.lubec)
+  const { effect, reach } = pendingReach(sheet, id)
   const mode = lubecRollMode(sheet.effects, { kind: 'save', stat: 'Body' })
   const roll = rollLubecCheck(sheet, { name: 'Body', advantage: mode.mode, skill: null }, dice)
   if (!roll) throw new Error('Fill in Body before the recovery Save.')
@@ -56,10 +69,7 @@ export function lubecReachSaveIntention(raw: Record<string, unknown>, id: string
     const next = { ...effect, id: `${id}_recovered`, steps, recoveryRoll: recorded }
     edits.push({ kind: 'insert', path: ['lubec', 'effects'], record: JSON.parse(JSON.stringify(next)) as { id: string; [key: string]: SheetValue } })
   }
-  const lastRoll = (raw.lubec as { lastRoll?: unknown }).lastRoll
-  // The Save is the character's last roll too, so the Core page shows its dice even when success clears the card.
-  const shown = recorded.because ? { ...roll, because: recorded.because } : roll
-  edits.push({ kind: 'set', path: ['lubec', 'lastRoll'], base: lastRoll === undefined ? { exists: false } : { exists: true, value: lastRoll as SheetValue }, value: JSON.parse(JSON.stringify(shown)) as SheetValue })
+  edits.push(lastRecoveryRollEdit(raw, roll, recorded.because))
   if (roll.stressAdded) edits.push({ kind: 'delta', path: ['lubec', 'counters', 'stress'], base: 0, amount: roll.stressAdded })
   return { operationId, baseRevision: readSheetRevision(raw), edits }
 }

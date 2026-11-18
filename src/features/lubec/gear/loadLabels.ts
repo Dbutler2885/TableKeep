@@ -44,10 +44,11 @@ export const lubecReloadText = (w: LubecItem, p: Extract<LubecReloadPlan, { ok: 
   `${actionsWord(p.n)}, ${supplyName(w.takes)} ${RELOAD_FROM[p.from]}`
 
 type Refusal = LubecReloadRefusal | { why: LubecAttackRefusal }
+const fullWeaponText = (w: LubecItem) => `${cap1(theName(w))} is full: ${w.loaded ?? 0} of ${w.capacity ?? 0} loaded.`
 
 /** Why `w` can't be loaded, in B's words; a thing that can't fire is told to be taken in hand. */
 export function lubecReloadRefusalText(w: LubecItem, r: Refusal, supplyName: LubecSupplyName): string {
-  if (r.why === 'full') return `${cap1(theName(w))} is full: ${w.loaded ?? 0} of ${w.capacity ?? 0} loaded.`
+  if (r.why === 'full') return fullWeaponText(w)
   if (r.why === 'busy-hand') return `Your other hand holds ${r.holds.name}. It needs to hold the ${supplyName(w.takes)}, or be empty to fetch them.`
   if (r.why === 'none-on-you') return `No ${supplyName(w.takes)} on you. A carrier doesn't count.`
   if (r.why === 'hand-unusable') return `Loading takes both hands. ${r.because}.`

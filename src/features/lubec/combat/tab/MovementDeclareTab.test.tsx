@@ -482,6 +482,24 @@ it('offers a down player Stay down and Stand, disables Run/Evasive, and sends th
 })
 
 
+it.each([
+  [true, [30], 'Standing: Movement spent. Speed 52, rolled 30.'],
+  [false, [80, 90], 'Still down: Movement, Action and Defense spent. Speed 52, rolled 80, 90.'],
+])('tells a player who tried to stand how it went (stood: %s)', (success, dice, words) => {
+  currentWayne = () => { const record = wayne(); record.lubec.effects = [{ id: 'down', name: 'Knocked down', cause: 'Sweep', steps: [{ modifiers: [], labels: [], until: 'combat-end', restrictions: [{ kind: 'down' }] }] }]; return record }
+  const live = fightAfter(...rolled)
+  const stand = { target: 52, dice, result: dice.at(-1)!, success, stress: success ? 0 : 1, mode: 'normal' as const, because: null }
+  live.fight.state.combatants.find((entry) => entry.key === WAYNE)!.movement = { choice: 'stand', pickup: null, leave: null, stand }
+  mocks.roster.characters = [currentWayne()]
+  show('player', 'wayne-uid', live)
+  expect(screen.getByText(words)).toBeTruthy()
+})
+
+it('says nothing about standing to a player who has not tried', () => {
+  show('player', 'wayne-uid', fightAfter(...rolled))
+  expect(screen.queryByText(/^(Standing|Still down):/)).toBeNull()
+})
+
 it('lets the GM advance an all-unconscious skipped round explicitly', async () => {
   const live = fightAfter(...rolled)
   live.fight.state.combatants.forEach((entry) => { entry.unconscious = true; entry.movement = { choice: 'stay', pickup: null, leave: null, lost: true, unconscious: true } })

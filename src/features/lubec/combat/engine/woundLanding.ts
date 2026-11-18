@@ -1,4 +1,4 @@
-import type { LubecEffect } from '../../../ruleSets/lubec/effects'
+import type { LubecEffect, LubecEffectStep } from '../../../ruleSets/lubec/effects'
 import { describeLubecEffectStep } from '../../../ruleSets/lubec/effects'
 import { lubecDropWords, lubecRolledKey, lubecStepByHand, lubecStepTrigger, type LubecWoundDrop, type LubecWoundRolled } from '../../../ruleSets/lubec/woundCards'
 import { lubecConcussionOutcome, lubecConcussionTraumaRelief } from '../../../ruleSets/lubec/woundTables/concussion'
@@ -21,7 +21,7 @@ export function lubecRowOutcome(row: LubecWoundTableRow, pick: number | null): L
 }
 
 export function mergeOutcomes(a: LubecWoundOutcome, b: LubecWoundOutcome): LubecWoundOutcome {
-  const timers = [...new Set([...(a.timers ?? []), ...(b.timers ?? [])])]
+  const timers = mergedTimers(a, b)
   const fingers = b.fingers ?? a.fingers
   return {
     now: [...(a.now ?? []), ...(b.now ?? [])],
@@ -31,15 +31,23 @@ export function mergeOutcomes(a: LubecWoundOutcome, b: LubecWoundOutcome): Lubec
   }
 }
 
+const mergedTimers = (a: LubecWoundOutcome, b: LubecWoundOutcome) => [...new Set([...(a.timers ?? []), ...(b.timers ?? [])])]
+const needsRetention = (outcome: LubecWoundOutcome) => outcome.now?.some((now) => now.kind === 'drop' && now.check)
+
+function concussionRolls(row: LubecWoundTableRow): CombatLandingRollSpec[] {
+  if (!row.concussion) return []
+  return [{ purpose: 'concussion', kind: 'save', against: 'Body', advantage: row.concussion.mode ?? 'normal' }]
+}
+
 /** The Saves and Checks a final row asks for, in the order they are rolled. */
 export function lubecLandingRolls(row: LubecWoundTableRow, pick: number | null): CombatLandingRollSpec[] {
   const rolls: CombatLandingRollSpec[] = []
   if (row.fistCatch) rolls.push({ purpose: 'fist-catch', kind: 'stat-check', against: 'Handle', advantage: 'normal' })
-  if (row.concussion) rolls.push({ purpose: 'concussion', kind: 'save', against: 'Body', advantage: row.concussion.mode ?? 'normal' })
+  rolls.push(...concussionRolls(row))
   const outcome = lubecRowOutcome(row, pick)
   if (outcome.timers?.length) rolls.push({ purpose: 'prevention', kind: 'save', against: 'Body', advantage: 'normal' })
   // "Dropped unless a Handle Check succeeds": the target rolls it now, against the sheet as it stood before this wound.
-  if (outcome.now?.some((now) => now.kind === 'drop' && now.check)) rolls.push({ purpose: 'retention', kind: 'stat-check', against: 'Handle', advantage: 'normal' })
+  if (needsRetention(outcome)) rolls.push({ purpose: 'retention', kind: 'stat-check', against: 'Handle', advantage: 'normal' })
   return rolls
 }
 
@@ -50,34 +58,45 @@ export type LubecLanded =
 
 const resultOf = (checks: readonly CombatCheckRoll[], purpose: CombatCheckRoll['purpose']) => checks.find((check) => check.purpose === purpose)
 
+function concussionLanding(row: LubecWoundTableRow, pick: number | null, checks: readonly CombatCheckRoll[]) {
+  const base = lubecRowOutcome(row, pick)
+  const concussion = resultOf(checks, 'concussion')
+  if (!row.concussion || !concussion) return { outcome: base, relief: 0 }
+  return {
+    outcome: mergeOutcomes(lubecConcussionOutcome(row.concussion, concussion.success), base),
+    relief: lubecConcussionTraumaRelief(row.concussion, concussion.success),
+  }
+}
+
 export function lubecLanded(row: LubecWoundTableRow, pick: number | null, checks: readonly CombatCheckRoll[]): LubecLanded {
   const caught = resultOf(checks, 'fist-catch')
   if (caught && !caught.success) return { wound: false }
-  const concussion = resultOf(checks, 'concussion')
-  const base = lubecRowOutcome(row, pick)
-  const withConcussion = row.concussion && concussion ? mergeOutcomes(lubecConcussionOutcome(row.concussion, concussion.success), base) : base
+  const landed = concussionLanding(row, pick, checks)
   const prevention = resultOf(checks, 'prevention')
   const prevented = prevention?.success === true
-  const outcome = prevented ? { ...withConcussion, timers: [] } : withConcussion
-  const relief = row.concussion && concussion ? lubecConcussionTraumaRelief(row.concussion, concussion.success) : 0
+  const outcome = prevented ? { ...landed.outcome, timers: [] } : landed.outcome
   const stress = checks.filter((check) => check.purpose !== 'fist-catch').reduce((sum, check) => sum + check.stress, 0)
-  return { wound: true, outcome, trauma: row.trauma - relief, stress, prevented }
+  return { wound: true, outcome, trauma: row.trauma - landed.relief, stress, prevented }
 }
 
-/** The amounts the wound rolls once, with every die by what it was for. */
-export function lubecRollAmounts(outcome: LubecWoundOutcome, entropy: CombatEntropy): { rolled: LubecWoundRolled; dice: Record<string, number[]> } {
-  const rolled: LubecWoundRolled = {}
-  const dice: Record<string, number[]> = {}
-  const now = outcome.now ?? []
+type WoundAmounts = { rolled: LubecWoundRolled; dice: Record<string, number[]> }
+
+function rollStageAmounts(now: readonly LubecWoundNow[], entropy: CombatEntropy, { rolled, dice }: WoundAmounts) {
   if (now.some((item) => item.kind === 'dazed' && item.turns === '1d4')) dice['Dazed 1d4'] = [rolled.dazed = entropy.die('dazed', 4)]
   if (now.some((item) => item.kind === 'unconscious')) {
     rolled.minutes = dice['Unconscious 2d10 minutes'] = [entropy.die('unconscious', 10), entropy.die('unconscious', 10)]
     dice['Minimum Stress 1d5'] = [rolled.minimumStress = entropy.die('minimum-stress', 5)]
   }
+}
+
+function rollFingerAmounts(outcome: LubecWoundOutcome, entropy: CombatEntropy, { rolled, dice }: WoundAmounts) {
   if (outcome.fingers) {
     rolled.fingers = 'count' in outcome.fingers ? outcome.fingers.count : entropy.die('fingers', outcome.fingers.sides)
     if ('sides' in outcome.fingers) dice[`Fingers 1d${outcome.fingers.sides}`] = [rolled.fingers]
   }
+}
+
+function rollLastingAmounts(outcome: LubecWoundOutcome, entropy: CombatEntropy, { rolled, dice }: WoundAmounts) {
   for (const card of outcome.cards) {
     card.steps.forEach((step, index) => {
       for (const loss of step.rolled ?? []) {
@@ -87,24 +106,37 @@ export function lubecRollAmounts(outcome: LubecWoundOutcome, entropy: CombatEntr
       }
     })
   }
+}
+
+function rollTimerAmounts(outcome: LubecWoundOutcome, entropy: CombatEntropy, { rolled, dice }: WoundAmounts) {
   const timers = (outcome.timers ?? []).map((kind) => ({ kind, rounds: entropy.die(`timer-${kind}`, 4) }))
   if (timers.length) {
     rolled.timers = timers
     for (const timer of timers) dice[`${timer.kind === 'bleed' ? 'Bleeding' : 'Critical'} d4`] = [timer.rounds]
   }
-  return { rolled, dice }
+}
+
+/** Each independent source of rolled amounts is resolved once, in landing order. */
+export function lubecRollAmounts(outcome: LubecWoundOutcome, entropy: CombatEntropy): WoundAmounts {
+  const amounts: WoundAmounts = { rolled: {}, dice: {} }
+  rollStageAmounts(outcome.now ?? [], entropy, amounts)
+  rollFingerAmounts(outcome, entropy, amounts)
+  rollLastingAmounts(outcome, entropy, amounts)
+  rollTimerAmounts(outcome, entropy, amounts)
+  return amounts
 }
 
 const BY_HAND = ' (resolved by hand)'
 
+const NOW_WORDS: Partial<Record<LubecWoundNow['kind'], (rolled: LubecWoundRolled, drop: LubecWoundDrop | null) => string | null>> = {
+  drop: (_, drop) => drop ? lubecDropWords(drop) : 'Whatever the struck hand holds drops onto the Floor',
+  'immediate-death-save': () => 'Immediate Death Save: the GM resolves it privately',
+  'out-of-reach': () => 'Knocked out of striking reach: the GM rules it, as combat here has no reach',
+  unconscious: (rolled) => rolled.minimumStress ? `Minimum Stress +${rolled.minimumStress} (1d5)` : null,
+}
+
 function nowWords(now: LubecWoundNow, rolled: LubecWoundRolled, drop: LubecWoundDrop | null): string | null {
-  switch (now.kind) {
-    case 'drop': return drop ? lubecDropWords(drop) : 'Whatever the struck hand holds drops onto the Floor'
-    case 'immediate-death-save': return 'Immediate Death Save: the GM resolves it privately'
-    case 'out-of-reach': return 'Knocked out of striking reach: the GM rules it, as combat here has no reach'
-    case 'unconscious': return rolled.minimumStress ? `Minimum Stress +${rolled.minimumStress} (1d5)` : null
-    default: return null
-  }
+  return NOW_WORDS[now.kind]?.(rolled, drop) ?? null
 }
 
 const NEXT_ROUND_KEYS = ['movement', 'bleed', 'critical']
@@ -118,19 +150,31 @@ function cardLine(card: LubecEffect, stepIndex: number): string {
 }
 
 /** A landed wound's Results, by when each consequence happens: Now, Next round, Recovery and Lasting. */
-export function lubecWoundSections(outcome: LubecWoundOutcome, cards: readonly LubecEffect[], rolled: LubecWoundRolled, prevented: boolean, drop: LubecWoundDrop | null = null): CombatWoundSection[] {
-  const now: string[] = []
-  const next: string[] = []
-  const recovery: string[] = []
-  const lasting: string[] = []
+type SectionLines = { now: string[]; next: string[]; recovery: string[]; lasting: string[] }
+
+function currentSection(card: LubecEffect): keyof SectionLines {
+  if (NEXT_ROUND_KEYS.includes(String(card.cardKey)) || card.steps[0]?.until === 'next-round-end') return 'next'
+  if (['dazed', 'action', 'down', 'unconscious'].includes(String(card.cardKey))) return 'now'
+  return card.steps[0]?.until === 'lasting' ? 'lasting' : 'recovery'
+}
+
+/** A later step waits for recovery, unless it is the lasting one. */
+const laterSection = (step: LubecEffectStep): keyof SectionLines => (step.until === 'lasting' ? 'lasting' : 'recovery')
+
+/** Each card's current step goes where it acts now; every later step follows under Recovery or Lasting. */
+function cardSections(cards: readonly LubecEffect[]): SectionLines {
+  const lines: SectionLines = { now: [], next: [], recovery: [], lasting: [] }
   for (const card of cards) {
-    const first = card.steps[0]
-    if (NEXT_ROUND_KEYS.includes(String(card.cardKey)) || first?.until === 'next-round-end') next.push(cardLine(card, 0))
-    else if (['dazed', 'action', 'down', 'unconscious'].includes(String(card.cardKey))) now.push(cardLine(card, 0))
-    else if (first?.until === 'lasting') lasting.push(cardLine(card, 0))
-    else if (first) recovery.push(cardLine(card, 0))
-    card.steps.slice(1).forEach((step, index) => (step.until === 'lasting' ? lasting : recovery).push(`then ${cardLine(card, index + 1)}`))
+    card.steps.forEach((step, index) => {
+      if (index === 0) lines[currentSection(card)].push(cardLine(card, 0))
+      else lines[laterSection(step)].push(`then ${cardLine(card, index)}`)
+    })
   }
+  return lines
+}
+
+export function lubecWoundSections(outcome: LubecWoundOutcome, cards: readonly LubecEffect[], rolled: LubecWoundRolled, prevented: boolean, drop: LubecWoundDrop | null = null): CombatWoundSection[] {
+  const { now, next, recovery, lasting } = cardSections(cards)
   for (const item of outcome.now ?? []) {
     const words = nowWords(item, rolled, drop)
     if (words) now.push(words)

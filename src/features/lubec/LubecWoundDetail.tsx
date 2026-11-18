@@ -13,10 +13,13 @@ const pad = (value: number) => String(value).padStart(2, '0')
 
 function checkWords(check: LubecWoundRolledCheck): string {
   const what = `${check.purpose}: ${check.against} ${check.kind === 'save' ? 'Save' : 'Check'}`
-  const dice = check.dice.length > 1 ? `${check.mode === 'advantage' ? 'Advantage' : 'Disadvantage'} ${check.dice.map(pad).join(' and ')}, kept ${pad(check.result)}` : pad(check.result)
+  const dice = checkDiceWords(check)
   const stress = check.stress ? `, +${check.stress} Stress` : ''
   return `${what} ${dice} against ${check.target}, ${check.success ? 'passed' : 'failed'}${stress}`
 }
+
+const checkDiceWords = (check: LubecWoundRolledCheck) =>
+  check.dice.length > 1 ? `${check.mode === 'advantage' ? 'Advantage' : 'Disadvantage'} ${check.dice.map(pad).join(' and ')}, kept ${pad(check.result)}` : pad(check.result)
 
 const diceWords = (dice: Record<string, number[]>) =>
   Object.entries(dice).filter(([, rolled]) => rolled.length).map(([what, rolled]) => `${what} ${rolled.join(' + ')}`)
@@ -32,8 +35,21 @@ function chargedWords(wound: LubecWoundSource): string {
 
 type DetailProps = { effect: LubecEffect; wound: LubecWoundSource; onEdit: (() => void) | null }
 
-export function LubecWoundDetail({ effect, wound, onEdit }: DetailProps) {
+function recoveryFacts(effect: LubecEffect): [string, string][] {
   const recovered = readLubecCheckRoll(effect.recoveryRoll as LubecStoredEntry ?? null)
+  return recovered ? [['Recovery Save', `${describeLubecCheckDice(recovered)}: ${describeLubecCheckOutcome(recovered)}. ${recovered.because ?? ''}`]] : []
+}
+
+function woundRollFacts(wound: LubecWoundSource): [string, string][] {
+  return [
+    ...(wound.branch === null ? [] : [['d2', String(wound.branch)] as [string, string]]),
+    ...diceWords(wound.dice ?? {}).map((words): [string, string] => ['Rolled', words]),
+    ...(wound.checks ?? []).map((check): [string, string] => ['Roll', checkWords(check)]),
+    ...(wound.drop ? [['Drop', lubecDropWords(wound.drop)] as [string, string]] : []),
+  ]
+}
+
+export function LubecWoundDetail({ effect, wound, onEdit }: DetailProps) {
   const facts: [string, string][] = [
     ['Table', wound.tableName],
     ['Struck', locName(wound.part)],
@@ -41,11 +57,8 @@ export function LubecWoundDetail({ effect, wound, onEdit }: DetailProps) {
     ['Severity', wound.severity],
     ['Wound', wound.row],
     ['Row', lubecPlainProse(wound.prose)],
-    ...(wound.branch === null ? [] : [['d2', String(wound.branch)] as [string, string]]),
-    ...diceWords(wound.dice ?? {}).map((words): [string, string] => ['Rolled', words]),
-    ...(wound.checks ?? []).map((check): [string, string] => ['Roll', checkWords(check)]),
-    ...(wound.drop ? [['Drop', lubecDropWords(wound.drop)] as [string, string]] : []),
-    ...(recovered ? [['Recovery Save', `${describeLubecCheckDice(recovered)}: ${describeLubecCheckOutcome(recovered)}. ${recovered.because ?? ''}`] as [string, string]] : []),
+    ...woundRollFacts(wound),
+    ...recoveryFacts(effect),
     ['Charged', chargedWords(wound)],
     ['Source', wound.contentVersion],
   ]

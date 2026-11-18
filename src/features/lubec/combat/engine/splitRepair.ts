@@ -36,17 +36,24 @@ function withSplit(declaration: CombatDeclaration, pool: number, defense: number
   // A Defense of 0 is no line at all: nothing is left to guard with.
   const lines = line && defense > 0 ? [{ against: line.against, amount: defense }] : []
   const frozen = declaration.frozen ? { ...declaration.frozen, total: pool, attack: spentAttack ?? Math.max(0, pool - defense) } : null
-  const aimDefense = declaration.aim?.defense && defense > 0 ? { ...declaration.aim.defense, amount: defense } : null
-  const aim = declaration.aim ? { ...declaration.aim, defense: aimDefense } : null
+  const aim = splitAim(declaration, defense)
   return { ...declaration, aim, total: pool, frozen, lines, repaired: true }
 }
 
+function splitAim(declaration: CombatDeclaration, defense: number): CombatDeclaration['aim'] {
+  if (!declaration.aim) return null
+  const aimDefense = declaration.aim.defense && defense > 0 ? { ...declaration.aim.defense, amount: defense } : null
+  return { ...declaration.aim, defense: aimDefense }
+}
+
 type Broken = { declaration: CombatDeclaration; pool: number }
+const repairable = (declaration: CombatDeclaration, round: number) => !declaration.ran && !declaration.stopped && round >= 1
 
 /** The declaration of `combatant` when its frozen split no longer fits the pool, with the pool now; null while it fits. */
 function broken(fight: CombatFight, combatant: Combatant, record: CombatSheet | null, fightId: string): Broken | null {
   const declaration = combatant.declaration
-  if (!record || !declaration || declaration.ran || declaration.stopped || fight.state.round < 1) return null
+  if (!record || !declaration) return null
+  if (!repairable(declaration, fight.state.round)) return null
   const pool = poolNow(fight, declaration, record, fightId)
   return pool < declaration.total ? { declaration, pool } : null
 }
@@ -112,22 +119,30 @@ function readDefense(raw: unknown, pool: number): number {
   return raw as number
 }
 
+function requireSplitRepair(state: CombatState, actorKey: string | null): CombatSplitRepair {
+  const repair = state.attack?.splitRepair
+  if (!repair || repair.combatantKey !== actorKey) throw new Error('No split is waiting for that repair.')
+  return repair
+}
+
 /** The owner (the GM for an NPC) chooses the new Defense; the attack takes the rest, and the held roll may go on. */
 const repairSplit: CombatHandler = (command, records, authority) => {
   const fight = requireLiveContext(command, records, authority)
-  const repair = fight.state.attack?.splitRepair
-  if (!repair || repair.combatantKey !== command.envelope.actorKey) throw new Error('No split is waiting for that repair.')
+  const repair = requireSplitRepair(fight.state, command.envelope.actorKey)
   const combatant = combatantOf(fight.state, repair.combatantKey)
   const found = broken(fight, combatant, combatSheetOf(records, combatant), command.envelope.fightId)
   const pool = found?.pool ?? repair.pool
   const declaration = withSplit(combatant.declaration!, pool, readDefense(command.payload.defense, pool))
   const repaired = replaced(fight.state, combatant.key, declaration)
-  const combatants = repaired.combatants.map((entry) => (entry.key === combatant.key ? { ...entry, interactionSequence: entry.interactionSequence + 1 } : entry))
+  const combatants = advanceRepairSequence(repaired, combatant.key)
   const attack = { ...repaired.attack!, splitRepair: null }
   const pendingActions = attack.step === 'aim'
     ? [{ combatantKey: attack.attackerKey, action: 'attack' as const }]
     : [{ combatantKey: combatant.key, action: 'defense' as const }]
   return { fight: { ...fight, state: { ...repaired, combatants, attack, pendingActions } }, items: [], logs: [repairLog(combatant, declaration, repair.was)] }
 }
+
+const advanceRepairSequence = (state: CombatState, key: string) =>
+  state.combatants.map((entry) => (entry.key === key ? { ...entry, interactionSequence: entry.interactionSequence + 1 } : entry))
 
 export const combatSplitRepairHandlers: Readonly<Record<string, CombatHandler>> = { repairSplit }

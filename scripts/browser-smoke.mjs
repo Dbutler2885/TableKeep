@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import process from 'node:process'
 import puppeteer, { Locator } from 'puppeteer'
 import { isExpectedFirestoreEmulatorChannelError } from './browser-smoke-errors.mjs'
+import { assertDesktopSheetFits } from './browser-smoke-layout.mjs'
 import { clientEmulatorEnv, emulatorHostPort, resolveEmulatorPorts } from './emulators/ports.mjs'
 import {
   characterPath,
@@ -1220,8 +1221,7 @@ async function expectLubecPageOnOneScreen(page, name) {
     const bounds = element.getBoundingClientRect()
     return { right: bounds.right, children: [...element.children].map((child) => { const box = child.getBoundingClientRect(); return { top: box.top, right: box.right } }) }
   })
-  if (row.children.some((child) => Math.abs(child.top - row.children[0].top) > 1 || child.right > row.right + 1)) throw new Error(`The name-band actions wrap or overflow at the desktop smoke width.`)
-  if (height > visible) throw new Error(`The ${name} page is ${height}px tall in a ${visible}px pane.`)
+  assertDesktopSheetFits(name, height, visible, row)
 }
 
 const expectLubecCoreOnOneScreen = (page) => expectLubecPageOnOneScreen(page, 'Core')

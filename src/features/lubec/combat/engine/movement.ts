@@ -57,16 +57,24 @@ function requireAllowed(combatant: Combatant, record: CombatSheet | null, choice
   if (blocked) throw new Error(`${combatant.name} cannot ${choice === 'run' ? 'run' : 'move evasively'}: ${blocked}.`)
 }
 
-function chosen(state: CombatState, combatant: Combatant, raw: Record<string, unknown>, records: CombatRecords, context: CombatInputRound): CombatMovement {
+function requireCanChoose(state: CombatState, combatant: Combatant) {
   if (combatant.outReason !== null) throw new Error(`${combatant.name} is Out.`)
   if (combatSkipsStages(combatant)) throw new Error(`${combatant.name} is ${combatIncapacity(combatant)}: unresolved stages are skipped.`)
   if (combatant.movement) throw new Error(`${combatant.name} has already confirmed Movement.`)
   if (movementLost(state, combatant.key)) throw new Error(`${combatant.name}'s Movement Stage is lost.`)
-  const choice = readChoice(raw.choice)
-  const record = combatSheetOf(records, combatant)
+}
+
+function requireDownChoice(combatant: Combatant, record: CombatSheet | null, choice: CombatMovementChoice) {
   const down = record ? downCards(record.sheet, null).length > 0 : false
   if (down && (choice === 'run' || choice === 'evade')) throw new Error(`${combatant.name} is knocked down: Stay down or Stand.`)
   if (choice === 'stand' && !down) throw new Error(`${combatant.name} is not knocked down.`)
+}
+
+function chosen(state: CombatState, combatant: Combatant, raw: Record<string, unknown>, records: CombatRecords, context: CombatInputRound): CombatMovement {
+  requireCanChoose(state, combatant)
+  const choice = readChoice(raw.choice)
+  const record = combatSheetOf(records, combatant)
+  requireDownChoice(combatant, record, choice)
   requireAllowed(combatant, record, choice, context)
   if (choice !== 'pickup') return { choice, pickup: null, leave: leaveOf(combatant, choice) }
   const { claim, item } = readClaim(state, raw.pickup)
@@ -102,21 +110,39 @@ function finishMovements(fight: CombatFight, moved: Map<string, CombatMovement>,
   for (const [key, movement] of moved) {
     const combatant = combatantOf(state, key)
     if (movement.choice !== 'stand') { logs.push(confirmedLog(combatant)); continue }
-    const record = combatSheetOf(records, combatant)
-    const repair = attackRepair(combatant, record)
-    if (repair) throw new Error(repair)
-    requireDue(state, combatant, record!)
-    const context = { fightId, round: state.round }
-    const down = downCards(record!.sheet, context)
-    if (!down.length) throw new Error(`${combatant.name} is not knocked down.`)
-    const stand = rollStand(record!, context, entropy)
-    moved.set(key, { ...movement, stand })
-    if (!stand.success) state = withLostStages(state, key, { movement: [], action: [state.round] }, 'Failed Stand')
-    if (stand.success || stand.stress) sheetEffects.push({ selection: { kind: combatant.kind, sheetId: combatant.sheetId }, removeEffects: stand.success ? down.map((card) => card.id) : [], stressDelta: stand.stress })
-    logs.push({ event: `${combatant.name} ${stand.success ? 'stood, spending Movement only' : `failed to stand: Action + Defense lost, +${stand.stress} Stress`}.`, actor: key,
-      roll: { who: combatant.name, what: 'Stand - Speed Check', roll: String(stand.result).padStart(2, '0'), target: `at or under ${stand.target}`, tone: stand.success ? 'ok' : 'bad', result: stand.success ? 'Standing' : 'Still down', extra: [stand.because, `Dice: ${stand.dice.join(', ')}`].filter(Boolean).join('. ') } })
+    const standing = finishStand(state, combatant, records, fightId, entropy)
+    state = standing.state
+    moved.set(key, { ...movement, stand: standing.stand })
+    sheetEffects.push(...standing.sheetEffects)
+    logs.push(standLog(combatant, standing.stand))
   }
   return { fight: withMovement({ ...fight, state }, moved), items: [], logs, sheetEffects }
+}
+
+type Standing = ReturnType<typeof rollStand>
+
+function standLog(combatant: Combatant, stand: Standing): CombatPlan['logs'][number] {
+  return { event: `${combatant.name} ${stand.success ? 'stood, spending Movement only' : `failed to stand: Action + Defense lost, +${stand.stress} Stress`}.`, actor: combatant.key,
+    roll: { who: combatant.name, what: 'Stand - Speed Check', roll: String(stand.result).padStart(2, '0'), target: `at or under ${stand.target}`, tone: stand.success ? 'ok' : 'bad', result: stand.success ? 'Standing' : 'Still down', extra: [stand.because, `Dice: ${stand.dice.join(', ')}`].filter(Boolean).join('. ') } }
+}
+
+function standSheetEffects(combatant: Combatant, down: ReturnType<typeof downCards>, stand: Standing): NonNullable<CombatPlan['sheetEffects']> {
+  if (!stand.success && !stand.stress) return []
+  return [{ selection: { kind: combatant.kind, sheetId: combatant.sheetId }, removeEffects: stand.success ? down.map((card) => card.id) : [], stressDelta: stand.stress }]
+}
+
+/** Resolve one Stand with its eligibility, lost Action and keyed sheet changes kept together. */
+function finishStand(state: CombatState, combatant: Combatant, records: CombatRecords, fightId: string, entropy: CombatEntropy) {
+  const record = combatSheetOf(records, combatant)
+  const repair = attackRepair(combatant, record)
+  if (repair) throw new Error(repair)
+  requireDue(state, combatant, record!)
+  const context = { fightId, round: state.round }
+  const down = downCards(record!.sheet, context)
+  if (!down.length) throw new Error(`${combatant.name} is not knocked down.`)
+  const stand = rollStand(record!, context, entropy)
+  const next = stand.success ? state : withLostStages(state, combatant.key, { movement: [], action: [state.round] }, 'Failed Stand')
+  return { state: next, stand, sheetEffects: standSheetEffects(combatant, down, stand) }
 }
 
 const confirmedLog = (combatant: Combatant) => ({ event: `${combatant.name} confirmed Movement.`, actor: combatant.key })

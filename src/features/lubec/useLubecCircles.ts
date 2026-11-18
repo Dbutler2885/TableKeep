@@ -77,10 +77,12 @@ const shownOn = (last: LubecLastShown, name: LubecCircleName): LubecLastRoll | n
 
 // The Panic Check rolls a d20 over Stress, the Recovery Save a d100 under the lowest Save, and a Stat or Save a d100 under itself.
 // Each rolls twice under Advantage or Disadvantage.
+const recoveryTarget = (sheet: LubecCharacterSheet) => lubecLowestSave(sheet)?.value ?? null
+
 function circleRoll(sheet: LubecCharacterSheet, roller: LubecRoller, name: LubecCircleName): LubecCircleRoll {
   const advantage = roller.advantage ?? 'normal'
   if (name === 'Panic') return { target: sheet.counters.stress, sides: 20, advantage, roll: roller.panic }
-  if (name === 'Recovery') return { target: lubecLowestSave(sheet)?.value ?? null, sides: 100, advantage, roll: roller.recover }
+  if (name === 'Recovery') return { target: recoveryTarget(sheet), sides: 100, advantage, roll: roller.recover }
   const actions = roller.action ? [roller.action] : []
   return { target: lubecCheckTarget(sheet, name, roller.armed, actions), sides: 100, advantage: roller.modeFor(name).mode, roll: () => roller.roll(name) }
 }

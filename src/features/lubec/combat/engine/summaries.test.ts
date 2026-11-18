@@ -3,6 +3,7 @@ import { lubecCharacterSheet } from '../../../ruleSets/lubec/sheetFixtures'
 import { combatOpponents } from './attackParty'
 import { emptyLubecGear } from '../../../ruleSets/lubec/gear/gearRecord'
 import { planCombatCommand } from './lifecycle'
+import { LOST_ACTION } from './stages'
 import { combatSummariesStale, refreshedCombatant } from './summaries'
 import type { CombatAuthority, CombatCommand, CombatRecords, CombatSheet } from './types'
 
@@ -107,4 +108,51 @@ it('keeps completed Movement and an active unconscious card when the GM clears a
   const refresh = { ...command('refresh', 'movement'), envelope: { ...command('refresh', 'movement').envelope, round: 3 } }
   const plan = planCombatCommand(refresh, current, gm)
   expect(plan.fight.state.combatants[0]).toMatchObject({ unconscious: true, movement: fighter.movement, outReason: null })
+})
+
+describe('waking during Declare', () => {
+  const asleepAtDeclare = () => {
+    const current = live()
+    Object.assign(current.fight!.state, { round: 3, phase: 'declare', order: ['npc:roy'], pendingActions: [] })
+    Object.assign(current.fight!.state.combatants[0], { unconscious: true, declaration: { ...LOST_ACTION, unconscious: true } })
+    return current
+  }
+  const refresh = { ...command('refresh', 'declare'), envelope: { ...command('refresh', 'declare').envelope, round: 3 } }
+
+  it('reopens the Declaration it filled while they slept and asks them to declare', () => {
+    const plan = planCombatCommand(refresh, asleepAtDeclare(), gm)
+    expect(plan.fight.state.combatants[0]).toMatchObject({ unconscious: false, declaration: null })
+    expect(plan.fight.state.pendingActions).toEqual([{ combatantKey: 'npc:roy', action: 'declare' }])
+  })
+
+  it('keeps the stopped Declaration when this round\'s Action is lost anyway, so Declare closes without asking', () => {
+    const current = asleepAtDeclare()
+    current.fight!.state.lost = { 'npc:roy': { movement: [], action: [3], reason: 'Dazed' } }
+    const plan = planCombatCommand(refresh, current, gm)
+    expect(plan.logs.map((log) => log.event)).toEqual(['Round 3, Attack. Nobody declared an attack.', 'Round 4, Movement.'])
+    expect(plan.fight.state.pendingActions).not.toContainEqual({ combatantKey: 'npc:roy', action: 'declare' })
+  })
+})
+
+describe('a knock-out on its way to the sheet', () => {
+  const knockedOut = (cardKey: string, sheetId = 'roy') => {
+    const current = live()
+    current.fight!.state.combatants[0].unconscious = true
+    current.fight!.state.woundOutbox = [{
+      id: 'w', target: { kind: 'npc', sheetId }, originatingRound: 1, effectiveRound: 1, traumaDelta: 0, stressDelta: 0,
+      effects: [{ id: cardKey, cardKey, name: 'Knock-out', cause: '', steps: [{ modifiers: [], labels: [] }] }],
+    }]
+    return current
+  }
+
+  it('keeps the target unconscious until the wound\'s card reaches their sheet', () => {
+    const current = knockedOut('unconscious')
+    expect(combatSummariesStale(current.fight!.state, current.sheets)).toBe(false)
+  })
+
+  it('does not hold anyone unconscious for another card, or for another target\'s wound', () => {
+    for (const current of [knockedOut('dazed'), knockedOut('unconscious', 'someone-else')]) {
+      expect(combatSummariesStale(current.fight!.state, current.sheets)).toBe(true)
+    }
+  })
 })

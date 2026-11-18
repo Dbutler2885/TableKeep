@@ -143,6 +143,10 @@ const draftNames = (draft: AttackDraft): string => draft.defense?.against ?? dra
 /** Full Defense names one person: the one picked for it, else whoever the draft names. */
 const guardedKey = (picked: string | null, draft: AttackDraft): string => picked ?? draftNames(draft)
 
+function ReachNotice({ reach, full }: { reach: string | null; full: boolean }) {
+  return reach && !full ? <div className="notice cool" role="status"><span>{reach}</span></div> : null
+}
+
 function DeclareBody(body: BodyProps) {
   const { state, declarer, sheet } = body
   const [draft, setDraft] = useState<AttackDraft>(() => initialDraft(draftAttack(declarer), sheet, combatOpponents(state, declarer).map((entry) => entry.key)))
@@ -163,7 +167,7 @@ function DeclareBody(body: BodyProps) {
       {evading ? <div className="notice cool" role="status"><span><b>{declarer.name} moved evasively.</b> That uses the action, so there is no attack this round: declare Full Defense against one person.</span></div> : null}
       <div className="declaration-actor"><small>Declaring now</small><strong>{declarer.name}</strong><span className="declaration-stage">Round {state.round} · <span>Stage 2, Declare</span></span></div>
       <DeclareChoices body={body} draft={draft} setDraft={setDraft} model={model} full={full} />
-      {model.reach && !full ? <div className="notice cool" role="status"><span>{model.reach}</span></div> : null}
+      <ReachNotice reach={model.reach} full={full} />
       {full ? <FullDefense {...parts} against={guarded} onAgainst={setAgainst} /> : <Split {...parts} />}
     </>
   )

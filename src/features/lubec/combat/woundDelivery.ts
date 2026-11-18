@@ -33,6 +33,12 @@ function intentionOf(raw: Record<string, unknown>, wound: CombatWound, fightId: 
 const dropOf = (raw: Record<string, unknown>, wound: CombatWound): CombatPlannedDrop | null =>
   (wound.kind === 'tick' || wound.kind === 'close' || !wound.drop ? null : planWoundDrop(raw, wound.drop.hand))
 
+function requireDeliverable(prepared: Awaited<ReturnType<typeof prepareSheetIntention>> | null) {
+  if (!prepared) return
+  requireFreshWoundRead(prepared)
+  if (prepared.outcome.status === 'repair') throw new Error(`Wound delivery needs sheet repair: ${prepared.outcome.code}`)
+}
+
 async function applyWound(db: Firestore, tx: Transaction, scope: CombatWoundScope, fight: CombatFight, wound: CombatWound, recordAttempt: RecordAttempt) {
   requireTarget(fight, wound)
   const { ref, raw } = await readWoundSheet(db, tx, scope, wound.target)
@@ -40,10 +46,7 @@ async function applyWound(db: Firestore, tx: Transaction, scope: CombatWoundScop
   const drop = dropOf(raw, wound)
   const intention = intentionOf(raw, wound, scope.fightId, operationId, drop)
   const prepared = intention ? await prepareSheetIntention(tx, ref, intention) : null
-  if (prepared) {
-    requireFreshWoundRead(prepared)
-    if (prepared.outcome.status === 'repair') throw new Error(`Wound delivery needs sheet repair: ${prepared.outcome.code}`)
-  }
+  requireDeliverable(prepared)
   // A tick that ends nothing writes no sheet: the revision it read is the one the next roll must read.
   const revision = prepared ? (prepared.outcome as { revision: number }).revision : readSheetRevision(raw)
   recordAttempt({ ref, revision })

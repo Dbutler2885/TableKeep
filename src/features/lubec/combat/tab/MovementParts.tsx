@@ -126,6 +126,12 @@ function FloorPicks({ state, shown, draft, live, sheet, onDraft }: FloorPickProp
 const shownChoice = (combatant: Combatant, draft: Draft): Draft =>
   (combatant.movement ? { choice: combatant.movement.choice, picked: combatant.movement.pickup?.itemId ?? null } : draft)
 
+function StandResult({ combatant }: { combatant: Combatant }) {
+  const stand = combatant.movement?.stand
+  if (!stand) return null
+  return <p role="status">{stand.success ? 'Standing: Movement spent.' : 'Still down: Movement, Action and Defense spent.'} Speed {stand.target}, rolled {stand.dice.join(', ')}.</p>
+}
+
 /** Moment 4 for one combatant this viewer moves: the four cards, the Floor with its Pick up buttons, and Confirm. */
 export function MoveWindow({ state, combatant, sheet, commands, named }: MoveProps) {
   const [draft, setDraft] = useState<Draft>({ choice: 'stay', picked: null })
@@ -138,7 +144,7 @@ export function MoveWindow({ state, combatant, sheet, commands, named }: MovePro
       <CombatRefusal refusal={run.refusal} />
       <StageLossNotice state={state} combatantKey={combatant.key} />
       <p className="ask">{askWords(combatant, named)}</p>
-      {combatant.movement?.stand ? <p role="status">{combatant.movement.stand.success ? 'Standing: Movement spent.' : 'Still down: Movement, Action and Defense spent.'} Speed {combatant.movement.stand.target}, rolled {combatant.movement.stand.dice.join(', ')}.</p> : null}
+      <StandResult combatant={combatant} />
       <MoveCards down={down} shown={shown} live={live} limits={sheet ? combatMovementLimits(sheet, null) : LUBEC_FREE_MOVEMENT} onChoose={(choice) => setDraft({ choice, picked: null })} />
       <span className="label">On the Floor</span>
       <FloorPicks state={state} shown={shown} draft={draft} live={live} sheet={sheet} onDraft={setDraft} />

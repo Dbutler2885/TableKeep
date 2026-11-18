@@ -87,13 +87,15 @@ export function lubecHandsUnavailable(gear: LubecGear, hands: LubecHandLimits, i
 }
 
 // Rule W3, with the active cards' hand limits.
+function placeBothHands(taken: Set<number>, it: LubecItemDraft, hands: LubecHandLimits): LubecPlacement {
+  const refusal = lubecBothHandsRefusal(hands)
+  if (refusal) return no(`${refusal}: ${bothHandsWhat(it).toLowerCase()} takes both hands.`)
+  return taken.size ? no(`${bothHandsWhat(it)} takes both hands. Empty both hands first.`) : { ok: true, carrier: 'hands', slot: 0 }
+}
+
 function placeInHands(gear: LubecGear, it: LubecItemDraft, want: number | null, ignoreId: string | null | undefined, hands: LubecHandLimits): LubecPlacement {
   const taken = handsTaken(gear, ignoreId)
-  if (bothHands(it)) {
-    const refusal = lubecBothHandsRefusal(hands)
-    if (refusal) return no(`${refusal}: ${bothHandsWhat(it).toLowerCase()} takes both hands.`)
-    return taken.size ? no(`${bothHandsWhat(it)} takes both hands. Empty both hands first.`) : { ok: true, carrier: 'hands', slot: 0 }
-  }
+  if (bothHands(it)) return placeBothHands(taken, it, hands)
   const wanted = want === null ? null : lubecHandUnusable(hands, want)
   if (wanted) return no(`${wanted}: that hand cannot hold anything.`)
   const free = freeOf(lubecHandsUnavailable(gear, hands, ignoreId), want)

@@ -50,10 +50,12 @@ export function lubecCombatantRecord(c: LubecCombatant): LubecCharacterRecord | 
   return c.sheet && lubecNpcSheetRecord(c.npc, c.sheet)
 }
 
+const combatantCondition = (c: LubecCombatant) => c.kind === 'character' ? c.character.lubec.condition : c.sheet?.lubec.condition ?? c.condition
+
 export function lubecCombatantFace(c: LubecCombatant): LubecCombatantFace {
   const { portraitUrl, portraitFocusX, portraitFocusY, tokenIcon } = c.kind === 'character' ? c.character : c.npc
   const name = c.kind === 'character' ? lubecCharacterName(c.character) : c.npc.name
-  return { condition: c.kind === 'character' ? c.character.lubec.condition : c.sheet?.lubec.condition ?? c.condition, name: name || 'Unnamed', portraitUrl, portraitFocusX, portraitFocusY, tokenIcon }
+  return { condition: combatantCondition(c), name: name || 'Unnamed', portraitUrl, portraitFocusX, portraitFocusY, tokenIcon }
 }
 
 /** What a combatant carries; nothing without a sheet to read. */

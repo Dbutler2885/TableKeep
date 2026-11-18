@@ -58,20 +58,26 @@ export function resultsFacts(state: CombatState, attack: CombatAttack): ResultsF
 
 const PURPOSE_WORDS = { 'fist-catch': 'Catch their fist', concussion: 'Concussion', prevention: 'Countdown', retention: 'Keep hold' } as const
 
+const checkDiceNote = (rolled: NonNullable<CombatAttack['check']>) =>
+  (rolled.dice?.length ?? 0) > 1 ? ` (${rolled.because ? `${rolled.because}: ` : ''}${rolled.dice.map((die) => String(die).padStart(2, '0')).join(' and ')})` : ''
+
 const rollNote = (rolled: NonNullable<CombatAttack['check']>) => {
   const purpose = rolled.purpose ? `${PURPOSE_WORDS[rolled.purpose]}: ` : ''
-  const dice = (rolled.dice?.length ?? 0) > 1 ? ` (${rolled.because ? `${rolled.because}: ` : ''}${rolled.dice.map((die) => String(die).padStart(2, '0')).join(' and ')})` : ''
+  const dice = checkDiceNote(rolled)
   const stress = rolled.stress ? `, +${rolled.stress} Stress` : ''
   return `${purpose}${rolled.against} ${rolled.kind === 'save' ? 'Save' : 'Check'} ${String(rolled.result).padStart(2, '0')}${dice} against ${rolled.target}: ${rolled.success ? 'passed' : 'failed'}${stress}`
 }
 
+const landingChecks = (attack: CombatAttack) => attack.checks?.length ? attack.checks : attack.check ? [attack.check] : []
+const provisionalWound = (row: CombatAttack['row']) => Boolean(row?.table && !row.final)
+
 /** The rolls that picked the wound's version: every landing Save or Check, or a two-wound row's d2. */
 function woundNotes(attack: CombatAttack): string[] {
   const notes: string[] = []
-  const rolls = attack.checks?.length ? attack.checks : attack.check ? [attack.check] : []
+  const rolls = landingChecks(attack)
   for (const rolled of rolls) notes.push(rollNote(rolled))
   if (attack.row?.choice) notes.push(`d2 rolled ${attack.row.choice}`)
-  if (attack.row?.table && !attack.row.final) notes.push('Resolved by hand: the sheet gets these words, and the table applies them.')
+  if (provisionalWound(attack.row)) notes.push('Resolved by hand: the sheet gets these words, and the table applies them.')
   return notes
 }
 
@@ -93,13 +99,17 @@ export function resultsWound(state: CombatState, attack: CombatAttack): ResultsW
   const row = attack.row
   if (!row || attack.rowOutcome == null) return null
   const target = state.combatants.find((entry) => entry.key === attack.aim!.targetKey)!
+  const prose = lubecPlainProse(attack.rowOutcome || `${row.name}.`)
   return {
     severity: row.severity, cls: SEVERITY_CLASS[row.severity], trauma: traumaWords(attack),
-    name: row.name, parts: row.final ? [{ label: 'The table says', text: lubecPlainProse(attack.rowOutcome || `${row.name}.`) }] : woundParts(lubecPlainProse(attack.rowOutcome || `${row.name}.`)), injury: row.injury ?? null, notes: woundNotes(attack),
+    name: row.name, parts: resultWoundParts(row, prose), injury: row.injury ?? null, notes: woundNotes(attack),
     sections: attack.rowSections ?? [],
     out: target.outReason !== null, sheet: sheetWords(row.table, target.name),
   }
 }
+
+const resultWoundParts = (row: NonNullable<CombatAttack['row']>, prose: string) =>
+  row.final ? [{ label: 'The table says', text: prose }] : woundParts(prose)
 
 /** The Results headline, and the one line under it that the wound panel does not already say. */
 export function headWords(banner: Banner | null, wound: boolean): { title: string; line: string | null } {

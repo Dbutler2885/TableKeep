@@ -4,7 +4,7 @@ import { lubecEffectWound } from '../../../ruleSets/lubec/woundCards'
 import { readTableRow, tableChecked } from './attackTableRow'
 import { combatEntropy, type CombatEntropy } from './commandEntropy'
 import { publicCombatant } from './inputs'
-import type { CombatAttack, CombatCommand, CombatFight, CombatSheet } from './types'
+import type { CombatAttack, CombatCommand, CombatFight, CombatSheet, CombatWoundRow } from './types'
 
 const HERO = 'character:hero'
 const ROY = 'npc:roy'
@@ -467,5 +467,37 @@ describe('the final Thrown table through landing and sheet cards', () => {
       { until: 'long-rest', modifiers: [{ target: 'Handle', amount: -40 }] },
       { until: 'lasting', modifiers: [{ target: 'Handle', amount: -10 }] },
     ])
+  })
+})
+
+describe('a wound row saved before its table was final', () => {
+  // A fight saved mid-Check while Blunt Force was still provisional keeps the row it read then;
+  // the Check it waits on still lands that row's words, never the final table's cards.
+  const saved = (fields: Partial<CombatWoundRow>) => {
+    const row: CombatWoundRow = {
+      group: 'forearm', impact: 4, name: 'Bruised forearm', text: 'Numb fingers for the fight.', injury: 'Stiff wrist',
+      severity: 'Serious', trauma: 1, check: { kind: 'stat-check', against: 'Handle', advantage: 'normal' }, table: 'blunt', choice: null, out: false, ...fields,
+    }
+    const attack: CombatAttack = { ...hit('blunt', 'forearm-L', 4), step: 'check', row }
+    const waiting = fight()
+    waiting.state.attack = attack
+    return tableChecked(waiting, attack, roy, command, dice({ check: [10] })).fight
+  }
+
+  it('lands its words and its lasting injury as one card, resolved by hand, with its Trauma', () => {
+    const done = saved({})
+    expect(outboxOf({ fight: done })).toMatchObject({ traumaDelta: 1, stressDelta: 0 })
+    expect(outboxOf({ fight: done }).effect).toMatchObject({
+      name: 'Bruised forearm', duration: null, struckLocation: 'forearm-L', cause: 'Blunt Force, left forearm, Impact 4: Serious Bruised forearm',
+      steps: [{ modifiers: [], labels: ['Numb fingers for the fight.', 'Lasting injury: Stiff wrist'] }],
+      source: { table: 'blunt', group: 'forearm', impact: 4, name: 'Bruised forearm', severity: 'Serious', injury: 'Stiff wrist' },
+    })
+    expect(attackOf({ fight: done })).toMatchObject({ outcome: 'wounded', rowOutcome: 'Numb fingers for the fight.', check: { success: true } })
+  })
+
+  it('lands under its name when it saved no words, and names no lasting injury it never had', () => {
+    const card = outboxOf({ fight: saved({ text: '', injury: undefined }) }).effect!
+    expect(card.steps).toEqual([{ modifiers: [], labels: ['Bruised forearm.'] }])
+    expect(card.source).toMatchObject({ injury: null })
   })
 })

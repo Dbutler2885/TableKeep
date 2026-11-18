@@ -57,6 +57,31 @@ describe('a wound card', () => {
     expect(region().querySelector('.lubec-effect > .secondary-button')).toBeNull()
   })
 
+  it('lists the d2, both dice of a roll at Advantage, and the drop it rolled for', () => {
+    const shot = {
+      ...wound, branch: 2, dice: { 'Hit location': [37], Fingers: [] },
+      checks: [{ purpose: 'Keep hold', kind: 'stat-check', against: 'Handle', mode: 'advantage', target: 55, dice: [71, 4], result: 4, success: true, stress: 0 }],
+      drop: { hand: 'left', kept: true, held: 'Club' },
+    }
+    mount([{ ...forearm, wound: shot }], null)
+    fireEvent.click(within(region()).getByRole('button', { name: /Forearm injury/ }))
+    const facts = [...screen.getByLabelText('Forearm injury wound').querySelectorAll('.lubec-wound-fact')].map((fact) => [fact.querySelector('dt')!.textContent, fact.querySelector('dd')!.textContent])
+    expect(facts).toEqual(expect.arrayContaining([
+      ['d2', '2'], ['Rolled', 'Hit location 37'],
+      ['Roll', 'Keep hold: Handle Check Advantage 71 and 04, kept 04 against 55, passed'],
+      ['Drop', 'Kept hold of the Club in the left hand'],
+    ]))
+    expect(facts.map(([label]) => label)).not.toContain('Fingers')
+  })
+
+  it('opens a wound saved before its dice and rolls were kept, without inventing either', () => {
+    const { dice: _dice, checks: _checks, ...bare } = wound
+    mount([{ ...forearm, wound: bare }], null)
+    fireEvent.click(within(region()).getByRole('button', { name: /Forearm injury/ }))
+    const labels = [...screen.getByLabelText('Forearm injury wound').querySelectorAll('.lubec-wound-fact dt')].map((term) => term.textContent)
+    expect(labels).toEqual(['Table', 'Struck', 'Impact', 'Severity', 'Wound', 'Row', 'Charged', 'Source'])
+  })
+
   it('steps down only its own card for the owner or GM, never repeating anything else', () => {
     const onChange = vi.fn()
     mount([forearm, lasting, handMade], onChange)
