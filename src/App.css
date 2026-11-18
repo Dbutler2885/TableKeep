@@ -15722,15 +15722,22 @@ button:disabled {
 
 /* --- Side nav: the prototype's dark top bar, turned on its side ------- */
 
+/* Dark like the masthead it echoes, but quieter than the page beside it: the
+   ink is softened toward the paper, the edge is one thin rust line, and full
+   colour is kept for the open tab (rust) and the group's name (mustard). */
+.shell-root[data-theme="lubec"] {
+  --lubec-nav-surface: color-mix(in srgb, var(--lubec-ink) 90%, var(--lubec-paper));
+  --lubec-nav-rule: rgba(242, 234, 215, 0.14);
+  --lubec-nav-quiet: rgba(242, 234, 215, 0.72);
+}
+
 .shell-root[data-theme="lubec"] .side-nav {
-  background: var(--lubec-ink);
+  background: var(--lubec-nav-surface);
   color: var(--lubec-paper);
-  border-right: 5px solid var(--lubec-rust);
-  box-shadow: 4px 0 0 var(--lubec-mustard), 12px 0 32px rgba(7, 20, 23, 0.35);
-  /* Above the page's grain (5), and drawn over the page beside it so the
-     mustard stripe shows. */
+  border-right: 2px solid var(--lubec-rust);
+  /* Above the page's grain (5). */
   z-index: 210;
-  scrollbar-color: rgba(242, 234, 215, 0.35) transparent;
+  scrollbar-color: rgba(242, 234, 215, 0.3) transparent;
 }
 
 .shell-root[data-theme="lubec"] .side-title {
@@ -15747,7 +15754,7 @@ button:disabled {
 
 .shell-root[data-theme="lubec"] .side-meta {
   color: var(--lubec-mustard);
-  font: 700 0.95rem/1.1 var(--lubec-condensed);
+  font: 700 0.85rem/1.1 var(--lubec-condensed);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
@@ -15757,25 +15764,25 @@ button:disabled {
   background: transparent;
   border: 0;
   color: var(--lubec-paper);
-  font: 800 1.1rem/1.1 var(--lubec-display);
+  font: 700 1rem/1.15 var(--lubec-display);
   text-align: center;
 }
 
 .shell-root[data-theme="lubec"] .side-campaign-back:hover {
-  background: rgba(242, 234, 215, 0.1);
+  background: rgba(242, 234, 215, 0.08);
 }
 
 .shell-root[data-theme="lubec"] .nav-list {
-  gap: 0.25rem;
-  padding: 0.6rem 0;
-  border-top: 2px solid rgba(242, 234, 215, 0.25);
-  border-bottom: 2px solid rgba(242, 234, 215, 0.25);
+  gap: 0.15rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--lubec-nav-rule);
+  border-bottom: 1px solid var(--lubec-nav-rule);
 }
 
 .shell-root[data-theme="lubec"] .tab-button {
-  padding: 0.55rem 0.8rem 0.4rem;
-  color: var(--lubec-paper);
-  font: 700 1.15rem/1 var(--lubec-condensed);
+  padding: 0.5rem 0.8rem 0.38rem;
+  color: var(--lubec-nav-quiet);
+  font: 700 1.05rem/1 var(--lubec-condensed);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -15783,7 +15790,7 @@ button:disabled {
 .shell-root[data-theme="lubec"] .tab-button:hover,
 .shell-root[data-theme="lubec"] .tab-button:active,
 .shell-root[data-theme="lubec"] .tab-button:focus {
-  background: rgba(242, 234, 215, 0.1);
+  background: rgba(242, 234, 215, 0.08);
   color: var(--lubec-cream);
 }
 
@@ -15799,63 +15806,61 @@ button:disabled {
 }
 
 .shell-root[data-theme="lubec"] .account-panel {
-  border-top: 2px solid rgba(242, 234, 215, 0.25);
+  border-top: 1px solid var(--lubec-nav-rule);
 }
 
 .shell-root[data-theme="lubec"] .account-email,
 .shell-root[data-theme="lubec"] .account-username {
-  color: rgba(242, 234, 215, 0.78);
+  color: var(--lubec-nav-quiet);
   font: 700 0.78rem/1.3 var(--lubec-type);
   letter-spacing: 0.04em;
 }
 
 .shell-root[data-theme="lubec"] .account-username {
-  color: var(--lubec-mustard);
+  color: var(--lubec-paper);
 }
 
 .shell-root[data-theme="lubec"] .account-panel button {
   background: transparent;
-  color: var(--lubec-paper);
-  border: 2px solid rgba(242, 234, 215, 0.55);
+  color: var(--lubec-nav-quiet);
+  border: 1px solid rgba(242, 234, 215, 0.3);
   border-radius: 0;
 }
 
 .shell-root[data-theme="lubec"] .account-panel button:hover {
-  background: rgba(242, 234, 215, 0.1);
+  background: rgba(242, 234, 215, 0.08);
   color: var(--lubec-cream);
 }
 
 /* --- Phone bar and drawer ------------------------------------------------ */
 
 .shell-root[data-theme="lubec"] .phone-nav-bar {
-  background: var(--lubec-ink);
+  background: var(--lubec-nav-surface);
   color: var(--lubec-paper);
-  border-bottom: 5px solid var(--lubec-rust);
-  box-shadow: 0 4px 0 var(--lubec-mustard);
-  /* Above the page's grain (5), so the stripe shows. */
+  border-bottom: 2px solid var(--lubec-rust);
+  /* Above the page's grain (5). */
   position: relative;
   z-index: 210;
-  margin-bottom: 4px;
 }
 
 .shell-root[data-theme="lubec"] .phone-nav-title {
   color: var(--lubec-cream);
-  font: 700 1.2rem/1 var(--lubec-condensed);
+  font: 700 1.1rem/1 var(--lubec-condensed);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .shell-root[data-theme="lubec"] .phone-nav-toggle,
 .shell-root[data-theme="lubec"] .side-drawer-close {
-  background: var(--lubec-ink);
+  background: transparent;
   color: var(--lubec-cream);
-  border: 2px solid rgba(242, 234, 215, 0.55);
+  border: 1px solid rgba(242, 234, 215, 0.3);
   border-radius: 0;
 }
 
 .shell-root[data-theme="lubec"] .phone-nav-toggle:hover,
 .shell-root[data-theme="lubec"] .side-drawer-close:hover {
-  background: var(--lubec-blue);
+  background: rgba(242, 234, 215, 0.08);
 }
 
 .shell-root[data-theme="lubec"] .side-drawer::backdrop {
