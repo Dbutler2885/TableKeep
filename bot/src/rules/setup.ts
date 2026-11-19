@@ -1,24 +1,20 @@
 /**
  * Whether the bot answers rules questions, decided once as it starts.
  *
- * It needs the rules document and two keys. Without any of them it says why
- * and goes on recording without answering: rules answers are never a reason
- * for the bot not to start.
+ * It needs the rules of at least one rule set and two keys. Without them it
+ * says why and goes on recording without answering: rules answers are never a
+ * reason for the bot not to start. Rules that cannot be read leave only their
+ * own rule set's sessions unanswered.
  */
-import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { openAiRulesAnswerer } from './answer.ts'
+import { readRulesBook, RULES_BOOKS, type RuleSet, type RulesBook } from './books.ts'
 import { typesafeJev } from './jev.ts'
-import type { Log, RulesAnswering } from './watcher.ts'
-
-/**
- * Where the rules document is, from the repository root. The bot's image
- * keeps it at the same place under /app, so this one path serves both.
- */
-export const RULES_DOCUMENT = 'docs/lubec/rules.md'
+import type { Log, RulesAnswering, SessionRules } from './watcher.ts'
 
 export type RulesSetup = {
-  /** Where the rules document is. */
-  rulesPath: string
+  /** The repository root, or /app in the bot's image, which the rules' files are named from. */
+  root: string
   /** Where secrets are looked for first. */
   env: Record<string, string | undefined>
   /** Whether a secret missing from `env` is read from the project instead. */
@@ -26,6 +22,10 @@ export type RulesSetup = {
   /** Reads a secret from the project. */
   projectSecret: (name: string) => Promise<string>
   log: Log
+  /** The rules of each rule set. */
+  books?: Partial<Record<RuleSet, RulesBook>>
+  /** How the model services are called. */
+  fetch?: typeof globalThis.fetch
 }
 
 /** A secret the bot can do without. One that is missing or cannot be read is empty. */
@@ -38,18 +38,25 @@ async function optionalSecret(setup: RulesSetup, name: string): Promise<string> 
   }
 }
 
-/** Answering rules questions, if the bot has the rules document and the keys it needs. */
-export async function rulesAnswering(setup: RulesSetup): Promise<RulesAnswering | undefined> {
-  const { rulesPath, log } = setup
-  let rulesDocument: string
-  try {
-    rulesDocument = readFileSync(rulesPath, 'utf8')
-  } catch {
-    log('rules answers off', { reason: `there is no rules document at ${rulesPath}` })
-    return undefined
+/** The rules documents that can be read, by rule set. Each one that cannot is logged with why. */
+function readRules(setup: RulesSetup): Map<RuleSet, { book: RulesBook; document: string }> {
+  const documents = new Map<RuleSet, { book: RulesBook; document: string }>()
+  for (const [ruleSet, book] of Object.entries(setup.books ?? RULES_BOOKS) as [RuleSet, RulesBook][]) {
+    try {
+      documents.set(ruleSet, { book, document: readRulesBook(setup.root, book) })
+    } catch (error) {
+      setup.log('rules unavailable', { ruleSet, reason: (error as Error).message })
+    }
   }
-  if (!rulesDocument.trim()) {
-    log('rules answers off', { reason: `the rules document at ${rulesPath} is empty` })
+  return documents
+}
+
+/** Answering rules questions, if the bot has rules to answer from and the keys it needs. */
+export async function rulesAnswering(setup: RulesSetup): Promise<RulesAnswering | undefined> {
+  const { log, fetch } = setup
+  const documents = readRules(setup)
+  if (documents.size === 0) {
+    log('rules answers off', { reason: 'there are no rules to answer from' })
     return undefined
   }
   const [typesafeKey, openAiKey] = await Promise.all([optionalSecret(setup, 'TYPESAFE_API_KEY'), optionalSecret(setup, 'OPENAI_API_KEY')])
@@ -58,10 +65,12 @@ export async function rulesAnswering(setup: RulesSetup): Promise<RulesAnswering 
     log('rules answers off', { reason: `${missing.join(' and ')} not set` })
     return undefined
   }
-  log('rules answers on', { rulesDocument: rulesPath, characters: rulesDocument.length })
-  return {
-    askJev: typesafeJev({ apiKey: typesafeKey }),
-    answer: openAiRulesAnswerer({ apiKey: openAiKey, rulesDocument }),
-    log,
+  const byRuleSet: Partial<Record<RuleSet, SessionRules>> = {}
+  const on: Record<string, { rulesDocument: string; characters: number }> = {}
+  for (const [ruleSet, { book, document }] of documents) {
+    byRuleSet[ruleSet] = { citedAs: book.citedAs, answer: openAiRulesAnswerer({ apiKey: openAiKey, rulesDocument: document, fetch }) }
+    on[ruleSet] = { rulesDocument: path.join(setup.root, book.file), characters: document.length }
   }
+  log('rules answers on', on)
+  return { askJev: typesafeJev({ apiKey: typesafeKey, fetch }), byRuleSet, log }
 }

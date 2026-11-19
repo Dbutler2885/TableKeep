@@ -24,8 +24,12 @@ RUN apt-get update \
 COPY bot/src ./src
 COPY bot/assets ./assets
 COPY functions/src/firestorePaths.ts /app/functions/src/firestorePaths.ts
-# The rules document the bot answers rules questions from, where src/main.ts looks for it.
+COPY functions/src/characterSchemaVersions.ts /app/functions/src/characterSchemaVersions.ts
+# The rules the bot answers rules questions from, where src/rules/books.ts names them.
+# The Classic Fantasy rules are Open Game Content and always travel with their license.
 COPY docs/lubec/rules.md /app/docs/lubec/rules.md
+COPY docs/rules/ose-classic/corpus.json /app/docs/rules/ose-classic/corpus.json
+COPY docs/rules/ose-classic/OGL.txt /app/docs/rules/ose-classic/OGL.txt
 
 # The journal lives on a disk that outlives the container.
 ENV JOURNAL_DIR=/data/journals
