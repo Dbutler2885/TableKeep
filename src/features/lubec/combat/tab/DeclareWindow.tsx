@@ -74,10 +74,12 @@ function fullPool(body: BodyProps, reading: AttackReading | null): AttackReading
   return { handle, skill: null, total: handle, ranged: false }
 }
 
-function DeclareAsk({ words, reading }: { words: string; reading: AttackReading }) {
+/** The ask, the Full Defense switch and the pool's sum on one line, so the bar stays on the same screen as the choices. */
+function DeclareAsk({ words, reading, check }: { words: string; reading: AttackReading; check: ReactNode }) {
   return (
     <div className="ask-row">
       <p className="ask">{words}</p>
+      {check}
       <span className="effective"><span className="sum">{attackSum(reading, null)} <b>{reading.total}</b></span></span>
     </div>
   )
@@ -114,8 +116,7 @@ function FullDefense({ body, model, run, onFull, against, onAgainst }: FullProps
   const declare = <SegmentRoll at={Math.max(8, Math.min(92, reading.total / 2))} label="Declare Full Defense" disabled={run.busy} onRoll={() => run.run(() => body.commands.declare(body.declarer.key, pick))} />
   return (
     <>
-      <DeclareAsk words="Full Defense: put all of your Handle on Defense." reading={reading} />
-      <FullCheck full onFull={onFull} />
+      <DeclareAsk words="Put all of your Handle on Defense." reading={reading} check={<FullCheck full onFull={onFull} />} />
       <FullDefenseBar total={reading.total} controls={declare} />
       <DefenseLineSelect against={against} opponents={model.opponents} onAgainst={onAgainst} />
     </>
@@ -129,8 +130,7 @@ function Split({ body, draft, setDraft, model, run, onFull }: PartProps) {
   const declare = <SegmentRoll at={segmentMiddle(segments.attackFrom, segments.attackWidth)} label="Declare" disabled={run.busy} onRoll={() => run.run(() => body.commands.declare(body.declarer.key, { full: false, aim: model.aim! }))} />
   return (
     <>
-      <DeclareAsk words={`Split your Handle against ${lubecCombatantFace(target).name}.`} reading={reading} />
-      <FullCheck full={false} onFull={onFull} />
+      <DeclareAsk words={`Split your Handle against ${lubecCombatantFace(target).name}.`} reading={reading} check={<FullCheck full={false} onFull={onFull} />} />
       <AttackBar segments={segments} onDefense={(amount) => setDraft(withDefense(draft, amount, reading.total, draft.targetKey!))} controls={declare} />
       <AttackDefenseLine draft={draft} segments={segments} opponents={model.opponents} total={reading.total} onDraft={setDraft} />
     </>
@@ -165,7 +165,7 @@ function DeclareBody(body: BodyProps) {
       {declarer.declarationRejected ? <div className="notice hot" role="status"><span>The GM rejected your declaration. Choose again.</span></div> : null}
       <CombatRefusal refusal={run.refusal} />
       {evading ? <div className="notice cool" role="status"><span><b>{declarer.name} moved evasively.</b> No attack this round: declare Full Defense against one person.</span></div> : null}
-      <div className="declaration-actor"><small>Declaring now</small><strong>{declarer.name}</strong><span className="declaration-stage">Round {state.round} · <span>Stage 2, Declare</span></span></div>
+      <div className="declaration-actor"><small>Declaring now</small><strong>{declarer.name}</strong></div>
       <DeclareChoices body={body} draft={draft} setDraft={setDraft} model={model} full={full} />
       <ReachNotice reach={model.reach} full={full} />
       {full ? <FullDefense {...parts} against={guarded} onAgainst={setAgainst} /> : <Split {...parts} />}

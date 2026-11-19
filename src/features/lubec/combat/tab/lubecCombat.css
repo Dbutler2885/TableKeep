@@ -480,3 +480,27 @@
 .shell-root[data-theme="lubec"] .fighter-effects-modal .ability-section { grid-template-columns: minmax(0, 1fr); }
 .shell-root[data-theme="lubec"] .fighter-effects-modal .section-heading { display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 0 0 0.55rem; border-right: 0; border-bottom: 1px solid var(--lubec-line); text-align: left; }
 .shell-root[data-theme="lubec"] .fighter-effects-modal .section-heading h3 { margin: 0; }
+
+/* Declare fits one laptop screen with its split bar in view: compact target, weapon and attack cards, an armour box no taller than what it lists. */
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target.win-grid { gap: .6rem .9rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-heading { display: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .trow { min-height: 0; padding: .5rem .75rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-name { margin-bottom: .1rem; font-size: clamp(1.05rem, 1.4vw, 1.3rem); }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-armor { height: auto; max-height: 8rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .pick { min-height: 0; padding-bottom: .35rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .pick small { margin-top: .1rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .inventory-hint { display: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .mode { padding-top: .45rem; padding-bottom: .45rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .ask-row .fdcheck { margin: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .allocation-bar { height: 3rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target.win-grid > div > .label { display: flex; align-items: flex-end; min-height: 2rem; margin-bottom: .3rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target.win-grid > div:has(> .weapon-choice) { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: start; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target.win-grid > div:has(> .weapon-choice) > .label { grid-row: 1; grid-column: 1; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target.win-grid > div:has(> .weapon-choice) > .weapon-choice { grid-row: 1; grid-column: 2; align-self: start; margin: 0 0 .3rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target.win-grid > div:has(> .weapon-choice) > :not(.label, .weapon-choice) { grid-column: 1 / -1; }
+.shell-root[data-theme="lubec"] .lubec-combat:has(.focus-target) { padding-bottom: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat:has(.focus-target) .ct { row-gap: .5rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .declaration-actor { margin: .2rem 0 .5rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .declaration-actor ~ .ask-row .ask { font-size: 1.3rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .declaration-actor ~ .roll-controls { height: 2rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .declaration-actor ~ .defense-lines { margin-top: .3rem; }

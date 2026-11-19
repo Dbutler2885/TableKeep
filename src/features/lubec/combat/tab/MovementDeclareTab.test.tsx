@@ -323,8 +323,8 @@ describe('Declare', () => {
   it('opens the attack window with Declare where Roll sits, and sends the split', async () => {
     show('player', 'wayne-uid', fightAfter(...declaring()))
     expect(screen.getByRole('region', { name: 'Declare' })).toBeTruthy()
-    expect(screen.getByText('Stage 2, Declare')).toBeTruthy()
-    expect(screen.getByText('Split your Handle against Roy Carver.')).toBeTruthy()
+    expect(screen.queryByText('Stage 2, Declare')).toBeNull()
+    expect(screen.getByText('Split your Handle against Roy Carver.').closest('.ask-row')!.querySelector('.fdcheck')).toBeTruthy()
     expect(screen.queryByText(/Submit your choice for GM approval/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Add a Defense line' }))
     fireEvent.click(button('Declare'))
@@ -335,7 +335,7 @@ describe('Declare', () => {
   it('declares Full Defense: no attack, the whole pool on one named line with its +10 on the bar', async () => {
     show('player', 'wayne-uid', fightAfter(...declaring()))
     fireEvent.click(screen.getByRole('checkbox', { name: 'Full Defense' }))
-    expect(screen.getByText('Full Defense: put all of your Handle on Defense.')).toBeTruthy()
+    expect(screen.getByText('Put all of your Handle on Defense.')).toBeTruthy()
     expect(screen.getByText('+10')).toBeTruthy()
     expect(document.querySelector('.dim')).toBeTruthy()
     fireEvent.click(button('Declare Full Defense'))
