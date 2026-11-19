@@ -586,6 +586,86 @@ test('a bot that restarts mid-session rejoins the channel, says so, and carries 
   assert.equal((await db.collection(sessionPath(location, 'gaps')).get()).size, 1)
 })
 
+test("a session picked up after a restart is answered from its campaign's rules again", async () => {
+  await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}`).update({ system: 'lubec' })
+  const logged: string[] = []
+  const rulesFor = (citedAs: string) => ({
+    citedAs,
+    answer: async () => ({ kind: 'answered' as const, question: 'who goes first?', askedBy: 'Peter', answer: 'Everyone rolls Speed.', section: 'Initiative' }),
+  })
+  const rules: RulesAnswering = {
+    askJev: async () => 0.95,
+    byRuleSet: { lubec: rulesFor('the rules document'), ose: rulesFor('the pre-2026 Classic Fantasy rules') },
+    log: (message) => logged.push(message),
+  }
+  // A session started without rules answering, by a bot that then dies.
+  await started(await runner.join(asJem))
+  clock += 30_000
+  runner = newRunner(rules)
+  const [recovered] = await recoverSessions(recorderOptions, clock)
+  assert.equal(await runner.adopt((recovered as Extract<typeof recovered, { outcome: 'resumed' }>).recorder), 'resumed')
+
+  speak(PETER.id, 1)
+  await new Promise((resolve) => setImmediate(resolve))
+  pass(5_000)
+  await until(async () => board.messages.some((message) => message.text.startsWith('**Rules answer**')))
+  assert.equal((await runner.stop(asJem)).status, 'saved')
+
+  assert.deepEqual(
+    board.messages.map((message) => message.text).filter((text) => text.startsWith('**Rules answer**')),
+    ['**Rules answer** - Peter asked: "who goes first?"\nEveryone rolls Speed.\n-# From the rules document: Initiative'],
+  )
+  assert.equal(logged[0], 'rules answers on for this session')
+})
+
+test("a session whose campaign's rule set cannot be read is recorded without rules answers, and says why in the log", async () => {
+  const unreadable = new (class extends FirestoreSessionStore {
+    override async ruleSet(): Promise<never> {
+      throw new Error('The database cannot be reached.')
+    }
+  })(db, bucket)
+  recorderOptions = { ...recorderOptions, store: unreadable }
+  const logged: { message: string; detail?: Record<string, unknown> }[] = []
+  let jevAsked = 0
+  runner = newRunner({
+    askJev: async () => {
+      jevAsked += 1
+      return 0.95
+    },
+    byRuleSet: { ose: { citedAs: 'the pre-2026 Classic Fantasy rules', answer: () => Promise.reject(new Error('not asked')) } },
+    log: (message, detail) => logged.push({ message, detail }),
+  })
+  const location = await started(await runner.join(asJem))
+  speak(PETER.id, 1)
+  pass(5_000)
+  assert.equal((await runner.stop(asJem)).status, 'saved')
+
+  assert.equal(jevAsked, 0)
+  assert.deepEqual(logged, [
+    {
+      message: 'rules answers off for this session',
+      detail: { sessionId: location.sessionId, reason: 'its rule set could not be read: Error: The database cannot be reached.' },
+    },
+  ])
+  assert.deepEqual((await store.transcript(location)).map((utterance) => utterance.speakerId), [PETER.id])
+})
+
+test('a session whose voice channel cannot be rejoined after a restart is stopped where the bot left it', async () => {
+  const location = await started(await runner.join(asJem))
+  speak(JEM.id, 1)
+
+  clock += 30_000
+  runner = newRunner()
+  voice.refuses = true
+  const [recovered] = await recoverSessions(recorderOptions, clock)
+  assert.equal(await runner.adopt((recovered as Extract<typeof recovered, { outcome: 'resumed' }>).recorder), 'stopped')
+
+  assert.equal(runner.recording.size, 0)
+  assert.equal((await session(location)).stopReason, 'the bot restarted and could not rejoin the voice channel')
+  assert.equal((await db.collection('discordServers').doc(SERVER).get()).data()!.activeSession, null)
+  assert.deepEqual((await store.transcript(location)).map((utterance) => utterance.speakerId), [JEM.id])
+})
+
 test('a runner given nowhere to post records just the same, on the real clock, and says nothing', async () => {
   runner = new SessionRunner({ voice, recorder: recorderOptions })
   const location = await started(await runner.join(asJem))

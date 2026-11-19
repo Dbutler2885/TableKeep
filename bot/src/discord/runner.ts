@@ -135,9 +135,7 @@ export class SessionRunner {
         },
         this.#recorderOptions,
       )
-      if (started.status === 'already-recording') return { status: 'already-recording' }
-      if (started.status === 'no-current-campaign') return { status: 'no-current-campaign' }
-      if (started.status === 'disk-full') return { status: 'disk-full' }
+      // Why it did not start is all the reply says: not which group or how much disk was free.
       if (started.status !== 'started') return { status: started.status }
 
       const { recorder, number } = started

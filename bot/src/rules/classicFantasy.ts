@@ -76,14 +76,25 @@ function isPage(value: unknown): value is Page {
   return isText(page?.title) && Array.isArray(page.sections) && page.sections.length > 0 && page.sections.every(isSection) && page.sections[0]!.level === 1
 }
 
+/** What a usable corpus must have, in the order it is checked, and what is said when it does not. */
+const CORPUS_CHECKS: { holds: (corpus: Partial<Corpus>) => boolean; problem: (corpus: Partial<Corpus>) => string }[] = [
+  { holds: (corpus) => Array.isArray(corpus.pages) && corpus.pages.length > 0, problem: () => 'The Classic Fantasy corpus has no pages.' },
+  {
+    holds: (corpus) => corpus.pages!.every(isPage),
+    problem: (corpus) => `Page ${corpus.pages!.findIndex((page) => !isPage(page)) + 1} of the Classic Fantasy corpus is not a page of sections.`,
+  },
+  {
+    holds: (corpus) => isText(corpus.source?.edition) && isText(corpus.source.revisionDate),
+    problem: () => 'The Classic Fantasy corpus does not say where it is from.',
+  },
+  { holds: (corpus) => isText(corpus.license?.notice), problem: () => 'The Classic Fantasy corpus carries no license notice.' },
+]
+
 /** The corpus read from its JSON, or why it cannot be used. */
 function readCorpus(json: string): Corpus {
-  const corpus = JSON.parse(json) as Partial<Corpus> | null
-  if (!Array.isArray(corpus?.pages) || corpus.pages.length === 0) throw new Error('The Classic Fantasy corpus has no pages.')
-  const broken = corpus.pages.findIndex((page) => !isPage(page))
-  if (broken >= 0) throw new Error(`Page ${broken + 1} of the Classic Fantasy corpus is not a page of sections.`)
-  if (!isText(corpus.source?.edition) || !isText(corpus.source.revisionDate)) throw new Error('The Classic Fantasy corpus does not say where it is from.')
-  if (!isText(corpus.license?.notice)) throw new Error('The Classic Fantasy corpus carries no license notice.')
+  const corpus = (JSON.parse(json) ?? {}) as Partial<Corpus>
+  const failed = CORPUS_CHECKS.find((check) => !check.holds(corpus))
+  if (failed) throw new Error(failed.problem(corpus))
   return corpus as Corpus
 }
 
