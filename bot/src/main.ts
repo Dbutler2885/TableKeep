@@ -5,9 +5,9 @@
  *
  * Needs DISCORD_BOT_TOKEN and DEEPGRAM_API_KEY, from the environment or, on
  * the server, from the project's secrets. With TYPESAFE_API_KEY and
- * OPENAI_API_KEY as well, and the rules document at RULES_DOCUMENT_PATH (the
- * repository's docs/lubec/rules.md unless set), it also answers rules
- * questions it hears; without any of them it records just the same.
+ * OPENAI_API_KEY as well, it also answers rules questions it hears, from the
+ * rules of each session's campaign's rule set (src/rules/books.ts); without
+ * them it records just the same.
  *
  * It writes to the emulators, and refuses to start without them. Only the
  * deployed bot writes to the real project, and it says so with
@@ -20,7 +20,7 @@ import { getFirestore } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { DiscordBot } from './discord/dysnomia.ts'
 import { SessionRunner } from './discord/runner.ts'
-import { RULES_DOCUMENT, rulesAnswering } from './rules/setup.ts'
+import { rulesAnswering } from './rules/setup.ts'
 import { recoverSessions } from './session/recover.ts'
 import type { RecorderOptions } from './session/recorder.ts'
 import { connectDeepgram } from './speech/deepgram.ts'
@@ -80,7 +80,8 @@ const discord = new DiscordBot({
   log,
 })
 const rules = await rulesAnswering({
-  rulesPath: process.env.RULES_DOCUMENT_PATH ?? path.join(here, '../..', RULES_DOCUMENT),
+  // The repository root, which the image reproduces under /app.
+  root: path.join(here, '../..'),
   env: process.env,
   live,
   projectSecret,

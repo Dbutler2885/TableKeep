@@ -6,8 +6,8 @@
  * someone finishes speaking, with every rules answer the bot has posted in
  * the session. When Jev is sure enough that someone has asked a new rules
  * question those answers do not cover and nobody has answered, that stretch
- * goes to the answering model with the rules document and the same answers,
- * and its answer is posted.
+ * goes to the answering model with the session's rules and the same answers,
+ * and its answer is posted, naming the rules it comes from.
  *
  * Every answer posted in the session is what keeps a question from being
  * answered twice, there and in any later look. There is no pause after a
@@ -20,6 +20,7 @@
  */
 import { rulesAnswerMessages } from '../discord/replies.ts'
 import type { AnswerRulesQuestion, RulesAnswer } from './answer.ts'
+import type { RuleSet } from './books.ts'
 import type { AskJev } from './jev.ts'
 import { SESSION_SAMPLE_RATE, TranscriptWindow, type PostedAnswer, type TranscriptLine } from './transcriptWindow.ts'
 
@@ -46,14 +47,23 @@ const DEFAULTS = {
   now: Date.now as () => number,
 }
 
+/** One rule set's rules, as a session is answered from them. */
+export type SessionRules = {
+  /** Answers from this rule set's rules. */
+  answer: AnswerRulesQuestion
+  /** How a posted answer names the rules it comes from. */
+  citedAs: string
+}
+
 /** What answering rules questions needs, shared by every session. */
 export type RulesAnswering = {
   askJev: AskJev
-  answer: AnswerRulesQuestion
+  /** The rules a session is answered from, by its campaign's rule set. A rule set without any is not answered. */
+  byRuleSet: Partial<Record<RuleSet, SessionRules>>
   log: Log
 } & Partial<typeof DEFAULTS>
 
-export type RulesWatcherOptions = RulesAnswering & {
+export type RulesWatcherOptions = Omit<RulesAnswering, 'byRuleSet'> & SessionRules & {
   /** When the session started, which its transcript's times count from. */
   sessionStartedAtMs: number
   /** Posts one message in the session's text channel, resolving once it is there. */
@@ -169,9 +179,9 @@ export class RulesWatcher {
 
   /** Posts an answer, in as many messages as it takes, and remembers it for the rest of the session. */
   async #post(reply: RulesAnswer, window: TranscriptLine[]): Promise<void> {
-    const { post, log, now } = this.#options
+    const { post, log, now, citedAs } = this.#options
     if (this.#stopped) return
-    const messages = rulesAnswerMessages(reply)
+    const messages = rulesAnswerMessages(reply, citedAs)
     if (messages.length === 0) {
       log('rules answer had no question to answer')
       return

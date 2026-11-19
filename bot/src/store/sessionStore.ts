@@ -28,6 +28,7 @@
 import { createHash } from 'node:crypto'
 import { FieldValue, type DocumentReference, type Firestore, type Transaction } from 'firebase-admin/firestore'
 import type { getStorage } from 'firebase-admin/storage'
+import { resolveCharacterRuleSet, type CharacterRuleSet } from '../../../functions/src/characterSchemaVersions.ts'
 import { campaignPath, groupMemberPath } from '../../../functions/src/firestorePaths.ts'
 import { segmentId, type Segment } from '../audio/segmenter.ts'
 import type { Utterance } from '../speech/transcriber.ts'
@@ -132,6 +133,8 @@ export interface SessionStore {
   sessionState(location: SessionLocation): Promise<SessionState | null>
   /** The names worth telling the speech service about: the campaign's characters and NPCs. */
   vocabulary(location: SessionLocation): Promise<string[]>
+  /** The rule set the session's campaign is played with: its `system`, resolved as the app resolves it. */
+  ruleSet(location: SessionLocation): Promise<CharacterRuleSet>
   /**
    * Publishes finished utterances and moves the speaker's checkpoint past
    * them, as one write. Publishing the same utterance twice leaves one; a
@@ -301,6 +304,11 @@ export class FirestoreSessionStore implements SessionStore {
       }),
     )
     return [...new Set(names.flat().filter(Boolean))].slice(0, MAX_VOCABULARY)
+  }
+
+  async ruleSet(location: SessionLocation): Promise<CharacterRuleSet> {
+    const campaign = await this.#db.doc(campaignPath(location.groupId, location.campaignId)).get()
+    return resolveCharacterRuleSet(campaign.data()?.system)
   }
 
   async publishUtterances(

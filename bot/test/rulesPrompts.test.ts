@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import { rulesAnswerMessages, splitMessages } from '../src/discord/replies.ts'
 import { answerRequest, openAiRulesAnswerer, readAnswer, RULES_ANSWER_MODEL } from '../src/rules/answer.ts'
 import { jevProbability, jevRequest, typesafeJev } from '../src/rules/jev.ts'
+import { renderClassicFantasyCorpus } from '../src/rules/classicFantasy.ts'
 import type { PostedAnswer, TranscriptLine } from '../src/rules/transcriptWindow.ts'
 
 const RULES = readFileSync(new URL('./fixtures/rules-stand-in.md', import.meta.url), 'utf8')
@@ -129,36 +130,58 @@ test('the call to OpenAI sends the request and reads the answer', async () => {
 test('the Discord message says it is the rules answer, what was asked, and where in the document it came from', () => {
   const base = { question: 'do I add strength to the attack roll?', askedBy: 'Peter', answer: 'Yes, add your Strength to hit.', section: 'Attacks' }
   assert.deepEqual(
-    rulesAnswerMessages({ kind: 'answered', ...base }),
+    rulesAnswerMessages({ kind: 'answered', ...base }, 'the rules document'),
     ['**Rules answer** - Peter asked: "do I add strength to the attack roll?"\nYes, add your Strength to hit.\n-# From the rules document: Attacks'],
   )
   assert.deepEqual(
-    rulesAnswerMessages({ kind: 'not_covered', ...base, answer: "The rules document doesn't cover that.", section: '' }),
+    rulesAnswerMessages({ kind: 'not_covered', ...base, answer: "The rules document doesn't cover that.", section: '' }, 'the rules document'),
     ['**Rules answer** - Peter asked: "do I add strength to the attack roll?"\nThe rules document doesn\'t cover that.\n-# Not covered by the rules document'],
   )
   assert.deepEqual(
-    rulesAnswerMessages({ kind: 'not_decided', ...base, answer: "That rule isn't decided yet.", section: 'Two weapons' }),
+    rulesAnswerMessages({ kind: 'not_decided', ...base, answer: "That rule isn't decided yet.", section: 'Two weapons' }, 'the rules document'),
     ['**Rules answer** - Peter asked: "do I add strength to the attack roll?"\nThat rule isn\'t decided yet.\n-# Not decided yet in the rules document (Two weapons)'],
   )
-  assert.deepEqual(rulesAnswerMessages({ kind: 'no_question', question: '', askedBy: '', answer: '', section: '' }), [])
-  assert.deepEqual(rulesAnswerMessages({ kind: 'answered', ...base, answer: '' }), [])
+  assert.deepEqual(rulesAnswerMessages({ kind: 'no_question', question: '', askedBy: '', answer: '', section: '' }, 'the rules document'), [])
+  assert.deepEqual(rulesAnswerMessages({ kind: 'answered', ...base, answer: '' }, 'the rules document'), [])
+})
+
+test('an answer from the Classic Fantasy rules says it is from their pre-2026 text, and names the section', () => {
+  const base = { question: 'who goes first?', askedBy: 'Peter', answer: 'Each side rolls **1d6**; the higher acts first.', section: 'Combat › Initiative' }
+  const rules = 'the pre-2026 Classic Fantasy rules'
+  assert.deepEqual(rulesAnswerMessages({ kind: 'answered', ...base }, rules), [
+    '**Rules answer** - Peter asked: "who goes first?"\nEach side rolls **1d6**; the higher acts first.\n-# From the pre-2026 Classic Fantasy rules: Combat › Initiative',
+  ])
+  assert.deepEqual(rulesAnswerMessages({ kind: 'not_covered', ...base, answer: 'The rules do not say what a spell does.', section: '' }, rules), [
+    '**Rules answer** - Peter asked: "who goes first?"\nThe rules do not say what a spell does.\n-# Not covered by the pre-2026 Classic Fantasy rules',
+  ])
+})
+
+test('the whole Classic Fantasy corpus goes to the answering model as the rules document, after the same instructions', () => {
+  const corpus = renderClassicFantasyCorpus(readFileSync(new URL('../../docs/rules/ose-classic/corpus.json', import.meta.url), 'utf8'))
+  const lubec = answerRequest(RULES, WINDOW, [])
+  const classic = answerRequest(corpus, WINDOW, [])
+  const guidance = lubec.instructions.slice(0, lubec.instructions.indexOf(RULES.trim()))
+  assert.equal(classic.instructions, `${guidance}${corpus.trim()}\n`)
+  assert.match(guidance, /Never guess beyond the document\. Do not fill a gap from other games, editions or general knowledge\./)
+  assert.match(guidance, /set "kind" to "not_covered"/)
+  assert.equal(classic.input, lubec.input)
 })
 
 test('a rules answer that leaves out who asked, what, or the section still reads plainly', () => {
   const answer = 'Yes, add your Strength to hit.'
   assert.deepEqual(
-    rulesAnswerMessages({ kind: 'answered', question: 'strength to hit?', askedBy: '', answer, section: '' }),
+    rulesAnswerMessages({ kind: 'answered', question: 'strength to hit?', askedBy: '', answer, section: '' }, 'the rules document'),
     ['**Rules answer** - asked: "strength to hit?"\nYes, add your Strength to hit.\n-# From the rules document'],
   )
   assert.deepEqual(
-    rulesAnswerMessages({ kind: 'not_decided', question: '', askedBy: 'Peter', answer, section: '' }),
+    rulesAnswerMessages({ kind: 'not_decided', question: '', askedBy: 'Peter', answer, section: '' }, 'the rules document'),
     ['**Rules answer**\nYes, add your Strength to hit.\n-# Not decided yet in the rules document'],
   )
 })
 
 test('an answer keeps its own lines, steps and markdown', () => {
   const answer = '1. Everyone rolls **Speed**.\n2. Move the tens digit in units.\n\nExample: 30 meters on 4 units.'
-  assert.deepEqual(rulesAnswerMessages({ kind: 'answered', question: 'race?', askedBy: 'DLB', answer, section: 'Racing' }), [
+  assert.deepEqual(rulesAnswerMessages({ kind: 'answered', question: 'race?', askedBy: 'DLB', answer, section: 'Racing' }, 'the rules document'), [
     `**Rules answer** - DLB asked: "race?"\n${answer}\n-# From the rules document: Racing`,
   ])
 })

@@ -5,8 +5,11 @@
  * as they stand at that moment, never against what was true earlier. Once a
  * session has started, its group and campaign are fixed: unlinking the server
  * or changing the current campaign does not move it.
+ *
+ * Rules questions are answered from the rules of the session's campaign's
+ * rule set, looked up as the session starts or is picked up after a restart.
  */
-import { RulesWatcher, type RulesAnswering } from '../rules/watcher.ts'
+import { RulesWatcher, type RulesAnswering, type SessionRules } from '../rules/watcher.ts'
 import type { FinaliseResult } from '../session/finalise.ts'
 import { SessionRecorder, type RecorderOptions } from '../session/recorder.ts'
 import type { CommandAccess, SessionLocation } from '../store/sessionStore.ts'
@@ -140,6 +143,8 @@ export class SessionRunner {
       const { recorder, number } = started
       recorder.onAlarm = (alarm) => this.#alarm(caller.serverId, alarm.kind)
       this.#owned.add(recorder.location.sessionId)
+      // Looked up while the voice channel is joined. It never fails: without rules, none are answered.
+      const rules = this.#sessionRules(recorder.location, caller.textChannelId)
       let link: VoiceLink
       try {
         link = await this.#voice.join(caller.serverId, caller.voiceChannelId)
@@ -150,6 +155,7 @@ export class SessionRunner {
       const running = this.#attach(caller.serverId, recorder, link, number, caller.textChannelId)
       link.announce()
       await this.#postStatus(running)
+      this.#listenForRules(caller.serverId, running, await rules)
       return { status: 'started', number, location: recorder.location }
     } finally {
       this.#starting.delete(caller.serverId)
@@ -208,6 +214,7 @@ export class SessionRunner {
     const running = this.#attach(origin.discordServerId, recorder, link, origin.number, origin.discordTextChannelId)
     await this.#say(running, restartedMessage(origin.number))
     await this.#postStatus(running)
+    this.#listenForRules(origin.discordServerId, running, await this.#sessionRules(recorder.location, origin.discordTextChannelId))
     return 'resumed'
   }
 
@@ -231,6 +238,30 @@ export class SessionRunner {
         const { textChannelId, statusMessageId } = running
         void this.#messages?.edit(textChannelId!, statusMessageId, this.#status(running, nowMs)).catch(() => undefined)
       }
+    }
+  }
+
+  /**
+   * The rules a session is answered from: those of its campaign's rule set.
+   * None when the bot answers no rules questions, has nowhere to post an
+   * answer, has no rules for that rule set, or cannot tell which it is.
+   */
+  async #sessionRules(location: SessionLocation, textChannelId: string | null): Promise<SessionRules | null> {
+    const answering = this.#rules
+    if (!answering || !this.#messages || !textChannelId) return null
+    const { sessionId } = location
+    try {
+      const ruleSet = await this.#recorderOptions.store.ruleSet(location)
+      const rules = answering.byRuleSet[ruleSet]
+      if (!rules) {
+        answering.log('rules answers off for this session', { sessionId, ruleSet, reason: `there are no rules for ${ruleSet}` })
+        return null
+      }
+      answering.log('rules answers on for this session', { sessionId, ruleSet })
+      return rules
+    } catch (error) {
+      answering.log('rules answers off for this session', { sessionId, reason: `its rule set could not be read: ${String(error)}` })
+      return null
     }
   }
 
@@ -280,6 +311,33 @@ export class SessionRunner {
     return statusMessage({ number: running.number, elapsedSeconds, speakers, ended })
   }
 
+  /**
+   * Listens to a running session for rules questions, answered from its
+   * rules. The session is already being recorded: it is wired to its voice
+   * channel first, so that no packet waits on the rules being looked up.
+   */
+  #listenForRules(serverId: string, running: Running, sessionRules: SessionRules | null): void {
+    // Not if there are no rules, or the session ended while they were looked up.
+    if (!this.#rules || !sessionRules || this.#running.get(serverId) !== running) return
+    const rules = new RulesWatcher({
+      ...this.#rules,
+      ...sessionRules,
+      sessionStartedAtMs: running.recorder.startedAtMs,
+      post: (text) => this.#say(running, text),
+    })
+    running.rules = rules
+    // Each line is put under the name the table knows its speaker by.
+    running.recorder.onUtterances = (utterances) =>
+      rules.heard(
+        utterances.map((utterance) => ({
+          speaker: running.speakers.get(utterance.speakerId)?.name ?? 'Someone',
+          startSamples: utterance.startSamples,
+          endSamples: utterance.endSamples,
+          text: utterance.text,
+        })),
+      )
+  }
+
   /** Wires a voice channel to a recorder, and records who is in it. */
   #attach(serverId: string, recorder: SessionRecorder, link: VoiceLink, number: number, textChannelId: string | null): Running {
     const nowMs = this.#now()
@@ -299,24 +357,6 @@ export class SessionRunner {
       rules: null,
     }
     this.#running.set(serverId, running)
-    if (this.#rules && this.#messages && textChannelId) {
-      const rules = new RulesWatcher({
-        ...this.#rules,
-        sessionStartedAtMs: recorder.startedAtMs,
-        post: (text) => this.#say(running, text),
-      })
-      running.rules = rules
-      // Each line is put under the name the table knows its speaker by.
-      recorder.onUtterances = (utterances) =>
-        rules.heard(
-          utterances.map((utterance) => ({
-            speaker: running.speakers.get(utterance.speakerId)?.name ?? 'Someone',
-            startSamples: utterance.startSamples,
-            endSamples: utterance.endSamples,
-            text: utterance.text,
-          })),
-        )
-    }
     const { store } = this.#recorderOptions
     const bots = new Set<string>()
 

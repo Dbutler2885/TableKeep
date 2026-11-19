@@ -128,12 +128,12 @@ function askedPart(reply: RulesAnswer): string {
   return ` - ${who}: "${clip(reply.question, 300)}"`
 }
 
-/** Where the answer comes from in the rules document. */
-function sourceLine(reply: RulesAnswer): string {
+/** Which rules the answer comes from, and where in them. */
+function sourceLine(reply: RulesAnswer, citedAs: string): string {
   const section = reply.section ? clip(reply.section, 120) : ''
-  if (reply.kind === 'not_covered') return 'Not covered by the rules document'
-  if (reply.kind === 'not_decided') return `Not decided yet in the rules document${section ? ` (${section})` : ''}`
-  return `From the rules document${section ? `: ${section}` : ''}`
+  if (reply.kind === 'not_covered') return `Not covered by ${citedAs}`
+  if (reply.kind === 'not_decided') return `Not decided yet in ${citedAs}${section ? ` (${section})` : ''}`
+  return `From ${citedAs}${section ? `: ${section}` : ''}`
 }
 
 /** A line too long for one message, cut between words where it can be. */
@@ -170,10 +170,11 @@ export function splitMessages(text: string, max = MAX_MESSAGE_CHARS): string[] {
 /**
  * The bot's answer to a rules question it heard, as the messages to post, or
  * none when the model found no question to answer. It says it is the bot's
- * answer from the rules document, which question it answers, and where in the
- * document it looked. A long answer is posted in parts, in order.
+ * answer, which question it answers, which rules it comes from (`citedAs`,
+ * such as "the rules document") and where in them it looked. A long answer is
+ * posted in parts, in order.
  */
-export function rulesAnswerMessages(reply: RulesAnswer): string[] {
+export function rulesAnswerMessages(reply: RulesAnswer, citedAs: string): string[] {
   if (reply.kind === 'no_question' || !reply.answer) return []
-  return splitMessages([`**Rules answer**${askedPart(reply)}`, reply.answer.trim(), `-# ${sourceLine(reply)}`].join('\n'))
+  return splitMessages([`**Rules answer**${askedPart(reply)}`, reply.answer.trim(), `-# ${sourceLine(reply, citedAs)}`].join('\n'))
 }

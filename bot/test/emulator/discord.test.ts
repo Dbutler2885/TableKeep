@@ -13,10 +13,15 @@ import { getFirestore, type Firestore } from 'firebase-admin/firestore'
 import { getStorage } from 'firebase-admin/storage'
 import { joinReply, noteReply, stopReply } from '../../src/discord/replies.ts'
 import { SessionRunner, type CommandCaller, type JoinReply } from '../../src/discord/runner.ts'
+import { OPENAI_RESPONSES_URL } from '../../src/rules/answer.ts'
+import { renderClassicFantasyCorpus } from '../../src/rules/classicFantasy.ts'
+import { JEV_URL } from '../../src/rules/jev.ts'
+import { rulesAnswering } from '../../src/rules/setup.ts'
 import type { TranscriptLine } from '../../src/rules/transcriptWindow.ts'
 import type { RulesAnswering } from '../../src/rules/watcher.ts'
 import { FirestoreSessionStore, sessionPath, type SessionLocation } from '../../src/store/sessionStore.ts'
 import { recoverSessions } from '../../src/session/recover.ts'
+import { readFileSync } from 'node:fs'
 import type { RecorderOptions } from '../../src/session/recorder.ts'
 import { scriptedSpeech, type ScriptedSpeech } from '../helpers/speech.ts'
 import { Voice, Wire } from '../helpers/synth.ts'
@@ -330,6 +335,7 @@ test('an ordinary session leaves two messages in the channel: how it went, and t
 })
 
 test('a rules question heard at the table is answered in the channel while the session records, and never after it ends', async () => {
+  await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}`).update({ system: 'lubec' })
   const windows: (readonly TranscriptLine[])[] = []
   const postedQuestions: string[][] = []
   const failures: string[] = []
@@ -340,7 +346,12 @@ test('a rules question heard at the table is answered in the channel while the s
       if (windows.length === 1) throw new Error('TypeSafe answered 503')
       return windows.length === 2 ? 0.95 : 0.05
     },
-    answer: async () => ({ kind: 'answered', question: 'do I add strength?', askedBy: 'mapman', answer: 'Yes, to hit and to damage.', section: 'Attacks' }),
+    byRuleSet: {
+      lubec: {
+        citedAs: 'the rules document',
+        answer: async () => ({ kind: 'answered', question: 'do I add strength?', askedBy: 'mapman', answer: 'Yes, to hit and to damage.', section: 'Attacks' }),
+      },
+    },
     log: (message) => failures.push(message),
   })
   const location = await started(await runner.join(asJem))
@@ -374,7 +385,14 @@ test('a rules question heard at the table is answered in the channel while the s
       'Session 1 is saved.',
     ],
   )
-  assert.deepEqual(failures, ['rules check failed', 'rules checks working again', 'rules question heard', 'rules answer written', 'rules answer posted'])
+  assert.deepEqual(failures, [
+    'rules answers on for this session',
+    'rules check failed',
+    'rules checks working again',
+    'rules question heard',
+    'rules answer written',
+    'rules answer posted',
+  ])
 
   // The next session starts with none of the last one's answers, so the same question can be answered again.
   await started(await runner.join(asJem))
@@ -382,6 +400,88 @@ test('a rules question heard at the table is answered in the channel while the s
   await looked()
   assert.deepEqual(postedQuestions.at(-1), [])
   assert.equal((await runner.stop(asJem)).status, 'saved')
+})
+
+test("each session is answered from its campaign's rules: the Classic Fantasy corpus for OSE, the Lubec rules for Lubec, none for a rule set without rules", async () => {
+  const root = new URL('../../..', import.meta.url).pathname
+  const classicFantasy = renderClassicFantasyCorpus(readFileSync(`${root}/docs/rules/ose-classic/corpus.json`, 'utf8'))
+  const lubec = readFileSync(`${root}/docs/lubec/rules.md`, 'utf8').trim()
+  // The real setup, reading the repository's rules, with both model services stood in for.
+  const jevAsked: unknown[] = []
+  const instructions: string[] = []
+  let answeredThisSession = false
+  const request = (async (url: string, init: RequestInit) => {
+    const body = JSON.parse(String(init.body)) as { instructions: string }
+    if (url === JEV_URL) {
+      jevAsked.push(body)
+      return Response.json({ answers: { rules_question: { noul: answeredThisSession ? 0.05 : 0.95 } } })
+    }
+    assert.equal(url, OPENAI_RESPONSES_URL)
+    instructions.push(body.instructions)
+    answeredThisSession = true
+    const fromClassicFantasy = body.instructions.includes('# Classic Fantasy rules (pre-2026 text)')
+    const answer = fromClassicFantasy
+      ? { kind: 'answered', question: 'who goes first?', asked_by: 'Peter', answer: 'Each side rolls **1d6**.', section: 'Combat › Initiative' }
+      : { kind: 'answered', question: 'who goes first?', asked_by: 'Peter', answer: 'Everyone rolls Speed.', section: 'Initiative' }
+    return Response.json({ output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(answer) }] }] })
+  }) as unknown as typeof fetch
+  const logged: { message: string; detail?: Record<string, unknown> }[] = []
+  const rules = await rulesAnswering({
+    root,
+    env: { TYPESAFE_API_KEY: 'ts-key', OPENAI_API_KEY: 'sk-key' },
+    live: false,
+    projectSecret: () => Promise.reject(new Error('not in a test')),
+    log: (message, detail) => logged.push({ message, detail }),
+    fetch: request,
+  })
+  runner = newRunner(rules)
+  const rulesAnswers = () => board.messages.map((message) => message.text).filter((text) => text.startsWith('**Rules answer**'))
+
+  /** One session of the campaign as it is now, in which Peter asks a question. */
+  async function playSession(expectAnswer: boolean) {
+    answeredThisSession = false
+    const before = rulesAnswers().length
+    await started(await runner.join(asJem))
+    speak(PETER.id, 1)
+    await new Promise((resolve) => setImmediate(resolve))
+    pass(5_000)
+    if (expectAnswer) await until(async () => rulesAnswers().length > before)
+    assert.equal((await runner.stop(asJem)).status, 'saved')
+  }
+
+  // A campaign from before rule sets has no system, and is played with OSE, as the app reads it.
+  await playSession(true)
+  assert.equal(instructions.length, 1)
+  assert.ok(instructions[0]!.endsWith(`${classicFantasy.trim()}\n`), 'an OSE session is answered from the whole Classic Fantasy corpus')
+  assert.ok(!instructions[0]!.includes(lubec))
+
+  await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}`).update({ system: 'lubec' })
+  await playSession(true)
+  assert.equal(instructions.length, 2)
+  assert.ok(instructions[1]!.endsWith(`${lubec}\n`), 'a Lubec session is still answered from the Lubec rules')
+  assert.ok(!instructions[1]!.includes('Classic Fantasy'))
+
+  assert.deepEqual(rulesAnswers(), [
+    '**Rules answer** - Peter asked: "who goes first?"\nEach side rolls **1d6**.\n-# From the pre-2026 Classic Fantasy rules: Combat › Initiative',
+    '**Rules answer** - Peter asked: "who goes first?"\nEveryone rolls Speed.\n-# From the rules document: Initiative',
+  ])
+
+  // A rule set with no rules is not listened to at all, and the session records just the same.
+  await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}`).update({ system: 'vtm' })
+  const jevAskedBefore = jevAsked.length
+  await playSession(false)
+  assert.equal(jevAsked.length, jevAskedBefore, 'nothing from a VTM session is put to Jev')
+  assert.equal(instructions.length, 2)
+  assert.equal(rulesAnswers().length, 2)
+  assert.deepEqual(
+    logged.filter((entry) => entry.message.endsWith('for this session')).map((entry) => [entry.message, entry.detail?.ruleSet, entry.detail?.reason]),
+    [
+      ['rules answers on for this session', 'ose', undefined],
+      ['rules answers on for this session', 'lubec', undefined],
+      ['rules answers off for this session', 'vtm', 'there are no rules for vtm'],
+    ],
+  )
+  assert.equal((await sessions()).length, 3)
 })
 
 test('/note marks the moment the command arrived, with who wrote it', async () => {

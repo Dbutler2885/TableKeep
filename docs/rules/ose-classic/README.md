@@ -54,4 +54,10 @@ The rendered corpus is close to the existing Lubec rules document, which measure
 A whole-corpus prompt is practical as a benchmark for a session using a single system.
 Use rendered Markdown for that benchmark because the formatted JSON alone takes about 86,900 tokens.
 The ~38,700-token rules prefix sits alongside Jev's transcript and previous answers.
-Benchmark cold and warm response times, cost, and accuracy on questions that span multiple sections before choosing a search strategy.
+
+## Use in the session bot
+
+The session bot answers rules questions in OSE sessions from the whole corpus, with no search.
+`bot/src/rules/classicFantasy.ts` renders it as one Markdown document that opens by saying it is the pre-2026 text and what it leaves out.
+Each section heading names its page and parent sections, such as "Combat › Initiative", so an answer can cite one section.
+The bot's image carries `OGL.txt` beside `corpus.json`, and any other copy of the corpus must carry it too.

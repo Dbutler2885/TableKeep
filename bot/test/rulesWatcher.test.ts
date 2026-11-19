@@ -27,7 +27,7 @@ const NO_QUESTION: RulesAnswer = { kind: 'no_question', question: '', askedBy: '
  * A watcher with a stand-in Jev and answering model, and a clock the test moves.
  * The answering model gives `answers` in turn, then the shield answer.
  */
-function setUp(options: { probabilities?: number[]; answers?: (RulesAnswer | Error)[]; jevFails?: boolean } = {}) {
+function setUp(options: { probabilities?: number[]; answers?: (RulesAnswer | Error)[]; jevFails?: boolean; citedAs?: string } = {}) {
   const asked: string[][] = []
   const answered: string[][] = []
   /** The questions of the session's posted answers that Jev, and the answering model, were shown each time. */
@@ -40,6 +40,7 @@ function setUp(options: { probabilities?: number[]; answers?: (RulesAnswer | Err
   const jev = { failing: options.jevFails ?? false }
   const watcher = new RulesWatcher({
     sessionStartedAtMs: START,
+    citedAs: options.citedAs ?? 'the rules document',
     askJev: async (window, posted) => {
       asked.push(window.map((line) => line.text))
       jevPosted.push(posted.map((answer) => answer.question))
@@ -142,11 +143,29 @@ test('a flagged question is answered from the stretch Jev saw, and posted as the
   )
 })
 
+test('an answer names the rules the session is answered from', async () => {
+  const notCovered: RulesAnswer = { kind: 'not_covered', question: 'what does sleep do?', askedBy: 'Peter', answer: 'The rules do not cover what any spell does.', section: '' }
+  const { posted, say, pass } = setUp({
+    probabilities: [0.95, 0.95],
+    answers: [{ ...ANSWERED, section: 'Combat › Initiative' }, notCovered],
+    citedAs: 'the pre-2026 Classic Fantasy rules',
+  })
+  say('Peter', 'Who goes first?')
+  await pass(1_000)
+  say('Peter', 'And what does sleep do?')
+  await pass(1_000)
+  assert.deepEqual(posted, [
+    `**Rules answer** - Peter asked: "does a shield count against arrows?"\n${ANSWERED.answer}\n-# From the pre-2026 Classic Fantasy rules: Combat › Initiative`,
+    `**Rules answer** - Peter asked: "what does sleep do?"\n${notCovered.answer}\n-# Not covered by the pre-2026 Classic Fantasy rules`,
+  ])
+})
+
 test('how long each part took is logged, from the end of the question to the answer in the channel', async () => {
   let clock = START
   const logged: { message: string; detail?: Record<string, unknown> }[] = []
   const watcher = new RulesWatcher({
     sessionStartedAtMs: START,
+    citedAs: 'the rules document',
     now: () => clock,
     askJev: async () => {
       clock += 250
@@ -182,6 +201,7 @@ test('a long answer is posted in order, in as many messages as it takes', async 
   const long: RulesAnswer = { ...ANSWERED, answer: Array.from({ length: 60 }, (_, step) => `${step + 1}. ${'x'.repeat(60)}`).join('\n') }
   const watcher = new RulesWatcher({
     sessionStartedAtMs: START,
+    citedAs: 'the rules document',
     askJev: async () => 0.95,
     answer: async () => long,
     // A slow first post must not let the second overtake it.
@@ -223,6 +243,7 @@ test('there is no pause after a flag: the next line is looked at as soon as the 
   let clock = START
   const watcher = new RulesWatcher({
     sessionStartedAtMs: START,
+    citedAs: 'the rules document',
     askJev: async (window, posted) => {
       asked.push(window.map((line) => line.text))
       seen.push(posted.length)
@@ -335,6 +356,7 @@ test('an answer that arrives after the session has ended is not posted', async (
   const posted: string[] = []
   const watcher = new RulesWatcher({
     sessionStartedAtMs: START,
+    citedAs: 'the rules document',
     askJev: async () => 0.95,
     answer: () => new Promise((resolve) => (release = resolve)),
     post: async (text) => posted.push(text),

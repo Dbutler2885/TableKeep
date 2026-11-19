@@ -35,7 +35,8 @@ BUCKET="gs://$PROJECT.firebasestorage.app"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 ENV_FILE="$ROOT/bot/.env.live.local"
-RULES_DOCUMENT="docs/lubec/rules.md"
+# The rules the image carries, and the Classic Fantasy rules' license, which goes wherever they do.
+RULES_FILES=(docs/lubec/rules.md docs/rules/ose-classic/corpus.json docs/rules/ose-classic/OGL.txt)
 gc() { gcloud --project "$PROJECT" --quiet "$@"; }
 
 # Stores a secret from bot/.env.live.local and lets the bot read it.
@@ -108,8 +109,11 @@ setup() {
 }
 
 deploy() {
-  # The rules document is built into the image; without it the bot could not answer rules questions.
-  [[ -f "$ROOT/$RULES_DOCUMENT" ]] || { echo "There is no $RULES_DOCUMENT in this checkout. Deploy from a commit that has it." >&2; exit 1; }
+  # The rules are built into the image; without them the bot could not answer rules questions.
+  local file
+  for file in "${RULES_FILES[@]}"; do
+    [[ -f "$ROOT/$file" ]] || { echo "There is no $file in this checkout. Deploy from a commit that has it." >&2; exit 1; }
+  done
   if recording_now; then
     echo 'A session is being recorded right now. Deploying would interrupt it; try again when it has been stopped.' >&2
     exit 1
