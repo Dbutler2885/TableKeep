@@ -33,7 +33,7 @@ function RowBadge({ out, now }: { out: boolean; now: boolean }) {
   return now ? <span className="badge must">Now</span> : null
 }
 
-type RowProps = { state: CombatState; combatant: Combatant; place: number | null; userId: string; now: boolean; onOut?: (combatant: Combatant) => void; effects?: CombatEffectsAccess; onEffects: () => void }
+type RowProps = { state: CombatState; combatant: Combatant; place: number | null; userId: string; now: boolean; onOut?: (combatant: Combatant) => void; effects?: CombatEffectsAccess; onEffects: (effectId: string) => void }
 
 function ManageCombatant({ combatant, onOut }: Pick<RowProps, 'combatant' | 'onOut'>) {
   if (!onOut) return null
@@ -76,27 +76,29 @@ function ordered(state: CombatState): Ordered {
   return { title: 'Turn order', sub: 'as they roll', rows, note: false }
 }
 
-type OpenedProps = { state: CombatState; effects: CombatEffectsAccess | undefined; openKey: string | null; onClose: () => void }
+/** The card a player tapped, by its fighter and its id. */
+type OpenedEffect = { key: string; effectId: string }
+type OpenedProps = { state: CombatState; effects: CombatEffectsAccess | undefined; opened: OpenedEffect | null; onClose: () => void }
 
-/** The fighter whose effects are open, over the rail; nothing once they leave the fight or nothing is open. */
-function OpenedEffects({ state, effects, openKey, onClose }: OpenedProps) {
-  const opened = state.combatants.find((entry) => entry.key === openKey)
-  if (!opened || !effects) return null
-  return <FighterEffectsDialog key={opened.key} combatant={opened} access={effects} onClose={onClose} />
+/** The tapped card's fighter's effects over the rail, opened on that card; nothing once they leave the fight or nothing is open. */
+function OpenedEffects({ state, effects, opened, onClose }: OpenedProps) {
+  const combatant = state.combatants.find((entry) => entry.key === opened?.key)
+  if (!combatant || !effects) return null
+  return <FighterEffectsDialog key={`${combatant.key}:${opened!.effectId}`} combatant={combatant} access={effects} effectId={opened!.effectId} onClose={onClose} />
 }
 
 /** The left rail: everyone in the fight, then the turn order as it builds and once it is set. */
 export function TurnOrderPanel({ state, userId, onOut, effects }: { state: CombatState; userId: string; onOut?: (combatant: Combatant) => void; effects?: CombatEffectsAccess }) {
   const [managing, setManaging] = useState(false)
-  const [effectsOf, setEffectsOf] = useState<string | null>(null)
+  const [effectsOf, setEffectsOf] = useState<OpenedEffect | null>(null)
   const id = useId()
   const view = ordered(state)
   const now = actingKey(state)
   return (
     <CombatPanel title={view.title} sub={view.sub}>
       {onOut ? <div className="panel-actions"><button type="button" className="btn line small" aria-expanded={managing} aria-controls={id} onClick={() => setManaging(!managing)}>{managing ? 'Done managing' : 'Manage combatants'}</button></div> : null}
-      <ul className="turns" id={id}>{view.rows.map(({ combatant, place }) => <TurnRow key={combatant.key} state={state} combatant={combatant} place={place} userId={userId} now={combatant.key === now} onOut={managing ? onOut : undefined} effects={effects} onEffects={() => setEffectsOf(combatant.key)} />)}</ul>
-      <OpenedEffects state={state} effects={effects} openKey={effectsOf} onClose={() => setEffectsOf(null)} />
+      <ul className="turns" id={id}>{view.rows.map(({ combatant, place }) => <TurnRow key={combatant.key} state={state} combatant={combatant} place={place} userId={userId} now={combatant.key === now} onOut={managing ? onOut : undefined} effects={effects} onEffects={(effectId) => setEffectsOf({ key: combatant.key, effectId })} />)}</ul>
+      <OpenedEffects state={state} effects={effects} opened={effectsOf} onClose={() => setEffectsOf(null)} />
       {view.note ? <div className="pb"><p className="note">Successes go before failures: higher successes first, lower failures first.</p></div> : null}
     </CombatPanel>
   )

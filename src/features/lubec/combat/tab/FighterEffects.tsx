@@ -17,16 +17,16 @@ function editorOf(sheet: FighterSheet, access: CombatEffectsAccess): CombatSheet
 const effectsChangeOf = (record: LubecCharacterRecord, writer: CombatSheetWriter): EffectsChange =>
   (effects, counters) => writer.updateCharacter(record.id, { lubec: { ...record.lubec, effects, ...(counters ? { counters } : {}) } }, record)
 
-type DialogProps = { combatant: Combatant; access: CombatEffectsAccess; onClose: () => void }
+type DialogProps = { combatant: Combatant; access: CombatEffectsAccess; effectId: string; onClose: () => void }
 
 /** The sheet's own Effects panel over the fight: wound details, Step down and recovery Saves, with focus returned on close; nothing once the sheet is gone. */
-export function FighterEffectsDialog({ combatant, access, onClose }: DialogProps) {
+export function FighterEffectsDialog({ combatant, access, effectId, onClose }: DialogProps) {
   const sheet = fighterSheet(combatant, access.roster)
   if (!sheet) return null
-  return <EffectsDialog combatant={combatant} sheet={sheet} access={access} onClose={onClose} />
+  return <EffectsDialog combatant={combatant} sheet={sheet} access={access} effectId={effectId} onClose={onClose} />
 }
 
-function EffectsDialog({ combatant, sheet, access, onClose }: DialogProps & { sheet: FighterSheet }) {
+function EffectsDialog({ combatant, sheet, access, effectId, onClose }: DialogProps & { sheet: FighterSheet }) {
   const panel = useRef<HTMLDialogElement>(null)
   useEffect(() => {
     const previous = document.activeElement
@@ -46,7 +46,7 @@ function EffectsDialog({ combatant, sheet, access, onClose }: DialogProps & { sh
         <button type="button" className="btn line small" onClick={onClose}>Close</button>
       </div>
       <LubecEffectsPanel
-        effects={lubec.effects} counters={lubec.counters} gear={lubec.gear} onGearChange={null}
+        effects={lubec.effects} counters={lubec.counters} gear={lubec.gear} onGearChange={null} initialOpen={effectId}
         onChange={writer ? effectsChangeOf(sheet.record, writer) : null}
         onRecover={writer ? writer.recovery(sheet.record) : null}
       />
@@ -54,29 +54,28 @@ function EffectsDialog({ combatant, sheet, access, onClose }: DialogProps & { sh
   )
 }
 
-/** One card under a fighter's name: which card, what it does now, and what ends it. */
-function EffectLine({ line }: { line: FighterEffectLine }) {
+/** One card under a fighter's name, itself the button that opens its details and actions: which card, what it does now, and what ends it. */
+function EffectLine({ line, onOpen }: { line: FighterEffectLine; onOpen: (effectId: string) => void }) {
   return (
     <li>
-      <b>{line.label}</b>
-      {line.now ? <span>{` · ${line.now}`}</span> : null}
-      {line.until ? <span className="until">{` · ${line.until}`}</span> : null}
+      <button type="button" className="fighter-effect" aria-label={`${line.words}. Open details and actions`} onClick={() => onOpen(line.id)}>
+        <b>{line.label}</b>
+        {line.now ? <span>{` · ${line.now}`}</span> : null}
+        {line.until ? <span className="until">{` · ${line.until}`}</span> : null}
+      </button>
     </li>
   )
 }
 
-type FighterEffectsProps = { combatant: Combatant; access: CombatEffectsAccess | undefined; onOpen: () => void }
+type FighterEffectsProps = { combatant: Combatant; access: CombatEffectsAccess | undefined; onOpen: (effectId: string) => void }
 
-/** A fighter's active cards under their name in the turn order, and the button that opens them; nothing for a sheet this viewer cannot read. */
+/** A fighter's active cards under their name in the turn order, each opening its own details; nothing for a sheet this viewer cannot read. */
 export function FighterEffects({ combatant, access, onOpen }: FighterEffectsProps) {
   const effects = access ? fighterSheet(combatant, access.roster)?.record.lubec.effects : undefined
   if (!effects?.length) return null
   return (
-    <div className="fighter-effects">
-      <ul aria-label={`${combatant.name}'s effects`}>
-        {fighterEffectLines(effects).map((line) => <EffectLine key={line.id} line={line} />)}
-      </ul>
-      <button type="button" className="btn line small" aria-label={`Open ${combatant.name}'s effects`} onClick={onOpen}>Effects</button>
-    </div>
+    <ul className="fighter-effects" aria-label={`${combatant.name}'s effects`}>
+      {fighterEffectLines(effects).map((line) => <EffectLine key={line.id} line={line} onOpen={onOpen} />)}
+    </ul>
   )
 }

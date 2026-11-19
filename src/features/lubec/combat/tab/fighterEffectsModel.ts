@@ -47,8 +47,8 @@ export function fighterSheet(combatant: Combatant, roster: CombatRosterRecords):
 export const fighterSheetEditable = (sheet: FighterSheet, viewer: CombatEffectsAccess['viewer']): boolean =>
   viewer.role === 'gm' || sheet.record.ownerUserId === viewer.userId
 
-/** One effect as the turn order says it: which card, what it does now, and what ends it. */
-export type FighterEffectLine = { id: string; label: string; now: string | null; until: string | null }
+/** One effect as the turn order says it: which card, what it does now, and what ends it, and all three as one line. */
+export type FighterEffectLine = { id: string; label: string; now: string | null; until: string | null; words: string }
 
 /** A wound's card goes by its part ("Dazed", "Forearm"); a hand-made effect by its name. */
 const labelOf = (effect: LubecEffect): string =>
@@ -59,5 +59,9 @@ const nowOf = (effect: LubecEffect): string | null => {
   return words || null
 }
 
-export const fighterEffectLines = (effects: readonly LubecEffect[]): FighterEffectLine[] =>
-  effects.map((effect) => ({ id: effect.id, label: labelOf(effect), now: nowOf(effect), until: lubecEffectTrigger(effect) }))
+function lineOf(effect: LubecEffect): FighterEffectLine {
+  const line = { id: effect.id, label: labelOf(effect), now: nowOf(effect), until: lubecEffectTrigger(effect) }
+  return { ...line, words: [line.label, line.now, line.until].filter(Boolean).join(' · ') }
+}
+
+export const fighterEffectLines = (effects: readonly LubecEffect[]): FighterEffectLine[] => effects.map(lineOf)

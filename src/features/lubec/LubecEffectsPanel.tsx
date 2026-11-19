@@ -35,6 +35,8 @@ type EffectsProps = {
   gear: LubecGear
   /** Saves the character's gear, to turn a loss off or on; absent for a viewer who may not change the character. */
   onGearChange: ((gear: LubecGear) => void) | null
+  /** The effect to open first: its wound's detail, or a hand-made effect's editor for whoever may change it. */
+  initialOpen?: string | null
 }
 
 /** An open effect: an effect's id in its editor or detail view, or `new` for one being added. */
@@ -197,8 +199,15 @@ function RecoveryDialog({ effects, recovery, enabled }: { effects: readonly Lube
 }
 
 /** The active effects as a section of the Core page, with the owner's and GM's controls when they may change it. */
-export function LubecEffectsPanel({ effects, counters, onChange, onRecover, gear, onGearChange }: EffectsProps) {
-  const [open, setOpen] = useState<OpenEffect>(null)
+/** Where a panel opened on one effect starts: that wound's detail, or that effect's editor. */
+function initialOpenOf(effects: readonly LubecEffect[], id: string | null | undefined): OpenEffect {
+  const effect = effects.find((entry) => entry.id === id)
+  if (!effect) return null
+  return { id: effect.id, view: lubecEffectWound(effect) ? 'detail' : 'editor' }
+}
+
+export function LubecEffectsPanel({ effects, counters, onChange, onRecover, gear, onGearChange, initialOpen = null }: EffectsProps) {
+  const [open, setOpen] = useState<OpenEffect>(() => initialOpenOf(effects, initialOpen))
   const recovery = useLubecEffectRecovery(onRecover)
   const editable = onChange !== null
   const actions = effectActions(effects, counters, onChange, { open: setOpen, recovering: recovery.setRecovering, error: recovery.setError })

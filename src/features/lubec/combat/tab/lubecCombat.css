@@ -452,11 +452,19 @@
 .shell-root[data-theme="lubec"] .lubec-combat .split-repair-wait { margin: 0; padding: 0.85rem 0.95rem 0; color: var(--lubec-muted); font: 800 0.8rem/1.4 var(--lubec-type); }
 
 /* A fighter's active cards under their name in the turn order, and the sheet's Effects panel over the fight. */
-.shell-root[data-theme="lubec"] .lubec-combat .fighter-effects { display: grid; gap: 0.3rem; margin-top: 0.3rem; justify-items: start; }
-.shell-root[data-theme="lubec"] .lubec-combat .fighter-effects ul { display: grid; gap: 0.15rem; margin: 0; padding: 0; list-style: none; width: 100%; }
-.shell-root[data-theme="lubec"] .lubec-combat .turns .fighter-effects li { display: block; padding: 0.12rem 0 0.12rem 0.4rem; border: 0; border-left: 3px solid var(--lubec-modifier); background: none; color: var(--lubec-ink); font: 700 0.62rem/1.3 var(--lubec-type); }
-.shell-root[data-theme="lubec"] .lubec-combat .fighter-effects li b { font: 700 0.72rem/1.1 var(--lubec-condensed); letter-spacing: 0.06em; text-transform: uppercase; }
-.shell-root[data-theme="lubec"] .lubec-combat .fighter-effects li .until { color: var(--lubec-muted); }
+.shell-root[data-theme="lubec"] .lubec-combat .fighter-effects { display: grid; gap: 0.2rem; margin: 0.3rem 0 0; padding: 0; list-style: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .turns .fighter-effects li { display: block; padding: 0; border: 0; background: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .fighter-effect {
+  position: relative; display: block; width: 100%; padding: 0.15rem 1.1rem 0.15rem 0.4rem; border: 0; border-left: 3px solid var(--lubec-modifier);
+  color: var(--lubec-ink); background: transparent; font: 700 0.62rem/1.3 var(--lubec-type); text-align: left; cursor: pointer; transition: background-color 0.12s;
+}
+.shell-root[data-theme="lubec"] .lubec-combat .fighter-effect::after { content: "›" / ""; position: absolute; top: 50%; right: 0.35rem; color: var(--lubec-muted); font: 700 0.9rem/1 var(--lubec-type); transform: translateY(-50%); }
+.shell-root[data-theme="lubec"] .lubec-combat .fighter-effect:hover { background: rgba(168, 95, 18, 0.12); }
+.shell-root[data-theme="lubec"] .lubec-combat .fighter-effect:hover::after { color: var(--lubec-ink); }
+.shell-root[data-theme="lubec"] .lubec-combat .fighter-effect:focus-visible { outline: 2px solid var(--lubec-blue); outline-offset: 1px; }
+.shell-root[data-theme="lubec"] .lubec-combat .fighter-effect b { font: 700 0.72rem/1.1 var(--lubec-condensed); letter-spacing: 0.06em; text-transform: uppercase; }
+.shell-root[data-theme="lubec"] .lubec-combat .fighter-effect .until { color: var(--lubec-muted); }
+@media (prefers-reduced-motion: reduce) { .shell-root[data-theme="lubec"] .lubec-combat .fighter-effect { transition: none; } }
 .shell-root[data-theme="lubec"] .fighter-effects-modal {
   width: min(34rem, calc(100vw - 2rem)); max-width: none; max-height: calc(100dvh - 2rem); padding: 0; overflow: auto;
   border: 2px solid var(--lubec-ink); background: var(--lubec-paper); color: var(--lubec-ink); box-shadow: 0 24px 64px rgba(7, 20, 23, 0.45);
