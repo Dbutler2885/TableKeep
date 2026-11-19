@@ -77,14 +77,17 @@ export const withLostActions = (state: CombatState): CombatState => ({
 })
 
 /** "Action + Defense lost - Dazed", "Movement lost - Dazed": what this round takes from a combatant, and why. */
+/** "Movement lost - Dazed"; a reason that only repeats the loss ("Movement lost") is left out. */
+const lossWords = (what: string, reason: string): string => (what.split(' ')[0] === reason.split(' ')[0] ? what : `${what} - ${reason}`)
+
 export function lostStageWords(state: CombatState, key: string): string[] {
   const lost = state.lost?.[key]
   const combatant = state.combatants.find((entry) => entry.key === key)
   const reason = combatant ? combatIncapacity(combatant) : null
   return [
     ...(reason ? [`Unresolved stages lost - ${reason}`] : []),
-    ...(movementLost(state, key) ? [`Movement lost - ${lost!.reason}`] : []),
-    ...(actionLost(state, key) ? [`Action + Defense lost - ${lost!.reason}`] : []),
+    ...(movementLost(state, key) ? [lossWords('Movement lost', lost!.reason)] : []),
+    ...(actionLost(state, key) ? [lossWords('Action + Defense lost', lost!.reason)] : []),
   ]
 }
 

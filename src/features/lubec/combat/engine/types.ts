@@ -186,6 +186,8 @@ export type CombatAttack = {
   splitRepair?: { combatantKey: string; pool: number; was: number; against: string; attackSpent: boolean } | null
 }
 export type CombatState = {
+  /** The roll log entries the command that wrote this state rolled; a viewer shows the state once their cards have revealed them. */
+  revealRolls?: string[]
   round: number
   phase: string
   stageInstanceId: string

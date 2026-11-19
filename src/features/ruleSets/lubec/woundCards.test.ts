@@ -42,6 +42,10 @@ describe('a stage-losing card outside a fight\'s rounds', () => {
 })
 
 describe('a stage-losing card inside a fight', () => {
+  it('says only the rounds a lost Movement Stage falls in, as the card already says Movement lost', () => {
+    expect(labelsFor({ kind: 'lose-movement' }, { lost: { movement: { movement: [2], action: [] } } })).toEqual(['Round 2'])
+  })
+
   it('names the rounds it was worked out to cost instead, and carries them', () => {
     const lost = { movement: [4], action: [3, 4] }
     const [card] = lubecWoundCards({ now: [{ kind: 'dazed', turns: '1d4' }], cards: [] }, context({ dazed: 2, lost: { dazed: lost } }))
@@ -54,8 +58,8 @@ const card = (until: string, fields: Partial<LubecEffect> = {}): LubecEffect =>
   ({ id: 'c', name: 'Wound', cause: 'test', steps: [{ modifiers: [], labels: [], until } as LubecEffectStep], ...fields })
 
 describe('what ends a card\'s current step', () => {
-  it('names the last round a card\'s lost Stages fall in', () => {
-    expect(lubecEffectTrigger(card('rounds', { lost: { movement: [3], action: [3, 5] } }))).toBe('Ends after round 5')
+  it('says nothing of when a card ends that already lists the rounds it takes', () => {
+    expect(lubecEffectTrigger(card('rounds', { lost: { movement: [3], action: [3, 5] } }))).toBeNull()
   })
 
   it('names the round a countdown falls due, counted from the round its wound landed', () => {

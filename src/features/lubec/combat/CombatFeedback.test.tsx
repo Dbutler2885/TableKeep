@@ -9,6 +9,7 @@ import { LubecCombatContext, type LubecCombatWatch } from './combatWatch'
 import { CombatFeedback } from './CombatFeedback'
 import { CombatTicker, CombatTurnNotice } from './CombatMessages'
 import { LUBEC_SPIN_STEPS, lubecSpinDelay } from '../lubecCircles'
+import { COMBAT_REVEAL_LIMIT_MS, useCombatReveal } from './useCombatReveal'
 
 const mocks = vi.hoisted(() => ({ subscriptions: [] as { scope: unknown; id: string; receive: (update: CombatLogUpdate) => void; error: () => void; stop: ReturnType<typeof vi.fn> }[] }))
 vi.mock('../../../firebase', () => ({ db: {} }))
@@ -232,7 +233,8 @@ describe('workspace roll feedback', () => {
     const result = entry('Tommy')
     send([result], [result])
     expect(screen.getByRole('heading', { name: 'Rolling...' })).toBeTruthy()
-    expect(vi.getTimerCount()).toBe(3)
+    // The spin, the dismissal and the reveal's time limit.
+    expect(vi.getTimerCount()).toBe(4)
     view.unmount()
     expect(vi.getTimerCount()).toBe(0)
   })
@@ -276,5 +278,80 @@ describe('workspace roll feedback', () => {
     expect(screen.getByText('Joseph: roll a Save')).toBeTruthy()
     fireEvent.click(screen.getByRole('button'))
     expect(onReturn).toHaveBeenCalledOnce()
+  })
+})
+
+describe('a roll card revealing', () => {
+  // The page behind the card must not give the result away: the fight it shows and the table line hold back until the number lands.
+  const opening: CombatLogEntry = { id: 'open', at: Timestamp.fromMillis(500), ordinal: 0, event: 'Round 1, Attack.', actor: null }
+  const rolled = (revealRolls: string[], id = 'fight'): LubecCombatWatch =>
+    ({ ...watch, live: { id, fight: { status: 'live', participantUserIds: ['p'], state: { ...state, stageInstanceId: 'after', revealRolls } } } })
+  const Shown = () => {
+    const { live, revealing } = useCombatReveal()
+    return <p data-testid="shown">{`${live?.fight.state.stageInstanceId}:${revealing ? 'held' : 'shown'}`}</p>
+  }
+  const page = (value: LubecCombatWatch) => (
+    <LubecCombatContext value={value}>
+      <CombatFeedback campaign={campaign} role="player" userId="p" activeTab="combat" navigate={navigate} setError={setError}>
+        <Shown /><CombatTicker />
+      </CombatFeedback>
+    </LubecCombatContext>
+  )
+  const shown = () => screen.getByTestId('shown').textContent
+  // The spin chains one timer per frame, each set after the last frame renders.
+  const spinFrames = async (from: number, to: number) => {
+    for (let step = from; step < to; step++) await act(async () => { await vi.advanceTimersByTimeAsync(lubecSpinDelay(step)) })
+  }
+  const tableLine = () => document.querySelector('.ticker .text')?.textContent
+
+  beforeEach(() => { vi.mocked(window.matchMedia).mockReturnValue({ matches: false } as MediaQueryList) })
+
+  it('shows the state that rolled a hit only once its card has landed, whichever arrives first', async () => {
+    const view = render(page(watch))
+    send([opening])
+    expect(shown()).toBe('s:shown')
+    view.rerender(page(rolled(['Tommy'])))
+    expect(shown()).toBe('s:held')
+    const hit = entry('Tommy')
+    send([opening, hit], [hit])
+    expect(screen.getByRole('heading', { name: 'Rolling...' })).toBeTruthy()
+    expect(shown()).toBe('s:held')
+    expect(tableLine()).toContain('Round 1, Attack.')
+    await spinFrames(0, LUBEC_SPIN_STEPS - 1)
+    expect(shown()).toBe('s:held')
+    expect(tableLine()).not.toContain('Hit')
+    await spinFrames(LUBEC_SPIN_STEPS - 1, LUBEC_SPIN_STEPS)
+    expect(screen.getByRole('heading', { name: 'Hit' })).toBeTruthy()
+    expect(shown()).toBe('after:shown')
+    expect(tableLine()).toContain('Tommy - Attack roll: 27 against 36. Hit · Quality 2.')
+  })
+
+  it('holds back a state that arrives while an earlier card is still spinning', async () => {
+    const view = render(page(watch))
+    send([opening])
+    const miss = entry('Wayne')
+    send([opening, miss], [miss])
+    view.rerender(page(rolled(['Wayne'])))
+    expect(shown()).toBe('s:held')
+    await spinFrames(0, LUBEC_SPIN_STEPS)
+    expect(shown()).toBe('after:shown')
+  })
+
+  it('never freezes the table on a roll whose log never arrives', () => {
+    const view = render(page(watch))
+    send([opening])
+    view.rerender(page(rolled(['lost'])))
+    expect(shown()).toBe('s:held')
+    act(() => vi.advanceTimersByTime(COMBAT_REVEAL_LIMIT_MS))
+    expect(shown()).toBe('after:shown')
+  })
+
+  it('shows a different fight at once, and a roll that arrives as its history needs no reveal', () => {
+    const view = render(page(watch))
+    send([opening])
+    view.rerender(page(rolled(['open'], 'other')))
+    expect(shown()).toMatch(/^after:/)
+    send([opening])
+    expect(shown()).toBe('after:shown')
   })
 })

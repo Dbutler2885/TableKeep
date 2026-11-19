@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useCombatLogView } from './CombatLogContext'
 import { combatLogText, combatLogTime, type CombatLogEntry } from './combatLog'
 import type { Role } from '../../../types/app'
@@ -7,6 +7,7 @@ import type { CombatRoll } from './engine/combatFeedback'
 import { combatRollComparison, combatRollVerdict } from './combatRollPresentation'
 import { useCombatRollSpin } from './useCombatRollSpin'
 import { useCombatRollDismiss } from './useCombatRollDismiss'
+import { revealedEntries } from './combatReveal'
 import { LubecRollBreakdown } from '../LubecRollBreakdown'
 
 function RollNumbers({ roll, value, rolling }: { roll: CombatRoll; value: string; rolling: boolean }) {
@@ -35,9 +36,13 @@ function RollDetails({ roll, detail }: { roll: CombatRoll; detail: string }) {
   </>
 }
 
-function CombatRollCard({ entry, roll, onDone }: { entry: CombatLogEntry; roll: CombatRoll; onDone: (id: string) => void }) {
+type CardProps = { entry: CombatLogEntry; roll: CombatRoll; onDone: (id: string) => void; onSettled: (id: string) => void }
+
+function CombatRollCard({ entry, roll, onDone, onSettled }: CardProps) {
   const { card, gone } = useCombatRollDismiss(entry.id, onDone)
   const spin = useCombatRollSpin(entry.id, roll.roll)
+  // Only once the number has landed may the page behind the card show what it rolled.
+  useEffect(() => { if (!spin.rolling) onSettled(entry.id) }, [spin.rolling, entry.id, onSettled])
   const verdict = combatRollVerdict(roll.result)
   return (
     <div ref={card} className={`rcard ${roll.tone} ${gone ? 'gone' : ''} ${spin.rolling ? 'rolling' : 'settled'}`} data-outcome={verdict.headline}>
@@ -50,14 +55,14 @@ function CombatRollCard({ entry, roll, onDone }: { entry: CombatLogEntry; roll: 
 }
 
 export function CombatRollCards() {
-  const { cards, sessionKey, finishCard } = useCombatLogView()
+  const { cards, sessionKey, finishCard, settleCard } = useCombatLogView()
   const shown = cards.slice(0, 3)
-  return <div className="combat-cards" data-count={shown.length} role="status" aria-live="polite" aria-atomic="true">{shown.map((entry) => entry.roll ? <CombatRollCard key={JSON.stringify([sessionKey, entry.id])} entry={entry} roll={entry.roll} onDone={finishCard} /> : null)}</div>
+  return <div className="combat-cards" data-count={shown.length} role="status" aria-live="polite" aria-atomic="true">{shown.map((entry) => entry.roll ? <CombatRollCard key={JSON.stringify([sessionKey, entry.id])} entry={entry} roll={entry.roll} onDone={finishCard} onSettled={settleCard} /> : null)}</div>
 }
 
-/** The latest entry stays visible; the whole immutable log opens newest first, as in the mock-up. */
+/** The latest entry stays visible; the whole immutable log opens newest first, as in the mock-up. It stops short of a roll still revealing. */
 export function CombatTicker() {
-  const { entries } = useCombatLogView()
+  const entries = revealedEntries(useCombatLogView())
   const [open, setOpen] = useState(false)
   const last = entries.at(-1)
   return (

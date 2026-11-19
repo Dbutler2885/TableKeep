@@ -162,10 +162,13 @@ function cardOf(spec: LubecWoundCardSpec, context: LubecWoundCardContext): Lubec
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
 
+const capitalised = (words: string) => `${words.charAt(0).toUpperCase()}${words.slice(1)}`
+
 const roundsWords = (rounds: readonly number[]) => `round${rounds.length === 1 ? '' : 's'} ${rounds.join(', ')}`
 
-/** "Action + Defense lost in round 3; Movement lost in round 4". */
+/** "Action + Defense lost in round 3; Movement lost in round 4"; a Movement-only loss just its rounds, as its card already says Movement lost. */
 function lostWords(lost: { movement: number[]; action: number[] }): string {
+  if (!lost.action.length) return capitalised(roundsWords(lost.movement))
   const parts = [
     ...(lost.action.length ? [`Action + Defense lost in ${roundsWords(lost.action)}`] : []),
     ...(lost.movement.length ? [`Movement lost in ${roundsWords(lost.movement)}`] : []),
@@ -321,12 +324,10 @@ function windowTrigger(effect: LubecEffect): string | null {
   return Number.isInteger(origin?.originatingRound) ? `Ends with round ${(origin!.originatingRound as number) + 1}` : null
 }
 
-function lostTrigger(effect: LubecEffect): string | null {
+/** A card that lists the rounds it takes; its own words already say when it ends. */
+function hasLostRounds(effect: LubecEffect): boolean {
   const lost = effect.lost as { movement?: unknown; action?: unknown } | undefined
-  if (lost && Array.isArray(lost.movement) && Array.isArray(lost.action)) {
-    return `Ends after round ${Math.max(...(lost.movement as number[]), ...(lost.action as number[]))}`
-  }
-  return null
+  return Boolean(lost && Array.isArray(lost.movement) && Array.isArray(lost.action))
 }
 
 function countdownTrigger(effect: LubecEffect): string | null {
@@ -340,10 +341,11 @@ function countdownTrigger(effect: LubecEffect): string | null {
 
 const ROUND_TRIGGERS: Partial<Record<string, (effect: LubecEffect) => string | null>> = {
   'next-round-end': windowTrigger,
-  rounds: (effect) => lostTrigger(effect) ?? countdownTrigger(effect),
+  rounds: countdownTrigger,
 }
 
 export function lubecEffectTrigger(effect: LubecEffect): string | null {
+  if (hasLostRounds(effect)) return null
   const step = effect.steps[0]
   return ROUND_TRIGGERS[step?.until ?? '']?.(effect) ?? lubecStepTrigger(step)
 }

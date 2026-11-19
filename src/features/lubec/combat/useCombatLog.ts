@@ -1,15 +1,15 @@
-import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react'
 import { db } from '../../../firebase'
 import type { CampaignScope } from '../../campaign/firestorePaths'
 import { EMPTY_COMBAT_LOG, type CombatLogView } from './CombatLogContext'
 import { subscribeCombatLog, type CombatLogUpdate } from './combatLog'
 
-type SeenLog = Pick<CombatLogView, 'entries' | 'cards'> & { scopeKey: string; fightId: string }
+type SeenLog = Pick<CombatLogView, 'entries' | 'cards'> & { scopeKey: string; fightId: string; settled: string[] }
 
 function nextLog(previous: SeenLog | null, scopeKey: string, fightId: string, update: CombatLogUpdate): SeenLog {
-  const oldCards = previous?.fightId === fightId && previous.scopeKey === scopeKey ? previous.cards : []
+  const same = previous?.fightId === fightId && previous.scopeKey === scopeKey
   const rolls = update.arriving.filter((entry) => entry.roll)
-  return { scopeKey, fightId, entries: update.entries, cards: [...oldCards, ...rolls] }
+  return { scopeKey, fightId, entries: update.entries, cards: [...(same ? previous.cards : []), ...rolls], settled: same ? previous.settled : [] }
 }
 
 function visibleLog(seen: SeenLog | null, scopeKey: string, fightId: string | null): SeenLog | null {
@@ -19,6 +19,12 @@ function visibleLog(seen: SeenLog | null, scopeKey: string, fightId: string | nu
 }
 
 const sessionOf = (seen: SeenLog): string => JSON.stringify([seen.scopeKey, seen.fightId])
+
+/** A card's roll has finished revealing, in the fight whose queue displayed it. */
+function withSettled(seen: SeenLog | null, sessionKey: string, id: string): SeenLog | null {
+  if (!seen || sessionOf(seen) !== sessionKey || seen.settled.includes(id)) return seen
+  return { ...seen, settled: [...seen.settled, id] }
+}
 
 /** A finished card belongs only to the fight whose queue displayed it. */
 function withoutCard(seen: SeenLog | null, sessionKey: string, id: string): SeenLog | null {
@@ -49,5 +55,7 @@ export function useCombatLog(scope: CampaignScope | null, fightId: string | null
   const shown = visibleLog(seen, scopeKey, fightId)
   const sessionKey = shown ? sessionOf(shown) : ''
   const finishCard = useCallback((id: string) => setSeen((current) => withoutCard(current, sessionKey, id)), [sessionKey])
-  return shown ? { entries: shown.entries, cards: shown.cards, sessionKey, finishCard } : EMPTY_COMBAT_LOG
+  const settleCard = useCallback((id: string) => setSeen((current) => withSettled(current, sessionKey, id)), [sessionKey])
+  const settled = useMemo(() => new Set(shown?.settled ?? []), [shown?.settled])
+  return shown ? { entries: shown.entries, cards: shown.cards, settled, sessionKey, finishCard, settleCard } : EMPTY_COMBAT_LOG
 }
