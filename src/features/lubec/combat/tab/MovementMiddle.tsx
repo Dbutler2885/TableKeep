@@ -17,23 +17,22 @@ function SettleWaiting({ state, commands, viewer }: MovementProps) {
   if (asleep) {
     const advance = viewer.role === 'gm'
       ? <button type="button" className="btn rust" disabled={run.busy || !commands.settleMovement} onClick={() => run.run(() => commands.settleMovement!())}>Advance skipped round</button>
-      : <span className="note">The GM advances the round.</span>
+      : null
     return (
       <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />} foot={advance}>
         <div className="bigwait">
           <h3>{state.combatants.some((entry) => entry.condition) ? 'Everyone’s stages are skipped' : 'Everyone is unconscious'}</h3>
-          <p>Unresolved stages are skipped. The GM can advance a round to process countdowns or end combat.</p>
           {run.refusal ? <p role="alert">{run.refusal}</p> : null}
         </div>
       </CombatWindow>
     )
   }
   return (
-    <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />} foot={<span className="note">Declaring starts by itself once Movement is settled.</span>}>
+    <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />}>
       <div className="bigwait">
         <span className="label">Round {state.round} · Stage 1 · Movement</span>
         <h3>Waiting for the GM to settle Movement<span className="dots" /></h3>
-        <p>Everyone has confirmed. Pickups go to the fastest first.</p>
+        <p>Everyone has confirmed.</p>
       </div>
     </CombatWindow>
   )
@@ -43,7 +42,7 @@ function SettleWaiting({ state, commands, viewer }: MovementProps) {
 function MovementWaiting({ state }: { state: CombatState }) {
   const waiting = inFight(state).filter((entry) => !entry.movement).map((entry) => entry.name)
   return (
-    <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />} foot={<span className="note">Choices stay private until the stage closes.</span>}>
+    <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />}>
       <div className="bigwait">
         <span className="label">Round {state.round} · Stage 1 · Movement</span>
         <h3>Waiting for everyone to confirm<span className="dots" /></h3>

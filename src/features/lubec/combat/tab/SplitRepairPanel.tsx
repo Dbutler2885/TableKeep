@@ -39,9 +39,9 @@ export function SplitRepairPanel({ state, repair, controls }: { state: CombatSta
   const name = combatantName(state, repair.combatantKey)
   const against = combatantName(state, repair.against)
   return (
-    <CombatWindow title="Split repair" stepper={<PhaseStepper state={state} />} foot={<span className="note">Nothing has been rolled again; there is no Check or penalty.</span>}>
+    <CombatWindow title="Split repair" stepper={<PhaseStepper state={state} />}>
       <div className="notice hot" role="alert">
-        <span><b>{name}&apos;s Handle pool fell from {repair.was} to {repair.pool}.</b> The declared split no longer fits, so it is chosen again before the next roll. The weapon and target stay.</span>
+        <span><b>{name}&apos;s Handle pool fell from {repair.was} to {repair.pool}.</b> Choose the split again.</span>
       </div>
       {controls.owns(repair.combatantKey)
         ? <RepairChoice repair={repair} controls={controls} against={against} />

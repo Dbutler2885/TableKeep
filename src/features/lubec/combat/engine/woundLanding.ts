@@ -130,8 +130,8 @@ const BY_HAND = ' (resolved by hand)'
 
 const NOW_WORDS: Partial<Record<LubecWoundNow['kind'], (rolled: LubecWoundRolled, drop: LubecWoundDrop | null) => string | null>> = {
   drop: (_, drop) => drop ? lubecDropWords(drop) : 'Whatever the struck hand holds drops onto the Floor',
-  'immediate-death-save': () => 'Immediate Death Save: the GM resolves it privately',
-  'out-of-reach': () => 'Knocked out of striking reach: the GM rules it, as combat here has no reach',
+  'immediate-death-save': () => 'Immediate Death Save',
+  'out-of-reach': () => 'Knocked out of striking reach',
   unconscious: (rolled) => rolled.minimumStress ? `Minimum Stress +${rolled.minimumStress} (1d5)` : null,
 }
 
@@ -179,7 +179,7 @@ export function lubecWoundSections(outcome: LubecWoundOutcome, cards: readonly L
     const words = nowWords(item, rolled, drop)
     if (words) now.push(words)
   }
-  if (prevented) now.push('Timer prevented: the Body Save stopped every countdown')
+  if (prevented) now.push('Countdown prevented')
   const sections = [
     { label: 'Now', items: now }, { label: 'Next round', items: next },
     { label: 'Recovery', items: recovery }, { label: 'Lasting', items: lasting },

@@ -20,7 +20,7 @@ const BANNERS: Readonly<Record<string, (words: Words) => Banner>> = {
   'no-wound': (w) => ({ tone: '', title: 'No effect', text: `The hit did nothing.${lands(w)}` }),
   wounded: (w) => ({ tone: w.targetOut || w.out ? 'out' : 'hit', title: woundedTitle(w), text: `${w.attack.row!.name}: ${w.attack.rowOutcome}${lands(w)}`, aside: lands(w).trim() }),
   'row-caught': (w) => ({ tone: 'out', title: `Caught it: ${w.attacker} is Out`, text: `${w.attack.row!.name}: ${w.target} holds on and stays in, and ${w.attacker} is Out instead.` }),
-  interrupted: (w) => ({ tone: 'out', title: `Stopped: ${w.attacker} is Out`, text: `Out stops the attack at once.${lands(w)}` }),
+  interrupted: (w) => ({ tone: 'out', title: `Stopped: ${w.attacker} is Out`, text: lands(w).trim() }),
   manual: (w) => ({ tone: '', title: 'The GM records this wound', text: `${tableName(w.attack.impact!.table)} table, ${locName(w.attack.landing!.part!).toLowerCase()}, Impact ${w.attack.impact!.total}.${lands(w)}` }),
 }
 

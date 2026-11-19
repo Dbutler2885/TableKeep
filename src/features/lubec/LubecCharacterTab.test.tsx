@@ -2332,13 +2332,13 @@ describe('Lubec roller', () => {
     fireEvent.click(rollerButton('Advantage'))
     seedRolls(71, 23)
     roll('Speed')
-    expect(shownStatus()).toBe('Speed (Advantage, 71 and 23): 23 vs 56 - success.')
+    expect(shownStatus()).toBe('Speed: 23 vs 56 - success.')
 
     fireEvent.click(rollerButton('Disadvantage'))
     roll('Speed')
     seedRolls(23, 71)
     roll('Speed')
-    expect(shownStatus()).toBe('Speed (Disadvantage, 23 and 71): 71 vs 56 - failure, +1 Stress.')
+    expect(shownStatus()).toBe('Speed: 71 vs 56 - failure, +1 Stress.')
     await flushSave()
     expect(writtenLastRoll()).toMatchObject({ dice: [23, 71], result: 71, advantage: 'disadvantage', outcome: 'failure' })
   })
@@ -2356,7 +2356,7 @@ describe('Lubec roller', () => {
     expect(pressedMode()).toEqual(['Advantage'])
     seedRolls(71, 23)
     roll('Speed')
-    expect(shownStatus()).toBe('Speed (Advantage, 71 and 23): 23 vs 56 - success.')
+    expect(shownStatus()).toBe('Speed: 23 vs 56 - success.')
     expect(pressedMode()).toEqual(['Normal'])
 
     seedRolls(40)
@@ -2366,7 +2366,7 @@ describe('Lubec roller', () => {
     fireEvent.click(rollerButton('Disadvantage'))
     seedRolls(12, 45)
     roll('Fear')
-    expect(shownStatus()).toBe('Fear (Disadvantage, 12 and 45): 45 vs 34 - failure, +1 Stress.')
+    expect(shownStatus()).toBe('Fear: 45 vs 34 - failure, +1 Stress.')
     expect(pressedMode()).toEqual(['Normal'])
   })
 
@@ -2414,7 +2414,8 @@ describe('Lubec roller', () => {
 
     seedRolls(23, 71)
     roll('Speed')
-    expect(shownStatus()).toBe('Speed (Disadvantage from Broken rib(s) (Ribs), 23 and 71): 71 vs 56 - failure, +1 Stress.')
+    expect(shownStatus()).toBe('Speed: 71 vs 56 - failure, +1 Stress.')
+    expect(document.querySelector('.lubec-roll-mode')!.textContent).toBe('Disadvantage from Broken rib(s) (Ribs): keep the worse')
     seedRolls(40)
     roll('Intellect')
     expect(shownStatus()).toBe('Intellect: 40 vs 43 - success.')
@@ -2646,7 +2647,7 @@ describe('Lubec roller', () => {
     expect(circleOf('Speed').className).toBe('roll-circle has-value check-failure')
     expect(ghostOf('Speed')).toBeNull()
     expect(valuesOf('Speed')).toEqual(['71/56', '51 +5 class'])
-    expect(shownStatus()).toBe('Speed (Disadvantage, 23 and 71): 71 vs 56 - failure, +1 Stress.')
+    expect(shownStatus()).toBe('Speed: 71 vs 56 - failure, +1 Stress.')
     expect(shownCounters().stress).toBe('3')
   })
 
@@ -2684,7 +2685,7 @@ describe('Lubec roller', () => {
     mountTab('player', 'player-2')
     openSheet('Tommy Eves')
 
-    expect(shownStatus()).toBe('Fear (Advantage, 12 and 44): 12 vs 34 - success.')
+    expect(shownStatus()).toBe('Fear: 12 vs 34 - success.')
     expect(screen.queryByLabelText('Arm a skill')).toBeNull()
     expect([...document.querySelectorAll('button.roll-circle')].map((circle) => (circle as HTMLButtonElement).disabled)).toEqual(Array(10).fill(true))
     expect(valuesOf('Fear')).toEqual(['12/34', '24 +10 class'])
@@ -3035,7 +3036,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     seedFace(20, 9)
     fireEvent.click(panicButton())
 
-    expect(shownStatus()).toBe('Panic Check (Advantage, 2 and 9): 9 vs Stress 5 - success.')
+    expect(shownStatus()).toBe('Panic Check: 9 vs Stress 5 - success.')
     expect(modePressed('Normal')).toBe(true)
   })
 
@@ -3048,7 +3049,7 @@ describe('Lubec Panic Check and Recovery Save', () => {
     seedRolls(23, 12)
     fireEvent.click(recoveryButton())
 
-    expect(shownStatus()).toBe('Recovery Save on Sanity (Disadvantage, 23 and 12): 23 vs 30 - success, -3 Stress.')
+    expect(shownStatus()).toBe('Recovery Save on Sanity: 23 vs 30 - success, -3 Stress.')
     expect(modePressed('Normal')).toBe(true)
   })
 

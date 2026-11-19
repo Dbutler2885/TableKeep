@@ -15,17 +15,16 @@ export function DeclarationReview({ state, declarer, gm, commands }: Props) {
   const foot = gm ? <>
     <button type="button" className="btn line" disabled={run.busy} onClick={() => answer(false)}>Reject declaration</button>
     <button type="button" className="btn rust" disabled={run.busy} onClick={() => answer(true)}>Approve declaration</button>
-  </> : <span className="note">The next person declares after the GM approves this choice.</span>
+  </> : null
   return (
     <CombatWindow title={gm ? 'Review declaration' : 'Waiting for GM approval'} stepper={<PhaseStepper state={state} />} foot={foot}>
       <CombatRefusal refusal={run.refusal} />
       <div className="bigwait">
         <span className="label">Declaring, slowest first</span>
         <h3>{declarer.name}</h3>
-        <p>{gm ? 'Approve this action, or reject it so the same person can choose again.' : 'The GM is reviewing this declaration.'}</p>
       </div>
       <div className="st">
-        <div className="sh"><span>Submitted declaration</span><span>Awaiting GM approval</span></div>
+        <div className="sh"><span>Submitted declaration</span></div>
         <div className="sb">
           <DeclarationMini declaration={declaration} />
           <div className="decls"><div className="txt"><DeclarationWords state={state} declaration={declaration} /></div></div>

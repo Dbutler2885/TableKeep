@@ -31,7 +31,7 @@ export function CombatStepper({ steps, now }: { steps: readonly string[]; now: n
   )
 }
 
-type WindowProps = { title: string; stepper: ReactNode; children: ReactNode; foot: ReactNode }
+type WindowProps = { title: string; stepper: ReactNode; children: ReactNode; foot?: ReactNode }
 
 /** The attack prototype's window, placed in the page: what this viewer must do, or who the fight waits on. */
 export function CombatWindow({ title, stepper, children, foot }: WindowProps) {
@@ -39,7 +39,7 @@ export function CombatWindow({ title, stepper, children, foot }: WindowProps) {
     <section className="lubec-fight inpage" aria-label={title}>
       <div className="section-head"><h2>{title}</h2>{stepper}</div>
       <div className="fight-body">{children}</div>
-      <div className="step-foot">{foot}</div>
+      {foot ? <div className="step-foot">{foot}</div> : null}
     </section>
   )
 }

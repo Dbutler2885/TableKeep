@@ -20,7 +20,7 @@ function Verdict({ combatant }: { combatant: Combatant }) {
 type RollProps = { combatant: Combatant; named: boolean; commands: AttackCommands }
 
 const rollPrompt = (combatant: Combatant, named: boolean): string =>
-  (named ? `${combatant.name}: roll initiative, d100 under Speed.` : 'Roll initiative: d100 under your Speed.')
+  (named ? `${combatant.name}: roll initiative.` : 'Roll initiative.')
 
 function RollButton({ combatant, commands, act }: { combatant: Combatant; commands: AttackCommands; act: ReturnType<typeof useRun> }) {
   return <SegmentRoll at={Math.max(8, combatant.speed / 2)} label="Roll" disabled={act.busy} onRoll={() => act.run(() => commands.initiative(combatant.key))} />
@@ -41,7 +41,7 @@ function InitiativeRoll({ combatant, named, commands }: RollProps) {
 }
 
 const RollWindow = ({ children }: { children: ReactNode }) => (
-  <CombatWindow title="Roll initiative" stepper={<CombatStepper steps={['Roll', 'Order']} now={0} />} foot={<span className="note">Waiting for everyone to roll.</span>}>{children}</CombatWindow>
+  <CombatWindow title="Roll initiative" stepper={<CombatStepper steps={['Roll', 'Order']} now={0} />}>{children}</CombatWindow>
 )
 
 /** Moment 3 for a player in the fight: each of their combatants rolls on their own Speed bar. */

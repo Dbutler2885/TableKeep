@@ -6,10 +6,10 @@ import { DeclarationWords } from './DeclarationsPanel'
 import { LOST_ACTION } from '../engine/stages'
 import type { CombatState } from '../engine/types'
 afterEach(cleanup)
-it('shows the lost stage and its inspectable wound reason beside a safe stopped declaration', () => {
+it('shows the lost stage and why, beside a safe stopped declaration', () => {
   const state = { combatants: [], round: 3, lost: { hero: { movement: [4], action: [3], reason: 'Dazed', wound: 'Minor Concussion' } } } as unknown as CombatState
   render(<><StageLossNotice state={state} combatantKey="hero" /><DeclarationWords state={state} declaration={LOST_ACTION} /></>)
   expect(screen.getByText('Action + Defense lost - Dazed')).toBeTruthy()
-  expect(screen.getByText(/Effect card: Minor Concussion/)).toBeTruthy()
-  expect(screen.getByText('Action + Defense lost: no actions this round.')).toBeTruthy()
+  expect(screen.queryByText(/Effect card/)).toBeNull()
+  expect(screen.getByText('Action + Defense lost')).toBeTruthy()
 })

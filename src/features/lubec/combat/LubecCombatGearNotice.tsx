@@ -9,7 +9,7 @@ export function LubecCombatGearNotice({ sheetId }: { sheetId: string }) {
   if (!openCombat || !combatHasSheet(live, sheetId)) return null
   return (
     <div className="notice hot lubec-combat-back">
-      <span><b>Combat is running.</b> You opened your inventory from the Combat tab. Change what is in your hands here, then go back.</span>{' '}
+      <span><b>Combat is running.</b></span>{' '}
       <button type="button" className="btn rust small" onClick={openCombat}>Back to Combat</button>
     </div>
   )

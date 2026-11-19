@@ -127,7 +127,7 @@ describe('Movement for a player', () => {
     fireEvent.click(radio(/^Run/))
     fireEvent.click(button('Confirm movement'))
     await waitFor(() => expect(sentOf('move')[0]).toMatchObject({ envelope: { actorKey: WAYNE, phase: 'movement' }, payload: { choice: 'run', pickup: null } }))
-    expect(rail('Declarations').getByText('Nobody has declared. Slowest declares first; everyone sees every split.')).toBeTruthy()
+    expect(rail('Declarations').getByText('Nobody has declared.')).toBeTruthy()
     expect(document.querySelector('.hand')).toBeNull()
   })
 
@@ -162,7 +162,7 @@ describe('Movement for a player', () => {
     expect(screen.getByText('Waiting for the GM to say whether you can get away.')).toBeTruthy()
     cleanup()
     show('player', 'wayne-uid', fightAfter(...rolled, { type: 'move', actor: WAYNE, ...stay }))
-    expect(screen.getByText('Waiting for everyone to confirm. Declaring starts by itself when they have.')).toBeTruthy()
+    expect(screen.getByText('Waiting for everyone to confirm.')).toBeTruthy()
   })
 
   it('shows the table\'s refusal', async () => {
@@ -199,7 +199,7 @@ describe('Movement for a player', () => {
 describe('Movement for the GM', () => {
   it('lists every choice, sets the NPCs\' choices and confirms them together', async () => {
     show('gm', 'gm', fightAfter(...rolled))
-    expect(screen.getByText('Players choose on their own screens. You choose for the NPCs.')).toBeTruthy()
+    expect(screen.queryByText(/Players choose on their own screens/)).toBeNull()
     expect(screen.getByText('Choosing...')).toBeTruthy()
     fireEvent.change(screen.getByRole('combobox', { name: 'Roy Carver movement' }), { target: { value: 'pickup:floor-ball' } })
     fireEvent.click(button("Confirm the NPCs' movement"))
@@ -282,7 +282,7 @@ describe('declaration approval', () => {
   it.each(['wayne-uid', 'marcy-uid'])('keeps player %s waiting without declaration or approval controls', (uid) => {
     show('player', uid, fightAfter(...declaring(), proposal))
     expect(screen.getByRole('region', { name: 'Waiting for GM approval' })).toBeTruthy()
-    expect(screen.getByText('The next person declares after the GM approves this choice.')).toBeTruthy()
+    expect(screen.queryByText(/next person declares after the GM approves/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Approve declaration' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Reject declaration' })).toBeNull()
@@ -291,7 +291,7 @@ describe('declaration approval', () => {
   it('returns the choice to the same player after rejection, then holds their revised choice for approval', () => {
     const rejected: Step = { type: 'answerDeclaration', combatantKey: WAYNE, approve: false }
     show('player', 'wayne-uid', fightAfter(...declaring(), proposal, rejected))
-    expect(screen.getByText('The GM rejected your declaration. Choose again; it is still your turn to declare.')).toBeTruthy()
+    expect(screen.getByText('The GM rejected your declaration. Choose again.')).toBeTruthy()
     expect(button('Declare')).toBeTruthy()
     cleanup()
     show('gm', 'gm', fightAfter(...declaring(), proposal, rejected, { type: 'declare', actor: WAYNE, full: true, against: ROY, awaitReview: true }))
@@ -325,7 +325,7 @@ describe('Declare', () => {
     expect(screen.getByRole('region', { name: 'Declare' })).toBeTruthy()
     expect(screen.getByText('Stage 2, Declare')).toBeTruthy()
     expect(screen.getByText('Split your Handle against Roy Carver.')).toBeTruthy()
-    expect(screen.getByText('Submit your choice for GM approval. The next person waits until it is approved.')).toBeTruthy()
+    expect(screen.queryByText(/Submit your choice for GM approval/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Add a Defense line' }))
     fireEvent.click(button('Declare'))
     await waitFor(() => expect(sentOf('declare')[0]).toMatchObject({ envelope: { actorKey: WAYNE, phase: 'declare' }, payload: { full: false, aim: { ...throwAt, defense: { against: ROY, amount: 20 } } } }))
@@ -352,7 +352,7 @@ describe('Declare', () => {
     expect(screen.getByRole('region', { name: 'Declare' })).toBeTruthy()
     cleanup()
     show('gm', 'gm', fightAfter(...declaring(), { type: 'declare', actor: WAYNE, aim: throwAt }))
-    expect(screen.getByText('Your NPC declaration takes effect when submitted. The next turn begins automatically.')).toBeTruthy()
+    expect(screen.queryByText(/takes effect when submitted/)).toBeNull()
     expect(screen.getByText(/Wayne Gardner/, { selector: '.notice b' })).toBeTruthy()
     expect(screen.getByText(/has declared a throw at you \(ATK 61\)/)).toBeTruthy()
     expect(screen.getByRole('radio', { name: /^Wayne Gardner/ }).querySelector('.badge')!.textContent).toBe('Throws at you')
@@ -378,7 +378,7 @@ describe('Declare', () => {
     live.fight.state.attack = { id: 'shown', grantId: null, attackerKey: ROY, step: 'done', detached: [], closed: true }
     show('player', 'wayne-uid', live)
     expect(document.querySelector('.decls li.atyou .txt')!.textContent).toBe('Full Defense: no attack. Defense 46 Full against Wayne Gardner.')
-    expect(document.querySelector('.decls li.you .txt')!.textContent).toBe('Ran: no attack and no Defense this round.')
+    expect(document.querySelector('.decls li.you .txt')!.textContent).toBe('Ran: no attack, no Defense')
     expect(screen.getByText('AT YOU')).toBeTruthy()
   })
 
@@ -460,7 +460,7 @@ describe('Evasive Movement', () => {
   it('shows the Speed roll in the turn order, and keeps the evader to Full Defense when they declare', () => {
     show('player', 'wayne-uid', fightAfter(...moved(evade), { type: 'settleMovement', dice: { evasion: 47 } }))
     expect(rail('Turn order').getByText(/Evasive −20/)).toBeTruthy()
-    expect(screen.getByText(/That uses the action, so there is no attack this round/)).toBeTruthy()
+    expect(screen.getByText(/No attack this round: declare Full Defense against one person/)).toBeTruthy()
     expect(button('Declare Full Defense')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Declare' })).toBeNull()
   })

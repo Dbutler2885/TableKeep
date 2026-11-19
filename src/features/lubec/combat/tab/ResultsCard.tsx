@@ -3,14 +3,14 @@ import type { CombatAttack, CombatState } from '../engine/types'
 import { outcomeBanner } from './outcomeWords'
 import { Refusal, type StepControls } from './ResultSteps'
 import { useAct } from './useAct'
-import { continueWords, headWords, resultsFacts, resultsWound, type ResultsWound } from './resultsModel'
+import { continueWords, headWords, resultsWound, type ResultsWound } from './resultsModel'
 
 function WoundPanel({ wound }: { wound: ResultsWound }) {
   return (
     <div className={`results-wound ${wound.cls}`}>
       <div className="results-wound-head">
         <span className={`sev ${wound.cls}`}>{wound.severity}</span>
-        <span className="tag ink">{wound.trauma}</span>
+        {wound.trauma ? <span className="tag ink">{wound.trauma}</span> : null}
         {wound.out ? <span className="badge rust">Out of the fight</span> : null}
       </div>
       <h4>{wound.name}</h4>
@@ -25,7 +25,6 @@ function WoundPanel({ wound }: { wound: ResultsWound }) {
         ))}
       </dl>
       {wound.notes.map((note) => <p key={note} className="note">{note}</p>)}
-      <p className="note">{wound.sheet}</p>
     </div>
   )
 }
@@ -53,16 +52,13 @@ function ResultsHead({ title, line }: { title: string; line: string | null }) {
   )
 }
 
-/** The end of every attack: what happened, to whom, where, with what and how hard, then the wound it left. */
+/** The end of every attack: what happened, then the wound it left; the steps above already say who, with what, where and how hard. */
 export function ResultsCard({ state, attack, controls }: { state: CombatState; attack: CombatAttack; controls: StepControls | null }) {
   const banner = outcomeBanner(state, attack)
   const wound = resultsWound(state, attack)
   return (
     <section className={`results ${banner?.tone ?? ''}`.trim()} aria-label="Results">
       <ResultsHead {...headWords(banner, wound !== null)} />
-      <dl className="results-facts">
-        {resultsFacts(state, attack).map((fact) => <div key={fact.term}><dt>{fact.term}</dt><dd>{fact.value}</dd></div>)}
-      </dl>
       {wound ? <WoundPanel wound={wound} /> : null}
       <ContinueBar state={state} attack={attack} controls={controls} />
     </section>

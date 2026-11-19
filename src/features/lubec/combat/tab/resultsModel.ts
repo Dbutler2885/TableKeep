@@ -1,15 +1,11 @@
-import { locName } from '../../../ruleSets/lubec/gear/gearRules'
 import { lubecPlainProse } from '../../../ruleSets/lubec/woundCards'
 import { combatAttackers } from '../engine/declare'
 import type { CombatAttack, CombatState, CombatWoundSection } from '../engine/types'
-import { combatantName, evasionWords, pairWords } from './attackWords'
 import type { Banner } from './outcomeWords'
-import { tableName } from './resultSequence'
 
 /** The report's severity shades, lightest to darkest. */
 export const SEVERITY_CLASS: Readonly<Record<string, string>> = { Minor: 'mi', Serious: 'se', Severe: 'sv', Critical: 'cr', Catastrophic: 'ca' }
 
-export type ResultsFact = { term: string; value: string }
 export type WoundPart = { label: string; text: string }
 export type ResultsWound = {
   severity: string
@@ -22,7 +18,6 @@ export type ResultsWound = {
   /** A final row's consequences by when they happen: Now, Next round, Recovery, Lasting. */
   sections: CombatWoundSection[]
   out: boolean
-  sheet: string
 }
 
 const LABELS = /(Now|Lasting(?: \([^)]*\))?|After 1 Long Rest|After 2 Long Rests): /
@@ -33,27 +28,6 @@ export function woundParts(text: string): WoundPart[] {
   const parts = before.trim() ? [{ label: 'What it does', text: before.trim() }] : []
   for (let index = 0; index < labelled.length; index += 2) parts.push({ label: labelled[index], text: labelled[index + 1].trim() })
   return parts
-}
-
-function whereFact(attack: CombatAttack): ResultsFact | null {
-  const landing = attack.landing
-  return landing?.part ? { term: 'Where', value: `${locName(landing.part)}${landing.moved ? `, moved ${landing.moved}` : ''}` } : null
-}
-
-const hardFact = (attack: CombatAttack): ResultsFact | null =>
-  (attack.impact ? { term: 'How hard', value: `Impact ${attack.impact.total} on ${tableName(attack.impact.table)}` } : null)
-
-const evasiveFact = (attack: CombatAttack): ResultsFact | null =>
-  (attack.evasion ? { term: 'Evasive', value: evasionWords(attack.evasion) } : null)
-
-/** Who against whom, with what, where it struck, how hard and any Evasive Movement: only what this attack reached. */
-export function resultsFacts(state: CombatState, attack: CombatAttack): ResultsFact[] {
-  const facts = [
-    { term: 'Who', value: `${combatantName(state, attack.attackerKey)} → ${combatantName(state, attack.aim?.targetKey)}` },
-    { term: 'With', value: pairWords(attack.frozen!.weaponName, attack.frozen!.choice.name) },
-    whereFact(attack), hardFact(attack), evasiveFact(attack),
-  ]
-  return facts.filter((fact): fact is ResultsFact => fact !== null)
 }
 
 const PURPOSE_WORDS = { 'fist-catch': 'Catch their fist', concussion: 'Concussion', prevention: 'Countdown', retention: 'Keep hold' } as const
@@ -77,22 +51,15 @@ function woundNotes(attack: CombatAttack): string[] {
   const rolls = landingChecks(attack)
   for (const rolled of rolls) notes.push(rollNote(rolled))
   if (attack.row?.choice) notes.push(`d2 rolled ${attack.row.choice}`)
-  if (provisionalWound(attack.row)) notes.push('Resolved by hand: the sheet gets these words, and the table applies them.')
+  if (provisionalWound(attack.row)) notes.push('Resolved by hand')
   return notes
 }
 
-/** What the wound charged: its Trauma (a passed Body Save can make it less than the row prints), and any Stress and Minimum Stress. */
+/** What the wound charged, leaving out what it did not (a passed Body Save can bring its Trauma under the row's); empty for nothing. */
 function traumaWords(attack: CombatAttack): string {
-  const trauma = attack.rowTrauma ?? attack.row!.trauma
-  const parts = [trauma > 0 ? `Trauma +${trauma}` : 'Trauma 0']
-  if (attack.rowStress) parts.push(`Stress +${attack.rowStress}`)
-  if (attack.rowMinimumStress) parts.push(`Minimum Stress +${attack.rowMinimumStress}`)
-  return parts.join(', ')
+  const charged = [['Trauma', attack.rowTrauma ?? attack.row!.trauma], ['Stress', attack.rowStress], ['Minimum Stress', attack.rowMinimumStress]] as const
+  return charged.filter(([, amount]) => amount).map(([name, amount]) => `${name} +${amount}`).join(', ')
 }
-
-/** A located wound counts at once, for every roll the target has not made yet; Dodgeball's from next round. */
-const sheetWords = (table: string | undefined, name: string): string =>
-  (table ? `Goes on ${name}'s sheet now: it counts for every roll ${name} has not made yet this round.` : `Goes on ${name}'s sheet next round.`)
 
 /** The wound the hit left, once its row is applied; nothing before then or without one. */
 export function resultsWound(state: CombatState, attack: CombatAttack): ResultsWound | null {
@@ -102,14 +69,17 @@ export function resultsWound(state: CombatState, attack: CombatAttack): ResultsW
   const prose = lubecPlainProse(attack.rowOutcome || `${row.name}.`)
   return {
     severity: row.severity, cls: SEVERITY_CLASS[row.severity], trauma: traumaWords(attack),
-    name: row.name, parts: resultWoundParts(row, prose), injury: row.injury ?? null, notes: woundNotes(attack),
+    name: row.name, parts: resultWoundParts(attack, prose), injury: row.injury ?? null, notes: woundNotes(attack),
     sections: attack.rowSections ?? [],
-    out: target.outReason !== null, sheet: sheetWords(row.table, target.name),
+    out: target.outReason !== null,
   }
 }
 
-const resultWoundParts = (row: NonNullable<CombatAttack['row']>, prose: string) =>
-  row.final ? [{ label: 'The table says', text: prose }] : woundParts(prose)
+/** A final row's own sections already say what it does; the table's words show only when there are none, as for a missed fist catch. */
+function resultWoundParts(attack: CombatAttack, prose: string): WoundPart[] {
+  if (!attack.row!.final) return woundParts(prose)
+  return attack.rowSections?.length ? [] : [{ label: 'The table says', text: prose }]
+}
 
 /** The Results headline, and the one line under it that the wound panel does not already say. */
 export function headWords(banner: Banner | null, wound: boolean): { title: string; line: string | null } {

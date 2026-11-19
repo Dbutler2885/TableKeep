@@ -4,7 +4,7 @@ import { aimDefense } from '../engine/attackAim'
 import type { CombatAttack, CombatAttackRoll, CombatFrozenAim, CombatState } from '../engine/types'
 import { AttackBar, QualityCall } from './AttackBar'
 import { attackSegments, segmentMiddle } from './attackDraft'
-import { attackVerdict, combatantName, evasionWords, pairWords, resultFoot } from './attackWords'
+import { attackVerdict, combatantName, evasionWords, pairWords } from './attackWords'
 import { AttackMatchup } from './AttackMatchup'
 import { CombatStepper, CombatWindow } from './CombatParts'
 import { CatchStep, CheckStep, DefenseStep, LocationStep, WoundStep, type StepControls, type StepProps } from './ResultSteps'
@@ -47,10 +47,11 @@ function StepCard({ state, attack, card, index, controls }: CardProps) {
   const Body = card === 'attack' ? null : STEP_BODIES[card]
   const heading = <span><span className="no">{index + 1}</span>{cardName(attack, card)}</span>
   const owner = combatantName(state, ownerOf(attack, card))
+  const targetOwned = TARGET_CARDS.includes(card)
   const body = <div className="sb">{Body ? <Body state={state} attack={attack} controls={controls} active={active} /> : <AttackRollBody attack={attack} />}</div>
   if (!active) return (
     <details className="st completed">
-      <summary className="sh">{heading}<span className="step-result">{completedResultText(attack, card)}</span><span className="step-owner">{owner}</span><span className="step-reveal">Details <i aria-hidden="true" /></span></summary>
+      <summary className="sh">{heading}<span className="step-result">{completedResultText(attack, card)}</span>{targetOwned ? <span className="step-owner">{owner}</span> : null}<span className="step-reveal">Details <i aria-hidden="true" /></span></summary>
       {body}
     </details>
   )
@@ -80,7 +81,7 @@ export function AttackResult({ state, attack, controls = null }: { state: Combat
   const attacker = combatantName(state, attack.attackerKey)
   const progress = resultProgress(attack)
   return (
-    <CombatWindow title="Result" stepper={<CombatStepper steps={progress.steps} now={progress.now} />} foot={<span className="note">{resultFoot(attack, state.round)}</span>}>
+    <CombatWindow title="Result" stepper={<CombatStepper steps={progress.steps} now={progress.now} />}>
       <AttackMatchup attacker={attacker} target={combatantName(state, attack.aim?.targetKey)} />
       <p className="matchup-context">{pairWords(attack.frozen.choice.name, attack.frozen.weaponName)}</p>
       <div className="seq">

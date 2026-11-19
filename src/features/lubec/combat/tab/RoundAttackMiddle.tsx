@@ -30,7 +30,7 @@ type WaitProps = { state: CombatState; attack: CombatAttack; attacker: Combatant
 /** Moment 6 during Attack: who the fight waits on, with this viewer's own declaration in view. */
 function AttackTurnWaiting({ state, attack, attacker, viewer }: WaitProps) {
   return (
-    <CombatWindow title="Waiting" stepper={<PhaseStepper state={state} />} foot={<span className="note">Declarations and the Floor stay in view on either side.</span>}>
+    <CombatWindow title="Waiting" stepper={<PhaseStepper state={state} />}>
       <AttackMatchup attacker={attacker.name} target={combatantName(state, attack.aim!.targetKey)} />
       <div className="bigwait">
         <span className="label">Stage 3, Attack, fastest first</span>

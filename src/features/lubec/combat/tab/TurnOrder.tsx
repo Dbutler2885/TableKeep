@@ -61,19 +61,19 @@ const ACTING: Readonly<Record<string, (state: CombatState) => string | undefined
 
 const actingKey = (state: CombatState): string | undefined => ACTING[state.phase]?.(state)
 
-type Ordered = { title: string; sub: string; rows: { combatant: Combatant; place: number | null }[]; note: boolean }
+type Ordered = { title: string; sub: string; rows: { combatant: Combatant; place: number | null }[] }
 
 /** Before initiative nobody has an order; while rolling it builds as people roll; then it is fastest first. */
 function ordered(state: CombatState): Ordered {
   if (state.order) {
     const rows = state.order.map((key, index) => ({ combatant: state.combatants.find((entry) => entry.key === key)!, place: index + 1 }))
     const rest = state.combatants.filter((entry) => !state.order!.includes(entry.key)).map((combatant) => ({ combatant, place: null }))
-    return { title: 'Turn order', sub: 'fastest first', rows: [...rows, ...rest], note: true }
+    return { title: 'Turn order', sub: 'fastest first', rows: [...rows, ...rest] }
   }
-  if (state.phase !== 'initiative') return { title: 'In the fight', sub: 'no order yet', rows: state.combatants.map((combatant) => ({ combatant, place: null })), note: false }
+  if (state.phase !== 'initiative') return { title: 'In the fight', sub: 'no order yet', rows: state.combatants.map((combatant) => ({ combatant, place: null })) }
   const rolled = byInitiative(state.combatants)
   const rows = [...rolled.map((combatant, index) => ({ combatant, place: index + 1 })), ...state.combatants.filter((entry) => !entry.initiative).map((combatant) => ({ combatant, place: null }))]
-  return { title: 'Turn order', sub: 'as they roll', rows, note: false }
+  return { title: 'Turn order', sub: 'as they roll', rows }
 }
 
 /** The card a player tapped, by its fighter and its id. */
@@ -99,7 +99,6 @@ export function TurnOrderPanel({ state, userId, onOut, effects }: { state: Comba
       {onOut ? <div className="panel-actions"><button type="button" className="btn line small" aria-expanded={managing} aria-controls={id} onClick={() => setManaging(!managing)}>{managing ? 'Done managing' : 'Manage combatants'}</button></div> : null}
       <ul className="turns" id={id}>{view.rows.map(({ combatant, place }) => <TurnRow key={combatant.key} state={state} combatant={combatant} place={place} userId={userId} now={combatant.key === now} onOut={managing ? onOut : undefined} effects={effects} onEffects={(effectId) => setEffectsOf({ key: combatant.key, effectId })} />)}</ul>
       <OpenedEffects state={state} effects={effects} opened={effectsOf} onClose={() => setEffectsOf(null)} />
-      {view.note ? <div className="pb"><p className="note">Successes go before failures: higher successes first, lower failures first.</p></div> : null}
     </CombatPanel>
   )
 }

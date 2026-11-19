@@ -114,11 +114,11 @@ describe('Lubec roll circles', () => {
     expect(lubecCirclesStatus(null, null, null)).toBe('')
   })
 
-  it('says how a Panic Check or a Recovery Save came out, with both dice under Advantage or Disadvantage', () => {
+  it('says how a Panic Check or a Recovery Save came out, leaving a mode\'s dice to the breakdown under it', () => {
     expect(lubecRollStatus(panicRoll)).toBe('Panic Check: 4 vs Stress 5 - failure.')
-    expect(lubecRollStatus(recoveryRoll)).toBe('Recovery Save on Body (Advantage, 12 and 44): 12 vs 31 - success, -2 Stress.')
+    expect(lubecRollStatus(recoveryRoll)).toBe('Recovery Save on Body: 12 vs 31 - success, -2 Stress.')
     expect(lubecRollStatus({ ...handleRoll, dice: [32, 90], result: 90, advantage: 'disadvantage', outcome: 'failure', stressAdded: 1 }))
-      .toBe('Handle + Boatwork (Disadvantage, 32 and 90): 90 vs 65 - failure, +1 Stress.')
+      .toBe('Handle + Boatwork: 90 vs 65 - failure, +1 Stress.')
   })
 
   it('shows a Panic Check or a Recovery Save on its own circle, never on the Save it was rolled on', () => {

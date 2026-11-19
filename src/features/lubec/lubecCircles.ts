@@ -1,7 +1,6 @@
 import {
   describeLubecCheckOutcome,
   describeLubecOutcome,
-  lubecAdvantageName,
   isLubecCritical,
   lubecCheckTarget,
   type LubecAdvantage,
@@ -189,13 +188,13 @@ function statusParts(roll: LubecLastRoll): StatusParts {
 }
 
 // Both dice under Advantage or Disadvantage, so anyone viewing sees which one was kept.
+/** Why a card left a roll at Normal; under a mode the breakdown below the status shows the mode, its reason and both dice instead. */
 const advantageNote = (roll: LubecLastRoll): string => {
   const because = 'because' in roll && typeof roll.because === 'string' ? roll.because : null
-  if (roll.advantage === 'normal') return because ? ` (${because})` : ''
-  return ` (${because ?? lubecAdvantageName(roll.advantage)}, ${roll.dice.join(' and ')})`
+  return roll.advantage === 'normal' && because ? ` (${because})` : ''
 }
 
-/** "Handle + Boatwork: 32 vs 65 - success.", with both dice under Advantage and any Stress the roll changed. */
+/** "Handle + Boatwork: 32 vs 65 - success.", with any Stress the roll changed. */
 export function lubecRollStatus(roll: LubecLastRoll): string {
   const { what, target, outcome } = statusParts(roll)
   return `${what}${advantageNote(roll)}: ${roll.result} vs ${target} - ${lowerFirst(outcome)}.`

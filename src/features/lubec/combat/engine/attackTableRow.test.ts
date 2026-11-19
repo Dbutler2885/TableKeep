@@ -143,7 +143,7 @@ describe('a final row that lands at once', () => {
   })
 
   it('says an Immediate Death Save is the GM\'s to resolve', () => {
-    expect(attackOf(landed('fisticuffs', 'head', 10))).toMatchObject({ rowTrauma: 4, rowSections: [{ label: 'Now', items: ['Immediate Death Save: the GM resolves it privately'] }] })
+    expect(attackOf(landed('fisticuffs', 'head', 10))).toMatchObject({ rowTrauma: 4, rowSections: [{ label: 'Now', items: ['Immediate Death Save'] }] })
   })
 
   it('reads a final Thrown concussion with the shared Body Save', () => {
@@ -158,7 +158,7 @@ describe('a final Cutting wound with a countdown', () => {
     const done = landed('cutting', 'neck', 3, { check: [10] })
     expect(attackOf(done).checks).toMatchObject([{ purpose: 'prevention', success: true, stress: 0 }])
     expect(outboxOf(done)).toMatchObject({ traumaDelta: 1, stressDelta: 0, effects: [] })
-    expect(attackOf(done).rowSections).toEqual([{ label: 'Now', items: ['Timer prevented: the Body Save stopped every countdown'] }])
+    expect(attackOf(done).rowSections).toEqual([{ label: 'Now', items: ['Countdown prevented'] }])
   })
 
   it('failure adds the Save\'s Stress once and rolls the d4 once, keeping it on a bleeding card', () => {
@@ -259,7 +259,7 @@ describe('final Gunshot head wounds', () => {
   it('Head 5 keeps +4 Trauma, asks for the Immediate Death Save, and takes -20 Intellect as the whole lasting loss', () => {
     const done = landed('gunshot', 'head', 5, { check: [99] })
     expect(outboxOf(done)).toMatchObject({ traumaDelta: 4, stressDelta: 1, minimumStressDelta: 8 })
-    expect(attackOf(done).rowSections![0].items).toContain('Immediate Death Save: the GM resolves it privately')
+    expect(attackOf(done).rowSections![0].items).toContain('Immediate Death Save')
     const intellect = outboxOf(done).effects!.flatMap((card) => card.steps.flatMap((step) => step.modifiers)).filter((modifier) => modifier.target === 'Intellect')
     expect(intellect).toEqual([{ target: 'Intellect', amount: -20 }])
   })
@@ -405,7 +405,7 @@ describe('knocked out of striking reach', () => {
     const done = landed('fisticuffs', 'torso', 1)
     expect(done.fight.state.outOfReach).toEqual([{ attackerKey: HERO, targetKey: ROY, round: 1 }])
     expect(done.fight.state.combatants.find((entry) => entry.key === ROY)!.outReason).toBeNull()
-    expect(attackOf(done).rowSections![0].items).toContain('Knocked out of striking reach: the GM rules it, as combat here has no reach')
+    expect(attackOf(done).rowSections![0].items).toContain('Knocked out of striking reach')
   })
 })
 

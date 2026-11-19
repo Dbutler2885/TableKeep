@@ -11,7 +11,7 @@ export function AttackNotices({ attacker, attack, refusal, gm }: NoticeProps) {
   const granted = gm ? `${attacker.name} has a Sneak Attack.` : 'The GM granted you a Sneak Attack.'
   return (
     <>
-      <div className="notice cool"><span><b>{granted}</b> This attack runs now, before initiative. Pick, split and Roll in one go.</span></div>
+      <div className="notice cool"><span><b>{granted}</b></span></div>
       <RepairNotice attack={attack} />
       {refusal ? <div className="notice hot" role="alert"><span>{refusal}</span></div> : null}
     </>
@@ -32,8 +32,8 @@ type RoundNoticeProps = { attack: CombatAttack; targetName: string; gone: Attack
 export function RoundNotices({ attack, targetName, gone, refusal }: RoundNoticeProps) {
   return (
     <>
-      {gone.target ? <div className="notice hot"><span><b>{targetName} is Out.</b> Your target has gone before your turn. Choose again; your declared split stays and nothing is wasted.</span></div> : null}
-      {gone.weapon ? <div className="notice hot"><span><b>The {attack.frozen!.weaponName.toLowerCase()} is no longer in your hand.</b> Choose a weapon again; your declared split stays and nothing is wasted.</span></div> : null}
+      {gone.target ? <div className="notice hot"><span><b>{targetName} is Out.</b> Choose again.</span></div> : null}
+      {gone.weapon ? <div className="notice hot"><span><b>The {attack.frozen!.weaponName.toLowerCase()} is no longer in your hand.</b> Choose again.</span></div> : null}
       <RepairNotice attack={attack} />
       {refusal ? <div className="notice hot" role="alert"><span>{refusal}</span></div> : null}
     </>

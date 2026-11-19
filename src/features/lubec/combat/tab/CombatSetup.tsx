@@ -176,9 +176,7 @@ export function CombatSetup({ characters, npcs, items, onStart, onRepair }: Setu
           </CombatWindow>
         </div>
         <div className="rail">
-          <CombatPanel title="Turn order" sub="after initiative">
-            <div className="pb"><p className="note">The turn order, declarations and Floor appear here and stay on screen once combat starts.</p></div>
-          </CombatPanel>
+          <CombatPanel title="Turn order" sub="after initiative">{null}</CombatPanel>
         </div>
       </div>
     </>

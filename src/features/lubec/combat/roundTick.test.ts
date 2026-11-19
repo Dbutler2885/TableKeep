@@ -80,7 +80,7 @@ describe('a saved countdown', () => {
     expect(run(raw, 3)).toBeNull()
     const fired = run(raw, 4)!
     expect(fired.lubec.counters.trauma).toBe(raw.lubec.counters.trauma + 1)
-    expect(fired.lubec.effects[0]).toMatchObject({ countdown: { kind: 'bleed', rounds: 1, fired: true, firedRound: 4 }, steps: [{ until: 'by-hand', labels: ['Fired at the end of round 4: +1 Trauma added. Clear by hand.'] }] })
+    expect(fired.lubec.effects[0]).toMatchObject({ countdown: { kind: 'bleed', rounds: 1, fired: true, firedRound: 4 }, steps: [{ until: 'by-hand', labels: ['+1 Trauma added at the end of round 4'] }] })
     expect(fired.lubec.effects[1]).toEqual(arm)
     expect(run(fired, 4)).toBeNull()
     expect(run(fired, 5)).toBeNull()
@@ -91,7 +91,7 @@ describe('a saved countdown', () => {
     const third = run(raw, 3)!
     expect(third.lubec.counters.trauma).toBe(raw.lubec.counters.trauma)
     expect(third.lubec.effects.map((effect) => (effect as { countdown: { fired?: boolean } }).countdown.fired ?? false)).toEqual([false, true])
-    expect(third.lubec.effects[1]).toMatchObject({ steps: [{ labels: ['Due at the end of round 3: a Death Save, which the GM resolves privately. Clear by hand.'] }] })
+    expect(third.lubec.effects[1]).toMatchObject({ steps: [{ labels: ['Death Save due at the end of round 3'] }] })
     const fourth = run(third, 4)!
     expect(fourth.lubec.counters.trauma).toBe(raw.lubec.counters.trauma + 1)
   })
@@ -141,9 +141,9 @@ describe('closing the fight for one combatant', () => {
     const critical = card('critical', [step('rounds')], { countdown: { kind: 'critical', rounds: 4 } })
     const after = close(sheet([window, bleed, critical]), 4)!
     const [w, b, c] = after.lubec.effects as { steps: { labels: string[]; until: string }[]; afterCombat: object }[]
-    expect(w).toMatchObject({ afterCombat: { suggestedMinutes: 2 }, steps: [{ until: 'by-hand', labels: ['Suggested 2 minutes - resolve by hand', 'Then Step down to clear this card.'] }] })
-    expect(b).toMatchObject({ afterCombat: { suggestedMinutes: 3, countdown: 'bleed' }, steps: [{ labels: ['Suggested 3 minutes - resolve by hand', 'Then add +1 Trauma with the Trauma counter, and Step down to clear this card.'] }] })
-    expect(c).toMatchObject({ afterCombat: { suggestedMinutes: 4, countdown: 'critical' }, steps: [{ labels: ['Suggested 4 minutes - resolve by hand', 'Then the GM resolves a Death Save privately, with the Death table; Step down to clear this card.'] }] })
+    expect(w).toMatchObject({ afterCombat: { suggestedMinutes: 2 }, steps: [{ until: 'by-hand', labels: ['About 2 minutes left'] }] })
+    expect(b).toMatchObject({ afterCombat: { suggestedMinutes: 3, countdown: 'bleed' }, steps: [{ labels: ['About 3 minutes left', '+1 Trauma when it runs out'] }] })
+    expect(c).toMatchObject({ afterCombat: { suggestedMinutes: 4, countdown: 'critical' }, steps: [{ labels: ['About 4 minutes left', 'Death Save when it runs out'] }] })
     expect(after.lubec.counters.trauma).toBe(sheet([]).lubec.counters.trauma)
     expect(close(after, 4)).toBeNull()
   })

@@ -94,12 +94,7 @@ function MovementRows({ roster, state, choices, onChoose, onActFor }: RowsProps)
 const choosingNpcs = (state: CombatState): Combatant[] => state.combatants.filter((entry) => entry.kind === 'npc' && entry.outReason === null && !entry.movement)
 
 function GmFoot({ state, run, onConfirm }: { state: CombatState; run: CombatRun; onConfirm: () => void }) {
-  return (
-    <>
-      <span className="note">Pick up uses movement, Run costs the attack and Defense, Evasive costs the attack and rolls Speed, Leaving needs your confirmation. Declaring starts by itself once everyone has confirmed.</span>
-      <button type="button" className="btn rust" disabled={run.busy || choosingNpcs(state).length === 0} onClick={onConfirm}>Confirm the NPCs&apos; movement</button>
-    </>
-  )
+  return <button type="button" className="btn rust" disabled={run.busy || choosingNpcs(state).length === 0} onClick={onConfirm}>Confirm the NPCs&apos; movement</button>
 }
 
 /** Moment 4 for the GM: everyone's choice, each NPC's choice to set, and every Leave to answer. */
@@ -111,7 +106,6 @@ function GmMovementList({ state, commands, onActFor, roster }: MovementProps) {
   return (
     <CombatWindow title="Movement" stepper={<PhaseStepper state={state} />} foot={<GmFoot state={state} run={run} onConfirm={confirmNpcs} />}>
       <CombatRefusal refusal={run.refusal} />
-      <p className="ask">Players choose on their own screens. You choose for the NPCs.</p>
       <MovementRows roster={roster} state={state} choices={choices} onChoose={(key, value) => setChoices({ ...choices, [key]: value })} onActFor={onActFor} />
       <div className="leave-asks">{asking.map((combatant) => <LeaveAsk key={combatant.key} combatant={combatant} run={run} onAnswer={(confirm) => run.run(() => commands.answerLeave(combatant.key, confirm))} />)}</div>
       <MovementFloor state={state} />

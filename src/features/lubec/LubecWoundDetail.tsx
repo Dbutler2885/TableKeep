@@ -2,7 +2,7 @@ import { describeLubecCheckDice, describeLubecCheckOutcome, readLubecCheckRoll }
 import type { LubecStoredEntry } from '../ruleSets/lubec/characterRecord'
 import type { LubecEffect } from '../ruleSets/lubec/effects'
 import { locName } from '../ruleSets/lubec/gear/gearRules'
-import { lubecDropWords, lubecPlainProse, type LubecWoundRolledCheck, type LubecWoundSource } from '../ruleSets/lubec/woundCards'
+import { lubecDropWords, type LubecWoundRolledCheck, type LubecWoundSource } from '../ruleSets/lubec/woundCards'
 
 // A wound card opened: the wound it came from, as it landed. The table, the
 // struck part, the Impact and severity, the row's words, the d2, every die and
@@ -26,11 +26,11 @@ const diceWords = (dice: Record<string, number[]>) =>
 
 const signed = (amount: number) => (amount > 0 ? `+${amount}` : `${amount}`)
 
-function chargedWords(wound: LubecWoundSource): string {
-  const parts = [`Trauma ${signed(wound.trauma)}`]
-  if (wound.stress) parts.push(`Stress ${signed(wound.stress)}`)
-  if (wound.minimumStress) parts.push(`Minimum Stress ${signed(wound.minimumStress)}`)
-  return parts.join(', ')
+/** What the wound charged, leaving out what it did not: nothing at all when it charged nothing. */
+function chargedFacts(wound: LubecWoundSource): [string, string][] {
+  const charged = [['Trauma', wound.trauma], ['Stress', wound.stress], ['Minimum Stress', wound.minimumStress]] as const
+  const words = charged.filter(([, amount]) => amount).map(([name, amount]) => `${name} ${signed(amount)}`)
+  return words.length ? [['Charged', words.join(', ')]] : []
 }
 
 type DetailProps = { effect: LubecEffect; wound: LubecWoundSource; onEdit: (() => void) | null }
@@ -55,12 +55,9 @@ export function LubecWoundDetail({ effect, wound, onEdit }: DetailProps) {
     ['Struck', locName(wound.part)],
     ['Impact', String(wound.impact)],
     ['Severity', wound.severity],
-    ['Wound', wound.row],
-    ['Row', lubecPlainProse(wound.prose)],
     ...woundRollFacts(wound),
     ...recoveryFacts(effect),
-    ['Charged', chargedWords(wound)],
-    ['Source', wound.contentVersion],
+    ...chargedFacts(wound),
   ]
   return (
     <div className="lubec-wound-detail" aria-label={`${effect.name} wound`}>

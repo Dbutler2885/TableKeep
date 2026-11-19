@@ -194,9 +194,8 @@ function WindowBody(body: BodyProps) {
 export function SneakAttackWindow(props: WindowProps) {
   const fighter = combatFightCombatant(props.attacker, props.roster)
   const sheet = fighter ? lubecCombatantRecord(fighter)?.lubec : undefined
-  const foot = isRoundAttack(props.state, props.attack) ? 'Your declared attack and split are locked. Roll when ready; choose again only if your target or weapon has gone.' : 'No declaration before initiative: this attack goes now.'
   return (
-    <CombatWindow title="Attack" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Roll']} now={3} />} foot={<span className="note">{foot}</span>}>
+    <CombatWindow title="Attack" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Roll']} now={3} />}>
       {sheet ? <WindowBody key={props.attack.id} {...props} fighter={fighter!} sheet={sheet} /> : <p className="note">Reading {props.attacker.name}&apos;s sheet...</p>}
     </CombatWindow>
   )

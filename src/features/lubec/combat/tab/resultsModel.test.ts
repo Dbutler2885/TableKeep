@@ -25,11 +25,13 @@ describe('the Results wound panel', () => {
     check: { kind: 'save', against: 'Body', result: 7, target: 40, success: true },
   } as unknown as CombatAttack
 
-  it('shows the Trauma the wound gave, the rolls that picked it, and where it goes', () => {
-    expect(resultsWound(state, attack)).toMatchObject({
-      severity: 'Severe', cls: 'sv', trauma: 'Trauma 0', name: 'Skull hit', out: false,
-      notes: ['Body Save 07 against 40: passed', 'd2 rolled 2', 'Resolved by hand: the sheet gets these words, and the table applies them.'], sheet: "Goes on Roy's sheet now: it counts for every roll Roy has not made yet this round.",
+  it('shows the rolls that picked the wound, and no charge it did not make', () => {
+    const wound = resultsWound(state, attack)!
+    expect(wound).toMatchObject({
+      severity: 'Severe', cls: 'sv', trauma: '', name: 'Skull hit', out: false,
+      notes: ['Body Save 07 against 40: passed', 'd2 rolled 2', 'Resolved by hand'],
     })
+    expect(wound).not.toHaveProperty('sheet')
   })
 
   it('plays a final row as cards, without the resolved-by-hand note, and shows its words without the table\'s marks', () => {

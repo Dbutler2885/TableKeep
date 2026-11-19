@@ -28,7 +28,6 @@ export function CombatGmTools({ tool, onTool, combatants, actingFor, onActFor, o
     {open ? <section className="gm-player-picker" id="combat-player-picker" aria-label="Act for a player">
       <span className="label">Who is away from the table?</span>
       <div className="gm-player-list">{players.map((entry) => <button className="btn line small" type="button" key={entry.key} aria-label={`Act for ${entry.name}`} onClick={() => { onActFor(entry.key); onTool('') }}>{entry.name}</button>)}</div>
-      <p className="note">You roll or choose for the player you select.</p>
     </section> : null}
   </>
 }

@@ -53,8 +53,8 @@ function countdownDue(effect: Raw, fightId: string, round: number): boolean {
 }
 
 const FIRED_WORDS = {
-  bleed: (round: number) => `Fired at the end of round ${round}: +1 Trauma added. Clear by hand.`,
-  critical: (round: number) => `Due at the end of round ${round}: a Death Save, which the GM resolves privately. Clear by hand.`,
+  bleed: (round: number) => `+1 Trauma added at the end of round ${round}`,
+  critical: (round: number) => `Death Save due at the end of round ${round}`,
 } as const
 
 /** A countdown firing: it is marked fired, with the round, and its card says what happened, in the same write. */
@@ -127,12 +127,12 @@ export function roundTickIntention(raw: Raw, tick: CombatWound, fightId: string,
 // lasting cards are left alone, and nothing is healed or applied.
 
 const AFTER_WORDS = {
-  window: () => 'Then Step down to clear this card.',
-  bleed: () => 'Then add +1 Trauma with the Trauma counter, and Step down to clear this card.',
-  critical: () => 'Then the GM resolves a Death Save privately, with the Death table; Step down to clear this card.',
+  window: () => '',
+  bleed: () => '+1 Trauma when it runs out',
+  critical: () => 'Death Save when it runs out',
 } as const
 
-const minutes = (count: number) => `Suggested ${count} minute${count === 1 ? '' : 's'} - resolve by hand`
+const minutes = (count: number) => `About ${count} minute${count === 1 ? '' : 's'} left`
 
 /** The rounds still to run, the round End is pressed in counting as one, never fewer than one. */
 const remaining = (lastRound: number, closeRound: number) => Math.max(1, lastRound - closeRound + 1)
@@ -142,7 +142,7 @@ function afterCombatEdits(effect: Raw, count: number, instruction: string, extra
   const steps = effect.steps as SheetValue[]
   const afterCombat = { suggestedMinutes: count, instruction }
   return [
-    { kind: 'set', path: ['lubec', 'effects', { recordId: id }, 'steps'], base: { exists: true, value: steps }, value: [{ modifiers: [], labels: [minutes(count), instruction], until: 'by-hand' }] },
+    { kind: 'set', path: ['lubec', 'effects', { recordId: id }, 'steps'], base: { exists: true, value: steps }, value: [{ modifiers: [], labels: [minutes(count), instruction].filter(Boolean), until: 'by-hand' }] },
     { kind: 'set', path: ['lubec', 'effects', { recordId: id }, 'afterCombat'], base: { exists: false }, value: { ...afterCombat, ...extra } as SheetValue },
   ]
 }

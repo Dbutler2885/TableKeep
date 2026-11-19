@@ -17,7 +17,7 @@ import { useCombatRun, type CombatRun } from './useCombatRun'
 
 /** Each choice's name and what it costs. Run's words follow the settled rule: it costs the attack and Defense. */
 const CHOICES: readonly (readonly [CombatMovementChoice, string, string])[] = [
-  ['stay', 'Move or stay', 'Nothing to choose. The GM describes where everyone is in words; it is not tracked.'],
+  ['stay', 'Move or stay', ''],
   ['stand', 'Stand', 'Roll Speed. Success spends Movement only; failure also loses Action and Defense.'],
   ['run', 'Run', 'Costs your attack and your Defense this round.'],
   ['evade', 'Evasive', 'Uses your action: no attack this round. Roll Speed; a success makes ranged attacks at you harder.'],
@@ -68,7 +68,7 @@ const canConfirm = (draft: Draft): boolean => draft.choice !== 'pickup' || draft
 
 function confirmedNote(combatant: Combatant): string {
   if (combatant.movement?.leave === 'asked') return 'Waiting for the GM to say whether you can get away.'
-  return 'Waiting for everyone to confirm. Declaring starts by itself when they have.'
+  return 'Waiting for everyone to confirm.'
 }
 
 type FootProps = { combatant: Combatant; draft: Draft; run: CombatRun; onConfirm: () => void }

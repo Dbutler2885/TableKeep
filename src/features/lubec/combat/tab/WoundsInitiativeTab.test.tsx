@@ -175,7 +175,7 @@ describe('a Dodgeball row\'s Check or Save', () => {
     const wound = document.querySelector('.results-wound')!
     expect(wound.className).toBe('results-wound mi')
     expect(within(wound as HTMLElement).getByText('Minor')).toBeTruthy()
-    expect(within(wound as HTMLElement).getByText('Trauma 0')).toBeTruthy()
+    expect(wound.querySelector('.tag')).toBeNull()
     expect(within(wound as HTMLElement).getByText('Out of the fight')).toBeTruthy()
   })
 })
@@ -200,7 +200,7 @@ describe('rolling initiative', () => {
 
   it('gives a player their own Roll on their Speed bar, and the verdict once rolled', async () => {
     show('player', 'wayne-uid', begun())
-    expect(screen.getByText('Roll initiative: d100 under your Speed.')).toBeTruthy()
+    expect(screen.getByText('Roll initiative.')).toBeTruthy()
     fireEvent.click(button('Roll'))
     await waitFor(() => expect(sentOf('initiative')[0]).toMatchObject({ envelope: { actorKey: WAYNE, phase: 'initiative' } }))
     cleanup()
@@ -213,7 +213,7 @@ describe('rolling initiative', () => {
     const live = begun({ type: 'initiative', actor: WAYNE, dice: { initiative: 99 } })
     live.fight.state.combatants = live.fight.state.combatants.map((entry) => ({ ...entry, kind: 'character' as const, ownerUserId: 'both-uid' }))
     show('player', 'both-uid', live)
-    expect(screen.getByText('Roy Carver: roll initiative, d100 under Speed.')).toBeTruthy()
+    expect(screen.getByText('Roy Carver: roll initiative.')).toBeTruthy()
     expect(screen.getByText(/99 is not under \d+: a failure\./)).toBeTruthy()
   })
 
@@ -258,6 +258,6 @@ describe('rolling initiative', () => {
     const rail = screen.getByText('Turn order').closest('.panel') as HTMLElement
     expect(within(rail).getByText('fastest first')).toBeTruthy()
     expect([...rail.querySelectorAll('.nm')].map((name) => name.textContent)).toEqual(['Roy Carver', 'Wayne Gardner'])
-    expect(within(rail).getByText('Successes go before failures: higher successes first, lower failures first.')).toBeTruthy()
+    expect(within(rail).queryByText(/Successes go before failures/)).toBeNull()
   })
 })

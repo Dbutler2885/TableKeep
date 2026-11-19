@@ -151,7 +151,7 @@ function recoveryOf(effects: readonly LubecEffect[], id: string): LubecRecoveryK
 }
 
 function recoveryText(effects: readonly LubecEffect[], recovering: RecoveringEffect): string {
-  if (recovering.kind === 'wake') return 'Waking requires one Severe Concussion Body Save at Disadvantage, combined with active card modes. Long Rests count from the original injury.'
+  if (recovering.kind === 'wake') return 'Waking: Severe Concussion Body Save at Disadvantage.'
   const effect = effects.find((entry) => entry.id === recovering.id)
   return effect ? lubecReachSaveWords(effect) : 'This card has already been resolved.'
 }

@@ -105,7 +105,7 @@ export function reachReminder(state: CombatState, attackerKey: string, targetKey
   if (!wasOutOfReach(state, attackerKey, targetKey)) return null
   const target = state.combatants.find((entry) => entry.key === targetKey)
   const name = target ? target.name : 'Your target'
-  return `${name} was knocked out of striking reach by your last hit. The GM rules whether this melee attack can reach them.`
+  return `${name} is out of striking reach from your last hit; the GM rules whether this attack reaches.`
 }
 
 /** What has gone since Declare, which is all a round's attacker may choose again. */

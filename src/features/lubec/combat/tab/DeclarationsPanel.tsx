@@ -22,8 +22,8 @@ function lineWords(state: CombatState, declaration: CombatDeclaration): ReactNod
 
 /** "Throw with the Dodgeball at Roy Carver. ATK 36; Defense 20 against Roy Carver." as every screen shows a declaration. */
 export function DeclarationWords({ state, declaration }: { state: CombatState; declaration: CombatDeclaration }) {
-  if (declaration.lost) return <>Action + Defense lost: no actions this round.</>
-  if (declaration.ran) return <><b>Ran</b>: no attack and no Defense this round.</>
+  if (declaration.lost) return <>Action + Defense lost</>
+  if (declaration.ran) return <><b>Ran</b>: no attack, no Defense</>
   if (declaration.full) return <><b>Full Defense</b>: no attack. {lineWords(state, declaration)}.</>
   const { frozen, aim } = declaration
   const lines = declaration.lines.length ? <>; {lineWords(state, declaration)}</> : null
@@ -93,7 +93,7 @@ export function DeclarationsPanel({ state, viewer }: PanelProps) {
   const declaring = state.phase !== 'movement'
   return (
     <CombatPanel title="Declarations" sub="slowest first">
-      {declaring ? null : <div className="pb"><p className="note">Nobody has declared. Slowest declares first; everyone sees every split.</p></div>}
+      {declaring ? null : <div className="pb"><p className="note">Nobody has declared.</p></div>}
       {declaring ? <DeclarationRows state={state} viewer={viewer} /> : <ul className="decls" />}
     </CombatPanel>
   )

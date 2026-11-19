@@ -8,5 +8,6 @@ import { lubecRollDice } from './lubecRollDice'
 export function LubecShownRoll({ sheet, roll }: { sheet: LubecCharacterSheet; roll: LubecLastRoll | null }) {
   if (!roll) return null
   const name = 'against' in roll ? roll.against : 'Target'
-  return <LubecRollBreakdown dice={lubecRollDice({ ...roll, mode: roll.advantage })} parts={lubecLastRollParts(sheet, roll)} name={name} target={roll.target} />
+  // Its own live region: the status line above no longer repeats the mode and dice it shows.
+  return <div aria-live="polite"><LubecRollBreakdown dice={lubecRollDice({ ...roll, mode: roll.advantage })} parts={lubecLastRollParts(sheet, roll)} name={name} target={roll.target} /></div>
 }

@@ -150,7 +150,7 @@ describe('attack-specific result progress', () => {
     cleanup()
     show('player', 'marcy-uid', fightAfter(...landed(), { type: 'land', actor: WAYNE, part: 'torso' }))
     expect(document.querySelector('.st.completed .step-result')?.textContent).toContain('27 / 61')
-    expect(screen.getByText('Hits the torso.')).toBeTruthy()
+    expect(screen.getByText('Hits the torso, moved 1.')).toBeTruthy()
     expect(document.querySelector('.st.active .sh')?.textContent).toContain('The wound')
     expect(screen.queryByRole('button', { name: /^Hit the/ })).toBeNull()
   })
@@ -353,14 +353,13 @@ describe('the doll, Strength and the wound', () => {
     expect(within(results).getByRole('heading', { level: 3 }).textContent).toBe('Roy Carver: Serious wound')
     // A melee wound's words appear once, in the wound panel, not again under the headline.
     expect(results.querySelector('.results-head p')).toBeNull()
-    expect([...results.querySelectorAll('.results-facts > div')].map((fact) => fact.textContent)).toEqual(['WhoWayne Gardner → Roy Carver', 'WithKnife · Slash', 'WhereTorso', 'How hardImpact 4 on Cutting'])
+    expect(results.querySelector('.results-facts')).toBeNull()
     expect(within(results).getByRole('heading', { level: 4 }).textContent).toBe('Long chest cut')
     expect(results.querySelector('.results-wound')!.className).toBe('results-wound se')
     expect([...results.querySelectorAll('.results-parts > div')].map((part) => part.textContent)).toEqual([
-      'The table saysGain +1 Trauma in d4 turns unless a Body Save succeeds.',
-      'NowTimer prevented: the Body Save stopped every countdown',
+      'NowCountdown prevented',
     ])
-    expect(within(results).getByText("Goes on Roy Carver's sheet now: it counts for every roll Roy Carver has not made yet this round.")).toBeTruthy()
+    expect(results.textContent).not.toMatch(/Goes on|The table says/)
   })
 
   it('marks a small part\'s landing with the small crosshair', () => {

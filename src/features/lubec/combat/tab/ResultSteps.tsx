@@ -246,7 +246,7 @@ function LocationLive(props: StepProps & { controls: StepControls }) {
   const reach = props.attack.net!
   return (
     <LocationLayout landing={landing.start} part={part} distances={distances} reach={reach} onPick={setPart} target={nameOf(props.state, props.attack.aim!.targetKey)}>
-      <p className="note">You may move it one part per point of reach; each step costs 1 Impact. Click a part, or keep it where it landed.</p>
+      <p className="note">Move it one part per point of reach, 1 Impact each.</p>
       {part !== landing.start ? <p className="note"><button type="button" className="linkish" onClick={() => setPart(landing.start)}>Keep it on the {lower(landing.start)}</button></p> : null}
       <Refusal refusal={act.refusal} />
       <p className="hit-button"><button type="button" className="btn rust" disabled={act.busy} onClick={() => act.run(() => props.controls.commands.land(props.attack.attackerKey, part))}>Hit the {lower(part)}</button></p>

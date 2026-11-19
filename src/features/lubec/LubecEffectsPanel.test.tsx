@@ -49,9 +49,9 @@ describe('a wound card', () => {
     fireEvent.click(within(region()).getByRole('button', { name: /Forearm injury/ }))
     const detail = screen.getByLabelText('Forearm injury wound')
     const facts = Object.fromEntries([...detail.querySelectorAll('.lubec-wound-fact')].map((fact) => [fact.querySelector('dt')!.textContent, fact.querySelector('dd')!.textContent]))
-    expect(facts).toMatchObject({
-      Table: 'Blunt Force', Struck: 'Left forearm', Impact: '4', Severity: 'Serious', Wound: 'Forearm injury', Row: '-20 Handle until 1 Long Rest.',
-      Rolled: 'Hit location 37', Roll: 'Keep hold: Handle Check 71 against 55, failed, +1 Stress', Charged: 'Trauma +1, Stress +1', Source: 'blunt-force.md@1119f060',
+    expect(facts).toEqual({
+      Table: 'Blunt Force', Struck: 'Left forearm', Impact: '4', Severity: 'Serious',
+      Rolled: 'Hit location 37', Roll: 'Keep hold: Handle Check 71 against 55, failed, +1 Stress', Charged: 'Trauma +1, Stress +1',
     })
     expect(within(detail).queryByRole('button', { name: 'Edit' })).toBeNull()
     expect(region().querySelector('.lubec-effect > .secondary-button')).toBeNull()
@@ -79,7 +79,14 @@ describe('a wound card', () => {
     mount([{ ...forearm, wound: bare }], null)
     fireEvent.click(within(region()).getByRole('button', { name: /Forearm injury/ }))
     const labels = [...screen.getByLabelText('Forearm injury wound').querySelectorAll('.lubec-wound-fact dt')].map((term) => term.textContent)
-    expect(labels).toEqual(['Table', 'Struck', 'Impact', 'Severity', 'Wound', 'Row', 'Charged', 'Source'])
+    expect(labels).toEqual(['Table', 'Struck', 'Impact', 'Severity', 'Charged'])
+  })
+
+  it('says nothing about a charge the wound did not make', () => {
+    mount([{ ...forearm, wound: { ...wound, trauma: 0, stress: 0 } }], null)
+    fireEvent.click(within(region()).getByRole('button', { name: /Forearm injury/ }))
+    const labels = [...screen.getByLabelText('Forearm injury wound').querySelectorAll('.lubec-wound-fact dt')].map((term) => term.textContent)
+    expect(labels).not.toContain('Charged')
   })
 
   it('steps down only its own card for the owner or GM, never repeating anything else', () => {

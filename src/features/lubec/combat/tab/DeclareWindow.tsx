@@ -162,9 +162,9 @@ function DeclareBody(body: BodyProps) {
   return (
     <>
       <AimedNotice state={state} declarer={declarer} />
-      {declarer.declarationRejected ? <div className="notice hot" role="status"><span>The GM rejected your declaration. Choose again; it is still your turn to declare.</span></div> : null}
+      {declarer.declarationRejected ? <div className="notice hot" role="status"><span>The GM rejected your declaration. Choose again.</span></div> : null}
       <CombatRefusal refusal={run.refusal} />
-      {evading ? <div className="notice cool" role="status"><span><b>{declarer.name} moved evasively.</b> That uses the action, so there is no attack this round: declare Full Defense against one person.</span></div> : null}
+      {evading ? <div className="notice cool" role="status"><span><b>{declarer.name} moved evasively.</b> No attack this round: declare Full Defense against one person.</span></div> : null}
       <div className="declaration-actor"><small>Declaring now</small><strong>{declarer.name}</strong><span className="declaration-stage">Round {state.round} · <span>Stage 2, Declare</span></span></div>
       <DeclareChoices body={body} draft={draft} setDraft={setDraft} model={model} full={full} />
       <ReachNotice reach={model.reach} full={full} />
@@ -177,11 +177,8 @@ function DeclareBody(body: BodyProps) {
 export function DeclareWindow(props: WindowProps) {
   const fighter = combatFightCombatant(props.declarer, props.roster)
   const sheet = fighter ? lubecCombatantRecord(fighter)?.lubec : undefined
-  const foot = props.declarer.kind === 'npc'
-    ? 'Your NPC declaration takes effect when submitted. The next turn begins automatically.'
-    : 'Submit your choice for GM approval. The next person waits until it is approved.'
   return (
-    <CombatWindow title="Declare" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Declare']} now={3} />} foot={<span className="note">{foot}</span>}>
+    <CombatWindow title="Declare" stepper={<CombatStepper steps={['Target', 'Weapon', 'Attack', 'Declare']} now={3} />}>
       {sheet ? <DeclareBody key={props.state.stageInstanceId} {...props} fighter={fighter!} sheet={sheet} /> : <p className="note">Reading {props.declarer.name}&apos;s sheet...</p>}
     </CombatWindow>
   )

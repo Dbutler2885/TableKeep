@@ -43,7 +43,6 @@ export function LubecDeathReminders({ entries }: { entries: readonly LubecDeathE
   return (
     <aside className="lubec-death-reminders" role="dialog" aria-modal="false" aria-label="Death Save due">
       <h3>Death Save due</h3>
-      <p>For the GM only. Roll and resolve it privately: the app rolls nothing and applies no result.</p>
       <ul>{entries.map((entry) => <ReminderRow key={entry.key} entry={entry} />)}</ul>
       <LubecDeathTable />
     </aside>
