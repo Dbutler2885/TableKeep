@@ -145,15 +145,15 @@ test('the Discord message says it is the rules answer, what was asked, and where
   assert.deepEqual(rulesAnswerMessages({ kind: 'answered', ...base, answer: '' }, 'the rules document'), [])
 })
 
-test('an answer from the Classic Fantasy rules says it is from their pre-2026 text, and names the section', () => {
+test('rules with nothing to cite them by, as for OSE, post the answer with no line naming its source', () => {
   const base = { question: 'who goes first?', askedBy: 'Peter', answer: 'Each side rolls **1d6**; the higher acts first.', section: 'Combat › Initiative' }
-  const rules = 'the pre-2026 Classic Fantasy rules'
-  assert.deepEqual(rulesAnswerMessages({ kind: 'answered', ...base }, rules), [
-    '**Rules answer** - Peter asked: "who goes first?"\nEach side rolls **1d6**; the higher acts first.\n-# From the pre-2026 Classic Fantasy rules: Combat › Initiative',
+  assert.deepEqual(rulesAnswerMessages({ kind: 'answered', ...base }, null), [
+    '**Rules answer** - Peter asked: "who goes first?"\nEach side rolls **1d6**; the higher acts first.',
   ])
-  assert.deepEqual(rulesAnswerMessages({ kind: 'not_covered', ...base, answer: 'The rules do not say what a spell does.', section: '' }, rules), [
-    '**Rules answer** - Peter asked: "who goes first?"\nThe rules do not say what a spell does.\n-# Not covered by the pre-2026 Classic Fantasy rules',
+  assert.deepEqual(rulesAnswerMessages({ kind: 'not_covered', ...base, answer: 'The rules do not say what a spell does.', section: '' }, null), [
+    '**Rules answer** - Peter asked: "who goes first?"\nThe rules do not say what a spell does.',
   ])
+  assert.deepEqual(rulesAnswerMessages({ kind: 'no_question', question: '', askedBy: '', answer: '', section: '' }, null), [])
 })
 
 test('the whole Classic Fantasy corpus goes to the answering model as the rules document, after the same instructions', () => {

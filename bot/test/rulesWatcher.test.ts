@@ -27,7 +27,7 @@ const NO_QUESTION: RulesAnswer = { kind: 'no_question', question: '', askedBy: '
  * A watcher with a stand-in Jev and answering model, and a clock the test moves.
  * The answering model gives `answers` in turn, then the shield answer.
  */
-function setUp(options: { probabilities?: number[]; answers?: (RulesAnswer | Error)[]; jevFails?: boolean; citedAs?: string } = {}) {
+function setUp(options: { probabilities?: number[]; answers?: (RulesAnswer | Error)[]; jevFails?: boolean; citedAs?: string | null } = {}) {
   const asked: string[][] = []
   const answered: string[][] = []
   /** The questions of the session's posted answers that Jev, and the answering model, were shown each time. */
@@ -40,7 +40,7 @@ function setUp(options: { probabilities?: number[]; answers?: (RulesAnswer | Err
   const jev = { failing: options.jevFails ?? false }
   const watcher = new RulesWatcher({
     sessionStartedAtMs: START,
-    citedAs: options.citedAs ?? 'the rules document',
+    citedAs: options.citedAs === undefined ? 'the rules document' : options.citedAs,
     askJev: async (window, posted) => {
       asked.push(window.map((line) => line.text))
       jevPosted.push(posted.map((answer) => answer.question))
@@ -143,20 +143,20 @@ test('a flagged question is answered from the stretch Jev saw, and posted as the
   )
 })
 
-test('an answer names the rules the session is answered from', async () => {
+test('an answer from rules with nothing to cite them by, as for OSE, has no line naming its source', async () => {
   const notCovered: RulesAnswer = { kind: 'not_covered', question: 'what does sleep do?', askedBy: 'Peter', answer: 'The rules do not cover what any spell does.', section: '' }
   const { posted, say, pass } = setUp({
     probabilities: [0.95, 0.95],
     answers: [{ ...ANSWERED, section: 'Combat › Initiative' }, notCovered],
-    citedAs: 'the pre-2026 Classic Fantasy rules',
+    citedAs: null,
   })
   say('Peter', 'Who goes first?')
   await pass(1_000)
   say('Peter', 'And what does sleep do?')
   await pass(1_000)
   assert.deepEqual(posted, [
-    `**Rules answer** - Peter asked: "does a shield count against arrows?"\n${ANSWERED.answer}\n-# From the pre-2026 Classic Fantasy rules: Combat › Initiative`,
-    `**Rules answer** - Peter asked: "what does sleep do?"\n${notCovered.answer}\n-# Not covered by the pre-2026 Classic Fantasy rules`,
+    `**Rules answer** - Peter asked: "does a shield count against arrows?"\n${ANSWERED.answer}`,
+    `**Rules answer** - Peter asked: "what does sleep do?"\n${notCovered.answer}`,
   ])
 })
 

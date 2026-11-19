@@ -51,8 +51,8 @@ const DEFAULTS = {
 export type SessionRules = {
   /** Answers from this rule set's rules. */
   answer: AnswerRulesQuestion
-  /** How a posted answer names the rules it comes from. */
-  citedAs: string
+  /** How a posted answer's last line names the rules it comes from, or null for no such line. */
+  citedAs: string | null
 }
 
 /** What answering rules questions needs, shared by every session. */

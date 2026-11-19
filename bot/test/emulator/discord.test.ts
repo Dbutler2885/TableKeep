@@ -462,7 +462,7 @@ test("each session is answered from its campaign's rules: the Classic Fantasy co
   assert.ok(!instructions[1]!.includes('Classic Fantasy'))
 
   assert.deepEqual(rulesAnswers(), [
-    '**Rules answer** - Peter asked: "who goes first?"\nEach side rolls **1d6**.\n-# From the pre-2026 Classic Fantasy rules: Combat › Initiative',
+    '**Rules answer** - Peter asked: "who goes first?"\nEach side rolls **1d6**.',
     '**Rules answer** - Peter asked: "who goes first?"\nEveryone rolls Speed.\n-# From the rules document: Initiative',
   ])
 
@@ -589,13 +589,13 @@ test('a bot that restarts mid-session rejoins the channel, says so, and carries 
 test("a session picked up after a restart is answered from its campaign's rules again", async () => {
   await db.doc(`groups/${GROUP}/campaigns/${CAMPAIGN}`).update({ system: 'lubec' })
   const logged: string[] = []
-  const rulesFor = (citedAs: string) => ({
+  const rulesFor = (citedAs: string | null) => ({
     citedAs,
     answer: async () => ({ kind: 'answered' as const, question: 'who goes first?', askedBy: 'Peter', answer: 'Everyone rolls Speed.', section: 'Initiative' }),
   })
   const rules: RulesAnswering = {
     askJev: async () => 0.95,
-    byRuleSet: { lubec: rulesFor('the rules document'), ose: rulesFor('the pre-2026 Classic Fantasy rules') },
+    byRuleSet: { lubec: rulesFor('the rules document'), ose: rulesFor(null) },
     log: (message) => logged.push(message),
   }
   // A session started without rules answering, by a bot that then dies.
@@ -632,7 +632,7 @@ test("a session whose campaign's rule set cannot be read is recorded without rul
       jevAsked += 1
       return 0.95
     },
-    byRuleSet: { ose: { citedAs: 'the pre-2026 Classic Fantasy rules', answer: () => Promise.reject(new Error('not asked')) } },
+    byRuleSet: { ose: { citedAs: null, answer: () => Promise.reject(new Error('not asked')) } },
     log: (message, detail) => logged.push({ message, detail }),
   })
   const location = await started(await runner.join(asJem))

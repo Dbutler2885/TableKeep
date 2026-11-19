@@ -20,8 +20,11 @@ export type RulesBook = {
   file: string
   /** The license the rules are used under, from the repository root, which must travel with them. */
   license?: string
-  /** How a posted answer names the rules it comes from: "From {citedAs}: {section}". */
-  citedAs: string
+  /**
+   * How a posted answer's last line names the rules it comes from: "From
+   * {citedAs}: {section}". Null posts the answer with no such line.
+   */
+  citedAs: string | null
   /** The rules document the answering model is given, from the file's contents. */
   render: (contents: string) => string
 }
@@ -35,7 +38,8 @@ export const RULES_BOOKS: Partial<Record<RuleSet, RulesBook>> = {
   ose: {
     file: 'docs/rules/ose-classic/corpus.json',
     license: 'docs/rules/ose-classic/OGL.txt',
-    citedAs: 'the pre-2026 Classic Fantasy rules',
+    // The captain's decision: OSE answers carry no line naming their source or edition.
+    citedAs: null,
     render: renderClassicFantasyCorpus,
   },
 }

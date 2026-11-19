@@ -65,7 +65,7 @@ test('with the rules of both rule sets and both keys, each rule set is answered 
   assert.equal(typeof rules.askJev, 'function')
   assert.deepEqual(Object.keys(rules.byRuleSet).sort(), ['lubec', 'ose'])
   assert.equal(rules.byRuleSet.lubec!.citedAs, 'the rules document')
-  assert.equal(rules.byRuleSet.ose!.citedAs, 'the pre-2026 Classic Fantasy rules')
+  assert.equal(rules.byRuleSet.ose!.citedAs, null, 'OSE answers name no source')
   assert.equal(rules.byRuleSet.vtm, undefined)
 
   await rules.byRuleSet.lubec!.answer([], [])

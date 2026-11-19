@@ -170,11 +170,13 @@ export function splitMessages(text: string, max = MAX_MESSAGE_CHARS): string[] {
 /**
  * The bot's answer to a rules question it heard, as the messages to post, or
  * none when the model found no question to answer. It says it is the bot's
- * answer, which question it answers, which rules it comes from (`citedAs`,
- * such as "the rules document") and where in them it looked. A long answer is
- * posted in parts, in order.
+ * answer and which question it answers. With `citedAs`, such as "the rules
+ * document", a last line says which rules it comes from and where in them it
+ * looked; without it there is no such line. A long answer is posted in parts,
+ * in order.
  */
-export function rulesAnswerMessages(reply: RulesAnswer, citedAs: string): string[] {
+export function rulesAnswerMessages(reply: RulesAnswer, citedAs: string | null): string[] {
   if (reply.kind === 'no_question' || !reply.answer) return []
-  return splitMessages([`**Rules answer**${askedPart(reply)}`, reply.answer.trim(), `-# ${sourceLine(reply, citedAs)}`].join('\n'))
+  const source = citedAs ? [`-# ${sourceLine(reply, citedAs)}`] : []
+  return splitMessages([`**Rules answer**${askedPart(reply)}`, reply.answer.trim(), ...source].join('\n'))
 }
