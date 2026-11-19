@@ -352,23 +352,27 @@ export function parseRulesPage(source, path, category, { keep, omit, partOf } = 
   return { title: headings[0].title, category, ...(partOf && { partOf }), sourceUrl: url, sections }
 }
 
-async function fetchSourceTree() {
+// Every file path in the pinned revision.
+export async function fetchSourceTree(request = fetch) {
   const url = `https://api.github.com/repos/${SOURCE_REPOSITORY}/git/trees/${SOURCE_REVISION}?recursive=1`
-  const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(20_000) })
+  const response = await request(url, { redirect: 'error', signal: AbortSignal.timeout(20_000) })
   if (!response.ok) throw new Error(`HTTP ${response.status} for ${url}`)
   const { tree, truncated } = await response.json()
   if (truncated) throw new Error(`The listing of ${SOURCE_REPOSITORY} at ${SOURCE_REVISION} is truncated`)
   return tree.filter(entry => entry.type === 'blob').map(entry => entry.path)
 }
 
-let sourceTree
-// The page names in one folder of the pinned revision, without ".md".
-async function listSource(folder) {
-  sourceTree ??= fetchSourceTree()
-  const prefix = `${folder}/`
-  return (await sourceTree)
-    .filter(path => path.startsWith(prefix) && path.endsWith('.md') && !path.slice(prefix.length).includes('/'))
-    .map(path => path.slice(prefix.length, -'.md'.length))
+// Lists the page names in one folder of the pinned revision, without ".md",
+// reading the revision's files once for every folder.
+export function folderLister(readTree = fetchSourceTree) {
+  let paths
+  return async folder => {
+    paths ??= readTree()
+    const prefix = `${folder}/`
+    return (await paths)
+      .filter(path => path.startsWith(prefix) && path.endsWith('.md') && !path.slice(prefix.length).includes('/'))
+      .map(path => path.slice(prefix.length, -'.md'.length))
+  }
 }
 
 function byName(a, b) {
@@ -400,7 +404,7 @@ async function importPages(sources, readSource, listFolder) {
   return pages
 }
 
-export async function importRules(readSource = fetchSource, listFolder = listSource) {
+export async function importRules(readSource = fetchSource, listFolder = folderLister()) {
   const license = corpusLicense(await readSource(LICENSE_FILE))
   const bundles = {}
   for (const { file, sources, corrections } of BUNDLES) {

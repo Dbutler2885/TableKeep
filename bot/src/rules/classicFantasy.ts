@@ -95,9 +95,14 @@ function isSection(value: unknown): value is Section {
   )
 }
 
+/** Sections that make a page: at least one, the first being the page's own title. */
+function isPageBody(sections: unknown): sections is Section[] {
+  return Array.isArray(sections) && sections.length > 0 && sections.every(isSection) && sections[0]!.level === 1
+}
+
 function isPage(value: unknown): value is Page {
   const page = value as Partial<Page> | null
-  return isText(page?.title) && (page.partOf === undefined || isText(page.partOf)) && Array.isArray(page.sections) && page.sections.length > 0 && page.sections.every(isSection) && page.sections[0]!.level === 1
+  return isText(page?.title) && (page.partOf === undefined || isText(page.partOf)) && isPageBody(page.sections)
 }
 
 /** What a usable corpus must have, in the order it is checked, and what is said when it does not. */

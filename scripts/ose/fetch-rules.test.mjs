@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { generateRules, importRules, parseRulesPage } from './fetch-rules.mjs'
+import { fetchSourceTree, folderLister, generateRules, importRules, parseRulesPage } from './fetch-rules.mjs'
 
 const directory = new URL('../../docs/rules/ose-classic/', import.meta.url)
 const corpus = JSON.parse(readFileSync(new URL('corpus.json', directory), 'utf8'))
@@ -343,6 +343,38 @@ describe('the importer', () => {
     expect(omitted.partOf).toBeUndefined()
     expect(parseRulesPage('# Sleep\n\nSends creatures to sleep.', 'Sleep.md', 'spells', { partOf: 'Magic-User Spells' }).partOf)
       .toBe('Magic-User Spells')
+  })
+
+  it('reads every file path in the pinned revision, and refuses a failed or partial listing', async () => {
+    const asked = []
+    const tree = (body, status = 200) => async (url, init) => {
+      asked.push({ url, init })
+      return new Response(JSON.stringify(body), { status })
+    }
+    const listing = {
+      truncated: false,
+      tree: [{ path: '4. Magic', type: 'tree' }, { path: '4. Magic/1. Rules.md', type: 'blob' }, { path: 'License.md', type: 'blob' }],
+    }
+    await expect(fetchSourceTree(tree(listing))).resolves.toEqual(['4. Magic/1. Rules.md', 'License.md'])
+    expect(asked[0].url).toBe(`https://api.github.com/repos/Obsidian-TTRPG-Community/Old-School-Essentials-Markdown/git/trees/${corpus.source.revision}?recursive=1`)
+    expect(asked[0].init.redirect).toBe('error')
+    await expect(fetchSourceTree(tree({ ...listing, truncated: true }))).rejects.toThrow('is truncated')
+    await expect(fetchSourceTree(tree({}, 403))).rejects.toThrow(/^HTTP 403 for https:\/\/api\.github\.com\//)
+  })
+
+  it('lists the Markdown pages directly in a folder, reading the revision once', async () => {
+    let reads = 0
+    const listFolder = folderLister(async () => {
+      reads += 1
+      return [
+        '8. Treasures/7. Potions.md', '8. Treasures/Potions/Potion of Healing.md', '8. Treasures/Potions/Notes.txt',
+        '8. Treasures/Potions/Old/Potion of Old.md', '8. Treasures/Potions Extra/Potion of Nothing.md', 'Potions/Elsewhere.md',
+      ]
+    })
+    await expect(listFolder('8. Treasures/Potions')).resolves.toEqual(['Potion of Healing'])
+    await expect(listFolder('8. Treasures')).resolves.toEqual(['7. Potions'])
+    await expect(listFolder('7. Monsters')).resolves.toEqual([])
+    expect(reads).toBe(1)
   })
 
   it('rejects pages with unsupported content or a missing title', () => {
