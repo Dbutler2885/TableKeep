@@ -1741,7 +1741,8 @@ describe('Lubec Skills page', () => {
     openSkillsPage('Tommy Eves')
 
     const wires = () => [...document.querySelectorAll('.skill-tree path.wire')]
-    expect(observed).toEqual([document.querySelector('.skill-tree')])
+    // The sheet watches its pane for its fit zoom too; the tree is watched for its wires.
+    expect(observed).toContain(document.querySelector('.skill-tree'))
     expect(wires()).toHaveLength(59)
     expect(wires().every((wire) => wire.getAttribute('marker-end') === 'url(#lubec-skill-arrow)')).toBe(true)
 
