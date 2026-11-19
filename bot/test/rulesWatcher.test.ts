@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { RulesAnswer } from '../src/rules/answer.ts'
 import type { TranscriptLine } from '../src/rules/transcriptWindow.ts'
-import { RulesWatcher } from '../src/rules/watcher.ts'
+import type { Supplement } from '../src/rules/books.ts'
+import type { JevVerdict } from '../src/rules/jev.ts'
+import { RulesWatcher, SUPPLEMENT_THRESHOLD } from '../src/rules/watcher.ts'
 
 const START = 1_800_000_000_000
 const RATE = 48_000
@@ -45,7 +47,7 @@ function setUp(options: { probabilities?: number[]; answers?: (RulesAnswer | Err
       asked.push(window.map((line) => line.text))
       jevPosted.push(posted.map((answer) => answer.question))
       if (jev.failing) throw new Error('TypeSafe answered 503')
-      return probabilities.shift() ?? 0.05
+      return { rulesQuestion: probabilities.shift() ?? 0.05, needs: {} }
     },
     answer: async (window, posted) => {
       answered.push(window.map((line) => line.text))
@@ -169,7 +171,7 @@ test('how long each part took is logged, from the end of the question to the ans
     now: () => clock,
     askJev: async () => {
       clock += 250
-      return 0.95
+      return { rulesQuestion: 0.95, needs: {} }
     },
     answer: async () => {
       clock += 2_600
@@ -202,7 +204,7 @@ test('a long answer is posted in order, in as many messages as it takes', async 
   const watcher = new RulesWatcher({
     sessionStartedAtMs: START,
     citedAs: 'the rules document',
-    askJev: async () => 0.95,
+    askJev: async () => ({ rulesQuestion: 0.95, needs: {} }),
     answer: async () => long,
     // A slow first post must not let the second overtake it.
     post: (text) => new Promise((resolve) => setTimeout(() => resolve(posted.push(text)), posted.length === 0 ? 20 : 0)),
@@ -247,7 +249,7 @@ test('there is no pause after a flag: the next line is looked at as soon as the 
     askJev: async (window, posted) => {
       asked.push(window.map((line) => line.text))
       seen.push(posted.length)
-      return asked.length === 1 ? 0.95 : 0.05
+      return { rulesQuestion: asked.length === 1 ? 0.95 : 0.05, needs: {} }
     },
     // The answer takes a while; nothing else is looked at meanwhile.
     answer: () => new Promise((resolve) => (release = () => resolve(ANSWERED))),
@@ -357,7 +359,7 @@ test('an answer that arrives after the session has ended is not posted', async (
   const watcher = new RulesWatcher({
     sessionStartedAtMs: START,
     citedAs: 'the rules document',
-    askJev: async () => 0.95,
+    askJev: async () => ({ rulesQuestion: 0.95, needs: {} }),
     answer: () => new Promise((resolve) => (release = resolve)),
     post: async (text) => posted.push(text),
     log: () => undefined,
@@ -369,4 +371,73 @@ test('an answer that arrives after the session has ended is not posted', async (
   release(ANSWERED)
   await watcher.idle()
   assert.deepEqual(posted, [])
+})
+
+/** A watcher for rules with both parts sent only when needed, whose Jev gives `verdict`, and what each answer was sent with. */
+function withParts(verdict: JevVerdict, supplements: readonly Supplement[] = ['monsters', 'spellsAndItems']) {
+  const askedAbout: (readonly Supplement[])[] = []
+  const sent: (readonly Supplement[] | undefined)[] = []
+  const logged: { message: string; detail?: Record<string, unknown> }[] = []
+  const watcher = new RulesWatcher({
+    sessionStartedAtMs: START,
+    citedAs: null,
+    supplements,
+    askJev: async (_window, _posted, parts) => {
+      askedAbout.push(parts)
+      return verdict
+    },
+    answer: async (_window, _posted, needs) => {
+      sent.push(needs)
+      return ANSWERED
+    },
+    post: async () => undefined,
+    log: (message, detail) => logged.push({ message, detail }),
+    now: () => START + 3_000,
+  })
+  return { watcher, askedAbout, sent, logged }
+}
+
+async function ask(watcher: RulesWatcher) {
+  watcher.heard([{ speaker: 'Peter', text: 'What does a ghoul do when it hits?', startSamples: 0, endSamples: 2 * RATE }])
+  watcher.tick(START + 2_500)
+  await watcher.idle()
+}
+
+test('a part of the rules is sent when Jev is at least fairly sure the question needs it, and not otherwise', async () => {
+  const cases: [Partial<Record<Supplement, number>>, Supplement[]][] = [
+    [{ monsters: 0.1, spellsAndItems: 0.2 }, []],
+    [{ monsters: 0.9, spellsAndItems: 0.05 }, ['monsters']],
+    [{ monsters: 0.05, spellsAndItems: SUPPLEMENT_THRESHOLD }, ['spellsAndItems']],
+    [{ monsters: 0.6, spellsAndItems: 0.95 }, ['monsters', 'spellsAndItems']],
+  ]
+  for (const [needs, expected] of cases) {
+    const { watcher, askedAbout, sent } = withParts({ rulesQuestion: 0.95, needs })
+    await ask(watcher)
+    assert.deepEqual(askedAbout, [['monsters', 'spellsAndItems']], 'Jev is asked about every part, in one request')
+    assert.deepEqual(sent, [expected], `${JSON.stringify(needs)} sends ${expected.join(' and ') || 'no part'}`)
+  }
+  assert.ok(SUPPLEMENT_THRESHOLD > 0 && SUPPLEMENT_THRESHOLD < 0.8, 'a part is sent on less certainty than a question is answered on')
+})
+
+test('however sure Jev is that a part is needed, nothing is answered unless it is sure there is a rules question', async () => {
+  const { watcher, sent, logged } = withParts({ rulesQuestion: 0.4, needs: { monsters: 0.99, spellsAndItems: 0.99 } })
+  await ask(watcher)
+  assert.deepEqual(sent, [])
+  assert.deepEqual(logged, [])
+})
+
+test('what Jev said of each part and what was sent are logged', async () => {
+  const { watcher, logged } = withParts({ rulesQuestion: 0.95, needs: { monsters: 0.9, spellsAndItems: 0.05 } })
+  await ask(watcher)
+  assert.deepEqual(logged.find((entry) => entry.message === 'rules question heard')?.detail?.needs, { monsters: 0.9, spellsAndItems: 0.05 })
+  assert.deepEqual(logged.find((entry) => entry.message === 'rules answer written')?.detail?.sent, ['monsters'])
+})
+
+test('rules with no parts, as for Lubec, ask Jev about none and answer from the rules alone', async () => {
+  const { watcher, askedAbout, sent, logged } = withParts({ rulesQuestion: 0.95, needs: {} }, [])
+  await ask(watcher)
+  assert.deepEqual(askedAbout, [[]])
+  assert.deepEqual(sent, [[]])
+  assert.equal(logged.find((entry) => entry.message === 'rules question heard')?.detail?.needs, undefined)
+  assert.equal(logged.find((entry) => entry.message === 'rules answer written')?.detail?.sent, undefined)
 })

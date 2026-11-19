@@ -1,12 +1,18 @@
 /**
- * The Classic Fantasy rules corpus as one rules document.
+ * The Classic Fantasy rules corpus as one rules document, and its two
+ * further parts.
  *
  * `docs/rules/ose-classic/corpus.json` holds the pre-2026 Classic Fantasy
- * rules as pages of sections, each with a heading level and Markdown body
+ * core rules as pages of sections, each with a heading level and Markdown body
  * lines, tables included. The answering model is given the whole of it as
  * Markdown, the way it is given the Lubec rules: one heading per section, its
  * body lines as they are, and an opening that says what the rules are and what
  * they leave out.
+ *
+ * `monsters.json` and `spells-and-items.json` hold, in the same shape, what
+ * the core rules leave out: monsters and encounters; and spells, equipment and
+ * treasure. Each renders as a part of its own, with its own opening, to follow
+ * the core rules when a question needs it.
  *
  * Section titles repeat across pages (every class has its own "Combat"), so
  * each heading carries the titles above it, "Cleric › Combat", and an answer
@@ -17,7 +23,8 @@
  */
 
 type Section = { title: string; level: number; markdownLines: string[] }
-type Page = { title: string; sections: Section[] }
+/** `partOf` names the page a page is filed under, such as "Cleric Spells" for one cleric spell. */
+type Page = { title: string; partOf?: string; sections: Section[] }
 type Corpus = { pages: Page[]; source: { edition: string; revisionDate: string }; license: { notice: string } }
 
 /** Joins a heading's titles, page first. */
@@ -31,11 +38,27 @@ They are the rules text as it stood before the 2026 edition. Nothing from the 20
 
 They cover creating a character, ability scores, alignment, languages and advancement; the seven classic classes (Cleric, Dwarf, Elf, Fighter, Halfling, Magic-User and Thief); adventuring, encounters and combat; how magic is memorised, cast and researched; money, weapon qualities, vehicles, retainers, mercenaries, specialists and strongholds; and refereeing and awarding XP.
 
-They do not include the spell lists or what any spell does, monster descriptions or encounter tables, treasure, equipment lists and prices, any weapon's damage or range, vessel specifications, or the Advanced classes and races. The rules sometimes refer to these; that does not make them part of the rules. A question that needs any of them is not covered.
+These core rules do not include the spell lists or what any spell does, monster descriptions or encounter tables, treasure, equipment lists and prices, any weapon's damage or range, vessel specifications, or the Advanced classes and races. When a question needs monsters, or spells, equipment and treasure, those follow the core rules in this document as parts of their own, each opening with its own title. What is in none of the parts here is not covered: the rules sometimes refer to it, but that does not make it part of the rules.
 
 Every section has its own heading, which names the page it is on and the sections above it, such as "Combat${TRAIL}Initiative", so a rule can be cited by its heading. A heading marked "(Optional Rule)" is an optional rule: say so when an answer depends on it.
 
 ${corpus.license.notice.replace('in the pages array', 'below')}`
+}
+
+function monstersOpening(corpus: Corpus): string {
+  return `# Classic Fantasy monsters (pre-2026 text)
+
+This part of the rules document holds the Classic Fantasy monsters, from the same ${corpus.source.edition} text as the core rules: how a monster's game statistics are read, every monster's description and statistics (each filed under "Monster Descriptions"), the dungeon, wilderness and stronghold encounter tables, and adventuring parties.
+
+${corpus.license.notice.replace('in the pages array', 'in this part')}`
+}
+
+function spellsAndItemsOpening(corpus: Corpus): string {
+  return `# Classic Fantasy spells, equipment and treasure (pre-2026 text)
+
+This part of the rules document holds, from the same ${corpus.source.edition} text as the core rules: the cleric and magic-user spell lists and what every spell does (each filed under its list); adventuring gear, weapons and armor with their costs, weights, damage and qualities, mounts, and land and water vehicles; and treasure: treasure types, gems and jewellery, and every magic item (each filed under its kind).
+
+${corpus.license.notice.replace('in the pages array', 'in this part')}`
 }
 
 /** A section's heading: one level below the document's own title, naming the titles above it. */
@@ -45,11 +68,12 @@ function heading(trail: readonly string[]): string {
 
 function renderPage(page: Page): string[] {
   const parts: string[] = []
+  const filedUnder = page.partOf ? [page.partOf] : []
   const trail: string[] = []
   for (const section of page.sections) {
     trail.length = section.level - 1
     trail.push(section.title)
-    parts.push(heading(trail))
+    parts.push(heading([...filedUnder, ...trail]))
     const body = section.markdownLines.join('\n').trim()
     if (body) parts.push(body)
   }
@@ -73,7 +97,7 @@ function isSection(value: unknown): value is Section {
 
 function isPage(value: unknown): value is Page {
   const page = value as Partial<Page> | null
-  return isText(page?.title) && Array.isArray(page.sections) && page.sections.length > 0 && page.sections.every(isSection) && page.sections[0]!.level === 1
+  return isText(page?.title) && (page.partOf === undefined || isText(page.partOf)) && Array.isArray(page.sections) && page.sections.length > 0 && page.sections.every(isSection) && page.sections[0]!.level === 1
 }
 
 /** What a usable corpus must have, in the order it is checked, and what is said when it does not. */
@@ -98,8 +122,22 @@ function readCorpus(json: string): Corpus {
   return corpus as Corpus
 }
 
-/** The whole corpus as one Markdown rules document. */
-export function renderClassicFantasyCorpus(json: string): string {
+function render(json: string, opens: (corpus: Corpus) => string): string {
   const corpus = readCorpus(json)
-  return [opening(corpus), ...corpus.pages.flatMap(renderPage)].join('\n\n') + '\n'
+  return [opens(corpus), ...corpus.pages.flatMap(renderPage)].join('\n\n') + '\n'
+}
+
+/** The whole core corpus as one Markdown rules document. */
+export function renderClassicFantasyCorpus(json: string): string {
+  return render(json, opening)
+}
+
+/** The monsters, as a part to follow the core rules. */
+export function renderClassicFantasyMonsters(json: string): string {
+  return render(json, monstersOpening)
+}
+
+/** The spells, equipment and treasure, as a part to follow the core rules. */
+export function renderClassicFantasySpellsAndItems(json: string): string {
+  return render(json, spellsAndItemsOpening)
 }

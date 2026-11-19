@@ -29,6 +29,8 @@ COPY functions/src/characterSchemaVersions.ts /app/functions/src/characterSchema
 # The Classic Fantasy rules are Open Game Content and always travel with their license.
 COPY docs/lubec/rules.md /app/docs/lubec/rules.md
 COPY docs/rules/ose-classic/corpus.json /app/docs/rules/ose-classic/corpus.json
+COPY docs/rules/ose-classic/monsters.json /app/docs/rules/ose-classic/monsters.json
+COPY docs/rules/ose-classic/spells-and-items.json /app/docs/rules/ose-classic/spells-and-items.json
 COPY docs/rules/ose-classic/OGL.txt /app/docs/rules/ose-classic/OGL.txt
 
 # The journal lives on a disk that outlives the container.

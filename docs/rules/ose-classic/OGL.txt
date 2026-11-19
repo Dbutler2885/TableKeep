@@ -3,7 +3,7 @@ Source: https://github.com/Obsidian-TTRPG-Community/Old-School-Essentials-Markdo
 
 DESIGNATION OF OPEN GAME CONTENT
 
-All rules text and tables in the pages array are Open Game Content. Use is permitted only under the Open Game License Version 1.0a.
+All rules text and tables in the pages arrays of corpus.json, monsters.json and spells-and-items.json are Open Game Content. Use is permitted only under the Open Game License Version 1.0a.
 
 OPEN GAME LICENSE Version 1.0a
 
