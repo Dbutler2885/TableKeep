@@ -7,6 +7,7 @@ import { lubecCombatantFace, lubecCombatantKey, lubecCombatantRecord, type Lubec
 import { combatOpponents } from '../engine/attackParty'
 import type { CombatAim, CombatAttack, Combatant, CombatState } from '../engine/types'
 import { AttackBar, SegmentRoll } from './AttackBar'
+import { declaredAtAttacker, orderedTargets } from './targetOrder'
 import type { AttackAct, AttackCommands } from './attackCommands'
 import { initialDraft, sameAim, segmentMiddle, withDefense, withWeapon, type AttackDraft } from './attackDraft'
 import { attackGone, attackWindowModel, type AttackGone, type AttackWindowModel } from './attackWindowModel'
@@ -85,7 +86,7 @@ function WindowChoices({ body, draft, setDraft, model }: ChoicesProps) {
   return (
     <LubecFightWindowContent
       request={{ attacker: body.fighter, target: model.target, weaponItemId: draft.weaponItemId ?? undefined, attackId: draft.attackId ?? undefined }}
-      targets={model.targets} targetNote={targetNote(body.state)} onInventory={body.onInventory}
+      focusTarget targets={orderedTargets(body.state, body.attacker, model.targets, declaredAtAttacker(body.state, body.attacker))} targetNote={targetNote(body.state)} onInventory={body.onInventory}
       targetLocked={declared && !gone.target} weaponLocked={declared && !gone.weapon}
       onTarget={(key) => setDraft({ ...draft, targetKey: key })}
       onWeapon={(id) => setDraft(withWeapon(draft, body.sheet, id))}

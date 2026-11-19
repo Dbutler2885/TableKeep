@@ -68,3 +68,23 @@ export function attackBadge(state: CombatState, targetKey: string, mine: string)
 }
 
 const attackVerb = (frozen: CombatFrozenAim): string => (frozen.choice.ranged && !frozen.choice.firearm ? 'Throws at you' : 'Attacks you')
+
+/** "→ Roy Carver · ATK 36 · DEF 20", a declaration as one line of the rail; the whole sentence is the line's title. */
+export function declarationShort(state: CombatState, declaration: CombatDeclaration): string {
+  if (declaration.lost) return 'Action + Defense lost'
+  if (declaration.ran) return 'Ran'
+  const against = declaration.lines.map((line) => combatantName(state, line.against)).join(', ')
+  if (declaration.full) return `Full Defense vs ${against}`
+  const defense = declaration.lines.map((line) => `DEF ${line.amount}`)
+  return [`→ ${combatantName(state, declaration.aim!.targetKey)}`, `ATK ${declaration.frozen!.attack}`, ...defense].join(' · ')
+}
+
+/** The whole declaration as plain words, as the rail's title gives it. */
+export function declarationText(state: CombatState, declaration: CombatDeclaration): string {
+  if (declaration.lost) return 'Action + Defense lost'
+  if (declaration.ran) return 'Ran: no attack, no Defense'
+  const lines = declaration.lines.map((line) => `Defense ${line.amount}${declaration.full ? ' Full' : ''} against ${combatantName(state, line.against)}`)
+  if (declaration.full) return `Full Defense: no attack. ${lines.join('; ')}.`
+  const { frozen, aim } = declaration
+  return `${declaredUse(frozen!)} at ${combatantName(state, aim!.targetKey)}. ATK ${frozen!.attack}${lines.length ? `; ${lines.join('; ')}` : ''}.`
+}

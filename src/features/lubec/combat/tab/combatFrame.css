@@ -1,0 +1,136 @@
+/* The fixed frame. On a laptop-sized window the Combat tab is exactly the window's height: the head, three columns
+   and the table line each keep one place and one size, whatever they show and however many people fight, so nothing
+   moves another and nothing scrolls. Lists hold one line per fighter at a set height, cut long words short and keep
+   the rest behind a tap or a title. Narrower or shorter windows keep the stacked page, which scrolls. */
+
+/* Chips: a fighter's cards and lost stages on their one line. */
+.shell-root[data-theme="lubec"] .lubec-combat .fighter-effects { display: flex; gap: 0.2rem; margin: 0; padding: 0; list-style: none; }
+.shell-root[data-theme="lubec"] .lubec-combat :is(.fighter-effects, .turns .fighter-effects) li { display: block; padding: 0; border: 0; background: none; }
+.shell-root[data-theme="lubec"] .lubec-combat :is(.fighter-effect, .stage-lost) {
+  display: block; max-width: 4.6rem; overflow: hidden; padding: 0.12rem 0.3rem; border: 1.5px solid var(--lubec-rust); color: var(--lubec-rust); background: var(--lubec-cream);
+  font: 700 0.66rem/1.15 var(--lubec-condensed); letter-spacing: 0.06em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; cursor: pointer;
+}
+.shell-root[data-theme="lubec"] .lubec-combat .stage-lost { border-color: var(--lubec-mustard); color: #7a5410; cursor: help; }
+.shell-root[data-theme="lubec"] .lubec-combat .fighter-effect:hover { color: var(--lubec-cream); background: var(--lubec-rust); }
+.shell-root[data-theme="lubec"] .lubec-combat .fighter-effect:focus-visible { outline: 2px solid var(--lubec-blue); outline-offset: 1px; }
+
+/* The turn order: one line per fighter, the same height for everyone. */
+.shell-root[data-theme="lubec"] .lubec-combat .turns { display: grid; grid-auto-rows: var(--fighter-row, 2.6rem); }
+/* Name and chips share the first line; the role, Speed and roll have the whole second line. */
+.shell-root[data-theme="lubec"] .lubec-combat .turns li { grid-template-columns: 1.4rem minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: 0.4rem; row-gap: 0.1rem; align-content: center; padding: 0 0.45rem; min-height: 0; overflow: hidden; }
+.shell-root[data-theme="lubec"] .lubec-combat .turns .n { grid-row: 1 / 3; }
+.shell-root[data-theme="lubec"] .lubec-combat .turns :is(.nm, .words) { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .turns .words { grid-column: 2 / -1; grid-row: 2; }
+.shell-root[data-theme="lubec"] .lubec-combat .turns .tags { display: flex; grid-column: 3; grid-row: 1; gap: 0.2rem; align-items: center; min-width: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .turns .tags .badge { padding: 0.1rem 0.25rem; font-size: 0.55rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .turns .combatant-action { padding: 0; }
+
+/* The declarations: one line per fighter, the declaration cut to one line beside its split. */
+.shell-root[data-theme="lubec"] .lubec-combat .rail .decls { display: grid; grid-auto-rows: var(--fighter-row, 2.6rem); }
+.shell-root[data-theme="lubec"] .lubec-combat .rail .decls li { display: grid; align-content: center; gap: 0.12rem; min-height: 0; padding: 0 0.5rem; overflow: hidden; }
+.shell-root[data-theme="lubec"] .lubec-combat .rail .decls li.now { background: rgba(214, 154, 45, .3); box-shadow: inset 4px 0 0 var(--lubec-rust); color: var(--lubec-ink); }
+.shell-root[data-theme="lubec"] .lubec-combat .rail .decls .dn > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .rail .decls .dn .k { display: flex; flex: none; gap: 0.2rem; align-items: center; }
+.shell-root[data-theme="lubec"] .lubec-combat .rail .decls .dn .badge { padding: 0.08rem 0.2rem; font-size: 0.52rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .rail .decls .txt { display: grid; grid-template-columns: minmax(0, 1fr) 3.2rem; gap: 0.4rem; align-items: center; font: 700 0.64rem/1.2 var(--lubec-type); }
+.shell-root[data-theme="lubec"] .lubec-combat .rail .decls li.pend .txt { grid-template-columns: minmax(0, 1fr); }
+.shell-root[data-theme="lubec"] .lubec-combat .rail .decls .short { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .rail .decls .mini { margin: 0; }
+
+/* Before initiative: everyone in two columns, a short Sneak Attack button on each line. */
+.shell-root[data-theme="lubec"] .lubec-combat .roster.grants { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: var(--fighter-row, 2.6rem); column-gap: 0.9rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .roster.grants li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; min-height: 0; padding: 0 0.2rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .roster.grants .row-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .roster.grants .rowbtn { margin: 0; white-space: nowrap; }
+
+/* Rosters in the middle (initiative, Movement): one line per fighter, the name cut short before the badge and button. */
+.shell-root[data-theme="lubec"] .lubec-combat .roster.lines { display: grid; grid-auto-rows: var(--fighter-row, 2.6rem); }
+.shell-root[data-theme="lubec"] .lubec-combat .roster.lines li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 0.5rem; align-items: center; min-height: 0; padding-top: 0; padding-bottom: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .roster.lines .row-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .roster.lines :is(.rowbtn, .badge, select) { margin: 0; white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .roster.lines li:has(> select) { grid-template-columns: minmax(0, 1fr) minmax(0, 12rem); }
+.shell-root[data-theme="lubec"] .lubec-combat .roster.lines select { width: 100%; min-height: 0; padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .roster.lines .badge { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; }
+
+/* More than twelve in the fight: tighter lines, the second line of the turn order dropped. */
+.shell-root[data-theme="lubec"] .lubec-combat .ct[data-crowd="crowd"] { --fighter-row: 2.05rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .ct[data-crowd="crowd"] .turns .words { display: none; }
+
+@media (min-width: 1151px) and (min-height: 640px) {
+  .shell-root[data-theme="lubec"] .lubec-combat:has(> .ct.framed) { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-bottom: 0.6rem; }
+  .shell-root[data-theme="lubec"] .lubec-combat > .chead:has(+ .ct.framed) { flex: none; margin-bottom: 0.7rem; }
+  .shell-root[data-theme="lubec"] .lubec-combat .ct.framed { flex: 1 1 auto; grid-template-rows: minmax(0, 1fr) auto; align-items: stretch; min-height: 0; row-gap: 0.5rem; }
+  .shell-root[data-theme="lubec"] .lubec-combat .ct.framed > :is(.rail, .mid) { display: flex; flex-direction: column; gap: 0.7rem; min-height: 0; overflow: hidden; }
+  .shell-root[data-theme="lubec"] .lubec-combat .ct.framed > .rail > .panel { display: flex; flex-direction: column; min-height: 0; }
+  .shell-root[data-theme="lubec"] .lubec-combat .ct.framed > .rail > .panel:has(> :is(.turns, .decls)) { flex: 1 1 auto; }
+  .shell-root[data-theme="lubec"] .lubec-combat .ct.framed > .rail > .panel > :is(.turns, .decls) { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+  .shell-root[data-theme="lubec"] .lubec-combat .ct.framed > .mid > * { flex: none; }
+  .shell-root[data-theme="lubec"] .lubec-combat .ct.framed > .mid > .lubec-fight.inpage { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
+  .shell-root[data-theme="lubec"] .lubec-combat .ct.framed > .mid > .lubec-fight.inpage > .fight-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+}
+
+/* The attack windows (Declare, Sneak and round attacks): every slot one size, whatever the fight holds. */
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target.win-grid { gap: 0.5rem 0.9rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-heading { display: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-layout { grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); gap: 0.9rem; align-items: stretch; }
+/* Targets: always two rows of four tiles, the last a list of the rest when there are more than eight. */
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-layout .tlist { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, 3.3rem); gap: 0.4rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .tcell { min-width: 0; min-height: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .trow { position: relative; display: flex; flex-direction: column; justify-content: flex-start; width: 100%; height: 100%; min-height: 0; padding: 0.3rem 0.45rem; overflow: hidden; border-width: 2px; text-align: left; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .trow > .target-words { display: block; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-name { display: -webkit-box; margin: 0 0 0.05rem; overflow: hidden; font: 800 0.86rem/1.1 var(--lubec-type); overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .trow small { display: block; overflow: hidden; font-size: 0.64rem; text-overflow: ellipsis; white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-status { display: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .trow .badge { position: absolute; top: 0.2rem; right: 0.2rem; padding: 0.08rem 0.2rem; font-size: 0.5rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .trow:has(.badge) .target-name { padding-right: 3.6rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .tcell.more select { width: 100%; height: 100%; padding: 0 0.5rem; border: 2px dashed var(--lubec-ink); background: var(--lubec-cream); color: var(--lubec-rust); font: 800 0.8rem/1 var(--lubec-type); cursor: pointer; }
+/* Armor: one box the height of the two tile rows; past three lines the rest open over it. */
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-armor { position: relative; height: 7rem; max-height: none; overflow: visible; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-armor .wearing { height: 100%; overflow: hidden; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-armor .wear-head { padding-top: 0.3rem; padding-bottom: 0.25rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-armor .wear-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.4rem; align-items: center; padding-top: 0.12rem; padding-bottom: 0.12rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-armor .wear-row > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-armor .wear-row > span:first-child b { display: inline; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-armor .wear-row > span:first-child small { display: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-armor .nums i { min-width: 2.05rem; padding: 0.05rem 0.15rem; font-size: 0.78rem; line-height: 1.05; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .target-armor .nums small { display: block; font-size: 0.48rem; line-height: 1.1; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .wear-more { position: absolute; right: 0.4rem; bottom: 0.25rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .wear-more > summary { list-style: none; padding: 0.1rem 0.35rem; border: 1.5px solid var(--lubec-ink); background: var(--lubec-cream); font: 800 0.62rem/1.2 var(--lubec-type); cursor: pointer; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .wear-more > summary::-webkit-details-marker { display: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .wear-pop { position: absolute; z-index: 5; top: 100%; right: 0; width: 22rem; max-width: 70vw; margin-top: 0.25rem; padding: 0.3rem 0.5rem; border: 2px solid var(--lubec-ink); background: var(--lubec-cream); box-shadow: 4px 4px 0 rgba(23, 40, 43, 0.3); }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .wear-pop .wear-row > span:first-child { white-space: normal; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .wear-pop .wear-row > span:first-child small { display: block; }
+/* Hands and attacks: two cards a side, attacks in two columns when there are more than two. */
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .trow:not(:disabled):hover { box-shadow: 3px 3px 0 rgba(23, 40, 43, 0.25); }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .pick { min-height: 0; height: 3.4rem; padding: 0.95rem 0.55rem 0.3rem; overflow: hidden; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .pick small { margin-top: 0.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .inventory-hint { display: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .modes { grid-template-rows: repeat(2, 3.4rem); grid-auto-flow: column; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .modes:has(> :nth-child(3)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .mode { min-height: 0; height: 100%; padding: 0.3rem 0.6rem; overflow: hidden; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target .mode small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target.win-grid > div > .label { display: flex; align-items: flex-end; min-height: 1.7rem; margin-bottom: 0.25rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target.win-grid > div:has(> .weapon-choice) { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: start; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target.win-grid > div:has(> .weapon-choice) > .label { grid-row: 1; grid-column: 1; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target.win-grid > div:has(> .weapon-choice) > .weapon-choice { grid-row: 1; grid-column: 2; align-self: start; margin: 0 0 0.25rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .focus-target.win-grid > div:has(> .weapon-choice) > :not(.label, .weapon-choice) { grid-column: 1 / -1; }
+
+/* The notice line: beside who is declaring, always one line's height, the rest of the notices over the window from its count. */
+.shell-root[data-theme="lubec"] .lubec-combat .declare-top { display: flex; gap: 1rem; align-items: center; min-height: 2.2rem; margin: 0 0 0.5rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .declare-top > .declaration-actor { flex: none; margin: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .notice-slot { position: relative; display: flex; flex: 1 1 auto; gap: 0.4rem; align-items: stretch; min-width: 0; height: 2rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .notice-slot > .notice { display: flex; flex: 1 1 auto; align-items: center; min-width: 0; margin: 0; padding-top: 0; padding-bottom: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .notice-slot > .notice > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-root[data-theme="lubec"] .lubec-combat .notice-more { flex: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .notice-more > summary { display: grid; place-items: center; height: 100%; padding: 0 0.6rem; border: 2px solid var(--lubec-rust); color: var(--lubec-rust); background: var(--lubec-cream); font: 800 0.75rem/1 var(--lubec-type); list-style: none; cursor: pointer; }
+.shell-root[data-theme="lubec"] .lubec-combat .notice-more > summary::-webkit-details-marker { display: none; }
+.shell-root[data-theme="lubec"] .lubec-combat .notice-pop { position: absolute; z-index: 6; top: 100%; left: 0; right: 0; display: grid; gap: 0.3rem; margin-top: 0.25rem; padding: 0.4rem; border: 2px solid var(--lubec-ink); background: var(--lubec-cream); box-shadow: 4px 4px 0 rgba(23, 40, 43, 0.3); }
+.shell-root[data-theme="lubec"] .lubec-combat .notice-pop .notice { margin: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .notice-pop .notice > span { white-space: normal; }
+
+/* The bar and its rows below the choices. */
+.shell-root[data-theme="lubec"] .lubec-combat .declare-top ~ .ask-row .ask { font-size: 1.3rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .ask-row .fdcheck { margin: 0; }
+.shell-root[data-theme="lubec"] .lubec-combat .allocation-bar { height: 3rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .declare-top ~ .roll-controls { height: 2rem; }
+.shell-root[data-theme="lubec"] .lubec-combat .declare-top ~ .defense-lines { margin-top: 0.3rem; }

@@ -38,9 +38,9 @@ function PlayerRow({ combatant, onActFor }: { combatant: Combatant; onActFor: (k
   const [words, tone] = playerBadge(combatant.movement)
   return (
     <li>
-      <span>{combatant.name}<small className="inline">Player: chooses on their own screen</small></span>
-      <span className={`badge ${tone}`}>{words}</span>
-      {combatant.movement ? null : <button type="button" className="btn line small rowbtn" title="Use this if the player is away from the table" onClick={() => onActFor(combatant.key)}>Away: choose for {combatant.name}</button>}
+      <span className="row-line" title={combatant.name}>{combatant.name}</span>
+      <span className={`badge ${tone}`} title={words}>{words}</span>
+      {combatant.movement ? <span /> : <button type="button" className="btn line small rowbtn" title="Use this if the player is away from the table" aria-label={`Away: choose for ${combatant.name}`} onClick={() => onActFor(combatant.key)}>Choose for them</button>}
     </li>
   )
 }
@@ -51,7 +51,7 @@ function NpcRow({ combatant, options, value, onChoose }: NpcRowProps) {
   const shown = combatant.movement ? movementValue(combatant.movement) : value
   return (
     <li>
-      <span>{combatant.name}<small className="inline">NPC: you choose</small></span>
+      <span className="row-line" title={combatant.name}>{combatant.name}</span>
       <select aria-label={`${combatant.name} movement`} value={shown} disabled={Boolean(combatant.movement)} onChange={(event) => onChoose(event.target.value)}>
         {options.map(([option, label]) => <option key={option} value={option}>{label}</option>)}
       </select>
@@ -60,7 +60,7 @@ function NpcRow({ combatant, options, value, onChoose }: NpcRowProps) {
 }
 
 function OutRow({ combatant }: { combatant: Combatant }) {
-  return <li className="off"><span>{combatant.name}</span><span className="badge rust">Out</span></li>
+  return <li className="off"><span className="row-line">{combatant.name}</span><span className="badge rust">Out</span></li>
 }
 
 type LeaveProps = { combatant: Combatant; run: CombatRun; onAnswer: (confirm: boolean) => void }
@@ -88,7 +88,14 @@ function MovementRows({ roster, state, choices, onChoose, onActFor }: RowsProps)
     const options = npcOptions(state, Boolean(sheet && downCards(sheet, null).length), sheet ? combatMovementLimits(sheet, null) : LUBEC_FREE_MOVEMENT)
     return <NpcRow key={combatant.key} combatant={combatant} options={options} value={choices[combatant.key] ?? 'stay'} onChoose={(value) => onChoose(combatant.key, value)} />
   }
-  return <ul className="roster">{state.combatants.map(row)}</ul>
+  const npcs = state.combatants.filter((entry) => entry.kind === 'npc')
+  const players = state.combatants.filter((entry) => entry.kind !== 'npc')
+  return (
+    <div className="two-col">
+      <div><span className="label">You choose for the NPCs</span><ul className="roster spaced lines">{npcs.map(row)}</ul></div>
+      <div><span className="label">Players choose for themselves</span><ul className="roster spaced lines">{players.map(row)}</ul></div>
+    </div>
+  )
 }
 
 const choosingNpcs = (state: CombatState): Combatant[] => state.combatants.filter((entry) => entry.kind === 'npc' && entry.outReason === null && !entry.movement)

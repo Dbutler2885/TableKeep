@@ -220,7 +220,7 @@ describe('rolling initiative', () => {
   it('lets the GM roll every NPC with one button, or roll for an absent player', async () => {
     show('gm', 'gm', begun())
     expect(screen.getByText('Not rolled')).toBeTruthy()
-    expect(screen.getByText('Rolling on their screen')).toBeTruthy()
+    expect(screen.getByText('Rolling')).toBeTruthy()
     fireEvent.click(button('Roll for NPCs'))
     await waitFor(() => expect(sentOf('npcInitiative')).toHaveLength(1))
     fireEvent.click(button('Away: roll for Wayne Gardner'))

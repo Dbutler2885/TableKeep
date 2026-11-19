@@ -14,10 +14,10 @@ import { attackSum, initialDraft, labelPlace, segmentMiddle, withDefense, withWe
 import { attackWindowModel, type AttackReading, type AttackWindowModel } from './attackWindowModel'
 import { AttackDefenseLine, DefenseLineSelect } from './AttackWindowParts'
 import { combatFightCombatant, type CombatRosterRecords } from './combatFightCombatants'
-import { CombatStepper, CombatWindow } from './CombatParts'
-import { CombatRefusal } from './CombatParts'
+import { CombatStepper, CombatWindow, NoticeSlot, type SlotNotice } from './CombatParts'
 import { useCombatRun, type CombatRun } from './useCombatRun'
 import { aimedText, attackBadge, declaredAt } from './declarationsModel'
+import { declaredAtAttacker, orderedTargets } from './targetOrder'
 
 type WindowProps = {
   state: CombatState
@@ -35,14 +35,31 @@ type BodyProps = WindowProps & { fighter: LubecCombatant; sheet: LubecCharacterS
 const draftAttack = (declarer: Combatant): CombatAttack => ({ id: 'declare', grantId: null, attackerKey: declarer.key, step: 'aim', detached: [], closed: false })
 
 /** Who has declared at, or against, this declarer: they can answer with Full Defense. */
-function AimedNotice({ state, declarer }: { state: CombatState; declarer: Combatant }) {
+function aimedNotice(state: CombatState, declarer: Combatant): SlotNotice | null {
   const aimed = state.combatants.filter((entry) => entry.declaration && !entry.declaration.ran && declaredAt(entry.declaration, [declarer.key]))
   if (!aimed.length) return null
-  return (
-    <div className="notice hot">
-      <span>{aimed.map((entry) => <span key={entry.key}><b>{entry.name}</b> {aimedText(state, entry.declaration!, declarer.key)} </span>)}You can answer with Full Defense below, or attack and defend with what is left.</span>
-    </div>
-  )
+  const tail = 'You can answer with Full Defense below, or attack and defend with what is left.'
+  return {
+    key: 'aimed', tone: 'hot',
+    body: <>{aimed.map((entry) => <span key={entry.key}><b>{entry.name}</b> {aimedText(state, entry.declaration!, declarer.key)} </span>)}{tail}</>,
+    words: `${aimed.map((entry) => `${entry.name} ${aimedText(state, entry.declaration!, declarer.key)}`).join(' ')} ${tail}`,
+  }
+}
+
+type NoticeInputs = { state: CombatState; declarer: Combatant; refusal: string | null; evading: boolean; reach: string | null }
+
+/** Everything the Declare window has to say, most pressing first, for its one notice line. */
+function declareNotices({ state, declarer, refusal, evading, reach }: NoticeInputs): SlotNotice[] {
+  const rejected = 'The GM rejected your declaration. Choose again.'
+  const evasive = 'No attack this round: declare Full Defense against one person.'
+  const notices: (SlotNotice | null)[] = [
+    refusal ? { key: 'refusal', tone: 'hot', role: 'alert', body: refusal, words: refusal } : null,
+    declarer.declarationRejected ? { key: 'rejected', tone: 'hot', role: 'status', body: rejected, words: rejected } : null,
+    evading ? { key: 'evading', tone: 'cool', role: 'status', body: <><b>{declarer.name} moved evasively.</b> {evasive}</>, words: `${declarer.name} moved evasively. ${evasive}` } : null,
+    aimedNotice(state, declarer),
+    reach ? { key: 'reach', tone: 'cool', role: 'status', body: reach, words: reach } : null,
+  ]
+  return notices.filter((notice): notice is SlotNotice => notice !== null)
 }
 
 const targetNote = (state: CombatState) => (target: LubecCombatant): string => {
@@ -58,7 +75,7 @@ function DeclareChoices({ body, draft, setDraft, model, full }: ChoicesProps) {
       <LubecFightWindowContent
         focusTarget
         request={{ attacker: body.fighter, target: model.target, weaponItemId: draft.weaponItemId ?? undefined, attackId: draft.attackId ?? undefined }}
-        targets={model.targets} targetNote={targetNote(body.state)} targetBadge={(target) => attackBadge(body.state, lubecCombatantKey(target), body.declarer.key)} onInventory={body.onInventory} readOnly={full}
+        targets={orderedTargets(body.state, body.declarer, model.targets, declaredAtAttacker(body.state, body.declarer))} targetNote={targetNote(body.state)} targetBadge={(target) => attackBadge(body.state, lubecCombatantKey(target), body.declarer.key)} onInventory={body.onInventory} readOnly={full}
         onTarget={(key) => setDraft({ ...draft, targetKey: key })}
         onWeapon={(id) => setDraft(withWeapon(draft, body.sheet, id))}
         onAttack={(id) => setDraft({ ...draft, attackId: id })}
@@ -143,10 +160,6 @@ const draftNames = (draft: AttackDraft): string => draft.defense?.against ?? dra
 /** Full Defense names one person: the one picked for it, else whoever the draft names. */
 const guardedKey = (picked: string | null, draft: AttackDraft): string => picked ?? draftNames(draft)
 
-function ReachNotice({ reach, full }: { reach: string | null; full: boolean }) {
-  return reach && !full ? <div className="notice cool" role="status"><span>{reach}</span></div> : null
-}
-
 function DeclareBody(body: BodyProps) {
   const { state, declarer, sheet } = body
   const [draft, setDraft] = useState<AttackDraft>(() => initialDraft(draftAttack(declarer), sheet, combatOpponents(state, declarer).map((entry) => entry.key)))
@@ -161,13 +174,11 @@ function DeclareBody(body: BodyProps) {
   const guarded = guardedKey(against, draft)
   return (
     <>
-      <AimedNotice state={state} declarer={declarer} />
-      {declarer.declarationRejected ? <div className="notice hot" role="status"><span>The GM rejected your declaration. Choose again.</span></div> : null}
-      <CombatRefusal refusal={run.refusal} />
-      {evading ? <div className="notice cool" role="status"><span><b>{declarer.name} moved evasively.</b> No attack this round: declare Full Defense against one person.</span></div> : null}
-      <div className="declaration-actor"><small>Declaring now</small><strong>{declarer.name}</strong></div>
+      <div className="declare-top">
+        <div className="declaration-actor"><small>Declaring now</small><strong>{declarer.name}</strong></div>
+        <NoticeSlot notices={declareNotices({ state, declarer, refusal: run.refusal, evading, reach: full ? null : model.reach })} />
+      </div>
       <DeclareChoices body={body} draft={draft} setDraft={setDraft} model={model} full={full} />
-      <ReachNotice reach={model.reach} full={full} />
       {full ? <FullDefense {...parts} against={guarded} onAgainst={setAgainst} /> : <Split {...parts} />}
     </>
   )

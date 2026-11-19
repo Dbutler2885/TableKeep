@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { LubecKindGlyph } from '../../gear/LubecGearArt'
+import { OverPop } from '../../fight/OverPop'
 import type { CombatFloorItem } from './combatFloorRows'
 
 const PIPS = ['Movement', 'Declare', 'Attack'] as const
@@ -64,4 +65,28 @@ export function CombatFloorIcon({ item, small = false }: { item: CombatFloorItem
 /** The table's reason for refusing the last act, if it did. */
 export function CombatRefusal({ refusal }: { refusal: string | null }) {
   return refusal ? <div className="notice hot" role="alert"><span>{refusal}</span></div> : null
+}
+
+/** One notice for a fixed notice line: its tone, its words as one string for the title, and how a reader hears it. */
+export type SlotNotice = { key: string; tone: 'hot' | 'cool'; role?: 'alert' | 'status'; body: ReactNode; words: string }
+
+const SlotLine = ({ notice }: { notice: SlotNotice }) =>
+  <div className={`notice ${notice.tone}`} role={notice.role}><span title={notice.words}>{notice.body}</span></div>
+
+/**
+ * The window's one notice line, there whether or not it has anything to say, so a notice arriving moves nothing.
+ * It shows the first notice; the rest open over the window from a count beside it.
+ */
+export function NoticeSlot({ notices }: { notices: readonly SlotNotice[] }) {
+  const [first, ...rest] = notices
+  return (
+    <div className="notice-slot">
+      {first ? <SlotLine notice={first} /> : null}
+      {rest.length ? (
+        <OverPop className="notice-more" summary={`+${rest.length}`} label={`${rest.length} more notice${rest.length === 1 ? '' : 's'}`}>
+          <div className="notice-pop">{notices.map((notice) => <SlotLine key={notice.key} notice={notice} />)}</div>
+        </OverPop>
+      ) : null}
+    </div>
+  )
 }

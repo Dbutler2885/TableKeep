@@ -57,9 +57,9 @@ function RolledBadge({ combatant, waiting }: { combatant: Combatant; waiting: st
 function PlayerRow({ combatant, commands, run, busy }: { combatant: Combatant; commands: AttackCommands; run: (act: () => AttackAct) => void; busy: boolean }) {
   return (
     <li>
-      <span>{combatant.name}<small className="roster-speed"> · Speed {combatant.speed}</small></span>
-      <RolledBadge combatant={combatant} waiting="Rolling on their screen" />
-      {combatant.initiative ? null : <button type="button" className="btn line small rowbtn" title="Use this if the player is away from the table" disabled={busy} onClick={() => run(() => commands.initiative(combatant.key))}>Away: roll for {combatant.name}</button>}
+      <span className="row-line" title={`${combatant.name} · Speed ${combatant.speed}`}>{combatant.name}<small className="roster-speed"> · Speed {combatant.speed}</small></span>
+      <RolledBadge combatant={combatant} waiting="Rolling" />
+      {combatant.initiative ? null : <button type="button" className="btn line small rowbtn" title="Use this if the player is away from the table" aria-label={`Away: roll for ${combatant.name}`} disabled={busy} onClick={() => run(() => commands.initiative(combatant.key))}>Roll for them</button>}
     </li>
   )
 }
@@ -75,12 +75,12 @@ function GmInitiative({ state, commands }: { state: CombatState; commands: Attac
       <div className="two-col">
         <div>
           <span className="label">You roll for the NPCs</span>
-          <ul className="roster spaced">{npcs.map((npc) => <li key={npc.key}><span>{npc.name}<small className="roster-speed"> · Speed {npc.speed}</small></span><RolledBadge combatant={npc} waiting="Not rolled" /></li>)}</ul>
+          <ul className="roster spaced lines">{npcs.map((npc) => <li key={npc.key}><span className="row-line" title={`${npc.name} · Speed ${npc.speed}`}>{npc.name}<small className="roster-speed"> · Speed {npc.speed}</small></span><RolledBadge combatant={npc} waiting="Not rolled" /></li>)}</ul>
           <p className="roll-npcs"><button type="button" className="btn rust" disabled={act.busy || npcs.every((npc) => npc.initiative)} onClick={() => act.run(commands.npcInitiative)}>Roll for NPCs</button></p>
         </div>
         <div>
           <span className="label">Players roll for themselves</span>
-          <ul className="roster spaced">{players.map((player) => <PlayerRow key={player.key} combatant={player} commands={commands} run={act.run} busy={act.busy} />)}</ul>
+          <ul className="roster spaced lines">{players.map((player) => <PlayerRow key={player.key} combatant={player} commands={commands} run={act.run} busy={act.busy} />)}</ul>
         </div>
       </div>
     </RollWindow>

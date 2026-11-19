@@ -29,26 +29,30 @@ function rowWords(combatant: Combatant, userId: string): string {
 }
 
 function RowBadge({ out, now }: { out: boolean; now: boolean }) {
-  if (out) return <span className="badge rust">Out</span>
-  return now ? <span className="badge must">Now</span> : null
+  // The row's own look says both (struck through, or lit), so the words are for a screen reader.
+  if (out) return <span className="sr-only">Out</span>
+  return now ? <span className="sr-only">Now</span> : null
 }
 
 type RowProps = { state: CombatState; combatant: Combatant; place: number | null; userId: string; now: boolean; onOut?: (combatant: Combatant) => void; effects?: CombatEffectsAccess; onEffects: (effectId: string) => void }
 
-function ManageCombatant({ combatant, onOut }: Pick<RowProps, 'combatant' | 'onOut'>) {
-  if (!onOut) return null
+function ManageCombatant({ combatant, onOut }: { combatant: Combatant; onOut: (combatant: Combatant) => void }) {
   const label = combatant.outReason === null ? 'Take out' : 'Return'
   return <span className="combatant-action"><button type="button" className="btn line small" aria-label={`${label} ${combatant.name}`} onClick={() => onOut(combatant)}>{label}</button></span>
 }
 
+/** Each fighter keeps one line of the same height whatever they carry: the words cut short with their whole in the title, cards as chips. */
 function TurnRow({ state, combatant, place, userId, now, onOut, effects, onEffects }: RowProps) {
   const out = combatant.outReason !== null
+  const words = rowWords(combatant, userId)
   return (
-    <li className={`${combatant.kind === 'character' || combatant.ally ? 'friend' : 'foe'}${out ? ' out' : now ? ' now' : ''}`}>
+    <li className={`${combatant.kind === 'character' || combatant.ally ? 'friend' : 'foe'}${out ? ' out' : now ? ' now' : ''}`} title={`${combatant.name} · ${words}`}>
       <span className="n">{place ?? '·'}</span>
-      <span><span className="nm">{combatant.name}</span><small>{rowWords(combatant, userId)}</small><StageLossNotice state={state} combatantKey={combatant.key} /><FighterEffects combatant={combatant} access={effects} onOpen={onEffects} /></span>
-      <span><RowBadge out={out} now={now} /></span>
-      <ManageCombatant combatant={combatant} onOut={onOut} />
+      <span className="nm">{combatant.name}</span>
+      <small className="words">{words}</small>
+      <span className="tags">
+        {onOut ? <ManageCombatant combatant={combatant} onOut={onOut} /> : <><RowBadge out={out} now={now} /><StageLossNotice state={state} combatantKey={combatant.key} chip /><FighterEffects combatant={combatant} access={effects} onOpen={onEffects} /></>}
+      </span>
     </li>
   )
 }

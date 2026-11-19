@@ -54,28 +54,40 @@ function EffectsDialog({ combatant, sheet, access, effectId, onClose }: DialogPr
   )
 }
 
-/** One card under a fighter's name, itself the button that opens its details and actions: which card, what it does now, and what ends it. */
-function EffectLine({ line, onOpen }: { line: FighterEffectLine; onOpen: (effectId: string) => void }) {
+/** One card as a chip on the fighter's line, itself the button that opens its details and actions; its words are its name and title. */
+function EffectChip({ line, onOpen }: { line: FighterEffectLine; onOpen: (effectId: string) => void }) {
   return (
     <li>
-      <button type="button" className="fighter-effect" aria-label={`${line.words}. Open details and actions`} onClick={() => onOpen(line.id)}>
-        <b>{line.label}</b>
-        {line.now ? <span>{` · ${line.now}`}</span> : null}
-        {line.until ? <span className="until">{` · ${line.until}`}</span> : null}
-      </button>
+      <button type="button" className="fighter-effect" title={line.words} aria-label={`${line.words}. Open details and actions`} onClick={() => onOpen(line.id)}>{line.label}</button>
+    </li>
+  )
+}
+
+/** The chips a line has room for: two, and a count that opens the first of the rest. */
+const CHIPS = 2
+
+function MoreChip({ rest, onOpen }: { rest: readonly FighterEffectLine[]; onOpen: (effectId: string) => void }) {
+  if (!rest.length) return null
+  const words = rest.map((line) => line.words).join('; ')
+  return (
+    <li>
+      <button type="button" className="fighter-effect more" title={words} aria-label={`${rest.length} more: ${words}. Open details and actions`} onClick={() => onOpen(rest[0].id)}>+{rest.length}</button>
     </li>
   )
 }
 
 type FighterEffectsProps = { combatant: Combatant; access: CombatEffectsAccess | undefined; onOpen: (effectId: string) => void }
 
-/** A fighter's active cards under their name in the turn order, each opening its own details; nothing for a sheet this viewer cannot read. */
+/** A fighter's active cards as chips on their line in the turn order, each opening its own details; nothing for a sheet this viewer cannot read. */
 export function FighterEffects({ combatant, access, onOpen }: FighterEffectsProps) {
   const effects = access ? fighterSheet(combatant, access.roster)?.record.lubec.effects : undefined
   if (!effects?.length) return null
+  const lines = fighterEffectLines(effects)
+  const shown = lines.length > CHIPS ? lines.slice(0, CHIPS - 1) : lines
   return (
     <ul className="fighter-effects" aria-label={`${combatant.name}'s effects`}>
-      {fighterEffectLines(effects).map((line) => <EffectLine key={line.id} line={line} onOpen={onOpen} />)}
+      {shown.map((line) => <EffectChip key={line.id} line={line} onOpen={onOpen} />)}
+      <MoreChip rest={lines.slice(shown.length)} onOpen={onOpen} />
     </ul>
   )
 }

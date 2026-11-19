@@ -33,6 +33,10 @@ import { useCombatGmData } from './useCombatGmData'
 import { CombatDeathReminders } from './CombatDeathReminders'
 import { NO_SHEET_WRITERS, type CombatEffectsAccess, type CombatSheetWriters } from './fighterEffectsModel'
 import './lubecCombat.css'
+import './combatFrame.css'
+
+/** Past this many fighters the rails tighten their lines so everyone still fits. */
+const CROWD = 12
 
 type LayoutProps = { state: CombatState; userId: string; role?: CombatViewer['role']; stage?: string; tools?: ReactNode; middle: ReactNode; onPlace?: (() => void) | null; hands?: readonly string[]; headerActions?: ReactNode; onOut?: (combatant: Combatant) => void; placement?: ReactNode; effects?: CombatEffectsAccess }
 
@@ -42,7 +46,7 @@ function CombatLayout({ state, userId, role = 'gm', stage, tools = null, middle,
   return (
     <>
       <CombatHead round={view.round} stage={stage ?? view.stage} pips={view.pips} actions={headerActions} />
-      <div className="ct">
+      <div className="ct framed" data-crowd={state.combatants.length > CROWD ? 'crowd' : undefined}>
         <div className="rail"><TurnOrderPanel state={state} userId={userId} onOut={onOut} effects={effects} /></div>
         <div className="mid">{tools}{middle}</div>
         <div className="rail"><DeclarationsPanel state={state} viewer={{ role, userId, actingFor: null }} /><CombatFloorPanel floor={state.floor} onPlace={onPlace} hands={hands} placement={placement} /></div>

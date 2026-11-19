@@ -3,7 +3,7 @@ import { StageLossNotice } from './StageLossNotice'
 import type { ReactNode } from 'react'
 import type { Combatant, CombatDeclaration, CombatState } from '../engine/types'
 import { combatantName, type CombatViewer } from './attackWords'
-import { declaredAt, miniParts, slowestFirst, declaredUse, viewerKeys } from './declarationsModel'
+import { declarationShort, declarationText, declaredAt, miniParts, slowestFirst, declaredUse, viewerKeys } from './declarationsModel'
 import { CombatPanel } from './CombatParts'
 
 /** A runner has no split to show. */
@@ -30,19 +30,21 @@ export function DeclarationWords({ state, declaration }: { state: CombatState; d
   return <>{declaredUse(frozen!)} at <Name state={state} keyOf={aim!.targetKey} />. ATK {frozen!.attack}{lines}.</>
 }
 
+/** Every row keeps one height: name and tag above, the declaration cut to one line below, its whole sentence in the title. */
 function PendingRow({ place, combatant, mine, now }: { place: number; combatant: Combatant; mine: boolean; now: boolean }) {
   return (
-    <li className={`pend ${mine ? 'you' : ''}`}>
+    <li className={`pend ${mine ? 'you' : ''} ${now ? 'now' : ''}`}>
       <div className="dn"><span>{place} {combatant.name}</span><span className="k">{mine ? 'YOU' : ''}</span></div>
-      {now ? 'Declaring now...' : 'Has not declared yet'}
+      <div className="txt">{now ? 'Declaring now...' : 'Has not declared yet'}</div>
     </li>
   )
 }
 
 const rowTag = (mine: boolean, atYou: boolean): string => (mine ? 'YOU' : atYou ? 'AT YOU' : '')
 
-/** A declaration that will not run: its maker went Out, or came back after Declare. */
-const Stopped = ({ combatant }: { combatant: Combatant }) => <> <span className="badge rust">{combatant.outReason === null ? (combatIncapacity(combatant) ? `Stopped: ${combatIncapacity(combatant)}` : 'Stopped') : 'Stopped: Out'}</span></>
+/** Why a declaration will not run: its maker went Out, lost the stage, or came back after Declare. */
+const stoppedWords = (combatant: Combatant): string =>
+  (combatant.outReason === null ? (combatIncapacity(combatant) ? `Stopped: ${combatIncapacity(combatant)}` : 'Stopped') : 'Stopped: Out')
 
 /** A declaration that will not run any more is struck through. */
 const struck = (combatant: Combatant, declaration: CombatDeclaration): boolean => combatant.outReason !== null || combatSkipsStages(combatant) || declaration.stopped === true
@@ -55,13 +57,12 @@ function DeclaredRow({ state, place, combatant, declaration, mine }: RowProps) {
   const out = struck(combatant, declaration)
   // DeclarationRow supplies the proposal only when there is no approved declaration.
   const pending = !combatant.declaration
+  const title = [declarationText(state, declaration), pending ? 'Awaiting GM approval' : '', out ? stoppedWords(combatant) : ''].filter(Boolean).join(' ')
   return (
-    <li className={`${own ? 'you' : ''} ${atYou ? 'atyou' : ''}`}>
-      <div className="dn"><span>{place} {combatant.name}</span><span className="k">{rowTag(own, atYou)}</span></div>
-      {pending ? <span className="badge must">Awaiting GM approval</span> : null}
-      <StageLossNotice state={state} combatantKey={combatant.key} />
-      <DeclarationMini declaration={declaration} />
-      <div className={`txt ${out ? 'stopped' : ''}`}><DeclarationWords state={state} declaration={declaration} />{out ? <Stopped combatant={combatant} /> : null}</div>
+    <li className={`${own ? 'you' : ''} ${atYou ? 'atyou' : ''}`} title={title}>
+      <div className="dn"><span>{place} {combatant.name}</span><span className="k">{pending ? <span className="badge must">GM?</span> : null}{out ? <span className="badge rust">{stoppedWords(combatant)}</span> : null}<StageLossNotice state={state} combatantKey={combatant.key} chip />{rowTag(own, atYou)}</span></div>
+      <div className={`txt ${out ? 'stopped' : ''}`}><span className="short">{declarationShort(state, declaration)}</span><DeclarationMini declaration={declaration} /></div>
+      <span className="sr-only">{title}</span>
     </li>
   )
 }
